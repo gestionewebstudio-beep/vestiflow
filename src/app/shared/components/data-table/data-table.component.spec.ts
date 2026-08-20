@@ -269,12 +269,10 @@ describe('DataTableComponent', () => {
 });
 
 /**
- * ⛔ **Hover, cursore e fuoco distinguono un comando da un'informazione.**
- *
- * Il motore ha righe che intenzionalmente non si aprono — nel Registro
- * Corrispettivi solo le registrazioni manuali hanno una maschera dove andare —
- * e il mixin condiviso metteva l'hover su ogni `tr`: una riga informativa si
- * illuminava sotto il puntatore promettendo un'interazione che non arriva.
+ * ⭐ **La mano compare solo dove il clic apre la Modifica** (deciso il
+ * 20/08/2026). Il cambio di sfondo no: quello è lo stato comune di qualsiasi
+ * riga — passaggio del puntatore e selezione — e non deve divergere fra un
+ * riepilogo e l'altro.
  *
  * ⚠️ Il CSS non si può asserire da qui. Quello che si fissa è il **gancio**: la
  * classe e il `tabindex` che dicono quali righe sono comandi. Se sparisse la

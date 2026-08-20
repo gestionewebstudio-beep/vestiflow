@@ -1243,11 +1243,11 @@ L'azione copre gli otto profili di `DocumentListComponent`. Restano tre elenchi 
 passano, e **non sono lo stesso caso**: uno è pronto, uno non ha una destinazione, uno non ha
 nemmeno il dato per costruirla.
 
-| Elenco               | La destinazione esiste?                                                                               | Che cosa manca davvero        |
-| -------------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------- |
-| **Ordine fornitore** | ✅ `orders/:id` → `SupplierOrderDetailComponent`, titolo «Dettaglio ordine fornitore», gated in VISTA | **solo il pulsante**          |
-| **Ordine cliente**   | ⛔ **non esiste più**                                                                                 | una decisione, non del codice |
-| **Corrispettivi**    | ⛔ la riga non sa a quale documento appartiene                                                        | un campo nel payload dell'API |
+| Elenco               | La destinazione esiste?                                                                               | Che cosa manca davvero                   |
+| -------------------- | ----------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| **Ordine fornitore** | ✅ `orders/:id` → `SupplierOrderDetailComponent`, titolo «Dettaglio ordine fornitore», gated in VISTA | **solo il pulsante**                     |
+| **Ordine cliente**   | ⛔ **non esiste più**                                                                                 | ⏸ un **gap**, col rifacimento dei Detail |
+| **Corrispettivi**    | ✅ una per origine, cinque sorgenti                                                                   | un campo nel **DTO del client**          |
 
 ### ✅ Ordine fornitore: fatto il 20/08
 
@@ -1278,22 +1278,49 @@ apre il form gated; lo sblocco è dentro.
 | il form bloccato **sostituisce** il Dettaglio, ed è «la direzione giusta anche per gli altri tipi» | §7     |
 
 ⛔ **Un pulsante «Dettaglio» che apre il form bloccato non è una scorciatoia: è un secondo nome
-per la Modifica** — cioè esattamente ciò che §6 vieta. Finché la divergenza non è sciolta,
-l'azione su Ordini cliente **non si dichiara**: un comando che non ha dove andare è peggio di un
-comando assente.
+per la Modifica** — cioè esattamente ciò che §6 vieta. L'azione su Ordini cliente **non si
+dichiara** finché non c'è dove mandarla.
 
-### ⛔ Sui Corrispettivi manca il DATO, non il pulsante
+### ✅ CHIARITA — è un GAP, non un'eccezione _(deciso il 20/08/2026)_
 
-`CorrispettiviRegisterRow` porta `salesOrderId` (l'ordine online) e `manualReceiptId` (la
-registrazione manuale). **Non porta l'id del documento**: la riga «Vendita al banco» nasce da un
-documento, e quel documento il client non sa qual è.
+⚠️ Questo documento aveva impostato la scelta come «o l'Ordine cliente riprende un Dettaglio, o è
+l'eccezione dichiarata». **Non è una scelta fra due strade**: la decisione di §6 vale e non si
+riapre — il Dettaglio è una funzione distinta dalla Modifica, per tutti.
 
-Oggi si apre **solo la registrazione manuale**, e solo a chi può correggerla
-(`isOpenable`): tutte le altre righe sono informative per costruzione.
+> **Che oggi il vecchio Detail non esista più non è un argomento**: è la descrizione del gap, non
+> la sua giustificazione. Sull'Ordine cliente il Dettaglio **manca**, e si affronta col
+> rifacimento dei Detail — che §E4 ha rimandato alla seconda fase.
 
-⭐ **Quindi l'azione non è rinviata per prudenza: non è costruibile.** Serve prima che l'API
-dica a quale documento appartiene la riga — ed è un lavoro suo, che tocca il contratto del
-registro (`docs/10`), non la barra azioni.
+⛔ **Non si costruisce ora un falso Dettaglio** che apre il form: sarebbe debito che poi va
+disfatto, e insegnerebbe all'operatore che i due comandi sono la stessa cosa.
+
+### ⛔ CORRETTA — sui Corrispettivi il dato c'è, e si perde nel DTO del client
+
+⚠️ **Qui c'era «manca il dato, non il pulsante», ed era una misura fatta male**: guardava il
+modello del frontend e concludeva sull'API. Rifatta il 20/08/2026 sul servizio del backend, dove
+il registro le righe le costruisce.
+
+⭐ **Il Registro aggrega CINQUE sorgenti, e ognuna ha già il suo identificativo canonico**
+(`corrispettivi.service.ts`): non serve «un `documentId` per tutti», serve il riferimento giusto
+per ciascuna origine.
+
+| Origine               | `rowId`            | Identificativo canonico              | Arriva al client?  | Dove porterebbe il Dettaglio                       |
+| --------------------- | ------------------ | ------------------------------------ | ------------------ | -------------------------------------------------- |
+| Ordine online         | `sale:<id>`        | `salesOrderId`                       | ✅                 | `/app/online-sales/:id` «Dettaglio vendita online» |
+| Reso online           | `refund:<id>`      | `salesOrderId` dell'ordine originale | ✅                 | idem, l'ordine da cui il reso nasce                |
+| **Vendita al banco**  | `store:<id>`       | **`documentId`**                     | ⛔ **non mappato** | `/app/vendita-al-banco/:id` ✅ esiste              |
+| **Reso al banco**     | `storeReturn:<id>` | **`documentId`**                     | ⛔ **non mappato** | idem                                               |
+| Corrispettivo manuale | `manual:<id>`      | `manualReceiptId`                    | ✅                 | ⛔ **non esiste un Dettaglio**: solo `/modifica`   |
+
+⛔ **L'API espone `documentId`** (`corrispettivi.service.ts:150`, valorizzato sulle due righe di
+banco). Il **DTO del frontend non lo dichiara**, quindi il mapping non lo trasporta
+(`corrispettivi.service.ts` del client, righe 28-29 e 228-229). È un campo da aggiungere, non un
+dato da inventare.
+
+⚠️ **E resta una domanda che il censimento apre, non chiude**: il Corrispettivo manuale ha una
+maschera di **modifica** e nessuna consultazione. Dargli un Dettaglio è una decisione di prodotto
+— non si risolve mandando il pulsante sulla maschera di modifica, che sarebbe di nuovo un secondo
+nome per la Modifica.
 
 ---
 
@@ -1530,10 +1557,15 @@ contenuto. Il ritiro appartiene allo stesso passo che porta `fixed` + `nowrap` +
 l'ellissi ce l'ha da prima dell'assorbimento (era `.doc-table__counterparty`). Passa al clipping
 come tutti gli altri — è la nuova grammatica comune, ma va guardato.
 
-### ⏸ Il pattern mobile è ereditabile — per ora
+### ✅ Il pattern mobile è il RIFERIMENTO — confermato a schermo il 20/08/2026
 
-> **Per ora gli altri riepiloghi possono ereditare il pattern mobile dei Corrispettivi.**
-> Vale **solo per i riepiloghi**, non per i documenti né per altre schermate.
+> **La resa compatta a card del Registro si preserva, ed è per ora il riferimento mobile degli
+> altri riepiloghi.** Vale **solo per i riepiloghi**: non si estende a form e documenti, che
+> hanno la loro anatomia (§7).
+
+⚠️ **Il chevron della card NON è un'espansione**: naviga verso una destinazione, e le righe che
+non si aprono non ce l'hanno (lo spazio sì, il segno no). Averlo scambiato per un'apertura di
+dettaglio è ciò che aveva prodotto il falso gap «righe espandibili» in §H14.
 
 ⚠️ «Per ora» è la parola che conta: non apre la promozione dell'anatomia a componente
 condiviso. Quella soglia resta quella di §F5 — il **secondo** riepilogo che la adotta davvero.
@@ -1989,8 +2021,12 @@ colonna può essere `code` e ordinarsi come data.
 ⛔ **Non è una migrazione meccanica**, e trattarla come tale la romperebbe. Tre cose che il
 motore non ha:
 
-1. **Righe espandibili** — un `<tr>` con `colspan` sotto la riga, per il dettaglio. Il motore non
-   ha il concetto, e aggiungerlo è una capacità nuova, non un adattamento.
+1. ⛔ **RITIRATO — le righe espandibili non esistono.** Verificato a schermo dal proprietario il
+   20/08/2026, e confermato nel markup: i due `colspan` del Registro sono l'**intestazione di
+   giornata** e l'**etichetta del subtotale**, cioè raggruppamento, non espansione. Il
+   `pi-chevron-down` sta nel pulsante «Mostra le altre N righe»; quello della card mobile è un
+   `pi-chevron-right` che indica **navigazione**, e le righe che non si aprono non ce l'hanno.
+   Era una misura sbagliata: il `colspan` letto come apertura di dettaglio.
 2. **Una vista mobile INTERNA alla tabella** — una cella card per riga (`colspan` + `aria-hidden`),
    non un fratello come negli ordini cliente. Il ripiego a card del motore è un altro
    meccanismo: farli coesistere darebbe due viste della stessa riga.
@@ -2000,9 +2036,33 @@ motore non ha:
 ✅ Il **piede di giornata** invece mappa esattamente su `DataTableSectionFooter`, che era stato
 progettato per lui e non era mai stato esercitato.
 
-⭐ **Il pezzo che decide è il punto 1.** Righe espandibili è una funzione che serve anche altrove
-(un elenco documenti che mostri le righe senza aprire il documento): vale la pena farla, ma va
-fatta come estensione dichiarata del motore, non di straforo dentro una migrazione.
+⭐ **Caduto il punto 1, quello che decide è il punto 2**: la card mobile progettata. Non è il
+ripiego `data-label` del motore, e farli coesistere darebbe due viste della stessa riga.
+
+### ⚠️ Attenzione: l'espansione ESISTE, ma è dei DOCUMENTI
+
+_Segnalato dal proprietario il 20/08/2026: «in nuovo ordine cliente, da mobile, le righe sono
+espandibili». Verificato._
+
+⛔ **Il ritiro qui sopra riguarda i RIEPILOGHI, non le maschere.** Nelle maschere documento
+l'espansione c'è, è progettata e **è già un componente condiviso**:
+`app-document-line-card` (`domain/documents/components/document-line-card`), con `open` /
+`toggled`, usata da **sette** maschere — ordine cliente, vendita, arrivo merce, ordine
+fornitore, movimenti di magazzino, corrispettivo manuale, documenti di vendita. Nel form dello
+ordine cliente lo stato è `openLineCard`: **una card aperta alla volta**.
+
+⭐ **Sono due pattern mobili diversi, e la differenza è di mestiere:**
+
+|              | Card di **riepilogo**           | Card di **riga documento**          |
+| ------------ | ------------------------------- | ----------------------------------- |
+| a che serve  | consultare                      | **compilare**                       |
+| il chevron   | **naviga** a una destinazione   | **apre** i campi della riga         |
+| chi la porta | markup della feature (Registro) | `app-document-line-card`, condivisa |
+
+⚠️ È la ragione tecnica dietro la regola di §G4 «vale **solo per i riepiloghi**, non per i
+form»: non sono due varianti della stessa card, sono due componenti con due mestieri. Portare
+l'una nell'altra darebbe una card di consultazione che apre campi editabili, o una riga da
+compilare che al tocco naviga via.
 
 ---
 
@@ -2101,6 +2161,24 @@ dal motore — coincide con la misura di §G3.
 > prima pagina riordinata e la chiama «la più recente». Accenderlo lì richiede il supporto
 > dell'API — è lavoro di contratto, non un `input` da mettere a `true`.
 
+### ✅ È LAVORO DA COMPLETARE, non una capacità da lasciare spenta _(deciso il 20/08/2026)_
+
+⚠️ Questa sezione poteva leggersi come «sugli elenchi paginati l'ordinamento non si fa». Non è
+così: **fa parte della convergenza**, e va completato.
+
+> **Sugli elenchi paginati il sorting deve riguardare l'INTERO RISULTATO FILTRATO**, non la
+> pagina che si sta guardando. Cioè: parametro di ordinamento nella query, ordinamento nel
+> database, e il motore che si limita a mostrare lo stato e a emettere il cambio — che è già
+> come è fatto (`sortChange`, lo stato sta nella pagina, §H4).
+
+⭐ **La forma del contratto esiste già** e non va inventata: `corrispettivi-sort.util.ts` lato
+API ordina il registro, e i Movimenti dimostrano il giro completo lato client. Quello che manca è
+il parametro nelle tre query paginate e la traduzione in `ORDER BY`.
+
+⛔ **Il criterio per non sbagliare**: se l'API non sa ordinare per una colonna, quella colonna
+dichiara `sortable: false` — meglio una colonna che non si ordina di una che ordina venti righe
+su centoventisette senza dirlo.
+
 ⚠️ Nessuna delle tre pagine paginate manda oggi un parametro di ordinamento all'API: verificato,
 non esiste `sortBy` né equivalente nelle loro query.
 
@@ -2135,21 +2213,60 @@ concetto di «riga cliccabile» non hanno, e restringere là toglierebbe l'hover
 La guardia è nei test del motore: il CSS da lì non si asserisce, ma **la classe e il `tabindex`
 sì** — e se sparissero, lo stile smetterebbe di agire in silenzio.
 
-### ⚠️ Un effetto misurato che va guardato: i Movimenti perdono l'hover di riga
+### ✅ RISOLTA — due segnali distinti, deciso dal proprietario il 20/08/2026
 
-I Movimenti passano `[selectedIds]` ma **non** `[rowClickable]`: le loro righe non si aprono —
-giustamente, un movimento non è un documento — quindi da oggi non si illuminano più al
-passaggio del puntatore.
+La domanda era se l'hover dovesse seguire il click o l'interattività. La risposta separa le due
+cose, e **nessuna delle due opzioni proposte era quella giusta**:
 
-⛔ **È la regola applicata alla lettera** («una riga puramente informativa non deve sembrare
-interattiva»), ma quelle righe una casella ce l'hanno: sono **selezionabili senza essere
-apribili**, un terzo caso che la regola non nomina.
+| Segnale              | A chi tocca                                                                                                        |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| **cambio di sfondo** | a **qualsiasi** riga — è lo stato del puntatore e della selezione, e non deve divergere fra un riepilogo e l'altro |
+| **mano** (`cursor`)  | **solo dove il clic apre davvero la Modifica**                                                                     |
 
-> **Domanda aperta al proprietario**: l'hover di riga deve seguire il _click_ (com'è ora) o
-> l'_interattività_ — cioè anche la sola selezionabilità? È una riga di CSS, ma cambia la resa
-> di una schermata in uso, e non va decisa di straforo.
+⛔ Il primo tentativo aveva ristretto l'hover alle sole righe cliccabili, e i Movimenti — che si
+selezionano ma non si aprono — l'avevano perso: **una divergenza fra riepiloghi**, cioè
+esattamente ciò che questo lavoro esiste per togliere. L'hover è tornato al mixin condiviso, su
+ogni riga; nel motore resta la sola mano.
 
----
+### ⭐ TRE predicati, non uno — deciso il 20/08/2026
+
+> **`canEdit` (apre il form) · `canViewDetail` (consultazione read-only) · `canSelect` (entra in
+> una selezione) sono tre domande diverse, e vanno tenute distinte ovunque.**
+
+⛔ **Il difetto che questa regola previene era già stato commesso in questo documento**: da «sui
+Corrispettivi le righe non si aprono» era stato dedotto «quindi niente Dettaglio». Non discende —
+**una riga non modificabile può benissimo avere un Dettaglio**, ed è il caso normale, non
+l'eccezione.
+
+| Predicato       | Risponde a                                         | Oggi nel codice                                           |
+| --------------- | -------------------------------------------------- | --------------------------------------------------------- |
+| `canEdit`       | il clic di riga apre la Modifica?                  | ✅ `canOpenDocumentForm`; nel motore `rowClickableWhen`   |
+| `canViewDetail` | esiste una consultazione, e questo utente la vede? | ⛔ **non esiste**: c'è il guard di rotta e basta          |
+| `canSelect`     | la riga può entrare in una selezione?              | ⛔ **non esiste per riga**: `selectionMode` è per TABELLA |
+
+### ⏸ «Non modificabile ⇒ non selezionabile» — registrata, applicazione da chiudere
+
+_Deciso il 20/08/2026: una riga che non si apre in Modifica non deve essere selezionabile; se la
+colonna checkbox resta per allineamento, la casella si mostra **disabilitata**._
+
+⛔ **La capacità per riga nel motore non esiste** (`selectionMode` è per tabella) e **non è stata
+costruita adesso**, per una ragione misurata: applicata alla lettera oggi, la regola
+**toglierebbe funzioni che esistono e servono**.
+
+| Dove                    | Che cosa succederebbe                                                                                                            |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **Movimenti**           | nessuna riga apre una Modifica → **nessuna riga selezionabile** → spariscono Stampa ed Esporta su selezione, che oggi funzionano |
+| **documenti annullati** | `documentRowPath` li manda al Dettaglio → **non più selezionabili**, quindi non stampabili né esportabili in gruppo              |
+
+⭐ **Il punto in comune**: lì la selezione non serve a modificare, serve alle azioni di **sola
+lettura**. La formulazione che regge tutti i casi noti è quindi da chiudere col proprietario, e
+la candidata è:
+
+> una riga non è selezionabile quando **nessuna azione della barra può agirci sopra** — non
+> quando non è modificabile.
+
+⚠️ Finché non è deciso il motore resta com'è: un predicato per riga senza consumatori sarebbe la
+terza API senza chiamanti dopo `appRowCard` e `rowClickableWhen`.
 
 # G · COLONNE DEI RIEPILOGHI — deciso il 20/08/2026
 
@@ -2254,6 +2371,14 @@ l'unica adottata anche fuori dal motore. Chi non ce l'ha: Ordini fornitore (dich
 ⚠️ **`appRowCard` e `rowClickableWhen` non hanno consumatori in produzione**: il primo
 nemmeno nei test, il secondo solo lì. È il debito nominato in §H14, e la sua scadenza resta
 quella — se i Corrispettivi non si riprendono, vanno tolti.
+
+⛔ **«Righe espandibili» è uscita da questo elenco il 20/08**: il **Registro** non ne ha, né
+desktop né mobile. Era una misura sbagliata — un `colspan` di raggruppamento letto come apertura
+di dettaglio — e teneva in vita un gap che non esiste.
+
+⚠️ **Nelle maschere documento invece l'espansione c'è**, ed è `app-document-line-card`, condivisa
+da sette maschere (§H14). Non è lo stesso pattern e non va confuso: là il chevron apre i campi da
+compilare, nel riepilogo naviga.
 
 ## I2. Che cosa è specifico, e deve restarlo
 
