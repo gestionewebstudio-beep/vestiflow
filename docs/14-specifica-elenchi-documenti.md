@@ -409,35 +409,8 @@ alimenta la matrice della parte E.
 
 ---
 
-## 6-bis. _(testo originale, superato dalla sezione qui sopra)_
-
-### Documento
-
-È la maschera gestionale completa. Può mostrare, secondo il tipo: prodotto/descrizione,
-SKU, variante, immagine/miniatura, quantità, prezzi, sconti, IVA, location, movimenti e
-altri dati operativi.
-
-### Anteprima
-
-È una **rappresentazione di consultazione/stampa del documento**, non una seconda maschera
-read-only che replica il form.
-
-```text
-Apri documento → modifica
-Anteprima      → come viene rappresentato/stampato il documento
-```
-
-L'anteprima può diventare la base comune per anteprima a video, PDF e stampa.
-
-Non è obbligatorio mostrare nell'anteprima tutti i dati operativi presenti nel form: per
-esempio immagini e dettagli variante possono essere utili nella maschera e non nella stampa.
-
-⚠️ **La DISTINZIONE qui sopra è decisa; l'AZIONE «Anteprima» no** _(rivisto il 20/08/2026)_.
-Che l'anteprima non sia il dettaglio operativo resta fermo. Che compaia come pulsante della
-barra contestuale su ogni elenco è una scelta di matrice, e sta fra le azioni candidate
-della parte E — non in questa fetta.
-
----
+> ⛔ **Il testo originale di §6 è stato TOLTO il 20/08/2026**, non superato in silenzio:
+> chiamava «Anteprima» la consultazione e la cercava nella resa di stampa: due parole ritirate dal vocabolario. La versione vigente è quella qui sopra, e la vecchia sta in git.
 
 ## 7. ⛔ CORRETTA — il Dettaglio si tiene, ma va giudicato
 
@@ -459,18 +432,8 @@ Gli esiti possibili diventano quindi tre, e nessuno è «via»:
 ⚠️ La classificazione dei consumer resta comunque da fare: una rotta che nessuno raggiunge è un
 altro problema, e si risolve dandole un ingresso (l'azione Dettaglio), non togliendola.
 
-### 7-bis. _(testo originale)_
-
-Le attuali pagine `DetailComponent` non vanno considerate automaticamente corrette solo
-perché esistono. Prima di rimuoverle, classificare i consumer. Esiti possibili:
-
-1. **riuso come vera Anteprima**, se il componente rappresenta già il documento stampabile;
-2. **riduzione a wrapper** dell'anteprima/PDF, se contiene logica duplicata;
-3. **rimozione**, se la funzione è coperta da anteprima/stampa e non ha consumer residui.
-
-Non mantenere una pagina «Dettaglio» solo per conservare una vecchia rotta.
-
----
+> ⛔ **Il testo originale di §7 è stato TOLTO il 20/08/2026**, non superato in silenzio:
+> diceva di **rimuovere** le pagine Dettaglio senza consumer, ed è la conclusione opposta a quella decisa. La versione vigente è quella qui sopra, e la vecchia sta in git.
 
 ## 8. Stampa
 

@@ -539,6 +539,51 @@ Per architetture non banali (> 1 service, decisioni di design discutibili): cart
 
 ---
 
+# ⛔ TESTO MORTO NELLE SPECIFICHE — misurato il 20/08/2026
+
+Le regole qui sotto valgono per il codice. **Per i documenti non esisteva la regola
+corrispondente**, e si vede nella misura:
+
+```text
+ultimi 30 commit su docs/     4332 righe aggiunte · 263 tolte   → 1 tolta ogni 16
+una giornata di lavoro         593 righe aggiunte ·  13 tolte   → 1 tolta ogni 45
+```
+
+⛔ **Le specifiche crescono, non si potano.** Il risultato non è un archivio: è che chi apre un
+documento per sapere una cosa attraversa la cronaca di come si è arrivati a saperla, trova la
+stessa decisione in otto punti, e **richiede quello che è già scritto**. È successo, ed è il
+sintomo che ha fatto misurare.
+
+> **Quando una decisione ne sostituisce un'altra, il testo vecchio SI CANCELLA.** Resta al suo
+> posto **una riga** che dice che cosa è cambiato — e solo se serve a qualcuno che verrà.
+
+## Il criterio: valore preventivo, non archivistico
+
+| Si conserva                                                    | Si cancella                                                |
+| -------------------------------------------------------------- | ---------------------------------------------------------- |
+| l'errore **rischia di tornare** («qui c'era X, e portava a Y») | la versione precedente di una decisione, per intero        |
+| la **misura** che ha smentito un'ipotesi (numeri, date, file)  | il ragionamento che ha portato alla decisione vecchia      |
+| ciò che **non si deve rifare**, con la ragione                 | sezioni marcate «(testo originale)», «superato da», «-bis» |
+
+⭐ **Git è l'archivio**, e non serve un secondo archivio dentro il documento: la versione
+precedente si recupera con `git log -p`, mentre una sezione morta lasciata nel testo la legge
+chi cerca la risposta di oggi.
+
+⚠️ **Il primo taglio è stato fatto su `docs/14`**: due sezioni che il documento stesso
+dichiarava superate («§6-bis (testo originale, superato dalla sezione qui sopra)», «§7-bis»)
+sono state tolte e sostituite da una riga che dice **che cosa dicevano di sbagliato**. Il resto
+dei documenti non è stato toccato: la potatura si fa quando si lavora su un documento, non in
+un passaggio unico che nessuno rivedrebbe.
+
+## E se un documento ha smesso di rispondere: prima la testata
+
+⭐ Prima di riorganizzare duemila righe, **una tabella delle decisioni vigenti in cima** —
+una riga per decisione, il puntatore alla sezione che la argomenta, e la dichiarazione che in
+caso di contrasto vince la tabella. Costa poco, è additiva e reversibile, e toglie il sintomo
+peggiore: quello di dover rileggere tutto per sapere cosa vale oggi.
+
+---
+
 # CODICE NON TOCCATO — Regole
 
 - Codice morto (file non importati, funzioni non chiamate): rimuovi entro 30 giorni dall'identificazione. USA `unused-imports` plugin + analisi periodica con `ts-prune` o equivalente.
