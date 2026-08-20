@@ -63,7 +63,7 @@ describe('documentOpenPath', () => {
   });
 
   /**
-   * ⛔ Qui c'era «documenti di vendita: anteprima dettaglio dedicata per tipo»,
+   * ⛔ Qui c'era «documenti di vendita: Dettaglio dedicato per tipo»,
    * e sotto «tipi operativi restanti: dettaglio generico». Erano la fotografia
    * del comportamento vecchio: la stessa applicazione apriva un preventivo in
    * modifica e una fattura in sola lettura, e la differenza dipendeva
@@ -123,8 +123,8 @@ describe('documentOpenPath', () => {
   });
 
   /** §2.1: nessuna falsa maschera editabile dove il dominio non ne ha una. */
-  it('⛔ l’inventario fisico non ha maschera documentale: anteprima', () => {
-    expect(DOCUMENT_ROW_OPENS[DocumentType.Inventory]).toBe('preview');
+  it('⛔ l’inventario fisico non ha maschera documentale: Dettaglio', () => {
+    expect(DOCUMENT_ROW_OPENS[DocumentType.Inventory]).toBe('detail');
     expect(documentOpenPath(doc(DocumentType.Inventory), TITOLARE)).toBe('/app/documents/doc-1');
   });
 
@@ -133,7 +133,7 @@ describe('documentOpenPath', () => {
    * elenco: prima valeva per le registrazioni fattura e per i profili «in stile
    * Arrivi merce», e non per gli altri.
    */
-  it('⚠️ un documento annullato apre l’anteprima, qualunque sia il tipo', () => {
+  it('⚠️ un documento annullato apre il Dettaglio, qualunque sia il tipo', () => {
     expect(documentOpenPath(doc(DocumentType.Quote, DocumentStatus.Cancelled), TITOLARE)).toBe(
       '/app/documents/quote/doc-1',
     );
@@ -173,7 +173,7 @@ describe('documentOpenPath', () => {
  * ⛔ **La porta finta**: la regola «la riga apre la modifica» vale solo per chi
  * quella maschera può aprirla.
  *
- * Le rotte di modifica chiedono `familyManage`, quelle di anteprima
+ * Le rotte di modifica chiedono `familyManage`, quelle di Dettaglio
  * `familyView`. Un operatore in sola consultazione l'elenco lo vede eccome — è
  * gated in vista — quindi senza questo filtro ogni suo clic finirebbe contro il
  * guard e lo rimbalzerebbe alla dashboard.
@@ -182,7 +182,7 @@ describe('documentOpenPath', () => {
  * `rowOpensForm: true` e la sua rotta chiede `familyManage`. Riguardava una
  * lista sola; rendere la regola comune lo avrebbe portato su tutte.
  */
-describe('documentRowPath — chi non può gestire resta sull’anteprima', () => {
+describe('documentRowPath — chi non può gestire resta sul Dettaglio', () => {
   const doc = (type: DocumentType) => ({
     id: 'doc-1',
     type,
@@ -195,7 +195,7 @@ describe('documentRowPath — chi non può gestire resta sull’anteprima', () =
     );
   });
 
-  it('⛔ sola consultazione: anche le fatture restano sull’anteprima', () => {
+  it('⛔ sola consultazione: anche le fatture restano sul Dettaglio', () => {
     expect(documentRowPath(doc(DocumentType.InvoiceDraft), SOLA_CONSULTAZIONE)).toBe(
       '/app/documents/fattura/doc-1',
     );

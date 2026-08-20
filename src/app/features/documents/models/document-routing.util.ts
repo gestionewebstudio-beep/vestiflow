@@ -118,10 +118,10 @@ export function documentEditPath(doc: {
  * maschera di un altro documento.
  *
  * `'form'` = ha una maschera operativa e la riga ci porta.
- * `'preview'` = non ne ha una (§2.1: non si inventa una falsa maschera
+ * `'detail'` = non ne ha una (§2.1: non si inventa una falsa maschera
  * editabile solo per uniformità).
  */
-export const DOCUMENT_ROW_OPENS: Readonly<Record<DocumentTypeValue, 'form' | 'preview'>> = {
+export const DOCUMENT_ROW_OPENS: Readonly<Record<DocumentTypeValue, 'form' | 'detail'>> = {
   // Famiglia carico: un'unica maschera per i tre.
   [DocumentType.GoodsReceipt]: 'form',
   [DocumentType.ManualLoad]: 'form',
@@ -147,17 +147,28 @@ export const DOCUMENT_ROW_OPENS: Readonly<Record<DocumentTypeValue, 'form' | 'pr
   // ⛔ L'inventario fisico NON ha una maschera documentale: il conteggio ha un
   // flusso proprio in `/app/inventory/counts`. È il caso del §2.1 — inventarne
   // una qui vorrebbe dire costruire una porta che non porta da nessuna parte.
-  [DocumentType.Inventory]: 'preview',
+  [DocumentType.Inventory]: 'detail',
 };
 
 /**
- * L'ANTEPRIMA del documento: la sua rappresentazione di consultazione (`14` §6).
+ * Il **Dettaglio** del documento: la vista di CONSULTAZIONE, in sola lettura
+ * (`14` §6).
  *
- * ⚠️ Non è «il dettaglio»: è dove si guarda un documento senza aprirlo per
- * lavorarci. Per i tipi che hanno una pagina dedicata è quella, per gli altri il
- * dettaglio generico.
+ * ⛔ Qui c'era «l'ANTEPRIMA … non è il dettaglio», ed è rovesciato: il
+ * proprietario ha deciso il 20/08/2026 che il nome VestiFlow della
+ * consultazione è **Dettaglio** — la parola che l'operatore legge già nei
+ * titoli di pagina e in guida. «Anteprima» esce dal vocabolario: un secondo
+ * nome per la stessa cosa insegna un termine che poi non si ritrova da
+ * nessun'altra parte.
+ *
+ * ⚠️ **Non è la stampa.** `documents/:id/print` è il foglio di stampa, che è
+ * una terza funzione: che un documento si stampi non dice niente su come lo si
+ * consulta.
+ *
+ * Per i tipi che hanno una pagina dedicata è quella, per gli altri il dettaglio
+ * generico.
  */
-export function documentPreviewPath(doc: {
+export function documentDetailPath(doc: {
   readonly id: string;
   readonly type: DocumentTypeValue;
 }): string {
@@ -189,7 +200,7 @@ export function documentPreviewPath(doc: {
  *
  * ⛔ **È lo specchio dei guard delle rotte di modifica**, e senza di esso la
  * regola «la riga apre la modifica» diventa una porta finta: le rotte di
- * modifica chiedono `familyManage`, quelle di anteprima `familyView`, e un
+ * modifica chiedono `familyManage`, quelle di Dettaglio `familyView`, e un
  * operatore in sola consultazione — che l'elenco lo vede eccome — verrebbe
  * rimbalzato dal guard a ogni clic.
  *
@@ -228,11 +239,11 @@ export function canOpenDocumentForm(
  * gli elenchi** (`14` §2 e §14).
  *
  * Qui c'erano sei rami dentro `openDocument` della lista, e due di essi
- * finivano ancora sull'anteprima: la stessa applicazione apriva un preventivo
+ * finivano ancora sul Dettaglio: la stessa applicazione apriva un preventivo
  * in modifica e una fattura in sola lettura, e l'operatore doveva ricordarsi
  * quale. Ora la differenza sta in un solo posto, dichiarata per tipo.
  *
- * ⚠️ **Un documento ANNULLATO apre l'anteprima**, qualunque sia il tipo: non
+ * ⚠️ **Un documento ANNULLATO apre il Dettaglio**, qualunque sia il tipo: non
  * c'è nulla da modificare. Era già la scelta del codice per le registrazioni
  * fattura e per i profili «in stile Arrivi merce» — qui diventa la regola, e
  * smette di dipendere dal profilo di elenco da cui si è passati.
@@ -246,15 +257,15 @@ export function documentRowPath(
   user: User | null | undefined,
 ): string {
   if (doc.status === DocumentStatus.Cancelled) {
-    return documentPreviewPath(doc);
+    return documentDetailPath(doc);
   }
   // ⛔ L'utente è un parametro OBBLIGATORIO, non un'opzione con un default: un
   // default «può» manderebbe in silenzio chi non può contro il guard, ed è
   // proprio il difetto che questa funzione esiste per non avere.
   if (!canOpenDocumentForm(user, doc.type)) {
-    return documentPreviewPath(doc);
+    return documentDetailPath(doc);
   }
-  return DOCUMENT_ROW_OPENS[doc.type] === 'form' ? documentEditPath(doc) : documentPreviewPath(doc);
+  return DOCUMENT_ROW_OPENS[doc.type] === 'form' ? documentEditPath(doc) : documentDetailPath(doc);
 }
 
 /**
