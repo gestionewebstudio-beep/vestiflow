@@ -1757,6 +1757,35 @@ fatta come estensione dichiarata del motore, non di straforo dentro una migrazio
 
 ---
 
+### ⏸ Il motore porta due capacità che oggi non usa nessuno
+
+`appRowCard` (con il suo blocco SCSS) e `rowClickableWhen` sono **nel codice e non
+consumati**: erano state costruite per l'assorbimento dei Corrispettivi, che è stato
+ripristinato. Sono committate perché il lavoro era stato scritto prima di spaccare i commit.
+
+⚠️ **Restano perché servono davvero**, e servono a quel lavoro: quando i Corrispettivi si
+riprenderanno, sono il meccanismo con cui la loro card mobile e la loro navigazione parziale
+entrano nel motore senza essere riscritte. Toglierle e rifarle sarebbe fatica per due volte.
+
+⛔ Ma il debito va nominato: **API condivisa senza consumatori e senza prove a schermo.** Se
+i Corrispettivi non si riprendono, vanno tolte — `regole-qualita` dà trenta giorni al codice
+morto, e questo è codice morto con una data di scadenza.
+
+### ⛔ Perché i Corrispettivi sono stati RIPRISTINATI
+
+Il primo tentativo aveva spostato il markup nel motore lasciando **~600 righe di SCSS a
+vestire classi `.corrispettivi-table__*` che il DOM non aveva più**. Build verde, 2037 test
+verdi, e **tutta la grafica di quel riepilogo distrutta**.
+
+⭐ **La lezione, che vale per ogni assorbimento futuro**: lint, build e test dicono che
+compila e che il comportamento asserito regge — **non dicono niente su come si vede**. Una
+CSS che perde l'aggancio resta valida e smette di agire: nessun errore, nessun test rosso.
+
+Prima di spostare markup fra componenti si contano **le classi che perderanno l'aggancio**.
+Se sono più di poche, non è un refactor meccanico: o gli stili si portano sul nuovo markup
+**nello stesso passo**, o ci si ferma. E non si committa prima che qualcuno abbia guardato
+la schermata.
+
 # G · COLONNE DEI RIEPILOGHI — deciso il 20/08/2026
 
 Vale per **tutti i riepiloghi**: documenti, prodotti, movimenti, giacenze, ordini.
