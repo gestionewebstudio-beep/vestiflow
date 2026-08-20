@@ -1249,6 +1249,20 @@ nemmeno il dato per costruirla.
 | **Ordine cliente**   | ⛔ **non esiste più**                                                                                 | una decisione, non del codice |
 | **Corrispettivi**    | ⛔ la riga non sa a quale documento appartiene                                                        | un campo nel payload dell'API |
 
+### ✅ Ordine fornitore: fatto il 20/08
+
+L'azione `detail` sta nella barra dell'elenco, con lo stesso contratto dei documenti
+(`requires: 'one'`, prima degli altri comandi).
+
+⚠️ **Qui basta l'id**, e la differenza con l'elenco documenti è di dominio, non di stile: là il
+Dettaglio ha otto indirizzi e va scelto per tipo, qui la rotta è una sola. Cercare la riga per
+usarne solo l'id aggiungerebbe un modo di fallire — la riga potrebbe non essere nella pagina
+caricata — senza aggiungere niente.
+
+⭐ **La pagina non aveva NESSUN test**: ne nasce uno, e porta anche la guardia «una riga vera si
+renderizza» di §H14 — che qui non c'era, e il difetto che la motiva è di categoria, non di
+pagina.
+
 ### ⛔ L'Ordine cliente non ha un Dettaglio, e non è una dimenticanza
 
 Misurato in `sales-orders.routes.ts`: **`:id` e `:id/edit` caricano entrambi

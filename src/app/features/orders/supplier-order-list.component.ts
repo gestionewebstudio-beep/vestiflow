@@ -201,6 +201,20 @@ export class SupplierOrderListComponent {
    */
   protected readonly selectionActions = computed<readonly ListAction[]>(() => [
     {
+      // ⭐ Il **Dettaglio** (`14` §6, §E6): la consultazione in sola lettura,
+      // che qui esiste da sempre — `orders/:id`, «Dettaglio ordine fornitore»,
+      // protetta dai soli permessi di vista. Da quando il clic di riga apre la
+      // Modifica non ci portava piu' nessuno.
+      //
+      // Sta PRIMA degli altri: e' l'unico comando che si limita a guardare.
+      id: 'detail',
+      label: 'Dettaglio',
+      icon: 'pi-eye',
+      requires: 'one',
+      ariaLabel: "Apri il dettaglio dell'ordine selezionato",
+      run: (bersaglio) => this.openDetail(bersaglio),
+    },
+    {
       id: 'print',
       label: 'Stampa',
       icon: 'pi-print',
@@ -353,6 +367,29 @@ export class SupplierOrderListComponent {
    * sono UNA pagina, e servirle sarebbe dare venti risultati su centoventisette
    * senza dirlo. Excel, qui sotto, lo fa già correttamente: chiede al server.
    */
+  /**
+   * Apre il Dettaglio dell'ordine scelto.
+   *
+   * ⚠️ Qui basta l'**id**, e la differenza con l'elenco documenti e' di
+   * dominio, non di stile: la' il Dettaglio ha otto indirizzi diversi e va
+   * scelto per tipo, qui la rotta e' una sola. Cercare la riga per poi usarne
+   * solo l'id aggiungerebbe un modo di fallire — la riga potrebbe non essere
+   * nella pagina caricata — senza aggiungere niente.
+   *
+   * ⛔ Il ramo `filtered` non e' raggiungibile con `requires: 'one'`; va scritto
+   * perche' l'unione discriminata esiste apposta (§5.3).
+   */
+  private openDetail(bersaglio: ListActionTarget): void {
+    if (bersaglio.scope !== 'selection') {
+      return;
+    }
+    const id = bersaglio.ids[0];
+    if (!id) {
+      return;
+    }
+    void this.router.navigate(['/app/orders', id]);
+  }
+
   private ordiniDelBersaglio(bersaglio: ListActionTarget): readonly SupplierOrder[] {
     return bersaglio.scope === 'selection' ? this.selectedOrders() : this.orders();
   }
