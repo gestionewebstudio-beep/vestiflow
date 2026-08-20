@@ -1,6 +1,6 @@
 # Cosa resta da fare — VestiFlow
 
-**Aggiornato:** 18/08/2026
+**Aggiornato:** 20/08/2026
 **A che serve:** riprendere il lavoro in un'altra sessione **senza ricostruire niente**.
 Ogni voce dice cosa è già misurato, cosa è deciso e cosa no.
 
@@ -20,9 +20,37 @@ diventa una decisione stabile, si sposta lì e qui resta il rimando.
 articolo · difetti aperti · Corrispettivo manuale · **tabulazione da tastiera** (punto 7,
 il lavoro grosso aperto).
 
-⚠️ **Il ramo indicato qui sopra era `numerazione-documento-2` e non lo è più**: al
-18/08/2026 si lavora su `feature/pagamenti-documenti`. Chi riprende verifichi con `git
-branch --show-current` invece di fidarsi di questa riga, che invecchia da sola.
+⚠️ **Il ramo cambia, e questa riga invecchia da sola**: al 20/08/2026 si lavora su
+`feature/pagamenti-tesoriera`. Chi riprende verifichi con `git branch --show-current`
+invece di fidarsi di quanto scritto qui.
+
+---
+
+## ⭐ Leggere prima: dal 20/08/2026 le decisioni stanno in `00-DECISIONI.md`
+
+**Prima di cercare qui, si guarda lì.** `docs/00-DECISIONI.md` dice in una pagina che cosa è
+già deciso e dove è argomentato, comprese **tutte le decisioni aperte in un posto solo**.
+Questo file resta quello che era — **cosa manca** — e non è un indice.
+
+### Chiuso il 20/08/2026, e non va più cercato qui
+
+| Fatto                                                                                 | Dove è scritto |
+| ------------------------------------------------------------------------------------- | -------------- |
+| **motore tabella comune** su documenti, ordini cliente, ordini fornitore, movimenti   | `14` parte H   |
+| **barra azioni e selezione** comuni, con il contratto `ListAction`                    | `14` parte D   |
+| **clic di riga → Modifica**, dichiarato per tipo                                      | `14` §2        |
+| **pulsante Dettaglio** su elenco documenti e ordini fornitore                         | `14` §E4, §E6  |
+| **ordinamento** su tutti e tre gli elenchi paginati, con la guardia in `npm run lint` | `14` §H15      |
+| **grammatica visiva** dei riepiloghi, decisa voce per voce                            | `14` §F6       |
+| **niente paginazione**, apertura a 30 giorni, tetto dichiarato nel meta               | `14` §H14-bis  |
+
+⚠️ **Restano da guardare a schermo**: le quattro schermate migrate, dopo la promozione della
+grammatica. Build e test dicono che compila, non come si vede.
+
+### Il prossimo blocco
+
+**Vendita e Reso al banco** (`11`), che riparte in una sessione dedicata. §A11-quater di quel
+documento elenca che cosa eredita dalla base comune: non si riprogetta niente di quello.
 
 ---
 

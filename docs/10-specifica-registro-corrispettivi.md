@@ -1441,3 +1441,43 @@ zero movimenti di magazzino creati dal Registro
 ```
 
 Più il caso della spunta spenta, con giacenze invariate prima e dopo tutte le letture.
+
+---
+
+## §19 · Il Registro è diventato la grammatica di tutti — 20/08/2026
+
+Il proprietario ha indicato questo Registro come **riferimento grafico di partenza** dei
+riepiloghi (`14` §F5). Le sette divergenze fra la sua tabella e il motore comune sono state
+misurate, messe a confronto sui dati veri, e **decise tutte nella forma del Registro**:
+
+```text
+font 12px · padding 4×12 · intestazione 32px MAIUSCOLA
+niente divisori di colonna · larghezze sul contenuto · token dedicati §2
+```
+
+⭐ **Non è più «la grafica dei Corrispettivi»: è la grammatica dei riepiloghi**, e vive nel
+mixin `summary-grammar()`. Le quattro schermate già sul motore la ereditano; gli altri elenchi
+la adottano con una riga.
+
+⚠️ **Con una modifica che tocca anche questa schermata**: `--color-table-header-fg` è stato
+scurito da #3f4c51 a **#2f3d43** — contrasto da 7,5:1 a 9,5:1 — su richiesta esplicita. Il
+Registro usa quel token, quindi la sua intestazione cambia con tutte le altre.
+
+### Che cosa resta suo, e non si promuove
+
+- l'**accento laterale per tipo** e il fondo della rettifica;
+- la **giornata come raggruppamento**, col suo piede;
+- la **card mobile progettata** (§17), che è il riferimento mobile dei riepiloghi ma **non**
+  entra nel motore finché i Corrispettivi non ci entrano.
+
+### ⛔ Due misure che riguardano questo documento
+
+1. **Le righe espandibili non esistono**, né desktop né mobile: i due `colspan` sono
+   l'intestazione di giornata e l'etichetta del subtotale, e il chevron della card **naviga**.
+   Era stato censito come «capacità che manca al motore»: non manca, non c'è.
+2. **`documentId` c'è già lato API** (`corrispettivi.service.ts`, valorizzato sulle righe di
+   banco) e **si perde nel DTO del client**. È il campo che servirebbe per dare a quelle righe
+   un pulsante «Dettaglio»: manca un mapping, non un dato.
+
+⏸ **Il gap vero del Dettaglio qui è il Corrispettivo manuale**, che ha una maschera di
+modifica e nessuna vista di consultazione. È una decisione di prodotto, non un lavoro tecnico.
