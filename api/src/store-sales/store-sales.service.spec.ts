@@ -16,7 +16,7 @@ import type { PrismaService } from '../prisma/prisma.service';
 import { StoreSalesService } from './store-sales.service';
 
 /**
- * Test cassa negozio: movimenti collegati per riga senza doppi scarichi,
+ * Test vendita al banco: movimenti collegati per riga senza doppi scarichi,
  * reso collegato con carico solo per la merce vendibile e rollback
  * transazionale senza saldi parziali. Policy post-audit §3: la quantità
  * insufficiente NON blocca mai la vendita — Giacenza e Disponibile possono
@@ -530,7 +530,7 @@ function createSettings(): DocumentSettingsService {
       Promise.resolve({
         type,
         printTitle:
-          type === DocumentType.store_sale ? 'Vendita in negozio' : 'Reso vendita negozio',
+          type === DocumentType.store_sale ? 'Vendita al banco' : 'Reso al banco',
         autoNumbering: true,
         numberPrefix: type === DocumentType.store_sale ? 'VN' : 'RN',
         defaultSeries: 'A',

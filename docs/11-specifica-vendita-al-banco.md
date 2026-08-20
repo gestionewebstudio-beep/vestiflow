@@ -92,9 +92,61 @@ stiamo **togliendo** la terminologia generica e legacy (**A6**), non aggiungendo
 al banco un passaggio in meno è utile, e un menu da aprire più una voce da scegliere sono due
 gesti dove ne basta uno. Vale su desktop e su mobile (vedi **A3**).
 
-Passare dall'elenco resta giusto: un ingresso diverso da tutti gli altri documenti
-costringerebbe l'operatore a imparare due grammatiche per la stessa cosa. La schermata
-operativa resta rapidissima — cambia solo il percorso d'ingresso.
+⚠️ **Qui c'era «Passare dall'elenco resta giusto», e il 20/08/2026 quella frase è stata
+divisa in due.** Diceva: _«un ingresso diverso da tutti gli altri documenti costringerebbe
+l'operatore a imparare due grammatiche per la stessa cosa»_. Vale ancora per l'**ingresso**;
+non vale per la **scorciatoia**, che allora non esisteva.
+
+### ⛔ La sidebar è la scorciatoia, l'hub Documenti è l'ingresso — deciso il 20/08/2026
+
+> **La voce di sidebar «Nuova vendita al banco» apre direttamente la creazione. L'elenco vive
+> in Documenti → Vendite al banco, e di lì i due pulsanti creano vendita e reso.**
+
+```text
+sidebar    → Nuova vendita al banco → documento                       ← SCORCIATOIA
+Documenti  → Vendite al banco → elenco
+                                 → [ Nuova vendita al banco ]
+                                   [ Nuovo reso al banco ]  → documento  ← INGRESSO
+```
+
+**Il criterio è cosa fa l'operatore al banco.** Apre il gestionale per **vendere**: un elenco
+in mezzo è un gesto in più a ogni cliente, e la sidebar è il posto dove quel gesto si toglie.
+Consultare il registro è un'altra attività, più rara, e sta dove stanno tutti gli altri
+registri.
+
+⚠️ **La grammatica comune non è violata: è divisa in due.** L'ingresso al modulo resta quello
+di ogni altro documento — Documenti → tipo → elenco → pulsanti — quindi chi cerca il registro
+lo trova dove se lo aspetta. Ciò che il banco ha **in più** è una scorciatoia, perché è
+l'unico tipo che si compila con un cliente davanti.
+
+#### ⛔ Nell'hub Documenti la card è UNA — corretto il 20/08/2026
+
+Erano **due**, affiancate nello stesso gruppo «Vendite», e portavano in due posti diversi:
+
+```text
+«Vendita al banco»   → /app/vendita-al-banco/nuova-vendita-al-banco   creazione
+«Vendite al banco»   → /app/vendita-al-banco                          elenco
+```
+
+Due nomi che differiscono per **una lettera**. Resta la sola card verso l'elenco; la creazione
+è ora la scorciatoia di sidebar.
+
+⚠️ **I due permessi si separano, e così combaciano con le rotte che aprono:**
+
+| Chi apre                      | Permesso                   | Perché                   |
+| ----------------------------- | -------------------------- | ------------------------ |
+| la **scorciatoia** di sidebar | `retail.register`          | è battere una vendita    |
+| la **card** dell'hub          | `familyView('store_sale')` | è consultare un registro |
+
+La card della creazione portava un `gate: 'retail-register'` che era **l'unico del suo tipo in
+tutto l'hub**: tolta la card, il meccanismo restava senza nessuno che lo usasse, ed è stato
+rimosso con lei — campo del tipo e ramo del filtro.
+
+⚠️ **La voce di sidebar si illumina sulla sola creazione, non su tutto il modulo.** Col
+prefisso largo «Nuova vendita al banco» risulterebbe accesa anche mentre si consulta l'elenco o
+si corregge un reso: un'etichetta accesa che dice dove **non** sei. Ne discende che sull'elenco
+non si illumina nessuna voce di sidebar — l'elenco appartiene a Documenti, che vive su un'altra
+radice di indirizzo. È il compromesso scelto: meglio nessun segnale che un segnale falso.
 
 **Creato il documento, non esiste un selettore** che permetta di trasformare una Vendita in
 Reso o viceversa.
@@ -119,12 +171,14 @@ Nuovo reso al banco       ← pulsante e titolo della creazione
 
 > **Il contenitore è plurale, la singola operazione è singolare.**
 
-| Cosa                            | Come si chiama                               |
-| ------------------------------- | -------------------------------------------- |
-| il **modulo** e la voce di menu | **Vendite al banco**                         |
-| la **pagina elenco**            | **Vendite al banco**                         |
-| i **tipi documento**            | Vendita al banco · Reso al banco             |
-| i **pulsanti** di creazione     | Nuova vendita al banco · Nuovo reso al banco |
+| Cosa                        | Come si chiama                                   |
+| --------------------------- | ------------------------------------------------ |
+| il **modulo**               | **Vendite al banco**                             |
+| la **pagina elenco**        | **Vendite al banco**                             |
+| la **card** in Documenti    | **Vendite al banco** — ed è una sola             |
+| la **voce di sidebar**      | **Nuova vendita al banco** _(20/08, vedi sotto)_ |
+| i **tipi documento**        | Vendita al banco · Reso al banco                 |
+| i **pulsanti** di creazione | Nuova vendita al banco · Nuovo reso al banco     |
 
 ⚠️ **Cade «Vendita al banco — elenco»**, che era la formulazione del 18/08. Il plurale
 distingue da solo il contenitore dalla singola operazione, e rende inutile il suffisso: un
@@ -459,6 +513,50 @@ Ma **si classifica prima di rinominare**, perché i tre livelli hanno esiti dive
 | **esposto all'operatore**                         | si rinomina in «Vendita al banco»                                                                                                    |
 | **identificatore tecnico stabile o contrattuale** | **non** si rinomina per estetica: prima si valuta il rischio di migrazione e regressione                                             |
 | **stringhe storiche già persistite**              | si censiscono prima di scegliere fra correggere la rappresentazione e migrare i dati. Nessun backfill di massa senza un motivo reale |
+
+### ⛔ Il censimento era dichiarato chiuso il 18/08, ed era incompleto — completato il 20/08/2026
+
+⚠️ **La voce 1 della tabella diceva «✅ FATTO 18/08».** Il 20/08 ne sono state trovate **65
+occorrenze residue in 35 file**, e non erano solo commenti: **sei stringhe che l'operatore
+legge davvero**.
+
+| Dove                                                 | Diceva                                         | Ora                                    |
+| ---------------------------------------------------- | ---------------------------------------------- | -------------------------------------- |
+| titolo di stampa `store_sale`                        | «Vendita in negozio»                           | «Vendita al banco»                     |
+| titolo di stampa `store_return`                      | «Reso vendita al banco»                        | «Reso al banco»                        |
+| etichetta famiglia permessi                          | «Vendite e resi negozio»                       | «Vendite e resi al banco»              |
+| suggerimento ricavi in analisi                       | «Vendite negozio e online (pagate)»            | «Vendite al banco e online (pagate)»   |
+| rifiuto API, creazione da registro                   | «si registrano dalla cassa (Vendita al banco)» | «si registrano dalla Vendita al banco» |
+| rifiuto API, conferma ed eliminazione (due messaggi) | «Le vendite e i resi negozio…»                 | «Le vendite e i resi al banco…»        |
+
+⛔ **Il titolo di stampa non è solo stampa.** Il commento della mappa lo dice: è anche _«quello
+che l'operatore legge nel Registro alla colonna origine»_. La parola vecchia era quindi in
+bella vista in una schermata che si consulta tutti i giorni.
+
+⚠️ **Le due parole erano nella stessa mappa, a una riga di distanza**: la vendita diceva
+«Vendita in negozio» e il reso «Reso vendita al banco». Non è una svista isolata — è il segno
+che un censimento a occhio non chiude questo tipo di lavoro.
+
+**Restano fuori, ed è la riga «tecnico stabile o contrattuale» della tabella qui sopra:** i
+prefissi di numerazione `VN` e `RN` (i numeri già emessi li portano), l'enum
+`DocumentType.store_sale` / `store_return`, la tabella `store_sale_payments`. E «negozio» da
+solo resta la parola giusta: è l'entità Store.
+
+#### La guardia, perché la lista non basta
+
+`npm run check:terminologia` (dentro `npm run lint`) fa fallire la build se uno dei **nove**
+termini rientra in `src/app`, `api/src` o `e2e`.
+
+⛔ **Controlla anche i commenti**, al contrario di `check:registro`: A6 dice che il censimento
+copre «documentazione, test, e nomi tecnici», e un commento col nome vecchio è la sorgente da
+cui il nome vecchio torna nel codice, al primo copia-incolla. Le righe che **raccontano** il
+ritiro — quelle con «ritirato», «legacy», «qui c'era» — restano lecite: sono la memoria del
+perché.
+
+⚠️ **Senza la guardia questa sezione si riscriverebbe una terza volta.** Il censimento del
+18/08 non era stato fatto male: era stato fatto **a mano**, e un nome vecchio non rompe niente
+— compila, passa i test, e continua a insegnare all'operatore una parola che il resto
+dell'applicazione non usa più.
 
 ## A7. Rapporti con gli altri documenti
 
@@ -1348,7 +1446,9 @@ PREREQUISITO TECNICO — C 0
 FASE UI 1   ✅ FATTA 19/08   elenco → [ Nuova vendita al banco ]  [ Nuovo reso al banco ]
 FASE UI 2   ✅ FATTA 19/08   via il toggle interno: il tipo lo decide la ROTTA
 FASE UI 3   ⛔ APERTA        la maschera, ricostruita sull'Ordine cliente
-                             ↳ si chiude INSIEME a C 3b (apertura in modifica)
+                             ↳ ⚠️ qui c'era «si chiude INSIEME a C 3b»: non è andata così
+C 3b        ✅ FATTO 19/08   la riga apre la modifica, e la maschera carica per id
+                             ↳ chiuso SENZA ristrutturare la maschera: la dipendenza non c'era
 ```
 
 ### ⚠️ Il prerequisito è soddisfatto A META', e la conseguenza cade sulla FASE UI 1
@@ -1367,7 +1467,7 @@ due tipi da `FLOW_ONLY_DOCUMENT_TYPES` con la neutralizzazione degli effetti, op
 cerca. Le due strade non si equivalgono: la seconda è un rinvio dichiarato, non una riduzione
 del requisito.
 
-### ⛔ La riga deve aprire la MODIFICA — requisito dichiarato, NON completato _(19/08/2026)_
+### ✅ La riga apre la MODIFICA — fatto il 19/08/2026
 
 > **La destinazione finale del clic di riga è la maschera di modifica del documento
 > esistente.** L'anteprima resta, come flusso **separato**.
@@ -1375,28 +1475,49 @@ del requisito.
 È la regola generale VestiFlow, non una scelta di questo modulo:
 `regole-gestionale` → «Il clic di riga su un documento apre la MODIFICA».
 
-⚠️ **Non contare «la riga è già apribile» come requisito soddisfatto.** Oggi il clic
-porta a `/app/vendita-al-banco/:id`, cioè all'**anteprima**: funziona, ma è la
-destinazione sbagliata. Consolidarla come flusso principale sarebbe rendere definitivo
-un ripiego.
-
-**Perché non si chiude adesso**, misurato:
+**Chiuso dal commit `0accf2f2`.** Riverificato nel codice il 20/08/2026, non nel solo messaggio
+di commit — che non è una misura:
 
 ```text
-rowOpensForm: true            →  naviga a  /app/vendita-al-banco/:id/edit
-                                 ⛔ rotta che non esiste
-store-sale-register.component →  ⛔ non sa caricare un documento per id
+/app/vendita-al-banco/vendita/:id/edit   ✅ rotta esistente — «Modifica vendita al banco»
+/app/vendita-al-banco/reso/:id/edit      ✅ rotta esistente — «Modifica reso al banco»
+store-sale-register.component            ✅ editDocumentId da paramMap, isEditMode
+DOCUMENT_ROW_OPENS[store_sale|store_return]  ✅ 'form'
 ```
 
-Per tutti gli altri documenti è **una riga di configurazione**. Qui no: serve prima che
-la maschera sappia caricare un documento esistente, ed è la **FASE UI 3**.
+Le due rotte di modifica portano **le stesse due guardie** della creazione e prendono il tipo
+dai `data:`, non dal documento letto: è il pattern comune, e il difetto che evita è quello
+misurato in `07` §18.
 
-> **I due requisiti si chiudono INSIEME**: apertura in modifica + caricamento per id.
-> Non ha senso l'uno senza l'altro.
+⚠️ **La quarta riga diceva `rowOpensForm: true` fino al 20/08/2026**, ed era la
+configurazione di PROFILO che accendeva il comportamento su un elenco per volta. È caduta lo
+stesso giorno: la regola è diventata comune a **ogni** elenco documentale (`14` §2), e ciò
+che vale per tutti non è una preferenza da configurare. Al suo posto c'è un `Record`
+esaustivo per tipo, dove un tipo nuovo senza decisione non compila.
 
-⚠️ **Prima di implementarlo**: censire come funziona apertura e modifica negli **altri**
-documenti e riusare il pattern comune. ⛔ Nessuna convenzione speciale per la Vendita al
-banco — se si aprisse diversamente dagli altri, l'operatore dovrebbe ricordarsi quale.
+#### ⚠️ Qui c'era «NON completato», con una previsione che i fatti hanno smentito
+
+Il testo precedente legava due requisiti — _«I due requisiti si chiudono INSIEME: apertura in
+modifica + caricamento per id»_ — e li rimandava **entrambi** alla FASE UI 3, sulla misura di
+allora: `rowOpensForm` avrebbe puntato a una rotta inesistente, e la maschera non sapeva
+caricare per id.
+
+**Le due misure sono superate, ma la previsione era comunque sbagliata**: il caricamento per id
+è stato fatto **senza** ristrutturare la maschera. La dipendenza non c'era.
+
+⛔ **Quindi la FASE UI 3 non si spunta con questo commit, e resta APERTA.** Ciò che manca è la
+voce **10** della tabella — la schermata ricostruita sull'Ordine cliente — e la misura di **B9**
+è ancora vera al 20/08/2026:
+
+```text
+store-sale-register.component.html   0 classi `doc-form`, 0 celle `app-document-line-*`
+store-sale-register.component.scss   639 righe proprie, NON usa `_document-form.scss`
+                                     (le sei maschere documentali lo usano)
+```
+
+⚠️ **Prima di implementare la UI 3**: censire come funziona apertura e modifica negli **altri**
+documenti e riusare il pattern comune. ⛔ Nessuna convenzione speciale per la Vendita al banco —
+se si aprisse diversamente dagli altri, l'operatore dovrebbe ricordarsi quale.
 
 ## ⛔ Il «Carrello» non esiste più — deciso il 19/08/2026
 
@@ -1610,13 +1731,13 @@ C 0.
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 0   | ⚠️ **PARZIALE** — **Rendere Vendita e Reso conclusi riapribili, modificabili ed eliminabili**, con riconciliazione per differenza e neutralizzazione in eliminazione                                                | A2 · B2                  | deciso il 18/08. È il divario più grande: oggi i due tipi sono in `FLOW_ONLY_DOCUMENT_TYPES` e i cinque percorsi generici li rifiutano ⚠️ **Manca l’eliminazione** — vedi il quadro sotto la tabella. |
 | 0b  | ✅ **FATTO** 19/08/2026 — **Conservare numero, serie e data al risalvataggio**, e aggiungere il campo data al DTO del Reso                                                                                          | A2 · B5                  | oggi la creazione rinumera senza condizioni, e il DTO del Reso non ha `documentDate`: la data e sempre oggi Chiuso: il campo c’è, col pattern della Vendita.                                          |
-| 1   | ✅ **FATTO** 18/08/2026 — Censire la terminologia legacy e correggere l'etichetta esposta rimasta indietro                                                                                                          | A6 · B6                  | la rinomina precedente è incompleta e le due diciture convivono                                                                                                                                       |
+| 1   | ✅ **FATTO** 18/08/2026, **ma incompleto** — completato il **20/08/2026**: 65 occorrenze residue in 35 file, sei delle quali esposte all'operatore. Ora c'è una guardia (`check:terminologia`)                      | A6 · B6                  | la rinomina precedente era incompleta e le due diciture convivevano. ⚠️ Un censimento a mano non chiude questo tipo di lavoro: vedi il quadro in **A6**                                               |
 | 2   | Togliere il forcing netto/ivato e far entrare i due tipi nel contratto comune, memorie comprese                                                                                                                     | A4 · B3                  | oggi è una costante nel codice, non una convenzione                                                                                                                                                   |
 | 3   | ✅ **FATTO** 19/08/2026 — Riallineare le rotte a `elenco → [Nuova vendita al banco] / [Nuovo reso al banco] → documento`, con i nomi fissati in A2, dopo il censimento dei consumer                                 | A2 · B2                  | grammatica diversa da tutti gli altri documenti, e il «Nuovo» a menu non è quello deciso                                                                                                              |
-| 3b  | ⛔ **APERTO** — **La riga dell’elenco apre la MODIFICA**, non l’anteprima. Si chiude INSIEME alla capacità della maschera di caricare un documento per id                                                           | A2 · `regole-gestionale` | regola generale VestiFlow: per gli altri documenti è una riga di config (`rowOpensForm`), qui serve prima la maschera in modifica (**FASE UI 3**). Censire il pattern comune prima di implementare    |
+| 3b  | ✅ **FATTO** 19/08/2026 — **La riga dell'elenco apre la MODIFICA**, non l'anteprima: due rotte `:id/edit` e la maschera che carica per id (commit `0accf2f2`, riverificato nel codice il 20/08)                     | A2 · `regole-gestionale` | ⚠️ **si prevedeva che si chiudesse solo insieme alla FASE UI 3, e non è servito**: il caricamento per id è arrivato senza ristrutturare la maschera. La UI 3 resta aperta, alla voce **10**           |
 | 4   | ✅ **FATTO** 19/08/2026 — Separare Vendita e Reso alla creazione, al posto dell'interruttore                                                                                                                        | A3 · B4                  | l'interruttore attuale non svuota nemmeno il carrello                                                                                                                                                 |
 | 5   | ✅ **FATTO** 18/08/2026 — **Censire e rimuovere la logica di collegamento del Reso a una vendita origine** — percorso, campi, caricamento delle vendite recenti                                                     | A11 · B4                 | A11 stabilisce che il Reso **non ha** documento origine: quello che c'è oggi è legacy                                                                                                                 |
-| 6   | Verificare che l'IVA del Reso sia scritta come **snapshot di riga** e non riletta dall'anagrafica                                                                                                                   | A11 · B4                 | senza snapshot la regola decisa diventa un'altra: un documento che si riscrive da solo                                                                                                                |
+| 6   | ✅ **FATTO** — verificato nel codice il 20/08/2026: il percorso del Reso conserva lo snapshot (`preservedLineVat(previous?.id, …)`) e lo risolve dall'anagrafica solo sulla riga NUOVA                              | A11 · B4                 | senza snapshot la regola decisa diventa un'altra: un documento che si riscrive da solo. ⚠️ La prova che lo inchioda sta sul percorso GENERICO (`documents.service.spec.ts`), non su quello del Reso   |
 | 7   | **Applicare** il contratto del Reso ora chiuso: causale **facoltativa** (oggi obbligatoria), prezzo dall'anagrafica, sconti come la Vendita, rimborso informativo, correzione come **A2**                           | A11 · B4                 | le cinque decisioni sono chiuse il 18/08: qui resta l'esecuzione, non la scelta                                                                                                                       |
 | 8   | Portare il metodo di pagamento fino alla **riga del Registro**, al dettaglio della registrazione e all'export; poi valutare il filtro                                                                               | A8                       | oggi si ferma nella schermata della vendita                                                                                                                                                           |
 | 8b  | ✅ **FATTO il 19/08/2026** — il Reso al banco entra nel Registro come rettifica negativa, una sola volta: quinta sorgente documentale, `kind: refund`, `refundKind: return_with_restock`. Contratto in **`10` §18** | A9 · A11                 | era misurato: il filtro era `type: store_sale` secco, e **nessun reso di cassa diminuiva l'incasso lordo**. Verificato sul database reale                                                             |

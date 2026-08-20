@@ -54,7 +54,7 @@ export class StoreSalesController {
     return this.storeSales.createSale(tenantId, dto, user);
   }
 
-  /** Reso vendita negozio: carico solo per la merce rientrata vendibile. */
+  /** Reso al banco: carico solo per la merce rientrata vendibile. */
   @Post('returns')
   @RequirePermissions(TenantPermission.RetailRegister)
   createReturn(

@@ -17,7 +17,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 
-/** Riga Reso vendita negozio (fase 3 §9). */
+/** Riga Reso al banco (fase 3 §9). */
 export class StoreReturnLineInputDto {
   /**
    * Id della riga quando si RISALVA un reso esistente. Assente = riga nuova.

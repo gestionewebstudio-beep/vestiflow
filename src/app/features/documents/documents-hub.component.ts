@@ -5,7 +5,6 @@ import { AuthService } from '@core/auth';
 import {
   canAccessSalesSection,
   canAccessSuppliersSection,
-  canOpenRetailRegister,
   canViewDocFamily,
 } from '@core/permissions/tenant-permissions.util';
 import type { User } from '@core/models/user.model';
@@ -41,11 +40,8 @@ export class DocumentsHubComponent {
     if (item.family) {
       return canViewDocFamily(user, item.family) && this.canEnterSection(item, user);
     }
-    if (item.gate === 'retail-register') {
-      return canOpenRetailRegister(user);
-    }
-    // Voce senza famiglia e senza gate proprio: vive già dietro la sezione
-    // Documenti, che è la porta di questa schermata.
+    // Voce senza famiglia: vive già dietro la sezione Documenti, che è la
+    // porta di questa schermata.
     return true;
   }
 

@@ -41,6 +41,7 @@ import { ShopifyConnectionService } from '@domain/channels/shopify/services/shop
 import { ShopifySyncWatchService } from '@domain/channels/shopify/services/shopify-sync-watch.service';
 import { InventoryService } from '@domain/inventory/services/inventory.service';
 import { isShopifySyncUiActive } from '@domain/channels/shopify/models/shopify-connection-state.util';
+import { storeSaleCreatePath } from '@domain/store-sales/models/store-sale-routing.util';
 import {
   canAccessCatalogSection,
   canAccessDocumentsSection,
@@ -372,13 +373,24 @@ export class ShellLayoutComponent {
 
     if (canOpenRetailRegister(user)) {
       salesItems.push({
-        // Il MODULO e' plurale, la singola operazione singolare (`11`).
-        label: 'Vendite al banco',
+        // ⛔ La sidebar e' la SCORCIATOIA all'operazione, non l'ingresso al
+        // modulo (`11` A2, deciso il 20/08/2026): al banco si apre per
+        // vendere, e un elenco in mezzo e' un gesto in piu' a ogni cliente.
+        // L'elenco vive in Documenti -> Vendite al banco, e di li' i due
+        // pulsanti creano sia la vendita sia il reso.
+        label: 'Nuova vendita al banco',
         icon: 'pi-shopping-bag',
-        route: '/app/vendita-al-banco',
+        // Dalla fonte unica dei percorsi, mai una stringa a mano: e' la
+        // stessa da cui nasce la rotta di creazione.
+        route: storeSaleCreatePath('sale'),
         // ⚠️ E' un CONFRONTO: sbagliandolo la voce smette di illuminarsi
         // senza nessun errore e senza nessun test rosso.
-        activeRoutePrefix: '/app/vendita-al-banco',
+        //
+        // ⚠️ Prefisso STRETTO sulla sola creazione, NON sul modulo: con
+        // `/app/vendita-al-banco` questa voce si accenderebbe anche mentre
+        // si consulta l'elenco o si corregge un reso, cioe' un'etichetta
+        // accesa che dice dove NON sei.
+        activeRoutePrefix: storeSaleCreatePath('sale'),
       });
     }
 

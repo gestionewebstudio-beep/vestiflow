@@ -63,8 +63,8 @@ interface ResolvedVariant {
 }
 
 /**
- * Cassa negozio (fase 3 §7-§9): Vendita in negozio immediata non fiscale e
- * Reso vendita negozio. La vendita NON crea Ordine cliente né impegni: alla
+ * Modulo del banco (fase 3 §7-§9): Vendita al banco immediata non fiscale e
+ * Reso al banco. La vendita NON crea Ordine cliente né impegni: alla
  * conclusione crea il documento confermato + un movimento `sale` per riga
  * nella stessa transazione. Policy quantità post-audit §3: la disponibilità
  * insufficiente NON blocca mai la vendita (Giacenza/Disponibile possono
@@ -803,7 +803,7 @@ export class StoreSalesService {
         this.channelSync.pushInventoryLevels(tenantId, variantId, [locationId]),
       ).catch((error: unknown) => {
         const message = error instanceof Error ? error.message : 'Push inventario canali fallito';
-        this.logger.warn(`Push inventario post-vendita negozio (${tenantId}): ${message}`);
+        this.logger.warn(`Push inventario post-vendita al banco (${tenantId}): ${message}`);
       });
     }
   }

@@ -1,6 +1,9 @@
 import type { Route } from '@angular/router';
 import { describe, expect, it } from 'vitest';
 
+import { DocumentStatus, DocumentType } from '@core/models/document.model';
+import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
+import { UserRole, type User } from '@core/models/user.model';
 import { retailSalesRegisterGuard } from '@core/guards/retail-sales.guard';
 import { tenantWorkspaceGuard } from '@core/guards/tenant-workspace.guard';
 import { unsavedChangesGuard } from '@core/guards/unsaved-changes.guard';
@@ -9,6 +12,7 @@ import { REQUIRED_TENANT_PERMISSION_GROUPS_KEY } from '@core/permissions/tenant-
 import { routes as appRoutes } from '../../app.routes';
 import { documentsRoutes, storeSaleDocumentRoutes } from '../documents/documents.routes';
 import { salesDocumentRegisterConfig } from '../documents/models/document-sales-register.config';
+import { DOCUMENT_ROW_OPENS, documentRowPath } from '../documents/models/document-routing.util';
 import { storeSalesRegisterRoutes } from './store-sales.routes';
 import {
   STORE_SALE_EDIT_SEGMENT,
@@ -17,6 +21,12 @@ import {
   requireStoreSaleMode,
   storeSaleEditPath,
 } from '@domain/store-sales/models/store-sale-routing.util';
+
+/** Titolare con la cassa aperta: il filtro permessi ha prove sue altrove. */
+const TITOLARE_BANCO = {
+  role: UserRole.Owner,
+  tenantChannelProfile: TenantChannelProfile.Shopify,
+} as unknown as User;
 
 /**
  * Le rotte del modulo **Vendite al banco** — presidio di `11` C 3.
@@ -299,14 +309,27 @@ describe('FASE UI 1 — i due comandi di creazione sull’elenco', () => {
    * ⛔ Qui c'era il contrario, e inchiodava lo stato aperto: «la riga NON apre
    * ancora la modifica». C 3b è chiuso il 19/08/2026, e la guardia si capovolge
    * con lui — l'anteprima resta, come flusso separato.
+   *
+   * ⚠️ E qui si leggeva `config.rowOpensForm`, una configurazione di PROFILO:
+   * caduta il 20/08/2026 quando la regola è diventata comune a ogni elenco
+   * (`14` §2). La prova ora interroga la fonte comune, che è ciò che decide
+   * davvero — e vale anche per la ricerca globale.
    */
   it('⛔ la riga apre la MODIFICA, non l’anteprima', () => {
-    expect(config?.rowOpensForm).toBe(true);
+    for (const tipo of [DocumentType.StoreSale, DocumentType.StoreReturn]) {
+      expect(DOCUMENT_ROW_OPENS[tipo]).toBe('form');
+      expect(
+        documentRowPath({ id: 'd1', type: tipo, status: DocumentStatus.Confirmed }, TITOLARE_BANCO),
+      ).toContain('/edit');
+    }
   });
 });
 
 describe('C 3b — la riga apre la modifica, e la maschera sa caricare', () => {
-  const config = salesDocumentRegisterConfig('store-sale');
+  // ⚠️ Qui c'era `const config = salesDocumentRegisterConfig('store-sale')`, che
+  // serviva a leggere `config.rowOpensForm`: quella configurazione di profilo è
+  // caduta il 20/08/2026 quando la regola è diventata comune (`14` §2), e la
+  // variabile è rimasta orfana.
 
   it('⭐ le due rotte di modifica esistono, una per tipo', () => {
     for (const modo of ['sale', 'return'] as const) {
@@ -372,7 +395,28 @@ describe('C 3b — la riga apre la modifica, e la maschera sa caricare', () => {
     expect(new Set(tutti).size).toBe(tutti.length);
   });
 
-  it('la riga dell’elenco apre la maschera', () => {
-    expect(config?.rowOpensForm).toBe(true);
+  it('la riga dell’elenco apre la maschera, per ENTRAMBI i tipi', () => {
+    expect(
+      documentRowPath(
+        { id: 'd1', type: DocumentType.StoreSale, status: DocumentStatus.Confirmed },
+        TITOLARE_BANCO,
+      ),
+    ).toBe('/app/vendita-al-banco/vendita/d1/edit');
+    expect(
+      documentRowPath(
+        { id: 'd2', type: DocumentType.StoreReturn, status: DocumentStatus.Confirmed },
+        TITOLARE_BANCO,
+      ),
+    ).toBe('/app/vendita-al-banco/reso/d2/edit');
+  });
+
+  /** ⚠️ §2.1: un annullato non si modifica, quindi la riga porta all'anteprima. */
+  it('⚠️ un documento ANNULLATO apre l’anteprima, non la maschera', () => {
+    expect(
+      documentRowPath(
+        { id: 'd3', type: DocumentType.StoreSale, status: DocumentStatus.Cancelled },
+        TITOLARE_BANCO,
+      ),
+    ).toBe('/app/vendita-al-banco/d3');
   });
 });

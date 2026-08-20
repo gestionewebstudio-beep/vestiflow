@@ -29,6 +29,7 @@ import { SalesOrderService } from '@domain/sales-orders/services/sales-order.ser
 import { SupplierOrderService } from '@domain/supplier-orders/services/supplier-order.service';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
 import { DOCUMENT_HUB_GROUPS } from '@features/documents/models/documents-hub.model';
+import { AuthService } from '@core/auth';
 import { documentOpenPath } from '@features/documents/models/document-routing.util';
 import {
   SALES_DOCUMENT_REGISTER_PROFILES,
@@ -89,6 +90,10 @@ function tokenMatches(haystack: string, token: string): boolean {
   styleUrl: './global-search.component.scss',
 })
 export class GlobalSearchComponent {
+  // Serve a `documentOpenPath`: dove porta un risultato dipende da che
+  // cosa questo utente puo' aprire, o la ricerca globale manderebbe chi
+  // consulta e basta contro il guard di una rotta di modifica (`14` §2.1).
+  private readonly authService = inject(AuthService);
   private readonly document = inject(DOCUMENT);
   private readonly router = inject(Router);
   private readonly productService = inject(ProductService);
@@ -229,7 +234,7 @@ export class GlobalSearchComponent {
                   icon: 'pi-file',
                   // Apertura per tipo: preventivi/fatture/DDT hanno dettagli
                   // dedicati, gli arrivi merce vivono nel form.
-                  route: documentOpenPath(doc),
+                  route: documentOpenPath(doc, this.authService.currentUser()),
                 })),
               ];
               return { term, items };
@@ -325,7 +330,7 @@ export class GlobalSearchComponent {
 
   /**
    * Pagine che corrispondono alla query: matching a token su label+sottotitolo
-   * («vendite registro» trova «Registro vendite negozio»). A query vuota
+   * («vendite registro» trova «Registro vendite al banco»). A query vuota
    * restano le sole voci nav, come indice rapido.
    */
   private readonly pageMatches = computed<readonly SearchResultItem[]>(() => {

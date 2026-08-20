@@ -8,7 +8,7 @@ import { StoreSalesController } from './store-sales.controller';
 import { StoreSalesService } from './store-sales.service';
 
 /**
- * Cassa negozio (fase 3): Vendita in negozio e Reso vendita negozio.
+ * Modulo del banco (fase 3): Vendita al banco e Reso al banco.
  * Documenti + movimenti in transazione; nessun Ordine cliente, nessun impegno.
  */
 @Module({

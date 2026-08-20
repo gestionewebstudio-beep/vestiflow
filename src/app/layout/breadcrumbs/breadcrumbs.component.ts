@@ -241,7 +241,7 @@ export class BreadcrumbsComponent {
     }
 
     // Registro filtrato per tipologia: l'etichetta finale e' quella della
-    // card hub (es. «Registro vendite negozio»), piu' parlante del generico.
+    // card hub (es. «Registro vendite al banco»), piu' parlante del generico.
     const type = params.get('type');
     const registroLabel = type ? REGISTRO_TYPE_LABELS[type] : undefined;
     if (registroLabel && segments.at(-1) === 'registro') {

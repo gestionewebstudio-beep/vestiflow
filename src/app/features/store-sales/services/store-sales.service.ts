@@ -16,7 +16,7 @@ import type {
 const HTTP_TIMEOUT_MS = 15000;
 
 /**
- * Cassa negozio (fase 3 §7-§9). La UI non modifica mai quantità direttamente:
+ * Vendita al banco (fase 3 §7-§9). La UI non modifica mai quantità direttamente:
  * il backend crea documento + movimenti in un'unica transazione alla conferma.
  */
 @Injectable({ providedIn: 'root' })
@@ -39,7 +39,7 @@ export class StoreSalesService {
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
-  /** Reso vendita negozio: carico solo per merce rientrata vendibile (§9). */
+  /** Reso al banco: carico solo per merce rientrata vendibile (§9). */
   createReturn(payload: CreateStoreReturnPayload): Observable<StoreSaleResult> {
     return this.http
       .post<StoreSaleResult>(this.url('/store-sales/returns'), payload)

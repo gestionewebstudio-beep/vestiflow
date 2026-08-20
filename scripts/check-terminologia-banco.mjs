@@ -1,0 +1,146 @@
+/**
+ * Guardia sulla terminologia della Vendita al banco (`docs/11` A6).
+ *
+ * **Deciso il 18/08/2026, completato il 20/08/2026.** «Vendita al banco» è
+ * l'unica denominazione funzionale corrente: «Vendita negozio», «Vendita in
+ * negozio», «Reso vendita negozio» e «cassa negozio» sono state censite e
+ * rimosse, non lasciate convivere.
+ *
+ * Perché serve una guardia. Il censimento di A6 era già stato dichiarato
+ * chiuso il 18/08, e il 20/08 se ne sono trovate **59 occorrenze residue** in
+ * 35 file — fra cui tre stringhe che l'operatore legge davvero: il titolo di
+ * stampa `store_sale` (che è anche l'origine nel Registro Corrispettivi),
+ * l'etichetta della famiglia di permessi «Vendite e resi negozio» e due
+ * messaggi di rifiuto dell'API. Nessuna di queste rompeva niente: un nome
+ * vecchio compila, passa i test e continua a insegnare all'operatore una
+ * parola che il resto dell'applicazione non usa più.
+ *
+ * ⛔ Qui si controllano ANCHE i commenti, al contrario di
+ * `check-registro-legacy.mjs`: A6 dice che il censimento copre «interfaccia,
+ * menu, titoli, rotte, etichette, messaggi, causali dei movimenti, stampe ed
+ * export, documentazione, test, e nomi tecnici». Un commento che porta il nome
+ * vecchio è la sorgente da cui il nome vecchio torna nel codice, al primo
+ * copia-incolla.
+ *
+ * ⚠️ Restano leciti, e NON sono in questa lista:
+ *   · i prefissi di numerazione `VN` / `RN` — identificatori contrattuali, e i
+ *     numeri già emessi li portano (A6, livello «tecnico stabile»);
+ *   · l'enum `DocumentType.store_sale` / `store_return` e le colonne
+ *     `store_sale_payments` — stessa ragione;
+ *   · «negozio» da solo: è l'entità Store, e resta la parola giusta;
+ *   · «cassa esterna» e «cassa fiscale»: A10 parla proprio di quelle, che sono
+ *     un'altra cosa dal nostro documento.
+ *
+ * Se una voce va davvero reintrodotta, si toglie da qui **con la decisione
+ * scritta accanto** — non si aggiunge un'eccezione al file che sta controllando.
+ */
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { dirname, extname, join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+const AREE = ['src/app', 'api/src', 'e2e'];
+const ESTENSIONI = new Set(['.ts', '.html', '.scss']);
+
+/** Separatore di percorso Windows: `relative()` lo usa, e va normalizzato. */
+const SEP_WIN = String.fromCharCode(92);
+
+/** Confronto in minuscolo: il termine ricompare in ogni forma di maiuscole. */
+const VIETATI = [
+  { termine: 'vendita in negozio', perche: 'si dice «Vendita al banco» (A6).' },
+  { termine: 'vendite in negozio', perche: 'si dice «Vendite al banco» (A6).' },
+  { termine: 'reso in negozio', perche: 'si dice «Reso al banco» (A6).' },
+  { termine: 'resi in negozio', perche: 'si dice «Resi al banco» (A6).' },
+  { termine: 'vendita negozio', perche: 'si dice «Vendita al banco» (A6).' },
+  { termine: 'vendite negozio', perche: 'si dice «Vendite al banco» (A6).' },
+  { termine: 'reso negozio', perche: 'si dice «Reso al banco» (A6).' },
+  { termine: 'resi negozio', perche: 'si dice «Resi al banco» (A6).' },
+  {
+    termine: 'cassa negozio',
+    perche:
+      'la nostra schermata NON è «la cassa»: è il documento di Vendita al banco (A6). «Cassa esterna» resta legittima, ed è un altro oggetto.',
+  },
+];
+
+/** Righe che RACCONTANO il ritiro: sono la memoria del perché, e restano. */
+const MARCATORI_DI_RITIRO = ['ritirat', 'legacy', "qui c'era", 'qui c’era', 'non si dice'];
+
+/** Questo file nomina i termini per mestiere: si esclude da sé. */
+const ESENTI = new Set([relative(root, fileURLToPath(import.meta.url)).split(SEP_WIN).join('/')]);
+
+function* filesIn(dir) {
+  let voci;
+  try {
+    voci = readdirSync(dir);
+  } catch {
+    return;
+  }
+  for (const voce of voci) {
+    const pieno = join(dir, voce);
+    if (statSync(pieno).isDirectory()) {
+      yield* filesIn(pieno);
+    } else if (ESTENSIONI.has(extname(voce))) {
+      yield pieno;
+    }
+  }
+}
+
+/**
+ * ⛔ **Il controllo NON è riga per riga, ed è il motivo per cui esiste così.**
+ *
+ * Un commento che va a capo spezza il termine — «(Fatture, Vendita/Reso» su una
+ * riga e «negozio): preimpostato…» sulla successiva — e un controllo riga per
+ * riga non lo vede. Non è un'ipotesi: il 20/08/2026 la rinomina di massa ne ha
+ * mancate **due** proprio così, e questo script, nella sua prima stesura, le
+ * lasciava passare entrambe.
+ *
+ * Quindi ogni riga si confronta anche unita alla successiva, togliendo il segno
+ * di commento di apertura (`//`, `*`, `<!--`) che altrimenti finirebbe in mezzo
+ * alle due parole.
+ */
+function coppieDiRighe(righe) {
+  return righe.map((riga, i) => {
+    const successiva = righe[i + 1] ?? '';
+    const continuazione = successiva.trim().replace(/^(\/\/|\*|<!--)\s*/, '');
+    return `${riga.trimEnd()} ${continuazione}`.toLowerCase();
+  });
+}
+
+const trovati = [];
+for (const area of AREE) {
+  for (const file of filesIn(join(root, area))) {
+    const rel = relative(root, file).split(SEP_WIN).join('/');
+    if (ESENTI.has(rel)) continue;
+    const righe = readFileSync(file, 'utf8').split(/\r?\n/);
+    const unite = coppieDiRighe(righe);
+    righe.forEach((riga, i) => {
+      // Il marcatore di ritiro vale per la riga E per la sua continuazione: un
+      // «qui c'era …, ritirato» va a capo come tutto il resto.
+      if (MARCATORI_DI_RITIRO.some((m) => unite[i].includes(m))) return;
+      for (const { termine, perche } of VIETATI) {
+        if (unite[i].includes(termine)) {
+          trovati.push({ file: rel, riga: i + 1, termine, perche, testo: riga.trim().slice(0, 90) });
+        }
+      }
+    });
+  }
+}
+
+if (trovati.length > 0) {
+  console.error('\n✖ Terminologia legacy della Vendita al banco rientrata nel codice:\n');
+  for (const t of trovati) {
+    console.error(`  ${t.file}:${t.riga}  «${t.termine}»`);
+    console.error(`    ${t.testo}`);
+    console.error(`    → ${t.perche}\n`);
+  }
+  console.error(
+    `${trovati.length} occorrenze. Se una va davvero reintrodotta, toglila da\n` +
+      'scripts/check-terminologia-banco.mjs insieme alla decisione che lo giustifica.\n',
+  );
+  process.exit(1);
+}
+
+console.log(
+  `✓ terminologia banco: nessuno dei ${VIETATI.length} termini ritirati è rientrato in ${AREE.join(', ')}.`,
+);

@@ -14,12 +14,7 @@ export interface DocumentHubItem {
    * famiglia (es. «Tutti i documenti», che vive già dietro la sezione).
    */
   readonly family?: DocumentPermissionFamily;
-  /**
-   * Voce che non dipende da una famiglia documento ma da un'altra condizione.
-   * `retail-register` = la cassa, che vuole canale + sezione Vendite + permesso
-   * di battere: le stesse tre cose che chiedono la sidebar e il guard di rotta.
-   */
-  readonly gate?: 'retail-register';
+
   /**
    * Sezione che la rotta di destinazione esige OLTRE alla famiglia.
    *
@@ -127,16 +122,14 @@ export const DOCUMENT_HUB_GROUPS: readonly DocumentHubGroup[] = [
         icon: 'pi-shopping-cart',
         available: true,
       },
-      {
-        id: 'store-sale-register',
-        gate: 'retail-register',
-        label: 'Vendita al banco',
-        description: 'Cassa a carrello per vendite immediate in negozio.',
-        route: ['/app/vendita-al-banco/nuova-vendita-al-banco'],
-        icon: 'pi-shopping-bag',
-        available: true,
-      },
-      // Vendite e resi negozio condividono un'unica pagina elenco con filtro
+      // ⛔ UNA sola card per il banco, e porta al RIEPILOGO (`11` A2, deciso
+      // il 20/08/2026). Qui c'era anche «Vendita al banco — Cassa a carrello»,
+      // che apriva la creazione: due card per lo stesso modulo, con due nomi
+      // che differiscono per una lettera. La creazione diretta e' ora la
+      // scorciatoia di sidebar; da questo elenco i due pulsanti creano sia la
+      // vendita sia il reso.
+      //
+      // Vendite e resi al banco condividono un'unica pagina elenco con filtro
       // «Tipo»: stesso numeratore di provenienza (la cassa) e stesse colonne.
       {
         id: 'store-sales',

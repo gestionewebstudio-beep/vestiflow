@@ -181,8 +181,8 @@ function looksLikeBarcode(code: string): boolean {
 }
 
 /**
- * Cassa negozio (fase 3 §7-§9): vendita immediata non fiscale a carrello e
- * Reso vendita negozio collegato. Nessun movimento prima di «Concludi
+ * Vendita al banco (fase 3 §7-§9): vendita immediata non fiscale a carrello e
+ * Reso al banco collegato. Nessun movimento prima di «Concludi
  * vendita»: il backend crea documento + movimenti in un'unica transazione.
  * Il controllo è sulla DISPONIBILE (giacenza − impegnata), non sulla giacenza.
  */
@@ -1157,7 +1157,7 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
       });
   }
 
-  // ── Reso vendita negozio ─────────────────────────────────────────────────
+  // ── Reso al banco ─────────────────────────────────────────────────
 
   /** Svuota il reso in corso: righe, causale e note. */
   protected clearReturn(): void {

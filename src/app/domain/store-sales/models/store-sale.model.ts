@@ -1,4 +1,4 @@
-// Modelli della cassa negozio (fase 3 §7-§9): vendita immediata non fiscale
+// Modelli della vendita al banco (fase 3 §7-§9): vendita immediata non fiscale
 // a carrello e reso collegato. Rispecchiano i contratti API `store-sales`.
 
 import type { CurrencyCode, EntityId, IsoDateString } from '@core/models/common.model';

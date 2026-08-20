@@ -19,7 +19,7 @@ import {
 export const STORE_SALE_PAYMENT_METHODS = ['cash', 'card', 'other'] as const;
 export type StoreSalePaymentMethod = (typeof STORE_SALE_PAYMENT_METHODS)[number];
 
-/** Riga carrello Vendita in negozio (fase 3 §7). */
+/** Riga carrello Vendita al banco (fase 3 §7). */
 export class StoreSaleLineInputDto {
   /**
    * Id della riga quando si RISALVA una vendita esistente. Assente = riga nuova.

@@ -3,7 +3,9 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/angular';
 import { of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AuthService } from '@core/auth';
 import { DocumentStatus, DocumentType } from '@core/models/document.model';
+import { UserRole, type User } from '@core/models/user.model';
 import { CustomerService } from '@domain/customers/services/customer.service';
 import { DocumentService } from '@domain/documents/services/document.service';
 import { ProductService } from '@domain/products/services/product.service';
@@ -13,6 +15,9 @@ import { SupplierService } from '@domain/suppliers/services/supplier.service';
 import type { NavSection } from '@shared/models/nav-item.model';
 
 import { GlobalSearchComponent } from './global-search.component';
+
+/** Titolare: apre tutto. Il filtro sui permessi ha prove sue nel routing. */
+const UTENTE = { role: UserRole.Owner } as unknown as User;
 
 const FULL_NAV: readonly NavSection[] = [
   {
@@ -91,6 +96,10 @@ describe('GlobalSearchComponent', () => {
       },
       providers: [
         provideRouter([]),
+        // La ricerca globale decide DOVE porta un risultato in base a cio' che
+        // questo utente puo' aprire: senza un utente manderebbe tutti
+        // sull'anteprima, e la prova sull'apertura in modifica cadrebbe.
+        { provide: AuthService, useValue: { currentUser: () => UTENTE } },
         { provide: ProductService, useValue: { getProducts } },
         { provide: CustomerService, useValue: { getCustomers } },
         { provide: DocumentService, useValue: { getDocuments } },
@@ -122,7 +131,13 @@ describe('GlobalSearchComponent', () => {
     expect(option).toHaveTextContent('CL-001 · info@rossimoda.it');
   });
 
-  it('un documento mostra riferimento e tipo, e apre la rotta dedicata del suo tipo', async () => {
+  /**
+   * ⛔ Qui si attendeva `/app/documents/quote/doc-9`, cioè l'anteprima. La
+   * ricerca globale deve dare la **stessa** risposta del clic di riga (`14` §2
+   * e §13.3): se le due divergessero, lo stesso documento avrebbe due aperture
+   * diverse a seconda di dove lo si è trovato.
+   */
+  it('un documento mostra riferimento e tipo, e lo apre in MODIFICA', async () => {
     const { search, navigate } = await setup({ documents: [QUOTE_DOC] });
 
     await search('pre-2026');
@@ -130,7 +145,7 @@ describe('GlobalSearchComponent', () => {
     const option = screen.getByRole('option', { name: /PRE-2026-0007/ });
     expect(option).toHaveTextContent('Preventivo');
     fireEvent.click(option);
-    expect(navigate).toHaveBeenCalledWith(['/app/documents/quote/doc-9'], { queryParams: {} });
+    expect(navigate).toHaveBeenCalledWith(['/app/documents/quote/doc-9/edit'], { queryParams: {} });
   });
 
   it('trova fornitori e ordini fornitore, incluse le pagine ordini', async () => {
