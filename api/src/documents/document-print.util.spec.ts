@@ -81,7 +81,7 @@ describe('document-print.util', () => {
 
   // L'avviso è la condizione perché il foglio della cassa possa esistere: senza,
   // un A4 con numero, IVA e totale è indistinguibile da un documento fiscale.
-  it('proforma e cassa negozio dichiarano di non essere fiscali', () => {
+  it('proforma e vendita al banco dichiarano di non essere fiscali', () => {
     expect(documentPrintDisclaimer(DocumentType.proforma)).toContain('non fiscale');
     expect(documentPrintDisclaimer(DocumentType.store_sale)).toContain('non fiscale');
     expect(documentPrintDisclaimer(DocumentType.store_return)).toContain('non fiscale');

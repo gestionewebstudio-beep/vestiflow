@@ -3,7 +3,7 @@ import { DocumentType } from '@prisma/client';
 import { PROFORMA_FISCAL_DISCLAIMER } from './document-type.util';
 
 /**
- * La cassa negozio si dichiara «interna non fiscale» all'operatore
+ * La vendita al banco si dichiara «interna non fiscale» all'operatore
  * (`store-sale-register.component.html`) e scrive la stessa cosa nel commento
  * interno del documento. Un A4 con numero, IVA e totale che NON lo ripete è
  * tipograficamente indistinguibile da un documento fiscale: l'avviso è la
@@ -120,7 +120,7 @@ const PRINT_KIND: Readonly<Record<DocumentType, DocumentPrintKind>> = {
   [DocumentType.credit_note]: 'sales',
   [DocumentType.online_sale]: 'sales',
   [DocumentType.customer_order]: 'sales',
-  // Cassa negozio: il cliente può non esserci, la sede c'è sempre.
+  // Vendita al banco: il cliente può non esserci, la sede c'è sempre.
   [DocumentType.store_sale]: 'sales',
   [DocumentType.store_return]: 'sales',
   [DocumentType.quote]: 'sales',

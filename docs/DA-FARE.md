@@ -1112,3 +1112,55 @@ numeratore è il **primo** vincolo da affrontare, non una scoperta a metà strad
 condiviso col collega.
 
 ⏸️ **Il 3 non è deciso.** I primi due sì.
+
+---
+
+# Elenchi lunghi: la resa, non i dati _(rimandato 20/08/2026, con evidenza)_
+
+Il registro Movimenti non pagina più: entra sugli **ultimi 30 giorni** e «Tutti» è una scelta
+esplicita. Resta aperto **cosa succede quando il risultato è molto grande** — e la decisione del
+proprietario è di **non fissare ora un tetto**, perché non esistono dati reali su cui tararlo.
+
+## Cosa sappiamo già, misurato
+
+Non serve rimisurarlo: l'evidenza è sufficiente per dire che il DOM tradizionale non scala
+all'infinito, e insufficiente per scegliere un numero.
+
+```text
+frame Chromium (layout+paint, senza Angular)   28 ms @100 · 102 ms @1.000 · 585 ms @5.000
+motore in jsdom (Angular, senza layout)       132 ms @100 · 507 ms @1.000 · 2.597 ms @5.000
+selezionare UNA riga                           15 ms @1.000 · 59 ms @5.000 · 134 ms @10.000
+peso per riga (misurato su 285 righe vere)     726 B mediana · 843 B p95 · l'API NON comprime
+```
+
+⚠️ Il costo che conta **non è il primo disegno**: è ogni tocco successivo, perché il ciclo per
+colonna si rivaluta su tutte le righe rese. Ed è quello che l'operatore paga tutto il giorno.
+
+Il metro dichiarato dal progetto è **INP < 200 ms** (`regole-architettura`).
+
+## La strada da valutare, quando servirà
+
+⭐ **Virtualizzazione delle righe**, non caricamento progressivo. La differenza è sostanziale:
+
+|                      |                                                                                                                                                                                                   |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Virtualizzazione** | l'intero risultato filtrato è **già nel client**; nel DOM esistono solo le righe visibili più un piccolo margine. Ordinamento, selezione, export e conteggi continuano a riguardare tutto         |
+| **Infinite scroll**  | il client scarica altri blocchi mentre si scorre. ⛔ Molto più invasivo: ordinamento, selezione, export e conteggi dovrebbero rappresentare un insieme di cui **una parte non è ancora arrivata** |
+
+`@angular/cdk` è **già dipendenza** del progetto (`cdk-virtual-scroll` ha oggi zero occorrenze):
+sarebbe un candidato naturale, il che **non significa** che sia già scelto.
+
+⚠️ Da verificare prima di adottarla, perché sono le cose che si rompono per prime: la ricerca del
+browser (Ctrl+F), la stampa di pagina, l'export dalla vista, «seleziona tutti», l'intestazione
+appiccicata e il ridimensionamento colonne.
+
+## ⛔ Cosa NON è deciso
+
+Nessun tetto — **né 500, né 2.000, né altro** — è stato fissato. Il numero va scelto **su dati
+reali**, e oggi tutti i tenant sono banchi di prova: 285 movimenti in tutto, 161 negli ultimi
+trenta giorni, di cui 106 in un solo giorno.
+
+⭐ **Quando servirà, la forma da imitare è già in casa**: il Registro Corrispettivi conta _prima_
+di leggere e risponde «il periodo contiene N righe: restringi le date». Si copia **la forma**,
+mai la cifra — il suo 5.000 protegge da un costo di backend che nei Movimenti non esiste, e non
+nomina mai il browser.

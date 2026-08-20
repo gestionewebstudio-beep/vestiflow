@@ -76,7 +76,7 @@ const PRINT_KIND: Readonly<Record<DocumentTypeValue, DocumentPrintKind>> = {
   // contenuto, non la forma del foglio.
   [DocumentType.CreditNote]: 'sales',
   [DocumentType.CustomerOrder]: 'sales',
-  // Cassa negozio: il cliente può non esserci, la sede c'è sempre.
+  // Vendita al banco: il cliente può non esserci, la sede c'è sempre.
   [DocumentType.StoreSale]: 'sales',
   [DocumentType.StoreReturn]: 'sales',
   [DocumentType.Quote]: 'sales',
@@ -92,7 +92,7 @@ const PRINT_KIND: Readonly<Record<DocumentTypeValue, DocumentPrintKind>> = {
 const VALUELESS_KINDS: readonly DocumentPrintKind[] = ['transfer', 'stock'] as const;
 
 /**
- * La cassa negozio si dichiara «interna non fiscale» all'operatore. Un foglio
+ * La vendita al banco si dichiara «interna non fiscale» all'operatore. Un foglio
  * con numero, IVA e totale che NON lo ripete è tipograficamente
  * indistinguibile da un documento fiscale: l'avviso è la condizione perché
  * quel foglio possa esistere.

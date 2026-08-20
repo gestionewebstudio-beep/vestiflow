@@ -155,7 +155,7 @@ describe('DocumentPriceModePreferenceService', () => {
       expect(prisma.tenantFeatureSettings.findUnique).not.toHaveBeenCalled();
     });
 
-    it('cassa negozio: la sua modalità la decide lo store, non questa catena', async () => {
+    it('vendita al banco: la sua modalità la decide lo store, non questa catena', async () => {
       memoria(null);
       convenzione(true);
 

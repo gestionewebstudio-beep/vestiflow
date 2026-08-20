@@ -964,7 +964,7 @@ export class DocumentsService {
   /**
    * Creazione documento generica (POST /documents), usata dal registro
    * documenti per i tipi non gestiti da un flusso dedicato. I tipi con un
-   * flusso dedicato (cassa negozio, arrivo merce/carico) sono bloccati qui:
+   * flusso dedicato (vendita al banco, arrivo merce/carico) sono bloccati qui:
    * usa `createDocumentRecord` internamente per i pochi casi legittimi di
    * creazione interna (es. bozza arrivo merce da ordine fornitore).
    */
@@ -984,7 +984,7 @@ export class DocumentsService {
     }
     if (isFlowOnlyDocumentType(dto.type)) {
       throw new UnprocessableEntityException(
-        'Vendite e resi si registrano dalla cassa (Vendita al banco), non dal registro documenti.',
+        'Vendite e resi si registrano dalla Vendita al banco, non dal registro documenti.',
       );
     }
     if (isDedicatedWorkflowDocumentType(dto.type)) {
@@ -2285,9 +2285,9 @@ export class DocumentsService {
     }
     this.assertDocumentLocationWritable(user, doc);
     if (isFlowOnlyDocumentType(doc.type)) {
-      // Cassa negozio: creati già confermati con movimenti in transazione.
+      // Vendita al banco: creati già confermati con movimenti in transazione.
       throw new ConflictException(
-        'Le vendite e i resi negozio sono già registrati alla conclusione.',
+        'Le vendite e i resi al banco sono già registrati alla conclusione.',
       );
     }
     // Percorso unico Arrivo merce: la conferma dal registro generico
@@ -2883,7 +2883,7 @@ export class DocumentsService {
     this.assertDocumentLocationWritable(user, doc);
     if (isFlowOnlyDocumentType(doc.type)) {
       throw new ConflictException(
-        'Le vendite e i resi negozio non si eliminano: fanno parte dello storico movimenti.',
+        'Le vendite e i resi al banco non si eliminano: fanno parte dello storico movimenti.',
       );
     }
     const isFinalized =

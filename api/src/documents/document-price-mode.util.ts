@@ -16,7 +16,7 @@ import { DocumentType } from '@prisma/client';
  *
  * ESONERI — chi NON sta in questa lista, e perché:
  *
- *   · `store_sale` / `store_return` (cassa negozio): sempre ivati, deciso in
+ *   · `store_sale` / `store_return` (vendita al banco): sempre ivati, deciso in
  *     `store-sales.service.ts`. Al banco il prezzo esposto è quello che il
  *     cliente paga, e non è una preferenza: è cosa mostra la cassa.
  *     ⚠️ Da rivedere col rifacimento della Vendita al banco — «Fisico/POS» e

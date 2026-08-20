@@ -326,7 +326,7 @@ export class DocumentDetailComponent {
   protected readonly canCancel = computed(() => {
     const doc = this.document();
     if (!doc || isStoreFlowDocumentType(doc.type)) {
-      // Vendite/resi negozio: registro consultabile, gestione solo dalla cassa.
+      // Vendite/resi al banco: registro consultabile, gestione solo dalla cassa.
       return false;
     }
     // Scarico manuale (prompt Scarico manuale): niente annullamento — si
@@ -364,7 +364,7 @@ export class DocumentDetailComponent {
     return 'Il documento verrà eliminato definitivamente. Procedere?';
   });
 
-  /** Duplica documento (§2a): disponibile per tutti i tipi tranne vendite/resi negozio. */
+  /** Duplica documento (§2a): disponibile per tutti i tipi tranne vendite/resi al banco. */
   protected readonly canDuplicate = computed(() => {
     const doc = this.document();
     return this.canManage() && doc != null && !isStoreFlowDocumentType(doc.type);

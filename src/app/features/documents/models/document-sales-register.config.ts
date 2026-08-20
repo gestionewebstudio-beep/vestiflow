@@ -100,7 +100,7 @@ export interface SalesDocumentRegisterConfig {
   readonly createRequiresRetailRegister?: boolean;
   /**
    * Nasconde il bottone di creazione: la pagina è di sola consultazione perché
-   * i documenti nascono altrove (Vendita/Reso in negozio → cassa).
+   * i documenti nascono altrove (Vendita/Reso al banco → la loro maschera).
    */
   readonly hideCreateAction?: boolean;
   /** Nasconde il filtro Cliente (pagine lato acquisti). */
@@ -134,11 +134,6 @@ export interface SalesDocumentRegisterConfig {
    * diretta senza modale.
    */
   readonly duplicateSubject?: 'customer' | 'supplier';
-  /**
-   * La riga apre il documento nel FORM in sola lettura (banner «Sblocca
-   * modifica»), come gli Arrivi merce, invece dell'anteprima dettaglio.
-   */
-  readonly rowOpensForm?: boolean;
 }
 
 /** Stati generici del ciclo documento, etichette registro. */
@@ -174,7 +169,7 @@ export const INVOICE_TYPE_FILTER_OPTIONS: readonly SelectMenuOption[] = [
   { value: DocumentType.CreditNote, label: 'Nota di credito' },
 ];
 
-/** Opzioni del filtro «Tipo» dell'elenco Vendita/Reso in negozio. */
+/** Opzioni del filtro «Tipo» dell'elenco Vendita/Reso al banco. */
 export const STORE_SALE_TYPE_FILTER_OPTIONS: readonly SelectMenuOption[] = [
   { value: '', label: 'Tutti' },
   { value: DocumentType.StoreSale, label: 'Vendita' },
@@ -200,12 +195,11 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
     viewId: TableViewId.QuoteDocumentsList,
     detailPanelTitle: 'Dati preventivo',
     detailNotFoundTitle: 'Preventivo non trovato',
-    // Elenco allineato agli Arrivi merce: selezione multipla, barra bulk,
-    // duplica con scelta cliente e apertura nel form bloccato.
+    // Elenco allineato agli Arrivi merce: selezione multipla, barra bulk e
+    // duplica con scelta cliente.
     supportsBulkSelection: true,
     listExport: QUOTE_LIST_EXPORT,
     duplicateSubject: 'customer',
-    rowOpensForm: true,
   },
   proforma: {
     profile: 'proforma',
@@ -344,7 +338,7 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
     detailPanelTitle: 'Dati documento',
     detailNotFoundTitle: 'Documento non trovato',
   },
-  // Elenco condiviso da Vendita e Reso in negozio: entrambi nascono dalla
+  // Elenco condiviso da Vendita e Reso al banco: entrambi nascono dalla
   // cassa in un'unica transazione con i movimenti, quindi la pagina è di sola
   // consultazione — nessun «Nuovo …», nessuna azione di riga distruttiva.
   'store-sale': {
@@ -372,9 +366,6 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
     ],
     createVariantsLayout: 'buttons',
     createRequiresRetailRegister: true,
-    // ⛔ La riga apre la MODIFICA, non l'anteprima (`11` C 3b, e la regola
-    // generale di `regole-gestionale`). L'anteprima resta, come flusso separato.
-    rowOpensForm: true,
     listPath: '/app/vendita-al-banco',
     emptyTitle: 'Nessuna vendita o reso al banco',
     emptyDescription: 'Non ci sono vendite o resi che corrispondono ai filtri.',

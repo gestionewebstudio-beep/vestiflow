@@ -48,7 +48,7 @@ export function isInternalOnlyDocumentType(type: DocumentType): boolean {
 }
 
 /**
- * Tipi documento creati SOLO dal flusso dedicato (fase 3: cassa negozio).
+ * Tipi documento creati SOLO dal flusso dedicato (fase 3: vendita al banco).
  * Sono documenti reali con righe, ma non passano da POST /documents: la
  * creazione avviene in StoreSalesService con movimenti nella stessa
  * transazione. Modifica/annullamento generici bloccati per coerenza stock.
@@ -173,8 +173,8 @@ export const DEFAULT_PRINT_TITLE: Readonly<Record<DocumentType, string>> = {
   [DocumentType.credit_note]: 'Nota di credito',
   [DocumentType.online_sale]: 'Vendita online',
   [DocumentType.customer_order]: 'Ordine cliente',
-  [DocumentType.store_sale]: 'Vendita in negozio',
-  [DocumentType.store_return]: 'Reso vendita al banco',
+  [DocumentType.store_sale]: 'Vendita al banco',
+  [DocumentType.store_return]: 'Reso al banco',
   [DocumentType.quote]: 'Preventivo',
 };
 

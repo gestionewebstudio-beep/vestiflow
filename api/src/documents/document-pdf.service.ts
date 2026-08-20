@@ -47,7 +47,7 @@ const ROME_TIME_FORMAT = new Intl.DateTimeFormat('it-IT', {
 
 /**
  * Documenti di vendita in cui la sede va stampata: lo scarico manuale (dove la
- * location è il contesto dell'operazione) e la cassa negozio, dove il cliente
+ * location è il contesto dell'operazione) e la vendita al banco, dove il cliente
  * può non esserci affatto e la sede resta l'unico riferimento.
  */
 const SALES_TYPES_WITH_LOCATION: readonly DocumentType[] = [
@@ -527,12 +527,12 @@ export class DocumentPdfService {
         if (document.billingCause) {
           y = drawPdfMetaLine(doc, 'Causale', document.billingCause, y);
         }
-        // Scarico manuale e cassa negozio: la sede è il contesto operativo, e
+        // Scarico manuale e vendita al banco: la sede è il contesto operativo, e
         // sulla vendita al banco è spesso l'unico (il cliente può mancare).
         if (SALES_TYPES_WITH_LOCATION.includes(document.type) && document.locationId) {
           y = drawPdfMetaLine(doc, 'Location', locations.get(document.locationId) ?? '—', y);
         }
-        // Cassa negozio: il metodo è salvato come codice grezzo, non come
+        // Vendita al banco: il metodo è salvato come codice grezzo, non come
         // testo — va tradotto o sul foglio finisce «cash». Gli altri documenti
         // di vendita portano il pagamento nella sezione trasporto.
         if (document.type === DocumentType.store_sale && document.paymentMethod) {

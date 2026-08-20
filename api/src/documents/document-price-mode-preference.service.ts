@@ -56,7 +56,7 @@ export class DocumentPriceModePreferenceService {
   /**
    * La convenzione aziendale per quel tipo.
    *
-   * Chi non risponde alla convenzione — famiglia acquisto, cassa negozio, tipi
+   * Chi non risponde alla convenzione — famiglia acquisto, vendita al banco, tipi
    * senza prezzi — sta fuori dall'elenco e prende `false`: i costi partono
    * netti, e la cassa la sua modalità se la decide da sé
    * (`store-sales.service.ts`, sempre ivata).

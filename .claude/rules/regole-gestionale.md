@@ -460,9 +460,23 @@ Ogni tabella dati importante DEVE supportare:
 > **L'apertura primaria di un documento dal suo elenco va alla maschera di
 > modifica. Sempre, per ogni tipo.**
 
-Il `DetailComponent` **non è la destinazione della riga**: è un'**anteprima** del
-documento, una visualizzazione — e si raggiunge con un'**azione separata**, non
-cliccando la riga.
+Il `DetailComponent` **non è la destinazione della riga**: è il **Dettaglio** del
+documento — la vista di consultazione — e si raggiunge con un **pulsante apposito**,
+non cliccando la riga.
+
+⭐ **Sono TRE funzioni diverse** _(deciso 20/08/2026)_, e confonderle è l'errore che
+questa regola previene:
+
+|                |                                                                        |
+| -------------- | ---------------------------------------------------------------------- |
+| **Modifica**   | lavorare sul documento — è dove porta il clic di riga                  |
+| **Dettaglio**  | consultarlo rapidamente e in sicurezza, in sola lettura                |
+| **Stampa/PDF** | produrne una rappresentazione destinata alla stampa o all'esportazione |
+
+⛔ **Stampa e Dettaglio non c'entrano niente l'uno con l'altro.** Che un documento si
+stampi non dice nulla su come lo si consulta. E «anteprima» non è il nome di nessuna
+delle tre: **il nome VestiFlow della vista di consultazione è Dettaglio**, ed è quello
+che l'operatore legge già nei titoli di pagina.
 
 **Il criterio è cosa fa l'operatore.** Apre un documento per lavorarci: correggere una
 quantità, cambiare una data, aggiungere una riga. Portarlo su una vista in sola lettura
@@ -473,23 +487,65 @@ consulta tutto il giorno quel clic si paga a ogni riga.
 diversamente dagli altri, l'operatore deve ricordarsi quale: è la stessa ragione per cui
 le etichette dei pulsanti sono uguali su ogni maschera (`regole-stile-ui` §5).
 
-### ⚠️ Stato al 19/08/2026: la regola è rispettata solo in parte
+### ✅ Applicata a ogni tipo — 20/08/2026
 
-| Apre la **maschera** ✅                              | Apre l'**anteprima** ⛔ da correggere                                     |
-| ---------------------------------------------------- | ------------------------------------------------------------------------- |
-| Preventivo · Registrazione fattura · famiglia carico | Proforma · DDT vendita · Scarico manuale · Fatture · **Vendite al banco** |
+⚠️ **Qui c'era «la regola è rispettata solo in parte»**, con una tabella che divideva i
+tipi fra chi apriva la maschera (Preventivo, Registrazione fattura, famiglia carico) e chi
+apriva l'anteprima (Proforma, DDT vendita, Scarico manuale, Fatture, Vendite al banco). La
+divisione non esiste più.
 
-Il meccanismo esiste già ed è **una riga di configurazione**: `rowOpensForm: true` in
-`document-sales-register.config.ts`, oggi presente sul solo Preventivo. E
-`documentEditPath` ha già un indirizzo di modifica **per ogni tipo**.
+> **La decisione sta in un solo posto, dichiarata per tipo:** `DOCUMENT_ROW_OPENS` in
+> `document-routing.util.ts`, e la risposta la dà `documentRowPath`.
 
-⚠️ **Le Vendite al banco sono l'unico caso che non si chiude con quella riga**: la loro
-maschera non sa ancora caricare un documento per id. Vedi `11` — l'apertura in modifica
-è un requisito dichiarato e **non ancora completato**, legato a quella capacità.
+⛔ **Non è più «una riga di configurazione» sul profilo di elenco.** Il vecchio
+`rowOpensForm` è stato **rimosso**: era una preferenza per profilo, e ciò che vale per
+tutti non è una preferenza. È un `Record` **esaustivo** per tipo documento — aggiungerne
+uno senza dichiarare dove porta la sua riga **non compila**.
 
-⚠️ **Resta aperta una domanda di progetto**: da dove si raggiunge l'anteprima, una volta
-tolta dal clic di riga — un'azione di riga, un comando dentro la maschera, un pannello.
-Va decisa una volta per tutti i documenti, non tipo per tipo.
+⭐ **Vale anche per la ricerca globale e per i link trasversali**: `documentOpenPath` delega
+alla stessa funzione. Se le due rispondessero diversamente, lo stesso documento avrebbe due
+aperture a seconda di dove lo si è trovato.
+
+Due sole eccezioni, e sono quelle di `14` §2.1:
+
+### ⏸ DECISIONE APERTA — le eccezioni per stato non sono deliberate
+
+⛔ **Qui c'era una tabella che dichiarava due eccezioni come regola** — «documento annullato →
+apre il Dettaglio» e «tipo senza maschera documentale → apre il Dettaglio».
+
+**Non sono mai state decise.** Verificato il 20/08/2026: non esistono in nessun commit — la
+regola generale è del commit `956fb446` del 19/08 e non le contiene. Erano una **deduzione dal
+comportamento del codice**, e il codice le implementa già (`documentRowPath` manda un annullato
+a `documentPreviewPath`).
+
+> **La regola generale resta una sola: clic sulla riga → Modifica, Dettaglio dal suo pulsante.**
+> Un'eccezione per stato vale solo se **deliberata**, non se dedotta da come si comporta oggi
+> l'implementazione.
+
+⚠️ **Il codice e questa regola oggi divergono**, ed è dichiarato invece che nascosto: fino a
+decisione, `documentRowPath` continua a comportarsi come si comporta. Le due domande da chiudere:
+
+| Caso                                                    | La domanda                                                                                                                                      |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| documento **annullato**                                 | è ancora modificabile? Se non lo è, aprire la Modifica di una cosa non modificabile è un vicolo cieco — ma è una decisione, non una conseguenza |
+| tipo **senza maschera documentale** (inventario fisico) | non c'è una Modifica dove mandarlo: qui l'eccezione è **tecnicamente forzata**, non discrezionale. Va comunque dichiarata                       |
+
+### ✅ E il Dettaglio si raggiunge dalla SELEZIONE
+
+⚠️ **Qui c'era una domanda di progetto aperta** — «da dove si raggiunge, una volta tolto
+dal clic di riga». Ha una casa, ed è comune a tutti gli elenchi: la **barra azioni
+contestuale** (`14` §5).
+
+```text
+clic sulla riga      → modifica
+clic sulla checkbox  → selezione → azioni contestuali → Dettaglio
+```
+
+⚠️ **Il meccanismo è deciso; la riga della matrice per ogni elenco no.** «Dettaglio» è
+un'azione **decisa** — il concetto si mantiene e si apre col suo pulsante — ma su quali
+elenchi compaia, con quali permessi e in quali stati, si scrive elenco per elenco in
+`14` parte E. Le due azioni già attive sono Stampa ed Esporta, scelte perché di sola
+lettura.
 
 ## Colonne numeriche
 

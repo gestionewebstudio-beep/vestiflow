@@ -74,7 +74,7 @@ describe('document-print.util (frontend)', () => {
     expect(documentPrintShowsValues(DocumentType.ManualUnload)).toBe(true);
   });
 
-  it('proforma e cassa negozio dichiarano di non essere fiscali', () => {
+  it('proforma e vendita al banco dichiarano di non essere fiscali', () => {
     expect(documentPrintDisclaimer(DocumentType.Proforma)).toContain('non fiscale');
     expect(documentPrintDisclaimer(DocumentType.StoreSale)).toContain('non fiscale');
     expect(documentPrintDisclaimer(DocumentType.StoreReturn)).toContain('non fiscale');

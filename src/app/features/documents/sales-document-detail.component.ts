@@ -82,7 +82,7 @@ export class SalesDocumentDetailComponent extends DocumentDetailComponent {
 
   /**
    * Tipi ammessi dalla pagina: l'elenco condiviso ne dichiara più d'uno
-   * (Fattura/Fattura accompagnatoria, Vendita/Reso negozio). Confrontare col
+   * (Fattura/Fattura accompagnatoria, Vendita/Reso al banco). Confrontare col
    * solo `type` scaccerebbe al registro generico i documenti dell'altro tipo.
    */
   private readonly allowedTypes = computed(() => {
