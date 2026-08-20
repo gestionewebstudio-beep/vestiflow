@@ -41,8 +41,11 @@ export class SupplierOrderService {
     if (query.search) params = params.set('search', query.search);
     if (query.status) params = params.set('status', query.status);
     if (query.supplierId) params = params.set('supplierId', query.supplierId);
+    if (query.dateFrom) params = params.set('dateFrom', query.dateFrom);
+    if (query.dateTo) params = params.set('dateTo', query.dateTo);
     const sort = serializeDataTableSort(query.sort ?? []);
     if (sort) params = params.set('sort', sort);
+    if (query.all) params = params.set('all', '1');
 
     return this.http
       .get<ApiPaginated<SupplierOrderApiRow>>(this.url('/supplier-orders'), { params })

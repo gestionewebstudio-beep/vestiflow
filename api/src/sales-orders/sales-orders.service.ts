@@ -15,6 +15,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import type { ListSalesOrdersQueryDto } from './dto/list-sales-orders.query.dto';
 import { buildSalesOrderWhere } from './sales-order-query.util';
 import { parseSalesOrderSort } from './sales-orders-sort.util';
+import { pageWindow, unpagedResult } from '../common/dto/unpaged.util';
 
 /** Vendita online collegata all'ordine (fase 3 §2-§3: colonna registro). */
 export interface SalesOrderOnlineSaleRef {
@@ -131,8 +132,7 @@ export class SalesOrdersService {
           },
         },
         orderBy: parseSalesOrderSort(query.sort),
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
+        ...pageWindow(query),
       }),
       this.prisma.salesOrder.count({ where }),
     ]);
@@ -164,6 +164,12 @@ export class SalesOrdersService {
       }),
     );
 
+    // ⭐ Senza pagine il taglio va DICHIARATO (`14` §H14-bis): una lista
+    // troncata in silenzio sembra completa, ed è peggio di una paginata.
+    if (query.all) {
+      const esito = unpagedResult(items, total);
+      return { ...esito, items: esito.items as SalesOrderListRow[] };
+    }
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 

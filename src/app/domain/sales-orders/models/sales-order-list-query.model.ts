@@ -51,6 +51,12 @@ export interface SalesOrderListQuery {
   readonly includable?: boolean;
   /** Ordinamento nella grammatica del motore (`14` §H15). */
   readonly sort?: readonly DataTableSort[];
+  /**
+   * Chiede **tutto il risultato del filtro** invece di una pagina
+   * (`14` §H14-bis: i riepiloghi non impaginano). L'API taglia al proprio tetto
+   * e lo dichiara nel meta: chi riceve `truncated` deve dirlo a schermo.
+   */
+  readonly all?: boolean;
 }
 
 /** Filtri export CSV (stessi filtri lista, senza paginazione). */

@@ -87,6 +87,7 @@ export class DocumentService {
     // (`14` §H15). Vuoto = nessun parametro, e l'API tiene il suo ordine.
     const sort = serializeDataTableSort(query.sort ?? []);
     if (sort) params = params.set('sort', sort);
+    if (query.all) params = params.set('all', '1');
 
     return this.http.get<ApiPaginated<DocumentApiRow>>(this.url('/documents'), { params }).pipe(
       timeout(HTTP_TIMEOUT_MS),

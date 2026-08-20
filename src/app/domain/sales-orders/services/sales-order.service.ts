@@ -276,6 +276,9 @@ export class SalesOrderService {
     if (sort) {
       next = next.set('sort', sort);
     }
+    if (query.all) {
+      next = next.set('all', '1');
+    }
     return next;
   }
 }

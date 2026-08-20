@@ -17,6 +17,11 @@ import {
   serializeDataTableSort,
   type DataTableSort,
 } from '@shared/components/data-table/data-table.model';
+import {
+  DEFAULT_MOVEMENT_PERIOD,
+  MovementPeriodPreset,
+  resolveMovementPeriodRange,
+} from '@domain/inventory/models/movement-period.util';
 import { createListSelection } from '@shared/utils/list-selection';
 import { downloadBlob } from '@shared/utils/download-blob.util';
 import {
@@ -47,7 +52,7 @@ import { BackButtonComponent } from '@shared/components/back-button/back-button.
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
-import { PaginationComponent } from '@shared/components/pagination/pagination.component';
+import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
@@ -67,7 +72,6 @@ import {
 } from './models/supplier-order-labels.util';
 import {
   DEFAULT_SUPPLIER_ORDER_PAGE_SIZE,
-  SUPPLIER_ORDER_PAGE_SIZE_OPTIONS,
   parseSupplierOrderListQuery,
 } from '@domain/supplier-orders/models/supplier-order-list-query.model';
 import { SupplierOrderService } from '@domain/supplier-orders/services/supplier-order.service';
@@ -101,7 +105,7 @@ type OrderListState =
     ButtonComponent,
     EmptyStateComponent,
     ErrorStateComponent,
-    PaginationComponent,
+    InlineBannerComponent,
     SelectMenuComponent,
     SlidePanelComponent,
     TableSkeletonComponent,
@@ -125,7 +129,6 @@ export class SupplierOrderListComponent {
   );
 
   protected readonly skeletonColumns = 5;
-  protected readonly pageSizeOptions = SUPPLIER_ORDER_PAGE_SIZE_OPTIONS;
 
   protected readonly statusOptions: readonly SelectMenuOption[] = [
     { value: 'confirmed', label: 'Confermato' },
@@ -143,7 +146,14 @@ export class SupplierOrderListComponent {
   private readonly request = computed(() => ({
     // Le chiavi non supportate escono qui, prima della rete: l'URL è un posto
     // che chiunque può scrivere, il 400 lo prenderebbe l'operatore.
-    query: { ...this.query(), sort: this.sortRichiesto() },
+    query: {
+      ...this.query(),
+      sort: this.sortRichiesto(),
+      dateFrom: this.periodoEffettivo().from,
+      dateTo: this.periodoEffettivo().to,
+      // ⛔ I riepiloghi non impaginano (`14` §H14-bis).
+      all: true,
+    },
     tick: this.refreshTick(),
   }));
 
@@ -267,6 +277,50 @@ export class SupplierOrderListComponent {
     return Boolean(q.search ?? q.status);
   });
 
+  /**
+   * Preset del periodo. ⭐ Arriva con la rimozione delle pagine
+   * (`14` §H14-bis): un riepilogo che non impagina ha bisogno di un
+   * contenimento, e il contenimento è il periodo — «Tutti» resta scegliibile ma
+   * non è il predefinito.
+   */
+  protected readonly periodOptions: readonly SelectMenuOption[] = [
+    { value: MovementPeriodPreset.All, label: 'Tutti' },
+    { value: MovementPeriodPreset.Last7Days, label: 'Ultimi 7 giorni' },
+    { value: MovementPeriodPreset.Last30Days, label: 'Ultimi 30 giorni' },
+    { value: MovementPeriodPreset.ThisMonth, label: 'Mese corrente' },
+    { value: MovementPeriodPreset.LastMonth, label: 'Mese scorso' },
+    { value: MovementPeriodPreset.ThisYear, label: 'Anno corrente' },
+    { value: MovementPeriodPreset.LastYear, label: 'Anno scorso' },
+  ];
+
+  protected readonly periodPreset = signal<MovementPeriodPreset>(
+    this.route.snapshot.queryParamMap.get('dateFrom') ||
+      this.route.snapshot.queryParamMap.get('dateTo')
+      ? MovementPeriodPreset.Custom
+      : DEFAULT_MOVEMENT_PERIOD,
+  );
+
+  /**
+   * Il periodo effettivo. ⭐ Il predefinito NON passa dall'URL: all'apertura
+   * non c'è nessun `dateFrom`, e l'elenco deve comunque partire dagli ultimi
+   * 30 giorni. Scriverlo a ogni apertura sporcherebbe la cronologia con un
+   * parametro che nessuno ha scelto.
+   */
+  private readonly periodoEffettivo = computed(() => {
+    const q = this.query();
+    if (q.dateFrom || q.dateTo) {
+      return { from: q.dateFrom, to: q.dateTo };
+    }
+    return resolveMovementPeriodRange(this.periodPreset(), '', '');
+  });
+
+  protected onPeriodPresetChange(value: string | null): void {
+    const preset = (value ?? MovementPeriodPreset.All) as MovementPeriodPreset;
+    this.periodPreset.set(preset);
+    const range = resolveMovementPeriodRange(preset, '', '');
+    this.updateParams({ dateFrom: range.from ?? null, dateTo: range.to ?? null, page: null }, true);
+  }
+
   /** Pannello filtri mobile: un solo pulsante «Filtri (n)». */
   protected readonly mobileFiltersOpen = signal(false);
 
@@ -298,17 +352,6 @@ export class SupplierOrderListComponent {
   protected resetFilters(): void {
     this.searchDraft.set('');
     this.updateParams({ search: null, status: null, page: null }, true);
-  }
-
-  protected goToPage(page: number): void {
-    this.updateParams({ page: page <= 1 ? null : page });
-  }
-
-  protected onPageSizeChange(size: number): void {
-    this.updateParams({
-      pageSize: size === DEFAULT_SUPPLIER_ORDER_PAGE_SIZE ? null : size,
-      page: null,
-    });
   }
 
   protected reload(): void {

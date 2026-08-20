@@ -49,6 +49,7 @@ import type { ListSupplierOrdersQueryDto } from './dto/list-supplier-orders.quer
 import type { UpdateSupplierOrderDto } from './dto/update-supplier-order.dto';
 import { SuppliersService } from './suppliers.service';
 import { parseSupplierOrderSort } from './supplier-orders-sort.util';
+import { pageWindow, unpagedResult } from '../common/dto/unpaged.util';
 
 export type SupplierOrderListRow = SupplierOrder & { lineCount: number; lines: [] };
 
@@ -416,10 +417,23 @@ export class SupplierOrdersService {
       });
     }
 
+    // Il periodo si applica alla DATA ORDINE, che è quella che l'elenco
+    // mostra: filtrare su `createdAt` darebbe un intervallo che non
+    // corrisponde alla colonna letta. Estremi inclusivi: `dateTo` copre
+    // l'intera giornata.
+    const orderDate =
+      query.dateFrom || query.dateTo
+        ? {
+            ...(query.dateFrom ? { gte: new Date(`${query.dateFrom}T00:00:00.000Z`) } : {}),
+            ...(query.dateTo ? { lte: new Date(`${query.dateTo}T23:59:59.999Z`) } : {}),
+          }
+        : undefined;
+
     return {
       tenantId,
       ...(query.status ? { status: query.status } : {}),
       ...(query.supplierId ? { supplierId: query.supplierId } : {}),
+      ...(orderDate ? { orderDate } : {}),
       ...(andBlocks.length > 0 ? { AND: andBlocks } : {}),
     };
   }
@@ -477,8 +491,7 @@ export class SupplierOrdersService {
         where,
         include: { _count: { select: { lines: true } } },
         orderBy: parseSupplierOrderSort(query.sort),
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
+        ...pageWindow(query),
       }),
       this.prisma.supplierOrder.count({ where }),
     ]);
@@ -489,6 +502,12 @@ export class SupplierOrdersService {
       lines: [],
     }));
 
+    // ⭐ Senza pagine il taglio va DICHIARATO (`14` §H14-bis): una lista
+    // troncata in silenzio sembra completa, ed è peggio di una paginata.
+    if (query.all) {
+      const esito = unpagedResult(items, total);
+      return { ...esito, items: esito.items as SupplierOrderListRow[] };
+    }
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 

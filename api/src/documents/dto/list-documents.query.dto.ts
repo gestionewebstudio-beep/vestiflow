@@ -104,4 +104,14 @@ export class ListDocumentsQueryDto extends PaginationQueryDto {
   @Transform(({ value }) => value === '1' || value === 'true' || value === true)
   @IsBoolean()
   pendingInvoice?: boolean;
+
+  /**
+   * `all=1` — tutto il risultato del filtro invece di una pagina
+   * (`14` §H14-bis: i riepiloghi non impaginano). Il tetto e il troncamento
+   * dichiarato stanno in `common/dto/unpaged.util`.
+   */
+  @IsOptional()
+  @Transform(({ value }) => value === '1' || value === 'true' || value === true)
+  @IsBoolean()
+  all?: boolean;
 }

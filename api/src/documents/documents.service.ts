@@ -132,6 +132,7 @@ import type { ListDocumentOperatorsQueryDto } from './dto/list-document-operator
 import type { ListDocumentsQueryDto } from './dto/list-documents.query.dto';
 import type { UpdateDocumentDto } from './dto/update-document.dto';
 import { parseDocumentListSort } from './documents-sort.util';
+import { pageWindow, unpagedResult } from '../common/dto/unpaged.util';
 
 export type DocumentWithLines = Document & { lines: DocumentLine[] };
 
@@ -473,8 +474,7 @@ export class DocumentsService {
           },
         },
         orderBy: parseDocumentListSort(query.sort),
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
+        ...pageWindow(query),
       }),
       this.prisma.document.count({ where }),
     ]);
@@ -490,6 +490,12 @@ export class DocumentsService {
       }),
     );
 
+    // ⭐ Senza pagine il taglio va DICHIARATO (`14` §H14-bis): una lista
+    // troncata in silenzio sembra completa, ed è peggio di una paginata.
+    if (query.all) {
+      const esito = unpagedResult(items, total);
+      return { ...esito, items: esito.items as DocumentListRow[] };
+    }
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 

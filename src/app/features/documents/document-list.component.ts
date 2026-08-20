@@ -48,6 +48,7 @@ import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { DEFAULT_CURRENCY, formatMoney } from '@core/utils/money.util';
 import { CustomerService } from '@domain/customers/services/customer.service';
 import {
+  DEFAULT_MOVEMENT_PERIOD,
   MovementPeriodPreset,
   resolveMovementPeriodRange,
 } from '@domain/inventory/models/movement-period.util';
@@ -58,7 +59,7 @@ import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confir
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
-import { PaginationComponent } from '@shared/components/pagination/pagination.component';
+import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
@@ -120,7 +121,6 @@ import { salesDocumentRegisterConfig } from './models/document-sales-register.co
 import type { SalesDocumentRegisterProfile } from './models/document-sales-register.config';
 import {
   DEFAULT_DOCUMENT_PAGE_SIZE,
-  DOCUMENT_PAGE_SIZE_OPTIONS,
   parseDocumentListQuery,
   type DocumentListProfile,
   type DocumentListQuery,
@@ -204,7 +204,7 @@ type DeleteResult =
     DateInputComponent,
     EmptyStateComponent,
     ErrorStateComponent,
-    PaginationComponent,
+    InlineBannerComponent,
     ListActionsBarComponent,
     SelectMenuComponent,
     SlidePanelComponent,
@@ -446,6 +446,12 @@ export class DocumentListComponent {
 
   /** Preset rapidi del periodo Dal/Al (allineati al registro movimenti). */
   protected readonly periodOptions: readonly SelectMenuOption[] = [
+    // ⭐ «Tutti» resta scegliibile ma NON è più il predefinito (`14` §H14-bis):
+    // un riepilogo che si apre su tutta la storia del tenant chiede al database
+    // di leggerla prima ancora che l'operatore abbia guardato qualcosa.
+    { value: MovementPeriodPreset.All, label: 'Tutti' },
+    { value: MovementPeriodPreset.Last7Days, label: 'Ultimi 7 giorni' },
+    { value: MovementPeriodPreset.Last30Days, label: 'Ultimi 30 giorni' },
     { value: MovementPeriodPreset.ThisMonth, label: 'Mese corrente' },
     { value: MovementPeriodPreset.LastMonth, label: 'Mese scorso' },
     { value: MovementPeriodPreset.ThisYear, label: 'Anno corrente' },
@@ -462,9 +468,7 @@ export class DocumentListComponent {
     this.route.snapshot.queryParamMap.get('dateFrom') ||
       this.route.snapshot.queryParamMap.get('dateTo')
       ? MovementPeriodPreset.Custom
-      : this.isGoodsReceiptList()
-        ? MovementPeriodPreset.ThisMonth
-        : MovementPeriodPreset.All,
+      : DEFAULT_MOVEMENT_PERIOD,
   );
 
   protected readonly isCustomPeriod = computed(
@@ -614,7 +618,6 @@ export class DocumentListComponent {
   });
 
   protected readonly skeletonColumns = 7;
-  protected readonly pageSizeOptions = DOCUMENT_PAGE_SIZE_OPTIONS;
 
   protected readonly typeOptions: readonly SelectMenuOption[] = Object.values(DocumentType).map(
     (type) => ({ value: type, label: documentTypeLabel(type) }),
@@ -641,8 +644,36 @@ export class DocumentListComponent {
     ),
   );
 
+  /**
+   * Il periodo con cui la lista interroga l'API.
+   *
+   * ⭐ **Il predefinito non passa dall'URL**: all'apertura non c'è nessun
+   * `dateFrom`, e il riepilogo deve comunque partire dagli ultimi 30 giorni
+   * (`14` §H14-bis). Scriverlo nell'URL a ogni apertura sporcherebbe la
+   * cronologia del browser con un parametro che nessuno ha scelto.
+   *
+   * Quando l'operatore sceglie un periodo, quello **sì** finisce nell'URL: è
+   * una sua decisione, e la pagina si condivide con quella dentro.
+   */
+  private readonly periodoEffettivo = computed(() => {
+    const q = this.query();
+    if (q.dateFrom || q.dateTo) {
+      return { from: q.dateFrom, to: q.dateTo };
+    }
+    return resolveMovementPeriodRange(this.periodPreset(), '', '');
+  });
+
   protected readonly apiQuery = computed((): DocumentListQuery => {
-    const q = { ...this.query(), sort: this.sortRichiesto() };
+    const periodo = this.periodoEffettivo();
+    const q = {
+      ...this.query(),
+      sort: this.sortRichiesto(),
+      dateFrom: periodo.from,
+      dateTo: periodo.to,
+      // ⛔ I riepiloghi non impaginano: si chiede tutto il risultato del
+      // filtro, ed è ciò che rende onesto ordinarlo nel client.
+      all: true,
+    };
     const sales = this.salesRegister();
     if (sales) {
       // Pagina dedicata: il tipo è fisso dal profilo, mai dai query param.
@@ -1201,17 +1232,6 @@ export class DocumentListComponent {
       },
       true,
     );
-  }
-
-  protected goToPage(page: number): void {
-    this.updateParams({ page: page <= 1 ? null : page });
-  }
-
-  protected onPageSizeChange(size: number): void {
-    this.updateParams({
-      pageSize: size === DEFAULT_DOCUMENT_PAGE_SIZE ? null : size,
-      page: null,
-    });
   }
 
   protected reload(): void {

@@ -46,7 +46,7 @@ import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confir
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
-import { PaginationComponent } from '@shared/components/pagination/pagination.component';
+import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
@@ -56,6 +56,7 @@ import type { SelectMenuOption } from '@shared/components/select-menu/select-men
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 import {
+  DEFAULT_MOVEMENT_PERIOD,
   MovementPeriodPreset,
   resolveMovementPeriodRange,
 } from '@domain/inventory/models/movement-period.util';
@@ -106,7 +107,6 @@ import {
 } from './utils/sales-order-list-export.util';
 import {
   DEFAULT_SALES_PAGE_SIZE,
-  SALES_PAGE_SIZE_OPTIONS,
   parseSalesOrderListQuery,
   withShopifySourceScope,
 } from '@domain/sales-orders/models/sales-order-list-query.model';
@@ -142,7 +142,7 @@ type SalesListState =
     DateInputComponent,
     EmptyStateComponent,
     ErrorStateComponent,
-    PaginationComponent,
+    InlineBannerComponent,
     ListActionsBarComponent,
     SelectMenuComponent,
     SlidePanelComponent,
@@ -171,7 +171,6 @@ export class SalesOrderListComponent {
   private shopifyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
   protected readonly skeletonColumns = 9;
-  protected readonly pageSizeOptions = SALES_PAGE_SIZE_OPTIONS;
 
   private readonly routeData = toSignal(this.route.data, {
     initialValue: this.route.snapshot.data,
@@ -349,7 +348,9 @@ export class SalesOrderListComponent {
   );
 
   private readonly request = computed(() => ({
-    query: { ...this.effectiveQuery(), sort: this.sortRichiesto() },
+    // ⛔ I riepiloghi non impaginano (`14` §H14-bis): si chiede tutto il
+    // risultato del filtro, contenuto dal periodo.
+    query: { ...this.effectiveQuery(), sort: this.sortRichiesto(), all: true },
     tick: this.refreshTick(),
   }));
 
@@ -609,11 +610,12 @@ export class SalesOrderListComponent {
       SHOPIFY_ORDER_LIST_COLUMN_PRESETS,
     );
 
-    // Default «Mese corrente» all'apertura: l'URL è la fonte di verità dei
-    // filtri, quindi il periodo va scritto lì — una volta sola alla creazione,
-    // altrimenti scegliere «Tutto» verrebbe riscritto subito dopo.
-    if (this.periodPreset() === MovementPeriodPreset.ThisMonth) {
-      const initialRange = resolveMovementPeriodRange(MovementPeriodPreset.ThisMonth, '', '');
+    // Default «Ultimi 30 giorni» all'apertura (`14` §H14-bis): l'URL è la
+    // fonte di verità dei filtri, quindi il periodo va scritto lì — una volta
+    // sola alla creazione, altrimenti scegliere «Tutti» verrebbe riscritto
+    // subito dopo.
+    if (this.periodPreset() === DEFAULT_MOVEMENT_PERIOD) {
+      const initialRange = resolveMovementPeriodRange(DEFAULT_MOVEMENT_PERIOD, '', '');
       this.updateParams(
         { placedFrom: initialRange.from ?? null, placedTo: initialRange.to ?? null },
         true,
@@ -706,6 +708,10 @@ export class SalesOrderListComponent {
 
   /** Preset rapidi del periodo Dal/Al (stessi dell'Arrivo merce). */
   protected readonly periodOptions: readonly SelectMenuOption[] = [
+    // «Tutti» resta scegliibile, non è più il predefinito (`14` §H14-bis).
+    { value: MovementPeriodPreset.All, label: 'Tutti' },
+    { value: MovementPeriodPreset.Last7Days, label: 'Ultimi 7 giorni' },
+    { value: MovementPeriodPreset.Last30Days, label: 'Ultimi 30 giorni' },
     { value: MovementPeriodPreset.ThisMonth, label: 'Mese corrente' },
     { value: MovementPeriodPreset.LastMonth, label: 'Mese scorso' },
     { value: MovementPeriodPreset.ThisYear, label: 'Anno corrente' },
@@ -722,7 +728,7 @@ export class SalesOrderListComponent {
     this.route.snapshot.queryParamMap.get('placedFrom') ||
       this.route.snapshot.queryParamMap.get('placedTo')
       ? MovementPeriodPreset.Custom
-      : MovementPeriodPreset.ThisMonth,
+      : DEFAULT_MOVEMENT_PERIOD,
   );
 
   protected readonly isCustomPeriod = computed(
@@ -763,14 +769,6 @@ export class SalesOrderListComponent {
       },
       true,
     );
-  }
-
-  protected goToPage(page: number): void {
-    this.updateParams({ page: page <= 1 ? null : page });
-  }
-
-  protected onPageSizeChange(size: number): void {
-    this.updateParams({ pageSize: size === DEFAULT_SALES_PAGE_SIZE ? null : size, page: null });
   }
 
   protected reload(): void {

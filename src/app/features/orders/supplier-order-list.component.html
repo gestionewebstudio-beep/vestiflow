@@ -69,6 +69,20 @@
         />
       </div>
 
+      <div class="po-list__field">
+        <app-select-menu
+          chipLabel="Periodo"
+          [options]="periodOptions"
+          [value]="periodPreset()"
+          ariaLabel="Filtra per periodo"
+          placeholder="Ultimi 30 giorni"
+          [compact]="true"
+          [fullWidth]="true"
+          [labelOnly]="true"
+          (valueChange)="onPeriodPresetChange($event)"
+        />
+      </div>
+
       @if (hasActiveFilters()) {
         <button type="button" class="po-list__clear" (click)="resetFilters()">Azzera filtri</button>
       }
@@ -139,13 +153,19 @@
         <span class="po-list__attesa">{{ cellText(order, 'expected') }}</span>
       </ng-template>
     </app-data-table>
-    <app-pagination
-      label="Paginazione ordini fornitori"
-      [meta]="meta()"
-      [pageSizeOptions]="pageSizeOptions"
-      (pageChange)="goToPage($event)"
-      (pageSizeChange)="onPageSizeChange($event)"
-    />
+    @if (meta().truncated) {
+      <!-- Il tetto ha tagliato: va detto (`14` §H14-bis). -->
+      <app-inline-banner
+        tone="warning"
+        [message]="
+          'Mostrati i primi ' +
+          meta().pageSize +
+          ' ordini di ' +
+          meta().total +
+          ': restringi il periodo per vederli tutti.'
+        "
+      />
+    }
   }
 
   <!-- Pannello filtri mobile: lo stesso filtro della toolbar, a tutta

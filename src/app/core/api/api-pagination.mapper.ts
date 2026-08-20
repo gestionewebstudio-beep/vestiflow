@@ -11,6 +11,7 @@ export function toPaginatedResponse<T>(response: ApiPaginated<T>): PaginatedResp
       pageSize: response.pageSize,
       total: response.total,
       totalPages,
+      ...(response.truncated ? { truncated: true } : {}),
     },
   };
 }

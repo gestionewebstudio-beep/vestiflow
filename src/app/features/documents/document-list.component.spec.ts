@@ -518,3 +518,79 @@ describe('DocumentListComponent — l’ordinamento', () => {
     expect(screen.queryByRole('button', { name: /^Controparte/ })).toBeNull();
   });
 });
+
+/**
+ * ⭐ **I riepiloghi non impaginano** (`14` §H14-bis): si aprono sugli ultimi 30
+ * giorni e chiedono tutto il risultato del filtro. È ciò che rende onesto
+ * ordinare nel client — l'insieme caricato È il risultato, non una pagina.
+ */
+describe('DocumentListComponent — niente pagine, ultimi 30 giorni', () => {
+  const titolare = { role: UserRole.Owner, permissions: [] };
+
+  function apiQuery(view: { fixture: { componentInstance: unknown } }) {
+    return (
+      view.fixture.componentInstance as {
+        apiQuery: () => { all?: boolean; dateFrom?: string; dateTo?: string };
+      }
+    ).apiQuery();
+  }
+
+  it('⛔ chiede TUTTO il risultato del filtro, non una pagina', async () => {
+    const view = await renderList('generic', titolare);
+
+    expect(apiQuery(view).all).toBe(true);
+  });
+
+  it('⭐ si apre sugli ultimi 30 giorni anche se l’URL non porta date', async () => {
+    const view = await renderList('generic', titolare);
+    const { dateFrom, dateTo } = apiQuery(view);
+
+    expect(dateFrom).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(dateTo).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    // Trenta giorni inclusivi: oggi più i ventinove precedenti.
+    const giorni =
+      (Date.parse(`${dateTo}T00:00:00Z`) - Date.parse(`${dateFrom}T00:00:00Z`)) / 86_400_000;
+    expect(giorni).toBe(29);
+  });
+
+  it('le date scelte nell’URL vincono sul predefinito', async () => {
+    const view = await render(DocumentListComponent, {
+      providers: [
+        provideRouter([]),
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            data: of({ documentListProfile: 'generic' }),
+            snapshot: {
+              data: { documentListProfile: 'generic' },
+              queryParamMap: convertToParamMap({ dateFrom: '2026-01-01', dateTo: '2026-01-31' }),
+            },
+            queryParamMap: of(convertToParamMap({ dateFrom: '2026-01-01', dateTo: '2026-01-31' })),
+          },
+        },
+        { provide: AuthService, useValue: { currentUser: () => titolare } },
+        {
+          provide: DocumentService,
+          useValue: {
+            getDocuments: () => of(paginato()),
+            getOperators: () => of([]),
+            deleteDocument: vi.fn(),
+            exportPdf: vi.fn(),
+          },
+        },
+        { provide: ExternalDocumentTypeService, useValue: { list: () => of([]) } },
+        { provide: CustomerService, useValue: { getCustomers: () => of(paginato()) } },
+        { provide: SupplierService, useValue: { getSuppliers: () => of([]) } },
+        { provide: PaymentOptionsService, useValue: { list: () => of([]) } },
+        { provide: OperationalLocationsService, useValue: { locations: () => [] } },
+        {
+          provide: TableViewPreferenceApiService,
+          useValue: { load: () => of(null), save: () => of(undefined) },
+        },
+      ],
+    });
+
+    expect(apiQuery(view).dateFrom).toBe('2026-01-01');
+    expect(apiQuery(view).dateTo).toBe('2026-01-31');
+  });
+});

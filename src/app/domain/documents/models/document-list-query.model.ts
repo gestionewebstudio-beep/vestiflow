@@ -58,6 +58,12 @@ export interface DocumentListQuery {
    * è la **serializzazione** di questo array, non un formato suo.
    */
   readonly sort?: readonly DataTableSort[];
+  /**
+   * Chiede **tutto il risultato del filtro** invece di una pagina
+   * (`14` §H14-bis: i riepiloghi non impaginano). L'API taglia al proprio tetto
+   * e lo dichiara nel meta: chi riceve `truncated` deve dirlo a schermo.
+   */
+  readonly all?: boolean;
 }
 
 const TYPE_VALUES = new Set<string>(Object.values(DocumentType));
