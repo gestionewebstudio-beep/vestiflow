@@ -373,14 +373,24 @@ export class SupplierOrdersService {
     await this.prisma.supplierOrder.delete({ where: { id } });
   }
 
-  async list(
+  /**
+   * Il filtro dell'elenco, in **un posto solo**.
+   *
+   * ⛔ Estratto il 20/08/2026 perché l'export ne ha bisogno identico: se
+   * l'elenco e l'export costruissero due `where`, l'operatore che esporta «il
+   * risultato filtrato» (`14` §5.3) potrebbe ricevere righe diverse da quelle
+   * che sta guardando — e non se ne accorgerebbe, perché il file lo apre dopo.
+   *
+   * `null` = nessuna sede leggibile: chi chiama restituisce l'insieme vuoto.
+   */
+  private async buildListWhere(
     tenantId: string,
     query: ListSupplierOrdersQueryDto,
     user?: UserProfileDto,
-  ): Promise<Paginated<SupplierOrderListRow>> {
+  ): Promise<Prisma.SupplierOrderWhereInput | null> {
     const locationScope = await resolveReadableListLocationScope(this.prisma, tenantId, user);
     if (locationScope === null) {
-      return { items: [], total: 0, page: query.page, pageSize: query.pageSize };
+      return null;
     }
 
     // Blocchi OR combinati in AND: scope sedi (gli ordini nuovi non hanno
@@ -405,12 +415,61 @@ export class SupplierOrdersService {
       });
     }
 
-    const where: Prisma.SupplierOrderWhereInput = {
+    return {
       tenantId,
       ...(query.status ? { status: query.status } : {}),
       ...(query.supplierId ? { supplierId: query.supplierId } : {}),
       ...(andBlocks.length > 0 ? { AND: andBlocks } : {}),
     };
+  }
+
+  /**
+   * Le righe che l'export deve produrre (`14` §5.3).
+   *
+   * ```text
+   * nessun id  → tutto il risultato dei filtri, senza pagina
+   * con id     → soltanto quelli
+   * ```
+   *
+   * ⛔ **Gli id NON scavalcano il filtro di sicurezza**: restano dentro lo
+   * stesso `where` di tenant e sedi leggibili. Un elenco di id arriva dal
+   * client, e un client può mandarne di qualunque tenant — accettarli così
+   * com'è renderebbe l'export una via d'uscita dai permessi.
+   *
+   * ⚠️ Nessuna paginazione, ed è il punto: il client ha in mano UNA pagina, non
+   * il risultato. Un export servito dalle righe caricate darebbe le prime venti
+   * di centoventisette senza dirlo.
+   */
+  async listAllForExport(
+    tenantId: string,
+    query: ListSupplierOrdersQueryDto,
+    user?: UserProfileDto,
+    ids?: readonly string[],
+  ): Promise<readonly SupplierOrderListRow[]> {
+    const base = await this.buildListWhere(tenantId, query, user);
+    if (base === null) {
+      return [];
+    }
+    const where: Prisma.SupplierOrderWhereInput =
+      ids && ids.length > 0 ? { AND: [base, { id: { in: [...ids] } }] } : base;
+
+    const rows = await this.prisma.supplierOrder.findMany({
+      where,
+      include: { _count: { select: { lines: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    return rows.map(({ _count, ...order }) => ({ ...order, lineCount: _count.lines, lines: [] }));
+  }
+
+  async list(
+    tenantId: string,
+    query: ListSupplierOrdersQueryDto,
+    user?: UserProfileDto,
+  ): Promise<Paginated<SupplierOrderListRow>> {
+    const where = await this.buildListWhere(tenantId, query, user);
+    if (where === null) {
+      return { items: [], total: 0, page: query.page, pageSize: query.pageSize };
+    }
 
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.supplierOrder.findMany({
