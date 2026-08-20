@@ -1,0 +1,245 @@
+@use 'breakpoints' as bp;
+@use 'responsive-table' as rt;
+
+/*
+  Il motore tabella dei riepiloghi (`14` parte H).
+
+  ⛔ **La grammatica non è nuova**: arriva dai mixin che le cinque tabelle già
+  usavano — contenitore a scorrimento, layout desktop, ripiego a card, colonna
+  di selezione. Il motore le include una volta invece di cinque, ed è la ragione
+  per cui questo foglio è corto: non c'era CSS da inventare, solo da smettere di
+  ripetere.
+*/
+@include rt.list-card-table-host();
+@include rt.data-table-desktop('data-table');
+@include rt.data-table-mobile-cards('data-table');
+@include rt.selection-column('data-table');
+
+/*
+  L'intestazione ordinabile è un pulsante vero: si raggiunge col Tab e annuncia
+  il proprio stato via `aria-sort` sulla cella che lo contiene.
+*/
+.data-table__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.data-table__sort-icon {
+  font-size: var(--text-2xs);
+}
+
+/*
+  La maniglia di ridimensionamento: pochi pixel sul bordo destro
+  dell'intestazione. `regole-stile-ui` §9 ricorda che è un bersaglio da
+  puntatore fine — su dispositivo a dito la tabella diventa card e non c'è.
+*/
+.data-table__resize {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  inline-size: var(--space-1);
+  cursor: col-resize;
+  user-select: none;
+}
+
+.data-table__head-cell {
+  position: relative;
+}
+
+/*
+  L'intestazione di sezione: una fascia di STRUTTURA, non una riga di dato.
+  Prende lo stesso fondo dell'intestazione tabella — `regole-stile-ui` §6 spiega
+  perché non `--color-surface-soft`: quel tono è già preso dalle righe di
+  transazione singola, e un raggruppamento che lo usasse si leggerebbe come un
+  altro evento invece che come struttura.
+*/
+.data-table__section-head-cell {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-table-header-fg);
+  text-align: start;
+  text-transform: uppercase;
+  letter-spacing: 0.045em;
+  background-color: var(--color-table-header-bg);
+}
+
+/*
+  Il piede di sezione chiude il gruppo: più pesante del dettaglio, senza però
+  gridare quanto il totale generale.
+*/
+.data-table__section-total {
+  font-weight: var(--font-weight-semibold);
+  background-color: var(--color-table-header-bg);
+}
+
+.data-table__section-total-label {
+  text-align: end;
+}
+
+@include bp.media-down('lg') {
+  // Sulla card la maniglia non ha senso: non c'è colonna da allargare, e
+  // sarebbe un bersaglio invisibile sotto il dito.
+  .data-table__resize {
+    display: none;
+  }
+
+  // Sulla card la riga e' un riquadro a se': prende il raggio della card.
+  .data-table__row {
+    border-radius: var(--radius-lg);
+  }
+}
+
+/*
+  Il contenitore scorre in orizzontale: sotto una certa larghezza una tabella
+  densa non entra, e `regole-gestionale` vieta l'overflow incontrollato — non
+  lo scorrimento, che è una delle strategie ammesse.
+*/
+.data-table-scroll {
+  overflow-x: auto;
+  inline-size: 100%;
+}
+
+.data-table {
+  inline-size: 100%;
+  min-inline-size: 100%;
+}
+
+/*
+  Intestazione appiccicata e colonna bloccata.
+
+  ⭐ Stanno QUI e non nella pagina perché `pinned` è già nel modello colonne: se
+  ogni riepilogo se le riscrivesse, il selettore delle colonne comanderebbe una
+  cosa che poi solo alcune tabelle rispettano.
+
+  Dichiarata dopo `.data-table__head-cell`, quindi `sticky` prevale su
+  `relative` — e va bene: anche una cella appiccicata fa da riferimento alla
+  maniglia di ridimensionamento, che resta al suo posto.
+*/
+.data-table__head th {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: var(--z-raised);
+  background-color: var(--color-table-header-bg);
+}
+
+.data-table__cell--pinned {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: calc(var(--z-raised) + 1);
+  background-color: var(--color-surface);
+}
+
+.data-table__head .data-table__cell--pinned {
+  z-index: calc(var(--z-raised) + 2);
+  background-color: var(--color-table-header-bg);
+}
+
+/*
+  Il numero della chiave, accanto alla freccia.
+
+  Piccolo e smorzato: accompagna la freccia, non compete con l'etichetta della
+  colonna. Compare solo quando le chiavi attive sono più di una — con una sola
+  sarebbe un «1» perenne che non informa di nulla.
+*/
+.data-table__sort-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: var(--space-3);
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+/*
+  La colonna del comando di riga: stretta, centrata, e non partecipa al ritmo
+  delle colonne dati — non è un dato, è una fascia di comando.
+*/
+.data-table__cell--row-actions {
+  inline-size: var(--space-12);
+  text-align: center;
+  white-space: nowrap;
+}
+
+/*
+  Le due vestizioni di cella dichiarate dal modello colonne (`display`).
+
+  ⭐ Sono le ricette che `regole-stile-ui` §6 prescrive per tutta l'app —
+  codici incolonnati, descrizioni troncate — e stanno qui perché tre riepiloghi
+  le stavano riscrivendo ognuno per conto suo.
+*/
+.data-table__cell--code {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.data-table__cell--truncate {
+  max-inline-size: var(--table-cell-max);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+  ── La veste compatta PROGETTATA (`appRowCard`) ────────────────────────────
+
+  ⭐ Il motore fornisce il MECCANISMO; il contenuto della card lo disegna la
+  schermata. Qui c'è solo *quando* si vede e *come* si dividono i ruoli.
+
+  ⚠️ Vale per i **riepiloghi**, dove il ripiego a etichetta:valore non basta:
+  con otto colonne dà otto righe tutte dello stesso peso, in cui niente è
+  primario e la card è più alta dello schermo (`regole-stile-ui` §6). Non è il
+  pattern dei documenti, che hanno un'anatomia loro.
+*/
+.data-table__card {
+  display: none;
+}
+
+:host(.data-table-host--row-card) {
+  @include bp.media-down('lg') {
+    /*
+      ⚠️ **Le celle vere non spariscono: si nascondono all'OCCHIO.**
+
+      `display: none` le toglierebbe anche ai lettori di schermo. Con la ricetta
+      `.sr-only` restano nell'albero accessibile, così chi legge con uno screen
+      reader sente le colonne nell'ordine di sempre mentre chi guarda vede la
+      card — ed è per questo che la card porta `aria-hidden`.
+    */
+    .data-table__row td:not(.data-table__card) {
+      position: absolute;
+      inline-size: 1px;
+      block-size: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    /*
+      ⚠️ **Il selettore porta `td` apposta: è una questione di specificità.**
+      La regola desktop è `.data-table__row td` — classe più elemento — e batte
+      una classe sola. Scritto come `.data-table__card` questo blocco perderebbe
+      il confronto, e la cella card prenderebbe padding e filo della cella
+      desktop: dentro la card si vedrebbero come un riquadro con una riga sotto.
+    */
+    .data-table__row td.data-table__card {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+      padding: 0;
+      border: 0;
+    }
+  }
+}

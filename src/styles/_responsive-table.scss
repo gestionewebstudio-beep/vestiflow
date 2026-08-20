@@ -252,3 +252,22 @@
     }
   }
 }
+
+/**
+ * La colonna «seleziona» di un elenco: larghezza e allineamento.
+ *
+ * ⛔ Una misura sola per tutte le tabelle. Era ripetuta in `document-table` e
+ * `sales-order-table` con due valori quasi uguali (una aveva `nowrap` in più):
+ * basta che divergano di poco perché la prima colonna risulti spostata
+ * passando da un elenco all'altro.
+ *
+ * ⚠️ Qui c'è la CELLA. La casella dentro è `app-selection-check`, che porta i
+ * propri stili: la cella non deve conoscerli.
+ */
+@mixin selection-column($block) {
+  .#{$block}__cell--select {
+    inline-size: var(--space-10);
+    text-align: center;
+    white-space: nowrap;
+  }
+}

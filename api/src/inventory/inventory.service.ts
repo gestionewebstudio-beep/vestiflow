@@ -331,9 +331,11 @@ export class InventoryService {
     const [rawItems, total] = await this.prisma.$transaction([
       this.prisma.stockMovement.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
+        // ⚠️ `id` è lo SPAREGGIO, non decorazione: nel registro esistono movimenti
+        // che condividono l'istante esatto (una riga per riga di documento, salvate
+        // insieme). Senza, l'ordine fra pari è quello che capita, e due letture
+        // dello stesso periodo possono restituirli in ordine diverso.
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         include: {
           variant: { select: { product: { select: { name: true, articleCode: true } } } },
         },
@@ -368,6 +370,12 @@ export class InventoryService {
       ...movement,
       ...(showPurchaseCosts ? {} : { unitCostMinor: null, totalCostMinor: null }),
       productTitle: variant?.product?.name ?? null,
+      // ⚠️ `articleCode` vive sul PRODOTTO, non sul movimento: la destrutturazione
+      // `{ variant, ...movement }` lo lasciava fuori, e la colonna «Codice» del
+      // registro mostrava «—» su ogni riga — con l'export che ne esportava una
+      // vuota. Era invisibile perché un trattino sembra un dato mancante, non un
+      // campo perso per strada.
+      articleCode: variant?.product?.articleCode ?? null,
       documentReference: resolveMovementDocumentReference(
         movement,
         documentRefById,
@@ -375,7 +383,11 @@ export class InventoryService {
       ),
     }));
 
-    return { items, total, page: query.page, pageSize: query.pageSize };
+    // ⛔ Il registro NON pagina: `items` è l'intero risultato del filtro, e a
+    // delimitarlo è il PERIODO — la maschera entra sugli ultimi trenta giorni.
+    // La forma `Paginated` resta per il contratto condiviso; `page` e `pageSize`
+    // descrivono ciò che è stato restituito, non un comando che qualcuno ha dato.
+    return { items, total, page: 1, pageSize: items.length };
   }
 
   /** Operatori distinti (snapshot createdByName) per il filtro Operatore. */

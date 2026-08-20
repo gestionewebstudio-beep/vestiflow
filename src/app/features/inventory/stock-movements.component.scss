@@ -20,3 +20,38 @@
   border-radius: var(--radius-md);
   font-size: var(--text-sm);
 }
+
+/*
+  La tipografia delle celle dei movimenti.
+
+  ⭐ Vestono contenuto PROIETTATO nel motore tabella: gli elementi portano
+  l'incapsulamento di questa pagina, quindi questi selettori li raggiungono.
+  È il canale previsto da `regole-stile-ui` §5 — l'alternativa sarebbe
+  `::ng-deep`, che nell'app non esiste più in nessun punto.
+
+  ⚠️ Se un terzo riepilogo ripetesse «codice in mono» e «testo troncato», la
+  cosa smette di essere della pagina e va nel modello colonne: sono convenzioni
+  d'app (`regole-stile-ui` §6), non gusti dei movimenti.
+*/
+.stock-movements__data {
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.stock-movements__codice {
+  display: block;
+  max-inline-size: var(--table-cell-max);
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stock-movements__prodotto {
+  display: block;
+  max-inline-size: var(--table-cell-max);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

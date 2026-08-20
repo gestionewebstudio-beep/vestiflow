@@ -73,6 +73,41 @@ export interface TableColumnDef {
   /** Larghezza iniziale in px (griglia editabile). */
   readonly defaultWidthPx?: number;
   readonly minWidthPx?: number;
+  /**
+   * Capacità della colonna nel **motore dei riepiloghi** (`14` §H2).
+   *
+   * ⚠️ **Opt-out, non opt-in**: una colonna nasce ordinabile e ridimensionabile,
+   * e dichiara solo ciò che non deve essere. Il difetto da evitare è la colonna
+   * che «si è dimenticata» di essere ordinabile, che nessuno nota.
+   *
+   * ⚠️ `sortable` conta solo dove la PAGINA accende l'ordinamento: un elenco la
+   * cui API non sa ordinare non deve marcare `false` ogni colonna — semplicemente
+   * non lo accende.
+   */
+  readonly sortable?: boolean;
+  readonly resizable?: boolean;
+
+  /**
+   * Come si VESTE la cella — non che cosa contiene.
+   *
+   * ⭐ Esiste perchè tre riepiloghi ripetevano le stesse due ricette
+   * tipografiche: `regole-stile-ui` §6 le prescrive per tutta l’app, quindi
+   * non erano della pagina. Alla terza ripetizione sono salite qui.
+   *
+   * ⚠️ **Non è il campo `type` che `14` §H2 ha rifiutato.** Quello descriveva
+   * COME CONFRONTARE il valore e serviva a un comparatore che allora non
+   * esisteva; questo descrive come si rende, e non ha niente a che vedere con
+   * l’ordinamento. Una cella può essere `code` e ordinarsi come data.
+   *
+   * - `code` — codici, riferimenti, numeri di documento: cifre incolonnate
+   *   (`tabular-nums`) e mai a capo. È la ricetta di §6 per SKU ed EAN.
+   * - `truncate` — descrizioni lunghe: ellissi oltre la larghezza della cella,
+   *   col testo intero nel `title`. Senza, una riga si alza e la tabella balla.
+   *
+   * L’allineamento a destra resta di `numeric`: sono due cose diverse, e una
+   * colonna può avere entrambe.
+   */
+  readonly display?: 'code' | 'truncate';
 }
 
 export interface TableViewState {

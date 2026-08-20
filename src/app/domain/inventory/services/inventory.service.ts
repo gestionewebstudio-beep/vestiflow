@@ -266,10 +266,15 @@ export class InventoryService {
       );
   }
 
+  /**
+   * ⛔ **Non manda `page` né `pageSize`**: il registro movimenti non pagina più, e
+   * l'API risponde con l'intero risultato del filtro. Mandarli sarebbe il
+   * «parametro accettato e ignorato» — un comando che sembra comandare.
+   *
+   * ⚠️ È il periodo a delimitare, non la pagina: si entra su trenta giorni.
+   */
   getMovements(query: StockMovementsListQuery = {}): Observable<PaginatedResponse<StockMovement>> {
-    let params = new HttpParams()
-      .set('page', String(query.page ?? 1))
-      .set('pageSize', String(query.pageSize ?? DEFAULT_INVENTORY_PAGE_SIZE));
+    let params = new HttpParams();
 
     if (query.locationId) params = params.set('locationId', query.locationId);
     if (query.search) params = params.set('search', query.search);

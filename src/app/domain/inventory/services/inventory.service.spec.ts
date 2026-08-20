@@ -540,11 +540,15 @@ describe('InventoryService (HTTP)', () => {
     expect(movements.meta.total).toBe(1);
   });
 
-  it('getMovements passa filtri server-side', async () => {
+  /**
+   * ⛔ **`page` e `pageSize` NON si mandano più.** Il registro movimenti non
+   * pagina: l'API risponde con l'intero risultato del filtro, e a delimitarlo è
+   * il periodo. Mandarli sarebbe il «parametro accettato e ignorato» — quello
+   * che il codice dei Corrispettivi avverte di non reintrodurre.
+   */
+  it('⛔ getMovements passa i filtri e NON manda page/pageSize', async () => {
     const promise = firstValueFrom(
       service.getMovements({
-        page: 2,
-        pageSize: 10,
         locationId: 'loc-1',
         type: StockMovementType.Sale,
       }),
@@ -553,8 +557,8 @@ describe('InventoryService (HTTP)', () => {
     const req = httpMock.expectOne((request) =>
       request.url.startsWith(`${API_BASE}/inventory/movements`),
     );
-    expect(req.request.params.get('page')).toBe('2');
-    expect(req.request.params.get('pageSize')).toBe('10');
+    expect(req.request.params.has('page')).toBe(false);
+    expect(req.request.params.has('pageSize')).toBe(false);
     expect(req.request.params.get('locationId')).toBe('loc-1');
     expect(req.request.params.get('type')).toBe(StockMovementType.Sale);
     req.flush({ items: [], total: 0, page: 2, pageSize: 10 });

@@ -1,6 +1,19 @@
-/** Preset periodo del registro movimenti ('' = tutti, senza vincolo date). */
+/**
+ * Preset periodo del registro movimenti ('' = tutti, senza vincolo date).
+ *
+ * ⭐ «Ultimi N giorni» include OGGI: 7 giorni sono oggi e i sei precedenti, 30
+ * sono oggi e i ventinove precedenti. È la stessa aritmetica del Registro
+ * Corrispettivi, e l’operatore che passa da una schermata all’altra deve
+ * trovare lo stesso significato dietro la stessa etichetta.
+ *
+ * ⚠️ `All` resta nell’unione: la usano l’elenco documenti e l’elenco ordini
+ * cliente, e nei Movimenti resta scegliibile: quello che cambia è che non è più
+ * il predefinito.
+ */
 export const MovementPeriodPreset = {
   All: '',
+  Last7Days: '7d',
+  Last30Days: '30d',
   ThisMonth: 'month',
   LastMonth: 'last_month',
   ThisYear: 'year',
@@ -9,6 +22,14 @@ export const MovementPeriodPreset = {
 } as const;
 
 export type MovementPeriodPreset = (typeof MovementPeriodPreset)[keyof typeof MovementPeriodPreset];
+
+/**
+ * Il periodo con cui il registro movimenti si apre.
+ *
+ * ⛔ Non è `All`: un registro che si apre su tutta la storia del tenant chiede al
+ * database di contare tutto prima ancora che l’operatore abbia guardato qualcosa.
+ */
+export const DEFAULT_MOVEMENT_PERIOD: MovementPeriodPreset = MovementPeriodPreset.Last30Days;
 
 /** Estremi inclusivi YYYY-MM-DD (ora locale); assenti = nessun vincolo. */
 export interface MovementDateRange {
@@ -30,7 +51,13 @@ export function resolveMovementPeriodRange(
   const year = referenceDate.getFullYear();
   const month = referenceDate.getMonth();
 
+  const day = referenceDate.getDate();
+
   switch (preset) {
+    case MovementPeriodPreset.Last7Days:
+      return { from: toIsoDate(year, month, day - 6), to: toIsoDate(year, month, day) };
+    case MovementPeriodPreset.Last30Days:
+      return { from: toIsoDate(year, month, day - 29), to: toIsoDate(year, month, day) };
     case MovementPeriodPreset.ThisMonth:
       return { from: toIsoDate(year, month, 1), to: toIsoDate(year, month + 1, 0) };
     case MovementPeriodPreset.LastMonth:
