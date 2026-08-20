@@ -2200,6 +2200,59 @@ Se sono più di poche, non è un refactor meccanico: o gli stili si portano sul 
 **nello stesso passo**, o ci si ferma. E non si committa prima che qualcuno abbia guardato
 la schermata.
 
+## H14-bis. ⭐ NIENTE PAGINAZIONE, e i riepiloghi si aprono sugli ultimi 30 giorni
+
+_Deciso dal proprietario il 20/08/2026._
+
+> **I riepiloghi non impaginano. Si aprono con un filtro predefinito di 30 giorni, e la resa
+> prende a modello il Registro Corrispettivi.**
+
+⭐ **Non è una decisione nuova: è la generalizzazione di §H13**, che l'aveva già applicata ai
+Movimenti — «niente paginazione visibile», `DEFAULT_MOVEMENT_PERIOD = Ultimi 30 giorni`,
+«Tutti» conservato come voce esplicita e non come predefinito. Lì funziona; da oggi è la regola
+dei riepiloghi.
+
+### ⭐ E scioglie i due gap di ordinamento, senza toccare il modello dati
+
+⚠️ Poche ore prima erano stati registrati come «da completare» perché l'elenco era **paginato**:
+ordinare le venti righe caricate sarebbe stato l'ordinamento bugiardo di §H15. **Tolta la
+paginazione, l'insieme caricato È il risultato del filtro**, e ordinarlo nel client è ordinare
+tutto.
+
+| Gap                             | Con la paginazione                            | Senza                                          |
+| ------------------------------- | --------------------------------------------- | ---------------------------------------------- |
+| **Controparte** (documenti)     | serviva una colonna generata in Postgres      | il client ha entrambi i nomi in mano: ordina   |
+| **Stato** (ordini cliente)      | serviva riscrivere `orderStateLabel` nell'API | la regola è già dove serve                     |
+| **ordine per ETICHETTA** (enum) | impossibile: l'etichetta non è nel database   | è la regola dei Movimenti, applicabile ovunque |
+
+⭐ È **lo stesso caso** che §H13 aveva già risolto: là erano Codice articolo, Prodotto,
+Documento origine e Location — una JOIN, un polimorfismo e una composizione, cioè le quattro
+colonne che «in SQL non si sarebbero potute ordinare».
+
+⛔ **Il contratto sorting server-side non si butta**, e non è lavoro sprecato: resta la strada
+quando il periodo scelto è largo e le righe sono troppe per il client. Cambia il suo posto —
+da unica risposta a risposta per i dataset grandi.
+
+### ⚠️ Il perimetro: quali elenchi, e uno che NON deve entrare
+
+Oggi `app-pagination` sta in **nove** elenchi. Non sono la stessa cosa:
+
+| Elenco                                        | 30 giorni ha senso?                                      |
+| --------------------------------------------- | -------------------------------------------------------- |
+| documenti · ordini cliente · ordini fornitore | ✅ sono registri di **fatti datati**, come i Movimenti   |
+| corrispettivi · movimenti                     | ✅ già così                                              |
+| giacenze · situazione                         | ⏸ in pausa (§C0.0), e non sono registri: sono **stati**  |
+| **clienti · fornitori · prodotti**            | ⛔ **no**: un'anagrafica non ha una data su cui filtrare |
+
+⛔ **Su un'anagrafica «ultimi 30 giorni» nasconderebbe il catalogo**, e la paginazione lì non è
+un ripiego: è il modo di attraversare un elenco che non ha un asse temporale. La decisione
+riguarda i **riepiloghi**, cioè ciò che registra fatti nel tempo.
+
+⚠️ **Da confermare**: che clienti, fornitori e prodotti restino paginati è la lettura più
+sensata, non una decisione presa.
+
+---
+
 ## H15. ⭐ Ordinamento: non è stato PERSO, non era mai stato collegato — misurato il 20/08/2026
 
 La domanda era: l'assorbimento ha tolto l'ordinamento agli altri riepiloghi, oppure non l'hanno
