@@ -14,6 +14,7 @@ import { assertLocationReadableInUserScope } from '../inventory/user-location-sc
 import { PrismaService } from '../prisma/prisma.service';
 import type { ListSalesOrdersQueryDto } from './dto/list-sales-orders.query.dto';
 import { buildSalesOrderWhere } from './sales-order-query.util';
+import { parseSalesOrderSort } from './sales-orders-sort.util';
 
 /** Vendita online collegata all'ordine (fase 3 §2-§3: colonna registro). */
 export interface SalesOrderOnlineSaleRef {
@@ -129,46 +130,44 @@ export class SalesOrdersService {
             },
           },
         },
-        orderBy: { placedAt: 'desc' },
+        orderBy: parseSalesOrderSort(query.sort),
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
       }),
       this.prisma.salesOrder.count({ where }),
     ]);
 
-    const items: SalesOrderListRow[] = rows.map(({ reservations, customer, onlineSale, ...order }) => ({
-      ...order,
-      customer: customer ? { email: customer.party.email } : null,
-      // La location della vendita serve solo a rispondere alla colonna: si
-      // ricostruisce la riga senza, per non cambiare la forma della risposta.
-      onlineSale: onlineSale
-        ? {
-            id: onlineSale.id,
-            reference: onlineSale.reference,
-            fulfilledAt: onlineSale.fulfilledAt,
-            inventoryStatus: onlineSale.inventoryStatus,
-            refundedAt: onlineSale.refundedAt,
-          }
-        : null,
-      committedQuantity: reservations.reduce(
-        (sum, reservation) => sum + reservation.remainingQuantity,
-        0,
-      ),
-      // Da dove esce la merce. Finché l'ordine è aperto lo dice l'impegno
-      // attivo; quando è evaso l'impegno è consumato e risponde la vendita
-      // online. Su un ordine annullato non c'è nessun magazzino da cui sia
-      // uscito qualcosa: resta vuoto, ed è la verità.
-      locationName: reservations[0]?.location.name ?? onlineSale?.location?.name ?? null,
-    }));
+    const items: SalesOrderListRow[] = rows.map(
+      ({ reservations, customer, onlineSale, ...order }) => ({
+        ...order,
+        customer: customer ? { email: customer.party.email } : null,
+        // La location della vendita serve solo a rispondere alla colonna: si
+        // ricostruisce la riga senza, per non cambiare la forma della risposta.
+        onlineSale: onlineSale
+          ? {
+              id: onlineSale.id,
+              reference: onlineSale.reference,
+              fulfilledAt: onlineSale.fulfilledAt,
+              inventoryStatus: onlineSale.inventoryStatus,
+              refundedAt: onlineSale.refundedAt,
+            }
+          : null,
+        committedQuantity: reservations.reduce(
+          (sum, reservation) => sum + reservation.remainingQuantity,
+          0,
+        ),
+        // Da dove esce la merce. Finché l'ordine è aperto lo dice l'impegno
+        // attivo; quando è evaso l'impegno è consumato e risponde la vendita
+        // online. Su un ordine annullato non c'è nessun magazzino da cui sia
+        // uscito qualcosa: resta vuoto, ed è la verità.
+        locationName: reservations[0]?.location.name ?? onlineSale?.location?.name ?? null,
+      }),
+    );
 
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async getById(
-    tenantId: string,
-    id: string,
-    user?: UserProfileDto,
-  ): Promise<SalesOrderDetailRow> {
+  async getById(tenantId: string, id: string, user?: UserProfileDto): Promise<SalesOrderDetailRow> {
     const order = await this.prisma.salesOrder.findFirst({
       where: { id, tenantId },
       include: {

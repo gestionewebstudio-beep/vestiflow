@@ -61,6 +61,10 @@ import {
 } from '@domain/inventory/models/movement-period.util';
 import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { FILTERED_SCOPE_NOT_AVAILABLE, type ListAction } from '@shared/models/list-selection.model';
+import {
+  serializeDataTableSort,
+  type DataTableSort,
+} from '@shared/components/data-table/data-table.model';
 import { createListSelection } from '@shared/utils/list-selection';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { TableViewId } from '@shared/table-columns/table-column.model';
@@ -90,6 +94,7 @@ import {
 } from './components/sales-order-table/sales-order-table.component';
 import {
   SALES_ORDER_LIST_COLUMN_DEFS,
+  SALES_ORDER_LIST_SORTABLE_COLUMNS,
   SALES_ORDER_LIST_COLUMN_PRESETS,
   SHOPIFY_ORDER_LIST_COLUMN_DEFS,
   SHOPIFY_ORDER_LIST_COLUMN_PRESETS,
@@ -331,10 +336,31 @@ export class SalesOrderListComponent {
     this.isShopifyView() ? withShopifySourceScope(this.query()) : this.query(),
   );
 
+  /**
+   * Le chiavi che il server sa ordinare.
+   *
+   * ⚠️ Il filtro non è ridondante: la stringa arriva dall'**URL**, e un link
+   * con `sort=state:asc` prenderebbe un `400` invece di aprire l'elenco.
+   */
+  private readonly sortRichiesto = computed<readonly DataTableSort[]>(() =>
+    (this.query().sort ?? []).filter((chiave) =>
+      SALES_ORDER_LIST_SORTABLE_COLUMNS.has(chiave.columnId),
+    ),
+  );
+
   private readonly request = computed(() => ({
-    query: this.effectiveQuery(),
+    query: { ...this.effectiveQuery(), sort: this.sortRichiesto() },
     tick: this.refreshTick(),
   }));
+
+  /**
+   * Nuovo ordine dalle intestazioni: il motore ha già calcolato il ciclo e la
+   * priorità delle chiavi. ⛔ Si torna alla **prima pagina**: restare alla
+   * quinta di un ordine appena cambiato mostra righe che non c'entrano.
+   */
+  protected onSortChange(chiavi: readonly DataTableSort[]): void {
+    this.updateParams({ sort: serializeDataTableSort(chiavi) || null, page: null }, true);
+  }
 
   private readonly state = toSignal(
     toObservable(this.request).pipe(

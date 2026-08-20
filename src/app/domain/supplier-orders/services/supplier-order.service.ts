@@ -1,3 +1,4 @@
+import { serializeDataTableSort } from '@shared/components/data-table/data-table.model';
 import { HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { map, type Observable, timeout } from 'rxjs';
@@ -40,6 +41,8 @@ export class SupplierOrderService {
     if (query.search) params = params.set('search', query.search);
     if (query.status) params = params.set('status', query.status);
     if (query.supplierId) params = params.set('supplierId', query.supplierId);
+    const sort = serializeDataTableSort(query.sort ?? []);
+    if (sort) params = params.set('sort', sort);
 
     return this.http
       .get<ApiPaginated<SupplierOrderApiRow>>(this.url('/supplier-orders'), { params })

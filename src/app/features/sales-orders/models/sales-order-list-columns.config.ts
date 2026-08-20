@@ -10,6 +10,25 @@ import {
  * disponibili nel selettore ma nascoste di serie, per non allargare la tabella
  * a chi non le usa.
  */
+/**
+ * ⭐ **Le colonne che il SERVER sa ordinare** (`14` §H15), specchio della
+ * whitelist di `api/src/sales-orders/sales-orders-sort.util.ts`.
+ *
+ * ⛔ È una lista di ciò che SI PUÒ: una colonna nuova nasce non ordinabile e lo
+ * resta finché non la impara anche il server, invece di promettere un ordine
+ * che risponde `400`.
+ *
+ * Fuori restano Origine, Stato, Pagamento ed Evasione — enum che a schermo si
+ * leggono in italiano e nel database stanno in inglese (`14` §H13) — più Tot.
+ * netto, Cod. cliente, Location, Commento e Vendita online.
+ */
+export const SALES_ORDER_LIST_SORTABLE_COLUMNS: ReadonlySet<string> = new Set([
+  'orderNumber',
+  'placedAt',
+  'customerName',
+  'total',
+]);
+
 export const SALES_ORDER_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   { id: 'orderNumber', label: 'Ordine', pinnable: true, defaultVisible: true },
   { id: 'source', label: 'Origine', defaultVisible: true },

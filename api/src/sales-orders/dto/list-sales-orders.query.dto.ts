@@ -93,4 +93,12 @@ export class ListSalesOrdersQueryDto extends PaginationQueryDto {
   @IsOptional()
   @Matches(ISO_DATE)
   placedTo?: string;
+
+  /**
+   * Ordinamento: `campo:asc` separati da virgola, in ordine di priorità.
+   * La whitelist e la traduzione stanno in `parseSalesOrderSort`.
+   */
+  @IsOptional()
+  @IsString()
+  sort?: string;
 }

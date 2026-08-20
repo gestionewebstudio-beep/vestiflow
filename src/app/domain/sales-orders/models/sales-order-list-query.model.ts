@@ -1,3 +1,8 @@
+import {
+  parseDataTableSort,
+  type DataTableSort,
+} from '@shared/components/data-table/data-table.model';
+
 import type { ParamMap } from '@angular/router';
 
 import {
@@ -6,9 +11,11 @@ import {
   SalesOrderSource,
 } from '@core/models/sales-order.model';
 
-// Query minimale per la lista vendite read-only. Ordinamento fisso per data
-// discendente (le vendite si consultano dalla piu' recente); nessun sort param
-// per restare conservativi finche' la UI non lo richiede.
+// Query della lista vendite. L'ordine PREDEFINITO resta per data discendente —
+// le vendite si consultano dalla più recente — e da 20/08/2026 l'operatore può
+// cambiarlo dalle intestazioni: le chiavi viaggiano in `sort`, nella grammatica
+// del motore (`14` §H15). Qui c'era «nessun sort param per restare
+// conservativi finché la UI non lo richiede»: la UI lo richiede.
 
 export const DEFAULT_SALES_PAGE_SIZE = 20;
 export const SALES_PAGE_SIZE_OPTIONS: readonly number[] = [10, 20, 50];
@@ -42,6 +49,8 @@ export interface SalesOrderListQuery {
    * ancora collegati): filtro server per il pannello «Includi».
    */
   readonly includable?: boolean;
+  /** Ordinamento nella grammatica del motore (`14` §H15). */
+  readonly sort?: readonly DataTableSort[];
 }
 
 /** Filtri export CSV (stessi filtri lista, senza paginazione). */
@@ -86,6 +95,7 @@ export function parseSalesOrderListQuery(params: ParamMap): SalesOrderListQuery 
     locationId: locationId || undefined,
     placedFrom: placedFrom && ISO_DATE.test(placedFrom) ? placedFrom : undefined,
     placedTo: placedTo && ISO_DATE.test(placedTo) ? placedTo : undefined,
+    sort: parseDataTableSort(params.get('sort')),
   };
 }
 

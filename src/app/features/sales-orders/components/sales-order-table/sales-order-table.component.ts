@@ -3,6 +3,9 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
 import { DataTableRowActionsDirective } from '@shared/components/data-table/data-table-row-actions.directive';
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';
+import type { DataTableSort } from '@shared/components/data-table/data-table.model';
+
+import { SALES_ORDER_LIST_SORTABLE_COLUMNS } from '../../models/sales-order-list-columns.config';
 import type { DataTableSection } from '@shared/components/data-table/data-table.model';
 import { isAllSelected, isSomeSelected } from '@shared/utils/list-selection';
 import { RouterLink } from '@angular/router';
@@ -68,6 +71,9 @@ export class SalesOrderTableComponent {
   readonly orders = input.required<readonly SalesOrder[]>();
   /** Colonne visibili, nell'ordine scelto dal selettore «Colonne». */
   readonly columns = input.required<readonly ResolvedTableColumn[]>();
+
+  /** Chiavi di ordinamento correnti: lo stato sta nella pagina (`14` §H4). */
+  readonly sort = input<readonly DataTableSort[]>([]);
   readonly profile = input<SalesOrderTableProfile>('customer-orders');
   /** Selezione multipla per operazioni massive (come Arrivi merce). */
   readonly selectable = input<boolean>(false);
@@ -76,6 +82,9 @@ export class SalesOrderTableComponent {
   readonly canManage = input<boolean>(false);
 
   readonly rowClick = output<SalesOrder>();
+
+  /** Il motore propone il prossimo ordine; ad applicarlo è la pagina. */
+  readonly sortChange = output<readonly DataTableSort[]>();
   readonly action = output<SalesOrderTableActionEvent>();
   readonly selectionChange = output<SalesOrderTableSelectionEvent>();
   readonly selectAllChange = output<boolean>();
@@ -254,6 +263,17 @@ export class SalesOrderTableComponent {
   // ── Il motore comune (`14` parte H) ───────────────────────────────────────
 
   /** Lista piatta: una sezione senza intestazione né piede. */
+  /**
+   * Le colonne per il motore, con l'ordinabilità già dichiarata: specchio della
+   * whitelist del server (`14` §H15).
+   */
+  protected readonly engineColumns = computed<readonly ResolvedTableColumn[]>(() =>
+    this.columns().map((column) => ({
+      ...column,
+      sortable: SALES_ORDER_LIST_SORTABLE_COLUMNS.has(column.id),
+    })),
+  );
+
   protected readonly sections = computed<readonly DataTableSection<SalesOrder>[]>(() => [
     { id: 'ordini', rows: this.orders() },
   ]);

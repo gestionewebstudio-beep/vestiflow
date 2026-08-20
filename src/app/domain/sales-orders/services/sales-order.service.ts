@@ -1,3 +1,4 @@
+import { serializeDataTableSort } from '@shared/components/data-table/data-table.model';
 import { HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { EMPTY, expand, map, reduce, type Observable, timeout } from 'rxjs';
@@ -270,6 +271,10 @@ export class SalesOrderService {
     }
     if (query.includable) {
       next = next.set('includable', 'true');
+    }
+    const sort = serializeDataTableSort(query.sort ?? []);
+    if (sort) {
+      next = next.set('sort', sort);
     }
     return next;
   }

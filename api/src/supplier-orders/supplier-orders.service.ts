@@ -48,6 +48,7 @@ import type { CreateSupplierDto } from './dto/create-supplier.dto';
 import type { ListSupplierOrdersQueryDto } from './dto/list-supplier-orders.query.dto';
 import type { UpdateSupplierOrderDto } from './dto/update-supplier-order.dto';
 import { SuppliersService } from './suppliers.service';
+import { parseSupplierOrderSort } from './supplier-orders-sort.util';
 
 export type SupplierOrderListRow = SupplierOrder & { lineCount: number; lines: [] };
 
@@ -475,7 +476,7 @@ export class SupplierOrdersService {
       this.prisma.supplierOrder.findMany({
         where,
         include: { _count: { select: { lines: true } } },
-        orderBy: { createdAt: 'desc' },
+        orderBy: parseSupplierOrderSort(query.sort),
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
       }),

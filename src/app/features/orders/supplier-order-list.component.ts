@@ -13,6 +13,10 @@ import {
   type ListAction,
   type ListActionTarget,
 } from '@shared/models/list-selection.model';
+import {
+  serializeDataTableSort,
+  type DataTableSort,
+} from '@shared/components/data-table/data-table.model';
 import { createListSelection } from '@shared/utils/list-selection';
 import { downloadBlob } from '@shared/utils/download-blob.util';
 import {
@@ -136,7 +140,12 @@ export class SupplierOrderListComponent {
 
   protected readonly searchDraft = signal(this.route.snapshot.queryParamMap.get('search') ?? '');
 
-  private readonly request = computed(() => ({ query: this.query(), tick: this.refreshTick() }));
+  private readonly request = computed(() => ({
+    // Le chiavi non supportate escono qui, prima della rete: l'URL è un posto
+    // che chiunque può scrivere, il 400 lo prenderebbe l'operatore.
+    query: { ...this.query(), sort: this.sortRichiesto() },
+    tick: this.refreshTick(),
+  }));
 
   private readonly state = toSignal(
     toObservable(this.request).pipe(
@@ -463,11 +472,34 @@ export class SupplierOrderListComponent {
   protected readonly tableColumns: readonly ResolvedTableColumn[] = [
     { id: 'reference', label: 'Riferimento', pinned: false },
     { id: 'supplier', label: 'Fornitore', pinned: false },
-    { id: 'status', label: 'Stato', pinned: false },
+    // ⛔ «Stato» non si ordina: a schermo è in italiano, nel database in
+    // inglese, e la decisione già presa è di ordinare per ETICHETTA (`14`
+    // §H13) — che lato server non esiste. Meglio un'intestazione che non si
+    // preme di una che promette un ordine e ne dà un altro.
+    { id: 'status', label: 'Stato', sortable: false, pinned: false },
     { id: 'lines', label: 'Righe', pinned: false },
     { id: 'expected', label: 'Attesa il', pinned: false },
     { id: 'total', label: 'Totale', numeric: true, pinned: false },
   ];
+
+  /**
+   * Le chiavi che il server sa davvero ordinare.
+   *
+   * ⚠️ Il filtro serve perché la stringa arriva dall'**URL**: un link vecchio
+   * con `sort=status:asc` prenderebbe un `400` invece di aprire l'elenco.
+   */
+  private readonly sortRichiesto = computed<readonly DataTableSort[]>(() =>
+    (this.query().sort ?? []).filter((chiave) => chiave.columnId !== 'status'),
+  );
+
+  /**
+   * L'operatore ha premuto un'intestazione: il motore ha già calcolato il
+   * prossimo ordine, qui si applica — e si torna alla **prima pagina**, o si
+   * resterebbe alla quinta di un ordine che non c'entra più.
+   */
+  protected onSortChange(chiavi: readonly DataTableSort[]): void {
+    this.updateParams({ sort: serializeDataTableSort(chiavi) || null, page: null }, true);
+  }
 
   /** Lista piatta: una sezione senza intestazione né piede. */
   protected readonly tableSections = computed<readonly DataTableSection<SupplierOrder>[]>(() => [

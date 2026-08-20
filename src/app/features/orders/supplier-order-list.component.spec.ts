@@ -124,3 +124,35 @@ describe('SupplierOrderListComponent — l’azione Dettaglio', () => {
     expect(navigazione).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * L'ordinamento (`14` §H15): stessa grammatica dell'elenco documenti, altra
+ * whitelist — qui «Fornitore» si ordina, perché la controparte è un campo solo.
+ */
+describe('SupplierOrderListComponent — l’ordinamento', () => {
+  function pagina(view: { fixture: { componentInstance: unknown } }) {
+    return view.fixture.componentInstance as {
+      onSortChange: (chiavi: readonly { columnId: string; direction: string }[]) => void;
+      tableColumns: readonly { readonly id: string; readonly sortable?: boolean }[];
+    };
+  }
+
+  it('⛔ cambiare ordine riporta alla prima pagina', async () => {
+    const view = await renderList([ORDINE]);
+    const navigazione = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+
+    pagina(view).onSortChange([{ columnId: 'supplier', direction: 'asc' }]);
+
+    expect(navigazione).toHaveBeenCalledWith(
+      [],
+      expect.objectContaining({ queryParams: { sort: 'supplier:asc', page: null } }),
+    );
+  });
+
+  it('⛔ «Stato» dichiara di non essere ordinabile', async () => {
+    const view = await renderList();
+    const stato = pagina(view).tableColumns.find((colonna) => colonna.id === 'status');
+
+    expect(stato?.sortable).toBe(false);
+  });
+});

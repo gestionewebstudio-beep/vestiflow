@@ -1,3 +1,8 @@
+import {
+  parseDataTableSort,
+  type DataTableSort,
+} from '@shared/components/data-table/data-table.model';
+
 import type { ParamMap } from '@angular/router';
 
 import { SupplierOrderStatus } from '@core/models/supplier-order.model';
@@ -13,6 +18,8 @@ export interface SupplierOrderListQuery {
   readonly search?: string;
   readonly status?: SupplierOrderStatus;
   readonly supplierId?: string;
+  /** Ordinamento nella grammatica del motore (`14` §H15). */
+  readonly sort?: readonly DataTableSort[];
 }
 
 const STATUS_VALUES = new Set<string>(Object.values(SupplierOrderStatus));
@@ -32,5 +39,6 @@ export function parseSupplierOrderListQuery(params: ParamMap): SupplierOrderList
         : DEFAULT_SUPPLIER_ORDER_PAGE_SIZE,
     search: search || undefined,
     status: STATUS_VALUES.has(status) ? (status as SupplierOrderStatus) : undefined,
+    sort: parseDataTableSort(params.get('sort')),
   };
 }

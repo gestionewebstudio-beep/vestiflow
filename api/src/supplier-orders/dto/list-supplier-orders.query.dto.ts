@@ -15,4 +15,12 @@ export class ListSupplierOrdersQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsUUID()
   supplierId?: string;
+
+  /**
+   * Ordinamento: `campo:asc` separati da virgola, in ordine di priorità.
+   * La whitelist la fa `parseSupplierOrderSort`, che è anche dove si traduce.
+   */
+  @IsOptional()
+  @IsString()
+  sort?: string;
 }

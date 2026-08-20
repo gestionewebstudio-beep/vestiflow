@@ -2309,10 +2309,39 @@ Non è incoerenza: al server la stringa arriva da un programma, e un campo che n
 difetto da far vedere subito; al client arriva dall'**URL**, cioè da un link vecchio o troncato,
 e lì una pagina di errore al posto dell'elenco è la risposta sbagliata.
 
-### ⏸ Restano Ordini cliente e Ordini fornitore
+### ✅ E fatti anche gli altri due, lo stesso giorno
 
-Stessa forma, altre due whitelist da scrivere: sono i due elenchi paginati che ancora non
-ordinano. **La grammatica non si tocca** — è già comune — e nemmeno il motore.
+Tutti e tre gli elenchi paginati ordinano. **La grammatica non è stata toccata** — è comune —
+e nemmeno il motore: ogni elenco ha aggiunto la sua whitelist e il cablaggio.
+
+| Elenco               | Ordinabili                                               | Fuori                                                                                                     |
+| -------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| **Documenti**        | Data · Numero · Righe · Totale                           | Tipo · Stato · Controparte                                                                                |
+| **Ordini fornitore** | Riferimento · **Fornitore** · Righe · Attesa il · Totale | Stato                                                                                                     |
+| **Ordini cliente**   | Ordine · Data · Cliente · Totale                         | Origine · Stato · Pagamento · Evasione · Tot. netto · Cod. cliente · Location · Commento · Vendita online |
+
+⭐ **«Fornitore» si ordina e «Controparte» no**, e non è un'incoerenza: sull'ordine fornitore la
+controparte è **un campo** (`supplierName`), nell'elenco documenti sono due — `customerName`
+sulle vendite, `supplierName` sugli acquisti.
+
+⚠️ **Gli stati restano fuori dappertutto**, con la stessa ragione: a schermo si leggono in
+italiano, nel database stanno in inglese, e la decisione presa sui Movimenti è di ordinare per
+etichetta (§H13).
+
+### ⚠️ Due differenze fra i tre, dichiarate
+
+- **«Numero»**: sui documenti ordina `year` + `number`, sugli ordini fornitore la stringa
+  `reference`. Là convivono prefissi diversi (DDT, FT, NC) e l'alfabetico raggrupperebbe per
+  tipo; qui il prefisso è uno solo e la stringa ordina come il progressivo.
+- **Il default**: documenti per data documento, ordini cliente per `placedAt`, ordini fornitore
+  per `createdAt`. Sono gli ordini che quelle liste avevano già: cambiarli sarebbe stato un
+  effetto collaterale silenzioso di un lavoro che doveva aggiungere una capacità.
+
+### ⭐ E due elenchi hanno avuto il loro PRIMO test
+
+`supplier-order-list` e `sales-order-list` non ne avevano nessuno. Ora hanno l'ordinamento e la
+guardia «una riga vera si renderizza» — quella che ha trovato il difetto di §H14, e che serve
+qui esattamente come là.
 
 ⚠️ Nessuna delle tre pagine paginate manda oggi un parametro di ordinamento all'API: verificato,
 non esiste `sortBy` né equivalente nelle loro query.
