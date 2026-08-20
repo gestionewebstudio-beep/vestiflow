@@ -25,38 +25,41 @@ import { Prisma } from '@prisma/client';
  * recente» — un ordinamento bugiardo, che è peggio di nessun ordinamento
  * perché sembra funzionare.
  *
- * ## Perché non tutte le colonne sono qui
+ * ## ⛔ Una mia affermazione era FALSA, ed escludeva colonne per niente
  *
- * ⛔ **Si ordina solo ciò che il database ordina ESATTAMENTE come si legge a
- * schermo.** Tre colonne dell'elenco restano fuori, e ognuna per una ragione
- * sua:
+ * Qui c'era scritto che ordinare per `type` o `status` avrebbe dato «l'ordine
+ * alfabetico INGLESE». **Non è vero**: Postgres ordina un `ENUM` per **ordine di
+ * dichiarazione del tipo**, non per il testo del valore. E in questo schema gli
+ * enum sono dichiarati per ciclo di vita e per famiglia:
  *
- * | Colonna          | Perché no                                                                                                  |
- * | ---------------- | ---------------------------------------------------------------------------------------------------------- |
- * | **Tipo**         | in tabella c'è «Arrivo merce», nel database `goods_receipt`: ordinare per enum darebbe l'ordine alfabetico INGLESE, che a schermo non si spiega |
- * | **Stato**        | idem, e in più l'ordine utile sarebbe quello del ciclo di vita (bozza → confermato → annullato), non l'alfabetico |
- * | **Controparte**  | non è UN campo: è `customerName` sui documenti di vendita e `supplierName` su quelli di acquisto           |
+ * ```text
+ * DocumentStatus   draft → confirmed → printed → sent → cancelled
+ * DocumentType     acquisto → magazzino → vendita → fiscali
+ * ```
  *
- * ⭐ **E non è che manchi la decisione: è che il server non può applicarla.** Sui
- * Movimenti la scelta è già presa e dichiarata (`14` §H13): Tipo, Origine e
- * Location si ordinano **per etichetta**, cioè per quello che l'operatore
- * legge. Quel registro può farlo perché carica tutto e ordina in memoria, dove
- * l'etichetta esiste.
+ * ⭐ È un ordine **di dominio**, deciso nello schema, e per uno stato è più utile
+ * dell'alfabetico dell'etichetta: «Bozza, Confermato, Annullato» dice qualcosa,
+ * «Annullato, Bozza, Confermato» no.
  *
- * ⛔ Lato database l'etichetta **non c'è**: vive in `document-labels.util` nel
- * frontend. Riprodurla qui con un `CASE` in SQL sarebbe tecnicamente possibile
- * e sarebbe la fonte di verità sdoppiata — due elenchi di etichette italiane da
- * tenere allineati, e il giorno che divergono l'ordine smette di corrispondere
- * ai nomi senza che nessun test se ne accorga.
+ * ⚠️ **Resta però una scelta funzionale da confermare**, perché non coincide con
+ * la decisione presa sui Movimenti — là si ordina per l'etichetta che l'operatore
+ * legge (`14` §H13). Le due risposte divergono, e questa è dichiarata: ordine
+ * dell'enum. Volendo l'ordine per etichetta servirebbe altro (vedi sotto).
  *
- * Per queste colonne la strada resta aperta e va decisa a parte: o l'etichetta
- * entra nel database, o l'ordinamento di quelle colonne resta client-side dove
- * l'elenco non pagina.
+ * ## Che cosa resta davvero fuori, e perché
  *
- * Il client dichiara quelle colonne `sortable: false`, così l'intestazione non
- * promette un ordinamento che non arriva.
+ * | Colonna         | Categoria                          | Che cosa manca                                                                 |
+ * | --------------- | ---------------------------------- | ------------------------------------------------------------------------------ |
+ * | **Controparte** | ordinabile, **da completare**      | non è un campo: `customerName` sulle vendite, `supplierName` sugli acquisti     |
+ *
+ * ⛔ **Per la controparte non si usa un `CASE` SQL né una copia dell'etichetta**:
+ * sarebbero due fonti di verità. La strada pulita è una **colonna generata** in
+ * Postgres — `GENERATED ALWAYS AS (COALESCE(customer_name, supplier_name)) STORED` —
+ * che è derivata dal database stesso e resta allineata per costruzione. Richiede
+ * una migration, quindi è lavoro dichiarato e non una scorciatoia.
  */
-export type DocumentListSortField = 'documentDate' | 'reference' | 'lineCount' | 'total';
+export type DocumentListSortField =
+  'documentDate' | 'reference' | 'lineCount' | 'total' | 'type' | 'status';
 
 export type SortDirection = 'asc' | 'desc';
 
@@ -102,6 +105,11 @@ const ORDER_BY: Record<
   reference: (direction) => [{ year: direction }, { number: direction }],
   lineCount: (direction) => [{ lines: { _count: direction } }],
   total: (direction) => [{ totalMinor: direction }],
+  // ⭐ Ordine dell'ENUM, cioè quello dichiarato nello schema: per il tipo è la
+  // famiglia (acquisto → magazzino → vendita → fiscali), per lo stato il ciclo
+  // di vita. Non è l'alfabetico di niente, né inglese né italiano.
+  type: (direction) => [{ type: direction }],
+  status: (direction) => [{ status: direction }],
 };
 
 const SORTABLE_FIELDS = Object.keys(ORDER_BY) as DocumentListSortField[];

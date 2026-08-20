@@ -48,10 +48,19 @@ describe('parseDocumentListSort', () => {
     expect(parseDocumentListSort('total')).toEqual([{ totalMinor: 'asc' }, { id: 'asc' }]);
   });
 
-  it('⛔ una colonna che il database non sa ordinare è un 400, non un silenzio', () => {
+  /**
+   * ⭐ Postgres ordina un `ENUM` per **ordine di dichiarazione**, non per il
+   * testo del valore: `ORDER BY status` dà bozza → confermato → … → annullato,
+   * cioè il ciclo di vita. Qui si fissa che quelle colonne sono ordinabili —
+   * l'affermazione contraria aveva tenuto fuori due colonne per niente.
+   */
+  it('⭐ tipo e stato si ordinano: l’enum porta il proprio ordine', () => {
+    expect(parseDocumentListSort('status:asc')).toEqual([{ status: 'asc' }, { id: 'asc' }]);
+    expect(parseDocumentListSort('type:desc')).toEqual([{ type: 'desc' }, { id: 'asc' }]);
+  });
+
+  it('⛔ la controparte no: non è un campo, e la soluzione non è un CASE SQL', () => {
     expect(() => parseDocumentListSort('counterparty:asc')).toThrow(BadRequestException);
-    expect(() => parseDocumentListSort('type:asc')).toThrow(BadRequestException);
-    expect(() => parseDocumentListSort('status:asc')).toThrow(BadRequestException);
   });
 
   it('⛔ una direzione inventata è un 400', () => {

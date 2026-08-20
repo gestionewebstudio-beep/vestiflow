@@ -8,17 +8,32 @@ import { Prisma } from '@prisma/client';
  * parametro HTTP la sua serializzazione, e **solo questa tabella** — quali
  * colonne il database sappia ordinare — è dell'endpoint.
  *
- * ⛔ Restano fuori **Origine, Stato, Pagamento, Evasione**: sono enum che a
- * schermo si leggono in italiano, e la decisione presa sui Movimenti è di
- * ordinare per etichetta (`14` §H13), che lato server non c'è. E **Tot. netto,
- * Location, Commento, Vendita online, Cod. cliente**: le prime due sarebbero
- * una relazione o un campo che il client compone, le altre non sono un ordine
- * che qualcuno chiede.
+ * ⭐ **Origine, Pagamento ed Evasione si ordinano**, con l'ordine dell'enum —
+ * che qui è una progressione, non un alfabeto:
+ *
+ * ```text
+ * SalesOrderFinancialStatus     pending → authorized → paid → …rimborsi
+ * SalesOrderFulfillmentStatus   unfulfilled → partially_fulfilled → fulfilled
+ * SalesOrderSource              shopify_online → shopify_pos → manual → store
+ * ```
+ *
+ * ⛔ **Resta fuori «Stato», e per una ragione diversa dalle altre**: non è un
+ * campo del database. Lo **compone il client** da più dati dell'ordine
+ * (`orderStateLabel`), quindi ordinarlo lato server vorrebbe dire riscrivere
+ * quella logica qui — cioè due fonti di verità per la stessa risposta. È
+ * «ordinabile, da completare», non «non ordinabile».
  *
  * ⚠️ L'elenco è **paginato**: senza questo giro, premere un'intestazione
  * avrebbe riordinato la sola pagina caricata.
  */
-export type SalesOrderSortField = 'orderNumber' | 'placedAt' | 'customerName' | 'total';
+export type SalesOrderSortField =
+  | 'orderNumber'
+  | 'placedAt'
+  | 'customerName'
+  | 'total'
+  | 'source'
+  | 'financialStatus'
+  | 'fulfillmentStatus';
 
 export type SortDirection = 'asc' | 'desc';
 
@@ -37,6 +52,9 @@ const ORDER_BY: Record<
   placedAt: (direction) => [{ placedAt: direction }],
   customerName: (direction) => [{ customerName: direction }],
   total: (direction) => [{ totalMinor: direction }],
+  source: (direction) => [{ source: direction }],
+  financialStatus: (direction) => [{ financialStatus: direction }],
+  fulfillmentStatus: (direction) => [{ fulfillmentStatus: direction }],
 };
 
 const SORTABLE_FIELDS = Object.keys(ORDER_BY) as SalesOrderSortField[];

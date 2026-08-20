@@ -469,14 +469,26 @@ export class SupplierOrderListComponent {
    * funzione mentre se ne assorbe un'altra. Il motore chiede un modello colonne,
    * non un servizio di preferenze.
    */
+  /**
+   * Le colonne che il server sa ordinare: specchio di
+   * `api/src/supplier-orders/supplier-orders-sort.util.ts`.
+   */
+  private static readonly SORTABLE = new Set([
+    'reference',
+    'supplier',
+    'lines',
+    'expected',
+    'total',
+    'status',
+  ]);
+
   protected readonly tableColumns: readonly ResolvedTableColumn[] = [
     { id: 'reference', label: 'Riferimento', pinned: false },
     { id: 'supplier', label: 'Fornitore', pinned: false },
-    // ⛔ «Stato» non si ordina: a schermo è in italiano, nel database in
-    // inglese, e la decisione già presa è di ordinare per ETICHETTA (`14`
-    // §H13) — che lato server non esiste. Meglio un'intestazione che non si
-    // preme di una che promette un ordine e ne dà un altro.
-    { id: 'status', label: 'Stato', sortable: false, pinned: false },
+    // ⭐ «Stato» si ordina, con l'ordine dell'ENUM: confermato → concluso →
+    // annullato, il ciclo di vita dichiarato nello schema. Qui c'era scritto
+    // che il database avrebbe ordinato «in inglese», ed era falso.
+    { id: 'status', label: 'Stato', pinned: false },
     { id: 'lines', label: 'Righe', pinned: false },
     { id: 'expected', label: 'Attesa il', pinned: false },
     { id: 'total', label: 'Totale', numeric: true, pinned: false },
@@ -489,7 +501,9 @@ export class SupplierOrderListComponent {
    * con `sort=status:asc` prenderebbe un `400` invece di aprire l'elenco.
    */
   private readonly sortRichiesto = computed<readonly DataTableSort[]>(() =>
-    (this.query().sort ?? []).filter((chiave) => chiave.columnId !== 'status'),
+    (this.query().sort ?? []).filter((chiave) =>
+      SupplierOrderListComponent.SORTABLE.has(chiave.columnId),
+    ),
   );
 
   /**

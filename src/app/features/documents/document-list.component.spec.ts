@@ -490,18 +490,31 @@ describe('DocumentListComponent — l’ordinamento', () => {
   });
 
   it('⚠️ una colonna che il server non ordina, arrivata dall’URL, non gli viene chiesta', async () => {
-    // `type` non è nella whitelist: l'API risponderebbe 400, e un link vecchio
-    // aprirebbe una pagina di errore invece di un elenco.
-    const view = await renderList('generic', titolare, undefined, [], 'type:asc,total:desc');
+    // `counterparty` non è nella whitelist — non è un campo del database —:
+    // l'API risponderebbe 400, e un link vecchio aprirebbe una pagina di
+    // errore invece di un elenco.
+    const view = await renderList(
+      'generic',
+      titolare,
+      undefined,
+      [],
+      'counterparty:asc,total:desc',
+    );
 
     expect(pagina(view).apiQuery().sort).toEqual([{ columnId: 'total', direction: 'desc' }]);
   });
 
-  it('⛔ le colonne che il server non sa ordinare non hanno l’intestazione premibile', async () => {
+  it('⭐ gli enum si premono: il loro ordine è quello dichiarato nello schema', async () => {
     await renderList('generic', titolare, undefined, [DOCUMENTO_DI_PROVA]);
 
     expect(screen.getByRole('button', { name: /Data/ })).not.toBeNull();
-    expect(screen.queryByRole('button', { name: /^Tipo/ })).toBeNull();
+    expect(screen.getByRole('button', { name: /Tipo/ })).not.toBeNull();
+    expect(screen.getByRole('button', { name: /Stato/ })).not.toBeNull();
+  });
+
+  it('⛔ la Controparte no: non è un campo, e la soluzione non è un CASE SQL', async () => {
+    await renderList('generic', titolare, undefined, [DOCUMENTO_DI_PROVA]);
+
     expect(screen.queryByRole('button', { name: /^Controparte/ })).toBeNull();
   });
 });

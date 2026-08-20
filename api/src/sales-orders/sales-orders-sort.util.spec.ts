@@ -15,10 +15,20 @@ describe('parseSalesOrderSort', () => {
     expect(parseSalesOrderSort('total:desc')).toEqual([{ totalMinor: 'desc' }, { id: 'asc' }]);
   });
 
-  it('⛔ gli stati e l’origine non si ordinano lato server', () => {
-    for (const colonna of ['state', 'source', 'financialStatus', 'fulfillmentStatus']) {
-      expect(() => parseSalesOrderSort(`${colonna}:asc`)).toThrow(BadRequestException);
-    }
+  it('⭐ origine, pagamento ed evasione si ordinano: sono enum con un ordine proprio', () => {
+    expect(parseSalesOrderSort('source:asc')).toEqual([{ source: 'asc' }, { id: 'asc' }]);
+    expect(parseSalesOrderSort('financialStatus:asc')).toEqual([
+      { financialStatus: 'asc' },
+      { id: 'asc' },
+    ]);
+    expect(parseSalesOrderSort('fulfillmentStatus:desc')).toEqual([
+      { fulfillmentStatus: 'desc' },
+      { id: 'asc' },
+    ]);
+  });
+
+  it('⛔ «Stato» no: non è un campo, lo compone il client da più dati', () => {
+    expect(() => parseSalesOrderSort('state:asc')).toThrow(BadRequestException);
   });
 
   it('⭐ il tie-break chiude sempre l’ordine', () => {

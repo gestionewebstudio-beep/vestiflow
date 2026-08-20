@@ -14,12 +14,16 @@ import { Prisma } from '@prisma/client';
  * `supplierName` sugli acquisti); qui l'ordine ha un fornitore solo, e il campo
  * è uno.
  *
- * ⛔ **Resta fuori «Stato»**, per la stessa ragione dei documenti: a schermo si
- * legge in italiano e nel database sta in inglese, e la decisione già presa sui
- * Movimenti è di ordinare per etichetta (`14` §H13) — che lato server non
- * esiste.
+ * ⭐ **«Stato» si ordina**, e l'ordine è quello dell'enum: `confirmed →
+ * concluded → cancelled`, cioè il ciclo di vita dichiarato nello schema.
+ * Postgres ordina un `ENUM` per dichiarazione, non per il testo del valore —
+ * qui c'era scritto il contrario, ed era falso.
+ *
+ * ⚠️ Che l'ordine giusto sia il ciclo di vita o l'alfabetico dell'etichetta è
+ * una scelta funzionale, dichiarata e rivedibile (`14` §H15).
  */
-export type SupplierOrderSortField = 'reference' | 'supplier' | 'lines' | 'expected' | 'total';
+export type SupplierOrderSortField =
+  'reference' | 'supplier' | 'lines' | 'expected' | 'total' | 'status';
 
 export type SortDirection = 'asc' | 'desc';
 
@@ -47,6 +51,7 @@ const ORDER_BY: Record<
   lines: (direction) => [{ lines: { _count: direction } }],
   expected: (direction) => [{ expectedAt: direction }],
   total: (direction) => [{ totalMinor: direction }],
+  status: (direction) => [{ status: direction }],
 };
 
 const SORTABLE_FIELDS = Object.keys(ORDER_BY) as SupplierOrderSortField[];

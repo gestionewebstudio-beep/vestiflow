@@ -2277,22 +2277,72 @@ a più chiavi da quando il motore esiste. Il multi-sort arriva intatto fino all'
 ⭐ **La whitelist resta dell'endpoint, e per forza**: quali colonne un database sappia ordinare
 non è informazione che possa vivere in un componente condiviso.
 
-### ⭐ Quattro colonne su sette, e le altre tre hanno un perché
+### ⛔ CORRETTA — «difficoltà tecnica» non è «decisione funzionale»
+
+_Rilievo del proprietario, 20/08/2026._ La prima stesura aveva una colonna «Fuori» che metteva
+insieme cose diverse, e **trasformava un limite tecnico in una scelta di prodotto**. Le
+categorie sono tre, e vanno tenute separate:
 
 ```text
-ordinabili    Data · Numero · Righe · Totale
-fuori         Tipo · Stato · Controparte
+1. ordinabile, IMPLEMENTATA
+2. ordinabile, DA COMPLETARE tecnicamente   ← non è una decisione: è lavoro
+3. NON ordinabile per decisione funzionale esplicita
 ```
 
-| Fuori            | Perché                                                                                                                                                                                           |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Tipo · Stato** | a schermo si leggono in italiano, nel database stanno in inglese. E la decisione è **già presa**: sui Movimenti quelle colonne si ordinano **per etichetta** (§H13) — che lato server non esiste |
-| **Controparte**  | non è un campo: è `customerName` sulle vendite e `supplierName` sugli acquisti                                                                                                                   |
+⭐ **Oggi la terza categoria è VUOTA.** Nessuno ha deciso che una colonna non debba ordinarsi.
 
-⛔ Riprodurre le etichette italiane in un `CASE` SQL è possibile e sarebbe **la fonte di verità
-sdoppiata**: due elenchi da tenere allineati, e il giorno che divergono l'ordine smette di
-corrispondere ai nomi senza che nessun test se ne accorga. La strada resta aperta e va decisa a
-parte.
+### ⛔ E un'affermazione che era FALSA, e teneva fuori cinque colonne
+
+Qui c'era scritto che ordinare uno stato lato server avrebbe dato «l'ordine alfabetico
+INGLESE». **Non è vero**: Postgres ordina un `ENUM` per **ordine di dichiarazione del tipo**,
+non per il testo del valore. E in questo schema gli enum sono dichiarati per ciclo di vita e per
+famiglia —
+
+```text
+DocumentStatus                draft → confirmed → printed → sent → cancelled
+SupplierOrderStatus           confirmed → concluded → cancelled
+SalesOrderFinancialStatus     pending → authorized → paid → …rimborsi
+SalesOrderFulfillmentStatus   unfulfilled → partially_fulfilled → fulfilled
+DocumentType                  acquisto → magazzino → vendita → fiscali
+```
+
+— cioè **un ordine di dominio**, che per uno stato è più utile dell'alfabetico dell'etichetta:
+«Bozza, Confermato, Annullato» dice qualcosa, «Annullato, Bozza, Confermato» no.
+
+⚠️ **Resta però una scelta funzionale da confermare**, e va dichiarata invece che nascosta: non
+coincide con la decisione dei Movimenti, dove si ordina per l'etichetta che l'operatore legge
+(§H13). Le due risposte divergono. Oggi vale l'ordine dell'enum, ed è rivedibile.
+
+### ✅ 1. Ordinabili e implementate — 20/08/2026
+
+| Elenco               | Colonne                                                                       |
+| -------------------- | ----------------------------------------------------------------------------- |
+| **Documenti**        | Data · Numero · Righe · Totale · **Tipo** · **Stato**                         |
+| **Ordini fornitore** | Riferimento · Fornitore · Righe · Attesa il · Totale · **Stato**              |
+| **Ordini cliente**   | Ordine · Data · Cliente · Totale · **Origine** · **Pagamento** · **Evasione** |
+
+### ⏸ 2. Ordinabili, da completare — quali soluzioni servono
+
+⛔ **Nessuna delle due si risolve con un `CASE` SQL o con una copia delle etichette**: sarebbero
+due fonti di verità, e la seconda diverge dalla prima senza che un test se ne accorga.
+
+| Colonna                            | Perché non basta un `orderBy`                                                                 | Soluzione a UNA fonte                                                                                                                                                                  |
+| ---------------------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Controparte** (elenco documenti) | non è un campo: `customerName` sulle vendite, `supplierName` sugli acquisti                   | **colonna generata** in Postgres — `GENERATED ALWAYS AS (COALESCE(customer_name, supplier_name)) STORED`: derivata dal database stesso, allineata per costruzione. Costa una migration |
+| **Stato** (ordini cliente)         | **non esiste nel database**: lo compone il client da più dati dell'ordine (`orderStateLabel`) | portare quella regola in **un posto solo** — o una colonna calcolata/denormalizzata scritta dal salvataggio, o l'ordinamento resta client-side dove l'elenco non pagina                |
+
+⚠️ E una terza, se un giorno si vuole **l'ordine per ETICHETTA** anche sugli enum (cioè la
+regola dei Movimenti applicata ovunque): l'etichetta italiana vive nel frontend
+(`document-labels.util`), e il database non la conosce. Le strade a una fonte sola sono due —
+un **rank dichiarato una volta** e verificato in CI come già si fa per i permessi
+(`check:permissions` confronta le due mappe e fallisce se divergono), oppure l'etichetta come
+dato di anagrafica. **Non è un lavoro da fare di straforo dentro un ordinamento.**
+
+### ⛔ 3. Non ordinabili per decisione: nessuna
+
+Le colonne rimaste fuori dalle whitelist — Tot. netto, Cod. cliente, Location, Commento,
+Vendita online — non sono state decise: **non le ha chieste nessuno**, e si accendono quando
+servono. Non vanno confuse con la categoria 3, che oggi è vuota.
 
 ### ⚠️ Due dettagli che non si vedono e che rompono in silenzio
 
@@ -2316,22 +2366,9 @@ e lì una pagina di errore al posto dell'elenco è la risposta sbagliata.
 
 ### ✅ E fatti anche gli altri due, lo stesso giorno
 
-Tutti e tre gli elenchi paginati ordinano. **La grammatica non è stata toccata** — è comune —
-e nemmeno il motore: ogni elenco ha aggiunto la sua whitelist e il cablaggio.
-
-| Elenco               | Ordinabili                                               | Fuori                                                                                                     |
-| -------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| **Documenti**        | Data · Numero · Righe · Totale                           | Tipo · Stato · Controparte                                                                                |
-| **Ordini fornitore** | Riferimento · **Fornitore** · Righe · Attesa il · Totale | Stato                                                                                                     |
-| **Ordini cliente**   | Ordine · Data · Cliente · Totale                         | Origine · Stato · Pagamento · Evasione · Tot. netto · Cod. cliente · Location · Commento · Vendita online |
-
-⭐ **«Fornitore» si ordina e «Controparte» no**, e non è un'incoerenza: sull'ordine fornitore la
-controparte è **un campo** (`supplierName`), nell'elenco documenti sono due — `customerName`
-sulle vendite, `supplierName` sugli acquisti.
-
-⚠️ **Gli stati restano fuori dappertutto**, con la stessa ragione: a schermo si leggono in
-italiano, nel database stanno in inglese, e la decisione presa sui Movimenti è di ordinare per
-etichetta (§H13).
+Tutti e tre gli elenchi paginati ordinano. **La grammatica non è stata toccata** — è comune — e
+nemmeno il motore: ogni elenco ha aggiunto la sua whitelist e il cablaggio. Quali colonne, e in
+quale delle tre categorie, sta nella classificazione qui sotto.
 
 ### ⚠️ Due differenze fra i tre, dichiarate
 

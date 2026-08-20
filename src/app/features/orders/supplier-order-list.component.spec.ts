@@ -149,10 +149,12 @@ describe('SupplierOrderListComponent — l’ordinamento', () => {
     );
   });
 
-  it('⛔ «Stato» dichiara di non essere ordinabile', async () => {
+  it('⭐ «Stato» è ordinabile: l’enum del database porta il ciclo di vita', async () => {
     const view = await renderList();
     const stato = pagina(view).tableColumns.find((colonna) => colonna.id === 'status');
 
-    expect(stato?.sortable).toBe(false);
+    // L'unica colonna che l'API non sa ordinare, qui, non esiste:
+    // `sortable` non dichiarato significa ordinabile.
+    expect(stato?.sortable).toBeUndefined();
   });
 });

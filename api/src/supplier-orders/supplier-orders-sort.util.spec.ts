@@ -22,8 +22,12 @@ describe('parseSupplierOrderSort', () => {
     ]);
   });
 
-  it('⛔ «Stato» non è ordinabile lato server, come sui documenti', () => {
-    expect(() => parseSupplierOrderSort('status:asc')).toThrow(BadRequestException);
+  it('⭐ «Stato» si ordina: l’enum porta il ciclo di vita', () => {
+    expect(parseSupplierOrderSort('status:asc')).toEqual([{ status: 'asc' }, { id: 'asc' }]);
+  });
+
+  it('⛔ una colonna che non esiste resta un 400', () => {
+    expect(() => parseSupplierOrderSort('pippo:asc')).toThrow(BadRequestException);
   });
 
   it('⭐ l’ordine finisce sempre con il tie-break', () => {

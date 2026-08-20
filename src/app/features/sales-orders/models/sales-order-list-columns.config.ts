@@ -18,15 +18,23 @@ import {
  * resta finché non la impara anche il server, invece di promettere un ordine
  * che risponde `400`.
  *
- * Fuori restano Origine, Stato, Pagamento ed Evasione — enum che a schermo si
- * leggono in italiano e nel database stanno in inglese (`14` §H13) — più Tot.
- * netto, Cod. cliente, Location, Commento e Vendita online.
+ * ⭐ **Origine, Pagamento ed Evasione ci sono**: sono enum, e Postgres li ordina
+ * per ordine di DICHIARAZIONE — che qui è una progressione (da saldare →
+ * autorizzato → pagato; non evaso → parziale → evaso), non un alfabeto.
+ *
+ * ⚠️ **«Stato» resta fuori per una ragione tecnica, non funzionale**: non è un
+ * campo del database, lo compone il client da più dati dell'ordine. Ordinarlo
+ * lato server significherebbe riscrivere quella logica nell'API — due fonti di
+ * verità per la stessa risposta.
  */
 export const SALES_ORDER_LIST_SORTABLE_COLUMNS: ReadonlySet<string> = new Set([
   'orderNumber',
   'placedAt',
   'customerName',
   'total',
+  'source',
+  'financialStatus',
+  'fulfillmentStatus',
 ]);
 
 export const SALES_ORDER_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [

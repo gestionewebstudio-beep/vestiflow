@@ -17,17 +17,23 @@ import {
  * finché qualcuno non la insegna anche al server. Marcando invece le escluse,
  * la colonna aggiunta domani prometterebbe un ordinamento che risponde `400`.
  *
- * ⚠️ Restano fuori **Tipo**, **Stato** e **Controparte**: le prime due perché a
- * schermo si leggono in italiano e nel database stanno in inglese — e la
- * decisione già presa sui Movimenti è di ordinare per ETICHETTA (`14` §H13),
- * che lato server non è disponibile; la terza perché non è un campo solo
- * (`customerName` sulle vendite, `supplierName` sugli acquisti).
+ * ⚠️ **Resta fuori la sola «Controparte»**, e non per decisione: non è un campo
+ * — `customerName` sulle vendite, `supplierName` sugli acquisti — quindi è
+ * ordinabile **da completare**, con una colonna generata in Postgres. Mai con
+ * un `CASE` SQL, che sarebbe una seconda fonte di verità.
+ *
+ * ⭐ **Tipo e Stato invece ci sono**: qui c'era scritto che il database li
+ * avrebbe ordinati «in inglese», ed era falso — Postgres ordina un `ENUM` per
+ * ordine di dichiarazione, e nello schema quello è il ciclo di vita (bozza →
+ * confermato → … → annullato) e la famiglia del tipo.
  */
 export const DOCUMENT_LIST_SORTABLE_COLUMNS: ReadonlySet<string> = new Set([
   'documentDate',
   'reference',
   'lineCount',
   'total',
+  'type',
+  'status',
 ]);
 
 export const DOCUMENT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
