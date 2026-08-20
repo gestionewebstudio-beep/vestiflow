@@ -15,6 +15,13 @@
 @include rt.data-table-desktop('data-table');
 @include rt.data-table-mobile-cards('data-table');
 @include rt.selection-column('data-table');
+/*
+  ⭐ **La grammatica dei riepiloghi** (`14` §F5, decisa il 20/08/2026): densità,
+  intestazione e fili nella forma del Registro Corrispettivi. Sta in un mixin e
+  non qui perché **serve anche altrove** — le anagrafiche sono elenchi come
+  questi, e uniformarle è una riga di `@include` più la loro verifica visiva.
+*/
+@include rt.summary-grammar('data-table');
 
 /*
   L'intestazione ordinabile è un pulsante vero: si raggiunge col Tab e annuncia

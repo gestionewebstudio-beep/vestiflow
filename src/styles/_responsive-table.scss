@@ -127,6 +127,58 @@
   }
 }
 
+/// ═══════════════════════════════════════════════════════════════════════════
+/// LA GRAMMATICA DEI RIEPILOGHI — decisa dal proprietario il 20/08/2026
+/// ═══════════════════════════════════════════════════════════════════════════
+///
+/// Sette voci messe a confronto una per una sui dati veri, e scelte tutte e
+/// sette nella forma del **Registro Corrispettivi** (`14` §F5: dove il Registro
+/// e il motore divergono, ha ragione il Registro).
+///
+/// | 01 font del corpo       | 12px — un gradino sotto, più righe leggibili          |
+/// | 02 padding delle celle  | 4 × 12 — è la voce che decide quante righe si vedono   |
+/// | 03 altezza intestazione | 32px dichiarati, indipendenti dal padding delle righe |
+/// | 04 divisori di colonna  | nessuno: il bianco separa da sé                        |
+/// | 05 larghezze            | sul contenuto — `table-layout: auto`, che il mixin già dà |
+/// | 06 intestazioni         | MAIUSCOLE, con tracking                                |
+/// | 07 testo e filo         | i token dedicati di `regole-stile-ui` §2               |
+///
+/// ⛔ **È un mixin a sé e non fa parte di `data-table-desktop`**, che è incluso
+/// anche dalle **griglie di riga dei documenti** (`doc-lines`, gli step del
+/// prodotto, le righe dell'ordine fornitore). Quelle sono maschere di
+/// inserimento, non elenchi: hanno celle editabili, altezze proprie
+/// (`--control-h-cell`) e un'anatomia dichiarata in `_document-form.scss`.
+/// Portarle a 12px con l'intestazione maiuscola sarebbe un effetto collaterale
+/// su schermate che nessuno ha guardato.
+///
+/// ⭐ **Chi la può adottare**: qualunque tabella che sia un ELENCO — i quattro
+/// riepiloghi (via il motore), e le anagrafiche il giorno in cui si decide di
+/// uniformarle (clienti, fornitori, prodotti, vendite online, conteggi). Una
+/// riga di `@include`, e la verifica visiva di quella schermata.
+///
+/// Si include DOPO `data-table-desktop`: sovrascrive quattro delle sue regole.
+@mixin summary-grammar($block) {
+  .#{$block} {
+    font-size: var(--text-xs);
+  }
+
+  .#{$block} tbody td,
+  .#{$block}__row td {
+    padding: var(--space-1) var(--space-3);
+    border-inline-end: 0;
+  }
+
+  .#{$block} th {
+    block-size: var(--table-head-h);
+    padding: 0 var(--space-3);
+    color: var(--color-table-header-fg);
+    border-block-end: var(--border-width) solid var(--color-table-header-rule);
+    border-inline-end: 0;
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-caps);
+  }
+}
+
 /// Card impilate — solo sotto lg, non interferisce col layout desktop.
 @mixin data-table-mobile-cards($block) {
   @include bp.media-down('lg') {

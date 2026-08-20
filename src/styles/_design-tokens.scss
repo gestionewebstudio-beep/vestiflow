@@ -125,7 +125,11 @@
   // sono varianti di --color-text-muted, sono ruoli diversi. Mappandoli su
   // «muted» l'intestazione della tabella e le label dei campi si erano
   // schiarite di un passo, ed e' la differenza che si vedeva a schermo.
-  --color-table-header-fg: #3f4c51;
+  /* Scurito il 20/08/2026 su richiesta del proprietario: «prediligo un alto
+     contrasto». Su --color-table-header-bg (#e9edee) passa da 7,5:1 a 9,5:1, e
+     resta un gradino sopra --color-text (12,7:1) — l'intestazione deve restare
+     riconoscibile come tale, non diventare testo. */
+  --color-table-header-fg: #2f3d43;
   --color-table-header-rule: #aebfb7;
   --color-field-label: #59665f;
   // ── Riga «Documento collegato» (regole-stile-ui §7) ───────────────────────
@@ -343,7 +347,8 @@
   // ── Ruoli emersi dall'Ordine cliente ──────────────────────────────────────
   // La pelle chiara non regge su fondo scuro: i ruoli tornano ai token del
   // tema, la gerarchia resta quella.
-  --color-table-header-fg: var(--color-text-muted);
+  /* Il simmetrico sul tema scuro: da --color-text-muted (6,2:1) a 9,8:1. */
+  --color-table-header-fg: #c6d2d7;
   --color-table-header-rule: var(--color-border-strong);
   --color-field-label: var(--color-text-subtle);
 

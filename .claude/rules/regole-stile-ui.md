@@ -681,14 +681,50 @@ Le tabelle sono l'elemento centrale del gestionale.
 ### Tabella desktop
 
 - `table-layout: fixed`, `width: 100%`, colonne in `%`
-- **Header**: h32, padding 4×6, font 9.5px uppercase weight 760, tracking .045em, muted, bg `--color-table-header-bg`, bordo inferiore `--color-border-strong`
-- **Righe**: h30, padding 2×5, font 12.5px, bordo 1px `--color-border-cell`
+- **Header**: h32 (`--table-head-h`), padding `0 --space-3`, font `--text-2xs` uppercase weight
+  bold, tracking `--tracking-caps`, testo **`--color-table-header-fg`**, bg
+  `--color-table-header-bg`, filo inferiore **`--color-table-header-rule`**
+
+> ⛔ **Qui c'era «muted» per il testo e `--color-border-strong` per il filo, e §2 diceva
+> un'altra cosa** — i due token dedicati. Erano due frasi dello stesso documento che non
+> concordavano, e il codice si era diviso: il Registro seguiva §2, il motore §6. Il
+> proprietario ha deciso il 20/08/2026 guardandole a confronto: **valgono i token dedicati di
+> §2**, e questa riga è stata corretta.
+>
+> ⭐ E il testo dell'intestazione è stato **scurito** nello stesso passaggio — 7,5:1 → 9,5:1 sul
+> fondo dell'intestazione — restando comunque un gradino sopra il testo del corpo, che altrimenti
+> smetterebbe di distinguersi.
+
+- **Righe**: padding `--space-1 --space-3` (4 × 12), font `--text-xs` (12px), bordo 1px
+  `--color-border-cell`, **nessun divisore verticale** fra le colonne
 - Hover riga: bg `--color-surface-hover`
 - Selezione riga: bg `--color-primary` al 6% + checkbox `--color-primary`
 - Colonne numeriche: allineate a destra, `tabular-nums`, `white-space: nowrap`
 - Testo lungo in cella: ellipsis oltre 24ch con `title` per full text
 - SKU / EAN: `--font-mono`, size 12px, colore `--color-focus` se cliccabile
 - Sticky header sul bg dell'header (non su surface)
+
+### ⭐ La grammatica dei riepiloghi — decisa il 20/08/2026
+
+Sette voci confrontate una per una sui dati veri e scelte tutte nella forma del **Registro
+Corrispettivi**, che `14` §F5 aveva indicato come riferimento di partenza:
+
+| Voce                      | Valore                               |
+| ------------------------- | ------------------------------------ |
+| font del corpo            | `--text-xs` (12px)                   |
+| padding delle celle       | `--space-1 --space-3` (4 × 12)       |
+| altezza intestazione      | `--table-head-h` (32px), dichiarata  |
+| divisori di colonna       | nessuno                              |
+| larghezze                 | sul contenuto (`table-layout: auto`) |
+| intestazioni              | MAIUSCOLE con `--tracking-caps`      |
+| testo e filo intestazione | `--color-table-header-fg` / `-rule`  |
+
+Vive nel mixin `summary-grammar($block)` di `styles/_responsive-table.scss`, incluso dal motore
+tabella. ⛔ **Non è dentro `data-table-desktop`**: quel mixin lo usano anche le griglie di riga
+dei documenti, che sono maschere di inserimento e non elenchi.
+
+⭐ **Ogni altro ELENCO la può adottare** con una riga di `@include` — anagrafiche comprese — con
+la verifica visiva di quella schermata.
 
 ### Gruppi di colonne
 
