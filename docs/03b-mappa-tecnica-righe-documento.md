@@ -702,7 +702,21 @@ _Tenuto agli atti: la decisione poggia su queste misure, non è arbitraria._
 
 ### 8.1 L'ordinamento per colonna, oggi
 
-Esiste **solo in Arrivo merce**: `toggleLineSort` e `applyLineSort`, col comparatore in `goods-receipt-line-sort.util.ts`. Attivabile su **sette colonne** _(mis. 08/2026)_: SKU, EAN, cod. fornitore, prodotto, quantità, costo, IVA.
+⚠️ **Qui c’era «esiste solo in Arrivo merce, col comparatore in
+`goods-receipt-line-sort.util.ts`». Erano vere entrambe, e non lo sono più** _(rivisto 20/08/2026)_.
+
+L’ordinamento delle righe da intestazione esiste in **sei maschere** — Arrivo merce, Ordine
+fornitore, la maschera cliente (Ordine cliente · Preventivo · DDT vendita · Scarico manuale),
+Fatture, Rettifica, Trasferimento — tutte montate su `DocumentLineSortStore`
+(`domain/documents/state/`).
+
+Il **comparatore** non vive più né qui né in `domain/`: è salito in
+`shared/utils/sort-values.util.ts` (`compareSortValues` · `sortByValue` · `SortValueKind`),
+perché il registro movimenti è diventato il suo secondo consumatore e un util chiamato
+«document-line-sort» che ordina il magazzino sarebbe il nome sbagliato nel posto sbagliato.
+In `features/documents/utils/goods-receipt-line-sort.util.ts` resta **solo l’elenco delle
+colonne ordinabili** dell’Arrivo merce — sette: SKU, EAN, cod. fornitore, prodotto, quantità,
+costo, IVA.
 
 - **Riordina la `FormArray` sul posto**, ri-inserendo le stesse istanze di `FormGroup`.
 - **Non è reversibile**: nessuna copia dell'ordine precedente, nessun annulla. Il secondo click inverte, non ripristina.

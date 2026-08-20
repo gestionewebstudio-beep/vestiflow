@@ -111,10 +111,7 @@ import { DocumentCodeLookupService } from '@domain/documents/services/document-c
 import { DocumentCodeLookupStore } from '@domain/documents/state/document-code-lookup.store';
 import { DocumentProductSuggestStore } from '@domain/documents/state/document-product-suggest.store';
 import { DocumentLineSortStore } from '@domain/documents/state/document-line-sort.store';
-import {
-  sortByLineValue,
-  type DocumentLineSortKind,
-} from '@domain/documents/utils/document-line-sort.util';
+import { sortByValue, type SortValueKind } from '@shared/utils/sort-values.util';
 import { DocumentLineFocusStore } from '@domain/documents/state/document-line-focus.store';
 import {
   supplierCodeForDocumentLine,
@@ -467,9 +464,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
    */
   protected readonly lineSort = new DocumentLineSortStore<SupplierOrderLineSortColumn>();
 
-  private readonly lineSortKinds: Readonly<
-    Record<SupplierOrderLineSortColumn, DocumentLineSortKind>
-  > = {
+  private readonly lineSortKinds: Readonly<Record<SupplierOrderLineSortColumn, SortValueKind>> = {
     articleCode: 'text',
     sku: 'text',
     barcode: 'text',
@@ -541,7 +536,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     if (!column || this.lines.length <= 1) {
       return;
     }
-    const controls = sortByLineValue(
+    const controls = sortByValue(
       this.lines.controls,
       (control) => this.lineSortValue(control.getRawValue(), column),
       this.lineSortKinds[column],

@@ -9,9 +9,16 @@ export type DocumentLineSortDirection = 'asc' | 'desc';
  * **Riordinare non è una vista: riscrive il documento.** Le righe cambiano
  * posto davvero, e la posizione è ciò che viene salvato. L'ordine in cui erano
  * state inserite **non è registrato da nessuna parte** — non c'è una data di
- * creazione sulla riga, il numero di riga descrive la posizione attuale, e il
- * salvataggio cancella e ricrea le righe con identificativi nuovi. Nemmeno lo
- * storico del documento le conserva: registra un riepilogo, non una copia.
+ * creazione sulla riga, e il numero di riga descrive la posizione attuale.
+ * Nemmeno lo storico del documento le conserva: registra un riepilogo, non una
+ * copia.
+ *
+ * ⚠️ _Corretto il 20/08/2026:_ qui c’era anche «il salvataggio cancella e ricrea
+ * le righe con identificativi nuovi». Per `DocumentLine` **non è più vero
+ * dall’11/08**: `document-line-upsert.util` conserva l’identità della riga.
+ * Resta vero per il solo Ordine fornitore. La conclusione non cambia — l’ordine
+ * di inserimento resta non registrato — ma la ragione sì, ed è quella su cui si
+ * fonda la decisione sopra.
  *
  * Quindi l'avviso non dice «l'ordine attuale si perde», che descriverebbe un
  * inconveniente: dice che **salvando non si torna indietro**. E dice anche
@@ -21,6 +28,21 @@ export type DocumentLineSortDirection = 'asc' | 'desc';
  * **Una volta per documento.** Alla seconda l'operatore sa già, e un avviso che
  * compare sempre si impara a scacciare senza leggerlo — che è il modo migliore
  * per renderlo inutile proprio quando conta.
+ *
+ * ⛔ **Il ciclo qui ha DUE stati — crescente e decrescente — e non ne avrà un
+ * terzo** _(deciso 20/08/2026)_. Negli ELENCHI il motore riepiloghi fa
+ * `asc → desc → nessuno`, e là «nessuno» ha una destinazione: l’ordine con cui
+ * l’API ha risposto. **Qui quella destinazione non esiste**: l’ordine di
+ * inserimento non è registrato da nessuna parte, quindi «togli l’ordinamento»
+ * offrirebbe un ritorno a qualcosa che non c’è più.
+ *
+ * ⚠️ E sarebbe peggio che inutile: dopo un trascinamento manuale, la terza
+ * pressione **scarterebbe il lavoro appena fatto**. È l’ambiguità che
+ * `docs/ORDINE-FORNITORE-RIGA.md` aveva tolto apposta decidendo che «non esiste
+ * un ordinare solo per guardare».
+ *
+ * La divergenza fra i due cicli è quindi **dichiarata**, non da sanare: chi un
+ * giorno volesse «uniformare» legga prima questo paragrafo.
  *
  * Classe, non servizio iniettabile: un'istanza per maschera, come le altre di
  * questa cartella.

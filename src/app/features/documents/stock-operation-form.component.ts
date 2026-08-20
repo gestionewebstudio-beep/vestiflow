@@ -82,10 +82,7 @@ import {
   STOCK_MOVEMENT_LINE_COLUMNS,
   STOCK_MOVEMENT_LINE_PRESETS,
 } from '@domain/documents/models/stock-movement-line-columns.config';
-import {
-  sortByLineValue,
-  type DocumentLineSortKind,
-} from '@domain/documents/utils/document-line-sort.util';
+import { sortByValue, type SortValueKind } from '@shared/utils/sort-values.util';
 import { DocumentLineFocusStore } from '@domain/documents/state/document-line-focus.store';
 import type { DocumentLineCodeField } from '@domain/documents/utils/document-code-match.util';
 import type { LineCodeChoice } from '@domain/documents/models/document-line-code-choice.model';
@@ -1112,9 +1109,7 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
 
   protected readonly lineSort = new DocumentLineSortStore<StockOperationLineSortColumn>();
 
-  private readonly lineSortKinds: Readonly<
-    Record<StockOperationLineSortColumn, DocumentLineSortKind>
-  > = {
+  private readonly lineSortKinds: Readonly<Record<StockOperationLineSortColumn, SortValueKind>> = {
     articleCode: 'text',
     sku: 'text',
     barcode: 'text',
@@ -1155,7 +1150,7 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
     if (!column || this.lines.length <= 1) {
       return;
     }
-    const controls = sortByLineValue(
+    const controls = sortByValue(
       this.lines.controls,
       (control) => {
         const raw = control.getRawValue();

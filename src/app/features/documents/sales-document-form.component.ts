@@ -100,10 +100,7 @@ import { TableColumnPickerComponent } from '@shared/components/table-column-pick
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { TableColumnResizeDirective } from '@shared/directives/table-column-resize.directive';
 import { DocumentLineSortStore } from '@domain/documents/state/document-line-sort.store';
-import {
-  sortByLineValue,
-  type DocumentLineSortKind,
-} from '@domain/documents/utils/document-line-sort.util';
+import { sortByValue, type SortValueKind } from '@shared/utils/sort-values.util';
 import {
   SALES_DOCUMENT_LINES_VIEW,
   SALES_DOCUMENT_LINE_COLUMNS,
@@ -1325,9 +1322,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
 
   protected readonly lineSort = new DocumentLineSortStore<SalesDocumentLineSortColumn>();
 
-  private readonly lineSortKinds: Readonly<
-    Record<SalesDocumentLineSortColumn, DocumentLineSortKind>
-  > = {
+  private readonly lineSortKinds: Readonly<Record<SalesDocumentLineSortColumn, SortValueKind>> = {
     articleCode: 'text',
     sku: 'text',
     barcode: 'text',
@@ -1366,7 +1361,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     if (!column || this.lines.length <= 1) {
       return;
     }
-    const controls = sortByLineValue(
+    const controls = sortByValue(
       this.lines.controls,
       (control) => {
         const raw = control.getRawValue();

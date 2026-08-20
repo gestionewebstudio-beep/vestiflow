@@ -106,10 +106,7 @@ import {
 } from '@domain/documents/models/stock-movement-line-columns.config';
 import { CdkDrag, CdkDragHandle, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
 import { trailingEmptyLineIndices } from '@domain/documents/utils/trailing-empty-lines.util';
-import {
-  sortByLineValue,
-  type DocumentLineSortKind,
-} from '@domain/documents/utils/document-line-sort.util';
+import { sortByValue, type SortValueKind } from '@shared/utils/sort-values.util';
 
 type SubmitState =
   | { readonly status: 'idle' }
@@ -452,7 +449,7 @@ export class TransferFormComponent implements CanComponentDeactivate {
 
   protected readonly lineSort = new DocumentLineSortStore<TransferLineSortColumn>();
 
-  private readonly lineSortKinds: Readonly<Record<TransferLineSortColumn, DocumentLineSortKind>> = {
+  private readonly lineSortKinds: Readonly<Record<TransferLineSortColumn, SortValueKind>> = {
     articleCode: 'text',
     sku: 'text',
     barcode: 'text',
@@ -493,7 +490,7 @@ export class TransferFormComponent implements CanComponentDeactivate {
     if (!column || this.lines.length <= 1) {
       return;
     }
-    const controls = sortByLineValue(
+    const controls = sortByValue(
       this.lines.controls,
       (control) => {
         const raw = control.getRawValue();

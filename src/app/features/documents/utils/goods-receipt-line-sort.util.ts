@@ -1,5 +1,5 @@
 // Quali colonne dell'Arrivo merce si possono ordinare, e nient'altro.
-// Il CONFRONTO vive in domain/documents/utils/document-line-sort.util: qui
+// Il CONFRONTO vive in shared/utils/sort-values.util: qui
 // c'era anche quello, ed era la copia che le altre maschere non potevano usare.
 
 export type GoodsReceiptLineSortColumn =
