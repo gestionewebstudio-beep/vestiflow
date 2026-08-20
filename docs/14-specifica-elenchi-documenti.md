@@ -1237,6 +1237,52 @@ azioni massive               →  comportamento da definire in una fase successi
 
 ---
 
+## E6. ⭐ Il Dettaglio sugli ALTRI TRE elenchi — censito il 20/08/2026
+
+L'azione copre gli otto profili di `DocumentListComponent`. Restano tre elenchi che da lì non
+passano, e **non sono lo stesso caso**: uno è pronto, uno non ha una destinazione, uno non ha
+nemmeno il dato per costruirla.
+
+| Elenco               | La destinazione esiste?                                                                               | Che cosa manca davvero        |
+| -------------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------- |
+| **Ordine fornitore** | ✅ `orders/:id` → `SupplierOrderDetailComponent`, titolo «Dettaglio ordine fornitore», gated in VISTA | **solo il pulsante**          |
+| **Ordine cliente**   | ⛔ **non esiste più**                                                                                 | una decisione, non del codice |
+| **Corrispettivi**    | ⛔ la riga non sa a quale documento appartiene                                                        | un campo nel payload dell'API |
+
+### ⛔ L'Ordine cliente non ha un Dettaglio, e non è una dimenticanza
+
+Misurato in `sales-orders.routes.ts`: **`:id` e `:id/edit` caricano entrambi
+`CustomerOrderFormComponent`**, e il commento della rotta lo dichiara — _«Sostituisce la
+vecchia schermata Dettaglio: ogni ordine si apre nel form (bloccato)»_. Chi ha la sola vista
+apre il form gated; lo sblocco è dentro.
+
+⚠️ **Qui due decisioni di questo stesso documento divergono**, e va deciso quale vale:
+
+| Dice                                                                                               | Dove   |
+| -------------------------------------------------------------------------------------------------- | ------ |
+| il Dettaglio **si mantiene**, è una funzione di prodotto e ha il suo pulsante                      | §6, §7 |
+| il form bloccato **sostituisce** il Dettaglio, ed è «la direzione giusta anche per gli altri tipi» | §7     |
+
+⛔ **Un pulsante «Dettaglio» che apre il form bloccato non è una scorciatoia: è un secondo nome
+per la Modifica** — cioè esattamente ciò che §6 vieta. Finché la divergenza non è sciolta,
+l'azione su Ordini cliente **non si dichiara**: un comando che non ha dove andare è peggio di un
+comando assente.
+
+### ⛔ Sui Corrispettivi manca il DATO, non il pulsante
+
+`CorrispettiviRegisterRow` porta `salesOrderId` (l'ordine online) e `manualReceiptId` (la
+registrazione manuale). **Non porta l'id del documento**: la riga «Vendita al banco» nasce da un
+documento, e quel documento il client non sa qual è.
+
+Oggi si apre **solo la registrazione manuale**, e solo a chi può correggerla
+(`isOpenable`): tutte le altre righe sono informative per costruzione.
+
+⭐ **Quindi l'azione non è rinviata per prudenza: non è costruibile.** Serve prima che l'API
+dica a quale documento appartiene la riga — ed è un lavoro suo, che tocca il contratto del
+registro (`docs/10`), non la barra azioni.
+
+---
+
 # F · LA GRAMMATICA DI UNA PAGINA ELENCO — misurata il 20/08/2026
 
 Scritta **prima** di toccare Ordini fornitore, per non inventare ciò che esiste già. Vale
@@ -2005,6 +2051,91 @@ Prima di spostare markup fra componenti si contano **le classi che perderanno l'
 Se sono più di poche, non è un refactor meccanico: o gli stili si portano sul nuovo markup
 **nello stesso passo**, o ci si ferma. E non si committa prima che qualcuno abbia guardato
 la schermata.
+
+## H15. ⭐ Ordinamento: non è stato PERSO, non era mai stato collegato — misurato il 20/08/2026
+
+La domanda era: l'assorbimento ha tolto l'ordinamento agli altri riepiloghi, oppure non l'hanno
+mai avuto? **Misurata, non dedotta.**
+
+```text
+chi accende [sortable] + [sort] + (sortChange) oggi
+  movimenti          ✅ unico
+  elenco documenti   ⛔        ordini cliente  ⛔
+  ordini fornitore   ⛔        corrispettivi   ⛔
+
+occorrenze di «sort» nei template PRIMA dell'assorbimento (5aa4a0ea^ / 430436c4^)
+  document-table  0     sales-order-table  0     supplier-order-table  0
+  movement-table  0     corrispettivi-table  0   ← mai toccata: è ancora lo stato storico
+```
+
+⭐ **Nessuna delle cinque aveva l'ordinamento da intestazione.** Il motore non l'ha tolto a
+nessuno: l'ha **dato** ai Movimenti, che è la storia raccontata in §H13. L'unico ordinamento da
+intestazione preesistente nell'app sta in `product-table`, che è una tabella propria e non passa
+dal motore — coincide con la misura di §G3.
+
+### ⛔ Perché non si accende «tanto il motore ce l'ha»
+
+|                  | paginato lato server | ordinamento da intestazione                             |
+| ---------------- | -------------------- | ------------------------------------------------------- |
+| elenco documenti | ✅ `app-pagination`  | ordinerebbe **la pagina**, non il risultato             |
+| ordini cliente   | ✅                   | idem                                                    |
+| ordini fornitore | ✅                   | idem                                                    |
+| movimenti        | ⛔ carica tutto      | ✅ per questo funziona, ed è coerente con §H13          |
+| corrispettivi    | ⛔ carica il periodo | tecnicamente possibile lato client, da decidere a parte |
+
+> **Su un elenco paginato, ordinare ciò che è a schermo è un ordinamento bugiardo**: mostra la
+> prima pagina riordinata e la chiama «la più recente». Accenderlo lì richiede il supporto
+> dell'API — è lavoro di contratto, non un `input` da mettere a `true`.
+
+⚠️ Nessuna delle tre pagine paginate manda oggi un parametro di ordinamento all'API: verificato,
+non esiste `sortBy` né equivalente nelle loro query.
+
+---
+
+## H16. ⛔ L'affordance di riga: tre cose perse nell'assorbimento — corrette il 20/08/2026
+
+`data-table__row--clickable` esisteva nel template e **nessuna regola la leggeva**: una classe
+orfana. Confrontando con `.doc-table__row`, la tabella documenti di prima:
+
+| Prima (`doc-table`)                                | Dopo l'assorbimento                                                                                       |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `cursor: pointer`                                  | ⛔ **perso**                                                                                              |
+| `:hover` sulla riga                                | ⚠️ c'è, ma dal mixin condiviso: **su OGNI riga, cliccabile o no**                                         |
+| `:focus-visible` con anello                        | ✅ lo dà la regola globale di `styles.scss`                                                               |
+| `.doc-table__row--selected td` → riga scelta tinta | ⛔ **persa**: il mixin ha la regola per `tr.is-selected`, ma il motore quella classe non la applicava mai |
+
+⭐ **La selezione era il difetto più grosso dei tre**, e nessuno lo vedeva perché la casella si
+spunta comunque: si potevano scegliere sei righe senza che nessuna cambiasse aspetto.
+
+### Che cosa è stato fatto, e dove
+
+Nel foglio del **motore**, non nel mixin: quel mixin lo includono **diciotto** tabelle che il
+concetto di «riga cliccabile» non hanno, e restringere là toglierebbe l'hover a tutte.
+
+- `cursor: pointer` sulla sola riga cliccabile;
+- l'hover del mixin annullato e **ridichiarato sul solo `--clickable`**;
+- la tinta di selezione ridichiarata anche in hover, così la riga scelta resta riconoscibile
+  mentre il puntatore ci passa;
+- nel template, `is-selected` sulla riga: il gancio che mancava.
+
+La guardia è nei test del motore: il CSS da lì non si asserisce, ma **la classe e il `tabindex`
+sì** — e se sparissero, lo stile smetterebbe di agire in silenzio.
+
+### ⚠️ Un effetto misurato che va guardato: i Movimenti perdono l'hover di riga
+
+I Movimenti passano `[selectedIds]` ma **non** `[rowClickable]`: le loro righe non si aprono —
+giustamente, un movimento non è un documento — quindi da oggi non si illuminano più al
+passaggio del puntatore.
+
+⛔ **È la regola applicata alla lettera** («una riga puramente informativa non deve sembrare
+interattiva»), ma quelle righe una casella ce l'hanno: sono **selezionabili senza essere
+apribili**, un terzo caso che la regola non nomina.
+
+> **Domanda aperta al proprietario**: l'hover di riga deve seguire il _click_ (com'è ora) o
+> l'_interattività_ — cioè anche la sola selezionabilità? È una riga di CSS, ma cambia la resa
+> di una schermata in uso, e non va decisa di straforo.
+
+---
 
 # G · COLONNE DEI RIEPILOGHI — deciso il 20/08/2026
 

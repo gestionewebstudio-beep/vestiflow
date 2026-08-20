@@ -34,6 +34,10 @@ const RIGHE: readonly Riga[] = [
       [rowId]="rowId"
       [cellText]="cellText"
       [selectionMode]="selectionMode()"
+      [selectedIds]="selectedIds()"
+      [rowClickable]="rowClickable()"
+      [rowClickableWhen]="rowClickableWhen"
+      [rowLabel]="rowLabel"
       [sortable]="sortable()"
       [sort]="sort()"
       (sortChange)="sortChange($event)"
@@ -46,6 +50,11 @@ class OspiteComponent {
   readonly colonne = COLONNE;
   readonly sezioni = signal<readonly DataTableSection<Riga>[]>([{ id: 'unica', rows: RIGHE }]);
   readonly selectionMode = signal<'none' | 'multiple'>('none');
+  readonly selectedIds = signal<ReadonlySet<string>>(new Set<string>());
+  readonly rowClickable = signal(false);
+  /** Solo la prima riga si apre: la seconda è informativa, come nel Registro. */
+  readonly rowClickableWhen = (row: Riga): boolean => row.id === 'r1';
+  readonly rowLabel = (row: Riga): string => `Apri ${row.sku}`;
   readonly sortable = signal(false);
   readonly sort = signal<readonly DataTableSort[]>([]);
 
@@ -256,5 +265,57 @@ describe('DataTableComponent', () => {
     expect(celle).toHaveLength(RIGHE.length);
     expect(celle[0]).toHaveTextContent('★ AAA');
     expect(celle[1]).toHaveTextContent('★ BBB');
+  });
+});
+
+/**
+ * ⛔ **Hover, cursore e fuoco distinguono un comando da un'informazione.**
+ *
+ * Il motore ha righe che intenzionalmente non si aprono — nel Registro
+ * Corrispettivi solo le registrazioni manuali hanno una maschera dove andare —
+ * e il mixin condiviso metteva l'hover su ogni `tr`: una riga informativa si
+ * illuminava sotto il puntatore promettendo un'interazione che non arriva.
+ *
+ * ⚠️ Il CSS non si può asserire da qui. Quello che si fissa è il **gancio**: la
+ * classe e il `tabindex` che dicono quali righe sono comandi. Se sparisse la
+ * classe, lo stile smetterebbe di agire in silenzio — che è il modo in cui
+ * questo genere di difetto passa (`14` §H14).
+ */
+describe('DataTableComponent — quali righe sono comandi', () => {
+  it('⛔ spento: nessuna riga si dichiara cliccabile, e nessuna è una fermata del Tab', async () => {
+    await apri();
+
+    const righe = screen.getAllByRole('row').slice(1);
+    expect(righe.every((riga) => !riga.classList.contains('data-table__row--clickable'))).toBe(
+      true,
+    );
+    expect(righe.every((riga) => riga.getAttribute('tabindex') === null)).toBe(true);
+  });
+
+  it('⭐ acceso con un predicato: si marca solo la riga che si apre davvero', async () => {
+    const ospite = await apri();
+    ospite.rowClickable.set(true);
+    // L'etichetta di riga esiste solo dove la riga si apre: aspettarla è anche
+    // il modo di far arrivare il rilevamento prima di leggere il DOM.
+    await screen.findByRole('row', { name: 'Apri AAA' });
+
+    const righe = screen.getAllByRole('row').slice(1);
+    expect(righe[0]?.classList.contains('data-table__row--clickable')).toBe(true);
+    expect(righe[1]?.classList.contains('data-table__row--clickable')).toBe(false);
+    // Un solo predicato governa mano e tastiera: non può esistere una riga che
+    // si apre col mouse e non col Tab.
+    expect(righe[0]?.getAttribute('tabindex')).toBe('0');
+    expect(righe[1]?.getAttribute('tabindex')).toBeNull();
+  });
+
+  it('⛔ la riga selezionata si dichiara tale: il mixin ha la tinta, mancava il gancio', async () => {
+    const ospite = await apri();
+    ospite.selectionMode.set('multiple');
+    ospite.selectedIds.set(new Set(['r2']));
+    await screen.findAllByRole('checkbox');
+
+    const righe = screen.getAllByRole('row').slice(1);
+    expect(righe[0]?.classList.contains('is-selected')).toBe(false);
+    expect(righe[1]?.classList.contains('is-selected')).toBe(true);
   });
 });

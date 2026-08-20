@@ -57,6 +57,45 @@
 }
 
 /*
+  ⛔ **Una riga che si illumina promette un comando**, e il motore ha righe che
+  intenzionalmente non ne portano nessuno: nel Registro Corrispettivi solo le
+  registrazioni manuali hanno una maschera dove andare, le altre sono
+  informative. Il mixin condiviso mette l'hover su OGNI `tr` — giusto per le
+  tabelle in cui ogni riga si apre, sbagliato qui.
+
+  ⚠️ **La restrizione sta in questo foglio e non nel mixin**, e non è pigrizia:
+  quel mixin lo includono diciotto tabelle che il concetto di «riga cliccabile»
+  non ce l'hanno. Cambiarlo là toglierebbe l'hover a tutte, che è un intervento
+  trasversale — e non misurato a schermo.
+
+  Il cursore era andato perso nell'assorbimento: `.doc-table__row` aveva
+  `cursor: pointer`, il motore no, e `data-table__row--clickable` era una classe
+  che il template applicava e che nessuna regola leggeva.
+*/
+.data-table tbody tr:hover {
+  background-color: transparent;
+}
+
+.data-table tbody tr.data-table__row--clickable {
+  cursor: pointer;
+}
+
+.data-table tbody tr.data-table__row--clickable:hover {
+  background-color: var(--color-surface-hover);
+}
+
+/*
+  La selezione vince sull'hover: la riga scelta resta riconoscibile mentre il
+  puntatore ci passa sopra. La tinta è quella del mixin (`regole-stile-ui` §6,
+  accento al 6%) — qui si ridichiara solo perché l'annullamento dell'hover qui
+  sopra, che viene dopo, altrimenti la sbiancherebbe.
+*/
+.data-table tbody tr.is-selected,
+.data-table tbody tr.is-selected:hover {
+  background-color: var(--color-table-row-selected);
+}
+
+/*
   L'intestazione di sezione: una fascia di STRUTTURA, non una riga di dato.
   Prende lo stesso fondo dell'intestazione tabella — `regole-stile-ui` §6 spiega
   perché non `--color-surface-soft`: quel tono è già preso dalle righe di

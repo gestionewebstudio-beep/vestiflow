@@ -94,6 +94,7 @@
           <tr
             class="data-table__row"
             [class.data-table__row--clickable]="canClickRow(row)"
+            [class.is-selected]="selectedIds().has(rowId()(row))"
             [attr.tabindex]="canClickRow(row) ? 0 : null"
             [attr.aria-label]="canClickRow(row) ? rowLabel()(row) : null"
             (click)="onRowClick(row)"
