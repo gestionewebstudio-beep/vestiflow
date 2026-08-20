@@ -1,3 +1,5 @@
+@use 'breakpoints' as bp;
+
 :host {
   display: block;
 }
@@ -229,3 +231,29 @@
   Una soglia in meno da mantenere allineata, e nessuna larghezza in cui la
   griglia mostri celle vuote perché le voci opzionali non ci sono.
 */
+
+/*
+  ── ⏸ RIPIEGO PROVVISORIO su schermo stretto ───────────────────────────────
+
+  Sotto `sm` nella fascia ci stanno **due** colonne, e una fascia da tre voci
+  ne lascia una sola sull'ultima riga: allineata a destra dentro la METÀ
+  sinistra, si legge come una voce staccata dalle altre invece che come
+  l'ultima del gruppo.
+
+  Il ripiego è minimo: due colonne dichiarate, e la voce rimasta sola occupa
+  la riga intera — così resta allineata a destra come tutte, sotto la colonna
+  dei numeri.
+
+  ⚠️ **È una sistemazione, non il disegno definitivo.** Le viste mobile dei
+  riepiloghi non sono ancora state trattate trasversalmente: quando ci si
+  torna, questo blocco va rivisto insieme al resto e probabilmente sparisce.
+*/
+@include bp.media-down('sm') {
+  .corrispettivi-summary__band {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .corrispettivi-summary__band > .corrispettivi-summary__item:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+}

@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
-import { SelectionCheckComponent } from '@shared/components/selection-check/selection-check.component';
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
 import { DataTableRowActionsDirective } from '@shared/components/data-table/data-table-row-actions.directive';
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';
@@ -58,7 +57,6 @@ export interface SalesOrderTableSelectionEvent {
     ActionMenuComponent,
     BadgeComponent,
     RouterLink,
-    SelectionCheckComponent,
     DataTableComponent,
     DataTableCellDirective,
     DataTableRowActionsDirective,
