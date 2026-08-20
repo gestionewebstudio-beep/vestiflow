@@ -261,6 +261,25 @@ export class DocumentTableComponent {
 
   protected readonly rowId = (doc: DocumentRecord): string => doc.id;
 
+  /**
+   * ⛔ **Una FRECCIA, non il metodo `rowLabel` passato per nome.**
+   *
+   * Il motore riceve la callback come valore e la chiama così com'è
+   * (`rowLabel()(row)`): un metodo di classe passato per nome arriva **senza
+   * `this`**, e la prima riga cliccabile che si renderizza lancia
+   * «Cannot read properties of undefined (reading 'referenceLabel')» —
+   * l'elenco documenti intero, per tutti e otto i profili.
+   *
+   * ⚠️ **Nessun test se n'era accorto**, e non è un caso: i test di questo
+   * elenco rendono zero righe, dove la callback non viene mai invocata. È la
+   * stessa lezione di `14` §H14, un gradino più in basso — lì la CSS perdeva
+   * l'aggancio in silenzio, qui la callback perde `this`.
+   *
+   * L'Ordine cliente aveva già coniato `rowLabelFor` per questa ragione: le
+   * altre quattro callback erano già frecce, questa era l'unica rimasta metodo.
+   */
+  protected readonly rowLabelFor = (doc: DocumentRecord): string => this.rowLabel(doc);
+
   protected readonly selectionLabel = (doc: DocumentRecord): string =>
     `Seleziona documento ${this.referenceLabel(doc)}`;
 

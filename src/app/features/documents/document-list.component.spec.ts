@@ -5,8 +5,10 @@ import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AuthService } from '@core/auth';
-import { DocumentType } from '@core/models/document.model';
+import { DocumentStatus, DocumentType } from '@core/models/document.model';
+import type { DocumentRecord } from '@core/models/document.model';
 import { UserRole } from '@core/models/user.model';
+import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { CustomerService } from '@domain/customers/services/customer.service';
 import type { DocumentListProfile } from '@domain/documents/models/document-list-query.model';
@@ -31,10 +33,10 @@ import { ExternalDocumentTypeService } from '@domain/documents/services/external
  * stesso `it`.
  */
 
-/** Risposta paginata vuota nella forma reale dell'API. */
-const paginato = () => ({
-  data: [] as readonly never[],
-  meta: { page: 1, pageSize: 20, total: 0, totalPages: 0 },
+/** Risposta paginata nella forma reale dell'API: vuota se non si passa nulla. */
+const paginato = (data: readonly DocumentRecord[] = []) => ({
+  data,
+  meta: { page: 1, pageSize: 20, total: data.length, totalPages: data.length > 0 ? 1 : 0 },
 });
 
 const PROFILI_VENDITA = ['quote', 'proforma', 'sales-ddt', 'invoice'] as const;
@@ -69,6 +71,8 @@ async function renderList(
   user: UtenteDiProva | null = null,
   /** Filtro «Tipo» già attivo, come se si arrivasse da un link filtrato. */
   typeFilter?: string,
+  /** Righe che l'API restituisce: servono ai test che hanno bisogno di dati veri. */
+  documents: readonly DocumentRecord[] = [],
 ) {
   const data = { documentListProfile: profile };
   const queryParams = typeFilter ? { type: typeFilter } : {};
@@ -87,7 +91,7 @@ async function renderList(
       {
         provide: DocumentService,
         useValue: {
-          getDocuments: () => of(paginato()),
+          getDocuments: () => of(paginato(documents)),
           getOperators: () => of([]),
           deleteDocument: vi.fn(),
           exportPdf: vi.fn(),
@@ -318,5 +322,52 @@ describe('DocumentListComponent — il filtro non decide cosa si crea', () => {
         view.fixture.componentInstance as unknown as { salesCreateLabel: () => string | undefined }
       ).salesCreateLabel(),
     ).toBe('Nuovo preventivo');
+  });
+});
+
+/**
+ * Un documento vero da mettere in tabella. È un **preventivo** perché il tipo
+ * servirà anche ai test che verranno: il Preventivo ha una pagina di Dettaglio
+ * dedicata (`14` §E4).
+ */
+const DOCUMENTO_DI_PROVA: DocumentRecord = {
+  id: 'doc-quote-1',
+  tenantId: 'ten-1',
+  createdAt: '2026-08-20T08:00:00.000Z',
+  updatedAt: '2026-08-20T08:00:00.000Z',
+  type: DocumentType.Quote,
+  status: DocumentStatus.Confirmed,
+  series: '',
+  number: 7,
+  year: 2026,
+  documentDate: '2026-08-20',
+  currency: DEFAULT_CURRENCY,
+  subtotal: { amountMinor: 0, currencyCode: DEFAULT_CURRENCY },
+  tax: { amountMinor: 0, currencyCode: DEFAULT_CURRENCY },
+  total: { amountMinor: 0, currencyCode: DEFAULT_CURRENCY },
+  pricesIncludeVat: false,
+  createdByName: 'Operatore',
+  customerName: 'Cliente di prova',
+};
+
+/**
+ * ⛔ **La riga si renderizza.** Sembra una prova inutile, ed è invece quella che
+ * mancava: dal 20/08 (`5aa4a0ea`, l'assorbimento nel motore tabella)
+ * l'etichetta di riga era passata al motore **per nome** — un metodo di classe,
+ * quindi senza `this` — e la prima riga cliccabile che si renderizzava lanciava
+ * «Cannot read properties of undefined». L'elenco documenti, tutti e otto i
+ * profili, andava giù appena aveva un documento da mostrare.
+ *
+ * ⚠️ **Nessuno dei quaranta test di questo file se n'era accorto**, e la causa è
+ * strutturale: rendevano tutti ZERO righe, dove la callback non viene mai
+ * invocata. Lint verde, build verde, l'intera suite verde, elenco giù.
+ */
+describe('DocumentListComponent — una riga vera si renderizza', () => {
+  it('⛔ la riga porta il proprio nome accessibile: la callback arriva legata', async () => {
+    await renderList('generic', { role: UserRole.Owner, permissions: [] }, undefined, [
+      DOCUMENTO_DI_PROVA,
+    ]);
+
+    expect(screen.getByRole('row', { name: /Apri documento/i })).not.toBeNull();
   });
 });
