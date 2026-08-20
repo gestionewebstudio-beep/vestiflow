@@ -1403,6 +1403,59 @@ contraddicono: `truncate` va rivisto o ritirato quando il clipping entra.
 ⚠️ Oggi è dichiarata su `counterparty` nell'elenco documenti. Non è ancora a schermo su nessun
 riepilogo migrato, quindi il conflitto non è ancora visibile.
 
+### ✅ CONFERMATO il 20/08/2026 — e la fonte delle larghezze
+
+> - **`table-layout: fixed`**;
+> - ogni colonna riceve una larghezza iniziale **dalla configurazione dello specifico
+>   riepilogo**, non larghezze uguali automatiche;
+> - le proporzioni iniziali vanno **ricavate dalle viste già progettate** e poi sottoposte a
+>   **verifica visiva**;
+> - il **resize manuale resta**;
+> - restringendo: una riga sola, clipping a destra, niente wrap, niente spezzatura, niente ellissi;
+> - ⛔ **non si introducono `min-width` non decisi**;
+> - `display: 'truncate'` con ellissi **va ritirato se non ha altri consumer**.
+
+### ⚠️ Misurato: UNA vista su cinque ha proporzioni progettate
+
+Cercate nelle viste già disegnate, prima dell'assorbimento:
+
+```text
+ordini fornitore   ✅ sei colonne, somma 100%
+                      Riferimento 14 · Fornitore 27 · Stato 19 · Righe 11 · Attesa 15 · Totale 14
+elenco documenti   ⛔ nessuna larghezza per colonna
+ordini cliente     ⛔ nessuna
+movimenti          ⛔ nessuna
+corrispettivi      ⛔ nessuna
+```
+
+⛔ **Per quattro riepiloghi su cinque non esistono proporzioni da ricavare.** Quelle schermate
+non hanno mai avuto larghezze dichiarate: il loro aspetto attuale viene da `table-layout: auto`,
+cioè **dal contenuto**, e cambia col contenuto — un nome lungo allarga la colonna, il giorno
+dopo la restringe.
+
+⭐ La conseguenza pratica, da dichiarare: «ricavare dalle viste già progettate» significa, per
+quelle quattro, **misurare la resa corrente su dati rappresentativi** e fissarla come punto di
+partenza. Non è un travaso: è la prima volta che quelle colonne ricevono una larghezza decisa.
+Da qui la verifica visiva, che è la parte che stabilisce se le proporzioni sono giuste.
+
+⚠️ Il modello degli ordini fornitore è l'unico riferimento vero, ed è utile anche come forma:
+**percentuali che sommano a 100**, non pixel — una tabella di riepilogo occupa la larghezza
+disponibile, e il pixel la lega alla finestra.
+
+### ⚠️ `display: 'truncate'` — ha sei consumatori, e il ritiro è VINCOLATO
+
+Misurato: è dichiarata su **sei** colonne «Controparte» (Cliente, Fornitore, Soggetto) nei
+profili dell'elenco documenti. Ed è **live**: `document-table` è già sul motore, quindi oggi a
+schermo quelle celle troncano **con l'ellissi**.
+
+⛔ **Non si ritira prima del clipping.** Oggi `truncate` è l'unica cosa che contiene quella
+colonna: toglierla mentre il motore è ancora su `table-layout: auto` la farebbe allargare col
+contenuto. Il ritiro appartiene allo stesso passo che porta `fixed` + `nowrap` + `overflow`.
+
+⚠️ E va detto che è un **cambiamento di comportamento sull'elenco documenti**: quella schermata
+l'ellissi ce l'ha da prima dell'assorbimento (era `.doc-table__counterparty`). Passa al clipping
+come tutti gli altri — è la nuova grammatica comune, ma va guardato.
+
 ### ⏸ Il pattern mobile è ereditabile — per ora
 
 > **Per ora gli altri riepiloghi possono ereditare il pattern mobile dei Corrispettivi.**
