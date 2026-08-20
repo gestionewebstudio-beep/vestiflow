@@ -66,7 +66,11 @@ import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
-import { FILTERED_SCOPE_NOT_AVAILABLE, type ListAction } from '@shared/models/list-selection.model';
+import {
+  FILTERED_SCOPE_NOT_AVAILABLE,
+  type ListAction,
+  type ListActionTarget,
+} from '@shared/models/list-selection.model';
 import { createListSelection } from '@shared/utils/list-selection';
 import { TableViewId } from '@shared/table-columns/table-column.model';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
@@ -86,6 +90,7 @@ import {
 } from '@domain/documents/models/document-labels.util';
 import { canBulkDeleteDocuments } from './models/document-bulk-actions.util';
 import {
+  documentDetailPath,
   documentDuplicateFormRoute,
   documentRowPath,
   salesFormRouteSegment,
@@ -725,6 +730,23 @@ export class DocumentListComponent {
    */
   protected readonly selectionActions = computed<readonly ListAction[]>(() => {
     const azioni: ListAction[] = [
+      {
+        // ⭐ **Il Dettaglio è la porta che mancava** (`14` §E4/§E5). Da quando
+        // il clic di riga apre la Modifica, la vista di consultazione non
+        // aveva più nessun ingresso nell'interfaccia: ci si arrivava solo per
+        // URL, o quando `documentRowPath` ci mandava un documento annullato.
+        //
+        // Sta PRIMA degli altri comandi perché è l'unico che si limita a
+        // guardare: si legge prima di produrre, e chi arriva con la mano su
+        // Elimina la trova comunque dove l'ha lasciata (§5, i comandi non si
+        // spostano).
+        id: 'detail',
+        label: 'Dettaglio',
+        icon: 'pi-eye',
+        requires: 'one',
+        ariaLabel: 'Apri il dettaglio del documento selezionato',
+        run: (target) => this.openSelectionDetail(target),
+      },
       {
         id: 'print',
         label: 'Stampa',
@@ -1486,6 +1508,33 @@ export class DocumentListComponent {
     anchor.download = filename.replace(/[^\w\s.-]/g, '-');
     anchor.click();
     URL.revokeObjectURL(url);
+  }
+
+  /**
+   * Apre il **Dettaglio** del documento scelto (`14` §6): la consultazione in
+   * sola lettura, che non è né la Modifica né il foglio di stampa.
+   *
+   * ⚠️ **L'indirizzo lo dà `documentDetailPath`, per TIPO** — la stessa fonte
+   * che usa il clic di riga per i documenti annullati. Ricavarlo qui dal
+   * profilo di elenco farebbe divergere le due risposte, ed è il difetto che
+   * `14` §13.3 vieta: lo stesso documento con due aperture diverse a seconda
+   * di dove lo si è trovato.
+   *
+   * ⛔ Il ramo `filtered` non è raggiungibile con `requires: 'one'` — il
+   * contratto spegne l'azione a zero e a due o più selezionati. Va comunque
+   * scritto: l'unione discriminata esiste proprio perché «tutto il filtrato»
+   * non possa essere confuso con «non c'è niente da fare» (§5.3).
+   */
+  private openSelectionDetail(target: ListActionTarget): void {
+    if (target.scope !== 'selection') {
+      return;
+    }
+    const id = target.ids[0];
+    const doc = id ? this.documents().find((riga) => riga.id === id) : undefined;
+    if (!doc) {
+      return;
+    }
+    void this.router.navigateByUrl(documentDetailPath(doc));
   }
 
   /**

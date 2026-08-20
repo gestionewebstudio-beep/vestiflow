@@ -15,6 +15,7 @@ import type { DocumentListProfile } from '@domain/documents/models/document-list
 import { DocumentService } from '@domain/documents/services/document.service';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
+import type { ListAction } from '@shared/models/list-selection.model';
 import { TableViewPreferenceApiService } from '@shared/table-columns/table-view-preference-api.service';
 
 import { DocumentListComponent, SECONDARY_CREATE_ENTRIES } from './document-list.component';
@@ -369,5 +370,67 @@ describe('DocumentListComponent — una riga vera si renderizza', () => {
     ]);
 
     expect(screen.getByRole('row', { name: /Apri documento/i })).not.toBeNull();
+  });
+});
+
+/**
+ * ⭐ **Il Dettaglio era una funzione senza porta** (`14` §E4).
+ *
+ * Da quando il clic di riga apre la Modifica, nessun punto dell'interfaccia
+ * portava piu' alla vista di consultazione: `documentDetailPath` aveva zero
+ * chiamanti, e ci si arrivava solo per URL o per un documento annullato. La
+ * rotta c'era, la funzione era decisa, mancava il comando.
+ *
+ * ⛔ La guardia che conta e' la SECONDA: l'indirizzo del Dettaglio si ricava dal
+ * **tipo** del documento, non dal profilo di elenco da cui lo si e' aperto. E'
+ * quello che `14` §13.3 vieta — lo stesso documento con due aperture diverse a
+ * seconda di dove lo si e' trovato — e in questa pagina il precedente esiste
+ * gia': il vecchio `openDocumentDetail` di Etichette/Allegati compone
+ * l'indirizzo dal profilo, e sul registro generico manda un preventivo al
+ * dettaglio generico.
+ */
+describe('DocumentListComponent — l’azione Dettaglio', () => {
+  const titolare = { role: UserRole.Owner, permissions: [] };
+
+  function azioni(view: { fixture: { componentInstance: unknown } }): readonly ListAction[] {
+    const component = view.fixture.componentInstance as {
+      selectionActions: () => readonly ListAction[];
+    };
+    return component.selectionActions();
+  }
+
+  function dettaglio(view: { fixture: { componentInstance: unknown } }): ListAction {
+    const azione = azioni(view).find((candidata) => candidata.id === 'detail');
+    if (!azione) {
+      throw new Error('la barra non dichiara l’azione Dettaglio');
+    }
+    return azione;
+  }
+
+  it('la barra dichiara il Dettaglio, e pretende UN documento', async () => {
+    const view = await renderList('generic', titolare);
+
+    expect(dettaglio(view).label).toBe('Dettaglio');
+    // `'one'`: a zero e a due o piu' il contratto comune la spegne da se', con la
+    // ragione giusta. Qui si fissa la pretesa, non le frasi.
+    expect(dettaglio(view).requires).toBe('one');
+  });
+
+  it('⛔ l’indirizzo viene dal TIPO, non dal profilo di elenco', async () => {
+    const view = await renderList('generic', titolare, undefined, [DOCUMENTO_DI_PROVA]);
+    const navigazione = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+
+    dettaglio(view).run?.({ scope: 'selection', ids: [DOCUMENTO_DI_PROVA.id] });
+
+    expect(navigazione).toHaveBeenCalledWith('/app/documents/quote/doc-quote-1');
+  });
+
+  it('col bersaglio «filtered» non naviga da nessuna parte', async () => {
+    const view = await renderList('generic', titolare, undefined, [DOCUMENTO_DI_PROVA]);
+    const navigazione = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+
+    dettaglio(view).run?.({ scope: 'filtered' });
+
+    expect(navigazione).not.toHaveBeenCalled();
   });
 });

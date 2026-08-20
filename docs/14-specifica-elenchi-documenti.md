@@ -1083,11 +1083,25 @@ cambiata.
 ⚠️ Esiste anche `documents/:id/print` — **il foglio di stampa**, che è un'altra funzione (§6) e
 non va confusa con il Dettaglio.
 
-### ⛔ Il rischio misurato: nessuno ci porta più
+### ✅ Il rischio è CHIUSO — 20/08/2026, sull'elenco documenti
 
-`documentPreviewPath` ha **zero chiamanti** fuori dal proprio file. Dopo che il clic di riga è
-passato alla Modifica, **nessun punto dell'interfaccia porta al Dettaglio**: ci si arriva solo
-per URL diretto, o quando `documentRowPath` decide di mandarci un documento annullato.
+Qui c'era: «`documentPreviewPath` ha **zero chiamanti** fuori dal proprio file. Dopo che il clic
+di riga è passato alla Modifica, **nessun punto dell'interfaccia porta al Dettaglio**: ci si
+arriva solo per URL diretto, o quando `documentRowPath` decide di mandarci un documento
+annullato.»
+
+⭐ **Il pulsante c'è**: azione `detail` nella barra dell'elenco documenti, `requires: 'one'`,
+che copre gli **otto profili** di `DocumentListComponent`.
+
+⚠️ **Restano senza porta gli altri due elenchi**: Ordini fornitore (`orders/:id` →
+`SupplierOrderDetailComponent`, che §E1 indica come il riferimento della funzione) e Ordini
+cliente. Le loro barre azioni hanno testate di forma diversa (§5.0.2) e vanno allineate
+guardandole a schermo: è il passo successivo, non un residuo di questo.
+
+⭐ **E «anteprima» è uscita anche dal codice**: `documentPreviewPath` si chiama ora
+`documentDetailPath`, e `DOCUMENT_ROW_OPENS` dice `'form' | 'detail'`. §E1 aveva deciso il
+vocabolario per il testo della specifica; lasciarlo diverso nel codice avrebbe insegnato la
+parola sbagliata a chi legge i due nomi uno dopo l'altro.
 
 ⭐ Non è un difetto da correggere di straforo: è **esattamente il buco che il pulsante dedicato
 chiude**, ed è la ragione per cui quell'azione entra in matrice per prima. Nel frattempo va
@@ -1112,7 +1126,7 @@ Il **Dettaglio** è un'altra riga, e le sue rotte esistono già (§E4).
 | ------------------------ | ------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
 | **Stampa elenco**        | `none`* | nessuna: HTML client (`buildListPrintHtml`)      | ⚠️ `*` dichiarata `none` ma l'handler ignora il `target` e legge `selectedDocs()`: è `oneOrMore` travestita |
 | **Stampa PDF documento** | `one`   | `GET /documents/:id/export/pdf`                  | su N documenti = N chiamate e N file. Il fascicolo unico non esiste                                         |
-| **Dettaglio**            | `one`   | nessuna: navigazione, rotte già registrate (§E4) | ⭐ manca **solo il pulsante**: `documentPreviewPath` ha zero chiamanti                                      |
+| **Dettaglio**            | `one`   | nessuna: navigazione, rotte già registrate (§E4) | ✅ **fatta il 20/08** sull'elenco documenti, otto profili. Ordini fornitore e cliente: da fare              |
 
 ### Da completare — l'endpoint c'è, manca un pezzo
 
@@ -1945,6 +1959,37 @@ entrano nel motore senza essere riscritte. Toglierle e rifarle sarebbe fatica pe
 ⛔ Ma il debito va nominato: **API condivisa senza consumatori e senza prove a schermo.** Se
 i Corrispettivi non si riprendono, vanno tolte — `regole-qualita` dà trenta giorni al codice
 morto, e questo è codice morto con una data di scadenza.
+
+### ⛔ Un secondo difetto dello stesso assorbimento: la callback senza `this`
+
+_Trovato il 20/08/2026, e non da un'ispezione: da un test che per la prima volta rendeva **una
+riga vera**._
+
+`document-table` passava al motore l'etichetta di riga **per nome** — `[rowLabel]="rowLabel"`,
+dove `rowLabel` è un metodo di classe. Il motore la riceve come valore e la chiama così com'è
+(`rowLabel()(row)`): il metodo arriva **senza `this`**, e la prima riga cliccabile che si
+renderizza lancia `Cannot read properties of undefined (reading 'referenceLabel')`.
+
+⛔ **Non è un difetto di accessibilità: è l'elenco documenti che non si apre** — tutti e otto i
+profili, appena c'è un documento da mostrare.
+
+|                                               |                                                                           |
+| --------------------------------------------- | ------------------------------------------------------------------------- |
+| introdotto da                                 | `5aa4a0ea`, l'assorbimento delle tre tabelle                              |
+| quante callback erano sbagliate               | **una su cinque**: `rowId`, `cellText`, `selectionLabel` erano già frecce |
+| gli altri tre consumatori (ordini, movimenti) | ✅ tutte frecce, nessuno colpito                                          |
+| l'Ordine cliente                              | aveva già coniato `rowLabelFor` **per questa esatta ragione**             |
+
+⚠️ **Nessuno dei quaranta test dell'elenco se n'era accorto**, e la causa è strutturale: rendono
+tutti **zero righe**, dove la callback non viene mai invocata. Lint verde, build verde, 2037
+test verdi, elenco giù.
+
+⭐ **È la lezione di questa sezione un gradino più in basso.** Lì una CSS perdeva l'aggancio e
+smetteva di agire in silenzio; qui una callback perde `this` e lancia — ma solo davanti a un
+dato, che è precisamente ciò che i test non le mettevano davanti.
+
+> **La guardia**: un test per elenco che renda **almeno una riga** e ne verifichi il nome
+> accessibile. È il minimo che distingue «il componente si istanzia» da «l'elenco funziona».
 
 ### ⛔ Perché i Corrispettivi sono stati RIPRISTINATI
 
