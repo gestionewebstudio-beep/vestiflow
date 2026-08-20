@@ -1291,6 +1291,56 @@ colonne, darebbe otto righe tutte dello stesso peso. Non è una divergenza da sa
 
 ---
 
+## F5. ⭐ Il Registro Corrispettivi è il RIFERIMENTO DI PARTENZA della grammatica comune
+
+_Deciso dal proprietario il 20/08/2026._
+
+> **La schermata attuale del Registro è il riferimento grafico di partenza per la grammatica
+> comune dei riepiloghi desktop — non il disegno definitivo e intoccabile.** Il lavoro già
+> fatto va preservato e promosso dove è trasversale; in seguito la grafica comune potrà essere
+> migliorata **una volta sola per tutti**.
+
+⛔ **Questo rovescia la domanda dell'assorbimento.** Non è «che cosa del Registro diverge dal
+motore e va adattato»: è **«che cosa del Registro deve DIVENTARE il motore»**. Dove i due
+divergono, l'ipotesi di partenza è che abbia ragione il Registro — è disegno pensato e
+approvato, mentre i default del motore vengono da un mixin generico ereditato. Il peso della
+prova sta su chi vuole tenere il default generico.
+
+### Le tre famiglie in cui si classifica una regola
+
+| Famiglia                 | Il criterio                                                                                                                                 | Dove finisce                                                               |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| **comune da promuovere** | «un altro riepilogo la vorrebbe?» — densità del corpo, ritmo delle celle, fili, altezza dell'intestazione, comportamento del testo          | **default** del motore o del mixin: gli altri riepiloghi la ereditano      |
+| **specifico**            | parla del **dominio**: il fondo della rettifica, l'accento per tipo, «Non determinata», la giornata come raggruppamento, la card progettata | resta alla feature — custom property, input per riga, contenuto proiettato |
+| **legacy**               | ⚠️ serve la **prova**: la classe non è più nel template, o il mixin già dà quella regola                                                    | via                                                                        |
+
+### ⛔ L'anti-pattern: la custom property che congela uno scarto
+
+> **Non si conia una custom property per conservare una divergenza ACCIDENTALE.**
+
+Se il Registro ha `--space-1` e il motore `--space-2` e la differenza non ha una ragione di
+dominio, la risposta non è «una custom property che tiene i due valori»: è **sceglierne uno
+solo e promuoverlo**.
+
+⚠️ Una custom property nata per preservare uno scarto casuale **lo congela per sempre**, ed è
+esattamente ciò che impedisce di «migliorare una volta sola per tutti». Nei due tentativi
+falliti se ne stava coniando una decina, e ognuna avrebbe cementato una differenza che nessuno
+aveva deciso.
+
+⭐ Le custom property si riservano a ciò che è specifico **per ragione, non per storia**.
+
+### Che cosa questo implica per chi esegue
+
+- Promuovere una regola **cambia la resa di quattro schermate già in uso** — elenco documenti,
+  ordini cliente, ordini fornitore, movimenti. Il cambiamento va **dichiarato a schermo**, non
+  in astratto, e approvato prima.
+- L'assorbimento del Registro non è più «adattare una tabella»: è **il primo passo della
+  grammatica comune**. Ciò che si promuove ora è ciò che gli altri riepiloghi erediteranno.
+- ⚠️ E vale la regola imparata dai due fallimenti: la verifica è **visiva**. Lint, build e test
+  dicono che compila, non come si vede.
+
+---
+
 # H · IL MOTORE TABELLA COMUNE — contratto, 20/08/2026
 
 Progettato con **cinque consumatori reali** già in mano, non nel vuoto: elenco documenti
