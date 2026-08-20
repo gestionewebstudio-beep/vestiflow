@@ -66,7 +66,7 @@ describe('parseDocumentListQuery', () => {
     expect(query.externalDocumentTypeId).toBeUndefined();
   });
 
-  it('parsa paymentMethod e createdById (filtri Vendita/Reso negozio)', () => {
+  it('parsa paymentMethod e createdById (filtri Vendita/Reso al banco)', () => {
     const createdById = 'e0011111-1111-4111-8111-111111111001';
     const query = parseDocumentListQuery(paramMap({ paymentMethod: 'cash', createdById }));
     expect(query.paymentMethod).toBe('cash');

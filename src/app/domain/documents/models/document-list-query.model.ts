@@ -16,7 +16,7 @@ export type DocumentListProfile =
   // Elenco condiviso Fattura / Fattura accompagnatoria (ex 'invoice-draft').
   | 'invoice'
   | 'purchase-invoice'
-  // Elenco condiviso Vendita / Reso in negozio (documenti creati dalla cassa).
+  // Elenco condiviso Vendita / Reso al banco (documenti creati dalla loro maschera).
   | 'store-sale';
 
 /** Query registro documenti (ordinamento fisso: data documento discendente). */
