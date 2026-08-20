@@ -2321,22 +2321,42 @@ coincide con la decisione dei Movimenti, dove si ordina per l'etichetta che l'op
 | **Ordini fornitore** | Riferimento · Fornitore · Righe · Attesa il · Totale · **Stato**              |
 | **Ordini cliente**   | Ordine · Data · Cliente · Totale · **Origine** · **Pagamento** · **Evasione** |
 
-### ⏸ 2. Ordinabili, da completare — quali soluzioni servono
+### ⏸ 2. Ordinabili, da completare — e NON adesso _(deciso il 20/08/2026)_
 
-⛔ **Nessuna delle due si risolve con un `CASE` SQL o con una copia delle etichette**: sarebbero
-due fonti di verità, e la seconda diverge dalla prima senza che un test se ne accorga.
+> **Non si tocca il modello dati per mettere una freccetta in più.**
 
-| Colonna                            | Perché non basta un `orderBy`                                                                 | Soluzione a UNA fonte                                                                                                                                                                  |
-| ---------------------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Controparte** (elenco documenti) | non è un campo: `customerName` sulle vendite, `supplierName` sugli acquisti                   | **colonna generata** in Postgres — `GENERATED ALWAYS AS (COALESCE(customer_name, supplier_name)) STORED`: derivata dal database stesso, allineata per costruzione. Costa una migration |
-| **Stato** (ordini cliente)         | **non esiste nel database**: lo compone il client da più dati dell'ordine (`orderStateLabel`) | portare quella regola in **un posto solo** — o una colonna calcolata/denormalizzata scritta dal salvataggio, o l'ordinamento resta client-side dove l'elenco non pagina                |
+⛔ Le due colonne restano **ordinabili da completare**, non esclusioni funzionali, e nessuna
+delle due si risolve con un `CASE` SQL o con una copia delle etichette — sarebbero due fonti di
+verità che divergono senza che un test se ne accorga.
 
-⚠️ E una terza, se un giorno si vuole **l'ordine per ETICHETTA** anche sugli enum (cioè la
-regola dei Movimenti applicata ovunque): l'etichetta italiana vive nel frontend
-(`document-labels.util`), e il database non la conosce. Le strade a una fonte sola sono due —
-un **rank dichiarato una volta** e verificato in CI come già si fa per i permessi
-(`check:permissions` confronta le due mappe e fallisce se divergono), oppure l'etichetta come
-dato di anagrafica. **Non è un lavoro da fare di straforo dentro un ordinamento.**
+| Colonna                            | Perché non basta un `orderBy`                                                                 | Quando si completa                                                                                                                                                        |
+| ---------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Controparte** (elenco documenti) | non è un campo: `customerName` sulle vendite, `supplierName` sugli acquisti                   | ⏸ gap **suo**, non dell'Ordine cliente. La strada pulita è una colonna generata in Postgres — **ma non ora**: una migration per una colonna ordinabile in più non si paga |
+| **Stato** (ordini cliente)         | **non esiste nel database**: lo compone il client da più dati dell'ordine (`orderStateLabel`) | ⏸ **quando si riprende il modulo Ordine cliente**, dove quella regola vive                                                                                                |
+
+⚠️ **Nel frattempo la colonna semplicemente non espone l'ordinamento**: nessun ripiego
+client-side che ordini la sola pagina caricata, che sarebbe l'ordinamento bugiardo di §H15.
+
+### ⭐ E questi due gap NON bloccano niente
+
+> **Non sono un fork e non creano una seconda implementazione: sono due capacità di dominio non
+> ancora collegate allo stesso contratto comune.**
+
+```text
+Motore comune                    ✅
+Contratto sorting comune         ✅
+Documenti                        ✅ quasi completo
+Ordini fornitore                 ✅ quasi completo
+Ordini cliente                   ✅ quasi completo
+Movimenti                        ✅
+Controparte documenti            ⏸ da completare
+Stato Ordine cliente             ⏸ da completare col modulo
+```
+
+⭐ **Vale soprattutto per ciò che viene dopo**: la nuova Vendita/Reso al banco deve nascere
+usando **lo stesso motore e lo stesso `DataTableSort[]`** — non è necessario che prima sia
+risolto `orderStateLabel` dell'Ordine cliente. Aspettare quei due gap per proseguire
+significherebbe fermare il lavoro trasversale per due freccette.
 
 ### ⛔ 3. Non ordinabili per decisione: nessuna
 
