@@ -1,6 +1,6 @@
 # 11 · Vendita e Reso al banco — specifica funzionale
 
-**Stato:** specifica corrente e **unica attiva** · aggiornata il 18/08/2026
+**Stato:** specifica corrente e **unica attiva** · aggiornata il 20/08/2026
 **Modulo:** Vendita al banco · Reso al banco
 
 > **Questo documento sostituisce integralmente la stesura precedente.** Non se ne recuperano
@@ -988,6 +988,36 @@ obbligare l'operatore a toccarla articolo per articolo.
 
 ⚠️ È un **requisito trasversale dei documenti**, non una logica inventariale della Vendita al
 banco. Sta scritto qui perché è emerso qui, non perché appartenga a questo modulo.
+
+## A11-quater. ⭐ CHE COSA EREDITA dalla base comune — 20/08/2026
+
+_Aggiunta al rientro dal blocco «grammatica dei riepiloghi». Serve a chi riprende questo
+documento: **non si progetta niente di quanto sta qui sotto**, esiste già e si adotta._
+
+⛔ **La regola di §A12 vale per il dominio, non per l'infrastruttura**: l'Ordine cliente è il
+riferimento da cui partire per la MASCHERA, ma l'elenco della Vendita al banco non parte da
+lui — parte dal **motore comune**, che nel frattempo è diventato la base di quattro riepiloghi.
+
+| Che cosa                      | Dov'è                                                                                         |
+| ----------------------------- | --------------------------------------------------------------------------------------------- |
+| **motore tabella**            | `shared/components/data-table` — scheletro, sezioni, celle proiettate                         |
+| **ordinamento**               | `DataTableSort[]`, unica grammatica; il parametro HTTP è la sua serializzazione               |
+| **selezione e azioni**        | `ListAction` + `app-list-actions-bar`: la barra è permanente, la selezione ne cambia l'ambito |
+| **clic di riga → Modifica**   | `DOCUMENT_ROW_OPENS`, esaustivo per tipo                                                      |
+| **Dettaglio**                 | funzione distinta dalla Modifica, con il suo pulsante                                         |
+| **grammatica visiva**         | `summary-grammar()`: 12px · 4×12 · intestazione 32px MAIUSCOLA · niente divisori              |
+| **niente pagine, 30 giorni**  | i riepiloghi non impaginano; il tetto si dichiara nel meta                                    |
+| **ripiego a card sotto `lg`** | dal motore, con la card progettata dei Corrispettivi come riferimento mobile                  |
+
+⚠️ **Quello che NON è ancora comune**, e che quindi va deciso quando ci si arriva: la vista a
+card della **riga documento** in inserimento (`app-document-line-card`, sette maschere) è cosa
+diversa dalla card di un riepilogo — là il chevron apre i campi da compilare, qui naviga.
+
+⭐ **Due gap noti e dichiarati**, che non bloccano nulla: la colonna «Controparte» dell'elenco
+documenti e lo «Stato» dell'Ordine cliente non si ordinano ancora (`14` §H15). Non riguardano
+la Vendita al banco.
+
+---
 
 ## A12. Interfaccia: si parte da Ordine cliente, senza ereditarne il dominio
 
