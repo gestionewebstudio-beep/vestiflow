@@ -28,7 +28,7 @@
     "e2e:ci": "playwright test --project=chromium-guest --project=chromium-ci",
     "e2e:authenticated": "playwright test --project=setup --project=chromium --project=mobile-chrome",
     "e2e:guest": "playwright test --project=chromium-guest",
-    "lint": "ng lint && npm run check:tokens && npm run check:subscriptions && npm run check:table-views && npm run check:permissions && npm run check:endpoint-gates && npm run check:form-errors && npm run check:print-types && npm run check:registro && npm run check:terminologia && npm run check:modalita-prezzo && npm run check:tab-stops",
+    "lint": "ng lint && npm run check:tokens && npm run check:subscriptions && npm run check:table-views && npm run check:permissions && npm run check:endpoint-gates && npm run check:form-errors && npm run check:print-types && npm run check:registro && npm run check:terminologia && npm run check:modalita-prezzo && npm run check:tab-stops && npm run check:sort-columns",
     "lint:fix": "ng lint --fix",
     "audit:lhci": "lhci autorun",
     "check:rls": "node scripts/check-rls.mjs",
@@ -58,7 +58,8 @@
     "check:terminologia": "node scripts/check-terminologia-banco.mjs",
     "check:modalita-prezzo": "node scripts/check-modalita-prezzo.mjs",
     "check:api-boot": "node scripts/check-api-boot.mjs",
-    "check:tab-stops": "node scripts/check-tab-stops.mjs"
+    "check:tab-stops": "node scripts/check-tab-stops.mjs",
+    "check:sort-columns": "node scripts/check-sort-columns.mjs"
   },
   "private": true,
   "packageManager": "npm@10.9.0",

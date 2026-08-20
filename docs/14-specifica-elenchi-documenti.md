@@ -2373,6 +2373,19 @@ servono. Non vanno confuse con la categoria 3, che oggi è vuota.
 - **«Numero» è `year` + `number`**, non la stringa `reference`: quella comincia col prefisso del
   tipo, e ordinarla alfabeticamente raggrupperebbe per tipo invece che per progressivo.
 
+### ✅ La guardia: `npm run check:sort-columns`
+
+Le colonne ordinabili vivono in **due posti** — la whitelist dell'endpoint e il suo specchio nel
+client — e finora niente impediva loro di divergere. Una divergenza non rompe la compilazione e
+non fa arrossare un test:
+
+| Colonna in più nel **client** | l'operatore preme, l'API risponde `400`, l'elenco sparisce |
+| Colonna in più nell'**API** | una capacità che esiste e che nessuno può usare |
+
+⭐ È lo stesso mestiere di `check:permissions`, che confronta le due mappe dei permessi: il
+controllo sta in `npm run lint`, e **provato rompendolo** — aggiungendo `counterparty` al solo
+client, il lint si ferma e dice quale colonna e perché.
+
 ### ⚠️ Chi valida cosa, e i due comportamenti sono opposti apposta
 
 | Dove                  | Su una colonna sconosciuta                           |
