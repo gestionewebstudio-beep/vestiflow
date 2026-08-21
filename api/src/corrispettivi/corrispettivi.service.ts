@@ -330,29 +330,22 @@ export class CorrispettiviService {
     const vuoleResi = wantsReturns(query);
     const storeReturnWhere = buildCorrispettiviStoreReturnWhere(tenantId, query);
 
-    const [saleCount, refundCount, storeCount, manualCount, storeReturnCount] = await Promise.all([
-      vuoleVendite ? this.prisma.salesOrder.count({ where }) : Promise.resolve(0),
-      vuoleRettifiche
-        ? this.prisma.salesOrderRefund.count({ where: refundWhere })
-        : Promise.resolve(0),
-      storeWhere && vuoleVendite ? this.prisma.document.count({ where: storeWhere }) : 0,
-      // ⚠️ Senza questo quarto conteggio il tetto misurerebbe MENO di quanto la
-      // lista poi elenca, e la protezione che dichiara «restringi il periodo»
-      // lascerebbe passare proprio i casi che deve fermare.
-      manualWhere && vuoleVendite ? this.prisma.manualReceipt.count({ where: manualWhere }) : 0,
-      storeReturnWhere && vuoleResi ? this.prisma.document.count({ where: storeReturnWhere }) : 0,
-    ]);
+    /*
+      ⛔ **I cinque conteggi erano un giro di rete in più, e il giro qui costa
+      caro** — misurato il 21/08/2026: **269 ms di round-trip a vuoto** verso il
+      database gestito. Non è il lavoro della query: è la distanza.
 
-    const rowCount = saleCount + refundCount + storeCount + manualCount + storeReturnCount;
-    if (rowCount > REGISTER_MERGE_CEILING) {
-      throw new BadRequestException(
-        `Il periodo selezionato contiene ${rowCount} righe: restringi le date per consultarlo.`,
-      );
-    }
+      Contavano per applicare il tetto PRIMA di leggere. Ora le cinque letture
+      partono subito con `take: TETTO + 1` ciascuna, e il tetto si verifica
+      dopo: nel caso normale si risparmia un round-trip intero, nel caso limite
+      si è letto invano — ma quel caso finisce comunque in errore, e con il
+      `take` non legge più di quanto avrebbe contato.
+    */
 
     const [orders, refunds, storeSales, manualReceipts, storeReturns] = await Promise.all([
       vuoleVendite
         ? this.prisma.salesOrder.findMany({
+            take: REGISTER_MERGE_CEILING + 1,
             where,
             include: {
               customer: { select: { party: { select: { email: true } } } },
@@ -364,6 +357,7 @@ export class CorrispettiviService {
         : Promise.resolve([]),
       vuoleRettifiche
         ? this.prisma.salesOrderRefund.findMany({
+            take: REGISTER_MERGE_CEILING + 1,
             where: refundWhere,
             include: {
               order: {
@@ -380,6 +374,7 @@ export class CorrispettiviService {
         : Promise.resolve([]),
       storeWhere && vuoleVendite
         ? this.prisma.document.findMany({
+            take: REGISTER_MERGE_CEILING + 1,
             where: storeWhere,
             select: {
               id: true,
@@ -397,6 +392,7 @@ export class CorrispettiviService {
         : Promise.resolve([]),
       manualWhere && vuoleVendite
         ? this.prisma.manualReceipt.findMany({
+            take: REGISTER_MERGE_CEILING + 1,
             where: manualWhere,
             select: {
               id: true,
@@ -418,6 +414,7 @@ export class CorrispettiviService {
         : Promise.resolve([]),
       storeReturnWhere && vuoleResi
         ? this.prisma.document.findMany({
+            take: REGISTER_MERGE_CEILING + 1,
             where: storeReturnWhere,
             select: {
               id: true,
@@ -441,6 +438,21 @@ export class CorrispettiviService {
           })
         : Promise.resolve([]),
     ]);
+
+    // ⛔ Il tetto, ora verificato su ciò che si è letto. Il messaggio dice «più
+    // di», non un numero preciso: con `take` non si conosce il totale vero, e
+    // dichiarare una cifra inventata sarebbe peggio che non dichiararla.
+    const righeLette =
+      orders.length +
+      refunds.length +
+      storeSales.length +
+      manualReceipts.length +
+      storeReturns.length;
+    if (righeLette > REGISTER_MERGE_CEILING) {
+      throw new BadRequestException(
+        `Il periodo selezionato contiene più di ${REGISTER_MERGE_CEILING} righe: restringi le date per consultarlo.`,
+      );
+    }
 
     const rows: CorrispettiviRegisterRow[] = [
       ...orders.map((order) => ({
@@ -626,93 +638,110 @@ export class CorrispettiviService {
     const vuoleRettifiche = wantsRefunds(query);
 
     const storeWhere = buildCorrispettiviStoreSaleWhere(tenantId, query);
-    const storeSales =
+    const manualWhere = buildCorrispettiviManualWhere(tenantId, query);
+    const storeReturnSummaryWhere = buildCorrispettiviStoreReturnWhere(tenantId, query);
+
+    /*
+      ⭐ **Le sette letture vanno IN PARALLELO** (corretto il 21/08/2026, su
+      segnalazione del proprietario: «quando apro corrispettivi ci mette un po'»).
+
+      Erano sette `await` in fila, ognuno che aspettava il precedente: il tempo
+      di apertura era la SOMMA dei round-trip invece del massimo. Non
+      dipendevano l'una dall'altra — ogni `where` si costruisce prima, dai soli
+      parametri — quindi la serialità non comprava niente.
+
+      ⚠️ `listOrders` era già così: qui la differenza non si vedeva leggendo,
+      perché ogni riga presa da sola sembrava corretta.
+    */
+    const [
+      storeSales,
+      manualReceipts,
+      orders,
+      refunds,
+      storeReturns,
+      cancellations,
+      undatedFulfilmentCount,
+    ] = await Promise.all([
       storeWhere && vuoleVendite
-        ? await this.prisma.document.findMany({
+        ? this.prisma.document.findMany({
             where: storeWhere,
             select: { taxMinor: true, totalMinor: true, documentDate: true },
           })
-        : [];
-    const manualWhere = buildCorrispettiviManualWhere(tenantId, query);
-    const manualReceipts =
+        : [],
       manualWhere && vuoleVendite
-        ? await this.prisma.manualReceipt.findMany({
+        ? this.prisma.manualReceipt.findMany({
             where: manualWhere,
             select: { subtotalMinor: true, taxMinor: true, totalMinor: true, documentDate: true },
           })
-        : [];
-    const orders = vuoleVendite
-      ? await this.prisma.salesOrder.findMany({
-          where,
-          select: {
-            subtotalMinor: true,
-            taxMinor: true,
-            shippingMinor: true,
-            discountMinor: true,
-            totalMinor: true,
-            financialStatus: true,
-            source: true,
-            fulfilledAt: true,
-            placedAt: true,
-          },
-        })
-      : [];
-
-    // Le rettifiche del periodo, alla LORO data e **con lo stesso filtro Tipo
-    // dell'elenco**: è la metà mancante della riconciliazione. Qui c'era un
-    // `rowType: undefined` esplicito, e con lui la somma dei sottoinsiemi non
-    // poteva fare il totale.
-    const refunds = vuoleRettifiche
-      ? await this.prisma.salesOrderRefund.findMany({
-          where: buildCorrispettiviRefundWhere(tenantId, query),
-          select: { totalMinor: true, taxMinor: true, occurredAt: true },
-        })
-      : [];
-
-    // I Resi al banco, quinta sorgente, con lo STESSO interruttore delle altre
-    // rettifiche — è la metà mancante della riconciliazione: un reso che
-    // comparisse nell'elenco e non qui farebbe divergere le due letture.
-    //
-    // ⚠️ Gli importi entrano POSITIVI, come quelli di `salesOrderRefund`:
-    // `accumulaCorrispettivi` li SOTTRAE (`netTotal = total − refundTotal`).
-    // Passarli col segno che hanno nelle righe li farebbe sommare, e il netto
-    // salirebbe invece di scendere.
-    const storeReturnSummaryWhere = buildCorrispettiviStoreReturnWhere(tenantId, query);
-    const storeReturns =
+        : [],
+      vuoleVendite
+        ? this.prisma.salesOrder.findMany({
+            where,
+            select: {
+              subtotalMinor: true,
+              taxMinor: true,
+              shippingMinor: true,
+              discountMinor: true,
+              totalMinor: true,
+              financialStatus: true,
+              source: true,
+              fulfilledAt: true,
+              placedAt: true,
+            },
+          })
+        : [],
+      // Le rettifiche del periodo, alla LORO data e **con lo stesso filtro Tipo
+      // dell'elenco**: è la metà mancante della riconciliazione. Qui c'era un
+      // `rowType: undefined` esplicito, e con lui la somma dei sottoinsiemi non
+      // poteva fare il totale.
+      vuoleRettifiche
+        ? this.prisma.salesOrderRefund.findMany({
+            where: buildCorrispettiviRefundWhere(tenantId, query),
+            select: { totalMinor: true, taxMinor: true, occurredAt: true },
+          })
+        : [],
+      // I Resi al banco, quinta sorgente, con lo STESSO interruttore delle altre
+      // rettifiche: un reso che comparisse nell'elenco e non qui farebbe divergere
+      // le due letture.
+      //
+      // ⚠️ Gli importi entrano POSITIVI, come quelli di `salesOrderRefund`:
+      // `accumulaCorrispettivi` li SOTTRAE (`netTotal = total − refundTotal`).
       storeReturnSummaryWhere && wantsReturns(query)
-        ? await this.prisma.document.findMany({
+        ? this.prisma.document.findMany({
             where: storeReturnSummaryWhere,
             select: { taxMinor: true, totalMinor: true, documentDate: true },
           })
-        : [];
+        : [],
+      /*
+          Gli annullamenti si contano e non si sottraggono: la vendita che annullano
+          non è mai entrata nel registro (specifica `08` §4).
 
-    /*
-      Gli annullamenti si contano e non si sottraggono: la vendita che annullano
-      non è mai entrata nel registro (specifica `08` §4).
-
-      ⚠️ **Restano fuori dal filtro Tipo, e non è una svista.** Non sono un tipo
-      selezionabile — non compaiono mai fra le righe — e non entrano in nessun
-      totale: sono una **dichiarazione** di ciò che il Registro non conta, e
-      una dichiarazione che sparisce quando si filtra dice meno del vero. Non
-      tocca la riconciliazione proprio perché non viene sommata.
-    */
-    const cancellations = await this.prisma.salesOrderRefund.findMany({
-      where: {
-        ...buildCorrispettiviRefundWhere(tenantId, { ...query, rowType: undefined, tipi: undefined }),
-        kind: PrismaRefundKind.cancellation,
-      },
-      select: { totalMinor: true, occurredAt: true },
-    });
-
-    // Evasi senza data: fuori dal conteggio perché non databili, ma dichiarati.
-    // Un registro fiscale non fa sparire niente in silenzio.
-    const undatedFulfilmentCount = await this.prisma.salesOrder.count({
-      where: {
-        tenantId,
-        fulfilledAt: null,
-        fulfillmentStatus: PrismaFulfillment.fulfilled,
-      },
-    });
+          ⚠️ **Restano fuori dal filtro Tipo, e non è una svista.** Non sono un tipo
+          selezionabile e non entrano in nessun totale: sono una **dichiarazione** di
+          ciò che il Registro non conta, e una dichiarazione che sparisce quando si
+          filtra dice meno del vero.
+        */
+      this.prisma.salesOrderRefund.findMany({
+        where: {
+          ...buildCorrispettiviRefundWhere(tenantId, {
+            ...query,
+            rowType: undefined,
+            tipi: undefined,
+          }),
+          kind: PrismaRefundKind.cancellation,
+        },
+        select: { totalMinor: true, occurredAt: true },
+      }),
+      // Evasi senza data: fuori dal conteggio perché non databili, ma dichiarati.
+      // Un registro fiscale non fa sparire niente in silenzio.
+      this.prisma.salesOrder.count({
+        where: {
+          tenantId,
+          fulfilledAt: null,
+          fulfillmentStatus: PrismaFulfillment.fulfilled,
+        },
+      }),
+    ]);
 
     // ⚠️ **Una sola matematica**, e da qui in poi vale anche per i subtotali
     // giornalieri del blocco B: due implementazioni che «si assomigliano» non
