@@ -2252,28 +2252,29 @@ colonne che «in SQL non si sarebbero potute ordinare».
 quando il periodo scelto è largo e le righe sono troppe per il client. Cambia il suo posto —
 da unica risposta a risposta per i dataset grandi.
 
-### ⚠️ SCELTA IMPLEMENTATIVA, non una decisione funzionale: il predefinito non passa dall'URL
+### ✅ URL COMPLETO quando un periodo è applicato — deciso il 20/08/2026
 
-_Marcata come tale su richiesta del proprietario, 20/08/2026._
+Il proprietario ha riconosciuto la questione come **scelta implementativa** e ha indicato la
+sua preferenza:
 
-All'apertura l'elenco parte dagli ultimi 30 giorni **senza scrivere `dateFrom`/`dateTo`
-nell'indirizzo**. Quando l'operatore sceglie un periodo, quello sì finisce nell'URL.
+> _«Propenderei per URL completo quando un filtro periodo è effettivamente applicato, perché un
+> riepilogo filtrato è più facile da capire, condividere e riprodurre.»_
 
-⛔ **Non discende dalla decisione dei 30 giorni**: è una scelta di implementazione, e come tale
-si può ribaltare in una riga per elenco.
+```text
+apertura, preset ≠ Tutti   →  le date finiscono nell'URL
+scelta «Tutti»             →  nessun periodo applicato, nessuna data nell'URL
+```
 
-| Perché è stata fatta così                                       | Che cosa costa                                                                                 |
-| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| l'indirizzo resta pulito, senza parametri che nessuno ha scelto | ⚠️ **un link condiviso senza date non è riproducibile**: aperto domani mostra un altro periodo |
-| la cronologia del browser non si riempie a ogni apertura        | il periodo predefinito non compare fra i «filtri attivi» — che però è corretto                 |
+⭐ **Il predefinito di 30 giorni È un filtro applicato** — l'elenco mostra solo quelle righe —
+quindi entra nell'indirizzo come qualunque altro filtro. Il link che mandi rappresenta ciò che
+stai guardando, e aperto domani mostra le stesse righe.
 
-⚠️ **E ha già prodotto una divergenza, corretta subito**: gli Ordini cliente il periodo
-iniziale lo **scrivevano** nell'URL (comportamento preesistente), documenti e ordini fornitore
-no. Tre elenchi, due comportamenti — cioè esattamente ciò che questo lavoro esiste per
-togliere. Ora si comportano tutti allo stesso modo.
+⚠️ **Si scrive una volta sola, alla creazione**: riscriverlo a ogni giro cancellerebbe la
+scelta «Tutti», che è l'unico caso in cui nessun periodo è applicato.
 
-⭐ Se si preferisce l'altro comportamento — URL sempre completo, link riproducibili — è un
-cambiamento piccolo e va fatto **su tutti e tre insieme**.
+⛔ **La cosa che conta davvero è che i tre si comportino allo stesso modo**, e per un momento
+non è stato così: gli Ordini cliente scrivevano, gli altri due no — tre elenchi, due
+comportamenti, cioè il difetto che questo lavoro esiste per togliere.
 
 ### ⚠️ Il perimetro: quali elenchi, e uno che NON deve entrare
 

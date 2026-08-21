@@ -332,6 +332,18 @@ export class SupplierOrderListComponent {
   private readonly searchSubscription: Subscription;
 
   constructor() {
+    // ⭐ **URL completo quando un periodo è applicato** (`14` §H14-bis, deciso
+    // il 20/08/2026). Il predefinito di 30 giorni È un filtro applicato —
+    // l'elenco mostra solo quelle righe — quindi finisce nell'indirizzo: un
+    // riepilogo filtrato si capisce, si condivide e si riproduce.
+    //
+    // ⛔ Una volta sola, alla creazione: riscriverlo a ogni giro cancellerebbe
+    // la scelta «Tutti», che è l'unico caso in cui nessun periodo è applicato.
+    if (this.periodPreset() !== MovementPeriodPreset.All) {
+      const iniziale = resolveMovementPeriodRange(this.periodPreset(), '', '');
+      this.updateParams({ dateFrom: iniziale.from ?? null, dateTo: iniziale.to ?? null }, true);
+    }
+
     this.searchSubscription = toObservable(this.searchDraft)
       .pipe(
         debounceTime(SEARCH_DEBOUNCE_MS),
