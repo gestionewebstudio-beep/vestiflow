@@ -7,6 +7,14 @@
 > che la spiega. Se una specifica dice il contrario di questa pagina, vince la specifica —
 > ma allora questa pagina è sbagliata e va corretta subito, non aggirata.
 
+⚠️ **Controllato il 21/08/2026, e non era affidabile.** Il proprietario ha riletto questa
+pagina contro le specifiche e ha trovato **sette scarti** — fra cui due decisioni non allineate
+allo stato corrente. Sono stati corretti, e la lezione vale più della correzione:
+
+> **Un indice che riassume decisioni invecchia più in fretta dei documenti che indicizza**, e
+> invecchia in silenzio. Quando una decisione si restringe, questa pagina va toccata **nello
+> stesso passo** — non al prossimo giro.
+
 ⛔ **Questo non è un riassunto e non è un archivio.** Non racconta come ci si è arrivati: quello
 sta nei documenti, ed è lì che va letto quando serve il perché. Qui c'è solo il **cosa vale
 oggi**, perché il difetto misurato il 20/08/2026 era che per saperlo bisognava attraversare la
@@ -45,7 +53,7 @@ strumenti di lavoro. Non ci si cercano decisioni.
 | **Tre funzioni distinte: Modifica · Dettaglio · Stampa/PDF.** «Anteprima» non esiste                                       | §6       |
 | Il **Dettaglio** si raggiunge dal suo pulsante e in questa fase non si ridisegna                                           | §E4      |
 | **Tre predicati da non confondere**: `canEdit` · `canViewDetail` · `canSelect`                                             | §H16     |
-| **Sfondo** comune a ogni riga; **mano** solo dove il clic apre la Modifica                                                 | §H16     |
+| **Riga selezionata**: cambio di sfondo comune. **Mano**: solo dove il clic apre la Modifica                                | §H16     |
 | La **barra azioni è permanente**: la selezione ne cambia l'ambito, non la presenza                                         | §5       |
 | **La selezione batte i filtri**: 0 selezionati → il filtrato; 1+ → solo quelle                                             | §5.3     |
 | **Stampa · Excel · Esporta** sono tre azioni indipendenti                                                                  | §5.2     |
@@ -89,20 +97,20 @@ strumenti di lavoro. Non ci si cercano decisioni.
 
 ⛔ **Nessuna di queste si chiude scrivendo codice che funziona.** Si chiudono decidendo.
 
-| Aperta                                                                              | Dove               |
-| ----------------------------------------------------------------------------------- | ------------------ |
-| **Controparte** (elenco documenti) ordinabile — serve una fonte sola per il dato    | `14` §H15          |
-| **Stato** (ordini cliente) ordinabile — si riprende col modulo Ordine cliente       | `14` §H15          |
-| **«Non modificabile ⇒ non selezionabile»** — applicazione da chiudere con le azioni | `14` §H16          |
-| **Dettaglio dell'Ordine cliente** — gap, col rifacimento dei Detail                 | `14` §E6           |
-| **Dettaglio del Corrispettivo manuale** — oggi ha solo la modifica                  | `14` §E6           |
-| **Azioni massive**: selezione eterogenea, esiti parziali, tutto il filtrato         | `14` §E5           |
-| **Stampa/PDF** come menu per tipo documento                                         | `14` §E2           |
-| **Giacenze e Situazione**: in pausa                                                 | `14` §C0.0         |
-| **Corrispettivi nel motore tabella**: fermi, e non per pigrizia                     | `14` §H14          |
-| La **Proforma** nella matrice documentale                                           | `11` A7            |
-| **Riga manuale** senza articolo in anagrafica                                       | `11` A21           |
-| **Header di sicurezza** del documento HTML — lacuna aperta                          | `regole-sicurezza` |
+| Aperta                                                                                               | Dove               |
+| ---------------------------------------------------------------------------------------------------- | ------------------ |
+| **Controparte** (elenco documenti) ordinabile — serve una fonte sola per il dato                     | `14` §H15          |
+| **Stato** (ordini cliente) ordinabile — si riprende col modulo Ordine cliente                        | `14` §H15          |
+| **«Non modificabile ⇒ non selezionabile»** — applicazione da chiudere con le azioni                  | `14` §H16          |
+| **Dettaglio dell'Ordine cliente** — gap, col rifacimento dei Detail                                  | `14` §E6           |
+| **Dettaglio del Corrispettivo manuale** — oggi ha solo la modifica                                   | `14` §E6           |
+| **Policy delle azioni massive**: selezione eterogenea ed esiti parziali (⚠️ l'ambito è deciso, §5.3) | `14` §E5           |
+| **Stampa/PDF** come menu per tipo documento                                                          | `14` §E2           |
+| **Giacenze e Situazione**: in pausa                                                                  | `14` §C0.0         |
+| **Corrispettivi nel motore tabella**: fermi, e non per pigrizia                                      | `14` §H14          |
+| La **Proforma** nella matrice documentale                                                            | `11` A7            |
+| **Riga manuale** senza articolo in anagrafica                                                        | `11` A21           |
+| **Header di sicurezza** del documento HTML — lacuna aperta                                           | `regole-sicurezza` |
 
 ---
 

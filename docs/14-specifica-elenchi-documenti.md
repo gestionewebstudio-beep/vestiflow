@@ -25,14 +25,14 @@ e la sezione va corretta, non interpretata.
 
 ## Interazione con la riga
 
-| Decisione                                                                                                                        | Dove   |
-| -------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| **Clic sulla riga → Modifica.** Per ogni tipo, in ogni elenco. Nessun doppio clic                                                | §2, §3 |
-| **Checkbox → selezione.** Gesto distinto, non alternativo                                                                        | §4     |
-| **Tre funzioni distinte, e i nomi sono questi: Modifica · Dettaglio · Stampa/PDF.** «Anteprima» non esiste                       | §6     |
-| **Il Dettaglio si raggiunge dal suo pulsante**, e in questa fase non si ridisegna                                                | §E4    |
-| **Tre predicati da non confondere: `canEdit` · `canViewDetail` · `canSelect`.** Una riga non modificabile può avere un Dettaglio | §H16   |
-| **Sfondo:** comune a qualsiasi riga. **Mano:** solo dove il clic apre la Modifica                                                | §H16   |
+| Decisione                                                                                                                                                                             | Dove   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| **Clic sulla riga → Modifica.** Per ogni tipo, in ogni elenco. Nessun doppio clic                                                                                                     | §2, §3 |
+| **Checkbox → selezione.** Gesto distinto, non alternativo                                                                                                                             | §4     |
+| **Tre funzioni distinte, e i nomi sono questi: Modifica · Dettaglio · Stampa/PDF.** «Anteprima» non esiste                                                                            | §6     |
+| **Il Dettaglio si raggiunge dal suo pulsante**, e in questa fase non si ridisegna                                                                                                     | §E4    |
+| **Tre predicati da non confondere: `canEdit` · `canViewDetail` · `canSelect`.** Una riga non modificabile può avere un Dettaglio                                                      | §H16   |
+| **Riga selezionata**: il leggero cambio di sfondo è comune a ogni riepilogo. **Mano**: solo dove il clic apre la Modifica. `canEdit` · `canViewDetail` · `canSelect` restano distinti | §H16   |
 
 ## Azioni dell'elenco
 
@@ -57,15 +57,14 @@ e la sezione va corretta, non interpretata.
 
 ## ⏸ APERTE — non decise, non dedurle dal codice
 
-| Questione                                                                                                                             | Dove     |
-| ------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| **Larghezze iniziali** delle colonne: da dove vengono, riepilogo per riepilogo                                                        | §G4      |
-| **Intestazioni maiuscole**: il mixin e `regole-stile-ui` §6 divergono                                                                 | §G4, §F5 |
-| **«Non modificabile ⇒ non selezionabile»**: la regola è registrata, l'applicazione toglierebbe funzioni ai Movimenti e agli annullati | §H16     |
-| **Dettaglio dell'Ordine cliente**: è un gap, si affronta col rifacimento dei Detail                                                   | §E6      |
-| **Dettaglio del Corrispettivo manuale**: oggi ha solo una maschera di modifica                                                        | §E6      |
-| **Azioni massive** (selezione eterogenea, esiti parziali, tutto il filtrato)                                                          | §E5      |
-| **Stampa/PDF** come menu per tipo documento                                                                                           | §E2      |
+| Questione                                                                                                                                                                                  | Dove |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---- |
+| **Larghezze iniziali** delle colonne: oggi non servono — le colonne si dimensionano sul contenuto (§F6 punto 5) — e tornano necessarie solo se un giorno si sceglie `table-layout: fixed`  | §G4  |
+| **«Non modificabile ⇒ non selezionabile»**: la regola è registrata, l'applicazione toglierebbe funzioni ai Movimenti e agli annullati                                                      | §H16 |
+| **Dettaglio dell'Ordine cliente**: è un gap, si affronta col rifacimento dei Detail                                                                                                        | §E6  |
+| **Dettaglio del Corrispettivo manuale**: oggi ha solo una maschera di modifica                                                                                                             | §E6  |
+| **Policy delle azioni massive**: selezione eterogenea, esiti parziali. ⚠️ L'**ambito** è invece deciso (§5.3) e non si riapre; qui è aperto il _comportamento_ quando la selezione è mista | §E5  |
+| **Stampa/PDF** come menu per tipo documento                                                                                                                                                | §E2  |
 
 ## Che cosa è già stato fatto — 20/08/2026
 
@@ -2073,10 +2072,16 @@ silenzio.
 
 ### Ciò che NON è stato deciso
 
-⏸️ **Nessun tetto.** Né 500, né 2.000, né altro. La resa di elenchi molto grandi è un tema
-separato, da affrontare su **dati reali**: oggi tutti i tenant sono banchi di prova. L’evidenza
-raccolta e la strada da valutare — **virtualizzazione delle righe**, non caricamento
+⏸️ **Nessun tetto DI RESA.** Né 500, né 2.000, né altro: quante righe si disegnano a schermo è
+un tema separato, da affrontare su **dati reali** — oggi tutti i tenant sono banchi di prova.
+L’evidenza raccolta e la strada da valutare — **virtualizzazione delle righe**, non caricamento
 progressivo — stanno in `docs/DA-FARE.md`.
+
+⚠️ **Da non confondere con il tetto della RISPOSTA**, che è un'altra cosa e che esiste
+(§H14-bis): quante righe l'API consegna prima di fermarsi. I due tetti rispondono a domande
+diverse — «quante ne disegno» e «quante ne trasporto» — e il secondo qui non è mai stato
+vietato. ⛔ La confusione era reale, e il numero «2.000» compariva in tutti e due i posti: è la
+ragione per cui ora portano nomi diversi.
 
 ---
 
@@ -2276,6 +2281,20 @@ scelta «Tutti», che è l'unico caso in cui nessun periodo è applicato.
 non è stato così: gli Ordini cliente scrivevano, gli altri due no — tre elenchi, due
 comportamenti, cioè il difetto che questo lavoro esiste per togliere.
 
+### ⚠️ Il tetto della risposta — e due comportamenti diversi, da uniformare
+
+```text
+elenchi documentali   UNPAGED_MAX_ROWS = 2.000   → tronca e lo DICHIARA nel meta
+Registro              REGISTER_MERGE_CEILING = 5.000 → RIFIUTA con «restringi le date»
+```
+
+⛔ **Non è lo stesso tetto di §H13**, che parla di quante righe si **disegnano** e resta non
+deciso. Questo dice quante l'API ne **consegna**.
+
+⏸ **Ma i due comportamenti divergono, ed è da decidere quale vale**: troncare e dirlo è più
+gentile per un elenco operativo; rifiutare è più onesto per un registro fiscale, dove mostrare
+metà dei dati è peggio che non mostrarli. Oggi convivono perché il secondo preesisteva.
+
 ### ⚠️ Il perimetro: quali elenchi, e uno che NON deve entrare
 
 Oggi `app-pagination` sta in **nove** elenchi. Non sono la stessa cosa:
@@ -2298,6 +2317,21 @@ sensata, non una decisione presa.
 
 ## H15. ⭐ Ordinamento: non è stato PERSO, non era mai stato collegato — misurato il 20/08/2026
 
+> ⛔ **LEGGERE PRIMA §H14-bis.** Questa sezione è stata scritta quando i tre elenchi
+> **impaginavano**, e la tabella qui sotto lo dice ancora. **Non è più così**: dal 20/08/2026 i
+> riepiloghi non impaginano e si aprono sugli ultimi 30 giorni.
+>
+> Resta valido tutto ciò che riguarda **la grammatica dell'ordinamento** — `DataTableSort[]`,
+> la serializzazione, le whitelist per endpoint, il tie-break. È caduta invece la **ragione**
+> per cui doveva essere server-side: «altrimenti ordini solo la pagina».
+>
+> ⚠️ **E ne discende una domanda che non è stata ancora posta**: oggi documenti, ordini
+> cliente e ordini fornitore ordinano **nel database**, mentre Movimenti e Corrispettivi
+> ordinano **nel client su tutto il risultato** — e possono farlo per l'etichetta, che nel
+> database non esiste. Con la paginazione tolta i due mondi sono diventati simili, e la
+> differenza resta solo per il tetto della risposta. **Se vada uniformata è da decidere**, non
+> da dedurre da questa sezione.
+
 La domanda era: l'assorbimento ha tolto l'ordinamento agli altri riepiloghi, oppure non l'hanno
 mai avuto? **Misurata, non dedotta.**
 
@@ -2319,13 +2353,13 @@ dal motore — coincide con la misura di §G3.
 
 ### ⛔ Perché non si accende «tanto il motore ce l'ha»
 
-|                  | paginato lato server | ordinamento da intestazione                             |
-| ---------------- | -------------------- | ------------------------------------------------------- |
-| elenco documenti | ✅ `app-pagination`  | ordinerebbe **la pagina**, non il risultato             |
-| ordini cliente   | ✅                   | idem                                                    |
-| ordini fornitore | ✅                   | idem                                                    |
-| movimenti        | ⛔ carica tutto      | ✅ per questo funziona, ed è coerente con §H13          |
-| corrispettivi    | ⛔ carica il periodo | tecnicamente possibile lato client, da decidere a parte |
+| _(al 20/08, prima di §H14-bis)_ | paginato lato server | ordinamento da intestazione                             |
+| ------------------------------- | -------------------- | ------------------------------------------------------- |
+| elenco documenti                | ✅ `app-pagination`  | ordinerebbe **la pagina**, non il risultato             |
+| ordini cliente                  | ✅                   | idem                                                    |
+| ordini fornitore                | ✅                   | idem                                                    |
+| movimenti                       | ⛔ carica tutto      | ✅ per questo funziona, ed è coerente con §H13          |
+| corrispettivi                   | ⛔ carica il periodo | tecnicamente possibile lato client, da decidere a parte |
 
 > **Su un elenco paginato, ordinare ciò che è a schermo è un ordinamento bugiardo**: mostra la
 > prima pagina riordinata e la chiama «la più recente». Accenderlo lì richiede il supporto

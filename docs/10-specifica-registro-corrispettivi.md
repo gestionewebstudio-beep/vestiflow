@@ -131,8 +131,12 @@ Quindi **nessuno** stato «da inviare», «inviato», «consegnato», «registra
 nessuno storico consegne; stampa ed export **non modificano stati né classificazioni**; lo
 stesso periodo si esporta quante volte serve.
 
-Il Registro è un **registro economico interno derivato**, non un documento gestionale
-modificabile.
+Il Registro è un **registro economico interno**, non un documento gestionale modificabile.
+
+⚠️ _Corretto il 21/08/2026._ Qui c'era «registro economico interno **derivato**», e §1 quel
+assoluto l'aveva già ritirato il 17/08: con il Corrispettivo manuale una riga può nascere
+**digitata**, e nessuna derivazione la produce. Ciò che non cambia è il divieto vero — il
+Registro non si corregge riga per riga, e non esiste un tipo documento «Corrispettivo».
 
 _Attuato il 16/08: rimossi `markDelivered`, lo storico consegne, il pannello, il filtro «solo da
 consegnare», e le colonne «Stato fiscale» e «Data consegna commercialista» dall'export._
@@ -223,7 +227,8 @@ di VestiFlow.
 
 ## §9 · Regola sintetica
 
-> **Corrispettivi = quadro economico generale derivato.**
+> **Corrispettivi = quadro economico generale**, per lo più derivato dalle sorgenti vive — con
+> l'eccezione dichiarata del Corrispettivo manuale (§1, §12).
 >
 > Ogni vendita o rettifica che VestiFlow conosce resta consultabile **una sola volta**,
 > classificata per origine. I sottoinsiemi si ottengono con filtri e riepiloghi.
@@ -1027,11 +1032,17 @@ suo (`groupBy`), separato dai filtri: chi costruisce le query Prisma non lo rice
 prova che lo inchioda: **a parità di filtri, `groupBy = none` e `groupBy = day` restituiscono le
 stesse righe e lo stesso riepilogo complessivo** — cambia solo la disposizione.
 
-**3. ⚠️ I subtotali giornalieri si calcolano sull'API, non sulle righe caricate.** Il Registro
-carica cento righe per volta: un subtotale calcolato a schermo è giusto **finché la giornata sta
-tutta in una pagina**, e sbaglia in silenzio appena un giorno si spezza fra due pagine. Sbaglia
-per difetto e in modo plausibile, che su un registro contabile è la forma peggiore. L'aggregato
-per giornata è quindi fratello del riepilogo complessivo, calcolato sull'intero insieme filtrato.
+**3. ⚠️ I subtotali giornalieri si calcolano sull'API, non sulle righe caricate.**
+
+⚠️ _La premessa di questo punto è cambiata, la conclusione no._ Qui c'era «il Registro carica
+cento righe per volta», e il rischio era che una giornata si spezzasse fra due pagine. **Il
+Registro non pagina più** (§14): l'insieme caricato è il risultato del filtro.
+
+⛔ **Ma la regola vale ancora, e per una ragione più forte**: l'elenco può essere **troncato dal
+tetto** (5.000 righe) e su schermo compatto è **troncato per scelta** (§17, «Mostra le altre N»).
+Un subtotale calcolato su ciò che è a schermo sbaglierebbe per difetto e in modo plausibile —
+che su un registro contabile è la forma peggiore. L'aggregato per giornata resta quindi fratello
+del riepilogo complessivo, calcolato sull'intero insieme filtrato.
 
 ### Stampa: esplicitamente NON agganciata al PDF
 

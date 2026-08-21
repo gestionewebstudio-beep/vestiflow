@@ -1148,7 +1148,8 @@ campo precedente, perdere il fuoco o creare movimenti anticipati.
 
 ## A15. Righe
 
-Desktop: tabella con la densità dell'Ordine cliente, senza le informazioni che alla Vendita al
+Desktop: tabella con la densità della **grammatica comune dei riepiloghi** (`14` §F6 — 12px,
+padding 4×12, intestazione 32px), senza le informazioni che alla Vendita al
 banco non servono.
 
 | Articolo | Q.tà | Prezzo | Sconto | IVA | Totale | Azioni |
@@ -1262,8 +1263,12 @@ L'operatore non deve riposizionare il cursore per continuare una sequenza di sca
 ## A20. Aspetto visivo
 
 Colori, token, componenti e regole visive sono quelli già definiti per VestiFlow: questa
-specifica **non introduce una palette autonoma**. Per densità e spaziatura il riferimento è
-l'Ordine cliente.
+specifica **non introduce una palette autonoma**.
+
+⚠️ **Densità e spaziatura vengono dalla GRAMMATICA COMUNE** (`14` §F6), non dall'Ordine
+cliente _(corretto il 21/08/2026: qui c'era «il riferimento è l'Ordine cliente», scritto prima
+che la grammatica esistesse)_. L'Ordine cliente resta il riferimento **mobile e operativo**, e
+la fonte dei pezzi che ha già risolto — non la fonte dell'aspetto desktop.
 
 ## A21. Da valutare, non ancora approvato — riga manuale senza articolo
 
