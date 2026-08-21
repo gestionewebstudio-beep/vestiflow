@@ -10,13 +10,13 @@ import {
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import { DocumentSettingsService } from '../documents/document-settings.service';
-import { formatDocumentReference } from '../documents/document-totals.util';
 import {
   buildDocumentNumberConflict,
   defaultCounterSeries,
   isDocumentNumberConflict,
   lockDocumentCounter,
-  nextDocumentNumber,
+  resolveDocumentNumber,
+  serieCanonica,
 } from '../documents/document-numbering.util';
 import { persistDocumentLinesByIdTx } from '../documents/document-line-upsert.util';
 import { syncGoodsReceiptLineMovements } from '../documents/document-goods-receipt-sync.util';
@@ -148,48 +148,55 @@ export class StoreSalesService {
         // rifarlo li scollegherebbe da ciò che l'operatore legge.
         // La serie e' opzionale nello schema: `defaultCounterSeries` puo' non
         // trovarne una, ed e' un caso legittimo — non si forza a stringa.
-        let nuovaNumerazione: { series: string | null; number: number } | null = null;
+        let nuovaNumerazione: { series: string | null; number: number; reference: string } | null =
+          null;
         if (!existing) {
-          // ⛔ La SEDE, quarto argomento (T7A). Senza, il filtro dei contatori
-          // resta `OR: [{ locationId: null }]` e il banco vede solo le serie
-          // SENZA sede: un contatore legato al negozio — anche marcato
-          // predefinito — non verrebbe mai scelto. È la regola §1-bis, «vale
-          // anche in assegnazione, non solo in tendina», chiusa il 13/08 per gli
-          // altri tipi e mai agganciata qui.
+          // ⛔ Serie, STESSA semantica di ogni altro documento (T8A): assente =
+          // «decidi tu», e la sede entra nella scelta (§1-bis); stringa vuota =
+          // «Senza serie», che è una SCELTA e scavalca il predefinito. La
+          // distinzione non è formale — collassarla rimette in produzione il
+          // difetto per cui «Senza serie» usciva sotto la serie predefinita,
+          // magari di un'altra sede.
           //
-          // ⚠️ Non partiziona il progressivo (`docs/04` §1): decide QUALI serie
-          // sono disponibili, non quale numero esce.
-          const series = await defaultCounterSeries(
-            tx,
-            tenantId,
-            DocumentType.store_sale,
-            dto.locationId,
-          );
-          // Due casse che battono nello stesso istante leggono lo stesso massimo e
-          // una delle due si becca il vincolo unico a scontrino finito: il lock
-          // transazionale le serializza. Va preso PRIMA di leggere il massimo.
-          await lockDocumentCounter(tx, { tenantId, type: DocumentType.store_sale, series });
-          const number = await nextDocumentNumber({
+          // ⚠️ La normalizzazione passa da `serieCanonica`, non da una copia a
+          // mano: il suo docblock conta DODICI punti che l'avevano riscritta, ed
+          // è la ragione per cui la regola era diventata cieca sulla partizione
+          // più usata. Aggiungerne una tredicesima qui sarebbe il contrario di
+          // riusare il contratto comune.
+          const series =
+            dto.series !== undefined
+              ? serieCanonica(dto.series)
+              : await defaultCounterSeries(tx, tenantId, DocumentType.store_sale, dto.locationId);
+          const requestedNumber = dto.number && dto.number > 0 ? dto.number : null;
+          if (requestedNumber == null) {
+            // Due casse che battono nello stesso istante leggono lo stesso
+            // massimo e una si becca il vincolo unico a scontrino finito: il
+            // lock transazionale le serializza, PRIMA della lettura.
+            //
+            // ⚠️ Un numero IMPOSTO non passa di qui: non legge alcun massimo, e
+            // serializzare due operatori che hanno già scelto il proprio numero
+            // li farebbe aspettare per niente. Lì il conflitto è l'informazione
+            // utile, non un incidente da prevenire.
+            await lockDocumentCounter(tx, { tenantId, type: DocumentType.store_sale, series });
+          }
+          // Numero e riferimento dal motore comune: sceglie fra imposto e primo
+          // libero, e formatta il riferimento. Un numero imposto NON sposta il
+          // progressivo — i successivi ripartono dal massimo esistente + 1.
+          const assigned = await resolveDocumentNumber({
             tx,
             tenantId,
             type: DocumentType.store_sale,
             series,
             source: 'document',
-            // ⛔ La DATA, ed è il perno della regola del §2: la proposta è il
-            // primo libero DOPO i documenti di data anteriore. Omettendola si
-            // ricade su oggi, e una vendita registrata stamattina per ieri
-            // prendeva un numero calcolato sul giorno sbagliato.
+            prefix: setting.numberPrefix,
+            requestedNumber,
+            // ⛔ La DATA è il perno della regola del §2: il primo libero DOPO i
+            // documenti di data anteriore. Omettendola si ricade su oggi.
             documentDate,
           });
-          nuovaNumerazione = { series, number };
+          nuovaNumerazione = { series, number: assigned.number, reference: assigned.reference };
         }
-        const reference =
-          existing?.reference ??
-          formatDocumentReference(
-            setting.numberPrefix,
-            nuovaNumerazione!.series,
-            nuovaNumerazione!.number,
-          );
+        const reference = existing?.reference ?? nuovaNumerazione!.reference;
 
         const existingLinesById = new Map((existing?.lines ?? []).map((line) => [line.id, line]));
         const existingVatById = new Map(
@@ -367,6 +374,8 @@ export class StoreSalesService {
         DocumentType.store_sale,
         dto.locationId,
         documentDate,
+        dto.series,
+        dto.number && dto.number > 0 ? dto.number : null,
       );
       // Non era un conflitto di numero: l'errore originale prosegue intatto.
       throw error;
@@ -505,39 +514,38 @@ export class StoreSalesService {
     try {
       created = await this.prisma.$transaction(async (tx) => {
         const year = documentDate.getFullYear();
-        let nuovaNumerazione: { series: string | null; number: number } | null = null;
+        let nuovaNumerazione: { series: string | null; number: number; reference: string } | null =
+          null;
         if (!existing) {
-          // Sede e data come sulla Vendita (T7A): stesso contratto, stesso
-          // motore — vedi i commenti in `createSale`. Il Reso ha un contatore
-          // PROPRIO (`store_return` non condivide il numeratore con nessuno:
-          // l'unica deroga è la famiglia fattura), ma le regole di scelta della
-          // serie e di proposta del numero sono le stesse.
-          const series = await defaultCounterSeries(
-            tx,
-            tenantId,
-            DocumentType.store_return,
-            dto.locationId,
-          );
-          // Come la vendita: il contatore dei resi è condiviso fra le casse, e il
-          // lock transazionale serializza chi lo legge. Prima della lettura.
-          await lockDocumentCounter(tx, { tenantId, type: DocumentType.store_return, series });
-          const number = await nextDocumentNumber({
+          // Identico alla Vendita, riga per riga: stesso contratto, stesso
+          // motore comune, stessa semantica di `series` e del numero imposto —
+          // vedi i commenti in `createSale`.
+          //
+          // ⚠️ Il blocco è ripetuto invece che estratto, come nell'Arrivo merce
+          // che lo porta due volte (`:514` e `:1099`): un helper qui sarebbe un
+          // motore di numerazione del banco, cioè la cosa da non avere. Se un
+          // giorno si estrarrà, andrà estratto per TUTTI i servizi numerati.
+          const series =
+            dto.series !== undefined
+              ? serieCanonica(dto.series)
+              : await defaultCounterSeries(tx, tenantId, DocumentType.store_return, dto.locationId);
+          const requestedNumber = dto.number && dto.number > 0 ? dto.number : null;
+          if (requestedNumber == null) {
+            await lockDocumentCounter(tx, { tenantId, type: DocumentType.store_return, series });
+          }
+          const assigned = await resolveDocumentNumber({
             tx,
             tenantId,
             type: DocumentType.store_return,
             series,
             source: 'document',
+            prefix: setting.numberPrefix,
+            requestedNumber,
             documentDate,
           });
-          nuovaNumerazione = { series, number };
+          nuovaNumerazione = { series, number: assigned.number, reference: assigned.reference };
         }
-        const reference =
-          existing?.reference ??
-          formatDocumentReference(
-            setting.numberPrefix,
-            nuovaNumerazione!.series,
-            nuovaNumerazione!.number,
-          );
+        const reference = existing?.reference ?? nuovaNumerazione!.reference;
 
         const existingLinesById = new Map((existing?.lines ?? []).map((line) => [line.id, line]));
         const existingVatById = new Map(
@@ -731,6 +739,8 @@ export class StoreSalesService {
         DocumentType.store_return,
         dto.locationId,
         documentDate,
+        dto.series,
+        dto.number && dto.number > 0 ? dto.number : null,
       );
       throw error;
     }
@@ -798,13 +808,14 @@ export class StoreSalesService {
    * È l'avvertimento che l'Arrivo merce porta scritto dal 13/08: calcolare il
    * «prossimo libero» su una partizione diversa da quella su cui si è appena
    * numerato propone all'operatore un numero che gli darebbe un SECONDO
-   * conflitto. Qui la serie è sempre automatica — i DTO del banco non hanno il
-   * campo — quindi si ripassa sempre da `defaultCounterSeries` con la sede.
+   * conflitto. Da T8A la serie può arrivare dalla testata, quindi qui si ripete
+   * lo stesso ramo binario del salvataggio — dichiarata la si usa, assente la
+   * si risolve dal contatore.
    *
-   * ⚠️ `requestedNumber` è `null` perché oggi l'operatore non può imporre un
-   * numero dal banco. Quando T8A aggiungerà `number` al DTO, qui andrà
-   * `dto.number ?? null`: senza, l'avviso nominerebbe un numero che nessuno ha
-   * digitato.
+   * ⚠️ `requestedNumber` è il numero che l'operatore ha IMPOSTO. Assente resta
+   * `null`, e il payload non nomina nessun numero: quello assegnato d'ufficio è
+   * andato perso col rollback, e inventarne uno significherebbe parlare
+   * all'operatore di una cifra che non ha digitato.
    */
   private async throwStoreNumberConflict(
     error: unknown,
@@ -812,12 +823,17 @@ export class StoreSalesService {
     type: DocumentType,
     locationId: string,
     documentDate: Date,
+    declaredSeries: string | undefined,
+    requestedNumber: number | null,
   ): Promise<void> {
     if (!isDocumentNumberConflict(error)) {
       return;
     }
     const setting = await this.settings.getResolved(tenantId, type);
-    const series = await defaultCounterSeries(this.prisma, tenantId, type, locationId);
+    const series =
+      declaredSeries !== undefined
+        ? serieCanonica(declaredSeries)
+        : await defaultCounterSeries(this.prisma, tenantId, type, locationId);
     throw new ConflictException(
       await buildDocumentNumberConflict({
         tx: this.prisma,
@@ -826,7 +842,7 @@ export class StoreSalesService {
         series,
         source: 'document',
         prefix: setting.numberPrefix,
-        requestedNumber: null,
+        requestedNumber,
         // Il primo libero si calcola sulla data del DOCUMENTO (§2), non su
         // oggi: altrimenti l'avviso suggerirebbe il numero giusto per un'altra
         // giornata — lo stesso motivo per cui la data serve in assegnazione.

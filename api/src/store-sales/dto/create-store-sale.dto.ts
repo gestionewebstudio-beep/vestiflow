@@ -96,6 +96,43 @@ export class CreateStoreSaleDto {
   @IsUUID()
   locationId!: string;
 
+  /**
+   * Serie del contatore, **stessa semantica di ogni altro documento** (T8A):
+   *
+   * ```text
+   * assente         → «decidi tu»: il server risolve dal contatore predefinito della sede
+   * stringa vuota   → «Senza serie», che è una SCELTA e scavalca il predefinito
+   * valore          → quella serie (con trim)
+   * ```
+   *
+   * ⛔ «Senza serie» non è un caso speciale della cassa: è uno dei valori del
+   * sistema comune delle serie, e corrisponde a un contatore reale che
+   * `seedDefaults` semina per ogni tipo. Il documento ha comunque sempre il
+   * proprio numero.
+   *
+   * ⚠️ La distinzione fra assente e vuota NON è formale: le maschere mandavano
+   * `series: … || undefined` e chi sceglieva «Senza serie» otteneva il
+   * contrario — il documento usciva sotto la serie predefinita, che poteva
+   * essere di un'altra sede.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  series?: string;
+
+  /**
+   * Numero imposto dalla testata: assente = primo libero della serie, assegnato
+   * dal server dentro la transazione che scrive. Un numero imposto **non sposta
+   * il progressivo**: i documenti successivi ripartono dal massimo esistente+1.
+   *
+   * ⚠️ Non si valida preventivamente: il vincolo unico del database è l'unica
+   * verità, e la collisione torna come `document_number_taken` (T7B).
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  number?: number;
+
   @IsIn(STORE_SALE_PAYMENT_METHODS)
   paymentMethod!: StoreSalePaymentMethod;
 

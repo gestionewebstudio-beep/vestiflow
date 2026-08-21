@@ -128,6 +128,12 @@ interface FakeDb {
    * che nel finto non può scattare da sé.
    */
   failNextDocumentCreate: unknown | null;
+  /**
+   * Quante volte è stato preso il lock del contatore (T8A). In questo percorso
+   * l'unico `$queryRaw` è `lockDocumentCounter`, quindi contarli equivale a
+   * contare i lock — serve a provare che un numero IMPOSTO non passa di lì.
+   */
+  lockCalls: number;
   /** Codice IVA aziendale predefinito (null = nessuna imposta sulle righe). */
   defaultVatCodeId: string | null;
   vatCodes: FakeVatCode[];
@@ -209,6 +215,7 @@ function createDb(): FakeDb {
     idCounter: 0,
     failNextMovementCreate: false,
     failNextDocumentCreate: null,
+    lockCalls: 0,
     defaultVatCodeId: null,
     vatCodes: [],
     counters: [],
@@ -591,7 +598,24 @@ function createFakePrisma(db: FakeDb): PrismaService {
     },
     // Advisory lock sul contatore del documento: nel fake non serializza
     // niente, ma senza la mock la chiamata romperebbe vendita e reso.
-    $queryRaw: () => Promise.resolve([]),
+    /**
+     * ⚠️ In questo percorso i `$queryRaw` sono DUE, non uno: il lock del
+     * contatore e la ricerca del primo numero libero (`primoNumeroLibero`).
+     * Contarli tutti confonderebbe le due cose — misurato: il percorso
+     * automatico ne fa 2, quello col numero imposto 0. Si riconosce il lock dal
+     * testo, così `lockCalls` conta i lock e basta.
+     *
+     * ⚠️ Restituendo `[]` la ricerca del primo libero ripiega su `massimo + 1`:
+     * il finto NON simula i buchi in mezzo alla serie, e i test qui sopra si
+     * appoggiano a quel comportamento.
+     */
+    $queryRaw: (query: unknown) => {
+      const testo = Array.isArray(query) ? (query as string[]).join(' ') : String(query);
+      if (testo.includes('pg_advisory_xact_lock')) {
+        db.lockCalls += 1;
+      }
+      return Promise.resolve([]);
+    },
     $transaction: async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => {
       const snapshot = structuredClone({
         levels: db.levels,
@@ -2381,5 +2405,234 @@ describe('T7B — conflitto sul numero documento', () => {
       ),
     ).resolves.toBeDefined();
     expect(db.documents).toHaveLength(1);
+  });
+});
+
+// ── T8A — numero e serie scelti dall'operatore ────────────────────────────
+//
+// ⛔ Il banco NON ha una gestione propria di numero/serie: entra nel contratto
+// comune, con la stessa semantica di ogni altro documento.
+//
+//   series assente        → «decidi tu»: il server risolve dal contatore della sede
+//   series stringa vuota  → «Senza serie», SCELTA, e scavalca il predefinito
+//   series con valore     → quella serie, con trim
+//   number assente        → primo libero, assegnato dal server nella transazione
+//   number presente       → imposto, e NON sposta il progressivo
+//
+// ⚠️ «Senza serie» non è un caso speciale della cassa: è uno dei valori del
+// sistema comune, e corrisponde a un contatore reale. Il documento ha comunque
+// sempre il proprio numero.
+describe('T8A — numero e serie dalla testata', () => {
+  const contatore = (over: Partial<FakeCounter> = {}): FakeCounter => ({
+    tenantId: TENANT,
+    type: DocumentType.store_sale,
+    series: null,
+    locationId: null,
+    isDefault: false,
+    ...over,
+  });
+
+  const vendita = (db: FakeDb, dto: Record<string, unknown>) => {
+    const { service } = createService(db);
+    return service.createSale(
+      TENANT,
+      {
+        locationId: LOCATION,
+        paymentMethod: 'cash',
+        lines: [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }],
+        ...dto,
+      } as never,
+      user,
+    );
+  };
+
+  /** Documento già a registro, per dare al contatore un massimo da leggere. */
+  const esistente = (numero: number, type = DocumentType.store_sale) => ({
+    id: `doc-${numero}`,
+    tenantId: TENANT,
+    type,
+    status: DocumentStatus.confirmed,
+    reference: `X-${numero}`,
+    documentDate: new Date('2026-08-01T00:00:00.000Z'),
+    totalMinor: 0,
+    currency: 'EUR',
+    customerName: null,
+    locationId: LOCATION,
+    paymentMethod: 'cash',
+    sourceDocumentId: null,
+    internalComment: null,
+    createdAt: new Date('2026-08-01T00:00:00.000Z'),
+    lines: [],
+    number: numero,
+    series: null,
+  });
+
+  describe('la serie', () => {
+    it('assente → la sceglie il server dal contatore predefinito', async () => {
+      const db = createDb();
+      db.counters = [contatore({ series: 'NEG', isDefault: true })];
+      await vendita(db, {});
+      expect(db.documents[0]!.series).toBe('NEG');
+    });
+
+    it('⭐ stringa VUOTA → «Senza serie», e SCAVALCA il predefinito', async () => {
+      const db = createDb();
+      // Il predefinito è NEG: mandando la stringa vuota l'operatore dice
+      // «Senza serie», e quella scelta deve valere. Prima del contratto comune
+      // le maschere mandavano `series || undefined` e ottenevano NEG — cioè
+      // esattamente il contrario di quello che avevano scelto.
+      db.counters = [contatore({ series: 'NEG', isDefault: true }), contatore({ series: null })];
+      await vendita(db, { series: '' });
+      expect(db.documents[0]!.series).toBeNull();
+    });
+
+    it('con valore → quella serie', async () => {
+      const db = createDb();
+      db.counters = [contatore({ series: 'NEG', isDefault: true })];
+      await vendita(db, { series: 'B' });
+      expect(db.documents[0]!.series).toBe('B');
+    });
+
+    it('di soli spazi → «Senza serie», non una serie fatta di spazi', async () => {
+      const db = createDb();
+      db.counters = [contatore({ series: 'NEG', isDefault: true })];
+      await vendita(db, { series: '   ' });
+      expect(db.documents[0]!.series).toBeNull();
+    });
+  });
+
+  describe('il numero', () => {
+    it('assente → primo libero della serie', async () => {
+      const db = createDb();
+      db.documents = [esistente(43)] as never;
+      await vendita(db, { documentDate: '2026-08-20T00:00:00.000Z' });
+      expect(db.documents[db.documents.length - 1]!.number).toBe(44);
+    });
+
+    it('⭐ imposto → si usa quello, anche se lascia un buco davanti', async () => {
+      const db = createDb();
+      db.documents = [esistente(43)] as never;
+      // L'operatore digita 7 per tappare un buco in mezzo alla serie.
+      await vendita(db, { number: 7, documentDate: '2026-08-20T00:00:00.000Z' });
+      const nuovo = db.documents[db.documents.length - 1]!;
+      expect(nuovo.number).toBe(7);
+      // Il riferimento segue il numero imposto, non la proposta.
+      expect(nuovo.reference).toContain('7');
+    });
+
+    it('⭐ un numero imposto NON sposta il progressivo', async () => {
+      const db = createDb();
+      db.documents = [esistente(43)] as never;
+      await vendita(db, { number: 7, documentDate: '2026-08-20T00:00:00.000Z' });
+      await vendita(db, { documentDate: '2026-08-21T00:00:00.000Z' });
+      // 44, non 8: il 7 ha tappato un buco e non ha toccato il progressivo.
+      expect(db.documents[db.documents.length - 1]!.number).toBe(44);
+    });
+
+    it('⭐ un numero imposto NON prende il lock del contatore', async () => {
+      const db = createDb();
+      await vendita(db, { number: 7 });
+      // Il lock serializza chi LEGGE il massimo. Chi ha già scelto il proprio
+      // numero non legge niente, e aspettare gli altri sarebbe tempo perso: lì
+      // il conflitto è l'informazione utile, non un incidente da prevenire.
+      expect(db.lockCalls).toBe(0);
+    });
+
+    it('senza numero imposto il lock si prende, come prima', async () => {
+      const db = createDb();
+      await vendita(db, {});
+      expect(db.lockCalls).toBe(1);
+    });
+  });
+
+  describe('il conflitto nomina il numero giusto', () => {
+    const numeroGiaPreso = {
+      code: 'P2002',
+      meta: { modelName: 'Document', target: ['tenant_id,'] },
+    };
+
+    it('⭐ numero IMPOSTO in conflitto: il payload nomina QUEL numero', async () => {
+      const db = createDb();
+      db.counters = [contatore({ series: 'NEG', isDefault: true })];
+      db.failNextDocumentCreate = numeroGiaPreso;
+
+      const errore = await vendita(db, { number: 7, series: 'NEG' }).catch((e: unknown) => e);
+
+      expect((errore as ConflictException).getResponse()).toMatchObject({
+        code: 'document_number_taken',
+        // 7, non il primo libero: è il numero che l'operatore vede in testata.
+        number: 7,
+        series: 'NEG',
+      });
+    });
+
+    it('numero d’ufficio in conflitto: non se ne inventa uno', async () => {
+      const db = createDb();
+      db.failNextDocumentCreate = numeroGiaPreso;
+
+      const errore = await vendita(db, {}).catch((e: unknown) => e);
+
+      expect((errore as ConflictException).getResponse()).toMatchObject({
+        code: 'document_number_taken',
+        // Il numero assegnato d'ufficio è andato perso col rollback: nominarne
+        // uno significherebbe parlare di una cifra che nessuno ha digitato.
+        number: null,
+      });
+    });
+
+    it('⭐ la serie del conflitto segue la scelta, non il predefinito', async () => {
+      const db = createDb();
+      // Predefinito NEG, ma l'operatore ha scelto «Senza serie».
+      db.counters = [contatore({ series: 'NEG', isDefault: true }), contatore({ series: null })];
+      db.failNextDocumentCreate = numeroGiaPreso;
+
+      const errore = await vendita(db, { series: '' }).catch((e: unknown) => e);
+
+      // Se qui uscisse NEG, il «primo libero» sarebbe calcolato sulla
+      // partizione sbagliata e l'operatore riceverebbe un SECONDO conflitto.
+      expect((errore as ConflictException).getResponse()).toMatchObject({ series: null });
+    });
+  });
+
+  describe('il Reso ha la stessa semantica', () => {
+    const reso = (db: FakeDb, dto: Record<string, unknown>) => {
+      const { service } = createService(db);
+      return service.createReturn(
+        TENANT,
+        {
+          locationId: LOCATION,
+          lines: [{ variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 1000 }],
+          ...dto,
+        } as never,
+        user,
+      );
+    };
+
+    it('stringa vuota → «Senza serie», scavalcando il predefinito', async () => {
+      const db = createDb();
+      db.counters = [
+        contatore({ type: DocumentType.store_return, series: 'RES', isDefault: true }),
+        contatore({ type: DocumentType.store_return, series: null }),
+      ];
+      await reso(db, { series: '' });
+      expect(db.documents[0]!.series).toBeNull();
+    });
+
+    it('numero imposto → si usa quello, e non prende il lock', async () => {
+      const db = createDb();
+      await reso(db, { number: 9 });
+      expect(db.documents[0]!.number).toBe(9);
+      expect(db.lockCalls).toBe(0);
+    });
+
+    it('⛔ il Reso NON pesca dal contatore della Vendita: due tipi, due contatori', async () => {
+      const db = createDb();
+      // Una vendita col n. 43 non deve influenzare il numero del reso.
+      db.documents = [esistente(43, DocumentType.store_sale)] as never;
+
+      await reso(db, { documentDate: '2026-08-20T00:00:00.000Z' });
+      // 1, non 44: il contatore del Reso è vuoto.
+      expect(db.documents[db.documents.length - 1]!.number).toBe(1);
+    });
   });
 });

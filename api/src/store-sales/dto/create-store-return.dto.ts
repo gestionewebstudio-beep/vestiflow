@@ -141,6 +141,28 @@ export class CreateStoreReturnDto {
   @IsUUID()
   locationId!: string;
 
+  /**
+   * Serie del contatore, **identica alla Vendita e a ogni altro documento**
+   * (T8A): assente = «decidi tu»; stringa vuota = «Senza serie», che è una
+   * scelta e scavalca il predefinito; valore = quella serie.
+   *
+   * ⚠️ Il Reso ha un contatore PROPRIO (`store_return` non condivide il
+   * numeratore con nessuno), ma le regole di scelta della serie sono le stesse.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  series?: string;
+
+  /**
+   * Numero imposto dalla testata: assente = primo libero della serie. Stessa
+   * semantica della Vendita — vedi `CreateStoreSaleDto.number`.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  number?: number;
+
   /** Causale del reso (obbligatoria: nessun carico silenzioso). */
   /**
    * ⚠️ Il campo è rimasto per compatibilità di chiamata ma **non è più
