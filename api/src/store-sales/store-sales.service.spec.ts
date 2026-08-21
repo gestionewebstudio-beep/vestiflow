@@ -1168,8 +1168,8 @@ describe('StoreSalesService (fase 3 §12)', () => {
   });
 
   it('⭐ risalvataggio con una data NUOVA: si scrive, e il riferimento non cambia', async () => {
-    // La data è modificabile anche dopo la conclusione: correggerla non è
-    // rinumerare, e numero e serie si assegnano solo alla nascita.
+    // La data è modificabile anche dopo la conclusione, e correggerla non è
+    // rinumerare: senza dichiarare numero o serie restano quelli del documento.
     const db = createDb();
     const primo = await vendita(db, [{ variantId: VARIANT_A, quantity: 2, unitPriceMinor: 2990 }]);
     const doc = db.documents[0]!;
@@ -1191,6 +1191,62 @@ describe('StoreSalesService (fase 3 §12)', () => {
     // tecnico di quando la scrittura è avvenuta, e un documento datato prima di
     // quando è stato registrato è una situazione legittima.
     expect(db.movements[0]!.createdAt).toEqual(createdAtPrima);
+  });
+
+
+  // ── Numero e serie in MODIFICA: il contratto comune, non un'eccezione ─────
+  //
+  // ⛔ Il banco li congelava dopo la nascita (`if (!existing)`), e li rifiutava
+  // **in silenzio**: la maschera avrebbe mostrato due campi che non
+  // modificavano niente. Ritirato dal proprietario il 21/08/2026 — Vendita e
+  // Reso seguono lo stesso contratto degli altri documenti anche in modifica.
+
+  it('⭐ numero DICHIARATO in modifica: si scrive, e il riferimento lo segue', async () => {
+    const db = createDb();
+    const { service } = createService(db);
+    await vendita(db, [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }]);
+    const doc = db.documents[0]!;
+
+    const secondo = await service.createSale(
+      TENANT,
+      {
+        id: doc.id,
+        locationId: LOCATION,
+        number: 77,
+        lines: [{ id: doc.lines[0]!.id, variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }],
+      } as never,
+      user,
+    );
+
+    expect(db.documents[0]!.number).toBe(77);
+    expect(secondo.reference).toContain('77');
+    // ⚠️ La causale del movimento porta il riferimento: se restasse quello
+    // vecchio, il registro nominerebbe un documento che non esiste più.
+    expect(db.movements[0]!.reason).toContain(secondo.reference);
+  });
+
+  it('⭐ SERIE dichiarata in modifica: il riferimento la nomina, il numero resta', async () => {
+    const db = createDb();
+    const { service } = createService(db);
+    await vendita(db, [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }]);
+    const doc = db.documents[0]!;
+
+    const secondo = await service.createSale(
+      TENANT,
+      {
+        id: doc.id,
+        locationId: LOCATION,
+        series: 'B',
+        lines: [{ id: doc.lines[0]!.id, variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }],
+      } as never,
+      user,
+    );
+
+    expect(db.documents[0]!.series).toBe('B');
+    expect(db.documents[0]!.number).toBe(doc.number);
+    // Il riferimento si rifà anche cambiando la sola serie: lo dice
+    // (`PREFISSO-SERIE-NUMERO`), e resterebbe altrimenti a nominare la vecchia.
+    expect(secondo.reference).toContain('B');
   });
 
   // ── Netto/ivato: contratto comune, nessun forcing (`11` A4) ──────────────
@@ -1794,6 +1850,35 @@ describe('StoreSalesService (fase 3 §12)', () => {
     expect(db.documents[0]!.number).toBe(doc.number);
     expect(db.documents[0]!.documentDate).toEqual(doc.documentDate);
     expect(db.documents).toHaveLength(1);
+  });
+
+  it('⭐ ma un numero DICHIARATO si scrive anche sul reso: stesso contratto comune', async () => {
+    const db = createDb();
+    const { service } = createService(db);
+    await reso(db, [{ variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 2990 }]);
+    const doc = db.documents[0]!;
+
+    const secondo = await service.createReturn(
+      TENANT,
+      {
+        id: doc.id,
+        locationId: LOCATION,
+        number: 91,
+        lines: [
+          {
+            id: doc.lines[0]!.id,
+            variantId: VARIANT_A,
+            quantity: 1,
+            restockable: true,
+            unitPriceMinor: 2990,
+          },
+        ],
+      } as never,
+      user,
+    );
+
+    expect(db.documents[0]!.number).toBe(91);
+    expect(secondo.reference).toContain('91');
   });
 });
 

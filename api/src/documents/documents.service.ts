@@ -95,6 +95,7 @@ import {
   isDocumentNumberConflict,
   lockDocumentCounter,
   nextDocumentNumber,
+  resolveEditedDocumentNumbering,
 } from './document-numbering.util';
 import { formatDocumentReference } from './document-totals.util';
 import {
@@ -1580,10 +1581,20 @@ export class DocumentsService {
       this.assertStockTransferDocument(mergedLinesForValidation(doc));
     }
 
-    const effectiveSeries =
-      dto.series !== undefined ? (dto.series ?? '').trim() || null : doc.series;
+    // Numero e serie in modifica: il contratto vive in UNA funzione comune
+    // (`resolveEditedDocumentNumbering`), estratta da qui il 21/08/2026 perché
+    // la Vendita e il Reso al banco dovevano applicare questo e non una copia.
+    const numberingType = documentNumberingType(doc.type);
+    const numberingSetting =
+      numberingType === doc.type ? setting : await this.settings.getResolved(tenantId, numberingType);
+    const numerazione = resolveEditedDocumentNumbering({
+      declaredSeries: dto.series,
+      declaredNumber: dto.number,
+      current: { series: doc.series, number: doc.number },
+      prefix: numberingSetting.numberPrefix,
+    });
     const data: Prisma.DocumentUncheckedUpdateInput = {
-      series: effectiveSeries,
+      series: numerazione.series,
       documentDate,
       year: documentDate.getFullYear(),
       supplierId: dto.supplierId !== undefined ? dto.supplierId : doc.supplierId,
@@ -1669,34 +1680,11 @@ export class DocumentsService {
       data.documentDiscountPercent = dto.documentDiscountPercent;
     }
 
-    // Numero imposto in testata: si riscrive solo quando cambia davvero, così
-    // un salvataggio che non tocca il numero non rischia il vincolo unico.
-    //
-    // Il RIFERIMENTO però va rifatto anche quando cambia la sola serie: il
-    // riferimento la nomina (`PREFISSO-SERIE-NUMERO`), quindi spostando un
-    // documento dalla serie A alla B con lo stesso numero resterebbe scritto
-    // «FT-A-0007» su un documento che ormai è della serie B — l'elenco e la
-    // stampa direbbero una cosa che la colonna `series` smentisce.
-    const numberChanged = dto.number !== undefined && dto.number !== doc.number;
-    const seriesChanged = effectiveSeries !== doc.series;
-    if (numberChanged || seriesChanged) {
-      const numberingType = documentNumberingType(doc.type);
-      const numberingSetting =
-        numberingType === doc.type
-          ? setting
-          : await this.settings.getResolved(tenantId, numberingType);
-      const effectiveNumber = numberChanged ? (dto.number ?? null) : doc.number;
-      if (numberChanged) {
-        data.number = dto.number;
-      }
-      // Senza numero non c'è riferimento da comporre (documento non numerato).
-      if (effectiveNumber !== null) {
-        data.reference = this.formatReference(
-          numberingSetting.numberPrefix,
-          effectiveSeries,
-          effectiveNumber,
-        );
-      }
+    if (numerazione.numberChanged) {
+      data.number = numerazione.number;
+    }
+    if (numerazione.reference !== null) {
+      data.reference = numerazione.reference;
     }
 
     // Il documento della controparte non passa più da qui (12/08/2026): questi

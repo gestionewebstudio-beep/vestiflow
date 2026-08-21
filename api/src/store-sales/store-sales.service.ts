@@ -23,6 +23,7 @@ import {
   isDocumentNumberConflict,
   lockDocumentCounter,
   resolveDocumentNumber,
+  resolveEditedDocumentNumbering,
   serieCanonica,
 } from '../documents/document-numbering.util';
 import { persistDocumentLinesByIdTx } from '../documents/document-line-upsert.util';
@@ -322,14 +323,46 @@ export class StoreSalesService {
           });
         }
         const year = documentDate.getFullYear();
-        // Numero e serie si assegnano SOLO alla nascita. In modifica restano
-        // quelli: il riferimento è dentro la causale dei movimenti già scritti, e
-        // rifarlo li scollegherebbe da ciò che l'operatore legge.
-        // La serie e' opzionale nello schema: `defaultCounterSeries` puo' non
-        // trovarne una, ed e' un caso legittimo — non si forza a stringa.
-        let nuovaNumerazione: { series: string | null; number: number; reference: string } | null =
-          null;
-        if (!existing) {
+        // Numero e serie: alla nascita li assegna il motore comune; in modifica
+        // vale il **contratto comune degli altri documenti** — dichiarati, si
+        // scrivono; non dichiarati, restano quelli.
+        //
+        // ⛔ Qui c'era «si assegnano SOLO alla nascita, in modifica restano
+        // quelli»: il banco rifiutava **in silenzio** il numero e la serie
+        // dichiarati, e la maschera nuova avrebbe mostrato due campi che non
+        // modificavano niente. Ritirato dal proprietario il 21/08/2026 —
+        // Vendita e Reso seguono il contratto comune anche in modifica, e
+        // `resolveEditedDocumentNumbering` è quello, non una copia.
+        //
+        // ⚠️ La causale dei movimenti porta il RIFERIMENTO, ed è la ragione per
+        // cui si ricompone qui, **prima** della sincronizzazione: cambiando
+        // numero, sui movimenti resterebbe scritto quello vecchio — che il
+        // documento non porta più.
+        let numerazione: {
+          series: string | null;
+          number: number | null;
+          reference: string;
+          /** Numero o serie sono cambiati: solo allora le colonne si riscrivono. */
+          write: boolean;
+          numberChanged: boolean;
+        };
+        if (existing) {
+          const edit = resolveEditedDocumentNumbering({
+            declaredSeries: dto.series,
+            declaredNumber: dto.number,
+            current: { series: existing.series, number: existing.number },
+            prefix: setting.numberPrefix,
+          });
+          numerazione = {
+            series: edit.series,
+            number: edit.number,
+            reference: edit.reference ?? existing.reference ?? '',
+            write: edit.changed,
+            numberChanged: edit.numberChanged,
+          };
+        } else {
+          // La serie e' opzionale nello schema: `defaultCounterSeries` puo' non
+          // trovarne una, ed e' un caso legittimo — non si forza a stringa.
           // ⛔ Serie, STESSA semantica di ogni altro documento (T8A): assente =
           // «decidi tu», e la sede entra nella scelta (§1-bis); stringa vuota =
           // «Senza serie», che è una SCELTA e scavalca il predefinito. La
@@ -373,9 +406,15 @@ export class StoreSalesService {
             // documenti di data anteriore. Omettendola si ricade su oggi.
             documentDate,
           });
-          nuovaNumerazione = { series, number: assigned.number, reference: assigned.reference };
+          numerazione = {
+            series,
+            number: assigned.number,
+            reference: assigned.reference,
+            write: true,
+            numberChanged: true,
+          };
         }
-        const reference = existing?.reference ?? nuovaNumerazione!.reference;
+        const reference = numerazione.reference;
 
         const existingLinesById = new Map((existing?.lines ?? []).map((line) => [line.id, line]));
         const existingVatById = new Map(
@@ -499,7 +538,18 @@ export class StoreSalesService {
           });
           doc = await tx.document.update({
             where: { id: existing.id },
-            data: header,
+            data: {
+              ...header,
+              // Solo quando cambiano davvero: un risalvataggio che non tocca il
+              // numero non deve rischiare il vincolo unico.
+              ...(numerazione.write
+                ? {
+                    series: numerazione.series,
+                    ...(numerazione.numberChanged ? { number: numerazione.number } : {}),
+                    reference: numerazione.reference,
+                  }
+                : {}),
+            },
             include: { lines: { orderBy: { lineNumber: 'asc' } } },
           });
         } else {
@@ -509,8 +559,8 @@ export class StoreSalesService {
               type: DocumentType.store_sale,
               // Creato già confermato: la cassa non ha bozze (§7).
               status: DocumentStatus.confirmed,
-              series: nuovaNumerazione!.series,
-              number: nuovaNumerazione!.number,
+              series: numerazione.series,
+              number: numerazione.number,
               year,
               reference,
               // La data la porta `header`; `registrationDate` no: dice quando il
@@ -593,8 +643,12 @@ export class StoreSalesService {
         DocumentType.store_sale,
         dto.locationId,
         documentDate,
-        dto.series,
-        dto.number && dto.number > 0 ? dto.number : null,
+        // In modifica il numero tentato è quello imposto dalla testata oppure,
+        // se non la tocca, quello che il documento ha già: un cambio di sola
+        // serie basta a farlo collidere nella serie nuova. Stessa lettura del
+        // percorso generico.
+        existing ? (dto.series ?? existing.series) : dto.series,
+        existing ? (dto.number ?? existing.number) : (dto.number && dto.number > 0 ? dto.number : null),
       );
       // Non era né un intento né un conflitto di numero: l'errore prosegue.
       throw error;
@@ -793,9 +847,44 @@ export class StoreSalesService {
           });
         }
         const year = documentDate.getFullYear();
-        let nuovaNumerazione: { series: string | null; number: number; reference: string } | null =
-          null;
-        if (!existing) {
+        // Numero e serie: alla nascita li assegna il motore comune; in modifica
+        // vale il **contratto comune degli altri documenti** — dichiarati, si
+        // scrivono; non dichiarati, restano quelli.
+        //
+        // ⛔ Qui c'era «si assegnano SOLO alla nascita, in modifica restano
+        // quelli»: il banco rifiutava **in silenzio** il numero e la serie
+        // dichiarati, e la maschera nuova avrebbe mostrato due campi che non
+        // modificavano niente. Ritirato dal proprietario il 21/08/2026 —
+        // Vendita e Reso seguono il contratto comune anche in modifica, e
+        // `resolveEditedDocumentNumbering` è quello, non una copia.
+        //
+        // ⚠️ La causale dei movimenti porta il RIFERIMENTO, ed è la ragione per
+        // cui si ricompone qui, **prima** della sincronizzazione: cambiando
+        // numero, sui movimenti resterebbe scritto quello vecchio — che il
+        // documento non porta più.
+        let numerazione: {
+          series: string | null;
+          number: number | null;
+          reference: string;
+          /** Numero o serie sono cambiati: solo allora le colonne si riscrivono. */
+          write: boolean;
+          numberChanged: boolean;
+        };
+        if (existing) {
+          const edit = resolveEditedDocumentNumbering({
+            declaredSeries: dto.series,
+            declaredNumber: dto.number,
+            current: { series: existing.series, number: existing.number },
+            prefix: setting.numberPrefix,
+          });
+          numerazione = {
+            series: edit.series,
+            number: edit.number,
+            reference: edit.reference ?? existing.reference ?? '',
+            write: edit.changed,
+            numberChanged: edit.numberChanged,
+          };
+        } else {
           // Identico alla Vendita, riga per riga: stesso contratto, stesso
           // motore comune, stessa semantica di `series` e del numero imposto —
           // vedi i commenti in `createSale`.
@@ -822,9 +911,15 @@ export class StoreSalesService {
             requestedNumber,
             documentDate,
           });
-          nuovaNumerazione = { series, number: assigned.number, reference: assigned.reference };
+          numerazione = {
+            series,
+            number: assigned.number,
+            reference: assigned.reference,
+            write: true,
+            numberChanged: true,
+          };
         }
-        const reference = existing?.reference ?? nuovaNumerazione!.reference;
+        const reference = numerazione.reference;
 
         const existingLinesById = new Map((existing?.lines ?? []).map((line) => [line.id, line]));
         const existingVatById = new Map(
@@ -956,7 +1051,18 @@ export class StoreSalesService {
           });
           doc = await tx.document.update({
             where: { id: existing.id },
-            data: header,
+            data: {
+              ...header,
+              // Solo quando cambiano davvero: un risalvataggio che non tocca il
+              // numero non deve rischiare il vincolo unico.
+              ...(numerazione.write
+                ? {
+                    series: numerazione.series,
+                    ...(numerazione.numberChanged ? { number: numerazione.number } : {}),
+                    reference: numerazione.reference,
+                  }
+                : {}),
+            },
             include: { lines: { orderBy: { lineNumber: 'asc' } } },
           });
         } else {
@@ -965,8 +1071,8 @@ export class StoreSalesService {
               tenantId,
               type: DocumentType.store_return,
               status: DocumentStatus.confirmed,
-              series: nuovaNumerazione!.series,
-              number: nuovaNumerazione!.number,
+              series: numerazione.series,
+              number: numerazione.number,
               year,
               reference,
               // La data la porta `header`; `registrationDate` no: dice quando il
@@ -1040,8 +1146,10 @@ export class StoreSalesService {
         DocumentType.store_return,
         dto.locationId,
         documentDate,
-        dto.series,
-        dto.number && dto.number > 0 ? dto.number : null,
+        // Vedi `createSale`: in modifica vale il numero che il documento
+        // avrebbe dopo il salvataggio.
+        existing ? (dto.series ?? existing.series) : dto.series,
+        existing ? (dto.number ?? existing.number) : (dto.number && dto.number > 0 ? dto.number : null),
       );
       throw error;
     }
@@ -1135,7 +1243,8 @@ export class StoreSalesService {
     type: DocumentType,
     locationId: string,
     documentDate: Date,
-    declaredSeries: string | undefined,
+    /** `undefined` = «decidi tu» (creazione); `null` = senza serie. */
+    declaredSeries: string | null | undefined,
     requestedNumber: number | null,
   ): Promise<void> {
     if (!isDocumentNumberConflict(error)) {
