@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ConflictException, ForbiddenException } from '@nestjs/common';
 import {
   DocumentStatus,
   DocumentType,
@@ -122,6 +122,12 @@ interface FakeDb {
   sequences: Map<string, number>;
   idCounter: number;
   failNextMovementCreate: boolean;
+  /**
+   * Errore che `document.create` deve lanciare al prossimo tentativo (T7B).
+   * `null` = nessuno. Serve a simulare il P2002 del vincolo unico sul numero,
+   * che nel finto non può scattare da sé.
+   */
+  failNextDocumentCreate: unknown | null;
   /** Codice IVA aziendale predefinito (null = nessuna imposta sulle righe). */
   defaultVatCodeId: string | null;
   vatCodes: FakeVatCode[];
@@ -202,6 +208,7 @@ function createDb(): FakeDb {
     sequences: new Map(),
     idCounter: 0,
     failNextMovementCreate: false,
+    failNextDocumentCreate: null,
     defaultVatCodeId: null,
     vatCodes: [],
     counters: [],
@@ -426,6 +433,12 @@ function createFakePrisma(db: FakeDb): PrismaService {
           lines: { create: Record<string, unknown>[] };
         };
       }) => {
+        // T7B: il vincolo unico sul numero, che nel finto non può scattare.
+        if (db.failNextDocumentCreate) {
+          const errore = db.failNextDocumentCreate;
+          db.failNextDocumentCreate = null;
+          return Promise.reject(errore);
+        }
         db.idCounter += 1;
         const docId = `doc-${db.idCounter}`;
         const lines: FakeDocumentLine[] = data.lines.create.map((line) => {
@@ -2192,5 +2205,181 @@ describe('T7A — sede e data nel calcolo della numerazione', () => {
 
       expect(db.documents[db.documents.length - 1]!.number).toBe(6);
     });
+  });
+});
+
+// ── T7B — il conflitto sul numero: 409 strutturato, non 500 ───────────────
+//
+// ⛔ Il banco era l'UNICO servizio numerato senza questa rete. Gli altri sei —
+// documenti generici, Arrivo merce, Trasferimento/Rettifica, Ordine cliente
+// manuale, Ordine fornitore, Corrispettivo manuale — la avevano già. Qui il
+// P2002 usciva non gestito e il filtro globale lo rendeva un 500 generico:
+// l'operatore leggeva un errore di sistema al posto dell'avviso col primo
+// numero libero.
+//
+// Lo schema è copiato dai precedenti, non reinventato: si intercetta FUORI
+// dalla transazione (che ha già fatto rollback), si riconosce con
+// `isDocumentNumberConflict`, si costruisce il payload col client ROOT, si
+// lancia `ConflictException`.
+describe('T7B — conflitto sul numero documento', () => {
+  /**
+   * La violazione del vincolo unico, nella forma in cui Prisma la manda DAVVERO.
+   *
+   * ⚠️ `target` è un troncone (`['tenant_id,']`), non l'elenco delle colonne:
+   * l'indice è di ESPRESSIONE e Prisma non sa nominarlo. È la ragione per cui
+   * `isDocumentNumberConflict` riconosce il conflitto dal **modello** e non
+   * dalle colonne — cercare la parola «number» in `target` non funzionerebbe.
+   */
+  const numeroGiaPreso = {
+    code: 'P2002',
+    meta: { modelName: 'Document', target: ['tenant_id,'] },
+  };
+
+  /** Un P2002 che NON è di numerazione: SKU duplicato creando un articolo. */
+  const skuDuplicato = {
+    code: 'P2002',
+    meta: { modelName: 'ProductVariant', target: ['tenant_id', 'sku'] },
+  };
+
+  /** Documento già a registro, per dare al contatore un massimo da leggere. */
+  const documentoEsistente = (numero: number, type: DocumentType) => ({
+    id: `doc-${numero}`,
+    tenantId: TENANT,
+    type,
+    status: DocumentStatus.confirmed,
+    reference: `X-${numero}`,
+    documentDate: new Date('2026-08-01T00:00:00.000Z'),
+    totalMinor: 0,
+    currency: 'EUR',
+    customerName: null,
+    locationId: LOCATION,
+    paymentMethod: 'cash',
+    sourceDocumentId: null,
+    internalComment: null,
+    createdAt: new Date('2026-08-01T00:00:00.000Z'),
+    lines: [],
+    number: numero,
+    series: null,
+  });
+
+  it('⭐ Vendita: la collisione dà un errore STRUTTURATO, non generico', async () => {
+    const db = createDb();
+    db.failNextDocumentCreate = numeroGiaPreso;
+    const { service } = createService(db);
+
+    const errore = await service
+      .createSale(
+        TENANT,
+        {
+          locationId: LOCATION,
+          paymentMethod: 'cash',
+          lines: [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }],
+        } as never,
+        user,
+      )
+      .catch((err: unknown) => err);
+
+    expect(errore).toBeInstanceOf(ConflictException);
+    expect((errore as ConflictException).getResponse()).toMatchObject({
+      code: 'document_number_taken',
+      // Nessun numero imposto: il banco non ha ancora il campo, e l'avviso
+      // NON deve inventarne uno che l'operatore non ha digitato.
+      number: null,
+      series: null,
+    });
+  });
+
+  it('⭐ Reso: stesso comportamento', async () => {
+    const db = createDb();
+    db.failNextDocumentCreate = numeroGiaPreso;
+    const { service } = createService(db);
+
+    const errore = await service
+      .createReturn(
+        TENANT,
+        {
+          locationId: LOCATION,
+          lines: [{ variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 1000 }],
+        } as never,
+        user,
+      )
+      .catch((err: unknown) => err);
+
+    expect(errore).toBeInstanceOf(ConflictException);
+    expect((errore as ConflictException).getResponse()).toMatchObject({
+      code: 'document_number_taken',
+      number: null,
+    });
+  });
+
+  it('`nextAvailable` lo calcola il contratto comune, non un conteggio locale', async () => {
+    const db = createDb();
+    // Serie arrivata al 43: il primo libero è il 44, e deve dirlo il motore
+    // condiviso leggendo i documenti veri.
+    db.documents = [documentoEsistente(43, DocumentType.store_sale)] as never;
+    db.failNextDocumentCreate = numeroGiaPreso;
+    const { service } = createService(db);
+
+    const errore = await service
+      .createSale(
+        TENANT,
+        {
+          locationId: LOCATION,
+          paymentMethod: 'cash',
+          // Datata avanti, così il 43 del 1° agosto le sta davvero dietro.
+          documentDate: '2026-08-20T00:00:00.000Z',
+          lines: [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }],
+        } as never,
+        user,
+      )
+      .catch((err: unknown) => err);
+
+    expect((errore as ConflictException).getResponse()).toMatchObject({
+      code: 'document_number_taken',
+      nextAvailable: 44,
+    });
+  });
+
+  it('⛔ un P2002 di ALTRA natura non si traveste da conflitto di numero', async () => {
+    const db = createDb();
+    // Salvando una vendita si possono creare articoli: uno SKU duplicato è un
+    // P2002 su `ProductVariant`, e non c'entra niente col numero documento.
+    db.failNextDocumentCreate = skuDuplicato;
+    const { service } = createService(db);
+
+    const errore = await service
+      .createSale(
+        TENANT,
+        {
+          locationId: LOCATION,
+          paymentMethod: 'cash',
+          lines: [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }],
+        } as never,
+        user,
+      )
+      .catch((err: unknown) => err);
+
+    // L'errore originale prosegue INTATTO: non diventa un 409, e soprattutto
+    // non dice all'operatore che il numero è già assegnato quando non lo è.
+    expect(errore).not.toBeInstanceOf(ConflictException);
+    expect(errore).toBe(skuDuplicato);
+  });
+
+  it('creazione normale: nessun conflitto e nessun errore (non-regressione)', async () => {
+    const db = createDb();
+    const { service } = createService(db);
+
+    await expect(
+      service.createSale(
+        TENANT,
+        {
+          locationId: LOCATION,
+          paymentMethod: 'cash',
+          lines: [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }],
+        } as never,
+        user,
+      ),
+    ).resolves.toBeDefined();
+    expect(db.documents).toHaveLength(1);
   });
 });

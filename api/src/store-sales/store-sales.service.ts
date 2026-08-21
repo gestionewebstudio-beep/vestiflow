@@ -12,7 +12,9 @@ import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import { DocumentSettingsService } from '../documents/document-settings.service';
 import { formatDocumentReference } from '../documents/document-totals.util';
 import {
+  buildDocumentNumberConflict,
   defaultCounterSeries,
+  isDocumentNumberConflict,
   lockDocumentCounter,
   nextDocumentNumber,
 } from '../documents/document-numbering.util';
@@ -137,222 +139,238 @@ export class StoreSalesService {
       createdByName: user.displayName?.trim() || 'Utente',
     };
 
-    const created = await this.prisma.$transaction(async (tx) => {
-      const year = documentDate.getFullYear();
-      // Numero e serie si assegnano SOLO alla nascita. In modifica restano
-      // quelli: il riferimento è dentro la causale dei movimenti già scritti, e
-      // rifarlo li scollegherebbe da ciò che l'operatore legge.
-      // La serie e' opzionale nello schema: `defaultCounterSeries` puo' non
-      // trovarne una, ed e' un caso legittimo — non si forza a stringa.
-      let nuovaNumerazione: { series: string | null; number: number } | null = null;
-      if (!existing) {
-        // ⛔ La SEDE, quarto argomento (T7A). Senza, il filtro dei contatori
-        // resta `OR: [{ locationId: null }]` e il banco vede solo le serie
-        // SENZA sede: un contatore legato al negozio — anche marcato
-        // predefinito — non verrebbe mai scelto. È la regola §1-bis, «vale
-        // anche in assegnazione, non solo in tendina», chiusa il 13/08 per gli
-        // altri tipi e mai agganciata qui.
-        //
-        // ⚠️ Non partiziona il progressivo (`docs/04` §1): decide QUALI serie
-        // sono disponibili, non quale numero esce.
-        const series = await defaultCounterSeries(
-          tx,
-          tenantId,
-          DocumentType.store_sale,
-          dto.locationId,
-        );
-        // Due casse che battono nello stesso istante leggono lo stesso massimo e
-        // una delle due si becca il vincolo unico a scontrino finito: il lock
-        // transazionale le serializza. Va preso PRIMA di leggere il massimo.
-        await lockDocumentCounter(tx, { tenantId, type: DocumentType.store_sale, series });
-        const number = await nextDocumentNumber({
-          tx,
-          tenantId,
-          type: DocumentType.store_sale,
-          series,
-          source: 'document',
-          // ⛔ La DATA, ed è il perno della regola del §2: la proposta è il
-          // primo libero DOPO i documenti di data anteriore. Omettendola si
-          // ricade su oggi, e una vendita registrata stamattina per ieri
-          // prendeva un numero calcolato sul giorno sbagliato.
-          documentDate,
-        });
-        nuovaNumerazione = { series, number };
-      }
-      const reference =
-        existing?.reference ??
-        formatDocumentReference(
-          setting.numberPrefix,
-          nuovaNumerazione!.series,
-          nuovaNumerazione!.number,
-        );
-
-      const existingLinesById = new Map((existing?.lines ?? []).map((line) => [line.id, line]));
-      const existingVatById = new Map(
-        (existing?.lines ?? []).map((line) => [
-          line.id,
-          { vatCodeId: line.vatCodeId, vatSnapshot: line.vatSnapshot },
-        ]),
-      );
-
-      // Il prezzo che arriva dalla cassa è NETTO, come ogni prezzo del
-      // gestionale: l'IVA si calcola qui, riga per riga, all'aliquota del
-      // Codice IVA risolto. Quello che il cliente paga è il risultato del
-      // calcolo, non un numero letto da una colonna.
-      const computedLines = dto.lines.map((line, index) => {
-        const variant = variants.get(line.variantId)!;
-        const discountPercent = line.discountPercent ?? 0;
-        const previous = line.id ? existingLinesById.get(line.id) : undefined;
-
-        // ⛔ Riga GIÀ ESISTENTE senza `vatCodeId` dichiarato: lo snapshot IVA non
-        // si rifotografa. Stessa regola del percorso generico, stesso motivo —
-        // se domani cambia l'aliquota di un Codice IVA, questa vendita non
-        // cambia. Gli importi si rifanno lo stesso, perché dipendono da
-        // quantità, prezzo e sconto.
-        const resolvedVat =
-          preservedLineVat(previous?.id, line.vatCodeId, existingVatById) ??
-          this.resolveLineVatCode(line.vatCodeId, variant, vatContext);
-
-        const amounts = computeVatLineAmounts({
-          enteredUnitCostMinor: line.unitPriceMinor,
-          // Il valore memorizzato è netto: nessuno scorporo da fare.
-          costEntryMode: 'vat_excluded',
-          quantity: line.quantity,
-          discountPercent,
-          vat: resolvedVat.vat,
-        });
-        return {
-          id: previous?.id,
-          lineNumber: index + 1,
-          variantId: variant.id,
-          // ⛔ Descrizione e SKU sono la FOTOGRAFIA dell'operazione: su una riga
-          // già esistente restano quelli scritti allora. Rinominare il prodotto
-          // in anagrafica non riscrive una vendita di marzo.
-          sku: previous?.sku ?? variant.sku,
-          // ⚠️ Contratto binario, come il Codice IVA: descrizione ASSENTE = non
-          // modificata, e resta quella persistita. Presente = l'operatore l'ha
-          // cambiata. Su una riga nuova si fotografa dall'articolo.
-          description: line.description ?? previous?.description ?? this.lineDescription(variant),
-          quantity: line.quantity,
-          unitPriceMinor: line.unitPriceMinor,
-          discountPercent,
-          vatCodeId: resolvedVat.vatCodeId,
-          vatSnapshot: resolvedVat.vatSnapshot,
-          lineTotalMinor: amounts.lineNetMinor,
-          lineVatTotalMinor: amounts.lineVatMinor,
-          lineGrossTotalMinor: amounts.lineGrossMinor,
-          loadsStock: true,
-        };
-      });
-
-      const subtotalMinor = computedLines.reduce((sum, line) => sum + line.lineTotalMinor, 0);
-      const taxMinor = computedLines.reduce((sum, line) => sum + line.lineVatTotalMinor, 0);
-      const totalMinor = computedLines.reduce((sum, line) => sum + line.lineGrossTotalMinor, 0);
-
-      const header = {
-        notes: dto.notes?.trim() || null,
-        customerId: dto.customerId ?? null,
-        customerName,
-        locationId: dto.locationId,
-        paymentMethod: dto.paymentMethod,
-        // Testo libero solo per «Altro»: per cash/card resta null.
-        paymentMethodNote:
-          dto.paymentMethod === 'other' ? dto.paymentMethodNote?.trim() || null : null,
-        subtotalMinor,
-        taxMinor,
-        totalMinor,
-      };
-
-      let doc;
-      if (existing) {
-        // Upsert per id dal dominio documenti: l'identità della riga è ciò che
-        // consente di aggiornare il movimento collegato invece di duplicarlo.
-        await persistDocumentLinesByIdTx(tx, {
-          tenantId,
-          documentId: existing.id,
-          existingLineIds: existing.lines.map((line) => line.id),
-          lines: computedLines,
-          toData: (line) => ({
-            lineNumber: line.lineNumber,
-            variantId: line.variantId,
-            sku: line.sku,
-            description: line.description,
-            quantity: line.quantity,
-            unitPriceMinor: line.unitPriceMinor,
-            discountPercent: line.discountPercent,
-            vatCodeId: line.vatCodeId,
-            vatSnapshot: line.vatSnapshot ?? Prisma.DbNull,
-            lineTotalMinor: line.lineTotalMinor,
-            lineVatTotalMinor: line.lineVatTotalMinor,
-            lineGrossTotalMinor: line.lineGrossTotalMinor,
-            loadsStock: line.loadsStock,
-          }),
-        });
-        doc = await tx.document.update({
-          where: { id: existing.id },
-          data: header,
-          include: { lines: { orderBy: { lineNumber: 'asc' } } },
-        });
-      } else {
-        doc = await tx.document.create({
-          data: {
+    let created;
+    try {
+      created = await this.prisma.$transaction(async (tx) => {
+        const year = documentDate.getFullYear();
+        // Numero e serie si assegnano SOLO alla nascita. In modifica restano
+        // quelli: il riferimento è dentro la causale dei movimenti già scritti, e
+        // rifarlo li scollegherebbe da ciò che l'operatore legge.
+        // La serie e' opzionale nello schema: `defaultCounterSeries` puo' non
+        // trovarne una, ed e' un caso legittimo — non si forza a stringa.
+        let nuovaNumerazione: { series: string | null; number: number } | null = null;
+        if (!existing) {
+          // ⛔ La SEDE, quarto argomento (T7A). Senza, il filtro dei contatori
+          // resta `OR: [{ locationId: null }]` e il banco vede solo le serie
+          // SENZA sede: un contatore legato al negozio — anche marcato
+          // predefinito — non verrebbe mai scelto. È la regola §1-bis, «vale
+          // anche in assegnazione, non solo in tendina», chiusa il 13/08 per gli
+          // altri tipi e mai agganciata qui.
+          //
+          // ⚠️ Non partiziona il progressivo (`docs/04` §1): decide QUALI serie
+          // sono disponibili, non quale numero esce.
+          const series = await defaultCounterSeries(
+            tx,
+            tenantId,
+            DocumentType.store_sale,
+            dto.locationId,
+          );
+          // Due casse che battono nello stesso istante leggono lo stesso massimo e
+          // una delle due si becca il vincolo unico a scontrino finito: il lock
+          // transazionale le serializza. Va preso PRIMA di leggere il massimo.
+          await lockDocumentCounter(tx, { tenantId, type: DocumentType.store_sale, series });
+          const number = await nextDocumentNumber({
+            tx,
             tenantId,
             type: DocumentType.store_sale,
-            // Creato già confermato: la cassa non ha bozze (§7).
-            status: DocumentStatus.confirmed,
-            series: nuovaNumerazione!.series,
-            number: nuovaNumerazione!.number,
-            year,
-            reference,
+            series,
+            source: 'document',
+            // ⛔ La DATA, ed è il perno della regola del §2: la proposta è il
+            // primo libero DOPO i documenti di data anteriore. Omettendola si
+            // ricade su oggi, e una vendita registrata stamattina per ieri
+            // prendeva un numero calcolato sul giorno sbagliato.
             documentDate,
-            registrationDate: documentDate,
-            printTitle: setting.printTitle,
-            internalComment:
-              'Registrazione interna della vendita. Lo scontrino fiscale viene emesso sulla cassa esterna.',
-            currency: 'EUR',
-            // Al banco i prezzi si leggono ivati: è come li mostra la cassa
-            // all'operatore e al cliente. È una nota di visualizzazione — non
-            // entra in nessun calcolo, che parte sempre dal netto memorizzato.
-            pricesIncludeVat: true,
-            confirmedAt: new Date(),
-            createdById: actor.createdById,
-            createdByName: actor.createdByName,
-            ...header,
-            lines: {
-              create: computedLines.map(({ id: _id, ...line }) => ({
-                ...line,
-                tenantId,
-                vatSnapshot: line.vatSnapshot ?? Prisma.DbNull,
-              })),
-            },
-          },
-          include: { lines: { orderBy: { lineNumber: 'asc' } } },
+          });
+          nuovaNumerazione = { series, number };
+        }
+        const reference =
+          existing?.reference ??
+          formatDocumentReference(
+            setting.numberPrefix,
+            nuovaNumerazione!.series,
+            nuovaNumerazione!.number,
+          );
+
+        const existingLinesById = new Map((existing?.lines ?? []).map((line) => [line.id, line]));
+        const existingVatById = new Map(
+          (existing?.lines ?? []).map((line) => [
+            line.id,
+            { vatCodeId: line.vatCodeId, vatSnapshot: line.vatSnapshot },
+          ]),
+        );
+
+        // Il prezzo che arriva dalla cassa è NETTO, come ogni prezzo del
+        // gestionale: l'IVA si calcola qui, riga per riga, all'aliquota del
+        // Codice IVA risolto. Quello che il cliente paga è il risultato del
+        // calcolo, non un numero letto da una colonna.
+        const computedLines = dto.lines.map((line, index) => {
+          const variant = variants.get(line.variantId)!;
+          const discountPercent = line.discountPercent ?? 0;
+          const previous = line.id ? existingLinesById.get(line.id) : undefined;
+
+          // ⛔ Riga GIÀ ESISTENTE senza `vatCodeId` dichiarato: lo snapshot IVA non
+          // si rifotografa. Stessa regola del percorso generico, stesso motivo —
+          // se domani cambia l'aliquota di un Codice IVA, questa vendita non
+          // cambia. Gli importi si rifanno lo stesso, perché dipendono da
+          // quantità, prezzo e sconto.
+          const resolvedVat =
+            preservedLineVat(previous?.id, line.vatCodeId, existingVatById) ??
+            this.resolveLineVatCode(line.vatCodeId, variant, vatContext);
+
+          const amounts = computeVatLineAmounts({
+            enteredUnitCostMinor: line.unitPriceMinor,
+            // Il valore memorizzato è netto: nessuno scorporo da fare.
+            costEntryMode: 'vat_excluded',
+            quantity: line.quantity,
+            discountPercent,
+            vat: resolvedVat.vat,
+          });
+          return {
+            id: previous?.id,
+            lineNumber: index + 1,
+            variantId: variant.id,
+            // ⛔ Descrizione e SKU sono la FOTOGRAFIA dell'operazione: su una riga
+            // già esistente restano quelli scritti allora. Rinominare il prodotto
+            // in anagrafica non riscrive una vendita di marzo.
+            sku: previous?.sku ?? variant.sku,
+            // ⚠️ Contratto binario, come il Codice IVA: descrizione ASSENTE = non
+            // modificata, e resta quella persistita. Presente = l'operatore l'ha
+            // cambiata. Su una riga nuova si fotografa dall'articolo.
+            description: line.description ?? previous?.description ?? this.lineDescription(variant),
+            quantity: line.quantity,
+            unitPriceMinor: line.unitPriceMinor,
+            discountPercent,
+            vatCodeId: resolvedVat.vatCodeId,
+            vatSnapshot: resolvedVat.vatSnapshot,
+            lineTotalMinor: amounts.lineNetMinor,
+            lineVatTotalMinor: amounts.lineVatMinor,
+            lineGrossTotalMinor: amounts.lineGrossMinor,
+            loadsStock: true,
+          };
         });
-      }
 
-      // Un movimento per riga, aggiornato in posto — mai accodato. Il motore è
-      // quello comune: qui si passano solo l'origine e il costo, che sono i due
-      // parametri che la cassa ha in più. Da 2 pezzi a 1 il movimento diventa
-      // −1, e non compare nessuna rettifica.
-      await syncUnloadLineMovements(tx, {
-        tenantId,
-        documentId: doc.id,
-        documentType: DocumentType.store_sale,
-        locationId: dto.locationId,
-        reason: `Vendita al banco ${reference}`,
-        // Il movimento porta la data del documento, non quella della correzione.
-        movementDate: documentDate,
-        origin: MovementOrigin.vestiflow_pos,
-        // Costo di record congelato: il costo effettivo della variante ORA (§A).
-        // Vale solo per le righe NUOVE — una riga già presente tiene il proprio,
-        // o correggere una vendita di marzo la rivaluterebbe al costo di agosto.
-        unitCostForNewLine: (line) => variants.get(line.variantId)?.purchasePriceMinor ?? null,
-        lines: doc.lines,
-        actor,
+        const subtotalMinor = computedLines.reduce((sum, line) => sum + line.lineTotalMinor, 0);
+        const taxMinor = computedLines.reduce((sum, line) => sum + line.lineVatTotalMinor, 0);
+        const totalMinor = computedLines.reduce((sum, line) => sum + line.lineGrossTotalMinor, 0);
+
+        const header = {
+          notes: dto.notes?.trim() || null,
+          customerId: dto.customerId ?? null,
+          customerName,
+          locationId: dto.locationId,
+          paymentMethod: dto.paymentMethod,
+          // Testo libero solo per «Altro»: per cash/card resta null.
+          paymentMethodNote:
+            dto.paymentMethod === 'other' ? dto.paymentMethodNote?.trim() || null : null,
+          subtotalMinor,
+          taxMinor,
+          totalMinor,
+        };
+
+        let doc;
+        if (existing) {
+          // Upsert per id dal dominio documenti: l'identità della riga è ciò che
+          // consente di aggiornare il movimento collegato invece di duplicarlo.
+          await persistDocumentLinesByIdTx(tx, {
+            tenantId,
+            documentId: existing.id,
+            existingLineIds: existing.lines.map((line) => line.id),
+            lines: computedLines,
+            toData: (line) => ({
+              lineNumber: line.lineNumber,
+              variantId: line.variantId,
+              sku: line.sku,
+              description: line.description,
+              quantity: line.quantity,
+              unitPriceMinor: line.unitPriceMinor,
+              discountPercent: line.discountPercent,
+              vatCodeId: line.vatCodeId,
+              vatSnapshot: line.vatSnapshot ?? Prisma.DbNull,
+              lineTotalMinor: line.lineTotalMinor,
+              lineVatTotalMinor: line.lineVatTotalMinor,
+              lineGrossTotalMinor: line.lineGrossTotalMinor,
+              loadsStock: line.loadsStock,
+            }),
+          });
+          doc = await tx.document.update({
+            where: { id: existing.id },
+            data: header,
+            include: { lines: { orderBy: { lineNumber: 'asc' } } },
+          });
+        } else {
+          doc = await tx.document.create({
+            data: {
+              tenantId,
+              type: DocumentType.store_sale,
+              // Creato già confermato: la cassa non ha bozze (§7).
+              status: DocumentStatus.confirmed,
+              series: nuovaNumerazione!.series,
+              number: nuovaNumerazione!.number,
+              year,
+              reference,
+              documentDate,
+              registrationDate: documentDate,
+              printTitle: setting.printTitle,
+              internalComment:
+                'Registrazione interna della vendita. Lo scontrino fiscale viene emesso sulla cassa esterna.',
+              currency: 'EUR',
+              // Al banco i prezzi si leggono ivati: è come li mostra la cassa
+              // all'operatore e al cliente. È una nota di visualizzazione — non
+              // entra in nessun calcolo, che parte sempre dal netto memorizzato.
+              pricesIncludeVat: true,
+              confirmedAt: new Date(),
+              createdById: actor.createdById,
+              createdByName: actor.createdByName,
+              ...header,
+              lines: {
+                create: computedLines.map(({ id: _id, ...line }) => ({
+                  ...line,
+                  tenantId,
+                  vatSnapshot: line.vatSnapshot ?? Prisma.DbNull,
+                })),
+              },
+            },
+            include: { lines: { orderBy: { lineNumber: 'asc' } } },
+          });
+        }
+
+        // Un movimento per riga, aggiornato in posto — mai accodato. Il motore è
+        // quello comune: qui si passano solo l'origine e il costo, che sono i due
+        // parametri che la cassa ha in più. Da 2 pezzi a 1 il movimento diventa
+        // −1, e non compare nessuna rettifica.
+        await syncUnloadLineMovements(tx, {
+          tenantId,
+          documentId: doc.id,
+          documentType: DocumentType.store_sale,
+          locationId: dto.locationId,
+          reason: `Vendita al banco ${reference}`,
+          // Il movimento porta la data del documento, non quella della correzione.
+          movementDate: documentDate,
+          origin: MovementOrigin.vestiflow_pos,
+          // Costo di record congelato: il costo effettivo della variante ORA (§A).
+          // Vale solo per le righe NUOVE — una riga già presente tiene il proprio,
+          // o correggere una vendita di marzo la rivaluterebbe al costo di agosto.
+          unitCostForNewLine: (line) => variants.get(line.variantId)?.purchasePriceMinor ?? null,
+          lines: doc.lines,
+          actor,
+        });
+
+        return doc;
       });
-
-      return doc;
-    });
+      // T7B: il conflitto sul numero si intercetta QUI, fuori dalla
+      // transazione — a questo punto ha già fatto rollback, e il client root è
+      // l'unico utilizzabile per calcolare il primo libero.
+    } catch (error) {
+      await this.throwStoreNumberConflict(
+        error,
+        tenantId,
+        DocumentType.store_sale,
+        dto.locationId,
+        documentDate,
+      );
+      // Non era un conflitto di numero: l'errore originale prosegue intatto.
+      throw error;
+    }
 
     this.pushInventoryAsync(
       tenantId,
@@ -483,226 +501,239 @@ export class StoreSalesService {
       createdByName: user.displayName?.trim() || 'Utente',
     };
 
-    const created = await this.prisma.$transaction(async (tx) => {
-      const year = documentDate.getFullYear();
-      let nuovaNumerazione: { series: string | null; number: number } | null = null;
-      if (!existing) {
-        // Sede e data come sulla Vendita (T7A): stesso contratto, stesso
-        // motore — vedi i commenti in `createSale`. Il Reso ha un contatore
-        // PROPRIO (`store_return` non condivide il numeratore con nessuno:
-        // l'unica deroga è la famiglia fattura), ma le regole di scelta della
-        // serie e di proposta del numero sono le stesse.
-        const series = await defaultCounterSeries(
-          tx,
-          tenantId,
-          DocumentType.store_return,
-          dto.locationId,
-        );
-        // Come la vendita: il contatore dei resi è condiviso fra le casse, e il
-        // lock transazionale serializza chi lo legge. Prima della lettura.
-        await lockDocumentCounter(tx, { tenantId, type: DocumentType.store_return, series });
-        const number = await nextDocumentNumber({
-          tx,
-          tenantId,
-          type: DocumentType.store_return,
-          series,
-          source: 'document',
-          documentDate,
-        });
-        nuovaNumerazione = { series, number };
-      }
-      const reference =
-        existing?.reference ??
-        formatDocumentReference(
-          setting.numberPrefix,
-          nuovaNumerazione!.series,
-          nuovaNumerazione!.number,
-        );
-
-      const existingLinesById = new Map((existing?.lines ?? []).map((line) => [line.id, line]));
-      const existingVatById = new Map(
-        (existing?.lines ?? []).map((line) => [
-          line.id,
-          { vatCodeId: line.vatCodeId, vatSnapshot: line.vatSnapshot },
-        ]),
-      );
-
-      const computedLines = dto.lines.map((line, index) => {
-        const variant = variants.get(line.variantId)!;
-        // ⛔ Qui c'era `line.unitPriceMinor ?? 0` (T4): il campo era facoltativo
-        // e un prezzo mancante diventava zero IN SILENZIO. Ora il DTO lo
-        // pretende, quindi «assente» non arriva più fin qui — lo respinge la
-        // validazione, che è il posto giusto per dirlo.
-        //
-        // ⚠️ Nessun ripiego sul prezzo corrente dell'articolo: sarebbe la
-        // rifotografia dall'anagrafica che `regole-gestionale` vieta. Il valore
-        // che arriva è già quello del documento, e su una riga esistente è
-        // quello persistito — il client lo rimanda tale e quale, coda decimale
-        // compresa.
-        const unitPriceMinor = line.unitPriceMinor;
-        const previous = line.id ? existingLinesById.get(line.id) : undefined;
-
-        // Riga già esistente: lo snapshot IVA non si rifotografa, come su ogni
-        // documento. Gli importi si rifanno, perché quantità e prezzo possono
-        // essere cambiati.
-        //
-        // ⛔ Qui c'erano `undefined` e `null` CABLATI, perché il DTO del Reso
-        // non aveva `vatCodeId` (T3). L'effetto era corretto per caso — con
-        // `undefined` il contratto binario conserva sempre — ma l'operatore non
-        // poteva mai cambiare l'IVA di una riga. Ora è il valore dichiarato a
-        // decidere, esattamente come sulla Vendita.
-        const resolvedVat =
-          preservedLineVat(previous?.id, line.vatCodeId, existingVatById) ??
-          this.resolveLineVatCode(line.vatCodeId, variant, vatContext);
-
-        // Lo sconto è quello della riga, come sulla Vendita (`11` A11): chi ha
-        // venduto scontato e riprende il capo rende quello che ha incassato.
-        const discountPercent = line.discountPercent ?? 0;
-
-        const amounts = computeVatLineAmounts({
-          enteredUnitCostMinor: unitPriceMinor,
-          costEntryMode: 'vat_excluded',
-          quantity: line.quantity,
-          discountPercent,
-          vat: resolvedVat.vat,
-        });
-        return {
-          id: previous?.id,
-          lineNumber: index + 1,
-          variantId: variant.id,
-          // Fotografia dell'operazione: su una riga già esistente restano quelli
-          // scritti allora, anche se il prodotto è stato rinominato dopo.
-          sku: previous?.sku ?? variant.sku,
-          // ⚠️ Contratto binario, come il Codice IVA: descrizione ASSENTE =
-          // non modificata, e resta quella persistita. Presente = l'operatore
-          // l'ha cambiata. Su una riga nuova si fotografa dall'articolo.
-          description: line.description ?? previous?.description ?? this.lineDescription(variant),
-          quantity: line.quantity,
-          unitPriceMinor,
-          discountPercent,
-          vatCodeId: resolvedVat.vatCodeId,
-          vatSnapshot: resolvedVat.vatSnapshot,
-          lineTotalMinor: amounts.lineNetMinor,
-          lineVatTotalMinor: amounts.lineVatMinor,
-          lineGrossTotalMinor: amounts.lineGrossMinor,
-          // ⚠️ È la SPUNTA DI RIGA a decidere il movimento, non la quantità
-          // (`11` A11-ter): spunta attiva → carico positivo; disattiva → nessun
-          // movimento per quella riga. La logica documentale comune, non una
-          // classificazione «vendibile / non vendibile», che nel Reso non esiste.
-          loadsStock: line.restockable,
-        };
-      });
-
-      const subtotalMinor = computedLines.reduce((sum, line) => sum + line.lineTotalMinor, 0);
-      const taxMinor = computedLines.reduce((sum, line) => sum + line.lineVatTotalMinor, 0);
-      const totalMinor = computedLines.reduce((sum, line) => sum + line.lineGrossTotalMinor, 0);
-
-      // ⛔ La causale vive in `causalText`, la colonna generica del documento —
-      // non in `internalComment` col prefisso `Causale reso: `, che per
-      // rileggerla obbligava ad analizzare una stringa. `reason` resta accettato
-      // per compatibilità di chiamata, ma `causale` è il campo.
-      const causale = (dto.causale ?? dto.reason)?.trim() || null;
-
-      const header = {
-        notes: dto.notes?.trim() || null,
-        causalText: causale,
-        // Digitata dall'operatore, non generata da un modello: è la stessa
-        // distinzione che l'Arrivo merce fa con le sue causali.
-        causalGenerationMode: causale ? 'manual' : null,
-        locationId: dto.locationId,
-        subtotalMinor,
-        taxMinor,
-        totalMinor,
-      };
-
-      let doc;
-      if (existing) {
-        await persistDocumentLinesByIdTx(tx, {
-          tenantId,
-          documentId: existing.id,
-          existingLineIds: existing.lines.map((line) => line.id),
-          lines: computedLines,
-          toData: (line) => ({
-            lineNumber: line.lineNumber,
-            variantId: line.variantId,
-            sku: line.sku,
-            description: line.description,
-            quantity: line.quantity,
-            unitPriceMinor: line.unitPriceMinor,
-            discountPercent: line.discountPercent,
-            vatCodeId: line.vatCodeId,
-            vatSnapshot: line.vatSnapshot ?? Prisma.DbNull,
-            lineTotalMinor: line.lineTotalMinor,
-            lineVatTotalMinor: line.lineVatTotalMinor,
-            lineGrossTotalMinor: line.lineGrossTotalMinor,
-            loadsStock: line.loadsStock,
-          }),
-        });
-        doc = await tx.document.update({
-          where: { id: existing.id },
-          data: header,
-          include: { lines: { orderBy: { lineNumber: 'asc' } } },
-        });
-      } else {
-        doc = await tx.document.create({
-          data: {
+    let created;
+    try {
+      created = await this.prisma.$transaction(async (tx) => {
+        const year = documentDate.getFullYear();
+        let nuovaNumerazione: { series: string | null; number: number } | null = null;
+        if (!existing) {
+          // Sede e data come sulla Vendita (T7A): stesso contratto, stesso
+          // motore — vedi i commenti in `createSale`. Il Reso ha un contatore
+          // PROPRIO (`store_return` non condivide il numeratore con nessuno:
+          // l'unica deroga è la famiglia fattura), ma le regole di scelta della
+          // serie e di proposta del numero sono le stesse.
+          const series = await defaultCounterSeries(
+            tx,
+            tenantId,
+            DocumentType.store_return,
+            dto.locationId,
+          );
+          // Come la vendita: il contatore dei resi è condiviso fra le casse, e il
+          // lock transazionale serializza chi lo legge. Prima della lettura.
+          await lockDocumentCounter(tx, { tenantId, type: DocumentType.store_return, series });
+          const number = await nextDocumentNumber({
+            tx,
             tenantId,
             type: DocumentType.store_return,
-            status: DocumentStatus.confirmed,
-            series: nuovaNumerazione!.series,
-            number: nuovaNumerazione!.number,
-            year,
-            reference,
+            series,
+            source: 'document',
             documentDate,
-            registrationDate: documentDate,
-            printTitle: setting.printTitle,
-            currency: 'EUR',
-            // Come la vendita: nota di come si leggono i prezzi al banco, non un
-            // parametro di calcolo.
-            pricesIncludeVat: true,
-            confirmedAt: new Date(),
-            createdById: actor.createdById,
-            createdByName: actor.createdByName,
-            ...header,
-            lines: {
-              create: computedLines.map(({ id: _id, ...line }) => ({
-                ...line,
-                tenantId,
-                vatSnapshot: line.vatSnapshot ?? Prisma.DbNull,
-              })),
-            },
-          },
-          include: { lines: { orderBy: { lineNumber: 'asc' } } },
+          });
+          nuovaNumerazione = { series, number };
+        }
+        const reference =
+          existing?.reference ??
+          formatDocumentReference(
+            setting.numberPrefix,
+            nuovaNumerazione!.series,
+            nuovaNumerazione!.number,
+          );
+
+        const existingLinesById = new Map((existing?.lines ?? []).map((line) => [line.id, line]));
+        const existingVatById = new Map(
+          (existing?.lines ?? []).map((line) => [
+            line.id,
+            { vatCodeId: line.vatCodeId, vatSnapshot: line.vatSnapshot },
+          ]),
+        );
+
+        const computedLines = dto.lines.map((line, index) => {
+          const variant = variants.get(line.variantId)!;
+          // ⛔ Qui c'era `line.unitPriceMinor ?? 0` (T4): il campo era facoltativo
+          // e un prezzo mancante diventava zero IN SILENZIO. Ora il DTO lo
+          // pretende, quindi «assente» non arriva più fin qui — lo respinge la
+          // validazione, che è il posto giusto per dirlo.
+          //
+          // ⚠️ Nessun ripiego sul prezzo corrente dell'articolo: sarebbe la
+          // rifotografia dall'anagrafica che `regole-gestionale` vieta. Il valore
+          // che arriva è già quello del documento, e su una riga esistente è
+          // quello persistito — il client lo rimanda tale e quale, coda decimale
+          // compresa.
+          const unitPriceMinor = line.unitPriceMinor;
+          const previous = line.id ? existingLinesById.get(line.id) : undefined;
+
+          // Riga già esistente: lo snapshot IVA non si rifotografa, come su ogni
+          // documento. Gli importi si rifanno, perché quantità e prezzo possono
+          // essere cambiati.
+          //
+          // ⛔ Qui c'erano `undefined` e `null` CABLATI, perché il DTO del Reso
+          // non aveva `vatCodeId` (T3). L'effetto era corretto per caso — con
+          // `undefined` il contratto binario conserva sempre — ma l'operatore non
+          // poteva mai cambiare l'IVA di una riga. Ora è il valore dichiarato a
+          // decidere, esattamente come sulla Vendita.
+          const resolvedVat =
+            preservedLineVat(previous?.id, line.vatCodeId, existingVatById) ??
+            this.resolveLineVatCode(line.vatCodeId, variant, vatContext);
+
+          // Lo sconto è quello della riga, come sulla Vendita (`11` A11): chi ha
+          // venduto scontato e riprende il capo rende quello che ha incassato.
+          const discountPercent = line.discountPercent ?? 0;
+
+          const amounts = computeVatLineAmounts({
+            enteredUnitCostMinor: unitPriceMinor,
+            costEntryMode: 'vat_excluded',
+            quantity: line.quantity,
+            discountPercent,
+            vat: resolvedVat.vat,
+          });
+          return {
+            id: previous?.id,
+            lineNumber: index + 1,
+            variantId: variant.id,
+            // Fotografia dell'operazione: su una riga già esistente restano quelli
+            // scritti allora, anche se il prodotto è stato rinominato dopo.
+            sku: previous?.sku ?? variant.sku,
+            // ⚠️ Contratto binario, come il Codice IVA: descrizione ASSENTE =
+            // non modificata, e resta quella persistita. Presente = l'operatore
+            // l'ha cambiata. Su una riga nuova si fotografa dall'articolo.
+            description: line.description ?? previous?.description ?? this.lineDescription(variant),
+            quantity: line.quantity,
+            unitPriceMinor,
+            discountPercent,
+            vatCodeId: resolvedVat.vatCodeId,
+            vatSnapshot: resolvedVat.vatSnapshot,
+            lineTotalMinor: amounts.lineNetMinor,
+            lineVatTotalMinor: amounts.lineVatMinor,
+            lineGrossTotalMinor: amounts.lineGrossMinor,
+            // ⚠️ È la SPUNTA DI RIGA a decidere il movimento, non la quantità
+            // (`11` A11-ter): spunta attiva → carico positivo; disattiva → nessun
+            // movimento per quella riga. La logica documentale comune, non una
+            // classificazione «vendibile / non vendibile», che nel Reso non esiste.
+            loadsStock: line.restockable,
+          };
         });
-      }
 
-      // Il verso è opposto alla vendita — la merce rientra — quindi il motore è
-      // quello di CARICO, con lo stesso contratto: un movimento per riga,
-      // aggiornato in posto, mai accodato. Le righe senza spunta cadono fuori da
-      // sé: il filtro del sync è `loadsStock`.
-      await syncGoodsReceiptLineMovements(tx, {
-        tenantId,
-        documentId: doc.id,
-        documentType: DocumentType.store_return,
-        locationId: dto.locationId,
-        // La causale entra nella descrizione del movimento solo se c'è: senza,
-        // resta il riferimento del documento, che basta a ritrovarlo.
-        reason: causale
-          ? `Reso vendita al banco ${reference}: ${causale}`
-          : `Reso vendita al banco ${reference}`,
-        movementDate: documentDate,
-        movementType: StockMovementType.return,
-        origin: MovementOrigin.vestiflow_pos,
-        // ⛔ Il costo NON si deriva dalla riga: lì c'è il prezzo di VENDITA, e
-        // derivarlo scriverebbe il ricavo al posto del costo d'acquisto. Si
-        // congela il costo corrente della variante, e solo sulle righe nuove.
-        unitCostForNewLine: (line) => variants.get(line.variantId)?.purchasePriceMinor ?? null,
-        lines: doc.lines,
-        actor,
+        const subtotalMinor = computedLines.reduce((sum, line) => sum + line.lineTotalMinor, 0);
+        const taxMinor = computedLines.reduce((sum, line) => sum + line.lineVatTotalMinor, 0);
+        const totalMinor = computedLines.reduce((sum, line) => sum + line.lineGrossTotalMinor, 0);
+
+        // ⛔ La causale vive in `causalText`, la colonna generica del documento —
+        // non in `internalComment` col prefisso `Causale reso: `, che per
+        // rileggerla obbligava ad analizzare una stringa. `reason` resta accettato
+        // per compatibilità di chiamata, ma `causale` è il campo.
+        const causale = (dto.causale ?? dto.reason)?.trim() || null;
+
+        const header = {
+          notes: dto.notes?.trim() || null,
+          causalText: causale,
+          // Digitata dall'operatore, non generata da un modello: è la stessa
+          // distinzione che l'Arrivo merce fa con le sue causali.
+          causalGenerationMode: causale ? 'manual' : null,
+          locationId: dto.locationId,
+          subtotalMinor,
+          taxMinor,
+          totalMinor,
+        };
+
+        let doc;
+        if (existing) {
+          await persistDocumentLinesByIdTx(tx, {
+            tenantId,
+            documentId: existing.id,
+            existingLineIds: existing.lines.map((line) => line.id),
+            lines: computedLines,
+            toData: (line) => ({
+              lineNumber: line.lineNumber,
+              variantId: line.variantId,
+              sku: line.sku,
+              description: line.description,
+              quantity: line.quantity,
+              unitPriceMinor: line.unitPriceMinor,
+              discountPercent: line.discountPercent,
+              vatCodeId: line.vatCodeId,
+              vatSnapshot: line.vatSnapshot ?? Prisma.DbNull,
+              lineTotalMinor: line.lineTotalMinor,
+              lineVatTotalMinor: line.lineVatTotalMinor,
+              lineGrossTotalMinor: line.lineGrossTotalMinor,
+              loadsStock: line.loadsStock,
+            }),
+          });
+          doc = await tx.document.update({
+            where: { id: existing.id },
+            data: header,
+            include: { lines: { orderBy: { lineNumber: 'asc' } } },
+          });
+        } else {
+          doc = await tx.document.create({
+            data: {
+              tenantId,
+              type: DocumentType.store_return,
+              status: DocumentStatus.confirmed,
+              series: nuovaNumerazione!.series,
+              number: nuovaNumerazione!.number,
+              year,
+              reference,
+              documentDate,
+              registrationDate: documentDate,
+              printTitle: setting.printTitle,
+              currency: 'EUR',
+              // Come la vendita: nota di come si leggono i prezzi al banco, non un
+              // parametro di calcolo.
+              pricesIncludeVat: true,
+              confirmedAt: new Date(),
+              createdById: actor.createdById,
+              createdByName: actor.createdByName,
+              ...header,
+              lines: {
+                create: computedLines.map(({ id: _id, ...line }) => ({
+                  ...line,
+                  tenantId,
+                  vatSnapshot: line.vatSnapshot ?? Prisma.DbNull,
+                })),
+              },
+            },
+            include: { lines: { orderBy: { lineNumber: 'asc' } } },
+          });
+        }
+
+        // Il verso è opposto alla vendita — la merce rientra — quindi il motore è
+        // quello di CARICO, con lo stesso contratto: un movimento per riga,
+        // aggiornato in posto, mai accodato. Le righe senza spunta cadono fuori da
+        // sé: il filtro del sync è `loadsStock`.
+        await syncGoodsReceiptLineMovements(tx, {
+          tenantId,
+          documentId: doc.id,
+          documentType: DocumentType.store_return,
+          locationId: dto.locationId,
+          // La causale entra nella descrizione del movimento solo se c'è: senza,
+          // resta il riferimento del documento, che basta a ritrovarlo.
+          reason: causale
+            ? `Reso vendita al banco ${reference}: ${causale}`
+            : `Reso vendita al banco ${reference}`,
+          movementDate: documentDate,
+          movementType: StockMovementType.return,
+          origin: MovementOrigin.vestiflow_pos,
+          // ⛔ Il costo NON si deriva dalla riga: lì c'è il prezzo di VENDITA, e
+          // derivarlo scriverebbe il ricavo al posto del costo d'acquisto. Si
+          // congela il costo corrente della variante, e solo sulle righe nuove.
+          unitCostForNewLine: (line) => variants.get(line.variantId)?.purchasePriceMinor ?? null,
+          lines: doc.lines,
+          actor,
+        });
+
+        return doc;
       });
-
-      return doc;
-    });
+      // T7B: come sulla Vendita, stesso schema e stesso motore comune.
+    } catch (error) {
+      await this.throwStoreNumberConflict(
+        error,
+        tenantId,
+        DocumentType.store_return,
+        dto.locationId,
+        documentDate,
+      );
+      throw error;
+    }
 
     this.pushInventoryAsync(
       tenantId,
@@ -740,6 +771,68 @@ export class StoreSalesService {
       assertUserCanAccessLocation(user, existingLocationId);
     }
     assertUserCanAccessLocation(user, targetLocationId);
+  }
+
+  /**
+   * Conflitto sul numero → **409 strutturato**, non 500 (T7B).
+   *
+   * ⛔ Prima il banco era l'UNICO servizio numerato senza questa rete: gli altri
+   * sei — documenti generici, Arrivo merce, Trasferimento/Rettifica, Ordine
+   * cliente manuale, Ordine fornitore, Corrispettivo manuale — la avevano già.
+   * Qui il P2002 del vincolo unico usciva non gestito e il filtro globale lo
+   * rendeva un 500 generico: l'operatore leggeva un errore di sistema al posto
+   * dell'avviso col primo numero libero.
+   *
+   * Stesso schema dei precedenti, alla lettera:
+   * - si intercetta **fuori** dalla transazione, che a quel punto ha già fatto
+   *   rollback;
+   * - si riconosce con `isDocumentNumberConflict`, che guarda il **modello**
+   *   Prisma e non i nomi delle colonne — `Document` è fra i `MODELLI_NUMERATI`;
+   * - se non è un conflitto di numero **non si fa niente** e l'errore originale
+   *   prosegue: un P2002 su un'altra tabella (per esempio uno SKU duplicato)
+   *   non deve travestirsi da «numero già assegnato»;
+   * - `buildDocumentNumberConflict` riceve il client **ROOT** (`this.prisma`),
+   *   non la transazione morta.
+   *
+   * ⚠️ **La serie si risolve ESATTAMENTE come nella scrittura, sede compresa.**
+   * È l'avvertimento che l'Arrivo merce porta scritto dal 13/08: calcolare il
+   * «prossimo libero» su una partizione diversa da quella su cui si è appena
+   * numerato propone all'operatore un numero che gli darebbe un SECONDO
+   * conflitto. Qui la serie è sempre automatica — i DTO del banco non hanno il
+   * campo — quindi si ripassa sempre da `defaultCounterSeries` con la sede.
+   *
+   * ⚠️ `requestedNumber` è `null` perché oggi l'operatore non può imporre un
+   * numero dal banco. Quando T8A aggiungerà `number` al DTO, qui andrà
+   * `dto.number ?? null`: senza, l'avviso nominerebbe un numero che nessuno ha
+   * digitato.
+   */
+  private async throwStoreNumberConflict(
+    error: unknown,
+    tenantId: string,
+    type: DocumentType,
+    locationId: string,
+    documentDate: Date,
+  ): Promise<void> {
+    if (!isDocumentNumberConflict(error)) {
+      return;
+    }
+    const setting = await this.settings.getResolved(tenantId, type);
+    const series = await defaultCounterSeries(this.prisma, tenantId, type, locationId);
+    throw new ConflictException(
+      await buildDocumentNumberConflict({
+        tx: this.prisma,
+        tenantId,
+        type,
+        series,
+        source: 'document',
+        prefix: setting.numberPrefix,
+        requestedNumber: null,
+        // Il primo libero si calcola sulla data del DOCUMENTO (§2), non su
+        // oggi: altrimenti l'avviso suggerirebbe il numero giusto per un'altra
+        // giornata — lo stesso motivo per cui la data serve in assegnazione.
+        documentDate,
+      }),
+    );
   }
 
   private async assertLocationExists(tenantId: string, locationId: string): Promise<void> {
