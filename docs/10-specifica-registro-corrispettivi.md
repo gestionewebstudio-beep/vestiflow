@@ -1481,3 +1481,48 @@ Registro usa quel token, quindi la sua intestazione cambia con tutte le altre.
 
 ⏸ **Il gap vero del Dettaglio qui è il Corrispettivo manuale**, che ha una maschera di
 modifica e nessuna vista di consultazione. È una decisione di prodotto, non un lavoro tecnico.
+
+---
+
+## §20 · ⏸ Perché il Registro non ordina dalle intestazioni — misurato il 20/08/2026
+
+Domanda del proprietario. Non è una dimenticanza, e non è nemmeno una decisione presa: è una
+capacità **mai collegata**, per tre ragioni che si sommano.
+
+### 1. Non è sul motore
+
+L'ordinamento da intestazione è una capacità di `app-data-table` (`sortable` · `sort` ·
+`sortChange`). Il Registro ha la **sua** tabella: l'assorbimento è stato tentato due volte e
+ripristinato (`14` §H14).
+
+### 2. Non l'ha mai avuto — come nessun'altra
+
+Misurato: **zero** occorrenze di `sort` nel suo template, e lo stesso valeva per le altre
+quattro tabelle prima dell'assorbimento (`14` §H15). I Movimenti l'ordinamento non l'hanno
+conservato entrando nel motore: **l'hanno guadagnato**.
+
+### 3. ⭐ E il suo ordine è CANONICO, con una ragione di prodotto
+
+`corrispettivi-sort.util.ts` (API) ordina in tre livelli: **giorno economico** desc → **istante
+reale** desc → `rowId` asc. E il primo livello è il giorno **per scelta dichiarata**: le righe
+della stessa giornata devono restare **contigue**, perché un registro di corrispettivi si legge
+per giornata — ed è ciò che rende possibili i subtotali giornalieri.
+
+### ⛔ Quindi la domanda vera non è «come si accende»
+
+> **Ordinare per una colonna qualunque CONFLIGGE con il raggruppamento per giornata.** Con
+> «Raggruppa: Giorno» attivo, ordinare per Totale spezza le giornate e i piedi di giornata non
+> chiudono più niente.
+
+Le strade, e vanno decise — non indovinate:
+
+| Strada                                                                   | Conseguenza                                                   |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------- |
+| ordinamento **solo con «Raggruppa: Nessuno»**                            | coerente, ma una capacità che appare e sparisce               |
+| ordinamento **dentro la giornata**, tenendo il giorno come primo livello | i subtotali reggono; l'ordine è «per giorno, poi per colonna» |
+| ordinamento **libero**, che spegne il raggruppamento                     | esplicito, ma cambia due cose con un clic solo                |
+
+⭐ **Tecnicamente non è un problema**: il Registro non pagina, quindi ordinare nel client
+sarebbe ordinare **tutto il risultato** — la primitiva condivisa esiste già
+(`shared/utils/sort-values.util`, la stessa dei Movimenti). Il lavoro è la decisione, non il
+codice.

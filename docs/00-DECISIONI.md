@@ -88,20 +88,21 @@ strumenti di lavoro. Non ci si cercano decisioni.
 
 ⛔ **Nessuna di queste si chiude scrivendo codice che funziona.** Si chiudono decidendo.
 
-| Aperta                                                                              | Dove               |
-| ----------------------------------------------------------------------------------- | ------------------ |
-| **Controparte** (elenco documenti) ordinabile — serve una fonte sola per il dato    | `14` §H15          |
-| **Stato** (ordini cliente) ordinabile — si riprende col modulo Ordine cliente       | `14` §H15          |
-| **«Non modificabile ⇒ non selezionabile»** — applicazione da chiudere con le azioni | `14` §H16          |
-| **Dettaglio dell'Ordine cliente** — gap, col rifacimento dei Detail                 | `14` §E6           |
-| **Dettaglio del Corrispettivo manuale** — oggi ha solo la modifica                  | `14` §E6           |
-| **Azioni massive**: selezione eterogenea, esiti parziali, tutto il filtrato         | `14` §E5           |
-| **Stampa/PDF** come menu per tipo documento                                         | `14` §E2           |
-| **Giacenze e Situazione**: in pausa                                                 | `14` §C0.0         |
-| **Corrispettivi nel motore tabella**: fermi, e non per pigrizia                     | `14` §H14          |
-| La **Proforma** nella matrice documentale                                           | `11` A7            |
-| **Riga manuale** senza articolo in anagrafica                                       | `11` A21           |
-| **Header di sicurezza** del documento HTML — lacuna aperta                          | `regole-sicurezza` |
+| Aperta                                                                                 | Dove               |
+| -------------------------------------------------------------------------------------- | ------------------ |
+| **Controparte** (elenco documenti) ordinabile — serve una fonte sola per il dato       | `14` §H15          |
+| **Stato** (ordini cliente) ordinabile — si riprende col modulo Ordine cliente          | `14` §H15          |
+| **«Non modificabile ⇒ non selezionabile»** — applicazione da chiudere con le azioni    | `14` §H16          |
+| **Dettaglio dell'Ordine cliente** — gap, col rifacimento dei Detail                    | `14` §E6           |
+| **Dettaglio del Corrispettivo manuale** — oggi ha solo la modifica                     | `14` §E6           |
+| **Azioni massive**: selezione eterogenea, esiti parziali, tutto il filtrato            | `14` §E5           |
+| **Stampa/PDF** come menu per tipo documento                                            | `14` §E2           |
+| **Giacenze e Situazione**: in pausa                                                    | `14` §C0.0         |
+| **Ordinamento del Registro Corrispettivi** — confligge col raggruppamento per giornata | `10` §20           |
+| **Corrispettivi nel motore tabella**: fermi, e non per pigrizia                        | `14` §H14          |
+| La **Proforma** nella matrice documentale                                              | `11` A7            |
+| **Riga manuale** senza articolo in anagrafica                                          | `11` A21           |
+| **Header di sicurezza** del documento HTML — lacuna aperta                             | `regole-sicurezza` |
 
 ---
 
