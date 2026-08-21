@@ -77,6 +77,10 @@ import { DocumentLineSortStore } from '@domain/documents/state/document-line-sor
 import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { TableViewId } from '@shared/table-columns/table-column.model';
+import {
+  lineColumnQuotaWidth,
+  sumVisibleLineColumnsPx,
+} from '@shared/table-columns/line-column-quota.util';
 import { TableColumnResizeDirective } from '@shared/directives/table-column-resize.directive';
 import {
   STOCK_MOVEMENT_LINE_COLUMNS,
@@ -1081,10 +1085,10 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
 
   /** Somma delle sole colonne visibili: è il 100% di cui ciascuna prende una quota. */
   private lineColumnsTotalPx(): number {
-    return STOCK_MOVEMENT_LINE_COLUMNS.reduce(
-      (total, def) =>
-        this.isLineColumnVisible(def.id) ? total + this.lineColumnPx(def.id) : total,
-      0,
+    return sumVisibleLineColumnsPx(
+      STOCK_MOVEMENT_LINE_COLUMNS,
+      (id) => this.isLineColumnVisible(id),
+      (id) => this.lineColumnPx(id),
     );
   }
 
@@ -1096,11 +1100,7 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
    * da pesi relativi.
    */
   protected lineColumnWidth(columnId: string): string {
-    const totale = this.lineColumnsTotalPx();
-    if (totale <= 0) {
-      return 'auto';
-    }
-    return `${((this.lineColumnPx(columnId) / totale) * 100).toFixed(4)}%`;
+    return lineColumnQuotaWidth(columnId, this.lineColumnsTotalPx(), (id) => this.lineColumnPx(id));
   }
 
   protected onLineColumnResize(columnId: string, widthPx: number): void {
