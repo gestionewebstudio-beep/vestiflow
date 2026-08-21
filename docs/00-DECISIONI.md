@@ -88,7 +88,7 @@ strumenti di lavoro. Non ci si cercano decisioni.
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
 | Due tasti diretti alla creazione: **Nuova vendita** e **Nuovo reso**, nessun selettore dentro                                                                            | A2 · A3    |
 | **Ordine cliente è il riferimento della MASCHERA** «Nuovo ordine cliente» — il form operativo, mobile compreso. ⛔ **Non** del riepilogo, che segue la grammatica comune | A12 · `03` |
-| **L'elenco Vendita/Reso nasce sulla grammatica comune** dei riepiloghi, non su una schermata copiata                                                                     | A11-quater |
+| ✅ **L'elenco Vendita/Reso ESISTE già** (profilo `store-sale`, sul motore comune): non si ricostruisce. La fase che segue è **solo la maschera**                         | A11-quater |
 | **Vendita e Reso al banco sono MODIFICABILI** anche dopo la conclusione: si riaprono, si correggono, si risalvano e si eliminano, con gli effetti riallineati            | A2         |
 | «Vendita negozio» è **legacy**: il nome è «Vendita al banco»                                                                                                             | A6         |
 

@@ -1011,6 +1011,16 @@ maschera prende da lui i pezzi già risolti, non l'aspetto.
 | **niente pagine, 30 giorni**  | i riepiloghi non impaginano; il tetto si dichiara nel meta                                    |
 | **ripiego a card sotto `lg`** | dal motore, con la card progettata dei Corrispettivi come riferimento mobile                  |
 
+## ✅ VERIFICATO il 21/08/2026 — l'elenco non è da fare
+
+|                           |                                                                                                                  |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| **Scarico manuale**       | è già un profilo di `DocumentListComponent`: **nessun lavoro di convergenza** del riepilogo                      |
+| **Vendita/Reso al banco** | ha già il profilo `store-sale` ed è già sul motore comune: ⛔ **l'elenco non va ricostruito né ridisegnato ora** |
+
+⭐ **La fase che segue riguarda quindi SOLO la maschera** «Nuova vendita al banco» / «Nuovo reso
+al banco». L'elenco esiste, è sul motore, ed eredita quanto deciso in questi due giorni.
+
 ⭐ **E il riepilogo dello Scarico manuale è già dentro**: è uno degli otto profili di
 `DocumentListComponent`, quindi eredita tutto quanto sopra senza migrazioni — censito il
 21/08/2026. Il suo **dominio** resta suo: la deroga sui movimenti (aggiorna la giacenza senza
