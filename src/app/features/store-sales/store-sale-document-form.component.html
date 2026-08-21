@@ -219,18 +219,18 @@
                 (input)="onSearchInput($event)"
                 (keydown.enter)="onSearchSubmit($event)"
               />
-              <button
+              <app-button
                 type="button"
-                class="doc-form__ghost-button"
+                variant="secondary"
                 [disabled]="searchPending()"
                 (click)="commitScan(searchDraft())"
               >
                 Aggiungi
-              </button>
-              <button type="button" class="doc-form__ghost-button" (click)="openProductSearch()">
+              </app-button>
+              <app-button type="button" variant="secondary" (click)="openProductSearch()">
                 <i class="pi pi-search" aria-hidden="true"></i>
                 Cerca articolo
-              </button>
+              </app-button>
               @if (barcodeScannerEnabled) {
                 <!-- Fotocamera: scansione CONTINUA, l'articolo riconosciuto resta
                      a video con lo stepper, e lo stesso codice incrementa. È
@@ -281,8 +281,13 @@
           <!-- ⛔ A testata incompleta le righe NON si mostrano: al loro posto uno
                stato vuoto che dice cosa manca (regole-stile-ui §7). Non una
                tabella spenta a metà tinta: se una cosa non è utilizzabile, non
-               c'è. -->
-          @if (headerGateActive() || !hasLines()) {
+               c'è.
+
+               ⭐ A testata COMPLETA la tabella c'è anche senza righe, come sul
+               riferimento (Ordine cliente, `11` A15): le intestazioni dicono
+               che cosa si sta per compilare, e il selettore Colonne ha un
+               senso. Lo stato vuoto sta DENTRO, non al posto della tabella. -->
+          @if (headerGateActive()) {
             <app-empty-state
               icon="pi-shop"
               [title]="linesEmptyTitle()"
@@ -306,6 +311,15 @@
                  card. Il criterio è quello dell'Ordine cliente, che è il
                  riferimento mobile della maschera (`11` A12). -->
             @if (compactView()) {
+              @if (!hasLines()) {
+                <!-- Le card non hanno intestazioni da mostrare: qui lo stato
+                     vuoto resta al posto dell'elenco. -->
+                <app-empty-state
+                  icon="pi-shop"
+                  [title]="linesEmptyTitle()"
+                  [description]="linesEmptyDescription()"
+                />
+              }
               <div class="store-sale-form__cards">
                 @for (line of lines(); track line.uiId; let i = $index) {
                   <app-store-sale-line-card
@@ -447,6 +461,17 @@
                     </tr>
                   </thead>
                   <tbody>
+                    @if (!hasLines()) {
+                      <tr>
+                        <td [attr.colspan]="99" class="store-sale-form__empty-cell">
+                          <app-empty-state
+                            icon="pi-shop"
+                            [title]="linesEmptyTitle()"
+                            [description]="linesEmptyDescription()"
+                          />
+                        </td>
+                      </tr>
+                    }
                     @for (line of lines(); track line.uiId; let i = $index) {
                       <tr
                         class="doc-form__row"

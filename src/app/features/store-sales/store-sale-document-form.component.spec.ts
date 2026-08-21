@@ -1446,4 +1446,23 @@ describe('StoreSaleDocumentFormComponent', () => {
       expect(rendered.container.textContent).toContain('chiedi a un responsabile');
     });
   });
+
+  // ── La tabella righe a documento vuoto ─────────────────────────────────
+  describe('area righe senza righe', () => {
+    it('⭐ a testata completa la TABELLA c’è, con le sue intestazioni', async () => {
+      // Come sul riferimento (Ordine cliente, `11` A15): le intestazioni dicono
+      // che cosa si sta per compilare, e il selettore Colonne ha un senso.
+      const rendered = await setup({ defaultLocation: SEDE.id });
+
+      expect(rendered.container.querySelector('table')).toBeTruthy();
+      expect(screen.getByText('Nessuna riga inserita')).toBeTruthy();
+    });
+
+    it('⛔ a testata INCOMPLETA la tabella non c’è: al suo posto cosa manca', async () => {
+      const rendered = await setup({ defaultLocation: null });
+
+      expect(rendered.container.querySelector('table')).toBeNull();
+      expect(screen.getByText('Scegli la sede')).toBeTruthy();
+    });
+  });
 });
