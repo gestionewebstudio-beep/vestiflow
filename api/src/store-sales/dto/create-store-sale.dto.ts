@@ -10,6 +10,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Length,
   Max,
   MaxLength,
   Min,
@@ -92,6 +93,27 @@ export class CreateStoreSaleDto {
   @IsOptional()
   @IsUUID()
   id?: string;
+
+  /**
+   * Identità dell'**intento di creazione** (T15): generata dal client una volta
+   * per compilazione e conservata attraverso i tentativi.
+   *
+   * ⛔ Rende idempotente il reinvio: se la transazione ha già committato e la
+   * risposta si è persa, la seconda richiesta con lo stesso intento **non crea
+   * una seconda vendita** — restituisce quella già registrata.
+   *
+   * ⚠️ **Due compilazioni distinte sono due intenti, anche a payload identico.**
+   * Due clienti che comprano la stessa maglietta nello stesso minuto restano due
+   * vendite: la distinzione non è nei dati, è nell'intento.
+   *
+   * ⚠️ **Facoltativo, e senza di esso il comportamento è quello di prima**: il
+   * client lo manderà con T15B. Un percorso non protetto resta non protetto, ma
+   * nessuno smette di funzionare nel frattempo.
+   */
+  @IsOptional()
+  @IsString()
+  @Length(8, 128)
+  creationIntentId?: string;
 
   @IsUUID()
   locationId!: string;

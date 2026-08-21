@@ -9,6 +9,7 @@ import {
 import { describe, expect, it } from 'vitest';
 
 import { TenantPermission } from '../auth/tenant-permission.constants';
+import { CreationIntentService } from '../common/idempotency/creation-intent.util';
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import type { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { DocumentSettingsService } from '../documents/document-settings.service';
@@ -129,6 +130,12 @@ interface FakeDb {
    */
   failNextDocumentCreate: unknown | null;
   /**
+   * Il registro degli intenti di creazione (T15). Il finto ne riproduce il
+   * VINCOLO UNICO su (tenantId, intentId): è quello a fare tutto il lavoro, e
+   * un doppio che non lo simulasse renderebbe verdi prove che non provano nulla.
+   */
+  intents: { tenantId: string; intentId: string; fingerprint: string; resultRef: string | null }[];
+  /**
    * Quante volte è stato preso il lock del contatore (T8A). In questo percorso
    * l'unico `$queryRaw` è `lockDocumentCounter`, quindi contarli equivale a
    * contare i lock — serve a provare che un numero IMPOSTO non passa di lì.
@@ -215,6 +222,7 @@ function createDb(): FakeDb {
     idCounter: 0,
     failNextMovementCreate: false,
     failNextDocumentCreate: null,
+    intents: [],
     lockCalls: 0,
     defaultVatCodeId: null,
     vatCodes: [],
@@ -373,6 +381,51 @@ function createFakePrisma(db: FakeDb): PrismaService {
         return Promise.resolve({ lastNumber: next });
       },
     },
+    /**
+     * Il registro degli intenti (T15), col suo vincolo unico riprodotto.
+     *
+     * ⚠️ L'errore lanciato ha la forma che Prisma manda davvero — `code: P2002`
+     * e `meta.modelName` — perché `isCreationIntentConflict` riconosce dal
+     * MODELLO. Con un errore generico il riconoscimento non scatterebbe e i
+     * test proverebbero il percorso sbagliato.
+     */
+    creationIntent: {
+      create: ({ data }: { data: { tenantId: string; intentId: string; fingerprint: string } }) => {
+        const preso = db.intents.some(
+          (i) => i.tenantId === data.tenantId && i.intentId === data.intentId,
+        );
+        if (preso) {
+          return Promise.reject({
+            code: 'P2002',
+            meta: { modelName: 'CreationIntent', target: ['tenant_id', 'intent_id'] },
+          });
+        }
+        db.intents.push({ ...data, resultRef: null });
+        return Promise.resolve({ ...data, resultRef: null });
+      },
+      updateMany: ({
+        where,
+        data,
+      }: {
+        where: { tenantId: string; intentId: string };
+        data: { resultRef: string };
+      }) => {
+        let count = 0;
+        db.intents = db.intents.map((i) => {
+          if (i.tenantId === where.tenantId && i.intentId === where.intentId) {
+            count += 1;
+            return { ...i, resultRef: data.resultRef };
+          }
+          return i;
+        });
+        return Promise.resolve({ count });
+      },
+      findFirst: ({ where }: { where: { tenantId: string; intentId: string } }) =>
+        Promise.resolve(
+          db.intents.find((i) => i.tenantId === where.tenantId && i.intentId === where.intentId) ??
+            null,
+        ),
+    },
     documentCounter: {
       findFirst: () => Promise.resolve(null),
       // ⛔ Prima: `() => Promise.resolve([])`, che IGNORAVA gli argomenti. Con
@@ -465,10 +518,16 @@ function createFakePrisma(db: FakeDb): PrismaService {
         db.documents.push(doc);
         return Promise.resolve({ ...doc, lines: lines.map((line) => ({ ...line })) });
       },
-      findFirst: ({ where }: { where: { id: string; tenantId: string; type: DocumentType } }) => {
+      findFirst: ({ where }: { where: { id: string; tenantId: string; type?: DocumentType } }) => {
+        // ⚠️ `type` si confronta SOLO se c'è: in Prisma un filtro assente non
+        // filtra. Il finto lo pretendeva, e la lettura di replay (T15A) — che il
+        // tipo non lo passa, perché è comune a Vendita e Reso — non trovava
+        // niente. Un doppio più severo dell'originale fa fallire codice giusto.
         const found = db.documents.find(
           (doc) =>
-            doc.id === where.id && doc.tenantId === where.tenantId && doc.type === where.type,
+            doc.id === where.id &&
+            doc.tenantId === where.tenantId &&
+            (where.type === undefined || doc.type === where.type),
         );
         // Il documento INTERO: il risalvataggio legge numero, serie, data e le
         // righe persistite per conservarle.
@@ -622,6 +681,10 @@ function createFakePrisma(db: FakeDb): PrismaService {
         documents: db.documents,
         movements: db.movements,
         sequences: [...db.sequences.entries()],
+        // T15: il claim dell'intento è una scrittura come le altre, e al
+        // rollback deve sparire — è il requisito «nessun claim residuo». Se
+        // restasse fuori dallo snapshot il test sul rollback direbbe il falso.
+        intents: db.intents,
       });
       try {
         return await fn(client);
@@ -630,6 +693,7 @@ function createFakePrisma(db: FakeDb): PrismaService {
         db.documents = snapshot.documents;
         db.movements = snapshot.movements;
         db.sequences = new Map(snapshot.sequences);
+        db.intents = snapshot.intents;
         throw error;
       }
     },
@@ -683,10 +747,16 @@ const user: UserProfileDto = {
 
 function createService(db: FakeDb): { service: StoreSalesService; pushed: string[] } {
   const pushed: string[] = [];
+  // ⚠️ Lo STESSO finto per il servizio e per il registro degli intenti: nel
+  // doppio il client root e quello di transazione coincidono, quindi la lettura
+  // che `resolveConflict` fa dopo il rollback vede lo stato ripristinato — che è
+  // il comportamento del database vero.
+  const prisma = createFakePrisma(db);
   const service = new StoreSalesService(
-    createFakePrisma(db),
+    prisma,
     createSettings(),
     createChannelSync(pushed),
+    new CreationIntentService(prisma),
   );
   return { service, pushed };
 }
@@ -2633,6 +2703,231 @@ describe('T8A — numero e serie dalla testata', () => {
       await reso(db, { documentDate: '2026-08-20T00:00:00.000Z' });
       // 1, non 44: il contatore del Reso è vuoto.
       expect(db.documents[db.documents.length - 1]!.number).toBe(1);
+    });
+  });
+});
+
+// ── T15A — idempotenza della creazione: il registro degli intenti ─────────
+//
+// ⛔ IL PROBLEMA: la transazione committa, la risposta si perde (timeout di 15s
+// del client, rete, tab chiusa), l'operatore ripreme. Il solo discriminante fra
+// creazione e aggiornamento è `dto.id`, che il client non possiede — l'id lo
+// impara nel ramo `next`, che in quel caso non viene mai eseguito. Il reinvio è
+// quindi, per il server, una creazione nuova e legittima: secondo documento,
+// secondo numero, secondi movimenti, e il Registro Corrispettivi che conta due
+// vendite.
+//
+// ⭐ LA SOLUZIONE: un registro comune degli intenti, con vincolo unico
+// (tenantId, intentId), rivendicato come PRIMA scrittura della stessa
+// transazione che crea il documento e applica gli effetti.
+//
+// ⚠️ La distinzione che regge tutto: **due compilazioni sono due intenti, anche
+// a payload identico**. Due clienti che comprano la stessa maglietta nello
+// stesso minuto restano due vendite — la differenza non è nei dati.
+describe('T15A — intento di creazione', () => {
+  const INTENTO = 'intento-0000-1111-2222';
+
+  const vendita = (db: FakeDb, over: Record<string, unknown> = {}) => {
+    const { service } = createService(db);
+    return service.createSale(
+      TENANT,
+      {
+        creationIntentId: INTENTO,
+        locationId: LOCATION,
+        paymentMethod: 'cash',
+        lines: [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }],
+        ...over,
+      } as never,
+      user,
+    );
+  };
+
+  const reso = (db: FakeDb, over: Record<string, unknown> = {}) => {
+    const { service } = createService(db);
+    return service.createReturn(
+      TENANT,
+      {
+        creationIntentId: INTENTO,
+        locationId: LOCATION,
+        lines: [{ variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 1000 }],
+        ...over,
+      } as never,
+      user,
+    );
+  };
+
+  describe('replay sequenziale — il caso che T15 esiste per chiudere', () => {
+    it('⭐ Vendita: reinvio dopo commit → UN documento, UN numero, UN set di movimenti', async () => {
+      const db = createDb();
+      const primo = await vendita(db);
+      const giacenzaDopoUno = levelOf(db, VARIANT_A).onHand;
+
+      // La risposta del primo si è persa: l'operatore ripreme, e il client
+      // rimanda lo STESSO intento con lo STESSO contenuto.
+      const secondo = await vendita(db);
+
+      expect(db.documents).toHaveLength(1);
+      expect(db.movements).toHaveLength(1);
+      expect(levelOf(db, VARIANT_A).onHand).toBe(giacenzaDopoUno);
+      // ⭐ E la seconda chiamata RIESCE, restituendo il risultato già prodotto:
+      // all'operatore non si mostra un errore per un lavoro andato a buon fine.
+      expect(secondo.id).toBe(primo.id);
+      expect(secondo.reference).toBe(primo.reference);
+    });
+
+    it('⭐ Reso: stesso comportamento', async () => {
+      const db = createDb();
+      const primo = await reso(db);
+      const giacenzaDopoUno = levelOf(db, VARIANT_A).onHand;
+
+      const secondo = await reso(db);
+
+      expect(db.documents).toHaveLength(1);
+      expect(db.movements).toHaveLength(1);
+      expect(levelOf(db, VARIANT_A).onHand).toBe(giacenzaDopoUno);
+      expect(secondo.id).toBe(primo.id);
+    });
+
+    it('un solo NUMERO consumato: il secondo invio non tocca il contatore', async () => {
+      const db = createDb();
+      await vendita(db);
+      await vendita(db);
+
+      expect(db.documents).toHaveLength(1);
+      expect(db.documents[0]!.number).toBe(1);
+    });
+
+    it('un solo effetto sui CORRISPETTIVI: una riga, un totale', async () => {
+      const db = createDb();
+      await vendita(db);
+      await vendita(db);
+
+      // Il Registro somma i documenti store_sale: con due gemelli conterebbe
+      // due vendite, e imponibile/IVA/totale sarebbero doppi.
+      const vendite = db.documents.filter((d) => d.type === DocumentType.store_sale);
+      expect(vendite).toHaveLength(1);
+    });
+  });
+
+  describe('intenti diversi, payload identico — due operazioni legittime', () => {
+    it('⭐ due clienti, stessa maglietta, stesso minuto: DUE vendite', async () => {
+      const db = createDb();
+      await vendita(db, { creationIntentId: 'intento-cliente-A' });
+      await vendita(db, { creationIntentId: 'intento-cliente-B' });
+
+      // Il payload è byte per byte identico: a distinguerle è solo l'intento.
+      expect(db.documents).toHaveLength(2);
+      expect(db.movements).toHaveLength(2);
+      // ⚠️ Non si asserisce sui NUMERI: il finto non simula la ricerca del
+      // primo libero (restituisce `[]` alla query grezza), e due documenti di
+      // oggi ricadono entrambi su «massimo+1» = 1. È un limite del doppio, non
+      // del servizio — la numerazione ha i suoi test in T7A/T8A.
+      expect(db.intents).toHaveLength(2);
+    });
+  });
+
+  describe('stesso intento, payload diverso — non è un reinvio', () => {
+    it('⛔ conflitto strutturato, e NESSUNA seconda creazione', async () => {
+      const db = createDb();
+      await vendita(db);
+
+      const errore = await vendita(db, {
+        lines: [{ variantId: VARIANT_A, quantity: 5, unitPriceMinor: 2990 }],
+      }).catch((e: unknown) => e);
+
+      expect(errore).toBeInstanceOf(ConflictException);
+      expect((errore as ConflictException).getResponse()).toMatchObject({
+        code: 'creation_intent_mismatch',
+      });
+      expect(db.documents).toHaveLength(1);
+      expect(db.movements).toHaveLength(1);
+    });
+  });
+
+  describe('rollback — nessun claim residuo', () => {
+    it('⭐ se il lavoro fallisce, l’intento torna LIBERO', async () => {
+      const db = createDb();
+      // Il movimento fallisce: la transazione fa rollback, claim compreso.
+      db.failNextMovementCreate = true;
+      await expect(vendita(db)).rejects.toBeDefined();
+
+      expect(db.intents).toHaveLength(0);
+      expect(db.documents).toHaveLength(0);
+
+      // ⭐ E lo stesso intento si può riusare: il primo tentativo non ha
+      // lasciato niente dietro di sé. Senza rollback del claim l'operatore
+      // resterebbe bloccato su un intento bruciato da un errore transitorio.
+      const esito = await vendita(db);
+      expect(esito.id).toBeDefined();
+      expect(db.documents).toHaveLength(1);
+    });
+  });
+
+  describe('tenant diversi — lo stesso intento non si incontra mai', () => {
+    it('due tenant con lo stesso intentId creano ciascuno il proprio documento', async () => {
+      const db = createDb();
+      const { service } = createService(db);
+      const corpo = {
+        creationIntentId: INTENTO,
+        locationId: LOCATION,
+        paymentMethod: 'cash',
+        lines: [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }],
+      };
+
+      await service.createSale(TENANT, corpo as never, user);
+      await service.createSale('altro-tenant', corpo as never, user);
+
+      // Il vincolo è (tenantId, intentId): il tenant è una COLONNA, non un
+      // pezzo della stringa. Due tenant non si bloccano a vicenda.
+      expect(db.intents).toHaveLength(2);
+      expect(db.documents).toHaveLength(2);
+    });
+  });
+
+  describe('concorrenza — una sola creazione', () => {
+    it('⭐ due richieste con lo stesso intento partite insieme: UN documento', async () => {
+      const db = createDb();
+
+      // Partono davvero insieme: nessuna delle due sa dell'altra.
+      await Promise.allSettled([vendita(db), vendita(db)]);
+
+      // Il documento è uno solo, e così i movimenti e la giacenza.
+      expect(db.documents).toHaveLength(1);
+      expect(db.movements).toHaveLength(1);
+    });
+  });
+
+  describe('senza intento il comportamento è quello di prima', () => {
+    it('⚠️ due invii senza `creationIntentId` creano DUE documenti', async () => {
+      const db = createDb();
+      await vendita(db, { creationIntentId: undefined });
+      await vendita(db, { creationIntentId: undefined });
+
+      // Non è un difetto di T15A: il client manda l'intento da T15B. Il test
+      // esiste per inchiodare il confine — se un giorno questo diventasse 1
+      // senza che nessuno l'abbia deciso, qualcuno avrà reso obbligatorio un
+      // campo facoltativo.
+      expect(db.documents).toHaveLength(2);
+      expect(db.intents).toHaveLength(0);
+    });
+  });
+
+  describe('nessuna interazione con il conflitto di NUMERO', () => {
+    it('⛔ un intento duplicato non diventa mai «numero già assegnato»', async () => {
+      const db = createDb();
+      await vendita(db);
+
+      const errore = await vendita(db, {
+        lines: [{ variantId: VARIANT_A, quantity: 9, unitPriceMinor: 2990 }],
+      }).catch((e: unknown) => e);
+
+      // È la ragione per cui il registro è una TABELLA e non una colonna su
+      // `documents`: lì il P2002 sarebbe caduto in `MODELLI_NUMERATI` e
+      // `isDocumentNumberConflict` l'avrebbe tradotto in «numero già
+      // assegnato», con la proposta di un numero libero che non c'entra niente.
+      const payload = (errore as ConflictException).getResponse();
+      expect(payload).toMatchObject({ code: 'creation_intent_mismatch' });
+      expect(payload).not.toMatchObject({ code: 'document_number_taken' });
     });
   });
 });

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { ChannelsModule } from '../channels/channels.module';
+import { CreationIntentService } from '../common/idempotency/creation-intent.util';
 import { DocumentsModule } from '../documents/documents.module';
 import { VatModule } from '../vat/vat.module';
 import { StoreSaleLookupService } from './store-sale-lookup.service';
@@ -14,6 +15,9 @@ import { StoreSalesService } from './store-sales.service';
 @Module({
   imports: [ChannelsModule, DocumentsModule, VatModule],
   controllers: [StoreSalesController],
-  providers: [StoreSalesService, StoreSaleLookupService],
+  // `CreationIntentService` è il registro comune degli intenti (T15): non
+  // appartiene alla cassa, ma finché la cassa è l'unico consumer sta qui. Al
+  // secondo percorso che lo adotta va promosso a modulo condiviso.
+  providers: [StoreSalesService, StoreSaleLookupService, CreationIntentService],
 })
 export class StoreSalesModule {}

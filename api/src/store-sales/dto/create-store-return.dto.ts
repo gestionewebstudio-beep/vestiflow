@@ -138,6 +138,16 @@ export class CreateStoreReturnDto {
   @IsUUID()
   id?: string;
 
+  /**
+   * Identità dell'**intento di creazione** (T15), identica alla Vendita — vedi
+   * `CreateStoreSaleDto.creationIntentId`. Facoltativa: senza, il comportamento
+   * è quello di prima.
+   */
+  @IsOptional()
+  @IsString()
+  @Length(8, 128)
+  creationIntentId?: string;
+
   @IsUUID()
   locationId!: string;
 

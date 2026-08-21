@@ -23,6 +23,7 @@ import { syncGoodsReceiptLineMovements } from '../documents/document-goods-recei
 import { syncUnloadLineMovements } from '../documents/document-stock-unload-sync.util';
 import { preservedLineVat } from '../documents/document-line-vat-snapshot.util';
 
+import { CreationIntentService } from '../common/idempotency/creation-intent.util';
 import { assertUserCanAccessLocation } from '../inventory/user-location-scope.util';
 import { partyDisplayName } from '../common/party/party.util';
 import { PrismaService } from '../prisma/prisma.service';
@@ -80,7 +81,65 @@ export class StoreSalesService {
     private readonly prisma: PrismaService,
     private readonly settings: DocumentSettingsService,
     private readonly channelSync: ChannelSyncFacade,
+    private readonly intents: CreationIntentService,
   ) {}
+
+  /**
+   * Il registro degli intenti, applicato a un percorso della cassa (T15).
+   *
+   * ⛔ Sta qui e non dentro `CreationIntentService` perché la parte che il
+   * registro non può conoscere è proprio questa: come si ricarica il record che
+   * `resultRef` nomina, e come lo si trasforma nella risposta. Il registro
+   * maneggia una stringa opaca; a sapere che è l'id di un documento di cassa è
+   * solo questo servizio.
+   *
+   * ⚠️ Senza `creationIntentId` non fa niente e restituisce `null`: il client
+   * non lo manda ancora (arriva con T15B), e un percorso non protetto deve
+   * continuare a funzionare come prima.
+   */
+  private async replayIfAlreadyDone(
+    error: unknown,
+    tenantId: string,
+    dto: { readonly creationIntentId?: string; readonly locationId: string },
+    fingerprint: string,
+  ): Promise<StoreSaleResult | null> {
+    if (!dto.creationIntentId) {
+      return null;
+    }
+    const esito = await this.intents.resolveConflict({
+      error,
+      tenantId,
+      intentId: dto.creationIntentId,
+      fingerprint,
+    });
+    if (!esito) {
+      return null;
+    }
+    const doc = await this.prisma.document.findFirst({
+      where: { id: esito.replay, tenantId },
+      select: {
+        id: true,
+        reference: true,
+        documentDate: true,
+        totalMinor: true,
+        currency: true,
+        lines: {
+          select: { variantId: true, sku: true, description: true, quantity: true },
+          orderBy: { lineNumber: 'asc' },
+        },
+      },
+    });
+    if (!doc) {
+      // Il registro nomina un record che non esiste più: qualcuno l'ha
+      // eliminato dopo. Non è un replay riproducibile, e dirlo è meglio che
+      // restituire una risposta vuota travestita da successo.
+      throw new ConflictException({
+        code: 'creation_intent_result_missing',
+        message: 'L’operazione risulta già registrata, ma il documento non è più disponibile.',
+      });
+    }
+    return this.toResult(tenantId, dto.locationId, doc);
+  }
 
   /**
    * Registra una vendita al banco, o ne RISALVA una esistente (`dto.id`).
@@ -139,9 +198,32 @@ export class StoreSalesService {
       createdByName: user.displayName?.trim() || 'Utente',
     };
 
+    // T15 — l'impronta è del CONTENUTO della richiesta: l'identità dell'intento
+    // ne resta fuori, perché due impronte si confrontano solo a parità di
+    // intento e includerla aggiungerebbe una costante.
+    const { creationIntentId, ...contenuto } = dto;
+    const fingerprint = CreationIntentService.fingerprintOf(contenuto);
+
     let created;
     try {
       created = await this.prisma.$transaction(async (tx) => {
+        // ⛔ T15 — LA PRIMA SCRITTURA, e l'ordine è il meccanismo. È qui che una
+        // seconda richiesta con lo stesso intento si ferma sul vincolo unico,
+        // PRIMA di aver toccato numerazione, righe, movimenti e giacenze. Messa
+        // dopo, gli effetti sarebbero già stati applicati.
+        //
+        // ⚠️ Solo in CREAZIONE: risalvare un documento esistente è già
+        // idempotente per riconciliazione (righe per id, movimenti per
+        // `sourceLineId`), e rivendicare un intento lì impedirebbe la seconda
+        // modifica legittima dello stesso documento.
+        if (creationIntentId && !existing) {
+          await this.intents.claimTx(tx, {
+            tenantId,
+            intentId: creationIntentId,
+            scope: DocumentType.store_sale,
+            fingerprint,
+          });
+        }
         const year = documentDate.getFullYear();
         // Numero e serie si assegnano SOLO alla nascita. In modifica restano
         // quelli: il riferimento è dentro la causale dei movimenti già scritti, e
@@ -362,12 +444,31 @@ export class StoreSalesService {
           actor,
         });
 
+        // T15 — ULTIMA scrittura: il riferimento al documento appena creato.
+        // Dentro la transazione, quindi se il lavoro fallisce il claim se ne va
+        // con lui e l'intento torna libero.
+        if (creationIntentId && !existing) {
+          await this.intents.recordResultTx(tx, {
+            tenantId,
+            intentId: creationIntentId,
+            resultRef: doc.id,
+          });
+        }
+
         return doc;
       });
       // T7B: il conflitto sul numero si intercetta QUI, fuori dalla
       // transazione — a questo punto ha già fatto rollback, e il client root è
       // l'unico utilizzabile per calcolare il primo libero.
     } catch (error) {
+      // T15 — PRIMA del conflitto di numero: un reinvio dello stesso intento
+      // non è un errore, è una risposta già pronta. I due non si confondono —
+      // `isCreationIntentConflict` e `isDocumentNumberConflict` guardano modelli
+      // Prisma diversi — ma l'ordine dichiara la precedenza.
+      const gia = await this.replayIfAlreadyDone(error, tenantId, dto, fingerprint);
+      if (gia) {
+        return gia;
+      }
       await this.throwStoreNumberConflict(
         error,
         tenantId,
@@ -377,7 +478,7 @@ export class StoreSalesService {
         dto.series,
         dto.number && dto.number > 0 ? dto.number : null,
       );
-      // Non era un conflitto di numero: l'errore originale prosegue intatto.
+      // Non era né un intento né un conflitto di numero: l'errore prosegue.
       throw error;
     }
 
@@ -510,9 +611,23 @@ export class StoreSalesService {
       createdByName: user.displayName?.trim() || 'Utente',
     };
 
+    // T15 — come sulla Vendita: l'impronta è del contenuto, l'intento ne resta
+    // fuori.
+    const { creationIntentId, ...contenuto } = dto;
+    const fingerprint = CreationIntentService.fingerprintOf(contenuto);
+
     let created;
     try {
       created = await this.prisma.$transaction(async (tx) => {
+        // T15 — la PRIMA scrittura, e solo in creazione. Vedi `createSale`.
+        if (creationIntentId && !existing) {
+          await this.intents.claimTx(tx, {
+            tenantId,
+            intentId: creationIntentId,
+            scope: DocumentType.store_return,
+            fingerprint,
+          });
+        }
         const year = documentDate.getFullYear();
         let nuovaNumerazione: { series: string | null; number: number; reference: string } | null =
           null;
@@ -729,10 +844,23 @@ export class StoreSalesService {
           actor,
         });
 
+        // T15 — ULTIMA scrittura, come sulla Vendita.
+        if (creationIntentId && !existing) {
+          await this.intents.recordResultTx(tx, {
+            tenantId,
+            intentId: creationIntentId,
+            resultRef: doc.id,
+          });
+        }
+
         return doc;
       });
       // T7B: come sulla Vendita, stesso schema e stesso motore comune.
     } catch (error) {
+      const gia = await this.replayIfAlreadyDone(error, tenantId, dto, fingerprint);
+      if (gia) {
+        return gia;
+      }
       await this.throwStoreNumberConflict(
         error,
         tenantId,
