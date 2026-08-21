@@ -994,9 +994,10 @@ banco. Sta scritto qui perché è emerso qui, non perché appartenga a questo mo
 _Aggiunta al rientro dal blocco «grammatica dei riepiloghi». Serve a chi riprende questo
 documento: **non si progetta niente di quanto sta qui sotto**, esiste già e si adotta._
 
-⛔ **La regola di §A12 vale per il dominio, non per l'infrastruttura**: l'Ordine cliente è il
-riferimento da cui partire per la MASCHERA, ma l'elenco della Vendita al banco non parte da
-lui — parte dal **motore comune**, che nel frattempo è diventato la base di quattro riepiloghi.
+⛔ **L'Ordine cliente resta il riferimento MOBILE e OPERATIVO**, non quello grafico del
+desktop (§A12, ristretto il 21/08/2026). L'elenco della Vendita al banco **non parte da lui**:
+parte dal motore comune, che nel frattempo è diventato la base di quattro riepiloghi — e la
+maschera prende da lui i pezzi già risolti, non l'aspetto.
 
 | Che cosa                      | Dov'è                                                                                         |
 | ----------------------------- | --------------------------------------------------------------------------------------------- |
@@ -1024,14 +1025,25 @@ la Vendita al banco.
 **Deciso il 18/08/2026, e la formulazione precedente era troppo vaga.** Non «stessa famiglia
 visiva»: **Ordine cliente è l'implementazione concreta di riferimento da cui partire.**
 
+⚠️ **RISTRETTO il 21/08/2026**, dal proprietario: «Ordine cliente è soprattutto il riferimento
+**mobile/operativo**; il desktop non va copiato graficamente e l'elenco Vendita/Reso deve
+nascere sulla grammatica comune dei riepiloghi». La formulazione qui sotto era diventata troppo
+ampia mentre quella base comune veniva costruita — e §A11-quater dice che cosa c'è ora.
+
 ```text
 NO   guardo Ordine cliente → progetto una nuova schermata simile
 SÌ   ispeziono Ordine cliente → individuo i pezzi già risolti → li riuso o li estraggo
      → costruisco la Vendita al banco sopra quella base
 ```
 
-- struttura, testata, tabella e piede: fonte concreta è l'Ordine cliente **desktop**;
-- card e comportamento responsive: fonte concreta è l'Ordine cliente **mobile**;
+- **mobile e comportamento operativo**: fonte concreta è l'Ordine cliente — è lì che il
+  riferimento vale per intero;
+- ⛔ **il DESKTOP non si copia graficamente** _(ristretto il 21/08/2026)_: la sua grammatica
+  ora viene dalla **base comune dei riepiloghi** — motore tabella, densità, intestazione,
+  ordinamento. Copiare l'aspetto di una schermata significherebbe rifare a mano ciò che il
+  motore già dà, e divergere dal giorno dopo;
+- ciò che resta dell'Ordine cliente desktop è **quello che ha già risolto**: componenti, celle
+  di riga, primitive — da riusare o estrarre, non da imitare;
 - se un pezzo utile non è ancora un componente condiviso, si valuta di **estrarlo**, non di
   rifarlo in proprio;
 - si toglie ciò che appartiene al dominio Ordine cliente; si aggiunge ciò che è specifico

@@ -76,12 +76,12 @@ strumenti di lavoro. Non ci si cercano decisioni.
 
 ## Vendita al banco — `11`
 
-| Decisione                                                                                     | Dove       |
-| --------------------------------------------------------------------------------------------- | ---------- |
-| Due tasti diretti alla creazione: **Nuova vendita** e **Nuovo reso**, nessun selettore dentro | A2 · A3    |
-| Si parte da **Ordine cliente** come implementazione di riferimento, **senza il suo dominio**  | A12        |
-| L'elenco parte invece dalla **base comune** dei riepiloghi, che nel frattempo esiste          | A11-quater |
-| «Vendita negozio» è **legacy**: il nome è «Vendita al banco»                                  | A6         |
+| Decisione                                                                                            | Dove       |
+| ---------------------------------------------------------------------------------------------------- | ---------- |
+| Due tasti diretti alla creazione: **Nuova vendita** e **Nuovo reso**, nessun selettore dentro        | A2 · A3    |
+| **Ordine cliente è il riferimento MOBILE e operativo**, non la grafica desktop da copiare            | A12        |
+| **L'elenco Vendita/Reso nasce sulla grammatica comune** dei riepiloghi, non su una schermata copiata | A11-quater |
+| «Vendita negozio» è **legacy**: il nome è «Vendita al banco»                                         | A6         |
 
 ---
 
