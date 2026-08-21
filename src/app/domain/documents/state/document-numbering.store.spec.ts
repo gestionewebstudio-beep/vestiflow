@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
+import { of } from 'rxjs';
+
 import { DocumentType } from '@core/models/document.model';
 
 import type { DocumentCounterView } from '../models/document-counter.model';
 
+import { DocumentNumberConflictStore } from './document-number-conflict.store';
 import { DocumentNumberingStore } from './document-numbering.store';
+import type { DocumentNumberingCountersSource } from './document-numbering.store';
 
 function counter(overrides: Partial<DocumentCounterView> = {}): DocumentCounterView {
   return {
@@ -26,7 +30,7 @@ function counter(overrides: Partial<DocumentCounterView> = {}): DocumentCounterV
  * `ordine` registra la sequenza delle chiamate, perché fra scrivere il numero e
  * marcarlo l'ordine conta (vedi la prova «marca prima di scrivere»).
  */
-function testata(options: { readonly isEdit?: boolean } = {}) {
+function testata(options: { readonly isEdit?: boolean; readonly countersSource?: unknown } = {}) {
   const stato = {
     number: null as number | null,
     series: '',
@@ -59,6 +63,9 @@ function testata(options: { readonly isEdit?: boolean } = {}) {
       stato.programmatiche += 1;
       write();
     },
+    ...(options.countersSource
+      ? { countersSource: options.countersSource as DocumentNumberingCountersSource }
+      : {}),
   });
   return { store, stato };
 }
@@ -313,5 +320,92 @@ describe('DocumentNumberingStore', () => {
 
     expect(stato.series).toBe('A');
     expect(stato.number).toBe(7);
+  });
+});
+
+/**
+ * Il **giro dei contatori** (E-6) e la presa d'atto del conflitto (E-7):
+ * stavano copiati in sette maschere, e la divergenza fra copie era già
+ * successa due volte in questi stessi gestori.
+ */
+describe('DocumentNumberingStore — il giro dei contatori', () => {
+  function sorgente(proposedCounterId: string | null = 'cnt-1') {
+    const chiamate: { type: unknown; locationId: unknown; documentDate: unknown }[] = [];
+    const countersSource = {
+      service: {
+        available: (type: unknown, locationId: unknown, documentDate: unknown) => {
+          chiamate.push({ type, locationId, documentDate });
+          return of({ counters: [counter({ nextNumber: 42 })], proposedCounterId });
+        },
+      },
+      destroyRef: { onDestroy: () => () => undefined },
+      documentType: () => DocumentType.Transfer,
+      locationId: () => 'loc-1',
+      documentDate: () => '2026-08-21',
+    };
+    return { chiamate, countersSource };
+  }
+
+  it('riproponi: chiede i contatori di (tipo, sede, DATA) e applica la proposta', () => {
+    // ⛔ La data non è un extra: il primo libero si calcola su di lei, e senza
+    // il server risponderebbe per oggi.
+    const { chiamate, countersSource } = sorgente();
+    const { store, stato } = testata({ countersSource });
+
+    store.refreshProposal();
+
+    expect(chiamate).toEqual([
+      { type: DocumentType.Transfer, locationId: 'loc-1', documentDate: '2026-08-21' },
+    ]);
+    expect(stato.number).toBe(42);
+  });
+
+  it('ricarica: aggiorna l’elenco e NON tocca la selezione', () => {
+    // È la chiusura del pannello numerazioni: chi ha appena aggiunto una serie
+    // deve vederla, ma non deve trovarsi il numero cambiato sotto le mani.
+    const { countersSource } = sorgente();
+    const { store, stato } = testata({ countersSource });
+
+    store.reloadCounters();
+
+    expect(store.counters()).toHaveLength(1);
+    expect(stato.number).toBeNull();
+  });
+
+  it('senza sorgente non fa niente, invece di esplodere', () => {
+    const { store } = testata();
+
+    expect(() => {
+      store.refreshProposal();
+      store.reloadCounters();
+    }).not.toThrow();
+  });
+
+  it('⭐ presa d’atto del conflitto: scrive il numero E lo marca come scelto', () => {
+    // Marcarlo è parte dello scriverlo: senza, il numero nuovo sarebbe
+    // scambiato per una proposta e OMESSO al salvataggio successivo.
+    const { store, stato } = testata();
+    const dialogo = new DocumentNumberConflictStore();
+    dialogo.open({ code: 'document_number_taken', number: 41, nextAvailable: 42, series: null });
+
+    store.acknowledgeConflict(dialogo);
+
+    expect(stato.number).toBe(42);
+    expect(store.imposedNumber()).toBe(42);
+    expect(dialogo.isOpen()).toBe(false);
+  });
+
+  it('⭐ chi RESTA aperto dopo il salvataggio ricomincia: la serie torna non scelta', () => {
+    // Il banco conclude una vendita e prepara la successiva sulla STESSA
+    // istanza: senza azzeramento manderebbe al server una serie scelta per il
+    // documento prima, come se l'operatore l'avesse detta per questo.
+    const { store } = testata();
+    store.setCounters([counter({ series: 'B' })]);
+    store.onSeriesChange('B');
+    expect(store.chosenSeries()).toBe('B');
+
+    store.resetChoice();
+
+    expect(store.chosenSeries()).toBeUndefined();
   });
 });

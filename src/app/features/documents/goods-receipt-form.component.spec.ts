@@ -556,7 +556,7 @@ describe('GoodsReceiptFormComponent', () => {
 
     // Una riproposta dei contatori — la scatenano il cambio data e ogni
     // ricarica — non deve più toccarlo: il numero è assegnato, non proposto.
-    component['refreshNumberProposal']();
+    component['numbering'].refreshProposal();
     await fixture.whenStable();
 
     expect(component.form.controls.documentNumber.value).toBe(46);

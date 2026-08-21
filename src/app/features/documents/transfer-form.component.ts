@@ -257,14 +257,14 @@ export class TransferFormComponent implements CanComponentDeactivate {
     // salvato, o con un numero digitato, cambia solo la tendina.
     this.form.controls.locationId.valueChanges
       .pipe(distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.refreshNumberProposal());
+      .subscribe(() => this.numbering.refreshProposal());
 
     // Cambio data: il numero proposto dipende dalla data (§2), quindi la
     // testata deve rifare l'anteprima — o mostrerebbe il primo libero di OGGI
     // mentre il salvataggio assegna quello della data scelta.
     this.form.controls.documentDate.valueChanges
       .pipe(distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.refreshNumberProposal());
+      .subscribe(() => this.numbering.refreshProposal());
 
     // Breadcrumb: numero del documento al posto del generico «Dettaglio».
     bindBreadcrumbEntityLabel(() => ({
@@ -274,7 +274,7 @@ export class TransferFormComponent implements CanComponentDeactivate {
 
     // Carica i contatori disponibili (tendina serie) e propone il predefinito.
     afterNextRender(() => {
-      this.refreshNumberProposal();
+      this.numbering.refreshProposal();
       this.prefillFromDuplicateIfRequested();
     });
 
@@ -330,7 +330,7 @@ export class TransferFormComponent implements CanComponentDeactivate {
     } finally {
       this.suppressDirtyMarking = false;
     }
-    this.refreshNumberProposal();
+    this.numbering.refreshProposal();
   }
 
   protected readonly listPath = '/app/documents';
@@ -607,6 +607,16 @@ export class TransferFormComponent implements CanComponentDeactivate {
     numberIsDirty: () => !this.documentNumberPristine(),
     markNumberDirty: () => this.form.controls.documentNumber.markAsDirty(),
     markNumberPristine: () => this.form.controls.documentNumber.markAsPristine(),
+    // I contatori: il giro — chiamata, `take(1)`, chiusura col ciclo di vita,
+    // «riproponi» contro «ricarica l'elenco» — vive nello store comune (E-6).
+    // Qui restano le tre letture che cambiano da una maschera all'altra.
+    countersSource: {
+      service: this.countersService,
+      destroyRef: this.destroyRef,
+      documentType: () => DocumentType.Transfer,
+      locationId: () => this.form.controls.locationId.value || null,
+      documentDate: () => this.form.controls.documentDate.value,
+    },
     asProgrammatic: (write) => {
       // La proposta iniziale non è una modifica dell'operatore: scriverla non
       // deve accendere il guard di uscita.
@@ -628,32 +638,7 @@ export class TransferFormComponent implements CanComponentDeactivate {
    */
   protected onSeriesManagerClosed(): void {
     this.seriesDialogOpen.set(false);
-    this.countersService
-      .available(
-        DocumentType.Transfer,
-        this.form.controls.locationId.value || null,
-        this.form.controls.documentDate.value,
-      )
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: ({ counters }) => this.numbering.setCounters(counters),
-        error: () => undefined,
-      });
-  }
-
-  private refreshNumberProposal(): void {
-    this.countersService
-      .available(
-        DocumentType.Transfer,
-        this.form.controls.locationId.value || null,
-        this.form.controls.documentDate.value,
-      )
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: ({ counters, proposedCounterId }) =>
-          this.numbering.applyProposal(counters, proposedCounterId),
-        error: () => undefined,
-      });
+    this.numbering.reloadCounters();
   }
 
   /**
@@ -690,16 +675,7 @@ export class TransferFormComponent implements CanComponentDeactivate {
   );
 
   protected acknowledgeConflictNumber(): void {
-    // Il numero nuovo si scrive in testata (specifica numerazione §3): il
-    // digitato è perso comunque, e ridigitarlo a mano è l'occasione per un
-    // errore di battitura e un secondo conflitto. Passa dallo store perché da
-    // qui in poi quel numero è una SCELTA e deve viaggiare al salvataggio
-    // invece di essere scambiato per una proposta e omesso: marcarlo è parte
-    // dello scriverlo, e non è una cosa che ogni maschera debba ricordarsi.
-    const nuovo = this.numberConflictDialog.acknowledge();
-    if (nuovo != null) {
-      this.numbering.onNumberChange(nuovo);
-    }
+    this.numbering.acknowledgeConflict(this.numberConflictDialog);
   }
 
   private readonly _submitState = signal<SubmitState>({ status: 'idle' });

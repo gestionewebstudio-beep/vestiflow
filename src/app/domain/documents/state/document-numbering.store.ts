@@ -1,8 +1,41 @@
-import { computed, signal } from '@angular/core';
+import { computed, signal, type DestroyRef } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { take } from 'rxjs';
 
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
+import type { EntityId } from '@core/models/common.model';
+import type { DocumentType } from '@core/models/document.model';
+
 import type { DocumentCounterView } from '../models/document-counter.model';
+import type { DocumentCountersService } from '../services/document-counters.service';
+
+import type { DocumentNumberConflictStore } from './document-number-conflict.store';
+
+/**
+ * Da dove lo store prende i contatori — il **giro** che finora ogni maschera
+ * faceva da sé (E-6).
+ *
+ * ⚠️ Non è un servizio iniettato: lo store resta una classe senza DI (vedi il
+ * commento della classe), e le tre letture che DIFFERISCONO fra una maschera e
+ * l'altra — tipo, sede, data — restano funzioni del chiamante. Quello che si
+ * sposta qui è la chiamata, il `take(1)`, la chiusura col ciclo di vita e la
+ * scelta fra «riproponi» e «ricarica l'elenco»: dodici righe che stavano in
+ * **sette** maschere identiche riga per riga.
+ */
+export interface DocumentNumberingCountersSource {
+  readonly service: DocumentCountersService;
+  /** Ciclo di vita del chiamante: le letture si chiudono con lui. */
+  readonly destroyRef: DestroyRef;
+  readonly documentType: () => DocumentType;
+  readonly locationId: () => EntityId | null;
+  /**
+   * ⛔ Non facoltativa: il numero proposto è il primo libero **dopo i documenti
+   * di data anteriore** (numerazione §2). Senza, il server calcola su oggi e la
+   * testata mostra un numero che il salvataggio non userà.
+   */
+  readonly documentDate: () => string;
+}
 
 /**
  * Le sole cose che DIFFERISCONO fra una maschera e l'altra nella numerazione.
@@ -43,6 +76,13 @@ export interface DocumentNumberingContract {
    * distinguerlo può omettere questo gancio.
    */
   readonly asProgrammatic?: (write: () => void) => void;
+  /**
+   * I contatori: senza questa sorgente lo store è muto verso il server e
+   * `refreshProposal()` / `reloadCounters()` non fanno niente. Facoltativa
+   * perché le prove dello store lavorano sui contatori che gli si passano a
+   * mano — ⛔ **non** perché una maschera possa rifarsi il giro in casa.
+   */
+  readonly countersSource?: DocumentNumberingCountersSource;
 }
 
 /**
@@ -237,6 +277,85 @@ export class DocumentNumberingStore {
       return undefined;
     }
     return this.contract.number() ?? undefined;
+  }
+
+  /**
+   * La compilazione ricomincia da capo, sulla STESSA istanza: la scelta della
+   * serie torna «non fatta», e il documento dopo riparte da una proposta.
+   *
+   * ⚠️ Serve alle maschere che **restano aperte** dopo il salvataggio — il
+   * banco, che conclude una vendita e si prepara alla successiva. Le altre
+   * navigano via e vengono ricostruite, quindi non l'hanno mai chiamata: senza
+   * questo azzeramento la vendita dopo erediterebbe una serie SCELTA dalla
+   * precedente, e la manderebbe al server come se l'operatore l'avesse detta.
+   *
+   * ⛔ I contatori NON si buttano: sono l'elenco, non una scelta.
+   */
+  resetChoice(): void {
+    this._seriesChosen.set(false);
+  }
+
+  /**
+   * **Riproponi**: rilegge i contatori di (tipo, sede, data) e riapplica la
+   * proposta. È il giro che segue ogni cambio di sede o di data, e l'apertura
+   * di un documento nuovo. Su documento salvato, o col numero già digitato,
+   * `applyProposal` non tocca niente — la decisione resta dov'era.
+   */
+  refreshProposal(): void {
+    this.loadCounters((counters, proposedCounterId) =>
+      this.applyProposal(counters, proposedCounterId),
+    );
+  }
+
+  /**
+   * **Ricarica l'elenco e basta**: la selezione resta quella che era. È la
+   * chiusura del pannello numerazioni — chi ha appena aggiunto una serie deve
+   * vederla nella tendina, ma non deve trovarsi il numero cambiato sotto le
+   * mani.
+   *
+   * ⚠️ I due modi non sono intercambiabili, ed è la ragione per cui vivono
+   * insieme: separati, prima o poi qualcuno chiude il pannello e si ritrova la
+   * proposta riapplicata sopra una scelta.
+   */
+  reloadCounters(): void {
+    this.loadCounters((counters) => this.setCounters(counters));
+  }
+
+  /**
+   * Presa d'atto dell'avviso «numero già assegnato» (E-7): il numero nuovo si
+   * scrive in testata **e** si marca come scelto — le due cose insieme, sempre.
+   *
+   * Il digitato è perso comunque (l'ha appena preso un altro) e ridigitare a
+   * mano è l'occasione per un errore di battitura e un secondo conflitto.
+   * Passa da `onNumberChange` perché da qui in poi quel numero è una SCELTA e
+   * deve viaggiare al salvataggio invece di essere scambiato per una proposta e
+   * omesso: marcarlo è parte dello scriverlo, e non è una cosa che ogni
+   * maschera debba ricordarsi. La divergenza sull'ordine fra marcatura e
+   * scrittura era già ricomparsa nei **sette** gestori copiati.
+   */
+  acknowledgeConflict(dialog: DocumentNumberConflictStore): void {
+    const nuovo = dialog.acknowledge();
+    if (nuovo != null) {
+      this.onNumberChange(nuovo);
+    }
+  }
+
+  private loadCounters(
+    apply: (counters: readonly DocumentCounterView[], proposedCounterId: string | null) => void,
+  ): void {
+    const source = this.contract.countersSource;
+    if (!source) {
+      return;
+    }
+    source.service
+      .available(source.documentType(), source.locationId(), source.documentDate())
+      .pipe(take(1), takeUntilDestroyed(source.destroyRef))
+      .subscribe({
+        next: ({ counters, proposedCounterId }) => apply(counters, proposedCounterId),
+        // Un elenco che non arriva non cancella la serie scelta: `applyProposal`
+        // tratta l'elenco vuoto come «non lo so», non come «non esiste più».
+        error: () => undefined,
+      });
   }
 
   private write(action: () => void): void {

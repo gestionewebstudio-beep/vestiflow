@@ -478,6 +478,16 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     numberIsDirty: () => !this.documentNumberPristine(),
     markNumberDirty: () => this.form.controls.documentNumber.markAsDirty(),
     markNumberPristine: () => this.form.controls.documentNumber.markAsPristine(),
+    // I contatori: il giro — chiamata, `take(1)`, chiusura col ciclo di vita,
+    // «riproponi» contro «ricarica l'elenco» — vive nello store comune (E-6).
+    // Qui restano le tre letture che cambiano da una maschera all'altra.
+    countersSource: {
+      service: this.countersService,
+      destroyRef: this.destroyRef,
+      documentType: () => this.form.controls.type.value,
+      locationId: () => this.form.controls.locationId.value || null,
+      documentDate: () => this.form.controls.documentDate.value,
+    },
     asProgrammatic: (write) => {
       // La proposta iniziale non è una modifica dell'operatore: scriverla non
       // deve accendere il guard di uscita.
@@ -499,17 +509,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
    */
   protected onSeriesManagerClosed(): void {
     this.seriesDialogOpen.set(false);
-    this.countersService
-      .available(
-        this.form.controls.type.value,
-        this.form.controls.locationId.value || null,
-        this.form.controls.documentDate.value,
-      )
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: ({ counters }) => this.numbering.setCounters(counters),
-        error: () => undefined,
-      });
+    this.numbering.reloadCounters();
   }
 
   /**
@@ -1153,7 +1153,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
             // ricordo di aver già avvisato sopravviverebbe al documento che
             // l'aveva ricevuto.
             this.lineSort.reset();
-            this.refreshNumberProposal();
+            this.numbering.refreshProposal();
             if (confirmedEditable) {
               this.form.controls.type.disable({ emitEvent: false });
             } else {
@@ -1298,11 +1298,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((type) => {
         this.syncSupplierRequirement(type);
-        this.refreshNumberProposal();
+        this.numbering.refreshProposal();
       });
     this.form.controls.documentDate.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.refreshNumberProposal());
+      .subscribe(() => this.numbering.refreshProposal());
     // Cambio sede: la tendina Serie cambia con lei — un contatore legato a una
     // sede è disponibile SOLO lì, e quelli senza sede ovunque (§1-bis). Senza
     // questa ricarica l'elenco resterebbe quello chiesto all'apertura, e
@@ -1313,7 +1313,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     // salvato, o con un numero digitato, cambia solo la tendina.
     this.form.controls.locationId.valueChanges
       .pipe(distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.refreshNumberProposal());
+      .subscribe(() => this.numbering.refreshProposal());
     this.form.controls.externalDocumentTypeId.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((typeId) => this.applyTemplateFromType(typeId));
@@ -1327,7 +1327,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     // si carica all'avvio e si ricarica a ogni scelta fatta nel componente
     // condiviso.
     this.loadExternalDocTypes();
-    this.refreshNumberProposal();
+    this.numbering.refreshProposal();
     this.setupDirtyTracking();
     this.form.controls.supplierId.valueChanges
       .pipe(startWith(this.form.controls.supplierId.value), takeUntilDestroyed(this.destroyRef))
@@ -4219,7 +4219,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       line.get('id')?.setValue('');
       line.get('supplierOrderLineId')?.setValue('');
     }
-    this.refreshNumberProposal();
+    this.numbering.refreshProposal();
   }
 
   private resolveSupplierOrderId(): string | null {
@@ -4527,16 +4527,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   protected acknowledgeConflictNumber(): void {
-    // Il numero nuovo si scrive in testata (specifica numerazione §3): il
-    // digitato è perso comunque, e ridigitarlo a mano è l'occasione per un
-    // errore di battitura e un secondo conflitto. Passa dallo store perché da
-    // qui in poi quel numero è una SCELTA e deve viaggiare al salvataggio
-    // invece di essere scambiato per una proposta e omesso: marcarlo è parte
-    // dello scriverlo, e non è una cosa che ogni maschera debba ricordarsi.
-    const nuovo = this.numberConflictDialog.acknowledge();
-    if (nuovo != null) {
-      this.numbering.onNumberChange(nuovo);
-    }
+    this.numbering.acknowledgeConflict(this.numberConflictDialog);
   }
 
   private reloadSupplierVariantLinks(supplierId: string): void {
@@ -5068,26 +5059,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       control.clearValidators();
     }
     control.updateValueAndValidity({ emitEvent: false });
-  }
-
-  /**
-   * Propone il primo numero libero della serie. Non tocca un valore
-   * digitato a mano (control «dirty»): quello è una scelta dell'operatore, e
-   * un numero imposto non sposta il progressivo della serie.
-   */
-  private refreshNumberProposal(): void {
-    this.countersService
-      .available(
-        this.form.controls.type.value,
-        this.form.controls.locationId.value || null,
-        this.form.controls.documentDate.value,
-      )
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: ({ counters, proposedCounterId }) =>
-          this.numbering.applyProposal(counters, proposedCounterId),
-        error: () => undefined,
-      });
   }
 
   /**

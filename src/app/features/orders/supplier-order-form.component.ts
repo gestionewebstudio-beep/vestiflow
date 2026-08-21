@@ -596,6 +596,16 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     numberIsDirty: () => !this.documentNumberPristine(),
     markNumberDirty: () => this.form.controls.documentNumber.markAsDirty(),
     markNumberPristine: () => this.form.controls.documentNumber.markAsPristine(),
+    // I contatori: il giro — chiamata, `take(1)`, chiusura col ciclo di vita,
+    // «riproponi» contro «ricarica l'elenco» — vive nello store comune (E-6).
+    // Qui restano le tre letture che cambiano da una maschera all'altra.
+    countersSource: {
+      service: this.countersService,
+      destroyRef: this.destroyRef,
+      documentType: () => DocumentType.SupplierOrder,
+      locationId: () => this.form.controls.locationId.value || null,
+      documentDate: () => this.form.controls.orderDate.value,
+    },
     asProgrammatic: (write) => {
       // La proposta iniziale non è una modifica dell'operatore: scriverla non
       // deve accendere il guard di uscita.
@@ -631,16 +641,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   protected readonly conflictMessage = this.numberConflictDialog.message;
 
   protected acknowledgeConflictNumber(): void {
-    // Il numero nuovo si scrive in testata (specifica numerazione §3): il
-    // digitato è perso comunque, e ridigitarlo a mano è l'occasione per un
-    // errore di battitura e un secondo conflitto. Passa dallo store perché da
-    // qui in poi quel numero è una SCELTA e deve viaggiare al salvataggio
-    // invece di essere scambiato per una proposta e omesso: marcarlo è parte
-    // dello scriverlo, e non è una cosa che ogni maschera debba ricordarsi.
-    const nuovo = this.numberConflictDialog.acknowledge();
-    if (nuovo != null) {
-      this.numbering.onNumberChange(nuovo);
-    }
+    this.numbering.acknowledgeConflict(this.numberConflictDialog);
   }
 
   /**
@@ -649,32 +650,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
    */
   protected onSeriesManagerClosed(): void {
     this.seriesDialogOpen.set(false);
-    this.countersService
-      .available(
-        DocumentType.SupplierOrder,
-        this.form.controls.locationId.value || null,
-        this.form.controls.orderDate.value,
-      )
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: ({ counters }) => this.numbering.setCounters(counters),
-        error: () => undefined,
-      });
-  }
-
-  private refreshNumberProposal(): void {
-    this.countersService
-      .available(
-        DocumentType.SupplierOrder,
-        this.form.controls.locationId.value || null,
-        this.form.controls.orderDate.value,
-      )
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: ({ counters, proposedCounterId }) =>
-          this.numbering.applyProposal(counters, proposedCounterId),
-        error: () => undefined,
-      });
+    this.numbering.reloadCounters();
   }
 
   /** Sedi su cui l'operatore può scrivere, con la sua predefinita in cima. */
@@ -1004,14 +980,14 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     // sede è disponibile SOLO lì, e quelli senza sede ovunque (§1-bis).
     this.form.controls.locationId.valueChanges
       .pipe(distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.refreshNumberProposal());
+      .subscribe(() => this.numbering.refreshProposal());
 
     // Cambio data: il numero proposto dipende dalla data (§2), quindi la
     // testata deve rifare l'anteprima — o mostrerebbe il primo libero di OGGI
     // mentre il salvataggio assegna quello della data scelta.
     this.form.controls.orderDate.valueChanges
       .pipe(distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.refreshNumberProposal());
+      .subscribe(() => this.numbering.refreshProposal());
 
     this.columnPreferences.registerView(
       SUPPLIER_ORDER_LINES_VIEW,
@@ -1025,7 +1001,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
 
     // Numero e serie proposti all'apertura. Su un documento in modifica non
     // fa nulla: lì il numero è assegnato, non proposto.
-    this.refreshNumberProposal();
+    this.numbering.refreshProposal();
 
     // Sola lettura = form disabilitato. Un solo punto invece di una guardia in
     // ogni gestore: lasciare i campi scrivibili e bloccare solo il salvataggio
