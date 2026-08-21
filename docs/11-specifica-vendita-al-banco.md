@@ -921,14 +921,14 @@ Erano elencate fra le aperte, e non lo sono: due sezioni le avevano già decise.
 
 ⚠️ **Qui c'erano cinque decisioni aperte. Sono chiuse tutte**, e il contratto del Reso è completo.
 
-|                                 | Deciso                                                                                                                                                                                                                                      |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **documento origine**           | **nessuno.** Resta autonomo: ⛔ non include una Vendita al banco e ⛔ non viene generato da una Vendita al banco                                                                                                                            |
-| **prezzo**                      | ⛔ **non si recupera mai da una vendita precedente.** Alla selezione dell'articolo usa i dati economici disponibili nell'**anagrafica**, secondo il **contratto prezzi comune** del gestionale; il prezzo della riga **resta modificabile** |
-| **sconto**                      | **identico alla Vendita al banco**: stesso sconto di riga, stesso blocco sconto extra a piè documento (percentuale **e** importo). ⛔ Nessuna logica speciale del Reso                                                                      |
-| **causale**                     | **facoltativa.** ⛔ Il comportamento corrente che la rende obbligatoria **va rimosso** (**B4**)                                                                                                                                             |
-| **rimborso**                    | per ora **informazione semplice**: nessun movimento di Tesoreria, nessuna allocazione, nessun collegamento al futuro motore Pagamenti                                                                                                       |
-| **correggere un Reso concluso** | **come la Vendita al banco** (**A2**): si riapre, si modifica, si salva di nuovo e si elimina, dal riepilogo/elenco del modulo                                                                                                              |
+|                                 | Deciso                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **documento origine**           | **nessuno.** Resta autonomo: ⛔ non include una Vendita al banco e ⛔ non viene generato da una Vendita al banco                                                                                                                                                                                                                          |
+| **prezzo**                      | ⛔ **non si recupera mai da una vendita precedente.** Alla selezione dell'articolo usa i dati economici disponibili nell'**anagrafica**, secondo il **contratto prezzi comune** del gestionale; il prezzo della riga **resta modificabile**                                                                                               |
+| **sconto**                      | **identico alla Vendita al banco**: stesso sconto di riga, stesso blocco sconto extra a piè documento (percentuale **e** importo). ⛔ Nessuna logica speciale del Reso                                                                                                                                                                    |
+| **causale**                     | **facoltativa.** ⛔ Il comportamento corrente che la rende obbligatoria **va rimosso** (**B4**)                                                                                                                                                                                                                                           |
+| **rimborso**                    | per ora **informazione semplice**: nessun movimento di Tesoreria, nessuna allocazione, nessun collegamento al futuro motore Pagamenti. ⏳ **La sua RAPPRESENTAZIONE arriva col blocco Pagamenti/Tesoreria** (21/08/2026): la decisione resta, ma non si introduce ora una seconda forma provvisoria da ricondurre poi al contratto comune |
+| **correggere un Reso concluso** | **come la Vendita al banco** (**A2**): si riapre, si modifica, si salva di nuovo e si elimina, dal riepilogo/elenco del modulo                                                                                                                                                                                                            |
 
 #### La correzione di un Reso concluso segue A2 alla lettera
 
@@ -1376,6 +1376,28 @@ quella estensione va fatta **dove il contratto vive**, non aggiungendo un campo 
 Vendita al banco. Un importo che esiste in una maschera sola è esattamente la logica locale
 che questa regola vieta.
 
+### ⛔ Che cosa fa la maschera finché D1 è aperta — deciso il 21/08/2026
+
+> **Lo Sconto extra NON si espone**, e non si espone **la sola percentuale**.
+
+Il campo è deciso — percentuale **e** importo — ma il contratto comune regge solo la
+percentuale (**B12**) e le regole di calcolo dell'importo sono aperte. Una sezione con la sola
+percentuale consoliderebbe in interfaccia una forma **già nota come incompleta**, e andrebbe
+disfatta il giorno in cui D1 chiude.
+
+|                  |                                                                                |
+| ---------------- | ------------------------------------------------------------------------------ |
+| ⛔ **non si fa** | esporre lo Sconto extra · creare un campo importo locale · inventare le regole |
+| ✅ **si fa**     | il resto del piede, che non dipende da D1                                      |
+
+⚠️ **E un valore già persistito non si perde né si ignora**: se un documento porta uno sconto
+documento, entra nei totali mostrati e resta sul documento — non esporre un controllo non
+significa buttare via un dato. _Misurato il 21/08: 46 documenti di banco, **zero** con sconto —
+la conservazione è la rete perché resti vero quando D1 chiuderà._
+
+⭐ Quando D1 sarà chiusa, l'importo entrerà **nel contratto comune per tutti i documenti**, e la
+Vendita al banco lo prenderà da lì.
+
 ### Fuori da questa specifica
 
 Le **regole di calcolo** dello sconto extra — se percentuale e importo siano cumulabili o
@@ -1397,6 +1419,28 @@ dev'essere chiaramente leggibile.
 
 L'azione principale dice **«Concludi vendita»** o **«Concludi reso»**, e il suo significato
 dev'essere inequivocabile: è il momento in cui nasce l'effetto fisico ed economico.
+
+### ⭐ Dopo una conclusione riuscita: pronti per il cliente successivo — 21/08/2026
+
+> **Su un documento NUOVO, concludere apre la compilazione successiva.** Su uno in
+> **modifica**, no: quella non è un'operazione di banco.
+
+```text
+documento NUOVO      conferma a schermo, col riferimento del documento concluso
+                     → compilazione vuota dello STESSO modo (vendita resta vendita)
+                     → intento di creazione nuovo (T15)
+                     → righe, cliente, note e causale NON si trascinano
+                     → i default della compilazione nuova si riapplicano
+
+in MODIFICA          si resta sul documento, col suo contesto e il normale
+                     contratto di modifica
+```
+
+⚠️ **La sede fa eccezione, e resta**: è il posto dove si sta lavorando, non un dato della
+singola vendita. Richiederla a ogni cliente sarebbe un gesto in più a ogni scontrino.
+
+⛔ **Non si resta sul documento appena creato** come se fosse ancora in lavorazione: al banco
+il cliente dopo è già lì.
 
 ⚠️ **Questo non contraddice «solo Includi e Genera» (A7).** «Concludi vendita» è l'**azione
 finale interna** del documento — quella che lo chiude e produce i suoi effetti — non una terza

@@ -34,6 +34,19 @@ interface StoreSaleModeDescriptorBase {
   readonly subtitle: string;
   /** Medaglione del pannello di testata su mobile. */
   readonly icon: string;
+  /**
+   * L'azione finale del documento (`11` A17): dice che cosa conclude, ed è il
+   * momento in cui nasce l'effetto fisico ed economico.
+   *
+   * ⛔ Non è «Salva documento», che `regole-stile-ui` §5 impone a ogni altro
+   * documento: A17 è una decisione specifica di questo tipo, e cambiarla
+   * richiede una decisione nuova — non l'applicazione della regola generale.
+   */
+  readonly confirmLabel: string;
+  /** La riga accanto alle azioni: che cosa succederà al magazzino. */
+  readonly stockEffectNote: string;
+  /** La conferma dopo la conclusione, prima del riferimento del documento. */
+  readonly concludedMessage: string;
 }
 
 /**
@@ -74,6 +87,9 @@ export const STORE_SALE_MODE_DESCRIPTOR: StoreSaleModeDescriptorMap = {
     subtitle:
       'Alla conclusione la giacenza e la disponibilità vengono scaricate; l’impegnata resta invariata. Non è un documento fiscale.',
     icon: 'pi-shopping-bag',
+    confirmLabel: 'Concludi vendita',
+    stockEffectNote: 'Le giacenze si scaricano alla conclusione',
+    concludedMessage: 'Vendita conclusa:',
   },
   return: {
     mode: 'return',
@@ -83,6 +99,9 @@ export const STORE_SALE_MODE_DESCRIPTOR: StoreSaleModeDescriptorMap = {
     subtitle:
       'Alla conclusione la merce resa rientra in giacenza, riga per riga secondo la spunta «Carica giacenze». Non è un documento fiscale.',
     icon: 'pi-replay',
+    confirmLabel: 'Concludi reso',
+    stockEffectNote: 'Il rientro segue la spunta di riga, alla conclusione',
+    concludedMessage: 'Reso concluso:',
   },
 };
 

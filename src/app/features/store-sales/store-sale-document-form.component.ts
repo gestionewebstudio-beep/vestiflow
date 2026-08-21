@@ -15,6 +15,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 
 import { catchError, map, of, startWith, switchMap, take, type Observable } from 'rxjs';
 
+import { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { EntityId } from '@core/models/common.model';
 import {
@@ -43,6 +44,7 @@ import { priceModeRowLabel } from '@domain/documents/models/document-price-mode.
 import { DocumentService } from '@domain/documents/services/document.service';
 import { DocumentLineSearchPanelStore } from '@domain/documents/state/document-line-search-panel.store';
 import { vatOptionsIncludingSelected } from '@domain/documents/utils/document-vat-options.util';
+import { computeDocumentTotals } from '@domain/documents/utils/document-totals.util';
 import {
   computeVatLineAmounts,
   grossFromNetMinor,
@@ -75,6 +77,8 @@ import {
   storeSaleModeOfDocumentType,
 } from '@domain/store-sales/models/store-sale-routing.util';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
+import { ButtonComponent } from '@shared/components/button/button.component';
+import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
@@ -118,11 +122,27 @@ type LoadState = 'ready' | 'loading' | 'not-found' | 'error';
  * quello persistito.
  */
 interface PreservedHeader {
+  /**
+   * Sconto extra del documento, **conservato senza essere esposto**.
+   *
+   * ⛔ Il controllo non c'è (`11` A16): lo Sconto extra è percentuale **e**
+   * importo, l'importo non esiste ancora nel contratto comune e le sue regole
+   * di calcolo sono un lavoro trasversale aperto (D1). Esporre intanto la sola
+   * percentuale consoliderebbe una forma che sappiamo incompleta.
+   *
+   * ⚠️ **Ma un valore già persistito non si perde e non si ignora**: si carica,
+   * entra nei totali mostrati e resta sul documento. Oggi nessun documento di
+   * banco ne ha uno — misurato il 21/08: 46 documenti, zero — e il campo non
+   * esiste in nessuno strato del banco; questa conservazione è la rete perché
+   * resti vero anche il giorno in cui D1 chiuderà.
+   */
+  readonly documentDiscountPercent: number;
   readonly notes: string;
   readonly causale: string;
 }
 
 const PRESERVED_HEADER_VUOTA: PreservedHeader = {
+  documentDiscountPercent: 0,
   notes: '',
   causale: '',
 };
@@ -172,6 +192,8 @@ function oggiIso(): string {
   imports: [
     ReactiveFormsModule,
     BackButtonComponent,
+    ButtonComponent,
+    ConfirmDialogComponent,
     DateInputComponent,
     DocumentLineSelectCellComponent,
     DocumentMobilePanelComponent,
@@ -190,7 +212,7 @@ function oggiIso(): string {
   templateUrl: './store-sale-document-form.component.html',
   styleUrl: './store-sale-document-form.component.scss',
 })
-export class StoreSaleDocumentFormComponent {
+export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -293,7 +315,7 @@ export class StoreSaleDocumentFormComponent {
    * I campi di testata che questa fase conserva senza mostrarli. Vedi
    * `PreservedHeader`: non mandarli al risalvataggio li cancellerebbe.
    */
-  private readonly preserved = signal<PreservedHeader>(PRESERVED_HEADER_VUOTA);
+  protected readonly preserved = signal<PreservedHeader>(PRESERVED_HEADER_VUOTA);
 
   /**
    * Le righe del documento. **Una collezione sola**, per Vendita e Reso: i due
@@ -1059,6 +1081,113 @@ export class StoreSaleDocumentFormComponent {
     );
   }
 
+  // ── Il piede: totali, note, causale, azioni ─────────────────────────────
+  //
+  // `11` A17: totali dal **motore economico comune**, mai una somma locale.
+  //
+  // ⛔ Lo **Sconto extra non è esposto** (`11` A16): è percentuale **e** importo,
+  // l'importo non esiste nel contratto comune e le sue regole di calcolo sono
+  // D1, aperta. Una sezione con la sola percentuale consoliderebbe una forma
+  // che sappiamo incompleta. ⚠️ Il valore già persistito entra però nei totali
+  // qui sotto: non esporre un controllo non significa ignorare un dato.
+
+  protected readonly totals = computed(() =>
+    computeDocumentTotals(
+      this.lines().map((line) => {
+        const amounts = this.lineAmounts(line);
+        return {
+          netMinor: amounts.lineNetMinor,
+          vatMinor: amounts.lineVatMinor,
+          vatRate: this.lineVatRate(line),
+          // Al banco ogni riga porta la propria imposta nel totale: non ci sono
+          // reverse charge, che appartengono ad altri tipi documento.
+          countsVatInTotal: true,
+        };
+      }),
+      this.preserved().documentDiscountPercent,
+      DEFAULT_CURRENCY,
+    ),
+  );
+
+  /** Lo sconto documento c'è solo se un documento vecchio ne portava uno. */
+  protected readonly hasPersistedDiscount = computed(
+    () => this.preserved().documentDiscountPercent > 0,
+  );
+
+  protected readonly money = (amount: { readonly amountMinor: number }): string =>
+    formatMoney({ amountMinor: amount.amountMinor, currencyCode: DEFAULT_CURRENCY });
+
+  /** L'esito resta finché l'operatore non lo congeda: è la conferma. */
+  protected dismissLastResult(): void {
+    this.lastResult.set(null);
+  }
+
+  protected onNotesInput(value: string): void {
+    this.preserved.update((testata) => ({ ...testata, notes: value }));
+  }
+
+  /**
+   * La causale del Reso: **facoltativa** (`11` A11) e nel piede, coi dati
+   * documentali secondari — la testata resta quella che serve per iniziare a
+   * lavorare.
+   */
+  protected onCausaleInput(value: string): void {
+    this.preserved.update((testata) => ({ ...testata, causale: value }));
+  }
+
+  /** L'azione finale dice che cosa conclude: «Concludi vendita» / «Concludi reso». */
+  protected readonly confirmLabel = computed(() =>
+    this.descriptor.mode === 'sale' ? 'Concludi vendita' : 'Concludi reso',
+  );
+
+  protected readonly canConclude = computed(
+    () => this.lines().length > 0 && !!this.form.controls.locationId.value && !this.savePending(),
+  );
+
+  // ── Uscita con lavoro non salvato ───────────────────────────────────────
+
+  /** C'è qualcosa che si perderebbe uscendo? */
+  protected readonly hasPendingWork = computed(() => this.lines().length > 0);
+
+  protected readonly exitDialogOpen = signal(false);
+  private pendingDeactivate: ((allow: boolean) => void) | null = null;
+
+  /**
+   * Guardia di rotta: con righe in corso si chiede, invece di perdere il
+   * lavoro. Vale anche passando da «Nuova vendita» a «Nuovo reso» (`11` A2):
+   * sono due indirizzi, e senza il dialogo quella sarebbe l'unica strada per
+   * uscire da un documento aperto senza che nessuno lo chieda.
+   */
+  canDeactivate(): boolean | Promise<boolean> {
+    if (!this.hasPendingWork()) {
+      return true;
+    }
+    this.exitDialogOpen.set(true);
+    return new Promise<boolean>((resolve) => {
+      this.pendingDeactivate = resolve;
+    });
+  }
+
+  /** «Annulla»: si resta dove si è. */
+  protected cancelExit(): void {
+    this.exitDialogOpen.set(false);
+    this.pendingDeactivate?.(false);
+    this.pendingDeactivate = null;
+  }
+
+  /** «Esci senza salvare»: il lavoro in corso si lascia andare. */
+  protected confirmExitWithoutSaving(): void {
+    this.exitDialogOpen.set(false);
+    this.lines.set([]);
+    this.pendingDeactivate?.(true);
+    this.pendingDeactivate = null;
+  }
+
+  /** Chiusura dal piede: passa dalla stessa guardia, non la scavalca. */
+  protected close(): void {
+    void this.router.navigateByUrl(STORE_SALE_ROOT_PATH);
+  }
+
   // ── Salvataggio ─────────────────────────────────────────────────────────
 
   protected readonly savePending = signal(false);
@@ -1102,6 +1231,7 @@ export class StoreSaleDocumentFormComponent {
         // Successo CERTO: l'intento si chiude qui. Il documento dopo è
         // un'altra compilazione, e deve poter essere identico a questo.
         this._creationIntentId.set(null);
+        this.afterConclude();
       },
       error: (err: unknown) => {
         this.savePending.set(false);
@@ -1110,6 +1240,39 @@ export class StoreSaleDocumentFormComponent {
         this.rotateCreationIntentIfCertain(err);
       },
     });
+  }
+
+  /**
+   * Concluso il documento, si è pronti per il **cliente successivo**.
+   *
+   * ```text
+   * conferma a schermo col riferimento del documento appena concluso
+   * compilazione nuova e VUOTA dello stesso modo (sale resta Vendita)
+   * intento di creazione nuovo (T15): la vendita dopo è un'altra operazione
+   * righe, cliente, note e causale NON si trascinano
+   * i default della compilazione nuova si riapplicano
+   * ```
+   *
+   * ⛔ **Solo in creazione.** Modificare un documento esistente non è
+   * un'operazione di banco: lì si resta sul documento, col suo contesto e col
+   * normale contratto di modifica. Svuotare dopo un salvataggio farebbe
+   * sparire ciò che si stava correggendo.
+   */
+  private afterConclude(): void {
+    if (this.isEditMode()) {
+      return;
+    }
+    this.lines.set([]);
+    this.openCardId.set(null);
+    this.preserved.set(PRESERVED_HEADER_VUOTA);
+    this.form.controls.customerId.setValue('');
+    this.form.controls.documentDate.setValue(oggiIso());
+    this.searchDraft.set('');
+    this.searchMessage.set(null);
+    // ⚠️ La SEDE non si azzera: è il posto dove si sta lavorando, non un dato
+    // della singola vendita. Ricominciare chiedendola a ogni cliente sarebbe un
+    // gesto in più a ogni scontrino — e il default la riproporrebbe comunque.
+    this.focusSearchInput();
   }
 
   private salePayload(locationId: EntityId): CreateStoreSalePayload {
@@ -1178,6 +1341,7 @@ export class StoreSaleDocumentFormComponent {
     this.form.controls.documentDate.setValue(doc.documentDate.slice(0, 10));
     this.pricesIncludeVat.set(doc.pricesIncludeVat);
     this.preserved.set({
+      documentDiscountPercent: doc.documentDiscountPercent ?? 0,
       notes: doc.notes ?? '',
       causale: doc.causalText ?? '',
     });

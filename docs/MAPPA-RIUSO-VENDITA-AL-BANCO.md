@@ -827,7 +827,13 @@ stato valido e verificabile.
                    `domain/documents`; criterio responsive comune, viste
                    alternative, riferimento = Nuovo Ordine cliente (`11` A15).
                    ⛔ Nessun import da `features/sales-orders/`.
-⛔ 12 …            DA QUI IN POI, TUTTO APERTO.
+✅ 12 · piede      chiuso — totali dal motore comune, note, causale del Reso,
+                   «Concludi vendita/reso» e «Chiudi», guardia di uscita col
+                   dialogo, e il documento pronto per il cliente successivo.
+                   ⛔ Sconto extra NON esposto finché D1 è aperta (`11` A16);
+                   ⛔ nessun pagamento e nessun rimborso: seguono il blocco
+                   Pagamenti/Tesoreria. ⛔ Sempre nessuna rotta montata.
+⛔ 13 …            DA QUI IN POI, TUTTO APERTO.
 ```
 
 ### Il confine del primo blocco — 21/08/2026
@@ -1005,8 +1011,15 @@ o si fanno insieme, o si esce da un documento aperto senza che nessuno lo chieda
       si introduce per il solo banco: quando arriverà cambierà il contratto
       comune, Ordine cliente compreso.
 
-12 ·  Piede: computeDocumentTotals, note, azioni. Lo sconto extra entra qui
-      SE D1 è chiusa; altrimenti resta la sola percentuale, dichiarata.
+12 ·  Piede: computeDocumentTotals, note, azioni.
+      ✅ FATTO il 21/08. ⛔ **Correzione**: qui c'era «altrimenti resta la sola
+      percentuale, dichiarata», ed era sbagliato — la decisione dell'owner
+      (21/08) è che con D1 aperta lo Sconto extra **non si espone affatto**.
+      Una sezione con la sola percentuale consoliderebbe una forma già nota
+      come incompleta, e andrebbe disfatta quando D1 chiude.
+      ⚠️ Un valore già persistito entra però nei totali e resta sul documento:
+      non esporre un controllo non è ignorare un dato (misurato: 46 documenti
+      di banco, zero con sconto).
 
 13 ·  Sostituzione: le rotte puntano alla maschera nuova, il vecchio componente
       e le 639 righe di pos__* si eliminano. O1·O2·O3·O4·O5·O7·O11·O12 si chiudono

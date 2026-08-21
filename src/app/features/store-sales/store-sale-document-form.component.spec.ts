@@ -873,6 +873,170 @@ describe('StoreSaleDocumentFormComponent', () => {
     });
   });
 
+  // ── Il piede (`11` A16, A17) ─────────────────────────────────────────────
+
+  describe('il piede', () => {
+    async function conUnaRiga(extra: Partial<SetupOptions> = {}) {
+      const rendered = await setup(extra);
+      const campo = screen.getByLabelText('Scansiona o cerca un articolo');
+      await userEvent.type(campo, `${EAN_NOTO}{enter}`);
+      rendered.fixture.detectChanges();
+      return rendered;
+    }
+
+    it('i totali vengono dal motore comune, non da una somma locale', async () => {
+      // Riga: 20,00 netti × 1, IVA 22% → imponibile 20,00, imposta 4,40.
+      await conUnaRiga();
+
+      expect(screen.getByText('Imponibile righe')).toBeTruthy();
+      // Senza sconto documento imponibile righe e imponibile coincidono: il
+      // valore compare due volte, ed è giusto così.
+      expect(screen.getAllByText('20,00 €').length).toBeGreaterThan(0);
+      expect(screen.getByText('4,40 €')).toBeTruthy();
+      expect(screen.getByText('24,40 €')).toBeTruthy();
+    });
+
+    it('⛔ lo Sconto extra NON è esposto: è percentuale E importo, e D1 è aperta', async () => {
+      await conUnaRiga();
+
+      // Una sezione con la sola percentuale consoliderebbe una forma che
+      // sappiamo già incompleta (`11` A16).
+      expect(screen.queryByText(/Sconto extra/i)).toBeNull();
+      expect(screen.queryByLabelText(/Sconto documento/i)).toBeNull();
+    });
+
+    it('⭐ uno sconto documento già persistito si vede nei totali e non si perde', async () => {
+      // Non esporre un controllo non significa ignorare un dato: il valore
+      // entra nei totali e resta sul documento.
+      const createSale = vi.fn(() => of(ESITO));
+      const { component } = await setup({
+        editId: 'doc-sale-1',
+        loadDocument: { ...VENDITA, documentDiscountPercent: 10 },
+        createSale,
+      });
+
+      expect(screen.getByText('Sconto documento')).toBeTruthy();
+      component.save();
+      // ⛔ E il payload non lo azzera: il campo non c'è, quindi il server
+      // conserva quello persistito.
+      expect(corpoVendita(createSale)).not.toHaveProperty('documentDiscountPercent');
+    });
+
+    it('sulla Vendita l’azione finale dice «Concludi vendita»', async () => {
+      await conUnaRiga();
+
+      expect(screen.getByRole('button', { name: 'Concludi vendita' })).toBeTruthy();
+    });
+
+    it('sul Reso dice «Concludi reso»', async () => {
+      await conUnaRiga({ mode: 'return' });
+
+      expect(screen.getByRole('button', { name: 'Concludi reso' })).toBeTruthy();
+    });
+
+    it('senza righe non si conclude', async () => {
+      await setup();
+
+      expect(
+        screen.getByRole<HTMLButtonElement>('button', { name: 'Concludi vendita' }).disabled,
+      ).toBe(true);
+    });
+
+    it('la causale sta nel piede del Reso', async () => {
+      await conUnaRiga({ mode: 'return' });
+
+      expect(screen.getByLabelText('Causale (facoltativa)')).toBeTruthy();
+    });
+
+    it('⛔ e non compare sulla Vendita: la specifica non la prevede', async () => {
+      await conUnaRiga();
+
+      expect(screen.queryByLabelText('Causale (facoltativa)')).toBeNull();
+    });
+
+    it('note e causale caricate da un documento restano nel payload', async () => {
+      const createReturn = vi.fn(() => of(ESITO));
+      const { component } = await setup({
+        mode: 'return',
+        editId: 'doc-return-1',
+        loadDocument: RESO,
+        createReturn,
+      });
+
+      component.save();
+
+      const corpo = corpoReso(createReturn);
+      expect(corpo.causale).toBe('Capo difettoso');
+      expect(corpo.notes).toBe('Consegnato a mano');
+    });
+
+    it('⛔ nessun Pagamento nel piede: è differito (A8)', async () => {
+      const { container } = await conUnaRiga();
+
+      expect(container.textContent).not.toContain('Pagamento');
+      expect(container.textContent).not.toContain('Contanti');
+    });
+  });
+
+  describe('dopo la conclusione', () => {
+    async function concludi(extra: Partial<SetupOptions> = {}) {
+      const rendered = await setup(extra);
+      const campo = screen.getByLabelText('Scansiona o cerca un articolo');
+      await userEvent.type(campo, `${EAN_NOTO}{enter}`);
+      rendered.fixture.detectChanges();
+      rendered.component.save();
+      rendered.fixture.detectChanges();
+      return rendered;
+    }
+
+    it('⭐ la conferma nomina il documento appena concluso', async () => {
+      await concludi();
+
+      expect(screen.getByText(/Vendita conclusa: VN-1/)).toBeTruthy();
+    });
+
+    it('⭐ e la compilazione è già quella del cliente successivo', async () => {
+      const rendered = await concludi();
+
+      expect(rendered.component.lines()).toHaveLength(0);
+      expect(screen.getByLabelText<HTMLInputElement>('Scansiona o cerca un articolo').value).toBe(
+        '',
+      );
+    });
+
+    it('⭐ il modo NON cambia: si resta su Vendita', async () => {
+      await concludi();
+
+      expect(screen.getByRole('heading', { name: 'Nuova vendita al banco' })).toBeTruthy();
+    });
+
+    it('⭐ la vendita successiva ha un intento di creazione NUOVO', async () => {
+      const createSale = vi.fn(() => of(ESITO));
+      const rendered = await concludi({ createSale });
+
+      const campo = screen.getByLabelText('Scansiona o cerca un articolo');
+      await userEvent.type(campo, `${EAN_NOTO}{enter}`);
+      rendered.fixture.detectChanges();
+      rendered.component.save();
+
+      expect(corpoVendita(createSale, 1).creationIntentId).not.toBe(
+        corpoVendita(createSale, 0).creationIntentId,
+      );
+    });
+
+    it('⛔ in MODIFICA non si svuota: non è un cliente successivo', async () => {
+      // Correggere un documento esistente non è un'operazione di banco:
+      // svuotare farebbe sparire ciò che si stava correggendo.
+      const createSale = vi.fn(() => of(ESITO));
+      const rendered = await setup({ editId: 'doc-sale-1', createSale });
+
+      rendered.component.save();
+      rendered.fixture.detectChanges();
+
+      expect(rendered.component.lines()).toHaveLength(1);
+    });
+  });
+
   describe('idempotenza della creazione (T15)', () => {
     it('⭐ errore INCERTO: il reinvio porta lo STESSO intento', async () => {
       const createSale = vi.fn(() =>

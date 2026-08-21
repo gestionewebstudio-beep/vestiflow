@@ -524,8 +524,135 @@
             }
           }
         </section>
+
+        <!-- ── Il piede: totali, note, causale, azioni (`11` A17) ──────────
+             Stessa banda degli altri documenti. ⛔ Lo Sconto extra NON c'è:
+             è percentuale e importo (`11` A16), l'importo manca al contratto
+             comune e le sue regole sono D1, aperta — una sezione con la sola
+             percentuale consoliderebbe una forma già nota come incompleta. -->
+        <div class="doc-form__footer-grid">
+          <aside class="doc-form__totals-bar" aria-label="Totali documento">
+            <dl class="doc-form__totals">
+              <div class="doc-form__totals-row">
+                <dt>Imponibile righe</dt>
+                <dd class="tabular-nums">{{ money(totals().linesTotal) }}</dd>
+              </div>
+              @if (hasPersistedDiscount()) {
+                <!-- Un documento che porta già uno sconto: si mostra e si
+                     conta, anche se il controllo per cambiarlo non c'è
+                     ancora. Non esporre un campo non è ignorare un dato. -->
+                <div class="doc-form__totals-row">
+                  <dt>Sconto documento</dt>
+                  <dd class="tabular-nums">−{{ money(totals().documentDiscount) }}</dd>
+                </div>
+              }
+              <div class="doc-form__totals-row">
+                <dt>Imponibile</dt>
+                <dd class="tabular-nums">{{ money(totals().subtotal) }}</dd>
+              </div>
+              <div class="doc-form__totals-row">
+                <dt>IVA</dt>
+                <dd class="tabular-nums">{{ money(totals().tax) }}</dd>
+              </div>
+              <div class="doc-form__totals-row doc-form__totals-row--total">
+                <dt>Totale documento</dt>
+                <dd class="tabular-nums">
+                  <strong>{{ money(totals().total) }}</strong>
+                </dd>
+              </div>
+            </dl>
+          </aside>
+
+          <!-- Note e causale nella banda comune del piede: stesse classi delle
+               altre maschere, nessuno stile proprio. -->
+          <div class="doc-form__footer-notes">
+            @if (descriptor.mode === 'return') {
+              <!-- Causale del Reso: facoltativa (`11` A11), e sta qui coi dati
+                   documentali secondari — la testata resta quella che serve
+                   per iniziare a lavorare. -->
+              <div class="doc-form__field">
+                <label class="doc-form__label" for="ssf-causale">Causale (facoltativa)</label>
+                <input
+                  id="ssf-causale"
+                  class="doc-form__input"
+                  type="text"
+                  maxlength="500"
+                  [value]="preserved().causale"
+                  (input)="onCausaleInput($any($event.target).value)"
+                />
+              </div>
+            }
+
+            <div class="doc-form__field">
+              <label class="doc-form__label" for="ssf-notes">Note</label>
+              <textarea
+                id="ssf-notes"
+                class="doc-form__textarea"
+                rows="2"
+                maxlength="2000"
+                [value]="preserved().notes"
+                (input)="onNotesInput($any($event.target).value)"
+              ></textarea>
+            </div>
+          </div>
+        </div>
+
+        @if (lastResult(); as esito) {
+          <!-- Conferma dell'operazione conclusa, col suo riferimento: la
+               compilazione qui sopra è già quella del cliente successivo. -->
+          <app-inline-banner
+            tone="success"
+            [message]="descriptor.concludedMessage + ' ' + esito.reference + '.'"
+            dismissLabel="Ho capito"
+            (dismissed)="dismissLastResult()"
+          />
+        }
+
+        <!-- Azioni: desktop in barra, mobile in coda al documento
+             (`regole-stile-ui` §5). Le etichette sono quelle decise in A17. -->
+        <!-- Azioni: barra su desktop, coppia in fondo al documento su mobile
+             (`regole-stile-ui` §5). ⛔ Una sola vista è viva, come per le
+             righe: due copie dello stesso comando verrebbero annunciate due
+             volte da chi ascolta. -->
+        @if (compactView()) {
+          <div class="doc-form__mobile-actions">
+            <app-button type="button" variant="secondary" (click)="close()">Chiudi</app-button>
+            <app-button type="button" [disabled]="!canConclude()" (click)="save()">
+              {{ confirmLabel() }}
+            </app-button>
+          </div>
+        } @else {
+          <div class="doc-form__actions">
+            <p class="doc-form__actions-note">
+              <i class="pi pi-info-circle" aria-hidden="true"></i>
+              <strong class="tabular-nums">
+                {{ lines().length }} {{ lines().length === 1 ? 'riga' : 'righe' }}
+              </strong>
+              <span class="doc-form__actions-note-sep">·</span>
+              {{ descriptor.stockEffectNote }}
+            </p>
+            <app-button type="button" variant="ghost" (click)="close()">Chiudi</app-button>
+            <app-button type="button" [disabled]="!canConclude()" (click)="save()">
+              {{ confirmLabel() }}
+            </app-button>
+          </div>
+        }
       </fieldset>
     </form>
+
+    @if (exitDialogOpen()) {
+      <!-- Modifiche non salvate: si chiede, invece di perdere il lavoro
+           (`11` A2). Vale anche passando fra le due creazioni. -->
+      <app-confirm-dialog
+        title="Documento non concluso"
+        message="Le righe inserite non sono state concluse. Uscendo si perdono."
+        confirmLabel="Esci senza concludere"
+        cancelLabel="Resta qui"
+        [(open)]="exitDialogOpen"
+        (confirmed)="confirmExitWithoutSaving()"
+        (dismissed)="cancelExit()"
+      />
+    }
 
     <!-- Ricerca articolo: il pannello condiviso con gli altri documenti. -->
     <app-slide-panel
