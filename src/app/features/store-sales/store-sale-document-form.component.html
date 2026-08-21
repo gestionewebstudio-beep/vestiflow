@@ -1,0 +1,180 @@
+<!-- doc-form--m-ref: adotta la vista mobile di riferimento (Ordine cliente)
+     promossa in styles/_document-form-mobile.scss. -->
+<section class="doc-form doc-form--m-ref">
+  @if (saveError(); as errore) {
+    <app-inline-banner
+      tone="error"
+      [message]="errore"
+      dismissLabel="Ho capito"
+      (dismissed)="dismissSaveError()"
+    />
+  }
+
+  <div class="doc-form__head-row">
+    <app-back-button />
+    <h1 class="doc-form__title">{{ pageTitle() }}</h1>
+  </div>
+
+  <p class="doc-form__disclaimer" role="note">{{ descriptor.subtitle }}</p>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="2" [rows]="6" />
+  } @else if (loadError()) {
+    <app-error-state
+      description="Impossibile caricare il documento."
+      retryLabel="Riprova"
+      (retry)="reload()"
+    />
+  } @else if (notEditable()) {
+    <!-- Il tipo lo dice la rotta: un documento di tipo diverso non si apre qui,
+         o si finirebbe a correggere un reso su una maschera che dice vendita. -->
+    <app-empty-state
+      icon="pi-lock"
+      title="Documento non disponibile"
+      description="Questo indirizzo non corrisponde al documento richiesto."
+      ctaLabel="Torna alle vendite al banco"
+      (ctaClick)="goToList()"
+    />
+  } @else {
+    <form class="doc-form__form" [formGroup]="form">
+      <fieldset class="doc-form__fieldset">
+        <div class="doc-form__header">
+          <!-- Vista mobile: la testata è un solo pannello apribile. Vive nel DOM
+               accanto alla griglia desktop e si accende sotto lg. Gli id e gli
+               aria-label sono distinti dai gemelli desktop, così le query di
+               test e degli screen reader restano uniche. -->
+          <div class="doc-panels">
+            <app-document-mobile-panel
+              [title]="mobilePanelTitle()"
+              [summaryParts]="mobilePanelSummaryParts()"
+              [icon]="descriptor.icon"
+              [statusText]="mobilePanelStatus()"
+              [statusReady]="mobileHeaderReady()"
+              [initiallyOpen]="true"
+            >
+              <p class="doc-panel__section">Dati principali</p>
+
+              <div class="doc-panel__fields">
+                <div class="doc-panel__field">
+                  <span class="doc-panel__label">Sede</span>
+                  <!-- Controllo comune anche con una sola sede disponibile: il
+                       default precompila, ma il campo resta quello (`11` A13). -->
+                  <app-select-menu
+                    [options]="locationOptions()"
+                    [value]="form.controls.locationId.value"
+                    ariaLabel="Sede del documento"
+                    placeholder="Seleziona sede…"
+                    [fullWidth]="true"
+                    [invalid]="locationInvalid()"
+                    describedBy="ssf-m-location-error"
+                    (valueChange)="onLocationChange($event)"
+                  />
+                  @if (locationInvalid()) {
+                    <p id="ssf-m-location-error" class="doc-form__error">Campo obbligatorio.</p>
+                  }
+                </div>
+
+                <!-- Cliente facoltativo, su ENTRAMBI i modi: `11` A13 lo mette
+                     in testata senza distinguere Vendita e Reso. -->
+                <div class="doc-panel__field">
+                  <span class="doc-panel__label">Cliente (facoltativo)</span>
+                  <app-select-menu
+                    [options]="customerOptions()"
+                    [value]="form.controls.customerId.value"
+                    ariaLabel="Cliente del documento"
+                    placeholder="Nessun cliente"
+                    [fullWidth]="true"
+                    [searchable]="true"
+                    searchPlaceholder="Cerca cliente…"
+                    searchAriaLabel="Cerca cliente"
+                    (valueChange)="onCustomerChange($event)"
+                  />
+                </div>
+
+                <div class="doc-panel__field">
+                  <label class="doc-panel__label" for="ssf-m-date">Data documento</label>
+                  <app-date-input
+                    inputId="ssf-m-date"
+                    formControlName="documentDate"
+                    ariaLabel="Data documento"
+                    [fullWidth]="true"
+                  />
+                </div>
+              </div>
+            </app-document-mobile-panel>
+          </div>
+
+          <!-- Griglia classica: solo desktop. Sotto lg la nasconde il foglio del
+               componente, come nelle altre maschere documentali. -->
+          <div class="store-sale-form__header-desktop">
+            <div class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact">
+              <div class="doc-form__field" [class.doc-form__field--waiting]="locationWaiting()">
+                <span class="doc-form__label">Sede</span>
+                <app-select-menu
+                  [options]="locationOptions()"
+                  [value]="form.controls.locationId.value"
+                  ariaLabel="Sede"
+                  placeholder="Seleziona sede…"
+                  [compact]="true"
+                  [fullWidth]="true"
+                  [invalid]="locationInvalid()"
+                  describedBy="ssf-location-error"
+                  (valueChange)="onLocationChange($event)"
+                />
+                @if (locationInvalid()) {
+                  <p id="ssf-location-error" class="doc-form__error">Campo obbligatorio.</p>
+                }
+              </div>
+
+              <div class="doc-form__field">
+                <span class="doc-form__label">Cliente (facoltativo)</span>
+                <app-select-menu
+                  [options]="customerOptions()"
+                  [value]="form.controls.customerId.value"
+                  ariaLabel="Cliente"
+                  placeholder="Nessun cliente"
+                  [compact]="true"
+                  [fullWidth]="true"
+                  [searchable]="true"
+                  searchPlaceholder="Cerca cliente…"
+                  searchAriaLabel="Cerca cliente"
+                  (valueChange)="onCustomerChange($event)"
+                />
+              </div>
+
+              <div class="doc-form__field">
+                <label class="doc-form__label" for="ssf-date">Data documento</label>
+                <app-date-input
+                  inputId="ssf-date"
+                  formControlName="documentDate"
+                  ariaLabel="Data documento"
+                  [compact]="true"
+                  [fullWidth]="true"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <section class="doc-form__lines" aria-labelledby="ssf-lines-title">
+          <div class="doc-form__lines-head">
+            <h2 id="ssf-lines-title" class="doc-form__subtitle">Righe</h2>
+          </div>
+
+          <!-- ⛔ A testata incompleta le righe NON si mostrano: al loro posto uno
+               stato vuoto che dice cosa manca (regole-stile-ui §7). Non una
+               tabella spenta a metà tinta — se una cosa non è utilizzabile, non
+               c'è. La griglia arriva col blocco righe: qui non esiste ancora, e
+               non si mette un segnaposto al suo posto. -->
+          @if (headerGateActive()) {
+            <app-empty-state
+              icon="pi-shop"
+              [title]="linesEmptyTitle()"
+              [description]="linesEmptyDescription()"
+            />
+          }
+        </section>
+      </fieldset>
+    </form>
+  }
+</section>

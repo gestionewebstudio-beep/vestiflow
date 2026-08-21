@@ -1,0 +1,16 @@
+@use 'breakpoints' as bp;
+
+// Vista mobile (reference «Ordine cliente»): sotto lg la griglia classica della
+// testata lascia il posto al pannello apribile (doc-panels). Stesso meccanismo
+// delle altre maschere documentali, nel foglio del componente perché la classe
+// vive solo in questo template.
+@include bp.media-down('lg') {
+  .store-sale-form__header-desktop {
+    display: none;
+  }
+}
+
+// ⛔ Qui c'era `.store-sale-form__fixed-location`: la sede unica mostrata come
+// etichetta al posto della tendina, ereditata dalla maschera legacy. Tolta il
+// 21/08/2026 — `11` A13 dice che il default precompila e il campo resta il
+// controllo comune, quindi non serve nessuno stile proprio.

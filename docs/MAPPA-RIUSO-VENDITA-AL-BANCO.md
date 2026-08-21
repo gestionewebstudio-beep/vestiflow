@@ -804,8 +804,85 @@ stato valido e verificabile.
                    identificativi esterni, e non regge un INTENTO DI SCRITTURA.
                    È nato un registro proprio (`creation_intents`) — la
                    dimostrazione sta in T15 §2.
-⛔ 8 …             DA QUI IN POI, TUTTO APERTO.
+⚠️ 8 · scheletro   PARZIALE — fatto il 21/08 (sera): descrittore di modalità,
+                   UN modello di riga con i due payload, testata (sede ·
+                   cliente · data) con pannello mobile, gate + stato vuoto,
+                   caricamento per id, salvataggio create/update con l'intento
+                   T15. ⛔ NON montata su nessuna rotta, per decisione del
+                   proprietario: si monta quando avrà anche le righe.
+                   Restano dentro il passo 8: ricerca, scansione e aggiunta
+                   riga, che si fanno col passo 9 per non scrivere markup
+                   provvisorio (vedi «Il confine del primo blocco» sotto).
+⛔ 9 …             DA QUI IN POI, TUTTO APERTO.
 ```
+
+### Il confine del primo blocco — 21/08/2026
+
+⛔ **Il passo 8 è stato ristretto a ciò che non produce markup da buttare.** La griglia
+righe è del passo 9, e con lei la porta d'ingresso (ricerca e scansione), che vive
+attaccata alla griglia: farla prima avrebbe voluto dire una resa provvisoria delle righe,
+poi sostituita.
+
+### ⛔ Quattro decisioni ricavate dal CODICE, e ritirate il 21/08/2026
+
+Il primo blocco ne ha prodotte quattro, e il proprietario le ha ritirate lo stesso giorno. La
+regola che ne discende vale per tutti i passi seguenti:
+
+> **La fonte funzionale è la sezione A di `docs/11`.** Le sezioni B, questa mappa e il codice
+> servono a individuare il gap e il modo di implementarlo, **non a cambiare A**. Ciò che non è
+> scritto in A e non è stato confermato dal proprietario non si decide: si ferma come aperto.
+
+| Ricavata dal codice                  | Perché era sbagliata                                                                                                                                                        | Ora                                                                                                                                    |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| **Data in sola lettura in modifica** | il servizio ignorava `documentDate` in update, e da quel **comportamento osservato** è nata una regola di interfaccia. Un difetto del salvataggio si corregge, non si veste | `11` **A13**: default oggi, modificabile, caricata; il servizio la persiste senza rinumerare                                           |
+| **Cliente solo sulla Vendita**       | dedotta dall'assenza di `customerId` nel DTO del Reso: un **gap tecnico** letto come regola                                                                                 | `11` **A13**: facoltativo su entrambi. DTO, servizio e client riallineati                                                              |
+| **Sede unica come etichetta**        | ereditata dalla maschera legacy: un default che diventava una natura diversa del campo                                                                                      | `11` **A13**: controllo comune. Assegnata → esce di default; altrimenti si sceglie, e il gate blocca                                   |
+| **`cash` come metodo predefinito**   | il DTO lo pretendeva — eredità della vecchia cassa — e da un vincolo tecnico è nato un dato che nessuno aveva scelto                                                        | `11` **A8**: pagamenti **differiti** al blocco Pagamenti/Tesoreria. Il DTO non lo pretende più, e l'assenza conserva il valore storico |
+
+⭐ **E una quinta, di segno opposto, corretta dopo la misura**: il movimento di scarico
+riallineava `createdAt` alla data documento corretta. `documentDate` e `createdAt` sono due
+informazioni diverse (`11` A13) — un documento datato 19 e registrato il 21 è legittimo, ed è
+il dato che riconosce un inserimento retrodatato. Il riallineamento è stato **ritirato**.
+
+⏸ **Divergenza dichiarata e non risolta**: il motore di **carico** (Reso, Arrivo merce)
+riallinea `createdAt` da prima di questo lavoro, quello di **scarico** ora no. Uniformarli
+tocca l'Arrivo merce: è una decisione a sé, e non si prende di straforo.
+
+⭐ **Ciò che invece è implementazione, non decisione**: note e causale viaggiano nel payload
+pur non avendo ancora un campo. Il server riscrive la testata da ciò che riceve
+(`notes: dto.notes?.trim() || null`), quindi ometterle **cancellerebbe** i valori a ogni
+risalvataggio. Il pagamento no: lì la protezione è nel servizio, che senza metodo dichiarato
+conserva quello persistito.
+
+⚠️ **Un buco dichiarato, da chiudere nel passo che monta le rotte:** la maschera nuova
+non implementa ancora `canDeactivate`, e `unsavedChangesGuard` in quel caso lascia uscire
+**senza chiedere** (optional chaining, per costruzione). Il dialogo appartiene al piede:
+o si fanno insieme, o si esce da un documento aperto senza che nessuno lo chieda.
+
+### Conformità del Blocco 1 alla sezione A — 21/08/2026
+
+⛔ **Solo il Blocco 1**, e solo contro `docs/11` sezione A: non è un censimento nuovo.
+
+| Regola A                                                             | Implementazione Blocco 1                                                                                                     | Esito                                          |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| **A3** — il tipo è scelto alla creazione, la maschera non lo cambia  | `mode` dalla rotta, valore fisso, `requireStoreSaleMode` lancia se manca                                                     | ✅ conforme                                    |
+| **A3** — Vendita e Reso condividono l'impianto, non il comportamento | un componente, un modello di riga, una collezione; le differenze nel descrittore                                             | ✅ conforme                                    |
+| **A13** — testata: Location, Cliente (facoltativo), Data             | i tre campi, su **entrambi** i modi                                                                                          | ✅ conforme                                    |
+| **A13** — Data: default oggi, modificabile, caricata dal documento   | campo sempre modificabile, `documentDate` sempre nel payload; servizio allineato                                             | ✅ conforme                                    |
+| **A13** — senza Location valida non si prosegue                      | gate sulla sola sede + stato vuoto al posto delle righe                                                                      | ✅ conforme                                    |
+| **A13** — il netto/ivato NON sta in testata                          | nessun controllo di modalità prezzo nella testata                                                                            | ✅ conforme                                    |
+| **A5** — numerazione dal sistema comune                              | non implementata in questo blocco (T8B)                                                                                      | ⏳ fuori blocco, dichiarato                    |
+| **A2** — una vendita conclusa si riapre, si modifica e si risalva    | caricamento per id, payload con `id` di documento e di riga, testata e righe conservate                                      | ✅ conforme (l'eliminazione resta al passo 14) |
+| **A11** — il Reso non ha documento origine                           | nessun collegamento a una vendita: il cliente è un dato di testata, non un'origine                                           | ✅ conforme                                    |
+| **A11-ter** — la spunta di riga decide il carico                     | `loadsStock` nel modello, `restockable` solo nel mapper verso il DTO                                                         | ✅ conforme                                    |
+| **A18** — nessun movimento prima della conclusione                   | il blocco non tocca movimenti; li fa il server al salvataggio                                                                | ✅ conforme                                    |
+| **A20** — densità e componenti comuni, nessuna palette propria       | `doc-form__*` globali, `app-document-mobile-panel`, token esistenti                                                          | ✅ conforme                                    |
+| **A17** — l'azione finale dice «Concludi vendita» / «Concludi reso»  | nessuna azione in questo blocco: `save()` esiste, il pulsante è del piede                                                    | ⏳ fuori blocco, dichiarato                    |
+| **A13** — la sede assegnata esce di default, altrimenti si sceglie   | controllo comune in entrambi i modi; precompila dalla sede assegnata, e con una sola non cambia natura                       | ✅ conforme                                    |
+| **A13** — il cambio di sede è esplicito e autorizzato                | in modifica vince la sede persistita; il cambio lo fa l'operatore, il server verifica (T6)                                   | ✅ conforme                                    |
+| **A8** — pagamenti differiti al blocco Pagamenti/Tesoreria           | nessun campo, nessun default, nessun trasporto. DTO non più obbligatorio; assente = non modificato, i valori storici restano | ✅ conforme                                    |
+| **A13** — `documentDate` ≠ `createdAt`                               | la data documento si scrive; `StockMovement.createdAt` non la insegue più sullo scarico                                      | ✅ conforme                                    |
+| _(non in A)_ — il motore di **carico** riallinea `createdAt`         | comportamento preesistente di Reso e Arrivo merce, non toccato                                                               | ⏸ **APERTO**: uniformarlo tocca l'Arrivo merce |
 
 ```text
 ╔═ PRIMA DI TOCCARE LA MASCHERA ══════════════════════════════════════════════╗
@@ -862,6 +939,8 @@ stato valido e verificabile.
       descrittore di modalità, UN modello di riga, UNA collezione.
       ⛔ Vendita e Reso COMPLETI da subito: ricerca, scansione, aggiunta riga,
       modifica, caricamento per id. Il vecchio pos non si tocca.
+      ⚠️ FATTO IN PARTE il 21/08 — ricerca, scansione e aggiunta riga sono
+      passate al passo 9, con la griglia: vedi «Il confine del primo blocco».
 
  9 ·  Righe desktop sulle celle condivise + STORE_SALE_LINE_COLUMNS (già scritto,
       mai usato) + DocumentLineFocusStore + motore larghezze del passo 2.
