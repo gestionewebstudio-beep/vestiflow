@@ -199,6 +199,7 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 import { HoverTooltipComponent } from '@shared/components/hover-tooltip/hover-tooltip.component';
 import { TableColumnResizeDirective } from '@shared/directives/table-column-resize.directive';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
+import { redistributeColumnWidths } from '@shared/table-columns/column-width-distribution.util';
 import { CdkDrag, CdkDragHandle, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
 import { formatItalianInputDate, toIsoDateLocal } from '@shared/utils/calendar.util';
 
@@ -216,7 +217,6 @@ import {
   SALES_DDT_LINE_PRESETS,
   SALES_DDT_LINES_VIEW,
 } from './models/customer-order-line-columns.config';
-import { redistributeColumnWidths } from './models/column-width-distribution.util';
 import type {
   CustomerOrderLineCardVm,
   LineCodeChoice,
