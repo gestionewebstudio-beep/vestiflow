@@ -515,16 +515,35 @@ export class CorrispettiviReportComponent {
     { value: 'refunds', label: 'Solo rimborsi' },
   ];
 
-  private readonly listQuery = computed(() => ({
-    tick: this.refreshTick(),
-    placedFrom: this.dateRange().placedFrom,
-    placedTo: this.dateRange().placedTo,
-    ...corrispettiviFiltersToQuery(this.filters()),
-    // ⚠️ **Nessun `pageSize`**: il Registro è delimitato dal periodo e dai
-    // filtri, non da un numero di righe. Qui c'erano `page: 1` fisso e cento
-    // righe, senza paginatore in pagina: su un periodo da 850 la schermata
-    // scriveva «850 righe nel periodo» e ne mostrava cento.
-  }));
+  /**
+   * ⛔ **Confronto per CONTENUTO, non per identità.**
+   *
+   * Un `computed` che costruisce un oggetto ne produce uno nuovo a ogni
+   * ricalcolo, e `toObservable` lo confronta con `Object.is`: due oggetti
+   * identici nel contenuto risultano diversi, il segnale emette e la richiesta
+   * riparte. Basta che cambi **un query param qualunque** — l'ordinamento, il
+   * raggruppamento, che sono presentazione — perché l'elenco vada a ricaricare
+   * dati che ha già.
+   *
+   * ⚠️ Misurato il 21/08/2026: era la causa principale della lentezza
+   * dell'ordinamento. Il `tick` del refresh manuale continua a funzionare,
+   * perché quello il contenuto lo cambia davvero.
+   */
+  private readonly listQuery = computed(
+    () => ({
+      tick: this.refreshTick(),
+      placedFrom: this.dateRange().placedFrom,
+      placedTo: this.dateRange().placedTo,
+      ...corrispettiviFiltersToQuery(this.filters()),
+      // ⚠️ **Nessun `pageSize`**: il Registro è delimitato dal periodo e dai
+      // filtri, non da un numero di righe. Qui c'erano `page: 1` fisso e cento
+      // righe, senza paginatore in pagina: su un periodo da 850 la schermata
+      // scriveva «850 righe nel periodo» e ne mostrava cento.
+    }),
+    {
+      equal: (a, b) => JSON.stringify(a) === JSON.stringify(b),
+    },
+  );
 
   private readonly state = toSignal(
     toObservable(this.listQuery).pipe(

@@ -347,12 +347,23 @@ export class SalesOrderListComponent {
     ),
   );
 
-  private readonly request = computed(() => ({
-    // ⛔ I riepiloghi non impaginano (`14` §H14-bis): si chiede tutto il
-    // risultato del filtro, contenuto dal periodo.
-    query: { ...this.effectiveQuery(), sort: this.sortRichiesto(), all: true },
-    tick: this.refreshTick(),
-  }));
+  /**
+   * ⛔ **Confronto per CONTENUTO**: un `computed` che costruisce un oggetto ne
+   * produce uno nuovo a ogni ricalcolo, e `toObservable` lo confronta con
+   * `Object.is` — due richieste identiche risultano diverse e l'elenco
+   * ricarica dati che ha già. Qui l'ordinamento è server-side, quindi una
+   * richiesta nuova ci vuole davvero: questo evita solo quelle **identiche**
+   * (misurato il 21/08/2026 sul Registro, dove era il grosso della lentezza).
+   */
+  private readonly request = computed(
+    () => ({
+      // ⛔ I riepiloghi non impaginano (`14` §H14-bis): si chiede tutto il
+      // risultato del filtro, contenuto dal periodo.
+      query: { ...this.effectiveQuery(), sort: this.sortRichiesto(), all: true },
+      tick: this.refreshTick(),
+    }),
+    { equal: (a, b) => JSON.stringify(a) === JSON.stringify(b) },
+  );
 
   /**
    * Nuovo ordine dalle intestazioni: il motore ha già calcolato il ciclo e la

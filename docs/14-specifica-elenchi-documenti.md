@@ -2519,6 +2519,57 @@ non esiste `sortBy` né equivalente nelle loro query.
 
 ---
 
+## H15-bis. ⛔ «È molto lento l'ordinamento» — due cause, misurate il 21/08/2026
+
+Segnalato dal proprietario alla prima prova. Non era una sensazione: erano **due difetti che si
+sommavano**, e nessuno dei due si vedeva nel codice.
+
+### 1. Ogni clic rifaceva le chiamate API — anche dove l'ordinamento è nel client
+
+```text
+listQuery = computed(() => ({ …filtri… }))
+   ↓ un oggetto NUOVO a ogni ricalcolo
+toObservable  →  confronta con Object.is  →  sempre diverso  →  switchMap  →  fetch
+```
+
+⛔ Basta che cambi **un query param qualunque** perché la richiesta riparta. Nel Registro
+Corrispettivi l'ordinamento è client-side e il param `sort` sta nell'URL: ogni pressione su
+un'intestazione rifaceva **due** chiamate — righe e riepilogo — per riordinare dati già in
+memoria.
+
+⚠️ **Il difetto è più vecchio dell'ordinamento**: lo stesso valeva per «Raggruppa», che quel
+componente dichiara «presentazione, non un filtro». Cambiare la presentazione ricaricava i dati.
+
+✅ **Rimedio**: `computed` con `equal` che confronta il **contenuto**. Applicato al Registro e
+ai tre elenchi — lì l'ordinamento è server-side e una richiesta nuova ci vuole davvero, ma le
+richieste **identiche** non partono più.
+
+### 2. Il confronto testuale costruiva un collatore a ogni confronto
+
+`String#localeCompare(x, 'it', { sensitivity: 'base' })` costruisce internamente l'oggetto di
+collazione **a ogni chiamata**, e un ordinamento ne fa n·log(n).
+
+```text
+2000 righe, una chiave di testo
+  localeCompare   93,2 ms
+  Intl.Collator    1,5 ms      ← creato una volta
+```
+
+⭐ **Sessanta volte**, e non è una micro-ottimizzazione: senza pagine un riepilogo ordina
+l'intero periodo, non venti righe. La correzione è in `shared/utils/sort-values.util`, quindi
+la ereditano anche i Movimenti e le righe documento.
+
+⚠️ **Il comportamento non cambia** — stesso locale, stessa sensitivity — e un test lo fissa:
+l'accento non manda una parola in fondo, e maiuscole e minuscole non separano.
+
+### ⭐ Che cosa insegna, oltre alle due correzioni
+
+> **Un `computed` che costruisce un oggetto e finisce in `toObservable` ha bisogno di un
+> `equal`.** Senza, ogni ricalcolo è una richiesta di rete, e la causa non si vede leggendo il
+> codice: si vede solo col dito su un'intestazione.
+
+---
+
 ## H16. ⛔ L'affordance di riga: tre cose perse nell'assorbimento — corrette il 20/08/2026
 
 `data-table__row--clickable` esisteva nel template e **nessuna regola la leggeva**: una classe
