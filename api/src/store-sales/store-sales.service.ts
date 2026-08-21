@@ -103,12 +103,15 @@ export class StoreSalesService {
     dto: CreateStoreSaleDto,
     user: UserProfileDto,
   ): Promise<StoreSaleResult> {
-    assertUserCanAccessLocation(user, dto.locationId);
-    await this.assertLocationExists(tenantId, dto.locationId);
-
+    // Tenant e tipo sono già imposti da loadEditableStoreDocument (query, non
+    // un `if` dopo). Qui manca la sede: la si carica PRIMA di autorizzare
+    // qualunque cosa, perché in modifica ci sono DUE sedi da controllare, non
+    // una — vedi il commento su authorizeStoreDocumentLocations.
     const existing = dto.id
       ? await this.loadEditableStoreDocument(tenantId, dto.id, DocumentType.store_sale)
       : null;
+    this.authorizeStoreDocumentLocations(user, existing?.locationId ?? null, dto.locationId);
+    await this.assertLocationExists(tenantId, dto.locationId);
 
     const variants = await this.resolveVariants(
       tenantId,
@@ -358,6 +361,13 @@ export class StoreSalesService {
     readonly number: number | null;
     readonly reference: string | null;
     readonly documentDate: Date;
+    /**
+     * Sede ATTUALE del documento — letta per poterla autorizzare PRIMA di
+     * permettere qualunque modifica (T6): senza, un operatore vedrebbe
+     * verificata solo la sede di destinazione richiesta, mai quella di
+     * partenza, e potrebbe "prendere" un documento di una sede che non vede.
+     */
+    readonly locationId: string | null;
     readonly lines: readonly {
       readonly id: string;
       readonly sku: string | null;
@@ -375,6 +385,7 @@ export class StoreSalesService {
         reference: true,
         documentDate: true,
         status: true,
+        locationId: true,
         lines: {
           select: {
             id: true,
@@ -415,12 +426,13 @@ export class StoreSalesService {
     dto: CreateStoreReturnDto,
     user: UserProfileDto,
   ): Promise<StoreSaleResult> {
-    assertUserCanAccessLocation(user, dto.locationId);
-    await this.assertLocationExists(tenantId, dto.locationId);
-
+    // Vedi il commento su createSale: la sede si carica prima di autorizzare,
+    // perché in modifica sono due le sedi da controllare, non una.
     const existing = dto.id
       ? await this.loadEditableStoreDocument(tenantId, dto.id, DocumentType.store_return)
       : null;
+    this.authorizeStoreDocumentLocations(user, existing?.locationId ?? null, dto.locationId);
+    await this.assertLocationExists(tenantId, dto.locationId);
 
     const variants = await this.resolveVariants(
       tenantId,
@@ -622,7 +634,9 @@ export class StoreSalesService {
         locationId: dto.locationId,
         // La causale entra nella descrizione del movimento solo se c'è: senza,
         // resta il riferimento del documento, che basta a ritrovarlo.
-        reason: causale ? `Reso vendita al banco ${reference}: ${causale}` : `Reso vendita al banco ${reference}`,
+        reason: causale
+          ? `Reso vendita al banco ${reference}: ${causale}`
+          : `Reso vendita al banco ${reference}`,
         movementDate: documentDate,
         movementType: StockMovementType.return,
         origin: MovementOrigin.vestiflow_pos,
@@ -644,6 +658,35 @@ export class StoreSalesService {
     );
 
     return this.toResult(tenantId, dto.locationId, created);
+  }
+
+  /**
+   * T6 — autorizza la sede in creazione, ED ENTRAMBE le sedi in modifica.
+   *
+   * ⛔ In modifica non basta autorizzare `dto.locationId`: un operatore che
+   * vede solo la sede A potrebbe, avendo l'id di un documento nato in B,
+   * "portarlo" in A passando `locationId: A` — la sola sede controllata
+   * sarebbe quella di ARRIVO, mai quella di PARTENZA. Vanno autorizzate
+   * entrambe, e quella del documento esistente PRIMA: se l'operatore non può
+   * nemmeno vedere B, la richiesta si rifiuta lì, a prescindere da cosa
+   * chiede di fare.
+   *
+   * Nessuna scrittura avviene prima che questo metodo ritorni: è chiamato
+   * subito dopo aver caricato `existing` e prima di ogni lettura o transazione
+   * successiva.
+   *
+   * `existingLocationId` è `null` in creazione (nessun documento esistente):
+   * in quel caso si autorizza solo `targetLocationId`, come sempre.
+   */
+  private authorizeStoreDocumentLocations(
+    user: UserProfileDto,
+    existingLocationId: string | null,
+    targetLocationId: string,
+  ): void {
+    if (existingLocationId) {
+      assertUserCanAccessLocation(user, existingLocationId);
+    }
+    assertUserCanAccessLocation(user, targetLocationId);
   }
 
   private async assertLocationExists(tenantId: string, locationId: string): Promise<void> {

@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { ForbiddenException } from '@nestjs/common';
 import {
   DocumentStatus,
   DocumentType,
@@ -8,6 +8,7 @@ import {
 } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
 
+import { TenantPermission } from '../auth/tenant-permission.constants';
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import type { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { DocumentSettingsService } from '../documents/document-settings.service';
@@ -29,6 +30,8 @@ import { StoreSalesService } from './store-sales.service';
 
 const TENANT = 't1';
 const LOCATION = 'loc-1';
+/** Seconda sede, SOLO per i test T6 di autorizzazione: nessun altro test la usa. */
+const LOCATION_B = 'loc-2';
 const VARIANT_A = 'var-a';
 const VARIANT_B = 'var-b';
 
@@ -209,9 +212,11 @@ const VARIANT_COSTS: Record<string, number> = {
 function createFakePrisma(db: FakeDb): PrismaService {
   const client = {
     location: {
+      // LOCATION_B esiste SOLO per i test T6: attiva/licenziata come LOCATION,
+      // nessun altro test la interroga.
       findFirst: ({ where }: { where: { id: string } }) =>
-        Promise.resolve(where.id === LOCATION ? { id: LOCATION } : null),
-      findMany: () => Promise.resolve([{ id: LOCATION }]),
+        Promise.resolve(where.id === LOCATION || where.id === LOCATION_B ? { id: where.id } : null),
+      findMany: () => Promise.resolve([{ id: LOCATION }, { id: LOCATION_B }]),
     },
     productVariant: {
       findMany: ({ where }: { where: { id: { in: string[] } } }) =>
@@ -374,13 +379,7 @@ function createFakePrisma(db: FakeDb): PrismaService {
           found ? { ...found, lines: found.lines.map((line) => ({ ...line })) } : null,
         );
       },
-      update: ({
-        where,
-        data,
-      }: {
-        where: { id: string };
-        data: Record<string, unknown>;
-      }) => {
+      update: ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
         const doc = db.documents.find((d) => d.id === where.id)!;
         Object.assign(doc, data);
         return Promise.resolve({ ...doc, lines: doc.lines.map((line) => ({ ...line })) });
@@ -529,8 +528,7 @@ function createSettings(): DocumentSettingsService {
     getResolved: (_tenantId: string, type: DocumentType) =>
       Promise.resolve({
         type,
-        printTitle:
-          type === DocumentType.store_sale ? 'Vendita al banco' : 'Reso al banco',
+        printTitle: type === DocumentType.store_sale ? 'Vendita al banco' : 'Reso al banco',
         autoNumbering: true,
         numberPrefix: type === DocumentType.store_sale ? 'VN' : 'RN',
         defaultSeries: 'A',
@@ -1034,7 +1032,9 @@ describe('StoreSalesService (fase 3 §12)', () => {
     it('senza data: è oggi, come prima', async () => {
       const db = createDb();
       const prima = Date.now();
-      await reso(db, [{ variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 2990 }]);
+      await reso(db, [
+        { variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 2990 },
+      ]);
 
       const scritta = new Date(db.documents[0]!.documentDate).getTime();
       expect(scritta).toBeGreaterThanOrEqual(prima - 1000);
@@ -1042,12 +1042,25 @@ describe('StoreSalesService (fase 3 §12)', () => {
 
     it('⛔ in MODIFICA la data si conserva, anche se il client ne manda un’altra', async () => {
       const db = createDb();
-      await reso(db, [{ variantId: VARIANT_A, quantity: 2, restockable: true, unitPriceMinor: 2990 }], undefined, IERI);
+      await reso(
+        db,
+        [{ variantId: VARIANT_A, quantity: 2, restockable: true, unitPriceMinor: 2990 }],
+        undefined,
+        IERI,
+      );
       const doc = db.documents[0]!;
 
       await reso(
         db,
-        [{ id: doc.lines[0]!.id, variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 2990 }],
+        [
+          {
+            id: doc.lines[0]!.id,
+            variantId: VARIANT_A,
+            quantity: 1,
+            restockable: true,
+            unitPriceMinor: 2990,
+          },
+        ],
         doc.id,
         '2026-01-01T00:00:00.000Z',
       );
@@ -1060,14 +1073,24 @@ describe('StoreSalesService (fase 3 §12)', () => {
 
   it('reso risalvato da 2 a 1: UN solo movimento, aggiornato in posto', async () => {
     const db = createDb();
-    await reso(db, [{ variantId: VARIANT_A, quantity: 2, restockable: true, unitPriceMinor: 2990 }]);
+    await reso(db, [
+      { variantId: VARIANT_A, quantity: 2, restockable: true, unitPriceMinor: 2990 },
+    ]);
     const doc = db.documents[0]!;
     const movimentoPrima = db.movements[0]!;
     expect(levelOf(db, VARIANT_A).onHand).toBe(12);
 
     await reso(
       db,
-      [{ id: doc.lines[0]!.id, variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 2990 }],
+      [
+        {
+          id: doc.lines[0]!.id,
+          variantId: VARIANT_A,
+          quantity: 1,
+          restockable: true,
+          unitPriceMinor: 2990,
+        },
+      ],
       doc.id,
     );
 
@@ -1095,13 +1118,23 @@ describe('StoreSalesService (fase 3 §12)', () => {
 
   it('reso risalvato: il costo unitario congelato non si rivaluta, il totale segue la quantita', async () => {
     const db = createDb();
-    await reso(db, [{ variantId: VARIANT_A, quantity: 2, restockable: true, unitPriceMinor: 2990 }]);
+    await reso(db, [
+      { variantId: VARIANT_A, quantity: 2, restockable: true, unitPriceMinor: 2990 },
+    ]);
     const doc = db.documents[0]!;
     const costoAllora = db.movements[0]!.unitCostMinor!;
 
     await reso(
       db,
-      [{ id: doc.lines[0]!.id, variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 5000 }],
+      [
+        {
+          id: doc.lines[0]!.id,
+          variantId: VARIANT_A,
+          quantity: 1,
+          restockable: true,
+          unitPriceMinor: 5000,
+        },
+      ],
       doc.id,
     );
 
@@ -1111,13 +1144,23 @@ describe('StoreSalesService (fase 3 §12)', () => {
 
   it('spunta tolta in modifica: il movimento sparisce e la giacenza torna indietro', async () => {
     const db = createDb();
-    await reso(db, [{ variantId: VARIANT_A, quantity: 2, restockable: true, unitPriceMinor: 2990 }]);
+    await reso(db, [
+      { variantId: VARIANT_A, quantity: 2, restockable: true, unitPriceMinor: 2990 },
+    ]);
     const doc = db.documents[0]!;
     expect(levelOf(db, VARIANT_A).onHand).toBe(12);
 
     await reso(
       db,
-      [{ id: doc.lines[0]!.id, variantId: VARIANT_A, quantity: 2, restockable: false, unitPriceMinor: 2990 }],
+      [
+        {
+          id: doc.lines[0]!.id,
+          variantId: VARIANT_A,
+          quantity: 2,
+          restockable: false,
+          unitPriceMinor: 2990,
+        },
+      ],
       doc.id,
     );
 
@@ -1136,7 +1179,15 @@ describe('StoreSalesService (fase 3 §12)', () => {
 
     const secondo = await reso(
       db,
-      [{ id: doc.lines[0]!.id, variantId: VARIANT_A, quantity: 2, restockable: true, unitPriceMinor: 2990 }],
+      [
+        {
+          id: doc.lines[0]!.id,
+          variantId: VARIANT_A,
+          quantity: 2,
+          restockable: true,
+          unitPriceMinor: 2990,
+        },
+      ],
       doc.id,
     );
 
@@ -1164,7 +1215,13 @@ describe('i tre contratti adottati dal comune — prerequisiti di UI 3', () => {
         locationId: LOCATION,
         causale: 'Taglia errata',
         lines: [
-          { variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 10000, discountPercent: 20 },
+          {
+            variantId: VARIANT_A,
+            quantity: 1,
+            restockable: true,
+            unitPriceMinor: 10000,
+            discountPercent: 20,
+          },
         ],
       } as never,
       user,
@@ -1248,7 +1305,13 @@ describe('i tre contratti adottati dal comune — prerequisiti di UI 3', () => {
       {
         locationId: LOCATION,
         lines: [
-          { variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 1000, description: 'Maglia cotone — seconda scelta' },
+          {
+            variantId: VARIANT_A,
+            quantity: 1,
+            restockable: true,
+            unitPriceMinor: 1000,
+            description: 'Maglia cotone — seconda scelta',
+          },
         ],
       } as never,
       user,
@@ -1264,7 +1327,13 @@ describe('i tre contratti adottati dal comune — prerequisiti di UI 3', () => {
       {
         locationId: LOCATION,
         lines: [
-          { variantId: VARIANT_A, quantity: 2, restockable: true, unitPriceMinor: 1000, description: 'Nome di allora' },
+          {
+            variantId: VARIANT_A,
+            quantity: 2,
+            restockable: true,
+            unitPriceMinor: 1000,
+            description: 'Nome di allora',
+          },
         ],
       } as never,
       user,
@@ -1276,11 +1345,210 @@ describe('i tre contratti adottati dal comune — prerequisiti di UI 3', () => {
       {
         id: doc.id,
         locationId: LOCATION,
-        lines: [{ id: doc.lines[0]!.id, variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 1000 }],
+        lines: [
+          {
+            id: doc.lines[0]!.id,
+            variantId: VARIANT_A,
+            quantity: 1,
+            restockable: true,
+            unitPriceMinor: 1000,
+          },
+        ],
       } as never,
       user,
     );
 
     expect(db.documents[0]!.lines[0]!.description).toBe('Nome di allora');
+  });
+
+  // ── T6 — autorizzazione sede: creazione normale, modifica su ENTRAMBE ────
+  //
+  // In modifica non basta autorizzare la sede richiesta (`dto.locationId`):
+  // un operatore che vede solo A potrebbe "prendere" un documento nato in B
+  // passando `locationId: A`, perché la sola sede controllata sarebbe quella
+  // di ARRIVO. Va autorizzata anche quella del documento ESISTENTE, prima.
+  //
+  // `user` (riusato da tutto il resto del file) è owner: accesso illimitato,
+  // quindi non esercita mai il ramo che nega. Questi test usano utenti clerk
+  // con `assignedLocationIds` esplicite, apposta per farlo negare.
+
+  describe('T6 — autorizzazione sede in creazione e in modifica', () => {
+    function clerk(assignedLocationIds: readonly string[]): UserProfileDto {
+      return {
+        ...user,
+        id: 'u-clerk',
+        role: UserRole.clerk,
+        hasAllLocationsAccess: false,
+        assignedLocationIds: [...assignedLocationIds],
+        permissions: [TenantPermission.InventoryManage],
+      } as unknown as UserProfileDto;
+    }
+
+    const userA = clerk([LOCATION]);
+    const userAB = clerk([LOCATION, LOCATION_B]);
+
+    async function nuovaVendita(db: FakeDb, locationId: string, attore: UserProfileDto) {
+      const { service } = createService(db);
+      return service.createSale(
+        TENANT,
+        {
+          locationId,
+          paymentMethod: 'cash',
+          lines: [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }],
+        } as never,
+        attore,
+      );
+    }
+
+    async function nuovoReso(db: FakeDb, locationId: string, attore: UserProfileDto) {
+      const { service } = createService(db);
+      return service.createReturn(
+        TENANT,
+        {
+          locationId,
+          reason: 'Taglia errata',
+          lines: [{ variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 2990 }],
+        } as never,
+        attore,
+      );
+    }
+
+    describe.each([
+      { tipo: 'Vendita', crea: nuovaVendita, metodo: 'createSale' as const },
+      { tipo: 'Reso', crea: nuovoReso, metodo: 'createReturn' as const },
+    ])('$tipo', ({ crea, metodo }) => {
+      it('documento sede A, utente autorizzato A, update A → OK', async () => {
+        const db = createDb();
+        await crea(db, LOCATION, userA);
+        const doc = db.documents[0]!;
+        const { service } = createService(db);
+
+        await expect(
+          service[metodo](
+            TENANT,
+            {
+              id: doc.id,
+              locationId: LOCATION,
+              paymentMethod: 'cash',
+              reason: 'Taglia errata',
+              lines: [
+                {
+                  id: doc.lines[0]!.id,
+                  variantId: VARIANT_A,
+                  quantity: 1,
+                  restockable: true,
+                  unitPriceMinor: 2990,
+                },
+              ],
+            } as never,
+            userA,
+          ),
+        ).resolves.toBeDefined();
+      });
+
+      it('documento sede B, utente autorizzato solo A, payload location A → rifiutato', async () => {
+        const db = createDb();
+        // Il documento nasce in B con un utente che la vede (userAB), poi lo
+        // stesso utente prova a spostarlo con userA, che B non la vede affatto.
+        await crea(db, LOCATION_B, userAB);
+        const doc = db.documents[0]!;
+        const { service } = createService(db);
+
+        await expect(
+          service[metodo](
+            TENANT,
+            {
+              id: doc.id,
+              locationId: LOCATION,
+              paymentMethod: 'cash',
+              reason: 'Taglia errata',
+              lines: [
+                {
+                  id: doc.lines[0]!.id,
+                  variantId: VARIANT_A,
+                  quantity: 1,
+                  restockable: true,
+                  unitPriceMinor: 2990,
+                },
+              ],
+            } as never,
+            userA,
+          ),
+        ).rejects.toThrow(ForbiddenException);
+
+        // ⛔ Nessuna scrittura: la sede del documento non è cambiata.
+        expect(db.documents[0]!.locationId).toBe(LOCATION_B);
+      });
+
+      it('documento sede A, utente autorizzato solo A, cambio verso B → rifiutato', async () => {
+        const db = createDb();
+        await crea(db, LOCATION, userA);
+        const doc = db.documents[0]!;
+        const { service } = createService(db);
+
+        await expect(
+          service[metodo](
+            TENANT,
+            {
+              id: doc.id,
+              locationId: LOCATION_B,
+              paymentMethod: 'cash',
+              reason: 'Taglia errata',
+              lines: [
+                {
+                  id: doc.lines[0]!.id,
+                  variantId: VARIANT_A,
+                  quantity: 1,
+                  restockable: true,
+                  unitPriceMinor: 2990,
+                },
+              ],
+            } as never,
+            userA,
+          ),
+        ).rejects.toThrow(ForbiddenException);
+
+        expect(db.documents[0]!.locationId).toBe(LOCATION);
+      });
+
+      it('documento sede A, utente autorizzato A+B, cambio verso B → OK', async () => {
+        const db = createDb();
+        await crea(db, LOCATION, userA);
+        const doc = db.documents[0]!;
+        const { service } = createService(db);
+
+        await expect(
+          service[metodo](
+            TENANT,
+            {
+              id: doc.id,
+              locationId: LOCATION_B,
+              paymentMethod: 'cash',
+              reason: 'Taglia errata',
+              lines: [
+                {
+                  id: doc.lines[0]!.id,
+                  variantId: VARIANT_A,
+                  quantity: 1,
+                  restockable: true,
+                  unitPriceMinor: 2990,
+                },
+              ],
+            } as never,
+            userAB,
+          ),
+        ).resolves.toBeDefined();
+
+        expect(db.documents[0]!.locationId).toBe(LOCATION_B);
+      });
+    });
+
+    it('creazione: si autorizza solo la sede richiesta, come prima di T6', async () => {
+      const db = createDb();
+      // userA non ha B, ma qui non esiste ancora un documento: non c'è nulla
+      // da autorizzare oltre alla sede richiesta.
+      await expect(nuovaVendita(db, LOCATION, userA)).resolves.toBeDefined();
+      await expect(nuovaVendita(createDb(), LOCATION_B, userA)).rejects.toThrow(ForbiddenException);
+    });
   });
 });
