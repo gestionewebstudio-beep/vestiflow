@@ -1162,6 +1162,25 @@ la modalità standard. Un'impostazione «Configura lettore barcode» potrà segu
 Le scansioni consecutive veloci non devono perdere codici, duplicare per retry, contaminare il
 campo precedente, perdere il fuoco o creare movimenti anticipati.
 
+⚠️ **La riga «già presente» vale per il BANCO, e non è la regola di tutti** _(deciso il
+21/08/2026)_. Le tre maschere scanner-first si comportano in tre modi, e la divergenza è
+deliberata:
+
+```text
+Vendita al banco   stesso EAN → incremento della riga esistente
+Ordine cliente     stesso EAN → il proprio contratto attuale (incremento)
+Arrivo merce       stesso EAN → NUOVA RIGA DISTINTA
+```
+
+⭐ **Discende dal modello, non dal gusto.** La riga dell'Arrivo merce porta Lotto, Scadenza,
+Seriali e un costo unitario propri: due carichi dello stesso articolo con lotti o costi diversi
+**sono due righe**, e fonderli distruggerebbe un dato che la riga esiste per portare. Al banco
+passare due volte lo stesso capo sul lettore vuol dire «due pezzi».
+
+⛔ **Ne discende anche che la futura capacità comune di scansione NON decide questo.** Riconosce
+la battuta e consegna `(quantità, codice)`; che cosa diventi lo dice la maschera. Mappa e misure
+in `docs/MAPPA-RIUSO-VENDITA-AL-BANCO.md` §3.
+
 ## A15. Righe
 
 Desktop: tabella con la densità della **grammatica comune dei riepiloghi** (`14` §F6 — 12px,
@@ -1582,6 +1601,21 @@ store-sale-register.component.scss   639 righe proprie, NON usa `_document-form.
 documenti e riusare il pattern comune. ⛔ Nessuna convenzione speciale per la Vendita al banco —
 se si aprisse diversamente dagli altri, l'operatore dovrebbe ricordarsi quale.
 
+### ✅ Il censimento è fatto — `docs/MAPPA-RIUSO-VENDITA-AL-BANCO.md`, 21/08/2026
+
+Il confronto puntuale fra le due maschere, area per area, nelle quattro categorie
+**RIUSO DIRETTO · DA ESTRARRE/GENERALIZZARE · SPECIFICO BANCO · LEGACY DA ELIMINARE**, sta lì.
+⛔ **Non è una specifica**: è la misura da cui parte l'esecuzione, e le decisioni restano qui.
+
+Quello che va saputo senza aprirlo, perché cambia l'ordine dei lavori:
+
+| Trovato                                                           | Conseguenza                                                                                 |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| **Il Reso al banco non è utilizzabile oggi**                      | in creazione non si possono aggiungere righe, in modifica la maschera si apre vuota         |
+| **Risalvare una vendita in modifica ne crea una seconda**         | l'API sa riconciliare per differenza; il client non le manda gli `id` — C0 era vero a metà  |
+| **La battuta HID manca in TUTTE E TRE** le maschere scanner-first | non è un buco del banco: la capacità va costruita comune, e il perimetro è una decisione    |
+| **Lo sconto extra a importo non esiste nel contratto comune**     | `11` A16 richiede di estenderlo **dove il contratto vive** — è l'unico gap fuori dal modulo |
+
 ## ⛔ Il «Carrello» non esiste più — deciso il 19/08/2026
 
 > **La Vendita al banco è un DOCUMENTO VestiFlow: testata, righe documento, piede.
@@ -1597,8 +1631,19 @@ Ordine cliente e fratelli — mantenendo la velocità operativa del banco.
 
 ```text
 OGGI      ricerca/scanner → «aggiungi al carrello» → CartLine[] → Concludi vendita
-UI 3      ricerca/scanner → RIGA DOCUMENTO         → righe      → Salva documento
+UI 3      ricerca/scanner → RIGA DOCUMENTO         → righe      → Concludi vendita
 ```
+
+⛔ **Qui l'ultima casella diceva «Salva documento», ed era uno scarto — corretto il
+21/08/2026.** Quello che il superamento del carrello cambia è la **struttura** — righe con
+identità propria al posto di un carrello indicizzato per variante — **non l'etichetta
+dell'azione finale**, che resta quella decisa in **A17**: «Concludi vendita» / «Concludi reso».
+
+⚠️ **Vale la pena tenerne memoria, perché l'errore tornerà.** `regole-stile-ui` §5 impone
+«Salva documento» a **ogni** documento, e la Vendita al banco **è** in `documents`: chi legge
+quella regola e guarda questa maschera concluderà che il pulsante è sbagliato. Non lo è —
+**A17 è una decisione specifica di questo tipo**, e cambiarla richiede una decisione nuova ed
+esplicita, non l'applicazione della regola generale.
 
 ⚠️ **La misura tecnica che sembrava un difetto da correggere era in realtà una prova.**
 Il censimento del 19/08 ha trovato che il carrello è indicizzato per `variantId` e non

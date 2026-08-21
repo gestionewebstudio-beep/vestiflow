@@ -446,20 +446,195 @@ _Costo:_ due etichette e i test che le nominano. Nessuna colonna, nessuna migrat
 
 ## Difetti aperti, misurati e non ancora corretti
 
-| Rif.       | Difetto                                                                                                | Stato                                                                          |
-| ---------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
-| `01` §3.9  | Le righe importate ignoravano lo sconto: 120,00 di righe su un ordine da 104,00                        | ✅ **chiuso e provato** su `#1010`/`#1011` (15/08)                             |
-| `01` §3.13 | Il Codice IVA della vendita online lo sceglieva l'imposta incassata, mai lo zero                       | ✅ **chiuso** — non ancora eseguito in produzione (scatta all'evasione)        |
-| `01` §3.14 | La sync sedi partiva da sola, da tre punti, e creava/rinominava/cancellava                             | ✅ **inneschi spenti** — il servizio (nome, creazione automatica) resta aperto |
-| `01` §3.15 | Le righe di canale scrivono importi IVATI in colonne lette come NETTE                                  | aperto — scelta di modello, non ancora presa                                   |
-| sotto      | Ordine cliente: sconto a importo, sconto extra a importo, spedizione sui manuali                       | aperto — disegno deciso, non implementato                                      |
-| `01` §3.12 | **Le righe della Vendita online** portano ancora l'aliquota media inventata                            | l'import è corretto, lo **snapshot** no                                        |
-| `01` §3.11 | Vendita con una riga non scaricata dichiara «scarico completo»                                         | aperto                                                                         |
-| `01` §3.8  | L'**impegno** usa ancora il ripiego alfabetico sulla sede                                              | chiuso solo lo scarico, e mai eseguito                                         |
-| `01` §2.1  | `orders/cancelled` non registrato sul negozio                                                          | da fare **dall'ambiente pubblicato**                                           |
-| `01` §2.14 | Il reso dichiarato e non ancora elaborato non esiste per VestiFlow                                     | aperto, da decidere se coprirlo                                                |
-| `GM` §20   | **Il legame fra documenti non verifica il tenant** — misurato; sfruttabilità dedotta                   | aperto — **si chiude da solo**, non aspetta Includi/Genera                     |
-| `CASSA`    | **Il ramo Cassa aggancia `documents` con `ON DELETE CASCADE`** — pagamenti, ricevute fiscali, sessione | da censire **dopo** C 0 — ⛔ non limita la Vendita al banco (`11` C)           |
+| Rif.       | Difetto                                                                                                  | Stato                                                                          |
+| ---------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `01` §3.9  | Le righe importate ignoravano lo sconto: 120,00 di righe su un ordine da 104,00                          | ✅ **chiuso e provato** su `#1010`/`#1011` (15/08)                             |
+| `01` §3.13 | Il Codice IVA della vendita online lo sceglieva l'imposta incassata, mai lo zero                         | ✅ **chiuso** — non ancora eseguito in produzione (scatta all'evasione)        |
+| `01` §3.14 | La sync sedi partiva da sola, da tre punti, e creava/rinominava/cancellava                               | ✅ **inneschi spenti** — il servizio (nome, creazione automatica) resta aperto |
+| `01` §3.15 | Le righe di canale scrivono importi IVATI in colonne lette come NETTE                                    | aperto — scelta di modello, non ancora presa                                   |
+| sotto      | Ordine cliente: sconto a importo, sconto extra a importo, spedizione sui manuali                         | aperto — disegno deciso, non implementato                                      |
+| `01` §3.12 | **Le righe della Vendita online** portano ancora l'aliquota media inventata                              | l'import è corretto, lo **snapshot** no                                        |
+| `01` §3.11 | Vendita con una riga non scaricata dichiara «scarico completo»                                           | aperto                                                                         |
+| `01` §3.8  | L'**impegno** usa ancora il ripiego alfabetico sulla sede                                                | chiuso solo lo scarico, e mai eseguito                                         |
+| `01` §2.1  | `orders/cancelled` non registrato sul negozio                                                            | da fare **dall'ambiente pubblicato**                                           |
+| `01` §2.14 | Il reso dichiarato e non ancora elaborato non esiste per VestiFlow                                       | aperto, da decidere se coprirlo                                                |
+| `GM` §20   | **Il legame fra documenti non verifica il tenant** — misurato; sfruttabilità dedotta                     | aperto — **si chiude da solo**, non aspetta Includi/Genera                     |
+| `CASSA`    | **Il ramo Cassa aggancia `documents` con `ON DELETE CASCADE`** — pagamenti, ricevute fiscali, sessione   | da censire **dopo** C 0 — ⛔ non limita la Vendita al banco (`11` C)           |
+| sotto      | **La coda decimale del prezzo si perde riaprendo e risalvando un documento** — misurata il 21/08         | aperto — gap **trasversale**, si chiude nella **convergenza documentale**      |
+| sotto      | **Le maschere mostrano l'IVA dal Codice VIVO, il server la conserva dallo snapshot** — misurata il 21/08 | aperto — gap **trasversale**, reso VISIBILE da T3                              |
+| sotto      | **«Nessun contatore» e «contatore Senza serie» sono indistinguibili sul documento** — misurata il 21/08  | annotato — da decidere, non un difetto operativo oggi                          |
+| sotto      | **L'orchestrazione della numerazione è ripetuta in 7 servizi** — misurata il 21/08                       | **rifattore trasversale futuro** — ⛔ non si estrae per un servizio solo       |
+
+### L'orchestrazione della numerazione è ripetuta in sette servizi — 21/08/2026
+
+⭐ **Il motore è già condiviso**: `serieCanonica`, `defaultCounterSeries`, `lockDocumentCounter`,
+`resolveDocumentNumber`, `buildDocumentNumberConflict`, `isDocumentNumberConflict` vivono tutte in
+`api/src/documents/document-numbering.util.ts`. Non è quello il problema.
+
+⛔ **È la SEQUENZA con cui si chiamano a essere ripetuta**, in sette servizi: documenti generici,
+Arrivo merce (due volte), Trasferimento/Rettifica, Corrispettivo manuale, Ordine cliente manuale,
+Ordine fornitore, Vendita/Reso al banco (due volte). `defaultCounterSeries` da sola compare 13
+volte.
+
+**È esattamente la forma che il progetto ha già consolidato sul CLIENT.** Il docblock di
+`DocumentNumberingStore` lo dice: _«il blocco viveva in cinque maschere in copie quasi identiche…
+copie di quel tipo non divergono con un errore, divergono con una sfumatura»_.
+
+⚠️ **E la divergenza-per-sfumatura è già documentata sul server**: la correzione della serie nel
+conflitto è arrivata il 13/08 sull'Arrivo merce mentre «gli altri tre servizi gemelli risolvevano
+già». Una copia era rimasta indietro senza che nessun test la trovasse.
+
+⚠️ **Un secondo sintomo, misurato il 21/08**: `serieCanonica` esiste dal giorno in cui il
+controllo cronologico è nato cieco, e il suo docblock conta **dodici punti** che l'avevano
+riscritta a mano. Al 21/08 nessun percorso di salvataggio la usava — solo
+`document-chronology.util.ts`. La Vendita al banco è il primo servizio di scrittura ad averla
+adottata (T8A).
+
+> ⛔ **Non si estrae per un servizio solo.** Farlo per il banco creerebbe l'ottava variante invece
+> di toglierne sette. Quando si farà, si fa per tutti — ed è un lavoro con perimetro proprio, da
+> misurare prima (quali rami divergono davvero, e quali divergenze sono volute).
+
+**Grado di certezza: letto** (conteggio con grep sui sette file, righe citate nei commit T7A/T7B/T8A).
+
+### «Nessun contatore» e «Senza serie» danno lo stesso documento — annotato il 21/08/2026
+
+Emerso censendo la numerazione del banco (T7/T8), e **non è un difetto operativo**: la creazione
+funziona in entrambi i casi. È un'ambiguità concettuale che vale la pena decidere prima che
+qualcuno ci costruisca sopra.
+
+`seedDefaults` — che semina il contatore «Senza serie», quello che ogni tipo dovrebbe avere per
+nascita — è chiamato **solo** da `list()` e `available()` di
+`api/src/documents/document-counters.service.ts`, cioè dalla schermata Numeratori e dalla tendina
+di testata. Un tenant che non ha mai aperto né l'una né l'altra **non ha materialmente il
+contatore**.
+
+```text
+nessun contatore configurato   → defaultCounterSeries ritorna null → documento con series = null
+contatore «Senza serie» reale  → defaultCounterSeries ritorna null → documento con series = null
+```
+
+⚠️ **Le due situazioni producono lo stesso documento e lo stesso riferimento**, quindi guardando
+un documento non si può sapere in quale delle due si era. Finché nessuno ha bisogno di
+distinguerle non fa danno; comincia a farne il giorno in cui una schermata dicesse «questo
+documento usa il contatore X» e non ci fosse una X da nominare.
+
+⛔ **Non toccato in T7A/T7B**, ed è fuori dal loro perimetro: quei due commit passano al motore
+comune il contesto che gli mancava, non cambiano chi semina i contatori.
+
+**Grado di certezza: letto** (i due soli chiamanti di `seedDefaults` verificati con grep); che
+esistano tenant reali in quello stato è **non provato**.
+
+### L'IVA a schermo non è quella del documento — gap trasversale, registrato il 21/08/2026
+
+⚠️ **Emerso da una revisione avversariale del lavoro T3** (snapshot IVA della Vendita al banco),
+che ha confermato il rilievo come **preesistente e trasversale**, non introdotto da T3.
+
+Il server, per una riga già esistente, **conserva** `vatCodeId` e `vatSnapshot` persistiti. Le
+maschere invece calcolano l'IVA da mostrare risolvendo il Codice IVA nel **registro vivo**, e
+usano l'aliquota dello snapshot solo come ripiego quando il codice non si trova:
+
+```text
+store-sale-register.component.ts:1081   const vatCode = line.vatCodeId ? this.vatCodeById().get(...) : undefined;
+                                        return vatCode ? vatInputFromVatCode(vatCode)      ← aliquota VIVA
+                                                       : vatInputFromLegacyRate(line.vatRatePercent);
+```
+
+Stesso schema in `sales-document-form`, `customer-order-form` e `goods-receipt-form`.
+
+⭐ **E la funzione giusta esiste già**: `vatInputFromSnapshot` in
+`src/app/domain/documents/utils/document-vat.util.ts:118` è **esportata e non la usa nessuno** —
+verificato con un grep su `src/` e `api/src/`. Non manca lo strumento: manca il consumo.
+
+**La conseguenza si vede solo se qualcuno cambia un'aliquota.** Riaprendo un documento più
+vecchio del cambio, lo schermo mostra i totali all'aliquota di oggi mentre il documento vale
+quelli di allora.
+
+> ⛔ **T3 non ha creato questo difetto: lo ha reso visibile sulla Vendita al banco.** Prima, su
+> quel percorso, schermo e documento coincidevano — ma coincidevano sul valore **sbagliato**,
+> perché il client ri-prezzava il documento storico e il server obbediva. T3 ha corretto il dato
+> persistito; la vista è rimasta dov'era.
+
+⛔ **Non si corregge maschera per maschera.** Le quattro hanno già adottato il contratto binario
+lato salvataggio: il rimedio è far consumare `vatInputFromSnapshot` sulle righe caricate, una
+volta per tutte, nella **convergenza documentale**.
+
+⚠️ **Nota adiacente, stesso ambito**: `preservedLineVat` ricostruisce il dato di calcolo con
+`vatInputFromLegacyRate(vatSnapshotRatePercent(...))`, cioè dalla **sola aliquota** dello
+snapshot — natura, `nonDeductiblePercent` e `calculationMode` non rientrano nel ricalcolo, pur
+restando salvati nella colonna. Irrilevante in modalità standard con indetraibile a zero; da
+verificare prima di usare modalità diverse.
+
+**Grado di certezza: letto** (righe citate sopra, verificate direttamente); che un cliente reale
+abbia mai cambiato un'aliquota è **non provato**.
+
+#### La voce «Predefinito» della cassa, e perché NON si corregge — deciso il 21/08/2026
+
+Censito lo stesso giorno: `vatCodeIdForLinePayload` ritorna `string | undefined` e **non può
+esprimere `null`**, quindi la scelta esplicita «torna al predefinito dell'articolo» non è
+trasmissibile. Il server invece la capirebbe già: `null !== undefined` fa saltare la
+conservazione in `preservedLineVat`, e `resolveLineVatCode(null, …)` risolve da
+articolo/predefinito aziendale. **Manca solo la firma della primitiva.**
+
+La voce vuota esiste in **una sola** maschera — la Vendita al banco, che usa `app-select-menu`
+(`includeEmptyOption` vale `true` di default e nessuno le ha passato `false`). Fatture, Ordine
+cliente e Arrivo merce usano `app-document-line-select-cell`, che dichiara
+`valueChange = output<string>()` e sull'insieme chiuso dell'IVA fa `commit(this.value())`: non
+può emettere vuoto. Lì il problema non esiste.
+
+> ⛔ **Decisione del proprietario: NON si corregge la vecchia maschera pos.** È legacy e verrà
+> sostituita; spegnere l'interruttore lì sarebbe lavoro su codice destinato a sparire.
+>
+> ⭐ **Il vincolo si sposta sulla maschera NUOVA di Vendita/Reso**: dovrà usare la **cella IVA
+> documentale comune** già adottata dagli altri documenti (`app-document-line-select-cell` o la
+> sua evoluzione condivisa), **senza varianti locali**. Con quella cella la voce vuota non
+> esiste, e il problema non si ripresenta.
+>
+> ⚠️ Se un giorno «Ripristina il predefinito dall'articolo» dovrà essere una funzione vera delle
+> righe documento, si progetta **trasversalmente** nella convergenza documentale — semantica
+> **tri-state** (`undefined` / `string` / `null`) e test comuni — non riaccendendo un
+> interruttore su una maschera sola.
+
+### La coda decimale del prezzo — gap trasversale, registrato il 21/08/2026
+
+⚠️ **Trovato mentre si decideva tutt'altro** (il contratto del prezzo del Reso al banco, `11` T4)
+e messo da parte apposta: non si corregge dentro un lavoro che ha un altro perimetro.
+
+`regole-gestionale` dice che un prezzo unitario è `NUMERIC(16,6)` e che **la coda è ciò che fa
+tornare identico un prezzo digitato ivato**. Il round-trip però non la conserva fino in fondo:
+
+```text
+database → JSON            intatta   Prisma serializza il Decimal come STRINGA, nessun mapper
+JSON → modello Angular     intatta   document-api.mapper.ts:212 — Number(), nessun arrotondamento
+modello → campo di input   ⛔ PERSA  sales-document-form.component.ts:2357 → money.util.ts:161 (Math.round)
+campo → server             intero    sales-document-form.component.ts:2221 ri-analizza la stringa a 2 decimali
+```
+
+**Il difetto morde in modalità prezzi NETTI**, dove il valore re-inviato viene salvato così com'è:
+un `2049,180300` in database, riaperto e risalvato, torna `2049`. In modalità ivata il valore non
+è conservato ma **ricalcolato** dallo scorporo, quindi coincide solo finché la coda nasceva da
+quello stesso scorporo a quella stessa aliquota.
+
+⭐ **Non è un difetto di tutte le maschere, ed è questa la parte utile.** Chi tiene il netto
+canonico in un dato separato dalla rappresentazione a due decimali non lo ha:
+
+| Maschera                                 | Coda                                                                 |
+| ---------------------------------------- | -------------------------------------------------------------------- |
+| `sales-document-form` (famiglia Fattura) | ⛔ persa — la stringa a 2 decimali è l'unica sorgente al salvataggio |
+| `supplier-order-form`                    | ✅ salva — control canonico `unitCostNetMinor` separato (`:819-823`) |
+| `store-sale-register` (banco)            | ✅ salva — il netto sta nel signal, il campo lo MOSTRA e basta       |
+
+`supplier-order-form.component.ts:792-796` porta già il commento che spiega perché si è sottratta
+allo schema: _«quello converte il valore MOSTRATO, già arrotondato a due decimali, e su un costo
+digitato ivato perde il centesimo nel 18% dei casi al 22%»_.
+
+> ⛔ **Decisione del proprietario, 21/08/2026: la famiglia Fattura NON è un'eccezione
+> strutturale.** Quando verrà affrontata dovrà convergere sulla stessa struttura e sugli stessi
+> contratti comuni degli altri documenti. La correzione appartiene quindi alla **convergenza
+> documentale**, non a un intervento locale sulla maschera.
+
+**Grado di certezza: letto** (percorso seguito riga per riga, file e numeri sopra); che il valore
+in database venga effettivamente sovrascritto è **dedotto**, non ancora provato leggendo la
+colonna prima e dopo. Una prova va fatta prima di dichiararlo chiuso.
 
 ### `GM` §20 — il difetto di sicurezza trovato il 18/08/2026
 
