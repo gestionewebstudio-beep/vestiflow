@@ -1,4 +1,10 @@
-import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import {
   DocumentStatus,
   DocumentType,
@@ -216,7 +222,16 @@ export class StoreSalesService {
         // idempotente per riconciliazione (righe per id, movimenti per
         // `sourceLineId`), e rivendicare un intento lì impedirebbe la seconda
         // modifica legittima dello stesso documento.
-        if (creationIntentId && !existing) {
+        if (!existing) {
+          // ⛔ T15B — creare senza identità d'intento non è più possibile. Il
+          // DTO lo impone con `@ValidateIf`, e questa è la seconda rete: un
+          // chiamante interno che aggirasse la validazione creerebbe una
+          // vendita non deduplicabile, e non se ne accorgerebbe nessuno.
+          if (!creationIntentId) {
+            throw new UnprocessableEntityException(
+              'Identità dell’operazione mancante: ricarica la pagina e ripeti.',
+            );
+          }
           await this.intents.claimTx(tx, {
             tenantId,
             intentId: creationIntentId,
@@ -620,7 +635,16 @@ export class StoreSalesService {
     try {
       created = await this.prisma.$transaction(async (tx) => {
         // T15 — la PRIMA scrittura, e solo in creazione. Vedi `createSale`.
-        if (creationIntentId && !existing) {
+        if (!existing) {
+          // ⛔ T15B — creare senza identità d'intento non è più possibile. Il
+          // DTO lo impone con `@ValidateIf`, e questa è la seconda rete: un
+          // chiamante interno che aggirasse la validazione creerebbe una
+          // vendita non deduplicabile, e non se ne accorgerebbe nessuno.
+          if (!creationIntentId) {
+            throw new UnprocessableEntityException(
+              'Identità dell’operazione mancante: ricarica la pagina e ripeti.',
+            );
+          }
           await this.intents.claimTx(tx, {
             tenantId,
             intentId: creationIntentId,

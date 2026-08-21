@@ -14,6 +14,7 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 
@@ -106,11 +107,19 @@ export class CreateStoreSaleDto {
    * Due clienti che comprano la stessa maglietta nello stesso minuto restano due
    * vendite: la distinzione non è nei dati, è nell'intento.
    *
-   * ⚠️ **Facoltativo, e senza di esso il comportamento è quello di prima**: il
-   * client lo manderà con T15B. Un percorso non protetto resta non protetto, ma
-   * nessuno smette di funzionare nel frattempo.
+   * ⛔ **OBBLIGATORIO IN CREAZIONE** (T15B). Con `id` assente il server rifiuta
+   * la richiesta: una vendita nuova senza identità d'intento non è creabile.
+   *
+   * ⚠️ Qui c'era `@IsOptional()`, e serviva a far convivere il backend di T15A
+   * con un client che l'intento non lo mandava ancora. Migrato il client, il
+   * comportamento «senza intento creo comunque» non si lascia in piedi: era un
+   * ponte, non un contratto.
+   *
+   * **In MODIFICA non si valida e non serve**: `@ValidateIf` spegne il vincolo
+   * quando `id` è presente, perché lì non si crea niente e rivendicare un
+   * intento impedirebbe la seconda modifica legittima dello stesso documento.
    */
-  @IsOptional()
+  @ValidateIf((o: CreateStoreSaleDto) => !o.id)
   @IsString()
   @Length(8, 128)
   creationIntentId?: string;

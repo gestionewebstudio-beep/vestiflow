@@ -1,4 +1,8 @@
-import { ConflictException, ForbiddenException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import {
   DocumentStatus,
   DocumentType,
@@ -745,6 +749,21 @@ const user: UserProfileDto = {
   updatedAt: '',
 } as unknown as UserProfileDto;
 
+/**
+ * Il servizio col suo doppio Prisma.
+ *
+ * ⚠️ **Fornisce un `creationIntentId` quando il test non lo passa**, e va detto
+ * invece di lasciarlo scoprire. Da T15B una creazione senza identità d'intento è
+ * VIETATA — il DTO la rifiuta e il servizio la verifica — ma quasi nessuno di
+ * questi test parla di idempotenza: ripetere lo stesso campo in 46 punti lo
+ * renderebbe rumore, e un campo che compare ovunque smette di dire qualcosa.
+ *
+ * ⭐ Il default si scavalca dal test: `{ creationIntentId: undefined }` passa
+ * davvero `undefined` (lo spread viene dopo), ed è così che si prova il rifiuto.
+ * I test di T15A passano invece il proprio intento, esplicito.
+ */
+let intentoProgressivo = 0;
+
 function createService(db: FakeDb): { service: StoreSalesService; pushed: string[] } {
   const pushed: string[] = [];
   // ⚠️ Lo STESSO finto per il servizio e per il registro degli intenti: nel
@@ -752,12 +771,25 @@ function createService(db: FakeDb): { service: StoreSalesService; pushed: string
   // che `resolveConflict` fa dopo il rollback vede lo stato ripristinato — che è
   // il comportamento del database vero.
   const prisma = createFakePrisma(db);
-  const service = new StoreSalesService(
+  const reale = new StoreSalesService(
     prisma,
     createSettings(),
     createChannelSync(pushed),
     new CreationIntentService(prisma),
   );
+  // ⚠️ Il contatore è di MODULO, non di servizio: molti test creano un servizio
+  // nuovo a ogni chiamata, e un contatore locale avrebbe dato lo stesso intento
+  // a due salvataggi diversi — trasformandoli in un replay. Misurato: rendeva
+  // rosso «un numero imposto NON sposta il progressivo», che di intenti non
+  // parla affatto.
+  const conIntentoDiDefault = <T extends object>(dto: T): T =>
+    ({ creationIntentId: `intento-di-default-${(intentoProgressivo += 1)}`, ...dto }) as T;
+
+  const service = Object.create(reale) as StoreSalesService;
+  service.createSale = (tenantId, dto, user) =>
+    reale.createSale(tenantId, conIntentoDiDefault(dto), user);
+  service.createReturn = (tenantId, dto, user) =>
+    reale.createReturn(tenantId, conIntentoDiDefault(dto), user);
   return { service, pushed };
 }
 
@@ -2897,18 +2929,53 @@ describe('T15A — intento di creazione', () => {
     });
   });
 
-  describe('senza intento il comportamento è quello di prima', () => {
-    it('⚠️ due invii senza `creationIntentId` creano DUE documenti', async () => {
+  describe('⛔ senza intento non si crea — il contratto è chiuso (T15B)', () => {
+    it('creare una vendita senza `creationIntentId` viene RIFIUTATO', async () => {
       const db = createDb();
-      await vendita(db, { creationIntentId: undefined });
-      await vendita(db, { creationIntentId: undefined });
 
-      // Non è un difetto di T15A: il client manda l'intento da T15B. Il test
-      // esiste per inchiodare il confine — se un giorno questo diventasse 1
-      // senza che nessuno l'abbia deciso, qualcuno avrà reso obbligatorio un
-      // campo facoltativo.
-      expect(db.documents).toHaveLength(2);
+      const errore = await vendita(db, { creationIntentId: undefined }).catch((e: unknown) => e);
+
+      // ⚠️ In T15A questo test diceva l'opposto — «creano DUE documenti» — ed
+      // era il confine dichiarato finché il client non mandava l'intento.
+      // Migrato il client (T15B), quel comportamento non si lascia in piedi:
+      // era un ponte, non un contratto.
+      expect(errore).toBeInstanceOf(UnprocessableEntityException);
+      expect(db.documents).toHaveLength(0);
       expect(db.intents).toHaveLength(0);
+    });
+
+    it('creare un reso senza `creationIntentId` viene RIFIUTATO', async () => {
+      const db = createDb();
+
+      const errore = await reso(db, { creationIntentId: undefined }).catch((e: unknown) => e);
+
+      expect(errore).toBeInstanceOf(UnprocessableEntityException);
+      expect(db.documents).toHaveLength(0);
+    });
+
+    it('⭐ in MODIFICA l’intento non serve: non si sta creando niente', async () => {
+      const db = createDb();
+      const creata = await vendita(db);
+
+      // Risalvataggio dello stesso documento, senza intento: deve passare.
+      const { service } = createService(db);
+      await expect(
+        service.createSale(
+          TENANT,
+          {
+            id: creata.id,
+            creationIntentId: undefined,
+            locationId: LOCATION,
+            paymentMethod: 'cash',
+            lines: [{ variantId: VARIANT_A, quantity: 2, unitPriceMinor: 2990 }],
+          } as never,
+          user,
+        ),
+      ).resolves.toBeDefined();
+
+      // Un solo documento, e nessun intento in più: la modifica non ne apre uno.
+      expect(db.documents).toHaveLength(1);
+      expect(db.intents).toHaveLength(1);
     });
   });
 

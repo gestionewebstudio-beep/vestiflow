@@ -2,7 +2,7 @@ import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/route
 import { STORE_SALE_MODE_ROUTE_DATA_KEY } from '@domain/store-sales/models/store-sale-routing.util';
 import { render, screen, within } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
-import { of, throwError } from 'rxjs';
+import { NEVER, of, throwError } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthService } from '@core/auth';
@@ -1159,6 +1159,189 @@ describe('StoreSaleRegisterComponent', () => {
       // «manda sempre» o «non mandare mai» sbaglierebbe una delle due metà.
       expect(lines.find((l) => l.id === 'line-sale-A')!.vatCodeId).toBeUndefined();
       expect(lines.find((l) => l.id === 'line-sale-B')!.vatCodeId).toBeUndefined();
+    });
+  });
+
+  // ── T15B — l'identità dell'intento di creazione, lato client ────────────
+  //
+  // ⛔ Il backend (T15A) sa riconoscere un reinvio, ma solo se il client gli
+  // manda la stessa identità. Qui si prova il ciclo di vita di quell'identità,
+  // che è tutto il disegno:
+  //
+  //   prima conclusione   → si genera, una volta
+  //   ritentata           → LO STESSO, o il reinvio non sarebbe riconoscibile
+  //   successo certo      → si chiude: la vendita dopo è un'altra compilazione
+  //   errore INCERTO      → si conserva (il server potrebbe aver committato)
+  //   errore CERTO        → si chiude (il server non ha creato niente)
+  //   modifica            → nessun intento: non si sta creando
+  //
+  // ⚠️ **Il doppio clic è un'altra cosa, e i test lo dichiarano.** La guardia di
+  // rientro e il pulsante disabilitato impediscono che parta un secondo comando
+  // PRIMA che il primo risponda: è protezione di interfaccia, vale dentro
+  // un'istanza del componente, e la scavalcano due schede o un refresh a metà
+  // volo. L'idempotenza NON si regge su quella — si regge sull'intento.
+  describe('T15B — intento di creazione', () => {
+    interface CorpoVendita {
+      readonly creationIntentId?: string;
+      readonly id?: string;
+    }
+
+    function componentOf(fixture: { componentInstance: unknown }) {
+      return fixture.componentInstance as { concludeSale(): void };
+    }
+
+    const risultato = () =>
+      of({
+        id: 'doc-nuovo',
+        reference: 'VN-1',
+        documentDate: '2026-08-21',
+        totalMinor: 1990,
+        currency: 'EUR',
+        lines: [],
+      });
+
+    const intentiInviati = (spia: ReturnType<typeof vi.fn>): (string | undefined)[] =>
+      spia.mock.calls.map((call) => (call[0] as CorpoVendita).creationIntentId);
+
+    it('⭐ prima conclusione: genera un id e lo manda', async () => {
+      const createSale = vi.fn((_body: unknown) => risultato());
+      const { fixture } = await setup({
+        variantIdByCode: 'var-1',
+        lookupItems: [ITEM],
+        createSale,
+      });
+      await scan(EAN);
+
+      componentOf(fixture).concludeSale();
+
+      const [primo] = intentiInviati(createSale);
+      expect(primo).toBeTruthy();
+      expect(typeof primo).toBe('string');
+    });
+
+    it('⭐ timeout e ritentativo: il carrello resta e l’id è LO STESSO', async () => {
+      // Timeout = errore INCERTO: il server potrebbe aver committato lo stesso,
+      // e un id nuovo creerebbe una seconda vendita.
+      const createSale = vi.fn((_body: unknown) =>
+        throwError(() => ({ kind: 'timeout', message: 'La richiesta ha impiegato troppo tempo.' })),
+      );
+      const { fixture } = await setup({
+        variantIdByCode: 'var-1',
+        lookupItems: [ITEM],
+        createSale,
+      });
+      await scan(EAN);
+      const component = componentOf(fixture);
+
+      component.concludeSale();
+      // Il carrello sopravvive all'errore: è ciò che rende possibile il reinvio.
+      expect(screen.getByText('Maglietta Basic — M / Bianco')).toBeTruthy();
+      component.concludeSale();
+
+      const [primo, secondo] = intentiInviati(createSale);
+      expect(primo).toBeTruthy();
+      expect(secondo).toBe(primo);
+    });
+
+    it('⭐ successo: l’intento si chiude, e la vendita dopo ne ha uno NUOVO', async () => {
+      const createSale = vi.fn((_body: unknown) => risultato());
+      const { fixture } = await setup({
+        variantIdByCode: 'var-1',
+        lookupItems: [ITEM],
+        createSale,
+      });
+      const component = componentOf(fixture);
+
+      await scan(EAN);
+      component.concludeSale();
+      // Il carrello si è svuotato: comincia un'altra compilazione, identica.
+      await scan(EAN);
+      component.concludeSale();
+
+      const [primo, secondo] = intentiInviati(createSale);
+      expect(primo).toBeTruthy();
+      // ⛔ Due clienti, stessa maglietta, stesso minuto: due vendite. Se l'id
+      // non si chiudesse al successo, la seconda sarebbe scambiata per un
+      // reinvio della prima e non verrebbe registrata.
+      expect(secondo).not.toBe(primo);
+    });
+
+    it('⭐ errore CERTO: l’intento si chiude — il server non ha creato niente', async () => {
+      // 422: la richiesta è stata respinta prima di ogni effetto. Conservare
+      // l'id farebbe rifiutare come «intento riusato» la versione corretta.
+      const createSale = vi.fn((_body: unknown) =>
+        throwError(() => ({ kind: 'validation', message: 'Dati non validi.', status: 422 })),
+      );
+      const { fixture } = await setup({
+        variantIdByCode: 'var-1',
+        lookupItems: [ITEM],
+        createSale,
+      });
+      const component = componentOf(fixture);
+
+      await scan(EAN);
+      component.concludeSale();
+      component.concludeSale();
+
+      const [primo, secondo] = intentiInviati(createSale);
+      expect(secondo).not.toBe(primo);
+    });
+
+    it('⭐ in MODIFICA non si manda alcun intento: non si sta creando', async () => {
+      const createSale = vi.fn((_body: unknown) =>
+        of({
+          id: SALE_DOC.id,
+          reference: 'VN-12',
+          documentDate: '2026-08-10',
+          totalMinor: 0,
+          currency: 'EUR',
+          lines: [],
+        }),
+      );
+      const { fixture } = await setup({
+        mode: 'sale',
+        editId: SALE_DOC.id,
+        loadDocument: SALE_DOC,
+        createSale,
+      });
+      await screen.findByText('Maglietta Basic — M / Bianco');
+
+      componentOf(fixture).concludeSale();
+
+      const corpo = createSale.mock.calls[0]![0] as CorpoVendita;
+      expect(corpo.id).toBe(SALE_DOC.id);
+      // Rivendicare un intento qui impedirebbe la seconda modifica legittima
+      // dello stesso documento.
+      expect(corpo.creationIntentId).toBeUndefined();
+    });
+
+    it('⚠️ il doppio clic lo ferma il pending — ma NON è ciò che garantisce l’idempotenza', async () => {
+      // ⚠️ `NEVER` e non `of(...)`: la richiesta deve restare IN VOLO. Con un
+      // observable sincrono il `next` arriva prima del secondo click, il pending
+      // è già tornato falso e la guardia non ha nulla da fermare — il test
+      // proverebbe il contrario di quello che dice.
+      const createSale = vi.fn((_body: unknown) => NEVER);
+      const { fixture } = await setup({
+        variantIdByCode: 'var-1',
+        lookupItems: [ITEM],
+        createSale,
+      });
+      await scan(EAN);
+      const component = componentOf(fixture);
+
+      // Due click di fila, senza che il primo abbia risposto.
+      component.concludeSale();
+      component.concludeSale();
+
+      // La guardia di rientro (`if (salePending()) return`) ferma il secondo:
+      // parte UN comando solo.
+      expect(createSale).toHaveBeenCalledTimes(1);
+
+      // ⛔ Ma è protezione di INTERFACCIA, e vale dentro questa istanza del
+      // componente: due schede aperte, un refresh a metà volo o una sessione
+      // ripresa la scavalcano. Ciò che rende il reinvio innocuo è l'intento, che
+      // il server riconosce — non questo `if`.
+      expect(intentiInviati(createSale)[0]).toBeTruthy();
     });
   });
 });

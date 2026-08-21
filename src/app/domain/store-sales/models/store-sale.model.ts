@@ -41,6 +41,15 @@ export interface StoreSaleLineInput {
 export interface CreateStoreSalePayload {
   /** Id della vendita da RISALVARE (T1/T2). Assente = vendita nuova. */
   readonly id?: EntityId;
+  /**
+   * Identità dell'**intento di creazione** (T15B): una per compilazione,
+   * conservata attraverso timeout e reinvii.
+   *
+   * ⛔ **Obbligatoria in creazione** (`id` assente): il server rifiuta una
+   * vendita nuova senza identità d'intento. Assente in modifica, dove non si
+   * crea niente.
+   */
+  readonly creationIntentId?: string;
   readonly locationId: EntityId;
   readonly paymentMethod: StoreSalePaymentMethod;
   /** Testo libero quando paymentMethod = 'other' (es. «Assegno»). */
@@ -86,6 +95,8 @@ export interface StoreReturnLineInput {
 export interface CreateStoreReturnPayload {
   /** Id del reso da RISALVARE (T1/T2). Assente = reso nuovo. */
   readonly id?: EntityId;
+  /** Intento di creazione (T15B), identico alla Vendita. */
+  readonly creationIntentId?: string;
   readonly locationId: EntityId;
   /** Causale obbligatoria: nessun carico silenzioso (§9). */
   readonly reason: string;

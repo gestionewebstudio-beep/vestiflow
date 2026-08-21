@@ -351,6 +351,86 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
   protected readonly editDocumentId = computed(() => this.paramMap().get('id'));
   protected readonly isEditMode = computed(() => Boolean(this.editDocumentId()));
 
+  /**
+   * ⭐ T15B — L'identità dell'**intento di creazione** della compilazione in
+   * corso. È ciò che rende il reinvio riconoscibile: se la transazione ha già
+   * committato e la risposta si è persa, il server ritrova questa identità e
+   * restituisce la vendita già registrata invece di crearne una seconda.
+   *
+   * ⛔ **Non si deriva dal CONTENUTO.** Due clienti che comprano la stessa
+   * maglietta nello stesso minuto producono payload identici: a distinguere le
+   * due vendite può essere solo l'intento, mai i dati.
+   *
+   * **Il ciclo di vita, che è tutto il disegno:**
+   *
+   * ```text
+   * prima conclusione   → si genera, una volta
+   * ritentata           → LO STESSO, o il reinvio non sarebbe riconoscibile
+   * successo certo      → si chiude: la vendita dopo è un'altra compilazione
+   * errore INCERTO      → si conserva (vedi `rotateCreationIntentIfCertain`)
+   * errore CERTO        → si chiude: il server non ha creato niente
+   * modifica            → nessun intento: non si sta creando
+   * ```
+   *
+   * ⚠️ **Vive in memoria e muore col ricaricamento della pagina**, ed è
+   * coerente: muore con lui anche il carrello, che è la compilazione che questo
+   * id identifica. Un intento che sopravvivesse a un carrello sparito
+   * nominerebbe qualcosa che non c'è più.
+   */
+  private readonly _creationIntentId = signal<string | null>(null);
+
+  /**
+   * L'intento da mandare al server, generandolo alla prima occorrenza.
+   *
+   * ⚠️ `undefined` in MODIFICA: lì non si crea niente, e rivendicare un intento
+   * impedirebbe la seconda modifica legittima dello stesso documento.
+   */
+  private creationIntentForSave(): string | undefined {
+    if (this.editDocumentId()) {
+      return undefined;
+    }
+    const gia = this._creationIntentId();
+    if (gia) {
+      return gia;
+    }
+    const nuovo = crypto.randomUUID();
+    this._creationIntentId.set(nuovo);
+    return nuovo;
+  }
+
+  /** Chiude l'intento: la compilazione successiva ne avrà uno nuovo. */
+  private closeCreationIntent(): void {
+    this._creationIntentId.set(null);
+  }
+
+  /**
+   * Chiude l'intento **solo se l'errore dice con certezza che non è stato
+   * creato niente**.
+   *
+   * ⛔ È la distinzione su cui si regge la correttezza, e sbagliarla costa in
+   * una delle due direzioni:
+   *
+   * | | conservando | chiudendo |
+   * | --- | --- | --- |
+   * | errore **incerto** (timeout, rete, 5xx) | ✅ il reinvio è riconosciuto | ⛔ si crea una SECONDA vendita |
+   * | errore **certo** (422, 403, 409…) | ⛔ correggere e risalvare dà «intento riusato» | ✅ si riparte pulito |
+   *
+   * ⚠️ `Server` (5xx) sta fra gli INCERTI di proposito: un 500 può arrivare
+   * anche dopo il commit, e sbagliare da quel lato crea un documento di troppo —
+   * mentre sbagliare dall'altro produce solo un messaggio da rileggere.
+   */
+  private rotateCreationIntentIfCertain(error: unknown): void {
+    const incerto =
+      !isAppError(error) ||
+      error.kind === AppErrorKind.Timeout ||
+      error.kind === AppErrorKind.Network ||
+      error.kind === AppErrorKind.Server ||
+      error.kind === AppErrorKind.Unknown;
+    if (!incerto) {
+      this.closeCreationIntent();
+    }
+  }
+
   private readonly loadTick = signal(0);
 
   private readonly loadState = toSignal(
@@ -1174,6 +1254,9 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
         // Mai un id di sessione (uiId): solo serverLineId, mai confuso col
         // primo — vedi il docblock di DocumentLineDraft.
         id: this.editDocumentId() ?? undefined,
+        // T15B: l'identità della compilazione. Stabile fra i tentativi, assente
+        // in modifica — vedi `creationIntentForSave`.
+        creationIntentId: this.creationIntentForSave(),
         locationId,
         paymentMethod: method,
         paymentMethodNote:
@@ -1207,6 +1290,9 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
           this.salePending.set(false);
           this.saleConfirmOpen.set(false);
           this.lastSaleResult.set(result);
+          // T15B: successo CERTO — l'intento si chiude qui. La vendita dopo è
+          // un'altra compilazione, e deve poter essere identica a questa.
+          this.closeCreationIntent();
           this.cart.set([]);
           this.saleNotes.set('');
           this.paymentOtherText.set('');
@@ -1218,6 +1304,9 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
           this.salePending.set(false);
           this.saleConfirmOpen.set(false);
           this.saleError.set(this.errorMessage(err));
+          // T15B: si conserva solo se l'errore lascia il dubbio che il server
+          // abbia committato lo stesso.
+          this.rotateCreationIntentIfCertain(err);
         },
       });
   }
@@ -1293,6 +1382,8 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
       .createReturn({
         // T1/T2: stesso contratto della Vendita — vedi concludeSale.
         id: this.editDocumentId() ?? undefined,
+        // T15B: come sulla Vendita.
+        creationIntentId: this.creationIntentForSave(),
         locationId,
         reason: this.returnReason().trim(),
         notes: this.returnNotes().trim() || undefined,
@@ -1310,6 +1401,8 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
           this.returnPending.set(false);
           this.returnConfirmOpen.set(false);
           this.lastReturnResult.set(result);
+          // T15B: come sulla Vendita — successo certo, intento chiuso.
+          this.closeCreationIntent();
           this.clearReturn();
           onDone?.();
         },
@@ -1317,6 +1410,7 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
           this.returnPending.set(false);
           this.returnConfirmOpen.set(false);
           this.returnError.set(this.errorMessage(err));
+          this.rotateCreationIntentIfCertain(err);
         },
       });
   }

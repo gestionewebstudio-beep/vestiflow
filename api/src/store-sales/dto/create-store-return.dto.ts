@@ -14,6 +14,7 @@ import {
   Length,
   MaxLength,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 
@@ -139,11 +140,11 @@ export class CreateStoreReturnDto {
   id?: string;
 
   /**
-   * Identità dell'**intento di creazione** (T15), identica alla Vendita — vedi
-   * `CreateStoreSaleDto.creationIntentId`. Facoltativa: senza, il comportamento
-   * è quello di prima.
+   * Identità dell'**intento di creazione** (T15B), identica alla Vendita —
+   * vedi `CreateStoreSaleDto.creationIntentId`. **Obbligatoria in creazione**,
+   * non richiesta in modifica.
    */
-  @IsOptional()
+  @ValidateIf((o: CreateStoreReturnDto) => !o.id)
   @IsString()
   @Length(8, 128)
   creationIntentId?: string;
