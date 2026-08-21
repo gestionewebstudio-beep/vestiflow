@@ -697,11 +697,13 @@ export class StoreSaleDocumentFormComponent {
         ? previous.unitPriceMinor
         : summary.sellingPrice.amountMinor,
       vatCodeId: previous?.serverLineId ? previous.vatCodeId : (summary.defaultVatCodeId ?? null),
-      // ⏸ Default della spunta: **dal contratto documentale comune**, non dalla
-      // vecchia maschera del banco — un articolo gestito a magazzino movimenta, uno no
-      // (`VariantSummary.managesStock`, `11` A11-ter «vale la logica documentale
-      // già comune»). Il valore predefinito non è dichiarato in A: è il punto
-      // che resta da confermare.
+      // ⭐ Default della spunta, **deciso** il 21/08/2026 (`11` A15): un articolo
+      // che gestisce il magazzino nasce con la spunta attiva, un servizio no.
+      // Il criterio è il comportamento normale — un capo fisico venduto esce,
+      // uno reso rientra — e la spunta esiste per l'eccezione, non per la regola.
+      //
+      // ⚠️ Su una riga già salvata vince il valore persistito: è una scelta che
+      // l'operatore può aver già fatto, e non si rifotografa dall'anagrafica.
       loadsStock: previous?.serverLineId ? previous.loadsStock : summary.managesStock !== false,
       onHand: summary.stockOnHand ?? 0,
       committed: Math.max(0, (summary.stockOnHand ?? 0) - (summary.stockAvailable ?? 0)),

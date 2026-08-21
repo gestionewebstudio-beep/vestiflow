@@ -172,6 +172,8 @@ interface SetupOptions {
   readonly preferredLocation?: string | null;
   /** Modalità netto/ivato proposta dal contratto comune. */
   readonly priceMode?: boolean;
+  /** L'articolo che ricerca e scansione risolvono (default: `VARIANTE`). */
+  readonly variant?: typeof VARIANTE;
 }
 
 async function setup(options: SetupOptions = {}) {
@@ -226,7 +228,7 @@ async function setup(options: SetupOptions = {}) {
       {
         provide: ProductService,
         useValue: {
-          searchVariantSummaries: vi.fn(() => of([VARIANTE])),
+          searchVariantSummaries: vi.fn(() => of([options.variant ?? VARIANTE])),
         },
       },
       {
@@ -605,6 +607,23 @@ describe('StoreSaleDocumentFormComponent', () => {
       const rendered = await setup({ mode: 'return', editId: 'doc-return-1', loadDocument: RESO });
 
       expect(screen.getByRole('columnheader', { name: 'Carica giacenze' })).toBeTruthy();
+      expect(rendered.component.lines()[0]!.loadsStock).toBe(false);
+    });
+
+    it('⭐ articolo che gestisce il magazzino: la spunta nasce ATTIVA', async () => {
+      // `11` A15, deciso il 21/08/2026: il comportamento normale è che un capo
+      // fisico venduto esca dal magazzino. La spunta esiste per l'eccezione.
+      const rendered = await conUnaRiga();
+
+      expect(rendered.component.lines()[0]!.loadsStock).toBe(true);
+    });
+
+    it('⭐ articolo che NON gestisce il magazzino: la spunta nasce DISATTIVA', async () => {
+      const rendered = await setup({ variant: { ...VARIANTE, managesStock: false } });
+      const campo = screen.getByLabelText('Scansiona o cerca un articolo');
+      await userEvent.type(campo, `${EAN_NOTO}{enter}`);
+      rendered.fixture.detectChanges();
+
       expect(rendered.component.lines()[0]!.loadsStock).toBe(false);
     });
 

@@ -985,6 +985,11 @@ Vale la logica documentale **già comune** a tutti i documenti:
 - spunta **attiva** → la conclusione del Reso genera il movimento positivo;
 - spunta **disattiva** → quella riga non genera il carico.
 
+⭐ **La regola completa è in A15**, e dal 21/08/2026 vale per **entrambi** i modi: stesso campo
+comune (`loadsStock`), etichetta «Carica giacenze» qui e «Scarica giacenze» sulla Vendita,
+predefinito dall'articolo (gestisce magazzino → attiva). Qui resta ciò che è **proprio del
+Reso**: la spunta decide il magazzino, non la presenza economica — vedi il quadro qui sotto.
+
 Merce danneggiata, da scartare o da isolare appartiene a **un altro documento o processo**.
 ⛔ **Quale, non si inventa ora**, e non è il Reso al banco.
 
@@ -1279,6 +1284,38 @@ Il totale di riga è calcolato. La quantità supporta digitazione diretta e step
 Mobile: card sul modello dell'Ordine cliente — nome leggibile subito, codici e disponibilità
 subordinati, quantità con stepper, prezzo e sconto rapidamente editabili, totale ben leggibile.
 
+### ⭐ La spunta di magazzino della riga — decisa il 21/08/2026
+
+> **Ogni riga movimentabile porta la spunta, su ENTRAMBI i modi. È un solo campo comune —
+> `loadsStock` — con due letture, non due proprietà diverse.**
+
+| Modo        | Etichetta            | Spunta ATTIVA                        | Spunta DISATTIVA                                                           |
+| ----------- | -------------------- | ------------------------------------ | -------------------------------------------------------------------------- |
+| **Vendita** | **Scarica giacenze** | alla conclusione la riga **scarica** | la riga resta nel documento e nei suoi valori economici, e **non** scarica |
+| **Reso**    | **Carica giacenze**  | alla conclusione la riga **carica**  | la riga resta nel documento e nei suoi valori economici, e **non** carica  |
+
+⚠️ **Qui c'era solo il Reso**: la spunta era esplicitata in **A11-ter** e in **A18** come cosa
+del rientro. La decisione del 21/08 la estende alla Vendita, e con lei l'etichetta propria —
+perché il caso è simmetrico e la stessa colonna comune lo regge già.
+
+**Il valore predefinito su una riga NUOVA**, e non è una deduzione dal codice:
+
+```text
+articolo che GESTISCE il magazzino     → spunta ATTIVA
+articolo che NON lo gestisce, servizio → spunta DISATTIVA
+```
+
+⭐ **Il criterio è il comportamento normale**: un capo fisico venduto normalmente esce, un capo
+fisico reso normalmente rientra. La spunta esiste per **l'eccezione**, non per la regola — e
+resta sempre modificabile riga per riga.
+
+⛔ **Il default non fa nascere nessun movimento.** Vale il principio di **A18**: scansione,
+ricerca, aggiunta e modifica non movimentano niente; l'effetto fisico nasce **solo alla
+conclusione**.
+
+⛔ E resta fermo che **è la spunta, non la quantità**, a decidere se quella riga produce il
+movimento (**A11-ter**).
+
 ## A16. Sconti
 
 ### Deciso
@@ -1346,13 +1383,20 @@ Alla conclusione della **vendita**: una riga movimentabile → un movimento nega
 documento e riga con identità stabile, tenant e Location rispettati, retry e doppio clic
 idempotenti, e nessun secondo scarico generato da Corrispettivi o report.
 
-Alla conclusione del **reso**: il carico segue la **spunta di riga**, non la quantità in sé —
-ed è la logica documentale comune, la stessa di tutti gli altri documenti.
+⭐ **E anche lo scarico segue la spunta di riga** _(21/08/2026, vedi A15)_: prima questa
+sezione la nominava solo per il Reso, ed era un'asimmetria del testo, non del dominio.
 
 ```text
-Reso concluso + riga con Carica giacenze ATTIVO      → movimento positivo
-Reso concluso + riga con Carica giacenze DISATTIVO   → nessun movimento di carico per quella riga
+Vendita conclusa + riga con Scarica giacenze ATTIVO     → movimento negativo
+Vendita conclusa + riga con Scarica giacenze DISATTIVO  → nessuno scarico per quella riga,
+                                                          che resta nel documento e nei totali
+
+Reso concluso + riga con Carica giacenze ATTIVO         → movimento positivo
+Reso concluso + riga con Carica giacenze DISATTIVO      → nessun carico per quella riga
 ```
+
+Alla conclusione del **reso** il carico segue la **spunta di riga**, non la quantità in sé —
+ed è la logica documentale comune, la stessa di tutti gli altri documenti.
 
 Il movimento è collegato a documento e riga; retry e doppio clic non duplicano il carico;
 l'effetto economico è una **rettifica**, non una vendita positiva.
