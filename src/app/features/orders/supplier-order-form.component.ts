@@ -113,6 +113,7 @@ import { DocumentService } from '@domain/documents/services/document.service';
 import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
 import { DocumentCodeLookupService } from '@domain/documents/services/document-code-lookup.service';
 import { DocumentCodeLookupStore } from '@domain/documents/state/document-code-lookup.store';
+import { DocumentLineSearchPanelStore } from '@domain/documents/state/document-line-search-panel.store';
 import { DocumentProductSuggestStore } from '@domain/documents/state/document-product-suggest.store';
 import { DocumentLineSortStore } from '@domain/documents/state/document-line-sort.store';
 import { sortByValue, type SortValueKind } from '@shared/utils/sort-values.util';
@@ -555,10 +556,11 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   }
 
   // Pannello di ricerca articolo aperto dalla lente della cella nome.
-  protected readonly productSearchPanelOpen = signal(false);
-  protected readonly productSearchLineIndex = signal<number | null>(null);
-  protected readonly productSearchLaunchTerm = signal('');
-  protected readonly productSearchLaunchSeq = signal(0);
+  /**
+   * Stato del pannello di ricerca aperto da una riga: E-5, estratto in
+   * `domain/documents/state/` perche' era scritto identico in tre maschere.
+   */
+  protected readonly lineSearchPanel = new DocumentLineSearchPanelStore();
 
   private readonly searchedVariants = toSignal(
     toObservable(this.variantSearchDraft).pipe(
@@ -1495,7 +1497,8 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     const line = this.lines.at(index);
     const term = line?.controls.productName.value.trim() ?? '';
     const summary = this.lineSummary(index);
-    this.productSearchLaunchTerm.set(
+    this.lineSearchPanel.openForLine(
+      index,
       documentSearchLaunchTerm({
         linked: this.lineHasLinkedProduct(index),
         name: term,
@@ -1506,14 +1509,10 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
         barcode: summary?.barcode,
       }),
     );
-    this.productSearchLaunchSeq.update((seq) => seq + 1);
-    this.productSearchLineIndex.set(index);
-    this.productSearchPanelOpen.set(true);
   }
 
   protected closeLineProductSearch(): void {
-    this.productSearchPanelOpen.set(false);
-    this.productSearchLineIndex.set(null);
+    this.lineSearchPanel.close();
   }
 
   /**
@@ -1532,12 +1531,12 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
    */
   protected readonly productSearchCanCreate = computed(() => {
     this.formValue();
-    const index = this.productSearchLineIndex();
+    const index = this.lineSearchPanel.lineIndex();
     return index === null ? true : !this.lineHasLinkedProduct(index);
   });
 
   protected onProductSearchCreate(): void {
-    const index = this.productSearchLineIndex();
+    const index = this.lineSearchPanel.lineIndex();
     this.closeLineProductSearch();
     if (index !== null) {
       this.openProductCreate(index);
@@ -1546,7 +1545,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
 
   /** Apri la scheda di un articolo trovato, senza aggiungerlo alla riga. */
   protected onProductSearchDetail(productId: string): void {
-    const index = this.productSearchLineIndex();
+    const index = this.lineSearchPanel.lineIndex();
     this.closeLineProductSearch();
     if (index !== null) {
       this.productPanelPrefill.set(null);
@@ -1557,7 +1556,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   }
 
   protected onLineProductSearchPick(variantId: string): void {
-    const index = this.productSearchLineIndex();
+    const index = this.lineSearchPanel.lineIndex();
     if (index !== null) {
       this.onVariantSelect(index, variantId);
       this.focusLineField(index, 'quantity');

@@ -192,6 +192,7 @@ import { DocumentChronologyWarningDialogComponent } from '@domain/documents/comp
 import { DocumentPrefillErrorStore } from '@domain/documents/state/document-prefill-error.store';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { DocumentProductPanelStore } from '@domain/documents/state/document-product-panel.store';
+import { DocumentLineSearchPanelStore } from '@domain/documents/state/document-line-search-panel.store';
 import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
 import { computeDocumentTotals } from '@domain/documents/utils/document-totals.util';
 import { DocumentCodeLookupStore } from '@domain/documents/state/document-code-lookup.store';
@@ -555,10 +556,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly downloadingPdf = signal(false);
   private readonly supplierSkuByVariantId = signal<Map<string, string>>(new Map());
   private readonly variantIdBySupplierSku = signal<Map<string, string>>(new Map());
-  protected readonly productSearchPanelOpen = signal(false);
-  protected readonly productSearchLineIndex = signal<number | null>(null);
-  protected readonly productSearchLaunchTerm = signal('');
-  protected readonly productSearchLaunchSeq = signal(0);
+  /**
+   * Stato del pannello di ricerca aperto da una riga: E-5, estratto in
+   * `domain/documents/state/` perche' era scritto identico in tre maschere.
+   */
+  protected readonly lineSearchPanel = new DocumentLineSearchPanelStore();
   /** Il pannello suggerimenti del nome prodotto: stato e regole in domain/. */
   protected readonly productSuggest = new DocumentProductSuggestStore();
   /**
@@ -1728,7 +1730,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     const line = this.lines.at(index);
     const term = line?.controls.productName.value.trim() ?? '';
     line?.controls.productName.setValue(term, { emitEvent: false });
-    this.productSearchLaunchTerm.set(
+    this.lineSearchPanel.openForLine(
+      index,
       documentSearchLaunchTerm({
         linked: this.lineHasLinkedProduct(index),
         name: term,
@@ -1737,14 +1740,10 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         barcode: line?.controls.barcode.value,
       }),
     );
-    this.productSearchLaunchSeq.update((seq) => seq + 1);
-    this.productSearchLineIndex.set(index);
-    this.productSearchPanelOpen.set(true);
   }
 
   protected closeLineProductSearch(): void {
-    this.productSearchPanelOpen.set(false);
-    this.productSearchLineIndex.set(null);
+    this.lineSearchPanel.close();
   }
 
   /**
@@ -1763,12 +1762,12 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
    */
   protected readonly productSearchCanCreate = computed(() => {
     this.formValue();
-    const index = this.productSearchLineIndex();
+    const index = this.lineSearchPanel.lineIndex();
     return index === null ? true : !this.lineHasLinkedProduct(index);
   });
 
   protected onProductSearchCreate(): void {
-    const index = this.productSearchLineIndex();
+    const index = this.lineSearchPanel.lineIndex();
     this.closeLineProductSearch();
     if (index !== null) {
       this.openFullProductCreate(index);
@@ -1777,7 +1776,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   /** Apri la scheda di un articolo trovato, senza aggiungerlo alla riga. */
   protected onProductSearchDetail(productId: string): void {
-    const index = this.productSearchLineIndex();
+    const index = this.lineSearchPanel.lineIndex();
     this.closeLineProductSearch();
     if (index !== null) {
       this.productPanel.openForEdit(index, productId);
@@ -1785,7 +1784,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   protected onLineProductSearchPick(variantId: string): void {
-    const index = this.productSearchLineIndex();
+    const index = this.lineSearchPanel.lineIndex();
     if (index != null) {
       this.onVariantSelect(index, variantId);
       this.refreshLineVariantSummary(index, variantId);

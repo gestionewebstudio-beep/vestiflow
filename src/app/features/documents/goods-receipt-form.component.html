@@ -2143,15 +2143,15 @@
 </app-slide-panel>
 
 <app-slide-panel
-  [open]="productSearchPanelOpen()"
+  [open]="lineSearchPanel.isOpen()"
   title="Cerca prodotto"
   size="narrow"
   (closed)="closeLineProductSearch()"
 >
-  @if (productSearchPanelOpen()) {
+  @if (lineSearchPanel.isOpen()) {
     <app-document-product-search-panel
-      [launchTerm]="productSearchLaunchTerm()"
-      [launchSeq]="productSearchLaunchSeq()"
+      [launchTerm]="lineSearchPanel.launchTerm()"
+      [launchSeq]="lineSearchPanel.launchSeq()"
       [locationId]="form.controls.locationId.value"
       (variantSelected)="onLineProductSearchPick($event.variantId)"
       [canCreate]="productSearchCanCreate()"

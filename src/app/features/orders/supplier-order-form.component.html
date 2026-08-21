@@ -1249,14 +1249,14 @@
 }
 
 <app-slide-panel
-  [open]="productSearchPanelOpen()"
+  [open]="lineSearchPanel.isOpen()"
   title="Cerca prodotto"
   (closed)="closeLineProductSearch()"
 >
-  @if (productSearchPanelOpen()) {
+  @if (lineSearchPanel.isOpen()) {
     <app-document-product-search-panel
-      [launchTerm]="productSearchLaunchTerm()"
-      [launchSeq]="productSearchLaunchSeq()"
+      [launchTerm]="lineSearchPanel.launchTerm()"
+      [launchSeq]="lineSearchPanel.launchSeq()"
       (variantSelected)="onLineProductSearchPick($event.variantId)"
       [canCreate]="productSearchCanCreate()"
       (createRequested)="onProductSearchCreate()"
