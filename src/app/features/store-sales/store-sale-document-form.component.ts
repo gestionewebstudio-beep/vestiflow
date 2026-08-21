@@ -180,36 +180,30 @@ function oggiIso(): string {
  * La maschera **nuova** di Vendita e Reso al banco: un documento VestiFlow, non
  * una cassa con un carrello (`11`).
  *
- * ⛔ **Non è ancora montata su nessuna rotta**, e la decisione è del
- * proprietario (21/08/2026): le quattro rotte operative restano su
- * `StoreSaleRegisterComponent` finché questa maschera non ha almeno testata e
- * area righe, cioè finché non è realmente utilizzabile. Fino ad allora si
- * verifica con i test, e non si espone una maschera a metà.
+ * ⭐ **Dal 21/08/2026 è la maschera montata sulle quattro rotte del banco**, e
+ * la vecchia `StoreSaleRegisterComponent` — il carrello — non esiste più: il
+ * cutover è avvenuto quando la maschera aveva tutto ciò che serviva a
+ * sostituirla, non quando l'ordine dei passi lo consentiva.
  *
  * **Che cosa c'è:**
  *
  * ```text
  * modo dalla ROTTA · descrittore · UN modello di riga · UNA collezione
- * testata: sede · cliente (facoltativo, entrambi i modi) · data
+ * testata: sede · cliente (facoltativo, entrambi i modi) · data · numero e serie
  * righe: celle comuni, colonne del banco, spunta di magazzino, netto/ivato
- * porta d'ingresso: ricerca e scansione, EAN ripetuto che incrementa
+ * porta: ricerca, scansione, EAN ripetuto che incrementa, fotocamera continua
+ * piede: totali, note, causale del Reso, «Concludi», guardia di uscita
  * caricamento per id, salvataggio create/update, intento di creazione (T15)
  * ```
  *
- * **Che cosa NON c'è ancora**, e va saputo prima di montarla:
+ * **Che cosa NON c'è ancora**, e va saputo:
  *
- * | manca                        | arriva con                       |
- * | ---------------------------- | -------------------------------- |
- * | vista a card sotto `lg`      | il blocco mobile                 |
- * | Numero/Serie in testata      | T8B, col giro dei contatori      |
- * | piede: totali, note, azioni  | il blocco piede                  |
- * | `canDeactivate` e il dialogo | il piede, insieme alle azioni    |
- * | battuta HID riconosciuta     | il blocco scanner (misura M1/M2) |
- *
- * ⚠️ Finché `canDeactivate` non c'è, `unsavedChangesGuard` lascia uscire senza
- * chiedere (per costruzione: usa l'optional chaining). Va scritto **nello
- * stesso passo** che monta le rotte, o si esce da un documento aperto senza che
- * nessuno lo chieda.
+ * | manca                               | arriva con                       |
+ * | ----------------------------------- | -------------------------------- |
+ * | sconto extra del documento          | D1, il contratto comune          |
+ * | pagamento, e il rimborso del Reso   | il blocco Pagamenti/Tesoreria    |
+ * | eliminazione del documento concluso | il passo 14 (i tre cancelli)     |
+ * | battuta HID riconosciuta            | il blocco scanner (misura M1/M2) |
  */
 @Component({
   selector: 'app-store-sale-document-form',

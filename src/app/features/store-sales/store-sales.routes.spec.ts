@@ -130,6 +130,20 @@ describe('le due creazioni', () => {
     const sorgenti = storeSalesRegisterRoutes.map((r) => String(r.loadComponent));
     expect(new Set(sorgenti).size).toBe(1);
   });
+
+  /**
+   * ⭐ Il cutover del 21/08/2026, inchiodato. Le quattro rotte portano alla
+   * maschera DOCUMENTALE: la vecchia `StoreSaleRegisterComponent` — il
+   * carrello — è stata eliminata, e nessuna rotta deve tornarci.
+   */
+  it('⭐ portano alla maschera documentale, non al carrello', () => {
+    for (const rotta of storeSalesRegisterRoutes) {
+      // Il percorso del file lo riscrive il bundler; il NOME della classe no.
+      expect(String(rotta.loadComponent), `${rotta.path}`).toContain(
+        'StoreSaleDocumentFormComponent',
+      );
+    }
+  });
 });
 
 describe('elenco e dettaglio', () => {

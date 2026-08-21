@@ -347,13 +347,13 @@ cella, una scansione dev'essere **riconosciuta** e il barcode **non deve finire 
 
 ### Che cosa esiste, misurato
 
-| Percorso                 | Dove           | Come funziona                                                 |
-| ------------------------ | -------------- | ------------------------------------------------------------- |
-| `quickScan`              | Ordine cliente | `<input>` dedicato in coda alla tabella + `commitQuickScan()` |
-| `barcodeScan`            | Arrivo merce   | `<input>` dedicato + dock, `commitBarcodeScan()`              |
-| `searchDraft`            | Banco          | `<input>` di ricerca + `onSearchSubmit()` → `commitScan()`    |
-| `app-barcode-scanner`    | 6 schermate    | **fotocamera**, non HID                                       |
-| `app-order-scan-overlay` | Ordine cliente | **fotocamera** a tutto schermo, scansione continua            |
+| Percorso                    | Dove                                       | Come funziona                                                 |
+| --------------------------- | ------------------------------------------ | ------------------------------------------------------------- |
+| `quickScan`                 | Ordine cliente                             | `<input>` dedicato in coda alla tabella + `commitQuickScan()` |
+| `barcodeScan`               | Arrivo merce                               | `<input>` dedicato + dock, `commitBarcodeScan()`              |
+| `searchDraft`               | Banco                                      | `<input>` di ricerca + `onSearchSubmit()` → `commitScan()`    |
+| `app-barcode-scanner`       | 6 schermate                                | **fotocamera**, non HID                                       |
+| `app-document-scan-overlay` | **comune** (`domain/documents`, dal 22/08) | **fotocamera** a tutto schermo, scansione continua            |
 
 Le tre righe HID sono la **stessa idea scritta tre volte**, e condividono lo stesso limite: sono
 `<input>` che devono **avere il fuoco**. Il codice del lettore va dove sta il cursore.
@@ -773,7 +773,13 @@ TENUTO DAL BANCO   lo stepper quantità sul desktop (l'Ordine cliente ce l'ha so
                    il beep di esito — che le altre due maschere non hanno
 LEGACY, SI ELIMINA CartLine / carrello · il collegamento alla vendita origine del Reso
                    la distinzione «vendibile / non vendibile» · l'intero foglio pos__*
-                   openQuickProductCreate (prefill da codice non risolto, non da riga)
+
+⛔ Qui c'era anche «openQuickProductCreate», ed era sbagliato: il 22/08/2026
+il proprietario ha stabilito che la creazione ESPLICITA di un articolo da un
+codice non trovato è una funzione da tenere. Non era una creazione
+automatica — quella A14 la vieta — ma un'azione scelta dall'operatore, con il
+permesso sul catalogo. È nella maschera nuova, e il pannello è quello
+condiviso con Arrivo merce e Ordine cliente.
 ```
 
 ---
@@ -809,8 +815,7 @@ stato valido e verificabile.
                    UN modello di riga con i due payload, testata (sede ·
                    cliente · data) con pannello mobile, gate + stato vuoto,
                    caricamento per id, salvataggio create/update con l'intento
-                   T15. ⛔ NON montata su nessuna rotta, per decisione del
-                   proprietario: si monta quando avrà anche le righe.
+                   T15. Non ancora montata su rotta: si monta col passo 13.
                    Ricerca, scansione e aggiunta riga sono passate al passo 9,
                    con la griglia, per non scrivere markup provvisorio.
 ✅ 8-bis · E-5     chiuso — stato del pannello di ricerca in riga estratto in
@@ -818,7 +823,7 @@ stato valido e verificabile.
 ✅ 9 · righe       chiuso — griglia sulle celle comuni, STORE_SALE_LINE_COLUMNS
                    in uso, colonne e larghezze dal motore comune, spunta di
                    magazzino fissa, porta d'ingresso (ricerca + scansione),
-                   avviso disponibilità. ⛔ Sempre NON montata su rotta.
+                   avviso disponibilità.
 ✅ 10 · netto/ivato ASSORBITO nel passo 9 (decisione del proprietario,
                    21/08/2026): il selettore vive nella testata della colonna
                    Prezzo, quindi nasce con la colonna — `11` A4 lo diceva già,
@@ -833,7 +838,7 @@ stato valido e verificabile.
                    dialogo, e il documento pronto per il cliente successivo.
                    ⛔ Sconto extra NON esposto finché D1 è aperta (`11` A16);
                    ⛔ nessun pagamento e nessun rimborso: seguono il blocco
-                   Pagamenti/Tesoreria. ⛔ Sempre nessuna rotta montata.
+                   Pagamenti/Tesoreria.
 ✅ 12-bis · T8B    CHIUSO il 21/08, e **precedeva il passo 13** (decisione del proprietario,
                    21/08/2026): numero e serie in testata col contratto comune —
                    DocumentNumberField, DocumentNumberingStore, servizio dei
@@ -847,11 +852,28 @@ stato valido e verificabile.
                    comune, non trasformato in requisito. Il contratto vive ora
                    in `resolveEditedDocumentNumbering`, che usano il percorso
                    generico e il banco: uno solo, non una copia.
-⛔ 12-ter · CHECKPOINT prima di spostare le rotte: si verifica **che cosa resta
-                   differito** (D1 sconto extra, HID, e quanto altro emerga) e
-                   si decide se il cutover è autorizzato. ⛔ L'ordine numerico
-                   dei passi NON basta da solo ad autorizzarlo.
-⛔ 13 …            DA QUI IN POI, TUTTO APERTO.
+✅ 12-ter · CHECKPOINT fatto il 21/08: la prontezza al cutover verificata voce
+                   per voce. ⭐ Ha trovato DUE funzioni vive nella maschera
+                   vecchia e assenti in quella nuova — la **fotocamera** e la
+                   **creazione esplicita di un articolo** da codice non trovato
+                   — ed è servito a questo: l'ordine numerico dei passi non le
+                   avrebbe viste. Chiuse prima di spostare le rotte.
+✅ 13 · cutover    FATTO il 22/08: le quattro rotte portano alla maschera
+                   documentale, e `StoreSaleRegisterComponent` con i suoi
+                   quattro file (1539 + 596 + 639 + 1492 righe, foglio pos__*
+                   compreso) è eliminato. Nessun altro consumatore: censito
+                   prima, e le prove delle rotte ora lo inchiodano.
+                   ⚠️ Restano vivi perché li usa qualcun altro:
+                   `app-barcode-scanner` (5 schermate), `store-sale-payment.util`
+                   (tabella, stampa, dettaglio, config registro), il pannello
+                   `app-product-form`, `retailSalesRegisterGuard`.
+                   ⚠️ Includi/Genera: verificato che il banco non partecipava
+                   nemmeno prima — è la voce 12 di `11`, aperta, non una perdita.
+⛔ 14 · eliminazione APERTO — è la sola funzione DECISA che oggi non esiste in
+                   nessuna delle due maschere: nessun `@Delete` sul controller
+                   del banco, e i tre cancelli lato documenti. Vedi sotto.
+⛔ 15 · HID        APERTO, e per costruzione: serve la misura M1/M2 con un
+                   lettore vero. Non lo aveva nemmeno la maschera vecchia.
 ```
 
 ### Il confine del primo blocco — 21/08/2026
