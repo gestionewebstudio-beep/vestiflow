@@ -2539,8 +2539,9 @@
 
 <!-- F6: overlay fotocamera fullscreen metà/metà. -->
 @if (scanOverlayOpen()) {
-  <app-order-scan-overlay
+  <app-document-scan-overlay
     [locationId]="form.controls.locationId.value || null"
+    idleHint="Inquadra un codice per aggiungerlo all'ordine."
     (lineAdded)="onScanLineAdded($event)"
     (quickAddRequested)="onScanQuickAdd($event)"
     (createFullRequested)="onScanCreateFull($event)"

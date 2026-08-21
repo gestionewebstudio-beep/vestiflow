@@ -11,6 +11,7 @@ import { ViewportService } from '@core/services/viewport.service';
 import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 import { CustomerService } from '@domain/customers/services/customer.service';
 import { AuthService } from '@core/auth';
+import { APP_CONFIG } from '@core/config/app-config.token';
 import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
 import { DocumentService } from '@domain/documents/services/document.service';
 import { VatCodeService } from '@core/services/vat-code.service';
@@ -33,6 +34,15 @@ const SEDE = { id: 'loc-1', name: 'Negozio Milano' };
 const ALTRA_SEDE = { id: 'loc-2', name: 'Magazzino' };
 const ZERO = { amountMinor: 0, currencyCode: DEFAULT_CURRENCY };
 const EAN_NOTO = '8001234567890';
+const EAN_IGNOTO = '9999999999999';
+
+/** Operatore col permesso sul catalogo: vede i comandi che creano articoli. */
+const OPERATORE_CATALOGO = {
+  id: 'usr-1',
+  role: 'clerk',
+  permissions: ['catalog.manage'],
+  tenantChannelProfile: 'gestionale',
+};
 
 /**
  * Il contatore che il servizio comune propone in testata. `nextNumber` è il
@@ -229,6 +239,10 @@ interface SetupOptions {
   readonly counters?: readonly unknown[];
   /** Il contatore proposto; `null` = nessuno, e allora la serie si sceglie. */
   readonly proposedCounterId?: string | null;
+  /** L'operatore, per i comandi legati ai permessi (catalogo, numerazioni). */
+  readonly user?: unknown;
+  /** La fotocamera è disponibile su questo dispositivo/ambiente. */
+  readonly barcodeScanner?: boolean;
 }
 
 async function setup(options: SetupOptions = {}) {
@@ -325,9 +339,19 @@ async function setup(options: SetupOptions = {}) {
       // ha uno proprio — è lo stesso delle altre sette maschere.
       { provide: DocumentCountersService, useValue: { available } },
       {
-        // Senza permesso l'ingranaggio «gestisci numerazioni» non compare.
+        // Senza permesso l'ingranaggio «gestisci numerazioni» non compare,
+        // né i comandi che creano un articolo.
         provide: AuthService,
-        useValue: { currentUser: () => null },
+        useValue: { currentUser: () => options.user ?? null },
+      },
+      {
+        provide: APP_CONFIG,
+        useValue: {
+          production: false,
+          appName: 'VestiFlow',
+          apiBaseUrl: 'http://localhost:3000/api/v1',
+          features: { barcodeScanner: options.barcodeScanner ?? true, shopify: false },
+        },
       },
     ],
   });
@@ -340,6 +364,8 @@ async function setup(options: SetupOptions = {}) {
     onStockToggle(line: StoreSaleDocumentLine, checked: boolean): void;
     onQuantityInput(line: StoreSaleDocumentLine, raw: string): void;
     onLocationChange(value: string | null): void;
+    /** Il gancio dell'overlay fotocamera: la riga la costruisce la maschera. */
+    onScanLineAdded(event: { variantId: string; quantity: number }): void;
     /** Lo store comune della numerazione: il banco non ne ha uno proprio. */
     numbering: {
       onNumberChange(value: number | null): void;
@@ -1359,6 +1385,65 @@ describe('StoreSaleDocumentFormComponent', () => {
       // Ridigitarlo a mano sarebbe l'occasione per un errore di battitura e
       // un secondo conflitto: il numero nuovo lo scrive la maschera.
       expect(campoNumero(rendered.container).value).toBe('42');
+    });
+  });
+
+  // ── Fotocamera e codice non trovato ────────────────────────────────────
+  //
+  // ⛔ La regola è una sola: **niente si crea da sé e niente si apre da sé**
+  // (`11` A14). Un'azione scelta dall'operatore è un'altra cosa.
+  describe('scansione con fotocamera e articolo non a catalogo', () => {
+    it('⭐ «Scansiona» c’è quando la fotocamera è disponibile', async () => {
+      await setup({ barcodeScanner: true });
+
+      expect(screen.getByRole('button', { name: /Scansiona/ })).toBeTruthy();
+    });
+
+    it('senza fotocamera il comando non compare', async () => {
+      await setup({ barcodeScanner: false });
+
+      expect(screen.queryByRole('button', { name: /Scansiona/ })).toBeNull();
+    });
+
+    it('⭐ la riga dall’overlay passa dalla porta comune: stesso articolo → INCREMENTA', async () => {
+      // È la regola del banco (A14), e non la decide la scansione: due passate
+      // dello stesso capo sono due pezzi, non due righe.
+      const rendered = await setup();
+
+      rendered.component.onScanLineAdded({ variantId: VARIANTE.variantId, quantity: 2 });
+      rendered.fixture.detectChanges();
+      rendered.component.onScanLineAdded({ variantId: VARIANTE.variantId, quantity: 3 });
+      rendered.fixture.detectChanges();
+
+      expect(rendered.component.lines()).toHaveLength(1);
+      expect(rendered.component.lines()[0]!.quantity).toBe(5);
+    });
+
+    it('⭐ codice non trovato: nessun pannello si apre da sé, ma le AZIONI ci sono', async () => {
+      stubAudioContext();
+      const rendered = await setup({ user: OPERATORE_CATALOGO });
+
+      const campo = screen.getByLabelText('Scansiona o cerca un articolo');
+      await userEvent.type(campo, `${EAN_IGNOTO}{enter}`);
+      rendered.fixture.detectChanges();
+
+      // ⛔ Nessuna anagrafica aperta d'ufficio.
+      expect(screen.queryByText('Anagrafica prodotto')).toBeNull();
+      expect(rendered.component.lines()).toHaveLength(0);
+      // ⭐ Ma la via d'uscita è a schermo, ed è una scelta.
+      expect(screen.getByRole('button', { name: 'Crea prodotto' })).toBeTruthy();
+    });
+
+    it('⭐ senza permesso sul catalogo il comando non c’è: c’è a chi chiedere', async () => {
+      stubAudioContext();
+      const rendered = await setup({ user: null });
+
+      const campo = screen.getByLabelText('Scansiona o cerca un articolo');
+      await userEvent.type(campo, `${EAN_IGNOTO}{enter}`);
+      rendered.fixture.detectChanges();
+
+      expect(screen.queryByRole('button', { name: 'Crea prodotto' })).toBeNull();
+      expect(rendered.container.textContent).toContain('chiedi a un responsabile');
     });
   });
 });

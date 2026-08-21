@@ -68,13 +68,23 @@
           <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
           Codice non trovato: <strong>{{ notFoundEan() }}</strong>
         </app-inline-banner>
+        <!-- Tre AZIONI, nessun automatismo: l'overlay non crea niente e non
+             apre niente da sé (`11` A14). Senza il permesso sul catalogo
+             restano Riprova e la frase che dice a chi chiedere l'articolo. -->
         <div class="scan-overlay__notfound-actions">
           <app-button type="button" variant="secondary" (click)="retry()">Riprova</app-button>
-          <app-button type="button" variant="secondary" (click)="startQuickAdd()">
-            Aggiungi alla lista
-          </app-button>
-          <app-button type="button" (click)="createFull()">Crea prodotto</app-button>
+          @if (canCreateProducts()) {
+            <app-button type="button" variant="secondary" (click)="startQuickAdd()">
+              Aggiungi alla lista
+            </app-button>
+            <app-button type="button" (click)="createFull()">Crea prodotto</app-button>
+          }
         </div>
+        @if (!canCreateProducts()) {
+          <p class="scan-overlay__notfound-hint">
+            Questo articolo non è ancora a catalogo: chiedi a un responsabile di inserirlo.
+          </p>
+        }
       }
       @case ('quickAdd') {
         <form class="scan-overlay__qa" (ngSubmit)="submitQuickAdd()">
@@ -135,7 +145,7 @@
           @if (resolving()) {
             Ricerca…
           } @else {
-            Inquadra un codice per aggiungerlo all'ordine.
+            {{ idleHint() }}
           }
         </p>
       }

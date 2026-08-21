@@ -231,12 +231,50 @@
                 <i class="pi pi-search" aria-hidden="true"></i>
                 Cerca articolo
               </button>
+              @if (barcodeScannerEnabled) {
+                <!-- Fotocamera: scansione CONTINUA, l'articolo riconosciuto resta
+                     a video con lo stepper, e lo stesso codice incrementa. È
+                     l'overlay comune, non una copia del banco. -->
+                <button type="button" class="doc-form__ghost-button" (click)="openScanOverlay()">
+                  <i class="pi pi-camera" aria-hidden="true"></i>
+                  Scansiona
+                </button>
+              }
             </div>
 
             @if (searchMessage(); as messaggio) {
               <!-- Codice non trovato: nessuna riga, nessun popup — il messaggio
-                   resta qui e il campo è già pronto (A14). -->
+                   resta qui e il campo è già pronto (A14). Le AZIONI sotto le
+                   sceglie l'operatore: A14 vieta l'automatismo, non la scelta. -->
               <p class="doc-form__hint" role="status">{{ messaggio }}</p>
+              @if (unresolvedCode(); as codice) {
+                <div
+                  class="store-sale-form__notfound"
+                  role="group"
+                  aria-label="Articolo non trovato: azioni"
+                >
+                  <button
+                    type="button"
+                    class="doc-form__ghost-button"
+                    (click)="openProductSearch()"
+                  >
+                    Cerca articolo
+                  </button>
+                  @if (puoGestireCatalogo()) {
+                    <button
+                      type="button"
+                      class="doc-form__ghost-button"
+                      (click)="openProductCreate(codice)"
+                    >
+                      Crea prodotto
+                    </button>
+                  } @else {
+                    <span class="doc-form__hint">
+                      Non è ancora a catalogo: chiedi a un responsabile di inserirlo.
+                    </span>
+                  }
+                </div>
+              }
             }
           }
 
@@ -681,6 +719,39 @@
         (dismissed)="cancelExit()"
       />
     }
+
+    @if (scanOverlayOpen()) {
+      <!-- Overlay comune: metà fotocamera, metà articolo riconosciuto. La
+           riga la costruisce questa maschera — al banco lo stesso EAN
+           incrementa (`11` A14). -->
+      <app-document-scan-overlay
+        [locationId]="form.controls.locationId.value || null"
+        [canCreateProducts]="puoGestireCatalogo()"
+        idleHint="Inquadra un codice per aggiungerlo."
+        (lineAdded)="onScanLineAdded($event)"
+        (quickAddRequested)="onScanQuickAdd($event)"
+        (createFullRequested)="openProductCreate($event)"
+        (closed)="closeScanOverlay()"
+      />
+    }
+
+    <!-- Anagrafica prodotto al volo: lo stesso pannello di Arrivo merce e
+         Ordine cliente, aperto SOLO da un'azione esplicita. -->
+    <app-slide-panel
+      [open]="productPanelOpen()"
+      title="Anagrafica prodotto"
+      (closed)="closeProductPanel()"
+    >
+      @if (productPanelOpen()) {
+        <app-product-form
+          [embeddedPanel]="true"
+          [embeddedPrefill]="productPanelPrefill()"
+          (productCreatedWithAttach)="onProductCreatedFromPanel($event)"
+          (productSavedWithoutAttach)="onProductSavedWithoutAttach()"
+          (panelDismissed)="closeProductPanel()"
+        />
+      }
+    </app-slide-panel>
 
     <!-- Numero già assegnato: avviso di presa d'atto, non una scelta. Il
          documento NON è salvato; il messaggio nomina il numero rifiutato e il

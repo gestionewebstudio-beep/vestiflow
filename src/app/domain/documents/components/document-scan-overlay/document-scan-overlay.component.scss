@@ -194,6 +194,13 @@
   margin-block-start: var(--space-3);
 }
 
+// Senza permesso sul catalogo: la via d'uscita non e' cercare meglio.
+.scan-overlay__notfound-hint {
+  margin-block-start: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
 // Quick-add mini-form.
 .scan-overlay__qa {
   display: flex;

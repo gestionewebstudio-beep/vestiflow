@@ -82,3 +82,13 @@
   flex-direction: column;
   gap: var(--space-8);
 }
+
+// Le azioni sul codice non trovato: una fila sotto il messaggio, non un
+// popup. Le sceglie l'operatore, e non compaiono da sole.
+.store-sale-form__notfound {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block-start: var(--space-2);
+}

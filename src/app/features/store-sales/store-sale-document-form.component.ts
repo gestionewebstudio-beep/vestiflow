@@ -45,6 +45,8 @@ import {
   toStorableMinor,
 } from '@core/utils/money.util';
 import { AuthService } from '@core/auth';
+import { APP_CONFIG } from '@core/config/app-config.token';
+import { canManageCatalog } from '@core/permissions/tenant-permissions.util';
 import { documentNumberConflictOf } from '@core/models/document-number-conflict.util';
 import { TenantPermission } from '@core/models/tenant-permission.model';
 import { hasTenantPermission } from '@core/permissions/user-permissions.util';
@@ -55,6 +57,7 @@ import { DocumentProductSearchPanelComponent } from '@domain/documents/component
 import { PriceModeMenuComponent } from '@domain/documents/components/price-mode-menu/price-mode-menu.component';
 import { priceModeRowLabel } from '@domain/documents/models/document-price-mode.util';
 import { DocumentService } from '@domain/documents/services/document.service';
+import { DocumentScanOverlayComponent } from '@domain/documents/components/document-scan-overlay/document-scan-overlay.component';
 import { DocumentSeriesManagerDialogComponent } from '@domain/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
 import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
 import { DocumentLineSearchPanelStore } from '@domain/documents/state/document-line-search-panel.store';
@@ -74,8 +77,11 @@ import {
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { prefillDefaultLocation } from '@domain/inventory/utils/default-location-prefill.util';
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
+import { ProductFormComponent } from '@domain/products/product-form.component';
+import type { ProductEmbeddedCreatePrefill } from '@domain/products/models/product-form.mapper';
 import { BarcodeLookupService } from '@domain/products/services/barcode-lookup.service';
 import { ProductService } from '@domain/products/services/product.service';
+import { createQuickAddProduct } from '@domain/products/utils/quick-add-product.util';
 import {
   newStoreSaleLineUiId,
   storeSaleLineFromDocumentLine,
@@ -219,10 +225,12 @@ function oggiIso(): string {
     DocumentNumberFieldComponent,
     DocumentSeriesManagerDialogComponent,
     DocumentProductSearchPanelComponent,
+    DocumentScanOverlayComponent,
     EmptyStateComponent,
     ErrorStateComponent,
     InlineBannerComponent,
     PriceModeMenuComponent,
+    ProductFormComponent,
     SelectMenuComponent,
     SlidePanelComponent,
     StoreSaleLineCardComponent,
@@ -724,6 +732,7 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
     const { quantity, code } = this.barcodeLookup.parseScanInput(codice);
     this.searchPending.set(true);
     this.searchMessage.set(null);
+    this.unresolvedCode.set(null);
     this.barcodeLookup
       .resolveVariantIdByCode(code)
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
@@ -749,9 +758,16 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
    */
   private notFound(code: string): void {
     this.searchMessage.set(`Nessun articolo per «${code}».`);
+    // Il codice resta a disposizione delle AZIONI esplicite («Cerca
+    // articolo», «Crea prodotto»): non apre niente da sé — A14 vieta il
+    // popup automatico, non la scelta dell'operatore.
+    this.unresolvedCode.set(code);
     this.beep('errore');
     this.focusSearchInput(true);
   }
+
+  /** L'ultimo codice che il catalogo non conosce, o `null`. */
+  protected readonly unresolvedCode = signal<string | null>(null);
 
   /**
    * L'articolo entra nel documento.
@@ -853,6 +869,7 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
   private afterAcquire(): void {
     this.searchDraft.set('');
     this.searchMessage.set(null);
+    this.unresolvedCode.set(null);
     // ⭐ La conferma che si sente senza guardare (`11` C, «su mobile la battuta
     // continua viene prima della forma»): da telefono si spara un capo dopo
     // l'altro con una mano sola e lo sguardo sul cliente, e il beep è l'unico
@@ -877,6 +894,131 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
     }
   }
 
+  // ── Fotocamera, e le azioni sul codice non trovato ──────────────────────
+  //
+  // ⭐ L'overlay è **comune** (`domain/documents`): riconosce un codice, mostra
+  // la variante, conta i pezzi ed emette. Che cosa diventi la riga lo decide
+  // questa maschera — al banco lo stesso EAN INCREMENTA (`11` A14), ed è già
+  // la regola di `acquireVariant`.
+  //
+  // ⛔ Nessuna creazione automatica e nessun popup automatico: davanti a un
+  // codice sconosciuto compaiono AZIONI, e non succede niente finché
+  // l'operatore non ne sceglie una.
+
+  private readonly config = inject(APP_CONFIG);
+  private readonly auth = inject(AuthService);
+
+  protected readonly barcodeScannerEnabled = this.config.features.barcodeScanner;
+
+  /**
+   * Chi batte al banco non sempre può creare articoli: senza il permesso il
+   * comando non compare, e al suo posto resta scritto a chi chiedere
+   * l'articolo mancante — un pulsante che risponde «non autorizzato» lascia
+   * la cassa ferma davanti al cliente senza dire cosa fare.
+   */
+  protected readonly puoGestireCatalogo = computed(() => canManageCatalog(this.auth.currentUser()));
+
+  protected readonly scanOverlayOpen = signal(false);
+
+  protected openScanOverlay(): void {
+    if (this.headerGateActive()) {
+      return;
+    }
+    this.scanOverlayOpen.set(true);
+  }
+
+  protected closeScanOverlay(): void {
+    this.scanOverlayOpen.set(false);
+    this.focusSearchInput();
+  }
+
+  /** Riga dalla scansione continua: stessa porta della pistola e della tastiera. */
+  protected onScanLineAdded(event: {
+    readonly variantId: string;
+    readonly quantity: number;
+  }): void {
+    this.acquireVariant(event.variantId, event.quantity);
+  }
+
+  /**
+   * Articolo dichiarato al volo davanti a un codice sconosciuto: il gesto vive
+   * in `domain/` (`createQuickAddProduct`) — bozza, non sincronizzato — e qui
+   * resta solo l'aggiunta della riga.
+   */
+  protected onScanQuickAdd(event: {
+    readonly name: string;
+    readonly priceText: string;
+    readonly ean: string;
+    readonly quantity: number;
+  }): void {
+    createQuickAddProduct(
+      { productService: this.productService, barcodeLookup: this.barcodeLookup },
+      {
+        name: event.name,
+        priceText: event.priceText,
+        ean: event.ean,
+        currency: DEFAULT_CURRENCY,
+        locationId: this.form.controls.locationId.value || undefined,
+      },
+    )
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (variantId) => {
+          if (variantId) {
+            this.acquireVariant(variantId, event.quantity);
+          }
+        },
+        error: (err: unknown) => this.searchMessage.set(errorMessage(err)),
+      });
+  }
+
+  // ── Anagrafica prodotto al volo (pannello condiviso) ────────────────────
+
+  protected readonly productPanelOpen = signal(false);
+  protected readonly productPanelPrefill = signal<ProductEmbeddedCreatePrefill | null>(null);
+
+  /** Codice IVA vendite predefinito del tenant: prefill dell'articolo nuovo. */
+  private readonly defaultSalesVatCodeId = computed(
+    () =>
+      this.vatCodes().find(
+        (vatCode) => vatCode.isDefault && vatCode.isActive && isSalesVatCode(vatCode),
+      )?.id ?? null,
+  );
+
+  /**
+   * «Crea prodotto»: azione ESPLICITA dell'operatore, dall'overlay o dal
+   * messaggio di codice non trovato. Il codice non risolto precompila il
+   * barcode se è un barcode, il nome se era testo.
+   */
+  protected openProductCreate(code: string, kind: 'barcode' | 'text' = 'barcode'): void {
+    if (!this.puoGestireCatalogo()) {
+      return;
+    }
+    this.scanOverlayOpen.set(false);
+    this.productPanelPrefill.set({
+      name: kind === 'text' ? code : undefined,
+      barcode: kind === 'barcode' ? code : undefined,
+      defaultVatCodeId: this.defaultSalesVatCodeId(),
+    });
+    this.productPanelOpen.set(true);
+  }
+
+  protected closeProductPanel(): void {
+    this.productPanelOpen.set(false);
+    this.productPanelPrefill.set(null);
+    this.focusSearchInput();
+  }
+
+  /** Creato e da aggiungere: la riga nasce come da qualunque altra porta. */
+  protected onProductCreatedFromPanel(event: { readonly variantId: string }): void {
+    this.closeProductPanel();
+    this.acquireVariant(event.variantId, 1);
+  }
+
+  /** «Salva senza aggiungere»: l'articolo esiste, il documento non lo prende. */
+  protected onProductSavedWithoutAttach(): void {
+    this.closeProductPanel();
+  }
   /** Beep di esito: al banco si sente senza guardare, ed è la conferma. */
   private audioContext: AudioContext | null = null;
 

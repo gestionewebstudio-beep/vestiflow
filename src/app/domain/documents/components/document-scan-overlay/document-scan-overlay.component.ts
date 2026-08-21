@@ -22,34 +22,59 @@ import { ProductService } from '@domain/products/services/product.service';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 
-/** Riga in verifica nella metà inferiore prima di essere aggiunta all'ordine. */
+/** Riga in verifica nella metà inferiore, prima di essere emessa. */
 interface PendingScanLine {
   readonly variant: VariantSummary;
   readonly quantity: number;
 }
 
 /**
- * Overlay fotocamera fullscreen «metà/metà» per l'Ordine cliente: sopra la
- * fotocamera live sempre attiva, sotto la vista dinamica (articolo riconosciuto
- * con stepper, oppure «codice non trovato» con Riprova/Aggiungi/Crea). Scansione
- * continua: al nuovo codice l'articolo precedente viene aggiunto automaticamente
- * (lo stesso codice riscansionato incrementa, non duplica). Riusa la detection
- * condivisa; la risoluzione codice→variante e l'aggiunta riga passano ai servizi
- * esistenti. La create prodotto la gestisce il form ordine (eventi emessi).
+ * Overlay fotocamera a tutto schermo, «metà/metà»: sopra la fotocamera live
+ * sempre attiva, sotto la vista dinamica — articolo riconosciuto con stepper,
+ * oppure «codice non trovato» con Riprova / Aggiungi / Crea prodotto.
+ *
+ * **Scansione continua**: al codice nuovo l'articolo precedente viene emesso
+ * da sé, e lo stesso codice riscansionato **incrementa** invece di duplicare.
+ * Per riscansionare due volte lo stesso capo il barcode deve uscire dal campo
+ * e rientrare — al banco quel gesto vuol dire «due pezzi» (`11` A14).
+ *
+ * ⭐ **Sta in `domain/` perché il comportamento è comune**, non perché sia
+ * nato nell'Ordine cliente (21/08/2026). Non importava niente da quella
+ * feature: riconosce un codice, mostra la variante, conta i pezzi, e**emette**.
+ * Che cosa diventi la riga lo decide la maschera che lo ospita — l'Ordine
+ * cliente impegna, la Vendita al banco scarica alla conclusione: il dominio
+ * resta fuori da qui, e per questo l'overlay è uno solo.
+ *
+ * ⛔ **Nessuna creazione automatica e nessun popup automatico** (`11` A14):
+ * su un codice non trovato l'overlay mostra tre AZIONI, e non fa niente
+ * finché l'operatore non ne sceglie una.
  */
 @Component({
-  selector: 'app-order-scan-overlay',
+  selector: 'app-document-scan-overlay',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [ButtonComponent, InlineBannerComponent],
-  templateUrl: './order-scan-overlay.component.html',
-  styleUrl: './order-scan-overlay.component.scss',
+  templateUrl: './document-scan-overlay.component.html',
+  styleUrl: './document-scan-overlay.component.scss',
 })
-export class OrderScanOverlayComponent {
+export class DocumentScanOverlayComponent {
   readonly locationId = input<string | null>(null);
+  /**
+   * La frase a schermo quando non c'è ancora niente da mostrare. È l'unico
+   * punto in cui il documento ospite si nomina: «all'ordine» al banco sarebbe
+   * la parola sbagliata.
+   */
+  readonly idleHint = input<string>('Inquadra un codice per aggiungerlo.');
+  /**
+   * Chi non gestisce il catalogo non vede i comandi che creano un articolo:
+   * davanti al cliente un pulsante che risponde «non autorizzato» lascia il
+   * banco fermo senza dire cosa fare. Al loro posto resta scritto a chi
+   * chiedere l'articolo mancante.
+   */
+  readonly canCreateProducts = input<boolean>(true);
 
-  /** Riga da aggiungere all'ordine (il form deduplica/incrementa). */
+  /** Riga da aggiungere al documento (la maschera deduplica o incrementa). */
   readonly lineAdded = output<{ readonly variantId: string; readonly quantity: number }>();
-  /** Quick-add articolo non catalogato: il form crea il prodotto bozza. */
+  /** Quick-add articolo non catalogato: la maschera crea il prodotto bozza. */
   readonly quickAddRequested = output<{
     readonly name: string;
     readonly priceText: string;

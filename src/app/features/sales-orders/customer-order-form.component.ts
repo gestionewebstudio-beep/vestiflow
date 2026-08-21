@@ -50,7 +50,6 @@ import { AppErrorKind, isAppError, type AppError } from '@core/models/app-error.
 import { documentNumberConflictOf } from '@core/models/document-number-conflict.util';
 import type { Money } from '@core/models/common.model';
 import { customerDisplayName, type Customer } from '@core/models/customer.model';
-import { ProductStatus } from '@core/models/product.model';
 import {
   ManualOrderState,
   manualOrderState,
@@ -125,6 +124,8 @@ import { DocumentChronologyWarningDialogComponent } from '@domain/documents/comp
 import { DocumentPrefillErrorStore } from '@domain/documents/state/document-prefill-error.store';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { DocumentProductPanelStore } from '@domain/documents/state/document-product-panel.store';
+import { DocumentScanOverlayComponent } from '@domain/documents/components/document-scan-overlay/document-scan-overlay.component';
+import { createQuickAddProduct } from '@domain/products/utils/quick-add-product.util';
 import { DocumentLineSearchPanelStore } from '@domain/documents/state/document-line-search-panel.store';
 import { DocumentCodeLookupStore } from '@domain/documents/state/document-code-lookup.store';
 import { DocumentProductSuggestStore } from '@domain/documents/state/document-product-suggest.store';
@@ -177,9 +178,8 @@ import {
   mergeVariantSummaries,
 } from '@domain/products/utils/variant-summary-search.util';
 import { ProductPickerDialogComponent } from '@domain/products/components/product-picker-dialog/product-picker-dialog.component';
-import type { CreateProductDto } from '@domain/products/models/product.dto';
 import { CustomerOrderLineCardComponent } from './components/customer-order-line-card/customer-order-line-card.component';
-import { OrderScanOverlayComponent } from './components/order-scan-overlay/order-scan-overlay.component';
+
 import { TenantFeatureSettingsService } from '@domain/tenant/services/tenant-feature-settings.service';
 import type { TenantFeatureSettings } from '@domain/tenant/models/tenant-feature-settings.model';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
@@ -323,7 +323,7 @@ interface AvailabilityIssue {
     BackButtonComponent,
     BadgeComponent,
     AttachmentsPanelComponent,
-    OrderScanOverlayComponent,
+    DocumentScanOverlayComponent,
     ProductPickerDialogComponent,
     ButtonComponent,
     ConfirmDialogComponent,
@@ -1560,40 +1560,31 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     this.applyScannedVariant(event.variantId, event.quantity);
   }
 
-  /** Quick-add non catalogato: crea il prodotto bozza (NON sincronizzato con
-   *  Shopify, F0) e aggiunge la riga. Payload minimo, riuso della create. */
+  /**
+   * Quick-add non catalogato: crea il prodotto bozza (NON sincronizzato con
+   * Shopify, F0) e aggiunge la riga.
+   *
+   * ⭐ Il gesto vive in `domain/` (`createQuickAddProduct`): e' lo stesso
+   * ovunque si scansioni, e qui resta solo che cosa diventa la riga.
+   */
   protected onScanQuickAdd(event: {
     readonly name: string;
     readonly priceText: string;
     readonly ean: string;
     readonly quantity: number;
   }): void {
-    const price = parseMoneyInput(event.priceText, this.currency);
-    const sellingPrice = price ?? { amountMinor: 0, currencyCode: this.currency };
-    // Prodotto semplice: il prezzo è dato dell'articolo; la variante di default
-    // lo specchia (Modello X).
-    const payload: CreateProductDto = {
-      name: event.name,
-      status: ProductStatus.Draft,
-      shopifySyncEnabled: false,
-      sellingPrice,
-      options: [],
-      variants: [
-        {
-          optionValues: [],
-          sellingPrice,
-          barcode: event.ean || undefined,
-        },
-      ],
-    };
     const locationId = this.form.controls.locationId.value || undefined;
-    this.productService
-      .createProduct(payload)
-      .pipe(
-        switchMap(() => this.barcodeLookup.resolveVariantIdByCode(event.ean, { locationId })),
-        take(1),
-        takeUntilDestroyed(this.destroyRef),
-      )
+    createQuickAddProduct(
+      { productService: this.productService, barcodeLookup: this.barcodeLookup },
+      {
+        name: event.name,
+        priceText: event.priceText,
+        ean: event.ean,
+        currency: this.currency,
+        locationId,
+      },
+    )
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (variantId) => {
           if (variantId) {
