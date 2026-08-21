@@ -2,16 +2,18 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  ElementRef,
   computed,
   effect,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 
-import { catchError, map, of, startWith, switchMap } from 'rxjs';
+import { catchError, map, of, startWith, switchMap, take, type Observable } from 'rxjs';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { EntityId } from '@core/models/common.model';
@@ -20,17 +22,51 @@ import {
   creationIntentStillHeld,
 } from '@core/models/creation-intent-error.util';
 import { customerDisplayName, type Customer } from '@core/models/customer.model';
+import { isSalesVatCode, vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
+import { parseEffectiveDiscountPercent } from '@core/utils/discount-percent.util';
 import { LocationContextService } from '@core/services/location-context.service';
-import { CustomerService } from '@domain/customers/services/customer.service';
-import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
-import { DocumentService } from '@domain/documents/services/document.service';
-import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
+import { VatCodeService } from '@core/services/vat-code.service';
 import {
+  DEFAULT_CURRENCY,
+  formatMoney,
+  moneyToDecimalString,
+  parseMoneyInput,
+  toStorableMinor,
+} from '@core/utils/money.util';
+import { CustomerService } from '@domain/customers/services/customer.service';
+import { DocumentLineSelectCellComponent } from '@domain/documents/components/document-line-select-cell/document-line-select-cell.component';
+import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
+import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
+import { PriceModeMenuComponent } from '@domain/documents/components/price-mode-menu/price-mode-menu.component';
+import { priceModeRowLabel } from '@domain/documents/models/document-price-mode.util';
+import { DocumentService } from '@domain/documents/services/document.service';
+import { DocumentLineSearchPanelStore } from '@domain/documents/state/document-line-search-panel.store';
+import { vatOptionsIncludingSelected } from '@domain/documents/utils/document-vat-options.util';
+import {
+  computeVatLineAmounts,
+  grossFromNetMinor,
+  netFromGrossExact,
+  vatInputFromLegacyRate,
+  vatInputFromVatCode,
+  type VatComputationInput,
+  type VatLineAmounts,
+} from '@domain/documents/utils/document-vat.util';
+import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
+import type { VariantSummary } from '@domain/products/models/variant-summary.model';
+import { BarcodeLookupService } from '@domain/products/services/barcode-lookup.service';
+import { ProductService } from '@domain/products/services/product.service';
+import {
+  newStoreSaleLineUiId,
   storeSaleLineFromDocumentLine,
   storeReturnLinePayload,
   storeSaleLinePayload,
   type StoreSaleDocumentLine,
 } from '@domain/store-sales/models/store-sale-document-line.model';
+import {
+  STORE_SALE_LINE_COLUMNS,
+  STORE_SALE_LINES_VIEW,
+  STORE_SALE_LINE_PRESETS,
+} from '@domain/store-sales/models/store-sale-line-columns.config';
 import { storeSaleModeDescriptor } from '@domain/store-sales/models/store-sale-mode.descriptor';
 import {
   requireStoreSaleMode,
@@ -44,7 +80,15 @@ import { ErrorStateComponent } from '@shared/components/error-state/error-state.
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
+import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
+import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
+import { TableColumnResizeDirective } from '@shared/directives/table-column-resize.directive';
+import {
+  lineColumnQuotaWidth,
+  sumVisibleLineColumnsPx,
+} from '@shared/table-columns/line-column-quota.util';
+import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
 import type { DocumentRecord } from '@core/models/document.model';
 import type {
@@ -95,12 +139,13 @@ function oggiIso(): string {
  * area righe, cioè finché non è realmente utilizzabile. Fino ad allora si
  * verifica con i test, e non si espone una maschera a metà.
  *
- * **Che cosa c'è, in questa prima fase:**
+ * **Che cosa c'è:**
  *
  * ```text
  * modo dalla ROTTA · descrittore · UN modello di riga · UNA collezione
  * testata: sede · cliente (facoltativo, entrambi i modi) · data
- * gate della testata + stato vuoto al posto delle righe
+ * righe: celle comuni, colonne del banco, spunta di magazzino, netto/ivato
+ * porta d'ingresso: ricerca e scansione, EAN ripetuto che incrementa
  * caricamento per id, salvataggio create/update, intento di creazione (T15)
  * ```
  *
@@ -108,11 +153,11 @@ function oggiIso(): string {
  *
  * | manca                        | arriva con                       |
  * | ---------------------------- | -------------------------------- |
- * | griglia righe e ricerca      | il blocco righe                  |
+ * | vista a card sotto `lg`      | il blocco mobile                 |
  * | Numero/Serie in testata      | T8B, col giro dei contatori      |
- * | netto/ivato                  | il blocco prezzo                 |
  * | piede: totali, note, azioni  | il blocco piede                  |
  * | `canDeactivate` e il dialogo | il piede, insieme alle azioni    |
+ * | battuta HID riconosciuta     | il blocco scanner (misura M1/M2) |
  *
  * ⚠️ Finché `canDeactivate` non c'è, `unsavedChangesGuard` lascia uscire senza
  * chiedere (per costruzione: usa l'optional chaining). Va scritto **nello
@@ -126,11 +171,17 @@ function oggiIso(): string {
     ReactiveFormsModule,
     BackButtonComponent,
     DateInputComponent,
+    DocumentLineSelectCellComponent,
     DocumentMobilePanelComponent,
+    DocumentProductSearchPanelComponent,
     EmptyStateComponent,
     ErrorStateComponent,
     InlineBannerComponent,
+    PriceModeMenuComponent,
     SelectMenuComponent,
+    SlidePanelComponent,
+    TableColumnPickerComponent,
+    TableColumnResizeDirective,
     TableSkeletonComponent,
   ],
   templateUrl: './store-sale-document-form.component.html',
@@ -242,13 +293,24 @@ export class StoreSaleDocumentFormComponent {
   private readonly preserved = signal<PreservedHeader>(PRESERVED_HEADER_VUOTA);
 
   /**
-   * Le righe del documento. **Una collezione sola**, per Vendita e Reso.
-   *
-   * In questa fase si popolano solo caricando un documento esistente e si
-   * rimandano intatte al salvataggio: la griglia e l'inserimento arrivano col
-   * blocco righe.
+   * Le righe del documento. **Una collezione sola**, per Vendita e Reso: i due
+   * modi condividono struttura e modello, e divergono solo negli effetti che la
+   * conclusione produce.
    */
   protected readonly lines = signal<readonly StoreSaleDocumentLine[]>([]);
+
+  /** Il documento non ha ancora righe: lo stato vuoto lo dice. */
+  protected readonly hasLines = computed(() => this.lines().length > 0);
+
+  private patchLine(uiId: string, patch: Partial<StoreSaleDocumentLine>): void {
+    this.lines.update((lines) =>
+      lines.map((line) => (line.uiId === uiId ? { ...line, ...patch } : line)),
+    );
+  }
+
+  protected removeLine(uiId: string): void {
+    this.lines.update((lines) => lines.filter((line) => line.uiId !== uiId));
+  }
 
   protected readonly locationOptions = computed((): readonly SelectMenuOption[] =>
     this.operationalLocations.actionLocations().map((location) => ({
@@ -446,6 +508,517 @@ export class StoreSaleDocumentFormComponent {
    */
   readonly alreadyCreatedDocumentId = signal<string | null>(null);
 
+  // ── La porta d'ingresso delle righe ──────────────────────────────────────
+  //
+  // `11` A14: **una sola** porta per pistola e tastiera. Si digita o si spara;
+  // la riga nasce solo quando un articolo è davvero risolto — una query digitata
+  // non è una riga — e dopo l'aggiunta il campo torna pronto.
+  //
+  // ⛔ Nessun movimento di magazzino qui: l'effetto fisico nasce alla
+  // conclusione (`11` A18).
+
+  private readonly barcodeLookup = inject(BarcodeLookupService);
+  private readonly productService = inject(ProductService);
+  private readonly searchInputRef = viewChild<ElementRef<HTMLInputElement>>('searchInput');
+
+  protected readonly searchDraft = signal('');
+  protected readonly searchPending = signal(false);
+  /** Esito dell'ultima scansione non risolta: nessuna riga, solo il messaggio. */
+  protected readonly searchMessage = signal<string | null>(null);
+
+  /** Pannello di ricerca articolo: lo stato è quello comune (E-5). */
+  protected readonly lineSearchPanel = new DocumentLineSearchPanelStore();
+
+  protected onSearchInput(event: Event): void {
+    this.searchDraft.set((event.target as HTMLInputElement).value);
+  }
+
+  protected onSearchSubmit(event: Event): void {
+    event.preventDefault();
+    this.commitScan(this.searchDraft());
+  }
+
+  /** Apre la ricerca assistita col testo già digitato. */
+  protected openProductSearch(): void {
+    this.lineSearchPanel.open(this.searchDraft().trim());
+  }
+
+  /** Apertura dalla riga: la cella articolo la chiede, e la porta è la stessa. */
+  protected openLineProductSearch(lineIndex: number): void {
+    const line = this.lines()[lineIndex];
+    this.lineSearchPanel.openForLine(lineIndex, line?.description ?? '');
+  }
+
+  protected closeProductSearch(): void {
+    this.lineSearchPanel.close();
+  }
+
+  /**
+   * Scelta dal pannello: **è la selezione reale a creare la riga** (A14).
+   *
+   * Se il pannello era stato aperto DA una riga, la scelta sostituisce
+   * l'articolo di quella riga invece di aggiungerne una — altrimenti aprire la
+   * ricerca da una riga esistente ne creerebbe una seconda.
+   */
+  protected onProductSearchPick(variantId: string): void {
+    const lineIndex = this.lineSearchPanel.lineIndex();
+    this.lineSearchPanel.close();
+    if (lineIndex === null) {
+      this.acquireVariant(variantId, 1);
+      return;
+    }
+    const target = this.lines()[lineIndex];
+    if (!target) {
+      return;
+    }
+    this.readVariant(variantId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((summary) => {
+        if (!summary) {
+          return;
+        }
+        this.lines.update((lines) =>
+          lines.map((line) =>
+            line.uiId === target.uiId ? { ...line, ...this.lineFromVariant(summary, line) } : line,
+          ),
+        );
+      });
+  }
+
+  /**
+   * Una battuta completa: codice (con eventuale moltiplicatore) → articolo.
+   *
+   * ⚠️ Il **riconoscimento della battuta da lettore** — soglia fra i tasti,
+   * prefissi, firme — non sta qui: è la capacità comune del blocco scanner, che
+   * richiede la misura con un lettore vero. Qui la porta è quella di oggi, e
+   * funziona con la pistola configurata a mandare Invio.
+   */
+  protected commitScan(raw: string): void {
+    const codice = raw.trim();
+    if (!codice || this.searchPending()) {
+      return;
+    }
+    const { quantity, code } = this.barcodeLookup.parseScanInput(codice);
+    this.searchPending.set(true);
+    this.searchMessage.set(null);
+    this.barcodeLookup
+      .resolveVariantIdByCode(code)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (variantId: string | null) => {
+          if (!variantId) {
+            this.searchPending.set(false);
+            this.notFound(code);
+            return;
+          }
+          this.acquireVariant(variantId, quantity);
+        },
+        error: () => {
+          this.searchPending.set(false);
+          this.notFound(code);
+        },
+      });
+  }
+
+  /**
+   * Codice non trovato: **segnale acustico, nessuna riga, nessun popup**, e
+   * subito pronti alla scansione successiva (A14).
+   */
+  private notFound(code: string): void {
+    this.searchMessage.set(`Nessun articolo per «${code}».`);
+    this.beep();
+    this.focusSearchInput(true);
+  }
+
+  /**
+   * L'articolo entra nel documento.
+   *
+   * ⭐ **Stesso EAN due volte → la riga esistente cresce** (A14): al banco
+   * passare due volte lo stesso capo sul lettore vuol dire due pezzi, non due
+   * righe. È la regola del banco, e vale per la maschera — non la decide la
+   * scansione.
+   */
+  private acquireVariant(variantId: string, quantity: number): void {
+    const esistente = this.lines().find((line) => line.variantId === variantId);
+    if (esistente) {
+      this.patchLine(esistente.uiId, { quantity: esistente.quantity + Math.max(1, quantity) });
+      this.searchPending.set(false);
+      this.afterAcquire();
+      return;
+    }
+    this.readVariant(variantId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((summary) => {
+        this.searchPending.set(false);
+        if (!summary) {
+          this.notFound(variantId);
+          return;
+        }
+        const nuova: StoreSaleDocumentLine = {
+          uiId: newStoreSaleLineUiId(),
+          serverLineId: null,
+          variantId,
+          sku: '',
+          description: '',
+          persistedDescription: null,
+          quantity: Math.max(1, quantity),
+          unitPriceMinor: 0,
+          discountPercent: 0,
+          vatCodeId: null,
+          persistedVatCodeId: null,
+          vatRatePercent: null,
+          loadsStock: true,
+          onHand: 0,
+          committed: 0,
+          available: 0,
+        };
+        this.lines.update((lines) => [...lines, { ...nuova, ...this.lineFromVariant(summary) }]);
+        this.afterAcquire();
+      });
+  }
+
+  /**
+   * I valori che una riga NUOVA prende dall'anagrafica.
+   *
+   * ⚠️ Su una riga già esistente si passa `previous`: descrizione e prezzo
+   * restano quelli del documento, perché la riga è una fotografia — si aggiorna
+   * ciò che segue l'articolo (identità, disponibilità), non ciò che l'operatore
+   * ha già scritto.
+   */
+  private lineFromVariant(
+    summary: VariantSummary,
+    previous?: StoreSaleDocumentLine,
+  ): Partial<StoreSaleDocumentLine> {
+    return {
+      variantId: summary.variantId,
+      sku: previous?.serverLineId ? previous.sku : summary.sku,
+      description: previous?.serverLineId ? previous.description : summary.title,
+      unitPriceMinor: previous?.serverLineId
+        ? previous.unitPriceMinor
+        : summary.sellingPrice.amountMinor,
+      vatCodeId: previous?.serverLineId ? previous.vatCodeId : (summary.defaultVatCodeId ?? null),
+      // ⏸ Default della spunta: **dal contratto documentale comune**, non dalla
+      // vecchia maschera del banco — un articolo gestito a magazzino movimenta, uno no
+      // (`VariantSummary.managesStock`, `11` A11-ter «vale la logica documentale
+      // già comune»). Il valore predefinito non è dichiarato in A: è il punto
+      // che resta da confermare.
+      loadsStock: previous?.serverLineId ? previous.loadsStock : summary.managesStock !== false,
+      onHand: summary.stockOnHand ?? 0,
+      committed: Math.max(0, (summary.stockOnHand ?? 0) - (summary.stockAvailable ?? 0)),
+      available: summary.stockAvailable ?? 0,
+    };
+  }
+
+  /** Riepilogo della variante alla sede del documento: giacenze comprese. */
+  private readVariant(variantId: string): Observable<VariantSummary | null> {
+    return this.productService
+      .searchVariantSummaries({
+        variantId,
+        locationId: this.form.controls.locationId.value || undefined,
+        pageSize: 1,
+      })
+      .pipe(
+        take(1),
+        map((rows) => rows[0] ?? null),
+        catchError(() => of(null)),
+      );
+  }
+
+  /** Dopo ogni inserimento riuscito: campo pulito e fuoco lì (A14, A19). */
+  private afterAcquire(): void {
+    this.searchDraft.set('');
+    this.searchMessage.set(null);
+    this.focusSearchInput();
+  }
+
+  private focusSearchInput(selectText = false): void {
+    const input = this.searchInputRef()?.nativeElement;
+    if (!input) {
+      return;
+    }
+    input.focus();
+    if (selectText) {
+      input.select();
+    }
+  }
+
+  /** Beep di esito: al banco si sente senza guardare, ed è la conferma. */
+  private audioContext: AudioContext | null = null;
+
+  private beep(): void {
+    try {
+      this.audioContext ??= new AudioContext();
+      const context = this.audioContext;
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = 'sine';
+      oscillator.frequency.value = 220;
+      gain.gain.value = 0.08;
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start();
+      oscillator.stop(context.currentTime + 0.18);
+    } catch {
+      // Nessun audio disponibile: il messaggio a schermo resta.
+    }
+  }
+
+  // ── Colonne della griglia ────────────────────────────────────────────────
+  //
+  // Il piano colonne è PROPRIO del banco (`STORE_SALE_LINE_COLUMNS`, scritto il
+  // 19/08 e finora mai usato), l'implementazione è quella comune. ⛔ La lista non
+  // dichiara il COSTO: al banco non deve esistere nemmeno come colonna spenta, e
+  // la sola via per non offrirlo nel selettore è non dichiararlo.
+
+  private readonly columnPreferences = inject(TableColumnPreferenceService);
+  protected readonly lineColumnsView = STORE_SALE_LINES_VIEW;
+
+  constructor() {
+    // La vista si dichiara al servizio comune: colonne e preset del banco.
+    // Senza, il selettore Colonne non saprebbe che cosa offrire e le larghezze
+    // salvate non avrebbero un posto dove vivere.
+    this.columnPreferences.registerView(
+      this.lineColumnsView,
+      STORE_SALE_LINE_COLUMNS,
+      STORE_SALE_LINE_PRESETS,
+    );
+  }
+
+  protected isLineColumnVisible(columnId: string): boolean {
+    return this.columnPreferences.isColumnVisible(this.lineColumnsView, columnId);
+  }
+
+  private lineColumnPx(columnId: string): number {
+    const def = STORE_SALE_LINE_COLUMNS.find((column) => column.id === columnId);
+    return this.columnPreferences.columnWidth(
+      this.lineColumnsView,
+      columnId,
+      def?.defaultWidthPx ?? 96,
+    );
+  }
+
+  private lineColumnsTotalPx(): number {
+    return sumVisibleLineColumnsPx(
+      STORE_SALE_LINE_COLUMNS,
+      (id) => this.isLineColumnVisible(id),
+      (id) => this.lineColumnPx(id),
+    );
+  }
+
+  /** Larghezza come quota del totale visibile: il motore comune di `shared/`. */
+  protected lineColumnWidth(columnId: string): string {
+    return lineColumnQuotaWidth(columnId, this.lineColumnsTotalPx(), (id) => this.lineColumnPx(id));
+  }
+
+  protected lineColumnMinWidth(columnId: string): number {
+    return STORE_SALE_LINE_COLUMNS.find((column) => column.id === columnId)?.minWidthPx ?? 56;
+  }
+
+  protected onLineColumnResize(columnId: string, widthPx: number): void {
+    this.columnPreferences.setColumnWidth(this.lineColumnsView, columnId, widthPx);
+  }
+
+  // ── Netto / ivato ────────────────────────────────────────────────────────
+  //
+  // Contratto comune degli altri documenti (`11` A4): nessuna implementazione
+  // locale del banco, nessun forcing «sempre ivato». Il selettore vive nella
+  // TESTATA DELLA COLONNA PREZZO, ed è per questo che nasce insieme alla tabella
+  // e non in un passo a parte.
+  //
+  // ⛔ La modalità è **rappresentazione**: il dato di riga resta il netto in
+  // entrambe, e cambiarla non cambia quanto vale il documento.
+
+  protected readonly pricesIncludeVat = signal(false);
+  protected readonly priceRowLabel = computed(() => priceModeRowLabel(this.pricesIncludeVat()));
+  protected readonly priceModeMenuOpen = signal(false);
+
+  protected togglePriceModeMenu(): void {
+    this.priceModeMenuOpen.update((open) => !open);
+  }
+
+  private priceModeInitialized = false;
+
+  /**
+   * La modalità iniziale di un documento NUOVO: memoria dell'operatore per il
+   * tipo, poi convenzione aziendale. La risolve il server, come per ogni altro
+   * documento — qui si chiede, non si decide.
+   */
+  private readonly initPriceMode = effect(() => {
+    if (this.isEditMode() || this.priceModeInitialized) {
+      return;
+    }
+    this.priceModeInitialized = true;
+    this.documents
+      .getPriceModePreference(this.descriptor.documentType)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (pricesIncludeVat) => this.pricesIncludeVat.set(pricesIncludeVat),
+        error: () => undefined,
+      });
+  });
+
+  /**
+   * Cambia come i prezzi si leggono, **senza toccare il dato**.
+   *
+   * Il netto resta il netto: cambia il campo mostrato, e la conversione parte
+   * dal valore memorizzato — non da quello a schermo, già arrotondato a due
+   * decimali. È la ragione per cui netto → ivato → netto torna identico, coda
+   * decimale compresa.
+   */
+  protected setPriceMode(pricesIncludeVat: boolean): void {
+    this.priceModeMenuOpen.set(false);
+    this.pricesIncludeVat.set(pricesIncludeVat);
+  }
+
+  /** Il valore da MOSTRARE nel campo prezzo, secondo la modalità corrente. */
+  protected priceFieldValue(line: StoreSaleDocumentLine): string {
+    const rate = this.lineVatRate(line);
+    const shown = this.pricesIncludeVat()
+      ? grossFromNetMinor(line.unitPriceMinor, rate)
+      : line.unitPriceMinor;
+    return moneyToDecimalString({ amountMinor: shown, currencyCode: DEFAULT_CURRENCY });
+  }
+
+  /** Il digitato torna netto canonico: la forma `*Exact`, che conserva la coda. */
+  protected onPriceInput(line: StoreSaleDocumentLine, raw: string): void {
+    const parsed = parseMoneyInput(raw, DEFAULT_CURRENCY);
+    if (!parsed) {
+      return;
+    }
+    const rate = this.lineVatRate(line);
+    const net = this.pricesIncludeVat()
+      ? netFromGrossExact(parsed.amountMinor, rate)
+      : parsed.amountMinor;
+    this.patchLine(line.uiId, { unitPriceMinor: toStorableMinor(net) });
+  }
+
+  // ── IVA di riga ──────────────────────────────────────────────────────────
+
+  private readonly vatCodeService = inject(VatCodeService);
+
+  private readonly vatCodes = toSignal(
+    this.vatCodeService.list().pipe(catchError(() => of([] as readonly VatCode[]))),
+    { initialValue: [] as readonly VatCode[] },
+  );
+
+  private readonly vatCodeById = computed(
+    () => new Map(this.vatCodes().map((vatCode) => [vatCode.id, vatCode])),
+  );
+
+  /**
+   * Le opzioni IVA della riga: quelle attive di vendita, **più** il codice della
+   * riga se nel frattempo è stato disattivato — o il documento mostrerebbe un
+   * campo vuoto al posto dell'imposta che ha davvero applicato.
+   */
+  private readonly activeVatOptions = computed((): readonly SelectMenuOption[] =>
+    this.vatCodes()
+      .filter((vatCode) => vatCode.isActive && isSalesVatCode(vatCode))
+      .map((vatCode) => ({ value: vatCode.id, label: vatCodeOptionLabel(vatCode) })),
+  );
+
+  protected vatOptions(line: StoreSaleDocumentLine): readonly SelectMenuOption[] {
+    return vatOptionsIncludingSelected(this.activeVatOptions(), line.vatCodeId, this.vatCodeById());
+  }
+
+  /** Aliquota della riga: dal Codice IVA risolto, o dallo snapshot persistito. */
+  private lineVatRate(line: StoreSaleDocumentLine): number {
+    const vatCode = line.vatCodeId ? this.vatCodeById().get(line.vatCodeId) : undefined;
+    return vatCode ? vatCode.ratePercent : (line.vatRatePercent ?? 0);
+  }
+
+  private lineVatInput(line: StoreSaleDocumentLine): VatComputationInput {
+    const vatCode = line.vatCodeId ? this.vatCodeById().get(line.vatCodeId) : undefined;
+    return vatCode ? vatInputFromVatCode(vatCode) : vatInputFromLegacyRate(line.vatRatePercent);
+  }
+
+  // ── Totali di riga ───────────────────────────────────────────────────────
+  //
+  // Stessa aritmetica del server: una formula sola, in `domain/`. Il piede —
+  // imponibile, imposta, totale, sconto extra — è del passo seguente.
+
+  private lineAmounts(line: StoreSaleDocumentLine): VatLineAmounts {
+    return computeVatLineAmounts({
+      // Il valore memorizzato è il netto, in ogni modalità: `vat_excluded`
+      // dichiara che cosa gli si passa, non come l'operatore lo digita.
+      enteredUnitCostMinor: line.unitPriceMinor,
+      costEntryMode: 'vat_excluded',
+      quantity: line.quantity,
+      discountPercent: line.discountPercent,
+      vat: this.lineVatInput(line),
+    });
+  }
+
+  protected lineTotal(line: StoreSaleDocumentLine): string {
+    const amounts = this.lineAmounts(line);
+    const shown = this.pricesIncludeVat() ? amounts.lineGrossMinor : amounts.lineNetMinor;
+    return formatMoney({ amountMinor: shown, currencyCode: DEFAULT_CURRENCY });
+  }
+
+  // ── Quantità, sconto, descrizione, IVA ───────────────────────────────────
+
+  protected onQuantityInput(line: StoreSaleDocumentLine, raw: string): void {
+    const value = Number.parseInt(raw, 10);
+    if (!Number.isFinite(value) || value < 1) {
+      return;
+    }
+    this.patchLine(line.uiId, { quantity: value });
+  }
+
+  /** Stepper: al banco la quantità si tocca più spesso di quanto si digiti. */
+  protected stepQuantity(line: StoreSaleDocumentLine, delta: number): void {
+    this.patchLine(line.uiId, { quantity: Math.max(1, line.quantity + delta) });
+  }
+
+  protected onDiscountInput(line: StoreSaleDocumentLine, raw: string): void {
+    this.patchLine(line.uiId, { discountPercent: parseEffectiveDiscountPercent(raw) });
+  }
+
+  protected onDescriptionChange(line: StoreSaleDocumentLine, value: string): void {
+    this.patchLine(line.uiId, { description: value });
+  }
+
+  protected onVatChange(line: StoreSaleDocumentLine, vatCodeId: string): void {
+    this.patchLine(line.uiId, { vatCodeId: vatCodeId || null });
+  }
+
+  // ── Effetto fisico della riga ────────────────────────────────────────────
+  //
+  // ⭐ **Un concetto solo**, `loadsStock`, governato dal modo: la Vendita lo
+  // legge come «Scarica giacenze», il Reso come «Carica giacenze». Due booleani
+  // o due modelli paralleli direbbero la stessa cosa due volte, e col tempo
+  // divergerebbero.
+  //
+  // ⛔ Non è una colonna configurabile: governa l'effetto fisico, quindi non
+  // deve poter sparire dal selettore Colonne.
+
+  protected readonly stockToggleLabel = computed(() =>
+    this.descriptor.mode === 'sale' ? 'Scarica giacenze' : 'Carica giacenze',
+  );
+
+  protected onStockToggle(line: StoreSaleDocumentLine, checked: boolean): void {
+    this.patchLine(line.uiId, { loadsStock: checked });
+  }
+
+  // ── Disponibilità: avviso, mai blocco ────────────────────────────────────
+  //
+  // `11` A18: la vendita oltre la disponibilità è consentita, l'avviso è visibile
+  // e non bloccante, e Giacenza/Disponibile possono andare negative.
+
+  protected lineExceedsAvailability(line: StoreSaleDocumentLine): boolean {
+    return this.descriptor.mode === 'sale' && line.quantity > line.available;
+  }
+
+  protected readonly availabilityWarningCount = computed(
+    () => this.lines().filter((line) => this.lineExceedsAvailability(line)).length,
+  );
+
+  protected availabilityHint(line: StoreSaleDocumentLine): string {
+    return (
+      `Quantità superiore alla disponibilità. Giacenza ${line.onHand}, ` +
+      `impegnata ${line.committed}, disponibile ${line.available}. Si può concludere comunque.`
+    );
+  }
+
   // ── Salvataggio ─────────────────────────────────────────────────────────
 
   protected readonly savePending = signal(false);
@@ -511,6 +1084,7 @@ export class StoreSaleDocumentFormComponent {
       // quindi un documento storico non perde il proprio.
       customerId: this.form.controls.customerId.value || undefined,
       documentDate: this.documentDatePayload(),
+      pricesIncludeVat: this.pricesIncludeVat(),
       notes: testata.notes.trim() || undefined,
       lines: this.lines().map(storeSaleLinePayload),
     };
@@ -528,6 +1102,7 @@ export class StoreSaleDocumentFormComponent {
       // Facoltativo su entrambi i modi (`11` A13).
       customerId: this.form.controls.customerId.value || undefined,
       documentDate: this.documentDatePayload(),
+      pricesIncludeVat: this.pricesIncludeVat(),
       notes: testata.notes.trim() || undefined,
       lines: this.lines().map(storeReturnLinePayload),
     };
@@ -561,6 +1136,7 @@ export class StoreSaleDocumentFormComponent {
     // La data si carica e **resta modificabile**: una data sbagliata si
     // corregge dove è stata scritta, e il server la persiste senza rinumerare.
     this.form.controls.documentDate.setValue(doc.documentDate.slice(0, 10));
+    this.pricesIncludeVat.set(doc.pricesIncludeVat);
     this.preserved.set({
       notes: doc.notes ?? '',
       causale: doc.causalText ?? '',

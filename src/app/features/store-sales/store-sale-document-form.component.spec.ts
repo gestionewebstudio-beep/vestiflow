@@ -1,6 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { render, screen } from '@testing-library/angular';
+import userEvent from '@testing-library/user-event';
 import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -10,7 +11,11 @@ import { LocationContextService } from '@core/services/location-context.service'
 import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 import { CustomerService } from '@domain/customers/services/customer.service';
 import { DocumentService } from '@domain/documents/services/document.service';
+import { VatCodeService } from '@core/services/vat-code.service';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
+import { BarcodeLookupService } from '@domain/products/services/barcode-lookup.service';
+import { ProductService } from '@domain/products/services/product.service';
+import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { STORE_SALE_MODE_ROUTE_DATA_KEY } from '@domain/store-sales/models/store-sale-routing.util';
 import type {
   CreateStoreReturnPayload,
@@ -18,11 +23,48 @@ import type {
 } from '@domain/store-sales/models/store-sale.model';
 
 import { StoreSalesService } from './services/store-sales.service';
+import type { StoreSaleDocumentLine } from '@domain/store-sales/models/store-sale-document-line.model';
+
 import { StoreSaleDocumentFormComponent } from './store-sale-document-form.component';
 
 const SEDE = { id: 'loc-1', name: 'Negozio Milano' };
 const ALTRA_SEDE = { id: 'loc-2', name: 'Magazzino' };
 const ZERO = { amountMinor: 0, currencyCode: DEFAULT_CURRENCY };
+const EAN_NOTO = '8001234567890';
+
+/** Codice IVA attivo di vendita: la cella IVA della riga ne offre le voci. */
+const VAT_22 = {
+  id: 'vat-22',
+  code: '22',
+  ratePercent: 22,
+  description: 'Imponibile 22%',
+  usageScope: 'both',
+  calculationMode: 'standard',
+  nonDeductiblePercent: 0,
+  isActive: true,
+  isDefault: true,
+};
+
+/**
+ * L'articolo che la ricerca e la scansione risolvono.
+ *
+ * ⚠️ `managesStock` porta il default della spunta di riga, che viene dal
+ * contratto documentale comune e non dalla vecchia maschera del banco.
+ */
+const VARIANTE = {
+  variantId: 'var-1',
+  productId: 'prod-1',
+  sku: 'MAG-001',
+  articleCode: 'ART-1',
+  productName: 'Maglietta Basic',
+  title: 'Maglietta Basic — M / Bianco',
+  barcode: EAN_NOTO,
+  sellingPrice: { amountMinor: 2000, currencyCode: DEFAULT_CURRENCY },
+  defaultVatCodeId: 'vat-22',
+  managesStock: true,
+  stockOnHand: 5,
+  stockAvailable: 3,
+};
 
 const VAT_SNAPSHOT = {
   code: '22',
@@ -128,6 +170,8 @@ interface SetupOptions {
   readonly locations?: readonly { id: string; name: string }[];
   /** Sede preferita del contesto: `null` = nessuna, e il gate resta aperto. */
   readonly preferredLocation?: string | null;
+  /** Modalità netto/ivato proposta dal contratto comune. */
+  readonly priceMode?: boolean;
 }
 
 async function setup(options: SetupOptions = {}) {
@@ -157,7 +201,43 @@ async function setup(options: SetupOptions = {}) {
           paramMap: of(convertToParamMap(options.editId ? { id: options.editId } : {})),
         },
       },
-      { provide: DocumentService, useValue: { getDocumentById } },
+      {
+        provide: DocumentService,
+        useValue: {
+          getDocumentById,
+          // Modalità iniziale netto/ivato: la risolve il contratto comune
+          // (memoria dell'operatore, poi convenzione aziendale).
+          getPriceModePreference: vi.fn(() => of(options.priceMode ?? false)),
+        },
+      },
+      {
+        provide: VatCodeService,
+        useValue: { list: () => of([VAT_22] as readonly unknown[]) },
+      },
+      {
+        provide: BarcodeLookupService,
+        useValue: {
+          parseScanInput: (raw: string) => ({ quantity: 1, code: raw.trim() }),
+          resolveVariantIdByCode: vi.fn((code: string) =>
+            of(code === EAN_NOTO ? VARIANTE.variantId : null),
+          ),
+        },
+      },
+      {
+        provide: ProductService,
+        useValue: {
+          searchVariantSummaries: vi.fn(() => of([VARIANTE])),
+        },
+      },
+      {
+        provide: TableColumnPreferenceService,
+        useValue: {
+          registerView: vi.fn(),
+          isColumnVisible: () => true,
+          columnWidth: (_view: unknown, _id: string, fallback: number) => fallback,
+          setColumnWidth: vi.fn(),
+        },
+      },
       { provide: StoreSalesService, useValue: { createSale, createReturn } },
       {
         provide: CustomerService,
@@ -180,7 +260,14 @@ async function setup(options: SetupOptions = {}) {
     ],
   });
 
-  const component = rendered.fixture.componentInstance;
+  const component = rendered.fixture.componentInstance as StoreSaleDocumentFormComponent & {
+    lines(): readonly StoreSaleDocumentLine[];
+    pricesIncludeVat(): boolean;
+    availabilityWarningCount(): number;
+    setPriceMode(pricesIncludeVat: boolean): void;
+    onStockToggle(line: StoreSaleDocumentLine, checked: boolean): void;
+    onQuantityInput(line: StoreSaleDocumentLine, raw: string): void;
+  };
   return { ...rendered, component, createSale, createReturn, getDocumentById };
 }
 
@@ -427,6 +514,186 @@ describe('StoreSaleDocumentFormComponent', () => {
       component.save();
 
       expect(createSale).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── Le righe (`11` A14, A15, A18) ────────────────────────────────────────
+
+  describe('la porta d’ingresso delle righe', () => {
+    /** L'unica porta: si digita o si spara, e Invio conferma. */
+    async function scansiona(rendered: Awaited<ReturnType<typeof setup>>, codice: string) {
+      const campo = screen.getByLabelText('Scansiona o cerca un articolo');
+      await userEvent.clear(campo);
+      await userEvent.type(campo, `${codice}{enter}`);
+      rendered.fixture.detectChanges();
+    }
+
+    it('⭐ un codice risolto crea la riga, con i valori dell’articolo', async () => {
+      const rendered = await setup();
+
+      await scansiona(rendered, EAN_NOTO);
+
+      expect(rendered.component.lines()).toHaveLength(1);
+      const [riga] = rendered.component.lines();
+      expect(riga!.variantId).toBe(VARIANTE.variantId);
+      expect(riga!.sku).toBe('MAG-001');
+      expect(riga!.unitPriceMinor).toBe(2000);
+      expect(riga!.vatCodeId).toBe('vat-22');
+    });
+
+    it('⛔ un codice NON trovato non inventa righe', async () => {
+      const rendered = await setup();
+
+      await scansiona(rendered, 'codice-che-non-esiste');
+
+      expect(rendered.component.lines()).toHaveLength(0);
+      expect(screen.getByText(/Nessun articolo/)).toBeTruthy();
+    });
+
+    it('⭐ stesso EAN due volte: la riga esistente cresce, non ne nasce una seconda', async () => {
+      // A14: al banco passare due volte lo stesso capo sul lettore vuol dire
+      // due pezzi.
+      const rendered = await setup();
+
+      await scansiona(rendered, EAN_NOTO);
+      await scansiona(rendered, EAN_NOTO);
+
+      expect(rendered.component.lines()).toHaveLength(1);
+      expect(rendered.component.lines()[0]!.quantity).toBe(2);
+    });
+
+    it('dopo l’inserimento il campo è pulito e pronto', async () => {
+      const rendered = await setup();
+
+      await scansiona(rendered, EAN_NOTO);
+
+      expect(screen.getByLabelText<HTMLInputElement>('Scansiona o cerca un articolo').value).toBe(
+        '',
+      );
+    });
+
+    it('⛔ nessun movimento di magazzino durante ricerca e inserimento', async () => {
+      // A18: l'effetto fisico nasce alla conclusione. La maschera non ha nessun
+      // percorso verso i movimenti — a scrivere è solo il salvataggio.
+      const createSale = vi.fn(() => of(ESITO));
+      const rendered = await setup({ createSale });
+
+      await scansiona(rendered, EAN_NOTO);
+
+      expect(createSale).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('la riga e i suoi effetti', () => {
+    async function conUnaRiga() {
+      const rendered = await setup();
+      const campo = screen.getByLabelText('Scansiona o cerca un articolo');
+      await userEvent.type(campo, `${EAN_NOTO}{enter}`);
+      rendered.fixture.detectChanges();
+      return rendered;
+    }
+
+    it('⭐ sulla Vendita la spunta si legge «Scarica giacenze»', async () => {
+      await conUnaRiga();
+
+      expect(screen.getByRole('columnheader', { name: 'Scarica giacenze' })).toBeTruthy();
+    });
+
+    it('⭐ sul Reso la STESSA spunta si legge «Carica giacenze»', async () => {
+      // Stesso campo del modello (`loadsStock`), due letture: nessun secondo
+      // booleano, nessun modello parallelo.
+      const rendered = await setup({ mode: 'return', editId: 'doc-return-1', loadDocument: RESO });
+
+      expect(screen.getByRole('columnheader', { name: 'Carica giacenze' })).toBeTruthy();
+      expect(rendered.component.lines()[0]!.loadsStock).toBe(false);
+    });
+
+    it('la spunta si può togliere: la riga resta, l’effetto fisico no', async () => {
+      const rendered = await conUnaRiga();
+      const riga = rendered.component.lines()[0]!;
+
+      rendered.component.onStockToggle(riga, false);
+
+      expect(rendered.component.lines()).toHaveLength(1);
+      expect(rendered.component.lines()[0]!.loadsStock).toBe(false);
+    });
+
+    it('⛔ il COSTO non esiste fra le colonne, nemmeno spento', async () => {
+      await setup();
+
+      // La sola via per non offrirlo nel selettore è non dichiararlo.
+      expect(screen.queryByRole('columnheader', { name: /costo/i })).toBeNull();
+    });
+
+    it('⛔ le intestazioni non ordinano: al banco l’ordine è quello di scansione', async () => {
+      await conUnaRiga();
+
+      const articolo = screen.getByRole('columnheader', { name: /Articolo/ });
+      expect(articolo.querySelector('button')).toBeNull();
+    });
+
+    it('quantità oltre la disponibilità: avviso, e si può concludere', async () => {
+      const rendered = await conUnaRiga();
+      const riga = rendered.component.lines()[0]!;
+
+      // Disponibile 3, quantità 5.
+      rendered.component.onQuantityInput(riga, '5');
+      rendered.fixture.detectChanges();
+
+      expect(rendered.component.availabilityWarningCount()).toBe(1);
+      // ⛔ Nessun blocco: il salvataggio parte lo stesso (A18).
+      rendered.component.save();
+      expect(rendered.createSale).toHaveBeenCalled();
+    });
+  });
+
+  describe('netto / ivato (A4)', () => {
+    it('⭐ la modalità iniziale viene dal contratto comune, non dal banco', async () => {
+      const rendered = await setup({ priceMode: true });
+
+      expect(rendered.component.pricesIncludeVat()).toBe(true);
+    });
+
+    it('⭐ cambiare modalità NON cambia il dato: il netto resta il netto', async () => {
+      const rendered = await setup({ priceMode: false });
+      const campo = screen.getByLabelText('Scansiona o cerca un articolo');
+      await userEvent.type(campo, `${EAN_NOTO}{enter}`);
+      rendered.fixture.detectChanges();
+      const nettoPrima = rendered.component.lines()[0]!.unitPriceMinor;
+
+      rendered.component.setPriceMode(true);
+      rendered.fixture.detectChanges();
+
+      expect(rendered.component.lines()[0]!.unitPriceMinor).toBe(nettoPrima);
+    });
+
+    it('la modalità viaggia nel payload: si persiste sul documento', async () => {
+      const createSale = vi.fn(() => of(ESITO));
+      const rendered = await setup({ createSale, priceMode: true });
+      const campo = screen.getByLabelText('Scansiona o cerca un articolo');
+      await userEvent.type(campo, `${EAN_NOTO}{enter}`);
+
+      rendered.component.save();
+
+      expect(corpoVendita(createSale).pricesIncludeVat).toBe(true);
+    });
+
+    it('in modifica la modalità è quella del documento', async () => {
+      // VENDITA porta `pricesIncludeVat: true`: la maschera la carica da lì e
+      // non la ripropone dalla memoria dell'operatore.
+      const rendered = await setup({ editId: 'doc-sale-1', priceMode: false });
+
+      expect(rendered.component.pricesIncludeVat()).toBe(true);
+    });
+
+    it('⭐ il selettore sta nella TESTATA della colonna Prezzo', async () => {
+      const rendered = await setup({ priceMode: false });
+      const campo = screen.getByLabelText('Scansiona o cerca un articolo');
+      await userEvent.type(campo, `${EAN_NOTO}{enter}`);
+      rendered.fixture.detectChanges();
+
+      const intestazione = screen.getByRole('columnheader', { name: /Prezzo netto/ });
+      expect(intestazione.querySelector('app-price-mode-menu')).toBeTruthy();
     });
   });
 

@@ -810,10 +810,20 @@ stato valido e verificabile.
                    caricamento per id, salvataggio create/update con l'intento
                    T15. ⛔ NON montata su nessuna rotta, per decisione del
                    proprietario: si monta quando avrà anche le righe.
-                   Restano dentro il passo 8: ricerca, scansione e aggiunta
-                   riga, che si fanno col passo 9 per non scrivere markup
-                   provvisorio (vedi «Il confine del primo blocco» sotto).
-⛔ 9 …             DA QUI IN POI, TUTTO APERTO.
+                   Ricerca, scansione e aggiunta riga sono passate al passo 9,
+                   con la griglia, per non scrivere markup provvisorio.
+✅ 8-bis · E-5     chiuso — stato del pannello di ricerca in riga estratto in
+                   `domain/documents/state/`, tre maschere migrate.
+✅ 9 · righe       chiuso — griglia sulle celle comuni, STORE_SALE_LINE_COLUMNS
+                   in uso, colonne e larghezze dal motore comune, spunta di
+                   magazzino fissa, porta d'ingresso (ricerca + scansione),
+                   avviso disponibilità. ⛔ Sempre NON montata su rotta.
+✅ 10 · netto/ivato ASSORBITO nel passo 9 (decisione del proprietario,
+                   21/08/2026): il selettore vive nella testata della colonna
+                   Prezzo, quindi nasce con la colonna — `11` A4 lo diceva già,
+                   «è parte della costruzione della tabella righe». Con lui è
+                   entrato T5, il forcing «sempre ivato» lato server.
+⛔ 11 …            DA QUI IN POI, TUTTO APERTO.
 ```
 
 ### Il confine del primo blocco — 21/08/2026
@@ -884,6 +894,30 @@ o si fanno insieme, o si esce da un documento aperto senza che nessuno lo chieda
 | **A13** — `documentDate` ≠ `createdAt`                               | la data documento si scrive; `StockMovement.createdAt` non la insegue più sullo scarico                                      | ✅ conforme                                    |
 | _(non in A)_ — il motore di **carico** riallinea `createdAt`         | comportamento preesistente di Reso e Arrivo merce, non toccato                                                               | ⏸ **APERTO**: uniformarlo tocca l'Arrivo merce |
 
+### Conformità del passo 9 (righe) alla sezione A — 21/08/2026
+
+| Regola corrente                                                            | Comportamento nella maschera nuova                                                                                                   | Primitiva comune riusata                                                             | Esito                                              |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ | -------------------------------------------------- |
+| **A3** — stessa struttura, effetti di dominio opposti                      | un form, un modello di riga, una collezione, una griglia. Il modo decide solo etichette ed effetti                                   | descrittore di modalità (passo 8)                                                    | ✅                                                 |
+| **A11-ter / A18** — la spunta di riga decide il movimento                  | **un campo solo**, `loadsStock`, letto «Scarica giacenze» sulla Vendita e «Carica giacenze» sul Reso. Cella fissa, non nel selettore | modello riga comune; `restockable` resta solo nel mapper verso il DTO                | ✅                                                 |
+| **A15** — colonne `Articolo · SKU · Q.tà · Prezzo · Sconto · IVA · Totale` | le sette dichiarate, SKU colonna vera, Totale calcolato                                                                              | `STORE_SALE_LINE_COLUMNS` (finora mai usato), `app-table-column-picker`              | ✅                                                 |
+| **C 19/08** — il costo non esiste, nemmeno spento                          | non è dichiarato: non compare nel selettore, quindi non si può accendere                                                             | la lista propria del banco                                                           | ✅                                                 |
+| **A15** — quantità con digitazione diretta e stepper                       | campo numerico più − / +                                                                                                             | —                                                                                    | ✅                                                 |
+| **A15** — nome, quantità, prezzo, sconto modificabili                      | celle editabili sulla riga; sconto dal parser comune (cascate comprese)                                                              | `parseEffectiveDiscountPercent`                                                      | ✅                                                 |
+| **A4** — netto/ivato nella **testata della colonna Prezzo**                | selettore nell'intestazione, modalità persistita e modificabile; il netto resta il dato                                              | `app-price-mode-menu`, `getPriceModePreference`, `document-vat.util`                 | ✅                                                 |
+| **A4** — nessun forcing «sempre ivato»                                     | i due tipi entrano in `SALES_PRICE_MODE_TYPES`; il server non cabla più la modalità                                                  | contratto comune del percorso documenti                                              | ✅ (T5 chiuso)                                     |
+| **A14** — una sola porta per pistola e tastiera                            | un campo unico; Invio conferma; il pannello di ricerca è quello condiviso                                                            | `BarcodeLookupService`, `app-document-product-search-panel`, **E-5** appena estratto | ✅                                                 |
+| **A14** — la query digitata non crea righe                                 | la riga nasce solo da un articolo risolto o scelto                                                                                   | —                                                                                    | ✅                                                 |
+| **A14** — stesso EAN due volte → incremento                                | la riga esistente cresce; nessuna riga gemella                                                                                       | —                                                                                    | ✅                                                 |
+| **A14** — codice non trovato → segnale, nessuna riga                       | beep, messaggio in linea, campo pronto                                                                                               | —                                                                                    | ✅                                                 |
+| **A14 / A19** — dopo l'aggiunta il campo torna pronto                      | si pulisce e riprende il fuoco                                                                                                       | —                                                                                    | ✅                                                 |
+| **A18** — disponibilità: avviso, mai blocco                                | avviso sulla riga e in testa alla tabella; il salvataggio parte lo stesso                                                            | `VariantSummary` (giacenze per sede)                                                 | ✅                                                 |
+| **A18** — nessun movimento prima della conclusione                         | la maschera non ha nessun percorso verso i movimenti                                                                                 | —                                                                                    | ✅                                                 |
+| **§6** — niente ordinamento per colonna, niente riordino manuale           | intestazioni senza pulsante, nessun `CdkDropList`                                                                                    | —                                                                                    | ✅                                                 |
+| **A8** — nessun pagamento in questo blocco                                 | invariato dal Blocco 1: né campo né trasporto                                                                                        | —                                                                                    | ✅                                                 |
+| **A14** — battuta HID riconosciuta senza contaminare il campo attivo       | non implementata: la porta è quella con Invio                                                                                        | —                                                                                    | ⏳ blocco scanner (M1/M2, misura con lettore vero) |
+| _(non in A)_ — **default della spunta** su una riga nuova                  | dal contratto documentale comune: `managesStock` dell'articolo                                                                       | `VariantSummary.managesStock`                                                        | ⏸ **APERTO**: A non lo dichiara, va confermato     |
+
 ```text
 ╔═ PRIMA DI TOCCARE LA MASCHERA ══════════════════════════════════════════════╗
 
@@ -947,8 +981,15 @@ o si fanno insieme, o si esce da un documento aperto senza che nessuno lo chieda
       ⛔ Qui, non prima: `document-line-product-cell` porta con sé l'apertura
       ricerca, quindi E-5 (stato del pannello di ricerca in riga) si estrae
       in questo stesso passo — vedi §5.3.
+      ✅ FATTO il 21/08, con dentro la porta d'ingresso (ricerca e scansione)
+      e il netto/ivato del passo 10.
 
-10 ·  Netto/ivato: price-mode-menu nella testata Prezzo, e T5 — i quattro forcing via.
+10 ·  ✅ ASSORBITO nel passo 9 — il selettore vive nella testata della colonna
+      Prezzo, quindi nasce con la colonna: `11` A4 lo diceva già («è parte
+      della costruzione della tabella righe, non un lavoro autonomo che si
+      possa fare prima»), e questa numerazione lo separava contro la specifica.
+      Con lui è entrato T5 lato server: i due tipi del banco dentro
+      SALES_PRICE_MODE_TYPES e il forcing «sempre ivato» rimosso.
 
 11 ·  Card mobile: store-sale-line-card sopra app-document-line-card.
 

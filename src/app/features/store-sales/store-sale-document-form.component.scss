@@ -14,3 +14,61 @@
 // etichetta al posto della tendina, ereditata dalla maschera legacy. Tolta il
 // 21/08/2026 — `11` A13 dice che il default precompila e il campo resta il
 // controllo comune, quindi non serve nessuno stile proprio.
+
+// ── La porta d'ingresso delle righe (`11` A14) ──────────────────────────────
+//
+// Una riga sola: il campo prende lo spazio, i due comandi stanno accanto. È il
+// gesto ripetuto tutto il giorno, quindi il campo è il pezzo largo.
+.store-sale-form__scan {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  margin-block-end: var(--space-8);
+}
+
+.store-sale-form__scan-input {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+// ── Stepper della quantità ──────────────────────────────────────────────────
+//
+// Digitazione diretta E stepper (`11` A15): al banco la quantità si tocca più
+// spesso di quanto si digiti, e il campo resta comunque scrivibile.
+.store-sale-form__stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+
+  input {
+    inline-size: 100%;
+    min-inline-size: 0;
+    text-align: right;
+  }
+}
+
+.store-sale-form__step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--control-h-cell);
+  block-size: var(--control-h-cell);
+  padding: 0;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+
+  &:disabled {
+    color: var(--color-text-subtle);
+    cursor: default;
+  }
+}
+
+// La colonna della spunta è stretta e centrata: è un interruttore, non un dato
+// da leggere in colonna.
+.store-sale-form__stock-col {
+  inline-size: var(--field-w-xs);
+  text-align: center;
+}
