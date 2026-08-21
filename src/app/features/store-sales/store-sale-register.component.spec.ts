@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { STORE_SALE_MODE_ROUTE_DATA_KEY } from '@domain/store-sales/models/store-sale-routing.util';
 import { render, screen, within } from '@testing-library/angular';
@@ -1203,6 +1204,26 @@ describe('StoreSaleRegisterComponent', () => {
     const intentiInviati = (spia: ReturnType<typeof vi.fn>): (string | undefined)[] =>
       spia.mock.calls.map((call) => (call[0] as CorpoVendita).creationIntentId);
 
+    /**
+     * Un 409 nella forma in cui arriva DAVVERO al componente.
+     *
+     * ⚠️ Due annidamenti, entrambi reali e nessuno dei due ovvio:
+     * `AppError.details` è la `HttpErrorResponse` (`http-error.mapper.ts:103`),
+     * e **Nest annida il payload in `message`** quando l'eccezione riceve un
+     * oggetto — è scritto nel docblock di `documentNumberConflictOf`, che
+     * risolve lo stesso problema per il conflitto di numero.
+     *
+     * ⛔ Una fixture più semplice renderebbe verde un estrattore che in
+     * produzione non trova niente: misurato: la prima stesura di questi test
+     * usava `details: { error: { message: … } }` e falliva proprio lì.
+     */
+    const errore409 = (payload: Record<string, unknown>) => ({
+      kind: 'conflict',
+      message: 'Conflitto.',
+      status: 409,
+      details: new HttpErrorResponse({ status: 409, error: { message: payload } }),
+    });
+
     it('⭐ prima conclusione: genera un id e lo manda', async () => {
       const createSale = vi.fn((_body: unknown) => risultato());
       const { fixture } = await setup({
@@ -1313,6 +1334,130 @@ describe('StoreSaleRegisterComponent', () => {
       // Rivendicare un intento qui impedirebbe la seconda modifica legittima
       // dello stesso documento.
       expect(corpo.creationIntentId).toBeUndefined();
+    });
+
+    /**
+     * ⛔ LO SCENARIO CHE HA FATTO TROVARE IL DIFETTO.
+     *
+     * ```text
+     * 1. la create COMMITTA sul server
+     * 2. la risposta non arriva all'operatore (timeout, rete, tab)
+     * 3. l'operatore MODIFICA il carrello — cambia idea, aggiunge un pezzo
+     * 4. ripreme: stesso intento, contenuto diverso → creation_intent_mismatch
+     * ```
+     *
+     * ⛔ Trattare quel 409 come «errore certo» chiudeva l'intento, e il click
+     * successivo sarebbe diventato una SECONDA creazione — inconsapevole, perché
+     * l'operatore crede di non aver ancora salvato niente. È il difetto che T15
+     * esiste per chiudere, rientrato dalla porta della gestione errori.
+     *
+     * ⚠️ Il test guarda l'INTENTO, non il database: qui il server è un doppio.
+     * Che a un solo intento corrisponda un solo documento e un solo movimento è
+     * provato dai test di servizio (`store-sales.service.spec.ts` §T15A), dove il
+     * database finto esiste davvero. Qui si prova l'anello che mancava: che il
+     * client non regali al server l'occasione di crearne un secondo.
+     */
+    it('⛔ create committata + risposta persa + form modificato: il retry NON apre una seconda create', async () => {
+      const conflittoIntento = errore409({
+        code: 'creation_intent_mismatch',
+        scope: 'store_sale',
+        resultRef: 'doc-gia-creato',
+      });
+      const createSale = vi.fn((_body: unknown) => throwError(() => conflittoIntento));
+      const { fixture } = await setup({
+        variantIdByCode: 'var-1',
+        lookupItems: [ITEM],
+        createSale,
+      });
+      const component = componentOf(fixture);
+
+      await scan(EAN);
+      component.concludeSale();
+      const intentoPrima = intentiInviati(createSale)[0];
+
+      // L'operatore modifica il carrello e ripreme: contenuto diverso, e per il
+      // server è l'impronta a non tornare.
+      await scan(EAN);
+      component.concludeSale();
+
+      const [, intentoDopo] = intentiInviati(createSale);
+      // ⭐ L'intento NON è stato chiuso: il secondo comando porta lo stesso, e
+      // il server lo respinge di nuovo invece di creare.
+      expect(intentoDopo).toBe(intentoPrima);
+    });
+
+    it('⭐ e il documento già creato viene NOMINATO, per ricondurci l’operatore', async () => {
+      const createSale = vi.fn((_body: unknown) =>
+        throwError(() =>
+          errore409({
+            code: 'creation_intent_mismatch',
+            scope: 'store_sale',
+            resultRef: 'doc-gia-creato',
+          }),
+        ),
+      );
+      const { fixture } = await setup({
+        variantIdByCode: 'var-1',
+        lookupItems: [ITEM],
+        createSale,
+      });
+      const component = componentOf(fixture) as unknown as {
+        concludeSale(): void;
+        alreadyCreatedDocumentId(): string | null;
+      };
+
+      await scan(EAN);
+      component.concludeSale();
+
+      // Il riferimento arriva dal payload dell'errore: senza, l'operatore
+      // resterebbe davanti a un rifiuto senza sapere che la vendita c'è già.
+      expect(component.alreadyCreatedDocumentId()).toBe('doc-gia-creato');
+    });
+
+    it('⭐ `document_number_taken` invece CHIUDE l’intento: non è stato creato niente', async () => {
+      // Stesso stato HTTP, esito opposto: la transazione ha fatto rollback.
+      const createSale = vi.fn((_body: unknown) =>
+        throwError(() =>
+          errore409({ code: 'document_number_taken', number: 7, nextAvailable: 8, series: 'A' }),
+        ),
+      );
+      const { fixture } = await setup({
+        variantIdByCode: 'var-1',
+        lookupItems: [ITEM],
+        createSale,
+      });
+      const component = componentOf(fixture);
+
+      await scan(EAN);
+      component.concludeSale();
+      await scan(EAN);
+      component.concludeSale();
+
+      const [primo, secondo] = intentiInviati(createSale);
+      // ⛔ È la ragione per cui non basta guardare lo stato: 409 non è una
+      // categoria sola, e qui chiudere è corretto.
+      expect(secondo).not.toBe(primo);
+    });
+
+    it('`creation_intent_in_progress`: l’intento resta, la prima richiesta lo tiene', async () => {
+      const createSale = vi.fn((_body: unknown) =>
+        throwError(() => errore409({ code: 'creation_intent_in_progress', resultRef: null })),
+      );
+      const { fixture } = await setup({
+        variantIdByCode: 'var-1',
+        lookupItems: [ITEM],
+        createSale,
+      });
+      const component = componentOf(fixture);
+
+      await scan(EAN);
+      component.concludeSale();
+      component.concludeSale();
+
+      const [primo, secondo] = intentiInviati(createSale);
+      // ⚠️ `resultRef` è null — il record non esiste ANCORA — ma l'intento è
+      // occupato lo stesso: a decidere è il codice, non il riferimento.
+      expect(secondo).toBe(primo);
     });
 
     it('⚠️ il doppio clic lo ferma il pending — ma NON è ciò che garantisce l’idempotenza', async () => {

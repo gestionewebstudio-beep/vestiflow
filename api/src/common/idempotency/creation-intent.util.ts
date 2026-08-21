@@ -152,6 +152,18 @@ export class CreationIntentService {
         message:
           'Questa richiesta riusa l’identificativo di un’operazione diversa già registrata. Ricarica la pagina e riprova.',
         scope: esistente.scope,
+        // ⭐ Il riferimento al record GIÀ CREATO con questo intento.
+        //
+        // ⛔ Senza, il client non ha modo di distinguere questo 409 da uno in
+        // cui non è stato creato niente — e trattandoli uguali chiuderebbe
+        // l'intento, permettendo al click successivo di diventare una SECONDA
+        // creazione inconsapevole. È esattamente il difetto che T15 esiste per
+        // chiudere, rientrato dalla porta della gestione errori.
+        //
+        // ⚠️ `null` se la prima richiesta ha rivendicato e non ha ancora finito:
+        // il record non esiste ancora, ma l'intento è comunque OCCUPATO e non va
+        // chiuso.
+        resultRef: esistente.resultRef,
       });
     }
     if (!esistente.resultRef) {

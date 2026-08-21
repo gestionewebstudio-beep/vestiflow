@@ -21,6 +21,10 @@ import { AuthService } from '@core/auth';
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
+import {
+  creationIntentErrorOf,
+  creationIntentStillHeld,
+} from '@core/models/creation-intent-error.util';
 import type { EntityId } from '@core/models/common.model';
 import { customerDisplayName, type Customer } from '@core/models/customer.model';
 import type { Money } from '@core/models/money.model';
@@ -412,14 +416,34 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
    *
    * | | conservando | chiudendo |
    * | --- | --- | --- |
-   * | errore **incerto** (timeout, rete, 5xx) | ✅ il reinvio è riconosciuto | ⛔ si crea una SECONDA vendita |
-   * | errore **certo** (422, 403, 409…) | ⛔ correggere e risalvare dà «intento riusato» | ✅ si riparte pulito |
+   * | non si sa se ha creato (timeout, rete, 5xx) | ✅ il reinvio è riconosciuto | ⛔ si crea una SECONDA vendita |
+   * | si sa che non ha creato (422, 403…) | ⛔ correggere e risalvare dà «intento riusato» | ✅ si riparte pulito |
    *
    * ⚠️ `Server` (5xx) sta fra gli INCERTI di proposito: un 500 può arrivare
    * anche dopo il commit, e sbagliare da quel lato crea un documento di troppo —
    * mentre sbagliare dall'altro produce solo un messaggio da rileggere.
+   *
+   * ⛔ **E il 409 NON è una categoria sola.** Qui c'era `Conflict` fra i «certi»,
+   * ed era troppo largo: sotto quello stesso stato convivono due esiti opposti.
+   *
+   * ```text
+   * document_number_taken        la transazione ha fatto rollback: NIENTE creato
+   *                              → l'intento si può chiudere
+   * creation_intent_mismatch     quell'intento ha GIÀ prodotto un documento
+   * creation_intent_in_progress  la prima richiesta lo tiene, e non ha finito
+   *                              → chiuderlo renderebbe il click successivo una
+   *                                SECONDA creazione inconsapevole
+   * ```
+   *
+   * È il difetto che T15 chiude, che rientrava dalla porta della gestione
+   * errori: lo stato HTTP non basta, serve il codice nel corpo.
    */
   private rotateCreationIntentIfCertain(error: unknown): void {
+    // ⛔ Prima di tutto: l'intento è ancora occupato? Se sì non si tocca,
+    // qualunque cosa dica lo stato HTTP.
+    if (creationIntentStillHeld(error)) {
+      return;
+    }
     const incerto =
       !isAppError(error) ||
       error.kind === AppErrorKind.Timeout ||
@@ -429,6 +453,20 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
     if (!incerto) {
       this.closeCreationIntent();
     }
+  }
+
+  /**
+   * Il documento che quell'intento aveva già creato, quando il server lo nomina.
+   *
+   * ⚠️ Serve a **ricondurre l'operatore al documento**, non a decidere: chi
+   * decide se l'intento è riusabile è il codice dell'errore, non la presenza di
+   * questo riferimento (vedi `creationIntentStillHeld`).
+   */
+  protected readonly alreadyCreatedDocumentId = signal<string | null>(null);
+
+  /** Registra il documento già creato, se il server lo nomina; altrimenti pulisce. */
+  private noteAlreadyCreatedDocument(error: unknown): void {
+    this.alreadyCreatedDocumentId.set(creationIntentErrorOf(error)?.resultRef ?? null);
   }
 
   private readonly loadTick = signal(0);
@@ -1304,8 +1342,10 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
           this.salePending.set(false);
           this.saleConfirmOpen.set(false);
           this.saleError.set(this.errorMessage(err));
-          // T15B: si conserva solo se l'errore lascia il dubbio che il server
-          // abbia committato lo stesso.
+          // T15B: si conserva se l'errore lascia il dubbio che il server abbia
+          // committato lo stesso, E se dice che l'intento ha già prodotto un
+          // documento.
+          this.noteAlreadyCreatedDocument(err);
           this.rotateCreationIntentIfCertain(err);
         },
       });
