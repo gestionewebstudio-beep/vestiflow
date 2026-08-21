@@ -84,12 +84,13 @@ strumenti di lavoro. Non ci si cercano decisioni.
 
 ## Vendita al banco — `11`
 
-| Decisione                                                                                            | Dove       |
-| ---------------------------------------------------------------------------------------------------- | ---------- |
-| Due tasti diretti alla creazione: **Nuova vendita** e **Nuovo reso**, nessun selettore dentro        | A2 · A3    |
-| **Ordine cliente è il riferimento MOBILE e operativo**, non la grafica desktop da copiare            | A12        |
-| **L'elenco Vendita/Reso nasce sulla grammatica comune** dei riepiloghi, non su una schermata copiata | A11-quater |
-| «Vendita negozio» è **legacy**: il nome è «Vendita al banco»                                         | A6         |
+| Decisione                                                                                                                                                                | Dove       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
+| Due tasti diretti alla creazione: **Nuova vendita** e **Nuovo reso**, nessun selettore dentro                                                                            | A2 · A3    |
+| **Ordine cliente è il riferimento della MASCHERA** «Nuovo ordine cliente» — il form operativo, mobile compreso. ⛔ **Non** del riepilogo, che segue la grammatica comune | A12 · `03` |
+| **L'elenco Vendita/Reso nasce sulla grammatica comune** dei riepiloghi, non su una schermata copiata                                                                     | A11-quater |
+| **Vendita e Reso al banco sono MODIFICABILI** anche dopo la conclusione: si riaprono, si correggono, si risalvano e si eliminano, con gli effetti riallineati            | A2         |
+| «Vendita negozio» è **legacy**: il nome è «Vendita al banco»                                                                                                             | A6         |
 
 ---
 
@@ -108,7 +109,6 @@ strumenti di lavoro. Non ci si cercano decisioni.
 | **Stampa/PDF** come menu per tipo documento                                                          | `14` §E2           |
 | **Giacenze e Situazione**: in pausa                                                                  | `14` §C0.0         |
 | **Corrispettivi nel motore tabella**: fermi, e non per pigrizia                                      | `14` §H14          |
-| La **Proforma** nella matrice documentale                                                            | `11` A7            |
 | **Riga manuale** senza articolo in anagrafica                                                        | `11` A21           |
 | **Header di sicurezza** del documento HTML — lacuna aperta                                           | `regole-sicurezza` |
 

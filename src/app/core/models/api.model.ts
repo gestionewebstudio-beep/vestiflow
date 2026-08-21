@@ -6,15 +6,6 @@ export interface PageMeta {
   readonly pageSize: number;
   readonly total: number;
   readonly totalPages: number;
-  /**
-   * ⭐ **La risposta è stata tagliata al tetto** delle liste senza pagine
-   * (`14` §H14-bis).
-   *
-   * ⛔ Esiste perché una lista troncata in silenzio è peggio di una paginata:
-   * sembra completa. Chi la riceve deve dirlo a schermo — «di `total` ne
-   * vedi `pageSize`, restringi il periodo» — non ignorarla.
-   */
-  readonly truncated?: boolean;
 }
 
 /** Risposta API paginata per liste. */

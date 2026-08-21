@@ -964,7 +964,8 @@ indipendenti**, alcuni dei quali non passano nemmeno dal backend.
 2. **Il comando si chiama «Genera documento» ovunque** — «Concludi ordine» ritirato il 18/08;
    sparisce il nome, non il comportamento.
 
-⏸️ **Aperto:** la posizione della **Proforma** nella matrice, da censire in `12` senza
+✅ **Chiuso il 21/08/2026:** la posizione della **Proforma** nella matrice è censita in `12` —
+non include nulla, genera verso DDT vendita e Fattura. Qui c'era «da censire in `12` senza
 aggiungere collegamenti non verificati.
 
 ---

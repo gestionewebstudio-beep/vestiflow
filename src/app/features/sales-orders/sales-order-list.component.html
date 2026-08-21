@@ -287,19 +287,6 @@
       (selectionChange)="onToggleSelection($event)"
       (selectAllChange)="onToggleSelectAll($event)"
     />
-    @if (meta().truncated) {
-      <!-- Il tetto ha tagliato: va detto (`14` §H14-bis). -->
-      <app-inline-banner
-        tone="warning"
-        [message]="
-          'Mostrati i primi ' +
-          meta().pageSize +
-          ' ordini di ' +
-          meta().total +
-          ': restringi il periodo per vederli tutti.'
-        "
-      />
-    }
   }
 
   <!-- Eliminazione a due conferme (avviso + conferma finale), come Arrivi merce. -->

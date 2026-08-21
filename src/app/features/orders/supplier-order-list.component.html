@@ -153,19 +153,6 @@
         <span class="po-list__attesa">{{ cellText(order, 'expected') }}</span>
       </ng-template>
     </app-data-table>
-    @if (meta().truncated) {
-      <!-- Il tetto ha tagliato: va detto (`14` §H14-bis). -->
-      <app-inline-banner
-        tone="warning"
-        [message]="
-          'Mostrati i primi ' +
-          meta().pageSize +
-          ' ordini di ' +
-          meta().total +
-          ': restringi il periodo per vederli tutti.'
-        "
-      />
-    }
   }
 
   <!-- Pannello filtri mobile: lo stesso filtro della toolbar, a tutta

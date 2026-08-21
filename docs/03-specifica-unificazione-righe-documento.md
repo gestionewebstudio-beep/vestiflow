@@ -70,7 +70,11 @@ La frase che comanda tutte le scelte: **semplificare il codice e unificare le pa
 ### Principi già stabiliti che questo lavoro rispetta
 
 - Decisioni prese una volta, applicate ovunque — nessuna eccezione per tipo di documento.
-- I documenti (di questa lista) devono somigliarsi. **Ordine cliente è il riferimento "quasi completo".**
+- I documenti (di questa lista) devono somigliarsi. **Ordine cliente è il riferimento della
+  MASCHERA** — la struttura del form «Nuovo ordine cliente», che è la più completa.
+  ⚠️ _Qualificato il 21/08/2026._ Qui c'era «il riferimento "quasi completo"», formula troppo
+  generica: **non** vale per i riepiloghi, che seguono la grammatica comune degli elenchi
+  (`14` §F6). Riguarda il form operativo e le sue righe.
 - I controlli sono avvisi, mai blocchi — salvo dove una modifica è priva di senso.
 - Nessuno stato bozza: il documento è confermato o non esiste. Il salvataggio avviene solo col pulsante, mai come effetto di una navigazione.
 - Il documento è una **fotografia**: la riga cattura i valori all'inserimento (prezzo, costo, e ora U.M.) e li tiene per sé, indipendenti da come cambia l'anagrafica dopo.

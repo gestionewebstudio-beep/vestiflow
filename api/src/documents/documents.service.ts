@@ -132,7 +132,7 @@ import type { ListDocumentOperatorsQueryDto } from './dto/list-document-operator
 import type { ListDocumentsQueryDto } from './dto/list-documents.query.dto';
 import type { UpdateDocumentDto } from './dto/update-document.dto';
 import { parseDocumentListSort } from './documents-sort.util';
-import { pageWindow, unpagedResult } from '../common/dto/unpaged.util';
+import { pageWindow } from '../common/dto/unpaged.util';
 
 export type DocumentWithLines = Document & { lines: DocumentLine[] };
 
@@ -490,12 +490,9 @@ export class DocumentsService {
       }),
     );
 
-    // ⭐ Senza pagine il taglio va DICHIARATO (`14` §H14-bis): una lista
-    // troncata in silenzio sembra completa, ed è peggio di una paginata.
-    if (query.all) {
-      const esito = unpagedResult(items, total);
-      return { ...esito, items: esito.items as DocumentListRow[] };
-    }
+    // ⛔ Nessun tetto sulle righe (deciso il 21/08/2026): con `all` si
+    // consegna tutto il risultato del filtro, e a contenerlo è il PERIODO —
+    // l'elenco si apre sugli ultimi 30 giorni.
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 

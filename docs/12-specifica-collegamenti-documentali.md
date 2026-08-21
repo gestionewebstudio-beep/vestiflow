@@ -157,7 +157,7 @@ documento, che cosa posso tirarci dentro e che cosa posso farne nascere.
 | **Fattura**                 | Preventivo · Ordine cliente · DDT vendita · **Vendita al banco** | Nota di credito                                                                                                                                                                                                                                    |
 | **Fattura accompagnatoria** | Preventivo · Ordine cliente · **Vendita al banco** — **mai DDT** | Nota di credito                                                                                                                                                                                                                                    |
 | **Nota di credito**         | **non usa** «Includi documento»                                  | —                                                                                                                                                                                                                                                  |
-| **Proforma**                | ⏸️ da censire nella matrice definitiva                           | ⏸️ da censire — oggi genera già verso DDT vendita e Fattura                                                                                                                                                                                        |
+| **Proforma**                | **niente**: non ha sorgenti includibili                          | **DDT vendita · Fattura**                                                                                                                                                                                                                          |
 
 ### ⛔ Due righe che NON vanno aggiunte — ritirate il 18/08/2026
 
@@ -183,7 +183,7 @@ Serve o fra sei mesi la differenza non si vede più.
 | **Fattura → Nota di credito** e **Accompagnatoria → Nota di credito**                        | **deciso 16/08**, con la tabella per tipo in `07` §6                                |
 | la **Vendita al banco** in entrambe le colonne                                               | **deciso 18/08**                                                                    |
 | tutto il resto della colonna **Genera**                                                      | **nuovo, deciso il 18/08** — non era mai stato scritto                              |
-| **Proforma**                                                                                 | **non deciso**: da censire — ma quello che genera oggi è misurato, e sta nella riga |
+| **Proforma**                                                                                 | ✅ **censita il 21/08/2026**: non include nulla, genera verso DDT vendita e Fattura |
 
 ### ⚠️ «Bozza fattura» non è un tipo documentale
 
@@ -763,3 +763,18 @@ rifiuta». — _letto_
 E `SALES_FORM_ROUTE_SEGMENT` (`document-routing.util.ts:28`) è un `Record<...>` **esaustivo**: un
 tipo senza segmento **non compila**. È la forma di punto unico che il progetto usa già, e che i
 tre `switch` di rotta non usano. — _letto_
+
+---
+
+## ✅ La Proforma non è più «da censire» — 21/08/2026
+
+_Il proprietario ha ritirato la cautela: «la mappatura è già stata definita completamente, non
+va riaperta»._ La riga mancante è stata **censita nel codice**, non decisa a tavolino:
+
+|             |                                                                                                                                                                                                         |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Includi** | ⛔ **niente**. `IncludeSourceKind` non comprende la Proforma, e il commento del codice dice perché: «aggiungerci Proforma e DDT li renderebbe sorgenti includibili — un effetto che nessuno ha chiesto» |
+| **Genera**  | ✅ **DDT vendita · Fattura**. `CONVERSION_SOURCE_LABELS` la porta come origine di conversione                                                                                                           |
+
+⚠️ **Non è una decisione nuova**: è la lettura di ciò che il codice fa, che è esattamente quello
+che «da censire» chiedeva. Le voci residue in `11` A7, `00` e `DA-FARE` sono state tolte.

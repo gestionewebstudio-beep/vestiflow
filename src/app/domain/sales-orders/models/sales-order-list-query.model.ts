@@ -53,8 +53,9 @@ export interface SalesOrderListQuery {
   readonly sort?: readonly DataTableSort[];
   /**
    * Chiede **tutto il risultato del filtro** invece di una pagina
-   * (`14` §H14-bis: i riepiloghi non impaginano). L'API taglia al proprio tetto
-   * e lo dichiara nel meta: chi riceve `truncated` deve dirlo a schermo.
+   * (`14` §H14-bis: i riepiloghi non impaginano). L'API consegna tutto il filtrato,
+   * ⛔ **Nessun tetto sulle righe**: a contenere l'insieme è il PERIODO — la
+   * lista si apre sugli ultimi 30 giorni — non un numero di righe.
    */
   readonly all?: boolean;
 }

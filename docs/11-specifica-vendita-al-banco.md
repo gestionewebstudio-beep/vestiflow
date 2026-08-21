@@ -24,10 +24,9 @@ non tratta, sta in B e va **sottoposto a decisione** — non promosso a regola p
 Elenco unico **perché due volte una domanda aperta è rimasta senza casa** e si è persa fra le
 sezioni. Ogni voce vive dove è nata; qui ci sono i rimandi.
 
-| Aperta                                                | Dove    |
-| ----------------------------------------------------- | ------- |
-| la **Proforma** nella matrice documentale: da censire | **A7**  |
-| **riga manuale** senza articolo in anagrafica         | **A21** |
+| Aperta                                        | Dove    |
+| --------------------------------------------- | ------- |
+| **riga manuale** senza articolo in anagrafica | **A21** |
 
 ⛔ **Nessuna di queste si chiude scrivendo codice che funziona.** Si chiudono decidendo, e
 solo dopo si scrive. È la regola che questo documento ha già violato una volta.
@@ -640,7 +639,9 @@ La regola vale per tutti i tipi e la sua fonte è `12` — qui non se ne tiene u
 ⚠️ **«Concludi vendita» non la viola** (**A17**): è l'**azione finale interna** del documento,
 quella che lo chiude e ne produce gli effetti, non una terza categoria della matrice.
 
-⏸️ **Resta da censire** la posizione della **Proforma** nella matrice: la questione è nata qui,
+✅ **Censita il 21/08/2026** la posizione della **Proforma** nella matrice (`12`): non include
+nulla, genera verso DDT vendita e Fattura. La cautela sul farla riconfermare è stata ritirata dal
+proprietario — la mappatura Includi/Genera è definita, e non si riapre. La questione era nata qui,
 ma è un'apertura della matrice e vive in `12`.
 
 ### Un solo effetto fisico per una sola uscita — applicazione a questo tipo
@@ -1009,6 +1010,11 @@ maschera prende da lui i pezzi già risolti, non l'aspetto.
 | **grammatica visiva**         | `summary-grammar()`: 12px · 4×12 · intestazione 32px MAIUSCOLA · niente divisori              |
 | **niente pagine, 30 giorni**  | i riepiloghi non impaginano; il tetto si dichiara nel meta                                    |
 | **ripiego a card sotto `lg`** | dal motore, con la card progettata dei Corrispettivi come riferimento mobile                  |
+
+⭐ **E il riepilogo dello Scarico manuale è già dentro**: è uno degli otto profili di
+`DocumentListComponent`, quindi eredita tutto quanto sopra senza migrazioni — censito il
+21/08/2026. Il suo **dominio** resta suo: la deroga sui movimenti (aggiorna la giacenza senza
+crearne) non c'entra con la struttura dell'elenco.
 
 ⚠️ **Quello che NON è ancora comune**, e che quindi va deciso quando ci si arriva: la vista a
 card della **riga documento** in inserimento (`app-document-line-card`, sette maschere) è cosa

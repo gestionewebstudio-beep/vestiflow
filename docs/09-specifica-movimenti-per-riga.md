@@ -168,7 +168,12 @@ L'appartenenza non è affidata al solo controllo applicativo: il `where` dell'up
 Il PATCH generico serve **Preventivo, Ordine cliente (documenti collegati), DDT vendita, Scarico manuale, Rettifica, Trasferimento, Proforma e la famiglia Fattura**. Ne restano fuori per costruzione, e non sono stati toccati:
 
 - **Arrivo merce e famiglia carico** — hanno il percorso dedicato, che l'upsert per id ce l'aveva già (`isDedicatedWorkflowDocumentType` rifiuta il PATCH generico);
-- **Vendite e resi di negozio** — non modificabili (`isFlowOnlyDocumentType`);
+- **Vendita e Reso al banco** — hanno la **loro maschera**, che li salva con la propria
+  riconciliazione (`isFlowOnlyDocumentType` chiude il percorso generico, non la modifica).
+  ⚠️ _Corretto il 21/08/2026._ Qui c'era «non modificabili», ed è **falso**: un documento
+  concluso si riapre, si corregge, si risalva e si elimina, con gli effetti riallineati secondo
+  il proprio contratto (`11` A2). Il codice lo dichiara già — il messaggio dell'API dice
+  «si modificano dalla loro maschera», non «non si modificano»;
 - **Ordine fornitore** — tabella diversa (`SupplierOrderLine`), e lì il difetto gemello resta: vedi `03b` §8.2, dove `supplierOrderLineId` viene azzerato a ogni salvataggio.
 
 ### Cosa NON è cambiato, di proposito
