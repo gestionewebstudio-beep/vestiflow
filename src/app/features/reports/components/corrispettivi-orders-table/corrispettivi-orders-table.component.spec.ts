@@ -151,3 +151,51 @@ describe('riga cliccabile del Registro', () => {
     expect(cella.getAttribute('aria-hidden')).toBeNull();
   });
 });
+
+/**
+ * ⛔ **L'ordinamento manuale esiste solo con «Raggruppa: Nessuno»** (`10` §20,
+ * deciso il 20/08/2026).
+ *
+ * Il raggruppamento per giorno è già una forma di ordinamento strutturato:
+ * sovrapporgliene un altro romperebbe subtotali e piedi di giornata. Qui si
+ * presidia il confine, che a occhio non si vede — un'intestazione che smette di
+ * essere premibile è una differenza di un pixel.
+ */
+describe('ordinamento del Registro', () => {
+  it('con «Raggruppa: Nessuno» le intestazioni si premono', async () => {
+    const chiavi = vi.fn();
+    await render(CorrispettiviOrdersTableComponent, {
+      inputs: { rows: [riga()], raggruppaPerGiorno: false },
+      on: { sortChange: chiavi },
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: /Data/ }));
+
+    expect(chiavi).toHaveBeenCalledWith([{ columnId: 'occurredAt', direction: 'asc' }]);
+  });
+
+  it('⛔ con «Raggruppa: Giorno» nessuna intestazione è un pulsante', async () => {
+    await render(CorrispettiviOrdersTableComponent, {
+      inputs: { rows: [riga()], raggruppaPerGiorno: true },
+    });
+
+    expect(screen.queryByRole('button', { name: /Data/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Totale/ })).toBeNull();
+  });
+
+  it('⭐ il ciclo è quello comune: seconda pressione, verso opposto', async () => {
+    const chiavi = vi.fn();
+    await render(CorrispettiviOrdersTableComponent, {
+      inputs: {
+        rows: [riga()],
+        raggruppaPerGiorno: false,
+        sort: [{ columnId: 'total', direction: 'asc' as const }],
+      },
+      on: { sortChange: chiavi },
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: /Totale/ }));
+
+    expect(chiavi).toHaveBeenCalledWith([{ columnId: 'total', direction: 'desc' }]);
+  });
+});
