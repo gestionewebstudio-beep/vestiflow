@@ -3,13 +3,15 @@ import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/route
 import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { of, throwError } from 'rxjs';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { DocumentStatus, DocumentType } from '@core/models/document.model';
 import type { DocumentRecord } from '@core/models/document.model';
 import { ViewportService } from '@core/services/viewport.service';
 import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 import { CustomerService } from '@domain/customers/services/customer.service';
+import { AuthService } from '@core/auth';
+import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
 import { DocumentService } from '@domain/documents/services/document.service';
 import { VatCodeService } from '@core/services/vat-code.service';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
@@ -31,6 +33,22 @@ const SEDE = { id: 'loc-1', name: 'Negozio Milano' };
 const ALTRA_SEDE = { id: 'loc-2', name: 'Magazzino' };
 const ZERO = { amountMinor: 0, currencyCode: DEFAULT_CURRENCY };
 const EAN_NOTO = '8001234567890';
+
+/**
+ * Il contatore che il servizio comune propone in testata. `nextNumber` è il
+ * primo libero: la testata lo mostra come PROPOSTA, e finché nessuno lo tocca
+ * non viaggia al salvataggio — lo assegna il server.
+ */
+const CONTATORE = {
+  id: 'cnt-1',
+  type: DocumentType.StoreSale,
+  series: null,
+  locationId: null,
+  locationName: null,
+  isDefault: true,
+  nextNumber: 41,
+  documentCount: 40,
+};
 
 /** Codice IVA attivo di vendita: la cella IVA della riga ne offre le voci. */
 const VAT_22 = {
@@ -207,6 +225,10 @@ interface SetupOptions {
   readonly variant?: typeof VARIANTE;
   /** Vista compatta (card) invece della tabella: il criterio responsive comune. */
   readonly compact?: boolean;
+  /** I contatori che il servizio comune offre alla testata. */
+  readonly counters?: readonly unknown[];
+  /** Il contatore proposto; `null` = nessuno, e allora la serie si sceglie. */
+  readonly proposedCounterId?: string | null;
 }
 
 async function setup(options: SetupOptions = {}) {
@@ -214,6 +236,13 @@ async function setup(options: SetupOptions = {}) {
   const defaultLocation = options.defaultLocation === undefined ? SEDE.id : options.defaultLocation;
   const createSale = options.createSale ?? vi.fn(() => of(ESITO));
   const createReturn = options.createReturn ?? vi.fn(() => of(ESITO));
+  const available = vi.fn(() =>
+    of({
+      counters: options.counters ?? [CONTATORE],
+      proposedCounterId:
+        options.proposedCounterId === undefined ? CONTATORE.id : options.proposedCounterId,
+    }),
+  );
   const getDocumentById = vi.fn(() =>
     options.loadFails
       ? throwError(() => ({ kind: 'server', message: 'Errore.' }))
@@ -292,6 +321,14 @@ async function setup(options: SetupOptions = {}) {
         provide: ViewportService,
         useValue: { compact: () => options.compact ?? false },
       },
+      // Numerazione: il servizio comune dei contatori (T8B). Il banco non ne
+      // ha uno proprio — è lo stesso delle altre sette maschere.
+      { provide: DocumentCountersService, useValue: { available } },
+      {
+        // Senza permesso l'ingranaggio «gestisci numerazioni» non compare.
+        provide: AuthService,
+        useValue: { currentUser: () => null },
+      },
     ],
   });
 
@@ -303,8 +340,14 @@ async function setup(options: SetupOptions = {}) {
     onStockToggle(line: StoreSaleDocumentLine, checked: boolean): void;
     onQuantityInput(line: StoreSaleDocumentLine, raw: string): void;
     onLocationChange(value: string | null): void;
+    /** Lo store comune della numerazione: il banco non ne ha uno proprio. */
+    numbering: {
+      onNumberChange(value: number | null): void;
+      onSeriesChange(value: string): void;
+      seriesOptions(): readonly { value: string; label: string }[];
+    };
   };
-  return { ...rendered, component, createSale, createReturn, getDocumentById };
+  return { ...rendered, component, createSale, createReturn, getDocumentById, available };
 }
 
 const corpoVendita = (spia: ReturnType<typeof vi.fn>, chiamata = 0): CreateStoreSalePayload =>
@@ -314,6 +357,21 @@ const corpoReso = (spia: ReturnType<typeof vi.fn>, chiamata = 0): CreateStoreRet
   spia.mock.calls[chiamata]![0] as CreateStoreReturnPayload;
 
 describe('StoreSaleDocumentFormComponent', () => {
+  // jsdom non implementa <dialog>: senza questo, l'avviso «numero già usato»
+  // esplode con «showModal is not a function». È un limite dell'ambiente di
+  // prova, non del componente.
+  beforeAll(() => {
+    const proto = globalThis.HTMLDialogElement?.prototype;
+    if (proto && !proto.showModal) {
+      proto.showModal = function showModal(this: HTMLDialogElement) {
+        this.open = true;
+      };
+      proto.close = function close(this: HTMLDialogElement) {
+        this.open = false;
+      };
+    }
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
   });
@@ -1158,6 +1216,149 @@ describe('StoreSaleDocumentFormComponent', () => {
       component.save();
 
       expect(component.alreadyCreatedDocumentId()).toBe('doc-esistente');
+    });
+  });
+
+  // ── Numero e serie: il contratto comune (T8B) ──────────────────────────
+  //
+  // ⛔ Nessuna numerazione del banco: quello che si verifica qui è che la
+  // maschera usi il contratto comune, non che ne abbia uno suo.
+  describe('numero e serie (T8B)', () => {
+    const CONTATORE_B = { ...CONTATORE, id: 'cnt-2', series: 'B', isDefault: false, nextNumber: 5 };
+
+    function campoNumero(container: HTMLElement): HTMLInputElement {
+      // Per id, non per etichetta: la testata porta i due gemelli — pannello
+      // mobile e griglia desktop — e «Numero» li nominerebbe entrambi.
+      return container.querySelector<HTMLInputElement>('#ssf-number')!;
+    }
+
+    async function conRiga(rendered: Awaited<ReturnType<typeof setup>>) {
+      const campo = screen.getByLabelText('Scansiona o cerca un articolo');
+      await userEvent.type(campo, `${EAN_NOTO}{enter}`);
+      rendered.fixture.detectChanges();
+      return rendered;
+    }
+
+    it('⭐ documento nuovo: la testata mostra il primo libero — ma non lo manda', async () => {
+      // È una PROPOSTA: lo prende chi salva per primo, e finché nessuno la
+      // tocca il numero lo assegna il server dentro la transazione.
+      const createSale = vi.fn(() => of(ESITO));
+      const rendered = await conRiga(await setup({ createSale }));
+
+      expect(campoNumero(rendered.container).value).toBe('41');
+
+      rendered.component.save();
+
+      expect(corpoVendita(createSale).number).toBeUndefined();
+      // Serie mai scelta = «decidi tu»: la sceglie il server col predefinito.
+      expect(corpoVendita(createSale).series).toBeUndefined();
+    });
+
+    it('⭐ numero DIGITATO: da lì è una scelta, e viaggia', async () => {
+      const createSale = vi.fn(() => of(ESITO));
+      const rendered = await conRiga(await setup({ createSale }));
+
+      const campo = campoNumero(rendered.container);
+      await userEvent.clear(campo);
+      await userEvent.type(campo, '77');
+      rendered.fixture.detectChanges();
+      rendered.component.save();
+
+      expect(corpoVendita(createSale).number).toBe(77);
+    });
+
+    it('⭐ «Senza serie» è una SCELTA, e viaggia come stringa vuota', async () => {
+      // ⛔ Ometterla la farebbe leggere come «decidi tu», e il documento
+      // uscirebbe sotto la serie predefinita: il contrario di ciò che si è
+      // scelto.
+      const createSale = vi.fn(() => of(ESITO));
+      const rendered = await conRiga(
+        await setup({ createSale, counters: [CONTATORE, CONTATORE_B] }),
+      );
+
+      rendered.component.numbering.onSeriesChange('');
+      rendered.fixture.detectChanges();
+      rendered.component.save();
+
+      expect(corpoVendita(createSale).series).toBe('');
+    });
+
+    it('⭐ in MODIFICA numero e serie si caricano, e restano MODIFICABILI', async () => {
+      // Correzione del proprietario, 21/08/2026: il banco non fa eccezione al
+      // contratto comune. Il server li scriveva solo alla nascita — era un gap.
+      const createSale = vi.fn(() => of(ESITO));
+      const rendered = await setup({ createSale, editId: 'doc-sale-1' });
+      rendered.fixture.detectChanges();
+
+      const campo = campoNumero(rendered.container);
+      expect(campo.value).toBe('12');
+      expect(campo.disabled).toBe(false);
+
+      await userEvent.clear(campo);
+      await userEvent.type(campo, '13');
+      rendered.fixture.detectChanges();
+      rendered.component.save();
+
+      expect(corpoVendita(createSale).number).toBe(13);
+      // In modifica la serie viaggia SEMPRE: è del documento, e ometterla
+      // dopo un cambio lo lascerebbe con quella vecchia.
+      expect(corpoVendita(createSale).series).toBe('');
+    });
+
+    it('⭐ cambio di SEDE: i contatori si richiedono di nuovo', async () => {
+      // Un contatore legato a una sede vale solo lì: senza ricarica la tendina
+      // offrirebbe serie che in questa sede non si possono usare.
+      const rendered = await setup({ defaultLocation: SEDE.id });
+      const prima = rendered.available.mock.calls.length;
+
+      rendered.component.onLocationChange(ALTRA_SEDE.id);
+      rendered.fixture.detectChanges();
+
+      expect(rendered.available.mock.calls.length).toBeGreaterThan(prima);
+    });
+
+    it('⭐ concluso un documento, il successivo riparte da una PROPOSTA', async () => {
+      const createSale = vi.fn(() => of(ESITO));
+      const rendered = await conRiga(await setup({ createSale }));
+      const campo = campoNumero(rendered.container);
+      await userEvent.clear(campo);
+      await userEvent.type(campo, '77');
+      rendered.fixture.detectChanges();
+
+      rendered.component.save();
+      rendered.fixture.detectChanges();
+      await conRiga(rendered);
+      rendered.component.save();
+
+      // ⛔ Il documento dopo non eredita il numero imposto per quello prima:
+      // sarebbe un numero già usato, mandato di nuovo come scelta.
+      expect(corpoVendita(createSale, 1).number).toBeUndefined();
+    });
+
+    it('⭐ numero già preso: l’avviso scrive in testata il primo libero', async () => {
+      const createSale = vi.fn(() =>
+        throwError(() =>
+          errore409({
+            code: 'document_number_taken',
+            number: 41,
+            nextAvailable: 42,
+            series: null,
+          }),
+        ),
+      );
+      const rendered = await conRiga(await setup({ createSale }));
+
+      rendered.component.save();
+      rendered.fixture.detectChanges();
+
+      expect(screen.getByText('Numero già usato')).toBeTruthy();
+
+      await userEvent.click(screen.getByRole('button', { name: 'OK' }));
+      rendered.fixture.detectChanges();
+
+      // Ridigitarlo a mano sarebbe l'occasione per un errore di battitura e
+      // un secondo conflitto: il numero nuovo lo scrive la maschera.
+      expect(campoNumero(rendered.container).value).toBe('42');
     });
   });
 });

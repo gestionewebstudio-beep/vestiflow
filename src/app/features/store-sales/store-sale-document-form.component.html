@@ -100,6 +100,20 @@
                     [fullWidth]="true"
                   />
                 </div>
+
+                <!-- Numero e serie: il campo comune, con la proposta del primo libero.
+                     ⭐ Modificabili anche in modifica, come su ogni altro documento. -->
+                <app-document-number-field
+                  numberInputId="ssf-m-number"
+                  [number]="form.controls.documentNumber.value"
+                  [isProposal]="numberIsProposal()"
+                  [series]="form.controls.series.value"
+                  [seriesOptions]="numbering.seriesOptions()"
+                  [canManageSeries]="canManageSeries()"
+                  (numberChange)="numbering.onNumberChange($event)"
+                  (seriesChange)="numbering.onSeriesChange($event)"
+                  (manageSeries)="seriesDialogOpen.set(true)"
+                />
               </div>
             </app-document-mobile-panel>
           </div>
@@ -152,6 +166,20 @@
                   [fullWidth]="true"
                 />
               </div>
+
+              <!-- Numero e serie: il campo comune, con la proposta del primo libero.
+                   ⭐ Modificabili anche in modifica, come su ogni altro documento. -->
+              <app-document-number-field
+                numberInputId="ssf-number"
+                [number]="form.controls.documentNumber.value"
+                [isProposal]="numberIsProposal()"
+                [series]="form.controls.series.value"
+                [seriesOptions]="numbering.seriesOptions()"
+                [canManageSeries]="canManageSeries()"
+                (numberChange)="numbering.onNumberChange($event)"
+                (seriesChange)="numbering.onSeriesChange($event)"
+                (manageSeries)="seriesDialogOpen.set(true)"
+              />
             </div>
           </div>
         </div>
@@ -653,6 +681,27 @@
         (dismissed)="cancelExit()"
       />
     }
+
+    <!-- Numero già assegnato: avviso di presa d'atto, non una scelta. Il
+         documento NON è salvato; il messaggio nomina il numero rifiutato e il
+         primo libero, e la testata riceve quest'ultimo. -->
+    <app-confirm-dialog
+      [(open)]="conflictDialogOpen"
+      title="Numero già usato"
+      [message]="conflictMessage()"
+      confirmLabel="OK"
+      [acknowledge]="true"
+      (confirmed)="acknowledgeConflictNumber()"
+      (dismissed)="acknowledgeConflictNumber()"
+    />
+
+    <!-- Gestione numerazioni del tipo corrente, dall'ingranaggio del campo
+         Serie: lo stesso pannello delle Impostazioni, filtrato sul tipo. -->
+    <app-document-series-manager-dialog
+      [type]="descriptor.documentType"
+      [open]="seriesDialogOpen()"
+      (closed)="onSeriesManagerClosed()"
+    />
 
     <!-- Ricerca articolo: il pannello condiviso con gli altri documenti. -->
     <app-slide-panel

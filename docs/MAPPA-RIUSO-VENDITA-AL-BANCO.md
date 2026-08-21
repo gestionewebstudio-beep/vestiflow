@@ -790,10 +790,11 @@ stato valido e verificabile.
 ```text
 ✅ 1 · T13         chiuso — 73c1fd49
 ✅ 2 · E-1         chiuso — 2412719d       (E-2/E-3/E-4 restano rinviabili, come già scritto)
-⚠️ 3 · E-6 · E-7   PARZIALE: il lato SERVER è chiuso (T7B, 0e49cd21).
-                   Il lato CLIENT — DocumentNumberField, DocumentNumberingStore,
-                   DocumentCountersService.available — è T8B, e si fa DENTRO la
-                   maschera nuova. ⛔ Non sulla vecchia pos.
+✅ 3 · E-6 · E-7   chiuso — il lato SERVER lo era da T7B (0e49cd21); il lato
+                   CLIENT è entrato col passo 12-bis (T8B): il giro dei
+                   contatori e la presa d'atto del conflitto vivono nello
+                   store comune, e le sette maschere ci passano.
+                   ⛔ Mai toccata la vecchia pos.
 ✅ 4 · T1 + T2     chiuso — 7fd05142
 ✅ 5 · T3 + T4     chiuso — 52a25b71 · ea9d029d
 ✅ 6 · T6          chiuso — 4f537d0c
@@ -833,13 +834,19 @@ stato valido e verificabile.
                    ⛔ Sconto extra NON esposto finché D1 è aperta (`11` A16);
                    ⛔ nessun pagamento e nessun rimborso: seguono il blocco
                    Pagamenti/Tesoreria. ⛔ Sempre nessuna rotta montata.
-⛔ 12-bis · T8B    APERTO, e **precede il passo 13** (decisione del proprietario,
+✅ 12-bis · T8B    CHIUSO il 21/08, e **precedeva il passo 13** (decisione del proprietario,
                    21/08/2026): numero e serie in testata col contratto comune —
                    DocumentNumberField, DocumentNumberingStore, servizio dei
                    contatori, proposta, scelta serie, «Senza serie», numero
                    imposto, conflitto già chiuso lato server (T7B/T8A).
                    ⛔ Nessuna numerazione locale del banco, e ⛔ nessuna modifica
                    alla vecchia maschera.
+                   ⭐ Vale anche in MODIFICA (correzione del proprietario dello
+                   stesso giorno): il server scriveva numero e serie solo alla
+                   nascita, ed era un GAP TECNICO — riallineato al contratto
+                   comune, non trasformato in requisito. Il contratto vive ora
+                   in `resolveEditedDocumentNumbering`, che usano il percorso
+                   generico e il banco: uno solo, non una copia.
 ⛔ 12-ter · CHECKPOINT prima di spostare le rotte: si verifica **che cosa resta
                    differito** (D1 sconto extra, HID, e quanto altro emerga) e
                    si decide se il cutover è autorizzato. ⛔ L'ordine numerico
@@ -1037,9 +1044,16 @@ o si fanno insieme, o si esce da un documento aperto senza che nessuno lo chieda
       `prefillDefaultLocation`, e il cambio sede non riscrive più il contesto
       attivo dell'applicazione: quello è del selettore in topbar.
 
-12-bis · T8B — numero e serie, col contratto comune. ⛔ PRIMA del passo 13:
-      la maschera non può sostituire quella legacy senza la numerazione che
-      ogni altro documento ha (decisione del proprietario, 21/08/2026).
+12-bis · T8B ✅ CHIUSO 21/08 — numero e serie col contratto comune:
+      DocumentNumberField in entrambe le vesti, DocumentNumberingStore,
+      DocumentCountersService.available, proposta, scelta serie, «Senza
+      serie», numero imposto, pannello numerazioni e avviso di conflitto.
+      Con lui sono entrate E-6 (giro dei contatori) ed E-7 (presa d'atto),
+      estratte nello store comune e migrate su TUTTE e sette le maschere.
+      ⭐ E vale anche in MODIFICA: numero e serie restano modificabili come
+      su ogni altro documento (correzione del proprietario, 21/08). Il
+      server li scriveva solo alla nascita — era un GAP TECNICO, riallineato
+      al contratto comune e non trasformato in requisito.
 
 12-ter · CHECKPOINT. Prima di spostare le rotte e cancellare il legacy si
       elencano le cose ancora differite — D1 (sconto extra) e HID in testa — e

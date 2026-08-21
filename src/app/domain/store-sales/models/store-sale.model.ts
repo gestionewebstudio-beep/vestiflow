@@ -60,6 +60,28 @@ export interface CreateStoreSalePayload {
   readonly creationIntentId?: string;
   readonly locationId: EntityId;
   /**
+   * Serie del documento, col contratto comune (T8A).
+   *
+   * ⛔ `undefined` = **«decidi tu»**: il server sceglie col contatore predefinito
+   * della sede. `''` = **«Senza serie»**, che è una scelta come le altre e
+   * scavalca il predefinito. Collassare le due rimette in produzione il difetto
+   * per cui «Senza serie» usciva sotto la serie predefinita.
+   *
+   * ⚠️ In MODIFICA viaggia sempre: è del documento, e ometterla dopo un cambio
+   * lo lascerebbe con quella vecchia.
+   */
+  readonly series?: string;
+  /**
+   * Numero imposto dalla testata. Assente = lo assegna il server dentro la
+   * transazione che scrive — che è la risposta giusta per la **proposta** di un
+   * documento nuovo, e il motivo per cui due maschere aperte non si contendono
+   * un numero che nessuno ha digitato.
+   *
+   * ⚠️ Anche in modifica si può cambiare, come su ogni altro documento
+   * (correzione del proprietario, 21/08/2026): il banco non fa eccezione.
+   */
+  readonly number?: number;
+  /**
    * Metodo di pagamento, **facoltativo** (`11` A8).
    *
    * ⛔ Era obbligatorio per eredità della vecchia cassa, che un valore ce l'ha
@@ -152,6 +174,28 @@ export interface CreateStoreReturnPayload {
   /** Intento di creazione (T15B), identico alla Vendita. */
   readonly creationIntentId?: string;
   readonly locationId: EntityId;
+  /**
+   * Serie del documento, col contratto comune (T8A).
+   *
+   * ⛔ `undefined` = **«decidi tu»**: il server sceglie col contatore predefinito
+   * della sede. `''` = **«Senza serie»**, che è una scelta come le altre e
+   * scavalca il predefinito. Collassare le due rimette in produzione il difetto
+   * per cui «Senza serie» usciva sotto la serie predefinita.
+   *
+   * ⚠️ In MODIFICA viaggia sempre: è del documento, e ometterla dopo un cambio
+   * lo lascerebbe con quella vecchia.
+   */
+  readonly series?: string;
+  /**
+   * Numero imposto dalla testata. Assente = lo assegna il server dentro la
+   * transazione che scrive — che è la risposta giusta per la **proposta** di un
+   * documento nuovo, e il motivo per cui due maschere aperte non si contendono
+   * un numero che nessuno ha digitato.
+   *
+   * ⚠️ Anche in modifica si può cambiare, come su ogni altro documento
+   * (correzione del proprietario, 21/08/2026): il banco non fa eccezione.
+   */
+  readonly number?: number;
   /**
    * ⚠️ **Campo storico, e non più obbligatorio** (`11` A11: la causale del Reso
    * è facoltativa). Resta perché la maschera legacy lo manda; il campo vero è

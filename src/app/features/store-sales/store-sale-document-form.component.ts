@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  afterNextRender,
   ElementRef,
   computed,
   effect,
@@ -13,7 +14,16 @@ import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-i
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 
-import { catchError, map, of, startWith, switchMap, take, type Observable } from 'rxjs';
+import {
+  catchError,
+  distinctUntilChanged,
+  map,
+  of,
+  startWith,
+  switchMap,
+  take,
+  type Observable,
+} from 'rxjs';
 
 import { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
@@ -34,6 +44,10 @@ import {
   parseMoneyInput,
   toStorableMinor,
 } from '@core/utils/money.util';
+import { AuthService } from '@core/auth';
+import { documentNumberConflictOf } from '@core/models/document-number-conflict.util';
+import { TenantPermission } from '@core/models/tenant-permission.model';
+import { hasTenantPermission } from '@core/permissions/user-permissions.util';
 import { CustomerService } from '@domain/customers/services/customer.service';
 import { DocumentLineSelectCellComponent } from '@domain/documents/components/document-line-select-cell/document-line-select-cell.component';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
@@ -41,7 +55,11 @@ import { DocumentProductSearchPanelComponent } from '@domain/documents/component
 import { PriceModeMenuComponent } from '@domain/documents/components/price-mode-menu/price-mode-menu.component';
 import { priceModeRowLabel } from '@domain/documents/models/document-price-mode.util';
 import { DocumentService } from '@domain/documents/services/document.service';
+import { DocumentSeriesManagerDialogComponent } from '@domain/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
+import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
 import { DocumentLineSearchPanelStore } from '@domain/documents/state/document-line-search-panel.store';
+import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
+import { DocumentNumberingStore } from '@domain/documents/state/document-numbering.store';
 import { vatOptionsIncludingSelected } from '@domain/documents/utils/document-vat-options.util';
 import { computeDocumentTotals } from '@domain/documents/utils/document-totals.util';
 import {
@@ -80,6 +98,7 @@ import { BackButtonComponent } from '@shared/components/back-button/back-button.
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
+import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
@@ -197,6 +216,8 @@ function oggiIso(): string {
     DateInputComponent,
     DocumentLineSelectCellComponent,
     DocumentMobilePanelComponent,
+    DocumentNumberFieldComponent,
+    DocumentSeriesManagerDialogComponent,
     DocumentProductSearchPanelComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -302,6 +323,9 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
     /** Facoltativo, e solo sulla Vendita: il contratto del Reso non lo prevede. */
     customerId: this.fb.control(''),
     documentDate: this.fb.control(oggiIso(), { validators: [Validators.required] }),
+    /** Numero e serie: contratto comune, vedi `numbering`. */
+    documentNumber: this.fb.control<number | null>(null),
+    series: this.fb.control(''),
   });
 
   // Snapshot reattivo del form: i computed qui sotto leggono i FormControl, che
@@ -395,6 +419,87 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
     this.form.controls.customerId.markAsDirty();
   }
 
+  // ── Numero e serie: il contratto comune (T8B) ───────────────────────────
+  //
+  // ⛔ **Nessuna numerazione del banco.** `DocumentNumberingStore` è lo stesso
+  // delle altre sette maschere, e con lui arrivano proposta, scelta della
+  // serie, «Senza serie», numero imposto e conflitto — compreso il giro dei
+  // contatori, che da oggi vive nello store invece che copiato qui (E-6/E-7).
+  //
+  // ⭐ **Vale anche in MODIFICA** (correzione del proprietario, 21/08/2026):
+  // numero e serie restano modificabili come su ogni altro documento. Il
+  // server li scriveva solo alla nascita — era un gap tecnico, riallineato al
+  // contratto comune e non trasformato in requisito.
+
+  private readonly countersService = inject(DocumentCountersService);
+  private readonly authService = inject(AuthService);
+
+  /**
+   * «L'operatore ha toccato il numero?», in forma REATTIVA: gli eventi del
+   * controllo includono `PristineChangeEvent`, quindi il signal si aggiorna
+   * anche su `markAsDirty()` — cosa che `valueChanges` non fa.
+   */
+  private readonly documentNumberPristine = toSignal(
+    this.form.controls.documentNumber.events.pipe(
+      map(() => this.form.controls.documentNumber.pristine),
+    ),
+    { initialValue: true },
+  );
+
+  /**
+   * ⚠️ Niente `asProgrammatic`: qui la guardia di uscita guarda le RIGHE
+   * (`hasPendingWork`), non lo stato del form, quindi scrivere la proposta
+   * non accende niente da sopprimere.
+   */
+  protected readonly numbering = new DocumentNumberingStore({
+    isEdit: () => this.isEditMode(),
+    number: () => this.form.controls.documentNumber.value,
+    setNumber: (value) => this.form.controls.documentNumber.setValue(value),
+    series: () => this.form.controls.series.value,
+    setSeries: (value) => this.form.controls.series.setValue(value),
+    numberIsDirty: () => !this.documentNumberPristine(),
+    markNumberDirty: () => this.form.controls.documentNumber.markAsDirty(),
+    markNumberPristine: () => this.form.controls.documentNumber.markAsPristine(),
+    countersSource: {
+      service: this.countersService,
+      destroyRef: this.destroyRef,
+      documentType: () => this.descriptor.documentType,
+      locationId: () => this.form.controls.locationId.value || null,
+      // ⛔ La data serve: il numero proposto è il primo libero DOPO i
+      // documenti di data anteriore, e senza il server calcola su oggi.
+      documentDate: () => this.form.controls.documentDate.value,
+    },
+  });
+
+  /** Reattivo per costruzione: `isProposal()` legge il signal degli eventi. */
+  protected readonly numberIsProposal = computed(() => this.numbering.isProposal());
+
+  /** Senza il permesso resta il campo: niente ingranaggio, niente pannello. */
+  protected readonly canManageSeries = computed(() =>
+    hasTenantPermission(this.authService.currentUser(), TenantPermission.DocumentsConfigure),
+  );
+
+  protected readonly seriesDialogOpen = signal(false);
+
+  /**
+   * Chiusura del pannello numerazioni: ricarica l'elenco serie SENZA
+   * riproporre serie e numero — la selezione resta quella che era.
+   */
+  protected onSeriesManagerClosed(): void {
+    this.seriesDialogOpen.set(false);
+    this.numbering.reloadCounters();
+  }
+
+  /** L'avviso «numero già assegnato»: lo stato è quello comune. */
+  protected readonly numberConflictDialog = new DocumentNumberConflictStore();
+
+  /** Aperto/chiuso e messaggio: il template li lega allo store comune. */
+  protected readonly conflictDialogOpen = this.numberConflictDialog.isOpen;
+  protected readonly conflictMessage = this.numberConflictDialog.message;
+
+  protected acknowledgeConflictNumber(): void {
+    this.numbering.acknowledgeConflict(this.numberConflictDialog);
+  }
   // ── Prima la testata, poi le righe ──────────────────────────────────────
   //
   // Finché manca il campo che governa le righe, al posto della tabella c'è uno
@@ -837,6 +942,26 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
       STORE_SALE_LINE_COLUMNS,
       STORE_SALE_LINE_PRESETS,
     );
+
+    // Cambio di SEDE: un contatore legato a una sede vale solo lì, quindi
+    // l'elenco delle serie cambia con lei. Senza ricarica, la tendina
+    // mostrerebbe serie che in questa sede non si possono usare.
+    this.form.controls.locationId.valueChanges
+      .pipe(distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.numbering.refreshProposal());
+
+    // Cambio di DATA: il numero proposto dipende da lei — è il primo libero
+    // dopo i documenti di data anteriore — quindi la testata rifà l'anteprima.
+    this.form.controls.documentDate.valueChanges
+      .pipe(distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.numbering.refreshProposal());
+
+    // Documento nuovo: la testata parte col primo numero libero della serie.
+    afterNextRender(() => {
+      if (!this.editDocumentId()) {
+        this.numbering.refreshProposal();
+      }
+    });
   }
 
   protected isLineColumnVisible(columnId: string): boolean {
@@ -1228,6 +1353,15 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
       },
       error: (err: unknown) => {
         this.savePending.set(false);
+        // Numero già preso: si propone il primo libero invece dell'errore
+        // nudo. L'intento di creazione resta valido — il 409 di numerazione
+        // ha fatto rollback — e lo dice `rotateCreationIntentIfCertain`.
+        const conflitto = documentNumberConflictOf(err);
+        if (conflitto) {
+          this.numberConflictDialog.open(conflitto);
+          this.rotateCreationIntentIfCertain(err);
+          return;
+        }
         this.saveError.set(errorMessage(err));
         this.alreadyCreatedDocumentId.set(creationIntentErrorOf(err)?.resultRef ?? null);
         this.rotateCreationIntentIfCertain(err);
@@ -1270,6 +1404,12 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
     // campo resta vuoto e la sede si sceglie — che è ciò che il contratto
     // comune prescrive per chi lavora su più sedi.
     this.form.controls.locationId.setValue(this.operationalLocations.defaultLocation()?.id ?? '');
+    // Numero e serie: la vendita dopo è un documento NUOVO, quindi riparte
+    // da una proposta — non dal numero appena assegnato, e non da una serie
+    // scelta per la vendita precedente.
+    this.form.controls.documentNumber.markAsPristine();
+    this.numbering.resetChoice();
+    this.numbering.refreshProposal();
     this.focusSearchInput();
   }
 
@@ -1285,6 +1425,10 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
       // quindi un documento storico non perde il proprio.
       customerId: this.form.controls.customerId.value || undefined,
       documentDate: this.documentDatePayload(),
+      // Numero e serie col contratto comune: `undefined` = «decidi tu»,
+      // stringa vuota = «Senza serie», e in modifica la serie viaggia sempre.
+      series: this.numbering.chosenSeries(),
+      number: this.numbering.imposedNumber(),
       pricesIncludeVat: this.pricesIncludeVat(),
       notes: testata.notes.trim() || undefined,
       lines: this.lines().map(storeSaleLinePayload),
@@ -1303,6 +1447,10 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
       // Facoltativo su entrambi i modi (`11` A13).
       customerId: this.form.controls.customerId.value || undefined,
       documentDate: this.documentDatePayload(),
+      // Numero e serie col contratto comune: `undefined` = «decidi tu»,
+      // stringa vuota = «Senza serie», e in modifica la serie viaggia sempre.
+      series: this.numbering.chosenSeries(),
+      number: this.numbering.imposedNumber(),
       pricesIncludeVat: this.pricesIncludeVat(),
       notes: testata.notes.trim() || undefined,
       lines: this.lines().map(storeReturnLinePayload),
@@ -1337,6 +1485,10 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
     // La data si carica e **resta modificabile**: una data sbagliata si
     // corregge dove è stata scritta, e il server la persiste senza rinumerare.
     this.form.controls.documentDate.setValue(doc.documentDate.slice(0, 10));
+    // ⭐ Numero e serie del documento, e restano MODIFICABILI: il banco non
+    // fa eccezione al contratto comune (correzione del 21/08/2026).
+    this.form.controls.documentNumber.setValue(doc.number ?? null);
+    this.form.controls.series.setValue(doc.series ?? '');
     this.pricesIncludeVat.set(doc.pricesIncludeVat);
     this.preserved.set({
       documentDiscountPercent: doc.documentDiscountPercent ?? 0,
