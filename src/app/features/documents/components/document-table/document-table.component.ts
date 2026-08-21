@@ -214,10 +214,11 @@ export class DocumentTableComponent {
     // documenti che l'API poi rifiuta.
     const canManageRow = this.canManage() && this.manageableTypes().includes(doc.type);
 
-    // Vendite/resi al banco: il dettaglio è di sola lettura, mai una modifica.
-    const items: ActionMenuItem[] = isStoreFlowDocumentType(doc.type)
-      ? [{ id: 'open', label: 'Apri', icon: 'pi-eye' }]
-      : [{ id: 'open', label: 'Apri / Modifica', icon: 'pi-pencil' }];
+    // ⛔ Qui il banco aveva «Apri», con un commento che diceva «mai una
+    // modifica». Non è più vero da quando la riga apre la MODIFICA come per
+    // ogni altro tipo (`14` §2, `DOCUMENT_ROW_OPENS`): il testo era rimasto
+    // indietro rispetto alla decisione, ed è il gap T12 della mappa del banco.
+    const items: ActionMenuItem[] = [{ id: 'open', label: 'Apri / Modifica', icon: 'pi-pencil' }];
 
     if (canManageRow && !isStoreFlowDocumentType(doc.type)) {
       items.push({ id: 'duplicate', label: 'Duplica', icon: 'pi-copy' });
@@ -236,7 +237,6 @@ export class DocumentTableComponent {
     items.push({ id: 'attachments', label: 'Allegati', icon: 'pi-paperclip' });
     if (
       canManageRow &&
-      !isStoreFlowDocumentType(doc.type) &&
       (doc.status === DocumentStatus.Draft ||
         doc.status === DocumentStatus.Cancelled ||
         // Scarico manuale (prompt Scarico manuale): resta in elenco finché
@@ -249,7 +249,11 @@ export class DocumentTableComponent {
         // Arrivi merce: eliminabili anche da confermati — l'API rimuove i
         // movimenti e ripristina le giacenze. Escluso solo se collegato a una
         // fattura registrata (va prima scollegato).
-        (isGoodsReceiptDocumentType(doc.type) && doc.linkStatus !== 'linked'))
+        (isGoodsReceiptDocumentType(doc.type) && doc.linkStatus !== 'linked') ||
+        // ⭐ Vendita e Reso al banco: nascono confermati e SI ELIMINANO
+        // (`11` A2, passo 14). L'API neutralizza i movimenti e restituisce
+        // la merce — l'annullamento invece non esiste, per loro.
+        isStoreFlowDocumentType(doc.type))
     ) {
       items.push({ id: 'delete', label: 'Elimina', icon: 'pi-trash', danger: true });
     }

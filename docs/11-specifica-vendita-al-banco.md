@@ -1775,7 +1775,7 @@ PREREQUISITO TECNICO — C 0
     → riapertura                              ✅ fatto
     → modifica                                ✅ fatto
     → salvataggio                             ✅ fatto
-    → eliminazione                            ❌ NON fatto — flow-only rifiuta
+    → eliminazione                            ✅ fatto 22/08 — con neutralizzazione
     → riconciliazione PER DIFFERENZA          ✅ fatto
     → riallineamento di tutti gli effetti derivati
 
@@ -1783,27 +1783,21 @@ PREREQUISITO TECNICO — C 0
 
 FASE UI 1   ✅ FATTA 19/08   elenco → [ Nuova vendita al banco ]  [ Nuovo reso al banco ]
 FASE UI 2   ✅ FATTA 19/08   via il toggle interno: il tipo lo decide la ROTTA
-FASE UI 3   ⛔ APERTA        la maschera, ricostruita sull'Ordine cliente
+FASE UI 3   ✅ FATTA 22/08   la maschera nuova è montata, la vecchia eliminata
                              ↳ ⚠️ qui c'era «si chiude INSIEME a C 3b»: non è andata così
 C 3b        ✅ FATTO 19/08   la riga apre la modifica, e la maschera carica per id
                              ↳ chiuso SENZA ristrutturare la maschera: la dipendenza non c'era
 ```
 
-### ⚠️ Il prerequisito è soddisfatto A META', e la conseguenza cade sulla FASE UI 1
+### ✅ Il prerequisito è soddisfatto — 22/08/2026
 
-Il paragrafo qui sotto avvertiva di un caso preciso — «costruire un elenco con azioni che l'API
-rifiuta» — e quel caso **è esattamente lo stato di oggi**, non più un'ipotesi:
+⛔ Qui c'era l'avviso che il comando «Elimina» dell'elenco sarebbe stato **un comando che l'API
+rifiuta con 409**, e la scelta fra completare `C 0` o dichiarare l'elenco senza eliminazione.
+Chiusa la prima strada: l'API elimina e neutralizza, e il comando è a schermo — nell'elenco,
+nella barra della selezione multipla e nel Dettaglio.
 
-> **Un elenco con il comando «Elimina» sarebbe un comando che l'API rifiuta con 409.**
-
-Modifica e riapertura invece reggono: un elenco che apre un documento concluso e lo lascia
-correggere è già costruibile sulla base definitiva.
-
-⛔ **La scelta non si fa di straforo mentre si scrive l'elenco.** O si completa `C 0` togliendo i
-due tipi da `FLOW_ONLY_DOCUMENT_TYPES` con la neutralizzazione degli effetti, oppure la
-**FASE UI 1 nasce senza il comando di eliminazione** — e va detto, non lasciato scoprire a chi lo
-cerca. Le due strade non si equivalgono: la seconda è un rinvio dichiarato, non una riduzione
-del requisito.
+⚠️ **La ragione per cui l'avviso esisteva resta valida per il prossimo caso**: un comando che
+l'API rifiuta non è un difetto estetico — fallisce **a lavoro fatto**, davanti a un cliente.
 
 ### ✅ La riga apre la MODIFICA — fatto il 19/08/2026
 
@@ -2093,7 +2087,7 @@ C 0.
 
 | #   | Intervento                                                                                                                                                                                                                                                                                                                                                    | Da                       | Perché                                                                                                                                                                                                        |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0   | ⚠️ **PARZIALE** — **Rendere Vendita e Reso conclusi riapribili, modificabili ed eliminabili**, con riconciliazione per differenza e neutralizzazione in eliminazione                                                                                                                                                                                          | A2 · B2                  | deciso il 18/08. È il divario più grande: oggi i due tipi sono in `FLOW_ONLY_DOCUMENT_TYPES` e i cinque percorsi generici li rifiutano ⚠️ **Manca l’eliminazione** — vedi il quadro sotto la tabella.         |
+| 0   | ✅ **FATTO** — **Vendita e Reso conclusi riapribili, modificabili ed eliminabili**, con riconciliazione per differenza e neutralizzazione in eliminazione (22/08/2026)                                                                                                                                                                                        | A2 · B2                  | deciso il 18/08, era il divario più grande: i due tipi restano in `FLOW_ONLY_DOCUMENT_TYPES` — creazione e modifica passano dalla maschera dedicata — ma l'ELIMINAZIONE non è più un rifiuto                  |
 | 0b  | ✅ **FATTO** 19/08/2026 — **Non rinumerare da sé al risalvataggio**, e aggiungere il campo data al DTO del Reso. ⛔ La **data** non si congela più (**A13**), e ⛔ **nemmeno numero e serie**: dichiarati, si scrivono col contratto comune (21/08/2026)                                                                                                      | A2 · B5                  | la creazione rinumerava senza condizioni, e il DTO del Reso non aveva `documentDate`. Chiuso: niente rinumerazione automatica, il campo data c'è, e numero e serie si modificano come su ogni altro documento |
 | 1   | ✅ **FATTO** 18/08/2026, **ma incompleto** — completato il **20/08/2026**: 65 occorrenze residue in 35 file, sei delle quali esposte all'operatore. Ora c'è una guardia (`check:terminologia`)                                                                                                                                                                | A6 · B6                  | la rinomina precedente era incompleta e le due diciture convivevano. ⚠️ Un censimento a mano non chiude questo tipo di lavoro: vedi il quadro in **A6**                                                       |
 | 2   | ✅ **FATTO** 21/08/2026 — Tolto il forcing netto/ivato: i due tipi sono in `SALES_PRICE_MODE_TYPES` e usano il contratto comune, memorie comprese. ⚠️ Cambiare la convenzione aziendale azzera anche le memorie del banco                                                                                                                                     | A4 · B3                  | era una costante nel codice, non una convenzione                                                                                                                                                              |
@@ -2189,16 +2183,18 @@ nelle due voci: qui si dichiara solo quanta parte è conclusa.
 
 ### C 0 — riapribili, modificabili ed eliminabili
 
-| Requisito                               | Stato                                                                                                     |
-| --------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| **riapribili**                          | ✅ `DocumentsService.getById` risponde su entrambi i tipi, **con gli id di riga** che servono a risalvare |
-| **modificabili**                        | ✅ per `dto.id` su `POST /store-sales` e `/store-sales/returns`                                           |
-| **riconciliazione per differenza**      | ✅ un movimento per riga, aggiornato in posto; nessuna rettifica accodata                                 |
-| ⛔ **eliminabili**                      | ❌ **NON fatto**: `FLOW_ONLY_DOCUMENT_TYPES` contiene ancora `store_sale` e `store_return`                |
-| ⛔ **neutralizzazione in eliminazione** | ❌ **NON fatto**, e non è una dimenticanza separata: non esiste l'eliminazione da neutralizzare           |
+| Requisito                            | Stato                                                                                                                    |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| **riapribili**                       | ✅ `DocumentsService.getById` risponde su entrambi i tipi, **con gli id di riga** che servono a risalvare                |
+| **modificabili**                     | ✅ per `dto.id` su `POST /store-sales` e `/store-sales/returns`                                                          |
+| **riconciliazione per differenza**   | ✅ un movimento per riga, aggiornato in posto; nessuna rettifica accodata                                                |
+| **eliminabili**                      | ✅ 22/08/2026: `DocumentsService.delete` li accetta in stato `confirmed`, che è l'unico in cui nascono                   |
+| **neutralizzazione in eliminazione** | ✅ i movimenti collegati alle righe si tolgono e la merce torna: motore di SCARICO per la Vendita, di CARICO per il Reso |
 
-**Misurato, non dedotto.** `DocumentsService.delete` rifiuta con _«Le vendite e i resi negozio
-non si eliminano: fanno parte dello storico movimenti»_ — provato su un Reso vero.
+⛔ **Qui c'era il rifiuto, misurato su un Reso vero**: _«Le vendite e i resi negozio non si
+eliminano: fanno parte dello storico movimenti»_. Era il **primo di tre cancelli** — gli altri
+due erano il gate di stato (nascono `confirmed`) e l'assenza dai tipi che stornano, che li
+avrebbe fatti uscire **senza restituire la merce**. Tolti tutti e tre il 22/08/2026.
 
 ⚠️ **La modifica passa dal flusso dedicato, non dal percorso generico**, ed è la forma giusta: di
 là si scavalcherebbe la riconciliazione della maschera.

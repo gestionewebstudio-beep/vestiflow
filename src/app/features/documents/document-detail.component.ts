@@ -326,7 +326,9 @@ export class DocumentDetailComponent {
   protected readonly canCancel = computed(() => {
     const doc = this.document();
     if (!doc || isStoreFlowDocumentType(doc.type)) {
-      // Vendite/resi al banco: registro consultabile, gestione solo dalla cassa.
+      // ⛔ Vendita e Reso al banco: **si eliminano, non si annullano**
+      // (`11` A2). Il documento è l'unica evidenza dell'operazione, e un
+      // annullato che resta a storico occuperebbe un numero senza dire nulla.
       return false;
     }
     // Scarico manuale (prompt Scarico manuale): niente annullamento — si
@@ -338,8 +340,15 @@ export class DocumentDetailComponent {
   });
   protected readonly canDelete = computed(() => {
     const doc = this.document();
-    if (!doc || isStoreFlowDocumentType(doc.type)) {
+    if (!doc) {
       return false;
+    }
+    // ⭐ Vendita e Reso al banco: nascono confermati e si eliminano in
+    // qualunque stato (`11` A2, passo 14). L'API toglie i movimenti collegati
+    // alle righe e restituisce la merce; il Registro Corrispettivi, che li
+    // legge dai documenti, si aggiorna da sé.
+    if (isStoreFlowDocumentType(doc.type)) {
+      return this.canManage();
     }
     // Scarico manuale: eliminabile in qualunque stato (definitiva solo sul
     // documento, mai sulle giacenze — prompt Scarico manuale).
@@ -355,6 +364,12 @@ export class DocumentDetailComponent {
   /** Scarico manuale: l'eliminazione NON ripristina le giacenze già scalate. */
   protected readonly deleteDialogMessage = computed(() => {
     const doc = this.document();
+    if (doc && isStoreFlowDocumentType(doc.type)) {
+      return (
+        'Il documento verrà eliminato definitivamente e le giacenze che aveva ' +
+        'movimentato torneranno com’erano. Procedere?'
+      );
+    }
     if (doc && isManualUnloadDocumentType(doc.type)) {
       return (
         'Lo scarico manuale verrà eliminato definitivamente. Le giacenze già ' +

@@ -3143,6 +3143,60 @@ describe('DocumentsService', () => {
       expect(prisma.document.delete).toHaveBeenCalledWith({ where: { id: 'doc-1' } });
     });
 
+    /**
+     * ⭐ Passo 14, 22/08/2026. Qui c'era il contrario — «rifiuta l'eliminazione
+     * delle vendite al banco» — e quel rifiuto era il PRIMO di tre cancelli:
+     * gli altri due erano il gate di stato (un documento del banco nasce
+     * `confirmed`) e l'assenza dai tipi che stornano, che l'avrebbe fatto uscire
+     * senza restituire la merce.
+     *
+     * ⛔ La prova guarda le due cose insieme: che il documento sparisca **e**
+     * che i movimenti passino dal motore di neutralizzazione. Senza la seconda,
+     * un'eliminazione «riuscita» lascerebbe la giacenza scalata per sempre.
+     */
+    it('⭐ elimina una VENDITA al banco confermata, e passa dal motore di scarico', async () => {
+      const { service } = createService(prisma);
+      prisma.document.findFirst.mockResolvedValue({
+        id: 'doc-vn',
+        type: DocumentType.store_sale,
+        status: DocumentStatus.confirmed,
+        locationId: 'loc-1',
+        lines: [],
+      });
+      prisma.stockMovement.findMany.mockResolvedValue([]);
+      prisma.document.delete.mockResolvedValue({ id: 'doc-vn' });
+
+      await service.delete(tenantId, 'doc-vn');
+
+      expect(prisma.document.delete).toHaveBeenCalledWith({ where: { id: 'doc-vn' } });
+      // Il motore legge i movimenti del documento per toglierli riga per riga.
+      expect(prisma.stockMovement.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            sourceDocumentId: 'doc-vn',
+            sourceDocumentType: DocumentType.store_sale,
+          }),
+        }),
+      );
+    });
+
+    it('⭐ elimina anche un RESO al banco: il verso opposto, stesso contratto', async () => {
+      const { service } = createService(prisma);
+      prisma.document.findFirst.mockResolvedValue({
+        id: 'doc-rn',
+        type: DocumentType.store_return,
+        status: DocumentStatus.confirmed,
+        locationId: 'loc-1',
+        lines: [],
+      });
+      prisma.stockMovement.findMany.mockResolvedValue([]);
+      prisma.document.delete.mockResolvedValue({ id: 'doc-rn' });
+
+      await service.delete(tenantId, 'doc-rn');
+
+      expect(prisma.document.delete).toHaveBeenCalledWith({ where: { id: 'doc-rn' } });
+    });
+
     it('rifiuta l’eliminazione di documenti confermati', async () => {
       const { service } = createService(prisma);
       prisma.document.findFirst.mockResolvedValue({

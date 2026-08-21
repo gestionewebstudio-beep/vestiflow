@@ -1,26 +1,21 @@
-import { DocumentType } from '@core/models/document.model';
 import type { DocumentType as DocumentTypeValue } from '@core/models/document.model';
 
 /**
  * Tipi documento che **non si eliminano dal registro**, mai — nemmeno con il
  * permesso di gestione.
  *
- * ⛔ È lo specchio di `FLOW_ONLY_DOCUMENT_TYPES` in
- * `api/src/documents/document-defaults.ts`: quei tipi nascono già confermati
- * con i propri movimenti in transazione, e i cinque percorsi generici li
- * rifiutano. Mostrarne il comando produrrebbe **un pulsante che risponde 409** —
- * il difetto che `11` C 0 nomina per esteso: «un elenco con il comando Elimina
- * sarebbe un comando che l'API rifiuta».
+ * ⭐ **Oggi è VUOTO, ed è una notizia** (22/08/2026). Conteneva Vendita e Reso
+ * al banco, e la ragione dichiarata era una sola: «l'API risponde 409». Col
+ * passo 14 l'API non risponde più 409 — i due tipi si eliminano, e
+ * l'eliminazione neutralizza i propri movimenti restituendo la merce (`11` A2).
+ * Tenerli qui avrebbe nascosto un comando che ora funziona.
  *
- * ⚠️ **Le due liste devono restare uguali, e nessun compilatore lo verifica.**
- * Se un tipo entra o esce da `FLOW_ONLY_DOCUMENT_TYPES` lato API, va toccata
- * anche questa: il sintomo di una divergenza è un pulsante che fallisce a
- * lavoro fatto, o un comando che manca senza motivo.
+ * ⛔ **La costante resta**, e non è zelo: è lo specchio di
+ * `FLOW_ONLY_DOCUMENT_TYPES` lato API per i tipi che un giorno nascessero senza
+ * un percorso di eliminazione. Il giorno che ne arriva uno, si scrive qui — e
+ * la prova qui accanto fa arrossare chi cambia una lista e non l'altra.
  */
-export const DOCUMENT_TYPES_WITHOUT_BULK_DELETE: readonly DocumentTypeValue[] = [
-  DocumentType.StoreSale,
-  DocumentType.StoreReturn,
-];
+export const DOCUMENT_TYPES_WITHOUT_BULK_DELETE: readonly DocumentTypeValue[] = [];
 
 /**
  * Se la selezione corrente può essere eliminata in blocco (`14` §5.2: solo le

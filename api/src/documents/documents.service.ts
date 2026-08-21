@@ -2889,11 +2889,18 @@ export class DocumentsService {
     const doc = await this.getById(tenantId, id, user);
     this.assertDocumentTypeManageable(user, doc.type);
     this.assertDocumentLocationWritable(user, doc);
-    if (isFlowOnlyDocumentType(doc.type)) {
-      throw new ConflictException(
-        'Le vendite e i resi al banco non si eliminano: fanno parte dello storico movimenti.',
-      );
-    }
+    // ⭐ Vendita e Reso al banco SI ELIMINANO (`11` A2, passo 14): il documento
+    // è l'unica evidenza dell'operazione, e per questo l'annullamento non
+    // esiste — «si elimina, non si annulla». L'eliminazione neutralizza gli
+    // effetti PROPRI: i movimenti collegati alle sue righe e le giacenze che ne
+    // discendono.
+    //
+    // ⛔ Qui c'era un blocco secco («non si eliminano: fanno parte dello storico
+    // movimenti»), ed era il PRIMO dei tre cancelli misurati: gli altri due sono
+    // il gate di stato — un documento del banco nasce `confirmed`, quindi
+    // cadeva anche lì — e l'assenza dai tipi che stornano, che lo lasciava
+    // uscire senza restituire la merce.
+    const isDeletableStoreDocument = isFlowOnlyDocumentType(doc.type);
     const isFinalized =
       doc.status !== DocumentStatus.draft && doc.status !== DocumentStatus.cancelled;
 
@@ -2912,7 +2919,13 @@ export class DocumentsService {
     // quindi l'eliminazione è sicura e non ripristina nulla.
     const isDeletableQuote = doc.type === DocumentType.quote;
 
-    if (isFinalized && !isDeletableReceipt && !isDeletableManualUnload && !isDeletableQuote) {
+    if (
+      isFinalized &&
+      !isDeletableReceipt &&
+      !isDeletableManualUnload &&
+      !isDeletableQuote &&
+      !isDeletableStoreDocument
+    ) {
       throw new ConflictException(
         'Solo i documenti in bozza o annullati possono essere eliminati.',
       );
@@ -2948,6 +2961,35 @@ export class DocumentsService {
           tenantId,
           doc.lines.map((line) => line.id),
         );
+      }
+      // Il banco: il verso decide il motore, ed entrambi con `lines: []`
+      // tolgono i movimenti e restituiscono la merce riga per riga.
+      //
+      // ⚠️ La Vendita ha SCARICATO, quindi si ricarica; il Reso ha CARICATO,
+      // quindi si scarica. Usare un motore solo qui rimetterebbe in casa la
+      // merce di un reso eliminato, cioè il doppio della merce.
+      if (isDeletableStoreDocument) {
+        const sync =
+          doc.type === DocumentType.store_return
+            ? await syncGoodsReceiptLineMovements(tx, {
+                tenantId,
+                documentId: id,
+                documentType: doc.type,
+                locationId: doc.locationId,
+                reason: '',
+                lines: [],
+                actor,
+              })
+            : await syncUnloadLineMovements(tx, {
+                tenantId,
+                documentId: id,
+                documentType: doc.type,
+                locationId: doc.locationId,
+                reason: '',
+                lines: [],
+                actor,
+              });
+        syncTargets.push(...sync.syncTargets);
       }
       await tx.document.delete({ where: { id } });
     });
