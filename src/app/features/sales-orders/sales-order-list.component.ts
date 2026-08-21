@@ -610,18 +610,6 @@ export class SalesOrderListComponent {
       SHOPIFY_ORDER_LIST_COLUMN_PRESETS,
     );
 
-    // Default «Ultimi 30 giorni» all'apertura (`14` §H14-bis): l'URL è la
-    // fonte di verità dei filtri, quindi il periodo va scritto lì — una volta
-    // sola alla creazione, altrimenti scegliere «Tutti» verrebbe riscritto
-    // subito dopo.
-    if (this.periodPreset() === DEFAULT_MOVEMENT_PERIOD) {
-      const initialRange = resolveMovementPeriodRange(DEFAULT_MOVEMENT_PERIOD, '', '');
-      this.updateParams(
-        { placedFrom: initialRange.from ?? null, placedTo: initialRange.to ?? null },
-        true,
-      );
-    }
-
     effect(() => {
       this.corrispettiviPeriodQuery();
       this.uiCorrispettiviPeriod.set(null);

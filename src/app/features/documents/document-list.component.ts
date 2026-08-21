@@ -994,17 +994,6 @@ export class DocumentListComponent {
   private bulkPdfSubscription: Subscription | null = null;
 
   constructor() {
-    // Default «Mese corrente» dove il preset periodo esiste (Arrivi merce):
-    // i filtri vivono nell'URL, quindi il periodo va scritto lì — una volta
-    // sola alla creazione, o scegliere «Tutto» verrebbe riscritto subito.
-    if (this.periodPreset() === MovementPeriodPreset.ThisMonth) {
-      const initialRange = resolveMovementPeriodRange(MovementPeriodPreset.ThisMonth, '', '');
-      this.updateParams(
-        { dateFrom: initialRange.from ?? null, dateTo: initialRange.to ?? null },
-        true,
-      );
-    }
-
     this.columnPreferences.registerView(
       TableViewId.DocumentsList,
       DOCUMENT_LIST_COLUMN_DEFS,

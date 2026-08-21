@@ -2252,6 +2252,29 @@ colonne che «in SQL non si sarebbero potute ordinare».
 quando il periodo scelto è largo e le righe sono troppe per il client. Cambia il suo posto —
 da unica risposta a risposta per i dataset grandi.
 
+### ⚠️ SCELTA IMPLEMENTATIVA, non una decisione funzionale: il predefinito non passa dall'URL
+
+_Marcata come tale su richiesta del proprietario, 20/08/2026._
+
+All'apertura l'elenco parte dagli ultimi 30 giorni **senza scrivere `dateFrom`/`dateTo`
+nell'indirizzo**. Quando l'operatore sceglie un periodo, quello sì finisce nell'URL.
+
+⛔ **Non discende dalla decisione dei 30 giorni**: è una scelta di implementazione, e come tale
+si può ribaltare in una riga per elenco.
+
+| Perché è stata fatta così                                       | Che cosa costa                                                                                 |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| l'indirizzo resta pulito, senza parametri che nessuno ha scelto | ⚠️ **un link condiviso senza date non è riproducibile**: aperto domani mostra un altro periodo |
+| la cronologia del browser non si riempie a ogni apertura        | il periodo predefinito non compare fra i «filtri attivi» — che però è corretto                 |
+
+⚠️ **E ha già prodotto una divergenza, corretta subito**: gli Ordini cliente il periodo
+iniziale lo **scrivevano** nell'URL (comportamento preesistente), documenti e ordini fornitore
+no. Tre elenchi, due comportamenti — cioè esattamente ciò che questo lavoro esiste per
+togliere. Ora si comportano tutti allo stesso modo.
+
+⭐ Se si preferisce l'altro comportamento — URL sempre completo, link riproducibili — è un
+cambiamento piccolo e va fatto **su tutti e tre insieme**.
+
 ### ⚠️ Il perimetro: quali elenchi, e uno che NON deve entrare
 
 Oggi `app-pagination` sta in **nove** elenchi. Non sono la stessa cosa:
