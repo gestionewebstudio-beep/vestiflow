@@ -25,6 +25,7 @@ import { customerDisplayName, type Customer } from '@core/models/customer.model'
 import { isSalesVatCode, vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
 import { parseEffectiveDiscountPercent } from '@core/utils/discount-percent.util';
 import { LocationContextService } from '@core/services/location-context.service';
+import { ViewportService } from '@core/services/viewport.service';
 import { VatCodeService } from '@core/services/vat-code.service';
 import {
   DEFAULT_CURRENCY,
@@ -78,6 +79,7 @@ import { DateInputComponent } from '@shared/components/date-input/date-input.com
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
+import { StoreSaleLineCardComponent } from './components/store-sale-line-card/store-sale-line-card.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
@@ -180,6 +182,7 @@ function oggiIso(): string {
     PriceModeMenuComponent,
     SelectMenuComponent,
     SlidePanelComponent,
+    StoreSaleLineCardComponent,
     TableColumnPickerComponent,
     TableColumnResizeDirective,
     TableSkeletonComponent,
@@ -626,7 +629,7 @@ export class StoreSaleDocumentFormComponent {
    */
   private notFound(code: string): void {
     this.searchMessage.set(`Nessun articolo per «${code}».`);
-    this.beep();
+    this.beep('errore');
     this.focusSearchInput(true);
   }
 
@@ -730,6 +733,16 @@ export class StoreSaleDocumentFormComponent {
   private afterAcquire(): void {
     this.searchDraft.set('');
     this.searchMessage.set(null);
+    // ⭐ La conferma che si sente senza guardare (`11` C, «su mobile la battuta
+    // continua viene prima della forma»): da telefono si spara un capo dopo
+    // l'altro con una mano sola e lo sguardo sul cliente, e il beep è l'unico
+    // segnale che arriva comunque.
+    //
+    // ⚠️ Solo in vista compatta: su desktop la riga che compare è già la
+    // conferma, e un suono a ogni articolo diventerebbe rumore.
+    if (this.compactView()) {
+      this.beep('ok');
+    }
     this.focusSearchInput();
   }
 
@@ -747,14 +760,17 @@ export class StoreSaleDocumentFormComponent {
   /** Beep di esito: al banco si sente senza guardare, ed è la conferma. */
   private audioContext: AudioContext | null = null;
 
-  private beep(): void {
+  private beep(esito: 'ok' | 'errore'): void {
     try {
       this.audioContext ??= new AudioContext();
       const context = this.audioContext;
       const oscillator = context.createOscillator();
       const gain = context.createGain();
       oscillator.type = 'sine';
-      oscillator.frequency.value = 220;
+      // Due suoni distinti: acuto e breve = preso, grave = non trovato. Se
+      // fossero uguali, il beep direbbe «è successo qualcosa» invece di dire
+      // che cosa — e senza guardare non si potrebbe distinguerlo.
+      oscillator.frequency.value = esito === 'ok' ? 880 : 220;
       gain.gain.value = 0.08;
       oscillator.connect(gain);
       gain.connect(context.destination);
@@ -771,6 +787,28 @@ export class StoreSaleDocumentFormComponent {
   // 19/08 e finora mai usato), l'implementazione è quella comune. ⛔ La lista non
   // dichiara il COSTO: al banco non deve esistere nemmeno come colonna spenta, e
   // la sola via per non offrirlo nel selettore è non dichiararlo.
+
+  /**
+   * Quale vista è viva: tabella o card. È il **criterio responsive comune**, lo
+   * stesso che usa l'Ordine cliente — nessuna soglia propria del banco.
+   *
+   * ⛔ Le due viste sono **alternative**, non entrambe nel DOM: rendere anche
+   * quella che non si vede significherebbe controlli doppi, stato che si apre
+   * dove nessuno guarda e ogni riga annunciata due volte.
+   */
+  private readonly viewport = inject(ViewportService);
+  protected readonly compactView = this.viewport.compact;
+
+  /** Card aperta: una alla volta, come sul riferimento. */
+  private readonly openCardId = signal<string | null>(null);
+
+  protected isCardOpen(uiId: string): boolean {
+    return this.openCardId() === uiId;
+  }
+
+  protected toggleCard(uiId: string): void {
+    this.openCardId.update((corrente) => (corrente === uiId ? null : uiId));
+  }
 
   private readonly columnPreferences = inject(TableColumnPreferenceService);
   protected readonly lineColumnsView = STORE_SALE_LINES_VIEW;

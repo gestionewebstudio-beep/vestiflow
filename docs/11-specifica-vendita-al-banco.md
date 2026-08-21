@@ -1281,8 +1281,37 @@ Il totale di riga è calcolato. La quantità supporta digitazione diretta e step
 
 - dove adatto. La modifica del nome riguarda il testo della riga, non l'anagrafica.
 
-Mobile: card sul modello dell'Ordine cliente — nome leggibile subito, codici e disponibilità
+### ⭐ Mobile Vendita/Reso: riferimento funzionale e visuale = **Nuovo Ordine cliente**
+
+_Deciso il 21/08/2026, e va letto alla lettera: è il riferimento, non una dipendenza._
+
+Card sul modello dell'Ordine cliente — nome leggibile subito, codici e disponibilità
 subordinati, quantità con stepper, prezzo e sconto rapidamente editabili, totale ben leggibile.
+
+| Cosa                                            | Da dove viene                                                                   |
+| ----------------------------------------------- | ------------------------------------------------------------------------------- |
+| struttura, disposizione, densità, comportamento | **Nuovo Ordine cliente**                                                        |
+| criterio responsive                             | quello **comune**, lo stesso dell'Ordine cliente — ⛔ nessuna soglia del banco  |
+| forma della card e sue parti                    | le primitive comuni di `domain/documents` (`app-document-line-card` e famiglia) |
+
+⛔ **Desktop e mobile sono ALTERNATIVI**, come sul riferimento: una vista sola è viva nel DOM.
+Rendere anche quella che non si vede significa controlli doppi, stato che si apre dove nessuno
+guarda e ogni riga annunciata due volte da chi ascolta.
+
+⛔ **Il riferimento non è una dipendenza**: non si importa `CustomerOrderLineCardComponent` —
+sarebbe un legame feature→feature che `regole-architettura` vieta. Se un pezzo davvero comune
+mancasse in `domain/documents`, si estrae **lì**, dopo averne verificato il contratto.
+
+⛔ **Non si riprende né si adatta il mobile della maschera legacy del banco**, che di fatto non
+esiste: gli `data-label` erano nel markup e nessuna regola li usava.
+
+⚠️ **E il riferimento porta la forma, non il dominio**: impegni di magazzino, righe «documento
+collegato», listini e conversioni restano dell'Ordine cliente. Le differenze Vendita/Reso sono
+quelle già decise qui.
+
+⏳ Il futuro sistema trasversale **«mouse / dito / soglia manuale»** (`regole-stile-ui` §9) non
+si introduce ora per il solo banco: quando si farà, aggiornerà il **contratto comune**, Ordine
+cliente compreso.
 
 ### ⭐ La spunta di magazzino della riga — decisa il 21/08/2026
 

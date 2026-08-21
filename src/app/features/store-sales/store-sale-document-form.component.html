@@ -159,11 +159,15 @@
         <section class="doc-form__lines" aria-labelledby="ssf-lines-title">
           <div class="doc-form__lines-head">
             <h2 id="ssf-lines-title" class="doc-form__subtitle">Righe</h2>
-            <div class="doc-form__lines-tools">
-              <!-- Il selettore Colonne è quello comune: la lista è propria del
-                   banco, e non dichiara il costo — quindi non c'è da spegnere. -->
-              <app-table-column-picker [viewId]="lineColumnsView" [reorderable]="false" />
-            </div>
+            <!-- Il selettore Colonne è quello comune: la lista è propria del
+                 banco, e non dichiara il costo — quindi non c'è da spegnere.
+                 ⛔ Su mobile non compare: le card non hanno colonne, e le
+                 mostrano già tutte (stessa scelta del riferimento). -->
+            @if (!compactView()) {
+              <div class="doc-form__lines-tools">
+                <app-table-column-picker [viewId]="lineColumnsView" [reorderable]="false" />
+              </div>
+            }
           </div>
 
           @if (!headerGateActive()) {
@@ -231,262 +235,293 @@
               />
             }
 
-            <div class="doc-form__table-wrap">
-              <table class="doc-form__table">
-                <thead>
-                  <tr>
-                    <th scope="col" class="doc-form__cell--index" aria-label="Numero riga">#</th>
-                    @if (isLineColumnVisible('product')) {
-                      <th scope="col" [style.width]="lineColumnWidth('product')">
-                        Articolo
-                        <span
-                          appTableColumnResize
-                          [minWidthPx]="lineColumnMinWidth('product')"
-                          (resized)="onLineColumnResize('product', $event)"
-                        ></span>
-                      </th>
-                    }
-                    @if (isLineColumnVisible('sku')) {
-                      <th scope="col" [style.width]="lineColumnWidth('sku')">
-                        SKU
-                        <span
-                          appTableColumnResize
-                          [minWidthPx]="lineColumnMinWidth('sku')"
-                          (resized)="onLineColumnResize('sku', $event)"
-                        ></span>
-                      </th>
-                    }
-                    @if (isLineColumnVisible('quantity')) {
-                      <th
-                        scope="col"
-                        class="doc-form__num"
-                        [style.width]="lineColumnWidth('quantity')"
-                      >
-                        Q.tà
-                        <span
-                          appTableColumnResize
-                          [minWidthPx]="lineColumnMinWidth('quantity')"
-                          (resized)="onLineColumnResize('quantity', $event)"
-                        ></span>
-                      </th>
-                    }
-                    @if (isLineColumnVisible('unitPrice')) {
-                      <!-- ⭐ Il selettore netto/ivato vive QUI, nella testata della
+            <!-- ⛔ Le due viste sono ALTERNATIVE, non entrambe vive: sotto la
+                 soglia comune la tabella non c'è, e al suo posto ci sono le
+                 card. Il criterio è quello dell'Ordine cliente, che è il
+                 riferimento mobile della maschera (`11` A12). -->
+            @if (compactView()) {
+              <div class="store-sale-form__cards">
+                @for (line of lines(); track line.uiId; let i = $index) {
+                  <app-store-sale-line-card
+                    [line]="line"
+                    [lineIndex]="i"
+                    [open]="isCardOpen(line.uiId)"
+                    [priceValue]="priceFieldValue(line)"
+                    [priceLabel]="priceRowLabel()"
+                    [lineTotal]="lineTotal(line)"
+                    [vatOptions]="vatOptions(line)"
+                    [stockToggleLabel]="stockToggleLabel()"
+                    [availabilityHint]="lineExceedsAvailability(line) ? availabilityHint(line) : ''"
+                    (toggled)="toggleCard(line.uiId)"
+                    (removed)="removeLine(line.uiId)"
+                    (quantityStepped)="stepQuantity(line, $event)"
+                    (quantityChanged)="onQuantityInput(line, $event)"
+                    (priceChanged)="onPriceInput(line, $event)"
+                    (discountChanged)="onDiscountInput(line, $event)"
+                    (descriptionChanged)="onDescriptionChange(line, $event)"
+                    (vatChanged)="onVatChange(line, $event)"
+                    (stockToggled)="onStockToggle(line, $event)"
+                  />
+                }
+              </div>
+            } @else {
+              <div class="doc-form__table-wrap">
+                <table class="doc-form__table">
+                  <thead>
+                    <tr>
+                      <th scope="col" class="doc-form__cell--index" aria-label="Numero riga">#</th>
+                      @if (isLineColumnVisible('product')) {
+                        <th scope="col" [style.width]="lineColumnWidth('product')">
+                          Articolo
+                          <span
+                            appTableColumnResize
+                            [minWidthPx]="lineColumnMinWidth('product')"
+                            (resized)="onLineColumnResize('product', $event)"
+                          ></span>
+                        </th>
+                      }
+                      @if (isLineColumnVisible('sku')) {
+                        <th scope="col" [style.width]="lineColumnWidth('sku')">
+                          SKU
+                          <span
+                            appTableColumnResize
+                            [minWidthPx]="lineColumnMinWidth('sku')"
+                            (resized)="onLineColumnResize('sku', $event)"
+                          ></span>
+                        </th>
+                      }
+                      @if (isLineColumnVisible('quantity')) {
+                        <th
+                          scope="col"
+                          class="doc-form__num"
+                          [style.width]="lineColumnWidth('quantity')"
+                        >
+                          Q.tà
+                          <span
+                            appTableColumnResize
+                            [minWidthPx]="lineColumnMinWidth('quantity')"
+                            (resized)="onLineColumnResize('quantity', $event)"
+                          ></span>
+                        </th>
+                      }
+                      @if (isLineColumnVisible('unitPrice')) {
+                        <!-- ⭐ Il selettore netto/ivato vive QUI, nella testata della
                            colonna Prezzo (`11` A4): è il contratto comune degli
                            altri documenti, non un controllo del banco. -->
-                      <th
-                        scope="col"
-                        class="doc-form__num"
-                        [style.width]="lineColumnWidth('unitPrice')"
-                      >
-                        <span class="doc-form__price-head">
-                          <button
-                            type="button"
-                            class="doc-form__price-mode-trigger"
-                            aria-label="Modalità prezzo del documento"
-                            (click)="togglePriceModeMenu()"
-                          >
-                            {{ priceRowLabel() }}
-                          </button>
-                          <app-price-mode-menu
-                            [pricesIncludeVat]="pricesIncludeVat()"
-                            netLabel="Usa prezzi netti"
-                            grossLabel="Usa prezzi ivati"
-                            ariaLabel="Modalità prezzo del documento"
-                            (modeChange)="setPriceMode($event)"
-                          />
-                        </span>
-                        <span
-                          appTableColumnResize
-                          [minWidthPx]="lineColumnMinWidth('unitPrice')"
-                          (resized)="onLineColumnResize('unitPrice', $event)"
-                        ></span>
-                      </th>
-                    }
-                    @if (isLineColumnVisible('discount')) {
-                      <th
-                        scope="col"
-                        class="doc-form__num"
-                        [style.width]="lineColumnWidth('discount')"
-                      >
-                        Sconto
-                        <span
-                          appTableColumnResize
-                          [minWidthPx]="lineColumnMinWidth('discount')"
-                          (resized)="onLineColumnResize('discount', $event)"
-                        ></span>
-                      </th>
-                    }
-                    @if (isLineColumnVisible('vat')) {
-                      <th scope="col" [style.width]="lineColumnWidth('vat')">
-                        IVA
-                        <span
-                          appTableColumnResize
-                          [minWidthPx]="lineColumnMinWidth('vat')"
-                          (resized)="onLineColumnResize('vat', $event)"
-                        ></span>
-                      </th>
-                    }
-                    @if (isLineColumnVisible('lineTotal')) {
-                      <th
-                        scope="col"
-                        class="doc-form__num"
-                        [style.width]="lineColumnWidth('lineTotal')"
-                      >
-                        Totale
-                      </th>
-                    }
-                    <!-- Fisse, fuori dal selettore Colonne: la spunta governa
-                         l'effetto fisico, le azioni sono la grammatica comune. -->
-                    <th scope="col" class="store-sale-form__stock-col">
-                      {{ stockToggleLabel() }}
-                    </th>
-                    <th scope="col" class="doc-form__cell--actions">
-                      <span class="sr-only">Azioni</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (line of lines(); track line.uiId; let i = $index) {
-                    <tr
-                      class="doc-form__row"
-                      [class.doc-form__row--warning]="lineExceedsAvailability(line)"
-                    >
-                      <td class="doc-form__cell--index">{{ i + 1 }}</td>
-
-                      @if (isLineColumnVisible('product')) {
-                        <td class="doc-form__cell doc-form__cell--product">
-                          <input
-                            class="doc-form__input"
-                            type="text"
-                            [attr.aria-label]="'Descrizione riga ' + (i + 1)"
-                            [value]="line.description"
-                            (change)="onDescriptionChange(line, $any($event.target).value)"
-                          />
-                        </td>
-                      }
-
-                      @if (isLineColumnVisible('sku')) {
-                        <td class="doc-form__cell doc-form__cell--readonly">
-                          <span class="doc-form__mono">{{ line.sku }}</span>
-                        </td>
-                      }
-
-                      @if (isLineColumnVisible('quantity')) {
-                        <td class="doc-form__cell doc-form__cell--editable doc-form__num">
-                          <!-- Digitazione diretta E stepper (`11` A15): al banco
-                               la quantità si tocca più spesso di quanto si digiti. -->
-                          <span class="store-sale-form__stepper">
+                        <th
+                          scope="col"
+                          class="doc-form__num"
+                          [style.width]="lineColumnWidth('unitPrice')"
+                        >
+                          <span class="doc-form__price-head">
                             <button
                               type="button"
-                              class="store-sale-form__step"
-                              [attr.aria-label]="'Diminuisci quantità riga ' + (i + 1)"
-                              [disabled]="line.quantity <= 1"
-                              (click)="stepQuantity(line, -1)"
+                              class="doc-form__price-mode-trigger"
+                              aria-label="Modalità prezzo del documento"
+                              (click)="togglePriceModeMenu()"
                             >
-                              −
+                              {{ priceRowLabel() }}
                             </button>
+                            <app-price-mode-menu
+                              [pricesIncludeVat]="pricesIncludeVat()"
+                              netLabel="Usa prezzi netti"
+                              grossLabel="Usa prezzi ivati"
+                              ariaLabel="Modalità prezzo del documento"
+                              (modeChange)="setPriceMode($event)"
+                            />
+                          </span>
+                          <span
+                            appTableColumnResize
+                            [minWidthPx]="lineColumnMinWidth('unitPrice')"
+                            (resized)="onLineColumnResize('unitPrice', $event)"
+                          ></span>
+                        </th>
+                      }
+                      @if (isLineColumnVisible('discount')) {
+                        <th
+                          scope="col"
+                          class="doc-form__num"
+                          [style.width]="lineColumnWidth('discount')"
+                        >
+                          Sconto
+                          <span
+                            appTableColumnResize
+                            [minWidthPx]="lineColumnMinWidth('discount')"
+                            (resized)="onLineColumnResize('discount', $event)"
+                          ></span>
+                        </th>
+                      }
+                      @if (isLineColumnVisible('vat')) {
+                        <th scope="col" [style.width]="lineColumnWidth('vat')">
+                          IVA
+                          <span
+                            appTableColumnResize
+                            [minWidthPx]="lineColumnMinWidth('vat')"
+                            (resized)="onLineColumnResize('vat', $event)"
+                          ></span>
+                        </th>
+                      }
+                      @if (isLineColumnVisible('lineTotal')) {
+                        <th
+                          scope="col"
+                          class="doc-form__num"
+                          [style.width]="lineColumnWidth('lineTotal')"
+                        >
+                          Totale
+                        </th>
+                      }
+                      <!-- Fisse, fuori dal selettore Colonne: la spunta governa
+                         l'effetto fisico, le azioni sono la grammatica comune. -->
+                      <th scope="col" class="store-sale-form__stock-col">
+                        {{ stockToggleLabel() }}
+                      </th>
+                      <th scope="col" class="doc-form__cell--actions">
+                        <span class="sr-only">Azioni</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (line of lines(); track line.uiId; let i = $index) {
+                      <tr
+                        class="doc-form__row"
+                        [class.doc-form__row--warning]="lineExceedsAvailability(line)"
+                      >
+                        <td class="doc-form__cell--index">{{ i + 1 }}</td>
+
+                        @if (isLineColumnVisible('product')) {
+                          <td class="doc-form__cell doc-form__cell--product">
+                            <input
+                              class="doc-form__input"
+                              type="text"
+                              [attr.aria-label]="'Descrizione riga ' + (i + 1)"
+                              [value]="line.description"
+                              (change)="onDescriptionChange(line, $any($event.target).value)"
+                            />
+                          </td>
+                        }
+
+                        @if (isLineColumnVisible('sku')) {
+                          <td class="doc-form__cell doc-form__cell--readonly">
+                            <span class="doc-form__mono">{{ line.sku }}</span>
+                          </td>
+                        }
+
+                        @if (isLineColumnVisible('quantity')) {
+                          <td class="doc-form__cell doc-form__cell--editable doc-form__num">
+                            <!-- Digitazione diretta E stepper (`11` A15): al banco
+                               la quantità si tocca più spesso di quanto si digiti. -->
+                            <span class="store-sale-form__stepper">
+                              <button
+                                type="button"
+                                class="store-sale-form__step"
+                                [attr.aria-label]="'Diminuisci quantità riga ' + (i + 1)"
+                                [disabled]="line.quantity <= 1"
+                                (click)="stepQuantity(line, -1)"
+                              >
+                                −
+                              </button>
+                              <input
+                                class="doc-form__input doc-form__num"
+                                type="number"
+                                min="1"
+                                step="1"
+                                [attr.aria-label]="'Quantità riga ' + (i + 1)"
+                                [value]="line.quantity"
+                                (input)="onQuantityInput(line, $any($event.target).value)"
+                              />
+                              <button
+                                type="button"
+                                class="store-sale-form__step"
+                                [attr.aria-label]="'Aumenta quantità riga ' + (i + 1)"
+                                (click)="stepQuantity(line, 1)"
+                              >
+                                +
+                              </button>
+                            </span>
+                            @if (lineExceedsAvailability(line)) {
+                              <span class="doc-form__hint" role="status">
+                                {{ availabilityHint(line) }}
+                              </span>
+                            }
+                          </td>
+                        }
+
+                        @if (isLineColumnVisible('unitPrice')) {
+                          <td class="doc-form__cell doc-form__cell--editable doc-form__num">
                             <input
                               class="doc-form__input doc-form__num"
-                              type="number"
-                              min="1"
-                              step="1"
-                              [attr.aria-label]="'Quantità riga ' + (i + 1)"
-                              [value]="line.quantity"
-                              (input)="onQuantityInput(line, $any($event.target).value)"
+                              type="text"
+                              inputmode="decimal"
+                              [attr.aria-label]="priceRowLabel() + ' riga ' + (i + 1)"
+                              [value]="priceFieldValue(line)"
+                              (change)="onPriceInput(line, $any($event.target).value)"
                             />
-                            <button
-                              type="button"
-                              class="store-sale-form__step"
-                              [attr.aria-label]="'Aumenta quantità riga ' + (i + 1)"
-                              (click)="stepQuantity(line, 1)"
-                            >
-                              +
-                            </button>
-                          </span>
-                          @if (lineExceedsAvailability(line)) {
-                            <span class="doc-form__hint" role="status">
-                              {{ availabilityHint(line) }}
-                            </span>
-                          }
-                        </td>
-                      }
+                          </td>
+                        }
 
-                      @if (isLineColumnVisible('unitPrice')) {
-                        <td class="doc-form__cell doc-form__cell--editable doc-form__num">
-                          <input
-                            class="doc-form__input doc-form__num"
-                            type="text"
-                            inputmode="decimal"
-                            [attr.aria-label]="priceRowLabel() + ' riga ' + (i + 1)"
-                            [value]="priceFieldValue(line)"
-                            (change)="onPriceInput(line, $any($event.target).value)"
-                          />
-                        </td>
-                      }
+                        @if (isLineColumnVisible('discount')) {
+                          <td class="doc-form__cell doc-form__cell--editable doc-form__num">
+                            <input
+                              class="doc-form__input doc-form__num"
+                              type="text"
+                              inputmode="decimal"
+                              [attr.aria-label]="'Sconto riga ' + (i + 1)"
+                              [value]="line.discountPercent"
+                              (change)="onDiscountInput(line, $any($event.target).value)"
+                            />
+                          </td>
+                        }
 
-                      @if (isLineColumnVisible('discount')) {
-                        <td class="doc-form__cell doc-form__cell--editable doc-form__num">
-                          <input
-                            class="doc-form__input doc-form__num"
-                            type="text"
-                            inputmode="decimal"
-                            [attr.aria-label]="'Sconto riga ' + (i + 1)"
-                            [value]="line.discountPercent"
-                            (change)="onDiscountInput(line, $any($event.target).value)"
-                          />
-                        </td>
-                      }
-
-                      @if (isLineColumnVisible('vat')) {
-                        <td class="doc-form__cell doc-form__cell--editable doc-form__cell--vat">
-                          <!-- Cella documentale comune: insieme chiuso, nessuna
+                        @if (isLineColumnVisible('vat')) {
+                          <td class="doc-form__cell doc-form__cell--editable doc-form__cell--vat">
+                            <!-- Cella documentale comune: insieme chiuso, nessuna
                                voce vuota, stesso comportamento degli altri
                                documenti. -->
-                          <app-document-line-select-cell
-                            [lineIndex]="i"
-                            [ariaLabel]="'Codice IVA riga ' + (i + 1)"
-                            placeholder="IVA"
-                            [options]="vatOptions(line)"
-                            [value]="line.vatCodeId ?? ''"
-                            [freeText]="false"
-                            (valueChange)="onVatChange(line, $event)"
+                            <app-document-line-select-cell
+                              [lineIndex]="i"
+                              [ariaLabel]="'Codice IVA riga ' + (i + 1)"
+                              placeholder="IVA"
+                              [options]="vatOptions(line)"
+                              [value]="line.vatCodeId ?? ''"
+                              [freeText]="false"
+                              (valueChange)="onVatChange(line, $event)"
+                            />
+                          </td>
+                        }
+
+                        @if (isLineColumnVisible('lineTotal')) {
+                          <td
+                            class="doc-form__cell doc-form__cell--readonly doc-form__cell--computed doc-form__num tabular-nums"
+                          >
+                            {{ lineTotal(line) }}
+                          </td>
+                        }
+
+                        <td class="doc-form__cell doc-form__cell--check">
+                          <input
+                            type="checkbox"
+                            [attr.aria-label]="stockToggleLabel() + ' riga ' + (i + 1)"
+                            [checked]="line.loadsStock"
+                            (change)="onStockToggle(line, $any($event.target).checked)"
                           />
                         </td>
-                      }
 
-                      @if (isLineColumnVisible('lineTotal')) {
-                        <td
-                          class="doc-form__cell doc-form__cell--readonly doc-form__cell--computed doc-form__num tabular-nums"
-                        >
-                          {{ lineTotal(line) }}
+                        <td class="doc-form__cell doc-form__cell--actions">
+                          <button
+                            type="button"
+                            class="doc-form__icon-button"
+                            [attr.aria-label]="'Elimina riga ' + (i + 1)"
+                            (click)="removeLine(line.uiId)"
+                          >
+                            <i class="pi pi-trash" aria-hidden="true"></i>
+                          </button>
                         </td>
-                      }
-
-                      <td class="doc-form__cell doc-form__cell--check">
-                        <input
-                          type="checkbox"
-                          [attr.aria-label]="stockToggleLabel() + ' riga ' + (i + 1)"
-                          [checked]="line.loadsStock"
-                          (change)="onStockToggle(line, $any($event.target).checked)"
-                        />
-                      </td>
-
-                      <td class="doc-form__cell doc-form__cell--actions">
-                        <button
-                          type="button"
-                          class="doc-form__icon-button"
-                          [attr.aria-label]="'Elimina riga ' + (i + 1)"
-                          (click)="removeLine(line.uiId)"
-                        >
-                          <i class="pi pi-trash" aria-hidden="true"></i>
-                        </button>
-                      </td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
           }
         </section>
       </fieldset>

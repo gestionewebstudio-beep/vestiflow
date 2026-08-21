@@ -3,11 +3,12 @@ import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/route
 import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { of, throwError } from 'rxjs';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { DocumentStatus, DocumentType } from '@core/models/document.model';
 import type { DocumentRecord } from '@core/models/document.model';
 import { LocationContextService } from '@core/services/location-context.service';
+import { ViewportService } from '@core/services/viewport.service';
 import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 import { CustomerService } from '@domain/customers/services/customer.service';
 import { DocumentService } from '@domain/documents/services/document.service';
@@ -147,6 +148,34 @@ const ESITO = {
  * fixture più semplice renderebbe verde un estrattore che in produzione non
  * trova niente.
  */
+/** Stub Web Audio: il beep si verifica senza audio reale. */
+function stubAudioContext() {
+  const suoni: number[] = [];
+  class FakeAudioContext {
+    currentTime = 0;
+    destination = {};
+    close = vi.fn(() => Promise.resolve());
+    createOscillator() {
+      return {
+        type: 'sine',
+        frequency: {
+          set value(hz: number) {
+            suoni.push(hz);
+          },
+        },
+        connect: vi.fn(),
+        start: vi.fn(),
+        stop: vi.fn(),
+      };
+    }
+    createGain() {
+      return { gain: { value: 0 }, connect: vi.fn() };
+    }
+  }
+  vi.stubGlobal('AudioContext', FakeAudioContext);
+  return suoni;
+}
+
 function errore409(payload: Record<string, unknown>) {
   return {
     kind: 'conflict',
@@ -174,6 +203,8 @@ interface SetupOptions {
   readonly priceMode?: boolean;
   /** L'articolo che ricerca e scansione risolvono (default: `VARIANTE`). */
   readonly variant?: typeof VARIANTE;
+  /** Vista compatta (card) invece della tabella: il criterio responsive comune. */
+  readonly compact?: boolean;
 }
 
 async function setup(options: SetupOptions = {}) {
@@ -256,6 +287,10 @@ async function setup(options: SetupOptions = {}) {
         },
       },
       {
+        provide: ViewportService,
+        useValue: { compact: () => options.compact ?? false },
+      },
+      {
         provide: LocationContextService,
         useValue: { activeLocationId: () => preferredLocation, setActiveLocation: vi.fn() },
       },
@@ -280,6 +315,10 @@ const corpoReso = (spia: ReturnType<typeof vi.fn>, chiamata = 0): CreateStoreRet
   spia.mock.calls[chiamata]![0] as CreateStoreReturnPayload;
 
 describe('StoreSaleDocumentFormComponent', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   describe('il modo viene dalla rotta, e con lui tutto ciò che cambia', () => {
     it('vendita: titolo e sottotestata parlano di scarico', async () => {
       await setup({ mode: 'sale' });
@@ -663,6 +702,124 @@ describe('StoreSaleDocumentFormComponent', () => {
       // ⛔ Nessun blocco: il salvataggio parte lo stesso (A18).
       rendered.component.save();
       expect(rendered.createSale).toHaveBeenCalled();
+    });
+  });
+
+  // ── Vista compatta: le card (`11` A12, riferimento Ordine cliente) ───────
+
+  describe('la vista compatta', () => {
+    async function conRigaSuMobile(extra: Partial<SetupOptions> = {}) {
+      const rendered = await setup({ compact: true, ...extra });
+      const campo = screen.getByLabelText('Scansiona o cerca un articolo');
+      await userEvent.type(campo, `${EAN_NOTO}{enter}`);
+      rendered.fixture.detectChanges();
+      return rendered;
+    }
+
+    it('⭐ sotto la soglia c’è la card, e la tabella NON è nel DOM', async () => {
+      // Le due viste sono alternative: rendere anche quella che non si vede
+      // significherebbe controlli doppi e ogni riga annunciata due volte.
+      await conRigaSuMobile();
+
+      expect(screen.getByLabelText('Quantità')).toBeTruthy();
+      expect(screen.queryByRole('table')).toBeNull();
+    });
+
+    it('⭐ sopra la soglia c’è la tabella, e le card no', async () => {
+      const rendered = await setup();
+      const campo = screen.getByLabelText('Scansiona o cerca un articolo');
+      await userEvent.type(campo, `${EAN_NOTO}{enter}`);
+      rendered.fixture.detectChanges();
+
+      expect(screen.getByRole('table')).toBeTruthy();
+      expect(screen.queryByLabelText('Quantità')).toBeNull();
+    });
+
+    it('a card CHIUSA restano i valori che si toccano di più', async () => {
+      // Quantità, prezzo e totale: si modificano senza aprire niente.
+      await conRigaSuMobile();
+
+      expect(screen.getByLabelText('Quantità')).toBeTruthy();
+      expect(screen.getByLabelText('Prezzo netto')).toBeTruthy();
+      expect(screen.queryByLabelText('Sconto')).toBeNull();
+    });
+
+    it('aprendola compaiono i campi del corpo', async () => {
+      const rendered = await conRigaSuMobile();
+
+      await userEvent.click(screen.getByText(VARIANTE.title));
+      rendered.fixture.detectChanges();
+
+      expect(screen.getByLabelText('Descrizione')).toBeTruthy();
+      expect(screen.getByLabelText('Sconto')).toBeTruthy();
+    });
+
+    it('⭐ la spunta di magazzino porta l’etichetta del modo anche su card', async () => {
+      const rendered = await conRigaSuMobile();
+
+      await userEvent.click(screen.getByText(VARIANTE.title));
+      rendered.fixture.detectChanges();
+
+      expect(screen.getByLabelText('Scarica giacenze')).toBeTruthy();
+    });
+
+    it('⭐ e sul Reso la STESSA spunta dice «Carica giacenze»', async () => {
+      const rendered = await conRigaSuMobile({ mode: 'return' });
+
+      await userEvent.click(screen.getByText(VARIANTE.title));
+      rendered.fixture.detectChanges();
+
+      expect(screen.getByLabelText('Carica giacenze')).toBeTruthy();
+      // Stesso campo del modello: la card non introduce una seconda proprietà.
+      expect(rendered.component.lines()[0]!.loadsStock).toBe(true);
+    });
+
+    it('⛔ il selettore Colonne non compare: le card non hanno colonne', async () => {
+      await conRigaSuMobile();
+
+      expect(screen.queryByText('Colonne')).toBeNull();
+    });
+
+    it('⭐ l’inserimento riuscito suona: è la conferma che si sente senza guardare', async () => {
+      // `11` C: da telefono si spara un capo dopo l'altro con una mano sola e
+      // lo sguardo sul cliente. Il beep è l'unico segnale che arriva comunque.
+      const suoni = stubAudioContext();
+
+      await conRigaSuMobile();
+
+      expect(suoni.length).toBeGreaterThan(0);
+    });
+
+    it('⭐ preso e non trovato suonano DIVERSI', async () => {
+      const suoni = stubAudioContext();
+      const rendered = await conRigaSuMobile();
+
+      const campo = screen.getByLabelText('Scansiona o cerca un articolo');
+      await userEvent.type(campo, 'codice-che-non-esiste{enter}');
+      rendered.fixture.detectChanges();
+
+      // Se fossero uguali, il beep direbbe «è successo qualcosa» invece di dire
+      // che cosa — e senza guardare non si distinguerebbe.
+      expect(new Set(suoni).size).toBeGreaterThan(1);
+    });
+
+    it('⛔ su desktop l’inserimento riuscito NON suona: la riga che compare è già la conferma', async () => {
+      const suoni = stubAudioContext();
+      const rendered = await setup();
+
+      const campo = screen.getByLabelText('Scansiona o cerca un articolo');
+      await userEvent.type(campo, `${EAN_NOTO}{enter}`);
+      rendered.fixture.detectChanges();
+
+      expect(suoni).toEqual([]);
+    });
+
+    it('lo stepper della card cambia la quantità della riga', async () => {
+      const rendered = await conRigaSuMobile();
+
+      await userEvent.click(screen.getByLabelText('Aumenta quantità'));
+
+      expect(rendered.component.lines()[0]!.quantity).toBe(2);
     });
   });
 

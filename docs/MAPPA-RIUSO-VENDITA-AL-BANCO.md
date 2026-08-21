@@ -823,7 +823,11 @@ stato valido e verificabile.
                    Prezzo, quindi nasce con la colonna — `11` A4 lo diceva già,
                    «è parte della costruzione della tabella righe». Con lui è
                    entrato T5, il forcing «sempre ivato» lato server.
-⛔ 11 …            DA QUI IN POI, TUTTO APERTO.
+✅ 11 · card mobile chiuso — `store-sale-line-card` sopra le primitive comuni di
+                   `domain/documents`; criterio responsive comune, viste
+                   alternative, riferimento = Nuovo Ordine cliente (`11` A15).
+                   ⛔ Nessun import da `features/sales-orders/`.
+⛔ 12 …            DA QUI IN POI, TUTTO APERTO.
 ```
 
 ### Il confine del primo blocco — 21/08/2026
@@ -992,6 +996,14 @@ o si fanno insieme, o si esce da un documento aperto senza che nessuno lo chieda
       SALES_PRICE_MODE_TYPES e il forcing «sempre ivato» rimosso.
 
 11 ·  Card mobile: store-sale-line-card sopra app-document-line-card.
+      ✅ FATTO il 21/08. Riferimento funzionale e visuale: **Nuovo Ordine
+      cliente** — struttura, disposizione, densità, comportamento e criterio
+      responsive comune, senza soglie proprie del banco e senza importare
+      niente da quella feature. Le due viste sono alternative: sotto la
+      soglia la tabella non è nel DOM.
+      ⏳ Il sistema «mouse / dito / soglia manuale» (regole-stile-ui §9) non
+      si introduce per il solo banco: quando arriverà cambierà il contratto
+      comune, Ordine cliente compreso.
 
 12 ·  Piede: computeDocumentTotals, note, azioni. Lo sconto extra entra qui
       SE D1 è chiusa; altrimenti resta la sola percentuale, dichiarata.

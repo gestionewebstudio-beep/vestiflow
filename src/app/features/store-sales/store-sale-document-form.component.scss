@@ -72,3 +72,13 @@
   inline-size: var(--field-w-xs);
   text-align: center;
 }
+
+// ── Vista compatta: una card per riga ───────────────────────────────────────
+//
+// Il ritmo è quello del riferimento mobile (Ordine cliente): le card si
+// susseguono con lo stesso passo, e a separarle basta lo spazio.
+.store-sale-form__cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
