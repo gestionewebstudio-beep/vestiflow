@@ -25,6 +25,12 @@ export interface StoreSaleLookupItem {
 }
 
 export interface StoreSaleLineInput {
+  /**
+   * Id della riga da RISALVARE (T1/T2). Assente = riga nuova. Deve essere un
+   * id del SERVER (`DocumentLine.id`): mai un identificativo di sessione —
+   * vedi `DocumentLineDraft` in `store-sale-register.component.ts`.
+   */
+  readonly id?: EntityId;
   readonly variantId: EntityId;
   readonly quantity: number;
   readonly unitPriceMinor: number;
@@ -33,6 +39,8 @@ export interface StoreSaleLineInput {
 }
 
 export interface CreateStoreSalePayload {
+  /** Id della vendita da RISALVARE (T1/T2). Assente = vendita nuova. */
+  readonly id?: EntityId;
   readonly locationId: EntityId;
   readonly paymentMethod: StoreSalePaymentMethod;
   /** Testo libero quando paymentMethod = 'other' (es. «Assegno»). */
@@ -43,6 +51,8 @@ export interface CreateStoreSalePayload {
 }
 
 export interface StoreReturnLineInput {
+  /** Id della riga da RISALVARE (T1/T2). Assente = riga nuova. Stesso vincolo di `StoreSaleLineInput.id`. */
+  readonly id?: EntityId;
   readonly variantId: EntityId;
   readonly quantity: number;
   readonly restockable: boolean;
@@ -56,6 +66,8 @@ export interface StoreReturnLineInput {
  * costo ripresi da una vendita precedente.
  */
 export interface CreateStoreReturnPayload {
+  /** Id del reso da RISALVARE (T1/T2). Assente = reso nuovo. */
+  readonly id?: EntityId;
   readonly locationId: EntityId;
   /** Causale obbligatoria: nessun carico silenzioso (§9). */
   readonly reason: string;

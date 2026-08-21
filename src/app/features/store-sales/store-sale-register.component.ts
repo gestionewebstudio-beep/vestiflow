@@ -115,12 +115,20 @@ type RegisterMode = StoreSaleMode;
  * che restano due movimenti distinti. Indirizzando per variante collassavano in
  * una, e al salvataggio la seconda spariva col suo movimento.
  *
- * Sulle righe nuove l'id lo genera il client; su quelle caricate da un
- * documento esistente è quello del server, ed è ciò che fa aggiornare il
- * movimento collegato invece di ricrearlo.
+ * ⛔ **Due identità distinte, MAI la stessa cosa** (T1/T2, 21/08/2026):
+ * `uiId` è la chiave stabile della riga DENTRO la maschera — `track`, i
+ * gestori di click/input, la rimozione — e su una riga nuova è generata dal
+ * client (`nuovoIdRiga()`); su una riga caricata vale lo stesso id del
+ * server, ma resta un id di UI. `serverLineId` è l'unico che il payload può
+ * mandare: `null` su una riga nuova, l'id vero su una caricata. Un id di
+ * sessione (`nuova-3`) finito nel payload sarebbe scambiato dal server per
+ * un id sconosciuto e rifiutato con 422 — separare i campi lo rende
+ * strutturalmente impossibile, non solo un pattern da riconoscere.
  */
 interface DocumentLineDraft {
-  readonly id: string;
+  readonly uiId: string;
+  /** Id persistito di `DocumentLine`. `null` = riga non ancora salvata. */
+  readonly serverLineId: string | null;
   readonly variantId: EntityId;
   readonly sku: string;
   readonly description: string;
@@ -148,8 +156,13 @@ interface DocumentLineDraft {
  * senza un venduto non esiste un tetto da cui derivare un massimo. La vendita
  * reale puo' essere stata battuta su una cassa esterna e non esistere affatto
  * in VestiFlow.
+ *
+ * `uiId`/`serverLineId`: stessa distinzione di `DocumentLineDraft` (T1/T2) —
+ * vedi il suo docblock.
  */
 interface ReturnLine {
+  readonly uiId: string;
+  readonly serverLineId: string | null;
   readonly variantId: EntityId | null;
   readonly sku: string;
   readonly description: string;
@@ -375,7 +388,11 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
     this.selectedLocationId.set(doc.locationId ?? null);
     this.cart.set(
       (doc.lines ?? []).map((line) => ({
-        id: line.id,
+        // uiId serve solo alla maschera (track/click); serverLineId è quello
+        // che T1/T2 rimanda al server per far AGGIORNARE questa riga invece
+        // di duplicarla — vedi il docblock di DocumentLineDraft.
+        uiId: line.id,
+        serverLineId: line.id,
         variantId: line.variantId ?? '',
         sku: line.sku ?? '',
         description: line.description,
@@ -717,6 +734,8 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
         );
       }
       const next: ReturnLine = {
+        uiId: nuovoIdRiga(),
+        serverLineId: null,
         variantId: item.variantId,
         sku: item.sku,
         description: item.optionSummary
@@ -748,11 +767,12 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
       const existing = lines.find((line) => line.variantId === item.variantId);
       if (existing) {
         return lines.map((line) =>
-          line.id === existing.id ? { ...line, quantity: line.quantity + quantity } : line,
+          line.uiId === existing.uiId ? { ...line, quantity: line.quantity + quantity } : line,
         );
       }
       const next: DocumentLineDraft = {
-        id: nuovoIdRiga(),
+        uiId: nuovoIdRiga(),
+        serverLineId: null,
         variantId: item.variantId,
         sku: item.sku,
         description: item.optionSummary
@@ -950,7 +970,7 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
   protected changeQuantity(lineId: string, delta: number): void {
     this.cart.update((lines) =>
       lines.map((line) =>
-        line.id === lineId ? { ...line, quantity: Math.max(1, line.quantity + delta) } : line,
+        line.uiId === lineId ? { ...line, quantity: Math.max(1, line.quantity + delta) } : line,
       ),
     );
   }
@@ -961,7 +981,7 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
       return;
     }
     this.cart.update((lines) =>
-      lines.map((line) => (line.id === lineId ? { ...line, quantity: value } : line)),
+      lines.map((line) => (line.uiId === lineId ? { ...line, quantity: value } : line)),
     );
   }
 
@@ -973,7 +993,7 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
     }
     this.cart.update((lines) =>
       lines.map((line) =>
-        line.id === lineId
+        line.uiId === lineId
           ? {
               ...line,
               // Scorporo ESATTO: il netto memorizzato porta la coda decimale, ed
@@ -994,18 +1014,18 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
       return;
     }
     this.cart.update((lines) =>
-      lines.map((line) => (line.id === lineId ? { ...line, discountPercent: value } : line)),
+      lines.map((line) => (line.uiId === lineId ? { ...line, discountPercent: value } : line)),
     );
   }
 
   protected removeLine(lineId: string): void {
-    this.cart.update((lines) => lines.filter((line) => line.id !== lineId));
+    this.cart.update((lines) => lines.filter((line) => line.uiId !== lineId));
   }
 
   /** Override manuale del Codice IVA riga (compatto: la risoluzione di default resta silenziosa). */
   protected onLineVatSelect(lineId: string, value: string | null): void {
     this.cart.update((lines) =>
-      lines.map((line) => (line.id === lineId ? { ...line, vatCodeId: value } : line)),
+      lines.map((line) => (line.uiId === lineId ? { ...line, vatCodeId: value } : line)),
     );
   }
 
@@ -1122,6 +1142,10 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
     this.saleError.set(null);
     this.saleSubscription = this.service
       .createSale({
+        // T1/T2: id assente = crea; presente = risalva LO STESSO documento.
+        // Mai un id di sessione (uiId): solo serverLineId, mai confuso col
+        // primo — vedi il docblock di DocumentLineDraft.
+        id: this.editDocumentId() ?? undefined,
         locationId,
         paymentMethod: method,
         paymentMethodNote:
@@ -1129,6 +1153,7 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
         customerId: this.selectedCustomerId() ?? undefined,
         notes: this.saleNotes().trim() || undefined,
         lines: this.cart().map((line) => ({
+          id: line.serverLineId ?? undefined,
           variantId: line.variantId,
           quantity: line.quantity,
           unitPriceMinor: line.unitPriceMinor,
@@ -1226,10 +1251,13 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
     this.returnError.set(null);
     this.returnSubscription = this.service
       .createReturn({
+        // T1/T2: stesso contratto della Vendita — vedi concludeSale.
+        id: this.editDocumentId() ?? undefined,
         locationId,
         reason: this.returnReason().trim(),
         notes: this.returnNotes().trim() || undefined,
         lines: lines.map((line) => ({
+          id: line.serverLineId ?? undefined,
           variantId: line.variantId!,
           quantity: line.returnQuantity,
           restockable: line.restockable,

@@ -7,11 +7,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthService } from '@core/auth';
 import { APP_CONFIG } from '@core/config/app-config.token';
+import { DocumentStatus, DocumentType } from '@core/models/document.model';
+import type { DocumentRecord } from '@core/models/document.model';
 import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
 import { TenantPermission } from '@core/models/tenant-permission.model';
 import { UserRole } from '@core/models/user.model';
 import type { VatCode } from '@core/models/vat-code.model';
+import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 import { LocationContextService } from '@core/services/location-context.service';
+import { DocumentService } from '@domain/documents/services/document.service';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { VatCodeService } from '@core/services/vat-code.service';
 import { ShopifyConnectionService } from '@domain/channels/shopify/services/shopify-connection.service';
@@ -65,6 +69,76 @@ const VAT_22: VatCode = {
   isActive: true,
   isSystem: true,
   sortOrder: 1,
+};
+
+const ZERO_MONEY = { amountMinor: 0, currencyCode: DEFAULT_CURRENCY };
+
+/**
+ * Vendita/Reso esistenti da RISALVARE (T1/T2): due righe, ognuna col proprio
+ * `DocumentLine.id` — è quello che il payload deve rimandare al server per
+ * far AGGIORNARE la riga invece di duplicarla. `patchFromDocument` scrive
+ * questo id in ENTRAMBI `uiId` e `serverLineId` (§docblock `DocumentLineDraft`);
+ * i test verificano che solo `serverLineId` finisca nel payload.
+ */
+const SALE_DOC: DocumentRecord = {
+  id: 'doc-sale-1',
+  tenantId: 'ten-1',
+  createdAt: '2026-08-10T08:00:00.000Z',
+  updatedAt: '2026-08-10T08:00:00.000Z',
+  type: DocumentType.StoreSale,
+  status: DocumentStatus.Confirmed,
+  series: '',
+  number: 12,
+  year: 2026,
+  documentDate: '2026-08-10',
+  currency: DEFAULT_CURRENCY,
+  subtotal: ZERO_MONEY,
+  tax: ZERO_MONEY,
+  total: ZERO_MONEY,
+  pricesIncludeVat: true,
+  createdByName: 'Operatore',
+  locationId: LOCATION.id,
+  lines: [
+    {
+      id: 'line-sale-A',
+      lineNumber: 1,
+      variantId: 'var-1',
+      sku: ITEM.sku,
+      description: 'Maglietta Basic — M / Bianco',
+      quantity: 1,
+      unitPrice: { amountMinor: 1990, currencyCode: DEFAULT_CURRENCY },
+      discountPercent: 0,
+      lineTotal: { amountMinor: 1990, currencyCode: DEFAULT_CURRENCY },
+      loadsStock: true,
+      vatCodeId: 'vat-22',
+      vatSnapshot: { ratePercent: 22 },
+    },
+    {
+      id: 'line-sale-B',
+      lineNumber: 2,
+      variantId: 'var-2',
+      sku: 'SKU-2',
+      description: 'Felpa — L / Grigio',
+      quantity: 2,
+      unitPrice: { amountMinor: 2500, currencyCode: DEFAULT_CURRENCY },
+      discountPercent: 0,
+      lineTotal: { amountMinor: 5000, currencyCode: DEFAULT_CURRENCY },
+      loadsStock: true,
+      vatCodeId: 'vat-22',
+      vatSnapshot: { ratePercent: 22 },
+    },
+  ],
+} as unknown as DocumentRecord;
+
+/** Reso esistente da risalvare — stessa forma, tipo diverso. */
+const RETURN_DOC: DocumentRecord = {
+  ...SALE_DOC,
+  id: 'doc-return-1',
+  type: DocumentType.StoreReturn,
+  lines: [
+    { ...SALE_DOC.lines![0]!, id: 'line-return-A' },
+    { ...SALE_DOC.lines![1]!, id: 'line-return-B' },
+  ],
 };
 
 /** Chi sta al banco: permessi di cassa più quelli sotto esame. */
@@ -125,9 +199,14 @@ describe('StoreSaleRegisterComponent', () => {
     readonly variantIdByCode?: string | null;
     readonly lookupItems?: readonly StoreSaleLookupItem[];
     readonly createSale?: ReturnType<typeof vi.fn>;
+    readonly createReturn?: ReturnType<typeof vi.fn>;
     readonly permissions?: readonly string[];
     /** Il modo che la ROTTA dichiara. Default: vendita. */
     readonly mode?: 'sale' | 'return';
+    /** Id in rotta (T1/T2): presente = modifica di un documento esistente. */
+    readonly editId?: string;
+    /** Documento che `DocumentService.getDocumentById` risolve in modifica. */
+    readonly loadDocument?: DocumentRecord;
   }) {
     const variantId = options?.variantIdByCode;
     const findVariantByCode = vi.fn(() =>
@@ -173,16 +252,27 @@ describe('StoreSaleRegisterComponent', () => {
             // componente, con uno stack che non nomina questo file.
             snapshot: {
               data: { [STORE_SALE_MODE_ROUTE_DATA_KEY]: options?.mode ?? 'sale' },
-              paramMap: convertToParamMap({}),
+              paramMap: convertToParamMap(options?.editId ? { id: options.editId } : {}),
               queryParamMap: convertToParamMap({}),
               params: {},
               queryParams: {},
             },
             data: of({ [STORE_SALE_MODE_ROUTE_DATA_KEY]: options?.mode ?? 'sale' }),
-            paramMap: of(convertToParamMap({})),
+            paramMap: of(convertToParamMap(options?.editId ? { id: options.editId } : {})),
             queryParamMap: of(convertToParamMap({})),
             params: of({}),
             queryParams: of({}),
+          },
+        },
+        // T1/T2: la pipeline di caricamento (`editDocumentId` → `getDocumentById`)
+        // esiste comunque — inject() la risolve alla costruzione, anche quando
+        // nessun test la esercita. Fuori dalla modalità modifica il mock non
+        // viene mai chiamato: `editDocumentId()` resta null e il `switchMap`
+        // si ferma prima.
+        {
+          provide: DocumentService,
+          useValue: {
+            getDocumentById: vi.fn(() => of(options?.loadDocument ?? SALE_DOC)),
           },
         },
         {
@@ -199,7 +289,7 @@ describe('StoreSaleRegisterComponent', () => {
           useValue: {
             lookupItems,
             createSale: options?.createSale ?? vi.fn(),
-            createReturn: vi.fn(),
+            createReturn: options?.createReturn ?? vi.fn(),
           },
         },
         {
@@ -523,6 +613,423 @@ describe('StoreSaleRegisterComponent', () => {
 
       expect(screen.queryByRole('tablist')).toBeNull();
       expect(screen.queryAllByRole('tab')).toHaveLength(0);
+    });
+  });
+
+  /**
+   * ⛔ T1/T2 — il client impara a mandare gli id (21/08/2026).
+   *
+   * Il server sa già risalvare (`dto.id` branch, già testato lato API in
+   * `store-sales.service.spec.ts`): qui si verifica SOLO che il client li
+   * mandi, con la distinzione che conta — `uiId` (identità di sessione, mai
+   * nel payload) contro `serverLineId` (id vero, l'unico che parte).
+   *
+   * ⚠️ Sul Reso le righe si seminano DIRETTAMENTE su `returnLines`, non via
+   * ricerca/scansione: quella UI è oggi dentro `@if (mode() === 'sale')`
+   * (O1, mappa di riuso) e `patchFromDocument` non scrive mai `returnLines`
+   * (O2) — due difetti già censiti, NON di questo commit. Questi test
+   * verificano il contratto di `concludeReturn()` in isolamento da quei due
+   * gap, non l'intero percorso utente che oggi non esiste ancora.
+   */
+  describe('T1/T2 — id documento e id riga nel payload', () => {
+    /** Sottoinsieme di `DocumentLineDraft` (privata al componente) che i test toccano. */
+    interface TestDraftLine {
+      readonly uiId: string;
+      readonly serverLineId: string | null;
+      readonly variantId: string;
+      readonly sku: string;
+      readonly description: string;
+      readonly unitPriceMinor: number;
+      readonly quantity: number;
+      readonly discountPercent: number;
+      readonly vatRatePercent: number | null;
+      readonly vatCodeId: string | null;
+      readonly onHand: number;
+      readonly committed: number;
+      readonly available: number;
+    }
+
+    function componentOf(fixture: { componentInstance: unknown }) {
+      return fixture.componentInstance as {
+        cart: {
+          set(v: readonly TestDraftLine[]): void;
+          update(fn: (v: readonly TestDraftLine[]) => readonly TestDraftLine[]): void;
+        };
+        returnLines: { set(v: readonly unknown[]): void };
+        removeLine(uiId: string): void;
+        concludeSale(): void;
+        concludeReturn(): void;
+      };
+    }
+
+    describe('Vendita', () => {
+      it('nuova vendita, una riga via scansione → nessun id documento né riga', async () => {
+        const createSale = vi.fn((_body: unknown) =>
+          of({
+            id: 'doc-new',
+            reference: 'VN-1',
+            documentDate: '2026-08-21',
+            totalMinor: 1990,
+            currency: 'EUR',
+            lines: [],
+          }),
+        );
+        const { fixture } = await setup({
+          variantIdByCode: 'var-1',
+          lookupItems: [ITEM],
+          createSale,
+        });
+        await scan(EAN);
+
+        componentOf(fixture).concludeSale();
+
+        expect(createSale).toHaveBeenCalledWith(
+          expect.objectContaining({
+            id: undefined,
+            lines: [expect.objectContaining({ id: undefined, variantId: 'var-1' })],
+          }),
+        );
+      });
+
+      it('nuova vendita, più righe → nessun id inventato su nessuna riga', async () => {
+        const createSale = vi.fn((_body: unknown) =>
+          of({
+            id: 'doc-new',
+            reference: 'VN-1',
+            documentDate: '2026-08-21',
+            totalMinor: 0,
+            currency: 'EUR',
+            lines: [],
+          }),
+        );
+        const { fixture } = await setup({ createSale });
+        const component = componentOf(fixture);
+
+        // Due righe seminate direttamente: il contratto sotto test è cosa
+        // ESCE nel payload, non il percorso di ricerca (già coperto sopra).
+        component.cart.set([
+          {
+            uiId: 'ui-1',
+            serverLineId: null,
+            variantId: 'var-1',
+            sku: 'A',
+            description: 'A',
+            unitPriceMinor: 1000,
+            quantity: 1,
+            discountPercent: 0,
+            vatRatePercent: 22,
+            vatCodeId: 'vat-22',
+            onHand: 0,
+            committed: 0,
+            available: 0,
+          },
+          {
+            uiId: 'ui-2',
+            serverLineId: null,
+            variantId: 'var-2',
+            sku: 'B',
+            description: 'B',
+            unitPriceMinor: 2000,
+            quantity: 1,
+            discountPercent: 0,
+            vatRatePercent: 22,
+            vatCodeId: 'vat-22',
+            onHand: 0,
+            committed: 0,
+            available: 0,
+          },
+        ]);
+
+        component.concludeSale();
+
+        expect(createSale).toHaveBeenCalledWith(
+          expect.objectContaining({
+            id: undefined,
+            lines: [
+              expect.objectContaining({ id: undefined, variantId: 'var-1' }),
+              expect.objectContaining({ id: undefined, variantId: 'var-2' }),
+            ],
+          }),
+        );
+      });
+
+      it('modifica vendita → id documento presente, righe esistenti con lo stesso id del server', async () => {
+        const createSale = vi.fn((_body: unknown) =>
+          of({
+            id: SALE_DOC.id,
+            reference: 'VN-12',
+            documentDate: '2026-08-10',
+            totalMinor: 0,
+            currency: 'EUR',
+            lines: [],
+          }),
+        );
+        const { fixture } = await setup({
+          mode: 'sale',
+          editId: SALE_DOC.id,
+          loadDocument: SALE_DOC,
+          createSale,
+        });
+        // Attende che patchFromDocument abbia scritto il carrello.
+        await screen.findByText('Maglietta Basic — M / Bianco');
+
+        componentOf(fixture).concludeSale();
+
+        expect(createSale).toHaveBeenCalledWith(
+          expect.objectContaining({
+            id: 'doc-sale-1',
+            lines: [
+              expect.objectContaining({ id: 'line-sale-A', variantId: 'var-1' }),
+              expect.objectContaining({ id: 'line-sale-B', variantId: 'var-2' }),
+            ],
+          }),
+        );
+      });
+
+      it('modifica: riga nuova senza id, riga rimossa assente dal payload, riga rimasta col suo id', async () => {
+        const createSale = vi.fn((_body: unknown) =>
+          of({
+            id: SALE_DOC.id,
+            reference: 'VN-12',
+            documentDate: '2026-08-10',
+            totalMinor: 0,
+            currency: 'EUR',
+            lines: [],
+          }),
+        );
+        const { fixture } = await setup({
+          mode: 'sale',
+          editId: SALE_DOC.id,
+          loadDocument: SALE_DOC,
+          createSale,
+        });
+        await screen.findByText('Maglietta Basic — M / Bianco');
+        const component = componentOf(fixture);
+
+        // Riga nuova aggiunta IN SESSIONE: uiId di sessione, nessun serverLineId.
+        component.cart.update((lines) => [
+          ...lines,
+          {
+            uiId: 'ui-new',
+            serverLineId: null,
+            variantId: 'var-3',
+            sku: 'C',
+            description: 'Nuova',
+            unitPriceMinor: 500,
+            quantity: 1,
+            discountPercent: 0,
+            vatRatePercent: 22,
+            vatCodeId: 'vat-22',
+            onHand: 0,
+            committed: 0,
+            available: 0,
+          },
+        ]);
+        // Riga caricata rimossa: su una riga da patchFromDocument uiId === serverLineId.
+        component.removeLine('line-sale-B');
+
+        component.concludeSale();
+
+        const payload = createSale.mock.calls[0]![0] as {
+          lines: readonly { id?: string; variantId: string }[];
+        };
+        expect(payload.lines).toHaveLength(2);
+        expect(payload.lines.find((l) => l.variantId === 'var-1')?.id).toBe('line-sale-A');
+        expect(payload.lines.find((l) => l.variantId === 'var-3')?.id).toBeUndefined();
+        expect(payload.lines.some((l) => l.id === 'line-sale-B')).toBe(false);
+      });
+    });
+
+    describe('Reso', () => {
+      const RETURN_LINE_A = {
+        uiId: 'line-return-A',
+        serverLineId: 'line-return-A',
+        variantId: 'var-1',
+        sku: ITEM.sku,
+        description: 'Maglietta Basic — M / Bianco',
+        unitPriceMinor: 1990,
+        vatRatePercent: 22,
+        returnQuantity: 1,
+        restockable: true,
+      };
+      const RETURN_LINE_B = {
+        uiId: 'line-return-B',
+        serverLineId: 'line-return-B',
+        variantId: 'var-2',
+        sku: 'SKU-2',
+        description: 'Felpa — L / Grigio',
+        unitPriceMinor: 2500,
+        vatRatePercent: 22,
+        returnQuantity: 2,
+        restockable: true,
+      };
+
+      it('nuovo reso, una riga → nessun id documento né riga', async () => {
+        const createReturn = vi.fn((_body: unknown) =>
+          of({
+            id: 'doc-r-new',
+            reference: 'RS-1',
+            documentDate: '2026-08-21',
+            totalMinor: 0,
+            currency: 'EUR',
+            lines: [],
+          }),
+        );
+        const { fixture } = await setup({ mode: 'return', createReturn });
+        const component = componentOf(fixture);
+        component.returnLines.set([{ ...RETURN_LINE_A, uiId: 'ui-1', serverLineId: null }]);
+
+        component.concludeReturn();
+
+        expect(createReturn).toHaveBeenCalledWith(
+          expect.objectContaining({
+            id: undefined,
+            lines: [expect.objectContaining({ id: undefined, variantId: 'var-1' })],
+          }),
+        );
+      });
+
+      it('nuovo reso, più righe → nessun id inventato su nessuna riga', async () => {
+        const createReturn = vi.fn((_body: unknown) =>
+          of({
+            id: 'doc-r-new',
+            reference: 'RS-1',
+            documentDate: '2026-08-21',
+            totalMinor: 0,
+            currency: 'EUR',
+            lines: [],
+          }),
+        );
+        const { fixture } = await setup({ mode: 'return', createReturn });
+        const component = componentOf(fixture);
+        component.returnLines.set([
+          { ...RETURN_LINE_A, uiId: 'ui-1', serverLineId: null },
+          { ...RETURN_LINE_B, uiId: 'ui-2', serverLineId: null },
+        ]);
+
+        component.concludeReturn();
+
+        expect(createReturn).toHaveBeenCalledWith(
+          expect.objectContaining({
+            id: undefined,
+            lines: [
+              expect.objectContaining({ id: undefined, variantId: 'var-1' }),
+              expect.objectContaining({ id: undefined, variantId: 'var-2' }),
+            ],
+          }),
+        );
+      });
+
+      it('modifica reso → id documento presente, righe esistenti con lo stesso id del server', async () => {
+        const createReturn = vi.fn((_body: unknown) =>
+          of({
+            id: RETURN_DOC.id,
+            reference: 'RS-1',
+            documentDate: '2026-08-10',
+            totalMinor: 0,
+            currency: 'EUR',
+            lines: [],
+          }),
+        );
+        const { fixture } = await setup({
+          mode: 'return',
+          editId: RETURN_DOC.id,
+          loadDocument: RETURN_DOC,
+          createReturn,
+        });
+        const component = componentOf(fixture);
+        // Seminate direttamente (O2: patchFromDocument non scrive returnLines
+        // oggi — non è di questo commit): il contratto sotto test è il
+        // payload di concludeReturn, non il caricamento.
+        component.returnLines.set([RETURN_LINE_A, RETURN_LINE_B]);
+
+        component.concludeReturn();
+
+        expect(createReturn).toHaveBeenCalledWith(
+          expect.objectContaining({
+            id: 'doc-return-1',
+            lines: [
+              expect.objectContaining({ id: 'line-return-A', variantId: 'var-1' }),
+              expect.objectContaining({ id: 'line-return-B', variantId: 'var-2' }),
+            ],
+          }),
+        );
+      });
+
+      it('modifica: riga nuova senza id, riga rimossa assente dal payload, riga rimasta col suo id', async () => {
+        const createReturn = vi.fn((_body: unknown) =>
+          of({
+            id: RETURN_DOC.id,
+            reference: 'RS-1',
+            documentDate: '2026-08-10',
+            totalMinor: 0,
+            currency: 'EUR',
+            lines: [],
+          }),
+        );
+        const { fixture } = await setup({
+          mode: 'return',
+          editId: RETURN_DOC.id,
+          loadDocument: RETURN_DOC,
+          createReturn,
+        });
+        const component = componentOf(fixture);
+        // Solo A (caricata) + una nuova: B è la riga "rimossa", semplicemente
+        // mai inclusa — così si toglie una riga in questa maschera oggi
+        // (nessun elenco con eliminazione dedicata sul Reso).
+        component.returnLines.set([
+          RETURN_LINE_A,
+          {
+            uiId: 'ui-new',
+            serverLineId: null,
+            variantId: 'var-3',
+            sku: 'C',
+            description: 'Nuova',
+            unitPriceMinor: 500,
+            vatRatePercent: 22,
+            returnQuantity: 1,
+            restockable: true,
+          },
+        ]);
+
+        component.concludeReturn();
+
+        const payload = createReturn.mock.calls[0]![0] as {
+          lines: readonly { id?: string; variantId: string }[];
+        };
+        expect(payload.lines).toHaveLength(2);
+        expect(payload.lines.find((l) => l.variantId === 'var-1')?.id).toBe('line-return-A');
+        expect(payload.lines.find((l) => l.variantId === 'var-3')?.id).toBeUndefined();
+        expect(payload.lines.some((l) => l.id === 'line-return-B')).toBe(false);
+      });
+    });
+
+    it('la modifica usa lo STESSO metodo/endpoint della creazione, distinto solo da id nel body', async () => {
+      // Non un metodo/endpoint diverso: la stessa createSale, chiamata con id
+      // presente. È il contratto già verificato lato API (T1/T2, censimento):
+      // qui si verifica solo che il client non ne inventi uno suo.
+      const createSale = vi.fn((_body: unknown) =>
+        of({
+          id: SALE_DOC.id,
+          reference: 'VN-12',
+          documentDate: '2026-08-10',
+          totalMinor: 0,
+          currency: 'EUR',
+          lines: [],
+        }),
+      );
+      const { fixture } = await setup({
+        mode: 'sale',
+        editId: SALE_DOC.id,
+        loadDocument: SALE_DOC,
+        createSale,
+      });
+      await screen.findByText('Maglietta Basic — M / Bianco');
+
+      componentOf(fixture).concludeSale();
+
+      expect(createSale).toHaveBeenCalledTimes(1);
+      expect(createSale.mock.calls[0]![0]).toMatchObject({ id: 'doc-sale-1' });
     });
   });
 });
