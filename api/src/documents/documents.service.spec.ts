@@ -69,6 +69,9 @@ function createPrismaMock() {
       count: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+      // `cancel` rivendica il documento con un update CONDIZIONATO sullo stato:
+      // di default la rivendicazione riesce.
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       delete: vi.fn(),
     },
     // Righe: dalla correzione «identità stabile» il salvataggio non cancella e
@@ -1293,6 +1296,105 @@ describe('DocumentsService', () => {
       expect(channelSync.pushInventoryLevels).toHaveBeenCalledWith(tenantId, 'var-1', ['loc-1']);
     });
 
+    /**
+     * ⛔ DUE ANNULLAMENTI CONCORRENTI NON DEVONO STORNARE DUE VOLTE.
+     *
+     * La guardia «il documento è già annullato» legge FUORI dalla transazione
+     * (`documents.service.ts` → `getById` in testa a `cancel`), e da quella
+     * stessa lettura si calcolano i flag di storno (`wasStockLoaded` e
+     * fratelli). La scrittura finale non porta alcuna condizione sullo stato:
+     * `tx.document.update({ where: { id } })`.
+     *
+     * Due richieste che leggono entrambe `confirmed` passano quindi entrambe la
+     * guardia e applicano entrambe la reintegra: la merce rientra due volte.
+     *
+     * ⚠️ **Il test SIMULA l'interleaving, non esegue concorrenza vera**: il
+     * finto `findFirst` risponde sempre col documento pre-annullamento, che è
+     * esattamente ciò che vedono due transazioni sovrapposte finché nessuna ha
+     * confermato. È la sola forma possibile su un doppio in memoria, e va detta
+     * invece di lasciar credere a una prova di parallelismo.
+     *
+     * ⚠️ **E dichiara anche il proprio confine.** Il finto `updateMany` sotto
+     * riproduce ciò che fa un UPDATE condizionato in READ COMMITTED: la prima
+     * rivendicazione trova la riga, la seconda — dopo il lock — non la trova
+     * più. Il test prova quindi che **il servizio reagisce correttamente a una
+     * rivendicazione persa**: non storna e dichiara il conflitto. Che PostgreSQL
+     * serializzi davvero le due `UPDATE` è un'assunzione sul livello di
+     * isolamento, non una cosa che questo test dimostri.
+     */
+    it('⛔ due annullamenti concorrenti stornano UNA volta sola', async () => {
+      const { service } = createService(
+        prisma,
+        resolvedSetting({ type: DocumentType.goods_receipt }),
+      );
+      const doc = {
+        id: 'doc-conc',
+        tenantId,
+        type: DocumentType.goods_receipt,
+        status: DocumentStatus.confirmed,
+        reference: 'CAR-2026-0009',
+        locationId: 'loc-1',
+        series: 'A',
+        documentDate: new Date(),
+        currency: 'EUR',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        lines: [
+          {
+            id: 'l1',
+            lineNumber: 1,
+            variantId: 'var-1',
+            sku: 'SKU-1',
+            quantity: 4,
+            loadsStock: true,
+            description: 'x',
+            unitPriceMinor: 0,
+            discountPercent: 0,
+            lineTotalMinor: 0,
+            documentId: 'doc-conc',
+            tenantId,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ],
+      };
+      // Entrambe le richieste leggono lo stato PRE-annullamento: è la finestra.
+      prisma.document.findFirst.mockResolvedValue(doc);
+      prisma.documentRevision.findFirst.mockResolvedValue(null);
+      prisma.inventoryLevel.updateMany.mockResolvedValue({ count: 1 });
+      prisma.stockMovement.create.mockResolvedValue({});
+      prisma.document.update.mockResolvedValue({ ...doc, status: DocumentStatus.cancelled });
+
+      // Il database sotto un UPDATE condizionato: la prima rivendicazione trova
+      // la riga, la seconda no. Vedi il confine dichiarato nel docblock.
+      let rivendicato = false;
+      prisma.document.updateMany.mockImplementation(() => {
+        if (rivendicato) {
+          return Promise.resolve({ count: 0 });
+        }
+        rivendicato = true;
+        return Promise.resolve({ count: 1 });
+      });
+
+      const attore = testOwnerUser({ id: 'user-1', displayName: 'Luigi' });
+      const esiti = await Promise.allSettled([
+        service.cancel(tenantId, 'doc-conc', attore),
+        service.cancel(tenantId, 'doc-conc', attore),
+      ]);
+
+      // Una sola deve riuscire; l'altra dichiara il conflitto.
+      expect(esiti.filter((e) => e.status === 'fulfilled')).toHaveLength(1);
+      const respinta = esiti.find((e) => e.status === 'rejected');
+      expect((respinta as PromiseRejectedResult | undefined)?.reason).toBeInstanceOf(
+        ConflictException,
+      );
+
+      // ⛔ E soprattutto: la merce rientra UNA volta sola. Con due storni la
+      // giacenza scenderebbe di 8 invece che di 4, e nessuno se ne accorgerebbe
+      // guardando il documento — che risulta annullato una volta sola.
+      expect(prisma.stockMovement.create).toHaveBeenCalledTimes(1);
+    });
+
     it('cancel transfer legacy (senza movimenti per riga): usa il reverse aggregato', async () => {
       const { service } = createService(prisma, resolvedSetting({ type: DocumentType.transfer }));
       const doc = {
@@ -1720,9 +1822,11 @@ describe('DocumentsService', () => {
         lines: [inputLine({ id: 'line-1', quantity: 5 })],
       });
 
-      const data = (prisma.documentLine.updateMany.mock.calls[0]![0] as {
-        data: Record<string, unknown>;
-      }).data;
+      const data = (
+        prisma.documentLine.updateMany.mock.calls[0]![0] as {
+          data: Record<string, unknown>;
+        }
+      ).data;
       // `undefined` è il modo in cui Prisma dice «non toccare questa colonna»:
       // non finisce nella UPDATE. È la differenza con `null`, che invece la
       // scriverebbe — ed è esattamente ciò che succedeva prima.
@@ -1737,9 +1841,11 @@ describe('DocumentsService', () => {
         lines: [inputLine({ id: 'line-1', unitOfMeasure: '' })],
       });
 
-      const data = (prisma.documentLine.updateMany.mock.calls[0]![0] as {
-        data: Record<string, unknown>;
-      }).data;
+      const data = (
+        prisma.documentLine.updateMany.mock.calls[0]![0] as {
+          data: Record<string, unknown>;
+        }
+      ).data;
       // Stringa vuota = svuotamento esplicito, ed è un gesto diverso dal
       // silenzio: qui la colonna si scrive, a null.
       expect(data.unitOfMeasure).toBeNull();
@@ -1752,9 +1858,11 @@ describe('DocumentsService', () => {
         lines: [inputLine({ id: 'line-1', unitOfMeasure: '  kg  ' })],
       });
 
-      const data = (prisma.documentLine.updateMany.mock.calls[0]![0] as {
-        data: Record<string, unknown>;
-      }).data;
+      const data = (
+        prisma.documentLine.updateMany.mock.calls[0]![0] as {
+          data: Record<string, unknown>;
+        }
+      ).data;
       expect(data.unitOfMeasure).toBe('kg');
     });
 

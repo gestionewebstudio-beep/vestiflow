@@ -2636,6 +2636,27 @@ export class DocumentsService {
       documentTypeLoadsStockOnConfirm(doc.type);
 
     await this.prisma.$transaction(async (tx) => {
+      // ⛔ Si RIVENDICA il documento PRIMA di toccare le giacenze.
+      //
+      // La guardia «già annullato» qui sopra legge fuori dalla transazione, e da
+      // quella stessa lettura escono i flag di storno (`wasStockLoaded` e
+      // fratelli). Due richieste che leggono entrambe `confirmed` passavano
+      // entrambe, e la merce rientrava DUE VOLTE: la scrittura finale portava
+      // `where: { id }` e basta, quindi niente la fermava.
+      //
+      // ⚠️ La condizione sta nel `where`, non in un `if`: è il database a
+      // decidere chi vince. In READ COMMITTED la seconda transazione aspetta il
+      // lock di riga della prima, poi rivaluta il predicato sul valore appena
+      // confermato, non trova nulla da aggiornare e si ferma qui — prima di
+      // aver stornato alcunché.
+      const claimed = await tx.document.updateMany({
+        where: { id, tenantId, status: { not: DocumentStatus.cancelled } },
+        data: { status: DocumentStatus.cancelled, cancelledAt: new Date() },
+      });
+      if (claimed.count === 0) {
+        throw new ConflictException('Il documento è già annullato.');
+      }
+
       let stockDeltas: readonly { sku: string; delta: number }[] = [];
       if (wasStockLoaded) {
         const hasLineMovements =
@@ -2860,10 +2881,8 @@ export class DocumentsService {
         );
       }
 
-      await tx.document.update({
-        where: { id },
-        data: { status: DocumentStatus.cancelled, cancelledAt: new Date() },
-      });
+      // Lo stato è già stato scritto in testa alla transazione, rivendicando il
+      // documento: qui non resta niente da aggiornare.
     });
 
     for (const entry of syncTargets) {
