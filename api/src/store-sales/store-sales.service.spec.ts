@@ -1823,3 +1823,95 @@ describe('T3 — lo snapshot IVA non si rifotografa al risalvataggio', () => {
     });
   });
 });
+
+// ── T4 — il prezzo del Reso: obbligatorio, e zero è un valore ─────────────
+//
+// ⛔ Il servizio faceva `line.unitPriceMinor ?? 0`: il campo era facoltativo e
+// un prezzo mancante diventava zero IN SILENZIO. Ora il DTO lo pretende, quindi
+// «assente» non arriva più al servizio — lo respinge la validazione.
+//
+// ⚠️ Zero ESPLICITO resta validissimo (`@Min(0)`, non `@Min(1)`): c'è chi rende
+// un omaggio. Sparisce l'ambiguità, non lo zero.
+//
+// ⛔ E nessun ripiego sul prezzo corrente dell'articolo: sarebbe la rifotografia
+// dall'anagrafica che `regole-gestionale` vieta. Il prezzo appartiene ai campi
+// che il CLIENT MANDA SEMPRE, quindi non ha nemmeno il contratto binario dello
+// snapshot — per un campo di quel gruppo sarebbe inutile.
+describe('T4 — il prezzo del Reso', () => {
+  it('zero ESPLICITO è un valore valido: si salva zero, non lo si scambia per assente', async () => {
+    const db = createDb();
+    db.defaultVatCodeId = VAT_22.id;
+    db.vatCodes = [VAT_22];
+    const { service } = createService(db);
+
+    await service.createReturn(
+      TENANT,
+      {
+        locationId: LOCATION,
+        lines: [{ variantId: VARIANT_A, quantity: 2, restockable: true, unitPriceMinor: 0 }],
+      } as never,
+      user,
+    );
+
+    const riga = db.documents[0]!.lines[0]!;
+    expect(riga.unitPriceMinor).toBe(0);
+    expect(riga.lineTotalMinor).toBe(0);
+    // Nessuna imposta su un imponibile nullo, ma il Codice IVA resta risolto:
+    // la riga è documentata, non degradata.
+    expect(riga.lineVatTotalMinor).toBe(0);
+    expect(riga.vatCodeId).toBe(VAT_22.id);
+    // ⭐ E il rientro fisico avviene lo stesso: a decidere il movimento è la
+    // spunta di riga, non il prezzo (`11` A11-ter).
+    expect(db.movements).toHaveLength(1);
+    expect(levelOf(db, VARIANT_A).onHand).toBe(12);
+  });
+
+  it('⭐ coda decimale: risalvare senza toccare il prezzo lo lascia identico, non lo arrotonda', async () => {
+    const db = createDb();
+    db.defaultVatCodeId = VAT_22.id;
+    db.vatCodes = [VAT_22];
+    const { service } = createService(db);
+
+    // 2049,1803 centesimi netti = il risultato ESATTO dello scorporo di 25,00 €
+    // ivati al 22%. È quella coda a far tornare il prezzo digitato quando la
+    // riga viene rimostrata ivata (`regole-gestionale`, §sei decimali).
+    const CON_CODA = 2049.1803;
+
+    await service.createReturn(
+      TENANT,
+      {
+        locationId: LOCATION,
+        lines: [{ variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: CON_CODA }],
+      } as never,
+      user,
+    );
+    const doc = db.documents[0]!;
+    expect(doc.lines[0]!.unitPriceMinor).toBe(CON_CODA);
+
+    // Il client rimanda il netto canonico tale e quale: la maschera del banco
+    // lo tiene nel signal e il campo ne MOSTRA solo l'ivato a due decimali.
+    await service.createReturn(
+      TENANT,
+      {
+        id: doc.id,
+        locationId: LOCATION,
+        lines: [
+          {
+            id: doc.lines[0]!.id,
+            variantId: VARIANT_A,
+            quantity: 3,
+            restockable: true,
+            unitPriceMinor: CON_CODA,
+          },
+        ],
+      } as never,
+      user,
+    );
+
+    // ⛔ Non 2049: la coda sopravvive al risalvataggio.
+    expect(db.documents[0]!.lines[0]!.unitPriceMinor).toBe(CON_CODA);
+    // E il totale si rifà sulla quantità nuova, arrotondato UNA volta sola:
+    // 3 × 2049,1803 = 6147,5409 → 6148.
+    expect(db.documents[0]!.lines[0]!.lineTotalMinor).toBe(6148);
+  });
+});

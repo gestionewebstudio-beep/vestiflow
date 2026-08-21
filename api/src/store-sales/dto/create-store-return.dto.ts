@@ -84,11 +84,26 @@ export class StoreReturnLineInputDto {
    * ⛔ Non viene MAI da una vendita precedente (`11` A11): quel riferimento non
    * esiste nel contratto. Alla selezione dell'articolo la fonte è l'anagrafica,
    * secondo il contratto prezzi comune; poi resta modificabile.
+   *
+   * ⛔ **OBBLIGATORIO, come sulla Vendita** (T4). Era facoltativo e il servizio
+   * faceva `?? 0`: un prezzo mancante diventava **zero in silenzio**, e un reso
+   * senza importo si registrava come se la merce fosse stata regalata.
+   *
+   * ⚠️ **Zero esplicito resta validissimo** — `@Min(0)`, non `@Min(1)`: c'è chi
+   * rende un omaggio. È «assente» a non essere più rappresentabile, e con essa
+   * l'ambiguità fra «non lo so» e «vale zero»: senza il campo la richiesta viene
+   * **rifiutata**, rumorosamente, invece di produrre un documento sbagliato.
+   *
+   * ⛔ **Nessun ripiego sul prezzo corrente dell'articolo**, né qui né sul
+   * server: sarebbe la rifotografia dall'anagrafica che `regole-gestionale`
+   * vieta. Il prezzo appartiene al gruppo dei campi che **il client manda
+   * sempre** — quello che manda è già il valore del DOCUMENTO, letto
+   * all'apertura — quindi non serve nemmeno il contratto binario dello
+   * snapshot: per un campo di quel gruppo sarebbe inutile.
    */
-  @IsOptional()
   @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
-  unitPriceMinor?: number;
+  unitPriceMinor!: number;
 
   /**
    * Codice IVA della riga. Se assente, risolto da articolo/predefinito

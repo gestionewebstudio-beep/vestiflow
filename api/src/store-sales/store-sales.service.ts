@@ -499,7 +499,17 @@ export class StoreSalesService {
 
       const computedLines = dto.lines.map((line, index) => {
         const variant = variants.get(line.variantId)!;
-        const unitPriceMinor = line.unitPriceMinor ?? 0;
+        // ⛔ Qui c'era `line.unitPriceMinor ?? 0` (T4): il campo era facoltativo
+        // e un prezzo mancante diventava zero IN SILENZIO. Ora il DTO lo
+        // pretende, quindi «assente» non arriva più fin qui — lo respinge la
+        // validazione, che è il posto giusto per dirlo.
+        //
+        // ⚠️ Nessun ripiego sul prezzo corrente dell'articolo: sarebbe la
+        // rifotografia dall'anagrafica che `regole-gestionale` vieta. Il valore
+        // che arriva è già quello del documento, e su una riga esistente è
+        // quello persistito — il client lo rimanda tale e quale, coda decimale
+        // compresa.
+        const unitPriceMinor = line.unitPriceMinor;
         const previous = line.id ? existingLinesById.get(line.id) : undefined;
 
         // Riga già esistente: lo snapshot IVA non si rifotografa, come su ogni

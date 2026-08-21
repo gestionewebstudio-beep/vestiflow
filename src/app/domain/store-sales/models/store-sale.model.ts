@@ -56,7 +56,16 @@ export interface StoreReturnLineInput {
   readonly variantId: EntityId;
   readonly quantity: number;
   readonly restockable: boolean;
-  readonly unitPriceMinor?: number;
+  /**
+   * Prezzo unitario NETTO reso, in unità minori — **obbligatorio, come sulla
+   * Vendita** (T4). Zero esplicito è valido; assente non è rappresentabile, e
+   * il server rifiuta la richiesta invece di scriverci zero.
+   *
+   * ⚠️ Porta la coda decimale fino a 4 cifre di centesimo, e va rimandato
+   * **tale e quale** quando la riga non si tocca: il banco tiene il netto
+   * canonico nel signal e il campo ne MOSTRA solo l'ivato arrotondato.
+   */
+  readonly unitPriceMinor: number;
   /**
    * Codice IVA della riga, **come sulla Vendita** (T3). Assente su una riga
    * NUOVA = risolto da articolo/predefinito; assente su una riga ESISTENTE =
