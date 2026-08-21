@@ -89,6 +89,26 @@ export class StoreReturnLineInputDto {
   @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
   unitPriceMinor?: number;
+
+  /**
+   * Codice IVA della riga. Se assente, risolto da articolo/predefinito
+   * aziendale — **identico alla Vendita** (`StoreSaleLineInputDto.vatCodeId`).
+   *
+   * ⚠️ **Contratto binario, e su una riga ESISTENTE l'assenza ha un secondo
+   * significato**: «non modificata», e il servizio conserva `vatCodeId` e
+   * `vatSnapshot` persistiti invece di rifotografarli. Se domani cambia
+   * l'aliquota di un Codice IVA, risalvare un reso di marzo non lo ri-prezza.
+   *
+   * ⛔ Qui il campo non c'era affatto, e il servizio passava `undefined`
+   * cablato: lo snapshot si conservava — per caso, non per contratto — ma
+   * l'operatore non poteva **mai** cambiare l'IVA di una riga di reso.
+   *
+   * ⚠️ La vecchia maschera pos non ha una colonna IVA e non manda questo campo:
+   * il contratto è completo per la maschera nuova, non per quella (T3).
+   */
+  @IsOptional()
+  @IsUUID()
+  vatCodeId?: string;
 }
 
 /**

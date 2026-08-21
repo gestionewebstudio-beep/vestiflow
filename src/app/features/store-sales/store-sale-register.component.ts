@@ -62,6 +62,9 @@ import {
   vatInputFromVatCode,
   type VatComputationInput,
 } from '@domain/documents/utils/document-vat.util';
+// Contratto binario dello snapshot IVA, comune al percorso generico: la stessa
+// primitiva che usano la maschera Fatture e l'Ordine cliente (T3).
+import { vatCodeIdForLinePayload } from '@domain/documents/utils/document-line-vat-payload.util';
 import type { ProductEmbeddedCreatePrefill } from '@domain/products/models/product-form.mapper';
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import { ProductFormComponent } from '@domain/products/product-form.component';
@@ -144,6 +147,24 @@ interface DocumentLineDraft {
   readonly vatRatePercent: number | null;
   /** Codice IVA risolto silenziosamente da articolo/predefinito aziendale; override manuale sempre possibile. */
   readonly vatCodeId: string | null;
+  /**
+   * Il Codice IVA **com'era quando il documento è stato aperto** (T3): è il
+   * termine di paragone che dice al payload se l'IVA è stata modificata.
+   *
+   * ⛔ **Si scrive UNA volta sola, in `patchFromDocument`, e non si tocca più
+   * per tutta la sessione.** Nessun mutatore lo aggiorna: se si riallineasse a
+   * ogni modifica locale, due cambi di fila si annullerebbero e il secondo non
+   * partirebbe — è scritto nel docblock di `vatCodeIdForLinePayload`.
+   *
+   * ⚠️ **Su una riga nuova non significa niente**: il discriminante «riga
+   * esistente» è `serverLineId !== null`, non questo campo. Qui vale `null` per
+   * uniformità, e non viene mai letto.
+   *
+   * Il riferimento non può restare stantio dopo un salvataggio riuscito: la
+   * conclusione svuota il carrello (`cart.set([])`), quindi le righe con il
+   * vecchio riferimento cessano di esistere.
+   */
+  readonly persistedVatCodeId: string | null;
   readonly onHand: number;
   readonly committed: number;
   readonly available: number;
@@ -401,6 +422,10 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
         discountPercent: line.discountPercent,
         vatRatePercent: line.vatSnapshot?.ratePercent ?? null,
         vatCodeId: line.vatCodeId ?? null,
+        // T3: l'UNICO punto in cui il riferimento si scrive. Da qui in poi
+        // resta fermo: è ciò che distingue «IVA non toccata» da «rimessa
+        // com'era», e le due devono dare lo stesso payload.
+        persistedVatCodeId: line.vatCodeId ?? null,
         onHand: 0,
         committed: 0,
         available: 0,
@@ -783,6 +808,9 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
         discountPercent: 0,
         vatRatePercent: item.vatRatePercent,
         vatCodeId: item.vatCodeId,
+        // Riga nuova: nessun valore persistito da conservare. Non viene letto
+        // — il discriminante è `serverLineId` — ma resta esplicito.
+        persistedVatCodeId: null,
         onHand: item.onHand,
         committed: item.committed,
         available: item.available,
@@ -1158,7 +1186,19 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
           quantity: line.quantity,
           unitPriceMinor: line.unitPriceMinor,
           discountPercent: line.discountPercent || undefined,
-          vatCodeId: line.vatCodeId ?? undefined,
+          // ⛔ T3 — NON si manda sempre il codice letto all'apertura. Il server
+          // tratta «vatCodeId presente» come «l'operatore l'ha cambiato» e
+          // RIGENERA lo snapshot all'aliquota di oggi: risalvare una vendita di
+          // marzo per correggere una quantità la ri-prezzerebbe. L'assenza
+          // della chiave È il messaggio «non modificata».
+          vatCodeId: vatCodeIdForLinePayload({
+            currentVatCodeId: line.vatCodeId,
+            persistedVatCodeId: line.persistedVatCodeId,
+            // Riga esistente = riga che ha un id sul server, non «riga che ha
+            // un riferimento persistito»: sono la stessa cosa, ma il primo è
+            // il campo che il payload usa già per l'identità (T1/T2).
+            isExistingLine: line.serverLineId !== null,
+          }),
         })),
       })
       .pipe(takeUntilDestroyed(this.destroyRef))

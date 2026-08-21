@@ -438,9 +438,16 @@ export class StoreSalesService {
       tenantId,
       dto.lines.map((line) => line.variantId),
     );
-    // Righe di reso senza Codice IVA proprio: la risoluzione parte dall'articolo.
-    // È l'unica fonte disponibile, non essendoci una vendita da cui ereditarla.
-    const vatContext = await this.resolveVatContext(tenantId, [], variants);
+    // ⛔ Qui c'era `[]` cablato, perché le righe di reso non avevano un Codice
+    // IVA proprio: la risoluzione poteva partire solo dall'articolo. Ora che il
+    // DTO lo accetta (T3), i codici DICHIARATI vanno precaricati come sulla
+    // Vendita — altrimenti `resolveLineVatCode` non li trova nella mappa e la
+    // riga finisce senza imposta, in silenzio.
+    //
+    // ⚠️ Non serve al percorso CONSERVATO: `preservedLineVat` ricostruisce
+    // l'aliquota dallo snapshot persistito e non consulta questa mappa. Serve
+    // alle righe nuove e a quelle in cui l'IVA è stata cambiata davvero.
+    const vatContext = await this.resolveVatContext(tenantId, dto.lines, variants);
 
     // Come la vendita, alla lettera: la data si fissa alla CREAZIONE e non si
     // muove più — il Registro Corrispettivi filtra e raggruppa su di essa, e un
@@ -498,9 +505,15 @@ export class StoreSalesService {
         // Riga già esistente: lo snapshot IVA non si rifotografa, come su ogni
         // documento. Gli importi si rifanno, perché quantità e prezzo possono
         // essere cambiati.
+        //
+        // ⛔ Qui c'erano `undefined` e `null` CABLATI, perché il DTO del Reso
+        // non aveva `vatCodeId` (T3). L'effetto era corretto per caso — con
+        // `undefined` il contratto binario conserva sempre — ma l'operatore non
+        // poteva mai cambiare l'IVA di una riga. Ora è il valore dichiarato a
+        // decidere, esattamente come sulla Vendita.
         const resolvedVat =
-          preservedLineVat(previous?.id, undefined, existingVatById) ??
-          this.resolveLineVatCode(null, variant, vatContext);
+          preservedLineVat(previous?.id, line.vatCodeId, existingVatById) ??
+          this.resolveLineVatCode(line.vatCodeId, variant, vatContext);
 
         // Lo sconto è quello della riga, come sulla Vendita (`11` A11): chi ha
         // venduto scontato e riprende il capo rende quello che ha incassato.

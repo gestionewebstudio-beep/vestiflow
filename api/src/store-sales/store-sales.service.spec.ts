@@ -1552,3 +1552,274 @@ describe('i tre contratti adottati dal comune — prerequisiti di UI 3', () => {
     });
   });
 });
+
+// ── T3 — snapshot IVA: contratto binario su Vendita e Reso ────────────────
+//
+// Lo snapshot IVA è il FATTO FISCALE di quel documento. Il contratto è binario
+// e vale su una riga GIÀ ESISTENTE:
+//
+//   vatCodeId ASSENTE   → non modificata → si conservano id e snapshot persistiti
+//   vatCodeId PRESENTE  → assegnazione cambiata → il server risolve e RIGENERA
+//   riga NUOVA          → risoluzione normale da articolo/predefinito
+//
+// ⚠️ Il difetto che questi test inchiodano è INVISIBILE finché nessuno tocca
+// un'aliquota: finché `ratePercent` non cambia, rifotografare e conservare
+// danno lo stesso numero. Per questo le prove qui sotto **cambiano l'aliquota
+// in anagrafica fra un salvataggio e l'altro**: è l'unico modo di distinguere
+// le due implementazioni.
+//
+// ⛔ Prima di T3 l'intera spec non aveva UNA asserzione su `vatCodeId` o
+// `vatSnapshot`: il percorso del Reso passava `undefined` cablato, e quello
+// della Vendita era corretto sul server ma vanificato dal client, che il codice
+// letto all'apertura lo rimandava sempre.
+describe('T3 — lo snapshot IVA non si rifotografa al risalvataggio', () => {
+  /** Aliquota registrata sulla riga persistita. */
+  const aliquotaDiRiga = (doc: FakeDocument, index = 0): number | undefined =>
+    (doc.lines[index]!.vatSnapshot as { ratePercent?: number } | null)?.ratePercent;
+
+  /** Simula la modifica dell'aliquota in ANAGRAFICA, dopo il salvataggio. */
+  const cambiaAliquotaInAnagrafica = (db: FakeDb, nuova: number): void => {
+    db.vatCodes = db.vatCodes.map((vatCode) => ({ ...vatCode, ratePercent: nuova }));
+  };
+
+  const conIva = (): FakeDb => {
+    const db = createDb();
+    db.defaultVatCodeId = VAT_22.id;
+    db.vatCodes = [VAT_22];
+    return db;
+  };
+
+  describe('Vendita', () => {
+    it('⭐ riga esistente, IVA NON dichiarata: snapshot storico conservato anche se l’aliquota è cambiata', async () => {
+      const db = conIva();
+      const { service } = createService(db);
+
+      await service.createSale(
+        TENANT,
+        {
+          locationId: LOCATION,
+          paymentMethod: 'cash',
+          lines: [
+            { variantId: VARIANT_A, quantity: 1, unitPriceMinor: 10000, vatCodeId: VAT_22.id },
+          ],
+        } as never,
+        user,
+      );
+      const doc = db.documents[0]!;
+      expect(aliquotaDiRiga(doc)).toBe(22);
+
+      // Il commercialista corregge l'aliquota del Codice IVA in anagrafica.
+      cambiaAliquotaInAnagrafica(db, 10);
+
+      // L'operatore riapre la vendita e cambia SOLO la quantità.
+      await service.createSale(
+        TENANT,
+        {
+          id: doc.id,
+          locationId: LOCATION,
+          paymentMethod: 'cash',
+          lines: [
+            { id: doc.lines[0]!.id, variantId: VARIANT_A, quantity: 2, unitPriceMinor: 10000 },
+          ],
+        } as never,
+        user,
+      );
+
+      const riga = db.documents[0]!.lines[0]!;
+      expect(riga.vatCodeId).toBe(VAT_22.id);
+      // ⛔ 22, non 10: la vendita di allora non si ri-prezza.
+      expect(aliquotaDiRiga(db.documents[0]!)).toBe(22);
+      // E l'imposta segue lo snapshot storico: 2 × 100,00 al 22% = 44,00.
+      expect(riga.lineVatTotalMinor).toBe(4400);
+    });
+
+    it('riga esistente, IVA DICHIARATA: lo snapshot si rigenera all’aliquota corrente', async () => {
+      const db = conIva();
+      const { service } = createService(db);
+
+      await service.createSale(
+        TENANT,
+        {
+          locationId: LOCATION,
+          paymentMethod: 'cash',
+          lines: [
+            { variantId: VARIANT_A, quantity: 1, unitPriceMinor: 10000, vatCodeId: VAT_22.id },
+          ],
+        } as never,
+        user,
+      );
+      const doc = db.documents[0]!;
+      cambiaAliquotaInAnagrafica(db, 10);
+
+      // Stesso codice, ma DICHIARATO: è il modo in cui l'operatore dice «ho
+      // toccato l'IVA di questa riga».
+      await service.createSale(
+        TENANT,
+        {
+          id: doc.id,
+          locationId: LOCATION,
+          paymentMethod: 'cash',
+          lines: [
+            {
+              id: doc.lines[0]!.id,
+              variantId: VARIANT_A,
+              quantity: 1,
+              unitPriceMinor: 10000,
+              vatCodeId: VAT_22.id,
+            },
+          ],
+        } as never,
+        user,
+      );
+
+      expect(aliquotaDiRiga(db.documents[0]!)).toBe(10);
+      expect(db.documents[0]!.lines[0]!.lineVatTotalMinor).toBe(1000);
+    });
+  });
+
+  describe('Reso', () => {
+    it('riga esistente, IVA NON dichiarata: snapshot storico conservato anche se l’aliquota è cambiata', async () => {
+      const db = conIva();
+      const { service } = createService(db);
+
+      await service.createReturn(
+        TENANT,
+        {
+          locationId: LOCATION,
+          lines: [
+            {
+              variantId: VARIANT_A,
+              quantity: 1,
+              restockable: true,
+              unitPriceMinor: 10000,
+              vatCodeId: VAT_22.id,
+            },
+          ],
+        } as never,
+        user,
+      );
+      const doc = db.documents[0]!;
+      expect(aliquotaDiRiga(doc)).toBe(22);
+
+      cambiaAliquotaInAnagrafica(db, 10);
+
+      await service.createReturn(
+        TENANT,
+        {
+          id: doc.id,
+          locationId: LOCATION,
+          lines: [
+            {
+              id: doc.lines[0]!.id,
+              variantId: VARIANT_A,
+              quantity: 2,
+              restockable: true,
+              unitPriceMinor: 10000,
+            },
+          ],
+        } as never,
+        user,
+      );
+
+      expect(db.documents[0]!.lines[0]!.vatCodeId).toBe(VAT_22.id);
+      expect(aliquotaDiRiga(db.documents[0]!)).toBe(22);
+      expect(db.documents[0]!.lines[0]!.lineVatTotalMinor).toBe(4400);
+    });
+
+    it('⛔ riga esistente, IVA DICHIARATA: si rigenera — prima di T3 era IMPOSSIBILE', async () => {
+      const db = conIva();
+      const { service } = createService(db);
+
+      await service.createReturn(
+        TENANT,
+        {
+          locationId: LOCATION,
+          lines: [
+            {
+              variantId: VARIANT_A,
+              quantity: 1,
+              restockable: true,
+              unitPriceMinor: 10000,
+              vatCodeId: VAT_22.id,
+            },
+          ],
+        } as never,
+        user,
+      );
+      const doc = db.documents[0]!;
+      cambiaAliquotaInAnagrafica(db, 10);
+
+      await service.createReturn(
+        TENANT,
+        {
+          id: doc.id,
+          locationId: LOCATION,
+          lines: [
+            {
+              id: doc.lines[0]!.id,
+              variantId: VARIANT_A,
+              quantity: 1,
+              restockable: true,
+              unitPriceMinor: 10000,
+              vatCodeId: VAT_22.id,
+            },
+          ],
+        } as never,
+        user,
+      );
+
+      // Prima di T3 il servizio passava `undefined` cablato: qui sarebbe
+      // rimasto 22, e l'operatore non avrebbe avuto modo di cambiarlo.
+      expect(aliquotaDiRiga(db.documents[0]!)).toBe(10);
+      expect(db.documents[0]!.lines[0]!.lineVatTotalMinor).toBe(1000);
+    });
+
+    it('riga NUOVA senza override: risolve da articolo/predefinito, come prima', async () => {
+      const db = conIva();
+      const { service } = createService(db);
+
+      await service.createReturn(
+        TENANT,
+        {
+          locationId: LOCATION,
+          lines: [{ variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 10000 }],
+        } as never,
+        user,
+      );
+
+      const riga = db.documents[0]!.lines[0]!;
+      expect(riga.vatCodeId).toBe(VAT_22.id);
+      expect(aliquotaDiRiga(db.documents[0]!)).toBe(22);
+      expect(riga.lineVatTotalMinor).toBe(2200);
+    });
+
+    it('riga NUOVA con override dichiarato: vince il codice dichiarato', async () => {
+      const db = conIva();
+      const VAT_10: FakeVatCode = { ...VAT_22, id: 'vat-10', code: '10', ratePercent: 10 };
+      db.vatCodes = [VAT_22, VAT_10];
+      const { service } = createService(db);
+
+      await service.createReturn(
+        TENANT,
+        {
+          locationId: LOCATION,
+          lines: [
+            {
+              variantId: VARIANT_A,
+              quantity: 1,
+              restockable: true,
+              unitPriceMinor: 10000,
+              vatCodeId: VAT_10.id,
+            },
+          ],
+        } as never,
+        user,
+      );
+
+      // Il predefinito aziendale è VAT_22: senza il campo nel DTO questa riga
+      // sarebbe finita al 22% comunque.
+      expect(db.documents[0]!.lines[0]!.vatCodeId).toBe(VAT_10.id);
+      expect(aliquotaDiRiga(db.documents[0]!)).toBe(10);
+    });
+  });
+});

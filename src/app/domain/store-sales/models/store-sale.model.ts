@@ -57,6 +57,15 @@ export interface StoreReturnLineInput {
   readonly quantity: number;
   readonly restockable: boolean;
   readonly unitPriceMinor?: number;
+  /**
+   * Codice IVA della riga, **come sulla Vendita** (T3). Assente su una riga
+   * NUOVA = risolto da articolo/predefinito; assente su una riga ESISTENTE =
+   * non modificato, e il server conserva id e snapshot persistiti.
+   *
+   * ⚠️ La maschera pos attuale non ha una colonna IVA nel Reso e non lo manda:
+   * il contratto è completo per la maschera nuova, non per quella.
+   */
+  readonly vatCodeId?: EntityId;
 }
 
 /**

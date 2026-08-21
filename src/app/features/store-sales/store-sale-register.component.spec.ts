@@ -644,6 +644,8 @@ describe('StoreSaleRegisterComponent', () => {
       readonly discountPercent: number;
       readonly vatRatePercent: number | null;
       readonly vatCodeId: string | null;
+      /** T3 — il riferimento congelato al caricamento; `null` su riga nuova. */
+      readonly persistedVatCodeId: string | null;
       readonly onHand: number;
       readonly committed: number;
       readonly available: number;
@@ -657,6 +659,8 @@ describe('StoreSaleRegisterComponent', () => {
         };
         returnLines: { set(v: readonly unknown[]): void };
         removeLine(uiId: string): void;
+        /** T3: la via REALE con cui l'operatore cambia l'IVA di una riga. */
+        onLineVatSelect(uiId: string, value: string | null): void;
         concludeSale(): void;
         concludeReturn(): void;
       };
@@ -719,6 +723,7 @@ describe('StoreSaleRegisterComponent', () => {
             discountPercent: 0,
             vatRatePercent: 22,
             vatCodeId: 'vat-22',
+            persistedVatCodeId: null,
             onHand: 0,
             committed: 0,
             available: 0,
@@ -734,6 +739,7 @@ describe('StoreSaleRegisterComponent', () => {
             discountPercent: 0,
             vatRatePercent: 22,
             vatCodeId: 'vat-22',
+            persistedVatCodeId: null,
             onHand: 0,
             committed: 0,
             available: 0,
@@ -820,6 +826,7 @@ describe('StoreSaleRegisterComponent', () => {
             discountPercent: 0,
             vatRatePercent: 22,
             vatCodeId: 'vat-22',
+            persistedVatCodeId: null,
             onHand: 0,
             committed: 0,
             available: 0,
@@ -1030,6 +1037,128 @@ describe('StoreSaleRegisterComponent', () => {
 
       expect(createSale).toHaveBeenCalledTimes(1);
       expect(createSale.mock.calls[0]![0]).toMatchObject({ id: 'doc-sale-1' });
+    });
+  });
+
+  // ── T3 — snapshot IVA: il client non deve rimandare ciò che non è cambiato ──
+  //
+  // Il server tratta «vatCodeId presente» come «l'operatore l'ha cambiato» e
+  // RIGENERA lo snapshot all'aliquota corrente. Rimandare sempre il codice
+  // letto all'apertura vanifica il contratto: risalvare una vendita di marzo
+  // per correggere una quantità la ri-prezzerebbe.
+  //
+  // ⚠️ Il difetto è INVISIBILE lato client — il payload «sembra giusto», perché
+  // il codice è davvero quello della riga. Si vede solo guardando se la CHIAVE
+  // c'è, ed è quello che questi test guardano.
+  describe('T3 — Codice IVA nel payload della Vendita', () => {
+    interface PayloadLine {
+      readonly id?: string;
+      readonly variantId: string;
+      readonly vatCodeId?: string;
+    }
+
+    function componentOf(fixture: { componentInstance: unknown }) {
+      return fixture.componentInstance as {
+        onLineVatSelect(uiId: string, value: string | null): void;
+        concludeSale(): void;
+      };
+    }
+
+    const risultato = () =>
+      of({
+        id: SALE_DOC.id,
+        reference: 'VN-12',
+        documentDate: '2026-08-10',
+        totalMinor: 0,
+        currency: 'EUR',
+        lines: [],
+      });
+
+    /** Apre la vendita esistente e restituisce le righe uscite nel payload. */
+    async function payloadRighe(
+      azione?: (c: ReturnType<typeof componentOf>) => void,
+    ): Promise<readonly PayloadLine[]> {
+      const createSale = vi.fn((_body: unknown) => risultato());
+      const { fixture } = await setup({
+        mode: 'sale',
+        editId: SALE_DOC.id,
+        loadDocument: SALE_DOC,
+        createSale,
+      });
+      await screen.findByText('Maglietta Basic — M / Bianco');
+
+      const component = componentOf(fixture);
+      azione?.(component);
+      component.concludeSale();
+
+      return (createSale.mock.calls[0]![0] as { lines: readonly PayloadLine[] }).lines;
+    }
+
+    it('⭐ riga esistente, IVA NON toccata → la chiave vatCodeId è ASSENTE', async () => {
+      const lines = await payloadRighe();
+
+      // Le righe caricate hanno vatCodeId 'vat-22' sul documento: il payload
+      // NON lo ripete, ed è l'assenza a dire «non modificata».
+      expect(lines).toHaveLength(2);
+      for (const line of lines) {
+        expect(line.vatCodeId).toBeUndefined();
+      }
+      // Controprova che il test guardi la riga giusta: gli id ci sono (T1/T2).
+      expect(lines.map((l) => l.id)).toEqual(['line-sale-A', 'line-sale-B']);
+    });
+
+    it('riga esistente, IVA cambiata → il nuovo id viene inviato', async () => {
+      // `uiId` di una riga caricata coincide con l'id server (T1/T2).
+      const lines = await payloadRighe((c) => c.onLineVatSelect('line-sale-A', 'vat-10'));
+
+      expect(lines[0]!.vatCodeId).toBe('vat-10');
+      // L'altra riga non è stata toccata: resta assente.
+      expect(lines[1]!.vatCodeId).toBeUndefined();
+    });
+
+    it('⭐ IVA cambiata e poi RIPORTATA all’originale → torna assente', async () => {
+      // È il caso che distingue «confronto col persistito» da «confronto col
+      // precedente»: con quest'ultimo il payload porterebbe 'vat-22', e il
+      // server rigenererebbe lo snapshot per una modifica che non c'è più.
+      const lines = await payloadRighe((c) => {
+        c.onLineVatSelect('line-sale-A', 'vat-10');
+        c.onLineVatSelect('line-sale-A', 'vat-22');
+      });
+
+      expect(lines[0]!.vatCodeId).toBeUndefined();
+    });
+
+    it('⭐ riga NUOVA aggiunta in modifica → manda il Codice IVA corrente, le caricate no', async () => {
+      const createSale = vi.fn((_body: unknown) => risultato());
+      // ⚠️ Variante ASSENTE dal documento: con `var-1` o `var-2` la scansione
+      // FONDEREBBE la quantità nella riga esistente (`addToCart` accorpa per
+      // variante) e non nascerebbe nessuna riga nuova da osservare.
+      const NUOVO: StoreSaleLookupItem = { ...ITEM, variantId: 'var-9', sku: 'MAG-009' };
+      const { fixture } = await setup({
+        mode: 'sale',
+        editId: SALE_DOC.id,
+        loadDocument: SALE_DOC,
+        createSale,
+        variantIdByCode: 'var-9',
+        lookupItems: [NUOVO],
+      });
+      await screen.findByText('Maglietta Basic — M / Bianco');
+
+      // Percorso reale: la scansione aggiunge una riga nuova al carrello.
+      await scan(EAN);
+      componentOf(fixture).concludeSale();
+
+      const lines = (createSale.mock.calls[0]![0] as { lines: readonly PayloadLine[] }).lines;
+      const nuova = lines.find((line) => line.variantId === 'var-9');
+      expect(nuova).toBeDefined();
+      expect(nuova!.id).toBeUndefined();
+      // Su una riga nuova non c'è nulla da conservare: il codice si manda…
+      expect(nuova!.vatCodeId).toBe('vat-22');
+      // …mentre le due caricate portano lo STESSO codice e restano assenti.
+      // È il contrasto che rende il test discriminante: un'implementazione
+      // «manda sempre» o «non mandare mai» sbaglierebbe una delle due metà.
+      expect(lines.find((l) => l.id === 'line-sale-A')!.vatCodeId).toBeUndefined();
+      expect(lines.find((l) => l.id === 'line-sale-B')!.vatCodeId).toBeUndefined();
     });
   });
 });
