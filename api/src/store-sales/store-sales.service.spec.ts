@@ -125,6 +125,29 @@ interface FakeDb {
   /** Codice IVA aziendale predefinito (null = nessuna imposta sulle righe). */
   defaultVatCodeId: string | null;
   vatCodes: FakeVatCode[];
+  /**
+   * I contatori documento (T7A). Vuoto = nessun contatore configurato, che è
+   * lo stato di un tenant che non ha mai aperto i Numeratori: il banco non
+   * semina niente da sé — `seedDefaults` lo chiamano solo `list()` e
+   * `available()` di `document-counters.service.ts`.
+   */
+  counters: FakeCounter[];
+}
+
+/**
+ * Un contatore documento, nella forma minima che serve a `defaultCounterSeries`.
+ *
+ * ⚠️ `locationId` NON partiziona il progressivo (`docs/04` §1): decide **quali
+ * serie sono disponibili** per un documento di quella sede. Un contatore con
+ * sede è usabile solo lì; uno senza sede ovunque.
+ */
+interface FakeCounter {
+  tenantId: string;
+  type: DocumentType;
+  /** null = contatore «Senza serie». */
+  series: string | null;
+  locationId: string | null;
+  isDefault: boolean;
 }
 
 /** Codice IVA nella forma che serve al calcolo (aliquota + natura esposta). */
@@ -181,6 +204,7 @@ function createDb(): FakeDb {
     failNextMovementCreate: false,
     defaultVatCodeId: null,
     vatCodes: [],
+    counters: [],
   };
 }
 
@@ -337,11 +361,64 @@ function createFakePrisma(db: FakeDb): PrismaService {
     },
     documentCounter: {
       findFirst: () => Promise.resolve(null),
-      findMany: () => Promise.resolve([]),
+      // ⛔ Prima: `() => Promise.resolve([])`, che IGNORAVA gli argomenti. Con
+      // nessun contatore `defaultCounterSeries` ritorna sempre `null`, quindi
+      // qualunque test sulla scelta della serie — e sul ruolo della sede —
+      // sarebbe passato identico con e senza la correzione. Un finto che non
+      // guarda il `where` non è un banco di prova: è una comparsa.
+      //
+      // ⚠️ Il finto ONORA il `where` che riceve, non riderivare la regola: se
+      // domani `defaultCounterSeries` cambiasse filtro, questo si adegua da sé
+      // invece di continuare a rispondere secondo la regola vecchia.
+      findMany: ({
+        where,
+      }: {
+        where: {
+          tenantId: string;
+          type: DocumentType;
+          OR?: { locationId: string | null }[];
+        };
+      }) =>
+        Promise.resolve(
+          db.counters
+            .filter(
+              (counter) =>
+                counter.tenantId === where.tenantId &&
+                counter.type === where.type &&
+                (where.OR ?? []).some((ramo) => ramo.locationId === counter.locationId),
+            )
+            .map((counter) => ({ series: counter.series, isDefault: counter.isDefault })),
+        ),
     },
     document: {
-      // Numerazione «massimo esistente + 1» (nessun documento nel fake db).
-      aggregate: () => Promise.resolve({ _max: { number: null } }),
+      // ⛔ Prima: `() => Promise.resolve({ _max: { number: null } })`, che
+      // rispondeva SEMPRE «nessun documento» e faceva uscire sempre il numero 1.
+      // Con quello, un test sulla data del documento non poteva fallire.
+      //
+      // Ora replica il filtro del §2: massimo del numero fra i documenti dello
+      // stesso contatore (tenant + tipi della partizione + serie) e di data
+      // STRETTAMENTE ANTERIORE a `documentDate.lt`.
+      aggregate: ({
+        where,
+      }: {
+        where: {
+          tenantId: string;
+          type: { in: DocumentType[] };
+          series: string | null;
+          documentDate: { lt: Date };
+        };
+      }) => {
+        const max = db.documents
+          .filter(
+            (doc) =>
+              doc.tenantId === where.tenantId &&
+              where.type.in.includes(doc.type) &&
+              ((doc.series as string | null) ?? null) === (where.series ?? null) &&
+              doc.documentDate < where.documentDate.lt,
+          )
+          .reduce((piuAlto, doc) => Math.max(piuAlto, Number(doc.number) || 0), 0);
+        return Promise.resolve({ _max: { number: max || null } });
+      },
       create: ({
         data,
       }: {
@@ -1913,5 +1990,207 @@ describe('T4 — il prezzo del Reso', () => {
     // E il totale si rifà sulla quantità nuova, arrotondato UNA volta sola:
     // 3 × 2049,1803 = 6147,5409 → 6148.
     expect(db.documents[0]!.lines[0]!.lineTotalMinor).toBe(6148);
+  });
+});
+
+// ── T7A — il contesto della numerazione: sede e data ──────────────────────
+//
+// Il banco non ha un motore di numerazione proprio: usa da sempre i tre util
+// comuni. Gli mancavano DUE ARGOMENTI dello stesso calcolo, entrambi già
+// accettati dalle funzioni condivise e già disponibili nel servizio.
+//
+//   defaultCounterSeries(tx, tenant, tipo, locationId)   ← la sede era omessa
+//   nextDocumentNumber({ …, documentDate })              ← la data era omessa
+//
+// ⚠️ La sede NON partiziona il progressivo (`docs/04` §1): decide quali serie
+// sono disponibili. La data invece è il perno della regola del §2 — «il primo
+// libero DOPO i documenti di data anteriore» — e omettendola si ricade su oggi.
+//
+// ⛔ Prima di T7A questi test erano IMPOSSIBILI da scrivere: il finto Prisma
+// rispondeva `[]` ai contatori e `{_max:{number:null}}` all'aggregato, sempre,
+// ignorando gli argomenti. Qualunque prova sarebbe passata con e senza la
+// correzione. Il banco di prova è stato insegnato a onorare il `where` nello
+// stesso commit, ed è la metà più grossa del lavoro.
+describe('T7A — sede e data nel calcolo della numerazione', () => {
+  const conContatori = (...counters: FakeCounter[]): FakeDb => {
+    const db = createDb();
+    db.counters = counters;
+    return db;
+  };
+
+  const contatore = (over: Partial<FakeCounter> = {}): FakeCounter => ({
+    tenantId: TENANT,
+    type: DocumentType.store_sale,
+    series: null,
+    locationId: null,
+    isDefault: false,
+    ...over,
+  });
+
+  describe('la sede sceglie la serie', () => {
+    it('serie predefinita legata alla sede A, documento in sede A → usa quella serie', async () => {
+      const db = conContatori(
+        contatore({ series: 'NEG', locationId: LOCATION, isDefault: true }),
+        contatore({ series: null }),
+      );
+      const { service } = createService(db);
+
+      await service.createSale(
+        TENANT,
+        {
+          locationId: LOCATION,
+          paymentMethod: 'cash',
+          lines: [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }],
+        } as never,
+        user,
+      );
+
+      expect(db.documents[0]!.series).toBe('NEG');
+    });
+
+    it('⛔ serie predefinita legata alla sede A, documento in sede B → NON usa quella serie', async () => {
+      const db = conContatori(
+        contatore({ series: 'NEG', locationId: LOCATION, isDefault: true }),
+        // Il solo contatore disponibile in sede B è quello senza sede: con uno
+        // solo disponibile la scelta è obbligata (`defaultCounterSeries`).
+        contatore({ series: null }),
+      );
+      const { service } = createService(db);
+
+      await service.createSale(
+        TENANT,
+        {
+          locationId: LOCATION_B,
+          paymentMethod: 'cash',
+          lines: [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }],
+        } as never,
+        user,
+      );
+
+      // Il predefinito è di un'altra sede: non si applica. Prima di T7A usciva
+      // 'NEG' comunque — «la tendina diceva il vero, il salvataggio no».
+      expect(db.documents[0]!.series).toBeNull();
+    });
+
+    it('la sede vale anche sul Reso, che ha un contatore PROPRIO', async () => {
+      const db = conContatori(
+        contatore({
+          type: DocumentType.store_return,
+          series: 'RES',
+          locationId: LOCATION,
+          isDefault: true,
+        }),
+        contatore({ type: DocumentType.store_return, series: null }),
+      );
+      const { service } = createService(db);
+
+      await service.createReturn(
+        TENANT,
+        {
+          locationId: LOCATION,
+          lines: [{ variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 1000 }],
+        } as never,
+        user,
+      );
+
+      expect(db.documents[0]!.series).toBe('RES');
+      expect(db.documents[0]!.type).toBe(DocumentType.store_return);
+    });
+  });
+
+  describe('la data determina il numero proposto', () => {
+    /** Un documento già a registro, per dare al contatore un massimo da leggere. */
+    const documentoEsistente = (numero: number, data: string) => ({
+      id: `doc-${numero}`,
+      tenantId: TENANT,
+      type: DocumentType.store_sale,
+      status: DocumentStatus.confirmed,
+      reference: `VN-${numero}`,
+      documentDate: new Date(data),
+      totalMinor: 0,
+      currency: 'EUR',
+      customerName: null,
+      locationId: LOCATION,
+      paymentMethod: 'cash',
+      sourceDocumentId: null,
+      internalComment: null,
+      createdAt: new Date(data),
+      lines: [],
+      number: numero,
+      series: null,
+    });
+
+    it('⭐ documento RETRODATATO: il numero si calcola sulla SUA data, non su oggi', async () => {
+      const db = createDb();
+      // A registro: il n. 5 è del 10 agosto, il n. 9 del 20 agosto.
+      db.documents = [
+        documentoEsistente(5, '2026-08-10T00:00:00.000Z'),
+        documentoEsistente(9, '2026-08-20T00:00:00.000Z'),
+      ] as never;
+      const { service } = createService(db);
+
+      // Vendita datata 15 agosto: davanti a lei ci sono solo i documenti
+      // ANTERIORI, cioè il n. 5. Il primo libero è quindi il 6 — non il 10,
+      // che sarebbe il primo libero contando anche il n. 9 del 20.
+      await service.createSale(
+        TENANT,
+        {
+          locationId: LOCATION,
+          paymentMethod: 'cash',
+          documentDate: '2026-08-15T00:00:00.000Z',
+          lines: [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }],
+        } as never,
+        user,
+      );
+
+      const nuovo = db.documents[db.documents.length - 1]!;
+      expect(nuovo.documentDate).toEqual(new Date('2026-08-15T00:00:00.000Z'));
+      // ⛔ 6, non 10: prima di T7A la data non arrivava al contatore e il
+      // massimo si leggeva su «tutto ciò che precede OGGI», cioè entrambi.
+      expect(nuovo.number).toBe(6);
+    });
+
+    it('senza data esplicita: il contatore vede tutto ciò che precede oggi', async () => {
+      const db = createDb();
+      db.documents = [
+        documentoEsistente(5, '2026-08-10T00:00:00.000Z'),
+        documentoEsistente(9, '2026-08-20T00:00:00.000Z'),
+      ] as never;
+      const { service } = createService(db);
+
+      // Nessun `documentDate`: la data è oggi, e oggi è dopo entrambi.
+      await service.createSale(
+        TENANT,
+        {
+          locationId: LOCATION,
+          paymentMethod: 'cash',
+          lines: [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }],
+        } as never,
+        user,
+      );
+
+      expect(db.documents[db.documents.length - 1]!.number).toBe(10);
+    });
+
+    it('la data vale anche sul Reso', async () => {
+      const db = createDb();
+      db.documents = [
+        { ...documentoEsistente(5, '2026-08-10T00:00:00.000Z'), type: DocumentType.store_return },
+        { ...documentoEsistente(9, '2026-08-20T00:00:00.000Z'), type: DocumentType.store_return },
+      ] as never;
+      const { service } = createService(db);
+
+      await service.createReturn(
+        TENANT,
+        {
+          locationId: LOCATION,
+          documentDate: '2026-08-15T00:00:00.000Z',
+          lines: [{ variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 1000 }],
+        } as never,
+        user,
+      );
+
+      expect(db.documents[db.documents.length - 1]!.number).toBe(6);
+    });
   });
 });

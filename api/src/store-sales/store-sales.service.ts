@@ -146,7 +146,21 @@ export class StoreSalesService {
       // trovarne una, ed e' un caso legittimo — non si forza a stringa.
       let nuovaNumerazione: { series: string | null; number: number } | null = null;
       if (!existing) {
-        const series = await defaultCounterSeries(tx, tenantId, DocumentType.store_sale);
+        // ⛔ La SEDE, quarto argomento (T7A). Senza, il filtro dei contatori
+        // resta `OR: [{ locationId: null }]` e il banco vede solo le serie
+        // SENZA sede: un contatore legato al negozio — anche marcato
+        // predefinito — non verrebbe mai scelto. È la regola §1-bis, «vale
+        // anche in assegnazione, non solo in tendina», chiusa il 13/08 per gli
+        // altri tipi e mai agganciata qui.
+        //
+        // ⚠️ Non partiziona il progressivo (`docs/04` §1): decide QUALI serie
+        // sono disponibili, non quale numero esce.
+        const series = await defaultCounterSeries(
+          tx,
+          tenantId,
+          DocumentType.store_sale,
+          dto.locationId,
+        );
         // Due casse che battono nello stesso istante leggono lo stesso massimo e
         // una delle due si becca il vincolo unico a scontrino finito: il lock
         // transazionale le serializza. Va preso PRIMA di leggere il massimo.
@@ -157,6 +171,11 @@ export class StoreSalesService {
           type: DocumentType.store_sale,
           series,
           source: 'document',
+          // ⛔ La DATA, ed è il perno della regola del §2: la proposta è il
+          // primo libero DOPO i documenti di data anteriore. Omettendola si
+          // ricade su oggi, e una vendita registrata stamattina per ieri
+          // prendeva un numero calcolato sul giorno sbagliato.
+          documentDate,
         });
         nuovaNumerazione = { series, number };
       }
@@ -468,7 +487,17 @@ export class StoreSalesService {
       const year = documentDate.getFullYear();
       let nuovaNumerazione: { series: string | null; number: number } | null = null;
       if (!existing) {
-        const series = await defaultCounterSeries(tx, tenantId, DocumentType.store_return);
+        // Sede e data come sulla Vendita (T7A): stesso contratto, stesso
+        // motore — vedi i commenti in `createSale`. Il Reso ha un contatore
+        // PROPRIO (`store_return` non condivide il numeratore con nessuno:
+        // l'unica deroga è la famiglia fattura), ma le regole di scelta della
+        // serie e di proposta del numero sono le stesse.
+        const series = await defaultCounterSeries(
+          tx,
+          tenantId,
+          DocumentType.store_return,
+          dto.locationId,
+        );
         // Come la vendita: il contatore dei resi è condiviso fra le casse, e il
         // lock transazionale serializza chi lo legge. Prima della lettura.
         await lockDocumentCounter(tx, { tenantId, type: DocumentType.store_return, series });
@@ -478,6 +507,7 @@ export class StoreSalesService {
           type: DocumentType.store_return,
           series,
           source: 'document',
+          documentDate,
         });
         nuovaNumerazione = { series, number };
       }
