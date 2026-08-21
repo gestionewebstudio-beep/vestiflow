@@ -613,3 +613,25 @@
   font-weight: var(--font-weight-bold);
   color: var(--color-primary);
 }
+
+/*
+  L'intestazione ordinabile è un pulsante vero: si raggiunge col Tab e annuncia
+  il proprio stato con `aria-sort` sulla cella che lo contiene.
+
+  ⚠️ Eredita font, peso e maiuscolo dal `th`: lo UA stylesheet di Chromium mette
+  `text-transform: none` sui button, e senza questo l'intestazione ordinabile si
+  leggerebbe in minuscolo accanto a quelle che non lo sono.
+*/
+.corrispettivi-table__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}

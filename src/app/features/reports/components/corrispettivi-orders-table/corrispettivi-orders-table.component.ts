@@ -19,6 +19,16 @@ import {
   type CorrispettiviRegisterRow,
   type CorrispettiviTotaliGiornata,
 } from '../../models/corrispettivi.model';
+import {
+  ariaSortOf,
+  nextSort,
+  sortDirectionOf,
+  type DataTableSort,
+} from '@shared/components/data-table/data-table.model';
+import {
+  LOCATION_UNDETERMINED_LABEL,
+  corrispettivoSourceLabel,
+} from '../../models/corrispettivi-labels.util';
 
 const FINANCIAL_LABELS: Record<string, string> = {
   pending: 'In attesa',
@@ -45,19 +55,8 @@ const FINANCIAL_TONES: Record<string, BadgeTone> = {
  * quello di VestiFlow — e `store`, che è davvero la cassa di VestiFlow,
  * mancava del tutto perché la Vendita al banco nel registro non ci entrava.
  */
-const SOURCE_LABELS: Record<string, string> = {
-  shopify_online: 'Shopify online',
-  shopify_pos: 'Shopify POS',
-  store: 'Vendita al banco',
-  manual: 'Manuale',
-  // La quarta sorgente (`docs/10` §12). Condivide con la Vendita al banco la
-  // coppia Fisico/POS · VestiFlow, ma non l'origine: una registrazione digitata
-  // e una vendita battuta al banco non devono confondersi in colonna.
-  manual_receipt: 'Corrispettivo manuale',
-};
 
 /** La sede che manca non è una sede: si dice, non si lascia in bianco. */
-const LOCATION_UNDETERMINED_LABEL = 'Non determinata';
 
 /**
  * Cosa è stata la rettifica, detto con le parole dell'operatore.
@@ -114,6 +113,44 @@ export class CorrispettiviOrdersTableComponent {
 
   /** Vista raggruppata per giornata economica. */
   readonly raggruppaPerGiorno = input(false);
+
+  /**
+   * Le chiavi di ordinamento correnti. Lo stato sta nella PAGINA (`14` §H4):
+   * qui si rende e si emette il prossimo, non si decide.
+   */
+  readonly sort = input<readonly DataTableSort[]>([]);
+
+  readonly sortChange = output<readonly DataTableSort[]>();
+
+  /**
+   * ⛔ **L'intestazione si preme solo con «Raggruppa: Nessuno»** (`10` §20,
+   * deciso il 20/08/2026). Col raggruppamento acceso il Registro tiene il suo
+   * ordine canonico per giornata: il raggruppamento **è già** una forma di
+   * ordinamento strutturato, e sovrapporgliene un altro romperebbe subtotali e
+   * piedi di giornata per una capacità che nessuno ha chiesto.
+   *
+   * ⚠️ **I filtri restano attivi in entrambi i casi**: si applicano prima del
+   * raggruppamento, e quello che si vede sono le righe filtrate — comunque
+   * raggruppate per giorno.
+   */
+  protected readonly ordinabile = computed(() => !this.raggruppaPerGiorno());
+
+  /** Il verso corrente di una colonna, per la freccia e per `aria-sort`. */
+  protected verso(columnId: string): 'asc' | 'desc' | null {
+    return sortDirectionOf(this.sort(), columnId);
+  }
+
+  protected ariaSort(columnId: string): string {
+    return ariaSortOf(this.sort(), columnId);
+  }
+
+  /** Il prossimo stato lo calcola la primitiva comune: il ciclo è quello. */
+  protected onSort(columnId: string): void {
+    if (!this.ordinabile()) {
+      return;
+    }
+    this.sortChange.emit(nextSort(this.sort(), columnId));
+  }
 
   private readonly viewport = inject(ViewportService);
 
@@ -267,7 +304,7 @@ export class CorrispettiviOrdersTableComponent {
   }
 
   protected sourceLabel(source: string): string {
-    return SOURCE_LABELS[source] ?? source;
+    return corrispettivoSourceLabel(source);
   }
 
   protected financialLabel(status: string): string {

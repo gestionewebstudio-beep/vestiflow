@@ -1508,21 +1508,51 @@ reale** desc → `rowId` asc. E il primo livello è il giorno **per scelta dichi
 della stessa giornata devono restare **contigue**, perché un registro di corrispettivi si legge
 per giornata — ed è ciò che rende possibili i subtotali giornalieri.
 
-### ⛔ Quindi la domanda vera non è «come si accende»
+### ✅ DECISO il 20/08/2026 — e la semplificazione è la decisione
 
-> **Ordinare per una colonna qualunque CONFLIGGE con il raggruppamento per giornata.** Con
-> «Raggruppa: Giorno» attivo, ordinare per Totale spezza le giornate e i piedi di giornata non
-> chiudono più niente.
+> **Con «Raggruppa: Giorno» l'ordinamento manuale delle colonne non è disponibile: resta
+> l'ordine canonico del Registro. Con «Raggruppa: Nessuno» si abilita il sorting comune, con
+> lo stesso `DataTableSort[]` degli altri riepiloghi.**
 
-Le strade, e vanno decise — non indovinate:
+⭐ **Il raggruppamento per giorno È già una forma di ordinamento strutturato**, e questa è la
+ragione della scelta: pretendere anche quello manuale avrebbe richiesto una logica «prima il
+giorno, poi la colonna scelta» — codice in più, e il rischio di rompere subtotali e piedi di
+giornata per una capacità che nessuno aveva chiesto.
 
-| Strada                                                                   | Conseguenza                                                   |
-| ------------------------------------------------------------------------ | ------------------------------------------------------------- |
-| ordinamento **solo con «Raggruppa: Nessuno»**                            | coerente, ma una capacità che appare e sparisce               |
-| ordinamento **dentro la giornata**, tenendo il giorno come primo livello | i subtotali reggono; l'ordine è «per giorno, poi per colonna» |
-| ordinamento **libero**, che spegne il raggruppamento                     | esplicito, ma cambia due cose con un clic solo                |
+⛔ **Non si implementa l'ordinamento interno alla giornata.**
 
-⭐ **Tecnicamente non è un problema**: il Registro non pagina, quindi ordinare nel client
-sarebbe ordinare **tutto il risultato** — la primitiva condivisa esiste già
-(`shared/utils/sort-values.util`, la stessa dei Movimenti). Il lavoro è la decisione, non il
-codice.
+### ⚠️ I filtri restano attivi, sempre
+
+|                        |                                                           |
+| ---------------------- | --------------------------------------------------------- |
+| **filtri**             | sempre, e si applicano **prima** del raggruppamento       |
+| **Raggruppa: Giorno**  | raggruppamento e subtotali per giornata                   |
+| **sorting manuale**    | disabilitato finché il raggruppamento per giorno è attivo |
+| **Raggruppa: Nessuno** | filtri e sorting funzionano entrambi                      |
+
+Quindi si filtra per periodo, origine, tipo o sede e si vedono **le righe filtrate**, comunque
+raggruppate per giorno.
+
+### Com'è stato costruito
+
+| Pezzo                     | Dove                                                                     |
+| ------------------------- | ------------------------------------------------------------------------ |
+| ciclo e stato dell'ordine | `DataTableSort[]` + `nextSort` — le primitive comuni, non una copia      |
+| confronto dei valori      | `sortByKeys` di `shared/utils/sort-values.util`, la stessa dei Movimenti |
+| regole e valori canonici  | `features/reports/models/corrispettivi-sort.util`                        |
+| stato                     | nell'**URL**, come gli altri filtri                                      |
+
+⭐ **Si ordina per l'ETICHETTA** — Tipo, Origine, Sede, Pagamento — cioè per quello che
+l'operatore legge (`14` §H13). Qui si può, e negli elenchi paginati no, per una ragione sola:
+l'ordinamento è nel client, dove l'etichetta esiste. Gli importi invece si confrontano in
+**unità minori**: «1.234,50 €» ordinato come testo metterebbe il 9 dopo il 10.
+
+⚠️ **Le etichette dell'origine sono uscite dal componente tabella** (`corrispettivi-labels.util`):
+a ordinare è la pagina, e due copie della stessa mappa avrebbero significato un ordine che, il
+giorno in cui divergono, non corrisponde più ai nomi in colonna.
+
+⛔ **Passando a «Giorno» l'ordinamento manuale si AZZERA**, non si mette in pausa: uno stato che
+esiste e non si vede tornerebbe fuori al cambio successivo senza che nessuno l'abbia chiesto.
+
+⭐ E resta vero che **ordinare nel client qui è ordinare tutto**: il Registro non impagina, e
+l'insieme caricato è il risultato del filtro.

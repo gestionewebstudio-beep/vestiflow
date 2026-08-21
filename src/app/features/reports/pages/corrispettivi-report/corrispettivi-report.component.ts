@@ -75,6 +75,16 @@ import {
   resolveReportDateRange,
 } from '@domain/reports/models/report-list-query.model';
 import { CorrispettiviService } from '../../services/corrispettivi.service';
+import {
+  parseDataTableSort,
+  serializeDataTableSort,
+  type DataTableSort,
+} from '@shared/components/data-table/data-table.model';
+import {
+  LOCATION_UNDETERMINED_LABEL,
+  corrispettivoSourceLabel,
+} from '../../models/corrispettivi-labels.util';
+import { ordinaCorrispettivi } from '../../models/corrispettivi-sort.util';
 
 // I valori ammessi dei filtri vivono in `corrispettivi-filters.util.ts`, che è
 // il punto unico da cui li leggono sia questa schermata sia l’anteprima di
@@ -235,7 +245,11 @@ export class CorrispettiviReportComponent {
   protected readonly raggruppaPerGiorno = computed(() => this.raggruppa() === 'day');
 
   protected onRaggruppaChange(value: string | null): void {
-    this.updateParams({ raggruppa: value === 'day' ? 'day' : null });
+    // ⛔ Passando a «Giorno» l'ordinamento manuale si AZZERA, non si mette in
+    // pausa: uno stato che esiste e non si vede tornerebbe fuori al cambio
+    // successivo senza che nessuno l'abbia chiesto.
+    const raggruppa = value === 'day' ? 'day' : null;
+    this.updateParams({ raggruppa, ...(raggruppa ? { sort: null } : {}) });
   }
   protected readonly scorciatoieOrigine: readonly SegmentedOption[] = [
     { value: 'all', label: 'Tutte' },
@@ -548,7 +562,39 @@ export class CorrispettiviReportComponent {
     return current.status === 'success' ? current.data : null;
   });
 
-  protected readonly orders = computed(() => this.data()?.orders ?? []);
+  /**
+   * L'ordinamento manuale, nell'URL come gli altri filtri.
+   *
+   * ⛔ **Esiste solo con «Raggruppa: Nessuno»** (`10` §20): col raggruppamento
+   * acceso il Registro tiene il suo ordine canonico per giornata. Non si
+   * costruisce un «prima il giorno, poi la colonna»: il raggruppamento è già
+   * una forma di ordinamento strutturato.
+   */
+  protected readonly sortState = computed<readonly DataTableSort[]>(() =>
+    this.raggruppaPerGiorno() ? [] : parseDataTableSort(this.queryParams().get('sort')),
+  );
+
+  protected onSortChange(chiavi: readonly DataTableSort[]): void {
+    this.updateParams({ sort: serializeDataTableSort(chiavi) || null });
+  }
+
+  /**
+   * Le righe come vanno mostrate: filtrate dall'API, poi ordinate qui se
+   * l'operatore l'ha chiesto.
+   *
+   * ⭐ Ordinare nel client è ordinare **tutto il risultato**, non una pagina: il
+   * Registro non impagina (`14` §H15). E le etichette con cui si confrontano
+   * Tipo, Origine, Sede e Pagamento esistono solo qui — è la ragione per cui
+   * l'ordine «per quello che si legge» (§H13) qui si può davvero applicare.
+   */
+  protected readonly orders = computed(() =>
+    ordinaCorrispettivi(this.data()?.orders ?? [], this.sortState(), {
+      kind: (row) => (row.kind === 'refund' ? 'Rettifica' : 'Vendita'),
+      source: (row) => corrispettivoSourceLabel(row.source),
+      location: (row) => row.locationName ?? LOCATION_UNDETERMINED_LABEL,
+      financialStatus: (row) => row.financialStatus ?? '',
+    }),
+  );
   protected readonly summary = computed(() => this.data()?.summary ?? null);
   protected readonly totalOrders = computed(() => this.data()?.totalOrders ?? 0);
 

@@ -1,3 +1,27 @@
+<ng-template #intestazione let-id="id" let-label="label" let-num="num">
+  <th
+    scope="col"
+    [class.corrispettivi-table__cell--num]="num"
+    [attr.aria-sort]="ordinabile() ? ariaSort(id) : null"
+  >
+    @if (ordinabile()) {
+      <button type="button" class="corrispettivi-table__sort" (click)="onSort(id)">
+        {{ label }}
+        @if (verso(id); as direzione) {
+          <i
+            class="pi"
+            [class.pi-sort-up]="direzione === 'asc'"
+            [class.pi-sort-down]="direzione === 'desc'"
+            aria-hidden="true"
+          ></i>
+        }
+      </button>
+    } @else {
+      {{ label }}
+    }
+  </th>
+</ng-template>
+
 <div class="corrispettivi-table-wrap">
   <table class="corrispettivi-table">
     <thead class="corrispettivi-table__head">
@@ -11,16 +35,28 @@
       -->
       <tr>
         @if (isVisible('occurredAt')) {
-          <th scope="col">Data</th>
+          <ng-container
+            [ngTemplateOutlet]="intestazione"
+            [ngTemplateOutletContext]="{ id: 'occurredAt', label: 'Data', num: false }"
+          />
         }
         @if (isVisible('kind')) {
-          <th scope="col">Tipo</th>
+          <ng-container
+            [ngTemplateOutlet]="intestazione"
+            [ngTemplateOutletContext]="{ id: 'kind', label: 'Tipo', num: false }"
+          />
         }
         @if (isVisible('orderNumber')) {
-          <th scope="col">Numero</th>
+          <ng-container
+            [ngTemplateOutlet]="intestazione"
+            [ngTemplateOutletContext]="{ id: 'orderNumber', label: 'Numero', num: false }"
+          />
         }
         @if (isVisible('customerName')) {
-          <th scope="col">Cliente</th>
+          <ng-container
+            [ngTemplateOutlet]="intestazione"
+            [ngTemplateOutletContext]="{ id: 'customerName', label: 'Cliente', num: false }"
+          />
         }
         <!--
           «Canale» fino al 17/08/2026, quando le origini erano tre e venivano
@@ -28,22 +64,40 @@
           ordine non è — «canale» direbbe il falso: nessun canale l'ha raccolta.
         -->
         @if (isVisible('source')) {
-          <th scope="col">Origine</th>
+          <ng-container
+            [ngTemplateOutlet]="intestazione"
+            [ngTemplateOutletContext]="{ id: 'source', label: 'Origine', num: false }"
+          />
         }
         @if (isVisible('location')) {
-          <th scope="col">Sede</th>
+          <ng-container
+            [ngTemplateOutlet]="intestazione"
+            [ngTemplateOutletContext]="{ id: 'location', label: 'Sede', num: false }"
+          />
         }
         @if (isVisible('financialStatus')) {
-          <th scope="col">Pagamento</th>
+          <ng-container
+            [ngTemplateOutlet]="intestazione"
+            [ngTemplateOutletContext]="{ id: 'financialStatus', label: 'Pagamento', num: false }"
+          />
         }
         @if (isVisible('taxable')) {
-          <th scope="col" class="corrispettivi-table__cell--num">Imponibile</th>
+          <ng-container
+            [ngTemplateOutlet]="intestazione"
+            [ngTemplateOutletContext]="{ id: 'taxable', label: 'Imponibile', num: true }"
+          />
         }
         @if (isVisible('tax')) {
-          <th scope="col" class="corrispettivi-table__cell--num">IVA</th>
+          <ng-container
+            [ngTemplateOutlet]="intestazione"
+            [ngTemplateOutletContext]="{ id: 'tax', label: 'IVA', num: true }"
+          />
         }
         @if (isVisible('total')) {
-          <th scope="col" class="corrispettivi-table__cell--num">Totale</th>
+          <ng-container
+            [ngTemplateOutlet]="intestazione"
+            [ngTemplateOutletContext]="{ id: 'total', label: 'Totale', num: true }"
+          />
         }
       </tr>
     </thead>

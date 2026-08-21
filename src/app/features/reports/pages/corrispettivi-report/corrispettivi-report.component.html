@@ -446,6 +446,8 @@
             [visibleColumns]="visibleColumns()"
             [canEditManual]="canManageRegister()"
             [raggruppaPerGiorno]="raggruppaPerGiorno()"
+            [sort]="sortState()"
+            (sortChange)="onSortChange($event)"
             [perGiornata]="pageSummary.perGiornata"
             (manualReceiptOpened)="openManualReceipt($event)"
           />

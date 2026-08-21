@@ -38,23 +38,24 @@ strumenti di lavoro. Non ci si cercano decisioni.
 
 ## Elenchi e riepiloghi — `14`
 
-| Decisione                                                                                         | Dove     |
-| ------------------------------------------------------------------------------------------------- | -------- |
-| **Clic sulla riga → Modifica**, per ogni tipo e in ogni elenco. Nessun doppio clic                | §2, §3   |
-| **Checkbox → selezione**: gesto distinto, non alternativo                                         | §4       |
-| **Tre funzioni distinte: Modifica · Dettaglio · Stampa/PDF.** «Anteprima» non esiste              | §6       |
-| Il **Dettaglio** si raggiunge dal suo pulsante e in questa fase non si ridisegna                  | §E4      |
-| **Tre predicati da non confondere**: `canEdit` · `canViewDetail` · `canSelect`                    | §H16     |
-| **Sfondo** comune a ogni riga; **mano** solo dove il clic apre la Modifica                        | §H16     |
-| La **barra azioni è permanente**: la selezione ne cambia l'ambito, non la presenza                | §5       |
-| **La selezione batte i filtri**: 0 selezionati → il filtrato; 1+ → solo quelle                    | §5.3     |
-| **Stampa · Excel · Esporta** sono tre azioni indipendenti                                         | §5.2     |
-| **«Esporta» richiede `reports.export`** ovunque sia disponibile                                   | §E5      |
-| **I riepiloghi non impaginano**: si aprono sugli ultimi 30 giorni, «Tutti» resta una voce         | §H14-bis |
-| **Le anagrafiche restano paginate**: senza un asse temporale, «30 giorni» nasconde il catalogo    | §H14-bis |
-| **Ordinamento**: `DataTableSort[]` è l'unica grammatica, il parametro HTTP la sua serializzazione | §H15     |
-| **La grammatica visiva**: 12px · 4×12 · intestazione 32px MAIUSCOLA · niente divisori di colonna  | §F6      |
-| **Si conserva** il preset e le colonne visibili; **non** la larghezza né l'ordine                 | §G1      |
+| Decisione                                                                                                                  | Dove     |
+| -------------------------------------------------------------------------------------------------------------------------- | -------- |
+| **Clic sulla riga → Modifica**, per ogni tipo e in ogni elenco. Nessun doppio clic                                         | §2, §3   |
+| **Checkbox → selezione**: gesto distinto, non alternativo                                                                  | §4       |
+| **Tre funzioni distinte: Modifica · Dettaglio · Stampa/PDF.** «Anteprima» non esiste                                       | §6       |
+| Il **Dettaglio** si raggiunge dal suo pulsante e in questa fase non si ridisegna                                           | §E4      |
+| **Tre predicati da non confondere**: `canEdit` · `canViewDetail` · `canSelect`                                             | §H16     |
+| **Sfondo** comune a ogni riga; **mano** solo dove il clic apre la Modifica                                                 | §H16     |
+| La **barra azioni è permanente**: la selezione ne cambia l'ambito, non la presenza                                         | §5       |
+| **La selezione batte i filtri**: 0 selezionati → il filtrato; 1+ → solo quelle                                             | §5.3     |
+| **Stampa · Excel · Esporta** sono tre azioni indipendenti                                                                  | §5.2     |
+| **«Esporta» richiede `reports.export`** ovunque sia disponibile                                                            | §E5      |
+| **I riepiloghi non impaginano**: si aprono sugli ultimi 30 giorni, «Tutti» resta una voce                                  | §H14-bis |
+| **Le anagrafiche restano paginate**: senza un asse temporale, «30 giorni» nasconde il catalogo                             | §H14-bis |
+| **Ordinamento**: `DataTableSort[]` è l'unica grammatica, il parametro HTTP la sua serializzazione                          | §H15     |
+| **Corrispettivi**: con «Raggruppa: Giorno» niente sorting manuale, con «Nessuno» il sorting comune. I filtri sempre attivi | `10` §20 |
+| **La grammatica visiva**: 12px · 4×12 · intestazione 32px MAIUSCOLA · niente divisori di colonna                           | §F6      |
+| **Si conserva** il preset e le colonne visibili; **non** la larghezza né l'ordine                                          | §G1      |
 
 ## Documenti e righe — `03`, `09`, `12`
 
@@ -88,21 +89,20 @@ strumenti di lavoro. Non ci si cercano decisioni.
 
 ⛔ **Nessuna di queste si chiude scrivendo codice che funziona.** Si chiudono decidendo.
 
-| Aperta                                                                                 | Dove               |
-| -------------------------------------------------------------------------------------- | ------------------ |
-| **Controparte** (elenco documenti) ordinabile — serve una fonte sola per il dato       | `14` §H15          |
-| **Stato** (ordini cliente) ordinabile — si riprende col modulo Ordine cliente          | `14` §H15          |
-| **«Non modificabile ⇒ non selezionabile»** — applicazione da chiudere con le azioni    | `14` §H16          |
-| **Dettaglio dell'Ordine cliente** — gap, col rifacimento dei Detail                    | `14` §E6           |
-| **Dettaglio del Corrispettivo manuale** — oggi ha solo la modifica                     | `14` §E6           |
-| **Azioni massive**: selezione eterogenea, esiti parziali, tutto il filtrato            | `14` §E5           |
-| **Stampa/PDF** come menu per tipo documento                                            | `14` §E2           |
-| **Giacenze e Situazione**: in pausa                                                    | `14` §C0.0         |
-| **Ordinamento del Registro Corrispettivi** — confligge col raggruppamento per giornata | `10` §20           |
-| **Corrispettivi nel motore tabella**: fermi, e non per pigrizia                        | `14` §H14          |
-| La **Proforma** nella matrice documentale                                              | `11` A7            |
-| **Riga manuale** senza articolo in anagrafica                                          | `11` A21           |
-| **Header di sicurezza** del documento HTML — lacuna aperta                             | `regole-sicurezza` |
+| Aperta                                                                              | Dove               |
+| ----------------------------------------------------------------------------------- | ------------------ |
+| **Controparte** (elenco documenti) ordinabile — serve una fonte sola per il dato    | `14` §H15          |
+| **Stato** (ordini cliente) ordinabile — si riprende col modulo Ordine cliente       | `14` §H15          |
+| **«Non modificabile ⇒ non selezionabile»** — applicazione da chiudere con le azioni | `14` §H16          |
+| **Dettaglio dell'Ordine cliente** — gap, col rifacimento dei Detail                 | `14` §E6           |
+| **Dettaglio del Corrispettivo manuale** — oggi ha solo la modifica                  | `14` §E6           |
+| **Azioni massive**: selezione eterogenea, esiti parziali, tutto il filtrato         | `14` §E5           |
+| **Stampa/PDF** come menu per tipo documento                                         | `14` §E2           |
+| **Giacenze e Situazione**: in pausa                                                 | `14` §C0.0         |
+| **Corrispettivi nel motore tabella**: fermi, e non per pigrizia                     | `14` §H14          |
+| La **Proforma** nella matrice documentale                                           | `11` A7            |
+| **Riga manuale** senza articolo in anagrafica                                       | `11` A21           |
+| **Header di sicurezza** del documento HTML — lacuna aperta                          | `regole-sicurezza` |
 
 ---
 
