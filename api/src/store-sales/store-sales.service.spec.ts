@@ -16,6 +16,7 @@ import { TenantPermission } from '../auth/tenant-permission.constants';
 import { CreationIntentService } from '../common/idempotency/creation-intent.util';
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import type { ChannelSyncFacade } from '../channels/channel-sync.facade';
+import type { DocumentPriceModePreferenceService } from '../documents/document-price-mode-preference.service';
 import type { DocumentSettingsService } from '../documents/document-settings.service';
 import type { PrismaService } from '../prisma/prisma.service';
 
@@ -156,6 +157,10 @@ interface FakeDb {
    * `available()` di `document-counters.service.ts`.
    */
   counters: FakeCounter[];
+  /** Convenzione aziendale sui prezzi di vendita (`11` A4). */
+  companyPricesIncludeVat: boolean;
+  /** Memoria dell'operatore, per `utente|tipo`. */
+  priceModeMemory: Map<string, boolean>;
   /** Clienti dell'anagrafica: servono allo snapshot del nome sul documento. */
   customers: { id: string; tenantId: string; displayName: string }[];
 }
@@ -235,6 +240,8 @@ function createDb(): FakeDb {
     vatCodes: [],
     counters: [],
     customers: [],
+    companyPricesIncludeVat: true,
+    priceModeMemory: new Map(),
   };
 }
 
@@ -728,6 +735,32 @@ function createFakePrisma(db: FakeDb): PrismaService {
   return client as unknown as PrismaService;
 }
 
+/**
+ * Contratto comune netto/ivato (`11` A4), nel doppio.
+ *
+ * ⚠️ Riproduce le due domande che il servizio vero pone, e **solo quelle**: la
+ * memoria dell'operatore per (tenant, utente, tipo) e la convenzione aziendale
+ * di ripiego. `remember` scrive nella stessa memoria, così i test possono
+ * provare che la creazione successiva ripropone la modalità scelta.
+ */
+function createPriceModePreference(db: FakeDb): DocumentPriceModePreferenceService {
+  return {
+    resolvePricesIncludeVat: (_tenantId: string, userId: string, type: DocumentType) =>
+      Promise.resolve(db.priceModeMemory.get(`${userId}|${type}`) ?? db.companyPricesIncludeVat),
+    resolveCompanyDefault: () => Promise.resolve(db.companyPricesIncludeVat),
+    salesPricesIncludeVat: () => Promise.resolve(db.companyPricesIncludeVat),
+    remember: (
+      _tenantId: string,
+      userId: string,
+      type: DocumentType,
+      pricesIncludeVat: boolean,
+    ) => {
+      db.priceModeMemory.set(`${userId}|${type}`, pricesIncludeVat);
+      return Promise.resolve();
+    },
+  } as unknown as DocumentPriceModePreferenceService;
+}
+
 function createSettings(): DocumentSettingsService {
   return {
     getResolved: (_tenantId: string, type: DocumentType) =>
@@ -799,6 +832,7 @@ function createService(db: FakeDb): { service: StoreSalesService; pushed: string
     createSettings(),
     createChannelSync(pushed),
     new CreationIntentService(prisma),
+    createPriceModePreference(db),
   );
   // ⚠️ Il contatore è di MODULO, non di servizio: molti test creano un servizio
   // nuovo a ogni chiamata, e un contatore locale avrebbe dato lo stesso intento
@@ -1157,6 +1191,157 @@ describe('StoreSalesService (fase 3 §12)', () => {
     // tecnico di quando la scrittura è avvenuta, e un documento datato prima di
     // quando è stato registrato è una situazione legittima.
     expect(db.movements[0]!.createdAt).toEqual(createdAtPrima);
+  });
+
+  // ── Netto/ivato: contratto comune, nessun forcing (`11` A4) ──────────────
+  //
+  // ⛔ Il servizio cablava `pricesIncludeVat: true` alla creazione — «al banco
+  // si legge sempre ivato». Ora la modalità viene dal contratto comune degli
+  // altri documenti, si persiste sul documento e resta modificabile.
+  describe('modalità prezzo del banco', () => {
+    it('⭐ la modalità dichiarata dal client si scrive: niente più «sempre ivato»', async () => {
+      const db = createDb();
+      const { service } = createService(db);
+
+      await service.createSale(
+        TENANT,
+        {
+          locationId: LOCATION,
+          pricesIncludeVat: false,
+          lines: [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }],
+        } as never,
+        user,
+      );
+
+      expect(db.documents[0]!.pricesIncludeVat).toBe(false);
+    });
+
+    it('senza modalità dichiarata, un documento NUOVO prende quella del contratto comune', async () => {
+      const db = createDb();
+      db.companyPricesIncludeVat = false;
+
+      await vendita(db, [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }]);
+
+      expect(db.documents[0]!.pricesIncludeVat).toBe(false);
+    });
+
+    it('⭐ la scelta si ricorda, e la vendita successiva la ripropone', async () => {
+      const db = createDb();
+      db.companyPricesIncludeVat = true;
+      const { service } = createService(db);
+
+      await service.createSale(
+        TENANT,
+        {
+          locationId: LOCATION,
+          pricesIncludeVat: false,
+          lines: [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }],
+        } as never,
+        user,
+      );
+      await vendita(db, [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }]);
+
+      // La seconda non dichiara niente: prende la memoria, non la convenzione.
+      expect(db.documents[1]!.pricesIncludeVat).toBe(false);
+    });
+
+    it('⭐ in MODIFICA senza modalità dichiarata resta quella persistita', async () => {
+      const db = createDb();
+      const { service } = createService(db);
+      await service.createSale(
+        TENANT,
+        {
+          locationId: LOCATION,
+          pricesIncludeVat: false,
+          lines: [{ variantId: VARIANT_A, quantity: 2, unitPriceMinor: 2990 }],
+        } as never,
+        user,
+      );
+      const doc = db.documents[0]!;
+
+      await vendita(
+        db,
+        [{ id: doc.lines[0]!.id, variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }],
+        doc.id,
+      );
+
+      expect(db.documents[0]!.pricesIncludeVat).toBe(false);
+    });
+
+    it('cambiare modalità su un documento aperto la persiste', async () => {
+      const db = createDb();
+      const { service } = createService(db);
+      await service.createSale(
+        TENANT,
+        {
+          locationId: LOCATION,
+          pricesIncludeVat: false,
+          lines: [{ variantId: VARIANT_A, quantity: 2, unitPriceMinor: 2990 }],
+        } as never,
+        user,
+      );
+      const doc = db.documents[0]!;
+
+      await service.createSale(
+        TENANT,
+        {
+          id: doc.id,
+          locationId: LOCATION,
+          pricesIncludeVat: true,
+          lines: [
+            { id: doc.lines[0]!.id, variantId: VARIANT_A, quantity: 2, unitPriceMinor: 2990 },
+          ],
+        } as never,
+        user,
+      );
+
+      expect(db.documents[0]!.pricesIncludeVat).toBe(true);
+    });
+
+    it('il Reso ha lo stesso contratto della Vendita', async () => {
+      const db = createDb();
+      const { service } = createService(db);
+
+      await service.createReturn(
+        TENANT,
+        {
+          locationId: LOCATION,
+          pricesIncludeVat: false,
+          lines: [{ variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 2990 }],
+        } as never,
+        user,
+      );
+
+      expect(db.documents[0]!.pricesIncludeVat).toBe(false);
+    });
+
+    it('⛔ la modalità NON cambia il valore del documento: le righe portano il netto', async () => {
+      // È la ragione per cui non entra in nessun calcolo: due vendite identiche
+      // in modalità opposte valgono lo stesso.
+      const db = createDb();
+      const { service } = createService(db);
+
+      const ivata = await service.createSale(
+        TENANT,
+        {
+          locationId: LOCATION,
+          pricesIncludeVat: true,
+          lines: [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }],
+        } as never,
+        user,
+      );
+      const netta = await service.createSale(
+        TENANT,
+        {
+          locationId: LOCATION,
+          pricesIncludeVat: false,
+          lines: [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }],
+        } as never,
+        user,
+      );
+
+      expect(netta.totalMinor).toBe(ivata.totalMinor);
+    });
   });
 
   // ── Pagamento: differito, ma i valori storici non si toccano (`11` A8) ────

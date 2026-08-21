@@ -306,16 +306,24 @@ un’assenza, è **un barrato che vale zero**, cioè uno sconto inventato del 10
 Chi non risponde alla convenzione sta **fuori da `SALES_PRICE_MODE_TYPES`**, che è l’unico
 elenco: la modalità proposta e le memorie da azzerare leggono lo stesso.
 
-| Chi                                                          | Perché                                                                                                    |
-| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
-| **cassa negozio** (`store_sale`, `store_return`)             | sempre ivata, deciso in `store-sales.service.ts`. Al banco il prezzo esposto è quello che il cliente paga |
-| **famiglia acquisto**                                        | i costi partono sempre netti                                                                              |
-| **tipi senza prezzi** (trasferimento, rettifica, inventario) | non usano la modalità                                                                                     |
+| Chi                                                          | Perché                       |
+| ------------------------------------------------------------ | ---------------------------- |
+| **famiglia acquisto**                                        | i costi partono sempre netti |
+| **tipi senza prezzi** (trasferimento, rettifica, inventario) | non usano la modalità        |
 
-⚠️ **Sulla cassa c’è una revisione in sospeso.** «Fisico/POS» e «netto/ivato» sono **due assi
-diversi** — è la stessa distinzione già fatta sul canale `manual` nel Registro Corrispettivi —
-e un grossista che vende al banco potrebbe volerla netta. Da rivedere col rifacimento della
-Vendita al banco, non di straforo.
+⭐ **Vendita e Reso al banco NON sono più esonerati — 21/08/2026.** Qui c'era «cassa negozio
+(`store_sale`, `store_return`): sempre ivata», col forcing cablato in `store-sales.service.ts`,
+e questa stessa sezione dichiarava la revisione in sospeso: «Fisico/POS» e «netto/ivato» sono
+**due assi diversi**, e un grossista che vende al banco può volerla netta.
+
+La revisione è stata fatta col rifacimento della Vendita al banco, com'era previsto: i due tipi
+sono **dentro** `SALES_PRICE_MODE_TYPES` e usano il contratto comune — convenzione aziendale,
+memoria dell'operatore, modalità persistita sul documento e modificabile dal selettore nella
+testata della colonna Prezzo (`11` A4).
+
+⚠️ **Entrarci significa ereditarlo tutto**: cambiare la convenzione aziendale azzera anche le
+memorie del banco. Senza, il titolare imposterebbe «netto» e chi sta al banco continuerebbe a
+vedere ivato per una memoria che non sa di avere.
 
 #### Due meccanismi ritirati, e perché non torneranno
 

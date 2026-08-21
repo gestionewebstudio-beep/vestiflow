@@ -238,6 +238,20 @@ export class CreateStoreReturnDto {
   @IsOptional()
   @IsISO8601()
   documentDate?: string;
+  /**
+   * Modalità di rappresentazione dei prezzi del documento: `true` = i valori si
+   * leggono e si digitano IVA inclusa (`11` A4, contratto comune).
+   *
+   * ⛔ Non entra in nessun calcolo — `unitPriceMinor` è **sempre il netto**,
+   * in ogni modalità. Qui si dichiara solo come quel netto va mostrato.
+   *
+   * ⚠️ Assente su un documento ESISTENTE = non modificata, e resta quella
+   * persistita. Assente su uno NUOVO = la decide il contratto comune: memoria
+   * dell'operatore, poi convenzione aziendale.
+   */
+  @IsOptional()
+  @IsBoolean()
+  pricesIncludeVat?: boolean;
 
   @IsOptional()
   @IsString()

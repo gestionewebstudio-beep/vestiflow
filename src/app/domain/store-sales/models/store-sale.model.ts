@@ -75,14 +75,24 @@ export interface CreateStoreSalePayload {
   readonly paymentMethodNote?: string;
   readonly customerId?: EntityId;
   /**
-   * La data economica della vendita, scelta da chi registra (T2).
+   * La data del documento (`11` A13): default oggi, **modificabile anche dopo
+   * la conclusione**, e l'update la persiste senza rinumerare.
    *
-   * ⚠️ **Letta solo alla CREAZIONE**: in modifica il server tiene quella
-   * persistita, e non è una svista — il Registro Corrispettivi filtra e
-   * raggruppa su di essa, e correggere una vendita di marzo ad agosto
-   * cambierebbe due periodi invece di correggerne uno.
+   * ⚠️ Assente = non dichiarata, e resta quella persistita.
    */
   readonly documentDate?: IsoDateString;
+  /**
+   * Modalità netto/ivato del documento (`11` A4): `true` = i prezzi si leggono
+   * e si digitano IVA inclusa.
+   *
+   * ⛔ **Non entra in nessun calcolo**: `unitPriceMinor` resta sempre il netto,
+   * in ogni modalità. Qui si dichiara come quel netto va mostrato.
+   *
+   * ⚠️ Assente su un documento ESISTENTE = non modificata, e resta quella
+   * persistita; su uno NUOVO la decide il contratto comune — memoria
+   * dell'operatore, poi convenzione aziendale.
+   */
+  readonly pricesIncludeVat?: boolean;
   readonly notes?: string;
   readonly lines: readonly StoreSaleLineInput[];
 }
@@ -161,11 +171,20 @@ export interface CreateStoreReturnPayload {
    * rende la merce può essere noto, la vendita di partenza no.
    */
   readonly customerId?: EntityId;
-  /**
-   * La data economica del reso (T2). **Stesso contratto della Vendita**: letta
-   * solo alla creazione, in modifica resta quella persistita.
-   */
+  /** La data del documento: **stesso contratto della Vendita** (`11` A13). */
   readonly documentDate?: IsoDateString;
+  /**
+   * Modalità netto/ivato del documento (`11` A4): `true` = i prezzi si leggono
+   * e si digitano IVA inclusa.
+   *
+   * ⛔ **Non entra in nessun calcolo**: `unitPriceMinor` resta sempre il netto,
+   * in ogni modalità. Qui si dichiara come quel netto va mostrato.
+   *
+   * ⚠️ Assente su un documento ESISTENTE = non modificata, e resta quella
+   * persistita; su uno NUOVO la decide il contratto comune — memoria
+   * dell'operatore, poi convenzione aziendale.
+   */
+  readonly pricesIncludeVat?: boolean;
   readonly notes?: string;
   readonly lines: readonly StoreReturnLineInput[];
 }

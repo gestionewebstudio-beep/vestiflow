@@ -15,6 +15,7 @@ import {
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
+import { DocumentPriceModePreferenceService } from '../documents/document-price-mode-preference.service';
 import { DocumentSettingsService } from '../documents/document-settings.service';
 import {
   buildDocumentNumberConflict,
@@ -88,7 +89,61 @@ export class StoreSalesService {
     private readonly settings: DocumentSettingsService,
     private readonly channelSync: ChannelSyncFacade,
     private readonly intents: CreationIntentService,
+    // Contratto comune netto/ivato (`11` A4): la stessa risoluzione e la stessa
+    // memoria che usa il percorso documenti generico, non una copia del banco.
+    private readonly priceModePreference: DocumentPriceModePreferenceService,
   ) {}
+
+  /**
+   * La modalità di rappresentazione dei prezzi del documento.
+   *
+   * ```text
+   * dichiarata dal client   → quella, ed è una scelta dell'operatore
+   * assente su un ESISTENTE → resta quella persistita (contratto binario)
+   * assente su un NUOVO     → memoria dell'operatore, poi convenzione aziendale
+   * ```
+   *
+   * ⛔ Non entra in nessun calcolo: le righe portano sempre il netto, e la
+   * modalità dice solo come lo si legge e digita.
+   */
+  private async resolvePriceMode(
+    tenantId: string,
+    userId: string,
+    type: DocumentType,
+    declared: boolean | undefined,
+    persisted: boolean | undefined,
+  ): Promise<boolean> {
+    if (declared !== undefined) {
+      return declared;
+    }
+    if (persisted !== undefined) {
+      return persisted;
+    }
+    return this.priceModePreference.resolvePricesIncludeVat(tenantId, userId, type);
+  }
+
+  /**
+   * Ricorda la modalità scelta, **solo alla creazione**: il documento dopo la
+   * ripropone. In modifica no — correggere una vendita di marzo non è una
+   * dichiarazione su come si vogliono vedere i prezzi domani.
+   */
+  private async rememberPriceMode(
+    tenantId: string,
+    userId: string,
+    type: DocumentType,
+    declared: boolean | undefined,
+    isCreation: boolean,
+  ): Promise<void> {
+    if (!isCreation || declared === undefined) {
+      return;
+    }
+    await this.priceModePreference
+      .remember(tenantId, userId, type, declared)
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : 'preferenza non salvata';
+        this.logger.warn(`Modalità prezzo non memorizzata (${tenantId}): ${message}`);
+      });
+  }
 
   /**
    * Il registro degli intenti, applicato a un percorso della cassa (T15).
@@ -218,6 +273,13 @@ export class StoreSalesService {
     const documentDate = dto.documentDate
       ? new Date(dto.documentDate)
       : (existing?.documentDate ?? new Date());
+    const pricesIncludeVat = await this.resolvePriceMode(
+      tenantId,
+      user.id,
+      DocumentType.store_sale,
+      dto.pricesIncludeVat,
+      existing?.pricesIncludeVat,
+    );
     const setting = await this.settings.getResolved(tenantId, DocumentType.store_sale);
     const actor = {
       createdById: user.id,
@@ -390,6 +452,9 @@ export class StoreSalesService {
           // riscrive la storia dell'inserimento.
           documentDate,
           locationId: dto.locationId,
+          // Modalità di rappresentazione: sta nella testata che si riscrive, così
+          // cambiarla su un documento aperto la persiste (`11` A4).
+          pricesIncludeVat,
           // ⛔ Pagamento: assente = NON MODIFICATO (`11` A8). La maschera nuova
           // non lo manda perché la gestione è differita al blocco
           // Pagamenti/Tesoreria; senza questa conservazione, risalvare una
@@ -448,16 +513,18 @@ export class StoreSalesService {
               number: nuovaNumerazione!.number,
               year,
               reference,
-              documentDate,
+              // La data la porta `header`; `registrationDate` no: dice quando il
+              // documento è stato registrato, e si scrive solo alla nascita.
               registrationDate: documentDate,
               printTitle: setting.printTitle,
               internalComment:
                 'Registrazione interna della vendita. Lo scontrino fiscale viene emesso sulla cassa esterna.',
               currency: 'EUR',
-              // Al banco i prezzi si leggono ivati: è come li mostra la cassa
-              // all'operatore e al cliente. È una nota di visualizzazione — non
-              // entra in nessun calcolo, che parte sempre dal netto memorizzato.
-              pricesIncludeVat: true,
+              // ⛔ Qui c'era `pricesIncludeVat: true` — il forcing «al banco si
+              // legge sempre ivato», tolto il 21/08/2026 (`11` A4). La modalità
+              // ora sta in `header`, che la scrive anche in modifica, e viene
+              // dal contratto comune: convenzione aziendale, memoria
+              // dell'operatore, scelta persistita sul documento.
               confirmedAt: new Date(),
               createdById: actor.createdById,
               createdByName: actor.createdByName,
@@ -533,6 +600,17 @@ export class StoreSalesService {
       throw error;
     }
 
+    // La modalità scelta si ricorda per la creazione successiva, come su ogni
+    // altro documento. Fuori dalla transazione: una preferenza non salvata non
+    // deve far fallire una vendita già registrata.
+    await this.rememberPriceMode(
+      tenantId,
+      user.id,
+      DocumentType.store_sale,
+      dto.pricesIncludeVat,
+      !existing,
+    );
+
     this.pushInventoryAsync(
       tenantId,
       created.lines.map((line) => line.variantId!),
@@ -573,6 +651,11 @@ export class StoreSalesService {
      */
     readonly paymentMethod: string | null;
     readonly paymentMethodNote: string | null;
+    /**
+     * Modalità netto/ivato già scelta sul documento: si conserva quando il
+     * client non ne dichiara una, come ogni altro valore di testata.
+     */
+    readonly pricesIncludeVat: boolean;
     readonly lines: readonly {
       readonly id: string;
       readonly sku: string | null;
@@ -593,6 +676,7 @@ export class StoreSalesService {
         locationId: true,
         paymentMethod: true,
         paymentMethodNote: true,
+        pricesIncludeVat: true,
         lines: {
           select: {
             id: true,
@@ -669,6 +753,13 @@ export class StoreSalesService {
     const documentDate = dto.documentDate
       ? new Date(dto.documentDate)
       : (existing?.documentDate ?? new Date());
+    const pricesIncludeVat = await this.resolvePriceMode(
+      tenantId,
+      user.id,
+      DocumentType.store_return,
+      dto.pricesIncludeVat,
+      existing?.pricesIncludeVat,
+    );
     const setting = await this.settings.getResolved(tenantId, DocumentType.store_return);
     const actor = {
       createdById: user.id,
@@ -832,6 +923,9 @@ export class StoreSalesService {
           customerId: dto.customerId ?? null,
           customerName,
           locationId: dto.locationId,
+          // Modalità di rappresentazione: sta nella testata che si riscrive, così
+          // cambiarla su un documento aperto la persiste (`11` A4).
+          pricesIncludeVat,
           subtotalMinor,
           taxMinor,
           totalMinor,
@@ -875,13 +969,13 @@ export class StoreSalesService {
               number: nuovaNumerazione!.number,
               year,
               reference,
-              documentDate,
+              // La data la porta `header`; `registrationDate` no: dice quando il
+              // documento è stato registrato, e si scrive solo alla nascita.
               registrationDate: documentDate,
               printTitle: setting.printTitle,
               currency: 'EUR',
-              // Come la vendita: nota di come si leggono i prezzi al banco, non un
-              // parametro di calcolo.
-              pricesIncludeVat: true,
+              // Come la Vendita: il forcing «sempre ivato» non c'è più, la
+              // modalità arriva da `header` e dal contratto comune (`11` A4).
               confirmedAt: new Date(),
               createdById: actor.createdById,
               createdByName: actor.createdByName,
@@ -951,6 +1045,17 @@ export class StoreSalesService {
       );
       throw error;
     }
+
+    // La modalità scelta si ricorda per la creazione successiva, come su ogni
+    // altro documento. Fuori dalla transazione: una preferenza non salvata non
+    // deve far fallire una vendita già registrata.
+    await this.rememberPriceMode(
+      tenantId,
+      user.id,
+      DocumentType.store_return,
+      dto.pricesIncludeVat,
+      !existing,
+    );
 
     this.pushInventoryAsync(
       tenantId,

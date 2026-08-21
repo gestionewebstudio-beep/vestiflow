@@ -155,12 +155,25 @@ describe('DocumentPriceModePreferenceService', () => {
       expect(prisma.tenantFeatureSettings.findUnique).not.toHaveBeenCalled();
     });
 
-    it('vendita al banco: la sua modalità la decide lo store, non questa catena', async () => {
+    it('⭐ vendita al banco: RISPONDE alla convenzione, come ogni altra vendita', async () => {
+      // ⛔ Qui si provava il contrario — «la sua modalità la decide lo store» —
+      // e quella era l'eccezione «al banco sempre ivato» cablata nel servizio
+      // del banco. Tolta il 21/08/2026 (`11` A4): Vendita e Reso al banco
+      // usano il contratto comune, convenzione aziendale compresa.
       memoria(null);
       convenzione(true);
 
       await expect(
         service.resolvePricesIncludeVat(tenantId, userId, DocumentType.store_sale),
+      ).resolves.toBe(true);
+    });
+
+    it('⭐ e il Reso al banco si comporta come la Vendita', async () => {
+      memoria(null);
+      convenzione(false);
+
+      await expect(
+        service.resolvePricesIncludeVat(tenantId, userId, DocumentType.store_return),
       ).resolves.toBe(false);
     });
 

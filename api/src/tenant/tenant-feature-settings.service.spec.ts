@@ -70,7 +70,11 @@ describe('TenantFeatureSettingsService', () => {
         listino2Name: null,
         listino2Active: true,
       }),
-    ).resolves.toMatchObject({ listino1Name: 'Ingrosso', listino2Name: null, listino2Active: true });
+    ).resolves.toMatchObject({
+      listino1Name: 'Ingrosso',
+      listino2Name: null,
+      listino2Active: true,
+    });
 
     expect(prisma.tenantFeatureSettings.update).toHaveBeenCalledWith({
       where: { tenantId },
@@ -159,15 +163,21 @@ describe('TenantFeatureSettingsService', () => {
       expect(tipi).not.toContain('supplier_order');
     });
 
-    it('non tocca la cassa: store_sale resta fuori dalla convenzione', async () => {
+    it('⭐ azzera anche le memorie del BANCO: risponde alla convenzione', async () => {
+      // ⛔ Qui si provava il contrario — «store_sale resta fuori» — perché al
+      // banco la modalità era cablata a «sempre ivato». Tolta il 21/08/2026
+      // (`11` A4). ⚠️ Entrare nella convenzione significa **anche** questo: se
+      // le memorie non si azzerassero, il titolare imposterebbe «netto» e chi
+      // sta al banco continuerebbe a vedere ivato per una memoria che non sa di
+      // avere — l'impostazione sembrerebbe rotta.
       await service.update(tenantId, { salesPricesIncludeVat: false });
 
       const chiamata = prisma.userDocumentPriceModePreference.deleteMany.mock.calls[0]![0] as {
         where: { documentType: { in: string[] } };
       };
       const tipi = chiamata.where.documentType.in;
-      expect(tipi).not.toContain('store_sale');
-      expect(tipi).not.toContain('store_return');
+      expect(tipi).toContain('store_sale');
+      expect(tipi).toContain('store_return');
     });
 
     it('riscriverla UGUALE non azzera niente: nessuno ha cambiato convenzione', async () => {
