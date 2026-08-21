@@ -254,6 +254,14 @@ export async function syncUnloadLineMovements(
     // continuerebbe a pesare per due nel margine.
     const nextTotalCostMinor = frozenTotalCostMinor(movement.unitCostMinor, line.quantity);
 
+    // ⛔ `createdAt` del movimento NON si tocca in aggiornamento, ed è una
+    // decisione esplicita del proprietario (21/08/2026): è il **timestamp
+    // tecnico** di quando il movimento è nato, non la data di competenza del
+    // documento. Correggere la data di un documento non riscrive quando la
+    // scrittura è avvenuta.
+    //
+    // ⚠️ Se un giorno servirà una data di **competenza** sul movimento, sarà un
+    // campo suo e un contratto trasversale — non questo, riusato.
     const needsUpdate =
       targetChanged ||
       quantityDelta !== 0 ||

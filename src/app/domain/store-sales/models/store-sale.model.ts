@@ -35,6 +35,14 @@ export interface StoreSaleLineInput {
   readonly quantity: number;
   readonly unitPriceMinor: number;
   readonly discountPercent?: number;
+  /**
+   * Descrizione della riga, **solo quando l'operatore l'ha cambiata** (T2).
+   *
+   * ⛔ Contratto binario, come `vatCodeId`: assente su una riga esistente =
+   * non modificata, e il server conserva quella persistita. Mandarla sempre
+   * riscriverebbe la fotografia dell'operazione a ogni salvataggio.
+   */
+  readonly description?: string;
   readonly vatCodeId?: EntityId;
 }
 
@@ -51,10 +59,30 @@ export interface CreateStoreSalePayload {
    */
   readonly creationIntentId?: string;
   readonly locationId: EntityId;
-  readonly paymentMethod: StoreSalePaymentMethod;
+  /**
+   * Metodo di pagamento, **facoltativo** (`11` A8).
+   *
+   * ⛔ Era obbligatorio per eredità della vecchia cassa, che un valore ce l'ha
+   * sempre. La gestione Pagamenti della maschera nuova è **differita al blocco
+   * Pagamenti/Tesoreria** e userà la struttura comune agli altri documenti:
+   * fino ad allora non si manda niente, e non si inventa un predefinito.
+   *
+   * ⚠️ **Assente ≠ vuoto**: su un documento esistente il server lo legge come
+   * «non modificato» e conserva quello persistito.
+   */
+  readonly paymentMethod?: StoreSalePaymentMethod;
   /** Testo libero quando paymentMethod = 'other' (es. «Assegno»). */
   readonly paymentMethodNote?: string;
   readonly customerId?: EntityId;
+  /**
+   * La data economica della vendita, scelta da chi registra (T2).
+   *
+   * ⚠️ **Letta solo alla CREAZIONE**: in modifica il server tiene quella
+   * persistita, e non è una svista — il Registro Corrispettivi filtra e
+   * raggruppa su di essa, e correggere una vendita di marzo ad agosto
+   * cambierebbe due periodi invece di correggerne uno.
+   */
+  readonly documentDate?: IsoDateString;
   readonly notes?: string;
   readonly lines: readonly StoreSaleLineInput[];
 }
@@ -64,6 +92,12 @@ export interface StoreReturnLineInput {
   readonly id?: EntityId;
   readonly variantId: EntityId;
   readonly quantity: number;
+  /**
+   * ⛔ **Nome del CONFINE, non un concetto del modello.** Nel dominio la spunta
+   * di riga è `loadsStock`, esposta all'operatore come «Carica giacenze»
+   * (`11` A11-ter): questo è solo come si chiama nel DTO, e non risale oltre il
+   * mapper che costruisce questo payload.
+   */
   readonly restockable: boolean;
   /**
    * Prezzo unitario NETTO reso, in unità minori — **obbligatorio, come sulla
@@ -75,6 +109,16 @@ export interface StoreReturnLineInput {
    * canonico nel signal e il campo ne MOSTRA solo l'ivato arrotondato.
    */
   readonly unitPriceMinor: number;
+  /**
+   * Sconto di riga, **come sulla Vendita** (T2, `11` A11): chi ha venduto
+   * scontato e riprende il capo rende quello che ha incassato.
+   */
+  readonly discountPercent?: number;
+  /**
+   * Descrizione della riga, **solo quando l'operatore l'ha cambiata** (T2).
+   * Stesso contratto binario di `StoreSaleLineInput.description`.
+   */
+  readonly description?: string;
   /**
    * Codice IVA della riga, **come sulla Vendita** (T3). Assente su una riga
    * NUOVA = risolto da articolo/predefinito; assente su una riga ESISTENTE =
@@ -98,8 +142,30 @@ export interface CreateStoreReturnPayload {
   /** Intento di creazione (T15B), identico alla Vendita. */
   readonly creationIntentId?: string;
   readonly locationId: EntityId;
-  /** Causale obbligatoria: nessun carico silenzioso (§9). */
-  readonly reason: string;
+  /**
+   * ⚠️ **Campo storico, e non più obbligatorio** (`11` A11: la causale del Reso
+   * è facoltativa). Resta perché la maschera legacy lo manda; il campo vero è
+   * `causale`, che atterra su `Document.causalText` — una colonna, non un
+   * prefisso dentro un commento da rileggere analizzando una stringa.
+   *
+   * @deprecated usa `causale`.
+   */
+  readonly reason?: string;
+  /** La causale del reso, facoltativa: atterra su `Document.causalText`. */
+  readonly causale?: string;
+  /**
+   * Cliente, **facoltativo come sulla Vendita** (`11` A13, che mette il campo
+   * in testata senza distinguere i due modi).
+   *
+   * ⚠️ Non riapre il documento origine (`11` A11): il Reso resta autonomo — chi
+   * rende la merce può essere noto, la vendita di partenza no.
+   */
+  readonly customerId?: EntityId;
+  /**
+   * La data economica del reso (T2). **Stesso contratto della Vendita**: letta
+   * solo alla creazione, in modifica resta quella persistita.
+   */
+  readonly documentDate?: IsoDateString;
   readonly notes?: string;
   readonly lines: readonly StoreReturnLineInput[];
 }

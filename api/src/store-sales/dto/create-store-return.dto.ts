@@ -153,6 +153,21 @@ export class CreateStoreReturnDto {
   locationId!: string;
 
   /**
+   * Cliente, **facoltativo come sulla Vendita**.
+   *
+   * ⛔ Qui non c'era, e la sua assenza non era una decisione: `11` A13 mette
+   * «Cliente (facoltativo)» nella testata **senza distinguere Vendita e Reso**.
+   * Era un gap tecnico del contratto, e leggerlo come «il Reso non ha cliente»
+   * avrebbe promosso un buco a regola.
+   *
+   * ⚠️ Non riapre il documento origine (`11` A11): il Reso resta autonomo — chi
+   * rende la merce può essere noto, la vendita di partenza no.
+   */
+  @IsOptional()
+  @IsUUID()
+  customerId?: string;
+
+  /**
    * Serie del contatore, **identica alla Vendita e a ogni altro documento**
    * (T8A): assente = «decidi tu»; stringa vuota = «Senza serie», che è una
    * scelta e scavalca il predefinito; valore = quella serie.

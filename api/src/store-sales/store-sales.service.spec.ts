@@ -74,6 +74,7 @@ interface FakeDocument {
   customerName: string | null;
   locationId: string | null;
   paymentMethod: string | null;
+  paymentMethodNote: string | null;
   sourceDocumentId: string | null;
   internalComment: string | null;
   createdAt: Date;
@@ -155,6 +156,8 @@ interface FakeDb {
    * `available()` di `document-counters.service.ts`.
    */
   counters: FakeCounter[];
+  /** Clienti dell'anagrafica: servono allo snapshot del nome sul documento. */
+  customers: { id: string; tenantId: string; displayName: string }[];
 }
 
 /**
@@ -231,6 +234,7 @@ function createDb(): FakeDb {
     defaultVatCodeId: null,
     vatCodes: [],
     counters: [],
+    customers: [],
   };
 }
 
@@ -287,7 +291,26 @@ function createFakePrisma(db: FakeDb): PrismaService {
         ),
     },
     customer: {
-      findFirst: () => Promise.resolve(null),
+      findFirst: ({ where }: { where: { id: string; tenantId: string } }) =>
+        Promise.resolve(
+          db.customers.find(
+            (customer) => customer.id === where.id && customer.tenantId === where.tenantId,
+          )
+            ? // La forma che il servizio legge: lo snapshot del nome passa da
+              // `partyDisplayName(customer.party)`, che prende la ragione
+              // sociale quando c'è.
+              {
+                party: {
+                  companyName: db.customers.find((customer) => customer.id === where.id)!
+                    .displayName,
+                  firstName: null,
+                  lastName: null,
+                  contactName: null,
+                  email: null,
+                },
+              }
+            : null,
+        ),
     },
     inventoryLevel: {
       findMany: ({ where }: { where: { variantId: { in: string[] }; locationId: string } }) =>
@@ -1054,11 +1077,17 @@ describe('StoreSalesService (fase 3 §12)', () => {
   // −1, e NON compare una rettifica. E' la regola di `regole-gestionale`
   // applicata a un tipo che ne era fuori, non una logica della cassa.
 
-  async function vendita(db: FakeDb, righe: unknown[], id?: string) {
+  async function vendita(db: FakeDb, righe: unknown[], id?: string, documentDate?: string) {
     const { service } = createService(db);
     return service.createSale(
       TENANT,
-      { ...(id ? { id } : {}), locationId: LOCATION, paymentMethod: 'cash', lines: righe } as never,
+      {
+        ...(id ? { id } : {}),
+        ...(documentDate ? { documentDate } : {}),
+        locationId: LOCATION,
+        paymentMethod: 'cash',
+        lines: righe,
+      } as never,
       user,
     );
   }
@@ -1086,7 +1115,7 @@ describe('StoreSalesService (fase 3 §12)', () => {
     expect(db.documents).toHaveLength(1);
   });
 
-  it('risalvataggio: numero, serie e data del documento restano quelli', async () => {
+  it('risalvataggio senza data dichiarata: numero, serie e data restano quelli', async () => {
     const db = createDb();
     const primo = await vendita(db, [{ variantId: VARIANT_A, quantity: 2, unitPriceMinor: 2990 }]);
     const doc = db.documents[0]!;
@@ -1102,6 +1131,87 @@ describe('StoreSalesService (fase 3 §12)', () => {
     expect(db.documents[0]!.number).toBe(doc.number);
     expect(db.documents[0]!.series).toBe(doc.series);
     expect(db.documents[0]!.documentDate).toEqual(dataPrima);
+  });
+
+  it('⭐ risalvataggio con una data NUOVA: si scrive, e il riferimento non cambia', async () => {
+    // La data è modificabile anche dopo la conclusione: correggerla non è
+    // rinumerare, e numero e serie si assegnano solo alla nascita.
+    const db = createDb();
+    const primo = await vendita(db, [{ variantId: VARIANT_A, quantity: 2, unitPriceMinor: 2990 }]);
+    const doc = db.documents[0]!;
+    // Letto PRIMA del risalvataggio: è il valore che deve restare intatto.
+    const createdAtPrima = db.movements[0]!.createdAt;
+    const NUOVA = '2026-08-01T00:00:00.000Z';
+
+    const secondo = await vendita(
+      db,
+      [{ id: doc.lines[0]!.id, variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }],
+      doc.id,
+      NUOVA,
+    );
+
+    expect(db.documents[0]!.documentDate).toEqual(new Date(NUOVA));
+    expect(secondo.reference).toBe(primo.reference);
+    expect(db.documents[0]!.number).toBe(doc.number);
+    // ⛔ `createdAt` del movimento NON insegue la data documento: è il timestamp
+    // tecnico di quando la scrittura è avvenuta, e un documento datato prima di
+    // quando è stato registrato è una situazione legittima.
+    expect(db.movements[0]!.createdAt).toEqual(createdAtPrima);
+  });
+
+  // ── Pagamento: differito, ma i valori storici non si toccano (`11` A8) ────
+  //
+  // La maschera nuova non manda il pagamento — la gestione è differita al blocco
+  // Pagamenti/Tesoreria — e il DTO non lo pretende più. L'assenza però non è
+  // «nessun pagamento»: su un documento esistente significa «non modificato».
+  it('⭐ risalvataggio senza pagamento dichiarato: quello storico resta', async () => {
+    const db = createDb();
+    const { service } = createService(db);
+    await service.createSale(
+      TENANT,
+      {
+        locationId: LOCATION,
+        // «Altro» con la sua nota: è il caso in cui c'è più di un dato da
+        // perdere, ed è quello che il risalvataggio deve conservare intero.
+        paymentMethod: 'other',
+        paymentMethodNote: 'Assegno',
+        lines: [{ variantId: VARIANT_A, quantity: 2, unitPriceMinor: 2990 }],
+      } as never,
+      user,
+    );
+    const doc = db.documents[0]!;
+
+    // Il payload della maschera nuova: niente pagamento, niente nota.
+    await service.createSale(
+      TENANT,
+      {
+        id: doc.id,
+        locationId: LOCATION,
+        lines: [{ id: doc.lines[0]!.id, variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }],
+      } as never,
+      user,
+    );
+
+    expect(db.documents[0]!.paymentMethod).toBe('other');
+    expect(db.documents[0]!.paymentMethodNote).toBe('Assegno');
+  });
+
+  it('creazione senza pagamento: il documento nasce senza, e non se ne inventa uno', async () => {
+    const db = createDb();
+    const { service } = createService(db);
+
+    await service.createSale(
+      TENANT,
+      {
+        locationId: LOCATION,
+        lines: [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }],
+      } as never,
+      user,
+    );
+
+    // ⛔ Nessun «Contanti» di default: sarebbe un dato che nessuno ha scelto,
+    // scritto su un documento che poi lo mostrerebbe come un fatto.
+    expect(db.documents[0]!.paymentMethod).toBeNull();
   });
 
   it('riga eliminata dal documento: il movimento sparisce e la giacenza torna per intero', async () => {
@@ -1216,6 +1326,44 @@ describe('StoreSalesService (fase 3 §12)', () => {
     );
   }
 
+  // ── Cliente sul Reso (`11` A13) ──────────────────────────────────────────
+  //
+  // ⛔ Il DTO del Reso non lo accettava, e quell'assenza NON era una decisione:
+  // A13 mette «Cliente (facoltativo)» nella testata senza distinguere Vendita e
+  // Reso. Era un gap del contratto, e leggerlo come «il Reso non ha cliente»
+  // avrebbe promosso un buco a regola.
+  it('⭐ il Reso accetta il cliente, e ne congela il nome come la Vendita', async () => {
+    const db = createDb();
+    db.customers.push({ id: 'cli-1', tenantId: TENANT, displayName: 'Mario Rossi' });
+    const { service } = createService(db);
+
+    await service.createReturn(
+      TENANT,
+      {
+        locationId: LOCATION,
+        customerId: 'cli-1',
+        lines: [{ variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 2990 }],
+      } as never,
+      user,
+    );
+
+    expect(db.documents[0]!.customerId).toBe('cli-1');
+    // Snapshot: il documento conserva il nome di allora, anche se l'anagrafica
+    // cambia dopo.
+    expect(db.documents[0]!.customerName).toBe('Mario Rossi');
+  });
+
+  it('il Reso senza cliente resta valido: è facoltativo', async () => {
+    const db = createDb();
+
+    await reso(db, [
+      { variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 2990 },
+    ]);
+
+    expect(db.documents[0]!.customerId ?? null).toBeNull();
+    expect(db.documents[0]!.customerName).toBeNull();
+  });
+
   describe('la data del Reso — stesso contratto della Vendita', () => {
     const IERI = '2026-08-18T00:00:00.000Z';
 
@@ -1256,7 +1404,60 @@ describe('StoreSalesService (fase 3 §12)', () => {
       expect(scritta).toBeGreaterThanOrEqual(prima - 1000);
     });
 
-    it('⛔ in MODIFICA la data si conserva, anche se il client ne manda un’altra', async () => {
+    it('⭐ in MODIFICA la data dichiarata si SCRIVE, e non rinumera il documento', async () => {
+      // ⛔ Qui il servizio la ignorava, e la maschera poteva mostrare un campo
+      // che non modificava niente. Una data sbagliata si corregge dove è stata
+      // scritta (decisione del proprietario, 21/08/2026).
+      const db = createDb();
+      await reso(
+        db,
+        [{ variantId: VARIANT_A, quantity: 2, restockable: true, unitPriceMinor: 2990 }],
+        undefined,
+        IERI,
+      );
+      const doc = db.documents[0]!;
+      const riferimentoPrima = { numero: doc.number, serie: doc.series, ref: doc.reference };
+      // Letto PRIMA del risalvataggio: deve restare intatto.
+      const createdAtPrima = db.movements[0]!.createdAt;
+      const NUOVA = '2026-08-01T00:00:00.000Z';
+
+      await reso(
+        db,
+        [
+          {
+            id: doc.lines[0]!.id,
+            variantId: VARIANT_A,
+            quantity: 1,
+            restockable: true,
+            unitPriceMinor: 2990,
+          },
+        ],
+        doc.id,
+        NUOVA,
+      );
+
+      expect(db.documents[0]!.documentDate).toEqual(new Date(NUOVA));
+      // Numero e serie si assegnano solo alla nascita: spostare la data non
+      // tocca il riferimento, che vive dentro la causale dei movimenti.
+      expect(db.documents[0]!.number).toBe(riferimentoPrima.numero);
+      expect(db.documents[0]!.series).toBe(riferimentoPrima.serie);
+      expect(db.documents[0]!.reference).toBe(riferimentoPrima.ref);
+
+      // ⏸ **Il `createdAt` del movimento NON è asserito qui, ed è deliberato.**
+      // Sullo SCARICO è deciso che resti il timestamp tecnico (vedi il test
+      // gemello della Vendita). Il Reso passa dal motore di CARICO, che invece
+      // riallinea `createdAt` alla data documento da prima di questo lavoro —
+      // lo stesso motore che serve Arrivo merce.
+      //
+      // ⛔ Non si uniforma di straforo: cambiarlo toccherebbe l'Arrivo merce, e
+      // la divergenza è segnalata come punto aperto invece di essere risolta o
+      // nascosta dietro un'asserzione compiacente.
+      void createdAtPrima;
+    });
+
+    it('in MODIFICA senza data dichiarata resta quella persistita', async () => {
+      // «Assente» è «non l'ho toccata»: senza questa distinzione ogni
+      // risalvataggio riporterebbe il documento a oggi.
       const db = createDb();
       await reso(
         db,
@@ -1278,11 +1479,8 @@ describe('StoreSalesService (fase 3 §12)', () => {
           },
         ],
         doc.id,
-        '2026-01-01T00:00:00.000Z',
       );
 
-      // La data è un fatto del documento: correggere un reso non lo sposta di
-      // periodo, e il Registro Corrispettivi raggruppa proprio su di essa.
       expect(db.documents[0]!.documentDate).toEqual(new Date(IERI));
     });
   });

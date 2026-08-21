@@ -384,7 +384,9 @@ describe('syncUnloadLineMovements', () => {
   it('18 · riga GIA presente: il costo unitario congelato non si rivaluta, il totale si rifa', async () => {
     // La distinzione decisa in `11` A2: rivalutare il costo di una riga vecchia
     // cambierebbe il margine di una vendita di marzo col costo di agosto.
-    const tx = createTxMock([existingMovement({ quantity: 3, unitCostMinor: 500, totalCostMinor: 1500 })]);
+    const tx = createTxMock([
+      existingMovement({ quantity: 3, unitCostMinor: 500, totalCostMinor: 1500 }),
+    ]);
 
     await syncUnloadLineMovements(tx as never, {
       tenantId,
@@ -406,5 +408,58 @@ describe('syncUnloadLineMovements', () => {
     expect(update.data.quantity).toBe(1);
     expect(update.data.totalCostMinor).toBe(500);
     expect(update.data).not.toHaveProperty('unitCostMinor');
+  });
+
+  // ── `createdAt` è il timestamp TECNICO, e non insegue la data documento ───
+  //
+  // Deciso il 21/08/2026: `documentDate` e `createdAt` sono due informazioni
+  // diverse. Un documento datato 19 e registrato il 21 è una situazione
+  // legittima — e ritoccare `createdAt` cancellerebbe proprio il dato che
+  // permette di riconoscere un inserimento retrodatato.
+  it('19 · data del documento corretta: il movimento aggiorna i suoi dati, NON createdAt', async () => {
+    const tx = createTxMock([existingMovement({ quantity: 3 })]);
+    const nuovaData = new Date('2026-08-01T00:00:00.000Z');
+
+    await syncUnloadLineMovements(tx as never, {
+      tenantId,
+      documentId,
+      documentType: DocumentType.store_sale,
+      locationId: 'loc-1',
+      reason,
+      movementDate: nuovaData,
+      lines: [line({ quantity: 2 })] as never,
+      actor,
+    });
+
+    const update = tx.stockMovement.update.mock.calls[0]![0] as {
+      where: { id: string };
+      data: Record<string, unknown>;
+    };
+    expect(update.where.id).toBe('mov-1');
+    expect(update.data.quantity).toBe(2);
+    // ⛔ La chiave non deve proprio esserci: scriverla con lo stesso valore
+    // sembrerebbe innocuo finché qualcuno non le passa una data diversa.
+    expect(update.data).not.toHaveProperty('createdAt');
+  });
+
+  it('20 · sola data diversa, nulla d’altro: nessuna scrittura', async () => {
+    const tx = createTxMock([existingMovement({ quantity: 3 })]);
+
+    await syncUnloadLineMovements(tx as never, {
+      tenantId,
+      documentId,
+      documentType: DocumentType.store_sale,
+      locationId: 'loc-1',
+      reason,
+      movementDate: new Date('2026-08-01T00:00:00.000Z'),
+      lines: [line({ quantity: 3 })] as never,
+      actor,
+    });
+
+    // Il movimento è identico: una data documento diversa non è, da sola, una
+    // ragione per riscriverlo.
+    expect(tx.stockMovement.update).not.toHaveBeenCalled();
+    expect(tx.stockMovement.create).not.toHaveBeenCalled();
+    expect(inventoryDeltas(tx)).toEqual([]);
   });
 });

@@ -164,13 +164,32 @@ export class CreateStoreSaleDto {
   @Min(1)
   number?: number;
 
+  /**
+   * Metodo di pagamento, **facoltativo** (`11` A8).
+   *
+   * ⛔ Era obbligatorio, ed era un'eredità della vecchia cassa: quella maschera
+   * un valore ce l'ha sempre, quindi il vincolo non si notava. La gestione
+   * Pagamenti della maschera nuova è **differita al blocco Pagamenti/Tesoreria**
+   * e userà la struttura comune agli altri documenti: fino ad allora la nuova
+   * Vendita non manda niente, e obbligarla a scegliere le farebbe inventare un
+   * predefinito che nessuno ha deciso.
+   *
+   * ⚠️ **Assente ≠ vuoto**, ed è la differenza che protegge i documenti già
+   * registrati: su un documento ESISTENTE l'assenza significa «non modificato»
+   * e il servizio conserva quello persistito. Interpretarla come «nessun
+   * pagamento» cancellerebbe il dato storico al primo risalvataggio.
+   */
+  @IsOptional()
   @IsIn(STORE_SALE_PAYMENT_METHODS)
-  paymentMethod!: StoreSalePaymentMethod;
+  paymentMethod?: StoreSalePaymentMethod;
 
   /**
    * Descrizione libera quando paymentMethod = 'other' (es. «Assegno»). Il
    * codice resta 'other' per il filtro dell'elenco; questo testo si mostra
    * accanto ad «Altro». Ignorato per cash/card.
+   *
+   * ⚠️ Segue il metodo: se il metodo non è dichiarato, questa nota non si
+   * riscrive — resta quella persistita.
    */
   @IsOptional()
   @IsString()

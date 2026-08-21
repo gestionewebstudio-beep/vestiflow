@@ -190,14 +190,34 @@ export class StoreSalesService {
       ? await this.snapshotCustomerName(tenantId, dto.customerId)
       : null;
 
-    // La data si fissa alla CREAZIONE e non si muove più: il Registro
-    // Corrispettivi filtra e raggruppa su di essa, e una vendita di marzo
-    // corretta ad agosto cambierebbe due periodi invece di correggerne uno.
-    const documentDate = existing
-      ? existing.documentDate
-      : dto.documentDate
-        ? new Date(dto.documentDate)
-        : new Date();
+    // La data del documento è MODIFICABILE, anche dopo la conclusione
+    // (decisione del proprietario, 21/08/2026): una data sbagliata si corregge
+    // dove è stata scritta.
+    //
+    // ⛔ Qui c'era `existing ? existing.documentDate : …`, che la congelava alla
+    // creazione e **ignorava in silenzio** quella ricevuta: la maschera poteva
+    // mostrare un campo che non modificava niente.
+    //
+    // ⚠️ Assente = non dichiarata, e allora resta quella persistita. È la
+    // differenza fra «non l'ho toccata» e «la voglio a questa data», e senza
+    // questa distinzione ogni risalvataggio la riporterebbe a oggi.
+    //
+    // ⭐ **Non rinumera**: numero e serie si assegnano solo alla nascita
+    // (`if (!existing)`, qui sotto), quindi spostare la data non tocca il
+    // riferimento.
+    //
+    // ⛔ E non tocca nemmeno `StockMovement.createdAt`, che è il timestamp
+    // TECNICO di quando il movimento è nato: `documentDate` e `createdAt` sono
+    // due informazioni diverse, e un documento datato 19 registrato il 21 è
+    // legittimo. Se servirà una data di competenza sul movimento sarà un campo
+    // suo, non questo riusato.
+    //
+    // ⚠️ Conseguenza da conoscere: il Registro Corrispettivi filtra e raggruppa
+    // su questa data. Correggerla sposta la registrazione di periodo, che è
+    // l'operazione richiesta quando la data era sbagliata.
+    const documentDate = dto.documentDate
+      ? new Date(dto.documentDate)
+      : (existing?.documentDate ?? new Date());
     const setting = await this.settings.getResolved(tenantId, DocumentType.store_sale);
     const actor = {
       createdById: user.id,
@@ -361,11 +381,27 @@ export class StoreSalesService {
           notes: dto.notes?.trim() || null,
           customerId: dto.customerId ?? null,
           customerName,
+          // La data sta nella testata che si riscrive, non solo nel `create`:
+          // è ciò che la rende correggibile su un documento già concluso.
+          //
+          // ⛔ `registrationDate` **non la segue**: è quando il documento è stato
+          // registrato nel gestionale, e resta quella. Un documento datato 19
+          // registrato il 21 è una situazione legittima — retrodatare non
+          // riscrive la storia dell'inserimento.
+          documentDate,
           locationId: dto.locationId,
-          paymentMethod: dto.paymentMethod,
-          // Testo libero solo per «Altro»: per cash/card resta null.
-          paymentMethodNote:
-            dto.paymentMethod === 'other' ? dto.paymentMethodNote?.trim() || null : null,
+          // ⛔ Pagamento: assente = NON MODIFICATO (`11` A8). La maschera nuova
+          // non lo manda perché la gestione è differita al blocco
+          // Pagamenti/Tesoreria; senza questa conservazione, risalvare una
+          // vendita storica ne cancellerebbe il metodo.
+          paymentMethod: dto.paymentMethod ?? existing?.paymentMethod ?? null,
+          // Segue il metodo: si riscrive solo quando il metodo è dichiarato, e
+          // resta testo libero del solo «Altro».
+          paymentMethodNote: dto.paymentMethod
+            ? dto.paymentMethod === 'other'
+              ? dto.paymentMethodNote?.trim() || null
+              : null
+            : (existing?.paymentMethodNote ?? null),
           subtotalMinor,
           taxMinor,
           totalMinor,
@@ -530,6 +566,13 @@ export class StoreSalesService {
      * partenza, e potrebbe "prendere" un documento di una sede che non vede.
      */
     readonly locationId: string | null;
+    /**
+     * Pagamento già registrato sul documento. Serve a **conservarlo**: la
+     * maschera nuova non lo manda (`11` A8, gestione differita), e senza il
+     * valore persistito un risalvataggio lo azzererebbe.
+     */
+    readonly paymentMethod: string | null;
+    readonly paymentMethodNote: string | null;
     readonly lines: readonly {
       readonly id: string;
       readonly sku: string | null;
@@ -548,6 +591,8 @@ export class StoreSalesService {
         documentDate: true,
         status: true,
         locationId: true,
+        paymentMethod: true,
+        paymentMethodNote: true,
         lines: {
           select: {
             id: true,
@@ -611,15 +656,19 @@ export class StoreSalesService {
     // alle righe nuove e a quelle in cui l'IVA è stata cambiata davvero.
     const vatContext = await this.resolveVatContext(tenantId, dto.lines, variants);
 
-    // Come la vendita, alla lettera: la data si fissa alla CREAZIONE e non si
-    // muove più — il Registro Corrispettivi filtra e raggruppa su di essa, e un
-    // reso di marzo corretto ad agosto cambierebbe due periodi invece di
-    // correggerne uno. In creazione la sceglie chi registra, o è oggi.
-    const documentDate = existing
-      ? existing.documentDate
-      : dto.documentDate
-        ? new Date(dto.documentDate)
-        : new Date();
+    // Cliente facoltativo, **come sulla Vendita** (`11` A13, che non distingue i
+    // due modi): stesso snapshot del nome, che è quello che il documento
+    // conserva anche se l'anagrafica cambia dopo.
+    const customerName = dto.customerId
+      ? await this.snapshotCustomerName(tenantId, dto.customerId)
+      : null;
+
+    // Come la vendita, alla lettera: la data è modificabile anche dopo la
+    // conclusione, assente = resta quella persistita, e non rinumera nulla —
+    // il ragionamento per esteso sta su `createSale`.
+    const documentDate = dto.documentDate
+      ? new Date(dto.documentDate)
+      : (existing?.documentDate ?? new Date());
     const setting = await this.settings.getResolved(tenantId, DocumentType.store_return);
     const actor = {
       createdById: user.id,
@@ -776,6 +825,12 @@ export class StoreSalesService {
           // Digitata dall'operatore, non generata da un modello: è la stessa
           // distinzione che l'Arrivo merce fa con le sue causali.
           causalGenerationMode: causale ? 'manual' : null,
+          // Come sulla Vendita: la data sta nella testata che si riscrive, e
+          // `registrationDate` **non** la segue — quella dice quando il reso è
+          // stato registrato nel gestionale.
+          documentDate,
+          customerId: dto.customerId ?? null,
+          customerName,
           locationId: dto.locationId,
           subtotalMinor,
           taxMinor,
