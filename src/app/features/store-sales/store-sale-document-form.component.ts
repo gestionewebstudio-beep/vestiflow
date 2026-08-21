@@ -25,7 +25,6 @@ import {
 import { customerDisplayName, type Customer } from '@core/models/customer.model';
 import { isSalesVatCode, vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
 import { parseEffectiveDiscountPercent } from '@core/utils/discount-percent.util';
-import { LocationContextService } from '@core/services/location-context.service';
 import { ViewportService } from '@core/services/viewport.service';
 import { VatCodeService } from '@core/services/vat-code.service';
 import {
@@ -55,6 +54,7 @@ import {
   type VatLineAmounts,
 } from '@domain/documents/utils/document-vat.util';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
+import { prefillDefaultLocation } from '@domain/inventory/utils/default-location-prefill.util';
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import { BarcodeLookupService } from '@domain/products/services/barcode-lookup.service';
 import { ProductService } from '@domain/products/services/product.service';
@@ -221,7 +221,6 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
   private readonly documents = inject(DocumentService);
   private readonly customerService = inject(CustomerService);
   private readonly operationalLocations = inject(OperationalLocationsService);
-  private readonly locationContext = inject(LocationContextService);
 
   /**
    * Vendita o Reso, e lo decide la **rotta**.
@@ -345,31 +344,19 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
   );
 
   /**
-   * La sede **precompila, e resta un normale controllo comune** (`11` A13).
+   * La sede **precompila col contratto comune** (`11` A13): la stessa regola di
+   * ogni altra maschera documentale, che vive in `domain/`.
    *
-   * ⛔ Una sola sede disponibile non cambia la natura del campo: la maschera
-   * legacy in quel caso mostrava un'etichetta al posto della tendina, e
-   * portarsela dietro avrebbe fatto di un default una regola funzionale
-   * diversa. Il default riempie; cambiarlo resta possibile, e l'autorizzazione
-   * la fa il server (T6).
+   * ⛔ Qui c'era una precompilazione propria del banco — sede preferita del
+   * contesto, poi l'unica disponibile. Era una regola locale dove ne esisteva
+   * già una comune, ed è il tipo di divergenza che il rifacimento sta togliendo.
    *
-   * ⛔ **In modifica non scrive niente**: vince la sede persistita sul
-   * documento. Sovrascriverla con la sede corrente lo sposterebbe di magazzino
-   * aprendolo, e un cambio dev'essere esplicito.
+   * ⛔ **In modifica non tocca niente**: vince la sede persistita sul documento.
    */
-  private readonly precompilaSedePredefinita = effect(() => {
-    if (this.isEditMode() || this.form.controls.locationId.value) {
-      return;
-    }
-    const preferita = this.locationContext.activeLocationId();
-    const disponibili = this.operationalLocations.actionLocations();
-    const scelta =
-      disponibili.find((loc) => loc.id === preferita)?.id ??
-      (disponibili.length === 1 ? disponibili[0]!.id : null);
-    if (!scelta) {
-      return;
-    }
-    this.form.controls.locationId.setValue(scelta);
+  private readonly prefillLocation = prefillDefaultLocation({
+    control: this.form.controls.locationId,
+    isEdit: () => this.isEditMode(),
+    write: (apply) => apply(),
   });
 
   // Il cliente è facoltativo e sta nella testata di ENTRAMBI i modi (`11` A13):
@@ -387,14 +374,20 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
   );
 
   /**
-   * Il cambio di sede è **esplicito**: lo fa l'operatore, e da lì in poi il
-   * valore è una scelta. L'autorizzazione la verifica il server su entrambe le
-   * sedi, quella del documento e quella richiesta (T6).
+   * Il cambio di sede è **esplicito**, e resta del DOCUMENTO.
+   *
+   * ⛔ Non riscrive più il contesto attivo dell'applicazione: quello appartiene
+   * al selettore della topbar, e nessun'altra maschera documentale lo tocca
+   * cambiando la sede di un documento. Scrivendolo, un override fatto per una
+   * vendita si sarebbe trascinato in tutto ciò che legge il contesto — e nella
+   * vendita successiva.
+   *
+   * L'autorizzazione la verifica il server su entrambe le sedi, quella del
+   * documento e quella richiesta (T6).
    */
   protected onLocationChange(value: string | null): void {
     this.form.controls.locationId.setValue(value ?? '');
     this.form.controls.locationId.markAsDirty();
-    this.locationContext.setActiveLocation(value);
   }
 
   protected onCustomerChange(value: string | null): void {
@@ -1269,9 +1262,14 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
     this.form.controls.documentDate.setValue(oggiIso());
     this.searchDraft.set('');
     this.searchMessage.set(null);
-    // ⚠️ La SEDE non si azzera: è il posto dove si sta lavorando, non un dato
-    // della singola vendita. Ricominciare chiedendola a ogni cliente sarebbe un
-    // gesto in più a ogni scontrino — e il default la riproporrebbe comunque.
+    // ⭐ La sede torna al **default comune**, come ogni altro campo: la
+    // compilazione nuova riparte dalle stesse regole di una aperta adesso.
+    //
+    // ⛔ Nessuna memoria del banco: un override fatto per la vendita
+    // precedente non si trascina in quella dopo. Se non c'è una predefinita il
+    // campo resta vuoto e la sede si sceglie — che è ciò che il contratto
+    // comune prescrive per chi lavora su più sedi.
+    this.form.controls.locationId.setValue(this.operationalLocations.defaultLocation()?.id ?? '');
     this.focusSearchInput();
   }
 

@@ -7,7 +7,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { DocumentStatus, DocumentType } from '@core/models/document.model';
 import type { DocumentRecord } from '@core/models/document.model';
-import { LocationContextService } from '@core/services/location-context.service';
 import { ViewportService } from '@core/services/viewport.service';
 import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 import { CustomerService } from '@domain/customers/services/customer.service';
@@ -197,8 +196,11 @@ interface SetupOptions {
    * campo resta il controllo comune (`11` A13).
    */
   readonly locations?: readonly { id: string; name: string }[];
-  /** Sede preferita del contesto: `null` = nessuna, e il gate resta aperto. */
-  readonly preferredLocation?: string | null;
+  /**
+   * Sede predefinita dell'operatore (contratto comune `defaultLocation`):
+   * `null` = nessuna, e allora la sede si sceglie e il gate resta aperto.
+   */
+  readonly defaultLocation?: string | null;
   /** Modalità netto/ivato proposta dal contratto comune. */
   readonly priceMode?: boolean;
   /** L'articolo che ricerca e scansione risolvono (default: `VARIANTE`). */
@@ -209,8 +211,7 @@ interface SetupOptions {
 
 async function setup(options: SetupOptions = {}) {
   const locations = options.locations ?? [SEDE, ALTRA_SEDE];
-  const preferredLocation =
-    options.preferredLocation === undefined ? SEDE.id : options.preferredLocation;
+  const defaultLocation = options.defaultLocation === undefined ? SEDE.id : options.defaultLocation;
   const createSale = options.createSale ?? vi.fn(() => of(ESITO));
   const createReturn = options.createReturn ?? vi.fn(() => of(ESITO));
   const getDocumentById = vi.fn(() =>
@@ -284,15 +285,12 @@ async function setup(options: SetupOptions = {}) {
         provide: OperationalLocationsService,
         useValue: {
           actionLocations: () => locations,
+          defaultLocation: () => locations.find((sede) => sede.id === defaultLocation) ?? null,
         },
       },
       {
         provide: ViewportService,
         useValue: { compact: () => options.compact ?? false },
-      },
-      {
-        provide: LocationContextService,
-        useValue: { activeLocationId: () => preferredLocation, setActiveLocation: vi.fn() },
       },
     ],
   });
@@ -304,6 +302,7 @@ async function setup(options: SetupOptions = {}) {
     setPriceMode(pricesIncludeVat: boolean): void;
     onStockToggle(line: StoreSaleDocumentLine, checked: boolean): void;
     onQuantityInput(line: StoreSaleDocumentLine, raw: string): void;
+    onLocationChange(value: string | null): void;
   };
   return { ...rendered, component, createSale, createReturn, getDocumentById };
 }
@@ -370,13 +369,13 @@ describe('StoreSaleDocumentFormComponent', () => {
     it('senza sede, al posto delle righe c’è uno stato vuoto che dice cosa manca', async () => {
       // Più sedi possibili e nessuna preferita: A13 dice che non si prosegue
       // finché non se ne sceglie una.
-      await setup({ preferredLocation: null });
+      await setup({ defaultLocation: null });
 
       expect(screen.getByText('Scegli la sede')).toBeTruthy();
     });
 
     it('la sede preferita precompila e chiude il gate', async () => {
-      await setup({ preferredLocation: SEDE.id });
+      await setup({ defaultLocation: SEDE.id });
 
       expect(screen.queryByText('Scegli la sede')).toBeNull();
     });
@@ -385,10 +384,19 @@ describe('StoreSaleDocumentFormComponent', () => {
       // ⛔ La maschera legacy mostrava un'etichetta al posto della tendina: un
       // default non cambia la natura del campo (`11` A13, «precompila ma resta
       // modificabile»).
-      await setup({ locations: [SEDE], preferredLocation: null });
+      await setup({ locations: [SEDE], defaultLocation: SEDE.id });
 
       expect(screen.getAllByLabelText('Sede').length).toBeGreaterThan(0);
       expect(screen.queryByText('Scegli la sede')).toBeNull();
+    });
+
+    it('⭐ senza una PREDEFINITA la sede si sceglie, anche se ce n’è una sola', async () => {
+      // Contratto comune: chi non ha una sede predefinita assegnata la sceglie,
+      // e il campo resta vuoto. ⛔ Il banco non inventa un ripiego sull'unica
+      // disponibile — sarebbe di nuovo una regola sua.
+      await setup({ locations: [SEDE], defaultLocation: null });
+
+      expect(screen.getByText('Scegli la sede')).toBeTruthy();
     });
   });
 
@@ -418,7 +426,7 @@ describe('StoreSaleDocumentFormComponent', () => {
         loadDocument: { ...VENDITA, locationId: ALTRA_SEDE.id },
         // La sede assegnata all'operatore è un'altra: non deve vincere su
         // quella già persistita sul documento.
-        preferredLocation: SEDE.id,
+        defaultLocation: SEDE.id,
         createSale,
       });
 
@@ -550,7 +558,7 @@ describe('StoreSaleDocumentFormComponent', () => {
 
     it('senza sede non si salva', async () => {
       const createSale = vi.fn(() => of(ESITO));
-      const { component } = await setup({ preferredLocation: null, createSale });
+      const { component } = await setup({ defaultLocation: null, createSale });
 
       component.save();
 
@@ -1022,6 +1030,25 @@ describe('StoreSaleDocumentFormComponent', () => {
       expect(corpoVendita(createSale, 1).creationIntentId).not.toBe(
         corpoVendita(createSale, 0).creationIntentId,
       );
+    });
+
+    it('⭐ la sede torna al default comune: un override non si trascina', async () => {
+      // ⛔ Nessuna memoria del banco: la compilazione nuova riparte dalle stesse
+      // regole di una aperta adesso.
+      const createSale = vi.fn(() => of(ESITO));
+      const rendered = await setup({ createSale, defaultLocation: SEDE.id });
+      rendered.component.onLocationChange(ALTRA_SEDE.id);
+      const campo = screen.getByLabelText('Scansiona o cerca un articolo');
+      await userEvent.type(campo, `${EAN_NOTO}{enter}`);
+      rendered.fixture.detectChanges();
+
+      rendered.component.save();
+      rendered.fixture.detectChanges();
+
+      // La vendita conclusa è andata sull'altra sede…
+      expect(corpoVendita(createSale).locationId).toBe(ALTRA_SEDE.id);
+      // …ma quella dopo riparte dalla predefinita.
+      expect(rendered.component.form.controls.locationId.value).toBe(SEDE.id);
     });
 
     it('⛔ in MODIFICA non si svuota: non è un cliente successivo', async () => {

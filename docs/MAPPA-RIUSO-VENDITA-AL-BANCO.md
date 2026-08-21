@@ -833,6 +833,17 @@ stato valido e verificabile.
                    ⛔ Sconto extra NON esposto finché D1 è aperta (`11` A16);
                    ⛔ nessun pagamento e nessun rimborso: seguono il blocco
                    Pagamenti/Tesoreria. ⛔ Sempre nessuna rotta montata.
+⛔ 12-bis · T8B    APERTO, e **precede il passo 13** (decisione del proprietario,
+                   21/08/2026): numero e serie in testata col contratto comune —
+                   DocumentNumberField, DocumentNumberingStore, servizio dei
+                   contatori, proposta, scelta serie, «Senza serie», numero
+                   imposto, conflitto già chiuso lato server (T7B/T8A).
+                   ⛔ Nessuna numerazione locale del banco, e ⛔ nessuna modifica
+                   alla vecchia maschera.
+⛔ 12-ter · CHECKPOINT prima di spostare le rotte: si verifica **che cosa resta
+                   differito** (D1 sconto extra, HID, e quanto altro emerga) e
+                   si decide se il cutover è autorizzato. ⛔ L'ordine numerico
+                   dei passi NON basta da solo ad autorizzarlo.
 ⛔ 13 …            DA QUI IN POI, TUTTO APERTO.
 ```
 
@@ -1020,6 +1031,20 @@ o si fanno insieme, o si esce da un documento aperto senza che nessuno lo chieda
       ⚠️ Un valore già persistito entra però nei totali e resta sul documento:
       non esporre un controllo non è ignorare un dato (misurato: 46 documenti
       di banco, zero con sconto).
+      ⭐ Correzione del 21/08 (owner): dopo una conclusione la **sede** torna al
+      **default comune** — niente memoria del banco, e un override della
+      vendita precedente non si trascina. Il prefill passa da
+      `prefillDefaultLocation`, e il cambio sede non riscrive più il contesto
+      attivo dell'applicazione: quello è del selettore in topbar.
+
+12-bis · T8B — numero e serie, col contratto comune. ⛔ PRIMA del passo 13:
+      la maschera non può sostituire quella legacy senza la numerazione che
+      ogni altro documento ha (decisione del proprietario, 21/08/2026).
+
+12-ter · CHECKPOINT. Prima di spostare le rotte e cancellare il legacy si
+      elencano le cose ancora differite — D1 (sconto extra) e HID in testa — e
+      si decide se il cutover procede. ⛔ Non è l'ordine numerico di questa
+      mappa ad autorizzarlo.
 
 13 ·  Sostituzione: le rotte puntano alla maschera nuova, il vecchio componente
       e le 639 righe di pos__* si eliminano. O1·O2·O3·O4·O5·O7·O11·O12 si chiudono
