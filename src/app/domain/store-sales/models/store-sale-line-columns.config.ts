@@ -11,7 +11,8 @@ export const STORE_SALE_LINES_VIEW = TableViewId.StoreSaleLines;
  * Le colonne della riga documento al banco — **poche ed essenziali**.
  *
  * ```text
- * Articolo · SKU · Q.tà · Prezzo · Sconto · IVA · Totale
+ * mostrate    SKU · Articolo · Q.tà · Prezzo · Sconto · IVA · Totale
+ * disponibili EAN                                        (spenta di default)
  * ```
  *
  * ⛔ **La colonna COSTO non esiste, nemmeno nascosta.** Non è «spenta per
@@ -38,6 +39,18 @@ export const STORE_SALE_LINE_COLUMNS: readonly TableColumnDef[] = [
   // ⚠️ Sta PRIMA di Articolo perché quello è l'ordine delle celle nella riga
   // condivisa (`document-line-row`): l'elenco segue le celle, non viceversa.
   { id: 'sku', label: 'SKU', defaultWidthPx: 104, minWidthPx: 64 },
+  // ⭐ DISPONIBILE, non mostrato: chi spara il codice deve poterlo verificare a
+  // schermo quando serve — ma al banco la riga è stretta e sette colonne sono
+  // già la misura giusta. `defaultVisible: false` la mette nel selettore e la
+  // lascia spenta; chi la vuole se la accende, e la scelta gli resta.
+  //
+  // ⚠️ Due meccanismi devono concordare, o il comportamento si spacca fra chi ha
+  // preferenze salvate e chi no: `defaultVisible: false` copre la
+  // riconciliazione (`reconcileStateWithDefs`), l'assenza dai preset copre lo
+  // stato iniziale (`applyPresetToState`, che nasconde tutto ciò che il preset
+  // non elenca). Dichiararne uno solo lascia l'altra metà degli operatori con
+  // la colonna accesa.
+  { id: 'barcode', label: 'EAN', defaultVisible: false, defaultWidthPx: 128, minWidthPx: 88 },
   { id: 'product', label: 'Articolo', defaultWidthPx: 320, minWidthPx: 160 },
   { id: 'quantity', label: 'Q.tà', numeric: true, defaultWidthPx: 80, minWidthPx: 56 },
   { id: 'unitPrice', label: 'Prezzo', numeric: true, defaultWidthPx: 112, minWidthPx: 80 },
@@ -54,7 +67,17 @@ export const STORE_SALE_LINE_COLUMNS: readonly TableColumnDef[] = [
  * **servono tutte a chi sta al banco**: presetti diversi darebbero all'operatore
  * una scelta senza contenuto.
  */
-const TUTTE = STORE_SALE_LINE_COLUMNS.map((column) => column.id);
+/**
+ * Le colonne **mostrate** dai preset — cioè tutte tranne quelle dichiarate
+ * `defaultVisible: false`, che restano offerte dal selettore e spente.
+ *
+ * ⛔ Derivata, mai scritta a mano: un elenco copiato divergerebbe dalle
+ * definizioni alla prima colonna aggiunta, e la divergenza non la vedrebbe
+ * nessun test di compilazione.
+ */
+const TUTTE = STORE_SALE_LINE_COLUMNS.filter((column) => column.defaultVisible !== false).map(
+  (column) => column.id,
+);
 
 export const STORE_SALE_LINE_PRESETS: TableViewPresetMap = {
   [PresetId.Default]: TUTTE,
