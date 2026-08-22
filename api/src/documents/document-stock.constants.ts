@@ -27,29 +27,27 @@ export const DOCUMENT_STOCK_UNLOAD_TYPES: readonly DocumentType[] = [
 ] as const;
 
 /**
- * ⛔ **SUPERATO — NON USARE COME REQUISITO** (misurato 22/08/2026, `07` §5-bis).
+ * Fattura accompagnatoria: lo scarico avviene solo **senza DDT agganciato**.
+ * Con almeno un DDT la merce è già uscita, e un secondo scarico la porterebbe
+ * in negativo per la stessa merce.
  *
- * Qui c'era: «Fattura accompagnatoria: lo scarico avviene solo senza DDT
- * agganciato. Con almeno un DDT il documento è puramente fiscale.»
+ * ⚠️ **Il 22/08/2026 questo commento era stato marcato SUPERATO sostenendo che
+ * la condizione non potesse mai scattare** — perché la matrice di `docs/12`
+ * dichiara che l'accompagnatoria non include «mai DDT», quindi il contatore
+ * varrebbe sempre 0. **Misurato, ed è falso**: `SALES_INVOICE_DOCUMENT_TYPES`
+ * include `invoice_accompanying`, la maschera offre «Riferimento DDT
+ * (opzionale)» anche lì, il client manda `linkedSalesDdtIds` per tutta la
+ * famiglia e questo server li accetta senza controllo di tipo.
  *
- * ⛔ **Quella condizione non può mai scattare.** `12` §matrice dichiara che
- * l'accompagnatoria «mai DDT»: questo contatore vale SEMPRE 0, la funzione
- * risponde SEMPRE true, e l'accompagnatoria scarica sempre. La guardia
- * presidia un percorso che il dominio dichiara impossibile.
+ * ⛔ **Il difetto è l'opposto, ed è APERTO**: il codice permette un aggancio che
+ * la matrice documentale vieta. Finché non è deciso chi cede — la matrice o il
+ * codice (`docs/07` §5-bis) — **questa guardia non si tocca**: è l'unica cosa
+ * che impedisce il doppio scarico nel caso che il codice consente.
  *
- * Il percorso che accade davvero — include o deriva da una **Vendita al
- * banco**, che ha già fatto uscire la merce — non è interrogato da nessuna
- * parte.
- *
- * ⭐ **La firma a un parametro è la regola vecchia scolpita nel tipo**: non si
- * corregge senza cambiarla. Va sostituita da un predicato che risponda a
- * «questa stessa uscita fisica è già stata registrata a monte?», qualunque sia
- * il percorso — e la decisione va estratta UNA volta: la stessa policy esiste
- * in tre copie (`documents.service.ts:2335`, `:2105`, motore del banco).
- *
- * ⚠️ Difetto **latente**: oggi Fattura e accompagnatoria non includono niente
- * dalla maschera e la rotta Vendita al banco → accompagnatoria non esiste. Si
- * arma quando quella catena si apre.
+ * ⭐ Resta vero, e indipendente da quella decisione, che il percorso «include o
+ * deriva da una Vendita al banco» non è interrogato da nessuna parte, e che una
+ * firma a un parametro non può esprimerlo. Quella parte appartiene al blocco
+ * Includi/Genera (`docs/DA-FARE.md`).
  */
 export function invoiceAccompanyingUnloadsStock(linkedSalesDdtCount: number): boolean {
   return linkedSalesDdtCount === 0;

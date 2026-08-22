@@ -43,15 +43,25 @@ export class SaveGoodsReceiptNewProductDto {
   barcode?: string;
 
   @IsOptional()
-  @IsInt()
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
   sellingPriceMinor?: number;
 
   @IsOptional()
-  @IsInt()
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
   compareAtPriceMinor?: number;
 
+  /**
+   * ⛔ **Resta `@IsInt()`, e non è una svista.** La sua colonna
+   * (`product_variants.purchase_price_minor`) è ancora `Int`, a differenza di
+   * selling/compareAt/shopify che sono già `NUMERIC(16,6)`.
+   *
+   * ⚠️ Rilassarlo PRIMA di allargare la colonna aprirebbe la strada peggiore:
+   * il valore con coda supererebbe la validazione e verrebbe **troncato in
+   * silenzio** scrivendo — nessun errore, nessun test rosso, un costo sbagliato
+   * in anagrafica. Si rilassa nello stesso commit della migration.
+   */
   @IsOptional()
   @IsInt()
   @Min(0)
@@ -102,7 +112,7 @@ export class SaveGoodsReceiptLineDto {
   quantity!: number;
 
   @IsOptional()
-  @IsInt()
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
   unitPriceMinor?: number;
 
@@ -129,7 +139,7 @@ export class SaveGoodsReceiptLineDto {
    * modalità documento (§11.4). Se assente si usa unitPriceMinor come netto.
    */
   @IsOptional()
-  @IsInt()
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
   enteredUnitCostMinor?: number;
 
@@ -140,7 +150,7 @@ export class SaveGoodsReceiptLineDto {
    * quando la spunta di documento è accesa. `undefined` = non toccare.
    */
   @IsOptional()
-  @IsInt()
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
   sellingPriceMinor?: number;
 
@@ -150,7 +160,7 @@ export class SaveGoodsReceiptLineDto {
    * «la pubblicazione legge sempre e solo questo».
    */
   @IsOptional()
-  @IsInt()
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
   shopifyPriceMinor?: number;
 

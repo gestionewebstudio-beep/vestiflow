@@ -194,14 +194,38 @@ export function invoiceAccompanyingUnloadsStock(linkedSalesDdtCount: number): bo
 }
 ```
 
-Conta i **DDT agganciati** all'accompagnatoria. Ma `12` §matrice dichiara che
-l'accompagnatoria **«mai DDT»**: quel contatore vale **sempre 0**, la funzione risponde
-**sempre `true`**, e l'accompagnatoria **scarica sempre**. Intanto il percorso che accade
-davvero — include o deriva da una **Vendita al banco** — non è interrogato da nessuna parte.
+Conta i **DDT agganciati** all'accompagnatoria.
 
-⭐ **La firma a un parametro è la regola vecchia scolpita nel tipo**: non si può correggere
-senza cambiarla. Va sostituita da un predicato che risponda a **«questa stessa uscita fisica è
-già stata registrata a monte?»**, qualunque sia il percorso.
+⚠️ **QUI C'ERA UN'AFFERMAZIONE FALSA, scritta il 22/08 e corretta lo stesso giorno**: che
+quel contatore valesse «sempre 0» perché la matrice dice «mai DDT», e che quindi la guardia
+fosse muta. **Non è vero, ed è stato misurato:**
+
+| Misura                               | Esito                                                                                                       |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `SALES_INVOICE_DOCUMENT_TYPES`       | include `InvoiceAccompanying`                                                                               |
+| `sales-document-form.component.html` | mostra «Riferimento DDT (opzionale)» sotto `@if (isSalesInvoice())` — quindi **anche sull'accompagnatoria** |
+| il payload del client                | manda `linkedSalesDdtIds` per tutta la famiglia                                                             |
+| il server                            | li accetta **senza alcun controllo di tipo**                                                                |
+
+⛔ **Il difetto è l'OPPOSTO: il codice permette ciò che `12` §matrice dichiara impossibile.**
+La guardia funziona e ha casi reali; è l'aggancio DDT su un'accompagnatoria a non dover
+esistere — o la matrice a dover cambiare.
+
+### ⏸ DECISIONE APERTA — chi cede fra la matrice e il codice
+
+Una delle due, e non la si deduce:
+
+| Se vince…                                                                                       | Allora                                                                                                               |
+| ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **la matrice** (`12`: l'accompagnatoria _sostituisce_ il DDT, includerne uno è contraddittorio) | il client smette di offrire «Riferimento DDT» sull'accompagnatoria, e il server lo rifiuta con un errore che lo dice |
+| **il codice** (l'aggancio esiste ed è usato)                                                    | la matrice si corregge: l'accompagnatoria può agganciare DDT, e la guardia attuale è la regola giusta                |
+
+⚠️ **Finché la decisione manca, la guardia NON si tocca**: è l'unica cosa che oggi impedisce
+il doppio scarico nel caso che il codice consente.
+
+⭐ **Resta vero, e indipendente da quella decisione**, che il percorso «include o deriva da una
+**Vendita al banco**» non è interrogato da nessuna parte, e che la firma a un parametro non
+può esprimerlo. Quella parte appartiene al blocco Includi/Genera (`DA-FARE`).
 
 ⚠️ **La stessa policy esiste in TRE copie** — `documents.service.ts:2335` (conferma),
 `:2105` (modifica) e il motore della Vendita al banco. Una guardia messa in un punto solo
