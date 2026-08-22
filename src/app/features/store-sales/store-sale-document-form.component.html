@@ -203,34 +203,32 @@
           </div>
 
           @if (!headerGateActive()) {
-            <!-- ⭐ UNA sola porta d'ingresso per pistola e tastiera (`11` A14).
-                 La query digitata non crea niente: la riga nasce quando un
-                 articolo è davvero risolto. -->
-            <!-- ⛔ Non un <form>: questa porta vive DENTRO il form del documento,
-                 e i form annidati non sono validi. Invio conferma qui, e non
-                 fa partire il salvataggio. -->
+            <!-- ⭐ La porta d'ingresso è la RIGA in fondo alla tabella, come su
+                 ogni altra maschera documentale (`11` A15).
+
+                 ⚠️ In vista CARD la tabella non esiste, quindi lì la porta resta
+                 un campo sopra l'elenco: stessa etichetta, stesso comportamento.
+                 ⛔ Una riga vuota non è una riga di documento: nasce quando un
+                 articolo è davvero risolto (A14). -->
+            @if (compactView()) {
+              <div class="store-sale-form__scan">
+                <input
+                  id="ssf-scan-compact"
+                  class="doc-form__input store-sale-form__scan-input"
+                  type="text"
+                  autocomplete="off"
+                  aria-label="Scansiona o cerca un articolo"
+                  placeholder="Scansiona EAN, inserisci codice/SKU o cerca articolo…"
+                  [value]="searchDraft()"
+                  [disabled]="searchPending()"
+                  (input)="searchDraft.set($any($event.target).value)"
+                  (keydown.enter)="commitScan(searchDraft()); $event.preventDefault()"
+                />
+              </div>
+            }
+
+            <!-- I comandi che il banco ha in più: ricerca assistita e fotocamera. -->
             <div class="store-sale-form__scan">
-              <label class="sr-only" for="ssf-scan">Scansiona o cerca un articolo</label>
-              <input
-                #searchInput
-                id="ssf-scan"
-                class="doc-form__input store-sale-form__scan-input"
-                type="text"
-                autocomplete="off"
-                placeholder="Scansiona EAN, inserisci codice/SKU o cerca articolo…"
-                [value]="searchDraft()"
-                [disabled]="searchPending()"
-                (input)="onSearchInput($event)"
-                (keydown.enter)="onSearchSubmit($event)"
-              />
-              <app-button
-                type="button"
-                variant="secondary"
-                [disabled]="searchPending()"
-                (click)="commitScan(searchDraft())"
-              >
-                Aggiungi
-              </app-button>
               <app-button type="button" variant="secondary" (click)="openProductSearch()">
                 <i class="pi pi-search" aria-hidden="true"></i>
                 Cerca articolo
@@ -239,10 +237,10 @@
                 <!-- Fotocamera: scansione CONTINUA, l'articolo riconosciuto resta
                      a video con lo stepper, e lo stesso codice incrementa. È
                      l'overlay comune, non una copia del banco. -->
-                <button type="button" class="doc-form__ghost-button" (click)="openScanOverlay()">
+                <app-button type="button" variant="secondary" (click)="openScanOverlay()">
                   <i class="pi pi-camera" aria-hidden="true"></i>
                   Scansiona
-                </button>
+                </app-button>
               }
             </div>
 
@@ -250,7 +248,11 @@
               <!-- Codice non trovato: nessuna riga, nessun popup — il messaggio
                    resta qui e il campo è già pronto (A14). Le AZIONI sotto le
                    sceglie l'operatore: A14 vieta l'automatismo, non la scelta. -->
-              <p class="doc-form__hint" role="status">{{ messaggio }}</p>
+              @if (compactView()) {
+                <!-- In tabella il messaggio lo porta già la riga di inserimento:
+                     qui servirebbe solo a dirlo due volte. -->
+                <p class="doc-form__hint" role="status">{{ messaggio }}</p>
+              }
               @if (unresolvedCode(); as codice) {
                 <div
                   class="store-sale-form__notfound"
@@ -411,6 +413,21 @@
                         (removeRequested)="removeLine(i)"
                       ></tr>
                     }
+                    <!-- ⭐ La riga di inserimento è la COMPONENTE COMUNE, in fondo
+                         alla griglia come su ogni altra maschera. ⛔ Una riga vuota
+                         non è una riga di documento: nasce quando un articolo è
+                         davvero risolto (`11` A14). -->
+                    <tr
+                      app-document-line-quick-row
+                      #quickRow
+                      inputId="ssf-scan"
+                      [value]="searchDraft()"
+                      [disabled]="searchPending()"
+                      placeholder="Scansiona EAN, inserisci codice/SKU o cerca articolo…"
+                      [message]="searchMessage()"
+                      (valueChanged)="searchDraft.set($event)"
+                      (committed)="commitScan(searchDraft())"
+                    ></tr>
                   </tbody>
                 </table>
               </div>

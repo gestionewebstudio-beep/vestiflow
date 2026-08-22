@@ -122,6 +122,7 @@ import { DocumentPrefillErrorStore } from '@domain/documents/state/document-pref
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { DocumentProductPanelStore } from '@domain/documents/state/document-product-panel.store';
 import { DocumentLineHeadComponent } from '@domain/documents/components/document-line-head/document-line-head.component';
+import { DocumentLineQuickRowComponent } from '@domain/documents/components/document-line-quick-row/document-line-quick-row.component';
 import { DocumentLineRowComponent } from '@domain/documents/components/document-line-row/document-line-row.component';
 import type {
   DocumentLineColumnId,
@@ -323,6 +324,7 @@ interface AvailabilityIssue {
     BadgeComponent,
     AttachmentsPanelComponent,
     DocumentLineHeadComponent,
+    DocumentLineQuickRowComponent,
     DocumentLineRowComponent,
     DocumentScanOverlayComponent,
     ProductPickerDialogComponent,

@@ -1047,34 +1047,17 @@
                     }
                     <!-- Riga di inserimento rapido: sempre in fondo alla tabella
                        (stessa meccanica dell'Arrivo merce, sintassi qta*codice). -->
-                    <tr class="co-form__quick-row">
-                      <td class="doc-form__cell--index">
-                        <i class="pi pi-barcode" aria-hidden="true"></i>
-                      </td>
-                      <td [attr.colspan]="99">
-                        <div class="co-form__quick-cell">
-                          <input
-                            #quickScanInput
-                            id="co-quick-scan"
-                            class="doc-form__input co-form__quick-input"
-                            type="text"
-                            [value]="quickScanDraft()"
-                            [disabled]="formReadOnly() || quickScanBusy() || headerGateActive()"
-                            autocomplete="off"
-                            placeholder="Scansiona o cerca prodotto… (Invio per aggiungere)"
-                            aria-describedby="co-quick-scan-hint"
-                            (input)="onQuickScanInput($any($event.target).value)"
-                            (keydown.enter)="commitQuickScan(); $event.preventDefault()"
-                          />
-                          <p id="co-quick-scan-hint" class="doc-form__scan-hint">
-                            <kbd>3*</kbd> + codice = quantità (es. 3*8032911100142)
-                          </p>
-                          @if (quickScanError(); as scanError) {
-                            <p class="doc-form__error" role="alert">{{ scanError }}</p>
-                          }
-                        </div>
-                      </td>
-                    </tr>
+                    <!-- ⭐ La riga di inserimento è la COMPONENTE COMUNE: la stessa
+                         che usa la Vendita al banco. -->
+                    <tr
+                      app-document-line-quick-row
+                      inputId="co-quick-scan"
+                      [value]="quickScanDraft()"
+                      [disabled]="formReadOnly() || quickScanBusy() || headerGateActive()"
+                      [message]="quickScanError()"
+                      (valueChanged)="onQuickScanInput($event)"
+                      (committed)="commitQuickScan()"
+                    ></tr>
                   </tbody>
                 </table>
               </div>

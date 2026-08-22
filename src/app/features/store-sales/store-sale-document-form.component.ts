@@ -3,7 +3,6 @@ import {
   Component,
   DestroyRef,
   afterNextRender,
-  ElementRef,
   computed,
   effect,
   inject,
@@ -61,6 +60,7 @@ import { DocumentProductSearchPanelComponent } from '@domain/documents/component
 import { priceModeRowLabel } from '@domain/documents/models/document-price-mode.util';
 import { DocumentService } from '@domain/documents/services/document.service';
 import { DocumentLineHeadComponent } from '@domain/documents/components/document-line-head/document-line-head.component';
+import { DocumentLineQuickRowComponent } from '@domain/documents/components/document-line-quick-row/document-line-quick-row.component';
 import { DocumentLineRowComponent } from '@domain/documents/components/document-line-row/document-line-row.component';
 import {
   DOCUMENT_LINE_ROW_VIEW_VUOTA,
@@ -230,6 +230,7 @@ function oggiIso(): string {
     DocumentSeriesManagerDialogComponent,
     DocumentProductSearchPanelComponent,
     DocumentLineHeadComponent,
+    DocumentLineQuickRowComponent,
     DocumentLineRowComponent,
     DocumentScanOverlayComponent,
     EmptyStateComponent,
@@ -785,7 +786,7 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
 
   private readonly barcodeLookup = inject(BarcodeLookupService);
   private readonly productService = inject(ProductService);
-  private readonly searchInputRef = viewChild<ElementRef<HTMLInputElement>>('searchInput');
+  private readonly quickRow = viewChild<DocumentLineQuickRowComponent>('quickRow');
 
   protected readonly searchDraft = signal('');
   protected readonly searchPending = signal(false);
@@ -794,15 +795,6 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
 
   /** Pannello di ricerca articolo: lo stato è quello comune (E-5). */
   protected readonly lineSearchPanel = new DocumentLineSearchPanelStore();
-
-  protected onSearchInput(event: Event): void {
-    this.searchDraft.set((event.target as HTMLInputElement).value);
-  }
-
-  protected onSearchSubmit(event: Event): void {
-    event.preventDefault();
-    this.commitScan(this.searchDraft());
-  }
 
   /** Apre la ricerca assistita col testo già digitato. */
   protected openProductSearch(): void {
@@ -1003,14 +995,7 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
   }
 
   private focusSearchInput(selectText = false): void {
-    const input = this.searchInputRef()?.nativeElement;
-    if (!input) {
-      return;
-    }
-    input.focus();
-    if (selectText) {
-      input.select();
-    }
+    this.quickRow()?.focus(selectText);
   }
 
   // ── Fotocamera, e le azioni sul codice non trovato ──────────────────────

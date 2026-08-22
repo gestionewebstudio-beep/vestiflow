@@ -1,0 +1,29 @@
+<!-- La porta d'ingresso della tabella: pistola e tastiera, una sola. Il markup
+     è quello dell'Ordine cliente, spostato. -->
+<td class="doc-form__cell--index">
+  <i class="pi pi-barcode" aria-hidden="true"></i>
+</td>
+<td [attr.colspan]="99">
+  <div class="doc-quick-row__cell">
+    <input
+      #quickInput
+      [id]="inputId()"
+      class="doc-form__input doc-quick-row__input"
+      type="text"
+      [value]="value()"
+      [disabled]="disabled()"
+      autocomplete="off"
+      [placeholder]="placeholder()"
+      [attr.aria-label]="ariaLabel()"
+      [attr.aria-describedby]="inputId() + '-hint'"
+      (input)="onInput($event)"
+      (keydown.enter)="onEnter($event)"
+    />
+    <p [id]="inputId() + '-hint'" class="doc-form__scan-hint">
+      <kbd>3*</kbd> + codice = quantità (es. 3*8032911100142)
+    </p>
+    @if (message(); as messaggio) {
+      <p class="doc-form__error" role="alert">{{ messaggio }}</p>
+    }
+  </div>
+</td>
