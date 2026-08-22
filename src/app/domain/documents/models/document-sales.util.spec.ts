@@ -27,11 +27,19 @@ describe('supportsLinkedSalesDdt', () => {
     expect(supportsLinkedSalesDdt(DocumentType.InvoiceDraft)).toBe(true);
   });
 
-  it('⏸️ la Nota di credito resta com’era, in attesa del §6', () => {
-    // Nessuna regola scritta le vieta il collegamento: toglierlo sarebbe stata
-    // una decisione non richiesta. Questo test fissa lo stato attuale perché il
-    // giorno in cui si decide non lo si cambi per distrazione.
-    expect(supportsLinkedSalesDdt(DocumentType.CreditNote)).toBe(true);
+  it('⛔ la Nota di credito nemmeno, e non per un divieto testuale', () => {
+    // ⚠️ Qui c'era l'asserzione OPPOSTA, con la motivazione «nessuna regola
+    // scritta le vieta il collegamento». Non basta: la matrice dice che la NC
+    // non usa «Includi documento» e nasce da Fattura o Accompagnatoria — un DDT
+    // non è una sua sorgente. Verificato che non le serva a niente: non genera
+    // XML FatturaPA, e in stampa i DDT che la riguardano sono quelli della
+    // fattura originaria.
+    //
+    // ⭐ Se un giorno servissero fiscalmente, si recuperano attraverso la
+    // relazione con la fattura di origine (`sourceDocumentId`), non aprendo un
+    // ingresso DDT → Nota di credito: il primo conserva la catena, il secondo
+    // inventa una sorgente che il modello documentale non prevede.
+    expect(supportsLinkedSalesDdt(DocumentType.CreditNote)).toBe(false);
   });
 
   it('⛔ NON è la famiglia intera, ed è la distinzione che mancava', () => {

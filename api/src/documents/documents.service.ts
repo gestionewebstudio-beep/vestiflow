@@ -1289,21 +1289,31 @@ export class DocumentsService {
     ddtIds: readonly string[],
     invoiceType: DocumentType,
   ): Promise<void> {
-    // ⛔ **La Fattura accompagnatoria non aggancia DDT** — `12` §matrice, «mai
-    // DDT»: sostituisce il DDT nella stessa uscita, e agganciarne uno è la
-    // stessa contraddizione di una Fattura dentro un DDT.
+    // ⛔ **Solo la Fattura aggancia DDT**, ed è la fattura DIFFERITA: DDT
+    // durante il periodo, fattura che li riepiloga (riferimenti nell'XML
+    // FatturaPA e in stampa).
+    //
+    // ⛔ **L'accompagnatoria no** (`docs/12` §matrice, «mai DDT»): sostituisce
+    // il DDT nella stessa uscita, e agganciarne uno è la stessa contraddizione
+    // di una Fattura dentro un DDT.
+    //
+    // ⛔ **La Nota di credito nemmeno**, e non per un divieto testuale: la
+    // matrice dice che non usa «Includi documento» e che nasce da Fattura o
+    // Accompagnatoria — un DDT non è una sua sorgente. Verificato che non le
+    // serva: non genera XML FatturaPA, e in stampa i DDT che la riguardano
+    // sono quelli della fattura originaria. ⭐ Se un giorno servissero, si
+    // recuperano attraverso `sourceDocumentId`, non aprendo un ingresso
+    // DDT → Nota di credito.
     //
     // ⚠️ Fino al 22/08/2026 questo server li accettava senza guardare il tipo,
-    // e la maschera li offriva: il codice permetteva ciò che la specifica
-    // vieta. Il proprietario ha confermato che **cede il codice, non la
-    // matrice**.
+    // e la maschera li offriva a tutta la famiglia: il codice permetteva ciò
+    // che la matrice non prevede. Cede il codice, non la matrice.
     //
     // ⭐ La guardia sta QUI e non nei due chiamanti (creazione e modifica): una
-    // regola scritta in due punti è una regola che diverge al primo che ne
-    // dimentica uno.
-    if (invoiceType === DocumentType.invoice_accompanying && ddtIds.length > 0) {
+    // regola scritta in due punti diverge al primo che ne dimentica uno.
+    if (invoiceType !== DocumentType.invoice_draft && ddtIds.length > 0) {
       throw new UnprocessableEntityException(
-        'La fattura accompagnatoria non può agganciare un DDT: sostituisce il DDT per la stessa uscita.',
+        `Il tipo documento «${invoiceType}» non può agganciare un DDT vendita: l'aggancio esiste per la fattura differita.`,
       );
     }
 

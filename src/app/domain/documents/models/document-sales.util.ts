@@ -78,28 +78,37 @@ export function isSalesInvoiceDocumentType(type: DocumentType): boolean {
 }
 
 /**
- * **Chi può agganciare un DDT vendita** («Riferimento DDT»).
+ * **Chi può agganciare un DDT vendita** («Riferimento DDT»): **solo la
+ * Fattura**.
  *
- * ⛔ **L'accompagnatoria NO, ed è la regola vigente** (`12` §matrice: «mai
- * DDT»). L'accompagnatoria **sostituisce** il DDT nella stessa uscita:
- * agganciarne uno è la stessa contraddizione di una Fattura dentro un DDT.
+ * ⭐ **A cosa serve l'aggancio**: è la fattura DIFFERITA — DDT durante il
+ * periodo, Fattura che li riepiloga. Alimenta i riferimenti DDT nell'XML
+ * FatturaPA e la riga «Riferimento DDT» in stampa. Funzione legittima, e solo
+ * di questo tipo.
  *
- * ⚠️ Fino al 22/08/2026 la maschera lo offriva anche lì, perché usava
- * `isSalesInvoiceDocumentType` — che è la famiglia intera, giusta per XML,
- * numeratore e azioni fiscali, sbagliata per questo. Il codice permetteva ciò
- * che la specifica vieta, e il proprietario ha confermato che **è il codice a
- * cedere, non la matrice**.
+ * ⛔ **Fattura accompagnatoria: mai DDT** (`12` §matrice). Sostituisce il DDT
+ * nella stessa uscita: agganciarne uno è la stessa contraddizione di una
+ * Fattura dentro un DDT.
  *
- * ⭐ **A cosa serve davvero l'aggancio**: è la fattura DIFFERITA — DDT durante
- * il periodo, Fattura che li riepiloga. Alimenta i riferimenti DDT nell'XML
- * FatturaPA e la riga «Riferimento DDT» in stampa. Funzione legittima, con la
- * porta d'ingresso sbagliata.
+ * ⛔ **Nota di credito: nemmeno lei**, e la ragione non è un divieto testuale.
+ * La matrice dice che la NC **non usa «Includi documento»** e **nasce da
+ * Fattura o Accompagnatoria**: un DDT non è una sua sorgente. Verificato che
+ * non le serva a niente — la NC **non genera XML FatturaPA** (nessun `TD04`
+ * nel generatore) e in stampa i DDT che la riguardano sono quelli della
+ * **fattura originaria**.
  *
- * ⏸️ **La Nota di credito resta come prima**: nessuna regola scritta le vieta
- * il collegamento, e toglierlo qui sarebbe una decisione non richiesta.
+ * ⭐ **Se un giorno serviranno fiscalmente, si recuperano attraverso la
+ * relazione con la fattura di origine** (`Document.sourceDocumentId`), non
+ * aprendo un ingresso DDT → Nota di credito. La differenza non è formale: il
+ * primo conserva la catena, il secondo inventa una sorgente che il modello
+ * documentale non prevede.
+ *
+ * ⚠️ Fino al 22/08/2026 questo lo decideva `isSalesInvoiceDocumentType`, che è
+ * la famiglia intera — giusta per XML, numeratore e azioni fiscali, sbagliata
+ * qui. Il codice permetteva ciò che la matrice non prevede, e cede il codice.
  */
 export function supportsLinkedSalesDdt(type: DocumentType): boolean {
-  return isSalesInvoiceDocumentType(type) && !isInvoiceAccompanyingDocumentType(type);
+  return type === DocumentType.InvoiceDraft;
 }
 
 /** Preventivo: maschera dedicata (stessa impostazione dell'Ordine cliente). */

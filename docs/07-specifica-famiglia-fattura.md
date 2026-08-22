@@ -251,8 +251,29 @@ Se un'accompagnatoria arrivasse con dei DDT collegati — dati storici, un perco
 impedirebbe il doppio scarico. Non dice «l'accompagnatoria può avere DDT»: dice «se ne avesse,
 non riscarica».
 
-⏸️ **La Nota di credito resta com'era.** Nessuna regola scritta le vieta il collegamento, e
-toglierlo sarebbe stata una decisione non richiesta. **Da confermare** quando si tocca il §6.
+### ⛔ E la Nota di credito nemmeno — deciso il 22/08/2026
+
+⚠️ **Qui c'era: «la Nota di credito resta com'era, nessuna regola scritta le vieta il
+collegamento».** Non basta, e il proprietario l'ha respinta: **l'assenza di un divieto testuale
+non è un motivo per mantenere un ingresso**. La matrice dice che la NC **non usa «Includi
+documento»** e che **nasce da Fattura o Accompagnatoria** — un DDT non è una sua sorgente, e
+non deve diventarlo perché il DTO e lo schema lo consentono.
+
+**Verificato a cosa servissero**, prima di togliere:
+
+|               |                                                                                           |
+| ------------- | ----------------------------------------------------------------------------------------- |
+| XML FatturaPA | ⛔ la NC **non lo genera**: nessun `TD04` nel generatore, ogni fattura esportata è `TD01` |
+| stampa        | i DDT che la riguardano sono quelli della **fattura originaria**, non suoi                |
+
+⭐ **Se un giorno serviranno fiscalmente, si recuperano attraverso la relazione con la fattura
+di origine** (`Document.sourceDocumentId`), **non** aprendo un ingresso DDT → Nota di credito.
+La differenza non è formale: il primo conserva la catena documentale, il secondo inventa una
+sorgente che il modello non prevede — ed è esattamente il modo in cui la matrice si sfalda un
+tipo alla volta.
+
+**Quindi `supportsLinkedSalesDdt` è vero per la sola Fattura**, e la guardia del server rifiuta
+ogni altro tipo nominandolo.
 
 ⭐ **Resta vero, e indipendente da quella decisione**, che il percorso «include o deriva da una
 **Vendita al banco**» non è interrogato da nessuna parte, e che la firma a un parametro non
