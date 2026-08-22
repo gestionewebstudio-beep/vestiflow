@@ -361,8 +361,8 @@ async function setup(options: SetupOptions = {}) {
     pricesIncludeVat(): boolean;
     availabilityWarningCount(): number;
     setPriceMode(pricesIncludeVat: boolean): void;
-    onStockToggle(line: StoreSaleDocumentLine, checked: boolean): void;
-    onQuantityInput(line: StoreSaleDocumentLine, raw: string): void;
+    onStockToggle(index: number, checked: boolean): void;
+    onQuantityInput(index: number, raw: string): void;
     onLocationChange(value: string | null): void;
     /** Il gancio dell'overlay fotocamera: la riga la costruisce la maschera. */
     onScanLineAdded(event: { variantId: string; quantity: number }): void;
@@ -760,9 +760,8 @@ describe('StoreSaleDocumentFormComponent', () => {
 
     it('la spunta si può togliere: la riga resta, l’effetto fisico no', async () => {
       const rendered = await conUnaRiga();
-      const riga = rendered.component.lines()[0]!;
 
-      rendered.component.onStockToggle(riga, false);
+      rendered.component.onStockToggle(0, false);
 
       expect(rendered.component.lines()).toHaveLength(1);
       expect(rendered.component.lines()[0]!.loadsStock).toBe(false);
@@ -784,10 +783,9 @@ describe('StoreSaleDocumentFormComponent', () => {
 
     it('quantità oltre la disponibilità: avviso, e si può concludere', async () => {
       const rendered = await conUnaRiga();
-      const riga = rendered.component.lines()[0]!;
 
       // Disponibile 3, quantità 5.
-      rendered.component.onQuantityInput(riga, '5');
+      rendered.component.onQuantityInput(0, '5');
       rendered.fixture.detectChanges();
 
       expect(rendered.component.availabilityWarningCount()).toBe(1);

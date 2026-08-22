@@ -1376,6 +1376,34 @@ ESTRAE in `domain/documents` e diventano consumer entrambe.** Mai copiare
 l'Ordine cliente dentro Store Sales, e mai una dipendenza
 `store-sales → features/sales-orders`.
 
+#### ✅ Eseguita il 22/08/2026 — la riga è una
+
+`DocumentLineRowComponent` in `domain/documents/` è la `<tr>` completa, e i
+due documenti la usano: l'Ordine cliente per primo (i suoi **76 test passano
+senza che ne sia stato toccato uno**), poi Vendita e Reso al banco, la cui
+tabella autonoma **non esiste più**.
+
+|                           | prima                            | dopo                         |
+| ------------------------- | -------------------------------- | ---------------------------- |
+| Ordine cliente            | 386 righe di markup nel template | 45 righe di configurazione   |
+| Vendita al banco          | una SECONDA `<table>`, 139 righe | la stessa riga, meno colonne |
+| celle condivise nel banco | una (l'IVA)                      | tutte                        |
+
+⭐ **Il banco ha dovuto adottare il `FormArray`**, che è il contratto delle
+altre sei maschere: la riga condivisa lega i controlli con `formControlName`,
+e una collezione di signal non poteva usarla. Il modello
+`StoreSaleDocumentLine` resta, ma come **vista derivata** — non come seconda
+fonte.
+
+⚠️ **Due comportamenti si sarebbero persi in silenzio**, e vanno saputi da chi
+sposterà altro markup: `FirstClickSelectsDirective` si aggancia per CLASSE
+(`input.doc-form__input--table`) e `cdkDragHandle` è una direttiva sull'host —
+spostando le `<td>` senza importarle nella riga, «il primo clic seleziona il
+contenuto» e la maniglia di trascinamento sarebbero spariti senza un errore.
+
+⏳ **La card mobile è il blocco successivo**, con lo stesso metodo: oggi la
+card del banco esiste ancora, ma la sua fonte è già il form.
+
 #### Lo stato misurato il 22/08/2026, che è la ragione della decisione
 
 ```text

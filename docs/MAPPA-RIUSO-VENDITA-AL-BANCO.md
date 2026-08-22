@@ -376,7 +376,17 @@ vestito.** Averlo in comune ha fatto sembrare condivisa una riga che non lo è
 mai stata — ed è per questo che lo scarto si è visto solo affiancando le due
 schermate a schermo, non nei test.
 
-### E-9 · Estrazione della riga documento — BLOCCANTE per il banco
+### ✅ E-9 · Estrazione della riga documento — FATTA il 22/08/2026
+
+`DocumentLineRowComponent` in `domain/documents/`: la `<tr>` completa, con la
+configurazione delle colonne. Ordine cliente migrato per primo — **76 test
+verdi senza toccarne uno** — poi Vendita e Reso, la cui `<table>` autonoma è
+sparita. Il banco ha adottato il `FormArray`, che è il contratto delle altre
+sei maschere.
+
+⏳ Resta la **card mobile**: stesso metodo, blocco successivo.
+
+#### Il contratto, per chi lo userà
 
 |                    |                                                                                                                                                                                                      |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

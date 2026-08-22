@@ -31,11 +31,14 @@ export const STORE_SALE_LINES_VIEW = TableViewId.StoreSaleLines;
  * cifre e non ha bisogno di più di 72px, lo SKU deve respirare.
  */
 export const STORE_SALE_LINE_COLUMNS: readonly TableColumnDef[] = [
-  { id: 'product', label: 'Articolo', defaultWidthPx: 320, minWidthPx: 160 },
   // ⭐ Visibile di DEFAULT: la ricerca del banco lavora per barcode, SKU o nome,
   // e lo SKU sulla riga fa verificare a colpo d'occhio di aver preso la
   // variante giusta — con taglie e colori è l'errore più facile da fare.
+  //
+  // ⚠️ Sta PRIMA di Articolo perché quello è l'ordine delle celle nella riga
+  // condivisa (`document-line-row`): l'elenco segue le celle, non viceversa.
   { id: 'sku', label: 'SKU', defaultWidthPx: 104, minWidthPx: 64 },
+  { id: 'product', label: 'Articolo', defaultWidthPx: 320, minWidthPx: 160 },
   { id: 'quantity', label: 'Q.tà', numeric: true, defaultWidthPx: 80, minWidthPx: 56 },
   { id: 'unitPrice', label: 'Prezzo', numeric: true, defaultWidthPx: 112, minWidthPx: 80 },
   { id: 'discount', label: 'Sconto', numeric: true, defaultWidthPx: 88, minWidthPx: 64 },

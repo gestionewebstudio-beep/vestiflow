@@ -11,7 +11,12 @@ import {
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import {
+  AbstractControl,
+  NonNullableFormBuilder,
+  ReactiveFormsModule,
+  Validators,
+} from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 
 import {
@@ -51,12 +56,20 @@ import { documentNumberConflictOf } from '@core/models/document-number-conflict.
 import { TenantPermission } from '@core/models/tenant-permission.model';
 import { hasTenantPermission } from '@core/permissions/user-permissions.util';
 import { CustomerService } from '@domain/customers/services/customer.service';
-import { DocumentLineSelectCellComponent } from '@domain/documents/components/document-line-select-cell/document-line-select-cell.component';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
 import { PriceModeMenuComponent } from '@domain/documents/components/price-mode-menu/price-mode-menu.component';
 import { priceModeRowLabel } from '@domain/documents/models/document-price-mode.util';
 import { DocumentService } from '@domain/documents/services/document.service';
+import { DocumentLineRowComponent } from '@domain/documents/components/document-line-row/document-line-row.component';
+import {
+  DOCUMENT_LINE_ROW_VIEW_VUOTA,
+  NESSUN_SUGGERIMENTO,
+} from '@domain/documents/components/document-line-row/document-line-row.model';
+import type {
+  DocumentLineColumnId,
+  DocumentLineRowView,
+} from '@domain/documents/components/document-line-row/document-line-row.model';
 import { DocumentScanOverlayComponent } from '@domain/documents/components/document-scan-overlay/document-scan-overlay.component';
 import { DocumentSeriesManagerDialogComponent } from '@domain/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
 import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
@@ -83,7 +96,6 @@ import { BarcodeLookupService } from '@domain/products/services/barcode-lookup.s
 import { ProductService } from '@domain/products/services/product.service';
 import { createQuickAddProduct } from '@domain/products/utils/quick-add-product.util';
 import {
-  newStoreSaleLineUiId,
   storeSaleLineFromDocumentLine,
   storeReturnLinePayload,
   storeSaleLinePayload,
@@ -214,11 +226,11 @@ function oggiIso(): string {
     ButtonComponent,
     ConfirmDialogComponent,
     DateInputComponent,
-    DocumentLineSelectCellComponent,
     DocumentMobilePanelComponent,
     DocumentNumberFieldComponent,
     DocumentSeriesManagerDialogComponent,
     DocumentProductSearchPanelComponent,
+    DocumentLineRowComponent,
     DocumentScanOverlayComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -328,6 +340,16 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
     /** Numero e serie: contratto comune, vedi `numbering`. */
     documentNumber: this.fb.control<number | null>(null),
     series: this.fb.control(''),
+    /**
+     * Le righe, in un `FormArray` **come nelle altre sei maschere**.
+     *
+     * ⛔ Qui c'era una collezione di signal, ed è il difetto che ha prodotto
+     * la riga parallela: la riga condivisa lega i suoi controlli con
+     * `formControlName`, e senza un gruppo per riga il banco non poteva
+     * usarla. Il modello `StoreSaleDocumentLine` resta, ma come VISTA
+     * derivata (`lineModel`), non come seconda fonte.
+     */
+    lines: this.fb.array<ReturnType<StoreSaleDocumentFormComponent['createLine']>>([]),
   });
 
   // Snapshot reattivo del form: i computed qui sotto leggono i FormControl, che
@@ -343,23 +365,131 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
   protected readonly preserved = signal<PreservedHeader>(PRESERVED_HEADER_VUOTA);
 
   /**
-   * Le righe del documento. **Una collezione sola**, per Vendita e Reso: i due
-   * modi condividono struttura e modello, e divergono solo negli effetti che la
-   * conclusione produce.
+   * Il gruppo di UNA riga: gli stessi controlli che la riga condivisa lega
+   * (`productName`, `quantity`, `unitPrice`, `discount`, `commitsStock`) più
+   * quelli che il banco porta con sé.
+   *
+   * ⚠️ `unitPrice` e `discount` sono **testo**, come su ogni altra maschera:
+   * il prezzo digitato può essere netto o ivato, e il valore canonico si
+   * ricava quando serve — non si tiene una seconda copia in centesimi.
    */
-  protected readonly lines = signal<readonly StoreSaleDocumentLine[]>([]);
-
-  /** Il documento non ha ancora righe: lo stato vuoto lo dice. */
-  protected readonly hasLines = computed(() => this.lines().length > 0);
-
-  private patchLine(uiId: string, patch: Partial<StoreSaleDocumentLine>): void {
-    this.lines.update((lines) =>
-      lines.map((line) => (line.uiId === uiId ? { ...line, ...patch } : line)),
-    );
+  private createLine() {
+    return this.fb.group({
+      serverLineId: this.fb.control<string | null>(null),
+      variantId: this.fb.control(''),
+      sku: this.fb.control(''),
+      productName: this.fb.control(''),
+      /** La descrizione COM'ERA sul documento: la riga è una fotografia. */
+      persistedDescription: this.fb.control<string | null>(null),
+      quantity: this.fb.control(1, {
+        validators: [Validators.required, Validators.min(1), Validators.pattern(/^d+$/)],
+      }),
+      unitPrice: this.fb.control(''),
+      discount: this.fb.control(''),
+      vatCodeId: this.fb.control<string | null>(null),
+      /** Il Codice IVA com'era: contratto binario verso il server. */
+      persistedVatCodeId: this.fb.control<string | null>(null),
+      vatRatePercent: this.fb.control<number | null>(null),
+      /** La spunta di magazzino: `loadsStock` verso il server. */
+      commitsStock: this.fb.control(true),
+      onHand: this.fb.control(0),
+      committed: this.fb.control(0),
+      available: this.fb.control(0),
+    });
   }
 
-  protected removeLine(uiId: string): void {
-    this.lines.update((lines) => lines.filter((line) => line.uiId !== uiId));
+  // ── La riga è la COMPONENTE COMUNE (`11` A15) ───────────────────────────
+  //
+  // ⛔ Il banco NON ha una riga propria. Mostra meno colonne — niente codice
+  // articolo, EAN, unità di misura, disponibilità, costo, prezzo scontato,
+  // seriali — e aggiunge la sola cosa che è sua: la spunta Scarica/Carica
+  // giacenze, che governa l'effetto fisico e per questo non è configurabile.
+
+  /**
+   * ⚠️ Legata una volta sola: una funzione anonima nel template cambierebbe
+   * identità a ogni giro, e la riga si riterrebbe sempre nuova.
+   */
+  protected readonly isLineColumnVisibleFn = (column: DocumentLineColumnId): boolean => {
+    // Fisse: l'effetto fisico e le azioni non passano dal selettore Colonne.
+    if (column === 'commitsStock' || column === 'actions') {
+      return true;
+    }
+    // Tutto il resto lo decide la configurazione del banco: ciò che non
+    // dichiara non esiste — nemmeno spento nel selettore.
+    return STORE_SALE_LINE_COLUMNS.some((def) => def.id === column)
+      ? this.isLineColumnVisible(column)
+      : false;
+  };
+
+  /** Ciò che la riga MOSTRA e non calcola. */
+  protected lineRowView(index: number): DocumentLineRowView {
+    const line = this.lineModel(index);
+    const supera = this.lineExceedsAvailability(line);
+    return {
+      ...DOCUMENT_LINE_ROW_VIEW_VUOTA,
+      complete: true,
+      linked: true,
+      quantityInvalid: this.form.controls.lines.at(index).controls.quantity.invalid,
+      exceedsAvailability: supera,
+      availabilityHint: supera ? this.availabilityHint(line) : null,
+      lineTotal: this.lineTotal(line),
+      vatOptions: this.vatOptions(line),
+      vatValue: line.vatCodeId ?? '',
+      articleCodeSuggest: NESSUN_SUGGERIMENTO,
+      skuSuggest: NESSUN_SUGGERIMENTO,
+      barcodeSuggest: NESSUN_SUGGERIMENTO,
+      productSuggest: NESSUN_SUGGERIMENTO,
+    };
+  }
+
+  /** Le righe: il `FormArray` è la FONTE, e non ce n'è una seconda. */
+  protected get lineControls() {
+    return this.form.controls.lines;
+  }
+
+  /** Il documento non ha ancora righe: lo stato vuoto lo dice. */
+  protected readonly hasLines = computed(() => {
+    this.formValue();
+    return this.form.controls.lines.length > 0;
+  });
+
+  /**
+   * La riga come MODELLO: totali, avvisi, card e payload continuano a
+   * lavorare su `StoreSaleDocumentLine`, che ora è una **vista derivata** del
+   * gruppo invece di una collezione parallela.
+   */
+  protected lineModel(index: number): StoreSaleDocumentLine {
+    const controls = this.form.controls.lines.at(index).controls;
+    const rate = this.rateOf(controls.vatCodeId.value, controls.vatRatePercent.value);
+    return {
+      uiId: String(index),
+      serverLineId: controls.serverLineId.value,
+      variantId: controls.variantId.value,
+      sku: controls.sku.value,
+      description: controls.productName.value,
+      persistedDescription: controls.persistedDescription.value,
+      quantity: controls.quantity.value,
+      unitPriceMinor: this.netMinorOf(index, rate),
+      discountPercent: parseEffectiveDiscountPercent(controls.discount.value),
+      vatCodeId: controls.vatCodeId.value,
+      persistedVatCodeId: controls.persistedVatCodeId.value,
+      vatRatePercent: controls.vatRatePercent.value,
+      loadsStock: controls.commitsStock.value,
+      onHand: controls.onHand.value,
+      committed: controls.committed.value,
+      available: controls.available.value,
+    };
+  }
+
+  /** Tutte le righe come modello: lo usano totali, payload e avvisi. */
+  protected lines(): readonly StoreSaleDocumentLine[] {
+    this.formValue();
+    return this.form.controls.lines.controls.map((_, index) => this.lineModel(index));
+  }
+
+  protected removeLine(index: number): void {
+    this.form.controls.lines.removeAt(index);
+    this.form.controls.lines.markAsDirty();
   }
 
   protected readonly locationOptions = computed((): readonly SelectMenuOption[] =>
@@ -692,8 +822,7 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
       this.acquireVariant(variantId, 1);
       return;
     }
-    const target = this.lines()[lineIndex];
-    if (!target) {
+    if (lineIndex >= this.form.controls.lines.length) {
       return;
     }
     this.readVariant(variantId)
@@ -702,11 +831,8 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
         if (!summary) {
           return;
         }
-        this.lines.update((lines) =>
-          lines.map((line) =>
-            line.uiId === target.uiId ? { ...line, ...this.lineFromVariant(summary, line) } : line,
-          ),
-        );
+        this.applyVariantToLine(lineIndex, summary);
+        this.form.controls.lines.markAsDirty();
       });
   }
 
@@ -772,9 +898,12 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
    * scansione.
    */
   private acquireVariant(variantId: string, quantity: number): void {
-    const esistente = this.lines().find((line) => line.variantId === variantId);
-    if (esistente) {
-      this.patchLine(esistente.uiId, { quantity: esistente.quantity + Math.max(1, quantity) });
+    const righe = this.form.controls.lines;
+    const esistente = righe.controls.findIndex(
+      (group) => group.controls.variantId.value === variantId,
+    );
+    if (esistente >= 0) {
+      this.stepQuantity(esistente, Math.max(1, quantity));
       this.searchPending.set(false);
       this.afterAcquire();
       return;
@@ -787,63 +916,48 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
           this.notFound(variantId);
           return;
         }
-        const nuova: StoreSaleDocumentLine = {
-          uiId: newStoreSaleLineUiId(),
-          serverLineId: null,
-          variantId,
-          sku: '',
-          description: '',
-          persistedDescription: null,
-          quantity: Math.max(1, quantity),
-          unitPriceMinor: 0,
-          discountPercent: 0,
-          vatCodeId: null,
-          persistedVatCodeId: null,
-          vatRatePercent: null,
-          loadsStock: true,
-          onHand: 0,
-          committed: 0,
-          available: 0,
-        };
-        this.lines.update((lines) => [...lines, { ...nuova, ...this.lineFromVariant(summary) }]);
+        const group = this.createLine();
+        group.patchValue({ quantity: Math.max(1, quantity) });
+        righe.push(group);
+        this.applyVariantToLine(righe.length - 1, summary);
+        righe.markAsDirty();
         this.afterAcquire();
       });
   }
 
   /**
-   * I valori che una riga NUOVA prende dall'anagrafica.
+   * I valori che una riga prende dall'anagrafica.
    *
-   * ⚠️ Su una riga già esistente si passa `previous`: descrizione e prezzo
-   * restano quelli del documento, perché la riga è una fotografia — si aggiorna
-   * ciò che segue l'articolo (identità, disponibilità), non ciò che l'operatore
-   * ha già scritto.
+   * ⚠️ Su una riga GIÀ SALVATA descrizione, prezzo, IVA e spunta restano quelli
+   * del documento, perché la riga è una fotografia: si aggiorna ciò che segue
+   * l'articolo (identità, disponibilità), non ciò che l'operatore ha scritto.
    */
-  private lineFromVariant(
-    summary: VariantSummary,
-    previous?: StoreSaleDocumentLine,
-  ): Partial<StoreSaleDocumentLine> {
-    return {
-      variantId: summary.variantId,
-      sku: previous?.serverLineId ? previous.sku : summary.sku,
-      description: previous?.serverLineId ? previous.description : summary.title,
-      unitPriceMinor: previous?.serverLineId
-        ? previous.unitPriceMinor
-        : summary.sellingPrice.amountMinor,
-      vatCodeId: previous?.serverLineId ? previous.vatCodeId : (summary.defaultVatCodeId ?? null),
-      // ⭐ Default della spunta, **deciso** il 21/08/2026 (`11` A15): un articolo
-      // che gestisce il magazzino nasce con la spunta attiva, un servizio no.
-      // Il criterio è il comportamento normale — un capo fisico venduto esce,
-      // uno reso rientra — e la spunta esiste per l'eccezione, non per la regola.
-      //
-      // ⚠️ Su una riga già salvata vince il valore persistito: è una scelta che
-      // l'operatore può aver già fatto, e non si rifotografa dall'anagrafica.
-      loadsStock: previous?.serverLineId ? previous.loadsStock : summary.managesStock !== false,
-      onHand: summary.stockOnHand ?? 0,
-      committed: Math.max(0, (summary.stockOnHand ?? 0) - (summary.stockAvailable ?? 0)),
-      available: summary.stockAvailable ?? 0,
-    };
-  }
+  private applyVariantToLine(index: number, summary: VariantSummary): void {
+    const controls = this.form.controls.lines.at(index).controls;
+    const salvata = controls.serverLineId.value !== null;
+    const onHand = summary.stockOnHand ?? 0;
+    const available = summary.stockAvailable ?? 0;
 
+    controls.variantId.setValue(summary.variantId);
+    controls.onHand.setValue(onHand);
+    controls.committed.setValue(Math.max(0, onHand - available));
+    controls.available.setValue(available);
+    if (salvata) {
+      return;
+    }
+    controls.sku.setValue(summary.sku);
+    controls.productName.setValue(summary.title);
+    controls.vatCodeId.setValue(summary.defaultVatCodeId ?? null);
+    // ⭐ Default della spunta, **deciso** il 21/08/2026 (`11` A15): un articolo
+    // che gestisce il magazzino nasce con la spunta attiva, un servizio no. La
+    // spunta esiste per l'eccezione, non per la regola.
+    controls.commitsStock.setValue(summary.managesStock !== false);
+    // Il prezzo si scrive col TESTO della modalità corrente: il netto è
+    // canonico, ma il campo mostra ciò che l'operatore ha scelto di leggere.
+    const rate = this.rateOf(summary.defaultVatCodeId ?? null, null);
+    controls.unitPrice.setValue(this.priceText(summary.sellingPrice.amountMinor, rate));
+    this.ricordaNetto(index, summary.sellingPrice.amountMinor, rate);
+  }
   /** Riepilogo della variante alla sede del documento: giacenze comprese. */
   private readVariant(variantId: string): Observable<VariantSummary | null> {
     return this.productService
@@ -1058,12 +1172,13 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
   /** Card aperta: una alla volta, come sul riferimento. */
   private readonly openCardId = signal<string | null>(null);
 
-  protected isCardOpen(uiId: string): boolean {
-    return this.openCardId() === uiId;
+  protected isCardOpen(index: number): boolean {
+    return this.openCardId() === String(index);
   }
 
-  protected toggleCard(uiId: string): void {
-    this.openCardId.update((corrente) => (corrente === uiId ? null : uiId));
+  protected toggleCard(index: number): void {
+    const chiave = String(index);
+    this.openCardId.update((corrente) => (corrente === chiave ? null : chiave));
   }
 
   private readonly columnPreferences = inject(TableColumnPreferenceService);
@@ -1181,31 +1296,82 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
    * decimali. È la ragione per cui netto → ivato → netto torna identico, coda
    * decimale compresa.
    */
+  /**
+   * Cambio modalità: il valore MOSTRATO si riscrive riga per riga, partendo
+   * dal netto canonico. Stessa meccanica dell'Ordine cliente — netto → ivato
+   * → netto torna identico, coda decimale compresa.
+   */
   protected setPriceMode(pricesIncludeVat: boolean): void {
     this.priceModeMenuOpen.set(false);
+    if (pricesIncludeVat === this.pricesIncludeVat()) {
+      return;
+    }
+    const netti = this.form.controls.lines.controls.map((_, index) =>
+      this.netMinorOf(index, this.rateAt(index)),
+    );
     this.pricesIncludeVat.set(pricesIncludeVat);
+    this.form.controls.lines.controls.forEach((group, index) => {
+      const netto = netti[index] ?? 0;
+      group.controls.unitPrice.setValue(this.priceText(netto, this.rateAt(index)), {
+        emitEvent: false,
+      });
+      this.ricordaNetto(index, netto, this.rateAt(index));
+    });
   }
 
-  /** Il valore da MOSTRARE nel campo prezzo, secondo la modalità corrente. */
-  protected priceFieldValue(line: StoreSaleDocumentLine): string {
-    const rate = this.lineVatRate(line);
-    const shown = this.pricesIncludeVat()
-      ? grossFromNetMinor(line.unitPriceMinor, rate)
-      : line.unitPriceMinor;
+  /** Il testo da mostrare nel campo prezzo, secondo la modalità corrente. */
+  private priceText(netMinor: number, rate: number): string {
+    const shown = this.pricesIncludeVat() ? grossFromNetMinor(netMinor, rate) : netMinor;
     return moneyToDecimalString({ amountMinor: shown, currencyCode: DEFAULT_CURRENCY });
   }
 
-  /** Il digitato torna netto canonico: la forma `*Exact`, che conserva la coda. */
-  protected onPriceInput(line: StoreSaleDocumentLine, raw: string): void {
+  /**
+   * Il netto ESATTO di una riga, ricordato insieme a come lo si sta
+   * mostrando.
+   *
+   * ⛔ Serve perché il campo mostra **due decimali** e il netto canonico ne
+   * ha fino a sei: un prezzo caricato a 2049,180328 tornerebbe 2049,18 al
+   * primo risalvataggio, e sarebbe il centesimo che la regola del denaro
+   * esiste per non perdere. Finché il testo è quello mostrato, il valore che
+   * si salva è quello ricordato.
+   */
+  private readonly nettoEsatto = new WeakMap<AbstractControl, { net: number; shown: string }>();
+
+  private ricordaNetto(index: number, netMinor: number, rate: number): void {
+    const group = this.form.controls.lines.at(index);
+    this.nettoEsatto.set(group, { net: netMinor, shown: this.priceText(netMinor, rate) });
+  }
+
+  /**
+   * Il netto canonico di una riga, dal TESTO del controllo — o quello
+   * ricordato, se il testo non è stato toccato.
+   */
+  private netMinorOf(index: number, rate: number): number {
+    const group = this.form.controls.lines.at(index);
+    const raw = group.controls.unitPrice.value;
+    const ricordato = this.nettoEsatto.get(group);
+    if (ricordato && ricordato.shown === raw) {
+      return ricordato.net;
+    }
     const parsed = parseMoneyInput(raw, DEFAULT_CURRENCY);
     if (!parsed) {
-      return;
+      return 0;
     }
-    const rate = this.lineVatRate(line);
     const net = this.pricesIncludeVat()
       ? netFromGrossExact(parsed.amountMinor, rate)
       : parsed.amountMinor;
-    this.patchLine(line.uiId, { unitPriceMinor: toStorableMinor(net) });
+    return toStorableMinor(net);
+  }
+
+  /** Aliquota di una riga per indice, dal Codice IVA o dallo snapshot. */
+  private rateAt(index: number): number {
+    const controls = this.form.controls.lines.at(index).controls;
+    return this.rateOf(controls.vatCodeId.value, controls.vatRatePercent.value);
+  }
+
+  private rateOf(vatCodeId: string | null, snapshot: number | null): number {
+    const vatCode = vatCodeId ? this.vatCodeById().get(vatCodeId) : undefined;
+    return vatCode ? vatCode.ratePercent : (snapshot ?? 0);
   }
 
   // ── IVA di riga ──────────────────────────────────────────────────────────
@@ -1234,12 +1400,6 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
 
   protected vatOptions(line: StoreSaleDocumentLine): readonly SelectMenuOption[] {
     return vatOptionsIncludingSelected(this.activeVatOptions(), line.vatCodeId, this.vatCodeById());
-  }
-
-  /** Aliquota della riga: dal Codice IVA risolto, o dallo snapshot persistito. */
-  private lineVatRate(line: StoreSaleDocumentLine): number {
-    const vatCode = line.vatCodeId ? this.vatCodeById().get(line.vatCodeId) : undefined;
-    return vatCode ? vatCode.ratePercent : (line.vatRatePercent ?? 0);
   }
 
   private lineVatInput(line: StoreSaleDocumentLine): VatComputationInput {
@@ -1272,29 +1432,20 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
 
   // ── Quantità, sconto, descrizione, IVA ───────────────────────────────────
 
-  protected onQuantityInput(line: StoreSaleDocumentLine, raw: string): void {
-    const value = Number.parseInt(raw, 10);
-    if (!Number.isFinite(value) || value < 1) {
-      return;
-    }
-    this.patchLine(line.uiId, { quantity: value });
+  /**
+   * Lo stepper della quantità: **un comando, non un secondo controllo**. La
+   * cella è quella condivisa; qui si scrive nel suo controllo.
+   */
+  protected stepQuantity(index: number, delta: number): void {
+    const control = this.form.controls.lines.at(index).controls.quantity;
+    control.setValue(Math.max(1, control.value + delta));
+    control.markAsDirty();
   }
 
-  /** Stepper: al banco la quantità si tocca più spesso di quanto si digiti. */
-  protected stepQuantity(line: StoreSaleDocumentLine, delta: number): void {
-    this.patchLine(line.uiId, { quantity: Math.max(1, line.quantity + delta) });
-  }
-
-  protected onDiscountInput(line: StoreSaleDocumentLine, raw: string): void {
-    this.patchLine(line.uiId, { discountPercent: parseEffectiveDiscountPercent(raw) });
-  }
-
-  protected onDescriptionChange(line: StoreSaleDocumentLine, value: string): void {
-    this.patchLine(line.uiId, { description: value });
-  }
-
-  protected onVatChange(line: StoreSaleDocumentLine, vatCodeId: string): void {
-    this.patchLine(line.uiId, { vatCodeId: vatCodeId || null });
+  protected onVatChange(index: number, vatCodeId: string | null): void {
+    const controls = this.form.controls.lines.at(index).controls;
+    controls.vatCodeId.setValue(vatCodeId || null);
+    controls.vatCodeId.markAsDirty();
   }
 
   // ── Effetto fisico della riga ────────────────────────────────────────────
@@ -1311,10 +1462,47 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
     this.descriptor.mode === 'sale' ? 'Scarica giacenze' : 'Carica giacenze',
   );
 
-  protected onStockToggle(line: StoreSaleDocumentLine, checked: boolean): void {
-    this.patchLine(line.uiId, { loadsStock: checked });
+  /** Solo per le prove e per la card: il controllo è `commitsStock`. */
+  protected onStockToggle(index: number, checked: boolean): void {
+    const control = this.form.controls.lines.at(index).controls.commitsStock;
+    control.setValue(checked);
+    control.markAsDirty();
   }
 
+  // ── Gestori della card mobile ───────────────────────────────────────────
+  //
+  // ⏳ Restano finché la card non diventa quella CONDIVISA (blocco successivo,
+  // `11` A15). Scrivono sui controlli del form: la fonte è una sola anche
+  // adesso, e quando la card comune arriverà spariranno con loro.
+
+  protected priceFieldValue(index: number): string {
+    return this.form.controls.lines.at(index).controls.unitPrice.value;
+  }
+
+  protected onQuantityInput(index: number, raw: string): void {
+    const parsed = Number.parseInt(raw, 10);
+    const control = this.form.controls.lines.at(index).controls.quantity;
+    control.setValue(Number.isFinite(parsed) && parsed > 0 ? parsed : 1);
+    control.markAsDirty();
+  }
+
+  protected onPriceInput(index: number, raw: string): void {
+    const control = this.form.controls.lines.at(index).controls.unitPrice;
+    control.setValue(raw);
+    control.markAsDirty();
+  }
+
+  protected onDiscountInput(index: number, raw: string): void {
+    const control = this.form.controls.lines.at(index).controls.discount;
+    control.setValue(raw);
+    control.markAsDirty();
+  }
+
+  protected onDescriptionChange(index: number, value: string): void {
+    const control = this.form.controls.lines.at(index).controls.productName;
+    control.setValue(value);
+    control.markAsDirty();
+  }
   // ── Disponibilità: avviso, mai blocco ────────────────────────────────────
   //
   // `11` A18: la vendita oltre la disponibilità è consentita, l'avviso è visibile
@@ -1352,7 +1540,7 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
         return {
           netMinor: amounts.lineNetMinor,
           vatMinor: amounts.lineVatMinor,
-          vatRate: this.lineVatRate(line),
+          vatRate: this.rateOf(line.vatCodeId, line.vatRatePercent),
           // Al banco ogni riga porta la propria imposta nel totale: non ci sono
           // reverse charge, che appartengono ad altri tipi documento.
           countsVatInTotal: true,
@@ -1432,7 +1620,7 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
   /** «Esci senza salvare»: il lavoro in corso si lascia andare. */
   protected confirmExitWithoutSaving(): void {
     this.exitDialogOpen.set(false);
-    this.lines.set([]);
+    this.form.controls.lines.clear();
     this.pendingDeactivate?.(true);
     this.pendingDeactivate = null;
   }
@@ -1525,7 +1713,7 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
     if (this.isEditMode()) {
       return;
     }
-    this.lines.set([]);
+    this.form.controls.lines.clear();
     this.openCardId.set(null);
     this.preserved.set(PRESERVED_HEADER_VUOTA);
     this.form.controls.customerId.setValue('');
@@ -1631,7 +1819,32 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
       notes: doc.notes ?? '',
       causale: doc.causalText ?? '',
     });
-    this.lines.set((doc.lines ?? []).map(storeSaleLineFromDocumentLine));
+    const righe = this.form.controls.lines;
+    righe.clear();
+    for (const line of (doc.lines ?? []).map(storeSaleLineFromDocumentLine)) {
+      const group = this.createLine();
+      const rate = this.rateOf(line.vatCodeId, line.vatRatePercent);
+      group.patchValue({
+        serverLineId: line.serverLineId,
+        variantId: line.variantId,
+        sku: line.sku,
+        productName: line.description,
+        persistedDescription: line.persistedDescription,
+        quantity: line.quantity,
+        // Il testo segue la modalità del DOCUMENTO, appena impostata sopra.
+        unitPrice: this.priceText(line.unitPriceMinor, rate),
+        discount: line.discountPercent ? `${line.discountPercent}%` : '',
+        vatCodeId: line.vatCodeId,
+        persistedVatCodeId: line.persistedVatCodeId,
+        vatRatePercent: line.vatRatePercent,
+        commitsStock: line.loadsStock,
+        onHand: line.onHand,
+        committed: line.committed,
+        available: line.available,
+      });
+      righe.push(group);
+      this.ricordaNetto(righe.length - 1, line.unitPriceMinor, rate);
+    }
   }
 }
 
