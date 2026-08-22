@@ -86,25 +86,25 @@ diversi.
 
 ## 1. La tabella maestra
 
-| Area                     | Categoria                                     | In una riga                                                                   |
-| ------------------------ | --------------------------------------------- | ----------------------------------------------------------------------------- |
-| **testata**              | DA ESTRARRE/GENERALIZZARE                     | il vestito globale `doc-form__header` c'è già; manca l'adozione               |
-| **Cliente**              | RIUSO DIRETTO                                 | stesso `CustomerService` + `app-select-menu`; al banco resta facoltativo      |
-| **Location**             | RIUSO DIRETTO                                 | `OperationalLocationsService` + `prefillDefaultLocation` + `headerGateActive` |
-| **numerazione**          | SPECIFICO BANCO (adozione)                    | il campo e lo store esistono; **al banco non c'è nessun campo numero**        |
-| **ricerca prodotto**     | RIUSO DIRETTO                                 | `app-document-product-search-panel` è **già usato da entrambi**               |
-| **scanner**              | DA ESTRARRE/GENERALIZZARE                     | tre implementazioni, nessuna regge il caso richiesto — §3                     |
-| **righe desktop**        | DA ESTRARRE/GENERALIZZARE                     | celle condivise pronte; la griglia è markup da scrivere                       |
-| **quantità**             | SPECIFICO BANCO                               | lo stepper del banco è quello giusto; l'Ordine cliente ce l'ha solo su card   |
-| **prezzo**               | DA ESTRARRE/GENERALIZZARE                     | `price-mode-menu` esiste; al banco l'ivato è **forzato nel codice**           |
-| **sconto**               | ⛔ GAP DEL CONTRATTO COMUNE                   | riga: c'è. Extra documento: **non esiste al banco**, e il comune ha solo la % |
-| **IVA**                  | RIUSO DIRETTO                                 | `document-vat.util` + `document-vat-options.util` già usati da entrambi       |
-| **disponibilità**        | DA ESTRARRE/GENERALIZZARE                     | due implementazioni non allineate, stessa regola                              |
-| **colonne/resize**       | RIUSO DIRETTO                                 | `STORE_SALE_LINE_COLUMNS` **già scritto e mai usato**                         |
-| **focus/tastiera**       | RIUSO DIRETTO                                 | `DocumentLineFocusStore`, contratto a 10 voci                                 |
-| **card mobile**          | RIUSO DIRETTO (forma) + SPECIFICO (contenuto) | `app-document-line-card` è la forma; serve un `store-sale-line-card`          |
-| **totali/piede**         | DA ESTRARRE/GENERALIZZARE                     | `computeDocumentTotals` esiste; al banco c'è **solo il Totale**               |
-| **salvataggio/modifica** | ⛔ GAP APERTO                                 | l'API sa risalvare per differenza, **il client non gliene dà i mezzi**        |
+| Area                     | Categoria                                                       | In una riga                                                                                            |
+| ------------------------ | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **testata**              | DA ESTRARRE/GENERALIZZARE                                       | il vestito globale `doc-form__header` c'è già; manca l'adozione                                        |
+| **Cliente**              | RIUSO DIRETTO                                                   | stesso `CustomerService` + `app-select-menu`; al banco resta facoltativo                               |
+| **Location**             | RIUSO DIRETTO                                                   | `OperationalLocationsService` + `prefillDefaultLocation` + `headerGateActive`                          |
+| **numerazione**          | SPECIFICO BANCO (adozione)                                      | il campo e lo store esistono; **al banco non c'è nessun campo numero**                                 |
+| **ricerca prodotto**     | RIUSO DIRETTO                                                   | `app-document-product-search-panel` è **già usato da entrambi**                                        |
+| **scanner**              | DA ESTRARRE/GENERALIZZARE                                       | tre implementazioni, nessuna regge il caso richiesto — §3                                              |
+| **righe desktop**        | DA ESTRARRE/GENERALIZZARE                                       | celle condivise pronte; la griglia è markup da scrivere                                                |
+| **quantità**             | SPECIFICO BANCO                                                 | lo stepper del banco è quello giusto; l'Ordine cliente ce l'ha solo su card                            |
+| **prezzo**               | DA ESTRARRE/GENERALIZZARE                                       | `price-mode-menu` esiste; al banco l'ivato è **forzato nel codice**                                    |
+| **sconto**               | ⛔ GAP DEL CONTRATTO COMUNE                                     | riga: c'è. Extra documento: **non esiste al banco**, e il comune ha solo la %                          |
+| **IVA**                  | RIUSO DIRETTO                                                   | `document-vat.util` + `document-vat-options.util` già usati da entrambi                                |
+| **disponibilità**        | DA ESTRARRE/GENERALIZZARE                                       | due implementazioni non allineate, stessa regola                                                       |
+| **colonne/resize**       | RIUSO DIRETTO                                                   | `STORE_SALE_LINE_COLUMNS` **già scritto e mai usato**                                                  |
+| **focus/tastiera**       | RIUSO DIRETTO                                                   | `DocumentLineFocusStore`, contratto a 10 voci                                                          |
+| **card mobile**          | ⛔ **CORRETTO 22/08**: stessa componente condivisa, configurata | qui c'era «serve un `store-sale-line-card`», e ha autorizzato la seconda implementazione — vedi §2-bis |
+| **totali/piede**         | DA ESTRARRE/GENERALIZZARE                                       | `computeDocumentTotals` esiste; al banco c'è **solo il Totale**                                        |
+| **salvataggio/modifica** | ⛔ GAP APERTO                                                   | l'API sa risalvare per differenza, **il client non gliene dà i mezzi**                                 |
 
 ---
 
@@ -339,6 +339,54 @@ partenza resta, col suo scarico. È il difetto più grave trovato.
 documento che sta fuori dal percorso generico e si modifica lo stesso» (commento del DTO).
 
 ---
+
+## 2-bis. ⛔ LA RIGA È UNA — correzione del proprietario, 22/08/2026
+
+> **Ordine cliente, Vendita al banco e Reso al banco devono usare la STESSA
+> componente condivisa di riga documento**, desktop e card. Dove una colonna
+> esiste in entrambi: stessa cella, stesso controllo, stesso comportamento,
+> stessi stati, stesso fuoco, stessa grafica. La decisione per esteso sta in
+> `11` **A15**.
+
+⛔ **Questa mappa diceva il contrario, ed è la causa del difetto.** La riga 105
+della tabella §2 classificava la card mobile come _«RIUSO DIRETTO (forma) +
+SPECIFICO (contenuto) — `app-document-line-card` è la forma; **serve un
+`store-sale-line-card`**»_. Quel «serve» era una conclusione, non un rilievo: ha
+autorizzato una seconda implementazione.
+
+### Che cosa è stato misurato, il 22/08
+
+```text
+Ordine cliente   la riga desktop vive NEL SUO template — 386 righe di markup,
+                 6 celle condivise e tutto il resto scritto lì
+Vendita al banco una SECONDA <table> — 139 righe, UNA cella condivisa (l'IVA)
+card di riga     SETTE implementazioni sulle stesse primitive: due in domain/
+                 (sales-document, stock-movement) e cinque nelle feature
+```
+
+|                                     | Ordine cliente               | Banco                         |
+| ----------------------------------- | ---------------------------- | ----------------------------- |
+| `doc-form__input--table`            | 4 usi                        | **0**                         |
+| gruppi colonna (`doc-form__col--*`) | 8                            | **0**                         |
+| nome prodotto                       | `document-line-product-cell` | `<input>` nudo                |
+| quantità                            | input da tabella             | input + stepper **inventato** |
+
+⭐ **Il foglio globale `_document-form.scss` non è la riga condivisa: è il
+vestito.** Averlo in comune ha fatto sembrare condivisa una riga che non lo è
+mai stata — ed è per questo che lo scarto si è visto solo affiancando le due
+schermate a schermo, non nei test.
+
+### E-9 · Estrazione della riga documento — BLOCCANTE per il banco
+
+|                    |                                                                                                                                                                                                      |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Che cosa**       | `DocumentLineRowComponent` in `domain/documents/`: la `<tr>` COMPLETA, non altre primitive                                                                                                           |
+| **Configurazione** | quali colonne esistono, dal registro che già c'è (`TableColumnPreferenceService` + le `*_LINE_COLUMNS`)                                                                                              |
+| **Consumer**       | Ordine cliente **e** Vendita/Reso. ⛔ Nessuna dipendenza `store-sales → features/sales-orders`                                                                                                       |
+| **Dominio fuori**  | impegni, listini, disponibilità, `loadsStock`: `input()` / `output()`                                                                                                                                |
+| **Card**           | stessa operazione un piano sotto: una card condivisa configurata, e le due card di feature spariscono                                                                                                |
+| **⚠️ Vincolo**     | si estrae **a parità di resa sull'Ordine cliente**, e la prova è che i suoi test passino **senza toccarli**                                                                                          |
+| **⚠️ Da sapere**   | la riga dell'ordine porta la riga «documento collegato» a `colspan`, le righe da documento incluso, la disponibilità e l'impegnata: il contratto deve reggerle **prima** che il banco ci passi sopra |
 
 ## 3. ⚠️ Verifica speciale — lettore laser HID / keyboard wedge
 
@@ -829,10 +877,12 @@ stato valido e verificabile.
                    Prezzo, quindi nasce con la colonna — `11` A4 lo diceva già,
                    «è parte della costruzione della tabella righe». Con lui è
                    entrato T5, il forcing «sempre ivato» lato server.
-✅ 11 · card mobile chiuso — `store-sale-line-card` sopra le primitive comuni di
-                   `domain/documents`; criterio responsive comune, viste
-                   alternative, riferimento = Nuovo Ordine cliente (`11` A15).
-                   ⛔ Nessun import da `features/sales-orders/`.
+⚠️ 11 · card mobile DA RIFARE — §2-bis, 22/08. `store-sale-line-card` è una
+                   SECONDA implementazione sulle primitive comuni, e la
+                   decisione definitiva è la riga UNA e condivisa (`11` A15).
+                   Restano validi il criterio responsive comune e le viste
+                   alternative; ⛔ resta il divieto di importare da
+                   `features/sales-orders/` — la strada è E-9, l'estrazione.
 ✅ 12 · piede      chiuso — totali dal motore comune, note, causale del Reso,
                    «Concludi vendita/reso» e «Chiudi», guardia di uscita col
                    dialogo, e il documento pronto per il cliente successivo.
@@ -1046,7 +1096,7 @@ o si fanno insieme, o si esce da un documento aperto senza che nessuno lo chieda
       Con lui è entrato T5 lato server: i due tipi del banco dentro
       SALES_PRICE_MODE_TYPES e il forcing «sempre ivato» rimosso.
 
-11 ·  Card mobile: store-sale-line-card sopra app-document-line-card.
+11 ·  Card mobile: ⚠️ rifatta da E-9 — una card condivisa e configurata.
       ✅ FATTO il 21/08. Riferimento funzionale e visuale: **Nuovo Ordine
       cliente** — struttura, disposizione, densità, comportamento e criterio
       responsive comune, senza soglie proprie del banco e senza importare

@@ -1343,37 +1343,78 @@ Il totale di riga è calcolato. La quantità supporta digitazione diretta e step
 
 - dove adatto. La modifica del nome riguarda il testo della riga, non l'anagrafica.
 
-### ⭐ Mobile Vendita/Reso: riferimento funzionale e visuale = **Nuovo Ordine cliente**
+### ⛔ La riga è UNA, condivisa e configurata — decisione del proprietario, 22/08/2026
 
-_Deciso il 21/08/2026, e va letto alla lettera: è il riferimento, non una dipendenza._
+> **Ordine cliente, Vendita al banco e Reso al banco usano la STESSA componente
+> condivisa di riga documento**, desktop e card, con gli stessi comportamenti per
+> tutti i campi comuni.
 
-Card sul modello dell'Ordine cliente — nome leggibile subito, codici e disponibilità
-subordinati, quantità con stepper, prezzo e sconto rapidamente editabili, totale ben leggibile.
+**Dove una colonna esiste in entrambi, dev'essere la stessa cella, lo stesso
+controllo, lo stesso comportamento, gli stessi stati, lo stesso fuoco, le stesse
+validazioni di interfaccia e la stessa grafica.** Affiancando le due maschere,
+una cella Quantità e una cella Prezzo devono essere **indistinguibili**.
 
-| Cosa                                            | Da dove viene                                                                   |
-| ----------------------------------------------- | ------------------------------------------------------------------------------- |
-| struttura, disposizione, densità, comportamento | **Nuovo Ordine cliente**                                                        |
-| criterio responsive                             | quello **comune**, lo stesso dell'Ordine cliente — ⛔ nessuna soglia del banco  |
-| forma della card e sue parti                    | le primitive comuni di `domain/documents` (`app-document-line-card` e famiglia) |
+La semplificazione del banco è **una sola**: non mostrare le colonne che non gli
+servono, tramite la configurazione della componente comune. Più la propria
+configurazione funzionale — Scarica / Carica giacenze.
 
-⛔ **Desktop e mobile sono ALTERNATIVI**, come sul riferimento: una vista sola è viva nel DOM.
-Rendere anche quella che non si vede significa controlli doppi, stato che si apre dove nessuno
-guarda e ogni riga annunciata due volte da chi ascolta.
+⛔ **Non consiste in**: un'altra `<table>` · input ricostruiti · uno stepper
+proprio · celle prezzo/sconto/IVA proprie · CSS separato che imita la riga
+comune · l'uso di _alcune_ primitive comuni dentro una riga autonoma.
 
-⛔ **Il riferimento non è una dipendenza**: non si importa `CustomerOrderLineCardComponent` —
-sarebbe un legame feature→feature che `regole-architettura` vieta. Se un pezzo davvero comune
-mancasse in `domain/documents`, si estrae **lì**, dopo averne verificato il contratto.
+#### ⚠️ Qui c'era una formulazione più debole, ed è quella che ha prodotto il difetto
 
-⛔ **Non si riprende né si adatta il mobile della maschera legacy del banco**, che di fatto non
-esiste: gli `data-label` erano nel markup e nessuna regola li usava.
+⛔ Questa sezione diceva «**riferimento funzionale e visuale**», «è il riferimento,
+**non una dipendenza**», «⛔ non si importa `CustomerOrderLineCardComponent`»,
+«forma della card e sue parti ← **le primitive comuni**». Il divieto è giusto — una
+feature non dipende da un'altra — ma la conseguenza era scritta come se fosse
+«fattene una tua sulle primitive», e **la Vendita al banco l'ha fatta**: una
+seconda tabella, una seconda card, una seconda grammatica.
 
-⚠️ **E il riferimento porta la forma, non il dominio**: impegni di magazzino, righe «documento
-collegato», listini e conversioni restano dell'Ordine cliente. Le differenze Vendita/Reso sono
-quelle già decise qui.
+**La conseguenza corretta è l'opposto: se la riga completa non è condivisa, si
+ESTRAE in `domain/documents` e diventano consumer entrambe.** Mai copiare
+l'Ordine cliente dentro Store Sales, e mai una dipendenza
+`store-sales → features/sales-orders`.
 
-⏳ Il futuro sistema trasversale **«mouse / dito / soglia manuale»** (`regole-stile-ui` §9) non
-si introduce ora per il solo banco: quando si farà, aggiornerà il **contratto comune**, Ordine
-cliente compreso.
+#### Lo stato misurato il 22/08/2026, che è la ragione della decisione
+
+```text
+Ordine cliente   la riga desktop vive NEL SUO template: 386 righe di markup,
+                 con dentro 6 celle condivise e tutto il resto scritto lì
+Vendita al banco una SECONDA tabella, 139 righe, UNA sola cella condivisa (IVA)
+card di riga     SETTE implementazioni sulle stesse primitive — due in domain/,
+                 cinque nelle feature
+```
+
+Le differenze che si vedono discendono da lì, e non si correggono col CSS:
+
+|                                     | Ordine cliente               | Banco                         |
+| ----------------------------------- | ---------------------------- | ----------------------------- |
+| `doc-form__input--table`            | 4 usi                        | **0**                         |
+| gruppi colonna (`doc-form__col--*`) | 8                            | **0**                         |
+| nome prodotto                       | `document-line-product-cell` | `<input>` nudo                |
+| quantità                            | input da tabella             | input + stepper **inventato** |
+
+⭐ **Il foglio globale `_document-form.scss` non è la riga condivisa**: è il
+vestito. Aver condiviso il vestito ha fatto sembrare condivisa una riga che non
+lo è mai stata, ed è per questo che il difetto si è visto solo a schermo.
+
+#### Il contratto della componente comune
+
+| Deve ricevere                              | Perché                                                                 |
+| ------------------------------------------ | ---------------------------------------------------------------------- |
+| **quali colonne esistono**                 | è l'unica leva della semplificazione del banco                         |
+| **i valori della riga e i suoi comandi**   | il dominio resta fuori: impegni, listini e `loadsStock` sono `input()` |
+| **niente che sappia di ordine o di banco** | se la riga conoscesse il documento, tornerebbero due righe             |
+
+Restano identici, per contratto: altezza riga, bordi, padding, font, selezione e
+fuoco, stepper quantità, controllo prezzo, selettore Netto/Ivato, sconto, IVA,
+totale, azioni di riga, comportamenti di tastiera pertinenti.
+
+⭐ **Anche l'inserimento riusa l'infrastruttura documentale** dove pertinente.
+Resta la regola di dominio: una query digitata o una riga vuota **non è una riga
+persistita** — il che non impedisce di usare la stessa interfaccia, dice solo
+che non si salva finché un articolo non è risolto.
 
 ### ⭐ La spunta di magazzino della riga — decisa il 21/08/2026
 
