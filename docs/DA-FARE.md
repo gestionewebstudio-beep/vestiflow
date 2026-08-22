@@ -78,6 +78,27 @@ altrove»), `IncludedDocumentLine` trasporta solo `isReference`, e `sourceDocume
 ⚠️ E **i motori di derivazione sono DUE** — `buildConversionDto` e `concludeManualPrefill`:
 una guardia messa nel primo lascerebbe scoperto il secondo, che è quello attivo.
 
+#### Blocco C · **Nota di credito → Fattura elettronica** _(registrato 22/08/2026)_
+
+⛔ **Gap aperto, NON da correggere fuori dal suo blocco.** È emerso togliendo alla NC
+l'aggancio DDT, e va tenuto distinto da quella correzione.
+
+|                                                      |                                                                                                       |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| tipo fiscale                                         | **`TD04`**                                                                                            |
+| collegamento alla Fattura/Accompagnatoria originaria | **già deciso**                                                                                        |
+| implementazione FE                                   | **non ancora completa** — il generatore emette `TD01` per ogni fattura esportata e non conosce `TD04` |
+| dove si affronta                                     | blocco dedicato **Famiglia Fattura / FE**                                                             |
+
+⚠️ **Non va confusa con «Includi»**: la Nota di credito **non include DDT**, e quel percorso è
+chiuso dal 22/08 (`07` §5-bis). Il collegamento che le compete è quello con la **fattura
+originaria**, ed è un'altra relazione — `Document.sourceDocumentId`.
+
+⭐ **La distinzione conta proprio qui**: quando la FE della NC verrà implementata, i
+riferimenti che l'XML richiede si prenderanno **attraverso la fattura di origine**. Chi
+leggesse solo «alla NC servono dei riferimenti DDT» sarebbe tentato di riaprire l'ingresso
+appena chiuso.
+
 #### Blocco B · **Document Line trasversale** — il censimento NON è chiuso
 
 Riprende dopo la chiusura dei difetti concreti. Comprende:

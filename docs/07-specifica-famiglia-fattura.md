@@ -261,10 +261,10 @@ non deve diventarlo perché il DTO e lo schema lo consentono.
 
 **Verificato a cosa servissero**, prima di togliere:
 
-|               |                                                                                           |
-| ------------- | ----------------------------------------------------------------------------------------- |
-| XML FatturaPA | ⛔ la NC **non lo genera**: nessun `TD04` nel generatore, ogni fattura esportata è `TD01` |
-| stampa        | i DDT che la riguardano sono quelli della **fattura originaria**, non suoi                |
+|               |                                                                                                                                                                                                                                                                                                                        |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| XML FatturaPA | ⛔ la NC **non lo genera ANCORA**: il generatore emette `TD01` per ogni fattura e non conosce `TD04`. ⏸️ La FE della Nota di credito è **prevista** e sta nel blocco dedicato (`DA-FARE` §Blocco C) — quando arriverà, i riferimenti si prenderanno **attraverso la fattura di origine**, non riaprendo l'ingresso DDT |
+| stampa        | i DDT che la riguardano sono quelli della **fattura originaria**, non suoi                                                                                                                                                                                                                                             |
 
 ⭐ **Se un giorno serviranno fiscalmente, si recuperano attraverso la relazione con la fattura
 di origine** (`Document.sourceDocumentId`), **non** aprendo un ingresso DDT → Nota di credito.
