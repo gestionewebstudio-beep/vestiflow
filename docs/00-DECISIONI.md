@@ -120,7 +120,14 @@ strumenti di lavoro. Non ci si cercano decisioni.
    attuale. Una limitazione dell'implementazione **non riapre** un requisito deciso: si
    dichiara come gap e si adegua il codice (`14` §H13).
 2. **Si misura prima di concludere**, e la misura porta la data. «Dedotto» non è «misurato».
-3. **Il testo superato si cancella**, e resta una riga solo se l'errore rischia di tornare
-   (`regole-qualita`, «Testo morto nelle specifiche»).
+3. **Il testo superato non resta come requisito** — ma i rimedi sono **due**, e scambiarli
+   costa in due modi opposti:
+   - **cronaca, ripetizioni, il ragionamento che portava a una decisione vecchia** → si
+     **cancella** (`regole-qualita`, «Testo morto nelle specifiche»). È ciò che costringe a
+     rileggere duemila righe per sapere che cosa vale oggi.
+   - **una regola incompatibile che qualcuno potrebbe ancora applicare come requisito** → si
+     **marca** `⛔ SUPERATO — NON USARE COME REQUISITO`, col puntatore alla sezione vigente
+     che la sostituisce _(deciso dal proprietario il 22/08/2026)_. ⚠️ Cancellarla non impedisce
+     a chi la ricorda di riproporla: **la marcatura è la guardia**, e cancellare la toglierebbe.
 4. **Lint, build e test dicono che compila, non come si vede.** La verifica visiva è un passo
    a sé, e non la fa il codice (`14` §H14).

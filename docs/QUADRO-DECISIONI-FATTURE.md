@@ -665,7 +665,7 @@ _Da allineare:_ nel controllo cronologico il dismiss è stato deciso **per opera
 
 ## A.12 · Materiale GPT riusabile su questo blocco
 
-- **Scenari FAT-001 … FAT-011** (§34): criteri di accettazione e regressione del **blocco A**, utilizzabili subito.
+- ⛔ **Scenari FAT-001 … FAT-011** (§34) — **RIFERIMENTO MORTO, NON USARE COME REQUISITO.** Misurato il 22/08/2026: né gli scenari né un «§34» esistono in questo repository. Qui c'era «utilizzabili subito», e non lo sono: non ci sono. Se quel materiale vive ancora fuori dal repo va portato dentro; altrimenti i criteri di accettazione del blocco A si riscrivono da zero.
 - _*Scenari PAG-* e FE-_**: criteri di accettazione **futuri** dei blocchi D e C. Non sono verifiche di oggi — descrivono moduli non ancora costruiti — ma vanno conservati come bersaglio.
 - **§4.3 — separazione degli effetti**: _Nota di credito ≠ rientro merce ≠ rimborso monetario_. Principio corretto, vale la pena riportarlo così nella 07.
 - **§36 — rischi di regressione**: la parte su doppio scarico, doppio rientro, collisione numerazione, tipo errato in modifica, perdita serie e cambio location è pertinente al blocco A. Il resto (banca, IBAN, saldi) riguarda moduli che non esistono.

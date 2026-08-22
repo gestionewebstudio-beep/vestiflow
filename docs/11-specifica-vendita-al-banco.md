@@ -1331,12 +1331,21 @@ Desktop: tabella con la densità della **grammatica comune dei riepiloghi** (`14
 padding 4×12, intestazione 32px), senza le informazioni che alla Vendita al
 banco non servono.
 
-| Articolo | Q.tà | Prezzo | Sconto | IVA | Totale | Azioni |
-| -------- | ---: | -----: | -----: | --: | -----: | ------ |
+| Articolo | SKU | Q.tà | Prezzo | Sconto | IVA | Totale | Azioni |
+| -------- | --- | ---: | -----: | -----: | --: | -----: | ------ |
 
-L'articolo ha lo spazio maggiore. Informazioni secondarie possibili: variante, SKU, EAN,
-disponibilità. È previsto il pulsante **Colonne**, coerente con gli altri documenti: la vista
-base resta essenziale, l'operatore aggiunge ciò che gli serve.
+⛔ **Qui c'era lo stesso elenco SENZA SKU**, con lo SKU relegato fra le «informazioni
+secondarie possibili». **SUPERATO — NON USARE COME REQUISITO**: la decisione del 19/08/2026
+più sotto («Lo SKU è un dato VISIBILE della riga») lo dichiara **colonna vera**, ordinabile e
+con larghezza propria. Le due frasi convivevano nello stesso documento e dicevano il contrario.
+
+⭐ **L'elenco delle colonne possibili non vive in questa specifica**: è il contratto comune
+`DOCUMENT_LINE_COLUMNS`, e una maschera non ne inventa di proprie — **sceglie quali mostrare**
+(A15, decisione del 22/08/2026 sulla riga condivisa). La Vendita al banco dichiara anche
+**EAN**: chi spara il codice deve poterlo verificare a schermo.
+
+L'articolo ha lo spazio maggiore. È previsto il pulsante **Colonne**, coerente con gli altri
+documenti: la vista base resta essenziale, l'operatore aggiunge ciò che gli serve.
 
 **Modificabili direttamente dalla riga:** nome/descrizione, quantità, prezzo, sconto di riga.
 Il totale di riga è calcolato. La quantità supporta digitazione diretta e stepper − / valore /
