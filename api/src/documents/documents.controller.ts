@@ -52,6 +52,9 @@ import {
   type DocumentListRow,
   type DocumentWithLines,
 } from './documents.service';
+import { normalizeDecimals } from '../common/interceptors/decimal-serialization.interceptor';
+
+import type { Serialized } from '../common/serialized.type';
 import type { ConvertPrefillDto } from './documents.service';
 import { SaveGoodsReceiptDto } from './dto/save-goods-receipt.dto';
 import { SavePurchaseInvoiceDto } from './dto/save-purchase-invoice.dto';
@@ -132,12 +135,12 @@ export class DocumentsController {
     @CurrentUser() user: UserProfileDto,
     @Body() dto: SaveGoodsReceiptDto,
   ): Promise<{
-    document: DocumentDetail;
+    document: Serialized<DocumentDetail>;
     warnings: string[];
     createdProducts: readonly GoodsReceiptCreatedProduct[];
   }> {
     const saved = await this.goodsReceiptWorkflow.saveGoodsReceipt(tenantId, dto, user);
-    const document = await this.documents.getById(tenantId, saved.document.id, user);
+    const document = normalizeDecimals(await this.documents.getById(tenantId, saved.document.id, user));
     const warnings: string[] = [];
     if (document.linkStatus === 'linked') {
       warnings.push(
@@ -156,12 +159,12 @@ export class DocumentsController {
     @CurrentUser() user: UserProfileDto,
     @Body() dto: SavePurchaseInvoiceDto,
   ): Promise<{
-    document: DocumentDetail;
+    document: Serialized<DocumentDetail>;
     receiptsTotalMinor: number;
     totalsMatch: boolean;
   }> {
     const result = await this.goodsReceiptWorkflow.savePurchaseInvoice(tenantId, dto, user);
-    const document = await this.documents.getById(tenantId, result.document.id, user);
+    const document = normalizeDecimals(await this.documents.getById(tenantId, result.document.id, user));
     return {
       document,
       receiptsTotalMinor: result.receiptsTotalMinor,
@@ -181,9 +184,9 @@ export class DocumentsController {
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Body() dto: SaveTransferDto,
-  ): Promise<DocumentDetail> {
+  ): Promise<Serialized<DocumentDetail>> {
     const saved = await this.transferAdjustmentWorkflow.saveTransfer(tenantId, dto, user);
-    return this.documents.getById(tenantId, saved.id, user);
+    return normalizeDecimals(await this.documents.getById(tenantId, saved.id, user));
   }
 
   /**
@@ -198,9 +201,9 @@ export class DocumentsController {
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Body() dto: SaveAdjustmentDto,
-  ): Promise<DocumentDetail> {
+  ): Promise<Serialized<DocumentDetail>> {
     const saved = await this.transferAdjustmentWorkflow.saveAdjustment(tenantId, dto, user);
-    return this.documents.getById(tenantId, saved.id, user);
+    return normalizeDecimals(await this.documents.getById(tenantId, saved.id, user));
   }
 
   @Get('preview-number')
@@ -414,12 +417,12 @@ export class DocumentsController {
 
   @Get(':id')
   @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
-  getById(
+  async getById(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<DocumentDetail> {
-    return this.documents.getById(tenantId, id, user);
+  ): Promise<Serialized<DocumentDetail>> {
+    return normalizeDecimals(await this.documents.getById(tenantId, id, user));
   }
 
   @Post()
@@ -434,13 +437,13 @@ export class DocumentsController {
 
   @Patch(':id')
   @RequireAnyPermissions(DOCUMENTS_MANAGE_PERMISSIONS)
-  update(
+  async update(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateDocumentDto,
-  ): Promise<DocumentDetail> {
-    return this.documents.update(tenantId, id, dto, user);
+  ): Promise<Serialized<DocumentDetail>> {
+    return normalizeDecimals(await this.documents.update(tenantId, id, dto, user));
   }
 
   /** Prefill di conversione (form di destinazione): non crea nulla. */
@@ -457,12 +460,12 @@ export class DocumentsController {
 
   @Post(':id/cancel')
   @RequireAnyPermissions(DOCUMENTS_MANAGE_PERMISSIONS)
-  cancel(
+  async cancel(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<DocumentDetail> {
-    return this.documents.cancel(tenantId, id, user);
+  ): Promise<Serialized<DocumentDetail>> {
+    return normalizeDecimals(await this.documents.cancel(tenantId, id, user));
   }
 
   @Delete(':id')

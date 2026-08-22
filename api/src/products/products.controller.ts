@@ -49,7 +49,10 @@ import { ProductMediaService } from './product-media.service';
 import { DocumentPriceModePreferenceService } from '../documents/document-price-mode-preference.service';
 import { ProductsExportService } from './products-export.service';
 import { ProductsImportService } from './products-import.service';
+import { normalizeDecimals } from '../common/interceptors/decimal-serialization.interceptor';
 import { ProductsService, type ProductWithVariants } from './products.service';
+
+import type { Serialized } from '../common/serialized.type';
 import { SkuGeneratorService } from './sku-generator.service';
 import { ExportProductsQueryDto } from './dto/export-products.query.dto';
 import { ImportProductsBodyDto } from './dto/import-products-body.dto';
@@ -112,12 +115,12 @@ export class ProductsController {
   // §permessi): senza permesso il campo non entra nella risposta.
   @Get()
   @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
-  list(
+  async list(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Query() query: ListProductsQueryDto,
-  ): Promise<Paginated<ProductWithVariants>> {
-    return this.products.list(tenantId, query, user);
+  ): Promise<Serialized<Paginated<ProductWithVariants>>> {
+    return normalizeDecimals(await this.products.list(tenantId, query, user));
   }
 
   @Get('facets')
@@ -294,12 +297,12 @@ export class ProductsController {
 
   @Get(':id')
   @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
-  getById(
+  async getById(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<ProductWithVariants> {
-    return this.products.getById(tenantId, id, user);
+  ): Promise<Serialized<ProductWithVariants>> {
+    return normalizeDecimals(await this.products.getById(tenantId, id, user));
   }
 
   @Post()
@@ -308,8 +311,8 @@ export class ProductsController {
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Body() dto: CreateProductDto,
-  ): Promise<ProductWithVariants> {
-    const product = await this.products.create(tenantId, dto, user);
+  ): Promise<Serialized<ProductWithVariants>> {
+    const product = normalizeDecimals(await this.products.create(tenantId, dto, user));
     // ⚠️ Qui la modalità Listini veniva ricordata come preferenza personale.
     // Rimosso il 16/08/2026: l'anagrafica segue la convenzione aziendale.
     return product;
@@ -317,24 +320,24 @@ export class ProductsController {
 
   @Patch(':id')
   @RequirePermissions(TenantPermission.CatalogManage)
-  update(
+  async update(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateProductDto,
-  ): Promise<ProductWithVariants> {
-    return this.products.update(tenantId, id, dto, user);
+  ): Promise<Serialized<ProductWithVariants>> {
+    return normalizeDecimals(await this.products.update(tenantId, id, dto, user));
   }
 
   /** Duplica anagrafica prodotto (audit cliente): nuovo id, SKU/barcode univoci. */
   @Post(':id/duplicate')
   @RequirePermissions(TenantPermission.CatalogManage)
-  duplicate(
+  async duplicate(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<ProductWithVariants> {
-    return this.products.duplicateProduct(tenantId, id, user);
+  ): Promise<Serialized<ProductWithVariants>> {
+    return normalizeDecimals(await this.products.duplicateProduct(tenantId, id, user));
   }
 
   @Post(':id/sync-shopify')

@@ -3,6 +3,8 @@ import { Prisma } from '@prisma/client';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
+import type { Serialized } from '../serialized.type';
+
 /**
  * **Il confine fra `Prisma.Decimal` e il JSON che esce dall'API.**
  *
@@ -45,8 +47,8 @@ export class DecimalSerializationInterceptor implements NestInterceptor {
  * su elenchi da centinaia di righe, ed è il genere di costo che si nota solo in
  * produzione.
  */
-export function normalizeDecimals<T>(value: T): T {
-  return convert(value, new WeakSet()) as T;
+export function normalizeDecimals<T>(value: T): Serialized<T> {
+  return convert(value, new WeakSet()) as Serialized<T>;
 }
 
 function convert(value: unknown, visti: WeakSet<object>): unknown {

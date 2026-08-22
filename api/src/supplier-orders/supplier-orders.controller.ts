@@ -42,7 +42,10 @@ import {
   buildSupplierOrderExportRows,
 } from './supplier-order-export.util';
 import { SupplierOrderPdfService } from './supplier-order-pdf.service';
+import { normalizeDecimals } from '../common/interceptors/decimal-serialization.interceptor';
 import { SupplierOrdersService, type SupplierOrderWithLines } from './supplier-orders.service';
+
+import type { Serialized } from '../common/serialized.type';
 
 @Controller('supplier-orders')
 @UseGuards(JwtAuthGuard, TenantPermissionsGuard)
@@ -55,12 +58,12 @@ export class SupplierOrdersController {
 
   @Get()
   @RequireAnyPermissions(SUPPLIER_ORDERS_VIEW_PERMISSIONS)
-  list(
+  async list(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Query() query: ListSupplierOrdersQueryDto,
-  ): Promise<Paginated<SupplierOrderWithLines>> {
-    return this.supplierOrders.list(tenantId, query, user);
+  ): Promise<Serialized<Paginated<SupplierOrderWithLines>>> {
+    return normalizeDecimals(await this.supplierOrders.list(tenantId, query, user));
   }
 
 
@@ -119,43 +122,43 @@ export class SupplierOrdersController {
 
   @Get(':id')
   @RequireAnyPermissions(SUPPLIER_ORDERS_VIEW_PERMISSIONS)
-  getById(
+  async getById(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<SupplierOrderWithLines> {
-    return this.supplierOrders.getById(tenantId, id, user);
+  ): Promise<Serialized<SupplierOrderWithLines>> {
+    return normalizeDecimals(await this.supplierOrders.getById(tenantId, id, user));
   }
 
   @Post()
   @RequireAnyPermissions(SUPPLIER_ORDERS_MANAGE_PERMISSIONS)
-  create(
+  async create(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Body() dto: CreateSupplierOrderDto,
-  ): Promise<SupplierOrderWithLines> {
-    return this.supplierOrders.create(tenantId, dto, user);
+  ): Promise<Serialized<SupplierOrderWithLines>> {
+    return normalizeDecimals(await this.supplierOrders.create(tenantId, dto, user));
   }
 
   @Patch(':id')
   @RequireAnyPermissions(SUPPLIER_ORDERS_MANAGE_PERMISSIONS)
-  update(
+  async update(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateSupplierOrderDto,
-  ): Promise<SupplierOrderWithLines> {
-    return this.supplierOrders.update(tenantId, id, dto, user);
+  ): Promise<Serialized<SupplierOrderWithLines>> {
+    return normalizeDecimals(await this.supplierOrders.update(tenantId, id, dto, user));
   }
 
   @Post(':id/cancel')
   @RequireAnyPermissions(SUPPLIER_ORDERS_MANAGE_PERMISSIONS)
-  cancel(
+  async cancel(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<SupplierOrderWithLines> {
-    return this.supplierOrders.cancel(tenantId, id, user);
+  ): Promise<Serialized<SupplierOrderWithLines>> {
+    return normalizeDecimals(await this.supplierOrders.cancel(tenantId, id, user));
   }
 
   @Delete(':id')

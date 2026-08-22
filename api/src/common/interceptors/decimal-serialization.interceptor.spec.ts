@@ -173,3 +173,109 @@ describe('DecimalSerializationInterceptor', () => {
     });
   });
 });
+
+/**
+ * ⭐ **La separazione dei ruoli** (decisa il 22/08/2026 dopo che gli `Omit` sui
+ * tipi condivisi produssero 26 errori): i tipi interni conservano `Decimal`
+ * perché ai confronti e ai calcoli serve il valore vero — `products.service`
+ * lo dice a chiare lettere, «serve il costo VERO, non quello mascherato» — e i
+ * tipi di RISPOSTA dichiarano `Serialized<…>`, che è ciò che il client riceve.
+ */
+describe('separazione fra tipo interno e tipo di risposta', () => {
+  const dec = (v: string) => new Prisma.Decimal(v);
+  const jsonDi = (v: unknown) => JSON.parse(JSON.stringify(v));
+
+  it('⭐ Product con varianti: prezzi, listini e costo escono numeri', () => {
+    const interno = {
+      id: 'prd-1',
+      name: 'Maglia cotone',
+      sellingPriceMinor: dec('2049.1803'),
+      shopifyPriceMinor: dec('2500'),
+      compareAtPriceMinor: dec('3000.5'),
+      purchasePriceMinor: dec('1200.25'),
+      listino1PriceMinor: dec('1999.9999'),
+      listino2PriceMinor: null,
+      createdAt: new Date('2026-08-22T10:00:00.000Z'),
+      variants: [
+        { id: 'var-1', sku: 'A-M', sellingPriceMinor: dec('2049.1803'), purchasePriceMinor: dec('1200.25') },
+      ],
+    };
+
+    const out = jsonDi(normalizeDecimals(interno));
+
+    expect(out.sellingPriceMinor).toBe(2049.1803);
+    expect(out.compareAtPriceMinor).toBe(3000.5);
+    expect(out.purchasePriceMinor).toBe(1200.25);
+    expect(out.listino1PriceMinor).toBe(1999.9999);
+    expect(out.listino2PriceMinor).toBeNull();
+    expect(out.variants[0].sellingPriceMinor).toBe(2049.1803);
+    expect(out.createdAt).toBe('2026-08-22T10:00:00.000Z');
+    for (const campo of ['sellingPriceMinor', 'compareAtPriceMinor', 'purchasePriceMinor']) {
+      expect(typeof out[campo], campo).toBe('number');
+    }
+  });
+
+  it('⭐ Supplier Order: costo unitario, costo digitato e sconto', () => {
+    const out = jsonDi(
+      normalizeDecimals({
+        id: 'ord-1',
+        lines: [
+          {
+            id: 'l-1',
+            unitCostMinor: dec('411.4754'),
+            enteredUnitCostMinor: dec('502'),
+            discountPercent: dec('13.6'),
+            lineTotalMinor: 411,
+          },
+        ],
+      }),
+    );
+
+    expect(out.lines[0].unitCostMinor).toBe(411.4754);
+    expect(out.lines[0].enteredUnitCostMinor).toBe(502);
+    expect(out.lines[0].discountPercent).toBe(13.6);
+    expect(out.lines[0].lineTotalMinor).toBe(411); // era gia' intero: intatto
+  });
+
+  it('⭐ Document Detail: righe annidate, e i totali interi restano interi', () => {
+    const out = jsonDi(
+      normalizeDecimals({
+        id: 'doc-1',
+        totalMinor: 250000,
+        documentDiscountPercent: dec('2.5'),
+        lines: [
+          { id: 'l-1', unitPriceMinor: dec('2049.1803'), discountPercent: dec('7'), lineTotalMinor: 2049 },
+          { id: 'l-2', unitPriceMinor: dec('999'), discountPercent: dec('0'), lineTotalMinor: 999 },
+        ],
+        linkedSalesDdts: [{ id: 'ddt-1', reference: 'DDT 17' }],
+      }),
+    );
+
+    expect(out.documentDiscountPercent).toBe(2.5);
+    expect(out.lines[0].unitPriceMinor).toBe(2049.1803);
+    expect(out.lines[1].discountPercent).toBe(0);
+    expect(out.totalMinor).toBe(250000);
+    expect(out.linkedSalesDdts[0].reference).toBe('DDT 17');
+  });
+
+  it('⭐ SupplierVariantLink: l’ultimo costo d’acquisto', () => {
+    const out = jsonDi(
+      normalizeDecimals({
+        id: 'lnk-1',
+        lastPurchasePriceMinor: dec('411.4754'),
+        supplier: { id: 's-1', name: 'Fornitore', code: 'F01' },
+      }),
+    );
+
+    expect(out.lastPurchasePriceMinor).toBe(411.4754);
+    expect(typeof out.lastPurchasePriceMinor).toBe('number');
+  });
+
+  it('⛔ e il mascheramento dei costi resta: `null` non diventa zero', () => {
+    // Chi non ha il permesso sui costi riceve `null`, e null deve restare null:
+    // uno zero direbbe «costa zero», che e' un'informazione diversa e falsa.
+    const out = jsonDi(normalizeDecimals({ lastPurchasePriceMinor: null }));
+
+    expect(out.lastPurchasePriceMinor).toBeNull();
+  });
+});
