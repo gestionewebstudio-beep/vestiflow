@@ -17,7 +17,20 @@ export function roundToMinor(amountMinor: number): number {
   return Math.round(amountMinor);
 }
 
-/** Cifre di centesimo che una colonna `NUMERIC(16,6)` sa memorizzare. */
+/**
+ * Cifre di centesimo che il CONTRATTO conserva: quattro, cioè **6 decimali di
+ * euro**.
+ *
+ *     1,234567 EUR  =  123,4567 centesimi
+ *
+ * ⚠️ **Non è la capacità della colonna**, ed è la confusione che questo
+ * commento induceva: `NUMERIC(16,6)` di decimali ne memorizza **sei** — sei di
+ * centesimo, cioè otto di euro. Ne usiamo quattro, e le due cifre di margine
+ * restano libere.
+ *
+ * Oltre le quattro non c'è precisione: c'è il rumore del float (`25 / 1.22` in
+ * binario non finisce mai).
+ */
 const MINOR_TAIL_DECIMALS = 4;
 
 /**

@@ -25,7 +25,7 @@ export interface SalesOrderLineApiRow {
    * arriverebbe come `'2049.180328'` e `?? 0` non se ne accorgerebbe.
    * Stessa forma già usata dalla mappatura delle righe documento.
    */
-  readonly unitPriceMinor?: number | string;
+  readonly unitPriceMinor?: number;
   readonly totalMinor?: number;
   // Righe Ordine cliente manuale.
   readonly barcode?: string | null;

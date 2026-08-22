@@ -128,9 +128,16 @@ describe('mapSupplierOrderApiRow', () => {
           orderedQuantity: 1,
           receivedQuantity: 0,
           // 5,02 ivati al 22%: il netto canonico porta la coda dello scorporo.
-          unitCostMinor: '411.4754',
-          enteredUnitCostMinor: '502.0000',
-          discountPercent: '13.6000',
+          //
+          // ⭐ Erano STRINGHE fino al 22/08/2026, perché una colonna NUMERIC
+          // serializzata grezza usciva così. Ora l'API normalizza al confine
+          // (`DecimalSerializationInterceptor`) e il contratto è `number`: la
+          // garanzia che una stringa non arrivi più si prova LÌ, non qui.
+          // Questo test copre ciò che ha sempre coperto — che la coda
+          // sopravviva fino al `Money`.
+          unitCostMinor: 411.4754,
+          enteredUnitCostMinor: 502,
+          discountPercent: 13.6,
         },
       ],
     });
@@ -165,7 +172,7 @@ describe('mapSupplierOrderApiRow', () => {
           sku: 'SKU-1',
           orderedQuantity: 2,
           receivedQuantity: 0,
-          unitCostMinor: '500.0000',
+          unitCostMinor: 500,
           enteredUnitCostMinor: null,
         },
       ],

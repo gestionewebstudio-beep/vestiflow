@@ -20,9 +20,9 @@ export interface SupplierOrderLineApiRow {
    * numeri. Il tipo lo dichiara invece di nasconderlo, così chi le legge non
    * può dimenticare la conversione (vedi `mapLine`).
    */
-  readonly unitCostMinor: number | string;
-  readonly enteredUnitCostMinor?: number | string | null;
-  readonly discountPercent?: number | string;
+  readonly unitCostMinor: number;
+  readonly enteredUnitCostMinor?: number | null;
+  readonly discountPercent?: number;
   readonly vatCodeId?: string | null;
   readonly vatSnapshot?: Partial<VatSnapshot> | null;
   readonly lineTotalMinor?: number;

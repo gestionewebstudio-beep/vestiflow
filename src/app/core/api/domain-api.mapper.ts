@@ -35,15 +35,15 @@ export interface ProductApiRow {
   readonly unitOfMeasure?: string;
   readonly defaultVatCodeId?: string | null;
   /** Prezzo/costo a livello articolo (unità minori). Il barrato è solo qui. */
-  readonly sellingPriceMinor?: number | string;
+  readonly sellingPriceMinor?: number;
   /** Prezzo Shopify dell'articolo (§B, unità minori). Valore proprio. */
-  readonly shopifyPriceMinor?: number | string;
+  readonly shopifyPriceMinor?: number;
   readonly compareAtPriceMinor?: number | null;
   readonly purchasePriceMinor?: number | null;
   /** Listini aggiuntivi dell'articolo (§B, unità minori, sempre netti). */
-  readonly listino1PriceMinor?: number | string | null;
-  readonly listino2PriceMinor?: number | string | null;
-  readonly listino3PriceMinor?: number | string | null;
+  readonly listino1PriceMinor?: number | null;
+  readonly listino2PriceMinor?: number | null;
+  readonly listino3PriceMinor?: number | null;
   readonly inventoryTracking?: string;
   readonly managesStock?: boolean;
   readonly kind?: 'article' | 'service';
@@ -74,9 +74,9 @@ export interface ProductVariantApiRow {
   readonly optionValues: readonly { name: string; value: string }[];
   readonly barcode?: string | null;
   readonly currency: string;
-  readonly sellingPriceMinor: number | string;
+  readonly sellingPriceMinor: number;
   /** Prezzo Shopify della variante (§B, unità minori). Valore proprio. */
-  readonly shopifyPriceMinor?: number | string;
+  readonly shopifyPriceMinor?: number;
   readonly purchasePriceMinor?: number | null;
   readonly shopifyVariantId?: string | null;
   readonly shopifyInventoryItemId?: string | null;

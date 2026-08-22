@@ -197,15 +197,15 @@ describe('DocumentService (HTTP)', () => {
     req.flush(
       apiRow({
         id: 'doc-7',
-        documentDiscountPercent: '2.5',
+        documentDiscountPercent: 2.5,
         lines: [
           {
             id: 'line-1',
             lineNumber: 1,
             description: 'Maglia cotone',
             quantity: 3,
-            unitPriceMinor: '3333.5',
-            discountPercent: '7',
+            unitPriceMinor: 3333.5,
+            discountPercent: 7,
             enteredUnitCost: '12.34',
             lineTotalMinor: 9299,
             loadsStock: true,

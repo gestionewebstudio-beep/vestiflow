@@ -27,9 +27,9 @@ export interface DocumentLineApiRow {
   readonly sku?: string | null;
   readonly description: string;
   readonly quantity: number;
-  readonly unitPriceMinor: number | string;
+  readonly unitPriceMinor: number;
   /** Sconto effettivo con decimali (Decimal serializzato come stringa). */
-  readonly discountPercent: number | string;
+  readonly discountPercent: number;
   readonly vatCodeId?: EntityId | null;
   readonly vatSnapshot?: VatSnapshot | null;
   /** Costo digitato (Decimal serializzato come stringa dal backend). */
@@ -143,7 +143,7 @@ export interface DocumentApiRow {
   readonly taxMinor: number;
   readonly totalMinor: number;
   readonly outstandingMinor?: number | null;
-  readonly documentDiscountPercent?: number | string;
+  readonly documentDiscountPercent?: number;
   readonly pricesIncludeVat: boolean;
   readonly purchaseCostEntryMode?: PurchaseCostEntryMode | null;
   readonly createdByName: string;
@@ -404,7 +404,7 @@ export interface DocumentLineInputBody {
   readonly sku?: string;
   readonly description: string;
   readonly quantity: number;
-  readonly unitPriceMinor?: number | string;
+  readonly unitPriceMinor?: number;
   readonly discountPercent?: number;
   /** LEGACY: il backend lo deriva dal Codice IVA; accettato per compatibilità. */
   readonly vatRatePercent?: number;
