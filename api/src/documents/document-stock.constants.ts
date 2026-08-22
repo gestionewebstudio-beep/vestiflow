@@ -27,27 +27,28 @@ export const DOCUMENT_STOCK_UNLOAD_TYPES: readonly DocumentType[] = [
 ] as const;
 
 /**
- * Fattura accompagnatoria: lo scarico avviene solo **senza DDT agganciato**.
- * Con almeno un DDT la merce è già uscita, e un secondo scarico la porterebbe
- * in negativo per la stessa merce.
+ * **Difesa in profondità, non un requisito** (deciso dal proprietario il
+ * 22/08/2026).
  *
- * ⚠️ **Il 22/08/2026 questo commento era stato marcato SUPERATO sostenendo che
- * la condizione non potesse mai scattare** — perché la matrice di `docs/12`
- * dichiara che l'accompagnatoria non include «mai DDT», quindi il contatore
- * varrebbe sempre 0. **Misurato, ed è falso**: `SALES_INVOICE_DOCUMENT_TYPES`
- * include `invoice_accompanying`, la maschera offre «Riferimento DDT
- * (opzionale)» anche lì, il client manda `linkedSalesDdtIds` per tutta la
- * famiglia e questo server li accetta senza controllo di tipo.
+ * ⛔ **La Fattura accompagnatoria non aggancia DDT**: `docs/12` §matrice dice
+ * «mai DDT», e dal 22/08 lo impone anche il server — `syncLinkedSalesDdtsTx`
+ * rifiuta l'aggancio, e la maschera non lo offre più (`supportsLinkedSalesDdt`).
+ * Il percorso DDT → Accompagnatoria **non è ammesso**.
  *
- * ⛔ **Il difetto è l'opposto, ed è APERTO**: il codice permette un aggancio che
- * la matrice documentale vieta. Finché non è deciso chi cede — la matrice o il
- * codice (`docs/07` §5-bis) — **questa guardia non si tocca**: è l'unica cosa
- * che impedisce il doppio scarico nel caso che il codice consente.
+ * ⭐ **Questa funzione resta comunque**, e resta com'è: se un'accompagnatoria
+ * arrivasse qui con dei DDT collegati — dati storici, un percorso che nessuno
+ * ha previsto — impedirebbe di scaricare due volte la stessa merce. È l'ultima
+ * rete, e una rete non si toglie perché a monte è stato messo un cancello.
  *
- * ⭐ Resta vero, e indipendente da quella decisione, che il percorso «include o
- * deriva da una Vendita al banco» non è interrogato da nessuna parte, e che una
- * firma a un parametro non può esprimerlo. Quella parte appartiene al blocco
- * Includi/Genera (`docs/DA-FARE.md`).
+ * ⚠️ **Ma non va letta come la regola**: non dice «l'accompagnatoria può avere
+ * DDT», dice «se ne avesse, non riscarica». Fino al 22/08 questo commento
+ * sosteneva l'opposto — «lo scarico avviene solo senza DDT agganciato» — ed è
+ * la formulazione da cui era nata l'idea che l'aggancio fosse previsto.
+ *
+ * ⏸️ Resta fuori da qui, e appartiene al blocco Includi/Genera
+ * (`docs/DA-FARE.md`), il percorso che accade davvero: un'accompagnatoria che
+ * **deriva da una Vendita al banco** già scaricata. Una firma a un parametro
+ * non può esprimerlo.
  */
 export function invoiceAccompanyingUnloadsStock(linkedSalesDdtCount: number): boolean {
   return linkedSalesDdtCount === 0;

@@ -142,6 +142,7 @@ import {
   isProformaDocumentType,
   isSalesFormDocumentType,
   isSalesInvoiceDocumentType,
+  supportsLinkedSalesDdt,
 } from '@domain/documents/models/document-sales.util';
 import {
   TRANSPORT_INCOMPLETE_MESSAGE,
@@ -353,6 +354,16 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
   /** Solo accompagnatoria: sezioni Trasporto e Destinazione. */
   protected readonly isInvoiceAccompanying = computed(() =>
     isInvoiceAccompanyingDocumentType(this.documentType()),
+  );
+
+  /**
+   * ⛔ **Chi può agganciare un DDT.** Non è `isSalesInvoice()`: quella è la
+   * famiglia intera — giusta per XML, numeratore e azioni fiscali, sbagliata
+   * qui. L'accompagnatoria **sostituisce** il DDT nella stessa uscita, e la
+   * matrice (`12`) dice «mai DDT».
+   */
+  protected readonly supportsLinkedDdt = computed(() =>
+    supportsLinkedSalesDdt(this.documentType()),
   );
 
   protected readonly hasLinkedDdt = computed(() => this.linkedDdtIds().length > 0);
@@ -2172,7 +2183,10 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
               ? new Date(raw.paymentDueDate).toISOString()
               : undefined,
             iban: raw.iban.trim() || undefined,
-            linkedSalesDdtIds: [...this.linkedDdtIds()],
+            // ⛔ Solo per chi può agganciarli: un'accompagnatoria non manda
+            // l'elenco nemmeno vuoto — il server la rifiuta, e mandarlo
+            // significherebbe chiedere di essere rifiutati.
+            ...(this.supportsLinkedDdt() ? { linkedSalesDdtIds: [...this.linkedDdtIds()] } : {}),
           }
         : {}),
       ...(this.isInvoiceAccompanying()

@@ -77,6 +77,31 @@ export function isSalesInvoiceDocumentType(type: DocumentType): boolean {
   return (SALES_INVOICE_DOCUMENT_TYPES as readonly string[]).includes(type);
 }
 
+/**
+ * **Chi può agganciare un DDT vendita** («Riferimento DDT»).
+ *
+ * ⛔ **L'accompagnatoria NO, ed è la regola vigente** (`12` §matrice: «mai
+ * DDT»). L'accompagnatoria **sostituisce** il DDT nella stessa uscita:
+ * agganciarne uno è la stessa contraddizione di una Fattura dentro un DDT.
+ *
+ * ⚠️ Fino al 22/08/2026 la maschera lo offriva anche lì, perché usava
+ * `isSalesInvoiceDocumentType` — che è la famiglia intera, giusta per XML,
+ * numeratore e azioni fiscali, sbagliata per questo. Il codice permetteva ciò
+ * che la specifica vieta, e il proprietario ha confermato che **è il codice a
+ * cedere, non la matrice**.
+ *
+ * ⭐ **A cosa serve davvero l'aggancio**: è la fattura DIFFERITA — DDT durante
+ * il periodo, Fattura che li riepiloga. Alimenta i riferimenti DDT nell'XML
+ * FatturaPA e la riga «Riferimento DDT» in stampa. Funzione legittima, con la
+ * porta d'ingresso sbagliata.
+ *
+ * ⏸️ **La Nota di credito resta come prima**: nessuna regola scritta le vieta
+ * il collegamento, e toglierlo qui sarebbe una decisione non richiesta.
+ */
+export function supportsLinkedSalesDdt(type: DocumentType): boolean {
+  return isSalesInvoiceDocumentType(type) && !isInvoiceAccompanyingDocumentType(type);
+}
+
 /** Preventivo: maschera dedicata (stessa impostazione dell'Ordine cliente). */
 export function isQuoteDocumentType(type: DocumentType): boolean {
   return type === DocumentType.Quote;

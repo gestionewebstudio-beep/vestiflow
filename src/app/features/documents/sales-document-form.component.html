@@ -210,35 +210,37 @@
                     />
                   </div>
 
-                  <div class="doc-panel__field">
-                    <span class="doc-panel__label">Riferimento DDT (opzionale)</span>
-                    <app-select-menu
-                      [options]="ddtOptions()"
-                      value=""
-                      ariaLabel="Aggancia un DDT vendita"
-                      placeholder="Aggancia un DDT…"
-                      [fullWidth]="true"
-                      [includeEmptyOption]="false"
-                      (valueChange)="onAddLinkedDdt($event)"
-                    />
-                    @if (linkedDdts().length > 0) {
-                      <ul class="doc-form__causal-manage-list">
-                        @for (ddt of linkedDdts(); track ddt.id) {
-                          <li class="doc-form__causal-manage-item">
-                            <span class="doc-form__causal-manage-label">{{ ddt.label }}</span>
-                            <button
-                              type="button"
-                              class="doc-form__causal-icon-btn"
-                              (click)="onRemoveLinkedDdt(ddt.id)"
-                              [attr.aria-label]="'Rimuovi ' + ddt.label"
-                            >
-                              <i class="pi pi-times" aria-hidden="true"></i>
-                            </button>
-                          </li>
-                        }
-                      </ul>
-                    }
-                  </div>
+                  @if (supportsLinkedDdt()) {
+                    <div class="doc-panel__field">
+                      <span class="doc-panel__label">Riferimento DDT (opzionale)</span>
+                      <app-select-menu
+                        [options]="ddtOptions()"
+                        value=""
+                        ariaLabel="Aggancia un DDT vendita"
+                        placeholder="Aggancia un DDT…"
+                        [fullWidth]="true"
+                        [includeEmptyOption]="false"
+                        (valueChange)="onAddLinkedDdt($event)"
+                      />
+                      @if (linkedDdts().length > 0) {
+                        <ul class="doc-form__causal-manage-list">
+                          @for (ddt of linkedDdts(); track ddt.id) {
+                            <li class="doc-form__causal-manage-item">
+                              <span class="doc-form__causal-manage-label">{{ ddt.label }}</span>
+                              <button
+                                type="button"
+                                class="doc-form__causal-icon-btn"
+                                (click)="onRemoveLinkedDdt(ddt.id)"
+                                [attr.aria-label]="'Rimuovi ' + ddt.label"
+                              >
+                                <i class="pi pi-times" aria-hidden="true"></i>
+                              </button>
+                            </li>
+                          }
+                        </ul>
+                      }
+                    </div>
+                  }
 
                   <div class="doc-panel__field">
                     <label class="doc-panel__label" for="sd-m-payment-terms">
@@ -415,45 +417,52 @@
               </div>
 
               <!--
-              Riferimento DDT: aggancio opzionale a uno o più DDT esistenti.
-              Sull'accompagnatoria comanda anche lo scarico — con un DDT
-              agganciato la colonna «Scarica mag.» sparisce dalle righe.
+              Riferimento DDT: la fattura DIFFERITA — DDT durante il periodo,
+              fattura che li riepiloga. Alimenta i riferimenti nell'XML
+              FatturaPA e la riga «Riferimento DDT» in stampa.
+
+              ⛔ NON sull'accompagnatoria: «mai DDT» (12 §matrice), perché
+              sostituisce il DDT nella stessa uscita. Qui c'era scritto che
+              «sull'accompagnatoria comanda anche lo scarico»: era la dottrina
+              da cui nasceva il difetto.
             -->
-              <div class="doc-form__field">
-                <span class="doc-form__label">Riferimento DDT (opzionale)</span>
-                <app-select-menu
-                  [options]="ddtOptions()"
-                  value=""
-                  ariaLabel="Aggancia un DDT vendita"
-                  placeholder="Aggancia un DDT…"
-                  [compact]="true"
-                  [fullWidth]="true"
-                  [includeEmptyOption]="false"
-                  (valueChange)="onAddLinkedDdt($event)"
-                />
-                <!--
+              @if (supportsLinkedDdt()) {
+                <div class="doc-form__field">
+                  <span class="doc-form__label">Riferimento DDT (opzionale)</span>
+                  <app-select-menu
+                    [options]="ddtOptions()"
+                    value=""
+                    ariaLabel="Aggancia un DDT vendita"
+                    placeholder="Aggancia un DDT…"
+                    [compact]="true"
+                    [fullWidth]="true"
+                    [includeEmptyOption]="false"
+                    (valueChange)="onAddLinkedDdt($event)"
+                  />
+                  <!--
                 Riusa le classi della lista causali (stessa forma: voci con
                 etichetta e bottone di rimozione) invece di introdurne di nuove:
                 sono già nel foglio condiviso delle maschere documento.
               -->
-                @if (linkedDdts().length > 0) {
-                  <ul class="doc-form__causal-manage-list">
-                    @for (ddt of linkedDdts(); track ddt.id) {
-                      <li class="doc-form__causal-manage-item">
-                        <span class="doc-form__causal-manage-label">{{ ddt.label }}</span>
-                        <button
-                          type="button"
-                          class="doc-form__causal-icon-btn"
-                          (click)="onRemoveLinkedDdt(ddt.id)"
-                          [attr.aria-label]="'Rimuovi ' + ddt.label"
-                        >
-                          <i class="pi pi-times" aria-hidden="true"></i>
-                        </button>
-                      </li>
-                    }
-                  </ul>
-                }
-              </div>
+                  @if (linkedDdts().length > 0) {
+                    <ul class="doc-form__causal-manage-list">
+                      @for (ddt of linkedDdts(); track ddt.id) {
+                        <li class="doc-form__causal-manage-item">
+                          <span class="doc-form__causal-manage-label">{{ ddt.label }}</span>
+                          <button
+                            type="button"
+                            class="doc-form__causal-icon-btn"
+                            (click)="onRemoveLinkedDdt(ddt.id)"
+                            [attr.aria-label]="'Rimuovi ' + ddt.label"
+                          >
+                            <i class="pi pi-times" aria-hidden="true"></i>
+                          </button>
+                        </li>
+                      }
+                    </ul>
+                  }
+                </div>
+              }
 
               <div class="doc-form__field">
                 <label class="doc-form__label" for="sd-payment-terms">

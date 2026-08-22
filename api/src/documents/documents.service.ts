@@ -1124,7 +1124,13 @@ export class DocumentsService {
         });
 
         if (dto.linkedSalesDdtIds !== undefined) {
-          await this.syncLinkedSalesDdtsTx(tx, tenantId, created.id, dto.linkedSalesDdtIds);
+          await this.syncLinkedSalesDdtsTx(
+            tx,
+            tenantId,
+            created.id,
+            dto.linkedSalesDdtIds,
+            created.type,
+          );
         }
 
         if (dto.includedSalesOrderIds !== undefined) {
@@ -1281,7 +1287,26 @@ export class DocumentsService {
     tenantId: string,
     invoiceId: string,
     ddtIds: readonly string[],
+    invoiceType: DocumentType,
   ): Promise<void> {
+    // ⛔ **La Fattura accompagnatoria non aggancia DDT** — `12` §matrice, «mai
+    // DDT»: sostituisce il DDT nella stessa uscita, e agganciarne uno è la
+    // stessa contraddizione di una Fattura dentro un DDT.
+    //
+    // ⚠️ Fino al 22/08/2026 questo server li accettava senza guardare il tipo,
+    // e la maschera li offriva: il codice permetteva ciò che la specifica
+    // vieta. Il proprietario ha confermato che **cede il codice, non la
+    // matrice**.
+    //
+    // ⭐ La guardia sta QUI e non nei due chiamanti (creazione e modifica): una
+    // regola scritta in due punti è una regola che diverge al primo che ne
+    // dimentica uno.
+    if (invoiceType === DocumentType.invoice_accompanying && ddtIds.length > 0) {
+      throw new UnprocessableEntityException(
+        'La fattura accompagnatoria non può agganciare un DDT: sostituisce il DDT per la stessa uscita.',
+      );
+    }
+
     const uniqueIds = [...new Set(ddtIds)];
 
     if (uniqueIds.length > 0) {
@@ -2069,7 +2094,13 @@ export class DocumentsService {
 
       // Aggancio DDT della fattura: allineato a ogni salvataggio che lo dichiara.
       if (dto.linkedSalesDdtIds !== undefined) {
-        await this.syncLinkedSalesDdtsTx(tx, tenantId, saved.id, dto.linkedSalesDdtIds);
+        await this.syncLinkedSalesDdtsTx(
+          tx,
+          tenantId,
+          saved.id,
+          dto.linkedSalesDdtIds,
+          saved.type,
+        );
       }
 
       // Aggancio ordini cliente inclusi (DDT vendita, prompt DDT §LOGICA

@@ -211,17 +211,48 @@ fosse muta. **Non è vero, ed è stato misurato:**
 La guardia funziona e ha casi reali; è l'aggancio DDT su un'accompagnatoria a non dover
 esistere — o la matrice a dover cambiare.
 
-### ⏸ DECISIONE APERTA — chi cede fra la matrice e il codice
+### ✅ DECISO il 22/08/2026 — cede il CODICE, non la matrice
 
-Una delle due, e non la si deduce:
+> **La regola vigente resta: Fattura accompagnatoria, mai DDT.** L'accompagnatoria
+> **sostituisce** il DDT nella stessa uscita, e il percorso DDT → Accompagnatoria **non è
+> ammesso.**
 
-| Se vince…                                                                                       | Allora                                                                                                               |
-| ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| **la matrice** (`12`: l'accompagnatoria _sostituisce_ il DDT, includerne uno è contraddittorio) | il client smette di offrire «Riferimento DDT» sull'accompagnatoria, e il server lo rifiuta con un errore che lo dice |
-| **il codice** (l'aggancio esiste ed è usato)                                                    | la matrice si corregge: l'accompagnatoria può agganciare DDT, e la guardia attuale è la regola giusta                |
+⛔ **La matrice non si riapre sulla base del codice.** Che il codice permetta una cosa non la
+rende un requisito: è la direzione sbagliata da cui guardare, e il proprietario l'ha escluta
+esplicitamente.
 
-⚠️ **Finché la decisione manca, la guardia NON si tocca**: è l'unica cosa che oggi impedisce
-il doppio scarico nel caso che il codice consente.
+**Che cosa è stato fatto**, e il censimento dei consumer che l'ha preceduto:
+
+| Consumer del collegamento DDT         | Che cosa fa                                      | Classificato                                 |
+| ------------------------------------- | ------------------------------------------------ | -------------------------------------------- |
+| `document-xml.service.ts`             | riferimenti DDT nell'XML FatturaPA               | ✅ **funzione legittima della Fattura**      |
+| `document-pdf.service.ts`             | riga «Riferimento DDT» in stampa                 | ✅ legittima                                 |
+| `syncLinkedSalesDdtsTx`               | persiste il legame                               | ✅ legittima, **ora con la guardia di tipo** |
+| `invoiceAccompanyingUnloadsStock`     | non riscaricare merce già uscita                 | ⚠️ **difesa in profondità** — resta          |
+| la maschera, sotto `isSalesInvoice()` | **offriva** l'aggancio anche all'accompagnatoria | ⛔ **difetto, corretto**                     |
+| i DTO                                 | **accettavano** senza controllo di tipo          | ⛔ **difetto, corretto**                     |
+
+⭐ **Non era legacy e non era una funzione diversa: era una funzione giusta con la porta
+d'ingresso sbagliata.** Il collegamento serve alla **fattura differita** — DDT durante il
+periodo, Fattura che li riepiloga — ed è ciò che alimenta l'XML e la stampa.
+
+**Le due correzioni**, entrambe in un punto solo:
+
+- **client**: la sezione «Riferimento DDT» segue `supportsLinkedSalesDdt`, non
+  `isSalesInvoiceDocumentType` — quella è la famiglia intera, giusta per XML, numeratore e
+  azioni fiscali, sbagliata per questo. E il payload non manda l'elenco nemmeno vuoto;
+- **server**: `syncLinkedSalesDdtsTx` rifiuta l'aggancio su un'accompagnatoria. La guardia sta
+  **nella funzione**, non nei due chiamanti: una regola scritta in due punti diverge al primo
+  che ne dimentica uno.
+
+⚠️ **La guardia di magazzino NON è stata rimossa**, ed è la distinzione che il proprietario ha
+posto: può restare come difesa contro un percorso invalido, ma **non si promuove a requisito**.
+Se un'accompagnatoria arrivasse con dei DDT collegati — dati storici, un percorso non previsto —
+impedirebbe il doppio scarico. Non dice «l'accompagnatoria può avere DDT»: dice «se ne avesse,
+non riscarica».
+
+⏸️ **La Nota di credito resta com'era.** Nessuna regola scritta le vieta il collegamento, e
+toglierlo sarebbe stata una decisione non richiesta. **Da confermare** quando si tocca il §6.
 
 ⭐ **Resta vero, e indipendente da quella decisione**, che il percorso «include o deriva da una
 **Vendita al banco**» non è interrogato da nessuna parte, e che la firma a un parametro non
