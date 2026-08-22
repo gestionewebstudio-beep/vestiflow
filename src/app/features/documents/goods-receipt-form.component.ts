@@ -180,7 +180,6 @@ import {
   entryIncludesVat,
   grossFromNetMinor,
   netFromGrossExact,
-  netFromGrossMinor,
   vatInputFromLegacyRate,
   vatInputFromVatCode,
   type VatComputationInput,
@@ -807,6 +806,57 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   private rememberSalesNet(control: AbstractControl, netMinor: number, shown: string): void {
     this.salesNetCanonical.set(control, { net: netMinor, shown });
+  }
+
+  /**
+   * Il netto canonico del COSTO, con la stessa disciplina di
+   * `salesNetCanonical` — e volutamente **separato**, non generalizzato: costo
+   * e prezzi hanno modalità indipendenti (`costEntryMode` contro
+   * `salesPricesIncludeVat`) e cicli di vita diversi. Una utility comune
+   * dovrebbe parametrizzare proprio quella differenza, senza guadagnarci nulla.
+   *
+   * ⛔ Difetto che chiude (misurato il 22/08/2026): passando a Netto il campo
+   * veniva riscritto col valore ARROTONDATO, e tornando a Ivato 1,03 € diventava
+   * 1,02 €. Il campo mostra due decimali — ed è giusto — ma il valore da
+   * mandare al salvataggio è quello esatto.
+   */
+  private readonly costNetCanonical = new WeakMap<
+    AbstractControl,
+    { readonly net: number; readonly shown: string }
+  >();
+
+  private rememberCostNet(control: AbstractControl<string>, netMinor: number, shown: string): void {
+    this.costNetCanonical.set(control, { net: netMinor, shown });
+  }
+
+  /**
+   * Il netto canonico da usare per questa riga, o `null` se non c'è.
+   *
+   * ⭐ Vale **solo finché il campo mostra ancora quello che ci era stato
+   * scritto**: appena l'operatore digita, `control.value` cambia, il ricordo non
+   * combacia più e il valore vero torna a essere il suo. Nessuna invalidazione
+   * esplicita da mantenere allineata.
+   */
+  private costNetRicordato(control: AbstractControl<string>): number | null {
+    const ricordato = this.costNetCanonical.get(control);
+    return ricordato && ricordato.shown === control.value ? ricordato.net : null;
+  }
+
+  /**
+   * Il costo da mandare al salvataggio, nell'unità della modalità corrente.
+   *
+   * In modalità **ivata** è il lordo digitato: lo scorporo esatto lo fa il
+   * server. In modalità **netta** è il netto — e se viene da una conversione
+   * porta la coda, che il campo non può mostrare.
+   */
+  private lineCostEnteredMinor(control: AbstractControl<string>): number {
+    if (this.costEntryMode() === 'vat_excluded') {
+      const canonico = this.costNetRicordato(control);
+      if (canonico != null) {
+        return canonico;
+      }
+    }
+    return parseMoneyInput(control.value, this.currency)?.amountMinor ?? 0;
   }
 
   /**
@@ -2680,10 +2730,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private lineVatAmounts(
     line: ReturnType<GoodsReceiptFormComponent['createLine']>,
   ): VatLineAmounts {
-    const cost = parseMoneyInput(line.controls.unitCost.value, this.currency);
     const qtyRaw = Number(line.controls.quantity.value);
     return computeVatLineAmounts({
-      enteredUnitCostMinor: cost?.amountMinor ?? 0,
+      enteredUnitCostMinor: this.lineCostEnteredMinor(line.controls.unitCost),
       costEntryMode: this.costEntryMode(),
       quantity: Number.isFinite(qtyRaw) ? qtyRaw : 0,
       discountPercent: parseEffectiveDiscountPercent(line.controls.discountPercent.value),
@@ -2725,6 +2774,17 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       return;
     }
     line.controls.vatCodeId.setValue(value ?? '');
+    // ⛔ **I canonici della riga nascono con un'aliquota, e con un'altra non
+    // valgono più** (misurato il 22/08/2026). Il valore DIGITATO resta invariato
+    // — è la scelta di §13, e non si tocca — ma il campo continua a mostrare lo
+    // stesso testo, quindi il confronto `shown === value` combacerebbe ancora e
+    // il vecchio netto verrebbe riusato: 1,03 € ivati valgono 0,844262 al 22% e
+    // 0,936364 al 10%. Tolto il ricordo, il netto si ricostruisce dal valore
+    // corrente con l'aliquota nuova.
+    this.costNetCanonical.delete(line.controls.unitCost);
+    for (const field of SALES_PRICE_FIELDS) {
+      this.salesNetCanonical.delete(line.controls[field]);
+    }
     this.syncLegacyVatRate(line);
     this.markFormDirty();
   }
@@ -2895,17 +2955,33 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       if (!entryIncludesVat('vat_included', vat)) {
         continue;
       }
-      const converted =
-        mode === 'vat_included'
-          ? grossFromNetMinor(cost.amountMinor, vat.ratePercent)
-          : netFromGrossMinor(cost.amountMinor, vat.ratePercent);
-      line.controls.unitCost.setValue(
-        moneyToDecimalString({ amountMinor: converted, currencyCode: this.currency }).replace(
-          '.',
-          ',',
-        ),
-        { emitEvent: false },
-      );
+      const control = line.controls.unitCost;
+      // ⭐ Il netto ESATTO di partenza: quello ricordato se il campo non è stato
+      // toccato, altrimenti scorporato ora dal valore che l'operatore vede.
+      const nettoEsatto =
+        this.costEntryMode() === 'vat_excluded'
+          ? (this.costNetRicordato(control) ?? cost.amountMinor)
+          : toStorableMinor(netFromGrossExact(cost.amountMinor, vat.ratePercent));
+
+      // Il campo mostra sempre due decimali, in entrambe le modalità: è il
+      // contratto verso l'operatore, e non è quello il valore che si salva.
+      // `moneyToDecimalString` arrotonda al centesimo per suo conto — è il punto
+      // di uscita dichiarato, «la coda sparisce qui, mai prima». Il netto esatto
+      // le si passa intero: a mostrarlo a due decimali pensa lei.
+      const mostrato = moneyToDecimalString({
+        amountMinor:
+          mode === 'vat_included' ? grossFromNetMinor(nettoEsatto, vat.ratePercent) : nettoEsatto,
+        currencyCode: this.currency,
+      }).replace('.', ',');
+      control.setValue(mostrato, { emitEvent: false });
+
+      // ⛔ Il ricordo serve solo in modalità NETTA: in ivata il valore del campo
+      // è già quello da mandare, e il server ne fa lo scorporo esatto.
+      if (mode === 'vat_excluded') {
+        this.rememberCostNet(control, nettoEsatto, mostrato);
+      } else {
+        this.costNetCanonical.delete(control);
+      }
     }
     this.costEntryModeTouched = true;
     this.costEntryMode.set(mode);
@@ -4661,7 +4737,10 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       purchaseCostEntryMode: this.costEntryMode(),
       lines: persistableControls.map((control) => {
         const line = control.getRawValue();
-        const cost = parseMoneyInput(line.unitCost, this.currency);
+        // ⭐ Lo stesso valore che alimenta gli importi a schermo
+        // (`lineVatAmounts`), non una seconda lettura del campo: in modalità
+        // netta porta la coda dello scorporo, che il campo non può mostrare.
+        const costoInviatoMinor = this.lineCostEnteredMinor(control.controls.unitCost);
         const name = line.productName.trim() || line.description.trim();
         const newProduct = this.lineNeedsProductCreation(control)
           ? this.buildNewProductBody(control)
@@ -4672,8 +4751,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           sku: line.sku.trim() || undefined,
           description: name || line.description.trim() || 'Riga documento',
           quantity: Number(line.quantity),
-          unitPriceMinor: cost?.amountMinor ?? 0,
-          enteredUnitCostMinor: cost?.amountMinor ?? 0,
+          unitPriceMinor: costoInviatoMinor,
+          enteredUnitCostMinor: costoInviatoMinor,
           discountPercent: parseEffectiveDiscountPercent(line.discountPercent ?? ''),
           vatRatePercent: line.vatRatePercent ? Number(line.vatRatePercent) : undefined,
           vatCodeId: line.vatCodeId || undefined,

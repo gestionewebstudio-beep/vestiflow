@@ -635,8 +635,21 @@ describe('GoodsReceiptFormComponent', () => {
       };
     }
 
-    const IVA_22 = vatCode({ id: 'vat-22', code: '22', ratePercent: 22 });
-    const IVA_10 = vatCode({ id: 'vat-10', code: '10', ratePercent: 10 });
+    const codiceIva = (id: string, ratePercent: number) => ({
+      id,
+      code: String(ratePercent),
+      natureId: 'nat-1',
+      nature: {},
+      ratePercent,
+      nonDeductiblePercent: 0,
+      description: '',
+      notes: null,
+      usageScope: 'both',
+      calculationMode: 'standard',
+      vatAffectsSupplierTotal: true,
+    });
+    const IVA_22 = codiceIva('vat-22', 22);
+    const IVA_10 = codiceIva('vat-10', 10);
     const REVERSE = vatCode({
       id: 'vat-rc',
       code: 'RC',
@@ -1115,6 +1128,140 @@ describe('GoodsReceiptFormComponent', () => {
 
       component['selectSalesPriceMode'](false);
       expect(line.controls.compareAtPrice.value).toBe('');
+    });
+  });
+
+  describe('precisione del costo al cambio Netto/Ivato', () => {
+    const codiceIva = (id: string, ratePercent: number) => ({
+      id,
+      code: String(ratePercent),
+      natureId: 'nat-1',
+      nature: {},
+      ratePercent,
+      nonDeductiblePercent: 0,
+      description: '',
+      notes: null,
+      usageScope: 'both',
+      calculationMode: 'standard',
+      vatAffectsSupplierTotal: true,
+    });
+    const IVA_22 = codiceIva('vat-22', 22);
+    const IVA_10 = codiceIva('vat-10', 10);
+
+    /**
+     * ⛔ Difetto corretto il 22/08/2026: passando a Netto il campo veniva
+     * riscritto col valore ARROTONDATO, e tornando a Ivato 1,03 € diventava
+     * 1,02 €. Il campo mostra due decimali — ed è giusto — ma il valore che va
+     * al salvataggio deve conservare la coda dello scorporo.
+     *
+     * ⚠️ Il difetto NON è universale: colpisce il 18,0% dei prezzi ivati al 22%.
+     * Un test sul solo 25,00 € non lo vedrebbe.
+     */
+    async function conRiga(costo: string, vatCodeId = IVA_22.id, ivato = true) {
+      const { fixture } = await setup({ vatCodes: [IVA_22, IVA_10] });
+      const component = fixture.componentInstance;
+      component.form.controls.supplierId.setValue('sup-1');
+      component.form.controls.locationId.setValue('loc-1');
+      fixture.detectChanges();
+      if (ivato) {
+        component['costEntryMode'].set('vat_included');
+      }
+      component['addLine']();
+      const line = component['lines'].at(0);
+      line.controls.productName.setValue('Articolo');
+      line.controls.quantity.setValue(1);
+      line.controls.vatCodeId.setValue(vatCodeId);
+      line.controls.unitCost.setValue(costo);
+      return { component, line, fixture };
+    }
+
+    /** Cambia modalità come fa il pulsante: pending + conferma. */
+    function commuta(component: GoodsReceiptFormComponent, mode: 'vat_included' | 'vat_excluded') {
+      component['pendingCostMode'].set(mode);
+      component['confirmCostModeConversion']();
+    }
+
+    it('⭐ 1,03 € @22% → Netto → Ivato torna 1,03 €', async () => {
+      const { component, line } = await conRiga('1,03');
+
+      commuta(component, 'vat_excluded');
+      expect(line.controls.unitCost.value).toBe('0,84'); // il campo mostra 2 decimali
+      expect(component['lineCostEnteredMinor'](line.controls.unitCost)).toBeCloseTo(84.4262, 4);
+
+      commuta(component, 'vat_included');
+      expect(line.controls.unitCost.value).toBe('1,03'); // ⛔ prima tornava 1,02
+    });
+
+    it('⭐ tre commutazioni consecutive non degradano il valore', async () => {
+      const { component, line } = await conRiga('1,03');
+
+      for (let giro = 0; giro < 3; giro++) {
+        commuta(component, 'vat_excluded');
+        commuta(component, 'vat_included');
+      }
+
+      expect(line.controls.unitCost.value).toBe('1,03');
+    });
+
+    it('⛔ una modifica manuale PREVALE sul canonico ricordato', async () => {
+      const { component, line } = await conRiga('1,03');
+      commuta(component, 'vat_excluded');
+
+      // L'operatore ridigita: da qui il valore vero è il suo.
+      line.controls.unitCost.setValue('0,90');
+
+      expect(component['lineCostEnteredMinor'](line.controls.unitCost)).toBe(90);
+      commuta(component, 'vat_included');
+      expect(line.controls.unitCost.value).toBe('1,10'); // 0,90 × 1,22 = 1,098 → 1,10
+    });
+
+    it('⛔ il cambio di aliquota INVALIDA il canonico: nasce con un’IVA, con un’altra non vale', async () => {
+      const { component, line } = await conRiga('1,03');
+      commuta(component, 'vat_excluded');
+      expect(component['lineCostEnteredMinor'](line.controls.unitCost)).toBeCloseTo(84.4262, 4);
+
+      component['onLineVatSelect'](0, IVA_10.id);
+
+      // Il valore DIGITATO resta invariato (§13) — ma il netto si ricostruisce
+      // con la nuova aliquota, non si riusa quello del 22%.
+      expect(component['lineCostEnteredMinor'](line.controls.unitCost)).toBe(84);
+    });
+
+    it('⛔ …e lo invalida anche in modalità Ivata', async () => {
+      const { component, line } = await conRiga('1,03');
+      component['onLineVatSelect'](0, IVA_10.id);
+
+      commuta(component, 'vat_excluded');
+      // 1,03 / 1,10 = 0,936363… → il canonico è quello del 10%.
+      expect(component['lineCostEnteredMinor'](line.controls.unitCost)).toBeCloseTo(93.6364, 4);
+    });
+
+    it('campo vuoto: nessun costo, non zero mascherato da valore', async () => {
+      const { component, line } = await conRiga('1,03');
+      line.controls.unitCost.setValue('');
+
+      expect(component['lineCostEnteredMinor'](line.controls.unitCost)).toBe(0);
+    });
+
+    it('una riga NUOVA non eredita il canonico di quella precedente', async () => {
+      const { component } = await conRiga('1,03');
+      commuta(component, 'vat_excluded');
+
+      component['addLine']();
+      const nuova = component['lines'].at(1);
+      nuova.controls.unitCost.setValue('0,84');
+
+      // Nessun ricordo su questo control: vale il digitato.
+      expect(component['lineCostEnteredMinor'](nuova.controls.unitCost)).toBe(84);
+    });
+
+    it('⭐ IVA 10%: il giro torna', async () => {
+      const { component, line } = await conRiga('1,03', IVA_10.id);
+
+      commuta(component, 'vat_excluded');
+      expect(component['lineCostEnteredMinor'](line.controls.unitCost)).toBeCloseTo(93.6364, 4);
+      commuta(component, 'vat_included');
+      expect(line.controls.unitCost.value).toBe('1,03');
     });
   });
 });
