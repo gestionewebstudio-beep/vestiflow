@@ -726,6 +726,34 @@ describe('StoreSaleDocumentFormComponent', () => {
       return rendered;
     }
 
+    it('⛔ una quantità NORMALE non è un errore — e non lo era per nessuno', async () => {
+      // Guardia di una regressione misurata il 22/08/2026: convertendo il banco a
+      // FormArray il validatore della quantità era stato riscritto a mano come
+      // `/^d+$/` invece di `/^\d+$/` — un carattere.
+      // Come scritto pretendeva la LETTERA «d» ripetuta, quindi «1» era invalido:
+      // ogni riga del banco marcava la propria quantità in errore, sempre.
+      //
+      // ⚠️ Nessun test lo vedeva perché tutti verificavano che un valore SBAGLIATO
+      // fosse rifiutato, e nessuno che un valore GIUSTO fosse accettato. È la forma
+      // in cui una validazione si rompe restando verde.
+      const rendered = await conUnaRiga();
+
+      const quantita = screen.getByRole<HTMLInputElement>('spinbutton', { name: /Quantità/i });
+      expect(quantita.value).toBe('1');
+      expect(quantita.getAttribute('aria-invalid')).toBeNull();
+      expect(rendered.component.form.controls.lines.at(0).controls.quantity.valid).toBe(true);
+    });
+
+    it('⛔ al banco la quantità non scende sotto il pezzo', async () => {
+      // Stessa regressione, altro versante: il banco nasceva con `min="1"` e
+      // l'Ordine cliente con `min="0"`. Estraendo la riga comune il valore
+      // dell'Ordine cliente si era imposto a entrambi.
+      await conUnaRiga();
+
+      const quantita = screen.getByRole<HTMLInputElement>('spinbutton', { name: /Quantità/i });
+      expect(quantita.getAttribute('min')).toBe('1');
+    });
+
     it('⭐ sulla Vendita la spunta si legge «Scarica giacenze»', async () => {
       await conUnaRiga();
 

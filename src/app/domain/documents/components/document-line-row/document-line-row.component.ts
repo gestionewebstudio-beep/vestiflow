@@ -123,6 +123,21 @@ export class DocumentLineRowComponent {
   /** «Duplica riga»: c'è dove duplicare una riga ha un senso. */
   readonly canDuplicate = input(false);
 
+  /**
+   * Minimo dell'attributo `min` sulla cella quantita'.
+   *
+   * ⛔ **Non e' un dettaglio estetico, ed e' gia' costato una regressione.**
+   * Il banco nasceva con `min="1"` e l'Ordine cliente con `min="0"`: estraendo
+   * la riga comune il valore dell'Ordine cliente si e' imposto a tutti e due, e
+   * al banco la freccia in giu' ha cominciato a scendere sotto il pezzo.
+   *
+   * ⚠️ **Resta pero' una domanda aperta sull'Ordine cliente**: il suo
+   * `Validators.min(1)` e questo `0` dicono due cose diverse — il browser lascia
+   * scendere a zero, il form marca invalido. Allinearli e' una decisione, non una
+   * conseguenza, e qui il default resta quello storico per non prenderla da soli.
+   */
+  readonly quantityMin = input(0);
+
   // ── Eventi: la riga chiede, la maschera decide ───────────────────────────
 
   readonly codeChanged = output<DocumentLineFieldEvent<string>>();

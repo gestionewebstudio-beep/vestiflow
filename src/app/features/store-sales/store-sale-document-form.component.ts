@@ -381,7 +381,7 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
       /** La descrizione COM'ERA sul documento: la riga è una fotografia. */
       persistedDescription: this.fb.control<string | null>(null),
       quantity: this.fb.control(1, {
-        validators: [Validators.required, Validators.min(1), Validators.pattern(/^d+$/)],
+        validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
       }),
       unitPrice: this.fb.control(''),
       discount: this.fb.control(''),

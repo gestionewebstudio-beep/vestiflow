@@ -159,10 +159,11 @@
       @if (!view().isReference) {
         <input
           [id]="cellId('qty')"
+          [attr.aria-label]="'Quantità riga ' + (lineIndex() + 1)"
           class="doc-form__input doc-form__input--table doc-form__input--num"
           [class.doc-form__input--invalid]="view().quantityInvalid"
           type="number"
-          min="0"
+          [min]="quantityMin()"
           step="1"
           formControlName="quantity"
           (keydown)="fieldKeydown.emit({ field: 'quantity', value: $event })"
@@ -220,6 +221,7 @@
       @if (!view().isReference) {
         <input
           [id]="cellId('price')"
+          [attr.aria-label]="'Prezzo riga ' + (lineIndex() + 1)"
           class="doc-form__input doc-form__input--table doc-form__input--num"
           type="text"
           inputmode="decimal"
@@ -235,6 +237,7 @@
       @if (!view().isReference) {
         <input
           [id]="cellId('discount')"
+          [attr.aria-label]="'Sconto riga ' + (lineIndex() + 1)"
           class="doc-form__input doc-form__input--table doc-form__input--num"
           type="text"
           formControlName="discount"
@@ -281,6 +284,7 @@
       @if (!view().isReference) {
         <input
           [id]="cellId('serials')"
+          [attr.aria-label]="'Numeri di serie riga ' + (lineIndex() + 1)"
           class="doc-form__input doc-form__input--table"
           type="text"
           formControlName="serialNumbersText"
