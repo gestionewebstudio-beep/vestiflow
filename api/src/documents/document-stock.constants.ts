@@ -27,9 +27,29 @@ export const DOCUMENT_STOCK_UNLOAD_TYPES: readonly DocumentType[] = [
 ] as const;
 
 /**
- * Fattura accompagnatoria: lo scarico avviene solo senza DDT agganciato.
- * Con almeno un DDT il documento è puramente fiscale — un secondo scarico
- * porterebbe le giacenze in negativo per la stessa merce.
+ * ⛔ **SUPERATO — NON USARE COME REQUISITO** (misurato 22/08/2026, `07` §5-bis).
+ *
+ * Qui c'era: «Fattura accompagnatoria: lo scarico avviene solo senza DDT
+ * agganciato. Con almeno un DDT il documento è puramente fiscale.»
+ *
+ * ⛔ **Quella condizione non può mai scattare.** `12` §matrice dichiara che
+ * l'accompagnatoria «mai DDT»: questo contatore vale SEMPRE 0, la funzione
+ * risponde SEMPRE true, e l'accompagnatoria scarica sempre. La guardia
+ * presidia un percorso che il dominio dichiara impossibile.
+ *
+ * Il percorso che accade davvero — include o deriva da una **Vendita al
+ * banco**, che ha già fatto uscire la merce — non è interrogato da nessuna
+ * parte.
+ *
+ * ⭐ **La firma a un parametro è la regola vecchia scolpita nel tipo**: non si
+ * corregge senza cambiarla. Va sostituita da un predicato che risponda a
+ * «questa stessa uscita fisica è già stata registrata a monte?», qualunque sia
+ * il percorso — e la decisione va estratta UNA volta: la stessa policy esiste
+ * in tre copie (`documents.service.ts:2335`, `:2105`, motore del banco).
+ *
+ * ⚠️ Difetto **latente**: oggi Fattura e accompagnatoria non includono niente
+ * dalla maschera e la rotta Vendita al banco → accompagnatoria non esiste. Si
+ * arma quando quella catena si apre.
  */
 export function invoiceAccompanyingUnloadsStock(linkedSalesDdtCount: number): boolean {
   return linkedSalesDdtCount === 0;

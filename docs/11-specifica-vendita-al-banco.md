@@ -1596,6 +1596,16 @@ Alla conclusione della **vendita**: una riga movimentabile → un movimento nega
 documento e riga con identità stabile, tenant e Location rispettati, retry e doppio clic
 idempotenti, e nessun secondo scarico generato da Corrispettivi o report.
 
+⛔ **E nessun secondo scarico dai DOCUMENTI A VALLE** _(22/08/2026)_. Qui l'unica clausola
+anti-duplicazione nominava solo le letture derivate — Corrispettivi e report — e taceva sui
+documenti: chi implementava restando dentro A18 costruiva la catena che scarica due volte.
+
+> **Che la Fattura o la Fattura accompagnatoria la INCLUDANO o ne DERIVINO, le righe
+> provenienti da questa vendita non si riscaricano.** La merce è già uscita alla cassa.
+
+È la regola fisica di `12` («un collegamento documentale non autorizza mai a duplicare un
+movimento già avvenuto»), e l'elenco per origine sta in `07` §5-bis.
+
 ⭐ **E anche lo scarico segue la spunta di riga** _(21/08/2026, vedi A15)_: prima questa
 sezione la nominava solo per il Reso, ed era un'asimmetria del testo, non del dominio.
 

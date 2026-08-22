@@ -106,14 +106,54 @@ Scelta la tendina e non tre pulsanti affiancati perché la barra non si allunga 
 >
 > **Il valore iniziale della casella lo decide l'ORIGINE**, non il tipo di documento.
 
-| Origine della fattura            | La casella nasce | Perché                                    |
-| -------------------------------- | ---------------- | ----------------------------------------- |
-| articoli inseriti a mano         | **spuntata**     | la merce non è ancora uscita              |
-| Ordine cliente interno           | **spuntata**     | scarica, e libera gli impegni dell'ordine |
-| DDT vendita che ha già scaricato | **non spuntata** | è uscita col DDT                          |
-| Ordine di canale già evaso       | **non spuntata** | è uscita col giro dell'ordine             |
+| Origine della RIGA                  | La casella nasce | Perché                                    |
+| ----------------------------------- | ---------------- | ----------------------------------------- |
+| creazione diretta (inserita a mano) | **spuntata**     | la merce non è ancora uscita              |
+| da/include **Preventivo**           | **spuntata**     | un preventivo non muove niente            |
+| da/include **Ordine cliente**       | **spuntata**     | scarica, e libera gli impegni dell'ordine |
+| da/include **DDT vendita**          | **non spuntata** | è uscita col DDT                          |
+| da/include **Ordine Shopify**       | **non spuntata** | è uscita col giro dell'ordine di canale   |
+| da/include **Vendita al banco**     | **non spuntata** | è uscita alla cassa                       |
 
-**«La merce esce una volta sola» non è una regola da far rispettare: è l'origine a saperlo**, e lo dice spuntando o no. Non serve una condizione a livello di documento, non serve enumerare i casi, e il caso che arriverà domani non rompe niente — porta con sé la propria origine.
+⭐ **Elenco completo, deciso dal proprietario il 22/08/2026.** Qui c'erano quattro righe:
+mancavano il Preventivo e la Vendita al banco, ed è il secondo che ha prodotto il difetto
+descritto sotto.
+
+> **Motivo unico, e non ce n'è un secondo: se la merce è già uscita fisicamente, la Fattura
+> non deve scaricarla una seconda volta.**
+
+⭐ **La casella è PER RIGA, quindi anche l'origine lo è.** Un documento può includere sorgenti
+diverse — un Preventivo e un DDT nella stessa Fattura — e allora alcune righe nascono spuntate
+e altre no. ⛔ Non esiste un «documento che scarica» o «che non scarica»: esistono righe.
+
+### ⛔ Vale su ENTRAMBI i percorsi, e la riga da sola non basta
+
+⚠️ **Qui c'era scritto:** _«"La merce esce una volta sola" non è una regola da far rispettare: è
+l'origine a saperlo… Non serve una condizione a livello di documento, non serve enumerare i
+casi, e il caso che arriverà domani non rompe niente — porta con sé la propria origine.»_
+
+**⛔ SUPERATO — NON USARE COME REQUISITO.** Il caso arrivato dopo — la Fattura accompagnatoria
+generata da una Vendita al banco — **ha rotto**, e per due ragioni misurate il 22/08/2026.
+
+**1. «Origine» copriva un percorso solo.** _Includere_ una riga tirandola dentro e _derivare_
+un intero documento sono operazioni diverse (`12`, matrice dei collegamenti). La tabella qui
+sopra vale per **tutte e due**: che la Fattura **includa** una Vendita al banco o ne **derivi**,
+quelle righe non riscaricano. Ogni formulazione che dice solo «documento agganciato» lascia
+fuori metà dei casi — ed è la formulazione da cui il codice è stato scritto.
+
+**2. ⛔ La riga NON porta con sé la propria origine.** È l'assunzione su cui poggiava l'intera
+frase ritirata, e non regge alla misura:
+
+| Cosa si sperava                | Cosa c'è davvero                                                                    |
+| ------------------------------ | ----------------------------------------------------------------------------------- |
+| la riga sa da dove viene       | `DocumentLine` **non ha nessun campo di provenienza**                               |
+| `lineSource` è quel campo      | è della Registrazione fattura acquisto (`vat_summary`/`manual`), «Null altrove»     |
+| il motore Includi la trasporta | `IncludedDocumentLine` trasporta solo `isReference`                                 |
+| `sourceDocumentId` basta       | sta su **`Document`**, non sulla riga: dice da dove viene il documento, non la riga |
+
+⚠️ **Una regola per riga senza un dato per riga non è applicabile.** Il campo va aggiunto, ed è
+un cambio di schema — quindi soggetto al vincolo del database condiviso: **prima la migration
+compatibile, poi il codice che lo scrive** (`regole-qualita`).
 
 ⚠️ **RITIRATO IL 15/08/2026.** Qui c'era scritto: _«La Nota di credito è fuori da questo meccanismo: non movimenta il magazzino (§6), quindi non ha la casella. La merce che rientra passa da un documento di carico separato.»_
 
@@ -142,6 +182,48 @@ documentTypeUnloadsStockOnConfirm(type) = DOCUMENT_STOCK_UNLOAD_TYPES.includes(t
 - il **primo** va esteso alla Fattura;
 - il **secondo** va spostato dal tipo all'**origine**;
 - il **terzo** deve includere la famiglia fattura.
+
+#### ⛔ E c'è un QUARTO cancello, che nessuno aveva visto: la guardia è muta _(22/08/2026)_
+
+L'unica guardia della famiglia fattura presidia un percorso che **non può accadere**.
+
+```ts
+// document-stock.constants.ts:34
+export function invoiceAccompanyingUnloadsStock(linkedSalesDdtCount: number): boolean {
+  return linkedSalesDdtCount === 0;
+}
+```
+
+Conta i **DDT agganciati** all'accompagnatoria. Ma `12` §matrice dichiara che
+l'accompagnatoria **«mai DDT»**: quel contatore vale **sempre 0**, la funzione risponde
+**sempre `true`**, e l'accompagnatoria **scarica sempre**. Intanto il percorso che accade
+davvero — include o deriva da una **Vendita al banco** — non è interrogato da nessuna parte.
+
+⭐ **La firma a un parametro è la regola vecchia scolpita nel tipo**: non si può correggere
+senza cambiarla. Va sostituita da un predicato che risponda a **«questa stessa uscita fisica è
+già stata registrata a monte?»**, qualunque sia il percorso.
+
+⚠️ **La stessa policy esiste in TRE copie** — `documents.service.ts:2335` (conferma),
+`:2105` (modifica) e il motore della Vendita al banco. Una guardia messa in un punto solo
+lascia gli altri due aperti: si estrae **una** decisione prima di toccare i chiamanti.
+
+⚠️ **Un'asimmetria da chiudere insieme, o si corregge metà difetto**: a `documents.service.ts:2343`
+il filtro `!doc.onlineSaleId` è legato al **solo** `sales_ddt`, quindi `accompanyingUnloads`
+lo scavalca — un'accompagnatoria collegata a una vendita online riscarica, con la colonna che
+lo impedirebbe già presente.
+
+⚠️ **E prima di appoggiarsi a `sourceDocumentId`, va verificato che sia popolato sui dati
+reali.** Un commento del 16/08/2026 nello stesso file sostiene che «non è mai stato scritto da
+nessuno» — è il motivo per cui il filtro «DDT da fatturare» fu riscritto su
+`InvoiceSalesDdtLink`. Una guardia costruita su un campo vuoto sarebbe muta come quella che
+sostituisce.
+
+⛔ **Il difetto è LATENTE, non attivo.** Verificato: `includeSourceKindsForDocumentType`
+restituisce sorgenti **solo** per il DDT vendita, quindi oggi Fattura e accompagnatoria non
+includono niente dalla maschera, e la rotta Vendita al banco → accompagnatoria non esiste. Si
+arma **esattamente** quando si apre quella catena — che è ciò che `11` §piano già imponeva:
+_«il 12 non si inizia prima dell'11: una catena che si apre prima che la regola del solo
+effetto fisico sia applicata è una catena che scarica due volte.»_
 
 **La conversione ha già l'idea giusta, letta dal capo sbagliato.** Oggi imposta `loadsStock: dto.targetType === DocumentType.sales_ddt` — decide dal **tipo di destinazione**. Va girata sull'**origine**: «la merce è già uscita?». È la stessa riga, letta dall'altro verso.
 
