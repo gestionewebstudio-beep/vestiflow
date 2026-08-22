@@ -26,7 +26,7 @@ export const SALES_DOCUMENT_LINE_COLUMNS: readonly TableColumnDef[] = [
   { id: 'quantity', label: 'Qtà', numeric: true, defaultWidthPx: 72, minWidthPx: 52 },
   { id: 'unitPrice', label: 'Prezzo', numeric: true, defaultWidthPx: 104, minWidthPx: 72 },
   { id: 'discount', label: 'Sconto', numeric: true, defaultWidthPx: 84, minWidthPx: 60 },
-  { id: 'vat', label: 'Codice IVA', defaultWidthPx: 120, minWidthPx: 84 },
+  { id: 'vat', label: 'IVA', defaultWidthPx: 120, minWidthPx: 84 },
   { id: 'loadsStock', label: 'Scarica mag.', defaultWidthPx: 88, minWidthPx: 64 },
   { id: 'actions', label: 'Azioni', defaultWidthPx: 44, minWidthPx: 44 },
 ];

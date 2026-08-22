@@ -66,6 +66,21 @@ export interface TableColumnDef {
   readonly label: string;
   /** Spiegazione mostrata al passaggio del mouse su un'intestazione abbreviata. */
   readonly headerTooltip?: string;
+  /**
+   * **Solo PRESENTAZIONE**: allinea a destra e usa `tabular-nums` (classe
+   * `--numeric` in tabella, `class="num"` negli export). Non descrive il tipo
+   * del dato, non valida, non formatta il valore.
+   *
+   * ⛔ **Digitare numeri per cercare non rende il dato numerico** (deciso dal
+   * proprietario il 22/08/2026). Il Codice IVA si scrive `22`, `22r`, `10sp`:
+   * è alfanumerico, quindi `numeric: false` — e resta vero che nella sua cella
+   * si digitano cifre per filtrare i codici, perché quella è la ricerca a
+   * precedenza-codice della cella, non il tipo della colonna.
+   *
+   * ⚠️ Era l'unica proprietà di questo modello senza spiegazione, ed è la causa
+   * radice di una divergenza vera: la colonna IVA era `numeric: true` in tre
+   * documenti e `false` in due.
+   */
   readonly numeric?: boolean;
   /** Colonna visibile di default se nessuna preferenza salvata. */
   readonly defaultVisible?: boolean;

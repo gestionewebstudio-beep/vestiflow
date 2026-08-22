@@ -53,12 +53,12 @@ describe('coerenza delle colonne riga documento', () => {
     product: ['label', 'defaultWidthPx'],
     // «Qtà» sul documento di vendita, «Quantità» sui movimenti, «Q.tà» altrove.
     quantity: ['label', 'defaultWidthPx', 'minWidthPx'],
-    // ⛔ La più seria: `numeric` è true in Ordine cliente, Arrivo merce e
-    // Ordine fornitore, ed è ASSENTE nel documento di vendita e al banco —
-    // dove l'etichetta è anche diversa («Codice IVA»). Potrebbe essere
-    // deliberata: dove si SCEGLIE un codice IVA la cella non è un numero da
-    // allineare a destra. Da decidere, non da uniformare.
-    vat: ['label', 'numeric', 'defaultWidthPx', 'minWidthPx'],
+    // ⭐ `label` e `numeric` sono usciti da qui il 22/08/2026, DECISI dal
+    // proprietario: etichetta canonica «IVA», e `numeric: false` ovunque —
+    // il Codice IVA è alfanumerico (`22`, `22r`, `10sp`), e digitare cifre per
+    // cercarlo è la ricerca a precedenza-codice della cella, non il tipo della
+    // colonna. Restano solo le larghezze.
+    vat: ['defaultWidthPx', 'minWidthPx'],
     discount: ['defaultWidthPx', 'minWidthPx'],
     lineTotal: ['defaultWidthPx', 'minWidthPx'],
     // ⭐ `sku`, `articleCode` e `barcode` NON compaiono qui: sono già identiche

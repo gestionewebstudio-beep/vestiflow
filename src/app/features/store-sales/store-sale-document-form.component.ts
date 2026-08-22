@@ -380,6 +380,12 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
       productName: this.fb.control(''),
       /** La descrizione COM'ERA sul documento: la riga è una fotografia. */
       persistedDescription: this.fb.control<string | null>(null),
+      // ⭐ EAN: dato dell'ANAGRAFICA, non del documento — `DocumentLine` non lo
+      // persiste. Si legge dalla variante corrente come la disponibilità, e per
+      // questo si aggiorna anche sulle righe già salvate: la regola della
+      // fotografia (`regole-gestionale`) governa ciò che il documento CONSERVA,
+      // e questo il documento non lo conserva.
+      barcode: this.fb.control(''),
       quantity: this.fb.control(1, {
         validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
       }),
@@ -945,6 +951,9 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
     controls.onHand.setValue(onHand);
     controls.committed.setValue(Math.max(0, onHand - available));
     controls.available.setValue(available);
+    // ⛔ Sopra il `return`: è un dato letto adesso, non una fotografia. Sotto,
+    // una riga riaperta mostrerebbe la colonna EAN vuota.
+    controls.barcode.setValue(summary.barcode ?? '', { emitEvent: false });
     if (salvata) {
       return;
     }

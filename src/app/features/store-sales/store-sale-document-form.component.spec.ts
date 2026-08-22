@@ -754,6 +754,16 @@ describe('StoreSaleDocumentFormComponent', () => {
       expect(quantita.getAttribute('min')).toBe('1');
     });
 
+    it('⛔ la colonna EAN mostra il DATO, non un trattino', async () => {
+      // Misurato il 22/08/2026: la colonna era stata dichiarata senza che il
+      // banco popolasse il controllo — visibile e muta, «—» su ogni riga. Una
+      // colonna che non mostra niente è peggio di una colonna che manca:
+      // sembra che l'articolo non abbia un EAN.
+      const rendered = await conUnaRiga();
+
+      expect(rendered.component.form.controls.lines.at(0).controls.barcode.value).toBe(EAN_NOTO);
+    });
+
     it('⭐ sulla Vendita la spunta si legge «Scarica giacenze»', async () => {
       await conUnaRiga();
 

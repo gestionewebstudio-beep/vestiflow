@@ -52,7 +52,7 @@ export const CUSTOMER_ORDER_LINE_COLUMNS: readonly TableColumnDef[] = [
   },
   // IVA: la cella ospita una tendina (codice + freccia), non solo un numero —
   // stretta, il codice veniva troncato («2…» al posto di «22»).
-  { id: 'vat', label: 'IVA', numeric: true, defaultWidthPx: 96, minWidthPx: 76 },
+  { id: 'vat', label: 'IVA', defaultWidthPx: 96, minWidthPx: 76 },
   { id: 'commitsStock', label: 'Imp.', defaultWidthPx: 48, minWidthPx: 40 },
   { id: 'lineTotal', label: 'Totale', numeric: true, defaultWidthPx: 88, minWidthPx: 56 },
   // Due pulsanti da 30px (duplica + elimina) più gap e rientri: sotto gli 84
