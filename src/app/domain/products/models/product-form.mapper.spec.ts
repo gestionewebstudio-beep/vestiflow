@@ -261,4 +261,40 @@ describe('product-form.mapper', () => {
       expect(dto.variants[0]?.sellingPrice.amountMinor).toBe(5990);
     });
   });
+
+  describe('prezzo barrato — precisione, come gli altri prezzi di vendita', () => {
+    /**
+     * ⛔ Corretto il 22/08/2026. Il barrato usava `moneyFromMajor`, che arrotonda
+     * al centesimo, mentre prezzo di vendita, Shopify e i tre listini usavano
+     * `moneyFromMajorExact`. La sua colonna e' `Decimal(16,6)` dal 03/08: la coda
+     * si perdeva PRIMA di arrivare a una colonna che sapeva conservarla.
+     *
+     * ⚠️ E non e' un dettaglio interno: verso Shopify `compare_at_price` sta
+     * accanto a `price` sotto gli occhi del cliente. Due basi diverse fanno
+     * apparire uno sconto che non e' quello dichiarato.
+     */
+    const barrato = (major: number) =>
+      toCreateProductDto({
+        ...emptyProductFormDraft(),
+        general: {
+          ...emptyProductFormDraft().general,
+          name: 'Articolo',
+          compareAtPrice: major,
+        },
+      }).compareAtPrice?.amountMinor;
+
+    it('⭐ conserva la coda dello scorporo, come il prezzo di vendita', () => {
+      // 25,00 EUR ivati al 22% valgono 20,491803 EUR netti.
+      expect(barrato(20.491803)).toBeCloseTo(2049.1803, 4);
+    });
+
+    it('⛔ e il giro torna allo stesso centesimo', () => {
+      const netto = barrato(0.844262)!; // 1,03 EUR ivati al 22%
+      expect(Math.round(netto * 1.22)).toBe(103);
+    });
+
+    it('un valore a due decimali resta identico', () => {
+      expect(barrato(29.9)).toBe(2990);
+    });
+  });
 });

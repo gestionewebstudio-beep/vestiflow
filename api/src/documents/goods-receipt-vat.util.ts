@@ -1,8 +1,12 @@
 import { UnprocessableEntityException } from '@nestjs/common';
 import type { DocumentType, Prisma, PurchaseCostEntryMode } from '@prisma/client';
 
+import { toStorableMinor } from '../common/money.util';
 import {
   computeVatLineAmounts,
+  entryIncludesVat,
+  grossFromNetExact,
+  netFromGrossExact,
   vatInputFromLegacyRate,
   vatInputFromVatCode as vatInputFromCode,
 } from '../vat/vat-line-calculation.util';
@@ -52,7 +56,18 @@ export interface ComputedGoodsReceiptLine {
   newProduct: SaveGoodsReceiptNewProductDto | null;
 }
 
-/** Conversione unità minori → stringa decimale a 6 cifre per NUMERIC. */
+/**
+ * Conversione unità minori → stringa decimale a 6 cifre per `NUMERIC(16,6)`.
+ *
+ * ⚠️ **Omonima ma NON è `minorToDecimalString` di `common/money.util`**, e la
+ * differenza è tutta: quella arrotonda al centesimo perché serve ai CANALI
+ * ESTERNI («è qui che si arrotonda», dice il suo commento). Questa conserva sei
+ * decimali di euro, che è quanto la colonna memorizza.
+ *
+ * ⭐ La stringa è anche più sicura di un `number` verso il driver: un float ci
+ * arriverebbe con la propria approssimazione binaria invece che col valore
+ * esatto — è la ragione per cui l'Ordine fornitore passa da `Prisma.Decimal`.
+ */
 function minorToDecimalString(minor: number): string {
   return (minor / 100).toFixed(6);
 }
@@ -97,13 +112,34 @@ export function computeGoodsReceiptLines(
       vat,
     });
 
+    // ⛔ **`amounts.unitNetMinor` NON è il netto da memorizzare.** Quel campo è
+    // arrotondato al centesimo — `netFromGrossMinor` si dichiara «la forma da
+    // MOSTRARE» — ed è giusto per ciò che si mostra, sbagliato per ciò che si
+    // conserva: 1,03 € ivati al 22% tornerebbero 1,02 €.
+    //
+    // ⭐ Stessa strategia già in esercizio in `manual-receipt-totals.util` e in
+    // `supplier-orders.service`: il canonico nasce da `netFromGrossExact`, che
+    // la coda la tiene, e `toStorableMinor` la riduce alle 4 cifre di centesimo
+    // che il contratto conserva — 6 decimali di euro.
+    const unitNetCanonicoMinor = entryIncludesVat(params.costEntryMode, vat)
+      ? toStorableMinor(netFromGrossExact(enteredUnitCostMinor, vat.ratePercent))
+      : toStorableMinor(enteredUnitCostMinor);
+    // Lordo e imposta unitari seguono il canonico, non la sua versione mostrata:
+    // stessa formula del motore, applicata al valore che conserva la coda.
+    const unitGrossCanonicoMinor = toStorableMinor(
+      grossFromNetExact(unitNetCanonicoMinor, vat.ratePercent),
+    );
+    const unitVatCanonicoMinor = toStorableMinor(
+      unitGrossCanonicoMinor - unitNetCanonicoMinor,
+    );
+
     return {
       lineNumber: index + 1,
       variantId: line.variantId ?? null,
       sku: line.sku ?? null,
       description: line.description.trim(),
       quantity,
-      unitPriceMinor: amounts.unitNetMinor,
+      unitPriceMinor: unitNetCanonicoMinor,
       discountPercent,
       vatRatePercent: vatCode
         ? Math.round(Number(vatCode.ratePercent))
@@ -113,9 +149,9 @@ export function computeGoodsReceiptLines(
       vatSnapshot: vatCode ? params.buildSnapshot(vatCode) : null,
       enteredUnitCost: minorToDecimalString(enteredUnitCostMinor),
       costEntryModeSnapshot: params.costEntryMode,
-      unitCostNet: minorToDecimalString(amounts.unitNetMinor),
-      unitCostGross: minorToDecimalString(amounts.unitGrossMinor),
-      unitVatAmount: minorToDecimalString(amounts.unitVatMinor),
+      unitCostNet: minorToDecimalString(unitNetCanonicoMinor),
+      unitCostGross: minorToDecimalString(unitGrossCanonicoMinor),
+      unitVatAmount: minorToDecimalString(unitVatCanonicoMinor),
       lineVatTotalMinor: amounts.lineVatMinor,
       lineGrossTotalMinor: amounts.lineGrossMinor,
       supplierPayableLineMinor: amounts.supplierPayableMinor,
