@@ -58,9 +58,9 @@ import { hasTenantPermission } from '@core/permissions/user-permissions.util';
 import { CustomerService } from '@domain/customers/services/customer.service';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
-import { PriceModeMenuComponent } from '@domain/documents/components/price-mode-menu/price-mode-menu.component';
 import { priceModeRowLabel } from '@domain/documents/models/document-price-mode.util';
 import { DocumentService } from '@domain/documents/services/document.service';
+import { DocumentLineHeadComponent } from '@domain/documents/components/document-line-head/document-line-head.component';
 import { DocumentLineRowComponent } from '@domain/documents/components/document-line-row/document-line-row.component';
 import {
   DOCUMENT_LINE_ROW_VIEW_VUOTA,
@@ -126,7 +126,6 @@ import type { SelectMenuOption } from '@shared/components/select-menu/select-men
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
 import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
-import { TableColumnResizeDirective } from '@shared/directives/table-column-resize.directive';
 import {
   lineColumnQuotaWidth,
   sumVisibleLineColumnsPx,
@@ -230,18 +229,17 @@ function oggiIso(): string {
     DocumentNumberFieldComponent,
     DocumentSeriesManagerDialogComponent,
     DocumentProductSearchPanelComponent,
+    DocumentLineHeadComponent,
     DocumentLineRowComponent,
     DocumentScanOverlayComponent,
     EmptyStateComponent,
     ErrorStateComponent,
     InlineBannerComponent,
-    PriceModeMenuComponent,
     ProductFormComponent,
     SelectMenuComponent,
     SlidePanelComponent,
     StoreSaleLineCardComponent,
     TableColumnPickerComponent,
-    TableColumnResizeDirective,
     TableSkeletonComponent,
   ],
   templateUrl: './store-sale-document-form.component.html',
@@ -420,6 +418,19 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
       ? this.isLineColumnVisible(column)
       : false;
   };
+
+  protected readonly lineColumnWidthFn = (column: DocumentLineColumnId): string =>
+    this.lineColumnWidth(column);
+
+  protected readonly lineColumnMinWidthFn = (column: DocumentLineColumnId): number =>
+    this.lineColumnMinWidth(column);
+
+  /** L'aiuto della colonna spunta: dice che cosa succede alla conclusione. */
+  protected readonly stockToggleTooltip = computed(() =>
+    this.descriptor.mode === 'sale'
+      ? 'Alla conclusione la riga scarica la giacenza della sede.'
+      : 'Alla conclusione la riga carica la giacenza della sede.',
+  );
 
   /** Ciò che la riga MOSTRA e non calcola. */
   protected lineRowView(index: number): DocumentLineRowView {

@@ -729,7 +729,7 @@ describe('StoreSaleDocumentFormComponent', () => {
     it('⭐ sulla Vendita la spunta si legge «Scarica giacenze»', async () => {
       await conUnaRiga();
 
-      expect(screen.getByRole('columnheader', { name: 'Scarica giacenze' })).toBeTruthy();
+      expect(screen.getByRole('columnheader', { name: /Scarica giacenze/ })).toBeTruthy();
     });
 
     it('⭐ sul Reso la STESSA spunta si legge «Carica giacenze»', async () => {
@@ -737,7 +737,7 @@ describe('StoreSaleDocumentFormComponent', () => {
       // booleano, nessun modello parallelo.
       const rendered = await setup({ mode: 'return', editId: 'doc-return-1', loadDocument: RESO });
 
-      expect(screen.getByRole('columnheader', { name: 'Carica giacenze' })).toBeTruthy();
+      expect(screen.getByRole('columnheader', { name: /Carica giacenze/ })).toBeTruthy();
       expect(rendered.component.lines()[0]!.loadsStock).toBe(false);
     });
 

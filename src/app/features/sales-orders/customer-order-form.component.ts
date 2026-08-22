@@ -121,6 +121,7 @@ import { DocumentChronologyWarningDialogComponent } from '@domain/documents/comp
 import { DocumentPrefillErrorStore } from '@domain/documents/state/document-prefill-error.store';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { DocumentProductPanelStore } from '@domain/documents/state/document-product-panel.store';
+import { DocumentLineHeadComponent } from '@domain/documents/components/document-line-head/document-line-head.component';
 import { DocumentLineRowComponent } from '@domain/documents/components/document-line-row/document-line-row.component';
 import type {
   DocumentLineColumnId,
@@ -202,8 +203,6 @@ import type { SelectMenuOption } from '@shared/components/select-menu/select-men
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
 import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
-import { HoverTooltipComponent } from '@shared/components/hover-tooltip/hover-tooltip.component';
-import { TableColumnResizeDirective } from '@shared/directives/table-column-resize.directive';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { redistributeColumnWidths } from '@shared/table-columns/column-width-distribution.util';
 import { CdkDrag, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
@@ -234,7 +233,6 @@ import {
 } from '@domain/sales-orders/services/sales-order.service';
 import { documentSearchLaunchTerm } from '@domain/documents/utils/document-search-launch-term.util';
 import { trailingEmptyLineIndices } from '@domain/documents/utils/trailing-empty-lines.util';
-import { PriceModeMenuComponent } from '@domain/documents/components/price-mode-menu/price-mode-menu.component';
 
 const VARIANT_SEARCH_DEBOUNCE_MS = 300;
 const VARIANT_SEARCH_MIN_CHARS = 2;
@@ -317,7 +315,6 @@ interface AvailabilityIssue {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     InlineBannerComponent,
-    PriceModeMenuComponent,
     ReactiveFormsModule,
     CustomerOrderLineCardComponent,
     CdkDropList,
@@ -325,6 +322,7 @@ interface AvailabilityIssue {
     BackButtonComponent,
     BadgeComponent,
     AttachmentsPanelComponent,
+    DocumentLineHeadComponent,
     DocumentLineRowComponent,
     DocumentScanOverlayComponent,
     ProductPickerDialogComponent,
@@ -342,9 +340,7 @@ interface AvailabilityIssue {
     SelectMenuComponent,
     SlidePanelComponent,
     TableColumnPickerComponent,
-    TableColumnResizeDirective,
     TableSkeletonComponent,
-    HoverTooltipComponent,
     CustomerFormFieldsComponent,
     UnitOfMeasureManagerDialogComponent,
     DocumentProductSearchPanelComponent,
@@ -2398,6 +2394,17 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   // mostra ma non calcola, e che cosa SIGNIFICANO i suoi eventi. Il markup —
   // celle, controlli, stati, fuoco, grafica — vive in `domain/documents`, e
   // per questo una cella Quantità è indistinguibile da quella del banco.
+
+  protected readonly lineColumnWidthFn = (column: DocumentLineColumnId): string =>
+    this.lineColumnWidth(column);
+
+  protected readonly lineColumnMinWidthFn = (column: DocumentLineColumnId): number =>
+    this.lineColumnMinWidth(column);
+
+  /** L'ordinamento arriva dall'intestazione comune col nome della colonna. */
+  protected onHeadSortToggled(column: DocumentLineColumnId): void {
+    this.toggleLineSort(column as CustomerOrderLineSortColumn);
+  }
 
   /** Il gruppo della riga: i controlli restano quelli di questo form. */
   protected lineGroup(index: number): FormGroup {

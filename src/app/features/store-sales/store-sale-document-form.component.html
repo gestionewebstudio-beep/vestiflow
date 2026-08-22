@@ -55,6 +55,25 @@
               <p class="doc-panel__section">Dati principali</p>
 
               <div class="doc-panel__fields">
+                <!-- ⭐ Cliente PRIMA della Sede, come sull'Ordine cliente: chi usa
+                     VestiFlow trova i campi dove l'abitudine glieli mette, e
+                     l'ordine non si inverte da un documento all'altro. Che il
+                     cliente sia facoltativo non cambia dove sta. -->
+                <div class="doc-panel__field">
+                  <span class="doc-panel__label">Cliente (facoltativo)</span>
+                  <app-select-menu
+                    [options]="customerOptions()"
+                    [value]="form.controls.customerId.value"
+                    ariaLabel="Cliente del documento"
+                    placeholder="Nessun cliente"
+                    [fullWidth]="true"
+                    [searchable]="true"
+                    searchPlaceholder="Cerca cliente…"
+                    searchAriaLabel="Cerca cliente"
+                    (valueChange)="onCustomerChange($event)"
+                  />
+                </div>
+
                 <div class="doc-panel__field">
                   <span class="doc-panel__label">Sede</span>
                   <!-- Controllo comune anche con una sola sede disponibile: il
@@ -72,23 +91,6 @@
                   @if (locationInvalid()) {
                     <p id="ssf-m-location-error" class="doc-form__error">Campo obbligatorio.</p>
                   }
-                </div>
-
-                <!-- Cliente facoltativo, su ENTRAMBI i modi: `11` A13 lo mette
-                     in testata senza distinguere Vendita e Reso. -->
-                <div class="doc-panel__field">
-                  <span class="doc-panel__label">Cliente (facoltativo)</span>
-                  <app-select-menu
-                    [options]="customerOptions()"
-                    [value]="form.controls.customerId.value"
-                    ariaLabel="Cliente del documento"
-                    placeholder="Nessun cliente"
-                    [fullWidth]="true"
-                    [searchable]="true"
-                    searchPlaceholder="Cerca cliente…"
-                    searchAriaLabel="Cerca cliente"
-                    (valueChange)="onCustomerChange($event)"
-                  />
                 </div>
 
                 <div class="doc-panel__field">
@@ -122,6 +124,24 @@
                componente, come nelle altre maschere documentali. -->
           <div class="store-sale-form__header-desktop">
             <div class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact">
+              <!-- ⭐ Cliente PRIMA della Sede, come sull'Ordine cliente: l'ordine
+                   dei campi non si inverte da un documento all'altro. -->
+              <div class="doc-form__field">
+                <span class="doc-form__label">Cliente (facoltativo)</span>
+                <app-select-menu
+                  [options]="customerOptions()"
+                  [value]="form.controls.customerId.value"
+                  ariaLabel="Cliente"
+                  placeholder="Nessun cliente"
+                  [compact]="true"
+                  [fullWidth]="true"
+                  [searchable]="true"
+                  searchPlaceholder="Cerca cliente…"
+                  searchAriaLabel="Cerca cliente"
+                  (valueChange)="onCustomerChange($event)"
+                />
+              </div>
+
               <div class="doc-form__field" [class.doc-form__field--waiting]="locationWaiting()">
                 <span class="doc-form__label">Sede</span>
                 <app-select-menu
@@ -138,22 +158,6 @@
                 @if (locationInvalid()) {
                   <p id="ssf-location-error" class="doc-form__error">Campo obbligatorio.</p>
                 }
-              </div>
-
-              <div class="doc-form__field">
-                <span class="doc-form__label">Cliente (facoltativo)</span>
-                <app-select-menu
-                  [options]="customerOptions()"
-                  [value]="form.controls.customerId.value"
-                  ariaLabel="Cliente"
-                  placeholder="Nessun cliente"
-                  [compact]="true"
-                  [fullWidth]="true"
-                  [searchable]="true"
-                  searchPlaceholder="Cerca cliente…"
-                  searchAriaLabel="Cerca cliente"
-                  (valueChange)="onCustomerChange($event)"
-                />
               </div>
 
               <div class="doc-form__field">
@@ -353,120 +357,24 @@
               <div class="doc-form__table-wrap">
                 <table class="doc-form__table">
                   <thead>
-                    <!-- ⚠️ L'ordine è quello della riga CONDIVISA: SKU prima di
-                         Articolo, spunta prima del Totale. L'intestazione segue le
-                         celle, non viceversa. -->
-                    <tr>
-                      <th scope="col" class="doc-form__cell--index" aria-label="Numero riga">#</th>
-                      @if (isLineColumnVisible('sku')) {
-                        <th scope="col" [style.width]="lineColumnWidth('sku')">
-                          SKU
-                          <span
-                            appTableColumnResize
-                            [minWidthPx]="lineColumnMinWidth('sku')"
-                            (resized)="onLineColumnResize('sku', $event)"
-                          ></span>
-                        </th>
-                      }
-                      @if (isLineColumnVisible('product')) {
-                        <th scope="col" [style.width]="lineColumnWidth('product')">
-                          Articolo
-                          <span
-                            appTableColumnResize
-                            [minWidthPx]="lineColumnMinWidth('product')"
-                            (resized)="onLineColumnResize('product', $event)"
-                          ></span>
-                        </th>
-                      }
-                      @if (isLineColumnVisible('quantity')) {
-                        <th
-                          scope="col"
-                          class="doc-form__num"
-                          [style.width]="lineColumnWidth('quantity')"
-                        >
-                          Q.tà
-                          <span
-                            appTableColumnResize
-                            [minWidthPx]="lineColumnMinWidth('quantity')"
-                            (resized)="onLineColumnResize('quantity', $event)"
-                          ></span>
-                        </th>
-                      }
-                      @if (isLineColumnVisible('unitPrice')) {
-                        <!-- ⭐ Il selettore netto/ivato vive QUI, nella testata della
-                           colonna Prezzo (`11` A4): è il contratto comune degli
-                           altri documenti, non un controllo del banco. -->
-                        <th
-                          scope="col"
-                          class="doc-form__num"
-                          [style.width]="lineColumnWidth('unitPrice')"
-                        >
-                          <span class="doc-form__price-head">
-                            <button
-                              type="button"
-                              class="doc-form__price-mode-trigger"
-                              aria-label="Modalità prezzo del documento"
-                              (click)="togglePriceModeMenu()"
-                            >
-                              {{ priceRowLabel() }}
-                            </button>
-                            <app-price-mode-menu
-                              [pricesIncludeVat]="pricesIncludeVat()"
-                              netLabel="Usa prezzi netti"
-                              grossLabel="Usa prezzi ivati"
-                              ariaLabel="Modalità prezzo del documento"
-                              (modeChange)="setPriceMode($event)"
-                            />
-                          </span>
-                          <span
-                            appTableColumnResize
-                            [minWidthPx]="lineColumnMinWidth('unitPrice')"
-                            (resized)="onLineColumnResize('unitPrice', $event)"
-                          ></span>
-                        </th>
-                      }
-                      @if (isLineColumnVisible('discount')) {
-                        <th
-                          scope="col"
-                          class="doc-form__num"
-                          [style.width]="lineColumnWidth('discount')"
-                        >
-                          Sconto
-                          <span
-                            appTableColumnResize
-                            [minWidthPx]="lineColumnMinWidth('discount')"
-                            (resized)="onLineColumnResize('discount', $event)"
-                          ></span>
-                        </th>
-                      }
-                      @if (isLineColumnVisible('vat')) {
-                        <th scope="col" [style.width]="lineColumnWidth('vat')">
-                          IVA
-                          <span
-                            appTableColumnResize
-                            [minWidthPx]="lineColumnMinWidth('vat')"
-                            (resized)="onLineColumnResize('vat', $event)"
-                          ></span>
-                        </th>
-                      }
-                      <!-- Fisse, fuori dal selettore Colonne: la spunta governa
-                         l'effetto fisico, le azioni sono la grammatica comune. -->
-                      <th scope="col" class="store-sale-form__stock-col">
-                        {{ stockToggleLabel() }}
-                      </th>
-                      @if (isLineColumnVisible('lineTotal')) {
-                        <th
-                          scope="col"
-                          class="doc-form__num"
-                          [style.width]="lineColumnWidth('lineTotal')"
-                        >
-                          Totale
-                        </th>
-                      }
-                      <th scope="col" class="doc-form__cell--actions">
-                        <span class="sr-only">Azioni</span>
-                      </th>
-                    </tr>
+                    <!-- ⭐ L'intestazione è la COMPONENTE COMUNE, come la riga: stesse
+                         colonne, stesse classi di gruppo, stesse larghezze. ⛔ Qui era
+                         scritta a mano, e aveva ZERO classi di gruppo contro le 13 del
+                         corpo: testata e celle dicevano due cose diverse. -->
+                    <tr
+                      app-document-line-head
+                      [isColumnVisible]="isLineColumnVisibleFn"
+                      [columnWidth]="lineColumnWidthFn"
+                      [columnMinWidth]="lineColumnMinWidthFn"
+                      [stockToggleLabel]="stockToggleLabel()"
+                      [stockToggleTooltip]="stockToggleTooltip()"
+                      [priceLabel]="priceRowLabel()"
+                      [pricesIncludeVat]="pricesIncludeVat()"
+                      [priceMenuOpen]="priceModeMenuOpen()"
+                      (priceMenuToggled)="togglePriceModeMenu()"
+                      (priceModeChanged)="setPriceMode($event)"
+                      (columnResized)="onLineColumnResize($event.column, $event.widthPx)"
+                    ></tr>
                   </thead>
                   <tbody formArrayName="lines">
                     @if (!hasLines()) {
