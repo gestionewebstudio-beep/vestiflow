@@ -52,6 +52,56 @@ grammatica. Build e test dicono che compila, non come si vede.
 **Vendita e Reso al banco** (`11`), che riparte in una sessione dedicata. §A11-quater di quel
 documento elenca che cosa eredita dalla base comune: non si riprogetta niente di quello.
 
+### ⛔ DUE BLOCCHI DEDICATI, dichiarati chiusi al lavoro corrente — 22/08/2026
+
+Il proprietario li ha separati esplicitamente. ⚠️ **Non si aprono "per un pezzetto"**: sono
+la ragione per cui una correzione può risultare **bloccata** invece che rimandata, ed è un
+esito legittimo — improvvisarne metà di nascosto no.
+
+#### Blocco A · **Includi / Genera**, e la provenienza di riga
+
+Comprende il redesign del motore di inclusione e derivazione **e** il meccanismo che manca
+sotto: un dato **per riga** che dica da quale documento quella riga proviene.
+
+Il fatto che lo rende necessario, misurato il 22/08 (`07` §5-bis): **`DocumentLine` non ha
+alcun campo di provenienza.** `lineSource` è della Registrazione fattura acquisto («Null
+altrove»), `IncludedDocumentLine` trasporta solo `isReference`, e `sourceDocumentId` sta su
+**`Document`** — dice da dove viene il documento, non la riga.
+
+⭐ **Due cose esistono già e vanno usate come punto di partenza, non reinventate:**
+
+| Cosa                                                              | Dov'è                                                                         |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| una guardia di catena **in esercizio**                            | `Document.onlineSaleId` (`documents.service.ts` ~2343, `schema.prisma` ~2107) |
+| un canale di aggancio **attivo**, separato da «Includi documento» | `linkedDdtIds` / `InvoiceSalesDdtLink`                                        |
+
+⚠️ E **i motori di derivazione sono DUE** — `buildConversionDto` e `concludeManualPrefill`:
+una guardia messa nel primo lascerebbe scoperto il secondo, che è quello attivo.
+
+#### Blocco B · **Document Line trasversale** — il censimento NON è chiuso
+
+Riprende dopo la chiusura dei difetti concreti. Comprende:
+
+- il **catalogo canonico** delle celle e delle colonne condivise, completato;
+- la verifica e la migrazione dei documenti che hanno ancora **celle locali o duplicazioni**,
+  **un documento alla volta, con test di regressione**;
+- il completamento della condivisione di **riga, intestazione e riga di inserimento** dove
+  applicabile;
+- Codice fornitore, SKU, EAN, descrizione riga, prezzi articolo che entrano nel catalogo
+  **senza obbligare ogni documento ad avere tutte le colonne**.
+
+> ⛔ **Il principio che governa tutto il blocco B, fissato dal proprietario:**
+> **condividere il componente non significa condividere il significato o il dato sottostante.**
+
+Le quattro applicazioni già dichiarate di quel principio:
+
+| Caso                          | Si condivide            | NON si condivide                                                                   |
+| ----------------------------- | ----------------------- | ---------------------------------------------------------------------------------- |
+| `commitsStock` / `loadsStock` | la cella                | **sono dati diversi**: uno impegna, l'altro movimenta                              |
+| **quantità**                  | la cella e la sua veste | `min`, validatore ed effetti restano **policy del documento**                      |
+| **Giacenza / Disponibile**    | la cella                | i dati sono **calcolati rispetto alla location** di quel documento                 |
+| **costo**                     | la grammatica visiva    | costo **informativo**, costo **documento** e costo **anagrafica** restano distinti |
+
 ---
 
 ## ⚠️ Leggere prima: la specifica del Registro è cambiata il 16/08/2026
