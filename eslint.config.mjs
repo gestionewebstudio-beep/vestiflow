@@ -72,9 +72,12 @@ export default tseslint.config(
         'error',
         { type: 'attribute', prefix: 'app', style: 'camelCase' },
       ],
+      // ⚠️ Anche ATTRIBUTO, non solo elemento: un componente che rende una
+      // <tr> non puo' avere un selettore di elemento — un nodo in piu' fra
+      // <tbody> e <tr> romperebbe la tabella. Il prefisso resta obbligatorio.
       '@angular-eslint/component-selector': [
         'error',
-        { type: 'element', prefix: 'app', style: 'kebab-case' },
+        { type: ['element', 'attribute'], prefix: 'app', style: 'kebab-case' },
       ],
 
       // ── RxJS (igiene observable) ─────────────────────────────────────

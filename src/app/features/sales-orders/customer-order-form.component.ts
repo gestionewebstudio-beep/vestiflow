@@ -14,6 +14,7 @@ import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-i
 import {
   AbstractControl,
   FormArray,
+  FormGroup,
   NonNullableFormBuilder,
   ReactiveFormsModule,
   Validators,
@@ -95,10 +96,6 @@ import {
 import { DocumentIncludePanelComponent } from '@domain/documents/components/document-include-panel/document-include-panel.component';
 import { vatCodeIdForLinePayload } from '@domain/documents/utils/document-line-vat-payload.util';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
-import { DocumentLineCodeCellComponent } from '@domain/documents/components/document-line-code-cell/document-line-code-cell.component';
-import { DocumentLineProductCellComponent } from '@domain/documents/components/document-line-product-cell/document-line-product-cell.component';
-import { DocumentLineSelectCellComponent } from '@domain/documents/components/document-line-select-cell/document-line-select-cell.component';
-import { DocumentLineUnitCellComponent } from '@domain/documents/components/document-line-unit-cell/document-line-unit-cell.component';
 import { UnitOfMeasureManagerDialogComponent } from '@domain/products/components/unit-of-measure-manager-dialog/unit-of-measure-manager-dialog.component';
 import type { UnitOfMeasureOption } from '@domain/products/models/unit-of-measure-option.model';
 import { UnitOfMeasureOptionService } from '@domain/products/services/unit-of-measure-option.service';
@@ -124,6 +121,14 @@ import { DocumentChronologyWarningDialogComponent } from '@domain/documents/comp
 import { DocumentPrefillErrorStore } from '@domain/documents/state/document-prefill-error.store';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { DocumentProductPanelStore } from '@domain/documents/state/document-product-panel.store';
+import { DocumentLineRowComponent } from '@domain/documents/components/document-line-row/document-line-row.component';
+import type {
+  DocumentLineColumnId,
+  DocumentLineFieldEvent,
+  DocumentLineRowView,
+  DocumentLineSuggestionDirection,
+  DocumentLineSuggestionPick,
+} from '@domain/documents/components/document-line-row/document-line-row.model';
 import { DocumentScanOverlayComponent } from '@domain/documents/components/document-scan-overlay/document-scan-overlay.component';
 import { createQuickAddProduct } from '@domain/products/utils/quick-add-product.util';
 import { DocumentLineSearchPanelStore } from '@domain/documents/state/document-line-search-panel.store';
@@ -201,7 +206,7 @@ import { HoverTooltipComponent } from '@shared/components/hover-tooltip/hover-to
 import { TableColumnResizeDirective } from '@shared/directives/table-column-resize.directive';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { redistributeColumnWidths } from '@shared/table-columns/column-width-distribution.util';
-import { CdkDrag, CdkDragHandle, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
+import { CdkDrag, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
 import { formatItalianInputDate, toIsoDateLocal } from '@shared/utils/calendar.util';
 
 import {
@@ -227,7 +232,6 @@ import {
   type SaveManualOrderInput,
   type SaveManualOrderLineInput,
 } from '@domain/sales-orders/services/sales-order.service';
-import { FirstClickSelectsDirective } from '@shared/directives/first-click-selects.directive';
 import { documentSearchLaunchTerm } from '@domain/documents/utils/document-search-launch-term.util';
 import { trailingEmptyLineIndices } from '@domain/documents/utils/trailing-empty-lines.util';
 import { PriceModeMenuComponent } from '@domain/documents/components/price-mode-menu/price-mode-menu.component';
@@ -312,17 +316,16 @@ interface AvailabilityIssue {
   selector: 'app-customer-order-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    FirstClickSelectsDirective,
     InlineBannerComponent,
     PriceModeMenuComponent,
     ReactiveFormsModule,
     CustomerOrderLineCardComponent,
     CdkDropList,
     CdkDrag,
-    CdkDragHandle,
     BackButtonComponent,
     BadgeComponent,
     AttachmentsPanelComponent,
+    DocumentLineRowComponent,
     DocumentScanOverlayComponent,
     ProductPickerDialogComponent,
     ButtonComponent,
@@ -343,10 +346,6 @@ interface AvailabilityIssue {
     TableSkeletonComponent,
     HoverTooltipComponent,
     CustomerFormFieldsComponent,
-    DocumentLineCodeCellComponent,
-    DocumentLineProductCellComponent,
-    DocumentLineSelectCellComponent,
-    DocumentLineUnitCellComponent,
     UnitOfMeasureManagerDialogComponent,
     DocumentProductSearchPanelComponent,
   ],
@@ -2393,6 +2392,105 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       .length;
   }
 
+  // ── La riga è la COMPONENTE COMUNE (`11` A15) ───────────────────────────
+  //
+  // ⭐ Qui restano solo tre cose: il GRUPPO del form, i VALORI che la riga
+  // mostra ma non calcola, e che cosa SIGNIFICANO i suoi eventi. Il markup —
+  // celle, controlli, stati, fuoco, grafica — vive in `domain/documents`, e
+  // per questo una cella Quantità è indistinguibile da quella del banco.
+
+  /** Il gruppo della riga: i controlli restano quelli di questo form. */
+  protected lineGroup(index: number): FormGroup {
+    return this.lines.at(index);
+  }
+
+  /**
+   * ⚠️ Legata una volta sola: passandola come funzione anonima nel template,
+   * l'identità cambierebbe a ogni giro e la riga si riterrebbe sempre nuova.
+   */
+  protected readonly isLineColumnVisibleFn = (column: DocumentLineColumnId): boolean =>
+    this.isLineColumnVisible(column);
+
+  /** «Impegna» su un ordine, «Scarica» su DDT e Scarico manuale. */
+  protected lineStockToggleLabel(): string {
+    return this.isSalesDdt || this.isManualUnload ? 'Scarica magazzino' : 'Impegna magazzino';
+  }
+
+  /** Ciò che la riga MOSTRA e non calcola: lo calcola chi lo possiede. */
+  protected lineRowView(index: number): DocumentLineRowView {
+    const riferimento = this.lineIsReference(index);
+    return {
+      isReference: riferimento,
+      complete: this.lineRowComplete(index),
+      linked: this.lineHasLinkedProduct(index),
+      linkedArticleCode: this.lineArticleCode(index),
+      quantityInvalid: this.lineFieldInvalid(index, 'quantity'),
+      productInvalid: this.lineFieldInvalid(index, 'productName'),
+      exceedsAvailability: this.lineExceedsAvailability(index),
+      availabilityHint: this.lineAvailabilityHint(index),
+      stockAvailable: this.lineStockAvailable(index),
+      purchaseCost: this.linePurchaseCost(index),
+      discountedPrice: formatMoney(this.lineDiscountedUnitMoney(index)),
+      lineTotal: formatMoney(this.lineTotalMoney(index)),
+      // `null` = nessuno sconto: il lordo barrato non si mostra affatto.
+      grossTotal: this.lineHasDiscount(index) ? formatMoney(this.lineGrossMoney(index)) : null,
+      vatOptions: this.lineVatOptions(index),
+      vatValue: this.lineVatValue(index),
+      vatTooltip: this.lineVatTooltip(index),
+      unitValue: this.lineUnitOfMeasure(index),
+      articleCodeSuggest: {
+        items: this.codeLookup.matchesFor(index, 'articleCode'),
+        open: this.codeLookup.isOpenOn(index, 'articleCode'),
+        activeIndex: this.codeLookup.activeIndex(),
+      },
+      skuSuggest: {
+        items: this.codeLookup.matchesFor(index, 'sku'),
+        open: this.codeLookup.isOpenOn(index, 'sku'),
+        activeIndex: this.codeLookup.activeIndex(),
+      },
+      barcodeSuggest: {
+        items: this.codeLookup.matchesFor(index, 'barcode'),
+        open: this.codeLookup.isOpenOn(index, 'barcode'),
+        activeIndex: this.codeLookup.activeIndex(),
+      },
+      productSuggest: {
+        items: riferimento ? [] : this.lineSuggestions(index),
+        open: this.lineSuggestionsOpen(index),
+        activeIndex: this.productSuggest.activeIndex(),
+      },
+    };
+  }
+
+  /** Il campo dice quale codice è cambiato: la riga non conosce i tre gestori. */
+  protected onRowCodeChanged(index: number, event: DocumentLineFieldEvent<string>): void {
+    if (event.field === 'articleCode') {
+      this.onLineArticleCodeChange(index, event.value);
+      return;
+    }
+    if (event.field === 'sku') {
+      this.onLineSkuChange(index, event.value);
+      return;
+    }
+    this.onLineBarcodeChange(index, event.value);
+  }
+
+  protected onRowSuggestionPicked(index: number, event: DocumentLineSuggestionPick): void {
+    if (event.field === 'product') {
+      this.onProductSuggestionPick(index, event.variantId);
+      return;
+    }
+    this.onCodeSuggestionPick(index, event.variantId);
+  }
+
+  protected onRowSuggestionNavigated(
+    event: DocumentLineFieldEvent<DocumentLineSuggestionDirection>,
+  ): void {
+    if (event.field === 'product') {
+      this.onProductSuggestionNavigate(event.value);
+      return;
+    }
+    this.codeLookup.navigate(event.value);
+  }
   /** Riga «documento collegato»: separatore, non merce da contare o valorizzare. */
   protected lineIsReference(index: number): boolean {
     this.formValue();

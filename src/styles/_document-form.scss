@@ -2313,3 +2313,84 @@ app-customer-order-form {
   border: var(--border-width) solid var(--color-readonly-border);
   border-radius: var(--radius-sm);
 }
+
+// ── Riga «documento collegato» ────────────────────────────────────────────
+//
+// Sta qui, e non nel foglio dell'Ordine cliente, perche' il markup vive nella
+// riga CONDIVISA (`document-line-row`): una regola incapsulata nel componente
+// che la ospitava non raggiungerebbe il DOM di quella condivisa. Il blocco
+// mobile dell'Ordine cliente riusa le stesse classi.
+.doc-form__source-index {
+  font-size: 0.6875rem; // 11px
+  color: var(--color-doc-ref-muted);
+}
+
+.doc-form__source-info-cell {
+  padding-inline: 0;
+}
+
+.doc-form__source-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-05);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.doc-form__source-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  inline-size: 1rem; // 16px
+  block-size: 1rem;
+  color: var(--color-doc-ref-accent);
+}
+
+.doc-form__source-icon i {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.doc-form__source-kind {
+  flex: 0 0 auto;
+  padding: var(--space-05) var(--space-1-5);
+  font-size: var(--text-label);
+  font-weight: var(--font-weight-head);
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+  color: var(--color-doc-ref-chip-fg);
+  background-color: var(--color-doc-ref-chip-bg);
+  border: var(--border-width) solid var(--color-doc-ref-chip-line);
+  border-radius: var(--radius-sm);
+}
+
+// Titolo del riferimento: resta un campo modificabile (il testo è libero),
+// ma pesa e si comporta come il titolo statico delle specifiche.
+.doc-form__source-title {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  inline-size: 100%;
+  block-size: var(--control-h-cell);
+  padding: 0 var(--space-05);
+  font-size: 0.75rem; // 12px
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-doc-ref-title);
+  text-overflow: ellipsis;
+  background: transparent;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-sm);
+}
+
+.doc-form__source-title:hover {
+  border-color: var(--color-doc-ref-chip-line);
+  background-color: var(--color-surface);
+}
+
+.doc-form__source-title:focus-visible {
+  outline: none;
+  border-color: var(--color-focus);
+  background-color: var(--color-surface);
+  box-shadow: 0 0 0 var(--border-width-strong) var(--color-focus-ring-alpha);
+}
