@@ -22,22 +22,71 @@ cronaca — 33.000 righe che crescono di una riga tolta ogni sedici aggiunte.
 
 ---
 
+## ⭐ IL CONTRATTO COMUNE viene prima — aggiunto dal proprietario il 22/08/2026
+
+> **`CONTRATTO-COMUNE-DOCUMENTI.md` è il «Blocco 0 canonico»: il contratto normativo
+> trasversale di TUTTE le maschere documento a righe.**
+
+⛔ **Non sostituisce le specifiche dei singoli documenti: le governa.** Dove una specifica di
+documento contraddice il contratto comune, è la specifica a doversi allineare — e le decisioni
+più recenti confermate dal proprietario prevalgono su comportamento osservato, codice attuale e
+testi storici incompatibili.
+
+**Che cosa fissa**, in sintesi — l'argomentazione sta nel documento, non qui:
+
+| §   | Materia                                                                  |
+| --- | ------------------------------------------------------------------------ |
+| 1–2 | perimetro (chi ha vere righe articolo e chi no) e anatomia comune        |
+| 3   | **catalogo canonico** di celle e colonne                                 |
+| 4   | la **fotografia** del documento: cosa si congela e cosa resta live       |
+| 5   | quantità, costi, prezzi, sconti, IVA, **precisione e ordine di calcolo** |
+| 6   | giacenza, impegnata, disponibile, le **tre spunte** e i movimenti        |
+| 7   | identità della riga, modifica per differenza, idempotenza                |
+| 8–9 | tenant, location, **numerazione comune**                                 |
+| 10  | desktop, mobile, navigazione, celle di ricerca                           |
+| 11  | **Includi e Genera**                                                     |
+| 12  | le eccezioni esplicite **da non normalizzare**                           |
+| 13  | prestazioni ed errori del salvataggio                                    |
+| 14  | i **gap tecnici già individuati**, da non perdere                        |
+| 15  | il **metodo** documento-per-documento (16 punti per ciascuno)            |
+| 16  | le decisioni **volutamente lasciate aperte**                             |
+
+⭐ **Il principio che regge tutto il contratto**, ed è quello che il proprietario ha ripetuto
+più volte durante il lavoro:
+
+> **Stessa cella grafica non significa stesso dato.** Si condividono componenti, grammatica
+> visuale, navigazione e meccanismi realmente comuni; **non si fondono regole di dominio
+> diverse**. Le differenze si passano alla componente come dati e policy — non come
+> `if (documentType…)` sparsi dentro le celle condivise.
+
+⚠️ **§16 elenca ciò che NON si chiude per deduzione** durante l'implementazione: modello dei
+Seriali, provenienza riga per Includi/Genera, architettura worker/outbox Shopify, idempotenza
+comune della prima creazione, numerazione del Registro Corrispettivi derivato, le parti
+incomplete della Fattura elettronica (TD04 compreso), e Rettifica/Inventario.
+
+**Come si procede da qui** (§15): un documento alla volta, confrontato contro il contratto, con
+ogni area classificata **conforme · divergente · mancante · legacy**. Prima si chiude la
+specifica funzionale, poi si confronta il codice, e solo dopo si prepara l'intervento tecnico.
+
+---
+
 ## La mappa: quale documento governa cosa
 
-| Documento                                 | Governa                                                        |
-| ----------------------------------------- | -------------------------------------------------------------- |
-| `01-registro-difetti-shopify`             | i difetti aperti dell'integrazione Shopify                     |
-| `02-specifica-sincronizzazione-shopify`   | come si sincronizza, chi possiede il dato                      |
-| `03` + `03b`                              | righe documento unificate, tastiera, U.M., ricerca             |
-| `04-specifica-numerazione-documenti`      | progressivi, serie, anno, indice unico                         |
-| `06b` · `07` · `QUADRO-DECISIONI-FATTURE` | famiglia Fattura (fattura, accompagnatoria, nota di credito)   |
-| `08` · `10`                               | resi e annullamenti di canale · Registro Corrispettivi         |
-| `09-specifica-movimenti-per-riga`         | un movimento per riga documento, aggiornato in posto           |
-| `11-specifica-vendita-al-banco`           | Vendita e Reso al banco                                        |
-| `12-specifica-collegamenti-documentali`   | «Includi» e «Genera» fra documenti, effetti a magazzino        |
-| `13-specifica-prestazioni-salvataggio`    | prestazioni del salvataggio e pipeline inventario (C4)         |
-| `14-specifica-elenchi-documenti`          | **elenchi e riepiloghi**: apertura, selezione, azioni, tabella |
-| `.claude/rules/regole-*`                  | le regole permanenti: architettura, dominio, stile, sicurezza  |
+| Documento                                 | Governa                                                         |
+| ----------------------------------------- | --------------------------------------------------------------- |
+| ⭐ **`CONTRATTO-COMUNE-DOCUMENTI`**       | **il contratto trasversale di ogni maschera documento a righe** |
+| `01-registro-difetti-shopify`             | i difetti aperti dell'integrazione Shopify                      |
+| `02-specifica-sincronizzazione-shopify`   | come si sincronizza, chi possiede il dato                       |
+| `03` + `03b`                              | righe documento unificate, tastiera, U.M., ricerca              |
+| `04-specifica-numerazione-documenti`      | progressivi, serie, anno, indice unico                          |
+| `06b` · `07` · `QUADRO-DECISIONI-FATTURE` | famiglia Fattura (fattura, accompagnatoria, nota di credito)    |
+| `08` · `10`                               | resi e annullamenti di canale · Registro Corrispettivi          |
+| `09-specifica-movimenti-per-riga`         | un movimento per riga documento, aggiornato in posto            |
+| `11-specifica-vendita-al-banco`           | Vendita e Reso al banco                                         |
+| `12-specifica-collegamenti-documentali`   | «Includi» e «Genera» fra documenti, effetti a magazzino         |
+| `13-specifica-prestazioni-salvataggio`    | prestazioni del salvataggio e pipeline inventario (C4)          |
+| `14-specifica-elenchi-documenti`          | **elenchi e riepiloghi**: apertura, selezione, azioni, tabella  |
+| `.claude/rules/regole-*`                  | le regole permanenti: architettura, dominio, stile, sicurezza   |
 
 ⚠️ **`PIANO-TEST`, `GUIDA-*`, `DA-FARE*`, `GUARDIE-MANCANTI` non sono specifiche**: sono
 strumenti di lavoro. Non ci si cercano decisioni.
