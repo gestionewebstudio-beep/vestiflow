@@ -31,6 +31,7 @@ import {
   lockDocumentCounter,
   nextDocumentNumber,
 } from '../documents/document-numbering.util';
+import type { PersistedLineVat } from '../documents/document-line-vat-snapshot.util';
 import { assertLocationInUserScope } from '../inventory/user-location-scope.util';
 import { StockReservationService } from '../order-reservations/stock-reservation.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -208,8 +209,30 @@ export class ManualSalesOrdersService {
       }
     }
 
+    // ⛔ L'IVA delle righe GIÀ PERSISTITE va letta PRIMA del calcolo: il
+    // contratto binario vive dentro `computeManualOrderLines`, e senza questa
+    // mappa una riga che non dichiara `vatCodeId` (perché non è cambiata)
+    // veniva salvata con codice, snapshot e imposta azzerati.
+    const persistedVatById = new Map<string, PersistedLineVat>();
+    if (dto.id) {
+      const persistito = await this.prisma.salesOrder.findFirst({
+        where: { id: dto.id, tenantId },
+        select: { lines: { select: { id: true, vatCodeId: true, vatSnapshot: true } } },
+      });
+      for (const riga of persistito?.lines ?? []) {
+        persistedVatById.set(riga.id, {
+          vatCodeId: riga.vatCodeId,
+          vatSnapshot: riga.vatSnapshot,
+        });
+      }
+    }
+
     const documentDiscountPercent = dto.documentDiscountPercent ?? 0;
-    const computedLines = computeManualOrderLines(persistableLines, vatCodesById);
+    const computedLines = computeManualOrderLines(
+      persistableLines,
+      vatCodesById,
+      persistedVatById,
+    );
     const totals = computeManualOrderTotals(computedLines, documentDiscountPercent);
 
     // Impegno effettivo: segue la spunta della riga, MA mai per prodotti che
