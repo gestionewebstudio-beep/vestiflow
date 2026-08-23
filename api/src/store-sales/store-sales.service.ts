@@ -648,7 +648,11 @@ export class StoreSalesService {
         // serie basta a farlo collidere nella serie nuova. Stessa lettura del
         // percorso generico.
         existing ? (dto.series ?? existing.series) : dto.series,
-        existing ? (dto.number ?? existing.number) : (dto.number && dto.number > 0 ? dto.number : null),
+        existing
+          ? (dto.number ?? existing.number)
+          : dto.number && dto.number > 0
+            ? dto.number
+            : null,
       );
       // Non era né un intento né un conflitto di numero: l'errore prosegue.
       throw error;
@@ -1149,7 +1153,11 @@ export class StoreSalesService {
         // Vedi `createSale`: in modifica vale il numero che il documento
         // avrebbe dopo il salvataggio.
         existing ? (dto.series ?? existing.series) : dto.series,
-        existing ? (dto.number ?? existing.number) : (dto.number && dto.number > 0 ? dto.number : null),
+        existing
+          ? (dto.number ?? existing.number)
+          : dto.number && dto.number > 0
+            ? dto.number
+            : null,
       );
       throw error;
     }
@@ -1310,7 +1318,9 @@ export class StoreSalesService {
           productName: row.product.name,
           optionSummary: this.optionSummary(row.optionValues),
           defaultVatCodeId: row.product.defaultVatCodeId,
-          purchasePriceMinor: row.purchasePriceMinor,
+          // Costo che verrà congelato sul movimento di vendita: resta preciso,
+          // `Number(...)` è solo il confine col tipo Prisma.
+          purchasePriceMinor: Number(row.purchasePriceMinor),
         },
       ]),
     );

@@ -51,14 +51,18 @@ describe('SaveGoodsReceipt — la coda decimale al cancello', () => {
     }
   });
 
-  describe('⛔ NON passa dove la colonna è ancora Int', () => {
-    it('«purchasePriceMinor» rifiuta la coda, ed è deliberato', () => {
-      // `product_variants.purchase_price_minor` è ancora `Int`. Rilassare qui
-      // prima di allargare la colonna farebbe troncare il valore in SILENZIO
-      // scrivendo: nessun errore, nessun test rosso, un costo sbagliato in
-      // anagrafica. Il giorno in cui la migration passa, questo test cambia
-      // insieme al decoratore — ed è il promemoria che serve.
-      expect(nuovoArticolo({ purchasePriceMinor: CODA })).toContain('purchasePriceMinor');
+  describe('⭐ e dal 22/08/2026 passa anche il costo dell’articolo nuovo', () => {
+    it('«purchasePriceMinor» accetta la coda: la colonna la regge', () => {
+      // ⚠️ Questo test asseriva l'OPPOSTO, e il suo commento diceva «il giorno
+      // in cui la migration passa, questo test cambia insieme al decoratore —
+      // ed è il promemoria che serve». È arrivato quel giorno:
+      // `product_variants.purchase_price_minor` è `NUMERIC(16,6)`, e il cancello
+      // che proteggeva dal troncamento silenzioso non serve più.
+      expect(nuovoArticolo({ purchasePriceMinor: CODA })).not.toContain('purchasePriceMinor');
+    });
+
+    it('⛔ ma oltre 4 cifre di centesimo resta rumore, non precisione', () => {
+      expect(nuovoArticolo({ purchasePriceMinor: 2049.180328 })).toContain('purchasePriceMinor');
     });
   });
 

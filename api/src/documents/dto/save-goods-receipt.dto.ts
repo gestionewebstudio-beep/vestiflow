@@ -53,17 +53,16 @@ export class SaveGoodsReceiptNewProductDto {
   compareAtPriceMinor?: number;
 
   /**
-   * ⛔ **Resta `@IsInt()`, e non è una svista.** La sua colonna
-   * (`product_variants.purchase_price_minor`) è ancora `Int`, a differenza di
-   * selling/compareAt/shopify che sono già `NUMERIC(16,6)`.
+   * ⭐ Costo del nuovo articolo, con la coda dello scorporo.
    *
-   * ⚠️ Rilassarlo PRIMA di allargare la colonna aprirebbe la strada peggiore:
-   * il valore con coda supererebbe la validazione e verrebbe **troncato in
-   * silenzio** scrivendo — nessun errore, nessun test rosso, un costo sbagliato
-   * in anagrafica. Si rilassa nello stesso commit della migration.
+   * Fino al 22/08/2026 era `@IsInt()`, e non era una svista: la colonna
+   * `product_variants.purchase_price_minor` era `Int`, e rilassare il cancello
+   * prima di allargarla avrebbe fatto **troncare in silenzio** il valore
+   * scrivendo — nessun errore, nessun test rosso, un costo sbagliato in
+   * anagrafica. Migrata la colonna a `NUMERIC(16,6)`, il vincolo si scioglie.
    */
   @IsOptional()
-  @IsInt()
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
   purchasePriceMinor?: number;
 

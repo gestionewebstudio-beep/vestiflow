@@ -1,6 +1,6 @@
 import type { DocumentLine, Prisma } from '@prisma/client';
 
-import { sameAmountAtCent } from '../common/money.util';
+import { sameUnitAmountAtContract, toStorableMinor } from '../common/money.util';
 
 type ReceiptLine = Pick<DocumentLine, 'variantId' | 'unitPriceMinor' | 'loadsStock' | 'quantity'>;
 
@@ -47,16 +47,30 @@ export async function findSupplierPriceDiffs(
     },
     select: { variantId: true, lastPurchasePriceMinor: true },
   });
-  const lastPriceByVariant = new Map(
-    links.map((link) => [link.variantId, link.lastPurchasePriceMinor]),
+  // Il costo precedente serve al confronto e alla risposta: entrambi lavorano
+  // su `number`. `Number(...)` è il confine col tipo Prisma, non un
+  // arrotondamento — la coda sopravvive.
+  const lastPriceByVariant = new Map<string, number | null>(
+    links.map((link) => [
+      link.variantId,
+      link.lastPurchasePriceMinor == null ? null : Number(link.lastPurchasePriceMinor),
+    ]),
   );
 
   const diffs: SupplierPriceDiff[] = [];
   for (const line of eligible) {
     const previous = lastPriceByVariant.get(line.variantId) ?? null;
-    // «Il costo è cambiato?» si chiede al centesimo: una coda decimale diversa
-    // (§sei decimali) non è un prezzo nuovo e non deve entrare nello storico.
-    if (previous !== null && sameAmountAtCent(previous, line.unitPriceMinor)) {
+    // ⭐ «Il costo è cambiato?» si chiede alla precisione del CONTRATTO, non al
+    // centesimo: questo è un costo unitario canonico, e la coda ne fa parte.
+    //
+    // ⛔ Fino al 22/08/2026 il confronto era `sameAmountAtCent`, e con quello
+    // 84,0000 e 84,4262 risultavano «uguali»: un Arrivo merce a 1,03 € ivati al
+    // 22% lasciava in anagrafica il vecchio costo intero invece di scrivere
+    // quello preciso — vanificando la migration che serviva a conservarlo.
+    if (
+      previous !== null &&
+      sameUnitAmountAtContract(previous, toStorableMinor(Number(line.unitPriceMinor)))
+    ) {
       continue;
     }
     diffs.push({
@@ -116,20 +130,44 @@ export async function applySupplierPriceUpdates(
     return;
   }
 
-  const costoDi = (line: ReceiptLine): number => Math.round(Number(line.unitPriceMinor));
+  // ⭐ **Il costo canonico, con la sua coda.** Qui c'era `Math.round(...)`, e
+  // c'era per una ragione sola: `ProductVariant.purchasePriceMinor` e
+  // `SupplierVariantLink.lastPurchasePriceMinor` erano `Int`. Dal 22/08/2026
+  // sono `NUMERIC(16,6)`, quindi l'arrotondamento non protegge più niente e
+  // butterebbe via proprio il valore che la migration serviva a conservare:
+  // 1,03 € ivati al 22% valgono 84,4262 centesimi netti, non 84.
+  //
+  // `toStorableMinor` riduce alle 4 cifre di centesimo del contratto — 6
+  // decimali di euro — che è quanto la colonna e i DTO accettano.
+  const costoDi = (line: ReceiptLine): number => toStorableMinor(Number(line.unitPriceMinor));
+
+  // ⭐ **Con più righe dello stesso articolo, vince l'ULTIMA** (deciso dal
+  // proprietario il 22/08/2026).
+  //
+  // ⛔ Qui c'era scritto «ogni variante compare una volta sola, quindi non
+  // esiste un "chi vince"». **L'assunzione era falsa**, e un test reale l'ha
+  // smentita: un Arrivo merce può avere due righe dello stesso articolo a costi
+  // diversi — 0,84 e 0,94 — e in anagrafica ne finiva uno dei due a seconda
+  // dell'ordine con cui la mappa veniva percorsa. Non una regola: un caso.
+  //
+  // Deduplicare tenendo l'ultima occorrenza rende la scelta dichiarata, e
+  // riduce anche le scritture: una per variante, non una per riga.
+  const ultimaRigaPerVariante = new Map<string, CostBearingLine>();
+  for (const line of eligible) {
+    ultimaRigaPerVariante.set(line.variantId, line);
+  }
 
   // ── Costo della variante: SOLO con la spunta ────────────────────────────
   //
   // ⛔ Prima si scriveva sempre, e la spunta governava il costo dell'articolo:
   // chi la toglieva credeva di registrare un costo solo documentale e stava
   // riscrivendo il costo effettivo di ogni variante caricata.
-  //
-  // Le righe si raggruppano per COSTO: ogni variante compare una volta sola,
-  // quindi non esiste un «chi vince» — si accorpa solo per emettere una
-  // `updateMany` per valore invece di una per riga.
   if (updateArticleCost) {
+    // Le varianti si accorpano per COSTO: una `updateMany` per valore invece
+    // di una per variante. Ora che ogni variante compare una volta sola,
+    // l'accorpamento è solo un risparmio di query.
     const perCosto = new Map<number, string[]>();
-    for (const line of eligible) {
+    for (const line of ultimaRigaPerVariante.values()) {
       const costo = costoDi(line);
       const gruppo = perCosto.get(costo);
       if (gruppo) {
@@ -152,7 +190,9 @@ export async function applySupplierPriceUpdates(
   // un costo dell'anagrafica. «Quanto l'ho pagato l'ultima volta» resta vero
   // anche scegliendo di non aggiornare il costo dell'articolo.
   if (supplierId) {
-    for (const line of eligible) {
+    // Stessa regola dell'anagrafica: con più righe dello stesso articolo,
+    // «quanto l'ho pagato l'ultima volta» è il costo dell'ultima riga.
+    for (const line of ultimaRigaPerVariante.values()) {
       await tx.supplierVariantLink.upsert({
         where: {
           tenantId_supplierId_variantId: { tenantId, supplierId, variantId: line.variantId },

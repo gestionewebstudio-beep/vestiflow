@@ -1,3 +1,5 @@
+import { toStorableMinor } from '@core/utils/money.util';
+
 import type { CurrencyCode, EntityId, IsoDateString } from '@core/models/common.model';
 import type { PurchaseCostEntryMode, VatSnapshot } from '@core/models/vat-code.model';
 import type {
@@ -213,8 +215,14 @@ function mapLine(row: DocumentLineApiRow, currency: CurrencyCode): DocumentLine 
     discountPercent: Number(row.discountPercent),
     vatCodeId: row.vatCodeId ?? undefined,
     vatSnapshot: row.vatSnapshot ?? undefined,
+    // ⛔ Qui c'era `Math.round(...)`, e la coda del costo moriva sull'ultimo
+    // metro. La colonna è `NUMERIC(16,6)` in EURO, quindi il ponte a unità
+    // minori è un ×100 che può lasciare una coda: 20,491803 EUR sono 2049,1803
+    // centesimi, e arrotondarli a 2049 rimostra 24,99 dove l'operatore aveva
+    // digitato 25,00 ivati. `toStorableMinor` riduce la coda a quello che il
+    // contratto conserva, senza buttarla via. (regole-gestionale)
     enteredUnitCostMinor:
-      row.enteredUnitCost != null ? Math.round(Number(row.enteredUnitCost) * 100) : undefined,
+      row.enteredUnitCost != null ? toStorableMinor(Number(row.enteredUnitCost) * 100) : undefined,
     lineTotal: { amountMinor: row.lineTotalMinor, currencyCode: currency },
     unitOfMeasure: row.unitOfMeasure ?? undefined,
     loadsStock: row.loadsStock,

@@ -66,6 +66,37 @@ export function sameNullableAmountAtCent(a: number | null, b: number | null): bo
 }
 
 /**
+ * **«È cambiato?» per un valore UNITARIO canonico**: si chiede alla precisione
+ * del contratto — 4 cifre di centesimo, cioè 6 decimali di euro — non al
+ * centesimo.
+ *
+ * ⛔ **Non è un doppione di `sameAmountAtCent`, ed è la distinzione che conta.**
+ * Quella risponde «è lo stesso importo *per l'operatore*», e sui TOTALI è
+ * giusta: una coda diversa non è una modifica che qualcuno vede. Ma un costo
+ * unitario la coda la CONSERVA per contratto, e chiederglielo al centesimo
+ * significa non accorgersi di un cambio reale:
+ *
+ *     84,0000 → 84,4262     al centesimo: «uguali»  ⛔     al contratto: diversi ✅
+ *
+ * Misurato il 22/08/2026: con quel metro, un Arrivo merce a 1,03 € ivati al 22%
+ * avrebbe lasciato in anagrafica il vecchio 84 invece di scrivere 84,4262 —
+ * cioè avrebbe vanificato la migration che serviva a conservarlo.
+ *
+ * ⭐ **Normalizza entrambi i valori prima di confrontarli**, con la stessa
+ * funzione che li prepara alla persistenza: due valori grezzi diversi che
+ * diventano identici una volta memorizzabili SONO lo stesso valore, e non
+ * devono far scattare una riscrittura.
+ *
+ * `null` resta distinto da qualunque numero, zero compreso.
+ */
+export function sameUnitAmountAtContract(a: number | null, b: number | null): boolean {
+  if (a === null || b === null) {
+    return a === b;
+  }
+  return toStorableMinor(a) === toStorableMinor(b);
+}
+
+/**
  * Unità minori → stringa decimale (2990 → "29.90"). È la forma con cui il
  * denaro esce verso un canale esterno, quindi **è qui che si arrotonda**.
  *

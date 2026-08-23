@@ -289,7 +289,9 @@ describe('ProductsService', () => {
 
   it('checkSkuAvailability segnala SKU libero o occupato', async () => {
     const { service, prisma } = createService();
-    prisma.productVariant.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'var-1' });
+    prisma.productVariant.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 'var-1' });
 
     await expect(service.checkSkuAvailability(tenantId, 'SKU-NEW')).resolves.toEqual({
       sku: 'SKU-NEW',
@@ -303,7 +305,9 @@ describe('ProductsService', () => {
 
   it('checkBarcodeAvailability segnala barcode libero o occupato', async () => {
     const { service, prisma } = createService();
-    prisma.productVariant.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'var-1' });
+    prisma.productVariant.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 'var-1' });
 
     await expect(service.checkBarcodeAvailability(tenantId, '8001234567890')).resolves.toEqual({
       barcode: '8001234567890',
@@ -581,10 +585,7 @@ describe('ProductsService', () => {
 
     await service.delete(tenantId, 'prod-1');
 
-    expect(channelSync.deleteProduct).toHaveBeenCalledWith(
-      tenantId,
-      'gid://shopify/Product/1',
-    );
+    expect(channelSync.deleteProduct).toHaveBeenCalledWith(tenantId, 'gid://shopify/Product/1');
     expect(prisma.product.delete).toHaveBeenCalledWith({ where: { id: 'prod-1' } });
   });
 
@@ -634,9 +635,9 @@ describe('ProductsService', () => {
     };
     prisma.product.findFirst.mockResolvedValue(product);
 
-    await expect(
-      service.update(tenantId, 'prod-1', { name: 'Nuovo nome' }),
-    ).resolves.toMatchObject({ id: 'prod-1', name: 'Vecchio' });
+    await expect(service.update(tenantId, 'prod-1', { name: 'Nuovo nome' })).resolves.toMatchObject(
+      { id: 'prod-1', name: 'Vecchio' },
+    );
 
     expect(channelSync.enqueueProductPush).toHaveBeenCalledWith(tenantId, 'prod-1');
   });
@@ -735,8 +736,9 @@ describe('ProductsService', () => {
       sellingPrice: { amountMinor: 1990, currencyCode: 'EUR' },
       purchasePrice: { amountMinor: 990, currencyCode: 'EUR' },
     });
-    const where = (prisma.productVariant.findMany.mock.calls[0]?.[0] as { where: { tenantId: string } })
-      .where;
+    const where = (
+      prisma.productVariant.findMany.mock.calls[0]?.[0] as { where: { tenantId: string } }
+    ).where;
     expect(where.tenantId).toBe(tenantId);
   });
 
@@ -787,8 +789,9 @@ describe('ProductsService', () => {
       variantId: 'var-9',
     } as never);
 
-    const where = (prisma.productVariant.findMany.mock.calls[0]?.[0] as { where: Record<string, unknown> })
-      .where;
+    const where = (
+      prisma.productVariant.findMany.mock.calls[0]?.[0] as { where: Record<string, unknown> }
+    ).where;
     expect(where.tenantId).toBe(tenantId);
     expect(where.id).toBe('var-9');
   });
@@ -804,8 +807,9 @@ describe('ProductsService', () => {
       productId: 'prod-7',
     } as never);
 
-    const where = (prisma.productVariant.findMany.mock.calls[0]?.[0] as { where: Record<string, unknown> })
-      .where;
+    const where = (
+      prisma.productVariant.findMany.mock.calls[0]?.[0] as { where: Record<string, unknown> }
+    ).where;
     expect(where.tenantId).toBe(tenantId);
     expect(where.productId).toBe('prod-7');
   });
@@ -888,10 +892,7 @@ describe('ProductsService', () => {
       prisma.productVariant.count.mockResolvedValue(0);
       const clerk = testClerkUser({
         assignedLocationIds: [MILANO],
-        permissions: [
-          TenantPermission.SectionProducts,
-          TenantPermission.InventoryViewAllLocations,
-        ],
+        permissions: [TenantPermission.SectionProducts, TenantPermission.InventoryViewAllLocations],
       });
 
       await expect(

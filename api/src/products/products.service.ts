@@ -16,7 +16,7 @@ import {
 } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { sameAmountAtCent } from '../common/money.util';
+import { sameUnitAmountAtContract } from '../common/money.util';
 import { canViewPurchaseCosts } from '../auth/user-permissions.util';
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
@@ -421,9 +421,12 @@ export class ProductsService {
           ? levels.reduce((sum, level) => sum + level.minThreshold, 0)
           : null;
       // Senza permesso il costo non entra proprio nella risposta.
-      const purchaseMinor = showPurchaseCosts
+      // Valore di RISPOSTA: il confine verso il client è `number` (Blocco 1).
+      // `Number(...)` converte, non arrotonda: la coda resta.
+      const costoGrezzo = showPurchaseCosts
         ? (pricingSupplierLink?.lastPurchasePriceMinor ?? row.purchasePriceMinor ?? null)
         : null;
+      const purchaseMinor = costoGrezzo == null ? null : Number(costoGrezzo);
       return {
         variantId: row.id,
         productId: row.productId,
@@ -469,11 +472,7 @@ export class ProductsService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async getById(
-    tenantId: string,
-    id: string,
-    user?: UserProfileDto,
-  ): Promise<ProductWithVariants> {
+  async getById(tenantId: string, id: string, user?: UserProfileDto): Promise<ProductWithVariants> {
     const normalized = await this.loadProductOrThrow(tenantId, id);
     // Costo d'acquisto (dato sensibile §permessi): mascherato come nella lista.
     // Si può fare senza perdere dati perché il salvataggio ignora i costi di
@@ -535,36 +534,36 @@ export class ProductsService {
             catalogOrigin: CatalogOrigin.vestiflow,
             shopifyCatalogLinkKind: ShopifyCatalogLinkKind.pushed,
             name: dto.name,
-          description: normalizeProductDescription(dto.description),
-          brand: dto.brand,
-          category: dto.category,
-          subcategory: dto.subcategory,
-          internalNotes: dto.internalNotes,
-          shopifyTaxonomyCategoryId: dto.shopifyTaxonomyCategoryId?.trim() || null,
-          shopifyTaxonomyCategoryFullName: dto.shopifyTaxonomyCategoryFullName?.trim() || null,
-          shopifyCategoryMetafields: (dto.shopifyCategoryMetafields ??
-            []) as unknown as Prisma.InputJsonValue,
-          tiktokCategoryId: dto.tiktokCategoryId?.trim() || null,
-          season: dto.season,
-          tags: this.normalizeTags(dto.tags),
-          status: dto.status,
-          shopifySyncEnabled: dto.shopifySyncEnabled ?? true,
-          unitOfMeasure: dto.unitOfMeasure?.trim() || 'pz',
-          defaultVatCodeId: dto.defaultVatCodeId ?? null,
-          sellingPriceMinor: dto.sellingPrice.amountMinor,
-          // Prezzo Shopify: valore proprio (§B). Se il form lo invia (Shopify
-          // attivo, operatore che lo tocca) si usa quello; altrimenti nasce
-          // precompilato dal prezzo articolo.
-          shopifyPriceMinor: dto.shopifyPrice?.amountMinor ?? dto.sellingPrice.amountMinor,
-          compareAtPriceMinor: dto.compareAtPrice?.amountMinor ?? null,
-          purchasePriceMinor: canWriteCosts ? (dto.purchasePrice?.amountMinor ?? null) : null,
-          // Listini aggiuntivi (§B): netti, valore unico articolo. Assenti = null.
-          listino1PriceMinor: dto.listino1Price?.amountMinor ?? null,
-          listino2PriceMinor: dto.listino2Price?.amountMinor ?? null,
-          listino3PriceMinor: dto.listino3Price?.amountMinor ?? null,
-          inventoryTracking: dto.inventoryTracking ?? undefined,
-          managesStock: dto.managesStock ?? true,
-          kind: dto.kind ?? undefined,
+            description: normalizeProductDescription(dto.description),
+            brand: dto.brand,
+            category: dto.category,
+            subcategory: dto.subcategory,
+            internalNotes: dto.internalNotes,
+            shopifyTaxonomyCategoryId: dto.shopifyTaxonomyCategoryId?.trim() || null,
+            shopifyTaxonomyCategoryFullName: dto.shopifyTaxonomyCategoryFullName?.trim() || null,
+            shopifyCategoryMetafields: (dto.shopifyCategoryMetafields ??
+              []) as unknown as Prisma.InputJsonValue,
+            tiktokCategoryId: dto.tiktokCategoryId?.trim() || null,
+            season: dto.season,
+            tags: this.normalizeTags(dto.tags),
+            status: dto.status,
+            shopifySyncEnabled: dto.shopifySyncEnabled ?? true,
+            unitOfMeasure: dto.unitOfMeasure?.trim() || 'pz',
+            defaultVatCodeId: dto.defaultVatCodeId ?? null,
+            sellingPriceMinor: dto.sellingPrice.amountMinor,
+            // Prezzo Shopify: valore proprio (§B). Se il form lo invia (Shopify
+            // attivo, operatore che lo tocca) si usa quello; altrimenti nasce
+            // precompilato dal prezzo articolo.
+            shopifyPriceMinor: dto.shopifyPrice?.amountMinor ?? dto.sellingPrice.amountMinor,
+            compareAtPriceMinor: dto.compareAtPrice?.amountMinor ?? null,
+            purchasePriceMinor: canWriteCosts ? (dto.purchasePrice?.amountMinor ?? null) : null,
+            // Listini aggiuntivi (§B): netti, valore unico articolo. Assenti = null.
+            listino1PriceMinor: dto.listino1Price?.amountMinor ?? null,
+            listino2PriceMinor: dto.listino2Price?.amountMinor ?? null,
+            listino3PriceMinor: dto.listino3Price?.amountMinor ?? null,
+            inventoryTracking: dto.inventoryTracking ?? undefined,
+            managesStock: dto.managesStock ?? true,
+            kind: dto.kind ?? undefined,
             options: dto.options as unknown as Prisma.InputJsonValue,
             variants: {
               create: dto.variants.map((variant) =>
@@ -639,33 +638,33 @@ export class ProductsService {
           catalogOrigin: CatalogOrigin.vestiflow,
           shopifyCatalogLinkKind: ShopifyCatalogLinkKind.pushed,
           name: `${original.name} (copia)`,
-        description: original.description,
-        brand: original.brand,
-        category: original.category,
-        subcategory: original.subcategory,
-        internalNotes: original.internalNotes,
-        shopifyTaxonomyCategoryId: original.shopifyTaxonomyCategoryId,
-        shopifyTaxonomyCategoryFullName: original.shopifyTaxonomyCategoryFullName,
-        shopifyCategoryMetafields: original.shopifyCategoryMetafields as Prisma.InputJsonValue,
-        tiktokCategoryId: original.tiktokCategoryId,
-        season: original.season,
-        tags: [...original.tags],
-        seoTitle: original.seoTitle,
-        seoDescription: original.seoDescription,
-        status: original.status,
-        unitOfMeasure: original.unitOfMeasure,
-        defaultVatCodeId: original.defaultVatCodeId,
-        sellingPriceMinor: original.sellingPriceMinor,
-        shopifyPriceMinor: original.shopifyPriceMinor,
-        compareAtPriceMinor: original.compareAtPriceMinor,
-        purchasePriceMinor: original.purchasePriceMinor,
-        // Listini aggiuntivi: copiati tali e quali (netti).
-        listino1PriceMinor: original.listino1PriceMinor,
-        listino2PriceMinor: original.listino2PriceMinor,
-        listino3PriceMinor: original.listino3PriceMinor,
-        inventoryTracking: original.inventoryTracking,
-        managesStock: original.managesStock,
-        kind: original.kind,
+          description: original.description,
+          brand: original.brand,
+          category: original.category,
+          subcategory: original.subcategory,
+          internalNotes: original.internalNotes,
+          shopifyTaxonomyCategoryId: original.shopifyTaxonomyCategoryId,
+          shopifyTaxonomyCategoryFullName: original.shopifyTaxonomyCategoryFullName,
+          shopifyCategoryMetafields: original.shopifyCategoryMetafields as Prisma.InputJsonValue,
+          tiktokCategoryId: original.tiktokCategoryId,
+          season: original.season,
+          tags: [...original.tags],
+          seoTitle: original.seoTitle,
+          seoDescription: original.seoDescription,
+          status: original.status,
+          unitOfMeasure: original.unitOfMeasure,
+          defaultVatCodeId: original.defaultVatCodeId,
+          sellingPriceMinor: original.sellingPriceMinor,
+          shopifyPriceMinor: original.shopifyPriceMinor,
+          compareAtPriceMinor: original.compareAtPriceMinor,
+          purchasePriceMinor: original.purchasePriceMinor,
+          // Listini aggiuntivi: copiati tali e quali (netti).
+          listino1PriceMinor: original.listino1PriceMinor,
+          listino2PriceMinor: original.listino2PriceMinor,
+          listino3PriceMinor: original.listino3PriceMinor,
+          inventoryTracking: original.inventoryTracking,
+          managesStock: original.managesStock,
+          kind: original.kind,
           options: original.options as Prisma.InputJsonValue,
           variants: { create: variantsData },
           images: {
@@ -794,7 +793,13 @@ export class ProductsService {
                     : {}
                   : // «Cambiato» si valuta al centesimo: una coda decimale
                     // diversa non è un prezzo nuovo (§sei decimali).
-                    !sameAmountAtCent(dto.sellingPrice.amountMinor, Number(existing.sellingPriceMinor))
+                    // ⭐ Copia fra due valori unitari INTERNI: confronto alla
+                    // precisione del contratto, non al centesimo. Il canale
+                    // arrotonda al SUO confine, non qui.
+                    !sameUnitAmountAtContract(
+                        dto.sellingPrice.amountMinor,
+                        Number(existing.sellingPriceMinor),
+                      )
                     ? { shopifyPriceMinor: dto.sellingPrice.amountMinor }
                     : {}),
               }
@@ -944,7 +949,11 @@ export class ProductsService {
       },
       select: { name: true },
     });
-    return { articleCode: normalized, available: existing === null, takenBy: existing?.name ?? null };
+    return {
+      articleCode: normalized,
+      available: existing === null,
+      takenBy: existing?.name ?? null,
+    };
   }
 
   /** Verifica disponibilità barcode per la validazione live del form. */
@@ -1092,7 +1101,14 @@ export class ProductsService {
 
     for (const variant of variants) {
       if (variant.id) {
-        await this.updateVariantInTx(tx, tenantId, productId, variant, shopifyActive, canWriteCosts);
+        await this.updateVariantInTx(
+          tx,
+          tenantId,
+          productId,
+          variant,
+          shopifyActive,
+          canWriteCosts,
+        );
       } else {
         await this.createVariantInTx(tx, tenantId, productId, variant, canWriteCosts);
       }
@@ -1151,7 +1167,11 @@ export class ProductsService {
           ? variant.shopifyPrice !== undefined
             ? { shopifyPriceMinor: variant.shopifyPrice.amountMinor }
             : {}
-          : !sameAmountAtCent(variant.sellingPrice.amountMinor, Number(current.sellingPriceMinor))
+          : // ⭐ Stesso criterio dell'articolo: valori unitari interni.
+            !sameUnitAmountAtContract(
+                variant.sellingPrice.amountMinor,
+                Number(current.sellingPriceMinor),
+              )
             ? { shopifyPriceMinor: variant.sellingPrice.amountMinor }
             : {}),
         // Costo mascherato = costo non scrivibile: il valore a database resta
@@ -1365,9 +1385,7 @@ export class ProductsService {
     skus: readonly (string | undefined)[],
   ): Promise<void> {
     const normalized = [
-      ...new Set(
-        skus.map((sku) => sku?.trim()).filter((sku): sku is string => Boolean(sku)),
-      ),
+      ...new Set(skus.map((sku) => sku?.trim()).filter((sku): sku is string => Boolean(sku))),
     ];
     if (normalized.length === 0) {
       return;
@@ -1405,9 +1423,7 @@ export class ProductsService {
         select: { name: true },
       });
       return new ConflictException(
-        owner
-          ? articleCodeTakenMessage(owner.name)
-          : `Codice articolo già in uso: ${providedCode}`,
+        owner ? articleCodeTakenMessage(owner.name) : `Codice articolo già in uso: ${providedCode}`,
       );
     }
     const skus = dto.variants
@@ -1505,4 +1521,3 @@ function normalizeListProductRow(item: ProductWithVariants | ProductListRow): Pr
     images: [],
   };
 }
-

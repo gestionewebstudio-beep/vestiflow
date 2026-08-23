@@ -161,7 +161,12 @@ export class InventorySituationService {
           supplierName: link ? partyDisplayName(link.supplier.party) : null,
           currency: variant.currency,
           sellingPriceMinor: Number(variant.sellingPriceMinor),
-          purchasePriceMinor: showPurchaseCosts ? variant.purchasePriceMinor : null,
+          // ⛔ `Number(null)` vale zero: senza la guardia, un costo assente
+          // diventerebbe «costa zero» nella situazione di magazzino.
+          purchasePriceMinor:
+            showPurchaseCosts && variant.purchasePriceMinor != null
+              ? Number(variant.purchasePriceMinor)
+              : null,
           ...totals,
           totalIn: 0,
           totalOut: 0,

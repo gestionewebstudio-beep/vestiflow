@@ -383,26 +383,42 @@ export class BusinessAnalyticsService {
       },
     });
 
-    let stockValueMinor = 0;
-    let stockCostMinor = 0;
+    // ⭐ **La somma si fa in `Decimal`, e si arrotonda UNA VOLTA alla fine.**
+    //
+    // ⛔ Qui c'era `Number(...)` prima di moltiplicare e sommare, con accanto un
+    // commento che diceva «si somma il valore esatto e si arrotonda una volta
+    // sola, alla fine». Erano false entrambe le cose: una somma in virgola
+    // mobile non è esatta, e un arrotondamento finale non esisteva affatto —
+    // `stockValueMinor` e `stockCostMinor` uscivano con la loro coda e venivano
+    // sottratti fra loro per ottenere il margine di magazzino.
+    //
+    // Con prezzi e costi a sei decimali su centinaia di varianti l'errore di
+    // arrotondamento binario si accumula riga per riga, ed è proprio la
+    // grandezza in cui si nota: un margine è una DIFFERENZA fra due totali
+    // grandi e vicini.
+    let stockValue = new Prisma.Decimal(0);
+    let stockCost = new Prisma.Decimal(0);
     let availableUnits = 0;
     let missingCost = false;
 
     for (const level of levels) {
       const qty = Math.max(0, level.available);
       availableUnits += level.available;
-      // Prezzo a sei decimali: si somma il valore esatto e si arrotonda una
-      // volta sola, alla fine (§sei decimali).
-      stockValueMinor += qty * Number(level.variant.sellingPriceMinor);
+      stockValue = stockValue.plus(new Prisma.Decimal(level.variant.sellingPriceMinor).times(qty));
       if (level.variant.purchasePriceMinor === null) {
         missingCost = true;
       } else {
-        stockCostMinor += qty * level.variant.purchasePriceMinor;
+        stockCost = stockCost.plus(new Prisma.Decimal(level.variant.purchasePriceMinor).times(qty));
       }
     }
 
+    // Il valore di magazzino è un importo monetario: qui esce, e qui si
+    // arrotonda al centesimo. Una volta sola, sul totale.
+    const stockCostMinor = Math.round(stockCost.toNumber());
     return {
-      stockValueMinor,
+      stockValueMinor: Math.round(stockValue.toNumber()),
+      // ⛔ `null` non è zero: «costo sconosciuto» e «costa zero» sono due cose
+      // diverse, e il margine non si calcola sul primo.
       stockCostMinor: missingCost && stockCostMinor === 0 ? null : stockCostMinor,
       availableUnits,
     };

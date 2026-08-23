@@ -1,3 +1,5 @@
+import type { Prisma } from '@prisma/client';
+
 import { minorToDecimalString } from '../common/money.util';
 
 /** Converte stringa decimale Shopify (es. "29.90") in unità minori intere. */
@@ -29,6 +31,10 @@ export function shopifyGid(type: string, id: string | number): string {
  * perché non è una regola di Shopify ma del denaro: ogni canale deve
  * pubblicare lo stesso prezzo con lo stesso arrotondamento.
  */
-export function minorToShopifyDecimal(amountMinor: number, decimals = 2): string {
-  return minorToDecimalString(amountMinor, decimals);
+export function minorToShopifyDecimal(amountMinor: Prisma.Decimal | number, decimals = 2): string {
+  // ⭐ Accetta anche `Decimal`, che è ciò che arriva leggendo una colonna
+  // `NUMERIC(16,6)`: la conversione avviene QUI, al confine, e non a monte —
+  // l'anagrafica e i movimenti conservano la loro precisione, Shopify riceve
+  // i due decimali che accetta.
+  return minorToDecimalString(Number(amountMinor), decimals);
 }
