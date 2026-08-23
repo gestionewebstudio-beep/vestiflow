@@ -3101,27 +3101,21 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   }
 
   /**
-   * L'unità di misura della riga — **prima quella della riga**, poi quella
-   * dell'articolo, poi `pz`.
+   * L'unità di misura della riga: **quella della riga, e basta**.
    *
-   * La precedenza era invertita, e la conseguenza non si vedeva: siccome
-   * `Product.unitOfMeasure` non è mai vuoto, l'anagrafica vinceva sempre e
-   * quello che il documento aveva salvato **non si vedeva mai**. Il valore
-   * c'era, veniva scritto e riletto, e restava invisibile.
+   * Rovesciare la precedenza (riga prima dell'anagrafica) era il primo passo, e
+   * il commento che stava qui lo raccontava: siccome `Product.unitOfMeasure`
+   * non è mai vuoto, l'anagrafica vinceva sempre e quello che il documento
+   * aveva salvato non si vedeva mai.
    *
-   * Rovesciarla è la riga in cui la regola del «documento fotografia» entra in
-   * vigore per l'unità di misura, esattamente come vale già per il prezzo: la
-   * riga cattura il valore all'inserimento e se lo tiene, indipendente da come
-   * l'anagrafica cambia dopo.
+   * ⛔ Ma il ripiego restava, e nascondeva il caso opposto: una riga SENZA
+   * unità mostrava quella dell'articolo, quindi il campo sembrava pieno mentre
+   * il documento non conteneva niente. Ora il ripiego non c'è: se la riga è
+   * vuota si vede vuota. Stessa forma dell'Ordine fornitore (23/08/2026).
    */
   protected lineUnitOfMeasure(index: number): string {
     this.formValue();
-    const summary = this.lineVariantSummary(index);
-    return (
-      this.lines.at(index)?.controls.unitOfMeasure.value.trim() ||
-      summary?.unitOfMeasure?.trim() ||
-      'pz'
-    );
+    return this.lines.at(index)?.controls.unitOfMeasure.value.trim() ?? '';
   }
 
   // ── Unità di misura di riga ────────────────────────────────────────────────

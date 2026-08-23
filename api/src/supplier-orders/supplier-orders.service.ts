@@ -680,10 +680,13 @@ export class SupplierOrdersService {
         discountPercent,
         vatCodeId: vatCode?.id ?? null,
         vatSnapshot: vatCode ? this.vatCodes.buildSnapshot(vatCode) : null,
-        // Se la riga non la porta vale quella dell'articolo: è il valore che la
-        // maschera propone come default, e fotografarlo qui evita che una riga
-        // salvata oggi cambi unità perché domani l'anagrafica cambia.
-        unitOfMeasure: line.unitOfMeasure?.trim() || variant.product.unitOfMeasure || null,
+        // ⛔ Niente ripiego sull'anagrafica: la fotografa la MASCHERA quando
+        // l'articolo entra nella riga (`applyVariantToLine`), e da lì il valore
+        // viaggia sempre nel payload. Ripescarlo qui rifotografava l'anagrafica
+        // di OGGI a ogni salvataggio — cioè esattamente ciò che il commento
+        // precedente diceva di voler evitare. Una riga senza unità resta senza:
+        // il documento non ne ha una, e deve vedersi (23/08/2026).
+        unitOfMeasure: line.unitOfMeasure?.trim() || null,
         lineTotalMinor: amounts.lineNetMinor,
         lineVatTotalMinor: amounts.lineVatMinor,
         vatAffectsSupplierTotal: vat.vatAffectsSupplierTotal,

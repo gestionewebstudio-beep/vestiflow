@@ -2576,10 +2576,21 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
    * l'articolo, e su una riga normale era testo calcolato. Ora è lo stesso
    * dato — quando l'articolo nasce, il valore va anche in anagrafica.
    */
+  /**
+   * L'unità di misura della riga: **quella della riga, e basta**.
+   *
+   * ⛔ Qui c'era un ripiego `riga || anagrafica || 'pz'`, e faceva danno in
+   * silenzio: una riga SENZA unità mostrava quella dell'articolo, quindi il
+   * campo sembrava pieno mentre il documento non conteneva niente. È il
+   * meccanismo che ha nascosto per mesi il difetto per cui **zero righe su 99
+   * avevano una U.M.** — il valore si vedeva a schermo e non c'era.
+   *
+   * La riga la CATTURA quando l'articolo entra; se è vuota, il documento non ha
+   * un'unità e deve vedersi. Stessa forma dell'Ordine fornitore, che il valore
+   * grezzo lo lega da sempre (23/08/2026).
+   */
   protected lineUnitOfMeasure(index: number): string {
-    const line = this.lines.at(index);
-    const summary = this.lineVariantSummary(index);
-    return line?.controls.unitOfMeasure.value.trim() || summary?.unitOfMeasure?.trim() || 'pz';
+    return this.lines.at(index)?.controls.unitOfMeasure.value.trim() ?? '';
   }
 
   // ── Unità di misura di riga ────────────────────────────────────────────────

@@ -274,6 +274,90 @@ describe('SupplierOrdersService', () => {
     );
   });
 
+  // ── Unità di misura: la fotografa la maschera, non il server ───────────────
+  //
+  // ⛔ Il server ripescava `variant.product.unitOfMeasure` quando la riga non la
+  // portava, e il commento diceva di volere il contrario — «evita che una riga
+  // salvata oggi cambi unità perché domani l'anagrafica cambia». Ma le righe si
+  // cancellano e si riscrivono a ogni salvataggio, quindi quel ripiego
+  // rifotografava l'anagrafica di OGGI ogni volta.
+  //
+  // La cattura sta nella maschera (`applyVariantToLine`), e da lì il valore
+  // viaggia sempre nel payload. Qui il payload è l'unica fonte (23/08/2026).
+  describe('unità di misura', () => {
+    function ordineConVariante(prisma: ReturnType<typeof createPrismaMock>) {
+      prisma.supplier.findFirst.mockResolvedValue({ id: 'sup-1', party: supplierParty });
+      prisma.productVariant.findMany.mockResolvedValue([
+        // L'articolo in anagrafica è a chilogrammi.
+        { id: 'var-1', sku: 'SKU-1', product: { name: 'Felpa', unitOfMeasure: 'kg' } },
+      ]);
+      prisma.supplierOrder.create.mockImplementation((args: { data: unknown }) =>
+        Promise.resolve({ id: 'po-new', lines: [], ...(args.data as object) }),
+      );
+    }
+
+    function rigaSalvata(prisma: ReturnType<typeof createPrismaMock>): Record<string, unknown> {
+      const chiamata = prisma.supplierOrder.create.mock.calls[0]![0] as {
+        data: { lines: { create: Record<string, unknown>[] } };
+      };
+      return chiamata.data.lines.create[0]!;
+    }
+
+    it("l'unità di misura NON si ripesca dall'anagrafica quando la riga non la porta", async () => {
+      const prisma = createPrismaMock();
+      ordineConVariante(prisma);
+      const service = createService(prisma);
+
+      await service.create(tenantId, {
+        supplierId: 'sup-1',
+        lines: [{ variantId: 'var-1', orderedQuantity: 1, enteredUnitCostMinor: 1000 }],
+      });
+
+      // Non 'kg': il documento non ha un'unità, e deve vedersi.
+      expect(rigaSalvata(prisma)['unitOfMeasure']).toBeNull();
+    });
+
+    it('quella che la riga porta si salva così com’è', async () => {
+      const prisma = createPrismaMock();
+      ordineConVariante(prisma);
+      const service = createService(prisma);
+
+      await service.create(tenantId, {
+        supplierId: 'sup-1',
+        lines: [
+          {
+            variantId: 'var-1',
+            orderedQuantity: 1,
+            enteredUnitCostMinor: 1000,
+            unitOfMeasure: 'conf',
+          },
+        ],
+      });
+
+      expect(rigaSalvata(prisma)['unitOfMeasure']).toBe('conf');
+    });
+
+    it('una stringa di soli spazi vale come assente', async () => {
+      const prisma = createPrismaMock();
+      ordineConVariante(prisma);
+      const service = createService(prisma);
+
+      await service.create(tenantId, {
+        supplierId: 'sup-1',
+        lines: [
+          {
+            variantId: 'var-1',
+            orderedQuantity: 1,
+            enteredUnitCostMinor: 1000,
+            unitOfMeasure: '   ',
+          },
+        ],
+      });
+
+      expect(rigaSalvata(prisma)['unitOfMeasure']).toBeNull();
+    });
+  });
+
   // ── Il giro del costo ivato (docs/ORDINE-FORNITORE-RIGA.md) ────────────────
   //
   // «Un costo digitato in modalità ivata, salvato e riletto, torna identico.»

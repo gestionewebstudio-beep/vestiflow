@@ -988,6 +988,7 @@ describe('GoodsReceiptFormComponent', () => {
   describe('codice fornitore scritto nella riga', () => {
     interface CodeForm {
       readonly commitSkuLookup: (index: number) => void;
+      readonly lineUnitOfMeasure: (index: number) => string;
       readonly commitSupplierSkuLookup: (index: number) => void;
       readonly form: { controls: Record<string, { setValue: (v: unknown) => void }> };
       readonly lines: {
@@ -1072,6 +1073,44 @@ describe('GoodsReceiptFormComponent', () => {
 
       expect(form.lines.at(0).controls['variantId']!.value).toBe('var-1');
       expect(form.lines.at(0).controls['supplierSku']!.value).toBe('F-777');
+    });
+
+    /**
+     * ⛔ **Guardia sull'unità di misura.** Qui c'era un ripiego
+     * `riga || anagrafica || 'pz'`, e faceva danno in silenzio: una riga senza
+     * unità mostrava comunque qualcosa, quindi il campo sembrava pieno mentre il
+     * documento non conteneva niente. È il meccanismo che ha nascosto il difetto
+     * per cui **zero righe su 99 avevano una U.M.**
+     *
+     * Il caso si misura sulla riga SENZA articolo: lì non c'è nessuna anagrafica
+     * da cui ripiegare, e la vecchia forma restituiva comunque `pz`. Su una riga
+     * con articolo non si misura, perché il riallineamento ricattura l'unità
+     * appena la si svuota — che è un'altra questione, e resta aperta.
+     *
+     * Il test fallisce se il ripiego rientra (23/08/2026).
+     */
+    it('riga senza articolo: nessuna unità inventata', async () => {
+      const { form, fixture } = await apri({ catalogo: [ARTICOLO] });
+      await lasciaGirareIlCiclo(fixture);
+
+      // Riga appena creata, nessun articolo agganciato.
+      expect(form.lines.at(0).controls['variantId']!.value).toBe('');
+      // Non `pz`: il documento non ha un'unità, e deve vedersi.
+      expect(form.lineUnitOfMeasure(0)).toBe('');
+    });
+
+    it('con l’articolo agganciato l’unità si cattura e si mostra', async () => {
+      const { form, fixture } = await apri({
+        catalogo: [{ ...ARTICOLO, unitOfMeasure: 'kg' }],
+        perVariante: [{ ...ARTICOLO, unitOfMeasure: 'kg' }],
+      });
+      form.lines.at(0).controls['sku']!.setValue('MAG-M');
+      form.commitSkuLookup(0);
+      await lasciaGirareIlCiclo(fixture);
+
+      // La riga se l'è presa: il valore è suo, non una lettura dell'anagrafica.
+      expect(form.lines.at(0).controls['unitOfMeasure']!.value).toBe('kg');
+      expect(form.lineUnitOfMeasure(0)).toBe('kg');
     });
 
     // Il controllo inverso: senza, la prova qui sopra passerebbe anche se il
