@@ -1,12 +1,6 @@
-> **Stato:** proposta di contratto, **in verifica**. Non ancora implementata.
-> **Data:** 24/08/2026
+> **Stato:** ⭐ **approvato con correzioni — implementabile.**
+> **Verifica integrale:** 24/08/2026, dal proprietario.
 > **Famiglia:** `03` specifica normativa · `03b` mappa tecnica · **`03c` questo contratto**
->
-> ⛔ **Il corpo qui sotto è INTEGRALE e non riscritto.** È l'uscita dell'analisi
-> così com'è, comprese le parti dove dichiara di non sapere qualcosa. Sintetizzarlo
-> avrebbe tolto proprio ciò che serve alla verifica: le argomentazioni delle
-> undici differenze **rifiutate** come policy, che sono la parte che impedisce al
-> risolutore di ricominciare a divergere.
 >
 > **Sopra questo documento stanno**, e in caso di contrasto prevalgono:
 > `docs/03-specifica-unificazione-righe-documento.md` (normativa) e
@@ -14,14 +8,41 @@
 
 ---
 
-## ⭐ Precisazione confermata dal proprietario — 24/08/2026
+## Le dieci correzioni applicate dopo la verifica — 24/08/2026
 
-Vale su tutto ciò che segue, e chiarisce il confine dell'Arrivo merce:
+⚠️ **Il corpo NON è più l'uscita integrale**: la prima stesura è nella storia di
+git (commit `e55cdfa6`). Queste sono le correzioni che il proprietario ha
+chiesto prima di dare via libera, e le due più importanti riguardano difetti che
+il contratto si portava dentro.
+
+|          | Cosa cambia                                                                                                                                                                                                                                                                |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1** ⛔ | `movimentaMagazzino` → **`gestisceMagazzino`**. Il contratto diceva «una sola spunta con tre nomi», e contraddiceva `03` §18.4 e Blocco 0 §6.2. La **regola di eleggibilità è una sola**; Impegna, Carica e Scarica restano **tre effetti distinti**, mappati dal consumer |
+| **2** ⛔ | `titolo` → **`nomeProdotto`**, senza ripiego su `title`. Il contratto dichiarava che `title` contiene la variante e poi lo usava come ripiego: a nome vuoto **la variante sarebbe rientrata nel nome**, cioè il difetto che questo lavoro elimina                          |
+| **3**    | **`campi` è la capacità EFFETTIVA**: profilo + feature gate del tenant + permessi. Non un insieme statico                                                                                                                                                                  |
+| **4**    | **Seriali fuori**: il Blocco 0 tiene il modello aperto e `03` §5.3 rinvia il loro contratto                                                                                                                                                                                |
+| **5**    | **Costo canonico**: numerico sempre, zero compreso. Mascherato dai permessi → **campo assente**, mai un `null` che lo cancella                                                                                                                                             |
+| **6**    | **Nessun default U.M. di tenant**: `03` §13 dice che viene dall'articolo. Se manca, stringa vuota                                                                                                                                                                          |
+| **7**    | **T7 alla precisione reale**: `2049.1803` di `toStorableMinor`, non `2049.180328`                                                                                                                                                                                          |
+| **8**    | **T1 sull'intersezione** dei campi comuni, più presenza/assenza dei campi specifici: pretenderli tutti ovunque contraddirebbe P2                                                                                                                                           |
+| **9**    | Via **«Bozza fattura»**: non è nel perimetro di `03` §2                                                                                                                                                                                                                    |
+| **10**   | Primo consumer: **Trasferimento**, non Rettifica — che `03` §25 rinvia al suo blocco                                                                                                                                                                                       |
+
+**Approvato senza modifiche**: `famigliaIva`, resolver puro, guscio asincrono
+senza risultati parziali, acquisizione fuori, `FormControl` fuori, `variantLabel`
+separato dal nome, IVA prima del valore economico, letture vive separate dagli
+snapshot, reset uniforme, quantità fuori, sconto digitato preservato.
+
+---
+
+## ⭐ Due confini che valgono su tutto il documento
+
+### 1 · L'anagrafica si legge, non si scrive
 
 ```text
 anagrafica  →  resolver  →  valori iniziali della riga        SEMPRE
 riga        →  Product / ProductVariant                        SOLO Arrivo merce,
-                                                               e solo quando le sue
+                                                               e solo se le sue
                                                                spunte lo autorizzano
 ```
 
@@ -29,13 +50,28 @@ riga        →  Product / ProductVariant                        SOLO Arrivo mer
 > all'Arrivo merce — prezzo di vendita, prezzo Shopify, prezzo barrato — ma non
 > scrive MAI nell'anagrafica.**
 
-La scrittura all'indietro resta una **policy specifica dell'Arrivo merce**,
-eseguita dal suo flusso quando previsto dalle regole e dalle spunte approvate.
+⚠️ Non è formale: se il resolver potesse scrivere, **ogni documento che lo usa
+erediterebbe quella facoltà**, e «scelgo un articolo» diventerebbe una modifica
+del catalogo su sei maschere che non devono poterla fare.
 
-⚠️ La distinzione non è formale: se il resolver potesse scrivere in anagrafica,
-ogni documento che lo usa erediterebbe quella facoltà — e il gesto «scelgo un
-articolo» diventerebbe una modifica del catalogo su sei maschere che non devono
-poterla fare.
+### 2 · Numerazione e serie non lo riguardano
+
+> **Il resolver non tocca numero, serie, contatori né riferimento del documento.**
+
+Sono dati di **testata**, con un motore e una specifica propri (`04`, e §9 del
+Blocco 0), e il gesto «un articolo entra nella riga» non li sfiora. Non compaiono
+in `CampoArticolo`, non compaiono nell'uscita, e non devono comparirci.
+
+---
+
+## Le quattro domande aperte, chiuse il 24/08/2026
+
+| Domanda                                                | Decisione                                                                                                                                                     |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Barcode: snapshot o vivo?**                          | ⏸ **resta aperta**. Il resolver lo produce comunque; la persistenza di ogni payload resta com'è                                                               |
+| **Un Servizio ha senso su Trasferimento e Rettifica?** | **Non si decide nel resolver.** L'eleggibilità a magazzino è comune; se un Servizio sia _ammissibile_ su quei documenti è un'altra policy, di quelle maschere |
+| **Default U.M. di tenant**                             | **Non si introduce.** Default dall'articolo; se manca, stringa vuota (correzione 6)                                                                           |
+| **Storico di `variantLabel`**                          | **Nessuna retro-compilazione** sui dati di sviluppo: si garantisce la correttezza delle righe nuove                                                           |
 
 ---
 
@@ -67,12 +103,12 @@ Dichiara quali valori la riga di quel documento **sa ospitare**. L'uscita del ri
 
 **Sette maschere, quattro profili.** È il risultato più importante dell'analisi:
 
-| Profilo             | Maschere                                                                                                                                             |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `vendita`           | Preventivo, Ordine cliente, DDT vendita, Scarico manuale, Proforma, Bozza fattura, Fattura accompagnatoria, Nota di credito, Vendita e Reso al banco |
-| `acquisto-ordine`   | Ordine fornitore                                                                                                                                     |
-| `acquisto-arrivo`   | Arrivo merce                                                                                                                                         |
-| `movimento-interno` | Trasferimento interno, Rettifica di magazzino                                                                                                        |
+| Profilo             | Maschere                                                                                                                                       |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `vendita`           | Preventivo, Ordine cliente, DDT vendita, Scarico manuale, Proforma, Fattura, Fattura accompagnatoria, Nota di credito, Vendita e Reso al banco |
+| `acquisto-ordine`   | Ordine fornitore                                                                                                                               |
+| `acquisto-arrivo`   | Arrivo merce                                                                                                                                   |
+| `movimento-interno` | Trasferimento interno, Rettifica di magazzino                                                                                                  |
 
 I due profili d'acquisto differiscono per due sole cose (i tre prezzi d'anagrafica e la spunta di carico), e ho scelto di **non** fonderli: fonderli significherebbe produrre su un ordine tre prezzi che nessuno scrive.
 
@@ -121,22 +157,31 @@ export type CampoArticolo =
   | 'sku'
   | 'articleCode'
   | 'barcode'
-  | 'titolo'
+  | 'nomeProdotto' // ⛔ il NOME, mai il display completo: la variante sta a parte
   | 'variantLabel'
   | 'unitaDiMisura'
   | 'codiceIva'
   | 'prezzoUnitario' // valore economico di VENDITA della riga
   | 'costoUnitario' // valore economico di ACQUISTO della riga
-  | 'prezzoVenditaAnagrafica' // i tre che l'Arrivo merce scrive ALL'INDIETRO
-  | 'prezzoShopifyAnagrafica'
+  | 'prezzoVenditaAnagrafica' // i tre che l'Arrivo merce LEGGE per scrivere
+  | 'prezzoShopifyAnagrafica' //   all'indietro: la scrittura NON è del resolver
   | 'prezzoBarratoAnagrafica'
-  | 'movimentaMagazzino' // la spunta, con qualunque nome la maschera le dia
+  | 'gestisceMagazzino' // ⛔ ELEGGIBILITÀ, non una spunta: vedi sotto
   | 'sconto'
-  | 'codiceFornitore'
-  | 'seriali'; // presente solo per AZZERARLI: non hanno anagrafica
+  | 'codiceFornitore';
 
 export interface PolicyRichiamoArticolo {
   readonly famigliaIva: FamigliaIva;
+  /**
+   * ⛔ NON è un insieme statico del profilo: è la capacità **effettiva**.
+   *
+   *   profilo base  +  feature gate del tenant  +  permessi  =  campi
+   *
+   * Senza la composizione due cose vanno storte, e nessuna delle due si vede:
+   * un tenant senza Shopify riceverebbe un campo che per lui non esiste, e a
+   * un utente a cui il costo è mascherato il resolver proporrebbe un valore che
+   * non ha il diritto di vedere — o, peggio, un vuoto che glielo cancella.
+   */
   readonly campi: ReadonlySet<CampoArticolo>;
 }
 
@@ -168,9 +213,13 @@ export interface ContestoRichiamoArticolo {
   readonly codiceFornitoreDigitato: string | null;
   /** Il collegamento articolo↔fornitore di testata, dove la maschera lo carica. */
   readonly codiceFornitoreDiTestata: string | null;
-  /** Convenzione di tenant. null = nessun ripiego, il campo resta vuoto. */
-  readonly unitaDiMisuraPredefinita: string | null;
 }
+
+// ⛔ QUI c'era `unitaDiMisuraPredefinita`, una convenzione di tenant che NON
+//    ESISTE. `03` §13 dice che la U.M. di riga prende il default DALL'ARTICOLO,
+//    e introdurre adesso un default aziendale significherebbe inventare una
+//    regola per risolvere un ripiego. Se l'articolo non la porta, il campo resta
+//    vuoto — e se `VariantSummary` non la portasse, si corregge la summary.
 
 /** I valori CORRENTI della riga che il risolutore deve conoscere. Sono tre, e
  *  non uno di più: tutto il resto lo riscrive. */
@@ -185,7 +234,18 @@ export interface StatoRigaAlRichiamo {
 /** I campi DA SCRIVERE, già filtrati su policy.campi: una chiave assente
  *  significa "non toccare", mai "svuota". Per svuotare c'è '' o null. */
 export interface ValoriArticoloDaScrivere {
-  readonly titolo?: string;
+  /**
+   * Il NOME dell'articolo, canonico e separato dalla variante.
+   *
+   * ⛔ Nessun ripiego su `title`: il contratto stesso dichiara che `title` è il
+   * display completo e **contiene la variante**, quindi `productName || title`
+   * rimetterebbe la variante dentro il nome — cioè esattamente il difetto che
+   * questo lavoro elimina, riattivato dal caso limite.
+   *
+   * Se `VariantSummary.productName` non fosse affidabile, si corregge la
+   * summary: non si torna a sottrarre stringhe da `title`.
+   */
+  readonly nomeProdotto?: string;
   readonly variantLabel?: string;
   readonly sku?: string;
   readonly articleCode?: string;
@@ -198,11 +258,31 @@ export interface ValoriArticoloDaScrivere {
   readonly prezzoVenditaNettoMinor?: number | null;
   readonly prezzoShopifyNettoMinor?: number | null;
   readonly prezzoBarratoNettoMinor?: number | null;
-  readonly movimentaMagazzino?: boolean;
+  /**
+   * ⛔ **ELEGGIBILITÀ dell'articolo, non il valore di una spunta.**
+   *
+   * La regola è una sola — `kind !== 'service' && managesStock !== false` — e
+   * vale per tutti. Ma **Impegna, Carica e Scarica restano tre effetti
+   * distinti**: campo persistito, default, effetto sul backend e significato
+   * non si fondono (`03` §18.4, Blocco 0 §6.2).
+   *
+   * È il consumer a mapparla:
+   *
+   *   Ordine cliente   → commitsStock
+   *   Arrivo merce     → loadsStock (Carica)
+   *   Vendita, DDT     → Scarica
+   *   Reso             → Carica
+   */
+  readonly gestisceMagazzino?: boolean;
   readonly sconto?: string;
   readonly codiceFornitore?: string;
-  readonly seriali?: '';
 }
+
+// ⛔ QUI c'erano i SERIALI, da azzerare a ogni richiamo. Fuori: il Blocco 0
+//    tiene il modello seriali esplicitamente APERTO e `03` §5.3 dice di
+//    introdurli solo dopo la ricostruzione del loro contratto. Azzerarli adesso
+//    sarebbe decidere una regola dentro un contratto che ne ha un altro da
+//    scrivere.
 
 /** Letture di ADESSO, non del documento: si riscrivono anche su riga salvata. */
 export interface LettureVive {
@@ -215,7 +295,10 @@ export type SegnalazioneRichiamo =
   | { readonly tipo: 'prezzo-assente-per-listino'; readonly listino: ListinoChoice }
   | { readonly tipo: 'codice-iva-non-risolto' }
   | { readonly tipo: 'codice-iva-articolo-di-altra-famiglia'; readonly vatCodeId: string }
-  | { readonly tipo: 'articolo-non-movimenta'; readonly causa: 'servizio' | 'non-gestito' }
+  | {
+      readonly tipo: 'articolo-non-eleggibile-a-magazzino';
+      readonly causa: 'servizio' | 'non-gestito';
+    }
   | { readonly tipo: 'articolo-sostituito-su-riga-salvata'; readonly precedente: string };
 
 /** Union discriminata: o si risolve tutto, o non si scrive NIENTE.
@@ -289,23 +372,22 @@ export class DocumentLineArticleResolverService {
 
 ## 3. I CAMPI CHE PRODUCE
 
-| Campo                                                                                           | Regola unica                                                                                                                                                                                                                                                                                                                                                                                                                | Modulato da       |
-| ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
-| **`titolo`**                                                                                    | `articolo.productName \|\| articolo.title`. **Mai** concatenato con la variante: `title` è il display completo, ed è ripiego solo dove `productName` è vuoto (lì non c'è nome da duplicare).                                                                                                                                                                                                                                | —                 |
-| **`variantLabel`**                                                                              | `articolo.variantLabel ?? ''`. Prodotto sempre. Se l'articolo non ha opzioni, è stringa vuota — non è un'assenza da riempire con altro.                                                                                                                                                                                                                                                                                     | `campi`           |
-| **`sku`**                                                                                       | `articolo.sku`. È l'identificativo che l'operatore legge sul documento: fotografato, viaggia nel payload.                                                                                                                                                                                                                                                                                                                   | `campi`           |
-| **`articleCode`**                                                                               | `articolo.articleCode`. **Chiave di ricerca, non dato del documento**: nessuna maschera lo persiste (verificato su tutti e sette i payload). Si riscrive sempre, anche su riga salvata.                                                                                                                                                                                                                                     | `campi`           |
-| **`barcode`**                                                                                   | `articolo.barcode ?? ''`. Stessa natura di `articleCode`. Vedi **DOMANDA APERTA 1**.                                                                                                                                                                                                                                                                                                                                        | `campi`           |
-| **`unitaDiMisura`**                                                                             | `articolo.unitOfMeasure ?? contesto.unitaDiMisuraPredefinita ?? ''`. **Nessun `'pz'` cablato.** Catturata all'ingresso, da lì è della riga.                                                                                                                                                                                                                                                                                 | `campi`, contesto |
-| **`codiceIva`**                                                                                 | La catena di **P1**, con `isActive` sempre e il filtro di famiglia. Se l'articolo porta un codice dell'altra famiglia si salta l'anello **e si segnala** (oggi si salta in silenzio). Nessun anello risolve → `null` + `codice-iva-non-risolto`: una riga senza IVA calcola imposta zero, e non deve farlo di nascosto. **Non tocca mai `persistedVatCodeId`** — il contratto binario resta intatto e fuori dal risolutore. | **P1**            |
-| **`prezzoUnitarioNettoMinor`**                                                                  | `listinoUnitPrice(articolo, contesto.listino)?.amountMinor ?? null`. `null` = campo vuoto **e** segnalazione `prezzo-assente-per-listino`. Oggi lo stesso articolo entra a zero in silenzio dall'ingresso e con avviso dal cambio listino: stessa condizione, due esiti.                                                                                                                                                    | `campi`           |
-| **`costoUnitarioNettoMinor`**                                                                   | `articolo.purchasePrice?.amountMinor ?? null`. **Zero è un costo**, non un'assenza: `0` esce come `0`. Solo `purchasePrice` assente dà `null`.                                                                                                                                                                                                                                                                              | `campi`           |
-| **`prezzoVenditaNettoMinor`**<br>**`prezzoShopifyNettoMinor`**<br>**`prezzoBarratoNettoMinor`** | I valori d'anagrafica che l'Arrivo merce propone di riscrivere. **`null` non è zero**: un barrato assente è `null`, e verso Shopify la chiave non entra nella riga — `"0.00"` là è uno sconto inventato del 100%.                                                                                                                                                                                                           | `campi`           |
-| **`movimentaMagazzino`**                                                                        | `articolo.kind !== 'service' && articolo.managesStock !== false`. `managesStock` assente vale `true` (l'assenza del campo non è una negazione), ma `kind === 'service'` chiude comunque. `false` porta la segnalazione con la causa. Vale identico per carica, scarica e impegna.                                                                                                                                           | `campi`           |
-| **`sconto`**                                                                                    | Prodotto **solo se `riga.scontoCorrente` è vuoto**, e vale `contesto.scontoControparte`. La stringa a cascata si passa intatta. Digitato = intoccabile, sostituzione d'articolo compresa.                                                                                                                                                                                                                                   | `campi`, contesto |
-| **`codiceFornitore`**                                                                           | `supplierCodeForDocumentLine({ linkedWith: codiceFornitoreDigitato, ofDocumentSupplier: codiceFornitoreDiTestata })`. Il codice con cui si è agganciato vince sul collegamento di testata.                                                                                                                                                                                                                                  | `campi`, contesto |
-| **`seriali`**                                                                                   | Sempre `''`. Un numero di serie identifica **quel** pezzo di **quell'** articolo: tenerlo attraverso una sostituzione è un difetto, non una conservazione. _(Decisione nuova, non osservata: oggi nessuna maschera li azzera. Respingibile.)_                                                                                                                                                                               | `campi`           |
-| **`letture`**                                                                                   | `giacenza / disponibile / impegnata` dal riepilogo letto con il `locationId` del documento. Sono dichiaratamente **vive**: si riscrivono anche su riga salvata, perché sono una lettura di adesso.                                                                                                                                                                                                                          | —                 |
+| Campo                                                                                           | Regola unica                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Modulato da       |
+| ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| **`titolo`**                                                                                    | `articolo.productName \|\| articolo.title`. **Mai** concatenato con la variante: `title` è il display completo, ed è ripiego solo dove `productName` è vuoto (lì non c'è nome da duplicare).                                                                                                                                                                                                                                                                               | —                 |
+| **`variantLabel`**                                                                              | `articolo.variantLabel ?? ''`. Prodotto sempre. Se l'articolo non ha opzioni, è stringa vuota — non è un'assenza da riempire con altro.                                                                                                                                                                                                                                                                                                                                    | `campi`           |
+| **`sku`**                                                                                       | `articolo.sku`. È l'identificativo che l'operatore legge sul documento: fotografato, viaggia nel payload.                                                                                                                                                                                                                                                                                                                                                                  | `campi`           |
+| **`articleCode`**                                                                               | `articolo.articleCode`. **Chiave di ricerca, non dato del documento**: nessuna maschera lo persiste (verificato su tutti e sette i payload). Si riscrive sempre, anche su riga salvata.                                                                                                                                                                                                                                                                                    | `campi`           |
+| **`barcode`**                                                                                   | `articolo.barcode ?? ''`. Stessa natura di `articleCode`. Vedi **DOMANDA APERTA 1**.                                                                                                                                                                                                                                                                                                                                                                                       | `campi`           |
+| **`unitaDiMisura`**                                                                             | `articolo.unitOfMeasure ?? ''`. **Nessun `'pz'` cablato e nessun default di tenant**: `03` §13 dice che il default viene DALL'ARTICOLO, e inventare adesso una convenzione aziendale per coprire un ripiego sarebbe una regola nuova nascosta in un contratto. Se la summary non la porta, si corregge la summary. Catturata all'ingresso, da lì è della riga.                                                                                                             | `campi`, contesto |
+| **`codiceIva`**                                                                                 | La catena di **P1**, con `isActive` sempre e il filtro di famiglia. Se l'articolo porta un codice dell'altra famiglia si salta l'anello **e si segnala** (oggi si salta in silenzio). Nessun anello risolve → `null` + `codice-iva-non-risolto`: una riga senza IVA calcola imposta zero, e non deve farlo di nascosto. **Non tocca mai `persistedVatCodeId`** — il contratto binario resta intatto e fuori dal risolutore.                                                | **P1**            |
+| **`prezzoUnitarioNettoMinor`**                                                                  | `listinoUnitPrice(articolo, contesto.listino)?.amountMinor ?? null`. `null` = campo vuoto **e** segnalazione `prezzo-assente-per-listino`. Oggi lo stesso articolo entra a zero in silenzio dall'ingresso e con avviso dal cambio listino: stessa condizione, due esiti.                                                                                                                                                                                                   | `campi`           |
+| **`costoUnitarioNettoMinor`**                                                                   | ⛔ **Il costo canonico è NUMERICO, zero compreso.** `articolo.purchasePrice.amountMinor`, e `0` esce `0`. ⚠️ Se il costo è **mascherato dai permessi** (`showPurchaseCosts` falso) il campo **non si produce affatto**: una chiave assente vuol dire «non toccare», mentre un `null` scritto sulla riga CANCELLEREBBE il costo a chi non ha il diritto di vederlo. È la stessa decisione già presa sui costi canonici NOT NULL.                                            | `campi`           |
+| **`prezzoVenditaNettoMinor`**<br>**`prezzoShopifyNettoMinor`**<br>**`prezzoBarratoNettoMinor`** | I valori d'anagrafica che l'Arrivo merce propone di riscrivere. **`null` non è zero**: un barrato assente è `null`, e verso Shopify la chiave non entra nella riga — `"0.00"` là è uno sconto inventato del 100%.                                                                                                                                                                                                                                                          | `campi`           |
+| **`gestisceMagazzino`**                                                                         | ⛔ **ELEGGIBILITÀ dell'articolo, non il valore di una spunta.** `articolo.kind !== 'service' && articolo.managesStock !== false`. `managesStock` assente vale `true` (l'assenza del campo non è una negazione), ma `kind === 'service'` chiude comunque. `false` porta la segnalazione con la causa. **La regola di eleggibilità è una sola; Impegna, Carica e Scarica restano tre effetti distinti** e la mappano ciascuno sul proprio campo (`03` §18.4, Blocco 0 §6.2). | `campi`           |
+| **`sconto`**                                                                                    | Prodotto **solo se `riga.scontoCorrente` è vuoto**, e vale `contesto.scontoControparte`. La stringa a cascata si passa intatta. Digitato = intoccabile, sostituzione d'articolo compresa.                                                                                                                                                                                                                                                                                  | `campi`, contesto |
+| **`codiceFornitore`**                                                                           | `supplierCodeForDocumentLine({ linkedWith: codiceFornitoreDigitato, ofDocumentSupplier: codiceFornitoreDiTestata })`. Il codice con cui si è agganciato vince sul collegamento di testata.                                                                                                                                                                                                                                                                                 | `campi`, contesto |
+| **`letture`**                                                                                   | `giacenza / disponibile / impegnata` dal riepilogo letto con il `locationId` del documento. Sono dichiaratamente **vive**: si riscrivono anche su riga salvata, perché sono una lettura di adesso.                                                                                                                                                                                                                                                                         | —                 |
 
 **Non produce, mai:** `quantity` · `id` · `variantId` · `persistedVatCodeId` · `isReference` · la descrizione persistita di una riga che rientra da un documento.
 
@@ -315,10 +397,10 @@ export class DocumentLineArticleResolverService {
 `SalesOrderLine` lo persiste; `DocumentLine` no; Trasferimento e Rettifica lo dichiarano «chiave di ricerca, non dato della riga»; il Banco lo dichiara vivo e lo rilegge. _Sospendo solo la persistenza:_ il risolutore lo produce comunque, e ogni payload resta com'è finché non è deciso.
 
 **DOMANDA APERTA 2 — un articolo di tipo SERVIZIO ha senso su Trasferimento e Rettifica?**
-Se `movimentaMagazzino` diventa `false`, la riga non muove nulla e il documento la porta per niente. Va rifiutata all'ingresso, avvisata, o accettata muta? _Sospendo solo `movimentaMagazzino` su quelle due maschere_, dove oggi è derivato da `Boolean(variantId)` al payload e non esiste come controllo.
+Se `gestisceMagazzino` diventa `false`, la riga non muove nulla e il documento la porta per niente. Va rifiutata all'ingresso, avvisata, o accettata muta? _Sospendo solo `gestisceMagazzino` su quelle due maschere_, dove oggi è derivato da `Boolean(variantId)` al payload e non esiste come controllo.
 
-**DOMANDA APERTA 3 — esiste un'unità di misura predefinita di tenant?**
-Oggi `'pz'` è cablato in due maschere e assente in una terza. _Sospendo solo il ripiego:_ finché non c'è l'impostazione, `contesto.unitaDiMisuraPredefinita` è `null` e il campo resta vuoto — che è già ciò che la lettura dell'Ordine cliente fa per scelta dichiarata.
+**✅ DOMANDA APERTA 3 — CHIUSA il 24/08/2026: NESSUNA unità di misura di tenant.**
+Qui si proponeva un `contesto.unitaDiMisuraPredefinita`. ⛔ Non si introduce: `03` §13 dice che il default della U.M. di riga viene **dall'articolo**, e inventare adesso una convenzione aziendale per coprire un ripiego sarebbe una regola nuova nascosta dentro un contratto che ne sta consolidando un'altra. Se l'articolo non la porta, il campo resta **vuoto**; se fosse la summary a non portarla, si corregge la summary. Il `'pz'` cablato in due maschere sparisce senza sostituto.
 
 **DOMANDA APERTA 4 — cosa fa la colonna Variante sui documenti storici?**
 Le righe già salvate hanno la variante dentro la descrizione. Il risolutore non tocca il caricamento, quindi la fotografia resta corretta — ma `variantLabel` resterà vuoto su tutto lo storico. Migrazione, o convivenza dichiarata? _Sospendo solo la retro-compilazione._
@@ -330,7 +412,7 @@ Le righe già salvate hanno la variante dentro la descrizione. Il risolutore non
 ### 4.1 Rettifica di magazzino
 
 - **Non c'è un solo test che inchiodi cosa scrive `onVariantSelect`.** La sostituzione non farà arrossare niente: il test va scritto **prima**, sul comportamento voluto, così è rosso e poi verde.
-- `loadsStock: Boolean(line.variantId)` è calcolato **al payload**, in due posti (`saveAdjustment` e `persistNewOrUpdate`). Il risolutore produce `movimentaMagazzino`: serve un controllo dove atterrare, altrimenti il valore si perde fra l'ingresso e il salvataggio.
+- `loadsStock: Boolean(line.variantId)` è calcolato **al payload**, in due posti (`saveAdjustment` e `persistNewOrUpdate`). Il risolutore produce `gestisceMagazzino`: serve un controllo dove atterrare, altrimenti il valore si perde fra l'ingresso e il salvataggio.
 - `articleCode` e `barcode` non tornano dal caricamento e li mostrano due getter che leggono dal riepilogo (`lineArticleCode()`, `lineBarcode()`): se il risolutore li scrive nei controlli, quei due getter diventano una seconda verità.
 - **Ordine di scrittura irrilevante qui** (niente IVA, niente denaro): è la ragione per cui questa maschera va per prima.
 - `onVariantSelect(index, null)` sgancerebbe lasciando descrizione e codici del vecchio articolo. Ramo oggi morto, ma la firma lo ammette: il risolutore non modella lo sgancio, e va tolto dalla firma locale invece di ereditarlo.
@@ -418,15 +500,15 @@ Le righe già salvate hanno la variante dentro la descrizione. Il risolutore non
 
 Il criterio non è la dimensione del file: è **quante scritture concorrenti** ci sono e **quanto lontano arriva il cambiamento**. Ogni maschera si tocca una volta sola, per tutti i suoi campi.
 
-| #     | Maschera                   | Perché qui                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| ----- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **1** | **Rettifica di magazzino** | Perimetro minimo: un solo tipo, otto controlli, nessuna IVA, nessun denaro, un solo imbuto, nessun effect concorrente, nessun test da rompere. È il **banco di prova del contratto**: se il risolutore serve bene una riga senza IVA e senza denaro, la forma è giusta. E il difetto (il nome due volte) è il più visibile e il meno rischioso da correggere.                                                                                                                                          |
-| **2** | **Trasferimento interno**  | Formula identica, stesso config colonne condiviso. Farla subito dopo consolida la colonna Variante nei sei preset **con una maschera già convertita accanto**, invece di introdurla su due mondi diversi.                                                                                                                                                                                                                                                                                              |
-| **3** | **Ordine fornitore**       | Un solo imbuto, tutte le scritture silenziose più un rimbalzo, catena IVA a due anelli, nessuno scanner, nessuna spunta. Introduce per la prima volta **il denaro** (canonico + vista) e **la famiglia acquisto**. Un solo bypass da chiudere. È dove si verifica che «IVA prima del costo» regge come vincolo di contratto e non come commento.                                                                                                                                                       |
-| **4** | **Documenti vendita**      | Un solo risolutore locale, quattro tipi ma **una sola persistenza**. Introduce la famiglia vendita e il listino. Porta due difetti da chiudere (aggancio senza riepilogo, `persistedVatCodeId` mai ripristinato) e due campi da **aggiungere** con colonna e payload. **Avvertenza: se `feature/fattura-elettronica` sta ancora riscrivendo questa maschera, va scambiata con la 5** — adottare su un file in riscrittura produce un conflitto che nessuna regola di merge arbitra bene.               |
-| **5** | **Ordine cliente**         | Quattro tipi, **due persistenze**, due scrittori paralleli, doppia applicazione su tre call site, una riscrittura asincrona concorrente. Ma nessun effect che rilancia da solo, e `variantLabel` **c'è già**: il costo è di riconciliazione, non di scoperta. Va dopo aver provato il contratto su una maschera di vendita più semplice.                                                                                                                                                               |
-| **6** | **Arrivo merce**           | L'effect di riallineamento è **l'unico posto, in sette maschere, dove il risolutore può essere scavalcato in modo asincrono e non ordinato**. Più tre copie della stessa scrittura, due costruttori di riga paralleli, e un cambio di valore salvato sui totali. Va affrontato quando il contratto è già assestato, perché qui il lavoro è smontare, non sostituire.                                                                                                                                   |
-| **7** | **Vendita al banco**       | Ultima per tre ragioni cumulative: è **l'unica che tocca il backend** (due concatenazioni server, `resolveVariants` da estendere, due DTO); è l'unica con una **regola di acquisizione propria** che il risolutore non deve calpestare; ed è l'unica dove il difetto client si nasconde dietro un difetto server **identico**, quindi nessun test cambia colore correggendone uno solo. Ed è la maschera appena riscritta: toccarla per ultima significa toccarla col contratto già provato sei volte. |
+| #     | Maschera                     | Perché qui                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ----- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1** | **Trasferimento interno**    | ⛔ **Qui c'era la Rettifica, e non può stare prima**: `03` §25 Fase 6 e §2 la rinviano esplicitamente al suo blocco dedicato, insieme all'Inventario. Il Trasferimento ha la **formula identica carattere per carattere** e lo stesso config colonne, quindi conserva tutto il vantaggio: perimetro minimo, nessuna IVA, nessun denaro, un solo imbuto, nessun effect concorrente. È il **banco di prova del contratto** — se il risolutore serve bene una riga senza IVA e senza denaro, la forma è giusta — e il difetto che chiude (il nome scritto due volte) è il più visibile e il meno rischioso. |
+| **2** | ⏸ **Rettifica di magazzino** | **Rinviata al suo blocco**, non adottata qui. Il profilo `movimento-interno` la regge già e la formula è la stessa del Trasferimento: quando quel blocco si apre, l'adozione è una sostituzione e basta. Finché resta rinviata, il difetto del nome doppio resta suo — e va scritto, non dimenticato.                                                                                                                                                                                                                                                                                                    |
+| **3** | **Ordine fornitore**         | Un solo imbuto, tutte le scritture silenziose più un rimbalzo, catena IVA a due anelli, nessuno scanner, nessuna spunta. Introduce per la prima volta **il denaro** (canonico + vista) e **la famiglia acquisto**. Un solo bypass da chiudere. È dove si verifica che «IVA prima del costo» regge come vincolo di contratto e non come commento.                                                                                                                                                                                                                                                         |
+| **4** | **Documenti vendita**        | Un solo risolutore locale, quattro tipi ma **una sola persistenza**. Introduce la famiglia vendita e il listino. Porta due difetti da chiudere (aggancio senza riepilogo, `persistedVatCodeId` mai ripristinato) e due campi da **aggiungere** con colonna e payload. **Avvertenza: se `feature/fattura-elettronica` sta ancora riscrivendo questa maschera, va scambiata con la 5** — adottare su un file in riscrittura produce un conflitto che nessuna regola di merge arbitra bene.                                                                                                                 |
+| **5** | **Ordine cliente**           | Quattro tipi, **due persistenze**, due scrittori paralleli, doppia applicazione su tre call site, una riscrittura asincrona concorrente. Ma nessun effect che rilancia da solo, e `variantLabel` **c'è già**: il costo è di riconciliazione, non di scoperta. Va dopo aver provato il contratto su una maschera di vendita più semplice.                                                                                                                                                                                                                                                                 |
+| **6** | **Arrivo merce**             | L'effect di riallineamento è **l'unico posto, in sette maschere, dove il risolutore può essere scavalcato in modo asincrono e non ordinato**. Più tre copie della stessa scrittura, due costruttori di riga paralleli, e un cambio di valore salvato sui totali. Va affrontato quando il contratto è già assestato, perché qui il lavoro è smontare, non sostituire.                                                                                                                                                                                                                                     |
+| **7** | **Vendita al banco**         | Ultima per tre ragioni cumulative: è **l'unica che tocca il backend** (due concatenazioni server, `resolveVariants` da estendere, due DTO); è l'unica con una **regola di acquisizione propria** che il risolutore non deve calpestare; ed è l'unica dove il difetto client si nasconde dietro un difetto server **identico**, quindi nessun test cambia colore correggendone uno solo. Ed è la maschera appena riscritta: toccarla per ultima significa toccarla col contratto già provato sei volte.                                                                                                   |
 
 ---
 
@@ -435,7 +517,12 @@ Il criterio non è la dimensione del file: è **quante scritture concorrenti** c
 ### I test che dimostrano l'equivalenza
 
 **T1 — Lo stesso articolo, quattro profili, gli stessi dati base.** _(il test centrale)_
-In `document-line-article-resolver.util.spec.ts`: un `VariantSummary` solo, la funzione pura eseguita una volta per ciascuno dei quattro profili, e l'asserzione che `titolo`, `variantLabel`, `sku`, `articleCode`, `barcode`, `unitaDiMisura` e `movimentaMagazzino` **sono identici** in tutte e quattro le uscite. Solo `codiceIva` e i campi economici possono differire. È il test che rende impossibile far divergere di nuovo il titolo.
+In `document-line-article-resolver.util.spec.ts`: un `VariantSummary` solo, la funzione pura eseguita una volta per ciascuno dei quattro profili.
+
+⛔ **L'asserzione è sull'INTERSEZIONE, non su tutti i campi**: `campi` dice proprio che i profili hanno capacità diverse, quindi pretendere che ogni campo sia presente ovunque contraddirebbe P2. Il test si divide in due:
+
+- **sui campi comuni a tutti e quattro** — `nomeProdotto`, `variantLabel`, `sku`, `articleCode`, `barcode`, `gestisceMagazzino` — i valori devono essere **identici**. È ciò che rende impossibile far divergere di nuovo il nome;
+- **sui campi specifici** — `unitaDiMisura`, `codiceIva`, i valori economici, i tre prezzi d'anagrafica, `codiceFornitore` — si asserisce **presenza o assenza** secondo la capacità dichiarata, e il valore solo dove il campo esiste.
 
 **T2 — La variante non entra mai nel titolo.**
 `productName: 'Maglia'`, `title: 'Maglia — M / Rosso'`, `variantLabel: 'M / Rosso'` → `titolo === 'Maglia'` **e** `variantLabel === 'M / Rosso'`. Con il caso di ripiego: `productName: ''` → `titolo === title` (lì non c'è nome da duplicare). Da ripetere come test di componente su ogni maschera: è la regressione più facile da reintrodurre.
@@ -453,7 +540,7 @@ Acquisto: articolo → fornitore → predefinito, un caso per anello. Vendita: a
 `persistedVatCodeId` non è mai una chiave dell'uscita. Asserzione sull'assenza, non sul valore.
 
 **T7 — Il denaro.**
-Il valore esce **netto in unità minori con la coda** (`2049.180328` non si arrotonda); un costo `0` esce `0` e non `null`; un `compareAtPrice` assente esce `null` e non `0`; nessun campo economico esce come stringa.
+Il valore esce **netto in unità minori con la coda canonica** — quella di `toStorableMinor`, quattro cifre di centesimo: 25,00 € ivati al 22% valgono `2049.1803`, e sono quelle cifre a farli tornare 25,00 quando il prezzo si rimostra ivato. ⛔ **Non una precisione nuova**: `2049.180328` era una coda inventata oltre il contratto già consolidato, e il risolutore non deve introdurre una regola di precisione diversa dalle utility canoniche in uso. Poi: un costo `0` esce `0` e non `null`; un `compareAtPrice` assente esce `null` e non `0`; nessun campo economico esce come stringa.
 
 **T8 — L'articolo illeggibile.**
 Il guscio con un `variantId` che non si risolve restituisce `esito: 'articolo-illeggibile'` e **nessun valore**. È il test che vieta il risultato parziale, cioè la riga agganciata e vuota che oggi tre maschere producono.
