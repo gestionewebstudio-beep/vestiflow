@@ -1002,17 +1002,6 @@
                           <td class="doc-form__cell doc-form__cell--actions" data-label="Azioni">
                             <button
                               type="button"
-                              class="doc-form__line-move"
-                              tabindex="-1"
-                              [disabled]="formReadOnly()"
-                              aria-label="Duplica riga"
-                              title="Duplica riga"
-                              (click)="duplicateLine(i)"
-                            >
-                              <i class="pi pi-clone" aria-hidden="true"></i>
-                            </button>
-                            <button
-                              type="button"
                               class="doc-form__line-remove"
                               [disabled]="lines.length <= 1"
                               aria-label="Rimuovi riga"
@@ -1061,7 +1050,6 @@
                     (nameFocus)="onLineProductFocus($event)"
                     (nameBlur)="onLineProductBlur($event)"
                     (suggestionPick)="onProductSuggestionPick($event.lineIndex, $event.variantId)"
-                    (duplicated)="duplicateLine($event)"
                     (removed)="removeLine($event)"
                   />
                 }

@@ -72,15 +72,6 @@
       <div class="doc-line-card__actions">
         <app-button
           type="button"
-          variant="secondary"
-          [disabled]="readOnly()"
-          (click)="duplicated.emit()"
-        >
-          <i class="pi pi-clone" aria-hidden="true"></i>
-          Duplica
-        </app-button>
-        <app-button
-          type="button"
           variant="danger"
           [disabled]="readOnly() || !canRemove()"
           (click)="removed.emit()"

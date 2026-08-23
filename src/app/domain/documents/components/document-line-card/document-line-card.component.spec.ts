@@ -21,12 +21,11 @@ async function apri(
   const toggled = vi.fn();
   const removeRequested = vi.fn();
   const removed = vi.fn();
-  const duplicated = vi.fn();
   await render(DocumentLineCardComponent, {
     inputs: { lineIndex: 2, title: 'Maglietta cotone', ...inputs },
-    on: { toggled, removeRequested, removed, duplicated },
+    on: { toggled, removeRequested, removed },
   });
-  return { toggled, removeRequested, removed, duplicated };
+  return { toggled, removeRequested, removed };
 }
 
 describe('DocumentLineCardComponent', () => {
@@ -61,13 +60,23 @@ describe('DocumentLineCardComponent', () => {
   it('a card chiusa il corpo e le sue azioni non esistono', async () => {
     await apri({ open: false });
 
-    expect(screen.queryByRole('button', { name: /duplica/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^elimina$/i })).toBeNull();
   });
 
   it('a card aperta il corpo compare', async () => {
     await apri({ open: true });
 
-    expect(screen.getByRole('button', { name: /duplica/i })).toBeVisible();
+    expect(screen.getByRole('button', { name: /^elimina$/i })).toBeVisible();
+  });
+
+  /**
+   * ⛔ **Guardia**: «Duplica» è stata RIMOSSA dal piede della card
+   * (23/08/2026). Il test fallisce se rientra.
+   */
+  it('«Duplica» non esiste più nel piede', async () => {
+    await apri({ open: true });
+
+    expect(screen.queryByRole('button', { name: /duplica/i })).toBeNull();
   });
 
   // Due modi di eliminare, ed è voluto: dalla testata passa dalla conferma
@@ -85,11 +94,10 @@ describe('DocumentLineCardComponent', () => {
     expect(removed).toHaveBeenCalled();
   });
 
-  it('su documento bloccato non si elimina né si duplica', async () => {
+  it('su documento bloccato non si elimina', async () => {
     await apri({ open: true, readOnly: true });
 
     expect(screen.getByRole('button', { name: 'Elimina riga' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /duplica/i })).toBeDisabled();
   });
 
   it('la meta in coda si stacca dalle altre', async () => {

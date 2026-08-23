@@ -99,7 +99,6 @@ export class SalesDocumentLineCardComponent {
   readonly codeCommitted = output<LineCodeField>();
   readonly codeSuggestionPicked = output<string>();
   readonly vatSelected = output<string>();
-  readonly duplicated = output<number>();
   readonly removed = output<number>();
 
   protected readonly open = signal(false);

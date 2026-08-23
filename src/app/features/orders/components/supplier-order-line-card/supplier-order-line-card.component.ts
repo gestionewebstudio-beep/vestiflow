@@ -48,7 +48,7 @@ export interface SupplierOrderLineCardGroup {
  * soggetto.
  *
  * Dumb: edita il FormGroup che riceve, e delega alla maschera la ricerca
- * articolo, l'IVA, l'unità di misura, duplicazione ed eliminazione.
+ * articolo, l'IVA, l'unità di misura ed eliminazione.
  */
 @Component({
   selector: 'app-supplier-order-line-card',
@@ -88,7 +88,6 @@ export class SupplierOrderLineCardComponent {
   readonly vatChange = output<string>();
   readonly unitOfMeasureChanged = output<string>();
   readonly unitManagerRequested = output<void>();
-  readonly duplicated = output<number>();
   readonly removed = output<number>();
   readonly nameInput = output<string>();
   readonly nameFocus = output<number>();

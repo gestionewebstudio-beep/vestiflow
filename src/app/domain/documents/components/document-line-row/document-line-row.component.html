@@ -320,17 +320,6 @@
   @if (isColumnVisible()('actions')) {
     <td class="doc-form__cell doc-form__cell--actions">
       <div class="doc-form__line-actions">
-        @if (!view().isReference && canDuplicate()) {
-          <button
-            type="button"
-            class="doc-form__line-move"
-            tabindex="-1"
-            aria-label="Duplica riga"
-            (click)="duplicateRequested.emit()"
-          >
-            <i class="pi pi-clone" aria-hidden="true"></i>
-          </button>
-        }
         <button
           type="button"
           class="doc-form__line-remove"

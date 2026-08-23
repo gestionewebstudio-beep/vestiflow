@@ -3836,48 +3836,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.lines.updateValueAndValidity();
   }
 
-  /**
-   * Duplica una riga sotto quella corrente (§10.3). La copia è una riga NUOVA
-   * (senza id): al salvataggio genera il proprio movimento distinto (caso F).
-   * Seriali e collegamento all'ordine fornitore non vengono copiati.
-   */
-  protected duplicateLine(index: number): void {
-    if (this.formReadOnly()) {
-      return;
-    }
-    this.insertLineCopy(index);
-    this.syncLineFieldAccess();
-    this.markFormDirty();
-    this.focusLineField(index + 1, 'quantity');
-  }
-
-  private insertLineCopy(index: number): void {
-    const source = this.lines.at(index).getRawValue();
-    const copy = this.createLine();
-    copy.patchValue(
-      {
-        variantId: source.variantId,
-        sku: source.sku,
-        barcode: source.barcode,
-        supplierSku: source.supplierSku,
-        productName: source.productName,
-        description: source.description,
-        quantity: source.quantity,
-        unitCost: source.unitCost,
-        discountPercent: source.discountPercent,
-        sellingPrice: source.sellingPrice,
-        compareAtPrice: source.compareAtPrice,
-        vatRatePercent: source.vatRatePercent,
-        vatCodeId: source.vatCodeId,
-        loadsStock: source.loadsStock,
-        lotCode: source.lotCode,
-        lotExpiryDate: source.lotExpiryDate,
-      },
-      { emitEvent: false },
-    );
-    this.lines.insert(index + 1, copy);
-  }
-
   protected fieldInvalid(name: 'supplierId' | 'locationId' | 'documentDate'): boolean {
     const control = this.form.controls[name];
     return control.invalid && (control.touched || control.dirty);

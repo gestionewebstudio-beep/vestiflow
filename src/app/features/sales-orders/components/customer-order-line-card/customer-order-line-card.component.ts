@@ -35,8 +35,7 @@ export type { LineCodeField };
  * chiama per nome. Condividono la forma, non il contenuto.
  *
  * Dumb: edita il FormGroup che riceve e delega al form tutto cio' che richiede
- * di sapere qualcosa sul documento — ricerca prodotto, IVA, duplicazione,
- * eliminazione.
+ * di sapere qualcosa sul documento — ricerca prodotto, IVA, eliminazione.
  */
 @Component({
   selector: 'app-customer-order-line-card',
@@ -68,7 +67,6 @@ export class CustomerOrderLineCardComponent {
   readonly removeRequested = output<void>();
   /** Elimina diretta (testata «registry» e azione in fondo al corpo). */
   readonly removed = output<void>();
-  readonly duplicated = output<void>();
   /** +1 o -1 sulla quantita': il form applica il minimo e marca il documento sporco. */
   readonly quantityStepped = output<1 | -1>();
   readonly codeCommitted = output<LineCodeField>();

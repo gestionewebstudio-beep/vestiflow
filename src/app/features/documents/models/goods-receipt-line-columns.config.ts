@@ -115,8 +115,9 @@ export const GOODS_RECEIPT_LINE_COLUMNS: readonly TableColumnDef[] = [
   { id: 'serials', label: 'Seriali', defaultVisible: false, defaultWidthPx: 112, minWidthPx: 88 },
   { id: 'loadsStock', label: 'Mag.', defaultWidthPx: 48, minWidthPx: 40 },
   { id: 'lineTotal', label: 'Totale', numeric: true, defaultWidthPx: 88, minWidthPx: 56 },
-  // Solo duplica + elimina: le frecce di riordino vivono nella colonna indice.
-  { id: 'actions', label: 'Azioni', defaultWidthPx: 72, minWidthPx: 56 },
+  // Un solo pulsante (elimina): le frecce di riordino vivono nella colonna
+  // indice. Stessa misura di `stock-movement-line-columns`.
+  { id: 'actions', label: 'Azioni', defaultWidthPx: 44, minWidthPx: 44 },
 ];
 
 export const GOODS_RECEIPT_LINE_PRESETS: TableViewPresetMap = {

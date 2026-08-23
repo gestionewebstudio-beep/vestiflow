@@ -1270,36 +1270,6 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
     this.lines.push(this.createLine());
   }
 
-  /**
-   * Duplica la riga: stessa variante, stessa descrizione, stessa quantità —
-   * seriali esclusi, perché un numero di serie identifica **un** pezzo e
-   * copiarlo creerebbe due righe che dicono di muovere lo stesso.
-   *
-   * Non c'era in questa maschera, mentre c'è negli altri tre documenti. È
-   * arrivata con la card condivisa, il cui piede porta Duplica ed Elimina:
-   * nasconderlo qui avrebbe richiesto un interruttore, e un piede che è forma
-   * solo per tre documenti su cinque non è forma.
-   */
-  protected duplicateLine(index: number): void {
-    if (this.formReadOnly()) {
-      return;
-    }
-    const source = this.lines.at(index);
-    if (!source) {
-      return;
-    }
-    const copy = this.createLine();
-    copy.patchValue({
-      variantId: source.controls.variantId.value,
-      articleCode: source.controls.articleCode.value,
-      sku: source.controls.sku.value,
-      barcode: source.controls.barcode.value,
-      description: source.controls.description.value,
-      quantity: source.controls.quantity.value,
-    });
-    this.lines.insert(index + 1, copy);
-  }
-
   protected removeLine(index: number): void {
     if (this.formReadOnly()) {
       return;

@@ -1443,26 +1443,6 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     return !!control && control.invalid && (control.touched || control.dirty);
   }
 
-  /**
-   * Duplica la riga. Non c'era su questa maschera mentre c'è sulle altre: è
-   * arrivata con la card condivisa, il cui piede porta Duplica ed Elimina.
-   */
-  protected duplicateLine(index: number): void {
-    if (this.formReadOnly()) {
-      return;
-    }
-    const source = this.lines.at(index);
-    if (!source) {
-      return;
-    }
-    const copy = this.createLine();
-    // L'id NON si duplica: la copia è una riga nuova. Senza questo azzeramento
-    // il salvataggio riceverebbe due righe che dichiarano lo stesso id.
-    copy.patchValue({ ...source.getRawValue(), id: '' });
-    this.lines.insert(index + 1, copy);
-    this.markFormDirty();
-  }
-
   protected readonly productSuggest = new DocumentProductSuggestStore();
 
   /** Il pannello di ricerca a tutta pagina, aperto dalla lente della riga. */

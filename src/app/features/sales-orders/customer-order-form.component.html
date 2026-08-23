@@ -1021,7 +1021,6 @@
                         [stockToggleLabel]="lineStockToggleLabel()"
                         [identityColumnCount]="identityColumnCount()"
                         [dragHandle]="true"
-                        [canDuplicate]="true"
                         (codeChanged)="onRowCodeChanged(i, $event)"
                         (codeFocused)="onLineCodeFocus(i, $event)"
                         (codeBlurred)="onLineCodeBlur(i)"
@@ -1041,7 +1040,6 @@
                         (fieldRetreat)="lineFocus.previous(i, $event)"
                         (rowAdvance)="lineFocus.rowDown(i, $event)"
                         (rowRetreat)="lineFocus.rowUp(i, $event)"
-                        (duplicateRequested)="duplicateLine(i)"
                         (removeRequested)="removeLine(i)"
                       ></tr>
                     }
@@ -1130,7 +1128,6 @@
                         (toggled)="toggleLineCard(i)"
                         (removeRequested)="requestRemoveLine(i)"
                         (removed)="removeLine(i)"
-                        (duplicated)="duplicateLine(i)"
                         (quantityStepped)="onLineQuantityStep(i, $event)"
                         (codeCommitted)="commitCodeLookup(i, $event)"
                         (codeFocused)="onLineCodeFocus(i, $event)"

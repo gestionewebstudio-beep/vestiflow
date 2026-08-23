@@ -120,9 +120,6 @@ export class DocumentLineRowComponent {
    */
   readonly dragHandle = input(false);
 
-  /** «Duplica riga»: c'è dove duplicare una riga ha un senso. */
-  readonly canDuplicate = input(false);
-
   /**
    * Minimo dell'attributo `min` sulla cella quantita'.
    *
@@ -166,7 +163,6 @@ export class DocumentLineRowComponent {
   readonly rowAdvance = output<DocumentLineFocusField>();
   readonly rowRetreat = output<DocumentLineFocusField>();
 
-  readonly duplicateRequested = output<void>();
   readonly removeRequested = output<void>();
 
   protected cellId(field: string): string {

@@ -340,24 +340,6 @@ export class ManualReceiptFormComponent implements CanComponentDeactivate {
     this.openLine.set(null);
   }
 
-  /** Duplica la riga: stessa descrizione, stessa aliquota, stesso importo. */
-  protected duplicateLine(index: number): void {
-    const sorgente = this.lines.at(index);
-    if (!sorgente) {
-      return;
-    }
-    this.addLine();
-    const copia = this.lines.at(this.lines.length - 1);
-    copia?.controls.description.setValue(sorgente.controls.description.value);
-    copia?.controls.vatCodeId.setValue(sorgente.controls.vatCodeId.value);
-    // Si copia il netto CANONICO, non il campo: il campo è una vista, e
-    // ricostruirlo da lì perderebbe la coda dello scorporo sulla copia.
-    copia?.controls.netAmountMinor.setValue(sorgente.controls.netAmountMinor.value, {
-      emitEvent: false,
-    });
-    this.redrawAmountFields();
-  }
-
   // ── La vista card, sotto lg ────────────────────────────────────────────────
   //
   // Sotto lg il foglio globale spegne `.doc-form__table-wrap`: senza le card le

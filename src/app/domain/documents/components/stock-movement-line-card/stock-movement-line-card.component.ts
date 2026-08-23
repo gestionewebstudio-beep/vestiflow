@@ -87,7 +87,6 @@ export class StockMovementLineCardComponent {
   readonly codeBlurred = output<LineCodeField>();
   readonly codeCommitted = output<LineCodeField>();
   readonly codeSuggestionPicked = output<string>();
-  readonly duplicated = output<number>();
   readonly removed = output<number>();
 
   protected readonly open = signal(false);

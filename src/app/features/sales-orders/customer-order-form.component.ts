@@ -2363,15 +2363,6 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     this.markFormDirty();
   }
 
-  protected duplicateLine(index: number): void {
-    const source = this.lines.at(index);
-    const copy = this.createLine();
-    // I seriali identificano il singolo pezzo: mai copiati sulla riga duplicata.
-    copy.setValue({ ...source.getRawValue(), id: '', serialNumbersText: '' });
-    this.lines.insert(index + 1, copy);
-    this.markFormDirty();
-  }
-
   protected lineIsEmpty(line: ReturnType<CustomerOrderFormComponent['createLine']>): boolean {
     const value = line.getRawValue();
     return (

@@ -54,7 +54,7 @@ async function setup(vm: Partial<CustomerOrderLineCardVm> = {}, open = false) {
     toggled: vi.fn(),
     removeRequested: vi.fn(),
     removed: vi.fn(),
-    duplicated: vi.fn(),
+
     quantityStepped: vi.fn(),
     codeCommitted: vi.fn(),
     suggestionPicked: vi.fn(),

@@ -54,7 +54,6 @@ type Inputs = Partial<{
   stockToggleLabel: string;
   identityColumnCount: number;
   dragHandle: boolean;
-  canDuplicate: boolean;
   quantityMin: number;
 }>;
 
@@ -79,7 +78,6 @@ async function apri(inputs: Inputs = {}) {
     fieldRetreat: vi.fn(),
     rowAdvance: vi.fn(),
     rowRetreat: vi.fn(),
-    duplicateRequested: vi.fn(),
     removeRequested: vi.fn(),
   };
   const view = await render(DocumentLineRowComponent, {
@@ -202,19 +200,16 @@ describe('DocumentLineRowComponent', () => {
     });
   });
 
-  describe('duplica e rimuovi', () => {
-    it('senza permesso di duplicare il comando non c’è', async () => {
+  describe('rimuovi', () => {
+    /**
+     * ⛔ **Guardia**: «Duplica riga» è stata RIMOSSA dal prodotto (23/08/2026).
+     * Non è nascosta dietro un permesso — non esiste più. Questo test fallisce
+     * se qualcuno la rimette, che è l'unico modo per accorgersene.
+     */
+    it('«Duplica riga» non esiste più, in nessuna condizione', async () => {
       await apri();
 
       expect(screen.queryByRole('button', { name: /Duplica/i })).toBeNull();
-    });
-
-    it('col permesso il comando c’è e chiede la duplicazione', async () => {
-      const { duplicateRequested } = await apri({ canDuplicate: true });
-
-      await userEvent.click(screen.getByRole('button', { name: /Duplica/i }));
-
-      expect(duplicateRequested).toHaveBeenCalledTimes(1);
     });
 
     it('il cestino chiede la rimozione: la riga non si toglie da sola', async () => {
@@ -232,12 +227,6 @@ describe('DocumentLineRowComponent', () => {
 
       // Niente quantità, niente prezzi: è una fascia col solo titolo.
       expect(q('co-qty-0')).toBeNull();
-    });
-
-    it('e non offre la duplicazione, nemmeno se concessa', async () => {
-      await apri({ view: vista({ isReference: true }), canDuplicate: true });
-
-      expect(screen.queryByRole('button', { name: /Duplica/i })).toBeNull();
     });
   });
 

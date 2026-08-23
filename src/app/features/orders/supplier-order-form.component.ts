@@ -1155,15 +1155,6 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     return findVariantSummaryById(variantId, this.pinnedVariants(), this.searchedVariants());
   }
 
-  protected lineDisplay(
-    index: number,
-    field: 'articleCode' | 'sku' | 'barcode' | 'supplierSku' | 'unitOfMeasure',
-  ): string {
-    const summary = this.lineSummary(index);
-    const value = summary?.[field];
-    return value?.trim() ? value : '—';
-  }
-
   // ── Celle codice: quattro chiavi di ricerca, un solo comportamento ─────────
   //
   // Cod. articolo, SKU, EAN e Cod. fornitore si digitano per CERCARE l'articolo.
@@ -1882,30 +1873,6 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   }
 
   /**
-   * Duplica la riga, come le altre due maschere (11/08/2026). Mancava qui e
-   * basta: su un ordine al fornitore si ordina spesso lo stesso articolo in
-   * taglie diverse, ed è il caso in cui serve di più.
-   *
-   * La copia porta tutto tranne l'identità: nuova riga, stesso articolo, stesso
-   * costo, stesso sconto. Il fuoco va sulla quantità della copia, che è il
-   * campo che si cambia subito dopo.
-   */
-  protected duplicateLine(index: number): void {
-    if (this.formReadOnly()) {
-      return;
-    }
-    const source = this.lines.at(index);
-    if (!source) {
-      return;
-    }
-    const copy = this.createLine();
-    copy.setValue(source.getRawValue());
-    this.lines.insert(index + 1, copy);
-    this.markFormDirty();
-    this.lineFocus.focusField(index + 1, 'quantity');
-  }
-
-  /**
    * Trascinamento riga (§7.2). Non chiede conferma, a differenza del riordino
    * per colonna: e' un movimento singolo e visibile, e chi lo fa sa cosa sta
    * facendo. L'avviso serve a chi ribalta tutto in un colpo.
@@ -2372,8 +2339,8 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
        * Il costo NETTO canonico in unità minori, con la coda dello scorporo.
        * È il valore vero della riga: `unitCost` si ridisegna da qui, mai il
        * contrario. Vive nel gruppo e non in un signal per indice perché così
-       * segue la riga quando la si aggiunge, duplica o elimina — un indice
-       * separato si disallineerebbe al primo riordino.
+       * segue la riga quando la si aggiunge o elimina — un indice separato
+       * si disallineerebbe al primo riordino.
        */
       unitCostNetMinor: this.fb.control<number | null>(null),
       discountPercent: this.fb.control(''),

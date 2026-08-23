@@ -1590,16 +1590,6 @@
                               <div class="doc-form__line-actions">
                                 <button
                                   type="button"
-                                  class="doc-form__line-move"
-                                  tabindex="-1"
-                                  [disabled]="formReadOnly()"
-                                  aria-label="Duplica riga"
-                                  (click)="duplicateLine(i)"
-                                >
-                                  <i class="pi pi-clone" aria-hidden="true"></i>
-                                </button>
-                                <button
-                                  type="button"
                                   class="doc-form__line-remove"
                                   tabindex="-1"
                                   [disabled]="lines.length <= 1"
@@ -1682,7 +1672,6 @@
                       (nameFocus)="onLineProductFocus($event)"
                       (nameBlur)="onLineProductBlur($event)"
                       (suggestionPick)="onProductSuggestionPick($event.lineIndex, $event.variantId)"
-                      (duplicated)="duplicateLine($event)"
                       (removed)="removeLine($event)"
                     />
                   }

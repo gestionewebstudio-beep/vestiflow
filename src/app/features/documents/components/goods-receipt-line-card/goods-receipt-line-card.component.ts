@@ -48,7 +48,7 @@ export interface GoodsReceiptLineCardGroup {
  * serve più, perché ad aprire la card pensa il chevron della testata.
  *
  * Dumb component: edita il FormGroup ricevuto e delega al padre ricerca
- * articolo, IVA, unità di misura, duplicazione ed eliminazione.
+ * articolo, IVA, unità di misura ed eliminazione.
  */
 @Component({
   selector: 'app-goods-receipt-line-card',
@@ -92,7 +92,6 @@ export class GoodsReceiptLineCardComponent {
   readonly unitOfMeasureChanged = output<string>();
   readonly unitManagerRequested = output<void>();
   readonly fieldBlur = output<number>();
-  readonly duplicated = output<number>();
   readonly removed = output<number>();
   readonly nameInput = output<string>();
   readonly nameFocus = output<number>();
