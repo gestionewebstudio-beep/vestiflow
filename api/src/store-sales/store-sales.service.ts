@@ -70,7 +70,7 @@ interface ResolvedVariant {
   readonly optionSummary: string;
   readonly defaultVatCodeId: string | null;
   /** Costo effettivo corrente: congelato sul movimento di vendita. */
-  readonly purchasePriceMinor: number | null;
+  readonly purchasePriceMinor: number;
 }
 
 /**
@@ -607,7 +607,7 @@ export class StoreSalesService {
           // Costo di record congelato: il costo effettivo della variante ORA (§A).
           // Vale solo per le righe NUOVE — una riga già presente tiene il proprio,
           // o correggere una vendita di marzo la rivaluterebbe al costo di agosto.
-          unitCostForNewLine: (line) => variants.get(line.variantId)?.purchasePriceMinor ?? null,
+          unitCostForNewLine: (line) => variants.get(line.variantId)?.purchasePriceMinor ?? 0,
           lines: doc.lines,
           actor,
         });
@@ -1122,7 +1122,7 @@ export class StoreSalesService {
           // ⛔ Il costo NON si deriva dalla riga: lì c'è il prezzo di VENDITA, e
           // derivarlo scriverebbe il ricavo al posto del costo d'acquisto. Si
           // congela il costo corrente della variante, e solo sulle righe nuove.
-          unitCostForNewLine: (line) => variants.get(line.variantId)?.purchasePriceMinor ?? null,
+          unitCostForNewLine: (line) => variants.get(line.variantId)?.purchasePriceMinor ?? 0,
           lines: doc.lines,
           actor,
         });

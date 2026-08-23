@@ -7,11 +7,7 @@ import {
   type StockMovement,
 } from '@prisma/client';
 
-import {
-  sameNullableAmountAtCent,
-  sameUnitAmountAtContract,
-  toStorableMinor,
-} from '../common/money.util';
+import { sameAmountAtCent, sameUnitAmountAtContract, toStorableMinor } from '../common/money.util';
 import { applyInventoryDelta } from '../inventory/inventory-level-delta.util';
 import { frozenTotalCostMinor } from '../inventory/movement-cost.util';
 import type { StockMovementActor } from '../inventory/inventory-movement.util';
@@ -77,7 +73,7 @@ interface SyncParams {
    * riga NUOVA congela il costo di adesso, la riga GIA' ESISTENTE mantiene il
    * proprio costo unitario e si rifa' solo il TOTALE sulla quantita' nuova.
    */
-  readonly unitCostForNewLine?: (line: DocumentLine & { variantId: string }) => number | null;
+  readonly unitCostForNewLine?: (line: DocumentLine & { variantId: string }) => number;
   /** Righe documento SALVATE (id definitivi). Vuoto = rimuovi tutti i movimenti. */
   readonly lines: readonly DocumentLine[];
   readonly actor: StockMovementActor;
@@ -283,14 +279,9 @@ export async function syncGoodsReceiptLineMovements(
       // confronta alla precisione del contratto (la coda ne fa parte), il
       // TOTALE al centesimo (è un importo monetario finale).
       (costoEsterno
-        ? !sameNullableAmountAtCent(movement.totalCostMinor, totaleCostoAggiornato)
-        : !sameUnitAmountAtContract(
-            // ⛔ La guardia serve: `Number(null)` vale ZERO, e un costo assente
-            // confrontato come zero risulterebbe DIVERSO da un altro costo
-            // assente — il movimento verrebbe riscritto a ogni salvataggio.
-            movement.unitCostMinor == null ? null : Number(movement.unitCostMinor),
-            unitCostMinor,
-          ) || !sameNullableAmountAtCent(movement.totalCostMinor, line.lineTotalMinor)) ||
+        ? !sameAmountAtCent(movement.totalCostMinor, totaleCostoAggiornato)
+        : !sameUnitAmountAtContract(Number(movement.unitCostMinor), unitCostMinor) ||
+          !sameAmountAtCent(movement.totalCostMinor, line.lineTotalMinor)) ||
       movementDateChanged;
 
     if (needsUpdate) {

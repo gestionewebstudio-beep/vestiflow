@@ -3324,14 +3324,18 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.ensureLineVatCode(line);
     // Il costo va dopo il Codice IVA: senza aliquota non si saprebbe come
     // mostrarlo quando la colonna lavora a costi ivati.
+    // ⛔ Qui il controllo era TRUTHY (`?.amountMinor ? … : ''`), e un articolo che
+    // costa ZERO arrivava in riga con la cella VUOTA — trattato come un articolo
+    // senza costo. Da quando un costo canonico non è mai NULL i due casi non
+    // coincidono più: un articolo nasce a zero, e la cella lo dice.
     if (replacedArticle) {
-      // Come i prezzi: il costo segue il nuovo articolo, o si svuota.
+      // Come i prezzi: il costo segue il nuovo articolo.
       line.controls.unitCost.setValue(
-        summary.purchasePrice?.amountMinor
+        summary.purchasePrice != null
           ? this.costFieldValue(summary.purchasePrice.amountMinor, line)
           : '',
       );
-    } else if (!line.controls.unitCost.value.trim() && summary.purchasePrice?.amountMinor) {
+    } else if (!line.controls.unitCost.value.trim() && summary.purchasePrice != null) {
       line.controls.unitCost.setValue(this.costFieldValue(summary.purchasePrice.amountMinor, line));
     }
     if (!line.controls.discountPercent.value.trim()) {
@@ -4801,7 +4805,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       // `?? undefined` e non `|| undefined`: uno zero e' una scelta, non
       // un'assenza — e un barrato assente non deve diventare zero.
       compareAtPriceMinor: compareAtNet ?? undefined,
-      purchasePriceMinor: purchase?.amountMinor || undefined,
+      purchasePriceMinor: purchase?.amountMinor ?? undefined,
       vatCodeId: line.vatCodeId || undefined,
       unitOfMeasure: line.unitOfMeasure?.trim() || undefined,
     };

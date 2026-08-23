@@ -181,7 +181,10 @@ export class ProductsImportService {
       select: { sku: true },
     });
     return new Set(
-      rows.map((row) => row.sku).filter((sku): sku is string => Boolean(sku)).map((sku) => sku.toLowerCase()),
+      rows
+        .map((row) => row.sku)
+        .filter((sku): sku is string => Boolean(sku))
+        .map((sku) => sku.toLowerCase()),
     );
   }
 
@@ -272,9 +275,7 @@ export class ProductsImportService {
           // Prezzo Shopify precompilato dal prezzo articolo alla creazione (§B).
           shopifyPriceMinor: parsed.dto.sellingPrice.amountMinor,
           compareAtPriceMinor: parsed.dto.compareAtPrice?.amountMinor ?? null,
-          purchasePriceMinor: canWriteCosts
-            ? (parsed.dto.purchasePrice?.amountMinor ?? null)
-            : null,
+          purchasePriceMinor: canWriteCosts ? (parsed.dto.purchasePrice?.amountMinor ?? 0) : 0,
           options: parsed.dto.options as unknown as Prisma.InputJsonValue,
           variants: {
             create: variantInputs,
@@ -325,7 +326,7 @@ export class ProductsImportService {
       sellingPriceMinor: variant.sellingPrice.amountMinor,
       // Prezzo Shopify precompilato dal prezzo variante alla creazione (§B).
       shopifyPriceMinor: variant.sellingPrice.amountMinor,
-      purchasePriceMinor: canWriteCosts ? variant.purchasePrice?.amountMinor : null,
+      purchasePriceMinor: canWriteCosts ? (variant.purchasePrice?.amountMinor ?? 0) : 0,
     };
   }
 

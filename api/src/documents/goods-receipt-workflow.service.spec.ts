@@ -92,18 +92,16 @@ function createPrismaMock() {
       updateMany: vi.fn(),
     },
     supplier: {
-      findFirst: vi
-        .fn()
-        .mockResolvedValue({
-          id: 'sup-1',
-          party: {
-            companyName: 'Fornitore A',
-            firstName: null,
-            lastName: null,
-            contactName: null,
-            email: null,
-          },
-        }),
+      findFirst: vi.fn().mockResolvedValue({
+        id: 'sup-1',
+        party: {
+          companyName: 'Fornitore A',
+          firstName: null,
+          lastName: null,
+          contactName: null,
+          email: null,
+        },
+      }),
     },
     location: {
       findFirst: vi
@@ -254,7 +252,7 @@ describe('GoodsReceiptWorkflowService.saveGoodsReceipt', () => {
       });
     }
 
-    it("consente «manual_load» a chi ha la famiglia rettifiche", async () => {
+    it('consente «manual_load» a chi ha la famiglia rettifiche', async () => {
       const { service } = createService(prisma);
       prisma.document.aggregate.mockResolvedValue({ _max: { number: 6 } });
       prisma.document.create.mockResolvedValue(savedDocument());
@@ -894,12 +892,15 @@ describe('GoodsReceiptWorkflowService.saveGoodsReceipt', () => {
         );
       };
 
+      // ⛔ Qui l'atteso era `null`. Il costo canonico non è più nullable: chi non
+      // ha il permesso non SCRIVE il costo, e l'articolo nasce a ZERO — che è un
+      // costo, non un'assenza (`regole-gestionale`).
       it('non viene scritto da chi non può vederlo (catalog.view_purchase_costs)', async () => {
         await conCosto(conCatalogo());
 
         const productData = prisma.product.create.mock.calls[0]?.[0].data;
-        expect(productData.purchasePriceMinor).toBeNull();
-        expect(productData.variants.create[0].purchasePriceMinor).toBeUndefined();
+        expect(productData.purchasePriceMinor).toBe(0);
+        expect(productData.variants.create[0].purchasePriceMinor).toBe(0);
       });
 
       it('viene scritto da chi ha il permesso sui costi', async () => {

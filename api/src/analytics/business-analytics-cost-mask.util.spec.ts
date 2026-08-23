@@ -16,7 +16,7 @@ const summary: BusinessAnalyticsSummaryDto = {
     changePercent: 11.1,
   },
   sales: { transactionCount: 12, unitsSold: 30, avgTicketMinor: 8_333 },
-  margin: { grossMinor: 45_000, grossPercent: 45, costCoveragePercent: 92.5 },
+  margin: { grossMinor: 45_000, grossPercent: 45 },
   inventory: {
     stockValueMinor: 500_000,
     stockCostMinor: 280_000,
@@ -35,7 +35,7 @@ describe('maskCostSensitiveSummary', () => {
   it('azzera margini e valorizzazione al costo (il costo si ricava per sottrazione)', () => {
     const masked = maskCostSensitiveSummary(summary);
 
-    expect(masked.margin).toEqual({ grossMinor: null, grossPercent: null, costCoveragePercent: 0 });
+    expect(masked.margin).toEqual({ grossMinor: null, grossPercent: null });
     expect(masked.inventory.stockCostMinor).toBeNull();
     expect(masked.inventory.stockMarginMinor).toBeNull();
     expect(masked.inventory.stockMarginPercent).toBeNull();

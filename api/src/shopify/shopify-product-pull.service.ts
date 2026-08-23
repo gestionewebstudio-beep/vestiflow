@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  UnprocessableEntityException,
-} from '@nestjs/common';
+import { Injectable, Logger, UnprocessableEntityException } from '@nestjs/common';
 import {
   CatalogOrigin,
   ProductStatus,
@@ -304,8 +300,8 @@ export class ShopifyProductPullService {
               ? shopifyDecimalToMinor(first.compare_at_price)
               : null,
             purchasePriceMinor: first
-              ? (enrichment?.variantPurchasePriceMinor.get(first.id) ?? null)
-              : null,
+              ? (enrichment?.variantPurchasePriceMinor.get(first.id) ?? 0)
+              : 0,
           },
         });
 
@@ -318,15 +314,12 @@ export class ShopifyProductPullService {
               tenantId,
               productId: product.id,
               sku,
-              optionValues: this.mapVariantOptions(
-                remote,
-                variant,
-              ),
+              optionValues: this.mapVariantOptions(remote, variant),
               barcode: variant.barcode ?? null,
               currency: 'EUR',
               sellingPriceMinor: variantPriceMinor,
               shopifyPriceMinor: variantPriceMinor,
-              purchasePriceMinor: enrichment?.variantPurchasePriceMinor.get(variant.id) ?? null,
+              purchasePriceMinor: enrichment?.variantPurchasePriceMinor.get(variant.id) ?? 0,
               shopifyVariantId: String(variant.id),
               shopifyInventoryItemId: String(variant.inventory_item_id),
             },
@@ -357,8 +350,8 @@ export class ShopifyProductPullService {
             ? shopifyDecimalToMinor(firstRemote.compare_at_price)
             : null,
           purchasePriceMinor: firstRemote
-            ? (enrichment?.variantPurchasePriceMinor.get(firstRemote.id) ?? null)
-            : null,
+            ? (enrichment?.variantPurchasePriceMinor.get(firstRemote.id) ?? 0)
+            : 0,
         },
       });
 
@@ -366,9 +359,7 @@ export class ShopifyProductPullService {
         const shopifyVariantId = String(variant.id);
         const matched = byShopifyVariantId.get(shopifyVariantId);
         const purchasePriceMinor =
-          enrichment?.variantPurchasePriceMinor.get(variant.id) ??
-          matched?.purchasePriceMinor ??
-          null;
+          enrichment?.variantPurchasePriceMinor.get(variant.id) ?? matched?.purchasePriceMinor ?? 0;
         const variantPriceMinor = shopifyDecimalToMinor(variant.price ?? '0');
         // Comune a match/nuova: il prezzo Shopify e i collegamenti si allineano.
         const variantSyncData = {
@@ -434,7 +425,10 @@ export class ShopifyProductPullService {
       select: { sku: true },
     });
     return new Set(
-      rows.map((row) => row.sku).filter((sku): sku is string => Boolean(sku)).map((sku) => sku.toLowerCase()),
+      rows
+        .map((row) => row.sku)
+        .filter((sku): sku is string => Boolean(sku))
+        .map((sku) => sku.toLowerCase()),
     );
   }
 

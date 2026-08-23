@@ -15,14 +15,17 @@ import type { StockMovementType } from '@prisma/client';
 
 /**
  * Costo effettivo corrente delle varianti (`purchasePriceMinor`) in una sola
- * query. `null` per le varianti senza costo. È il valore da congelare sui
- * movimenti di vendita.
+ * query. È il valore da congelare sui movimenti di vendita.
+ *
+ * ⭐ Un costo canonico non è mai NULL: una variante senza costo vale **zero**,
+ * e zero è un costo (`regole-gestionale`). La mappa restituisce quindi sempre
+ * un numero per le varianti trovate.
  */
 export async function currentVariantCostMap(
   tx: Prisma.TransactionClient,
   tenantId: string,
   variantIds: readonly string[],
-): Promise<ReadonlyMap<string, number | null>> {
+): Promise<ReadonlyMap<string, number>> {
   const ids = [...new Set(variantIds)];
   if (ids.length === 0) {
     return new Map();
@@ -34,15 +37,10 @@ export async function currentVariantCostMap(
   // ⭐ `Number(...)` è il confine fra `Prisma.Decimal` e il resto del codice,
   // NON un arrotondamento: la coda sopravvive intera (84,4262 resta 84,4262).
   //
-  // ⛔ **La guardia sul `null` non è pignoleria: `Number(null)` vale ZERO.**
-  // Un costo assente diventerebbe «costa zero», che è un'informazione diversa
-  // e falsa — e finirebbe congelata sui movimenti e nel margine.
-  return new Map(
-    rows.map((row) => [
-      row.id,
-      row.purchasePriceMinor == null ? null : Number(row.purchasePriceMinor),
-    ]),
-  );
+  // ⛔ Qui c'era una guardia `== null` che restituiva `null`: serviva quando la
+  // colonna era nullable e «assente» era distinto da «zero». La colonna è ora
+  // `NOT NULL DEFAULT 0` e quella distinzione non esiste più.
+  return new Map(rows.map((row) => [row.id, Number(row.purchasePriceMinor)]));
 }
 
 /**
@@ -64,12 +62,9 @@ export async function currentVariantCostMap(
  * farebbe quello che sembra.
  */
 export function frozenTotalCostMinor(
-  unitCostMinor: Prisma.Decimal | number | null,
+  unitCostMinor: Prisma.Decimal | number,
   quantity: number,
-): number | null {
-  if (unitCostMinor == null) {
-    return null;
-  }
+): number {
   // ⭐ La moltiplicazione avviene in `Decimal`, l'arrotondamento UNA VOLTA alla
   // fine: è l'ordine che le regole impongono — «si calcola esatto e si
   // arrotonda una volta sola». Convertire prima e moltiplicare dopo farebbe
@@ -80,9 +75,12 @@ export function frozenTotalCostMinor(
 /**
  * Costo unitario da congelare su un RESO: quello congelato sul movimento di
  * vendita ORIGINALE per la stessa variante (§③). Ricade su `fallbackCostMinor`
- * (tipicamente il costo corrente della variante) se il reso non è collegato a
- * una vendita, o se quella vendita non porta il costo (movimenti storici
- * antecedenti al congelamento).
+ * (tipicamente il costo corrente della variante) solo quando quella vendita
+ * **non esiste** — il reso non è collegato, o il movimento non si trova.
+ *
+ * ⛔ Non ricade più quando la vendita esiste e il suo costo è zero: zero è il
+ * costo con cui quella merce è uscita, e il reso deve rientrare con lo stesso.
+ * Il fallback era per la colonna nullable, che non c'è più.
  */
 export async function originalSaleUnitCostMinor(
   tx: Prisma.TransactionClient,
@@ -90,8 +88,8 @@ export async function originalSaleUnitCostMinor(
   originalSaleDocumentId: string | null,
   variantId: string,
   saleTypes: readonly StockMovementType[],
-  fallbackCostMinor: number | null,
-): Promise<number | null> {
+  fallbackCostMinor: number,
+): Promise<number> {
   if (!originalSaleDocumentId) {
     return fallbackCostMinor;
   }
@@ -104,5 +102,5 @@ export async function originalSaleUnitCostMinor(
     },
     select: { unitCostMinor: true },
   });
-  return original?.unitCostMinor != null ? Number(original.unitCostMinor) : fallbackCostMinor;
+  return original ? Number(original.unitCostMinor) : fallbackCostMinor;
 }

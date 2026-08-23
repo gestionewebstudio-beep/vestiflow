@@ -173,6 +173,8 @@ describe('ProductsService', () => {
     expect(data).not.toHaveProperty('purchasePriceMinor');
   });
 
+  // ⛔ L'atteso era `null`. Chi vede i costi e non ne manda uno lo AZZERA: zero
+  // è il costo di un articolo senza costo (`regole-gestionale`).
   it('update di chi vede i costi continua a scriverli (anche per azzerarli)', async () => {
     const { service, prisma } = createService();
     prisma.product.findFirst.mockResolvedValue({
@@ -197,7 +199,7 @@ describe('ProductsService', () => {
     );
 
     const data = prisma.product.update.mock.calls[0]?.[0]?.data as Record<string, unknown>;
-    expect(data).toHaveProperty('purchasePriceMinor', null);
+    expect(data).toHaveProperty('purchasePriceMinor', 0);
   });
 
   it('create di chi NON vede i costi nasce senza costo, non col costo inviato', async () => {
@@ -223,7 +225,8 @@ describe('ProductsService', () => {
     );
 
     const data = prisma.product.create.mock.calls[0]?.[0]?.data as Record<string, unknown>;
-    expect(data).toMatchObject({ purchasePriceMinor: null });
+    // Senza permesso il costo non si scrive: l'articolo nasce a zero, non a null.
+    expect(data).toMatchObject({ purchasePriceMinor: 0 });
   });
 
   it('getById maschera il costo a chi non lo può vedere', async () => {

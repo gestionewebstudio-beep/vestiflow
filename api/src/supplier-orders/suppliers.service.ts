@@ -26,7 +26,13 @@ import type { UpsertSupplierVariantLinkDto } from './dto/upsert-supplier-variant
 import { nextNumericSupplierCode, SUPPLIER_NUMERIC_CODE_PAD } from './supplier-code.util';
 
 const SUPPLIER_VARIANT_LINK_INCLUDE = {
-  supplier: { select: { id: true, code: true, party: { select: { companyName: true, firstName: true, lastName: true } } } },
+  supplier: {
+    select: {
+      id: true,
+      code: true,
+      party: { select: { companyName: true, firstName: true, lastName: true } },
+    },
+  },
   variant: {
     select: {
       id: true,
@@ -47,6 +53,19 @@ export type SupplierVariantLinkRow = SupplierVariantLink & {
     sku: string | null;
     product: { id: string; name: string };
   };
+};
+
+/**
+ * La stessa riga come ESCE dall'API: l'ultimo costo pagato è `null` per chi
+ * non ha «Visualizza costi d'acquisto».
+ *
+ * ⚠️ Questo `null` non è un costo assente — quello non esiste più, un costo
+ * canonico vale zero. Significa **non visibile**, e per questo vive nel tipo
+ * di RISPOSTA e non nella colonna (`regole-sicurezza`: nascondere in UI non
+ * è sicurezza, ma esporre un numero a chi non deve vederlo lo è eccome).
+ */
+export type SupplierVariantLinkResponse = Omit<SupplierVariantLinkRow, 'lastPurchasePriceMinor'> & {
+  lastPurchasePriceMinor: SupplierVariantLinkRow['lastPurchasePriceMinor'] | null;
 };
 
 type PartyWriteData = {
@@ -301,7 +320,7 @@ export class SuppliersService {
     tenantId: string,
     supplierId: string,
     user?: UserProfileDto,
-  ): Promise<SupplierVariantLinkRow[]> {
+  ): Promise<SupplierVariantLinkResponse[]> {
     const showPurchaseCosts = canViewPurchaseCosts(user);
     return this.prisma.supplierVariantLink
       .findMany({
@@ -327,7 +346,7 @@ export class SuppliersService {
     tenantId: string,
     productId: string,
     user?: UserProfileDto,
-  ): Promise<SupplierVariantLinkRow[]> {
+  ): Promise<SupplierVariantLinkResponse[]> {
     const product = await this.prisma.product.findFirst({
       where: { id: productId, tenantId },
       select: { id: true },
@@ -386,7 +405,7 @@ export class SuppliersService {
           variantId: dto.variantId,
           supplierSku,
           isPreferred,
-          lastPurchasePriceMinor: dto.lastPurchasePriceMinor ?? null,
+          lastPurchasePriceMinor: dto.lastPurchasePriceMinor ?? 0,
           minOrderQuantity: dto.minOrderQuantity ?? null,
           currency: dto.currency?.trim().toUpperCase() || 'EUR',
         },
@@ -396,12 +415,8 @@ export class SuppliersService {
           ...(dto.lastPurchasePriceMinor !== undefined
             ? { lastPurchasePriceMinor: dto.lastPurchasePriceMinor }
             : {}),
-          ...(dto.minOrderQuantity !== undefined
-            ? { minOrderQuantity: dto.minOrderQuantity }
-            : {}),
-          ...(dto.currency !== undefined
-            ? { currency: dto.currency.trim().toUpperCase() }
-            : {}),
+          ...(dto.minOrderQuantity !== undefined ? { minOrderQuantity: dto.minOrderQuantity } : {}),
+          ...(dto.currency !== undefined ? { currency: dto.currency.trim().toUpperCase() } : {}),
         },
         include: SUPPLIER_VARIANT_LINK_INCLUDE,
       });
@@ -491,7 +506,10 @@ export class SuppliersService {
     };
 
     const result: SupplierRoleWriteData = {};
-    const assign = (key: Exclude<keyof SupplierRoleWriteData, 'defaultVatCodeId'>, value: string | undefined): void => {
+    const assign = (
+      key: Exclude<keyof SupplierRoleWriteData, 'defaultVatCodeId'>,
+      value: string | undefined,
+    ): void => {
       const normalized = trim(value);
       if (normalized !== undefined) {
         result[key] = normalized;
@@ -526,7 +544,9 @@ export class SuppliersService {
       select: { id: true },
     });
     if (!found) {
-      throw new UnprocessableEntityException('Il Codice IVA selezionato non esiste o non è più disponibile.');
+      throw new UnprocessableEntityException(
+        'Il Codice IVA selezionato non esiste o non è più disponibile.',
+      );
     }
   }
 
@@ -557,9 +577,7 @@ export class SuppliersService {
       where: { tenantId, code: { not: null } },
       select: { code: true },
     });
-    let candidate = nextNumericSupplierCode(
-      rows.map((row) => row.code ?? '').filter(Boolean),
-    );
+    let candidate = nextNumericSupplierCode(rows.map((row) => row.code ?? '').filter(Boolean));
     for (let attempt = 0; attempt < 20; attempt++) {
       const taken = await this.prisma.supplier.findFirst({
         where: { tenantId, code: candidate },

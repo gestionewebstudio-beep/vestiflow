@@ -423,10 +423,8 @@ export class ProductsService {
       // Senza permesso il costo non entra proprio nella risposta.
       // Valore di RISPOSTA: il confine verso il client è `number` (Blocco 1).
       // `Number(...)` converte, non arrotonda: la coda resta.
-      const costoGrezzo = showPurchaseCosts
-        ? (pricingSupplierLink?.lastPurchasePriceMinor ?? row.purchasePriceMinor ?? null)
-        : null;
-      const purchaseMinor = costoGrezzo == null ? null : Number(costoGrezzo);
+      const costoGrezzo = pricingSupplierLink?.lastPurchasePriceMinor ?? row.purchasePriceMinor;
+      const purchaseMinor = showPurchaseCosts ? Number(costoGrezzo) : null;
       return {
         variantId: row.id,
         productId: row.productId,
@@ -556,7 +554,7 @@ export class ProductsService {
             // precompilato dal prezzo articolo.
             shopifyPriceMinor: dto.shopifyPrice?.amountMinor ?? dto.sellingPrice.amountMinor,
             compareAtPriceMinor: dto.compareAtPrice?.amountMinor ?? null,
-            purchasePriceMinor: canWriteCosts ? (dto.purchasePrice?.amountMinor ?? null) : null,
+            purchasePriceMinor: canWriteCosts ? (dto.purchasePrice?.amountMinor ?? 0) : 0,
             // Listini aggiuntivi (§B): netti, valore unico articolo. Assenti = null.
             listino1PriceMinor: dto.listino1Price?.amountMinor ?? null,
             listino2PriceMinor: dto.listino2Price?.amountMinor ?? null,
@@ -781,7 +779,7 @@ export class ProductsService {
                 sellingPriceMinor: dto.sellingPrice.amountMinor,
                 compareAtPriceMinor: dto.compareAtPrice?.amountMinor ?? null,
                 ...(canWriteCosts
-                  ? { purchasePriceMinor: dto.purchasePrice?.amountMinor ?? null }
+                  ? { purchasePriceMinor: dto.purchasePrice?.amountMinor ?? 0 }
                   : {}),
                 // Prezzo Shopify (§B). Shopify ATTIVO: valore indipendente inviato
                 // dal form, persistito così com'è (assente = non toccare). Shopify
@@ -1227,7 +1225,7 @@ export class ProductsService {
       // Prezzo Shopify: valore proprio (§B). Se il form lo invia si usa quello,
       // altrimenti nasce precompilato dal prezzo variante.
       shopifyPriceMinor: variant.shopifyPrice?.amountMinor ?? variant.sellingPrice.amountMinor,
-      purchasePriceMinor: canWriteCosts ? variant.purchasePrice?.amountMinor : null,
+      purchasePriceMinor: canWriteCosts ? (variant.purchasePrice?.amountMinor ?? 0) : 0,
     };
   }
 
@@ -1248,7 +1246,7 @@ export class ProductsService {
       // Prezzo Shopify: valore proprio (§B). Se il form lo invia si usa quello,
       // altrimenti nasce precompilato dal prezzo variante.
       shopifyPriceMinor: variant.shopifyPrice?.amountMinor ?? variant.sellingPrice.amountMinor,
-      purchasePriceMinor: canWriteCosts ? variant.purchasePrice?.amountMinor : null,
+      purchasePriceMinor: canWriteCosts ? (variant.purchasePrice?.amountMinor ?? 0) : 0,
     };
   }
 

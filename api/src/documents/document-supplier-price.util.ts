@@ -51,10 +51,7 @@ export async function findSupplierPriceDiffs(
   // su `number`. `Number(...)` è il confine col tipo Prisma, non un
   // arrotondamento — la coda sopravvive.
   const lastPriceByVariant = new Map<string, number | null>(
-    links.map((link) => [
-      link.variantId,
-      link.lastPurchasePriceMinor == null ? null : Number(link.lastPurchasePriceMinor),
-    ]),
+    links.map((link) => [link.variantId, Number(link.lastPurchasePriceMinor)]),
   );
 
   const diffs: SupplierPriceDiff[] = [];

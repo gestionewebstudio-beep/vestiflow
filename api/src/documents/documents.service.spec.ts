@@ -2323,6 +2323,10 @@ describe('DocumentsService', () => {
                   quantity: 3,
                   reason: 'DDT vendita DDT-0005',
                   sourceLineId: 'l-ddt',
+                  // Colonne NOT NULL: un movimento letto dal database porta
+                  // sempre i due costi, zero compreso.
+                  unitCostMinor: 0,
+                  totalCostMinor: 0,
                   createdAt: new Date('2026-08-15T16:00:00.000Z'),
                 },
               ]),
@@ -2422,6 +2426,10 @@ describe('DocumentsService', () => {
                   quantity: 3,
                   reason: 'Fattura accompagnatoria FTA-0003',
                   sourceLineId: 'l-acc',
+                  // Colonne NOT NULL: un movimento letto dal database porta
+                  // sempre i due costi, zero compreso.
+                  unitCostMinor: 0,
+                  totalCostMinor: 0,
                   createdAt: new Date('2026-08-15T09:00:00.000Z'),
                 },
               ]),

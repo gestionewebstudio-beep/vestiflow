@@ -61,6 +61,11 @@ function existingMovement(overrides: Record<string, unknown> = {}) {
     direction: null,
     reason,
     sourceLineId: 'line-1',
+    // Colonne NOT NULL dal 22/08/2026: un movimento letto dal database porta
+    // sempre i due costi, zero compreso. Un mock che li omette descrive una
+    // riga che non può esistere.
+    unitCostMinor: 0,
+    totalCostMinor: 0,
     createdAt: new Date('2026-08-06T10:00:00.000Z'),
     ...overrides,
   };
@@ -345,17 +350,20 @@ describe('syncUnloadLineMovements', () => {
   // Il tipo, la data, la causale e il filtro di riga c'erano gia'. Questi due no,
   // ed erano l'unica ragione per cui la cassa scriveva i movimenti per conto suo.
 
-  it('16 · senza parametri: origine manual e nessun costo — i chiamanti storici non cambiano', async () => {
+  // ⛔ Qui il movimento senza costo nasceva con `null`. Un costo canonico non è
+  // mai NULL: chi non sa dire il costo dice ZERO, e il movimento lo dichiara
+  // esplicitamente invece di lasciarlo scrivere al default della colonna.
+  it('16 · senza parametri: origine manual e costo ZERO dichiarato, mai null', async () => {
     const tx = createTxMock();
 
     await run(tx, [line()]);
 
     const created = tx.stockMovement.create.mock.calls[0]![0] as {
-      data: { origin: string; unitCostMinor: number | null; totalCostMinor: number | null };
+      data: { origin: string; unitCostMinor: number; totalCostMinor: number };
     };
     expect(created.data.origin).toBe(MovementOrigin.manual);
-    expect(created.data.unitCostMinor).toBeNull();
-    expect(created.data.totalCostMinor).toBeNull();
+    expect(created.data.unitCostMinor).toBe(0);
+    expect(created.data.totalCostMinor).toBe(0);
   });
 
   it('17 · con origin e costo: il movimento nuovo nasce vestiflow_pos col costo congelato', async () => {

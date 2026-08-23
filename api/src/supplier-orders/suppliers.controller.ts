@@ -38,7 +38,11 @@ import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { UpsertSupplierVariantLinkDto } from './dto/upsert-supplier-variant-link.dto';
 import { SupplierMediaService } from './supplier-media.service';
 import { normalizeDecimals } from '../common/interceptors/decimal-serialization.interceptor';
-import { SuppliersService, type SupplierVariantLinkRow } from './suppliers.service';
+import {
+  SuppliersService,
+  type SupplierVariantLinkResponse,
+  type SupplierVariantLinkRow,
+} from './suppliers.service';
 
 import type { Serialized } from '../common/serialized.type';
 
@@ -143,7 +147,7 @@ export class SuppliersController {
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<Serialized<SupplierVariantLinkRow[]>> {
+  ): Promise<Serialized<SupplierVariantLinkResponse[]>> {
     return normalizeDecimals(await this.suppliers.listVariantLinksBySupplier(tenantId, id, user));
   }
 

@@ -134,7 +134,9 @@ describe('ProductsImportService', () => {
   it('importCsv salta prodotti non pronti in anteprima', async () => {
     const { service, prisma } = createService();
     const preview = await service.previewCsv('tenant-1', TWO_PRODUCTS_CSV);
-    const readyCount = preview.products.filter((product) => product.issues.every((issue) => issue.level !== 'error')).length;
+    const readyCount = preview.products.filter((product) =>
+      product.issues.every((issue) => issue.level !== 'error'),
+    ).length;
 
     prisma.product.create.mockResolvedValue({
       id: 'prod-alpha',
@@ -168,9 +170,10 @@ describe('ProductsImportService', () => {
   });
 
   it('importCsv salta per handle anche se il nome è diverso', async () => {
-    const { service, prisma } = createService([], [
-      { name: 'Nome Diverso', importHandle: 'maglietta-test' },
-    ]);
+    const { service, prisma } = createService(
+      [],
+      [{ name: 'Nome Diverso', importHandle: 'maglietta-test' }],
+    );
 
     const result = await service.importCsv('tenant-1', SAMPLE_CSV);
 
@@ -323,15 +326,14 @@ dup-b,Prodotto Doppio,<p>B</p>,Brand,Abbigliamento,,TRUE,Taglia,M,,,,,SKU-DUP-B,
       expect(result.imported).toBe(1);
 
       const call = prisma.product.create.mock.calls[0]?.[0] as
-        | { data: CreateCostPayload }
-        | undefined;
+        { data: CreateCostPayload } | undefined;
       if (!call) {
         throw new Error('product.create non chiamato: nessun payload da ispezionare.');
       }
       return call.data;
     }
 
-    it('senza il permesso il costo del CSV non entra nella create: articolo e varianti restano a null', async () => {
+    it('senza il permesso il costo del CSV non entra nella create: articolo e varianti restano a ZERO', async () => {
       const commesso = testClerkUser();
       // Presidio della fixture: se un giorno il preset commesso includesse il
       // permesso, questo test smetterebbe di provare qualcosa senza dirlo.
@@ -339,18 +341,16 @@ dup-b,Prodotto Doppio,<p>B</p>,Brand,Abbigliamento,,TRUE,Taglia,M,,,,,SKU-DUP-B,
 
       const data = await importWithCost(commesso);
 
-      // Questa e' l'asserzione che discrimina: tolta la guardia sulla variante
-      // il campo tornerebbe quello del mappatore (`undefined`), non `null`.
+      // ⛔ Qui l'atteso era `null`. Il costo canonico non è più nullable: chi non
+      // ha il permesso non SCRIVE il costo, e l'articolo nasce a zero.
       expect(data.variants.create.length).toBeGreaterThan(0);
       for (const variant of data.variants.create) {
-        expect(variant.purchasePriceMinor).toBeNull();
+        expect(variant.purchasePriceMinor).toBe(0);
       }
-      // Sull'articolo la guardia scrive null. Oggi ci arriverebbe comunque
-      // anche il ramo permesso, perche' il costo dal CSV non viene letto
-      // affatto (vedi l'ultimo test): l'asserzione fissa il contratto
-      // osservabile — «nessun costo nel payload» — e diventera' discriminante
-      // il giorno in cui la colonna verra' mappata.
-      expect(data.purchasePriceMinor).toBeNull();
+      // Sull'articolo la guardia scrive zero. L'asserzione fissa il contratto
+      // osservabile — «nessun costo dichiarato» — e diventerà discriminante il
+      // giorno in cui la colonna verrà mappata.
+      expect(data.purchasePriceMinor).toBe(0);
     });
 
     it('con il permesso la guardia non azzera il costo delle varianti', async () => {
@@ -387,9 +387,9 @@ dup-b,Prodotto Doppio,<p>B</p>,Brand,Abbigliamento,,TRUE,Taglia,M,,,,,SKU-DUP-B,
       // il permesso. Tutte le altre prove di questo file chiamano cosi'.
       const data = await importWithCost(undefined);
 
-      expect(data.purchasePriceMinor).toBeNull();
+      expect(data.purchasePriceMinor).toBe(0);
       for (const variant of data.variants.create) {
-        expect(variant.purchasePriceMinor).toBeNull();
+        expect(variant.purchasePriceMinor).toBe(0);
       }
     });
 
@@ -416,12 +416,15 @@ dup-b,Prodotto Doppio,<p>B</p>,Brand,Abbigliamento,,TRUE,Taglia,M,,,,,SKU-DUP-B,
       }
     });
 
-    it('una colonna costo vuota non diventa zero: resta assente', async () => {
+    // ⛔ Qui c'era «una colonna costo vuota non diventa zero: resta assente», con
+    // la motivazione «uno zero implicito sarebbe un dato inventato». È la regola
+    // che il proprietario ha ribaltato il 22/08/2026: per il dominio costo,
+    // «non valorizzato» e «zero» sono lo stesso caso, e il valore persistito è 0.
+    it('una colonna costo vuota vale zero, che è un costo', async () => {
       const data = await importWithCost(testOwnerUser(), '');
 
-      // Uno zero implicito sarebbe un dato inventato, e falserebbe i margini.
       for (const variant of data.variants.create) {
-        expect(variant.purchasePriceMinor).toBeUndefined();
+        expect(variant.purchasePriceMinor).toBe(0);
       }
     });
   });

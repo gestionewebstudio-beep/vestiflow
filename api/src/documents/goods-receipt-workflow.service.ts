@@ -629,7 +629,7 @@ export class GoodsReceiptWorkflowService {
           barcode: line.newProduct.barcode,
           sellingPriceMinor: line.newProduct.sellingPriceMinor,
           compareAtPriceMinor: line.newProduct.compareAtPriceMinor,
-          purchasePriceMinor: canWriteCosts ? line.newProduct.purchasePriceMinor : null,
+          purchasePriceMinor: canWriteCosts ? (line.newProduct.purchasePriceMinor ?? 0) : 0,
           vatCodeId: line.newProduct.vatCodeId,
           managesStock: line.newProduct.managesStock,
           currency: dto.currency ?? existing?.currency ?? 'EUR',

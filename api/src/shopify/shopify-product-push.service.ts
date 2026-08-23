@@ -43,10 +43,7 @@ type ProductOptionRow = { readonly name: string; readonly values: readonly strin
 type VariantOptionRow = { readonly name: string; readonly value: string };
 
 export type ShopifyProductPushSkipReason =
-  | 'not_connected'
-  | 'missing_write_products_scope'
-  | 'archived'
-  | 'sync_disabled';
+  'not_connected' | 'missing_write_products_scope' | 'archived' | 'sync_disabled';
 
 export interface ShopifyProductPushResult {
   readonly pushed: boolean;
@@ -56,9 +53,7 @@ export interface ShopifyProductPushResult {
 }
 
 export type ShopifyProductDeleteSkipReason =
-  | 'not_linked'
-  | 'not_connected'
-  | 'missing_write_products_scope';
+  'not_linked' | 'not_connected' | 'missing_write_products_scope';
 
 export interface ShopifyProductDeleteResult {
   readonly deleted: boolean;
@@ -586,7 +581,9 @@ export class ShopifyProductPushService {
     variants: ProductWithVariants['variants'],
   ): Promise<void> {
     for (const variant of variants) {
-      if (variant.purchasePriceMinor == null || !variant.shopifyInventoryItemId) {
+      // ⛔ Qui il costo assente faceva saltare il push. Non esiste più: un
+      // costo canonico zero è `0.00`, ed è quello che il canale deve leggere.
+      if (!variant.shopifyInventoryItemId) {
         continue;
       }
       try {
@@ -622,7 +619,6 @@ export class ShopifyProductPushService {
         values: entry.values.map(String),
       }));
   }
-
 
   private mapProductStatus(status: ProductStatus): 'draft' | 'active' | 'archived' {
     switch (status) {

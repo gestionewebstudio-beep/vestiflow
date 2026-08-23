@@ -41,7 +41,7 @@ const existing = {
       barcode: null,
       currency: 'EUR',
       sellingPriceMinor: new Prisma.Decimal(5000),
-      purchasePriceMinor: 2000,
+      purchasePriceMinor: new Prisma.Decimal(2000),
     },
   ],
 };
@@ -65,12 +65,12 @@ describe('catalog-origin.util', () => {
   });
 
   it('rifiuta modifica titolo su prodotto Shopify-owned', () => {
-    expect(() =>
-      assertShopifyCatalogUpdateAllowed(existing, { name: 'Nuovo titolo' }),
-    ).toThrow(ConflictException);
-    expect(() =>
-      assertShopifyCatalogUpdateAllowed(existing, { name: 'Nuovo titolo' }),
-    ).toThrow(SHOPIFY_CATALOG_LOCKED_MESSAGE);
+    expect(() => assertShopifyCatalogUpdateAllowed(existing, { name: 'Nuovo titolo' })).toThrow(
+      ConflictException,
+    );
+    expect(() => assertShopifyCatalogUpdateAllowed(existing, { name: 'Nuovo titolo' })).toThrow(
+      SHOPIFY_CATALOG_LOCKED_MESSAGE,
+    );
   });
 
   it('rifiuta eliminazione prodotto Shopify-owned', () => {

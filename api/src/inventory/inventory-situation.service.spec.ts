@@ -47,7 +47,8 @@ describe('InventorySituationService', () => {
     optionValues: [],
     currency: 'EUR',
     sellingPriceMinor: 900,
-    purchasePriceMinor: null,
+    // Un articolo senza costo vale ZERO in colonna: `null` non esiste più.
+    purchasePriceMinor: 0,
     product: { name: 'Cintura', articleCode: '00002', category: null },
     supplierLinks: [],
     inventoryLevels: [],
@@ -94,7 +95,7 @@ describe('InventorySituationService', () => {
     expect(second).toMatchObject({
       variantId: 'var-2',
       available: 0,
-      purchasePriceMinor: null,
+      purchasePriceMinor: 0,
       supplierId: null,
       stockStatus: 'empty',
     });

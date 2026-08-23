@@ -1,10 +1,5 @@
 import { ConflictException } from '@nestjs/common';
-import {
-  CatalogOrigin,
-  Prisma,
-  ProductStatus,
-  ShopifyCatalogLinkKind,
-} from '@prisma/client';
+import { CatalogOrigin, Prisma, ProductStatus, ShopifyCatalogLinkKind } from '@prisma/client';
 
 import { nextArticleCodeInTx } from './article-code.util';
 
@@ -142,7 +137,7 @@ export async function createQuickProductWithVariant(
         sellingPriceMinor: input.sellingPriceMinor ?? 0,
         shopifyPriceMinor: input.sellingPriceMinor ?? 0,
         compareAtPriceMinor: input.compareAtPriceMinor ?? null,
-        purchasePriceMinor: input.purchasePriceMinor ?? null,
+        purchasePriceMinor: input.purchasePriceMinor ?? 0,
         ...(input.unitOfMeasure?.trim() ? { unitOfMeasure: input.unitOfMeasure.trim() } : {}),
         options: [] as unknown as Prisma.InputJsonValue,
         variants: {

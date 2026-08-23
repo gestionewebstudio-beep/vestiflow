@@ -244,7 +244,7 @@ describe('SuppliersService', () => {
       expect(customers.setCustomerRoleForSupplier).toHaveBeenCalledWith(tenantId, 'sup-1', true);
     });
 
-    it('crea: il titolare passa anche con l\'elenco permessi vuoto', async () => {
+    it("crea: il titolare passa anche con l'elenco permessi vuoto", async () => {
       arrangeCreazione();
       await service.create(tenantId, { name: 'Fornitore', alsoCustomer: true }, titolare);
       expect(titolare.permissions).toEqual([]);
@@ -375,7 +375,7 @@ describe('SuppliersService', () => {
       ]);
     }
 
-    function costi(rows: readonly { lastPurchasePriceMinor: number | null }[]): (number | null)[] {
+    function costi(rows: readonly { lastPurchasePriceMinor: unknown }[]): unknown[] {
       return rows.map((row) => row.lastPurchasePriceMinor);
     }
 

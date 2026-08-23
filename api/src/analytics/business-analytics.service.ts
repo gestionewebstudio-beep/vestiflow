@@ -337,7 +337,7 @@ export class BusinessAnalyticsService {
         changePercent: null,
       },
       sales: { transactionCount: 0, unitsSold: 0, avgTicketMinor: null },
-      margin: { grossMinor: null, grossPercent: null, costCoveragePercent: 0 },
+      margin: { grossMinor: null, grossPercent: null },
       inventory: {
         stockValueMinor: 0,
         stockCostMinor: null,
@@ -399,17 +399,16 @@ export class BusinessAnalyticsService {
     let stockValue = new Prisma.Decimal(0);
     let stockCost = new Prisma.Decimal(0);
     let availableUnits = 0;
-    let missingCost = false;
 
     for (const level of levels) {
       const qty = Math.max(0, level.available);
       availableUnits += level.available;
       stockValue = stockValue.plus(new Prisma.Decimal(level.variant.sellingPriceMinor).times(qty));
-      if (level.variant.purchasePriceMinor === null) {
-        missingCost = true;
-      } else {
-        stockCost = stockCost.plus(new Prisma.Decimal(level.variant.purchasePriceMinor).times(qty));
-      }
+      // ⛔ Qui c'era un ramo `purchasePriceMinor === null` che marcava
+      // `missingCost` e teneva la variante fuori dal costo di magazzino. Il
+      // costo non è più nullable: una variante senza costo vale zero, e zero
+      // partecipa alla somma come qualunque altro costo.
+      stockCost = stockCost.plus(new Prisma.Decimal(level.variant.purchasePriceMinor).times(qty));
     }
 
     // Il valore di magazzino è un importo monetario: qui esce, e qui si
@@ -417,27 +416,33 @@ export class BusinessAnalyticsService {
     const stockCostMinor = Math.round(stockCost.toNumber());
     return {
       stockValueMinor: Math.round(stockValue.toNumber()),
-      // ⛔ `null` non è zero: «costo sconosciuto» e «costa zero» sono due cose
-      // diverse, e il margine non si calcola sul primo.
-      stockCostMinor: missingCost && stockCostMinor === 0 ? null : stockCostMinor,
+      // `null` qui resta solo per il mascheramento permessi, che lo imposta a
+      // valle: il calcolo produce sempre un numero.
+      stockCostMinor,
       availableUnits,
     };
   }
 
+  /**
+   * ⛔ Qui c'era `costCoveragePercent` — la quota di fatturato di cui si
+   * conosceva il costo — e un ramo che restituiva `null` quando quella quota
+   * era zero. Esistevano solo perché il costo congelato poteva essere NULL.
+   * Ora un costo non valorizzato **vale zero**, quindi ogni vendita ha un
+   * costo e il margine si calcola sempre sull'intero fatturato.
+   *
+   * ⚠️ `null` resta il valore del MASCHERAMENTO: chi non ha «Visualizza costi
+   * d'acquisto» riceve `grossMinor: null` da `maskCostSensitiveSummary`, e
+   * quello significa «non visibile», non «costo assente».
+   */
   private buildMargin(current: SalesAggregate): BusinessAnalyticsSummaryDto['margin'] {
-    const costCoveragePercent =
-      current.revenueMinor > 0
-        ? Math.round((current.costKnownRevenueMinor / current.revenueMinor) * 1000) / 10
-        : 0;
-
-    if (current.costKnownRevenueMinor <= 0) {
-      return { grossMinor: null, grossPercent: null, costCoveragePercent };
+    if (current.revenueMinor <= 0) {
+      return { grossMinor: null, grossPercent: null };
     }
 
-    const grossMinor = current.costKnownRevenueMinor - current.costMinor;
-    const grossPercent = Math.round((grossMinor / current.costKnownRevenueMinor) * 1000) / 10;
+    const grossMinor = current.revenueMinor - current.costMinor;
+    const grossPercent = Math.round((grossMinor / current.revenueMinor) * 1000) / 10;
 
-    return { grossMinor, grossPercent, costCoveragePercent };
+    return { grossMinor, grossPercent };
   }
 
   private daysInCurrentMonth(reference: Date = new Date()): number {

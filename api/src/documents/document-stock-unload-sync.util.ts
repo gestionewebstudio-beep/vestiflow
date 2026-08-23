@@ -64,8 +64,8 @@ interface SyncParams {
    */
   readonly origin?: MovementOrigin;
   /**
-   * Costo unitario da congelare su un movimento NUOVO. Assente = nessun costo,
-   * che e' il comportamento storico dello scarico documentale.
+   * Costo unitario da congelare su un movimento NUOVO. Assente = costo ZERO:
+   * un costo canonico non e' mai NULL, e zero e' un costo (`regole-gestionale`).
    *
    * ⚠️ Vale SOLO per le righe nuove. Una riga gia' presente **mantiene il costo
    * gia' congelato sul proprio movimento** (`11` A2): rivalutarlo al costo di
@@ -73,7 +73,7 @@ interface SyncParams {
    * venduto niente di diverso. Il TOTALE si ricalcola, perche' la quantita' e'
    * cambiata.
    */
-  readonly unitCostForNewLine?: (line: DocumentLine & { variantId: string }) => number | null;
+  readonly unitCostForNewLine?: (line: DocumentLine & { variantId: string }) => number;
   /** Righe documento SALVATE (id definitivi). Vuoto = rimuovi tutti i movimenti. */
   readonly lines: readonly DocumentLine[];
   readonly actor: StockMovementActor;
@@ -193,7 +193,9 @@ export async function syncUnloadLineMovements(
 
     if (!movement) {
       // Riga nuova → un movimento nuovo collegato alla riga, col costo di ORA.
-      const newLineUnitCost = params.unitCostForNewLine?.(line) ?? null;
+      // ⛔ Chi non sa dire il costo non dice «sconosciuto»: dice zero. Un costo
+      // canonico non è mai NULL (`regole-gestionale`).
+      const newLineUnitCost = params.unitCostForNewLine?.(line) ?? 0;
       await applyInventoryDelta(tx, params.tenantId, line.variantId, locationId, -line.quantity);
       await tx.stockMovement.create({
         data: {
@@ -267,10 +269,7 @@ export async function syncUnloadLineMovements(
       quantityDelta !== 0 ||
       movement.sku !== sku ||
       movement.reason !== params.reason ||
-      // Normalizzato: un movimento senza costo porta null, e null e undefined
-      // sono la stessa assenza — confrontarli grezzi farebbe scattare una
-      // scrittura su un salvataggio identico.
-      (movement.totalCostMinor ?? null) !== nextTotalCostMinor;
+      movement.totalCostMinor !== nextTotalCostMinor;
 
     if (needsUpdate) {
       await tx.stockMovement.update({

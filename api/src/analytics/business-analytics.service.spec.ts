@@ -176,7 +176,6 @@ describe('BusinessAnalyticsService — il permesso sui costi decide cosa esce da
     expect(summary.margin).toEqual({
       grossMinor: MARGINE_LORDO_MINOR,
       grossPercent: 60,
-      costCoveragePercent: 100,
     });
     expect(summary.inventory.stockCostMinor).toBe(COSTO_MAGAZZINO_MINOR);
     expect(summary.inventory.stockMarginMinor).toBe(MARGINE_MAGAZZINO_MINOR);
@@ -191,7 +190,6 @@ describe('BusinessAnalyticsService — il permesso sui costi decide cosa esce da
     expect(summary.margin).toEqual({
       grossMinor: null,
       grossPercent: null,
-      costCoveragePercent: 0,
     });
     expect(summary.inventory.stockCostMinor).toBeNull();
     expect(summary.inventory.stockMarginMinor).toBeNull();

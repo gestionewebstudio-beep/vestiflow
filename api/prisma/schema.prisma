@@ -719,7 +719,7 @@ model Product {
   compareAtPriceMinor             Decimal?                @map("compare_at_price_minor") @db.Decimal(16, 6)
   /// Costo d'acquisto di RIFERIMENTO: seeda le nuove varianti. Il costo effettivo
   /// per taglia vive sulla variante (aggiornato dai carichi).
-  purchasePriceMinor              Decimal?                    @map("purchase_price_minor") @db.Decimal(16, 6)
+  purchasePriceMinor              Decimal                     @default(0) @map("purchase_price_minor") @db.Decimal(16, 6)
   /// Prezzo di vendita per il canale Shopify (listino), INDIPENDENTE dal prezzo
   /// articolo. La pubblicazione legge sempre e solo questo. Precompilato dal
   /// prezzo articolo alla creazione; con Shopify DISATTIVO segue il prezzo
@@ -825,7 +825,7 @@ model ProductVariant {
   shopifyPriceMinor      Decimal  @default(0) @map("shopify_price_minor") @db.Decimal(16, 6)
   /// Costo effettivo di questa taglia (aggiornato dai carichi; alimenta
   /// valorizzazione e margini). Il barrato NON vive sulla variante: è dell'articolo.
-  purchasePriceMinor     Decimal?     @map("purchase_price_minor") @db.Decimal(16, 6)
+  purchasePriceMinor     Decimal      @default(0) @map("purchase_price_minor") @db.Decimal(16, 6)
   // Collegamento Shopify: variante e inventory item.
   shopifyVariantId       String?  @map("shopify_variant_id")
   shopifyInventoryItemId String?  @map("shopify_inventory_item_id")
@@ -961,9 +961,9 @@ model StockMovement {
   /// Costo unitario effettivo in unità minori: costo di riga netto sconto sui
   /// carichi documentali; costo della variante CONGELATO su vendite e resi
   /// (§Punto A: il costo di record è la variante, congelato alla vendita).
-  unitCostMinor      Decimal?                 @map("unit_cost_minor") @db.Decimal(16, 6)
+  unitCostMinor      Decimal                  @default(0) @map("unit_cost_minor") @db.Decimal(16, 6)
   /// Costo totale del movimento in unità minori (unitario × quantità congelato).
-  totalCostMinor     Int?                 @map("total_cost_minor")
+  totalCostMinor     Int                  @default(0) @map("total_cost_minor")
   /// Controparte facoltativa del movimento manuale (provenienza/destinatario merce).
   partyId            String?              @map("party_id") @db.Uuid
   /// Snapshot nome controparte (display stabile anche se l'anagrafica cambia).
@@ -1084,7 +1084,7 @@ model SupplierVariantLink {
   /// Codice articolo presso il fornitore (distinto dallo SKU interno).
   supplierSku            String?  @map("supplier_sku")
   isPreferred            Boolean  @default(false) @map("is_preferred")
-  lastPurchasePriceMinor Decimal?     @map("last_purchase_price_minor") @db.Decimal(16, 6)
+  lastPurchasePriceMinor Decimal      @default(0) @map("last_purchase_price_minor") @db.Decimal(16, 6)
   minOrderQuantity       Int?     @map("min_order_quantity")
   currency               String   @default("EUR")
   createdAt              DateTime @default(now()) @map("created_at")

@@ -1757,7 +1757,9 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
       defaultVatCodeId: line.controls.vatCodeId.value.trim() || null,
       // Punto di uscita verso l'anagrafica: due decimali, come ogni importo che
       // smette di essere calcolato e diventa qualcosa che qualcuno legge.
-      purchasePriceMajor: netMinor > 0 ? roundToMinor(netMinor) / 100 : null,
+      // ⛔ Qui `netMinor > 0 ? … : null` trattava un costo ZERO come «nessun
+      // costo». Zero è un costo (`regole-gestionale`), e va scritto.
+      purchasePriceMajor: roundToMinor(netMinor) / 100,
     });
     this.productPanelEditProductId.set(null);
     this.productPanelLineIndex.set(index);

@@ -7,6 +7,18 @@ export interface StockMovementActor {
   readonly createdByName: string;
 }
 
+/**
+ * Movimenti manuali: qui il costo non nasce. Una rettifica non compra niente e
+ * un trasferimento nemmeno, quindi non esiste un costo autorevole da congelare.
+ *
+ * ⛔ E «nessun costo» in VestiFlow vale **zero**, non assenza: un costo canonico
+ * non è mai NULL (`regole-gestionale`). Lasciare fuori le due chiavi le farebbe
+ * scrivere dal default della colonna — che oggi darebbe lo stesso risultato, ma
+ * per omissione invece che per decisione. Il movimento dichiara il proprio costo
+ * anche quando è zero.
+ */
+const COSTO_ASSENTE = { unitCostMinor: 0, totalCostMinor: 0 } as const;
+
 export interface ApplyStockLoadInput {
   readonly tenantId: string;
   readonly variantId: string;
@@ -39,6 +51,7 @@ export async function applyStockLoad(
       quantity: input.quantity,
       reason: input.reason,
       externalRef: input.externalRef,
+      ...COSTO_ASSENTE,
       createdById: input.actor.createdById ?? null,
       createdByName: input.actor.createdByName,
     },
@@ -66,6 +79,7 @@ export async function applyStockUnload(
       quantity: input.quantity,
       reason: input.reason,
       externalRef: input.externalRef,
+      ...COSTO_ASSENTE,
       createdById: input.actor.createdById ?? null,
       createdByName: input.actor.createdByName,
     },
@@ -93,6 +107,7 @@ export async function applyStockSale(
       quantity: input.quantity,
       reason: input.reason,
       externalRef: input.externalRef,
+      ...COSTO_ASSENTE,
       createdById: input.actor.createdById ?? null,
       createdByName: input.actor.createdByName,
     },
@@ -116,7 +131,13 @@ export async function applyStockTransfer(
   }
 
   await applyInventoryDelta(tx, input.tenantId, input.variantId, input.locationId, -input.quantity);
-  await applyInventoryDelta(tx, input.tenantId, input.variantId, input.targetLocationId, input.quantity);
+  await applyInventoryDelta(
+    tx,
+    input.tenantId,
+    input.variantId,
+    input.targetLocationId,
+    input.quantity,
+  );
 
   await tx.stockMovement.create({
     data: {
@@ -130,6 +151,7 @@ export async function applyStockTransfer(
       quantity: input.quantity,
       reason: input.reason,
       externalRef: input.externalRef,
+      ...COSTO_ASSENTE,
       createdById: input.actor.createdById ?? null,
       createdByName: input.actor.createdByName,
     },
@@ -148,8 +170,7 @@ export async function applyStockAdjustment(
   if (input.quantity <= 0) {
     return;
   }
-  const delta =
-    input.direction === AdjustmentDirection.increase ? input.quantity : -input.quantity;
+  const delta = input.direction === AdjustmentDirection.increase ? input.quantity : -input.quantity;
   await applyInventoryDelta(tx, input.tenantId, input.variantId, input.locationId, delta);
 
   await tx.stockMovement.create({
@@ -164,6 +185,7 @@ export async function applyStockAdjustment(
       direction: input.direction,
       reason: input.reason,
       externalRef: input.externalRef,
+      ...COSTO_ASSENTE,
       createdById: input.actor.createdById ?? null,
       createdByName: input.actor.createdByName,
     },

@@ -65,7 +65,11 @@ import {
   InventorySituationService,
   type InventorySituationRowDto,
 } from './inventory-situation.service';
-import { InventoryService, type InventoryLevelWithRefs } from './inventory.service';
+import {
+  InventoryService,
+  type InventoryLevelWithRefs,
+  type StockMovementResponse,
+} from './inventory.service';
 import { LocationLicensingService } from './location-licensing.service';
 import { StockReservationService } from '../order-reservations/stock-reservation.service';
 import type { SalesOrderSource } from '@prisma/client';
@@ -105,10 +109,7 @@ export class InventoryController {
   @Put('locations/licensed')
   @UseGuards(RolesGuard)
   @Roles(UserRole.owner)
-  setLicensedLocations(
-    @CurrentTenant() tenantId: string,
-    @Body() dto: SetLicensedLocationsDto,
-  ) {
+  setLicensedLocations(@CurrentTenant() tenantId: string, @Body() dto: SetLicensedLocationsDto) {
     return this.locationLicensing.setLicensedLocations(tenantId, dto.locationIds);
   }
 
@@ -171,10 +172,7 @@ export class InventoryController {
 
   @Get('reports/location-summary')
   @RequirePermissions(TenantPermission.SectionReports)
-  locationInventoryReport(
-    @CurrentTenant() tenantId: string,
-    @CurrentUser() user: UserProfileDto,
-  ) {
+  locationInventoryReport(@CurrentTenant() tenantId: string, @CurrentUser() user: UserProfileDto) {
     return this.inventoryReport.locationSummary(tenantId, user);
   }
 
@@ -250,7 +248,7 @@ export class InventoryController {
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Query() query: ListMovementsQueryDto,
-  ): Promise<Paginated<StockMovement>> {
+  ): Promise<Paginated<StockMovementResponse>> {
     return this.inventory.listMovements(tenantId, query, user);
   }
 
@@ -314,13 +312,7 @@ export class InventoryController {
     @Param('lineId') lineId: string,
     @Body() dto: UpdateCountLineDto,
   ): Promise<InventoryCountLine> {
-    return this.inventoryCount.updateLine(
-      tenantId,
-      sessionId,
-      lineId,
-      dto.countedQuantity,
-      user,
-    );
+    return this.inventoryCount.updateLine(tenantId, sessionId, lineId, dto.countedQuantity, user);
   }
 
   @Post('counts/:id/submit')
