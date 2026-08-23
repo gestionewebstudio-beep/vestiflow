@@ -1,13 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  buildVariantTitle,
   inventoryImportKey,
   InventoryCsvParseError,
   parseCsvText,
   parseInventoryImportCsv,
   serializeInventoryLevelsCsv,
-  variantOptionValueLabels,
 } from './inventory-csv.util';
 
 describe('inventory-csv.util', () => {
@@ -27,18 +25,11 @@ describe('inventory-csv.util', () => {
     });
   });
 
-  describe('variantOptionValueLabels / buildVariantTitle', () => {
-    it('estrae valori da mappa opzioni', () => {
-      expect(variantOptionValueLabels({ Taglia: 'M', Colore: 'Rosso' })).toEqual(['M', 'Rosso']);
-    });
-
-    it('costruisce titolo variante con separatori', () => {
-      expect(buildVariantTitle('Maglietta', { Taglia: 'M', Colore: 'Rosso' })).toBe(
-        'Maglietta — M / Rosso',
-      );
-      expect(buildVariantTitle('Maglietta', {})).toBe('Maglietta');
-    });
-  });
+  // ⛔ `variantOptionValueLabels` e `buildVariantTitle` non stanno più qui:
+  // vivevano in una util di IMPORT CSV, e quattro moduli che non volevano
+  // dipendere dall'import CSV si erano riscritti la stessa composizione — con
+  // esiti diversi. Ora è `common/variant-label.util`, e la sua spec copre i
+  // casi che qui non c'erano (forma a mappa, sentinella Shopify).
 
   describe('parseInventoryImportCsv', () => {
     const SAMPLE = `SKU,Location,Disponibile,Soglia minima

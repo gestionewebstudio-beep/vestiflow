@@ -42,6 +42,7 @@ import {
   vatInputFromVatCode,
   type VatComputationInput,
 } from '../vat/vat-line-calculation.util';
+import { variantLabel } from '../common/variant-label.util';
 import { buildVatCodeSnapshot, vatSnapshotRatePercent } from '../vat/vat-snapshot.util';
 
 import type { CreateStoreReturnDto } from './dto/create-store-return.dto';
@@ -1327,7 +1328,7 @@ export class StoreSalesService {
           sku: row.sku ?? '',
           barcode: row.barcode,
           productName: row.product.name,
-          optionSummary: this.optionSummary(row.optionValues),
+          optionSummary: variantLabel(row.optionValues),
           defaultVatCodeId: row.product.defaultVatCodeId,
           // Costo che verrà congelato sul movimento di vendita: resta preciso,
           // `Number(...)` è solo il confine col tipo Prisma.
@@ -1418,20 +1419,6 @@ export class StoreSalesService {
       vatRatePercent: Math.round(Number(vatCode.ratePercent)),
       vat: vatInputFromVatCode(vatCode),
     };
-  }
-
-  private optionSummary(optionValues: Prisma.JsonValue): string {
-    if (!Array.isArray(optionValues)) {
-      return '';
-    }
-    const parts = optionValues
-      .map((entry) =>
-        entry && typeof entry === 'object' && 'value' in entry
-          ? String((entry as { value: unknown }).value)
-          : null,
-      )
-      .filter((value): value is string => !!value);
-    return parts.join(' / ');
   }
 
   private lineDescription(variant: ResolvedVariant): string {

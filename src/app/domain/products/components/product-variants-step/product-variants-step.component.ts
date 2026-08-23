@@ -36,7 +36,7 @@ import {
 import {
   selectedOptionValue,
   variantOptionNames,
-  variantTitle,
+  variantLabel,
 } from '../../models/product-variant.util';
 import { ProductService } from '../../services/product.service';
 
@@ -157,7 +157,7 @@ export class ProductVariantsStepComponent {
 
   /** Titolo della combinazione per le aria-label (es. "M / Rosso"). */
   protected rowTitle(index: number): string {
-    return variantTitle(this.meta(index).optionValues) || '—';
+    return variantLabel(this.meta(index).optionValues) || '—';
   }
 
   /** True se lo SKU corrente risulta gia' in uso da un altro prodotto. */

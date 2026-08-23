@@ -11,7 +11,7 @@ import type {
   InventoryStockStatus,
   ListInventorySituationQueryDto,
 } from './dto/list-inventory-situation.query.dto';
-import { buildVariantTitle } from './import/inventory-csv.util';
+import { variantTitle } from '../common/variant-label.util';
 import { buildInventoryVariantSearchWhere } from './inventory-variant-search.util';
 import {
   INVENTORY_VIEW_SCOPE_MODE,
@@ -153,7 +153,7 @@ export class InventorySituationService {
         return {
           variantId: variant.id,
           productId: variant.productId,
-          title: buildVariantTitle(variant.product.name, variant.optionValues),
+          title: variantTitle(variant.product.name, variant.optionValues),
           articleCode: variant.product.articleCode,
           sku: variant.sku,
           category: variant.product.category,

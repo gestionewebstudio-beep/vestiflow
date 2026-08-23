@@ -6,9 +6,9 @@ import { onlineSalesChannelLabel } from '../common/tenant-channel-profile.util';
 import { PrismaService } from '../prisma/prisma.service';
 import type { ExportCorrispettiviQueryDto } from './dto/export-corrispettivi.query.dto';
 import type { ExportInventoryLevelsQueryDto } from './dto/export-inventory-levels.query.dto';
+import { variantTitle } from '../common/variant-label.util';
 import { buildInventoryVariantSearchWhere } from './inventory-variant-search.util';
 import {
-  buildVariantTitle,
   INVENTORY_EXPORT_HEADERS,
   serializeInventoryLevelsCsv,
   type InventoryExportHeader,
@@ -209,7 +209,7 @@ export class InventoryExportService {
       : levels;
 
     const rows: Record<InventoryExportHeader, string>[] = filtered.map((level) => ({
-      Variante: buildVariantTitle(level.variant.product.name, level.variant.optionValues),
+      Variante: variantTitle(level.variant.product.name, level.variant.optionValues),
       SKU: level.variant.sku ?? '',
       Location: level.location.name,
       Disponibile: String(level.available),

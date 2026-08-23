@@ -2,7 +2,7 @@ import type { InventoryLevelApiRow } from '@core/api/domain-api.mapper';
 import { mapInventoryLevelApiRow } from '@core/api/domain-api.mapper';
 import type { InventoryLevel } from '@core/models/inventory-level.model';
 
-import { variantTitle } from '@domain/products/models/product-variant.util';
+import { variantLabel } from '@domain/products/models/product-variant.util';
 
 export interface InventoryLevelListItem extends InventoryLevel {
   readonly displaySku: string;
@@ -16,7 +16,7 @@ export interface InventoryLevelListItem extends InventoryLevel {
 export function mapInventoryLevelListItem(row: InventoryLevelApiRow): InventoryLevelListItem {
   const level = mapInventoryLevelApiRow(row);
   const productName = row.variant?.product.name ?? '';
-  const suffix = row.variant?.optionValues ? variantTitle(row.variant.optionValues) : '';
+  const suffix = row.variant?.optionValues ? variantLabel(row.variant.optionValues) : '';
   const title = productName
     ? suffix
       ? `${productName} — ${suffix}`

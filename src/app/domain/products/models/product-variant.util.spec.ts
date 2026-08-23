@@ -7,7 +7,7 @@ import {
   comboKey,
   selectedOptionValue,
   variantOptionNames,
-  variantTitle,
+  variantLabel,
 } from './product-variant.util';
 
 const TAGLIA_COLORE: readonly OptionAxisDraft[] = [
@@ -28,15 +28,54 @@ describe('selectedOptionValue / axisValues', () => {
   });
 });
 
-describe('variantTitle / variantOptionNames / comboKey', () => {
-  it('compone il titolo stile Shopify con " / "', () => {
+/**
+ * ⭐ **Questo blocco è metà di una coppia.** L'altra metà è
+ * `api/src/common/variant-label.util.spec.ts`: gli stessi ingressi devono dare
+ * gli stessi risultati. Se una delle due cambia da sola, la stessa variante si
+ * legge in due modi a seconda di chi la scrive.
+ */
+describe('variantLabel / variantOptionNames / comboKey', () => {
+  it('compone i soli valori con " / "', () => {
     expect(
-      variantTitle([
+      variantLabel([
         { name: 'Taglia', value: 'M' },
         { name: 'Colore', value: 'Rosso' },
       ]),
     ).toBe('M / Rosso');
-    expect(variantTitle([])).toBe('');
+    expect(variantLabel([])).toBe('');
+  });
+
+  it('una sola opzione esce da sola', () => {
+    expect(variantLabel([{ name: 'Taglia', value: 'M' }])).toBe('M');
+  });
+
+  it('gli spazi si tolgono e i valori vuoti non lasciano separatori orfani', () => {
+    expect(
+      variantLabel([
+        { name: 'Taglia', value: '  M  ' },
+        { name: 'Colore', value: '   ' },
+      ]),
+    ).toBe('M');
+  });
+
+  /**
+   * ⛔ Il sentinella di Shopify: un prodotto SENZA opzioni là ha comunque una
+   * variante, con opzione `Title` e valore `Default Title`. È l'assenza di
+   * varianti, non una variante che si chiama così.
+   */
+  it('«Title / Default Title» è ASSENZA di varianti', () => {
+    expect(variantLabel([{ name: 'Title', value: 'Default Title' }])).toBe('');
+  });
+
+  it('il filtro è stretto: servono entrambe le condizioni, e una sola opzione', () => {
+    expect(variantLabel([{ name: 'Title', value: 'Rosso' }])).toBe('Rosso');
+    expect(variantLabel([{ name: 'Colore', value: 'Default Title' }])).toBe('Default Title');
+    expect(
+      variantLabel([
+        { name: 'Title', value: 'Default Title' },
+        { name: 'Taglia', value: 'M' },
+      ]),
+    ).toBe('Default Title / M');
   });
 
   it('deriva i nomi opzione in ordine di prima comparsa', () => {

@@ -3,10 +3,10 @@ import { AdjustmentDirection, StockMovementType } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
+import { variantTitle } from '../common/variant-label.util';
 import { InventoryService } from './inventory.service';
 import {
   InventoryCsvParseError,
-  buildVariantTitle,
   inventoryImportKey,
   parseInventoryImportCsv,
   type InventoryCsvImportRow,
@@ -366,7 +366,7 @@ export class InventoryImportService {
       const currentAvailable = levelByKey.get(`${variant.id}|${location.id}`) ?? 0;
       const delta = parsedAvailable - currentAvailable;
       const title =
-        row.variantTitle.trim() || buildVariantTitle(variant.product.name, variant.optionValues);
+        row.variantTitle.trim() || variantTitle(variant.product.name, variant.optionValues);
 
       items.push({
         key,
