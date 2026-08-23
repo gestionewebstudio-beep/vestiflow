@@ -524,8 +524,12 @@ In `document-line-article-resolver.util.spec.ts`: un `VariantSummary` solo, la f
 - **sui campi comuni a tutti e quattro** — `nomeProdotto`, `variantLabel`, `sku`, `articleCode`, `barcode`, `gestisceMagazzino` — i valori devono essere **identici**. È ciò che rende impossibile far divergere di nuovo il nome;
 - **sui campi specifici** — `unitaDiMisura`, `codiceIva`, i valori economici, i tre prezzi d'anagrafica, `codiceFornitore` — si asserisce **presenza o assenza** secondo la capacità dichiarata, e il valore solo dove il campo esiste.
 
-**T2 — La variante non entra mai nel titolo.**
-`productName: 'Maglia'`, `title: 'Maglia — M / Rosso'`, `variantLabel: 'M / Rosso'` → `titolo === 'Maglia'` **e** `variantLabel === 'M / Rosso'`. Con il caso di ripiego: `productName: ''` → `titolo === title` (lì non c'è nome da duplicare). Da ripetere come test di componente su ogni maschera: è la regressione più facile da reintrodurre.
+**T2 — La variante non entra mai nel nome.**
+`productName: 'Maglia'`, `title: 'Maglia — M / Rosso'`, `variantLabel: 'M / Rosso'` → `nomeProdotto === 'Maglia'` **e** `variantLabel === 'M / Rosso'`.
+
+⛔ **E il caso limite va nella direzione opposta a quella scritta prima**: con `productName: ''` il nome esce **VUOTO**, non `title`. Qui si proponeva `nomeProdotto === title` «perché non c'è nome da duplicare» — ma `title` **contiene la variante**, quindi quel ripiego la rimetterebbe dentro il nome esattamente nel caso in cui nessuno se ne accorge. Se `productName` fosse vuoto è la **summary** a essere sbagliata, e si corregge lì.
+
+Da ripetere come test di componente su ogni maschera: è la regressione più facile da reintrodurre.
 
 **T3 — Il reset a parità d'articolo.**
 Riga con prezzo, IVA e U.M. modificati a mano; richiamo dello **stesso** `variantId` → prezzo, IVA e U.M. tornano d'anagrafica; **`sconto` digitato e quantità restano** (la quantità non compare proprio nell'uscita, e l'asserzione è sull'assenza della chiave).
