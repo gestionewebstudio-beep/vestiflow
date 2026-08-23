@@ -470,7 +470,15 @@ export class StoreSalesService {
             lineTotalMinor: amounts.lineNetMinor,
             lineVatTotalMinor: amounts.lineVatMinor,
             lineGrossTotalMinor: amounts.lineGrossMinor,
-            loadsStock: true,
+            // ⛔ Era `true` cablato: l'operatore toglieva la spunta e la merce
+            // usciva lo stesso. Il motore la rispettava già
+            // (`document-stock-unload-sync.util`, `line.loadsStock && …`): a
+            // mancare era solo il valore. Contratto §6.3 — «Carica/Scarica ON →
+            // OFF: viene neutralizzato l'effetto di quella riga».
+            //
+            // Assente nel payload = non dichiarata: vale quella persistita, e
+            // su riga nuova la spunta nasce accesa.
+            loadsStock: line.loadsStock ?? previous?.loadsStock ?? true,
           };
         });
 
@@ -720,6 +728,8 @@ export class StoreSalesService {
       readonly description: string;
       readonly vatCodeId: string | null;
       readonly vatSnapshot: Prisma.JsonValue;
+      /** «Scarica giacenze» com'era: si conserva se il client non la dichiara. */
+      readonly loadsStock: boolean;
     }[];
   }> {
     const doc = await this.prisma.document.findFirst({
@@ -742,6 +752,7 @@ export class StoreSalesService {
             description: true,
             vatCodeId: true,
             vatSnapshot: true,
+            loadsStock: true,
           },
           orderBy: { lineNumber: 'asc' },
         },

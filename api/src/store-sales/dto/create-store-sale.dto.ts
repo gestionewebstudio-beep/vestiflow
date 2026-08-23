@@ -82,6 +82,21 @@ export class StoreSaleLineInputDto {
   @IsOptional()
   @IsUUID()
   vatCodeId?: string;
+
+  /**
+   * «Scarica giacenze»: la spunta di riga comune a ogni documento.
+   *
+   * ⛔ Qui il nome è quello del DOMINIO (`loadsStock`), non un nome di confine:
+   * il Reso usa `restockable` perché là l'effetto è rimettere dentro, ma un
+   * terzo nome per lo stesso concetto è il modo in cui si sdoppia senza che
+   * nessuno se ne accorga.
+   *
+   * Assente = non dichiarata: si conserva quella della riga persistita, e su
+   * una riga nuova vale `true` — la spunta nasce accesa.
+   */
+  @IsOptional()
+  @IsBoolean()
+  loadsStock?: boolean;
 }
 
 export class CreateStoreSaleDto {

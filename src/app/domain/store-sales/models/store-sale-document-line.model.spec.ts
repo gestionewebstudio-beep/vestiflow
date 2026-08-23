@@ -173,3 +173,30 @@ describe('storeReturnLinePayload', () => {
     expect(payload.discountPercent).toBe(10);
   });
 });
+
+/**
+ * ⛔ La spunta «Scarica giacenze» NON viaggiava nel payload della Vendita, e il
+ * server cablava `loadsStock: true`: l'operatore la toglieva e la merce usciva
+ * lo stesso. Contratto comune §6.3 — «Carica/Scarica ON → OFF: viene
+ * neutralizzato l'effetto di quella riga». Misurato il 23/08/2026.
+ */
+describe('storeSaleLinePayload — la spunta «Scarica giacenze» viaggia', () => {
+  it('spunta accesa: parte true', () => {
+    expect(storeSaleLinePayload(rigaNuova({ loadsStock: true })).loadsStock).toBe(true);
+  });
+
+  it('spunta spenta: parte false, e non sparisce dal payload', () => {
+    const payload = storeSaleLinePayload(rigaNuova({ loadsStock: false }));
+
+    expect(payload.loadsStock).toBe(false);
+    expect('loadsStock' in payload).toBe(true);
+  });
+
+  /** Il Reso la manda col nome del confine: i due non devono divergere. */
+  it('Vendita e Reso mandano lo stesso concetto', () => {
+    const spenta = rigaNuova({ loadsStock: false });
+
+    expect(storeSaleLinePayload(spenta).loadsStock).toBe(false);
+    expect(storeReturnLinePayload(spenta).restockable).toBe(false);
+  });
+});

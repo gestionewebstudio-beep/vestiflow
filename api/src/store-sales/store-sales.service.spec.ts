@@ -3466,3 +3466,98 @@ describe('T15A — intento di creazione', () => {
     });
   });
 });
+
+/**
+ * ⛔ Era `loadsStock: true` cablato nel servizio: la spunta non viaggiava nel
+ * payload e l'operatore che la toglieva vedeva la merce uscire lo stesso.
+ *
+ * Il motore la rispettava già (`document-stock-unload-sync.util`): a mancare
+ * era solo il valore. Contratto comune §6.3 — «Carica/Scarica ON → OFF: viene
+ * neutralizzato l'effetto di quella riga». Misurato il 23/08/2026.
+ */
+describe('la spunta «Scarica giacenze» della Vendita', () => {
+  it('spenta: la riga resta nel documento ma la merce NON esce', async () => {
+    const db = createDb();
+    const { service } = createService(db);
+    const giacenzaPrima = levelOf(db, VARIANT_A).onHand;
+    const movimentiPrima = db.movements.length;
+
+    const result = await service.createSale(
+      TENANT,
+      {
+        locationId: LOCATION,
+        paymentMethod: 'cash',
+        lines: [{ variantId: VARIANT_A, quantity: 2, unitPriceMinor: 2990, loadsStock: false }],
+      },
+      user,
+    );
+
+    // Il documento c'è, e la riga pure: è documentata, non movimentata.
+    expect(result.lines).toHaveLength(1);
+    expect(levelOf(db, VARIANT_A).onHand).toBe(giacenzaPrima);
+    expect(db.movements.slice(movimentiPrima)).toHaveLength(0);
+  });
+
+  it('accesa: la merce esce, come sempre', async () => {
+    const db = createDb();
+    const { service } = createService(db);
+    const giacenzaPrima = levelOf(db, VARIANT_A).onHand;
+    const movimentiPrima = db.movements.length;
+
+    await service.createSale(
+      TENANT,
+      {
+        locationId: LOCATION,
+        paymentMethod: 'cash',
+        lines: [{ variantId: VARIANT_A, quantity: 2, unitPriceMinor: 2990, loadsStock: true }],
+      },
+      user,
+    );
+
+    expect(levelOf(db, VARIANT_A).onHand).toBe(giacenzaPrima - 2);
+    expect(db.movements.slice(movimentiPrima)).toHaveLength(1);
+  });
+
+  /** Assente = non dichiarata: su riga nuova la spunta nasce ACCESA. */
+  it('assente dal payload: la spunta nasce accesa', async () => {
+    const db = createDb();
+    const { service } = createService(db);
+    const giacenzaPrima = levelOf(db, VARIANT_A).onHand;
+
+    await service.createSale(
+      TENANT,
+      {
+        locationId: LOCATION,
+        paymentMethod: 'cash',
+        lines: [{ variantId: VARIANT_A, quantity: 2, unitPriceMinor: 2990 }],
+      },
+      user,
+    );
+
+    expect(levelOf(db, VARIANT_A).onHand).toBe(giacenzaPrima - 2);
+  });
+
+  it('due righe, una spenta: esce solo quella accesa', async () => {
+    const db = createDb();
+    const { service } = createService(db);
+    const giacenzaPrima = levelOf(db, VARIANT_A).onHand;
+    const movimentiPrima = db.movements.length;
+
+    const result = await service.createSale(
+      TENANT,
+      {
+        locationId: LOCATION,
+        paymentMethod: 'cash',
+        lines: [
+          { variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990, loadsStock: true },
+          { variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990, loadsStock: false },
+        ],
+      },
+      user,
+    );
+
+    expect(result.lines).toHaveLength(2);
+    expect(levelOf(db, VARIANT_A).onHand).toBe(giacenzaPrima - 1);
+    expect(db.movements.slice(movimentiPrima)).toHaveLength(1);
+  });
+});

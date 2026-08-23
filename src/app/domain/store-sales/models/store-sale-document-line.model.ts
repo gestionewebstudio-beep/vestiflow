@@ -159,6 +159,8 @@ export function storeSaleLinePayload(line: StoreSaleDocumentLine): StoreSaleLine
     id: line.serverLineId ?? undefined,
     variantId: line.variantId,
     quantity: line.quantity,
+    // ⛔ Mancava, e il server cablava `true`: toglierla non fermava la merce.
+    loadsStock: line.loadsStock,
     unitPriceMinor: line.unitPriceMinor,
     discountPercent: line.discountPercent || undefined,
     description: descriptionForLinePayload(line),

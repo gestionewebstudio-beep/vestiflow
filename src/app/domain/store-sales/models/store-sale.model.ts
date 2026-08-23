@@ -26,6 +26,11 @@ export interface StoreSaleLookupItem {
 
 export interface StoreSaleLineInput {
   /**
+   * «Scarica giacenze». Il gemello del `restockable` del Reso: stesso concetto
+   * (`loadsStock`), nome diverso solo là dove il DTO lo impone.
+   */
+  readonly loadsStock?: boolean;
+  /**
    * Id della riga da RISALVARE (T1/T2). Assente = riga nuova. Deve essere un
    * id del SERVER (`DocumentLine.id`): mai un identificativo di sessione —
    * vedi `DocumentLineDraft` in `store-sale-register.component.ts`.
