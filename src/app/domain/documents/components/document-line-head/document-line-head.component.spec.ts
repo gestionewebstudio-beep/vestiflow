@@ -162,12 +162,13 @@ describe('DocumentLineHeadComponent', () => {
       expect(triggerPrezzo().getAttribute('aria-expanded')).toBe('false');
     });
 
-    it('i due omonimi esistono: è il difetto sopra, congelato', async () => {
+    it('i due comandi si distinguono: nessun nome accessibile doppio', async () => {
       await apri();
 
       expect(screen.getAllByRole('button', { name: 'Modalità prezzo del documento' })).toHaveLength(
-        2,
+        1,
       );
+      expect(screen.getByRole('button', { name: 'Scegli la modalità prezzo' })).toBeVisible();
     });
   });
 

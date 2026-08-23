@@ -81,21 +81,17 @@ describe('DocumentLineProductCellComponent', () => {
     });
 
     /**
-     * ⛔ **Difetto trovato da questa rete, fotografato e NON corretto.**
+     * ⭐ **Difetto trovato da questa rete e corretto.**
      *
-     * Il template scrive `[id]="inputId() || null"`, e in Angular quel `null`
-     * finisce nell’attributo come **stringa** `'null'`: senza `inputId` il campo
-     * non resta senza id, ne prende uno che vale `null`. Due celle senza id
-     * sulla stessa pagina avrebbero lo stesso identificativo.
-     *
-     * Oggi non morde: i consumer passano sempre un `inputId`. Il test registra
-     * il comportamento corrente perché la correzione — `[attr.id]` — è una
-     * modifica di UI, e questa rete serve a congelare, non a cambiare.
+     * Il template scriveva `[id]="inputId() || null"`, e in Angular quel `null`
+     * finisce nell’attributo come **stringa** `'null'`: due celle senza id
+     * avrebbero avuto lo stesso identificativo. Ora è `[attr.id]`, che un
+     * valore assente lo toglie davvero.
      */
-    it('senza id l’attributo vale la stringa «null», non è assente', async () => {
+    it('senza id l’attributo è ASSENTE, non la stringa «null»', async () => {
       await apri();
 
-      expect(campo().getAttribute('id')).toBe('null');
+      expect(campo().getAttribute('id')).toBeNull();
     });
 
     it('mostra il valore che riceve, e lo ripete nel title per il testo troncato', async () => {
