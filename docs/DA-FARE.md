@@ -707,6 +707,156 @@ digitato ivato perde il centesimo nel 18% dei casi al 22%»_.
 in database venga effettivamente sovrascritto è **dedotto**, non ancora provato leggendo la
 colonna prima e dopo. Una prova va fatta prima di dichiararlo chiuso.
 
+### Il prezzo articolo digitato in riga non aggiorna l'anagrafica — 22/08/2026
+
+⛔ **Difformità da chiudere nel blocco Arrivo merce, DOPO l'unificazione delle
+componenti/celle di riga.** Non si corregge prima: la cella comune si scrive **una volta
+sola**, e la policy specifica del documento gliela passa il documento.
+
+**Il requisito era già deciso** nel lavoro sulle righe documento: nell'Arrivo merce il
+prezzo articolo di riga è il **prezzo di catalogo della variante**, e la spunta **«Aggiorna
+prezzi articolo»** — accesa di default — governa l'aggiornamento dell'anagrafica. A spunta
+spenta i campi relativi devono essere **in sola lettura**.
+
+#### ⛔ La strada dello snapshot su `DocumentLine` è stata VALUTATA E SCARTATA — 22/08/2026
+
+Verificando perché il campo torna `0,00` alla riapertura si era misurato che `DocumentLine`
+non ha alcuna colonna per il prezzo: dei 39 campi, **cinque fotografano il costo**
+(`enteredUnitCost`, `unitCostNet`, `unitCostGross`, `unitVatAmount`,
+`costEntryModeSnapshot`), del prezzo **nessuno**. Da lì la proposta di aggiungerne tre.
+
+**Il proprietario ha fermato quel filone**, e la ragione toglie il dubbio invece di
+rimandarlo: quel valore **non è una fotografia dell'operazione**, è il prezzo di catalogo
+che la spunta propaga all'anagrafica. Lo `0,00` alla riapertura non è la prova che serva uno
+snapshot — è la stessa difformità vista da un'altra angolazione.
+
+⛔ **Nessuna colonna, nessuna migration prezzi**, finché il blocco non si apre.
+
+#### Il comportamento attuale, misurato
+
+Sul documento `fd04d542-e8aa-4889-84f9-3c4f859ec076` del tenant Test SG Luigi:
+
+|                                                            |                                             |
+| ---------------------------------------------------------- | ------------------------------------------- |
+| il campo si popola all'inserimento riga                    | ✅ `setSalesPrice(line, 'sellingPrice', …)` |
+| il valore entra nel payload                                | ✅ `sellingPriceMinor`                      |
+| il salvataggio aggiorna `ProductVariant.sellingPriceMinor` | ⛔ **no**                                   |
+| alla riapertura il campo mostra                            | ⛔ `0,00`                                   |
+| a spunta spenta i campi sono in sola lettura               | ⛔ **no**                                   |
+
+⚠️ **Non c'è rischio di azzeramento silenzioso**, ed è la ragione per cui la difformità può
+aspettare il suo blocco: il payload usa `?? undefined` — **assenza**, non zero — e l'intero
+gruppo è subordinato a `updateArticlePrices()`. Un campo lasciato vuoto non scrive `0` in
+anagrafica.
+
+**Riguarda i tre valori articolo** che la riga ospita: prezzo al pubblico, prezzo barrato e
+prezzo Shopify — quest'ultimo solo dove il tenant ha davvero il canale.
+
+### `vatRatePercent` arrotondato a intero — rischio per aliquote frazionarie, censito il 22/08/2026
+
+⛔ **Censito, NON corretto.** Emerso dal censimento della precisione costi e lasciato fuori
+dal blocco corrente per decisione del proprietario: è un'**aliquota**, non un costo, quindi
+non appartiene alla famiglia delle colonne portate a `NUMERIC(16,6)`.
+
+```text
+api/src/documents/goods-receipt-vat.util.ts:145   vatRatePercent: Math.round(Number(vatCode.ratePercent))
+api/src/store-sales/store-sales.service.ts:1400   vatRatePercent: Math.round(Number(vatCode.ratePercent))
+```
+
+**Il rischio, in una riga**: un'aliquota con decimali — 2,5% — viaggia come **3**.
+
+⭐ **Oggi non morde, e la ragione va scritta perché è ciò che rende il rinvio legittimo:**
+
+| Fatto                                                               | Conseguenza                                     |
+| ------------------------------------------------------------------- | ----------------------------------------------- |
+| `vatRatePercent` **non è una colonna** (assente da `schema.prisma`) | è un campo di trasporto, non un dato persistito |
+| accanto viaggia `vat`, che porta l'aliquota **esatta**              | il calcolo vero non passa da qui                |
+| le aliquote italiane in uso sono intere (22 · 10 · 5 · 4)           | il troncamento non ha ancora nulla da troncare  |
+
+⚠️ **Il giorno in cui morde è dichiarato**: un tenant con un'aliquota frazionaria — una
+percentuale di compensazione agricola, o un'aliquota estera — e la riga di calcolo che
+ricadesse sul campo legacy invece che su `vat`. Non è una possibilità remota per un prodotto
+che [`vestiflow-non-solo-abbigliamento`] dichiara non legato a una merceologia sola.
+
+**Quando si chiude**: insieme al gap trasversale «L'IVA a schermo non è quella del
+documento», che tocca gli stessi due percorsi. Correggerlo da solo qui sarebbe un tocco
+isolato in una famiglia che va guardata intera.
+
+### ✅ Il costo vuoto vale ZERO — deciso e implementato il 22/08/2026
+
+⛔ **Qui c'era un difetto che NON era un difetto.** Si intitolava «il costo di riga lasciato
+vuoto azzera il costo in anagrafica» e prescriveva di far viaggiare l'assenza fino in fondo —
+`number | null` da `lineCostEnteredMinor`, campo omesso dal payload. ⚠️ **È la correzione da
+non fare mai**, ed è la ragione per cui questa voce resta invece di essere cancellata.
+
+**Due errori, uno di misura e uno di modello.**
+
+Di misura: la prova che lo aveva «trovato» svuotava il campo con un `fill('')` da script. Nel
+flusso reale non succede — richiamando un articolo la cella **si precompila dall'anagrafica**
+(`goods-receipt-form.component.ts` ~3327).
+
+Di modello: il proprietario ha deciso il 22/08 che per il dominio costo «non valorizzato» e
+«zero» sono **lo stesso caso**.
+
+> **Un costo canonico non è mai NULL. Se non è valorizzato, vale zero.**
+>
+> ```text
+> articolo nuovo         →  nasce a 0, e la cella mostra 0,00
+> costo digitato 0,00    →  0
+> costo valorizzato      →  il valore, modificabile
+> ```
+
+Cinque colonne sono `NOT NULL DEFAULT 0` dalla migration
+`20260823010000_costi_canonici_not_null`.
+
+⚠️ **`null` resta legittimo in UN solo posto: i DTO di risposta**, dove significa «costo non
+visibile con i tuoi permessi» — non «costo assente». Non nasce da una colonna, lo mette il
+servizio, e chi lo togliesse «per coerenza» mostrerebbe **0,00** a chi non ha il permesso di
+vedere i costi: un'informazione falsa al posto di una negata.
+
+#### Cosa è sparito con la vecchia semantica
+
+Il «costo sconosciuto» non era solo una colonna nullable: era una **metrica esposta**.
+
+| Sparito                                            | Dove                                                       |
+| -------------------------------------------------- | ---------------------------------------------------------- |
+| `costKnownRevenueMinor` — ricavo a costo noto      | `movement-sales.util`                                      |
+| `costCoveragePercent` — copertura del costo        | DTO analytics, modello frontend                            |
+| `missingCost` — valorizzazione a costo incompleta  | `business-analytics.service`                               |
+| «Compila i costi d'acquisto per calcolare…»        | `marginHint`, sotto il margine in dashboard                |
+| «Margine stimato su X% del fatturato (costo noto)» | idem                                                       |
+| il fallback del reso sul costo NULL                | `movement-cost.util` — resta solo se la vendita NON esiste |
+
+⭐ **`marginHint` distingue ora ciò che prima confondeva**: a chi non ha il permesso diceva
+«Compila i costi d'acquisto in catalogo» — un invito a compilare qualcosa che quella persona
+non può nemmeno vedere. Ora dice «Margine non visibile con i tuoi permessi».
+
+#### I controlli TRUTHY, che sono l'ultima forma dello stesso errore
+
+Un `if (costo)` o un `costo > 0` tratta lo **zero come un'assenza**. Finché il costo poteva
+essere NULL i due casi coincidevano; ora no, e con il backfill lo zero è il valore più comune.
+
+**Corretti il 23/08:**
+
+```text
+goods-receipt-form ~3330/3334   articolo richiamato → la cella mostra 0,00, non resta vuota
+goods-receipt-form ~4804        `|| undefined` → `?? undefined` (il commento sopra lo diceva già)
+supplier-order-form ~1760       `netMinor > 0 ? … : null` → il costo si scrive, zero compreso
+```
+
+⭐ **Tre `> 0` restano, e sono corretti**: `document-line-code-cell`,
+`document-line-product-cell` e `variant-select-menu.util` omettono il costo dal **testo di un
+suggerimento** a discesa. Lì non è un dato che si compila: è una riga compatta, e «Costo 0,00»
+su ogni articolo sarebbe rumore. La distinzione da tenere è fra **un campo** — che il valore
+lo dichiara sempre — e **un'etichetta**, che può tacere ciò che non aggiunge nulla.
+
+#### Una cosa che il vincolo avrebbe rotto in silenzio
+
+⚠️ **Il ripristino da backup.** Ogni pacchetto prodotto prima della migration porta `null` nei
+costi, e `createMany` lo avrebbe rifiutato con violazione di vincolo — togliendo al cliente
+l'unica strada per rimettere in piedi i propri dati. `normalizzaCostiCanonici` converte quei
+`null` in `0` all'ingresso, e un test con un backup legacy lo tiene fermo.
+
 ### `GM` §20 — il difetto di sicurezza trovato il 18/08/2026
 
 > **Fonte canonica: `docs/GUARDIE-MANCANTI.md` voce 20.** Lì stanno la misura per esteso, i tre
