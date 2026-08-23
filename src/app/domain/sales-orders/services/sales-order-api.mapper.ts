@@ -30,6 +30,7 @@ export interface SalesOrderLineApiRow {
   // Righe Ordine cliente manuale.
   readonly barcode?: string | null;
   readonly unitOfMeasure?: string | null;
+  readonly variantLabel?: string | null;
   readonly discount?: string | null;
   readonly vatCodeId?: string | null;
   readonly lineVatTotalMinor?: number;
@@ -170,6 +171,7 @@ function mapLine(row: SalesOrderLineApiRow, currency: CurrencyCode): SalesOrderL
     lineTotal: { amountMinor: row.totalMinor ?? 0, currencyCode: currency },
     barcode: row.barcode ?? undefined,
     unitOfMeasure: row.unitOfMeasure ?? undefined,
+    variantLabel: row.variantLabel ?? undefined,
     discount: row.discount ?? undefined,
     vatCodeId: row.vatCodeId ?? undefined,
     lineVatTotal:

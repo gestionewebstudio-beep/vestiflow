@@ -14,6 +14,7 @@ function variant(overrides: Partial<VariantSummary> & { variantId: string }): Va
     articleCode: 'ART-1',
     productName: 'Maglietta',
     title: 'Maglietta — M',
+    variantLabel: '',
     sellingPrice: { amountMinor: 1000, currencyCode: 'EUR' },
     ...overrides,
   };

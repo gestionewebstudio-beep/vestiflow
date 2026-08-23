@@ -63,6 +63,15 @@ export interface SalesOrderLine {
   readonly barcode?: string;
   /** Unità di misura snapshot (es. pz). */
   readonly unitOfMeasure?: string;
+  /**
+   * Etichetta della VARIANTE, fotografata quando l'articolo è entrato nella
+   * riga: «M / Rosso». Vuota = l'articolo non ha varianti.
+   *
+   * ⛔ Non si ricostruisce dalla variante corrente. Prima si faceva, e un
+   * ordine di ieri mostrava la variante di oggi — o niente, se la variante era
+   * uscita dal catalogo.
+   */
+  readonly variantLabel?: string;
   /** Sconto riga in notazione a cascata (es. "10%", "4+10%"). */
   readonly discount?: string;
   /** Codice IVA della riga. */

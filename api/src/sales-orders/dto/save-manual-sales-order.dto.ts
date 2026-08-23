@@ -81,6 +81,22 @@ export class SaveManualSalesOrderLineDto {
   @IsString()
   @MaxLength(20)
   unitOfMeasure?: string;
+
+  /**
+   * Etichetta della variante («M / Rosso») da fotografare sulla riga.
+   *
+   * ⚠️ Serve alla DUPLICAZIONE, che deve riportare quella dell'ordine origine
+   * invece di ricomporla: se la variante nel frattempo è uscita dal catalogo,
+   * ricomporla darebbe stringa vuota e il duplicato perderebbe l'informazione.
+   *
+   * ⛔ Vale SOLO sulle righe nuove. Su una riga già esistente che porta ancora
+   * la stessa variante il server conserva il valore persistito e ignora questo
+   * campo: la fotografia non la decide chi chiama.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  variantLabel?: string;
 }
 
 /**

@@ -31,6 +31,27 @@ function createPrismaMock() {
         {
           id: 'var-1',
           sku: 'SKU-1',
+          optionValues: [
+            { name: 'Colore', value: 'Rosso' },
+            { name: 'Taglia', value: 'M' },
+          ],
+          product: { managesStock: true, kind: 'article' },
+        },
+        {
+          id: 'var-L',
+          sku: 'SKU-L',
+          optionValues: [
+            { name: 'Colore', value: 'Rosso' },
+            { name: 'Taglia', value: 'L' },
+          ],
+          product: { managesStock: true, kind: 'article' },
+        },
+        {
+          id: 'var-semplice',
+          sku: 'SKU-SEMPLICE',
+          // Prodotto senza opzioni importato da Shopify: la variante tecnica
+          // che il canale crea comunque.
+          optionValues: [{ name: 'Title', value: 'Default Title' }],
           product: { managesStock: true, kind: 'article' },
         },
         {
@@ -497,5 +518,169 @@ describe('ManualSalesOrdersService.concludePrefill — riferimenti', () => {
     // duplicarlo sarebbe la terza copia della stessa frase (`07` §12).
     expect(dto.sourceSalesOrderNumber).toBe('OC-0012');
     expect(dto.sourceSalesOrderPlacedAt).toBe('2026-07-29T00:00:00.000Z');
+  });
+});
+
+/**
+ * ⛔ **L'etichetta della variante è una FOTOGRAFIA.**
+ *
+ * Prima della colonna `variantLabel` la card dell'Ordine cliente la ricostruiva
+ * DAL VIVO, sottraendo il nome prodotto dal titolo corrente della variante: un
+ * ordine di ieri mostrava la variante di oggi, e una variante uscita dal
+ * catalogo non mostrava piu' niente.
+ *
+ * La regola che questi test inchiodano NON e' «conserva se c'e'»: e'
+ *
+ *   riga nuova                        -> si calcola dalla variante scelta
+ *   riga esistente, STESSA variante   -> si conserva ESATTAMENTE il persistito
+ *   riga esistente, variante DIVERSA  -> si ricalcola dalla nuova
+ *
+ * Il secondo caso e' quello che protegge lo storico; il terzo e' quello che un
+ * banale `persistito ?? calcola` sbaglierebbe.
+ */
+describe('ManualSalesOrdersService — etichetta della variante', () => {
+  let prisma: ReturnType<typeof createPrismaMock>;
+
+  beforeEach(() => {
+    prisma = createPrismaMock();
+    prisma.salesOrder.update.mockResolvedValue({ id: 'order-1' });
+  });
+
+  /** Le righe come sono state scritte a database, in ordine. */
+  function righeScritte(): Record<string, unknown>[] {
+    const create = prisma.salesOrderLine.create.mock.calls.map(
+      (c) => (c[0] as { data: Record<string, unknown> }).data,
+    );
+    const update = prisma.salesOrderLine.update.mock.calls.map(
+      (c) => (c[0] as { data: Record<string, unknown> }).data,
+    );
+    return [...create, ...update];
+  }
+
+  /** Un ordine gia' salvato, con una riga che porta la sua fotografia. */
+  function ordineEsistente(riga: {
+    variantId: string | null;
+    variantLabel: string;
+  }): void {
+    prisma.salesOrder.findFirst.mockResolvedValue({
+      id: 'order-1',
+      orderNumber: 'OC-0012',
+      source: 'manual',
+      locationId: 'loc-1',
+      lines: [
+        {
+          id: 'line-1',
+          vatCodeId: null,
+          vatSnapshot: null,
+          variantId: riga.variantId,
+          variantLabel: riga.variantLabel,
+        },
+      ],
+    });
+  }
+
+  const ID_ORDINE = '3f0b8f5e-8f5e-4f5e-8f5e-3f0b8f5e8f5e';
+
+  it('riga nuova: l’etichetta si compone dalla variante scelta', async () => {
+    const { service } = createService(prisma);
+
+    await service.save(tenantId, baseDto, testOwnerUser());
+
+    expect(righeScritte()[0]!['variantLabel']).toBe('Rosso / M');
+  });
+
+  it('prodotto semplice o «Default Title» di Shopify: etichetta VUOTA', async () => {
+    const { service } = createService(prisma);
+
+    await service.save(
+      tenantId,
+      {
+        ...baseDto,
+        lines: [{ ...baseDto.lines[0]!, variantId: 'var-semplice', sku: 'SKU-SEMPLICE' }],
+      },
+      testOwnerUser(),
+    );
+
+    expect(righeScritte()[0]!['variantLabel']).toBe('');
+  });
+
+  /**
+   * ⭐ Il caso che la colonna esiste per risolvere: l'anagrafica cambia, il
+   * documento no. Qui la variante corrente direbbe «Rosso / M», ma la riga era
+   * stata salvata quando il colore si chiamava «Bordeaux».
+   */
+  it('rinominare un valore d’opzione NON tocca un ordine gia’ salvato', async () => {
+    ordineEsistente({ variantId: 'var-1', variantLabel: 'Bordeaux / M' });
+    const { service } = createService(prisma);
+
+    await service.save(
+      tenantId,
+      { ...baseDto, id: ID_ORDINE, lines: [{ ...baseDto.lines[0]!, id: 'line-1' }] },
+      testOwnerUser(),
+    );
+
+    // Non «Rosso / M», che e' quello che dice l'anagrafica di adesso.
+    expect(righeScritte()[0]!['variantLabel']).toBe('Bordeaux / M');
+  });
+
+  /**
+   * ⛔ Il caso che un `persistito ?? calcola` sbaglierebbe: qui l'operatore ha
+   * cambiato articolo sulla riga, e conservare la vecchia etichetta scriverebbe
+   * «M» su una riga che ora e' una «L».
+   */
+  it('cambiare variante sulla riga RICALCOLA l’etichetta', async () => {
+    ordineEsistente({ variantId: 'var-1', variantLabel: 'Rosso / M' });
+    const { service } = createService(prisma);
+
+    await service.save(
+      tenantId,
+      {
+        ...baseDto,
+        id: ID_ORDINE,
+        lines: [{ ...baseDto.lines[0]!, id: 'line-1', variantId: 'var-L', sku: 'SKU-L' }],
+      },
+      testOwnerUser(),
+    );
+
+    expect(righeScritte()[0]!['variantLabel']).toBe('Rosso / L');
+  });
+
+  /**
+   * La duplicazione RIPORTA l'etichetta dell'origine invece di ricomporla: se
+   * la variante e' uscita dal catalogo, ricomporla darebbe stringa vuota e il
+   * duplicato perderebbe l'informazione.
+   */
+  it('la duplicazione riporta l’etichetta dell’ordine origine', async () => {
+    const { service } = createService(prisma);
+
+    await service.save(
+      tenantId,
+      {
+        ...baseDto,
+        lines: [{ ...baseDto.lines[0]!, variantLabel: 'Bordeaux / XS' }],
+      },
+      testOwnerUser(),
+    );
+
+    // Su una riga NUOVA l'etichetta dichiarata vince sul calcolo.
+    expect(righeScritte()[0]!['variantLabel']).toBe('Bordeaux / XS');
+  });
+
+  /** ⛔ Ma su una riga ESISTENTE no: la fotografia non la decide chi chiama. */
+  it('su una riga esistente l’etichetta dichiarata viene IGNORATA', async () => {
+    ordineEsistente({ variantId: 'var-1', variantLabel: 'Bordeaux / M' });
+    const { service } = createService(prisma);
+
+    await service.save(
+      tenantId,
+      {
+        ...baseDto,
+        id: ID_ORDINE,
+        lines: [{ ...baseDto.lines[0]!, id: 'line-1', variantLabel: 'INVENTATA' }],
+      },
+      testOwnerUser(),
+    );
+
+    expect(righeScritte()[0]!['variantLabel']).toBe('Bordeaux / M');
   });
 });

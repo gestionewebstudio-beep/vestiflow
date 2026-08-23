@@ -98,6 +98,23 @@ export function variantLabel(optionValues: unknown): string {
 }
 
 /**
+ * L'etichetta come la manda un **canale**, già composta da lui.
+ *
+ * Shopify la manda nel line item (`variant_title`) ed è esattamente la forma
+ * che vogliamo — «M / Rosso» — quindi non si ricompone: si prende e si filtra.
+ * Ricomporla dalle nostre `optionValues` sarebbe peggio, perché la variante
+ * potrebbe non essere più a catalogo mentre l'ordine resta.
+ *
+ * ⛔ Il filtro serve lo stesso: per un prodotto senza opzioni Shopify manda
+ * letteralmente `Default Title`, e sarebbe l'unica etichetta inventata di
+ * tutto il gestionale.
+ */
+export function variantLabelFromChannel(value: unknown): string {
+  const testo = typeof value === 'string' ? value.trim() : '';
+  return testo === SHOPIFY_DEFAULT_OPTION_VALUE ? '' : testo;
+}
+
+/**
  * Nome dell'articolo **più** la variante, per i posti che hanno un campo solo.
  *
  * ⚠️ Serve dove una colonna separata non esiste e non può esistere: la

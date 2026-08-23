@@ -30,6 +30,7 @@ async function apri(options: { readonly suggestionsOpen?: boolean } = {}) {
               articleCode: 'ART',
               productName: 'Maglietta',
               title: 'Maglietta M',
+              variantLabel: '',
               sellingPrice: { amountMinor: 1000, currencyCode: 'EUR' },
             },
           ]

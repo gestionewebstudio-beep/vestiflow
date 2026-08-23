@@ -63,6 +63,8 @@ interface VariantSummaryApiRow {
   readonly articleCode?: string | null;
   readonly productName: string;
   readonly title: string;
+  /** L'etichetta della sola variante, composta dal server. */
+  readonly variantLabel?: string | null;
   readonly barcode?: string | null;
   readonly sellingPrice: { readonly amountMinor: number; readonly currencyCode: string };
   readonly shopifyPrice?: { readonly amountMinor: number; readonly currencyCode: string } | null;
@@ -447,6 +449,7 @@ export class ProductService {
       articleCode: row.articleCode ?? '',
       productName: row.productName,
       title: row.title,
+      variantLabel: row.variantLabel ?? '',
       barcode: row.barcode ?? undefined,
       sellingPrice: {
         amountMinor: row.sellingPrice.amountMinor,

@@ -31,6 +31,7 @@ import {
   lockDocumentCounter,
   nextDocumentNumber,
 } from '../documents/document-numbering.util';
+import { variantLabel } from '../common/variant-label.util';
 import type { PersistedLineVat } from '../documents/document-line-vat-snapshot.util';
 import { assertLocationInUserScope } from '../inventory/user-location-scope.util';
 import { StockReservationService } from '../order-reservations/stock-reservation.service';
@@ -172,6 +173,9 @@ export class ManualSalesOrdersService {
           select: {
             id: true,
             sku: true,
+            // Le opzioni servono a fotografare l'etichetta della variante sulla
+            // riga NUOVA: «M / Rosso». Da qui in poi il valore è della riga.
+            optionValues: true,
             product: { select: { managesStock: true, kind: true } },
           },
         })
@@ -214,18 +218,76 @@ export class ManualSalesOrdersService {
     // mappa una riga che non dichiara `vatCodeId` (perché non è cambiata)
     // veniva salvata con codice, snapshot e imposta azzerati.
     const persistedVatById = new Map<string, PersistedLineVat>();
+    // L'etichetta della variante GIÀ FOTOGRAFATA, con la variante a cui
+    // apparteneva: servono insieme, perché si conserva solo se la riga porta
+    // ancora QUELLA variante (vedi `etichettaVariante` più sotto).
+    const persistedVariantById = new Map<string, { variantId: string | null; label: string }>();
     if (dto.id) {
       const persistito = await this.prisma.salesOrder.findFirst({
         where: { id: dto.id, tenantId },
-        select: { lines: { select: { id: true, vatCodeId: true, vatSnapshot: true } } },
+        select: {
+          lines: {
+            select: {
+              id: true,
+              vatCodeId: true,
+              vatSnapshot: true,
+              variantId: true,
+              variantLabel: true,
+            },
+          },
+        },
       });
       for (const riga of persistito?.lines ?? []) {
         persistedVatById.set(riga.id, {
           vatCodeId: riga.vatCodeId,
           vatSnapshot: riga.vatSnapshot,
         });
+        persistedVariantById.set(riga.id, {
+          variantId: riga.variantId,
+          label: riga.variantLabel,
+        });
       }
     }
+
+    /**
+     * L'etichetta della variante da scrivere sulla riga.
+     *
+     * ⛔ Non è `persistito ?? calcola`: quel `??` conserverebbe l'etichetta
+     * VECCHIA anche quando l'operatore cambia articolo sulla riga. La regola
+     * distingue il cambio di variante dalla modifica dell'anagrafica:
+     *
+     *   riga nuova                          → si calcola dalla variante scelta
+     *   riga esistente, STESSA variante     → si conserva ESATTAMENTE il persistito
+     *   riga esistente, variante DIVERSA    → si ricalcola dalla nuova
+     *
+     * Da qui discendono i due casi che contano: rinominare un valore d'opzione
+     * NON tocca gli ordini già salvati, e una variante uscita dal catalogo
+     * lascia la riga con la sua etichetta invece di svuotarla.
+     */
+    const etichettaVariante = (
+      lineId: string | null,
+      variantId: string | null,
+      dichiarata: string | undefined,
+    ): string => {
+      const persistita = lineId ? persistedVariantById.get(lineId) : undefined;
+      if (persistita && persistita.variantId === variantId) {
+        return persistita.label;
+      }
+      // Riga NUOVA con etichetta dichiarata: è la duplicazione, che riporta
+      // quella dell'ordine origine. Su una riga esistente non si guarda
+      // nemmeno: la fotografia non la decide chi chiama.
+      if (!persistita && dichiarata !== undefined) {
+        return dichiarata;
+      }
+      const variante = variantId ? variantById.get(variantId) : undefined;
+      return variante ? variantLabel(variante.optionValues) : '';
+    };
+    const etichettaDichiarataPerIndice = new Map<number, string>();
+    persistableLines.forEach((line, index) => {
+      if (line.variantLabel !== undefined) {
+        etichettaDichiarataPerIndice.set(index + 1, line.variantLabel);
+      }
+    });
 
     const documentDiscountPercent = dto.documentDiscountPercent ?? 0;
     const computedLines = computeManualOrderLines(
@@ -395,6 +457,11 @@ export class ManualSalesOrdersService {
             commitsStock: line.commitsStock,
             unitOfMeasure: line.unitOfMeasure,
             isReference: line.isReference,
+            variantLabel: etichettaVariante(
+              line.id,
+              line.variantId,
+              etichettaDichiarataPerIndice.get(line.lineNumber),
+            ),
           };
           if (line.id && existingLineIds.has(line.id)) {
             await tx.salesOrderLine.update({ where: { id: line.id }, data: lineData });
@@ -844,6 +911,9 @@ export class ManualSalesOrdersService {
         vatCodeId: line.vatCodeId ?? undefined,
         commitsStock: line.commitsStock,
         unitOfMeasure: line.unitOfMeasure ?? undefined,
+        // Si riporta, non si ricompone: se la variante è uscita dal catalogo,
+        // ricomporla darebbe stringa vuota.
+        variantLabel: line.variantLabel,
       })),
     };
     this.logger.log(`Duplica ordine ${source.orderNumber} → nuovo ordine manuale (${tenantId})`);

@@ -1401,6 +1401,16 @@ model SalesOrderLine {
   /// Snapshot SKU e titolo al momento della vendita.
   sku               String
   title             String
+  /// Etichetta della VARIANTE, i soli valori: «M / Rosso». Fotografata quando
+  /// l'articolo entra nella riga, come sku e title.
+  ///
+  /// Prima non esisteva e la card la calcolava DAL VIVO, sottraendo il nome
+  /// prodotto dal titolo corrente della variante: un ordine di ieri mostrava la
+  /// variante di oggi, e se la variante usciva dal catalogo non mostrava niente.
+  ///
+  /// Stringa vuota = nessuna opzione visibile, compresi il prodotto semplice e
+  /// il «Default Title» di Shopify. Mai null: non e' uno stato funzionale valido.
+  variantLabel      String  @default("") @map("variant_label")
   quantity          Int
   /// Prezzo unitario NETTO in unità minori, con coda decimale: 25,00 ivati al
   /// 22% valgono 2049,180328 centesimi netti, ed è quella coda a farli tornare

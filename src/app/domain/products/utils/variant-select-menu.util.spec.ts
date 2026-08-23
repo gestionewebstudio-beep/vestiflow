@@ -12,6 +12,7 @@ describe('toVariantSelectMenuOptions', () => {
         articleCode: '00001',
         productName: 'Maglietta',
         title: 'Maglietta — M / Rosso',
+        variantLabel: '',
         sellingPrice: { amountMinor: 1990, currencyCode: 'EUR' },
       },
     ]);
@@ -30,6 +31,7 @@ describe('toVariantSelectMenuOptions', () => {
     articleCode: '00002',
     productName: 'Polo',
     title: 'Polo — L',
+    variantLabel: '',
     barcode: '8001234567890',
     sellingPrice: { amountMinor: 2500, currencyCode: 'EUR' },
     purchasePrice: { amountMinor: 1200, currencyCode: 'EUR' },

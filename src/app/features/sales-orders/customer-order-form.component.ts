@@ -2185,6 +2185,15 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       persistedVatCodeId: this.fb.control<string | null>(null),
       commitsStock: this.fb.control(true),
       unitOfMeasure: this.fb.control(''),
+      /**
+       * Etichetta della VARIANTE, fotografata sulla riga: «M / Rosso».
+       *
+       * ⛔ Si tiene sulla riga e non si ricalcola dal riepilogo corrente: era
+       * cosi', e bastava rinominare un valore d'opzione perche' un ordine
+       * vecchio mostrasse un'altra variante. Se poi la variante usciva dal
+       * catalogo, il riepilogo non arrivava piu' e la card non mostrava niente.
+       */
+      variantLabel: this.fb.control(''),
       // Seriali consumati dallo scarico (solo DDT, testo "SN001, SN002").
       serialNumbersText: this.fb.control(''),
       /**
@@ -2594,6 +2603,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     line.controls.barcode.setValue(summary.barcode ?? '', { emitEvent: false });
     line.controls.productName.setValue(summary.productName || summary.title, { emitEvent: false });
     line.controls.unitOfMeasure.setValue(summary.unitOfMeasure ?? 'pz', { emitEvent: false });
+    // L'etichetta della variante si fotografa qui, come sku e nome: da questo
+    // momento e' un dato della riga, e il riepilogo non la governa piu'.
+    line.controls.variantLabel.setValue(summary.variantLabel ?? '', { emitEvent: false });
     // Spunta "Impegna magazzino": default dal Tipo prodotto (Articolo ON,
     // Servizio OFF); prodotti non gestiti a magazzino mai impegnati di default.
     const isService = summary.kind === 'service' || summary.managesStock === false;
@@ -2789,19 +2801,8 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
    * variante»: si toglie il nome prodotto. Vuoto se il prodotto non ha varianti.
    */
   protected lineVariantLabel(index: number): string {
-    const summary = this.lineVariantSummary(index);
-    if (!summary) {
-      return '';
-    }
-    const title = summary.title?.trim() ?? '';
-    const product = summary.productName?.trim() ?? '';
-    if (!title || title === product || !title.startsWith(product)) {
-      return '';
-    }
-    return title
-      .slice(product.length)
-      .replace(/^\s*[—–-]\s*/, '')
-      .trim();
+    this.formValue();
+    return (this.lines.at(index)?.controls.variantLabel.value ?? '').trim();
   }
 
   // ── Calcoli riga e totali ────────────────────────────────────────────────
@@ -4273,6 +4274,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
             persistedVatCodeId: line.vatCodeId ?? null,
             commitsStock: line.commitsStock ?? true,
             unitOfMeasure: line.unitOfMeasure ?? '',
+            variantLabel: line.variantLabel ?? '',
             serialNumbersText: '',
             isReference: line.isReference === true,
           },
@@ -4974,6 +4976,10 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
             persistedVatCodeId: line.vatCodeId ?? null,
             commitsStock: this.isSalesDdt || this.isManualUnload ? line.loadsStock : false,
             unitOfMeasure: '',
+            // ⏸ Vuota finche' `document_lines` non ha la colonna: questi sono
+            // i tipi REGISTRO (DDT vendita, Scarico manuale, Preventivo), che
+            // vivono su un'altra tabella. Entra con la seconda migration.
+            variantLabel: '',
             serialNumbersText: (line.serialNumbers ?? []).join(', '),
             isReference: line.isReference === true,
           },

@@ -68,6 +68,8 @@ export interface ManualOrderLineInput {
   readonly vatCodeId?: string | null;
   readonly commitsStock?: boolean;
   readonly unitOfMeasure?: string | null;
+  /** Etichetta variante dichiarata (solo duplicazione): vedi il DTO. */
+  readonly variantLabel?: string;
   /** Riga «documento collegato»: separatore informativo, fuori dai totali. */
   readonly isReference?: boolean;
 }

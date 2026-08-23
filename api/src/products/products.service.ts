@@ -22,7 +22,7 @@ import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import { buildInventoryVariantSearchWhere } from '../inventory/inventory-variant-search.util';
 import { assertLocationReadableInUserScope } from '../inventory/user-location-scope.util';
-import { variantTitle } from '../common/variant-label.util';
+import { variantLabel, variantTitle } from '../common/variant-label.util';
 import { toShopifyUserMessage } from '../shopify/shopify-user-error.util';
 import { normalizeProductDescription } from '../shopify/shopify-html.util';
 import type { ShopifyProductPushResult } from '../shopify/shopify-product-push.service';
@@ -432,6 +432,7 @@ export class ProductsService {
         articleCode: row.product.articleCode,
         productName: row.product.name,
         title: variantTitle(row.product.name, row.optionValues),
+        variantLabel: variantLabel(row.optionValues),
         barcode: row.barcode,
         sellingPrice: {
           // Colonna a sei decimali: il numero esce come tale, chi lo mostra

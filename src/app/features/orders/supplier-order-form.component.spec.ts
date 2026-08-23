@@ -38,6 +38,7 @@ const VARIANTS: readonly VariantSummary[] = [
     productId: 'prod-1',
     productName: 'Maglietta',
     title: 'Maglietta / M / Rosso',
+    variantLabel: '',
     sku: 'MAG-M-ROSSO',
     articleCode: 'ART-MAG',
     // Obbligatorio nel modello: senza, il dettaglio del suggerimento esplode e
@@ -993,6 +994,7 @@ describe('SupplierOrderFormComponent', () => {
         articleCode: 'ART-1',
         productName: 'Maglietta',
         title: 'Maglietta',
+        variantLabel: '',
         sku: 'MAG-M',
         sellingPrice: { amountMinor: 1000, currencyCode: 'EUR' },
         ...overrides,
