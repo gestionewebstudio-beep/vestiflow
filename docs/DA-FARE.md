@@ -1,6 +1,6 @@
 # Cosa resta da fare — VestiFlow
 
-**Aggiornato:** 20/08/2026
+**Aggiornato:** 23/08/2026
 **A che serve:** riprendere il lavoro in un'altra sessione **senza ricostruire niente**.
 Ogni voce dice cosa è già misurato, cosa è deciso e cosa no.
 
@@ -16,13 +16,157 @@ documento, `04` numerazione, `10` Registro…) e le **regole** in `.claude/rules
 dicono come una cosa deve funzionare, questo dice cosa manca. Quando una voce di qui
 diventa una decisione stabile, si sposta lì e qui resta il rimando.
 
-**Le aree, in ordine di comparsa:** prima sincronizzazione Shopify · sedi · anagrafica
+ATTENZIONE: il blocco in cima — **LAVORO IN CORSO, righe documento e varianti** — e' quello
+aperto adesso. Il resto del file e' arretrato di aree diverse.
+
+**Le aree, in ordine di comparsa:** **righe documento e varianti (in corso)** · prima sincronizzazione Shopify · sedi · anagrafica
 articolo · difetti aperti · Corrispettivo manuale · **tabulazione da tastiera** (punto 7,
 il lavoro grosso aperto).
 
 ⚠️ **Il ramo cambia, e questa riga invecchia da sola**: al 20/08/2026 si lavora su
 `feature/pagamenti-tesoriera`. Chi riprende verifichi con `git branch --show-current`
 invece di fidarsi di quanto scritto qui.
+
+---
+
+# ⛔ LAVORO IN CORSO — righe documento, varianti, struttura _(23/08/2026)_
+
+⚠️ **Questo blocco sta in cima perché è quello aperto adesso.** È scritto per essere
+ripreso da zero: ogni voce dice se è **decisa**, se è **fatta**, e cosa la blocca.
+
+Le decisioni argomentate stanno in **`docs/CONTRATTO-COMUNE-DOCUMENTI.md`** (§3.2 titolo
+e variante, §4 richiamo articolo, §5.5 sconto, §5.7 listino, §6.2 spunte magazzino).
+Qui c'è **cosa resta da fare**, non perché.
+
+## ✅ Fatto e committato — non va rifatto
+
+| Commit     | Cosa                                                                                                                                                                                                      |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `8fa6b3d0` | **L'IVA di riga dell'Ordine cliente si azzerava al risalvataggio.** Il contratto binario era onorato dal client e non dal server (`preservedLineVat` mancava in `sales-orders`). Colpiva 4 tipi documento |
+| `f743c6e6` | **La spunta «Scarica giacenze» della Vendita al banco non viaggiava**: il client non la mandava, il server cablava `true`. Toglierla non fermava la merce                                                 |
+| `569ae890` | **«Duplica riga» rimossa** da tutte le maschere, wrapper card e componenti condivisi. Due test-guardia impediscono il rientro                                                                             |
+| `66a4f5f4` | **U.M.: una regola sola.** Tolti i due ripieghi client e quello server; la maschera cattura, la riga conserva                                                                                             |
+| `87369c2d` | **T0 varianti: una funzione sola** (`api/src/common/variant-label.util.ts` + gemella client). Chiude la forma a mappa e il sentinella Shopify                                                             |
+
+## 🔵 BLOCCO A — la colonna Variante
+
+**Deciso**: il titolo dell'articolo è **uno**; la variante va in una **colonna propria**,
+mai dentro il titolo. Contiene i **soli valori** (`M / Rosso`), memorizzati come **testo
+composto** — non dati grezzi da ricomporre: un documento emesso deve continuare a dire
+quello che diceva.
+
+|                                       | Stato                                                                                                                                                                                                                                                                                   |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **T0** funzione unica di composizione | ✅ `87369c2d`                                                                                                                                                                                                                                                                           |
+| **T1** schema + migration             | 🔵 **prossimo**. `variantLabel TEXT NOT NULL DEFAULT ''` su `document_lines`, `supplier_order_lines`, `sales_order_lines`, `online_sale_lines`, `inventory_count_lines`. Migration **a mano**, fine riga LF, poi `npm run prisma:deploy` + `prisma:generate` + **avvio reale dell'API** |
+| **T2** la scrittura                   | ⛔ **insieme** alla rimozione della concatenazione del banco (`store-sales.service` scrive `productName — optionSummary` dentro `description`). Separarle produce «Maglietta — M / Rosso — M / Rosso»                                                                                   |
+| **T3** colonna desktop                | ⛔ id **`variantLabel`**, MAI `variant`: `normalizeGoodsReceiptColumnId` rimappa `variant` su `product`, e la colonna sarebbe irraggiungibile in Arrivo merce, in silenzio                                                                                                              |
+| **T4** card mobile                    | `variantLabel` **esiste già** su `document-line-card`, con stile: la riempie 1 maschera su 7                                                                                                                                                                                            |
+| **T5** PDF e stampe                   | tre PDF: documento, ordine fornitore, ordine cliente. Le frazioni di larghezza devono sommare a 1.00                                                                                                                                                                                    |
+| **T6** XML fattura elettronica        | ⛔ lì la colonna separata **non esiste**: un solo `<Descrizione>` per riga. Si ricompone in **un punto solo** (`document-xml.service`), non nella util. ⏸ **Da verificare sulla fonte ufficiale** cardinalità e lunghezza                                                               |
+
+⭐ **Guadagno adiacente visto e non fatto**: lo SKU oggi il PDF lo stampa e l'XML lo perde.
+`CodiceArticolo` è lo slot fatto apposta ed è vuoto.
+
+⚠️ **Semantica da non perdere**: `''` = nessuna opzione visibile, **compresi** prodotto
+semplice e il `Default Title` di Shopify. `variantId` resta l'identità tecnica,
+`title` / `description` / `productName` restano il testo della riga. **Nessuna
+concatenazione permanente.**
+
+## 🔵 BLOCCO B — lo sconto a cascata ovunque
+
+**Deciso**: formato e regola **uguali in ogni documento**. Una cella sola, cascata a N
+valori (`5+7+10`), **notazione conservata alla riapertura**, «prezzo scontato» colonna a sé.
+
+⚠️ **La cascata esiste già** e regge N valori. A mancare è la **conservazione**:
+`SalesOrderLine.discount` è testo e la conserva, `DocumentLine.discountPercent` e
+`SupplierOrderLine.discountPercent` sono `Decimal(7,4)` e memorizzano solo l'effettiva —
+si digita `5+7+10`, si riapre e si legge `20,49`.
+
+**Tocca lo schema**: colonna testo su quelle due tabelle, **nessun backfill** (convertire
+13,6 in «4+10» è indecidibile). ⏸ Da valutare: `Decimal(7,4)` verso `(9,6)`, perché tre
+valori a due decimali producono sei decimali.
+
+## 🔵 BLOCCO C — il listino come sorgente del prezzo
+
+**Deciso** (§5.7 del contratto): la sorgente si dichiara nell'**anagrafica della
+controparte**, il documento la eredita all'apertura, la testata ha la **select** per
+cambiarla — su vendita **e** acquisto — e cambiarla **ripopola tutte le righe**.
+
+- ⛔ **`Customer` non ha nessun campo listino**: serve una colonna su `customers`
+- il meccanismo di lettura **esiste già**: `document-listino.util`, adottato da **2 maschere su 8**
+- ⛔ nessun ripiego: articolo senza valore per quel listino porta a **0,00 + segnalazione per riga**
+- ⏸ **APERTO**: dove vive il «prezzo fornitore». Oggi `SupplierVariantLink.lastPurchasePriceMinor`
+  è l'**ultimo prezzo pagato**, riscritto dai carichi — non un valore impostabile
+
+## 🔵 BLOCCO D — il risolutore di riga unico
+
+⭐ **È l'obiettivo grande**, e il resto ci converge. Oggi la domanda «ho scelto questo
+articolo in questo documento: cosa scrivo sulla riga?» ha **una risposta per maschera**;
+in ERPNext ne ha una sola (`get_item_details` più `transaction.js`).
+
+**Il contratto proposto** sta nella sintesi del censimento del 23/08: funzione pura
+`resolveDocumentLine(input): LineResolution`, con `set` (i campi **da scrivere**, già
+filtrati dalla regola della fotografia), `live` (fatti che non si persistono mai) e
+`issues` (avvisi, mai blocchi). Profilo **`Record` esaustivo per tipo**, non
+`if(documentType)`.
+
+⛔ **Il T0 del risolutore viene prima di qualunque unificazione**: il test di
+caratterizzazione che fotografa **com'è oggi**. E va scritto sui **PERCORSI**, non sulla
+matrice — la scansione dell'Arrivo merce forza `loadsStock = true` scavalcando la politica
+dichiarata per quella maschera.
+
+⚠️ **Tre «nuclei comuni» erano scritti più larghi di dove sono veri** (verificato da un
+agente avversario):
+
+- «tutte e otto leggono `VariantSummary`» → la Registrazione fattura ha **zero** occorrenze
+- «il flag magazzino nasce dal tipo articolo, identico ovunque» → **esiti opposti** su un Servizio
+- `DOCUMENT_LINE_COLUMNS` come «decisione già presa» → copre **3 maschere su 8**
+
+## 🔵 BLOCCO E — decisioni prese, da applicare ovunque
+
+|                            | Cosa manca                                                                                                                                                                    |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Richiamo articolo** (§4) | sovrascrive **sempre** con l'anagrafica, anche a parità di articolo; **quantità e sconto digitati restano**. Oggi lo fa **solo l'Ordine fornitore**                           |
+| **Servizio** (§6.2)        | non fa partire **nessuna** delle tre spunte. Oggi due formule con esiti opposti                                                                                               |
+| **«Titolo»**               | rinominare «Nome prodotto» in «Titolo» ovunque, per parità con Shopify                                                                                                        |
+| **Duplica documento**      | nella **barra azioni degli elenchi**, per tutti i tipi. ⛔ Tre tipi hanno rotta `null`, cioè comando **muto**; l'Ordine fornitore non ha duplicazione affatto (lavoro server) |
+| **Registra movimento**     | i tre pulsanti in anagrafica aprono **quella maschera come popup**, articolo precompilato                                                                                     |
+| **Inventario fisico**      | 5 passi di adozione dei componenti condivisi (elenco, filtri mobile, tabella righe, lookup e scanner, barra azioni). ⛔ **Non** `DocumentLineFocusStore`                      |
+
+## ⛔ DIFETTI MISURATI E NON ANCORA CORRETTI
+
+Trovati dal censimento del 23/08, tutti con file e riga nella sintesi. Per gravità:
+
+1. **Registra movimento scrive il prezzo di VENDITA in `unitCostMinor`** sullo Scarico: la
+   UI dice «Prezzo unitario», propone il listino, e quel numero finisce nella colonna del costo
+2. **I movimenti di Registra movimento sono irreversibili**: nessun `PATCH`, nessun `DELETE`.
+   ⏸ Decisione aperta: si accetta, o servono modifica ed eliminazione?
+3. **Costo 0 diventa `null`** sull'Ordine fornitore, contro la decisione «un articolo senza
+   costo ha costo 0» e contro il commento della maschera stessa
+4. **`isReference` perso nel duplicato server-side**: una riga «Documento collegato» rinasce
+   come riga ordinaria ed entra nei totali
+5. **Il duplicato dell'Ordine cliente non azzera gli id** delle righe copiate (Trasferimento
+   e Rettifica sì): il duplicato nasce dichiarando gli id dell'originale
+6. **`applyConversionPrefill` non converte il prezzo** nella modalità del documento, mentre
+   il suo gemello `onDocumentIncluded` sì
+7. **Riga agganciata senza descrizione**: il salvataggio si rifiuta **senza dire quale riga**
+8. **Il riallineamento in blocco ricattura la U.M. svuotata**: l'operatore non può lasciarla
+   vuota su una riga con articolo _(emerso il 23/08 chiudendo la U.M.)_
+9. **`TenantFeatureSettings.defaultUnitOfMeasure` non la legge nessuno**: esiste, è
+   configurabile, e le maschere cablano `'pz'`. O si collega, o si toglie dalle Impostazioni
+10. **Inventario fisico**: `finalize` applica un **delta relativo** invece di portare la
+    giacenza al valore contato; `createdByName` è la stringa `'API'`; il documento è creato
+    **fuori** dalla transazione che ha già scritto giacenze e movimenti
+
+## ⏸ DOMANDE APERTE — non colmarle per verosimiglianza
+
+- **Prezzo fornitore**: dove vive il valore impostabile (blocco C)
+- **XML fattura elettronica**: cardinalità e lunghezza di `<Descrizione>` **da verificare
+  sulla fonte ufficiale**; e se il separatore lungo vada bene verso SdI
+- **Import prodotti via XML**: il proprietario segnala che molti clienti caricano così. È un
+  feed **diverso** da FatturaPA, e non ha ancora una specifica
+- **Movimenti irreversibili** di Registra movimento (difetto 2 qui sopra)
 
 ---
 
