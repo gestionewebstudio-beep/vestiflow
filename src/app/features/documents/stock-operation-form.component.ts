@@ -10,6 +10,11 @@ import {
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { FormArray, NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import {
+  VARIANT_SEARCH_DEBOUNCE_MS,
+  VARIANT_SEARCH_MIN_CHARS,
+  VARIANT_SEARCH_PAGE_SIZE,
+} from '@domain/documents/utils/document-variant-search.config';
 import { ViewportService } from '@core/services/viewport.service';
 import {
   catchError,
@@ -110,9 +115,6 @@ type SubmitState =
   | { readonly status: 'idle' }
   | { readonly status: 'saving' }
   | { readonly status: 'error'; readonly error: AppError };
-
-const VARIANT_SEARCH_DEBOUNCE_MS = 300;
-const VARIANT_SEARCH_MIN_CHARS = 2;
 
 /** Colonne della Rettifica su cui si può ordinare le righe (§7.1). */
 export type StockOperationLineSortColumn =
@@ -653,7 +655,11 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
         const locationId = this.form.controls.locationId.value || undefined;
         return (
           this.productService
-            .searchVariantSummaries({ search: term, pageSize: 30, locationId })
+            .searchVariantSummaries({
+              search: term,
+              pageSize: VARIANT_SEARCH_PAGE_SIZE,
+              locationId,
+            })
             // Senza questo, un errore di rete **spegne la ricerca per sempre**:
             // l'errore chiude il flusso di `toSignal`, e da lì in poi digitare
             // nel nome non mostra più niente — senza un messaggio, senza un

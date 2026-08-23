@@ -10,6 +10,11 @@ import {
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { FormArray, NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import {
+  VARIANT_SEARCH_DEBOUNCE_MS,
+  VARIANT_SEARCH_MIN_CHARS,
+  VARIANT_SEARCH_PAGE_SIZE,
+} from '@domain/documents/utils/document-variant-search.config';
 import { ViewportService } from '@core/services/viewport.service';
 import {
   catchError,
@@ -158,9 +163,6 @@ type SubmitState =
   | { readonly status: 'idle' }
   | { readonly status: 'saving' }
   | { readonly status: 'error'; readonly error: AppError };
-
-const VARIANT_SEARCH_DEBOUNCE_MS = 300;
-const VARIANT_SEARCH_MIN_CHARS = 2;
 
 /**
  * Le quattro chiavi di ricerca dell'articolo, nell'ordine delle colonne. Sono
@@ -571,7 +573,10 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
         if (term.length < VARIANT_SEARCH_MIN_CHARS) {
           return of([] as readonly VariantSummary[]);
         }
-        return this.productService.searchVariantSummaries({ search: term, pageSize: 30 });
+        return this.productService.searchVariantSummaries({
+          search: term,
+          pageSize: VARIANT_SEARCH_PAGE_SIZE,
+        });
       }),
     ),
     { initialValue: [] as readonly VariantSummary[] },

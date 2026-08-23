@@ -11,6 +11,11 @@ import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-i
 import { Router, ActivatedRoute } from '@angular/router';
 import { catchError, debounceTime, distinctUntilChanged, forkJoin, map, of, switchMap } from 'rxjs';
 
+import {
+  VARIANT_SEARCH_DEBOUNCE_MS,
+  VARIANT_SEARCH_MIN_CHARS,
+  VARIANT_SEARCH_PAGE_SIZE,
+} from '@domain/documents/utils/document-variant-search.config';
 import { NavigationHistoryService } from '@core/services/navigation-history.service';
 import { APP_CONFIG } from '@core/config/app-config.token';
 import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
@@ -66,9 +71,6 @@ const UNLOAD_REASON_PRESETS = [
 
 const ADJUSTMENT_DEFAULT_REASON = 'Rettifica giacenza';
 
-const VARIANT_SEARCH_DEBOUNCE_MS = 300;
-const VARIANT_SEARCH_MIN_CHARS = 2;
-const VARIANT_SEARCH_PAGE_SIZE = 8;
 /** Deep-link productId: massimo consentito dall'API (Max(100) su pageSize). */
 const PRODUCT_DEEP_LINK_PAGE_SIZE = 100;
 

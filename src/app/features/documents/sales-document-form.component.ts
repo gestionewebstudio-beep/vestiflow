@@ -24,6 +24,11 @@ import {
 } from 'rxjs';
 import type { Subscription } from 'rxjs';
 
+import {
+  VARIANT_SEARCH_DEBOUNCE_MS,
+  VARIANT_SEARCH_MIN_CHARS,
+  VARIANT_SEARCH_PAGE_SIZE,
+} from '@domain/documents/utils/document-variant-search.config';
 import { NavigationHistoryService } from '@core/services/navigation-history.service';
 import { formatDate } from '@core/utils/date.util';
 import { toLocationSelectOptions } from '@core/utils/location-select-options.util';
@@ -187,9 +192,6 @@ type SalesDocumentLineFocusField =
 
 /** I tre codici di questa maschera: niente codice fornitore, è una vendita. */
 type SalesDocumentCodeField = Extract<DocumentLineCodeField, 'articleCode' | 'sku' | 'barcode'>;
-
-const VARIANT_SEARCH_DEBOUNCE_MS = 300;
-const VARIANT_SEARCH_MIN_CHARS = 2;
 
 type SubmitState =
   | { readonly status: 'idle' }
@@ -765,7 +767,11 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
         const locationId = this.form.controls.locationId.value || undefined;
         return (
           this.productService
-            .searchVariantSummaries({ search: term, pageSize: 30, locationId })
+            .searchVariantSummaries({
+              search: term,
+              pageSize: VARIANT_SEARCH_PAGE_SIZE,
+              locationId,
+            })
             // Senza questo un errore di rete chiude il flusso di `toSignal` e
             // SPEGNE la ricerca per il resto della sessione, senza dire niente.
             .pipe(catchError(() => of([] as readonly VariantSummary[])))

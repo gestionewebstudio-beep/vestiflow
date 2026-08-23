@@ -19,6 +19,11 @@ import {
   Validators,
 } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import {
+  VARIANT_SEARCH_DEBOUNCE_MS,
+  VARIANT_SEARCH_MIN_CHARS,
+  VARIANT_SEARCH_PAGE_SIZE,
+} from '@domain/documents/utils/document-variant-search.config';
 import { ViewportService } from '@core/services/viewport.service';
 import {
   catchError,
@@ -224,10 +229,6 @@ type SubmitState =
   | { readonly status: 'idle' }
   | { readonly status: 'saving' }
   | { readonly status: 'error'; readonly error: AppError };
-
-const VARIANT_SEARCH_DEBOUNCE_MS = 300;
-// Allineato all'apertura del dropdown (2 caratteri): la ricerca parte subito.
-const VARIANT_SEARCH_MIN_CHARS = 2;
 
 /**
  * I campi di riga nell'ordine di attraversamento, sinistra→destra: è la voce 1
@@ -1263,7 +1264,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         const locationId = this.form.controls.locationId.value || undefined;
         return this.productService.searchVariantSummaries({
           search: term,
-          pageSize: 30,
+          pageSize: VARIANT_SEARCH_PAGE_SIZE,
           locationId,
         });
       }),

@@ -31,6 +31,11 @@ import {
   take,
 } from 'rxjs';
 
+import {
+  VARIANT_SEARCH_DEBOUNCE_MS,
+  VARIANT_SEARCH_MIN_CHARS,
+  VARIANT_SEARCH_PAGE_SIZE,
+} from '@domain/documents/utils/document-variant-search.config';
 import { NavigationHistoryService } from '@core/services/navigation-history.service';
 import { AuthService } from '@core/auth';
 import { APP_CONFIG } from '@core/config/app-config.token';
@@ -234,9 +239,6 @@ import {
 } from '@domain/sales-orders/services/sales-order.service';
 import { documentSearchLaunchTerm } from '@domain/documents/utils/document-search-launch-term.util';
 import { trailingEmptyLineIndices } from '@domain/documents/utils/trailing-empty-lines.util';
-
-const VARIANT_SEARCH_DEBOUNCE_MS = 300;
-const VARIANT_SEARCH_MIN_CHARS = 2;
 
 /** Campi riga nel giro Tab/Invio deterministico (stesso pattern Arrivo merce). */
 /** Colonne dell'Ordine cliente su cui si può ordinare le righe (§7.1). */
@@ -983,7 +985,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         }
         const locationId = this.form.controls.locationId.value || undefined;
         return this.productService
-          .searchVariantSummaries({ search: term, pageSize: 30, locationId })
+          .searchVariantSummaries({ search: term, pageSize: VARIANT_SEARCH_PAGE_SIZE, locationId })
           .pipe(catchError(() => of([] as readonly VariantSummary[])));
       }),
     ),

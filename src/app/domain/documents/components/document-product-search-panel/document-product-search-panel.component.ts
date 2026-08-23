@@ -13,6 +13,10 @@ import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { catchError, debounceTime, of, switchMap } from 'rxjs';
 
+import {
+  VARIANT_SEARCH_DEBOUNCE_MS,
+  VARIANT_SEARCH_PAGE_SIZE,
+} from '@domain/documents/utils/document-variant-search.config';
 import { AuthService } from '@core/auth';
 import { canManageCatalog } from '@core/permissions/tenant-permissions.util';
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
@@ -20,8 +24,6 @@ import { ProductSearchResultsComponent } from '@domain/products/components/produ
 import { ProductService } from '@domain/products/services/product.service';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-
-const SEARCH_DEBOUNCE_MS = 300;
 
 @Component({
   selector: 'app-document-product-search-panel',
@@ -115,7 +117,7 @@ export class DocumentProductSearchPanelComponent {
         locationId: this.locationId(),
       })),
     ).pipe(
-      debounceTime(SEARCH_DEBOUNCE_MS),
+      debounceTime(VARIANT_SEARCH_DEBOUNCE_MS),
       switchMap(({ query, locationId }) => {
         const trimmed = query.trim();
         if (trimmed.length === 0) {
@@ -125,7 +127,7 @@ export class DocumentProductSearchPanelComponent {
           .searchVariantSummaries({
             search: trimmed,
             locationId: locationId ?? undefined,
-            pageSize: 40,
+            pageSize: VARIANT_SEARCH_PAGE_SIZE,
           })
           .pipe(catchError(() => of([] as readonly VariantSummary[])));
       }),
