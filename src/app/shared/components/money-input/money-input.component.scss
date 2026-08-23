@@ -1,0 +1,12 @@
+/* La veste la decide chi ospita il campo: tabella densa, form di anagrafica,
+   card mobile. Qui resta solo ciò che è del campo in quanto tale — allineamento
+   dei numeri e cifre a larghezza fissa, perché una colonna di importi si legge
+   incolonnata. */
+:host {
+  display: contents;
+}
+
+input {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

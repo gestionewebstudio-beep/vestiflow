@@ -789,7 +789,17 @@ describe('GoodsReceiptFormComponent', () => {
       readonly lineFocus: { fieldsOf: (i: number) => readonly string[] };
       readonly onLineFieldKeydown: (i: number, field: string, e: KeyboardEvent) => void;
       readonly moveLineDown: (i: number) => void;
-      readonly lines: { length: number };
+      readonly moveLineUp: (i: number) => void;
+      readonly createLine: () => unknown;
+      readonly lines: {
+        readonly length: number;
+        push: (control: ReturnType<FocusForm['createLine']>) => void;
+      };
+      // Privati del componente: il test li raggiunge per provare la
+      // risoluzione dell'id, che è il punto dove il difetto viveva.
+      readonly activeLineFocusField: (i: number) => string | null;
+      readonly lineFieldElementId: (i: number, field: string) => string;
+      readonly focusLineField: (i: number, field: string) => void;
     }
 
     async function apriForm() {
@@ -844,6 +854,125 @@ describe('GoodsReceiptFormComponent', () => {
 
       expect(evento.defaultPrevented).toBe(true);
       expect(form.lines.length).toBe(righePrima);
+    });
+
+    /**
+     * ⛔ **Il difetto che questi test inchiodano.** La risoluzione «id → campo»
+     * era una seconda lista scritta a mano, scorsa per PREFISSO e in ordine:
+     *
+     *     ['gr-lot-',      'lot'],      ← 'gr-lot-date-1' comincia così
+     *     ['gr-lot-date-', 'expiry'],   ← non ci si arrivava mai
+     *
+     * Spostando una riga col fuoco sulla Scadenza, il fuoco tornava sul Lotto.
+     * E l'unità di misura, rientrata nel giro con la cella a
+     * ricerca-e-selezione, in quella lista non era mai stata aggiunta: il fuoco
+     * si perdeva del tutto.
+     *
+     * Ora la risoluzione deriva dai campi del contratto con confronto ESATTO,
+     * quindi un campo nuovo è coperto il giorno in cui nasce.
+     */
+    describe('il campo che ha il fuoco si risolve dall’id', () => {
+      /** Dà il fuoco a un elemento con quell’id, come farebbe il browser. */
+      function conFuocoSu(id: string): HTMLInputElement {
+        const el = document.createElement('input');
+        el.id = id;
+        document.body.appendChild(el);
+        el.focus();
+        return el;
+      }
+
+      it('gli id sovrapposti Lotto/Scadenza non si confondono', async () => {
+        const form = await apriForm();
+
+        const lotto = conFuocoSu(form.lineFieldElementId(1, 'lot'));
+        expect(form.activeLineFocusField(1)).toBe('lot');
+        lotto.remove();
+
+        const scadenza = conFuocoSu(form.lineFieldElementId(1, 'expiry'));
+        // Prima tornava «lot»: `gr-lot-date-1` comincia per `gr-lot-`.
+        expect(form.activeLineFocusField(1)).toBe('expiry');
+        scadenza.remove();
+      });
+
+      it('l’unità di misura è riconosciuta', async () => {
+        const form = await apriForm();
+        const uom = conFuocoSu(form.lineFieldElementId(0, 'unitOfMeasure'));
+
+        // Prima tornava `null`: la lista parallela non la conteneva.
+        expect(form.activeLineFocusField(0)).toBe('unitOfMeasure');
+        uom.remove();
+      });
+
+      it('ogni campo del giro si risolve nel proprio, su ogni riga', async () => {
+        const form = await apriForm();
+
+        for (const field of form.lineFocus.fieldsOf(0)) {
+          const el = conFuocoSu(form.lineFieldElementId(2, field));
+          expect(form.activeLineFocusField(2)).toBe(field);
+          el.remove();
+        }
+      });
+
+      it('un id di un’altra riga non risolve nulla', async () => {
+        const form = await apriForm();
+        const altrove = conFuocoSu(form.lineFieldElementId(5, 'quantity'));
+
+        expect(form.activeLineFocusField(0)).toBeNull();
+        altrove.remove();
+      });
+    });
+
+    describe('spostare una riga conserva il campo che aveva il fuoco', () => {
+      function conFuocoSu(id: string): HTMLInputElement {
+        const el = document.createElement('input');
+        el.id = id;
+        document.body.appendChild(el);
+        el.focus();
+        return el;
+      }
+
+      /**
+       * Due righe: senza la seconda non c’è nulla da spostare.
+       *
+       * ⚠️ Si spinge sul FormArray invece di usare `addLine()`: quello passa da
+       * `linkLineCodesThen`, quindi la riga compare **dopo** — e un `while`
+       * sincrono non la vedrebbe mai. Qui serve solo che due righe esistano.
+       */
+      async function formConDueRighe(): Promise<FocusForm> {
+        const form = await apriForm();
+        while (form.lines.length < 2) {
+          form.lines.push(form.createLine());
+        }
+        return form;
+      }
+
+      it('Scadenza resta Scadenza', async () => {
+        const form = await formConDueRighe();
+        const dove = vi.spyOn(
+          form as unknown as { focusLineField: (i: number, f: string) => void },
+          'focusLineField',
+        );
+        const el = conFuocoSu(form.lineFieldElementId(1, 'expiry'));
+
+        form.moveLineUp(1);
+
+        expect(dove).toHaveBeenCalledWith(0, 'expiry');
+        el.remove();
+      });
+
+      it('U.M. resta U.M.', async () => {
+        const form = await formConDueRighe();
+        const dove = vi.spyOn(
+          form as unknown as { focusLineField: (i: number, f: string) => void },
+          'focusLineField',
+        );
+        const el = conFuocoSu(form.lineFieldElementId(1, 'unitOfMeasure'));
+
+        form.moveLineUp(1);
+
+        expect(dove).toHaveBeenCalledWith(0, 'unitOfMeasure');
+        el.remove();
+      });
     });
   });
 

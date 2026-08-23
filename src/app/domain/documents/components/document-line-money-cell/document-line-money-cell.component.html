@@ -1,0 +1,21 @@
+<!--
+  L'adattatore aggiunge il solo giro del fuoco: il `keydown` si intercetta qui,
+  il denaro lo sa la primitiva.
+-->
+<app-money-input
+  [value]="value()"
+  [currencyCode]="currencyCode()"
+  [inputId]="inputId()"
+  [ariaLabel]="ariaLabel()"
+  [placeholder]="placeholder()"
+  [readOnly]="readOnly()"
+  [disabled]="disabled()"
+  [invalid]="invalid()"
+  [min]="min()"
+  [selectOnFocus]="selectOnFocus()"
+  [inputClass]="inputClass()"
+  (valueChange)="valueChange.emit($event)"
+  (focused)="focused.emit()"
+  (blurred)="blurred.emit()"
+  (keydown)="onKeydown($event)"
+/>

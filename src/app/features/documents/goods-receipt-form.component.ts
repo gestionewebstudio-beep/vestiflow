@@ -229,23 +229,40 @@ const VARIANT_SEARCH_DEBOUNCE_MS = 300;
 // Allineato all'apertura del dropdown (2 caratteri): la ricerca parte subito.
 const VARIANT_SEARCH_MIN_CHARS = 2;
 
-type GoodsReceiptLineFocusField =
-  | 'articleCode'
-  | 'sku'
-  | 'barcode'
-  | 'supplierCode'
-  | 'product'
-  | 'quantity'
-  | 'unitOfMeasure'
-  | 'unitCost'
-  | 'discount'
-  | 'sellingPrice'
-  | 'shopifyPrice'
-  | 'compareAtPrice'
-  | 'vat'
-  | 'lot'
-  | 'expiry'
-  | 'serials';
+/**
+ * I campi di riga nell'ordine di attraversamento, sinistra→destra: è la voce 1
+ * del contratto del giro del fuoco.
+ *
+ * ⭐ **È l'unica fonte**, e il tipo ne discende. Serviva a tre cose — il
+ * contratto, il tipo, la risoluzione inversa dell'id — e finché erano tre",
+ * elenchi scritti a mano uno restava indietro: `unitOfMeasure`, rientrata nel
+ * giro con la cella a ricerca-e-selezione, non era mai stata aggiunta al terzo.
+ */
+const GOODS_RECEIPT_LINE_FOCUS_FIELDS = [
+  'articleCode',
+  'sku',
+  'barcode',
+  'supplierCode',
+  'product',
+  'quantity',
+  // Rientrata nel giro: la cella era una tendina di sola creazione articolo e
+  // testo calcolato altrove. Ora l'unità si scrive sulla riga.
+  'unitOfMeasure',
+  'unitCost',
+  'discount',
+  'sellingPrice',
+  'shopifyPrice',
+  'compareAtPrice',
+  // Rientrata nel giro: era fuori perché la cella IVA era un `app-select-menu`,
+  // che non ha un campo con quell'identificativo. Ora è la cella a
+  // ricerca-e-selezione, con un input vero.
+  'vat',
+  'lot',
+  'expiry',
+  'serials',
+] as const;
+
+type GoodsReceiptLineFocusField = (typeof GOODS_RECEIPT_LINE_FOCUS_FIELDS)[number];
 
 /**
  * Form operativo arrivo merce / carico fornitore (§3). Righe editabili, creazione
@@ -1856,26 +1873,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.productSuggest.navigate(direction, this.lineSuggestions(lineIndex).length);
   }
 
-  protected advanceToNextLine(index: number): void {
-    this.linkLineCodesThen(index, () => {
-      const nextIndex = index + 1;
-      if (nextIndex >= this.lines.length) {
-        this.lines.push(this.createLine());
-      }
-      this.trimDuplicateTrailingEmptyRows();
-      this.focusFirstLineField(nextIndex);
-    });
-  }
-
-  protected advanceToPreviousLine(index: number): void {
-    if (index <= 0) {
-      return;
-    }
-    this.linkLineCodesThen(index, () => {
-      this.lineFocus.focusLastField(index - 1);
-    });
-  }
-
   protected moveLineUp(index: number): void {
     if (index <= 0 || this.formReadOnly()) {
       return;
@@ -1900,35 +1897,34 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     }
   }
 
-  private activeLineFocusField(_index: number): GoodsReceiptLineFocusField | null {
+  /**
+   * Il campo di riga che ha il fuoco, risolto dall'UNICA fonte: i campi del
+   * contratto e la loro `lineFieldElementId`. **Confronto esatto**, non per
+   * prefisso.
+   *
+   * ⛔ Qui c'era una seconda lista scritta a mano — quindici coppie
+   * `['gr-lot-', 'lot']` scorse in ordine — e portava i due difetti che una
+   * mappa parallela produce sempre:
+   *
+   * - **Scadenza si risolveva in Lotto**: `gr-lot-date-3` comincia per
+   *   `gr-lot-`, e il ciclo usciva prima di arrivare alla riga giusta. Spostare
+   *   una riga col fuoco sulla scadenza lo riportava sul lotto.
+   * - **L'unità di misura non c'era**: quindici voci contro sedici campi. È
+   *   rientrata nel giro con la cella a ricerca-e-selezione, e la lista
+   *   parallela non lo ha saputo. Il fuoco su U.M. si perdeva.
+   *
+   * Derivandola dai campi, un campo aggiunto domani è qui il giorno stesso.
+   */
+  private activeLineFocusField(index: number): GoodsReceiptLineFocusField | null {
     const active = globalThis.document.activeElement;
-    if (!(active instanceof HTMLElement)) {
+    if (!(active instanceof HTMLElement) || !active.id) {
       return null;
     }
-    const id = active.id;
-    const prefixMap: readonly [string, GoodsReceiptLineFocusField][] = [
-      ['gr-code-', 'articleCode'],
-      ['gr-sku-', 'sku'],
-      ['gr-barcode-', 'barcode'],
-      ['gr-supplier-code-', 'supplierCode'],
-      ['gr-product-', 'product'],
-      ['gr-qty-', 'quantity'],
-      ['gr-cost-', 'unitCost'],
-      ['gr-discount-', 'discount'],
-      ['gr-selling-', 'sellingPrice'],
-      ['gr-shopify-', 'shopifyPrice'],
-      ['gr-compare-', 'compareAtPrice'],
-      ['gr-vat-', 'vat'],
-      ['gr-lot-', 'lot'],
-      ['gr-lot-date-', 'expiry'],
-      ['gr-serial-', 'serials'],
-    ];
-    for (const [prefix, field] of prefixMap) {
-      if (id.startsWith(prefix)) {
-        return field;
-      }
-    }
-    return null;
+    return (
+      GOODS_RECEIPT_LINE_FOCUS_FIELDS.find(
+        (field) => this.lineFieldElementId(index, field) === active.id,
+      ) ?? null
+    );
   }
 
   protected lineRowActive(index: number): boolean {
@@ -1976,29 +1972,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
    * volte lo stesso controllo, scritto una per campo.
    */
   protected readonly lineFocus = new DocumentLineFocusStore<GoodsReceiptLineFocusField>({
-    fields: [
-      'articleCode',
-      'sku',
-      'barcode',
-      'supplierCode',
-      'product',
-      'quantity',
-      // Rientrata nel giro: la cella era una tendina di sola creazione
-      // articolo e testo calcolato altrove. Ora l'unità si scrive sulla riga.
-      'unitOfMeasure',
-      'unitCost',
-      'discount',
-      'sellingPrice',
-      'shopifyPrice',
-      'compareAtPrice',
-      // Rientrata nel giro: era fuori perché la cella IVA era un
-      // `app-select-menu`, che non ha un campo con quell'identificativo. Ora è
-      // la cella a ricerca-e-selezione, con un input vero.
-      'vat',
-      'lot',
-      'expiry',
-      'serials',
-    ],
+    fields: GOODS_RECEIPT_LINE_FOCUS_FIELDS,
     elementId: (index, field) => this.lineFieldElementId(index, field),
     isFieldEnabled: (index, field) => {
       // Su riga collegata i codici e il nome sono testo: restano i dati.
@@ -2066,11 +2040,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   protected focusNextLineField(index: number, current: GoodsReceiptLineFocusField): void {
     this.lineFocus.next(index, current);
-  }
-
-  /** Shift+Tab: campo precedente della riga, o ultima cella della riga sopra. */
-  protected focusPreviousLineField(index: number, current: GoodsReceiptLineFocusField): void {
-    this.lineFocus.previous(index, current);
   }
 
   /**
