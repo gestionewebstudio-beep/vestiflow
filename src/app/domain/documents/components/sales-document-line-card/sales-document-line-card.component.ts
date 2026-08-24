@@ -22,6 +22,8 @@ export interface SalesDocumentLineCardControls {
   readonly sku: FormControl<string>;
   readonly barcode: FormControl<string>;
   readonly description: FormControl<string>;
+  /** L'etichetta della variante, fotografata: «M / Rosso». Vuota se non ne ha. */
+  readonly variantLabel: FormControl<string>;
   readonly quantity: FormControl<number>;
   readonly unitPrice: FormControl<string>;
   readonly discountPercent: FormControl<string>;

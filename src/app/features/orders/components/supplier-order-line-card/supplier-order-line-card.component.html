@@ -10,6 +10,7 @@
   [readOnly]="disabled()"
   [canRemove]="canRemove()"
   [title]="linked() ? productLabel() : line().controls.productName.value"
+  [variantLabel]="line().controls.variantLabel.value"
   [meta]="metaItems()"
   [alert]="incomplete() ? 'Riga incompleta: collega un articolo e verifica quantità e costo.' : ''"
   (toggled)="toggle()"

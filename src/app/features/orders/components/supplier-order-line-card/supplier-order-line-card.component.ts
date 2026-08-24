@@ -126,14 +126,20 @@ export class SupplierOrderLineCardComponent {
    * Prima dello SKU perche' e' cio' che distingue due righe dello stesso
    * articolo: e' la domanda che si fa scorrendo l'elenco.
    */
+  /**
+   * Le sub-info sotto il nome: SKU e codice fornitore.
+   *
+   * ⚠️ **La variante NON sta qui**, e ci è stata per poche ore: la card
+   * condivisa ha un input `[variantLabel]` dedicato, che la rende su una riga
+   * sua fra il titolo e i meta. Due canali per lo stesso dato lo mostrerebbero
+   * in due posti diversi a seconda della maschera — riga dedicata sull'Ordine
+   * cliente, voce meta col punto medio qui — e la differenza non la vedrebbe
+   * nessun test.
+   */
   protected metaItems(): readonly DocumentLineCardMeta[] {
     const meta: DocumentLineCardMeta[] = [];
-    const variante = this.line().controls.variantLabel.value.trim();
     const sku = this.line().controls.sku.value.trim();
     const supplierCode = this.line().controls.supplierCode.value.trim();
-    if (variante) {
-      meta.push({ text: variante });
-    }
     if (sku) {
       meta.push({ text: `SKU ${sku}` });
     }

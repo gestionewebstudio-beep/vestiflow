@@ -4,6 +4,7 @@
   [readOnly]="disabled()"
   [canRemove]="canRemove()"
   [title]="line().controls.description.value"
+  [variantLabel]="line().controls.variantLabel.value"
   [meta]="metaItems()"
   (toggled)="toggle()"
   (removeRequested)="removed.emit(lineIndex())"

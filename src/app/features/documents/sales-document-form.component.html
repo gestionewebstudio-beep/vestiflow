@@ -638,6 +638,24 @@
                         ></span>
                       </th>
                     }
+                    @if (isLineColumnVisible('variantLabel')) {
+                      <th scope="col" [style.width]="lineColumnWidth('variantLabel')">
+                        Variante
+                        <span
+                          appTableColumnResize
+                          (resized)="onLineColumnResize('variantLabel', $event)"
+                        ></span>
+                      </th>
+                    }
+                    @if (isLineColumnVisible('unitOfMeasure')) {
+                      <th scope="col" [style.width]="lineColumnWidth('unitOfMeasure')">
+                        U.m.
+                        <span
+                          appTableColumnResize
+                          (resized)="onLineColumnResize('unitOfMeasure', $event)"
+                        ></span>
+                      </th>
+                    }
                     @if (isLineColumnVisible('quantity')) {
                       <th
                         scope="col"
@@ -907,6 +925,25 @@
                             (lineRowAdvance)="lineFocus.rowDown(i, 'product')"
                             (lineRowRetreat)="lineFocus.rowUp(i, 'product')"
                             (escapePressed)="onLineSearchEscape(i)"
+                          />
+                        </td>
+                      }
+                      @if (isLineColumnVisible('variantLabel')) {
+                        <td class="doc-form__cell doc-form__cell--readonly" data-label="Variante">
+                          <span class="doc-form__readonly-cell" [title]="variantLabelOf(i)">{{
+                            variantLabelOf(i) || '—'
+                          }}</span>
+                        </td>
+                      }
+                      @if (isLineColumnVisible('unitOfMeasure')) {
+                        <td class="doc-form__cell doc-form__cell--editable" data-label="U.m.">
+                          <input
+                            [id]="'sd-um-' + i"
+                            class="doc-form__input doc-form__input--table"
+                            type="text"
+                            maxlength="20"
+                            [formControl]="line.controls.unitOfMeasure"
+                            [attr.aria-label]="'Unità di misura riga ' + (i + 1)"
                           />
                         </td>
                       }

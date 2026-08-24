@@ -74,6 +74,16 @@ import {
 } from '@domain/documents/utils/document-listino.util';
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import { ProductService } from '@domain/products/services/product.service';
+import { DocumentLineArticleService } from '@domain/documents/services/document-line-article.service';
+import {
+  campiEffettivi,
+  PROFILI_RIGA_DOCUMENTO,
+} from '@domain/documents/models/document-line-article.model';
+import type {
+  ContestoRichiamoArticolo,
+  EsitoRichiamoArticolo,
+  PolicyRichiamoArticolo,
+} from '@domain/documents/models/document-line-article.model';
 import { mergeVariantSummaries } from '@domain/products/utils/variant-summary-search.util';
 import { toVariantSelectMenuOptions } from '@domain/products/utils/variant-select-menu.util';
 import type { TenantFeatureSettings } from '@domain/tenant/models/tenant-feature-settings.model';
@@ -171,7 +181,10 @@ import { OperationalLocationsService } from '@domain/inventory/services/operatio
 import { prefillDefaultLocation } from '@domain/inventory/utils/default-location-prefill.util';
 import { DocumentNumberingStore } from '@domain/documents/state/document-numbering.store';
 import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
-import { pickVatCodeId, toVatCodeById } from './utils/vat-code-resolution.util';
+// `pickVatCodeId` non si importa più: la scelta del Codice IVA dall'articolo la
+// fa il risolutore comune. Qui resta il solo anello legacy (`ensureLineVatCode`),
+// che è di questa maschera e il risolutore non conosce.
+import { toVatCodeById } from './utils/vat-code-resolution.util';
 import { FirstClickSelectsDirective } from '@shared/directives/first-click-selects.directive';
 import { trailingEmptyLineIndices } from '@domain/documents/utils/trailing-empty-lines.util';
 
@@ -258,6 +271,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
   private readonly customerService = inject(CustomerService);
   private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly productService = inject(ProductService);
+  private readonly lineArticles = inject(DocumentLineArticleService);
   private readonly vatCodeService = inject(VatCodeService);
   private readonly tenantFeatureSettingsService = inject(TenantFeatureSettingsService);
   private readonly router = inject(Router);
@@ -1732,41 +1746,140 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     const replacedArticle = Boolean(previousVariantId) && previousVariantId !== variantId;
     line.controls.variantId.setValue(variantId ?? '');
     const match = known ?? this.searchedVariants().find((v) => v.variantId === variantId);
-    if (match) {
-      if (replacedArticle) {
-        // Si riparte dalla catena di precedenza (articolo → aliquota legacy →
-        // predefinito aziendale) invece di ereditare la scelta di prima.
-        line.controls.vatCodeId.setValue('', { emitEvent: false });
+    if (!match) {
+      /**
+       * ⛔ **La summary non è in locale, e non è un caso raro: è il pannello
+       * articoli a tutta pagina.**
+       *
+       * Le varianti che si scelgono lì non entrano in `searchedVariants()`,
+       * quindi qui `match` restava `undefined` e la riga riceveva **il solo
+       * `variantId`** — senza descrizione, che è un campo obbligatorio. Il
+       * salvataggio poi si rifiutava **senza dire quale riga**, e l'operatore
+       * si trovava un documento che non parte e nessun campo rosso da
+       * guardare.
+       *
+       * Non si rinuncia e non si scrive a metà: la si va a PRENDERE. Un errore
+       * di rete produce `articolo-illeggibile`, e allora la riga resta com'era.
+       */
+      if (!variantId) {
+        return;
       }
-      line.controls.description.setValue(match.productName);
-      line.controls.sku.setValue(match.sku);
-      line.controls.articleCode.setValue(match.articleCode);
-      line.controls.barcode.setValue(match.barcode ?? '');
-      // «Scarica mag.» segue il tipo articolo già esistente in VestiFlow:
-      // un Articolo scarica, un Servizio no. Resta modificabile a mano.
-      line.controls.loadsStock.setValue(match.managesStock !== false, { emitEvent: false });
-      // Precedenza Codice IVA (§Piano IVA fase 3): articolo → aliquota legacy
-      // già presente (reverse-match) → predefinito aziendale. Va risolto PRIMA
-      // del prezzo: senza aliquota non si saprebbe come mostrarlo in ivato.
-      if (!line.controls.vatCodeId.value) {
-        const productVatCodeId = pickVatCodeId(
-          [match.defaultVatCodeId],
-          this.vatCodeById(),
-          isSalesVatCode,
-        );
-        if (productVatCodeId) {
-          line.controls.vatCodeId.setValue(productVatCodeId, { emitEvent: false });
-          this.syncLegacyVatRate(line);
-        }
+      this.lineArticles
+        .resolveById({
+          variantId,
+          policy: this.policyRichiamo(),
+          contesto: this.contestoRichiamo(),
+          riga: {
+            variantIdPrecedente: previousVariantId || null,
+            rigaPersistita: Boolean(line.controls.id.value),
+            scontoCorrente: line.controls.discountPercent.value,
+          },
+        })
+        .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+        .subscribe((esito) => {
+          // La riga può essere cambiata mentre la richiesta era in volo.
+          if (line.controls.variantId.value !== variantId) {
+            return;
+          }
+          this.applyEsitoRichiamo(index, line, esito, replacedArticle);
+        });
+      return;
+    }
+
+    if (replacedArticle) {
+      // Si riparte dalla catena di precedenza (articolo → aliquota legacy →
+      // predefinito aziendale) invece di ereditare la scelta di prima.
+      line.controls.vatCodeId.setValue('', { emitEvent: false });
+    }
+
+    // ⭐ Il richiamo articolo passa dal RISOLUTORE COMUNE (`03c`): le
+    // assegnazioni non si scrivono più a mano, una maschera alla volta.
+    const esito = this.lineArticles.resolveWithSummary({
+      articolo: match,
+      policy: this.policyRichiamo(),
+      contesto: this.contestoRichiamo(),
+      riga: {
+        variantIdPrecedente: previousVariantId || null,
+        rigaPersistita: Boolean(line.controls.id.value),
+        // Lo sconto DIGITATO: passandolo, il risolutore non ci scrive sopra.
+        scontoCorrente: line.controls.discountPercent.value,
+      },
+    });
+    this.applyEsitoRichiamo(index, line, esito, replacedArticle);
+  }
+
+  /**
+   * Scrive sulla riga ciò che il risolutore ha deciso.
+   *
+   * ⚠️ Sta in un metodo suo perché i **due rami** del richiamo — la summary che
+   * c'è già e quella che si va a prendere — devono scrivere **allo stesso
+   * modo**. Duplicare queste venti righe significherebbe che un campo aggiunto
+   * domani arriva da un percorso e non dall'altro, e la differenza si vedrebbe
+   * solo scegliendo l'articolo dal pannello invece che dalla cella.
+   */
+  private applyEsitoRichiamo(
+    index: number,
+    line: ReturnType<SalesDocumentFormComponent['createLine']>,
+    esito: EsitoRichiamoArticolo,
+    replacedArticle: boolean,
+  ): void {
+    if (esito.esito !== 'risolto') {
+      return;
+    }
+    if (replacedArticle) {
+      line.controls.vatCodeId.setValue('', { emitEvent: false });
+    }
+    const valori = esito.valori;
+    const quiet = { emitEvent: false } as const;
+    // ⛔ Chiave ASSENTE significa «non toccare», mai «svuota».
+    const scrivi = (
+      controllo: { setValue(v: string, o: typeof quiet): void },
+      valore: string | undefined,
+    ): void => {
+      if (valore !== undefined) {
+        controllo.setValue(valore, quiet);
       }
-      this.ensureLineVatCode(line);
-      // Il prezzo d'anagrafica è netto: in modalità ivata si mostra con l'IVA,
-      // non si copia com'è (varrebbe il 22% in meno di quanto vale).
-      // Segue il listino scelto in testata (§B4): una riga aggiunta dopo aver
-      // scelto un listino nasce con quel prezzo, non col prezzo articolo.
-      const listinoPrice = listinoUnitPrice(match, this.listinoChoice());
+    };
+
+    // ⛔ `nomeProdotto`, MAI un ripiego su `title`: il titolo è il display
+    // completo e contiene la variante.
+    scrivi(line.controls.description, valori.nomeProdotto);
+    scrivi(line.controls.variantLabel, valori.variantLabel);
+    scrivi(line.controls.sku, valori.sku);
+    scrivi(line.controls.articleCode, valori.articleCode);
+    scrivi(line.controls.barcode, valori.barcode);
+    scrivi(line.controls.unitOfMeasure, valori.unitaDiMisura);
+    scrivi(line.controls.discountPercent, valori.sconto);
+
+    // «Scarica mag.» segue l'ELEGGIBILITÀ dell'articolo, che il risolutore
+    // calcola in un punto solo.
+    //
+    // ⛔ Qui c'era `match.managesStock !== false`, e guardava un campo solo:
+    // un articolo di tipo **Servizio** faceva scattare la spunta lo stesso,
+    // perché `managesStock` su un servizio non è `false` — è assente. La
+    // regola completa è `kind !== 'service' && managesStock !== false`, e vive
+    // nel risolutore perché le tre maschere che hanno una spunta di magazzino
+    // la sbagliavano ognuna a modo suo.
+    if (valori.gestisceMagazzino !== undefined) {
+      line.controls.loadsStock.setValue(valori.gestisceMagazzino, quiet);
+    }
+
+    // ⚠️ Il Codice IVA PRIMA del prezzo, e l'ordine è portante: senza aliquota
+    // non si saprebbe come mostrare il prezzo in modalità ivata.
+    if (valori.codiceIva !== undefined && !line.controls.vatCodeId.value) {
+      if (valori.codiceIva) {
+        line.controls.vatCodeId.setValue(valori.codiceIva, quiet);
+        this.syncLegacyVatRate(line);
+      }
+    }
+    this.ensureLineVatCode(line);
+
+    // Il prezzo d'anagrafica è netto: in modalità ivata si mostra con l'IVA,
+    // non si copia com'è (varrebbe il 22% in meno di quanto vale). Il listino
+    // lo sceglie il risolutore dal contesto, non la maschera.
+    if (valori.prezzoUnitarioNettoMinor !== undefined) {
       line.controls.unitPrice.setValue(
-        this.priceFieldValue(listinoPrice?.amountMinor ?? 0, this.lineRatePercent(line)),
+        this.priceFieldValue(valori.prezzoUnitarioNettoMinor ?? 0, this.lineRatePercent(line)),
       );
     }
   }
@@ -1813,6 +1926,59 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
    * aliquota (mai il default, per non alterare l'IVA voluta); altrimenti
    * predefinito aziendale.
    */
+  /**
+   * Le capacità del richiamo articolo su questa maschera.
+   *
+   * `shopifyAttivo` e `costiVisibili` sono `false` cablati: il profilo
+   * `vendita` non porta né il prezzo Shopify né il costo d'acquisto, quindi non
+   * c'è nulla da togliere. Il costo qui si vede solo nel SELETTORE articolo, e
+   * quello ha già il suo permesso (`canSeeCosts`).
+   */
+  private policyRichiamo(): PolicyRichiamoArticolo {
+    return {
+      famigliaIva: PROFILI_RIGA_DOCUMENTO.vendita.famigliaIva,
+      campi: campiEffettivi('vendita', { shopifyAttivo: false, costiVisibili: false }),
+    };
+  }
+
+  /**
+   * Il contesto del richiamo: quello che la TESTATA sa e la riga no.
+   *
+   * ⭐ **Il listino viene da qui**, ed è la ragione per cui questo contesto non
+   * è una costante come quello del movimento interno: una riga aggiunta dopo
+   * aver scelto un listino nasce con quel prezzo, non col prezzo articolo
+   * (`03` §B4).
+   *
+   * ⭐ **Lo sconto del cliente pure**, e non è una funzione nuova: la maschera
+   * lo applica già in `applyCustomerCommercialDefaults` e in `addLine`, con la
+   * stessa regola del contratto — solo su campo vuoto, e la stringa a cascata
+   * («4+10») intatta, mai risolta.
+   *
+   * ⛔ **`codiceIvaPredefinito` resta `null` di proposito.** La catena di
+   * questa maschera ha TRE anelli — articolo → aliquota legacy (reverse-match)
+   * → predefinito aziendale — e quello di mezzo è suo: nasce dal dual-write
+   * dell'aliquota (§Piano IVA fase 2) e il risolutore non lo conosce. Passando
+   * qui il predefinito, il risolutore lo restituirebbe subito e
+   * `ensureLineVatCode` non arriverebbe mai al reverse-match: un documento
+   * storico con la sola aliquota perderebbe il suo Codice IVA in favore del
+   * predefinito aziendale, che è un'altra cosa.
+   *
+   * `codiceIvaControparte` è `null` perché in vendita non esiste: il cliente
+   * non porta un Codice IVA d'anagrafica.
+   */
+  private contestoRichiamo(): ContestoRichiamoArticolo {
+    return {
+      listino: this.listinoChoice(),
+      codiciIvaPerId: this.vatCodeById(),
+      codiceIvaControparte: null,
+      codiceIvaPredefinito: null,
+      scontoControparte: this.selectedCustomer()?.customerDiscount?.trim() || null,
+      // Nessun codice fornitore: non c'è un fornitore su un documento di vendita.
+      codiceFornitoreDigitato: null,
+      codiceFornitoreDiTestata: null,
+    };
+  }
+
   private ensureLineVatCode(line: ReturnType<SalesDocumentFormComponent['createLine']>): void {
     if (line.controls.vatCodeId.value) {
       return;
@@ -1841,6 +2007,16 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       line.controls.vatCodeId.setValue(fallback, { emitEvent: false });
       this.syncLegacyVatRate(line);
     }
+  }
+
+  /**
+   * L'etichetta della variante di una riga, per la colonna che la mostra.
+   *
+   * ⛔ Non si ricava dal titolo per differenza dal nome: arriva dal risolutore
+   * quando l'articolo entra, e dal DOCUMENTO quando la riga si ricarica.
+   */
+  protected variantLabelOf(index: number): string {
+    return this.lines.at(index)?.controls.variantLabel.value ?? '';
   }
 
   protected addLine(): void {
@@ -1899,6 +2075,10 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
         {
           variantId: line.variantId ?? '',
           description: line.description,
+          // Trasportati dal documento incluso: la riga inclusa deve dire quello
+          // che diceva là, variante e unità comprese.
+          variantLabel: line.variantLabel ?? '',
+          unitOfMeasure: line.unitOfMeasure ?? '',
           quantity: line.quantity,
           discountPercent: line.discount,
           isReference: line.isReference === true,
@@ -2213,6 +2393,15 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
             // documento riaperto dice quello che diceva quando fu compilato.
             sku: line.sku?.trim() || undefined,
             description: line.description.trim() || 'Riga documento',
+            // La variante nella sua colonna, e l'unità di misura fotografata.
+            //
+            // ⚠️ L'unità **non partiva**, e la colonna su `document_lines`
+            // esiste dall'11/08: si poteva modificare, si salvava, si riapriva
+            // e la modifica era sparita senza un errore. È lo stesso difetto
+            // che le altre tre maschere hanno chiuso allora, e che questa si è
+            // portata dietro perché era tenuta fuori dai lavori.
+            variantLabel: line.variantLabel?.trim() || undefined,
+            unitOfMeasure: line.unitOfMeasure?.trim() || undefined,
             quantity: Number(line.quantity),
             // Al server va il netto: se il campo mostrava l'ivato, si scorpora qui.
             unitPriceMinor: this.netFromDisplayed(price?.amountMinor ?? 0, ratePercent),
@@ -2396,7 +2585,14 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
           }
           const price = listinoUnitPrice(summary, choice);
           if (!price) {
-            missing.push(target.line.controls.description.value.trim() || summary.title);
+            // ⛔ Qui c'era `|| summary.title`, e il titolo CONTIENE la variante:
+            // il messaggio nominava l'articolo con dentro taglia e colore,
+            // mentre la riga non li aveva. Il nome è `productName`, e la
+            // variante — se serve — si compone accanto, non dentro.
+            missing.push(
+              target.line.controls.description.value.trim() ||
+                [summary.productName, summary.variantLabel].filter(Boolean).join(' · '),
+            );
           }
           target.line.controls.unitPrice.setValue(
             this.priceFieldValue(price?.amountMinor ?? 0, this.lineRatePercent(target.line)),
@@ -2718,6 +2914,13 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
         variantId: line.variantId ?? '',
         sku: line.sku ?? '',
         description: line.description,
+        // ⚠️ **Fotografati sul documento**, non riletti dall'anagrafica di
+        // oggi. Vuoti sui documenti salvati prima che le colonne esistessero:
+        // è corretto, non un dato mancante — lì la variante è impastata nella
+        // descrizione, e riscriverla significherebbe riscrivere un documento
+        // già emesso.
+        variantLabel: line.variantLabel ?? '',
+        unitOfMeasure: line.unitOfMeasure ?? '',
         quantity: line.quantity,
         // Il documento ha memorizzato il netto: si rimostra nella modalità con
         // cui era stato compilato, che è l'unica cosa che quel flag racconta.
@@ -2727,6 +2930,23 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
         ),
         vatRatePercent: line.vatSnapshot?.ratePercent?.toString() ?? '',
         vatCodeId: line.vatCodeId ?? '',
+        /**
+         * ⛔ **Il Codice IVA COM'ERA**, e qui non veniva valorizzato: è il
+         * difetto che `03c` §5 elencava fra quelli da chiudere adottando il
+         * risolutore su questa maschera.
+         *
+         * `vatCodeIdForLinePayload` confronta il corrente col persistito per
+         * dire al server se l'assegnazione IVA è cambiata (contratto binario).
+         * Lasciandolo `null`, su OGNI riga riaperta il confronto trovava
+         * «diverso» e il codice ripartiva sempre — cioè esattamente ciò che
+         * quel contratto esiste per impedire: il server rifotografava lo
+         * snapshot IVA a ogni salvataggio.
+         *
+         * ⚠️ Il difetto era muto e resta muto finché un'aliquota non cambia:
+         * fino a quel giorno il codice rimandato è lo stesso, e nessuno vede
+         * niente.
+         */
+        persistedVatCodeId: line.vatCodeId ?? null,
         discountPercent:
           line.discountPercent && line.discountPercent > 0 ? String(line.discountPercent) : '',
         loadsStock: line.loadsStock,
@@ -2758,6 +2978,25 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       sku: this.fb.control(''),
       barcode: this.fb.control(''),
       description: this.fb.control('', { validators: [Validators.required] }),
+      /**
+       * L'etichetta della VARIANTE: «M / Rosso». Colonna sua, non impastata
+       * dentro il nome.
+       *
+       * Il server la conserva per id (`document-line-variant-snapshot.util`):
+       * su una riga che porta ancora la stessa variante, risalvare il documento
+       * non la ricalcola dall'anagrafica di oggi.
+       */
+      variantLabel: this.fb.control(''),
+      /**
+       * L'unità di misura fotografata sulla riga.
+       *
+       * ⚠️ **Mancava**, e la colonna su `document_lines` esiste dall'11/08:
+       * il campo era stato chiuso su Arrivo merce, Ordine fornitore e Ordine
+       * cliente (`03b` §5.4) mentre questa maschera era tenuta fuori dai
+       * lavori. Restava l'unica delle quattro senza — e senza il controllo, il
+       * valore non poteva né arrivare né partire.
+       */
+      unitOfMeasure: this.fb.control(''),
       quantity: this.fb.control(1, {
         validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
       }),

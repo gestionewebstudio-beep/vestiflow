@@ -697,4 +697,119 @@ describe('SalesDocumentFormComponent', () => {
       ]);
     });
   });
+
+  /**
+   * ⭐ **Quarto consumer del risolutore comune** (`03c` §5).
+   *
+   * ⚠️ Il ripiego `productName || title` **non era presente** in questa
+   * maschera: la descrizione portava già il solo nome. Quello che mancava era
+   * tutto il resto — la variante non aveva una colonna, l'unità di misura non
+   * aveva nemmeno un controllo, e la spunta di magazzino guardava un campo
+   * solo invece di due.
+   */
+  describe('il richiamo articolo passa dal risolutore comune', () => {
+    /** Un articolo con varianti, un servizio, e un articolo non gestito. */
+    const CATALOGO = {
+      maglia: {
+        variantId: 'var-M',
+        productId: 'p-M',
+        sku: 'MAG-M',
+        articleCode: 'ART-M',
+        productName: 'Maglia',
+        title: 'Maglia — M / Rosso',
+        variantLabel: 'M / Rosso',
+        unitOfMeasure: 'pz',
+        sellingPrice: { amountMinor: 2500, currencyCode: 'EUR' },
+        defaultVatCodeId: 'iva-22',
+        managesStock: true,
+      },
+      // ⛔ Un SERVIZIO: `managesStock` non è `false`, è ASSENTE. La vecchia
+      // regola `managesStock !== false` gli faceva scattare la spunta.
+      consulenza: {
+        variantId: 'var-S',
+        productId: 'p-S',
+        sku: 'SRV-1',
+        articleCode: 'ART-S',
+        productName: 'Consulenza',
+        title: 'Consulenza',
+        variantLabel: '',
+        kind: 'service',
+        sellingPrice: { amountMinor: 10000, currencyCode: 'EUR' },
+        defaultVatCodeId: 'iva-22',
+      },
+    };
+
+    const VAT = [
+      {
+        id: 'iva-22',
+        code: '22',
+        description: 'Imponibile 22%',
+        ratePercent: 22,
+        calculationMode: 'standard',
+        isActive: true,
+        usageScope: 'both',
+      },
+    ];
+
+    interface AccessoRiga {
+      onVariantSelect: (index: number, variantId: string, known?: unknown) => void;
+      lines: { at: (i: number) => { controls: Record<string, { value: unknown }> } };
+    }
+
+    async function conCatalogo() {
+      const { component } = await setup({
+        vatCodes: VAT,
+        variantSummaries: [CATALOGO.maglia, CATALOGO.consulenza],
+      });
+      return component as unknown as AccessoRiga;
+    }
+
+    it('⛔ il nome non porta la variante, che ha la sua colonna', async () => {
+      const form = await conCatalogo();
+
+      form.onVariantSelect(0, 'var-M', CATALOGO.maglia);
+
+      const riga = form.lines.at(0).controls;
+      expect(riga['description']!.value).toBe('Maglia');
+      expect(riga['description']!.value).not.toContain('—');
+      expect(riga['variantLabel']!.value).toBe('M / Rosso');
+    });
+
+    it('articolo senza opzioni: etichetta vuota, non un ripiego sul titolo', async () => {
+      const form = await conCatalogo();
+
+      form.onVariantSelect(0, 'var-S', CATALOGO.consulenza);
+
+      const riga = form.lines.at(0).controls;
+      expect(riga['description']!.value).toBe('Consulenza');
+      expect(riga['variantLabel']!.value).toBe('');
+    });
+
+    it('⛔ un SERVIZIO non fa scattare «Scarica mag.»', async () => {
+      const form = await conCatalogo();
+
+      form.onVariantSelect(0, 'var-S', CATALOGO.consulenza);
+
+      // La vecchia regola era `managesStock !== false`, e su un servizio
+      // `managesStock` non è `false` — è assente. La spunta scattava, e una
+      // consulenza scaricava magazzino.
+      expect(form.lines.at(0).controls['loadsStock']!.value).toBe(false);
+    });
+
+    it('un articolo normale la fa scattare', async () => {
+      const form = await conCatalogo();
+
+      form.onVariantSelect(0, 'var-M', CATALOGO.maglia);
+
+      expect(form.lines.at(0).controls['loadsStock']!.value).toBe(true);
+    });
+
+    it("⛔ l'unità di misura arriva sulla riga, e prima non aveva nemmeno un campo", async () => {
+      const form = await conCatalogo();
+
+      form.onVariantSelect(0, 'var-M', CATALOGO.maglia);
+
+      expect(form.lines.at(0).controls['unitOfMeasure']!.value).toBe('pz');
+    });
+  });
 });
