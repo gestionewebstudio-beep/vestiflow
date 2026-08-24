@@ -382,6 +382,8 @@ async function setup(options: SetupOptions = {}) {
 
   const component = rendered.fixture.componentInstance as StoreSaleDocumentFormComponent & {
     lines(): readonly StoreSaleDocumentLine[];
+    /** Le righe con contenuto: la riga vuota in coda non e’ un dato del documento. */
+    righeCompilate(): readonly StoreSaleDocumentLine[];
     pricesIncludeVat(): boolean;
     availabilityWarningCount(): number;
     setPriceMode(pricesIncludeVat: boolean): void;
@@ -696,7 +698,7 @@ describe('StoreSaleDocumentFormComponent', () => {
 
       await scansiona(rendered, EAN_NOTO);
 
-      expect(rendered.component.lines()).toHaveLength(1);
+      expect(rendered.component.righeCompilate()).toHaveLength(1);
       const [riga] = rendered.component.lines();
       expect(riga!.variantId).toBe(VARIANTE.variantId);
       expect(riga!.sku).toBe('MAG-001');
@@ -709,7 +711,7 @@ describe('StoreSaleDocumentFormComponent', () => {
 
       await scansiona(rendered, 'codice-che-non-esiste');
 
-      expect(rendered.component.lines()).toHaveLength(0);
+      expect(rendered.component.righeCompilate()).toHaveLength(0);
       expect(screen.getByText(/Nessun articolo/)).toBeTruthy();
     });
 
@@ -721,7 +723,7 @@ describe('StoreSaleDocumentFormComponent', () => {
       await scansiona(rendered, EAN_NOTO);
       await scansiona(rendered, EAN_NOTO);
 
-      expect(rendered.component.lines()).toHaveLength(1);
+      expect(rendered.component.righeCompilate()).toHaveLength(1);
       expect(rendered.component.lines()[0]!.quantity).toBe(2);
     });
 
@@ -768,7 +770,7 @@ describe('StoreSaleDocumentFormComponent', () => {
       // in cui una validazione si rompe restando verde.
       const rendered = await conUnaRiga();
 
-      const quantita = screen.getByRole<HTMLInputElement>('spinbutton', { name: /Quantità/i });
+      const quantita = screen.getByLabelText<HTMLInputElement>('Quantità riga 1');
       expect(quantita.value).toBe('1');
       expect(quantita.getAttribute('aria-invalid')).toBeNull();
       expect(rendered.component.form.controls.lines.at(0).controls.quantity.valid).toBe(true);
@@ -780,7 +782,7 @@ describe('StoreSaleDocumentFormComponent', () => {
       // dell'Ordine cliente si era imposto a entrambi.
       await conUnaRiga();
 
-      const quantita = screen.getByRole<HTMLInputElement>('spinbutton', { name: /Quantità/i });
+      const quantita = screen.getByLabelText<HTMLInputElement>('Quantità riga 1');
       expect(quantita.getAttribute('min')).toBe('1');
     });
 
@@ -831,7 +833,7 @@ describe('StoreSaleDocumentFormComponent', () => {
 
       rendered.component.onStockToggle(0, false);
 
-      expect(rendered.component.lines()).toHaveLength(1);
+      expect(rendered.component.righeCompilate()).toHaveLength(1);
       expect(rendered.component.lines()[0]!.loadsStock).toBe(false);
     });
 
@@ -1033,7 +1035,7 @@ describe('StoreSaleDocumentFormComponent', () => {
     it('lo stepper della card cambia la quantità della riga', async () => {
       const rendered = await conRigaSuMobile();
 
-      await userEvent.click(screen.getByLabelText('Aumenta quantità'));
+      await userEvent.click(screen.getAllByLabelText('Aumenta quantità')[0]!);
 
       expect(rendered.component.lines()[0]!.quantity).toBe(2);
     });
@@ -1046,12 +1048,12 @@ describe('StoreSaleDocumentFormComponent', () => {
       // che non comanda, e nessun test lo vedeva perché la riga restava
       // eliminabile dal pulsante in fondo al corpo aperto.
       const rendered = await conRigaSuMobile();
-      expect(rendered.component.lines()).toHaveLength(1);
+      expect(rendered.component.righeCompilate()).toHaveLength(1);
 
-      await userEvent.click(screen.getByLabelText('Elimina riga'));
+      await userEvent.click(screen.getAllByLabelText('Elimina riga')[0]!);
       rendered.fixture.detectChanges();
 
-      expect(rendered.component.lines()).toHaveLength(0);
+      expect(rendered.component.righeCompilate()).toHaveLength(0);
     });
   });
 
@@ -1230,7 +1232,7 @@ describe('StoreSaleDocumentFormComponent', () => {
     it('⭐ e la compilazione è già quella del cliente successivo', async () => {
       const rendered = await concludi();
 
-      expect(rendered.component.lines()).toHaveLength(0);
+      expect(rendered.component.righeCompilate()).toHaveLength(0);
       expect(screen.getByLabelText<HTMLInputElement>('Scansiona o cerca un articolo').value).toBe(
         '',
       );
@@ -1284,7 +1286,7 @@ describe('StoreSaleDocumentFormComponent', () => {
       rendered.component.save();
       rendered.fixture.detectChanges();
 
-      expect(rendered.component.lines()).toHaveLength(1);
+      expect(rendered.component.righeCompilate()).toHaveLength(1);
     });
   });
 
@@ -1566,7 +1568,7 @@ describe('StoreSaleDocumentFormComponent', () => {
       await userEvent.type(campo, `${EAN_NOTO}{enter}`);
       rendered.fixture.detectChanges();
 
-      expect(rendered.component.form.controls.lines.length).toBe(1);
+      expect(rendered.component.righeCompilate()).toHaveLength(1);
     });
 
     it('senza la bandiera d ambiente il comando non compare, nemmeno su mobile', async () => {
@@ -1586,7 +1588,7 @@ describe('StoreSaleDocumentFormComponent', () => {
       rendered.component.onScanLineAdded({ variantId: VARIANTE.variantId, quantity: 3 });
       rendered.fixture.detectChanges();
 
-      expect(rendered.component.lines()).toHaveLength(1);
+      expect(rendered.component.righeCompilate()).toHaveLength(1);
       expect(rendered.component.lines()[0]!.quantity).toBe(5);
     });
 
@@ -1600,7 +1602,7 @@ describe('StoreSaleDocumentFormComponent', () => {
 
       // ⛔ Nessuna anagrafica aperta d'ufficio.
       expect(screen.queryByText('Anagrafica prodotto')).toBeNull();
-      expect(rendered.component.lines()).toHaveLength(0);
+      expect(rendered.component.righeCompilate()).toHaveLength(0);
       // ⭐ Ma la via d'uscita è a schermo, ed è una scelta.
       expect(screen.getByRole('button', { name: 'Crea prodotto' })).toBeTruthy();
     });
@@ -1626,7 +1628,10 @@ describe('StoreSaleDocumentFormComponent', () => {
       const rendered = await setup({ defaultLocation: SEDE.id });
 
       expect(rendered.container.querySelector('table')).toBeTruthy();
-      expect(screen.getByText('Nessuna riga inserita')).toBeTruthy();
+      // ⛔ Qui c'era `getByText('Nessuna riga inserita')`, col commento «Come sul
+      // riferimento». Sorvegliava come requisito proprio il difetto: sul
+      // riferimento la riga vuota c'e', e si digita dentro quella.
+      expect(rendered.component.lines()).toHaveLength(1);
     });
 
     it('⛔ a testata INCOMPLETA la tabella non c’è: al suo posto cosa manca', async () => {
@@ -1670,16 +1675,48 @@ describe('StoreSaleDocumentFormComponent', () => {
       expect(screen.getByLabelText('Scansiona o cerca un articolo')).toBeTruthy();
     });
 
-    it('⛔ ma di righe articolo non ce n’è NESSUNA, e non c’è come aggiungerne', async () => {
+    /**
+     * ⭐ **La riga vuota c'è, come sulle altre sei maschere** — 24/08/2026.
+     *
+     * Qui c'era la fotografia del difetto: `toHaveLength(0)` e «nessun comando
+     * la crea». Era vero, ed era la causa di «dopo aver scelto la sede la riga
+     * non compare».
+     *
+     * ⛔ **E non era una scelta**, benché il template la motivasse con «(A14)».
+     * A14 dice un'altra cosa — «solo la selezione reale crea la riga: **la query
+     * digitata** non è una riga» — e parla della RICERCA. La riga seminata
+     * all'apertura non nasce da una query. A15, più recente (22/08/2026), dice
+     * invece l'opposto di quel commento: «Ordine cliente, Vendita al banco e
+     * Reso al banco usano la STESSA componente condivisa di riga documento,
+     * desktop e card, con gli stessi comportamenti per tutti i campi comuni».
+     */
+    it('⭐ la riga vuota c’è, e «Aggiungi riga» pure', async () => {
       const rendered = await setup({ defaultLocation: SEDE.id });
 
-      // La causa vera di «la riga non compare»: l'array parte vuoto.
-      expect(rendered.component.lines()).toHaveLength(0);
-      expect(screen.getByText('Nessuna riga inserita')).toBeTruthy();
+      expect(rendered.component.lines()).toHaveLength(1);
+      expect(screen.queryByText('Nessuna riga inserita')).toBeNull();
+      expect(screen.getByRole('button', { name: /Aggiungi riga/i })).toBeTruthy();
+    });
 
-      // ⚠️ E nessun comando la crea: sulle altre maschere «Aggiungi riga»
-      // esiste, qui no. L'unica via è cercare o scansionare un articolo.
-      expect(screen.queryByRole('button', { name: /Aggiungi riga/i })).toBeNull();
+    /**
+     * ⛔ **La riga seminata non è contenuto**, e questa è la prova che protegge
+     * il resto del documento dall'averla introdotta.
+     *
+     * ⚠️ Il rischio concreto: `canConclude` e `hasPendingWork` guardavano
+     * `lines().length > 0`. Con una riga seminata sarebbero diventati veri
+     * all'apertura — cioè si potrebbe **concludere una vendita vuota**, e
+     * uscendo subito comparirebbe «hai modifiche non salvate» su un documento
+     * che nessuno ha toccato.
+     */
+    it('⛔ ma la riga vuota non rende il documento concludibile né «sporco»', async () => {
+      const rendered = await setup({ defaultLocation: SEDE.id });
+      const segnali = rendered.component as unknown as {
+        canConclude: () => boolean;
+        hasPendingWork: () => boolean;
+      };
+
+      expect(segnali.canConclude()).toBe(false);
+      expect(segnali.hasPendingWork()).toBe(false);
     });
   });
 });

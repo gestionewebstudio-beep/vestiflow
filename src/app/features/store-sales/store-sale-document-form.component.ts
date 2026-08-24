@@ -64,6 +64,7 @@ import { DocumentProductSearchPanelComponent } from '@domain/documents/component
 import { priceModeRowLabel } from '@domain/documents/models/document-price-mode.util';
 import { DocumentService } from '@domain/documents/services/document.service';
 import { DocumentLineCardBodyComponent } from '@domain/documents/components/document-line-card/document-line-card-body.component';
+import { documentLineIsEmpty } from '@domain/documents/state/document-line-removal.store';
 import { DocumentLineCardStripComponent } from '@domain/documents/components/document-line-card/document-line-card-strip.component';
 import { DocumentLineCardComponent } from '@domain/documents/components/document-line-card/document-line-card.component';
 import { documentLineCardHead } from '@domain/documents/components/document-line-card/document-line-card.model';
@@ -366,7 +367,17 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
      * usarla. Il modello `StoreSaleDocumentLine` resta, ma come VISTA
      * derivata (`lineModel`), non come seconda fonte.
      */
-    lines: this.fb.array<ReturnType<StoreSaleDocumentFormComponent['createLine']>>([]),
+    // ⭐ **Una riga vuota all'apertura, come sulle altre sei maschere**
+    //    (24/08/2026). Qui c'era `([])`, motivato nel template con «(A14)» — ma
+    //    A14 parla della RICERCA («la query digitata non è una riga»), non della
+    //    riga seminata. A15, più recente, dice l'opposto: Ordine cliente,
+    //    Vendita e Reso al banco usano la STESSA riga condivisa «con gli stessi
+    //    comportamenti per tutti i campi comuni».
+    //
+    // ⛔ **La riga seminata NON è contenuto**: `righeCompilate()` la esclude da
+    //    payload, «si può concludere?» e «c'è lavoro non salvato?». Senza quel
+    //    filtro finirebbe una riga fantasma in ogni vendita.
+    lines: this.fb.array([this.createLine()]),
   });
 
   // Snapshot reattivo del form: i computed qui sotto leggono i FormControl, che
@@ -547,11 +558,79 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
     };
   }
 
-  /** Tutte le righe come modello: lo usano totali, payload e avvisi. */
+  /** Tutte le righe come modello: lo usano totali e avvisi. */
   protected lines(): readonly StoreSaleDocumentLine[] {
     this.formValue();
     return this.form.controls.lines.controls.map((_, index) => this.lineModel(index));
   }
+
+  /**
+   * **Le righe che hanno davvero qualcosa dentro.** La riga seminata
+   * all'apertura, e ogni riga rimasta vuota, non ne fanno parte.
+   *
+   * ⛔ **Il predicato è quello COMUNE** (`documentLineIsEmpty`), non una copia
+   * locale: «riga vuota» significa la stessa cosa su ogni maschera, e due
+   * definizioni divergerebbero al primo campo aggiunto. Vale anche la sua
+   * scelta più delicata — **la quantità non conta come contenuto**: una riga
+   * nasce con 1, e contarla renderebbe ogni riga non-vuota.
+   *
+   * ⚠️ Lo usano il payload, «si può concludere?» e «c'è lavoro non salvato?»:
+   * i tre punti in cui una riga tecnica diventerebbe un fatto.
+   */
+  protected righeCompilate(): readonly StoreSaleDocumentLine[] {
+    this.formValue();
+    return this.form.controls.lines.controls
+      .map((group, index) => ({ group, index }))
+      .filter(({ group }) => !documentLineIsEmpty(group))
+      .map(({ index }) => this.lineModel(index));
+  }
+
+  /**
+   * Aggiunge una riga vuota, come su ogni altra maschera documentale.
+   *
+   * ⭐ È il **secondo modo di acquisizione**, distinto dalla ricerca: lo
+   * scanner e la ricerca rapida, trovando la stessa variante, **incrementano**
+   * la riga che c'è; «Aggiungi riga» ne apre una **nuova** anche se poi ci si
+   * mette lo stesso articolo. Senza, al banco mancava proprio quel modo.
+   */
+  protected addLine(): void {
+    this.form.controls.lines.push(this.createLine());
+    this.form.controls.lines.markAsDirty();
+    this.cardsRevealed.set(true);
+  }
+
+  /**
+   * Dove entra una riga ACQUISITA: prima delle righe vuote in coda, così quella
+   * in cui si digita resta l'ultima. È il criterio dell'Ordine cliente.
+   */
+  private indiceDiInserimento(): number {
+    const righe = this.form.controls.lines;
+    let posizione = righe.length;
+    while (posizione > 0 && documentLineIsEmpty(righe.at(posizione - 1))) {
+      posizione -= 1;
+    }
+    return posizione;
+  }
+
+  /**
+   * Mobile: la riga tecnica vuota non si mostra come card.
+   *
+   * ⚠️ **Una card «Riga senza prodotto» con Qtà 1 e totale 0 fa credere che ci
+   * sia già qualcosa**, e non è compilabile finché non le si dà un articolo. È
+   * la stessa scelta dell'Ordine cliente, che qui è il riferimento: su
+   * scrivania la riga vuota è la cella in cui si digita, su telefono non c'è
+   * niente da digitare finché l'articolo non arriva.
+   */
+  private readonly cardsRevealed = signal(false);
+
+  protected readonly cardsVisible = computed(() => {
+    this.formValue();
+    if (this.cardsRevealed()) {
+      return true;
+    }
+    const righe = this.form.controls.lines.controls;
+    return righe.length > 1 || (righe.length === 1 && !documentLineIsEmpty(righe[0]!));
+  });
 
   protected removeLine(index: number): void {
     this.form.controls.lines.removeAt(index);
@@ -976,8 +1055,12 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
         }
         const group = this.createLine();
         group.patchValue({ quantity: Math.max(1, quantity) });
-        righe.push(group);
-        this.applyVariantToLine(righe.length - 1, summary);
+        // ⭐ **Prima delle righe vuote in coda**, come sull'Ordine cliente: la
+        //    riga in cui si digita resta l'ultima. Accodando e basta, dopo ogni
+        //    scansione resterebbe una riga vuota INCASTRATA sopra l'articolo.
+        const posizione = this.indiceDiInserimento();
+        righe.insert(posizione, group);
+        this.applyVariantToLine(posizione, summary);
         righe.markAsDirty();
         this.afterAcquire();
       });
@@ -1690,8 +1773,15 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
     return this.descriptor.mode === 'sale' && line.quantity > line.available;
   }
 
+  /**
+   * ⚠️ **Sulle righe COMPILATE, non su tutte.** La riga vuota in coda nasce con
+   * quantità 1 e disponibilità zero — non avendo un articolo — quindi
+   * `lineExceedsAvailability` la conterebbe come «quantità oltre la
+   * disponibilità». Ogni documento nuovo si sarebbe aperto con un avviso di
+   * giacenza su una riga che non contiene niente.
+   */
   protected readonly availabilityWarningCount = computed(
-    () => this.lines().filter((line) => this.lineExceedsAvailability(line)).length,
+    () => this.righeCompilate().filter((line) => this.lineExceedsAvailability(line)).length,
   );
 
   protected availabilityHint(line: StoreSaleDocumentLine): string {
@@ -1761,13 +1851,16 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
   );
 
   protected readonly canConclude = computed(
-    () => this.lines().length > 0 && !!this.form.controls.locationId.value && !this.savePending(),
+    () =>
+      this.righeCompilate().length > 0 &&
+      !!this.form.controls.locationId.value &&
+      !this.savePending(),
   );
 
   // ── Uscita con lavoro non salvato ───────────────────────────────────────
 
   /** C'è qualcosa che si perderebbe uscendo? */
-  protected readonly hasPendingWork = computed(() => this.lines().length > 0);
+  protected readonly hasPendingWork = computed(() => this.righeCompilate().length > 0);
 
   protected readonly exitDialogOpen = signal(false);
   private pendingDeactivate: ((allow: boolean) => void) | null = null;
@@ -1933,7 +2026,7 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
       number: this.numbering.imposedNumber(),
       pricesIncludeVat: this.pricesIncludeVat(),
       notes: testata.notes.trim() || undefined,
-      lines: this.lines().map(storeSaleLinePayload),
+      lines: this.righeCompilate().map(storeSaleLinePayload),
     };
   }
 
@@ -1955,7 +2048,7 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
       number: this.numbering.imposedNumber(),
       pricesIncludeVat: this.pricesIncludeVat(),
       notes: testata.notes.trim() || undefined,
-      lines: this.lines().map(storeReturnLinePayload),
+      lines: this.righeCompilate().map(storeReturnLinePayload),
     };
   }
 

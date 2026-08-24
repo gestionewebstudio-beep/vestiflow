@@ -186,6 +186,15 @@
                   Scansiona
                 </app-button>
               }
+              <!-- ⭐ Il SECONDO modo di acquisizione, e mancava (24/08/2026).
+                   Ricerca e scanner, trovando la stessa variante, INCREMENTANO la
+                   riga che c'è; «Aggiungi riga» ne apre una NUOVA anche se poi ci
+                   si mette lo stesso articolo. Sono due gesti diversi, e senza
+                   questo al banco ne esisteva uno solo. -->
+              <app-button type="button" (click)="addLine()">
+                <i class="pi pi-plus" aria-hidden="true"></i>
+                Aggiungi riga
+              </app-button>
             </div>
 
             @if (searchMessage(); as messaggio) {
@@ -261,9 +270,17 @@
                  card. Il criterio è quello dell'Ordine cliente, che è il
                  riferimento mobile della maschera (`11` A12). -->
             @if (compactView()) {
-              @if (!hasLines()) {
+              @if (!cardsVisible()) {
                 <!-- Le card non hanno intestazioni da mostrare: qui lo stato
-                     vuoto resta al posto dell'elenco. -->
+                     vuoto resta al posto dell'elenco.
+
+                     ⭐ La condizione è `cardsVisible()`, non `hasLines()`: dal
+                     24/08/2026 il form nasce con una riga vuota come le altre
+                     maschere, ma su telefono quella riga NON diventa una card.
+                     Una card «Riga senza prodotto» con Qtà 1 e totale 0 fa
+                     credere che ci sia già qualcosa, e non è compilabile finché
+                     non le si dà un articolo. È la scelta dell'Ordine cliente,
+                     che qui è il riferimento. -->
                 <app-empty-state
                   icon="pi-shop"
                   [title]="linesEmptyTitle()"
@@ -286,47 +303,49 @@
                    ⚠️ Il `formArrayName` serve al `formGroupName` della riga, come
                    nel `<tbody>` del desktop: senza, la card non sta in nessun
                    contesto di form. -->
-              <div class="store-sale-form__cards" formArrayName="lines">
-                @for (group of lineControls.controls; track group; let i = $index) {
-                  <app-document-line-card
-                    [formGroupName]="i"
-                    [lineIndex]="i"
-                    [open]="isLineCardOpen(i)"
-                    [complete]="lineCardHead(i).complete"
-                    [title]="lineCardHead(i).title"
-                    [variantLabel]="lineCardHead(i).variantLabel"
-                    [meta]="lineCardHead(i).meta"
-                    [alert]="lineCardHead(i).alert"
-                    (toggled)="toggleLineCard(i)"
-                    (removeRequested)="removeLine(i)"
-                    (removed)="removeLine(i)"
-                  >
-                    <app-document-line-card-strip
-                      cardControls
-                      [group]="lineGroup(i)"
+              @if (cardsVisible()) {
+                <div class="store-sale-form__cards" formArrayName="lines">
+                  @for (group of lineControls.controls; track group; let i = $index) {
+                    <app-document-line-card
+                      [formGroupName]="i"
                       [lineIndex]="i"
-                      [isColumnVisible]="isLineColumnVisibleFn"
-                      [view]="lineRowView(i)"
-                      [priceLabel]="priceRowLabel()"
-                      [quantityMin]="1"
-                    />
-                    <app-document-line-card-body
-                      cardBody
-                      [group]="lineGroup(i)"
-                      [lineIndex]="i"
-                      [isColumnVisible]="isLineColumnVisibleFn"
-                      idPrefix="ssf"
-                      [view]="lineRowView(i)"
-                      [stockToggleLabel]="stockToggleLabel()"
-                      [priceLabel]="priceRowLabel()"
-                      (productNameChanged)="onDescriptionChange(i, $event)"
-                      (productSearchOpened)="openLineProductSearch(i)"
-                      (vatSelected)="onVatChange(i, $event)"
-                      (stockToggled)="onStockToggle(i, $event.value)"
-                    />
-                  </app-document-line-card>
-                }
-              </div>
+                      [open]="isLineCardOpen(i)"
+                      [complete]="lineCardHead(i).complete"
+                      [title]="lineCardHead(i).title"
+                      [variantLabel]="lineCardHead(i).variantLabel"
+                      [meta]="lineCardHead(i).meta"
+                      [alert]="lineCardHead(i).alert"
+                      (toggled)="toggleLineCard(i)"
+                      (removeRequested)="removeLine(i)"
+                      (removed)="removeLine(i)"
+                    >
+                      <app-document-line-card-strip
+                        cardControls
+                        [group]="lineGroup(i)"
+                        [lineIndex]="i"
+                        [isColumnVisible]="isLineColumnVisibleFn"
+                        [view]="lineRowView(i)"
+                        [priceLabel]="priceRowLabel()"
+                        [quantityMin]="1"
+                      />
+                      <app-document-line-card-body
+                        cardBody
+                        [group]="lineGroup(i)"
+                        [lineIndex]="i"
+                        [isColumnVisible]="isLineColumnVisibleFn"
+                        idPrefix="ssf"
+                        [view]="lineRowView(i)"
+                        [stockToggleLabel]="stockToggleLabel()"
+                        [priceLabel]="priceRowLabel()"
+                        (productNameChanged)="onDescriptionChange(i, $event)"
+                        (productSearchOpened)="openLineProductSearch(i)"
+                        (vatSelected)="onVatChange(i, $event)"
+                        (stockToggled)="onStockToggle(i, $event.value)"
+                      />
+                    </app-document-line-card>
+                  }
+                </div>
+              }
             } @else {
               <div class="doc-form__table-wrap">
                 <table class="doc-form__table">
