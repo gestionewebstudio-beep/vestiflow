@@ -59,7 +59,7 @@
       />
     </div>
 
-    @if (barcodeScannerEnabled) {
+    @if (barcodeScannerEnabled()) {
       <app-barcode-scanner label="Scansiona barcode" (scanned)="onScanned($event)" />
     }
 

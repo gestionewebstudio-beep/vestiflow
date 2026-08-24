@@ -1781,7 +1781,7 @@
             <span class="doc-dock__icon" aria-hidden="true"><i class="pi pi-plus"></i></span>
             <span>Cerca prodotto</span>
           </button>
-          @if (barcodeScannerEnabled) {
+          @if (barcodeScannerEnabled()) {
             <button
               type="button"
               class="doc-dock__action doc-dock__action--scan"

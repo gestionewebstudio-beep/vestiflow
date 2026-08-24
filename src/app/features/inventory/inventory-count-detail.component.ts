@@ -13,6 +13,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 
 import { APP_CONFIG } from '@core/config/app-config.token';
+import { BarcodeDetectionService } from '@core/services/barcode-detection.service';
 import { AuthService } from '@core/auth';
 import { inventoryCountCloseHint } from '@core/models/tenant-channel-profile.model';
 import { InventoryCountStatus } from '@core/models/inventory-count.model';
@@ -83,7 +84,9 @@ export class InventoryCountDetailComponent {
 
   private highlightTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  protected readonly barcodeScannerEnabled = this.config.features.barcodeScanner;
+  // La stessa risposta di tutti gli altri: bandiera d'ambiente, fotocamera
+  // presente, e schermo compatto. Su scrivania resta il lettore HID.
+  protected readonly barcodeScannerEnabled = inject(BarcodeDetectionService).cameraScanOffered;
 
   protected readonly InventoryCountStatus = InventoryCountStatus;
   protected readonly formatDate = formatDateTime;

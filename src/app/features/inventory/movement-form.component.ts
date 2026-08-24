@@ -7,6 +7,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { BarcodeDetectionService } from '@core/services/barcode-detection.service';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { Router, ActivatedRoute } from '@angular/router';
 import { catchError, debounceTime, distinctUntilChanged, forkJoin, map, of, switchMap } from 'rxjs';
@@ -132,7 +133,9 @@ export class MovementFormComponent implements CanComponentDeactivate {
   private readonly destroyRef = inject(DestroyRef);
   private readonly config = inject(APP_CONFIG);
 
-  protected readonly barcodeScannerEnabled = this.config.features.barcodeScanner;
+  // La stessa risposta di tutti gli altri: bandiera d'ambiente, fotocamera
+  // presente, e schermo compatto. Su scrivania resta il lettore HID.
+  protected readonly barcodeScannerEnabled = inject(BarcodeDetectionService).cameraScanOffered;
   protected readonly scanFeedback = signal<string | null>(null);
 
   // ── Testata ────────────────────────────────────────────────────────────────

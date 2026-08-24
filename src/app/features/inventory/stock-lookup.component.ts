@@ -11,6 +11,7 @@ import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angula
 import { RouterLink } from '@angular/router';
 import { forkJoin, of, switchMap } from 'rxjs';
 
+import { BarcodeDetectionService } from '@core/services/barcode-detection.service';
 import { AuthService } from '@core/auth';
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { canManageInventory } from '@core/permissions/tenant-permissions.util';
@@ -95,7 +96,9 @@ export class StockLookupComponent {
   private readonly config = inject(APP_CONFIG);
   private readonly destroyRef = inject(DestroyRef);
 
-  protected readonly barcodeScannerEnabled = this.config.features.barcodeScanner;
+  // La stessa risposta di tutti gli altri: bandiera d'ambiente, fotocamera
+  // presente, e schermo compatto. Su scrivania resta il lettore HID.
+  protected readonly barcodeScannerEnabled = inject(BarcodeDetectionService).cameraScanOffered;
 
   protected readonly canInstallPwa = this.pwaInstall.canInstall;
 

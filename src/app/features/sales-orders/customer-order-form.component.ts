@@ -147,6 +147,7 @@ import { DocumentLineSortStore } from '@domain/documents/state/document-line-sor
 import { sortByValue, type SortValueKind } from '@shared/utils/sort-values.util';
 import { DocumentLineFocusStore } from '@domain/documents/state/document-line-focus.store';
 import { DocumentCodeLookupService } from '@domain/documents/services/document-code-lookup.service';
+import { BarcodeDetectionService } from '@core/services/barcode-detection.service';
 import { ViewportService } from '@core/services/viewport.service';
 import type { DocumentLineCodeField } from '@domain/documents/utils/document-code-match.util';
 import { computeDocumentTotals } from '@domain/documents/utils/document-totals.util';
@@ -417,7 +418,16 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   private readonly toast = inject(ToastService);
 
   /** Scanner fotocamera disponibile (feature flag tenant). */
-  protected readonly barcodeScannerEnabled = this.appConfig.features.barcodeScanner;
+  /**
+   * ⛔ **Qui c'era `appConfig.features.barcodeScanner`**, cioè la sola
+   * bandiera d'ambiente. Dal 24/08/2026 il comando fotocamera si offre solo su
+   * schermo compatto, e la risposta e' UNA per tutti i consumer — dodici fra
+   * maschere documento e schermate di magazzino.
+   *
+   * ⚠️ Non spegne la scansione: su scrivania si legge col lettore HID, che
+   * scrive nel campo di ricerca come una tastiera. Quel campo resta.
+   */
+  protected readonly barcodeScannerEnabled = inject(BarcodeDetectionService).cameraScanOffered;
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   private readonly editLock = inject(DocumentEditLockService);

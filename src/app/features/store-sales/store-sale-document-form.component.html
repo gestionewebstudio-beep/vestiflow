@@ -236,7 +236,7 @@
                 <i class="pi pi-search" aria-hidden="true"></i>
                 Cerca articolo
               </app-button>
-              @if (barcodeScannerEnabled) {
+              @if (barcodeScannerEnabled()) {
                 <!-- Fotocamera: scansione CONTINUA, l'articolo riconosciuto resta
                      a video con lo stepper, e lo stesso codice incrementa. È
                      l'overlay comune, non una copia del banco. -->

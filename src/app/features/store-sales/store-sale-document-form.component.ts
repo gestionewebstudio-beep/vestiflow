@@ -41,6 +41,7 @@ import {
 import { customerDisplayName, type Customer } from '@core/models/customer.model';
 import { isSalesVatCode, vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
 import { parseEffectiveDiscountPercent } from '@core/utils/discount-percent.util';
+import { BarcodeDetectionService } from '@core/services/barcode-detection.service';
 import { ViewportService } from '@core/services/viewport.service';
 import { VatCodeService } from '@core/services/vat-code.service';
 import {
@@ -1151,7 +1152,15 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
   private readonly config = inject(APP_CONFIG);
   private readonly auth = inject(AuthService);
 
-  protected readonly barcodeScannerEnabled = this.config.features.barcodeScanner;
+  /**
+   * ⛔ **Qui c'era `config.features.barcodeScanner`**, cioè la sola bandiera
+   * d'ambiente: il pulsante «Scansiona» compariva anche su scrivania, dove la
+   * fotocamera del portatile inquadra l'operatore e non il capo.
+   *
+   * ⚠️ Non spegne la scansione: il lettore HID scrive nel campo di ricerca come
+   * una tastiera, e quel campo resta su entrambe le viste.
+   */
+  protected readonly barcodeScannerEnabled = inject(BarcodeDetectionService).cameraScanOffered;
 
   /**
    * Chi batte al banco non sempre può creare articoli: senza il permesso il

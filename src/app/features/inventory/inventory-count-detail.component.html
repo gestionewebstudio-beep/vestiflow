@@ -98,7 +98,7 @@
             [formGroup]="scanForm"
             (ngSubmit)="submitScanCode()"
           >
-            @if (barcodeScannerEnabled) {
+            @if (barcodeScannerEnabled()) {
               <div class="count-detail__scan-scanner">
                 <span
                   class="count-detail__scan-label count-detail__scan-label--spacer"

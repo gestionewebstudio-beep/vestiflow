@@ -22,6 +22,7 @@ import {
 import type { Subscription } from 'rxjs';
 
 import type { PageMeta } from '@core/models/api.model';
+import { BarcodeDetectionService } from '@core/services/barcode-detection.service';
 import { AuthService } from '@core/auth';
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { PRODUCTS_CSV_EXPORT_ID } from '@core/export/background-blob-export.constants';
@@ -134,7 +135,9 @@ export class ProductListComponent {
 
   private shopifyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
-  protected readonly barcodeScannerEnabled = this.config.features.barcodeScanner;
+  // La stessa risposta di tutti gli altri: bandiera d'ambiente, fotocamera
+  // presente, e schermo compatto. Su scrivania resta il lettore HID.
+  protected readonly barcodeScannerEnabled = inject(BarcodeDetectionService).cameraScanOffered;
   protected readonly scanFeedback = signal<string | null>(null);
 
   private lastFetchQueryKey = '';

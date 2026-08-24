@@ -251,6 +251,21 @@ interface SetupOptions {
   readonly barcodeScanner?: boolean;
 }
 
+/**
+ * Una fotocamera che esiste.
+ *
+ * ⚠️ Serve da quando il comando «Scansiona» non dipende piu' dalla sola
+ * bandiera d'ambiente: chiede anche che il dispositivo abbia una fotocamera, e
+ * jsdom non ne ha. Senza questo, il pulsante non comparirebbe **mai** e le
+ * prove direbbero di sorvegliare una regola che non stanno esercitando.
+ */
+function conFotocamera(): void {
+  Object.defineProperty(navigator, 'mediaDevices', {
+    configurable: true,
+    value: { getUserMedia: vi.fn() },
+  });
+}
+
 async function setup(options: SetupOptions = {}) {
   const locations = options.locations ?? [SEDE, ALTRA_SEDE];
   const defaultLocation = options.defaultLocation === undefined ? SEDE.id : options.defaultLocation;
@@ -1512,14 +1527,43 @@ describe('StoreSaleDocumentFormComponent', () => {
   // ⛔ La regola è una sola: **niente si crea da sé e niente si apre da sé**
   // (`11` A14). Un'azione scelta dall'operatore è un'altra cosa.
   describe('scansione con fotocamera e articolo non a catalogo', () => {
-    it('⭐ «Scansiona» c’è quando la fotocamera è disponibile', async () => {
-      await setup({ barcodeScanner: true });
+    it('⭐ «Scansiona» c’è su MOBILE, dove la fotocamera serve', async () => {
+      conFotocamera();
+      await setup({ barcodeScanner: true, compact: true });
 
       expect(screen.getByRole('button', { name: /Scansiona/ })).toBeTruthy();
     });
 
-    it('senza fotocamera il comando non compare', async () => {
-      await setup({ barcodeScanner: false });
+    it('⛔ su DESKTOP il comando fotocamera NON compare', async () => {
+      // Decisione del proprietario, 24/08/2026: davanti a un monitor la
+      // fotocamera del portatile inquadra l'operatore, non il capo — e un
+      // pulsante che apre una finestra inutilizzabile è un comando che non
+      // comanda.
+      //
+      // ⚠️ **La scansione resta**: su scrivania si legge col lettore HID, che
+      // scrive nel campo di ricerca come una tastiera. La prova qui sotto
+      // inchioda proprio quello — il campo c'è, e accetta il codice.
+      conFotocamera();
+      await setup({ barcodeScanner: true });
+
+      expect(screen.queryByRole('button', { name: /Scansiona/ })).toBeNull();
+      expect(screen.getByLabelText('Scansiona o cerca un articolo')).toBeTruthy();
+    });
+
+    it('⛔ e il lettore HID continua a funzionare su desktop', async () => {
+      const rendered = await setup({ barcodeScanner: true });
+
+      // Una pistola HID scrive nel campo e preme Invio: e' una tastiera.
+      const campo = screen.getByLabelText('Scansiona o cerca un articolo');
+      await userEvent.type(campo, `${EAN_NOTO}{enter}`);
+      rendered.fixture.detectChanges();
+
+      expect(rendered.component.form.controls.lines.length).toBe(1);
+    });
+
+    it('senza la bandiera d ambiente il comando non compare, nemmeno su mobile', async () => {
+      conFotocamera();
+      await setup({ barcodeScanner: false, compact: true });
 
       expect(screen.queryByRole('button', { name: /Scansiona/ })).toBeNull();
     });

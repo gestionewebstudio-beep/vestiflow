@@ -1,7 +1,16 @@
+<!-- ⛔ **Dove la fotocamera non si offre, il comando non c'e' — non e'
+     disabilitato.** Qui era `[disabled]`: su scrivania restava un pulsante
+     grigio che non si poteva premere, cioe' un comando che dichiara una
+     funzione e non la da'. Dal 24/08/2026 la fotocamera si offre solo su
+     schermo compatto, e la decisione sta in `BarcodeDetectionService`.
+
+     ⚠️ Il motore di scansione resta: su scrivania si legge col lettore HID,
+     che scrive nel campo come una tastiera e non passa da questo componente. -->
+@if (detectorSupported() || scanning()) {
 <div class="barcode-scanner">
   @if (!scanning()) {
     <div class="barcode-scanner__control">
-      <app-button variant="secondary" [disabled]="!detectorSupported()" (click)="startScan()">
+      <app-button variant="secondary" (click)="startScan()">
         <i class="pi pi-camera" aria-hidden="true"></i>
         {{ label() }}
       </app-button>
@@ -23,3 +32,4 @@
     <p class="barcode-scanner__error barcode-scanner__caption" role="alert">{{ message }}</p>
   }
 </div>
+}
