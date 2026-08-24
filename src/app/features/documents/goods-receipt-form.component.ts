@@ -89,6 +89,15 @@ import {
 import type { Supplier } from '@core/models/supplier.model';
 import { normalizeSku } from '@domain/products/models/product-form.validators';
 import { ProductService } from '@domain/products/services/product.service';
+import { DocumentLineArticleService } from '@domain/documents/services/document-line-article.service';
+import {
+  campiEffettivi,
+  PROFILI_RIGA_DOCUMENTO,
+} from '@domain/documents/models/document-line-article.model';
+import type {
+  ContestoRichiamoArticolo,
+  PolicyRichiamoArticolo,
+} from '@domain/documents/models/document-line-article.model';
 import {
   findVariantSummaryById,
   mergeVariantSummaries,
@@ -341,6 +350,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private readonly supplierOrderService = inject(SupplierOrderService);
   private readonly labelPrintService = inject(ProductLabelPrintService);
   private readonly productService = inject(ProductService);
+  private readonly lineArticles = inject(DocumentLineArticleService);
   private readonly barcodeLookup = inject(BarcodeLookupService);
   private readonly codeLookupService = inject(DocumentCodeLookupService);
   private readonly breadcrumbLabels = inject(BreadcrumbLabelService);
@@ -1554,7 +1564,13 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     const summary = mergeVariantSummaries(this.pinnedVariants(), this.searchedVariants()).find(
       (v) => v.variantId === variantId,
     );
-    return summary?.productName ?? summary?.title ?? line.controls.description.value;
+    // ⛔ Qui c'era `?? summary?.title` in mezzo, ed era la TERZA occorrenza del
+    // ripiego — in sola lettura, ma è quella che alimenta la card mobile:
+    // toglieva il sintomo a schermo mentre il difetto restava nel dato.
+    //
+    // ⭐ E il nome della RIGA viene prima del catalogo: la riga è il documento,
+    // il catalogo è com'è l'anagrafica adesso.
+    return line.controls.productName.value.trim() || summary?.productName || '';
   }
 
   /**
@@ -2081,6 +2097,117 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.productSuggest.clear();
   }
 
+  /**
+   * Le capacità del richiamo articolo su questa maschera.
+   *
+   * ⭐ **`acquisto-arrivo` è il profilo particolare**, e la ragione è una
+   * sola: è l'unica maschera che LEGGE i tre prezzi d'anagrafica — vendita,
+   * Shopify, barrato — per poterli riproporre e, con la spunta accesa,
+   * riscriverli in anagrafica.
+   *
+   * ⛔ **La scrittura all'indietro NON entra nel risolutore comune**, ed è il
+   * confine 1 del contratto: il risolutore legge l'anagrafica e non la
+   * scrive mai. Cosa si riscrive, e se, resta policy di questa maschera
+   * (`updateArticlePrices`, `buildSaveGoodsReceiptBody`).
+   */
+  private policyRichiamo(): PolicyRichiamoArticolo {
+    return {
+      famigliaIva: PROFILI_RIGA_DOCUMENTO['acquisto-arrivo'].famigliaIva,
+      campi: campiEffettivi('acquisto-arrivo', {
+        shopifyAttivo: this.showShopifyPrice(),
+        // Il costo è il campo centrale di questa maschera, non un dato
+        // riservato: qui non si maschera.
+        costiVisibili: true,
+      }),
+    };
+  }
+
+  /**
+   * Il contesto del richiamo: quello che la TESTATA sa e la riga no.
+   *
+   * ⭐ `codiceIvaControparte` porta il Codice IVA del FORNITORE, ed è l'anello
+   * di mezzo della catena di questa maschera (articolo → fornitore →
+   * predefinito). Sull'Ordine cliente lo stesso campo è sempre `null`, perché
+   * un cliente non ne porta uno: il contratto è lo stesso, cambia chi lo
+   * riempie.
+   *
+   * ⛔ `codiceIvaPredefinito` resta `null`: l'ultimo anello lo risolve
+   * `ensureLineVatCode`, che prima fa il **reverse-match dall'aliquota
+   * legacy** — un anello che il risolutore non conosce e che qui serve, perché
+   * le righe da CSV arrivano con l'aliquota e non col codice.
+   */
+  private contestoRichiamo(linkedWith?: string): ContestoRichiamoArticolo {
+    const fornitore = this.selectedSupplier();
+    return {
+      // Comprando non esiste un listino del fornitore da applicare alla riga.
+      listino: 'article',
+      codiciIvaPerId: this.vatCodeById(),
+      codiceIvaControparte: fornitore?.defaultVatCodeId ?? null,
+      codiceIvaPredefinito: null,
+      scontoControparte: fornitore?.supplierDiscount?.trim() || null,
+      codiceFornitoreDigitato: linkedWith ?? null,
+      codiceFornitoreDiTestata: null,
+    };
+  }
+
+  /**
+   * Fa passare dal contratto comune una riga **nata già agganciata**.
+   *
+   * ⭐ Due percorsi costruiscono righe senza passare dal richiamo articolo, e
+   * quando portano un `variantId` stanno agganciando un articolo come tutti
+   * gli altri — solo per un'altra strada:
+   *
+   *   createLineFromSupplierOrderLine — la riga nasce dall'ordine, e scriveva
+   *   `productName ← orderLine.sku`: ⛔ LO SKU AL POSTO DEL NOME.
+   *
+   *   createLineFromCsv — catena a quattro livelli che poteva finire sul
+   *   BARCODE come nome.
+   *
+   * ⚠️ **Non calpesta ciò che viene dalla loro sorgente**, e questa è la
+   * ragione per cui passa da `replacedArticle: false`: il costo ordinato e
+   * quello del CSV sono già nel controllo, e in quel ramo il costo si scrive
+   * **solo se vuoto**. Quello che arriva è l'identità — nome canonico,
+   * variante, codice articolo, EAN, unità di misura — che quelle due strade
+   * non hanno.
+   */
+  private allineaRigaAgganciata(index: number): void {
+    const line = this.lines.at(index);
+    const variantId = line?.controls.variantId.value;
+    if (!line || !variantId) {
+      return;
+    }
+    const noto = mergeVariantSummaries(this.pinnedVariants(), this.searchedVariants()).find(
+      (row) => row.variantId === variantId,
+    );
+    if (noto) {
+      this.applyVariantSummaryToLine(index, noto, false);
+      return;
+    }
+    this.productService
+      .searchVariantSummaries({ variantId })
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe((rows) => {
+        const summary = rows[0];
+        // La riga può essere cambiata mentre la richiesta era in volo.
+        if (!summary || this.lines.at(index)?.controls.variantId.value !== variantId) {
+          return;
+        }
+        // Nessun pin a mano: qui `pinnedVariants` è un `toSignal` in sola
+        // lettura, e si ricarica da sé quando cambiano le varianti di riga.
+        this.applyVariantSummaryToLine(index, summary, false);
+      });
+  }
+
+  /**
+   * L'etichetta della variante di una riga, per la colonna che la mostra.
+   *
+   * ⛔ Non si ricava dal titolo per differenza dal nome: arriva dal risolutore
+   * quando l'articolo entra, e dal DOCUMENTO quando la riga si ricarica.
+   */
+  protected variantLabelOf(index: number): string {
+    return this.lines.at(index)?.controls.variantLabel.value ?? '';
+  }
+
   private syncLineCodesFromVariants(): void {
     const summaries = this.pinnedVariants();
     for (const line of this.lines.controls) {
@@ -2092,11 +2219,36 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       if (!summary) {
         continue;
       }
-      line.controls.articleCode.setValue(summary.articleCode, { emitEvent: false });
-      line.controls.sku.setValue(summary.sku, { emitEvent: false });
-      line.controls.barcode.setValue(summary.barcode ?? '', { emitEvent: false });
+      // ⛔ **Qui i tre codici si sovrascrivevano SEMPRE**, ed era lo
+      // scavalcamento che `03c` §5 chiamava «l'unico posto, in sette maschere,
+      // dove il risolutore può essere scavalcato in modo asincrono e non
+      // ordinato»: l'effect riparte a ogni arrivo di summary, quindi qualunque
+      // valore appena scritto poteva essere riscritto un istante dopo dai dati
+      // d'anagrafica di ADESSO.
+      //
+      // ⭐ La ragione per riempire solo il vuoto era **già scritta** poche
+      // righe più sotto, per il codice fornitore: «sovrascrivere
+      // significherebbe vedersi cambiare sotto gli occhi, un istante dopo, il
+      // codice appena digitato — in silenzio». Vale identica per questi tre.
+      //
+      // Quello che l'effect deve fare resta: riempire le righe CARICATE, che
+      // `document_lines` non persiste (articleCode, barcode, supplierSku non
+      // hanno una colonna da cui ricaricarsi).
+      if (!line.controls.articleCode.value.trim()) {
+        line.controls.articleCode.setValue(summary.articleCode, { emitEvent: false });
+      }
+      if (!line.controls.sku.value.trim()) {
+        line.controls.sku.setValue(summary.sku, { emitEvent: false });
+      }
+      if (!line.controls.barcode.value.trim()) {
+        line.controls.barcode.setValue(summary.barcode ?? '', { emitEvent: false });
+      }
       if (!line.controls.productName.value.trim()) {
         line.controls.productName.setValue(summary.productName, { emitEvent: false });
+      }
+      // La variante: fotografata come il nome. Vuota se l'articolo non ne ha.
+      if (!line.controls.variantLabel.value.trim()) {
+        line.controls.variantLabel.setValue(summary.variantLabel ?? '', { emitEvent: false });
       }
       // L'unità di misura si CATTURA dall'anagrafica, come il nome e lo SKU:
       // il documento è una fotografia, e la riga se la tiene anche se domani
@@ -2104,10 +2256,16 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       // schermo compariva lo stesso il valore dell'articolo — il ripiego di
       // `lineUnitOfMeasure` — e sul documento non si salvava niente:
       // **zero righe su 99 avevano una U.M.**, e sembrava che l'avessero tutte.
-      if (!line.controls.unitOfMeasure.value.trim()) {
-        line.controls.unitOfMeasure.setValue(summary.unitOfMeasure ?? 'pz', {
-          emitEvent: false,
-        });
+      // ⛔ Qui c'era `?? 'pz'`, e questo campo SI PERSISTE: un articolo
+      // venduto a metri arrivava a documento con «pz» scritto dentro. Il
+      // ripiego di DISPLAY era già stato tolto il 23/08 — questo di SCRITTURA
+      // no, e restava l'asimmetria peggiore delle due: a schermo la cella
+      // diceva il vero, nel documento no.
+      //
+      // Il default viene dall'ARTICOLO (`03` §13). Se l'articolo non la porta,
+      // la cella resta vuota — e si vede.
+      if (!line.controls.unitOfMeasure.value.trim() && summary.unitOfMeasure) {
+        line.controls.unitOfMeasure.setValue(summary.unitOfMeasure, { emitEvent: false });
       }
       // Riallineamento in blocco: qui un «codice con cui hai agganciato» non
       // esiste, quindi vale solo quello del fornitore della testata.
@@ -3248,11 +3406,57 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   ): void {
     const line = this.lines.at(index);
     const value = summary.variantId;
-    line.controls.articleCode.setValue(summary.articleCode, { emitEvent: false });
-    line.controls.sku.setValue(summary.sku, { emitEvent: false });
-    line.controls.barcode.setValue(summary.barcode ?? '', { emitEvent: false });
-    const label = summary.productName || summary.title;
-    line.controls.productName.setValue(label, { emitEvent: false });
+    const quiet = { emitEvent: false } as const;
+
+    // ⭐ Il richiamo articolo passa dal RISOLUTORE COMUNE (`03c`): le
+    // assegnazioni non si scrivono più a mano, una maschera alla volta.
+    //
+    // ⚠️ Questa maschera è l'ultima delle sette perché è quella dove il
+    // risolutore può essere **scavalcato**: l'effect di riallineamento
+    // (`syncLineCodesFromVariants`) riscriveva `articleCode`, `sku` e
+    // `barcode` SEMPRE, in modo asincrono e non ordinato. Ora quell'effect
+    // riempie solo ciò che è vuoto — vedi il commento là.
+    const esito = this.lineArticles.resolveWithSummary({
+      articolo: summary,
+      policy: this.policyRichiamo(),
+      contesto: this.contestoRichiamo(linkedWith),
+      riga: {
+        variantIdPrecedente: replacedArticle ? null : line.controls.variantId.value || null,
+        rigaPersistita: Boolean(line.controls.id.value),
+        // Lo sconto DIGITATO: passandolo, il risolutore non ci scrive sopra.
+        scontoCorrente: line.controls.discountPercent.value,
+      },
+    });
+    if (esito.esito !== 'risolto') {
+      return;
+    }
+    const valori = esito.valori;
+    // ⛔ Chiave ASSENTE significa «non toccare», mai «svuota».
+    const scrivi = (
+      controllo: { setValue(v: string, o: typeof quiet): void },
+      valore: string | undefined,
+    ): void => {
+      if (valore !== undefined) {
+        controllo.setValue(valore, quiet);
+      }
+    };
+
+    scrivi(line.controls.articleCode, valori.articleCode);
+    scrivi(line.controls.sku, valori.sku);
+    scrivi(line.controls.barcode, valori.barcode);
+    // ⛔ Qui c'era `summary.productName || summary.title`, ed era una delle
+    // TRE regole diverse con cui questa maschera scriveva lo stesso campo. Il
+    // titolo è il display completo e CONTIENE la variante: il ripiego la
+    // rimetteva dentro il nome proprio quando il nome mancava.
+    scrivi(line.controls.productName, valori.nomeProdotto);
+    scrivi(line.controls.variantLabel, valori.variantLabel);
+    // ⛔ E l'unità di misura non veniva scritta affatto da qui: la metteva
+    // l'effect, col ripiego cablato `?? 'pz'`. Un articolo venduto a metri
+    // arrivava a documento con «pz» — e siccome il campo si PERSISTE, quel
+    // «pz» inventato finiva nel documento.
+    scrivi(line.controls.unitOfMeasure, valori.unitaDiMisura);
+    scrivi(line.controls.discountPercent, valori.sconto);
+    scrivi(line.controls.supplierSku, valori.codiceFornitore);
     if (replacedArticle) {
       // Sostituzione: i prezzi seguono il nuovo articolo, e se non ne ha
       // si svuotano. Tenere quelli di prima farebbe pubblicare su Shopify
@@ -3284,23 +3488,13 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       // riparte dalla catena di precedenza, non si eredita il precedente.
       line.controls.vatCodeId.setValue('', { emitEvent: false });
     }
-    if (!line.controls.vatCodeId.value) {
-      const productVatCode = summary.defaultVatCodeId
-        ? this.vatCodeById().get(summary.defaultVatCodeId)
-        : undefined;
-      if (productVatCode?.isActive && isPurchaseVatCode(productVatCode)) {
-        line.controls.vatCodeId.setValue(productVatCode.id, { emitEvent: false });
-        this.syncLegacyVatRate(line);
-      }
-    }
-    if (!line.controls.vatCodeId.value) {
-      const supplierVatCode = this.selectedSupplier()?.defaultVatCodeId
-        ? this.vatCodeById().get(this.selectedSupplier()!.defaultVatCodeId!)
-        : undefined;
-      if (supplierVatCode?.isActive && isPurchaseVatCode(supplierVatCode)) {
-        line.controls.vatCodeId.setValue(supplierVatCode.id, { emitEvent: false });
-        this.syncLegacyVatRate(line);
-      }
+    // La catena articolo → fornitore la risolve il RISOLUTORE, dal contesto:
+    // `codiceIvaControparte` porta il Codice IVA del fornitore di testata.
+    // Resta locale il solo anello legacy (`ensureLineVatCode`), che fa il
+    // reverse-match dall'aliquota e poi il predefinito aziendale.
+    if (!line.controls.vatCodeId.value && valori.codiceIva) {
+      line.controls.vatCodeId.setValue(valori.codiceIva, quiet);
+      this.syncLegacyVatRate(line);
     }
     this.ensureLineVatCode(line);
     // Il costo va dopo il Codice IVA: senza aliquota non si saprebbe come
@@ -3309,33 +3503,35 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     // costa ZERO arrivava in riga con la cella VUOTA — trattato come un articolo
     // senza costo. Da quando un costo canonico non è mai NULL i due casi non
     // coincidono più: un articolo nasce a zero, e la cella lo dice.
-    if (replacedArticle) {
-      // Come i prezzi: il costo segue il nuovo articolo.
-      line.controls.unitCost.setValue(
-        summary.purchasePrice != null
-          ? this.costFieldValue(summary.purchasePrice.amountMinor, line)
-          : '',
-      );
-    } else if (!line.controls.unitCost.value.trim() && summary.purchasePrice != null) {
-      line.controls.unitCost.setValue(this.costFieldValue(summary.purchasePrice.amountMinor, line));
-    }
-    if (!line.controls.discountPercent.value.trim()) {
-      const supplierDiscount = this.selectedSupplier()?.supplierDiscount?.trim();
-      if (supplierDiscount) {
-        line.controls.discountPercent.setValue(supplierDiscount, { emitEvent: false });
+    // ⚠️ Il costo canonico NON è un controllo: vive in una WeakMap chiavata
+    // sul FormControl, e `costFieldValue` scrive solo la VISTA. Scrivendo il
+    // valore del risolutore senza `rememberCostNet`, il netto con la coda
+    // dello scorporo si perderebbe al primo salvataggio — fino a un centesimo
+    // per riga, in silenzio (§sei decimali).
+    const costoNetto = valori.costoUnitarioNettoMinor;
+    const scriviCosto = (): void => {
+      const mostrato = this.costFieldValue(costoNetto!, line);
+      line.controls.unitCost.setValue(mostrato);
+      // Il canonico si RICORDA insieme al testo mostrato: e' quel testo che
+      // ne decide la validita' (`shown === control.value`), e senza il ricordo
+      // il salvataggio ricadrebbe sul parse dei due decimali a schermo.
+      this.rememberCostNet(line.controls.unitCost, costoNetto!, mostrato);
+    };
+    if (costoNetto !== undefined) {
+      // Come i prezzi: sulla sostituzione il costo segue il nuovo articolo;
+      // su una riga gia' compilata si riempie solo il vuoto.
+      if (replacedArticle || !line.controls.unitCost.value.trim()) {
+        scriviCosto();
       }
     }
-    // NON da `summary.supplierSku`: da quando la conferma non filtra per
-    // fornitore, quel campo è il primo collegamento in ordine
-    // deterministico — il codice di un fornitore qualsiasi. Vedi
-    // `supplierCodeForDocumentLine`.
-    const supplierSku = supplierCodeForDocumentLine({
-      linkedWith,
-      ofDocumentSupplier: this.supplierSkuByVariantId().get(value),
-    });
-    if (supplierSku) {
-      line.controls.supplierSku.setValue(supplierSku, { emitEvent: false });
-    }
+    // Il codice fornitore lo scrive il risolutore, sopra, con la stessa
+    // regola di prima (`supplierCodeForDocumentLine`): NON da
+    // `summary.supplierSku`, che da quando la conferma non filtra per
+    // fornitore è il primo collegamento in ordine deterministico — cioè il
+    // codice di un fornitore qualsiasi su un documento indirizzato a un
+    // fornitore preciso. Le due fonti (digitato e di testata) arrivano dal
+    // contesto.
+    void value;
     this.syncLineFieldAccess();
     this.markFormDirty();
   }
@@ -4110,8 +4306,14 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           line.controls.articleCode.setValue(summary.articleCode, { emitEvent: false });
           line.controls.sku.setValue(summary.sku, { emitEvent: false });
           line.controls.barcode.setValue(summary.barcode ?? '', { emitEvent: false });
-          const label = summary.productName || summary.title;
-          line.controls.productName.setValue(label, { emitEvent: false });
+          // ⛔ Qui c'era `summary.productName || summary.title`: SECONDA
+          // occorrenza in scrittura del ripiego vietato, sulla stessa riga che
+          // il richiamo aveva appena scritto col nome canonico. Il titolo
+          // CONTIENE la variante, quindi questa riga la rimetteva dentro il
+          // nome un istante dopo — ed e' il rientro dal pannello articolo,
+          // cioe' il gesto piu' comune dopo aver corretto un'anagrafica.
+          line.controls.productName.setValue(summary.productName, { emitEvent: false });
+          line.controls.variantLabel.setValue(summary.variantLabel ?? '', { emitEvent: false });
           if (!line.controls.sellingPrice.value.trim() && summary.sellingPrice.amountMinor > 0) {
             this.setSalesPrice(line, 'sellingPrice', summary.sellingPrice.amountMinor);
           }
@@ -4303,6 +4505,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         continue;
       }
       this.lines.push(this.createLineFromSupplierOrderLine(orderLine, remaining));
+      // La riga nasce agganciata: passa dal contratto comune come le altre.
+      this.allineaRigaAgganciata(this.lines.length - 1);
       added += 1;
     }
 
@@ -4334,6 +4538,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       barcode: this.fb.control(''),
       supplierSku: this.fb.control(this.supplierSkuByVariantId().get(orderLine.variantId) ?? ''),
       productName: this.fb.control(orderLine.sku),
+      // L'etichetta della variante: la scrive il richiamo articolo. Vuota qui,
+      // perché la riga dell'ordine fornitore non porta la variante.
+      variantLabel: this.fb.control(''),
       description: this.fb.control(orderLine.sku),
       quantity: this.fb.control(quantity, {
         validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
@@ -4412,6 +4619,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           for (const { line, variant } of rows) {
             this.lines.push(this.createLineFromCsv(line, variant));
             if (variant) {
+              // Solo quando il CSV ha davvero agganciato un articolo: una riga
+              // senza variante non ha un'anagrafica da cui prendere niente.
+              this.allineaRigaAgganciata(this.lines.length - 1);
               linked += 1;
             }
           }
@@ -4445,6 +4655,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           (variant ? (this.supplierSkuByVariantId().get(variant.variantId) ?? '') : ''),
       ),
       productName: this.fb.control(productName),
+      // L'etichetta della variante: la scrive il richiamo articolo. Vuota qui,
+      // perché il CSV non ha una colonna variante.
+      variantLabel: this.fb.control(''),
       description: this.fb.control(productName),
       quantity: this.fb.control(line.quantity, {
         validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
@@ -4985,6 +5198,12 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         sku: line.sku ?? '',
         productName: line.description,
         description: line.description,
+        // L'etichetta FOTOGRAFATA sul documento, non quella dell'anagrafica di
+        // adesso: il modello la portava già e questa maschera la scartava.
+        // Vuota sulle righe salvate prima della colonna — lì la variante è
+        // impastata nella descrizione, e riscriverla significherebbe
+        // riscrivere un documento già emesso.
+        variantLabel: line.variantLabel ?? '',
         quantity: line.quantity,
         // Con costi ivati la colonna mostra il valore digitato (lordo), non
         // il netto canonico persistito in unitPrice (§11.4).
@@ -5039,6 +5258,18 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       barcode: this.fb.control(''),
       supplierSku: this.fb.control(''),
       productName: this.fb.control(''),
+      /**
+       * L'etichetta della VARIANTE: «M / Rosso». Colonna sua, non impastata
+       * dentro il nome.
+       *
+       * ⛔ **Non entra nel payload**, e non è una dimenticanza: su
+       * `document_lines` il salvataggio è un upsert per id e il server la
+       * compone da sé con lo snapshot (`document-line-variant-snapshot.util`).
+       * Il server ha la whitelist attiva: mandarla farebbe rifiutare il
+       * salvataggio con «property should not exist», che questa maschera
+       * traduce in un generico «controlla i dati evidenziati».
+       */
+      variantLabel: this.fb.control(''),
       description: this.fb.control(''),
       quantity: this.fb.control(1, {
         validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],

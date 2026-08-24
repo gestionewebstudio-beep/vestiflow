@@ -811,6 +811,15 @@
                             ></span>
                           </th>
                         }
+                        @if (isLineColumnVisible('variantLabel')) {
+                          <th scope="col" [style.width]="lineColumnWidth('variantLabel')">
+                            Variante
+                            <span
+                              appTableColumnResize
+                              (resized)="onLineColumnResize('variantLabel', $event)"
+                            ></span>
+                          </th>
+                        }
                         @if (isLineColumnVisible('description')) {
                           <th scope="col" [style.width]="lineColumnWidth('description')">
                             Descrizione
@@ -1315,6 +1324,16 @@
                                 (lineRowRetreat)="lineFocus.rowUp(i, 'product')"
                                 (escapePressed)="onLineSearchEscape(i)"
                               />
+                            </td>
+                          }
+                          @if (isLineColumnVisible('variantLabel')) {
+                            <td
+                              class="doc-form__cell doc-form__cell--readonly"
+                              data-label="Variante"
+                            >
+                              <span class="doc-form__readonly-cell" [title]="variantLabelOf(i)">{{
+                                variantLabelOf(i) || '—'
+                              }}</span>
                             </td>
                           }
                           @if (isLineColumnVisible('description')) {

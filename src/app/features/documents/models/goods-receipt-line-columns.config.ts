@@ -23,7 +23,14 @@ export const GOODS_RECEIPT_LINE_COLUMNS: readonly TableColumnDef[] = [
     defaultWidthPx: 96,
     minWidthPx: 72,
   },
-  { id: 'product', label: 'Nome prodotto', defaultWidthPx: 320, minWidthPx: 160 },
+  { id: 'product', label: 'Nome prodotto', defaultWidthPx: 280, minWidthPx: 160 },
+  // La VARIANTE accanto al nome, non dentro: «M / Rosso».
+  //
+  // ⛔ L'id e' `variantLabel`, NON `variant`: quello e' bruciato dall'alias
+  // legacy in `normalizeGoodsReceiptColumnId` (in fondo a questo file), che lo
+  // rimappa su `product`. Una colonna nuova cosi' chiamata verrebbe dirottata
+  // sul nome prodotto a ogni lettura delle preferenze, senza un errore.
+  { id: 'variantLabel', label: 'Variante', defaultWidthPx: 120, minWidthPx: 80 },
   {
     id: 'description',
     label: 'Descrizione',
@@ -126,6 +133,7 @@ export const GOODS_RECEIPT_LINE_PRESETS: TableViewPresetMap = {
     'sku',
     'barcode',
     'product',
+    'variantLabel',
     'quantity',
     'stockAvailable',
     'unitOfMeasure',
@@ -141,6 +149,7 @@ export const GOODS_RECEIPT_LINE_PRESETS: TableViewPresetMap = {
     'sku',
     'barcode',
     'product',
+    'variantLabel',
     'poOrdered',
     'poReceived',
     'poRemaining',
@@ -158,19 +167,29 @@ export const GOODS_RECEIPT_LINE_PRESETS: TableViewPresetMap = {
     'barcode',
     'supplierCode',
     'product',
+    'variantLabel',
     'quantity',
     'unitCost',
     'vat',
     'lineTotal',
     'actions',
   ],
-  [PresetId.Accountant]: ['sku', 'product', 'quantity', 'unitCost', 'vat', 'lineTotal'],
-  [PresetId.Analysis]: ['sku', 'product', 'quantity', 'unitCost', 'lineTotal'],
+  [PresetId.Accountant]: [
+    'sku',
+    'product',
+    'variantLabel',
+    'quantity',
+    'unitCost',
+    'vat',
+    'lineTotal',
+  ],
+  [PresetId.Analysis]: ['sku', 'product', 'variantLabel', 'quantity', 'unitCost', 'lineTotal'],
   [PresetId.Operational]: [
     'articleCode',
     'sku',
     'barcode',
     'product',
+    'variantLabel',
     'quantity',
     'stockAvailable',
     'unitOfMeasure',

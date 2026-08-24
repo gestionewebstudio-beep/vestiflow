@@ -990,6 +990,8 @@ describe('GoodsReceiptFormComponent', () => {
       readonly commitSkuLookup: (index: number) => void;
       readonly lineUnitOfMeasure: (index: number) => string;
       readonly commitSupplierSkuLookup: (index: number) => void;
+      /** L'ingresso del richiamo articolo: il gesto che il contratto governa. */
+      readonly onVariantSelect: (index: number, variantId: string | null) => void;
       readonly form: { controls: Record<string, { setValue: (v: unknown) => void }> };
       readonly lines: {
         at: (i: number) => {
@@ -1060,6 +1062,82 @@ describe('GoodsReceiptFormComponent', () => {
       sku: 'MAG-M',
       sellingPrice: { amountMinor: 1000, currencyCode: 'EUR' },
     };
+
+    /**
+     * ⭐ **Sesto e ultimo consumer prima del banco** (`03c` §5).
+     *
+     * L'Arrivo merce era l'ultimo per una ragione precisa: e' l'unica maschera
+     * dove il risolutore poteva essere **scavalcato**. Tre copie della stessa
+     * scrittura, due costruttori di riga paralleli, e un effect che riscriveva
+     * i codici in modo asincrono e non ordinato.
+     */
+    describe('il richiamo articolo passa dal risolutore comune', () => {
+      it('⛔ il nome non porta la variante, che ha la sua colonna', async () => {
+        const { form } = await apri({
+          catalogo: [
+            {
+              ...ARTICOLO,
+              productName: 'Maglia',
+              title: 'Maglia — M / Rosso',
+              variantLabel: 'M / Rosso',
+            },
+          ],
+        });
+
+        form.onVariantSelect(0, 'var-1');
+
+        const riga = form.lines.at(0).controls;
+        expect(riga['productName']!.value).toBe('Maglia');
+        expect(riga['productName']!.value).not.toContain('—');
+        expect(riga['variantLabel']!.value).toBe('M / Rosso');
+      });
+
+      it('⛔ nome vuoto in anagrafica: la riga resta vuota, non prende il titolo', async () => {
+        const { form } = await apri({
+          catalogo: [
+            {
+              ...ARTICOLO,
+              variantId: 'var-senza-nome',
+              sku: 'FEL-L',
+              // L'unica forma di dato che esegue il ramo di ripiego: era
+              // scritto in DUE punti su tre, e nessun fixture lo percorreva.
+              productName: '',
+              title: 'Felpa / L / Blu',
+              variantLabel: 'L / Blu',
+            },
+          ],
+        });
+
+        form.onVariantSelect(0, 'var-senza-nome');
+
+        const riga = form.lines.at(0).controls;
+        expect(riga['productName']!.value).toBe('');
+        expect(riga['productName']!.value).not.toContain('Felpa');
+        expect(riga['variantLabel']!.value).toBe('L / Blu');
+      });
+
+      it('⛔ articolo senza unità: la cella resta vuota, non scrive «pz» nel documento', async () => {
+        const { form } = await apri({
+          catalogo: [{ ...ARTICOLO, variantId: 'var-metri', sku: 'TES-1' }],
+        });
+
+        form.onVariantSelect(0, 'var-metri');
+
+        // Il ripiego cablato stava nell'EFFECT e il campo si PERSISTE: un
+        // articolo venduto a metri arrivava a documento con «pz» dentro.
+        expect(form.lines.at(0).controls['unitOfMeasure']!.value).toBe('');
+      });
+
+      it("l'unità dell'articolo arriva sulla riga quando c'è", async () => {
+        const { form } = await apri({
+          catalogo: [{ ...ARTICOLO, variantId: 'var-kg', sku: 'KG-1', unitOfMeasure: 'kg' }],
+        });
+
+        form.onVariantSelect(0, 'var-kg');
+
+        expect(form.lines.at(0).controls['unitOfMeasure']!.value).toBe('kg');
+      });
+    });
 
     it('agganciando per SKU vale il codice del fornitore della testata, non quello del riepilogo', async () => {
       const { form, fixture } = await apri({

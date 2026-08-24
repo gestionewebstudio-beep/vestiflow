@@ -20,6 +20,8 @@ import type { VariantSummary } from '@domain/products/models/variant-summary.mod
  */
 export interface GoodsReceiptLineCardControls {
   readonly productName: FormControl<string>;
+  /** L'etichetta della variante, fotografata: «M / Rosso». Vuota se non ne ha. */
+  readonly variantLabel: FormControl<string>;
   readonly sku: FormControl<string>;
   readonly barcode: FormControl<string>;
   readonly quantity: FormControl<number>;
