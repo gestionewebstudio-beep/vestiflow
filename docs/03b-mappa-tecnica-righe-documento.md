@@ -1231,6 +1231,49 @@ Conteggi di riferimenti nei file (`.ts` e `.html` insieme), definizioni di colon
 
 ---
 
+## 13-quater. Rinvio organizzativo e infrastruttura condivisa — la Rettifica _(23/08/2026)_
+
+> **Rettifica di magazzino: adozione dell'infrastruttura comune APPROVATA. Revisione
+> delle sue regole di dominio ancora RINVIATA.**
+
+Sono due cose, e tenerle unite costa una duplicazione.
+
+`03c` §5 mette la Rettifica in riga 2 come «rinviata al suo blocco, non adottata qui».
+Quel rinvio è **organizzativo**: riguarda le sue regole di dominio — motivo della
+rettifica, differenze inventariali, il rapporto con l'Inventario fisico — che si
+decidono insieme e non a pezzi.
+
+⛔ **Non riguarda l'infrastruttura che condivide con il Trasferimento**, e trattarlo come
+se la riguardasse produce il difetto peggiore. Misurato adottando il risolutore sul
+Trasferimento:
+
+| Cosa condividono                          |                                                       |
+| ----------------------------------------- | ----------------------------------------------------- |
+| `stock-movement-line-columns.config`      | **lo stesso file**: le colonne di riga sono le stesse |
+| `stock-movement-line-card`                | **lo stesso componente**: la card mobile è la stessa  |
+| il richiamo articolo in `onVariantSelect` | **formula identica carattere per carattere**          |
+| il compositore server                     | `transfer-adjustment-workflow`, uno per tutte e due   |
+
+Aggiungere la colonna Variante al solo Trasferimento avrebbe dato alla Rettifica una
+**colonna sempre vuota**, cioè un peggioramento. Evitarlo scindendo il config avrebbe
+significato **creare apposta una duplicazione nuova per preservare un rinvio
+organizzativo** — e la duplicazione sarebbe rimasta anche dopo che il rinvio fosse
+scaduto.
+
+### La regola generale, che vale oltre questo caso
+
+> **Un rinvio organizzativo non giustifica una duplicazione tecnica.** Quando una
+> maschera rinviata condivide l'infrastruttura con una che si sta migrando, l'adozione
+> del **gesto comune** la segue; il rinvio continua a valere per le sue **decisioni di
+> dominio**.
+
+⭐ Il criterio per distinguerle: se la cosa **ha un nome nel contratto comune**
+(il richiamo articolo, la colonna Variante, la cella di riga) è infrastruttura e segue.
+Se risponde alla domanda «cosa fa questo documento» (perché si rettifica, cosa
+significa una differenza inventariale) è dominio e resta rinviata.
+
+---
+
 ## 14. Domande ancora aperte
 
 - **Costo dell'estrazione** del nucleo comune delle due celle gemelle e della terza cella: stimato, non misurato.
