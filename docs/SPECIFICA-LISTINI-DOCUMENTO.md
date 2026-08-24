@@ -45,10 +45,24 @@ Articolo A    prezzo di vendita 25,00    Listino Ingrosso 18,00
 **Cambiando listino, le righe già presenti si riprezzano tutte** con i nuovi valori
 proposti.
 
-⏸ **Resta da decidere una cosa sola, e va decisa prima di scrivere il codice:** che
-succede a una riga il cui prezzo è stato **modificato a mano**, o **negoziato**. Oggi
-verrebbe sovrascritta in silenzio come le altre — e la riga non registra da dove viene
-il suo prezzo, quindi distinguerla non sarebbe possibile nemmeno volendo. Vedi §6.
+### ✅ Tutte vuol dire TUTTE — deciso il 24/08/2026
+
+> **Anche le righe il cui prezzo è stato modificato a mano o negoziato prendono il nuovo
+> prezzo. Nessuna riga è esente, nessuna eccezione da riconoscere.**
+
+⭐ **È la regola più semplice che esista, ed è il suo pregio.** Cambiare listino significa
+«questo documento si fa a quelle condizioni», e un documento a condizioni miste non è quello
+che l'operatore ha chiesto. La regola alternativa — proteggere le righe toccate a mano —
+richiederebbe alla riga di ricordare **da dove viene** il proprio prezzo, cioè un dato in più
+da mantenere, da salvare e da tenere giusto per sempre. Non esiste oggi, e questa decisione
+evita di doverlo introdurre.
+
+⚠️ **Il costo, e va detto perché ricadrà sull'operatore.** Chi ha trattato un prezzo riga per
+riga e poi cambia listino **perde la trattativa**, e la perde in silenzio. Da qui discende un
+requisito che non è un abbellimento: **il cambio di listino su un documento che ha già righe
+si annuncia prima di applicarlo**, dicendo quante righe verranno riprezzate, con la
+possibilità di rinunciare. È un'azione sensibile nel senso di `regole-gestionale` — riscrive
+in blocco valori economici già inseriti — e le azioni sensibili chiedono conferma.
 
 ---
 
@@ -118,7 +132,7 @@ maschere su otto, e su una delle due solo nella vista mobile.
 | ------------------------------------- | ---------------------- | ------------------------------------------- |
 | Proforma · Fattura · Fatt. accompagn. | ✅ c'è                 | l'unico già su entrambe le viste            |
 | Ordine cliente · Preventivo · DDT     | ⚠️ solo mobile         | da portare su scrivania                     |
-| Scarico manuale                       | ⏸                      | oggi escluso per tipo — confermare          |
+| Scarico manuale                       | ✅ **sì**              | deciso il 24/08 — vedi §5.1                 |
 | Vendita / Reso al banco               | ➕ da mettere          | oggi cablato sul prezzo di vendita          |
 | Ordine fornitore · Arrivo merce       | ⛔ no                  | sono documenti di **costo**, non di vendita |
 | **Trasferimento · Rettifica**         | ⛔ **non applicabile** | vedi sotto                                  |
@@ -128,7 +142,23 @@ loro profilo colonne **non ha un campo prezzo**. È `articleCode · sku · barco
 product · variantLabel · quantity · serials · actions`. Un listino riscrive prezzi, e lì
 non c'è prezzo da riscrivere — la merce si sposta o si corregge, non si vende.
 
-### 5.1 ⭐ Il prezzo Shopify come voce dell'elenco
+### 5.1 ✅ Lo Scarico manuale è dentro — deciso il 24/08/2026
+
+Qui era l'unico ⏸ del perimetro. **Rientra in tutto quello che dice questa specifica**, come
+gli altri tre tipi della sua maschera: selettore in testata, listino proposto dal cliente,
+riprezzamento delle righe, zero mostrato vuoto, scelta conservata al salvataggio.
+
+⚠️ **Quello che lo distingue non c'entra col listino.** Lo Scarico manuale **agisce
+direttamente sulle giacenze e non crea `StockMovement`**: il documento è l'unica evidenza
+dello scarico, e cancellarlo non ripristina la giacenza. È la deroga già scritta in
+`regole-gestionale`, decisa dal cliente, e riguarda il **magazzino** — non i prezzi.
+
+⛔ **Le due cose non vanno confuse.** Un tipo che non lascia traccia a magazzino non è per
+questo un tipo senza economia: le sue righe hanno prezzi come le altre, e un listino le
+riprezza come le altre. Escluderlo dal listino perché «è speciale» sarebbe applicare una
+deroga fuori dal suo perimetro.
+
+### 5.2 ⭐ Il prezzo Shopify come voce dell'elenco
 
 **Idea del proprietario, 24/08/2026: aggiungere il prezzo Shopify come voce del
 selettore**, così per compilare un documento coi prezzi del canale online basta
@@ -146,12 +176,19 @@ cambia il prezzo del canale. Valgono le stesse regole di §3 per lo zero e per l
 
 ## 6. La distanza dal codice di oggi — misurata il 24/08/2026
 
-### Due cose non esistono affatto
+### Due cose non esistono affatto — e vanno entrambe fatte
 
-| Serve                                   | Oggi                                                | Costo                                       |
+Confermate dal proprietario il 24/08: il listino predefinito **va inserito in anagrafica
+cliente**, per potergli assegnare un listino diverso dal prezzo base.
+
+| Serve                                   | Oggi                                                | Da fare                                     |
 | --------------------------------------- | --------------------------------------------------- | ------------------------------------------- |
 | **listino predefinito sul cliente**     | ⛔ nessun campo, né nello schema né nel client      | colonna nuova + campo in anagrafica cliente |
 | **la scelta del listino sul documento** | ⛔ nessuna colonna su `documents` né `sales_orders` | colonna nuova su entrambe                   |
+
+⭐ **La colonna del cliente memorizza una SCELTA, non un prezzo**, e la distinzione conta: è
+il nome del listino da proporre, non un valore in denaro. Cambiare domani il prezzo di quel
+listino non tocca il cliente, e non tocca i documenti già emessi.
 
 ⚠️ **Sono due migration su un database CONDIVISO col collega.** Valgono le regole di
 `regole-qualita`: SQL scritto a mano, `npm run prisma:deploy`, mai `migrate dev`. E
@@ -170,20 +207,31 @@ una colonna che nel database non c'è manda in errore ogni lettura di quella tab
 | 6   | zero e assente indistinguibili sul documento                            | §3 per lo zero  |
 | 7   | la coda decimale si perde al primo passaggio nel campo                  | difetto a sé    |
 
-### ⏸ Le tre domande ancora aperte
+### ⏸ Le domande aperte — due chiuse il 24/08, una resta
 
-**A. Le righe col prezzo modificato a mano.** Cambiando listino si riprezzano «tutte le
-righe». Anche quelle il cui prezzo è stato negoziato? Oggi verrebbero sovrascritte in
-silenzio, e **la riga non registra da dove viene il suo prezzo** — quindi proteggerle
-richiede prima di registrarlo.
+✅ **A — chiusa.** «Tutte le righe» vuol dire tutte, comprese quelle trattate a mano. Vedi
+§2. Ne discende il requisito della conferma prima di riprezzare.
 
-**B. Il listino ASSENTE quando un listino è scelto.** §3 decide lo **zero**. Ma se
-l'articolo non ha proprio un valore per quel listino (colonna vuota): la riga vale zero
-come per lo zero, oppure ripiega sul prezzo di vendita, oppure resta senza prezzo e si
-segnala? Sono tre risposte diverse, e oggi le maschere ne danno quattro.
+✅ **C — chiusa.** Lo Scarico manuale è dentro il perimetro. Vedi §5.1.
 
-**C. Lo Scarico manuale.** È l'unico dei quattro tipi dell'Ordine cliente escluso dal
-listino. Non c'è una ragione scritta: va confermato o tolto.
+⏸ **B — resta aperta, ed è l'ultima.** **Il listino ASSENTE quando un listino è scelto.**
+§3 decide lo **zero**: campo vuoto a video, zero nell'economia, nessun ripiego. Ma se
+l'articolo non ha proprio un valore per quel listino — la colonna è `null`, non `0` — le
+risposte possibili sono tre, e non sono equivalenti:
+
+| Risposta                                | Cosa dice all'operatore                                      | Rischio                                                           |
+| --------------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------- |
+| **vale zero**, come lo zero esplicito   | «in questo listino l'articolo non si fa pagare»              | regala merce per una colonna mai compilata                        |
+| **ripiega** sul prezzo di vendita       | «per questo articolo il listino non c'è, uso quello normale» | un documento a condizioni miste senza che si veda                 |
+| **resta senza prezzo** e si **segnala** | «questo articolo in questo listino non è previsto: decidi»   | costringe a intervenire riga per riga, ma nessun valore inventato |
+
+⚠️ **Vale la pena decidere questa insieme allo zero, non dopo**, perché oggi zero e assente
+sono indistinguibili sul documento salvato (difetto 6 qui sopra): finché lo restano, qualunque
+regola si scriva non è verificabile a posteriori.
+
+⭐ **La terza è quella che non inventa niente**, ed è coerente con la scelta già fatta al §3
+di non far scattare ripieghi quando un listino è stato scelto — ma costa un intervento
+all'operatore, e questa è la parte da soppesare.
 
 ### E due documenti normativi da allineare
 
