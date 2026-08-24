@@ -90,7 +90,6 @@ import {
   lineColumnQuotaWidth,
   sumVisibleLineColumnsPx,
 } from '@shared/table-columns/line-column-quota.util';
-import { TableColumnResizeDirective } from '@shared/directives/table-column-resize.directive';
 import { formatItalianInputDate } from '@shared/utils/calendar.util';
 
 import {
@@ -124,9 +123,6 @@ import type {
   ContestoRichiamoArticolo,
   PolicyRichiamoArticolo,
 } from '@domain/documents/models/document-line-article.model';
-import { DocumentLineCodeCellComponent } from '@domain/documents/components/document-line-code-cell/document-line-code-cell.component';
-import { DocumentLineSelectCellComponent } from '@domain/documents/components/document-line-select-cell/document-line-select-cell.component';
-import { DocumentLineUnitCellComponent } from '@domain/documents/components/document-line-unit-cell/document-line-unit-cell.component';
 import { SupplierOrderLineCardComponent } from './components/supplier-order-line-card/supplier-order-line-card.component';
 import { UnitOfMeasureManagerDialogComponent } from '@domain/products/components/unit-of-measure-manager-dialog/unit-of-measure-manager-dialog.component';
 import type { UnitOfMeasureOption } from '@domain/products/models/unit-of-measure-option.model';
@@ -136,7 +132,6 @@ import {
   vatCodeSelectOption,
   vatOptionsIncludingSelected,
 } from '@domain/documents/utils/document-vat-options.util';
-import { DocumentLineProductCellComponent } from '@domain/documents/components/document-line-product-cell/document-line-product-cell.component';
 import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
 import { findVariantSummaryById } from '@domain/products/utils/variant-summary-search.util';
 
@@ -176,13 +171,11 @@ import {
   mapSupplierFormToInput,
   resetSupplierFormGroup,
 } from '@domain/suppliers/utils/supplier-form.util';
-import { FirstClickSelectsDirective } from '@shared/directives/first-click-selects.directive';
-import { CdkDrag, CdkDragHandle, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
+import { CdkDrag, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
 import { documentSearchLaunchTerm } from '@domain/documents/utils/document-search-launch-term.util';
 import { AttachmentsPanelComponent } from '@shared/components/attachments-panel/attachments-panel.component';
 import { computeDocumentTotals } from '@domain/documents/utils/document-totals.util';
 import { trailingEmptyLineIndices } from '@domain/documents/utils/trailing-empty-lines.util';
-import { PriceModeMenuComponent } from '@domain/documents/components/price-mode-menu/price-mode-menu.component';
 
 type SubmitState =
   | { readonly status: 'idle' }
@@ -265,11 +258,8 @@ function todayIsoDate(): string {
     DocumentLineHeadComponent,
     DocumentLineRowComponent,
     AttachmentsPanelComponent,
-    PriceModeMenuComponent,
     CdkDropList,
     CdkDrag,
-    CdkDragHandle,
-    FirstClickSelectsDirective,
     ReactiveFormsModule,
     BackButtonComponent,
     ButtonComponent,
@@ -282,17 +272,12 @@ function todayIsoDate(): string {
     DocumentSeriesManagerDialogComponent,
     DocumentChronologyWarningDialogComponent,
     TableColumnPickerComponent,
-    TableColumnResizeDirective,
     SupplierFormFieldsComponent,
     SlidePanelComponent,
     ProductFormComponent,
     DocumentMobilePanelComponent,
-    DocumentLineCodeCellComponent,
-    DocumentLineSelectCellComponent,
-    DocumentLineUnitCellComponent,
     SupplierOrderLineCardComponent,
     UnitOfMeasureManagerDialogComponent,
-    DocumentLineProductCellComponent,
     DocumentProductSearchPanelComponent,
     ConfirmDialogComponent,
     EditLockBannerComponent,

@@ -127,14 +127,13 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
 import { formatItalianInputDate } from '@shared/utils/calendar.util';
 
-import { CdkDrag, CdkDragHandle, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
+import { CdkDrag, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
 import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import {
   lineColumnQuotaWidth,
   sumVisibleLineColumnsPx,
 } from '@shared/table-columns/line-column-quota.util';
-import { TableColumnResizeDirective } from '@shared/directives/table-column-resize.directive';
 import { DocumentLineSortStore } from '@domain/documents/state/document-line-sort.store';
 import { sortByValue, type SortValueKind } from '@shared/utils/sort-values.util';
 import {
@@ -145,9 +144,6 @@ import {
 import { SalesDocumentLineCardComponent } from '@domain/documents/components/sales-document-line-card/sales-document-line-card.component';
 import { ViewportService } from '@core/services/viewport.service';
 import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
-import { DocumentLineCodeCellComponent } from '@domain/documents/components/document-line-code-cell/document-line-code-cell.component';
-import { DocumentLineProductCellComponent } from '@domain/documents/components/document-line-product-cell/document-line-product-cell.component';
-import { DocumentLineSelectCellComponent } from '@domain/documents/components/document-line-select-cell/document-line-select-cell.component';
 import { DocumentCodeLookupStore } from '@domain/documents/state/document-code-lookup.store';
 import { DocumentCodeLookupService } from '@domain/documents/services/document-code-lookup.service';
 import { DocumentProductSuggestStore } from '@domain/documents/state/document-product-suggest.store';
@@ -156,7 +152,6 @@ import type { DocumentLineCodeField } from '@domain/documents/utils/document-cod
 import type { LineCodeChoice } from '@domain/documents/models/document-line-code-choice.model';
 import { DocumentIncludePanelComponent } from '@domain/documents/components/document-include-panel/document-include-panel.component';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
-import { PriceModeMenuComponent } from '@domain/documents/components/price-mode-menu/price-mode-menu.component';
 import {
   IncludeSourceKind,
   conversionReferenceLine,
@@ -202,7 +197,6 @@ import { DocumentCountersService } from '@domain/documents/services/document-cou
 // fa il risolutore comune. Qui resta il solo anello legacy (`ensureLineVatCode`),
 // che è di questa maschera e il risolutore non conosce.
 import { toVatCodeById } from './utils/vat-code-resolution.util';
-import { FirstClickSelectsDirective } from '@shared/directives/first-click-selects.directive';
 import { trailingEmptyLineIndices } from '@domain/documents/utils/trailing-empty-lines.util';
 
 const PROFORMA_DISCLAIMER = 'Documento non fiscale / Proforma non valida ai fini IVA.';
@@ -264,7 +258,6 @@ type ConversionPrefill = CreateDocumentBody & {
   imports: [
     DocumentLineHeadComponent,
     DocumentLineRowComponent,
-    FirstClickSelectsDirective,
     InlineBannerComponent,
     ReactiveFormsModule,
     BackButtonComponent,
@@ -276,16 +269,10 @@ type ConversionPrefill = CreateDocumentBody & {
     DateInputComponent,
     DocumentIncludePanelComponent,
     DocumentMobilePanelComponent,
-    PriceModeMenuComponent,
-    DocumentLineCodeCellComponent,
-    DocumentLineProductCellComponent,
-    DocumentLineSelectCellComponent,
     DocumentProductSearchPanelComponent,
     SalesDocumentLineCardComponent,
     TableColumnPickerComponent,
-    TableColumnResizeDirective,
     CdkDrag,
-    CdkDragHandle,
     CdkDropList,
     SelectMenuComponent,
     EmptyStateComponent,

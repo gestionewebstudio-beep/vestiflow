@@ -137,11 +137,9 @@ import { ErrorStateComponent } from '@shared/components/error-state/error-state.
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
-import { HoverTooltipComponent } from '@shared/components/hover-tooltip/hover-tooltip.component';
 import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { TableViewId } from '@shared/table-columns/table-column.model';
-import { TableColumnResizeDirective } from '@shared/directives/table-column-resize.directive';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
 import { formatItalianInputDate, toIsoDateLocal } from '@shared/utils/calendar.util';
 
@@ -152,12 +150,8 @@ import { ProductFormComponent } from '@domain/products/product-form.component';
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import type { VariantByCodeDto } from '@domain/products/models/product.dto';
 import { GoodsReceiptLineCardComponent } from './components/goods-receipt-line-card/goods-receipt-line-card.component';
-import { DocumentLineCodeCellComponent } from '@domain/documents/components/document-line-code-cell/document-line-code-cell.component';
 import { DocumentCounterpartyRefComponent } from '@domain/documents/components/document-counterparty-ref/document-counterparty-ref.component';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
-import { DocumentLineProductCellComponent } from '@domain/documents/components/document-line-product-cell/document-line-product-cell.component';
-import { DocumentLineSelectCellComponent } from '@domain/documents/components/document-line-select-cell/document-line-select-cell.component';
-import { DocumentLineUnitCellComponent } from '@domain/documents/components/document-line-unit-cell/document-line-unit-cell.component';
 import { DocumentPrintActionsComponent } from '@domain/documents/components/document-print-actions/document-print-actions.component';
 import { UnitOfMeasureManagerDialogComponent } from '@domain/products/components/unit-of-measure-manager-dialog/unit-of-measure-manager-dialog.component';
 import type { UnitOfMeasureOption } from '@domain/products/models/unit-of-measure-option.model';
@@ -241,11 +235,9 @@ import {
   lineDraftPersistableForExplicitSave,
   type GoodsReceiptLineDraft,
 } from './utils/goods-receipt-line-state.util';
-import { FirstClickSelectsDirective } from '@shared/directives/first-click-selects.directive';
-import { CdkDrag, CdkDragHandle, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
+import { CdkDrag, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
 import { documentSearchLaunchTerm } from '@domain/documents/utils/document-search-launch-term.util';
 import { trailingEmptyLineIndices } from '@domain/documents/utils/trailing-empty-lines.util';
-import { PriceModeMenuComponent } from '@domain/documents/components/price-mode-menu/price-mode-menu.component';
 
 type SubmitState =
   | { readonly status: 'idle' }
@@ -310,10 +302,7 @@ const SALES_PRICE_FIELDS: readonly SalesPriceField[] = [
   imports: [
     CdkDropList,
     CdkDrag,
-    CdkDragHandle,
-    FirstClickSelectsDirective,
     InlineBannerComponent,
-    PriceModeMenuComponent,
     ReactiveFormsModule,
     RouterLink,
     BackButtonComponent,
@@ -329,15 +318,9 @@ const SALES_PRICE_FIELDS: readonly SalesPriceField[] = [
     ErrorStateComponent,
     TableSkeletonComponent,
     TableColumnPickerComponent,
-    HoverTooltipComponent,
-    TableColumnResizeDirective,
     DocumentAttachmentsPanelComponent,
     GoodsReceiptLineCardComponent,
     DocumentCounterpartyRefComponent,
-    DocumentLineCodeCellComponent,
-    DocumentLineProductCellComponent,
-    DocumentLineSelectCellComponent,
-    DocumentLineUnitCellComponent,
     DocumentLineHeadComponent,
     DocumentLineRowComponent,
     DocumentPrintActionsComponent,

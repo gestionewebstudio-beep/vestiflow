@@ -93,13 +93,11 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import { StockMovementLineCardComponent } from '@domain/documents/components/stock-movement-line-card/stock-movement-line-card.component';
-import { DocumentLineProductCellComponent } from '@domain/documents/components/document-line-product-cell/document-line-product-cell.component';
 import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
 import { DocumentProductSuggestStore } from '@domain/documents/state/document-product-suggest.store';
 import { DocumentCodeLookupStore } from '@domain/documents/state/document-code-lookup.store';
 import { DocumentCodeLookupService } from '@domain/documents/services/document-code-lookup.service';
-import { DocumentLineCodeCellComponent } from '@domain/documents/components/document-line-code-cell/document-line-code-cell.component';
-import { CdkDrag, CdkDragHandle, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
+import { CdkDrag, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
 import { DocumentLineSortStore } from '@domain/documents/state/document-line-sort.store';
 import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
@@ -108,7 +106,6 @@ import {
   lineColumnQuotaWidth,
   sumVisibleLineColumnsPx,
 } from '@shared/table-columns/line-column-quota.util';
-import { TableColumnResizeDirective } from '@shared/directives/table-column-resize.directive';
 import {
   MOVEMENT_LINE_FOCUS_FIELDS,
   STOCK_MOVEMENT_LINE_COLUMNS,
@@ -132,7 +129,6 @@ import { DocumentService } from '@domain/documents/services/document.service';
 import { DocumentNumberingStore } from '@domain/documents/state/document-numbering.store';
 import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
 import { parseSerialNumbersText } from '@domain/documents/utils/serial-numbers-input.util';
-import { FirstClickSelectsDirective } from '@shared/directives/first-click-selects.directive';
 import { trailingEmptyLineIndices } from '@domain/documents/utils/trailing-empty-lines.util';
 
 type SubmitState =
@@ -176,7 +172,6 @@ type MovementCodeField = Extract<DocumentLineCodeField, 'articleCode' | 'sku' | 
   imports: [
     DocumentLineHeadComponent,
     DocumentLineRowComponent,
-    FirstClickSelectsDirective,
     InlineBannerComponent,
     ReactiveFormsModule,
     BackButtonComponent,
@@ -192,12 +187,8 @@ type MovementCodeField = Extract<DocumentLineCodeField, 'articleCode' | 'sku' | 
     SelectMenuComponent,
     StockMovementLineCardComponent,
     CdkDrag,
-    CdkDragHandle,
     CdkDropList,
-    DocumentLineCodeCellComponent,
     TableColumnPickerComponent,
-    TableColumnResizeDirective,
-    DocumentLineProductCellComponent,
     DocumentProductSearchPanelComponent,
     EmptyStateComponent,
     ErrorStateComponent,
