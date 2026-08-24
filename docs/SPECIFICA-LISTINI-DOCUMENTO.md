@@ -422,17 +422,35 @@ non un punto aperto da riaprire.
 **minima** necessaria. Il database è condiviso col collega, e vale `regole-qualita` — SQL a
 mano, `prisma:deploy`, schema+migration+deploy insieme o per niente.
 
-### E i documenti normativi da allineare
+### ✅ E i due documenti che sembravano divergere NON divergono
 
-| Documento                       | Cosa dice oggi                                     | Va portato a                           |
-| ------------------------------- | -------------------------------------------------- | -------------------------------------- |
-| `CONTRATTO-COMUNE-DOCUMENTI`    | il prezzo mancante vale **0,00**                   | §3 e §3.1                              |
-| `03c-contratto-risolutore-riga` | `null` = **campo vuoto** + segnalazione (riga 384) | §3.1: vuoto **e** economicamente **0** |
+⛔ **Qui c’era scritto che `CONTRATTO-COMUNE-DOCUMENTI` e `03c` si contraddicevano** — uno
+«il prezzo mancante vale 0,00», l’altro «campo vuoto» — e che andavano riscritti tutti e
+due. **Era una lettura sbagliata, corretta dal proprietario il 24/08.**
 
-⛔ **Non sono due sfumature della stessa frase.** `03c` fa oggi coincidere «cella vuota» con
-«nessun valore», mentre la decisione recente dice **cella vuota con valore zero**. Finché quel
-contratto dice l'altra cosa, chi implementa il risolutore ha due fonti che si contraddicono e
-sceglierà quella che legge per prima.
+Non dicono due cose diverse: dicono **la stessa cosa in due momenti diversi.**
+
+```text
+MENTRE SI COMPILA     cella VUOTA   <- e' un SEGNALE: dice su QUALE articolo
+                                       il prezzo non e' impostato
+      | Salva
+      v
+AL SALVATAGGIO        0,00          <- ovviamente: una cella vuota vale zero
+```
+
+⭐ **Il vuoto in maschera non è l’assenza di un valore economico: è il modo di dire
+all’operatore _guarda qui_.** Uno `0,00` scritto in mezzo a righe da 18 e 25 euro si legge
+come un prezzo deciso e scivola via; una cella vuota si vede. È lo stesso ragionamento del §3
+per lo zero, e vale identico per l’assente.
+
+**Quindi non c’è niente da riscrivere in quei due documenti**: `03c` descrive la
+compilazione, `CONTRATTO-COMUNE-DOCUMENTI` il salvataggio, ed erano già d’accordo.
+
+⏸ **Un rinforzo possibile, esplicitamente NON necessario** (proprietario, 24/08): un **bordo
+rosso tenue** sulla cella col prezzo vuoto, per renderla visibile anche a chi scorre in fretta
+una tabella lunga. Resta un’opzione, non un requisito — e se si fa, va pesato il tono:
+`--color-danger` dice «hai sbagliato», e qui l’operatore non ha sbagliato niente.
+`--color-field-waiting` dice «manca ancora qualcosa», che è esattamente il caso.
 
 ⚠️ **E cercata, ma NON trovata**: la vecchia regola «cambio listino → _propone_ il ricalcolo e
 non sovrascrive i prezzi manuali», che andrebbe rimossa in quanto superata dal §2. Cercata in

@@ -677,6 +677,124 @@ Dove il concetto è lo stesso, usare lo stesso componente/comportamento per:
 
 Le eccezioni devono essere espresse come configurazione del documento.
 
+> **Le §20.1–20.6 sono state assorbite il 24/08/2026** da un secondo documento
+> (`SPECIFICA-COMUNE-TESTATE-DOCUMENTI.md`, con la I finale) nato in parallelo a questo.
+> Due file con nomi che differivano per una lettera erano una trappola: chi cercava ne
+> trovava uno a caso. Quel file non esiste più — **questo è l'unico**.
+
+## 20.1 La decisione, in una riga
+
+> **La testata di un documento si dichiara UNA VOLTA. Le due vesti — griglia su
+> scrivania, pannello apribile su schermo compatto — le sceglie il componente comune,
+> non la maschera.**
+
+## 20.2 Il difetto che chiude, misurato
+
+⛔ **Ogni maschera scriveva i propri campi due volte**: una nella griglia desktop, una nel
+pannello mobile. Misurato il 24/08/2026 su otto maschere:
+
+```text
+template delle maschere documento     7.240 righe
+di cui TESTATA                        2.152 righe   → il 30%
+di cui seconda copia della prima      ~1.076 righe  → meta' della testata
+```
+
+Sul **Trasferimento**, la più piccola: 74 righe nel pannello contro 78 nella griglia.
+Stessi quattro campi, stesse opzioni, stessi gestori. Cambiavano solo:
+
+| Cosa           | Mobile              | Desktop               |
+| -------------- | ------------------- | --------------------- |
+| identificativo | `tr-m-origin-error` | `tr-origin-error`     |
+| `aria-label`   | «Location origine»  | «Location di origine» |
+| classi         | `doc-panel__*`      | `doc-form__*`         |
+
+⚠️ **Non erano due viste: era la stessa vista scritta due volte**, nello stesso file, e ogni
+correzione ne raggiungeva una sola.
+
+⭐ **Il test la sorvegliava invece di segnalarla.** Lo spec del Trasferimento asseriva
+`toHaveLength(2)` sull'avviso di numero proposto, col commento «Due copie: testata desktop e
+pannello mobile convivono nel DOM». La doppia scrittura era diventata un requisito.
+
+## 20.3 I pezzi, e come proiettano una volta sola in due posti
+
+| Componente                      | Che cosa fa                                                    |
+| ------------------------------- | -------------------------------------------------------------- |
+| `app-document-header`           | la FORMA: griglia o pannello, e il riepilogo a pannello chiuso |
+| `app-document-header-field`     | UN campo: etichetta, controllo proiettato, messaggio d'errore  |
+| `app-document-mobile-panel`     | il pannello apribile                                           |
+| `app-document-number-field`     | numero + serie                                                 |
+| `app-document-counterparty-ref` | il documento della controparte                                 |
+
+`<ng-content>` si riempie **una volta sola**: due `<ng-content>` nei due rami di un `@if`
+lascerebbero il secondo vuoto. I campi entrano quindi in un `<ng-template>`, e i due rami ne
+montano un'istanza ciascuno.
+
+⚠️ **Le due vesti restano ESCLUSIVE**, non nascoste col foglio di stile — la regola della
+«vista sola viva» (`03` §4.11). Sulla testata vale doppio: con due viste vive gli
+identificativi dei campi non sono univoci, e ogni pannello condiviso può aprirsi in quella che
+non si vede. È la forma tecnica del divieto già scritto al §21 («campi salvati solo da una
+delle due viste»).
+
+**Che cosa resta della maschera**: quali campi ci sono, le opzioni, i gestori, le validazioni,
+il testo delle etichette. Che l'Arrivo merce abbia il fornitore e l'Ordine cliente il cliente
+non è una copia — è un campo diverso, e lo dichiara la maschera.
+
+## 20.4 Quattro regole di campo
+
+**Un campo, un identificativo.** ⛔ Vietati gli identificativi doppi per lo stesso campo: non
+esistono più `tr-*` e `tr-m-*`. Chi scrive `describedBy` cita quello.
+
+**Un campo, un'etichetta.** ⛔ Vietate due `aria-label` per lo stesso campo: «Location
+origine» e «Location di origine» erano lo stesso controllo con due nomi, e un lettore di
+schermo lo annunciava diversamente a seconda della larghezza della finestra.
+
+**Il campo in attesa non è un errore.** Un campo obbligatorio, ancora vuoto, che tiene ferme
+le righe porta `[waiting]` → `--color-field-waiting`. **Non** il rosso dell'errore: aprire un
+documento nuovo non è uno sbaglio dell'operatore (`regole-stile-ui` §5).
+
+**Il messaggio d'errore non ripete il segnaposto.** Il default è «Campo obbligatorio.». Un
+campo che dice «Seleziona un fornitore…» e sotto «Seleziona un fornitore.» è la stessa frase
+due volte a quaranta pixel di distanza. E non si toglie del tutto: al rifiuto il segnaposto
+cambia **solo tinta**, e chi non distingue i colori non vedrebbe accadere nulla.
+
+## 20.5 Stato dell'adozione — 24/08/2026
+
+| Maschera               | Testata comune | Righe prima → dopo |
+| ---------------------- | -------------- | ------------------ |
+| Trasferimento          | ✅             | 162 → 81           |
+| Rettifica / Inventario | ✅             | 164 → 99           |
+| Arrivo merce           | ✅ (2 fasce)   | 414 → 285          |
+| Ordine fornitore       | ✅             | 320 → 212          |
+| Documenti vendita      | ✅ (2 fasce)   | 445 → 285          |
+| Vendita al banco       | ✅             | 150 → 91           |
+| Registrazione fattura  | ✅             | 218 → 177          |
+| **Ordine cliente**     | ⏳ **ultima**  | 598 → —            |
+
+**Sette su otto: 1.711 → 1.149 righe (−33%).**
+
+⚠️ **L'Ordine cliente non è rimasto indietro per caso**: serve quattro tipi documento ed è la
+più grande. Ma è anche quella da cui dipende un difetto funzionale aperto — il campo
+**«Listino» esiste solo nella vista mobile**, quindi da scrivania non si può scegliere il
+listino su un ordine, un preventivo o un DDT. La migrazione lo porta su entrambe le viste.
+
+⚠️ **Manca una NONA maschera**: il Movimento di magazzino
+(`features/inventory/movement-form`) ha la stessa anatomia e la stessa doppia scrittura,
+camuffata con `ariaLabel="Location (testata mobile)"` invece di un identificativo gemello —
+quindi il controllo automatico non la vede. Non è mai entrata nel perimetro.
+
+## 20.6 Come si rigenera la misura
+
+```bash
+# righe di testata per maschera
+grep -c '' src/app/features/**/[a-z-]*form.component.html
+
+# chi ha ancora due scritture: cerca gli identificativi gemelli
+grep -rnE '"[a-z]{2}-m-[a-z-]+"' src/app/features --include=*.html
+```
+
+Il secondo comando è la prova che conta: **un identificativo con `-m-` è una testata ancora
+scritta due volte**.
+
 ---
 
 # 21. Mobile
@@ -698,6 +816,25 @@ Non sono ammessi:
 - Serie diversa;
 - obbligatorietà diversa;
 - campi salvati solo da una delle due viste.
+
+## 21.1 ⏸ Due decisioni aperte — NON colmarle per verosimiglianza
+
+Dichiarate **non decise** dal proprietario il 24/08/2026. Riguardano l'Ordine cliente, cioè il
+riferimento visivo. Finché non sono decise, la testata comune le rende **come sono oggi**: non
+è un'approvazione, è il non aver deciso al posto suo.
+
+**a) Dove vanno numerazione e serie su mobile.** Oggi `app-document-number-field` sta in fondo
+al pannello, dopo la data. Non è stato deciso se sia il suo posto. Il §21 ammette «ordine
+visivo adattato», quindi la collocazione è legittima in astratto — ma quale sia quella giusta
+resta da scegliere.
+
+**b) Il selettore delle giacenze.** Sull'Ordine cliente **impegna** le giacenze; su altri
+documenti lo stesso posto **scarica** o **carica**. Sono tre effetti fisici distinti — e
+infatti sono due colonne distinte nel catalogo (`commitsStock`, `loadsStock`) con etichette
+dal documento — ma **dove il comando vada in testata, e se debba starci**, non è stato deciso.
+
+⛔ **Non sono la stessa domanda**, e confonderle è l'errore da evitare: la prima è di
+collocazione, la seconda è di che cosa il comando fa.
 
 ---
 

@@ -21,7 +21,7 @@ tipo documento»_ — è il piano di lavoro, e a oggi è **a metà**:
 | Pattern          | Stato                                                               |
 | ---------------- | ------------------------------------------------------------------- |
 | riga editabile   | ✅ `document-line-row` + `document-line-card-*`, tutte e sette      |
-| **testata**      | 🔄 `document-header` — vedi `SPECIFICA-COMUNE-TESTATE-DOCUMENTI.md` |
+| **testata**      | 🔄 `document-header` — vedi `SPECIFICA-COMUNE-TESTATE-DOCUMENTO.md` |
 | riepilogo totali | ⏳ classi comuni, markup ripetuto in sei maschere                   |
 | barra azioni     | ⏳ classi comuni, markup ripetuto in otto                           |
 
