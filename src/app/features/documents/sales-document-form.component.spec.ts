@@ -282,7 +282,10 @@ describe('SalesDocumentFormComponent', () => {
 
     expect(screen.queryByText(/12,20/)).toBeNull();
 
-    const priceInput = screen.getByLabelText('Prezzo netto');
+    // ⚠️ L'etichetta e' quella della RIGA COMUNE e dice QUALE riga: quella
+    // locale ripeteva «Prezzo netto»/«Prezzo ivato» su ogni riga, e a voce non
+    // le distingueva. Prevale l'Ordine cliente (decisione del 24/08/2026).
+    const priceInput = screen.getByLabelText('Prezzo riga 1');
     await user.clear(priceInput);
     await user.type(priceInput, '10,00');
 
@@ -298,7 +301,7 @@ describe('SalesDocumentFormComponent', () => {
     const user = userEvent.setup();
     await setup({ pricesIncludeVat: true });
 
-    const priceInput = screen.getByLabelText('Prezzo ivato');
+    const priceInput = screen.getByLabelText('Prezzo riga 1');
     await user.clear(priceInput);
     await user.type(priceInput, '123,97');
 
@@ -313,7 +316,7 @@ describe('SalesDocumentFormComponent', () => {
     const user = userEvent.setup();
     await setup({ pricesIncludeVat: true });
 
-    const priceInput = screen.getByLabelText('Prezzo ivato');
+    const priceInput = screen.getByLabelText('Prezzo riga 1');
     await user.clear(priceInput);
     await user.type(priceInput, '12,20');
 

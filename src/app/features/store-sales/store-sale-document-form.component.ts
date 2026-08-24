@@ -1326,6 +1326,20 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
   }
 
   protected isLineColumnVisible(columnId: string): boolean {
+    // ⛔ **Una colonna è visibile solo se QUESTO documento la dichiara.**
+    //
+    // Le preferenze utente, da sole, su un id che il config non contiene
+    // rispondono «visibile»: la riga comune conosce diciotto colonne, questo
+    // documento ne dichiara meno, e le altre comparivano accese.
+    //
+    // ⚠️ Misurato a schermo il 24/08/2026, e non è teorico: aggiungendo
+    // `loadsStock` al catalogo comune, l'Ordine cliente si è ritrovato DUE
+    // colonne «Imp.» — la sua `commitsStock` e una `loadsStock` che non
+    // dichiara. Il config è la fonte di verità nel momento in cui la riga è
+    // condivisa.
+    if (!STORE_SALE_LINE_COLUMNS.some((column) => column.id === columnId)) {
+      return false;
+    }
     return this.columnPreferences.isColumnVisible(this.lineColumnsView, columnId);
   }
 

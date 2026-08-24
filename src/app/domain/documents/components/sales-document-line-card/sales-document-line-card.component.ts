@@ -26,7 +26,8 @@ export interface SalesDocumentLineCardControls {
   readonly variantLabel: FormControl<string>;
   readonly quantity: FormControl<number>;
   readonly unitPrice: FormControl<string>;
-  readonly discountPercent: FormControl<string>;
+  /** Lo sconto di riga. Il nome e' quello dell'Ordine cliente, che prevale. */
+  readonly discount: FormControl<string>;
   readonly vatCodeId: FormControl<string>;
   readonly loadsStock: FormControl<boolean>;
   /** Riga descrittiva di riferimento (`07` §12): niente quantità sulla card. */

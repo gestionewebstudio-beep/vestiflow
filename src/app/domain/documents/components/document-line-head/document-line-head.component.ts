@@ -58,6 +58,13 @@ export class DocumentLineHeadComponent {
   readonly stockToggleLabel = input('Impegna magazzino');
   readonly stockToggleTooltip = input('');
 
+  /**
+   * L'etichetta della colonna «carica/scarica», distinta da quella di
+   * «impegna»: sono due domande diverse e possono comparire insieme.
+   */
+  readonly loadToggleLabel = input('Carica magazzino');
+  readonly loadToggleTooltip = input('');
+
   /** Modalità prezzo: l'etichetta riflette quella corrente, il menu la cambia. */
   readonly priceLabel = input('Prezzo');
   readonly pricesIncludeVat = input(false);

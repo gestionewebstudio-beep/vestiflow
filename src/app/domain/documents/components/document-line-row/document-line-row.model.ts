@@ -31,6 +31,17 @@ export const DOCUMENT_LINE_COLUMNS = [
   'vat',
   'serials',
   'commitsStock',
+  // ⛔ **`loadsStock` NON è `commitsStock`**, e condividere la cella non
+  // autorizza a condividere l'id: il catalogo rappresenta il SIGNIFICATO della
+  // colonna, non il componente che la disegna.
+  //
+  //   commitsStock   «impegna» — la merce resta, ma è promessa a qualcuno
+  //   loadsStock     «carica» o «scarica» — la merce si muove davvero
+  //
+  // Sono due domande diverse, e un documento può avere l'una senza l'altra: un
+  // ordine cliente impegna e non muove, un DDT muove e non impegna. Fonderle
+  // renderebbe impossibile un documento che le mostri entrambe.
+  'loadsStock',
   'lineTotal',
   'actions',
 ] as const;

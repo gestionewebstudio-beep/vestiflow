@@ -316,6 +316,20 @@
       }
     </td>
   }
+  <!-- ⭐ Stessa CELLA di `commitsStock` — una spunta è una spunta — ma
+       controllo e significato sono altri: qui la merce si muove davvero.
+       L'etichetta la decide il documento (`stockToggleLabel`), perché lo stesso
+       campo dice «Carica giacenze» su un reso e «Scarica» su un DDT. -->
+  @if (isColumnVisible()('loadsStock')) {
+    <td class="doc-form__cell doc-form__cell--check doc-form__col--stock">
+      @if (!view().isReference) {
+        <label class="doc-form__check">
+          <input type="checkbox" formControlName="loadsStock" />
+          <span class="sr-only">{{ loadToggleLabel() }}</span>
+        </label>
+      }
+    </td>
+  }
   @if (isColumnVisible()('lineTotal')) {
     <td
       class="doc-form__cell doc-form__cell--readonly doc-form__cell--computed doc-form__num tabular-nums doc-form__col--total"

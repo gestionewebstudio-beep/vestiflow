@@ -111,6 +111,9 @@ export class DocumentLineRowComponent {
    */
   readonly stockToggleLabel = input('Impegna magazzino');
 
+  /** L'etichetta della spunta «carica/scarica», distinta da «impegna». */
+  readonly loadToggleLabel = input('Carica magazzino');
+
   /** Quante colonne occupa la fascia della riga di riferimento. */
   readonly identityColumnCount = input(1);
 

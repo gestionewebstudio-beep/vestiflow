@@ -105,20 +105,6 @@
     ></span>
   </th>
 }
-@if (isColumnVisible()('variantLabel')) {
-  <!-- Non ordinabile: la variante è un'etichetta composta, e ordinare per
-       «M / Rosso» ordinerebbe per taglia solo dove la taglia è la prima
-       opzione. -->
-  <th scope="col" [style.width]="columnWidth()('variantLabel')">
-    <span class="doc-form__th-label" title="Variante">Variante</span>
-    <span
-      appTableColumnResize
-      [minWidthPx]="columnMinWidth()('variantLabel')"
-      [live]="true"
-      (resizing)="columnResizing.emit({ column: 'variantLabel', widthPx: $event })"
-    ></span>
-  </th>
-}
 @if (isColumnVisible()('product')) {
   <th
     scope="col"
@@ -153,6 +139,20 @@
       [live]="true"
       (resizing)="columnResizing.emit({ column: 'product', widthPx: $event })"
       (resized)="columnResized.emit({ column: 'product', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('variantLabel')) {
+  <!-- Non ordinabile: la variante è un'etichetta composta, e ordinare per
+       «M / Rosso» ordinerebbe per taglia solo dove la taglia è la prima
+       opzione. -->
+  <th scope="col" [style.width]="columnWidth()('variantLabel')">
+    <span class="doc-form__th-label" title="Variante">Variante</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('variantLabel')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'variantLabel', widthPx: $event })"
     ></span>
   </th>
 }
@@ -326,6 +326,30 @@
           <i
             class="pi pi-info-circle doc-form__th-info"
             [attr.aria-label]="'Info colonna ' + stockToggleLabel()"
+          ></i>
+        </app-hover-tooltip>
+      }
+    </span>
+  </th>
+}
+<!-- ⛔ **Etichetta PROPRIA, non quella di `commitsStock`.** Le due colonne
+     possono comparire insieme, e con la stessa etichetta sarebbero
+     indistinguibili — a schermo e per uno screen reader.
+
+       commitsStock   «Impegna magazzino»   la merce resta, ma è promessa
+       loadsStock     «Carica»/«Scarica»    la merce si muove davvero
+
+     Chi mostra la colonna decide la parola, perché lo stesso campo dice
+     «Carica giacenze» su un reso e «Scarica» su un DDT. -->
+@if (isColumnVisible()('loadsStock')) {
+  <th scope="col" class="doc-form__col--stock" [style.width]="columnWidth()('loadsStock')">
+    <span class="doc-form__th-label">
+      {{ loadToggleLabel() }}
+      @if (loadToggleTooltip()) {
+        <app-hover-tooltip [text]="loadToggleTooltip()" position="bottom">
+          <i
+            class="pi pi-info-circle doc-form__th-info"
+            [attr.aria-label]="'Info colonna ' + loadToggleLabel()"
           ></i>
         </app-hover-tooltip>
       }

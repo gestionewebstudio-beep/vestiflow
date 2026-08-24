@@ -27,6 +27,8 @@ type Inputs = Partial<{
   sortAvailable: boolean;
   sortDisabledReason: string | null;
   stockToggleLabel: string;
+  loadToggleLabel: string;
+  loadToggleTooltip: string;
   stockToggleTooltip: string;
   priceLabel: string;
   pricesIncludeVat: boolean;
@@ -87,17 +89,30 @@ describe('DocumentLineHeadComponent', () => {
    * non come condizionale di documento: è il modello che questa rete presidia.
    */
   describe('la colonna magazzino è parametrizzata', () => {
-    it('senza indicazioni si chiama «Impegna magazzino»', async () => {
+    /**
+     * ⛔ **Le colonne di magazzino sono DUE, e vanno tenute distinte.**
+     *
+     *   commitsStock   «impegna» — la merce resta, ma è promessa a qualcuno
+     *   loadsStock     «carica»/«scarica» — la merce si muove davvero
+     *
+     * Il test le rende entrambe (`isColumnVisible: () => true`), quindi ogni
+     * asserzione deve dire di QUALE parla: prima condividevano l'etichetta, e
+     * `getByText` ne trovava due.
+     */
+    it('senza indicazioni si chiamano «Impegna magazzino» e «Carica magazzino»', async () => {
       await apri();
 
       expect(screen.getByText('Impegna magazzino')).toBeVisible();
+      expect(screen.getByText('Carica magazzino')).toBeVisible();
     });
 
-    it('il chiamante le dà il proprio nome', async () => {
-      await apri({ stockToggleLabel: 'Carica magazzino' });
+    it('il chiamante dà a ciascuna il proprio nome', async () => {
+      await apri({ stockToggleLabel: 'Impegna scorta', loadToggleLabel: 'Scarica giacenze' });
 
-      expect(screen.getByText('Carica magazzino')).toBeVisible();
+      expect(screen.getByText('Impegna scorta')).toBeVisible();
+      expect(screen.getByText('Scarica giacenze')).toBeVisible();
       expect(screen.queryByText('Impegna magazzino')).toBeNull();
+      expect(screen.queryByText('Carica magazzino')).toBeNull();
     });
 
     it('senza spiegazione non compare l’icona informativa', async () => {
@@ -107,9 +122,17 @@ describe('DocumentLineHeadComponent', () => {
     });
 
     it('con la spiegazione l’icona la porta, e nomina la colonna', async () => {
-      await apri({ stockToggleLabel: 'Carica mag.', stockToggleTooltip: 'Movimenta la giacenza' });
+      await apri({ stockToggleLabel: 'Impegna mag.', stockToggleTooltip: 'Prenota la giacenza' });
 
-      expect(screen.getByLabelText('Info colonna Carica mag.')).toBeVisible();
+      expect(screen.getByLabelText('Info colonna Impegna mag.')).toBeVisible();
+    });
+
+    it('e la spiegazione dell’altra colonna è sua', async () => {
+      await apri({ loadToggleLabel: 'Scarica mag.', loadToggleTooltip: 'Movimenta la giacenza' });
+
+      expect(screen.getByLabelText('Info colonna Scarica mag.')).toBeVisible();
+      // ⛔ Quella di «impegna» non compare: le due spiegazioni sono separate.
+      expect(screen.queryByLabelText('Info colonna Impegna magazzino')).toBeNull();
     });
   });
 

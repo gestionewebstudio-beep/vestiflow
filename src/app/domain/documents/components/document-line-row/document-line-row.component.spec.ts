@@ -35,6 +35,9 @@ function gruppoRiga(): FormGroup {
     unitPrice: new FormControl(''),
     discount: new FormControl(''),
     commitsStock: new FormControl(true),
+    // ⛔ Due controlli distinti, non uno: «impegna» e «carica/scarica» sono due
+    // domande diverse, e un documento può mostrarle entrambe.
+    loadsStock: new FormControl(true),
     serialNumbersText: new FormControl(''),
   });
 }
@@ -52,6 +55,7 @@ type Inputs = Partial<{
   readOnly: boolean;
   unitOptions: readonly { value: string; label: string }[];
   stockToggleLabel: string;
+  loadToggleLabel: string;
   identityColumnCount: number;
   dragHandle: boolean;
   quantityMin: number;
@@ -178,11 +182,19 @@ describe('DocumentLineRowComponent', () => {
       expect(screen.getByText('Impegna magazzino')).toBeInTheDocument();
     });
 
-    it('il chiamante le dà il proprio nome, e la riga non chiede perché', async () => {
-      await apri({ stockToggleLabel: 'Carica magazzino' });
+    /**
+     * ⛔ **Le spunte di magazzino sono DUE**, e ciascuna ha la sua parola:
+     * «impegna» promette la merce, «carica/scarica» la muove. Il test le rende
+     * entrambe, quindi ogni asserzione deve dire di quale parla — prima
+     * condividevano l'etichetta e `getByText` ne trovava due.
+     */
+    it('il chiamante dà a ciascuna il proprio nome, e la riga non chiede perché', async () => {
+      await apri({ stockToggleLabel: 'Impegna scorta', loadToggleLabel: 'Scarica giacenze' });
 
-      expect(screen.getByText('Carica magazzino')).toBeInTheDocument();
+      expect(screen.getByText('Impegna scorta')).toBeInTheDocument();
+      expect(screen.getByText('Scarica giacenze')).toBeInTheDocument();
       expect(screen.queryByText('Impegna magazzino')).toBeNull();
+      expect(screen.queryByText('Carica magazzino')).toBeNull();
     });
   });
 
