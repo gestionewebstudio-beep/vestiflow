@@ -422,7 +422,7 @@ describe('StoreSaleDocumentFormComponent', () => {
   });
 
   afterEach(() => {
-  colonneSpente.clear();
+    colonneSpente.clear();
     vi.unstubAllGlobals();
   });
 
@@ -495,11 +495,11 @@ describe('StoreSaleDocumentFormComponent', () => {
       await setup({ locations: [SEDE], defaultLocation: SEDE.id });
 
       // ⛔ **Una guardia che tollera il difetto non e' una guardia.** Qui si
-    // prendeva il PRIMO di piu' risultati, e il commento diceva «il campo vive
-    // in due viste»: era vero finche' la testata si scriveva due volte. Da
-    // quando si dichiara una volta sola, quel plurale accetterebbe il ritorno
-    // della copia senza dire niente — e la copia e' proprio il difetto appena
-    // chiuso. La forma singolare fallisce, ed e' il punto.
+      // prendeva il PRIMO di piu' risultati, e il commento diceva «il campo vive
+      // in due viste»: era vero finche' la testata si scriveva due volte. Da
+      // quando si dichiara una volta sola, quel plurale accetterebbe il ritorno
+      // della copia senza dire niente — e la copia e' proprio il difetto appena
+      // chiuso. La forma singolare fallisce, ed e' il punto.
       expect(screen.getByLabelText('Sede')).toBeTruthy();
       expect(screen.queryByText('Scegli la sede')).toBeNull();
     });
@@ -1634,6 +1634,52 @@ describe('StoreSaleDocumentFormComponent', () => {
 
       expect(rendered.container.querySelector('table')).toBeNull();
       expect(screen.getByText('Scegli la sede')).toBeTruthy();
+    });
+  });
+
+  /**
+   * ⛔ **«Dopo aver selezionato la location, la riga lo stesso non compare»** —
+   * segnalato dal proprietario guardando lo schermo il 24/08/2026.
+   *
+   * Questa prova serve a separare DUE diagnosi che portano a rimedi opposti:
+   *
+   * 1. il gate delle righe dipende dal **Cliente** — che al banco è
+   *    facoltativo, quindi resterebbe spento per sempre. Sarebbe un difetto;
+   * 2. il gate è giusto e il Cliente non c'entra: manca **la riga stessa**.
+   *
+   * ⚠️ È la seconda, e queste asserzioni la inchiodano: con la sede scelta e il
+   * cliente vuoto il gate si alza — tabella, intestazioni e campo di ricerca ci
+   * sono tutti — eppure di righe articolo non ce n'è **nessuna**.
+   *
+   * ⭐ **La differenza col riferimento è UNA riga di codice.** L'Ordine cliente
+   * (e altre cinque maschere) fa `fb.array([this.createLine()])`; il Banco fa
+   * `fb.array([])`. Sei maschere su sette seminano una riga vuota pronta da
+   * compilare, il Banco no — e non ha nemmeno un comando «Aggiungi riga».
+   */
+  describe('il Cliente NON è il gate delle righe', () => {
+    it('⭐ sede scelta + cliente vuoto: il gate si alza, l’inserimento è disponibile', async () => {
+      const rendered = await setup({ defaultLocation: SEDE.id });
+
+      // Il cliente è davvero vuoto: senza questo, la prova non esercita nulla.
+      expect(rendered.component.form.controls.customerId.value ?? '').toBe('');
+
+      // ⛔ Se il gate dipendesse dal cliente, qui ci sarebbe «Scegli la sede»
+      // (o un altro stato vuoto) e la tabella non esisterebbe.
+      expect(screen.queryByText('Scegli la sede')).toBeNull();
+      expect(rendered.container.querySelector('table')).toBeTruthy();
+      expect(screen.getByLabelText('Scansiona o cerca un articolo')).toBeTruthy();
+    });
+
+    it('⛔ ma di righe articolo non ce n’è NESSUNA, e non c’è come aggiungerne', async () => {
+      const rendered = await setup({ defaultLocation: SEDE.id });
+
+      // La causa vera di «la riga non compare»: l'array parte vuoto.
+      expect(rendered.component.lines()).toHaveLength(0);
+      expect(screen.getByText('Nessuna riga inserita')).toBeTruthy();
+
+      // ⚠️ E nessun comando la crea: sulle altre maschere «Aggiungi riga»
+      // esiste, qui no. L'unica via è cercare o scansionare un articolo.
+      expect(screen.queryByRole('button', { name: /Aggiungi riga/i })).toBeNull();
     });
   });
 });
