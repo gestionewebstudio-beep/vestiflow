@@ -50,168 +50,87 @@
       }
       <fieldset class="doc-form__fieldset" [disabled]="formReadOnly()">
         <!-- Testata a celle unite (FASE 1: la forma dell'Ordine cliente). -->
-        <div class="doc-form__header">
-          <!-- Vista mobile (M1): la testata è un solo pannello apribile. Vive
-               nel DOM accanto alla griglia desktop e si accende sotto lg —
-               stesso schema tabella/card delle righe. Aria-label distinti dai
-               gemelli desktop: le query (spec e screen reader) restano uniche. -->
-          <div class="doc-panels">
-            <app-document-mobile-panel
-              [title]="mobilePanelTitle()"
-              [summaryParts]="mobilePanelSummaryParts()"
-              icon="pi-arrow-right-arrow-left"
-              [statusText]="mobilePanelStatus()"
-              [statusReady]="mobileHeaderReady()"
-              [initiallyOpen]="true"
-            >
-              <p class="doc-panel__section">Dati principali</p>
+        <!-- ⭐ **La testata è dichiarata UNA VOLTA.** Qui c'erano 152 righe: 74
+             nel pannello mobile e 78 nella griglia desktop, con gli stessi
+             quattro campi, le stesse opzioni e gli stessi gestori — cambiavano
+             l'identificativo (`tr-m-*` contro `tr-*`) e la formula
+             dell'aria-label. Non erano due viste: era la stessa vista scritta
+             due volte, e ogni correzione ne raggiungeva una sola. -->
+        <app-document-header
+          class="doc-form__header"
+          [title]="mobilePanelTitle()"
+          [summaryParts]="mobilePanelSummaryParts()"
+          icon="pi-arrow-right-arrow-left"
+          [statusText]="mobilePanelStatus()"
+          [statusReady]="mobileHeaderReady()"
+          sectionTitle="Dati principali"
+          [dense]="true"
+        >
+          <app-document-header-field
+            label="Location origine"
+            [waiting]="fieldWaiting('locationId')"
+            [invalid]="fieldInvalid('locationId')"
+            errorId="tr-origin-error"
+          >
+            <app-select-menu
+              [options]="originLocationOptions()"
+              [value]="form.controls.locationId.value"
+              ariaLabel="Location origine"
+              placeholder="Seleziona origine…"
+              [compact]="true"
+              [fullWidth]="true"
+              [invalid]="fieldInvalid('locationId')"
+              describedBy="tr-origin-error"
+              (valueChange)="onOriginSelect($event)"
+            />
+          </app-document-header-field>
 
-              <div class="doc-panel__fields">
-                <div class="doc-panel__field">
-                  <span class="doc-panel__label">Location origine</span>
-                  <app-select-menu
-                    [options]="originLocationOptions()"
-                    [value]="form.controls.locationId.value"
-                    ariaLabel="Location origine"
-                    placeholder="Seleziona origine…"
-                    [fullWidth]="true"
-                    [invalid]="fieldInvalid('locationId')"
-                    describedBy="tr-m-origin-error"
-                    (valueChange)="onOriginSelect($event)"
-                  />
-                  @if (fieldInvalid('locationId')) {
-                    <p id="tr-m-origin-error" class="doc-form__error">Campo obbligatorio.</p>
-                  }
-                </div>
+          <app-document-header-field
+            label="Location destinazione"
+            [waiting]="fieldWaiting('targetLocationId')"
+            [invalid]="fieldInvalid('targetLocationId')"
+            errorId="tr-target-error"
+          >
+            <app-select-menu
+              [options]="targetLocationOptions()"
+              [value]="form.controls.targetLocationId.value"
+              ariaLabel="Location destinazione"
+              placeholder="Seleziona destinazione…"
+              [compact]="true"
+              [fullWidth]="true"
+              [invalid]="fieldInvalid('targetLocationId')"
+              describedBy="tr-target-error"
+              (valueChange)="onTargetSelect($event)"
+            />
+          </app-document-header-field>
 
-                <div class="doc-panel__field">
-                  <span class="doc-panel__label">Location destinazione</span>
-                  <app-select-menu
-                    [options]="targetLocationOptions()"
-                    [value]="form.controls.targetLocationId.value"
-                    ariaLabel="Location destinazione"
-                    placeholder="Seleziona destinazione…"
-                    [fullWidth]="true"
-                    [invalid]="fieldInvalid('targetLocationId')"
-                    describedBy="tr-m-target-error"
-                    (valueChange)="onTargetSelect($event)"
-                  />
-                  @if (fieldInvalid('targetLocationId')) {
-                    <p id="tr-m-target-error" class="doc-form__error">Campo obbligatorio.</p>
-                  }
-                </div>
+          @if (locationsConflict()) {
+            <p class="doc-form__error doc-form__field--span2">
+              Origine e destinazione devono essere location diverse.
+            </p>
+          }
 
-                @if (locationsConflict()) {
-                  <p class="doc-form__error">
-                    Origine e destinazione devono essere location diverse.
-                  </p>
-                }
+          <app-document-header-field label="Data documento">
+            <app-date-input
+              inputId="tr-date"
+              formControlName="documentDate"
+              ariaLabel="Data documento"
+              [fullWidth]="true"
+            />
+          </app-document-header-field>
 
-                <div class="doc-panel__field">
-                  <label class="doc-panel__label" for="tr-m-date">Data documento</label>
-                  <app-date-input
-                    inputId="tr-m-date"
-                    formControlName="documentDate"
-                    ariaLabel="Data documento"
-                    [fullWidth]="true"
-                  />
-                </div>
-
-                <app-document-number-field
-                  numberInputId="tr-m-number"
-                  [number]="form.controls.documentNumber.value"
-                  [isProposal]="numberIsProposal()"
-                  [series]="form.controls.series.value"
-                  [seriesOptions]="numbering.seriesOptions()"
-                  [canManageSeries]="puoConfigurareDocumenti()"
-                  (numberChange)="numbering.onNumberChange($event)"
-                  (seriesChange)="numbering.onSeriesChange($event)"
-                  (manageSeries)="seriesDialogOpen.set(true)"
-                />
-              </div>
-            </app-document-mobile-panel>
-          </div>
-
-          <!-- Griglia classica: solo desktop. Sotto lg la nasconde il foglio
-               del componente (stesso meccanismo di #co-header-details). -->
-          <div class="transfer-form__header-desktop">
-            <div class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact">
-              <div
-                class="doc-form__field"
-                [class.doc-form__field--waiting]="fieldWaiting('locationId')"
-              >
-                <span class="doc-form__label">Location origine</span>
-                <app-select-menu
-                  [options]="originLocationOptions()"
-                  [value]="form.controls.locationId.value"
-                  ariaLabel="Location di origine"
-                  placeholder="Seleziona origine…"
-                  [compact]="true"
-                  [fullWidth]="true"
-                  [invalid]="fieldInvalid('locationId')"
-                  describedBy="tr-origin-error"
-                  (valueChange)="onOriginSelect($event)"
-                />
-                @if (fieldInvalid('locationId')) {
-                  <p id="tr-origin-error" class="doc-form__error">Campo obbligatorio.</p>
-                }
-              </div>
-
-              <div
-                class="doc-form__field"
-                [class.doc-form__field--waiting]="fieldWaiting('targetLocationId')"
-              >
-                <span class="doc-form__label">Location destinazione</span>
-                <app-select-menu
-                  [options]="targetLocationOptions()"
-                  [value]="form.controls.targetLocationId.value"
-                  ariaLabel="Location di destinazione"
-                  placeholder="Seleziona destinazione…"
-                  [compact]="true"
-                  [fullWidth]="true"
-                  [invalid]="fieldInvalid('targetLocationId')"
-                  describedBy="tr-target-error"
-                  (valueChange)="onTargetSelect($event)"
-                />
-                @if (fieldInvalid('targetLocationId')) {
-                  <p id="tr-target-error" class="doc-form__error">Campo obbligatorio.</p>
-                }
-              </div>
-
-              @if (locationsConflict()) {
-                <p class="doc-form__error doc-form__field--wide">
-                  Origine e destinazione devono essere location diverse.
-                </p>
-              }
-
-              <div class="doc-form__field">
-                <label class="doc-form__label" for="tr-date">Data documento</label>
-                <app-date-input
-                  inputId="tr-date"
-                  formControlName="documentDate"
-                  ariaLabel="Data documento"
-                  [compact]="true"
-                  [fullWidth]="true"
-                />
-              </div>
-
-              <!-- Identificativo del documento: Data + Numero + Serie. Su un
-                   documento nuovo il numero è una proposta finché nessuno lo
-                   tocca: il campo lo dice, invece di farlo sembrare acquisito. -->
-              <app-document-number-field
-                numberInputId="tf-number"
-                [number]="form.controls.documentNumber.value"
-                [isProposal]="numberIsProposal()"
-                [series]="form.controls.series.value"
-                [seriesOptions]="numbering.seriesOptions()"
-                [canManageSeries]="puoConfigurareDocumenti()"
-                (numberChange)="numbering.onNumberChange($event)"
-                (seriesChange)="numbering.onSeriesChange($event)"
-                (manageSeries)="seriesDialogOpen.set(true)"
-              />
-            </div>
-          </div>
-        </div>
+          <app-document-number-field
+            numberInputId="tr-number"
+            [number]="form.controls.documentNumber.value"
+            [isProposal]="numberIsProposal()"
+            [series]="form.controls.series.value"
+            [seriesOptions]="numbering.seriesOptions()"
+            [canManageSeries]="puoConfigurareDocumenti()"
+            (numberChange)="numbering.onNumberChange($event)"
+            (seriesChange)="numbering.onSeriesChange($event)"
+            (manageSeries)="seriesDialogOpen.set(true)"
+          />
+        </app-document-header>
 
         <section class="doc-form__lines" aria-labelledby="tr-lines-title">
           <div class="doc-form__lines-head">

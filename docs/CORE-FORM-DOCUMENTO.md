@@ -7,6 +7,28 @@ Ultimo aggiornamento: 2 agosto 2026.
 
 ---
 
+## ⭐ Che cosa è successo dopo — 24/08/2026
+
+⚠️ **Questa nota è di agosto e descrive due maschere**; nel frattempo il lavoro si è
+esteso a **otto**, e la parte del leone l'ha fatta la riga. Qui resta il **metodo**, che
+non è cambiato ed è la ragione per cui la nota vale ancora: caratterizzare, estrarre una
+fetta, verificare che i test restino verdi.
+
+La regola che questa nota cita — _«Form documentali: testata a celle unite, riga
+editabile, riepilogo totali, barra azioni — un componente per pattern, riusato da ogni
+tipo documento»_ — è il piano di lavoro, e a oggi è **a metà**:
+
+| Pattern          | Stato                                                               |
+| ---------------- | ------------------------------------------------------------------- |
+| riga editabile   | ✅ `document-line-row` + `document-line-card-*`, tutte e sette      |
+| **testata**      | 🔄 `document-header` — vedi `SPECIFICA-COMUNE-TESTATE-DOCUMENTI.md` |
+| riepilogo totali | ⏳ classi comuni, markup ripetuto in sei maschere                   |
+| barra azioni     | ⏳ classi comuni, markup ripetuto in otto                           |
+
+⛔ **Il residuo elencato più sotto è quello di agosto**, e va riverificato prima di
+agirci: diverse voci sono state chiuse dal lavoro sulle righe. La sezione «Come misurare
+di nuovo» in fondo dice come.
+
 ## Perché esiste questa nota
 
 `customer-order-form.component.ts` (4.186 righe) e

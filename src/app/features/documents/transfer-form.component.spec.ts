@@ -167,11 +167,11 @@ describe('TransferFormComponent', () => {
     await setup();
 
     // Cambia origine da Milano (default) a Roma.
-    await user.click(screen.getByRole('button', { name: 'Location di origine' }));
+    await user.click(screen.getByRole('button', { name: 'Location origine' }));
     await user.click(screen.getByRole('option', { name: 'Roma' }));
 
     // La destinazione ora deve poter offrire Milano (non piu' Roma, ora origine).
-    await user.click(screen.getByRole('button', { name: 'Location di destinazione' }));
+    await user.click(screen.getByRole('button', { name: 'Location destinazione' }));
     expect(screen.getByRole('option', { name: 'Milano' })).toBeVisible();
     expect(screen.queryByRole('option', { name: 'Roma' })).toBeNull();
   });
@@ -181,10 +181,10 @@ describe('TransferFormComponent', () => {
   it('precompila la sola origine con la sede predefinita; destinazione mai autocompilata', async () => {
     await setup({ defaultLocation: LOCATIONS[0] });
 
-    const origin = screen.getByRole('button', { name: 'Location di origine' });
+    const origin = screen.getByRole('button', { name: 'Location origine' });
     expect(origin).toHaveTextContent('Milano (predefinita)');
 
-    const target = screen.getByRole('button', { name: 'Location di destinazione' });
+    const target = screen.getByRole('button', { name: 'Location destinazione' });
     expect(target).toHaveTextContent('Seleziona destinazione…');
   });
 
@@ -193,10 +193,10 @@ describe('TransferFormComponent', () => {
   it('senza sede predefinita non autoseleziona origine ne destinazione', async () => {
     await setup();
 
-    expect(screen.getByRole('button', { name: 'Location di origine' })).toHaveTextContent(
+    expect(screen.getByRole('button', { name: 'Location origine' })).toHaveTextContent(
       'Seleziona origine…',
     );
-    expect(screen.getByRole('button', { name: 'Location di destinazione' })).toHaveTextContent(
+    expect(screen.getByRole('button', { name: 'Location destinazione' })).toHaveTextContent(
       'Seleziona destinazione…',
     );
   });
@@ -282,8 +282,11 @@ describe('TransferFormComponent', () => {
       await fixture.whenStable();
       fixture.detectChanges();
 
-      // Due copie: testata desktop e pannello mobile convivono nel DOM.
-      expect(screen.getAllByText(/Primo libero/)).toHaveLength(2);
+      // ⛔ Qui si asserivano DUE copie, «testata desktop e pannello mobile
+      // convivono nel DOM»: era la doppia scrittura della testata, e il test la
+      // sorvegliava invece di segnalarla. Ora la testata si dichiara una volta
+      // e le due vesti sono esclusive — la copia e' una.
+      expect(screen.getAllByText(/Primo libero/)).toHaveLength(1);
 
       const numberInput = screen.getAllByLabelText<HTMLInputElement>('Numero')[0]!;
       await user.clear(numberInput);
