@@ -266,10 +266,16 @@ describe('GoodsReceiptFormComponent', () => {
     return Object.assign(result, { saveGoodsReceipt, showInfo });
   }
 
-  /** Il campo Numero vive in due viste (mobile + desktop): stesso controllo. */
+  /**
+   * ⛔ **Una guardia che tollera il difetto non e' una guardia.** Qui si
+    // prendeva il PRIMO di piu' risultati, e il commento diceva «il campo vive
+    // in due viste»: era vero finche' la testata si scriveva due volte. Da
+    // quando si dichiara una volta sola, quel plurale accetterebbe il ritorno
+    // della copia senza dire niente — e la copia e' proprio il difetto appena
+    // chiuso. La forma singolare fallisce, ed e' il punto.
+   */
   async function numberInput(): Promise<HTMLInputElement> {
-    const inputs = await screen.findAllByLabelText<HTMLInputElement>('Numero');
-    return inputs[0]!;
+    return screen.findByLabelText<HTMLInputElement>('Numero');
   }
 
   // ── Sede predefinita (§1-bis, 13/08/2026) ─────────────────────────────────

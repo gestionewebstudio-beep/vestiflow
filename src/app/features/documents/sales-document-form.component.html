@@ -80,6 +80,7 @@
              fascia fiscale è la sua seconda banda. -->
         <div class="doc-form__header">
           <app-document-header
+            [flowRow]="true"
             [title]="customerPanelTitle()"
             [summaryParts]="customerPanelSummaryParts()"
             icon="pi-user"
@@ -234,6 +235,7 @@
                tingerebbe il pannello invece della banda. -->
           @if (isSalesInvoice()) {
             <app-document-header
+              [flowRow]="true"
               class="doc-form__header-row--secondary"
               title="Dettagli fattura"
               [summaryParts]="invoicePanelSummaryParts()"

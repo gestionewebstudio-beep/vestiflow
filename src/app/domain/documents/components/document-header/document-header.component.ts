@@ -61,7 +61,7 @@ import { DocumentMobilePanelComponent } from '../document-mobile-panel/document-
           @if (sectionTitle(); as sezione) {
             <p class="doc-panel__section">{{ sezione }}</p>
           }
-          <div class="doc-panel__fields">
+          <div class="doc-panel__fields" [class.doc-panel__fields--two]="twoColumns()">
             <ng-container [ngTemplateOutlet]="campi" />
           </div>
         </app-document-mobile-panel>
@@ -70,6 +70,8 @@ import { DocumentMobilePanelComponent } from '../document-mobile-panel/document-
       <div
         class="doc-form__grid doc-form__grid--header"
         [class.doc-form__grid--header-compact]="dense()"
+        [class.doc-form__header-row]="flowRow()"
+        [class.doc-form__header-row--secondary]="secondary()"
       >
         <ng-container [ngTemplateOutlet]="campi" />
       </div>
@@ -94,6 +96,40 @@ export class DocumentHeaderComponent {
    * lascerebbero mezza riga vuota.
    */
   readonly dense = input(false);
+
+  /**
+   * Sopra `lg` la fascia è **flex a larghezza proporzionale**: i campi riempiono
+   * la card e perdono il filo inferiore, e ogni campo dichiara il proprio minimo
+   * con `--doc-field-min`.
+   *
+   * ⛔ **Era una lacuna di questo componente, non una scelta.** Rendeva solo
+   * `doc-form__grid--header`, quindi tre maschere hanno **perso**
+   * `doc-form__header-row` migrando: da 1025px in su la fascia tornava a
+   * griglia `auto-fill` e le celle riacquistavano il filo sotto. Sull'Arrivo
+   * merce, dove la fascia successiva ha un filo sopra, i due si sommavano e al
+   * confine si vedeva un **filo doppio**.
+   *
+   * ⚠️ Nessuno l'ha aggirato con un `::ng-deep` o un foglio locale, che è la
+   * scelta giusta: un `::ng-deep` è un difetto di API del componente
+   * condiviso, e la correzione è aggiungere il punto di regolazione mancante.
+   */
+  readonly flowRow = input(false);
+
+  /**
+   * La fascia **secondaria**: fondo tenue e filo sopra, per i dati che non
+   * servono a iniziare a lavorare — il documento della controparte, il
+   * trasporto.
+   */
+  readonly secondary = input(false);
+
+  /**
+   * Su telefono i campi si affiancano a due a due invece di impilarsi.
+   *
+   * ⚠️ Serve dove due campi brevi stanno bene sulla stessa riga — Data accanto a
+   * Consegna, Data accanto a Modalità prezzo — e senza, il pannello si allunga
+   * di una fascia per ogni campo.
+   */
+  readonly twoColumns = input(false);
 
   protected readonly compatto = this.viewport.compact;
 }

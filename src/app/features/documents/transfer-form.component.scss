@@ -1,5 +1,3 @@
-@use 'breakpoints' as bp;
-
 // ⛔ Qui c'era la regola che nascondeva la griglia desktop sotto `lg`. Non
 // serve piu': le due vesti della testata sono ESCLUSIVE nel DOM, decise da
 // `app-document-header`, non nascoste col foglio di stile. Era l'ultima

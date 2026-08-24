@@ -494,7 +494,13 @@ describe('StoreSaleDocumentFormComponent', () => {
       // modificabile»).
       await setup({ locations: [SEDE], defaultLocation: SEDE.id });
 
-      expect(screen.getAllByLabelText('Sede').length).toBeGreaterThan(0);
+      // ⛔ **Una guardia che tollera il difetto non e' una guardia.** Qui si
+    // prendeva il PRIMO di piu' risultati, e il commento diceva «il campo vive
+    // in due viste»: era vero finche' la testata si scriveva due volte. Da
+    // quando si dichiara una volta sola, quel plurale accetterebbe il ritorno
+    // della copia senza dire niente — e la copia e' proprio il difetto appena
+    // chiuso. La forma singolare fallisce, ed e' il punto.
+      expect(screen.getByLabelText('Sede')).toBeTruthy();
       expect(screen.queryByText('Scegli la sede')).toBeNull();
     });
 

@@ -92,7 +92,6 @@ import { DocumentNumberFieldComponent } from '@shared/components/document-number
 import { DocumentSeriesManagerDialogComponent } from '@domain/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
 import { DocumentHeaderComponent } from '@domain/documents/components/document-header/document-header.component';
 import { DocumentHeaderFieldComponent } from '@domain/documents/components/document-header/document-header-field.component';
-import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import { EditLockBannerComponent } from '@shared/components/edit-lock-banner/edit-lock-banner.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
@@ -195,7 +194,6 @@ type MovementCodeField = Extract<DocumentLineCodeField, 'articleCode' | 'sku' | 
     DateInputComponent,
     DocumentHeaderComponent,
     DocumentHeaderFieldComponent,
-    DocumentMobilePanelComponent,
     DocumentNumberFieldComponent,
     DocumentSeriesManagerDialogComponent,
     DocumentChronologyWarningDialogComponent,

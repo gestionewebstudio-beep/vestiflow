@@ -224,10 +224,13 @@ describe('TransferFormComponent', () => {
   it('mostra «Gestisci numerazioni» a chi ha documents.configure', async () => {
     await setup({ permissions: [TenantPermission.DocumentsConfigure] });
 
-    // Testata mobile e griglia desktop montano entrambe il campo.
-    expect(screen.getAllByRole('button', { name: 'Gestisci numerazioni' }).length).toBeGreaterThan(
-      0,
-    );
+    // ⛔ **Una guardia che tollera il difetto non e' una guardia.** Qui si
+    // prendeva il PRIMO di piu' risultati, e il commento diceva «il campo vive
+    // in due viste»: era vero finche' la testata si scriveva due volte. Da
+    // quando si dichiara una volta sola, quel plurale accetterebbe il ritorno
+    // della copia senza dire niente — e la copia e' proprio il difetto appena
+    // chiuso. La forma singolare fallisce, ed e' il punto.
+    expect(screen.getByRole('button', { name: 'Gestisci numerazioni' })).toBeTruthy();
   });
 
   // ── Numero: proposta vs imposizione ───────────────────────────────────────
@@ -250,8 +253,7 @@ describe('TransferFormComponent', () => {
       fixture.detectChanges();
 
       // Il campo mostra il primo libero…
-      const numberInputs = screen.getAllByLabelText<HTMLInputElement>('Numero');
-      expect(numberInputs[0]!.value).toBe('42');
+      expect(screen.getByLabelText<HTMLInputElement>('Numero').value).toBe('42');
       // …ma resta una proposta: il controllo non è dirty.
       expect(fixture.componentInstance.form.controls.documentNumber.dirty).toBe(false);
     });
@@ -288,7 +290,7 @@ describe('TransferFormComponent', () => {
       // e le due vesti sono esclusive — la copia e' una.
       expect(screen.getAllByText(/Primo libero/)).toHaveLength(1);
 
-      const numberInput = screen.getAllByLabelText<HTMLInputElement>('Numero')[0]!;
+      const numberInput = screen.getByLabelText<HTMLInputElement>('Numero');
       await user.clear(numberInput);
       await user.type(numberInput, '77');
       fixture.detectChanges();
