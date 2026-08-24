@@ -221,7 +221,7 @@ import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.
 import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
-import { redistributeColumnWidths } from '@shared/table-columns/column-width-distribution.util';
+import { createLineColumnWidths } from '@shared/table-columns/line-column-widths.store';
 import { CdkDrag, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
 import { formatItalianInputDate, toIsoDateLocal } from '@shared/utils/calendar.util';
 
@@ -2053,7 +2053,12 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     // colonne «Imp.» — la sua `commitsStock` e una `loadsStock` che non
     // dichiara. Il config è la fonte di verità nel momento in cui la riga è
     // condivisa.
-    if (!CUSTOMER_ORDER_LINE_COLUMNS.some((column) => column.id === columnId)) {
+    // ⛔ **`lineColumnDefs`, non `CUSTOMER_ORDER_LINE_COLUMNS`**: questa
+    // maschera serve QUATTRO tipi, e i loro cataloghi non coincidono. Col
+    // catalogo dell'Ordine cliente al posto del proprio, il DDT vendita e lo
+    // Scarico manuale non mostravano MAI la colonna Seriali — che solo loro
+    // dichiarano — e il Preventivo mostrava «Imp.», che invece esclude.
+    if (!this.lineColumnDefs.some((column) => column.id === columnId)) {
       return false;
     }
     this.lineTableColumnState();
@@ -2068,125 +2073,40 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     return this.columnPreferences.isColumnVisible(this.lineColumnsView, columnId);
   }
 
-  // Larghezza nominale della colonna numero riga (--space-12): entra nel
-  // totale perché con quote percentuali TUTTE le colonne devono sommare 100%
-  // — una colonna px residua farebbe traboccare la tabella di quei px.
-  private static readonly LINE_INDEX_COLUMN_PX = 48;
-
   /**
-   * Larghezze in corso di trascinamento: vivono qui e non nelle preferenze
-   * finché il mouse non si alza, altrimenti ogni pixel di movimento
-   * scriverebbe su localStorage e sul server.
+   * ⭐ **Le larghezze stanno nel PUNTO COMUNE.** Qui c'era una copia di
+   * `redistributeLineColumns` + `lineColumnDraft` + la gestione del resize,
+   * gemella di quella dell'Arrivo merce: due implementazioni identiche, e
+   * cinque maschere che ne avevano solo mezza.
+   *
+   * Questo documento passa la propria configurazione e basta.
    */
-  private readonly lineColumnDraft = signal<ReadonlyMap<string, number> | null>(null);
+  private readonly lineWidths = createLineColumnWidths({
+    defs: this.lineColumnDefs,
+    viewId: this.lineColumnsView,
+    preferences: this.columnPreferences,
+    isVisible: (id) => this.isLineColumnVisible(id),
+    host: this.host,
+  });
 
-  /** Px salvati (o default) di una colonna: restano l'unità persistita. */
-  private lineColumnPx(columnId: string): number {
-    const draft = this.lineColumnDraft();
-    const drafted = draft?.get(columnId);
-    if (drafted !== undefined) {
-      return drafted;
-    }
-    const def = this.lineColumnDefs.find((col) => col.id === columnId);
-    const fallback = def?.defaultWidthPx ?? 96;
-    // Il minimo vale anche sulle larghezze già salvate: senza, una colonna
-    // stretta da un vecchio ridimensionamento resterebbe tale anche dopo aver
-    // alzato il minimo (e il contenuto continuerebbe a stare stretto).
-    return Math.max(
-      this.columnPreferences.columnWidth(this.lineColumnsView, columnId, fallback),
-      this.lineColumnMinWidth(columnId),
-    );
-  }
-
-  /** Somma dei px delle colonne visibili + colonna indice. */
-  private lineColumnsTotalPx(): number {
-    return this.lineColumnDefs.reduce(
-      (total, def) =>
-        this.isLineColumnVisible(def.id) ? total + this.lineColumnPx(def.id) : total,
-      CustomerOrderFormComponent.LINE_INDEX_COLUMN_PX,
-    );
-  }
-
-  /**
-   * Larghezza colonna come QUOTA percentuale del totale: la tabella occupa
-   * sempre esattamente il 100% del contenitore — coi px assoluti e
-   * table-layout fixed, quando la somma superava il wrapper la tabella
-   * restava larga quanto la somma e scorreva invece di adattarsi. I px
-   * salvati dal resize fanno da pesi relativi.
-   */
   protected lineColumnWidth(columnId: string): string {
-    this.lineTableColumnState();
-    return `${((this.lineColumnPx(columnId) / this.lineColumnsTotalPx()) * 100).toFixed(4)}%`;
+    return this.lineWidths.width(columnId);
   }
 
-  /** Quota percentuale della colonna numero riga (vedi lineColumnWidth). */
   protected lineIndexColumnWidth(): string {
-    this.lineTableColumnState();
-    return `${((CustomerOrderFormComponent.LINE_INDEX_COLUMN_PX / this.lineColumnsTotalPx()) * 100).toFixed(4)}%`;
+    return this.lineWidths.indexWidth();
   }
 
   protected lineColumnMinWidth(columnId: string): number {
-    const def = this.lineColumnDefs.find((col) => col.id === columnId);
-    return def?.minWidthPx ?? 48;
+    return this.lineWidths.minWidth(columnId);
   }
 
-  /**
-   * Trascinamento in corso: la colonna presa segue il cursore e le ALTRE
-   * cedono (o riprendono) spazio in proporzione, da entrambi i lati. La somma
-   * resta quella di partenza, così la tabella continua a stare esattamente
-   * nel contenitore e non compare la barra di scorrimento orizzontale.
-   */
   protected onLineColumnResizing(columnId: string, renderedWidthPx: number): void {
-    const next = this.redistributeLineColumns(columnId, renderedWidthPx);
-    if (next) {
-      this.lineColumnDraft.set(next);
-    }
+    this.lineWidths.onResizing(columnId, renderedWidthPx);
   }
 
   protected onLineColumnResize(columnId: string, renderedWidthPx: number): void {
-    const draft = this.lineColumnDraft();
-    if (!draft) {
-      // Solo un clic sull'impugnatura: niente da salvare.
-      return;
-    }
-    const next = this.redistributeLineColumns(columnId, renderedWidthPx) ?? draft;
-    this.lineColumnDraft.set(null);
-    const widths: Record<string, number> = {};
-    for (const [id, px] of next) {
-      widths[id] = Math.round(px);
-    }
-    this.columnPreferences.setColumnWidths(this.lineColumnsView, widths);
-  }
-
-  /**
-   * Nuove larghezze di TUTTE le colonne visibili con `columnId` portata a
-   * `renderedWidthPx`. Il conto si fa in PIXEL RESI, non nei pesi salvati: è
-   * l'unica scala in cui i minimi per colonna significano qualcosa. Erano
-   * proprio i minimi ignorati a far comparire la barra orizzontale — allargando
-   * molto una colonna, le altre finivano sotto la larghezza del loro contenuto,
-   * che traboccava dalla cella. Le larghezze così ottenute sommano alla
-   * larghezza della tabella e diventano i nuovi pesi (contano solo i rapporti).
-   */
-  private redistributeLineColumns(
-    columnId: string,
-    renderedWidthPx: number,
-  ): ReadonlyMap<string, number> | null {
-    const tableWidth =
-      this.host.nativeElement.querySelector('.doc-form__table-wrap')?.clientWidth ?? 0;
-    const visible = this.lineColumnDefs.filter((def) => this.isLineColumnVisible(def.id));
-    if (tableWidth <= 0 || visible.length < 2) {
-      return null;
-    }
-
-    // A trascinamento avviato le larghezze in bozza sono già pixel resi: la
-    // conversione va fatta una volta sola, all'inizio, o si accumula deriva.
-    const scale = this.lineColumnDraft() ? 1 : tableWidth / this.lineColumnsTotalPx();
-    const base = visible.map((def) => ({
-      id: def.id,
-      px: this.lineColumnPx(def.id) * scale,
-      minPx: this.lineColumnMinWidth(def.id),
-    }));
-    return redistributeColumnWidths(base, columnId, renderedWidthPx);
+    this.lineWidths.onResize(columnId, renderedWidthPx);
   }
 
   // ── Righe: creazione, selezione variante, difaults ──────────────────────

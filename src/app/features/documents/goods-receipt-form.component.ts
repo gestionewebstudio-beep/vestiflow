@@ -91,7 +91,7 @@ import type { Supplier } from '@core/models/supplier.model';
 import { normalizeSku } from '@domain/products/models/product-form.validators';
 import { ProductService } from '@domain/products/services/product.service';
 import { DocumentLineArticleService } from '@domain/documents/services/document-line-article.service';
-import { redistributeColumnWidths } from '@shared/table-columns/column-width-distribution.util';
+import { createLineColumnWidths } from '@shared/table-columns/line-column-widths.store';
 import { DocumentLineHeadComponent } from '@domain/documents/components/document-line-head/document-line-head.component';
 import { DocumentLineRowComponent } from '@domain/documents/components/document-line-row/document-line-row.component';
 import { DOCUMENT_LINE_ROW_VIEW_VUOTA } from '@domain/documents/components/document-line-row/document-line-row.model';
@@ -4253,128 +4253,40 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   /**
-   * ⛔ **Qui c'erano i PIXEL, ed è la ragione per cui questa tabella rendeva
-   * diversamente da tutte le altre.**
+   * ⭐ **Le larghezze stanno nel PUNTO COMUNE.** Qui c'era la gemella della
+   * copia dell'Ordine cliente: stesse quote, stessa ridistribuzione, stessa
+   * bozza di trascinamento, scritte due volte.
    *
-   * `.doc-form__table` è `inline-size: 100%` con `table-layout: fixed`: con
-   * larghezze in px il browser le tratta come **pesi** e le scala per far
-   * stare la tabella nel contenitore. Ogni colonna rendeva quindi più stretta
-   * di quanto dichiarava, `minWidthPx` non proteggeva niente, e le
-   * intestazioni si spezzavano dentro la parola — «VARIANT / E», «TOTAL / E».
-   *
-   * ⚠️ **E non dipendeva dalla larghezza totale**: l'Arrivo merce ne dichiara
-   * MENO dell'Ordine cliente (1252px contro 1422px) e si spezzava lo stesso.
-   * Dipendeva da come la larghezza diventa quota.
-   *
-   * Le quote percentuali sommano sempre esattamente 100%, e i px salvati
-   * restano l'unità persistita — fanno da pesi relativi.
+   * L'unica cosa davvero di questo documento sono gli **alias storici** dei
+   * suoi identificativi di colonna, ed e' l'unica che passa da qui.
    */
+  private readonly lineWidths = createLineColumnWidths({
+    defs: GOODS_RECEIPT_LINE_COLUMNS,
+    viewId: GOODS_RECEIPT_LINES_VIEW,
+    preferences: this.columnPreferences,
+    isVisible: (id) => this.isLineColumnVisible(id),
+    host: this.host,
+    normalizeId: normalizeGoodsReceiptColumnId,
+  });
+
   protected lineColumnWidth(columnId: string): string {
-    this.lineTableColumnState();
-    return `${((this.lineColumnPx(columnId) / this.lineColumnsTotalPx()) * 100).toFixed(4)}%`;
+    return this.lineWidths.width(columnId);
   }
 
-  /**
-   * La quota della colonna numero riga.
-   *
-   * ⚠️ Deve entrare nel totale: con le quote percentuali TUTTE le colonne
-   * devono sommare 100%, e lasciarne una fuori dal conto la fa sforare.
-   */
   protected lineIndexColumnWidth(): string {
-    this.lineTableColumnState();
-    return `${((GoodsReceiptFormComponent.LINE_INDEX_COLUMN_PX / this.lineColumnsTotalPx()) * 100).toFixed(4)}%`;
-  }
-
-  // 48 come l'Ordine cliente: e' la stessa colonna, e la sua quota entra nel
-  // totale allo stesso modo.
-  private static readonly LINE_INDEX_COLUMN_PX = 48;
-
-  /** I px salvati (o il default) di una colonna: restano l'unità persistita. */
-  private lineColumnPx(columnId: string): number {
-    const bozza = this.lineColumnDraft()?.get(columnId);
-    if (bozza !== undefined) {
-      return bozza;
-    }
-    const normalizedId = normalizeGoodsReceiptColumnId(columnId);
-    const def = GOODS_RECEIPT_LINE_COLUMNS.find((col) => col.id === normalizedId);
-    const salvato = this.columnPreferences.columnWidth(
-      GOODS_RECEIPT_LINES_VIEW,
-      normalizedId,
-      def?.defaultWidthPx ?? 96,
-    );
-    // ⭐ Il minimo vale anche sulle larghezze GIÀ PERSISTITE: una preferenza
-    // salvata prima che il minimo esistesse non deve poter schiacciare la
-    // colonna sotto la sua misura leggibile.
-    return Math.max(salvato, this.lineColumnMinWidth(columnId));
-  }
-
-  private lineColumnsTotalPx(): number {
-    let totale = GoodsReceiptFormComponent.LINE_INDEX_COLUMN_PX;
-    for (const def of GOODS_RECEIPT_LINE_COLUMNS) {
-      if (this.isLineColumnVisible(def.id)) {
-        totale += this.lineColumnPx(def.id);
-      }
-    }
-    return totale > 0 ? totale : 1;
+    return this.lineWidths.indexWidth();
   }
 
   protected lineColumnMinWidth(columnId: string): number {
-    const normalizedId = normalizeGoodsReceiptColumnId(columnId);
-    const def = GOODS_RECEIPT_LINE_COLUMNS.find((col) => col.id === normalizedId);
-    return def?.minWidthPx ?? 48;
-  }
-
-  /** Le larghezze in bozza durante il trascinamento di una maniglia. */
-  private readonly lineColumnDraft = signal<ReadonlyMap<string, number> | null>(null);
-
-  /**
-   * Ridistribuzione DAL VIVO: la colonna trascinata segue il cursore e le
-   * altre cedono spazio in proporzione, così il totale resta costante.
-   *
-   * ⛔ Senza, trascinando una maniglia cambiava il totale e il browser
-   * ri-scalava tutte le altre in silenzio.
-   */
-  private redistributeLineColumns(
-    columnId: string,
-    renderedWidthPx: number,
-  ): ReadonlyMap<string, number> | null {
-    const larghezzaTabella =
-      this.host.nativeElement.querySelector('.doc-form__table-wrap')?.clientWidth ?? 0;
-    const visibili = GOODS_RECEIPT_LINE_COLUMNS.filter((def) => this.isLineColumnVisible(def.id));
-    if (larghezzaTabella <= 0 || visibili.length < 2) {
-      return null;
-    }
-    // A trascinamento avviato le larghezze in bozza sono già pixel resi: la
-    // conversione va fatta una volta sola, all'inizio, o si accumula deriva.
-    const scala = this.lineColumnDraft() ? 1 : larghezzaTabella / this.lineColumnsTotalPx();
-    const base = visibili.map((def) => ({
-      id: def.id,
-      px: this.lineColumnPx(def.id) * scala,
-      minPx: this.lineColumnMinWidth(def.id),
-    }));
-    return redistributeColumnWidths(base, columnId, renderedWidthPx);
+    return this.lineWidths.minWidth(columnId);
   }
 
   protected onLineColumnResizing(columnId: string, renderedWidthPx: number): void {
-    const next = this.redistributeLineColumns(columnId, renderedWidthPx);
-    if (next) {
-      this.lineColumnDraft.set(next);
-    }
+    this.lineWidths.onResizing(columnId, renderedWidthPx);
   }
 
   protected onLineColumnResize(columnId: string, renderedWidthPx: number): void {
-    const bozza = this.lineColumnDraft();
-    if (!bozza) {
-      // Solo un clic sull'impugnatura: niente da salvare.
-      return;
-    }
-    const next = this.redistributeLineColumns(columnId, renderedWidthPx) ?? bozza;
-    this.lineColumnDraft.set(null);
-    const widths: Record<string, number> = {};
-    for (const [id, px] of next) {
-      widths[id] = Math.round(px);
-    }
-    this.columnPreferences.setColumnWidths(GOODS_RECEIPT_LINES_VIEW, widths);
+    this.lineWidths.onResize(columnId, renderedWidthPx);
   }
 
   // ── Il ponte verso la RIGA COMUNE ────────────────────────────────────────

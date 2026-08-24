@@ -365,6 +365,7 @@
                          corpo: testata e celle dicevano due cose diverse. -->
                     <tr
                       app-document-line-head
+                      [indexColumnWidth]="lineIndexColumnWidth()"
                       [isColumnVisible]="isLineColumnVisibleFn"
                       [columnWidth]="lineColumnWidthFn"
                       [columnMinWidth]="lineColumnMinWidthFn"
@@ -375,6 +376,7 @@
                       [priceMenuOpen]="priceModeMenuOpen()"
                       (priceMenuToggled)="togglePriceModeMenu()"
                       (priceModeChanged)="setPriceMode($event)"
+                      (columnResizing)="onLineColumnResizing($event.column, $event.widthPx)"
                       (columnResized)="onLineColumnResize($event.column, $event.widthPx)"
                     ></tr>
                   </thead>

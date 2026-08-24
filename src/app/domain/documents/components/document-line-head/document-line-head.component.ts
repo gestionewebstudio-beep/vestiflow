@@ -45,6 +45,18 @@ export class DocumentLineHeadComponent {
   readonly columnMinWidth = input.required<(column: DocumentLineColumnId) => number>();
 
   /**
+   * La quota della colonna numero riga.
+   *
+   * ⛔ **Deve essere una quota come le altre**, non i 48px del foglio di
+   * stile: con `table-layout: fixed` una colonna in pixel accanto a colonne in
+   * percentuale fa dichiarare alla tabella 100% + 48px, e il browser riscala
+   * tutto per farcelo stare. Sommando anche questa si arriva a 100% esatto.
+   *
+   * Vuota lascia decidere al foglio di stile, che e' il comportamento di prima.
+   */
+  readonly indexColumnWidth = input('');
+
+  /**
    * L'ordinamento delle righe per colonna. ⛔ Spento dove non ha senso: al banco
    * l'ordine è quello in cui i capi sono passati sul lettore.
    */

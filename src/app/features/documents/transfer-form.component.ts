@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   afterNextRender,
   DestroyRef,
   computed,
@@ -118,10 +119,7 @@ import { DocumentLineSortStore } from '@domain/documents/state/document-line-sor
 import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { TableViewId } from '@shared/table-columns/table-column.model';
-import {
-  lineColumnQuotaWidth,
-  sumVisibleLineColumnsPx,
-} from '@shared/table-columns/line-column-quota.util';
+import { createLineColumnWidths } from '@shared/table-columns/line-column-widths.store';
 import {
   MOVEMENT_LINE_FOCUS_FIELDS,
   STOCK_MOVEMENT_LINE_COLUMNS,
@@ -423,6 +421,10 @@ export class TransferFormComponent implements CanComponentDeactivate {
   // stesse per i due movimenti, che hanno la stessa riga.
 
   private readonly columnPreferences = inject(TableColumnPreferenceService);
+
+  /** Serve a misurare la tabella resa: la ridistribuzione lavora in pixel. */
+
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   protected readonly lineColumnsView = TableViewId.TransferLines;
 
   /**
@@ -445,37 +447,38 @@ export class TransferFormComponent implements CanComponentDeactivate {
     return dichiarata && this.columnPreferences.isColumnVisible(this.lineColumnsView, columnId);
   }
 
-  private lineColumnPx(columnId: string): number {
-    const def = STOCK_MOVEMENT_LINE_COLUMNS.find((column) => column.id === columnId);
-    return this.columnPreferences.columnWidth(
-      this.lineColumnsView,
-      columnId,
-      def?.defaultWidthPx ?? 96,
-    );
-  }
-
-  /** Somma delle sole colonne visibili: è il 100% di cui ciascuna prende una quota. */
-  private lineColumnsTotalPx(): number {
-    return sumVisibleLineColumnsPx(
-      STOCK_MOVEMENT_LINE_COLUMNS,
-      (id) => this.isLineColumnVisible(id),
-      (id) => this.lineColumnPx(id),
-    );
-  }
-
   /**
-   * Larghezza come QUOTA percentuale del totale, come nelle altre maschere: la
-   * tabella occupa sempre esattamente il contenitore. Coi pixel assoluti e
-   * `table-layout: fixed` resterebbe larga quanto la somma e scorrerebbe invece
-   * di adattarsi; i pixel salvati dal ridimensionamento non si perdono, fanno
-   * da pesi relativi.
+   * ⭐ **Le larghezze vengono dal PUNTO COMUNE.** Qui c'erano le quote senza
+   * la ridistribuzione: mezzo sistema. La maniglia dell'intestazione comune
+   * e' montata `[live]`, quindi la direttiva non disegna niente da sola e
+   * aspetta che qualcuno ascolti `resizing` — nessuno ascoltava. Si
+   * trascinava senza vedere nulla, e al rilascio la colonna saltava
+   * riscalando tutte le altre.
+   *
+   * Questo documento dichiara solo il proprio catalogo e la propria vista.
    */
+  private readonly lineWidths = createLineColumnWidths({
+    defs: STOCK_MOVEMENT_LINE_COLUMNS,
+    viewId: this.lineColumnsView,
+    preferences: this.columnPreferences,
+    isVisible: (id) => this.isLineColumnVisible(id),
+    host: this.host,
+  });
+
   protected lineColumnWidth(columnId: string): string {
-    return lineColumnQuotaWidth(columnId, this.lineColumnsTotalPx(), (id) => this.lineColumnPx(id));
+    return this.lineWidths.width(columnId);
   }
 
-  protected onLineColumnResize(columnId: string, widthPx: number): void {
-    this.columnPreferences.setColumnWidth(this.lineColumnsView, columnId, widthPx);
+  protected lineIndexColumnWidth(): string {
+    return this.lineWidths.indexWidth();
+  }
+
+  protected onLineColumnResizing(columnId: string, renderedWidthPx: number): void {
+    this.lineWidths.onResizing(columnId, renderedWidthPx);
+  }
+
+  protected onLineColumnResize(columnId: string, renderedWidthPx: number): void {
+    this.lineWidths.onResize(columnId, renderedWidthPx);
   }
 
   protected readonly lineSort = new DocumentLineSortStore<TransferLineSortColumn>();
@@ -1292,7 +1295,7 @@ export class TransferFormComponent implements CanComponentDeactivate {
 
   /** Larghezza minima di una colonna: la usa il ridimensionamento comune. */
   protected lineColumnMinWidth(columnId: string): number {
-    return STOCK_MOVEMENT_LINE_COLUMNS.find((col) => col.id === columnId)?.minWidthPx ?? 48;
+    return this.lineWidths.minWidth(columnId);
   }
 
   /**

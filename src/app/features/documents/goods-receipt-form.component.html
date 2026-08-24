@@ -615,19 +615,14 @@
               @if (!compactView()) {
                 <div class="doc-form__table-wrap">
                   <table class="doc-form__table">
-                    <!-- ⛔ **Qui c'erano 23 `<col>`, ed erano un SECONDO catalogo colonne.**
-                         Aveva gia' derivato da quello vero: nessuna Variante, nessuna
-                         Giacenza, e lo sconto prima dei prezzi invece che dopo. I `<col>`
-                         mappano per POSIZIONE, quindi ogni scarto sposta una larghezza su
-                         un'altra colonna — in silenzio, perche' la tabella si disegna lo
-                         stesso.
-                    
-                         Le larghezze le porta ora l'intestazione comune, cella per cella.
-                         Resta solo il numero riga, che intestazione non ha: la sua quota
-                         deve entrare nel conto o le altre sommerebbero piu' del 100%. -->
-                    <colgroup>
-                      <col class="doc-form__col--index" [style.width]="lineIndexColumnWidth()" />
-                    </colgroup>
+                    <!-- ⛔ **Qui c'era un `<colgroup>`, ed era un SECONDO catalogo colonne.**
+                         23 `<col>` che avevano gia' derivato da quello vero — nessuna Variante, nessuna Giacenza, e lo sconto prima dei prezzi invece che dopo
+                         — e i `<col>` mappano per POSIZIONE, quindi ogni scarto spostava una
+                         larghezza sulla colonna sbagliata, in silenzio.
+                         
+                         Le larghezze le porta l'INTESTAZIONE COMUNE, cella per cella, numero
+                         riga compreso: un secondo posto che dichiara le colonne e' un secondo
+                         posto che puo' divergerne. -->
                     <thead>
                       <!-- ⭐ **L'intestazione è la COMPONENTE COMUNE.** Qui c'erano
                            26 `<th>` scritti a mano, ed erano la causa diretta
@@ -640,6 +635,7 @@
                            leggibile dal `title`. -->
                       <tr
                         app-document-line-head
+                        [indexColumnWidth]="lineIndexColumnWidth()"
                         [isColumnVisible]="isLineColumnVisibleFn"
                         [columnWidth]="lineColumnWidthFn"
                         [columnMinWidth]="lineColumnMinWidthFn"

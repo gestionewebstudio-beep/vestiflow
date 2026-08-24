@@ -537,6 +537,7 @@
                        grammatica con classi e resize propri. -->
                   <tr
                     app-document-line-head
+                    [indexColumnWidth]="lineIndexColumnWidth()"
                     [isColumnVisible]="isLineColumnVisibleFn"
                     [columnWidth]="lineColumnWidthFn"
                     [columnMinWidth]="lineColumnMinWidthFn"
@@ -550,6 +551,7 @@
                     (priceMenuToggled)="togglePriceModeMenu()"
                     (priceModeChanged)="setPriceMode($event)"
                     (sortToggled)="onRowSortToggled($event)"
+                    (columnResizing)="onLineColumnResizing($event.column, $event.widthPx)"
                     (columnResized)="onLineColumnResize($event.column, $event.widthPx)"
                   ></tr>
                 </thead>

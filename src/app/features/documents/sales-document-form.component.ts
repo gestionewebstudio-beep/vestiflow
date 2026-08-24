@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   DestroyRef,
   afterNextRender,
   computed,
@@ -130,10 +131,7 @@ import { formatItalianInputDate } from '@shared/utils/calendar.util';
 import { CdkDrag, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
 import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
-import {
-  lineColumnQuotaWidth,
-  sumVisibleLineColumnsPx,
-} from '@shared/table-columns/line-column-quota.util';
+import { createLineColumnWidths } from '@shared/table-columns/line-column-widths.store';
 import { DocumentLineSortStore } from '@domain/documents/state/document-line-sort.store';
 import { sortByValue, type SortValueKind } from '@shared/utils/sort-values.util';
 import {
@@ -1317,6 +1315,10 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
   // tipi che questa maschera ospita: sono la stessa tabella.
 
   private readonly columnPreferences = inject(TableColumnPreferenceService);
+
+  /** Serve a misurare la tabella resa: la ridistribuzione lavora in pixel. */
+
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   protected readonly lineColumnsView = SALES_DOCUMENT_LINES_VIEW;
 
   protected isLineColumnVisible(columnId: string): boolean {
@@ -1342,35 +1344,38 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     return this.columnPreferences.isColumnVisible(this.lineColumnsView, columnId);
   }
 
-  private lineColumnPx(columnId: string): number {
-    const def = SALES_DOCUMENT_LINE_COLUMNS.find((column) => column.id === columnId);
-    return this.columnPreferences.columnWidth(
-      this.lineColumnsView,
-      columnId,
-      def?.defaultWidthPx ?? 96,
-    );
-  }
-
-  /** Somma delle sole colonne visibili: è il 100% di cui ciascuna prende una quota. */
-  private lineColumnsTotalPx(): number {
-    return sumVisibleLineColumnsPx(
-      SALES_DOCUMENT_LINE_COLUMNS,
-      (id) => this.isLineColumnVisible(id),
-      (id) => this.lineColumnPx(id),
-    );
-  }
-
   /**
-   * Larghezza come QUOTA percentuale del totale: la tabella occupa sempre
-   * esattamente il contenitore. Coi pixel assoluti resterebbe larga quanto la
-   * somma e scorrerebbe invece di adattarsi.
+   * ⭐ **Le larghezze vengono dal PUNTO COMUNE.** Qui c'erano le quote senza
+   * la ridistribuzione: mezzo sistema. La maniglia dell'intestazione comune
+   * e' montata `[live]`, quindi la direttiva non disegna niente da sola e
+   * aspetta che qualcuno ascolti `resizing` — nessuno ascoltava. Si
+   * trascinava senza vedere nulla, e al rilascio la colonna saltava
+   * riscalando tutte le altre.
+   *
+   * Questo documento dichiara solo il proprio catalogo e la propria vista.
    */
+  private readonly lineWidths = createLineColumnWidths({
+    defs: SALES_DOCUMENT_LINE_COLUMNS,
+    viewId: this.lineColumnsView,
+    preferences: this.columnPreferences,
+    isVisible: (id) => this.isLineColumnVisible(id),
+    host: this.host,
+  });
+
   protected lineColumnWidth(columnId: string): string {
-    return lineColumnQuotaWidth(columnId, this.lineColumnsTotalPx(), (id) => this.lineColumnPx(id));
+    return this.lineWidths.width(columnId);
   }
 
-  protected onLineColumnResize(columnId: string, widthPx: number): void {
-    this.columnPreferences.setColumnWidth(this.lineColumnsView, columnId, widthPx);
+  protected lineIndexColumnWidth(): string {
+    return this.lineWidths.indexWidth();
+  }
+
+  protected onLineColumnResizing(columnId: string, renderedWidthPx: number): void {
+    this.lineWidths.onResizing(columnId, renderedWidthPx);
+  }
+
+  protected onLineColumnResize(columnId: string, renderedWidthPx: number): void {
+    this.lineWidths.onResize(columnId, renderedWidthPx);
   }
 
   // ── Riordino delle righe (§7.1 e §7.2) ────────────────────────────────────
@@ -2075,7 +2080,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     this.lineColumnWidth(column);
 
   protected readonly lineColumnMinWidthFn = (column: DocumentLineColumnId): number =>
-    SALES_DOCUMENT_LINE_COLUMNS.find((col) => col.id === column)?.minWidthPx ?? 48;
+    this.lineWidths.minWidth(column);
 
   protected lineGroup(index: number): FormGroup {
     return this.lines.at(index);

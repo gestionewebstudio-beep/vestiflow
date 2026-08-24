@@ -3,7 +3,12 @@
 
      ⚠️ L'ordine delle celle deve restare quello di `document-line-row`: sono la
      stessa griglia vista da sopra. -->
-<th scope="col" class="doc-form__cell--index" aria-label="Numero riga">
+<th
+  scope="col"
+  class="doc-form__cell--index"
+  aria-label="Numero riga"
+  [style.width]="indexColumnWidth() || null"
+>
   <span class="doc-form__th-label" title="#">#</span>
 </th>
 @if (isColumnVisible()('articleCode')) {

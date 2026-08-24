@@ -376,6 +376,7 @@
                          `sellingPrice` non è `unitPrice`. -->
                     <tr
                       app-document-line-head
+                      [indexColumnWidth]="lineIndexColumnWidth()"
                       [isColumnVisible]="isLineColumnVisibleFn"
                       [columnWidth]="lineColumnWidthFn"
                       [columnMinWidth]="lineColumnMinWidthFn"
@@ -388,6 +389,7 @@
                       [sortColumn]="lineSort.column()"
                       [sortDirection]="lineSort.direction()"
                       (sortToggled)="onRowSortToggled($event)"
+                      (columnResizing)="onLineColumnResizing($event.column, $event.widthPx)"
                       (columnResized)="onLineColumnResize($event.column, $event.widthPx)"
                     ></tr>
                   </thead>

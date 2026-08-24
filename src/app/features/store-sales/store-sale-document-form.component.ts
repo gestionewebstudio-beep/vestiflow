@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   DestroyRef,
   afterNextRender,
   computed,
@@ -135,10 +136,7 @@ import type { SelectMenuOption } from '@shared/components/select-menu/select-men
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
 import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
-import {
-  lineColumnQuotaWidth,
-  sumVisibleLineColumnsPx,
-} from '@shared/table-columns/line-column-quota.util';
+import { createLineColumnWidths } from '@shared/table-columns/line-column-widths.store';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
 import type { DocumentRecord } from '@core/models/document.model';
@@ -1292,6 +1290,10 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
   }
 
   private readonly columnPreferences = inject(TableColumnPreferenceService);
+
+  /** Serve a misurare la tabella resa: la ridistribuzione lavora in pixel. */
+
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   protected readonly lineColumnsView = STORE_SALE_LINES_VIEW;
 
   constructor() {
@@ -1343,34 +1345,43 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
     return this.columnPreferences.isColumnVisible(this.lineColumnsView, columnId);
   }
 
-  private lineColumnPx(columnId: string): number {
-    const def = STORE_SALE_LINE_COLUMNS.find((column) => column.id === columnId);
-    return this.columnPreferences.columnWidth(
-      this.lineColumnsView,
-      columnId,
-      def?.defaultWidthPx ?? 96,
-    );
-  }
+  /**
+   * ⭐ **Le larghezze vengono dal PUNTO COMUNE.** Qui c'erano le quote senza
+   * la ridistribuzione: mezzo sistema. La maniglia dell'intestazione comune
+   * e' montata `[live]`, quindi la direttiva non disegna niente da sola e
+   * aspetta che qualcuno ascolti `resizing` — nessuno ascoltava. Si
+   * trascinava senza vedere nulla, e al rilascio la colonna saltava
+   * riscalando tutte le altre.
+   *
+   * Questo documento dichiara solo il proprio catalogo e la propria vista.
+   */
+  private readonly lineWidths = createLineColumnWidths({
+    defs: STORE_SALE_LINE_COLUMNS,
+    viewId: this.lineColumnsView,
+    preferences: this.columnPreferences,
+    isVisible: (id) => this.isLineColumnVisible(id),
+    host: this.host,
+    minWidthPx: 56,
+  });
 
-  private lineColumnsTotalPx(): number {
-    return sumVisibleLineColumnsPx(
-      STORE_SALE_LINE_COLUMNS,
-      (id) => this.isLineColumnVisible(id),
-      (id) => this.lineColumnPx(id),
-    );
-  }
-
-  /** Larghezza come quota del totale visibile: il motore comune di `shared/`. */
   protected lineColumnWidth(columnId: string): string {
-    return lineColumnQuotaWidth(columnId, this.lineColumnsTotalPx(), (id) => this.lineColumnPx(id));
+    return this.lineWidths.width(columnId);
+  }
+
+  protected lineIndexColumnWidth(): string {
+    return this.lineWidths.indexWidth();
   }
 
   protected lineColumnMinWidth(columnId: string): number {
-    return STORE_SALE_LINE_COLUMNS.find((column) => column.id === columnId)?.minWidthPx ?? 56;
+    return this.lineWidths.minWidth(columnId);
   }
 
-  protected onLineColumnResize(columnId: string, widthPx: number): void {
-    this.columnPreferences.setColumnWidth(this.lineColumnsView, columnId, widthPx);
+  protected onLineColumnResizing(columnId: string, renderedWidthPx: number): void {
+    this.lineWidths.onResizing(columnId, renderedWidthPx);
+  }
+
+  protected onLineColumnResize(columnId: string, renderedWidthPx: number): void {
+    this.lineWidths.onResize(columnId, renderedWidthPx);
   }
 
   // ── Netto / ivato ────────────────────────────────────────────────────────
