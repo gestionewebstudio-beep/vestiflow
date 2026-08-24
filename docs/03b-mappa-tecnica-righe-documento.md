@@ -14,6 +14,42 @@
 
 ---
 
+## ⭐ Aggiornata dopo la migrazione — 24/08/2026
+
+⚠️ **Questa mappa descriveva un codice che non esiste più.** Fra il 22 e il 24 agosto 2026
+tutte e sette le maschere con righe articolo vere sono passate all'intestazione e alla riga
+condivise, e le loro larghezze a un punto solo. Le sezioni superate sono state **potate**, non
+affiancate: quello che dicevano di sbagliato resta in una riga, il resto sta in `git log -p`.
+
+**Dove sta ora ciò che prima era triplicato:**
+
+| Cosa                                     | Dove vive adesso                                                          |
+| ---------------------------------------- | ------------------------------------------------------------------------- |
+| intestazione della griglia articolo      | `domain/documents/components/document-line-head/`                         |
+| riga della griglia articolo              | `domain/documents/components/document-line-row/`                          |
+| catalogo canonico delle colonne          | `document-line-row.model.ts` — `DOCUMENT_LINE_COLUMNS`, 31 identificativi |
+| giro del fuoco                           | `domain/documents/state/document-line-focus.store.ts`                     |
+| **larghezze, quote, resize, preferenze** | `shared/table-columns/line-column-widths.store.ts` — §7-bis               |
+| richiamo articolo (anagrafica → riga)    | `domain/documents/services/document-line-article.service.ts`              |
+
+**Le sette maschere**, e i tipi documento che servono:
+
+| Componente                       | Tipi                                                     |
+| -------------------------------- | -------------------------------------------------------- |
+| `CustomerOrderFormComponent`     | Ordine cliente, Preventivo, DDT vendita, Scarico manuale |
+| `GoodsReceiptFormComponent`      | Arrivo merce                                             |
+| `SupplierOrderFormComponent`     | Ordine fornitore                                         |
+| `SalesDocumentFormComponent`     | Proforma, Fattura, Fattura accompagnatoria               |
+| `StockOperationFormComponent`    | Rettifica, Inventario                                    |
+| `TransferFormComponent`          | Trasferimento                                            |
+| `StoreSaleDocumentFormComponent` | Vendita e Reso al banco                                  |
+
+⛔ **Zero `<th>` e zero `<td>` locali** per la griglia articolo, in tutte e sette — l'unica
+eccezione è la cella dello stato vuoto della Vendita al banco (`colspan`), che non è una cella
+di riga. **Zero `if (documentType)`** nei componenti condivisi.
+
+---
+
 ## 0. Migration implicate
 
 Prima di tutto il resto, perché il database Supabase è unico e condiviso.
@@ -36,16 +72,23 @@ verificati liberi **prima**, come vuole §13-bis: il database portava già
 
 ---
 
-## 1. Perimetro reale: nove tipi, cinque componenti
+## 1. Perimetro reale: le sette maschere e i modelli riga
 
-| Tipi documento                             | Componente                   | Modello riga        | Celle condivise        |
-| ------------------------------------------ | ---------------------------- | ------------------- | ---------------------- |
-| Ordine cliente                             | `CustomerOrderFormComponent` | `SalesOrderLine`    | sì                     |
-| Preventivi, DDT vendita, Scarico manuale   | `CustomerOrderFormComponent` | **`DocumentLine`**  | sì                     |
-| Arrivi merce                               | `GoodsReceiptFormComponent`  | `DocumentLine`      | sì                     |
-| Ordine fornitore                           | `SupplierOrderFormComponent` | `SupplierOrderLine` | sì (solo cella codice) |
-| Proforma, Fattura, Fattura accompagnatoria | `SalesDocumentFormComponent` | `DocumentLine`      | **no**                 |
-| Vendita/reso in negozio                    | `StoreSaleRegisterComponent` | `DocumentLine`      | **no**                 |
+⛔ **Qui c'era una colonna «Celle condivise» con due «no»** (Fatture e Vendita al banco) e una
+riga «sì solo cella codice» per l'Ordine fornitore. Non vale più: la migrazione le ha portate
+tutte, e la colonna non ha più informazione da dare. Resta invece la differenza che conta e che
+nessuna migrazione toglie — **su quale tabella la riga si persiste**.
+
+| Tipi documento                             | Componente                       | Modello riga        |
+| ------------------------------------------ | -------------------------------- | ------------------- |
+| Ordine cliente                             | `CustomerOrderFormComponent`     | `SalesOrderLine`    |
+| Preventivi, DDT vendita, Scarico manuale   | `CustomerOrderFormComponent`     | **`DocumentLine`**  |
+| Arrivi merce                               | `GoodsReceiptFormComponent`      | `DocumentLine`      |
+| Ordine fornitore                           | `SupplierOrderFormComponent`     | `SupplierOrderLine` |
+| Proforma, Fattura, Fattura accompagnatoria | `SalesDocumentFormComponent`     | `DocumentLine`      |
+| Rettifica, Inventario                      | `StockOperationFormComponent`    | `DocumentLine`      |
+| Trasferimento                              | `TransferFormComponent`          | `DocumentLine`      |
+| Vendita e Reso al banco                    | `StoreSaleDocumentFormComponent` | `DocumentLine`      |
 
 **La biforcazione che sorprende.** `CustomerOrderFormComponent` serve quattro tipi tramite il route data `customerDocumentKind`, ma **salva su due tabelle diverse**: il predicato `isRegistryDocument` devia Preventivi / DDT / Scarico manuale su `saveRegistryDocument` → `DocumentLine`; solo l'Ordine cliente passa da `SalesOrderLine`.
 
@@ -62,11 +105,18 @@ Oggi la colonna è `numeric(16,6)` come le altre due, la modalità vive su
 mandano entrambe il netto. **Chi guarda questa tabella per capire dove copiare: le due righe
 della prima colonna adesso si comportano uguale.**
 
-**Vendita/reso in negozio non è una maschera documento.** Produce documenti `store_sale` / `store_return`, poi consultabili in sola lettura, ma il carrello **non è una `FormArray`**: è un carrello a segnali (`signal<readonly CartLine[]>`) con gestori `(change)` propri, e non ha **alcuna** navigazione da tastiera. Allinearla non è aggiungere le frecce: è cambiare l'architettura della riga.
+⛔ **Qui c'era «Vendita/reso in negozio non è una maschera documento»**, con un carrello a
+segnali invece di una `FormArray` e nessuna navigazione da tastiera. È stato **rifatto**: oggi è
+`StoreSaleDocumentFormComponent`, con la riga e l'intestazione condivise come le altre sei.
 
-Non è però un silo: riusa già da `domain/` il pannello di ricerca prodotto, le utility IVA, la scheda articolo e i servizi. Ciò che non condivide non lo condivide **perché è diverso**. Le celle di riga condivise, che sono legate al valore e non al form, resterebbero adottabili anche lì.
+⛔ **E qui c'era «Quattro maschere senza navigazione»** — Fatture, Trasferimento, Rettifica,
+Registrazione fattura. Il giro del fuoco vive ora in `DocumentLineFocusStore` e lo usano sei
+maschere su sette.
 
-**Quattro maschere senza navigazione:** `sales-document-form`, `purchase-invoice-form`, `transfer-form`, `stock-operation-form` hanno righe editabili e zero gestione di tastiera o fuoco.
+⚠️ **La settima non l'ha, e non è un arretrato.** La Vendita al banco non naviga per fuoco fra
+le celle: si lavora sulla **riga rapida** in cima, si cerca l'articolo e la riga si aggiunge —
+il fuoco torna al campo di ricerca (`focusSearchInput`). È un banco, non un modulo da compilare,
+e le due ergonomie non vanno uniformate per simmetria.
 
 ---
 
@@ -74,26 +124,29 @@ Non è però un silo: riusa già da `domain/` il pannello di ricerca prodotto, l
 
 ### 2.1 Dove vive
 
-Tre implementazioni parallele, in `customer-order-form.component.ts`, `supplier-order-form.component.ts`, `goods-receipt-form.component.ts`, più le celle condivise in `domain/documents/components/`.
+⛔ **Qui c'erano «tre implementazioni parallele» e «21 corpi di metodo, ~600 righe»** _(mis.
+08/2026)_. Non esistono più: il giro del fuoco sta in **`DocumentLineFocusStore`**
+(`domain/documents/state/document-line-focus.store.ts`), e ogni maschera dichiara soltanto
+**quali campi attraversa** e **come si chiamano i suoi elementi**.
 
-**Sette metodi esistono in tutte e tre** — `visibleLineFocusFields`, `focusLineField`, `focusFirstLineField`, `focusNextLineField`, `focusPreviousLineField`, `advanceToNextLine`, `onLineFieldKeydown` — cioè **21 corpi di metodo, ~600 righe in tutto** _(mis. 08/2026)_. Il codice dichiara la triplicazione da sé: l'Ordine cliente porta due volte il commento «stesso pattern Arrivo merce».
+La misura serviva a decidere se unificare. È stato deciso e fatto: quello che resta utile è la
+ragione per cui la triplicazione era un problema, ed è la §2.2 qui sotto.
 
-### 2.2 Cosa è identico e cosa diverge
+### 2.2 Perché la triplicazione era un problema — e che forma prende adesso
 
-**Identico parola per parola:** `focusNextLineField`; il blocco Tab / Shift+Tab dentro `onLineFieldKeydown`, commenti compresi; e `onLineFieldKeydown` di Ordine cliente e Ordine fornitore hanno lo stesso corpo letterale — cambia solo il testo di un commento.
+⭐ **Vale la pena conservarlo, perché la stessa cosa può riaccadere altrove.** Tre copie nate
+identiche erano divergute in **otto** comportamenti: le frecce ↑↓ dentro gli input, `Ctrl`+↑↓
+per spostare la riga, l'aggancio di `lineRowRetreat`, la guardia `formReadOnly()`, il
+`setTimeout` prima del fuoco, il gancio d'uscita riga, il comportamento dell'Invio, e la
+lunghezza di `visibleLineFocusFields` (24 righe contro 82). Nessuna delle otto era una
+decisione: erano tre correzioni fatte una volta sola, ognuna nella copia dove il difetto si era
+visto.
 
-**Diverge:**
-
-| Aspetto                                         | Ordine cliente     | Ordine fornitore   | Arrivo merce                           |
-| ----------------------------------------------- | ------------------ | ------------------ | -------------------------------------- |
-| Frecce ↑↓ negli input                           | no                 | no                 | **sì**                                 |
-| `Ctrl` + ↑↓ (sposta riga)                       | no                 | no                 | **sì** → `moveLineUp` / `moveLineDown` |
-| `(lineRowRetreat)` agganciato                   | **no**             | **no**             | sì                                     |
-| Guardia `formReadOnly()` in `advanceToNextLine` | sì                 | **no**             | apparente (§9)                         |
-| `setTimeout` prima del fuoco                    | sì, con commento   | sì, con commento   | **no**                                 |
-| Gancio d'uscita riga                            | —                  | —                  | `commitLineAndSave`                    |
-| Invio                                           | → cella successiva | → cella successiva | 2 casi speciali, poi cella successiva  |
-| `visibleLineFocusFields`                        | ~24 righe          | ~24 righe          | **~82 righe** _(mis. 08/2026)_         |
+⚠️ **La forma che il rischio prende adesso** è un'altra, e va sorvegliata: non più tre copie che
+divergono, ma **un componente condiviso che impara a distinguere i documenti**. Il presidio è
+scritto: nessun `if (documentType)` nella riga e nell'intestazione comuni. Le differenze
+arrivano come **dati** — quali colonne, quale etichetta, quale minimo — o come domanda al
+gruppo di controlli (`haControllo`).
 
 **Invio, oggi, naviga in tutte e tre.** Arrivo merce aggiunge due casi prima di cadere nello stesso comportamento:
 
@@ -102,17 +155,18 @@ Tre implementazioni parallele, in `customer-order-form.component.ts`, `supplier-
 
 ### 2.3 Gli identificativi DOM
 
-Tutte e tre fanno `getElementById` su una mappa ricostruita a ogni chiamata. I prefissi sono per maschera (`co-`, `po-`, `gr-`) ma **i suffissi sono irregolari dentro la stessa maschera**:
+⛔ **Qui c'era la tabella dei suffissi irregolari** (`gr-serial-` singolare contro
+`co-serials-` plurale, `gr-supplier-code-` contro `po-suppcode-`) con la conclusione «un
+prefisso più indice non basta». Non li scrive più la maschera: li produce la **riga comune**,
+con `cellId(campo)` = `${idPrefix}-${campo}-${indice}`.
 
-| campo           | Ordine cliente | Arrivo merce               | Ordine fornitore |
-| --------------- | -------------- | -------------------------- | ---------------- |
-| codice articolo | `co-code-`     | `gr-code-`                 | `po-code-`       |
-| cod. fornitore  | —              | `gr-supplier-code-`        | `po-suppcode-`   |
-| prezzo / costo  | `co-price-`    | `gr-cost-` / `gr-selling-` | `po-cost-`       |
-| seriali         | `co-serials-`  | `gr-serial-` (singolare)   | —                |
-| scadenza lotto  | —              | `gr-lot-date-`             | —                |
-
-Un prefisso più indice **non basta**: serve la mappa completa.
+⚠️ **Il difetto ha cambiato forma, non è sparito.** La maschera conserva la mappa
+campo → identificativo che il giro del fuoco usa per `getElementById`, e quella mappa deve
+**seguire** ciò che la riga comune emette. Se divergono, il Tab salta la cella **in silenzio**:
+nessun errore, nessun test rosso, solo un giro che non arriva dove deve. È già successo il
+24/08/2026 con quattro nomi dell'Arrivo merce (`gr-selling-` contro `gr-sellingPrice-`,
+`gr-lot-date-` contro `gr-expiry-`, `gr-serial-` contro `gr-serials-`,
+`gr-compare-` contro `gr-compareAtPrice-`), corretti allineando la mappa alla riga.
 
 **Quarto spazio di nomi, mai raggiunto dal TypeScript:** le card mobile dell'Ordine cliente espongono identificativi propri (`co-m-…`) che nessun `.ts` conosce. Su mobile la navigazione **non esiste**. Peggio: le due viste convivono nel DOM e la tabella è nascosta sotto il breakpoint, quindi `getElementById` trova l'elemento desktop in `display:none` e `.focus()` è un no-op silenzioso.
 
@@ -605,17 +659,98 @@ Cancellare un codice azzera il puntatore ma lo snapshot conserva i valori. **È 
 
 Prodotti e Clienti ricevono le colonne ma le usano solo per sapere **se** una colonna c'è e per l'etichetta.
 
-**Cosa funziona invece sulle righe documento** _(mis. 08/2026)_:
+**Cosa funziona sulle righe documento** _(mis. 24/08/2026, tutte e sette le maschere)_:
 
-|                                                  | Ordine cliente | Arrivo merce | Ordine fornitore |
-| ------------------------------------------------ | -------------- | ------------ | ---------------- |
-| Nascondere (gate `isLineColumnVisible`)          | 48             | 69           | 30               |
-| Ridimensionare (maniglie `appTableColumnResize`) | 14             | 15           | 13               |
-| Spostare                                         | —              | —            | —                |
+|                                                  | Stato                                                          |
+| ------------------------------------------------ | -------------------------------------------------------------- |
+| Nascondere (gate `isLineColumnVisible`)          | **sì**, su tutte e sette                                       |
+| Ridimensionare (maniglie `appTableColumnResize`) | **sì**, su tutte e sette — punto comune, §7-bis                |
+| Spostare                                         | — escluso: la funzione meno richiesta, e la più cara del piano |
 
-> **Due su tre funzionano già** è la misura che regge la decisione di escludere lo spostamento colonne: manca la funzione meno richiesta delle tre, e costa più di tutto il resto del piano.
+⛔ **Qui c'era «due su tre funzionano già», con un conteggio di maniglie per tre maschere sole.**
+Le maniglie non le conta più nessuno: le monta l'intestazione comune, una per colonna dichiarata,
+e sono le stesse ovunque.
 
 Il **pin** non compare sui documenti: nessuna delle tre configurazioni dichiara `pinnable`.
+
+### 7-bis. Le larghezze: un punto solo — `line-column-widths.store.ts` _(24/08/2026)_
+
+⭐ **Chiude il contratto comune delle righe.** Il resize era l'ultimo pezzo implementato a metà:
+due copie identiche (Arrivo merce, Ordine cliente) e **cinque maschere con solo le quote**, senza
+la ridistribuzione.
+
+#### Non erano «un po' diverse»
+
+L'intestazione comune monta la maniglia con `[live]="true"`. In quella modalità
+`TableColumnResizeDirective` **non disegna niente da sola**: si limita a emettere `resizing` a
+ogni movimento e aspetta che il consumatore decida. Nelle cinque maschere **nessuno ascoltava**.
+
+- Durante il trascinamento non si vedeva **nulla**.
+- Al rilascio la colonna saltava alla misura nuova, e siccome i suoi pixel entrano nel totale da
+  cui ogni quota si calcola, **tutte le altre si riscalavano**.
+
+#### Le tre scale, ed è da qui che nascono gli errori
+
+| Scala                    | Dove vive                                  |
+| ------------------------ | ------------------------------------------ |
+| **pixel salvati** (pesi) | le preferenze. Contano solo i **rapporti** |
+| **quote percentuali**    | il `[style.width]` della cella             |
+| **pixel resi**           | solo durante il trascinamento              |
+
+I minimi per colonna significano qualcosa **solo nella terza**: erano proprio i minimi ignorati a
+far comparire la barra orizzontale — allargando molto una colonna, le altre finivano sotto la
+larghezza del loro contenuto.
+
+#### Cosa passa il documento, e solo quello
+
+```typescript
+private readonly lineWidths = createLineColumnWidths({
+  defs: GOODS_RECEIPT_LINE_COLUMNS,   // il catalogo di QUESTO documento
+  viewId: GOODS_RECEIPT_LINES_VIEW,   // dove si salvano le preferenze
+  preferences: this.columnPreferences,
+  isVisible: (id) => this.isLineColumnVisible(id),
+  host: this.host,                    // per misurare la tabella resa
+  normalizeId: normalizeGoodsReceiptColumnId, // alias storici, dove ci sono
+});
+```
+
+⛔ **Nessun tipo documento entra da questa porta**, ed è verificato: zero occorrenze di
+`documentType` o di un identificativo di tipo nel punto comune.
+
+#### Due difetti che c'erano anche nelle copie «funzionanti»
+
+Trovati dai test scritti per il punto comune, non guardando lo schermo:
+
+1. ⛔ **Ogni ridimensionamento restringeva la colonna del numero riga.** A trascinamento avviato
+   le colonne passano ai pixel resi, ma il numero riga restava al suo peso fisso: la sua quota
+   crollava — su una tabella da 1000px, dal 7,4% al 4,9% — e **non tornava indietro**, perché le
+   larghezze salvate erano ormai pixel resi. Ora la scala si conserva, e al salvataggio le
+   larghezze **tornano nella scala dei pesi**: il totale salvato è identico a quello di partenza
+   e cambiano solo i rapporti.
+2. ⛔ **Il minimo si applica su due scale, e ne aveva una sola.** Sui pixel resi durante il
+   trascinamento, sui pesi al salvataggio: senza il secondo, una colonna trascinata fino al
+   proprio minimo si salvava **sotto** di esso e la rilettura la rialzava da sola — una cosa al
+   rilascio, un'altra riaprendo.
+
+#### La colonna numero riga
+
+Entra nel **totale** ma non nella ridistribuzione: occupa la sua quota e non si ridimensiona.
+Lasciarla fuori dal totale farebbe sommare le altre al 100% con lei in più, e con
+`table-layout: fixed` il browser riscalerebbe tutto per farcelo stare. La sua quota la porta
+l'intestazione comune (`[indexColumnWidth]`): i due `<colgroup>` residui sono stati tolti,
+perché un secondo posto che dichiara le colonne è un secondo posto che può divergerne — ed
+entrambi erano già divergenti.
+
+#### Cosa è stato assorbito
+
+`line-column-quota.util.ts` è stato **rimosso**. Esisteva perché le due logiche di resize
+differivano, e il suo commento lo diceva: «estratto perché il CALCOLO era identico, non perché
+le due logiche di resize siano la stessa cosa». Ora sono la stessa cosa. La matematica della
+ridistribuzione resta invece dov'era — `column-width-distribution.util.ts`, a somma costante e
+con clamp sui minimi: il punto nuovo non la riscrive, le costruisce intorno il pezzo che le
+mancava.
+
+---
 
 ### 7.0-quater Il corpo del PATCH della maschera Fattura _(corretto 15/08/2026)_
 
@@ -759,16 +894,39 @@ _Nota:_ Ordine fornitore traccia il ciclo delle righe per **posizione** (`track 
 
 ## 9. I difetti verificati
 
+### ✅ Chiusi dalla migrazione — verificati il 24/08/2026
+
+Il punto unico è arrivato, e con lui sono caduti cinque dei difetti elencati sotto. Non sono
+stati «corretti» uno per uno: **hanno smesso di poter esistere**, perché il codice che li
+ospitava non c'è più. Restano nominati perché dicono che cosa non deve tornare.
+
+| N.  | Difetto                                                               | Perché non può più esistere                                                                                                    |
+| --- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | ↑ tasto morto su Ordine cliente e Ordine fornitore                    | la riga comune emette `rowRetreat`, e **sei maschere su sette lo agganciano** (la settima, il banco, non ha un giro del fuoco) |
+| 3   | `advanceToNextLine` di Ordine fornitore ignora la sola lettura        | il giro vive in `DocumentLineFocusStore`, che riceve `isReadOnly: () => this.formReadOnly()`                                   |
+| 4   | identificativo IVA dell'Arrivo merce nella mappa ma non nel DOM       | la cella IVA è quella a ricerca-e-selezione, con un `<input id="gr-vat-{i}">` vero: `vat` è **nel** giro                       |
+| 9   | U.M. e sconto di Ordine fornitore nel giro ma senza `(keydown)`       | i `keydown` li emette la riga comune, gli stessi per tutte e sette                                                             |
+| 10  | prezzo di vendita e di confronto fuori dal Tab ma editabili col mouse | `sellingPrice`, `shopifyPrice` e `compareAtPrice` sono **nel** giro dell'Arrivo merce                                          |
+
+⛔ **E l'8 è caduto per una ragione diversa, che vale la pena ricordare.** Era «la mappa inversa
+testa il prefisso del lotto prima di quello della scadenza, e il secondo inizia col primo»: da
+«Scadenza» il fuoco tornava su «Lotto». La mappa inversa a `startsWith` **non esiste più**, e
+per di più i due identificativi non condividono il prefisso (`gr-lot-` e `gr-expiry-`). Il
+difetto era la conseguenza di **due nomi scelti a mano in posti diversi** — la stessa famiglia di
+§2.3, che resta aperta.
+
+### Ancora aperti
+
 **Gruppo A — divergenze che il punto unico cementerebbe**
 
-1. **↑ è un tasto morto** in Ordine cliente e Ordine fornitore: le celle emettono `lineRowRetreat` e nessuno dei due template lo aggancia. Il tasto fa `preventDefault` e poi niente — non fa nemmeno il comportamento nativo.
+1. ✅ **Chiuso** — vedi la tabella qui sopra.
 2. ~~**La cella prodotto di Ordine fornitore non ha identificativo**~~ — ✅ **chiuso davvero (11/08/2026). La toppa temporanea è stata tolta e la condizione di rientro si è avverata.**
    Il campo era nel giro del Tab e puntava a `po-product-{i}`, identificativo che non esiste in nessun template: quella cella era un `app-select-menu`, senza `inputId` né fuoco pubblico. Da «Cod. fornitore» il fuoco si perdeva a metà giro.
    **La correzione provvisoria era stata TOGLIERE `product` dal giro** — una sottrazione, non una soluzione: il nome prodotto non si raggiungeva da tastiera.
    **Ora la cella è quella condivisa a ricerca-e-selezione** (specifica §4.3-bis e §4.12), quindi esiste un `<input id="po-product-{i}">` vero e `product` è **rientrato nel giro**, fra «Cod. fornitore» e «Q.tà». Lo spec che registrava l'assenza è stato girato: adesso asserisce la presenza e la posizione, così se qualcuno rifacesse la cella una tendina il test lo direbbe.
    _Per l'IVA (difetto 4) la condizione di rientro resta aperta: stessa causa, stessa cella, e quella tendina non è ancora stata sostituita._
-3. **`advanceToNextLine` di Ordine fornitore non controlla `formReadOnly()`** — e non ha nemmeno il `<fieldset [disabled]>` che protegge le altre due. Su documento bloccato il Tab aggiunge righe.
-4. **L'identificativo IVA dell'Arrivo merce è nella mappa ma non esiste nel DOM** (la cella è un `app-select-menu`). Innocuo solo perché `visibleLineFocusFields` esclude `vat` a mano.
+3. ✅ **Chiuso** — vedi la tabella qui sopra.
+4. ✅ **Chiuso** — vedi la tabella qui sopra.
 5. ~~**Le celle gemelle divergono a suggerimenti aperti**: la cella prodotto usa le frecce per scorrere la lista, la cella codice le ingoia con `preventDefault`.~~
    **CHIUSO da una decisione di prodotto (08/2026), non corretto — non cercare il commit che lo sistema, non c'è.** La regola «il campo codice non cerca» (spec §codici) toglie la ricerca a digitazione e apre il pannello alla **conferma**, per far scegliere fra più corrispondenze esatte. Quella scelta deve essere navigabile con le frecce, quindi la cella codice **riceve** `suggestionNavigate` — che è precisamente ciò che le mancava. Il difetto non viene sanato: smette di esistere perché il meccanismo che lo conteneva cambia sorgente.
    Corollario verificato prima di agire: la divergenza **non** sarebbe stata cementata dal punto unico. Le frecce a lista aperta sono gestite dentro le celle e non raggiungono mai il form, che vede solo `lineRowAdvance` / `lineRowRetreat`, emessi a lista chiusa. La collocazione di questo difetto fra i prerequisiti dell'unificazione era sbagliata.
@@ -777,9 +935,9 @@ _Nota:_ Ordine fornitore traccia il ciclo delle righe per **posizione** (`track 
 
 6. **Ordine cliente: il giro ignora `lineIsReference`.** Sulla riga «documento collegato» il template non rende alcun controllo del giro, quindi ogni ricerca per identificativo va a vuoto e il fuoco muore.
 7. **Arrivo merce, con una sola riga vuota**: l'aggiunta porta a due righe, la pulizia dei duplicati vuoti in coda torna a una, e il fuoco punta a un indice che non esiste più.
-8. **Arrivo merce, mappa inversa** (usata da Ctrl+frecce): il prefisso del lotto è testato **prima** di quello della scadenza lotto, e il secondo inizia col primo. Da «Scadenza» il fuoco torna su «Lotto».
-9. **Ordine fornitore: U.M. e sconto sono nel giro ma non hanno `(keydown)`.** Il template ha **due gestori per nove campi**, contro i nove dell'Arrivo merce e i quattro dell'Ordine cliente _(mis. 08/2026)_.
-10. **Arrivo merce: su riga collegata prezzo di vendita e prezzo di confronto sono esclusi dal Tab ma le celle restano editabili col mouse**, senza commento che spieghi l'incoerenza.
+8. ✅ **Chiuso** — vedi la tabella qui sopra.
+9. ✅ **Chiuso** — vedi la tabella qui sopra.
+10. ✅ **Chiuso** — vedi la tabella qui sopra.
 11. ~~**e2e già rotto**: gli helper e lo spec dell'Arrivo merce cercano una classe CSS rinominata in `src/`.~~ ✅ **Chiuso (08/2026)**, insieme al fronte più largo che ha aperto — vedi §12.
 12. **U.M. di Ordine fornitore fallisce in silenzio** (§5.2).
 
