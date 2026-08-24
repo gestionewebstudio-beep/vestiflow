@@ -38,6 +38,7 @@ export interface DocumentLineApiRow {
   readonly enteredUnitCost?: string | number | null;
   readonly lineTotalMinor: number;
   readonly unitOfMeasure?: string | null;
+  readonly variantLabel?: string | null;
   readonly loadsStock: boolean;
   readonly isReference?: boolean;
   readonly supplierOrderLineId?: EntityId | null;
@@ -225,6 +226,7 @@ function mapLine(row: DocumentLineApiRow, currency: CurrencyCode): DocumentLine 
       row.enteredUnitCost != null ? toStorableMinor(Number(row.enteredUnitCost) * 100) : undefined,
     lineTotal: { amountMinor: row.lineTotalMinor, currencyCode: currency },
     unitOfMeasure: row.unitOfMeasure ?? undefined,
+    variantLabel: row.variantLabel ?? undefined,
     loadsStock: row.loadsStock,
     isReference: row.isReference === true,
     supplierOrderLineId: row.supplierOrderLineId ?? undefined,

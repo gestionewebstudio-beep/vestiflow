@@ -2244,6 +2244,20 @@ model DocumentLine {
   variantId                String?                @map("variant_id") @db.Uuid
   sku                      String?
   description              String
+  /// Etichetta della VARIANTE, i soli valori: «M / Rosso». Fotografata quando
+  /// l'articolo entra nella riga, come sku e description.
+  ///
+  /// ⛔ NON si ricalcola a ogni salvataggio: su una riga esistente che porta
+  /// ancora la stessa variante si conserva quella persistita
+  /// (`document-line-variant-snapshot.util`). Ricalcolarla farebbe diventare
+  /// «Bordeaux / M» un documento di marzo che diceva «Rosso / M», solo perche'
+  /// qualcuno ha rinominato un valore d'opzione in anagrafica.
+  ///
+  /// Stringa vuota = nessuna opzione visibile, compresi il prodotto semplice e
+  /// il «Default Title» di Shopify. Mai null: non e' uno stato funzionale
+  /// valido, e il DEFAULT '' e' una sicurezza per le righe di prima — non il
+  /// comportamento ordinario di un writer.
+  variantLabel             String                 @default("") @map("variant_label")
   quantity                 Int                    @default(0)
   /// Costo/prezzo unitario NETTO canonico in unità minori (riferimento per
   /// confronto prezzi fornitore, storico costi e valorizzazione).

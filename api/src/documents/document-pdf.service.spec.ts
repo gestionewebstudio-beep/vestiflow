@@ -100,6 +100,7 @@ describe('DocumentPdfService', () => {
         lineNumber: 1,
         unitOfMeasure: null,
         variantId: 'var-1',
+        variantLabel: 'M / Rosso',
         sku: 'SKU-1',
         description: 'Maglietta',
         quantity: 2,

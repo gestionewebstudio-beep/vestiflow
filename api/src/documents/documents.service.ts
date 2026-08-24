@@ -60,6 +60,11 @@ import { buildVatCodeSnapshot, vatSnapshotRatePercent } from '../vat/vat-snapsho
 
 import { persistDocumentLinesByIdTx } from './document-line-upsert.util';
 import { preservedLineVat, type PersistedLineVat } from './document-line-vat-snapshot.util';
+import {
+  persistedLineVariants,
+  variantLabelSnapshot,
+  type PersistedLineVariant,
+} from './document-line-variant-snapshot.util';
 import { ExternalDocumentTypesService } from './external-document-types.service';
 import { receiptVatBreakdown, type VatBreakdownEntry } from './purchase-invoice-vat-summary.util';
 import { syncGoodsReceiptLineMovements } from './document-goods-receipt-sync.util';
@@ -267,6 +272,15 @@ interface ComputedLine {
   variantId: string | null;
   sku: string | null;
   description: string;
+  /**
+   * Etichetta della VARIANTE, fotografata: «M / Rosso».
+   *
+   * ⛔ Su una riga esistente che porta ancora la stessa variante si conserva
+   * quella persistita — la regola sta in `document-line-variant-snapshot.util`
+   * e non qui, perché duplicarla nei quattro compositori di `document_lines`
+   * ricreerebbe il difetto che la colonna elimina.
+   */
+  variantLabel: string;
   quantity: number;
   unitPriceMinor: number;
   discountPercent: number;
@@ -306,6 +320,14 @@ interface LineVatContext {
   readonly vatCodesById: ReadonlyMap<string, VatCodeWithNature>;
   readonly productDefaultByVariantId: ReadonlyMap<string, string | null>;
   readonly fallbackDefaultVatCodeId: string | null;
+  /**
+   * Le opzioni di ogni variante, per fotografare l'etichetta sulla riga.
+   *
+   * ⚠️ Il nome del contesto è storico — nasce per l'IVA — ma le varianti si
+   * caricano UNA volta sola: una seconda query sugli stessi record, solo per
+   * leggere un altro campo, sarebbe un costo senza ragione.
+   */
+  readonly optionValuesByVariantId: ReadonlyMap<string, unknown>;
 }
 
 interface DocumentTotals {
@@ -1030,7 +1052,16 @@ export class DocumentsService {
 
     const documentDate = new Date(dto.documentDate);
     const vatContext = await this.buildLineVatContext(tenantId, dto.supplierId, dto.lines ?? []);
-    const lines = this.computeLines(dto.lines ?? [], dto.type, vatContext);
+    const lines = this.computeLines(
+      dto.lines ?? [],
+      dto.type,
+      {
+        opzioniPerVariante: vatContext?.optionValuesByVariantId ?? new Map(),
+        // Creazione: nessuna riga persistita, l'etichetta si calcola sempre.
+        persistitePerRiga: new Map(),
+      },
+      vatContext,
+    );
     const totals = this.computeTotals(lines, dto.documentDiscountPercent ?? 0);
 
     const supplierName = await this.snapshotSupplierName(tenantId, dto.supplierId);
@@ -1521,17 +1552,33 @@ export class DocumentsService {
       dto.supplierId !== undefined ? dto.supplierId : doc.supplierId;
     const lines =
       dto.lines !== undefined
-        ? this.computeLines(
-            dto.lines,
-            doc.type,
-            await this.buildLineVatContext(tenantId, effectiveSupplierIdForVat, dto.lines),
-            new Map(
-              doc.lines.map((line) => [
-                line.id,
-                { vatCodeId: line.vatCodeId, vatSnapshot: line.vatSnapshot },
-              ]),
-            ),
-          )
+        ? await (async () => {
+            const vatContext = await this.buildLineVatContext(
+              tenantId,
+              effectiveSupplierIdForVat,
+              dto.lines!,
+            );
+            return this.computeLines(
+              dto.lines!,
+              doc.type,
+              {
+                opzioniPerVariante: vatContext.optionValuesByVariantId,
+                // ⛔ Modifica: le righe già persistite portano l'etichetta di
+                // allora, e su una riga che non ha cambiato variante è quella
+                // che vince. Senza questa mappa, riaprire e salvare un
+                // documento ne riscriverebbe le varianti con l'anagrafica di
+                // oggi.
+                persistitePerRiga: persistedLineVariants(doc.lines),
+              },
+              vatContext,
+              new Map(
+                doc.lines.map((line) => [
+                  line.id,
+                  { vatCodeId: line.vatCodeId, vatSnapshot: line.vatSnapshot },
+                ]),
+              ),
+            );
+          })()
         : null;
 
     // Guardia dei flussi dedicati: un documento che tiene movimenti per riga
@@ -1790,6 +1837,13 @@ export class DocumentsService {
             serialNumbers: (line.serialNumbers as string[]) ?? [],
           })),
           doc.type,
+          {
+            // Solo ricalcolo dei TOTALI a fronte di uno sconto di testata:
+            // nessuna riga viene riscritta, quindi non c'è etichetta da
+            // fotografare. Mappe vuote, e lo dice.
+            opzioniPerVariante: new Map(),
+            persistitePerRiga: new Map(),
+          },
         ),
         dto.documentDiscountPercent,
       );
@@ -1867,6 +1921,11 @@ export class DocumentsService {
             variantId: line.variantId,
             sku: line.sku,
             description: line.description,
+            // Riga sintetica, in memoria: serve alla riconciliazione dello
+            // stock e non viene mai persistita. L'etichetta non ha significato
+            // qui, e il tipo la richiede apposta — così non se ne scrive una
+            // vera per sbaglio.
+            variantLabel: '',
             quantity: line.quantity,
             unitPriceMinor: new Prisma.Decimal(line.unitPriceMinor),
             discountPercent: Number(line.discountPercent),
@@ -1893,6 +1952,11 @@ export class DocumentsService {
             variantId: line.variantId,
             sku: line.sku,
             description: line.description,
+            // Riga sintetica, in memoria: serve alla riconciliazione dello
+            // stock e non viene mai persistita. L'etichetta non ha significato
+            // qui, e il tipo la richiede apposta — così non se ne scrive una
+            // vera per sbaglio.
+            variantLabel: '',
             quantity: line.quantity,
             unitPriceMinor: new Prisma.Decimal(line.unitPriceMinor),
             discountPercent: new Prisma.Decimal(line.discountPercent),
@@ -1938,6 +2002,11 @@ export class DocumentsService {
             variantId: line.variantId,
             sku: line.sku,
             description: line.description,
+            // Riga sintetica, in memoria: serve alla riconciliazione dello
+            // stock e non viene mai persistita. L'etichetta non ha significato
+            // qui, e il tipo la richiede apposta — così non se ne scrive una
+            // vera per sbaglio.
+            variantLabel: '',
             quantity: line.quantity,
             unitPriceMinor: new Prisma.Decimal(line.unitPriceMinor),
             discountPercent: Number(line.discountPercent),
@@ -1972,6 +2041,11 @@ export class DocumentsService {
             variantId: line.variantId,
             sku: line.sku,
             description: line.description,
+            // Riga sintetica, in memoria: serve alla riconciliazione dello
+            // stock e non viene mai persistita. L'etichetta non ha significato
+            // qui, e il tipo la richiede apposta — così non se ne scrive una
+            // vera per sbaglio.
+            variantLabel: '',
             quantity: line.quantity,
             unitPriceMinor: new Prisma.Decimal(line.unitPriceMinor),
             discountPercent: new Prisma.Decimal(line.discountPercent),
@@ -2022,6 +2096,11 @@ export class DocumentsService {
             variantId: line.variantId,
             sku: line.sku,
             description: line.description,
+            // Riga sintetica, in memoria: serve alla riconciliazione dello
+            // stock e non viene mai persistita. L'etichetta non ha significato
+            // qui, e il tipo la richiede apposta — così non se ne scrive una
+            // vera per sbaglio.
+            variantLabel: '',
             quantity: line.quantity,
             unitPriceMinor: new Prisma.Decimal(line.unitPriceMinor),
             discountPercent: Number(line.discountPercent),
@@ -2053,6 +2132,11 @@ export class DocumentsService {
             variantId: line.variantId,
             sku: line.sku,
             description: line.description,
+            // Riga sintetica, in memoria: serve alla riconciliazione dello
+            // stock e non viene mai persistita. L'etichetta non ha significato
+            // qui, e il tipo la richiede apposta — così non se ne scrive una
+            // vera per sbaglio.
+            variantLabel: '',
             quantity: line.quantity,
             unitPriceMinor: new Prisma.Decimal(line.unitPriceMinor),
             discountPercent: new Prisma.Decimal(line.discountPercent),
@@ -3491,6 +3575,22 @@ export class DocumentsService {
   private computeLines(
     input: readonly DocumentLineInputDto[],
     documentType: DocumentType,
+    /**
+     * Ciò che serve a fotografare l'etichetta della variante.
+     *
+     * ⛔ **Obbligatorio, e senza valore di ripiego**: un percorso che persiste
+     * righe e non lo passasse scriverebbe l'etichetta vuota in silenzio, che è
+     * esattamente il difetto contro cui esiste la colonna. Chi calcola solo i
+     * totali — senza scrivere niente — passa mappe vuote, e così lo dichiara.
+     *
+     * ⚠️ Sta PRIMA degli opzionali apposta: un parametro obbligatorio in coda
+     * non si può dichiarare, e renderlo opzionale toglierebbe al compilatore la
+     * possibilità di segnalare chi se lo dimentica.
+     */
+    varianti: {
+      readonly opzioniPerVariante: ReadonlyMap<string, unknown>;
+      readonly persistitePerRiga: ReadonlyMap<string, PersistedLineVariant>;
+    },
     vatContext?: LineVatContext,
     /**
      * Righe gia' persistite, per id. Serve a una regola sola, ma di dominio:
@@ -3573,6 +3673,19 @@ export class DocumentsService {
         lineNetExactMinor,
         vatCodeId,
         vatSnapshot,
+        // ⛔ SNAPSHOT: su una riga esistente che porta ancora la stessa
+        // variante si conserva quella persistita. La regola sta in un punto
+        // solo — duplicarla nei quattro compositori di `document_lines`
+        // ricreerebbe il difetto che la colonna elimina, e rinominare un
+        // valore d'opzione riscriverebbe i documenti già emessi.
+        variantLabel: variantLabelSnapshot({
+          lineId: line.id,
+          variantId: line.variantId ?? null,
+          optionValues: line.variantId
+            ? varianti.opzioniPerVariante.get(line.variantId)
+            : null,
+          persisted: varianti.persistitePerRiga,
+        }),
         // `undefined` resta `undefined`: chi non manda il campo non lo tocca.
         // Una stringa vuota resta uno svuotamento esplicito.
         unitOfMeasure:
@@ -3609,7 +3722,11 @@ export class DocumentsService {
       variantIds.length > 0
         ? this.prisma.productVariant.findMany({
             where: { tenantId, id: { in: variantIds } },
-            select: { id: true, product: { select: { defaultVatCodeId: true } } },
+            select: {
+              id: true,
+              optionValues: true,
+              product: { select: { defaultVatCodeId: true } },
+            },
           })
         : Promise.resolve([]),
       supplierId
@@ -3658,7 +3775,14 @@ export class DocumentsService {
       }
     }
 
-    return { vatCodesById, productDefaultByVariantId, fallbackDefaultVatCodeId };
+    return {
+      vatCodesById,
+      productDefaultByVariantId,
+      fallbackDefaultVatCodeId,
+      optionValuesByVariantId: new Map(
+        variants.map((variante) => [variante.id, variante.optionValues]),
+      ),
+    };
   }
 
   /** Converte una riga calcolata in dati Prisma: null JS su vatSnapshot deve

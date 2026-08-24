@@ -13,6 +13,11 @@ import {
   type DocumentLine,
 } from '@prisma/client';
 
+import {
+  persistedLineVariants,
+  variantLabelSnapshot,
+} from './document-line-variant-snapshot.util';
+
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import {
@@ -288,7 +293,13 @@ export class TransferAdjustmentWorkflowService {
         throw new ConflictException('Trasferimento privo di location di origine/destinazione.');
       }
 
-      await this.assertVariantsExist(tx, tenantId, stockLines);
+      const variantOptions = await this.loadVariantOptions(
+        tx,
+        tenantId,
+        computedLines,
+        stockLines,
+      );
+      const persistedVariants = persistedLineVariants(existing.lines);
 
       const oldLocationId = existing.locationId;
       const oldTargetLocationId = existing.targetLocationId;
@@ -330,6 +341,17 @@ export class TransferAdjustmentWorkflowService {
           variantId: line.variantId,
           sku: line.sku,
           description: line.description,
+          // ⛔ SNAPSHOT, non un ricalcolo: su una riga che porta ancora la
+          // stessa variante si conserva quella persistita. La regola sta in un
+          // punto solo — se la duplicassimo qui e negli altri tre compositori,
+          // rinominare un valore d'opzione in anagrafica riscriverebbe i
+          // documenti gia' emessi.
+          variantLabel: variantLabelSnapshot({
+            lineId,
+            variantId: line.variantId,
+            optionValues: line.variantId ? variantOptions.get(line.variantId) : null,
+            persisted: persistedVariants,
+          }),
           quantity: line.quantity,
           unitPriceMinor: 0,
           discountPercent: 0,
@@ -498,7 +520,13 @@ export class TransferAdjustmentWorkflowService {
         assertLocationInUserScope(user, existing.locationId, 'write');
       }
 
-      await this.assertVariantsExist(tx, tenantId, stockLines);
+      const variantOptions = await this.loadVariantOptions(
+        tx,
+        tenantId,
+        computedLines,
+        stockLines,
+      );
+      const persistedVariants = persistedLineVariants(existing.lines);
 
       const oldDirection = existing.adjustmentDirection;
       const oldLineIds = existing.lines.map((line) => line.id);
@@ -530,6 +558,17 @@ export class TransferAdjustmentWorkflowService {
           variantId: line.variantId,
           sku: line.sku,
           description: line.description,
+          // ⛔ SNAPSHOT, non un ricalcolo: su una riga che porta ancora la
+          // stessa variante si conserva quella persistita. La regola sta in un
+          // punto solo — se la duplicassimo qui e negli altri tre compositori,
+          // rinominare un valore d'opzione in anagrafica riscriverebbe i
+          // documenti gia' emessi.
+          variantLabel: variantLabelSnapshot({
+            lineId,
+            variantId: line.variantId,
+            optionValues: line.variantId ? variantOptions.get(line.variantId) : null,
+            persisted: persistedVariants,
+          }),
           quantity: line.quantity,
           unitPriceMinor: 0,
           discountPercent: 0,
@@ -627,27 +666,48 @@ export class TransferAdjustmentWorkflowService {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  /** Le righe che movimentano stock devono referenziare varianti esistenti. */
-  private async assertVariantsExist(
+  /**
+   * Le varianti collegate devono esistere — **e** le loro opzioni servono a
+   * fotografare l'etichetta della variante sulla riga.
+   *
+   * ⚠️ Una query sola per due cose che avvengono nello stesso momento: prima
+   * questa validazione leggeva il solo `id`, e per l'etichetta ne sarebbe
+   * servita una seconda sugli stessi record.
+   *
+   * ⛔ Si guardano TUTTE le righe con una variante, non solo quelle che
+   * movimentano: anche una riga che non muove magazzino ha una variante da
+   * mostrare.
+   */
+  private async loadVariantOptions(
     tx: Prisma.TransactionClient,
     tenantId: string,
+    lines: readonly ComputedSimpleLine[],
     stockLines: readonly ComputedSimpleLine[],
-  ): Promise<void> {
+  ): Promise<ReadonlyMap<string, Prisma.JsonValue>> {
     const variantIds = [
-      ...new Set(stockLines.map((line) => line.variantId).filter((id): id is string => id != null)),
+      ...new Set(lines.map((line) => line.variantId).filter((id): id is string => id != null)),
     ];
     if (variantIds.length === 0) {
-      return;
+      return new Map();
     }
     const found = await tx.productVariant.findMany({
       where: { tenantId, id: { in: variantIds } },
-      select: { id: true },
+      select: { id: true, optionValues: true },
     });
-    if (found.length !== variantIds.length) {
+    // La validazione resta sulle sole righe che movimentano: una riga senza
+    // effetto fisico può riferirsi a una variante uscita dal catalogo.
+    const trovati = new Set(found.map((variante) => variante.id));
+    const daValidare = [
+      ...new Set(
+        stockLines.map((line) => line.variantId).filter((id): id is string => id != null),
+      ),
+    ];
+    if (daValidare.some((id) => !trovati.has(id))) {
       throw new UnprocessableEntityException(
         'Una o più varianti collegate alle righe non esistono più.',
       );
     }
+    return new Map(found.map((variante) => [variante.id, variante.optionValues]));
   }
 
   private async assertLocation(tenantId: string, locationId: string): Promise<void> {

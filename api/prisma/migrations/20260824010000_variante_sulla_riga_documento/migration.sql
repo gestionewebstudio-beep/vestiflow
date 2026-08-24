@@ -1,0 +1,37 @@
+-- L'etichetta della VARIANTE sulla riga documento.
+--
+-- Seconda e ultima tabella del blocco: `sales_order_lines` l'ha gia' dal
+-- 20260823220000. Qui entra `document_lines`, che serve SEI famiglie —
+-- Arrivo merce, Registrazione fattura, Trasferimento, Rettifica, Vendita e
+-- Reso al banco, piu' il percorso generico (Proforma, Fatture, Nota di
+-- credito, DDT, Preventivo, Scarico manuale).
+--
+-- PERCHE' SERVE. Oggi la variante non ha un posto suo, e i documenti se la
+-- cavano ognuno a modo proprio:
+--   Vendita e Reso al banco      la IMPASTANO dentro `description`
+--   Trasferimento e Rettifica    la impastano E scrivono il nome DUE VOLTE
+--   Fatture, DDT, Arrivo merce   non la mostrano affatto
+-- Tre comportamenti per lo stesso dato, e nessuno dei tre e' quello giusto.
+--
+-- CONTENUTO: i soli valori delle opzioni, uniti da « / » (`M / Rosso`). E' la
+-- forma di `variant.title` di Shopify. Stringa vuota = nessuna opzione
+-- visibile, compresi il prodotto semplice e il sentinella `Default Title`.
+--
+-- ⛔ E' uno SNAPSHOT, non un valore da ricalcolare. Su una riga esistente che
+-- porta ancora la stessa variante si conserva quella persistita: la regola sta
+-- in un punto solo (`document-line-variant-snapshot.util`) e non nei quattro
+-- compositori, perche' duplicarla quattro volte ricrea il difetto che questa
+-- colonna elimina. Ricalcolarla farebbe diventare «Bordeaux / M» un documento
+-- di marzo che diceva «Rosso / M», solo perche' qualcuno ha rinominato un
+-- valore d'opzione in anagrafica.
+--
+-- NOT NULL DEFAULT '': due stati, non tre. Il DEFAULT e' una sicurezza per le
+-- righe che esistevano prima — NON il comportamento ordinario di un writer. Un
+-- writer che non valorizza il campo sta sbagliando, e c'e' una guardia che lo
+-- dice.
+--
+-- Additiva: nessun backfill. Riempirla leggendo l'anagrafica di OGGI e
+-- scrivendola su documenti di marzo sarebbe esattamente il difetto che la
+-- colonna esiste per chiudere, eseguito in massa con un UPDATE.
+
+ALTER TABLE "document_lines" ADD COLUMN "variant_label" TEXT NOT NULL DEFAULT '';

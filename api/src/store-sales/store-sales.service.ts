@@ -30,6 +30,10 @@ import { persistDocumentLinesByIdTx } from '../documents/document-line-upsert.ut
 import { syncGoodsReceiptLineMovements } from '../documents/document-goods-receipt-sync.util';
 import { syncUnloadLineMovements } from '../documents/document-stock-unload-sync.util';
 import { preservedLineVat } from '../documents/document-line-vat-snapshot.util';
+import {
+  persistedLineVariants,
+  variantLabelSnapshot,
+} from '../documents/document-line-variant-snapshot.util';
 
 import { CreationIntentService } from '../common/idempotency/creation-intent.util';
 import { assertUserCanAccessLocation } from '../inventory/user-location-scope.util';
@@ -418,6 +422,9 @@ export class StoreSalesService {
         const reference = numerazione.reference;
 
         const existingLinesById = new Map((existing?.lines ?? []).map((line) => [line.id, line]));
+        // L'etichetta della variante di ogni riga già salvata: su una riga che
+        // non ha cambiato articolo è quella che vince.
+        const persistedVariants = persistedLineVariants(existing?.lines ?? []);
         const existingVatById = new Map(
           (existing?.lines ?? []).map((line) => [
             line.id,
@@ -463,6 +470,16 @@ export class StoreSalesService {
             // modificata, e resta quella persistita. Presente = l'operatore l'ha
             // cambiata. Su una riga nuova si fotografa dall'articolo.
             description: line.description ?? previous?.description ?? this.lineDescription(variant),
+            // ⛔ SNAPSHOT: su una riga che porta ancora la stessa variante si
+            // conserva quella persistita. Ricalcolarla farebbe diventare
+            // «Bordeaux / M» una vendita di marzo che diceva «Rosso / M», solo
+            // perché qualcuno ha rinominato un valore d'opzione in anagrafica.
+            variantLabel: variantLabelSnapshot({
+              lineId: previous?.id,
+              variantId: variant.id,
+              labelCorrente: variant.optionSummary,
+              persisted: persistedVariants,
+            }),
             quantity: line.quantity,
             unitPriceMinor: line.unitPriceMinor,
             discountPercent,
@@ -731,6 +748,9 @@ export class StoreSalesService {
       readonly vatSnapshot: Prisma.JsonValue;
       /** «Scarica giacenze» com'era: si conserva se il client non la dichiara. */
       readonly loadsStock: boolean;
+      /** La variante e la sua etichetta di allora: servono insieme. */
+      readonly variantId: string | null;
+      readonly variantLabel: string;
     }[];
   }> {
     const doc = await this.prisma.document.findFirst({
@@ -754,6 +774,8 @@ export class StoreSalesService {
             vatCodeId: true,
             vatSnapshot: true,
             loadsStock: true,
+            variantId: true,
+            variantLabel: true,
           },
           orderBy: { lineNumber: 'asc' },
         },
@@ -938,6 +960,9 @@ export class StoreSalesService {
         const reference = numerazione.reference;
 
         const existingLinesById = new Map((existing?.lines ?? []).map((line) => [line.id, line]));
+        // L'etichetta della variante di ogni riga già salvata: su una riga che
+        // non ha cambiato articolo è quella che vince.
+        const persistedVariants = persistedLineVariants(existing?.lines ?? []);
         const existingVatById = new Map(
           (existing?.lines ?? []).map((line) => [
             line.id,
@@ -995,6 +1020,16 @@ export class StoreSalesService {
             // non modificata, e resta quella persistita. Presente = l'operatore
             // l'ha cambiata. Su una riga nuova si fotografa dall'articolo.
             description: line.description ?? previous?.description ?? this.lineDescription(variant),
+            // ⛔ SNAPSHOT: su una riga che porta ancora la stessa variante si
+            // conserva quella persistita. Ricalcolarla farebbe diventare
+            // «Bordeaux / M» una vendita di marzo che diceva «Rosso / M», solo
+            // perché qualcuno ha rinominato un valore d'opzione in anagrafica.
+            variantLabel: variantLabelSnapshot({
+              lineId: previous?.id,
+              variantId: variant.id,
+              labelCorrente: variant.optionSummary,
+              persisted: persistedVariants,
+            }),
             quantity: line.quantity,
             unitPriceMinor,
             discountPercent,
@@ -1421,10 +1456,21 @@ export class StoreSalesService {
     };
   }
 
+  /**
+   * La descrizione di una riga nuova: **il solo nome del prodotto**.
+   *
+   * ⛔ Qui c'era `${productName} — ${optionSummary}`, e impastava la variante
+   * dentro la descrizione perché la variante non aveva un posto suo. Adesso ce
+   * l'ha — la colonna `variantLabel` — e continuare a concatenare
+   * significherebbe mostrarla **due volte**: una nel nome e una nella sua
+   * colonna (`03d` §6).
+   *
+   * ⚠️ Le righe già salvate restano com'erano: un documento emesso non si
+   * riscrive. Per un periodo convivranno righe vecchie impastate e righe nuove
+   * pulite, ed è la regola della fotografia che funziona — non un difetto.
+   */
   private lineDescription(variant: ResolvedVariant): string {
-    return variant.optionSummary
-      ? `${variant.productName} — ${variant.optionSummary}`
-      : variant.productName;
+    return variant.productName;
   }
 
   private pushInventoryAsync(

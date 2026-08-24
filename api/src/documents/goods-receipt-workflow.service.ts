@@ -65,6 +65,10 @@ import {
   type VatBreakdownEntry,
 } from './purchase-invoice-vat-summary.util';
 import { VatCodesService, type VatCodeWithNature } from '../vat/vat-codes.service';
+import {
+  persistedLineVariants,
+  variantLabelSnapshot,
+} from './document-line-variant-snapshot.util';
 import type { DocumentAddressDto } from './dto/document-transport.dto';
 import type { SaveGoodsReceiptDto } from './dto/save-goods-receipt.dto';
 import type { SavePurchaseInvoiceDto } from './dto/save-purchase-invoice.dto';
@@ -392,11 +396,20 @@ export class GoodsReceiptWorkflowService {
     const knownVariants = linkedVariantIds.length
       ? await this.prisma.productVariant.findMany({
           where: { tenantId, id: { in: linkedVariantIds } },
-          select: { id: true, product: { select: { managesStock: true } } },
+          select: {
+            id: true,
+            // Le opzioni servono a fotografare l'etichetta della variante sulla
+            // riga: una query sola per due cose che avvengono insieme.
+            optionValues: true,
+            product: { select: { managesStock: true } },
+          },
         })
       : [];
     const managesStockByVariantId = new Map(
       knownVariants.map((variant) => [variant.id, variant.product.managesStock ?? true]),
+    );
+    const optionValuesByVariantId = new Map(
+      knownVariants.map((variant) => [variant.id, variant.optionValues]),
     );
     for (const line of computedLines) {
       if (line.variantId && managesStockByVariantId.get(line.variantId) === false) {
@@ -671,6 +684,9 @@ export class GoodsReceiptWorkflowService {
       // ── Upsert righe per id: preservare l'id riga è ciò che consente di
       // aggiornare il movimento collegato invece di duplicarlo (§2.3-2.4).
       const existingLineIds = new Set((existing?.lines ?? []).map((line) => line.id));
+      // L'etichetta della variante di ogni riga gia' salvata: su una riga che
+      // non ha cambiato articolo e' quella che vince.
+      const persistedVariants = persistedLineVariants(existing?.lines ?? []);
       const incomingIds = new Set(
         persistedLineIds.filter((id): id is string => id != null && existingLineIds.has(id)),
       );
@@ -687,6 +703,18 @@ export class GoodsReceiptWorkflowService {
           variantId: line.variantId,
           sku: line.sku,
           description: line.description,
+          // ⛔ SNAPSHOT: su una riga che porta ancora la stessa variante si
+          // conserva quella persistita. La regola sta in un punto solo
+          // (`document-line-variant-snapshot.util`) — duplicarla qui e negli
+          // altri compositori farebbe diventare «Bordeaux / M» un arrivo merce
+          // di marzo che diceva «Rosso / M», solo perché qualcuno ha rinominato
+          // un valore d'opzione in anagrafica.
+          variantLabel: variantLabelSnapshot({
+            lineId,
+            variantId: line.variantId,
+            optionValues: line.variantId ? optionValuesByVariantId.get(line.variantId) : null,
+            persisted: persistedVariants,
+          }),
           quantity: line.quantity,
           unitPriceMinor: line.unitPriceMinor,
           discountPercent: line.discountPercent,
@@ -1222,6 +1250,11 @@ export class GoodsReceiptWorkflowService {
             documentId,
             lineNumber: index + 1,
             description: line.description,
+            // Riga ECONOMICA della Registrazione fattura: non ha un articolo,
+            // quindi non ha una variante. Vuota per natura, non per omissione —
+            // il proprietario ha messo questa famiglia fuori dalle righe
+            // articolo (`03d` §13).
+            variantLabel: '',
             quantity: 1,
             unitPriceMinor: line.netMinor,
             discountPercent: 0,

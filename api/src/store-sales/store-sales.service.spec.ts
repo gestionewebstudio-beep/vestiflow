@@ -255,9 +255,20 @@ function levelOf(db: FakeDb, variantId: string): FakeLevel {
   return level;
 }
 
-const VARIANTS: Record<string, { sku: string; productName: string }> = {
-  [VARIANT_A]: { sku: 'SKU-A', productName: 'T-shirt' },
-  [VARIANT_B]: { sku: 'SKU-B', productName: 'Felpa' },
+const VARIANTS: Record<
+  string,
+  { sku: string; productName: string; optionValues: { name: string; value: string }[] }
+> = {
+  [VARIANT_A]: {
+    sku: 'SKU-A',
+    productName: 'T-shirt',
+    optionValues: [
+      { name: 'Taglia', value: 'M' },
+      { name: 'Colore', value: 'Rosso' },
+    ],
+  },
+  // Prodotto SENZA opzioni: l'etichetta deve restare vuota.
+  [VARIANT_B]: { sku: 'SKU-B', productName: 'Felpa', optionValues: [] },
 };
 
 /**
@@ -288,7 +299,7 @@ function createFakePrisma(db: FakeDb): PrismaService {
               id,
               sku: VARIANTS[id]!.sku,
               barcode: null,
-              optionValues: [],
+              optionValues: VARIANTS[id]!.optionValues,
               purchasePriceMinor: VARIANT_COSTS[id] ?? null,
               product: {
                 name: VARIANTS[id]!.productName,
@@ -3559,5 +3570,85 @@ describe('la spunta «Scarica giacenze» della Vendita', () => {
     expect(result.lines).toHaveLength(2);
     expect(levelOf(db, VARIANT_A).onHand).toBe(giacenzaPrima - 1);
     expect(db.movements.slice(movimentiPrima)).toHaveLength(1);
+  });
+});
+
+/**
+ * ⛔ **La variante non entra più nella descrizione.**
+ *
+ * Il Banco scriveva `${productName} — ${optionSummary}` dentro `description`,
+ * perché la variante non aveva un posto suo. Adesso ce l'ha — la colonna
+ * `variantLabel` — e continuare a concatenare la mostrerebbe **due volte**:
+ * una nel nome e una nella sua colonna (`03d` §6).
+ *
+ * ⚠️ Nessun test copriva quella concatenazione: toglierla non ha fatto arrossare
+ * niente. Questi test esistono perché la prossima volta non sia così.
+ */
+describe('la descrizione è il nome, la variante ha la sua colonna', () => {
+
+
+  it('riga nuova: descrizione = solo il nome, etichetta = la variante', async () => {
+    const db = createDb();
+    const { service } = createService(db);
+
+    await service.createSale(
+      TENANT,
+      {
+        locationId: LOCATION,
+        paymentMethod: 'cash',
+        lines: [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }],
+      },
+      user,
+    );
+
+    const riga = db.documents[0]!.lines[0]!;
+    expect(riga.description).toBe('T-shirt');
+    expect(riga.description).not.toContain('—');
+    expect(riga['variantLabel']).toBe('M / Rosso');
+  });
+
+  it('articolo senza opzioni: etichetta VUOTA, non un ripiego', async () => {
+    const db = createDb();
+    const { service } = createService(db);
+
+    await service.createSale(
+      TENANT,
+      {
+        locationId: LOCATION,
+        paymentMethod: 'cash',
+        lines: [{ variantId: VARIANT_B, quantity: 1, unitPriceMinor: 990 }],
+      },
+      user,
+    );
+
+    const riga = db.documents[0]!.lines[0]!;
+    expect(riga.description).toBe('Felpa');
+    expect(riga['variantLabel']).toBe('');
+  });
+
+  it('la descrizione digitata dall’operatore vince, e la variante resta a parte', async () => {
+    const db = createDb();
+    const { service } = createService(db);
+
+    await service.createSale(
+      TENANT,
+      {
+        locationId: LOCATION,
+        paymentMethod: 'cash',
+        lines: [
+          {
+            variantId: VARIANT_A,
+            quantity: 1,
+            unitPriceMinor: 2990,
+            description: 'Maglia cotone — seconda scelta',
+          },
+        ],
+      },
+      user,
+    );
+
+    const riga = db.documents[0]!.lines[0]!;
+    expect(riga.description).toBe('Maglia cotone — seconda scelta');
+    expect(riga['variantLabel']).toBe('M / Rosso');
   });
 });

@@ -187,6 +187,16 @@ export interface DocumentLine {
    * che la colonna esistesse: lì vale quella dell'anagrafica.
    */
   readonly unitOfMeasure?: string;
+  /**
+   * Etichetta della VARIANTE, fotografata sulla riga: «M / Rosso».
+   *
+   * Vuota = l'articolo non ha varianti visibili, compresi il prodotto semplice
+   * e il «Default Title» di Shopify.
+   *
+   * ⛔ Non si ricostruisce dalla variante corrente: un documento emesso deve
+   * continuare a dire quello che diceva.
+   */
+  readonly variantLabel?: string;
   /** Flag "carica magazzino": righe spese/servizi non movimentano stock. */
   readonly loadsStock: boolean;
   /** Riga «documento collegato»: separatore informativo, fuori dai totali. */

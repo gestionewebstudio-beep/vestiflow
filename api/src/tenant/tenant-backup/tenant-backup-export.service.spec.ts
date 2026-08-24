@@ -123,3 +123,52 @@ describe('TenantBackupExportService', () => {
     expect(download).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * ⚠️ **Il backup deve riportare indietro l'etichetta della variante.**
+ *
+ * L'export legge le righe con un `findMany` **senza `select`**, quindi prende
+ * tutti gli scalari e la colonna entra da sé. È una proprietà che non si vede:
+ * il giorno in cui qualcuno aggiungesse un `select` per «prendere solo ciò che
+ * serve», `variantLabel` sparirebbe dal backup **in silenzio** — e il difetto si
+ * scoprirebbe solo a ripristino fatto, guardando documenti che hanno perso la
+ * variante.
+ *
+ * Questo test non aggiunge comportamento: inchioda quello che c'è.
+ */
+describe('backup: l’etichetta della variante attraversa il round-trip', () => {
+  const tenantId = 'tenant-1';
+  const tenant = { id: tenantId, name: 'Negozio Demo' };
+
+  it('le righe documento escono con variantLabel, e la colonna non è filtrata', async () => {
+    const prisma = createExportPrismaMock(tenant);
+    prisma.documentLine.findMany = vi.fn().mockResolvedValue([
+      { id: 'line-1', documentId: 'doc-1', description: 'T-shirt', variantLabel: 'M / Rosso' },
+      // Prodotto senza varianti: l'etichetta è vuota, e deve restare vuota —
+      // non diventare null, che nel ripristino violerebbe il NOT NULL.
+      { id: 'line-2', documentId: 'doc-1', description: 'Spese', variantLabel: '' },
+    ]);
+
+    const service = new TenantBackupExportService(
+      prisma as unknown as PrismaService,
+      { getStorageClient: vi.fn().mockReturnValue(null) } as unknown as SupabaseService,
+      { get: vi.fn().mockReturnValue(undefined) } as unknown as ConfigService,
+    );
+
+    const { stream } = await service.createExportStream(tenantId);
+    const zipBuffer = await readStreamToBuffer(stream);
+    const json = await readZipEntry(zipBuffer, `${TENANT_BACKUP_DATA_DIR}/documentLines.json`);
+    const righe = JSON.parse(json) as Array<Record<string, unknown>>;
+
+    expect(righe).toHaveLength(2);
+    expect(righe[0]!['variantLabel']).toBe('M / Rosso');
+    expect(righe[1]!['variantLabel']).toBe('');
+
+    // ⛔ Il punto del test: nessun `select` sulla lettura delle righe. Con un
+    // `select` la colonna uscirebbe dal backup senza che niente diventi rosso.
+    const chiamata = prisma.documentLine.findMany.mock.calls[0]?.[0] as
+      | Record<string, unknown>
+      | undefined;
+    expect(chiamata?.['select']).toBeUndefined();
+  });
+});
