@@ -2,6 +2,10 @@ import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
+import { FormGroup } from '@angular/forms';
+
+import { DocumentLineCardBodyComponent } from './document-line-card-body.component';
+import { DocumentLineCardStripComponent } from './document-line-card-strip.component';
 import { DocumentLineCardComponent } from './document-line-card.component';
 import type { DocumentLineCardMeta } from './document-line-card.model';
 
@@ -112,5 +116,63 @@ describe('DocumentLineCardComponent', () => {
     const coda = screen.getByText('Disp. 2');
     expect(coda).toHaveClass('doc-line-card__meta-item--trailing');
     expect(coda).toHaveClass('doc-line-card__meta-item--warning');
+  });
+});
+
+/**
+ * ⛔ **Il corpo della card non deve introdurre un box** — guardia del 24/08/2026.
+ *
+ * ## Che cosa protegge
+ *
+ * Il guscio dispone i campi con CSS Grid su due colonne
+ * (`.doc-line-card__grid`, `1fr 1fr`). Gruppi e campi devono essere **grid item
+ * di quella griglia**. Se l'host del componente che li proietta partecipa al
+ * layout, diventa lui l'unico grid item: il corpo si impila in una colonna
+ * sola, e i `grid-column: 1 / -1` dei figli diventano **inerti** — si
+ * riferiscono a una griglia di cui i loro host non fanno più parte.
+ *
+ * ⚠️ **È successo.** Il corpo era proiettato con `<ng-container cardBody>`, che
+ * non crea elemento; sostituirlo con `<app-document-line-card-body>` ha
+ * introdotto quel box, e nessuno ha dichiarato `display: contents`. La resa
+ * dell'Ordine cliente — il riferimento — è cambiata a schermo mentre 813 prove
+ * restavano verdi: la geometria di CSS Grid non rompe né la build né le prove
+ * di comportamento.
+ *
+ * ⚠️ **Una prova sulla STRUTTURA del DOM non lo vedrebbe.** `display: contents`
+ * non toglie l'host dall'albero: lo toglie dal **layout**. Padre e figli restano
+ * dove sono, e `querySelector` non nota alcuna differenza. L'unica cosa
+ * osservabile è la proprietà calcolata — per questo la guardia guarda quella.
+ */
+describe('DocumentLineCardBodyComponent — non partecipa al layout', () => {
+  it('⛔ il suo host calcola display:contents', async () => {
+    const view = await render(DocumentLineCardBodyComponent, {
+      inputs: {
+        group: new FormGroup({}),
+        lineIndex: 0,
+        isColumnVisible: () => false,
+      },
+    });
+
+    const host = view.fixture.nativeElement as HTMLElement;
+
+    // Se un giorno tornasse `block` — o se lo `styleUrl` venisse sganciato —
+    // il corpo tornerebbe a essere UN grid item e la card a una colonna.
+    expect(globalThis.getComputedStyle(host).display).toBe('contents');
+  });
+
+  it('⭐ e lo stesso vale per la striscia, che proietta nell’altra griglia', async () => {
+    const view = await render(DocumentLineCardStripComponent, {
+      inputs: {
+        group: new FormGroup({}),
+        lineIndex: 0,
+        isColumnVisible: () => false,
+      },
+    });
+
+    const host = view.fixture.nativeElement as HTMLElement;
+
+    // La striscia lo dichiarava già, col commento che spiega la ragione: qui
+    // la si tiene ferma, perché è lo stesso contratto e non due soluzioni.
+    expect(globalThis.getComputedStyle(host).display).toBe('contents');
   });
 });

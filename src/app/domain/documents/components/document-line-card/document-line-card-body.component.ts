@@ -70,6 +70,7 @@ import { DocumentLineCardGroupComponent } from './document-line-card-group.compo
     DocumentLineUnitCellComponent,
   ],
   templateUrl: './document-line-card-body.component.html',
+  styleUrl: './document-line-card-body.component.scss',
 })
 export class DocumentLineCardBodyComponent {
   readonly group = input.required<FormGroup>();
@@ -112,7 +113,12 @@ export class DocumentLineCardBodyComponent {
    */
   private readonly fuoriDalCorpo = computed<ReadonlySet<DocumentLineColumnId>>(() => {
     const prezzo = stripPriceColumn(this.isColumnVisible());
-    const fuori = new Set<DocumentLineColumnId>(['quantity', 'lineTotal', 'variantLabel', 'actions']);
+    const fuori = new Set<DocumentLineColumnId>([
+      'quantity',
+      'lineTotal',
+      'variantLabel',
+      'actions',
+    ]);
     if (prezzo) {
       fuori.add(prezzo);
     }
@@ -129,14 +135,20 @@ export class DocumentLineCardBodyComponent {
    * non porta il filo sopra perché non separa da niente.
    */
   protected readonly gruppi = computed<
-    readonly { readonly id: DocumentLineCardGroup; readonly label: string; readonly first: boolean }[]
+    readonly {
+      readonly id: DocumentLineCardGroup;
+      readonly label: string;
+      readonly first: boolean;
+    }[]
   >(() => {
     const visibile = this.isColumnVisible();
     const fuori = this.fuoriDalCorpo();
     const pieni = DOCUMENT_LINE_CARD_GROUPS.filter((gruppo) =>
       (Object.keys(DOCUMENT_LINE_CARD_GROUP_OF) as DocumentLineColumnId[]).some(
         (column) =>
-          DOCUMENT_LINE_CARD_GROUP_OF[column] === gruppo.id && !fuori.has(column) && visibile(column),
+          DOCUMENT_LINE_CARD_GROUP_OF[column] === gruppo.id &&
+          !fuori.has(column) &&
+          visibile(column),
       ),
     );
     return pieni.map((gruppo, indice) => ({ ...gruppo, first: indice === 0 }));
