@@ -1077,30 +1077,62 @@
                         </button>
                       </article>
                     } @else {
-                      <app-customer-order-line-card
-                        [line]="line"
+                      <!-- ⭐ **La card è quella COMUNE**, guscio, striscia e corpo. Qui c'era
+                           `app-customer-order-line-card`, un involucro di feature che
+                           scriveva a mano i campi: al mobile era quello che le `<td>`
+                           scritte a mano erano al desktop. Il corpo li deduce ora dal
+                           catalogo colonne, come la riga di scrivania. -->
+                      <app-document-line-card
                         [lineIndex]="i"
-                        [vm]="lineCardVm(i)"
-                        [unitOfMeasureOptions]="unitOfMeasureOptions()"
                         [open]="isLineCardOpen(i)"
+                        [complete]="lineCardHead(i).complete"
+                        [readOnly]="formReadOnly()"
+                        [canRemove]="lines.length > 1"
+                        [title]="lineCardHead(i).title"
+                        [variantLabel]="lineCardHead(i).variantLabel"
+                        [meta]="lineCardHead(i).meta"
+                        [alert]="lineCardHead(i).alert"
                         (toggled)="toggleLineCard(i)"
                         (removeRequested)="requestRemoveLine(i)"
                         (removed)="removeLine(i)"
-                        (quantityStepped)="onLineQuantityStep(i, $event)"
-                        (codeCommitted)="commitCodeLookup(i, $event)"
-                        (codeFocused)="onRowCodeFocused(i, $event)"
-                        (codeBlurred)="onMobileCodeBlur(i, $event)"
-                        (codeSuggestionPicked)="onCodeSuggestionPick(i, $event)"
-                        (productNameTyped)="onMobileProductNameInput(i, $event)"
-                        (productNameFocused)="onMobileProductFocus(i, $event)"
-                        (productNameBlurred)="onLineProductBlur(i)"
-                        (productSearchOpened)="openLineProductSearch(i)"
-                        (suggestionPicked)="onProductSuggestionPick(i, $event)"
-                        (commitsChanged)="onLineCommitsSelect(i, $event)"
-                        (vatSelected)="onLineVatSelect(i, $event)"
-                        (unitOfMeasureChanged)="onLineUnitOfMeasureChange(i, $event)"
-                        (unitManagerRequested)="openUnitManager(i)"
-                      />
+                      >
+                        <app-document-line-card-strip
+                          cardControls
+                          [group]="lineGroup(i)"
+                          [lineIndex]="i"
+                          [isColumnVisible]="isLineColumnVisibleFn"
+                          [view]="lineRowView(i)"
+                          [readOnly]="formReadOnly()"
+                          [priceLabel]="priceRowLabel()"
+                          [quantityMin]="1"
+                          (quantityStepped)="onLineQuantityStep(i, $any($event))"
+                        />
+                        <app-document-line-card-body
+                          cardBody
+                          [group]="lineGroup(i)"
+                          [lineIndex]="i"
+                          [isColumnVisible]="isLineColumnVisibleFn"
+                          idPrefix="co"
+                          [view]="lineRowView(i)"
+                          [readOnly]="formReadOnly()"
+                          [unitOptions]="unitOfMeasureOptions()"
+                          [stockToggleLabel]="lineStockToggleLabel()"
+                          [priceLabel]="priceRowLabel()"
+                          (codeChanged)="onRowCodeChanged(i, $event)"
+                          (codeFocused)="onRowCodeFocused(i, $event)"
+                          (codeBlurred)="onMobileCodeBlur(i, $any($event))"
+                          (codeCommitted)="commitCodeLookup(i, $any($event))"
+                          (productNameChanged)="onLineProductNameChange(i, $event)"
+                          (productFocused)="onLineProductFocus(i)"
+                          (productBlurred)="onLineProductBlur(i)"
+                          (productSearchOpened)="openLineProductSearch(i)"
+                          (suggestionPicked)="onRowSuggestionPicked(i, $event)"
+                          (unitChanged)="onLineUnitOfMeasureChange(i, $event)"
+                          (unitManageRequested)="openUnitManager(i)"
+                          (vatSelected)="onLineVatSelect(i, $event)"
+                          (stockToggled)="onLineCommitsSelect(i, $event.value ? 'yes' : 'no')"
+                        />
+                      </app-document-line-card>
                     }
                   }
                 }

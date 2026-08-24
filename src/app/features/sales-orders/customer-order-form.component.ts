@@ -201,7 +201,11 @@ import {
   mergeVariantSummaries,
 } from '@domain/products/utils/variant-summary-search.util';
 import { ProductPickerDialogComponent } from '@domain/products/components/product-picker-dialog/product-picker-dialog.component';
-import { CustomerOrderLineCardComponent } from './components/customer-order-line-card/customer-order-line-card.component';
+import { DocumentLineCardComponent } from '@domain/documents/components/document-line-card/document-line-card.component';
+import { DocumentLineCardBodyComponent } from '@domain/documents/components/document-line-card/document-line-card-body.component';
+import { DocumentLineCardStripComponent } from '@domain/documents/components/document-line-card/document-line-card-strip.component';
+import { documentLineCardHead } from '@domain/documents/components/document-line-card/document-line-card.model';
+import type { DocumentLineCardHead } from '@domain/documents/components/document-line-card/document-line-card.model';
 
 import { TenantFeatureSettingsService } from '@domain/tenant/services/tenant-feature-settings.service';
 import type { TenantFeatureSettings } from '@domain/tenant/models/tenant-feature-settings.model';
@@ -333,7 +337,9 @@ interface AvailabilityIssue {
   imports: [
     InlineBannerComponent,
     ReactiveFormsModule,
-    CustomerOrderLineCardComponent,
+    DocumentLineCardComponent,
+    DocumentLineCardBodyComponent,
+    DocumentLineCardStripComponent,
     CdkDropList,
     CdkDrag,
     BackButtonComponent,
@@ -2449,6 +2455,11 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   }
 
   /** Il gruppo della riga: i controlli restano quelli di questo form. */
+  /** Quello che la testata della card mostra: il calcolo è comune. */
+  protected lineCardHead(index: number): DocumentLineCardHead {
+    return documentLineCardHead(this.lineRowView(index), this.lineGroup(index));
+  }
+
   protected lineGroup(index: number): FormGroup {
     return this.lines.at(index);
   }

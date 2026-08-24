@@ -1,0 +1,110 @@
+// La striscia sempre visibile: si dispone da sé nella griglia della card.
+//
+// ⛔ La card dichiara `grid-template-columns: auto 1fr auto` per tre voci, e
+// l'host della striscia deve SPARIRE dal flusso o le tre voci finirebbero tutte
+// dentro la prima colonna.
+:host {
+  display: contents;
+}
+
+// ⚠️ Con una voce sola l'ultimo figlio prende l'allineamento a destra pensato
+// per il totale, e la quantità sembrava un totale (misurato su Rettifica e
+// Trasferimento, che prezzo e totale non li hanno). Con una o due voci la
+// striscia occupa le colonne da sinistra e lascia libera l'ultima.
+:host(.doc-line-card-strip--single) app-document-line-card-control {
+  grid-column: 1 / 3;
+}
+
+:host(.doc-line-card-strip--pair) app-document-line-card-control:last-of-type {
+  grid-column: 2 / 4;
+}
+
+// ── Quantità: passo a pulsanti, per il dito ────────────────────────────────
+.doc-line-card-strip__qty {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.doc-line-card-strip__qty-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 2.5rem;
+  min-block-size: var(--control-h-touch);
+  margin-block: calc(var(--space-1) * -1);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color 120ms var(--ease-standard);
+
+  &:active:not(:disabled) {
+    background-color: var(--color-surface-soft);
+  }
+
+  &:disabled {
+    color: var(--color-text-muted);
+    cursor: not-allowed;
+  }
+}
+
+.doc-line-card-strip__qty-input {
+  inline-size: var(--control-h-touch);
+  min-block-size: var(--control-h-touch);
+  padding: 0;
+  text-align: center;
+  font-size: var(--text-lg);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 0;
+  border-inline: var(--border-width) solid var(--color-border);
+  appearance: textfield;
+
+  &::-webkit-outer-spin-button,
+  &::-webkit-inner-spin-button {
+    appearance: none;
+    margin: 0;
+  }
+}
+
+// ── Prezzo e totale ────────────────────────────────────────────────────────
+// Il prezzo è editabile e lo dichiara col bordo; il totale è calcolato e non
+// ne ha bisogno.
+.doc-line-card-strip__price {
+  inline-size: 100%;
+  min-block-size: 2.5rem;
+  padding-inline: var(--space-2);
+  text-align: end;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+
+  &:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+}
+
+.doc-line-card-strip__total {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-block-size: 2.5rem;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .doc-line-card-strip__qty-btn {
+    transition-duration: 0.01ms;
+  }
+}
