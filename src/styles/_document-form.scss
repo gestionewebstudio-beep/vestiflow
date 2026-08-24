@@ -2318,6 +2318,21 @@ app-customer-order-form {
 // Queste regole stanno qui perché è l'unico livello che vede sia la card sia
 // `doc-form__input`, che è già una classe globale. Sono la stessa misura che la
 // card dell'Ordine cliente applicava dentro di sé quando il markup era suo.
+// ⛔ **Le celle CONDIVISE portano classi proprie, non `doc-form__input`.**
+//
+// Dentro una card restavano quindi alte come in tabella — 24px invece di 44 — e
+// col carattere della riga densa, sotto la soglia iOS che fa zoomare al fuoco.
+// Non si vedeva in nessun test: e' geometria, e i test guardano il DOM.
+//
+// ⭐ Non si scavalca l'incapsulamento: le celle espongono gia' i propri punti di
+// regolazione con fallback (`--doc-line-row-height`, e ora
+// `--doc-line-cell-font`), che e' il canale che `regole-stile-ui` §5 prescrive.
+// Il contenitore li imposta su di se', le celle li leggono.
+.doc-line-card-field {
+  --doc-line-row-height: var(--control-h-touch);
+  --doc-line-cell-font: var(--text-lg);
+}
+
 .doc-line-card-field .doc-form__input,
 .doc-line-card-field select.doc-form__input {
   block-size: var(--control-h-touch);

@@ -17,7 +17,7 @@
   min-block-size: var(--doc-line-row-height, var(--field-height-inline));
   padding: var(--space-1) var(--space-2);
   font-family: var(--font-mono);
-  font-size: var(--text-xs);
+  font-size: var(--doc-line-cell-font, var(--text-xs));
   font-variant-numeric: var(--numeric-tabular);
   line-height: var(--leading-normal);
   // Punto di regolazione: una maschera che tratta il codice come riferimento
@@ -37,7 +37,7 @@
   margin: 0;
   padding: var(--space-1) var(--space-2);
   font-family: var(--font-mono);
-  font-size: var(--text-xs);
+  font-size: var(--doc-line-cell-font, var(--text-xs));
   font-variant-numeric: var(--numeric-tabular);
   line-height: var(--leading-normal);
   overflow: hidden;
