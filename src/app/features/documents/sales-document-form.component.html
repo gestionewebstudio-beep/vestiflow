@@ -569,11 +569,16 @@
               </div>
               <div class="doc-form__field">
                 <span class="doc-form__label">Porto</span>
+                <!-- `transportPortOptions` ha gia' la sua voce neutra («Non
+                     indicato», value ''): accendendo anche quella vuota il
+                     pannello mostrava due righe con la stessa etichetta E lo
+                     stesso valore, quindi con la spunta su entrambe. -->
                 <app-select-menu
                   [options]="transportPortOptions"
                   [value]="form.controls.transportPort.value"
                   ariaLabel="Porto del trasporto"
                   placeholder="Non indicato"
+                  [includeEmptyOption]="false"
                   [fullWidth]="true"
                   (valueChange)="form.controls.transportPort.setValue($event ?? '')"
                 />

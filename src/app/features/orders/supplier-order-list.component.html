@@ -70,12 +70,18 @@
       </div>
 
       <div class="po-list__field">
+        <!-- Il segnaposto NON nomina un preset: qui c'era «Ultimi 30 giorni»,
+             che e' gia' una scelta vera dell'elenco, e la voce vuota la
+             ripeteva con l'effetto OPPOSTO — azzerare il filtro invece di
+             applicarlo. Ad azzerare pensa «Tutti», che ha un nome suo. Stessa
+             forma del filtro periodo dei Movimenti di magazzino. -->
         <app-select-menu
           chipLabel="Periodo"
           [options]="periodOptions"
           [value]="periodPreset()"
           ariaLabel="Filtra per periodo"
-          placeholder="Ultimi 30 giorni"
+          placeholder="Periodo"
+          [includeEmptyOption]="false"
           [compact]="true"
           [fullWidth]="true"
           [labelOnly]="true"

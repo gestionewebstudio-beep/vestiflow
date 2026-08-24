@@ -819,6 +819,40 @@ describe('SalesDocumentFormComponent', () => {
   });
 
   /**
+   * ⛔ **«Porto»: la stessa voce doppia, e qui era pure peggio** — 24/08/2026.
+   *
+   * `transportPortOptions` dichiara già la propria voce neutra
+   * (`{ value: '', label: 'Non indicato' }`), e il controllo passava «Non
+   * indicato» anche come segnaposto senza spegnere `includeEmptyOption`.
+   *
+   * ⚠️ **Peggio del Listino**: lì le due righe avevano valori diversi, qui hanno
+   * anche **lo stesso valore** `''`. Siccome `isEmptySelected()` è
+   * `(value ?? '') === ''` e `isSelected(option)` è `(value ?? '') ===
+   * option.value`, con nessuna scelta fatta diventano **veri entrambi**: il
+   * segno di spunta compariva su tutte e due le righe.
+   */
+  describe('la tendina Porto non ripete una voce', () => {
+    function vociDelPannello(): string[] {
+      return screen
+        .getAllByRole('option')
+        .map((voce) => voce.getAttribute('aria-label') ?? voce.textContent ?? '')
+        .map((nome) => nome.replace(/\s+/g, ' ').trim());
+    }
+
+    it('⛔ «Non indicato» compare UNA volta sola, con UNA sola spunta', async () => {
+      const user = userEvent.setup();
+      await setup({ routeType: DocumentType.InvoiceAccompanying });
+
+      await user.click(screen.getByLabelText('Porto del trasporto'));
+
+      expect(vociDelPannello()).toEqual(['Non indicato', 'Franco', 'Assegnato']);
+      // La spunta segna la voce corrente: se fosse su due righe, «corrente»
+      // non vorrebbe più dire niente.
+      expect(screen.getAllByRole('option', { selected: true })).toHaveLength(1);
+    });
+  });
+
+  /**
    * ⭐ **Quarto consumer del risolutore comune** (`03c` §5).
    *
    * ⚠️ Il ripiego `productName || title` **non era presente** in questa

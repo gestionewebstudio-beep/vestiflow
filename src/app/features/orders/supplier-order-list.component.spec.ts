@@ -1,6 +1,7 @@
 import { Router, ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { TestBed } from '@angular/core/testing';
 import { render, screen } from '@testing-library/angular';
+import userEvent from '@testing-library/user-event';
 import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -156,5 +157,59 @@ describe('SupplierOrderListComponent — l’ordinamento', () => {
     // L'unica colonna che l'API non sa ordinare, qui, non esiste:
     // `sortable` non dichiarato significa ordinabile.
     expect(stato?.sortable).toBeUndefined();
+  });
+
+  /**
+   * ⛔ **La tendina «Periodo» non offre due volte la stessa parola** — 24/08/2026.
+   *
+   * `select-menu` disegna una voce vuota etichettata col SEGNAPOSTO, e qui il
+   * segnaposto era «Ultimi 30 giorni» — che e' gia' una delle scelte vere. Due
+   * righe con le stesse parole, ma **effetti opposti**: una imposta il preset,
+   * l'altra AZZERA il filtro.
+   *
+   * ⭐ **L'azione di azzeramento non e' stata rinominata: esisteva gia'.**
+   * `periodOptions` comincia con `{ All, 'Tutti' }`, che e' il lessico dei
+   * filtri VestiFlow (47 segnaposti «Tutti», 18 «Tutte»). La riga di troppo era
+   * quella vuota, non la sua etichetta.
+   *
+   * ⚠️ Il gemello stretto e' il filtro periodo dei **Movimenti di magazzino**:
+   * stesse voci, stessa `ariaLabel`, e li' `includeEmptyOption` e' spento e il
+   * segnaposto e' «Periodo». Questo elenco era l'unico dei sei a divergere.
+   */
+  describe('il filtro Periodo non ripete una voce', () => {
+    function vociDelPannello(): string[] {
+      return screen
+        .getAllByRole('option')
+        .map((voce) => voce.getAttribute('aria-label') ?? voce.textContent ?? '')
+        .map((nome) => nome.replace(/\s+/g, ' ').trim());
+    }
+
+    it('⛔ «Ultimi 30 giorni» compare UNA volta sola', async () => {
+      const user = userEvent.setup();
+      await renderList([ORDINE]);
+
+      await user.click(screen.getByLabelText('Filtra per periodo'));
+
+      expect(vociDelPannello().filter((nome) => nome === 'Ultimi 30 giorni')).toHaveLength(1);
+    });
+
+    it('⭐ e ad azzerare il filtro ci pensa «Tutti», che ha un nome suo', async () => {
+      const user = userEvent.setup();
+      await renderList([ORDINE]);
+
+      await user.click(screen.getByLabelText('Filtra per periodo'));
+
+      // L'uguaglianza, non un `toContain`: una riga in piu' si vede anche se
+      // portasse un'etichetta che oggi non immaginiamo.
+      expect(vociDelPannello()).toEqual([
+        'Tutti',
+        'Ultimi 7 giorni',
+        'Ultimi 30 giorni',
+        'Mese corrente',
+        'Mese scorso',
+        'Anno corrente',
+        'Anno scorso',
+      ]);
+    });
   });
 });
