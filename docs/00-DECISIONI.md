@@ -114,13 +114,19 @@ strumenti di lavoro. Non ci si cercano decisioni.
 | **La grammatica visiva**: 12px · 4×12 · intestazione 32px MAIUSCOLA · niente divisori di colonna                           | §F6      |
 | **Si conserva** il preset e le colonne visibili; **non** la larghezza né l'ordine                                          | §G1      |
 
-## Documenti e righe — `03`, `09`, `12`
+## Documenti e righe — `03`, `03c`, `03d`, `09`, `12`
 
-| Decisione                                                                                       | Dove          |
-| ----------------------------------------------------------------------------------------------- | ------------- |
-| **Una riga che movimenta ha UN movimento**, identificato da `sourceLineId`, aggiornato in posto | `09` · regole |
-| **La riga è una fotografia**: un valore non modificato conserva quello persistito               | regole        |
-| Lo **Scarico manuale** non crea movimenti — deroga esplicita, non un precedente                 | regole        |
+| Decisione                                                                                                                                    | Dove                     |
+| -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| **Una riga che movimenta ha UN movimento**, identificato da `sourceLineId`, aggiornato in posto                                              | `09` · regole            |
+| **La riga è una fotografia**: un valore non modificato conserva quello persistito                                                            | regole                   |
+| Lo **Scarico manuale** non crea movimenti — deroga esplicita, non un precedente                                                              | regole                   |
+| ⭐ **L'Ordine cliente è il riferimento MOBILE** di tutti i documenti a righe articolo: una sola struttura comune, mai una card per documento | `03d` §1                 |
+| ⭐ **Prima la convergenza strutturale, le differenze alla fine** — e si esprimono come configurazione, mai come seconda implementazione      | `03d` §2, §12            |
+| **Una maschera entra nel sistema comune UNA volta**, per tutte le responsabilità comuni insieme                                              | `03d` §11                |
+| **Il titolo è uno, la variante sta in `variantLabel`**: mai concatenata dentro la descrizione                                                | `03d` §6 · Blocco 0 §3.2 |
+| **Un solo risolutore** per «l'articolo entra nella riga»; acquisizione, `FormControl` e anagrafica restano fuori                             | `03c`                    |
+| **Impegna, Carica e Scarica** condividono la regola di eleggibilità, **non** campo, default, effetto e significato                           | `03d` §4 · `03` §18.4    |
 
 ## Denaro — `regole-gestionale`
 
