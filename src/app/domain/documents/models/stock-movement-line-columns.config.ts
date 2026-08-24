@@ -17,7 +17,17 @@ export const STOCK_MOVEMENT_LINE_COLUMNS: readonly TableColumnDef[] = [
   { id: 'articleCode', label: 'Cod. articolo', defaultWidthPx: 96, minWidthPx: 64 },
   { id: 'sku', label: 'SKU', defaultWidthPx: 104, minWidthPx: 64 },
   { id: 'barcode', label: 'EAN', defaultWidthPx: 124, minWidthPx: 72 },
-  { id: 'product', label: 'Nome prodotto', defaultWidthPx: 340, minWidthPx: 160 },
+  { id: 'product', label: 'Nome prodotto', defaultWidthPx: 300, minWidthPx: 160 },
+  // La VARIANTE ha una colonna sua, accanto al nome e non dentro: «M / Rosso».
+  //
+  // ⛔ Prima stava impastata nella descrizione — e siccome la descrizione
+  // riceveva `nome · titolo` e il titolo contiene già il nome, la riga diceva
+  // «Maglia · Maglia — M / Rosso». Su un articolo senza varianti, «Cintura ·
+  // Cintura».
+  //
+  // Larga meno del nome perché contiene i soli VALORI delle opzioni, non i
+  // loro nomi: «M / Rosso», non «Taglia: M / Colore: Rosso».
+  { id: 'variant', label: 'Variante', defaultWidthPx: 130, minWidthPx: 80 },
   { id: 'quantity', label: 'Quantità', numeric: true, defaultWidthPx: 80, minWidthPx: 56 },
   // I seriali sono l'eccezione, non la regola: la colonna c'è per chi tratta
   // merce serializzata, ma non deve mangiarsi la riga di chi non la tratta.
@@ -34,9 +44,25 @@ const TUTTE = STOCK_MOVEMENT_LINE_COLUMNS.map((column) => column.id);
  */
 export const STOCK_MOVEMENT_LINE_PRESETS: TableViewPresetMap = {
   [PresetId.Default]: TUTTE,
-  [PresetId.Warehouse]: ['articleCode', 'sku', 'barcode', 'product', 'quantity', 'actions'],
+  [PresetId.Warehouse]: [
+    'articleCode',
+    'sku',
+    'barcode',
+    'product',
+    'variant',
+    'quantity',
+    'actions',
+  ],
   [PresetId.Accountant]: TUTTE,
   [PresetId.Supplier]: TUTTE,
   [PresetId.Analysis]: TUTTE,
-  [PresetId.Operational]: ['sku', 'barcode', 'product', 'quantity', 'serials', 'actions'],
+  [PresetId.Operational]: [
+    'sku',
+    'barcode',
+    'product',
+    'variant',
+    'quantity',
+    'serials',
+    'actions',
+  ],
 };

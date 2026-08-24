@@ -17,6 +17,7 @@ import type { DocumentRecord } from '@core/models/document.model';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import type { DocumentCounterView } from '@domain/documents/models/document-counter.model';
 import { ProductService } from '@domain/products/services/product.service';
+import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 
 import { TransferFormComponent } from './transfer-form.component';
 import { DocumentService } from '@domain/documents/services/document.service';
@@ -341,5 +342,184 @@ describe('TransferFormComponent', () => {
 
       expect(toasts.showInfo).not.toHaveBeenCalled();
     });
+  });
+});
+
+/**
+ * ⭐ **Il Trasferimento è il primo consumer del risolutore comune** (`03c` §5).
+ *
+ * Non è un refactor: è il gesto — «richiamo un articolo sulla riga» — che
+ * smette di essere scritto sette volte in modo diverso.
+ *
+ * ⛔ Questi test descrivono il comportamento **desiderato**, non quello
+ * osservato. Il codice di oggi ne fa fallire due apposta: scrive
+ * `nome · titolo` nella descrizione, e il titolo contiene già il nome —
+ * quindi il nome finisce sulla riga **due volte**, «Maglia · Maglia — M / Rosso»
+ * (`03` §28: il codice attuale non è la fonte dei requisiti).
+ */
+describe('il richiamo articolo passa dal risolutore comune', () => {
+  /** L'articolo con opzioni: il caso in cui nome e variante vanno separati. */
+  const MAGLIA: VariantSummary = {
+    variantId: 'var-1',
+    productId: 'prod-1',
+    sku: 'MAG-M',
+    articleCode: 'ART-1',
+    productName: 'Maglia',
+    title: 'Maglia — M / Rosso',
+    variantLabel: 'M / Rosso',
+    barcode: '8001',
+    sellingPrice: { amountMinor: 2500, currencyCode: 'EUR' },
+  };
+
+  /** Prodotto SENZA opzioni: l'etichetta resta vuota, non ripiega sul titolo. */
+  const CINTURA: VariantSummary = {
+    variantId: 'var-2',
+    productId: 'prod-2',
+    sku: 'CIN-U',
+    articleCode: 'ART-2',
+    productName: 'Cintura',
+    title: 'Cintura',
+    variantLabel: '',
+    sellingPrice: { amountMinor: 1900, currencyCode: 'EUR' },
+  };
+
+  /**
+   * L'accesso alla riga. Il gesto vero passa per il pannello articoli e tre
+   * celle di codice: rifarlo a mano in ogni prova misurerebbe il pannello, non
+   * il richiamo. Stesso taglio già usato in `goods-receipt-form.component.spec`.
+   */
+  interface FormaRiga {
+    readonly lines: {
+      readonly length: number;
+      at(i: number): { controls: Record<string, { value: unknown; setValue(v: unknown): void }> };
+    };
+    onVariantSelect(index: number, value: string | null, known?: VariantSummary | null): void;
+  }
+
+  async function setupCatalogo(catalogo: readonly VariantSummary[]) {
+    const view = await render(TransferFormComponent, {
+      providers: [
+        {
+          provide: DocumentCountersService,
+          useValue: { available: () => of({ counters: [], proposedCounterId: null }) },
+        },
+        { provide: ToastService, useValue: { showInfo: vi.fn(), showError: vi.fn() } },
+        {
+          provide: APP_CONFIG,
+          useValue: {
+            production: false,
+            appName: 'VestiFlow',
+            apiBaseUrl: '',
+            features: { barcodeScanner: false, shopify: false },
+          },
+        },
+        { provide: AuthService, useValue: { currentUser: () => null } },
+        provideRouter([]),
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: { data: {}, queryParamMap: convertToParamMap({}) },
+            paramMap: of(convertToParamMap({})),
+          },
+        },
+        { provide: OperationalLocationsService, useValue: operationalLocationsMock(null) },
+        {
+          provide: LocationContextService,
+          useValue: { activeLocationId: () => null, setActiveLocation: vi.fn() },
+        },
+        {
+          provide: ProductService,
+          useValue: {
+            searchVariantSummaries: (params?: { readonly variantId?: string }) =>
+              of(
+                params?.variantId
+                  ? catalogo.filter((row) => row.variantId === params.variantId)
+                  : [...catalogo],
+              ),
+            getSupplierVariantLinks: () => of([]),
+          },
+        },
+        { provide: ExternalDocumentTypeService, useValue: { list: () => of([]) } },
+        {
+          provide: DocumentService,
+          useValue: {
+            checkChronology: () => of({ conflicts: [], dismissed: false }),
+            dismissChronologyWarning: () => of(void 0),
+            getDocumentById: vi.fn(),
+            createDocument: vi.fn(() => of({ id: 'doc-9' } as DocumentRecord)),
+            updateDocument: vi.fn(),
+            saveTransfer: vi.fn(),
+            confirmDocument: vi.fn(),
+          },
+        },
+      ],
+    });
+    vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    return view.fixture.componentInstance as unknown as FormaRiga;
+  }
+
+  it('⛔ il nome non porta la variante, che ha la sua colonna', async () => {
+    const form = await setupCatalogo([MAGLIA]);
+
+    form.onVariantSelect(0, MAGLIA.variantId, MAGLIA);
+
+    const riga = form.lines.at(0).controls;
+    // Il difetto che questo consumer chiude: oggi qui c'è
+    // «Maglia · Maglia — M / Rosso», col nome scritto due volte.
+    expect(riga['description']!.value).toBe('Maglia');
+    expect(riga['description']!.value).not.toContain('·');
+    expect(riga['variantLabel']!.value).toBe('M / Rosso');
+  });
+
+  it('articolo senza opzioni: etichetta vuota, non un ripiego sul titolo', async () => {
+    const form = await setupCatalogo([CINTURA]);
+
+    form.onVariantSelect(0, CINTURA.variantId, CINTURA);
+
+    const riga = form.lines.at(0).controls;
+    expect(riga['description']!.value).toBe('Cintura');
+    expect(riga['variantLabel']!.value).toBe('');
+  });
+
+  it('le tre chiavi di identità arrivano tutte insieme', async () => {
+    const form = await setupCatalogo([MAGLIA]);
+
+    form.onVariantSelect(0, MAGLIA.variantId, MAGLIA);
+
+    const riga = form.lines.at(0).controls;
+    expect(riga['sku']!.value).toBe('MAG-M');
+    expect(riga['articleCode']!.value).toBe('ART-1');
+    expect(riga['barcode']!.value).toBe('8001');
+  });
+
+  it('richiamando lo stesso articolo i valori tornano da anagrafica, la quantità no', async () => {
+    const form = await setupCatalogo([MAGLIA]);
+    form.onVariantSelect(0, MAGLIA.variantId, MAGLIA);
+
+    const riga = form.lines.at(0).controls;
+    riga['description']!.setValue('Scritto a mano');
+    riga['quantity']!.setValue(7);
+
+    form.onVariantSelect(0, MAGLIA.variantId, MAGLIA);
+
+    // ⭐ Il richiamo RISCRIVE i valori dell'articolo — è la decisione del
+    // proprietario, e vale per tutti i documenti.
+    expect(riga['description']!.value).toBe('Maglia');
+    // ⛔ …ma NON la quantità, che è dell'operatore.
+    expect(riga['quantity']!.value).toBe(7);
+  });
+
+  it('articolo illeggibile: non scrive niente di parziale', async () => {
+    const form = await setupCatalogo([MAGLIA]);
+    form.onVariantSelect(0, MAGLIA.variantId, MAGLIA);
+
+    // Una variante che il catalogo non conosce: il risolutore dichiara
+    // l'articolo illeggibile, e la riga NON si svuota a metà.
+    form.onVariantSelect(0, 'var-ignota', null);
+
+    const riga = form.lines.at(0).controls;
+    expect(riga['description']!.value).toBe('Maglia');
+    expect(riga['sku']!.value).toBe('MAG-M');
+    expect(riga['variantLabel']!.value).toBe('M / Rosso');
   });
 });

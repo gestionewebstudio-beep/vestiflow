@@ -336,6 +336,15 @@
                         ></span>
                       </th>
                     }
+                    @if (isLineColumnVisible('variant')) {
+                      <th scope="col" [style.width]="lineColumnWidth('variant')">
+                        Variante
+                        <span
+                          appTableColumnResize
+                          (resized)="onLineColumnResize('variant', $event)"
+                        ></span>
+                      </th>
+                    }
                     @if (isLineColumnVisible('quantity')) {
                       <th
                         scope="col"
@@ -521,6 +530,13 @@
                           @if (lineFieldInvalid(i, 'variantId')) {
                             <p class="doc-form__error">Campo obbligatorio.</p>
                           }
+                        </td>
+                      }
+                      @if (isLineColumnVisible('variant')) {
+                        <td class="doc-form__cell doc-form__cell--readonly">
+                          <span class="doc-form__readonly-cell" [title]="variantLabelOf(i)">{{
+                            variantLabelOf(i) || '—'
+                          }}</span>
                         </td>
                       }
                       @if (isLineColumnVisible('quantity')) {

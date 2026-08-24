@@ -60,6 +60,11 @@ import { prefillDefaultLocation } from '@domain/inventory/utils/default-location
 import { toLocationSelectOptions } from '@core/utils/location-select-options.util';
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import { ProductService } from '@domain/products/services/product.service';
+import { DocumentLineArticleService } from '@domain/documents/services/document-line-article.service';
+import {
+  CONTESTO_MOVIMENTO_INTERNO,
+  POLICY_MOVIMENTO_INTERNO,
+} from '@domain/documents/models/movimento-interno-richiamo.config';
 import {
   findVariantSummaryById,
   mergeVariantSummaries,
@@ -201,6 +206,7 @@ export class TransferFormComponent implements CanComponentDeactivate {
   private readonly documentService = inject(DocumentService);
   private readonly countersService = inject(DocumentCountersService);
   private readonly productService = inject(ProductService);
+  private readonly lineArticles = inject(DocumentLineArticleService);
   private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly router = inject(Router);
   private readonly viewport = inject(ViewportService);
@@ -1204,18 +1210,61 @@ export class TransferFormComponent implements CanComponentDeactivate {
     known: VariantSummary | null = null,
   ): void {
     const line = this.lines.at(index);
+    // Letto PRIMA di scrivere il nuovo: dopo sarebbe uguale a quello richiesto,
+    // e il risolutore non distinguerebbe piu' «stesso articolo» da «cambiato».
+    const precedente = line.controls.variantId.value || null;
     line.controls.variantId.setValue(value ?? '');
     line.controls.variantId.markAsTouched();
-    if (value) {
-      const summary =
-        known ?? findVariantSummaryById(value, this.pinnedVariants(), this.searchedVariants());
-      if (summary) {
-        line.controls.description.setValue(`${summary.productName} · ${summary.title}`.trim());
-        line.controls.sku.setValue(summary.sku);
-        line.controls.articleCode.setValue(summary.articleCode);
-        line.controls.barcode.setValue(summary.barcode ?? '');
-      }
+    if (!value) {
+      return;
     }
+    const summary =
+      known ?? findVariantSummaryById(value, this.pinnedVariants(), this.searchedVariants());
+    if (!summary) {
+      // ⛔ Articolo illeggibile: NON si scrive niente. Una riga a meta' si
+      // scopre al salvataggio, una riga invariata si vede subito.
+      return;
+    }
+
+    // ⭐ Il richiamo articolo passa dal RISOLUTORE COMUNE (`03c`), non da
+    // quattro assegnazioni scritte a mano qui.
+    //
+    // ⛔ Qui c'era `${productName} · ${title}`, e `title` contiene gia' il
+    // nome: la riga portava il nome DUE VOLTE — «Maglia · Maglia — M / Rosso»,
+    // e su un articolo senza varianti «Cintura · Cintura». Il risolutore
+    // scrive `nomeProdotto` e `variantLabel` separati, come devono stare.
+    const esito = this.lineArticles.resolveWithSummary({
+      articolo: summary,
+      policy: POLICY_MOVIMENTO_INTERNO,
+      contesto: CONTESTO_MOVIMENTO_INTERNO,
+      riga: {
+        variantIdPrecedente: precedente,
+        rigaPersistita: Boolean(line.controls.id.value),
+        // Il Trasferimento non ha sconti: la merce cambia scaffale, non prezzo.
+        scontoCorrente: '',
+      },
+    });
+    if (esito.esito !== 'risolto') {
+      return;
+    }
+
+    const valori = esito.valori;
+    line.controls.description.setValue(String(valori['nomeProdotto'] ?? ''));
+    line.controls.variantLabel.setValue(String(valori['variantLabel'] ?? ''));
+    line.controls.sku.setValue(String(valori['sku'] ?? ''));
+    line.controls.articleCode.setValue(String(valori['articleCode'] ?? ''));
+    line.controls.barcode.setValue(String(valori['barcode'] ?? ''));
+  }
+
+  /**
+   * L'etichetta della variante di una riga, per la colonna che la mostra.
+   *
+   * ⛔ Non si ricava dal titolo per differenza dal nome: arriva dal
+   * risolutore quando l'articolo entra, e dal DOCUMENTO quando la riga si
+   * ricarica — cioè fotografata, non ricostruita.
+   */
+  protected variantLabelOf(index: number): string {
+    return this.lines.at(index)?.controls.variantLabel.value ?? '';
   }
 
   protected addLine(): void {
@@ -1620,6 +1669,9 @@ export class TransferFormComponent implements CanComponentDeactivate {
           variantId: line.variantId ?? '',
           sku: line.sku ?? '',
           description: line.description,
+          // L'etichetta FOTOGRAFATA sul documento, non quella dell'anagrafica
+          // di oggi: una riga di marzo continua a dire quello che diceva.
+          variantLabel: line.variantLabel ?? '',
           quantity: line.quantity,
           serialNumbersText: (line.serialNumbers ?? []).join(', '),
         });
@@ -1649,6 +1701,14 @@ export class TransferFormComponent implements CanComponentDeactivate {
       sku: this.fb.control(''),
       barcode: this.fb.control(''),
       description: this.fb.control('', { validators: [Validators.required] }),
+      // L'etichetta della VARIANTE, nella sua colonna: «M / Rosso».
+      //
+      // ⛔ Non si SALVA da qui: il server la fotografa dalle opzioni della
+      // variante, con la regola dello snapshot e una guardia che lo verifica
+      // (`document-line-variant-snapshot.util`). Mandarla anche dal client
+      // creerebbe una seconda fonte per lo stesso dato — che e' il difetto
+      // che questo lavoro sta chiudendo, non uno da aggiungere.
+      variantLabel: this.fb.control(''),
       quantity: this.fb.control(1, {
         validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
       }),

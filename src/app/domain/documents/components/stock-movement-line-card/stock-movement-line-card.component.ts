@@ -23,6 +23,8 @@ export interface StockMovementLineCardControls {
   readonly sku: FormControl<string>;
   readonly barcode: FormControl<string>;
   readonly description: FormControl<string>;
+  /** L'etichetta della variante, fotografata: «M / Rosso». Vuota se non ne ha. */
+  readonly variantLabel: FormControl<string>;
   readonly quantity: FormControl<number>;
   readonly serialNumbersText: FormControl<string>;
 }
@@ -108,8 +110,28 @@ export class StockMovementLineCardComponent {
    * descrizione è già il titolo, e quantità e seriali stanno nella striscia e
    * nel corpo.
    */
+  /**
+   * Le sub-info sotto il nome: la VARIANTE per prima, poi lo SKU.
+   *
+   * ⚠️ La variante deve stare qui, e non e' una rifinitura: il titolo della
+   * card e' `description`, che fino a ieri la conteneva impastata. Ora che il
+   * nome e' solo il nome, senza questa riga la variante **sparirebbe da
+   * mobile** — e sparirebbe in silenzio, perche' desktop e card leggono due
+   * campi diversi e nessun test di tabella guarda la card.
+   *
+   * Prima dello SKU perche' e' cio' che distingue due righe dello stesso
+   * articolo: e' la domanda che si fa scorrendo l'elenco.
+   */
   protected metaItems(): readonly DocumentLineCardMeta[] {
+    const meta: DocumentLineCardMeta[] = [];
+    const variante = this.line().controls.variantLabel.value.trim();
+    if (variante) {
+      meta.push({ text: variante });
+    }
     const sku = this.line().controls.sku.value.trim();
-    return sku ? [{ text: `SKU ${sku}` }] : [];
+    if (sku) {
+      meta.push({ text: `SKU ${sku}` });
+    }
+    return meta;
   }
 }

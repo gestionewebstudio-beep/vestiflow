@@ -36,6 +36,7 @@ import {
   documentReferenceLabel,
   isPrintableDocumentType,
 } from './document-print.util';
+import { printArticleCellLines } from './document-print-article-cell.util';
 import type { DocumentDetail } from './documents.service';
 
 /** Ora inizio trasporto in fuso Europa/Roma (stampa DDT). */
@@ -628,14 +629,17 @@ export class DocumentPdfService {
         ];
 
     const rows = document.lines.map((line) => {
-      const articleParts = [line.description];
-      if (line.sku) {
-        articleParts.push(`SKU: ${line.sku}`);
-      }
-      const serials = parseSerialNumbers(line.serialNumbers);
-      if (serials.length > 0) {
-        articleParts.push(`Seriali: ${serials.join(', ')}`);
-      }
+      // La composizione della cella sta in `document-print-article-cell.util`,
+      // dove può essere PROVATA: qui dentro nessun test la raggiunge, perché
+      // pdfkit comprime i flussi e del buffer si può verificare solo che
+      // cominci per %PDF. È così che la variante avrebbe potuto sparire dalla
+      // stampa senza far arrossare niente.
+      const articleParts = printArticleCellLines({
+        description: line.description,
+        variantLabel: line.variantLabel,
+        sku: line.sku,
+        serialNumbers: parseSerialNumbers(line.serialNumbers),
+      });
       const head = [String(line.lineNumber), articleParts.join('\n'), String(line.quantity)];
       if (!showsValues) {
         return head;
