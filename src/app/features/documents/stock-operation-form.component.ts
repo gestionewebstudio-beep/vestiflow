@@ -8,7 +8,13 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { FormArray, NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import {
+  FormArray,
+  FormGroup,
+  NonNullableFormBuilder,
+  ReactiveFormsModule,
+  Validators,
+} from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
   VARIANT_SEARCH_DEBOUNCE_MS,
@@ -54,6 +60,17 @@ import { toLocationSelectOptions } from '@core/utils/location-select-options.uti
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import { ProductService } from '@domain/products/services/product.service';
 import { DocumentLineArticleService } from '@domain/documents/services/document-line-article.service';
+import { DocumentLineHeadComponent } from '@domain/documents/components/document-line-head/document-line-head.component';
+import { DocumentLineRowComponent } from '@domain/documents/components/document-line-row/document-line-row.component';
+import { DOCUMENT_LINE_ROW_VIEW_VUOTA } from '@domain/documents/components/document-line-row/document-line-row.model';
+import type {
+  DocumentLineColumnId,
+  DocumentLineFieldEvent,
+  DocumentLineFocusField,
+  DocumentLineRowView,
+  DocumentLineSuggestionDirection,
+  DocumentLineSuggestionPick,
+} from '@domain/documents/components/document-line-row/document-line-row.model';
 import {
   CONTESTO_MOVIMENTO_INTERNO,
   POLICY_MOVIMENTO_INTERNO,
@@ -93,9 +110,11 @@ import {
 } from '@shared/table-columns/line-column-quota.util';
 import { TableColumnResizeDirective } from '@shared/directives/table-column-resize.directive';
 import {
+  MOVEMENT_LINE_FOCUS_FIELDS,
   STOCK_MOVEMENT_LINE_COLUMNS,
   STOCK_MOVEMENT_LINE_PRESETS,
 } from '@domain/documents/models/stock-movement-line-columns.config';
+import type { MovementLineFocusField } from '@domain/documents/models/stock-movement-line-columns.config';
 import { sortByValue, type SortValueKind } from '@shared/utils/sort-values.util';
 import { DocumentLineFocusStore } from '@domain/documents/state/document-line-focus.store';
 import type { DocumentLineCodeField } from '@domain/documents/utils/document-code-match.util';
@@ -138,8 +157,8 @@ const STOCK_OPERATION_SORTABLE_LINE_COLUMNS: readonly StockOperationLineSortColu
  * nome sono gli stessi degli altri documenti: un movimento di magazzino trova
  * l'articolo come lo trova un ordine — ciò che cambia è cosa ne fa dopo.
  */
-type MovementLineFocusField =
-  'articleCode' | 'sku' | 'barcode' | 'product' | 'quantity' | 'serials';
+// I campi del fuoco vivono accanto alle colonne che il Tab attraversa,
+// condivisi con l'altra maschera di movimento.
 
 /**
  * Quanto si aspetta, allo sfocamento di un campo codice della card, prima di
@@ -155,6 +174,8 @@ type MovementCodeField = Extract<DocumentLineCodeField, 'articleCode' | 'sku' | 
   selector: 'app-stock-operation-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    DocumentLineHeadComponent,
+    DocumentLineRowComponent,
     FirstClickSelectsDirective,
     InlineBannerComponent,
     ReactiveFormsModule,
@@ -1058,8 +1079,24 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
   private readonly columnPreferences = inject(TableColumnPreferenceService);
   protected readonly lineColumnsView = TableViewId.StockAdjustmentLines;
 
+  /**
+   * Una colonna è visibile solo se **questo documento la dichiara**.
+   *
+   * ⛔ Prima la risposta veniva dalle sole preferenze utente, e su un id che il
+   * config non contiene quelle rispondono «visibile»: la riga comune conosce
+   * diciassette colonne, un movimento ne dichiara sette, e le altre dieci
+   * risultavano accese. Il template cercava allora `formControlName="unitPrice"`
+   * su un gruppo che quel controllo non ha, e la riga esplodeva con «Cannot
+   * find control with name».
+   *
+   * ⚠️ Non era un difetto teorico: è comparso portando la Rettifica sulla riga
+   * comune, e prima non poteva comparire perché il markup locale rendeva solo
+   * le colonne che sapeva di avere. Il config diventa la fonte di verità nel
+   * momento in cui la riga è condivisa.
+   */
   protected isLineColumnVisible(columnId: string): boolean {
-    return this.columnPreferences.isColumnVisible(this.lineColumnsView, columnId);
+    const dichiarata = STOCK_MOVEMENT_LINE_COLUMNS.some((column) => column.id === columnId);
+    return dichiarata && this.columnPreferences.isColumnVisible(this.lineColumnsView, columnId);
   }
 
   private lineColumnPx(columnId: string): number {
@@ -1309,6 +1346,187 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
    */
   protected variantLabelOf(index: number): string {
     return this.lines.at(index)?.controls.variantLabel.value ?? '';
+  }
+
+  /** Larghezza minima di una colonna: la usa il ridimensionamento comune. */
+  protected lineColumnMinWidth(columnId: string): number {
+    return STOCK_MOVEMENT_LINE_COLUMNS.find((col) => col.id === columnId)?.minWidthPx ?? 48;
+  }
+
+  /**
+   * Riga completa: quella incompleta prende la classe che la segna, la stessa
+   * di ogni maschera.
+   *
+   * Una riga VUOTA è completa per definizione — non è stata compilata male, non
+   * è stata compilata affatto, e le righe vuote in coda si scartano al
+   * salvataggio.
+   */
+  protected lineRowComplete(index: number): boolean {
+    const line = this.lines.at(index);
+    if (!line) {
+      return true;
+    }
+    const raw = line.getRawValue();
+    const vuota =
+      !raw.variantId.trim() &&
+      !raw.articleCode.trim() &&
+      !raw.sku.trim() &&
+      !raw.barcode.trim() &&
+      !raw.description.trim();
+    return vuota || (Boolean(raw.variantId.trim()) && Number(raw.quantity) > 0);
+  }
+
+  /**
+   * Il giro del fuoco: la riga comune parla di DIECI campi, questo documento
+   * ne ha SEI.
+   *
+   * ⚠️ Il restringimento è esplicito e non un cast: la riga comune emette
+   * anche `unitPrice`, `discount`, `vat` e `unitOfMeasure`, che qui non
+   * esistono perché le colonne non ci sono. Forzare il tipo li farebbe
+   * arrivare allo store del fuoco, che cercherebbe un campo inesistente e si
+   * fermerebbe in silenzio a metà riga.
+   */
+  private campoDiQuestoDocumento(field: DocumentLineFocusField): MovementLineFocusField | null {
+    return (MOVEMENT_LINE_FOCUS_FIELDS as readonly string[]).includes(field)
+      ? (field as MovementLineFocusField)
+      : null;
+  }
+
+  protected onRowFieldKeydown(index: number, event: DocumentLineFieldEvent<KeyboardEvent>): void {
+    const field = this.campoDiQuestoDocumento(event.field);
+    if (field) {
+      this.lineFocus.handleKeydown(index, field, event.value);
+    }
+  }
+
+  protected onRowFieldAdvance(index: number, field: DocumentLineFocusField): void {
+    const proprio = this.campoDiQuestoDocumento(field);
+    if (proprio) {
+      this.lineFocus.next(index, proprio);
+    }
+  }
+
+  protected onRowFieldRetreat(index: number, field: DocumentLineFocusField): void {
+    const proprio = this.campoDiQuestoDocumento(field);
+    if (proprio) {
+      this.lineFocus.previous(index, proprio);
+    }
+  }
+
+  protected onRowLineAdvance(index: number, field: DocumentLineFocusField): void {
+    const proprio = this.campoDiQuestoDocumento(field);
+    if (proprio) {
+      this.lineFocus.rowDown(index, proprio);
+    }
+  }
+
+  protected onRowLineRetreat(index: number, field: DocumentLineFocusField): void {
+    const proprio = this.campoDiQuestoDocumento(field);
+    if (proprio) {
+      this.lineFocus.rowUp(index, proprio);
+    }
+  }
+
+  // ── Il ponte verso la RIGA COMUNE ────────────────────────────────────────
+  //
+  // ⭐ Il Trasferimento non ha più un proprio `<tr>`: usa
+  // `app-document-line-row` e `app-document-line-head`, come l'Ordine cliente.
+  // Qui sotto c'è tutto ciò che quelle componenti chiedono — e nient'altro.
+  //
+  // ⛔ Le differenze di questo documento NON stanno nel markup: stanno nel SET
+  // DI COLONNE (`stock-movement-line-columns`, sette colonne contro le sedici
+  // dell'Ordine cliente). Una colonna in meno non giustifica una riga propria.
+
+  /**
+   * ⚠️ Legate una volta sola: passandole come funzioni anonime nel template,
+   * l'identità cambierebbe a ogni giro e la riga si riterrebbe sempre nuova.
+   */
+  protected readonly isLineColumnVisibleFn = (column: DocumentLineColumnId): boolean =>
+    this.isLineColumnVisible(column);
+
+  protected readonly lineColumnWidthFn = (column: DocumentLineColumnId): string =>
+    this.lineColumnWidth(column);
+
+  protected readonly lineColumnMinWidthFn = (column: DocumentLineColumnId): number =>
+    this.lineColumnMinWidth(column);
+
+  /** Il gruppo della riga: i controlli restano quelli di questo form. */
+  protected lineGroup(index: number): FormGroup {
+    return this.lines.at(index);
+  }
+
+  /** L'ordinamento arriva dall'intestazione comune col nome della colonna. */
+  protected onRowSortToggled(column: DocumentLineColumnId): void {
+    if (this.isLineColumnSortable(column)) {
+      this.toggleLineSort(column as StockOperationLineSortColumn);
+    }
+  }
+
+  /**
+   * Ciò che la riga comune deve MOSTRARE, già calcolato da chi lo possiede.
+   *
+   * ⭐ È il confine giusto: la riga rende, il documento calcola. Un
+   * trasferimento non ha denaro né IVA, quindi quei campi restano vuoti — e
+   * restare vuoti non costa niente, perché le colonne non ci sono.
+   */
+  protected lineRowView(index: number): DocumentLineRowView {
+    return {
+      ...DOCUMENT_LINE_ROW_VIEW_VUOTA,
+      complete: this.lineRowComplete(index),
+      linked: Boolean(this.lines.at(index)?.controls.variantId.value),
+      linkedArticleCode: this.lineArticleCode(index),
+      quantityInvalid: this.lineFieldInvalid(index, 'quantity'),
+      productInvalid: this.lineFieldInvalid(index, 'variantId'),
+      articleCodeSuggest: {
+        items: this.codeLookup.matchesFor(index, 'articleCode'),
+        open: this.codeLookup.isOpenOn(index, 'articleCode'),
+        activeIndex: this.codeLookup.activeIndex(),
+      },
+      skuSuggest: {
+        items: this.codeLookup.matchesFor(index, 'sku'),
+        open: this.codeLookup.isOpenOn(index, 'sku'),
+        activeIndex: this.codeLookup.activeIndex(),
+      },
+      barcodeSuggest: {
+        items: this.codeLookup.matchesFor(index, 'barcode'),
+        open: this.codeLookup.isOpenOn(index, 'barcode'),
+        activeIndex: this.codeLookup.activeIndex(),
+      },
+      productSuggest: {
+        items: this.lineSuggestions(index),
+        open: this.lineSuggestionsOpen(index),
+        activeIndex: this.productSuggest.activeIndex(),
+      },
+    };
+  }
+
+  /** Il campo dice quale codice è cambiato: la riga non conosce i tre gestori. */
+  protected onRowCodeChanged(index: number, event: DocumentLineFieldEvent<string>): void {
+    // ⚠️ La riga comune conosce piu' campi di quanti ne abbia questo documento
+    // (ha anche sconto, prezzo, costo): qui arrivano solo i tre codici che le
+    // colonne del Trasferimento rendono, ma il tipo dell'evento e' quello
+    // comune e va ristretto invece che forzato.
+    if (event.field === 'articleCode' || event.field === 'sku' || event.field === 'barcode') {
+      this.onLineCodeChange(index, event.field, event.value);
+    }
+  }
+
+  protected onRowSuggestionPicked(index: number, event: DocumentLineSuggestionPick): void {
+    if (event.field === 'product') {
+      this.onProductSuggestionPick(index, event.variantId);
+      return;
+    }
+    this.onCodeSuggestionPick(index, event.variantId);
+  }
+
+  protected onRowSuggestionNavigated(
+    event: DocumentLineFieldEvent<DocumentLineSuggestionDirection>,
+  ): void {
+    if (event.field === 'product') {
+      this.onProductSuggestionNavigate(event.value);
+      return;
+    }
+    this.codeLookup.navigate(event.value);
   }
 
   protected addLine(): void {

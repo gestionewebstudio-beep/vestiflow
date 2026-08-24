@@ -127,9 +127,11 @@ import {
 } from '@shared/table-columns/line-column-quota.util';
 import { TableColumnResizeDirective } from '@shared/directives/table-column-resize.directive';
 import {
+  MOVEMENT_LINE_FOCUS_FIELDS,
   STOCK_MOVEMENT_LINE_COLUMNS,
   STOCK_MOVEMENT_LINE_PRESETS,
 } from '@domain/documents/models/stock-movement-line-columns.config';
+import type { MovementLineFocusField } from '@domain/documents/models/stock-movement-line-columns.config';
 import { CdkDrag, CdkDragHandle, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
 import { trailingEmptyLineIndices } from '@domain/documents/utils/trailing-empty-lines.util';
 import { sortByValue, type SortValueKind } from '@shared/utils/sort-values.util';
@@ -164,16 +166,8 @@ const TRANSFER_SORTABLE_LINE_COLUMNS: readonly TransferLineSortColumn[] = [
  * nome sono gli stessi degli altri documenti: un movimento di magazzino trova
  * l'articolo come lo trova un ordine — ciò che cambia è cosa ne fa dopo.
  */
-const MOVEMENT_LINE_FOCUS_FIELDS = [
-  'articleCode',
-  'sku',
-  'barcode',
-  'product',
-  'quantity',
-  'serials',
-] as const;
-
-type MovementLineFocusField = (typeof MOVEMENT_LINE_FOCUS_FIELDS)[number];
+// I campi del fuoco vivono accanto alle colonne che il Tab attraversa,
+// condivisi con l'altra maschera di movimento.
 
 /**
  * Quanto si aspetta, allo sfocamento di un campo codice della card, prima di
@@ -440,8 +434,24 @@ export class TransferFormComponent implements CanComponentDeactivate {
   private readonly columnPreferences = inject(TableColumnPreferenceService);
   protected readonly lineColumnsView = TableViewId.TransferLines;
 
+  /**
+   * Una colonna è visibile solo se **questo documento la dichiara**.
+   *
+   * ⛔ Prima la risposta veniva dalle sole preferenze utente, e su un id che il
+   * config non contiene quelle rispondono «visibile»: la riga comune conosce
+   * diciassette colonne, un movimento ne dichiara sette, e le altre dieci
+   * risultavano accese. Il template cercava allora `formControlName="unitPrice"`
+   * su un gruppo che quel controllo non ha, e la riga esplodeva con «Cannot
+   * find control with name».
+   *
+   * ⚠️ Non era un difetto teorico: è comparso portando la Rettifica sulla riga
+   * comune, e prima non poteva comparire perché il markup locale rendeva solo
+   * le colonne che sapeva di avere. Il config diventa la fonte di verità nel
+   * momento in cui la riga è condivisa.
+   */
   protected isLineColumnVisible(columnId: string): boolean {
-    return this.columnPreferences.isColumnVisible(this.lineColumnsView, columnId);
+    const dichiarata = STOCK_MOVEMENT_LINE_COLUMNS.some((column) => column.id === columnId);
+    return dichiarata && this.columnPreferences.isColumnVisible(this.lineColumnsView, columnId);
   }
 
   private lineColumnPx(columnId: string): number {
