@@ -48,7 +48,15 @@ export class DocumentLineCardStripComponent {
   /** Il minimo della quantità: 1 al banco, 0 dove una riga può nascere vuota. */
   readonly quantityMin = input(0);
 
-  /** Il passo dello stepper: la maschera decide cosa vuol dire «uno in più». */
+  /**
+   * La quantità è cambiata col passo.
+   *
+   * ⭐ **Il passo lo applica la striscia, non la maschera.** Cinque maschere su
+   * sei non avevano un gestore per lo stepper, e i pulsanti erano comandi che
+   * non comandano. Qui il valore si scrive sul controllo — rispettando il
+   * minimo — e la maschera riceve l'avviso: le serve per segnare il documento
+   * sporco, non per fare l'aritmetica.
+   */
   readonly quantityStepped = output<number>();
   readonly costChanged = output<string>();
 
@@ -67,4 +75,16 @@ export class DocumentLineCardStripComponent {
 
   /** Il nome del controllo del prezzo: `unitPrice` o `unitCost`. */
   protected readonly prezzoControl = computed(() => this.prezzo() ?? '');
+
+  protected step(passo: number): void {
+    const controllo = this.group().get('quantity');
+    if (!controllo || this.readOnly()) {
+      return;
+    }
+    const corrente = Number(controllo.value);
+    const prossimo = Math.max(this.quantityMin(), (Number.isFinite(corrente) ? corrente : 0) + passo);
+    controllo.setValue(prossimo);
+    controllo.markAsDirty();
+    this.quantityStepped.emit(passo);
+  }
 }

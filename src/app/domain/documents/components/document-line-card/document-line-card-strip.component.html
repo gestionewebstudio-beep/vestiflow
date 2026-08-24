@@ -13,7 +13,7 @@
             class="doc-line-card-strip__qty-btn"
             [disabled]="readOnly()"
             aria-label="Diminuisci quantità"
-            (click)="quantityStepped.emit(-1)"
+            (click)="step(-1)"
           >
             <i class="pi pi-minus" aria-hidden="true"></i>
           </button>
@@ -31,7 +31,7 @@
             class="doc-line-card-strip__qty-btn"
             [disabled]="readOnly()"
             aria-label="Aumenta quantità"
-            (click)="quantityStepped.emit(1)"
+            (click)="step(1)"
           >
             <i class="pi pi-plus" aria-hidden="true"></i>
           </button>

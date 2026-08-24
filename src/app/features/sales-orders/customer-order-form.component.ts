@@ -2392,12 +2392,14 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   }
 
   /** +1 / -1 dallo stepper della card: il minimo e la marcatura restano qui. */
-  protected onLineQuantityStep(index: number, step: 1 | -1): void {
-    if (step === 1) {
-      this.incrementLineQty(index);
-      return;
-    }
-    this.decrementLineQty(index);
+  /**
+   * La quantita' e' cambiata col passo della striscia.
+   *
+   * ⚠️ Il valore lo ha gia' scritto la striscia, rispettando il minimo: qui
+   * resta solo cio' che la maschera sa e lei no — che il documento e' cambiato.
+   */
+  protected onLineQuantityStep(): void {
+    this.markFormDirty();
   }
 
   protected incrementLineQty(index: number): void {
