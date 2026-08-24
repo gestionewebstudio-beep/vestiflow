@@ -490,6 +490,35 @@ Il pannello/area di ricerca serve invece a trovare un articolo quando l'operator
 
 # 11. Scansione barcode/EAN
 
+## ⭐ La fotocamera è una capability MOBILE — deciso il 24/08/2026
+
+⛔ **Questa decisione è più recente** delle righe qui sotto, che dicevano «HID +
+fotocamera» senza distinguere dove il comando si offre.
+
+|             | Comando fotocamera | Lettore HID / keyboard wedge | Ricerca manuale, EAN, SKU, Cod. articolo |
+| ----------- | ------------------ | ---------------------------- | ---------------------------------------- |
+| **Desktop** | **no**             | sì, pieno supporto           | sì                                       |
+| **Mobile**  | sì, overlay comune | sì                           | sì                                       |
+
+⭐ **Il criterio è a chi serve.** Davanti a un monitor la fotocamera del
+portatile inquadra l'operatore, non il capo: un pulsante che apre una finestra
+inutilizzabile è un comando che non comanda.
+
+⛔ **L'overlay comune NON si rimuove**, e il motore di scansione nemmeno: cambia
+soltanto **dove viene esposto**. Su scrivania si legge col lettore HID, che
+scrive nel campo di ricerca come una tastiera e non passa dal comando
+fotocamera.
+
+⚠️ **La distinzione NON si scrive nei documenti.** Vive nell'infrastruttura
+comune — `BarcodeDetectionService.cameraScanOffered`, che mette insieme le tre
+condizioni (bandiera d'ambiente, fotocamera presente, schermo compatto) — e la
+chiedono **dodici** consumer: sette maschere documento più cinque schermate di
+magazzino e catalogo. Dodici `@if` da tenere allineati sono dodici occasioni di
+dimenticarne uno.
+
+⚠️ E dove non si offre, il comando **non c'è**: non è disabilitato. Un pulsante
+grigio dichiara una funzione e non la dà.
+
 ## 11.1 Infrastruttura comune
 
 Devono essere comuni:
