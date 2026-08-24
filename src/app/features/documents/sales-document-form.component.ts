@@ -2393,14 +2393,14 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
             // documento riaperto dice quello che diceva quando fu compilato.
             sku: line.sku?.trim() || undefined,
             description: line.description.trim() || 'Riga documento',
-            // La variante nella sua colonna, e l'unità di misura fotografata.
+            // ⛔ La variante NON si manda: su `document_lines` la compone il
+            // server dallo snapshot per id.
             //
-            // ⚠️ L'unità **non partiva**, e la colonna su `document_lines`
-            // esiste dall'11/08: si poteva modificare, si salvava, si riapriva
-            // e la modifica era sparita senza un errore. È lo stesso difetto
-            // che le altre tre maschere hanno chiuso allora, e che questa si è
+            // ⚠️ L'unità invece sì, e **non partiva**: la colonna esiste
+            // dall'11/08, si poteva modificare, si salvava, si riapriva e la
+            // modifica era sparita senza un errore. È lo stesso difetto che le
+            // altre tre maschere hanno chiuso allora, e che questa si è
             // portata dietro perché era tenuta fuori dai lavori.
-            variantLabel: line.variantLabel?.trim() || undefined,
             unitOfMeasure: line.unitOfMeasure?.trim() || undefined,
             quantity: Number(line.quantity),
             // Al server va il netto: se il campo mostrava l'ivato, si scorpora qui.

@@ -1427,6 +1427,106 @@ describe('CustomerOrderFormComponent — conferma dei codici', () => {
    * articolo sulla riga, restava il prezzo del primo. La riga diceva un
    * articolo e costava un altro, e nessuno se ne accorgeva fino alla fattura.
    */
+  /**
+   * ⭐ **Quinto consumer del risolutore comune** (`03c` §5).
+   *
+   * ⚠️ Questi test esistono perché i due divieti che la migrazione chiude qui
+   * **non erano coperti da nessuna prova**: il fixture `variante()` ha
+   * `productName: 'Maglietta'` non vuoto, quindi il ramo `productName || title`
+   * non veniva mai eseguito; e nessun articolo di prova era privo di
+   * `unitOfMeasure`, quindi il ripiego cablato su `'pz'` non si vedeva.
+   */
+  describe('il richiamo articolo passa dal risolutore comune', () => {
+    it('⛔ nome vuoto in anagrafica: la riga resta vuota, non prende il titolo', async () => {
+      const form = await apri([
+        variante({
+          variantId: 'var-senza-nome',
+          sku: 'FEL-L-BLU',
+          // L'unica forma di dato che esegue il ramo di ripiego.
+          productName: '',
+          title: 'Felpa / L / Blu',
+          variantLabel: 'L / Blu',
+        }),
+      ]);
+
+      form.onVariantSelect(0, 'var-senza-nome');
+
+      const riga = form.lines.at(0).controls;
+      // Il titolo contiene la variante: ripiegarci sopra la rimetterebbe dentro
+      // il nome. Vuoto è corretto — dice che l'ANAGRAFICA è incompleta.
+      expect(riga['productName']!.value).toBe('');
+      expect(riga['productName']!.value).not.toContain('Felpa');
+      // …e la variante arriva comunque nella sua colonna.
+      expect(riga['variantLabel']!.value).toBe('L / Blu');
+    });
+
+    it('⛔ articolo senza unità: la cella resta vuota, non dice «pz»', async () => {
+      const form = await apri([
+        variante({
+          variantId: 'var-metri',
+          sku: 'TES-1',
+          productName: 'Tessuto al metro',
+          title: 'Tessuto al metro',
+          // Nessuna `unitOfMeasure`: prima qui scattava `?? 'pz'`, e un
+          // articolo venduto a metri diceva «pezzi».
+        }),
+      ]);
+
+      form.onVariantSelect(0, 'var-metri');
+
+      expect(form.lines.at(0).controls['unitOfMeasure']!.value).toBe('');
+    });
+
+    it("l'unità dell'articolo arriva sulla riga quando c'è", async () => {
+      const form = await apri([
+        variante({ variantId: 'var-m', sku: 'MAG-M', unitOfMeasure: 'mt' }),
+      ]);
+
+      form.onVariantSelect(0, 'var-m');
+
+      expect(form.lines.at(0).controls['unitOfMeasure']!.value).toBe('mt');
+    });
+
+    it('⛔ un SERVIZIO non fa scattare «Impegna magazzino»', async () => {
+      const form = await apri([
+        variante({
+          variantId: 'var-srv',
+          sku: 'SRV-1',
+          productName: 'Consulenza',
+          title: 'Consulenza',
+          // `managesStock` ASSENTE, non `false`: è la forma che una regola
+          // scritta come `managesStock !== false` lascerebbe passare.
+          kind: 'service',
+        }),
+      ]);
+
+      form.onVariantSelect(0, 'var-srv');
+
+      expect(form.lines.at(0).controls['commitsStock']!.value).toBe(false);
+    });
+
+    it('un articolo normale la fa scattare', async () => {
+      const form = await apri([variante({ variantId: 'var-art', sku: 'ART-1' })]);
+
+      form.onVariantSelect(0, 'var-art');
+
+      expect(form.lines.at(0).controls['commitsStock']!.value).toBe(true);
+    });
+
+    it('⛔ la quantità digitata sopravvive al richiamo dello stesso articolo', async () => {
+      const form = await apri([variante({ variantId: 'var-q', sku: 'QTA-1' })]);
+
+      form.onVariantSelect(0, 'var-q');
+      form.lines.at(0).controls['quantity']!.setValue(7);
+
+      // Lo stesso articolo, richiamato di nuovo: è ciò che fa il rientro dal
+      // pannello anagrafica.
+      form.onVariantSelect(0, 'var-q');
+
+      expect(form.lines.at(0).controls['quantity']!.value).toBe(7);
+    });
+  });
+
   it('sostituendo l’articolo sulla riga, il prezzo segue il nuovo', async () => {
     const form = await apri([
       variante({

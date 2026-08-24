@@ -185,6 +185,15 @@ import {
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import { ProductFormComponent } from '@domain/products/product-form.component';
 import { ProductService } from '@domain/products/services/product.service';
+import { DocumentLineArticleService } from '@domain/documents/services/document-line-article.service';
+import {
+  campiEffettivi,
+  PROFILI_RIGA_DOCUMENTO,
+} from '@domain/documents/models/document-line-article.model';
+import type {
+  ContestoRichiamoArticolo,
+  PolicyRichiamoArticolo,
+} from '@domain/documents/models/document-line-article.model';
 import {
   findVariantSummaryById,
   mergeVariantSummaries,
@@ -374,6 +383,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   private readonly countersService = inject(DocumentCountersService);
   private readonly customerService = inject(CustomerService);
   private readonly productService = inject(ProductService);
+  private readonly lineArticles = inject(DocumentLineArticleService);
   private readonly barcodeLookup = inject(BarcodeLookupService);
   private readonly codeLookupService = inject(DocumentCodeLookupService);
   private readonly viewport = inject(ViewportService);
@@ -2520,7 +2530,10 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   protected linkedProductLabel(index: number): string {
     const summary = this.lineVariantSummary(index);
-    return summary?.title || this.lines.at(index)?.controls.productName.value || '';
+    // ⛔ Niente ripiego su `title`: il titolo del catalogo CONTIENE la
+    // variante, e mostrarlo al posto del nome la rimetterebbe dentro — a
+    // schermo, dove sembra giusto. Il nome della riga è quello della riga.
+    return this.lines.at(index)?.controls.productName.value || summary?.productName || '';
   }
 
   /** Codice articolo del prodotto collegato alla riga (colonna §Codice articolo). */
@@ -2600,35 +2613,74 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     summary: VariantSummary,
     replacedArticle = false,
   ): void {
-    line.controls.articleCode.setValue(summary.articleCode, { emitEvent: false });
-    line.controls.sku.setValue(summary.sku, { emitEvent: false });
-    line.controls.barcode.setValue(summary.barcode ?? '', { emitEvent: false });
-    line.controls.productName.setValue(summary.productName || summary.title, { emitEvent: false });
-    line.controls.unitOfMeasure.setValue(summary.unitOfMeasure ?? 'pz', { emitEvent: false });
+    // ⭐ Il richiamo articolo passa dal RISOLUTORE COMUNE (`03c`): le
+    // assegnazioni non si scrivono più a mano, una maschera alla volta.
+    const esito = this.lineArticles.resolveWithSummary({
+      articolo: summary,
+      policy: this.policyRichiamo(),
+      contesto: this.contestoRichiamo(),
+      riga: {
+        variantIdPrecedente: replacedArticle ? null : line.controls.variantId.value || null,
+        rigaPersistita: Boolean(line.controls.id.value),
+        // Lo sconto DIGITATO: passandolo, il risolutore non ci scrive sopra.
+        scontoCorrente: line.controls.discount.value,
+      },
+    });
+    if (esito.esito !== 'risolto') {
+      return;
+    }
+    const valori = esito.valori;
+    const quiet = { emitEvent: false } as const;
+    // ⛔ Chiave ASSENTE significa «non toccare», mai «svuota».
+    const scrivi = (
+      controllo: { setValue(v: string, o: typeof quiet): void },
+      valore: string | undefined,
+    ): void => {
+      if (valore !== undefined) {
+        controllo.setValue(valore, quiet);
+      }
+    };
+
+    scrivi(line.controls.articleCode, valori.articleCode);
+    scrivi(line.controls.sku, valori.sku);
+    scrivi(line.controls.barcode, valori.barcode);
+    // ⛔ Qui c'era `summary.productName || summary.title`, e il titolo è il
+    // display completo che CONTIENE la variante: il ripiego la rimetteva
+    // dentro il nome proprio quando il nome mancava, cioè nel caso in cui
+    // nessuno se ne accorge. Se `productName` è vuoto è la summary a essere
+    // sbagliata, e si corregge la summary.
+    scrivi(line.controls.productName, valori.nomeProdotto);
+    // ⛔ E qui c'era `?? 'pz'`: un'unità CABLATA, che diceva «pezzi» su un
+    // articolo venduto a metri. Il default viene dall'ARTICOLO (`03` §13); se
+    // l'articolo non la porta, la cella resta vuota e si vede.
+    scrivi(line.controls.unitOfMeasure, valori.unitaDiMisura);
     // L'etichetta della variante si fotografa qui, come sku e nome: da questo
-    // momento e' un dato della riga, e il riepilogo non la governa piu'.
-    line.controls.variantLabel.setValue(summary.variantLabel ?? '', { emitEvent: false });
-    // Spunta "Impegna magazzino": default dal Tipo prodotto (Articolo ON,
-    // Servizio OFF); prodotti non gestiti a magazzino mai impegnati di default.
-    const isService = summary.kind === 'service' || summary.managesStock === false;
-    line.controls.commitsStock.setValue(!isService, { emitEvent: false });
-    // Codice IVA: predefinito articolo (se attivo/vendita) → predefinito globale.
-    // Prima del prezzo: in modalità ivata serve l'aliquota per mostrarlo.
-    if (replacedArticle || !line.controls.vatCodeId.value) {
-      const productVat = summary.defaultVatCodeId
-        ? this.vatCodeById().get(summary.defaultVatCodeId)
-        : undefined;
-      if (productVat?.isActive && isSalesVatCode(productVat)) {
-        line.controls.vatCodeId.setValue(productVat.id, { emitEvent: false });
-      } else if (this.defaultVatCodeId()) {
-        line.controls.vatCodeId.setValue(this.defaultVatCodeId(), { emitEvent: false });
+    // momento è un dato della riga, e il riepilogo non la governa più.
+    scrivi(line.controls.variantLabel, valori.variantLabel);
+    scrivi(line.controls.discount, valori.sconto);
+
+    // Spunta «Impegna magazzino»: segue l'ELEGGIBILITÀ dell'articolo, che il
+    // risolutore calcola in un punto solo — Servizio no, non gestito a
+    // magazzino no. «Impegna», «carica» e «scarica» restano tre effetti
+    // distinti: è il consumer a mapparla sul proprio campo.
+    if (valori.gestisceMagazzino !== undefined) {
+      line.controls.commitsStock.setValue(valori.gestisceMagazzino, quiet);
+    }
+
+    // Codice IVA prima del prezzo: in modalità ivata serve l'aliquota per
+    // mostrarlo. La catena la risolve il risolutore (articolo → predefinito).
+    if (valori.codiceIva !== undefined && (replacedArticle || !line.controls.vatCodeId.value)) {
+      if (valori.codiceIva) {
+        line.controls.vatCodeId.setValue(valori.codiceIva, quiet);
       }
     }
     // Il prezzo d'anagrafica è netto: in modalità ivata si mostra con l'IVA.
     // Segue il listino scelto in testata (§B4): una riga aggiunta dopo aver
     // scelto un listino deve nascere con quel prezzo, non col prezzo di vendita.
-    const listinoPrice = listinoUnitPrice(summary, this.listinoChoice());
-    const listinoMinor = listinoPrice?.amountMinor ?? 0;
+    // Il listino lo sceglie il RISOLUTORE dal contesto; quando e come
+    // scriverlo resta policy di questa maschera (vedi il JSDoc sopra:
+    // sostituzione riscrive, riga nuova riempie solo il vuoto).
+    const listinoMinor = valori.prezzoUnitarioNettoMinor ?? 0;
     if (replacedArticle) {
       // Sostituzione: il prezzo segue il nuovo articolo, e se quello non ne ha
       // il campo si SVUOTA. Lasciare il prezzo di prima è il difetto: la riga
@@ -2642,13 +2694,49 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         emitEvent: false,
       });
     }
-    // Sconto anagrafica cliente proposto come default (mai sovrascrive).
-    if (!line.controls.discount.value.trim()) {
-      const customerDiscount = this.selectedCustomer()?.customerDiscount?.trim();
-      if (customerDiscount) {
-        line.controls.discount.setValue(customerDiscount, { emitEvent: false });
-      }
-    }
+    // Lo sconto d'anagrafica del cliente lo propone il RISOLUTORE, dal
+    // contesto, e con la stessa regola di prima: solo su campo vuoto, e la
+    // stringa a cascata («4+10») intatta, mai risolta. La scrittura è sopra,
+    // con gli altri valori.
+  }
+
+  /**
+   * Le capacità del richiamo articolo su questa maschera.
+   *
+   * `costiVisibili` è `false`: il profilo `vendita` non porta il costo
+   * d'acquisto: qui si vede solo nel selettore articolo, che ha già il suo
+   * permesso.
+   */
+  private policyRichiamo(): PolicyRichiamoArticolo {
+    return {
+      famigliaIva: PROFILI_RIGA_DOCUMENTO.vendita.famigliaIva,
+      campi: campiEffettivi('vendita', { shopifyAttivo: false, costiVisibili: false }),
+    };
+  }
+
+  /**
+   * Il contesto del richiamo: quello che la TESTATA sa e la riga no.
+   *
+   * ⭐ **Listino e sconto del cliente vengono da qui**, ed è la ragione per cui
+   * non è una costante: una riga aggiunta dopo aver scelto un listino nasce
+   * con quel prezzo, non col prezzo articolo (`03` §B4); e lo sconto
+   * d'anagrafica del cliente si propone su campo vuoto, con la stringa a
+   * cascata intatta.
+   *
+   * ⛔ `codiceIvaControparte` è `null`: in vendita non esiste: il cliente non
+   * porta un Codice IVA d'anagrafica, e la catena salta l'anello senza doverlo
+   * sapere. Nessun codice fornitore: non c'è un fornitore su una vendita.
+   */
+  private contestoRichiamo(): ContestoRichiamoArticolo {
+    return {
+      listino: this.listinoChoice(),
+      codiciIvaPerId: this.vatCodeById(),
+      codiceIvaControparte: null,
+      codiceIvaPredefinito: this.defaultVatCodeId() || null,
+      scontoControparte: this.selectedCustomer()?.customerDiscount?.trim() || null,
+      codiceFornitoreDigitato: null,
+      codiceFornitoreDiTestata: null,
+    };
   }
 
   /** Carica e fissa la summary di una variante (righe da ordine esistente/scan). */
@@ -2980,7 +3068,13 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       }
       const price = listinoUnitPrice(summary, choice);
       if (!price) {
-        missing.push(line.controls.productName.value.trim() || summary.title);
+        // ⛔ Qui c'era `|| summary.title`: il messaggio nominava l'articolo
+        // col titolo completo, che contiene la variante. Nome e variante si
+        // compongono accanto, non dentro.
+        missing.push(
+          line.controls.productName.value.trim() ||
+            [summary.productName, summary.variantLabel].filter(Boolean).join(' · '),
+        );
       }
       line.controls.unitPrice.setValue(
         this.priceFieldValue(price?.amountMinor ?? 0, this.lineVatRate(index)),
@@ -4688,6 +4782,12 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         variantId: raw.variantId || undefined,
         sku: raw.sku.trim() || undefined,
         description: raw.productName.trim() || raw.sku.trim() || 'Riga documento',
+        // ⛔ La variante NON si manda: su `document_lines` la compone il
+        // server dallo snapshot per id, e una seconda fonte per lo stesso dato
+        // è il difetto che quella colonna elimina. Il blocco «⏸ in attesa
+        // della migration» che stava nel caricamento è chiuso lo stesso: la
+        // colonna c'è, e il caricamento adesso la legge.
+        unitOfMeasure: this.lineUnitOfMeasureRaw(raw.unitOfMeasure),
         quantity: Number(raw.quantity) || 0,
         // Al server va il netto: se il campo mostrava l'ivato, si scorpora qui.
         // Il netto CARICATO ha la precedenza su quello ricavabile dal campo,
@@ -4977,11 +5077,12 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
             vatCodeId: line.vatCodeId ?? '',
             persistedVatCodeId: line.vatCodeId ?? null,
             commitsStock: this.isSalesDdt || this.isManualUnload ? line.loadsStock : false,
-            unitOfMeasure: '',
-            // ⏸ Vuota finche' `document_lines` non ha la colonna: questi sono
-            // i tipi REGISTRO (DDT vendita, Scarico manuale, Preventivo), che
-            // vivono su un'altra tabella. Entra con la seconda migration.
-            variantLabel: '',
+            // ⭐ Erano entrambe cablate a `''` in attesa della colonna su
+            // `document_lines`. La colonna c'è (migration `20260824010000`), e
+            // ora i tipi registro leggono la fotografia salvata sul documento
+            // come tutti gli altri.
+            unitOfMeasure: line.unitOfMeasure ?? '',
+            variantLabel: line.variantLabel ?? '',
             serialNumbersText: (line.serialNumbers ?? []).join(', '),
             isReference: line.isReference === true,
           },

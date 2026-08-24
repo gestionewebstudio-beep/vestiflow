@@ -422,6 +422,21 @@ export interface DocumentLineInputBody {
   /** Costo unitario digitato (unità minori) nella modalità costo del documento. */
   readonly enteredUnitCostMinor?: number;
   readonly unitOfMeasure?: string;
+  /**
+   * ⛔ **La variante NON viaggia in questo payload, ed è deliberato.**
+   *
+   * Su `document_lines` il salvataggio è un upsert per id, quindi il server
+   * la compone da sé: prende le opzioni della variante e conserva l'etichetta
+   * persistita se la riga porta ancora lo stesso articolo
+   * (`document-line-variant-snapshot.util`). Mandarla anche dal client
+   * creerebbe una **seconda fonte** per lo stesso dato — che è precisamente
+   * il difetto che questa colonna elimina.
+   *
+   * ⚠️ Sull'**Ordine fornitore** è l'opposto, e non è un'incoerenza: là il
+   * salvataggio è `deleteMany` + `create`, le righe perdono l'id e non esiste
+   * un persistito da ritrovare — quindi la fotografa la maschera e viaggia nel
+   * payload. La differenza sta nell'identità della riga, non nel gusto.
+   */
   readonly loadsStock?: boolean;
   readonly isReference?: boolean;
   readonly supplierOrderLineId?: EntityId;
