@@ -94,6 +94,12 @@ import { DocumentLineArticleService } from '@domain/documents/services/document-
 import { createLineColumnWidths } from '@shared/table-columns/line-column-widths.store';
 import { DocumentLineHeadComponent } from '@domain/documents/components/document-line-head/document-line-head.component';
 import { DocumentLineRowComponent } from '@domain/documents/components/document-line-row/document-line-row.component';
+import { DocumentLineCardComponent } from '@domain/documents/components/document-line-card/document-line-card.component';
+import { DocumentLineCardBodyComponent } from '@domain/documents/components/document-line-card/document-line-card-body.component';
+import { DocumentLineCardStripComponent } from '@domain/documents/components/document-line-card/document-line-card-strip.component';
+import { documentLineCardHead } from '@domain/documents/components/document-line-card/document-line-card.model';
+import type { DocumentLineCardHead } from '@domain/documents/components/document-line-card/document-line-card.model';
+import { DocumentLineCardOpenStore } from '@domain/documents/state/document-line-card-open.store';
 import { DOCUMENT_LINE_ROW_VIEW_VUOTA } from '@domain/documents/components/document-line-row/document-line-row.model';
 import type {
   DocumentLineColumnId,
@@ -149,7 +155,6 @@ import { ProductFormComponent } from '@domain/products/product-form.component';
 
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import type { VariantByCodeDto } from '@domain/products/models/product.dto';
-import { GoodsReceiptLineCardComponent } from './components/goods-receipt-line-card/goods-receipt-line-card.component';
 import { DocumentCounterpartyRefComponent } from '@domain/documents/components/document-counterparty-ref/document-counterparty-ref.component';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import { DocumentPrintActionsComponent } from '@domain/documents/components/document-print-actions/document-print-actions.component';
@@ -319,10 +324,12 @@ const SALES_PRICE_FIELDS: readonly SalesPriceField[] = [
     TableSkeletonComponent,
     TableColumnPickerComponent,
     DocumentAttachmentsPanelComponent,
-    GoodsReceiptLineCardComponent,
     DocumentCounterpartyRefComponent,
     DocumentLineHeadComponent,
     DocumentLineRowComponent,
+    DocumentLineCardComponent,
+    DocumentLineCardStripComponent,
+    DocumentLineCardBodyComponent,
     DocumentPrintActionsComponent,
     UnitOfMeasureManagerDialogComponent,
     DocumentMobilePanelComponent,
@@ -1547,30 +1554,14 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     return { hasLinked: this.lineHasLinkedProduct(index), searched: this.searchedVariants() };
   }
 
-  protected linkedProductLabel(index: number): string {
-    const line = this.lines.at(index);
-    if (!line) {
-      return '';
-    }
-    const name = line.controls.productName.value.trim();
-    if (name) {
-      return name;
-    }
-    const variantId = line.controls.variantId.value;
-    if (!variantId) {
-      return '';
-    }
-    const summary = mergeVariantSummaries(this.pinnedVariants(), this.searchedVariants()).find(
-      (v) => v.variantId === variantId,
-    );
-    // ⛔ Qui c'era `?? summary?.title` in mezzo, ed era la TERZA occorrenza del
-    // ripiego — in sola lettura, ma è quella che alimenta la card mobile:
-    // toglieva il sintomo a schermo mentre il difetto restava nel dato.
-    //
-    // ⭐ E il nome della RIGA viene prima del catalogo: la riga è il documento,
-    // il catalogo è com'è l'anagrafica adesso.
-    return line.controls.productName.value.trim() || summary?.productName || '';
-  }
+  // ⛔ Qui c'era `linkedProductLabel`, il titolo della card mobile: leggeva il
+  // nome dalla riga e, se vuoto, ripiegava sulla summary in cache. Lo calcola
+  // ora `documentLineCardHead`, in un posto solo per tutti i documenti — sei
+  // maschere lo facevano ognuna a modo suo.
+  //
+  // ⚠️ Il ripiego sulla summary NON è sopravvissuto, ed è voluto: il nome della
+  // riga È il documento, e una riga senza nome si vede subito come «Riga senza
+  // prodotto» invece di prendere in prestito quello dell'anagrafica di oggi.
 
   /**
    * Codice articolo mostrato sulla riga collegata (§6): dal form control
@@ -1661,15 +1652,12 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.markFormDirty();
   }
 
-  /**
-   * Variante per la card mobile: il valore è già scritto dal formControl,
-   * qui si aggiornano solo i segnali della ricerca contestuale (§7).
-   */
-  protected onCardProductNameInput(index: number, value: string): void {
-    this.productSuggest.focusLine(index);
-    this.variantSearchDraft.set(value);
-    this.codeLookup.clear();
-  }
+  // ⛔ Qui c'era `onCardProductNameInput`, la variante mobile di
+  // `onLineProductNameChange`: serviva perché l'involucro locale legava il campo
+  // col `formControl` e il valore era già scritto. La cella prodotto comune —
+  // la STESSA della riga di scrivania — non scrive il controllo: emette e basta,
+  // quindi le due viste passano dallo stesso gestore e la variante non ha più
+  // motivo di esistere.
 
   protected onLineProductFocus(index: number): void {
     this.productSuggest.focusLine(index);
@@ -2893,10 +2881,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     );
   }
 
-  protected lineVatValue(index: number): string {
-    this.formValue();
-    return this.lines.at(index)?.controls.vatCodeId.value ?? '';
-  }
+  // ⛔ Qui c'era `lineVatValue`: lo leggeva solo l'involucro locale della card.
+  // Il Codice IVA arriva ora alle due viste per la stessa strada, `lineRowView`,
+  // che lo prende dallo stesso controllo.
 
   /** Tooltip cella IVA: "22 · 22% · Imponibile 22%" (§9.2). */
   protected lineVatTooltip(index: number): string {
@@ -4317,6 +4304,52 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   protected lineGroup(index: number): FormGroup {
     return this.lines.at(index);
+  }
+
+  /**
+   * Quale card è aperta — e ce n'è UNA sola.
+   *
+   * ⛔ L'involucro locale teneva lo stato dentro di sé, quindi la maschera non
+   * sapeva quale riga fosse aperta e non poteva chiuderne nessuna: su un arrivo
+   * merce da venti righe si arrivava a venti corpi aperti insieme, e la card
+   * chiusa smetteva di essere la vista compatta che è il suo unico motivo di
+   * esistere. Lo stato è del DOCUMENTO, ed è lì che ora vive.
+   */
+  private readonly cardAperte = new DocumentLineCardOpenStore();
+
+  protected isLineCardOpen(index: number): boolean {
+    return this.cardAperte.isOpen(index);
+  }
+
+  protected toggleLineCard(index: number): void {
+    this.cardAperte.toggle(index);
+  }
+
+  /** Quello che la testata della card mostra: il calcolo è comune. */
+  protected lineCardHead(index: number): DocumentLineCardHead {
+    return documentLineCardHead(this.lineRowView(index), this.lineGroup(index));
+  }
+
+  /**
+   * La spunta «Carica magazzino» premuta sulla card.
+   *
+   * ⚠️ Sulla riga di scrivania il controllo si scrive da sé (`formControlName`)
+   * e alla maschera resta solo sapere che il documento è cambiato. Nella card il
+   * comando è un `<select>` che al form non è legato: la componente comune
+   * emette il valore e basta, quindi il controllo lo scrive qui. Il resto torna
+   * a `onLoadsStockChange`, che è il gestore di sempre.
+   *
+   * L'evento porta anche la colonna, e non serve guardarla: l'Arrivo merce non
+   * ha `commitsStock` a catalogo — carica la merce, non la impegna — quindi
+   * l'unica spunta che può arrivare di qui è questa.
+   */
+  protected onLineLoadsStockSelect(index: number, value: boolean): void {
+    const line = this.lines.at(index);
+    if (!line || this.formReadOnly()) {
+      return;
+    }
+    line.controls.loadsStock.setValue(value);
+    this.onLoadsStockChange(index);
   }
 
   protected onRowSortToggled(column: DocumentLineColumnId): void {

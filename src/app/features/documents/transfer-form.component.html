@@ -316,27 +316,56 @@
           @if (compactView() && !headerGateActive()) {
             <div class="doc-form__cards">
               @for (line of lines.controls; track line; let i = $index) {
-                <app-stock-movement-line-card
+                <!-- ⭐ **La card è la COMPONENTE COMUNE.** Qui c'era
+                     `app-stock-movement-line-card`, un involucro locale che
+                     riscriveva a mano i campi della riga: al mobile era quello
+                     che le `<td>` scritte a mano erano al desktop.
+
+                     ⚠️ Niente prezzo e niente totale: la striscia si adatta da
+                     sé e resta la sola quantità. Un movimento sposta o corregge
+                     una giacenza, non vende e non compra. -->
+                <app-document-line-card
                   [lineIndex]="i"
-                  [line]="line"
-                  idPrefix="tr"
-                  [suggestions]="lineSuggestions(i)"
-                  [suggestionsOpen]="lineSuggestionsOpen(i)"
-                  [codeChoice]="mobileCodeChoice(i)"
-                  [variantInvalid]="lineFieldInvalid(i, 'variantId')"
-                  [disabled]="formReadOnly()"
+                  [open]="isLineCardOpen(i)"
+                  [complete]="lineCardHead(i).complete"
+                  [readOnly]="formReadOnly()"
                   [canRemove]="lines.length > 1"
-                  (nameInput)="onLineProductNameChange(i, $event)"
-                  (nameFocus)="onLineProductFocus($event)"
-                  (nameBlur)="onLineProductBlur($event)"
-                  (searchProduct)="openLineProductSearch($event)"
-                  (suggestionPick)="onProductSuggestionPick($event.lineIndex, $event.variantId)"
-                  (codeFocused)="onRowCodeFocused(i, $event)"
-                  (codeBlurred)="onMobileCodeBlur(i, $event)"
-                  (codeCommitted)="commitCodeLookup(i, $event)"
-                  (codeSuggestionPicked)="onCodeSuggestionPick(i, $event)"
-                  (removed)="removeLine($event)"
-                />
+                  [title]="lineCardHead(i).title"
+                  [variantLabel]="lineCardHead(i).variantLabel"
+                  [meta]="lineCardHead(i).meta"
+                  [alert]="lineCardHead(i).alert"
+                  (toggled)="toggleLineCard(i)"
+                  (removeRequested)="removeLine(i)"
+                  (removed)="removeLine(i)"
+                >
+                  <app-document-line-card-strip
+                    cardControls
+                    [group]="lineGroup(i)"
+                    [lineIndex]="i"
+                    [isColumnVisible]="isLineColumnVisibleFn"
+                    [view]="lineRowView(i)"
+                    [readOnly]="formReadOnly()"
+                    [quantityMin]="1"
+                  />
+                  <app-document-line-card-body
+                    cardBody
+                    [group]="lineGroup(i)"
+                    [lineIndex]="i"
+                    [isColumnVisible]="isLineColumnVisibleFn"
+                    idPrefix="tr"
+                    [view]="lineRowView(i)"
+                    [readOnly]="formReadOnly()"
+                    (codeChanged)="onRowCodeChanged(i, $event)"
+                    (codeFocused)="onRowCodeFocused(i, $event)"
+                    (codeBlurred)="onMobileCodeBlur(i, $any($event))"
+                    (codeCommitted)="commitCodeLookup(i, $any($event))"
+                    (productNameChanged)="onLineProductNameChange(i, $event)"
+                    (productFocused)="onLineProductFocus(i)"
+                    (productBlurred)="onLineProductBlur(i)"
+                    (productSearchOpened)="openLineProductSearch(i)"
+                    (suggestionPicked)="onRowSuggestionPicked(i, $event)"
+                  />
+                </app-document-line-card>
               }
             </div>
           }

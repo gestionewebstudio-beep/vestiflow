@@ -14,6 +14,7 @@ import { OperationalLocationsService } from '@domain/inventory/services/operatio
 import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { ToastService } from '@core/services/toast.service';
 import { VatCodeService } from '@core/services/vat-code.service';
+import { ViewportService } from '@core/services/viewport.service';
 import { ProductService } from '@domain/products/services/product.service';
 import { ProductLabelPrintService } from '@domain/products/services/product-label-print.service';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
@@ -1509,5 +1510,111 @@ describe('GoodsReceiptFormComponent', () => {
       commuta(component, 'vat_included');
       expect(line.controls.unitCost.value).toBe('1,03');
     });
+  });
+});
+
+/**
+ * Le due viste di riga sono ESCLUSIVE, e la card è quella COMUNE.
+ *
+ * ⛔ Fino al 24/08/2026 la card dell'Arrivo merce era un involucro locale
+ * (`goods-receipt-line-card`) che ridisegnava campo per campo ciò che il
+ * catalogo colonne già sa: Cod. articolo, SKU ed EAN non c'erano affatto, pur
+ * essendo colonne visibili di default sul desktop della stessa maschera.
+ *
+ * La prova guarda gli IDENTIFICATIVI perché sono ciò che distingue le due
+ * viste: `gr-sku-0` è la cella della tabella, `gr-m-sku-0` è quella della card.
+ * Se le due viste tornassero vive insieme, «l'id della riga i, campo x» non
+ * sarebbe più univoco e il fuoco atterrerebbe su quella che non si vede.
+ */
+describe('GoodsReceiptFormComponent — le due viste di riga', () => {
+  async function apri(compatta: boolean, apriLaCard = false) {
+    const view = await render(GoodsReceiptFormComponent, {
+      providers: [
+        ...goodsReceiptProviders({ defaultLocation: MILANO }),
+        { provide: ViewportService, useValue: { compact: () => compatta } },
+      ],
+    });
+    const comp = view.fixture.componentInstance as unknown as {
+      addLine: () => void;
+      toggleLineCard: (i: number) => void;
+      form: { controls: Record<string, { setValue: (v: unknown) => void }> };
+      lines: {
+        at: (i: number) => { controls: Record<string, { setValue: (v: unknown) => void }> };
+      };
+    };
+    // La testata va completata: finché mancano fornitore e location le righe
+    // non esistono in NESSUNA delle due viste — al loro posto lo stato vuoto.
+    comp.form.controls['supplierId']!.setValue('sup-1');
+    comp.form.controls['locationId']!.setValue(MILANO.id);
+    comp.addLine();
+    comp.lines.at(0).controls['productName']!.setValue('Articolo');
+    if (apriLaCard) {
+      comp.toggleLineCard(0);
+    }
+    view.fixture.detectChanges();
+    return view.container;
+  }
+
+  it('sopra la soglia vive la tabella, e le card non esistono', async () => {
+    const c = await apri(false);
+
+    expect(c.querySelector('.doc-form__table-wrap')).not.toBeNull();
+    expect(c.querySelector('app-document-line-card')).toBeNull();
+  });
+
+  it('sotto la soglia vivono le card, e la tabella non esiste', async () => {
+    const c = await apri(true);
+
+    expect(c.querySelector('app-document-line-card')).not.toBeNull();
+    // Non «nascosta»: assente. Se tornasse a esserci, tornerebbero i doppioni
+    // di identificativo su cui poggia il giro del fuoco.
+    expect(c.querySelector('.doc-form__table-wrap')).toBeNull();
+  });
+
+  it('sopra la soglia esiste solo l’identificativo della tabella', async () => {
+    const c = await apri(false);
+
+    expect(c.querySelectorAll('#gr-sku-0')).toHaveLength(1);
+    expect(c.querySelectorAll('#gr-m-sku-0')).toHaveLength(0);
+  });
+
+  /**
+   * La card tiene i codici nel corpo, che si apre: si espande prima di
+   * guardare, altrimenti la prova misurerebbe una card chiusa e passerebbe
+   * anche se i campi non ci fossero.
+   *
+   * ⭐ È la prova che il selettore Colonne arriva davvero al mobile: lo SKU è
+   * nel corpo perché è una colonna VISIBILE di questo documento, non perché
+   * qualcuno l'ha scritto a mano nella card.
+   */
+  it('sotto la soglia esiste solo l’identificativo della card', async () => {
+    const c = await apri(true, true);
+
+    expect(c.querySelectorAll('#gr-m-sku-0')).toHaveLength(1);
+    expect(c.querySelectorAll('#gr-sku-0')).toHaveLength(0);
+  });
+
+  /**
+   * Le specificità dell'Arrivo merce sopravvivono alla forma comune: il posto
+   * del prezzo nella striscia lo prende il COSTO — è un documento d'acquisto —
+   * e la spunta magazzino dice «Carica», non «Impegna».
+   */
+  it('il costo sta nella striscia, e la spunta dice «Carica magazzino»', async () => {
+    const c = await apri(true, true);
+
+    // ⭐ Il posto centrale della striscia sempre visibile lo prende il COSTO,
+    // perché è un documento d'acquisto: dove si vende lo prende il prezzo.
+    // L'etichetta la dà la modalità netto/ivato del documento.
+    expect(c.querySelector('[aria-label="Costo netto riga 1"]')).not.toBeNull();
+    // ⛔ E nel corpo NON torna: un campo non compare due volte nella stessa
+    // card. L'involucro locale ripeteva costo e totale in entrambi i posti,
+    // cioè due `<input>` sullo stesso controllo con due identificativi.
+    expect(c.querySelector('#gr-m-cost-0')).toBeNull();
+
+    // ⛔ `loadsStock` non è `commitsStock`: qui la merce si muove davvero, non
+    // si prenota. L'Arrivo merce non ha la seconda spunta a catalogo.
+    expect(c.querySelector('#gr-m-loads-0')).not.toBeNull();
+    expect(c.querySelector('#gr-m-commits-0')).toBeNull();
+    expect(c.textContent).toContain('Carica magazzino');
   });
 });

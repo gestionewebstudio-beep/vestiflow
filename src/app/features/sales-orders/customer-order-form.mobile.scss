@@ -148,17 +148,14 @@
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Ingresso prodotti su mobile: blocco «Nuovo prodotto» e «Aggiungi riga» in
-// fondo alla lista. Nascosti su desktop, dove restano la toolbar righe e la
-// ricerca inline per riga. La veste del dock (doc-form__sticky-bar) è
-// promossa in styles/_document-form-mobile.scss.
-// ═══════════════════════════════════════════════════════════════════════════
-.co-form__mobile-tools,
-.co-form__mobile-add-line,
-.co-form__header-include {
-  display: none;
-}
+// ⛔ **Qui c'era una SECONDA barra strumenti, solo mobile**
+// (`co-form__mobile-tools` con «Nuovo prodotto» e «Aggiungi riga»), spenta su
+// desktop e accesa sotto `lg`. Non esiste più in nessun template: i suoi
+// comandi vivono nella barra righe comune, che ora è responsive.
+//
+// ⚠️ Due barre con gli stessi comandi sono due stati da tenere allineati, e la
+// forma in cui divergono è sempre la stessa — una impara una condizione nuova
+// e l'altra no.
 
 @include bp.media-down('lg') {
   // ⛔ **Qui c'era `display: none` sulla barra strumenti**, e la ragione era

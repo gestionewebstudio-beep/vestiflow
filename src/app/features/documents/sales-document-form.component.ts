@@ -84,6 +84,14 @@ import { ProductService } from '@domain/products/services/product.service';
 import { DocumentLineArticleService } from '@domain/documents/services/document-line-article.service';
 import { DocumentLineHeadComponent } from '@domain/documents/components/document-line-head/document-line-head.component';
 import { DocumentLineRowComponent } from '@domain/documents/components/document-line-row/document-line-row.component';
+import { DocumentLineCardComponent } from '@domain/documents/components/document-line-card/document-line-card.component';
+import { DocumentLineCardBodyComponent } from '@domain/documents/components/document-line-card/document-line-card-body.component';
+import { DocumentLineCardStripComponent } from '@domain/documents/components/document-line-card/document-line-card-strip.component';
+import {
+  documentLineCardHead,
+  type DocumentLineCardHead,
+} from '@domain/documents/components/document-line-card/document-line-card.model';
+import { DocumentLineCardOpenStore } from '@domain/documents/state/document-line-card-open.store';
 import { DOCUMENT_LINE_ROW_VIEW_VUOTA } from '@domain/documents/components/document-line-row/document-line-row.model';
 import type {
   DocumentLineColumnId,
@@ -139,7 +147,6 @@ import {
   SALES_DOCUMENT_LINE_COLUMNS,
   SALES_DOCUMENT_LINE_PRESETS,
 } from './models/sales-document-line-columns.config';
-import { SalesDocumentLineCardComponent } from '@domain/documents/components/sales-document-line-card/sales-document-line-card.component';
 import { ViewportService } from '@core/services/viewport.service';
 import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
 import { DocumentCodeLookupStore } from '@domain/documents/state/document-code-lookup.store';
@@ -147,7 +154,6 @@ import { DocumentCodeLookupService } from '@domain/documents/services/document-c
 import { DocumentProductSuggestStore } from '@domain/documents/state/document-product-suggest.store';
 import { DocumentLineFocusStore } from '@domain/documents/state/document-line-focus.store';
 import type { DocumentLineCodeField } from '@domain/documents/utils/document-code-match.util';
-import type { LineCodeChoice } from '@domain/documents/models/document-line-code-choice.model';
 import { DocumentIncludePanelComponent } from '@domain/documents/components/document-include-panel/document-include-panel.component';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import {
@@ -256,6 +262,9 @@ type ConversionPrefill = CreateDocumentBody & {
   imports: [
     DocumentLineHeadComponent,
     DocumentLineRowComponent,
+    DocumentLineCardComponent,
+    DocumentLineCardBodyComponent,
+    DocumentLineCardStripComponent,
     InlineBannerComponent,
     ReactiveFormsModule,
     BackButtonComponent,
@@ -268,7 +277,6 @@ type ConversionPrefill = CreateDocumentBody & {
     DocumentIncludePanelComponent,
     DocumentMobilePanelComponent,
     DocumentProductSearchPanelComponent,
-    SalesDocumentLineCardComponent,
     TableColumnPickerComponent,
     CdkDrag,
     CdkDropList,
@@ -1151,7 +1159,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
    * (o dopo il `markAllAsTouched()` del salvataggio): prima sarebbe un
    * rimprovero a chi non ha ancora scritto niente.
    */
-  protected lineFieldInvalid(index: number, name: 'description' | 'quantity'): boolean {
+  protected lineFieldInvalid(index: number, name: 'productName' | 'quantity'): boolean {
     const control = this.lines.at(index).controls[name];
     return control.invalid && (control.touched || control.dirty);
   }
@@ -1433,11 +1441,10 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
         if (column === 'quantity') {
           return Number(raw.quantity) || 0;
         }
-        // Due colonne portano in tabella un nome e nel form un altro: la
-        // colonna si chiama `product` e `discount` in ogni documento, i
-        // controlli sotto hanno i nomi che hanno sul database.
+        // La colonna si chiama `product` in ogni documento, il controllo
+        // sotto `productName` — lo stesso nome che leggono riga e card comuni.
         if (column === 'product') {
-          return raw.description;
+          return raw.productName;
         }
         if (column === 'discount') {
           return raw.discount;
@@ -1449,6 +1456,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       this.currency,
     );
     this.lines.clear();
+    this.cardAperte.closeAll();
     for (const control of controls) {
       this.lines.push(control);
     }
@@ -1470,6 +1478,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     const line = this.lines.at(previousIndex);
     this.lines.removeAt(previousIndex, { emitEvent: false });
     this.lines.insert(currentIndex, line, { emitEvent: false });
+    this.cardAperte.closeAll();
     this.markFormDirty();
     this.lines.updateValueAndValidity();
   }
@@ -1506,12 +1515,6 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     return formatMoney({ amountMinor, currencyCode: this.currency });
   }
 
-  /** Riga senza nome, dopo che l'operatore l'ha toccata. */
-  protected lineNameInvalid(index: number): boolean {
-    const control = this.lines.at(index)?.controls.description;
-    return !!control && control.invalid && (control.touched || control.dirty);
-  }
-
   protected readonly productSuggest = new DocumentProductSuggestStore();
 
   /** Il pannello di ricerca a tutta pagina, aperto dalla lente della riga. */
@@ -1522,7 +1525,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
 
   protected openLineProductSearch(index: number): void {
     this.productPanelLineIndex = index;
-    this.productPanelTerm.set(this.lines.at(index)?.controls.description.value ?? '');
+    this.productPanelTerm.set(this.lines.at(index)?.controls.productName.value ?? '');
     this.productPanelSeq.update((seq) => seq + 1);
     this.productPanelOpen.set(true);
   }
@@ -1553,19 +1556,19 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
   }
 
   protected onLineProductNameChange(index: number, value: string): void {
-    this.lines.at(index)?.controls.description.setValue(value);
+    this.lines.at(index)?.controls.productName.setValue(value);
     this.productSuggest.focusLine(index);
     this.variantSearchDraft.set(value);
   }
 
   protected onLineProductFocus(index: number): void {
     this.productSuggest.focusLine(index);
-    this.variantSearchDraft.set(this.lines.at(index)?.controls.description.value ?? '');
+    this.variantSearchDraft.set(this.lines.at(index)?.controls.productName.value ?? '');
   }
 
   /** Riga senza descrizione, dopo che l'operatore l'ha toccata. */
   protected lineDescriptionInvalid(index: number): boolean {
-    const control = this.lines.at(index)?.controls.description;
+    const control = this.lines.at(index)?.controls.productName;
     return !!control && control.invalid && (control.touched || control.dirty);
   }
 
@@ -1664,27 +1667,6 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
   }
 
   /**
-   * La scelta fra più corrispondenze, per la vista compatta: quale campo la
-   * mostra e con quali voci. Il testo lo compone qui.
-   */
-  protected mobileCodeChoice(index: number): LineCodeChoice | null {
-    const field = this.codeLookup.field();
-    if (!field || field === 'supplierCode' || !this.codeLookup.isOpenOnLine(index)) {
-      return null;
-    }
-    return {
-      field,
-      items: this.codeLookup.matches().map((variant) => ({
-        variantId: variant.variantId,
-        title: variant.title,
-        detail: [variant.productName, variant.sku, variant.barcode ? `EAN ${variant.barcode}` : '']
-          .filter(Boolean)
-          .join(' · '),
-      })),
-    };
-  }
-
-  /**
    * Uscita da un campo codice della card. **Lo sfocamento conferma**, come Tab
    * sul desktop: perdere il fuoco su un telefono non è un caso.
    *
@@ -1770,7 +1752,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
         !raw.articleCode.trim() &&
         !raw.sku.trim() &&
         !raw.barcode.trim() &&
-        !raw.description.trim()
+        !raw.productName.trim()
       );
     },
     removeLine: (index) => this.removeLine(index),
@@ -1892,7 +1874,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
 
     // ⛔ `nomeProdotto`, MAI un ripiego su `title`: il titolo è il display
     // completo e contiene la variante.
-    scrivi(line.controls.description, valori.nomeProdotto);
+    scrivi(line.controls.productName, valori.nomeProdotto);
     scrivi(line.controls.variantLabel, valori.variantLabel);
     scrivi(line.controls.sku, valori.sku);
     scrivi(line.controls.articleCode, valori.articleCode);
@@ -2091,6 +2073,55 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     return this.lines.at(index);
   }
 
+  /**
+   * **Quale card è aperta: una sola, e lo sa il DOCUMENTO.**
+   *
+   * ⛔ Qui lo stato viveva dentro l'involucro locale, quindi la maschera non
+   * sapeva quale riga fosse aperta e non poteva chiuderne nessuna: su un
+   * documento da venti righe si arrivava a venti corpi aperti insieme.
+   */
+  private readonly cardAperte = new DocumentLineCardOpenStore();
+
+  protected isLineCardOpen(index: number): boolean {
+    return this.cardAperte.isOpen(index);
+  }
+
+  protected toggleLineCard(index: number): void {
+    this.cardAperte.toggle(index);
+  }
+
+  /** Quello che la testata della card mostra: il calcolo è comune. */
+  protected lineCardHead(index: number): DocumentLineCardHead {
+    return documentLineCardHead(this.lineRowView(index), this.lineGroup(index));
+  }
+
+  /** Riga «documento collegato»: separatore, non merce da contare o valorizzare. */
+  protected lineIsReference(index: number): boolean {
+    this.formValue();
+    return this.lines.at(index)?.controls.isReference.value === true;
+  }
+
+  /**
+   * La spunta di magazzino dalla card.
+   *
+   * ⚠️ Non è un gestore in più per lo stesso comando: la riga di scrivania lega
+   * la spunta col `formControlName`, il corpo della card la rende come select e
+   * manda l'esito. Senza questo, sulla card il comando non comanderebbe.
+   *
+   * ⛔ Solo `loadsStock`: questo documento non impegna magazzino, e scrivere
+   * una colonna che non dichiara sarebbe scriverla di nascosto.
+   */
+  protected onLineStockToggled(
+    index: number,
+    event: { readonly column: DocumentLineColumnId; readonly value: boolean },
+  ): void {
+    if (event.column !== 'loadsStock' || this.formReadOnly()) {
+      return;
+    }
+    this.lines.at(index)?.controls.loadsStock.setValue(event.value);
+    this.markFormDirty();
+  }
+
   protected onRowSortToggled(column: DocumentLineColumnId): void {
     // ⚠️ La riga comune emette QUALUNQUE colonna; questo documento ne ordina
     // solo alcune. Il controllo e' esplicito: passare un id non ordinabile
@@ -2160,8 +2191,8 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     if (raw.isReference) {
       return true;
     }
-    const vuota = !raw.variantId.trim() && !raw.description.trim();
-    return vuota || (Boolean(raw.description.trim()) && Number(raw.quantity) > 0);
+    const vuota = !raw.variantId.trim() && !raw.productName.trim();
+    return vuota || (Boolean(raw.productName.trim()) && Number(raw.quantity) > 0);
   }
 
   /** Il campo dice quale codice è cambiato: la riga non conosce i tre gestori. */
@@ -2327,6 +2358,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       return;
     }
     this.lines.removeAt(index);
+    this.cardAperte.closeAll();
   }
 
   // ── Includi documento: inserimento righe dal documento di origine ───────
@@ -2353,8 +2385,16 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     const groups: ReturnType<SalesDocumentFormComponent['createLine']>[] = [];
 
     const referenceLine = this.createLine();
+    // ⚠️ Mappata a mano: il seme comune porta `description`, il controllo si
+    // chiama `productName`. Con lo spread la chiave non corrispondeva e
+    // `patchValue` la scartava senza dire niente.
     referenceLine.patchValue(
-      { ...payload.referenceLine, vatRatePercent: '' },
+      {
+        productName: payload.referenceLine.description,
+        isReference: payload.referenceLine.isReference,
+        quantity: payload.referenceLine.quantity,
+        vatRatePercent: '',
+      },
       { emitEvent: false },
     );
     groups.push(referenceLine);
@@ -2364,7 +2404,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       group.patchValue(
         {
           variantId: line.variantId ?? '',
-          description: line.description,
+          productName: line.description,
           // Trasportati dal documento incluso: la riga inclusa deve dire quello
           // che diceva là, variante e unità comprese.
           variantLabel: line.variantLabel ?? '',
@@ -2402,13 +2442,14 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     groups.forEach((group, offset) => {
       this.lines.insert(insertAt + offset, group);
     });
+    this.cardAperte.closeAll();
   }
 
   /** Riga vuota (né descrizione né variante): le incluse le precedono. */
   private emptyIncludeTargetLine(
     line: ReturnType<SalesDocumentFormComponent['createLine']>,
   ): boolean {
-    return !line.controls.description.value.trim() && !line.controls.variantId.value;
+    return !line.controls.productName.value.trim() && !line.controls.variantId.value;
   }
 
   // ── Avviso dati trasporto/indirizzi (Fattura accompagnatoria, §AVVISI) ──
@@ -2550,7 +2591,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
 
   private hasValidLine(): boolean {
     return this.lines.controls.some(
-      (line) => line.controls.description.value.trim() && Number(line.controls.quantity.value) > 0,
+      (line) => line.controls.productName.value.trim() && Number(line.controls.quantity.value) > 0,
     );
   }
 
@@ -2671,7 +2712,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
           }
         : {}),
       lines: raw.lines
-        .filter((line) => line.description.trim() || line.variantId)
+        .filter((line) => line.productName.trim() || line.variantId)
         .map((line) => {
           const price = parseMoneyInput(line.unitPrice, this.currency);
           const ratePercent = Number(line.vatRatePercent) || 0;
@@ -2682,7 +2723,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
             // Fotografia dello SKU sulla riga, come su ogni altro documento: il
             // documento riaperto dice quello che diceva quando fu compilato.
             sku: line.sku?.trim() || undefined,
-            description: line.description.trim() || 'Riga documento',
+            description: line.productName.trim() || 'Riga documento',
             // ⛔ La variante NON si manda: su `document_lines` la compone il
             // server dallo snapshot per id.
             //
@@ -2880,7 +2921,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
             // mentre la riga non li aveva. Il nome è `productName`, e la
             // variante — se serve — si compone accanto, non dentro.
             missing.push(
-              target.line.controls.description.value.trim() ||
+              target.line.controls.productName.value.trim() ||
                 [summary.productName, summary.variantLabel].filter(Boolean).join(' · '),
             );
           }
@@ -3107,7 +3148,15 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
         : null;
     if (seed) {
       const referenceLine = this.createLine();
-      referenceLine.patchValue({ ...seed, vatRatePercent: '' }, { emitEvent: false });
+      referenceLine.patchValue(
+        {
+          productName: seed.description,
+          isReference: seed.isReference,
+          quantity: seed.quantity,
+          vatRatePercent: '',
+        },
+        { emitEvent: false },
+      );
       this.lines.push(referenceLine);
     }
 
@@ -3118,7 +3167,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       const group = this.createLine();
       group.patchValue({
         variantId: line.variantId ?? '',
-        description: line.description,
+        productName: line.description,
         quantity: line.quantity,
         // Prezzo memorizzato netto: mostrato nella modalità di questo documento.
         unitPrice:
@@ -3203,7 +3252,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
         id: line.id,
         variantId: line.variantId ?? '',
         sku: line.sku ?? '',
-        description: line.description,
+        productName: line.description,
         // ⚠️ **Fotografati sul documento**, non riletti dall'anagrafica di
         // oggi. Vuoti sui documenti salvati prima che le colonne esistessero:
         // è corretto, non un dato mancante — lì la variante è impastata nella
@@ -3267,7 +3316,19 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       articleCode: this.fb.control(''),
       sku: this.fb.control(''),
       barcode: this.fb.control(''),
-      description: this.fb.control('', { validators: [Validators.required] }),
+      /**
+       * Il NOME dell'articolo sulla riga.
+       *
+       * ⛔ Qui il controllo si chiamava `description`, e la riga comune legge
+       * `productName`: dall'adozione della riga condivisa il nome in cella
+       * arrivava sempre VUOTO — si scriveva su un controllo e se ne leggeva un
+       * altro — e la riga di riferimento, che lega `formControlName="productName"`,
+       * non trovava proprio il controllo.
+       *
+       * La chiave del payload resta `description`, che è il nome sul DTO: si
+       * mappa alle due estremità, come già fatto per `discountPercent → discount`.
+       */
+      productName: this.fb.control('', { validators: [Validators.required] }),
       /**
        * L'etichetta della VARIANTE: «M / Rosso». Colonna sua, non impastata
        * dentro il nome.
@@ -3344,7 +3405,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       if (!line) {
         return true;
       }
-      return !line.controls.variantId.value.trim() && !line.controls.description.value.trim();
+      return !line.controls.variantId.value.trim() && !line.controls.productName.value.trim();
     });
     if (indices.length === 0) {
       return;

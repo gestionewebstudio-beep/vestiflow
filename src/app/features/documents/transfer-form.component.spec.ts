@@ -241,7 +241,7 @@ describe('TransferFormComponent', () => {
       component.form.controls.targetLocationId.setValue('loc-2');
       const line = component['lines'].at(0);
       line.controls.variantId.setValue('var-1');
-      line.controls.description.setValue('Maglia · M');
+      line.controls.productName.setValue('Maglia · M');
     }
 
     it('la proposta arriva in testata senza sporcare il controllo', async () => {
@@ -466,8 +466,8 @@ describe('il richiamo articolo passa dal risolutore comune', () => {
     const riga = form.lines.at(0).controls;
     // Il difetto che questo consumer chiude: oggi qui c'è
     // «Maglia · Maglia — M / Rosso», col nome scritto due volte.
-    expect(riga['description']!.value).toBe('Maglia');
-    expect(riga['description']!.value).not.toContain('·');
+    expect(riga['productName']!.value).toBe('Maglia');
+    expect(riga['productName']!.value).not.toContain('·');
     expect(riga['variantLabel']!.value).toBe('M / Rosso');
   });
 
@@ -477,7 +477,7 @@ describe('il richiamo articolo passa dal risolutore comune', () => {
     form.onVariantSelect(0, CINTURA.variantId, CINTURA);
 
     const riga = form.lines.at(0).controls;
-    expect(riga['description']!.value).toBe('Cintura');
+    expect(riga['productName']!.value).toBe('Cintura');
     expect(riga['variantLabel']!.value).toBe('');
   });
 
@@ -497,14 +497,14 @@ describe('il richiamo articolo passa dal risolutore comune', () => {
     form.onVariantSelect(0, MAGLIA.variantId, MAGLIA);
 
     const riga = form.lines.at(0).controls;
-    riga['description']!.setValue('Scritto a mano');
+    riga['productName']!.setValue('Scritto a mano');
     riga['quantity']!.setValue(7);
 
     form.onVariantSelect(0, MAGLIA.variantId, MAGLIA);
 
     // ⭐ Il richiamo RISCRIVE i valori dell'articolo — è la decisione del
     // proprietario, e vale per tutti i documenti.
-    expect(riga['description']!.value).toBe('Maglia');
+    expect(riga['productName']!.value).toBe('Maglia');
     // ⛔ …ma NON la quantità, che è dell'operatore.
     expect(riga['quantity']!.value).toBe(7);
   });
@@ -518,7 +518,7 @@ describe('il richiamo articolo passa dal risolutore comune', () => {
     form.onVariantSelect(0, 'var-ignota', null);
 
     const riga = form.lines.at(0).controls;
-    expect(riga['description']!.value).toBe('Maglia');
+    expect(riga['productName']!.value).toBe('Maglia');
     expect(riga['sku']!.value).toBe('MAG-M');
     expect(riga['variantLabel']!.value).toBe('M / Rosso');
   });

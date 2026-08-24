@@ -499,6 +499,66 @@ describe('SalesDocumentFormComponent', () => {
     expect(body.lines[0]!.id).toBe('l-1');
   });
 
+  // ── Il nome dell'articolo: controllo `productName`, chiave `description` ──
+  //
+  // ⛔ Difetto misurato il 24/08/2026: il controllo si chiamava `description`
+  // mentre la riga e la card comuni leggono `productName`. Dall'adozione della
+  // riga condivisa il nome in cella arrivava VUOTO — si scriveva su un
+  // controllo e se ne leggeva un altro — e la riga «Documento collegato», che
+  // lega `formControlName="productName"`, non trovava proprio il controllo.
+  //
+  // ⚠️ La prova guarda i DUE lati, e non è pignoleria: verificare solo il nome
+  // del controllo lascerebbe passare una mappatura che non rimanda più al
+  // server la chiave del DTO, e il nome della riga si perderebbe al
+  // salvataggio senza che niente diventi rosso.
+  it('il nome sta su «productName», e al server torna come «description»', async () => {
+    const user = userEvent.setup();
+    const { updateDocument, component } = await setup({
+      editDocument: {
+        id: 'doc-1',
+        type: DocumentType.Proforma,
+        status: 'draft',
+        series: 'A',
+        year: 2026,
+        number: 7,
+        reference: 'PRO-0007',
+        documentDate: '2026-08-15T00:00:00.000Z',
+        currency: 'EUR',
+        customerId: 'cus-1',
+        locationId: 'loc-1',
+        pricesIncludeVat: false,
+        documentDiscountPercent: 0,
+        lines: [
+          {
+            id: 'l-1',
+            lineNumber: 1,
+            description: 'Maglietta',
+            quantity: 2,
+            unitPrice: { amountMinor: 1000, currencyCode: 'EUR' },
+            discountPercent: 0,
+            loadsStock: false,
+          },
+        ],
+      },
+    });
+
+    const righe = (
+      component as unknown as {
+        lines: { at: (i: number) => { controls: Record<string, { value: unknown }> } };
+      }
+    ).lines;
+    expect(righe.at(0).controls['productName']!.value).toBe('Maglietta');
+    expect(righe.at(0).controls['description']).toBeUndefined();
+
+    await save(user);
+
+    const [, body] = updateDocument.mock.calls[0]! as [
+      string,
+      { lines: { description?: string }[] },
+    ];
+    expect(body.lines[0]!.description).toBe('Maglietta');
+  });
+
   // ── Sostituzione d'articolo sulla riga ────────────────────────────────────
   //
   // Qui il prezzo si riscriveva già; il **Codice IVA** no, e restava quello
@@ -773,8 +833,8 @@ describe('SalesDocumentFormComponent', () => {
       form.onVariantSelect(0, 'var-M', CATALOGO.maglia);
 
       const riga = form.lines.at(0).controls;
-      expect(riga['description']!.value).toBe('Maglia');
-      expect(riga['description']!.value).not.toContain('—');
+      expect(riga['productName']!.value).toBe('Maglia');
+      expect(riga['productName']!.value).not.toContain('—');
       expect(riga['variantLabel']!.value).toBe('M / Rosso');
     });
 
@@ -784,7 +844,7 @@ describe('SalesDocumentFormComponent', () => {
       form.onVariantSelect(0, 'var-S', CATALOGO.consulenza);
 
       const riga = form.lines.at(0).controls;
-      expect(riga['description']!.value).toBe('Consulenza');
+      expect(riga['productName']!.value).toBe('Consulenza');
       expect(riga['variantLabel']!.value).toBe('');
     });
 

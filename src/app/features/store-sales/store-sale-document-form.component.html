@@ -193,13 +193,16 @@
             <h2 id="ssf-lines-title" class="doc-form__subtitle">Righe</h2>
             <!-- Il selettore Colonne è quello comune: la lista è propria del
                  banco, e non dichiara il costo — quindi non c'è da spegnere.
-                 ⛔ Su mobile non compare: le card non hanno colonne, e le
-                 mostrano già tutte (stessa scelta del riferimento). -->
-            @if (!compactView()) {
-              <div class="doc-form__lines-tools">
-                <app-table-column-picker [viewId]="lineColumnsView" [reorderable]="false" />
-              </div>
-            }
+
+                 ⛔ **Qui c'era `@if (!compactView())`**, col commento «su mobile
+                 non compare: le card non hanno colonne, e le mostrano già
+                 tutte». Era vero, e non lo è più: il corpo della card è guidato
+                 dal catalogo, quindi il selettore governa anche la vista
+                 compatta. Un comando si spegne per **configurazione**, non per
+                 larghezza dello schermo. -->
+            <div class="doc-form__lines-tools">
+              <app-table-column-picker [viewId]="lineColumnsView" [reorderable]="false" />
+            </div>
           </div>
 
           @if (!headerGateActive()) {
@@ -326,33 +329,61 @@
                   [description]="linesEmptyDescription()"
                 />
               }
-              <div class="store-sale-form__cards">
-                <!-- ⏳ La card è ancora quella del banco: la card CONDIVISA è il
-                     blocco successivo (`11` A15). Qui la fonte è già il form: la
-                     riga arriva da `lineModel(i)`, non da una collezione a parte. -->
+              <!-- ⭐ La card è la COMPONENTE COMUNE — guscio, striscia e corpo — la
+                   stessa che monta l'Ordine cliente (`11` A15). Il corpo deduce i
+                   campi dal CATALOGO COLONNE, come la riga di scrivania: il
+                   selettore Colonne arriva anche qui.
+
+                   ⛔ Qui c'era `app-store-sale-line-card`, un involucro di feature
+                   che scriveva a mano i campi del corpo — al mobile era quello che
+                   le `<td>` scritte a mano erano al desktop. Portava tre difetti
+                   che spariscono con lui: il cestino della testata non era legato
+                   a niente e non eliminava, prezzo e sconto emettevano su
+                   `change` (il totale si muoveva solo uscendo dal campo), e SKU,
+                   EAN e nome prodotto non erano celle comuni.
+
+                   ⚠️ Il `formArrayName` serve al `formGroupName` della riga, come
+                   nel `<tbody>` del desktop: senza, la card non sta in nessun
+                   contesto di form. -->
+              <div class="store-sale-form__cards" formArrayName="lines">
                 @for (group of lineControls.controls; track group; let i = $index) {
-                  <app-store-sale-line-card
-                    [line]="lineModel(i)"
+                  <app-document-line-card
+                    [formGroupName]="i"
                     [lineIndex]="i"
-                    [open]="isCardOpen(i)"
-                    [priceValue]="priceFieldValue(i)"
-                    [priceLabel]="priceRowLabel()"
-                    [lineTotal]="lineTotal(lineModel(i))"
-                    [vatOptions]="vatOptions(lineModel(i))"
-                    [stockToggleLabel]="stockToggleLabel()"
-                    [availabilityHint]="
-                      lineExceedsAvailability(lineModel(i)) ? availabilityHint(lineModel(i)) : ''
-                    "
-                    (toggled)="toggleCard(i)"
+                    [open]="isLineCardOpen(i)"
+                    [complete]="lineCardHead(i).complete"
+                    [title]="lineCardHead(i).title"
+                    [variantLabel]="lineCardHead(i).variantLabel"
+                    [meta]="lineCardHead(i).meta"
+                    [alert]="lineCardHead(i).alert"
+                    (toggled)="toggleLineCard(i)"
+                    (removeRequested)="removeLine(i)"
                     (removed)="removeLine(i)"
-                    (quantityStepped)="stepQuantity(i, $event)"
-                    (quantityChanged)="onQuantityInput(i, $event)"
-                    (priceChanged)="onPriceInput(i, $event)"
-                    (discountChanged)="onDiscountInput(i, $event)"
-                    (descriptionChanged)="onDescriptionChange(i, $event)"
-                    (vatChanged)="onVatChange(i, $event)"
-                    (stockToggled)="onStockToggle(i, $event)"
-                  />
+                  >
+                    <app-document-line-card-strip
+                      cardControls
+                      [group]="lineGroup(i)"
+                      [lineIndex]="i"
+                      [isColumnVisible]="isLineColumnVisibleFn"
+                      [view]="lineRowView(i)"
+                      [priceLabel]="priceRowLabel()"
+                      [quantityMin]="1"
+                    />
+                    <app-document-line-card-body
+                      cardBody
+                      [group]="lineGroup(i)"
+                      [lineIndex]="i"
+                      [isColumnVisible]="isLineColumnVisibleFn"
+                      idPrefix="ssf"
+                      [view]="lineRowView(i)"
+                      [stockToggleLabel]="stockToggleLabel()"
+                      [priceLabel]="priceRowLabel()"
+                      (productNameChanged)="onDescriptionChange(i, $event)"
+                      (productSearchOpened)="openLineProductSearch(i)"
+                      (vatSelected)="onVatChange(i, $event)"
+                      (stockToggled)="onStockToggle(i, $event.value)"
+                    />
+                  </app-document-line-card>
                 }
               </div>
             } @else {

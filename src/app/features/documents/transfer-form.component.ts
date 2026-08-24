@@ -95,14 +95,18 @@ import { EditLockBannerComponent } from '@shared/components/edit-lock-banner/edi
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
-import { StockMovementLineCardComponent } from '@domain/documents/components/stock-movement-line-card/stock-movement-line-card.component';
+import { DocumentLineCardComponent } from '@domain/documents/components/document-line-card/document-line-card.component';
+import { DocumentLineCardBodyComponent } from '@domain/documents/components/document-line-card/document-line-card-body.component';
+import { DocumentLineCardStripComponent } from '@domain/documents/components/document-line-card/document-line-card-strip.component';
+import { documentLineCardHead } from '@domain/documents/components/document-line-card/document-line-card.model';
+import type { DocumentLineCardHead } from '@domain/documents/components/document-line-card/document-line-card.model';
+import { DocumentLineCardOpenStore } from '@domain/documents/state/document-line-card-open.store';
 import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
 import { DocumentProductSuggestStore } from '@domain/documents/state/document-product-suggest.store';
 import { DocumentCodeLookupStore } from '@domain/documents/state/document-code-lookup.store';
 import { DocumentCodeLookupService } from '@domain/documents/services/document-code-lookup.service';
 import { DocumentLineFocusStore } from '@domain/documents/state/document-line-focus.store';
 import type { DocumentLineCodeField } from '@domain/documents/utils/document-code-match.util';
-import type { LineCodeChoice } from '@domain/documents/models/document-line-code-choice.model';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
@@ -193,7 +197,9 @@ type MovementCodeField = Extract<DocumentLineCodeField, 'articleCode' | 'sku' | 
     DocumentChronologyWarningDialogComponent,
     EditLockBannerComponent,
     SelectMenuComponent,
-    StockMovementLineCardComponent,
+    DocumentLineCardComponent,
+    DocumentLineCardBodyComponent,
+    DocumentLineCardStripComponent,
     TableColumnPickerComponent,
     DocumentProductSearchPanelComponent,
     EmptyStateComponent,
@@ -536,9 +542,8 @@ export class TransferFormComponent implements CanComponentDeactivate {
         if (column === 'quantity') {
           return Number(raw.quantity) || 0;
         }
-        // La colonna si chiama `product` in ogni documento; qui il controllo
-        // sotto porta il nome che aveva prima, `description`.
-        return column === 'product' ? raw.description : raw[column];
+        // La colonna si chiama `product`, il controllo sotto `productName`.
+        return column === 'product' ? raw.productName : raw[column];
       },
       this.lineSortKinds[column],
       this.lineSort.direction(),
@@ -1028,44 +1033,13 @@ export class TransferFormComponent implements CanComponentDeactivate {
   }
 
   // ── I codici sulla card mobile ────────────────────────────────────────────
-
-  /**
-   * La scelta fra più corrispondenze, per la card: quale campo la mostra e con
-   * quali voci. Il testo lo compone qui — la card non sa cosa sta elencando.
-   *
-   * `activeIndex` non viaggia: su mobile non ci sono frecce, quindi non c'è una
-   * voce «evidenziata» da scorrere. Si sceglie toccando.
-   */
-  protected mobileCodeChoice(index: number): LineCodeChoice | null {
-    const field = this.codeLookup.field();
-    if (!field || field === 'supplierCode' || !this.codeLookup.isOpenOnLine(index)) {
-      return null;
-    }
-    return {
-      field,
-      items: this.codeLookup.matches().map((variant) => ({
-        variantId: variant.variantId,
-        title: variant.title,
-        detail: this.movementSuggestionDetail(variant),
-      })),
-    };
-  }
-
-  /**
-   * Dettaglio compatto della voce (nome · SKU · EAN). Niente prezzo, a
-   * differenza degli altri documenti: un movimento non vende e non compra, e
-   * un importo in quella riga inviterebbe a leggerlo come se contasse.
-   */
-  private movementSuggestionDetail(variant: VariantSummary): string {
-    const parts: string[] = [variant.productName];
-    if (variant.sku) {
-      parts.push(variant.sku);
-    }
-    if (variant.barcode) {
-      parts.push(`EAN ${variant.barcode}`);
-    }
-    return parts.join(' · ');
-  }
+  //
+  // ⛔ Qui c'erano `mobileCodeChoice` e `movementSuggestionDetail`: componevano
+  // a mano la scelta fra più corrispondenze per l'involucro locale della card.
+  // Non servono più — la card comune usa le stesse celle di codice della riga
+  // di scrivania, che leggono i suggerimenti da `lineRowView`. Ricomporli qui
+  // darebbe due testi diversi per la stessa scelta a seconda del device, e la
+  // differenza non la vedrebbe nessun test.
 
   /**
    * Uscita da un campo codice della card. **Lo sfocamento conferma**, come Tab
@@ -1154,7 +1128,7 @@ export class TransferFormComponent implements CanComponentDeactivate {
         !raw.articleCode.trim() &&
         !raw.sku.trim() &&
         !raw.barcode.trim() &&
-        !raw.description.trim()
+        !raw.productName.trim()
       );
     },
     removeLine: (index) => this.removeLine(index),
@@ -1186,14 +1160,14 @@ export class TransferFormComponent implements CanComponentDeactivate {
 
   /** Digitando si cerca a catalogo: è la stessa ricerca di prima, altro innesco. */
   protected onLineProductNameChange(index: number, value: string): void {
-    this.lines.at(index)?.controls.description.setValue(value);
+    this.lines.at(index)?.controls.productName.setValue(value);
     this.productSuggest.focusLine(index);
     this.variantSearchDraft.set(value);
   }
 
   protected onLineProductFocus(index: number): void {
     this.productSuggest.focusLine(index);
-    this.variantSearchDraft.set(this.lines.at(index)?.controls.description.value ?? '');
+    this.variantSearchDraft.set(this.lines.at(index)?.controls.productName.value ?? '');
   }
 
   protected onLineProductBlur(index: number): void {
@@ -1217,7 +1191,7 @@ export class TransferFormComponent implements CanComponentDeactivate {
   /** La lente: la ricerca a tutta pagina, col testo già digitato dentro. */
   protected openLineProductSearch(index: number): void {
     this.productPanelLineIndex = index;
-    this.productPanelTerm.set(this.lines.at(index)?.controls.description.value ?? '');
+    this.productPanelTerm.set(this.lines.at(index)?.controls.productName.value ?? '');
     this.productPanelSeq.update((seq) => seq + 1);
     this.productPanelOpen.set(true);
   }
@@ -1280,7 +1254,7 @@ export class TransferFormComponent implements CanComponentDeactivate {
     }
 
     const valori = esito.valori;
-    line.controls.description.setValue(String(valori['nomeProdotto'] ?? ''));
+    line.controls.productName.setValue(String(valori['nomeProdotto'] ?? ''));
     line.controls.variantLabel.setValue(String(valori['variantLabel'] ?? ''));
     line.controls.sku.setValue(String(valori['sku'] ?? ''));
     line.controls.articleCode.setValue(String(valori['articleCode'] ?? ''));
@@ -1322,7 +1296,7 @@ export class TransferFormComponent implements CanComponentDeactivate {
       !raw.articleCode.trim() &&
       !raw.sku.trim() &&
       !raw.barcode.trim() &&
-      !raw.description.trim();
+      !raw.productName.trim();
     return vuota || (Boolean(raw.variantId.trim()) && Number(raw.quantity) > 0);
   }
 
@@ -1403,6 +1377,34 @@ export class TransferFormComponent implements CanComponentDeactivate {
   /** Il gruppo della riga: i controlli restano quelli di questo form. */
   protected lineGroup(index: number): FormGroup {
     return this.lines.at(index);
+  }
+
+  // ── Il ponte verso la CARD COMUNE ────────────────────────────────
+  //
+  // Sotto la soglia la riga diventa `app-document-line-card`, con la striscia e
+  // il corpo comuni: gli stessi gestori della riga di scrivania, lo stesso
+  // catalogo colonne. Qui resta solo cosa la card deve MOSTRARE.
+
+  /**
+   * Quale card è aperta — una sola.
+   *
+   * ⭐ Lo stato vive nel DOCUMENTO, non dentro la card: l'involucro locale se
+   * lo teneva per sé, e su un movimento da venti righe se ne aprivano venti
+   * insieme, che è esattamente ciò che la vista compatta serve a evitare.
+   */
+  private readonly cardAperte = new DocumentLineCardOpenStore();
+
+  protected isLineCardOpen(index: number): boolean {
+    return this.cardAperte.isOpen(index);
+  }
+
+  protected toggleLineCard(index: number): void {
+    this.cardAperte.toggle(index);
+  }
+
+  /** Testata della card (nome, variante, meta, avviso): calcolo comune. */
+  protected lineCardHead(index: number): DocumentLineCardHead {
+    return documentLineCardHead(this.lineRowView(index), this.lineGroup(index));
   }
 
   /** L'ordinamento arriva dall'intestazione comune col nome della colonna. */
@@ -1605,7 +1607,7 @@ export class TransferFormComponent implements CanComponentDeactivate {
 
   protected lineFieldInvalid(
     index: number,
-    name: 'variantId' | 'description' | 'quantity',
+    name: 'variantId' | 'productName' | 'quantity',
   ): boolean {
     const control = this.lines.at(index).controls[name];
     return control.invalid && (control.touched || control.dirty);
@@ -1793,12 +1795,12 @@ export class TransferFormComponent implements CanComponentDeactivate {
       notes: raw.notes.trim() || undefined,
       internalComment: raw.internalComment.trim() || undefined,
       lines: raw.lines
-        .filter((line) => line.variantId || line.description.trim())
+        .filter((line) => line.variantId || line.productName.trim())
         .map((line) => ({
           id: line.id || undefined,
           variantId: line.variantId || undefined,
           sku: line.sku.trim() || undefined,
-          description: line.description.trim() || 'Riga trasferimento',
+          description: line.productName.trim() || 'Riga trasferimento',
           quantity: Number(line.quantity),
           loadsStock: Boolean(line.variantId),
           serialNumbers: parseSerialNumbersText(line.serialNumbersText),
@@ -1860,14 +1862,14 @@ export class TransferFormComponent implements CanComponentDeactivate {
       notes: raw.notes.trim() || undefined,
       internalComment: raw.internalComment.trim() || undefined,
       lines: raw.lines
-        .filter((line) => line.variantId || line.description.trim())
+        .filter((line) => line.variantId || line.productName.trim())
         .map((line) => ({
           // Come nel salvataggio dedicato: l'id della riga già salvata torna
           // indietro, così il PATCH la aggiorna invece di ricrearla.
           id: line.id || undefined,
           variantId: line.variantId || undefined,
           sku: line.sku.trim() || undefined,
-          description: line.description.trim() || 'Riga trasferimento',
+          description: line.productName.trim() || 'Riga trasferimento',
           quantity: Number(line.quantity),
           unitPriceMinor: 0,
           loadsStock: Boolean(line.variantId),
@@ -1912,7 +1914,9 @@ export class TransferFormComponent implements CanComponentDeactivate {
           id: line.id ?? null,
           variantId: line.variantId ?? '',
           sku: line.sku ?? '',
-          description: line.description,
+          // Il documento memorizza il nome nel proprio campo `description`: la
+          // riga lo rilegge nel suo `productName`.
+          productName: line.description,
           // L'etichetta FOTOGRAFATA sul documento, non quella dell'anagrafica
           // di oggi: una riga di marzo continua a dire quello che diceva.
           variantLabel: line.variantLabel ?? '',
@@ -1944,7 +1948,12 @@ export class TransferFormComponent implements CanComponentDeactivate {
       articleCode: this.fb.control(''),
       sku: this.fb.control(''),
       barcode: this.fb.control(''),
-      description: this.fb.control('', { validators: [Validators.required] }),
+      // ⭐ Il NOME dell'articolo, col nome che gli danno la riga e la card
+      // comuni: `productName`. Qui si chiamava `description`, e da quando la
+      // riga di scrivania è quella condivisa il campo restava VUOTO a schermo:
+      // la riga legge `productName` e qui non c'era. La descrizione di riga è
+      // un'altra cosa, e questo documento non ne ha la colonna.
+      productName: this.fb.control('', { validators: [Validators.required] }),
       // L'etichetta della VARIANTE, nella sua colonna: «M / Rosso».
       //
       // ⛔ Non si SALVA da qui: il server la fotografa dalle opzioni della
@@ -1988,7 +1997,7 @@ export class TransferFormComponent implements CanComponentDeactivate {
       if (!line) {
         return true;
       }
-      return !line.controls.variantId.value.trim() && !line.controls.description.value.trim();
+      return !line.controls.variantId.value.trim() && !line.controls.productName.value.trim();
     });
     if (indices.length === 0) {
       return;

@@ -751,34 +751,83 @@
                     />
                   </div>
                   @for (line of lines.controls; track line; let i = $index) {
-                    <app-goods-receipt-line-card
+                    <!-- ⭐ **La card è la COMPONENTE COMUNE.** Qui c'era
+                         `app-goods-receipt-line-card`: al mobile era quello che
+                         le `<td>` scritte a mano erano al desktop — un involucro
+                         per feature che ridisegnava campo per campo ciò che il
+                         catalogo colonne già sa.
+
+                         Adottandola, tre cose che l'involucro non faceva: il
+                         selettore Colonne arriva anche qui (prima Cod. articolo,
+                         SKU ed EAN mancavano dalla card pur essendo colonne
+                         visibili di default sul desktop), i gruppi si deducono
+                         dalle colonne accese, e le celle codice/prodotto sono le
+                         STESSE della riga di scrivania — correzione unica per le
+                         due viste. -->
+                    <app-document-line-card
                       [lineIndex]="i"
-                      [line]="line"
-                      [linked]="lineHasLinkedProduct(i)"
-                      [productLabel]="linkedProductLabel(i)"
-                      [incomplete]="!lineRowComplete(i)"
-                      [costLabel]="costModeLabel()"
-                      [totalLabel]="formatMoney(lineMoney(i))"
-                      [grossLabel]="lineHasDiscount(i) ? formatMoney(lineGrossMoney(i)) : null"
-                      [vatOptions]="lineVatOptions(i)"
-                      [vatValue]="lineVatValue(i)"
-                      [unitOfMeasure]="lineUnitOfMeasure(i)"
-                      [unitOfMeasureOptions]="unitOfMeasureOptions()"
-                      [disabled]="formReadOnly()"
+                      [open]="isLineCardOpen(i)"
+                      [complete]="lineCardHead(i).complete"
+                      [readOnly]="formReadOnly()"
                       [canRemove]="lines.length > 1"
-                      [suggestions]="lineSuggestions(i)"
-                      [suggestionsOpen]="lineSuggestionsOpen(i)"
-                      (searchProduct)="openLineProductSearch($event)"
-                      (vatChange)="onLineVatSelect(i, $event)"
-                      (unitOfMeasureChanged)="onLineUnitOfMeasureChange(i, $event)"
-                      (unitManagerRequested)="openUnitManager(i)"
-                      (fieldBlur)="onLineOperationalBlur($event)"
-                      (nameInput)="onCardProductNameInput(i, $event)"
-                      (nameFocus)="onLineProductFocus($event)"
-                      (nameBlur)="onLineProductBlur($event)"
-                      (suggestionPick)="onProductSuggestionPick($event.lineIndex, $event.variantId)"
-                      (removed)="removeLine($event)"
-                    />
+                      [title]="lineCardHead(i).title"
+                      [variantLabel]="lineCardHead(i).variantLabel"
+                      [meta]="lineCardHead(i).meta"
+                      [alert]="lineCardHead(i).alert"
+                      (toggled)="toggleLineCard(i)"
+                      (removeRequested)="removeLine(i)"
+                      (removed)="removeLine(i)"
+                    >
+                      <!-- La striscia sempre visibile: qui il posto del prezzo lo
+                           prende il COSTO, perché è un documento d'acquisto, e
+                           l'etichetta la dà la modalità netto/ivato del documento.
+                           `quantityStepped` non è legato: il passo lo applica la
+                           striscia sul controllo, e a segnare il documento sporco
+                           pensa già `setupDirtyTracking` su `form.valueChanges`. -->
+                      <app-document-line-card-strip
+                        cardControls
+                        [group]="lineGroup(i)"
+                        [lineIndex]="i"
+                        [isColumnVisible]="isLineColumnVisibleFn"
+                        [view]="lineRowView(i)"
+                        [readOnly]="formReadOnly()"
+                        [priceLabel]="costModeLabel()"
+                        [quantityMin]="0"
+                      />
+                      <!-- I gestori sono GLI STESSI della riga di scrivania: una
+                           riga non si comporta in due modi a seconda di che
+                           larghezza ha lo schermo.
+
+                           `codeCommitted` arriva col solo campo, e passa con
+                           `advance: false`: su card le colonne non esistono, il
+                           giro del Tab resta al browser e spostare il fuoco
+                           cercherebbe celle della tabella che qui non è resa. -->
+                      <app-document-line-card-body
+                        cardBody
+                        [group]="lineGroup(i)"
+                        [lineIndex]="i"
+                        [isColumnVisible]="isLineColumnVisibleFn"
+                        idPrefix="gr"
+                        [view]="lineRowView(i)"
+                        [readOnly]="formReadOnly()"
+                        [unitOptions]="unitOfMeasureOptions()"
+                        loadToggleLabel="Carica magazzino"
+                        [costLabel]="costModeLabel()"
+                        (codeChanged)="onRowCodeChanged(i, $event)"
+                        (codeFocused)="onRowCodeFocused(i, $event)"
+                        (codeBlurred)="onLineCodeBlur(i)"
+                        (codeCommitted)="onRowCodeCommitted(i, { field: $event, advance: false })"
+                        (productNameChanged)="onLineProductNameChange(i, $event)"
+                        (productFocused)="onLineProductFocus(i)"
+                        (productBlurred)="onLineProductBlur(i)"
+                        (productSearchOpened)="openLineProductSearch(i)"
+                        (suggestionPicked)="onRowSuggestionPicked(i, $event)"
+                        (unitChanged)="onLineUnitOfMeasureChange(i, $event)"
+                        (unitManageRequested)="openUnitManager(i)"
+                        (vatSelected)="onLineVatSelect(i, $event)"
+                        (stockToggled)="onLineLoadsStockSelect(i, $event.value)"
+                      />
+                    </app-document-line-card>
                   }
                 </div>
               }

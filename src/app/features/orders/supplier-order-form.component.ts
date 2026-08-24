@@ -104,6 +104,12 @@ import { ProductService } from '@domain/products/services/product.service';
 import { DocumentLineArticleService } from '@domain/documents/services/document-line-article.service';
 import { DocumentLineHeadComponent } from '@domain/documents/components/document-line-head/document-line-head.component';
 import { DocumentLineRowComponent } from '@domain/documents/components/document-line-row/document-line-row.component';
+import { DocumentLineCardComponent } from '@domain/documents/components/document-line-card/document-line-card.component';
+import { DocumentLineCardBodyComponent } from '@domain/documents/components/document-line-card/document-line-card-body.component';
+import { DocumentLineCardStripComponent } from '@domain/documents/components/document-line-card/document-line-card-strip.component';
+import { documentLineCardHead } from '@domain/documents/components/document-line-card/document-line-card.model';
+import type { DocumentLineCardHead } from '@domain/documents/components/document-line-card/document-line-card.model';
+import { DocumentLineCardOpenStore } from '@domain/documents/state/document-line-card-open.store';
 import { DOCUMENT_LINE_ROW_VIEW_VUOTA } from '@domain/documents/components/document-line-row/document-line-row.model';
 import type {
   DocumentLineColumnId,
@@ -121,7 +127,6 @@ import type {
   ContestoRichiamoArticolo,
   PolicyRichiamoArticolo,
 } from '@domain/documents/models/document-line-article.model';
-import { SupplierOrderLineCardComponent } from './components/supplier-order-line-card/supplier-order-line-card.component';
 import { UnitOfMeasureManagerDialogComponent } from '@domain/products/components/unit-of-measure-manager-dialog/unit-of-measure-manager-dialog.component';
 import type { UnitOfMeasureOption } from '@domain/products/models/unit-of-measure-option.model';
 import { UnitOfMeasureOptionService } from '@domain/products/services/unit-of-measure-option.service';
@@ -255,6 +260,9 @@ function todayIsoDate(): string {
   imports: [
     DocumentLineHeadComponent,
     DocumentLineRowComponent,
+    DocumentLineCardComponent,
+    DocumentLineCardStripComponent,
+    DocumentLineCardBodyComponent,
     AttachmentsPanelComponent,
     CdkDropList,
     CdkDrag,
@@ -274,7 +282,6 @@ function todayIsoDate(): string {
     SlidePanelComponent,
     ProductFormComponent,
     DocumentMobilePanelComponent,
-    SupplierOrderLineCardComponent,
     UnitOfMeasureManagerDialogComponent,
     DocumentProductSearchPanelComponent,
     ConfirmDialogComponent,
@@ -581,6 +588,8 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     for (const control of controls) {
       this.lines.push(control);
     }
+    // L'indice della card aperta indicherebbe un'altra riga: si chiude.
+    this.cardAperte.closeAll();
     this.markFormDirty();
   }
 
@@ -1704,6 +1713,39 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     return this.lines.at(index);
   }
 
+  /**
+   * Quale card di riga è aperta: **una sola**, e lo stato è del DOCUMENTO.
+   *
+   * ⛔ Stava dentro l'involucro locale, che quindi non poteva chiudere le
+   * sorelle: su un ordine da venti righe si arrivava a venti corpi aperti
+   * insieme, e la card chiusa smetteva di essere la vista compatta che è il suo
+   * unico motivo di esistere. Se ne è andato con lui.
+   */
+  private readonly cardAperte = new DocumentLineCardOpenStore();
+
+  protected isLineCardOpen(index: number): boolean {
+    return this.cardAperte.isOpen(index);
+  }
+
+  protected toggleLineCard(index: number): void {
+    this.cardAperte.toggle(index);
+  }
+
+  /** Quello che la testata della card mostra: il calcolo è comune. */
+  protected lineCardHead(index: number): DocumentLineCardHead {
+    return documentLineCardHead(this.lineRowView(index), this.lineGroup(index));
+  }
+
+  /**
+   * La quantità è cambiata col passo della striscia.
+   *
+   * ⚠️ Il valore l'ha già scritto la striscia, rispettando il minimo: qui resta
+   * solo ciò che la maschera sa e lei no — che il documento è cambiato.
+   */
+  protected onLineQuantityStep(): void {
+    this.markFormDirty();
+  }
+
   protected onRowSortToggled(column: DocumentLineColumnId): void {
     if (this.isLineColumnSortable(column)) {
       this.toggleLineSort(column as SupplierOrderLineSortColumn);
@@ -2227,6 +2269,8 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   protected removeLine(index: number): void {
     if (this.lines.length > 1) {
       this.lines.removeAt(index);
+      // Da qui in giù ogni indice scala di uno: l'apertura non lo segue.
+      this.cardAperte.closeAll();
     }
   }
 
@@ -2246,6 +2290,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     const line = this.lines.at(previousIndex);
     this.lines.removeAt(previousIndex, { emitEvent: false });
     this.lines.insert(currentIndex, line, { emitEvent: false });
+    this.cardAperte.closeAll();
     this.markFormDirty();
     this.lines.updateValueAndValidity();
   }
@@ -2587,6 +2632,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     // Prima che la tendina si ridisegni: se il tipo è stato eliminato, è
     // questa etichetta a ricostruirne l'opzione.
     this.costEntryMode.set(order.costEntryMode);
+    this.cardAperte.closeAll();
     this.lines.clear();
     for (const line of order.lines) {
       // La riga riparte dal costo NETTO canonico, non da quello digitato: il

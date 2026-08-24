@@ -616,34 +616,93 @@
             nascosti.
           -->
           @if (compactView()) {
-            <div class="doc-form__cards">
+            <div class="doc-form__cards" formArrayName="lines">
               @for (line of lines.controls; track line; let i = $index) {
-                <app-sales-document-line-card
-                  [lineIndex]="i"
-                  [line]="line"
-                  idPrefix="sd"
-                  [suggestions]="lineSuggestions(i)"
-                  [suggestionsOpen]="lineSuggestionsOpen(i)"
-                  [codeChoice]="mobileCodeChoice(i)"
-                  [vatOptions]="lineVatOptions(i)"
-                  [priceLabel]="priceRowLabel()"
-                  [totalLabel]="lineTotalLabel(i)"
-                  [showLoadsStock]="showLoadsStockColumn()"
-                  [nameInvalid]="lineNameInvalid(i)"
-                  [disabled]="formReadOnly()"
-                  [canRemove]="lines.length > 1"
-                  (nameInput)="onLineProductNameChange(i, $event)"
-                  (nameFocus)="onLineProductFocus($event)"
-                  (nameBlur)="onLineProductBlur($event)"
-                  (searchProduct)="openLineProductSearch($event)"
-                  (suggestionPick)="onProductSuggestionPick($event.lineIndex, $event.variantId)"
-                  (codeFocused)="onRowCodeFocused(i, $event)"
-                  (codeBlurred)="onMobileCodeBlur(i, $event)"
-                  (codeCommitted)="commitCodeLookup(i, $event)"
-                  (codeSuggestionPicked)="onCodeSuggestionPick(i, $event)"
-                  (vatSelected)="onLineVatSelect(i, $event)"
-                  (removed)="removeLine($event)"
-                />
+                @if (lineIsReference(i)) {
+                  <!-- Documento collegato: banda bassa che separa il gruppo, non
+                       una card prodotto. Era resa come una riga di merce, con
+                       codici, IVA e spunta magazzino modificabili — mentre il
+                       desktop la rende banda da sempre, perché la riga comune
+                       ha il ramo e la card locale no. -->
+                  <article class="sd-form__mobile-source-row" [formGroupName]="i">
+                    <span class="sd-form__mobile-source-icon" aria-hidden="true">
+                      <i class="pi pi-file"></i>
+                    </span>
+                    <span class="sd-form__mobile-source-copy">
+                      <small>Documento collegato</small>
+                      <input
+                        class="doc-form__source-title"
+                        type="text"
+                        formControlName="productName"
+                        aria-label="Riferimento al documento collegato"
+                      />
+                    </span>
+                    <button
+                      type="button"
+                      class="doc-form__line-remove"
+                      aria-label="Rimuovi collegamento"
+                      [disabled]="formReadOnly() || lines.length <= 1"
+                      (click)="removeLine(i)"
+                    >
+                      <i class="pi pi-trash" aria-hidden="true"></i>
+                    </button>
+                  </article>
+                } @else {
+                  <!-- ⭐ **La card è quella COMUNE**, guscio, striscia e corpo. Qui
+                       c'era `app-sales-document-line-card`, un involucro di dominio
+                       che scriveva a mano i campi: al mobile era quello che le
+                       `<td>` scritte a mano erano al desktop. Il corpo li deduce
+                       ora dal catalogo colonne, come la riga di scrivania —
+                       quindi il selettore Colonne arriva anche al telefono. -->
+                  <app-document-line-card
+                    [lineIndex]="i"
+                    [open]="isLineCardOpen(i)"
+                    [complete]="lineCardHead(i).complete"
+                    [readOnly]="formReadOnly()"
+                    [canRemove]="lines.length > 1"
+                    [title]="lineCardHead(i).title"
+                    [variantLabel]="lineCardHead(i).variantLabel"
+                    [meta]="lineCardHead(i).meta"
+                    [alert]="lineCardHead(i).alert"
+                    (toggled)="toggleLineCard(i)"
+                    (removeRequested)="removeLine(i)"
+                    (removed)="removeLine(i)"
+                  >
+                    <app-document-line-card-strip
+                      cardControls
+                      [group]="lineGroup(i)"
+                      [lineIndex]="i"
+                      [isColumnVisible]="isLineColumnVisibleFn"
+                      [view]="lineRowView(i)"
+                      [readOnly]="formReadOnly()"
+                      [priceLabel]="priceRowLabel()"
+                      [quantityMin]="1"
+                    />
+                    <app-document-line-card-body
+                      cardBody
+                      [group]="lineGroup(i)"
+                      [lineIndex]="i"
+                      [isColumnVisible]="isLineColumnVisibleFn"
+                      idPrefix="sd"
+                      [view]="lineRowView(i)"
+                      [readOnly]="formReadOnly()"
+                      [loadToggleLabel]="stockToggleLabel()"
+                      [priceLabel]="priceRowLabel()"
+                      (codeChanged)="onRowCodeChanged(i, $event)"
+                      (codeFocused)="onRowCodeFocused(i, $event)"
+                      (codeBlurred)="onMobileCodeBlur(i, $any($event))"
+                      (codeCommitted)="commitCodeLookup(i, $any($event))"
+                      (productNameChanged)="onLineProductNameChange(i, $event)"
+                      (productFocused)="onLineProductFocus(i)"
+                      (productBlurred)="onLineProductBlur(i)"
+                      (productSearchOpened)="openLineProductSearch(i)"
+                      (suggestionPicked)="onRowSuggestionPicked(i, $event)"
+                      (unitChanged)="onLineUnitOfMeasureChange(i, $event)"
+                      (vatSelected)="onLineVatSelect(i, $event)"
+                      (stockToggled)="onLineStockToggled(i, $event)"
+                    />
+                  </app-document-line-card>
+                }
               }
             </div>
           }

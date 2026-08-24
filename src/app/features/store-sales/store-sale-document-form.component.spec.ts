@@ -30,6 +30,9 @@ import type { StoreSaleDocumentLine } from '@domain/store-sales/models/store-sal
 
 import { StoreSaleDocumentFormComponent } from './store-sale-document-form.component';
 
+/** Colonne spente dal selettore: azzerate a ogni prova (`afterEach`). */
+const colonneSpente = new Set<string>();
+
 const SEDE = { id: 'loc-1', name: 'Negozio Milano' };
 const ALTRA_SEDE = { id: 'loc-2', name: 'Magazzino' };
 const ZERO = { amountMinor: 0, currencyCode: DEFAULT_CURRENCY };
@@ -313,9 +316,12 @@ async function setup(options: SetupOptions = {}) {
         provide: TableColumnPreferenceService,
         useValue: {
           registerView: vi.fn(),
-          isColumnVisible: () => true,
+          // Pilotabile dal test: il selettore Colonne governa anche la card,
+          // e serve poterlo dimostrare spegnendo una colonna.
+          isColumnVisible: (_view: unknown, id: string) => !colonneSpente.has(id),
           columnWidth: (_view: unknown, _id: string, fallback: number) => fallback,
           setColumnWidth: vi.fn(),
+          setColumnWidths: vi.fn(),
         },
       },
       { provide: StoreSalesService, useValue: { createSale, createReturn } },
@@ -365,7 +371,6 @@ async function setup(options: SetupOptions = {}) {
     availabilityWarningCount(): number;
     setPriceMode(pricesIncludeVat: boolean): void;
     onStockToggle(index: number, checked: boolean): void;
-    onQuantityInput(index: number, raw: string): void;
     onLocationChange(value: string | null): void;
     /** Il gancio dell'overlay fotocamera: la riga la costruisce la maschera. */
     onScanLineAdded(event: { variantId: string; quantity: number }): void;
@@ -402,6 +407,7 @@ describe('StoreSaleDocumentFormComponent', () => {
   });
 
   afterEach(() => {
+  colonneSpente.clear();
     vi.unstubAllGlobals();
   });
 
@@ -848,7 +854,7 @@ describe('StoreSaleDocumentFormComponent', () => {
       const rendered = await conUnaRiga();
 
       // Disponibile 3, quantità 5.
-      rendered.component.onQuantityInput(0, '5');
+      rendered.component.form.controls.lines.at(0).controls.quantity.setValue(5);
       rendered.fixture.detectChanges();
 
       expect(rendered.component.availabilityWarningCount()).toBe(1);
@@ -872,9 +878,13 @@ describe('StoreSaleDocumentFormComponent', () => {
     it('⭐ sotto la soglia c’è la card, e la tabella NON è nel DOM', async () => {
       // Le due viste sono alternative: rendere anche quella che non si vede
       // significherebbe controlli doppi e ogni riga annunciata due volte.
+      //
+      // ⚠️ Il discriminante è «Riga 1», l'etichetta con cui la card comune si
+      // annuncia: dalla migrazione la QUANTITÀ porta la stessa etichetta nelle
+      // due viste («Quantità riga 1»), quindi cercarla non separa più niente.
       await conRigaSuMobile();
 
-      expect(screen.getByLabelText('Quantità')).toBeTruthy();
+      expect(screen.getByLabelText('Riga 1')).toBeTruthy();
       expect(screen.queryByRole('table')).toBeNull();
     });
 
@@ -885,15 +895,15 @@ describe('StoreSaleDocumentFormComponent', () => {
       rendered.fixture.detectChanges();
 
       expect(screen.getByRole('table')).toBeTruthy();
-      expect(screen.queryByLabelText('Quantità')).toBeNull();
+      expect(screen.queryByLabelText('Riga 1')).toBeNull();
     });
 
     it('a card CHIUSA restano i valori che si toccano di più', async () => {
       // Quantità, prezzo e totale: si modificano senza aprire niente.
       await conRigaSuMobile();
 
-      expect(screen.getByLabelText('Quantità')).toBeTruthy();
-      expect(screen.getByLabelText('Prezzo netto')).toBeTruthy();
+      expect(screen.getByLabelText('Quantità riga 1')).toBeTruthy();
+      expect(screen.getByLabelText('Prezzo netto riga 1')).toBeTruthy();
       expect(screen.queryByLabelText('Sconto')).toBeNull();
     });
 
@@ -902,13 +912,16 @@ describe('StoreSaleDocumentFormComponent', () => {
      * banco passa dal risolutore comune la variante ha la sua riga, e cercare
      * `VARIANTE.title` («Maglietta Basic — M / Bianco») non trova piu' niente.
      */
+    // ⚠️ Il campo del nome è la CELLA PRODOTTO comune e si annuncia «Nome
+    // prodotto», come sulla riga di scrivania. L'involucro locale lo chiamava
+    // «Descrizione»: stesso controllo (`productName`), un secondo nome.
     it('aprendola compaiono i campi del corpo', async () => {
       const rendered = await conRigaSuMobile();
 
       await userEvent.click(screen.getByText(VARIANTE.productName));
       rendered.fixture.detectChanges();
 
-      expect(screen.getByLabelText('Descrizione')).toBeTruthy();
+      expect(screen.getByLabelText('Nome prodotto')).toBeTruthy();
       expect(screen.getByLabelText('Sconto')).toBeTruthy();
     });
 
@@ -932,10 +945,34 @@ describe('StoreSaleDocumentFormComponent', () => {
       expect(rendered.component.lines()[0]!.loadsStock).toBe(true);
     });
 
-    it('⛔ il selettore Colonne non compare: le card non hanno colonne', async () => {
-      await conRigaSuMobile();
+    it('⭐ il selettore Colonne c e anche su card, e governa quello che si vede', async () => {
+      // ⛔ Qui si asseriva il CONTRARIO — «le card non hanno colonne» — ed era
+      // vero finche' il corpo della card era scritto a mano dalla maschera:
+      // il selettore non lo raggiungeva, quindi era un comando che non
+      // comandava e nasconderlo era giusto.
+      //
+      // ⭐ Da quando il corpo e' guidato dal catalogo, quel selettore governa
+      // anche la vista compatta. Un comando si spegne per CONFIGURAZIONE, non
+      // per larghezza dello schermo (deciso dal proprietario il 24/08/2026).
+      const rendered = await conRigaSuMobile();
+      await userEvent.click(document.querySelector('.doc-line-card__expand')!);
+      rendered.fixture.detectChanges();
 
-      expect(screen.queryByText('Colonne')).toBeNull();
+      expect(screen.queryByText('Colonne')).not.toBeNull();
+      // E governa davvero: il campo EAN c'e' finche' la colonna e' accesa…
+      //
+      // ⚠️ Si guarda l'ETICHETTA e non un `<input>`: su riga agganciata la
+      // cella codice comune rende un valore in sola lettura, come sul desktop.
+      expect(screen.queryByText('EAN')).not.toBeNull();
+    });
+
+    it('⛔ …e spenta la colonna, il campo sparisce anche dalla card', async () => {
+      colonneSpente.add('barcode');
+      const rendered = await conRigaSuMobile();
+      await userEvent.click(document.querySelector('.doc-line-card__expand')!);
+      rendered.fixture.detectChanges();
+
+      expect(screen.queryByText('EAN')).toBeNull();
     });
 
     it('⭐ l’inserimento riuscito suona: è la conferma che si sente senza guardare', async () => {
@@ -978,6 +1015,22 @@ describe('StoreSaleDocumentFormComponent', () => {
       await userEvent.click(screen.getByLabelText('Aumenta quantità'));
 
       expect(rendered.component.lines()[0]!.quantity).toBe(2);
+    });
+
+    it('⭐ il cestino in testata ELIMINA davvero la riga', async () => {
+      // ⛔ Guardia di un difetto MISURATO sull'involucro locale: la card
+      // condivisa emette `removeRequested` dal cestino della testata, ma
+      // l'involucro non lo dichiarava fra i propri output e quindi non lo
+      // rilanciava. Il cestino si premeva e non succedeva niente — un comando
+      // che non comanda, e nessun test lo vedeva perché la riga restava
+      // eliminabile dal pulsante in fondo al corpo aperto.
+      const rendered = await conRigaSuMobile();
+      expect(rendered.component.lines()).toHaveLength(1);
+
+      await userEvent.click(screen.getByLabelText('Elimina riga'));
+      rendered.fixture.detectChanges();
+
+      expect(rendered.component.lines()).toHaveLength(0);
     });
   });
 

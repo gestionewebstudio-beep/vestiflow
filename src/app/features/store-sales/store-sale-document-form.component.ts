@@ -13,6 +13,7 @@ import {
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import {
   AbstractControl,
+  FormGroup,
   NonNullableFormBuilder,
   ReactiveFormsModule,
   Validators,
@@ -60,6 +61,10 @@ import { DocumentMobilePanelComponent } from '@domain/documents/components/docum
 import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
 import { priceModeRowLabel } from '@domain/documents/models/document-price-mode.util';
 import { DocumentService } from '@domain/documents/services/document.service';
+import { DocumentLineCardBodyComponent } from '@domain/documents/components/document-line-card/document-line-card-body.component';
+import { DocumentLineCardStripComponent } from '@domain/documents/components/document-line-card/document-line-card-strip.component';
+import { DocumentLineCardComponent } from '@domain/documents/components/document-line-card/document-line-card.component';
+import { documentLineCardHead } from '@domain/documents/components/document-line-card/document-line-card.model';
 import { DocumentLineHeadComponent } from '@domain/documents/components/document-line-head/document-line-head.component';
 import { DocumentLineQuickRowComponent } from '@domain/documents/components/document-line-quick-row/document-line-quick-row.component';
 import { DocumentLineRowComponent } from '@domain/documents/components/document-line-row/document-line-row.component';
@@ -67,6 +72,7 @@ import {
   DOCUMENT_LINE_ROW_VIEW_VUOTA,
   NESSUN_SUGGERIMENTO,
 } from '@domain/documents/components/document-line-row/document-line-row.model';
+import type { DocumentLineCardHead } from '@domain/documents/components/document-line-card/document-line-card.model';
 import type {
   DocumentLineColumnId,
   DocumentLineRowView,
@@ -74,6 +80,7 @@ import type {
 import { DocumentScanOverlayComponent } from '@domain/documents/components/document-scan-overlay/document-scan-overlay.component';
 import { DocumentSeriesManagerDialogComponent } from '@domain/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
 import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
+import { DocumentLineCardOpenStore } from '@domain/documents/state/document-line-card-open.store';
 import { DocumentLineSearchPanelStore } from '@domain/documents/state/document-line-search-panel.store';
 import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
 import { DocumentNumberingStore } from '@domain/documents/state/document-numbering.store';
@@ -130,7 +137,6 @@ import { DocumentNumberFieldComponent } from '@shared/components/document-number
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
-import { StoreSaleLineCardComponent } from './components/store-sale-line-card/store-sale-line-card.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
@@ -236,6 +242,9 @@ function oggiIso(): string {
     DocumentNumberFieldComponent,
     DocumentSeriesManagerDialogComponent,
     DocumentProductSearchPanelComponent,
+    DocumentLineCardComponent,
+    DocumentLineCardStripComponent,
+    DocumentLineCardBodyComponent,
     DocumentLineHeadComponent,
     DocumentLineQuickRowComponent,
     DocumentLineRowComponent,
@@ -246,7 +255,6 @@ function oggiIso(): string {
     ProductFormComponent,
     SelectMenuComponent,
     SlidePanelComponent,
-    StoreSaleLineCardComponent,
     TableColumnPickerComponent,
     TableSkeletonComponent,
   ],
@@ -461,6 +469,12 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
       ...DOCUMENT_LINE_ROW_VIEW_VUOTA,
       complete: true,
       linked: true,
+      // ⭐ La disponibilità non è una COLONNA del banco — il catalogo non la
+      // dichiara e la tabella non la mostra — ma è una delle tre voci che la
+      // card comune tiene leggibili a riga CHIUSA. Al banco «Disp. 3» accanto
+      // allo SKU è quello che si guarda prima di battere il capo, ed è ciò che
+      // la card locale mostrava: senza, la migrazione lo perderebbe.
+      stockAvailable: String(line.available),
       quantityInvalid: this.form.controls.lines.at(index).controls.quantity.invalid,
       exceedsAvailability: supera,
       availabilityHint: supera ? this.availabilityHint(line) : null,
@@ -472,6 +486,22 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
       barcodeSuggest: NESSUN_SUGGERIMENTO,
       productSuggest: NESSUN_SUGGERIMENTO,
     };
+  }
+
+  /** Il gruppo della riga: i controlli restano quelli di questo form. */
+  protected lineGroup(index: number): FormGroup {
+    return this.form.controls.lines.at(index);
+  }
+
+  /**
+   * Quello che la testata della card mostra: il calcolo è COMUNE.
+   *
+   * ⛔ Qui il banco lo faceva a modo suo, dentro l'involucro locale: titolo,
+   * variante e voci meta erano tre decisioni prese in una feature. Sono le
+   * stesse tre di ogni documento, e ora le prende `documentLineCardHead`.
+   */
+  protected lineCardHead(index: number): DocumentLineCardHead {
+    return documentLineCardHead(this.lineRowView(index), this.lineGroup(index));
   }
 
   /** Le righe: il `FormArray` è la FONTE, e non ce n'è una seconda. */
@@ -1274,16 +1304,22 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
   private readonly viewport = inject(ViewportService);
   protected readonly compactView = this.viewport.compact;
 
-  /** Card aperta: una alla volta, come sul riferimento. */
-  private readonly openCardId = signal<string | null>(null);
+  /**
+   * Card aperta: una alla volta, e la memoria è quella COMUNE.
+   *
+   * ⛔ Qui c'era un `signal` proprio del banco. Non era sbagliato: era il
+   * sesto uguale, uno per maschera. Lo stato è del DOCUMENTO — è lui a sapere
+   * quante righe ha — quindi vive in `domain/`, non nella feature e tantomeno
+   * dentro la card.
+   */
+  private readonly cardAperte = new DocumentLineCardOpenStore();
 
-  protected isCardOpen(index: number): boolean {
-    return this.openCardId() === String(index);
+  protected isLineCardOpen(index: number): boolean {
+    return this.cardAperte.isOpen(index);
   }
 
-  protected toggleCard(index: number): void {
-    const chiave = String(index);
-    this.openCardId.update((corrente) => (corrente === chiave ? null : chiave));
+  protected toggleLineCard(index: number): void {
+    this.cardAperte.toggle(index);
   }
 
   private readonly columnPreferences = inject(TableColumnPreferenceService);
@@ -1570,8 +1606,16 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
   // ── Quantità, sconto, descrizione, IVA ───────────────────────────────────
 
   /**
-   * Lo stepper della quantità: **un comando, non un secondo controllo**. La
-   * cella è quella condivisa; qui si scrive nel suo controllo.
+   * La quantità cresce di un passo.
+   *
+   * ⛔ **Non è più il gestore dello stepper della card**: la striscia condivisa
+   * il passo lo applica da sé, rispettando il minimo che le si dichiara, e poi
+   * avvisa soltanto. Legare `quantityStepped` a questo metodo raddoppierebbe
+   * ogni pressione dei più e dei meno — per questo l'evento non è legato.
+   *
+   * ⭐ Resta perché lo chiama la SCANSIONE: stesso EAN due volte vuol dire due
+   * pezzi sulla riga che c'è già (`11` A14), e lì il passo lo decide la
+   * maschera.
    */
   protected stepQuantity(index: number, delta: number): void {
     const control = this.form.controls.lines.at(index).controls.quantity;
@@ -1606,35 +1650,21 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
     control.markAsDirty();
   }
 
-  // ── Gestori della card mobile ───────────────────────────────────────────
+  // ── Il nome dell'articolo scritto a mano ─────────────────────────────────
   //
-  // ⏳ Restano finché la card non diventa quella CONDIVISA (blocco successivo,
-  // `11` A15). Scrivono sui controlli del form: la fonte è una sola anche
-  // adesso, e quando la card comune arriverà spariranno con loro.
+  // ⛔ Qui c'erano anche `priceFieldValue`, `onQuantityInput`, `onPriceInput` e
+  // `onDiscountInput`: la card LOCALE leggeva i valori e li riscriveva a mano
+  // perché emetteva eventi invece di legarsi al form. La card comune usa
+  // `formControlName` sugli stessi controlli, quindi non c'è più niente da
+  // riscrivere — e prezzo e sconto, che emettevano su `change`, ora muovono il
+  // totale mentre si digita.
 
-  protected priceFieldValue(index: number): string {
-    return this.form.controls.lines.at(index).controls.unitPrice.value;
-  }
-
-  protected onQuantityInput(index: number, raw: string): void {
-    const parsed = Number.parseInt(raw, 10);
-    const control = this.form.controls.lines.at(index).controls.quantity;
-    control.setValue(Number.isFinite(parsed) && parsed > 0 ? parsed : 1);
-    control.markAsDirty();
-  }
-
-  protected onPriceInput(index: number, raw: string): void {
-    const control = this.form.controls.lines.at(index).controls.unitPrice;
-    control.setValue(raw);
-    control.markAsDirty();
-  }
-
-  protected onDiscountInput(index: number, raw: string): void {
-    const control = this.form.controls.lines.at(index).controls.discount;
-    control.setValue(raw);
-    control.markAsDirty();
-  }
-
+  /**
+   * ⚠️ Questo sopravvive ai suoi fratelli perché la cella prodotto comune NON
+   * si lega al controllo: espone valore ed evento, come già fa sulla riga di
+   * scrivania. Il nome dice «descrizione» perché così si chiamava il campo
+   * sulla card locale; il controllo è `productName` in entrambe le viste.
+   */
   protected onDescriptionChange(index: number, value: string): void {
     const control = this.form.controls.lines.at(index).controls.productName;
     control.setValue(value);
@@ -1851,7 +1881,7 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
       return;
     }
     this.form.controls.lines.clear();
-    this.openCardId.set(null);
+    this.cardAperte.closeAll();
     this.preserved.set(PRESERVED_HEADER_VUOTA);
     this.form.controls.customerId.setValue('');
     this.form.controls.documentDate.setValue(oggiIso());

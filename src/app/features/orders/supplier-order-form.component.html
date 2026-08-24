@@ -154,6 +154,29 @@
                 (manageSeries)="seriesDialogOpen.set(true)"
               />
 
+              <!-- Modalità costo: netto o ivato. Su desktop lo stesso controllo
+                   vive nell'intestazione della colonna Costo.
+                   ⛔ Stava SOPRA LE CARD, cioè in mezzo alle righe: è un comando
+                   di DOCUMENTO — decide come si leggono tutti i costi, non uno —
+                   e da lì sembrava un attrezzo della riga sotto. Qui sta dov'è
+                   il suo gemello sull'Ordine cliente, accanto agli altri dati di
+                   testata. -->
+              <div class="doc-panel__field">
+                <span class="doc-panel__label">Modalità costo</span>
+                <app-select-menu
+                  [options]="costModeOptions"
+                  [value]="costEntryMode()"
+                  ariaLabel="Modalità costo netto o ivato"
+                  placeholder="Netto"
+                  [includeEmptyOption]="false"
+                  [compact]="true"
+                  [fullWidth]="true"
+                  (valueChange)="
+                    selectCostMode($event === 'vat_included' ? 'vat_included' : 'vat_excluded')
+                  "
+                />
+              </div>
+
               <div class="doc-panel__field">
                 <span class="doc-panel__label">Rif. ordine fornitore</span>
                 <input
@@ -341,25 +364,6 @@
             </div>
           </div>
 
-          <!-- Selettore modalità costo su mobile: su desktop vive nell'intestazione
-             di colonna, qui (dove la tabella si impila in card sotto lg) vive
-             sopra le righe. Nascosto da lg in su via CSS. -->
-          <div class="doc-form__field doc-form__mode-mobile">
-            <span class="doc-form__label">Modalità costo</span>
-            <app-select-menu
-              [options]="costModeOptions"
-              [value]="costEntryMode()"
-              ariaLabel="Modalità costo netto o ivato"
-              placeholder="Netto"
-              [includeEmptyOption]="false"
-              [compact]="true"
-              [fullWidth]="true"
-              (valueChange)="
-                selectCostMode($event === 'vat_included' ? 'vat_included' : 'vat_excluded')
-              "
-            />
-          </div>
-
           <!-- Righe: non si mostrano finché il fornitore manca (vedi
              `headerGateActive`). Al loro posto lo stato vuoto qui sotto. -->
           @if (!headerGateActive()) {
@@ -458,40 +462,76 @@
               </div>
             }
 
-            <!--
-              Vista mobile: le righe come card, la tabella nascosta. Questa
-              maschera era l'unica delle tre a non averle — impilava la tabella
-              con un mixin, e sotto lg diventava una tabella schiacciata.
-            -->
+            <!-- ⭐ **La card è quella COMUNE**, guscio, striscia e corpo. Qui c'era
+                 `app-supplier-order-line-card`, un involucro di feature che
+                 scriveva a mano i campi: al mobile era quello che le `<td>`
+                 scritte a mano erano al desktop. Il corpo li deduce ora dal
+                 catalogo colonne, come la riga di scrivania — quindi il tasto
+                 Colonne raggiunge finalmente anche il telefono, e Cod. articolo,
+                 SKU ed EAN ci sono: l'involucro locale rendeva il solo codice
+                 fornitore, e le altre tre chiavi di ricerca da mobile non
+                 esistevano. -->
             @if (compactView()) {
               <div class="doc-form__cards">
                 @for (line of lines.controls; track $index; let i = $index) {
-                  <app-supplier-order-line-card
+                  <app-document-line-card
                     [lineIndex]="i"
-                    [line]="line"
-                    [linked]="lineHasLinkedProduct(i)"
-                    [productLabel]="lineSummary(i)?.title ?? ''"
-                    [incomplete]="!lineHasLinkedProduct(i)"
-                    [costLabel]="costModeLabel()"
-                    [totalLabel]="formatMoney(lineMoney(i))"
-                    [vatOptions]="lineVatOptions(i)"
-                    [vatValue]="line.controls.vatCodeId.value"
-                    [unitOfMeasure]="line.controls.unitOfMeasure.value"
-                    [unitOfMeasureOptions]="unitOfMeasureOptions()"
-                    [disabled]="formReadOnly()"
+                    [open]="isLineCardOpen(i)"
+                    [complete]="lineCardHead(i).complete"
+                    [readOnly]="formReadOnly()"
                     [canRemove]="lines.length > 1"
-                    [suggestions]="lineSuggestions(i)"
-                    [suggestionsOpen]="lineSuggestionsOpen(i)"
-                    (searchProduct)="openLineProductSearch($event)"
-                    (vatChange)="onLineVatSelect(i, $event)"
-                    (unitOfMeasureChanged)="onLineUnitOfMeasureChange(i, $event)"
-                    (unitManagerRequested)="openUnitManager(i)"
-                    (nameInput)="onLineProductNameChange(i, $event)"
-                    (nameFocus)="onLineProductFocus($event)"
-                    (nameBlur)="onLineProductBlur($event)"
-                    (suggestionPick)="onProductSuggestionPick($event.lineIndex, $event.variantId)"
-                    (removed)="removeLine($event)"
-                  />
+                    [title]="lineCardHead(i).title"
+                    [variantLabel]="lineCardHead(i).variantLabel"
+                    [meta]="lineCardHead(i).meta"
+                    [alert]="lineCardHead(i).alert"
+                    (toggled)="toggleLineCard(i)"
+                    (removeRequested)="removeLine(i)"
+                    (removed)="removeLine(i)"
+                  >
+                    <!-- Il costo con la modalità netto/ivato della testata: la
+                         striscia chiede al catalogo quale colonna occupa il posto
+                         del prezzo, e qui è `unitCost` perché `unitPrice` questo
+                         documento non lo dichiara. -->
+                    <app-document-line-card-strip
+                      cardControls
+                      [group]="lineGroup(i)"
+                      [lineIndex]="i"
+                      [isColumnVisible]="isLineColumnVisibleFn"
+                      [view]="lineRowView(i)"
+                      [readOnly]="formReadOnly()"
+                      [priceLabel]="costModeLabel()"
+                      [quantityMin]="1"
+                      (quantityStepped)="onLineQuantityStep()"
+                      (costChanged)="onUnitCostInput(i, $event)"
+                    />
+                    <!-- ⚠️ `stockToggled` non è legato: l'ordine fornitore non
+                         impegna né carica magazzino, e la colonna della spunta
+                         non è nel suo catalogo. Un output senza ascoltatori non
+                         emette. -->
+                    <app-document-line-card-body
+                      cardBody
+                      [group]="lineGroup(i)"
+                      [lineIndex]="i"
+                      [isColumnVisible]="isLineColumnVisibleFn"
+                      idPrefix="po"
+                      [view]="lineRowView(i)"
+                      [readOnly]="formReadOnly()"
+                      [unitOptions]="unitOfMeasureOptions()"
+                      [costLabel]="costModeLabel()"
+                      (codeChanged)="onRowCodeChanged(i, $event)"
+                      (codeFocused)="onLineCodeFocus(i, $event)"
+                      (codeBlurred)="onLineCodeBlur(i)"
+                      (codeCommitted)="commitCodeLookup(i, $event)"
+                      (productNameChanged)="onLineProductNameChange(i, $event)"
+                      (productFocused)="onLineProductFocus(i)"
+                      (productBlurred)="onLineProductBlur(i)"
+                      (productSearchOpened)="openLineProductSearch(i)"
+                      (suggestionPicked)="onRowSuggestionPicked(i, $event)"
+                      (unitChanged)="onLineUnitOfMeasureChange(i, $event)"
+                      (unitManageRequested)="openUnitManager(i)"
+                      (vatSelected)="onLineVatSelect(i, $event)"
+                    />
+                  </app-document-line-card>
                 }
               </div>
             }
