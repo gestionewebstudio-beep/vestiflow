@@ -910,56 +910,18 @@
             @if (!compactView() && !headerGateActive()) {
               <div class="doc-form__table-wrap">
                 <table class="doc-form__table">
+                  <!-- ⛔ **Qui c'erano 16 `<col>`, ed erano un SECONDO catalogo colonne.**
+                       Aveva gia' derivato da quello vero: la Variante c'e' nella
+                       configurazione e non c'era qui. I `<col>` mappano per POSIZIONE,
+                       quindi con la Variante accesa ogni larghezza dalla sesta in poi
+                       finiva sulla colonna sbagliata — in silenzio, perche' la tabella
+                       si disegna lo stesso.
+                  
+                       Le larghezze le porta l'intestazione comune, cella per cella.
+                       Resta solo il numero riga, che intestazione non ha: la sua quota
+                       deve entrare nel conto o le altre sommerebbero piu' del 100%. -->
                   <colgroup>
                     <col class="doc-form__col--index" [style.width]="lineIndexColumnWidth()" />
-                    @if (isLineColumnVisible('articleCode')) {
-                      <col [style.width]="lineColumnWidth('articleCode')" />
-                    }
-                    @if (isLineColumnVisible('sku')) {
-                      <col [style.width]="lineColumnWidth('sku')" />
-                    }
-                    @if (isLineColumnVisible('barcode')) {
-                      <col [style.width]="lineColumnWidth('barcode')" />
-                    }
-                    @if (isLineColumnVisible('product')) {
-                      <col [style.width]="lineColumnWidth('product')" />
-                    }
-                    @if (isLineColumnVisible('quantity')) {
-                      <col [style.width]="lineColumnWidth('quantity')" />
-                    }
-                    @if (isLineColumnVisible('stockAvailable')) {
-                      <col [style.width]="lineColumnWidth('stockAvailable')" />
-                    }
-                    @if (isLineColumnVisible('unitOfMeasure')) {
-                      <col [style.width]="lineColumnWidth('unitOfMeasure')" />
-                    }
-                    @if (isLineColumnVisible('purchaseCost')) {
-                      <col [style.width]="lineColumnWidth('purchaseCost')" />
-                    }
-                    @if (isLineColumnVisible('unitPrice')) {
-                      <col [style.width]="lineColumnWidth('unitPrice')" />
-                    }
-                    @if (isLineColumnVisible('discount')) {
-                      <col [style.width]="lineColumnWidth('discount')" />
-                    }
-                    @if (isLineColumnVisible('discountedPrice')) {
-                      <col [style.width]="lineColumnWidth('discountedPrice')" />
-                    }
-                    @if (isLineColumnVisible('vat')) {
-                      <col [style.width]="lineColumnWidth('vat')" />
-                    }
-                    @if (isLineColumnVisible('serials')) {
-                      <col [style.width]="lineColumnWidth('serials')" />
-                    }
-                    @if (isLineColumnVisible('commitsStock')) {
-                      <col [style.width]="lineColumnWidth('commitsStock')" />
-                    }
-                    @if (isLineColumnVisible('lineTotal')) {
-                      <col [style.width]="lineColumnWidth('lineTotal')" />
-                    }
-                    @if (isLineColumnVisible('actions')) {
-                      <col [style.width]="lineColumnWidth('actions')" />
-                    }
                   </colgroup>
                   <thead>
                     <!-- ⭐ L'intestazione è la COMPONENTE COMUNE, come la riga: stesse
