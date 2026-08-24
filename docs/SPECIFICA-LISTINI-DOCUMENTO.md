@@ -172,6 +172,38 @@ zero: l'articolo verrà pubblicato a 0. Puoi salvare comunque.»_ Non blocca, no
 conseguenza, lascia decidere. Usare la stessa forma evita di inventare un secondo modo di
 dire la stessa cosa.
 
+### ⛔ 3.1 Gli stati sono TRE, e il terzo non è un prezzo
+
+> **«Cella vuota» non è uno stato: è come si mostrano due stati diversi. Il terzo non deve
+> mai finire nello stesso mucchio.**
+
+| Lo stato                                                  | A video                       | Nell'economia | All'operatore |
+| --------------------------------------------------------- | ----------------------------- | ------------- | ------------- |
+| **1. il listino vale ZERO**                               | cella vuota                   | **0**         | silenzioso    |
+| **2. l'articolo non ha prezzo per quel listino** (`null`) | cella vuota                   | **0**         | **segnalato** |
+| **3. il dato non è stato caricato** — rete, errore        | ⛔ **niente di tutto questo** |               |               |
+
+⛔ **Il terzo NON è «un prezzo che vale zero»**, e non va classificato né come errore
+d'anagrafica né come listino a zero. È l'assenza di una **risposta**, non di un prezzo: non
+sappiamo quanto vale quella riga.
+
+⚠️ **Oggi il terzo caso è muto, ed è misurato.** Sulle Fatture il ripiego è
+`catchError(() => of(null))`, e poi `if (!summary) return;`: **la riga viene saltata e conserva
+il prezzo vecchio**, senza che compaia nulla. È il difetto 4 del §6. Un documento riprezzato a
+metà si presenta come un documento riprezzato.
+
+> **Requisito: un cambio listino non lascia MAI una riga col prezzo precedente in silenzio.**
+> O si applica a tutte, o si dice a quali non è stato possibile.
+
+⭐ **Fra le due, applicare-e-dichiarare è meglio che annullare tutto**: su venti righe con una
+sola non caricata, rinunciare al riprezzamento intero costa più di quanto protegga. Ma la riga
+non toccata dev'essere **nominata**, con la stessa forma dell'avviso di sopra — e distinta a
+parole dalle righe andate a zero, perché sono due cose diverse.
+
+⚠️ **La confusione fra il 2 e il 3 è la più facile da introdurre**, perché nel codice arrivano
+entrambe come `null`: una da `listinoUnitPrice`, l'altra dal `catchError`. Se il tipo non le
+distingue, le distinguerà chi legge il codice — cioè nessuno.
+
 ---
 
 ## 4. Quello che accade nel documento resta salvato
@@ -372,11 +404,41 @@ codice aveva già una risposta, motivata in un commento. **La prima misura non e
 fondo**, e il costo di una domanda aperta finta è che qualcuno la decida una seconda volta,
 magari diversamente.
 
-### E due documenti normativi da allineare
+### ⛔ Quello che resta è ESECUZIONE, non decisione
 
-`CONTRATTO-COMUNE-DOCUMENTI` dice che il prezzo mancante vale **0,00**;
-`03c-contratto-risolutore-riga` dice **campo vuoto**. Il codice fa l'uno o l'altro a
-seconda della maschera. Chiusa la domanda **B**, vanno riscritti tutti e due.
+⚠️ **Distinzione che va tenuta ferma**, perché il §6 si intitola «la distanza dal codice» e
+si potrebbe leggere come un elenco di cose ancora da concordare. **Non lo è.** Tutto ciò che
+questa specifica descrive è **deciso**: rinviarne l'implementazione è una scelta di sequenza,
+non un punto aperto da riaprire.
+
+| Deciso                                                | Quando si fa                                      |
+| ----------------------------------------------------- | ------------------------------------------------- |
+| il Listino scelto si ritrova alla riapertura (§4)     | dopo la struttura comune — serve una colonna      |
+| il cliente col listino predefinito lo precompila (§1) | dopo — serve una colonna e il campo in anagrafica |
+| l'applicatore unico delle righe (§2)                  | **subito dopo l'ottava testata**                  |
+| il selettore su tutte le maschere di vendita (§5)     | con la struttura comune della testata             |
+
+⚠️ **Prima di qualunque migration**: si verifica lo **schema reale** e si propone la modifica
+**minima** necessaria. Il database è condiviso col collega, e vale `regole-qualita` — SQL a
+mano, `prisma:deploy`, schema+migration+deploy insieme o per niente.
+
+### E i documenti normativi da allineare
+
+| Documento                       | Cosa dice oggi                                     | Va portato a                           |
+| ------------------------------- | -------------------------------------------------- | -------------------------------------- |
+| `CONTRATTO-COMUNE-DOCUMENTI`    | il prezzo mancante vale **0,00**                   | §3 e §3.1                              |
+| `03c-contratto-risolutore-riga` | `null` = **campo vuoto** + segnalazione (riga 384) | §3.1: vuoto **e** economicamente **0** |
+
+⛔ **Non sono due sfumature della stessa frase.** `03c` fa oggi coincidere «cella vuota» con
+«nessun valore», mentre la decisione recente dice **cella vuota con valore zero**. Finché quel
+contratto dice l'altra cosa, chi implementa il risolutore ha due fonti che si contraddicono e
+sceglierà quella che legge per prima.
+
+⚠️ **E cercata, ma NON trovata**: la vecchia regola «cambio listino → _propone_ il ricalcolo e
+non sovrascrive i prezzi manuali», che andrebbe rimossa in quanto superata dal §2. Cercata in
+tutto `docs/` con più formulazioni — non compare in nessun documento. O è stata già tolta, o
+vive solo nel codice/nella memoria di chi l'ha scritta. **Non si può potare un testo che non
+c'è**: se salta fuori altrove, va tolto allora.
 
 ---
 
