@@ -214,11 +214,16 @@
                  colonna degli importi. -->
             @if (showListinoSelect() && !formReadOnly()) {
               <app-document-header-field label="Listino">
+                <!-- La voce vuota resta SPENTA: l'elenco ha gia' la sua voce
+                     neutra («Prezzo di vendita», la prima), e il segnaposto
+                     dice le stesse identiche parole. Accendendola il pannello
+                     mostra due righe uguali, di cui la prima e' finta. -->
                 <app-select-menu
                   [options]="listinoOptions()"
                   [value]="listinoValue()"
                   ariaLabel="Listino applicato alle righe"
                   placeholder="Prezzo di vendita"
+                  [includeEmptyOption]="false"
                   [compact]="true"
                   [fullWidth]="true"
                   (valueChange)="onListinoChange($event)"

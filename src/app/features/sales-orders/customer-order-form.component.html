@@ -449,11 +449,15 @@
                 @if (showListinoSelect() && !formReadOnly()) {
                   <div class="doc-panel__field">
                     <span class="doc-panel__label">Listino</span>
+                    <!-- La voce vuota resta SPENTA: l'elenco ha gia' la sua
+                         voce neutra («Prezzo di vendita», la prima), e il
+                         segnaposto dice le stesse identiche parole. -->
                     <app-select-menu
                       [options]="listinoOptions()"
                       [value]="listinoValue()"
                       ariaLabel="Listino applicato alle righe"
                       placeholder="Prezzo di vendita"
+                      [includeEmptyOption]="false"
                       [compact]="true"
                       [fullWidth]="true"
                       (valueChange)="onListinoChange($event)"

@@ -765,6 +765,57 @@ describe('SalesDocumentFormComponent', () => {
         'Outlet',
       ]);
     });
+
+    /**
+     * ⛔ **La tendina non offre la stessa voce due volte** — guardia del 24/08/2026.
+     *
+     * `select-menu` disegna una voce vuota etichettata col **segnaposto**
+     * (`includeEmptyOption`, che vale `true` per difetto), e questa maschera
+     * passava come segnaposto la stessa parola che è già la prima opzione vera:
+     * «Prezzo di vendita». Il pannello mostrava due righe identiche, e la prima
+     * emetteva `''` — che `parseListinoChoice` riporta a `'article'`, cioè
+     * esattamente la seconda.
+     *
+     * ⚠️ **Per questo la guardia APRE il pannello.** La prova qui sopra legge
+     * `component.listinoOptions()`, cioè l'array del modello, dove il duplicato
+     * NON c'è: a metterlo è il template. Un test sul modello sarebbe rimasto
+     * verde per tutto il tempo, ed è il motivo per cui il difetto è arrivato
+     * fin qui.
+     *
+     * ⚠️ Per un lettore di schermo erano due `role="option"` fratelli con lo
+     * stesso nome accessibile e `aria-selected` opposti: non un comando rotto,
+     * due comandi identici di cui uno finto.
+     */
+    describe('e la tendina non ripete una voce', () => {
+      /** Nomi delle voci come le annuncia un lettore di schermo. */
+      function vociDelPannello(): string[] {
+        return screen
+          .getAllByRole('option')
+          .map((voce) => voce.getAttribute('aria-label') ?? voce.textContent ?? '')
+          .map((nome) => nome.replace(/\s+/g, ' ').trim());
+      }
+
+      it('⛔ «Prezzo di vendita» compare UNA volta sola', async () => {
+        const user = userEvent.setup();
+        await setup({ tenantSettings: CON_DUE_LISTINI });
+
+        await user.click(screen.getByLabelText('Listino applicato alle righe'));
+
+        expect(vociDelPannello().filter((nome) => nome === 'Prezzo di vendita')).toHaveLength(1);
+      });
+
+      it('⭐ e le voci sono ESATTAMENTE le sorgenti del tenant', async () => {
+        const user = userEvent.setup();
+        await setup({ tenantSettings: CON_DUE_LISTINI });
+
+        await user.click(screen.getByLabelText('Listino applicato alle righe'));
+
+        // ⚠️ L'uguaglianza, non un `toContain`: se domani ricomparisse una riga
+        // in più, questa la vede anche se la sua etichetta fosse diversa —
+        // mentre un controllo «contiene le tre giuste» resterebbe verde.
+        expect(vociDelPannello()).toEqual(['Prezzo di vendita', 'Ingrosso', 'Outlet']);
+      });
+    });
   });
 
   /**
