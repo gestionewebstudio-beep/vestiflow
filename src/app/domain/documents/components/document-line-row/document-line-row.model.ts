@@ -25,10 +25,22 @@ export const DOCUMENT_LINE_COLUMNS = [
   // Vendita al banco la ricevono insieme. È esattamente il perno che il
   // commento qui sopra descrive — le differenze si ottengono per colonna.
   'variantLabel',
+  // ⛔ **`description` non è `product`.** Il nome è ciò che l'articolo È — e
+  // arriva dall'anagrafica; la descrizione è ciò che l'operatore scrive su
+  // QUESTA riga, e su un arrivo merce serve a dire «seconda scelta», «campione
+  // omaggio», «reso da riparazione». Oggi la mostra solo l'Arrivo merce.
+  'description',
   'quantity',
   // ⛔ Due domande DIVERSE sulla giacenza, e l'Ordine fornitore le mostra
   // entrambe: comprando si guarda quanta merce c'è, vendendo quanta se ne può
   // promettere.
+  // ⭐ Le tre dell'ORDINE COLLEGATO, in sola lettura: quanto era stato
+  // ordinato, quanto è già arrivato, quanto manca. Esistono solo dove un
+  // arrivo è agganciato a un ordine fornitore, e sono la ragione per cui chi
+  // riceve la merce sa se sta chiudendo la fornitura o solo una parte.
+  'poOrdered',
+  'poReceived',
+  'poRemaining',
   'stockOnHand',
   'stockAvailable',
   'unitOfMeasure',
@@ -54,6 +66,11 @@ export const DOCUMENT_LINE_COLUMNS = [
   'discount',
   'discountedPrice',
   'vat',
+  // ⭐ Lotto e scadenza nascono quando la merce ENTRA: ordinandola non
+  // esistono ancora, vendendola sono già state decise. Stanno accanto ai
+  // seriali perché è la stessa famiglia — l'identità del singolo pezzo.
+  'lot',
+  'expiry',
   'serials',
   'commitsStock',
   // ⛔ **`loadsStock` NON è `commitsStock`**, e condividere la cella non
@@ -86,6 +103,16 @@ export type DocumentLineFocusField =
   | 'discount'
   | 'unitCost'
   | 'vat'
+  // Le sei che il catalogo ha appena guadagnato. Il giro del fuoco deve
+  // attraversare OGNI cella editabile: una colonna che si vede ma che il Tab
+  // salta e' peggio di una colonna assente — l'operatore la trova col mouse e
+  // poi non sa come uscirne.
+  | 'description'
+  | 'sellingPrice'
+  | 'shopifyPrice'
+  | 'compareAtPrice'
+  | 'lot'
+  | 'expiry'
   | 'serials';
 
 /** Le tre celle codice, che condividono contratto e comportamento. */
@@ -134,6 +161,14 @@ export interface DocumentLineRowView {
   readonly availabilityHint: string | null;
 
   /** Valori CALCOLATI, già formattati da chi li possiede. */
+  /**
+   * Le tre dell'ordine collegato, **già formattate**: sono in sola lettura per
+   * definizione — le calcola il documento confrontando ordinato e ricevuto.
+   * Vuote dove non c'è un ordine agganciato.
+   */
+  readonly poOrdered: string;
+  readonly poReceived: string;
+  readonly poRemaining: string;
   readonly stockOnHand: string;
   readonly stockAvailable: string;
   readonly purchaseCost: string;
@@ -177,6 +212,9 @@ export const DOCUMENT_LINE_ROW_VIEW_VUOTA: DocumentLineRowView = {
   productInvalid: false,
   exceedsAvailability: false,
   availabilityHint: null,
+  poOrdered: '',
+  poReceived: '',
+  poRemaining: '',
   stockOnHand: '',
   stockAvailable: '',
   purchaseCost: '',

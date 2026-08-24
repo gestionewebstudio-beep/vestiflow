@@ -26,7 +26,7 @@ export interface GoodsReceiptLineCardControls {
   readonly barcode: FormControl<string>;
   readonly quantity: FormControl<number>;
   readonly unitCost: FormControl<string>;
-  readonly discountPercent: FormControl<string>;
+  readonly discount: FormControl<string>;
   readonly sellingPrice: FormControl<string>;
   readonly compareAtPrice: FormControl<string>;
   readonly loadsStock: FormControl<boolean>;

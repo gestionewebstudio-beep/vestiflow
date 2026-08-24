@@ -2556,6 +2556,11 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       // guarda la DISPONIBILITA', cioe' quanta merce si puo' promettere. La
       // chiave c'e' perche' la vista e' comune, il valore e' vuoto perche' la
       // colonna non c'e'.
+      // Le tre dell'ordine collegato: esistono solo sull'Arrivo merce, dove un
+      // documento puo' essere agganciato a un ordine fornitore.
+      poOrdered: '',
+      poReceived: '',
+      poRemaining: '',
       stockOnHand: '',
       stockAvailable: this.lineStockAvailable(index),
       purchaseCost: this.linePurchaseCost(index),

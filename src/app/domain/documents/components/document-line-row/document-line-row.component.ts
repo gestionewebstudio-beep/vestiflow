@@ -171,6 +171,18 @@ export class DocumentLineRowComponent {
 
   /** Tasto premuto in una cella a `formControlName`: il giro del fuoco è della maschera. */
   readonly fieldKeydown = output<DocumentLineFieldEvent<KeyboardEvent>>();
+
+  /**
+   * Un campo OPERATIVO ha perso il fuoco.
+   *
+   * Non e' una specificita' dell'Arrivo merce travestita: la vista a CARD lo
+   * aveva gia' (`fieldBlur`), la riga di scrivania no. E' l'unico momento in
+   * cui un documento puo' consolidare quello che si e' appena scritto —
+   * l'Arrivo merce ci aggancia i codici e segna il modulo sporco.
+   *
+   * Chi non lo lega non paga niente: un `output` senza ascoltatori non emette.
+   */
+  readonly fieldBlur = output<DocumentLineFocusField>();
   /** Uscite di cella dalle celle condivise, che il fuoco usa allo stesso modo. */
   readonly fieldAdvance = output<DocumentLineFocusField>();
   readonly fieldRetreat = output<DocumentLineFocusField>();

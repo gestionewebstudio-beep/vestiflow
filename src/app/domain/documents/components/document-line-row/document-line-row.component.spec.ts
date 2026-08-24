@@ -46,6 +46,12 @@ function gruppoRiga(): FormGroup {
     // domande diverse, e un documento può mostrarle entrambe.
     loadsStock: new FormControl(true),
     serialNumbersText: new FormControl(''),
+    // Le colonne dell'ARRIVO MERCE. La descrizione non e' il nome: il nome
+    // dice cosa l'articolo e', questa cosa l'operatore ha scritto su questa
+    // riga. Lotto e scadenza nascono quando la merce entra.
+    description: new FormControl(''),
+    lotCode: new FormControl(''),
+    lotExpiryDate: new FormControl(''),
   });
 }
 

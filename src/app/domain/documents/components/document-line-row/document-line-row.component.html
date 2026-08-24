@@ -192,6 +192,52 @@
          La cella resta, o la tabella perderebbe una colonna su quella riga. -->
     <td class="doc-form__cell doc-form__cell--readonly"></td>
   }
+  <!-- ⛔ La DESCRIZIONE di riga, distinta dal nome: il nome è ciò che
+       l'articolo è, questa è ciò che l'operatore scrive su questa riga. -->
+  @if (isColumnVisible()('description')) {
+    <td class="doc-form__cell doc-form__cell--editable">
+      @if (!view().isReference) {
+        <input
+          [id]="cellId('description')"
+          [attr.aria-label]="'Descrizione riga ' + (lineIndex() + 1)"
+          class="doc-form__input doc-form__input--table"
+          type="text"
+          formControlName="description"
+          (blur)="fieldBlur.emit('description')"
+          (keydown)="fieldKeydown.emit({ field: 'description', value: $event })"
+        />
+      }
+    </td>
+  }
+  <!-- ⭐ Le tre dell'ORDINE COLLEGATO, in sola lettura: le calcola il documento
+       confrontando ordinato e ricevuto. -->
+  @if (isColumnVisible()('poOrdered')) {
+    <td
+      class="doc-form__cell doc-form__cell--readonly doc-form__cell--computed doc-form__num tabular-nums doc-form__col--stock"
+    >
+      @if (!view().isReference) {
+        {{ view().poOrdered }}
+      }
+    </td>
+  }
+  @if (isColumnVisible()('poReceived')) {
+    <td
+      class="doc-form__cell doc-form__cell--readonly doc-form__cell--computed doc-form__num tabular-nums doc-form__col--stock"
+    >
+      @if (!view().isReference) {
+        {{ view().poReceived }}
+      }
+    </td>
+  }
+  @if (isColumnVisible()('poRemaining')) {
+    <td
+      class="doc-form__cell doc-form__cell--readonly doc-form__cell--computed doc-form__num tabular-nums doc-form__col--stock"
+    >
+      @if (!view().isReference) {
+        {{ view().poRemaining }}
+      }
+    </td>
+  }
   @if (isColumnVisible()('quantity')) {
     <td
       class="doc-form__cell doc-form__cell--editable doc-form__num doc-form__col--stock"
@@ -207,6 +253,7 @@
           [min]="quantityMin()"
           step="1"
           formControlName="quantity"
+          (blur)="fieldBlur.emit('quantity')"
           (keydown)="fieldKeydown.emit({ field: 'quantity', value: $event })"
           [attr.aria-invalid]="view().quantityInvalid ? 'true' : null"
           [title]="
@@ -255,6 +302,7 @@
           (lineRowAdvance)="rowAdvance.emit('unitOfMeasure')"
           (lineRowRetreat)="rowRetreat.emit('unitOfMeasure')"
           (manageRequested)="unitManageRequested.emit()"
+        (triggerBlur)="fieldBlur.emit('unitOfMeasure')"
         />
       }
     </td>
@@ -280,6 +328,7 @@
           type="text"
           inputmode="decimal"
           formControlName="unitCost"
+          (blur)="fieldBlur.emit('unitCost')"
           placeholder="0,00"
           (input)="costChanged.emit($any($event.target).value)"
           (keydown)="fieldKeydown.emit({ field: 'unitCost', value: $event })"
@@ -318,6 +367,8 @@
             type="text"
             inputmode="decimal"
             formControlName="sellingPrice"
+            (blur)="fieldBlur.emit('sellingPrice')"
+            (keydown)="fieldKeydown.emit({ field: 'sellingPrice', value: $event })"
             placeholder="0,00"
           />
         } @else {
@@ -341,6 +392,8 @@
             type="text"
             inputmode="decimal"
             formControlName="shopifyPrice"
+            (blur)="fieldBlur.emit('shopifyPrice')"
+            (keydown)="fieldKeydown.emit({ field: 'shopifyPrice', value: $event })"
             placeholder="0,00"
           />
         } @else {
@@ -364,6 +417,8 @@
             type="text"
             inputmode="decimal"
             formControlName="compareAtPrice"
+            (blur)="fieldBlur.emit('compareAtPrice')"
+            (keydown)="fieldKeydown.emit({ field: 'compareAtPrice', value: $event })"
             placeholder="0,00"
           />
         } @else {
@@ -382,6 +437,7 @@
           type="text"
           inputmode="decimal"
           formControlName="unitPrice"
+          (blur)="fieldBlur.emit('unitPrice')"
           placeholder="0,00"
           (keydown)="fieldKeydown.emit({ field: 'unitPrice', value: $event })"
         />
@@ -397,6 +453,7 @@
           class="doc-form__input doc-form__input--table doc-form__input--num"
           type="text"
           formControlName="discount"
+          (blur)="fieldBlur.emit('discount')"
           placeholder="0%"
           title="Percentuale singola o cascata: «10%», «4+10%»"
           (keydown)="fieldKeydown.emit({ field: 'discount', value: $event })"
@@ -435,6 +492,37 @@
       }
     </td>
   }
+  <!-- ⭐ Lotto e scadenza: nascono quando la merce ENTRA. -->
+  @if (isColumnVisible()('lot')) {
+    <td class="doc-form__cell doc-form__cell--editable">
+      @if (!view().isReference) {
+        <input
+          [id]="cellId('lot')"
+          [attr.aria-label]="'Lotto riga ' + (lineIndex() + 1)"
+          class="doc-form__input doc-form__input--table"
+          type="text"
+          formControlName="lotCode"
+          (blur)="fieldBlur.emit('lot')"
+          (keydown)="fieldKeydown.emit({ field: 'lot', value: $event })"
+        />
+      }
+    </td>
+  }
+  @if (isColumnVisible()('expiry')) {
+    <td class="doc-form__cell doc-form__cell--editable">
+      @if (!view().isReference) {
+        <input
+          [id]="cellId('expiry')"
+          [attr.aria-label]="'Scadenza riga ' + (lineIndex() + 1)"
+          class="doc-form__input doc-form__input--table"
+          type="text"
+          formControlName="lotExpiryDate"
+          (blur)="fieldBlur.emit('expiry')"
+          (keydown)="fieldKeydown.emit({ field: 'expiry', value: $event })"
+        />
+      }
+    </td>
+  }
   @if (isColumnVisible()('serials')) {
     <td class="doc-form__cell doc-form__cell--editable">
       @if (!view().isReference) {
@@ -444,6 +532,7 @@
           class="doc-form__input doc-form__input--table"
           type="text"
           formControlName="serialNumbersText"
+          (blur)="fieldBlur.emit('serials')"
           placeholder="SN001, SN002"
           autocomplete="off"
           (keydown)="fieldKeydown.emit({ field: 'serials', value: $event })"

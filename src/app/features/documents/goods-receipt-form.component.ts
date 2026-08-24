@@ -14,6 +14,7 @@ import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-i
 import {
   AbstractControl,
   FormArray,
+  FormGroup,
   NonNullableFormBuilder,
   ReactiveFormsModule,
   Validators,
@@ -90,6 +91,18 @@ import type { Supplier } from '@core/models/supplier.model';
 import { normalizeSku } from '@domain/products/models/product-form.validators';
 import { ProductService } from '@domain/products/services/product.service';
 import { DocumentLineArticleService } from '@domain/documents/services/document-line-article.service';
+import { redistributeColumnWidths } from '@shared/table-columns/column-width-distribution.util';
+import { DocumentLineHeadComponent } from '@domain/documents/components/document-line-head/document-line-head.component';
+import { DocumentLineRowComponent } from '@domain/documents/components/document-line-row/document-line-row.component';
+import { DOCUMENT_LINE_ROW_VIEW_VUOTA } from '@domain/documents/components/document-line-row/document-line-row.model';
+import type {
+  DocumentLineColumnId,
+  DocumentLineFieldEvent,
+  DocumentLineFocusField,
+  DocumentLineRowView,
+  DocumentLineSuggestionDirection,
+  DocumentLineSuggestionPick,
+} from '@domain/documents/components/document-line-row/document-line-row.model';
 import {
   campiEffettivi,
   PROFILI_RIGA_DOCUMENTO,
@@ -325,6 +338,8 @@ const SALES_PRICE_FIELDS: readonly SalesPriceField[] = [
     DocumentLineProductCellComponent,
     DocumentLineSelectCellComponent,
     DocumentLineUnitCellComponent,
+    DocumentLineHeadComponent,
+    DocumentLineRowComponent,
     DocumentPrintActionsComponent,
     UnitOfMeasureManagerDialogComponent,
     DocumentMobilePanelComponent,
@@ -351,6 +366,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private readonly labelPrintService = inject(ProductLabelPrintService);
   private readonly productService = inject(ProductService);
   private readonly lineArticles = inject(DocumentLineArticleService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly barcodeLookup = inject(BarcodeLookupService);
   private readonly codeLookupService = inject(DocumentCodeLookupService);
   private readonly breadcrumbLabels = inject(BreadcrumbLabelService);
@@ -2037,13 +2053,17 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       unitOfMeasure: `gr-uom-${index}`,
       unitCost: `gr-cost-${index}`,
       discount: `gr-discount-${index}`,
-      sellingPrice: `gr-selling-${index}`,
-      shopifyPrice: `gr-shopify-${index}`,
-      compareAtPrice: `gr-compare-${index}`,
+      // ⚠️ Questi quattro nomi li produce ora la RIGA COMUNE (`cellId`), non
+      // piu' questo file: la mappa li SEGUE. Se divergessero il giro del fuoco
+      // salterebbe la cella in silenzio — nessun errore, solo un Tab che non
+      // arriva dove deve.
+      sellingPrice: `gr-sellingPrice-${index}`,
+      shopifyPrice: `gr-shopifyPrice-${index}`,
+      compareAtPrice: `gr-compareAtPrice-${index}`,
       vat: `gr-vat-${index}`,
       lot: `gr-lot-${index}`,
-      expiry: `gr-lot-date-${index}`,
-      serials: `gr-serial-${index}`,
+      expiry: `gr-expiry-${index}`,
+      serials: `gr-serials-${index}`,
     }[field];
   }
 
@@ -2667,7 +2687,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected lineHasDiscount(index: number): boolean {
     this.formValue();
     const line = this.lines.at(index);
-    return parseEffectiveDiscountPercent(line.controls.discountPercent.value) > 0;
+    return parseEffectiveDiscountPercent(line.controls.discount.value) > 0;
   }
 
   protected lineVariantSummary(index: number): VariantSummary | null {
@@ -2874,7 +2894,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       enteredUnitCostMinor: this.lineCostEnteredMinor(line.controls.unitCost),
       costEntryMode: this.costEntryMode(),
       quantity: Number.isFinite(qtyRaw) ? qtyRaw : 0,
-      discountPercent: parseEffectiveDiscountPercent(line.controls.discountPercent.value),
+      discountPercent: parseEffectiveDiscountPercent(line.controls.discount.value),
       vat: this.lineVatInput(line),
     });
   }
@@ -3144,8 +3164,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (!supplier) {
       return;
     }
-    if (!line.controls.discountPercent.value.trim() && supplier.supplierDiscount?.trim()) {
-      line.controls.discountPercent.setValue(supplier.supplierDiscount.trim(), {
+    if (!line.controls.discount.value.trim() && supplier.supplierDiscount?.trim()) {
+      line.controls.discount.setValue(supplier.supplierDiscount.trim(), {
         emitEvent: false,
       });
     }
@@ -3165,8 +3185,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (supplier) {
       this.applySupplierPaymentDefault(supplier);
       for (const line of this.lines.controls) {
-        if (!line.controls.discountPercent.value.trim() && supplier.supplierDiscount?.trim()) {
-          line.controls.discountPercent.setValue(supplier.supplierDiscount.trim(), {
+        if (!line.controls.discount.value.trim() && supplier.supplierDiscount?.trim()) {
+          line.controls.discount.setValue(supplier.supplierDiscount.trim(), {
             emitEvent: false,
           });
         }
@@ -3424,7 +3444,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         variantIdPrecedente: replacedArticle ? null : line.controls.variantId.value || null,
         rigaPersistita: Boolean(line.controls.id.value),
         // Lo sconto DIGITATO: passandolo, il risolutore non ci scrive sopra.
-        scontoCorrente: line.controls.discountPercent.value,
+        scontoCorrente: line.controls.discount.value,
       },
     });
     if (esito.esito !== 'risolto') {
@@ -3455,7 +3475,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     // arrivava a documento con «pz» — e siccome il campo si PERSISTE, quel
     // «pz» inventato finiva nel documento.
     scrivi(line.controls.unitOfMeasure, valori.unitaDiMisura);
-    scrivi(line.controls.discountPercent, valori.sconto);
+    scrivi(line.controls.discount, valori.sconto);
     scrivi(line.controls.supplierSku, valori.codiceFornitore);
     if (replacedArticle) {
       // Sostituzione: i prezzi seguono il nuovo articolo, e se non ne ha
@@ -4216,6 +4236,16 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected isLineColumnVisible(columnId: string): boolean {
     this.lineTableColumnState();
     const normalizedId = normalizeGoodsReceiptColumnId(columnId);
+    // ⛔ **La CONFIGURAZIONE decide chi esiste; le preferenze solo chi si
+    // vede.** L'intestazione e la riga comuni chiedono di tutte e trentuno le
+    // colonne del catalogo, e a una colonna che questo documento non ha le
+    // preferenze rispondono «visibile» — non l'hanno mai spenta, quindi per
+    // loro è accesa. Senza questa riga l'Arrivo merce renderebbe il prezzo di
+    // vendita di riga, che nel suo gruppo non esiste: la maschera va in errore
+    // al primo disegno.
+    if (!GOODS_RECEIPT_LINE_COLUMNS.some((column) => column.id === normalizedId)) {
+      return false;
+    }
     const settings = this.tenantSettings();
     if (normalizedId === 'lot' || normalizedId === 'expiry') {
       if (settings && !settings.lotsEnabled) {
@@ -4239,12 +4269,70 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     return this.columnPreferences.isColumnVisible(GOODS_RECEIPT_LINES_VIEW, normalizedId);
   }
 
+  /**
+   * ⛔ **Qui c'erano i PIXEL, ed è la ragione per cui questa tabella rendeva
+   * diversamente da tutte le altre.**
+   *
+   * `.doc-form__table` è `inline-size: 100%` con `table-layout: fixed`: con
+   * larghezze in px il browser le tratta come **pesi** e le scala per far
+   * stare la tabella nel contenitore. Ogni colonna rendeva quindi più stretta
+   * di quanto dichiarava, `minWidthPx` non proteggeva niente, e le
+   * intestazioni si spezzavano dentro la parola — «VARIANT / E», «TOTAL / E».
+   *
+   * ⚠️ **E non dipendeva dalla larghezza totale**: l'Arrivo merce ne dichiara
+   * MENO dell'Ordine cliente (1252px contro 1422px) e si spezzava lo stesso.
+   * Dipendeva da come la larghezza diventa quota.
+   *
+   * Le quote percentuali sommano sempre esattamente 100%, e i px salvati
+   * restano l'unità persistita — fanno da pesi relativi.
+   */
   protected lineColumnWidth(columnId: string): string {
     this.lineTableColumnState();
+    return `${((this.lineColumnPx(columnId) / this.lineColumnsTotalPx()) * 100).toFixed(4)}%`;
+  }
+
+  /**
+   * La quota della colonna numero riga.
+   *
+   * ⚠️ Deve entrare nel totale: con le quote percentuali TUTTE le colonne
+   * devono sommare 100%, e lasciarne una fuori dal conto la fa sforare.
+   */
+  protected lineIndexColumnWidth(): string {
+    this.lineTableColumnState();
+    return `${((GoodsReceiptFormComponent.LINE_INDEX_COLUMN_PX / this.lineColumnsTotalPx()) * 100).toFixed(4)}%`;
+  }
+
+  // 48 come l'Ordine cliente: e' la stessa colonna, e la sua quota entra nel
+  // totale allo stesso modo.
+  private static readonly LINE_INDEX_COLUMN_PX = 48;
+
+  /** I px salvati (o il default) di una colonna: restano l'unità persistita. */
+  private lineColumnPx(columnId: string): number {
+    const bozza = this.lineColumnDraft()?.get(columnId);
+    if (bozza !== undefined) {
+      return bozza;
+    }
     const normalizedId = normalizeGoodsReceiptColumnId(columnId);
     const def = GOODS_RECEIPT_LINE_COLUMNS.find((col) => col.id === normalizedId);
-    const fallback = def?.defaultWidthPx ?? 96;
-    return `${this.columnPreferences.columnWidth(GOODS_RECEIPT_LINES_VIEW, normalizedId, fallback)}px`;
+    const salvato = this.columnPreferences.columnWidth(
+      GOODS_RECEIPT_LINES_VIEW,
+      normalizedId,
+      def?.defaultWidthPx ?? 96,
+    );
+    // ⭐ Il minimo vale anche sulle larghezze GIÀ PERSISTITE: una preferenza
+    // salvata prima che il minimo esistesse non deve poter schiacciare la
+    // colonna sotto la sua misura leggibile.
+    return Math.max(salvato, this.lineColumnMinWidth(columnId));
+  }
+
+  private lineColumnsTotalPx(): number {
+    let totale = GoodsReceiptFormComponent.LINE_INDEX_COLUMN_PX;
+    for (const def of GOODS_RECEIPT_LINE_COLUMNS) {
+      if (this.isLineColumnVisible(def.id)) {
+        totale += this.lineColumnPx(def.id);
+      }
+    }
+    return totale > 0 ? totale : 1;
   }
 
   protected lineColumnMinWidth(columnId: string): number {
@@ -4253,12 +4341,237 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     return def?.minWidthPx ?? 48;
   }
 
-  protected onLineColumnResize(columnId: string, widthPx: number): void {
-    this.columnPreferences.setColumnWidth(
-      GOODS_RECEIPT_LINES_VIEW,
-      normalizeGoodsReceiptColumnId(columnId),
-      widthPx,
-    );
+  /** Le larghezze in bozza durante il trascinamento di una maniglia. */
+  private readonly lineColumnDraft = signal<ReadonlyMap<string, number> | null>(null);
+
+  /**
+   * Ridistribuzione DAL VIVO: la colonna trascinata segue il cursore e le
+   * altre cedono spazio in proporzione, così il totale resta costante.
+   *
+   * ⛔ Senza, trascinando una maniglia cambiava il totale e il browser
+   * ri-scalava tutte le altre in silenzio.
+   */
+  private redistributeLineColumns(
+    columnId: string,
+    renderedWidthPx: number,
+  ): ReadonlyMap<string, number> | null {
+    const larghezzaTabella =
+      this.host.nativeElement.querySelector('.doc-form__table-wrap')?.clientWidth ?? 0;
+    const visibili = GOODS_RECEIPT_LINE_COLUMNS.filter((def) => this.isLineColumnVisible(def.id));
+    if (larghezzaTabella <= 0 || visibili.length < 2) {
+      return null;
+    }
+    // A trascinamento avviato le larghezze in bozza sono già pixel resi: la
+    // conversione va fatta una volta sola, all'inizio, o si accumula deriva.
+    const scala = this.lineColumnDraft() ? 1 : larghezzaTabella / this.lineColumnsTotalPx();
+    const base = visibili.map((def) => ({
+      id: def.id,
+      px: this.lineColumnPx(def.id) * scala,
+      minPx: this.lineColumnMinWidth(def.id),
+    }));
+    return redistributeColumnWidths(base, columnId, renderedWidthPx);
+  }
+
+  protected onLineColumnResizing(columnId: string, renderedWidthPx: number): void {
+    const next = this.redistributeLineColumns(columnId, renderedWidthPx);
+    if (next) {
+      this.lineColumnDraft.set(next);
+    }
+  }
+
+  protected onLineColumnResize(columnId: string, renderedWidthPx: number): void {
+    const bozza = this.lineColumnDraft();
+    if (!bozza) {
+      // Solo un clic sull'impugnatura: niente da salvare.
+      return;
+    }
+    const next = this.redistributeLineColumns(columnId, renderedWidthPx) ?? bozza;
+    this.lineColumnDraft.set(null);
+    const widths: Record<string, number> = {};
+    for (const [id, px] of next) {
+      widths[id] = Math.round(px);
+    }
+    this.columnPreferences.setColumnWidths(GOODS_RECEIPT_LINES_VIEW, widths);
+  }
+
+  // ── Il ponte verso la RIGA COMUNE ────────────────────────────────────────
+  //
+  // ⭐ L'Arrivo merce era l'ultima e la più lontana: 26 `<th>` e 29 `<td>`
+  // scritti a mano. Le celle FOGLIA erano già condivise — quello che si
+  // duplicava era l'impalcatura, ed è ciò che rendeva questa tabella diversa
+  // da tutte le altre.
+  //
+  // Le sue vere specificità restano sue: lotto e scadenza, i tre valori
+  // dell'ordine collegato, il costo del documento, i prezzi d'anagrafica e la
+  // loro riscrittura verso il catalogo. Il risolutore fa anagrafica → riga; la
+  // scrittura riga → anagrafica non passa da qui.
+
+  protected readonly isLineColumnVisibleFn = (column: DocumentLineColumnId): boolean =>
+    this.isLineColumnVisible(column);
+
+  protected readonly lineColumnWidthFn = (column: DocumentLineColumnId): string =>
+    this.lineColumnWidth(column);
+
+  protected readonly lineColumnMinWidthFn = (column: DocumentLineColumnId): number =>
+    this.lineColumnMinWidth(column);
+
+  protected lineGroup(index: number): FormGroup {
+    return this.lines.at(index);
+  }
+
+  protected onRowSortToggled(column: DocumentLineColumnId): void {
+    if (this.isLineColumnSortable(column)) {
+      this.toggleLineSort(column as GoodsReceiptLineSortColumn);
+    }
+  }
+
+  /**
+   * Ciò che la riga comune deve MOSTRARE, già calcolato da chi lo possiede.
+   *
+   * ⭐ I tre valori dell'ordine collegato, i prezzi d'anagrafica e il costo
+   * scontato li calcola questa maschera: la riga li rende e basta.
+   */
+  protected lineRowView(index: number): DocumentLineRowView {
+    const po = this.poLineContext(index);
+    return {
+      ...DOCUMENT_LINE_ROW_VIEW_VUOTA,
+      complete: this.lineRowComplete(index),
+      linked: Boolean(this.lines.at(index)?.controls.variantId.value),
+      linkedArticleCode: this.lines.at(index)?.controls.articleCode.value ?? '',
+      quantityInvalid: this.lineFieldInvalid(index, 'quantity'),
+      productInvalid: this.lineFieldInvalid(index, 'productName'),
+      poOrdered: po ? String(po.ordered) : '',
+      poReceived: po ? String(po.received) : '',
+      poRemaining: po ? String(po.remaining) : '',
+      lineTotal: formatMoney(this.lineMoney(index)),
+      // Il lordo BARRATO compare solo dove uno sconto c'e' davvero: una riga
+      // senza sconto con due importi identici uno sopra l'altro si legge come
+      // un errore di calcolo.
+      grossTotal: this.lineHasDiscount(index) ? formatMoney(this.lineGrossMoney(index)) : '',
+      vatOptions: this.lineVatOptions(index),
+      vatValue: this.lines.at(index)?.controls.vatCodeId.value ?? '',
+      vatTooltip: this.lineVatTooltip(index),
+      unitValue: this.lines.at(index)?.controls.unitOfMeasure.value ?? '',
+      articleCodeSuggest: {
+        items: this.codeLookup.matchesFor(index, 'articleCode'),
+        open: this.codeLookup.isOpenOn(index, 'articleCode'),
+        activeIndex: this.codeLookup.activeIndex(),
+      },
+      skuSuggest: {
+        items: this.codeLookup.matchesFor(index, 'sku'),
+        open: this.codeLookup.isOpenOn(index, 'sku'),
+        activeIndex: this.codeLookup.activeIndex(),
+      },
+      barcodeSuggest: {
+        items: this.codeLookup.matchesFor(index, 'barcode'),
+        open: this.codeLookup.isOpenOn(index, 'barcode'),
+        activeIndex: this.codeLookup.activeIndex(),
+      },
+      supplierCodeSuggest: {
+        items: this.codeLookup.matchesFor(index, 'supplierCode'),
+        open: this.codeLookup.isOpenOn(index, 'supplierCode'),
+        activeIndex: this.codeLookup.activeIndex(),
+      },
+      productSuggest: {
+        items: this.lineSuggestions(index),
+        open: this.lineSuggestionsOpen(index),
+        activeIndex: this.productSuggest.activeIndex(),
+      },
+    };
+  }
+
+  /** Il campo dice quale codice è cambiato: la riga non conosce i gestori. */
+  protected onRowCodeChanged(index: number, event: DocumentLineFieldEvent<string>): void {
+    switch (event.field) {
+      case 'articleCode':
+        this.onLineArticleCodeChange(index, event.value);
+        return;
+      case 'sku':
+        this.onLineSkuChange(index, event.value);
+        return;
+      case 'barcode':
+        this.onLineBarcodeChange(index, event.value);
+        return;
+      case 'supplierCode':
+        this.onLineSupplierSkuChange(index, event.value);
+        return;
+      default:
+        return;
+    }
+  }
+
+  protected onRowCodeFocused(index: number, field: DocumentLineCodeField): void {
+    this.onLineCodeFocus(index, field);
+  }
+
+  protected onRowCodeCommitted(
+    index: number,
+    event: { field: DocumentLineCodeField; advance: boolean },
+  ): void {
+    this.commitCodeLookup(index, event.field, event.advance);
+  }
+
+  protected onRowSuggestionPicked(index: number, event: DocumentLineSuggestionPick): void {
+    if (event.field === 'product') {
+      this.onProductSuggestionPick(index, event.variantId);
+      return;
+    }
+    this.onCodeSuggestionPick(index, event.variantId);
+  }
+
+  protected onRowSuggestionNavigated(
+    event: DocumentLineFieldEvent<DocumentLineSuggestionDirection>,
+  ): void {
+    if (event.field === 'product') {
+      this.onProductSuggestionNavigate(event.value);
+      return;
+    }
+    this.codeLookup.navigate(event.value);
+  }
+
+  /**
+   * Il giro del fuoco: la riga comune parla di più campi di quanti ne abbia
+   * questo documento. Il restringimento è esplicito, non un cast.
+   */
+  private campoDiQuestoDocumento(field: DocumentLineFocusField): GoodsReceiptLineFocusField | null {
+    return (GOODS_RECEIPT_LINE_FOCUS_FIELDS as readonly string[]).includes(field)
+      ? (field as GoodsReceiptLineFocusField)
+      : null;
+  }
+
+  protected onRowFieldKeydown(index: number, event: DocumentLineFieldEvent<KeyboardEvent>): void {
+    const field = this.campoDiQuestoDocumento(event.field);
+    if (field) {
+      this.lineFocus.handleKeydown(index, field, event.value);
+    }
+  }
+
+  protected onRowFieldAdvance(index: number, field: DocumentLineFocusField): void {
+    const proprio = this.campoDiQuestoDocumento(field);
+    if (proprio) {
+      this.lineFocus.next(index, proprio);
+    }
+  }
+
+  protected onRowFieldRetreat(index: number, field: DocumentLineFocusField): void {
+    const proprio = this.campoDiQuestoDocumento(field);
+    if (proprio) {
+      this.lineFocus.previous(index, proprio);
+    }
+  }
+
+  protected onRowLineAdvance(index: number, field: DocumentLineFocusField): void {
+    const proprio = this.campoDiQuestoDocumento(field);
+    if (proprio) {
+      this.lineFocus.rowDown(index, proprio);
+    }
+  }
+
+  protected onRowLineRetreat(index: number, field: DocumentLineFocusField): void {
+    const proprio = this.campoDiQuestoDocumento(field);
+    if (proprio) {
+      this.lineFocus.rowUp(index, proprio);
+    }
   }
 
   protected openFullProductCreate(lineIndex: number): void {
@@ -4549,7 +4862,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       // che può essere diversa da quella con cui l'ordine era stato compilato.
       // Valorizzato sotto, quando la riga ha già il suo Codice IVA.
       unitCost: this.fb.control(''),
-      discountPercent: this.fb.control(''),
+      discount: this.fb.control(''),
       sellingPrice: this.fb.control(''),
       shopifyPrice: this.fb.control(''),
       compareAtPrice: this.fb.control(''),
@@ -4663,7 +4976,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
       }),
       unitCost: this.fb.control(line.unitCostText),
-      discountPercent: this.fb.control(''),
+      discount: this.fb.control(''),
       sellingPrice: this.fb.control(''),
       shopifyPrice: this.fb.control(''),
       compareAtPrice: this.fb.control(''),
@@ -4909,7 +5222,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           quantity: Number(line.quantity),
           unitPriceMinor: costoInviatoMinor,
           enteredUnitCostMinor: costoInviatoMinor,
-          discountPercent: parseEffectiveDiscountPercent(line.discountPercent ?? ''),
+          discountPercent: parseEffectiveDiscountPercent(line.discount ?? ''),
           vatRatePercent: line.vatRatePercent ? Number(line.vatRatePercent) : undefined,
           vatCodeId: line.vatCodeId || undefined,
           // Le righe senza articolo collegato non caricano ancora il magazzino;
@@ -5212,7 +5525,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
             ? { amountMinor: line.enteredUnitCostMinor, currencyCode: this.currency }
             : line.unitPrice,
         ).replace('.', ','),
-        discountPercent: line.discountPercent > 0 ? String(line.discountPercent) : '',
+        discount: line.discountPercent > 0 ? String(line.discountPercent) : '',
         vatRatePercent: line.vatSnapshot?.ratePercent?.toString() ?? '',
         vatCodeId: line.vatCodeId ?? '',
         // Le righe senza articolo persistono loadsStock=false come artefatto
@@ -5275,7 +5588,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
       }),
       unitCost: this.fb.control(''),
-      discountPercent: this.fb.control(''),
+      discount: this.fb.control(''),
       sellingPrice: this.fb.control(''),
       shopifyPrice: this.fb.control(''),
       compareAtPrice: this.fb.control(''),

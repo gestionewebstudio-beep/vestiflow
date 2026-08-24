@@ -167,6 +167,50 @@
     ></span>
   </th>
 }
+@if (isColumnVisible()('description')) {
+  <th scope="col" [style.width]="columnWidth()('description')">
+    <span class="doc-form__th-label" title="Descrizione">Descrizione</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('description')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'description', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('poOrdered')) {
+  <th scope="col" class="doc-form__num doc-form__col--stock" [style.width]="columnWidth()('poOrdered')">
+    <span class="doc-form__th-label" title="Ord.">Ord.</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('poOrdered')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'poOrdered', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('poReceived')) {
+  <th scope="col" class="doc-form__num doc-form__col--stock" [style.width]="columnWidth()('poReceived')">
+    <span class="doc-form__th-label" title="Ric.">Ric.</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('poReceived')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'poReceived', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('poRemaining')) {
+  <th scope="col" class="doc-form__num doc-form__col--stock" [style.width]="columnWidth()('poRemaining')">
+    <span class="doc-form__th-label" title="Residuo">Residuo</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('poRemaining')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'poRemaining', widthPx: $event })"
+    ></span>
+  </th>
+}
 @if (isColumnVisible()('quantity')) {
   <th
     scope="col"
@@ -421,6 +465,28 @@
       [live]="true"
       (resizing)="columnResizing.emit({ column: 'vat', widthPx: $event })"
       (resized)="columnResized.emit({ column: 'vat', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('lot')) {
+  <th scope="col" [style.width]="columnWidth()('lot')">
+    <span class="doc-form__th-label" title="Lotto">Lotto</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('lot')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'lot', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('expiry')) {
+  <th scope="col" [style.width]="columnWidth()('expiry')">
+    <span class="doc-form__th-label" title="Scadenza">Scadenza</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('expiry')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'expiry', widthPx: $event })"
     ></span>
   </th>
 }
