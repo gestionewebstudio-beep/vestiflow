@@ -362,12 +362,12 @@
                         ></span>
                       </th>
                     }
-                    @if (isLineColumnVisible('variant')) {
-                      <th scope="col" [style.width]="lineColumnWidth('variant')">
+                    @if (isLineColumnVisible('variantLabel')) {
+                      <th scope="col" [style.width]="lineColumnWidth('variantLabel')">
                         Variante
                         <span
                           appTableColumnResize
-                          (resized)="onLineColumnResize('variant', $event)"
+                          (resized)="onLineColumnResize('variantLabel', $event)"
                         ></span>
                       </th>
                     }
@@ -558,7 +558,7 @@
                           }
                         </td>
                       }
-                      @if (isLineColumnVisible('variant')) {
+                      @if (isLineColumnVisible('variantLabel')) {
                         <td class="doc-form__cell doc-form__cell--readonly">
                           <span class="doc-form__readonly-cell" [title]="variantLabelOf(i)">{{
                             variantLabelOf(i) || '—'

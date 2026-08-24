@@ -26,8 +26,21 @@ export interface SupplierOrderLine {
   readonly variantId: EntityId;
   /** Snapshot dello SKU al momento dell'ordine. */
   readonly sku: string;
-  /** Snapshot della descrizione articolo (nome prodotto). */
+  /**
+   * Snapshot della descrizione articolo: il SOLO nome del prodotto.
+   *
+   * La variante sta in `variantLabel`. Prima ci finiva dentro ogni volta che
+   * la maschera ripiegava su `summary.title`, che il display completo lo
+   * contiene gia'.
+   */
   readonly description: string;
+  /**
+   * Etichetta della VARIANTE: «M / Rosso». Vuota se l'articolo non ha opzioni
+   * visibili, e vuota anche sulle righe salvate prima che la colonna
+   * esistesse — la' la variante e' impastata nella descrizione, e riscriverla
+   * significherebbe riscrivere un ordine gia' emesso.
+   */
+  readonly variantLabel: string;
   readonly orderedQuantity: number;
   readonly receivedQuantity: number;
   /** Costo unitario NETTO canonico. */

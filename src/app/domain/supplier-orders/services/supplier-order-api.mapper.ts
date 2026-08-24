@@ -13,6 +13,7 @@ export interface SupplierOrderLineApiRow {
   readonly variantId: EntityId;
   readonly sku: string;
   readonly description?: string | null;
+  readonly variantLabel?: string | null;
   readonly orderedQuantity: number;
   readonly receivedQuantity: number;
   /**
@@ -75,7 +76,16 @@ function mapLine(row: SupplierOrderLineApiRow, currency: CurrencyCode): Supplier
     id: row.id,
     variantId: row.variantId,
     sku: row.sku,
+    // ⚠️ Il ripiego sullo SKU resta, ed è per le righe SALVATE PRIMA che la
+    // colonna avesse un valore: una riga senza descrizione mostrerebbe una
+    // cella vuota dove l'articolo dovrebbe esserci. Non è un ripiego sul
+    // titolo del catalogo — quello portava dentro la variante ed è stato tolto.
     description: row.description ?? row.sku,
+    // L'etichetta della variante fotografata sulla riga. Vuota sulle righe
+    // salvate prima della colonna: è corretto, non un dato mancante — quelle
+    // righe la variante ce l'hanno impastata nella descrizione, e riscriverle
+    // significherebbe riscrivere documenti emessi.
+    variantLabel: row.variantLabel ?? '',
     orderedQuantity: row.orderedQuantity,
     receivedQuantity: row.receivedQuantity,
     // Colonne NUMERIC: Prisma le serializza come STRINGHE ("411.4754"), quindi

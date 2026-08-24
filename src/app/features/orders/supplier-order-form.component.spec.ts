@@ -38,12 +38,38 @@ const VARIANTS: readonly VariantSummary[] = [
     productId: 'prod-1',
     productName: 'Maglietta',
     title: 'Maglietta / M / Rosso',
-    variantLabel: '',
+    // ⚠️ Era `''`, messo solo per soddisfare il tipo: nessun test lo leggeva, e
+    // il ripiego `productName || title` non e' MAI stato eseguito in nessuna
+    // prova, perche' `productName` non e' vuoto. Il difetto viveva scoperto.
+    variantLabel: 'M / Rosso',
     sku: 'MAG-M-ROSSO',
     articleCode: 'ART-MAG',
     // Obbligatorio nel modello: senza, il dettaglio del suggerimento esplode e
     // il pannello resta vuoto senza dire perché. Il dato di prova mentiva al tipo.
     sellingPrice: { amountMinor: 2990, currencyCode: 'EUR' },
+  },
+  /**
+   * ⚠️ **L'articolo che ARMA il divieto di ripiego.**
+   *
+   * `productName` vuoto e `title` pieno: e' l'unica forma di dato che esegue
+   * il ramo `productName || title`. Con il solo articolo qui sopra — nome non
+   * vuoto — togliere il ripiego o lasciarlo dava lo stesso risultato in ogni
+   * prova, e il difetto e' vissuto scoperto fino al 24/08/2026.
+   *
+   * Il contratto dice che qui il nome esce VUOTO: se `productName` manca e' la
+   * summary a essere sbagliata, e si corregge la summary. Ripiegare sul titolo
+   * rimetterebbe la variante dentro il nome proprio nel caso in cui nessuno
+   * se ne accorge.
+   */
+  {
+    variantId: 'var-senza-nome',
+    productId: 'prod-2',
+    productName: '',
+    title: 'Felpa / L / Blu',
+    variantLabel: 'L / Blu',
+    sku: 'FEL-L-BLU',
+    articleCode: 'ART-FEL',
+    sellingPrice: { amountMinor: 4990, currencyCode: 'EUR' },
   },
 ];
 
@@ -1138,6 +1164,142 @@ describe('SupplierOrderFormComponent', () => {
 
       expect(form.lines.at(0).controls['variantId']!.value).toBe('var-1');
       expect(form.lines.at(0).controls['supplierCode']!.value).toBe('');
+    });
+  });
+
+  /**
+   * ⭐ **L'Ordine fornitore e' il terzo consumer del risolutore comune** (`03c` §5),
+   * dopo Trasferimento e Rettifica. E' il primo che porta **denaro** e la
+   * **famiglia acquisto**: qui si verifica che «IVA prima del costo» regga come
+   * vincolo di contratto e non come commento.
+   *
+   * ⚠️ **Nessuno di questi test sarebbe diventato rosso prima della migrazione**,
+   * ed e' la ragione per cui esistono. Il fixture aveva `productName` non vuoto,
+   * quindi il ripiego `productName || title` non veniva mai eseguito; la colonna
+   * `variantLabel` non esisteva; e la suite era verde con e senza il difetto.
+   */
+  describe('il richiamo articolo passa dal risolutore comune', () => {
+    it('⛔ il nome non porta la variante, che ha la sua colonna', async () => {
+      const user = userEvent.setup();
+      await setup();
+      await scegliArticoloSullaRiga(user);
+
+      const nome = screen.getAllByLabelText('Nome prodotto')[0] as HTMLInputElement;
+      // Il titolo del catalogo e' «Maglietta / M / Rosso»: se il ripiego tornasse,
+      // sarebbe QUI che si vedrebbe.
+      expect(nome.value).toBe('Maglietta');
+      expect(nome.value).not.toContain('/');
+    });
+
+    it('la variante arriva al salvataggio nel suo campo, non dentro il nome', async () => {
+      const user = userEvent.setup();
+      const { createOrder } = await setup();
+      await scegliArticoloSullaRiga(user);
+      await user.click(salvaDocumento());
+
+      expect(createOrder).toHaveBeenCalledWith(
+        expect.objectContaining({
+          lines: [
+            expect.objectContaining({
+              // Il nome, e SOLO il nome: il titolo del catalogo dice
+              // «Maglietta / M / Rosso», e questo e' il punto in cui il vecchio
+              // ripiego lo scriveva nel database.
+              description: 'Maglietta',
+              variantLabel: 'M / Rosso',
+            }),
+          ],
+        }),
+      );
+    });
+
+    /**
+     * ⚠️ **Il richiamo su riga GIA' AGGANCIATA passa da due soli percorsi**, e
+     * i suggerimenti del nome non sono fra questi: `suggestInputs` passa
+     * `hasLinked` e su riga agganciata l'elenco non si apre. I due percorsi
+     * veri sono la LENTE («Cerca un altro prodotto») e il rientro dal pannello
+     * anagrafica — ed e' quest'ultimo il caso in cui il vecchio codice perdeva
+     * dati, perche' richiama lo STESSO articolo.
+     *
+     * Il metodo si chiama direttamente, come gia' fanno i test del pannello
+     * qui sopra: il gesto completo misurerebbe il pannello, non il richiamo.
+     */
+    interface AccessoRichiamo {
+      readonly lines: {
+        at(i: number): { controls: Record<string, { value: unknown; setValue(v: unknown): void }> };
+      };
+      onVariantSelect(index: number, value: string | null, linkedWith?: string): void;
+    }
+
+    it('⛔ la quantita digitata sopravvive al richiamo dello stesso articolo', async () => {
+      const user = userEvent.setup();
+      const { fixture } = await setup();
+      await scegliArticoloSullaRiga(user);
+
+      const form = fixture.componentInstance as unknown as AccessoRichiamo;
+      const riga = form.lines.at(0).controls;
+      riga['orderedQuantity']!.setValue(7);
+
+      // Lo STESSO articolo, richiamato di nuovo: e' cio' che fa il rientro dal
+      // pannello anagrafica. Prima della migrazione la quantita' tornava a 1 e
+      // lo sconto si azzerava, su un articolo che non era cambiato.
+      form.onVariantSelect(0, 'var-1');
+      fixture.detectChanges();
+
+      expect(riga['orderedQuantity']!.value).toBe(7);
+    });
+
+    it('⛔ lo sconto digitato non viene sovrascritto dal richiamo', async () => {
+      const user = userEvent.setup();
+      const { fixture } = await setup();
+      await scegliArticoloSullaRiga(user);
+
+      const form = fixture.componentInstance as unknown as AccessoRichiamo;
+      const riga = form.lines.at(0).controls;
+      // A cascata, e la stringa va conservata INTATTA: «4+10» vale 13,6% e non
+      // 14, ed e' la stringa che l'operatore rilegge.
+      riga['discountPercent']!.setValue('4+10');
+
+      form.onVariantSelect(0, 'var-1');
+      fixture.detectChanges();
+
+      expect(riga['discountPercent']!.value).toBe('4+10');
+    });
+
+    it('⛔ nome vuoto in anagrafica: la riga resta vuota, non prende il titolo', async () => {
+      const user = userEvent.setup();
+      const { fixture } = await setup();
+      await scegliArticoloSullaRiga(user);
+
+      const form = fixture.componentInstance as unknown as AccessoRichiamo;
+      form.onVariantSelect(0, 'var-senza-nome');
+      fixture.detectChanges();
+
+      const riga = form.lines.at(0).controls;
+      // Il titolo del catalogo e' «Felpa / L / Blu»: ripiegarci sopra
+      // scriverebbe la variante dentro il nome. Vuoto e' corretto — dice che
+      // l'ANAGRAFICA e' incompleta, e si corregge li'.
+      expect(riga['productName']!.value).toBe('');
+      expect(riga['productName']!.value).not.toContain('Felpa');
+      // …e la variante arriva comunque nella sua colonna.
+      expect(riga['variantLabel']!.value).toBe('L / Blu');
+    });
+
+    it("la variante si aggiorna quando l'articolo CAMBIA davvero", async () => {
+      const user = userEvent.setup();
+      const { fixture } = await setup();
+      await scegliArticoloSullaRiga(user);
+
+      const form = fixture.componentInstance as unknown as AccessoRichiamo;
+      const riga = form.lines.at(0).controls;
+      expect(riga['variantLabel']!.value).toBe('M / Rosso');
+
+      // ⛔ Conservare non significa congelare: su un articolo diverso
+      // l'etichetta si RICALCOLA. Un `??` al posto del confronto scriverebbe
+      // «M» su una riga che ora e' una «L».
+      form.onVariantSelect(0, null);
+      fixture.detectChanges();
+
+      expect(riga['variantId']!.value).toBe('');
     });
   });
 });

@@ -17,7 +17,7 @@
   (removed)="removed.emit(lineIndex())"
 >
   <ng-container cardControls>
-    <app-document-line-card-control label="Quantità">
+    <app-document-line-card-control label="Qtà">
       <input
         class="po-card__num-input tabular-nums"
         type="number"
@@ -25,7 +25,7 @@
         step="1"
         inputmode="numeric"
         [formControl]="line().controls.orderedQuantity"
-        aria-label="Quantità ordinata"
+        [attr.aria-label]="'Quantità riga ' + (lineIndex() + 1)"
       />
     </app-document-line-card-control>
 
@@ -36,7 +36,7 @@
         inputmode="decimal"
         [formControl]="line().controls.unitCost"
         placeholder="0,00"
-        aria-label="Costo unitario"
+        [attr.aria-label]="costLabel() + ' riga ' + (lineIndex() + 1)"
       />
     </app-document-line-card-control>
 

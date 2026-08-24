@@ -19,6 +19,8 @@ import type { VariantSummary } from '@domain/products/models/variant-summary.mod
  */
 export interface SupplierOrderLineCardControls {
   readonly productName: FormControl<string>;
+  /** L'etichetta della variante, fotografata: «M / Rosso». Vuota se non ne ha. */
+  readonly variantLabel: FormControl<string>;
   readonly sku: FormControl<string>;
   readonly barcode: FormControl<string>;
   readonly supplierCode: FormControl<string>;
@@ -112,10 +114,26 @@ export class SupplierOrderLineCardComponent {
    * fornitore chiama l'articolo, che su un ordine d'acquisto è l'informazione
    * con cui si controlla la conferma d'ordine.
    */
+  /**
+   * Le sub-info sotto il nome: la VARIANTE per prima, poi SKU e Cod. fornitore.
+   *
+   * ⚠️ La variante deve stare qui, e non e' una rifinitura: il titolo della
+   * card e' il nome prodotto, che fino a ieri se la portava dentro attraverso
+   * il ripiego su `summary.title`. Ora che il nome e' solo il nome, senza
+   * questa riga la variante **sparirebbe da mobile** — e in silenzio, perche'
+   * tabella e card leggono due campi diversi.
+   *
+   * Prima dello SKU perche' e' cio' che distingue due righe dello stesso
+   * articolo: e' la domanda che si fa scorrendo l'elenco.
+   */
   protected metaItems(): readonly DocumentLineCardMeta[] {
     const meta: DocumentLineCardMeta[] = [];
+    const variante = this.line().controls.variantLabel.value.trim();
     const sku = this.line().controls.sku.value.trim();
     const supplierCode = this.line().controls.supplierCode.value.trim();
+    if (variante) {
+      meta.push({ text: variante });
+    }
     if (sku) {
       meta.push({ text: `SKU ${sku}` });
     }

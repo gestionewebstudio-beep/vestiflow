@@ -71,7 +71,10 @@ export type SupplierOrderWithLines = SupplierOrder & {
 interface ComputedOrderLine {
   readonly variantId: string;
   readonly sku: string;
+  /** Il SOLO nome del prodotto: la variante sta nel campo qui sotto. */
   readonly description: string;
+  /** Etichetta della variante, fotografata dalla maschera: «M / Rosso». */
+  readonly variantLabel: string;
   readonly orderedQuantity: number;
   readonly unitCostMinor: number;
   readonly enteredUnitCostMinor: number;
@@ -674,6 +677,17 @@ export class SupplierOrdersService {
         variantId: line.variantId,
         sku: variant.sku ?? '',
         description: line.description?.trim() || variant.product.name,
+        // ⛔ Niente ripiego sull'anagrafica, per la stessa ragione di
+        // `unitOfMeasure` qui sotto: la fotografa la MASCHERA quando l'articolo
+        // entra nella riga, e da li' viaggia nel payload. Ricomporla qui dalle
+        // opzioni della variante rifotograferebbe l'anagrafica di OGGI a ogni
+        // salvataggio, e un ordine di marzo che diceva «Rosso / M» diventerebbe
+        // «Bordeaux / M» perche' qualcuno ha rinominato un valore d'opzione.
+        //
+        // ⚠️ Qui non c'e' lo snapshot per id delle altre due tabelle: il
+        // salvataggio e' deleteMany + create, le righe perdono l'id, e non
+        // esiste un persistito da confrontare. Temporaneo (24/08/2026).
+        variantLabel: line.variantLabel?.trim() ?? '',
         orderedQuantity: line.orderedQuantity,
         unitCostMinor,
         enteredUnitCostMinor: toStorableMinor(line.enteredUnitCostMinor),
@@ -710,6 +724,7 @@ export class SupplierOrdersService {
       variantId: line.variantId,
       sku: line.sku,
       description: line.description,
+      variantLabel: line.variantLabel,
       orderedQuantity: line.orderedQuantity,
       // Colonne NUMERIC: passano da Prisma.Decimal, altrimenti il float arriva
       // al driver con la sua approssimazione binaria al posto del valore esatto.

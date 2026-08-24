@@ -27,7 +27,7 @@ export const STOCK_MOVEMENT_LINE_COLUMNS: readonly TableColumnDef[] = [
   //
   // Larga meno del nome perché contiene i soli VALORI delle opzioni, non i
   // loro nomi: «M / Rosso», non «Taglia: M / Colore: Rosso».
-  { id: 'variant', label: 'Variante', defaultWidthPx: 130, minWidthPx: 80 },
+  { id: 'variantLabel', label: 'Variante', defaultWidthPx: 130, minWidthPx: 80 },
   { id: 'quantity', label: 'Quantità', numeric: true, defaultWidthPx: 80, minWidthPx: 56 },
   // I seriali sono l'eccezione, non la regola: la colonna c'è per chi tratta
   // merce serializzata, ma non deve mangiarsi la riga di chi non la tratta.
@@ -49,7 +49,7 @@ export const STOCK_MOVEMENT_LINE_PRESETS: TableViewPresetMap = {
     'sku',
     'barcode',
     'product',
-    'variant',
+    'variantLabel',
     'quantity',
     'actions',
   ],
@@ -60,7 +60,7 @@ export const STOCK_MOVEMENT_LINE_PRESETS: TableViewPresetMap = {
     'sku',
     'barcode',
     'product',
-    'variant',
+    'variantLabel',
     'quantity',
     'serials',
     'actions',

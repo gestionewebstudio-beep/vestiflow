@@ -66,6 +66,26 @@ export class CreateSupplierOrderLineDto {
   @IsString()
   @MaxLength(20)
   unitOfMeasure?: string;
+
+  /**
+   * Etichetta della VARIANTE, i soli valori: «M / Rosso». Vuota se l'articolo
+   * non ha opzioni visibili.
+   *
+   * ⚠️ **Viaggia nel payload, e qui è una scelta obbligata.** Sulle altre due
+   * tabelle di riga il server conserva l'etichetta persistita confrontando
+   * l'id (`document-line-variant-snapshot.util`); qui non può, perché il
+   * salvataggio è `deleteMany` + `create` e le righe perdono l'id. La
+   * fotografa la maschera quando l'articolo entra nella riga — come
+   * `unitOfMeasure` qui sopra, e per la stessa ragione.
+   *
+   * ⛔ Temporaneo per decisione del proprietario (24/08/2026): non è la
+   * soluzione all'identità delle righe, è ciò che funziona finché quella
+   * identità non c'è.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  variantLabel?: string;
 }
 
 export class CreateSupplierOrderDto {

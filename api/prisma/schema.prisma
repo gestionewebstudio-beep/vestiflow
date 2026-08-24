@@ -1174,7 +1174,22 @@ model SupplierOrderLine {
   /// Snapshot SKU al momento dell'ordine.
   sku                  String
   /// Snapshot descrizione articolo (nome prodotto) al momento dell'ordine.
+  ///
+  /// ⛔ Il SOLO nome: la variante ha la colonna qui sotto. Prima ci finiva
+  /// dentro ogni volta che il nome era vuoto e la maschera ripiegava su
+  /// `summary.title`, che il display completo lo contiene gia'.
   description          String   @default("")
+  /// Etichetta della VARIANTE, i soli valori: «M / Rosso». Vuota se l'articolo
+  /// non ha opzioni visibili (prodotto semplice, «Default Title» di Shopify).
+  ///
+  /// ⚠️ Qui lo snapshot NON e' per id, a differenza di `DocumentLine` e
+  /// `SalesOrderLine`: il salvataggio dell'ordine fornitore e' `deleteMany` +
+  /// `create`, quindi le righe perdono l'id e non c'e' un persistito da
+  /// ritrovare. L'etichetta viaggia nel payload, fotografata dalla maschera —
+  /// come `unitOfMeasure` qui sotto, e per la stessa ragione. Temporaneo per
+  /// decisione del proprietario (24/08/2026): se il salvataggio diventera' un
+  /// upsert per id, torna a essere uno snapshot per id.
+  variantLabel         String   @default("") @map("variant_label")
   orderedQuantity      Int      @map("ordered_quantity")
   receivedQuantity     Int      @default(0) @map("received_quantity")
   /// Costo unitario NETTO canonico in unità minori (riferimento fornitore).

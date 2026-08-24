@@ -47,7 +47,11 @@ describe('SupplierOrderPdfService', () => {
         unitOfMeasure: null,
         variantId: 'var-1',
         sku: 'SKU-001',
-        description: 'T-shirt Basic — M / Bianco',
+        // ⛔ Qui c'era «T-shirt Basic — M / Bianco»: la variante impastata nel
+        // nome, cioè il difetto che questa colonna elimina. Il fixture lo
+        // riproduceva, quindi lo confermava.
+        description: 'T-shirt Basic',
+        variantLabel: 'M / Bianco',
         orderedQuantity: 3,
         receivedQuantity: 0,
         // Colonne NUMERIC: la finzione di prova deve portare Decimal come li

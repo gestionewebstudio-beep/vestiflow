@@ -19,6 +19,7 @@ import {
 } from '../common/pdf/pdf-layout.util';
 import { PrismaService } from '../prisma/prisma.service';
 import type { SupplierOrderWithLines } from './supplier-orders.service';
+import { printArticleCellLines } from '../documents/document-print-article-cell.util';
 
 /**
  * Export PDF dell'ordine fornitore: stesso stack (pdfkit) e stesso layout dei
@@ -133,7 +134,16 @@ export class SupplierOrderPdfService {
     const rows = order.lines.map((line, index) => [
       String(index + 1),
       line.sku,
-      line.description || line.sku,
+      // La VARIANTE va sotto la descrizione, e va aggiunta esplicitamente: la
+      // colonna `description` porta il solo nome da quando la variante ha un
+      // campo suo. Senza, un ordine stampato non direbbe quale taglia si sta
+      // ordinando — su un ordine al fornitore, il dato piu' importante.
+      //
+      // Lo SKU NON si passa: qui e' gia' una colonna a se'.
+      printArticleCellLines({
+        description: line.description || line.sku,
+        variantLabel: line.variantLabel,
+      }).join('\n'),
       String(line.orderedQuantity),
       // Costo e sconto sono colonne NUMERIC: arrivano come Decimal, e la stampa
       // è un punto di uscita — si convertono qui, dove si arrotondano.
