@@ -3,9 +3,8 @@
 > **Cos'è.** Le regole del **Listino applicato alle righe**: chi lo propone, cosa
 > succede scegliendolo, come si comporta un prezzo a zero, e cosa resta salvato.
 >
-> **Stato.** Decisioni del proprietario del **24/08/2026**. Il codice **non le
-> implementa ancora**: questo documento è il contratto verso cui portarlo, e la §6
-> misura la distanza.
+> **Stato.** Decisioni del proprietario del **24/08/2026**. Parte è già implementata —
+> più di quanto la prima stesura credesse — e la §6 misura che cosa manca davvero.
 >
 > **Rapporto con le altre specifiche.** `03` governa le righe, `03c` il risolutore,
 > `CONTRATTO-COMUNE-DOCUMENTI` il denaro. Dove questo documento e quelli divergono, va
@@ -16,30 +15,84 @@
 
 ## 1. Il Listino del cliente è un valore PROPOSTO, non imposto
 
-| Il cliente scelto…                | Il campo Listino in testata | Le righe nuove prendono   |
-| --------------------------------- | --------------------------- | ------------------------- |
-| **ha** un listino predefinito     | si precompila con quello    | il prezzo di quel listino |
-| **non ha** un listino predefinito | resta **vuoto**             | il **prezzo di vendita**  |
-
-⛔ **Vuoto non è zero, e non è «Listino 1».** Vuoto significa **nessun listino
-speciale applicato**, e la riga prende il prezzo di vendita dell'articolo — che è il
-comportamento di sempre.
+| Il cliente scelto…                | Il campo Listino in testata      | Le righe nuove prendono   |
+| --------------------------------- | -------------------------------- | ------------------------- |
+| **ha** un listino predefinito     | si precompila con quello         | il prezzo di quel listino |
+| **non ha** un listino predefinito | resta su **«Prezzo di vendita»** | il **prezzo di vendita**  |
 
 ⭐ **Proposto, quindi modificabile.** Scegliere il cliente riempie il campo; l'operatore
 può cambiarlo, e da quel momento comanda la sua scelta. Cambiare cliente ripropone il
 listino del nuovo cliente.
+
+### ✅ Il campo non resta mai VUOTO: dice sempre quale prezzo si sta usando — deciso il 24/08/2026
+
+> **Il selettore ha una voce esplicita «Prezzo di vendita», ed è quella predefinita. Non
+> esiste lo stato «campo vuoto».**
+
+⛔ **Qui c'era «il campo Listino resta vuoto».** Era la prima stesura di questa specifica,
+del mattino del 24/08, ed è stata rovesciata la sera stessa guardando la maschera Fatture —
+dove la voce esplicita **c'era già**. Le ragioni per cui il vuoto perde:
+
+**1. Non esiste un documento i cui prezzi vengano da nessuna parte.** Anche senza listino il
+prezzo viene da un posto preciso: il prezzo di vendita dell'articolo. Rappresentare quel posto
+come **assenza** è dire che non c'è, quando è il caso più frequente di tutti.
+
+**2. In una testata VestiFlow il vuoto significa già un'altra cosa.** Nella stessa riga di
+campi, «Seleziona cliente…», «Seleziona sede…», Causale e IBAN vuoti vogliono dire tutti
+_non l'hai ancora compilato_ — c'è perfino un colore dedicato per quando quel vuoto blocca le
+righe (`--color-field-waiting`, `regole-stile-ui` §5). Un Listino vuoto insegnerebbe un
+secondo significato del vuoto **nella stessa riga**, da imparare campo per campo.
+
+**3. ⭐ Il caso «torna indietro» fa collassare l'alternativa su questa.** Cliente Rossi ha
+«Ingrosso», il campo si precompila, ma questo documento lo vuoi a prezzi normali. Con la voce
+esplicita la scegli come qualsiasi altra: un gesto solo, stesso riprezzamento, stessa conferma.
+Col campo vuoto devi **svuotarlo** — e svuotare è un gesto diverso dal selezionare: richiede
+una × o una voce «Nessuno». Cioè **la voce esplicita reintrodotta con un'etichetta che dice
+_niente_ invece di dire _cosa succede_**.
+
+**4. Uno stato in meno è un ramo in meno che può sbagliare.** «Nessun listino» e «prezzo di
+vendita» non sono due stati: sono lo stesso. Tenerli distinti dà N+1 stati per N comportamenti,
+e ogni ramo del codice deve gestirli entrambi — finché uno non li gestisce diversamente. È il
+difetto 3 del §6, la stessa condizione con quattro esiti fra le maschere.
+
+⚠️ **Il controargomento, e come si smorza.** «Prezzo di vendita» non è un listino, e un elenco
+intitolato _Listino_ che ne contiene tre più una non-listino è un piccolo errore di categoria.
+Pesa poco: in anagrafica quei valori sono **già una famiglia sola**, governata da **un solo**
+selettore netto/ivato (§7). Se sono la stessa grandezza lì, essere voci dello stesso elenco qui
+è coerente. Basta metterla **prima**, staccata dalle altre.
+
+### Come si mostra e come si memorizza sono due scelte separate
+
+```text
+UI          voce esplicita «Prezzo di vendita»   ← l'operatore vede sempre la sorgente
+STORAGE     null                                 ← nessun valore sentinella nel database
+```
+
+⭐ Così si evitano entrambi i difetti: nessun vuoto ambiguo davanti all'operatore, e nessun
+codice speciale tipo `'sale'` che ogni query e ogni report dovrebbero poi conoscere. La
+traduzione avviene **al confine**, in un punto solo.
+
+### ⚠️ La trappola di implementazione che nasce da qui
+
+> Documento salvato con «Prezzo di vendita» per un cliente che ha «Ingrosso». Riaprendolo,
+> **non deve** riproporre Ingrosso.
+
+Cioè: **la proposta dal cliente scatta quando il cliente CAMBIA, non al caricamento del
+documento.** È il difetto più facile da introdurre, perché il codice più naturale da scrivere
+— «se c'è un cliente, applica il suo listino» — confonde le due cose e tradisce il §4.
 
 ---
 
 ## 2. Scegliere un listino
 
 ```text
-Cliente: Rossi          Listino: [vuoto]
+Cliente: Rossi          Listino: «Prezzo di vendita»   ← la voce predefinita
 
 Articolo A    prezzo di vendita 25,00    Listino Ingrosso 18,00
 
-  aggiungo l'articolo, nessun listino scelto   →   prezzo riga  25,00
-  scelgo «Ingrosso»                            →   prezzo riga  18,00
+  aggiungo l'articolo, resta «Prezzo di vendita»   →   prezzo riga  25,00
+  scelgo «Ingrosso»                                →   prezzo riga  18,00
+  torno a «Prezzo di vendita»                      →   prezzo riga  25,00
 ```
 
 **Cambiando listino, le righe già presenti si riprezzano tutte** con i nuovi valori
@@ -91,9 +144,33 @@ il prezzo È deciso e vale zero — ma mostrarlo come 0,00 in mezzo a righe da 1
 euro fa sembrare la riga un errore di battitura. Il vuoto dice «questo articolo, in
 questo listino, non si fa pagare».
 
-⏸ **Il caso GEMELLO non è deciso**, e va deciso insieme: cosa succede quando l'articolo
-**non ha affatto** un valore per il listino scelto — la colonna è vuota, non zero. Vedi
-§6.
+### ✅ E il caso GEMELLO — l'articolo senza prezzo per quel listino
+
+Qui c'era «non è deciso». **Lo era, ed è pure implementato** — misurato il 24/08 in
+`document-listino.util.ts:41-56`, che lo scrive per esteso:
+
+> `null` significa **una cosa sola**: l'articolo non ha un valore per il listino scelto. Non
+> è un errore di lettura e non si ripiega sul prezzo articolo — chi chiama mette la riga a
+> zero e **lo segnala**, perché un prezzo che nessuno ha deciso non deve finire in un
+> documento senza che si veda.
+
+```text
+listino scelto, articolo SENZA valore per quel listino
+      ↓
+riga a ZERO  +  segnalazione                ← non ripiega sul prezzo di vendita
+```
+
+Il segnale esiste già: `listinoWarnings` in `sales-document-form.component.ts:377` —
+«righe rimaste a zero perché l'articolo non ha un prezzo per quel listino».
+
+⭐ **Assente e zero portano allo stesso valore economico ma NON alla stessa esperienza**: lo
+zero è una condizione commerciale decisa da qualcuno, l'assente è un buco in anagrafica. Il
+primo è silenzioso, il secondo si segnala. È la distinzione che rende accettabili tutti e due.
+
+⚠️ **Il modello dell'avviso è già in casa**, ed è quello dell'anagrafica: _«Prezzo Shopify a
+zero: l'articolo verrà pubblicato a 0. Puoi salvare comunque.»_ Non blocca, nomina la
+conseguenza, lascia decidere. Usare la stessa forma evita di inventare un secondo modo di
+dire la stessa cosa.
 
 ---
 
@@ -109,7 +186,9 @@ quantità · agente · gli altri valori di testata: tutto torna com'era.
 salvato:      Cliente Rossi · Listino Ingrosso · prezzo riga 18,00
 riaperto:     Cliente Rossi · Listino Ingrosso · prezzo riga 18,00
 
-⛔ NON:       Cliente Rossi · Listino [vuoto]  · prezzo riga 18,00
+⛔ NON:       Cliente Rossi · «Prezzo di vendita» · prezzo riga 18,00
+              (la tendina che dimentica la scelta e torna al default:
+               e' il comportamento di oggi, ed e' il difetto)
 ```
 
 ⭐ **Il prezzo di riga resta comunque una fotografia.** Se domani il Listino Ingrosso
@@ -172,6 +251,43 @@ di vendita unitario con la stessa semantica degli altri, e lo schema stesso lo c
 Sceglierlo riempie i prezzi delle righe; **non scrive nulla verso Shopify**, e non
 cambia il prezzo del canale. Valgono le stesse regole di §3 per lo zero e per l'assente.
 
+### 5.3 ⛔ L'elenco NON è fisso: i listini sono attivabili e rinominabili
+
+> **Il selettore mostra i soli listini ATTIVI, coi NOMI dati dall'azienda. Mai un elenco
+> cablato «Listino 1 · Listino 2 · Listino 3».**
+
+Le impostazioni del tenant governano entrambe le cose —
+`tenant_feature_settings.listino1Name/2Name/3Name` e `listino1Active/2Active/3Active` — e
+l'anagrafica articolo le rispetta già: un tenant con due listini attivi vede due campi, coi
+suoi nomi («Listino test 1», «Listino test 2»), non tre caselle numerate.
+
+✅ **E il selettore del documento le rispetta già anche lui**, misurato il 24/08:
+`listinoSelectOptions` in `document-listino.util.ts:21-31` costruisce l'elenco da
+`activeListinoSlots(settings)` — «un listino spento non compare: per quel tenant non
+esiste». Quindi questa regola non è lavoro da fare, è lavoro **da non disfare** quando il
+selettore verrà portato sulle maschere che oggi non l'hanno.
+
+⭐ **Con zero listini attivi il selettore sparisce del tutto**, e va bene così:
+`showListinoSelect` è `listinoOptions().length > 1` — cioè «c'è almeno un listino oltre al
+prezzo di vendita». Un tenant che non usa i listini non si porta dietro una tendina a una
+voce sola.
+
+**Gli slot oggi sono tre.** È un numero dell'implementazione, non della decisione: il
+selettore si costruisce dagli slot attivi, e se domani diventassero quattro non va toccato.
+
+L'elenco completo, nell'ordine:
+
+```text
+Prezzo di vendita        ← predefinita, staccata dalle altre da un filo
+─────────────────────
+<i soli listini attivi, coi nomi del tenant>
+Prezzo Shopify           ← §5.2
+```
+
+⛔ **Un listino disattivato dopo essere stato usato non sparisce da un documento salvato.**
+Vale il §4: il documento si riapre come è stato salvato. La disattivazione toglie la voce
+dalle **scelte nuove**, non riscrive il passato.
+
 ---
 
 ## 6. La distanza dal codice di oggi — misurata il 24/08/2026
@@ -195,7 +311,7 @@ listino non tocca il cliente, e non tocca i documenti già emessi.
 schema, migration e deploy si fanno **insieme o per niente**: rigenerare il client con
 una colonna che nel database non c'è manda in errore ogni lettura di quella tabella.
 
-### Sette difetti già presenti, che questa specifica chiude o rende decidibili
+### Otto difetti già presenti, che questa specifica chiude o rende decidibili
 
 | #   | Difetto                                                                 | Lo chiude       |
 | --- | ----------------------------------------------------------------------- | --------------- |
@@ -206,35 +322,109 @@ una colonna che nel database non c'è manda in errore ogni lettura di quella tab
 | 5   | sull'Ordine cliente i totali restano fermi dopo il cambio listino       | difetto a sé    |
 | 6   | zero e assente indistinguibili sul documento                            | §3 per lo zero  |
 | 7   | la coda decimale si perde al primo passaggio nel campo                  | difetto a sé    |
+| 8   | **«Prezzo di vendita» compare DUE volte nella tendina**                 | §6.1            |
 
-### ⏸ Le domande aperte — due chiuse il 24/08, una resta
+### 6.1 ⛔ La voce doppia — misurata e verificata il 24/08/2026
+
+> **Aprendo il selettore Listino si leggono due righe «Prezzo di vendita». La prima non fa
+> niente di diverso dalla seconda.**
+
+Le tre misure che lo compongono, ognuna verificata nel file:
+
+| Dove                                                        | Cosa                                                                     |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `select-menu.component.ts:87`                               | `includeEmptyOption` vale **`true`** per difetto                         |
+| `sales-document-form.component.html:221` (e Ordine cliente) | passa `placeholder="Prezzo di vendita"` e **non** spegne l'opzione vuota |
+| `document-listino.util.ts:25`                               | l'elenco vero comincia già con `{ 'article', 'Prezzo di vendita' }`      |
+
+Il pannello disegna quindi **prima** la voce vuota etichettata col segnaposto, **poi** la voce
+reale: due righe con la stessa scritta. La prima emette `''`, che `parseListinoChoice`
+riporta a `'article'` — cioè esattamente la seconda.
+
+⚠️ **Per uno screen reader sono due `role="option"` fratelli con lo stesso nome accessibile e
+`aria-selected` opposti**, e la spunta sta sempre sulla seconda. È il caso peggiore: non un
+comando che non funziona, ma due comandi identici di cui uno è finto.
+
+⭐ **È il difetto che l'osservazione del proprietario ha sfiorato senza saperlo**: «per default
+dà già Prezzo di vendita» è vero due volte, e nessun test se ne accorge — le guardie esistenti
+leggono l'array del modello, non le voci renderizzate.
+
+**La correzione**: `[includeEmptyOption]="false"` sulle due istanze, più una guardia che
+**apra il pannello** ed enumeri i `role="option"` verificando che «Prezzo di vendita» compaia
+una volta sola. Una guardia che legge il modello invece del pannello non avrebbe visto niente,
+ed è la ragione per cui questo è arrivato fin qui.
+
+### ✅ Le domande aperte: nessuna
 
 ✅ **A — chiusa.** «Tutte le righe» vuol dire tutte, comprese quelle trattate a mano. Vedi
 §2. Ne discende il requisito della conferma prima di riprezzare.
 
 ✅ **C — chiusa.** Lo Scarico manuale è dentro il perimetro. Vedi §5.1.
 
-⏸ **B — resta aperta, ed è l'ultima.** **Il listino ASSENTE quando un listino è scelto.**
-§3 decide lo **zero**: campo vuoto a video, zero nell'economia, nessun ripiego. Ma se
-l'articolo non ha proprio un valore per quel listino — la colonna è `null`, non `0` — le
-risposte possibili sono tre, e non sono equivalenti:
+✅ **B — chiusa, e non da decidere: da SCOPRIRE.** Il listino assente mentre un listino è
+scelto manda la riga a **zero con segnalazione**, senza ripiego sul prezzo di vendita. Non è
+una decisione presa oggi: era già scritta in `document-listino.util.ts:41-56` e implementata
+con `listinoWarnings`. Vedi §3.
 
-| Risposta                                | Cosa dice all'operatore                                      | Rischio                                                           |
-| --------------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------- |
-| **vale zero**, come lo zero esplicito   | «in questo listino l'articolo non si fa pagare»              | regala merce per una colonna mai compilata                        |
-| **ripiega** sul prezzo di vendita       | «per questo articolo il listino non c'è, uso quello normale» | un documento a condizioni miste senza che si veda                 |
-| **resta senza prezzo** e si **segnala** | «questo articolo in questo listino non è previsto: decidi»   | costringe a intervenire riga per riga, ma nessun valore inventato |
-
-⚠️ **Vale la pena decidere questa insieme allo zero, non dopo**, perché oggi zero e assente
-sono indistinguibili sul documento salvato (difetto 6 qui sopra): finché lo restano, qualunque
-regola si scriva non è verificabile a posteriori.
-
-⭐ **La terza è quella che non inventa niente**, ed è coerente con la scelta già fatta al §3
-di non far scattare ripieghi quando un listino è stato scelto — ma costa un intervento
-all'operatore, e questa è la parte da soppesare.
+⚠️ **È il caso da tenere a mente per il metodo, più che per il merito.** Questa specifica
+l'ha elencata per due giorni come «domanda aperta con tre risposte possibili» mentre il
+codice aveva già una risposta, motivata in un commento. **La prima misura non era andata a
+fondo**, e il costo di una domanda aperta finta è che qualcuno la decida una seconda volta,
+magari diversamente.
 
 ### E due documenti normativi da allineare
 
 `CONTRATTO-COMUNE-DOCUMENTI` dice che il prezzo mancante vale **0,00**;
 `03c-contratto-risolutore-riga` dice **campo vuoto**. Il codice fa l'uno o l'altro a
 seconda della maschera. Chiusa la domanda **B**, vanno riscritti tutti e due.
+
+---
+
+## 7. In anagrafica il netto/ivato governa GIÀ i listini — misurato il 24/08/2026
+
+⚠️ **Sembrava una cosa da fare, ed è una cosa fatta.** Il selettore netto/ivato della scheda
+articolo copre i listini dal 17/08, e non è un'inferenza:
+
+```ts
+// product-general-step.component.ts:109
+const PRICE_FIELDS = [
+  'sellingPrice',
+  'compareAtPrice',
+  'shopifyPrice',
+  'listino1Price',
+  'listino2Price',
+  'listino3Price',
+];
+```
+
+Sei campi, i tre listini compresi, riscritti tutti da `showNetPrices` al cambio di modalità.
+Il commento sopra la lista lo dichiara: «il selettore è UNO per tutti e sei».
+
+### Perché sembra che li ignori
+
+```ts
+private toDisplayed(net: number | null, ...) {
+  if (net == null) { return null; }   // ← niente da convertire
+```
+
+**Un campo vuoto è identico in netto e in ivato.** Con i listini a `—`, commutare il selettore
+non produce nessun cambiamento visibile — non perché siano esclusi, ma perché non c'è nessun
+numero da convertire. Con 10 in «Listino test 1» e IVA al 22%, commutando si legge 12,20.
+
+### ⏸ Il difetto vero è di INTERFACCIA, e si sistema visivamente
+
+Il selettore governa sei campi distribuiti su **due riquadri separati** («Prezzi di vendita» e
+«Listini»), e niente nel layout lo dice: chi guarda il riquadro «Listini» non ha modo di sapere
+che quei campi rispondono a un comando che sta nell'altro.
+
+⛔ **La correzione NON è una frase in più.** Deciso dal proprietario il 24/08: si stanno per
+togliere molte scritte esplicative per recuperare spazio a schermo, e aggiungerne una qui
+andrebbe nella direzione opposta. **Si sistema con la disposizione** — il selettore posto in
+modo da coprire visibilmente entrambi i riquadri, o i due riquadri riuniti sotto di esso.
+
+**Rinviato di proposito**, non dimenticato: è un lavoro visivo, indipendente da tutto il resto
+di questa specifica, e non blocca niente.
+
+⭐ **È lo stesso difetto del 17/08 girato al contrario.** Allora il prezzo barrato **ignorava**
+il selettore in silenzio; oggi i listini gli **obbediscono** in silenzio. In entrambi i casi il
+guaio è che a schermo non si vede quale delle due cose stia succedendo.
