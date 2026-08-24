@@ -36,6 +36,7 @@
   }
   @if (panelLive()) {
     <app-document-line-suggestions
+      [autoPlacement]="true"
       [items]="items()"
       [activeIndex]="activeIndex()"
       [listboxId]="listboxId()"

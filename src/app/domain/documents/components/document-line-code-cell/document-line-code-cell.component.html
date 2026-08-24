@@ -21,6 +21,7 @@
     />
     @if (suggestionsOpen() && suggestions().length > 0) {
       <app-document-line-suggestions
+        [autoPlacement]="true"
         [items]="suggestionItems()"
         [activeIndex]="activeSuggestionIndex()"
         [listboxId]="listboxId()"

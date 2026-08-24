@@ -90,6 +90,111 @@ export const DOCUMENT_LINE_COLUMNS = [
 
 export type DocumentLineColumnId = (typeof DOCUMENT_LINE_COLUMNS)[number];
 
+/**
+ * **I gruppi del corpo della card, e sono gli stessi per ogni documento.**
+ *
+ * ⛔ Qui c'era un vuoto, e sei maschere l'hanno riempito ognuna a modo suo:
+ * «Costi e prezzi» sull'Arrivo merce, «Costi» sull'Ordine fornitore, il solo
+ * «Articolo» su Rettifica e Trasferimento — coi Seriali, che sono magazzino,
+ * finiti lì dentro. Nessuna delle sei divergenze era una decisione.
+ *
+ * ⭐ **Il gruppo non si dichiara: si deduce.** Compare se il documento ha
+ * almeno una colonna visibile che gli appartiene, e sparisce se non ne ha
+ * nessuna. Un documento che non movimenta magazzino non rende «Magazzino»; uno
+ * che ha un solo campo stock lo rende lo stesso, con quel campo dentro.
+ */
+export const DOCUMENT_LINE_CARD_GROUPS = [
+  { id: 'articolo', label: 'Articolo' },
+  { id: 'magazzino', label: 'Magazzino' },
+  { id: 'costi', label: 'Costi' },
+  { id: 'vendita', label: 'Vendita' },
+] as const;
+
+export type DocumentLineCardGroup = (typeof DOCUMENT_LINE_CARD_GROUPS)[number]['id'];
+
+/**
+ * A quale gruppo appartiene ogni colonna del catalogo.
+ *
+ * `null` significa **fuori dal corpo**, e sono tre casi distinti:
+ *
+ * - `quantity` e `lineTotal` stanno nella **striscia** sempre visibile: si
+ *   modificano senza aprire la card, ed è il loro posto;
+ * - `variantLabel` sta nella **testata**, su riga propria sotto il nome;
+ * - `actions` è il cestino, che la card ha già in testata e nel piede.
+ *
+ * ⚠️ Anche il PREZZO finisce nella striscia, ma non si può dichiarare qui:
+ * quale sia dipende dal documento — `unitPrice` dove si vende, `unitCost` dove
+ * si compra. Lo decide `stripPriceColumn` a partire da cosa è visibile.
+ *
+ * ⛔ **Un campo non compare due volte.** La card di riferimento ripeteva prezzo
+ * e totale nella striscia E nel corpo: due `<input>` sullo stesso controllo con
+ * due identificativi diversi, dentro la stessa card. Non è una peculiarità da
+ * conservare.
+ */
+export const DOCUMENT_LINE_CARD_GROUP_OF: Readonly<
+  Record<DocumentLineColumnId, DocumentLineCardGroup | null>
+> = {
+  articleCode: 'articolo',
+  sku: 'articolo',
+  barcode: 'articolo',
+  supplierCode: 'articolo',
+  product: 'articolo',
+  variantLabel: null,
+  description: 'articolo',
+
+  quantity: null,
+
+  // ⭐ Le tre dell'ordine collegato sono MAGAZZINO, non articolo: dicono quanta
+  // merce era attesa e quanta ne è già arrivata.
+  poOrdered: 'magazzino',
+  poReceived: 'magazzino',
+  poRemaining: 'magazzino',
+  stockOnHand: 'magazzino',
+  stockAvailable: 'magazzino',
+  unitOfMeasure: 'magazzino',
+  // ⛔ Lotto, scadenza e seriali stavano sotto «Articolo» in due maschere:
+  // sono l'identità del singolo PEZZO che entra o esce, cioè magazzino.
+  lot: 'magazzino',
+  expiry: 'magazzino',
+  serials: 'magazzino',
+  // ⚠️ **Stessa grammatica, campi ed effetti distinti**: «Impegna» prenota,
+  // «Carica» fa entrare, «Scarica» fa uscire. Stanno nello stesso gruppo
+  // perché rispondono alla stessa domanda — che cosa succede al magazzino —
+  // ma restano due colonne, e un documento può mostrarle entrambe.
+  commitsStock: 'magazzino',
+  loadsStock: 'magazzino',
+
+  purchaseCost: 'costi',
+  unitCost: 'costi',
+  discountedCost: 'costi',
+
+  sellingPrice: 'vendita',
+  shopifyPrice: 'vendita',
+  compareAtPrice: 'vendita',
+  unitPrice: 'vendita',
+  discount: 'vendita',
+  discountedPrice: 'vendita',
+  vat: 'vendita',
+
+  lineTotal: null,
+  actions: null,
+};
+
+/**
+ * La colonna che occupa il posto centrale della striscia sempre visibile.
+ *
+ * Dove si vende è il prezzo, dove si compra è il costo, e dove non c'è né l'uno
+ * né l'altro — un trasferimento, una rettifica — la striscia ne ha una in meno.
+ */
+export function stripPriceColumn(
+  isVisible: (column: DocumentLineColumnId) => boolean,
+): DocumentLineColumnId | null {
+  if (isVisible('unitPrice')) {
+    return 'unitPrice';
+  }
+  return isVisible('unitCost') ? 'unitCost' : null;
+}
+
 /** I campi che il giro del fuoco attraversa: il nome viaggia con l'evento. */
 export type DocumentLineFocusField =
   | 'articleCode'
