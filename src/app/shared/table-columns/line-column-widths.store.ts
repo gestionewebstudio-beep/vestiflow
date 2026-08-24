@@ -171,14 +171,19 @@ export class LineColumnWidths {
     this.draftScale.set(1);
     const widths: Record<string, number> = {};
     for (const [id, px] of next) {
-      // ⚠️ Il minimo si applica **anche qui**, e non e' una ripetizione di
-      // quello del trascinamento: quello vale sui pixel RESI, questo sui pesi.
-      // Senza, una colonna trascinata fino al proprio minimo si salverebbe
-      // sotto di esso (i pesi valgono meno dei pixel quando la tabella e' piu'
-      // larga della somma dei default) e la rilettura la rialzerebbe da sola:
-      // si vedrebbe una cosa al rilascio e un'altra riaprendo. Cosi' invece
-      // salvataggio e rilettura dicono la stessa cosa.
-      widths[id] = Math.max(Math.round(px / scale), this.minWidth(id));
+      // ⛔ **Qui c'era `Math.max(..., this.minWidth(id))`, e rompeva il
+      // trascinamento.** Il minimo e' una misura in PIXEL RESI; i pesi valgono
+      // meno dei pixel ogni volta che la tabella e' piu' larga della somma dei
+      // default. Una colonna ferma al proprio minimo reso ha quindi un peso
+      // legittimamente PIU' BASSO di quel minimo, e il clamp lo rialzava —
+      // gonfiando il denominatore e ricalcolando OGNI quota su un totale
+      // diverso da quello su cui erano appena state mostrate.
+      //
+      // Misurato: Arrivo merce su 1650px, «Nome prodotto» trascinato a 886px
+      // saltava a 803px al rilascio, e le altre tredici si riallargavano.
+      // L'invariante a somma costante saltava esattamente nell'istante in cui
+      // il risultato diventava definitivo.
+      widths[id] = Math.round(px / scale);
     }
     this.config.preferences.setColumnWidths(this.config.viewId, widths);
   }
@@ -211,12 +216,21 @@ export class LineColumnWidths {
     if (drafted !== undefined) {
       return drafted;
     }
-    const salvato = this.config.preferences.columnWidth(
-      this.config.viewId,
-      id,
-      this.def(id)?.defaultWidthPx ?? this.config.defaultWidthPx ?? DEFAULT_WIDTH_PX,
-    );
-    return Math.max(salvato, this.minWidth(id));
+    const predefinita = this.def(id)?.defaultWidthPx ?? this.config.defaultWidthPx ?? DEFAULT_WIDTH_PX;
+    const salvato = this.config.preferences.columnWidth(this.config.viewId, id, predefinita);
+    // ⭐ **Il minimo vale sulla PREDEFINITA, non su una larghezza salvata.**
+    //
+    // Una predefinita e' scritta in pixel di progetto, quindi confrontarla col
+    // minimo ha senso: protegge da una configurazione che dichiara una colonna
+    // piu' stretta del proprio minimo.
+    //
+    // ⛔ Una larghezza SALVATA e' un peso, cioe' un rapporto, e sul rapporto il
+    // minimo non e' esprimibile: dipende da quanto e' larga la tabella. Il
+    // minimo lo garantisce gia' il trascinamento, che lavora in pixel resi ed
+    // e' l'unico momento in cui «sessanta pixel» vuol dire qualcosa a schermo.
+    // Applicarlo qui rialzava la colonna appena rilasciata e ne spostava tutte
+    // le altre.
+    return salvato === predefinita ? Math.max(salvato, this.minWidth(id)) : salvato;
   }
 
   /**

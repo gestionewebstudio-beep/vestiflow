@@ -815,6 +815,28 @@ describe('StoreSaleDocumentFormComponent', () => {
       expect(screen.queryByRole('columnheader', { name: /costo/i })).toBeNull();
     });
 
+    it('⛔ le quote della testata sommano 100%, non di piu', async () => {
+      // Guardia di un difetto MISURATO il 24/08/2026: il banco rendeva dodici
+      // colonne — «Scarica giacenze» e «Azioni» comprese — mentre il suo
+      // catalogo ne dichiarava nove. Le quote percentuali si calcolano sul
+      // totale delle colonne DICHIARATE, quindi le due non dichiarate ne
+      // prendevano una in piu': la somma faceva **116,84%**.
+      //
+      // ⚠️ Non si vedeva come un errore. Con `table-layout: fixed` il browser
+      // riscala per far stare la tabella nel contenitore, quindi ogni colonna
+      // rendeva il 14% piu' stretta di quanto dichiarava e nessun minimo
+      // proteggeva niente. È la stessa famiglia dell'intestazione spezzata
+      // dell'Arrivo merce.
+      await conUnaRiga();
+
+      const quote = Array.from(document.querySelectorAll('thead th')).map((th) =>
+        Number.parseFloat((th.getAttribute('style') ?? '').replace(/[^0-9.]/g, '') || '0'),
+      );
+      expect(quote.length).toBeGreaterThan(1);
+      expect(quote.every((q) => q > 0)).toBe(true);
+      expect(quote.reduce((somma, q) => somma + q, 0)).toBeCloseTo(100, 1);
+    });
+
     it('⛔ le intestazioni non ordinano: al banco l’ordine è quello di scansione', async () => {
       await conUnaRiga();
 

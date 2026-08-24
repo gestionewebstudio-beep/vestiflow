@@ -461,7 +461,12 @@ export class TransferFormComponent implements CanComponentDeactivate {
     defs: STOCK_MOVEMENT_LINE_COLUMNS,
     viewId: this.lineColumnsView,
     preferences: this.columnPreferences,
-    isVisible: (id) => this.isLineColumnVisible(id),
+    // ⚠️ **Lo STESSO predicato che passa alla testata e alla riga.** Il banco
+    // ne aveva due — uno per il template, uno per le larghezze — e le quote si
+    // calcolavano su un insieme di colonne diverso da quello reso: sommavano
+    // 116,84%. Se qui e nel template le domande divergono, la geometria
+    // sbaglia in silenzio.
+    isVisible: (id) => this.isLineColumnVisibleFn(id as DocumentLineColumnId),
     host: this.host,
   });
 

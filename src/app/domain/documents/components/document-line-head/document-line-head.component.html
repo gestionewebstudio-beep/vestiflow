@@ -118,6 +118,7 @@
       [minWidthPx]="columnMinWidth()('supplierCode')"
       [live]="true"
       (resizing)="columnResizing.emit({ column: 'supplierCode', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'supplierCode', widthPx: $event })"
     ></span>
   </th>
 }
@@ -169,6 +170,7 @@
       [minWidthPx]="columnMinWidth()('variantLabel')"
       [live]="true"
       (resizing)="columnResizing.emit({ column: 'variantLabel', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'variantLabel', widthPx: $event })"
     ></span>
   </th>
 }
@@ -180,6 +182,7 @@
       [minWidthPx]="columnMinWidth()('description')"
       [live]="true"
       (resizing)="columnResizing.emit({ column: 'description', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'description', widthPx: $event })"
     ></span>
   </th>
 }
@@ -191,6 +194,7 @@
       [minWidthPx]="columnMinWidth()('poOrdered')"
       [live]="true"
       (resizing)="columnResizing.emit({ column: 'poOrdered', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'poOrdered', widthPx: $event })"
     ></span>
   </th>
 }
@@ -202,6 +206,7 @@
       [minWidthPx]="columnMinWidth()('poReceived')"
       [live]="true"
       (resizing)="columnResizing.emit({ column: 'poReceived', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'poReceived', widthPx: $event })"
     ></span>
   </th>
 }
@@ -213,6 +218,7 @@
       [minWidthPx]="columnMinWidth()('poRemaining')"
       [live]="true"
       (resizing)="columnResizing.emit({ column: 'poRemaining', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'poRemaining', widthPx: $event })"
     ></span>
   </th>
 }
@@ -244,6 +250,7 @@
       [minWidthPx]="columnMinWidth()('stockOnHand')"
       [live]="true"
       (resizing)="columnResizing.emit({ column: 'stockOnHand', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'stockOnHand', widthPx: $event })"
     ></span>
   </th>
 }
@@ -325,6 +332,7 @@
       [minWidthPx]="columnMinWidth()('unitCost')"
       [live]="true"
       (resizing)="columnResizing.emit({ column: 'unitCost', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'unitCost', widthPx: $event })"
     ></span>
   </th>
 }
@@ -340,6 +348,7 @@
       [minWidthPx]="columnMinWidth()('discountedCost')"
       [live]="true"
       (resizing)="columnResizing.emit({ column: 'discountedCost', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'discountedCost', widthPx: $event })"
     ></span>
   </th>
 }
@@ -355,6 +364,7 @@
       [minWidthPx]="columnMinWidth()('sellingPrice')"
       [live]="true"
       (resizing)="columnResizing.emit({ column: 'sellingPrice', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'sellingPrice', widthPx: $event })"
     ></span>
   </th>
 }
@@ -370,6 +380,7 @@
       [minWidthPx]="columnMinWidth()('shopifyPrice')"
       [live]="true"
       (resizing)="columnResizing.emit({ column: 'shopifyPrice', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'shopifyPrice', widthPx: $event })"
     ></span>
   </th>
 }
@@ -385,6 +396,7 @@
       [minWidthPx]="columnMinWidth()('compareAtPrice')"
       [live]="true"
       (resizing)="columnResizing.emit({ column: 'compareAtPrice', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'compareAtPrice', widthPx: $event })"
     ></span>
   </th>
 }
@@ -481,6 +493,7 @@
       [minWidthPx]="columnMinWidth()('lot')"
       [live]="true"
       (resizing)="columnResizing.emit({ column: 'lot', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'lot', widthPx: $event })"
     ></span>
   </th>
 }
@@ -492,6 +505,7 @@
       [minWidthPx]="columnMinWidth()('expiry')"
       [live]="true"
       (resizing)="columnResizing.emit({ column: 'expiry', widthPx: $event })"
+      (resized)="columnResized.emit({ column: 'expiry', widthPx: $event })"
     ></span>
   </th>
 }

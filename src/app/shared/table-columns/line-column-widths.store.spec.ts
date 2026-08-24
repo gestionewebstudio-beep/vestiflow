@@ -168,13 +168,35 @@ describe('LineColumnWidths', () => {
       expect(larghezze.minWidth('sconosciuta')).toBe(48);
     });
 
-    it('⛔ il minimo vale anche su una larghezza GIA SALVATA, piu stretta', () => {
+    it('il minimo protegge una PREDEFINITA scritta troppo stretta', () => {
       const b = banco();
-      // Una preferenza vecchia, salvata prima che il minimo esistesse.
+      const larghezze = createLineColumnWidths({
+        defs: [
+          { id: 'code', label: 'Codice', defaultWidthPx: 20, minWidthPx: 60 },
+          { id: 'product', label: 'Articolo', defaultWidthPx: 300, minWidthPx: 120 },
+        ],
+        viewId: VISTA,
+        preferences: b.preferenze,
+        isVisible: () => true,
+        host: new ElementRef({ querySelector: () => null } as unknown as HTMLElement),
+      });
+      // 60 (minimo) + 300 + 48 = 408, non 20 + 300 + 48
+      expect(percento(larghezze.width('code'))).toBeCloseTo((60 / 408) * 100, 3);
+    });
+
+    it('⛔ ma NON si applica a una larghezza salvata: quella e un rapporto', () => {
+      // Guardia di una regressione misurata il 24/08/2026, e introdotta da una
+      // correzione precedente. Il minimo e' in pixel RESI; un peso salvato vale
+      // meno dei pixel ogni volta che la tabella e' piu' larga della somma dei
+      // default, quindi una colonna ferma al proprio minimo si salva sotto di
+      // esso — legittimamente. Rialzarla gonfiava il denominatore e ricalcolava
+      // OGNI quota su un totale diverso: la colonna appena rilasciata saltava
+      // indietro e tutte le altre si spostavano.
+      const b = banco();
       b.preferenze.setColumnWidth(VISTA, 'product', 40);
       const larghezze = b.riapri();
-      // 120 (minimo) + 100 + 100 + 100 + 48 = 468
-      expect(percento(larghezze.width('product'))).toBeCloseTo((120 / 468) * 100, 3);
+      // 40 (il peso salvato, non 120) + 100 + 100 + 100 + 48 = 388
+      expect(percento(larghezze.width('product'))).toBeCloseTo((40 / 388) * 100, 3);
     });
   });
 
@@ -236,6 +258,27 @@ describe('LineColumnWidths', () => {
       const prima = percento(larghezze.indexWidth());
       larghezze.onResizing('code', 260);
       expect(percento(larghezze.indexWidth())).toBeCloseTo(prima, 2);
+    });
+
+    it('⭐ al RILASCIO la colonna resta dove e stata lasciata', () => {
+      // Guardia del difetto peggiore trovato dalla verifica avversariale: il
+      // clamp del minimo applicato ai pesi faceva saltare indietro la colonna
+      // nell'istante in cui il risultato diventava definitivo — misurato in
+      // 83px su una tabella da 1650. La somma resta costante fino in fondo.
+      const b = banco();
+      const larghezze = b.riapri();
+      larghezze.onResizing('code', 5000);
+      const durante = DEFS.map((def) => percento(larghezze.width(def.id)));
+
+      larghezze.onResize('code', 5000);
+      const dopo = DEFS.map((def) => percento(larghezze.width(def.id)));
+
+      // Tolleranza mezzo punto percentuale: i pesi si salvano interi, quindi
+      // un arrotondamento c'e' sempre (~0,06%). Il difetto che questa prova
+      // guarda valeva il **5%** — e' fuori di due ordini di grandezza.
+      for (const [i] of DEFS.entries()) {
+        expect(dopo[i]).toBeCloseTo(durante[i]!, 0);
+      }
     });
 
     it('senza un contenitore misurabile non ridistribuisce, e non sbaglia', () => {

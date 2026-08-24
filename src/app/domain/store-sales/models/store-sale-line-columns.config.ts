@@ -54,6 +54,17 @@ export const STORE_SALE_LINE_COLUMNS: readonly TableColumnDef[] = [
   { id: 'discount', label: 'Sconto', numeric: true, defaultWidthPx: 88, minWidthPx: 64 },
   { id: 'vat', label: 'IVA', defaultWidthPx: 72, minWidthPx: 56 },
   { id: 'lineTotal', label: 'Totale', numeric: true, defaultWidthPx: 112, minWidthPx: 80 },
+  // ⛔ **Queste due il banco le RENDEVA senza dichiararle**, e la conseguenza si
+  // misurava: la testata mostrava dodici colonne mentre il catalogo ne
+  // dichiarava nove, quindi le quote percentuali erano calcolate su un totale
+  // che non le comprendeva e sommavano **116,84%**. Con `table-layout: fixed`
+  // il browser riscala tutto per farcelo stare: ogni colonna rendeva il 14% più
+  // stretta di quanto dichiarava, e nessun minimo proteggeva niente.
+  //
+  // ⭐ Dichiararle le allinea anche all'Ordine cliente, che è il riferimento:
+  // là stanno nel catalogo e nel selettore Colonne come tutte le altre.
+  { id: 'commitsStock', label: 'Scarica giacenze', defaultWidthPx: 96, minWidthPx: 72 },
+  { id: 'actions', label: 'Azioni', defaultWidthPx: 96, minWidthPx: 56 },
 ];
 
 /**
