@@ -38,7 +38,6 @@
 // customer-order-form.reference-mobile.scss, accanto alle regole che le usano.
 // ─────────────────────────────────────────────────────────────────────────────
 :host {
-  --co-tool-h: 2.625rem; // 42px — bottoni della barra strumenti su mobile
   --co-ghost-h: 2.25rem; // 36px — azioni rare (ghost) su mobile
   // La label dei campi di testata (19px) e' salita a --doc-m-field-label
   // in styles/_document-form.scss, accanto alle altre misure --doc-m-*.

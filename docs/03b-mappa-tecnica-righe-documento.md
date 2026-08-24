@@ -752,6 +752,86 @@ mancava.
 
 ---
 
+### 7-ter. La card mobile: stessa infrastruttura della riga _(24/08/2026)_
+
+⭐ **La vista compatta ha ora un motore solo**, guidato dallo stesso catalogo
+colonne della tabella. Prima la **forma** era condivisa
+(`document-line-card`: testata, striscia, corpo apribile, piede) ma il
+**contenuto** lo scriveva ogni maschera: sei involucri locali, uno per feature,
+che al mobile erano quello che le `<td>` scritte a mano erano al desktop.
+
+#### I pezzi
+
+| Pezzo                       | Cosa fa                                                                        |
+| --------------------------- | ------------------------------------------------------------------------------ |
+| `document-line-card`        | la forma: avviso, testata con cestino e chevron, variante, meta, corpo, piede  |
+| `document-line-card-strip`  | la striscia sempre visibile: quantità, prezzo, totale                          |
+| `document-line-card-body`   | il corpo apribile, **guidato dal catalogo**                                    |
+| `documentLineCardHead`      | nome, variante, riga meta, avviso e stato «da completare», calcolati una volta |
+| `DocumentLineCardOpenStore` | quale card è aperta — **una sola**, e lo sa il documento                       |
+| `DocumentLineRemovalStore`  | quando si chiede conferma prima di eliminare, e quando no                      |
+
+#### Le regole che ne discendono
+
+1. ⭐ **Il selettore Colonne governa anche il mobile.** Prima `isColumnVisible`
+   arrivava solo alla tabella: si spegneva una colonna sul telefono e nella card
+   non cambiava niente. Cod. articolo, SKU ed EAN mancavano da tre card pur
+   essendo visibili di default sul desktop delle stesse maschere.
+2. ⭐ **I gruppi si deducono, non si dichiarano.** Un gruppo compare se il
+   documento ha almeno una colonna visibile che gli appartiene: «Magazzino»
+   vale anche con un campo solo, e non si rende se il documento non movimenta
+   niente. `DOCUMENT_LINE_CARD_GROUP_OF` è un `Record` esaustivo — aggiungere
+   una colonna senza dichiararne il gruppo **non compila**.
+3. ⭐ **Nessun campo compare due volte.** Quello che sta nella striscia non torna
+   nel corpo. La card di riferimento ripeteva prezzo e totale: due `<input>`
+   sullo stesso controllo, con due identificativi, nella stessa card.
+4. ⭐ **Le celle sono le stesse della riga di scrivania** — codice, prodotto,
+   U.M., IVA. Una correzione vale per le due viste insieme.
+
+#### I sei difetti che il motore chiude da solo
+
+Erano quattordici nel censimento del 24/08, e **cinque colpivano cinque o sei
+maschere su sei**: non peculiarità, il riferimento mai applicato.
+
+| Difetto                                                         | Colpiva | Perché non può tornare                          |
+| --------------------------------------------------------------- | ------- | ----------------------------------------------- |
+| l'etichetta non era una `<label for>` vera                      | 5 su 6  | il corpo passa sempre `controlId`               |
+| lo stato aperto viveva dentro la card                           | 5 su 6  | `DocumentLineCardOpenStore`, e ne apre una sola |
+| il pannello suggerimenti cadeva fuori schermo                   | 5 su 6  | si misura da sé (`autoPlacement`)               |
+| `[complete]` non arrivava, e una riga incompleta sembrava piena | 3 su 6  | lo calcola `documentLineCardHead`               |
+| le chiavi di ricerca mancavano dalla card                       | 3 su 6  | il corpo le rende se il catalogo le dichiara    |
+| i pulsanti + e − non facevano niente                            | 5 su 6  | il passo lo applica la striscia                 |
+
+#### L'eliminazione, e la regola che prima non c'era
+
+| La riga…                         | Cosa succede                  |
+| -------------------------------- | ----------------------------- |
+| è nuova e davvero vuota          | via subito, niente da perdere |
+| ha contenuto, o è già persistita | conferma, che **la nomina**   |
+
+⛔ In cinque maschere su sei il cestino cancellava al primo tocco; nella sesta —
+la Vendita al banco — **non faceva niente**: era disegnato, abilitato, e l'evento
+non era nemmeno dichiarato.
+
+⚠️ **La quantità non conta come contenuto**, ed è deliberato: una riga nasce con
+quantità 1, quindi contarla renderebbe nessuna riga mai vuota e la conferma
+scatterebbe sempre — cioè smetterebbe di dire qualcosa.
+
+#### Cosa resta legittimamente locale
+
+Non tutto il markup mobile di una maschera è una copia da togliere. Restano, e
+devono restare:
+
+- la banda **«Documento collegato»** dove il documento ha righe di riferimento;
+- lo **stato vuoto** delle righe, che dice cosa manca;
+- la **barra di scansione** del banco e il suo aggancio articolo.
+
+⛔ **Non restano**: quantità, prezzo, IVA, U.M., codici, eliminazione, fuoco e
+ricerca. Se ricompaiono scritti a mano in una maschera, sono una copia del
+comportamento comune — cioè il difetto che questo pezzo chiude.
+
+---
+
 ### 7.0-quater Il corpo del PATCH della maschera Fattura _(corretto 15/08/2026)_
 
 **Modificare un documento dalla maschera Fattura non aveva mai funzionato** — Proforma, Fattura e Accompagnatoria. La maschera spediva in modifica **lo stesso corpo della creazione**, `type` e `sourceDocumentId` compresi; il DTO di aggiornamento non li prevede e l'API valida con `forbidNonWhitelisted`, quindi la risposta era **400**. Senza un messaggio da mostrare, a schermo il pulsante «Salva documento» sembrava inerte.

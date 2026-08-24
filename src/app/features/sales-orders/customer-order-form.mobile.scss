@@ -161,10 +161,17 @@
 }
 
 @include bp.media-down('lg') {
-  // Toolbar desktop fuori: i suoi comandi sono ricollocati.
-  .co-form .co-form__lines-tools {
-    display: none;
-  }
+  // ⛔ **Qui c'era `display: none` sulla barra strumenti**, e la ragione era
+  // giusta allora: il selettore Colonne non raggiungeva le card, quindi era un
+  // comando che non comandava. Da quando il corpo della card è guidato dal
+  // catalogo, quel selettore governa anche la vista compatta — e la barra la
+  // adatta la regola COMUNE, in `_document-form.scss`, per tutte e sette le
+  // maschere insieme.
+  //
+  // ⚠️ Convivevano anche due regole locali in contraddizione: questa la
+  // nascondeva, e `mobile-cards.scss` la disegnava a due colonne. Stessa
+  // specificità, quindi decideva l'ordine dei file — un difetto che non si
+  // vede finché qualcuno non riordina gli import.
 
   // Azione rara, quindi ghost compatto a destra (non a piena larghezza).
   .co-form .co-form__mobile-tools {

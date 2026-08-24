@@ -2123,6 +2123,36 @@ app-customer-order-form {
   .doc-form .doc-form__table-summary {
     display: none;
   }
+
+  // ── La barra strumenti righe, su schermo compatto ────────────────────────
+  //
+  // ⛔ **Qui non c'era niente, e sei maschere su sei tenevano in pagina la
+  // barra del desktop.** Il difetto non era l'ingombro: il selettore Colonne
+  // non raggiungeva le card, quindi l'operatore lo apriva, spegneva una
+  // colonna, e nella card non cambiava nulla — un comando che non comanda.
+  //
+  // ⭐ **Adesso comanda.** Il corpo della card è guidato dal catalogo colonne,
+  // quindi il selettore governa anche la vista compatta: la barra resta, e si
+  // adatta al dito invece di sparire. Toglierla ora significherebbe togliere
+  // due comandi che funzionano.
+  //
+  // Due colonne, altezza tappabile, e il comando primario a tutta larghezza in
+  // fondo: è la forma che l'Ordine cliente aveva già in locale.
+  .doc-form .doc-form__lines-tools {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-2);
+    --field-height: var(--control-h-touch);
+    --button-font-size: var(--text-sm);
+
+    app-button {
+      inline-size: 100%;
+    }
+
+    > app-button:last-child {
+      --button-grid-column: 1 / -1;
+    }
+  }
 }
 
 .doc-form .doc-form__totals dt {

@@ -219,28 +219,10 @@
     border-radius: var(--radius-sm);
   }
 
-  // Strumenti righe: titolo sopra, bottoni a griglia sotto.
-  .co-form .doc-form__lines-head {
-  }
-
-  .co-form .doc-form__lines-tools {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-2);
-    --field-height: var(--co-tool-h);
-  }
-
-  .co-form .doc-form__lines-tools {
-    --button-font-size: var(--text-sm);
-
-    app-button {
-      inline-size: 100%;
-    }
-  }
-
-  .co-form .doc-form__lines-tools > app-button:last-child {
-    --button-grid-column: 1 / -1;
-  }
+  // ⛔ Qui c'erano quattro regole locali sulla barra strumenti righe. Sono
+  // salite in `_document-form.scss`, dove valgono per tutte e sette le
+  // maschere: erano già la forma giusta, mancava solo che la vedesse qualcun
+  // altro.
 
   // Finestra «Colonne»: a tutta larghezza, una colonna sola e
   // bottoni di riordino grandi abbastanza per il dito (mockup responsive).
