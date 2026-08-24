@@ -586,11 +586,14 @@ describe('GoodsReceiptFormComponent', () => {
         ]),
       });
 
-      // Testata mobile e desktop convivono in jsdom: entrambe li mostrano.
-      expect(
-        screen.getAllByRole('button', { name: 'Gestisci numerazioni' }).length,
-      ).toBeGreaterThan(0);
-      expect(screen.getAllByRole('button', { name: 'Nuovo fornitore' }).length).toBeGreaterThan(0);
+      // ⛔ Qui c'era `getAllByRole(...).length).toBeGreaterThan(0)`, col commento
+      // «Testata mobile e desktop convivono in jsdom: entrambe li mostrano»: la
+      // doppia scrittura della testata era diventata un requisito della prova.
+      // Dal 24/08/2026 la testata si dichiara una volta (`app-document-header`)
+      // e di ogni comando ne esiste UNO — `getByRole` singolare fallisce se la
+      // seconda copia torna.
+      expect(screen.getByRole('button', { name: 'Gestisci numerazioni' })).toBeVisible();
+      expect(screen.getByRole('button', { name: 'Nuovo fornitore' })).toBeVisible();
       expect(screen.getByRole('button', { name: 'Nuovo prodotto' })).toBeVisible();
     });
 

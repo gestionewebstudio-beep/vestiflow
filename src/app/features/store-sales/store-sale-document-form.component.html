@@ -38,155 +38,96 @@
   } @else {
     <form class="doc-form__form" [formGroup]="form">
       <fieldset class="doc-form__fieldset">
-        <div class="doc-form__header">
-          <!-- Vista mobile: la testata è un solo pannello apribile. Vive nel DOM
-               accanto alla griglia desktop e si accende sotto lg. Gli id e gli
-               aria-label sono distinti dai gemelli desktop, così le query di
-               test e degli screen reader restano uniche. -->
-          <div class="doc-panels">
-            <app-document-mobile-panel
-              [title]="mobilePanelTitle()"
-              [summaryParts]="mobilePanelSummaryParts()"
-              [icon]="descriptor.icon"
-              [statusText]="mobilePanelStatus()"
-              [statusReady]="mobileHeaderReady()"
-              [initiallyOpen]="true"
-            >
-              <p class="doc-panel__section">Dati principali</p>
+        <!-- ⭐ **La testata si dichiara UNA VOLTA.** Qui c'erano 149 righe: 76
+             nel pannello mobile e 64 nella griglia desktop, con gli stessi
+             quattro campi, le stesse opzioni e gli stessi gestori — cambiavano
+             l'identificativo (`ssf-m-*` contro `ssf-*`) e la formula
+             dell'aria-label («Cliente del documento» contro «Cliente»). Non
+             erano due viste: era la stessa vista scritta due volte, e ogni
+             correzione ne raggiungeva una sola. -->
+        <app-document-header
+          class="doc-form__header"
+          [title]="mobilePanelTitle()"
+          [summaryParts]="mobilePanelSummaryParts()"
+          [icon]="descriptor.icon"
+          [statusText]="mobilePanelStatus()"
+          [statusReady]="mobileHeaderReady()"
+          sectionTitle="Dati principali"
+          [dense]="true"
+        >
+          <!-- ⭐ Cliente PRIMA della Sede, come sull'Ordine cliente: chi usa
+               VestiFlow trova i campi dove l'abitudine glieli mette, e l'ordine
+               non si inverte da un documento all'altro. Che il cliente sia
+               facoltativo non cambia dove sta. -->
+          <app-document-header-field label="Cliente (facoltativo)">
+            <app-select-menu
+              [options]="customerOptions()"
+              [value]="form.controls.customerId.value"
+              ariaLabel="Cliente"
+              placeholder="Nessun cliente"
+              [compact]="true"
+              [fullWidth]="true"
+              [searchable]="true"
+              searchPlaceholder="Cerca cliente…"
+              searchAriaLabel="Cerca cliente"
+              (valueChange)="onCustomerChange($event)"
+            />
+          </app-document-header-field>
 
-              <div class="doc-panel__fields">
-                <!-- ⭐ Cliente PRIMA della Sede, come sull'Ordine cliente: chi usa
-                     VestiFlow trova i campi dove l'abitudine glieli mette, e
-                     l'ordine non si inverte da un documento all'altro. Che il
-                     cliente sia facoltativo non cambia dove sta. -->
-                <div class="doc-panel__field">
-                  <span class="doc-panel__label">Cliente (facoltativo)</span>
-                  <app-select-menu
-                    [options]="customerOptions()"
-                    [value]="form.controls.customerId.value"
-                    ariaLabel="Cliente del documento"
-                    placeholder="Nessun cliente"
-                    [fullWidth]="true"
-                    [searchable]="true"
-                    searchPlaceholder="Cerca cliente…"
-                    searchAriaLabel="Cerca cliente"
-                    (valueChange)="onCustomerChange($event)"
-                  />
-                </div>
+          <!-- Controllo comune anche con una sola sede disponibile: il default
+               precompila, ma il campo resta quello (`11` A13).
+               Il «campo in attesa» stava solo sulla griglia desktop: ora è
+               dichiarato una volta e vale per tutte e due le vesti. Sotto `lg`
+               il foglio condiviso del pannello ridichiara `--field-border-color`
+               con specificità maggiore, quindi lì la resa resta quella di prima:
+               è una scelta del foglio comune, non di questa maschera. -->
+          <app-document-header-field
+            label="Sede"
+            [waiting]="locationWaiting()"
+            [invalid]="locationInvalid()"
+            errorId="ssf-location-error"
+          >
+            <app-select-menu
+              [options]="locationOptions()"
+              [value]="form.controls.locationId.value"
+              ariaLabel="Sede"
+              placeholder="Seleziona sede…"
+              [compact]="true"
+              [fullWidth]="true"
+              [invalid]="locationInvalid()"
+              describedBy="ssf-location-error"
+              (valueChange)="onLocationChange($event)"
+            />
+          </app-document-header-field>
 
-                <div class="doc-panel__field">
-                  <span class="doc-panel__label">Sede</span>
-                  <!-- Controllo comune anche con una sola sede disponibile: il
-                       default precompila, ma il campo resta quello (`11` A13). -->
-                  <app-select-menu
-                    [options]="locationOptions()"
-                    [value]="form.controls.locationId.value"
-                    ariaLabel="Sede del documento"
-                    placeholder="Seleziona sede…"
-                    [fullWidth]="true"
-                    [invalid]="locationInvalid()"
-                    describedBy="ssf-m-location-error"
-                    (valueChange)="onLocationChange($event)"
-                  />
-                  @if (locationInvalid()) {
-                    <p id="ssf-m-location-error" class="doc-form__error">Campo obbligatorio.</p>
-                  }
-                </div>
+          <app-document-header-field label="Data documento">
+            <!-- `compact` era solo sulla griglia desktop, dove l'altezza esatta
+                 fa combaciare la data col campo numerazione. Tenuto: il token
+                 `--field-height` che legge vale 44px dentro il pannello mobile,
+                 quindi la stessa dichiarazione va bene in tutte e due le vesti. -->
+            <app-date-input
+              inputId="ssf-date"
+              formControlName="documentDate"
+              ariaLabel="Data documento"
+              [compact]="true"
+              [fullWidth]="true"
+            />
+          </app-document-header-field>
 
-                <div class="doc-panel__field">
-                  <label class="doc-panel__label" for="ssf-m-date">Data documento</label>
-                  <app-date-input
-                    inputId="ssf-m-date"
-                    formControlName="documentDate"
-                    ariaLabel="Data documento"
-                    [fullWidth]="true"
-                  />
-                </div>
-
-                <!-- Numero e serie: il campo comune, con la proposta del primo libero.
-                     ⭐ Modificabili anche in modifica, come su ogni altro documento. -->
-                <app-document-number-field
-                  numberInputId="ssf-m-number"
-                  [number]="form.controls.documentNumber.value"
-                  [isProposal]="numberIsProposal()"
-                  [series]="form.controls.series.value"
-                  [seriesOptions]="numbering.seriesOptions()"
-                  [canManageSeries]="canManageSeries()"
-                  (numberChange)="numbering.onNumberChange($event)"
-                  (seriesChange)="numbering.onSeriesChange($event)"
-                  (manageSeries)="seriesDialogOpen.set(true)"
-                />
-              </div>
-            </app-document-mobile-panel>
-          </div>
-
-          <!-- Griglia classica: solo desktop. Sotto lg la nasconde il foglio del
-               componente, come nelle altre maschere documentali. -->
-          <div class="store-sale-form__header-desktop">
-            <div class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact">
-              <!-- ⭐ Cliente PRIMA della Sede, come sull'Ordine cliente: l'ordine
-                   dei campi non si inverte da un documento all'altro. -->
-              <div class="doc-form__field">
-                <span class="doc-form__label">Cliente (facoltativo)</span>
-                <app-select-menu
-                  [options]="customerOptions()"
-                  [value]="form.controls.customerId.value"
-                  ariaLabel="Cliente"
-                  placeholder="Nessun cliente"
-                  [compact]="true"
-                  [fullWidth]="true"
-                  [searchable]="true"
-                  searchPlaceholder="Cerca cliente…"
-                  searchAriaLabel="Cerca cliente"
-                  (valueChange)="onCustomerChange($event)"
-                />
-              </div>
-
-              <div class="doc-form__field" [class.doc-form__field--waiting]="locationWaiting()">
-                <span class="doc-form__label">Sede</span>
-                <app-select-menu
-                  [options]="locationOptions()"
-                  [value]="form.controls.locationId.value"
-                  ariaLabel="Sede"
-                  placeholder="Seleziona sede…"
-                  [compact]="true"
-                  [fullWidth]="true"
-                  [invalid]="locationInvalid()"
-                  describedBy="ssf-location-error"
-                  (valueChange)="onLocationChange($event)"
-                />
-                @if (locationInvalid()) {
-                  <p id="ssf-location-error" class="doc-form__error">Campo obbligatorio.</p>
-                }
-              </div>
-
-              <div class="doc-form__field">
-                <label class="doc-form__label" for="ssf-date">Data documento</label>
-                <app-date-input
-                  inputId="ssf-date"
-                  formControlName="documentDate"
-                  ariaLabel="Data documento"
-                  [compact]="true"
-                  [fullWidth]="true"
-                />
-              </div>
-
-              <!-- Numero e serie: il campo comune, con la proposta del primo libero.
-                   ⭐ Modificabili anche in modifica, come su ogni altro documento. -->
-              <app-document-number-field
-                numberInputId="ssf-number"
-                [number]="form.controls.documentNumber.value"
-                [isProposal]="numberIsProposal()"
-                [series]="form.controls.series.value"
-                [seriesOptions]="numbering.seriesOptions()"
-                [canManageSeries]="canManageSeries()"
-                (numberChange)="numbering.onNumberChange($event)"
-                (seriesChange)="numbering.onSeriesChange($event)"
-                (manageSeries)="seriesDialogOpen.set(true)"
-              />
-            </div>
-          </div>
-        </div>
+          <!-- Numero e serie: il campo comune, con la proposta del primo libero.
+               ⭐ Modificabili anche in modifica, come su ogni altro documento. -->
+          <app-document-number-field
+            numberInputId="ssf-number"
+            [number]="form.controls.documentNumber.value"
+            [isProposal]="numberIsProposal()"
+            [series]="form.controls.series.value"
+            [seriesOptions]="numbering.seriesOptions()"
+            [canManageSeries]="canManageSeries()"
+            (numberChange)="numbering.onNumberChange($event)"
+            (seriesChange)="numbering.onSeriesChange($event)"
+            (manageSeries)="seriesDialogOpen.set(true)"
+          />
+        </app-document-header>
 
         <section class="doc-form__lines" aria-labelledby="ssf-lines-title">
           <div class="doc-form__lines-head">

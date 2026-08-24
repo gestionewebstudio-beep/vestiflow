@@ -40,286 +40,178 @@
         </p>
       }
 
-      <div class="doc-form__header">
-        <!-- Vista mobile (m-ref): pannello unico con i dati di testata. Convive
-             nel DOM con la griglia desktop (stesso schema tabella/card delle
-             righe); aria-label distinti dalla griglia per query univoche.
-             I computed del pannello sono SOLO display. -->
-        <div class="doc-panels">
-          <app-document-mobile-panel
-            [title]="supplierPanelTitle()"
-            [summaryParts]="supplierPanelSummaryParts()"
-            icon="pi-truck"
-            [statusText]="supplierPanelStatus()"
-            [statusReady]="supplierPanelReady()"
-            [initiallyOpen]="true"
-          >
-            <p class="doc-panel__section">Dati principali</p>
-
-            <div class="doc-panel__fields">
-              <div class="doc-panel__field">
-                <div class="doc-panel__field-head">
-                  <span class="doc-panel__label">Fornitore</span>
-                  <span class="doc-panel__field-actions">
-                    <button
-                      type="button"
-                      class="doc-panel__field-action"
-                      (click)="toggleSupplierForm()"
-                    >
-                      <i
-                        class="pi"
-                        [class.pi-plus]="!showSupplierForm()"
-                        [class.pi-minus]="showSupplierForm()"
-                        aria-hidden="true"
-                      ></i>
-                      {{ showSupplierForm() ? 'Annulla nuovo fornitore' : 'Crea nuovo fornitore' }}
-                    </button>
-                    @if (hasSupplier()) {
-                      <button
-                        type="button"
-                        class="doc-panel__field-action"
-                        (click)="openSupplierDetail()"
-                      >
-                        <i class="pi pi-external-link" aria-hidden="true"></i>
-                        Scheda fornitore
-                      </button>
-                    }
-                  </span>
-                </div>
-
-                <app-select-menu
-                  [options]="supplierOptions()"
-                  [value]="form.controls.supplierId.value"
-                  ariaLabel="Fornitore dell'ordine"
-                  placeholder="Seleziona un fornitore…"
-                  [fullWidth]="true"
-                  [searchable]="true"
-                  searchPlaceholder="Cerca fornitore…"
-                  searchAriaLabel="Cerca fornitore per nome"
-                  [invalid]="fieldInvalid('supplierId')"
-                  (valueChange)="onSupplierSelect($event)"
-                />
-              </div>
-
-              <div class="doc-panel__field">
-                <span class="doc-panel__label">Sede</span>
-                <app-select-menu
-                  [options]="locationOptions()"
-                  [value]="form.controls.locationId.value"
-                  ariaLabel="Sede"
-                  placeholder="Seleziona sede…"
-                  [fullWidth]="true"
-                  [searchable]="true"
-                  searchPlaceholder="Cerca sede…"
-                  searchAriaLabel="Cerca sede"
-                  (valueChange)="onLocationSelect($event)"
-                />
-              </div>
-
-              <div class="doc-panel__fields doc-panel__fields--two">
-                <div class="doc-panel__field">
-                  <span class="doc-panel__label">Data</span>
-                  <app-date-input
-                    inputId="po-m-order-date"
-                    formControlName="orderDate"
-                    ariaLabel="Data dell'ordine"
-                    [fullWidth]="true"
-                  />
-                </div>
-
-                <div class="doc-panel__field">
-                  <span class="doc-panel__label">Consegna prevista</span>
-                  <app-date-input
-                    inputId="po-m-expected"
-                    formControlName="expectedAt"
-                    ariaLabel="Data di consegna prevista"
-                    placeholder="Nessuna data"
-                    [fullWidth]="true"
-                  />
-                </div>
-              </div>
-
-              <!-- Numero e serie anche qui: aggiunti in testata il 12/08/2026 e
-                   messi solo sulla griglia desktop, che sotto `lg` è spenta —
-                   da telefono la numerazione appena introdotta non esisteva. -->
-              <app-document-number-field
-                numberInputId="po-m-number"
-                [number]="form.controls.documentNumber.value"
-                [isProposal]="numberIsProposal()"
-                [series]="form.controls.series.value"
-                [seriesOptions]="numbering.seriesOptions()"
-                [canManageSeries]="puoConfigurareDocumenti()"
-                (numberChange)="numbering.onNumberChange($event)"
-                (seriesChange)="numbering.onSeriesChange($event)"
-                (manageSeries)="seriesDialogOpen.set(true)"
-              />
-
-              <!-- Modalità costo: netto o ivato. Su desktop lo stesso controllo
-                   vive nell'intestazione della colonna Costo.
-                   ⛔ Stava SOPRA LE CARD, cioè in mezzo alle righe: è un comando
-                   di DOCUMENTO — decide come si leggono tutti i costi, non uno —
-                   e da lì sembrava un attrezzo della riga sotto. Qui sta dov'è
-                   il suo gemello sull'Ordine cliente, accanto agli altri dati di
-                   testata. -->
-              <div class="doc-panel__field">
-                <span class="doc-panel__label">Modalità costo</span>
-                <app-select-menu
-                  [options]="costModeOptions"
-                  [value]="costEntryMode()"
-                  ariaLabel="Modalità costo netto o ivato"
-                  placeholder="Netto"
-                  [includeEmptyOption]="false"
-                  [compact]="true"
-                  [fullWidth]="true"
-                  (valueChange)="
-                    selectCostMode($event === 'vat_included' ? 'vat_included' : 'vat_excluded')
-                  "
-                />
-              </div>
-
-              <div class="doc-panel__field">
-                <span class="doc-panel__label">Rif. ordine fornitore</span>
-                <input
-                  id="po-m-supplier-reference"
-                  class="doc-panel__control"
-                  type="text"
-                  formControlName="supplierReference"
-                  placeholder="Es. RIF-2026-114"
-                  maxlength="120"
-                  aria-label="Riferimento ordine fornitore"
-                />
-              </div>
-            </div>
-          </app-document-mobile-panel>
-        </div>
-
-        <div class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact">
-          <div
-            class="doc-form__field doc-form__field--span2"
-            [class.doc-form__field--waiting]="fieldWaiting()"
-          >
-            <div class="doc-form__field-head">
-              <span class="doc-form__label" id="po-supplier-label">Fornitore</span>
-              <span class="doc-form__field-actions">
+      <!-- ⭐ **La testata è dichiarata UNA VOLTA.** Qui c'erano 280 righe: 147
+           nel pannello mobile e 126 nella griglia desktop, con gli stessi campi,
+           le stesse opzioni e gli stessi gestori — cambiavano l'identificativo
+           (`po-m-*` contro `po-*`) e la formula dell'aria-label. Non erano due
+           viste: era la stessa vista scritta due volte, e ogni correzione ne
+           raggiungeva una sola. -->
+      <app-document-header
+        class="doc-form__header"
+        [title]="supplierPanelTitle()"
+        [summaryParts]="supplierPanelSummaryParts()"
+        icon="pi-truck"
+        [statusText]="supplierPanelStatus()"
+        [statusReady]="supplierPanelReady()"
+        sectionTitle="Dati principali"
+        [dense]="true"
+      >
+        <!-- Fornitore: la cella resta scritta a mano perché ha i comandi sulla
+             RIGA DELL'ETICHETTA («Nuovo fornitore», «Scheda fornitore»), forma
+             che app-document-header-field non modella — e spostarli sotto il
+             campo rimetterebbe la terza riga in ogni cella, che il foglio
+             condiviso ha tolto apposta. Resta comunque UNA dichiarazione sola:
+             le classi seguono la vista viva, come fa il componente condiviso. -->
+        <div
+          [class]="compactView() ? 'doc-panel__field' : 'doc-form__field doc-form__field--span2'"
+          [class.doc-form__field--waiting]="fieldWaiting()"
+        >
+          <div [class]="compactView() ? 'doc-panel__field-head' : 'doc-form__field-head'">
+            <span [class]="compactView() ? 'doc-panel__label' : 'doc-form__label'">Fornitore</span>
+            <span [class]="compactView() ? 'doc-panel__field-actions' : 'doc-form__field-actions'">
+              <button
+                type="button"
+                [class]="compactView() ? 'doc-panel__field-action' : 'doc-form__inline-toggle'"
+                (click)="toggleSupplierForm()"
+              >
+                <i
+                  class="pi"
+                  [class.pi-plus]="!showSupplierForm()"
+                  [class.pi-minus]="showSupplierForm()"
+                  aria-hidden="true"
+                ></i>
+                {{ showSupplierForm() ? 'Annulla nuovo fornitore' : 'Nuovo fornitore' }}
+              </button>
+              @if (hasSupplier()) {
                 <button
                   type="button"
-                  class="doc-form__inline-toggle"
-                  (click)="toggleSupplierForm()"
+                  [class]="compactView() ? 'doc-panel__field-action' : 'doc-form__inline-toggle'"
+                  (click)="openSupplierDetail()"
                 >
-                  <i
-                    class="pi"
-                    [class.pi-plus]="!showSupplierForm()"
-                    [class.pi-minus]="showSupplierForm()"
-                    aria-hidden="true"
-                  ></i>
-                  {{ showSupplierForm() ? 'Annulla nuovo fornitore' : 'Nuovo fornitore' }}
+                  <i class="pi pi-external-link" aria-hidden="true"></i>
+                  Scheda fornitore
                 </button>
-                @if (hasSupplier()) {
-                  <button
-                    type="button"
-                    class="doc-form__inline-toggle"
-                    (click)="openSupplierDetail()"
-                  >
-                    <i class="pi pi-external-link" aria-hidden="true"></i>
-                    Scheda fornitore
-                  </button>
-                }
-              </span>
-            </div>
-            <app-select-menu
-              [options]="supplierOptions()"
-              [value]="form.controls.supplierId.value"
-              ariaLabel="Fornitore"
-              placeholder="Seleziona un fornitore…"
-              [compact]="true"
-              [fullWidth]="true"
-              [searchable]="true"
-              searchPlaceholder="Cerca fornitore…"
-              searchAriaLabel="Cerca fornitore"
-              [invalid]="fieldInvalid('supplierId')"
-              describedBy="po-supplier-error"
-              (valueChange)="onSupplierSelect($event)"
-            />
-            @if (fieldInvalid('supplierId')) {
-              <p id="po-supplier-error" class="doc-form__error">Campo obbligatorio.</p>
-            }
+              }
+            </span>
           </div>
-
-          <!-- Sede (§1-bis): dove la merce ordinata deve arrivare. Esce già
-               compilata se l'operatore ha una sede predefinita assegnata. -->
-          <div class="doc-form__field">
-            <span class="doc-form__label">Sede</span>
-            <app-select-menu
-              [options]="locationOptions()"
-              [value]="form.controls.locationId.value"
-              ariaLabel="Sede"
-              placeholder="Seleziona sede…"
-              [compact]="true"
-              [fullWidth]="true"
-              [searchable]="true"
-              searchPlaceholder="Cerca sede…"
-              searchAriaLabel="Cerca sede"
-              (valueChange)="onLocationSelect($event)"
-            />
-          </div>
-
-          <div class="doc-form__field">
-            <label class="doc-form__label" for="po-order-date">Data</label>
-            <app-date-input
-              inputId="po-order-date"
-              formControlName="orderDate"
-              ariaLabel="Data ordine"
-              [compact]="true"
-              [fullWidth]="true"
-            />
-            @if (fieldInvalid('orderDate')) {
-              <p class="doc-form__error">Indica la data dell'ordine.</p>
-            }
-          </div>
-
-          <!-- Numero e serie propri (specifica numerazione §5, Categoria A).
-               Fino al 12/08/2026 l'ordine era numerato d'ufficio dal server e
-               l'operatore non vedeva né sceglieva niente: era l'unico documento
-               della categoria senza. -->
-          <div class="doc-form__field">
-            <app-document-number-field
-              numberInputId="po-number"
-              [number]="form.controls.documentNumber.value"
-              [isProposal]="numberIsProposal()"
-              [series]="form.controls.series.value"
-              [seriesOptions]="numbering.seriesOptions()"
-              [canManageSeries]="puoConfigurareDocumenti()"
-              (numberChange)="numbering.onNumberChange($event)"
-              (seriesChange)="numbering.onSeriesChange($event)"
-              (manageSeries)="seriesDialogOpen.set(true)"
-            />
-          </div>
-
-          <div class="doc-form__field">
-            <label class="doc-form__label" for="po-expected">Consegna prevista</label>
-            <app-date-input
-              inputId="po-expected"
-              formControlName="expectedAt"
-              ariaLabel="Consegna prevista"
-              placeholder="Nessuna data"
-              [compact]="true"
-              [fullWidth]="true"
-            />
-          </div>
-
-          <div class="doc-form__field">
-            <label class="doc-form__label" for="po-supplier-reference">Rif. ordine fornitore</label>
-            <input
-              id="po-supplier-reference"
-              class="doc-form__input"
-              type="text"
-              formControlName="supplierReference"
-              placeholder="Es. RIF-2026-114"
-              maxlength="120"
-            />
-          </div>
+          <app-select-menu
+            [options]="supplierOptions()"
+            [value]="form.controls.supplierId.value"
+            ariaLabel="Fornitore"
+            placeholder="Seleziona un fornitore…"
+            [compact]="true"
+            [fullWidth]="true"
+            [searchable]="true"
+            searchPlaceholder="Cerca fornitore…"
+            searchAriaLabel="Cerca fornitore"
+            [invalid]="fieldInvalid('supplierId')"
+            describedBy="po-supplier-error"
+            (valueChange)="onSupplierSelect($event)"
+          />
+          @if (fieldInvalid('supplierId')) {
+            <p id="po-supplier-error" class="doc-form__error">Campo obbligatorio.</p>
+          }
         </div>
-      </div>
+
+        <!-- Sede (§1-bis): dove la merce ordinata deve arrivare. Esce già
+             compilata se l'operatore ha una sede predefinita assegnata. -->
+        <app-document-header-field label="Sede">
+          <app-select-menu
+            [options]="locationOptions()"
+            [value]="form.controls.locationId.value"
+            ariaLabel="Sede"
+            placeholder="Seleziona sede…"
+            [compact]="true"
+            [fullWidth]="true"
+            [searchable]="true"
+            searchPlaceholder="Cerca sede…"
+            searchAriaLabel="Cerca sede"
+            (valueChange)="onLocationSelect($event)"
+          />
+        </app-document-header-field>
+
+        <app-document-header-field
+          label="Data"
+          [invalid]="fieldInvalid('orderDate')"
+          errorId="po-order-date-error"
+          errorMessage="Indica la data dell'ordine."
+        >
+          <app-date-input
+            inputId="po-order-date"
+            formControlName="orderDate"
+            ariaLabel="Data ordine"
+            [compact]="true"
+            [fullWidth]="true"
+            describedBy="po-order-date-error"
+          />
+        </app-document-header-field>
+
+        <!-- Numero e serie propri (specifica numerazione §5, Categoria A).
+             Fino al 12/08/2026 l'ordine era numerato d'ufficio dal server e
+             l'operatore non vedeva né sceglieva niente: era l'unico documento
+             della categoria senza. Il campo porta con sé le proprie celle
+             (`display: contents`), quindi non va incartato in un altro campo. -->
+        <app-document-number-field
+          numberInputId="po-number"
+          [number]="form.controls.documentNumber.value"
+          [isProposal]="numberIsProposal()"
+          [series]="form.controls.series.value"
+          [seriesOptions]="numbering.seriesOptions()"
+          [canManageSeries]="puoConfigurareDocumenti()"
+          (numberChange)="numbering.onNumberChange($event)"
+          (seriesChange)="numbering.onSeriesChange($event)"
+          (manageSeries)="seriesDialogOpen.set(true)"
+        />
+
+        <app-document-header-field label="Consegna prevista">
+          <app-date-input
+            inputId="po-expected"
+            formControlName="expectedAt"
+            ariaLabel="Consegna prevista"
+            placeholder="Nessuna data"
+            [compact]="true"
+            [fullWidth]="true"
+          />
+        </app-document-header-field>
+
+        <!-- Modalità costo: netto o ivato. È un comando di DOCUMENTO — decide
+             come si leggono tutti i costi, non uno — e per questo sta fra i dati
+             di testata, non sopra le righe dov'era prima.
+             ⚠️ Solo nella vista compatta: su scrivania lo stesso comando vive
+             già nell'intestazione della colonna Costo, e dichiararlo qui lo
+             metterebbe due volte nella stessa schermata. -->
+        @if (compactView()) {
+          <app-document-header-field label="Modalità costo">
+            <app-select-menu
+              [options]="costModeOptions"
+              [value]="costEntryMode()"
+              ariaLabel="Modalità costo netto o ivato"
+              placeholder="Netto"
+              [includeEmptyOption]="false"
+              [compact]="true"
+              [fullWidth]="true"
+              (valueChange)="
+                selectCostMode($event === 'vat_included' ? 'vat_included' : 'vat_excluded')
+              "
+            />
+          </app-document-header-field>
+        }
+
+        <app-document-header-field label="Rif. ordine fornitore">
+          <!-- L'etichetta il campo condiviso la scrive come <span>, non come
+               <label for>: il nome accessibile dell'input arriva quindi
+               dall'aria-label, che prima esisteva solo nel pannello mobile. -->
+          <input
+            id="po-supplier-reference"
+            [class]="compactView() ? 'doc-panel__control' : 'doc-form__input'"
+            type="text"
+            formControlName="supplierReference"
+            placeholder="Es. RIF-2026-114"
+            maxlength="120"
+            aria-label="Rif. ordine fornitore"
+          />
+        </app-document-header-field>
+      </app-document-header>
 
       @if (showSupplierForm()) {
         <div class="doc-form__supplier-box">

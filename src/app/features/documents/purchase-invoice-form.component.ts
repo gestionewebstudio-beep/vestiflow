@@ -7,6 +7,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import {
   FormArray,
@@ -20,6 +21,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { catchError, distinctUntilChanged, map, of, startWith, switchMap, take } from 'rxjs';
 
 import { NavigationHistoryService } from '@core/services/navigation-history.service';
+import { ViewportService } from '@core/services/viewport.service';
 import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import { AuthService } from '@core/auth';
 import { hasTenantPermission } from '@core/permissions/user-permissions.util';
@@ -59,6 +61,8 @@ import { ErrorStateComponent } from '@shared/components/error-state/error-state.
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
 import { DocumentCounterpartyRefComponent } from '@domain/documents/components/document-counterparty-ref/document-counterparty-ref.component';
+import { DocumentHeaderComponent } from '@domain/documents/components/document-header/document-header.component';
+import { DocumentHeaderFieldComponent } from '@domain/documents/components/document-header/document-header-field.component';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import { DocumentSeriesManagerDialogComponent } from '@domain/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
@@ -157,6 +161,7 @@ function parseRatePercent(value: string): number | null {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     InlineBannerComponent,
+    NgTemplateOutlet,
     ReactiveFormsModule,
     BackButtonComponent,
     BadgeComponent,
@@ -164,6 +169,8 @@ function parseRatePercent(value: string): number | null {
     ConfirmDialogComponent,
     DateInputComponent,
     DocumentCounterpartyRefComponent,
+    DocumentHeaderComponent,
+    DocumentHeaderFieldComponent,
     DocumentMobilePanelComponent,
     DocumentNumberFieldComponent,
     DocumentPrintActionsComponent,
@@ -192,6 +199,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
   private readonly navHistory = inject(NavigationHistoryService);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly viewport = inject(ViewportService);
 
   constructor() {
     // Nuova registrazione: il numero proposto è il primo libero della
@@ -498,6 +506,16 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
 
   /** Ultima nota anagrafica inserita in automatico nelle note documento. */
   private lastAutoInsertedNote = '';
+
+  // ── Testata: quale veste è viva ────────────────────────────────────────────
+  //
+  // La griglia e i pannelli non convivono più nel DOM: li sceglie il viewport,
+  // e la testata comune (`app-document-header`) legge lo STESSO segnale — la
+  // soglia resta una sola. Qui serve perché due cose restano della maschera: il
+  // secondo pannello (la testata comune ne rende uno) e la veste del documento
+  // della controparte, che su scrivania è la fascia secondaria e su mobile una
+  // sezione del pannello.
+  protected readonly compactView = this.viewport.compact;
 
   // ── Testata mobile (m-ref): riepiloghi display-only dei pannelli ────────────
   // Solo concatenazioni di valori già nel form: nessuna logica né validazione.

@@ -22,13 +22,10 @@
 // fondo tenue, filo superiore e sparizione sotto lg li porta con sé il
 // componente condiviso (app-document-counterparty-ref, layout `band`).
 
-@include bp.media-down('lg') {
-  // Adozione m-ref: sotto lg la testata è il pannello condiviso (doc-panels);
-  // la griglia classica esce dal flusso — convivono nel DOM come tabella/card.
-  .doc-form__header .doc-form__grid--header {
-    display: none;
-  }
-}
+// ⛔ Qui c'era la regola che sotto lg spegneva la griglia desktop della
+// testata: le due vesti convivevano nel DOM e una si nascondeva col CSS. Ora
+// sono ESCLUSIVE — app-document-header monta il pannello o la griglia, mai
+// tutti e due — quindi non c'è più niente da nascondere.
 
 // Campo non valido: il template marca aria-invalid (pattern dell'app);
 // il foglio condiviso copre solo la classe __input--invalid.

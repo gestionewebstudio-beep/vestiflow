@@ -1387,8 +1387,10 @@ describe('StoreSaleDocumentFormComponent', () => {
     const CONTATORE_B = { ...CONTATORE, id: 'cnt-2', series: 'B', isDefault: false, nextNumber: 5 };
 
     function campoNumero(container: HTMLElement): HTMLInputElement {
-      // Per id, non per etichetta: la testata porta i due gemelli — pannello
-      // mobile e griglia desktop — e «Numero» li nominerebbe entrambi.
+      // ⛔ Qui c'era «la testata porta i due gemelli — pannello mobile e
+      // griglia desktop»: era la testata scritta due volte, e il commento la
+      // dava per acquisita. Ora la vista è una sola, e l'id resta il modo più
+      // diretto per prendere il campo.
       return container.querySelector<HTMLInputElement>('#ssf-number')!;
     }
 

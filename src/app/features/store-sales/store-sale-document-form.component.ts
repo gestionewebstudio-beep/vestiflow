@@ -58,7 +58,8 @@ import { documentNumberConflictOf } from '@core/models/document-number-conflict.
 import { TenantPermission } from '@core/models/tenant-permission.model';
 import { hasTenantPermission } from '@core/permissions/user-permissions.util';
 import { CustomerService } from '@domain/customers/services/customer.service';
-import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
+import { DocumentHeaderComponent } from '@domain/documents/components/document-header/document-header.component';
+import { DocumentHeaderFieldComponent } from '@domain/documents/components/document-header/document-header-field.component';
 import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
 import { priceModeRowLabel } from '@domain/documents/models/document-price-mode.util';
 import { DocumentService } from '@domain/documents/services/document.service';
@@ -239,7 +240,8 @@ function oggiIso(): string {
     ButtonComponent,
     ConfirmDialogComponent,
     DateInputComponent,
-    DocumentMobilePanelComponent,
+    DocumentHeaderComponent,
+    DocumentHeaderFieldComponent,
     DocumentNumberFieldComponent,
     DocumentSeriesManagerDialogComponent,
     DocumentProductSearchPanelComponent,

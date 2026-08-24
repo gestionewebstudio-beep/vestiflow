@@ -14,11 +14,24 @@
 // (`@if (!compactView())`, che è la stessa soglia `lg`). La regola non poteva
 // più agganciare niente, e la sua motivazione diceva il falso.
 
-// Cliente largo il doppio anche nella fascia flex a lg+ (sotto lg ci pensa
-// lo span2 della griglia compatta del foglio condiviso).
-@include bp.media-up('lg') {
-  .doc-form__header-row > .doc-form__field--span2 {
-    flex: 2 1 0;
+// ⛔ Qui c'era la quota doppia del Cliente nella FASCIA FLEX a lg+
+// (`.doc-form__header-row > .doc-form__field--span2 { flex: 2 1 0 }`). La
+// fascia flex non esiste più su questa maschera: la griglia la monta ora
+// `app-document-header`, che emette `doc-form__grid--header` e non
+// `doc-form__header-row`, e una regola che non aggancia niente è peggio che
+// nessuna regola — non si vede che è morta. Il Cliente resta largo il doppio
+// grazie a `[span2]`, che nella griglia compatta vale `grid-column: span 2`.
+
+// La fascia fiscale è secondaria solo su SCRIVANIA. Sotto lg quello stesso
+// elemento ospita il pannello apribile, e la tinta tenue col filo di
+// separazione gli disegnerebbe attorno un riquadro che il pannello ha già.
+// Serve la specificità del contenitore: la regola comune
+// (`.doc-form .doc-form__header .doc-form__header-row--secondary`) pesa tre
+// classi, e l'attributo di incapsulamento da solo non basterebbe a batterla.
+@include bp.media-down('lg') {
+  .doc-form__header app-document-header.doc-form__header-row--secondary {
+    background-color: transparent;
+    border-block-start: 0;
   }
 }
 

@@ -215,9 +215,15 @@ describe('StockOperationFormComponent', () => {
     await user.click(screen.getAllByRole('button', { name: 'Salva documento' })[0]!);
   }
 
-  /** Il campo Numero della testata (desktop e pannello mobile convivono). */
+  /**
+   * Il campo Numero della testata. ⛔ Qui c’era `getAllByLabelText(…)[0]`, col
+   * commento «desktop e pannello mobile convivono»: la doppia scrittura della
+   * testata era diventata un requisito della prova. Ora la testata si dichiara
+   * una volta e il campo è uno solo — se ne ricomparissero due, `getByLabelText`
+   * fallirebbe, che è esattamente quello che deve fare.
+   */
   function numberInput(): HTMLInputElement {
-    return screen.getAllByLabelText<HTMLInputElement>('Numero')[0]!;
+    return screen.getByLabelText<HTMLInputElement>('Numero');
   }
 
   // ── Numero proposto vs numero imposto ───────────────────────────────────────
@@ -283,9 +289,8 @@ describe('StockOperationFormComponent', () => {
     const user = userEvent.setup();
     await setup({ proposedNumber: 42 });
 
-    expect(
-      await screen.findAllByText('Primo libero: lo prende chi salva per primo.'),
-    ).not.toHaveLength(0);
+    // Un solo avviso: la testata non ha più una seconda copia dei suoi campi.
+    expect(await screen.findByText('Primo libero: lo prende chi salva per primo.')).toBeTruthy();
 
     await user.clear(numberInput());
     await user.type(numberInput(), '55');
@@ -307,9 +312,7 @@ describe('StockOperationFormComponent', () => {
   it('mostra «Gestisci numerazioni» a chi ha documents.configure', async () => {
     await setup({ permissions: [TenantPermission.DocumentsConfigure] });
 
-    // Testata mobile e griglia desktop montano entrambe il campo.
-    expect(screen.getAllByRole('button', { name: 'Gestisci numerazioni' }).length).toBeGreaterThan(
-      0,
-    );
+    // Un solo comando: la testata monta la veste viva, non tutte e due.
+    expect(screen.getByRole('button', { name: 'Gestisci numerazioni' })).toBeTruthy();
   });
 });

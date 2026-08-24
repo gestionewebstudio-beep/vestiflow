@@ -13,6 +13,7 @@ import { AppErrorKind } from '@core/models/app-error.model';
 import { SupplierOrderStatus } from '@core/models/supplier-order.model';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { VatCodeService } from '@core/services/vat-code.service';
+import { ViewportService } from '@core/services/viewport.service';
 import { ProductService } from '@domain/products/services/product.service';
 
 import { SupplierOrderFormComponent } from './supplier-order-form.component';
@@ -207,7 +208,14 @@ describe('SupplierOrderFormComponent', () => {
     }
   });
 
-  async function setup(options?: { createFails?: boolean; vatCodes?: readonly unknown[] }) {
+  async function setup(options?: {
+    createFails?: boolean;
+    vatCodes?: readonly unknown[];
+    // La vista viva: sotto la soglia la testata è il pannello, sopra la griglia.
+    // Le due sono ESCLUSIVE, quindi una prova che riguarda la testata deve dire
+    // quale sta guardando.
+    compatta?: boolean;
+  }) {
     const createOrder = options?.createFails
       ? vi.fn(() =>
           throwError(() => ({
@@ -221,6 +229,9 @@ describe('SupplierOrderFormComponent', () => {
       providers: [
         // Nessun permesso costi: il selettore articolo non deve mostrare il costo.
         { provide: AuthService, useValue: { currentUser: () => null } },
+        // Senza il foglio globale la soglia non è leggibile e il servizio vero
+        // resta sulla vista estesa: la vista compatta si chiede.
+        { provide: ViewportService, useValue: { compact: () => options?.compatta === true } },
         // Catch-all: il test «ritorno alla lista» naviga davvero verso /app/orders.
         provideRouter([{ path: '**', children: [] }]),
         // Serve da quando l'ordine fornitore ha gli allegati: in modifica il
@@ -326,10 +337,44 @@ describe('SupplierOrderFormComponent', () => {
   // senza numero né serie in testata: il server lo numerava d'ufficio e
   // l'operatore non vedeva niente.
 
+  /**
+   * ⭐ **La testata esiste UNA volta sola.** Fino al 24/08/2026 era scritta due
+   * volte nello stesso file — griglia desktop e pannello mobile — ed entrambe
+   * stavano nel DOM: ogni campo aveva due identificativi (`po-m-*` e `po-*`),
+   * e le prove prendevano `[0]` per non inciampare nel gemello. Da qui in poi
+   * `findByLabelText` fallisce se qualcuno la riscrive due volte.
+   */
+  it('il campo Numero esiste una volta sola, non una per vista', async () => {
+    await setup();
+
+    expect(await screen.findAllByLabelText('Numero')).toHaveLength(1);
+  });
+
+  /**
+   * La modalità costo è un comando di DOCUMENTO — decide come si leggono tutti
+   * i costi, non uno — e per questo sta fra i dati di testata, non sopra le
+   * righe. Su scrivania lo stesso comando vive già nell'intestazione della
+   * colonna Costo: dichiararlo anche in testata lo metterebbe due volte nella
+   * stessa schermata.
+   */
+  it('modalità costo: campo di testata nella vista compatta', async () => {
+    await setup({ compatta: true });
+
+    expect(
+      await screen.findByRole('button', { name: 'Modalità costo netto o ivato' }),
+    ).toBeVisible();
+  });
+
+  it("modalità costo: non in testata sulla vista estesa, dov'è nella colonna Costo", async () => {
+    await setup();
+
+    expect(screen.queryByRole('button', { name: 'Modalità costo netto o ivato' })).toBeNull();
+  });
+
   it('propone in testata serie e primo numero libero', async () => {
     await setup();
 
-    const numero = (await screen.findAllByLabelText<HTMLInputElement>('Numero'))[0]!;
+    const numero = await screen.findByLabelText<HTMLInputElement>('Numero');
     expect(numero.value).toBe('42');
   });
 
@@ -361,7 +406,7 @@ describe('SupplierOrderFormComponent', () => {
     const user = userEvent.setup();
     const { createOrder } = await setup();
 
-    const numero = (await screen.findAllByLabelText<HTMLInputElement>('Numero'))[0]!;
+    const numero = await screen.findByLabelText<HTMLInputElement>('Numero');
     await user.clear(numero);
     await user.type(numero, '7');
     await scegliArticoloSullaRiga(user);

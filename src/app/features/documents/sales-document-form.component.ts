@@ -156,7 +156,8 @@ import { DocumentProductSuggestStore } from '@domain/documents/state/document-pr
 import { DocumentLineFocusStore } from '@domain/documents/state/document-line-focus.store';
 import type { DocumentLineCodeField } from '@domain/documents/utils/document-code-match.util';
 import { DocumentIncludePanelComponent } from '@domain/documents/components/document-include-panel/document-include-panel.component';
-import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
+import { DocumentHeaderComponent } from '@domain/documents/components/document-header/document-header.component';
+import { DocumentHeaderFieldComponent } from '@domain/documents/components/document-header/document-header-field.component';
 import {
   IncludeSourceKind,
   conversionReferenceLine,
@@ -277,7 +278,8 @@ type ConversionPrefill = CreateDocumentBody & {
     DocumentChronologyWarningDialogComponent,
     DateInputComponent,
     DocumentIncludePanelComponent,
-    DocumentMobilePanelComponent,
+    DocumentHeaderComponent,
+    DocumentHeaderFieldComponent,
     DocumentProductSearchPanelComponent,
     TableColumnPickerComponent,
     CdkDrag,

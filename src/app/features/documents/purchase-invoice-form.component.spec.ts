@@ -12,6 +12,7 @@ import type { TenantPermissionKey } from '@core/models/tenant-permission.model';
 import { UserRole } from '@core/models/user.model';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { ToastService } from '@core/services/toast.service';
+import { ViewportService } from '@core/services/viewport.service';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
 
 import { PurchaseInvoiceFormComponent } from './purchase-invoice-form.component';
@@ -104,6 +105,12 @@ describe('PurchaseInvoiceFormComponent', () => {
      * solo chi sta provando un comando che i permessi governano.
      */
     readonly permissions?: readonly TenantPermissionKey[];
+    /**
+     * Vista compatta (pannelli apribili) invece della griglia di scrivania.
+     * Senza il foglio globale la soglia non è leggibile e il servizio vero
+     * resta sulla vista estesa: la vista compatta si chiede.
+     */
+    readonly compatta?: boolean;
   }
 
   async function setup(options: SetupOptions = {}) {
@@ -182,16 +189,24 @@ describe('PurchaseInvoiceFormComponent', () => {
           useValue: { getSettings: () => of([]) },
         },
         { provide: ToastService, useValue: { showInfo, showError: vi.fn() } },
+        {
+          provide: ViewportService,
+          useValue: { compact: () => options.compatta === true },
+        },
       ],
     });
 
     return { documentService, showInfo };
   }
 
-  /** Il campo Numero vive in due viste (mobile + desktop): stesso controllo. */
+  /**
+   * ⛔ Qui si prendeva il PRIMO di tanti — «il campo Numero vive in due viste
+   * (mobile + desktop)» — e la doppia scrittura della testata era così
+   * diventata un requisito del test. Ora il campo è dichiarato una volta:
+   * `findBy` fallisce se ne ricompare un secondo, ed è la guardia che tiene.
+   */
   async function numberInput(): Promise<HTMLInputElement> {
-    const inputs = await screen.findAllByLabelText<HTMLInputElement>('Numero');
-    return inputs[0]!;
+    return screen.findByLabelText<HTMLInputElement>('Numero');
   }
 
   async function saveInvoice(user: ReturnType<typeof userEvent.setup>) {
@@ -267,13 +282,34 @@ describe('PurchaseInvoiceFormComponent', () => {
     expect(screen.queryByRole('button', { name: 'Gestisci numerazioni' })).toBeNull();
   });
 
+  // ── La testata ha UNA veste viva, e sono due ────────────────────────────
+  //
+  // Le due scritture non convivono più nel DOM: sotto la soglia c'è il
+  // pannello apribile, sopra la griglia. La prova serve perché in jsdom la
+  // soglia non è leggibile e ogni altro test gira sulla vista estesa: senza,
+  // la veste compatta non la eseguirebbe nessuno.
+  it('sulla vista compatta monta i pannelli, e il campo Numero resta uno', async () => {
+    await setup({ compatta: true });
+
+    // Il secondo pannello resta della maschera: la testata comune ne rende uno.
+    expect(await screen.findByText('Registrazione VestiFlow')).toBeTruthy();
+    // Un campo, un identificativo: se tornasse la seconda scrittura qui ce ne
+    // sarebbero due, e `findBy` fallirebbe.
+    expect(await screen.findByLabelText('Numero')).toBeTruthy();
+    expect(screen.getByLabelText('Commento interno')).toBeTruthy();
+    // Il documento del fornitore cambia VESTE con la larghezza (fascia
+    // secondaria di là, sezione del pannello di qua) ma resta dichiarato una
+    // volta: qui si prova che nella veste compatta c’è davvero.
+    expect(screen.getByLabelText('N. fattura')).toBeTruthy();
+  });
+
   it('mostra «Gestisci numerazioni» a chi ha documents.configure', async () => {
     await setup({ permissions: [TenantPermission.DocumentsConfigure] });
 
-    // Testata mobile e griglia desktop montano entrambe il campo.
-    expect(screen.getAllByRole('button', { name: 'Gestisci numerazioni' }).length).toBeGreaterThan(
-      0,
-    );
+    // ⛔ Qui si contava «almeno uno», perché testata mobile e griglia desktop
+    // montavano entrambe il campo. La testata si dichiara una volta e ne rende
+    // una sola veste: il comando è UNO, e `getByRole` fallisce se tornano due.
+    expect(screen.getByRole('button', { name: 'Gestisci numerazioni' })).toBeTruthy();
   });
 
   // ── Il numero proposto non torna al server come imposizione ─────────────

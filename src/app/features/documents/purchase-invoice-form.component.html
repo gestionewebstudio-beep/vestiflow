@@ -65,188 +65,99 @@
       <!-- Testata a celle unite, due blocchi (categoria B): il numero contabile
            è quello del fornitore, il numero è nostro — separarli evita di
            confonderli. -->
-      <div class="doc-form__header">
-        <!-- Vista mobile (m-ref): testata a due pannelli apribili, come la
-             reference. Convive nel DOM con la griglia desktop (che sotto lg
-             esce via CSS): stessi FormControl e stessi handler, due viste. -->
-        <div class="doc-panels">
-          <!-- Il fornitore è il dato che sblocca gli arrivi: aperto all'ingresso. -->
-          <app-document-mobile-panel
-            [title]="supplierPanelTitle()"
-            [summaryParts]="supplierPanelSummaryParts()"
-            icon="pi-truck"
-            [statusText]="supplierPanelStatus()"
-            [statusReady]="supplierPanelReady()"
-            [initiallyOpen]="true"
-          >
-            <div class="doc-panel__fields">
-              <div class="doc-panel__field">
-                <span class="doc-panel__label" id="pi-m-supplier-label">Fornitore</span>
-                <app-select-menu
-                  [options]="supplierOptions()"
-                  [value]="form.controls.supplierId.value"
-                  ariaLabel="Fornitore del documento"
-                  placeholder="Seleziona fornitore…"
-                  [fullWidth]="true"
-                  [searchable]="true"
-                  searchPlaceholder="Cerca fornitore…"
-                  searchAriaLabel="Cerca fornitore"
-                  [invalid]="fieldInvalid('supplierId')"
-                  describedBy="pi-m-supplier-error"
-                  (valueChange)="onSupplierSelect($event)"
-                />
-                @if (fieldInvalid('supplierId')) {
-                  <p id="pi-m-supplier-error" class="doc-form__error">Campo obbligatorio.</p>
-                }
-              </div>
-            </div>
-
-            <!-- Stesse tre celle della testata desktop, in colonna. Titolo di
-                 sezione e contenitore dei campi li disegna il componente
-                 condiviso: la maschera passa solo le proprie parole
-                 («Documento fornitore»). L'`idPrefix` cambia perché le due
-                 viste convivono nel DOM e gli id devono restare univoci. -->
-            <app-document-counterparty-ref
-              idPrefix="pi-m"
-              layout="stack"
-              sectionTitle="Documento fornitore"
-              [docNumber]="form.controls.externalDocNumber.value"
-              [docDate]="form.controls.documentDate.value"
-              [showType]="false"
-              [showType]="false"
-              numberLabel="N. fattura"
-              dateLabel="Data fattura"
-              numberPlaceholder="Es. 58/2026"
-              (docNumberChange)="onCounterpartyNumberChange($event)"
-              (docDateChange)="onCounterpartyDateChange($event)"
-            />
-          </app-document-mobile-panel>
-
-          <!-- I dati interni hanno già default validi: chiuso, si apre per cambiarli. -->
-          <app-document-mobile-panel
-            title="Registrazione VestiFlow"
-            [summaryParts]="registrationPanelSummaryParts()"
-            icon="pi-calendar"
-          >
-            <p class="doc-panel__section">Dati interni</p>
-
-            <div class="doc-panel__fields">
-              <div class="doc-panel__fields doc-panel__fields--two">
-                <div class="doc-panel__field">
-                  <label class="doc-panel__label" for="pi-m-reg-date">Data registrazione</label>
-                  <app-date-input
-                    inputId="pi-m-reg-date"
-                    formControlName="registrationDate"
-                    ariaLabel="Data registrazione"
-                    [fullWidth]="true"
-                  />
-                </div>
-              </div>
-
-              <app-document-number-field
-                numberInputId="pi-m-number"
-                hint="Numero interno di catalogazione, non quello del fornitore."
-                [number]="form.controls.documentNumber.value"
-                [isProposal]="documentNumberIsProposal()"
-                [series]="form.controls.series.value"
-                [seriesOptions]="numbering.seriesOptions()"
-                [canManageSeries]="puoConfigurareDocumenti()"
-                (numberChange)="numbering.onNumberChange($event)"
-                (seriesChange)="numbering.onSeriesChange($event)"
-                (manageSeries)="seriesDialogOpen.set(true)"
-              />
-
-              <div class="doc-panel__field">
-                <label class="doc-panel__label" for="pi-m-comment">Commento interno</label>
-                <input
-                  id="pi-m-comment"
-                  class="doc-panel__control"
-                  type="text"
-                  formControlName="internalComment"
-                  placeholder="Nota interna, mai in stampa"
-                />
-              </div>
-            </div>
-
-            <p class="doc-panel__helper">
-              Numero e serie si propongono da soli, restano modificabili.
-            </p>
-          </app-document-mobile-panel>
-        </div>
-
-        <!-- Testata a due fasce (riferimento OC): la prima porta la
-             registrazione VestiFlow (fornitore, data, numero, commento), la
-             seconda (fondo soft) il documento del fornitore. Le vecchie
-             etichette di blocco non servono più: la separazione la danno le
-             fasce stesse. -->
-        <div
-          class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row"
+      <!-- ⭐ **I campi della testata si dichiarano UNA VOLTA.** Qui c'erano due
+           scritture complete: il pannello mobile con gli identificativi `pi-m-*`
+           e la griglia desktop con `pi-*`, stessi controlli, stesse opzioni,
+           stessi gestori. Non erano due viste: era la stessa vista scritta due
+           volte, e ogni correzione ne raggiungeva una sola. Ora i campi stanno
+           nei `<ng-template>` qui sotto e la veste la sceglie
+           `app-document-header` — pannello apribile su schermo compatto,
+           griglia a celle unite su scrivania.
+           ⚠️ Questa maschera ha DUE pannelli su mobile (fornitore · dati
+           interni) e UNA griglia più la fascia della controparte su scrivania:
+           la testata comune rende UN pannello, quindi il secondo pannello resta
+           della maschera. Monta però gli stessi template, non una seconda
+           scrittura — i campi restano dichiarati una volta sola. -->
+      <ng-template #campoFornitore>
+        <app-document-header-field
+          label="Fornitore"
+          [span2]="true"
+          [invalid]="fieldInvalid('supplierId')"
+          errorId="pi-supplier-error"
         >
-          <div class="doc-form__field doc-form__field--span2">
-            <span class="doc-form__label" id="pi-supplier-label">Fornitore</span>
-            <app-select-menu
-              [options]="supplierOptions()"
-              [value]="form.controls.supplierId.value"
-              ariaLabel="Fornitore"
-              placeholder="Seleziona fornitore…"
-              [compact]="true"
-              [fullWidth]="true"
-              [searchable]="true"
-              searchPlaceholder="Cerca fornitore…"
-              searchAriaLabel="Cerca fornitore"
-              [invalid]="fieldInvalid('supplierId')"
-              describedBy="pi-supplier-error"
-              (valueChange)="onSupplierSelect($event)"
-            />
-            @if (fieldInvalid('supplierId')) {
-              <p id="pi-supplier-error" class="doc-form__error">Campo obbligatorio.</p>
-            }
-          </div>
-
-          <div class="doc-form__field">
-            <label class="doc-form__label" for="pi-reg-date">Data registrazione</label>
-            <app-date-input
-              inputId="pi-reg-date"
-              formControlName="registrationDate"
-              ariaLabel="Data registrazione"
-              [compact]="true"
-              [fullWidth]="true"
-            />
-          </div>
-
-          <app-document-number-field
-            numberInputId="pi-number"
-            hint="Numero interno di catalogazione, non quello del fornitore."
-            [number]="form.controls.documentNumber.value"
-            [isProposal]="documentNumberIsProposal()"
-            [series]="form.controls.series.value"
-            [seriesOptions]="numbering.seriesOptions()"
-            [canManageSeries]="puoConfigurareDocumenti()"
-            (numberChange)="numbering.onNumberChange($event)"
-            (seriesChange)="numbering.onSeriesChange($event)"
-            (manageSeries)="seriesDialogOpen.set(true)"
+          <app-select-menu
+            [options]="supplierOptions()"
+            [value]="form.controls.supplierId.value"
+            ariaLabel="Fornitore"
+            placeholder="Seleziona fornitore…"
+            [compact]="true"
+            [fullWidth]="true"
+            [searchable]="true"
+            searchPlaceholder="Cerca fornitore…"
+            searchAriaLabel="Cerca fornitore"
+            [invalid]="fieldInvalid('supplierId')"
+            describedBy="pi-supplier-error"
+            (valueChange)="onSupplierSelect($event)"
           />
+        </app-document-header-field>
+      </ng-template>
 
-          <div class="doc-form__field doc-form__field--span2">
-            <label class="doc-form__label" for="pi-comment">Commento interno</label>
-            <input
-              id="pi-comment"
-              class="doc-form__input"
-              type="text"
-              formControlName="internalComment"
-              placeholder="Nota interna, mai in stampa"
-            />
-          </div>
-        </div>
+      <!-- I dati NOSTRI: data di registrazione, numerazione interna, commento.
+           Su mobile stanno nel secondo pannello, su scrivania nella stessa
+           fascia del fornitore — stessi campi, montati dove la vista li vuole. -->
+      <ng-template #datiInterni>
+        <app-document-header-field label="Data registrazione">
+          <app-date-input
+            inputId="pi-reg-date"
+            formControlName="registrationDate"
+            ariaLabel="Data registrazione"
+            [compact]="true"
+            [fullWidth]="true"
+          />
+        </app-document-header-field>
 
-        <!-- Documento della controparte: la fascia secondaria in fondo alla
-             testata la disegna il componente condiviso, non la maschera — è la
-             stessa in tutte e sette. Le parole restano quelle che l'operatore
-             legge da sempre — «N. fattura» e «Data fattura» — e la data e'
-             `documentDate`: qui la data del documento del fornitore E' la data
-             del documento. -->
+        <app-document-number-field
+          numberInputId="pi-number"
+          hint="Numero interno di catalogazione, non quello del fornitore."
+          [number]="form.controls.documentNumber.value"
+          [isProposal]="documentNumberIsProposal()"
+          [series]="form.controls.series.value"
+          [seriesOptions]="numbering.seriesOptions()"
+          [canManageSeries]="puoConfigurareDocumenti()"
+          (numberChange)="numbering.onNumberChange($event)"
+          (seriesChange)="numbering.onSeriesChange($event)"
+          (manageSeries)="seriesDialogOpen.set(true)"
+        />
+
+        <app-document-header-field label="Commento interno" [span2]="true">
+          <!-- Il controllo è un input nativo: la cella la veste
+               `app-document-header-field`, la classe del controllo no, e le due
+               vesti la vogliono diversa.
+               ⚠️ L'etichetta della testata comune è uno `<span>`, non un
+               `<label for>`: senza `aria-label` questo campo resterebbe senza
+               nome accessibile (prima glielo dava il `for="pi-comment"`). -->
+          <input
+            [class]="compactView() ? 'doc-panel__control' : 'doc-form__input'"
+            id="pi-comment"
+            type="text"
+            formControlName="internalComment"
+            aria-label="Commento interno"
+            placeholder="Nota interna, mai in stampa"
+          />
+        </app-document-header-field>
+      </ng-template>
+
+      <!-- Documento della controparte: la fascia secondaria (scrivania) e la
+           sezione del pannello (mobile) le disegna il componente condiviso, e
+           `layout` dice quale delle due — è l'unica cosa che cambia fra le
+           vesti. Le parole restano quelle che l'operatore legge da sempre —
+           «N. fattura» e «Data fattura» — e la data è `documentDate`: qui la
+           data del documento del fornitore È la data del documento. -->
+      <ng-template #documentoFornitore>
         <app-document-counterparty-ref
           idPrefix="pi"
+          [layout]="compactView() ? 'stack' : 'band'"
+          sectionTitle="Documento fornitore"
           [docNumber]="form.controls.externalDocNumber.value"
           [docDate]="form.controls.documentDate.value"
           [showType]="false"
@@ -256,6 +167,54 @@
           (docNumberChange)="onCounterpartyNumberChange($event)"
           (docDateChange)="onCounterpartyDateChange($event)"
         />
+      </ng-template>
+
+      <div class="doc-form__header">
+        <!-- Il fornitore è il dato che sblocca gli arrivi: pannello aperto
+             all'ingresso (è il default della testata comune). -->
+        <app-document-header
+          [title]="supplierPanelTitle()"
+          [summaryParts]="supplierPanelSummaryParts()"
+          icon="pi-truck"
+          [statusText]="supplierPanelStatus()"
+          [statusReady]="supplierPanelReady()"
+          [dense]="true"
+        >
+          <ng-container [ngTemplateOutlet]="campoFornitore" />
+          @if (compactView()) {
+            <!-- Su mobile il documento del fornitore sta nel pannello del
+                 fornitore: è il documento che quel fornitore ha emesso. -->
+            <ng-container [ngTemplateOutlet]="documentoFornitore" />
+          } @else {
+            <ng-container [ngTemplateOutlet]="datiInterni" />
+          }
+        </app-document-header>
+
+        @if (compactView()) {
+          <!-- I dati interni hanno già default validi: il pannello nasce
+               chiuso, si apre per cambiarli. -->
+          <div class="doc-panels">
+            <app-document-mobile-panel
+              title="Registrazione VestiFlow"
+              [summaryParts]="registrationPanelSummaryParts()"
+              icon="pi-calendar"
+            >
+              <p class="doc-panel__section">Dati interni</p>
+
+              <div class="doc-panel__fields">
+                <ng-container [ngTemplateOutlet]="datiInterni" />
+              </div>
+
+              <p class="doc-panel__helper">
+                Numero e serie si propongono da soli, restano modificabili.
+              </p>
+            </app-document-mobile-panel>
+          </div>
+        } @else {
+          <!-- Su scrivania la controparte è la fascia secondaria in fondo alla
+               testata: sta FUORI dalla griglia, che è la sua forma. -->
+          <ng-container [ngTemplateOutlet]="documentoFornitore" />
+        }
       </div>
 
       <!-- ── Arrivi merce inclusi ─────────────────────────────────────────── -->

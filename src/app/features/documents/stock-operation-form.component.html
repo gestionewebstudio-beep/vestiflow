@@ -70,168 +70,103 @@
 
       <fieldset class="doc-form__fieldset" [disabled]="formReadOnly()">
         <!-- Testata a celle unite (FASE 1: la forma dell'Ordine cliente). -->
-        <div class="doc-form__header">
-          <!-- Vista mobile (M1): la testata è un solo pannello apribile. Vive
-               nel DOM accanto alla griglia desktop e si accende sotto lg —
-               stesso schema tabella/card delle righe. Aria-label distinti dai
-               gemelli desktop: le query (spec e screen reader) restano uniche. -->
-          <div class="doc-panels">
-            <app-document-mobile-panel
-              [title]="mobilePanelTitle()"
-              [summaryParts]="mobilePanelSummaryParts()"
-              [icon]="isAdjustment() ? 'pi-sliders-h' : 'pi-minus-circle'"
-              [statusText]="mobilePanelStatus()"
-              [statusReady]="mobileHeaderReady()"
-              [initiallyOpen]="true"
+        <!-- ⭐ **La testata è dichiarata UNA VOLTA.** Qui c'erano 163 righe: gli
+             stessi campi scritti due volte, una nel pannello mobile e una nella
+             griglia desktop, con le stesse opzioni e gli stessi gestori.
+             Cambiavano l'identificativo (`so-m-*` contro `so-*`) e la formula
+             dell'aria-label — «Location documento» contro «Location»,
+             «Direzione della rettifica» contro «Direzione rettifica». Non erano
+             due viste: era la stessa vista scritta due volte, e ogni correzione
+             ne raggiungeva una sola. Ora i campi si dichiarano una volta e il
+             componente comune li monta nella veste viva. -->
+        <app-document-header
+          class="doc-form__header"
+          [title]="mobilePanelTitle()"
+          [summaryParts]="mobilePanelSummaryParts()"
+          [icon]="isAdjustment() ? 'pi-sliders-h' : 'pi-minus-circle'"
+          [statusText]="mobilePanelStatus()"
+          [statusReady]="mobileHeaderReady()"
+          sectionTitle="Dati principali"
+          [dense]="true"
+        >
+          <!-- Location: è il campo che tiene ferme le righe, quindi porta il
+               colore del «campo in attesa» finché resta vuoto. Prima lo aveva
+               solo la griglia desktop: sul telefono l'operatore non vedeva
+               quale campo stesse bloccando la tabella. -->
+          <app-document-header-field
+            label="Location"
+            [waiting]="fieldWaiting()"
+            [invalid]="fieldInvalid('locationId')"
+            errorId="so-location-error"
+          >
+            <app-select-menu
+              [options]="locationOptions()"
+              [value]="form.controls.locationId.value"
+              ariaLabel="Location"
+              placeholder="Seleziona location…"
+              [compact]="true"
+              [fullWidth]="true"
+              [invalid]="fieldInvalid('locationId')"
+              describedBy="so-location-error"
+              (valueChange)="onLocationSelect($event)"
+            />
+          </app-document-header-field>
+
+          @if (isAdjustment()) {
+            <app-document-header-field
+              label="Direzione rettifica"
+              [invalid]="fieldInvalid('adjustmentDirection')"
+              errorId="so-direction-error"
             >
-              <p class="doc-panel__section">Dati principali</p>
-
-              <div class="doc-panel__fields">
-                <div class="doc-panel__field">
-                  <span class="doc-panel__label">Location</span>
-                  <app-select-menu
-                    [options]="locationOptions()"
-                    [value]="form.controls.locationId.value"
-                    ariaLabel="Location documento"
-                    placeholder="Seleziona location…"
-                    [fullWidth]="true"
-                    [invalid]="fieldInvalid('locationId')"
-                    describedBy="so-m-location-error"
-                    (valueChange)="onLocationSelect($event)"
-                  />
-                  @if (fieldInvalid('locationId')) {
-                    <p id="so-m-location-error" class="doc-form__error">Campo obbligatorio.</p>
-                  }
-                </div>
-
-                @if (isAdjustment()) {
-                  <div class="doc-panel__field">
-                    <span class="doc-panel__label">Direzione rettifica</span>
-                    <app-select-menu
-                      [options]="directionOptions"
-                      [value]="form.controls.adjustmentDirection.value"
-                      ariaLabel="Direzione della rettifica"
-                      placeholder="Seleziona direzione…"
-                      [fullWidth]="true"
-                      [invalid]="fieldInvalid('adjustmentDirection')"
-                      describedBy="so-m-direction-error"
-                      (valueChange)="onDirectionSelect($event)"
-                    />
-                    @if (fieldInvalid('adjustmentDirection')) {
-                      <p id="so-m-direction-error" class="doc-form__error">Campo obbligatorio.</p>
-                    }
-                  </div>
-                }
-
-                <div class="doc-panel__field">
-                  <label class="doc-panel__label" for="so-m-date">Data documento</label>
-                  <app-date-input
-                    inputId="so-m-date"
-                    formControlName="documentDate"
-                    ariaLabel="Data documento"
-                    [fullWidth]="true"
-                    [invalid]="fieldInvalid('documentDate')"
-                    describedBy="so-m-date-error"
-                  />
-                  @if (fieldInvalid('documentDate')) {
-                    <p id="so-m-date-error" class="doc-form__error">
-                      Inserisci la data del documento nel formato GG/MM/AAAA.
-                    </p>
-                  }
-                </div>
-
-                <app-document-number-field
-                  numberInputId="so-m-number"
-                  [number]="form.controls.documentNumber.value"
-                  [isProposal]="numberIsProposal()"
-                  [series]="form.controls.series.value"
-                  [seriesOptions]="numbering.seriesOptions()"
-                  [canManageSeries]="puoConfigurareDocumenti()"
-                  (numberChange)="numbering.onNumberChange($event)"
-                  (seriesChange)="numbering.onSeriesChange($event)"
-                  (manageSeries)="seriesDialogOpen.set(true)"
-                />
-              </div>
-            </app-document-mobile-panel>
-          </div>
-
-          <!-- Griglia classica: solo desktop. Sotto lg la nasconde il foglio
-               del componente (stesso meccanismo di #co-header-details). -->
-          <div class="stock-operation-form__header-desktop">
-            <div class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact">
-              <div class="doc-form__field" [class.doc-form__field--waiting]="fieldWaiting()">
-                <span class="doc-form__label">Location</span>
-                <app-select-menu
-                  [options]="locationOptions()"
-                  [value]="form.controls.locationId.value"
-                  ariaLabel="Location"
-                  placeholder="Seleziona location…"
-                  [compact]="true"
-                  [fullWidth]="true"
-                  [invalid]="fieldInvalid('locationId')"
-                  describedBy="so-location-error"
-                  (valueChange)="onLocationSelect($event)"
-                />
-                @if (fieldInvalid('locationId')) {
-                  <p id="so-location-error" class="doc-form__error">Campo obbligatorio.</p>
-                }
-              </div>
-
-              @if (isAdjustment()) {
-                <div class="doc-form__field">
-                  <span class="doc-form__label">Direzione rettifica</span>
-                  <app-select-menu
-                    [options]="directionOptions"
-                    [value]="form.controls.adjustmentDirection.value"
-                    ariaLabel="Direzione rettifica"
-                    placeholder="Seleziona direzione…"
-                    [compact]="true"
-                    [fullWidth]="true"
-                    [invalid]="fieldInvalid('adjustmentDirection')"
-                    describedBy="so-direction-error"
-                    (valueChange)="onDirectionSelect($event)"
-                  />
-                  @if (fieldInvalid('adjustmentDirection')) {
-                    <p id="so-direction-error" class="doc-form__error">Campo obbligatorio.</p>
-                  }
-                </div>
-              }
-
-              <div class="doc-form__field">
-                <label class="doc-form__label" for="so-date">Data documento</label>
-                <app-date-input
-                  inputId="so-date"
-                  formControlName="documentDate"
-                  ariaLabel="Data documento"
-                  [compact]="true"
-                  [fullWidth]="true"
-                  [invalid]="fieldInvalid('documentDate')"
-                  describedBy="so-date-error"
-                />
-                @if (fieldInvalid('documentDate')) {
-                  <p id="so-date-error" class="doc-form__error">
-                    Inserisci la data del documento nel formato GG/MM/AAAA.
-                  </p>
-                }
-              </div>
-
-              <!-- Identificativo del documento: Data + Numero + Serie. Sul
-                   documento nuovo il numero è dichiarato come proposta finché
-                   l'operatore non lo tocca: lo prende chi salva per primo. -->
-              <app-document-number-field
-                numberInputId="so-number"
-                [number]="form.controls.documentNumber.value"
-                [isProposal]="numberIsProposal()"
-                [series]="form.controls.series.value"
-                [seriesOptions]="numbering.seriesOptions()"
-                [canManageSeries]="puoConfigurareDocumenti()"
-                (numberChange)="numbering.onNumberChange($event)"
-                (seriesChange)="numbering.onSeriesChange($event)"
-                (manageSeries)="seriesDialogOpen.set(true)"
+              <app-select-menu
+                [options]="directionOptions"
+                [value]="form.controls.adjustmentDirection.value"
+                ariaLabel="Direzione rettifica"
+                placeholder="Seleziona direzione…"
+                [compact]="true"
+                [fullWidth]="true"
+                [invalid]="fieldInvalid('adjustmentDirection')"
+                describedBy="so-direction-error"
+                (valueChange)="onDirectionSelect($event)"
               />
-            </div>
-          </div>
-        </div>
+            </app-document-header-field>
+          }
+
+          <!-- Il messaggio dice il formato atteso e non ripete il segnaposto:
+               è la ragione per cui questo campo sovrascrive il testo d'errore
+               predefinito del componente («Campo obbligatorio.»). -->
+          <app-document-header-field
+            label="Data documento"
+            [invalid]="fieldInvalid('documentDate')"
+            errorId="so-date-error"
+            errorMessage="Inserisci la data del documento nel formato GG/MM/AAAA."
+          >
+            <app-date-input
+              inputId="so-date"
+              formControlName="documentDate"
+              ariaLabel="Data documento"
+              [compact]="true"
+              [fullWidth]="true"
+              [invalid]="fieldInvalid('documentDate')"
+              describedBy="so-date-error"
+            />
+          </app-document-header-field>
+
+          <!-- Identificativo del documento: Data + Numero + Serie. Sul
+               documento nuovo il numero è dichiarato come proposta finché
+               l'operatore non lo tocca: lo prende chi salva per primo. -->
+          <app-document-number-field
+            numberInputId="so-number"
+            [number]="form.controls.documentNumber.value"
+            [isProposal]="numberIsProposal()"
+            [series]="form.controls.series.value"
+            [seriesOptions]="numbering.seriesOptions()"
+            [canManageSeries]="puoConfigurareDocumenti()"
+            (numberChange)="numbering.onNumberChange($event)"
+            (seriesChange)="numbering.onSeriesChange($event)"
+            (manageSeries)="seriesDialogOpen.set(true)"
+          />
+        </app-document-header>
 
         <section class="doc-form__lines" aria-labelledby="so-lines-title">
           <div class="doc-form__lines-head">

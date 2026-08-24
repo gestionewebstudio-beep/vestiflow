@@ -1,14 +1,8 @@
-@use 'breakpoints' as bp;
-
-// Vista mobile (reference «Ordine cliente»): sotto lg la griglia classica della
-// testata lascia il posto al pannello apribile (doc-panels). Stesso meccanismo
-// delle altre maschere documentali, nel foglio del componente perché la classe
-// vive solo in questo template.
-@include bp.media-down('lg') {
-  .store-sale-form__header-desktop {
-    display: none;
-  }
-}
+// ⛔ Qui c'era la regola che nascondeva la griglia desktop sotto `lg`
+// (`.store-sale-form__header-desktop { display: none }`), insieme all'`@use`
+// di 'breakpoints' che la serviva. Non serve più: le due vesti della testata
+// sono ESCLUSIVE nel DOM, decise da `app-document-header`, non nascoste col
+// foglio di stile. Era l'ultima traccia della testata scritta due volte.
 
 // ⛔ Qui c'era `.store-sale-form__fixed-location`: la sede unica mostrata come
 // etichetta al posto della tendina, ereditata dalla maschera legacy. Tolta il

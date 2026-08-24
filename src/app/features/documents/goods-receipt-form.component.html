@@ -134,239 +134,67 @@
       }
 
       <fieldset class="doc-form__fieldset" [disabled]="formReadOnly()">
+        <!-- ⭐ **La testata è dichiarata UNA VOLTA, in DUE fasce.** Qui c'erano
+             390 righe: 210 nei due pannelli mobile e 172 nelle due fasce
+             desktop, con gli stessi campi, le stesse opzioni e gli stessi
+             gestori — cambiavano l'identificativo (`gr-m-*` contro `gr-*`) e il
+             suffisso «(vista mobile)» negli aria-label. Non erano due viste: era
+             la stessa vista scritta due volte, e ogni correzione ne raggiungeva
+             una sola.
+
+             **DUE `app-document-header` in fila, uno per fascia.** Il componente
+             comune rende UN pannello mobile per istanza, e l'Arrivo merce ha due
+             identità separate da tenere distinte (specifica comune §9): il
+             documento VestiFlow e il documento ricevuto dal fornitore. La
+             divisione in due istanze è quindi la stessa che c'era prima, non una
+             concessione al componente.
+
+             ⚠️ La card resta della maschera — `<div class="doc-form__header">`:
+             è lei a tenere insieme le due fasce, e il Trasferimento può metterla
+             sull'host solo perché di fascia ne ha una. -->
         <div class="doc-form__header">
-          <!-- Vista mobile: due pannelli apribili, come la reference «Ordine
-               cliente». Vivono nel DOM accanto alle fasce desktop e si
-               accendono sotto lg (stesso schema tabella/card delle righe).
-               Le copie mobili dei controlli hanno aria-label distinti
-               («… (vista mobile)») e id gr-m-*: negli spec jsdom entrambe le
-               viste sono presenti e getByRole deve restare unico. -->
-          <div class="doc-panels">
-            <!-- I dati che sbloccano le righe: aperto all'ingresso. -->
-            <app-document-mobile-panel
-              [title]="supplierPanelTitle()"
-              [summaryParts]="[supplierPanelSubtitle()]"
-              icon="pi-truck"
-              [statusText]="supplierPanelStatus()"
-              [statusReady]="headerDataReady()"
-              [initiallyOpen]="true"
-            >
-              <p class="doc-panel__section">Dati principali</p>
+          <!-- Le due vesti di una cella scritta a mano: le stesse che
+               `app-document-header-field` sceglie da sé. Servono qui perché tre
+               celle non passano da quel componente — hanno una testa con comandi
+               (Fornitore) o una casella di spunta al posto dell'etichetta. -->
+          @let cella = compactView() ? 'doc-panel__field' : 'doc-form__field';
+          @let etichetta = compactView() ? 'doc-panel__label' : 'doc-form__label';
 
-              <div class="doc-panel__fields">
-                <div class="doc-panel__field">
-                  <div class="doc-panel__field-head">
-                    <span class="doc-panel__label">Fornitore</span>
-                    <span class="doc-panel__field-actions">
-                      <!-- Senza la gestione degli ordini fornitore l'anagrafica non
-                           si crea da qui: resta la scelta fra i fornitori già
-                           registrati. -->
-                      @if (puoGestireOrdiniFornitore()) {
-                        <button
-                          type="button"
-                          class="doc-panel__field-action"
-                          (click)="toggleSupplierForm()"
-                        >
-                          <i
-                            class="pi"
-                            [class.pi-plus]="!showSupplierForm()"
-                            [class.pi-minus]="showSupplierForm()"
-                            aria-hidden="true"
-                          ></i>
-                          {{ showSupplierForm() ? 'Annulla nuovo fornitore' : 'Nuovo fornitore' }}
-                        </button>
-                      }
-                      @if (hasSupplier()) {
-                        <button
-                          type="button"
-                          class="doc-panel__field-action"
-                          (click)="openSupplierDetail()"
-                        >
-                          <i class="pi pi-external-link" aria-hidden="true"></i>
-                          Scheda fornitore
-                        </button>
-                      }
-                    </span>
-                  </div>
-
-                  <app-select-menu
-                    [options]="supplierOptions()"
-                    [value]="form.controls.supplierId.value"
-                    ariaLabel="Fornitore (vista mobile)"
-                    placeholder="Seleziona fornitore…"
-                    [fullWidth]="true"
-                    [searchable]="true"
-                    searchPlaceholder="Cerca fornitore…"
-                    searchAriaLabel="Cerca fornitore (vista mobile)"
-                    [invalid]="fieldInvalid('supplierId')"
-                    describedBy="gr-m-supplier-error"
-                    (valueChange)="onSupplierSelect($event)"
-                  />
-                  @if (fieldInvalid('supplierId')) {
-                    <p id="gr-m-supplier-error" class="doc-form__error">Campo obbligatorio.</p>
-                  }
-                </div>
-
-                <div class="doc-panel__field">
-                  <span class="doc-panel__label">Location destinazione</span>
-                  @if (locationOptions().length > 0) {
-                    <app-select-menu
-                      [options]="locationOptions()"
-                      [value]="form.controls.locationId.value"
-                      ariaLabel="Location di destinazione (vista mobile)"
-                      placeholder="Seleziona location…"
-                      [fullWidth]="true"
-                      [searchable]="true"
-                      searchPlaceholder="Cerca location…"
-                      searchAriaLabel="Cerca location (vista mobile)"
-                      [invalid]="fieldInvalid('locationId')"
-                      describedBy="gr-m-location-error"
-                      (valueChange)="onLocationSelect($event)"
-                    />
-                  } @else {
-                    <p class="doc-form__error" role="alert">
-                      Non hai accesso ad alcun magazzino. Contatta il titolare o un amministratore
-                      dell'account.
-                    </p>
-                  }
-                  @if (fieldInvalid('locationId')) {
-                    <p id="gr-m-location-error" class="doc-form__error">Campo obbligatorio.</p>
-                  }
-                </div>
-
-                <fieldset class="doc-form__gate-fields" [disabled]="headerGateActive()">
-                  <div class="doc-panel__field">
-                    <label class="doc-panel__label" for="gr-m-date">Data registrazione</label>
-                    <app-date-input
-                      inputId="gr-m-date"
-                      formControlName="documentDate"
-                      ariaLabel="Data registrazione (vista mobile)"
-                      [fullWidth]="true"
-                    />
-                  </div>
-
-                  <app-document-number-field
-                    numberInputId="gr-m-number"
-                    hint="Numero interno di catalogazione."
-                    [number]="form.controls.documentNumber.value"
-                    [isProposal]="numberIsProposal()"
-                    [series]="form.controls.series.value"
-                    [seriesOptions]="numbering.seriesOptions()"
-                    [canManageSeries]="puoConfigurareDocumenti()"
-                    (numberChange)="numbering.onNumberChange($event)"
-                    (seriesChange)="numbering.onSeriesChange($event)"
-                    (manageSeries)="seriesDialogOpen.set(true)"
-                  />
-                  <!-- Modalità costo: netto o ivato. Su desktop lo stesso
-                       controllo vive nell'intestazione della colonna Costo.
-
-                       ⛔ **Stava SOPRA LE CARD**, cioè in mezzo alle righe: è un
-                       comando di DOCUMENTO — decide come si leggono tutti i
-                       costi, non uno — e da lì sembrava un attrezzo della riga
-                       sotto. In più portava `doc-form__field--mode-mobile`, una
-                       classe che nessun foglio dichiarava: compariva senza
-                       vestito, e non se ne accorgeva nessuno.
-
-                       Qui sta dov'è il suo gemello sull'Ordine fornitore. -->
-                  <div class="doc-panel__field">
-                    <span class="doc-panel__label">Modalità costo</span>
-                    <app-select-menu
-                      [options]="costModeOptions"
-                      [value]="costEntryMode()"
-                      ariaLabel="Modalità costo netto o ivato"
-                      placeholder="Netto"
-                      [includeEmptyOption]="false"
-                      [compact]="true"
-                      [fullWidth]="true"
-                      (valueChange)="
-                        selectCostMode($event === 'vat_included' ? 'vat_included' : 'vat_excluded')
-                      "
-                    />
-                  </div>
-                </fieldset>
-              </div>
-            </app-document-mobile-panel>
-
-            <!-- I dati letti dal documento del fornitore: chiuso, si apre per
-                 compilarli. Interamente dietro il gate fornitore + magazzino. -->
-            <app-document-mobile-panel
-              title="Documento fornitore"
-              [summaryParts]="supplierDocPanelSummaryParts()"
-              icon="pi-file"
-            >
-              <fieldset class="doc-form__gate-fields" [disabled]="headerGateActive()">
-                <!-- Stesso componente della testata desktop, in colonna. Titolo
-                     di sezione e contenitore dei campi li disegna lui: qui
-                     restano solo le celle affini (pagamento, copertura
-                     fattura), proiettate nella stessa sezione invece di
-                     aprirne una seconda. Gli id degli input hanno prefisso
-                     proprio: le due viste stanno entrambe nel DOM. -->
-                <app-document-counterparty-ref
-                  idPrefix="gr-m"
-                  layout="stack"
-                  sectionTitle="Dati del documento ricevuto"
-                  typeLabel="Tipo di documento"
-                  numberLabel="N. documento fornitore"
-                  dateLabel="Data doc. fornitore"
-                  [typeId]="form.controls.externalDocumentTypeId.value"
-                  [docNumber]="form.controls.externalDocNumber.value"
-                  [docDate]="form.controls.externalDocDate.value"
-                  [snapshotLabel]="externalDocTypeSnapshot()"
-                  [disabled]="formReadOnly()"
-                  (typeIdChange)="onExternalDocTypeChange($event)"
-                  (docNumberChange)="form.controls.externalDocNumber.setValue($event)"
-                  (docDateChange)="form.controls.externalDocDate.setValue($event)"
-                  (typesChanged)="onExternalDocTypesChanged()"
-                >
-                  <div class="doc-panel__field">
-                    <span class="doc-panel__label">Pagamento</span>
-                    <app-select-menu
-                      [options]="paymentMethodOptions()"
-                      [value]="form.controls.paymentMethod.value"
-                      ariaLabel="Modalità di pagamento (vista mobile)"
-                      placeholder="Modalità…"
-                      [fullWidth]="true"
-                      [searchable]="true"
-                      searchPlaceholder="Cerca pagamento…"
-                      searchAriaLabel="Cerca modalità di pagamento (vista mobile)"
-                      (valueChange)="onPaymentMethodChange($event)"
-                    />
-                  </div>
-
-                  <label class="doc-form__check" for="gr-m-invoice-pending">
-                    <input
-                      id="gr-m-invoice-pending"
-                      type="checkbox"
-                      formControlName="invoicePending"
-                    />
-                    <span>Seguirà registrazione fattura</span>
-                  </label>
-                </app-document-counterparty-ref>
-              </fieldset>
-            </app-document-mobile-panel>
-          </div>
-
-          <!-- Testata a due fasce (riferimento OC): questa, la prima, porta i
-               dati di registrazione VestiFlow; la seconda (fondo soft) è quella
-               del documento del fornitore, e la disegna il componente condiviso
-               qui sotto. Le vecchie etichette di blocco non servono più: la
-               separazione la danno le fasce stesse. -->
-          <div
-            class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row"
+          <!-- Fascia 1 — il documento VestiFlow (specifica comune §9.1). Sono i
+               dati che sbloccano le righe: il pannello mobile parte aperto. -->
+          <app-document-header
+            [title]="supplierPanelTitle()"
+            [summaryParts]="[supplierPanelSubtitle()]"
+            icon="pi-truck"
+            [statusText]="supplierPanelStatus()"
+            [statusReady]="headerDataReady()"
+            [initiallyOpen]="true"
+            sectionTitle="Dati principali"
+            [dense]="true"
           >
+            <!-- ⛔ Non passa da `app-document-header-field`: quel componente rende
+                 l'etichetta e basta, e qui l'etichetta divide la riga con i
+                 comandi dell'anagrafica fornitore. La cella resta scritta a mano,
+                 ma UNA volta sola. -->
             <div
-              class="doc-form__field doc-form__field--span2"
+              [class]="cella"
+              [class.doc-form__field--span2]="!compactView()"
               [class.doc-form__field--waiting]="fieldWaiting('supplierId')"
             >
-              <div class="doc-form__field-head">
-                <span class="doc-form__label" id="gr-supplier-label">Fornitore</span>
-                <span class="doc-form__field-actions">
-                  <!-- Senza la gestione degli ordini fornitore l'anagrafica non si
-                       crea da qui: resta la scelta fra i fornitori già registrati. -->
+              <div [class]="compactView() ? 'doc-panel__field-head' : 'doc-form__field-head'">
+                <span [class]="etichetta">Fornitore</span>
+                <span
+                  [class]="compactView() ? 'doc-panel__field-actions' : 'doc-form__field-actions'"
+                >
+                  <!-- Senza la gestione degli ordini fornitore l'anagrafica non
+                       si crea da qui: resta la scelta fra i fornitori già
+                       registrati. -->
                   @if (puoGestireOrdiniFornitore()) {
                     <button
                       type="button"
-                      class="doc-form__inline-toggle"
+                      [class]="
+                        compactView() ? 'doc-panel__field-action' : 'doc-form__inline-toggle'
+                      "
                       (click)="toggleSupplierForm()"
                     >
                       <i
@@ -381,7 +209,9 @@
                   @if (hasSupplier()) {
                     <button
                       type="button"
-                      class="doc-form__inline-toggle"
+                      [class]="
+                        compactView() ? 'doc-panel__field-action' : 'doc-form__inline-toggle'
+                      "
                       (click)="openSupplierDetail()"
                     >
                       <i class="pi pi-external-link" aria-hidden="true"></i>
@@ -409,11 +239,12 @@
               }
             </div>
 
-            <div
-              class="doc-form__field"
-              [class.doc-form__field--waiting]="fieldWaiting('locationId')"
+            <app-document-header-field
+              label="Location destinazione"
+              [waiting]="fieldWaiting('locationId')"
+              [invalid]="fieldInvalid('locationId')"
+              errorId="gr-location-error"
             >
-              <span class="doc-form__label">Location destinazione</span>
               @if (locationOptions().length > 0) {
                 <app-select-menu
                   [options]="locationOptions()"
@@ -435,17 +266,16 @@
                   dell'account.
                 </p>
               }
-              @if (fieldInvalid('locationId')) {
-                <p id="gr-location-error" class="doc-form__error">Campo obbligatorio.</p>
-              }
-            </div>
+            </app-document-header-field>
 
             <!-- Gate compilazione: data e numero si sbloccano solo dopo
-                 fornitore + magazzino (display: contents per non rompere la
-                 fascia della testata). -->
+                 fornitore + magazzino (`display: contents` per non rompere né la
+                 fascia desktop né la colonna del pannello). -->
             <fieldset class="doc-form__gate-fields" [disabled]="headerGateActive()">
-              <div class="doc-form__field doc-form__field--end-md">
-                <label class="doc-form__label" for="gr-date">Data registrazione</label>
+              <!-- ⛔ Qui c'era un `<label for="gr-date">`. Il campo condiviso rende
+                   uno `<span>`, e il nome accessibile lo porta l'`ariaLabel` del
+                   date picker: era già così su entrambe le viste. -->
+              <app-document-header-field label="Data registrazione">
                 <app-date-input
                   inputId="gr-date"
                   formControlName="documentDate"
@@ -453,7 +283,7 @@
                   [compact]="true"
                   [fullWidth]="true"
                 />
-              </div>
+              </app-document-header-field>
 
               <!-- Il numero è il numero di catalogazione interno, non
                    quello del fornitore (che sta nella seconda fascia). -->
@@ -469,60 +299,101 @@
                 (seriesChange)="numbering.onSeriesChange($event)"
                 (manageSeries)="seriesDialogOpen.set(true)"
               />
+
+              <!-- ⚠️ **Campo della SOLA vista compatta, e non è una dimenticanza.**
+                   Su scrivania lo stesso comando vive nell'intestazione della
+                   colonna Costo, dove governa la colonna che legge: non è una
+                   copia mancante, è lo stesso controllo messo dove c'è posto per
+                   lui. Finché le due viste convivevano nel DOM bastava che
+                   stesse nel pannello; ora che ne vive una sola, l'esclusione va
+                   dichiarata. -->
+              @if (compactView()) {
+                <div class="doc-panel__field">
+                  <span class="doc-panel__label">Modalità costo</span>
+                  <app-select-menu
+                    [options]="costModeOptions"
+                    [value]="costEntryMode()"
+                    ariaLabel="Modalità costo netto o ivato"
+                    placeholder="Netto"
+                    [includeEmptyOption]="false"
+                    [compact]="true"
+                    [fullWidth]="true"
+                    (valueChange)="
+                      selectCostMode($event === 'vat_included' ? 'vat_included' : 'vat_excluded')
+                    "
+                  />
+                </div>
+              }
             </fieldset>
-          </div>
+          </app-document-header>
 
-          <!-- Seconda fascia: i dati letti dal documento cartaceo/PDF del
-               fornitore, più pagamento e copertura fattura. La fascia non la
-               disegna più la maschera — se la porta dietro il componente del
-               documento della controparte, che è la stessa forma in tutte le
-               maschere. Qui resta solo il gate fornitore + magazzino
-               (`display: contents`, non rompe la griglia). -->
-          <fieldset class="doc-form__gate-fields" [disabled]="headerGateActive()">
-            <app-document-counterparty-ref
-              idPrefix="gr"
-              typeLabel="Tipo di documento"
-              numberLabel="N. documento fornitore"
-              dateLabel="Data doc. fornitore"
-              [typeId]="form.controls.externalDocumentTypeId.value"
-              [docNumber]="form.controls.externalDocNumber.value"
-              [docDate]="form.controls.externalDocDate.value"
-              [snapshotLabel]="externalDocTypeSnapshot()"
-              [disabled]="formReadOnly()"
-              (typeIdChange)="onExternalDocTypeChange($event)"
-              (docNumberChange)="form.controls.externalDocNumber.setValue($event)"
-              (docDateChange)="form.controls.externalDocDate.setValue($event)"
-              (typesChanged)="onExternalDocTypesChanged()"
-            >
-              <!-- Celle affini: stanno nella stessa fascia del documento
-                   fornitore, proiettate dopo le tre del componente. -->
-              <div class="doc-form__field doc-form__field--end-md">
-                <span class="doc-form__label">Pagamento</span>
-                <app-select-menu
-                  [options]="paymentMethodOptions()"
-                  [value]="form.controls.paymentMethod.value"
-                  ariaLabel="Modalità di pagamento"
-                  placeholder="Modalità…"
-                  [compact]="true"
-                  [fullWidth]="true"
-                  [searchable]="true"
-                  searchPlaceholder="Cerca pagamento…"
-                  searchAriaLabel="Cerca modalità di pagamento"
-                  (valueChange)="onPaymentMethodChange($event)"
-                />
-              </div>
+          <!-- Fascia 2 — il documento ricevuto dal fornitore (specifica comune
+               §9.2). Identità separata, quindi pannello separato: chiuso
+               all'ingresso, e tutto dietro il gate fornitore + magazzino.
 
-              <!-- Punto E: la Causale di carico non è più esposta nel form.
-                   Viene generata sempre in automatico e in silenzio dal modello
-                   del tipo documento fornitore (tipo + numero + data). -->
-              <div class="doc-form__field">
-                <label class="doc-form__check doc-form__check--block" for="gr-invoice-pending">
-                  <input id="gr-invoice-pending" type="checkbox" formControlName="invoicePending" />
-                  <span>Seguirà registrazione fattura</span>
-                </label>
-              </div>
-            </app-document-counterparty-ref>
-          </fieldset>
+               ⚠️ **Niente `dense` qui.** Su scrivania la fascia se la disegna il
+               componente della controparte (fondo tenue, filo sopra, celle in
+               riga): a questa istanza serve solo lasciarla passare a larghezza
+               piena, e una griglia densa la stringerebbe a un campo. -->
+          <app-document-header
+            title="Documento fornitore"
+            [summaryParts]="supplierDocPanelSummaryParts()"
+            icon="pi-file"
+          >
+            <fieldset class="doc-form__gate-fields" [disabled]="headerGateActive()">
+              <!-- Il titolo di sezione e il contenitore dei campi li disegna il
+                   componente della controparte, in tutte e due le vesti: qui
+                   restano solo le celle affini (pagamento, copertura fattura),
+                   proiettate nella stessa fascia invece di aprirne una seconda. -->
+              <app-document-counterparty-ref
+                idPrefix="gr"
+                [layout]="compactView() ? 'stack' : 'band'"
+                sectionTitle="Dati del documento ricevuto"
+                typeLabel="Tipo di documento"
+                numberLabel="N. documento fornitore"
+                dateLabel="Data doc. fornitore"
+                [typeId]="form.controls.externalDocumentTypeId.value"
+                [docNumber]="form.controls.externalDocNumber.value"
+                [docDate]="form.controls.externalDocDate.value"
+                [snapshotLabel]="externalDocTypeSnapshot()"
+                [disabled]="formReadOnly()"
+                (typeIdChange)="onExternalDocTypeChange($event)"
+                (docNumberChange)="form.controls.externalDocNumber.setValue($event)"
+                (docDateChange)="form.controls.externalDocDate.setValue($event)"
+                (typesChanged)="onExternalDocTypesChanged()"
+              >
+                <div [class]="cella">
+                  <span [class]="etichetta">Pagamento</span>
+                  <app-select-menu
+                    [options]="paymentMethodOptions()"
+                    [value]="form.controls.paymentMethod.value"
+                    ariaLabel="Modalità di pagamento"
+                    placeholder="Modalità…"
+                    [compact]="true"
+                    [fullWidth]="true"
+                    [searchable]="true"
+                    searchPlaceholder="Cerca pagamento…"
+                    searchAriaLabel="Cerca modalità di pagamento"
+                    (valueChange)="onPaymentMethodChange($event)"
+                  />
+                </div>
+
+                <!-- Punto E: la Causale di carico non è più esposta nel form.
+                     Viene generata sempre in automatico e in silenzio dal modello
+                     del tipo documento fornitore (tipo + numero + data). -->
+                <div [class]="cella">
+                  <label class="doc-form__check doc-form__check--block" for="gr-invoice-pending">
+                    <input
+                      id="gr-invoice-pending"
+                      type="checkbox"
+                      formControlName="invoicePending"
+                    />
+                    <span>Seguirà registrazione fattura</span>
+                  </label>
+                </div>
+              </app-document-counterparty-ref>
+            </fieldset>
+          </app-document-header>
         </div>
 
         @if (showSupplierForm()) {

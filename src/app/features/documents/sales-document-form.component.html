@@ -64,232 +64,36 @@
           </p>
         }
 
-        <!-- Testata a celle unite (forma Ordine cliente): prima fascia con i
-             dati del documento, fascia fiscale solo per le fatture e, in coda,
-             la fascia del documento del cliente disegnata dal blocco condiviso. -->
+        <!-- ⭐ **La testata è dichiarata UNA VOLTA.** Qui c'erano 437 righe: i
+             due pannelli mobili ripetevano campo per campo le due fasce
+             desktop, con le stesse opzioni e gli stessi gestori — cambiavano
+             l'identificativo (`sd-m-*` contro `sd-*`) e le classi. Non erano
+             due viste: era la stessa vista scritta due volte, e ogni correzione
+             ne raggiungeva una sola.
+
+             Ora le due vesti — griglia su scrivania, pannello apribile su
+             schermo compatto — le sceglie `app-document-header`, e sono
+             ESCLUSIVE nel DOM: con due viste vive gli identificativi non
+             sarebbero univoci.
+
+             Il contenitore resta perché le fasce sono DUE: la card è sua, e la
+             fascia fiscale è la sua seconda banda. -->
         <div class="doc-form__header">
-          <!-- Vista mobile: pannelli apribili come la reference «Ordine
-               cliente». Vivono nel DOM accanto alle fasce desktop e si
-               accendono sotto lg; gli stessi @if di oggi decidono se i
-               pannelli sono uno (proforma/bozza) o due (fatture). -->
-          <div class="doc-panels">
-            <app-document-mobile-panel
-              [title]="customerPanelTitle()"
-              [summaryParts]="customerPanelSummaryParts()"
-              icon="pi-user"
-              [statusText]="customerPanelStatus()"
-              [statusReady]="customerPanelReady()"
-              [initiallyOpen]="true"
-            >
-              <p class="doc-panel__section">Dati principali</p>
-
-              <div class="doc-panel__fields">
-                <div class="doc-panel__field">
-                  <span class="doc-panel__label" id="sd-m-customer-label">Cliente</span>
-                  <app-select-menu
-                    [options]="customerOptions()"
-                    [value]="form.controls.customerId.value"
-                    ariaLabel="Cliente"
-                    placeholder="Seleziona cliente…"
-                    [fullWidth]="true"
-                    [searchable]="true"
-                    searchPlaceholder="Cerca cliente…"
-                    searchAriaLabel="Cerca cliente"
-                    [invalid]="fieldInvalid('customerId')"
-                    describedBy="sd-m-customer-error"
-                    (valueChange)="onCustomerSelect($event)"
-                  />
-                  @if (fieldInvalid('customerId')) {
-                    <p id="sd-m-customer-error" class="doc-form__error">Campo obbligatorio.</p>
-                  }
-                  @if (customerCommercialHint(); as hint) {
-                    <p class="doc-panel__helper" role="note">{{ hint }}</p>
-                  }
-                </div>
-
-                <div class="doc-panel__field">
-                  <span class="doc-panel__label" id="sd-m-location-label">Sede</span>
-                  <app-select-menu
-                    [options]="locationOptions()"
-                    [value]="form.controls.locationId.value"
-                    ariaLabel="Sede"
-                    placeholder="Seleziona sede…"
-                    [fullWidth]="true"
-                    [searchable]="true"
-                    searchPlaceholder="Cerca sede…"
-                    searchAriaLabel="Cerca sede"
-                    [invalid]="fieldInvalid('locationId')"
-                    describedBy="sd-m-location-error"
-                    (valueChange)="onLocationSelect($event)"
-                  />
-                  @if (fieldInvalid('locationId')) {
-                    <p id="sd-m-location-error" class="doc-form__error">Campo obbligatorio.</p>
-                  }
-                </div>
-
-                <div class="doc-panel__fields doc-panel__fields--two">
-                  <div class="doc-panel__field">
-                    <label class="doc-panel__label" for="sd-m-date">Data</label>
-                    <app-date-input
-                      inputId="sd-m-date"
-                      formControlName="documentDate"
-                      ariaLabel="Data documento"
-                      [fullWidth]="true"
-                      [invalid]="fieldInvalid('documentDate')"
-                      describedBy="sd-m-date-error"
-                    />
-                    @if (fieldInvalid('documentDate')) {
-                      <p id="sd-m-date-error" class="doc-form__error">
-                        Inserisci la data del documento (GG/MM/AAAA).
-                      </p>
-                    }
-                  </div>
-
-                  <div class="doc-panel__field">
-                    <span class="doc-panel__label">Modalità prezzo</span>
-                    <app-select-menu
-                      [options]="priceModeOptions"
-                      [value]="pricesIncludeVat() ? 'gross' : 'net'"
-                      ariaLabel="Modalità prezzo netto o ivato"
-                      placeholder="Netto"
-                      [includeEmptyOption]="false"
-                      [compact]="true"
-                      [fullWidth]="true"
-                      (valueChange)="setPriceMode($event === 'gross')"
-                    />
-                  </div>
-                </div>
-
-                <app-document-number-field
-                  numberInputId="sd-m-number"
-                  [number]="form.controls.documentNumber.value"
-                  [isProposal]="numberIsProposal()"
-                  [series]="form.controls.series.value"
-                  [seriesOptions]="numbering.seriesOptions()"
-                  [canManageSeries]="puoConfigurareDocumenti()"
-                  (numberChange)="numbering.onNumberChange($event)"
-                  (seriesChange)="numbering.onSeriesChange($event)"
-                  (manageSeries)="seriesDialogOpen.set(true)"
-                />
-
-                @if (showListinoSelect() && !formReadOnly()) {
-                  <div class="doc-panel__field">
-                    <span class="doc-panel__label">Listino</span>
-                    <app-select-menu
-                      [options]="listinoOptions()"
-                      [value]="listinoValue()"
-                      ariaLabel="Listino applicato alle righe"
-                      placeholder="Prezzo di vendita"
-                      [compact]="true"
-                      [fullWidth]="true"
-                      (valueChange)="onListinoChange($event)"
-                    />
-                  </div>
-                }
-              </div>
-            </app-document-mobile-panel>
-
-            <!-- Solo fatture: la fascia fiscale diventa il secondo pannello,
-                 chiuso all'ingresso (i valori sono già validi o opzionali). -->
-            @if (isSalesInvoice()) {
-              <app-document-mobile-panel
-                title="Dettagli fattura"
-                [summaryParts]="invoicePanelSummaryParts()"
-                icon="pi-file"
-              >
-                <p class="doc-panel__section">Dati fiscali e pagamento</p>
-
-                <div class="doc-panel__fields">
-                  <div class="doc-panel__field">
-                    <label class="doc-panel__label" for="sd-m-cause">Causale</label>
-                    <input
-                      id="sd-m-cause"
-                      class="doc-panel__control"
-                      type="text"
-                      formControlName="billingCause"
-                    />
-                  </div>
-
-                  @if (supportsLinkedDdt()) {
-                    <div class="doc-panel__field">
-                      <span class="doc-panel__label">Riferimento DDT (opzionale)</span>
-                      <app-select-menu
-                        [options]="ddtOptions()"
-                        value=""
-                        ariaLabel="Aggancia un DDT vendita"
-                        placeholder="Aggancia un DDT…"
-                        [fullWidth]="true"
-                        [includeEmptyOption]="false"
-                        (valueChange)="onAddLinkedDdt($event)"
-                      />
-                      @if (linkedDdts().length > 0) {
-                        <ul class="doc-form__causal-manage-list">
-                          @for (ddt of linkedDdts(); track ddt.id) {
-                            <li class="doc-form__causal-manage-item">
-                              <span class="doc-form__causal-manage-label">{{ ddt.label }}</span>
-                              <button
-                                type="button"
-                                class="doc-form__causal-icon-btn"
-                                (click)="onRemoveLinkedDdt(ddt.id)"
-                                [attr.aria-label]="'Rimuovi ' + ddt.label"
-                              >
-                                <i class="pi pi-times" aria-hidden="true"></i>
-                              </button>
-                            </li>
-                          }
-                        </ul>
-                      }
-                    </div>
-                  }
-
-                  <div class="doc-panel__field">
-                    <label class="doc-panel__label" for="sd-m-payment-terms">
-                      Condizioni di pagamento
-                    </label>
-                    <input
-                      id="sd-m-payment-terms"
-                      class="doc-panel__control"
-                      type="text"
-                      formControlName="paymentTerms"
-                      placeholder="Es. Bonifico 30 gg d.f."
-                    />
-                  </div>
-
-                  <div class="doc-panel__field">
-                    <label class="doc-panel__label" for="sd-m-payment-due">
-                      Scadenza pagamento
-                    </label>
-                    <app-date-input
-                      inputId="sd-m-payment-due"
-                      [value]="form.controls.paymentDueDate.value"
-                      ariaLabel="Scadenza pagamento"
-                      placeholder="gg/mm/aaaa"
-                      [fullWidth]="true"
-                      (valueChange)="form.controls.paymentDueDate.setValue($event)"
-                    />
-                  </div>
-
-                  <div class="doc-panel__field">
-                    <label class="doc-panel__label" for="sd-m-iban">IBAN</label>
-                    <input
-                      id="sd-m-iban"
-                      class="doc-panel__control"
-                      type="text"
-                      formControlName="iban"
-                      maxlength="34"
-                    />
-                    <p class="doc-panel__helper">Se lo lasci vuoto vale l'IBAN dei Dati azienda.</p>
-                  </div>
-                </div>
-              </app-document-mobile-panel>
-            }
-          </div>
-
-          <div
-            class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row"
+          <app-document-header
+            [title]="customerPanelTitle()"
+            [summaryParts]="customerPanelSummaryParts()"
+            icon="pi-user"
+            [statusText]="customerPanelStatus()"
+            [statusReady]="customerPanelReady()"
+            sectionTitle="Dati principali"
+            [dense]="true"
           >
-            <div class="doc-form__field doc-form__field--span2">
-              <span class="doc-form__label" id="sd-customer-label">Cliente</span>
+            <app-document-header-field
+              label="Cliente"
+              [span2]="true"
+              [invalid]="fieldInvalid('customerId')"
+              errorId="sd-customer-error"
+            >
               <app-select-menu
                 [options]="customerOptions()"
                 [value]="form.controls.customerId.value"
@@ -304,20 +108,25 @@
                 describedBy="sd-customer-error"
                 (valueChange)="onCustomerSelect($event)"
               />
-              @if (fieldInvalid('customerId')) {
-                <p id="sd-customer-error" class="doc-form__error">Campo obbligatorio.</p>
-              }
+              <!-- La classe segue la vesta viva, come fa il campo condiviso con
+                   etichetta ed errore: il testo resta dichiarato una volta e in
+                   ognuna delle due vesti si veste come prima. -->
               @if (customerCommercialHint(); as hint) {
-                <p class="doc-form__hint" role="note">{{ hint }}</p>
+                <p [class]="compactView() ? 'doc-panel__helper' : 'doc-form__hint'" role="note">
+                  {{ hint }}
+                </p>
               }
-            </div>
+            </app-document-header-field>
 
             <!-- Sede (§1-bis): c'è su ogni documento, proforma compresa — è il
                  primo anello di una catena che scarica, e la sede decisa qui si
                  propaga a valle. Esce già compilata se l'operatore ha una sede
                  predefinita assegnata. -->
-            <div class="doc-form__field">
-              <span class="doc-form__label" id="sd-location-label">Sede</span>
+            <app-document-header-field
+              label="Sede"
+              [invalid]="fieldInvalid('locationId')"
+              errorId="sd-location-error"
+            >
               <app-select-menu
                 [options]="locationOptions()"
                 [value]="form.controls.locationId.value"
@@ -332,13 +141,14 @@
                 describedBy="sd-location-error"
                 (valueChange)="onLocationSelect($event)"
               />
-              @if (fieldInvalid('locationId')) {
-                <p id="sd-location-error" class="doc-form__error">Campo obbligatorio.</p>
-              }
-            </div>
+            </app-document-header-field>
 
-            <div class="doc-form__field">
-              <label class="doc-form__label" for="sd-date">Data documento</label>
+            <app-document-header-field
+              label="Data documento"
+              [invalid]="fieldInvalid('documentDate')"
+              errorId="sd-date-error"
+              errorMessage="Inserisci la data del documento (GG/MM/AAAA)."
+            >
               <app-date-input
                 inputId="sd-date"
                 formControlName="documentDate"
@@ -348,16 +158,35 @@
                 [invalid]="fieldInvalid('documentDate')"
                 describedBy="sd-date-error"
               />
-              @if (fieldInvalid('documentDate')) {
-                <p id="sd-date-error" class="doc-form__error">
-                  Inserisci la data del documento (GG/MM/AAAA).
-                </p>
-              }
-            </div>
+            </app-document-header-field>
 
-            <!-- Identificativo del documento: Data + Numero + Serie. Finché non lo
-               si tocca il numero è solo il primo libero (isProposal): lo prende
-               chi salva per primo, e il campo lo dice. -->
+            <!-- ⚠️ **Campo di UNA sola delle due scritture, lasciato dov'era.**
+                 Su scrivania la modalità netto/ivato era stata TOLTA dalla
+                 testata apposta: vive sull'intestazione della colonna Prezzo,
+                 dove sta anche nelle altre maschere. Nel pannello mobile invece
+                 è rimasta, ed è l'unico posto da cui si cambia quando le righe
+                 sono card — la card non ha intestazione di colonna.
+                 ⛔ Unificarla sarebbe una DECISIONE, non una deduplica: o si
+                 toglie il comando al telefono, o si rimette in testata anche su
+                 scrivania. Qui resta come oggi, ed è riportata. -->
+            @if (compactView()) {
+              <app-document-header-field label="Modalità prezzo">
+                <app-select-menu
+                  [options]="priceModeOptions"
+                  [value]="pricesIncludeVat() ? 'gross' : 'net'"
+                  ariaLabel="Modalità prezzo netto o ivato"
+                  placeholder="Netto"
+                  [includeEmptyOption]="false"
+                  [compact]="true"
+                  [fullWidth]="true"
+                  (valueChange)="setPriceMode($event === 'gross')"
+                />
+              </app-document-header-field>
+            }
+
+            <!-- Identificativo del documento: Data + Numero + Serie. Finché non
+                 lo si tocca il numero è solo il primo libero (isProposal): lo
+                 prende chi salva per primo, e il campo lo dice. -->
             <app-document-number-field
               numberInputId="sd-number"
               [number]="form.controls.documentNumber.value"
@@ -369,11 +198,6 @@
               (seriesChange)="numbering.onSeriesChange($event)"
               (manageSeries)="seriesDialogOpen.set(true)"
             />
-
-            <!-- La modalità prezzo NON sta più qui: vive sull'intestazione della
-                 colonna Prezzo, dove sta anche nelle altre tre maschere. Un
-                 campo di testata la teneva lontana dai numeri che governa, e
-                 rendeva questa maschera l'unica diversa (`07-…§24`). -->
 
             <!-- Listino (§B4): non è un dato del documento, è come lo si riempie.
                  Sceglierlo riscrive i prezzi delle righe, che restano
@@ -387,8 +211,7 @@
                  annullato — confonde le due cose e usa la stessa parola della
                  colonna degli importi. -->
             @if (showListinoSelect() && !formReadOnly()) {
-              <div class="doc-form__field">
-                <span class="doc-form__label">Listino</span>
+              <app-document-header-field label="Listino">
                 <app-select-menu
                   [options]="listinoOptions()"
                   [value]="listinoValue()"
@@ -398,37 +221,53 @@
                   [fullWidth]="true"
                   (valueChange)="onListinoChange($event)"
                 />
-              </div>
+              </app-document-header-field>
             }
-          </div>
+          </app-document-header>
 
+          <!-- Solo fatture: la fascia fiscale è la SECONDA banda della card su
+               scrivania, e il secondo pannello — chiuso all'ingresso, i valori
+               sono già validi o opzionali — su schermo compatto.
+               `--secondary` (tinta tenue e filo di separazione) sta sull'host:
+               la griglia la monta il componente comune, e la classe non
+               arriverebbe altrimenti. Sotto lg il foglio locale la spegne, o
+               tingerebbe il pannello invece della banda. -->
           @if (isSalesInvoice()) {
-            <div
-              class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row doc-form__header-row--secondary"
+            <app-document-header
+              class="doc-form__header-row--secondary"
+              title="Dettagli fattura"
+              [summaryParts]="invoicePanelSummaryParts()"
+              icon="pi-file"
+              [initiallyOpen]="false"
+              sectionTitle="Dati fiscali e pagamento"
+              [dense]="true"
             >
-              <div class="doc-form__field">
-                <label class="doc-form__label" for="sd-cause">Causale</label>
+              <!-- L'etichetta del campo comune è uno `<span>`, non un `<label
+                   for>`: senza `aria-label` questi input di testo resterebbero
+                   senza nome per chi usa un lettore di schermo. Le select e le
+                   date lo portano già. -->
+              <app-document-header-field label="Causale">
                 <input
                   id="sd-cause"
-                  class="doc-form__input"
+                  [class]="compactView() ? 'doc-panel__control' : 'doc-form__input'"
                   type="text"
                   formControlName="billingCause"
+                  aria-label="Causale"
                 />
-              </div>
+              </app-document-header-field>
 
               <!--
-              Riferimento DDT: la fattura DIFFERITA — DDT durante il periodo,
-              fattura che li riepiloga. Alimenta i riferimenti nell'XML
-              FatturaPA e la riga «Riferimento DDT» in stampa.
+                Riferimento DDT: la fattura DIFFERITA — DDT durante il periodo,
+                fattura che li riepiloga. Alimenta i riferimenti nell'XML
+                FatturaPA e la riga «Riferimento DDT» in stampa.
 
-              ⛔ NON sull'accompagnatoria: «mai DDT» (12 §matrice), perché
-              sostituisce il DDT nella stessa uscita. Qui c'era scritto che
-              «sull'accompagnatoria comanda anche lo scarico»: era la dottrina
-              da cui nasceva il difetto.
-            -->
+                ⛔ NON sull'accompagnatoria: «mai DDT» (12 §matrice), perché
+                sostituisce il DDT nella stessa uscita. Qui c'era scritto che
+                «sull'accompagnatoria comanda anche lo scarico»: era la dottrina
+                da cui nasceva il difetto.
+              -->
               @if (supportsLinkedDdt()) {
-                <div class="doc-form__field">
-                  <span class="doc-form__label">Riferimento DDT (opzionale)</span>
+                <app-document-header-field label="Riferimento DDT (opzionale)">
                   <app-select-menu
                     [options]="ddtOptions()"
                     value=""
@@ -440,10 +279,10 @@
                     (valueChange)="onAddLinkedDdt($event)"
                   />
                   <!--
-                Riusa le classi della lista causali (stessa forma: voci con
-                etichetta e bottone di rimozione) invece di introdurne di nuove:
-                sono già nel foglio condiviso delle maschere documento.
-              -->
+                    Riusa le classi della lista causali (stessa forma: voci con
+                    etichetta e bottone di rimozione) invece di introdurne di
+                    nuove: sono già nel foglio condiviso delle maschere documento.
+                  -->
                   @if (linkedDdts().length > 0) {
                     <ul class="doc-form__causal-manage-list">
                       @for (ddt of linkedDdts(); track ddt.id) {
@@ -461,23 +300,21 @@
                       }
                     </ul>
                   }
-                </div>
+                </app-document-header-field>
               }
 
-              <div class="doc-form__field">
-                <label class="doc-form__label" for="sd-payment-terms">
-                  Condizioni di pagamento
-                </label>
+              <app-document-header-field label="Condizioni di pagamento">
                 <input
                   id="sd-payment-terms"
-                  class="doc-form__input"
+                  [class]="compactView() ? 'doc-panel__control' : 'doc-form__input'"
                   type="text"
                   formControlName="paymentTerms"
                   placeholder="Es. Bonifico 30 gg d.f."
+                  aria-label="Condizioni di pagamento"
                 />
-              </div>
-              <div class="doc-form__field">
-                <label class="doc-form__label" for="sd-payment-due">Scadenza pagamento</label>
+              </app-document-header-field>
+
+              <app-document-header-field label="Scadenza pagamento">
                 <app-date-input
                   inputId="sd-payment-due"
                   [value]="form.controls.paymentDueDate.value"
@@ -486,19 +323,22 @@
                   [fullWidth]="true"
                   (valueChange)="form.controls.paymentDueDate.setValue($event)"
                 />
-              </div>
-              <div class="doc-form__field">
-                <label class="doc-form__label" for="sd-iban">IBAN</label>
+              </app-document-header-field>
+
+              <app-document-header-field label="IBAN">
                 <input
                   id="sd-iban"
-                  class="doc-form__input"
+                  [class]="compactView() ? 'doc-panel__control' : 'doc-form__input'"
                   type="text"
                   formControlName="iban"
                   maxlength="34"
+                  aria-label="IBAN"
                 />
-                <p class="doc-form__hint">Se lo lasci vuoto vale l'IBAN dei Dati azienda.</p>
-              </div>
-            </div>
+                <p [class]="compactView() ? 'doc-panel__helper' : 'doc-form__hint'">
+                  Se lo lasci vuoto vale l'IBAN dei Dati azienda.
+                </p>
+              </app-document-header-field>
+            </app-document-header>
           }
         </div>
 

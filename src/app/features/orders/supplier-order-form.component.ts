@@ -150,7 +150,8 @@ import { DocumentLineFocusStore } from '@domain/documents/state/document-line-fo
 // `supplierCodeForDocumentLine` non si importa più: lo chiama il risolutore
 // comune, che è l'unico posto in cui la regola del codice fornitore vive.
 import { type DocumentLineCodeField } from '@domain/documents/utils/document-code-match.util';
-import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
+import { DocumentHeaderComponent } from '@domain/documents/components/document-header/document-header.component';
+import { DocumentHeaderFieldComponent } from '@domain/documents/components/document-header/document-header-field.component';
 import {
   grossFromNetExact,
   grossFromNetMinor,
@@ -281,7 +282,8 @@ function todayIsoDate(): string {
     SupplierFormFieldsComponent,
     SlidePanelComponent,
     ProductFormComponent,
-    DocumentMobilePanelComponent,
+    DocumentHeaderComponent,
+    DocumentHeaderFieldComponent,
     UnitOfMeasureManagerDialogComponent,
     DocumentProductSearchPanelComponent,
     ConfirmDialogComponent,

@@ -254,8 +254,11 @@ describe('SalesDocumentFormComponent', () => {
 
   /** Cliente + una riga valida: il minimo che il salvataggio pretende. */
   async function fillMinimumDocument(user: ReturnType<typeof userEvent.setup>): Promise<void> {
-    // Testata desktop e pannello mobile convivono nel DOM: si usa la prima.
-    await user.click(screen.getAllByRole('button', { name: 'Cliente' })[0]!);
+    // ⛔ Qui si prendeva «la prima» delle due copie, perché «testata desktop e
+    // pannello mobile convivono nel DOM». La testata ora si dichiara una volta
+    // e le due vesti sono esclusive: la copia è una, e `getByRole` fallisce se
+    // la doppia scrittura torna.
+    await user.click(screen.getByRole('button', { name: 'Cliente' }));
     await user.click(screen.getByRole('option', { name: 'Mario Rossi' }));
     // Da 12/08/2026 la riga ha la cella nome CONDIVISA («Nome prodotto») al
     // posto della vecchia coppia tendina + colonna Descrizione.
@@ -335,9 +338,12 @@ describe('SalesDocumentFormComponent', () => {
     const { createDocument, toast } = await setup({ proposedNumber: 42 });
 
     // La proposta arriva in afterNextRender: si attende che compaia.
-    expect(await screen.findAllByDisplayValue('42')).not.toHaveLength(0);
+    expect(await screen.findAllByDisplayValue('42')).toHaveLength(1);
     // Il campo dichiara che è una proposta, non un numero già acquisito.
-    expect(screen.getAllByText('Primo libero: lo prende chi salva per primo.')).not.toHaveLength(0);
+    // ⛔ Qui si asseriva solo «almeno una»: con la testata scritta due volte le
+    // occorrenze erano due, e il conteggio esatto avrebbe dato fastidio. Ora è
+    // una, ed è la guardia che tiene ferma la scrittura unica.
+    expect(screen.getAllByText('Primo libero: lo prende chi salva per primo.')).toHaveLength(1);
 
     await fillMinimumDocument(user);
     await save(user);
@@ -356,7 +362,7 @@ describe('SalesDocumentFormComponent', () => {
     const { createDocument } = await setup({ proposedNumber: 42, assignedNumber: 7 });
 
     await screen.findAllByDisplayValue('42');
-    const numberInput = screen.getAllByLabelText<HTMLInputElement>('Numero')[0]!;
+    const numberInput = screen.getByLabelText<HTMLInputElement>('Numero');
     await user.clear(numberInput);
     await user.type(numberInput, '7');
 
@@ -399,10 +405,9 @@ describe('SalesDocumentFormComponent', () => {
   it('mostra «Gestisci numerazioni» a chi ha documents.configure', async () => {
     await setup({ permissions: [TenantPermission.DocumentsConfigure] });
 
-    // Testata mobile e griglia desktop montano entrambe il campo.
-    expect(screen.getAllByRole('button', { name: 'Gestisci numerazioni' }).length).toBeGreaterThan(
-      0,
-    );
+    // ⛔ Qui si contava «più di zero», perché testata mobile e griglia desktop
+    // montavano entrambe il campo. Ne esiste una sola.
+    expect(screen.getByRole('button', { name: 'Gestisci numerazioni' })).toBeVisible();
   });
 
   // ── Il corpo del PATCH ────────────────────────────────────────────────────
@@ -736,9 +741,10 @@ describe('SalesDocumentFormComponent', () => {
     it('si chiama «Listino», e non prende il nome del valore che governa', async () => {
       await setup({ tenantSettings: CON_DUE_LISTINI });
 
-      // Testata desktop e pannello mobile convivono nel DOM: due occorrenze
-      // sono la norma in questa maschera, e l'etichetta deve essere la stessa.
-      expect(screen.getAllByLabelText('Listino applicato alle righe').length).toBeGreaterThan(0);
+      // ⛔ Qui c'era scritto che «due occorrenze sono la norma in questa
+      // maschera»: era la testata scritta due volte, diventata un requisito del
+      // test. Il campo è uno.
+      expect(screen.getByLabelText('Listino applicato alle righe')).toBeVisible();
       // Il nome accessibile non deve diventare «Prezzo…»: quella parola è già
       // della colonna degli importi, e chiamare così anche questo rende i due
       // controlli indistinguibili per chi usa un lettore di schermo.

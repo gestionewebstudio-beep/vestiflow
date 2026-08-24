@@ -156,7 +156,10 @@ import { ProductFormComponent } from '@domain/products/product-form.component';
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import type { VariantByCodeDto } from '@domain/products/models/product.dto';
 import { DocumentCounterpartyRefComponent } from '@domain/documents/components/document-counterparty-ref/document-counterparty-ref.component';
-import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
+// La maschera non monta più `app-document-mobile-panel` da sé: il pannello
+// mobile è una delle due vesti che `app-document-header` sceglie da solo.
+import { DocumentHeaderComponent } from '@domain/documents/components/document-header/document-header.component';
+import { DocumentHeaderFieldComponent } from '@domain/documents/components/document-header/document-header-field.component';
 import { DocumentPrintActionsComponent } from '@domain/documents/components/document-print-actions/document-print-actions.component';
 import { UnitOfMeasureManagerDialogComponent } from '@domain/products/components/unit-of-measure-manager-dialog/unit-of-measure-manager-dialog.component';
 import type { UnitOfMeasureOption } from '@domain/products/models/unit-of-measure-option.model';
@@ -325,6 +328,8 @@ const SALES_PRICE_FIELDS: readonly SalesPriceField[] = [
     TableColumnPickerComponent,
     DocumentAttachmentsPanelComponent,
     DocumentCounterpartyRefComponent,
+    DocumentHeaderComponent,
+    DocumentHeaderFieldComponent,
     DocumentLineHeadComponent,
     DocumentLineRowComponent,
     DocumentLineCardComponent,
@@ -332,7 +337,6 @@ const SALES_PRICE_FIELDS: readonly SalesPriceField[] = [
     DocumentLineCardBodyComponent,
     DocumentPrintActionsComponent,
     UnitOfMeasureManagerDialogComponent,
-    DocumentMobilePanelComponent,
     DocumentProductSearchPanelComponent,
     SlidePanelComponent,
     ProductFormComponent,
@@ -1046,9 +1050,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       : 'Cerca un articolo, scansiona un codice o includi un ordine fornitore.',
   );
 
-  // ── Testata mobile a due pannelli (riferimento «Ordine cliente») ──────────
+  // ── Riepiloghi dei due pannelli di testata (riferimento «Ordine cliente») ──
   // Solo testi display-only: concatenano valori già presenti nel form. Lo
-  // stato di apertura vive nel componente condiviso app-document-mobile-panel.
+  // stato di apertura vive nel pannello che `app-document-header` monta sotto
+  // la soglia compatta; qui non c'è nulla da tenere allineato fra le viste,
+  // perché la testata si dichiara una volta sola.
 
   /** Dati che sbloccano le righe: stesso criterio del gate, letto al positivo. */
   protected readonly headerDataReady = computed(() => !this.headerGateActive());

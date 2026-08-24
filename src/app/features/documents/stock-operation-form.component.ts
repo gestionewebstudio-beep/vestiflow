@@ -88,7 +88,8 @@ import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confir
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
 import { DocumentSeriesManagerDialogComponent } from '@domain/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
-import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
+import { DocumentHeaderComponent } from '@domain/documents/components/document-header/document-header.component';
+import { DocumentHeaderFieldComponent } from '@domain/documents/components/document-header/document-header-field.component';
 import { EditLockBannerComponent } from '@shared/components/edit-lock-banner/edit-lock-banner.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
@@ -180,7 +181,8 @@ type MovementCodeField = Extract<DocumentLineCodeField, 'articleCode' | 'sku' | 
     ButtonComponent,
     ConfirmDialogComponent,
     DateInputComponent,
-    DocumentMobilePanelComponent,
+    DocumentHeaderComponent,
+    DocumentHeaderFieldComponent,
     DocumentNumberFieldComponent,
     DocumentPrintActionsComponent,
     DocumentSeriesManagerDialogComponent,
