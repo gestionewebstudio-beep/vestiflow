@@ -47,6 +47,9 @@ Qui c'è **cosa resta da fare**, non perché.
 | `569ae890` | **«Duplica riga» rimossa** da tutte le maschere, wrapper card e componenti condivisi. Due test-guardia impediscono il rientro                                                                             |
 | `66a4f5f4` | **U.M.: una regola sola.** Tolti i due ripieghi client e quello server; la maschera cattura, la riga conserva                                                                                             |
 | `87369c2d` | **T0 varianti: una funzione sola** (`api/src/common/variant-label.util.ts` + gemella client). Chiude la forma a mappa e il sentinella Shopify                                                             |
+| `16b78933` | **Arrivo merce sulla riga comune** — l'ultima delle sette. 26 `<th>` e 29 `<td>` locali → 0. Catalogo canonico a **31 colonne**; `fieldBlur` promosso a primitiva condivisa; il controllo sconto si chiama `discount` ovunque |
+| `3462ad65` | **37 import senza template** rimossi dalle cinque maschere migrate (NG8113). Restano fuori i tre `InlineBannerComponent` degli elenchi, precedenti a questo filone                                        |
+| `27bbb89a` | **Il `<colgroup>` dell'Ordine cliente non conosceva la Variante**: 16 `<col>` che mappano per posizione, con la sesta in poi sulla colonna sbagliata. Stesso difetto dell'Arrivo merce, nella maschera di riferimento |
 
 ## 🔵 BLOCCO A — la colonna Variante
 
@@ -155,7 +158,15 @@ Trovati dal censimento del 23/08, tutti con file e riga nella sintesi. Per gravi
    vuota su una riga con articolo _(emerso il 23/08 chiudendo la U.M.)_
 9. **`TenantFeatureSettings.defaultUnitOfMeasure` non la legge nessuno**: esiste, è
    configurabile, e le maschere cablano `'pz'`. O si collega, o si toglie dalle Impostazioni
-10. **Inventario fisico**: `finalize` applica un **delta relativo** invece di portare la
+10. **Quattro maschere non ridistribuiscono le larghezze dal vivo** _(misurato 24/08/2026)_.
+    Documenti vendita, Rettifica, Trasferimento e Ordine fornitore usano le **quote**
+    percentuali (`lineColumnQuotaWidth`, `sumVisibleLineColumnsPx`) ma legano solo
+    `(columnResized)`: trascinando una maniglia il totale cambia e **tutte** le altre
+    colonne si riscalano, invece di far cedere spazio alla vicina. Arrivo merce e Ordine
+    cliente lo fanno — ognuno con una **copia sua** di `redistributeLineColumns` +
+    `lineColumnDraft`. Due sistemi a metà: o sale il pezzo mancante nell'utility comune,
+    o le due copie restano a divergere
+11. **Inventario fisico**: `finalize` applica un **delta relativo** invece di portare la
     giacenza al valore contato; `createdByName` è la stringa `'API'`; il documento è creato
     **fuori** dalla transazione che ha già scritto giacenze e movimenti
 
