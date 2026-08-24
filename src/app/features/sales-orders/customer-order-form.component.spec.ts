@@ -1885,3 +1885,94 @@ describe('CustomerOrderFormComponent — comandi fuori dai permessi', () => {
     );
   });
 });
+
+/**
+ * ⛔ **«Aggiungi riga» dà UNA riga operativa, non due** — 24/08/2026.
+ *
+ * Il proprietario ha visto su scrivania due righe vuote comparire premendo il
+ * pulsante una volta sola. Misurato prima di correggere: la `push` era **una**.
+ * La seconda riga era quella con cui il documento nasce — visibile su
+ * scrivania, e su schermo compatto nascosta finché il conteggio non la faceva
+ * ricomparire.
+ *
+ * ## Perché queste tre prove, e non altre
+ *
+ * Chi compila un documento non conta gli elementi del FormArray: conta **le
+ * righe in cui può scrivere**. Le prove guardano quindi il DOM oltre al
+ * modello, perché è lì che il difetto si vedeva.
+ *
+ * ⚠️ La terza prova sembra ovvia e non lo è: la correzione sbagliata di questo
+ * difetto — far decidere alla primitiva se aggiungere — ha mandato in crash il
+ * banco di prova. Due punti del codice costruiscono N righe con
+ * `while (lines.length < n) addLine()`, e con un `addLine` che a volte non
+ * aggiunge quel ciclo non finisce mai. Il worker è morto per memoria esaurita
+ * invece di fallire con un messaggio, ed è il modo peggiore in cui un difetto
+ * può presentarsi. La prova fissa il contratto della primitiva perché non
+ * succeda di nuovo.
+ */
+describe('CustomerOrderFormComponent — «Aggiungi riga» dà una riga sola', () => {
+  /** Le righe come le conta l'operatore: quelle in cui può scrivere. */
+  function righeAVideo(container: HTMLElement): number {
+    return container.querySelectorAll('tr[app-document-line-row]').length;
+  }
+
+  async function documentoNuovo() {
+    const view = await render(CustomerOrderFormComponent, { providers: formProviders() });
+    const componente = view.fixture.componentInstance as unknown as {
+      lines: {
+        length: number;
+        at: (i: number) => { controls: Record<string, { setValue: (v: unknown) => void }> };
+      };
+      form: { controls: Record<string, { setValue: (v: unknown) => void }> };
+      addLine: () => void;
+    };
+    // ⚠️ Senza cliente e sede il gate di testata disabilita la banda righe: il
+    // pulsante ci sarebbe ma non risponderebbe, e la prova non eserciterebbe
+    // niente.
+    componente.form.controls['customerId']!.setValue('cli-1');
+    componente.form.controls['locationId']!.setValue('loc-1');
+    view.fixture.detectChanges();
+    return { view, componente };
+  }
+
+  async function premiAggiungiRiga(view: { fixture: { detectChanges: () => void } }) {
+    await userEvent.click(screen.getByRole('button', { name: /Aggiungi riga/i }));
+    view.fixture.detectChanges();
+  }
+
+  it('⛔ su un documento nuovo NON compare una seconda riga vuota', async () => {
+    const { view, componente } = await documentoNuovo();
+
+    expect(componente.lines.length).toBe(1);
+    expect(righeAVideo(view.container)).toBe(1);
+
+    await premiAggiungiRiga(view);
+
+    // La riga che aspetta è quella dell'apertura: il gesto la riusa.
+    expect(componente.lines.length).toBe(1);
+    expect(righeAVideo(view.container)).toBe(1);
+  });
+
+  it('⭐ ma con la riga già compilata ne apre davvero una nuova', async () => {
+    const { view, componente } = await documentoNuovo();
+    componente.lines.at(0).controls['productName']!.setValue('Maglia cotone');
+    view.fixture.detectChanges();
+
+    await premiAggiungiRiga(view);
+
+    expect(componente.lines.length).toBe(2);
+    expect(righeAVideo(view.container)).toBe(2);
+  });
+
+  it('⛔ e la PRIMITIVA aggiunge sempre: ci si costruiscono N righe', async () => {
+    const { componente } = await documentoNuovo();
+
+    // È il contratto su cui si appoggiano conversione, import e i banchi di
+    // prova. Se un giorno smettesse di valere, un `while` da qualche parte non
+    // finirebbe più.
+    componente.addLine();
+    componente.addLine();
+
+    expect(componente.lines.length).toBe(3);
+  });
+});

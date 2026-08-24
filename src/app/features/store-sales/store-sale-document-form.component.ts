@@ -1770,6 +1770,14 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
   // e non bloccante, e Giacenza/Disponibile possono andare negative.
 
   protected lineExceedsAvailability(line: StoreSaleDocumentLine): boolean {
+    // ⛔ **Senza articolo non c'è disponibilità da superare.** La riga con cui
+    //    il documento nasce ha quantità 1 e disponibile 0 — zero perché non ha
+    //    un articolo, non perché la merce sia finita. Senza questa guardia ogni
+    //    vendita nuova si apriva con un avviso di giacenza su una riga vuota,
+    //    e il testo lungo dell'avviso mandava la riga da ~30px a ~160px.
+    if (!line.variantId) {
+      return false;
+    }
     return this.descriptor.mode === 'sale' && line.quantity > line.available;
   }
 

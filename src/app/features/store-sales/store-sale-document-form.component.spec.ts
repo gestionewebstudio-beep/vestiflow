@@ -1720,3 +1720,40 @@ describe('StoreSaleDocumentFormComponent', () => {
     });
   });
 });
+
+/**
+ * ⛔ **La riga senza articolo non può superare una disponibilità** — 24/08/2026.
+ *
+ * La riga vuota con cui il documento nasce ha quantità 1 e disponibile 0 —
+ * disponibile 0 perché non ha un articolo, non perché la merce sia finita.
+ * `lineExceedsAvailability` è `quantity > available`, quindi la marcava come
+ * «quantità oltre la disponibilità».
+ *
+ * ## Cosa si vedeva, ed è il motivo per cui conta
+ *
+ * L'avviso porta un testo lungo — «Quantità superiore alla disponibilità.
+ * Giacenza 0, impegnata 0, disponibile 0. Si può concludere comunque.» — che
+ * nella cella Q.tà va a capo cinque volte: la riga passava da ~30px a ~160px e
+ * la banda righe risultava disallineata rispetto al riferimento. Un avviso
+ * falso non è solo rumore: qui deformava la maschera.
+ *
+ * ⚠️ E insegnava all'operatore a ignorare un avviso di giacenza, che è
+ * l'ultimo avviso che si vuole rendere ignorabile in un gestionale.
+ */
+describe('StoreSaleDocumentFormComponent — avvisi di giacenza', () => {
+  it('⛔ la riga vuota dell’apertura non porta l’avviso di disponibilità', async () => {
+    const rendered = await setup({ defaultLocation: SEDE.id });
+    const componente = rendered.component as unknown as {
+      lines: () => readonly StoreSaleDocumentLine[];
+      lineExceedsAvailability: (line: StoreSaleDocumentLine) => boolean;
+    };
+
+    const [rigaVuota] = componente.lines();
+    expect(rigaVuota).toBeTruthy();
+
+    // Nessun articolo risolto: non c'è disponibilità da superare.
+    expect(componente.lineExceedsAvailability(rigaVuota!)).toBe(false);
+    expect(rendered.container.querySelector('.doc-form__row--warning')).toBeNull();
+    expect(screen.queryByText(/Quantità superiore alla disponibilità/)).toBeNull();
+  });
+});

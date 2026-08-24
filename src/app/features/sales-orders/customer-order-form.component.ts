@@ -2291,9 +2291,64 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     }
   }
 
+  /**
+   * **La primitiva: aggiunge una riga, sempre.**
+   *
+   * ⛔ Non è il gesto dell'operatore — quello è `requestNewLine()`. La
+   * distinzione non è formale: conversione, import e le prove costruiscono N
+   * righe chiamando questo metodo N volte, e un `addLine` che «a volte non
+   * aggiunge» trasforma `while (lines.length < n) addLine()` in un ciclo
+   * infinito. È successo il 24/08/2026, e il banco di prova è morto per
+   * memoria esaurita invece di fallire con un messaggio.
+   */
   protected addLine(): void {
     this.lines.push(this.createLine());
     this.markFormDirty();
+  }
+
+  /**
+   * **Il gesto «Aggiungi riga», da qualunque pulsante arrivi** — 24/08/2026.
+   *
+   * Un documento nuovo nasce già con una riga vuota, ed è quella in cui si
+   * comincia a digitare. Chiederne un'altra prima di aver riempito quella ne fa
+   * comparire **due vuote**, e nessuna delle due è più «quella nuova»: è il
+   * difetto visto a schermo, e nasceva da una `push` sola — la seconda riga era
+   * quella dell'apertura, che il conteggio faceva ricomparire.
+   *
+   * Tre esiti, e **nessuno di essi è «non succede niente»**:
+   *
+   * | Stato                                     | Effetto                  |
+   * | ----------------------------------------- | ------------------------ |
+   * | compatto, riga tecnica ancora nascosta    | la **rivela**            |
+   * | c'è già una riga vuota in coda, visibile  | le porta il **fuoco**    |
+   * | l'ultima riga è piena                     | ne **aggiunge** una      |
+   *
+   * ⭐ Il primo caso riusa `mobileRowsRevealed`, il meccanismo del 26/07
+   * (commit `5c2dd756`): non è un flag nuovo, è quello che già distingueva la
+   * riga tecnica dell'apertura da una riga chiesta dall'operatore.
+   *
+   * ⚠️ Quando non aggiunge nulla **il documento non risulta modificato**: un
+   * clic che non ha cambiato dati non deve far comparire «Modifiche non
+   * salvate», o l'avviso smette di voler dire qualcosa.
+   */
+  protected requestNewLine(): void {
+    const ultimo = this.lines.length - 1;
+    const ultima = ultimo >= 0 ? this.lines.at(ultimo) : null;
+    const attendeGiaUnaRiga =
+      ultima != null && !this.lineIsReference(ultimo) && this.lineIsEmpty(ultima);
+
+    if (!attendeGiaUnaRiga) {
+      this.addLine();
+      return;
+    }
+    // ⚠️ La rivelazione riguarda **solo** lo schermo compatto: su scrivania la
+    // riga vuota si vede già, e `mobileRowsVisible()` lì è falsa per un'altra
+    // ragione — non perché ci sia qualcosa da svelare.
+    if (this.compactView() && !this.mobileRowsVisible()) {
+      this.mobileRowsRevealed.set(true);
+      return;
+    }
+    this.focusLineField(ultimo, 'articleCode');
   }
 
   protected removeLine(index: number): void {
@@ -2352,13 +2407,17 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     return rows.length > 1 || (rows.length === 1 && !this.lineIsEmpty(rows[0]!));
   });
 
-  /** «Aggiungi riga» su mobile: la prima volta svela la riga vuota già presente. */
+  /**
+   * «Aggiungi riga» dello stato vuoto mobile.
+   *
+   * ⛔ **Delega**, non duplica: la decisione «rivelare, mettere a fuoco o
+   * aggiungere» sta in `requestNewLine()` e basta. Due implementazioni dello
+   * stesso gesto divergono al primo caso nuovo, ed e' esattamente cosi' che il
+   * pulsante di scrivania si e' messo ad accodare senza sapere della riga
+   * tecnica.
+   */
   protected addLineMobile(): void {
-    if (!this.mobileRowsVisible()) {
-      this.mobileRowsRevealed.set(true);
-      return;
-    }
-    this.addLine();
+    this.requestNewLine();
   }
 
   /** Stepper quantità della riga compatta mobile (min 1). */
