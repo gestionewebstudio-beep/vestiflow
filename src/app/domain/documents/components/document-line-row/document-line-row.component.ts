@@ -158,6 +158,17 @@ export class DocumentLineRowComponent {
   readonly unitManageRequested = output<void>();
   readonly vatSelected = output<string | null>();
 
+  /**
+   * Il costo digitato, a ogni tasto.
+   *
+   * ⭐ Serve perche' il campo costo e' una **vista sul netto canonico**: quello
+   * che si digita aggiorna il netto, e il selettore netto/ivato ridisegna il
+   * campo senza mai ricostruire il netto da cio' che si vede. Senza questo
+   * evento il canonico resterebbe a zero e il salvataggio manderebbe zero —
+   * il campo a schermo direbbe una cifra e il documento ne salverebbe un'altra.
+   */
+  readonly costChanged = output<string>();
+
   /** Tasto premuto in una cella a `formControlName`: il giro del fuoco è della maschera. */
   readonly fieldKeydown = output<DocumentLineFieldEvent<KeyboardEvent>>();
   /** Uscite di cella dalle celle condivise, che il fuoco usa allo stesso modo. */
@@ -180,6 +191,19 @@ export class DocumentLineRowComponent {
    * ⚠️ Un controllo assente vale stringa vuota: una maschera che non ha la
    * colonna non deve dichiararne il controllo per far girare la riga.
    */
+  /**
+   * Il gruppo ha questo controllo?
+   *
+   * ⭐ È il modo in cui una stessa colonna può essere **editabile in un
+   * documento e in sola lettura in un altro**, senza un `if (documentType)`:
+   * i tre prezzi d'anagrafica l'Arrivo merce li scrive (ha i controlli),
+   * l'Ordine fornitore li mostra e basta (non li ha). La riga non chiede quale
+   * documento sia — guarda il gruppo che le hanno dato.
+   */
+  protected haControllo(name: string): boolean {
+    return Boolean(this.group().controls[name]);
+  }
+
   protected controlValue(name: string): string {
     const control = this.group().controls[name];
     return (control?.value as string | null | undefined) ?? '';

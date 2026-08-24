@@ -105,6 +105,17 @@
     ></span>
   </th>
 }
+@if (isColumnVisible()('supplierCode')) {
+  <th scope="col" [style.width]="columnWidth()('supplierCode')">
+    <span class="doc-form__th-label" title="Cod. fornitore">Cod. fornitore</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('supplierCode')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'supplierCode', widthPx: $event })"
+    ></span>
+  </th>
+}
 @if (isColumnVisible()('product')) {
   <th
     scope="col"
@@ -172,6 +183,21 @@
     ></span>
   </th>
 }
+@if (isColumnVisible()('stockOnHand')) {
+  <th
+    scope="col"
+    class="doc-form__num doc-form__col--stock"
+    [style.width]="columnWidth()('stockOnHand')"
+  >
+    <span class="doc-form__th-label" title="Q.tà giacenza">Q.tà giacenza</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('stockOnHand')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'stockOnHand', widthPx: $event })"
+    ></span>
+  </th>
+}
 @if (isColumnVisible()('stockAvailable')) {
   <th
     scope="col"
@@ -217,6 +243,99 @@
       [live]="true"
       (resizing)="columnResizing.emit({ column: 'purchaseCost', widthPx: $event })"
       (resized)="columnResized.emit({ column: 'purchaseCost', widthPx: $event })"
+    ></span>
+  </th>
+}
+<!-- ⛔ Il costo ha il SUO menu netto/ivato, distinto da quello del prezzo:
+     un acquisto sceglie come digitare il costo, una vendita come digitare il
+     prezzo, e un Arrivo merce può avere entrambe le colonne insieme. Con un
+     menu solo, cambiare l'uno cambierebbe l'altro. -->
+@if (isColumnVisible()('unitCost')) {
+  <th
+    scope="col"
+    class="doc-form__num doc-form__col--calc doc-form__th--menu"
+    [style.width]="columnWidth()('unitCost')"
+  >
+    <!-- ⛔ Un trigger SOLO: `app-price-mode-menu` ne ha gia' uno suo, e
+         affiancargliene un secondo con lo stesso nome accessibile lascia
+         all'operatore due comandi identici di cui uno non apre niente. E' il
+         difetto che il test dell'intestazione fotografa gia' per il prezzo. -->
+    <span class="doc-form__th-menu-wrap">
+      <span class="doc-form__th-label" [title]="costLabel()">{{ costLabel() }}</span>
+      <app-price-mode-menu
+        [pricesIncludeVat]="costsIncludeVat()"
+        netLabel="Usa costi netti"
+        grossLabel="Usa costi ivati"
+        ariaLabel="Modalità costi del documento"
+        [disabled]="readOnly()"
+        (modeChange)="costModeChanged.emit($event)"
+      />
+    </span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('unitCost')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'unitCost', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('discountedCost')) {
+  <th
+    scope="col"
+    class="doc-form__num doc-form__col--calc"
+    [style.width]="columnWidth()('discountedCost')"
+  >
+    <span class="doc-form__th-label" title="Costo scontato">Costo scontato</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('discountedCost')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'discountedCost', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('sellingPrice')) {
+  <th
+    scope="col"
+    class="doc-form__num doc-form__col--sale"
+    [style.width]="columnWidth()('sellingPrice')"
+  >
+    <span class="doc-form__th-label" title="Prezzo di vendita">Prezzo di vendita</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('sellingPrice')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'sellingPrice', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('shopifyPrice')) {
+  <th
+    scope="col"
+    class="doc-form__num doc-form__col--sale"
+    [style.width]="columnWidth()('shopifyPrice')"
+  >
+    <span class="doc-form__th-label" title="Prezzo Shopify">Prezzo Shopify</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('shopifyPrice')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'shopifyPrice', widthPx: $event })"
+    ></span>
+  </th>
+}
+@if (isColumnVisible()('compareAtPrice')) {
+  <th
+    scope="col"
+    class="doc-form__num doc-form__col--sale"
+    [style.width]="columnWidth()('compareAtPrice')"
+  >
+    <span class="doc-form__th-label" title="Prezzo barrato">Prezzo barrato</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('compareAtPrice')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'compareAtPrice', widthPx: $event })"
     ></span>
   </th>
 }

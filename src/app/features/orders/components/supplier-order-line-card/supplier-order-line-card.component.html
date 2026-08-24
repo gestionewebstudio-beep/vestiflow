@@ -25,7 +25,7 @@
         min="1"
         step="1"
         inputmode="numeric"
-        [formControl]="line().controls.orderedQuantity"
+        [formControl]="line().controls.quantity"
         [attr.aria-label]="'Quantità riga ' + (lineIndex() + 1)"
       />
     </app-document-line-card-control>
@@ -124,7 +124,7 @@
         [id]="'po-m-discount-' + lineIndex()"
         class="doc-form__input"
         type="text"
-        [formControl]="line().controls.discountPercent"
+        [formControl]="line().controls.discount"
         placeholder="0%"
         title="Percentuale singola o cascata: «10%», «4+10%»"
       />

@@ -180,6 +180,17 @@ function salvaDocumento(): HTMLElement {
   return screen.getAllByRole('button', { name: 'Salva documento' })[0]!;
 }
 
+/**
+ * ⚠️ **Le etichette sono quelle della RIGA E DELL'INTESTAZIONE COMUNI**, non
+ * piu' quelle del markup locale:
+ *
+ *   «Quantità ordinata»       → «Quantità riga N»      dice QUALE riga
+ *   «Ordina per SKU»          → «SKU: ordina crescente» dice anche il VERSO
+ *
+ * Prevale l'Ordine cliente (decisione del 24/08/2026), e le due forme comuni
+ * dicono di piu': a voce, «Quantita' ordinata» ripetuto su venti righe non ne
+ * distingue nessuna.
+ */
 describe('SupplierOrderFormComponent', () => {
   // jsdom non implementa <dialog>: senza questo, aprire il dialogo di sblocco
   // esplode con «showModal is not a function». È un limite dell'ambiente di
@@ -445,7 +456,7 @@ describe('SupplierOrderFormComponent', () => {
 
     // L'articolo di prova non ha costo: senza, il salvataggio si ferma prima e
     // il carico utile non parte nemmeno.
-    const costo = screen.getByPlaceholderText('0,00');
+    const costo = screen.getByLabelText('Costo riga 1');
     await user.clear(costo);
     await user.type(costo, '12,50');
 
@@ -467,7 +478,7 @@ describe('SupplierOrderFormComponent', () => {
     await setup();
     await scegliFornitore(user);
 
-    await user.click(screen.getByRole('button', { name: 'Ordina per Nome prodotto' }));
+    await user.click(screen.getByRole('button', { name: /^Nome prodotto: ordina/ }));
 
     expect(await screen.findByText('Riordino righe')).toBeVisible();
     expect(screen.getByText(/non sarà più ricostruibile/)).toBeVisible();
@@ -478,11 +489,11 @@ describe('SupplierOrderFormComponent', () => {
     await setup();
     await scegliFornitore(user);
 
-    await user.click(screen.getByRole('button', { name: 'Ordina per SKU' }));
+    await user.click(screen.getByRole('button', { name: /^SKU: ordina/ }));
     await user.click(screen.getByRole('button', { name: 'Annulla' }));
 
     // L'avviso non è stato consumato: il gesto successivo lo richiede.
-    await user.click(screen.getByRole('button', { name: 'Ordina per SKU' }));
+    await user.click(screen.getByRole('button', { name: /^SKU: ordina/ }));
     expect(await screen.findByText('Riordino righe')).toBeVisible();
   });
 
@@ -507,7 +518,7 @@ describe('SupplierOrderFormComponent', () => {
     const user = userEvent.setup();
     const { createOrder } = await setup({ vatCodes: [VAT_22] });
     await scegliArticoloSullaRiga(user);
-    const costo = screen.getByPlaceholderText('0,00');
+    const costo = screen.getByLabelText('Costo riga 1');
     await user.clear(costo);
     await user.type(costo, '12,50');
 
@@ -552,7 +563,7 @@ describe('SupplierOrderFormComponent', () => {
 
     await scegliFornitore(user);
 
-    const qtyInput = screen.getByLabelText('Quantità ordinata');
+    const qtyInput = screen.getByLabelText('Quantità riga 1');
     await user.clear(qtyInput);
     await user.type(qtyInput, '3');
 
@@ -642,10 +653,10 @@ describe('SupplierOrderFormComponent', () => {
 
     await scegliArticoloSullaRiga(user);
 
-    const qtyInput = screen.getByLabelText('Quantità ordinata');
+    const qtyInput = screen.getByLabelText('Quantità riga 1');
     await user.clear(qtyInput);
     await user.type(qtyInput, '2');
-    const costInput = screen.getByPlaceholderText('0,00');
+    const costInput = screen.getByLabelText('Costo riga 1');
     await user.clear(costInput);
     await user.type(costInput, '12,50');
 
@@ -768,7 +779,7 @@ describe('SupplierOrderFormComponent', () => {
 
     expect(await screen.findByRole('button', { name: /Sblocca/ })).toBeVisible();
     // Protetto = form disabilitato: non si digita a vuoto.
-    expect(screen.getByLabelText('Quantità ordinata')).toBeDisabled();
+    expect(screen.getByLabelText('Quantità riga 1')).toBeDisabled();
   });
 
   // TODO(blocco documenti): manca il resto del giro — sblocca, modifica, salva,
@@ -802,7 +813,7 @@ describe('SupplierOrderFormComponent', () => {
 
     await scegliArticoloSullaRiga(user);
 
-    const cost = screen.getByPlaceholderText('0,00');
+    const cost = screen.getByLabelText('Costo riga 1');
     await user.clear(cost);
     await user.type(cost, '12,50');
 
@@ -850,7 +861,7 @@ describe('SupplierOrderFormComponent', () => {
     await user.click(screen.getByRole('option', { name: 'Tessuti Italia' }));
     await scegliArticoloSullaRiga(user);
 
-    const costo = screen.getByPlaceholderText('0,00');
+    const costo = screen.getByLabelText('Costo riga 1');
     await user.clear(costo);
     await user.type(costo, '-5,00');
     await user.click(salvaDocumento());
@@ -879,6 +890,11 @@ describe('SupplierOrderFormComponent', () => {
   // centesimo nel 18% dei costi al 22%. È tenere il netto canonico in memoria e
   // ridisegnare il campo: passando avanti e indietro il numero non si muove
   // perché non viene mai ricostruito da ciò che si vede.
+  /**
+   * ⚠️ Il campo costo si cerca per ETICHETTA, non per segnaposto: da quando la
+   * riga e' comune, «0,00» lo portano anche prezzo di vendita e barrato, e
+   * `getByPlaceholderText` prendeva il primo che capitava.
+   */
   async function switchCostMode(user: ReturnType<typeof userEvent.setup>, label: string) {
     await user.click(screen.getByRole('button', { name: 'Modalità costi del documento' }));
     await user.click(await screen.findByRole('menuitemradio', { name: label }));
@@ -894,7 +910,7 @@ describe('SupplierOrderFormComponent', () => {
 
     await switchCostMode(user, 'Usa costi ivati');
 
-    const cost = screen.getByPlaceholderText('0,00');
+    const cost = screen.getByLabelText('Costo riga 1');
     await user.clear(cost);
     // 5,02 al 22% è uno dei costi che il giro arrotondato perdeva: il netto
     // vale 411,4754 centesimi, e chi lo arrotondava a 411 tornava a 5,01.
@@ -917,7 +933,7 @@ describe('SupplierOrderFormComponent', () => {
     await scegliArticoloSullaRiga(user);
 
     await switchCostMode(user, 'Usa costi ivati');
-    const cost = screen.getByPlaceholderText('0,00');
+    const cost = screen.getByLabelText('Costo riga 1');
     await user.clear(cost);
     await user.type(cost, '5,02');
 
@@ -1237,7 +1253,7 @@ describe('SupplierOrderFormComponent', () => {
 
       const form = fixture.componentInstance as unknown as AccessoRichiamo;
       const riga = form.lines.at(0).controls;
-      riga['orderedQuantity']!.setValue(7);
+      riga['quantity']!.setValue(7);
 
       // Lo STESSO articolo, richiamato di nuovo: e' cio' che fa il rientro dal
       // pannello anagrafica. Prima della migrazione la quantita' tornava a 1 e
@@ -1245,7 +1261,7 @@ describe('SupplierOrderFormComponent', () => {
       form.onVariantSelect(0, 'var-1');
       fixture.detectChanges();
 
-      expect(riga['orderedQuantity']!.value).toBe(7);
+      expect(riga['quantity']!.value).toBe(7);
     });
 
     it('⛔ lo sconto digitato non viene sovrascritto dal richiamo', async () => {
@@ -1257,12 +1273,12 @@ describe('SupplierOrderFormComponent', () => {
       const riga = form.lines.at(0).controls;
       // A cascata, e la stringa va conservata INTATTA: «4+10» vale 13,6% e non
       // 14, ed e' la stringa che l'operatore rilegge.
-      riga['discountPercent']!.setValue('4+10');
+      riga['discount']!.setValue('4+10');
 
       form.onVariantSelect(0, 'var-1');
       fixture.detectChanges();
 
-      expect(riga['discountPercent']!.value).toBe('4+10');
+      expect(riga['discount']!.value).toBe('4+10');
     });
 
     it('⛔ nome vuoto in anagrafica: la riga resta vuota, non prende il titolo', async () => {

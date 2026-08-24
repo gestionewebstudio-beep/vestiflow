@@ -126,6 +126,36 @@
       />
     </td>
   }
+  <!-- La quarta chiave d'identità, dove esiste un fornitore: Arrivo merce e
+       Ordine fornitore. Stessi binding delle altre tre — si digita per TROVARE
+       l'articolo, e resta scritta se non corrisponde niente. -->
+  @if (!view().isReference && isColumnVisible()('supplierCode')) {
+    <td class="doc-form__cell doc-form__cell--code">
+      <app-document-line-code-cell
+        [lineIndex]="lineIndex()"
+        [inputId]="cellId('supplier-code')"
+        ariaLabel="Codice fornitore"
+        placeholder="Cod. fornitore"
+        [value]="controlValue('supplierSku')"
+        [linked]="view().linked"
+        [suggestions]="view().supplierCodeSuggest.items"
+        [suggestionsOpen]="view().supplierCodeSuggest.open"
+        [activeSuggestionIndex]="view().supplierCodeSuggest.activeIndex"
+        (suggestionNavigate)="suggestionNavigated.emit({ field: 'supplierCode', value: $event })"
+        (suggestionPick)="
+          suggestionPicked.emit({ field: 'supplierCode', variantId: $event.variantId })
+        "
+        (valueChange)="codeChanged.emit({ field: 'supplierCode', value: $event })"
+        (focused)="codeFocused.emit('supplierCode')"
+        (blurred)="codeBlurred.emit()"
+        (commit)="codeCommitted.emit({ field: 'supplierCode', advance: $event.advance })"
+        (lineRetreat)="fieldRetreat.emit('supplierCode')"
+        (lineRowAdvance)="rowAdvance.emit('supplierCode')"
+        (lineRowRetreat)="rowRetreat.emit('supplierCode')"
+        (escapePressed)="escapePressed.emit()"
+      />
+    </td>
+  }
   @if (!view().isReference && isColumnVisible()('product')) {
     <td class="doc-form__cell doc-form__cell--product doc-form__col--sep">
       <app-document-line-product-cell
@@ -190,6 +220,17 @@
       }
     </td>
   }
+  <!-- Giacenza: quanta merce c'è. Diversa dalla disponibilità, che è quanta
+       se ne può promettere — comprando conta la prima, vendendo la seconda. -->
+  @if (isColumnVisible()('stockOnHand')) {
+    <td
+      class="doc-form__cell doc-form__cell--readonly doc-form__cell--computed doc-form__num tabular-nums doc-form__col--stock"
+    >
+      @if (!view().isReference) {
+        {{ view().stockOnHand }}
+      }
+    </td>
+  }
   @if (isColumnVisible()('stockAvailable')) {
     <td
       class="doc-form__cell doc-form__cell--readonly doc-form__cell--computed doc-form__num tabular-nums doc-form__col--stock doc-form__col--avail"
@@ -224,6 +265,110 @@
     >
       @if (!view().isReference) {
         {{ view().purchaseCost }}
+      }
+    </td>
+  }
+  <!-- ⛔ Il costo DIGITATO sul documento: si scrive e si salva. Non è
+       `purchaseCost`, che è il costo d'anagrafica in sola lettura. -->
+  @if (isColumnVisible()('unitCost')) {
+    <td class="doc-form__cell doc-form__cell--editable doc-form__num doc-form__col--calc">
+      @if (!view().isReference) {
+        <input
+          [id]="cellId('cost')"
+          [attr.aria-label]="'Costo riga ' + (lineIndex() + 1)"
+          class="doc-form__input doc-form__input--table doc-form__input--num"
+          type="text"
+          inputmode="decimal"
+          formControlName="unitCost"
+          placeholder="0,00"
+          (input)="costChanged.emit($any($event.target).value)"
+          (keydown)="fieldKeydown.emit({ field: 'unitCost', value: $event })"
+        />
+      }
+    </td>
+  }
+  @if (isColumnVisible()('discountedCost')) {
+    <td
+      class="doc-form__cell doc-form__cell--readonly doc-form__cell--computed doc-form__num tabular-nums doc-form__col--calc"
+    >
+      @if (!view().isReference) {
+        {{ view().discountedCost }}
+      }
+    </td>
+  }
+  <!-- ⛔ I tre prezzi d'ANAGRAFICA. Non sono `unitPrice`, che è il prezzo di
+       QUESTA riga: questi vengono dal CATALOGO, e l'Arrivo merce li mostra per
+       poterli riscrivere in anagrafica quando le sue spunte lo autorizzano.
+
+       ⭐ Editabili dove il gruppo ha il controllo, in sola lettura dove non ce
+       l'ha — l'Ordine fornitore li mostra e basta. Nessun `if (documentType)`:
+       la riga guarda il gruppo che le hanno dato. -->
+  @if (isColumnVisible()('sellingPrice')) {
+    <td
+      class="doc-form__cell doc-form__num doc-form__col--sale"
+      [class.doc-form__cell--editable]="haControllo('sellingPrice')"
+      [class.doc-form__cell--readonly]="!haControllo('sellingPrice')"
+    >
+      @if (!view().isReference) {
+        @if (haControllo('sellingPrice')) {
+          <input
+            [id]="cellId('sellingPrice')"
+            [attr.aria-label]="'Prezzo di vendita riga ' + (lineIndex() + 1)"
+            class="doc-form__input doc-form__input--table doc-form__input--num"
+            type="text"
+            inputmode="decimal"
+            formControlName="sellingPrice"
+            placeholder="0,00"
+          />
+        } @else {
+          <span class="tabular-nums">{{ view().sellingPrice }}</span>
+        }
+      }
+    </td>
+  }
+  @if (isColumnVisible()('shopifyPrice')) {
+    <td
+      class="doc-form__cell doc-form__num doc-form__col--sale"
+      [class.doc-form__cell--editable]="haControllo('shopifyPrice')"
+      [class.doc-form__cell--readonly]="!haControllo('shopifyPrice')"
+    >
+      @if (!view().isReference) {
+        @if (haControllo('shopifyPrice')) {
+          <input
+            [id]="cellId('shopifyPrice')"
+            [attr.aria-label]="'Prezzo Shopify riga ' + (lineIndex() + 1)"
+            class="doc-form__input doc-form__input--table doc-form__input--num"
+            type="text"
+            inputmode="decimal"
+            formControlName="shopifyPrice"
+            placeholder="0,00"
+          />
+        } @else {
+          <span class="tabular-nums">{{ view().shopifyPrice }}</span>
+        }
+      }
+    </td>
+  }
+  @if (isColumnVisible()('compareAtPrice')) {
+    <td
+      class="doc-form__cell doc-form__num doc-form__col--sale"
+      [class.doc-form__cell--editable]="haControllo('compareAtPrice')"
+      [class.doc-form__cell--readonly]="!haControllo('compareAtPrice')"
+    >
+      @if (!view().isReference) {
+        @if (haControllo('compareAtPrice')) {
+          <input
+            [id]="cellId('compareAtPrice')"
+            [attr.aria-label]="'Prezzo barrato riga ' + (lineIndex() + 1)"
+            class="doc-form__input doc-form__input--table doc-form__input--num"
+            type="text"
+            inputmode="decimal"
+            formControlName="compareAtPrice"
+            placeholder="0,00"
+          />
+        } @else {
+          <span class="tabular-nums">{{ view().compareAtPrice }}</span>
+        }
       }
     </td>
   }

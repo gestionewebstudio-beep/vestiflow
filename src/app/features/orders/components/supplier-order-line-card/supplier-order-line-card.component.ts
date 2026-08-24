@@ -24,9 +24,10 @@ export interface SupplierOrderLineCardControls {
   readonly sku: FormControl<string>;
   readonly barcode: FormControl<string>;
   readonly supplierCode: FormControl<string>;
-  readonly orderedQuantity: FormControl<number>;
+  /** I nomi dei controlli sono quelli comuni: prevale l'Ordine cliente. */
+  readonly quantity: FormControl<number>;
   readonly unitCost: FormControl<string>;
-  readonly discountPercent: FormControl<string>;
+  readonly discount: FormControl<string>;
 }
 
 export interface SupplierOrderLineCardGroup {

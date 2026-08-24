@@ -77,6 +77,19 @@ export class DocumentLineHeadComponent {
   readonly priceMenuToggled = output<void>();
   readonly priceModeChanged = output<boolean>();
 
+  /**
+   * Il menu netto/ivato del COSTO, distinto da quello del prezzo.
+   *
+   * ⛔ Sono due scelte diverse: come si digita il costo d'acquisto e come si
+   * digita il prezzo di vendita. L'Arrivo merce può mostrare entrambe le
+   * colonne, e con un menu solo cambiare l'una cambierebbe l'altra.
+   */
+  readonly costLabel = input('Costo');
+  readonly costsIncludeVat = input(false);
+  readonly costMenuOpen = input(false);
+  readonly costMenuToggled = output<void>();
+  readonly costModeChanged = output<boolean>();
+
   protected sortAriaLabel(column: DocumentLineColumnId, label: string): string {
     if (!this.sortable()) {
       return label;

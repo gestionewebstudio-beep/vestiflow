@@ -13,6 +13,10 @@ export const DOCUMENT_LINE_COLUMNS = [
   'articleCode',
   'sku',
   'barcode',
+  // La quarta chiave d'identità, dove esiste un fornitore: Arrivo merce e
+  // Ordine fornitore. Su una vendita non ha significato — il documento
+  // semplicemente non la dichiara.
+  'supplierCode',
   'product',
   // La VARIANTE accanto al nome, non dentro: «M / Rosso».
   //
@@ -22,9 +26,30 @@ export const DOCUMENT_LINE_COLUMNS = [
   // commento qui sopra descrive — le differenze si ottengono per colonna.
   'variantLabel',
   'quantity',
+  // ⛔ Due domande DIVERSE sulla giacenza, e l'Ordine fornitore le mostra
+  // entrambe: comprando si guarda quanta merce c'è, vendendo quanta se ne può
+  // promettere.
+  'stockOnHand',
   'stockAvailable',
   'unitOfMeasure',
+  // ⛔ **`purchaseCost` e `unitCost` NON sono la stessa colonna.**
+  //
+  //   purchaseCost   il costo d'ANAGRAFICA, in sola lettura: sull'Ordine
+  //                  cliente serve a leggere il margine
+  //   unitCost       il costo DIGITATO sul documento, che si scrive e si
+  //                  salva: è il campo centrale di un acquisto
+  //
+  // Condividono la forma — un importo — e non l'identità.
   'purchaseCost',
+  'unitCost',
+  'discountedCost',
+  // ⛔ E `sellingPrice` non è `unitPrice`: il primo è il prezzo di vendita
+  // del CATALOGO, che l'Arrivo merce mostra per poterlo riscrivere in
+  // anagrafica; il secondo è il prezzo applicato a QUESTA riga. Un documento
+  // può mostrarli insieme, e vogliono dire due cose diverse.
+  'sellingPrice',
+  'shopifyPrice',
+  'compareAtPrice',
   'unitPrice',
   'discount',
   'discountedPrice',
@@ -53,16 +78,18 @@ export type DocumentLineFocusField =
   | 'articleCode'
   | 'sku'
   | 'barcode'
+  | 'supplierCode'
   | 'product'
   | 'quantity'
   | 'unitOfMeasure'
   | 'unitPrice'
   | 'discount'
+  | 'unitCost'
   | 'vat'
   | 'serials';
 
 /** Le tre celle codice, che condividono contratto e comportamento. */
-export type DocumentLineCodeField = 'articleCode' | 'sku' | 'barcode';
+export type DocumentLineCodeField = 'articleCode' | 'sku' | 'barcode' | 'supplierCode';
 
 /**
  * Lo stato del pannello suggerimenti di UNA cella. La riga non lo calcola e non
@@ -107,8 +134,19 @@ export interface DocumentLineRowView {
   readonly availabilityHint: string | null;
 
   /** Valori CALCOLATI, già formattati da chi li possiede. */
+  readonly stockOnHand: string;
   readonly stockAvailable: string;
   readonly purchaseCost: string;
+  /** Il costo di riga dopo lo sconto, calcolato dal documento. */
+  readonly discountedCost: string;
+  /**
+   * I tre prezzi d'anagrafica, **già formattati**, per i documenti che li
+   * mostrano senza poterli scrivere. Chi li scrive ha i controlli e questi
+   * campi non li guarda.
+   */
+  readonly sellingPrice: string;
+  readonly shopifyPrice: string;
+  readonly compareAtPrice: string;
   readonly discountedPrice: string;
   readonly lineTotal: string;
   /** Totale prima dello sconto; `null` = nessuno sconto, non si mostra. */
@@ -124,6 +162,8 @@ export interface DocumentLineRowView {
   readonly articleCodeSuggest: DocumentLineCellSuggest;
   readonly skuSuggest: DocumentLineCellSuggest;
   readonly barcodeSuggest: DocumentLineCellSuggest;
+  /** La quarta cella codice, dove il documento ha un fornitore. */
+  readonly supplierCodeSuggest: DocumentLineCellSuggest;
   readonly productSuggest: DocumentLineCellSuggest;
 }
 
@@ -137,8 +177,13 @@ export const DOCUMENT_LINE_ROW_VIEW_VUOTA: DocumentLineRowView = {
   productInvalid: false,
   exceedsAvailability: false,
   availabilityHint: null,
+  stockOnHand: '',
   stockAvailable: '',
   purchaseCost: '',
+  discountedCost: '',
+  sellingPrice: '',
+  shopifyPrice: '',
+  compareAtPrice: '',
   discountedPrice: '',
   lineTotal: '',
   grossTotal: null,
@@ -149,6 +194,7 @@ export const DOCUMENT_LINE_ROW_VIEW_VUOTA: DocumentLineRowView = {
   articleCodeSuggest: NESSUN_SUGGERIMENTO,
   skuSuggest: NESSUN_SUGGERIMENTO,
   barcodeSuggest: NESSUN_SUGGERIMENTO,
+  supplierCodeSuggest: NESSUN_SUGGERIMENTO,
   productSuggest: NESSUN_SUGGERIMENTO,
 };
 

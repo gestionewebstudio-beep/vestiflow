@@ -129,8 +129,10 @@ import { DocumentProductPanelStore } from '@domain/documents/state/document-prod
 import { DocumentLineHeadComponent } from '@domain/documents/components/document-line-head/document-line-head.component';
 import { DocumentLineQuickRowComponent } from '@domain/documents/components/document-line-quick-row/document-line-quick-row.component';
 import { DocumentLineRowComponent } from '@domain/documents/components/document-line-row/document-line-row.component';
+import { NESSUN_SUGGERIMENTO } from '@domain/documents/components/document-line-row/document-line-row.model';
 import type {
   DocumentLineColumnId,
+  DocumentLineFocusField,
   DocumentLineFieldEvent,
   DocumentLineRowView,
   DocumentLineSuggestionDirection,
@@ -272,17 +274,20 @@ const CUSTOMER_ORDER_SORTABLE_LINE_COLUMNS: readonly CustomerOrderLineSortColumn
   'discount',
 ];
 
-type CustomerOrderLineFocusField =
-  | 'articleCode'
-  | 'sku'
-  | 'barcode'
-  | 'product'
-  | 'quantity'
-  | 'unitOfMeasure'
-  | 'unitPrice'
-  | 'discount'
-  | 'vat'
-  | 'serials';
+const CUSTOMER_ORDER_LINE_FOCUS_FIELDS = [
+  'articleCode',
+  'sku',
+  'barcode',
+  'product',
+  'quantity',
+  'unitOfMeasure',
+  'unitPrice',
+  'discount',
+  'vat',
+  'serials',
+] as const;
+
+type CustomerOrderLineFocusField = (typeof CUSTOMER_ORDER_LINE_FOCUS_FIELDS)[number];
 /**
  * I campi codice di QUESTA maschera: tre, non quattro. Il codice fornitore non
  * ha senso su un documento di vendita, e restringere l'unione qui lascia al
@@ -2259,6 +2264,90 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     this.lines.updateValueAndValidity();
   }
 
+  /**
+   * Il campo codice che arriva dalla riga comune, ristretto a quelli che questo
+   * documento ha davvero.
+   *
+   * ⚠️ La riga comune ne conosce QUATTRO (c'è anche il codice fornitore); qui
+   * ne esistono tre: non c’è un fornitore su una vendita. Il restringimento è esplicito e non un cast: un campo che non
+   * esiste cercherebbe un controllo assente e fermerebbe il giro del fuoco.
+   */
+  private codiceDiQuestoDocumento(field: DocumentLineCodeField): CustomerOrderCodeField | null {
+    // ⭐ Nessun cast: il confronto RESTRINGE gia' il tipo, e il compilatore lo
+    // sa. Un `as` qui sarebbe rumore — e il giorno in cui l'elenco cambiasse,
+    // zittirebbe proprio l'errore che serve vedere.
+    return field === 'articleCode' || field === 'sku' || field === 'barcode' ? field : null;
+  }
+
+  protected onRowCodeFocused(index: number, field: DocumentLineCodeField): void {
+    const proprio = this.codiceDiQuestoDocumento(field);
+    if (proprio) {
+      this.onLineCodeFocus(index, proprio);
+    }
+  }
+
+  protected onRowCodeCommitted(
+    index: number,
+    event: { field: DocumentLineCodeField; advance: boolean },
+  ): void {
+    const proprio = this.codiceDiQuestoDocumento(event.field);
+    if (proprio) {
+      this.commitCodeLookup(index, proprio, event.advance);
+    }
+  }
+
+  /**
+   * Il giro del fuoco: la riga comune parla di più campi di quanti ne abbia
+   * questo documento — da quando rende anche il codice fornitore e il costo
+   * digitato, che su una vendita non esistono.
+   *
+   * ⚠️ Il restringimento è esplicito e non un cast: un campo che qui non c'è
+   * arriverebbe allo store del fuoco, che lo cercherebbe nel DOM e si
+   * fermerebbe a metà riga in silenzio.
+   */
+  private campoDiQuestoDocumento(
+    field: DocumentLineFocusField,
+  ): CustomerOrderLineFocusField | null {
+    return (CUSTOMER_ORDER_LINE_FOCUS_FIELDS as readonly string[]).includes(field)
+      ? (field as CustomerOrderLineFocusField)
+      : null;
+  }
+
+  protected onRowFieldKeydown(index: number, event: DocumentLineFieldEvent<KeyboardEvent>): void {
+    const field = this.campoDiQuestoDocumento(event.field);
+    if (field) {
+      this.lineFocus.handleKeydown(index, field, event.value);
+    }
+  }
+
+  protected onRowFieldAdvance(index: number, field: DocumentLineFocusField): void {
+    const proprio = this.campoDiQuestoDocumento(field);
+    if (proprio) {
+      this.lineFocus.next(index, proprio);
+    }
+  }
+
+  protected onRowFieldRetreat(index: number, field: DocumentLineFocusField): void {
+    const proprio = this.campoDiQuestoDocumento(field);
+    if (proprio) {
+      this.lineFocus.previous(index, proprio);
+    }
+  }
+
+  protected onRowLineAdvance(index: number, field: DocumentLineFocusField): void {
+    const proprio = this.campoDiQuestoDocumento(field);
+    if (proprio) {
+      this.lineFocus.rowDown(index, proprio);
+    }
+  }
+
+  protected onRowLineRetreat(index: number, field: DocumentLineFocusField): void {
+    const proprio = this.campoDiQuestoDocumento(field);
+    if (proprio) {
+      this.lineFocus.rowUp(index, proprio);
+    }
+  }
+
   protected addLine(): void {
     this.lines.push(this.createLine());
     this.markFormDirty();
@@ -2463,8 +2552,20 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       productInvalid: this.lineFieldInvalid(index, 'productName'),
       exceedsAvailability: this.lineExceedsAvailability(index),
       availabilityHint: this.lineAvailabilityHint(index),
+      // ⛔ Questo documento NON dichiara la colonna giacenza: l'Ordine cliente
+      // guarda la DISPONIBILITA', cioe' quanta merce si puo' promettere. La
+      // chiave c'e' perche' la vista e' comune, il valore e' vuoto perche' la
+      // colonna non c'e'.
+      stockOnHand: '',
       stockAvailable: this.lineStockAvailable(index),
       purchaseCost: this.linePurchaseCost(index),
+      // Il costo scontato e' dell'acquisto: qui il costo e' in sola lettura.
+      discountedCost: '',
+      // I prezzi d'ANAGRAFICA non si mostrano su una vendita: il prezzo che
+      // conta e' quello della riga, non quello del catalogo.
+      sellingPrice: '',
+      shopifyPrice: '',
+      compareAtPrice: '',
       discountedPrice: formatMoney(this.lineDiscountedUnitMoney(index)),
       lineTotal: formatMoney(this.lineTotalMoney(index)),
       // `null` = nessuno sconto: il lordo barrato non si mostra affatto.
@@ -2488,6 +2589,8 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         open: this.codeLookup.isOpenOn(index, 'barcode'),
         activeIndex: this.codeLookup.activeIndex(),
       },
+      // Nessun codice fornitore su una vendita: non c'e' un fornitore.
+      supplierCodeSuggest: NESSUN_SUGGERIMENTO,
       productSuggest: {
         items: riferimento ? [] : this.lineSuggestions(index),
         open: this.lineSuggestionsOpen(index),

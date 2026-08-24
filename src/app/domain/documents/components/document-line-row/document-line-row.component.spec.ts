@@ -33,6 +33,13 @@ function gruppoRiga(): FormGroup {
     productName: new FormControl(''),
     quantity: new FormControl(1),
     unitPrice: new FormControl(''),
+    // Le colonne dell'ACQUISTO: il test rende tutto, quindi il gruppo deve
+    // avere anche i controlli che una vendita non ha.
+    unitCost: new FormControl(''),
+    sellingPrice: new FormControl(''),
+    shopifyPrice: new FormControl(''),
+    compareAtPrice: new FormControl(''),
+    supplierSku: new FormControl(''),
     discount: new FormControl(''),
     commitsStock: new FormControl(true),
     // ⛔ Due controlli distinti, non uno: «impegna» e «carica/scarica» sono due

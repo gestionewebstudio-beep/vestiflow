@@ -8,7 +8,13 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { FormArray, NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import {
+  FormArray,
+  FormGroup,
+  NonNullableFormBuilder,
+  ReactiveFormsModule,
+  Validators,
+} from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
   VARIANT_SEARCH_DEBOUNCE_MS,
@@ -99,6 +105,17 @@ import type { VariantSummary } from '@domain/products/models/variant-summary.mod
 import { ProductFormComponent } from '@domain/products/product-form.component';
 import { ProductService } from '@domain/products/services/product.service';
 import { DocumentLineArticleService } from '@domain/documents/services/document-line-article.service';
+import { DocumentLineHeadComponent } from '@domain/documents/components/document-line-head/document-line-head.component';
+import { DocumentLineRowComponent } from '@domain/documents/components/document-line-row/document-line-row.component';
+import { DOCUMENT_LINE_ROW_VIEW_VUOTA } from '@domain/documents/components/document-line-row/document-line-row.model';
+import type {
+  DocumentLineColumnId,
+  DocumentLineFieldEvent,
+  DocumentLineFocusField,
+  DocumentLineRowView,
+  DocumentLineSuggestionDirection,
+  DocumentLineSuggestionPick,
+} from '@domain/documents/components/document-line-row/document-line-row.model';
 import {
   campiEffettivi,
   PROFILI_RIGA_DOCUMENTO,
@@ -210,8 +227,22 @@ const SUPPLIER_ORDER_SORTABLE_LINE_COLUMNS: readonly SupplierOrderLineSortColumn
   'discount',
 ];
 
-type LineFocusField =
-  LineCodeField | 'product' | 'quantity' | 'unitOfMeasure' | 'unitCost' | 'discount' | 'vat';
+const SUPPLIER_ORDER_LINE_FOCUS_FIELDS = [
+  'articleCode',
+  'sku',
+  'barcode',
+  'supplierCode',
+  'product',
+  'quantity',
+  'unitOfMeasure',
+  'unitCost',
+  'discount',
+  'vat',
+] as const;
+
+type SupplierOrderLineFocusField = (typeof SUPPLIER_ORDER_LINE_FOCUS_FIELDS)[number];
+
+type LineFocusField = SupplierOrderLineFocusField;
 
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -231,6 +262,8 @@ function todayIsoDate(): string {
   selector: 'app-supplier-order-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    DocumentLineHeadComponent,
+    DocumentLineRowComponent,
     AttachmentsPanelComponent,
     PriceModeMenuComponent,
     CdkDropList,
@@ -539,11 +572,11 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
       case 'unitOfMeasure':
         return raw.unitOfMeasure;
       case 'quantity':
-        return Number(raw.orderedQuantity) || 0;
+        return Number(raw.quantity) || 0;
       case 'unitCost':
         return raw.unitCost;
       case 'discount':
-        return raw.discountPercent;
+        return raw.discount;
     }
   }
 
@@ -882,7 +915,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     if (!line) {
       return { net: 0, vat: 0, affects: false };
     }
-    const qty = Number(line.controls.orderedQuantity.value);
+    const qty = Number(line.controls.quantity.value);
     const unitNet = this.lineUnitNetMinor(index);
     if (!Number.isFinite(qty) || unitNet <= 0) {
       return { net: 0, vat: 0, affects: false };
@@ -891,7 +924,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     const affects = vatCode?.vatAffectsSupplierTotal ?? false;
     const rate = this.lineRate(index);
 
-    const netExact = qty * unitNet * cascadeDiscountMultiplier(line.controls.discountPercent.value);
+    const netExact = qty * unitNet * cascadeDiscountMultiplier(line.controls.discount.value);
     return { net: Math.round(netExact), vat: lineVatFromNetExact(netExact, rate), affects };
   }
 
@@ -903,7 +936,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     if (!line || unitNet <= 0) {
       return '—';
     }
-    const discountedNet = applyCascadeDiscountMinor(unitNet, line.controls.discountPercent.value);
+    const discountedNet = applyCascadeDiscountMinor(unitNet, line.controls.discount.value);
     return formatMoney({
       amountMinor: this.showsGross(index)
         ? grossFromNetMinor(discountedNet, this.lineRate(index))
@@ -1091,6 +1124,20 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   }
 
   protected isLineColumnVisible(columnId: string): boolean {
+    // ⛔ **Una colonna è visibile solo se QUESTO documento la dichiara.**
+    //
+    // Le preferenze utente, da sole, su un id che il config non contiene
+    // rispondono «visibile»: la riga comune conosce venticinque colonne, un
+    // ordine fornitore ne dichiara diciotto, e le altre comparivano accese —
+    // col template che cercava `formControlName="unitPrice"` su un gruppo che
+    // ha `unitCost`, non `unitPrice`.
+    //
+    // ⚠️ Non poteva comparire prima: il markup locale rendeva solo le colonne
+    // che sapeva di avere. Il config diventa la fonte di verità nel momento in
+    // cui la riga è condivisa.
+    if (!SUPPLIER_ORDER_LINE_COLUMNS.some((column) => column.id === columnId)) {
+      return false;
+    }
     return this.columnPreferences.isColumnVisible(
       SUPPLIER_ORDER_LINES_VIEW,
       normalizeSupplierOrderColumnId(columnId),
@@ -1650,6 +1697,179 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     this.markFormDirty();
   }
 
+  // ── Il ponte verso la RIGA COMUNE ────────────────────────────────────────
+  //
+  // ⭐ L'Ordine fornitore non ha più un proprio `<tr>`: 20 `<th>` e 19 `<td>`
+  // scritti a mano sono diventati due componenti condivise, e le sei colonne
+  // che gli mancavano sono entrate nel CATALOGO comune con la loro identità.
+
+  protected readonly isLineColumnVisibleFn = (column: DocumentLineColumnId): boolean =>
+    this.isLineColumnVisible(column);
+
+  protected readonly lineColumnWidthFn = (column: DocumentLineColumnId): string =>
+    this.lineColumnWidth(column);
+
+  protected readonly lineColumnMinWidthFn = (column: DocumentLineColumnId): number =>
+    SUPPLIER_ORDER_LINE_COLUMNS.find((col) => col.id === column)?.minWidthPx ?? 48;
+
+  protected lineGroup(index: number): FormGroup {
+    return this.lines.at(index);
+  }
+
+  protected onRowSortToggled(column: DocumentLineColumnId): void {
+    if (this.isLineColumnSortable(column)) {
+      this.toggleLineSort(column as SupplierOrderLineSortColumn);
+    }
+  }
+
+  /**
+   * Ciò che la riga comune deve MOSTRARE, già calcolato da chi lo possiede.
+   *
+   * ⭐ Il costo con la sua modalità netto/ivato, i canonici, la catena IVA
+   * dell'acquisto restano qui: il markup non ne sa nulla e non deve saperne.
+   */
+  protected lineRowView(index: number): DocumentLineRowView {
+    return {
+      ...DOCUMENT_LINE_ROW_VIEW_VUOTA,
+      complete: this.lineRowComplete(index),
+      linked: Boolean(this.lines.at(index)?.controls.variantId.value),
+      linkedArticleCode: this.lines.at(index)?.controls.articleCode.value ?? '',
+      quantityInvalid: this.lineFieldInvalid(index, 'quantity'),
+      productInvalid: this.lineFieldInvalid(index, 'variantId'),
+      stockOnHand: this.lineStock(index, 'stockOnHand'),
+      stockAvailable: this.lineStock(index, 'stockAvailable'),
+      discountedCost: this.lineDiscountedCost(index),
+      // ⭐ I prezzi d'anagrafica in SOLA LETTURA: questa maschera li mostra per
+      // far vedere a quanto si vende cio' che si sta comprando, ma non li
+      // scrive — quella facolta' e' dell'Arrivo merce.
+      sellingPrice: this.lineCatalogPrice(index, 'sellingPrice'),
+      compareAtPrice: this.lineCatalogPrice(index, 'compareAtPrice'),
+      lineTotal: this.formatMoney(this.lineMoney(index)),
+      vatOptions: this.lineVatOptions(index),
+      vatValue: this.lines.at(index)?.controls.vatCodeId.value ?? '',
+      vatTooltip: this.lineVatTooltip(index),
+      unitValue: this.lines.at(index)?.controls.unitOfMeasure.value ?? '',
+      articleCodeSuggest: {
+        items: this.codeLookup.matchesFor(index, 'articleCode'),
+        open: this.codeLookup.isOpenOn(index, 'articleCode'),
+        activeIndex: this.codeLookup.activeIndex(),
+      },
+      skuSuggest: {
+        items: this.codeLookup.matchesFor(index, 'sku'),
+        open: this.codeLookup.isOpenOn(index, 'sku'),
+        activeIndex: this.codeLookup.activeIndex(),
+      },
+      barcodeSuggest: {
+        items: this.codeLookup.matchesFor(index, 'barcode'),
+        open: this.codeLookup.isOpenOn(index, 'barcode'),
+        activeIndex: this.codeLookup.activeIndex(),
+      },
+      supplierCodeSuggest: {
+        items: this.codeLookup.matchesFor(index, 'supplierCode'),
+        open: this.codeLookup.isOpenOn(index, 'supplierCode'),
+        activeIndex: this.codeLookup.activeIndex(),
+      },
+      productSuggest: {
+        items: this.lineSuggestions(index),
+        open: this.lineSuggestionsOpen(index),
+        activeIndex: this.productSuggest.activeIndex(),
+      },
+    };
+  }
+
+  /** Riga completa: quella incompleta prende la classe che la segna. */
+  protected lineRowComplete(index: number): boolean {
+    const line = this.lines.at(index);
+    if (!line) {
+      return true;
+    }
+    const raw = line.getRawValue();
+    const vuota =
+      !raw.variantId.trim() &&
+      !raw.articleCode.trim() &&
+      !raw.sku.trim() &&
+      !raw.barcode.trim() &&
+      !raw.productName.trim();
+    return vuota || (Boolean(raw.variantId.trim()) && Number(raw.quantity) > 0);
+  }
+
+  /** Il campo dice quale codice è cambiato: la riga non conosce i gestori. */
+  protected onRowCodeChanged(index: number, event: DocumentLineFieldEvent<string>): void {
+    if (
+      event.field === 'articleCode' ||
+      event.field === 'sku' ||
+      event.field === 'barcode' ||
+      event.field === 'supplierCode'
+    ) {
+      this.onLineCodeChange(index, event.field, event.value);
+    }
+  }
+
+  protected onRowSuggestionPicked(index: number, event: DocumentLineSuggestionPick): void {
+    if (event.field === 'product') {
+      this.onProductSuggestionPick(index, event.variantId);
+      return;
+    }
+    this.onCodeSuggestionPick(index, event.variantId);
+  }
+
+  protected onRowSuggestionNavigated(
+    event: DocumentLineFieldEvent<DocumentLineSuggestionDirection>,
+  ): void {
+    if (event.field === 'product') {
+      this.onProductSuggestionNavigate(event.value);
+      return;
+    }
+    this.codeLookup.navigate(event.value);
+  }
+
+  /**
+   * Il giro del fuoco: la riga comune parla di più campi di quanti ne abbia
+   * questo documento. Il restringimento è esplicito, non un cast.
+   */
+  private campoDiQuestoDocumento(
+    field: DocumentLineFocusField,
+  ): SupplierOrderLineFocusField | null {
+    return (SUPPLIER_ORDER_LINE_FOCUS_FIELDS as readonly string[]).includes(field)
+      ? (field as SupplierOrderLineFocusField)
+      : null;
+  }
+
+  protected onRowFieldKeydown(index: number, event: DocumentLineFieldEvent<KeyboardEvent>): void {
+    const field = this.campoDiQuestoDocumento(event.field);
+    if (field) {
+      this.lineFocus.handleKeydown(index, field, event.value);
+    }
+  }
+
+  protected onRowFieldAdvance(index: number, field: DocumentLineFocusField): void {
+    const proprio = this.campoDiQuestoDocumento(field);
+    if (proprio) {
+      this.lineFocus.next(index, proprio);
+    }
+  }
+
+  protected onRowFieldRetreat(index: number, field: DocumentLineFocusField): void {
+    const proprio = this.campoDiQuestoDocumento(field);
+    if (proprio) {
+      this.lineFocus.previous(index, proprio);
+    }
+  }
+
+  protected onRowLineAdvance(index: number, field: DocumentLineFocusField): void {
+    const proprio = this.campoDiQuestoDocumento(field);
+    if (proprio) {
+      this.lineFocus.rowDown(index, proprio);
+    }
+  }
+
+  protected onRowLineRetreat(index: number, field: DocumentLineFocusField): void {
+    const proprio = this.campoDiQuestoDocumento(field);
+    if (proprio) {
+      this.lineFocus.rowUp(index, proprio);
+    }
+  }
+
   protected addLine(): void {
     this.lines.push(this.createLine());
   }
@@ -1857,7 +2077,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
           // Ometterlo lo farebbe considerare vuoto, e al posto di «lo sconto si
           // azzera» avremmo «lo sconto diventa un altro» — più difficile da
           // notare.
-          scontoCorrente: line.controls.discountPercent.value,
+          scontoCorrente: line.controls.discount.value,
         },
       });
       if (esito.esito !== 'risolto') {
@@ -1907,7 +2127,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
       // scrive il livello di acquisizione, l'unico a sapere se si sta
       // aggiungendo una riga o sommando a una esistente. Lo sconto proposto
       // arriva solo su campo vuoto (qui mai: il fornitore non ne porta uno).
-      scrivi(line.controls.discountPercent, valori.sconto);
+      scrivi(line.controls.discount, valori.sconto);
 
       // ⚠️ Il Codice IVA PRIMA del costo, e l'ordine è portante: con «Costo
       // ivato» `costFieldValue` legge l'aliquota DELLA RIGA per rendere il
@@ -2058,7 +2278,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     return this.headerGateActive();
   }
 
-  protected lineFieldInvalid(index: number, name: 'variantId' | 'orderedQuantity'): boolean {
+  protected lineFieldInvalid(index: number, name: 'variantId' | 'quantity'): boolean {
     const control = this.lines.at(index).controls[name];
     return control.invalid && (control.touched || control.dirty);
   }
@@ -2110,7 +2330,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
    * documento non applicherebbe.
    */
   protected discountInvalid(index: number): boolean {
-    const control = this.lines.at(index).controls.discountPercent;
+    const control = this.lines.at(index).controls.discount;
     if (!control.touched && !control.dirty) {
       return false;
     }
@@ -2257,12 +2477,12 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
         // L'etichetta della variante viaggia nel payload: qui il server non
         // può conservarla per id, perché il salvataggio ricrea le righe.
         variantLabel: line.variantLabel.trim() || undefined,
-        orderedQuantity: Number(line.orderedQuantity),
+        orderedQuantity: Number(line.quantity),
         enteredUnitCostMinor,
         // La cascata si risolve QUI, una volta: al documento va la percentuale
         // effettiva, che è quella che i totali hanno mostrato all'operatore.
-        discountPercent: line.discountPercent.trim()
-          ? parseEffectiveDiscountPercent(line.discountPercent)
+        discountPercent: line.discount.trim()
+          ? parseEffectiveDiscountPercent(line.discount)
           : undefined,
         vatCodeId: line.vatCodeId || undefined,
         // La colonna esisteva in maschera e non nel database: si modificava, si
@@ -2399,9 +2619,11 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
           // significherebbe riscrivere un ordine già emesso.
           variantLabel: line.variantLabel ?? '',
           sku: line.sku ?? '',
-          orderedQuantity: line.orderedQuantity,
+          // Il CONTROLLO si chiama `quantity`, come in ogni altra maschera; il
+          // campo del DTO resta `orderedQuantity`, che è il nome nel modello.
+          quantity: line.orderedQuantity,
           unitCostNetMinor: line.unitCost.amountMinor,
-          discountPercent:
+          discount:
             line.discountPercent > 0 ? formatDiscountPercentValue(line.discountPercent) : '',
           vatCodeId: line.vatCodeId ?? '',
           // La fotografia salvata sulla riga, non l'unità dell'anagrafica di
@@ -2460,7 +2682,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
       if (line.controls.variantId.invalid) {
         return `${riga}: manca l'articolo. Cercalo per codice, SKU, EAN o codice fornitore, oppure crealo dalla riga.`;
       }
-      const quantity = Number(line.controls.orderedQuantity.value);
+      const quantity = Number(line.controls.quantity.value);
       if (!Number.isInteger(quantity) || quantity < 1) {
         return `${riga}: la quantità deve essere un numero intero maggiore di zero.`;
       }
@@ -2477,7 +2699,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
       if (cost !== null && cost.amountMinor < 0) {
         return `${riga}: il costo non può essere negativo.`;
       }
-      if (this.discountValueInvalid(line.controls.discountPercent.value)) {
+      if (this.discountValueInvalid(line.controls.discount.value)) {
         return `${riga}: lo sconto non è leggibile. Usa «10» oppure «4+10» per gli sconti a cascata.`;
       }
     }
@@ -2520,7 +2742,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
        */
       variantLabel: this.fb.control(''),
       unitOfMeasure: this.fb.control(''),
-      orderedQuantity: this.fb.control(1, {
+      quantity: this.fb.control(1, {
         validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
       }),
       /**
@@ -2537,7 +2759,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
        * si disallineerebbe al primo riordino.
        */
       unitCostNetMinor: this.fb.control<number | null>(null),
-      discountPercent: this.fb.control(''),
+      discount: this.fb.control(''),
       vatCodeId: this.fb.control(''),
     });
   }
