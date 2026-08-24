@@ -14,6 +14,13 @@ export const DOCUMENT_LINE_COLUMNS = [
   'sku',
   'barcode',
   'product',
+  // La VARIANTE accanto al nome, non dentro: «M / Rosso».
+  //
+  // ⭐ Sta QUI, nell'elenco comune, e non nel config di una maschera: la
+  // rendono la riga e l'intestazione condivise, quindi Ordine cliente e
+  // Vendita al banco la ricevono insieme. È esattamente il perno che il
+  // commento qui sopra descrive — le differenze si ottengono per colonna.
+  'variantLabel',
   'quantity',
   'stockAvailable',
   'unitOfMeasure',

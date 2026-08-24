@@ -36,6 +36,15 @@ export interface StoreSaleDocumentLine {
   readonly sku: string;
   readonly description: string;
   /**
+   * L'etichetta della VARIANTE: «M / Rosso».
+   *
+   * ⚠️ **Fotografata sul documento**, non riletta dall'anagrafica: la compone
+   * il server con lo snapshot per id. Vuota sulle righe salvate prima che la
+   * colonna esistesse — lì la variante è impastata nella descrizione, e
+   * riscriverla significherebbe riscrivere una vendita già emessa.
+   */
+  readonly variantLabel: string;
+  /**
    * La descrizione **com'era all'apertura del documento**: è il termine di
    * paragone che dice al payload se l'operatore l'ha cambiata. `null` su una
    * riga nuova, dove non c'è niente da conservare.
@@ -112,6 +121,7 @@ export function storeSaleLineFromDocumentLine(line: DocumentLine): StoreSaleDocu
     variantId: line.variantId ?? '',
     sku: line.sku ?? '',
     description: line.description,
+    variantLabel: line.variantLabel ?? '',
     persistedDescription: line.description,
     quantity: line.quantity,
     unitPriceMinor: line.unitPrice.amountMinor,

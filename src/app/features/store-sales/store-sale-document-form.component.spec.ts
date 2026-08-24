@@ -138,7 +138,10 @@ const VENDITA: DocumentRecord = {
       lineNumber: 1,
       variantId: 'var-1',
       sku: 'MAG-001',
-      description: 'Maglietta Basic — M / Bianco',
+      // ⛔ Il documento salvato porta il SOLO nome: la variante sta in
+      // `variantLabel`, e il server ha smesso di concatenarle il 24/08.
+      description: 'Maglietta Basic',
+      variantLabel: 'M / Bianco',
       quantity: 2,
       unitPrice: { amountMinor: 2049.180328, currencyCode: DEFAULT_CURRENCY },
       discountPercent: 0,
@@ -872,10 +875,15 @@ describe('StoreSaleDocumentFormComponent', () => {
       expect(screen.queryByLabelText('Sconto')).toBeNull();
     });
 
+    /**
+     * ⚠️ Il titolo della card e' il NOME, non il display completo: da quando il
+     * banco passa dal risolutore comune la variante ha la sua riga, e cercare
+     * `VARIANTE.title` («Maglietta Basic — M / Bianco») non trova piu' niente.
+     */
     it('aprendola compaiono i campi del corpo', async () => {
       const rendered = await conRigaSuMobile();
 
-      await userEvent.click(screen.getByText(VARIANTE.title));
+      await userEvent.click(screen.getByText(VARIANTE.productName));
       rendered.fixture.detectChanges();
 
       expect(screen.getByLabelText('Descrizione')).toBeTruthy();
@@ -885,7 +893,7 @@ describe('StoreSaleDocumentFormComponent', () => {
     it('⭐ la spunta di magazzino porta l’etichetta del modo anche su card', async () => {
       const rendered = await conRigaSuMobile();
 
-      await userEvent.click(screen.getByText(VARIANTE.title));
+      await userEvent.click(screen.getByText(VARIANTE.productName));
       rendered.fixture.detectChanges();
 
       expect(screen.getByLabelText('Scarica giacenze')).toBeTruthy();
@@ -894,7 +902,7 @@ describe('StoreSaleDocumentFormComponent', () => {
     it('⭐ e sul Reso la STESSA spunta dice «Carica giacenze»', async () => {
       const rendered = await conRigaSuMobile({ mode: 'return' });
 
-      await userEvent.click(screen.getByText(VARIANTE.title));
+      await userEvent.click(screen.getByText(VARIANTE.productName));
       rendered.fixture.detectChanges();
 
       expect(screen.getByLabelText('Carica giacenze')).toBeTruthy();

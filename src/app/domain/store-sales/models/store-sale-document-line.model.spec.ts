@@ -16,7 +16,11 @@ const RIGA_DOCUMENTO: DocumentLine = {
   lineNumber: 1,
   variantId: 'var-1',
   sku: 'MAG-001',
-  description: 'Maglietta Basic — M / Bianco',
+  // ⛔ Qui c'era «Maglietta Basic — M / Bianco»: la variante impastata nel
+  // nome, cioe' il difetto che questa colonna elimina. Il fixture lo
+  // riproduceva, quindi lo confermava.
+  description: 'Maglietta Basic',
+  variantLabel: 'M / Bianco',
   quantity: 2,
   // Coda decimale: è quella che fa tornare identico un prezzo digitato ivato.
   unitPrice: { amountMinor: 2049.180328, currencyCode: DEFAULT_CURRENCY },
@@ -47,6 +51,9 @@ function rigaNuova(patch: Partial<StoreSaleDocumentLine> = {}): StoreSaleDocumen
     variantId: 'var-9',
     sku: 'NEW-001',
     description: 'Articolo nuovo',
+    // Articolo senza opzioni: l'etichetta è vuota, e vuota è un valore — non
+    // un dato mancante.
+    variantLabel: '',
     persistedDescription: null,
     quantity: 1,
     unitPriceMinor: 1000,
@@ -77,7 +84,9 @@ describe('storeSaleLineFromDocumentLine', () => {
     const line = storeSaleLineFromDocumentLine(RIGA_DOCUMENTO);
 
     expect(line.unitPriceMinor).toBe(2049.180328);
-    expect(line.description).toBe('Maglietta Basic — M / Bianco');
+    // Il nome e' il nome: la variante ha la sua colonna.
+    expect(line.description).toBe('Maglietta Basic');
+    expect(line.variantLabel).toBe('M / Bianco');
     expect(line.discountPercent).toBe(10);
     expect(line.vatRatePercent).toBe(22);
   });
@@ -86,7 +95,7 @@ describe('storeSaleLineFromDocumentLine', () => {
     const line = storeSaleLineFromDocumentLine(RIGA_DOCUMENTO);
 
     expect(line.persistedVatCodeId).toBe('vat-22');
-    expect(line.persistedDescription).toBe('Maglietta Basic — M / Bianco');
+    expect(line.persistedDescription).toBe('Maglietta Basic');
   });
 
   it('lascia a zero la disponibilità: è un dato vivo, non documentale', () => {

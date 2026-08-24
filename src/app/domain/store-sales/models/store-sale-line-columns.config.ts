@@ -43,7 +43,12 @@ export const STORE_SALE_LINE_COLUMNS: readonly TableColumnDef[] = [
   // altro documento ha, decisa senza guardare come si comportano gli altri.
   // L'EAN si vede di default ovunque, e al banco non fa eccezione.
   { id: 'barcode', label: 'EAN', defaultWidthPx: 124, minWidthPx: 72 },
-  { id: 'product', label: 'Articolo', defaultWidthPx: 320, minWidthPx: 160 },
+  { id: 'product', label: 'Articolo', defaultWidthPx: 280, minWidthPx: 160 },
+  // La VARIANTE accanto al nome. Al banco serve piu' che altrove: la taglia e'
+  // la prima cosa che si controlla passando il capo, e fino a ieri viveva
+  // dentro il nome perche' il client scriveva `summary.title` — il display
+  // completo — mentre il server salvava il solo nome.
+  { id: 'variantLabel', label: 'Variante', defaultWidthPx: 120, minWidthPx: 80 },
   { id: 'quantity', label: 'Q.tà', numeric: true, defaultWidthPx: 80, minWidthPx: 56 },
   { id: 'unitPrice', label: 'Prezzo', numeric: true, defaultWidthPx: 112, minWidthPx: 80 },
   { id: 'discount', label: 'Sconto', numeric: true, defaultWidthPx: 88, minWidthPx: 64 },

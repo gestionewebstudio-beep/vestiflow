@@ -105,6 +105,20 @@
     ></span>
   </th>
 }
+@if (isColumnVisible()('variantLabel')) {
+  <!-- Non ordinabile: la variante è un'etichetta composta, e ordinare per
+       «M / Rosso» ordinerebbe per taglia solo dove la taglia è la prima
+       opzione. -->
+  <th scope="col" [style.width]="columnWidth()('variantLabel')">
+    <span class="doc-form__th-label" title="Variante">Variante</span>
+    <span
+      appTableColumnResize
+      [minWidthPx]="columnMinWidth()('variantLabel')"
+      [live]="true"
+      (resizing)="columnResizing.emit({ column: 'variantLabel', widthPx: $event })"
+    ></span>
+  </th>
+}
 @if (isColumnVisible()('product')) {
   <th
     scope="col"

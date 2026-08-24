@@ -151,6 +151,17 @@
       />
     </td>
   }
+  @if (!view().isReference && isColumnVisible()('variantLabel')) {
+    <td class="doc-form__cell doc-form__cell--readonly" data-label="Variante">
+      <span class="doc-form__readonly-cell" [title]="controlValue('variantLabel')">{{
+        controlValue('variantLabel') || '—'
+      }}</span>
+    </td>
+  } @else if (isColumnVisible()('variantLabel')) {
+    <!-- Riga di RIFERIMENTO: non ha un articolo, quindi non ha una variante.
+         La cella resta, o la tabella perderebbe una colonna su quella riga. -->
+    <td class="doc-form__cell doc-form__cell--readonly"></td>
+  }
   @if (isColumnVisible()('quantity')) {
     <td
       class="doc-form__cell doc-form__cell--editable doc-form__num doc-form__col--stock"

@@ -15,7 +15,10 @@ export const CUSTOMER_ORDER_LINE_COLUMNS: readonly TableColumnDef[] = [
   { id: 'articleCode', label: 'Cod. articolo', defaultWidthPx: 96, minWidthPx: 64 },
   { id: 'sku', label: 'SKU', defaultWidthPx: 104, minWidthPx: 64 },
   { id: 'barcode', label: 'EAN', defaultWidthPx: 124, minWidthPx: 72 },
-  { id: 'product', label: 'Nome prodotto', defaultWidthPx: 300, minWidthPx: 160 },
+  { id: 'product', label: 'Nome prodotto', defaultWidthPx: 260, minWidthPx: 160 },
+  // La VARIANTE accanto al nome, non dentro: «M / Rosso». La rende la riga
+  // COMUNE (`document-line-row`), quindi la vede anche la Vendita al banco.
+  { id: 'variantLabel', label: 'Variante', defaultWidthPx: 120, minWidthPx: 80 },
   // Q.tà è il campo che si digita e ospita l'avviso «disponibili solo N»:
   // qualche pixel in più a lei, tolto alla disponibilità che mostra un numero.
   { id: 'quantity', label: 'Q.tà', numeric: true, defaultWidthPx: 72, minWidthPx: 52 },
@@ -73,6 +76,7 @@ export const CUSTOMER_ORDER_LINE_PRESETS: TableViewPresetMap = {
     'sku',
     'barcode',
     'product',
+    'variantLabel',
     'quantity',
     'stockAvailable',
     'unitOfMeasure',
@@ -82,6 +86,7 @@ export const CUSTOMER_ORDER_LINE_PRESETS: TableViewPresetMap = {
   [PresetId.Accountant]: [
     'sku',
     'product',
+    'variantLabel',
     'quantity',
     'unitPrice',
     'discount',
@@ -128,6 +133,7 @@ export const SALES_DDT_LINE_PRESETS: TableViewPresetMap = {
     'sku',
     'barcode',
     'product',
+    'variantLabel',
     'quantity',
     'stockAvailable',
     'unitOfMeasure',
@@ -138,6 +144,7 @@ export const SALES_DDT_LINE_PRESETS: TableViewPresetMap = {
   [PresetId.Accountant]: [
     'sku',
     'product',
+    'variantLabel',
     'quantity',
     'unitPrice',
     'discount',
@@ -169,6 +176,7 @@ export const MANUAL_UNLOAD_LINE_PRESETS: TableViewPresetMap = {
     'sku',
     'barcode',
     'product',
+    'variantLabel',
     'quantity',
     'stockAvailable',
     'unitOfMeasure',
@@ -178,6 +186,7 @@ export const MANUAL_UNLOAD_LINE_PRESETS: TableViewPresetMap = {
   [PresetId.Accountant]: [
     'sku',
     'product',
+    'variantLabel',
     'quantity',
     'unitPrice',
     'discount',
@@ -211,6 +220,7 @@ export const QUOTE_LINE_PRESETS: TableViewPresetMap = {
     'sku',
     'barcode',
     'product',
+    'variantLabel',
     'quantity',
     'unitOfMeasure',
     'actions',
@@ -218,6 +228,7 @@ export const QUOTE_LINE_PRESETS: TableViewPresetMap = {
   [PresetId.Accountant]: [
     'sku',
     'product',
+    'variantLabel',
     'quantity',
     'unitPrice',
     'discount',

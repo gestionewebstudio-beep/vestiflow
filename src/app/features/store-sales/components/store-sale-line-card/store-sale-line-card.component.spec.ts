@@ -11,7 +11,11 @@ const RIGA: StoreSaleDocumentLine = {
   serverLineId: null,
   variantId: 'var-1',
   sku: 'MAG-001',
-  description: 'Maglietta Basic — M / Bianco',
+  // ⛔ Qui c'era «Maglietta Basic — M / Bianco»: la variante impastata nel
+  // nome, cioe' il difetto che questa colonna elimina. Il fixture lo
+  // riproduceva, quindi lo confermava.
+  description: 'Maglietta Basic',
+  variantLabel: 'M / Bianco',
   persistedDescription: null,
   quantity: 2,
   unitPriceMinor: 2000,

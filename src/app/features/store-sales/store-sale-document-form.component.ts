@@ -94,6 +94,15 @@ import { ProductFormComponent } from '@domain/products/product-form.component';
 import type { ProductEmbeddedCreatePrefill } from '@domain/products/models/product-form.mapper';
 import { BarcodeLookupService } from '@domain/products/services/barcode-lookup.service';
 import { ProductService } from '@domain/products/services/product.service';
+import { DocumentLineArticleService } from '@domain/documents/services/document-line-article.service';
+import {
+  campiEffettivi,
+  PROFILI_RIGA_DOCUMENTO,
+} from '@domain/documents/models/document-line-article.model';
+import type {
+  ContestoRichiamoArticolo,
+  PolicyRichiamoArticolo,
+} from '@domain/documents/models/document-line-article.model';
 import { createQuickAddProduct } from '@domain/products/utils/quick-add-product.util';
 import {
   storeSaleLineFromDocumentLine,
@@ -378,6 +387,16 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
       variantId: this.fb.control(''),
       sku: this.fb.control(''),
       productName: this.fb.control(''),
+      /**
+       * L'etichetta della VARIANTE: «M / Rosso».
+       *
+       * ⭐ Colonna sua, e qui serviva più che altrove: il banco scriveva
+       * `productName ← summary.title` — il display COMPLETO — quindi la
+       * variante viveva dentro il nome. Il server ha smesso di concatenarla il
+       * 24/08, e senza questo campo la vendita al banco sarebbe diventata
+       * l'unico documento che non dice quale taglia è uscita.
+       */
+      variantLabel: this.fb.control(''),
       /** La descrizione COM'ERA sul documento: la riga è una fotografia. */
       persistedDescription: this.fb.control<string | null>(null),
       // ⭐ EAN: dato dell'ANAGRAFICA, non del documento — `DocumentLine` non lo
@@ -485,6 +504,7 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
       variantId: controls.variantId.value,
       sku: controls.sku.value,
       description: controls.productName.value,
+      variantLabel: controls.variantLabel.value,
       persistedDescription: controls.persistedDescription.value,
       quantity: controls.quantity.value,
       unitPriceMinor: this.netMinorOf(index, rate),
@@ -792,6 +812,7 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
 
   private readonly barcodeLookup = inject(BarcodeLookupService);
   private readonly productService = inject(ProductService);
+  private readonly lineArticles = inject(DocumentLineArticleService);
   private readonly quickRow = viewChild<DocumentLineQuickRowComponent>('quickRow');
 
   protected readonly searchDraft = signal('');
@@ -957,19 +978,103 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
     if (salvata) {
       return;
     }
-    controls.sku.setValue(summary.sku);
-    controls.productName.setValue(summary.title);
-    controls.vatCodeId.setValue(summary.defaultVatCodeId ?? null);
+    // ⭐ Il richiamo articolo passa dal RISOLUTORE COMUNE (`03c`). Il banco è
+    // l'ultima delle sette maschere, e per una ragione che qui si vede: il
+    // difetto del client si nascondeva dietro un difetto del server IDENTICO,
+    // quindi correggerne uno solo non faceva cambiare colore a nessun test.
+    // Il server ha smesso di concatenare nome e variante il 24/08 — questo è
+    // il lato client dello stesso gesto.
+    const esito = this.lineArticles.resolveWithSummary({
+      articolo: summary,
+      policy: this.policyRichiamo(),
+      contesto: this.contestoRichiamo(),
+      riga: {
+        // Qui non c'è sostituzione d'articolo: una riga già agganciata esce
+        // sopra, al `return` di `salvata`. Chi arriva qui è una riga nuova.
+        variantIdPrecedente: null,
+        rigaPersistita: false,
+        scontoCorrente: controls.discount.value,
+      },
+    });
+    if (esito.esito !== 'risolto') {
+      return;
+    }
+    const valori = esito.valori;
+    const scrivi = (controllo: { setValue(v: string): void }, valore: string | undefined): void => {
+      // ⛔ Chiave ASSENTE significa «non toccare», mai «svuota».
+      if (valore !== undefined) {
+        controllo.setValue(valore);
+      }
+    };
+
+    scrivi(controls.sku, valori.sku);
+    // ⛔ Qui c'era `summary.title` — il display COMPLETO, che contiene la
+    // variante — scritto direttamente, senza nemmeno il ripiego che le altre
+    // maschere avevano. Il nome è il nome; la variante ha la sua colonna.
+    scrivi(controls.productName, valori.nomeProdotto);
+    scrivi(controls.variantLabel, valori.variantLabel);
+    scrivi(controls.discount, valori.sconto);
+    if (valori.codiceIva !== undefined) {
+      controls.vatCodeId.setValue(valori.codiceIva);
+    }
     // ⭐ Default della spunta, **deciso** il 21/08/2026 (`11` A15): un articolo
     // che gestisce il magazzino nasce con la spunta attiva, un servizio no. La
     // spunta esiste per l'eccezione, non per la regola.
-    controls.commitsStock.setValue(summary.managesStock !== false);
+    //
+    // ⛔ Qui c'era `managesStock !== false`, che guarda un campo solo: su un
+    // SERVIZIO `managesStock` non è `false` — è ASSENTE, e la spunta scattava
+    // lo stesso. La regola completa vive nel risolutore.
+    if (valori.gestisceMagazzino !== undefined) {
+      controls.commitsStock.setValue(valori.gestisceMagazzino);
+    }
     // Il prezzo si scrive col TESTO della modalità corrente: il netto è
     // canonico, ma il campo mostra ciò che l'operatore ha scelto di leggere.
-    const rate = this.rateOf(summary.defaultVatCodeId ?? null, null);
-    controls.unitPrice.setValue(this.priceText(summary.sellingPrice.amountMinor, rate));
-    this.ricordaNetto(index, summary.sellingPrice.amountMinor, rate);
+    //
+    // ⚠️ L'IVA si scrive PRIMA, e l'ordine è portante: `rateOf` legge il
+    // Codice IVA appena assegnato per sapere con quale aliquota mostrarlo.
+    const prezzo = valori.prezzoUnitarioNettoMinor ?? summary.sellingPrice.amountMinor;
+    const rate = this.rateOf(controls.vatCodeId.value, null);
+    controls.unitPrice.setValue(this.priceText(prezzo, rate));
+    this.ricordaNetto(index, prezzo, rate);
   }
+  /**
+   * Le capacità del richiamo articolo al banco.
+   *
+   * ⛔ Il profilo è `vendita`, lo stesso dell'Ordine cliente e dei Documenti
+   * vendita: **il banco non ha un profilo suo**, e non deve averlo. Mostra
+   * meno colonne — niente codice articolo, unità di misura, costo — ma le
+   * colonne che mostra si comportano come dappertutto. Ciò che è davvero suo è
+   * la spunta Scarica/Carica e la regola di acquisizione, e nessuna delle due
+   * passa dal risolutore.
+   */
+  private policyRichiamo(): PolicyRichiamoArticolo {
+    return {
+      famigliaIva: PROFILI_RIGA_DOCUMENTO.vendita.famigliaIva,
+      campi: campiEffettivi('vendita', { shopifyAttivo: false, costiVisibili: false }),
+    };
+  }
+
+  /**
+   * Il contesto del richiamo.
+   *
+   * ⛔ **Nessun listino e nessuno sconto di controparte**: al banco non c'è un
+   * cliente in testata da cui ereditarli — è il caso che il proprietario ha
+   * descritto come «vendita al banco, nessun cliente». Il selettore listino
+   * arriverà (`11`), e allora questa riga cambierà: fino ad allora vale il
+   * prezzo d'articolo, che è ciò che la maschera fa oggi.
+   */
+  private contestoRichiamo(): ContestoRichiamoArticolo {
+    return {
+      listino: 'article',
+      codiciIvaPerId: this.vatCodeById(),
+      codiceIvaControparte: null,
+      codiceIvaPredefinito: null,
+      scontoControparte: null,
+      codiceFornitoreDigitato: null,
+      codiceFornitoreDiTestata: null,
+    };
+  }
+
   /** Riepilogo della variante alla sede del documento: giacenze comprese. */
   private readVariant(variantId: string): Observable<VariantSummary | null> {
     return this.productService
@@ -1834,6 +1939,9 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
         variantId: line.variantId,
         sku: line.sku,
         productName: line.description,
+        // L'etichetta fotografata sulla vendita. Vuota sulle righe salvate
+        // prima della colonna: lì la variante è dentro la descrizione.
+        variantLabel: line.variantLabel,
         persistedDescription: line.persistedDescription,
         quantity: line.quantity,
         // Il testo segue la modalità del DOCUMENTO, appena impostata sopra.
