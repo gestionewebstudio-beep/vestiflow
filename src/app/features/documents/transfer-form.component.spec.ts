@@ -159,6 +159,77 @@ describe('TransferFormComponent', () => {
     return { ...rendered, documentService, toasts, navigate };
   }
 
+  // ── Invio nei campi di testata NON deve salvare ──────────────────────────
+  //
+  // ⛔ **Regola funzionale, decisa dal proprietario il 24/08/2026.** Invio serve
+  // alla conferma e alla navigazione del campo in cui ci si trova; il
+  // salvataggio esplicito resta il pulsante Salva e la scorciatoia Ctrl/Cmd+S.
+  //
+  // ⚠️ **Perche' si guarda l'evento `submit` e non il servizio.** Verificare che
+  // `createDocument` non sia stato chiamato non distingue due cose molto
+  // diverse: che l'Invio non abbia inviato il modulo (giusto), e che l'abbia
+  // inviato ma il salvataggio si sia fermato sulla validazione (difetto
+  // mascherato). Il modulo che riceve un `submit` e' il fenomeno da osservare.
+  //
+  // ⚠️ E il banco di prova E' in grado di vederlo: verificato a parte che in
+  // questo ambiente premere Invio in un campo di testo dentro un `<form>`
+  // provoca davvero la submission implicita dell'HTML. Senza quella verifica
+  // queste prove sarebbero verdi e vuote.
+  describe('Invio in testata', () => {
+    async function documentoPronto() {
+      const rendered = await setup({ counters: [COUNTER] });
+      await rendered.fixture.whenStable();
+      rendered.fixture.detectChanges();
+      const modulo = rendered.container.querySelector('form');
+      const inviato = vi.fn();
+      modulo?.addEventListener('submit', inviato);
+      return { ...rendered, modulo, inviato };
+    }
+
+    it('⛔ Invio nel campo Numero non invia il modulo', async () => {
+      const user = userEvent.setup();
+      const rendered = await documentoPronto();
+      expect(rendered.modulo).not.toBeNull();
+
+      const numero = screen.getByLabelText<HTMLInputElement>('Numero');
+      await user.clear(numero);
+      await user.type(numero, '77{enter}');
+      rendered.fixture.detectChanges();
+
+      expect(rendered.inviato).not.toHaveBeenCalled();
+      expect(rendered.documentService.createDocument).not.toHaveBeenCalled();
+    });
+
+    it('⛔ Invio nel campo Data non invia il modulo', async () => {
+      const user = userEvent.setup();
+      const rendered = await documentoPronto();
+
+      const data = screen.getByLabelText<HTMLInputElement>('Data documento');
+      await user.click(data);
+      await user.keyboard('{enter}');
+      rendered.fixture.detectChanges();
+
+      expect(rendered.inviato).not.toHaveBeenCalled();
+      expect(rendered.documentService.createDocument).not.toHaveBeenCalled();
+    });
+
+    it('⛔ e nemmeno il campo Riferimento, che e un campo di testo qualunque', async () => {
+      const user = userEvent.setup();
+      const rendered = await documentoPronto();
+
+      const campi = screen.queryAllByRole<HTMLInputElement>('textbox');
+      const testo = campi.find((campo) => campo.type === 'text' && !campo.readOnly);
+      if (!testo) {
+        // Nessun campo di testo libero in testata: niente da verificare qui.
+        return;
+      }
+      await user.type(testo, 'x{enter}');
+      rendered.fixture.detectChanges();
+
+      expect(rendered.inviato).not.toHaveBeenCalled();
+    });
+  });
+
   // Regressione: le opzioni della location di destinazione escludono l'origine.
   // targetLocationOptions e' un computed che legge locationId dal FormControl
   // (non signal): deve ri-filtrare quando l'origine cambia, non restare fisso.

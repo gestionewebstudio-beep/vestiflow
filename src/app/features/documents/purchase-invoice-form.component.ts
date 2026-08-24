@@ -20,6 +20,7 @@ import {
 import { ActivatedRoute, Router } from '@angular/router';
 import { catchError, distinctUntilChanged, map, of, startWith, switchMap, take } from 'rxjs';
 
+import { NoImplicitSubmitDirective } from '@shared/directives/no-implicit-submit.directive';
 import { NavigationHistoryService } from '@core/services/navigation-history.service';
 import { ViewportService } from '@core/services/viewport.service';
 import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
@@ -160,6 +161,7 @@ function parseRatePercent(value: string): number | null {
   selector: 'app-purchase-invoice-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    NoImplicitSubmitDirective,
     InlineBannerComponent,
     NgTemplateOutlet,
     ReactiveFormsModule,

@@ -22,6 +22,7 @@ import {
   VARIANT_SEARCH_MIN_CHARS,
   VARIANT_SEARCH_PAGE_SIZE,
 } from '@domain/documents/utils/document-variant-search.config';
+import { NoImplicitSubmitDirective } from '@shared/directives/no-implicit-submit.directive';
 import { ViewportService } from '@core/services/viewport.service';
 import {
   catchError,
@@ -259,6 +260,7 @@ function todayIsoDate(): string {
   selector: 'app-supplier-order-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    NoImplicitSubmitDirective,
     DocumentLineHeadComponent,
     DocumentLineRowComponent,
     DocumentLineCardComponent,

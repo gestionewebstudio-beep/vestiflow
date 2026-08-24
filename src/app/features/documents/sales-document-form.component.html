@@ -48,6 +48,7 @@
     />
   } @else {
     <form
+      appNoImplicitSubmit
       class="doc-form__form"
       [class.doc-form__form--readonly]="formReadOnly()"
       [formGroup]="form"

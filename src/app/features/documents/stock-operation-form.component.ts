@@ -22,6 +22,7 @@ import {
   VARIANT_SEARCH_MIN_CHARS,
   VARIANT_SEARCH_PAGE_SIZE,
 } from '@domain/documents/utils/document-variant-search.config';
+import { NoImplicitSubmitDirective } from '@shared/directives/no-implicit-submit.directive';
 import { ViewportService } from '@core/services/viewport.service';
 import {
   catchError,
@@ -173,6 +174,7 @@ type MovementCodeField = Extract<DocumentLineCodeField, 'articleCode' | 'sku' | 
   selector: 'app-stock-operation-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    NoImplicitSubmitDirective,
     DocumentLineHeadComponent,
     DocumentLineRowComponent,
     InlineBannerComponent,

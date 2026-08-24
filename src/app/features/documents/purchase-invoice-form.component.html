@@ -40,7 +40,8 @@
       (ctaClick)="cancel()"
     />
   } @else {
-    <form class="doc-form__form" [formGroup]="form" (ngSubmit)="save()">
+    <form
+      appNoImplicitSubmit class="doc-form__form" [formGroup]="form" (ngSubmit)="save()">
       @if (supplierDocumentAlert(); as supplierAlert) {
         <p class="doc-form__supplier-note-banner" role="status">
           <i class="pi pi-info-circle" aria-hidden="true"></i>

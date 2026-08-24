@@ -32,7 +32,27 @@ import { ViewportService } from '@core/services/viewport.service';
     '[class.doc-form__field--waiting]': 'waiting()',
   },
   template: `
-    <span [class]="compatto() ? 'doc-panel__label' : 'doc-form__label'">{{ label() }}</span>
+    <!--
+      ⭐ **La riga dell'etichetta ospita i comandi del campo**, non solo il nome.
+
+      «Nuovo cliente» e «Scheda cliente» stavano SOTTO il campo, e da lì
+      spingevano in basso tutto il resto del pannello per un collegamento che si
+      usa di rado: in alto costano zero altezza, e stanno accanto al nome a cui
+      si riferiscono.
+
+      ⚠️ Il contenitore c'è anche quando lo slot è vuoto — costa un elemento e
+      tiene la riga in «space-between» senza che l'etichetta scivoli. Con tre
+      figli i due comandi si spargerebbero invece di stare insieme a destra.
+
+      ⛔ Era la lacuna che teneva l'Ordine cliente fuori dalla testata comune, e
+      con lui il campo «Listino», che di conseguenza esisteva solo su telefono.
+    -->
+    <span [class]="compatto() ? 'doc-panel__field-head' : 'doc-form__field-head'">
+      <span [class]="compatto() ? 'doc-panel__label' : 'doc-form__label'">{{ label() }}</span>
+      <span [class]="compatto() ? 'doc-panel__field-actions' : 'doc-form__field-actions'">
+        <ng-content select="[fieldActions]" />
+      </span>
+    </span>
     <ng-content />
     @if (invalid()) {
       <p [id]="errorId()" class="doc-form__error">{{ errorMessage() }}</p>

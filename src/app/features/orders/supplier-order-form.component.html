@@ -31,7 +31,8 @@
       (ctaClick)="cancel()"
     />
   } @else {
-    <form class="doc-form__form" [formGroup]="form" (ngSubmit)="submit()">
+    <form
+      appNoImplicitSubmit class="doc-form__form" [formGroup]="form" (ngSubmit)="submit()">
       @if (supplierDocumentAlert(); as supplierAlert) {
         <!-- Stessa classe globale delle altre maschere documento (era un doppione locale). -->
         <p class="doc-form__supplier-note-banner" role="status">

@@ -36,6 +36,7 @@ import {
   VARIANT_SEARCH_MIN_CHARS,
   VARIANT_SEARCH_PAGE_SIZE,
 } from '@domain/documents/utils/document-variant-search.config';
+import { NoImplicitSubmitDirective } from '@shared/directives/no-implicit-submit.directive';
 import { NavigationHistoryService } from '@core/services/navigation-history.service';
 import { formatDate } from '@core/utils/date.util';
 import { toLocationSelectOptions } from '@core/utils/location-select-options.util';
@@ -262,6 +263,7 @@ type ConversionPrefill = CreateDocumentBody & {
   selector: 'app-sales-document-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    NoImplicitSubmitDirective,
     DocumentLineHeadComponent,
     DocumentLineRowComponent,
     DocumentLineCardComponent,
