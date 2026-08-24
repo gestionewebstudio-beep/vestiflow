@@ -203,6 +203,7 @@ import {
 import { ProductPickerDialogComponent } from '@domain/products/components/product-picker-dialog/product-picker-dialog.component';
 import { DocumentLineCardComponent } from '@domain/documents/components/document-line-card/document-line-card.component';
 import { DocumentLineCardBodyComponent } from '@domain/documents/components/document-line-card/document-line-card-body.component';
+import { DocumentLineCardReferenceComponent } from '@domain/documents/components/document-line-card/document-line-card-reference.component';
 import { DocumentLineCardStripComponent } from '@domain/documents/components/document-line-card/document-line-card-strip.component';
 import { documentLineCardHead } from '@domain/documents/components/document-line-card/document-line-card.model';
 import type { DocumentLineCardHead } from '@domain/documents/components/document-line-card/document-line-card.model';
@@ -339,6 +340,7 @@ interface AvailabilityIssue {
     ReactiveFormsModule,
     DocumentLineCardComponent,
     DocumentLineCardBodyComponent,
+    DocumentLineCardReferenceComponent,
     DocumentLineCardStripComponent,
     CdkDropList,
     CdkDrag,

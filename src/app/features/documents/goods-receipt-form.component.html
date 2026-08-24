@@ -257,6 +257,32 @@
                     (seriesChange)="numbering.onSeriesChange($event)"
                     (manageSeries)="seriesDialogOpen.set(true)"
                   />
+                  <!-- Modalità costo: netto o ivato. Su desktop lo stesso
+                       controllo vive nell'intestazione della colonna Costo.
+
+                       ⛔ **Stava SOPRA LE CARD**, cioè in mezzo alle righe: è un
+                       comando di DOCUMENTO — decide come si leggono tutti i
+                       costi, non uno — e da lì sembrava un attrezzo della riga
+                       sotto. In più portava `doc-form__field--mode-mobile`, una
+                       classe che nessun foglio dichiarava: compariva senza
+                       vestito, e non se ne accorgeva nessuno.
+
+                       Qui sta dov'è il suo gemello sull'Ordine fornitore. -->
+                  <div class="doc-panel__field">
+                    <span class="doc-panel__label">Modalità costo</span>
+                    <app-select-menu
+                      [options]="costModeOptions"
+                      [value]="costEntryMode()"
+                      ariaLabel="Modalità costo netto o ivato"
+                      placeholder="Netto"
+                      [includeEmptyOption]="false"
+                      [compact]="true"
+                      [fullWidth]="true"
+                      (valueChange)="
+                        selectCostMode($event === 'vat_included' ? 'vat_included' : 'vat_excluded')
+                      "
+                    />
+                  </div>
                 </fieldset>
               </div>
             </app-document-mobile-panel>
@@ -732,24 +758,6 @@
                    sotto la soglia esiste solo questa. -->
               @if (compactView()) {
                 <div class="doc-form__cards">
-                  <!-- Selettore modalità costo su mobile: su desktop vive
-                     nell'intestazione di colonna, qui (dove la tabella diventa
-                     card) vive sopra le righe. doc-form__cards è già mobile-only. -->
-                  <div class="doc-form__field doc-form__field--mode-mobile">
-                    <span class="doc-form__label">Modalità costo</span>
-                    <app-select-menu
-                      [options]="costModeOptions"
-                      [value]="costEntryMode()"
-                      ariaLabel="Modalità costo netto o ivato"
-                      placeholder="Netto"
-                      [includeEmptyOption]="false"
-                      [compact]="true"
-                      [fullWidth]="true"
-                      (valueChange)="
-                        selectCostMode($event === 'vat_included' ? 'vat_included' : 'vat_excluded')
-                      "
-                    />
-                  </div>
                   @for (line of lines.controls; track line; let i = $index) {
                     <!-- ⭐ **La card è la COMPONENTE COMUNE.** Qui c'era
                          `app-goods-receipt-line-card`: al mobile era quello che

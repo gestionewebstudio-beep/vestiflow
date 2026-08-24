@@ -1045,28 +1045,12 @@
                     @if (lineIsReference(i)) {
                       <!-- Documento collegato: banda bassa che separa il gruppo,
                        non una card prodotto. -->
-                      <article class="co-form__mobile-source-row" [formGroupName]="i">
-                        <span class="co-form__mobile-source-icon" aria-hidden="true">
-                          <i class="pi pi-file"></i>
-                        </span>
-                        <span class="co-form__mobile-source-copy">
-                          <small>Documento collegato</small>
-                          <input
-                            class="doc-form__source-title"
-                            type="text"
-                            formControlName="productName"
-                            aria-label="Riferimento al documento collegato"
-                          />
-                        </span>
-                        <button
-                          type="button"
-                          class="doc-form__line-remove"
-                          aria-label="Rimuovi collegamento"
-                          (click)="removeLine(i)"
-                        >
-                          <i class="pi pi-trash" aria-hidden="true"></i>
-                        </button>
-                      </article>
+                      <app-document-line-card-reference
+                        [formGroupName]="i"
+                        [readOnly]="formReadOnly()"
+                        [canRemove]="lines.length > 1"
+                        (removeRequested)="removeLine(i)"
+                      />
                     } @else {
                       <!-- ⭐ **La card è quella COMUNE**, guscio, striscia e corpo. Qui c'era
                            `app-customer-order-line-card`, un involucro di feature che

@@ -86,6 +86,7 @@ import { DocumentLineHeadComponent } from '@domain/documents/components/document
 import { DocumentLineRowComponent } from '@domain/documents/components/document-line-row/document-line-row.component';
 import { DocumentLineCardComponent } from '@domain/documents/components/document-line-card/document-line-card.component';
 import { DocumentLineCardBodyComponent } from '@domain/documents/components/document-line-card/document-line-card-body.component';
+import { DocumentLineCardReferenceComponent } from '@domain/documents/components/document-line-card/document-line-card-reference.component';
 import { DocumentLineCardStripComponent } from '@domain/documents/components/document-line-card/document-line-card-strip.component';
 import {
   documentLineCardHead,
@@ -264,6 +265,7 @@ type ConversionPrefill = CreateDocumentBody & {
     DocumentLineRowComponent,
     DocumentLineCardComponent,
     DocumentLineCardBodyComponent,
+    DocumentLineCardReferenceComponent,
     DocumentLineCardStripComponent,
     InlineBannerComponent,
     ReactiveFormsModule,

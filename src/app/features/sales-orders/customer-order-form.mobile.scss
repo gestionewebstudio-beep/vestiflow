@@ -1,12 +1,5 @@
 @use 'breakpoints' as bp;
 
-// Tap target ≥44×44 sui pochi controlli icona ancora sotto soglia (il cestino
-// della riga «documento collegato» usa l'altezza densa da desktop).
-.co-form__mobile-source-row .doc-form__line-remove {
-  min-block-size: 2.75rem;
-  min-inline-size: 2.75rem;
-}
-
 // Rispetto di «riduci animazioni».
 @media (prefers-reduced-motion: reduce) {
   .co-form__header-summary,
@@ -197,3 +190,8 @@
     border-block-start: var(--border-width) solid var(--color-border);
   }
 }
+
+// ⛔ Qui c'erano le regole della banda «Documento collegato» su schermo
+// compatto. Erano scritte due volte, in due maschere, con due prefissi diversi
+// sullo stesso markup: ora sono un componente comune
+// (`app-document-line-card-reference`), che porta il suo foglio.

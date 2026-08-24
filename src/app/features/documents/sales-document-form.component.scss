@@ -14,60 +14,6 @@
 // (`@if (!compactView())`, che è la stessa soglia `lg`). La regola non poteva
 // più agganciare niente, e la sua motivazione diceva il falso.
 
-// ── Riga «Documento collegato», vista compatta ─────────────────────────────
-// Sotto `lg` la riga di riferimento non è una card di merce: è una banda bassa
-// che separa il gruppo incluso. Stesse tinte del ramo desktop della riga
-// comune (`--color-doc-ref-*`): è lo stesso oggetto visto da vicino.
-.sd-form__mobile-source-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2);
-  background-color: var(--color-doc-ref-bg);
-  border: var(--border-width) solid var(--color-doc-ref-line);
-  border-inline-start: var(--space-1) solid var(--color-doc-ref-accent);
-  border-radius: var(--radius-lg);
-}
-
-.sd-form__mobile-source-icon {
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  inline-size: 2rem;
-  block-size: 2rem;
-  color: var(--color-doc-ref-chip-fg);
-  background-color: var(--color-doc-ref-chip-bg);
-  border-radius: var(--radius-sm);
-}
-
-.sd-form__mobile-source-copy {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-inline-size: 0;
-}
-
-.sd-form__mobile-source-copy small {
-  font-size: var(--text-2xs);
-  font-weight: var(--font-weight-head);
-  letter-spacing: var(--tracking-caps);
-  text-transform: uppercase;
-  color: var(--color-doc-ref-muted);
-}
-
-.sd-form__mobile-source-row .doc-form__source-title {
-  block-size: var(--space-6);
-  font-size: var(--text-xs);
-}
-
-// Il cestino della banda resta tappabile: sotto `lg` il minimo è 44px, e
-// l'altezza densa del desktop lo lascerebbe sotto soglia.
-.sd-form__mobile-source-row .doc-form__line-remove {
-  flex: 0 0 auto;
-  min-inline-size: var(--btn-min-height);
-  min-block-size: var(--btn-min-height);
-}
-
 // Cliente largo il doppio anche nella fascia flex a lg+ (sotto lg ci pensa
 // lo span2 della griglia compatta del foglio condiviso).
 @include bp.media-up('lg') {
@@ -86,3 +32,8 @@
   border-color: var(--status-error-fg);
   background-color: var(--status-error-bg);
 }
+
+// ⛔ Qui c'erano le regole della banda «Documento collegato» su schermo
+// compatto. Erano scritte due volte, in due maschere, con due prefissi diversi
+// sullo stesso markup: ora sono un componente comune
+// (`app-document-line-card-reference`), che porta il suo foglio.
