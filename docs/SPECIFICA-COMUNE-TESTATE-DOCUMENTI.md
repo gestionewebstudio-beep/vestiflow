@@ -130,13 +130,27 @@ cambia **solo tinta**, e chi non distingue i colori non vedrebbe accadere nulla.
 | Maschera               | Testata comune | Righe prima → dopo |
 | ---------------------- | -------------- | ------------------ |
 | Trasferimento          | ✅             | 162 → 81           |
-| Rettifica / Inventario | ⏳             |                    |
-| Arrivo merce           | ⏳             |                    |
-| Ordine fornitore       | ⏳             |                    |
-| Documenti vendita      | ⏳             |                    |
-| Ordine cliente         | ⏳             |                    |
-| Vendita al banco       | ⏳             |                    |
-| Registrazione fattura  | ⏳             |                    |
+| Rettifica / Inventario | ✅             | 164 → 99           |
+| Arrivo merce           | ✅ (2 fasce)   | 414 → 285          |
+| Ordine fornitore       | ✅             | 320 → 212          |
+| Documenti vendita      | ✅ (2 fasce)   | 445 → 285          |
+| Vendita al banco       | ✅             | 150 → 91           |
+| Registrazione fattura  | ✅             | 218 → 177          |
+| **Ordine cliente**     | ⏳ **ultima**  | 598 → —            |
+
+**Totale, sette su otto: 1.711 → 1.149 righe (−33%).**
+
+⚠️ **L'Ordine cliente non e' rimasto indietro per caso**: serve quattro tipi
+documento ed e' la piu' grande. Ma e' anche quella da cui dipende un difetto
+funzionale aperto — il campo **«Listino» esiste solo nella vista mobile**, quindi
+da scrivania non si puo' scegliere il listino su un ordine, un preventivo o un
+DDT. La migrazione lo porta su entrambe le viste.
+
+⚠️ **Manca una NONA maschera**: il Movimento di magazzino
+(`features/inventory/movement-form`) ha la stessa anatomia e la stessa doppia
+scrittura, camuffata con `ariaLabel="Location (testata mobile)"` invece di un
+identificativo gemello — quindi il controllo automatico non la vede. Non e' mai
+entrata nel perimetro.
 
 ---
 
