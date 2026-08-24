@@ -45,12 +45,9 @@
     letter-spacing: -0.015em;
   }
 
-  .co-lines__include {
-    --button-h: var(--doc-m-include-h);
-    --button-pad-inline: var(--space-3);
-    --button-radius: var(--doc-m-radius-sm);
-    --button-font-size: var(--text-sm);
-  }
+  // ⛔ Qui c'erano le misure del secondo «Includi documento», il blocco solo
+  // mobile che duplicava un comando della barra strumenti. Sparito con la
+  // barra responsive: un comando, un posto.
 
   // Lo stato vuoto delle righe era vestito su misura qui: riquadro tratteggiato,
   // titolo e paragrafo con le loro misure. Ora è `app-empty-state`, il

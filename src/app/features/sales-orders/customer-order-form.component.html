@@ -835,25 +835,16 @@
                 }
               </div>
 
-              <!-- Mobile: «Includi documento» accanto al titolo delle righe.
-                   Sta dentro il fieldset del gate, quindi si abilita insieme
-                   alle altre azioni sulle righe. Su desktop resta in toolbar.
-                   ⚠️ `compactView()` non è di contorno: senza, il pulsante
-                   compariva DUE VOLTE su desktop — qui e nella barra strumenti,
-                   affiancati e identici. Stessa famiglia della «vista sola
-                   viva» (§4.11): un comando, un posto. -->
-              @if (compactView() && includeSourceKinds.length > 0) {
-                <div class="co-lines__include">
-                  <app-button type="button" variant="secondary" (click)="openIncludePanel()">
-                    Includi documento
-                  </app-button>
-                </div>
-              }
-              <!-- Toolbar desktop invariata. Su mobile i suoi comandi si
-                   ricollocano: Includi documento in testata, Nuovo prodotto nel
-                   blocco qui sotto, Aggiungi riga in fondo alla lista, Scansiona
-                   e Aggiungi prodotto nella barra sticky. Il selettore colonne
-                   non serve: le card mostrano già ciò che conta. -->
+              <!-- ⛔ **Qui c'era un SECONDO «Includi documento»**, solo mobile,
+                   con un `@if (compactView())` che il suo stesso commento
+                   spiegava così: «senza, il pulsante compariva DUE VOLTE su
+                   desktop». Il rimedio al doppione era il breakpoint — cioè il
+                   doppione restava, e a deciderne uno era la larghezza dello
+                   schermo.
+
+                   ⭐ La barra strumenti righe è ora **comune e responsive**: gli
+                   stessi comandi, lo stesso stato, il layout che si adatta. Un
+                   comando si spegne per configurazione, non per larghezza. -->
               <div class="doc-form__lines-tools">
                 <app-table-column-picker [viewId]="lineColumnsView" [reorderable]="false" />
                 @if (includeSourceKinds.length > 0) {
