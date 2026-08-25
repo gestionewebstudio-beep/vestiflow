@@ -64,6 +64,7 @@ import {
   receiptVatBreakdown,
   type VatBreakdownEntry,
 } from './purchase-invoice-vat-summary.util';
+import { buildVatCodeSnapshot } from '../vat/vat-snapshot.util';
 import { VatCodesService, type VatCodeWithNature } from '../vat/vat-codes.service';
 import {
   persistedLineVariants,
@@ -377,7 +378,7 @@ export class GoodsReceiptWorkflowService {
       for (const vatCode of found) {
         vatCodesById.set(vatCode.id, vatCode);
       }
-      this.assertPurchaseVatCodes(dto, requestedVatCodeIds, vatCodesById);
+      this.assertPurchaseVatCodes(dto.lines ?? [], requestedVatCodeIds, vatCodesById);
       for (const vatCodeId of newProductVatCodeIds) {
         if (!vatCodesById.has(vatCodeId)) {
           throw new UnprocessableEntityException(
@@ -1105,6 +1106,35 @@ export class GoodsReceiptWorkflowService {
     // fotografia, e non si riscatta da sola». Una riga ricalcolata non e' una
     // fotografia.
     const righe = dto.lines ?? [];
+
+    // ── Codici IVA delle righe economiche ────────────────────────────────
+    //
+    // ⛔ Qui non si risolveva niente: la riga scriveva `vatSnapshot:
+    // { ratePercent }` — UN campo, l'unico snapshot fabbricato a mano in tutta
+    // l'API — e lasciava `vatCodeId` a null. `buildVatCodeSnapshot` ne scrive
+    // dieci, fra cui la Natura e la modalita' di calcolo.
+    //
+    // ⚠️ La conseguenza usciva dal gestionale: i quattro codici in inversione
+    // contabile d'acquisto (22R, 10R, 5R, 4R) sono gli unici con
+    // `usageScope: 'purchase'` — esistono solo per questa maschera, che non
+    // poteva sceglierli. E senza codice, `vatInputFromLegacyRate` forza
+    // `vatAffectsSupplierTotal = true`: il server AFFERMA che l'IVA in
+    // inversione contabile e' dovuta al fornitore.
+    const vatCodeIdsRichiesti = [
+      ...new Set(righe.map((line) => line.vatCodeId).filter((id): id is string => id != null)),
+    ];
+    const vatCodesById = new Map<string, VatCodeWithNature>();
+    if (vatCodeIdsRichiesti.length > 0) {
+      const trovati = await this.prisma.vatCode.findMany({
+        where: { tenantId, id: { in: vatCodeIdsRichiesti }, deletedAt: null },
+        include: { nature: true },
+      });
+      for (const vatCode of trovati) {
+        vatCodesById.set(vatCode.id, vatCode);
+      }
+      this.assertPurchaseVatCodes(righe, vatCodeIdsRichiesti, vatCodesById);
+    }
+
     const linesNet = righe.reduce((sum, line) => sum + line.netMinor, 0);
     const linesVat = righe.reduce((sum, line) => sum + line.vatMinor, 0);
 
@@ -1296,7 +1326,30 @@ export class GoodsReceiptWorkflowService {
       // ⭐ Una lista sola, nell'ordine in cui il client la manda. `lineSource`
       // resta come PROVENIENZA storica — «questa riga e' nata da un arrivo» —
       // non piu' come origine ricalcolabile, e si deriva dal legame.
+      // La riga gia' salvata, per il contratto binario dello snapshot.
+      const righePersistite = new Map((existing?.lines ?? []).map((riga) => [riga.id, riga]));
+
       for (const [index, line] of righe.entries()) {
+        const lineId = line.id;
+        const persistita = lineId ? righePersistite.get(lineId) : undefined;
+        // ⭐ **Contratto binario: assente = non modificato.** Su una riga
+        // esistente che non dichiara un codice si conservano quelli persistiti,
+        // e non si rifotografa niente dall'anagrafica corrente.
+        const vatCode = line.vatCodeId ? vatCodesById.get(line.vatCodeId) : undefined;
+        const vat = vatCode
+          ? { vatCodeId: vatCode.id, vatSnapshot: buildVatCodeSnapshot(vatCode) }
+          : persistita
+            ? {
+                vatCodeId: persistita.vatCodeId,
+                vatSnapshot: (persistita.vatSnapshot ?? Prisma.DbNull) as Prisma.InputJsonValue,
+              }
+            : {
+                // Riga nuova senza codice: resta l'aliquota storica. E' il
+                // veicolo finche' esiste una sola riga con `vat_code_id` NULL —
+                // e oggi lo sono TUTTE quelle salvate da luglio.
+                vatCodeId: null,
+                vatSnapshot: { ratePercent: line.vatRatePercent } as Prisma.InputJsonObject,
+              };
         const data = {
           lineNumber: index + 1,
           description: line.description.trim(),
@@ -1311,7 +1364,8 @@ export class GoodsReceiptWorkflowService {
           lineTotalMinor: line.netMinor,
           lineVatTotalMinor: line.vatMinor,
           lineGrossTotalMinor: line.netMinor + line.vatMinor,
-          vatSnapshot: { ratePercent: line.vatRatePercent } as Prisma.InputJsonObject,
+          vatCodeId: vat.vatCodeId,
+          vatSnapshot: vat.vatSnapshot,
           loadsStock: false,
           lineSource: line.linkedGoodsReceiptId ? 'vat_summary' : 'manual',
           // ⭐ La colonna esisteva da luglio con chiave esterna e indice, e
@@ -1319,7 +1373,6 @@ export class GoodsReceiptWorkflowService {
           // legame riga↔arrivo su cui ora poggia tutto il resto.
           linkedGoodsReceiptId: line.linkedGoodsReceiptId ?? null,
         };
-        const lineId = line.id;
         if (lineId && existingLineIds.has(lineId)) {
           await tx.documentLine.update({ where: { id: lineId }, data });
         } else {
@@ -1405,12 +1458,15 @@ export class GoodsReceiptWorkflowService {
    * coinvolta, mai dettagli tecnici.
    */
   private assertPurchaseVatCodes(
-    dto: SaveGoodsReceiptDto,
+    // ⭐ Prende le RIGHE, non il DTO: la stessa validazione serve all'Arrivo
+    // merce e alla Registrazione fattura, che hanno due corpi diversi e la
+    // stessa regola. Duplicarla sarebbe un secondo posto dove sbagliarla.
+    lines: readonly { readonly vatCodeId?: string | null }[],
     requestedVatCodeIds: readonly string[],
     vatCodesById: ReadonlyMap<string, VatCodeWithNature>,
   ): void {
     const lineNumberForVatCode = (vatCodeId: string): number => {
-      const index = (dto.lines ?? []).findIndex((line) => line.vatCodeId === vatCodeId);
+      const index = lines.findIndex((line) => line.vatCodeId === vatCodeId);
       return index >= 0 ? index + 1 : 1;
     };
     for (const vatCodeId of requestedVatCodeIds) {

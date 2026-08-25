@@ -71,6 +71,27 @@ export class PurchaseInvoiceLineDto {
   vatMinor!: number;
 
   /**
+   * Il Codice IVA della riga.
+   *
+   * ⭐ **Contratto binario, e vale solo per le righe ESISTENTI:**
+   *
+   * ```text
+   * riga esistente + assente   → l'IVA non e' stata modificata: si conservano
+   *                              `vatCodeId` e `vatSnapshot` persistiti
+   * riga esistente + presente  → assegnazione cambiata: si rigenera lo snapshot
+   * riga nuova                 → risoluzione normale
+   * ```
+   *
+   * ⚠️ Se il client rimandasse sempre il codice letto all'apertura, il server lo
+   * rifotograferebbe a ogni salvataggio — e riaprire una fattura vecchia per
+   * correggere una nota la ri-prezzerebbe il giorno in cui quell'aliquota
+   * cambia. E' la regola «la riga di un documento e' una fotografia».
+   */
+  @IsOptional()
+  @IsUUID()
+  vatCodeId?: string;
+
+  /**
    * L'arrivo merce da cui questa riga e' nata, se ne viene da uno.
    *
    * ⭐ La colonna `linked_goods_receipt_id` esiste su `document_lines` da

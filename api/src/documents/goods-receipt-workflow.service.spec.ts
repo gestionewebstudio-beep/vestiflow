@@ -1459,4 +1459,156 @@ describe('GoodsReceiptWorkflowService.savePurchaseInvoice', () => {
     expect(prisma.documentLine.create).toHaveBeenCalled();
   });
 
+
+  /**
+   * ⭐ **Il Codice IVA della riga economica, e perché non è un dettaglio.**
+   *
+   * ⛔ Fino al 25/08/2026 questa maschera scriveva `vatSnapshot: { ratePercent }`
+   * — **UN campo**, l'unico snapshot fabbricato a mano in tutta l'API —
+   * lasciando `vatCodeId` a `null`. `buildVatCodeSnapshot` ne scrive **dieci**,
+   * fra cui la Natura, il codice ufficiale, la percentuale indetraibile e la
+   * modalità di calcolo.
+   *
+   * ⚠️ **La conseguenza esce dal gestionale.** I quattro codici in inversione
+   * contabile d'acquisto (`22R`, `10R`, `5R`, `4R`) sono gli unici con
+   * `usageScope: 'purchase'` — esistono solo per questa maschera, che non poteva
+   * sceglierli. E con l'aliquota nuda `vatInputFromLegacyRate` forza
+   * `vatAffectsSupplierTotal = true`: il server **afferma che l'IVA in
+   * inversione contabile è dovuta al fornitore**, che è il contrario del vero.
+   */
+  const REVERSE_CHARGE = {
+    id: '77777777-7777-4777-8777-777777777777',
+    code: '22R',
+    isActive: true,
+    usageScope: 'purchase',
+    ratePercent: 22,
+    nonDeductiblePercent: 0,
+    calculationMode: 'reverse_charge',
+    vatAffectsSupplierTotal: false,
+    description: 'Reverse charge 22%',
+    notes: null,
+    nature: { key: 'n6', label: 'Inversione contabile', officialCode: 'N6' },
+  };
+
+  it('⭐ una riga col Codice IVA scrive il codice E lo snapshot pieno', async () => {
+    const { service } = createService(prisma);
+    mockSavedInvoice();
+    prisma.vatCode.findMany.mockResolvedValue([REVERSE_CHARGE]);
+
+    await service.savePurchaseInvoice(
+      tenantId,
+      invoiceDto({
+        lines: [
+          {
+            description: 'Prestazione in reverse charge',
+            netMinor: 10_000,
+            vatRatePercent: 22,
+            vatMinor: 2_200,
+            vatCodeId: REVERSE_CHARGE.id,
+          },
+        ],
+      }),
+      soloFatture(),
+    );
+
+    const riga = (prisma.documentLine.create.mock.calls[0]?.[0] as { data: Record<string, unknown> })
+      .data;
+    expect(riga.vatCodeId).toBe(REVERSE_CHARGE.id);
+    expect(riga.vatSnapshot).toMatchObject({
+      code: '22R',
+      ratePercent: 22,
+      calculationMode: 'reverse_charge',
+      vatAffectsSupplierTotal: false,
+      natureLabel: 'Inversione contabile',
+      officialCode: 'N6',
+    });
+  });
+
+  it('⛔ un Codice IVA riservato alle VENDITE è rifiutato, con la riga nel messaggio', async () => {
+    const { service } = createService(prisma);
+    mockSavedInvoice();
+    const soloVendite = { ...REVERSE_CHARGE, code: '22V', usageScope: 'sales' };
+    prisma.vatCode.findMany.mockResolvedValue([soloVendite]);
+
+    await expect(
+      service.savePurchaseInvoice(
+        tenantId,
+        invoiceDto({
+          lines: [
+            {
+              description: 'Riga',
+              netMinor: 100,
+              vatRatePercent: 22,
+              vatMinor: 22,
+              vatCodeId: soloVendite.id,
+            },
+          ],
+        }),
+        soloFatture(),
+      ),
+    ).rejects.toThrow(/riservato alle vendite/i);
+  });
+
+  /**
+   * ⭐ **Il contratto binario: assente = non modificato.**
+   *
+   * ⚠️ È la regola «la riga di un documento è una fotografia e non si riscatta
+   * da sola». Se il client rimandasse sempre il codice che ha letto aprendo il
+   * documento, il server lo rifotograferebbe a ogni salvataggio — e il giorno
+   * in cui l'aliquota di un Codice IVA cambia, riaprire una fattura vecchia per
+   * correggere una nota la **ri-prezza**.
+   */
+  it('⭐ su una riga esistente, Codice IVA assente = snapshot CONSERVATO', async () => {
+    const { service } = createService(prisma);
+    const snapshotDiIeri = { code: '22', ratePercent: 22, calculationMode: 'standard' };
+    const esistente = {
+      id: 'inv-1',
+      tenantId,
+      type: DocumentType.supplier_invoice,
+      status: DocumentStatus.confirmed,
+      lines: [{ id: 'riga-1', lineNumber: 1, vatCodeId: 'vat-vecchio', vatSnapshot: snapshotDiIeri }],
+    };
+    prisma.document.findFirst.mockResolvedValue(esistente);
+    prisma.document.findFirstOrThrow.mockResolvedValue({ ...esistente, lines: [] });
+
+    await service.savePurchaseInvoice(
+      tenantId,
+      invoiceDto({
+        id: 'inv-1',
+        // ⛔ Nessun `vatCodeId`: il client dichiara «non l'ho toccato».
+        lines: [
+          { id: 'riga-1', description: 'Trasporto', netMinor: 1_500, vatRatePercent: 22, vatMinor: 330 },
+        ],
+      }),
+      soloFatture(),
+    );
+
+    const aggiornata = (
+      prisma.documentLine.update.mock.calls[0]?.[0] as { data: Record<string, unknown> }
+    ).data;
+    expect(aggiornata.vatCodeId).toBe('vat-vecchio');
+    expect(aggiornata.vatSnapshot).toEqual(snapshotDiIeri);
+  });
+
+  it('⛔ ma una riga NUOVA senza Codice IVA conserva l’aliquota storica', async () => {
+    // ⚠️ `vatRatePercent` resta il veicolo dell'aliquota finché esiste una sola
+    // riga senza codice: tutte quelle salvate da luglio hanno `vat_code_id`
+    // NULL, e cancellarne l'aliquota cambierebbe il totale del documento.
+    const { service } = createService(prisma);
+    mockSavedInvoice();
+
+    await service.savePurchaseInvoice(
+      tenantId,
+      invoiceDto({
+        lines: [{ description: 'Storica', netMinor: 1_000, vatRatePercent: 10, vatMinor: 100 }],
+      }),
+      soloFatture(),
+    );
+
+    const riga = (prisma.documentLine.create.mock.calls[0]?.[0] as { data: Record<string, unknown> })
+      .data;
+    expect(riga.vatCodeId).toBeNull();
+    expect(riga.vatSnapshot).toEqual({ ratePercent: 10 });
+  });
+
 });
