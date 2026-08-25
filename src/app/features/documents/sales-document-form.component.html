@@ -743,51 +743,7 @@
              non esiste. -->
         <div class="doc-form__footer-grid">
           <aside class="doc-form__totals-bar" aria-label="Totali documento">
-            <dl class="doc-form__totals">
-              <div class="doc-form__totals-row">
-                <dt>Imponibile righe</dt>
-                <dd class="tabular-nums">
-                  @if (lineTotals().hasDocumentDiscount) {
-                    <span class="doc-form__line-total-gross">{{
-                      formatMoney(lineTotals().grossSubtotal)
-                    }}</span>
-                  }
-                  {{ formatMoney(lineTotals().subtotal) }}
-                </dd>
-              </div>
-              <div class="doc-form__totals-row doc-form__totals-row--field">
-                <dt>
-                  <label for="sd-doc-discount">Sconto extra</label>
-                </dt>
-                <dd>
-                  <input
-                    id="sd-doc-discount"
-                    class="doc-form__input doc-form__input--num doc-form__totals-input"
-                    type="text"
-                    formControlName="documentDiscountPercent"
-                    placeholder="es. 5%"
-                    autocomplete="off"
-                  />
-                </dd>
-              </div>
-              <!-- Dettaglio per aliquota: solo con aliquote miste. -->
-              @if (isSalesInvoice() && hasMixedVatRates()) {
-                @for (entry of vatBreakdown(); track entry.ratePercent) {
-                  <div class="doc-form__totals-row">
-                    <dt>IVA {{ entry.ratePercent }}% su {{ formatMoney(entry.net) }}</dt>
-                    <dd class="tabular-nums">{{ formatMoney(entry.vat) }}</dd>
-                  </div>
-                }
-              }
-              <div class="doc-form__totals-row">
-                <dt>IVA</dt>
-                <dd class="tabular-nums">{{ formatMoney(lineTotals().tax) }}</dd>
-              </div>
-              <div class="doc-form__totals-row doc-form__totals-row--total">
-                <dt>Totale documento</dt>
-                <dd class="tabular-nums">{{ formatMoney(lineTotals().total) }}</dd>
-              </div>
-            </dl>
+            <app-document-totals [rows]="totalsRows()" />
           </aside>
 
           <div class="doc-form__footer-notes">

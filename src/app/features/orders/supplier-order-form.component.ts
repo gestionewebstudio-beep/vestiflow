@@ -104,6 +104,8 @@ import { ProductFormComponent } from '@domain/products/product-form.component';
 import { ProductService } from '@domain/products/services/product.service';
 import { DocumentLineArticleService } from '@domain/documents/services/document-line-article.service';
 import { DocumentLineHeadComponent } from '@domain/documents/components/document-line-head/document-line-head.component';
+import { DocumentTotalsComponent } from '@domain/documents/components/document-totals/document-totals.component';
+import type { DocumentTotalRow } from '@domain/documents/components/document-totals/document-totals.model';
 import { DocumentLineRowComponent } from '@domain/documents/components/document-line-row/document-line-row.component';
 import { DocumentLineCardComponent } from '@domain/documents/components/document-line-card/document-line-card.component';
 import { DocumentLineCardBodyComponent } from '@domain/documents/components/document-line-card/document-line-card-body.component';
@@ -262,6 +264,7 @@ function todayIsoDate(): string {
   imports: [
     NoImplicitSubmitDirective,
     DocumentLineHeadComponent,
+    DocumentTotalsComponent,
     DocumentLineRowComponent,
     DocumentLineCardComponent,
     DocumentLineCardStripComponent,
@@ -950,6 +953,46 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
    * scritte a mano — corrette finché lo sconto non esisteva, e destinate a
    * divergere dagli altri il giorno in cui fosse arrivato. È arrivato.
    */
+  /**
+   * **Le voci del riepilogo, dichiarate dal documento.**
+   *
+   * ⛔ Qui c'erano quarantatre' righe di markup che differivano da quelle
+   * dell'Ordine cliente per tre righe di commento e per il nome di tre
+   * accessor — `orderSubtotal`, `orderTax`, `orderTotal` — che sono alias puri
+   * di `documentTotals()`. Tre nomi diversi per lo stesso valore: e' cosi' che
+   * una duplicazione si traveste da differenza.
+   *
+   * ⚠️ Il calcolo non si e' spostato: `documentTotals()` resta dov'era.
+   */
+  protected readonly totalsRows = computed<readonly DocumentTotalRow[]>(() => {
+    const t = this.documentTotals();
+    return [
+      { key: 'linesTotal', label: 'Imponibile righe', value: t.linesTotal },
+      {
+        key: 'documentDiscountPercent',
+        label: 'Sconto extra',
+        kind: 'field' as const,
+        control: this.form.controls.documentDiscountPercent,
+        inputId: 'po-doc-discount',
+        placeholder: '0%',
+        ariaLabel: 'Sconto extra documento',
+      },
+      ...(t.documentDiscount.amountMinor > 0
+        ? [
+            {
+              key: 'documentDiscount',
+              label: 'Sconto documento',
+              value: t.documentDiscount,
+              negative: true,
+            },
+          ]
+        : []),
+      { key: 'subtotal', label: 'Imponibile', value: t.subtotal },
+      { key: 'tax', label: 'IVA', value: t.tax },
+      { key: 'total', label: 'Totale documento', value: t.total, kind: 'total' as const },
+    ];
+  });
+
   protected readonly documentTotals = computed(() => {
     this.formValue();
     this.costEntryMode();

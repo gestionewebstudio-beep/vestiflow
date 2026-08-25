@@ -93,6 +93,8 @@ import { ProductService } from '@domain/products/services/product.service';
 import { DocumentLineArticleService } from '@domain/documents/services/document-line-article.service';
 import { createLineColumnWidths } from '@shared/table-columns/line-column-widths.store';
 import { DocumentLineHeadComponent } from '@domain/documents/components/document-line-head/document-line-head.component';
+import { DocumentTotalsComponent } from '@domain/documents/components/document-totals/document-totals.component';
+import type { DocumentTotalRow } from '@domain/documents/components/document-totals/document-totals.model';
 import { DocumentLineRowComponent } from '@domain/documents/components/document-line-row/document-line-row.component';
 import { DocumentLineCardComponent } from '@domain/documents/components/document-line-card/document-line-card.component';
 import { DocumentLineCardBodyComponent } from '@domain/documents/components/document-line-card/document-line-card-body.component';
@@ -331,6 +333,7 @@ const SALES_PRICE_FIELDS: readonly SalesPriceField[] = [
     DocumentHeaderComponent,
     DocumentHeaderFieldComponent,
     DocumentLineHeadComponent,
+    DocumentTotalsComponent,
     DocumentLineRowComponent,
     DocumentLineCardComponent,
     DocumentLineCardStripComponent,
@@ -2535,6 +2538,53 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly supplierDocumentNote = computed(() => {
     const alert = this.selectedSupplier()?.documentCreationAlert?.trim();
     return alert ?? '';
+  });
+
+  /**
+   * **Le voci del riepilogo, dichiarate dal documento.**
+   *
+   * ⛔ Qui c'erano quarantatre' righe di markup, identiche riga per riga a
+   * quelle dell'Ordine cliente. Ora la maschera dichiara quali voci ha e con
+   * quali valori; la forma e' del componente comune.
+   *
+   * ⚠️ Il calcolo non si e' spostato: `documentTotals()` resta dov'era, e
+   * `app-document-totals` non calcola niente.
+   *
+   * ⛔ Il **riepilogo IVA** qui sotto NON usa il componente, ed e' voluto: le
+   * sue voci compongono due importi in una frase («Imp. 100,00 € · IVA
+   * 22,00 €»), porta una classe e un `aria-label` propri. Farlo entrare
+   * richiederebbe tre scappatoie nel modello per una lista sola — ed e' cosi'
+   * che una configurazione diventa un linguaggio.
+   */
+  protected readonly totalsRows = computed<readonly DocumentTotalRow[]>(() => {
+    const t = this.documentTotals();
+    return [
+      { key: 'linesTotal', label: 'Imponibile righe', value: t.linesTotal },
+      {
+        key: 'documentDiscountPercent',
+        label: 'Sconto extra',
+        kind: 'field' as const,
+        control: this.form.controls.documentDiscountPercent,
+        inputId: 'gr-doc-discount',
+        placeholder: '0%',
+        ariaLabel: 'Sconto extra documento',
+      },
+      // Lo sconto in euro compare solo quando c'e': una riga «− 0,00 €» direbbe
+      // che uno sconto e' stato applicato e vale zero, che e' un'altra cosa.
+      ...(t.documentDiscount.amountMinor > 0
+        ? [
+            {
+              key: 'documentDiscount',
+              label: 'Sconto documento',
+              value: t.documentDiscount,
+              negative: true,
+            },
+          ]
+        : []),
+      { key: 'subtotal', label: 'Imponibile', value: t.subtotal },
+      { key: 'tax', label: 'IVA', value: t.tax },
+      { key: 'total', label: 'Totale documento', value: t.total, kind: 'total' as const },
+    ];
   });
 
   protected readonly documentTotals = computed(() => {

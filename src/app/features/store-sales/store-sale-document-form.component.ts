@@ -65,6 +65,8 @@ import { priceModeRowLabel } from '@domain/documents/models/document-price-mode.
 import { DocumentService } from '@domain/documents/services/document.service';
 import { DocumentLineCardBodyComponent } from '@domain/documents/components/document-line-card/document-line-card-body.component';
 import { documentLineIsEmpty } from '@domain/documents/state/document-line-removal.store';
+import { DocumentTotalsComponent } from '@domain/documents/components/document-totals/document-totals.component';
+import type { DocumentTotalRow } from '@domain/documents/components/document-totals/document-totals.model';
 import { DocumentLineCardStripComponent } from '@domain/documents/components/document-line-card/document-line-card-strip.component';
 import { DocumentLineCardComponent } from '@domain/documents/components/document-line-card/document-line-card.component';
 import { documentLineCardHead } from '@domain/documents/components/document-line-card/document-line-card.model';
@@ -247,6 +249,7 @@ function oggiIso(): string {
     DocumentSeriesManagerDialogComponent,
     DocumentProductSearchPanelComponent,
     DocumentLineCardComponent,
+    DocumentTotalsComponent,
     DocumentLineCardStripComponent,
     DocumentLineCardBodyComponent,
     DocumentLineHeadComponent,
@@ -1808,6 +1811,42 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
   // D1, aperta. Una sezione con la sola percentuale consoliderebbe una forma
   // che sappiamo incompleta. ⚠️ Il valore già persistito entra però nei totali
   // qui sotto: non esporre un controllo non significa ignorare un dato.
+
+  /**
+   * **Le voci del riepilogo, dichiarate dal documento.**
+   *
+   * ⛔ **Lo Sconto extra non c'e', ed e' dominio dichiarato**: al banco non si
+   * sconta il documento intero, si sconta la riga. Le altre quattro maschere
+   * hanno la voce modificabile, questa no — ed e' l'unica assenza del
+   * riepilogo che sia una scelta e non una dimenticanza.
+   *
+   * ⚠️ Lo sconto **persistito** compare lo stesso se il documento ne porta uno:
+   * un documento salvato altrove puo' averlo, e nasconderlo lo farebbe sparire
+   * dai conti senza spiegazione.
+   *
+   * ⭐ Il formattatore era `money()`, un locale che forzava la valuta
+   * predefinita. Ora e' quello comune: un documento in un'altra valuta si
+   * leggeva sbagliato qui e giusto altrove.
+   */
+  protected readonly totalsRows = computed<readonly DocumentTotalRow[]>(() => {
+    const t = this.totals();
+    return [
+      { key: 'linesTotal', label: 'Imponibile righe', value: t.linesTotal },
+      ...(this.hasPersistedDiscount()
+        ? [
+            {
+              key: 'documentDiscount',
+              label: 'Sconto documento',
+              value: t.documentDiscount,
+              negative: true,
+            },
+          ]
+        : []),
+      { key: 'subtotal', label: 'Imponibile', value: t.subtotal },
+      { key: 'tax', label: 'IVA', value: t.tax },
+      { key: 'total', label: 'Totale documento', value: t.total, kind: 'total' as const },
+    ];
+  });
 
   protected readonly totals = computed(() =>
     computeDocumentTotals(

@@ -31,8 +31,7 @@
       (ctaClick)="cancel()"
     />
   } @else {
-    <form
-      appNoImplicitSubmit class="doc-form__form" [formGroup]="form" (ngSubmit)="submit()">
+    <form appNoImplicitSubmit class="doc-form__form" [formGroup]="form" (ngSubmit)="submit()">
       @if (supplierDocumentAlert(); as supplierAlert) {
         <!-- Stessa classe globale delle altre maschere documento (era un doppione locale). -->
         <p class="doc-form__supplier-note-banner" role="status">
@@ -444,50 +443,7 @@
            a sinistra, valore a destra, totale in evidenza in coda. -->
       <div class="doc-form__footer-grid">
         <aside class="doc-form__totals-bar" aria-label="Totali documento">
-          <dl class="doc-form__totals">
-            <div class="doc-form__totals-row">
-              <dt>Imponibile righe</dt>
-              <dd class="tabular-nums">{{ formatMoney(documentTotals().linesTotal) }}</dd>
-            </div>
-            <!-- Campo sempre visibile, che mostra 0% quando lo sconto non c'è:
-                 un pulsante «+ Aggiungi sconto» nasconderebbe uno stato, e
-                 guardando il riepilogo non si saprebbe se è zero o se è chiuso. -->
-            <div class="doc-form__totals-row doc-form__totals-row--field">
-              <dt>
-                <label for="po-doc-discount">Sconto extra</label>
-              </dt>
-              <dd>
-                <input
-                  id="po-doc-discount"
-                  class="doc-form__input doc-form__input--num doc-form__totals-input"
-                  type="text"
-                  formControlName="documentDiscountPercent"
-                  placeholder="0%"
-                  aria-label="Sconto extra documento"
-                />
-              </dd>
-            </div>
-            @if (documentTotals().documentDiscount.amountMinor > 0) {
-              <div class="doc-form__totals-row">
-                <dt>Sconto documento</dt>
-                <dd class="tabular-nums">−{{ formatMoney(documentTotals().documentDiscount) }}</dd>
-              </div>
-            }
-            <div class="doc-form__totals-row">
-              <dt>Imponibile</dt>
-              <dd class="tabular-nums">{{ formatMoney(orderSubtotal()) }}</dd>
-            </div>
-            <div class="doc-form__totals-row">
-              <dt>IVA</dt>
-              <dd class="tabular-nums">{{ formatMoney(orderTax()) }}</dd>
-            </div>
-            <div class="doc-form__totals-row doc-form__totals-row--total">
-              <dt>Totale documento</dt>
-              <dd class="tabular-nums">
-                <strong>{{ formatMoney(orderTotal()) }}</strong>
-              </dd>
-            </div>
-          </dl>
+          <app-document-totals [rows]="totalsRows()" />
         </aside>
       </div>
 

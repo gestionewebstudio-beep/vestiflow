@@ -98,6 +98,22 @@ interface SetupOptions {
   readonly tenantSettings?: TenantFeatureSettings | null;
 }
 
+/**
+ * L'importo di una voce del riepilogo, cercata per etichetta.
+ *
+ * ⚠️ Dal 24/08/2026 questa maschera mostra «Imponibile righe» (pre-sconto) e
+ * «Imponibile» (scontato) come le altre quattro. Senza sconto valgono lo stesso
+ * numero, quindi `findByText(/101,61/)` ne trova DUE: l'asserzione deve dire
+ * di quale voce parla.
+ */
+function importoDellaVoce(etichetta: string): string {
+  // Interroga il documento come fa `screen`: `setup()` non espone il container.
+  const riga = [...globalThis.document.querySelectorAll('.doc-form__totals-row')].find(
+    (r) => r.querySelector('dt')?.textContent?.replace(/\s+/g, ' ').trim() === etichetta,
+  );
+  return riga?.querySelector('dd')?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+}
+
 describe('SalesDocumentFormComponent', () => {
   // jsdom non implementa <dialog>: senza questo, il dialogo di conferma del
   // salvataggio esplode con «showModal is not a function». È un limite
@@ -307,10 +323,13 @@ describe('SalesDocumentFormComponent', () => {
     const priceInput = screen.getByLabelText('Prezzo riga 1');
     await user.clear(priceInput);
     await user.type(priceInput, '123,97');
+    await screen.findByText(/123,97/);
 
     // Imponibile 101,61 + IVA 22,36 = 123,97, esattamente il prezzo digitato.
-    expect(await screen.findByText(/101,61/)).toBeVisible();
-    expect(screen.getAllByText(/123,97/).length).toBeGreaterThan(0);
+    // ⚠️ Per VOCE, non per testo: senza sconto «Imponibile righe» e
+    // «Imponibile» valgono lo stesso numero, come sulle altre quattro maschere.
+    expect(importoDellaVoce('Imponibile')).toContain('101,61');
+    expect(importoDellaVoce('Totale documento')).toContain('123,97');
   });
 
   // In modalità ivata cambia solo come si legge il prezzo: il documento vale
@@ -322,10 +341,12 @@ describe('SalesDocumentFormComponent', () => {
     const priceInput = screen.getByLabelText('Prezzo riga 1');
     await user.clear(priceInput);
     await user.type(priceInput, '12,20');
+    await screen.findByText(/12,20/);
 
     // 12,20 ivati al 22% → imponibile 10,00, IVA 2,20, totale 12,20.
-    expect(await screen.findByText(/10,00/)).toBeVisible();
-    expect(screen.getAllByText(/12,20/).length).toBeGreaterThan(0);
+    expect(importoDellaVoce('Imponibile')).toContain('10,00');
+    expect(importoDellaVoce('IVA')).toContain('2,20');
+    expect(importoDellaVoce('Totale documento')).toContain('12,20');
   });
 
   // ── Numero proposto vs numero imposto ─────────────────────────────────────

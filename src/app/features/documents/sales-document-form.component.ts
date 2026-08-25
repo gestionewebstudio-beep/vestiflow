@@ -84,6 +84,8 @@ import type { VariantSummary } from '@domain/products/models/variant-summary.mod
 import { ProductService } from '@domain/products/services/product.service';
 import { DocumentLineArticleService } from '@domain/documents/services/document-line-article.service';
 import { DocumentLineHeadComponent } from '@domain/documents/components/document-line-head/document-line-head.component';
+import { DocumentTotalsComponent } from '@domain/documents/components/document-totals/document-totals.component';
+import type { DocumentTotalRow } from '@domain/documents/components/document-totals/document-totals.model';
 import { DocumentLineRowComponent } from '@domain/documents/components/document-line-row/document-line-row.component';
 import { DocumentLineCardComponent } from '@domain/documents/components/document-line-card/document-line-card.component';
 import { DocumentLineCardBodyComponent } from '@domain/documents/components/document-line-card/document-line-card-body.component';
@@ -265,6 +267,7 @@ type ConversionPrefill = CreateDocumentBody & {
   imports: [
     NoImplicitSubmitDirective,
     DocumentLineHeadComponent,
+    DocumentTotalsComponent,
     DocumentLineRowComponent,
     DocumentLineCardComponent,
     DocumentLineCardBodyComponent,
@@ -876,6 +879,70 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
 
   /** Ultima nota anagrafica inserita in automatico nelle note documento. */
   private lastAutoInsertedNote = '';
+
+  /**
+   * **Le voci del riepilogo, dichiarate dal documento.**
+   *
+   * ## ⛔ Qui il riepilogo diceva una cosa diversa dalle altre quattro
+   *
+   * «Imponibile righe» mostrava il totale **gia' scontato**, col lordo
+   * pre-sconto **barrato** accanto, e non aveva ne' «Sconto documento» ne'
+   * «Imponibile». Le altre quattro maschere mostrano il pre-sconto sotto la
+   * stessa etichetta. Stessa parola, due grandezze — e nessuna ragione scritta
+   * nel codice, misurato il 24/08/2026.
+   *
+   * ⭐ **Il barrato esisteva PERCHE' due righe erano fuse in una.** Dando allo
+   * sconto la sua riga, l'aritmetica a schermo torna a chiudersi:
+   *
+   * ```text
+   * Imponibile righe   100,00
+   * Sconto documento   − 10,00
+   * Imponibile          90,00
+   * ```
+   *
+   * ⚠️ **Nessun importo cambia**: `lineTotals()` esponeva gia' `grossSubtotal`
+   * (pre-sconto) e `subtotal` (scontato), e lo sconto e' la loro differenza. E'
+   * cambiata la disposizione, non il calcolo — che resta dov'era.
+   */
+  protected readonly totalsRows = computed<readonly DocumentTotalRow[]>(() => {
+    const t = this.lineTotals();
+    const scontoMinor = t.grossSubtotal.amountMinor - t.subtotal.amountMinor;
+    return [
+      { key: 'linesTotal', label: 'Imponibile righe', value: t.grossSubtotal },
+      {
+        key: 'documentDiscountPercent',
+        label: 'Sconto extra',
+        kind: 'field' as const,
+        control: this.form.controls.documentDiscountPercent,
+        inputId: 'sd-doc-discount',
+        placeholder: '0%',
+        ariaLabel: 'Sconto extra documento',
+      },
+      ...(t.hasDocumentDiscount && scontoMinor > 0
+        ? [
+            {
+              key: 'documentDiscount',
+              label: 'Sconto documento',
+              value: { amountMinor: scontoMinor, currencyCode: this.currency },
+              negative: true,
+            },
+          ]
+        : []),
+      { key: 'subtotal', label: 'Imponibile', value: t.subtotal },
+      // Dettaglio per aliquota, solo su fattura con aliquote miste: e' dominio,
+      // e resta una voce «info» dichiarata dal documento.
+      ...(this.isSalesInvoice() && this.hasMixedVatRates()
+        ? this.vatBreakdown().map((entry) => ({
+            key: `vat-${entry.ratePercent}`,
+            label: `IVA ${entry.ratePercent}% su ${formatMoney(entry.net)}`,
+            value: entry.vat,
+            kind: 'info' as const,
+          }))
+        : []),
+      { key: 'tax', label: 'IVA', value: t.tax },
+      { key: 'total', label: 'Totale documento', value: t.total, kind: 'total' as const },
+    ];
+  });
 
   protected readonly lineTotals = computed(() => {
     this.formValue();
