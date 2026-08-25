@@ -1633,3 +1633,79 @@ componente la fissi per tutti.
 ## 34.9 Deriva minore ancora aperta
 
 `sales-document-form` è l'unica delle sette **senza la nota di stato** a sinistra.
+
+---
+
+# 35. IL PIEDE — caratterizzazione, e perché NON va estratto (25/08/2026)
+
+⚠️ **Questa sezione contraddice il piano**, che dopo la barra azioni prevedeva «piede/totali
+comune». La misura dice che il piede **non ha il problema che aveva la barra**.
+
+## 35.1 Le tre misure
+
+**Il piede è dichiarato UNA volta sola, in tutte e sette.** Nessuna doppia dichiarazione: la
+veste compatta la fa il CSS (`_document-form-mobile.scss`), non un secondo blocco di markup.
+È esattamente il contrario della barra azioni, che ne aveva due per maschera.
+
+**L'ordine delle due aree è già uniforme:** TOTALI → note, in tutte e cinque quelle che hanno
+entrambe. Ed entrambe sono già facoltative — Trasferimento e Rettifica hanno solo note,
+Ordine fornitore solo totali.
+
+**La griglia dei totali è già condivisa** (`app-document-totals`), adottata da 5 su 6. L'unica
+fuori è la Registrazione fattura, che il proprietario ha escluso dal perimetro il 24/08.
+
+```text
+doc-form__footer-grid                      ← una dichiarazione per maschera, CSS globale
+├── aside.doc-form__totals-bar             ← facoltativa
+│     └── <app-document-totals [rows] />   ← già condivisa
+└── div.doc-form__footer-notes             ← facoltativa
+```
+
+> **Estrarre un componente per quel guscio significherebbe togliere quattro righe di markup a
+> sette maschere.** È l'astrazione prematura che `regole-architettura` vieta esplicitamente:
+> «il pattern compare una sola volta e non è in catalogo».
+
+## 35.2 ⭐ Dove sta la duplicazione vera: l'AREA NOTE
+
+Gli **stessi due campi** — `notes` e `internalComment` — in cinque maschere:
+
+| Maschera            | Righe  | Etichetta delle note             | Ha `internalComment`? |
+| ------------------- | ------ | -------------------------------- | --------------------- |
+| Trasferimento       | 20     | «Note»                           | sì                    |
+| Rettifica / Scarico | 30     | «Note»                           | sì                    |
+| **Arrivo merce**    | **59** | «Note documento»                 | sì                    |
+| Fatture / DDT       | 21     | «Note (visibili in stampa)»      | sì                    |
+| Ordine cliente      | 11     | «Note documento»                 | **no**                |
+| Banco               | 30     | «Causale (facoltativa)» · «Note» | no                    |
+
+**Da 11 a 59 righe per la stessa coppia di campi**, e **cinque etichette diverse** per la
+stessa cosa. ⭐ Una di esse porta un'informazione che le altre non hanno — «(visibili in
+stampa)» — e quella distinzione è vera per tutte.
+
+## 35.3 ⚠️ Qui «struttura» e «contenuto» non si separano
+
+Il piano prescrive di estrarre la struttura e rimandare il contenuto. Su questo pezzo la
+linea non taglia netta, e va detto invece di fingere:
+
+> **Estrarre l'area note PORTA CON SÉ la «Nota interna» ovunque.** Un componente condiviso
+> che omettesse `internalComment` sarebbe il componente sbagliato — e le due maschere che oggi
+> non ce l'hanno resterebbero fuori proprio dalla cosa che l'estrazione esiste per dare.
+
+La decisione del proprietario sulla Nota interna (25/08) non è quindi un tema separato da
+rinviare: è **il contenuto naturale** di questa estrazione.
+
+## 35.4 ⚠️ Due cose da guardare prima di progettare l'API
+
+- **Il Banco non usa `formControlName`**: tiene la testata in un segnale `preserved()` e lega
+  i campi con `[value]` + `(input)`, perché conserva i dati fra una vendita e la successiva.
+  Un componente che accettasse solo un `FormControl` lo lascerebbe fuori; uno che accettasse
+  entrambi porterebbe un flag di comportamento. La domanda va sciolta prima, non durante.
+- **L'Arrivo merce sta a 59 righe** contro le 11 dell'Ordine cliente per gli stessi campi: va
+  guardato che cosa contengono quelle righe in più prima di dichiararle duplicazione.
+
+## 35.5 Che cosa NON è stato deciso qui
+
+`lines.length` contro `validLinesCount()` nella nota di stato della barra: registrato in §34.9
+e **non toccato**. Sono due grandezze diverse, e prima di scegliere quale mostrare bisogna
+sapere che cosa ogni nota vuole comunicare. ⛔ Il rischio da evitare è trasformare una
+divergenza semantica in una proprietà tipo `[countMode]="valid"`.
