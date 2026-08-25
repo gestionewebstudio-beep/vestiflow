@@ -52,10 +52,21 @@ export class ConfirmDialogComponent {
    */
   readonly emphasis = input<'confirm' | 'cancel'>('confirm');
 
+  /**
+   * Etichetta della **terza azione**, facoltativa. Assente = due pulsanti.
+   *
+   * ⚠️ Serve al dialogo «modifiche non salvate», che ha tre risposte vere:
+   * torno indietro, esco perdendo, salvo ed esco. Con due sole azioni quattro
+   * maschere restavano col guscio scritto a mano.
+   */
+  readonly extraLabel = input<string>('');
+
   readonly open = model<boolean>(false);
 
   readonly confirmed = output<void>();
   readonly dismissed = output<void>();
+  /** La terza azione e’ stata scelta. Emesso solo se `extraLabel` c’e’. */
+  readonly extra = output<void>();
 
   private readonly dialogRef = viewChild.required<ElementRef<HTMLDialogElement>>('dialog');
 
@@ -73,6 +84,15 @@ export class ConfirmDialogComponent {
 
   protected onConfirm(): void {
     this.confirmed.emit();
+  }
+
+  /**
+   * La terza azione. Chiude il dialogo da se’, come l’annulla: chi la usa
+   * riceve `extra` e decide che cosa fare.
+   */
+  protected onExtra(): void {
+    this.open.set(false);
+    this.extra.emit();
   }
 
   protected onCancel(): void {

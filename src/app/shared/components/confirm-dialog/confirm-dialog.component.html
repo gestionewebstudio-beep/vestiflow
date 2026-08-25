@@ -18,6 +18,19 @@
         {{ cancelLabel() }}
       </app-button>
     }
+    @if (extraLabel(); as etichettaTerza) {
+      <!-- ⭐ **La TERZA azione, facoltativa.** Sta in mezzo perche’ e’ la via
+           di mezzo: fra «torno indietro» e «vado avanti come dico io» c’e’
+           spesso un «vado avanti in un altro modo» — tipicamente «Esci senza
+           salvare» accanto a «Salva e chiudi».
+
+           ⛔ Senza di lei quattro maschere avrebbero dovuto tenersi il guscio
+           scritto a mano, e con esso un modale senza trappola del fuoco. Una
+           sola azione mancante teneva in piedi undici copie. -->
+      <app-button variant="secondary" [disabled]="busy()" (click)="onExtra()">
+        {{ etichettaTerza }}
+      </app-button>
+    }
     <app-button
       [variant]="danger() ? 'danger' : emphasis() === 'cancel' ? 'secondary' : 'primary'"
       [loading]="busy()"
