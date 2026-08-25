@@ -772,6 +772,84 @@ describe('PurchaseInvoiceFormComponent', () => {
     expect(body.purchaseCostEntryMode).toBe('vat_included');
   });
 
+  it('⭐ su schermo compatto il selettore resta quello della colonna', async () => {
+    // ⚠️ Questa maschera NON commuta in card: la tabella si rende anche sul
+    // telefono, quindi l'intestazione di colonna — e il suo menu — ci sono
+    // sempre. Una seconda veste nel pannello di testata sarebbe un comando
+    // duplicato visibile insieme al primo.
+    await setup({ compatta: true });
+
+    expect(
+      screen.getByRole('button', { name: 'Modalità importi della registrazione' }),
+    ).toBeTruthy();
+  });
+
+  /**
+   * ⛔ **L'IVA si riconosce dal CODICE, non dal numero dell'aliquota.**
+   *
+   * ⚠️ È l'errore che il proprietario ha contestato il 25/08/2026, ed era di
+   * logica di base: la maschera calcolava `netto × aliquota ÷ 100` a mano,
+   * ignorando `calculationMode`, `nonDeductiblePercent` e
+   * `vatAffectsSupplierTotal` — cioè tutto ciò che distingue un Codice IVA dal
+   * suo numero.
+   *
+   * ⭐ **In inversione contabile il fornitore NON espone l'IVA.** L'importo
+   * scritto sulla fattura è già l'imponibile, e in modalità «ivati» non c'è
+   * niente da scorporare: `entryIncludesVat` lo dice, e il motore condiviso
+   * `computeVatLineAmounts` lo applica. Scorporare qui abbatterebbe
+   * l'imponibile del 22% su una fattura in reverse charge.
+   */
+  it('⛔ in REVERSE CHARGE la modalità ivata non scorpora: il fornitore non espone l’IVA', async () => {
+    const user = userEvent.setup();
+    const { documentService } = await setup();
+
+    await selectSupplier(user);
+    // Codice 22R: `calculationMode: 'reverse_charge'`. L'elenco si apre col
+    // chevron della cella — il campo è un <input> vero, e il pannello non si
+    // apre al solo fuoco.
+    await user.click(screen.getByRole('button', { name: 'Apri elenco — Codice IVA riga 1' }));
+    await user.click(await screen.findByRole('option', { name: /22R/ }));
+
+    await user.click(screen.getByRole('button', { name: 'Modalità importi della registrazione' }));
+    await user.click(screen.getByRole('menuitemradio', { name: 'Usa importi ivati' }));
+
+    const campo = screen.getByLabelText('Importo riga 1');
+    await user.clear(campo);
+    await user.type(campo, '100,00');
+    await user.tab();
+    await user.type(screen.getByLabelText('Descrizione riga 1'), 'Prestazione');
+    await saveInvoice(user);
+
+    await waitFor(() => expect(documentService.savePurchaseInvoice).toHaveBeenCalled());
+    const body = documentService.savePurchaseInvoice.mock.calls[0]![0];
+    // ⛔ 100,00 restano 100,00 di imponibile. Scorporando sarebbero 81,97.
+    expect(body.lines?.[0]?.netMinor).toBe(10_000);
+  });
+
+  it('⭐ mentre col codice ORDINARIO la stessa cifra si scorpora', async () => {
+    // La prova gemella: senza, la prima passerebbe anche se lo scorporo non
+    // funzionasse affatto.
+    const user = userEvent.setup();
+    const { documentService } = await setup();
+
+    await selectSupplier(user);
+    await user.click(screen.getByRole('button', { name: 'Modalità importi della registrazione' }));
+    await user.click(screen.getByRole('menuitemradio', { name: 'Usa importi ivati' }));
+
+    const campo = screen.getByLabelText('Importo riga 1');
+    await user.clear(campo);
+    await user.type(campo, '100,00');
+    await user.tab();
+    await user.type(screen.getByLabelText('Descrizione riga 1'), 'Merce');
+    await saveInvoice(user);
+
+    await waitFor(() => expect(documentService.savePurchaseInvoice).toHaveBeenCalled());
+    const body = documentService.savePurchaseInvoice.mock.calls[0]![0];
+    // 100,00 ivati al 22% = 81,97 di imponibile (con la coda sotto).
+    expect(Math.round(body.lines?.[0]?.netMinor ?? 0)).toBe(8_197);
+    expect(body.lines?.[0]?.vatMinor).toBe(1_803);
+  });
+
   // Le scadenze si precompilano con il residuo non coperto; la spunta
   // "Saldato" propone oggi come data saldo (spec PAGAMENTO).
   it('precompila la scadenza con il residuo e la data saldo alla spunta Saldato', async () => {

@@ -51,7 +51,7 @@ import type { PaymentOption } from '@core/models/payment-option.model';
 import type { Supplier } from '@core/models/supplier.model';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { ToastService } from '@core/services/toast.service';
-import type { VatCode } from '@core/models/vat-code.model';
+import type { VatCode, VatSnapshot } from '@core/models/vat-code.model';
 import { isPurchaseVatCode } from '@core/models/vat-code.model';
 import { VatCodeService } from '@core/services/vat-code.service';
 import { DEFAULT_CURRENCY, formatMoney } from '@core/utils/money.util';
@@ -78,7 +78,16 @@ import {
   vatOptionsIncludingSelected,
 } from '@domain/documents/utils/document-vat-options.util';
 import { vatCodeIdForLinePayload } from '@domain/documents/utils/document-line-vat-payload.util';
-import { grossFromNetMinor, netFromGrossExact } from '@domain/documents/utils/document-vat.util';
+import type { VatComputationInput } from '@domain/documents/utils/document-vat.util';
+import {
+  computeVatLineAmounts,
+  entryIncludesVat,
+  grossFromNetMinor,
+  netFromGrossExact,
+  vatInputFromLegacyRate,
+  vatInputFromSnapshot,
+  vatInputFromVatCode,
+} from '@domain/documents/utils/document-vat.util';
 import { PriceModeMenuComponent } from '@domain/documents/components/price-mode-menu/price-mode-menu.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
@@ -891,13 +900,24 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
   // `regole-gestionale`: «i costi partono sempre netti, e l'inserimento ivato
   // resta una comodità del singolo documento».
 
-  private readonly costEntryMode = signal<'vat_excluded' | 'vat_included'>('vat_excluded');
+  protected readonly costEntryMode = signal<'vat_excluded' | 'vat_included'>('vat_excluded');
 
   protected readonly amountsIncludeVat = computed(() => this.costEntryMode() === 'vat_included');
 
   protected readonly amountColumnLabel = computed(() =>
     this.amountsIncludeVat() ? 'Importo ivato' : 'Importo netto',
   );
+
+  // ⛔ Qui stavo per aggiungere una seconda veste del selettore, per la vista
+  // compatta — ricalcando l'Arrivo merce, che ne ha due. **Sarebbe stato un
+  // difetto**: quella maschera commuta in card su schermo stretto e perde
+  // l'intestazione di colonna, questa NO — la tabella si rende sempre, anche
+  // sul telefono. Il menu di colonna e' quindi gia' raggiungibile, e un
+  // secondo comando sarebbe visibile INSIEME al primo (`regole-stile-ui` §9,
+  // «la stessa riga non esiste due volte»).
+  //
+  // ⚠️ Se un domani queste righe avranno una vista a card, la seconda veste
+  // servira' davvero: e' il momento in cui questo commento va riletto.
 
   /**
    * Il valore da MOSTRARE nel campo importo.
@@ -914,11 +934,14 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     if (net === null) {
       return null;
     }
-    if (!this.amountsIncludeVat()) {
+    const vat = this.lineVatInput(index);
+    // ⭐ La modalita' del documento dice come si DIGITA, il Codice IVA dice se
+    // l'IVA e' davvero contenuta in quel numero. In inversione contabile il
+    // fornitore non la espone, e il valore da mostrare resta l'imponibile.
+    if (!entryIncludesVat(this.costEntryMode(), vat)) {
       return net;
     }
-    const rate = group?.controls.ratePercent.value ?? 0;
-    return grossFromNetMinor(net, rate);
+    return grossFromNetMinor(net, vat.ratePercent);
   }
 
   /**
@@ -934,11 +957,14 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     if (!group) {
       return;
     }
-    if (value === null || !this.amountsIncludeVat()) {
+    const vat = this.lineVatInput(index);
+    if (value === null || !entryIncludesVat(this.costEntryMode(), vat)) {
+      // ⛔ Nessuno scorporo: o non c'e' valore, o l'IVA non e' contenuta in
+      // quello che l'operatore ha scritto. Scorporare in inversione contabile
+      // abbatterebbe l'imponibile del 22% — misurato da una prova.
       group.controls.netMinor.setValue(value);
     } else {
-      const rate = group.controls.ratePercent.value ?? 0;
-      group.controls.netMinor.setValue(netFromGrossExact(value, rate));
+      group.controls.netMinor.setValue(netFromGrossExact(value, vat.ratePercent));
     }
     this.lines.markAsDirty();
     this.recalcLineVat(index);
@@ -995,6 +1021,55 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
    * annullerebbero a vicenda e la seconda non partirebbe.
    */
   private readonly persistedVatCodeIds = signal<ReadonlyMap<string, string | null>>(new Map());
+
+  /**
+   * I dati di calcolo IVA della riga, **riconosciuti dal CODICE e non dal
+   * numero dell'aliquota**.
+   *
+   * ⛔ **È l'errore che il proprietario ha contestato il 25/08/2026, ed era di
+   * logica di base.** La maschera faceva `netto × aliquota ÷ 100` a mano e
+   * scorporava con la sola aliquota: due operazioni che ignorano
+   * `calculationMode`, `nonDeductiblePercent` e `vatAffectsSupplierTotal` —
+   * cioè tutto ciò che distingue un Codice IVA dal suo numero.
+   *
+   * ⚠️ **In inversione contabile il fornitore NON espone l'IVA**: l'importo
+   * scritto in fattura è già l'imponibile. Scorporarlo lo abbatteva del 22%.
+   * Misurato da una prova: 100,00 diventavano 81,97 di imponibile.
+   *
+   * ⭐ Tre fonti, in ordine, e nessuna è l'aliquota nuda:
+   *   1. il Codice IVA scelto — l'autorità, quando c'è;
+   *   2. lo snapshot congelato sulla riga — per i documenti già salvati, che
+   *      conservano il fatto fiscale del giorno in cui sono stati compilati;
+   *   3. l'aliquota storica — solo per le righe nate prima che il Codice IVA
+   *      esistesse, e con `calculationMode: 'standard'` dichiarato.
+   */
+  private lineVatInput(index: number): VatComputationInput {
+    const group = this.lines.at(index);
+    const codeId = group?.controls.vatCodeId.value;
+    const vatCode = codeId ? this.vatCodesById().get(codeId) : undefined;
+    if (vatCode) {
+      return vatInputFromVatCode(vatCode);
+    }
+    const lineId = group?.controls.id.value;
+    const snapshot = lineId ? this.persistedVatSnapshots().get(lineId) : undefined;
+    // ⛔ **Uno snapshot di UN CAMPO non e' un Codice IVA.** Le righe salvate
+    // prima del 25/08/2026 portano `{ ratePercent }` e nient'altro — e' quanto
+    // scriveva il vecchio percorso. Passarlo a `vatInputFromSnapshot` darebbe
+    // `calculationMode: undefined`, e da li' in poi ogni decisione fiscale
+    // sarebbe presa su un dato che non esiste.
+    //
+    // ⭐ `calculationMode` e' il discriminante giusto: e' il campo che dice
+    // COME si calcola, ed e' quello che uno snapshot vero ha sempre.
+    if (snapshot?.calculationMode) {
+      return vatInputFromSnapshot(snapshot);
+    }
+    return vatInputFromLegacyRate(
+      snapshot?.ratePercent ?? group?.controls.ratePercent.value ?? null,
+    );
+  }
+
+  /** Lo snapshot IVA congelato su ogni riga già salvata, letto all'apertura. */
+  private readonly persistedVatSnapshots = signal<ReadonlyMap<string, VatSnapshot>>(new Map());
 
   protected lineVatOptions(index: number): readonly SelectMenuOption[] {
     return vatOptionsIncludingSelected(
@@ -1118,11 +1193,24 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       return;
     }
     const net = group.controls.netMinor.value;
-    const rate = group.controls.ratePercent.value;
-    if (net === null || rate === null) {
+    if (net === null) {
       return;
     }
-    group.controls.vatMinor.setValue(Math.round((net * rate) / 100));
+    // ⭐ Il MOTORE CONDIVISO, lo stesso di ogni altro documento. Qui c'era
+    // net x aliquota / 100, che e' giusto solo per il Codice IVA ordinario:
+    // ignora l'inversione contabile, la percentuale indetraibile e il fatto
+    // che l'imposta sia dovuta o meno al fornitore.
+    //
+    // Una riga economica non ha quantita' ne' sconto — sono 1 e 0 perche' NON
+    // ESISTONO, non per semplificare il calcolo.
+    const amounts = computeVatLineAmounts({
+      enteredUnitCostMinor: net,
+      costEntryMode: 'vat_excluded',
+      quantity: 1,
+      discountPercent: 0,
+      vat: this.lineVatInput(index),
+    });
+    group.controls.vatMinor.setValue(amounts.lineVatMinor);
   }
 
   // ── Scadenze di pagamento ───────────────────────────────────────────────────
@@ -1639,6 +1727,15 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     // fila si annullerebbero a vicenda e la seconda non partirebbe.
     this.persistedVatCodeIds.set(
       new Map((doc.lines ?? []).map((line) => [line.id, line.vatCodeId ?? null])),
+    );
+    // ⭐ Lo snapshot congelato: su una riga gia' salvata e' LUI il fatto
+    // fiscale, non l'anagrafica di oggi. Serve al calcolo quanto il codice.
+    this.persistedVatSnapshots.set(
+      new Map(
+        (doc.lines ?? [])
+          .filter((line): line is typeof line & { vatSnapshot: VatSnapshot } => !!line.vatSnapshot)
+          .map((line) => [line.id, line.vatSnapshot]),
+      ),
     );
 
     this.installments.clear();
