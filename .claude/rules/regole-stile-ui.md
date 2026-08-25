@@ -595,6 +595,21 @@ gia' unanime, non ne impone una nuova.
 
 > **Il criterio non è il gusto: è se l'entità sta in `documents`.** Chiamare «documento» una cosa che il modello non tratta come tale insegna all'operatore una parola che poi non ritrova da nessun'altra parte — né nel Registro, né nei permessi, né in guida. Una maschera che non è documentale nomina la propria entità; tutte le altre dicono «Salva documento», e questa eccezione non le riapre.
 
+⭐ **Secondo caso, e affina la regola** _(25/08/2026)_. Il **Movimento di magazzino** registra
+uno `StockMovement`, non un `Document`. Ma la sua entità non è «il movimento»: è il **carico**,
+lo scarico, la rettifica, il trasferimento — il tipo è scelto a monte e il titolo lo dice già
+(«Registra carico»). Il pulsante dice quindi **«Salva carico»**, **«Salva scarico»**, **«Salva
+rettifica»**, **«Salva trasferimento»**.
+
+> **Chi non è documentale nomina l'OPERAZIONE, non la tabella.** «Salva movimento» era
+> corretto rispetto al modello e sbagliato rispetto a chi legge: nessuno pensa di «registrare
+> un movimento», si carica o si scarica.
+
+⚠️ Ha avuto due nomi sbagliati prima di questo, e vale la pena saperlo perché sono due errori
+diversi: «Salva» sulla scrivania e «Salva movimento» sul telefono — **due parole per lo stesso
+comando a seconda dello schermo** — poi «Salva movimento» ovunque, che nominava l'entità
+giusta per il database e sbagliata per l'operatore.
+
 **Mobile e tablet (≤ 1024px)** — Azioni in fondo al documento:
 
 - I pulsanti **Annulla** (secondary) e **Salva ordine** (primary) vanno posizionati in fondo al documento, dopo il riepilogo totali, come coppia allineata a destra: Annulla a sinistra di Salva ordine

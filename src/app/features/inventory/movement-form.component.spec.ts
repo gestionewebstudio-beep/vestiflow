@@ -94,6 +94,29 @@ describe('MovementFormComponent', () => {
     return { registerMovementBatch };
   }
 
+  // ── L'etichetta del salvataggio dice l'operazione ─────────────────────────
+  //
+  // ⭐ «Salva carico», «Salva scarico», «Salva rettifica», «Salva
+  // trasferimento» — decisione del proprietario, 25/08/2026.
+  //
+  // ⛔ Ha avuto due nomi sbagliati prima: «Salva» sulla scrivania e «Salva
+  // movimento» sul telefono — due parole per lo stesso comando a seconda dello
+  // schermo — poi «Salva movimento» ovunque, che nominava l'entita' sbagliata.
+  //
+  // ⚠️ Serve una prova PER TIPO, non una sola: con un'etichetta calcolata, una
+  // prova su un tipo solo passerebbe anche se gli altri tre dicessero la parola
+  // sbagliata.
+  it.each([
+    ['load', 'Salva carico'],
+    ['unload', 'Salva scarico'],
+    ['adjustment', 'Salva rettifica'],
+    ['transfer', 'Salva trasferimento'],
+  ])('⭐ il tipo «%s» salva con «%s»', async (tipo, etichetta) => {
+    await setup({ type: tipo });
+
+    expect(screen.getByRole('button', { name: etichetta, hidden: true })).toBeTruthy();
+  });
+
   it('deep-link variantId: articolo già in lista con quantità 1', async () => {
     await setup({ variantId: 'var-1' });
 
@@ -123,7 +146,7 @@ describe('MovementFormComponent', () => {
     expect(screen.getByText(/Supera il disponibile \(5\)/)).toBeVisible();
     // Non bloccante: il Salva resta attivo. Nome esatto: nel DOM convive
     // anche il «Salva movimento» delle azioni mobile (--m-ref).
-    expect(screen.getByRole('button', { name: 'Salva movimento', hidden: true })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Salva scarico', hidden: true })).toBeEnabled();
   });
 
   it('rettifica: causale precompilata, giacenza attuale readonly e nuova giacenza', async () => {

@@ -433,7 +433,7 @@
          ⚠️ Via anche la spunta dal primario: nel modello non porta icona. -->
     <app-document-actions
       saveType="button"
-      saveLabel="Salva movimento"
+      [saveLabel]="saveLabel()"
       [saving]="saving()"
       (closeRequested)="cancel()"
       (saveRequested)="save()"

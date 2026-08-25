@@ -323,6 +323,24 @@ export class MovementFormComponent implements CanComponentDeactivate {
     () => MANUAL_TYPES.find((option) => option.value === this.type())?.label ?? '',
   );
 
+  /**
+   * L'etichetta del salvataggio: **«Salva carico», «Salva scarico», «Salva
+   * rettifica», «Salva trasferimento»** — quello che si sta facendo.
+   *
+   * ⛔ Ha avuto due nomi sbagliati prima di questo. «Salva» sulla scrivania e
+   * «Salva movimento» sul telefono, cioe' due parole per lo stesso comando a
+   * seconda dello schermo. Allineate a «Salva movimento» il 25/08/2026, e
+   * corrette di nuovo lo stesso giorno dal proprietario: «altrimenti confonde».
+   *
+   * ⭐ **Non e' un'eccezione alla regola, e' la regola applicata meglio.**
+   * `regole-stile-ui` §5 dice «Salva documento» per cio' che sta in
+   * `documents`, e chi non ci sta nomina la propria entita' — il Corrispettivo
+   * manuale dice «Salva corrispettivo». Un movimento non e' un `Document`, e la
+   * sua entita' non e' «il movimento»: e' il CARICO, lo scarico, la rettifica.
+   * Il titolo lo dice gia' — «Registra carico» — e il pulsante ora concorda.
+   */
+  protected readonly saveLabel = computed(() => `Salva ${this.typeLabel().toLowerCase()}`);
+
   // ── Pannello testata mobile (--m-ref) — SOLO display: concatenazioni di
   // valori già presenti nel form, nessuna logica nuova. ─────────────────────
 
