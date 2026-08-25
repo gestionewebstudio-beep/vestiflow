@@ -1204,3 +1204,83 @@ ogni gruppo, ed è l'unico difetto di questo disegno che diventa costoso col tem
    le altre.
 3. **Un gruppo entra in un documento solo se quel documento ne ha bisogno.** Un Trasferimento
    non ha Pagamento, e non deve dichiararlo vuoto.
+
+---
+
+# 31. Schermata FISSA, e il confine del piede — deciso il 24/08/2026
+
+## 31.1 L'obiettivo
+
+> **Le schermate documento sono FISSE: non scorrono all'infinito.** Il riferimento è il
+> Registro Corrispettivi — testata ferma, elenco che scorre dentro il suo riquadro, banda di
+> riepilogo ancorata in fondo.
+
+## 31.2 Da qui discende la struttura, non da un gusto
+
+Una schermata fissa ha **una sola area che scorre**. La domanda diventa una sola:
+
+> **Che cosa devo poter guardare MENTRE lavoro, e cosa invece compilo e lascio?**
+
+| Sempre visibile                  | Una cosa per volta                       |
+| -------------------------------- | ---------------------------------------- |
+| chi è il documento (**testata**) | **righe**                                |
+| il risultato (**totali**)        | pagamento · trasporto · indirizzi · note |
+| le uscite (**barra azioni**)     |                                          |
+
+```text
+┌────────────────────────────────────────────┐
+│ TESTATA                                    │  fissa
+├────────────────────────────────────────────┤
+│ [Righe] [Pagamento] [Trasporto] …          │  linguette fisse
+│ ┌────────────────────────────────────────┐ │
+│ │   contenuto della scheda attiva        │ │  ← l'UNICA area che scorre
+│ └────────────────────────────────────────┘ │
+├────────────────────────────────────────────┤
+│ RIEPILOGO  +  BARRA AZIONI                 │  fissi
+└────────────────────────────────────────────┘
+```
+
+⛔ **Le schede non cambiano finestra**: cambia solo il riquadro centrale.
+
+## 31.3 ⛔ Le RIGHE sono una scheda — e questa è una decisione rovesciata
+
+⚠️ Il 24/08, prima che l'obiettivo «schermata fissa» fosse dichiarato, era stato scritto il
+contrario: _«le righe non sono un gruppo, restano la banda principale sempre aperta; Danea le
+mette fra le schede perché ha una finestra ad altezza fissa, noi scorriamo»_.
+
+**Cadeva la premessa, cade la conclusione.** Con una schermata fissa righe e gruppi
+competerebbero per la stessa unica area di scorrimento, e nessuno dei due avrebbe spazio.
+
+⭐ **L'obiezione di allora resta valida e si risolve altrove**: non era «le righe devono
+restare visibili», era **«non posso perdere i TOTALI mentre inserisco un pagamento»** — il
+totale è il numero contro cui si verifica un acconto. Si risolve tenendo il riepilogo **fuori
+dalle schede**, che è ciò che la struttura sopra fa.
+
+## 31.4 Il confine del piede
+
+> **Il piede comincia DOPO la banda delle schede.** Non la contiene e non ci finisce dentro.
+
+E la distinzione che senza scriverla si sbaglia estraendo:
+
+| Voce                | Dove va    | Perché                                       |
+| ------------------- | ---------- | -------------------------------------------- |
+| **Sconto extra**    | **piede**  | è un TOTALE: entra nel calcolo del documento |
+| **Note**            | **gruppo** | è un dato del documento, non un totale       |
+| **Causale**, Motivo | **gruppo** | idem                                         |
+
+⚠️ Oggi le note stanno **dentro** il piede in cinque maschere su sette, ed è la ragione per
+cui questo confine va dichiarato **prima** dell'estrazione: un piede estratto com'è si porta
+dentro le note, e le note diventerebbero un totale per sempre.
+
+**Nel frattempo lo slot resta**: il piede comune espone `[footerNotes]` come slot **libero**, e
+le maschere continuano a proiettarci ciò che ci proiettano oggi. Quando i gruppi esisteranno,
+quel contenuto migra nel gruppo Note e lo slot si svuota da sé.
+
+## 31.5 Su mobile resta a scorrimento, ed è voluto
+
+Una schermata fissa con un riquadro interno che scorre, su 390px **con la tastiera aperta**,
+lascia all'area utile una striscia di poche righe. E cinque linguette non ci stanno senza
+scendere sotto il minimo tappabile (44px).
+
+> **Schede su scrivania, fisarmonica su schermo compatto.** Stessa dichiarazione, due rese —
+> `app-document-mobile-panel` è già la fisarmonica, e la testata la usa da oggi.
