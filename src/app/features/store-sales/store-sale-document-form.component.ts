@@ -1906,8 +1906,32 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
 
   // ── Uscita con lavoro non salvato ───────────────────────────────────────
 
-  /** C'è qualcosa che si perderebbe uscendo? */
-  protected readonly hasPendingWork = computed(() => this.righeCompilate().length > 0);
+  /**
+   * **C’e’ lavoro che si perderebbe uscendo?**
+   *
+   * ⛔ Qui c’era `righeCompilate().length > 0`: contavano le sole RIGHE.
+   * Cliente, data, numero, serie, note e causale non contavano — si poteva
+   * compilare mezza testata e uscire in silenzio, perdendo tutto.
+   *
+   * ⭐ Il criterio ora e’ quello comune (proprietario, 24/08/2026):
+   * **l’operatore ha toccato qualcosa**.
+   *
+   * ⚠️ **Da `form.events`, non da `valueChanges`.** Mezza maschera segna le
+   * proprie modifiche con `markAsDirty()`, che NON emette un cambio di
+   * valore: con `valueChanges` la spunta di magazzino e il cestino di riga
+   * non conterebbero. Gli eventi del controllo includono invece il cambio di
+   * `pristine`.
+   *
+   * ⭐ E il `pristine` di Angular distingue gia’ da se’ le scritture
+   * PROGRAMMATICHE da quelle dell’operatore: `setValue` non sporca, solo
+   * l’interazione lo fa. Per questo il numero e la sede proposti non
+   * accendono l’avviso, e non serve sopprimerli a mano.
+   */
+  private readonly formPristine = toSignal(this.form.events.pipe(map(() => this.form.pristine)), {
+    initialValue: true,
+  });
+
+  protected readonly hasPendingWork = computed(() => !this.formPristine());
 
   protected readonly exitDialogOpen = signal(false);
   private pendingDeactivate: ((allow: boolean) => void) | null = null;

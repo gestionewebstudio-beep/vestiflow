@@ -2205,3 +2205,43 @@ describe('CustomerOrderFormComponent — righe incluse a schermo compatto', () =
     expect(comp.mobileRowsVisible()).toBe(true);
   });
 });
+
+/**
+ * ⛔ **Il contratto dell'uscita** — deciso dal proprietario il 24/08/2026.
+ *
+ * > «se non ho fatto nulla, posso chiudere tranquillamente il documento senza
+ * >  alert. Ovunque deve essere cosi'.»
+ *
+ * Due regole, e la seconda e' la precondizione della prima:
+ *
+ * 1. **Documento toccato → avviso.** «Toccato» vuol dire una cosa sola:
+ *    l'operatore ha cambiato qualcosa.
+ * 2. ⚠️ **I valori PROPOSTI dal sistema non sporcano.** Numero, serie, data
+ *    odierna, sede predefinita: se contassero, ogni documento nascerebbe
+ *    «modificato», l'avviso scatterebbe sempre e smetterebbe di voler dire
+ *    qualcosa — cioe' il difetto opposto, ottenuto correggendo il primo.
+ */
+describe('CustomerOrderFormComponent — il contratto dell’uscita', () => {
+  async function documentoAppenaAperto() {
+    const view = await render(CustomerOrderFormComponent, { providers: formProviders() });
+    return view.fixture.componentInstance as unknown as {
+      canDeactivate: () => boolean | Promise<boolean>;
+      form: { controls: Record<string, { setValue: (v: unknown) => void }> };
+    };
+  }
+
+  it('⭐ appena aperto, si chiude senza avviso', async () => {
+    const comp = await documentoAppenaAperto();
+
+    // `true` secco: la promessa significa «ho aperto il dialogo e aspetto».
+    expect(comp.canDeactivate()).toBe(true);
+  });
+
+  it('⛔ toccato un campo, l’uscita chiede conferma', async () => {
+    const comp = await documentoAppenaAperto();
+    comp.form.controls['customerId']!.setValue('cus-1');
+
+    // Non `true`: qui c'e' lavoro che si perderebbe.
+    expect(comp.canDeactivate()).not.toBe(true);
+  });
+});

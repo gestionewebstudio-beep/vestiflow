@@ -4128,18 +4128,24 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   /**
-   * Modifiche non salvate che meritano il dialog di uscita: form sporco E
-   * contenuto significativo (documento esistente, fornitore scelto o almeno
-   * una riga con dati). La sola riga vuota di comodo non blocca l'uscita.
+   * **C’e’ lavoro che si perderebbe uscendo?**
+   *
+   * ⛔ Qui c’era «form sporco **E** contenuto significativo»: documento
+   * esistente, fornitore scelto, o almeno una riga con dati. Un arrivo nuovo
+   * con **data, note e riferimento del documento esterno** compilati usciva
+   * in SILENZIO, e quel lavoro spariva — mentre il commento di questo stesso
+   * metodo prometteva l’opposto («anche sola testata»).
+   *
+   * ⭐ Il criterio ora e’ uno solo, ed e’ quello del proprietario
+   * (24/08/2026): **l’operatore ha cambiato qualcosa**. Nient’altro.
+   *
+   * ⚠️ E i valori PROPOSTI dal sistema — numero, serie, data odierna, sede
+   * predefinita — non sporcano: se contassero, l’avviso scatterebbe su ogni
+   * documento appena aperto e smetterebbe di voler dire qualcosa. Lo tiene
+   * fermo una prova.
    */
   private hasUnsavedWork(): boolean {
-    if (!this.dirtySinceLastSave()) {
-      return false;
-    }
-    if (this.editDocumentId() || this.form.controls.supplierId.value) {
-      return true;
-    }
-    return this.lines.controls.some((line) => this.lineHasSignificantProductData(line));
+    return this.dirtySinceLastSave();
   }
 
   canDeactivate(): boolean | Promise<boolean> {

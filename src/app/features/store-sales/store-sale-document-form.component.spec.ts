@@ -1756,4 +1756,49 @@ describe('StoreSaleDocumentFormComponent — avvisi di giacenza', () => {
     expect(rendered.container.querySelector('.doc-form__row--warning')).toBeNull();
     expect(screen.queryByText(/Quantità superiore alla disponibilità/)).toBeNull();
   });
+
+  /**
+   * ⛔ **Il contratto dell'uscita** — deciso dal proprietario il 24/08/2026.
+   *
+   * > «se non ho fatto nulla, posso chiudere tranquillamente il documento
+   * >  senza alert. Ovunque deve essere cosi'.»
+   *
+   * ⚠️ **Qui «lavoro non salvato» voleva dire soltanto «ci sono righe».**
+   * `hasPendingWork()` leggeva le sole righe compilate: cliente, data, numero,
+   * serie, note e causale non contavano. Si poteva compilare mezza testata e
+   * uscire in SILENZIO, perdendo tutto.
+   *
+   * ⚠️ **E il commento del numeratore prediceva la trappola**: «Niente
+   * asProgrammatic: qui la guardia di uscita guarda le RIGHE, non lo stato del
+   * form, quindi scrivere la proposta non accende niente da sopprimere».
+   * Cambiando la guardia, quella soppressione diventa necessaria — o il numero
+   * proposto sporcherebbe il documento appena aperto, e l'avviso scatterebbe
+   * SEMPRE. La prima prova qui sotto e' esattamente quella rete.
+   */
+  describe('il contratto dell’uscita', () => {
+    it('⭐ appena aperto, si chiude senza avviso', async () => {
+      const rendered = await setup({ defaultLocation: SEDE.id });
+      const comp = rendered.component as unknown as {
+        canDeactivate: () => boolean | Promise<boolean>;
+      };
+
+      // I valori PROPOSTI dal sistema — numero, serie, data, sede predefinita —
+      // non sono lavoro dell'operatore.
+      expect(comp.canDeactivate()).toBe(true);
+    });
+
+    it('⛔ toccata la sola TESTATA, l’uscita chiede conferma', async () => {
+      const rendered = await setup({ defaultLocation: SEDE.id });
+      const comp = rendered.component as unknown as {
+        canDeactivate: () => boolean | Promise<boolean>;
+      };
+
+      // Nessuna riga: solo il cliente. E' comunque lavoro.
+      rendered.component.form.controls.customerId.setValue('cli-1');
+      rendered.component.form.controls.customerId.markAsDirty();
+      rendered.fixture.detectChanges();
+
+      expect(comp.canDeactivate()).not.toBe(true);
+    });
+  });
 });

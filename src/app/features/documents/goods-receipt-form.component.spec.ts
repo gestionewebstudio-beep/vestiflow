@@ -1520,6 +1520,45 @@ describe('GoodsReceiptFormComponent', () => {
       expect(line.controls.unitCost.value).toBe('1,03');
     });
   });
+
+  /**
+   * ⛔ **Il contratto dell'uscita** — deciso dal proprietario il 24/08/2026.
+   *
+   * > «se non ho fatto nulla, posso chiudere tranquillamente il documento senza
+   * >  alert. Ovunque deve essere cosi'.»
+   *
+   * ⚠️ **Qui «toccato» voleva dire un'altra cosa.** `hasUnsavedWork()` esigeva
+   * il form sporco **E** un «contenuto significativo»: documento esistente,
+   * fornitore scelto, o almeno una riga con dati. Un arrivo nuovo con data,
+   * note e riferimento del documento esterno compilati usciva **in silenzio**, e
+   * quel lavoro spariva — mentre il commento del metodo prometteva l'opposto
+   * («anche sola testata, §9.2»).
+   *
+   * Il criterio ora e' uno solo, ed e' quello delle altre maschere: l'operatore
+   * ha cambiato qualcosa.
+   */
+  describe('GoodsReceiptFormComponent — il contratto dell’uscita', () => {
+    it('⭐ appena aperto, si chiude senza avviso', async () => {
+      const view = await setup();
+      const comp = view.fixture.componentInstance as unknown as {
+        canDeactivate: () => boolean | Promise<boolean>;
+      };
+      // I valori PROPOSTI dal sistema — numero, serie, data — non sporcano: se
+      // contassero, l'avviso scatterebbe sempre e smetterebbe di dire qualcosa.
+      expect(comp.canDeactivate()).toBe(true);
+    });
+    it('⛔ compilata la sola TESTATA, l’uscita chiede conferma', async () => {
+      const view = await setup();
+      const comp = view.fixture.componentInstance as unknown as {
+        canDeactivate: () => boolean | Promise<boolean>;
+        form: { controls: Record<string, { setValue: (v: unknown) => void }> };
+      };
+      // Nessun fornitore, nessuna riga: solo le note. E' comunque lavoro.
+      comp.form.controls['notes']!.setValue('Merce controllata al ricevimento');
+      view.fixture.detectChanges();
+      expect(comp.canDeactivate()).not.toBe(true);
+    });
+  });
 });
 
 /**
