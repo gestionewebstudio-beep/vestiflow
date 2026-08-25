@@ -1,5 +1,23 @@
-/** Versione formato pacchetto ZIP backup tenant (manifest.json). */
-export const TENANT_BACKUP_FORMAT_VERSION = 1;
+/**
+ * Versione formato pacchetto ZIP backup tenant (manifest.json).
+ *
+ * ⭐ **Si alza quando cambia il SIGNIFICATO di quello che c'e' dentro**, non
+ * solo quando cambia la forma del manifest. I file di dati sono
+ * `JSON.stringify` grezzi delle righe: un valore di enum rinominato viaggia li'
+ * dentro come testo, e nessuna struttura se ne accorge.
+ *
+ * ⛔ Senza questo scatto, un archivio vecchio PASSA il cancello — che confronta
+ * solo la versione — e poi esplode a meta' ripristino su un `createMany`, con
+ * un errore che non spiega perche'. La transazione salva il database, ma chi
+ * sta ripristinando non capisce cosa sia successo.
+ *
+ * ── Storia ──────────────────────────────────────────────────────────────────
+ * 1  formato iniziale
+ * 2  26/08/2026 — rinomina del valore di enum `invoice_draft` in `invoice`:
+ *    i pacchetti v1 portano il nome vecchio dentro `data/documents.json`,
+ *    `documentTypeSettings`, `documentSequences` e `stockMovements`.
+ */
+export const TENANT_BACKUP_FORMAT_VERSION = 2;
 
 export const TENANT_BACKUP_MANIFEST_FILE = 'manifest.json';
 export const TENANT_BACKUP_DATA_DIR = 'data';

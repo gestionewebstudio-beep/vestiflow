@@ -147,7 +147,21 @@ export class TenantBackupImportService {
   }
 
   private assertManifestCompatible(manifest: TenantBackupManifest, tenantId: string): void {
-    if (manifest.formatVersion !== TENANT_BACKUP_FORMAT_VERSION) {
+    if (manifest.formatVersion < TENANT_BACKUP_FORMAT_VERSION) {
+      // ⭐ **Un archivio piu' VECCHIO dell'app non e' «aggiorna VestiFlow».**
+      // Il messaggio unico diceva il contrario del vero nel caso piu'
+      // frequente: l'app e' nuova, e' l'archivio a essere vecchio, e
+      // aggiornare non serve a niente. Chi sta ripristinando ha gia' un
+      // problema; mandarlo nella direzione sbagliata gli costa il tempo che
+      // non ha.
+      throw new BadRequestException(
+        `Questo backup e' stato prodotto da una versione precedente di VestiFlow ` +
+          `(formato ${manifest.formatVersion}, oggi ${TENANT_BACKUP_FORMAT_VERSION}) e non puo' ` +
+          `essere ripristinato: nel frattempo sono cambiati dati che il pacchetto non porta ` +
+          `nella forma attuale.`,
+      );
+    }
+    if (manifest.formatVersion > TENANT_BACKUP_FORMAT_VERSION) {
       throw new BadRequestException(
         `Versione backup non supportata (${manifest.formatVersion}). Aggiorna VestiFlow.`,
       );

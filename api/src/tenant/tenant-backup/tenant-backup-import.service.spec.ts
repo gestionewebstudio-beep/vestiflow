@@ -99,6 +99,39 @@ describe('TenantBackupImportService', () => {
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
+/**
+   * ⭐ **Un archivio più VECCHIO dell'app non è «aggiorna VestiFlow».**
+   *
+   * ⛔ Il cancello confrontava la versione e rifiutava con un messaggio solo —
+   * «Versione backup non supportata (N). Aggiorna VestiFlow.» — che per il caso
+   * più frequente dice il contrario del vero: l'app è nuova, è **l'archivio** a
+   * essere vecchio, e aggiornare non serve a niente.
+   *
+   * ⚠️ La distinzione conta nel momento in cui serve davvero: chi sta
+   * ripristinando ha un problema, e un messaggio che manda nella direzione
+   * sbagliata gli fa perdere il tempo che non ha.
+   */
+  it('⭐ un archivio più VECCHIO dice che è vecchio, non «aggiorna»', async () => {
+    const zip = await buildTenantBackupZip({
+      manifest: { formatVersion: TENANT_BACKUP_FORMAT_VERSION - 1 },
+    });
+
+    await expect(service.importFromZipBuffer(tenantId, currentUserId, zip)).rejects.toThrow(
+      /prodotto da una versione precedente/i,
+    );
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('⛔ e uno più NUOVO continua a dire di aggiornare', async () => {
+    const zip = await buildTenantBackupZip({
+      manifest: { formatVersion: TENANT_BACKUP_FORMAT_VERSION + 1 },
+    });
+
+    await expect(service.importFromZipBuffer(tenantId, currentUserId, zip)).rejects.toThrow(
+      /aggiorna vestiflow/i,
+    );
+  });
+
   it('rifiuta backup di un altro tenant', async () => {
     const zip = await buildTenantBackupZip({
       manifest: { tenantId: 'tenant-other' },
