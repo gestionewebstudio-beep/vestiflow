@@ -2044,6 +2044,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     });
     this.refreshAllLineSummaries();
     this.markFormDirty();
+    // Stessa chiusura dell'inclusione: il lotto e' silenzioso, il giro esplicito
+    // riallinea vista e totali.
+    this.lines.updateValueAndValidity();
   }
 
   // `conversionReferenceText` viveva qui: ricomponeva a mano lo stesso formato
@@ -4313,6 +4316,13 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     // Summary anagrafiche per le righe collegate: codici, U.m., disponibilità.
     this.refreshAllLineSummaries();
     this.markFormDirty();
+    // ⛔ **Inserimenti silenziosi: un giro esplicito riallinea vista e totali.**
+    //    Stesso chiusura del riordino righe, e per la stessa ragione. Senza,
+    //    `mobileRowsVisible` — che ha come unica dipendenza reattiva
+    //    `formValue()` — resta al valore di prima: le righe incluse ci sono nel
+    //    FormArray e a schermo compatto **non compare nessuna card**.
+    //    Un evento solo alla fine, invece dei venti soppressi durante.
+    this.lines.updateValueAndValidity();
   }
 
   // ── Testata: select handlers ────────────────────────────────────────────

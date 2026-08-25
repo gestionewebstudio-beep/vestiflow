@@ -515,6 +515,29 @@
               </div>
 
               <p class="doc-panel__helper">I valori predefiniti restano modificabili.</p>
+
+              <!-- ⭐ **«Includi documento» vive QUI su schermo compatto**
+                   (proprietario, 24/08/2026). Nella barra strumenti delle righe
+                   la sua etichetta lunga occupava da sola tutta la seconda riga
+                   della griglia, e il titolo «Righe documento» restava centrato
+                   contro una pila di due pulsanti.
+
+                   Sta fra i dati del documento perché è lì che si decide **da
+                   cosa il documento parte** — non è un attrezzo della tabella.
+
+                   ⚠️ Il pannello vive nel DOM anche su scrivania (si accende
+                   sotto `lg` col foglio): senza il gate sul viewport questo
+                   sarebbe un terzo «Includi documento» nell'albero, e la
+                   guardia sui comandi doppi lo direbbe. -->
+              @if (compactView() && includeSourceKinds.length > 0) {
+                <p class="doc-panel__section">Origine delle righe</p>
+                <div class="doc-panel__field">
+                  <app-button type="button" variant="secondary" (click)="openIncludePanel()">
+                    <i class="pi pi-file-import" aria-hidden="true"></i>
+                    Includi documento
+                  </app-button>
+                </div>
+              }
             </app-document-mobile-panel>
           </div>
 
@@ -851,7 +874,14 @@
                    comando si spegne per configurazione, non per larghezza. -->
               <div class="doc-form__lines-tools">
                 <app-table-column-picker [viewId]="lineColumnsView" [reorderable]="false" />
-                @if (includeSourceKinds.length > 0) {
+                <!-- ⭐ Su schermo compatto questo comando vive nel pannello
+                     «Dettagli documento» (proprietario, 24/08/2026). Qui la sua
+                     etichetta lunga occupava da sola tutta la seconda riga della
+                     griglia, e «Righe documento» restava centrato contro una
+                     pila di due pulsanti: la riga si leggeva rotta. Nel pannello
+                     sta fra i dati del documento, che è anche dove si decide da
+                     cosa il documento parte. -->
+                @if (!compactView() && includeSourceKinds.length > 0) {
                   <app-button type="button" variant="secondary" (click)="openIncludePanel()">
                     <i class="pi pi-file-import" aria-hidden="true"></i>
                     Includi documento

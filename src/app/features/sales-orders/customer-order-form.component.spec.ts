@@ -2075,10 +2075,18 @@ describe('CustomerOrderFormComponent — vista mobile, i difetti del 24/08', () 
   it('⭐ mentre gli altri comandi della barra restano: e’ adattata, non spenta', async () => {
     const { view } = await mobileConTestataPiena();
 
-    // Colonne e «Includi documento» non hanno un gemello nello stato vuoto:
-    // toglierli sarebbe spegnere la barra, che non e' quello che si e' deciso.
+    // Colonne non ha un gemello: toglierlo sarebbe spegnere la barra, che non
+    // e' quello che si e' deciso.
     expect(view.container.querySelector('app-table-column-picker')).toBeTruthy();
+
+    // ⭐ «Includi documento» c'e' UNA volta sola, e non e' piu' nella barra:
+    // dal 24/08 vive nel pannello «Dettagli documento». La sua etichetta lunga
+    // occupava da sola la seconda riga della griglia a due colonne, e il titolo
+    // «Righe documento» restava centrato contro una pila di due pulsanti.
     expect(comandi(/Includi documento/i)).toHaveLength(1);
+    // ⚠️ Figli DIRETTI: `app-table-column-picker` rende un `app-button` suo,
+    // e un selettore discendente lo conterebbe come comando della barra.
+    expect(view.container.querySelector('.doc-form__lines-tools > app-button')).toBeNull();
   });
 
   /**
@@ -2112,5 +2120,88 @@ describe('CustomerOrderFormComponent — vista mobile, i difetti del 24/08', () 
     // comando prometterebbe un effetto che non produce. Con la sola riga
     // tecnica la lista non si mostra affatto (stato vuoto).
     expect(view.container.querySelector('.doc-line-card__remove')).toBeNull();
+  });
+});
+
+/**
+ * ⛔ **Includendo un documento, le righe non comparivano** — 24/08/2026.
+ *
+ * ## Causa radice: un lotto silenzioso e un computed che non lo sente
+ *
+ * `onDocumentIncluded` inserisce le righe con `{ emitEvent: false }` — giusto,
+ * per non scatenare N `valueChanges` su un'inclusione da venti righe. Ma poi
+ * NON riemette: `mobileRowsVisible` ha come unica dipendenza reattiva
+ * `formValue()`, che e' `toSignal(form.valueChanges)`. Se nessun evento parte,
+ * il computed resta al valore di prima — falso — e le card non si disegnano
+ * benche' le righe ci siano.
+ *
+ * ⭐ **Il rimedio esisteva gia' nello stesso file.** Il riordino righe fa un
+ * `removeAt`/`insert` altrettanto silenzioso e chiude con
+ * `this.lines.updateValueAndValidity()`, col commento «un giro esplicito
+ * riallinea vista e totali». All'inclusione quel giro mancava: un evento solo
+ * alla fine, invece di venti durante.
+ *
+ * ⚠️ **E' la stessa forma del difetto delle due righe**: un computed che usa
+ * `formValue()` come innesco diventa cieco a ogni mutazione che sopprime gli
+ * eventi. Ogni lotto silenzioso deve chiudersi riemettendo, o il difetto
+ * ricompare altrove — e non si vede finche' qualcuno non guarda lo schermo.
+ */
+describe('CustomerOrderFormComponent — righe incluse a schermo compatto', () => {
+  it('⛔ dopo un’inclusione le card ci sono', async () => {
+    const view = await render(CustomerOrderFormComponent, {
+      providers: [
+        ...formProviders(),
+        { provide: ViewportService, useValue: { compact: () => true } },
+      ],
+    });
+    const comp = view.fixture.componentInstance as unknown as {
+      form: { controls: Record<string, { setValue: (v: unknown) => void }> };
+      lines: { length: number };
+      onDocumentIncluded: (payload: unknown) => void;
+      mobileRowsVisible: () => boolean;
+    };
+
+    comp.form.controls['customerId']!.setValue('cus-1');
+    comp.form.controls['locationId']!.setValue('loc-1');
+    view.fixture.detectChanges();
+
+    // ⚠️ La lettura PRIMA e' necessaria: un computed e' «stale» solo se era
+    // gia' stato valutato. Senza questo giro la prova non riprodurrebbe il
+    // difetto, perche' la prima valutazione arriverebbe dopo l'inserimento.
+    expect(comp.mobileRowsVisible()).toBe(false);
+
+    comp.onDocumentIncluded({
+      kind: 'quote',
+      sourceId: 'doc-1',
+      sourceReference: 'PR-2026-0001',
+      referenceLine: {
+        description: 'Preventivo PR-2026-0001 del 01/08/2026',
+        isReference: true,
+        quantity: 0,
+      },
+      lines: [
+        {
+          variantId: 'var-1',
+          sku: 'MAG-001',
+          description: 'Maglia cotone',
+          quantity: 2,
+          unitPriceMinor: 2000,
+        },
+      ],
+    });
+
+    // ⚠️ Niente `detectChanges()` qui: nel banco convivono nel DOM la tabella
+    // di scrivania e le card, e la RIGA DI RIFERIMENTO della tabella rende
+    // `formControlName="productName"` fuori da un contesto di form (NG01050).
+    // E' una condizione del banco — su un dispositivo vero le media query ne
+    // dispongono una sola — ed e' REGISTRATA come divergenza «due viste vive»,
+    // non corretta qui: il difetto di questa prova e' un altro.
+    expect(comp.lines.length).toBeGreaterThan(1);
+    // ⚠️ Si verifica lo STATO, non il DOM: renderizzare la riga di riferimento
+    // richiede impalcatura che questo banco non ha (NG01050 sul contesto di
+    // form). Il difetto e' comunque QUI — `mobileRowsVisible` che resta al
+    // valore di prima perche' nessun evento l'ha invalidato — e a schermo le
+    // card non compaiono proprio perche' questo e' falso.
+    expect(comp.mobileRowsVisible()).toBe(true);
   });
 });
