@@ -1652,7 +1652,7 @@ entrambe. Ed entrambe sono già facoltative — Trasferimento e Rettifica hanno 
 Ordine fornitore solo totali.
 
 **La griglia dei totali è già condivisa** (`app-document-totals`), adottata da 5 su 6. L'unica
-fuori è la Registrazione fattura, che il proprietario ha escluso dal perimetro il 24/08.
+fuori è la Registrazione fattura — e il motivo è nel §36 qui sotto, non un'esclusione.
 
 ```text
 doc-form__footer-grid                      ← una dichiarazione per maschera, CSS globale
@@ -1709,3 +1709,46 @@ rinviare: è **il contenuto naturale** di questa estrazione.
 e **non toccato**. Sono due grandezze diverse, e prima di scegliere quale mostrare bisogna
 sapere che cosa ogni nota vuole comunicare. ⛔ Il rischio da evitare è trasformare una
 divergenza semantica in una proprietà tipo `[countMode]="valid"`.
+
+---
+
+# 36. IL PERIMETRO DELLA REGISTRAZIONE FATTURA — precisato il 25/08/2026
+
+⛔ **Qui e in §34 avevo scritto «esclusa dal perimetro».** È una lettura sbagliata di una
+decisione del 24/08, e il proprietario l'ha corretta:
+
+> «registra fattura fornitore ha righe economiche ma il resto è in comune»
+
+La linea non passa fra le maschere: passa **dentro** questa maschera.
+
+## 36.1 Dove passa davvero
+
+```text
+FUORI dal perimetro   il motore delle RIGHE
+DENTRO                tutto il resto del guscio
+```
+
+Le sue righe sono un altro mestiere, e la misura lo conferma — **nessun articolo, nessuna
+variante, nessun magazzino**:
+
+|               |                                                                                                                         |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `autoRows()`  | derivate dai documenti inclusi, raggruppate per aliquota: «Documento incluso · Imponibile · IVA · Totale». Sola lettura |
+| `manualLines` | righe economiche: «Descrizione · Importo netto · IVA % · Importo IVA»                                                   |
+| terza tabella | scadenze di pagamento: «Data scadenza · Importo»                                                                        |
+
+Non usa nessuno dei pezzi comuni di riga — né `app-document-line`, né le card, né le celle.
+Rifare quel motore non vale la pena, ed è la decisione del 24/08 letta bene.
+
+## 36.2 ⭐ E questo la rende il bersaglio di FALSIFICAZIONE migliore
+
+Il resto lo condivide già: testata, piede, area note, commento interno, e da oggi il dialogo
+d'uscita comune. ⚠️ E ha ancora la **doppia dichiarazione della barra azioni**.
+
+> **Proprio perché le sue righe sono estranee, è la prova più severa del guscio comune:** se
+> lo ospita senza sapere che sono righe economiche, il contratto regge. Una maschera che
+> assomiglia alle altre non falsifica niente.
+
+⛔ Il criterio di accettazione resta quello della barra: per ospitarla il guscio comune non
+deve guadagnare un solo ingresso che nomini «fattura», «riga economica» o «scadenza».
+`check-document-grammar` lo verifica da sé.
