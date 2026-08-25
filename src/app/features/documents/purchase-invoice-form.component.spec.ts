@@ -136,7 +136,7 @@ describe('PurchaseInvoiceFormComponent', () => {
       ),
     };
 
-    await render(PurchaseInvoiceFormComponent, {
+    const view = await render(PurchaseInvoiceFormComponent, {
       providers: [
         {
           provide: DocumentCountersService,
@@ -196,7 +196,10 @@ describe('PurchaseInvoiceFormComponent', () => {
       ],
     });
 
-    return { documentService, showInfo };
+    // ⚠️ Il risultato del render serve a chi deve guardare il FORM, non solo il
+    // DOM: spostare un campo e scollegarlo dal suo controllo da' lo stesso
+    // risultato a occhio, e senza il `fixture` non si distinguono.
+    return { ...view, documentService, showInfo };
   }
 
   /**
@@ -301,6 +304,24 @@ describe('PurchaseInvoiceFormComponent', () => {
     // secondaria di là, sezione del pannello di qua) ma resta dichiarato una
     // volta: qui si prova che nella veste compatta c’è davvero.
     expect(screen.getByLabelText('N. fattura')).toBeTruthy();
+  });
+
+  it('⭐ il Commento interno sta nell’area NOTE, e scrive ancora sullo stesso controllo', async () => {
+    // ⛔ Stava in TESTATA. Spostato nel piede il 25/08/2026 (proprietario): non
+    // e' un dato identificativo come Fornitore, Serie o N. fattura — e' una
+    // nota. ⭐ Stesso `formControlName`, nessuna modifica ai dati: la prova
+    // guarda entrambe le cose, perche' spostare un campo e SCOLLEGARLO da' lo
+    // stesso risultato a occhio.
+    const user = userEvent.setup();
+    const { fixture } = await setup();
+
+    const campo = screen.getByLabelText('Commento interno');
+    expect(campo.closest('.doc-form__footer-notes')).not.toBeNull();
+    expect(campo.closest('.doc-form__header')).toBeNull();
+
+    await user.type(campo, 'da richiamare');
+
+    expect(fixture.componentInstance.form.controls.internalComment.value).toBe('da richiamare');
   });
 
   it('mostra «Gestisci numerazioni» a chi ha documents.configure', async () => {

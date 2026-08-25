@@ -33,6 +33,7 @@ import { documentNumberConflictOf } from '@core/models/document-number-conflict.
 import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
 import { DocumentChronologyGuard } from '@domain/documents/state/document-chronology-guard';
 import { DocumentActionsComponent } from '@domain/documents/components/document-actions/document-actions.component';
+import { DocumentNotesComponent } from '@domain/documents/components/document-notes/document-notes.component';
 import { DocumentChronologyWarningDialogComponent } from '@domain/documents/components/document-chronology-warning-dialog/document-chronology-warning-dialog.component';
 import { DocumentPrefillErrorStore } from '@domain/documents/state/document-prefill-error.store';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
@@ -185,6 +186,7 @@ function parseRatePercent(value: string): number | null {
     SlidePanelComponent,
     TableSkeletonComponent,
     DocumentActionsComponent,
+    DocumentNotesComponent,
   ],
   templateUrl: './purchase-invoice-form.component.html',
   styleUrl: './purchase-invoice-form.component.scss',

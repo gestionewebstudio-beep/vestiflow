@@ -192,6 +192,44 @@ describe('ManualSalesOrdersService.save', () => {
     expect(result.warnings).toEqual([]);
   });
 
+  // ── La nota interna ───────────────────────────────────────────────────────
+  //
+  // ⭐ Aggiunta il 25/08/2026 con la migration
+  // `20260825160000_nota_interna_sull_ordine_cliente`. L'ordine cliente ne era
+  // privo solo perche' `sales_orders` non aveva la colonna — «una differenza
+  // del modello dati, non una ragione funzionale per avere una UI diversa»
+  // (proprietario).
+  it('⭐ la nota interna si persiste', async () => {
+    const { service } = createService(prisma);
+
+    await service.save(
+      tenantId,
+      { ...baseDto, internalComment: '  Cliente da richiamare  ' },
+      testOwnerUser(),
+    );
+
+    const createArgs = prisma.salesOrder.create.mock.calls[0]![0] as {
+      data: Record<string, unknown>;
+    };
+    // Ripulita dagli spazi, come le note pubbliche.
+    expect(createArgs.data['internalComment']).toBe('Cliente da richiamare');
+  });
+
+  it('⛔ e vuota significa SVUOTATA, non «non toccare»', async () => {
+    // ⚠️ La testata si riscrive per intero a ogni salvataggio: un campo assente
+    // azzera quello che il documento portava. E' lo stesso contratto delle note
+    // pubbliche — se qui tornasse `undefined`, Prisma lascerebbe il valore
+    // vecchio e l'operatore non riuscirebbe piu' a cancellare una nota.
+    const { service } = createService(prisma);
+
+    await service.save(tenantId, { ...baseDto, internalComment: '   ' }, testOwnerUser());
+
+    const createArgs = prisma.salesOrder.create.mock.calls[0]![0] as {
+      data: Record<string, unknown>;
+    };
+    expect(createArgs.data['internalComment']).toBeNull();
+  });
+
   it('rifiuta il salvataggio senza location di origine (testata obbligatoria)', async () => {
     const { service } = createService(prisma);
     await expect(

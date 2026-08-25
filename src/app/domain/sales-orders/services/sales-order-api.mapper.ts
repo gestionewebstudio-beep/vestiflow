@@ -79,6 +79,7 @@ export interface SalesOrderApiRow {
   readonly externalDocDate?: IsoDateString | null;
   readonly expectedDeliveryDate?: IsoDateString | null;
   readonly notes?: string | null;
+  readonly internalComment?: string | null;
   readonly paymentTerms?: string | null;
   readonly documentDiscountPercent?: number;
   /** Modalità con cui i prezzi sono stati digitati su questo ordine. */
@@ -224,6 +225,7 @@ export function mapSalesOrderApiRow(row: SalesOrderApiRow): SalesOrder {
     externalDocDate: row.externalDocDate ?? undefined,
     expectedDeliveryDate: row.expectedDeliveryDate ?? undefined,
     notes: row.notes ?? undefined,
+    internalComment: row.internalComment ?? undefined,
     paymentTerms: row.paymentTerms ?? undefined,
     documentDiscountPercent: row.documentDiscountPercent ?? 0,
     // Assente sugli ordini di canale (e sui vecchi): netto, come il default

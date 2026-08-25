@@ -240,6 +240,34 @@ describe('CustomerOrderFormComponent — le due viste di riga', () => {
   // un'azione qualunque. Qui non si puo': quei menu compaiono solo su un ordine
   // gia' salvato, e le prove che li riguardano vivono in un altro `describe`
   // dove il DOM non viene reso affatto — misurano il segnale, non lo schermo.
+  // ── La nota interna ───────────────────────────────────────────────────────
+  //
+  // ⭐ L'ordine cliente ne era privo, e non per una ragione funzionale: la
+  // colonna non esisteva su `sales_orders`. Aggiunta il 25/08/2026 con la
+  // migration `20260825160000_nota_interna_sull_ordine_cliente`, e con lei
+  // l'area note comune.
+  it('⭐ i due campi note ci sono, e scrivono sul documento', async () => {
+    const user = userEvent.setup();
+    const view = await render(CustomerOrderFormComponent, { providers: formProviders() });
+    const comp = view.fixture.componentInstance as unknown as {
+      form: { controls: Record<string, { value: unknown; setValue: (v: unknown) => void }> };
+    };
+    comp.form.controls['customerId']!.setValue('cus-1');
+    comp.form.controls['locationId']!.setValue('loc-1');
+    view.fixture.detectChanges();
+
+    expect(screen.getByLabelText('Note documento', { selector: 'textarea' })).toBeTruthy();
+
+    // ⚠️ La meta' che conta: il campo puo' comparire ed essere scollegato dal
+    // controllo, e a occhio non si distingue.
+    await user.type(
+      screen.getByLabelText('Commento interno', { selector: 'textarea' }),
+      'da richiamare',
+    );
+
+    expect(comp.form.controls['internalComment']!.value).toBe('da richiamare');
+  });
+
   it('⛔ «Imponibile righe» compare una VOLTA SOLA sulla schermata', async () => {
     // ⛔ Comparirebbe due volte: nella striscia sotto la tabella e nella banda
     // totali, con la stessa etichetta e lo stesso valore. L'ha visto il

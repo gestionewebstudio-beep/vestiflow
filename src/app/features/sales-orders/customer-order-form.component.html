@@ -1229,15 +1229,10 @@
             </aside>
 
             <div class="doc-form__footer-notes">
-              <div class="doc-form__field">
-                <label class="doc-form__label" for="co-notes">Note documento</label>
-                <textarea
-                  id="co-notes"
-                  class="doc-form__textarea"
-                  rows="2"
-                  formControlName="notes"
-                ></textarea>
-              </div>
+              <!-- ⭐ **L'area note comune.** Il Commento interno arriva qui il
+                   25/08/2026: l'ordine cliente ne era privo solo perche'
+                   `sales_orders` non aveva la colonna, e ora ce l'ha. -->
+              <app-document-notes [group]="form" notesId="co-notes" internalId="co-internal" />
             </div>
           </div>
 

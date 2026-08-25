@@ -417,6 +417,9 @@ export class ManualSalesOrdersService {
             ? new Date(dto.expectedDeliveryDate)
             : null,
           notes: dto.notes?.trim() || null,
+          // ⭐ Nota interna: come le note pubbliche, vuoto significa svuotato —
+          // la testata si riscrive per intero a ogni salvataggio.
+          internalComment: dto.internalComment?.trim() || null,
           paymentTerms: dto.paymentTerms?.trim() || null,
           documentDiscountPercent,
           // Modalità di digitazione dei prezzi: proprietà dell'ordine, non di
@@ -897,6 +900,7 @@ export class ManualSalesOrdersService {
       documentDate: new Date().toISOString(),
       externalRef: source.externalRef ?? undefined,
       notes: source.notes ?? undefined,
+      internalComment: source.internalComment ?? undefined,
       paymentTerms: source.paymentTerms ?? undefined,
       documentDiscountPercent: Number(source.documentDiscountPercent),
       lines: source.lines.map((line) => ({

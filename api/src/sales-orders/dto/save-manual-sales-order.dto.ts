@@ -173,6 +173,18 @@ export class SaveManualSalesOrderDto {
   @MaxLength(2000)
   notes?: string;
 
+  /**
+   * Nota interna, mai in stampa.
+   *
+   * ⭐ Aggiunta il 25/08/2026: l'ordine cliente ne era privo solo perche' la
+   * colonna non esisteva su `sales_orders`, non per una ragione funzionale.
+   * Stesso limite delle note pubbliche — sono lo stesso genere di testo.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  internalComment?: string;
+
   /** Condizioni di pagamento (proposta dall'anagrafica cliente, non vincolo). */
   @IsOptional()
   @IsString()

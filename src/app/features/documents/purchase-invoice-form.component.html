@@ -129,22 +129,13 @@
           (manageSeries)="seriesDialogOpen.set(true)"
         />
 
-        <app-document-header-field label="Commento interno" [span2]="true">
-          <!-- Il controllo è un input nativo: la cella la veste
-               `app-document-header-field`, la classe del controllo no, e le due
-               vesti la vogliono diversa.
-               ⚠️ L'etichetta della testata comune è uno `<span>`, non un
-               `<label for>`: senza `aria-label` questo campo resterebbe senza
-               nome accessibile (prima glielo dava il `for="pi-comment"`). -->
-          <input
-            [class]="compactView() ? 'doc-panel__control' : 'doc-form__input'"
-            id="pi-comment"
-            type="text"
-            formControlName="internalComment"
-            aria-label="Commento interno"
-            placeholder="Nota interna, mai in stampa"
-          />
-        </app-document-header-field>
+        <!-- ⛔ Qui c'era il «Commento interno», in TESTATA. Spostato nell'area
+             note comune il 25/08/2026, decisione del proprietario: non è un dato
+             identificativo come Fornitore, Data registrazione, Serie, Numero o
+             N. fattura — è una nota, e le note stanno nel piede.
+
+             ⭐ Stesso controllo, stesso `formControlName`: cambia solo dove si
+             vede. Nessuna modifica ai dati. -->
       </ng-template>
 
       <!-- Documento della controparte: la fascia secondaria (scrivania) e la
@@ -608,15 +599,9 @@
         </aside>
 
         <div class="doc-form__footer-notes">
-          <div class="doc-form__field">
-            <label class="doc-form__label" for="pi-notes">Note</label>
-            <textarea
-              id="pi-notes"
-              class="doc-form__textarea"
-              rows="2"
-              formControlName="notes"
-            ></textarea>
-          </div>
+          <!-- ⭐ **L'area note comune.** Il «Commento interno» arriva qui dalla
+               testata: stesso controllo, collocazione giusta. -->
+          <app-document-notes [group]="form" notesId="pi-notes" internalId="pi-comment" />
         </div>
       </div>
 

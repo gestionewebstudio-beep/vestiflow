@@ -1359,6 +1359,10 @@ model SalesOrder {
   expectedDeliveryDate         DateTime?                   @map("expected_delivery_date") @db.Date
   /// Note documento.
   notes                        String?
+  /// Nota interna, mai in stampa. Speculare a `Document.internalComment`:
+  /// l'ordine cliente ne era privo solo perche' la colonna non c'era, non per
+  /// una ragione funzionale (proprietario, 25/08/2026).
+  internalComment              String?                     @map("internal_comment")
   /// Condizioni di pagamento (snapshot testo, proposto dall'anagrafica cliente).
   paymentTerms                 String?                     @map("payment_terms")
   /// Sconto extra percentuale sull'intero documento, dopo gli sconti riga

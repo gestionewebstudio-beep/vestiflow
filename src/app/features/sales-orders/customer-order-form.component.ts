@@ -100,6 +100,7 @@ import {
   mapCustomerFormToInput,
 } from '@domain/customers/utils/customer-form.util';
 import { DocumentActionsComponent } from '@domain/documents/components/document-actions/document-actions.component';
+import { DocumentNotesComponent } from '@domain/documents/components/document-notes/document-notes.component';
 import { DocumentIncludePanelComponent } from '@domain/documents/components/document-include-panel/document-include-panel.component';
 import { vatCodeIdForLinePayload } from '@domain/documents/utils/document-line-vat-payload.util';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
@@ -377,6 +378,7 @@ interface AvailabilityIssue {
     UnitOfMeasureManagerDialogComponent,
     DocumentProductSearchPanelComponent,
     DocumentActionsComponent,
+    DocumentNotesComponent,
   ],
   // Una maschera = un'istanza del blocco: è lei a tracciare gli id che ha
   // sbloccato e a rilasciarli all'uscita.
@@ -634,6 +636,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     // DDT vendita: «Seguirà doc. di vendita» (prompt DDT §TESTATA).
     followedBySalesDoc: this.fb.control(false),
     notes: this.fb.control(''),
+    // ⭐ Nota interna, mai in stampa. L'ordine cliente ne era privo solo
+    // perche' `sales_orders` non aveva la colonna — aggiunta il 25/08/2026.
+    internalComment: this.fb.control(''),
     // Sconto extra % sull'intero documento (stesso pattern Arrivo merce).
     documentDiscountPercent: this.fb.control(''),
     // DDT vendita: sezione Trasporto (prompt DDT §TRASPORTO).
@@ -4593,6 +4598,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         status: order.cancelledAt ? 'cancelled' : 'confirmed',
         paymentTerms: order.paymentTerms ?? '',
         notes: order.notes ?? '',
+        internalComment: order.internalComment ?? '',
         documentDiscountPercent: order.documentDiscountPercent
           ? formatDiscountPercentValue(Number(order.documentDiscountPercent))
           : '',
@@ -4959,6 +4965,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       expectedDeliveryDate: value.expectedDeliveryDate || undefined,
       status: value.status,
       notes: value.notes.trim() || undefined,
+      internalComment: value.internalComment.trim() || undefined,
       paymentTerms: value.paymentTerms.trim() || undefined,
       documentDiscountPercent: parseEffectiveDiscountPercent(value.documentDiscountPercent),
       lines,
@@ -5172,6 +5179,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
           paymentTerms: value.paymentTerms.trim() || null,
           expectedDeliveryDate: value.expectedDeliveryDate || null,
           notes: value.notes.trim(),
+          internalComment: value.internalComment.trim() || undefined,
           documentDiscountPercent: parseEffectiveDiscountPercent(value.documentDiscountPercent),
           pricesIncludeVat: this.pricesIncludeVat(),
           ...(ddtCreateFields ?? {}),
@@ -5193,6 +5201,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
           paymentTerms: value.paymentTerms.trim() || undefined,
           expectedDeliveryDate: value.expectedDeliveryDate || undefined,
           notes: value.notes.trim() || undefined,
+          internalComment: value.internalComment.trim() || undefined,
           currency: this.currency,
           documentDiscountPercent: parseEffectiveDiscountPercent(value.documentDiscountPercent),
           pricesIncludeVat: this.pricesIncludeVat(),

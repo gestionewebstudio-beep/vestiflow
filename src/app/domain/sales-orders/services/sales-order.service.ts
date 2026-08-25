@@ -62,6 +62,13 @@ export interface SaveManualOrderInput {
   readonly expectedDeliveryDate?: string;
   readonly status?: 'confirmed' | 'cancelled';
   readonly notes?: string;
+  /**
+   * Nota interna, mai in stampa.
+   *
+   * ⭐ Aggiunta il 25/08/2026: l'ordine cliente ne era privo solo perche' la
+   * colonna non esisteva su `sales_orders`, non per una ragione funzionale.
+   */
+  readonly internalComment?: string;
   readonly paymentTerms?: string;
   /** Sconto extra % documento (0-100), dopo gli sconti riga. */
   readonly documentDiscountPercent?: number;
