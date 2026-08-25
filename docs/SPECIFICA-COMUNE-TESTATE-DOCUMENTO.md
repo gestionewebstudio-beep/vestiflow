@@ -1752,3 +1752,43 @@ d'uscita comune. ⚠️ E ha ancora la **doppia dichiarazione della barra azioni
 ⛔ Il criterio di accettazione resta quello della barra: per ospitarla il guscio comune non
 deve guadagnare un solo ingresso che nomini «fattura», «riga economica» o «scadenza».
 `check-document-grammar` lo verifica da sé.
+
+---
+
+# 37. TRE TEMI APERTI, REGISTRATI PER NON PERDERLI (25/08/2026)
+
+Emersi durante l'estrazione della barra azioni e **deliberatamente non toccati**: sono
+contenuto e semantica, e l'estrazione riguardava la struttura.
+
+## 37.1 «Concludi ordine» e «Genera documento» — un lavoro a sé
+
+Decisione del proprietario: i due menu dell'Ordine cliente **vanno estratti e unificati in
+una cosa sola**, leggendo la specifica già presente nei documenti. Oggi la barra comune li
+ospita come contenuto proiettato, e va benissimo così finché quel lavoro non si fa.
+
+## 37.2 ⛔ «Imponibile righe» compare DUE volte nell'Ordine cliente
+
+Notato dal proprietario guardando la schermata. Verificato: **non è una regressione della
+barra** — il blocco è del 15/08 (`3280e559`), e i commit del montaggio non l'hanno toccato.
+
+| Maschera           | Striscia sotto la tabella          |
+| ------------------ | ---------------------------------- |
+| Arrivo merce       | solo conteggio righe e pezzi       |
+| **Ordine cliente** | conteggio **+ «Imponibile righe»** |
+| le altre sette     | non ce l'hanno                     |
+
+⚠️ È **lo stesso valore con la stessa etichetta** (`documentTotals().linesTotal`, «Imponibile
+righe») che compare nella banda totali duecento pixel più sotto. E l'Ordine cliente è l'unica
+maschera che mette un importo in quella striscia.
+
+> Prima di toglierlo va deciso **quale delle due posizioni serve all'operatore**. Il rischio
+> da evitare è togliere quella che qualcuno usa.
+
+## 37.3 `lines.length` contro `validLinesCount()` nella nota di stato
+
+Registrato in §34.9 e ancora aperto: quattro maschere contano tutte le righe, due contano
+solo quelle valide, e le etichette dicono «righe» contro «righe valide». Sono due grandezze
+diverse.
+
+⛔ **Il rischio da evitare è trasformare una divergenza semantica in una proprietà**
+`[countMode]="valid"`. Prima si decide che cosa ogni nota vuole comunicare.
