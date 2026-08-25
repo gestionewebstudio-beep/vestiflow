@@ -620,6 +620,28 @@ describe('SupplierOrderFormComponent', () => {
     ).toEqual(['Annulla', 'Esci senza salvare']);
   });
 
+  it('⭐ salvataggio rifiutato: la riga TORNA, non resti senza dove scrivere', async () => {
+    // ⛔ Difetto visto a schermo dal proprietario il 25/08/2026: premuto Ctrl+S
+    // su un ordine appena aperto, la riga spariva e compariva un errore —
+    // lasciando la maschera spoglia.
+    //
+    // ⚠️ La causa non e' il salvataggio: `dropTrailingEmptyLines()` toglie le
+    // righe vuote PRIMA di validare, e deve farlo, altrimenti la riga seminata
+    // all'apertura impedirebbe di salvare un documento vuoto.
+    const user = userEvent.setup();
+    // ⚠️ NIENTE articolo sulla riga: e' proprio lo scenario visto — documento
+    // appena aperto, riga seminata e vuota, che `dropTrailingEmptyLines()`
+    // toglie. Riempirla farebbe passare la prova senza provare niente.
+    const rendered = await setup({ createFails: true });
+    await scegliFornitore(user);
+
+    await user.click(salvaDocumento());
+    rendered.fixture.detectChanges();
+
+    const righe = rendered.fixture.componentInstance['lines'];
+    expect(righe.length).toBeGreaterThan(0);
+  });
+
   it('senza modifiche il ritorno alla lista non chiede conferma', async () => {
     const user = userEvent.setup();
     await setup();

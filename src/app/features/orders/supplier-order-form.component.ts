@@ -2503,6 +2503,27 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     this.chronology.run(() => this.submitNow());
   }
 
+  /**
+   * ⭐ **Un documento aperto ha sempre una riga su cui scrivere.**
+   *
+   * ⛔ Difetto visto a schermo dal proprietario il 25/08/2026: premuto Ctrl+S su
+   * un ordine appena aperto, la riga spariva e compariva un errore — restando
+   * senza righe e senza un modo per aggiungerne, se non il pulsante in cima.
+   *
+   * ⚠️ La causa non e' il salvataggio: e' che `dropTrailingEmptyLines()` toglie
+   * le righe vuote PRIMA di validare — e deve farlo, altrimenti la riga seminata
+   * all'apertura impedirebbe di salvare un documento vuoto. Quando poi il
+   * salvataggio non parte, la maschera resta spoglia.
+   *
+   * ⭐ Il payload non cambia: quando questa gira, e' gia' stato costruito.
+   */
+  private ensureAtLeastOneLine(): void {
+    if (this.formReadOnly() || this.lines.length > 0) {
+      return;
+    }
+    this.addLine();
+  }
+
   private submitNow(): void {
     if (this.saving()) {
       return;
@@ -2520,6 +2541,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
         status: 'error',
         error: { kind: AppErrorKind.Validation, message: problem },
       });
+      this.ensureAtLeastOneLine();
       return;
     }
     const raw = this.form.getRawValue();
@@ -2635,6 +2657,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
       },
       error: (err: unknown) => {
         this._submitState.set({ status: 'error', error: this.toAppError(err) });
+        this.ensureAtLeastOneLine();
       },
     });
   }

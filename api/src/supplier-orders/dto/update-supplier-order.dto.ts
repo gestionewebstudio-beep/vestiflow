@@ -83,7 +83,18 @@ export class UpdateSupplierOrderDto {
   currency?: string;
 
   @IsArray()
-  @ArrayMinSize(1)
+  // ⛔ Qui c'era `@ArrayMinSize(1)`: l'ordine fornitore rifiutava un documento
+  // senza righe. Tolto il 25/08/2026, decisione del proprietario applicata a
+  // TUTTI i tipi — «devo avere la possibilita' di crearlo vuoto e avro' un
+  // documento vuoto con numero, eventuale serie e data».
+  //
+  // ⚠️ Era rimasto indietro, ed e' un buco del perimetro: il rifiuto generale
+  // era stato tolto da `confirmDocumentTx`, che copre i `Document`. L'ordine
+  // fornitore e' un `SupplierOrder`, con un DTO tutto suo — quindi la maschera
+  // mandava un documento vuoto e il server rispondeva «I dati inviati non sono
+  // validi», senza dire quale.
+  //
+  // ⭐ L'ha trovato il collaudo a schermo, non i test.
   @ArrayMaxSize(500)
   @ValidateNested({ each: true })
   @Type(() => CreateSupplierOrderLineDto)
