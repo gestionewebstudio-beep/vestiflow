@@ -1847,14 +1847,23 @@
   >
     <h2 id="ddt-incomplete-title" class="doc-form__exit-title">Dati incompleti</h2>
     <p class="doc-form__exit-message">Dati trasporto/indirizzi incompleti. Procedere lo stesso?</p>
+    <!-- ⛔ **Qui c'erano TRE pulsanti per DUE esiti.** «Annulla» e «No»
+         chiamavano lo stesso identico gestore: due comandi diversi, lo stesso
+         effetto, uno accanto all'altro. Chi li leggeva doveva chiedersi in che
+         cosa differissero — e la risposta era «in niente».
+
+         ⚠️ E «Sì»/«No» rispondevano a una domanda che il titolo non fa: il
+         dialogo si chiama «Dati incompleti», non «Procedere?». Le etichette
+         ora dicono l'AZIONE, come su ogni altro dialogo della maschera.
+
+         ⭐ Il comportamento e' identico: gli stessi due gestori, invariati. -->
     <div class="doc-form__exit-actions">
       <app-button type="button" variant="ghost" (click)="dismissIncompleteDataDialog()">
         Annulla
       </app-button>
-      <app-button type="button" variant="secondary" (click)="dismissIncompleteDataDialog()">
-        No
-      </app-button>
-      <app-button type="button" (click)="confirmIncompleteDataDialog()">Sì</app-button>
+      <app-button type="button" (click)="confirmIncompleteDataDialog()"
+        >Procedi comunque</app-button
+      >
     </div>
   </div>
 }

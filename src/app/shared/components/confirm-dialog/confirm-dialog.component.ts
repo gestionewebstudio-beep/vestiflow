@@ -55,9 +55,15 @@ export class ConfirmDialogComponent {
   /**
    * Etichetta della **terza azione**, facoltativa. Assente = due pulsanti.
    *
-   * ⚠️ Serve al dialogo «modifiche non salvate», che ha tre risposte vere:
-   * torno indietro, esco perdendo, salvo ed esco. Con due sole azioni quattro
-   * maschere restavano col guscio scritto a mano.
+   * ⛔ **NON fa parte del contratto «modifiche non salvate»** (proprietario,
+   * 24/08/2026). Quel dialogo ha DUE azioni — Annulla · Esci senza salvare —
+   * e il salvataggio resta un’azione separata, il pulsante Salva. «Salva e
+   * chiudi» dentro il dialogo di uscita non deve comparire.
+   *
+   * ⭐ Serve ai dialoghi con **tre esiti davvero distinti**, cioe’ tre
+   * gestori diversi. Se due pulsanti chiamano lo stesso gestore, non sono tre
+   * esiti: sono due esiti e un pulsante di troppo — ed e’ il difetto che
+   * «Dati incompleti» aveva («Annulla» e «No» sullo stesso gestore).
    */
   readonly extraLabel = input<string>('');
 
