@@ -78,7 +78,7 @@ describe('conversionReferenceLine — il riferimento al predecessore diretto', (
 
   it('un tipo che non è origine di conversione non produce riga', () => {
     // Meglio nessuna riga che una riga con un'etichetta inventata.
-    expect(conversionReferenceLine(DocumentType.InvoiceDraft, 'FT-0001', IL_30_LUGLIO)).toBeNull();
+    expect(conversionReferenceLine(DocumentType.Invoice, 'FT-0001', IL_30_LUGLIO)).toBeNull();
     expect(conversionReferenceLine(DocumentType.GoodsReceipt, 'CAR-0001', IL_30_LUGLIO)).toBeNull();
   });
 });

@@ -681,7 +681,7 @@ describe('SalesDocumentFormComponent', () => {
   describe('SalesDocumentFormComponent — il tipo viene dalla rotta, non dall attesa', () => {
     it('in modifica, prima che il documento arrivi, la fattura è già una fattura', async () => {
       await setup({
-        routeType: DocumentType.InvoiceDraft,
+        routeType: DocumentType.Invoice,
         documentNeverLoads: true,
       });
 

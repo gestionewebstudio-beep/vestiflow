@@ -15,7 +15,7 @@ import { DocumentType } from '@core/models/document.model';
  * con 422 (`isCounterConfigurableDocumentType`).
  */
 export function documentNumberingType(type: DocumentType): DocumentType {
-  return NUMBERING_SHARED_WITH_INVOICE.includes(type) ? DocumentType.InvoiceDraft : type;
+  return NUMBERING_SHARED_WITH_INVOICE.includes(type) ? DocumentType.Invoice : type;
 }
 
 /** I tipi che pescano dal numeratore della Fattura senza possederlo. */

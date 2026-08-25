@@ -75,7 +75,7 @@ describe('document-print.util', () => {
     expect(documentPrintShowsValues(DocumentType.goods_receipt)).toBe(true);
     expect(documentPrintShowsValues(DocumentType.manual_load)).toBe(true);
     expect(documentPrintShowsValues(DocumentType.supplier_invoice)).toBe(true);
-    expect(documentPrintShowsValues(DocumentType.invoice_draft)).toBe(true);
+    expect(documentPrintShowsValues(DocumentType.invoice)).toBe(true);
     expect(documentPrintShowsValues(DocumentType.store_sale)).toBe(true);
   });
 
@@ -88,7 +88,7 @@ describe('document-print.util', () => {
   });
 
   it('i documenti fiscali non portano avvisi', () => {
-    expect(documentPrintDisclaimer(DocumentType.invoice_draft)).toBeNull();
+    expect(documentPrintDisclaimer(DocumentType.invoice)).toBeNull();
     expect(documentPrintDisclaimer(DocumentType.sales_ddt)).toBeNull();
   });
 });

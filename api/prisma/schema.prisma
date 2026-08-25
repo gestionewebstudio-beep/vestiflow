@@ -221,9 +221,14 @@ enum DocumentType {
   adjustment // Rettifica
   inventory // Inventario fisico
   proforma // Proforma (non fiscale)
-  invoice_draft // Fattura (fiscale, da trasmettere al commercialista)
+  /// Fattura di vendita (fiscale, da trasmettere al commercialista).
+  ///
+  /// ⚠️ Si chiamava `invoice` fino al 26/08/2026. Non significava piu'
+  /// «bozza» da tempo — questo stesso commento lo diceva — ma il nome tecnico
+  /// restava, e chi scrive codice lo leggeva ogni giorno.
+  invoice
   /// Fattura accompagnatoria: stessa fattura fiscale con trasporto merce
-  /// incluso. Condivide numeratore e form con invoice_draft (vedi
+  /// incluso. Condivide numeratore e form con invoice (vedi
   /// `documentNumberingType`), si differenzia per sezioni trasporto e
   /// destinazione e per lo scarico di magazzino quando non aggancia un DDT.
   invoice_accompanying

@@ -2964,7 +2964,7 @@ describe('DocumentsService', () => {
       prisma.document.findFirst.mockResolvedValue({
         id: 'doc-inv-1',
         tenantId,
-        type: DocumentType.invoice_draft,
+        type: DocumentType.invoice,
         status: DocumentStatus.confirmed,
         locationId: null,
         lines: [],
@@ -3116,10 +3116,10 @@ describe('DocumentsService', () => {
     it('non blocca le mutazioni dei documenti senza sede (es. fattura)', async () => {
       const { service } = createService(
         prisma,
-        resolvedSetting({ type: DocumentType.invoice_draft }),
+        resolvedSetting({ type: DocumentType.invoice }),
       );
       prisma.document.findFirst.mockResolvedValue(
-        docInLocB({ type: DocumentType.invoice_draft, locationId: null }),
+        docInLocB({ type: DocumentType.invoice, locationId: null }),
       );
       prisma.document.delete.mockResolvedValue({ id: 'doc-b' });
 

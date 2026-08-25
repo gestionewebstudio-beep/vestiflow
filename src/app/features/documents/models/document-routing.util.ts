@@ -38,7 +38,7 @@ import {
  */
 export const SALES_FORM_ROUTE_SEGMENT: Readonly<Record<SalesFormDocumentType, string>> = {
   [DocumentType.Proforma]: 'proforma',
-  [DocumentType.InvoiceDraft]: 'fattura',
+  [DocumentType.Invoice]: 'fattura',
   [DocumentType.InvoiceAccompanying]: 'fattura-accompagnatoria',
   [DocumentType.CreditNote]: 'nota-di-credito',
 };
@@ -135,7 +135,7 @@ export const DOCUMENT_ROW_OPENS: Readonly<Record<DocumentTypeValue, 'form' | 'de
   [DocumentType.Quote]: 'form',
   [DocumentType.SalesDdt]: 'form',
   [DocumentType.Proforma]: 'form',
-  [DocumentType.InvoiceDraft]: 'form',
+  [DocumentType.Invoice]: 'form',
   [DocumentType.InvoiceAccompanying]: 'form',
   [DocumentType.CreditNote]: 'form',
   // Banco: un indirizzo per tipo (`11` A2).
@@ -181,7 +181,7 @@ export function documentDetailPath(doc: {
       return `/app/documents/sales-ddt/${doc.id}`;
     // I tre tipi della famiglia si aprono sullo STESSO elenco: il progressivo è
     // uno solo, e un dettaglio su una pagina propria suggerirebbe il contrario.
-    case DocumentType.InvoiceDraft:
+    case DocumentType.Invoice:
     case DocumentType.InvoiceAccompanying:
     case DocumentType.CreditNote:
       return `/app/documents/fattura/${doc.id}`;

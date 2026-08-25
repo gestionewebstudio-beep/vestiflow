@@ -18,7 +18,7 @@ import { DocumentCountersService } from '../../services/document-counters.servic
 describe('DocumentSeriesManagerDialogComponent — il pannello segue il numeratore', () => {
   const counter = (over: Partial<DocumentCounterView>): DocumentCounterView => ({
     id: 'c',
-    type: 'invoice_draft',
+    type: 'invoice',
     series: null,
     locationId: null,
     locationName: null,
@@ -33,7 +33,7 @@ describe('DocumentSeriesManagerDialogComponent — il pannello segue il numerato
   async function setup(type: DocumentType) {
     const list = vi.fn(() =>
       of([
-        counter({ id: 'ft', type: 'invoice_draft', series: 'FT-A' }),
+        counter({ id: 'ft', type: 'invoice', series: 'FT-A' }),
         counter({ id: 'pre', type: 'quote', series: 'PRE-A' }),
       ]),
     );

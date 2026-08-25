@@ -81,7 +81,7 @@ describe('documentOpenPath', () => {
     expect(documentOpenPath(doc(DocumentType.SalesDdt), TITOLARE)).toBe(
       '/app/documents/sales-ddt/doc-1/edit',
     );
-    expect(documentOpenPath(doc(DocumentType.InvoiceDraft), TITOLARE)).toBe(
+    expect(documentOpenPath(doc(DocumentType.Invoice), TITOLARE)).toBe(
       '/app/documents/fattura/doc-1/edit',
     );
     expect(documentOpenPath(doc(DocumentType.InvoiceAccompanying), TITOLARE)).toBe(
@@ -196,7 +196,7 @@ describe('documentRowPath — chi non può gestire resta sul Dettaglio', () => {
   });
 
   it('⛔ sola consultazione: anche le fatture restano sul Dettaglio', () => {
-    expect(documentRowPath(doc(DocumentType.InvoiceDraft), SOLA_CONSULTAZIONE)).toBe(
+    expect(documentRowPath(doc(DocumentType.Invoice), SOLA_CONSULTAZIONE)).toBe(
       '/app/documents/fattura/doc-1',
     );
   });
@@ -249,7 +249,7 @@ describe('documentEditPath — il tipo sta nel percorso', () => {
   });
 
   it('i tre tipi della famiglia Fattura vanno su tre rotte distinte', () => {
-    expect(documentEditPath({ id: 'd', type: DocumentType.InvoiceDraft })).toBe(
+    expect(documentEditPath({ id: 'd', type: DocumentType.Invoice })).toBe(
       '/app/documents/fattura/d/edit',
     );
     expect(documentEditPath({ id: 'd', type: DocumentType.InvoiceAccompanying })).toBe(

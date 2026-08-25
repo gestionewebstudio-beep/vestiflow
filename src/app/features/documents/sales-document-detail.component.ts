@@ -26,7 +26,7 @@ import {
 import { isStoreFlowDocumentType } from '@domain/documents/models/document-operational.util';
 import { salesDocumentRegisterConfig } from './models/document-sales-register.config';
 import {
-  isInvoiceDraftDocumentType,
+  isInvoiceDocumentType,
   isSalesDdtDocumentType,
 } from '@domain/documents/models/document-sales.util';
 import { isManualUnloadDocumentType } from './models/document-stock-operation.util';
@@ -198,7 +198,7 @@ export class SalesDocumentDetailComponent extends DocumentDetailComponent {
       });
     }
     facts.push({ label: 'Valuta', value: doc.currency });
-    if (isInvoiceDraftDocumentType(doc.type)) {
+    if (isInvoiceDocumentType(doc.type)) {
       if (doc.externallyIssuedAt) {
         facts.push({
           label: 'Emessa esternamente il',

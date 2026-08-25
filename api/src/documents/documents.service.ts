@@ -1350,7 +1350,7 @@ export class DocumentsService {
     //
     // ⭐ La guardia sta QUI e non nei due chiamanti (creazione e modifica): una
     // regola scritta in due punti diverge al primo che ne dimentica uno.
-    if (invoiceType !== DocumentType.invoice_draft && ddtIds.length > 0) {
+    if (invoiceType !== DocumentType.invoice && ddtIds.length > 0) {
       throw new UnprocessableEntityException(
         `Il tipo documento «${invoiceType}» non può agganciare un DDT vendita: l'aggancio esiste per la fattura differita.`,
       );

@@ -59,7 +59,7 @@ const FAMIGLIA_ATTESA: Readonly<Record<string, DocumentPermissionFamily>> = {
   adjustment: 'adjustment',
   inventory: 'adjustment',
   proforma: 'proforma',
-  invoice_draft: 'invoice',
+  invoice: 'invoice',
   invoice_accompanying: 'invoice',
   // Terzo tipo della famiglia: stessi permessi degli altri due — chi emette
   // fatture deve poterle stornare.
@@ -138,8 +138,8 @@ describe('document-permission.util (FE) — «gestisci implica consulta»', () =
   it('chi può gestire una famiglia può anche consultarla', () => {
     const gestisceFatture = utente(UserRole.Clerk, [docManagePermission('invoice')]);
 
-    expect(canManageDocumentType(gestisceFatture, DocumentType.InvoiceDraft)).toBe(true);
-    expect(canViewDocumentType(gestisceFatture, DocumentType.InvoiceDraft)).toBe(true);
+    expect(canManageDocumentType(gestisceFatture, DocumentType.Invoice)).toBe(true);
+    expect(canViewDocumentType(gestisceFatture, DocumentType.Invoice)).toBe(true);
   });
 
   it('il permesso vale per l’intera famiglia, non per il singolo tipo', () => {
@@ -257,7 +257,7 @@ describe('document-permission.util (FE) — titolare e assistenza', () => {
       },
     });
 
-    expect(canViewDocumentType(operatore, DocumentType.InvoiceDraft)).toBe(true);
+    expect(canViewDocumentType(operatore, DocumentType.Invoice)).toBe(true);
     expect(canManageDocumentType(operatore, DocumentType.ManualUnload)).toBe(true);
     expect(manageableDocumentFamilies(operatore)).toEqual(DOCUMENT_PERMISSION_FAMILIES);
   });

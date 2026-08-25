@@ -65,12 +65,12 @@ describe('document-permission.util', () => {
 
   it('la fattura accompagnatoria appartiene alla famiglia della fattura', () => {
     expect(documentFamilyOf(DocumentType.invoice_accompanying)).toBe('invoice');
-    expect(documentFamilyOf(DocumentType.invoice_draft)).toBe('invoice');
+    expect(documentFamilyOf(DocumentType.invoice)).toBe('invoice');
   });
 
   it('canView segue la famiglia; «Gestisci» implica «Consulta»', () => {
     const user = clerk(['doc.invoice.manage']);
-    expect(canViewDocumentType(user, DocumentType.invoice_draft)).toBe(true);
+    expect(canViewDocumentType(user, DocumentType.invoice)).toBe(true);
     expect(canViewDocumentType(user, DocumentType.invoice_accompanying)).toBe(true);
     expect(canViewDocumentType(user, DocumentType.sales_ddt)).toBe(false);
   });
@@ -85,7 +85,7 @@ describe('document-permission.util', () => {
 
   it('il titolare non ha restrizioni', () => {
     const owner = { role: UserRole.owner, permissions: [] };
-    expect(canManageDocumentType(owner, DocumentType.invoice_draft)).toBe(true);
+    expect(canManageDocumentType(owner, DocumentType.invoice)).toBe(true);
     expect(viewableDocumentTypesFor(owner)).toBeNull();
   });
 
@@ -97,7 +97,7 @@ describe('document-permission.util', () => {
   it('intersectViewableDocumentTypes interseca la richiesta con il consentito', () => {
     const user = clerk(['doc.sales_ddt.view', 'doc.quote.view']);
     expect(
-      intersectViewableDocumentTypes(user, [DocumentType.sales_ddt, DocumentType.invoice_draft]),
+      intersectViewableDocumentTypes(user, [DocumentType.sales_ddt, DocumentType.invoice]),
     ).toEqual([DocumentType.sales_ddt]);
     expect(intersectViewableDocumentTypes(user, undefined)).toEqual([
       DocumentType.quote,

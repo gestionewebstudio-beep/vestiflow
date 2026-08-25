@@ -3,7 +3,7 @@ import { DocumentType } from '@prisma/client';
 /** Documenti che di norma non movimentano magazzino (§2.1, §9). */
 export const NON_STOCK_DOCUMENT_TYPES: readonly DocumentType[] = [
   DocumentType.proforma,
-  DocumentType.invoice_draft,
+  DocumentType.invoice,
   DocumentType.supplier_order,
   DocumentType.supplier_invoice,
   // Preventivo: mai effetti magazzino (non impegna e non blocca disponibilità).
@@ -22,7 +22,7 @@ export const NON_STOCK_DOCUMENT_TYPES: readonly DocumentType[] = [
  * scarico di magazzino (solo l'accompagnatoria, e solo senza DDT agganciato).
  */
 export const SALES_INVOICE_DOCUMENT_TYPES: readonly DocumentType[] = [
-  DocumentType.invoice_draft,
+  DocumentType.invoice,
   DocumentType.invoice_accompanying,
   // Terzo tipo della famiglia: stesso registro, stessa maschera, stesso
   // numeratore. Il verso economico negativo lo dà il tipo, non il segno.
@@ -38,18 +38,18 @@ export function isSalesInvoiceDocumentType(type: DocumentType): boolean {
  *
  * Di norma coincide col tipo del documento. Fanno eccezione le fatture di
  * vendita: Fattura e Fattura accompagnatoria condividono UN SOLO progressivo,
- * quindi entrambe numerano sotto `invoice_draft`. La numerazione non si divide
+ * quindi entrambe numerano sotto `invoice`. La numerazione non si divide
  * per tipo — due fatture di tipo diverso non possono avere lo stesso numero.
  */
 export function documentNumberingType(type: DocumentType): DocumentType {
   return (SALES_INVOICE_NUMBERING_SHARED_TYPES as readonly string[]).includes(type)
-    ? DocumentType.invoice_draft
+    ? DocumentType.invoice
     : type;
 }
 
 /**
  * I tipi che NON possiedono il numeratore ma ci pescano dentro: numerano sotto
- * `invoice_draft`. Dichiarati una volta sola perché `documentNumberingType` e
+ * `invoice`. Dichiarati una volta sola perché `documentNumberingType` e
  * `documentNumberingTypes` non possano divergere — sono la stessa regola letta
  * nei due versi, e disallinearle è il difetto che la migration del 11/08 chiude.
  */
@@ -64,7 +64,7 @@ const SALES_INVOICE_NUMBERING_SHARED_TYPES: readonly DocumentType[] = [
  * Serve a LEGGERE la partizione del numero. `documentNumberingType` da sola
  * indica solo chi «possiede» il numeratore, e usarla come filtro di uguaglianza
  * sulla colonna `type` è un errore silenzioso: la colonna porta il tipo grezzo,
- * quindi una Fattura accompagnatoria non rientra mai in `type = invoice_draft`.
+ * quindi una Fattura accompagnatoria non rientra mai in `type = invoice`.
  * Chi legge vedrebbe metà partizione — massimo, anteprima, buchi, conteggi — e
  * proporrebbe numeri già occupati, che l'indice unico (partizionato sul
  * numeratore, migration 20260811090000) boccerebbe. Il risultato è peggiore del
@@ -74,8 +74,8 @@ const SALES_INVOICE_NUMBERING_SHARED_TYPES: readonly DocumentType[] = [
  */
 export function documentNumberingTypes(type: DocumentType): readonly DocumentType[] {
   const owner = documentNumberingType(type);
-  if (owner === DocumentType.invoice_draft) {
-    return [DocumentType.invoice_draft, ...SALES_INVOICE_NUMBERING_SHARED_TYPES];
+  if (owner === DocumentType.invoice) {
+    return [DocumentType.invoice, ...SALES_INVOICE_NUMBERING_SHARED_TYPES];
   }
   return [owner];
 }
@@ -89,7 +89,7 @@ export const PROFORMA_DEFAULT_NOTES = PROFORMA_FISCAL_DISCLAIMER;
 /** Tipi ammessi in conversione da proforma (§9.1). */
 export const PROFORMA_CONVERT_TARGET_TYPES: readonly DocumentType[] = [
   DocumentType.sales_ddt,
-  DocumentType.invoice_draft,
+  DocumentType.invoice,
 ] as const;
 
 /**
@@ -97,7 +97,7 @@ export const PROFORMA_CONVERT_TARGET_TYPES: readonly DocumentType[] = [
  * Fattura o Proforma.
  */
 export const SALES_DDT_CONVERT_TARGET_TYPES: readonly DocumentType[] = [
-  DocumentType.invoice_draft,
+  DocumentType.invoice,
   DocumentType.proforma,
 ] as const;
 

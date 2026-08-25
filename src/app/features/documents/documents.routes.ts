@@ -64,7 +64,7 @@ const SALES_FORM_PERMISSION_FAMILY: Readonly<
   Record<SalesFormDocumentType, DocumentPermissionFamily>
 > = {
   [DocumentType.Proforma]: 'proforma',
-  [DocumentType.InvoiceDraft]: 'invoice',
+  [DocumentType.Invoice]: 'invoice',
   [DocumentType.InvoiceAccompanying]: 'invoice',
   [DocumentType.CreditNote]: 'invoice',
 };
@@ -148,15 +148,15 @@ export const documentsRoutes: Routes = [
       reuse: true,
     },
   },
-  // ⛔ Qui c'era il reindirizzamento dal vecchio percorso «Fatture»
+  // ⛔ Qui c'era il reindirizzamento dal vecchio percorso «Bozze fattura»
   // (`invoice-draft`). Tolto il 25/08/2026: quella schermata non esiste più —
   // il documento si chiama Fattura e sta su `fattura`.
   //
-  // ⚠️ **Il nome sopravvive dove non si può togliere**: `invoice_draft` è il
-  // valore dell'enum `DocumentType` nel database, e rinominarlo è una migration
-  // su un database condiviso più un'ottantina di punti di codice. Lo schema
-  // dichiara che cosa significa davvero: «Fattura (fiscale, da trasmettere al
-  // commercialista)».
+  // ⭐ E dal 26/08/2026 non sopravvive più nemmeno nell'enum: il valore
+  // `invoice_draft` di `DocumentType` è stato rinominato in `invoice`. Qui
+  // c'era scritto che rinominarlo «è una migration su un database condiviso più
+  // un'ottantina di punti di codice»: erano 153 occorrenze in 58 file, e la
+  // migration è una riga di catalogo senza un solo UPDATE sui dati.
   {
     // Elenco Registrazioni fattura fornitore (Documenti → Acquisti e
     // fornitori): colonne e filtri della spec, stato saldo incluso.
@@ -210,7 +210,7 @@ export const documentsRoutes: Routes = [
     canDeactivate: [unsavedChangesGuard],
     data: {
       [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('invoice'),
-      salesDocumentType: DocumentType.InvoiceDraft,
+      salesDocumentType: DocumentType.Invoice,
     },
   },
   {

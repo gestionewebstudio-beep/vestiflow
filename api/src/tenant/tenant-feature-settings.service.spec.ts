@@ -147,7 +147,7 @@ describe('TenantFeatureSettingsService', () => {
       expect(prisma.userDocumentPriceModePreference.deleteMany).toHaveBeenCalledWith({
         where: {
           tenantId,
-          documentType: { in: expect.arrayContaining(['invoice_draft', 'sales_ddt', 'quote']) },
+          documentType: { in: expect.arrayContaining(['invoice', 'sales_ddt', 'quote']) },
         },
       });
     });

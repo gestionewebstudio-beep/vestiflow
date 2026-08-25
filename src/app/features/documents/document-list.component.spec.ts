@@ -256,7 +256,7 @@ describe('DocumentListComponent — il filtro non decide cosa si crea', () => {
 
   const TRE_TIPI = ['Nuova fattura', 'Nuova fattura accompagnatoria', 'Nuova nota di credito'];
 
-  for (const filtro of ['', 'invoice_draft', 'invoice_accompanying', 'credit_note']) {
+  for (const filtro of ['', 'invoice', 'invoice_accompanying', 'credit_note']) {
     it(`con filtro «${filtro || 'Tutti'}» il menu Nuovo offre sempre i tre tipi`, async () => {
       const view = await renderList('invoice', titolare, filtro || undefined);
 
@@ -272,7 +272,7 @@ describe('DocumentListComponent — il filtro non decide cosa si crea', () => {
     const router = TestBed.inject(Router);
     const naviga = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
 
-    component.onCreateVariant(DocumentType.InvoiceDraft);
+    component.onCreateVariant(DocumentType.Invoice);
 
     expect(naviga).toHaveBeenCalledWith('/app/documents/fattura/new');
   });
@@ -298,7 +298,7 @@ describe('DocumentListComponent — il filtro non decide cosa si crea', () => {
     const view = await renderList('invoice', titolare, 'credit_note');
 
     expect(rotteDelMenuNuovo(view)).toEqual([
-      DocumentType.InvoiceDraft,
+      DocumentType.Invoice,
       DocumentType.InvoiceAccompanying,
       DocumentType.CreditNote,
     ]);

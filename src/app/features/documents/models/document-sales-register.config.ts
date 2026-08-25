@@ -164,7 +164,7 @@ const INVOICE_STATUS_OPTIONS: readonly SelectMenuOption[] = [
  */
 export const INVOICE_TYPE_FILTER_OPTIONS: readonly SelectMenuOption[] = [
   { value: '', label: 'Tutti' },
-  { value: DocumentType.InvoiceDraft, label: 'Fattura' },
+  { value: DocumentType.Invoice, label: 'Fattura' },
   { value: DocumentType.InvoiceAccompanying, label: 'Fattura accompagnatoria' },
   { value: DocumentType.CreditNote, label: 'Nota di credito' },
 ];
@@ -290,7 +290,7 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
   // una numerazione con i buchi lasciati dall'altro (`07-…§3`).
   invoice: {
     profile: 'invoice',
-    type: DocumentType.InvoiceDraft,
+    type: DocumentType.Invoice,
     types: SALES_INVOICE_DOCUMENT_TYPES,
     typeFilterOptions: INVOICE_TYPE_FILTER_OPTIONS,
     pageTitle: 'Fatture',
@@ -303,7 +303,7 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
     createPath: '/app/documents/fattura/new',
     createVariants: [
       {
-        type: DocumentType.InvoiceDraft,
+        type: DocumentType.Invoice,
         label: 'Nuova fattura',
         path: '/app/documents/fattura/new',
       },

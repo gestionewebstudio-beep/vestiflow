@@ -164,7 +164,7 @@ export const SECONDARY_CREATE_ENTRIES: readonly (SelectMenuOption & {
   { value: 'sales-ddt', label: 'DDT vendita', type: DocumentType.SalesDdt },
   { value: 'quote', label: 'Preventivo', type: DocumentType.Quote },
   { value: 'proforma', label: 'Proforma', type: DocumentType.Proforma },
-  { value: 'invoice', label: 'Fattura', type: DocumentType.InvoiceDraft },
+  { value: 'invoice', label: 'Fattura', type: DocumentType.Invoice },
   {
     value: 'invoice-accompanying',
     label: 'Fattura accompagnatoria',
@@ -1202,7 +1202,7 @@ export class DocumentListComponent {
         this.openNewProforma();
         break;
       case 'invoice':
-        this.openNewInvoice(DocumentType.InvoiceDraft);
+        this.openNewInvoice(DocumentType.Invoice);
         break;
       case 'invoice-accompanying':
         this.openNewInvoice(DocumentType.InvoiceAccompanying);

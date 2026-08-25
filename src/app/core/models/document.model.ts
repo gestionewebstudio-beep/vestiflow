@@ -27,7 +27,7 @@ export const DocumentType = {
   Inventory: 'inventory',
   Proforma: 'proforma',
   /** Fattura fiscale da inviare al commercialista. */
-  InvoiceDraft: 'invoice_draft',
+  Invoice: 'invoice',
   /**
    * Fattura accompagnatoria: fattura fiscale con trasporto merce incluso.
    * Condivide elenco, numeratore e form base con InvoiceDraft.

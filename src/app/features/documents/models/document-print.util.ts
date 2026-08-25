@@ -27,7 +27,7 @@ const HAS_PRINTED_SHEET: Readonly<Record<DocumentTypeValue, boolean>> = {
   [DocumentType.Adjustment]: true,
   [DocumentType.Inventory]: true,
   [DocumentType.Proforma]: true,
-  [DocumentType.InvoiceDraft]: true,
+  [DocumentType.Invoice]: true,
   [DocumentType.InvoiceAccompanying]: true,
   // Si stampa come le altre due: e' un documento fiscale.
   [DocumentType.CreditNote]: true,
@@ -70,7 +70,7 @@ const PRINT_KIND: Readonly<Record<DocumentTypeValue, DocumentPrintKind>> = {
   [DocumentType.Adjustment]: 'stock',
   [DocumentType.Inventory]: 'stock',
   [DocumentType.Proforma]: 'sales',
-  [DocumentType.InvoiceDraft]: 'sales',
+  [DocumentType.Invoice]: 'sales',
   [DocumentType.InvoiceAccompanying]: 'sales',
   // Stesso impaginato della famiglia commerciale: cambiano titolo, verso e
   // contenuto, non la forma del foglio.

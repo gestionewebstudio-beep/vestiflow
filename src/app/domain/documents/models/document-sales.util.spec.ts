@@ -24,7 +24,7 @@ describe('supportsLinkedSalesDdt', () => {
     // DDT durante il periodo, Fattura che li riepiloga. Alimenta i riferimenti
     // nell'XML FatturaPA e la riga «Riferimento DDT» in stampa: è la ragione
     // per cui il collegamento esiste, ed è legittima.
-    expect(supportsLinkedSalesDdt(DocumentType.InvoiceDraft)).toBe(true);
+    expect(supportsLinkedSalesDdt(DocumentType.Invoice)).toBe(true);
   });
 
   it('⛔ la Nota di credito nemmeno, e non per un divieto testuale', () => {

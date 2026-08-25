@@ -170,12 +170,12 @@ describe('DocumentCountersService', () => {
 
     it('calcola il prossimo numero come max+1 su (tipo, serie), senza anno né sede', async () => {
       prisma.documentCounter.findMany
-        .mockResolvedValueOnce([{ type: DocumentType.invoice_draft }]) // distinct (già coperto)
+        .mockResolvedValueOnce([{ type: DocumentType.invoice }]) // distinct (già coperto)
         .mockResolvedValueOnce([
           {
             id: 'c1',
             tenantId,
-            type: DocumentType.invoice_draft,
+            type: DocumentType.invoice,
             series: '2026',
             locationId: null,
             isDefault: true,
@@ -225,7 +225,7 @@ describe('DocumentCountersService', () => {
       const where = prisma.document.findMany.mock.calls[0]![0]!.where;
       expect(where.type).toEqual({
         in: [
-          DocumentType.invoice_draft,
+          DocumentType.invoice,
           DocumentType.invoice_accompanying,
           DocumentType.credit_note,
         ],
@@ -443,7 +443,7 @@ describe('DocumentCountersService', () => {
         {
           id: 'ft',
           tenantId,
-          type: DocumentType.invoice_draft,
+          type: DocumentType.invoice,
           series: null,
           locationId: null,
           isDefault: true,
@@ -459,7 +459,7 @@ describe('DocumentCountersService', () => {
       );
 
       const where = prisma.documentCounter.findMany.mock.calls[1]![0]!.where;
-      expect(where.type).toBe(DocumentType.invoice_draft);
+      expect(where.type).toBe(DocumentType.invoice);
       expect(result.counters).toHaveLength(1);
       expect(result.proposedCounterId).toBe('ft');
     });

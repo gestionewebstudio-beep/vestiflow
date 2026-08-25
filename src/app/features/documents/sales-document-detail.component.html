@@ -53,11 +53,7 @@
           </app-button>
         }
         @if (canConvert()) {
-          <app-button
-            variant="secondary"
-            [disabled]="actionSaving()"
-            (click)="convertToInvoiceDraft()"
-          >
+          <app-button variant="secondary" [disabled]="actionSaving()" (click)="convertToInvoice()">
             Converti in fattura
           </app-button>
           <app-button variant="secondary" [disabled]="actionSaving()" (click)="convertToSalesDdt()">

@@ -45,14 +45,15 @@
  * punto che l'operatore legge davvero — la voce «Genera documento» del DDT
  * vendita — più il suo suggerimento e due commenti.
  *
- * ⚠️ **Il nome veniva dall'enum, e l'enum non si tocca**: `invoice_draft` è il
- * valore del tipo nel database, e rinominarlo è una migration su un database
- * condiviso più un'ottantina di punti di codice. Lo schema dichiara già che
- * cosa significa: «Fattura (fiscale, da trasmettere al commercialista)». Questa
- * guardia impedisce che quel nome tecnico torni a **essere letto** dall'utente.
+ * ⚠️ **Il nome veniva dall'enum**, che allora si chiamava `invoice_draft`.
+ * Qui c'era scritto «e l'enum non si tocca» — il giorno dopo si è toccato: il
+ * 26/08/2026 il valore è stato rinominato in `invoice`, con una migration che
+ * costa una riga di catalogo e nessun UPDATE sui dati.
  *
- * ⭐ Per questo si vieta la forma ITALIANA a parole, non l'identificatore:
- * `invoice_draft` e `InvoiceDraft` restano leciti ovunque.
+ * ⭐ Questa guardia resta comunque, e con una ragione sua: impedisce che le
+ * parole ITALIANE «Bozza fattura» tornino a essere lette dall'operatore. Si
+ * vieta la forma a parole, non l'identificatore — che oggi non nomina più
+ * nessuna bozza.
  *
  * Se una voce va davvero reintrodotta, si toglie da qui **con la decisione
  * scritta accanto** — non si aggiunge un'eccezione al file che sta controllando.

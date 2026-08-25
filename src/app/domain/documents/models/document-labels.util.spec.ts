@@ -57,7 +57,7 @@ describe('documentTypeLabel', () => {
       [DocumentType.Adjustment]: 'Rettifica',
       [DocumentType.Inventory]: 'Inventario',
       [DocumentType.Proforma]: 'Proforma',
-      [DocumentType.InvoiceDraft]: 'Fattura',
+      [DocumentType.Invoice]: 'Fattura',
       [DocumentType.InvoiceAccompanying]: 'Fattura accompagnatoria',
       [DocumentType.CreditNote]: 'Nota di credito',
       [DocumentType.StoreSale]: 'Vendita al banco',
@@ -108,7 +108,7 @@ describe('documentStatusTone', () => {
 
 describe('documentStatusLabelForType', () => {
   const fatture = [
-    DocumentType.InvoiceDraft,
+    DocumentType.Invoice,
     DocumentType.InvoiceAccompanying,
     DocumentType.CreditNote,
   ] as const;
@@ -143,13 +143,13 @@ describe('documentStatusLabelForType', () => {
 
   it('la fattura annullata ricade sull’etichetta generica', () => {
     expect(
-      documentStatusLabelForType(DocumentType.InvoiceDraft, DocumentStatus.Cancelled, NON_EMESSA),
+      documentStatusLabelForType(DocumentType.Invoice, DocumentStatus.Cancelled, NON_EMESSA),
     ).toBe('Annullato');
   });
 
   it('una data di emissione esterna non cambia gli stati diversi da «inviato»', () => {
     expect(
-      documentStatusLabelForType(DocumentType.InvoiceDraft, DocumentStatus.Confirmed, {
+      documentStatusLabelForType(DocumentType.Invoice, DocumentStatus.Confirmed, {
         externallyIssuedAt: IL_17_AGOSTO,
       }),
     ).toBe('Da emettere');
@@ -206,14 +206,14 @@ describe('documentStatusDisplayLabel', () => {
   it('senza il documento assume che non sia stata emessa esternamente', () => {
     // Il parametro `doc` ha un default: chi ha in mano solo tipo e stato deve
     // poter chiamare la funzione senza inventarsi un oggetto.
-    expect(documentStatusDisplayLabel(DocumentType.InvoiceDraft, DocumentStatus.Sent)).toBe(
+    expect(documentStatusDisplayLabel(DocumentType.Invoice, DocumentStatus.Sent)).toBe(
       'Inviata al commercialista',
     );
   });
 
   it('con la data di emissione esterna la fattura dice «Emessa esternamente»', () => {
     expect(
-      documentStatusDisplayLabel(DocumentType.InvoiceDraft, DocumentStatus.Sent, {
+      documentStatusDisplayLabel(DocumentType.Invoice, DocumentStatus.Sent, {
         externallyIssuedAt: IL_17_AGOSTO,
       }),
     ).toBe('Emessa esternamente');
@@ -251,9 +251,7 @@ describe('documentStatusDisplayTone', () => {
   });
 
   it('i documenti non operativi seguono il tono dello stato, bozza compresa', () => {
-    expect(documentStatusDisplayTone(DocumentType.InvoiceDraft, DocumentStatus.Draft)).toBe(
-      'neutral',
-    );
+    expect(documentStatusDisplayTone(DocumentType.Invoice, DocumentStatus.Draft)).toBe('neutral');
     expect(documentStatusDisplayTone(DocumentType.Proforma, DocumentStatus.Printed)).toBe('info');
   });
 
@@ -415,7 +413,7 @@ describe('counterpartyDocLabel', () => {
 describe('documentReferenceLabel', () => {
   it('quando c’è il riferimento vince su tutto', () => {
     expect(documentReferenceLabel(DocumentType.GoodsReceipt, 'AM-0001', 'AM')).toBe('AM-0001');
-    expect(documentReferenceLabel(DocumentType.InvoiceDraft, 'FT-0009', 'FT')).toBe('FT-0009');
+    expect(documentReferenceLabel(DocumentType.Invoice, 'FT-0009', 'FT')).toBe('FT-0009');
   });
 
   it('operativo senza riferimento: dichiara la serie e che non è numerato', () => {
@@ -426,9 +424,7 @@ describe('documentReferenceLabel', () => {
   });
 
   it('non operativo senza riferimento: è una bozza della serie', () => {
-    expect(documentReferenceLabel(DocumentType.InvoiceDraft, undefined, 'FT')).toBe(
-      'Bozza · serie FT',
-    );
+    expect(documentReferenceLabel(DocumentType.Invoice, undefined, 'FT')).toBe('Bozza · serie FT');
     expect(documentReferenceLabel(DocumentType.Quote, '', 'PRE')).toBe('Bozza · serie PRE');
   });
 });

@@ -80,7 +80,7 @@ describe('documentsRoutes — il tipo è noto prima della lettura', () => {
   it('i tre tipi della famiglia Fattura chiedono il permesso della loro famiglia', async () => {
     const routes = await salesFormRoutes();
     const family = [
-      DocumentType.InvoiceDraft,
+      DocumentType.Invoice,
       DocumentType.InvoiceAccompanying,
       DocumentType.CreditNote,
     ];

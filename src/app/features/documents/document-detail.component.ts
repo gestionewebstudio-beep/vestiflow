@@ -53,7 +53,7 @@ import {
 } from './models/document-stock-operation.util';
 import { isStoreFlowDocumentType } from '@domain/documents/models/document-operational.util';
 import {
-  isInvoiceDraftDocumentType,
+  isInvoiceDocumentType,
   isProformaDocumentType,
   isQuoteDocumentType,
   isSalesDdtDocumentType,
@@ -486,7 +486,7 @@ export class DocumentDetailComponent {
     if (isProformaDocumentType(doc.type)) {
       return 'Modifica proforma';
     }
-    if (isInvoiceDraftDocumentType(doc.type)) {
+    if (isInvoiceDocumentType(doc.type)) {
       return 'Modifica fattura';
     }
     if (doc.status === DocumentStatus.Draft) {
@@ -654,8 +654,8 @@ export class DocumentDetailComponent {
     URL.revokeObjectURL(url);
   }
 
-  protected convertToInvoiceDraft(): void {
-    this.runConvert(DocumentType.InvoiceDraft);
+  protected convertToInvoice(): void {
+    this.runConvert(DocumentType.Invoice);
   }
 
   protected convertToSalesDdt(): void {
@@ -677,7 +677,7 @@ export class DocumentDetailComponent {
 
   private convertTargetRoute(targetType: DocumentType): string | null {
     switch (targetType) {
-      case DocumentType.InvoiceDraft:
+      case DocumentType.Invoice:
         return '/app/documents/fattura/new';
       case DocumentType.Proforma:
         return '/app/documents/proforma/new';

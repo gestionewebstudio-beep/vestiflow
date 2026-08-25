@@ -89,7 +89,7 @@ describe('DocumentService (HTTP)', () => {
         pageSize: 50,
         search: 'rossi',
         type: DocumentType.SalesDdt,
-        types: [DocumentType.InvoiceDraft, DocumentType.CreditNote],
+        types: [DocumentType.Invoice, DocumentType.CreditNote],
         status: DocumentStatus.Draft,
         dateFrom: '2026-01-01',
         dateTo: '2026-12-31',
@@ -112,7 +112,7 @@ describe('DocumentService (HTTP)', () => {
     expect(params.get('search')).toBe('rossi');
     expect(params.get('type')).toBe('sales_ddt');
     // Piu' tipi viaggiano in UN parametro separato da virgole.
-    expect(params.get('types')).toBe('invoice_draft,credit_note');
+    expect(params.get('types')).toBe('invoice,credit_note');
     expect(params.get('status')).toBe('draft');
     expect(params.get('dateFrom')).toBe('2026-01-01');
     expect(params.get('dateTo')).toBe('2026-12-31');
@@ -727,13 +727,13 @@ describe('DocumentService (HTTP)', () => {
   });
 
   it('convertPrefill chiede il precompilato senza creare il documento', async () => {
-    const promise = firstValueFrom(service.convertPrefill('doc-1', DocumentType.InvoiceDraft));
+    const promise = firstValueFrom(service.convertPrefill('doc-1', DocumentType.Invoice));
 
     const req = httpMock.expectOne(`${API_BASE}/documents/doc-1/convert-prefill`);
     expect(req.request.method).toBe('POST');
-    expect(req.request.body).toEqual({ targetType: 'invoice_draft' });
+    expect(req.request.body).toEqual({ targetType: 'invoice' });
     req.flush({
-      type: DocumentType.InvoiceDraft,
+      type: DocumentType.Invoice,
       documentDate: '2026-08-10',
       sourceDocumentId: 'doc-1',
       sourceDocumentType: DocumentType.SalesDdt,

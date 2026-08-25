@@ -7,7 +7,7 @@ import { DocumentType } from '@core/models/document.model';
  */
 export const SALES_FORM_DOCUMENT_TYPES = [
   DocumentType.Proforma,
-  DocumentType.InvoiceDraft,
+  DocumentType.Invoice,
   DocumentType.InvoiceAccompanying,
   // La nota di credito usa la stessa base di maschera, con le proprie
   // differenze di dominio (casella «Carica magazzino», verso economico).
@@ -28,7 +28,7 @@ export type SalesFormDocumentType = (typeof SALES_FORM_DOCUMENT_TYPES)[number];
 /** Documenti vendita con anteprima stampa dedicata. */
 export const SALES_DOCUMENT_TYPES: readonly DocumentType[] = [
   DocumentType.Proforma,
-  DocumentType.InvoiceDraft,
+  DocumentType.Invoice,
   DocumentType.InvoiceAccompanying,
   DocumentType.CreditNote,
   DocumentType.SalesDdt,
@@ -42,7 +42,7 @@ export const SALES_DOCUMENT_TYPES: readonly DocumentType[] = [
  * verso economico e la casella «Carica magazzino» (nota di credito).
  */
 export const SALES_INVOICE_DOCUMENT_TYPES: readonly DocumentType[] = [
-  DocumentType.InvoiceDraft,
+  DocumentType.Invoice,
   DocumentType.InvoiceAccompanying,
   DocumentType.CreditNote,
 ] as const;
@@ -63,8 +63,8 @@ export function isProformaDocumentType(type: DocumentType): boolean {
   return type === DocumentType.Proforma;
 }
 
-export function isInvoiceDraftDocumentType(type: DocumentType): boolean {
-  return type === DocumentType.InvoiceDraft;
+export function isInvoiceDocumentType(type: DocumentType): boolean {
+  return type === DocumentType.Invoice;
 }
 
 /** Fattura accompagnatoria: trasporto, destinazione e scarico magazzino. */
@@ -108,7 +108,7 @@ export function isSalesInvoiceDocumentType(type: DocumentType): boolean {
  * qui. Il codice permetteva ciò che la matrice non prevede, e cede il codice.
  */
 export function supportsLinkedSalesDdt(type: DocumentType): boolean {
-  return type === DocumentType.InvoiceDraft;
+  return type === DocumentType.Invoice;
 }
 
 /** Preventivo: maschera dedicata (stessa impostazione dell'Ordine cliente). */

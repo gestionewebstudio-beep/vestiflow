@@ -34,7 +34,7 @@ import { DocumentType } from '@prisma/client';
  */
 export const SALES_PRICE_MODE_TYPES: readonly DocumentType[] = [
   DocumentType.proforma,
-  DocumentType.invoice_draft,
+  DocumentType.invoice,
   DocumentType.invoice_accompanying,
   // ⚠️ Vale per la nota di credito creata VUOTA. Una nota **generata da una
   // fattura** eredita il modello economico della fattura d'origine: se quella

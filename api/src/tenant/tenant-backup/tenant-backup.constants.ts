@@ -13,7 +13,7 @@
  *
  * ── Storia ──────────────────────────────────────────────────────────────────
  * 1  formato iniziale
- * 2  26/08/2026 — rinomina del valore di enum `invoice_draft` in `invoice`:
+ * 2  26/08/2026 — rinomina del valore di enum `invoice` in `invoice`:
  *    i pacchetti v1 portano il nome vecchio dentro `data/documents.json`,
  *    `documentTypeSettings`, `documentSequences` e `stockMovements`.
  */

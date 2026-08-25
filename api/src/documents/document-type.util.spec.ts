@@ -10,13 +10,13 @@ import {
 describe('document-type.util', () => {
   it('proforma e fattura non caricano magazzino di default', () => {
     expect(documentTypeDefaultLoadsStock(DocumentType.proforma)).toBe(false);
-    expect(documentTypeDefaultLoadsStock(DocumentType.invoice_draft)).toBe(false);
+    expect(documentTypeDefaultLoadsStock(DocumentType.invoice)).toBe(false);
     expect(documentTypeDefaultLoadsStock(DocumentType.goods_receipt)).toBe(true);
   });
 
   it('accetta conversione proforma verso DDT e fattura', () => {
     expect(isProformaConvertTarget(DocumentType.sales_ddt)).toBe(true);
-    expect(isProformaConvertTarget(DocumentType.invoice_draft)).toBe(true);
+    expect(isProformaConvertTarget(DocumentType.invoice)).toBe(true);
     expect(isProformaConvertTarget(DocumentType.proforma)).toBe(false);
   });
 

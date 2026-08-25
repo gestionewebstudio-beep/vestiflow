@@ -5526,12 +5526,12 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
    * leggeva quel nome: il documento si chiama **Fattura** in ogni altro punto
    * dell'app — elenco, stampa, permessi, `documentTypeLabel`.
    *
-   * ⚠️ Il nome veniva dall'enum `invoice_draft`, che è ancora quello del tipo
+   * ⚠️ Il nome veniva dall'enum `invoice`, che è ancora quello del tipo
    * nel database ma **non significa più «bozza»**: lo schema stesso lo
    * commenta «Fattura (fiscale, da trasmettere al commercialista)».
    */
   protected readonly generateTargetOptions: readonly SelectMenuOption[] = [
-    { value: DocumentType.InvoiceDraft, label: 'Fattura' },
+    { value: DocumentType.Invoice, label: 'Fattura' },
     { value: DocumentType.Proforma, label: 'Proforma' },
   ];
 
@@ -5556,7 +5556,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   private generateTargetRoute(targetType: DocumentType): string | null {
     switch (targetType) {
-      case DocumentType.InvoiceDraft:
+      case DocumentType.Invoice:
         return '/app/documents/fattura/new';
       case DocumentType.Proforma:
         return '/app/documents/proforma/new';

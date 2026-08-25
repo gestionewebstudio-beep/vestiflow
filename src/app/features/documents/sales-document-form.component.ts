@@ -177,7 +177,7 @@ import {
 } from '@domain/documents/models/document-labels.util';
 import {
   isInvoiceAccompanyingDocumentType,
-  isInvoiceDraftDocumentType,
+  isInvoiceDocumentType,
   isProformaDocumentType,
   isSalesFormDocumentType,
   isSalesInvoiceDocumentType,
@@ -403,9 +403,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
   protected readonly documentType = computed(() => this.loadedDocument()?.type ?? this.routeType);
 
   protected readonly isProforma = computed(() => isProformaDocumentType(this.documentType()));
-  protected readonly isInvoiceDraft = computed(() =>
-    isInvoiceDraftDocumentType(this.documentType()),
-  );
+  protected readonly isInvoiceDraft = computed(() => isInvoiceDocumentType(this.documentType()));
 
   /** Fattura o Fattura accompagnatoria: testata fiscale e dati pagamento. */
   protected readonly isSalesInvoice = computed(() =>

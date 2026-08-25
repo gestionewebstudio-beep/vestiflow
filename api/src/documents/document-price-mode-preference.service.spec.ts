@@ -59,7 +59,7 @@ describe('DocumentPriceModePreferenceService', () => {
       convenzione(true);
 
       await expect(
-        service.resolvePricesIncludeVat(tenantId, userId, DocumentType.invoice_draft),
+        service.resolvePricesIncludeVat(tenantId, userId, DocumentType.invoice),
       ).resolves.toBe(true);
     });
 
@@ -68,7 +68,7 @@ describe('DocumentPriceModePreferenceService', () => {
       convenzione(false);
 
       await expect(
-        service.resolvePricesIncludeVat(tenantId, userId, DocumentType.invoice_draft),
+        service.resolvePricesIncludeVat(tenantId, userId, DocumentType.invoice),
       ).resolves.toBe(false);
     });
 
@@ -88,7 +88,7 @@ describe('DocumentPriceModePreferenceService', () => {
       convenzione(true);
 
       await expect(
-        service.resolvePricesIncludeVat(tenantId, userId, DocumentType.invoice_draft),
+        service.resolvePricesIncludeVat(tenantId, userId, DocumentType.invoice),
       ).resolves.toBe(false);
     });
 
@@ -97,7 +97,7 @@ describe('DocumentPriceModePreferenceService', () => {
       convenzione(false);
 
       await expect(
-        service.resolvePricesIncludeVat(tenantId, userId, DocumentType.invoice_draft),
+        service.resolvePricesIncludeVat(tenantId, userId, DocumentType.invoice),
       ).resolves.toBe(true);
     });
 
@@ -105,7 +105,7 @@ describe('DocumentPriceModePreferenceService', () => {
       memoria(false);
       convenzione(true);
 
-      await service.resolvePricesIncludeVat(tenantId, userId, DocumentType.invoice_draft);
+      await service.resolvePricesIncludeVat(tenantId, userId, DocumentType.invoice);
 
       expect(prisma.tenantFeatureSettings.findUnique).not.toHaveBeenCalled();
     });
@@ -121,17 +121,17 @@ describe('DocumentPriceModePreferenceService', () => {
     memoria(null);
     convenzione(true);
     await expect(
-      service.resolvePricesIncludeVat(tenantId, userId, DocumentType.invoice_draft),
+      service.resolvePricesIncludeVat(tenantId, userId, DocumentType.invoice),
     ).resolves.toBe(true);
 
     // 2 · l'operatore compila quella Fattura in NETTO: la scelta si ricorda
-    await service.remember(tenantId, userId, DocumentType.invoice_draft, false);
+    await service.remember(tenantId, userId, DocumentType.invoice, false);
     expect(prisma.userDocumentPriceModePreference.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         create: expect.objectContaining({
           tenantId,
           userId,
-          documentType: DocumentType.invoice_draft,
+          documentType: DocumentType.invoice,
           pricesIncludeVat: false,
         }),
       }),
@@ -140,7 +140,7 @@ describe('DocumentPriceModePreferenceService', () => {
     // 3 · la Fattura successiva riparte da lì, non dalla convenzione
     memoria(false);
     await expect(
-      service.resolvePricesIncludeVat(tenantId, userId, DocumentType.invoice_draft),
+      service.resolvePricesIncludeVat(tenantId, userId, DocumentType.invoice),
     ).resolves.toBe(false);
   });
 
