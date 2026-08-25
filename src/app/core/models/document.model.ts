@@ -265,7 +265,7 @@ export interface DocumentRecord extends TenantScoped, Timestamped {
   readonly adjustmentDirection?: AdjustmentDirection;
   readonly externalDocNumber?: string;
   readonly externalDocDate?: IsoDateString;
-  /** Data emissione fattura esterna su bozza fattura (B6). */
+  /** Data emissione fattura esterna su fattura (B6). */
   readonly externallyIssuedAt?: IsoDateString;
   readonly externalRef?: string;
   readonly sourceDocumentId?: EntityId;
@@ -336,7 +336,7 @@ export interface DocumentRecord extends TenantScoped, Timestamped {
   readonly lineCount?: number;
   /** Conversione: documento da cui nasce (proforma/DDT), se generato da una. */
   readonly sourceDocument?: ConvertedDocumentRef | null;
-  /** Conversione: documenti generati da questo (bozza fattura, fattura, DDT). */
+  /** Conversione: documenti generati da questo (fattura, fattura, DDT). */
   readonly derivedDocuments?: readonly ConvertedDocumentRef[];
   /** Ordine vendita Shopify collegato (documento auto-generato). */
   readonly linkedSalesOrder?: {

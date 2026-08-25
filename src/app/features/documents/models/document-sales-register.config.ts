@@ -205,7 +205,7 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
     profile: 'proforma',
     type: DocumentType.Proforma,
     pageTitle: 'Proforma',
-    pageSubtitle: 'Proforma cliente, convertibili in bozza fattura o DDT vendita.',
+    pageSubtitle: 'Proforma cliente, convertibili in fattura o DDT vendita.',
     createLabel: 'Nuova proforma',
     createPath: '/app/documents/proforma/new',
     listPath: '/app/documents/proforma',

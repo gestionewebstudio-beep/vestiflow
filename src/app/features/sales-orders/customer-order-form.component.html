@@ -1693,8 +1693,8 @@
           </app-button>
         }
         @if (canGenerateDocuments()) {
-          <!-- Genera documento dal DDT (prompt DDT §GENERAZIONE): Bozza
-               fattura o Proforma — la fattura vera non è prevista. -->
+          <!-- Genera documento dal DDT (prompt DDT §GENERAZIONE):
+               Fattura o Proforma. -->
           <div class="co-form__conclude" documentActionsExtra>
             <app-button
               type="button"
@@ -1727,7 +1727,7 @@
             type="button"
             variant="secondary"
             [disabled]="true"
-            title="Salva il documento prima di generare Bozza fattura o Proforma"
+            title="Salva il documento prima di generare Fattura o Proforma"
           >
             Genera documento
           </app-button>

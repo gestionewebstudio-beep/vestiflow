@@ -2596,8 +2596,8 @@ export class DocumentsService {
   }
 
   /**
-   * Converte un documento vendita in un altro tipo (proforma → DDT/bozza
-   * fattura; DDT → bozza fattura/proforma): il form di destinazione si apre
+   * Converte un documento vendita in un altro tipo (proforma → DDT/fattura;
+   * DDT → fattura/proforma): il form di destinazione si apre
    * precompilato da questo prefill e crea il documento solo al salvataggio.
    */
   async convertPrefill(
@@ -2629,7 +2629,7 @@ export class DocumentsService {
     }
     if (isSalesDdtSource && !isSalesDdtConvertTarget(dto.targetType)) {
       throw new UnprocessableEntityException(
-        'Dal DDT vendita si possono generare solo Bozza fattura o Proforma.',
+        'Dal DDT vendita si possono generare solo Fattura o Proforma.',
       );
     }
     if (source.status === DocumentStatus.cancelled) {

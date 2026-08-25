@@ -148,7 +148,7 @@ export const documentsRoutes: Routes = [
       reuse: true,
     },
   },
-  // ⛔ Qui c'era il reindirizzamento dal vecchio percorso «Bozze fattura»
+  // ⛔ Qui c'era il reindirizzamento dal vecchio percorso «Fatture»
   // (`invoice-draft`). Tolto il 25/08/2026: quella schermata non esiste più —
   // il documento si chiama Fattura e sta su `fattura`.
   //

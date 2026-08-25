@@ -40,7 +40,7 @@ const TRANSPORT_PORT_LABELS: Record<TransportPort, string> = {
 
 /**
  * Anteprima dettaglio dedicata dei documenti di vendita (Preventivi, Proforma,
- * DDT vendita, Bozze fattura): stesso layout a pannelli dell'anteprima Ordine
+ * DDT vendita, Fatture): stesso layout a pannelli dell'anteprima Ordine
  * cliente, adattato ai campi specifici di ciascun tipo. Estende il dettaglio
  * documento generico per riusarne caricamento, permessi e transizioni di stato
  * (conferma, conversione, annullamento) senza duplicare logica.
@@ -154,7 +154,7 @@ export class SalesDocumentDetailComponent extends DocumentDetailComponent {
       facts.push({ label: 'Causale', value: doc.billingCause });
     }
     // Documento della controparte (tipo + numero + data): vale per ogni tipo di
-    // vendita, non più solo per la bozza fattura registrata.
+    // vendita, non più solo per la fattura registrata.
     const counterpartyDoc = counterpartyDocLabel(doc);
     if (counterpartyDoc) {
       facts.push({ label: 'Documento controparte', value: counterpartyDoc });

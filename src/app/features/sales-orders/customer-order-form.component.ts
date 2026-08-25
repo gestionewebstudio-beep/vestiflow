@@ -1693,7 +1693,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   protected readonly partialOrdersDialogOpen = signal(false);
   protected readonly partialOrderNumbers = signal<readonly string[]>([]);
   private pendingPartialOrderIds: readonly string[] = [];
-  /** Menu «Genera documento» (Bozza fattura / Proforma, §GENERAZIONE). */
+  /** Menu «Genera documento» (Fattura / Proforma, §GENERAZIONE). */
   protected readonly generateMenuOpen = signal(false);
   protected readonly generating = signal(false);
   /**
@@ -5516,13 +5516,22 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     }
   }
 
-  // ── DDT vendita: Genera documento (Bozza fattura / Proforma, §GENERAZIONE) ──
+  // ── DDT vendita: Genera documento (Fattura / Proforma, §GENERAZIONE) ──
   protected readonly canGenerateDocuments = computed(
     () => this.isSalesDdt && this.isEditMode() && !this.dirtySinceLastSave(),
   );
 
+  /**
+   * ⛔ Qui c'era **«Fattura»**, ed era uno dei posti in cui l'operatore
+   * leggeva quel nome: il documento si chiama **Fattura** in ogni altro punto
+   * dell'app — elenco, stampa, permessi, `documentTypeLabel`.
+   *
+   * ⚠️ Il nome veniva dall'enum `invoice_draft`, che è ancora quello del tipo
+   * nel database ma **non significa più «bozza»**: lo schema stesso lo
+   * commenta «Fattura (fiscale, da trasmettere al commercialista)».
+   */
   protected readonly generateTargetOptions: readonly SelectMenuOption[] = [
-    { value: DocumentType.InvoiceDraft, label: 'Bozza fattura' },
+    { value: DocumentType.InvoiceDraft, label: 'Fattura' },
     { value: DocumentType.Proforma, label: 'Proforma' },
   ];
 

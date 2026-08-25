@@ -55,7 +55,7 @@
     "icons:generate": "node scripts/generate-icons.mjs",
     "prepare": "husky",
     "check:registro": "node scripts/check-registro-legacy.mjs",
-    "check:terminologia": "node scripts/check-terminologia-banco.mjs",
+    "check:terminologia": "node scripts/check-terminologia.mjs",
     "check:modalita-prezzo": "node scripts/check-modalita-prezzo.mjs",
     "check:api-boot": "node scripts/check-api-boot.mjs",
     "check:tab-stops": "node scripts/check-tab-stops.mjs",

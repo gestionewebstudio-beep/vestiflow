@@ -220,9 +220,10 @@ describe('l’ordine, che è l’unica cosa che rende le rotte raggiungibili', (
  * pagina, e prima o poi qualcuno la scrive nei link.
  *
  * ⭐ **Il vincolo che resta vero** — un redirect senza `pathMatch: 'full'` non
- * trascina i segmenti successivi, e va PRIMA del catch-all `:id` — vale per i
- * reindirizzamenti che esistono ancora (Corrispettivi, Bozze fattura), ed è
- * dove va provato se un domani serve.
+ * trascina i segmenti successivi, e va PRIMA del catch-all `:id` — non ha più
+ * un reindirizzamento su cui valere: nello stesso passaggio sono spariti anche
+ * quelli dei Corrispettivi e del vecchio percorso Fatture. È dove andrà provato
+ * se un domani ne servirà uno.
  */
 
 describe('la config dell’elenco non può divergere dalla rotta', () => {

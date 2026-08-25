@@ -16,9 +16,7 @@ export async function expectPendingInvoiceDocumentsView(page: Page): Promise<voi
   expect(url.searchParams.get('dateTo')).toBeTruthy();
 
   await expect(
-    page
-      .getByRole('status')
-      .filter({ hasText: 'DDT vendita confermati senza bozza fattura collegata' }),
+    page.getByRole('status').filter({ hasText: 'DDT vendita confermati senza fattura collegata' }),
   ).toBeVisible();
   await expect(page.getByRole('checkbox', { name: 'DDT da fatturare' })).toBeChecked();
 }

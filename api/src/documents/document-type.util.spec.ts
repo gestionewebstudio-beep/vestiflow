@@ -8,13 +8,13 @@ import {
 } from './document-type.util';
 
 describe('document-type.util', () => {
-  it('proforma e bozza fattura non caricano magazzino di default', () => {
+  it('proforma e fattura non caricano magazzino di default', () => {
     expect(documentTypeDefaultLoadsStock(DocumentType.proforma)).toBe(false);
     expect(documentTypeDefaultLoadsStock(DocumentType.invoice_draft)).toBe(false);
     expect(documentTypeDefaultLoadsStock(DocumentType.goods_receipt)).toBe(true);
   });
 
-  it('accetta conversione proforma verso DDT e bozza fattura', () => {
+  it('accetta conversione proforma verso DDT e fattura', () => {
     expect(isProformaConvertTarget(DocumentType.sales_ddt)).toBe(true);
     expect(isProformaConvertTarget(DocumentType.invoice_draft)).toBe(true);
     expect(isProformaConvertTarget(DocumentType.proforma)).toBe(false);

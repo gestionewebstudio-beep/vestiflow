@@ -3113,7 +3113,7 @@ describe('DocumentsService', () => {
       ).resolves.toMatchObject({ id: 'doc-b' });
     });
 
-    it('non blocca le mutazioni dei documenti senza sede (es. bozza fattura)', async () => {
+    it('non blocca le mutazioni dei documenti senza sede (es. fattura)', async () => {
       const { service } = createService(
         prisma,
         resolvedSetting({ type: DocumentType.invoice_draft }),

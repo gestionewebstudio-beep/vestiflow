@@ -55,7 +55,7 @@ export function documentStatusLabel(status: DocumentStatus): string {
   return STATUS_LABELS[status];
 }
 
-/** Etichetta stato contestuale al tipo (es. bozza fattura / stati fiscali B6). */
+/** Etichetta stato contestuale al tipo (es. fattura / stati fiscali B6). */
 export function documentStatusLabelForType(
   type: DocumentType,
   status: DocumentStatus,

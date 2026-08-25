@@ -438,7 +438,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     () => this.isInvoiceAccompanying() && !this.hasLinkedDdt(),
   );
 
-  // ── Includi documento (mappa in document-include.util): proforma e bozza
+  // ── Includi documento (mappa in document-include.util): proforma e
   //     fattura non includono da nessun documento. ─────────────────────────
   protected readonly includeSourceKinds = computed(() =>
     includeSourceKindsForDocumentType(this.documentType()),

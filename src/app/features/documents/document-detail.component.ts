@@ -451,7 +451,7 @@ export class DocumentDetailComponent {
   protected readonly canConvert = computed(() => this.canManage() && this.convertSourceReady());
 
   /**
-   * «Converti in bozza fattura»: chi non gestisce le fatture non vede il
+   * «Converti in fattura»: chi non gestisce le fatture non vede il
    * comando, anche se la proforma da cui parte è sua.
    */
   protected readonly canConvertToInvoice = computed(
@@ -487,7 +487,7 @@ export class DocumentDetailComponent {
       return 'Modifica proforma';
     }
     if (isInvoiceDraftDocumentType(doc.type)) {
-      return 'Modifica bozza fattura';
+      return 'Modifica fattura';
     }
     if (doc.status === DocumentStatus.Draft) {
       return 'Modifica bozza';

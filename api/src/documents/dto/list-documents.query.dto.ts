@@ -99,7 +99,7 @@ export class ListDocumentsQueryDto extends PaginationQueryDto {
   @IsString()
   sort?: string;
 
-  /** DDT vendita confermati senza bozza fattura derivata. */
+  /** DDT vendita confermati senza fattura derivata. */
   @IsOptional()
   @Transform(({ value }) => value === '1' || value === 'true' || value === true)
   @IsBoolean()

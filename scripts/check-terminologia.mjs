@@ -1,5 +1,12 @@
 /**
- * Guardia sulla terminologia della Vendita al banco (`docs/11` A6).
+ * Guardia sulle **denominazioni ritirate**: nomi che l'applicazione non usa più
+ * e che non devono tornare da un copia-incolla.
+ *
+ * ⚠️ Si chiamava `check-terminologia-banco.mjs` e copriva un caso solo. Dal
+ * 25/08/2026 ne copre due, e il nome del file segue lo script npm che lo
+ * invoca da sempre (`check:terminologia`).
+ *
+ * ## 1 · Vendita al banco (`docs/11` A6)
  *
  * **Deciso il 18/08/2026, completato il 20/08/2026.** «Vendita al banco» è
  * l'unica denominazione funzionale corrente: «Vendita negozio», «Vendita in
@@ -31,6 +38,22 @@
  *   · «cassa esterna» e «cassa fiscale»: A10 parla proprio di quelle, che sono
  *     un'altra cosa dal nostro documento.
  *
+ * ## 2 · «Bozza fattura» _(25/08/2026)_
+ *
+ * ⛔ Il documento si chiama **Fattura**: è così in `documentTypeLabel`,
+ * nell'elenco, nella stampa e nei permessi. «Bozza fattura» era rimasto in UN
+ * punto che l'operatore legge davvero — la voce «Genera documento» del DDT
+ * vendita — più il suo suggerimento e due commenti.
+ *
+ * ⚠️ **Il nome veniva dall'enum, e l'enum non si tocca**: `invoice_draft` è il
+ * valore del tipo nel database, e rinominarlo è una migration su un database
+ * condiviso più un'ottantina di punti di codice. Lo schema dichiara già che
+ * cosa significa: «Fattura (fiscale, da trasmettere al commercialista)». Questa
+ * guardia impedisce che quel nome tecnico torni a **essere letto** dall'utente.
+ *
+ * ⭐ Per questo si vieta la forma ITALIANA a parole, non l'identificatore:
+ * `invoice_draft` e `InvoiceDraft` restano leciti ovunque.
+ *
  * Se una voce va davvero reintrodotta, si toglie da qui **con la decisione
  * scritta accanto** — non si aggiunge un'eccezione al file che sta controllando.
  */
@@ -60,6 +83,17 @@ const VIETATI = [
     termine: 'cassa negozio',
     perche:
       'la nostra schermata NON è «la cassa»: è il documento di Vendita al banco (A6). «Cassa esterna» resta legittima, ed è un altro oggetto.',
+  },
+  {
+    termine: 'bozza fattura',
+    perche:
+      'il documento si chiama «Fattura», come in documentTypeLabel. «Bozza» viene ' +
+      "dall'enum invoice_draft, che resta lecito come identificatore ma non deve " +
+      "arrivare all'operatore.",
+  },
+  {
+    termine: 'bozze fattura',
+    perche: 'si dice «Fatture»: la schermata «Bozze fattura» non esiste più.',
   },
 ];
 
@@ -128,7 +162,7 @@ for (const area of AREE) {
 }
 
 if (trovati.length > 0) {
-  console.error('\n✖ Terminologia legacy della Vendita al banco rientrata nel codice:\n');
+  console.error('\n✖ Denominazioni ritirate rientrate nel codice:\n');
   for (const t of trovati) {
     console.error(`  ${t.file}:${t.riga}  «${t.termine}»`);
     console.error(`    ${t.testo}`);
@@ -136,11 +170,11 @@ if (trovati.length > 0) {
   }
   console.error(
     `${trovati.length} occorrenze. Se una va davvero reintrodotta, toglila da\n` +
-      'scripts/check-terminologia-banco.mjs insieme alla decisione che lo giustifica.\n',
+      'scripts/check-terminologia.mjs insieme alla decisione che lo giustifica.\n',
   );
   process.exit(1);
 }
 
 console.log(
-  `✓ terminologia banco: nessuno dei ${VIETATI.length} termini ritirati è rientrato in ${AREE.join(', ')}.`,
+  `✅ check:terminologia — nessuna delle ${VIETATI.length} denominazioni ritirate è rientrata in ${AREE.join(', ')}.`,
 );
