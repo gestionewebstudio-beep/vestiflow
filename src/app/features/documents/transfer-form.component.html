@@ -308,24 +308,18 @@
         <!-- Banda finale: card note (nessun totale su questa maschera). -->
         <div class="doc-form__footer-grid">
           <div class="doc-form__footer-notes">
-            <div class="doc-form__field">
-              <label class="doc-form__label" for="tr-notes">Note</label>
-              <textarea
-                id="tr-notes"
-                class="doc-form__textarea"
-                rows="2"
-                formControlName="notes"
-              ></textarea>
-            </div>
-            <div class="doc-form__field">
-              <label class="doc-form__label" for="tr-internal">Commento interno</label>
-              <textarea
-                id="tr-internal"
-                class="doc-form__textarea"
-                rows="2"
-                formControlName="internalComment"
-              ></textarea>
-            </div>
+            <!-- ⭐ **L'area note comune.**
+          
+                 ⛔ Qui c'erano gli stessi due campi che vivevano in cinque maschere
+                 con CINQUE etichette diverse — «Note», «Note documento», «Note
+                 (visibili in stampa)» — e una sola delle cinque diceva la cosa
+                 utile: quale dei due esce in stampa. Ora la dicono entrambi. -->
+            <app-document-notes
+              [group]="form"
+              notesId="tr-notes"
+              internalId="tr-internal"
+              [readOnly]="formReadOnly()"
+            />
           </div>
         </div>
 

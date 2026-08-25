@@ -574,6 +574,24 @@ describe('GoodsReceiptFormComponent', () => {
    * Comandi che l'API nega: non devono nemmeno comparire. Un pulsante che
    * risponde 403 al primo clic è peggio di un pulsante assente.
    */
+  // ── L'area note comune, con le due spunte proiettate ──────────────────────
+  //
+  // ⭐ E' la FALSIFICAZIONE del contratto: il Trasferimento prova i due campi,
+  // questa maschera prova che il componente ospiti quello che il documento ci
+  // aggiunge — due spunte di dominio suo, «aggiorna il costo in anagrafica» e
+  // «aggiorna i prezzi» — senza saperne niente.
+  describe('area note', () => {
+    it('⭐ i due campi comuni e le DUE SPUNTE convivono', async () => {
+      await setup();
+
+      expect(screen.getByLabelText('Note documento', { selector: 'textarea' })).toBeTruthy();
+      expect(screen.getByLabelText('Commento interno', { selector: 'textarea' })).toBeTruthy();
+      // ⚠️ Se la proiezione si rompesse, i due campi ci sarebbero lo stesso e le
+      // spunte sparirebbero in silenzio: sono l'unica cosa che le vede.
+      expect(screen.getByText(/Aggiorna il costo in anagrafica/)).toBeTruthy();
+    });
+  });
+
   describe('permessi dell’operatore', () => {
     it('senza permessi: numerazioni, nuovo fornitore e nuovo prodotto spariscono', async () => {
       await setup({ currentUser: userWithPermissions([]) });

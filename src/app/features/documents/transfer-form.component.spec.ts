@@ -421,6 +421,38 @@ describe('TransferFormComponent', () => {
     });
   });
 
+  // ── L'area note comune ────────────────────────────────────────────────────
+  //
+  // ⚠️ **Prima del montaggio NESSUNA prova toccava questi due campi**, in
+  // nessuna delle cinque maschere che li avevano. Le etichette sono cambiate su
+  // quattro maschere — «Note» e «Note (visibili in stampa)» sono diventate «Note
+  // documento» — e la suite e' rimasta verde: 2589 prove che non guardavano li'.
+  describe('area note', () => {
+    it('⭐ i due campi ci sono, con le etichette comuni', async () => {
+      const { fixture } = await setup({ counters: [COUNTER] });
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(screen.getByLabelText('Note documento', { selector: 'textarea' })).toBeTruthy();
+      expect(screen.getByLabelText('Commento interno', { selector: 'textarea' })).toBeTruthy();
+    });
+
+    it('⭐ e scrivono sul documento, non su un form loro', async () => {
+      // ⚠️ E' la meta' che conta: il componente riceve il `FormGroup` della
+      // maschera, e `formControlName` si risolve sull'albero delle
+      // DICHIARAZIONI — non su quello del DOM. Sbagliando il collegamento i
+      // campi comparirebbero lo stesso e non scriverebbero niente.
+      const user = userEvent.setup();
+      const { fixture } = await setup({ counters: [COUNTER] });
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      await user.type(screen.getByLabelText('Commento interno', { selector: 'textarea' }), 'ok');
+
+      expect(fixture.componentInstance.form.controls.internalComment.value).toBe('ok');
+    });
+  });
+
   // ── Documento vuoto ──────────────────────────────────────────────────────
   //
   // ⭐ **Decisione del proprietario, 25/08/2026**, chiesta per TUTTI i tipi:

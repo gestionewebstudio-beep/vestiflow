@@ -747,25 +747,18 @@
           </aside>
 
           <div class="doc-form__footer-notes">
-            <div class="doc-form__field">
-              <label class="doc-form__label" for="sd-notes">Note (visibili in stampa)</label>
-              <textarea
-                id="sd-notes"
-                class="doc-form__textarea"
-                rows="3"
-                formControlName="notes"
-              ></textarea>
-            </div>
-
-            <div class="doc-form__field">
-              <label class="doc-form__label" for="sd-internal">Commento interno</label>
-              <textarea
-                id="sd-internal"
-                class="doc-form__textarea"
-                rows="2"
-                formControlName="internalComment"
-              ></textarea>
-            </div>
+            <!-- ⭐ **L'area note comune.**
+          
+                 ⛔ Qui c'erano gli stessi due campi che vivevano in cinque maschere
+                 con CINQUE etichette diverse — «Note», «Note documento», «Note
+                 (visibili in stampa)» — e una sola delle cinque diceva la cosa
+                 utile: quale dei due esce in stampa. Ora la dicono entrambi. -->
+            <app-document-notes
+              [group]="form"
+              notesId="sd-notes"
+              internalId="sd-internal"
+              [readOnly]="formReadOnly()"
+            />
           </div>
         </div>
       </fieldset>

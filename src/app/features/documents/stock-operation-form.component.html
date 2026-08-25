@@ -342,34 +342,18 @@
         <!-- Banda finale: card note + motivo obbligatorio (nessun totale qui). -->
         <div class="doc-form__footer-grid">
           <div class="doc-form__footer-notes">
-            <div class="doc-form__field">
-              <label class="doc-form__label" for="so-notes">Note</label>
-              <textarea
-                id="so-notes"
-                class="doc-form__textarea"
-                rows="2"
-                formControlName="notes"
-              ></textarea>
-            </div>
-            <div class="doc-form__field">
-              <label class="doc-form__label" for="so-internal">
-                Motivo (commento interno)
-                <span class="doc-form__required" aria-hidden="true">*</span>
-              </label>
-              <textarea
-                id="so-internal"
-                class="doc-form__textarea"
-                rows="2"
-                formControlName="internalComment"
-                [attr.aria-invalid]="fieldInvalid('internalComment')"
-                aria-describedby="so-internal-error"
-              ></textarea>
-              @if (fieldInvalid('internalComment')) {
-                <p id="so-internal-error" class="doc-form__error">
-                  Il motivo è obbligatorio per tracciabilità operativa.
-                </p>
-              }
-            </div>
+            <!-- ⭐ **L'area note comune.**
+          
+                 ⛔ Qui c'erano gli stessi due campi che vivevano in cinque maschere
+                 con CINQUE etichette diverse — «Note», «Note documento», «Note
+                 (visibili in stampa)» — e una sola delle cinque diceva la cosa
+                 utile: quale dei due esce in stampa. Ora la dicono entrambi. -->
+            <app-document-notes
+              [group]="form"
+              notesId="so-notes"
+              internalId="so-internal"
+              [readOnly]="formReadOnly()"
+            />
           </div>
         </div>
 

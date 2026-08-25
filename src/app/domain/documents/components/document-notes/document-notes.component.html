@@ -1,0 +1,30 @@
+<ng-container [formGroup]="group()">
+  <div class="doc-form__field">
+    <label class="doc-form__label" [attr.for]="notesId()">Note documento</label>
+    <textarea
+      [id]="notesId()"
+      class="doc-form__textarea"
+      rows="2"
+      formControlName="notes"
+      [readOnly]="readOnly()"
+      placeholder="Visibili in stampa"
+    ></textarea>
+  </div>
+
+  <div class="doc-form__field">
+    <label class="doc-form__label" [attr.for]="internalId()">Commento interno</label>
+    <textarea
+      [id]="internalId()"
+      class="doc-form__textarea"
+      rows="2"
+      formControlName="internalComment"
+      [readOnly]="readOnly()"
+      placeholder="Nota interna, mai in stampa"
+    ></textarea>
+  </div>
+
+  <!-- ⭐ Quello che il documento aggiunge alle sue note. L'Arrivo merce ci mette
+       due spunte — «aggiorna il costo in anagrafica», «aggiorna i prezzi» — che
+       sono dominio suo: il componente le ospita senza sapere che cosa siano. -->
+  <ng-content />
+</ng-container>

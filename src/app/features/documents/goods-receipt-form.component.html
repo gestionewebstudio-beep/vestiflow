@@ -766,32 +766,16 @@
             </aside>
 
             <div class="doc-form__footer-notes">
-              <div class="doc-form__field">
-                <label class="doc-form__label" for="gr-notes">Note documento</label>
-                <textarea
-                  id="gr-notes"
-                  class="doc-form__textarea"
-                  rows="2"
-                  formControlName="notes"
-                ></textarea>
-              </div>
-
-              <div class="doc-form__field">
-                <label class="doc-form__label" for="gr-internal-comment">
-                  Commento interno
-                  <span class="doc-form__label-hint">
-                    (non stampato: visibile nell'elenco Arrivi merce)
-                  </span>
-                </label>
-                <textarea
-                  id="gr-internal-comment"
-                  class="doc-form__textarea"
-                  rows="2"
-                  formControlName="internalComment"
-                ></textarea>
-              </div>
-
-              <!-- ⛔ Riscritta il 19/08/2026 (03b): prima il costo della variante
+              <!-- ⭐ **L'area note comune**, con le due spunte proiettate: sono
+                   dominio dell'arrivo merce — aggiornare costo e prezzi in
+                   anagrafica — e il componente le ospita senza sapere che siano. -->
+              <app-document-notes
+                [group]="form"
+                notesId="gr-notes"
+                internalId="gr-internal-comment"
+                [readOnly]="formReadOnly()"
+              >
+                <!-- ⛔ Riscritta il 19/08/2026 (03b): prima il costo della variante
                    si scriveva SEMPRE e la spunta governava un costo sul Product.
                    Chi la toglieva credeva di registrare un costo solo
                    documentale, e stava riscrivendo il costo effettivo di ogni
@@ -800,29 +784,30 @@
                    spenta, resta un costo del DOCUMENTO per report e contabilità.
                    L'ultimo prezzo pagato al fornitore si aggiorna comunque: è un
                    fatto del rapporto col fornitore, non dell'anagrafica. -->
-              <label class="doc-form__check">
-                <input
-                  type="checkbox"
-                  [checked]="updateArticleCost()"
-                  [disabled]="formReadOnly()"
-                  (change)="setUpdateArticleCost($any($event.target).checked)"
-                />
-                Aggiorna il costo in anagrafica con quello inserito
-              </label>
+                <label class="doc-form__check">
+                  <input
+                    type="checkbox"
+                    [checked]="updateArticleCost()"
+                    [disabled]="formReadOnly()"
+                    (change)="setUpdateArticleCost($any($event.target).checked)"
+                  />
+                  Aggiorna il costo in anagrafica con quello inserito
+                </label>
 
-              <!-- A differenza del costo, qui non c’è un effetto «sempre»: il
+                <!-- A differenza del costo, qui non c’è un effetto «sempre»: il
                    prezzo non è un dato del documento. Spenta la spunta, i campi
                    prezzo tornano in sola lettura invece di accettare un valore
                    che non avrebbe dove andare. -->
-              <label class="doc-form__check">
-                <input
-                  type="checkbox"
-                  [checked]="updateArticlePrices()"
-                  [disabled]="formReadOnly()"
-                  (change)="setUpdateArticlePrices($any($event.target).checked)"
-                />
-                Aggiorna prezzi articolo
-              </label>
+                <label class="doc-form__check">
+                  <input
+                    type="checkbox"
+                    [checked]="updateArticlePrices()"
+                    [disabled]="formReadOnly()"
+                    (change)="setUpdateArticlePrices($any($event.target).checked)"
+                  />
+                  Aggiorna prezzi articolo
+                </label>
+              </app-document-notes>
             </div>
           </div>
 
