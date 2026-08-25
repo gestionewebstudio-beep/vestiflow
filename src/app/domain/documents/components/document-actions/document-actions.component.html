@@ -1,0 +1,27 @@
+<!-- L'ordine e' quello misurato su tutte e sette le maschere (§34.6):
+     nota · Chiudi · azioni specifiche · Salva. Non si riordina qui. -->
+<ng-content select="[documentActionsNote]" />
+
+<app-button
+  type="button"
+  [variant]="compact() ? 'secondary' : 'ghost'"
+  [disabled]="saving()"
+  (click)="closeRequested.emit()"
+>
+  Chiudi
+</app-button>
+
+<!-- La zona di composizione: il documento ci proietta le proprie azioni, e la
+     barra non sa perche' esistono. ⚠️ Sta FRA Chiudi e Salva, che e' dove la
+     misura le ha trovate in tutte le maschere che ne hanno. -->
+<ng-content select="[documentActionsExtra]" />
+
+<app-button
+  #saveButton
+  [type]="saveType()"
+  [disabled]="saveDisabled()"
+  [loading]="saving()"
+  (click)="onSave()"
+>
+  {{ saveLabel() }}
+</app-button>
