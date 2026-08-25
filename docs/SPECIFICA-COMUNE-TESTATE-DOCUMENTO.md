@@ -1792,3 +1792,56 @@ diverse.
 
 ⛔ **Il rischio da evitare è trasformare una divergenza semantica in una proprietà**
 `[countMode]="valid"`. Prima si decide che cosa ogni nota vuole comunicare.
+
+---
+
+# 38. NIENTE PIÙ «NUOVO MOVIMENTO» GENERICO — deciso il 25/08/2026
+
+## 38.1 La decisione, nelle parole con cui è stata data
+
+> «Movimenti di magazzino è un **registro derivato**. Non esiste più una funzione generica
+> "Nuovo movimento". Le operazioni manuali Carico, Scarico, Rettifica e Trasferimento passano
+> **esclusivamente** dai rispettivi documenti/flussi, anche quando avviate come scorciatoia da
+> Movimenti, scheda prodotto o giacenze. Le scorciatoie possono **precompilare** il documento
+> per mantenere la rapidità operativa. I movimenti legacy senza documento restano
+> **consultabili**, ma non costituiscono il modello per nuove operazioni.»
+>
+> «I pulsanti Carica, Scarica e Rettifica devono **rimanere**. Quello che è fuori contesto è
+> "nuovo movimento".»
+
+## 38.2 Che cosa c'era, e perché era fuori contesto
+
+`features/inventory/movement-form.component` — rotta `movements/new`, titolo «Registra
+movimento» — gestiva **quattro** tipi (Carico · Scarico · Rettifica · Trasferimento) e
+salvava con `registerMovementBatch`: **movimenti nudi, senza un documento dietro**.
+
+Per tutte e quattro le operazioni esiste già la maschera documentale:
+
+| Operazione    | Documento       |
+| ------------- | --------------- |
+| Carico        | Arrivo merce    |
+| Scarico       | Scarico manuale |
+| Rettifica     | Rettifica       |
+| Trasferimento | Trasferimento   |
+
+> **Era un quinto modo di fare quattro cose**, e la differenza non era solo di percorso: un
+> movimento nudo non ha un documento da riaprire, ristampare o correggere.
+
+⚠️ Il registro `StockMovement` resta quello che è — ogni modifica inventariale produce un
+movimento tracciabile (`regole-gestionale`). Cambia **da dove nasce**: da un documento,
+sempre.
+
+## 38.3 ⛔ Che cosa NON cambia
+
+- **I tre pulsanti Carica · Scarica · Rettifica restano** dove sono. Cambia dove portano.
+- **Le scorciatoie restano scorciatoie**: possono precompilare il documento (sede, articolo)
+  perché la rapidità operativa è il motivo per cui esistono.
+- **I movimenti legacy senza documento restano consultabili.** L'elenco e il dettaglio devono
+  continuare a mostrarli — ⛔ togliere la maschera non deve rendere illeggibile lo storico.
+
+## 38.4 ⚠️ Un lavoro fatto oggi che questa decisione rende inutile
+
+La barra azioni comune è stata montata anche su `movement-form` (§34), e la guardia
+`check-document-actions` l'aveva trovata da sé. Non è un danno — quel montaggio esce
+insieme alla maschera — ma è la ragione per cui la domanda «questa schermata deve esistere?»
+va fatta **prima** di lavorarci sopra, non dopo.
