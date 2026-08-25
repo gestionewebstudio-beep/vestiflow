@@ -1837,3 +1837,71 @@ non la **schermata**, che tipizzata lo è sempre stata.
 
 > **Un componente che serve quattro casi non è una funzione generica.** Lo è solo se
 > l'operatore, aprendola, deve scegliere fra quattro cose.
+
+---
+
+# 39. L'AREA NOTE È UNA — estratta il 25/08/2026
+
+⭐ È il pezzo che §35 aveva indicato al posto del piede: **la duplicazione non era nel guscio,
+era dentro l'area note.**
+
+## 39.1 La misura
+
+Gli stessi due controlli — `notes` e `internalComment` — in cinque maschere, con **cinque
+etichette diverse** e una lunghezza da **11 a 59 righe**:
+
+| Maschera              | Etichetta delle note        |
+| --------------------- | --------------------------- |
+| Trasferimento         | «Note»                      |
+| Rettifica / Scarico   | «Note»                      |
+| Arrivo merce          | «Note documento»            |
+| Fatture / DDT         | «Note (visibili in stampa)» |
+| Registrazione fattura | «Note»                      |
+
+⭐ **Una sola delle cinque diceva la cosa utile** — «(visibili in stampa)» — ed è l'unica
+differenza che conta fra i due campi: uno esce sulla stampa, l'altro no. Ora la dicono
+entrambi, ognuno la sua, nel segnaposto.
+
+|          | Etichetta            | Segnaposto                    |
+| -------- | -------------------- | ----------------------------- |
+| pubblico | **Note documento**   | «Visibili in stampa»          |
+| interno  | **Commento interno** | «Nota interna, mai in stampa» |
+
+Il secondo testo non è inventato: era già il segnaposto della Registrazione fattura, ed era
+il migliore dei cinque.
+
+## 39.2 ⚠️ Il `FormGroup` in ingresso non è cerimonia
+
+`formControlName` si risolve sull'albero delle **dichiarazioni**, non su quello del DOM: un
+`[formGroup]` sul contenitore che ospita il componente **non arriva** al suo template. Senza
+il gruppo esplicito il componente esploderebbe con NG01050 — ed è già successo su
+`document-line-card-reference`.
+
+## 39.3 Chi resta fuori, e perché non è pigrizia
+
+|                           |                                                                                                                                                                                                       |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Ordine cliente**        | salva su `SalesOrder`, che nello schema ha `notes` e basta — `internalComment` esiste **solo** su `Document`. Dargli il commento interno è una **migration** sul database condiviso, non un montaggio |
+| **Banco**                 | i suoi campi non stanno in un `FormGroup`: li tiene in un segnale `preserved()`, perché la testata sopravvive fra una vendita e la successiva. E la sua «Causale» è un campo di dominio, non una nota |
+| **Registrazione fattura** | ha entrambi i controlli, ma il commento interno sta in **testata**. Spostarlo si vede, e va deciso                                                                                                    |
+
+⚠️ La decisione del proprietario «Nota interna ovunque» resta quindi **aperta per l'Ordine
+cliente**: il componente c'è, la maschera no, e in mezzo c'è una colonna che non esiste.
+
+## 39.4 ⛔ Nessuna prova toccava quei campi. In nessuna delle cinque
+
+Le etichette sono cambiate su quattro maschere e la suite è rimasta **verde**: 2589 prove che
+non guardavano lì.
+
+> **È il difetto che si ripete in tutta questa estrazione**, e vale la pena nominarlo: le
+> prove coprivano i comportamenti, non ciò che l'operatore legge. Un'etichetta sbagliata non
+> fa arrossare niente.
+
+Le tre guardie aggiunte, e cosa ciascuna vede:
+
+- **Trasferimento** — i due campi ci sono, **e scrivono sul documento**. La seconda metà è
+  quella che un collegamento sbagliato romperebbe in silenzio: i campi comparirebbero lo
+  stesso e non scriverebbero niente.
+- **Arrivo merce** — i due campi e le **due spunte proiettate** convivono. È la falsificazione
+  del contratto: «aggiorna il costo in anagrafica» e «aggiorna i prezzi» sono dominio suo, e
+  il componente le ospita senza saperne niente. Verificata rompendo la proiezione.
