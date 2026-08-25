@@ -30,8 +30,8 @@ import { classifyLineCellKey } from '../../utils/document-line-cell-keys.util';
 })
 export class DocumentLineMoneyCellComponent {
   readonly lineIndex = input.required<number>();
-  /** Valore canonico in unità minori, coda inclusa. */
-  readonly value = input.required<number>();
+  /** Valore canonico in unità minori, coda inclusa. `null` = assente. */
+  readonly value = input.required<number | null>();
   readonly currencyCode = input<CurrencyCode>('EUR');
   readonly inputId = input('');
   readonly ariaLabel = input('');
@@ -48,7 +48,7 @@ export class DocumentLineMoneyCellComponent {
    */
   readonly inColumnCycle = input(true);
 
-  readonly valueChange = output<number>();
+  readonly valueChange = output<number | null>();
   readonly focused = output<void>();
   readonly blurred = output<void>();
   readonly lineAdvance = output<number>();

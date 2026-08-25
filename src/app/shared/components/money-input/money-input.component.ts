@@ -51,8 +51,16 @@ import {
   styleUrl: './money-input.component.scss',
 })
 export class MoneyInputComponent {
-  /** Valore canonico in unità minori, coda decimale inclusa. */
-  readonly value = input.required<number>();
+  /**
+   * Valore canonico in unità minori, coda decimale inclusa.
+   *
+   * ⭐ **`null` = assente, e non è zero.** Un prezzo barrato che non c'è, un
+   * capitale sociale non dichiarato, una riga documento appena aperta: sono tutti
+   * «nessun valore», e mostrarli come `0,00` racconta una cosa diversa. Verso
+   * Shopify `compare_at_price: "0.00"` non è un'assenza — è uno sconto inventato
+   * del 100% (`regole-gestionale`).
+   */
+  readonly value = input.required<number | null>();
   readonly currencyCode = input<CurrencyCode>(DEFAULT_CURRENCY);
   readonly inputId = input('');
   readonly ariaLabel = input('');
@@ -75,8 +83,8 @@ export class MoneyInputComponent {
   /** Classi del campo: chi lo ospita decide la propria veste (tabella, form). */
   readonly inputClass = input('');
 
-  /** Il nuovo valore canonico, in unità minori. */
-  readonly valueChange = output<number>();
+  /** Il nuovo valore canonico in unità minori, oppure `null` se svuotato. */
+  readonly valueChange = output<number | null>();
   readonly focused = output<void>();
   readonly blurred = output<void>();
 
@@ -90,13 +98,20 @@ export class MoneyInputComponent {
 
   protected readonly fuoriSoglia = computed(() => {
     const soglia = this.min();
-    return soglia != null && this.value() < soglia;
+    const corrente = this.value();
+    // ⛔ Un campo facoltativo lasciato vuoto non è «sotto soglia»: è vuoto.
+    return soglia != null && corrente != null && corrente < soglia;
   });
 
   /** Il canonico come lo legge l'operatore: due decimali, mai il simbolo. */
   private formattato(): string {
+    const corrente = this.value();
+    // Assente: campo vuoto, così il segnaposto si vede. Non `0,00`.
+    if (corrente === null) {
+      return '';
+    }
     const decimali = currencyDecimals(this.currencyCode());
-    const maggiore = Math.round(this.value()) / 10 ** decimali;
+    const maggiore = Math.round(corrente) / 10 ** decimali;
     return new Intl.NumberFormat('it-IT', {
       minimumFractionDigits: decimali,
       maximumFractionDigits: decimali,
@@ -133,15 +148,27 @@ export class MoneyInputComponent {
       return;
     }
 
+    const corrente = this.value();
     const letto = parseMoneyInput(scritto, this.currencyCode());
     if (letto === null) {
-      // Testo vuoto o non numerico: il canonico resta quello che era, e il
-      // campo torna a mostrarlo. Svuotare un campo di denaro non significa
-      // «azzera»: significa «non ho scritto niente».
+      // ⭐ **Vuoto e «non leggibile» non sono la stessa cosa**, e il vecchio
+      // codice li trattava uguale perché non poteva fare altrimenti: senza
+      // `null`, l'unica alternativa a «lascio com'era» era azzerare.
+      if (scritto.trim() !== '') {
+        // Testo non numerico: il canonico resta quello che era, e il campo torna
+        // a mostrarlo. Non si indovina che cosa volesse scrivere l'operatore.
+        return;
+      }
+      if (corrente === null) {
+        // Era già assente: niente è cambiato, e due `null` di fila
+        // marcherebbero sporco un form intatto.
+        return;
+      }
+      this.valueChange.emit(null);
       return;
     }
 
-    if (sameAmountAtCent(letto.amountMinor, this.value())) {
+    if (corrente !== null && sameAmountAtCent(letto.amountMinor, corrente)) {
       // ⭐ Il cuore: lo stesso importo per l'operatore. Emetterlo sostituirebbe
       // 84,4262 con 84, e la coda non tornerebbe più.
       return;

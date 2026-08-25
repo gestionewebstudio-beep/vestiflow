@@ -138,10 +138,17 @@ describe('MoneyInputComponent', () => {
     });
 
     /**
-     * Svuotare un campo di denaro non significa «azzera»: significa «non ho
-     * scritto niente». Azzerare è digitare zero.
+     * ⭐ **Svuotare il campo lo rende ASSENTE, e assente non è zero.**
+     *
+     * ⛔ Qui c'era «svuotare non azzera il valore»: il campo restava a 86,00 e
+     * non emetteva nulla. Non era sbagliato — era **l'unica cosa possibile**
+     * finché `value` era `number` e l'unica alternativa a «lascio com'era» era
+     * azzerare, che avrebbe cambiato un totale senza che nessuno lo chiedesse.
+     *
+     * ⚠️ Dal 25/08/2026 `null` è rappresentabile, e svuotare può dire quello che
+     * dice. Azzerare resta un'altra cosa: si digita zero (prova qui sotto).
      */
-    it('svuotare il campo non azzera il valore', async () => {
+    it('⭐ svuotare il campo lo rende ASSENTE, non zero', async () => {
       const { valueChange } = await apri({ value: 8600 });
       const input = campo();
 
@@ -149,8 +156,8 @@ describe('MoneyInputComponent', () => {
       await userEvent.clear(input);
       await userEvent.tab();
 
-      expect(valueChange).not.toHaveBeenCalled();
-      expect(campo().value).toBe('86,00');
+      expect(valueChange).toHaveBeenCalledTimes(1);
+      expect(valueChange).toHaveBeenCalledWith(null);
     });
 
     it('digitare zero invece azzera davvero', async () => {
@@ -328,5 +335,93 @@ describe('MoneyInputComponent', () => {
 
       expect(campo().className).toContain('doc-form__input--num');
     });
+  });
+});
+
+/**
+ * ⭐ **«Assente» non è «zero».**
+ *
+ * ⛔ Fino al 25/08/2026 `value` era `input.required<number>()`: la primitiva non
+ * sapeva rappresentare un valore che non c'è. Costava due cose, e sono entrambe
+ * di dominio, non di forma:
+ *
+ * - una riga NUOVA avrebbe mostrato `0,00 0,00` invece dei segnaposto, e la
+ *   guardia di salvataggio non avrebbe distinto «riga mai toccata» da «riga a
+ *   zero» — su una maschera dove il server fa `deleteMany`, saltare una riga
+ *   significa **cancellarla**;
+ * - il prezzo barrato e il capitale sociale sono facoltativi, e `regole-gestionale`
+ *   lo dice per esteso: «`null` non è zero. Verso Shopify `compare_at_price:
+ *   "0.00"` non è un'assenza, è un barrato che vale zero, cioè uno sconto
+ *   inventato del 100%».
+ *
+ * ⚠️ Costa due righe **adesso**, con zero consumatori. Il giorno in cui la riga
+ * condivisa adotterà la primitiva, la stessa modifica toccherebbe sette maschere.
+ */
+describe('MoneyInputComponent · il valore assente', () => {
+  it('⭐ con `value = null` il campo è VUOTO, e si vede il segnaposto', async () => {
+    await render(MoneyInputComponent, {
+      inputs: { value: null, ariaLabel: 'Prezzo', placeholder: 'nessuno' },
+    });
+
+    const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Prezzo' });
+    expect(input.value).toBe('');
+    expect(input.placeholder).toBe('nessuno');
+  });
+
+  it('⭐ svuotare un campo che aveva un valore emette `null`, non zero', async () => {
+    // ⚠️ Qui c'era la decisione opposta — «svuotare non significa azzera,
+    // significa non ho scritto niente» — e non era sbagliata: era l'unica
+    // possibile quando l'alternativa a un valore era `0`. Con `null`
+    // rappresentabile, svuotare può dire quello che dice.
+    const valueChange = vi.fn();
+    await render(MoneyInputComponent, {
+      inputs: { value: 8600, ariaLabel: 'Prezzo' },
+      on: { valueChange },
+    });
+    const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Prezzo' });
+
+    await userEvent.clear(input);
+    await userEvent.tab();
+
+    expect(valueChange).toHaveBeenCalledTimes(1);
+    expect(valueChange).toHaveBeenCalledWith(null);
+  });
+
+  it('⛔ ma svuotare un campo GIÀ vuoto non emette niente', async () => {
+    // La regola «si emette solo quando è cambiato davvero» vale anche per
+    // l'assenza: due `null` di fila marcherebbero sporco un form intatto.
+    const valueChange = vi.fn();
+    await render(MoneyInputComponent, {
+      inputs: { value: null, ariaLabel: 'Prezzo' },
+      on: { valueChange },
+    });
+    const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Prezzo' });
+
+    await userEvent.click(input);
+    await userEvent.tab();
+
+    expect(valueChange).not.toHaveBeenCalled();
+  });
+
+  it('⛔ e `min` non segnala un valore assente', async () => {
+    // Un campo facoltativo lasciato vuoto non è «sotto soglia»: è vuoto.
+    const { container } = await render(MoneyInputComponent, {
+      inputs: { value: null, ariaLabel: 'Prezzo', min: 0 },
+    });
+
+    expect(container.querySelector('[aria-invalid="true"]')).toBeNull();
+  });
+
+  it('⭐ scrivere in un campo vuoto emette il valore digitato', async () => {
+    const valueChange = vi.fn();
+    await render(MoneyInputComponent, {
+      inputs: { value: null, ariaLabel: 'Prezzo' },
+      on: { valueChange },
+    });
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'Prezzo' }), '12,50');
+    await userEvent.tab();
+
+    expect(valueChange).toHaveBeenCalledWith(1250);
   });
 });
