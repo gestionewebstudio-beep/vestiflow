@@ -1387,3 +1387,108 @@ Non è una regola che si ricorda: è una che si incontra.
 controllo; la seconda inchioda che cosa il controllo continua a fermare. Toglierne una lascia
 l'altra a difendere metà decisione — ed è esattamente come il divieto vecchio è sopravvissuto
 tanto a lungo: le prove che lo difendevano c'erano, quelle che ne misuravano il costo no.
+
+---
+
+# 33. IL DIALOGO D'USCITA È UNO — applicato il 25/08/2026
+
+`regole-stile-ui` dichiarava già il contratto: **Annulla · Esci senza salvare**. Questa
+sezione registra la **misura** di quanto ci si era discostati, che è la parte che serve.
+
+## 33.1 Le due misure
+
+```text
+guscio scritto a mano, in UNDICI file:  <div role="dialog"> con sfondo proprio
+                                        → non un <dialog> nativo, quindi senza
+                                          trappola del fuoco, senza Esc, senza
+                                          sfondo inerte
+tre azioni invece di due, in OTTO:      il terzo pulsante «Salva e chiudi»
+```
+
+⚠️ **E le tre maschere già sul componente condiviso non concordavano fra loro:**
+
+|                |                                                    |
+| -------------- | -------------------------------------------------- |
+| `cancelLabel`  | «Resta nella pagina» · «Resta qui» · «Annulla»     |
+| `confirmLabel` | «Esci senza salvare» · «Esci senza concludere»     |
+| `title`        | «Modifiche non salvate» · «Documento non concluso» |
+
+## 33.2 Il contratto, per esteso
+
+```html
+<app-confirm-dialog
+  [(open)]="exitDialogOpen"
+  title="Modifiche non salvate"
+  message="Ci sono modifiche non salvate: uscendo dalla pagina andranno perse."
+  cancelLabel="Annulla"
+  confirmLabel="Esci senza salvare"
+  emphasis="cancel"
+  (confirmed)="confirmExitWithoutSaving()"
+  (dismissed)="cancelExitDialog()"
+/>
+```
+
+⚠️ **`emphasis="cancel"` non è estetica.** Senza, «Esci senza salvare» è il pulsante
+primario, cioè quello che il pollice cerca: la scelta che perde lavoro si vestirebbe da
+scelta consigliata. Per la stessa ragione `[danger]` è **sbagliato** qui — tinge di rosso
+la _conferma_, rendendo vistosa proprio quella.
+
+⭐ `message` può essere legato: l'Ordine cliente ne calcola uno che avverte quando
+l'ordine è già collegato a un documento di trasporto. È informazione, non fronzolo.
+
+## 33.3 ⛔ Le due deroghe che non sono deroghe
+
+**Il Banco diceva «Documento non concluso» / «Esci senza concludere»**, perché lì l'azione
+si chiama «Concludi vendita». Allineato:
+
+> **Il pulsante di SALVATAGGIO può chiamare l'operazione col suo nome. Il dialogo d'uscita
+> nomina il RISCHIO, e il rischio è identico su tredici maschere.**
+
+**Il messaggio diceva «Vuoi salvarle prima di chiudere?»** in otto maschere. Non è un
+ritocco averlo cambiato: è una domanda a cui nessuno dei due pulsanti rimasti risponde, e
+manda l'operatore a cercare un pulsante che non c'è.
+
+## 33.4 Il codice morto che ne è venuto fuori
+
+Sette gestori «Salva e chiudi» e quattro parametri `onSaved` irraggiungibili — verificato
+che ogni chiamata rimasta ha le parentesi vuote, template compresi. Quello dell'Arrivo
+merce era **una seconda copia dell'intero salvataggio**, 35 righe.
+
+⭐ `saveDocument(onSaved)` dell'Ordine cliente **non** è stato toccato: quella callback la
+usa «Ordine non evaso del tutto», che è un uso vero e distinto.
+
+## 33.5 ⭐ Il criterio per contare gli esiti: il GESTORE, non i pulsanti
+
+Serve ogni volta che si guarda un dialogo, e non è ovvio:
+
+> **Due bottoni che chiamano lo stesso metodo non sono due esiti: sono un esito e un
+> pulsante di troppo.**
+
+È il difetto già misurato su «Dati incompleti» («Annulla» e «No» sullo stesso gestore). Il
+caso opposto esiste: «Ordine non evaso del tutto» ha **tre** gestori davvero distinti, ed è
+il consumer legittimo di `extraLabel`.
+
+⛔ **`extraLabel` non appartiene al dialogo d'uscita**, e la spec del componente condiviso
+lo usava proprio come esempio — cioè insegnava a rimettere il pulsante appena tolto da
+tredici maschere. La spec di un componente condiviso è dove si impara a usarlo.
+
+## 33.6 La guardia
+
+`scripts/check-exit-dialog.mjs`, dentro `npm run lint`. Riconosce il dialogo dal **gestore**
+(`confirmExitWithoutSaving()` / `confirmLeave()`), non dal titolo né dalla posizione, e
+fallisce su: guscio a mano, «Salva e chiudi», `extraLabel`, ogni etichetta fuori contratto.
+
+**16 violazioni all'inizio, 0 adesso.** Verificato che sa fallire: rimesso «Salva e
+chiudi» → rossa; tolto → verde.
+
+⚠️ **La prima stesura della guardia aveva due difetti suoi**, e vale la pena saperlo perché
+sono di una specie che si ripete:
+
+1. leggeva «Salva e chiudi» **anche nei commenti** che dicevano di non averlo — l'ambito
+   della ricerca era il file invece del blocco;
+2. un confine di parola dentro un template literal aveva **perso la barra rovesciata**,
+   diventando la sequenza di backspace: nessun attributo veniva mai trovato, e tutte e
+   tredici le maschere risultavano fuori contratto, **comprese le tre giuste**.
+
+⭐ Il secondo è il più insidioso: una guardia che segnala tutti sembra rigorosa, e invece
+non sta misurando niente. Riscritta senza espressioni regolari.
