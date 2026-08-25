@@ -1905,3 +1905,56 @@ Le tre guardie aggiunte, e cosa ciascuna vede:
 - **Arrivo merce** — i due campi e le **due spunte proiettate** convivono. È la falsificazione
   del contratto: «aggiorna il costo in anagrafica» e «aggiorna i prezzi» sono dominio suo, e
   il componente le ospita senza saperne niente. Verificata rompendo la proiezione.
+
+---
+
+# 40. DUE QUESTIONI APERTE, CON IL CRITERIO CHE LE DECIDE (25/08/2026)
+
+## 40.1 ⚠️ `not-found` non è approvato: è solo il più diffuso
+
+Lo stato che precede il documento si chiama `'not-found'` in tutte e otto le maschere — sette
+lo dicevano già, l'ottava (Ordine cliente) diceva `'not-editable'` ed è stata allineata al
+montaggio della macchina comune.
+
+> ⛔ **Sette usi non sono un'approvazione semantica.** Il criterio, dato dal proprietario:
+> **se quello stato comprende documenti che ESISTONO ma non sono lavorabili, il nome è
+> tecnicamente fuorviante.**
+
+E gli indizi dicono che li comprende. I motivi che le maschere proiettano in quel ramo:
+
+| Maschera                                        | Motivo mostrato                                                                       |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Trasferimento, Rettifica, Arrivo merce, Fatture | «Documento non modificabile» — il documento c'è, non si può toccare **da qui**        |
+| Vendita al banco                                | «Documento non disponibile — questo indirizzo non corrisponde al documento richiesto» |
+| Registrazione fattura                           | «Questa pagina gestisce solo le registrazioni fattura fornitore»                      |
+| Ordine cliente                                  | tre motivi calcolati: preventivo, scarico manuale, ordine                             |
+
+⭐ **Nessuno dei sette dice «non trovato».** Dicono tutti «esiste, ma non è roba di questa
+maschera» — che è esattamente la condizione che rende il nome sbagliato.
+
+⚠️ **Non si rinomina adesso.** Prima si verificano le condizioni reali che portano a quello
+stato — cioè che cosa fa scattare `'not-found'` in ognuna delle otto — e solo se confermano
+l'indizio si sceglie una parola nuova. Rinominare su un'ipotesi costerebbe otto file per
+nulla.
+
+## 40.2 Il guscio della tabella righe: il contratto misurato, non ancora estratto
+
+Le otto associazioni della riga di intestazione **non sono otto cose**: sono due oggetti che
+esistono già.
+
+| Oggetto                                          | Copre                                                                                                                                              |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`LineColumnWidths`** (`shared/table-columns/`) | `indexColumnWidth` · `columnWidth` · `columnMinWidth` · `onColumnResizing` · `onColumnResized` — e riceve già `isVisible` nella sua configurazione |
+| **`DocumentLineSortStore`**                      | `sortColumn` · `sortDirection` · `sortToggled`                                                                                                     |
+
+Resta `sortable`, che è una costante.
+
+⭐ Nessuno dei due sa di salvataggio, magazzino, form completo o tipo documento: conoscono
+solo **colonne → visibilità → larghezze → ordinamento → eventi**.
+
+⚠️ **Da verificare prima di estrarre**, e il proprietario l'ha chiesto esplicitamente: che i
+due bastino davvero, **senza trascinare stato del form o logica di dominio**. Se per montare
+il blocco servisse un terzo ingresso che sa del documento, il contratto è sbagliato e ci si
+ferma.
+
+⛔ La Registrazione fattura resta fuori da questo pezzo: non usa la griglia articoli.
