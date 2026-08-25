@@ -129,7 +129,16 @@ export class SupplierOrdersService {
   async create(
     tenantId: string,
     dto: CreateSupplierOrderDto,
-    user?: UserProfileDto,
+    // ⚠️ **RICEVUTO E NON USATO, ed è una lacuna dichiarata.** Il controller lo
+    // passa, ma `SupplierOrder` non ha `createdById`/`createdByName` — che
+    // `Document` invece ha. Quindi **l'Ordine fornitore non registra chi lo ha
+    // creato**, mentre `regole-gestionale` §AUDITABILITÀ chiede che per ogni
+    // azione sensibile si possa mostrare chi l'ha eseguita.
+    //
+    // ⛔ Chiuderla richiede due colonne nuove su un database condiviso: è un
+    // lavoro a sé, non un ritocco. Il parametro resta perché la firma è già
+    // quella giusta, e il giorno in cui le colonne ci saranno non cambia.
+    _user?: UserProfileDto,
   ): Promise<SupplierOrderWithLines> {
     const supplier = await this.prisma.supplier.findFirst({
       where: { id: dto.supplierId, tenantId },

@@ -9,11 +9,6 @@ import {
   resolveOperationalLocationScope,
 } from '../inventory/licensed-location-scope.util';
 
-interface SelectedOption {
-  readonly name: string;
-  readonly value: string;
-}
-
 /** Riga giacenza pronta per la dashboard (title già composto server-side). */
 export interface DashboardLevelRow {
   readonly variantId: string;

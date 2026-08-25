@@ -47,7 +47,7 @@ import {
   type VatComputationInput,
 } from '../vat/vat-line-calculation.util';
 import { variantLabel } from '../common/variant-label.util';
-import { buildVatCodeSnapshot, vatSnapshotRatePercent } from '../vat/vat-snapshot.util';
+import { buildVatCodeSnapshot } from '../vat/vat-snapshot.util';
 
 import type { CreateStoreReturnDto } from './dto/create-store-return.dto';
 import type { CreateStoreSaleDto } from './dto/create-store-sale.dto';

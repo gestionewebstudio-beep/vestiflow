@@ -11,12 +11,11 @@ import {
   buildPlacedAtFilter,
   type SalesOrderListFilters,
 } from '../sales-orders/sales-order-query.util';
-import { prismaFinancialFilter, toPrismaSource } from '../sales-orders/sales-order.enum-mapper';
+import { prismaFinancialFilter } from '../sales-orders/sales-order.enum-mapper';
 import {
   effectiveOrigins,
   MANUAL_RECEIPT_ORIGIN,
   salesOrderSourcesOf,
-  sourcesFor,
   type CorrispettiviAmbito,
   type CorrispettiviCanale,
 } from './corrispettivi-classification.util';

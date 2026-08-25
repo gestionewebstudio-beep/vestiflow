@@ -5,7 +5,6 @@ import {
   type ProductVariant,
 } from '@prisma/client';
 
-import { sameAmountAtCent } from '../common/money.util';
 
 import type { UpdateProductDto } from './dto/update-product.dto';
 import type { UpdateVariantDto } from './dto/update-variant.dto';

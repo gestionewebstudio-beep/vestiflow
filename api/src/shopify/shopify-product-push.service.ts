@@ -40,7 +40,6 @@ import { plainTextToShopifyBodyHtml, normalizeProductDescription } from './shopi
 type ProductWithVariants = Product & { variants: ProductVariant[] };
 
 type ProductOptionRow = { readonly name: string; readonly values: readonly string[] };
-type VariantOptionRow = { readonly name: string; readonly value: string };
 
 export type ShopifyProductPushSkipReason =
   'not_connected' | 'missing_write_products_scope' | 'archived' | 'sync_disabled';

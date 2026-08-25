@@ -35,7 +35,6 @@ import type { Paginated } from '../common/dto/pagination.dto';
 import { attachmentDownloadFilename } from '../common/attachments/attachment-rules.util';
 import { documentAttachmentUploadMulterOptions } from '../common/upload/multer-upload.options';
 import { AttachmentsService } from '../attachments/attachments.service';
-import type { CreateDocumentDto } from '../documents/dto/create-document.dto';
 import { RenameAttachmentDto } from '../common/attachments/dto/rename-attachment.dto';
 import { ConcludeManualSalesOrderDto } from './dto/conclude-manual-sales-order.dto';
 import { DuplicateManualSalesOrderDto } from './dto/duplicate-manual-sales-order.dto';

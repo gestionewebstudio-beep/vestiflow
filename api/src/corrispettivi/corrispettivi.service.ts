@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import {
   SalesOrderFulfillmentStatus as PrismaFulfillment,
   SalesOrderRefundKind as PrismaRefundKind,
@@ -6,7 +6,6 @@ import {
   type SalesOrder,
   type SalesOrderFinancialStatus,
   type SalesOrderRefundKind,
-  type SalesOrderSource,
 } from '@prisma/client';
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
@@ -21,8 +20,6 @@ import {
   type TotaliGiornata,
 } from './corrispettivi-totals.util';
 import { PrismaService } from '../prisma/prisma.service';
-import { buildPlacedAtFilter } from '../sales-orders/sales-order-query.util';
-import { API_SOURCE_ONLINE, API_SOURCE_POS } from '../sales-orders/sales-order.enum-mapper';
 import { vatSnapshotRatePercent } from '../vat/vat-snapshot.util';
 import {
   MANUAL_RECEIPT_ORIGIN,

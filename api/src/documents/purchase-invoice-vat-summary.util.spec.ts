@@ -1,22 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  receiptVatBreakdown,
-  type PurchaseInvoiceReceiptInput,
-} from './purchase-invoice-vat-summary.util';
-
-function receipt(overrides: Partial<PurchaseInvoiceReceiptInput>): PurchaseInvoiceReceiptInput {
-  return {
-    id: 'r1',
-    number: 1,
-    reference: 'ARR-2026-0001',
-    documentDate: new Date('2026-07-15T00:00:00.000Z'),
-    subtotalMinor: 0,
-    taxMinor: 0,
-    lines: [],
-    ...overrides,
-  };
-}
+import { receiptVatBreakdown } from './purchase-invoice-vat-summary.util';
 
 describe('receiptVatBreakdown', () => {
   it('raggruppa le righe per aliquota dallo snapshot IVA', () => {
