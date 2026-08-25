@@ -1088,3 +1088,119 @@ Da usare insieme a questa specifica:
 - specifica Pagamenti/Tesoreria
 
 Questa specifica governa la **testata**; non duplica le regole di riga, movimenti, Includi/Genera o Pagamenti.
+
+---
+
+# 30. I GRUPPI: dove finisce tutto ciò che non è testata — deciso il 24/08/2026
+
+## 30.1 La decisione, in una riga
+
+> **La testata è ciò che IDENTIFICA il documento. Tutto il resto è un GRUPPO. Un concetto = UNA
+> costruzione, usata dai documenti che ne hanno bisogno.**
+
+## 30.2 Perché nasce ora, e non dopo
+
+Il proprietario ha dichiarato ciò che arriva: **Pagamento arricchito** (scadenze, saldi,
+risorsa), **Trasporto** (causale, porto, colli, peso, aspetto beni, incaricato, tracking),
+**Indirizzi**, **Spedizione**, e altro sui documenti di trasporto e sulla Fattura
+accompagnatoria.
+
+⛔ **Senza una decisione strutturale, quei dati finiscono in testata**, come è già successo:
+la testata delle Fatture porta oggi `Causale`, `Riferimento DDT`, `Condizioni di pagamento`,
+`Scadenza pagamento`, `IBAN` — che sono materiale da gruppo Pagamento, messo lì perché non
+c'era altro posto. Finché resta lì, **ogni maschera allarga la testata a modo suo**, e
+«testata comune» diventa una promessa che non si può mantenere.
+
+⭐ **È questo che rende condivisibili testata e righe**: non il fatto di estrarle, ma il fatto
+di smettere di usarle come deposito di tutto il resto.
+
+## 30.3 ⛔ UN concetto, UNA costruzione — la regola che vale più di tutte
+
+> **Pagamento è UNO. Non uno per documento.**
+
+⚠️ **È il modo in cui questo lavoro fallirebbe**, e va detto per nome: i documenti hanno già
+dati di pagamento sparsi, nati **prima** di questo schema e ognuno a modo suo. Sono la cosa da
+**sostituire**, non il modello da cui ricavare N varianti.
+
+⛔ **Non si creano dieci gruppi Pagamento, dieci Indirizzi, dieci Trasporti** perché le
+implementazioni esistenti si somigliano solo in parte. Le differenze fra loro sono, per
+costruzione, **storia** — nessuna di quelle maschere le ha decise guardando le altre.
+
+### Il criterio, e non è il gusto
+
+**Due gruppi sono lo stesso gruppo se rispondono alla stessa domanda dell'operatore.**
+
+| Domanda                                      | Gruppo        |
+| -------------------------------------------- | ------------- |
+| «come e quando viene pagato?»                | **Pagamento** |
+| «chi porta la merce, dove, con quali colli?» | **Trasporto** |
+| «a quale indirizzo?»                         | **Indirizzi** |
+
+L'Ordine cliente ha «Tipo pagamento» e un acconto; la Fattura accompagnatoria ha una tabella
+di scadenze con quattro comandi. **Rispondono alla stessa domanda: è un gruppo solo**, con un
+campo in più dichiarato — non due gruppi che si somigliano.
+
+## 30.4 Il meccanismo esiste già, ed è collaudato
+
+Non si inventa niente: è **esattamente** ciò che le righe fanno da settimane, un piano più su.
+
+```text
+RIGHE (già fatto)        DOCUMENT_LINE_COLUMNS  →  la maschera sceglie quali colonne
+                         haControllo(nome)      →  il campo è editabile se il controllo c'è
+                         nessun if (documentType)
+
+GRUPPI (da fare)         un CATALOGO di campi per concetto
+                         haControllo(nome)      →  il gruppo rende i campi che esistono
+                         nessun if (documentType)
+```
+
+Il documento dichiara **quali campi ha nel proprio FormGroup**. Il gruppo rende quelli che
+trova. Un documento senza scadenze non le mostra perché non ha il controllo, non perché il
+gruppo sappia che documento è.
+
+## 30.5 Il gruppo è cieco al proprio contenuto
+
+```html
+<app-document-group name="Trasporto">…i campi che quel documento ha…</app-document-group>
+```
+
+⛔ **Contenuto proiettato, non una voce di configurazione con un campo `type`** che il motore
+smista. La differenza: nel primo caso un gruppo nuovo **non tocca il motore**; nel secondo sì,
+e fra sei mesi il motore conosce sette tipi di gruppo — cioè è tornato a conoscere i documenti.
+
+Lo sorveglia già `scripts/check-document-grammar.mjs`, e il suo perimetro va esteso al guscio
+quando esisterà.
+
+## 30.6 La presentazione è del GUSCIO, non del documento
+
+> **Stessa dichiarazione → schede su scrivania, fisarmonica su schermo compatto.**
+
+Il documento non sa quale delle due sta vivendo. È la regola dei due renderer (§21) applicata
+un piano più su, e metà del meccanismo c'è già: `app-document-mobile-panel` è una fisarmonica.
+
+⛔ **Le righe NON sono un gruppo come gli altri.** Sarebbe elegante e sarebbe sbagliato: hanno
+barra strumenti, conteggio, colonne configurabili, scanner, riga di inserimento. Restano la
+**banda principale**, sempre prima e sempre aperta. I gruppi sono il resto.
+
+## 30.7 ⚠️ Il rischio da progettare SUBITO: un gruppo chiuso non nasconde un problema
+
+Se un campo obbligatorio del Trasporto è invalido e la scheda è chiusa, l'operatore preme
+Salva, il salvataggio fallisce e **non vede perché**.
+
+> **La scheda dichiara il proprio stato — ha errori · è incompleta · è a posto — e lo mostra
+> sulla linguetta.**
+
+Sono i `[waiting]` e `[invalid]` che `app-document-header-field` ha già (§20.4), portati un
+livello più su. **Va nel contratto dal primo giorno**: aggiungerlo dopo significa ripassare
+ogni gruppo, ed è l'unico difetto di questo disegno che diventa costoso col tempo.
+
+## 30.8 Come si procede, per non moltiplicare
+
+1. **Prima il concetto, poi il campo.** Prima di creare un gruppo si verifica se il concetto
+   esiste già: se sì **si estende**, non si duplica.
+2. **Si legge l'esistente per conservare il COMPORTAMENTO**, non per ricavarne varianti. Ogni
+   differenza fra due implementazioni attuali va classificata: **dominio** (si dichiara) o
+   **storia** (sparisce). In dubbio è storia — nessuna di quelle maschere ha deciso guardando
+   le altre.
+3. **Un gruppo entra in un documento solo se quel documento ne ha bisogno.** Un Trasferimento
+   non ha Pagamento, e non deve dichiararlo vuoto.
