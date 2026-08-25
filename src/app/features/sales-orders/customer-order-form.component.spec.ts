@@ -1976,3 +1976,141 @@ describe('CustomerOrderFormComponent — «Aggiungi riga» dà una riga sola', (
     expect(componente.lines.length).toBe(3);
   });
 });
+
+/**
+ * ⛔ **I difetti della vista mobile del riferimento** — 24/08/2026, segnalati
+ * dal proprietario guardando lo schermo.
+ *
+ * Il Nuovo Ordine cliente e' il riferimento operativo delle altre sette
+ * maschere: finche' la sua vista compatta non e' quella approvata, usarla come
+ * base propaga uno stato non verificato.
+ *
+ * ## ⚠️ Perche' queste prove passano `hidden: true`
+ *
+ * Le tre viste mobili esistono nel DOM ma il foglio le tiene spente su
+ * desktop (`.co-form__cards { display: none }`) e le accende dentro una media
+ * query. **jsdom non applica le media query**, quindi qui dentro quel
+ * `display: none` resta valido e l'intero sottoalbero mobile risulta **fuori
+ * dall'albero accessibile**: `getByRole` non trova nulla mentre
+ * `querySelector` trova tutto.
+ *
+ * Non e' un difetto di accessibilita' del prodotto — sul dispositivo vero la
+ * media query si applica e le card sono visibili. E' un limite del banco di
+ * prova, e senza `hidden: true` queste guardie direbbero «zero» sempre: verdi
+ * quando devono essere rosse.
+ */
+describe('CustomerOrderFormComponent — vista mobile, i difetti del 24/08', () => {
+  /** Operatore col permesso sul catalogo: vede i comandi che creano articoli. */
+  const CON_CATALOGO = {
+    id: 'usr-1',
+    role: 'clerk',
+    permissions: ['catalog.manage'],
+    tenantChannelProfile: 'gestionale',
+  };
+
+  async function mobileConTestataPiena(conProdotto = false, utente: unknown = CON_CATALOGO) {
+    const view = await render(CustomerOrderFormComponent, {
+      providers: [
+        ...formProviders({ user: utente as never }),
+        { provide: ViewportService, useValue: { compact: () => true } },
+      ],
+    });
+    const comp = view.fixture.componentInstance as unknown as {
+      form: { controls: Record<string, { setValue: (v: unknown) => void }> };
+      lines: {
+        length: number;
+        at: (i: number) => { controls: Record<string, { setValue: (v: unknown) => void }> };
+      };
+    };
+    comp.form.controls['customerId']!.setValue('cus-1');
+    comp.form.controls['locationId']!.setValue('loc-1');
+    if (conProdotto) {
+      // Una riga PRODOTTO vera: ha un nome, quindi non e' la riga tecnica.
+      comp.lines.at(0).controls['productName']!.setValue('Maglia cotone');
+    }
+    view.fixture.detectChanges();
+    return { view, comp };
+  }
+
+  /** Quanti comandi a video rispondono a questo scopo. */
+  function comandi(nome: RegExp): string[] {
+    return screen
+      .queryAllByRole('button', { name: nome, hidden: true })
+      .map((b) =>
+        (b.getAttribute('aria-label') ?? b.textContent ?? '').replace(/\s+/g, ' ').trim(),
+      );
+  }
+
+  /**
+   * ⛔ **Un solo ingresso per ciascuna operazione.**
+   *
+   * A schermo compatto convivevano DUE coppie di comandi equivalenti:
+   * «Aggiungi riga» con «Inserisci riga vuota», e «Nuovo prodotto» con «Crea
+   * nuovo prodotto» — a pochi centimetri gli uni dagli altri.
+   *
+   * ⚠️ **Nessuno dei quattro e' nuovo nel markup**: c'erano tutti anche nella
+   * versione approvata. A cambiare e' stata la VISIBILITA' — la barra strumenti
+   * era spenta sotto `lg` da `.co-form .co-form__lines-tools { display: none }`,
+   * e il commit 71448580 ha tolto quella classe con la sua regola per rendere la
+   * barra «adattata invece che nascosta». Adattata, pero', non vuol dire che
+   * porti anche i comandi che la vista compatta offre gia' altrove.
+   *
+   * ⚠️ **La correzione e' strutturale, non un `@media`**, per due ragioni: una
+   * regola CSS non sarebbe verificabile qui, e due pulsanti con lo stesso scopo
+   * restano due voci per un lettore di schermo anche quando una e' invisibile.
+   * Il comando di troppo non si nasconde — non si rende.
+   */
+  it('⛔ su schermo compatto c’e’ UN SOLO comando «riga vuota»', async () => {
+    await mobileConTestataPiena();
+
+    expect(comandi(/Aggiungi riga|Inserisci riga vuota/i)).toHaveLength(1);
+  });
+
+  it('⛔ e UN SOLO comando «nuovo prodotto»', async () => {
+    await mobileConTestataPiena();
+
+    expect(comandi(/Nuovo prodotto|Crea nuovo prodotto/i)).toHaveLength(1);
+  });
+
+  it('⭐ mentre gli altri comandi della barra restano: e’ adattata, non spenta', async () => {
+    const { view } = await mobileConTestataPiena();
+
+    // Colonne e «Includi documento» non hanno un gemello nello stato vuoto:
+    // toglierli sarebbe spegnere la barra, che non e' quello che si e' deciso.
+    expect(view.container.querySelector('app-table-column-picker')).toBeTruthy();
+    expect(comandi(/Includi documento/i)).toHaveLength(1);
+  });
+
+  /**
+   * ⛔ **Nessuna riga prodotto reale e' speciale perche' e' la prima.**
+   *
+   * La card riceveva `[canRemove]="lines.length > 1"`: con una sola riga nel
+   * FormArray il cestino era disabilitato, e la prima riga prodotto inserita
+   * restava nel documento senza modo di toglierla.
+   *
+   * ⚠️ **La regola «almeno una riga nell'array» e' un fatto tecnico**, e stava
+   * decidendo una cosa di dominio. Il meccanismo per gestirla c'era gia':
+   * `removeLine` risemina una riga tecnica quando l'array si svuota, quindi
+   * togliere il prodotto non lascia mai la maschera senza righe.
+   *
+   * ⛔ Sulla riga di SCRIVANIA il cestino funzionava: il difetto era della sola
+   * vista compatta, ed e' la forma tipica in cui la doppia veste diverge.
+   */
+  it('⛔ la PRIMA riga prodotto si puo’ eliminare come le altre', async () => {
+    const { view } = await mobileConTestataPiena(true);
+
+    const cestino = view.container.querySelector<HTMLButtonElement>('.doc-line-card__remove');
+
+    expect(cestino).not.toBeNull();
+    expect(cestino!.disabled).toBe(false);
+  });
+
+  it('⭐ ma la riga TECNICA vuota, da sola, non offre il cestino', async () => {
+    const { view } = await mobileConTestataPiena(false);
+
+    // Non c'e' niente da eliminare: `removeLine` la riseminerebbe subito, e il
+    // comando prometterebbe un effetto che non produce. Con la sola riga
+    // tecnica la lista non si mostra affatto (stato vuoto).
+    expect(view.container.querySelector('.doc-line-card__remove')).toBeNull();
+  });
+});

@@ -860,15 +860,35 @@
                 <!-- Senza il permesso sul catalogo le righe si riempiono solo
                      cercando articoli già esistenti. -->
                 @if (puoGestireCatalogo()) {
-                  <app-button type="button" variant="secondary" (click)="openNewProduct()">
-                    <i class="pi pi-box" aria-hidden="true"></i>
-                    Nuovo prodotto
+                  <!-- ⛔ Stesso criterio di «Aggiungi riga» qui sotto: su schermo
+                       compatto questo comando c'e' gia', ed e' «Crea nuovo
+                       prodotto» nello stato vuoto della lista. -->
+                  @if (!compactView()) {
+                    <app-button type="button" variant="secondary" (click)="openNewProduct()">
+                      <i class="pi pi-box" aria-hidden="true"></i>
+                      Nuovo prodotto
+                    </app-button>
+                  }
+                }
+                <!-- ⛔ **Un solo ingresso per chiedere una riga vuota.** Su schermo
+                     compatto quel comando e' «Inserisci riga vuota», nello stato
+                     vuoto della lista: qui sarebbe il secondo, a pochi centimetri
+                     dal primo.
+
+                     ⚠️ Non e' un `@media`, ed e' voluto: due pulsanti con lo
+                     stesso scopo restano due voci per un lettore di schermo anche
+                     quando una e' invisibile. Il comando di troppo non si
+                     nasconde — non si rende.
+
+                     ⭐ Il resto della barra (Colonne, Includi documento, Nuovo
+                     prodotto) resta su mobile: e' la toolbar comune adattata, non
+                     spenta. A sparire e' l'unico comando che sarebbe doppio. -->
+                @if (!compactView()) {
+                  <app-button type="button" [disabled]="formReadOnly()" (click)="requestNewLine()">
+                    <i class="pi pi-plus" aria-hidden="true"></i>
+                    Aggiungi riga
                   </app-button>
                 }
-                <app-button type="button" [disabled]="formReadOnly()" (click)="requestNewLine()">
-                  <i class="pi pi-plus" aria-hidden="true"></i>
-                  Aggiungi riga
-                </app-button>
               </div>
             </div>
 
@@ -1052,7 +1072,7 @@
                       <app-document-line-card-reference
                         [formGroupName]="i"
                         [readOnly]="formReadOnly()"
-                        [canRemove]="lines.length > 1"
+                        [canRemove]="puoEliminareRighe()"
                         (removeRequested)="removeLine(i)"
                       />
                     } @else {
@@ -1066,7 +1086,7 @@
                         [open]="isLineCardOpen(i)"
                         [complete]="lineCardHead(i).complete"
                         [readOnly]="formReadOnly()"
-                        [canRemove]="lines.length > 1"
+                        [canRemove]="puoEliminareRighe()"
                         [title]="lineCardHead(i).title"
                         [variantLabel]="lineCardHead(i).variantLabel"
                         [meta]="lineCardHead(i).meta"

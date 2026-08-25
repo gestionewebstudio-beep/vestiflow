@@ -2351,10 +2351,36 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     this.focusLineField(ultimo, 'articleCode');
   }
 
+  /**
+   * **Il cestino sulla riga.**
+   *
+   * ⛔ Qui c'era `lines.length > 1`, ed era un fatto TECNICO — «resti almeno
+   * una riga nell'array» — che decideva una cosa di dominio: la prima riga
+   * prodotto inserita non si poteva piu' togliere. **Nessuna riga prodotto
+   * reale e' speciale perche' e' la prima.**
+   *
+   * ⭐ L'unico caso senza niente da eliminare e' la riga TECNICA da sola:
+   * `removeLine` la riseminerebbe subito, quindi il comando prometterebbe un
+   * effetto che non produce.
+   *
+   * ⚠️ Sulla riga di scrivania il cestino c'era gia': il difetto era della sola
+   * vista compatta, ed e' la forma tipica in cui la doppia veste diverge.
+   */
+  protected readonly puoEliminareRighe = computed(() => {
+    this.formValue();
+    const righe = this.lines.controls;
+    return !(righe.length === 1 && this.lineIsEmpty(righe[0]!));
+  });
+
   protected removeLine(index: number): void {
     this.lines.removeAt(index);
     if (this.lines.length === 0) {
       this.lines.push(this.createLine());
+      // ⭐ Tolto l'ultimo prodotto si torna allo stato TECNICO: su schermo
+      //    compatto la riga riseminata non deve restare a video come card
+      //    fantasma: la lista torna vuota, con il suo stato vuoto e il suo
+      //    comando. E' lo stesso meccanismo del 26/07, azzerato.
+      this.mobileRowsRevealed.set(false);
     }
     this.markFormDirty();
   }
