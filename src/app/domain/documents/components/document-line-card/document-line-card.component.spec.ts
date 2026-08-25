@@ -2,9 +2,10 @@ import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
-import { FormGroup } from '@angular/forms';
+import { FormControl, FormGroup } from '@angular/forms';
 
 import { DocumentLineCardBodyComponent } from './document-line-card-body.component';
+import { DocumentLineCardReferenceComponent } from './document-line-card-reference.component';
 import { DocumentLineCardStripComponent } from './document-line-card-strip.component';
 import { DocumentLineCardComponent } from './document-line-card.component';
 import type { DocumentLineCardMeta } from './document-line-card.model';
@@ -174,5 +175,54 @@ describe('DocumentLineCardBodyComponent — non partecipa al layout', () => {
     // La striscia lo dichiarava già, col commento che spiega la ragione: qui
     // la si tiene ferma, perché è lo stesso contratto e non due soluzioni.
     expect(globalThis.getComputedStyle(host).display).toBe('contents');
+  });
+});
+
+/**
+ * ⛔ **La banda «Documento collegato» deve mostrare il suo riferimento** —
+ * guardia del 24/08/2026.
+ *
+ * Il titolo e' un `<input formControlName="productName">`: su un riferimento
+ * l'operatore puo' correggere la dicitura che finira' stampata, e la vista di
+ * scrivania glielo lascia fare.
+ *
+ * ⚠️ **Il componente non aveva alcuno scope di form.** `formControlName` si
+ * risolve nell'albero di **dichiarazione**, non in quello del DOM: il
+ * `formGroupName` che il consumer mette sull'host vale per il template del
+ * consumer, non per quello del componente. Il risultato, misurato nel browser
+ * e non solo in prova: `NG01050` in console e la banda disegnata **vuota** —
+ * icona e cestino, nessun testo.
+ *
+ * ⭐ I due gemelli lo facevano gia' entrambi: `document-line-row` e
+ * `document-line-card-body` avvolgono con `<ng-container [formGroup]>`. Questo
+ * era l'unico dei tre a non farlo, ed e' l'unico che si rompeva.
+ */
+describe('DocumentLineCardReferenceComponent — lo scope di form e’ suo', () => {
+  it('⛔ il titolo del riferimento e’ legato al controllo, e si vede', async () => {
+    const group = new FormGroup({
+      productName: new FormControl('Preventivo PR-2026-0001 del 01/08/2026'),
+    });
+
+    const view = await render(DocumentLineCardReferenceComponent, {
+      inputs: { group },
+    });
+
+    const titolo = view.container.querySelector<HTMLInputElement>('.doc-form__source-title');
+
+    expect(titolo).not.toBeNull();
+    expect(titolo!.value).toBe('Preventivo PR-2026-0001 del 01/08/2026');
+  });
+
+  it('⭐ e scrivendoci si scrive sul controllo: resta modificabile', async () => {
+    const group = new FormGroup({ productName: new FormControl('Preventivo') });
+
+    const view = await render(DocumentLineCardReferenceComponent, {
+      inputs: { group },
+    });
+    const titolo = view.container.querySelector<HTMLInputElement>('.doc-form__source-title')!;
+    await userEvent.clear(titolo);
+    await userEvent.type(titolo, 'Preventivo rivisto');
+
+    expect(group.controls.productName.value).toBe('Preventivo rivisto');
   });
 });

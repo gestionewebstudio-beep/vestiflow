@@ -1100,6 +1100,7 @@
                       <!-- Documento collegato: banda bassa che separa il gruppo,
                        non una card prodotto. -->
                       <app-document-line-card-reference
+                        [group]="lineGroup(i)"
                         [formGroupName]="i"
                         [readOnly]="formReadOnly()"
                         [canRemove]="puoEliminareRighe()"

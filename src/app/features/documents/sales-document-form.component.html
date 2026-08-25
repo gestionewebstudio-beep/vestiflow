@@ -473,6 +473,7 @@
                        desktop la rende banda da sempre, perché la riga comune
                        ha il ramo e la card locale no. -->
                   <app-document-line-card-reference
+                    [group]="lineGroup(i)"
                     [formGroupName]="i"
                     [readOnly]="formReadOnly()"
                     [canRemove]="lines.length > 1"
