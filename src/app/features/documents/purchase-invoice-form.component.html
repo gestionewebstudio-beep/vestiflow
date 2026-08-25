@@ -249,14 +249,11 @@
                 @for (group of lines.controls; track group; let i = $index) {
                   <tr [formGroupName]="i">
                     <td class="doc-form__num" [attr.data-label]="'Importo netto'">
-                      <input
-                        class="doc-form__input doc-form__input--num pi-form__table-input"
-                        type="text"
-                        inputmode="decimal"
-                        formControlName="netText"
-                        placeholder="0,00"
-                        [attr.aria-label]="'Importo netto riga ' + (i + 1)"
-                        (input)="recalcLineVat(i)"
+                      <app-money-input
+                        inputClass="doc-form__input doc-form__input--num"
+                        [value]="group.controls.netMinor.value"
+                        [ariaLabel]="'Importo netto riga ' + (i + 1)"
+                        (valueChange)="onLineNetChange(i, $event)"
                       />
                     </td>
                     <td class="doc-form__num" [attr.data-label]="'IVA %'">
@@ -271,13 +268,11 @@
                       />
                     </td>
                     <td class="doc-form__num" [attr.data-label]="'Importo IVA'">
-                      <input
-                        class="doc-form__input doc-form__input--num pi-form__table-input"
-                        type="text"
-                        inputmode="decimal"
-                        formControlName="vatText"
-                        placeholder="0,00"
-                        [attr.aria-label]="'Importo IVA riga ' + (i + 1)"
+                      <app-money-input
+                        inputClass="doc-form__input doc-form__input--num"
+                        [value]="group.controls.vatMinor.value"
+                        [ariaLabel]="'Importo IVA riga ' + (i + 1)"
+                        (valueChange)="onLineVatChange(i, $event)"
                       />
                     </td>
                     <td [attr.data-label]="'Descrizione'">
@@ -364,13 +359,11 @@
                       />
                     </td>
                     <td class="doc-form__num" [attr.data-label]="'Importo'">
-                      <input
-                        class="doc-form__input doc-form__input--num pi-form__table-input"
-                        type="text"
-                        inputmode="decimal"
-                        formControlName="amountText"
-                        placeholder="0,00"
-                        [attr.aria-label]="'Importo scadenza ' + (i + 1)"
+                      <app-money-input
+                        inputClass="doc-form__input doc-form__input--num"
+                        [value]="group.controls.amountMinor.value"
+                        [ariaLabel]="'Importo scadenza ' + (i + 1)"
+                        (valueChange)="onInstallmentAmountChange(i, $event)"
                       />
                     </td>
                     <td [attr.data-label]="'Saldato'">

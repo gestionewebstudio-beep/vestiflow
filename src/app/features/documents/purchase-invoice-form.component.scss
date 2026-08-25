@@ -78,6 +78,20 @@
   min-inline-size: 6rem;
 }
 
+/* ⭐ **La stessa larghezza, per il campo di denaro comune.**
+
+   `app-money-input` ha `:host { display: contents }`: nel flusso ci sta il suo
+   `<input>`, che porta l'attributo di incapsulamento di QUEL componente. Una
+   classe passata da fuori non aggancerebbe — e non fallirebbe: smetterebbe di
+   agganciare in silenzio, che è peggio.
+
+   Le custom property attraversano il confine per costruzione, ed è il canale
+   che `regole-stile-ui` §5 prescrive. */
+.pi-form__table app-money-input {
+  --money-input-inline-size: 100%;
+  --money-input-min-inline-size: 6rem;
+}
+
 .pi-form__table-input--rate {
   min-inline-size: 4rem;
   max-inline-size: 6rem;

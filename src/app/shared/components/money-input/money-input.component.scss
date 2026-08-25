@@ -6,7 +6,19 @@
   display: contents;
 }
 
+/* ⭐ **I due punti di regolazione della larghezza.**
+   `:host` ha `display: contents`, quindi nel flusso ci sta l'`<input>`, non
+   l'host: una classe passata da fuori via `inputClass` finirebbe su un elemento
+   che porta l'attributo di incapsulamento di QUESTO componente, e le regole del
+   chiamante smetterebbero di agganciare — in silenzio.
+
+   Le custom property invece attraversano il confine per costruzione, ed è il
+   canale che `regole-stile-ui` §5 prescrive: il contenitore le imposta su di sé
+   (o sull'elemento `app-money-input`), e il campo dentro le legge. */
 input {
+  inline-size: var(--money-input-inline-size, auto);
+  min-inline-size: var(--money-input-min-inline-size, 0);
+  max-inline-size: var(--money-input-max-inline-size, none);
   text-align: right;
   font-variant-numeric: tabular-nums;
 }

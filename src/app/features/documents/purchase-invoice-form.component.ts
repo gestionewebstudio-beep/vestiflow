@@ -49,12 +49,7 @@ import type { PaymentOption } from '@core/models/payment-option.model';
 import type { Supplier } from '@core/models/supplier.model';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { ToastService } from '@core/services/toast.service';
-import {
-  DEFAULT_CURRENCY,
-  formatMoney,
-  moneyToDecimalString,
-  parseMoneyInput,
-} from '@core/utils/money.util';
+import { DEFAULT_CURRENCY, formatMoney } from '@core/utils/money.util';
 import { formatDate } from '@core/utils/date.util';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
 import { bindBreadcrumbEntityLabel } from '@core/services/breadcrumb-label.service';
@@ -71,6 +66,7 @@ import { DocumentHeaderComponent } from '@domain/documents/components/document-h
 import { DocumentHeaderFieldComponent } from '@domain/documents/components/document-header/document-header-field.component';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import { DocumentSeriesManagerDialogComponent } from '@domain/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
+import { MoneyInputComponent } from '@shared/components/money-input/money-input.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
@@ -116,16 +112,28 @@ type SubmitState =
  */
 type EconomicLineForm = FormGroup<{
   description: FormControl<string>;
-  netText: FormControl<string>;
+  /**
+   * Importo canonico in unità minori, coda decimale inclusa. `null` = non
+   * scritto.
+   *
+   * ⛔ Era `FormControl<string>` (`netText`), col denaro tenuto come TESTO e
+   * convertito a mano in due direzioni. Costava un difetto misurabile: una riga
+   * salvata a 0,00 si rileggeva come stringa VUOTA — `moneyToInputText`
+   * restituiva `''` per lo zero — e al salvataggio la maschera la rifiutava
+   * come «importo netto non valido». Una registrazione con un abbuono a zero
+   * **non si poteva più risalvare**.
+   */
+  netMinor: FormControl<number | null>;
   rateText: FormControl<string>;
-  vatText: FormControl<string>;
+  vatMinor: FormControl<number | null>;
   /** L'arrivo merce da cui la riga è nata. Vuoto = voce libera. */
   linkedGoodsReceiptId: FormControl<string>;
 }>;
 
 type InstallmentForm = FormGroup<{
   dueDate: FormControl<string>;
-  amountText: FormControl<string>;
+  /** Importo canonico in unità minori. `null` = non scritto. */
+  amountMinor: FormControl<number | null>;
   settled: FormControl<boolean>;
   settledAt: FormControl<string>;
 }>;
@@ -192,6 +200,7 @@ function parseRatePercent(value: string): number | null {
     DocumentPrefillErrorComponent,
     DocumentTotalsComponent,
     DocumentPageStateComponent,
+    MoneyInputComponent,
   ],
   templateUrl: './purchase-invoice-form.component.html',
   styleUrl: './purchase-invoice-form.component.scss',
@@ -608,8 +617,8 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     let net = 0;
     let vat = 0;
     for (const line of this.form.getRawValue().lines) {
-      net += parseMoneyInput(line.netText, this.currency)?.amountMinor ?? 0;
-      vat += parseMoneyInput(line.vatText, this.currency)?.amountMinor ?? 0;
+      net += line.netMinor ?? 0;
+      vat += line.vatMinor ?? 0;
     }
     return { net, vat };
   });
@@ -651,11 +660,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     const amountMinor = this.form
       .getRawValue()
       .installments.filter((installment) => installment.settled)
-      .reduce(
-        (sum, installment) =>
-          sum + (parseMoneyInput(installment.amountText, this.currency)?.amountMinor ?? 0),
-        0,
-      );
+      .reduce((sum, installment) => sum + (installment.amountMinor ?? 0), 0);
     return { amountMinor, currencyCode: this.currency };
   });
 
@@ -824,18 +829,47 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
 
   private buildLine(init?: {
     description?: string;
-    netText?: string;
+    netMinor?: number | null;
     rateText?: string;
-    vatText?: string;
+    vatMinor?: number | null;
     linkedGoodsReceiptId?: string;
   }): EconomicLineForm {
     return this.fb.group({
       description: this.fb.control(init?.description ?? ''),
-      netText: this.fb.control(init?.netText ?? ''),
+      netMinor: this.fb.control<number | null>(init?.netMinor ?? null),
       rateText: this.fb.control(init?.rateText ?? ''),
-      vatText: this.fb.control(init?.vatText ?? ''),
+      vatMinor: this.fb.control<number | null>(init?.vatMinor ?? null),
       linkedGoodsReceiptId: this.fb.control(init?.linkedGoodsReceiptId ?? ''),
     });
+  }
+
+  /** L'importo di una riga cambia: lo scrive e ripropone l'imposta. */
+  protected onLineNetChange(index: number, value: number | null): void {
+    const group = this.lines.at(index);
+    if (!group) {
+      return;
+    }
+    group.controls.netMinor.setValue(value);
+    this.lines.markAsDirty();
+    this.recalcLineVat(index);
+  }
+
+  protected onLineVatChange(index: number, value: number | null): void {
+    const group = this.lines.at(index);
+    if (!group) {
+      return;
+    }
+    group.controls.vatMinor.setValue(value);
+    this.lines.markAsDirty();
+  }
+
+  protected onInstallmentAmountChange(index: number, value: number | null): void {
+    const group = this.installments.at(index);
+    if (!group) {
+      return;
+    }
+    group.controls.amountMinor.setValue(value);
+    this.installments.markAsDirty();
   }
 
   protected addLine(): void {
@@ -855,34 +889,39 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     this.lines.markAsDirty();
   }
 
-  /** IVA riga ricalcolata da netto × aliquota (resta comunque modificabile). */
+  /**
+   * IVA riga riproposta da netto × aliquota. Resta comunque modificabile: una
+   * fattura ricevuta si REGISTRA, e l'imposta stampata dal fornitore può
+   * differire di un centesimo dall'arrotondamento.
+   *
+   * ⚠️ **Si ricalcola allo sfocamento, non a ogni tasto** — è la conseguenza
+   * dichiarata del passaggio alla primitiva monetaria, che emette al blur per
+   * non distruggere la coda decimale del canonico.
+   */
   protected recalcLineVat(index: number): void {
     const group = this.lines.at(index);
     if (!group) {
       return;
     }
-    const net = parseMoneyInput(group.controls.netText.value, this.currency);
+    const net = group.controls.netMinor.value;
     const rate = parseRatePercent(group.controls.rateText.value);
     if (net === null || rate === null) {
       return;
     }
-    const vatMinor = Math.round((net.amountMinor * rate) / 100);
-    group.controls.vatText.setValue(
-      this.moneyToInputText({ amountMinor: vatMinor, currencyCode: this.currency }),
-    );
+    group.controls.vatMinor.setValue(Math.round((net * rate) / 100));
   }
 
   // ── Scadenze di pagamento ───────────────────────────────────────────────────
 
   private buildInstallment(init?: {
     dueDate?: string;
-    amountText?: string;
+    amountMinor?: number | null;
     settled?: boolean;
     settledAt?: string;
   }): InstallmentForm {
     return this.fb.group({
       dueDate: this.fb.control(init?.dueDate ?? ''),
-      amountText: this.fb.control(init?.amountText ?? ''),
+      amountMinor: this.fb.control<number | null>(init?.amountMinor ?? null),
       settled: this.fb.control(init?.settled ?? false),
       settledAt: this.fb.control(init?.settledAt ?? ''),
     });
@@ -892,19 +931,10 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     // Comodo default: il residuo non ancora coperto dalle scadenze esistenti.
     const covered = this.form
       .getRawValue()
-      .installments.reduce(
-        (sum, installment) =>
-          sum + (parseMoneyInput(installment.amountText, this.currency)?.amountMinor ?? 0),
-        0,
-      );
+      .installments.reduce((sum, installment) => sum + (installment.amountMinor ?? 0), 0);
     const residualMinor = Math.max(0, this.totalGross().amountMinor - covered);
     this.installments.push(
-      this.buildInstallment({
-        amountText:
-          residualMinor > 0
-            ? this.moneyToInputText({ amountMinor: residualMinor, currencyCode: this.currency })
-            : '',
-      }),
+      this.buildInstallment({ amountMinor: residualMinor > 0 ? residualMinor : null }),
     );
     this.installments.markAsDirty();
   }
@@ -1009,9 +1039,9 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
         this.lines.push(
           this.buildLine({
             description: descrizione,
-            netText: this.moneyToInputText(quota.net),
+            netMinor: quota.net.amountMinor,
             rateText: String(quota.ratePercent).replace('.', ','),
-            vatText: this.moneyToInputText(quota.vat),
+            vatMinor: quota.vat.amountMinor,
             linkedGoodsReceiptId: receipt.id,
           }),
         );
@@ -1102,14 +1132,21 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     const lines: PurchaseInvoiceLineBody[] = [];
     for (const [index, line] of raw.lines.entries()) {
       const description = line.description.trim();
+      // ⛔ **`!== null`, mai la verità del valore.** Con `line.netMinor` nudo,
+      // una riga da 0,00 sarebbe FALSA e verrebbe saltata — e siccome il server
+      // fa `deleteMany` prima di riscrivere, saltata significa **cancellata**.
+      // «Non l'ho scritto» e «vale zero» sono due cose diverse.
       const hasContent =
-        description || line.netText.trim() || line.rateText.trim() || line.vatText.trim();
+        description !== '' ||
+        line.netMinor !== null ||
+        line.rateText.trim() !== '' ||
+        line.vatMinor !== null;
       if (!hasContent) {
         // ⭐ Riga vuota: si salta, non è un errore. È la riga che ogni maschera
         // documentale tiene pronta in fondo — e un documento vuoto si salva.
         continue;
       }
-      const net = parseMoneyInput(line.netText, this.currency);
+      const net = line.netMinor;
       if (!description || net === null) {
         this._submitState.set({
           status: 'error',
@@ -1122,9 +1159,9 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       }
       lines.push({
         description,
-        netMinor: net.amountMinor,
+        netMinor: net,
         vatRatePercent: parseRatePercent(line.rateText) ?? 0,
-        vatMinor: parseMoneyInput(line.vatText, this.currency)?.amountMinor ?? 0,
+        vatMinor: line.vatMinor ?? 0,
         // ⭐ Il legame all'arrivo viaggia sulla riga: è l'unica fonte, e il
         // server ci ricava sia i collegamenti sia il controllo dei permessi.
         linkedGoodsReceiptId: line.linkedGoodsReceiptId || undefined,
@@ -1134,12 +1171,14 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     const installments: PurchaseInvoiceInstallmentBody[] = [];
     for (const [index, installment] of raw.installments.entries()) {
       const hasContent =
-        installment.dueDate.trim() || installment.amountText.trim() || installment.settled;
+        installment.dueDate.trim() !== '' ||
+        installment.amountMinor !== null ||
+        installment.settled;
       if (!hasContent) {
         continue;
       }
-      const amount = parseMoneyInput(installment.amountText, this.currency);
-      if (!installment.dueDate || amount === null || amount.amountMinor < 0) {
+      const amount = installment.amountMinor;
+      if (!installment.dueDate || amount === null || amount < 0) {
         this._submitState.set({
           status: 'error',
           error: {
@@ -1151,7 +1190,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       }
       installments.push({
         dueDate: new Date(installment.dueDate).toISOString(),
-        amountMinor: amount.amountMinor,
+        amountMinor: amount,
         settled: installment.settled,
         settledAt: installment.settledAt
           ? new Date(installment.settledAt).toISOString()
@@ -1341,12 +1380,15 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       this.lines.push(
         this.buildLine({
           description: line.description,
-          netText: this.moneyToInputText(line.lineTotal),
+          // ⭐ `?? null`, mai `?? 0`: una riga senza imposta non è una riga con
+          // imposta zero, e la differenza decide se il campo mostra il
+          // segnaposto o un valore che nessuno ha scritto.
+          netMinor: line.lineTotal.amountMinor,
           rateText:
             line.vatSnapshot?.ratePercent != null
               ? String(line.vatSnapshot.ratePercent).replace('.', ',')
               : '',
-          vatText: line.lineVatTotal ? this.moneyToInputText(line.lineVatTotal) : '',
+          vatMinor: line.lineVatTotal?.amountMinor ?? null,
           linkedGoodsReceiptId: line.linkedGoodsReceiptId ?? '',
         }),
       );
@@ -1357,7 +1399,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       this.installments.push(
         this.buildInstallment({
           dueDate: installment.dueDate.slice(0, 10),
-          amountText: this.moneyToInputText(installment.amount),
+          amountMinor: installment.amount.amountMinor,
           settled: installment.settled,
           settledAt: installment.settledAt ? installment.settledAt.slice(0, 10) : '',
         }),
@@ -1418,12 +1460,13 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     this.refreshDocumentNumberProposal();
   }
 
-  private moneyToInputText(money: Money): string {
-    if (money.amountMinor === 0) {
-      return '';
-    }
-    return moneyToDecimalString(money).replace('.', ',');
-  }
+  // ⛔ Qui c'era `moneyToInputText`: la conversione denaro→testo scritta a mano
+  // in questa maschera. Tolta il 25/08/2026 col passaggio ad `app-money-input`,
+  // che quella grammatica ce l'ha già — e la aveva **due giorni prima**.
+  //
+  // ⚠️ Portava anche un difetto: restituiva stringa VUOTA per lo zero, quindi
+  // una riga salvata a 0,00 si rileggeva vuota e al salvataggio veniva rifiutata
+  // come «importo netto non valido». Un abbuono a zero non si poteva risalvare.
 
   private toAppError(err: unknown): AppError {
     return isAppError(err) ? err : mapHttpErrorToAppError(err);

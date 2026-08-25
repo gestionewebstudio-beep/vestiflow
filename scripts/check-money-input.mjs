@@ -90,10 +90,10 @@ const DEROGHE = [
   },
   {
     file: 'src/app/features/documents/purchase-invoice-form.component.html',
-    quanti: 4,
+    quanti: 1,
     motivo:
-      'in conversione ADESSO (P3). Nessun ostacolo tecnico: la maschera possiede il proprio form ' +
-      'e traccia lo sporco su `form.valueChanges`, non su `control.dirty`.',
+      "i tre importi sono passati alla primitiva (P3). Resta l'ALIQUOTA, che non e' denaro: " +
+      "sparisce con P5, quando la colonna IVA diventa il Codice IVA scelto dall'elenco.",
   },
   {
     file: 'src/app/features/reports/pages/manual-receipt-form/manual-receipt-form.component.html',

@@ -103,6 +103,26 @@ const REGISTRAZIONE_SALVATA = {
   ],
 } as unknown as DocumentRecord;
 
+/** Registrazione con una riga a ZERO: l'abbuono che pareggia la fattura. */
+const REGISTRAZIONE_CON_ZERO = {
+  id: 'pi-2',
+  type: DocumentType.SupplierInvoice,
+  number: 8,
+  documentDate: '2026-01-16',
+  supplierId: 'sup-1',
+  currency: 'EUR',
+  lines: [
+    {
+      id: 'l-3',
+      description: 'Abbuono',
+      lineTotal: { amountMinor: 0, currencyCode: 'EUR' },
+      lineVatTotal: { amountMinor: 0, currencyCode: 'EUR' },
+      vatSnapshot: { ratePercent: 22 },
+      lineSource: 'manual',
+    },
+  ],
+} as unknown as DocumentRecord;
+
 const RECEIPT_2: LinkableGoodsReceipt = {
   id: 'gr-2',
   number: 2,
@@ -430,6 +450,32 @@ describe('PurchaseInvoiceFormComponent', () => {
     expect(screen.getByText('115,50 €')).toBeTruthy();
     expect(screen.getByText('25,41 €')).toBeTruthy();
     expect(screen.getByText('140,91 €')).toBeTruthy();
+  });
+
+  /**
+   * ⛔ **LA TRAPPOLA DEL ZERO.** Una riga da 0,00 con la sola descrizione deve
+   * sopravvivere al giro.
+   *
+   * ⚠️ Passando gli importi da testo a numero, la guardia `hasContent` che oggi
+   * legge `line.netText.trim()` diventerebbe naturalmente `line.netMinor` — e
+   * `0` è falso. La riga verrebbe **saltata** nel payload; e siccome il server
+   * fa `deleteMany` prima di riscrivere, saltata significa **cancellata**.
+   *
+   * ⭐ La distinzione è `!== null`, mai la verità del valore: «non l'ho scritto»
+   * e «vale zero» sono due cose diverse, ed è la stessa ragione per cui la
+   * primitiva monetaria ha imparato il `null` (P2).
+   */
+  it('⛔ una riga da ZERO con la sola descrizione NON sparisce dal payload', async () => {
+    const user = userEvent.setup();
+    const { documentService } = await setup({ documentoDaRiaprire: REGISTRAZIONE_CON_ZERO });
+    await screen.findByLabelText('Descrizione riga 1');
+
+    await saveInvoice(user);
+
+    await waitFor(() => expect(documentService.savePurchaseInvoice).toHaveBeenCalled());
+    const body = documentService.savePurchaseInvoice.mock.calls[0]![0];
+    expect(body.lines).toHaveLength(1);
+    expect(body.lines?.[0]).toMatchObject({ description: 'Abbuono', netMinor: 0, vatMinor: 0 });
   });
 
   // Le scadenze si precompilano con il residuo non coperto; la spunta
