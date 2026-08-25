@@ -28,7 +28,7 @@
     "e2e:ci": "playwright test --project=chromium-guest --project=chromium-ci",
     "e2e:authenticated": "playwright test --project=setup --project=chromium --project=mobile-chrome",
     "e2e:guest": "playwright test --project=chromium-guest",
-    "lint": "ng lint && npm run check:tokens && npm run check:subscriptions && npm run check:table-views && npm run check:permissions && npm run check:endpoint-gates && npm run check:form-errors && npm run check:print-types && npm run check:registro && npm run check:terminologia && npm run check:modalita-prezzo && npm run check:tab-stops && npm run check:sort-columns && npm run check:search-config && npm run check:variant-label && npm run check:column-handles && npm run check:document-grammar && npm run check:exit-label && npm run check:exit-dialog && npm run check:document-actions && npm run check:page-state",
+    "lint": "ng lint && npm run check:tokens && npm run check:subscriptions && npm run check:table-views && npm run check:permissions && npm run check:endpoint-gates && npm run check:form-errors && npm run check:print-types && npm run check:registro && npm run check:terminologia && npm run check:modalita-prezzo && npm run check:tab-stops && npm run check:sort-columns && npm run check:search-config && npm run check:variant-label && npm run check:column-handles && npm run check:document-grammar && npm run check:exit-label && npm run check:exit-dialog && npm run check:document-actions && npm run check:page-state && npm run check:money-input",
     "lint:fix": "ng lint --fix",
     "audit:lhci": "lhci autorun",
     "check:rls": "node scripts/check-rls.mjs",
@@ -67,6 +67,7 @@
     "check:exit-label": "node scripts/check-exit-label.mjs",
     "check:exit-dialog": "node scripts/check-exit-dialog.mjs",
     "check:document-actions": "node scripts/check-document-actions.mjs",
+    "check:money-input": "node scripts/check-money-input.mjs",
     "check:page-state": "node scripts/check-page-state.mjs"
   },
   "private": true,

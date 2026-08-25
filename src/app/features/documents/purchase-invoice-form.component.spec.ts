@@ -376,6 +376,62 @@ describe('PurchaseInvoiceFormComponent', () => {
     expect(body.lines?.[1]?.linkedGoodsReceiptId).toBeUndefined();
   });
 
+  /**
+   * ⭐ **LA RETE.** Riaprire e risalvare senza toccare niente non deve cambiare
+   * un centesimo.
+   *
+   * ⚠️ **Oggi è verde, ed è il punto.** Non prova un difetto: prova che i valori
+   * economici sopravvivono al giro completo — form → payload — ed è la rete che
+   * rende sicuri i passi che convertono questa maschera alla primitiva monetaria
+   * e al Codice IVA. Diventa rossa nel momento in cui uno di quei passi azzera
+   * l'imposta di un documento già salvato, che è il difetto più costoso
+   * possibile qui: cambierebbe il totale e il residuo da pagare.
+   *
+   * ⛔ È anche la regola «la riga di un documento è una fotografia e non si
+   * riscatta da sola» (`regole-gestionale`), applicata dove non era provata.
+   */
+  it('⭐ risalvare senza toccare NIENTE riporta gli stessi importi, al centesimo', async () => {
+    const user = userEvent.setup();
+    const { documentService } = await setup({ documentoDaRiaprire: REGISTRAZIONE_SALVATA });
+    await screen.findByLabelText('Descrizione riga 1');
+
+    await saveInvoice(user);
+
+    await waitFor(() => expect(documentService.savePurchaseInvoice).toHaveBeenCalled());
+    const body = documentService.savePurchaseInvoice.mock.calls[0]![0];
+
+    // I valori sono quelli di REGISTRAZIONE_SALVATA, non ricalcolati né arrotondati.
+    expect(body.lines).toEqual([
+      {
+        description: 'Rif. Arrivo merce 1 del 10/01/2026',
+        netMinor: 10_050,
+        vatRatePercent: 22,
+        vatMinor: 2_211,
+        linkedGoodsReceiptId: 'gr-1',
+      },
+      {
+        description: 'Spese di trasporto',
+        netMinor: 1_500,
+        vatRatePercent: 22,
+        vatMinor: 330,
+        linkedGoodsReceiptId: undefined,
+      },
+    ]);
+  });
+
+  it('⭐ e i totali a schermo sono la somma delle righe, non un dato a parte', async () => {
+    // ⚠️ Se un passo futuro spostasse i totali su un campo persistito, questa
+    // diventerebbe rossa — ed è l'avviso giusto: i totali di questa maschera si
+    // calcolano dalle righe, e l'operatore li vede aggiornarsi mentre digita.
+    await setup({ documentoDaRiaprire: REGISTRAZIONE_SALVATA });
+    await screen.findByLabelText('Descrizione riga 1');
+
+    // 100,50 + 15,00 = 115,50 · 22,11 + 3,30 = 25,41 · totale 140,91
+    expect(screen.getByText('115,50 €')).toBeTruthy();
+    expect(screen.getByText('25,41 €')).toBeTruthy();
+    expect(screen.getByText('140,91 €')).toBeTruthy();
+  });
+
   // Le scadenze si precompilano con il residuo non coperto; la spunta
   // "Saldato" propone oggi come data saldo (spec PAGAMENTO).
   it('precompila la scadenza con il residuo e la data saldo alla spunta Saldato', async () => {

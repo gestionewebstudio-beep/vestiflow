@@ -2047,3 +2047,101 @@ Deciso dal proprietario: _«in danea, le righe, non vengono toccate, cambia solo
 - **`lineSource`**: la colonna resta, ma ha cambiato mestiere — da «origine ricalcolabile» a
   **provenienza storica**. Non decide più niente nel frontend, e i commenti di schema e modello
   lo dicono.
+
+---
+
+# §42 — La riga economica: una sola, e non l'ho scritta io _(25/08/2026)_
+
+⛔ **Questa sezione nasce da una contestazione del proprietario**, e la riporta perché è la
+diagnosi che serve a non ripetere l'errore:
+
+> _«registrazione fattura fornitore esistevano gia le righe, non lo so se le hai ricreate ma
+> vedo che continui a fare gli stessi errori. non riutilizzi le componeti esistenti e duplichi
+> sempre. per esempio l'iva»_
+
+## 42.1 Che cosa esisteva già, e chi lo usava
+
+| Il pezzo                                              | Dove                                                        | Chi lo usava                                                          |
+| ----------------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------- |
+| **Menu netto/ivato nella testata di COLONNA**         | `domain/documents/components/price-mode-menu`               | Arrivo merce, Ordine fornitore, DDT, Ordine cliente, Vendita al banco |
+| **Coppia digitato + netto canonico, `Decimal(16,6)`** | `ManualReceiptLine.enteredAmountMinor/netAmountMinor`       | Corrispettivo manuale                                                 |
+| **Cella Codice IVA** con snapshot congelato           | `document-line-select-cell` + `vatCodeId`/`vatSnapshot`     | sei consumatori, Corrispettivo manuale compreso                       |
+| **Conversione netto↔ivato dei costi**                 | `domain/documents/utils/document-vat.util.ts`               | famiglia acquisto                                                     |
+| **Primitiva monetaria** e la sua cella di riga        | `shared/components/money-input`, `document-line-money-cell` | ⛔ **NESSUNO** — vedi 42.2                                            |
+
+⚠️ **La Registrazione fattura non ne usava nemmeno uno**, e dopo l'unificazione delle righe
+(§41) continuava a non usarne nessuno: quattro `<input inputmode="decimal">` scritti a mano,
+la percentuale IVA digitata libera invece del Codice IVA, e `recalcLineVat` riscritta in
+locale mentre `document-vat.util` fa già quel conto.
+
+⭐ **Il difetto non è stato "creare" qualcosa di nuovo: è averlo PORTATO AVANTI.** Le caselle
+grezze c'erano già nelle vecchie «righe manuali», e l'unificazione le ha ereditate senza
+chiedersi che cosa il progetto avesse. È la forma in cui la regola DRY si viola più spesso —
+non copiando, ma non guardando.
+
+## 42.2 ⛔ La primitiva monetaria è orfana, e ha due giorni
+
+Il commit `f795763a` del **23/08/2026** — «il campo di denaro e' uno solo, e la rete che
+serviva a estenderlo» — ha creato `money-input` e `document-line-money-cell` perché fossero
+adottati. Misurato il 25/08:
+
+```text
+chi importa DocumentLineMoneyCellComponent   nessuno
+chi importa MoneyInputComponent              solo la cella qui sopra
+document-line-row (la riga di OGNI maschera) 5 input decimali grezzi
+purchase-invoice-form                        4 input decimali grezzi
+```
+
+Non è quindi un difetto di una maschera: è una primitiva costruita e mai adottata, su cui si
+è continuato a scrivere caselle a mano.
+
+## 42.3 Le decisioni del proprietario — 25/08/2026
+
+> **1 · Il selettore netto/ivato sta nell'INTESTAZIONE DELLA COLONNA, ovunque.**
+
+_«in altri documenti questa scelta si fa nell'intestazione della colonna, come per prezzo e
+costo. potrebbe essere buona norma utilizzare lo stesso metodo per migliorare l'esperienza
+utente alla abitudine che prende con gli altri documenti.»_
+
+⚠️ Vale **anche per il Corrispettivo manuale**, che oggi lo mette in testata con un
+`app-select-menu`: era l'unico diverso, e la posizione si allinea a `price-mode-menu`.
+
+> **2 · Un documento NUOVO parte NETTO. Entrambi.**
+
+_«di default deve essere netta, poi l'operatore può cambiare il calcolo nella schermata, ma il
+nuovo documento parte netto.»_
+
+⚠️ Per il Corrispettivo manuale cambia il comportamento, ma **non supera una decisione: colma
+un vuoto.** Oggi è cablato `pricesIncludeVat = signal(true)` col commento «Parte IVATA: è il
+verso in cui arrivano i valori di una chiusura di cassa» — e quel commento sembra una scelta
+deliberata. Il proprietario ha chiarito il 25/08 che non lo era: **«non era stato affrontato
+ancora il documento»**.
+
+⛔ **È una distinzione che vale la pena tenere.** Un commento affermativo su un default
+provvisorio si legge, sei mesi dopo, come una ragione ponderata — e chi lo trova esita a
+cambiarlo. Il default provvisorio va scritto come tale, o diventa una regola che nessuno ha
+mai deciso.
+
+⭐ Per la Registrazione fattura non è una novità ma un allineamento: è un documento di
+**costo**, e `regole-gestionale` dice già «Arrivo merce e Ordine fornitore partono sempre
+netti».
+
+> **3 · La riga economica della Registrazione fattura è la STESSA del Corrispettivo manuale.**
+
+_«pre registrazioni fatture fornitore dobbiamo avere l'importo netto/ivato, stesso sistema per
+i prezzi, stessa struttura 16,6»_
+
+Cioè il modello già in `ManualReceiptLine`:
+
+```text
+enteredAmountMinor  Decimal(16,6)   l'importo COME DIGITATO, nella modalità corrente
+netAmountMinor      Decimal(16,6)   il netto CANONICO con la coda
+vatCodeId + vatSnapshot             il Codice IVA congelato
+netMinor/vatMinor/grossMinor  Int   i tre esiti, arrotondati una volta sola
+```
+
+⭐ **La differenza vera fra le due righe è UNA**: quella della fattura può portare
+`linkedGoodsReceiptId` (§41.3). Tutto il resto è lo stesso mestiere.
+
+⛔ **Non è quindi «aggiungere il netto/ivato alla Registrazione fattura»**: è farle usare la
+riga che il gestionale ha già.
