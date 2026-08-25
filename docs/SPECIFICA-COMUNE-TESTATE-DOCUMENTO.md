@@ -2145,3 +2145,75 @@ netMinor/vatMinor/grossMinor  Int   i tre esiti, arrotondati una volta sola
 
 ⛔ **Non è quindi «aggiungere il netto/ivato alla Registrazione fattura»**: è farle usare la
 riga che il gestionale ha già.
+
+---
+
+# §43 — Netto/ivato: dove sta il comando, e da dove parte _(25-26/08/2026)_
+
+## 43.1 Il selettore sta nell'INTESTAZIONE DELLA COLONNA
+
+Deciso dal proprietario: _«in altri documenti questa scelta si fa nell'intestazione della
+colonna, come per prezzo e costo. Potrebbe essere buona norma utilizzare lo stesso metodo per
+migliorare l'esperienza utente alla abitudine che prende con gli altri documenti»_.
+
+⭐ È `app-price-mode-menu`, che esiste dal lavoro sulle tre maschere che se lo erano scritto a
+mano — «quarantacinque righe l'una». Ora lo montano **sette** schermate.
+
+## 43.2 ⚠️ La seconda veste serve solo a chi COMMUTA in card
+
+| Maschera                                                                                         | Sotto `lg`                                                            | Serve la veste compatta?                          |
+| ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- | ------------------------------------------------- |
+| Arrivo merce, Ordine fornitore, DDT, Ordine cliente, Vendita al banco, **Corrispettivo manuale** | la tabella si spegne (`.doc-form__table-wrap` globale) e diventa card | **sì** — l'intestazione di colonna non esiste più |
+| **Registrazione fattura**                                                                        | la tabella resta e scorre (classe propria, `overflow-x: auto`)        | **no** — sarebbero due comandi visibili insieme   |
+
+⛔ **Ci sono cascato**: avevo aggiunto la veste compatta anche alla Registrazione fattura,
+ricalcando l'Arrivo merce. Il criterio non è «quale maschera copio», è **se quella tabella
+sopravvive allo schermo stretto**.
+
+## 43.3 Un documento nuovo parte NETTO. Entrambi.
+
+_«di default deve essere netta, poi l'operatore può cambiare il calcolo nella schermata, ma il
+nuovo documento parte netto.»_
+
+⚠️ Per il Corrispettivo manuale è un cambio di comportamento, ma **non supera una decisione:
+colma un vuoto.** Era cablato `signal(true)` col commento «Parte IVATA: è il verso in cui
+arrivano i valori di una chiusura di cassa» — che sembra deliberato e non lo era: _«non era
+stato affrontato ancora il documento»_.
+
+⛔ **Un default provvisorio scritto in forma affermativa** si legge, sei mesi dopo, come una
+ragione ponderata, e chi lo trova esita a cambiarlo. Va scritto come provvisorio, o diventa una
+regola che nessuno ha mai deciso.
+
+## 43.4 ⛔ L'IVA si riconosce dal CODICE, mai dal numero dell'aliquota
+
+_«devi prendere la stessa tabella IVA utilizzata per tutti i documenti e devi riconoscere
+un'IVA non dal numero, ma in base all'ID. L'IVA deve essere perfetta, soprattutto in
+contabilità.»_
+
+Il calcolo passa da `computeVatLineAmounts` ed `entryIncludesVat` — il motore condiviso — e i
+dati arrivano da **tre fonti in ordine**, nessuna delle quali è l'aliquota nuda:
+
+```text
+1. il Codice IVA scelto      l'autorità, quando c'è
+2. lo snapshot congelato     il fatto fiscale del giorno in cui il documento è stato compilato
+3. l'aliquota storica        solo per le righe nate prima che il Codice IVA esistesse
+```
+
+⚠️ **Misurato**: calcolando `netto × aliquota ÷ 100` a mano, una fattura in **inversione
+contabile** perdeva il 22% di imponibile — 100,00 diventavano 81,97. In reverse charge il
+fornitore non espone l'IVA, e l'importo scritto in fattura è già l'imponibile.
+
+⛔ **E uno snapshot di UN CAMPO non è un Codice IVA.** Le righe salvate prima del 25/08/2026
+portano `{ ratePercent }` e nient'altro: passarlo a `vatInputFromSnapshot` darebbe
+`calculationMode: undefined`, e da lì ogni decisione fiscale sarebbe presa su un dato che non
+esiste. Il discriminante è `calculationMode`, che uno snapshot vero ha sempre.
+
+## 43.5 ⏸ Il riferimento per il MOBILE è l'Ordine cliente
+
+Indicato dal proprietario il 26/08/2026: _«la grafica mobile di nuovo ordine cliente è quella
+più esatta al momento, ma non viene mai presa, nonostante dobbiamo unire»_.
+
+⚠️ **Vale come riferimento visivo per la vista compatta**, allo stesso titolo con cui il
+Registro Corrispettivi e la Nota di credito valgono per i riepiloghi e per l'estetica corrente.
+Non è ancora stato applicato: le maschere che commutano in card vanno confrontate con quella,
+ed è lavoro dichiarato, non fatto.

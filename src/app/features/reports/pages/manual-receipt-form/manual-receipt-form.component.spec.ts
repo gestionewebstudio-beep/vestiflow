@@ -5,6 +5,7 @@ import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { VatCodeService } from '@core/services/vat-code.service';
+import { ViewportService } from '@core/services/viewport.service';
 
 import type { ManualReceipt, SaveManualReceiptBody } from '../../models/manual-receipt.model';
 import { ManualReceiptService } from '../../services/manual-receipt.service';
@@ -77,6 +78,11 @@ function receipt(overrides: Partial<ManualReceipt> = {}): ManualReceipt {
 interface SetupOptions {
   readonly id?: string;
   readonly loaded?: ManualReceipt;
+  /**
+   * Vista compatta: sotto `lg` la tabella diventa card e l'intestazione di
+   * colonna sparisce, quindi il selettore netto/ivato indossa l'altra veste.
+   */
+  readonly compatta?: boolean;
 }
 
 async function setup(options: SetupOptions = {}) {
@@ -87,6 +93,10 @@ async function setup(options: SetupOptions = {}) {
   await render(ManualReceiptFormComponent, {
     providers: [
       provideRouter([{ path: '**', children: [] }]),
+      {
+        provide: ViewportService,
+        useValue: { compact: () => options.compatta === true },
+      },
       {
         provide: ActivatedRoute,
         useValue: {
@@ -157,12 +167,21 @@ async function scegliSede(user: ReturnType<typeof userEvent.setup>): Promise<voi
   await user.click(screen.getByRole('option', { name: 'Negozio Centro' }));
 }
 
+/**
+ * ⭐ Dal 25/08/2026 il selettore vive nell'INTESTAZIONE DELLA COLONNA, come su
+ * ogni altro documento. La veste in testata resta per la sola vista compatta,
+ * dove la tabella diventa card e l'intestazione non esiste più.
+ */
 async function cambiaModalita(
   user: ReturnType<typeof userEvent.setup>,
   voce: 'Ivati' | 'Netti',
 ): Promise<void> {
-  await user.click(screen.getByRole('button', { name: /importi ivati o netti/i }));
-  await user.click(screen.getByRole('option', { name: voce }));
+  await user.click(screen.getByRole('button', { name: 'Modalità importi della registrazione' }));
+  await user.click(
+    screen.getByRole('menuitemradio', {
+      name: voce === 'Ivati' ? 'Usa importi ivati' : 'Usa importi netti',
+    }),
+  );
 }
 
 describe('ManualReceiptFormComponent — il giro dell’importo ivato', () => {
@@ -422,5 +441,54 @@ describe('ManualReceiptFormComponent — il rifiuto del salvataggio si vede', ()
     //    a card — a nasconderne una è il CSS, che qui non gira. Basta che il
     //    rifiuto sia leggibile, non che lo sia una volta sola.
     expect((await screen.findAllByText(/Aggiungi almeno una riga/i)).length).toBeGreaterThan(0);
+  });
+});
+
+describe('ManualReceiptFormComponent — la modalità importi', () => {
+  /**
+   * ⭐ **Un corrispettivo NUOVO parte NETTO.**
+   *
+   * ⛔ Partiva ivato, col commento «è il verso in cui arrivano i valori di una
+   * chiusura di cassa». Sembrava una scelta deliberata e non lo era: il
+   * proprietario ha chiarito il 25/08/2026 che «non era stato affrontato ancora
+   * il documento».
+   *
+   * ⚠️ La lezione vale oltre questo caso: un default provvisorio scritto in
+   * forma affermativa si legge, sei mesi dopo, come una ragione ponderata.
+   */
+  it('⭐ un corrispettivo nuovo parte NETTO', async () => {
+    // ⚠️ La sede prima: a testata incompleta le righe non si mostrano affatto
+    // (regole-stile-ui §7), quindi senza non c'è nemmeno l'intestazione.
+    const user = userEvent.setup();
+    await setup();
+    await scegliSede(user);
+
+    // ⭐ `getAllByText`: l'etichetta compare due volte — nell'intestazione di
+    // colonna e nel controllo della card — perché le due viste convivono nel
+    // DOM e a sceglierne una è il CSS. Che dicano la stessa parola è giusto.
+    expect(screen.getAllByText('Importo netto').length).toBeGreaterThan(0);
+    expect(screen.queryAllByText('Importo ivato')).toHaveLength(0);
+  });
+
+  it('⭐ il selettore vive nell’intestazione della colonna, come sugli altri documenti', async () => {
+    const user = userEvent.setup();
+    await setup();
+    await scegliSede(user);
+
+    expect(
+      screen.getByRole('button', { name: 'Modalità importi della registrazione' }),
+    ).toBeTruthy();
+    // ⛔ In vista estesa la veste di testata NON c'è: sarebbero due comandi
+    // identici visibili insieme (`regole-stile-ui` §9).
+    expect(screen.queryByRole('button', { name: /importi ivati o netti/i })).toBeNull();
+  });
+
+  it('⭐ e su schermo compatto indossa l’altra veste, nel pannello di testata', async () => {
+    // ⚠️ Sotto `lg` la tabella diventa card e l'intestazione di colonna non
+    // esiste più: senza la seconda veste, sul telefono la modalità non si
+    // potrebbe cambiare. È la coppia che l'Arrivo merce ha già.
+    await setup({ compatta: true });
+
+    expect(screen.getByRole('button', { name: /importi ivati o netti/i })).toBeTruthy();
   });
 });

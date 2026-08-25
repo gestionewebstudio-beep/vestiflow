@@ -27,6 +27,7 @@ import type { VatCode } from '@core/models/vat-code.model';
 import { formatVatRate, isSalesVatCode } from '@core/models/vat-code.model';
 import { NavigationHistoryService } from '@core/services/navigation-history.service';
 import { VatCodeService } from '@core/services/vat-code.service';
+import { ViewportService } from '@core/services/viewport.service';
 import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import {
   DEFAULT_CURRENCY,
@@ -37,6 +38,7 @@ import {
   toStorableMinor,
 } from '@core/utils/money.util';
 import { DocumentLineCardComponent } from '@domain/documents/components/document-line-card/document-line-card.component';
+import { PriceModeMenuComponent } from '@domain/documents/components/price-mode-menu/price-mode-menu.component';
 import { DocumentLineCardControlComponent } from '@domain/documents/components/document-line-card/document-line-card-control.component';
 import { DocumentLineCardFieldComponent } from '@domain/documents/components/document-line-card/document-line-card-field.component';
 import { DocumentLineCardGroupComponent } from '@domain/documents/components/document-line-card/document-line-card-group.component';
@@ -108,6 +110,7 @@ const LIST_PATH = '/app/sales/corrispettivi';
     ButtonComponent,
     DateInputComponent,
     DocumentLineCardComponent,
+    PriceModeMenuComponent,
     DocumentLineCardControlComponent,
     DocumentLineCardFieldComponent,
     DocumentLineCardGroupComponent,
@@ -172,8 +175,19 @@ export class ManualReceiptFormComponent implements CanComponentDeactivate {
     lines: this.fb.array<FormGroup<LineControls>>([]),
   });
 
-  /** Parte IVATA: è il verso in cui arrivano i valori di una chiusura di cassa. */
-  protected readonly pricesIncludeVat = signal(true);
+  /**
+   * Modalità importi della registrazione.
+   *
+   * ⛔ **Partiva IVATA**, col commento «è il verso in cui arrivano i valori di
+   * una chiusura di cassa». Sembrava una scelta deliberata, e non lo era: il
+   * proprietario ha chiarito il 25/08/2026 che «non era stato affrontato ancora
+   * il documento». Un default provvisorio scritto in forma affermativa si
+   * legge, sei mesi dopo, come una ragione ponderata — e chi lo trova esita a
+   * cambiarlo.
+   *
+   * ⭐ Ora parte NETTA, come ogni documento nuovo del gestionale.
+   */
+  protected readonly pricesIncludeVat = signal(false);
 
   protected readonly assignedNumber = signal<number | null>(null);
   protected readonly createdByName = signal<string | null>(null);
@@ -240,10 +254,22 @@ export class ManualReceiptFormComponent implements CanComponentDeactivate {
     this.salesVatCodes().map(vatCodeSelectOption),
   );
 
+  /**
+   * Le voci della veste COMPATTA.
+   *
+   * ⚠️ Su scrivania lo stesso comando vive nell'intestazione della colonna
+   * Importo, dove governa la colonna che legge. Sotto `lg` la tabella diventa
+   * card e quell'intestazione non esiste piu': il controllo va dove c'e' posto
+   * per lui. Non sono due comandi — sono due vesti dello stesso, e chiamano lo
+   * stesso metodo (`regole-stile-ui` §5).
+   */
   protected readonly priceModeOptions: readonly SelectMenuOption[] = [
-    { value: 'gross', label: 'Ivati' },
     { value: 'net', label: 'Netti' },
+    { value: 'gross', label: 'Ivati' },
   ];
+
+  /** Vista compatta: sotto `lg` la tabella e' card e non ha intestazioni. */
+  protected readonly compactView = inject(ViewportService).compact;
 
   constructor() {
     this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
@@ -514,7 +540,11 @@ export class ManualReceiptFormComponent implements CanComponentDeactivate {
    * valgono. I campi si ridisegnano dal netto canonico, che non viene toccato.
    */
   protected setPriceMode(value: string | null): void {
-    const gross = value !== 'net';
+    this.setAmountsIncludeVat(value !== 'net');
+  }
+
+  /** Il gemello per il menu nell'intestazione di colonna, che parla booleano. */
+  protected setAmountsIncludeVat(gross: boolean): void {
     if (gross === this.pricesIncludeVat()) {
       return;
     }

@@ -155,25 +155,31 @@
               }
             </div>
 
-            <div class="doc-form__field">
-              <span class="doc-form__label">Importi</span>
-              <!--
-                Un solo selettore per l'intera registrazione, e parte da
-                «Ivati»: il caso operativo è ricopiare i valori di una chiusura
-                di cassa, che ivati lo sono. Cambiando modalità i valori si
-                CONVERTONO — il netto canonico non si tocca mai.
-              -->
-              <app-select-menu
-                [options]="priceModeOptions"
-                [value]="priceModeValue()"
-                ariaLabel="Importi ivati o netti"
-                placeholder="Ivati"
-                [includeEmptyOption]="false"
-                [compact]="true"
-                [fullWidth]="true"
-                (valueChange)="setPriceMode($event)"
-              />
-            </div>
+            <!--
+              ⚠️ **Campo della SOLA vista compatta, e non è una dimenticanza.**
+              Su scrivania lo stesso comando vive nell'intestazione della colonna
+              Importo, dove governa la colonna che legge; sotto `lg` la tabella
+              diventa card e quell'intestazione non esiste più, quindi il
+              controllo va dove c'è posto per lui.
+
+              Cambiando modalità i valori si CONVERTONO — il netto canonico non
+              si tocca mai.
+            -->
+            @if (compactView()) {
+              <div class="doc-form__field">
+                <span class="doc-form__label">Importi</span>
+                <app-select-menu
+                  [options]="priceModeOptions"
+                  [value]="priceModeValue()"
+                  ariaLabel="Importi ivati o netti"
+                  placeholder="Netti"
+                  [includeEmptyOption]="false"
+                  [compact]="true"
+                  [fullWidth]="true"
+                  (valueChange)="setPriceMode($event)"
+                />
+              </div>
+            }
           </fieldset>
         </div>
       </div>
@@ -227,8 +233,29 @@
               avanza va alla descrizione — che è l'unica a poter essere lunga.
             -->
                   <tr>
-                    <th scope="col" class="doc-form__num" style="width: 13%">
-                      {{ pricesIncludeVat() ? 'Importo ivato' : 'Importo netto' }}
+                    <!--
+                      ⭐ Il selettore netto/ivato vive QUI, nell'intestazione
+                      della colonna che governa — come su Arrivo merce, Ordine
+                      fornitore, DDT, Ordine cliente, Vendita al banco e
+                      Registrazione fattura. Deciso il 25/08/2026: «potrebbe
+                      essere buona norma utilizzare lo stesso metodo per
+                      migliorare l'esperienza utente alla abitudine che prende
+                      con gli altri documenti».
+                    -->
+                    <th scope="col" class="doc-form__num doc-form__th--menu" style="width: 13%">
+                      <span class="doc-form__th-menu-wrap">
+                        <span class="doc-form__th-label">
+                          {{ pricesIncludeVat() ? 'Importo ivato' : 'Importo netto' }}
+                        </span>
+                        <app-price-mode-menu
+                          [pricesIncludeVat]="pricesIncludeVat()"
+                          netLabel="Usa importi netti"
+                          grossLabel="Usa importi ivati"
+                          ariaLabel="Modalità importi della registrazione"
+                          [disabled]="formReadOnly()"
+                          (modeChange)="setAmountsIncludeVat($event)"
+                        />
+                      </span>
                     </th>
                     <th scope="col" class="doc-form__col--tax" style="width: 8%">IVA</th>
                     <th scope="col" class="doc-form__num doc-form__col--calc" style="width: 12%">
