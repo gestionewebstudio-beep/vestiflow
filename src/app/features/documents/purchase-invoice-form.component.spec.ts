@@ -355,11 +355,11 @@ describe('PurchaseInvoiceFormComponent', () => {
     expect(descrizione.value).toBe('Rif. Arrivo merce 1 del 10/01/2026');
 
     // ⭐ E si corregge: era un `<td>` di testo, ora è un campo.
-    const netto = screen.getByLabelText<HTMLInputElement>('Importo netto riga 2');
+    const netto = screen.getByLabelText<HTMLInputElement>('Importo riga 2');
     expect(netto.value).toBe('100,00');
     await user.clear(netto);
     await user.type(netto, '100,50');
-    expect(screen.getByLabelText<HTMLInputElement>('Importo netto riga 2').value).toBe('100,50');
+    expect(screen.getByLabelText<HTMLInputElement>('Importo riga 2').value).toBe('100,50');
   });
 
   it('⛔ due arrivi danno DUE righe, non una riga sommata', async () => {
@@ -396,7 +396,7 @@ describe('PurchaseInvoiceFormComponent', () => {
 
     // ⭐ Nessun «Aggiungi riga»: la riga 1 c'è già all'apertura, e porta già il
     // Codice IVA predefinito d'acquisto.
-    await user.type(screen.getByLabelText('Importo netto riga 1'), '100');
+    await user.type(screen.getByLabelText('Importo riga 1'), '100');
     await user.tab();
 
     const vatInput = screen.getByLabelText<HTMLInputElement>('Importo IVA riga 1');
@@ -421,7 +421,7 @@ describe('PurchaseInvoiceFormComponent', () => {
 
     const daArrivo = await screen.findByLabelText<HTMLInputElement>('Descrizione riga 1');
     expect(daArrivo.value).toBe('Rif. Arrivo merce 1 del 10/01/2026');
-    expect(screen.getByLabelText<HTMLInputElement>('Importo netto riga 1').value).toBe('100,50');
+    expect(screen.getByLabelText<HTMLInputElement>('Importo riga 1').value).toBe('100,50');
 
     const libera = screen.getByLabelText<HTMLInputElement>('Descrizione riga 2');
     expect(libera.value).toBe('Spese di trasporto');
@@ -553,7 +553,7 @@ describe('PurchaseInvoiceFormComponent', () => {
     // le righe — ed è giusto così (`11` e regole-gestionale).
     await selectSupplier(user);
     await user.type(screen.getByLabelText('Descrizione riga 1'), 'Trasporto');
-    await user.type(screen.getByLabelText('Importo netto riga 1'), '15,00');
+    await user.type(screen.getByLabelText('Importo riga 1'), '15,00');
     // ⚠️ Lo sfocamento è il momento in cui la primitiva monetaria emette: è la
     // ragione per cui la coda decimale del canonico sopravvive a un giro di
     // fuoco che non cambia niente. Scritto esplicito, non affidato al clic.
@@ -585,7 +585,7 @@ describe('PurchaseInvoiceFormComponent', () => {
 
     await selectSupplier(user);
     await user.type(screen.getByLabelText('Descrizione riga 1'), 'Trasporto');
-    await user.type(screen.getByLabelText('Importo netto riga 1'), '15,00');
+    await user.type(screen.getByLabelText('Importo riga 1'), '15,00');
     await user.tab();
     await saveInvoice(user);
 
@@ -674,6 +674,102 @@ describe('PurchaseInvoiceFormComponent', () => {
     const daArrivo = body.lines?.find((riga) => riga.description.startsWith('Rif. Arrivo merce 1'));
     expect(daArrivo?.vatCodeId).toBe('vat-22');
     expect(daArrivo?.vatRatePercent).toBe(22);
+  });
+
+  // ── Modalità importi: netta o ivata ──────────────────────────────────────
+
+  /**
+   * ⭐ **Il selettore netto/ivato vive nell'INTESTAZIONE DELLA COLONNA.**
+   *
+   * Deciso dal proprietario il 25/08/2026: _«in altri documenti questa scelta si
+   * fa nell'intestazione della colonna, come per prezzo e costo. Potrebbe essere
+   * buona norma utilizzare lo stesso metodo per migliorare l'esperienza utente
+   * alla abitudine che prende con gli altri documenti»_.
+   *
+   * È lo stesso `app-price-mode-menu` di Arrivo merce, Ordine fornitore, DDT,
+   * Ordine cliente e Vendita al banco.
+   */
+  it('⭐ la testata della colonna importo porta il selettore netto/ivato', async () => {
+    await setup();
+
+    expect(
+      screen.getByRole('button', { name: 'Modalità importi della registrazione' }),
+    ).toBeTruthy();
+    // Parte NETTA: è un documento di costo.
+    expect(screen.getByText('Importo netto')).toBeTruthy();
+  });
+
+  it('⭐ passando a ivato, l’intestazione lo dice e il campo mostra il LORDO', async () => {
+    const user = userEvent.setup();
+    await setup({ documentoDaRiaprire: REGISTRAZIONE_SALVATA });
+    await screen.findByLabelText('Importo riga 1');
+
+    // 100,50 netti + 22,11 di imposta = 122,61 ivati.
+    expect(screen.getByLabelText<HTMLInputElement>('Importo riga 1').value).toBe('100,50');
+
+    await user.click(screen.getByRole('button', { name: 'Modalità importi della registrazione' }));
+    await user.click(screen.getByRole('menuitemradio', { name: 'Usa importi ivati' }));
+
+    expect(screen.getByText('Importo ivato')).toBeTruthy();
+    expect(screen.getByLabelText<HTMLInputElement>('Importo riga 1').value).toBe('122,61');
+  });
+
+  /**
+   * ⭐ **Il campo è una VISTA: quello che si memorizza è sempre il netto
+   * canonico, con la coda.**
+   *
+   * ⚠️ È la ragione per cui `regole-gestionale` chiede sei decimali: 25,00 ivati
+   * al 22% valgono 2049,180328 centesimi netti, ed è quella coda a far tornare
+   * 25,00 quando si rimostra ivato. Arrotondare a metà strada perde un centesimo
+   * su un prezzo su cinque.
+   */
+  it('⭐ digitando un ivato, tornando in netto il valore NON balla', async () => {
+    // ⛔ **Il valore è 1,03 e non un numero qualsiasi.** La prima stesura usava
+    // 25,00, ed era VERDE anche arrotondando il netto canonico: 2500/1,22 fa
+    // 2049,18, e sia 2049,18 sia 2049 riportano a 2500. Non discriminava, cioè
+    // non provava niente — è il difetto che questo progetto chiama «verde per
+    // la ragione sbagliata», e l'ho trovato falsificando invece che fidandomi.
+    //
+    // ⭐ 1,03 discrimina: il netto vale 0,844262…, e con la coda torna 1,03;
+    // troncato a 84 centesimi torna 1,02. È lo stesso esempio che il commento
+    // della primitiva monetaria porta da quando è nata.
+    const user = userEvent.setup();
+    await setup();
+
+    const menu = screen.getByRole('button', { name: 'Modalità importi della registrazione' });
+    await user.click(menu);
+    await user.click(screen.getByRole('menuitemradio', { name: 'Usa importi ivati' }));
+
+    const campo = screen.getByLabelText('Importo riga 1');
+    await user.clear(campo);
+    await user.type(campo, '1,03');
+    await user.tab();
+
+    expect(screen.getByLabelText<HTMLInputElement>('Importo riga 1').value).toBe('1,03');
+
+    await user.click(menu);
+    await user.click(screen.getByRole('menuitemradio', { name: 'Usa importi netti' }));
+    expect(screen.getByLabelText<HTMLInputElement>('Importo riga 1').value).toBe('0,84');
+
+    await user.click(menu);
+    await user.click(screen.getByRole('menuitemradio', { name: 'Usa importi ivati' }));
+    // ⚠️ Qui esce 1,02 se il canonico è stato arrotondato: è l'asserzione che
+    // rende questa prova capace di fallire.
+    expect(screen.getByLabelText<HTMLInputElement>('Importo riga 1').value).toBe('1,03');
+  });
+
+  it('⭐ e la modalità entra nel payload', async () => {
+    const user = userEvent.setup();
+    const { documentService } = await setup();
+
+    await selectSupplier(user);
+    await user.click(screen.getByRole('button', { name: 'Modalità importi della registrazione' }));
+    await user.click(screen.getByRole('menuitemradio', { name: 'Usa importi ivati' }));
+    await saveInvoice(user);
+
+    await waitFor(() => expect(documentService.savePurchaseInvoice).toHaveBeenCalled());
+    const body = documentService.savePurchaseInvoice.mock.calls[0]![0];
+    expect(body.purchaseCostEntryMode).toBe('vat_included');
   });
 
   // Le scadenze si precompilano con il residuo non coperto; la spunta

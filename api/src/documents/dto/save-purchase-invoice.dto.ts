@@ -3,6 +3,7 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
+  IsIn,
   IsInt,
   IsISO8601,
   IsNumber,
@@ -187,6 +188,21 @@ export class SavePurchaseInvoiceDto {
   @IsString()
   @MaxLength(2000)
   internalComment?: string;
+
+  /**
+   * Modalità importi della registrazione: netti o ivati.
+   *
+   * ⭐ Il selettore vive nell'INTESTAZIONE DELLA COLONNA come su ogni altro
+   * documento (deciso il 25/08/2026), e un documento NUOVO parte netto — e' un
+   * documento di COSTO, e per un'azienda che detrae l'IVA il costo E' il netto.
+   * L'ivato resta una comodita' del singolo documento.
+   *
+   * ⚠️ Su una registrazione esistente, assente significa «quella di prima»: un
+   * documento e' un fatto e conserva la modalita' con cui e' stato compilato.
+   */
+  @IsOptional()
+  @IsIn(['vat_excluded', 'vat_included'])
+  purchaseCostEntryMode?: 'vat_excluded' | 'vat_included';
 
   /** Tipo pagamento (auto-compilato dall'anagrafica fornitore, modificabile). */
   @IsOptional()

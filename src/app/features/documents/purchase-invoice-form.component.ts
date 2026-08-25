@@ -78,6 +78,8 @@ import {
   vatOptionsIncludingSelected,
 } from '@domain/documents/utils/document-vat-options.util';
 import { vatCodeIdForLinePayload } from '@domain/documents/utils/document-line-vat-payload.util';
+import { grossFromNetMinor, netFromGrossExact } from '@domain/documents/utils/document-vat.util';
+import { PriceModeMenuComponent } from '@domain/documents/components/price-mode-menu/price-mode-menu.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
@@ -216,6 +218,7 @@ function formatShortDate(iso: string): string {
     DocumentPageStateComponent,
     MoneyInputComponent,
     DocumentLineSelectCellComponent,
+    PriceModeMenuComponent,
   ],
   templateUrl: './purchase-invoice-form.component.html',
   styleUrl: './purchase-invoice-form.component.scss',
@@ -876,6 +879,83 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     });
   }
 
+  // ── Modalità importi: netta o ivata ─────────────────────────────────────
+  //
+  // ⭐ Deciso dal proprietario il 25/08/2026: il selettore vive
+  // nell'INTESTAZIONE DELLA COLONNA, come su ogni altro documento, «per
+  // migliorare l'esperienza utente alla abitudine che prende con gli altri
+  // documenti». E un documento nuovo PARTE NETTO.
+  //
+  // ⚠️ Non serve una colonna nuova: `Document.purchaseCostEntryMode` esiste, ha
+  // default `vat_excluded` ed è la stessa dell'Arrivo merce. È coerente con
+  // `regole-gestionale`: «i costi partono sempre netti, e l'inserimento ivato
+  // resta una comodità del singolo documento».
+
+  private readonly costEntryMode = signal<'vat_excluded' | 'vat_included'>('vat_excluded');
+
+  protected readonly amountsIncludeVat = computed(() => this.costEntryMode() === 'vat_included');
+
+  protected readonly amountColumnLabel = computed(() =>
+    this.amountsIncludeVat() ? 'Importo ivato' : 'Importo netto',
+  );
+
+  /**
+   * Il valore da MOSTRARE nel campo importo.
+   *
+   * ⭐ **Il campo è una vista, non il dato.** Memorizzato c'è sempre il netto
+   * canonico con la sua coda: in modalità ivata si ricompone il lordo per
+   * mostrarlo, e il netto non si tocca. Senza questa distinzione la coda
+   * morirebbe al primo cambio di modalità, e 25,00 ivati non tornerebbero più
+   * 25,00.
+   */
+  protected lineAmountValue(index: number): number | null {
+    const group = this.lines.at(index);
+    const net = group?.controls.netMinor.value ?? null;
+    if (net === null) {
+      return null;
+    }
+    if (!this.amountsIncludeVat()) {
+      return net;
+    }
+    const rate = group?.controls.ratePercent.value ?? 0;
+    return grossFromNetMinor(net, rate);
+  }
+
+  /**
+   * L'operatore scrive nel campo importo: si converte in netto canonico e si
+   * ripropone l'imposta.
+   *
+   * ⚠️ `netFromGrossExact` e non la sua gemella arrotondata: è la coda che fa
+   * tornare identico l'ivato al giro successivo (`regole-gestionale`, sei
+   * decimali).
+   */
+  protected onLineAmountChange(index: number, value: number | null): void {
+    const group = this.lines.at(index);
+    if (!group) {
+      return;
+    }
+    if (value === null || !this.amountsIncludeVat()) {
+      group.controls.netMinor.setValue(value);
+    } else {
+      const rate = group.controls.ratePercent.value ?? 0;
+      group.controls.netMinor.setValue(netFromGrossExact(value, rate));
+    }
+    this.lines.markAsDirty();
+    this.recalcLineVat(index);
+  }
+
+  /**
+   * Cambio di modalità: **il netto canonico non si tocca mai.**
+   *
+   * ⛔ Ricostruirlo da quello che si vede a schermo è il difetto che questa
+   * separazione esiste per impedire: il valore mostrato è arrotondato a due
+   * decimali, e riscriverci sopra il canonico perderebbe la coda a ogni giro.
+   */
+  protected onAmountModeChange(includeVat: boolean): void {
+    this.costEntryMode.set(includeVat ? 'vat_included' : 'vat_excluded');
+    this.markFormDirty();
+  }
+
   // ── Codici IVA ──────────────────────────────────────────────────────────
   //
   // ⛔ Questa maschera era l'UNICA dell'app a digitare l'aliquota a mano, dal
@@ -1392,6 +1472,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
           vatNumber: raw.recipient.vatNumber.trim() || undefined,
         },
         currency: this.currency,
+        purchaseCostEntryMode: this.costEntryMode(),
         // Numero imposto a mano: non sposta il progressivo della serie.
         // Non imposto: campo assente, così il server lo assegna lui.
         number: this.numbering.imposedNumber(),
@@ -1548,6 +1629,10 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
         }),
       );
     }
+
+    // La modalità con cui il documento è stato compilato: un documento è un
+    // fatto, e la conserva finché l'operatore non la cambia.
+    this.costEntryMode.set(doc.purchaseCostEntryMode ?? 'vat_excluded');
 
     // ⭐ Il riferimento del contratto binario si fissa QUI, al caricamento, e
     // non si aggiorna durante le modifiche locali: altrimenti due modifiche di

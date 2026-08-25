@@ -1278,6 +1278,11 @@ export class GoodsReceiptWorkflowService {
         currency: dto.currency ?? existing?.currency ?? 'EUR',
         // Fattura fornitore: documento di acquisto, come sopra.
         pricesIncludeVat: false,
+        // ⭐ La modalita' importi del documento. Assente su una registrazione
+        // esistente = quella di prima: un documento e' un fatto, e cambiarla e'
+        // una scelta esplicita dell'operatore, non un effetto del risalvataggio.
+        purchaseCostEntryMode:
+          dto.purchaseCostEntryMode ?? existing?.purchaseCostEntryMode ?? 'vat_excluded',
         subtotalMinor,
         taxMinor,
         totalMinor,

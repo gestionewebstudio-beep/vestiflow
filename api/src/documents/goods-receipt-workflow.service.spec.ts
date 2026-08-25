@@ -1611,4 +1611,75 @@ describe('GoodsReceiptWorkflowService.savePurchaseInvoice', () => {
     expect(riga.vatSnapshot).toEqual({ ratePercent: 10 });
   });
 
+
+  /**
+   * ⭐ **La modalità importi della registrazione: netta o ivata, e si persiste.**
+   *
+   * Deciso dal proprietario il 25/08/2026: il selettore vive nell'INTESTAZIONE
+   * DELLA COLONNA come su ogni altro documento, e **un documento nuovo parte
+   * netto**.
+   *
+   * ⭐ Non serve una colonna nuova: `Document.purchaseCostEntryMode` esiste, ha
+   * default `vat_excluded` ed è la stessa che usa l'Arrivo merce. È coerente
+   * con `regole-gestionale`: «i costi partono sempre netti, e l'inserimento
+   * ivato resta una comodità del singolo documento».
+   */
+  it('⭐ persiste la modalità importi che riceve', async () => {
+    const { service } = createService(prisma);
+    mockSavedInvoice();
+
+    await service.savePurchaseInvoice(
+      tenantId,
+      invoiceDto({ purchaseCostEntryMode: 'vat_included' }),
+      soloFatture(),
+    );
+
+    expect(prisma.document.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ purchaseCostEntryMode: 'vat_included' }),
+      }),
+    );
+  });
+
+  it('⭐ e senza dichiararla parte NETTA', async () => {
+    // ⚠️ Non è un caso: è un documento di COSTO, e per un'azienda che detrae
+    // l'IVA il costo È il netto. L'ivato resta una comodità del singolo
+    // documento.
+    const { service } = createService(prisma);
+    mockSavedInvoice();
+
+    await service.savePurchaseInvoice(tenantId, invoiceDto(), soloFatture());
+
+    expect(prisma.document.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ purchaseCostEntryMode: 'vat_excluded' }),
+      }),
+    );
+  });
+
+  it('⛔ e su una registrazione esistente, assente = quella di prima', async () => {
+    // Un documento è un fatto: conserva la modalità con cui è stato compilato,
+    // e cambiarla è una scelta esplicita dell'operatore — non un effetto del
+    // risalvataggio.
+    const { service } = createService(prisma);
+    const esistente = {
+      id: 'inv-1',
+      tenantId,
+      type: DocumentType.supplier_invoice,
+      status: DocumentStatus.confirmed,
+      purchaseCostEntryMode: 'vat_included',
+      lines: [],
+    };
+    prisma.document.findFirst.mockResolvedValue(esistente);
+    prisma.document.findFirstOrThrow.mockResolvedValue(esistente);
+
+    await service.savePurchaseInvoice(tenantId, invoiceDto({ id: 'inv-1' }), soloFatture());
+
+    expect(prisma.document.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ purchaseCostEntryMode: 'vat_included' }),
+      }),
+    );
+  });
+
 });

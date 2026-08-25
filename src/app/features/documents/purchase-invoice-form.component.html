@@ -236,7 +236,23 @@
             <table class="pi-form__table" formArrayName="lines">
               <thead>
                 <tr>
-                  <th scope="col" class="doc-form__num">Importo netto</th>
+                  <!--
+                    ⭐ Il selettore netto/ivato vive QUI, nell'intestazione della
+                    colonna che governa — come su Arrivo merce, Ordine fornitore,
+                    DDT, Ordine cliente e Vendita al banco.
+                  -->
+                  <th scope="col" class="doc-form__num doc-form__th--menu">
+                    <span class="doc-form__th-menu-wrap">
+                      <span class="doc-form__th-label">{{ amountColumnLabel() }}</span>
+                      <app-price-mode-menu
+                        [pricesIncludeVat]="amountsIncludeVat()"
+                        netLabel="Usa importi netti"
+                        grossLabel="Usa importi ivati"
+                        ariaLabel="Modalità importi della registrazione"
+                        (modeChange)="onAmountModeChange($event)"
+                      />
+                    </span>
+                  </th>
                   <th scope="col" class="doc-form__col--tax">IVA</th>
                   <th scope="col" class="doc-form__num">Importo IVA</th>
                   <th scope="col">Descrizione</th>
@@ -249,11 +265,17 @@
                 @for (group of lines.controls; track group; let i = $index) {
                   <tr [formGroupName]="i">
                     <td class="doc-form__num" [attr.data-label]="'Importo netto'">
+                      <!--
+                        Etichetta NEUTRA: il campo mostra il netto o l'ivato
+                        secondo la modalità, e dire «netto» qui sarebbe una bugia
+                        per chi legge con uno screen reader. La modalità sta
+                        nell'intestazione della colonna, dove si sceglie.
+                      -->
                       <app-money-input
                         inputClass="doc-form__input doc-form__input--num"
-                        [value]="group.controls.netMinor.value"
-                        [ariaLabel]="'Importo netto riga ' + (i + 1)"
-                        (valueChange)="onLineNetChange(i, $event)"
+                        [value]="lineAmountValue(i)"
+                        [ariaLabel]="'Importo riga ' + (i + 1)"
+                        (valueChange)="onLineAmountChange(i, $event)"
                       />
                     </td>
                     <!--

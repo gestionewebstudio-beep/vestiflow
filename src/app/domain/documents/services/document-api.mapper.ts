@@ -770,6 +770,13 @@ export interface SavePurchaseInvoiceBody {
   /** Indirizzi: snapshot anagrafica fornitore, modificabile per eccezioni. */
   readonly recipientAddress?: DocumentAddress;
   readonly currency?: CurrencyCode;
+  /**
+   * Modalità importi della registrazione: netti o ivati.
+   *
+   * ⭐ Il selettore vive nell'intestazione della colonna, come su ogni altro
+   * documento. Un documento nuovo parte NETTO: è un documento di costo.
+   */
+  readonly purchaseCostEntryMode?: 'vat_excluded' | 'vat_included';
   /** Totali legacy: ignorati se la registrazione ha righe. */
   readonly totalMinor?: number;
   readonly subtotalMinor?: number;
