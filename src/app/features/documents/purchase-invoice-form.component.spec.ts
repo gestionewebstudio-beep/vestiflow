@@ -306,6 +306,35 @@ describe('PurchaseInvoiceFormComponent', () => {
     expect(screen.getByLabelText('N. fattura')).toBeTruthy();
   });
 
+  // ── La prova di falsificazione del guscio comune ─────────────────────────
+  //
+  // ⭐ Questa maschera e' il caso piu' severo, e non per caso: ha righe
+  // ECONOMICHE — nessun articolo, nessuna variante, nessun magazzino — e nessuna
+  // griglia articoli. Se il livello comune fosse «il guscio dei documenti con
+  // prodotti», qui si romperebbe.
+  //
+  // ⛔ Il criterio non e' che funzioni: e' che funzioni SENZA che il livello
+  // comune sappia di stare mostrando una registrazione fattura.
+  // `check-document-grammar` verifica l'altro lato — nessun componente del
+  // motore documenti nomina un tipo documento — e gira dentro `npm run lint`.
+  it('⭐ monta i pezzi comuni con righe economiche e ZERO griglie articoli', async () => {
+    const { container } = await setup();
+
+    for (const pezzo of [
+      'app-document-prefill-error',
+      'app-document-header',
+      'app-document-notes',
+      'app-document-totals',
+      'app-document-actions',
+    ]) {
+      expect(container.querySelector(pezzo), pezzo).not.toBeNull();
+    }
+
+    // ⚠️ E la meta' che rende severa la prova: nessuna riga articolo.
+    expect(container.querySelector('app-document-line')).toBeNull();
+    expect(container.querySelector('.doc-form__table-wrap')).toBeNull();
+  });
+
   it('⭐ il Commento interno sta nell’area NOTE, e scrive ancora sullo stesso controllo', async () => {
     // ⛔ Stava in TESTATA. Spostato nel piede il 25/08/2026 (proprietario): non
     // e' un dato identificativo come Fornitore, Serie o N. fattura — e' una

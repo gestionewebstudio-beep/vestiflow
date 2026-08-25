@@ -575,22 +575,9 @@
       <!-- ── Banda finale: note a sinistra, totali a destra (sticky a lg+) ── -->
       <div class="doc-form__footer-grid">
         <aside class="doc-form__totals-bar" aria-label="Totali registrazione">
-          <dl class="doc-form__totals">
-            <div class="doc-form__totals-row">
-              <dt>Tot. netto</dt>
-              <dd class="tabular-nums">{{ formatMoney(totalNet()) }}</dd>
-            </div>
-            <div class="doc-form__totals-row">
-              <dt>IVA</dt>
-              <dd class="tabular-nums">{{ formatMoney(totalVat()) }}</dd>
-            </div>
-            <div class="doc-form__totals-row doc-form__totals-row--total">
-              <dt>Totale documento</dt>
-              <dd class="tabular-nums">
-                <strong>{{ formatMoney(totalGross()) }}</strong>
-              </dd>
-            </div>
-          </dl>
+          <!-- ⭐ La griglia totali comune. Questa maschera ha righe ECONOMICHE e la
+               usa lo stesso: la griglia non sa che documento sta mostrando. -->
+          <app-document-totals [rows]="totalsRows()" />
         </aside>
 
         <div class="doc-form__footer-notes">

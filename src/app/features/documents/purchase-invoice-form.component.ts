@@ -33,6 +33,8 @@ import { documentNumberConflictOf } from '@core/models/document-number-conflict.
 import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
 import { DocumentChronologyGuard } from '@domain/documents/state/document-chronology-guard';
 import { DocumentActionsComponent } from '@domain/documents/components/document-actions/document-actions.component';
+import { DocumentTotalsComponent } from '@domain/documents/components/document-totals/document-totals.component';
+import type { DocumentTotalRow } from '@domain/documents/components/document-totals/document-totals.model';
 import { DocumentPrefillErrorComponent } from '@domain/documents/components/document-prefill-error/document-prefill-error.component';
 import { DocumentNotesComponent } from '@domain/documents/components/document-notes/document-notes.component';
 import { DocumentChronologyWarningDialogComponent } from '@domain/documents/components/document-chronology-warning-dialog/document-chronology-warning-dialog.component';
@@ -187,6 +189,7 @@ function parseRatePercent(value: string): number | null {
     DocumentActionsComponent,
     DocumentNotesComponent,
     DocumentPrefillErrorComponent,
+    DocumentTotalsComponent,
   ],
   templateUrl: './purchase-invoice-form.component.html',
   styleUrl: './purchase-invoice-form.component.scss',
@@ -645,6 +648,20 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     amountMinor: this.totalNet().amountMinor + this.totalVat().amountMinor,
     currencyCode: this.currency,
   }));
+
+  /**
+   * Le righe della banda totali, per la griglia comune.
+   *
+   * ⭐ Questa maschera ha righe ECONOMICHE — nessun articolo, nessuna variante,
+   * nessun magazzino — e i suoi totali sono comunque tre righe piane. E' la
+   * prova che la griglia comune non e' «la griglia dei documenti con articoli»:
+   * non sa che documento sta mostrando, e non deve saperlo.
+   */
+  protected readonly totalsRows = computed<readonly DocumentTotalRow[]>(() => [
+    { key: 'net', label: 'Tot. netto', value: this.totalNet() },
+    { key: 'vat', label: 'IVA', value: this.totalVat() },
+    { key: 'total', label: 'Totale documento', value: this.totalGross(), kind: 'total' as const },
+  ]);
 
   /** Totale scadenze saldate ("Saldato"). */
   protected readonly settledTotal = computed<Money>(() => {
