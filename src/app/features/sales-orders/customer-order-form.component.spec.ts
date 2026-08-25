@@ -240,6 +240,22 @@ describe('CustomerOrderFormComponent — le due viste di riga', () => {
   // un'azione qualunque. Qui non si puo': quei menu compaiono solo su un ordine
   // gia' salvato, e le prove che li riguardano vivono in un altro `describe`
   // dove il DOM non viene reso affatto — misurano il segnale, non lo schermo.
+  it('⛔ «Imponibile righe» compare una VOLTA SOLA sulla schermata', async () => {
+    // ⛔ Comparirebbe due volte: nella striscia sotto la tabella e nella banda
+    // totali, con la stessa etichetta e lo stesso valore. L'ha visto il
+    // proprietario guardando lo schermo, due volte, e nessun test lo vedeva —
+    // due elementi diversi che mostrano lo stesso numero non fanno arrossare
+    // niente.
+    //
+    // ⚠️ Valeva anche sull'ordine di CANALE, dove le due etichette erano
+    // «Totale prodotti» e il valore `linesGross` in entrambi i posti.
+    const c = await apri(false);
+
+    const testo = c.textContent ?? '';
+    const quante = testo.split('Imponibile righe').length - 1;
+    expect(quante).toBe(1);
+  });
+
   it('⭐ la barra c’e’ UNA volta sola, con Chiudi in testa e Salva in coda', async () => {
     const c = await apri(false);
 

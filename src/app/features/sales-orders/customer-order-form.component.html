@@ -1073,17 +1073,18 @@
                   <strong class="tabular-nums">{{ validLinesCount() }} righe valide</strong>
                   · <span class="tabular-nums">{{ totalPiecesCount() }}</span> pezzi
                 </span>
-                <span>
-                  <!-- Su un ordine di canale i prezzi sono ivati: la somma
-                       delle righe non è un imponibile, e chiamarla così sarebbe
-                       la stessa bugia del riepilogo (registro difetti 3.15). -->
-                  {{ isExternalOrder() ? 'Totale prodotti' : 'Imponibile righe' }}
-                  <strong class="tabular-nums">{{
-                    isExternalOrder()
-                      ? formatMoney(channelTotals().linesGross)
-                      : formatMoney(documentTotals().linesTotal)
-                  }}</strong>
-                </span>
+                <!-- ⛔ Qui c'era l'importo delle righe — «Imponibile righe» su un
+                     ordine manuale, «Totale prodotti» su uno di canale — e in
+                     ENTRAMBI i casi era lo stesso valore con la stessa etichetta
+                     che sta nella banda totali duecento pixel più sotto.
+
+                     Segnalato dal proprietario guardando la schermata, due
+                     volte. Nessun test lo vedeva: due elementi diversi che
+                     mostrano lo stesso numero non fanno arrossare niente.
+
+                     ⭐ Resta il CONTEGGIO, che nella banda non c'è: quante righe
+                     valide e quanti pezzi è l'unica cosa che quella striscia
+                     diceva e nessun altro dice. -->
               </div>
             }
 
