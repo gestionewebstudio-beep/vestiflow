@@ -1,3 +1,4 @@
+import { DOCUMENT } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -82,6 +83,7 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 })
 export class DocumentActionsComponent {
   private readonly viewport = inject(ViewportService);
+  private readonly document = inject(DOCUMENT);
 
   /**
    * L'etichetta del salvataggio. «Salva documento» ovunque
@@ -133,6 +135,23 @@ export class DocumentActionsComponent {
     // fa esattamente quello che fa il clic, in entrambe le modalita'.
     // `app-button` ha l'host `display: contents`: nel flusso ci sta il <button>
     // interno, ed e' quello da premere.
+    // ⭐ **Prima si toglie il fuoco al campo attivo** (soluzione A, decisa dal
+    // proprietario il 25/08/2026). Non aggiunge un comportamento: riproduce
+    // quello che il CLIC gia' fa, perche' premere un pulsante toglie il fuoco
+    // al campo che lo aveva.
+    //
+    // ⚠️ Serve, ed e' misurato: la cella a ricerca-e-selezione conferma quello
+    // che si e' digitato proprio sul blur («Uscire dal campo conferma quello
+    // che si e' digitato, come il Tab»). Senza, Ctrl+S battuto mentre si scrive
+    // in quella cella salverebbe il valore PRECEDENTE, e in silenzio.
+    //
+    // ⭐ Per gli altri campi non servirebbe — nessun controllo di riga usa
+    // `updateOn: 'blur'`, quindi il valore entra nel form a ogni battuta — ma
+    // farlo comunque costa una riga e toglie la domanda «quale cella e'?».
+    const attivo = this.document.activeElement;
+    if (attivo instanceof HTMLElement) {
+      attivo.blur();
+    }
     const host = this.saveButton()?.nativeElement as HTMLElement | undefined;
     host?.querySelector('button')?.click();
   }

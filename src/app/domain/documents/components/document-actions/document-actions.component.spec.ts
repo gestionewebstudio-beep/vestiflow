@@ -151,6 +151,39 @@ describe('DocumentActionsComponent', () => {
     expect(saveRequested).not.toHaveBeenCalled();
   });
 
+  it('⭐ Ctrl+S toglie prima il fuoco al campo attivo', async () => {
+    // ⚠️ **E' la meta' che conta, e non e' cosmetica.** La cella a
+    // ricerca-e-selezione delle righe conferma quello che si e' digitato
+    // proprio sul blur — «Uscire dal campo conferma quello che si e' digitato,
+    // come il Tab». Senza questo, Ctrl+S battuto mentre si scrive in quella
+    // cella salverebbe il valore PRECEDENTE, e in silenzio.
+    //
+    // ⭐ Non e' un comportamento nuovo: e' quello che il CLIC gia' fa, perche'
+    // premere un pulsante toglie il fuoco al campo che lo aveva. La scorciatoia
+    // si limita a non essere diversa dal clic.
+    const saveRequested = vi.fn();
+    await monta({ inputs: { saveType: 'button' }, on: { saveRequested } });
+
+    const campo = document.createElement('input');
+    document.body.appendChild(campo);
+    campo.focus();
+    expect(document.activeElement).toBe(campo);
+
+    // ⛔ Qui si asseriva `activeElement` diverso dal campo, e la prova passava
+    // ANCHE togliendo il blur dal componente: nel banco di prova il clic sul
+    // pulsante sposta gia' il fuoco da solo, quindi l'asserzione era vera per
+    // un'altra ragione. Si misura la CHIAMATA, che e' la cosa che si vuole.
+    const blur = vi.spyOn(campo, 'blur');
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', ctrlKey: true }));
+
+    expect(blur).toHaveBeenCalledTimes(1);
+    expect(saveRequested).toHaveBeenCalledTimes(1);
+
+    blur.mockRestore();
+    campo.remove();
+  });
+
   it('la S da sola non fa niente: si digita nei campi', async () => {
     const saveRequested = vi.fn();
     await monta({ inputs: { saveType: 'button' }, on: { saveRequested } });
