@@ -1151,9 +1151,19 @@
   }
 </app-slide-panel>
 
-<!-- Numero già assegnato: avviso di presa d'atto, non una scelta. La
-     testata resta com'era e il documento non è salvato; il messaggio nomina il
-     numero rifiutato e il primo libero, la correzione è dell'operatore. -->
+<!-- Numero già assegnato: avviso di presa d'atto, non una scelta. Il
+     documento non è salvato; il messaggio nomina il numero rifiutato e il
+     primo libero, e la pressione di Salva resta dell'operatore.
+
+     ⛔ Qui c'era scritto «la testata resta com'era». Non è vero, e non lo era:
+     `acknowledgeConflictNumber` passa da `DocumentNumberingStore.acknowledgeConflict`,
+     che chiama `onNumberChange(nuovo)` — il numero nuovo in testata ce lo SCRIVE.
+     È anche ciò che la specifica numerazione §3 prescrive: avviso a bottone
+     singolo, numero nuovo in testata, Salva all'operatore.
+
+     ⚠️ Un commento che descrive il comportamento opposto è peggio di nessun
+     commento: chi lo legge per capire se deve riscrivere il numero a mano
+     conclude di sì, e la maschera l'ha già fatto. -->
 <app-confirm-dialog
   [(open)]="conflictDialogOpen"
   title="Numero già usato"
