@@ -108,6 +108,19 @@ export class DocumentActionsComponent {
    */
   readonly readOnly = input<boolean>(false);
 
+  /**
+   * Il documento spegne il salvataggio per una ragione SUA.
+   *
+   * ⭐ Non e' un flag di dominio: la barra non sa perche', sa solo che non si
+   * salva. Il primo consumer e' il banco, dove il pulsante resta spento finche'
+   * manca la sede — e senza questo ingresso l'avrebbe dovuto reimplementare
+   * fuori dalla barra, cioe' avere una barra sua.
+   *
+   * ⚠️ Si SOMMA a `saving` e `readOnly`, non li sostituisce: quelle due sono
+   * condizioni della barra, questa e' del documento.
+   */
+  readonly saveDisabled = input<boolean>(false);
+
   /** «Chiudi» e' stato premuto. Che cosa comporti lo decide il documento. */
   readonly closeRequested = output<void>();
 
@@ -124,7 +137,7 @@ export class DocumentActionsComponent {
    */
   private readonly saveButton = viewChild('saveButton', { read: ElementRef });
 
-  protected readonly saveDisabled = () => this.saving() || this.readOnly();
+  protected readonly saveOff = () => this.saving() || this.readOnly() || this.saveDisabled();
 
   protected onWindowKeydown(event: KeyboardEvent): void {
     if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 's') {

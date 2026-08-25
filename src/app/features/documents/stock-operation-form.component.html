@@ -382,8 +382,17 @@
         }
       </fieldset>
 
-      <div class="doc-form__actions">
-        <p class="doc-form__actions-note">
+      <!-- ⭐ **La barra azioni comune** — una dichiarazione, due vesti.
+
+           ⛔ Qui c'erano DUE blocchi, scrivania e telefono, che commutavano
+           alla soglia `lg`. Ora la dichiarazione e' una e la veste la sceglie
+           il componente. -->
+      <app-document-actions
+        [saving]="saving()"
+        [readOnly]="formReadOnly()"
+        (closeRequested)="cancel()"
+      >
+        <p class="doc-form__actions-note" documentActionsNote>
           <i class="pi pi-info-circle" aria-hidden="true"></i>
           <strong class="tabular-nums">
             {{ lines.length }} {{ lines.length === 1 ? 'riga' : 'righe' }}
@@ -391,33 +400,8 @@
           <span class="doc-form__actions-note-sep">·</span>
           Le giacenze si aggiornano alla conferma
         </p>
-        <app-button type="button" variant="ghost" (click)="cancel()">Chiudi</app-button>
-        @if (isConfirmedEdit()) {
-          <app-button type="submit" [disabled]="formReadOnly() || saving()"
-            >Salva documento</app-button
-          >
-        } @else {
-          <app-button type="submit" [disabled]="saving()">{{ submitConfirmLabel() }}</app-button>
-        }
-      </div>
+      </app-document-actions>
 
-      <!-- Azioni documento su mobile/tablet (regole-stile-ui §5): coppia in
-           fondo al documento, scorre col contenuto. Il submit resta dentro il
-           form: ripristina il salvataggio che sotto md la barra desktop
-           nasconde. -->
-      @if (!formReadOnly()) {
-        <div class="doc-form__mobile-actions">
-          <!-- «Chiudi»: stesso handler di uscita di prima, cambia l'etichetta. -->
-          <app-button type="button" variant="secondary" [disabled]="saving()" (click)="cancel()">
-            Chiudi
-          </app-button>
-          @if (isConfirmedEdit()) {
-            <app-button type="submit" [disabled]="saving()">Salva documento</app-button>
-          } @else {
-            <app-button type="submit" [disabled]="saving()">{{ submitConfirmLabel() }}</app-button>
-          }
-        </div>
-      }
       <!-- La ricerca articolo a tutta pagina, aperta dalla lente della riga. -->
       @if (productPanelOpen()) {
         <app-document-product-search-panel

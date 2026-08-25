@@ -482,39 +482,22 @@
         </p>
       }
 
-      <div class="doc-form__actions">
-        <p class="doc-form__actions-note">
+      <!-- ⭐ **La barra azioni comune** — una dichiarazione, due vesti.
+           ⛔ Qui c'erano DUE blocchi che commutavano alla soglia `lg`. -->
+      <app-document-actions
+        [saving]="saving()"
+        [readOnly]="formReadOnly()"
+        (closeRequested)="cancel()"
+      >
+        <p class="doc-form__actions-note" documentActionsNote>
           <i class="pi pi-info-circle" aria-hidden="true"></i>
           <strong class="tabular-nums">{{ lines.length }}</strong>
           {{ lines.length === 1 ? 'riga documento' : 'righe documento' }}
           <span class="doc-form__actions-note-sep">·</span>
           L'ordine è solo commerciale e non movimenta le giacenze
         </p>
-        <!-- Stessi nomi del modello (Ordine cliente): «Chiudi» e «Salva
-             documento». Erano «Annulla» e «Salva ordine» — due parole diverse
-             per lo stesso gesto, che l'operatore incontra passando da una
-             maschera all'altra. Via anche la spunta: nel modello il pulsante
-             primario non porta icona. -->
-        <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancel()">
-          Chiudi
-        </app-button>
-        <app-button type="submit" [disabled]="saving()" [loading]="saving()">
-          Salva documento
-        </app-button>
-      </div>
+      </app-document-actions>
 
-      <!-- Azioni documento su mobile/tablet (regole-stile-ui §5): coppia in
-           fondo al documento, scorre col contenuto. Ripristina anche il submit
-           sotto md, dove il foglio condiviso nasconde il Salva della barra
-           desktop. «Chiudi» usa lo stesso handler di uscita col dialogo. -->
-      <div class="doc-form__mobile-actions">
-        <app-button type="button" variant="secondary" [disabled]="saving()" (click)="cancel()">
-          Chiudi
-        </app-button>
-        <app-button type="submit" [disabled]="saving()" [loading]="saving()"
-          >Salva documento</app-button
-        >
-      </div>
       <!-- Uno per maschera, non per riga: la cella chiede, il documento ospita. -->
       <app-unit-of-measure-manager-dialog
         [open]="unitManagerOpen()"

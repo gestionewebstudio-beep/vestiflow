@@ -58,6 +58,7 @@ import { documentNumberConflictOf } from '@core/models/document-number-conflict.
 import { TenantPermission } from '@core/models/tenant-permission.model';
 import { hasTenantPermission } from '@core/permissions/user-permissions.util';
 import { CustomerService } from '@domain/customers/services/customer.service';
+import { DocumentActionsComponent } from '@domain/documents/components/document-actions/document-actions.component';
 import { DocumentHeaderComponent } from '@domain/documents/components/document-header/document-header.component';
 import { DocumentHeaderFieldComponent } from '@domain/documents/components/document-header/document-header-field.component';
 import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
@@ -264,6 +265,7 @@ function oggiIso(): string {
     SlidePanelComponent,
     TableColumnPickerComponent,
     TableSkeletonComponent,
+    DocumentActionsComponent,
   ],
   templateUrl: './store-sale-document-form.component.html',
   styleUrl: './store-sale-document-form.component.scss',

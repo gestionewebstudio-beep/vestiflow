@@ -844,59 +844,54 @@
         <p class="doc-form__submit-error" role="alert">{{ appError.message }}</p>
       }
 
-      <div class="doc-form__actions">
-        <p class="doc-form__actions-note">
+      <!-- ⭐ **La barra azioni comune** — una dichiarazione, due vesti.
+
+           ⚠️ `saveType="button"`: questa maschera salva con un gestore di
+           clic, non con `(ngSubmit)`.
+
+           ⭐ `@if (canSaveDocument())` intorno al Salva NON serve piu': quel
+           computed e' `!formReadOnly()`, cioe' esattamente l'ingresso
+           `readOnly`. Il pulsante ora si SPEGNE invece di sparire, come su
+           ogni altra maschera. -->
+      <app-document-actions
+        saveType="button"
+        [saving]="saving()"
+        [readOnly]="formReadOnly()"
+        (closeRequested)="cancel()"
+        (saveRequested)="requestSaveDocument()"
+      >
+        <p class="doc-form__actions-note" documentActionsNote>
           <i class="pi pi-info-circle" aria-hidden="true"></i>
           <strong class="tabular-nums">{{ validLinesCount() }} righe valide</strong>
           <span class="doc-form__actions-note-sep">·</span>
           Le giacenze si aggiornano alla conferma
         </p>
-        <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancel()">
-          Chiudi
-        </app-button>
         <!-- L'eliminazione è un'azione sull'oggetto intero: si esegue solo
              dall'elenco Arrivi merce (menu riga o selezione multipla). -->
-        <app-button type="button" variant="secondary" [disabled]="saving()" (click)="printLabels()">
+        <app-button
+          documentActionsExtra
+          type="button"
+          variant="secondary"
+          [disabled]="saving()"
+          (click)="printLabels()"
+        >
           Stampa etichette
         </app-button>
         @if (canExportPdf()) {
           <app-document-print-actions
+            documentActionsExtra
             [documentId]="persistedDocumentId()!"
             [reference]="loadedDocument()?.reference ?? null"
             [documentDate]="loadedDocument()?.documentDate ?? null"
             (failed)="onPrintFailed($event)"
           />
         }
-        @if (canSaveDocument()) {
-          <app-button
-            type="button"
-            [loading]="saving()"
-            [disabled]="saving()"
-            (click)="requestSaveDocument()"
-          >
-            Salva documento
-          </app-button>
-        }
-      </div>
+      </app-document-actions>
 
       <!-- Azioni su mobile/tablet (riferimento OC): in fondo al documento,
            scorrono col contenuto. Salva vive nel dock fisso qui sotto;
            Anteprima/PDF restano nelle azioni del documento confermato in cima. -->
-      @if (!formReadOnly()) {
-        <div class="doc-form__mobile-actions">
-          <app-button type="button" variant="secondary" [disabled]="saving()" (click)="cancel()">
-            Chiudi
-          </app-button>
-          <app-button
-            type="button"
-            variant="secondary"
-            [disabled]="saving()"
-            (click)="printLabels()"
-          >
-            Stampa etichette
-          </app-button>
-        </div>
-      }
+      @if (!formReadOnly()) {}
 
       <!-- Dock in basso (classi promosse doc-form__sticky-bar / doc-dock, ≤lg):
            totale + scanner + salva sempre a portata di pollice. Stessi handler

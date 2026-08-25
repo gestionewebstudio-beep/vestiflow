@@ -84,6 +84,7 @@ import {
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import { ProductService } from '@domain/products/services/product.service';
 import { DocumentLineArticleService } from '@domain/documents/services/document-line-article.service';
+import { DocumentActionsComponent } from '@domain/documents/components/document-actions/document-actions.component';
 import { DocumentLineHeadComponent } from '@domain/documents/components/document-line-head/document-line-head.component';
 import { DocumentTotalsComponent } from '@domain/documents/components/document-totals/document-totals.component';
 import type { DocumentTotalRow } from '@domain/documents/components/document-totals/document-totals.model';
@@ -296,6 +297,7 @@ type ConversionPrefill = CreateDocumentBody & {
     SlidePanelComponent,
     TableSkeletonComponent,
     EditLockBannerComponent,
+    DocumentActionsComponent,
   ],
   providers: [DocumentEditLockService],
   templateUrl: './sales-document-form.component.html',

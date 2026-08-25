@@ -490,29 +490,40 @@
              (`regole-stile-ui` §5). ⛔ Una sola vista è viva, come per le
              righe: due copie dello stesso comando verrebbero annunciate due
              volte da chi ascolta. -->
-        @if (compactView()) {
-          <div class="doc-form__mobile-actions">
-            <app-button type="button" variant="secondary" (click)="close()">Chiudi</app-button>
-            <app-button type="button" [disabled]="!canConclude()" (click)="save()">
-              {{ confirmLabel() }}
-            </app-button>
-          </div>
-        } @else {
-          <div class="doc-form__actions">
-            <p class="doc-form__actions-note">
-              <i class="pi pi-info-circle" aria-hidden="true"></i>
-              <strong class="tabular-nums">
-                {{ lines().length }} {{ lines().length === 1 ? 'riga' : 'righe' }}
-              </strong>
-              <span class="doc-form__actions-note-sep">·</span>
-              {{ descriptor.stockEffectNote }}
-            </p>
-            <app-button type="button" variant="ghost" (click)="close()">Chiudi</app-button>
-            <app-button type="button" [disabled]="!canConclude()" (click)="save()">
-              {{ confirmLabel() }}
-            </app-button>
-          </div>
-        }
+        <!-- ⭐ **Il Banco aveva gia' risolto la doppia dichiarazione a modo suo**:
+             `@if (compactView()) { … } @else { … }`, una sola viva alla volta —
+             «due copie dello stesso comando verrebbero annunciate due volte da
+             chi ascolta». Era la maschera piu' avanti delle otto.
+
+             ⭐ Ora il condizionale non serve piu': la veste la sceglie il
+             componente, e la dichiarazione e' una in ogni caso. -->
+        <!-- ⭐ **La barra azioni comune** — una dichiarazione, due vesti.
+
+             ⚠️ `saveDisabled`: al banco il salvataggio resta spento finche'
+             manca la SEDE (`canConclude()`). Non e' un flag di dominio — la
+             barra non sa perche', sa solo che non si salva.
+
+             ⭐ E `saveLabel` porta il nome dell'operazione: «Concludi
+             vendita» / «Concludi reso». E' l'eccezione prevista da
+             `regole-stile-ui` §5, e vale per il pulsante di SALVATAGGIO —
+             non per il dialogo d'uscita, che nomina il rischio. -->
+        <app-document-actions
+          saveType="button"
+          [saveLabel]="confirmLabel()"
+          [saveDisabled]="!canConclude()"
+          [saving]="savePending()"
+          (closeRequested)="close()"
+          (saveRequested)="save()"
+        >
+          <p class="doc-form__actions-note" documentActionsNote>
+            <i class="pi pi-info-circle" aria-hidden="true"></i>
+            <strong class="tabular-nums">
+              {{ lines().length }} {{ lines().length === 1 ? 'riga' : 'righe' }}
+            </strong>
+            <span class="doc-form__actions-note-sep">·</span>
+            {{ descriptor.stockEffectNote }}
+          </p>
+        </app-document-actions>
       </fieldset>
     </form>
 

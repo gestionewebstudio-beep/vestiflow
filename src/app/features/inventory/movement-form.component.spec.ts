@@ -123,7 +123,7 @@ describe('MovementFormComponent', () => {
     expect(screen.getByText(/Supera il disponibile \(5\)/)).toBeVisible();
     // Non bloccante: il Salva resta attivo. Nome esatto: nel DOM convive
     // anche il «Salva movimento» delle azioni mobile (--m-ref).
-    expect(screen.getByRole('button', { name: 'Salva' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Salva movimento', hidden: true })).toBeEnabled();
   });
 
   it('rettifica: causale precompilata, giacenza attuale readonly e nuova giacenza', async () => {

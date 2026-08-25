@@ -103,6 +103,7 @@ import type { VariantSummary } from '@domain/products/models/variant-summary.mod
 import { ProductFormComponent } from '@domain/products/product-form.component';
 import { ProductService } from '@domain/products/services/product.service';
 import { DocumentLineArticleService } from '@domain/documents/services/document-line-article.service';
+import { DocumentActionsComponent } from '@domain/documents/components/document-actions/document-actions.component';
 import { DocumentLineHeadComponent } from '@domain/documents/components/document-line-head/document-line-head.component';
 import { DocumentTotalsComponent } from '@domain/documents/components/document-totals/document-totals.component';
 import type { DocumentTotalRow } from '@domain/documents/components/document-totals/document-totals.model';
@@ -293,6 +294,7 @@ function todayIsoDate(): string {
     DocumentProductSearchPanelComponent,
     ConfirmDialogComponent,
     EditLockBannerComponent,
+    DocumentActionsComponent,
   ],
   // Una maschera = un'istanza del blocco: è lei a tracciare gli id che ha
   // sbloccato e a rilasciarli all'uscita, così alla riapertura tornano protetti.

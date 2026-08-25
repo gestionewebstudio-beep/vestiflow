@@ -416,25 +416,28 @@
       </p>
     }
 
-    <div class="doc-form__actions">
-      <app-button variant="ghost" [disabled]="saving()" (click)="cancel()">Chiudi</app-button>
-      <app-button [loading]="saving()" [disabled]="saving()" (click)="save()">
-        <i class="pi pi-check" aria-hidden="true"></i>
-        Salva
-      </app-button>
-    </div>
+    <!-- ⭐ **La barra azioni comune** — una dichiarazione, due vesti.
 
-    <!-- Azioni documento su mobile/tablet (regole-stile-ui §5): coppia in
-         fondo al documento, scorre col contenuto. Stessi handler dei bottoni
-         desktop; «Salva movimento» tiene distinto il nome dal «Salva» sopra. -->
-    <div class="doc-form__mobile-actions">
-      <app-button type="button" variant="secondary" [disabled]="saving()" (click)="cancel()">
-        Chiudi
-      </app-button>
-      <app-button type="button" [loading]="saving()" [disabled]="saving()" (click)="save()">
-        Salva movimento
-      </app-button>
-    </div>
+         ⛔ Qui c'erano DUE blocchi, e dicevano DUE NOMI DIVERSI per lo stesso
+         comando: «Salva» sulla scrivania, «Salva movimento» sul telefono. Il
+         commento della copia mobile lo ammetteva — «tiene distinto il nome dal
+         Salva sopra» — ma e' la stessa deriva vietata per «Chiudi»/«Annulla»:
+         la stessa maschera, due parole, a seconda dello schermo.
+
+         ⭐ **Vince l'etichetta mobile**, e non per caso: `regole-stile-ui` §5
+         dice «Salva documento» per cio' che e' un documento, e questa maschera
+         registra uno `StockMovement`, non una riga in `documents`. Chi non e'
+         documentale nomina la propria entita' — come il Corrispettivo manuale
+         dice «Salva corrispettivo».
+
+         ⚠️ Via anche la spunta dal primario: nel modello non porta icona. -->
+    <app-document-actions
+      saveType="button"
+      saveLabel="Salva movimento"
+      [saving]="saving()"
+      (closeRequested)="cancel()"
+      (saveRequested)="save()"
+    />
   </div>
 
   <app-confirm-dialog

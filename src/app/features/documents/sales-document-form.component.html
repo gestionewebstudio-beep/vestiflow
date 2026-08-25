@@ -777,24 +777,15 @@
         <p class="doc-form__submit-error" aria-hidden="true">{{ blockingIssue }}</p>
       }
 
-      <div class="doc-form__actions">
-        <app-button type="button" variant="ghost" (click)="cancel()">Chiudi</app-button>
-        <app-button type="submit" [loading]="saving()" [disabled]="formReadOnly() || saving()">
-          Salva documento
-        </app-button>
-      </div>
+      <!-- ⭐ **La barra azioni comune** — una dichiarazione, due vesti.
+           ⛔ Qui c'erano DUE blocchi che commutavano alla soglia `lg`. -->
+      <app-document-actions
+        [saving]="saving()"
+        [readOnly]="formReadOnly()"
+        (closeRequested)="cancel()"
+      >
+      </app-document-actions>
 
-      <!-- Azioni su mobile/tablet (regole-stile-ui §5): coppia in fondo al
-           documento, scorre col contenuto. Corregge il submit nascosto ≤ md:
-           la barra desktop sotto lg esce di scena, il salvataggio resta qui. -->
-      <div class="doc-form__mobile-actions">
-        <app-button type="button" variant="secondary" [disabled]="saving()" (click)="cancel()">
-          Chiudi
-        </app-button>
-        <app-button type="submit" [loading]="saving()" [disabled]="formReadOnly() || saving()">
-          Salva documento
-        </app-button>
-      </div>
       <!-- La ricerca articolo a tutta pagina, aperta dalla lente della riga. -->
       @if (productPanelOpen()) {
         <app-document-product-search-panel

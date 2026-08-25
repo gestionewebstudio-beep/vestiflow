@@ -625,25 +625,12 @@
       }
 
       <!-- ── Barra azioni (i totali vivono nella banda qui sopra) ─────────── -->
-      <div class="doc-form__actions">
-        <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancel()">
-          Chiudi
-        </app-button>
-        <app-button type="submit" [loading]="saving()" [disabled]="saving()">
-          Salva documento
-        </app-button>
-      </div>
-
-      <!-- Azioni su mobile/tablet (regole-stile-ui §5): coppia in fondo al
-           documento, scorre col contenuto. Su desktop resta la barra sopra. -->
-      <div class="doc-form__mobile-actions">
-        <app-button type="button" variant="secondary" [disabled]="saving()" (click)="cancel()">
-          Chiudi
-        </app-button>
-        <app-button type="submit" [loading]="saving()" [disabled]="saving()">
-          Salva documento
-        </app-button>
-      </div>
+      <!-- ⭐ **La barra azioni comune** — una dichiarazione, due vesti.
+           ⛔ Qui c'erano DUE blocchi che commutavano alla soglia `lg`. -->
+      <!-- ⚠️ Niente `readOnly`: questa maschera non ha un concetto di sola
+           lettura, e la sua barra aveva solo `saving()`. L'ingresso vale
+           `false` per default, che e' esattamente il comportamento di prima. -->
+      <app-document-actions [saving]="saving()" (closeRequested)="cancel()" />
     </form>
   }
 </section>

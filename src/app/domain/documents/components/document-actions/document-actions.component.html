@@ -19,7 +19,7 @@
 <app-button
   #saveButton
   [type]="saveType()"
-  [disabled]="saveDisabled()"
+  [disabled]="saveOff()"
   [loading]="saving()"
   (click)="onSave()"
 >

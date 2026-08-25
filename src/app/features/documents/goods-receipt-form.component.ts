@@ -92,6 +92,7 @@ import { normalizeSku } from '@domain/products/models/product-form.validators';
 import { ProductService } from '@domain/products/services/product.service';
 import { DocumentLineArticleService } from '@domain/documents/services/document-line-article.service';
 import { createLineColumnWidths } from '@shared/table-columns/line-column-widths.store';
+import { DocumentActionsComponent } from '@domain/documents/components/document-actions/document-actions.component';
 import { DocumentLineHeadComponent } from '@domain/documents/components/document-line-head/document-line-head.component';
 import { DocumentTotalsComponent } from '@domain/documents/components/document-totals/document-totals.component';
 import type { DocumentTotalRow } from '@domain/documents/components/document-totals/document-totals.model';
@@ -344,6 +345,7 @@ const SALES_PRICE_FIELDS: readonly SalesPriceField[] = [
     SlidePanelComponent,
     ProductFormComponent,
     SupplierFormFieldsComponent,
+    DocumentActionsComponent,
   ],
   // Una maschera = un'istanza del blocco: è lei a tracciare gli id che ha
   // sbloccato e a rilasciarli all'uscita.

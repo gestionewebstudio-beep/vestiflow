@@ -36,6 +36,7 @@ import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
 import { CustomerService } from '@domain/customers/services/customer.service';
+import { DocumentActionsComponent } from '@domain/documents/components/document-actions/document-actions.component';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
@@ -116,6 +117,7 @@ type SubmitState =
     DateInputComponent,
     DocumentMobilePanelComponent,
     SelectMenuComponent,
+    DocumentActionsComponent,
   ],
   templateUrl: './movement-form.component.html',
   styleUrl: './movement-form.component.scss',
