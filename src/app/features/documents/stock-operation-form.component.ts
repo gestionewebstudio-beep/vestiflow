@@ -413,9 +413,17 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
   protected readonly confirmButtonLabel = computed(() =>
     this.isAdjustment() ? 'Conferma rettifica' : 'Conferma scarico',
   );
-  protected readonly submitConfirmLabel = computed(() =>
-    this.isAdjustment() ? 'Salva e rettifica' : 'Salva e scarica',
-  );
+  /**
+   * ⛔ **«Salva documento», come su ogni altra maschera** (proprietario,
+   *    24/08/2026). Qui c’era «Salva e rettifica» / «Salva e scarica»:
+   *    l’operatore sa gia’ che sta facendo una rettifica — glielo dice il
+   *    titolo della pagina — e chi passa da una maschera all’altra cerca lo
+   *    stesso pulsante nello stesso posto con lo stesso nome.
+   *
+   * ⚠️ Il ramo «Salva e scarica» era per giunta IRRAGGIUNGIBILE: la rotta
+   *    fissa sempre il tipo Rettifica. Toglierlo non perde niente.
+   */
+  protected readonly submitConfirmLabel = computed(() => 'Salva documento');
 
   readonly form = this.fb.group({
     locationId: this.fb.control('', { validators: [Validators.required] }),

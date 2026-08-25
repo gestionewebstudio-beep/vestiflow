@@ -351,7 +351,7 @@
           <span class="doc-form__actions-note-sep">·</span>
           Le giacenze si aggiornano alla conferma
         </p>
-        <app-button type="button" variant="ghost" (click)="cancel()">Annulla</app-button>
+        <app-button type="button" variant="ghost" (click)="cancel()">Chiudi</app-button>
         @if (isConfirmedEdit()) {
           <app-button type="submit" [disabled]="formReadOnly() || saving()"
             >Salva documento</app-button

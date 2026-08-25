@@ -575,7 +575,13 @@ Il pattern di "salvataggio e uscita da un documento in edit" cambia con la largh
 - Contenuto: a sinistra info sintetica di stato (es. "Modifiche non salvate", "Documento salvato"); a destra i pulsanti azione (primary a destra estrema)
 - Sequenza pulsanti (destra a sinistra): **Chiudi** (ghost) · **Salva bozza** o simile (secondary) · **Salva/Concludi** (primary)
 
-**Le etichette sono le stesse in ogni documento** _(08/2026)_. Il salvataggio dice **«Salva documento»** ovunque — non «Salva ordine», non «Salva registrazione», non «Salva»: chi passa da una maschera all'altra cerca lo stesso pulsante, e il tipo di documento è già scritto nel titolo della pagina. L'uscita dice **«Chiudi»** su desktop e **«Annulla»** nella coppia mobile.
+**Le etichette sono le stesse in ogni documento** _(08/2026)_. Il salvataggio dice **«Salva documento»** ovunque — non «Salva ordine», non «Salva registrazione», non «Salva»: chi passa da una maschera all'altra cerca lo stesso pulsante, e il tipo di documento è già scritto nel titolo della pagina. L'uscita dice **«Chiudi»**, su scrivania e nella coppia mobile.
+
+⛔ **Qui c'era «Annulla» nella coppia mobile** — due nomi per lo stesso comando, a seconda della larghezza dello schermo. Superata dal proprietario il **24/08/2026**: _«se abbiamo deciso chiudi, allora utilizzeremo chiudi dappertutto e leveremo annulla. Ovunque deve essere così e non voglio tornare sull'argomento»_.
+
+⚠️ **A trovare i disallineati è stata una macchina, non l'occhio.** Due maschere dicevano «Annulla» sulla barra e le si vedevano; altre tre — due coppie mobili e il Movimento di magazzino — no. Per questo la regola ha una guardia: `scripts/check-exit-label.mjs`, dentro `npm run lint`, che riconosce il comando dal **gestore** (`cancel()`) e non dalla posizione.
+
+⚠️ Le «Annulla» dentro i **dialoghi** non c'entrano e restano: lì significano «torno indietro», non «esci dal documento». Il dialogo «modifiche non salvate» ha per contratto **Annulla · Esci senza salvare**, e il salvataggio resta il pulsante Salva — «Salva e chiudi» dentro quel dialogo non deve comparire.
 
 ⚠️ **L'unica eccezione, e la regola che la governa** _(17/08/2026)_. La frase dice «in ogni **documento**»: vale per ciò che un documento è. Il **Corrispettivo manuale** non lo è — non ha una riga in `documents`, non si stampa come documento, non entra nella matrice dei permessi documentali, e la specifica `10` §12 lo dichiara «registrazione economica autonoma». Lì il pulsante dice **«Salva corrispettivo»**.
 
