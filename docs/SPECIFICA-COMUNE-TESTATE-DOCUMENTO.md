@@ -1573,3 +1573,63 @@ aggiunge due:
    Quali azioni specifiche sopravvivano su mobile è una decisione del **documento**, non del
    componente: la zona di composizione deve poter dichiarare «solo da scrivania» senza che la
    barra sappia perché.
+
+## 34.6 ⭐ La grammatica c'è già, ed è uniforme 7 su 7
+
+Misurato il 25/08/2026 sull'ordine sinistra→destra della barra di scrivania:
+
+```text
+[nota di stato]  ·  Chiudi (ghost)  ·  [azioni specifiche (secondary)…]  ·  Salva (primary)
+```
+
+**Tutte e sette le maschere.** Il contratto del componente non va inventato: va
+**riconosciuto**. Ne discendono gli slot, senza margine di scelta —
+
+| Slot         | Contenuto                                 | Chi decide    |
+| ------------ | ----------------------------------------- | ------------- |
+| nota         | stato sintetico («Modifiche non salvate») | il documento  |
+| **Chiudi**   | fisso, `ghost`                            | il componente |
+| composizione | azioni specifiche, `secondary`            | il documento  |
+| **Salva**    | fisso, `primary`, etichetta configurabile | il componente |
+
+⚠️ L'etichetta di Salva **è configurabile ma non libera**: «Salva documento» ovunque, tranne
+dove il tipo nomina la propria operazione (Banco: «Concludi vendita» / «Concludi reso»). Vale
+`check-exit-label` per l'uscita; per il salvataggio la regola è §5.
+
+## 34.7 Il confronto con Danea, e le due cose che ha fatto vedere
+
+Il proprietario ha portato la maschera «Ordine cliente» di Danea come riferimento di
+anatomia. Conferma §30 (i tab) e §31 (schermata fissa), e aggiunge due distinzioni:
+
+**1. La barra strumenti delle RIGHE non è la barra azioni del DOCUMENTO.** In Danea sono
+adiacenti e si distinguono per _su cosa agiscono_: «Aggiungi riga · Elimina · Colonne» tocca
+la griglia; «Stampa · Includi doc. · Concludi ordine · Chiudi» tocca il documento.
+
+> ⛔ Chi estrae la barra azioni **non deve inghiottire** `doc-form__lines-tools`. Sono due
+> componenti, non uno.
+
+⚠️ In VestiFlow la barra strumenti righe sta **sopra** la griglia, in Danea sotto. È una
+scelta di layout aperta, non una deriva.
+
+**2. In Danea non esiste «Salva»: «Chiudi» salva e chiude.** Noi abbiamo deciso Chiudi +
+Salva documento. È la prima cosa che verrebbe da imitare guardando quella schermata, ed è
+scritto qui perché non succeda.
+
+## 34.8 ⚠️ Una contraddizione dentro `regole-stile-ui` §5, da chiudere prima
+
+La stessa sezione dice due cose incompatibili sull'ordine dei pulsanti:
+
+```text
+«a destra i pulsanti azione (primary a destra estrema)»
+«Sequenza pulsanti (destra a sinistra): Chiudi (ghost) · Salva bozza (secondary) · Salva/Concludi (primary)»
+```
+
+La seconda, letta da destra, mette **Chiudi** all'estrema destra — il contrario della prima.
+
+⭐ **Il codice ha già scelto, sette volte su sette**: Chiudi a sinistra, Salva primary a
+destra. La seconda metà della frase è quella sbagliata, e va corretta **prima** che il
+componente la fissi per tutti.
+
+## 34.9 Deriva minore ancora aperta
+
+`sales-document-form` è l'unica delle sette **senza la nota di stato** a sinistra.
