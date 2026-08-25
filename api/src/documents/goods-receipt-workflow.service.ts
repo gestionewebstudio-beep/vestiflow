@@ -60,7 +60,6 @@ import { DocumentSettingsService } from './document-settings.service';
 import { DocumentPriceModePreferenceService } from './document-price-mode-preference.service';
 import { ExternalDocumentTypesService } from './external-document-types.service';
 import {
-  buildPurchaseInvoiceVatSummary,
   receiptVatBreakdown,
   type VatBreakdownEntry,
 } from './purchase-invoice-vat-summary.util';
@@ -957,7 +956,16 @@ export class GoodsReceiptWorkflowService {
       include: {
         location: { select: { name: true } },
         lines: {
-          select: { lineTotalMinor: true, lineVatTotalMinor: true, vatSnapshot: true },
+          // ⭐ `vatCodeId` e' la CHIAVE del raggruppamento delle quote: senza,
+          // una riga al 22% ordinaria e una al 22% in inversione contabile
+          // finirebbero nella stessa quota, e la riga materializzata sulla
+          // fattura perderebbe la Natura N6.
+          select: {
+            lineTotalMinor: true,
+            lineVatTotalMinor: true,
+            vatSnapshot: true,
+            vatCodeId: true,
+          },
         },
       },
       orderBy: [{ documentDate: 'desc' }, { createdAt: 'desc' }],

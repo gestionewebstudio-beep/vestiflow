@@ -1174,6 +1174,11 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
           this.buildLine({
             description: descrizione,
             netMinor: quota.net.amountMinor,
+            // ⭐ Il Codice IVA dell'arrivo arriva fin qui: senza, la riga
+            // materializzata nascerebbe SENZA codice mentre tutto il resto
+            // della maschera lo usa, e il reverse charge d'acquisto si
+            // perderebbe proprio nel percorso che lo produce.
+            vatCodeId: quota.vatCodeId ?? '',
             ratePercent: quota.ratePercent,
             vatMinor: quota.vat.amountMinor,
             linkedGoodsReceiptId: receipt.id,
@@ -1216,6 +1221,8 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     }
     return [
       {
+        // Arrivo storico senza quote dettagliate: nessun codice da portare.
+        vatCodeId: null,
         ratePercent:
           receipt.subtotal.amountMinor > 0 && receipt.tax.amountMinor > 0
             ? Math.round((receipt.tax.amountMinor / receipt.subtotal.amountMinor) * 100)

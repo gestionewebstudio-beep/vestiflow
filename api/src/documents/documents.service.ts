@@ -846,7 +846,15 @@ export class DocumentsService {
                 taxMinor: true,
                 totalMinor: true,
                 lines: {
-                  select: { lineTotalMinor: true, lineVatTotalMinor: true, vatSnapshot: true },
+                  // ⭐ `vatCodeId`: e' la chiave del raggruppamento delle quote
+                  // IVA dell'arrivo. Senza, il 22 ordinario e il 22 in
+                  // inversione contabile si sommerebbero in una quota sola.
+                  select: {
+                    lineTotalMinor: true,
+                    lineVatTotalMinor: true,
+                    vatSnapshot: true,
+                    vatCodeId: true,
+                  },
                 },
               },
             },

@@ -64,6 +64,7 @@ const RECEIPT_1: LinkableGoodsReceipt = {
   total: { amountMinor: 12200, currencyCode: 'EUR' },
   vatBreakdown: [
     {
+      vatCodeId: 'vat-22',
       ratePercent: 22,
       net: { amountMinor: 10000, currencyCode: 'EUR' },
       vat: { amountMinor: 2200, currencyCode: 'EUR' },
@@ -165,6 +166,9 @@ const RECEIPT_2: LinkableGoodsReceipt = {
   total: { amountMinor: 6100, currencyCode: 'EUR' },
   vatBreakdown: [
     {
+      // ⭐ Reverse charge d'acquisto: stessa aliquota del RECEIPT_1, codice
+      // diverso. Prima del 25/08/2026 i due si sarebbero sommati in una quota.
+      vatCodeId: 'vat-22r',
       ratePercent: 22,
       net: { amountMinor: 5000, currencyCode: 'EUR' },
       vat: { amountMinor: 1100, currencyCode: 'EUR' },
@@ -642,6 +646,34 @@ describe('PurchaseInvoiceFormComponent', () => {
     await waitFor(() => expect(documentService.savePurchaseInvoice).toHaveBeenCalled());
     const body = documentService.savePurchaseInvoice.mock.calls[0]![0];
     expect(body.lines).toEqual([]);
+  });
+
+  /**
+   * ⭐ **La riga materializzata porta il Codice IVA DELL'ARRIVO**, non il
+   * predefinito.
+   *
+   * ⛔ Era l'ultimo buco della conversione: tutta la maschera usava il Codice
+   * IVA, ma «Includi arrivo merce» continuava a fabbricare righe **senza**. Il
+   * raggruppamento delle quote era chiavato sulla sola aliquota, e la query
+   * che lo alimenta non selezionava nemmeno `vatCodeId`.
+   *
+   * ⚠️ Al 22% possono convivere l'ordinario e l'inversione contabile: sommarli
+   * in una quota sola perde la Natura N6 e il fatto che quell'IVA non è dovuta
+   * al fornitore.
+   */
+  it('⭐ includendo un arrivo, la riga nasce col Codice IVA di QUELL’arrivo', async () => {
+    const user = userEvent.setup();
+    const { documentService } = await setup();
+
+    await selectSupplier(user);
+    await includeReceipt(user, 0);
+    await saveInvoice(user);
+
+    await waitFor(() => expect(documentService.savePurchaseInvoice).toHaveBeenCalled());
+    const body = documentService.savePurchaseInvoice.mock.calls[0]![0];
+    const daArrivo = body.lines?.find((riga) => riga.description.startsWith('Rif. Arrivo merce 1'));
+    expect(daArrivo?.vatCodeId).toBe('vat-22');
+    expect(daArrivo?.vatRatePercent).toBe(22);
   });
 
   // Le scadenze si precompilano con il residuo non coperto; la spunta

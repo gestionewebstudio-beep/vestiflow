@@ -134,8 +134,16 @@ export interface LinkedPurchaseInvoiceInfo {
   readonly totalsCheckPending?: boolean;
 }
 
-/** Quota IVA di un arrivo merce (righe per aliquota della Registrazione fattura). */
+/**
+ * Quota IVA di un arrivo merce: alimenta le righe economiche che «Includi
+ * arrivo merce» materializza sulla Registrazione fattura.
+ *
+ * ⭐ Una quota per **Codice IVA**, non per aliquota: al 22% possono convivere
+ * l'ordinario e l'inversione contabile, e sono due fatti fiscali diversi.
+ */
 export interface GoodsReceiptVatBreakdownEntry {
+  /** Il Codice IVA del gruppo. `null` sulle righe storiche che non ne hanno. */
+  readonly vatCodeId: EntityId | null;
   readonly ratePercent: number;
   readonly net: Money;
   readonly vat: Money;

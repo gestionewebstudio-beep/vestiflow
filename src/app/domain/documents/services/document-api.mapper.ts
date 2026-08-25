@@ -62,6 +62,7 @@ export interface LinkedPurchaseInvoiceApiRow {
 
 /** Quota IVA di un arrivo merce (payload API). */
 export interface VatBreakdownApiEntry {
+  readonly vatCodeId?: EntityId | null;
   readonly ratePercent: number;
   readonly netMinor: number;
   readonly vatMinor: number;
@@ -258,6 +259,7 @@ export function mapVatBreakdown(
   currency: CurrencyCode,
 ): readonly GoodsReceiptVatBreakdownEntry[] | undefined {
   return entries?.map((entry) => ({
+    vatCodeId: entry.vatCodeId ?? null,
     ratePercent: entry.ratePercent,
     net: { amountMinor: entry.netMinor, currencyCode: currency },
     vat: { amountMinor: entry.vatMinor, currencyCode: currency },
