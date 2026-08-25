@@ -63,11 +63,12 @@ export const DOCUMENT_HUB_GROUPS: readonly DocumentHubGroup[] = [
       {
         id: 'supplier-invoices',
         family: 'purchase_invoice',
-        // «fornitore» nel nome: quando accanto ci saranno le fatture di vendita,
-        // «Registrazione fattura» da solo non direbbe più di quale lato si parla.
-        label: 'Registrazione fattura fornitore',
+        // «fornitori» nel nome: accanto ci sono le fatture di VENDITA, e
+        // «Registrazione fattura» da solo non direbbe di quale lato si parla.
+        // Forma abbreviata perché è una scheda, non un titolo di pagina.
+        label: 'Reg. fatture fornitori',
         description: 'Collega gli arrivi merce alla fattura ricevuta dal fornitore.',
-        route: ['/app/documents/registrazione-fattura'],
+        route: ['/app/documents/registrazioni-fatture-fornitori'],
         icon: 'pi-book',
         available: true,
       },

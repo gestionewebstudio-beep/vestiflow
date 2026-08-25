@@ -623,7 +623,7 @@ profilo purchase-invoice   → edit (annullate → dettaglio)     ✅ già confo
 profilo con rowOpensForm   → documentEditPath                 ✅ già conforme (2 profili su 7)
 profilo SENZA rowOpensForm → /app/documents/<listPath>/:id    ⛔ dettaglio
 famiglia arrivo merce      → /app/documents/:id/edit          ✅ già conforme
-supplier_invoice           → registrazione-fattura/:id/edit   ✅ già conforme
+supplier_invoice           → registrazioni-fatture-fornitori/:id/edit   ✅ già conforme
 tutto il resto             → /app/documents/:id               ⛔ dettaglio
 ```
 
@@ -722,24 +722,24 @@ e ha rivelato la cosa che cambia la dimensione del lavoro:
 > `generic · goods-receipt · quote · proforma · sales-ddt · invoice · purchase-invoice ·
 manual-unload`, più `store-sale` dalle rotte del banco.
 
-| Indirizzo                          | Servito da                   | Contratto `14`               |
-| ---------------------------------- | ---------------------------- | ---------------------------- |
-| `/documents/arrivi-merce`          | `DocumentListComponent`      | ✅                           |
-| `/documents/quote`                 | idem                         | ✅                           |
-| `/documents/proforma`              | idem                         | ✅                           |
-| `/documents/sales-ddt`             | idem                         | ✅                           |
-| `/documents/fattura`               | idem                         | ✅                           |
-| `/documents/registrazione-fattura` | idem                         | ✅                           |
-| `/documents/registro`              | idem (`generic`)             | ✅                           |
-| `/vendita-al-banco`                | idem (`store-sale`)          | ✅                           |
-| `/orders`                          | `supplier-order-list`        | ✅                           |
-| `/sales`                           | `sales-order-list`           | ✅                           |
-| `/inventory/movements`             | `stock-movements`            | ✅                           |
-| `/inventory` (giacenze)            | `inventory-levels`           | ⏸ **in pausa**               |
-| `/inventory/situation`             | `inventory-situation`        | ⏸ **in pausa**               |
-| `/sales/corrispettivi`             | `corrispettivi-report`       | ◐ barra sì, **selezione no** |
-| **Trasferimenti**                  | ⛔ **nessun elenco proprio** | ❌                           |
-| **Rettifiche di magazzino**        | ⛔ **nessun elenco proprio** | ❌                           |
+| Indirizzo                                    | Servito da                   | Contratto `14`               |
+| -------------------------------------------- | ---------------------------- | ---------------------------- |
+| `/documents/arrivi-merce`                    | `DocumentListComponent`      | ✅                           |
+| `/documents/quote`                           | idem                         | ✅                           |
+| `/documents/proforma`                        | idem                         | ✅                           |
+| `/documents/sales-ddt`                       | idem                         | ✅                           |
+| `/documents/fattura`                         | idem                         | ✅                           |
+| `/documents/registrazioni-fatture-fornitori` | idem                         | ✅                           |
+| `/documents/registro`                        | idem (`generic`)             | ✅                           |
+| `/vendita-al-banco`                          | idem (`store-sale`)          | ✅                           |
+| `/orders`                                    | `supplier-order-list`        | ✅                           |
+| `/sales`                                     | `sales-order-list`           | ✅                           |
+| `/inventory/movements`                       | `stock-movements`            | ✅                           |
+| `/inventory` (giacenze)                      | `inventory-levels`           | ⏸ **in pausa**               |
+| `/inventory/situation`                       | `inventory-situation`        | ⏸ **in pausa**               |
+| `/sales/corrispettivi`                       | `corrispettivi-report`       | ◐ barra sì, **selezione no** |
+| **Trasferimenti**                            | ⛔ **nessun elenco proprio** | ❌                           |
+| **Rettifiche di magazzino**                  | ⛔ **nessun elenco proprio** | ❌                           |
 
 ⛔ **Trasferimenti e Rettifiche sono il buco vero.** Hanno `transfer/new`,
 `transfer/:id/edit`, `adjustment/new`, `adjustment/:id/edit` — ma **nessuna pagina elenco**:

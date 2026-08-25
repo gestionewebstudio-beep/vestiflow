@@ -256,7 +256,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     });
   }
 
-  protected readonly listPath = '/app/documents/registrazione-fattura';
+  protected readonly listPath = '/app/documents/registrazioni-fatture-fornitori';
   protected readonly currency = DEFAULT_CURRENCY;
   protected readonly formatMoney = formatMoney;
   protected readonly formatDate = formatDate;

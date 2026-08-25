@@ -1614,7 +1614,7 @@ export class DocumentListComponent {
   }
 
   protected openNewPurchaseInvoice(): void {
-    void this.router.navigate(['/app/documents/registrazione-fattura/new']);
+    void this.router.navigate(['/app/documents/registrazioni-fatture-fornitori/new']);
   }
 
   protected openNewTransfer(): void {

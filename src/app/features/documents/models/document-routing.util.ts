@@ -95,7 +95,7 @@ export function documentEditPath(doc: {
     return `/app/documents/adjustment/${doc.id}/edit`;
   }
   if (doc.type === DocumentType.SupplierInvoice) {
-    return `/app/documents/registrazione-fattura/${doc.id}/edit`;
+    return `/app/documents/registrazioni-fatture-fornitori/${doc.id}/edit`;
   }
   // Vendita e Reso al banco: un indirizzo per tipo, come la maschera vendita.
   const bancoMode = storeSaleModeOfDocumentType(doc.type);
@@ -318,7 +318,7 @@ export function documentDuplicateFormRoute(type: DocumentTypeValue): string | nu
     case DocumentType.Adjustment:
       return '/app/documents/adjustment/new';
     case DocumentType.SupplierInvoice:
-      return '/app/documents/registrazione-fattura/new';
+      return '/app/documents/registrazioni-fatture-fornitori/new';
     default:
       return null;
   }

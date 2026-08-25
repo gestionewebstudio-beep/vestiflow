@@ -84,8 +84,13 @@ export const reportsRoutes: Routes = [
     canActivate: [tenantPermissionGuard],
     data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.SectionReports, reuse: true },
   },
-  // Non devono esistere due indirizzi «Corrispettivi»: chi ha un segnalibro
-  // sul vecchio finisce sul canonico invece di vedere una pagina gemella.
-  { path: 'corrispettivi/print', redirectTo: '/app/sales/corrispettivi/print' },
-  { path: 'corrispettivi', redirectTo: '/app/sales/corrispettivi' },
+  // ⛔ Qui c'erano i due reindirizzamenti da `/app/reports/corrispettivi`
+  // (+ `/print`) verso `/app/sales/corrispettivi`. Tolti il 25/08/2026.
+  //
+  // ⚠️ **Non erano solo inutili: erano ROTTI.** Il collaudo del 17/08 li aveva
+  // già misurati (P2.13) — un `redirectTo` scarta TUTTI i parametri di query,
+  // quindi un segnalibro sulla stampa per il commercialista usciva con un altro
+  // periodo. Un 404 è una risposta migliore di una stampa sbagliata.
+  //
+  // ⭐ E nel codice non ci puntava più nessuno: solo i documenti.
 ];

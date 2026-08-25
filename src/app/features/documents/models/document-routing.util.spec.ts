@@ -55,7 +55,7 @@ describe('documentOpenPath', () => {
 
   it('registrazione fattura attiva nel form del modulo, annullata nel dettaglio generico', () => {
     expect(documentOpenPath(doc(DocumentType.SupplierInvoice), TITOLARE)).toBe(
-      '/app/documents/registrazione-fattura/doc-1/edit',
+      '/app/documents/registrazioni-fatture-fornitori/doc-1/edit',
     );
     expect(
       documentOpenPath(doc(DocumentType.SupplierInvoice, DocumentStatus.Cancelled), TITOLARE),

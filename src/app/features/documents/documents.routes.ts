@@ -148,17 +148,20 @@ export const documentsRoutes: Routes = [
       reuse: true,
     },
   },
-  {
-    // Vecchio percorso «Bozze fattura»: preserva i link salvati dagli utenti.
-    path: 'invoice-draft',
-    redirectTo: 'fattura',
-    pathMatch: 'full',
-  },
+  // ⛔ Qui c'era il reindirizzamento dal vecchio percorso «Bozze fattura»
+  // (`invoice-draft`). Tolto il 25/08/2026: quella schermata non esiste più —
+  // il documento si chiama Fattura e sta su `fattura`.
+  //
+  // ⚠️ **Il nome sopravvive dove non si può togliere**: `invoice_draft` è il
+  // valore dell'enum `DocumentType` nel database, e rinominarlo è una migration
+  // su un database condiviso più un'ottantina di punti di codice. Lo schema
+  // dichiara che cosa significa davvero: «Fattura (fiscale, da trasmettere al
+  // commercialista)».
   {
     // Elenco Registrazioni fattura fornitore (Documenti → Acquisti e
     // fornitori): colonne e filtri della spec, stato saldo incluso.
-    path: 'registrazione-fattura',
-    title: 'Registrazioni fattura fornitore',
+    path: 'registrazioni-fatture-fornitori',
+    title: 'Registrazioni fatture fornitori',
     loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
     canActivate: [tenantPermissionGuard],
     data: {
@@ -167,23 +170,12 @@ export const documentsRoutes: Routes = [
       reuse: true,
     },
   },
-  {
-    // Vecchio indirizzo dell'elenco Vendite al banco, uscito da /app/documents
-    // il 19/08/2026 (`11` C3). Preserva i link salvati dagli operatori.
-    //
-    // ⚠️ Deve stare PRIMA del catch-all `:id` piu' sotto: senza, l'URL vecchio
-    // non darebbe 404 — aprirebbe «Dettaglio documento» con id «vendite-negozio».
-    path: 'vendite-negozio',
-    pathMatch: 'full',
-    redirectTo: '/app/vendita-al-banco',
-  },
-  {
-    // ⚠️ Riga propria per il dettaglio: un `redirectTo` senza `pathMatch: 'full'`
-    // NON trascina i segmenti successivi. E' la stessa ragione per cui i due
-    // redirect dei Corrispettivi sono due righe (`reports.routes.ts`).
-    path: 'vendite-negozio/:id',
-    redirectTo: '/app/vendita-al-banco/:id',
-  },
+  // ⛔ Qui c'erano due reindirizzamenti dal vecchio indirizzo delle Vendite al
+  // banco (`/app/documents/vendite-negozio`), uscito da /app/documents il
+  // 19/08/2026. Tolti il 25/08/2026 per decisione del proprietario: «per ora
+  // nessuno lo utilizza, è in fase di realizzazione, possiamo sistemare tutto e
+  // in modo pulito». Un indirizzo che sopravvive a se stesso è una seconda
+  // strada verso la stessa pagina, e prima o poi qualcuno la scrive nei link.
   {
     // Scarico manuale giacenze: pagina elenco dedicata (prompt Scarico
     // manuale) — il documento resta qui finché l'operatore non lo elimina.
@@ -388,7 +380,7 @@ export const documentsRoutes: Routes = [
     data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('goods_receipt') },
   },
   {
-    path: 'registrazione-fattura/new',
+    path: 'registrazioni-fatture-fornitori/new',
     title: 'Nuova registrazione fattura fornitore',
     loadComponent: () =>
       import('./purchase-invoice-form.component').then((m) => m.PurchaseInvoiceFormComponent),
@@ -397,7 +389,7 @@ export const documentsRoutes: Routes = [
     data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('purchase_invoice') },
   },
   {
-    path: 'registrazione-fattura/:id/edit',
+    path: 'registrazioni-fatture-fornitori/:id/edit',
     title: 'Modifica registrazione fattura fornitore',
     loadComponent: () =>
       import('./purchase-invoice-form.component').then((m) => m.PurchaseInvoiceFormComponent),

@@ -10,7 +10,7 @@ import { unsavedChangesGuard } from '@core/guards/unsaved-changes.guard';
 import { REQUIRED_TENANT_PERMISSION_GROUPS_KEY } from '@core/permissions/tenant-permissions.util';
 
 import { routes as appRoutes } from '../../app.routes';
-import { documentsRoutes, storeSaleDocumentRoutes } from '../documents/documents.routes';
+import { storeSaleDocumentRoutes } from '../documents/documents.routes';
 import { salesDocumentRegisterConfig } from '../documents/models/document-sales-register.config';
 import { DOCUMENT_ROW_OPENS, documentRowPath } from '../documents/models/document-routing.util';
 import { storeSalesRegisterRoutes } from './store-sales.routes';
@@ -207,38 +207,23 @@ describe('l’ordine, che è l’unica cosa che rende le rotte raggiungibili', (
   });
 });
 
-describe('i vecchi indirizzi non restano scoperti', () => {
-  const tutte = piatte(appRoutes);
-
-  it('⛔ /app/sales/register rimanda alla creazione vendita', () => {
-    const vecchia = tutte.find((r) => r.path === 'register' && r.redirectTo);
-    expect(vecchia?.redirectTo).toBe(`${STORE_SALE_ROOT_PATH}/${STORE_SALE_ROUTE_SEGMENT.sale}`);
-    // Senza `pathMatch: 'full'` intercetterebbe anche i figli.
-    expect(vecchia?.pathMatch).toBe('full');
-  });
-
-  it('⛔ vendite-negozio e il suo :id hanno DUE redirect distinti', () => {
-    const documenti = piatte(documentsRoutes);
-    const elenco = documenti.find((r) => r.path === 'vendite-negozio');
-    const dettaglio = documenti.find((r) => r.path === 'vendite-negozio/:id');
-
-    expect(elenco?.redirectTo).toBe(STORE_SALE_ROOT_PATH);
-    expect(elenco?.pathMatch).toBe('full');
-    // ⚠️ Riga propria: un `redirectTo` senza `pathMatch: 'full'` non trascina i
-    // segmenti successivi, quindi l'id andrebbe perso.
-    expect(dettaglio?.redirectTo).toBe(`${STORE_SALE_ROOT_PATH}/:id`);
-  });
-
-  it('⛔ i redirect stanno PRIMA dei catch-all che li catturerebbero', () => {
-    const documenti = piatte(documentsRoutes);
-    const iRedirect = documenti.findIndex((r) => r.path === 'vendite-negozio');
-    const iCatchAll = documenti.findIndex((r) => r.path === ':id');
-    expect(iRedirect).toBeGreaterThanOrEqual(0);
-    if (iCatchAll >= 0) {
-      expect(iRedirect).toBeLessThan(iCatchAll);
-    }
-  });
-});
+/**
+ * ⛔ **Qui c'era `describe('i vecchi indirizzi non restano scoperti')`**, con tre
+ * prove che inchiodavano i reindirizzamenti da `/app/sales/register` e da
+ * `/app/documents/vendite-negozio` (elenco e dettaglio, e il loro ordine
+ * rispetto ai catch-all).
+ *
+ * ⚠️ **I reindirizzamenti sono stati TOLTI il 25/08/2026**, non sono stati
+ * dimenticati: decisione del proprietario — «per ora nessuno lo utilizza, è in
+ * fase di realizzazione, possiamo sistemare tutto e in modo pulito». Un
+ * indirizzo che sopravvive a se stesso è una seconda strada verso la stessa
+ * pagina, e prima o poi qualcuno la scrive nei link.
+ *
+ * ⭐ **Il vincolo che resta vero** — un redirect senza `pathMatch: 'full'` non
+ * trascina i segmenti successivi, e va PRIMA del catch-all `:id` — vale per i
+ * reindirizzamenti che esistono ancora (Corrispettivi, Bozze fattura), ed è
+ * dove va provato se un domani serve.
+ */
 
 describe('la config dell’elenco non può divergere dalla rotta', () => {
   /**

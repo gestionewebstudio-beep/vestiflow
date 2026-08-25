@@ -114,18 +114,10 @@ export const routes: Routes = [
             loadChildren: () =>
               import('@features/reports/reports.routes').then((m) => m.corrispettiviRegisterRoutes),
           },
-          {
-            // Vecchio indirizzo della maschera, uscito da /app/sales il
-            // 19/08/2026 (`11` C3): il modulo ha una radice propria.
-            //
-            // ⚠️ Deve stare PRIMA del figlio '' di sales-orders qui sotto:
-            // senza, /app/sales/register non darebbe 404 — cadrebbe nel suo
-            // `:id` e aprirebbe la maschera Ordine cliente cercando l'ordine
-            // «register».
-            path: 'register',
-            pathMatch: 'full',
-            redirectTo: '/app/vendita-al-banco/nuova-vendita-al-banco',
-          },
+          // ⛔ Qui c'era il reindirizzamento dal vecchio indirizzo della maschera
+          // Vendita al banco (`/app/sales/register`), uscito da /app/sales il
+          // 19/08/2026. Tolto il 25/08/2026 con l'altro, per decisione del
+          // proprietario: niente seconde strade verso la stessa pagina.
           {
             path: '',
             loadChildren: () =>

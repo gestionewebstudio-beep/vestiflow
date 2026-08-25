@@ -262,12 +262,12 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
   'purchase-invoice': {
     profile: 'purchase-invoice',
     type: DocumentType.SupplierInvoice,
-    pageTitle: 'Registrazioni fattura',
+    pageTitle: 'Registrazioni fatture fornitori',
     pageSubtitle:
       'Fatture fornitore registrate: collegano gli arrivi merce alla fattura ricevuta e tracciano le scadenze di pagamento. Mai effetti sul magazzino.',
-    createLabel: 'Nuova registrazione fattura',
-    createPath: '/app/documents/registrazione-fattura/new',
-    listPath: '/app/documents/registrazione-fattura',
+    createLabel: 'Nuova registrazione fattura fornitore',
+    createPath: '/app/documents/registrazioni-fatture-fornitori/new',
+    listPath: '/app/documents/registrazioni-fatture-fornitori',
     emptyTitle: 'Nessuna registrazione fattura',
     emptyDescription:
       'Non ci sono registrazioni che corrispondono ai filtri. Registra una fattura fornitore per collegare gli arrivi merce e gestire le scadenze di pagamento.',

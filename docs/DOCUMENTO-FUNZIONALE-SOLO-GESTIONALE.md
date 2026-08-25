@@ -357,7 +357,7 @@ Form `/app/documents/goods-receipt/new` (permesso Gestire documenti):
 
 ### 10.5 Registrazione fattura fornitore
 
-Form `/app/documents/registrazione-fattura/new`: registra la fattura ricevuta e la **collega agli arrivi merce** (evidenza nel Registro commercialista tra i «documenti fornitore da registrare»).
+Form `/app/documents/registrazioni-fatture-fornitori/new`: registra la fattura ricevuta e la **collega agli arrivi merce** (evidenza nel Registro commercialista tra i «documenti fornitore da registrare»).
 
 ### 10.6 Trasferimenti e rettifiche
 
@@ -624,7 +624,7 @@ Regole sempre vere, utili come oracoli nei test end-to-end:
 | `/app/documents`                                                                            | Hub documenti                       | Consultare o Gestire documenti                                                  |
 | `/app/documents/registro`, `/app/documents/arrivi-merce`                                    | Registri                            | Consultare o Gestire documenti                                                  |
 | `/app/documents/goods-receipt/new`, `…/:id/edit`                                            | Arrivo merce                        | Gestire documenti                                                               |
-| `/app/documents/registrazione-fattura/new`                                                  | Registrazione fattura               | Gestire documenti                                                               |
+| `/app/documents/registrazioni-fatture-fornitori/new`                                        | Registrazione fattura               | Gestire documenti                                                               |
 | `/app/documents/transfer/new`, `…/manual-unload/new`, `…/adjustment/new`                    | Trasferimento / Scarico / Rettifica | Gestire documenti                                                               |
 | `/app/documents/proforma/new`, `…/sales-ddt/new`, `…/invoice-draft/new`, `…/sales/:id/edit` | Documenti di vendita                | Gestire documenti                                                               |
 | `/app/documents/settings`                                                                   | Impostazioni numerazione            | Gestire documenti                                                               |
