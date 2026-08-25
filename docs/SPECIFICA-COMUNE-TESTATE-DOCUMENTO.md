@@ -1492,3 +1492,84 @@ sono di una specie che si ripete:
 
 ⭐ Il secondo è il più insidioso: una guardia che segnala tutti sembra rigorosa, e invece
 non sta misurando niente. Riscritta senza espressioni regolari.
+
+---
+
+# 34. BARRA AZIONI — caratterizzazione prima dell'estrazione (25/08/2026)
+
+⚠️ **Questa sezione NON decide il componente.** Registra che cosa contengono oggi le
+quattordici dichiarazioni, divise fra ciò che è **decisione** e ciò che è **deriva**. La
+divisione va fatta prima, o l'estrazione consolida la deriva invece di toglierla.
+
+## 34.1 La misura di partenza
+
+> **Ogni maschera dichiara la barra DUE volte**: `doc-form__actions` (scrivania) e
+> `doc-form__mobile-actions`. Sette barre, quattordici dichiarazioni.
+
+⭐ **Ma le due vesti coincidono in cinque maschere su sette.** La duplicazione è nella
+_dichiarazione_, non nel comportamento: è la condizione migliore possibile per estrarre.
+
+## 34.2 Le differenze che sono DECISIONI
+
+| Maschera                      | Azione                                                  | Perché                                          |
+| ----------------------------- | ------------------------------------------------------- | ----------------------------------------------- |
+| Arrivo merce                  | «Stampa etichette»                                      | dominio                                         |
+| Ordine cliente                | «Concludi ordine» · «Genera documento» (due menu)       | dominio                                         |
+| Banco                         | `confirmLabel()` → «Concludi vendita» / «Concludi reso» | il pulsante nomina l'operazione                 |
+| Arrivo merce · Ordine cliente | su mobile le azioni specifiche **non compaiono**        | §5: su mobile si riduce il _numero_ dei comandi |
+
+## 34.3 Le differenze che sono DERIVA
+
+**Due `@if` che non decidono niente.** Trasferimento, veste mobile: `@if (isConfirmedEdit())`
+con **rami identici**. Rettifica/Scarico: stesso schema, con un ramo che scrive
+`{{ submitConfirmLabel() }}` — e quel computed è `computed(() => 'Salva documento')`, una
+costante travestita da segnale.
+
+⚠️ Sulla veste **desktop** i rami differiscono davvero (`formReadOnly() || saving()` contro
+`saving()`). Il blocco è stato copiato, e la differenza è stata persa da una copia sola. È
+la dimostrazione di cosa costa la doppia dichiarazione, dentro il pezzo che stiamo per
+estrarre.
+
+**`[disabled]` incoerente fra le due vesti** della stessa maschera.
+
+**⛔ «Salva documento» sta in due posti diversi a seconda della maschera.** Quattro maschere
+ce l'hanno nella coppia in fondo al documento; l'**Arrivo merce ce l'ha nel dock fisso**.
+
+⚠️ `regole-stile-ui` §5 è esplicita: la barra sticky mobile riguarda **inserire prodotti**
+(Scansiona · Aggiungi prodotto), mentre «Chiudi e Salva restano in fondo al documento e
+scorrono col contenuto». Il dock dell'Arrivo merce contiene Totale + scanner + Salva: tre
+scarti in un blocco solo.
+
+> **Il dock va deciso PRIMA dell'estrazione.** Finché «Salva» sta nel dock su una maschera e
+> in fondo al documento sulle altre, un componente comune consoliderebbe la divergenza.
+
+**CSS morto.** Le regole sotto `md` che nascondono `app-button[type='submit']` nella barra
+desktop non possono più applicarsi: da quando `--m-ref` nasconde **tutta** la barra desktop
+sotto `lg` (`_document-form-mobile.scss:407`), quel blocco è irraggiungibile.
+
+## 34.4 ⛔ Un falso allarme, e come è nato
+
+La prima misura diceva che l'Ordine fornitore non ha «Salva» su mobile, e che nella fascia
+769–1024px convivono due barre. **Sono entrambe false.**
+
+L'estrattore non gestiva gli a-capo di Prettier — `>Salva documento</app-button` su righe
+separate — e perdeva pulsanti; la seconda ipotesi veniva da due soglie lette separatamente
+(`down-lg` per la barra mobile, `down-md` per i submit) senza vedere la riga che nasconde
+l'intera barra desktop sotto `lg`.
+
+⭐ **Vale la pena registrarlo**: una misura fatta con un estrattore che salta silenziosamente
+dei casi produce difetti inventati con l'aria di essere misurati, ed è più costosa del non
+misurare — perché ci si crede.
+
+## 34.5 Il vincolo che il contratto deve portare
+
+Il criterio di accettazione è quello proposto: _per aggiungere un'azione specifica non devo
+toccare il componente; per cambiare Chiudi o Salva devo toccare un punto solo._ La misura ne
+aggiunge due:
+
+1. **La barra è UNA dichiarazione.** Se dopo l'estrazione un template la nomina due volte,
+   l'estrazione non è finita — e serve una guardia che lo conti.
+2. **La veste mobile non è la stessa barra più stretta: è la stessa barra con meno comandi.**
+   Quali azioni specifiche sopravvivano su mobile è una decisione del **documento**, non del
+   componente: la zona di composizione deve poter dichiarare «solo da scrivania» senza che la
+   barra sappia perché.
