@@ -4,8 +4,10 @@ import {
   DestroyRef,
   afterNextRender,
   computed,
+  effect,
   inject,
   signal,
+  untracked,
 } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
@@ -49,6 +51,9 @@ import type { PaymentOption } from '@core/models/payment-option.model';
 import type { Supplier } from '@core/models/supplier.model';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { ToastService } from '@core/services/toast.service';
+import type { VatCode } from '@core/models/vat-code.model';
+import { isPurchaseVatCode } from '@core/models/vat-code.model';
+import { VatCodeService } from '@core/services/vat-code.service';
 import { DEFAULT_CURRENCY, formatMoney } from '@core/utils/money.util';
 import { formatDate } from '@core/utils/date.util';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
@@ -67,6 +72,12 @@ import { DocumentHeaderFieldComponent } from '@domain/documents/components/docum
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import { DocumentSeriesManagerDialogComponent } from '@domain/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
 import { MoneyInputComponent } from '@shared/components/money-input/money-input.component';
+import { DocumentLineSelectCellComponent } from '@domain/documents/components/document-line-select-cell/document-line-select-cell.component';
+import {
+  vatCodeSelectOption,
+  vatOptionsIncludingSelected,
+} from '@domain/documents/utils/document-vat-options.util';
+import { vatCodeIdForLinePayload } from '@domain/documents/utils/document-line-vat-payload.util';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
@@ -126,7 +137,13 @@ type EconomicLineForm = FormGroup<{
    * **non si poteva più risalvare**.
    */
   netMinor: FormControl<number | null>;
-  rateText: FormControl<string>;
+  /** Il Codice IVA scelto. Stringa vuota = nessuno (righe storiche). */
+  vatCodeId: FormControl<string>;
+  /**
+   * L'aliquota della riga, non più digitata: la porta il Codice IVA scelto, e
+   * su una riga storica senza codice resta quella dello snapshot persistito.
+   */
+  ratePercent: FormControl<number | null>;
   vatMinor: FormControl<number | null>;
   /** L'arrivo merce da cui la riga è nata. Vuoto = voce libera. */
   linkedGoodsReceiptId: FormControl<string>;
@@ -155,20 +172,15 @@ function formatShortDate(iso: string): string {
   return SHORT_DATE_FORMAT.format(new Date(iso));
 }
 
-/** Aliquota IVA da testo utente ("22", "10,5", "4%"): null se non valida. */
-function parseRatePercent(value: string): number | null {
-  const trimmed = value.trim().replace('%', '').replace(',', '.');
-  if (!trimmed) {
-    return null;
-  }
-  const parsed = Number(trimmed);
-  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 100 ? parsed : null;
-}
+// ⛔ Qui c'era `parseRatePercent`: l'aliquota letta da testo utente. Tolta il
+// 25/08/2026 — l'aliquota non si digita piu', la porta il Codice IVA scelto
+// dall'elenco. Era l'ultimo pezzo di grammatica fiscale scritto a mano in
+// questa maschera.
 
 /**
  * Registrazione fattura fornitore (prompt §5-7): documento contabile che
- * collega uno o più Arrivi merce alla fattura ricevuta. Le righe si generano
- * raggruppando gli imponibili per aliquota IVA (più eventuali righe manuali);
+ * collega uno o più Arrivi merce alla fattura ricevuta. Le righe sono UNA lista
+ * sola e tutte modificabili: includere un arrivo le materializza una volta;
  * il pagamento è gestito a scadenze con stato saldato. NON movimenta mai il
  * magazzino: le giacenze restano quelle caricate dagli Arrivi merce.
  */
@@ -203,6 +215,7 @@ function parseRatePercent(value: string): number | null {
     DocumentTotalsComponent,
     DocumentPageStateComponent,
     MoneyInputComponent,
+    DocumentLineSelectCellComponent,
   ],
   templateUrl: './purchase-invoice-form.component.html',
   styleUrl: './purchase-invoice-form.component.scss',
@@ -261,11 +274,47 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       .pipe(distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.refreshDocumentNumberProposal());
 
+    /**
+     * Il Codice IVA predefinito d'acquisto sulle righe NUOVE che non ne hanno.
+     *
+     * Serve un effetto e non basta `buildLine`: la prima riga nasce nel
+     * costruttore, quando l'elenco dei codici non è ancora arrivato dalla rete.
+     * Scatta una volta sola, quando il predefinito diventa noto.
+     *
+     * ⛔ **Solo le righe NUOVE**, e la distinzione è la più delicata di questo
+     * passo: le righe già salvate hanno tutte `vat_code_id = NULL` — sono nate
+     * prima che questa maschera sapesse cosa fosse un Codice IVA. Assegnargliene
+     * uno che nessuno ha scelto riscriverebbe l'aliquota storica di una fattura
+     * di marzo al primo Salva.
+     *
+     * ⚠️ `emitEvent: false` perché una proposta non è una modifica: senza, un
+     * documento appena aperto risulterebbe «da salvare».
+     */
+    effect(() => {
+      const predefinito = this.defaultVatCodeId();
+      if (!predefinito) {
+        return;
+      }
+      untracked(() => {
+        for (const line of this.lines.controls) {
+          if (line.controls.id.value === '' && !line.controls.vatCodeId.value) {
+            line.controls.vatCodeId.setValue(predefinito, { emitEvent: false });
+            const vatCode = this.vatCodesById().get(predefinito);
+            if (vatCode) {
+              line.controls.ratePercent.setValue(vatCode.ratePercent, { emitEvent: false });
+            }
+          }
+        }
+      });
+    });
+
     // Ogni modifica utente al form marca la registrazione come «da salvare».
     this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.markFormDirty();
     });
   }
+
+  private readonly vatCodeService = inject(VatCodeService);
 
   protected readonly listPath = '/app/documents/registrazioni-fatture-fornitori';
   protected readonly currency = DEFAULT_CURRENCY;
@@ -827,13 +876,85 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     });
   }
 
+  // ── Codici IVA ──────────────────────────────────────────────────────────
+  //
+  // ⛔ Questa maschera era l'UNICA dell'app a digitare l'aliquota a mano, dal
+  // 19/07/2026 — cinque giorni dopo che il dominio Codice IVA era già in
+  // codice. Otto form tengono `vatCodeId`; questo no.
+  //
+  // ⚠️ E i quattro codici in inversione contabile d'acquisto (22R, 10R, 5R, 4R)
+  // sono gli unici con `usageScope: 'purchase'`: esistono SOLO per questa
+  // maschera, che non poteva sceglierli.
+
+  private readonly vatCodes = toSignal(
+    this.vatCodeService.list().pipe(catchError(() => of([] as readonly VatCode[]))),
+    { initialValue: [] as readonly VatCode[] },
+  );
+
+  private readonly purchaseVatCodes = computed(() =>
+    this.vatCodes().filter((vatCode) => vatCode.isActive && isPurchaseVatCode(vatCode)),
+  );
+
+  private readonly vatCodesById = computed(
+    () => new Map(this.vatCodes().map((vatCode) => [vatCode.id, vatCode])),
+  );
+
+  private readonly defaultVatCodeId = computed(
+    () => this.purchaseVatCodes().find((vatCode) => vatCode.isDefault)?.id ?? '',
+  );
+
+  private readonly vatCodeOptionsBase = computed<readonly SelectMenuOption[]>(() =>
+    this.purchaseVatCodes().map(vatCodeSelectOption),
+  );
+
+  /**
+   * Il Codice IVA di ogni riga **com'era quando il documento è stato aperto**.
+   *
+   * ⭐ È il riferimento del contratto binario, e si fissa al caricamento: non si
+   * aggiorna durante le modifiche locali, o due modifiche di fila si
+   * annullerebbero a vicenda e la seconda non partirebbe.
+   */
+  private readonly persistedVatCodeIds = signal<ReadonlyMap<string, string | null>>(new Map());
+
+  protected lineVatOptions(index: number): readonly SelectMenuOption[] {
+    return vatOptionsIncludingSelected(
+      this.vatCodeOptionsBase(),
+      this.lines.at(index)?.controls.vatCodeId.value,
+      this.vatCodesById(),
+    );
+  }
+
+  /**
+   * L'operatore sceglie un Codice IVA: la riga prende la sua aliquota e
+   * ripropone l'imposta.
+   *
+   * ⚠️ L'imposta resta comunque modificabile. Una fattura ricevuta si REGISTRA,
+   * non si produce: l'imposta stampata dal fornitore può differire di un
+   * centesimo dall'arrotondamento, e un campo derivato costringerebbe a falsare
+   * il netto per farla tornare.
+   */
+  protected onLineVatSelect(index: number, value: string | null): void {
+    const group = this.lines.at(index);
+    if (!group) {
+      return;
+    }
+    group.controls.vatCodeId.setValue(value ?? '');
+    const vatCode = value ? this.vatCodesById().get(value) : undefined;
+    if (vatCode) {
+      group.controls.ratePercent.setValue(vatCode.ratePercent);
+    }
+    this.lines.markAsDirty();
+    this.recalcLineVat(index);
+  }
+
   // ── Righe economiche ────────────────────────────────────────────────────────
 
   private buildLine(init?: {
     id?: string;
     description?: string;
     netMinor?: number | null;
-    rateText?: string;
+    vatCodeId?: string;
+    ratePercent?: number | null;
     vatMinor?: number | null;
     linkedGoodsReceiptId?: string;
   }): EconomicLineForm {
@@ -841,7 +962,8 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       id: this.fb.control(init?.id ?? ''),
       description: this.fb.control(init?.description ?? ''),
       netMinor: this.fb.control<number | null>(init?.netMinor ?? null),
-      rateText: this.fb.control(init?.rateText ?? ''),
+      vatCodeId: this.fb.control(init?.vatCodeId ?? ''),
+      ratePercent: this.fb.control<number | null>(init?.ratePercent ?? null),
       vatMinor: this.fb.control<number | null>(init?.vatMinor ?? null),
       linkedGoodsReceiptId: this.fb.control(init?.linkedGoodsReceiptId ?? ''),
     });
@@ -877,7 +999,15 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
   }
 
   protected addLine(): void {
-    this.lines.push(this.buildLine());
+    const predefinito = this.defaultVatCodeId();
+    this.lines.push(
+      this.buildLine({
+        vatCodeId: predefinito || undefined,
+        ratePercent: predefinito
+          ? (this.vatCodesById().get(predefinito)?.ratePercent ?? null)
+          : null,
+      }),
+    );
     this.lines.markAsDirty();
   }
 
@@ -908,7 +1038,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       return;
     }
     const net = group.controls.netMinor.value;
-    const rate = parseRatePercent(group.controls.rateText.value);
+    const rate = group.controls.ratePercent.value;
     if (net === null || rate === null) {
       return;
     }
@@ -1044,7 +1174,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
           this.buildLine({
             description: descrizione,
             netMinor: quota.net.amountMinor,
-            rateText: String(quota.ratePercent).replace('.', ','),
+            ratePercent: quota.ratePercent,
             vatMinor: quota.vat.amountMinor,
             linkedGoodsReceiptId: receipt.id,
           }),
@@ -1140,11 +1270,13 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       // una riga da 0,00 sarebbe FALSA e verrebbe saltata — e siccome il server
       // fa `deleteMany` prima di riscrivere, saltata significa **cancellata**.
       // «Non l'ho scritto» e «vale zero» sono due cose diverse.
-      const hasContent =
-        description !== '' ||
-        line.netMinor !== null ||
-        line.rateText.trim() !== '' ||
-        line.vatMinor !== null;
+      // ⛔ **Il Codice IVA NON conta come contenuto**, ed è una distinzione che
+      // costa un difetto se si sbaglia: il predefinito lo mette la maschera, non
+      // l'operatore. Contandolo, la riga pronta all'apertura risulterebbe
+      // «scritta», il salvataggio la rifiuterebbe come incompleta, e **un
+      // documento vuoto non si potrebbe più salvare** — che è una regola di
+      // progetto, non una preferenza.
+      const hasContent = description !== '' || line.netMinor !== null || line.vatMinor !== null;
       if (!hasContent) {
         // ⭐ Riga vuota: si salta, non è un errore. È la riga che ogni maschera
         // documentale tiene pronta in fondo — e un documento vuoto si salva.
@@ -1167,8 +1299,18 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
         id: line.id || undefined,
         description,
         netMinor: net,
-        vatRatePercent: parseRatePercent(line.rateText) ?? 0,
+        vatRatePercent: line.ratePercent ?? 0,
         vatMinor: line.vatMinor ?? 0,
+        // ⭐ **Contratto binario.** Su una riga esistente si dichiara il codice
+        // SOLO se è cambiato rispetto a quello letto all'apertura: rimandare
+        // sempre quello persistito farebbe rifotografare lo snapshot al server,
+        // e una fattura di marzo cambierebbe aliquota il giorno in cui qualcuno
+        // modifica quel Codice IVA. La regola sta in un posto solo.
+        vatCodeId: vatCodeIdForLinePayload({
+          currentVatCodeId: line.vatCodeId,
+          persistedVatCodeId: line.id ? (this.persistedVatCodeIds().get(line.id) ?? null) : null,
+          isExistingLine: line.id !== '',
+        }),
         // ⭐ Il legame all'arrivo viaggia sulla riga: è l'unica fonte, e il
         // server ci ricava sia i collegamenti sia il controllo dei permessi.
         linkedGoodsReceiptId: line.linkedGoodsReceiptId || undefined,
@@ -1392,15 +1534,20 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
           // imposta zero, e la differenza decide se il campo mostra il
           // segnaposto o un valore che nessuno ha scritto.
           netMinor: line.lineTotal.amountMinor,
-          rateText:
-            line.vatSnapshot?.ratePercent != null
-              ? String(line.vatSnapshot.ratePercent).replace('.', ',')
-              : '',
+          vatCodeId: line.vatCodeId ?? '',
+          ratePercent: line.vatSnapshot?.ratePercent ?? null,
           vatMinor: line.lineVatTotal?.amountMinor ?? null,
           linkedGoodsReceiptId: line.linkedGoodsReceiptId ?? '',
         }),
       );
     }
+
+    // ⭐ Il riferimento del contratto binario si fissa QUI, al caricamento, e
+    // non si aggiorna durante le modifiche locali: altrimenti due modifiche di
+    // fila si annullerebbero a vicenda e la seconda non partirebbe.
+    this.persistedVatCodeIds.set(
+      new Map((doc.lines ?? []).map((line) => [line.id, line.vatCodeId ?? null])),
+    );
 
     this.installments.clear();
     for (const installment of doc.paymentInstallments ?? []) {

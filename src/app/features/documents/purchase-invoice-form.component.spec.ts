@@ -12,6 +12,7 @@ import type { TenantPermissionKey } from '@core/models/tenant-permission.model';
 import { UserRole } from '@core/models/user.model';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { ToastService } from '@core/services/toast.service';
+import { VatCodeService } from '@core/services/vat-code.service';
 import { ViewportService } from '@core/services/viewport.service';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
 
@@ -122,6 +123,36 @@ const REGISTRAZIONE_CON_ZERO = {
     },
   ],
 } as unknown as DocumentRecord;
+
+/** Codici IVA d'acquisto: il 22 è il predefinito, il 22R è in reverse charge. */
+const IVA_22 = {
+  id: 'vat-22',
+  code: '22',
+  description: 'IVA 22%',
+  notes: null,
+  ratePercent: 22,
+  nonDeductiblePercent: 0,
+  usageScope: 'both',
+  calculationMode: 'standard',
+  vatAffectsSupplierTotal: true,
+  isDefault: true,
+  isActive: true,
+  isSystem: true,
+  sortOrder: 1,
+};
+
+/** ⭐ Esiste SOLO per l'acquisto: è uno dei quattro che questa maschera non
+ *  poteva scegliere finché l'IVA era una percentuale digitata. */
+const IVA_22R = {
+  ...IVA_22,
+  id: 'vat-22r',
+  code: '22R',
+  description: 'Reverse charge 22%',
+  usageScope: 'purchase',
+  calculationMode: 'reverse_charge',
+  vatAffectsSupplierTotal: false,
+  isDefault: false,
+};
 
 const RECEIPT_2: LinkableGoodsReceipt = {
   id: 'gr-2',
@@ -252,6 +283,11 @@ describe('PurchaseInvoiceFormComponent', () => {
           provide: DocumentSettingsService,
           useValue: { getSettings: () => of([]) },
         },
+        // Codici IVA del tenant: la colonna IVA li sceglie dall'elenco.
+        {
+          provide: VatCodeService,
+          useValue: { list: () => of([IVA_22, IVA_22R]) },
+        },
         { provide: ToastService, useValue: { showInfo, showError: vi.fn() } },
         {
           provide: ViewportService,
@@ -341,16 +377,23 @@ describe('PurchaseInvoiceFormComponent', () => {
     );
   });
 
-  // Una riga calcola l'importo IVA da netto × aliquota; il valore resta
-  // comunque modificabile dall'operatore.
-  it('calcola l’IVA della riga da importo netto e aliquota', async () => {
+  /**
+   * L'imposta si ripropone da netto × aliquota, e l'aliquota la porta il Codice
+   * IVA — non più una percentuale digitata.
+   *
+   * ⚠️ **Resta modificabile**, ed è deliberato: una fattura ricevuta si
+   * REGISTRA, non si produce. L'imposta stampata dal fornitore può differire di
+   * un centesimo dall'arrotondamento, e un campo derivato costringerebbe a
+   * falsare il netto per farla tornare.
+   */
+  it('⭐ l’imposta si ripropone dal Codice IVA scelto', async () => {
     const user = userEvent.setup();
     await setup();
 
-    // ⭐ Nessun «Aggiungi riga»: la riga 1 c'è già all'apertura, come su ogni
-    // altra maschera documentale.
+    // ⭐ Nessun «Aggiungi riga»: la riga 1 c'è già all'apertura, e porta già il
+    // Codice IVA predefinito d'acquisto.
     await user.type(screen.getByLabelText('Importo netto riga 1'), '100');
-    await user.type(screen.getByLabelText('Aliquota IVA riga 1'), '22');
+    await user.tab();
 
     const vatInput = screen.getByLabelText<HTMLInputElement>('Importo IVA riga 1');
     expect(vatInput.value).toBe('22,00');
@@ -516,6 +559,89 @@ describe('PurchaseInvoiceFormComponent', () => {
     await waitFor(() => expect(documentService.savePurchaseInvoice).toHaveBeenCalled());
     const body = documentService.savePurchaseInvoice.mock.calls[0]![0];
     expect(body.lines?.[0]?.id).toBeUndefined();
+  });
+
+  /**
+   * ⭐ **La colonna IVA è il Codice IVA, come in ogni altra maschera.**
+   *
+   * ⛔ Era l'UNICA con una percentuale digitata a mano (`rateText`), dal
+   * 19/07/2026 — cinque giorni dopo che il dominio Codice IVA era già in codice.
+   * Otto form tengono `vatCodeId`; questa no.
+   */
+  it('⭐ la colonna IVA è una scelta dall’elenco, non una percentuale digitata', async () => {
+    await setup();
+
+    expect(screen.getByLabelText('Codice IVA riga 1')).toBeTruthy();
+    expect(screen.queryByLabelText('Aliquota IVA riga 1')).toBeNull();
+  });
+
+  it('⭐ una riga NUOVA propone il Codice IVA predefinito d’acquisto', async () => {
+    const user = userEvent.setup();
+    const { documentService } = await setup();
+
+    await selectSupplier(user);
+    await user.type(screen.getByLabelText('Descrizione riga 1'), 'Trasporto');
+    await user.type(screen.getByLabelText('Importo netto riga 1'), '15,00');
+    await user.tab();
+    await saveInvoice(user);
+
+    await waitFor(() => expect(documentService.savePurchaseInvoice).toHaveBeenCalled());
+    const body = documentService.savePurchaseInvoice.mock.calls[0]![0];
+    expect(body.lines?.[0]?.vatCodeId).toBe('vat-22');
+    expect(body.lines?.[0]?.vatRatePercent).toBe(22);
+  });
+
+  /**
+   * ⛔ **La prova più delicata delle sei.**
+   *
+   * ⚠️ Le righe già salvate hanno tutte `vat_code_id = NULL`: sono nate prima
+   * che questa maschera sapesse cosa fosse un Codice IVA. Se il predefinito
+   * venisse applicato anche a loro, riaprire una fattura di marzo e premere
+   * Salva le assegnerebbe un codice che nessuno ha scelto — e con lui uno
+   * snapshot nuovo al posto dell'aliquota storica.
+   *
+   * ⭐ Il predefinito vale per le righe NUOVE. Su una riga esistente il campo
+   * resta come l'ha lasciato il documento, e il payload non dichiara nulla:
+   * assente = non modificato.
+   */
+  it('⛔ ma una riga ESISTENTE senza codice NON se lo vede assegnare da sola', async () => {
+    const user = userEvent.setup();
+    const { documentService } = await setup({ documentoDaRiaprire: REGISTRAZIONE_SALVATA });
+    await screen.findByLabelText('Descrizione riga 1');
+
+    await saveInvoice(user);
+
+    await waitFor(() => expect(documentService.savePurchaseInvoice).toHaveBeenCalled());
+    const body = documentService.savePurchaseInvoice.mock.calls[0]![0];
+    expect(body.lines?.[0]?.vatCodeId).toBeUndefined();
+    expect(body.lines?.[1]?.vatCodeId).toBeUndefined();
+    // L'aliquota storica sopravvive: è il veicolo finché il codice manca.
+    expect(body.lines?.[0]?.vatRatePercent).toBe(22);
+  });
+
+  /**
+   * ⭐ **Un documento vuoto si salva. Ovunque.**
+   *
+   * ⛔ Introducendo il Codice IVA predefinito questa regola si è rotta, e il
+   * modo in cui si è rotta vale più della correzione: la riga pronta
+   * all'apertura riceve il predefinito, e se il codice contasse come
+   * «contenuto» quella riga risulterebbe scritta ma incompleta — il
+   * salvataggio la rifiuterebbe, e **una registrazione vuota non si potrebbe
+   * più creare**.
+   *
+   * ⚠️ Il predefinito lo mette la maschera, non l'operatore. Solo ciò che ha
+   * scritto lui conta: descrizione, importo, imposta.
+   */
+  it('⭐ una registrazione VUOTA si salva, anche con la riga pronta e il suo Codice IVA', async () => {
+    const user = userEvent.setup();
+    const { documentService } = await setup();
+
+    await selectSupplier(user);
+    await saveInvoice(user);
+
+    await waitFor(() => expect(documentService.savePurchaseInvoice).toHaveBeenCalled());
+    const body = documentService.savePurchaseInvoice.mock.calls[0]![0];
+    expect(body.lines).toEqual([]);
   });
 
   // Le scadenze si precompilano con il residuo non coperto; la spunta

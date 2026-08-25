@@ -88,13 +88,12 @@ const DEROGHE = [
     quanti: 3,
     motivo: 'idem.',
   },
-  {
-    file: 'src/app/features/documents/purchase-invoice-form.component.html',
-    quanti: 1,
-    motivo:
-      "i tre importi sono passati alla primitiva (P3). Resta l'ALIQUOTA, che non e' denaro: " +
-      "sparisce con P5, quando la colonna IVA diventa il Codice IVA scelto dall'elenco.",
-  },
+  // ⭐ **La Registrazione fattura e' uscita dall'elenco il 25/08/2026.** Era il
+  // caso che ha fatto scrivere questa guardia: quattro campi di denaro a mano,
+  // piu' l'aliquota digitata. Ora usa `app-money-input` per gli importi e la
+  // cella condivisa per il Codice IVA — zero.
+  //
+  // ⚠️ E' il primo consumatore della primitiva, due giorni dopo che era nata.
   {
     file: 'src/app/features/reports/pages/manual-receipt-form/manual-receipt-form.component.html',
     quanti: 3,

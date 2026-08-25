@@ -714,8 +714,21 @@ export interface PurchaseInvoiceLineBody {
   readonly id?: EntityId;
   readonly description: string;
   readonly netMinor: number;
+  /**
+   * L'aliquota. Resta il veicolo per le righe senza Codice IVA — e oggi lo sono
+   * TUTTE quelle salvate prima del 25/08/2026.
+   */
   readonly vatRatePercent: number;
   readonly vatMinor: number;
+  /**
+   * Il Codice IVA della riga, **solo se dichiarato**.
+   *
+   * ⭐ Contratto binario: su una riga esistente, assente significa «non l'ho
+   * modificato» e il server conserva codice e snapshot persistiti. Rimandare
+   * sempre quello letto all'apertura ri-prezzerebbe una fattura vecchia il
+   * giorno in cui quell'aliquota cambia.
+   */
+  readonly vatCodeId?: EntityId;
   /**
    * L'arrivo merce da cui la riga e' nata. Assente = voce libera.
    *

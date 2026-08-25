@@ -237,7 +237,7 @@
               <thead>
                 <tr>
                   <th scope="col" class="doc-form__num">Importo netto</th>
-                  <th scope="col" class="doc-form__num">IVA %</th>
+                  <th scope="col" class="doc-form__col--tax">IVA</th>
                   <th scope="col" class="doc-form__num">Importo IVA</th>
                   <th scope="col">Descrizione</th>
                   <th scope="col">
@@ -256,15 +256,22 @@
                         (valueChange)="onLineNetChange(i, $event)"
                       />
                     </td>
-                    <td class="doc-form__num" [attr.data-label]="'IVA %'">
-                      <input
-                        class="doc-form__input doc-form__input--num pi-form__table-input pi-form__table-input--rate"
-                        type="text"
-                        inputmode="decimal"
-                        formControlName="rateText"
-                        placeholder="22"
-                        [attr.aria-label]="'Aliquota IVA riga ' + (i + 1)"
-                        (input)="recalcLineVat(i)"
+                    <!--
+                      ⛔ Qui c'era un <input> con la percentuale digitata a mano:
+                      questa era l'UNICA maschera dell'app a farlo, dal 19/07/2026.
+                      La cella condivisa la usano gia' otto form, e senza il Codice
+                      IVA i quattro codici in inversione contabile d'acquisto —
+                      che esistono SOLO per questa maschera — erano irraggiungibili.
+                    -->
+                    <td class="doc-form__cell doc-form__col--tax" [attr.data-label]="'IVA'">
+                      <app-document-line-select-cell
+                        [lineIndex]="i"
+                        [inputId]="'pi-vat-' + i"
+                        [ariaLabel]="'Codice IVA riga ' + (i + 1)"
+                        [options]="lineVatOptions(i)"
+                        [value]="group.controls.vatCodeId.value"
+                        [inColumnCycle]="false"
+                        (valueChange)="onLineVatSelect(i, $event)"
                       />
                     </td>
                     <td class="doc-form__num" [attr.data-label]="'Importo IVA'">
