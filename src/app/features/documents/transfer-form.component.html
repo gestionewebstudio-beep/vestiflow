@@ -342,8 +342,25 @@
         <p class="doc-form__submit-error" role="alert">{{ blockedReason }}</p>
       }
 
-      <div class="doc-form__actions">
-        <p class="doc-form__actions-note">
+      <!-- ⭐ **La barra azioni comune** — una dichiarazione, due vesti.
+
+           ⛔ Qui c'erano DUE blocchi: `doc-form__actions` per la scrivania e
+           `doc-form__mobile-actions` per il telefono, che commutavano alla
+           soglia `lg`. Il costo si vedeva: la copia mobile aveva un `@if
+           (isConfirmedEdit())` con RAMI IDENTICI, perche' era stata copiata da
+           quella di scrivania — dove i rami differivano davvero — e la
+           differenza si era persa in una copia sola.
+
+           ⭐ E quel `@if` non decideva niente nemmeno su scrivania: la scelta
+           fra bozza e conferma vive gia' in `(ngSubmit)`, che dice
+           `isConfirmedEdit() ? saveDraft() : requestConfirm()`. Entrambi i
+           pulsanti erano submit, quindi il ramo era per costruzione inerte. -->
+      <app-document-actions
+        [saving]="saving()"
+        [readOnly]="formReadOnly()"
+        (closeRequested)="cancel()"
+      >
+        <p class="doc-form__actions-note" documentActionsNote>
           <i class="pi pi-info-circle" aria-hidden="true"></i>
           <strong class="tabular-nums">
             {{ lines.length }} {{ lines.length === 1 ? 'riga' : 'righe' }}
@@ -351,33 +368,7 @@
           <span class="doc-form__actions-note-sep">·</span>
           Le giacenze si aggiornano alla conferma
         </p>
-        <app-button type="button" variant="ghost" (click)="cancel()">Chiudi</app-button>
-        @if (isConfirmedEdit()) {
-          <app-button type="submit" [disabled]="formReadOnly() || saving()"
-            >Salva documento</app-button
-          >
-        } @else {
-          <app-button type="submit" [disabled]="saving()">Salva documento</app-button>
-        }
-      </div>
-
-      <!-- Azioni documento su mobile/tablet (regole-stile-ui §5): coppia in
-           fondo al documento, scorre col contenuto. Il submit resta dentro il
-           form: ripristina il salvataggio che sotto md la barra desktop
-           nasconde. -->
-      @if (!formReadOnly()) {
-        <div class="doc-form__mobile-actions">
-          <!-- «Chiudi»: stesso handler di uscita di prima, cambia l'etichetta. -->
-          <app-button type="button" variant="secondary" [disabled]="saving()" (click)="cancel()">
-            Chiudi
-          </app-button>
-          @if (isConfirmedEdit()) {
-            <app-button type="submit" [disabled]="saving()">Salva documento</app-button>
-          } @else {
-            <app-button type="submit" [disabled]="saving()">Salva documento</app-button>
-          }
-        </div>
-      }
+      </app-document-actions>
       <!-- La ricerca articolo a tutta pagina, aperta dalla lente della riga. -->
       @if (productPanelOpen()) {
         <app-document-product-search-panel

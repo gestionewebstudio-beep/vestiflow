@@ -7,7 +7,7 @@ import userEvent from '@testing-library/user-event';
 import type { UserEvent } from '@testing-library/user-event';
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import { of, throwError } from 'rxjs';
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { AppErrorKind } from '@core/models/app-error.model';
 import { SupplierOrderStatus } from '@core/models/supplier-order.model';
@@ -193,20 +193,9 @@ function salvaDocumento(): HTMLElement {
  * distingue nessuna.
  */
 describe('SupplierOrderFormComponent', () => {
-  // jsdom non implementa <dialog>: senza questo, aprire il dialogo di sblocco
-  // esplode con «showModal is not a function». È un limite dell'ambiente di
-  // prova, non del componente.
-  beforeAll(() => {
-    const proto = globalThis.HTMLDialogElement?.prototype;
-    if (proto && !proto.showModal) {
-      proto.showModal = function showModal(this: HTMLDialogElement) {
-        this.open = true;
-      };
-      proto.close = function close(this: HTMLDialogElement) {
-        this.open = false;
-      };
-    }
-  });
+  // ⛔ Qui c'era il polyfill di `<dialog>` per jsdom, copiato in TRE spec.
+  // Portato in `src/test-setup.ts` il 25/08/2026: una copia mancante non si
+  // vede — la prova che apre il dialogo semplicemente non esiste ancora.
 
   async function setup(options?: {
     createFails?: boolean;

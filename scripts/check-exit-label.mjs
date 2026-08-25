@@ -87,10 +87,28 @@ function etichettaDelComandoUscita(righe, indice) {
 
 const violazioni = [];
 let controllati = 0;
+let conBarraComune = 0;
 
 for (const radice of RADICI) {
   for (const percorso of templateDiMaschera(radice)) {
-    const righe = readFileSync(percorso, 'utf8').split(/\r?\n/);
+    const testo = readFileSync(percorso, 'utf8');
+    const righe = testo.split(/\r?\n/);
+
+    // ⭐ **La barra azioni comune rende l'etichetta corretta per costruzione**:
+    // «Chiudi» sta nel template di `app-document-actions`, e nessuna maschera
+    // puo' scriverne un'altra.
+    //
+    // ⚠️ Va contata lo stesso, e non e' pedanteria: montando la barra sul
+    // Trasferimento il conteggio e' sceso da otto maschere a sette, IN SILENZIO
+    // — quella maschera non aveva piu' un `(click)="cancel()"` da riconoscere.
+    // Una guardia che perde copertura mentre il codice MIGLIORA smette di
+    // guardare proprio mentre sembra che vada tutto bene.
+    if (testo.includes('<app-document-actions')) {
+      controllati++;
+      conBarraComune++;
+      continue;
+    }
+
     let visto = false;
     righe.forEach((riga, indice) => {
       if (!riga.includes('(click)="cancel()"')) return;
@@ -107,7 +125,7 @@ for (const radice of RADICI) {
 if (violazioni.length === 0) {
   console.log(
     `✅ check:exit-label — il comando d'uscita si chiama «${ETICHETTA}» in tutte le maschere ` +
-      `(${controllati} controllate).`,
+      `(${controllati} controllate, di cui ${conBarraComune} sulla barra comune).`,
   );
   process.exit(0);
 }

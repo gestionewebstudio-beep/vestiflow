@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { Location } from '@angular/common';
 import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
 import { AuthService } from '@core/auth';
 import { render, screen } from '@testing-library/angular';
@@ -480,6 +481,83 @@ describe('TransferFormComponent', () => {
 
       expect(documentService.createDocument).not.toHaveBeenCalled();
       expect(component['_formErrorMessage']()).toContain('completa le righe evidenziate');
+    });
+  });
+
+  // ── La barra azioni comune ────────────────────────────────────────────────
+  //
+  // ⚠️ **Prima del montaggio nessuna prova toccava la barra.** Le due copie —
+  // scrivania e mobile — potevano rompersi senza che niente diventasse rosso,
+  // ed e' esattamente come la copia mobile si e' ritrovata un `@if` con rami
+  // identici: la differenza si e' persa e nessuno se n'e' accorto.
+  describe('barra azioni', () => {
+    it('⭐ c’e’ UNA sola barra: un Chiudi e un Salva, non due', async () => {
+      const { fixture } = await setup({ counters: [COUNTER] });
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      // ⚠️ `hidden: true`: jsdom non applica i media query, quindi la veste
+      // compatta e quella di scrivania non si escludono come nel browser. Se
+      // le dichiarazioni tornassero due, questo conteggio lo direbbe.
+      expect(screen.getAllByRole('button', { name: 'Chiudi', hidden: true })).toHaveLength(1);
+      expect(screen.getAllByRole('button', { name: 'Salva documento', hidden: true })).toHaveLength(
+        1,
+      );
+    });
+
+    it('⭐ premere Salva invia il modulo, e il gestore riceve', async () => {
+      // ⚠️ **L'aspettativa giusta non e' `createDocument` chiamato.** Su un
+      // trasferimento NUOVO `(ngSubmit)` chiama `requestConfirm()`, che apre il
+      // dialogo «Confermare il trasferimento?»: il salvataggio arriva dopo la
+      // conferma. La prima stesura di questa prova attendeva il salvataggio e
+      // falliva — non perche' il montaggio fosse rotto, ma perche' misurava il
+      // passo sbagliato del flusso.
+      //
+      // Quello che serve provare e' che il pulsante della barra COMUNE, dentro
+      // il modulo della maschera, faccia ancora scattare `(ngSubmit)`.
+      const user = userEvent.setup();
+      const rendered = await setup({ counters: [COUNTER] });
+      await rendered.fixture.whenStable();
+      const component = rendered.fixture.componentInstance;
+      component.form.controls.locationId.setValue('loc-1');
+      component.form.controls.targetLocationId.setValue('loc-2');
+      rendered.fixture.detectChanges();
+
+      const modulo = rendered.container.querySelector('form');
+      const inviato = vi.fn();
+      modulo?.addEventListener('submit', inviato);
+
+      await user.click(screen.getByRole('button', { name: 'Salva documento', hidden: true }));
+      rendered.fixture.detectChanges();
+
+      expect(inviato).toHaveBeenCalledTimes(1);
+      expect(component['confirmDialogOpen']()).toBe(true);
+    });
+
+    it('⭐ premere Chiudi chiede di uscire dalla maschera', async () => {
+      // ⛔ Qui si attendeva l'apertura del dialogo «modifiche non salvate».
+      // Sbagliato: `cancel()` NAVIGA e basta — il dialogo lo apre
+      // `canDeactivate()`, cioe' la guardia del router, che in una prova di
+      // componente non gira. Quella e' un'altra prova, e sta altrove.
+      //
+      // Qui si prova la sola cosa che riguarda la barra: il pulsante comune
+      // arriva al gestore d'uscita della maschera.
+      const user = userEvent.setup();
+      const rendered = await setup({ counters: [COUNTER] });
+      await rendered.fixture.whenStable();
+      rendered.fixture.detectChanges();
+
+      // ⚠️ Non si spia `Router.navigate`: `cancel()` passa da
+      // `navHistory.backOr()`, che torna indietro con `Location.back()` quando
+      // puo' e altrimenti chiama `navigateByUrl`. Spiare il metodo sbagliato
+      // dava una prova rossa su un componente sano.
+      const location = TestBed.inject(Location);
+      const back = vi.spyOn(location, 'back');
+      const perUrl = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+
+      await user.click(screen.getByRole('button', { name: 'Chiudi', hidden: true }));
+
+      expect(back.mock.calls.length + perUrl.mock.calls.length).toBeGreaterThan(0);
     });
   });
 });

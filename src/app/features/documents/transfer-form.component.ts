@@ -52,6 +52,7 @@ import type { AppError } from '@core/models/app-error.model';
 import { documentNumberConflictOf } from '@core/models/document-number-conflict.util';
 import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
 import { DocumentChronologyGuard } from '@domain/documents/state/document-chronology-guard';
+import { DocumentActionsComponent } from '@domain/documents/components/document-actions/document-actions.component';
 import { DocumentChronologyWarningDialogComponent } from '@domain/documents/components/document-chronology-warning-dialog/document-chronology-warning-dialog.component';
 import { DocumentPrefillErrorStore } from '@domain/documents/state/document-prefill-error.store';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
@@ -210,6 +211,7 @@ type MovementCodeField = Extract<DocumentLineCodeField, 'articleCode' | 'sku' | 
     EmptyStateComponent,
     ErrorStateComponent,
     TableSkeletonComponent,
+    DocumentActionsComponent,
   ],
   providers: [DocumentEditLockService],
   templateUrl: './transfer-form.component.html',
@@ -1623,6 +1625,19 @@ export class TransferFormComponent implements CanComponentDeactivate {
   }
 
   protected requestConfirm(): void {
+    // ⛔ **Qui mancava lo scarto delle righe vuote in coda**, e il difetto e'
+    // emerso montando la barra azioni comune: premendo Salva su un documento
+    // VUOTO la riga seminata all'apertura rendeva il modulo invalido, quindi
+    // `validateForm` rifiutava e il dialogo di conferma non si apriva.
+    //
+    // ⚠️ La prova che dichiarava «un documento vuoto si salva» passava lo
+    // stesso, perche' chiamava `persist()` direttamente — e li' lo scarto c'e'.
+    // Dal PULSANTE non funzionava: una prova verde su un percorso che
+    // l'operatore non usa.
+    //
+    // ⭐ `persist()` lo rifa: e' innocuo (senza righe vuote in coda non trova
+    // niente da togliere) e tiene i due ingressi indipendenti.
+    this.dropTrailingEmptyLines();
     if (!this.validateForm()) {
       return;
     }

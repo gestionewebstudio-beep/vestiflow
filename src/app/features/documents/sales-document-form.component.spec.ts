@@ -3,7 +3,7 @@ import { AuthService } from '@core/auth';
 import { render, screen, within } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { NEVER, of } from 'rxjs';
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { DocumentType } from '@core/models/document.model';
 import { TenantPermission } from '@core/models/tenant-permission.model';
@@ -115,20 +115,9 @@ function importoDellaVoce(etichetta: string): string {
 }
 
 describe('SalesDocumentFormComponent', () => {
-  // jsdom non implementa <dialog>: senza questo, il dialogo di conferma del
-  // salvataggio esplode con «showModal is not a function». È un limite
-  // dell'ambiente di prova, non del componente.
-  beforeAll(() => {
-    const proto = globalThis.HTMLDialogElement?.prototype;
-    if (proto && !proto.showModal) {
-      proto.showModal = function showModal(this: HTMLDialogElement) {
-        this.open = true;
-      };
-      proto.close = function close(this: HTMLDialogElement) {
-        this.open = false;
-      };
-    }
-  });
+  // ⛔ Qui c'era il polyfill di `<dialog>` per jsdom, copiato in TRE spec.
+  // Portato in `src/test-setup.ts` il 25/08/2026: una copia mancante non si
+  // vede — la prova che apre il dialogo semplicemente non esiste ancora.
 
   async function setup(options: SetupOptions = {}) {
     const proposedNumber = options.proposedNumber ?? null;
