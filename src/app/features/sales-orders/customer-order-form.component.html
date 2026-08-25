@@ -1625,8 +1625,25 @@
         <p class="doc-form__submit-error" role="alert">{{ appError.message }}</p>
       }
 
-      <div class="doc-form__actions">
-        <p class="doc-form__actions-note">
+      <!-- ⭐ **La barra azioni comune** — la falsificazione del contratto.
+
+           Il Trasferimento provava la parte FISSA (Chiudi + Salva); questa
+           maschera prova la ZONA DI COMPOSIZIONE: due menu a tendina che la
+           barra ospita senza sapere che cosa siano. Se avesse avuto bisogno di
+           un `[showConcludi]` o di un `[showGenera]`, il contratto sarebbe
+           sbagliato — e si vedrebbe qui.
+
+           ⚠️ `saveType="button"`: questa maschera NON salva con `(ngSubmit)`,
+           salva con un gestore di clic. E' l'altra delle due modalita', e il
+           montaggio la esercita per la prima volta. -->
+      <app-document-actions
+        saveType="button"
+        [saving]="saving()"
+        [readOnly]="formReadOnly()"
+        (closeRequested)="cancel()"
+        (saveRequested)="requestSaveDocument()"
+      >
+        <p class="doc-form__actions-note" documentActionsNote>
           <i class="pi pi-info-circle" aria-hidden="true"></i>
           <strong class="tabular-nums">{{ validLinesCount() }} righe valide</strong>
           <span class="doc-form__actions-note-sep">·</span>
@@ -1640,11 +1657,8 @@
                   : 'Gli impegni di magazzino si aggiornano al salvataggio'
           }}
         </p>
-        <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancel()">
-          Chiudi
-        </app-button>
         @if (canConclude()) {
-          <div class="co-form__conclude">
+          <div class="co-form__conclude" documentActionsExtra>
             <app-button
               type="button"
               variant="secondary"
@@ -1686,7 +1700,7 @@
         @if (canGenerateDocuments()) {
           <!-- Genera documento dal DDT (prompt DDT §GENERAZIONE): Bozza
                fattura o Proforma — la fattura vera non è prevista. -->
-          <div class="co-form__conclude">
+          <div class="co-form__conclude" documentActionsExtra>
             <app-button
               type="button"
               variant="secondary"
@@ -1723,17 +1737,7 @@
             Genera documento
           </app-button>
         }
-        @if (!formReadOnly()) {
-          <app-button
-            type="button"
-            [loading]="saving()"
-            [disabled]="saving()"
-            (click)="requestSaveDocument()"
-          >
-            Salva documento
-          </app-button>
-        }
-      </div>
+      </app-document-actions>
 
       <!-- Barra azioni sticky (solo mobile, solo in edit): le due azioni di
            ingresso prodotti più frequenti restano a portata di pollice mentre si
@@ -1765,30 +1769,11 @@
         </div>
       }
 
-      <!-- Azioni documento su mobile/tablet (regole-stile-ui §5): coppia in
-           fondo al documento, dopo il riepilogo totali. Scorrono col contenuto,
-           nessuna barra fissa e nessun pulsante azione in topbar. Su desktop
-           restano nel footer sticky sopra. -->
-      @if (!formReadOnly()) {
-        <div class="doc-form__mobile-actions">
-          <!-- «Chiudi»: stesso handler di uscita di prima, cambia l'etichetta. -->
-          <app-button type="button" variant="secondary" [disabled]="saving()" (click)="cancel()">
-            Chiudi
-          </app-button>
-          <app-button
-            type="button"
-            [loading]="saving()"
-            [disabled]="saving()"
-            (click)="requestSaveDocument()"
-          >
-            <!-- «Salva documento» anche qui: sul telefono diceva «Salva ordine»
-                 e sul computer «Salva documento» — la stessa maschera, due
-                 parole, a seconda dello schermo. Il modello deve essere coerente
-                 con sé stesso prima di essere copiato altrove. -->
-            Salva documento
-          </app-button>
-        </div>
-      }
+      <!-- ⛔ Qui c'era la SECONDA dichiarazione della barra, per la veste
+           compatta: Chiudi e Salva ripetuti, dentro un `@if (!formReadOnly())`
+           che sulla scrivania non c'era — quindi su un documento bloccato il
+           telefono perdeva anche l'uscita. Ora la dichiarazione e' una sola e
+           la veste la sceglie il componente. -->
       <!-- Uno per maschera, non per riga: la cella chiede, il documento ospita. -->
       <app-unit-of-measure-manager-dialog
         [open]="unitManagerOpen()"

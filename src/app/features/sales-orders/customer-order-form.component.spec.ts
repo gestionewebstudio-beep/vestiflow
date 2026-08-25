@@ -1,6 +1,6 @@
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { TestBed } from '@angular/core/testing';
-import { render, screen, waitFor } from '@testing-library/angular';
+import { render, screen, waitFor, within } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -228,6 +228,45 @@ describe('CustomerOrderFormComponent — le due viste di riga', () => {
     view.fixture.detectChanges();
     return view.container;
   }
+
+  // ── La barra azioni comune ────────────────────────────────────────────────
+  //
+  // ⭐ Il Trasferimento prova la modalita' `submit`; QUESTA maschera esercita
+  // per la prima volta l'altra — `saveType="button"`, il gestore di clic — che
+  // e' la sola ragione per cui quell'ingresso esiste.
+  //
+  // ⚠️ La zona di composizione (i due menu «Concludi ordine» e «Genera
+  // documento») e' provata nella spec del COMPONENTE, dove si puo' proiettare
+  // un'azione qualunque. Qui non si puo': quei menu compaiono solo su un ordine
+  // gia' salvato, e le prove che li riguardano vivono in un altro `describe`
+  // dove il DOM non viene reso affatto — misurano il segnale, non lo schermo.
+  it('⭐ la barra c’e’ UNA volta sola, con Chiudi in testa e Salva in coda', async () => {
+    const c = await apri(false);
+
+    expect(c.querySelectorAll('app-document-actions')).toHaveLength(1);
+    const barra = c.querySelector('app-document-actions') as HTMLElement;
+    const etichette = within(barra)
+      .getAllByRole('button', { hidden: true })
+      .map((b) => b.textContent?.trim().replace(/s+/g, ' ') ?? '');
+
+    expect(etichette[0]).toBe('Chiudi');
+    expect(etichette[etichette.length - 1]).toBe('Salva documento');
+  });
+
+  it('⭐ e resta una sola anche nella veste compatta', async () => {
+    // ⛔ Prima erano DUE dichiarazioni che commutavano col CSS: sotto la soglia
+    // vivevano entrambe nel DOM, e una di esse aveva perso una differenza senza
+    // che nulla diventasse rosso.
+    const c = await apri(true);
+
+    expect(c.querySelectorAll('app-document-actions')).toHaveLength(1);
+    expect(
+      within(c.querySelector('app-document-actions') as HTMLElement).getAllByRole('button', {
+        name: 'Chiudi',
+        hidden: true,
+      }),
+    ).toHaveLength(1);
+  });
 
   it('sopra la soglia vive la tabella, e le card non esistono', async () => {
     const c = await apri(false);

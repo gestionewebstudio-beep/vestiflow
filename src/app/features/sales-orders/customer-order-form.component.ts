@@ -99,6 +99,7 @@ import {
   createCustomerFormGroup,
   mapCustomerFormToInput,
 } from '@domain/customers/utils/customer-form.util';
+import { DocumentActionsComponent } from '@domain/documents/components/document-actions/document-actions.component';
 import { DocumentIncludePanelComponent } from '@domain/documents/components/document-include-panel/document-include-panel.component';
 import { vatCodeIdForLinePayload } from '@domain/documents/utils/document-line-vat-payload.util';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
@@ -375,6 +376,7 @@ interface AvailabilityIssue {
     CustomerFormFieldsComponent,
     UnitOfMeasureManagerDialogComponent,
     DocumentProductSearchPanelComponent,
+    DocumentActionsComponent,
   ],
   // Una maschera = un'istanza del blocco: è lei a tracciare gli id che ha
   // sbloccato e a rilasciarli all'uscita.
