@@ -1168,8 +1168,27 @@ describe('StoreSaleDocumentFormComponent', () => {
       expect(screen.getByRole('button', { name: 'Concludi reso' })).toBeTruthy();
     });
 
-    it('senza righe non si conclude', async () => {
-      await setup();
+    it('⭐ senza righe si conclude lo stesso, se la sede c’è', async () => {
+      // ⛔ Qui la prova diceva il contrario: «senza righe non si conclude», e il
+      // pulsante era SPENTO. Rovesciata il 25/08/2026, decisione del
+      // proprietario per tutte le maschere: un documento vuoto si salva, e
+      // prende numero, serie e data.
+      await setup({ defaultLocation: SEDE.id });
+
+      expect(
+        screen.getByRole<HTMLButtonElement>('button', { name: 'Concludi vendita' }).disabled,
+      ).toBe(false);
+    });
+
+    it('⛔ senza SEDE non si conclude: quello e’ il campo obbligatorio del banco', async () => {
+      // ⚠️ La meta' che NON e' cambiata, ed e' quella che tiene in piedi il
+      // «dopo aver selezionato i campi obbligatori previsti per quel documento».
+      // Senza, la prova sopra si soddisferebbe togliendo ogni condizione.
+      //
+      // ⚠️ `defaultLocation: null` e' necessario: `setup()` senza argomenti la
+      // sede ce l'ha. La vecchia prova «senza righe non si conclude» girava
+      // quindi CON la sede — cioe' proprio sul caso che ora deve passare.
+      await setup({ defaultLocation: null });
 
       expect(
         screen.getByRole<HTMLButtonElement>('button', { name: 'Concludi vendita' }).disabled,
@@ -1702,20 +1721,21 @@ describe('StoreSaleDocumentFormComponent', () => {
      * ⛔ **La riga seminata non è contenuto**, e questa è la prova che protegge
      * il resto del documento dall'averla introdotta.
      *
-     * ⚠️ Il rischio concreto: `canConclude` e `hasPendingWork` guardavano
-     * `lines().length > 0`. Con una riga seminata sarebbero diventati veri
-     * all'apertura — cioè si potrebbe **concludere una vendita vuota**, e
-     * uscendo subito comparirebbe «hai modifiche non salvate» su un documento
-     * che nessuno ha toccato.
+     * ⚠️ Il rischio concreto: `hasPendingWork` guardava `lines().length > 0`.
+     * Con una riga seminata sarebbe diventato vero all'apertura — cioè uscendo
+     * subito comparirebbe «hai modifiche non salvate» su un documento che
+     * nessuno ha toccato.
+     *
+     * ⛔ **Qui si asseriva anche `canConclude() === false`**, e non vale piu':
+     * dal 25/08/2026 una vendita senza righe si conclude, e il pulsante e'
+     * acceso appena c'e' la sede. Restava a difendere una decisione rovesciata.
      */
-    it('⛔ ma la riga vuota non rende il documento concludibile né «sporco»', async () => {
+    it('⛔ ma la riga vuota non rende il documento «sporco»', async () => {
       const rendered = await setup({ defaultLocation: SEDE.id });
       const segnali = rendered.component as unknown as {
-        canConclude: () => boolean;
         hasPendingWork: () => boolean;
       };
 
-      expect(segnali.canConclude()).toBe(false);
       expect(segnali.hasPendingWork()).toBe(false);
     });
   });

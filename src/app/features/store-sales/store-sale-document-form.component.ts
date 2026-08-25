@@ -1897,11 +1897,22 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
     this.descriptor.mode === 'sale' ? 'Concludi vendita' : 'Concludi reso',
   );
 
+  /**
+   * ⛔ Qui il pulsante pretendeva `righeCompilate().length > 0`: senza righe era
+   * SPENTO, e il banco non faceva eccezione al muro che avevano tutte le altre
+   * maschere.
+   *
+   * ⭐ Dal 25/08/2026 un documento vuoto si salva, e la sola condizione resta il
+   * campo obbligatorio del banco — la **sede**. Il Cliente non lo e' mai stato.
+   *
+   * ⚠️ **Tolto SOLO il requisito delle righe**, e niente altro. La rete
+   * `documentHasLinesWithoutEffect` che le altre maschere hanno qui non e' stata
+   * aggiunta: al banco le righe nascono da uno scan o da una ricerca e portano
+   * gia' la variante, quindi sarebbe una restrizione NUOVA introdotta di
+   * straforo insieme a una decisione che ne toglieva una.
+   */
   protected readonly canConclude = computed(
-    () =>
-      this.righeCompilate().length > 0 &&
-      !!this.form.controls.locationId.value &&
-      !this.savePending(),
+    () => !!this.form.controls.locationId.value && !this.savePending(),
   );
 
   // ── Uscita con lavoro non salvato ───────────────────────────────────────

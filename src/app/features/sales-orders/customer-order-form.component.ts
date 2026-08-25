@@ -31,6 +31,7 @@ import {
   take,
 } from 'rxjs';
 
+import { documentHasLinesWithoutEffect } from '@domain/documents/utils/document-line-effect.util';
 import {
   VARIANT_SEARCH_DEBOUNCE_MS,
   VARIANT_SEARCH_MIN_CHARS,
@@ -3581,6 +3582,21 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     this.markFormDirty();
   }
 
+  /**
+   * ⭐ **Righe presenti ma nessuna utilizzabile.** Un documento senza righe si
+   * salva (§`documentHasLinesWithoutEffect`); uno con righe iniziate a meta',
+   * no.
+   *
+   * ⚠️ **La riga di RIFERIMENTO non conta come riga.** Non l'ha scritta
+   * l'operatore: e' il puntatore al documento di origine. Contarla renderebbe
+   * «non vuoto» un documento che, di suo, e' vuoto — e il rifiuto tornerebbe
+   * proprio sul caso che nasce da una conversione.
+   */
+  private righeSenzaEffetto(): boolean {
+    const righeReali = this.lines.controls.filter((line) => !this.isReferenceLine(line)).length;
+    return documentHasLinesWithoutEffect(righeReali, this.validLinesCount() > 0);
+  }
+
   protected validLinesCount(): number {
     this.formValue();
     return this.lines.controls.reduce((count, line, index) => {
@@ -4656,9 +4672,17 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       return;
     }
     if (this.isRegistryDocument) {
-      // Il documento riceve il numero (PRE/DDT/SCA) al salvataggio: serve
-      // almeno una riga valida (un documento di sola testata non è numerabile).
-      if (this.validLinesCount() === 0) {
+      // ⛔ Qui c'era `validLinesCount() === 0`, con la ragione: «il documento
+      // riceve il numero (PRE/DDT/SCA) al salvataggio: serve almeno una riga
+      // valida — un documento di sola testata non e' numerabile».
+      //
+      // ⭐ Non e' piu' vero, e non lo e' per decisione (25/08/2026): il server
+      // numera un documento senza righe, e una prova dell'API lo inchioda
+      // («un documento SENZA RIGHE si salva: numero, serie e data»).
+      //
+      // ⚠️ Resta il rifiuto per le righe INIZIATE e incomplete: li' l'operatore
+      // si aspetta un effetto, e il silenzio sarebbe peggio.
+      if (this.righeSenzaEffetto()) {
         this._submitState.set({
           status: 'error',
           error: {

@@ -31,6 +31,7 @@ import {
 } from 'rxjs';
 import type { Subscription } from 'rxjs';
 
+import { documentHasLinesWithoutEffect } from '@domain/documents/utils/document-line-effect.util';
 import {
   VARIANT_SEARCH_DEBOUNCE_MS,
   VARIANT_SEARCH_MIN_CHARS,
@@ -2624,7 +2625,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
   }
 
   private validateForm(): boolean {
-    if (this.form.invalid || this.hasInvalidPrice() || !this.hasValidLine()) {
+    if (this.form.invalid || this.hasInvalidPrice() || this.righeSenzaEffetto()) {
       this.form.markAllAsTouched();
       this._validationError.set(this.buildValidationMessage());
       return false;
@@ -2646,7 +2647,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     if (this.form.controls.documentDate.invalid) {
       problems.push('indica la data del documento');
     }
-    if (!this.hasValidLine()) {
+    if (this.righeSenzaEffetto()) {
       problems.push('aggiungi almeno una riga con descrizione e quantità (minimo 1)');
     } else if (this.lines.invalid) {
       problems.push('completa descrizione e quantità delle righe evidenziate');
@@ -2666,6 +2667,15 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     return this.lines.controls.some(
       (line) => line.controls.productName.value.trim() && Number(line.controls.quantity.value) > 0,
     );
+  }
+
+  /**
+   * ⛔ Qui il cancello era `!hasValidLine()`, e rifiutava anche il documento
+   * VUOTO. Dal 25/08/2026 zero righe non e' un motivo di rifiuto: la ragione,
+   * e la distinzione fra i due casi, stanno in `documentHasLinesWithoutEffect`.
+   */
+  private righeSenzaEffetto(): boolean {
+    return documentHasLinesWithoutEffect(this.lines.length, this.hasValidLine());
   }
 
   private hasInvalidPrice(): boolean {

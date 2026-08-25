@@ -17,6 +17,7 @@ import {
   Validators,
 } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { documentHasLinesWithoutEffect } from '@domain/documents/utils/document-line-effect.util';
 import {
   VARIANT_SEARCH_DEBOUNCE_MS,
   VARIANT_SEARCH_MIN_CHARS,
@@ -1673,7 +1674,7 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
    * non fare nulla. Il motivo del rifiuto si vede sempre.
    */
   private validateForm(): boolean {
-    if (this.form.invalid || !this.hasStockLine()) {
+    if (this.form.invalid || this.righeSenzaEffetto()) {
       this.form.markAllAsTouched();
       this._submitState.set({
         status: 'error',
@@ -1690,7 +1691,7 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
 
   /** Il primo ostacolo in ordine di lettura, detto in modo che si sappia cosa fare. */
   private validationMessage(): string {
-    if (!this.hasStockLine()) {
+    if (this.righeSenzaEffetto()) {
       return this.isAdjustment()
         ? 'Aggiungi almeno una riga da rettificare: variante e quantità maggiore di zero.'
         : 'Aggiungi almeno una riga da scaricare: variante e quantità maggiore di zero.';
@@ -1714,6 +1715,15 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
     return this.lines.controls.some(
       (line) => line.controls.variantId.value && Number(line.controls.quantity.value) > 0,
     );
+  }
+
+  /**
+   * ⛔ Qui il cancello era `!hasStockLine()`, e rifiutava anche il documento
+   * VUOTO. Dal 25/08/2026 zero righe non e' un motivo di rifiuto: la ragione,
+   * e la distinzione fra i due casi, stanno in `documentHasLinesWithoutEffect`.
+   */
+  private righeSenzaEffetto(): boolean {
+    return documentHasLinesWithoutEffect(this.lines.length, this.hasStockLine());
   }
 
   private persist(): void {
