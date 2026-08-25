@@ -1795,53 +1795,45 @@ diverse.
 
 ---
 
-# 38. NIENTE PIÙ «NUOVO MOVIMENTO» GENERICO — deciso il 25/08/2026
+# 38. LA SCHERMATA DI CARICO/SCARICO NON È GENERICA — misurato il 25/08/2026
 
-## 38.1 La decisione, nelle parole con cui è stata data
+⛔ **Qui c'era «Niente più "nuovo movimento" generico»**, con la decisione di ritirare
+`features/inventory/movement-form` e mandare le scorciatoie ai documenti. **La premessa era
+sbagliata, ed era mia**: avevo descritto quella maschera come «un quinto modo generico di
+fare quattro cose». Non lo è.
 
-> «Movimenti di magazzino è un **registro derivato**. Non esiste più una funzione generica
-> "Nuovo movimento". Le operazioni manuali Carico, Scarico, Rettifica e Trasferimento passano
-> **esclusivamente** dai rispettivi documenti/flussi, anche quando avviate come scorciatoia da
-> Movimenti, scheda prodotto o giacenze. Le scorciatoie possono **precompilare** il documento
-> per mantenere la rapidità operativa. I movimenti legacy senza documento restano
-> **consultabili**, ma non costituiscono il modello per nuove operazioni.»
->
-> «I pulsanti Carica, Scarica e Rettifica devono **rimanere**. Quello che è fuori contesto è
-> "nuovo movimento".»
+## 38.1 La misura che smentisce la premessa
 
-## 38.2 Che cosa c'era, e perché era fuori contesto
+Il commento del componente lo dichiara (`movement-form.component.ts:265`):
 
-`features/inventory/movement-form.component` — rotta `movements/new`, titolo «Registra
-movimento» — gestiva **quattro** tipi (Carico · Scarico · Rettifica · Trasferimento) e
-salvava con `registerMovementBatch`: **movimenti nudi, senza un documento dietro**.
+> «Tipo scelto **A MONTE** (bottoni del tab Movimenti, query param `type`): il form nasce già
+> impostato, **senza selettore interno**.»
 
-Per tutte e quattro le operazioni esiste già la maschera documentale:
+Il titolo a schermo è «Registra **carico**» — non «Registra movimento». Un componente serve
+quattro tipi, ma **l'operatore non vede mai una scelta**: il tipo lo decide il pulsante che ha
+premuto.
 
-| Operazione    | Documento       |
-| ------------- | --------------- |
-| Carico        | Arrivo merce    |
-| Scarico       | Scarico manuale |
-| Rettifica     | Rettifica       |
-| Trasferimento | Trasferimento   |
+⭐ **È già il modello di Danea**, a pagina intera invece che a modale: schermata tipizzata,
+raggiunta da pulsanti tipizzati, presente nell'anagrafica dell'articolo per quel singolo
+articolo, e vuota quando la si apre dal registro Movimenti.
 
-> **Era un quinto modo di fare quattro cose**, e la differenza non era solo di percorso: un
-> movimento nudo non ha un documento da riaprire, ristampare o correggere.
+## 38.2 Che cosa resta davvero fuori posto
 
-⚠️ Il registro `StockMovement` resta quello che è — ogni modifica inventariale produce un
-movimento tracciabile (`regole-gestionale`). Cambia **da dove nasce**: da un documento,
-sempre.
+Due cose, entrambe piccole, e **nessuna delle due è la maschera**:
 
-## 38.3 ⛔ Che cosa NON cambia
+|                                                              |                                                                                                                                                                                                |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| la voce ⌘K «Registra movimento»                              | l'unico ingresso che chiede «un movimento» senza dire quale: non passa il tipo, quindi apre sul Carico per difetto                                                                             |
+| i tre pulsanti nel pannello prodotto **dentro un documento** | lì non servono — se stai compilando un Arrivo merce il carico lo stai già facendo — e oggi portano VIA dal documento in corso (`product-form.component.ts:812-820`, e il commento lo dichiara) |
 
-- **I tre pulsanti Carica · Scarica · Rettifica restano** dove sono. Cambia dove portano.
-- **Le scorciatoie restano scorciatoie**: possono precompilare il documento (sede, articolo)
-  perché la rapidità operativa è il motivo per cui esistono.
-- **I movimenti legacy senza documento restano consultabili.** L'elenco e il dettaglio devono
-  continuare a mostrarli — ⛔ togliere la maschera non deve rendere illeggibile lo storico.
+⚠️ **Rimandate dal proprietario** il 25/08 insieme al resto delle schermate interne. Il codice
+non è stato toccato.
 
-## 38.4 ⚠️ Un lavoro fatto oggi che questa decisione rende inutile
+## 38.3 ⭐ Che cosa questo episodio insegna
 
-La barra azioni comune è stata montata anche su `movement-form` (§34), e la guardia
-`check-document-actions` l'aveva trovata da sé. Non è un danno — quel montaggio esce
-insieme alla maschera — ma è la ragione per cui la domanda «questa schermata deve esistere?»
-va fatta **prima** di lavorarci sopra, non dopo.
+La decisione di ritirare era corretta **data la descrizione che avevo dato**. La descrizione
+era sbagliata perché avevo guardato il componente — quattro tipi, un salvataggio generico — e
+non la **schermata**, che tipizzata lo è sempre stata.
+
+> **Un componente che serve quattro casi non è una funzione generica.** Lo è solo se
+> l'operatore, aprendola, deve scegliere fra quattro cose.
