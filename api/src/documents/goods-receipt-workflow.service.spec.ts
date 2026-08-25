@@ -1255,9 +1255,11 @@ describe('GoodsReceiptWorkflowService.savePurchaseInvoice', () => {
       soloFatture(),
     );
 
-    const righe = prisma.documentLine.createMany.mock.calls[0]?.[0]?.data as
-      | Array<Record<string, unknown>>
-      | undefined;
+    // ⭐ Una `create` per riga, non piu' un `createMany`: dal 25/08/2026 il
+    // salvataggio fa upsert per id, e le righe gia' note si `update`.
+    const righe = prisma.documentLine.create.mock.calls.map(
+      (chiamata) => (chiamata[0] as { data: Record<string, unknown> }).data,
+    );
     expect(righe).toHaveLength(1);
     expect(righe?.[0]).toMatchObject({
       description: 'Rif. Arrivo merce 12',
@@ -1305,9 +1307,11 @@ describe('GoodsReceiptWorkflowService.savePurchaseInvoice', () => {
     expect(prisma.document.findMany.mock.calls[0]?.[0]?.where?.id).toEqual({ in: [arrivo.id] });
 
     // E la riga porta con sé il legame, che prima nessun percorso scriveva.
-    const righe = prisma.documentLine.createMany.mock.calls[0]?.[0]?.data as
-      | Array<Record<string, unknown>>
-      | undefined;
+    // ⭐ Una `create` per riga, non piu' un `createMany`: dal 25/08/2026 il
+    // salvataggio fa upsert per id, e le righe gia' note si `update`.
+    const righe = prisma.documentLine.create.mock.calls.map(
+      (chiamata) => (chiamata[0] as { data: Record<string, unknown> }).data,
+    );
     expect(righe?.[0]).toMatchObject({
       lineSource: 'vat_summary',
       linkedGoodsReceiptId: arrivo.id,
@@ -1327,10 +1331,132 @@ describe('GoodsReceiptWorkflowService.savePurchaseInvoice', () => {
       soloFatture(),
     );
 
-    const righe = prisma.documentLine.createMany.mock.calls[0]?.[0]?.data as
-      | Array<Record<string, unknown>>
-      | undefined;
+    // ⭐ Una `create` per riga, non piu' un `createMany`: dal 25/08/2026 il
+    // salvataggio fa upsert per id, e le righe gia' note si `update`.
+    const righe = prisma.documentLine.create.mock.calls.map(
+      (chiamata) => (chiamata[0] as { data: Record<string, unknown> }).data,
+    );
     expect(righe?.[0]).toMatchObject({ lineSource: 'manual', linkedGoodsReceiptId: null });
     expect(prisma.purchaseInvoiceGoodsReceiptLink.upsert).not.toHaveBeenCalled();
   });
+
+  /**
+   * ⭐ **La riga di una registrazione ha un'IDENTITÀ che sopravvive al
+   * risalvataggio.**
+   *
+   * ⛔ Fino al 25/08/2026 il salvataggio faceva `deleteMany` di tutte le righe e
+   * le riscriveva da zero: **ogni riga cambiava id a ogni Salva**, anche quella
+   * che nessuno aveva toccato.
+   *
+   * ⚠️ **Non è una pignoleria: è il prerequisito del Codice IVA.** Il contratto
+   * binario che conserva lo snapshot IVA persistito («assente = non modificato»,
+   * `regole-gestionale`) è chiavato sull'id della riga: senza id, il server
+   * rifotograferebbe lo snapshot dall'anagrafica corrente a ogni salvataggio — e
+   * una fattura di marzo cambierebbe aliquota perché qualcuno ha modificato un
+   * Codice IVA oggi.
+   *
+   * ⭐ È lo stesso blocco che l'Arrivo merce ha già, 540 righe più su nello
+   * stesso servizio, e per la stessa ragione: là serve a non duplicare il
+   * movimento di magazzino collegato.
+   */
+  it('⭐ risalvando, la riga esistente si AGGIORNA: l’id non cambia', async () => {
+    const { service } = createService(prisma);
+    const esistente = {
+      id: 'inv-1',
+      tenantId,
+      type: DocumentType.supplier_invoice,
+      status: DocumentStatus.confirmed,
+      lines: [{ id: 'riga-1', lineNumber: 1 }],
+    };
+    prisma.document.findFirst.mockResolvedValue(esistente);
+    prisma.document.findFirstOrThrow.mockResolvedValue({ ...esistente, lines: [] });
+
+    await service.savePurchaseInvoice(
+      tenantId,
+      invoiceDto({
+        id: 'inv-1',
+        lines: [
+          { id: 'riga-1', description: 'Trasporto', netMinor: 1_500, vatRatePercent: 22, vatMinor: 330 },
+        ],
+      }),
+      soloFatture(),
+    );
+
+    // La riga arrivata con l'id noto si aggiorna, non si ricrea.
+    expect(prisma.documentLine.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'riga-1' } }),
+    );
+    expect(prisma.documentLine.createMany).not.toHaveBeenCalled();
+  });
+
+  it('⛔ e una riga TOLTA dal client sparisce, senza portarsi via le altre', async () => {
+    // ⚠️ La cancellazione mirata è l'altra metà: `deleteMany` senza filtro
+    // cancellava tutto e riscriveva; con gli id, si cancella solo ciò che il
+    // client non ha più mandato.
+    const { service } = createService(prisma);
+    const esistente = {
+      id: 'inv-1',
+      tenantId,
+      type: DocumentType.supplier_invoice,
+      status: DocumentStatus.confirmed,
+      lines: [
+        { id: 'riga-1', lineNumber: 1 },
+        { id: 'riga-2', lineNumber: 2 },
+      ],
+    };
+    prisma.document.findFirst.mockResolvedValue(esistente);
+    prisma.document.findFirstOrThrow.mockResolvedValue({ ...esistente, lines: [] });
+
+    await service.savePurchaseInvoice(
+      tenantId,
+      invoiceDto({
+        id: 'inv-1',
+        lines: [
+          { id: 'riga-2', description: 'Resta', netMinor: 1_000, vatRatePercent: 22, vatMinor: 220 },
+        ],
+      }),
+      soloFatture(),
+    );
+
+    expect(prisma.documentLine.deleteMany).toHaveBeenCalledWith({
+      where: { documentId: 'inv-1', id: { notIn: ['riga-2'] } },
+    });
+  });
+
+  it('⛔ un id di UN ALTRO documento non entra: la riga si crea nuova', async () => {
+    // Superficie chiusa insieme al resto: senza il filtro su `existingLineIds`,
+    // mandare l'id di una riga altrui la farebbe aggiornare — cioe' scrivere
+    // dentro il documento di qualcun altro.
+    const { service } = createService(prisma);
+    const esistente = {
+      id: 'inv-1',
+      tenantId,
+      type: DocumentType.supplier_invoice,
+      status: DocumentStatus.confirmed,
+      lines: [{ id: 'riga-1', lineNumber: 1 }],
+    };
+    prisma.document.findFirst.mockResolvedValue(esistente);
+    prisma.document.findFirstOrThrow.mockResolvedValue({ ...esistente, lines: [] });
+
+    await service.savePurchaseInvoice(
+      tenantId,
+      invoiceDto({
+        id: 'inv-1',
+        lines: [
+          {
+            id: '00000000-0000-4000-8000-00000000dead',
+            description: 'Intrusa',
+            netMinor: 100,
+            vatRatePercent: 22,
+            vatMinor: 22,
+          },
+        ],
+      }),
+      soloFatture(),
+    );
+
+    expect(prisma.documentLine.update).not.toHaveBeenCalled();
+    expect(prisma.documentLine.create).toHaveBeenCalled();
+  });
+
 });

@@ -36,6 +36,25 @@ import { DocumentAddressDto } from './document-transport.dto';
  * MATERIALIZZA le sue righe una volta; da li' sono righe del documento.
  */
 export class PurchaseInvoiceLineDto {
+  /**
+   * L'id della riga gia' salvata, se questa riga esiste gia'. Assente = riga
+   * nuova.
+   *
+   * ⭐ **E' cio' che fa sopravvivere l'identita' al risalvataggio.** Senza,
+   * ogni Salva cancellava tutte le righe e le riscriveva da zero: l'id cambiava
+   * anche per la riga che nessuno aveva toccato.
+   *
+   * ⚠️ Non e' una pignoleria: e' il prerequisito del Codice IVA. Il contratto
+   * «assente = non modificato» che conserva lo snapshot IVA persistito e'
+   * chiavato sull'id della riga.
+   *
+   * ⛔ Un id che non appartiene a QUESTO documento viene ignorato e la riga si
+   * crea nuova: il filtro sta lato server su `existingLineIds`, non qui.
+   */
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
   @IsString()
   @MaxLength(500)
   description!: string;

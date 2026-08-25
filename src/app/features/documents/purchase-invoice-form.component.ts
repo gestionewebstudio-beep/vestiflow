@@ -111,6 +111,8 @@ type SubmitState =
  * l'unico segno di dove sono nate.
  */
 type EconomicLineForm = FormGroup<{
+  /** L'id della riga già salvata. Stringa vuota = riga nuova. */
+  id: FormControl<string>;
   description: FormControl<string>;
   /**
    * Importo canonico in unità minori, coda decimale inclusa. `null` = non
@@ -828,6 +830,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
   // ── Righe economiche ────────────────────────────────────────────────────────
 
   private buildLine(init?: {
+    id?: string;
     description?: string;
     netMinor?: number | null;
     rateText?: string;
@@ -835,6 +838,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     linkedGoodsReceiptId?: string;
   }): EconomicLineForm {
     return this.fb.group({
+      id: this.fb.control(init?.id ?? ''),
       description: this.fb.control(init?.description ?? ''),
       netMinor: this.fb.control<number | null>(init?.netMinor ?? null),
       rateText: this.fb.control(init?.rateText ?? ''),
@@ -1158,6 +1162,9 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
         return;
       }
       lines.push({
+        // ⭐ Vuoto = riga NUOVA, e il campo non entra proprio nel corpo: una
+        // stringa vuota verrebbe rifiutata dalla validazione UUID del DTO.
+        id: line.id || undefined,
         description,
         netMinor: net,
         vatRatePercent: parseRatePercent(line.rateText) ?? 0,
@@ -1379,6 +1386,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     for (const line of doc.lines ?? []) {
       this.lines.push(
         this.buildLine({
+          id: line.id,
           description: line.description,
           // ⭐ `?? null`, mai `?? 0`: una riga senza imposta non è una riga con
           // imposta zero, e la differenza decide se il campo mostra il

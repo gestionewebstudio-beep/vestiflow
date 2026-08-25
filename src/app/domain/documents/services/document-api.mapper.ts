@@ -704,6 +704,14 @@ export interface SaveAdjustmentBody {
  * con la fattura che il fornitore ha davvero mandato.
  */
 export interface PurchaseInvoiceLineBody {
+  /**
+   * L'id della riga già salvata. Assente = riga nuova.
+   *
+   * ⭐ È ciò che fa sopravvivere l'identità al risalvataggio: senza, il server
+   * cancellava tutte le righe e le riscriveva, e l'id cambiava anche per la
+   * riga che nessuno aveva toccato. È il prerequisito del Codice IVA.
+   */
+  readonly id?: EntityId;
   readonly description: string;
   readonly netMinor: number;
   readonly vatRatePercent: number;

@@ -1265,48 +1265,66 @@ export class GoodsReceiptWorkflowService {
 
       // Righe registrazione: gruppi per aliquota IVA dagli arrivi inclusi
       // (con riferimento automatico) seguiti dalle righe manuali del form.
-      await tx.documentLine.deleteMany({ where: { documentId } });
-      const sortedReceipts = [...receipts].sort(
-        (a, b) => a.documentDate.getTime() - b.documentDate.getTime(),
-      );
+      // ── Upsert righe per id ──────────────────────────────────────────────
+      //
+      // ⛔ Qui c'era `deleteMany({ where: { documentId } })` seguito da un
+      // `createMany`: ogni Salva cancellava tutte le righe e le riscriveva da
+      // zero, quindi **l'id cambiava anche per la riga che nessuno aveva
+      // toccato**.
+      //
+      // ⚠️ Non e' una pignoleria: e' il prerequisito del Codice IVA. Il
+      // contratto binario che conserva lo snapshot IVA persistito («assente =
+      // non modificato», `regole-gestionale`) e' chiavato sull'id della riga —
+      // senza id, il server rifotograferebbe lo snapshot dall'anagrafica
+      // corrente a ogni salvataggio, e una fattura di marzo cambierebbe
+      // aliquota perche' qualcuno ha modificato un Codice IVA oggi.
+      //
+      // ⭐ E' lo stesso blocco che l'Arrivo merce ha 540 righe piu' su, in
+      // questo stesso servizio: la' preserva il movimento di magazzino
+      // collegato invece di duplicarlo (§2.3-2.4).
+      const existingLineIds = new Set((existing?.lines ?? []).map((line) => line.id));
+      // ⛔ Il filtro chiude anche la superficie «id di un ALTRO documento»:
+      // senza, mandare l'id di una riga altrui la farebbe aggiornare.
+      const incomingLineIds = righe
+        .map((line) => line.id)
+        .filter((id): id is string => typeof id === 'string' && existingLineIds.has(id));
+
+      await tx.documentLine.deleteMany({
+        where: { documentId, id: { notIn: incomingLineIds } },
+      });
+
       // ⭐ Una lista sola, nell'ordine in cui il client la manda. `lineSource`
       // resta come PROVENIENZA storica — «questa riga e' nata da un arrivo» —
       // non piu' come origine ricalcolabile, e si deriva dal legame.
-      const lineRows = righe.map((line) => ({
-        description: line.description.trim(),
-        netMinor: line.netMinor,
-        ratePercent: line.vatRatePercent,
-        vatMinor: line.vatMinor,
-        lineSource: line.linkedGoodsReceiptId ? 'vat_summary' : 'manual',
-        linkedGoodsReceiptId: line.linkedGoodsReceiptId ?? null,
-      }));
-      if (lineRows.length > 0) {
-        await tx.documentLine.createMany({
-          data: lineRows.map((line, index) => ({
-            tenantId,
-            documentId,
-            lineNumber: index + 1,
-            description: line.description,
-            // Riga ECONOMICA della Registrazione fattura: non ha un articolo,
-            // quindi non ha una variante. Vuota per natura, non per omissione —
-            // il proprietario ha messo questa famiglia fuori dalle righe
-            // articolo (`03d` §13).
-            variantLabel: '',
-            quantity: 1,
-            unitPriceMinor: line.netMinor,
-            discountPercent: 0,
-            lineTotalMinor: line.netMinor,
-            lineVatTotalMinor: line.vatMinor,
-            lineGrossTotalMinor: line.netMinor + line.vatMinor,
-            vatSnapshot: { ratePercent: line.ratePercent } as Prisma.InputJsonObject,
-            loadsStock: false,
-            lineSource: line.lineSource,
-            // ⭐ La colonna esisteva da luglio con chiave esterna e indice, e
-            // NESSUN percorso dell'API la scriveva: era sempre `null`. E' il
-            // legame riga↔arrivo su cui ora poggia tutto il resto.
-            linkedGoodsReceiptId: line.linkedGoodsReceiptId,
-          })),
-        });
+      for (const [index, line] of righe.entries()) {
+        const data = {
+          lineNumber: index + 1,
+          description: line.description.trim(),
+          // Riga ECONOMICA della Registrazione fattura: non ha un articolo,
+          // quindi non ha una variante. Vuota per natura, non per omissione —
+          // il proprietario ha messo questa famiglia fuori dalle righe
+          // articolo (`03d` §13).
+          variantLabel: '',
+          quantity: 1,
+          unitPriceMinor: line.netMinor,
+          discountPercent: 0,
+          lineTotalMinor: line.netMinor,
+          lineVatTotalMinor: line.vatMinor,
+          lineGrossTotalMinor: line.netMinor + line.vatMinor,
+          vatSnapshot: { ratePercent: line.vatRatePercent } as Prisma.InputJsonObject,
+          loadsStock: false,
+          lineSource: line.linkedGoodsReceiptId ? 'vat_summary' : 'manual',
+          // ⭐ La colonna esisteva da luglio con chiave esterna e indice, e
+          // NESSUN percorso dell'API la scriveva: era sempre `null`. E' il
+          // legame riga↔arrivo su cui ora poggia tutto il resto.
+          linkedGoodsReceiptId: line.linkedGoodsReceiptId ?? null,
+        };
+        const lineId = line.id;
+        if (lineId && existingLineIds.has(lineId)) {
+          await tx.documentLine.update({ where: { id: lineId }, data });
+        } else {
+          await tx.documentLine.create({ data: { ...data, tenantId, documentId } });
+        }
       }
 
       // Scadenze di pagamento: la lista viene sostituita integralmente.
@@ -1335,7 +1353,12 @@ export class GoodsReceiptWorkflowService {
           },
         },
       });
-      for (const receipt of sortedReceipts) {
+      // I collegamenti si scrivono in ordine di data: e' l'ordine in cui
+      // l'operatore li ha inclusi, e in cui il Dettaglio li elenca.
+      const arriviInOrdine = [...receipts].sort(
+        (a, b) => a.documentDate.getTime() - b.documentDate.getTime(),
+      );
+      for (const receipt of arriviInOrdine) {
         await tx.purchaseInvoiceGoodsReceiptLink.upsert({
           where: {
             purchaseInvoiceId_goodsReceiptId: {

@@ -423,6 +423,7 @@ describe('PurchaseInvoiceFormComponent', () => {
     // I valori sono quelli di REGISTRAZIONE_SALVATA, non ricalcolati né arrotondati.
     expect(body.lines).toEqual([
       {
+        id: 'l-1',
         description: 'Rif. Arrivo merce 1 del 10/01/2026',
         netMinor: 10_050,
         vatRatePercent: 22,
@@ -430,6 +431,7 @@ describe('PurchaseInvoiceFormComponent', () => {
         linkedGoodsReceiptId: 'gr-1',
       },
       {
+        id: 'l-2',
         description: 'Spese di trasporto',
         netMinor: 1_500,
         vatRatePercent: 22,
@@ -476,6 +478,44 @@ describe('PurchaseInvoiceFormComponent', () => {
     const body = documentService.savePurchaseInvoice.mock.calls[0]![0];
     expect(body.lines).toHaveLength(1);
     expect(body.lines?.[0]).toMatchObject({ description: 'Abbuono', netMinor: 0, vatMinor: 0 });
+  });
+
+  it('⭐ e riporta l’ID delle righe già salvate: l’identità sopravvive al Salva', async () => {
+    // ⚠️ Senza questo il server non può fare l'upsert: cancellerebbe e
+    // riscriverebbe, e ogni riga cambierebbe id a ogni salvataggio. È il
+    // prerequisito del Codice IVA — il contratto «assente = non modificato»
+    // che conserva lo snapshot IVA persistito è chiavato sull'id della riga.
+    const user = userEvent.setup();
+    const { documentService } = await setup({ documentoDaRiaprire: REGISTRAZIONE_SALVATA });
+    await screen.findByLabelText('Descrizione riga 1');
+
+    await saveInvoice(user);
+
+    await waitFor(() => expect(documentService.savePurchaseInvoice).toHaveBeenCalled());
+    const body = documentService.savePurchaseInvoice.mock.calls[0]![0];
+    expect(body.lines?.map((riga) => riga.id)).toEqual(['l-1', 'l-2']);
+  });
+
+  it('⛔ una riga NUOVA non porta un id inventato', async () => {
+    // Assente significa «riga nuova», e il server la crea. Mandare una stringa
+    // vuota la farebbe rifiutare dalla validazione UUID del DTO.
+    const user = userEvent.setup();
+    const { documentService } = await setup();
+
+    // Il fornitore è obbligatorio: senza, la maschera rifiuta prima di guardare
+    // le righe — ed è giusto così (`11` e regole-gestionale).
+    await selectSupplier(user);
+    await user.type(screen.getByLabelText('Descrizione riga 1'), 'Trasporto');
+    await user.type(screen.getByLabelText('Importo netto riga 1'), '15,00');
+    // ⚠️ Lo sfocamento è il momento in cui la primitiva monetaria emette: è la
+    // ragione per cui la coda decimale del canonico sopravvive a un giro di
+    // fuoco che non cambia niente. Scritto esplicito, non affidato al clic.
+    await user.tab();
+    await saveInvoice(user);
+
+    await waitFor(() => expect(documentService.savePurchaseInvoice).toHaveBeenCalled());
+    const body = documentService.savePurchaseInvoice.mock.calls[0]![0];
+    expect(body.lines?.[0]?.id).toBeUndefined();
   });
 
   // Le scadenze si precompilano con il residuo non coperto; la spunta
