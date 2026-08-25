@@ -573,7 +573,15 @@ Il pattern di "salvataggio e uscita da un documento in edit" cambia con la largh
 - La banda note/totali che le sta sopra è invece **opaca**: è appiccicata in basso e su un documento corto passa sopra il piede della tabella. A tinta velata il testo sotto traspariva e si leggeva sovrapposto — coperto è coperto, e torna visibile scorrendo
 - Bordo superiore `--color-border`, ombra `--shadow-footer`
 - Contenuto: a sinistra info sintetica di stato (es. "Modifiche non salvate", "Documento salvato"); a destra i pulsanti azione (primary a destra estrema)
-- Sequenza pulsanti (destra a sinistra): **Chiudi** (ghost) · **Salva bozza** o simile (secondary) · **Salva/Concludi** (primary)
+- Sequenza pulsanti, **da sinistra a destra**: **Chiudi** (ghost) · eventuali azioni specifiche del documento (secondary) · **Salva** (primary, all'estrema destra)
+
+⛔ **Qui c'era «(destra a sinistra)»**, e letta cosi' metteva Chiudi all'estrema destra —
+il contrario della riga sopra, che dice «primary a destra estrema». Due frasi della stessa
+sezione che si smentivano.
+
+⭐ Corretta il 25/08/2026 misurando il codice: **tutte e sette le maschere documentali**
+mettono Chiudi a sinistra e Salva primary a destra. La regola si allinea a una convenzione
+gia' unanime, non ne impone una nuova.
 
 **Le etichette sono le stesse in ogni documento** _(08/2026)_. Il salvataggio dice **«Salva documento»** ovunque — non «Salva ordine», non «Salva registrazione», non «Salva»: chi passa da una maschera all'altra cerca lo stesso pulsante, e il tipo di documento è già scritto nel titolo della pagina. L'uscita dice **«Chiudi»**, su scrivania e nella coppia mobile.
 
