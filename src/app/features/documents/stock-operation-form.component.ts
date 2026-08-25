@@ -51,10 +51,10 @@ import { documentNumberConflictOf } from '@core/models/document-number-conflict.
 import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
 import { DocumentChronologyGuard } from '@domain/documents/state/document-chronology-guard';
 import { DocumentActionsComponent } from '@domain/documents/components/document-actions/document-actions.component';
+import { DocumentPrefillErrorComponent } from '@domain/documents/components/document-prefill-error/document-prefill-error.component';
 import { DocumentNotesComponent } from '@domain/documents/components/document-notes/document-notes.component';
 import { DocumentChronologyWarningDialogComponent } from '@domain/documents/components/document-chronology-warning-dialog/document-chronology-warning-dialog.component';
 import { DocumentPrefillErrorStore } from '@domain/documents/state/document-prefill-error.store';
-import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { AdjustmentDirection, DocumentStatus, DocumentType } from '@core/models/document.model';
 import type { DocumentRecord } from '@core/models/document.model';
 import { isConfirmedEditableDocumentStatus } from '@core/models/document.model';
@@ -180,7 +180,6 @@ type MovementCodeField = Extract<DocumentLineCodeField, 'articleCode' | 'sku' | 
     NoImplicitSubmitDirective,
     DocumentLineHeadComponent,
     DocumentLineRowComponent,
-    InlineBannerComponent,
     ReactiveFormsModule,
     BackButtonComponent,
     ButtonComponent,
@@ -206,6 +205,7 @@ type MovementCodeField = Extract<DocumentLineCodeField, 'articleCode' | 'sku' | 
     TableSkeletonComponent,
     DocumentActionsComponent,
     DocumentNotesComponent,
+    DocumentPrefillErrorComponent,
   ],
   providers: [DocumentEditLockService],
   templateUrl: './stock-operation-form.component.html',

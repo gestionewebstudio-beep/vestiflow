@@ -100,6 +100,7 @@ import {
   mapCustomerFormToInput,
 } from '@domain/customers/utils/customer-form.util';
 import { DocumentActionsComponent } from '@domain/documents/components/document-actions/document-actions.component';
+import { DocumentPrefillErrorComponent } from '@domain/documents/components/document-prefill-error/document-prefill-error.component';
 import { DocumentNotesComponent } from '@domain/documents/components/document-notes/document-notes.component';
 import { DocumentIncludePanelComponent } from '@domain/documents/components/document-include-panel/document-include-panel.component';
 import { vatCodeIdForLinePayload } from '@domain/documents/utils/document-line-vat-payload.util';
@@ -127,7 +128,6 @@ import { DocumentNumberConflictStore } from '@domain/documents/state/document-nu
 import { DocumentChronologyGuard } from '@domain/documents/state/document-chronology-guard';
 import { DocumentChronologyWarningDialogComponent } from '@domain/documents/components/document-chronology-warning-dialog/document-chronology-warning-dialog.component';
 import { DocumentPrefillErrorStore } from '@domain/documents/state/document-prefill-error.store';
-import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { DocumentProductPanelStore } from '@domain/documents/state/document-product-panel.store';
 import { DocumentLineHeadComponent } from '@domain/documents/components/document-line-head/document-line-head.component';
 import { DocumentLineQuickRowComponent } from '@domain/documents/components/document-line-quick-row/document-line-quick-row.component';
@@ -342,7 +342,6 @@ interface AvailabilityIssue {
   selector: 'app-customer-order-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    InlineBannerComponent,
     ReactiveFormsModule,
     DocumentLineCardComponent,
     DocumentLineCardBodyComponent,
@@ -379,6 +378,7 @@ interface AvailabilityIssue {
     DocumentProductSearchPanelComponent,
     DocumentActionsComponent,
     DocumentNotesComponent,
+    DocumentPrefillErrorComponent,
   ],
   // Una maschera = un'istanza del blocco: è lei a tracciare gli id che ha
   // sbloccato e a rilasciarli all'uscita.

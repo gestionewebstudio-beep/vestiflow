@@ -1,0 +1,6 @@
+// ⚠️ `display: contents`: l'avviso sta in cima alla maschera, dentro il flusso
+// della pagina. Un contenitore in mezzo aggiungerebbe una scatola vuota quando
+// l'errore non c'è — che è quasi sempre.
+:host {
+  display: contents;
+}

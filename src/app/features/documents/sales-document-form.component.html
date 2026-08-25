@@ -1,17 +1,12 @@
 <!-- doc-form--m-ref: adotta la vista mobile di riferimento promossa in
      styles/_document-form-mobile.scss (pannelli, totali, azioni finali). -->
 <section class="doc-form doc-form--m-ref">
-  @if (prefillError.message(); as prefillFailed) {
-    <!-- Il precompilato non è arrivato. Senza questo avviso resterebbe una
-         maschera vuota, indistinguibile da un documento nuovo legittimo: chi
-         salvasse creerebbe la cosa sbagliata credendo di aver fatto l'altra. -->
-    <app-inline-banner
-      tone="error"
-      [message]="prefillFailed"
-      dismissLabel="Ho capito"
-      (dismissed)="prefillError.dismiss()"
-    />
-  }
+  <!-- ⭐ **L'avviso comune.** Otto righe byte-identiche vivevano in sei
+       maschere: stesso tono, stesso messaggio, stessa etichetta di congedo.
+  
+       ⚠️ Serve, e il perche' e' nel componente: senza, resta una maschera
+       VUOTA, indistinguibile da un documento nuovo legittimo. -->
+  <app-document-prefill-error [store]="prefillError" />
   <!-- Riga del titolo come sull'Ordine cliente: back in linea con l'H1. -->
   <div class="doc-form__head-row">
     <app-back-button />

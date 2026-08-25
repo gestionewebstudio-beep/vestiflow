@@ -33,10 +33,10 @@ import { documentNumberConflictOf } from '@core/models/document-number-conflict.
 import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
 import { DocumentChronologyGuard } from '@domain/documents/state/document-chronology-guard';
 import { DocumentActionsComponent } from '@domain/documents/components/document-actions/document-actions.component';
+import { DocumentPrefillErrorComponent } from '@domain/documents/components/document-prefill-error/document-prefill-error.component';
 import { DocumentNotesComponent } from '@domain/documents/components/document-notes/document-notes.component';
 import { DocumentChronologyWarningDialogComponent } from '@domain/documents/components/document-chronology-warning-dialog/document-chronology-warning-dialog.component';
 import { DocumentPrefillErrorStore } from '@domain/documents/state/document-prefill-error.store';
-import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { mapHttpErrorToAppError } from '@core/interceptors/http-error.mapper';
 import type { Money } from '@core/models/common.model';
 import { DocumentType } from '@core/models/document.model';
@@ -164,7 +164,6 @@ function parseRatePercent(value: string): number | null {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     NoImplicitSubmitDirective,
-    InlineBannerComponent,
     NgTemplateOutlet,
     ReactiveFormsModule,
     BackButtonComponent,
@@ -187,6 +186,7 @@ function parseRatePercent(value: string): number | null {
     TableSkeletonComponent,
     DocumentActionsComponent,
     DocumentNotesComponent,
+    DocumentPrefillErrorComponent,
   ],
   templateUrl: './purchase-invoice-form.component.html',
   styleUrl: './purchase-invoice-form.component.scss',

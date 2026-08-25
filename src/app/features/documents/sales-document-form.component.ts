@@ -85,6 +85,7 @@ import type { VariantSummary } from '@domain/products/models/variant-summary.mod
 import { ProductService } from '@domain/products/services/product.service';
 import { DocumentLineArticleService } from '@domain/documents/services/document-line-article.service';
 import { DocumentActionsComponent } from '@domain/documents/components/document-actions/document-actions.component';
+import { DocumentPrefillErrorComponent } from '@domain/documents/components/document-prefill-error/document-prefill-error.component';
 import { DocumentNotesComponent } from '@domain/documents/components/document-notes/document-notes.component';
 import { DocumentLineHeadComponent } from '@domain/documents/components/document-line-head/document-line-head.component';
 import { DocumentTotalsComponent } from '@domain/documents/components/document-totals/document-totals.component';
@@ -128,7 +129,6 @@ import { DocumentNumberConflictStore } from '@domain/documents/state/document-nu
 import { DocumentChronologyGuard } from '@domain/documents/state/document-chronology-guard';
 import { DocumentChronologyWarningDialogComponent } from '@domain/documents/components/document-chronology-warning-dialog/document-chronology-warning-dialog.component';
 import { DocumentPrefillErrorStore } from '@domain/documents/state/document-prefill-error.store';
-import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
 import { DocumentSeriesManagerDialogComponent } from '@domain/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
@@ -276,7 +276,6 @@ type ConversionPrefill = CreateDocumentBody & {
     DocumentLineCardBodyComponent,
     DocumentLineCardReferenceComponent,
     DocumentLineCardStripComponent,
-    InlineBannerComponent,
     ReactiveFormsModule,
     BackButtonComponent,
     ButtonComponent,
@@ -300,6 +299,7 @@ type ConversionPrefill = CreateDocumentBody & {
     EditLockBannerComponent,
     DocumentActionsComponent,
     DocumentNotesComponent,
+    DocumentPrefillErrorComponent,
   ],
   providers: [DocumentEditLockService],
   templateUrl: './sales-document-form.component.html',
