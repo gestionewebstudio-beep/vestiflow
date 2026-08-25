@@ -19,6 +19,7 @@ import {
   Validators,
 } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { documentHasLinesWithoutEffect } from '@domain/documents/utils/document-line-effect.util';
 import {
   VARIANT_SEARCH_DEBOUNCE_MS,
   VARIANT_SEARCH_MIN_CHARS,
@@ -306,7 +307,7 @@ export class TransferFormComponent implements CanComponentDeactivate {
       this.markFormDirty();
       // L'avviso di blocco si spegne appena il motivo non c'è più: tenerlo
       // acceso su un form ormai valido sarebbe un secondo modo di mentire.
-      if (this._formErrorMessage() !== null && this.form.valid && this.hasStockLine()) {
+      if (this._formErrorMessage() !== null && this.form.valid && !this.righeSenzaEffetto()) {
         this._formErrorMessage.set(null);
       }
     });
@@ -1681,7 +1682,7 @@ export class TransferFormComponent implements CanComponentDeactivate {
   }
 
   private validateForm(): boolean {
-    if (this.form.invalid || !this.hasStockLine()) {
+    if (this.form.invalid || this.righeSenzaEffetto()) {
       this.form.markAllAsTouched();
       this._formErrorMessage.set(this.describeInvalidForm());
       return false;
@@ -1711,9 +1712,10 @@ export class TransferFormComponent implements CanComponentDeactivate {
       problems.push(
         'completa le righe evidenziate: variante, descrizione e quantità sono obbligatorie',
       );
-    } else if (!this.hasStockLine()) {
+    } else if (this.righeSenzaEffetto()) {
       // Righe formalmente valide ma nessuna che muova giacenza (es. righe
-      // descrittive caricate da un documento esistente).
+      // descrittive caricate da un documento esistente). ⚠️ Con ZERO righe non
+      // si arriva qui: il documento vuoto si salva (§documentHasLinesWithoutEffect).
       problems.push('aggiungi almeno una riga con una variante e quantità maggiore di zero');
     }
     if (problems.length === 0) {
@@ -1726,6 +1728,15 @@ export class TransferFormComponent implements CanComponentDeactivate {
     return this.lines.controls.some(
       (line) => line.controls.variantId.value && Number(line.controls.quantity.value) > 0,
     );
+  }
+
+  /**
+   * ⛔ Qui il cancello era `!hasStockLine()`, e rifiutava anche il documento
+   * VUOTO. Dal 25/08/2026 zero righe non e' un motivo di rifiuto: la ragione,
+   * e la distinzione fra i due casi, stanno in `documentHasLinesWithoutEffect`.
+   */
+  private righeSenzaEffetto(): boolean {
+    return documentHasLinesWithoutEffect(this.lines.length, this.hasStockLine());
   }
 
   private persist(): void {

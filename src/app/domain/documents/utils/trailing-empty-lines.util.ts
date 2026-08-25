@@ -17,10 +17,23 @@
  * segnalata, non fatta sparire. Per questo la ricerca si ferma alla prima riga
  * con qualcosa dentro.
  *
- * **Almeno una resta.** Se sono vuote tutte, non si svuota il documento: si
- * lascia l'ultima e sarà la validazione a dire che il documento non ha righe.
- * Scartarle tutte produrrebbe un salvataggio riuscito di un documento senza
- * niente dentro, che è peggio del messaggio.
+ * **Se sono vuote tutte, si scartano tutte.** ⛔ Qui c'era il contrario —
+ * «almeno una resta […] scartarle tutte produrrebbe un salvataggio riuscito di
+ * un documento senza niente dentro, che è peggio del messaggio». Quella frase
+ * descriveva una decisione che il proprietario ha ROVESCIATO il 25/08/2026:
+ *
+ * > «Se non ho fatto nulla nel documento e lo salvo, devo avere la possibilità
+ * >  di crearlo vuoto e avrò un documento vuoto con numero, eventuale serie e
+ * >  data. Ovunque deve essere così.»
+ *
+ * ⚠️ **Era il vero muro, e non si vedeva.** Le maschere avevano ognuna il
+ * proprio «aggiungi almeno una riga», ma anche togliendoli il documento non
+ * sarebbe partito lo stesso: la riga seminata all'apertura restava qui, e con
+ * lei l'array delle righe non era mai valido. Il divieto stava in questo
+ * default, non nelle frasi che lo annunciavano.
+ *
+ * `keepAtLeast` resta un parametro perché la scelta è del chiamante: chi ha
+ * bisogno di non svuotare l'elenco lo dichiara, invece di ereditarlo.
  *
  * @param lineCount quante righe ci sono adesso
  * @param isEmpty   «questa riga è vuota?» — lo sa solo la maschera: in Ordine
@@ -32,7 +45,7 @@
 export function trailingEmptyLineIndices(
   lineCount: number,
   isEmpty: (index: number) => boolean,
-  keepAtLeast = 1,
+  keepAtLeast = 0,
 ): readonly number[] {
   const indices: number[] = [];
   for (let index = lineCount - 1; index >= 0; index -= 1) {

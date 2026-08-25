@@ -419,6 +419,69 @@ describe('TransferFormComponent', () => {
       expect(toasts.showInfo).not.toHaveBeenCalled();
     });
   });
+
+  // ── Documento vuoto ──────────────────────────────────────────────────────
+  //
+  // ⭐ **Decisione del proprietario, 25/08/2026**, chiesta per TUTTI i tipi:
+  //
+  // > «Se non ho fatto nulla nel documento e lo salvo, devo avere la
+  // >  possibilità di crearlo vuoto e avrò un documento vuoto con numero,
+  // >  eventuale serie e data. Ovunque deve essere così.»
+  //
+  // ⚠️ **Le due prove vanno in coppia, e da sole non valgono.** La prima da
+  // sola si soddisfa togliendo il controllo; la seconda inchioda che cosa il
+  // controllo continua a fermare. Toglierne una lascia l'altra a difendere
+  // metà della decisione.
+  describe('documento vuoto', () => {
+    it('⭐ coi soli campi obbligatori il salvataggio parte, e le righe sono zero', async () => {
+      const { fixture, documentService } = await setup({ counters: [COUNTER] });
+      await fixture.whenStable();
+      const component = fixture.componentInstance;
+
+      // I soli obbligatori del trasferimento: origine e destinazione. La data
+      // la porta gia' la maschera all'apertura.
+      component.form.controls.locationId.setValue('loc-1');
+      component.form.controls.targetLocationId.setValue('loc-2');
+
+      component['persist']();
+
+      expect(documentService.createDocument).toHaveBeenCalled();
+      // Il mock non dichiara parametri, quindi `calls` e' tipata come tupla
+      // vuota: il corpo si legge passando da `unknown`.
+      const [body] = documentService.createDocument.mock.calls[0] as unknown as readonly [
+        { lines: unknown[] },
+      ];
+      // ⚠️ Non basta «e' stato chiamato»: la riga seminata all'apertura deve
+      // essere stata TOLTA. Se arrivasse al server, il documento non sarebbe
+      // vuoto — porterebbe una riga senza articolo.
+      expect(body.lines).toEqual([]);
+    });
+
+    it('⛔ una riga con qualcosa dentro ma INCOMPLETA ferma ancora il salvataggio', async () => {
+      // ⚠️ E' il rischio vero del cambiamento: le righe vuote in coda ora si
+      // scartano TUTTE, e una riga toccata a meta' non deve finire nello stesso
+      // sacco. Vuota si butta; iniziata e incompleta si segnala.
+      //
+      // ⛔ Qui la prova diceva «righe presenti ma nessuna che muova giacenza».
+      // Non poteva arrivarci: nel Trasferimento variantId e productName sono
+      // obbligatori e quantity ha min(1), quindi una riga formalmente valida
+      // muove SEMPRE giacenza — la ferma prima `lines.invalid`, con un
+      // messaggio piu' preciso. Il controllo `righeSenzaEffetto` resta come
+      // rete per i tipi documento dove quei validatori non ci sono.
+      const { fixture, documentService } = await setup({ counters: [COUNTER] });
+      await fixture.whenStable();
+      const component = fixture.componentInstance;
+
+      component.form.controls.locationId.setValue('loc-1');
+      component.form.controls.targetLocationId.setValue('loc-2');
+      component['lines'].at(0).controls.productName.setValue('Riga iniziata');
+
+      component['persist']();
+
+      expect(documentService.createDocument).not.toHaveBeenCalled();
+      expect(component['_formErrorMessage']()).toContain('completa le righe evidenziate');
+    });
+  });
 });
 
 /**
