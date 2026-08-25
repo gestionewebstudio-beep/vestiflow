@@ -100,6 +100,7 @@ import {
   mapCustomerFormToInput,
 } from '@domain/customers/utils/customer-form.util';
 import { DocumentActionsComponent } from '@domain/documents/components/document-actions/document-actions.component';
+import { DocumentPageStateComponent } from '@domain/documents/components/document-page-state/document-page-state.component';
 import { DocumentPrefillErrorComponent } from '@domain/documents/components/document-prefill-error/document-prefill-error.component';
 import { DocumentNotesComponent } from '@domain/documents/components/document-notes/document-notes.component';
 import { DocumentIncludePanelComponent } from '@domain/documents/components/document-include-panel/document-include-panel.component';
@@ -225,12 +226,10 @@ import { DateInputComponent } from '@shared/components/date-input/date-input.com
 import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
 import { DocumentSeriesManagerDialogComponent } from '@domain/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
 import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
-import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { createLineColumnWidths } from '@shared/table-columns/line-column-widths.store';
 import { CdkDrag, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
@@ -368,17 +367,16 @@ interface AvailabilityIssue {
     DocumentMobilePanelComponent,
     ProductFormComponent,
     EmptyStateComponent,
-    ErrorStateComponent,
     SelectMenuComponent,
     SlidePanelComponent,
     TableColumnPickerComponent,
-    TableSkeletonComponent,
     CustomerFormFieldsComponent,
     UnitOfMeasureManagerDialogComponent,
     DocumentProductSearchPanelComponent,
     DocumentActionsComponent,
     DocumentNotesComponent,
     DocumentPrefillErrorComponent,
+    DocumentPageStateComponent,
   ],
   // Una maschera = un'istanza del blocco: è lei a tracciare gli id che ha
   // sbloccato e a rilasciarli all'uscita.
@@ -1328,11 +1326,11 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   // ── Caricamento ordine in modifica ──────────────────────────────────────
   private readonly loadTick = signal(0);
-  private readonly loadState = toSignal(
+  protected readonly loadState = toSignal(
     toObservable(computed(() => ({ id: this.editOrderId(), tick: this.loadTick() }))).pipe(
       switchMap(({ id }) => {
         if (!id) {
-          return of<'ready' | 'loading' | 'not-editable' | 'error'>('ready');
+          return of<'ready' | 'loading' | 'not-found' | 'error'>('ready');
         }
         if (this.isRegistryDocument) {
           return this.documentService.getDocumentById(id).pipe(
@@ -1343,7 +1341,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
                   isConfirmedEditableDocumentStatus(doc.status));
               if (!editable) {
                 this.loadedQuoteDoc.set(null);
-                return 'not-editable' as const;
+                return 'not-found' as const;
               }
               // Un documento che si riapre nasce protetto — preventivo, DDT o
               // scarico manuale, senza distinzioni. La regola vive in
@@ -1355,7 +1353,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
               this.patchFormFromRegistryDocument(doc);
               return 'ready' as const;
             }),
-            startWith<'ready' | 'loading' | 'not-editable' | 'error'>('loading'),
+            startWith<'ready' | 'loading' | 'not-found' | 'error'>('loading'),
             catchError(() => of('error' as const)),
           );
         }
@@ -1378,7 +1376,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
             }
             return 'ready' as const;
           }),
-          startWith<'ready' | 'loading' | 'not-editable' | 'error'>('loading'),
+          startWith<'ready' | 'loading' | 'not-found' | 'error'>('loading'),
           catchError(() => of('error' as const)),
         );
       }),
@@ -1387,7 +1385,18 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   );
   protected readonly loading = computed(() => this.loadState() === 'loading');
   protected readonly loadError = computed(() => this.loadState() === 'error');
-  protected readonly notEditable = computed(() => this.loadState() === 'not-editable');
+  /**
+   * ⛔ Questa maschera diceva `'not-editable'`, le altre sei `'not-found'`:
+   * una parola sola che aveva derivato. Allineata il 25/08/2026 col montaggio
+   * della macchina degli stati comune.
+   *
+   * ⚠️ Nessuna delle due e' la parola giusta, e va detto: lo stato significa
+   * «non ci si puo' lavorare QUI», e il motivo — documento non trovato, tipo
+   * sbagliato, indirizzo che non corrisponde — lo porta il contenuto proiettato.
+   * Vince la parola dei sei perche' cambiarne una costa meno che cambiarne sei,
+   * non perche' sia migliore.
+   */
+  protected readonly notEditable = computed(() => this.loadState() === 'not-found');
 
   /**
    * Quale delle due viste di riga è viva. Le due sono **esclusive**: sotto la

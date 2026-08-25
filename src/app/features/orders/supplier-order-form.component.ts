@@ -82,9 +82,7 @@ import { prefillDefaultLocation } from '@domain/inventory/utils/default-location
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { EditLockBannerComponent } from '@shared/components/edit-lock-banner/edit-lock-banner.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
-import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { TableViewId } from '@shared/table-columns/table-column.model';
@@ -104,6 +102,7 @@ import { ProductFormComponent } from '@domain/products/product-form.component';
 import { ProductService } from '@domain/products/services/product.service';
 import { DocumentLineArticleService } from '@domain/documents/services/document-line-article.service';
 import { DocumentActionsComponent } from '@domain/documents/components/document-actions/document-actions.component';
+import { DocumentPageStateComponent } from '@domain/documents/components/document-page-state/document-page-state.component';
 import { DocumentLineHeadComponent } from '@domain/documents/components/document-line-head/document-line-head.component';
 import { DocumentTotalsComponent } from '@domain/documents/components/document-totals/document-totals.component';
 import type { DocumentTotalRow } from '@domain/documents/components/document-totals/document-totals.model';
@@ -279,8 +278,6 @@ function todayIsoDate(): string {
     DateInputComponent,
     SelectMenuComponent,
     EmptyStateComponent,
-    ErrorStateComponent,
-    TableSkeletonComponent,
     DocumentNumberFieldComponent,
     DocumentSeriesManagerDialogComponent,
     DocumentChronologyWarningDialogComponent,
@@ -295,6 +292,7 @@ function todayIsoDate(): string {
     ConfirmDialogComponent,
     EditLockBannerComponent,
     DocumentActionsComponent,
+    DocumentPageStateComponent,
   ],
   // Una maschera = un'istanza del blocco: è lei a tracciare gli id che ha
   // sbloccato e a rilasciarli all'uscita, così alla riapertura tornano protetti.
@@ -373,7 +371,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     tick: this.loadTick(),
   }));
 
-  private readonly loadState = toSignal(
+  protected readonly loadState = toSignal(
     toObservable(this.loadRequest).pipe(
       switchMap(({ id }) => {
         if (!id) {

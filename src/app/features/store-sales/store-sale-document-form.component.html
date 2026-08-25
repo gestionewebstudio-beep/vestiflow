@@ -17,24 +17,28 @@
 
   <p class="doc-form__disclaimer" role="note">{{ descriptor.subtitle }}</p>
 
-  @if (loading()) {
-    <app-table-skeleton [columns]="2" [rows]="6" />
-  } @else if (loadError()) {
-    <app-error-state
-      description="Impossibile caricare il documento."
-      retryLabel="Riprova"
-      (retry)="reload()"
-    />
-  } @else if (notEditable()) {
-    <!-- Il tipo lo dice la rotta: un documento di tipo diverso non si apre qui,
+  @if (loadState() !== 'ready') {
+    <!-- ⭐ **La macchina degli stati di pagina, comune.**
+  
+         ⛔ Qui c'erano tre rami scritti a mano — scheletro, errore,
+         non modificabile — identici nell'ORDINE in sette maschere su
+         sette, ma con tre descrizioni d'errore diverse e uno scheletro
+         da cinque righe invece di sei.
+  
+         ⭐ Il MOTIVO per cui non si puo' modificare resta qui: dipende
+         dal documento, e il livello comune non deve conoscerlo. -->
+    <app-document-page-state [state]="loadState()" (retry)="reload()">
+      <!-- Il tipo lo dice la rotta: un documento di tipo diverso non si apre qui,
          o si finirebbe a correggere un reso su una maschera che dice vendita. -->
-    <app-empty-state
-      icon="pi-lock"
-      title="Documento non disponibile"
-      description="Questo indirizzo non corrisponde al documento richiesto."
-      ctaLabel="Torna alle vendite al banco"
-      (ctaClick)="goToList()"
-    />
+      <app-empty-state
+        documentPageStateBlocked
+        icon="pi-lock"
+        title="Documento non disponibile"
+        description="Questo indirizzo non corrisponde al documento richiesto."
+        ctaLabel="Torna alle vendite al banco"
+        (ctaClick)="goToList()"
+      />
+    </app-document-page-state>
   } @else {
     <form class="doc-form__form" [formGroup]="form">
       <fieldset class="doc-form__fieldset">

@@ -53,6 +53,8 @@ import { documentNumberConflictOf } from '@core/models/document-number-conflict.
 import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
 import { DocumentChronologyGuard } from '@domain/documents/state/document-chronology-guard';
 import { DocumentActionsComponent } from '@domain/documents/components/document-actions/document-actions.component';
+import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
+import { DocumentPageStateComponent } from '@domain/documents/components/document-page-state/document-page-state.component';
 import { DocumentPrefillErrorComponent } from '@domain/documents/components/document-prefill-error/document-prefill-error.component';
 import { DocumentNotesComponent } from '@domain/documents/components/document-notes/document-notes.component';
 import { DocumentChronologyWarningDialogComponent } from '@domain/documents/components/document-chronology-warning-dialog/document-chronology-warning-dialog.component';
@@ -98,7 +100,6 @@ import { DocumentHeaderComponent } from '@domain/documents/components/document-h
 import { DocumentHeaderFieldComponent } from '@domain/documents/components/document-header/document-header-field.component';
 import { EditLockBannerComponent } from '@shared/components/edit-lock-banner/edit-lock-banner.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import { DocumentLineCardComponent } from '@domain/documents/components/document-line-card/document-line-card.component';
 import { DocumentLineCardBodyComponent } from '@domain/documents/components/document-line-card/document-line-card-body.component';
@@ -113,7 +114,6 @@ import { DocumentCodeLookupService } from '@domain/documents/services/document-c
 import { DocumentLineFocusStore } from '@domain/documents/state/document-line-focus.store';
 import type { DocumentLineCodeField } from '@domain/documents/utils/document-code-match.util';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
-import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
 import { formatItalianInputDate } from '@shared/utils/calendar.util';
 
@@ -209,11 +209,11 @@ type MovementCodeField = Extract<DocumentLineCodeField, 'articleCode' | 'sku' | 
     TableColumnPickerComponent,
     DocumentProductSearchPanelComponent,
     EmptyStateComponent,
-    ErrorStateComponent,
-    TableSkeletonComponent,
     DocumentActionsComponent,
     DocumentNotesComponent,
     DocumentPrefillErrorComponent,
+    DocumentPageStateComponent,
+    ErrorStateComponent,
   ],
   providers: [DocumentEditLockService],
   templateUrl: './transfer-form.component.html',
@@ -756,7 +756,7 @@ export class TransferFormComponent implements CanComponentDeactivate {
   private submitSubscription?: Subscription;
 
   private readonly loadTick = signal(0);
-  private readonly loadState = toSignal(
+  protected readonly loadState = toSignal(
     toObservable(computed(() => ({ id: this.editDocumentId(), tick: this.loadTick() }))).pipe(
       switchMap(({ id }) => {
         if (!id) {

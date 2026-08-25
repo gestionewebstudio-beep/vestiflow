@@ -18,22 +18,25 @@
     }
   </div>
 
-  @if (loading()) {
-    <app-table-skeleton [columns]="2" [rows]="6" />
-  } @else if (loadError()) {
-    <app-error-state
-      description="Impossibile caricare la registrazione fattura."
-      retryLabel="Riprova"
-      (retry)="reload()"
-    />
-  } @else if (notFound()) {
-    <app-empty-state
-      icon="pi-lock"
-      title="Documento non modificabile"
-      description="Questa pagina gestisce solo le registrazioni fattura fornitore."
-      ctaLabel="Torna all'elenco"
-      (ctaClick)="cancel()"
-    />
+  @if (loadState() !== 'ready') {
+    <!-- ⭐ **La macchina degli stati di pagina, comune.**
+
+         ⛔ Qui la descrizione dell'errore diceva «Impossibile caricare la
+         REGISTRAZIONE FATTURA»: la stessa cosa con la parola del tipo, che e'
+         la deriva chiusa il 25/08/2026. Ora e' una sola per tutte le maschere.
+
+         ⭐ Il MOTIVO per cui non si puo' modificare resta qui, ed e' suo:
+         «questa pagina gestisce solo le registrazioni fattura fornitore». -->
+    <app-document-page-state [state]="loadState()" (retry)="reload()">
+      <app-empty-state
+        documentPageStateBlocked
+        icon="pi-lock"
+        title="Documento non modificabile"
+        description="Questa pagina gestisce solo le registrazioni fattura fornitore."
+        ctaLabel="Torna all'elenco"
+        (ctaClick)="cancel()"
+      />
+    </app-document-page-state>
   } @else {
     <form appNoImplicitSubmit class="doc-form__form" [formGroup]="form" (ngSubmit)="save()">
       @if (supplierDocumentAlert(); as supplierAlert) {

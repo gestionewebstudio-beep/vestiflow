@@ -59,6 +59,7 @@ import { TenantPermission } from '@core/models/tenant-permission.model';
 import { hasTenantPermission } from '@core/permissions/user-permissions.util';
 import { CustomerService } from '@domain/customers/services/customer.service';
 import { DocumentActionsComponent } from '@domain/documents/components/document-actions/document-actions.component';
+import { DocumentPageStateComponent } from '@domain/documents/components/document-page-state/document-page-state.component';
 import { DocumentHeaderComponent } from '@domain/documents/components/document-header/document-header.component';
 import { DocumentHeaderFieldComponent } from '@domain/documents/components/document-header/document-header-field.component';
 import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
@@ -141,13 +142,11 @@ import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confir
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
 import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
-import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import { createLineColumnWidths } from '@shared/table-columns/line-column-widths.store';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
@@ -258,14 +257,13 @@ function oggiIso(): string {
     DocumentLineRowComponent,
     DocumentScanOverlayComponent,
     EmptyStateComponent,
-    ErrorStateComponent,
     InlineBannerComponent,
     ProductFormComponent,
     SelectMenuComponent,
     SlidePanelComponent,
     TableColumnPickerComponent,
-    TableSkeletonComponent,
     DocumentActionsComponent,
+    DocumentPageStateComponent,
   ],
   templateUrl: './store-sale-document-form.component.html',
   styleUrl: './store-sale-document-form.component.scss',
@@ -315,7 +313,7 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
 
   private readonly loadTick = signal(0);
 
-  private readonly loadState = toSignal(
+  protected readonly loadState = toSignal(
     toObservable(computed(() => ({ id: this.editDocumentId(), tick: this.loadTick() }))).pipe(
       switchMap(({ id }) => {
         if (!id) {

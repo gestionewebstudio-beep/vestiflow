@@ -85,6 +85,8 @@ import type { VariantSummary } from '@domain/products/models/variant-summary.mod
 import { ProductService } from '@domain/products/services/product.service';
 import { DocumentLineArticleService } from '@domain/documents/services/document-line-article.service';
 import { DocumentActionsComponent } from '@domain/documents/components/document-actions/document-actions.component';
+import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
+import { DocumentPageStateComponent } from '@domain/documents/components/document-page-state/document-page-state.component';
 import { DocumentPrefillErrorComponent } from '@domain/documents/components/document-prefill-error/document-prefill-error.component';
 import { DocumentNotesComponent } from '@domain/documents/components/document-notes/document-notes.component';
 import { DocumentLineHeadComponent } from '@domain/documents/components/document-line-head/document-line-head.component';
@@ -135,11 +137,9 @@ import { DocumentSeriesManagerDialogComponent } from '@domain/documents/componen
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { EditLockBannerComponent } from '@shared/components/edit-lock-banner/edit-lock-banner.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
-import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
 import { formatItalianInputDate } from '@shared/utils/calendar.util';
 
@@ -293,13 +293,13 @@ type ConversionPrefill = CreateDocumentBody & {
     CdkDropList,
     SelectMenuComponent,
     EmptyStateComponent,
-    ErrorStateComponent,
     SlidePanelComponent,
-    TableSkeletonComponent,
     EditLockBannerComponent,
     DocumentActionsComponent,
     DocumentNotesComponent,
     DocumentPrefillErrorComponent,
+    DocumentPageStateComponent,
+    ErrorStateComponent,
   ],
   providers: [DocumentEditLockService],
   templateUrl: './sales-document-form.component.html',
@@ -660,7 +660,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
   private submitSubscription?: Subscription;
 
   private readonly loadTick = signal(0);
-  private readonly loadState = toSignal(
+  protected readonly loadState = toSignal(
     toObservable(computed(() => ({ id: this.editDocumentId(), tick: this.loadTick() }))).pipe(
       switchMap(({ id }) => {
         if (!id) {

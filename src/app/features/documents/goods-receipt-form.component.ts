@@ -93,6 +93,9 @@ import { ProductService } from '@domain/products/services/product.service';
 import { DocumentLineArticleService } from '@domain/documents/services/document-line-article.service';
 import { createLineColumnWidths } from '@shared/table-columns/line-column-widths.store';
 import { DocumentActionsComponent } from '@domain/documents/components/document-actions/document-actions.component';
+import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
+import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
+import { DocumentPageStateComponent } from '@domain/documents/components/document-page-state/document-page-state.component';
 import { DocumentPrefillErrorComponent } from '@domain/documents/components/document-prefill-error/document-prefill-error.component';
 import { DocumentNotesComponent } from '@domain/documents/components/document-notes/document-notes.component';
 import { DocumentLineHeadComponent } from '@domain/documents/components/document-line-head/document-line-head.component';
@@ -144,10 +147,8 @@ import { DateInputComponent } from '@shared/components/date-input/date-input.com
 import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
 import { DocumentSeriesManagerDialogComponent } from '@domain/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
-import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { TableViewId } from '@shared/table-columns/table-column.model';
@@ -326,8 +327,6 @@ const SALES_PRICE_FIELDS: readonly SalesPriceField[] = [
     DocumentChronologyWarningDialogComponent,
     SelectMenuComponent,
     EmptyStateComponent,
-    ErrorStateComponent,
-    TableSkeletonComponent,
     TableColumnPickerComponent,
     DocumentAttachmentsPanelComponent,
     DocumentCounterpartyRefComponent,
@@ -348,6 +347,9 @@ const SALES_PRICE_FIELDS: readonly SalesPriceField[] = [
     DocumentActionsComponent,
     DocumentNotesComponent,
     DocumentPrefillErrorComponent,
+    DocumentPageStateComponent,
+    TableSkeletonComponent,
+    ErrorStateComponent,
   ],
   // Una maschera = un'istanza del blocco: è lei a tracciare gli id che ha
   // sbloccato e a rilasciarli all'uscita.
@@ -1223,7 +1225,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     tick: this.loadTick(),
   }));
 
-  private readonly loadState = toSignal(
+  protected readonly loadState = toSignal(
     toObservable(this.loadRequest).pipe(
       switchMap(({ id }) => {
         if (!id) {
