@@ -529,10 +529,18 @@
                    Sta fra i dati del documento perché è lì che si decide **da
                    cosa il documento parte** — non è un attrezzo della tabella.
 
-                   ⚠️ Il pannello vive nel DOM anche su scrivania (si accende
-                   sotto `lg` col foglio): senza il gate sul viewport questo
-                   sarebbe un terzo «Includi documento» nell'albero, e la
-                   guardia sui comandi doppi lo direbbe. -->
+                   ⚠️ **Il gate sul viewport è obbligatorio**, e la ragione è che
+                   questo pannello vive nel DOM anche su scrivania: commuta col
+                   foglio globale sotto `lg`, non con un `@if`. Senza il gate,
+                   questo pulsante e il suo gemello nella barra strumenti
+                   sarebbero **vivi insieme** — due comandi identici a schermo.
+
+                   ⛔ Qui c'era scritto «sarebbe un TERZO «Includi documento»
+                   nell'albero, e la guardia sui comandi doppi lo direbbe».
+                   Erano due affermazioni sbagliate: le dichiarazioni sono DUE,
+                   non tre, e **quella guardia non esiste** — misurato il
+                   26/08/2026. A tenere il conto è ora la prova di componente
+                   che asserisce «una sola in ogni vista». -->
               @if (compactView() && includeSourceKinds.length > 0) {
                 <p class="doc-panel__section">Origine delle righe</p>
                 <div class="doc-panel__field">

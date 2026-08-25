@@ -2283,3 +2283,48 @@ guardia su «Chiudi» contro «Annulla».
 ⚠️ **Non è un lavoro cieco**: le due copie sono ora allineate su tutto tranne un campo
 dichiarato, quindi la migrazione è meccanica. Ma va guardata a schermo prima di dirla fatta —
 la maschera è il riferimento visivo, e romperla costa il riferimento.
+
+## 44.5 «Includi documento»: due dichiarazioni, non tre — e la guardia citata non esisteva
+
+Il proprietario ha chiesto conto di un commento nel template che diceva: _«senza il gate sul
+viewport questo sarebbe un **terzo** "Includi documento" nell'albero, e **la guardia sui comandi
+doppi** lo direbbe»_.
+
+⛔ **Due affermazioni, entrambe sbagliate**, misurate il 26/08/2026:
+
+| L'affermazione                 | La misura                                                                                                                                                                   |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| «un terzo nell'albero»         | le dichiarazioni sono **due** — riga 541 nel pannello con `@if (compactView())`, riga 891 nella barra con `@if (!compactView())`. Si escludono: **ne vive sempre una sola** |
+| «la guardia sui comandi doppi» | **non esiste**. Nessuno dei 22 script di `npm run lint` fa quel controllo                                                                                                   |
+
+⚠️ **Un commento che cita una rete inesistente è peggio di nessun commento**: fa abbassare la
+guardia proprio dove serve tenerla.
+
+### Perché una guardia di script sarebbe la risposta sbagliata
+
+Misurati **26 comandi dichiarati più volte in 89 template**. Quasi tutti sono legittimi: un
+dialogo ha «Annulla» sul pulsante e sullo sfondo, un filtro si azzera dalla barra e dallo stato
+vuoto, un menu si chiude dal trigger e dal fondale. Uno script che li segnalasse sarebbe
+rumoroso e per lo più in torto — cioè un gate spento.
+
+⭐ **La distribuzione dice però un'altra cosa**: l'Ordine cliente ne ha **12**, più di ogni
+altra maschera. È la conferma numerica di §44.1 — quella testata è scritta due volte.
+
+### La rete che c'è ora
+
+Due prove di componente sull'Ordine cliente: «Includi documento» compare **esattamente una
+volta** in ciascuna vista. Falsificate togliendo il gate sul viewport — lo scenario che il
+commento temeva — e la prova dice `expected length 1 but got 2`.
+
+## 44.6 ⭐ Lo scanner barcode è una funzione da NON regredire
+
+Indicato dal proprietario il 26/08/2026: _«attenzione al funzionamento del barcode che nuovo
+ordine cliente possiede, è ben funzionale e così richiesto»_.
+
+`app-document-scan-overlay` — overlay fotocamera a schermo intero, con quattro esiti: riga
+aggiunta, aggiunta rapida, creazione articolo completa, chiusura. Lo montano **due maschere**:
+Ordine cliente e Vendita al banco.
+
+⭐ Sta a **riga 1799**, fuori dal blocco testata (233–850): la migrazione di §44.4 **non lo
+tocca**. Ma quando il mobile si propagherà alle altre maschere, lo scanner è un pezzo da
+**portare**, non da reinventare.

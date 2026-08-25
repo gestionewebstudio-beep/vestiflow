@@ -315,6 +315,38 @@ describe('CustomerOrderFormComponent — le due viste di riga', () => {
       .filter((t) => t?.startsWith('Data'));
   }
 
+  function comandiChiamati(vista: HTMLElement, etichetta: string): HTMLElement[] {
+    return [...vista.querySelectorAll('button')].filter((b) => b.textContent?.trim() === etichetta);
+  }
+
+  /**
+   * ⭐ **«Includi documento» è UNO in ogni vista, mai due insieme.**
+   *
+   * Il comando è dichiarato due volte — nel pannello di testata su schermo
+   * compatto, nella barra strumenti su scrivania — perché la sua etichetta
+   * lunga rompeva la riga dei comandi (proprietario, 24/08/2026).
+   *
+   * ⚠️ **Il gate sul viewport è l'unica cosa che li tiene separati**, e non è
+   * un dettaglio: il pannello di testata vive nel DOM anche su scrivania —
+   * commuta col foglio globale, non con un `@if`. Chi toccasse una delle due
+   * condizioni si troverebbe due comandi identici a schermo, o nessuno.
+   *
+   * ⛔ Il commento nel template citava «la guardia sui comandi doppi» come se
+   * esistesse. Non esiste: misurato il 26/08/2026, e nessuno dei 22 script di
+   * `npm run lint` fa quel controllo. Questa prova è la rete che mancava.
+   */
+  it('⭐ «Includi documento» compare una sola volta, in ciascuna vista', async () => {
+    const esteso = await apri(false);
+
+    expect(comandiChiamati(esteso, 'Includi documento')).toHaveLength(1);
+  });
+
+  it('⭐ e una sola anche nella veste compatta', async () => {
+    const compatto = await apri(true);
+
+    expect(comandiChiamati(compatto, 'Includi documento')).toHaveLength(1);
+  });
+
   it('⭐ nessuna delle due viste chiama la data solo «Data»', async () => {
     // ⭐ **Una prova sola basta, ed è per una ragione che vale la pena sapere:**
     // in questa maschera il pannello mobile vive nel DOM ANCHE nella vista
