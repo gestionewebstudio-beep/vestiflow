@@ -2415,9 +2415,21 @@ export class DocumentsService {
     if (doc.status !== DocumentStatus.draft) {
       throw new ConflictException('Solo i documenti in bozza possono essere confermati.');
     }
-    if (doc.lines.length === 0) {
-      throw new UnprocessableEntityException('Impossibile confermare un documento senza righe.');
-    }
+    // ⛔ Qui c'era il rifiuto di un documento senza righe («Impossibile
+    // confermare un documento senza righe»). Tolto il 25/08/2026, decisione del
+    // proprietario, chiesta per TUTTI i tipi:
+    //
+    //   «Se non ho fatto nulla nel documento e lo salvo, devo avere la
+    //    possibilità di crearlo vuoto e avrò un documento vuoto con numero,
+    //    eventuale serie e data. Ovunque deve essere così.»
+    //
+    // ⚠️ Non era più il controllo che sembrava. Nato quando la conferma era un
+    // passaggio esplicito su una bozza, con la nascita-confermato è finito sul
+    // percorso di CREAZIONE di ogni documento: rifiutava il documento vuoto
+    // ovunque, e cinque maschere lo ripetevano ognuna con parole proprie.
+    //
+    // ⭐ Un documento senza righe non muove niente, per costruzione. I controlli
+    // di magazzino qui sotto restano, e valgono sul documento che HA righe.
 
     if (doc.type === DocumentType.sales_ddt) {
       this.assertStockUnloadDocument(doc);
@@ -3157,6 +3169,16 @@ export class DocumentsService {
 
   private assertStockTransferDocument(doc: Document & { lines: DocumentLine[] }): void {
     const stockLines = doc.lines.filter((line) => line.loadsStock && line.quantity > 0);
+    // ⭐ Documento SENZA RIGHE: ammesso, e non è questo il controllo che lo
+    // riguarda (vedi `confirmDocumentTx`). Un documento vuoto non muove
+    // giacenza per costruzione, e si compila riaprendolo.
+    //
+    // ⚠️ Righe che ci sono ma non muovono NIENTE restano un errore: lì
+    // l'operatore ha scritto qualcosa e si aspetta un effetto, e il silenzio
+    // sarebbe peggio del rifiuto.
+    if (doc.lines.length === 0) {
+      return;
+    }
     if (stockLines.length === 0) {
       throw new UnprocessableEntityException(
         'Aggiungi almeno una riga con variante e quantità maggiore di zero.',
@@ -3212,6 +3234,16 @@ export class DocumentsService {
 
   private assertStockManualUnloadDocument(doc: Document & { lines: DocumentLine[] }): void {
     const stockLines = doc.lines.filter((line) => line.loadsStock && line.quantity > 0);
+    // ⭐ Documento SENZA RIGHE: ammesso, e non è questo il controllo che lo
+    // riguarda (vedi `confirmDocumentTx`). Un documento vuoto non muove
+    // giacenza per costruzione, e si compila riaprendolo.
+    //
+    // ⚠️ Righe che ci sono ma non muovono NIENTE restano un errore: lì
+    // l'operatore ha scritto qualcosa e si aspetta un effetto, e il silenzio
+    // sarebbe peggio del rifiuto.
+    if (doc.lines.length === 0) {
+      return;
+    }
     if (stockLines.length === 0) {
       throw new UnprocessableEntityException(
         'Aggiungi almeno una riga con variante e quantità maggiore di zero.',
@@ -3235,6 +3267,16 @@ export class DocumentsService {
 
   private assertStockAdjustmentDocument(doc: Document & { lines: DocumentLine[] }): void {
     const stockLines = doc.lines.filter((line) => line.loadsStock && line.quantity > 0);
+    // ⭐ Documento SENZA RIGHE: ammesso, e non è questo il controllo che lo
+    // riguarda (vedi `confirmDocumentTx`). Un documento vuoto non muove
+    // giacenza per costruzione, e si compila riaprendolo.
+    //
+    // ⚠️ Righe che ci sono ma non muovono NIENTE restano un errore: lì
+    // l'operatore ha scritto qualcosa e si aspetta un effetto, e il silenzio
+    // sarebbe peggio del rifiuto.
+    if (doc.lines.length === 0) {
+      return;
+    }
     if (stockLines.length === 0) {
       throw new UnprocessableEntityException(
         'Aggiungi almeno una riga con variante e quantità maggiore di zero.',

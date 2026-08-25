@@ -719,13 +719,16 @@ describe('DocumentsService', () => {
           lines: [],
         });
 
-        // Nascita-confermato: senza righe la conferma in-transazione rifiuta, ma
-        // il fatto che prisma.document.create sia stato invocato prova che il
-        // gate di tipo NON blocca transfer/adjustment (a differenza dei tipi
-        // arrivo merce, rifiutati PRIMA del create).
-        await expect(
-          service.create(tenantId, { type, documentDate: '2026-01-10' }),
-        ).rejects.toBeInstanceOf(UnprocessableEntityException);
+        // ⛔ Qui il salvataggio veniva atteso in RIFIUTO, e il commento diceva
+        // perché: «senza righe la conferma in-transazione rifiuta, ma il fatto
+        // che prisma.document.create sia stato invocato prova che il gate di
+        // tipo NON blocca transfer/adjustment».
+        //
+        // ⭐ Il rifiuto era IMPALCATURA, non la tesi. Da quando un documento
+        // vuoto si salva (25/08/2026) non arriva più, e la tesi si può
+        // asserire diretta: il tipo passa il cancello e il documento nasce.
+        await service.create(tenantId, { type, documentDate: '2026-01-10' });
+
         expect(prisma.document.create).toHaveBeenCalled();
       },
     );
@@ -791,17 +794,46 @@ describe('DocumentsService', () => {
       await expect(service.confirm(tenantId, 'doc-1')).rejects.toBeInstanceOf(ConflictException);
     });
 
-    it('rifiuta la conferma senza righe', async () => {
+    it('⭐ un documento SENZA RIGHE si salva: numero, serie e data, e nient’altro', async () => {
+      // ⛔ Qui c’era la prova opposta, «rifiuta la conferma senza righe».
+      //
+      // Decisione del proprietario, 25/08/2026, chiesta esplicitamente per TUTTI
+      // i tipi — magazzino compreso:
+      //
+      //   «Se non ho fatto nulla nel documento e lo salvo, devo avere la
+      //    possibilità di crearlo vuoto e avrò un documento vuoto con numero,
+      //    eventuale serie e data. Ovviamente dopo aver selezionato i campi
+      //    obbligatori previsti per quel documento. Ovunque deve essere così.»
+      //
+      // ⚠️ Non è più «conferma di una bozza»: con la nascita-confermato questa
+      // riga sta sul percorso di CREAZIONE di ogni tipo. Rifiutare qui
+      // significava rifiutare il documento vuoto ovunque — e le maschere lo
+      // dicevano ognuna con parole sue, cinque frasi diverse per un unico
+      // rifiuto che veniva da qui.
+      //
+      // ⭐ Un documento vuoto non fa danno: non avendo righe non muove giacenza.
+      // Resta riapribile, e si compila dopo.
       const { service } = createService(prisma);
       prisma.document.findFirst.mockResolvedValue({
         id: 'doc-1',
+        tenantId,
+        type: DocumentType.quote,
         status: DocumentStatus.draft,
+        series: 'A',
+        year: 2026,
+        number: null,
+        reference: null,
         lines: [],
       });
+      prisma.document.aggregate.mockResolvedValue({ _max: { number: 11 } });
+      prisma.document.update.mockResolvedValue({ id: 'doc-1', lines: [] });
 
-      await expect(service.confirm(tenantId, 'doc-1')).rejects.toBeInstanceOf(
-        UnprocessableEntityException,
-      );
+      await service.confirm(tenantId, 'doc-1');
+
+      const data = prisma.document.update.mock.calls[0]![0]!.data;
+      expect(data.status).toBe(DocumentStatus.confirmed);
+      expect(data.number).toBe(12);
+      expect(data.confirmedAt).toBeInstanceOf(Date);
     });
 
     it('propaga NotFound se il documento non esiste', async () => {
