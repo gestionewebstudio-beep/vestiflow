@@ -1003,11 +1003,16 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
    * Controllo cronologico (§4) davanti a ogni salvataggio: il pulsante e il
    * dialogo di uscita passano entrambi da `save`.
    */
-  protected save(onSaved?: () => void): void {
-    this.chronology.run(() => this.saveNow(onSaved));
+  /**
+   * ⛔ Qui c'era un parametro `onSaved`, e lo passava UN solo chiamante:
+   * «Salva e chiudi» del dialogo d'uscita. Tolto quel pulsante il 25/08/2026,
+   * il parametro non ha piu' chiamanti e i suoi rami erano irraggiungibili.
+   */
+  protected save(): void {
+    this.chronology.run(() => this.saveNow());
   }
 
-  private saveNow(onSaved?: () => void): void {
+  private saveNow(): void {
     if (this.saving()) {
       return;
     }
@@ -1141,10 +1146,6 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
           );
           // Registrazione salvata: il guard di uscita non deve più fermarla.
           this.dirtySinceLastSave.set(false);
-          if (onSaved) {
-            onSaved();
-            return;
-          }
           void this.router.navigateByUrl(this.listPath);
         },
         error: (err: unknown) => {
@@ -1219,14 +1220,10 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     this.pendingDeactivate = null;
   }
 
-  /** «Salva e chiudi» dal dialogo: salva la registrazione e prosegue l'uscita. */
-  protected confirmExitSaveInvoice(): void {
-    this.save(() => {
-      this.exitDialogOpen.set(false);
-      this.pendingDeactivate?.(true);
-      this.pendingDeactivate = null;
-    });
-  }
+  // ⛔ Qui c'era il gestore di «Salva e chiudi» del dialogo d'uscita, tolto il
+  // 25/08/2026 con quel pulsante: il dialogo ha DUE azioni — Annulla · Esci
+  // senza salvare — e il salvataggio resta il pulsante Salva della barra.
+  // (decisione del proprietario, 24/08/2026)
 
   private patchFormFromDocument(doc: DocumentRecord): void {
     // Patch programmatico (caricamento/duplica): non è una modifica dell'utente.

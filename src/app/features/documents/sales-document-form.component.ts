@@ -1210,14 +1210,10 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     this.pendingDeactivate = null;
   }
 
-  /** «Salva e chiudi» dal dialogo: salva il documento e prosegue l'uscita. */
-  protected confirmExitSaveDocument(): void {
-    this.persist(() => {
-      this.exitDialogOpen.set(false);
-      this.pendingDeactivate?.(true);
-      this.pendingDeactivate = null;
-    });
-  }
+  // ⛔ Qui c'era il gestore di «Salva e chiudi» del dialogo d'uscita, tolto il
+  // 25/08/2026 con quel pulsante: il dialogo ha DUE azioni — Annulla · Esci
+  // senza salvare — e il salvataggio resta il pulsante Salva della barra.
+  // (decisione del proprietario, 24/08/2026)
 
   protected get lines(): FormArray<ReturnType<SalesDocumentFormComponent['createLine']>> {
     return this.form.controls.lines;
@@ -2689,24 +2685,21 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     });
   }
 
-  private persist(onSaved?: () => void): void {
+  /**
+   * ⛔ Qui c'era un parametro `onSaved`, e lo passava UN solo chiamante:
+   * «Salva e chiudi» del dialogo d'uscita. Tolto quel pulsante il 25/08/2026,
+   * il parametro non ha piu' chiamanti e i suoi due rami erano irraggiungibili.
+   *
+   * ⚠️ Uno dei due mostrava l'errore di validazione DENTRO il dialogo. Non e'
+   * una perdita: senza un salvataggio che parte da li', quell'errore non ha
+   * piu' un momento in cui nascere — resta quello inline della maschera.
+   */
+  private persist(): void {
     if (this.formReadOnly() || this.saving()) {
       return;
     }
     this.dropTrailingEmptyLines();
     if (!this.validateForm()) {
-      if (onSaved) {
-        // «Salva e chiudi» dal dialogo di uscita: l'errore va mostrato lì.
-        this._submitState.set({
-          status: 'error',
-          error: {
-            kind: AppErrorKind.Validation,
-            message:
-              this._validationError() ??
-              'Impossibile salvare: controlla cliente e righe (campi obbligatori o valori non validi).',
-          },
-        });
-      }
       return;
     }
     const raw = this.form.getRawValue();
@@ -2862,12 +2855,6 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
         // Documento salvato: il guard di uscita non deve più fermare la
         // navigazione — azzerare PRIMA di navigare, o il dialogo si riapre.
         this.dirtySinceLastSave.set(false);
-        if (onSaved) {
-          // «Salva e chiudi»: prosegue la navigazione sospesa dal guard,
-          // senza aggiungerne una seconda verso il dettaglio.
-          onSaved();
-          return;
-        }
         void this.router.navigate([this.listPath, doc.id]);
       },
       error: (err: unknown) => {

@@ -5543,16 +5543,28 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
    * è collegato a un documento di scarico — l'avviso lo segnala e chiede cosa
    * fare (prompt DDT §LOGICA MAGAZZINO).
    */
+  /**
+   * Il messaggio del dialogo d'uscita. ⭐ Resta CALCOLATO, e non e' fronzolo:
+   * un ordine gia' collegato a un documento di trasporto porta un'informazione
+   * che l'operatore non ha altrove — le modifiche non arrivano al documento
+   * gia' emesso.
+   *
+   * ⛔ **Entrambi i rami finivano con una domanda che non ha piu' risposta**:
+   * «Vuoi salvare comunque le modifiche prima di chiudere?» presupponeva il
+   * pulsante «Salva e chiudi», tolto il 25/08/2026. Un dialogo che chiede
+   * «vuoi salvare?» e offre solo «Annulla» ed «Esci senza salvare» mette
+   * l'operatore a cercare un pulsante che non c'e'.
+   */
   protected readonly exitDialogMessage = computed(() => {
     if (this.isOrder && this.isSettledOrder()) {
       const linked = this.loadedOrder()?.linkedDocument;
       const ref = linked?.reference ? ` ${linked.reference}` : '';
       return (
         `Questo ordine è collegato al documento di trasporto${ref}: le modifiche NON aggiornano ` +
-        'il documento già emesso. Vuoi salvare comunque le modifiche prima di chiudere?'
+        'il documento già emesso. Uscendo ora, le modifiche non salvate andranno perse.'
       );
     }
-    return 'Ci sono modifiche non salvate. Vuoi salvarle prima di chiudere?';
+    return 'Ci sono modifiche non salvate: uscendo dalla pagina andranno perse.';
   });
 
   canDeactivate(): boolean | Promise<boolean> {
@@ -5578,13 +5590,10 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     this.pendingDeactivate = null;
   }
 
-  protected confirmExitSaveDocument(): void {
-    this.saveDocument(() => {
-      this.exitDialogOpen.set(false);
-      this.pendingDeactivate?.(true);
-      this.pendingDeactivate = null;
-    });
-  }
+  // ⛔ Qui c'era il gestore di «Salva e chiudi» del dialogo d'uscita, tolto il
+  // 25/08/2026 con quel pulsante: il dialogo ha DUE azioni — Annulla · Esci
+  // senza salvare — e il salvataggio resta il pulsante Salva della barra.
+  // (decisione del proprietario, 24/08/2026)
 
   /**
    * "Chiudi" (P7): con modifiche non salvate la conferma appare SEMPRE,

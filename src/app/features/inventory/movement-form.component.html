@@ -450,21 +450,26 @@
 
 <!-- Uscita con modifiche non salvate (guard di route): due scelte — il submit
      ha già la sua conferma con riepilogo, niente «Salva e chiudi» qui. -->
-@if (exitDialogOpen()) {
-  <div class="doc-form__exit-backdrop" aria-hidden="true" (click)="cancelExitDialog()"></div>
-  <div
-    class="doc-form__exit-dialog"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="mov-exit-title"
-  >
-    <h2 id="mov-exit-title" class="doc-form__exit-title">Modifiche non salvate</h2>
-    <p class="doc-form__exit-message">Ci sono modifiche non salvate. Se esci ora andranno perse.</p>
-    <div class="doc-form__exit-actions">
-      <app-button type="button" variant="ghost" (click)="cancelExitDialog()">Annulla</app-button>
-      <app-button type="button" variant="secondary" (click)="confirmExitWithoutSaving()">
-        Esci senza salvare
-      </app-button>
-    </div>
-  </div>
-}
+<!-- ⭐ **Il dialogo comune, non un guscio scritto a mano.**
+
+     ⛔ Qui c'erano venti righe con un `<div role="dialog">` e uno sfondo
+     proprio: NON un `<dialog>` nativo, quindi senza trappola del fuoco, senza
+     Esc e senza sfondo inerte — contro `regole-architettura`, che li chiede
+     esplicitamente per ogni modale. Lo stesso guscio viveva in undici file.
+
+     ⭐ Questa maschera aveva gia' le DUE azioni giuste: qui cambia il guscio,
+     non il contratto.
+
+     ⚠️ `emphasis="cancel"` non e' un vezzo: senza, «Esci senza salvare»
+     sarebbe il pulsante primario, cioe' quello che il pollice cerca. La
+     scelta che perde lavoro non si veste da scelta consigliata. -->
+<app-confirm-dialog
+  [(open)]="exitDialogOpen"
+  title="Modifiche non salvate"
+  message="Ci sono modifiche non salvate: uscendo dalla pagina andranno perse."
+  cancelLabel="Annulla"
+  confirmLabel="Esci senza salvare"
+  emphasis="cancel"
+  (confirmed)="confirmExitWithoutSaving()"
+  (dismissed)="cancelExitDialog()"
+/>

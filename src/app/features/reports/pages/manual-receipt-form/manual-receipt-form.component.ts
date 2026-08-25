@@ -53,6 +53,7 @@ import {
 } from '@domain/documents/utils/document-vat-options.util';
 import { computeDocumentTotals } from '@domain/documents/utils/document-totals.util';
 import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
+import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
@@ -116,6 +117,7 @@ const LIST_PATH = '/app/sales/corrispettivi';
     InlineBannerComponent,
     ReactiveFormsModule,
     SelectMenuComponent,
+    ConfirmDialogComponent,
   ],
   // Una maschera = un'istanza: ogni istanza traccia gli id che ha sbloccato e
   // li rilascia all'uscita, così alla riapertura tornano protetti.
@@ -663,7 +665,12 @@ export class ManualReceiptFormComponent implements CanComponentDeactivate {
 
   // ── Salvataggio ed eliminazione ───────────────────────────────────────────
 
-  protected save(onSaved?: () => void): void {
+  /**
+   * ⛔ Qui c'era un parametro `onSaved`, e lo passava UN solo chiamante:
+   * «Salva e chiudi» del dialogo d'uscita. Tolto quel pulsante il 25/08/2026,
+   * il parametro non ha piu' chiamanti.
+   */
+  protected save(): void {
     if (this.saving()) {
       return;
     }
@@ -729,7 +736,6 @@ export class ManualReceiptFormComponent implements CanComponentDeactivate {
         // Torna protetto SUBITO: lo sblocco valeva per la modifica che si è
         // appena conclusa, non per tutta la sessione.
         this.editLock.relock(saved.id);
-        onSaved?.();
       },
       error: (err: unknown) => {
         this._submitState.set({ status: 'error', error: this.toAppError(err) });
@@ -852,13 +858,10 @@ export class ManualReceiptFormComponent implements CanComponentDeactivate {
     this.pendingDeactivate = null;
   }
 
-  protected confirmExitSaving(): void {
-    this.save(() => {
-      this.exitDialogOpen.set(false);
-      this.pendingDeactivate?.(true);
-      this.pendingDeactivate = null;
-    });
-  }
+  // ⛔ Qui c'era il gestore di «Salva e chiudi» del dialogo d'uscita, tolto il
+  // 25/08/2026 con quel pulsante: il dialogo ha DUE azioni — Annulla · Esci
+  // senza salvare — e il salvataggio resta il pulsante Salva della barra.
+  // (decisione del proprietario, 24/08/2026)
 
   private toAppError(err: unknown): AppError {
     if (isAppError(err)) {

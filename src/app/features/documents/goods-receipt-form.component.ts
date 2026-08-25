@@ -4169,41 +4169,10 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     });
   }
 
-  protected confirmExitSaveDocument(): void {
-    this.syncActiveFieldBeforeSave();
-    const headerError = this.validateHeaderForSave();
-    if (headerError) {
-      this._submitState.set({ status: 'error', error: headerError });
-      return;
-    }
-    this.exitDialogOpen.set(false);
-    // Come nel salvataggio esplicito: il numero mostrato si legge prima dell'invio.
-    const shownDocumentNumber = this.form.controls.documentNumber.value;
-    const documentNumberWasImposed = this.form.controls.documentNumber.dirty;
-    this._submitState.set({ status: 'saving' });
-    this.linkAllLineCodes$()
-      .pipe(
-        switchMap(() => this.saveDocument$()),
-        take(1),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe({
-        next: (doc) => {
-          this._submitState.set({ status: 'idle' });
-          this.dirtySinceLastSave.set(false);
-          this.loadedDocument.set(doc);
-          this.reconcileAssignedDocumentNumber(doc, shownDocumentNumber, documentNumberWasImposed);
-          this.resolveExit(true);
-        },
-        error: (err: unknown) => {
-          this._submitState.set({
-            status: 'error',
-            error: this.toAppError(err),
-          });
-          this.resolveExit(false);
-        },
-      });
-  }
+  // ⛔ Qui c'era il gestore di «Salva e chiudi» del dialogo d'uscita, tolto il
+  // 25/08/2026 con quel pulsante: il dialogo ha DUE azioni — Annulla · Esci
+  // senza salvare — e il salvataggio resta il pulsante Salva della barra.
+  // (decisione del proprietario, 24/08/2026)
 
   /** "Chiudi senza salvare": esce scartando le modifiche non ancora salvate. */
   protected confirmExitWithoutSaving(): void {

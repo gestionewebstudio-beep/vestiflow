@@ -1155,15 +1155,6 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     this.pendingDeactivate = null;
   }
 
-  /** «Salva e chiudi» dal dialogo: salva l'ordine e prosegue l'uscita. */
-  protected confirmExitSaveOrder(): void {
-    this.submit(() => {
-      this.exitDialogOpen.set(false);
-      this.pendingDeactivate?.(true);
-      this.pendingDeactivate = null;
-    });
-  }
-
   protected isLineColumnVisible(columnId: string): boolean {
     // ⛔ **Una colonna è visibile solo se QUESTO documento la dichiara.**
     //
@@ -2501,11 +2492,18 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
    * Controllo cronologico (§4) davanti a ogni salvataggio: il pulsante, il
    * dialogo di uscita e la conclusione ordine passano tutti da `submit`.
    */
-  protected submit(onSaved?: () => void): void {
-    this.chronology.run(() => this.submitNow(onSaved));
+  /**
+   * ⛔ Qui c'era un parametro `onSaved`, e lo passava UN solo chiamante:
+   * «Salva e chiudi» del dialogo d'uscita. Tolto quel pulsante (decisione del
+   * proprietario, 24/08/2026), il parametro non aveva piu' chiamanti e il suo
+   * ramo dentro `subscribe` era codice morto che scavalcava la navigazione
+   * normale dopo il salvataggio.
+   */
+  protected submit(): void {
+    this.chronology.run(() => this.submitNow());
   }
 
-  private submitNow(onSaved?: () => void): void {
+  private submitNow(): void {
     if (this.saving()) {
       return;
     }
@@ -2608,12 +2606,6 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
         this.dirtySinceLastSave.set(false);
         this._submitState.set({ status: 'idle' });
         this.saveWarnings.set(avvisi);
-        if (onSaved) {
-          // «Salva e chiudi» dal dialogo di uscita: l'operatore sta uscendo di
-          // proposito, non lo si porta da un'altra parte.
-          onSaved();
-          return;
-        }
         if (editId) {
           // Salvato: il documento torna PROTETTO. Lo sblocco valeva per la
           // modifica appena conclusa, non per tutta la sessione — chi vuole

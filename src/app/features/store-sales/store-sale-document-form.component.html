@@ -518,13 +518,21 @@
 
     @if (exitDialogOpen()) {
       <!-- Modifiche non salvate: si chiede, invece di perdere il lavoro
-           (`11` A2). Vale anche passando fra le due creazioni. -->
+           (`11` A2). Vale anche passando fra le due creazioni.
+
+           ⛔ Qui il dialogo parlava una lingua sua — «Documento non concluso»,
+           «Esci senza concludere», «Resta qui» — perche' al banco l'azione si
+           chiama «Concludi vendita». Allineato al contratto comune il
+           25/08/2026: il pulsante di SALVATAGGIO puo' chiamare l'operazione
+           col suo nome, ma il dialogo d'uscita nomina il RISCHIO, e il rischio
+           e' identico su tredici maschere. -->
       <app-confirm-dialog
-        title="Documento non concluso"
-        message="Le righe inserite non sono state concluse. Uscendo si perdono."
-        confirmLabel="Esci senza concludere"
-        cancelLabel="Resta qui"
         [(open)]="exitDialogOpen"
+        title="Modifiche non salvate"
+        message="Le righe inserite non sono state concluse: uscendo si perdono."
+        cancelLabel="Annulla"
+        confirmLabel="Esci senza salvare"
+        emphasis="cancel"
         (confirmed)="confirmExitWithoutSaving()"
         (dismissed)="cancelExit()"
       />

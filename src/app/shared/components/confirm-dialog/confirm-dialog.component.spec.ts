@@ -25,13 +25,24 @@ beforeAll(() => {
 /**
  * ⭐ **La terza azione** — aggiunta il 24/08/2026.
  *
- * Il dialogo «modifiche non salvate» ha tre risposte vere: torno indietro,
- * esco perdendo, salvo ed esco. Con due sole azioni quattro maschere
- * dovevano tenersi un guscio scritto a mano — e con esso un modale che NON e'
- * un `<dialog>` nativo: niente trappola del fuoco, niente Esc, niente sfondo
- * inerte, contro una regola di progetto esplicita.
+ * ⛔ **Qui l'esempio era il dialogo «modifiche non salvate»**, e diceva che ha
+ * «tre risposte vere: torno indietro, esco perdendo, salvo ed esco». Il
+ * proprietario ha deciso il contrario il 24/08/2026: quel dialogo ne ha DUE —
+ * Annulla · Esci senza salvare — e il salvataggio resta il pulsante Salva.
  *
- * ⚠️ Una sola azione mancante teneva in piedi **undici copie**.
+ * ⚠️ Lasciarlo com'era non sarebbe stato un dettaglio: la spec di un componente
+ * condiviso e' dove si impara a usarlo, e questa insegnava a rimettere il
+ * pulsante che e' stato tolto da tredici maschere. `check-exit-dialog.mjs` lo
+ * fermerebbe, ma dopo — e con l'aria di un capriccio del controllo.
+ *
+ * ⭐ **L'esempio ora e' un caso a tre esiti VERI**: «Ordine non evaso del
+ * tutto» dell'Ordine cliente, dove i tre pulsanti chiamano tre gestori
+ * distinti — `dismissPartialOrdersDialog`, `declinePartialOrdersDialog`,
+ * `confirmPartialOrdersDialog`. Due salvano, uno no.
+ *
+ * ⛔ **Il criterio e' il GESTORE, non il numero di pulsanti.** Il difetto gia'
+ * misurato su «Dati incompleti» era due bottoni sullo STESSO gestore: non tre
+ * esiti, ma due esiti e un pulsante di troppo.
  */
 describe('ConfirmDialogComponent — la terza azione', () => {
   it('⛔ senza etichetta i pulsanti restano DUE', async () => {
@@ -46,11 +57,11 @@ describe('ConfirmDialogComponent — la terza azione', () => {
     await render(ConfirmDialogComponent, {
       inputs: {
         open: true,
-        title: 'Modifiche non salvate',
-        message: 'Uscendo andranno perse.',
+        title: 'Ordine non evaso del tutto',
+        message: 'Non sono stati evasi tutti i prodotti previsti. Forzare lo stato a Concluso?',
         cancelLabel: 'Annulla',
-        extraLabel: 'Esci senza salvare',
-        confirmLabel: 'Salva e chiudi',
+        extraLabel: 'Lascia parzialmente concluso',
+        confirmLabel: 'Forza a Concluso',
       },
     });
 
@@ -59,8 +70,8 @@ describe('ConfirmDialogComponent — la terza azione', () => {
     // pollice che cerca la conferma.
     expect(screen.queryAllByRole('button').map((b) => b.textContent?.trim())).toEqual([
       'Annulla',
-      'Esci senza salvare',
-      'Salva e chiudi',
+      'Lascia parzialmente concluso',
+      'Forza a Concluso',
     ]);
   });
 
@@ -69,16 +80,16 @@ describe('ConfirmDialogComponent — la terza azione', () => {
     const confirmed = vi.fn();
     const dismissed = vi.fn();
     const view = await render(ConfirmDialogComponent, {
-      inputs: { open: true, title: 'T', message: 'M', extraLabel: 'Esci senza salvare' },
+      inputs: { open: true, title: 'T', message: 'M', extraLabel: 'Lascia parzialmente concluso' },
       on: { extra, confirmed, dismissed },
     });
 
-    await userEvent.click(screen.getByRole('button', { name: 'Esci senza salvare' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Lascia parzialmente concluso' }));
     view.fixture.detectChanges();
 
     // ⛔ Le tre uscite restano distinte: chi ascolta `confirmed` non deve
-    //    ricevere anche la via di mezzo, o «Salva e chiudi» scatterebbe su
-    //    «Esci senza salvare» — cioe' salverebbe chi voleva buttare via.
+    //    ricevere anche la via di mezzo, o «Forza a Concluso» scatterebbe su
+    //    «Lascia parzialmente concluso» — cioe' concluderebbe chi non voleva.
     expect(extra).toHaveBeenCalledTimes(1);
     expect(confirmed).not.toHaveBeenCalled();
     expect(dismissed).not.toHaveBeenCalled();

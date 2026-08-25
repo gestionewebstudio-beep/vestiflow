@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { AuthService } from '@core/auth';
-import { render, screen } from '@testing-library/angular';
+import { render, screen, within } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 
 import type { UserEvent } from '@testing-library/user-event';
@@ -614,10 +614,21 @@ describe('SupplierOrderFormComponent', () => {
 
     await user.click(screen.getByRole('button', { name: 'Indietro' }));
 
-    expect(await screen.findByRole('dialog')).toBeVisible();
-    expect(screen.getByText('Modifiche non salvate')).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Chiudi senza salvare' })).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Salva e chiudi' })).toBeVisible();
+    const dialogo = await screen.findByRole('dialog');
+    expect(dialogo).toBeVisible();
+    expect(within(dialogo).getByText('Modifiche non salvate')).toBeVisible();
+
+    // ⭐ DUE azioni, e NESSUNA salva. Decisione del proprietario, 24/08/2026:
+    // «il procedimento deve essere uguale in tutti i documenti».
+    //
+    // ⛔ Qui si asserivano «Chiudi senza salvare» e «Salva e chiudi»: tre
+    // pulsanti, e un terzo percorso che salvava dal dialogo di uscita. Il
+    // salvataggio resta il pulsante Salva della barra.
+    expect(
+      within(dialogo)
+        .getAllByRole('button')
+        .map((b) => b.textContent?.trim()),
+    ).toEqual(['Annulla', 'Esci senza salvare']);
   });
 
   it('senza modifiche il ritorno alla lista non chiede conferma', async () => {

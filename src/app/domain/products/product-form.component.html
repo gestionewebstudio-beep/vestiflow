@@ -241,13 +241,20 @@
     </footer>
   }
 
+  <!-- ⛔ Qui `cancelLabel` diceva «Resta nella pagina», e mancava
+       `emphasis`. Allineato al contratto comune il 25/08/2026: tredici
+       maschere, un dialogo solo, le stesse due parole.
+
+       ⚠️ `[danger]` e' stato tolto in favore di `emphasis="cancel"`, che fa
+       la cosa GIUSTA: `danger` tingeva di rosso la conferma, cioe' rendeva
+       vistosa proprio la scelta che perde lavoro. L'enfasi va sull'annulla. -->
   <app-confirm-dialog
     [(open)]="leaveDialogOpen"
     title="Modifiche non salvate"
     message="Hai modifiche non salvate. Se esci ora andranno perse."
+    cancelLabel="Annulla"
     confirmLabel="Esci senza salvare"
-    cancelLabel="Resta nella pagina"
-    [danger]="true"
+    emphasis="cancel"
     (confirmed)="confirmLeave()"
     (dismissed)="cancelLeave()"
   />
