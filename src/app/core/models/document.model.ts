@@ -214,6 +214,15 @@ export interface DocumentLine {
   /** IVA totale della riga (righe Registrazione fattura). */
   readonly lineVatTotal?: Money;
   /** Origine riga Registrazione fattura: riepilogo per aliquota o voce manuale. */
+  /**
+   * Provenienza STORICA della riga di Registrazione fattura, scritta dal server:
+   * `vat_summary` se è nata includendo un arrivo, `manual` se è una voce libera.
+   *
+   * ⛔ **Non decide più niente nel frontend, e non deve tornare a farlo.** Fino
+   * al 25/08/2026 il caricamento scartava le righe non `manual`, perché quelle
+   * da arrivo se le ri-derivava. Ora tutte le righe sono righe del documento: a
+   * dire da dove vengono è `linkedGoodsReceiptId`, che è anche il legame vero.
+   */
   readonly lineSource?: 'vat_summary' | 'manual';
 }
 

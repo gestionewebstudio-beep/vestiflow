@@ -207,132 +207,47 @@
         }
       </div>
 
-      <!-- ── Arrivi merce inclusi ─────────────────────────────────────────── -->
-      <section class="doc-form__lines" aria-labelledby="pi-receipts-title">
-        <div class="doc-form__lines-head">
-          <div class="doc-form__lines-heading">
-            <h2 id="pi-receipts-title" class="doc-form__subtitle">Arrivi merce inclusi</h2>
-          </div>
-          <div class="doc-form__lines-tools">
-            <app-button type="button" variant="secondary" (click)="openIncludePanel()">
-              <i class="pi pi-link" aria-hidden="true"></i>
-              Includi arrivo merce
-            </app-button>
-          </div>
-        </div>
-
-        @if (includedReceipts().length === 0) {
-          <app-empty-state
-            icon="pi-inbox"
-            title="Nessun arrivo merce incluso"
-            description="Usa “Includi arrivo merce” per collegare gli arrivi di questo fornitore non ancora agganciati a una fattura. Il collegamento è solo documentale: le giacenze non vengono toccate."
-          />
-        } @else {
-          <div class="pi-form__table-wrap">
-            <table class="pi-form__table">
-              <thead>
-                <tr>
-                  <th scope="col">Documento incluso</th>
-                  <th scope="col" class="doc-form__num">Imponibile</th>
-                  <th scope="col" class="doc-form__num">IVA</th>
-                  <th scope="col" class="doc-form__num">Totale</th>
-                  <th scope="col">
-                    <span class="sr-only">Azioni</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (row of includedReceipts(); track row.id) {
-                  <tr>
-                    <td [attr.data-label]="'Documento'">{{ receiptSummaryLabel(row) }}</td>
-                    <td class="doc-form__num tabular-nums" [attr.data-label]="'Imponibile'">
-                      {{ formatMoney(row.subtotal) }}
-                    </td>
-                    <td class="doc-form__num tabular-nums" [attr.data-label]="'IVA'">
-                      {{ formatMoney(row.tax) }}
-                    </td>
-                    <td class="doc-form__num tabular-nums" [attr.data-label]="'Totale'">
-                      {{ formatMoney(row.total) }}
-                    </td>
-                    <td class="doc-form__cell--actions">
-                      <button
-                        type="button"
-                        class="doc-form__line-remove"
-                        [attr.aria-label]="'Rimuovi ' + receiptSummaryLabel(row)"
-                        (click)="removeReceipt(row.id)"
-                      >
-                        <i class="pi pi-times" aria-hidden="true"></i>
-                      </button>
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-        }
-      </section>
-
-      <!-- ── Righe registrazione (auto per aliquota + manuali) ───────────── -->
+      <!-- ── Righe economiche: UNA lista, tutte modificabili ──────────────── -->
       <section class="doc-form__lines" aria-labelledby="pi-lines-title">
         <div class="doc-form__lines-head">
           <div class="doc-form__lines-heading">
             <h2 id="pi-lines-title" class="doc-form__subtitle">Righe registrazione</h2>
           </div>
           <div class="doc-form__lines-tools">
-            <app-button type="button" variant="secondary" (click)="addManualLine()">
+            <app-button type="button" variant="secondary" (click)="openIncludePanel()">
+              <i class="pi pi-link" aria-hidden="true"></i>
+              Includi arrivo merce
+            </app-button>
+            <app-button type="button" variant="secondary" (click)="addLine()">
               <i class="pi pi-plus" aria-hidden="true"></i>
-              Aggiungi riga manuale
+              Aggiungi riga
             </app-button>
           </div>
         </div>
 
-        @if (autoRows().length === 0 && manualLines.length === 0) {
+        @if (lines.length === 0) {
           <app-empty-state
             icon="pi-list"
             title="Nessuna riga"
-            description="Le righe si generano automaticamente dagli arrivi merce inclusi, raggruppate per aliquota IVA. Puoi aggiungere righe manuali per voci non legate ad arrivi."
+            description="Usa “Aggiungi riga” per una voce libera, oppure “Includi arrivo merce” per portare qui gli importi di un arrivo di questo fornitore. Il collegamento è solo documentale: le giacenze non vengono toccate."
           />
         } @else {
           <div class="pi-form__table-wrap">
-            <table class="pi-form__table" formArrayName="manualLines">
+            <table class="pi-form__table" formArrayName="lines">
               <thead>
                 <tr>
-                  <th scope="col">Descrizione</th>
                   <th scope="col" class="doc-form__num">Importo netto</th>
                   <th scope="col" class="doc-form__num">IVA %</th>
                   <th scope="col" class="doc-form__num">Importo IVA</th>
+                  <th scope="col">Descrizione</th>
                   <th scope="col">
                     <span class="sr-only">Azioni</span>
                   </th>
                 </tr>
               </thead>
               <tbody>
-                @for (row of autoRows(); track row.ratePercent) {
-                  <tr>
-                    <td [attr.data-label]="'Descrizione'">{{ row.description }}</td>
-                    <td class="doc-form__num tabular-nums" [attr.data-label]="'Importo netto'">
-                      {{ formatMoney(row.net) }}
-                    </td>
-                    <td class="doc-form__num tabular-nums" [attr.data-label]="'IVA %'">
-                      {{ row.ratePercent }}%
-                    </td>
-                    <td class="doc-form__num tabular-nums" [attr.data-label]="'Importo IVA'">
-                      {{ formatMoney(row.vat) }}
-                    </td>
-                    <td class="doc-form__cell--actions"></td>
-                  </tr>
-                }
-                @for (group of manualLines.controls; track group; let i = $index) {
+                @for (group of lines.controls; track group; let i = $index) {
                   <tr [formGroupName]="i">
-                    <td [attr.data-label]="'Descrizione'">
-                      <input
-                        class="doc-form__input pi-form__table-input"
-                        type="text"
-                        formControlName="description"
-                        placeholder="Es. spese di trasporto"
-                        [attr.aria-label]="'Descrizione riga manuale ' + (i + 1)"
-                      />
-                    </td>
                     <td class="doc-form__num" [attr.data-label]="'Importo netto'">
                       <input
                         class="doc-form__input doc-form__input--num pi-form__table-input"
@@ -340,8 +255,8 @@
                         inputmode="decimal"
                         formControlName="netText"
                         placeholder="0,00"
-                        [attr.aria-label]="'Importo netto riga manuale ' + (i + 1)"
-                        (input)="recalcManualLineVat(i)"
+                        [attr.aria-label]="'Importo netto riga ' + (i + 1)"
+                        (input)="recalcLineVat(i)"
                       />
                     </td>
                     <td class="doc-form__num" [attr.data-label]="'IVA %'">
@@ -351,8 +266,8 @@
                         inputmode="decimal"
                         formControlName="rateText"
                         placeholder="22"
-                        [attr.aria-label]="'Aliquota IVA riga manuale ' + (i + 1)"
-                        (input)="recalcManualLineVat(i)"
+                        [attr.aria-label]="'Aliquota IVA riga ' + (i + 1)"
+                        (input)="recalcLineVat(i)"
                       />
                     </td>
                     <td class="doc-form__num" [attr.data-label]="'Importo IVA'">
@@ -362,15 +277,24 @@
                         inputmode="decimal"
                         formControlName="vatText"
                         placeholder="0,00"
-                        [attr.aria-label]="'Importo IVA riga manuale ' + (i + 1)"
+                        [attr.aria-label]="'Importo IVA riga ' + (i + 1)"
+                      />
+                    </td>
+                    <td [attr.data-label]="'Descrizione'">
+                      <input
+                        class="doc-form__input pi-form__table-input"
+                        type="text"
+                        formControlName="description"
+                        placeholder="Es. spese di trasporto"
+                        [attr.aria-label]="'Descrizione riga ' + (i + 1)"
                       />
                     </td>
                     <td class="doc-form__cell--actions">
                       <button
                         type="button"
                         class="doc-form__line-remove"
-                        [attr.aria-label]="'Rimuovi riga manuale ' + (i + 1)"
-                        (click)="removeManualLine(i)"
+                        [attr.aria-label]="'Rimuovi riga ' + (i + 1)"
+                        (click)="removeLine(i)"
                       >
                         <i class="pi pi-times" aria-hidden="true"></i>
                       </button>

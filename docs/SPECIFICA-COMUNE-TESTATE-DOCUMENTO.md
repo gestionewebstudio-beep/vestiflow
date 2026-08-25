@@ -1958,3 +1958,92 @@ il blocco servisse un terzo ingresso che sa del documento, il contratto è sbagl
 ferma.
 
 ⛔ La Registrazione fattura resta fuori da questo pezzo: non usa la griglia articoli.
+
+---
+
+# §41 — Registrazione fattura: le righe economiche sono UNA lista _(25/08/2026)_
+
+Deciso dal proprietario: _«sistema tutto. è errato avere due liste e anche in sola lettura.
+anche per le righe manuali abbiamo un sistema errato»_.
+
+## 41.1 Che cos'era, e perché non era un difetto estetico
+
+La maschera mostrava **due tabelle**:
+
+| Tabella                | Origine                                                  | Modificabile |
+| ---------------------- | -------------------------------------------------------- | ------------ |
+| «Arrivi merce inclusi» | un elenco di arrivi tenuto a parte (`goodsReceiptIds`)   | no           |
+| righe generate         | ricalcolate dal server ad ogni salvataggio, per aliquota | **no**       |
+| «righe manuali»        | le uniche che l'operatore poteva scrivere                | sì           |
+
+⛔ **Il difetto vero**: una fattura fornitore quasi mai coincide al centesimo con la somma
+degli arrivi — arrotondamenti, spese di trasporto, un abbuono. **La parte non correggibile era
+proprio quella.** Chi doveva registrare l'importo che il fornitore ha davvero fatturato non
+aveva dove scriverlo.
+
+⚠️ E il raggruppamento per aliquota **sommava arrivi diversi nella stessa riga**: due arrivi al
+22% diventavano una riga sola.
+
+## 41.2 Che cos'è adesso
+
+> **Una lista sola, tutte le righe modificabili.** Includere un arrivo **materializza** le sue
+> righe una volta: da lì sono righe del documento come tutte le altre.
+
+- **Una riga per aliquota, per arrivo** — mai sommate fra arrivi: la riga porta il legame con
+  UN arrivo, e sommarne due perderebbe il legame di uno dei due.
+- **Ordine colonne**: `Importo netto · IVA % · Importo IVA · Descrizione`, come Danea.
+  ⏸ Il **Conto acquisto** è rinviato per scelta del proprietario: _«non lo prevederemo ora»_.
+- **Una riga pronta all'apertura**, come su ogni altra maschera documentale.
+
+## 41.3 ⭐ Il legame all'arrivo è una CONSEGUENZA delle righe
+
+Deciso sul comportamento di Danea, parole del proprietario: _«in danea non si toglie l'incluso,
+si eliminano le righe ed, in automatico, non risulterà più l'arrivo merci agganciato a quella
+fattura che stavamo registrando»_.
+
+> **Un arrivo è agganciato finché almeno una riga dice di venire da lui**
+> (`DocumentLine.linkedGoodsReceiptId`). Cancellate quelle righe, il legame cade da sé.
+
+Ne discende che:
+
+- **`goodsReceiptIds` non esiste più** — né nel DTO dell'API, né nel corpo lato client. Due
+  campi che dicono la stessa cosa sono due campi che prima o poi dicono il contrario, e qui il
+  contrario era già possibile: si potevano cancellare tutte le righe di un arrivo lasciandolo
+  agganciato.
+- **Non serve un comando «rimuovi arrivo»**, e con lui sparisce la domanda a cui nessuno aveva
+  una buona risposta: _che fine fanno le sue righe?_
+- ⭐ **La colonna `linked_goods_receipt_id` esisteva da luglio**, con chiave esterna e indice, e
+  **nessun percorso dell'API la scriveva**: era sempre `null`. Non è servita una migration.
+
+## 41.4 ⛔ I tre difetti che questa unificazione ha dovuto disinnescare
+
+| Dove                                 | Che cosa                                                                                                                                         |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **caricamento in modifica** (client) | `if (line.lineSource !== 'manual') continue;` — scartava le righe da arrivo                                                                      |
+| **controllo permessi** (server)      | `assertLinkedReceiptsManageable(dto.goodsReceiptIds, …)` — col legame passato alle righe avrebbe controllato una lista vuota, **restando verde** |
+| **duplica documento** (client)       | i legami venivano ricopiati su arrivi **già fatturati** dall'originale                                                                           |
+
+⚠️ **Il primo era distruttivo in tre tempi**: la riga da arrivo non entrava nel form, quindi non
+entrava nel payload, quindi il `deleteMany` del server la cancellava per sempre. **Il documento
+si sarebbe svuotato in silenzio** — e nessun test lo vedeva, perché nessun test riapriva una
+registrazione con righe da arrivo. Ora ce ne sono due, entrambe falsificate rimettendo il filtro.
+
+⚠️ **Il secondo è il più insidioso della serie**: un controllo di sicurezza che smette di
+controllare non fallisce — passa. Ora legge la **stessa fonte** che poi collega davvero.
+
+## 41.5 Cambio fornitore: le righe restano, il legame cade
+
+Deciso dal proprietario: _«in danea, le righe, non vengono toccate, cambia solo il fornitore»_.
+
+- **Le righe restano**: gli importi che l'operatore ha davanti sono quelli della fattura che sta
+  registrando, e non c'entrano col fornitore.
+- ⚠️ **Il legame no**: un arrivo del fornitore precedente non può stare agganciato alla fattura
+  di un altro — il server lo rifiuterebbe, e avrebbe ragione. Cade quello, e le righe diventano
+  voci libere.
+
+## 41.6 Che cosa NON è stato toccato
+
+- **Conto acquisto** (la colonna Danea): rinviato per scelta esplicita.
+- **`lineSource`**: la colonna resta, ma ha cambiato mestiere — da «origine ricalcolabile» a
+  **provenienza storica**. Non decide più niente nel frontend, e i commenti di schema e modello
+  lo dicono.

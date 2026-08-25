@@ -2328,10 +2328,23 @@ model DocumentLine {
   lotExpiryDate            DateTime?              @map("lot_expiry_date") @db.Date
   /// Numeri seriali (tracciamento serial, opzionale).
   serialNumbers            Json                   @default("[]") @map("serial_numbers")
-  /// Riga riepilogativa di registrazione fattura: arrivo merce riepilogato.
+  /// L'arrivo merce da cui questa riga di Registrazione fattura e' nata.
+  ///
+  /// ⭐ E' L'UNICA FONTE del collegamento fattura↔arrivo: un arrivo e'
+  /// agganciato finche' almeno una riga dice di venire da lui, e cancellare
+  /// quelle righe lo scollega da se'. Deciso il 25/08/2026 sul modello Danea.
+  ///
+  /// ⚠️ La colonna esiste da luglio con chiave esterna e indice, e fino ad
+  /// allora NESSUN percorso dell'API la scriveva: era sempre null.
   linkedGoodsReceiptId     String?                @map("linked_goods_receipt_id") @db.Uuid
-  /// Origine riga di registrazione fattura: 'vat_summary' (riepilogo automatico
-  /// per aliquota dagli arrivi inclusi) o 'manual' (voce libera). Null altrove.
+  /// Provenienza STORICA della riga di Registrazione fattura: 'vat_summary' se
+  /// e' nata includendo un arrivo, 'manual' se e' una voce libera. Null altrove.
+  ///
+  /// ⛔ **Non e' piu' un'origine ricalcolabile.** Diceva «riepilogo automatico
+  /// per aliquota dagli arrivi inclusi», e descriveva un dato che il server
+  /// rigenerava a ogni salvataggio — in sola lettura per l'operatore. Dal
+  /// 25/08/2026 le righe sono UNA lista e tutte modificabili: questo campo
+  /// racconta da dove viene la riga, non chi la comanda.
   lineSource               String?                @map("line_source")
   createdAt                DateTime               @default(now()) @map("created_at")
   updatedAt                DateTime               @updatedAt @map("updated_at")

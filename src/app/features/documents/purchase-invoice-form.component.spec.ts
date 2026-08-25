@@ -70,6 +70,39 @@ const RECEIPT_1: LinkableGoodsReceipt = {
   ],
 };
 
+/**
+ * Registrazione già salvata: **una riga nata da un arrivo** — con l'importo già
+ * corretto a 100,50, che è il caso reale per cui questa unificazione esiste — e
+ * **una voce libera**. Serve a provare la RIAPERTURA in modifica.
+ */
+const REGISTRAZIONE_SALVATA = {
+  id: 'pi-1',
+  type: DocumentType.SupplierInvoice,
+  number: 7,
+  documentDate: '2026-01-15',
+  supplierId: 'sup-1',
+  currency: 'EUR',
+  lines: [
+    {
+      id: 'l-1',
+      description: 'Rif. Arrivo merce 1 del 10/01/2026',
+      lineTotal: { amountMinor: 10050, currencyCode: 'EUR' },
+      lineVatTotal: { amountMinor: 2211, currencyCode: 'EUR' },
+      vatSnapshot: { ratePercent: 22 },
+      lineSource: 'vat_summary',
+      linkedGoodsReceiptId: 'gr-1',
+    },
+    {
+      id: 'l-2',
+      description: 'Spese di trasporto',
+      lineTotal: { amountMinor: 1500, currencyCode: 'EUR' },
+      lineVatTotal: { amountMinor: 330, currencyCode: 'EUR' },
+      vatSnapshot: { ratePercent: 22 },
+      lineSource: 'manual',
+    },
+  ],
+} as unknown as DocumentRecord;
+
 const RECEIPT_2: LinkableGoodsReceipt = {
   id: 'gr-2',
   number: 2,
@@ -111,6 +144,11 @@ describe('PurchaseInvoiceFormComponent', () => {
      * resta sulla vista estesa: la vista compatta si chiede.
      */
     readonly compatta?: boolean;
+    /**
+     * Registrazione già salvata da riaprire in modifica. Senza, la maschera è
+     * un documento nuovo — ed è lo scenario di quasi tutte le prove qui.
+     */
+    readonly documentoDaRiaprire?: DocumentRecord;
   }
 
   async function setup(options: SetupOptions = {}) {
@@ -120,7 +158,9 @@ describe('PurchaseInvoiceFormComponent', () => {
       // Controllo cronologico (§4): serie in ordine, nessun avviso.
       checkChronology: () => of({ conflicts: [], dismissed: false }),
       dismissChronologyWarning: () => of(void 0),
-      getDocumentById: vi.fn(),
+      getDocumentById: vi.fn(() =>
+        options.documentoDaRiaprire ? of(options.documentoDaRiaprire) : of(undefined),
+      ),
       listLinkableGoodsReceipts: vi.fn(() => of([RECEIPT_1, RECEIPT_2])),
       // Della registrazione salvata la maschera legge solo il numero assegnato:
       // è il confronto con quello mostrato che decide se avvisare l'operatore.
@@ -164,7 +204,11 @@ describe('PurchaseInvoiceFormComponent', () => {
             // senza, l'eccezione interrompe il blocco — portandosi via anche i
             // passi successivi, fra cui la proposta del tipo controparte.
             snapshot: { data: {}, queryParamMap: convertToParamMap({}) },
-            paramMap: of(convertToParamMap({})),
+            paramMap: of(
+              convertToParamMap(
+                options.documentoDaRiaprire ? { id: options.documentoDaRiaprire.id } : {},
+              ),
+            ),
             queryParamMap: of(convertToParamMap({})),
           },
         },
@@ -228,35 +272,108 @@ describe('PurchaseInvoiceFormComponent', () => {
     await user.click(screen.getByRole('button', { name: 'Includi selezionati' }));
   }
 
-  // Le righe registrazione si generano automaticamente raggruppando gli
-  // imponibili degli arrivi inclusi per aliquota IVA, con il riferimento
-  // automatico agli arrivi (spec RIGHE REGISTRAZIONE).
-  it('raggruppa gli arrivi inclusi in righe per aliquota con riferimento automatico', async () => {
+  /**
+   * ⭐ **Includere un arrivo MATERIALIZZA le sue righe: da lì sono modificabili.**
+   *
+   * ⛔ Qui si provava l'opposto — «raggruppa gli arrivi inclusi in righe per
+   * aliquota»: le righe da arrivo erano generate, in sola lettura, e due arrivi
+   * con la stessa aliquota finivano SOMMATI in una riga sola.
+   *
+   * ⚠️ Quel raggruppamento era il difetto, non una comodità: una fattura
+   * fornitore quasi mai coincide al centesimo con la somma degli arrivi, e la
+   * parte non correggibile era proprio quella. Ora ogni arrivo porta le sue
+   * righe, e la riga si corregge come tutte le altre.
+   */
+  it('⭐ includere un arrivo porta le sue righe, e restano MODIFICABILI', async () => {
     const user = userEvent.setup();
     await setup();
 
     await selectSupplier(user);
     await includeReceipt(user, 0);
-    expect(screen.getByText('Rif. Arrivo merce 1 del 10/01/2026')).toBeTruthy();
 
-    // Il secondo arrivo ha la stessa aliquota: la riga resta una, sommata.
-    await includeReceipt(user, 0);
-    expect(screen.getByText('Rif. Arrivo merce 1 del 10/01/2026, 2 del 12/01/2026')).toBeTruthy();
+    const descrizione = screen.getByLabelText<HTMLInputElement>('Descrizione riga 2');
+    expect(descrizione.value).toBe('Rif. Arrivo merce 1 del 10/01/2026');
+
+    // ⭐ E si corregge: era un `<td>` di testo, ora è un campo.
+    const netto = screen.getByLabelText<HTMLInputElement>('Importo netto riga 2');
+    expect(netto.value).toBe('100,00');
+    await user.clear(netto);
+    await user.type(netto, '100,50');
+    expect(screen.getByLabelText<HTMLInputElement>('Importo netto riga 2').value).toBe('100,50');
   });
 
-  // Una riga manuale calcola l'importo IVA da netto × aliquota; il valore
-  // resta comunque modificabile dall'operatore.
-  it('calcola l’IVA della riga manuale da importo netto e aliquota', async () => {
+  it('⛔ due arrivi danno DUE righe, non una riga sommata', async () => {
+    // ⚠️ La riga porta il legame con UN arrivo. Sommarne due nella stessa riga
+    // perderebbe il legame di uno dei due — e cancellare quella riga
+    // scollegherebbe entrambi.
     const user = userEvent.setup();
     await setup();
 
-    await user.click(screen.getByRole('button', { name: /Aggiungi riga manuale/i }));
+    await selectSupplier(user);
+    await includeReceipt(user, 0);
+    await includeReceipt(user, 0);
 
-    await user.type(screen.getByLabelText('Importo netto riga manuale 1'), '100');
-    await user.type(screen.getByLabelText('Aliquota IVA riga manuale 1'), '22');
+    expect(screen.getByLabelText<HTMLInputElement>('Descrizione riga 2').value).toBe(
+      'Rif. Arrivo merce 1 del 10/01/2026',
+    );
+    expect(screen.getByLabelText<HTMLInputElement>('Descrizione riga 3').value).toBe(
+      'Rif. Arrivo merce 2 del 12/01/2026',
+    );
+  });
 
-    const vatInput = screen.getByLabelText<HTMLInputElement>('Importo IVA riga manuale 1');
+  // Una riga calcola l'importo IVA da netto × aliquota; il valore resta
+  // comunque modificabile dall'operatore.
+  it('calcola l’IVA della riga da importo netto e aliquota', async () => {
+    const user = userEvent.setup();
+    await setup();
+
+    // ⭐ Nessun «Aggiungi riga»: la riga 1 c'è già all'apertura, come su ogni
+    // altra maschera documentale.
+    await user.type(screen.getByLabelText('Importo netto riga 1'), '100');
+    await user.type(screen.getByLabelText('Aliquota IVA riga 1'), '22');
+
+    const vatInput = screen.getByLabelText<HTMLInputElement>('Importo IVA riga 1');
     expect(vatInput.value).toBe('22,00');
+  });
+
+  /**
+   * ⭐ **Riaprire una registrazione riporta TUTTE le sue righe.**
+   *
+   * ⛔ **La prova che mancava, ed era la più pericolosa.** Il caricamento aveva
+   * `if (line.lineSource !== 'manual') continue;`: scartava ogni riga che non
+   * fosse una voce libera, perché quelle da arrivo il client se le ri-derivava.
+   *
+   * ⚠️ Con le righe materializzate quel filtro sarebbe stato **distruttivo, in
+   * tre tempi**: la riga da arrivo non entrava nel form, quindi non entrava nel
+   * payload, quindi il `deleteMany` del server la cancellava per sempre. Il
+   * documento si sarebbe svuotato in silenzio, e nessun test lo vedeva —
+   * perché nessun test riapriva una registrazione con righe da arrivo.
+   */
+  it('⭐ riaprendo una registrazione tornano ANCHE le righe nate da un arrivo', async () => {
+    await setup({ documentoDaRiaprire: REGISTRAZIONE_SALVATA });
+
+    const daArrivo = await screen.findByLabelText<HTMLInputElement>('Descrizione riga 1');
+    expect(daArrivo.value).toBe('Rif. Arrivo merce 1 del 10/01/2026');
+    expect(screen.getByLabelText<HTMLInputElement>('Importo netto riga 1').value).toBe('100,50');
+
+    const libera = screen.getByLabelText<HTMLInputElement>('Descrizione riga 2');
+    expect(libera.value).toBe('Spese di trasporto');
+  });
+
+  it('⭐ e il legame all’arrivo torna con la riga, non da un elenco a parte', async () => {
+    // ⚠️ Se il legame non tornasse, il salvataggio successivo scollegherebbe
+    // l'arrivo senza che nessuno l'abbia chiesto — e l'arrivo tornerebbe
+    // «Sospeso», cioè di nuovo da fatturare.
+    const user = userEvent.setup();
+    const { documentService } = await setup({ documentoDaRiaprire: REGISTRAZIONE_SALVATA });
+    await screen.findByLabelText('Descrizione riga 1');
+
+    await saveInvoice(user);
+
+    await waitFor(() => expect(documentService.savePurchaseInvoice).toHaveBeenCalled());
+    const body = documentService.savePurchaseInvoice.mock.calls[0]![0];
+    expect(body.lines?.[0]?.linkedGoodsReceiptId).toBe('gr-1');
+    expect(body.lines?.[1]?.linkedGoodsReceiptId).toBeUndefined();
   });
 
   // Le scadenze si precompilano con il residuo non coperto; la spunta

@@ -1068,7 +1068,7 @@ describe('GoodsReceiptWorkflowService.saveGoodsReceipt', () => {
 
 /**
  * La rotta della registrazione fattura chiede «gestisci registrazione fattura»,
- * ma il corpo può portare `goodsReceiptIds`: collegarli agisce su documenti
+ * ma le righe possono collegare arrivi: farlo agisce su documenti
  * della famiglia arrivo merce — li marca fatturati, azzera il flag «Totali da
  * verificare» e toglierli dall'elenco li riporta Sospesi. Il permesso segue
  * l'oggetto toccato, non la rotta.
@@ -1136,7 +1136,17 @@ describe('GoodsReceiptWorkflowService.savePurchaseInvoice', () => {
     await expect(
       service.savePurchaseInvoice(
         tenantId,
-        invoiceDto({ goodsReceiptIds: [linkableReceipt().id] }),
+        invoiceDto({
+          lines: [
+            {
+              description: 'Rif. Arrivo merce 3',
+              netMinor: 10_000,
+              vatRatePercent: 22,
+              vatMinor: 2_200,
+              linkedGoodsReceiptId: linkableReceipt().id,
+            },
+          ],
+        }),
         soloFatture(),
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
@@ -1156,7 +1166,17 @@ describe('GoodsReceiptWorkflowService.savePurchaseInvoice', () => {
     await expect(
       service.savePurchaseInvoice(
         tenantId,
-        invoiceDto({ goodsReceiptIds: [linkableReceipt().id] }),
+        invoiceDto({
+          lines: [
+            {
+              description: 'Rif. Arrivo merce 3',
+              netMinor: 10_000,
+              vatRatePercent: 22,
+              vatMinor: 2_200,
+              linkedGoodsReceiptId: linkableReceipt().id,
+            },
+          ],
+        }),
         fattureEArrivi(),
       ),
     ).resolves.toMatchObject({ document: { id: 'inv-1' } });
@@ -1171,7 +1191,17 @@ describe('GoodsReceiptWorkflowService.savePurchaseInvoice', () => {
     await expect(
       service.savePurchaseInvoice(
         tenantId,
-        invoiceDto({ goodsReceiptIds: [linkableReceipt().id] }),
+        invoiceDto({
+          lines: [
+            {
+              description: 'Rif. Arrivo merce 3',
+              netMinor: 10_000,
+              vatRatePercent: 22,
+              vatMinor: 2_200,
+              linkedGoodsReceiptId: linkableReceipt().id,
+            },
+          ],
+        }),
         testOwnerUser({ permissions: [] }),
       ),
     ).resolves.toMatchObject({ document: { id: 'inv-1' } });
@@ -1184,9 +1214,123 @@ describe('GoodsReceiptWorkflowService.savePurchaseInvoice', () => {
     await expect(
       service.savePurchaseInvoice(
         tenantId,
-        invoiceDto({ manualLines: [], totalMinor: 12200 }),
+        invoiceDto({ lines: [], totalMinor: 12200 }),
         soloFatture(),
       ),
     ).resolves.toMatchObject({ document: { id: 'inv-1' } });
+  });
+
+  /**
+   * ⭐ **Le righe economiche sono UNA lista, e il server le scrive come arrivano.**
+   *
+   * ⛔ **Fino al 25/08/2026 erano due, e una delle due il server se la
+   * inventava.** Il riepilogo IVA degli arrivi collegati veniva RICALCOLATO a
+   * ogni salvataggio da `buildPurchaseInvoiceVatSummary`, e le sole righe che
+   * l'operatore poteva scrivere erano quelle «manuali», in una seconda tabella.
+   *
+   * ⚠️ **Il difetto non era estetico.** Una fattura fornitore quasi mai coincide
+   * al centesimo con la somma degli arrivi — arrotondamenti, spese, un abbuono —
+   * e la parte ricalcolata era proprio quella che non si poteva correggere.
+   * Chi doveva registrare l'importo vero non aveva dove scriverlo.
+   */
+  it('⭐ scrive le righe economiche COME ARRIVANO, senza ricalcolarle dagli arrivi', async () => {
+    const { service } = createService(prisma);
+    mockSavedInvoice();
+
+    // L'arrivo vale 100,00 + 22,00. La fattura del fornitore dice 100,50 + 22,11.
+    // È il caso reale: vince quello che c'è scritto sulla fattura.
+    await service.savePurchaseInvoice(
+      tenantId,
+      invoiceDto({
+        lines: [
+          {
+            description: 'Rif. Arrivo merce 12',
+            netMinor: 10_050,
+            vatRatePercent: 22,
+            vatMinor: 2_211,
+          },
+        ],
+        totalMinor: 12_261,
+      }),
+      soloFatture(),
+    );
+
+    const righe = prisma.documentLine.createMany.mock.calls[0]?.[0]?.data as
+      | Array<Record<string, unknown>>
+      | undefined;
+    expect(righe).toHaveLength(1);
+    expect(righe?.[0]).toMatchObject({
+      description: 'Rif. Arrivo merce 12',
+      lineTotalMinor: 10_050,
+      lineVatTotalMinor: 2_211,
+      lineGrossTotalMinor: 12_261,
+    });
+  });
+
+  /**
+   * ⭐ **Il collegamento all'arrivo è una CONSEGUENZA delle righe.**
+   *
+   * Deciso dal proprietario il 25/08/2026, sul comportamento di Danea: «in danea
+   * non si toglie l'incluso, si eliminano le righe ed, in automatico, non
+   * risulterà più l'arrivo merci agganciato a quella fattura».
+   *
+   * ⚠️ Quindi `goodsReceiptIds` **non esiste più**: il server ricava gli arrivi
+   * da `linkedGoodsReceiptId` delle righe. Togliere le righe di un arrivo lo
+   * scollega, senza un secondo comando che dica la stessa cosa.
+   */
+  it('⭐ ricava gli arrivi collegati DALLE RIGHE, non da un elenco a parte', async () => {
+    const { service } = createService(prisma);
+    mockSavedInvoice();
+    const arrivo = linkableReceipt();
+    prisma.document.findMany.mockResolvedValue([arrivo]);
+
+    await service.savePurchaseInvoice(
+      tenantId,
+      invoiceDto({
+        lines: [
+          {
+            description: 'Rif. Arrivo merce 12',
+            netMinor: 10_000,
+            vatRatePercent: 22,
+            vatMinor: 2_200,
+            linkedGoodsReceiptId: arrivo.id,
+          },
+        ],
+        totalMinor: 12_200,
+      }),
+      fattureEArrivi(),
+    );
+
+    // L'arrivo che il server è andato a validare è quello scritto sulla riga.
+    expect(prisma.document.findMany.mock.calls[0]?.[0]?.where?.id).toEqual({ in: [arrivo.id] });
+
+    // E la riga porta con sé il legame, che prima nessun percorso scriveva.
+    const righe = prisma.documentLine.createMany.mock.calls[0]?.[0]?.data as
+      | Array<Record<string, unknown>>
+      | undefined;
+    expect(righe?.[0]).toMatchObject({
+      lineSource: 'vat_summary',
+      linkedGoodsReceiptId: arrivo.id,
+    });
+  });
+
+  it('⛔ una riga senza arrivo resta «manual», e non collega niente', async () => {
+    const { service } = createService(prisma);
+    mockSavedInvoice();
+
+    await service.savePurchaseInvoice(
+      tenantId,
+      invoiceDto({
+        lines: [{ description: 'Trasporto', netMinor: 1_500, vatRatePercent: 22, vatMinor: 330 }],
+        totalMinor: 1_830,
+      }),
+      soloFatture(),
+    );
+
+    const righe = prisma.documentLine.createMany.mock.calls[0]?.[0]?.data as
+      | Array<Record<string, unknown>>
+      | undefined;
+    expect(righe?.[0]).toMatchObject({ lineSource: 'manual', linkedGoodsReceiptId: null });
+    expect(prisma.purchaseInvoiceGoodsReceiptLink.upsert).not.toHaveBeenCalled();
   });
 });

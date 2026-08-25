@@ -133,6 +133,25 @@ const INVALID_LINE_MESSAGE = (lineNumber: number): string =>
  * fattura (prompt §5-7). Il salvataggio dell'arrivo esegue in un'unica
  * transazione: testata, righe, totali, movimenti per riga e giacenze.
  */
+/**
+ * ⭐ **Gli arrivi collegati a una registrazione fattura si leggono DALLE RIGHE.**
+ *
+ * Deciso dal proprietario il 25/08/2026, sul comportamento di Danea: «non si
+ * toglie l'incluso, si eliminano le righe ed, in automatico, non risulterà più
+ * l'arrivo merci agganciato a quella fattura».
+ *
+ * ⛔ Prima il corpo portava un `goodsReceiptIds` tenuto a parte dalle righe.
+ * Due campi che dicono la stessa cosa sono due campi che prima o poi dicono il
+ * contrario — e qui il contrario era gia' possibile: si potevano cancellare
+ * tutte le righe di un arrivo lasciandolo agganciato.
+ */
+function receiptIdsFromLines(dto: SavePurchaseInvoiceDto): string[] {
+  const collegati = (dto.lines ?? [])
+    .map((line) => line.linkedGoodsReceiptId)
+    .filter((id): id is string => typeof id === 'string' && id.length > 0);
+  return [...new Set(collegati)];
+}
+
 @Injectable()
 export class GoodsReceiptWorkflowService {
   private readonly logger = new Logger(GoodsReceiptWorkflowService.name);
@@ -976,8 +995,8 @@ export class GoodsReceiptWorkflowService {
     dto: SavePurchaseInvoiceDto,
     user?: UserProfileDto,
   ): Promise<PurchaseInvoiceSaveResult> {
-    // Il gate della rotta chiede «gestisci registrazione fattura», ma il corpo
-    // può portare `goodsReceiptIds`: collegarli agisce su documenti di un'ALTRA
+    // Il gate della rotta chiede «gestisci registrazione fattura», ma le righe
+    // possono collegare arrivi: farlo agisce su documenti di un'ALTRA
     // famiglia — li marca fatturati (togliendoli dalla lista dei collegabili),
     // ne azzera il flag «Totali da verificare», e toglierli dall'elenco li
     // riporta Sospesi. Senza questo controllo chi registra le fatture cambiava
@@ -985,7 +1004,12 @@ export class GoodsReceiptWorkflowService {
     //
     // Sta PRIMA del try, non dentro: un permesso negato non è un conflitto di
     // numerazione, e non deve passare per la diagnosi che traduce l'errore.
-    this.assertLinkedReceiptsManageable(dto.goodsReceiptIds, user);
+    // ⚠️ **Legge la stessa fonte che poi collega davvero.** Fino al 25/08/2026
+    // leggeva `dto.goodsReceiptIds`, una lista tenuta a parte dalle righe:
+    // quando il legame è passato alle righe, quel controllo sarebbe rimasto a
+    // guardare un campo che il client non manda più — cioè avrebbe smesso di
+    // controllare, restando verde.
+    this.assertLinkedReceiptsManageable(receiptIdsFromLines(dto), user);
     try {
       return await this.savePurchaseInvoiceInner(tenantId, dto, user);
     } catch (error) {
@@ -1009,7 +1033,21 @@ export class GoodsReceiptWorkflowService {
     const setting = await this.settings.getResolved(tenantId, DocumentType.supplier_invoice);
     await this.assertSupplier(tenantId, dto.supplierId);
 
-    const receiptIds = [...new Set(dto.goodsReceiptIds ?? [])];
+    // ⭐ **Il legame con un arrivo e' una CONSEGUENZA delle righe, non un dato.**
+    //
+    // ⛔ Qui si leggeva `dto.goodsReceiptIds`, cioe' una lista di arrivi tenuta
+    // a parte dalle righe. Il proprietario ha deciso il 25/08/2026, sul modello
+    // Danea: «non si toglie l'incluso, si eliminano le righe ed, in automatico,
+    // non risultera' piu' l'arrivo merci agganciato».
+    //
+    // ⭐ Quindi la verita' sono le RIGHE: un arrivo e' agganciato finche' almeno
+    // una riga dice di venire da lui. Cancellate quelle righe, il legame cade da
+    // se' — e non serve nessun comando «rimuovi arrivo», ne' la domanda «che fine
+    // fanno le sue righe».
+    //
+    // ⛔ E `goodsReceiptIds` non esiste piu' nel corpo: un secondo campo che
+    // dice la stessa cosa e' un campo che prima o poi dice il contrario.
+    const receiptIds = receiptIdsFromLines(dto);
     const receipts = receiptIds.length
       ? await this.prisma.document.findMany({
           where: { tenantId, id: { in: receiptIds } },
@@ -1056,19 +1094,23 @@ export class GoodsReceiptWorkflowService {
 
     const receiptsTotal = receipts.reduce((sum, receipt) => sum + receipt.totalMinor, 0);
 
-    // Righe per aliquota IVA dagli arrivi inclusi + righe manuali del form.
-    const vatSummaryLines = buildPurchaseInvoiceVatSummary(receipts);
-    const manualLines = dto.manualLines ?? [];
-    const linesNet =
-      vatSummaryLines.reduce((sum, line) => sum + line.netMinor, 0) +
-      manualLines.reduce((sum, line) => sum + line.netMinor, 0);
-    const linesVat =
-      vatSummaryLines.reduce((sum, line) => sum + line.vatMinor, 0) +
-      manualLines.reduce((sum, line) => sum + line.vatMinor, 0);
+    // ⭐ **Le righe arrivano dal client. Tutte.**
+    //
+    // ⛔ Qui `buildPurchaseInvoiceVatSummary(receipts)` RI-SOMMAVA gli arrivi a
+    // ogni salvataggio e non leggeva mai le righe salvate: le righe da arrivo
+    // erano ricalcolate, quindi non modificabili — qualunque correzione sarebbe
+    // stata sovrascritta al salvataggio dopo.
+    //
+    // ⚠️ Violava una regola del progetto: «la riga di un documento e' una
+    // fotografia, e non si riscatta da sola». Una riga ricalcolata non e' una
+    // fotografia.
+    const righe = dto.lines ?? [];
+    const linesNet = righe.reduce((sum, line) => sum + line.netMinor, 0);
+    const linesVat = righe.reduce((sum, line) => sum + line.vatMinor, 0);
 
     // Totali sempre derivati dalle righe; fallback ai totali del payload solo
     // per registrazioni senza righe (compatibilità con vecchi client).
-    const hasLines = vatSummaryLines.length > 0 || manualLines.length > 0;
+    const hasLines = righe.length > 0;
     const subtotalMinor = hasLines ? linesNet : (dto.subtotalMinor ?? 0);
     const taxMinor = hasLines ? linesVat : (dto.taxMinor ?? 0);
     const totalMinor = hasLines ? linesNet + linesVat : (dto.totalMinor ?? 0);
@@ -1227,22 +1269,17 @@ export class GoodsReceiptWorkflowService {
       const sortedReceipts = [...receipts].sort(
         (a, b) => a.documentDate.getTime() - b.documentDate.getTime(),
       );
-      const lineRows = [
-        ...vatSummaryLines.map((line) => ({
-          description: line.description,
-          netMinor: line.netMinor,
-          ratePercent: line.ratePercent,
-          vatMinor: line.vatMinor,
-          lineSource: 'vat_summary',
-        })),
-        ...manualLines.map((line) => ({
-          description: line.description.trim(),
-          netMinor: line.netMinor,
-          ratePercent: line.vatRatePercent,
-          vatMinor: line.vatMinor,
-          lineSource: 'manual',
-        })),
-      ];
+      // ⭐ Una lista sola, nell'ordine in cui il client la manda. `lineSource`
+      // resta come PROVENIENZA storica — «questa riga e' nata da un arrivo» —
+      // non piu' come origine ricalcolabile, e si deriva dal legame.
+      const lineRows = righe.map((line) => ({
+        description: line.description.trim(),
+        netMinor: line.netMinor,
+        ratePercent: line.vatRatePercent,
+        vatMinor: line.vatMinor,
+        lineSource: line.linkedGoodsReceiptId ? 'vat_summary' : 'manual',
+        linkedGoodsReceiptId: line.linkedGoodsReceiptId ?? null,
+      }));
       if (lineRows.length > 0) {
         await tx.documentLine.createMany({
           data: lineRows.map((line, index) => ({
@@ -1264,6 +1301,10 @@ export class GoodsReceiptWorkflowService {
             vatSnapshot: { ratePercent: line.ratePercent } as Prisma.InputJsonObject,
             loadsStock: false,
             lineSource: line.lineSource,
+            // ⭐ La colonna esisteva da luglio con chiave esterna e indice, e
+            // NESSUN percorso dell'API la scriveva: era sempre `null`. E' il
+            // legame riga↔arrivo su cui ora poggia tutto il resto.
+            linkedGoodsReceiptId: line.linkedGoodsReceiptId,
           })),
         });
       }

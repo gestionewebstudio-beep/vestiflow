@@ -447,7 +447,17 @@ describe('DocumentService (HTTP)', () => {
       service.savePurchaseInvoice({
         supplierId: 'sup-1',
         documentDate: '2026-08-10',
-        goodsReceiptIds: ['doc-2'],
+        lines: [
+          {
+            description: 'Rif. Arrivo merce 2',
+            netMinor: 10_000,
+            vatRatePercent: 22,
+            vatMinor: 2_200,
+            // ⭐ Il collegamento all'arrivo viaggia sulla riga: `goodsReceiptIds`
+            // non esiste più, era una seconda verità sullo stesso fatto.
+            linkedGoodsReceiptId: 'doc-2',
+          },
+        ],
       }),
     );
 

@@ -86,7 +86,7 @@ import { isPrintableDocumentType } from './models/document-print.util';
 import { DocumentPrintActionsComponent } from '@domain/documents/components/document-print-actions/document-print-actions.component';
 import type {
   PurchaseInvoiceInstallmentBody,
-  PurchaseInvoiceManualLineBody,
+  PurchaseInvoiceLineBody,
 } from '@domain/documents/services/document-api.mapper';
 
 type SubmitState =
@@ -94,33 +94,33 @@ type SubmitState =
   | { readonly status: 'saving' }
   | { readonly status: 'error'; readonly error: AppError };
 
-/** Arrivo merce incluso nella registrazione (riga riepilogativa in maschera). */
-interface IncludedReceiptRow {
-  readonly id: string;
-  readonly number?: number;
-  readonly reference?: string;
-  readonly documentDate: string;
-  readonly causalText?: string;
-  readonly subtotal: Money;
-  readonly tax: Money;
-  readonly total: Money;
-  /** Quote IVA dell'arrivo: alimentano le righe per aliquota. */
-  readonly vatBreakdown: readonly GoodsReceiptVatBreakdownEntry[];
-}
+// ⛔ Qui c'era `IncludedReceiptRow`: la forma dell'arrivo incluso, che serviva
+// alla tabella «Arrivi merce inclusi». Quella tabella non c'è più — gli arrivi
+// si vedono dalle righe che hanno generato, e si scollegano cancellandole.
 
-/** Riga registrazione generata automaticamente (gruppo per aliquota IVA). */
-interface AutoVatRow {
-  readonly ratePercent: number;
-  readonly net: Money;
-  readonly vat: Money;
-  readonly description: string;
-}
-
-type ManualLineForm = FormGroup<{
+/**
+ * ⭐ **Riga economica della registrazione: UNA lista, tutte modificabili.**
+ *
+ * ⛔ **Fino al 25/08/2026 erano DUE.** Sopra, le righe generate dagli arrivi
+ * inclusi — raggruppate per aliquota, in sola lettura, ricalcolate dal server a
+ * ogni salvataggio. Sotto, le «righe manuali», le uniche scrivibili.
+ *
+ * ⚠️ **Il difetto non era estetico.** Una fattura fornitore quasi mai coincide
+ * al centesimo con la somma degli arrivi — arrotondamenti, spese, un abbuono —
+ * e la parte non correggibile era proprio quella. Chi doveva registrare
+ * l'importo vero non aveva dove scriverlo.
+ *
+ * ⭐ Ora includere un arrivo **MATERIALIZZA** le sue righe una volta sola: da lì
+ * sono righe del documento come tutte le altre, e `linkedGoodsReceiptId` è
+ * l'unico segno di dove sono nate.
+ */
+type EconomicLineForm = FormGroup<{
   description: FormControl<string>;
   netText: FormControl<string>;
   rateText: FormControl<string>;
   vatText: FormControl<string>;
+  /** L'arrivo merce da cui la riga è nata. Vuoto = voce libera. */
+  linkedGoodsReceiptId: FormControl<string>;
 }>;
 
 type InstallmentForm = FormGroup<{
@@ -220,6 +220,21 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       this.prefillFromDuplicateIfRequested();
     });
 
+    // ⭐ **Una riga pronta all'apertura**, come su ogni altra maschera
+    // documentale: chi apre un documento nuovo trova dove scrivere, senza
+    // dover prima premere «Aggiungi riga».
+    //
+    // ⚠️ In modifica no: le righe le porta il documento, e una riga vuota in
+    // più al caricamento marcherebbe il form come «da salvare» appena aperto.
+    if (!this.isEditMode()) {
+      this.suppressDirtyMarking = true;
+      try {
+        this.lines.push(this.buildLine());
+      } finally {
+        this.suppressDirtyMarking = false;
+      }
+    }
+
     // Breadcrumb: numero del documento al posto del generico «Dettaglio».
     bindBreadcrumbEntityLabel(() => ({
       id: this.editDocumentId() || null,
@@ -285,15 +300,15 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       fiscalCode: this.fb.control(''),
       vatNumber: this.fb.control(''),
     }),
-    manualLines: this.fb.array<ManualLineForm>([]),
+    lines: this.fb.array<EconomicLineForm>([]),
     installments: this.fb.array<InstallmentForm>([]),
   });
 
   /** Tick reattivo su ogni modifica del form (totali e opzioni derivate). */
   private readonly formChanges = toSignal(this.form.valueChanges, { initialValue: null });
 
-  protected get manualLines(): FormArray<ManualLineForm> {
-    return this.form.controls.manualLines;
+  protected get lines(): FormArray<EconomicLineForm> {
+    return this.form.controls.lines;
   }
 
   protected get installments(): FormArray<InstallmentForm> {
@@ -452,9 +467,6 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
   protected readonly conflictDialogOpen = this.numberConflictDialog.isOpen;
   protected readonly conflictMessage = this.numberConflictDialog.message;
 
-  /** Arrivi merce inclusi (righe riepilogative, prompt §5.2). */
-  protected readonly includedReceipts = signal<readonly IncludedReceiptRow[]>([]);
-
   protected readonly includePanelOpen = signal(false);
   protected readonly linkableReceipts = signal<readonly LinkableGoodsReceipt[]>([]);
   protected readonly linkableLoading = signal(false);
@@ -570,62 +582,32 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     ];
   });
 
-  // ── Righe registrazione (auto per aliquota + manuali) ───────────────────────
+  // ── Righe economiche: totali e legame con gli arrivi ────────────────────────
 
   /**
-   * Righe generate dagli arrivi inclusi: imponibili raggruppati per aliquota
-   * IVA con riferimento automatico ("Rif. Arrivo merce 6 del 15/07/2026, …").
-   * Stessa logica del backend, che resta autoritativo al salvataggio.
+   * ⭐ **Gli arrivi collegati si leggono DALLE RIGHE.**
+   *
+   * ⛔ Qui c'era un signal `includedReceipts` tenuto a parte: una seconda verità
+   * sullo stesso fatto. Si potevano cancellare tutte le righe di un arrivo
+   * lasciandolo agganciato, e il documento diceva due cose diverse.
    */
-  protected readonly autoRows = computed<readonly AutoVatRow[]>(() => {
-    const receipts = [...this.includedReceipts()].sort(
-      (a, b) => a.documentDate.localeCompare(b.documentDate) || (a.number ?? 0) - (b.number ?? 0),
-    );
-    const byRate = new Map<number, { net: number; vat: number; refs: string[] }>();
-    for (const receipt of receipts) {
-      const label = receipt.number != null ? String(receipt.number) : (receipt.reference ?? '—');
-      const ref = `${label} del ${formatShortDate(receipt.documentDate)}`;
-      const quotas: readonly GoodsReceiptVatBreakdownEntry[] =
-        receipt.vatBreakdown.length > 0
-          ? receipt.vatBreakdown
-          : receipt.subtotal.amountMinor !== 0 || receipt.tax.amountMinor !== 0
-            ? [
-                {
-                  ratePercent:
-                    receipt.subtotal.amountMinor > 0 && receipt.tax.amountMinor > 0
-                      ? Math.round((receipt.tax.amountMinor / receipt.subtotal.amountMinor) * 100)
-                      : 0,
-                  net: receipt.subtotal,
-                  vat: receipt.tax,
-                },
-              ]
-            : [];
-      for (const quota of quotas) {
-        const entry = byRate.get(quota.ratePercent) ?? { net: 0, vat: 0, refs: [] };
-        entry.net += quota.net.amountMinor;
-        entry.vat += quota.vat.amountMinor;
-        if (!entry.refs.includes(ref)) {
-          entry.refs.push(ref);
-        }
-        byRate.set(quota.ratePercent, entry);
+  protected readonly linkedReceiptIds = computed<ReadonlySet<string>>(() => {
+    this.formChanges();
+    const ids = new Set<string>();
+    for (const line of this.form.getRawValue().lines) {
+      if (line.linkedGoodsReceiptId) {
+        ids.add(line.linkedGoodsReceiptId);
       }
     }
-    return [...byRate.entries()]
-      .map(([ratePercent, entry]): AutoVatRow => ({
-        ratePercent,
-        net: { amountMinor: entry.net, currencyCode: this.currency },
-        vat: { amountMinor: entry.vat, currencyCode: this.currency },
-        description: `Rif. Arrivo merce ${entry.refs.join(', ')}`,
-      }))
-      .sort((a, b) => a.ratePercent - b.ratePercent);
+    return ids;
   });
 
-  /** Importi netti/IVA delle righe manuali (reattivi sul form). */
-  private readonly manualTotals = computed(() => {
+  /** Importi netti/IVA delle righe (reattivi sul form). */
+  private readonly linesTotals = computed(() => {
     this.formChanges();
     let net = 0;
     let vat = 0;
-    for (const line of this.form.getRawValue().manualLines) {
+    for (const line of this.form.getRawValue().lines) {
       net += parseMoneyInput(line.netText, this.currency)?.amountMinor ?? 0;
       vat += parseMoneyInput(line.vatText, this.currency)?.amountMinor ?? 0;
     }
@@ -635,14 +617,12 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
   // ── Totali (sempre visibili in fondo): Tot. netto, IVA, Totale ─────────────
 
   protected readonly totalNet = computed<Money>(() => ({
-    amountMinor:
-      this.autoRows().reduce((sum, row) => sum + row.net.amountMinor, 0) + this.manualTotals().net,
+    amountMinor: this.linesTotals().net,
     currencyCode: this.currency,
   }));
 
   protected readonly totalVat = computed<Money>(() => ({
-    amountMinor:
-      this.autoRows().reduce((sum, row) => sum + row.vat.amountMinor, 0) + this.manualTotals().vat,
+    amountMinor: this.linesTotals().vat,
     currencyCode: this.currency,
   }));
 
@@ -769,9 +749,19 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     this.applySupplierDocumentNote(supplier);
     this.applySupplierPaymentDefault(supplier);
     this.applySupplierAddress(supplier);
-    if (previous && previous !== value && this.includedReceipts().length > 0) {
-      // Gli arrivi inclusi appartengono al fornitore precedente: non più validi.
-      this.includedReceipts.set([]);
+    if (previous && previous !== value && this.linkedReceiptIds().size > 0) {
+      // ⭐ **Le righe RESTANO, il legame cade.** Deciso dal proprietario il
+      // 25/08/2026: «in danea le righe non vengono toccate, cambia solo il
+      // fornitore». Gli importi che l'operatore ha davanti sono quelli della
+      // fattura che sta registrando, e non c'entrano col fornitore.
+      //
+      // ⚠️ Ma il LEGAME sì: un arrivo del fornitore precedente non può stare
+      // agganciato alla fattura di un altro — il server lo rifiuterebbe, e
+      // avrebbe ragione. Cade quello, e le righe diventano voci libere.
+      for (const line of this.lines.controls) {
+        line.controls.linkedGoodsReceiptId.setValue('');
+      }
+      this.lines.markAsDirty();
     }
   }
 
@@ -830,35 +820,44 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     });
   }
 
-  // ── Righe manuali ───────────────────────────────────────────────────────────
+  // ── Righe economiche ────────────────────────────────────────────────────────
 
-  private buildManualLine(init?: {
+  private buildLine(init?: {
     description?: string;
     netText?: string;
     rateText?: string;
     vatText?: string;
-  }): ManualLineForm {
+    linkedGoodsReceiptId?: string;
+  }): EconomicLineForm {
     return this.fb.group({
       description: this.fb.control(init?.description ?? ''),
       netText: this.fb.control(init?.netText ?? ''),
       rateText: this.fb.control(init?.rateText ?? ''),
       vatText: this.fb.control(init?.vatText ?? ''),
+      linkedGoodsReceiptId: this.fb.control(init?.linkedGoodsReceiptId ?? ''),
     });
   }
 
-  protected addManualLine(): void {
-    this.manualLines.push(this.buildManualLine());
-    this.manualLines.markAsDirty();
+  protected addLine(): void {
+    this.lines.push(this.buildLine());
+    this.lines.markAsDirty();
   }
 
-  protected removeManualLine(index: number): void {
-    this.manualLines.removeAt(index);
-    this.manualLines.markAsDirty();
+  /**
+   * ⭐ **Togliere le righe di un arrivo lo SCOLLEGA**, e non serve altro.
+   *
+   * Deciso dal proprietario il 25/08/2026 sul modello Danea: «non si toglie
+   * l'incluso, si eliminano le righe ed, in automatico, non risulterà più
+   * l'arrivo merci agganciato a quella fattura».
+   */
+  protected removeLine(index: number): void {
+    this.lines.removeAt(index);
+    this.lines.markAsDirty();
   }
 
   /** IVA riga ricalcolata da netto × aliquota (resta comunque modificabile). */
-  protected recalcManualLineVat(index: number): void {
-    const group = this.manualLines.at(index);
+  protected recalcLineVat(index: number): void {
+    const group = this.lines.at(index);
     if (!group) {
       return;
     }
@@ -960,8 +959,8 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (rows) => {
-          const includedIds = new Set(this.includedReceipts().map((row) => row.id));
-          this.linkableReceipts.set(rows.filter((row) => !includedIds.has(row.id)));
+          const collegati = this.linkedReceiptIds();
+          this.linkableReceipts.set(rows.filter((row) => !collegati.has(row.id)));
           this.linkableLoading.set(false);
         },
         error: (err: unknown) => {
@@ -983,41 +982,84 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     });
   }
 
+  /**
+   * ⭐ **Includere un arrivo MATERIALIZZA le sue righe, una volta sola.**
+   *
+   * ⛔ Prima l'arrivo entrava in un elenco a parte e le righe se le ricalcolava
+   * il server a ogni salvataggio: in sola lettura, e mai correggibili. Ora
+   * nascono qui, come righe del documento, e da lì si modificano come le altre.
+   *
+   * ⚠️ **Una riga per aliquota, per arrivo** — non per aliquota e basta: la riga
+   * porta il legame con UN arrivo, e sommare due arrivi nella stessa riga
+   * perderebbe il legame di uno dei due.
+   */
   protected includeSelectedReceipts(): void {
     const selection = this.linkableSelection();
-    const toInclude = this.linkableReceipts().filter((row) => selection.has(row.id));
+    const toInclude = this.linkableReceipts()
+      .filter((row) => selection.has(row.id))
+      .sort(
+        (a, b) => a.documentDate.localeCompare(b.documentDate) || (a.number ?? 0) - (b.number ?? 0),
+      );
     if (toInclude.length === 0) {
       return;
     }
-    this.includedReceipts.update((current) => [
-      ...current,
-      ...toInclude.map((row): IncludedReceiptRow => ({
-        id: row.id,
-        number: row.number,
-        reference: row.reference,
-        documentDate: row.documentDate,
-        causalText: row.causalText,
-        subtotal: row.subtotal,
-        tax: row.tax,
-        total: row.total,
-        vatBreakdown: row.vatBreakdown ?? [],
-      })),
-    ]);
-    // Gli arrivi inclusi vivono fuori dal FormGroup: dirty marcato a mano.
+    for (const receipt of toInclude) {
+      const descrizione = this.receiptLineDescription(receipt);
+      for (const quota of this.vatQuotasOf(receipt)) {
+        this.lines.push(
+          this.buildLine({
+            description: descrizione,
+            netText: this.moneyToInputText(quota.net),
+            rateText: String(quota.ratePercent).replace('.', ','),
+            vatText: this.moneyToInputText(quota.vat),
+            linkedGoodsReceiptId: receipt.id,
+          }),
+        );
+      }
+    }
+    this.lines.markAsDirty();
     this.markFormDirty();
+    this.linkableSelection.set(new Set());
     this.includePanelOpen.set(false);
   }
 
-  protected removeReceipt(id: string): void {
-    this.includedReceipts.update((current) => current.filter((row) => row.id !== id));
-    this.markFormDirty();
+  /** «Rif. Arrivo merce 6 del 15/07/2026»: la descrizione della riga generata. */
+  private receiptLineDescription(receipt: {
+    readonly number?: number | null;
+    readonly reference?: string | null;
+    readonly documentDate: string;
+  }): string {
+    const label = receipt.number != null ? String(receipt.number) : (receipt.reference ?? '—');
+    return `Rif. Arrivo merce ${label} del ${formatShortDate(receipt.documentDate)}`;
   }
 
-  /** Riga riepilogativa (§5.2): "Arrivo merce n. 3 del 30/05/2026 - DDT 145…". */
-  protected receiptSummaryLabel(row: IncludedReceiptRow): string {
-    const number = row.number != null ? `n. ${row.number}` : (row.reference ?? '');
-    const base = `Arrivo merce ${number} del ${formatDate(row.documentDate)}`.trim();
-    return row.causalText?.trim() ? `${base} - ${row.causalText.trim()}` : base;
+  /**
+   * Le quote IVA dell'arrivo. Se l'arrivo non le porta, se ne ricava una sola
+   * dall'imponibile e dall'imposta complessivi: meglio una riga con l'aliquota
+   * dedotta che nessuna riga.
+   */
+  private vatQuotasOf(receipt: {
+    readonly subtotal: Money;
+    readonly tax: Money;
+    readonly vatBreakdown?: readonly GoodsReceiptVatBreakdownEntry[] | null;
+  }): readonly GoodsReceiptVatBreakdownEntry[] {
+    const quote = receipt.vatBreakdown ?? [];
+    if (quote.length > 0) {
+      return quote;
+    }
+    if (receipt.subtotal.amountMinor === 0 && receipt.tax.amountMinor === 0) {
+      return [];
+    }
+    return [
+      {
+        ratePercent:
+          receipt.subtotal.amountMinor > 0 && receipt.tax.amountMinor > 0
+            ? Math.round((receipt.tax.amountMinor / receipt.subtotal.amountMinor) * 100)
+            : 0,
+        net: receipt.subtotal,
+        vat: receipt.tax,
+      },
+    ];
   }
 
   // ── Salvataggio ─────────────────────────────────────────────────────────────
@@ -1057,12 +1099,14 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
 
     const raw = this.form.getRawValue();
 
-    const manualLines: PurchaseInvoiceManualLineBody[] = [];
-    for (const [index, line] of raw.manualLines.entries()) {
+    const lines: PurchaseInvoiceLineBody[] = [];
+    for (const [index, line] of raw.lines.entries()) {
       const description = line.description.trim();
       const hasContent =
         description || line.netText.trim() || line.rateText.trim() || line.vatText.trim();
       if (!hasContent) {
+        // ⭐ Riga vuota: si salta, non è un errore. È la riga che ogni maschera
+        // documentale tiene pronta in fondo — e un documento vuoto si salva.
         continue;
       }
       const net = parseMoneyInput(line.netText, this.currency);
@@ -1071,16 +1115,19 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
           status: 'error',
           error: {
             kind: AppErrorKind.Validation,
-            message: `Riga manuale ${index + 1}: inserisci descrizione e importo netto validi.`,
+            message: `Riga ${index + 1}: inserisci descrizione e importo netto validi.`,
           },
         });
         return;
       }
-      manualLines.push({
+      lines.push({
         description,
         netMinor: net.amountMinor,
         vatRatePercent: parseRatePercent(line.rateText) ?? 0,
         vatMinor: parseMoneyInput(line.vatText, this.currency)?.amountMinor ?? 0,
+        // ⭐ Il legame all'arrivo viaggia sulla riga: è l'unica fonte, e il
+        // server ci ricava sia i collegamenti sia il controllo dei permessi.
+        linkedGoodsReceiptId: line.linkedGoodsReceiptId || undefined,
       });
     }
 
@@ -1154,8 +1201,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
         // Non imposto: campo assente, così il server lo assegna lui.
         number: this.numbering.imposedNumber(),
         series: this.numbering.chosenSeries(),
-        goodsReceiptIds: this.includedReceipts().map((row) => row.id),
-        manualLines,
+        lines,
         installments,
       })
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
@@ -1282,13 +1328,18 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       },
     });
 
-    this.manualLines.clear();
+    // ⛔ **Qui c'era `if (line.lineSource !== 'manual') continue;`.**
+    //
+    // Scartava ogni riga che non fosse una voce libera, perche' quelle da arrivo
+    // il client se le ri-derivava da solo. Con le righe materializzate quel
+    // filtro sarebbe stato distruttivo, in tre tempi: le righe da arrivo non
+    // entravano nel form, quindi non entravano nel payload, quindi il
+    // `deleteMany` del server le cancellava per sempre. **Il documento si
+    // sarebbe svuotato in silenzio**, e nessun test lo avrebbe visto.
+    this.lines.clear();
     for (const line of doc.lines ?? []) {
-      if (line.lineSource !== 'manual') {
-        continue;
-      }
-      this.manualLines.push(
-        this.buildManualLine({
+      this.lines.push(
+        this.buildLine({
           description: line.description,
           netText: this.moneyToInputText(line.lineTotal),
           rateText:
@@ -1296,6 +1347,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
               ? String(line.vatSnapshot.ratePercent).replace('.', ',')
               : '',
           vatText: line.lineVatTotal ? this.moneyToInputText(line.lineVatTotal) : '',
+          linkedGoodsReceiptId: line.linkedGoodsReceiptId ?? '',
         }),
       );
     }
@@ -1312,19 +1364,9 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       );
     }
 
-    this.includedReceipts.set(
-      (doc.linkedGoodsReceipts ?? []).map((receipt): IncludedReceiptRow => ({
-        id: receipt.id,
-        number: receipt.number,
-        reference: receipt.reference,
-        documentDate: receipt.documentDate,
-        causalText: receipt.causalText,
-        subtotal: receipt.subtotal,
-        tax: receipt.tax,
-        total: receipt.total,
-        vatBreakdown: receipt.vatBreakdown ?? [],
-      })),
-    );
+    // ⭐ Gli arrivi collegati NON si rileggono da `doc.linkedGoodsReceipts`: le
+    // righe portano già il legame, e rileggerlo da un'altra parte rifarebbe la
+    // seconda verità che questa unificazione ha tolto.
   }
 
   /**
@@ -1363,10 +1405,16 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
         registrationDate: todayIsoDate(),
       });
       this.installments.clear();
+      // ⚠️ **I legami agli arrivi NON si duplicano.** Gli arrivi della fattura
+      // di partenza sono già fatturati da quella: riportarli qui li aggancerebbe
+      // due volte, e il server rifiuterebbe il salvataggio. Le righe restano —
+      // sono gli importi che si vogliono ricopiare — ma diventano voci libere.
+      for (const line of this.lines.controls) {
+        line.controls.linkedGoodsReceiptId.setValue('');
+      }
     } finally {
       this.suppressDirtyMarking = false;
     }
-    this.includedReceipts.set([]);
     this.refreshDocumentNumberProposal();
   }
 

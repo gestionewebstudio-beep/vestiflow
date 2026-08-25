@@ -19,10 +19,23 @@ import {
 import { DocumentAddressDto } from './document-transport.dto';
 
 /**
- * Riga manuale della registrazione (voci non legate ad arrivi merce):
- * descrizione + importo netto + aliquota + importo IVA.
+ * ⭐ **La riga economica della registrazione. Una sola specie.**
+ *
+ * ⛔ Si chiamava «riga manuale» e la sua intestazione diceva «voci non legate ad
+ * arrivi merce», perche' le righe che nascevano da un arrivo erano un'altra
+ * cosa: il server le RICALCOLAVA a ogni salvataggio da
+ * `buildPurchaseInvoiceVatSummary(receipts)`, e il client le scartava alla
+ * rilettura per ri-derivarle.
+ *
+ * ⚠️ Quel modello violava una regola del progetto: «la riga di un documento e'
+ * una fotografia, e non si riscatta da sola». Una riga ricalcolata non e' una
+ * fotografia — e infatti non si poteva modificare, perche' la modifica sarebbe
+ * stata sovrascritta al salvataggio dopo.
+ *
+ * ⭐ Ora e' una lista sola e tutte si modificano. Includere un arrivo
+ * MATERIALIZZA le sue righe una volta; da li' sono righe del documento.
  */
-export class PurchaseInvoiceManualLineDto {
+export class PurchaseInvoiceLineDto {
   @IsString()
   @MaxLength(500)
   description!: string;
@@ -37,7 +50,22 @@ export class PurchaseInvoiceManualLineDto {
 
   @IsInt()
   vatMinor!: number;
+
+  /**
+   * L'arrivo merce da cui questa riga e' nata, se ne viene da uno.
+   *
+   * ⭐ La colonna `linked_goods_receipt_id` esiste su `document_lines` da
+   * luglio, con chiave esterna e indice — e finora NESSUN percorso dell'API la
+   * scriveva: era sempre `null`. Non serve una migration, serve usarla.
+   *
+   * ⚠️ E' una PROVENIENZA, non un legame vivo: la riga resta anche se l'arrivo
+   * viene tolto dagli inclusi, perche' una volta nel documento e' del documento.
+   */
+  @IsOptional()
+  @IsUUID()
+  linkedGoodsReceiptId?: string;
 }
+
 
 /** Scadenza di pagamento: data, importo, saldato e data saldo. */
 export class PurchaseInvoiceInstallmentDto {
@@ -157,20 +185,24 @@ export class SavePurchaseInvoiceDto {
   @Min(0)
   taxMinor?: number;
 
-  /** Arrivi merce inclusi ("Includi arrivo merce", §5.1). */
-  @IsOptional()
-  @IsArray()
-  @IsUUID(undefined, { each: true })
-  @ArrayMaxSize(200)
-  goodsReceiptIds?: string[];
+  // ⛔ Qui c'era `goodsReceiptIds`: l'elenco degli arrivi inclusi, tenuto a
+  // parte dalle righe. Tolto il 25/08/2026 — gli arrivi collegati si leggono
+  // dal `linkedGoodsReceiptId` delle righe, che e' l'unica fonte. Due campi
+  // che dicono la stessa cosa prima o poi dicono il contrario.
 
-  /** Righe manuali per voci non legate ad arrivi merce. */
+  /**
+   * ⭐ **Tutte le righe economiche della registrazione**, in una lista sola.
+   *
+   * ⛔ Si chiamava `manualLines` e portava le sole voci libere: le righe da
+   * arrivo le ricalcolava il server. Ora arrivano tutte da qui, e il server
+   * scrive quello che riceve.
+   */
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => PurchaseInvoiceManualLineDto)
-  @ArrayMaxSize(100)
-  manualLines?: PurchaseInvoiceManualLineDto[];
+  @Type(() => PurchaseInvoiceLineDto)
+  @ArrayMaxSize(200)
+  lines?: PurchaseInvoiceLineDto[];
 
   /** Scadenze di pagamento (lista sostituita integralmente a ogni salvataggio). */
   @IsOptional()

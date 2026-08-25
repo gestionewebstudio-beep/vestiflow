@@ -694,12 +694,27 @@ export interface SaveAdjustmentBody {
   readonly lines?: readonly SaveTransferOrAdjustmentLineBody[];
 }
 
-/** Riga manuale della registrazione (voci non legate ad arrivi merce). */
-export interface PurchaseInvoiceManualLineBody {
+/**
+ * Riga economica della Registrazione fattura fornitore.
+ *
+ * ⛔ Si chiamava `PurchaseInvoiceManualLineBody` e copriva le sole voci libere:
+ * le righe che venivano dagli arrivi non passavano di qui, perche' il server se
+ * le ricalcolava da solo a ogni salvataggio. Erano DUE liste, e una delle due
+ * non si poteva correggere — proprio quella che quasi mai coincide al centesimo
+ * con la fattura che il fornitore ha davvero mandato.
+ */
+export interface PurchaseInvoiceLineBody {
   readonly description: string;
   readonly netMinor: number;
   readonly vatRatePercent: number;
   readonly vatMinor: number;
+  /**
+   * L'arrivo merce da cui la riga e' nata. Assente = voce libera.
+   *
+   * ⭐ E' l'UNICA fonte del collegamento: cancellate tutte le righe di un
+   * arrivo, l'arrivo si scollega da se'.
+   */
+  readonly linkedGoodsReceiptId?: EntityId;
 }
 
 /** Scadenza di pagamento in salvataggio. */
@@ -732,12 +747,13 @@ export interface SavePurchaseInvoiceBody {
   /** Indirizzi: snapshot anagrafica fornitore, modificabile per eccezioni. */
   readonly recipientAddress?: DocumentAddress;
   readonly currency?: CurrencyCode;
-  /** Totali legacy: ignorati se la registrazione ha righe (auto o manuali). */
+  /** Totali legacy: ignorati se la registrazione ha righe. */
   readonly totalMinor?: number;
   readonly subtotalMinor?: number;
   readonly taxMinor?: number;
-  readonly goodsReceiptIds?: readonly EntityId[];
-  readonly manualLines?: readonly PurchaseInvoiceManualLineBody[];
+  // ⛔ Qui c'era `goodsReceiptIds`: l'elenco degli arrivi inclusi, tenuto a
+  // parte dalle righe. Tolto il 25/08/2026 — il legame vive sulle righe.
+  readonly lines?: readonly PurchaseInvoiceLineBody[];
   readonly installments?: readonly PurchaseInvoiceInstallmentBody[];
 }
 
