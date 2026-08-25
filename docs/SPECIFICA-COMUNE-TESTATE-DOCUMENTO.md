@@ -1284,3 +1284,106 @@ scendere sotto il minimo tappabile (44px).
 
 > **Schede su scrivania, fisarmonica su schermo compatto.** Stessa dichiarazione, due rese —
 > `app-document-mobile-panel` è già la fisarmonica, e la testata la usa da oggi.
+
+---
+
+# 32. IL DOCUMENTO VUOTO SI SALVA — deciso il 25/08/2026
+
+## 32.1 La decisione, nelle parole con cui è stata data
+
+> «Se non ho fatto nulla nel documento e lo salvo, devo avere la possibilità di crearlo
+> vuoto e avrò un documento vuoto con numero, eventuale serie e data. Ovviamente dopo aver
+> selezionato i campi obbligatori previsti per quel documento. **Ovunque deve essere così**,
+> e non voglio tornare sull'argomento e vedere che ogni documento ha differenze.»
+
+Chiesta esplicitamente per **tutti** i tipi, magazzino compreso.
+
+## 32.2 ⚠️ Il muro non era dove lo annunciavano
+
+È la parte che conta, perché è l'errore che si rifarebbe: **cinque maschere su sette
+avevano un proprio «aggiungi almeno una riga»**, con cinque frasi diverse, e nessuna delle
+cinque era il divieto.
+
+Il divieto stava in **due posti**, entrambi condivisi e entrambi muti:
+
+| Dove                                         | Che cosa faceva                                                     |
+| -------------------------------------------- | ------------------------------------------------------------------- |
+| `confirmDocumentTx` (API)                    | `'Impossibile confermare un documento senza righe.'`                |
+| `trailingEmptyLineIndices` (`keepAtLeast=1`) | teneva **almeno una** riga in coda, quindi la riga seminata restava |
+
+⛔ **Togliere solo i messaggi non avrebbe fatto niente.** La riga seminata all'apertura
+sarebbe rimasta, l'array delle righe non sarebbe mai stato valido, e il documento vuoto non
+sarebbe partito lo stesso — con l'aggravante di aver tolto le frasi che almeno spiegavano
+perché.
+
+⚠️ Il rifiuto dell'API **non era più il controllo che sembrava**. Nato quando la conferma era
+un passaggio esplicito su una bozza, con la **nascita-confermato** è finito sul percorso di
+_creazione_ di ogni tipo: un controllo che si legge come «non confermare una bozza vuota» e
+che in realtà diceva «non creare».
+
+## 32.3 La distinzione che regge tutto
+
+```text
+nessuna riga             → il documento e' VUOTO.        Si salva.
+righe che non producono  → l'operatore ha scritto        NON si salva.
+l'effetto promesso         qualcosa e si aspetta un
+                           effetto: il silenzio sarebbe
+                           peggio del rifiuto
+```
+
+Vive in **una** funzione, `documentHasLinesWithoutEffect`
+(`domain/documents/utils/document-line-effect.util.ts`), che è il posto dove sta scritta la
+ragione. Le maschere la chiamano; nessuna la riscrive.
+
+⚠️ **Va chiamata DOPO `dropTrailingEmptyLines`**, o la riga seminata conta come «riga
+presente» e un documento mai toccato risulta «senza effetto».
+
+## 32.4 Chi l'ha adottata, e le due eccezioni deliberate
+
+| Maschera               | Prima                                     | Ora                             |
+| ---------------------- | ----------------------------------------- | ------------------------------- |
+| Trasferimento          | «aggiungi almeno una riga con variante…»  | `documentHasLinesWithoutEffect` |
+| Rettifica / Scarico    | «Aggiungi almeno una riga da rettificare» | `documentHasLinesWithoutEffect` |
+| Fatture / DDT          | «almeno una riga con descrizione e qtà»   | `documentHasLinesWithoutEffect` |
+| Ordine cliente         | «Aggiungi almeno una riga valida…»        | `documentHasLinesWithoutEffect` |
+| **Vendita/Reso banco** | pulsante «Concludi» **spento**            | solo la **sede**, e basta       |
+| Ordine fornitore       | _non lo pretendeva_                       | invariata                       |
+| Arrivo merce           | _non lo pretendeva_                       | invariata                       |
+
+⚠️ **Il Banco non ha adottato la rete, ed è deliberato.** Lì è stato tolto **solo** il
+requisito delle righe: al banco una riga nasce da uno scan o da una ricerca e porta già la
+variante, quindi aggiungere quella rete sarebbe stata una **restrizione nuova** introdotta di
+straforo insieme a una decisione che ne toglieva una.
+
+⚠️ **Nell'Ordine cliente la riga di RIFERIMENTO non conta come riga.** Non l'ha scritta
+l'operatore: è il puntatore al documento di origine. Contarla rimetterebbe il rifiuto proprio
+sul documento nato da una conversione.
+
+## 32.5 ⛔ Che cosa NON è cambiato
+
+- **I campi obbligatori restano obbligatori.** «Vuoto» vale _dopo_ averli compilati: il
+  Trasferimento vuole origine e destinazione, il Banco la sede, l'Ordine cliente cliente e
+  location. La decisione toglie un requisito sulle **righe**, non sulla testata.
+- **Le righe iniziate a metà si fermano ancora.** Una riga con un nome ma senza articolo non è
+  vuota: si segnala, non si butta.
+- **Gli `assertStock*` dell'API restano** per i documenti che hanno righe. Solo il documento a
+  righe zero li attraversa.
+- **`keepAtLeast` è ancora un parametro** di `trailingEmptyLineIndices`: chi ha bisogno di non
+  svuotare un elenco lo **dichiara**, invece di ereditarlo. Il default è passato da 1 a 0.
+
+## 32.6 Le guardie
+
+Non è una regola che si ricorda: è una che si incontra.
+
+| Guardia                                                        | Che cosa inchioda                                               |
+| -------------------------------------------------------------- | --------------------------------------------------------------- |
+| `documents.service.spec` — «un documento SENZA RIGHE si salva» | l'API assegna numero, serie e data a righe zero                 |
+| `trailing-empty-lines.util.spec` — tre prove                   | vuote tutte → si scartano tutte; e chi ne vuole una lo dichiara |
+| `document-line-effect.util.spec` — quattro prove               | la distinzione fra vuoto e senza-effetto                        |
+| `transfer-form.component.spec` — **coppia**                    | vuoto passa · riga incompleta si ferma                          |
+| `store-sale-document-form.component.spec` — **coppia**         | senza righe si conclude · **senza sede no**                     |
+
+⚠️ **Le coppie vanno tenute in coppia.** La prima metà, da sola, si soddisfa togliendo ogni
+controllo; la seconda inchioda che cosa il controllo continua a fermare. Toglierne una lascia
+l'altra a difendere metà decisione — ed è esattamente come il divieto vecchio è sopravvissuto
+tanto a lungo: le prove che lo difendevano c'erano, quelle che ne misuravano il costo no.
