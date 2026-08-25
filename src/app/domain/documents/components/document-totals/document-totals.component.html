@@ -1,0 +1,39 @@
+<dl class="doc-form__totals">
+  @for (row of rows(); track row.key) {
+    <div class="doc-form__totals-row" [class]="rowClass(row)">
+      <dt>
+        @if (row.kind === 'field' && row.inputId) {
+          <label [attr.for]="row.inputId">{{ row.label }}</label>
+        } @else {
+          {{ row.label }}
+        }
+      </dt>
+
+      @if (row.kind === 'field') {
+        <dd>
+          <!-- ⚠️ Il campo e' un `<input type="text">` e non `number`: gli
+               importi e le percentuali si digitano con la virgola, e un campo
+               numerico la rifiuterebbe nelle localizzazioni che la usano come
+               separatore decimale. E' la stessa scelta di ogni altro campo
+               importo della maschera. -->
+          <input
+            [id]="row.inputId"
+            class="doc-form__input doc-form__input--num doc-form__totals-input"
+            type="text"
+            [formControl]="row.control!"
+            [attr.placeholder]="row.placeholder ?? null"
+            [attr.aria-label]="row.ariaLabel ?? row.label"
+          />
+        </dd>
+      } @else {
+        <dd class="tabular-nums">
+          @if (row.kind === 'total') {
+            <strong>{{ testo(row) }}</strong>
+          } @else {
+            {{ testo(row) }}
+          }
+        </dd>
+      }
+    </div>
+  }
+</dl>

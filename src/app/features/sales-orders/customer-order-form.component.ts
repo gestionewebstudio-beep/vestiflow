@@ -204,6 +204,8 @@ import {
 import { ProductPickerDialogComponent } from '@domain/products/components/product-picker-dialog/product-picker-dialog.component';
 import { DocumentLineCardComponent } from '@domain/documents/components/document-line-card/document-line-card.component';
 import { DocumentLineCardBodyComponent } from '@domain/documents/components/document-line-card/document-line-card-body.component';
+import { DocumentTotalsComponent } from '@domain/documents/components/document-totals/document-totals.component';
+import type { DocumentTotalRow } from '@domain/documents/components/document-totals/document-totals.model';
 import { DocumentLineCardReferenceComponent } from '@domain/documents/components/document-line-card/document-line-card-reference.component';
 import { DocumentLineCardStripComponent } from '@domain/documents/components/document-line-card/document-line-card-strip.component';
 import { documentLineCardHead } from '@domain/documents/components/document-line-card/document-line-card.model';
@@ -341,6 +343,7 @@ interface AvailabilityIssue {
     ReactiveFormsModule,
     DocumentLineCardComponent,
     DocumentLineCardBodyComponent,
+    DocumentTotalsComponent,
     DocumentLineCardReferenceComponent,
     DocumentLineCardStripComponent,
     CdkDropList,
@@ -2304,6 +2307,71 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
    * infinito. È successo il 24/08/2026, e il banco di prova è morto per
    * memoria esaurita invece di fallire con un messaggio.
    */
+
+  /**
+   * **Le voci del riepilogo, dichiarate dal documento.**
+   *
+   * ⛔ Qui c'erano CINQUANTA righe di markup, identiche riga per riga a quelle
+   * dell'Arrivo merce e quasi identiche a quelle dell'Ordine fornitore. Ora la
+   * maschera dichiara **quali voci ha, in che ordine e con quali valori**;
+   * la forma — griglia, pesi, tinte, incolonnamento — è del componente comune.
+   *
+   * ⚠️ **Il calcolo non si è spostato**: `documentTotals()` resta dov'era, e
+   * `app-document-totals` non calcola niente. Era la condizione per estrarre
+   * senza toccare gli importi.
+   */
+  protected readonly totalsRows = computed<readonly DocumentTotalRow[]>(() => {
+    // ⭐ L'ordine di canale ha un riepilogo SUO, ed è dominio: i valori
+    //    arrivano dal documento caricato e l'imponibile si ricava per
+    //    differenza, perché su un ordine ivato la somma delle righe non è un
+    //    imponibile (registro difetti 3.9 e 3.15). Non è un ramo dentro il
+    //    componente: è un altro elenco di voci.
+    if (this.isExternalOrder()) {
+      const t = this.channelTotals();
+      return [
+        { key: 'linesGross', label: 'Totale prodotti', value: t.linesGross },
+        ...(t.discount.amountMinor > 0
+          ? [{ key: 'discount', label: 'Sconto ordine', value: t.discount, negative: true }]
+          : []),
+        ...(t.shipping.amountMinor > 0
+          ? [{ key: 'shipping', label: 'Spedizione', value: t.shipping }]
+          : []),
+        { key: 'taxable', label: 'Imponibile', value: t.taxable },
+        { key: 'tax', label: 'IVA inclusa', value: t.tax },
+        { key: 'total', label: 'Totale ordine', value: t.total, kind: 'total' as const },
+      ];
+    }
+
+    const t = this.documentTotals();
+    return [
+      { key: 'linesTotal', label: 'Imponibile righe', value: t.linesTotal },
+      {
+        key: 'documentDiscountPercent',
+        label: 'Sconto extra',
+        kind: 'field' as const,
+        control: this.form.controls.documentDiscountPercent,
+        inputId: 'co-doc-discount',
+        placeholder: '0%',
+        ariaLabel: 'Sconto extra documento',
+      },
+      // Lo sconto in euro compare solo quando c'è: una riga «− 0,00 €» direbbe
+      // che uno sconto è stato applicato e vale zero, che è un'altra cosa.
+      ...(t.documentDiscount.amountMinor > 0
+        ? [
+            {
+              key: 'documentDiscount',
+              label: 'Sconto documento',
+              value: t.documentDiscount,
+              negative: true,
+            },
+          ]
+        : []),
+      { key: 'subtotal', label: 'Imponibile', value: t.subtotal },
+      { key: 'tax', label: 'IVA', value: t.tax },
+      { key: 'total', label: 'Totale documento', value: t.total, kind: 'total' as const },
+    ];
+  });
+
   protected addLine(): void {
     this.lines.push(this.createLine());
     this.markFormDirty();

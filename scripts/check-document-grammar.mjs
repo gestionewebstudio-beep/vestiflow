@@ -48,6 +48,7 @@ const PERIMETRO = [
   'src/app/domain/documents/components/document-line-select-cell',
   'src/app/domain/documents/components/document-line-unit-cell',
   'src/app/domain/documents/components/document-header',
+  'src/app/domain/documents/components/document-totals',
 ];
 
 /**
