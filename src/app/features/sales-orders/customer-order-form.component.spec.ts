@@ -297,6 +297,40 @@ describe('CustomerOrderFormComponent — le due viste di riga', () => {
     expect(etichette[etichette.length - 1]).toBe('Salva documento');
   });
 
+  /**
+   * ⭐ **Lo stesso campo si chiama allo stesso modo nelle due viste.**
+   *
+   * ⛔ La data del documento diceva **«Data documento»** sulla scrivania e
+   * **«Data»** sul telefono. Peggio: nel pannello mobile l'`ariaLabel` diceva
+   * già «Data documento», quindi sulla stessa riga **l'occhio e lo screen
+   * reader leggevano due cose diverse**.
+   *
+   * ⚠️ È la stessa famiglia del difetto che è costato la guardia su «Chiudi»
+   * contro «Annulla»: un comando che cambia nome con la larghezza dello schermo
+   * costringe l'operatore a ricordarsi quale, e nessun test lo vedeva.
+   */
+  function etichetteData(vista: HTMLElement): (string | undefined)[] {
+    return [...vista.querySelectorAll('label')]
+      .map((l) => l.textContent?.trim())
+      .filter((t) => t?.startsWith('Data'));
+  }
+
+  it('⭐ nessuna delle due viste chiama la data solo «Data»', async () => {
+    // ⭐ **Una prova sola basta, ed è per una ragione che vale la pena sapere:**
+    // in questa maschera il pannello mobile vive nel DOM ANCHE nella vista
+    // estesa — commuta col CSS, non con un `@if`. Il confronto le vede quindi
+    // entrambe in un colpo, e una seconda prova sulla vista compatta
+    // asserirebbe la stessa cosa due volte.
+    //
+    // ⚠️ Il giorno in cui questa testata passerà ad `app-document-header` — che
+    // le rende ESCLUSIVE — questa prova va sdoppiata, o smetterà di guardare
+    // metà di quello che guarda oggi.
+    const etichette = etichetteData(await apri(false));
+
+    expect(etichette).toContain('Data documento');
+    expect(etichette).not.toContain('Data');
+  });
+
   it('⭐ e resta una sola anche nella veste compatta', async () => {
     // ⛔ Prima erano DUE dichiarazioni che commutavano col CSS: sotto la soglia
     // vivevano entrambe nel DOM, e una di esse aveva perso una differenza senza

@@ -366,7 +366,12 @@
               <div class="doc-panel__fields">
                 <div class="doc-panel__fields doc-panel__fields--two">
                   <div class="doc-panel__field">
-                    <label class="doc-panel__label" for="co-m-date">Data</label>
+                    <!-- ⛔ Diceva «Data» mentre la scrivania diceva «Data
+                         documento»: lo stesso campo con due nomi a seconda
+                         dello schermo. E l'`ariaLabel` qui sotto diceva gia'
+                         «Data documento», quindi l'occhio e lo screen reader
+                         leggevano due cose diverse SULLA STESSA RIGA. -->
+                    <label class="doc-panel__label" for="co-m-date">Data documento</label>
                     <app-date-input
                       inputId="co-m-date"
                       formControlName="documentDate"

@@ -2217,3 +2217,69 @@ più esatta al momento, ma non viene mai presa, nonostante dobbiamo unire»_.
 Registro Corrispettivi e la Nota di credito valgono per i riepiloghi e per l'estetica corrente.
 Non è ancora stato applicato: le maschere che commutano in card vanno confrontate con quella,
 ed è lavoro dichiarato, non fatto.
+
+---
+
+# §44 — La testata dell'Ordine cliente è l'ultima scritta due volte _(26/08/2026)_
+
+Indicato dal proprietario: _«la grafica mobile di nuovo ordine cliente è quella più esatta al
+momento, ma non viene mai presa, nonostante dobbiamo unire»_ — e la misura spiega perché.
+
+## 44.1 Il componente comune esiste, e otto maschere su nove lo usano
+
+`app-document-header` dichiara la testata **una volta** e la rende in due vesti: griglia su
+scrivania, pannello apribile su mobile. Monta lui `app-document-mobile-panel` quando la vista è
+compatta, e le due viste sono **esclusive** — non compresenti nel DOM.
+
+⛔ **L'Ordine cliente è l'unico fuori.** Il commento nel suo template lo ammette: _«Vive nel DOM
+accanto alla griglia desktop e si accende sotto lg»_.
+
+```text
+copia mobile   righe 233–541   308 righe
+copia desktop  righe 542–850   309 righe
+template       2083 righe      (Arrivo merce, migrato: 1176)
+```
+
+⭐ **Ed è la ragione della frase del proprietario**: quella grafica è la più curata **perché è
+scritta a mano**, e per la stessa ragione non arriva a nessun altro. Ogni miglioria fatta lì
+resta lì.
+
+## 44.2 ⚠️ Due errori di misura, e valgono più della misura
+
+Ci sono voluti tre tentativi per contare le divergenze, e i due sbagli sono istruttivi:
+
+| Sbaglio                                                     | Che cosa insegnava                                                                                            |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| «sette maschere su dieci non hanno la testata comprimibile» | falso: `app-document-header` monta il pannello **per conto suo**. Avevo cercato il pannello, non chi lo monta |
+| «cinque divergenze fra le due copie»                        | falso: erano **due**. Avevo confrontato il pannello mobile con **uno solo** dei tre blocchi desktop           |
+
+⛔ In entrambi i casi la misura sembrava solida e non lo era. La regola che ne esce: **contare
+l'uso di un componente non basta se quel componente ne monta un altro**, e **confrontare due
+viste richiede di delimitarle entrambe per intero**.
+
+## 44.3 Le divergenze vere: due, e una è esplicita
+
+Criterio deciso dal proprietario: _«le schermate mobile dei documenti saranno modificate ed
+avranno tutte le stesse viste e funzioni, tranne casi espliciti»_. Un caso è esplicito solo se
+**qualcuno l'ha dichiarato**, e si verifica leggendo.
+
+| Divergenza                             | Esplicita?                                                                   | Esito                              |
+| -------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------- |
+| **Modalità prezzo** solo su mobile     | ✅ sì — _«Su desktop lo stesso controllo vive nell'intestazione di colonna»_ | resta: è la coppia di vesti di §43 |
+| **Listino** solo su mobile             | ⛔ no                                                                        | da portare anche sulla scrivania   |
+| **«Data»** contro **«Data documento»** | ⛔ no                                                                        | ✅ **chiuso il 26/08**             |
+
+⚠️ La terza era la peggiore, e non per il nome: nel pannello mobile l'`ariaLabel` diceva già
+«Data documento» mentre l'etichetta visibile diceva «Data». **Sulla stessa riga, l'occhio e lo
+screen reader leggevano due cose diverse.** È la stessa famiglia del difetto che è costato la
+guardia su «Chiudi» contro «Annulla».
+
+## 44.4 Che cosa resta
+
+1. **Listino anche sulla scrivania** — piccolo, e chiude l'ultima deriva non dichiarata.
+2. **La migrazione su `app-document-header`** — ~300 righe in meno, e soprattutto: da lì in poi
+   una miglioria alla testata mobile dell'Ordine cliente arriva a tutte.
+
+⚠️ **Non è un lavoro cieco**: le due copie sono ora allineate su tutto tranne un campo
+dichiarato, quindi la migrazione è meccanica. Ma va guardata a schermo prima di dirla fatta —
+la maschera è il riferimento visivo, e romperla costa il riferimento.
