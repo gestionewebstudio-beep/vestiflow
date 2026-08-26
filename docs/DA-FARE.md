@@ -205,9 +205,49 @@ chiede: una `select` mirata sopravvive, cadono le query senza `select` (`upsert`
 `update`, l’export di backup) che fanno `RETURNING` di tutti gli scalari.
 
 ⛔ **E non è «facoltativo per sempre».** Non è urgente, ma una colonna fantasma è debito:
-si toglie quando i rami sono riallineati e nessuno la dichiara più — a quel punto è una
-riga a rischio zero. Vale lo stesso per gli altri flag morti, quando saranno decisi.
+si toglie quando nessun ramo la dichiara più.
 
+#### ⚠️ CHI la blocca davvero — misurato il 26/08/2026, e non è chi sembra
+
+```text
+origin/main                        la dichiara     ← e main gira su Railway
+origin/develop                     la dichiara
+origin/feature/cassa               la dichiara
+origin/feature/pagamenti-tesoriera la dichiara
+```
+
+⛔ **Eliminare il ramo del collega NON sblocca il `DROP`.** La colonna è dichiarata da
+**tutti e quattro**: tolto `feature/cassa`, restano `main` e `develop`. La condizione è
+«nessuno la dichiara», non «il collega ha smesso».
+
+⚠️ E `main` è il ramo che gira su Railway: toglierla aggiungerebbe una seconda
+incompatibilità a un ambiente **già** incompatibile per la rinomina dell’enum
+(vedi `00-DECISIONI`, in testa).
+
+⭐ **Costerà zero quando si farà**: nessun tenant ha mai cambiato quel valore —
+`select count(*) where default_unit_of_measure <> 'pz'` → **0 righe**. Non c’è un dato
+da salvare, solo una colonna da togliere.
+
+#### Se il ramo cassa viene eliminato — cosa resta comunque da decidere
+
+Le sue 6 migration sono **già applicate** al database e il ramo locale le porta
+(commit `445eabb7`). Cancellare il ramo non annulla gli oggetti nel database.
+
+⛔ **Le 6 cartelle di migration devono RESTARE** anche se il ramo sparisce: toglierle
+farebbe divergere la storia (`_prisma_migrations` avrebbe 6 voci che la cartella non ha),
+ed è la condizione che `prisma migrate status` segnala come `historiesDiverge`.
+
+Restano invece **12 oggetti che nessuno schema dichiarerebbe più**. Sono praticamente
+vuoti — quindi ripulirli, quando si deciderà, è gratis:
+
+```text
+cash_sessions · cash_session_movements · fiscal_receipts · fiscal_devices · pos_terminals    0 righe
+store_sale_payments                                                                          1 riga
+documents.cash_session_id                                                        0 valorizzati su 169
+```
+
+⏸ **Decisione aperta, non dedotta**: quegli oggetti si riconciliano nello schema o si
+eliminano? Finché non è deciso restano orfani, e va bene — è lo stato in cui sono oggi.
 ---
 
 ## ⏸ DA PORTARE AL PROPRIETARIO — l’audit dei nove flag `TenantFeatureSettings`
