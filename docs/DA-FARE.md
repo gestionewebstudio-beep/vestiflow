@@ -1747,44 +1747,48 @@ nomina mai il browser.
 
 ---
 
-# ⚠️ La Fattura accompagnatoria scarica e non avvisa — 26/08/2026
+# ✅ La Fattura accompagnatoria scaricava senza avvisare — CORRETTO il 26/08/2026
 
-Trovato chiudendo il passo 1 dell'audit dei flag di `TenantFeatureSettings`. **Non è stato
-corretto**: la disposizione del proprietario era di registrarlo separatamente, senza
-nasconderlo dietro la rimozione dei flag e senza correggerlo incidentalmente.
+Trovato chiudendo il passo 1 dell’audit dei flag, e corretto lo stesso giorno su
+indicazione del proprietario («non lascerei le cose indietro»).
 
-## Il fatto
+## Il difetto
 
-I tipi documento che scaricano giacenza sono **tre**
-(`api/src/documents/document-stock.constants.ts` → `DOCUMENT_STOCK_UNLOAD_TYPES`):
+I tipi che scaricano giacenza sono **tre** (`DOCUMENT_STOCK_UNLOAD_TYPES`): DDT vendita,
+Vendita manuale e Fattura accompagnatoria. I primi due stanno sull’Ordine cliente e
+mostravano disponibilità e avviso; la terza **né l’una né l’altro**.
 
-| Tipo                       | Maschera                  | Avviso di disponibilità                           |
-| -------------------------- | ------------------------- | ------------------------------------------------- |
-| `sales_ddt`                | `customer-order-form`     | ✅ `exceedsAvailability` + `availabilityHint`     |
-| `manual_unload`            | `customer-order-form`     | ✅ stessi                                         |
-| **`invoice_accompanying`** | **`sales-document-form`** | ⛔ **nessuno** — e nemmeno la colonna Disponibile |
+⚠️ Grave perché la regola esclude il blocco: l’insufficienza di stock **avvisa e non
+blocca mai**. Escluso il blocco, l’avviso è l’unico presidio — e dove manca, lo scarico
+oltre disponibile passa in perfetto silenzio.
 
-Misurato contando chi alimenta `exceedsAvailability` / `availabilityHint` della riga
-condivisa, in `.ts` **e** in template: `customer-order-form` 3, `store-sale-document-form` 3,
-`sales-document-form` **0**.
+## ⭐ Mancava il DATO, non la capacità
 
-## Perché conta
+La riga condivisa porta `exceedsAvailability` e `availabilityHint` **da sempre**
+(`document-line-row.model.ts`). La maschera dei documenti di vendita non teneva i
+riepiloghi delle varianti delle proprie righe, quindi non sapeva quanta merce ci fosse.
 
-La regola è che l'insufficienza di stock **avvisa e non blocca mai**
-(`regole-gestionale` «Controlli e validazioni», `CONTRATTO-COMUNE-DOCUMENTI` §stock,
-`11` BANK-016). Escluso il blocco, **l'avviso è l'unico presidio rimasto**: dove manca, lo
-scarico oltre disponibile passa in perfetto silenzio.
+## Come è stato corretto, e le tre cose che NON si sono fatte
 
-⚠️ E la riga condivisa lo **supporta già** (`document-line-row.model.ts:264-266`, con il
-commento «Avviso di disponibilità, mai blocco: `null` = nessun avviso»). Non manca una
-capacità: manca chi la alimenta.
+|                    |                                                                                                                                                                         |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| il **calcolo**     | estratto in `variant-availability.util` — puro, niente rete: l’Ordine cliente lo aveva inline e copiarlo avrebbe fatto la **terza** implementazione dello stesso avviso |
+| il **caricamento** | esteso il servizio che già esisteva, `DocumentLineArticleService.summariesByIds` — l’asincrono sta nel service, mai in un util                                          |
+| il **gate**        | la riga, non il tipo: `loadsStock`. ⛔ Nessun `if (invoice_accompanying)` in una maschera che la migrazione ha appena reso comune                                       |
 
-## ⛔ Cosa NON è deciso, e non va dedotto
+⚠️ **Il messaggio è UNO** (`availabilityHintText`). Due copie dello stesso avviso in questo
+progetto sono già divergute **su un apostrofo**, e nessun test lo vedeva.
 
-- **Trasferimento e Rettifica** riducono anch'essi una giacenza, ma **non** stanno in
+## ⏸ Cosa resta aperto, e non è stato dedotto
+
+- **Trasferimento e Rettifica** riducono anch’essi una giacenza ma **non** stanno in
   `DOCUMENT_STOCK_UNLOAD_TYPES` e passano da un altro meccanismo. Se debbano mostrare lo
-  stesso avviso è una domanda aperta, non un difetto misurato. Il Movimento di magazzino ha
-  già il proprio (`movement-form.component.ts:421-428`), con parole e meccanica sue.
-- **Se l'avviso vada unificato** su un solo componente invece delle tre implementazioni
-  attuali (Ordine cliente, Vendita al banco, Movimento). Il censimento dei consumatori va
-  fatto **prima** di toccarli, come per ogni altra unificazione di questo filone.
+  stesso avviso è una **domanda**, non un difetto misurato.
+- **Le implementazioni dell’avviso restano tre** — Ordine cliente e documenti di vendita
+  ora condividono calcolo e testo, ma la Vendita al banco ha una strada sua (`line.available`
+  sulla riga) e il Movimento di magazzino un’altra ancora (`lineExceedsAvailability` locale).
+  Unificarle richiede il censimento dei consumatori **prima**, come ogni altra unificazione
+  di questo filone.
+- **Ordine cliente e Arrivo merce** procurano ancora i riepiloghi **inline**, con un ciclo di
+  chiamate e `mergeVariantSummaries`, invece di `summariesByIds`. Seguito meccanico, misurato,
+  non incluso qui per non allargare una correzione mirata.

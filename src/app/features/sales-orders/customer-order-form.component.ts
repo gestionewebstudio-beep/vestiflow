@@ -1,4 +1,8 @@
 import {
+  availabilityHintText,
+  variantEffectiveAvailable,
+} from '@domain/products/utils/variant-availability.util';
+import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
@@ -3112,14 +3116,10 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
    */
   protected lineEffectiveAvailable(index: number): number | null {
     const summary = this.lineVariantSummary(index);
-    if (!summary || summary.kind === 'service' || summary.managesStock === false) {
-      return null;
-    }
-    if (summary.stockAvailable == null) {
-      return 0;
-    }
-    const ownReserved = this.ownReservedByVariant().get(summary.variantId) ?? 0;
-    return summary.stockAvailable + ownReserved;
+    // ⭐ La logica sta in `variantEffectiveAvailable`, condivisa: qui resta solo
+    //   l'impegno che QUESTO documento ha gia' prodotto, che e' suo.
+    const ownReserved = summary ? (this.ownReservedByVariant().get(summary.variantId) ?? 0) : 0;
+    return variantEffectiveAvailable(summary, ownReserved);
   }
 
   /** Testo colonna "Q.tà disp.": — per i Servizi (nessun controllo). */
@@ -3149,11 +3149,13 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   }
 
   protected lineAvailabilityHint(index: number): string | null {
+    // ⚠️ Il gate di policy (Preventivo, riga che non impegna) resta in
+    //   `lineExceedsAvailability`: e' di questa maschera. Il TESTO no — quello e'
+    //   uno solo per tutta l’applicazione, o due copie divergono e si vede tardi.
     if (!this.lineExceedsAvailability(index)) {
       return null;
     }
-    const available = this.lineEffectiveAvailable(index) ?? 0;
-    return `disponibili solo ${Math.max(0, available)}`;
+    return availabilityHintText(this.lineEffectiveAvailable(index) ?? 0);
   }
 
   /**

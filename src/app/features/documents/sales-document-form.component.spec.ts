@@ -1,6 +1,6 @@
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { AuthService } from '@core/auth';
-import { render, screen, within } from '@testing-library/angular';
+import { render, screen, within, waitFor } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { NEVER, of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
@@ -975,6 +975,106 @@ describe('SalesDocumentFormComponent', () => {
       form.onVariantSelect(0, 'var-M', CATALOGO.maglia);
 
       expect(form.lines.at(0).controls['unitOfMeasure']!.value).toBe('pz');
+    });
+  });
+
+  /**
+   * ⛔ **La Fattura accompagnatoria scaricava senza avvisare — corretto il 26/08/2026.**
+   *
+   * I tipi che riducono giacenza sono tre: DDT vendita, Vendita manuale e Fattura
+   * accompagnatoria. I primi due stanno sull'Ordine cliente e mostravano
+   * disponibilità e avviso; questa maschera **né l'una né l'altro**.
+   *
+   * ⚠️ E la regola rende il buco grave: l'insufficienza di stock **non blocca mai**
+   * (`regole-gestionale` «Controlli e validazioni», `CONTRATTO-COMUNE-DOCUMENTI`
+   * §stock). Escluso il blocco, l'avviso è l'unico presidio: dove manca, lo
+   * scarico oltre disponibile passa in perfetto silenzio.
+   *
+   * ⭐ **Mancava il dato, non la capacità**: `document-line-row.model` porta
+   * `exceedsAvailability` e `availabilityHint` da sempre.
+   */
+  describe('SalesDocumentFormComponent — avviso di disponibilità sulle righe che scaricano', () => {
+    interface FormaInterna {
+      lineExceedsAvailability(index: number): boolean;
+      lineAvailabilityHint(index: number): string | null;
+    }
+
+    function documento(loadsStock: boolean, quantity: number) {
+      return {
+        id: 'doc-1',
+        type: DocumentType.InvoiceAccompanying,
+        status: 'draft',
+        series: 'A',
+        year: 2026,
+        number: 7,
+        reference: 'FTA-0007',
+        documentDate: '2026-08-26T00:00:00.000Z',
+        currency: 'EUR',
+        customerId: 'cus-1',
+        locationId: 'loc-1',
+        pricesIncludeVat: false,
+        documentDiscountPercent: 0,
+        lines: [
+          {
+            id: 'l-1',
+            lineNumber: 1,
+            description: 'Maglietta',
+            variantId: 'var-1',
+            quantity,
+            unitPrice: { amountMinor: 1000, currencyCode: 'EUR' },
+            discountPercent: 0,
+            loadsStock,
+          },
+        ],
+      };
+    }
+
+    /** Otto pezzi disponibili: il catalogo finto risponde anche alla ricerca per id. */
+    const CATALOGO = [
+      {
+        variantId: 'var-1',
+        productId: 'prod-1',
+        productName: 'Maglietta',
+        variantLabel: 'M',
+        sku: 'SKU-1',
+        kind: 'product',
+        managesStock: true,
+        stockAvailable: 8,
+        sellingPrice: { amountMinor: 1000, currencyCode: 'EUR' },
+      },
+    ];
+
+    async function apri(loadsStock: boolean, quantity: number) {
+      const view = await setup({
+        routeType: DocumentType.InvoiceAccompanying,
+        editDocument: documento(loadsStock, quantity),
+        variantSummaries: CATALOGO,
+      });
+      return view.component as unknown as FormaInterna;
+    }
+
+    it('⛔ quantità 12 su disponibile 8: avvisa, e dice quanti ce ne sono', async () => {
+      const form = await apri(true, 12);
+
+      await waitFor(() => expect(form.lineAvailabilityHint(0)).toBe('disponibili solo 8'));
+      expect(form.lineExceedsAvailability(0)).toBe(true);
+    });
+
+    it('⭐ entro il disponibile non dice niente', async () => {
+      const form = await apri(true, 3);
+
+      await waitFor(() => expect(form.lineExceedsAvailability(0)).toBe(false));
+      expect(form.lineAvailabilityHint(0)).toBeNull();
+    });
+
+    it('⛔ e a decidere è la RIGA, non il tipo documento', async () => {
+      // ⚠️ Stesso tipo, stessa quantità, stessa disponibilità: cambia solo
+      //   `loadsStock`. Se l'avviso comparisse lo stesso, il gate sarebbe sul tipo
+      //   — che è esattamente ciò che non doveva succedere.
+      const form = await apri(false, 12);
+
+      expect(form.lineExceedsAvailability(0)).toBe(false);
+      expect(form.lineAvailabilityHint(0)).toBeNull();
     });
   });
 });

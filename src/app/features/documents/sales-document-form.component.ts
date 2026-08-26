@@ -1,4 +1,9 @@
 import {
+  quantityExceedsAvailability,
+  variantAvailabilityHint,
+  variantEffectiveAvailable,
+} from '@domain/products/utils/variant-availability.util';
+import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
@@ -120,7 +125,10 @@ import type {
   EsitoRichiamoArticolo,
   PolicyRichiamoArticolo,
 } from '@domain/documents/models/document-line-article.model';
-import { mergeVariantSummaries } from '@domain/products/utils/variant-summary-search.util';
+import {
+  findVariantSummaryById,
+  mergeVariantSummaries,
+} from '@domain/products/utils/variant-summary-search.util';
 import { toVariantSelectMenuOptions } from '@domain/products/utils/variant-select-menu.util';
 import type { TenantFeatureSettings } from '@domain/tenant/models/tenant-feature-settings.model';
 import { TenantFeatureSettingsService } from '@domain/tenant/services/tenant-feature-settings.service';
@@ -2222,6 +2230,8 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       linkedArticleCode: this.lines.at(index)?.controls.articleCode.value ?? '',
       quantityInvalid: this.lineFieldInvalid(index, 'quantity'),
       productInvalid: this.lineDescriptionInvalid(index),
+      exceedsAvailability: this.lineExceedsAvailability(index),
+      availabilityHint: this.lineAvailabilityHint(index),
       lineTotal: this.lineTotalLabel(index),
       vatOptions: this.lineVatOptions(index),
       vatValue: this.lines.at(index)?.controls.vatCodeId.value ?? '',
@@ -3262,6 +3272,76 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     if (this.lines.length === 0) {
       this.lines.push(this.createLine());
     }
+    this.caricaDisponibilita();
+  }
+
+  // ── Disponibilità delle righe che movimentano ───────────────────────────
+  //
+  // ⛔ **La Fattura accompagnatoria scaricava senza avvisare.** Misurato il
+  //   26/08/2026: dei tre tipi che scaricano — DDT vendita, Vendita manuale,
+  //   Fattura accompagnatoria — i primi due mostravano disponibilità e avviso,
+  //   il terzo né l’una né l’altro. Escluso il blocco per regola, l’avviso è
+  //   l’unico presidio: dove manca, lo scarico oltre disponibile passa in
+  //   silenzio.
+  //
+  // ⚠️ **Mancava il DATO, non la capacità**: la riga condivisa porta
+  //   `exceedsAvailability` e `availabilityHint` da sempre. Questa maschera non
+  //   teneva i riepiloghi delle varianti delle proprie righe.
+
+  /** I riepiloghi delle righe caricate: il servizio li procura, qui si tengono. */
+  private readonly pinnedVariants = signal<readonly VariantSummary[]>([]);
+
+  private caricaDisponibilita(): void {
+    const locationId = this.form.controls.locationId.value || undefined;
+    this.lineArticles
+      .summariesByIds(
+        this.lines.controls.map((line) => line.controls.variantId.value),
+        locationId,
+      )
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe((righe) => this.pinnedVariants.set(righe));
+  }
+
+  private lineEffectiveAvailable(index: number): number | null {
+    // ⭐ Due sorgenti, come sull’Ordine cliente: i riepiloghi delle righe
+    //   caricate e quelli appena arrivati dalla ricerca. Una riga scelta adesso
+    //   deve avvisare quanto una aperta da un documento esistente.
+    return variantEffectiveAvailable(
+      findVariantSummaryById(
+        this.lines.at(index)?.controls.variantId.value,
+        this.pinnedVariants(),
+        this.searchedVariants(),
+      ),
+    );
+  }
+
+  /**
+   * ⛔ **Nessun `if` sul tipo documento, ed è il punto.** A decidere è la RIGA:
+   * `loadsStock` dice se quella riga movimenta davvero, e la maschera la mostra
+   * solo dove il tipo lo prevede (`showLoadsStockColumn`). Un ramo su «Fattura
+   * accompagnatoria» avrebbe rimesso il tipo dentro un componente che la
+   * migrazione ha appena reso comune.
+   */
+  protected lineExceedsAvailability(index: number): boolean {
+    if (this.lines.at(index)?.controls.loadsStock.value !== true) {
+      return false;
+    }
+    return quantityExceedsAvailability(
+      this.lineEffectiveAvailable(index),
+      this.lineQuantity(index),
+    );
+  }
+
+  /** ⚠️ Avvisa e basta: il salvataggio resta consentito, sempre. */
+  protected lineAvailabilityHint(index: number): string | null {
+    if (this.lines.at(index)?.controls.loadsStock.value !== true) {
+      return null;
+    }
+    return variantAvailabilityHint(this.lineEffectiveAvailable(index), this.lineQuantity(index));
+  }
+
+  private lineQuantity(index: number): number {
+    return Number(this.lines.at(index)?.controls.quantity.value) || 0;
   }
 
   private patchFormFromDocument(doc: DocumentRecord): void {
@@ -3371,6 +3451,10 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       });
       this.lines.push(group);
     }
+    // ⛔ Anche qui, e non solo nel precompilato: un documento RIAPERTO deve
+    //   avvisare quanto uno appena generato. Agganciarlo a un percorso solo
+    //   e' il difetto che questa correzione chiude, in piccolo.
+    this.caricaDisponibilita();
     if (this.lines.length === 0) {
       this.lines.push(this.createLine());
     }
