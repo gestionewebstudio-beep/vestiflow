@@ -1,4 +1,5 @@
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { render, screen, waitFor, within } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
@@ -2418,7 +2419,7 @@ describe('CustomerOrderFormComponent — la Vendita manuale è una vendita', () 
     listino3Name: null,
   };
 
-  async function apriConListini(kind?: 'manual-unload') {
+  async function apriConListini(kind?: 'manual-unload', compatta = false) {
     const view = await render(CustomerOrderFormComponent, {
       providers: [
         ...formProviders(kind ? { kind } : {}),
@@ -2426,6 +2427,11 @@ describe('CustomerOrderFormComponent — la Vendita manuale è una vendita', () 
           provide: TenantFeatureSettingsService,
           useValue: { getSettings: () => of(CON_LISTINI) },
         },
+        // ⚠️ La vesta si dichiara sempre. Dal 26/08/2026 le due sono ESCLUSIVE:
+        // senza dichiararla si guarderebbe solo la scrivania, e i test che
+        // credono di coprire entrambe smetterebbero di coprirne una — restando
+        // verdi. È il modo peggiore di perdere copertura.
+        { provide: ViewportService, useValue: { compact: () => compatta } },
       ],
     });
     return view.container;
@@ -2435,27 +2441,41 @@ describe('CustomerOrderFormComponent — la Vendita manuale è una vendita', () 
    * ⭐ **La tabella decide, e decide per ENTRAMBE le viste.**
    *
    * ⚠️ È il motivo per cui la dichiarazione esiste: la testata dell'Ordine
-   * cliente vive in due copie — vista estesa e pannello mobile — e ogni
+   * cliente viveva in due copie — vista estesa e pannello mobile — e ogni
    * biforcazione per tipo era scritta due volte. Cambiare idea su un campo
    * voleva dire trovarne tutte le occorrenze, col rischio di correggerne una
    * sola. È il difetto già misurato sulla data, dove le due copie divergevano
    * su «Data» e «Data documento».
    *
-   * ⭐ Ora la riga della tabella è una sola, e questa prova lo inchioda: il
-   * «Rif.» c'è sulla Vendita manuale e su nessun altro tipo, in tutte e due le
-   * viste, senza che nessuno debba ricordarsi di guardarne due.
+   * ⛔ **Queste prove contavano `2`**, cioè proprio la coesistenza delle due
+   * vesti nel DOM. Dal 26/08/2026 la testata è `app-document-header` e le vesti
+   * sono esclusive: il numero giusto è **1 per vesta**, e va verificato in
+   * tutte e due — contare `1` senza dichiarare quale vesta si sta guardando
+   * sarebbe una prova più debole di prima, non più forte.
    */
-  it('⭐ il «Rif.» c’è sulla Vendita manuale, in entrambe le viste', async () => {
+  it('⭐ il «Rif.» c’è sulla Vendita manuale — su scrivania', async () => {
     const vista = await apriConListini('manual-unload');
 
     const etichette = [...vista.querySelectorAll('label')].map((l) => l.textContent?.trim());
-    // Due: una per la vista estesa, una per il pannello mobile — convivono nel
-    // DOM e a sceglierne una è il CSS.
-    expect(etichette.filter((t) => t === 'Rif.')).toHaveLength(2);
+    expect(etichette.filter((t) => t === 'Rif.')).toHaveLength(1);
   });
 
-  it('⛔ e non c’è sull’Ordine cliente, sempre in entrambe', async () => {
+  it('⭐ …e sul telefono, una volta sola anche lì', async () => {
+    const vista = await apriConListini('manual-unload', true);
+
+    const etichette = [...vista.querySelectorAll('label')].map((l) => l.textContent?.trim());
+    expect(etichette.filter((t) => t === 'Rif.')).toHaveLength(1);
+  });
+
+  it('⛔ e non c’è sull’Ordine cliente, su scrivania', async () => {
     const vista = await apriConListini();
+
+    const etichette = [...vista.querySelectorAll('label')].map((l) => l.textContent?.trim());
+    expect(etichette.filter((t) => t === 'Rif.')).toHaveLength(0);
+  });
+
+  it('⛔ …né sul telefono', async () => {
+    const vista = await apriConListini(undefined, true);
 
     const etichette = [...vista.querySelectorAll('label')].map((l) => l.textContent?.trim());
     expect(etichette.filter((t) => t === 'Rif.')).toHaveLength(0);
@@ -2467,14 +2487,19 @@ describe('CustomerOrderFormComponent — la Vendita manuale è una vendita', () 
     expect(vista.querySelectorAll('app-document-listino-select').length).toBeGreaterThan(0);
   });
 
-  it('⭐ e lo ha con le stesse regole degli altri: due viste, un componente', async () => {
+  it('⭐ e ne monta UNA istanza sola: su scrivania', async () => {
     // ⚠️ Il confronto con l'Ordine cliente è il punto: se la Vendita manuale
     // ne montasse un numero diverso, il nome avrebbe ricominciato a decidere
     // qualcosa che non gli compete.
     const manuale = await apriConListini('manual-unload');
-    const quanti = manuale.querySelectorAll('app-document-listino-select').length;
 
-    expect(quanti).toBe(2);
+    expect(manuale.querySelectorAll('app-document-listino-select')).toHaveLength(1);
+  });
+
+  it('⭐ …e una sola sul telefono', async () => {
+    const manuale = await apriConListini('manual-unload', true);
+
+    expect(manuale.querySelectorAll('app-document-listino-select')).toHaveLength(1);
   });
 });
 
@@ -2505,20 +2530,29 @@ describe('CustomerOrderFormComponent — la Vendita manuale è una vendita', () 
  * un campo la abita**, e dentro ogni campo decide da sé.
  */
 describe('CustomerOrderFormComponent — la fascia secondaria di scrivania', () => {
-  async function apri(kind?: 'quote' | 'sales-ddt' | 'manual-unload') {
+  async function apri(kind?: 'quote' | 'sales-ddt' | 'manual-unload', compatta = false) {
     const view = await render(CustomerOrderFormComponent, {
-      providers: formProviders(kind ? { kind } : {}),
+      providers: [
+        ...formProviders(kind ? { kind } : {}),
+        { provide: ViewportService, useValue: { compact: () => compatta } },
+      ],
     });
     return view.container;
   }
 
-  it('⛔ il Preventivo mostra «Consegna prevista» anche su SCRIVANIA, non solo sul telefono', async () => {
+  it('⛔ il Preventivo mostra «Consegna prevista» su SCRIVANIA', async () => {
     const vista = await apri('quote');
 
-    // `co-delivery` è l'identificativo della vesta scrivania, `co-m-delivery`
-    // quello della compatta: distinguono le due senza ambiguità.
     expect(vista.querySelector('#co-delivery')).not.toBeNull();
-    expect(vista.querySelector('#co-m-delivery')).not.toBeNull();
+  });
+
+  it('⭐ …e sul telefono, dove non era mai mancata', async () => {
+    // ⚠️ Dal 26/08/2026 le due vesti sono ESCLUSIVE e l’identificativo è uno
+    // solo: prima erano `co-delivery` e `co-m-delivery`, e la prova poteva
+    // guardarli insieme. Ora la vesta va dichiarata, o si guarda solo una.
+    const vista = await apri('quote', true);
+
+    expect(vista.querySelector('#co-delivery')).not.toBeNull();
   });
 
   it('⭐ e il Pagamento resta accanto alla consegna, come prima', async () => {
@@ -2546,5 +2580,191 @@ describe('CustomerOrderFormComponent — la fascia secondaria di scrivania', () 
 
     expect(vista.querySelector('#co-payment')).toBeNull();
     expect(vista.querySelector('#co-delivery')).toBeNull();
+  });
+});
+
+/**
+ * ⭐ **La testata dopo la migrazione: cosa deve restare invariato.**
+ *
+ * Il proprietario ha posto quattro criteri non negoziabili (26/08/2026). Il
+ * quarto chiede di **dimostrare** invariati campi visibili, valori e default,
+ * modificabilità, stato/lock, Listino, Netto/Ivato, «Includi», scanner,
+ * comportamento nelle due vesti e cambio di soglia. Questo blocco è quella
+ * dimostrazione, per la parte che un test può reggere.
+ *
+ * ⚠️ **Ogni prova dichiara la vesta.** Prima della migrazione non serviva: le
+ * due vivevano insieme nel DOM e una query le vedeva entrambe. Ora sono
+ * esclusive, e un test che non dichiara la vesta guarda **solo la scrivania** —
+ * restando verde mentre smette di coprire metà di quello che copriva.
+ */
+describe('CustomerOrderFormComponent — la testata migrata: invarianti', () => {
+  const CON_LISTINI_ATTIVI = {
+    salesPricesIncludeVat: false,
+    listino1Active: true,
+    listino1Name: 'Ingrosso',
+    listino2Active: false,
+    listino2Name: null,
+    listino3Active: false,
+    listino3Name: null,
+  };
+
+  async function apri(compatta: boolean, kind?: 'quote' | 'sales-ddt' | 'manual-unload') {
+    const view = await render(CustomerOrderFormComponent, {
+      providers: [
+        ...formProviders(kind ? { kind } : {}),
+        {
+          provide: TenantFeatureSettingsService,
+          useValue: { getSettings: () => of(CON_LISTINI_ATTIVI) },
+        },
+        { provide: ViewportService, useValue: { compact: () => compatta } },
+      ],
+    });
+    return view.container;
+  }
+
+  /** Tutte le etichette di campo della testata, nella vesta che si sta guardando. */
+  function etichette(vista: HTMLElement): readonly string[] {
+    return [...vista.querySelectorAll('.doc-form__label, .doc-panel__label')].map(
+      (n) => n.textContent?.trim() ?? '',
+    );
+  }
+
+  it('⭐ SCRIVANIA · l’Ordine cliente mostra i suoi campi, ognuno una volta sola', async () => {
+    const vista = await apri(false);
+    const viste = etichette(vista);
+
+    for (const campo of ['Cliente', 'Location di origine', 'Data documento', 'Stato', 'Listino']) {
+      expect(
+        viste.filter((e) => e === campo),
+        campo,
+      ).toHaveLength(1);
+    }
+  });
+
+  it('⭐ TELEFONO · gli stessi campi, e sempre uno per campo', async () => {
+    const vista = await apri(true);
+    const viste = etichette(vista);
+
+    for (const campo of ['Cliente', 'Location di origine', 'Data documento', 'Stato', 'Listino']) {
+      expect(
+        viste.filter((e) => e === campo),
+        campo,
+      ).toHaveLength(1);
+    }
+  });
+
+  it('⛔ Netto/ivato · sul TELEFONO sta in testata: le card non hanno intestazione di colonna', async () => {
+    const vista = await apri(true);
+
+    expect(etichette(vista).filter((e) => e === 'Modalità prezzo')).toHaveLength(1);
+  });
+
+  it('⛔ Netto/ivato · su SCRIVANIA non sta in testata: la sua casa è l’intestazione di colonna', async () => {
+    // ⚠️ È l'invariante che questa migrazione rischiava di rompere: mettendolo
+    // nella struttura unica senza gate, su scrivania se ne vedrebbero DUE.
+    const vista = await apri(false);
+
+    expect(etichette(vista).filter((e) => e === 'Modalità prezzo')).toHaveLength(0);
+    expect(vista.querySelector('app-document-header app-price-mode-menu')).toBeNull();
+
+    // ⚠️ Qui NON si asserisce che il comando esista altrove nel DOM: su un
+    //   documento nuovo la tabella righe non e’ renderizzata affatto — la
+    //   tiene ferma il gate di testata (cliente e location mancanti), che e’
+    //   coperto dalle sue prove. Asserirlo qui avrebbe legato questa prova a
+    //   una condizione che non c’entra, e l’avrebbe fatta fallire per il
+    //   motivo sbagliato — come e’ successo scrivendola.
+  });
+
+  it('⛔ «Includi documento» · una sola istanza sul TELEFONO', async () => {
+    const vista = await apri(true);
+    const comandi = [...vista.querySelectorAll('button')].filter((b) =>
+      b.textContent?.includes('Includi documento'),
+    );
+
+    expect(comandi).toHaveLength(1);
+  });
+
+  it('⛔ «Includi documento» · una sola istanza su SCRIVANIA, e sta fuori dalla testata', async () => {
+    const vista = await apri(false);
+    const comandi = [...vista.querySelectorAll('button')].filter((b) =>
+      b.textContent?.includes('Includi documento'),
+    );
+
+    expect(comandi).toHaveLength(1);
+    expect(comandi[0]!.closest('app-document-header')).toBeNull();
+  });
+
+  it('⭐ Listino · un componente solo per vesta, su SCRIVANIA', async () => {
+    const vista = await apri(false);
+
+    expect(vista.querySelectorAll('app-document-listino-select')).toHaveLength(1);
+  });
+
+  it('⭐ Listino · e uno solo anche sul TELEFONO', async () => {
+    const vista = await apri(true);
+
+    expect(vista.querySelectorAll('app-document-listino-select')).toHaveLength(1);
+  });
+
+  it('⭐ i campi che hanno un id portano un <label for> VERO, non uno span', async () => {
+    // ⚠️ Cinque campi ce l'avevano prima della migrazione. Migrarli su un
+    // componente che sapesse rendere solo uno <span> avrebbe perso
+    // l'associazione fra nome e campo, in silenzio.
+    const vista = await apri(false);
+    const associati = [...vista.querySelectorAll('label[for]')].map((l) => l.getAttribute('for'));
+
+    expect(associati).toContain('co-date');
+  });
+
+  it('⭐ e cliccare quell’etichetta porta il fuoco nel campo', async () => {
+    const vista = await apri(false);
+    const etichetta = vista.querySelector('label[for="co-date"]') as HTMLLabelElement;
+
+    await userEvent.setup().click(etichetta);
+
+    expect(document.activeElement?.id).toBe('co-date');
+  });
+
+  it('⭐ TELEFONO · il primo pannello nasce APERTO, il secondo chiuso', async () => {
+    // ⚠️ `app-document-header` ha `initiallyOpen` a `true` mentre il pannello
+    // sotto ce l'ha a `false`: il secondo pannello nasceva chiuso proprio
+    // perché non dichiarava niente. Migrando senza passarlo esplicitamente si
+    // sarebbe aperto da solo.
+    const vista = await apri(true);
+    const teste = [...vista.querySelectorAll('.doc-panel__toggle')];
+
+    expect(teste).toHaveLength(2);
+    expect(teste[0]!.getAttribute('aria-expanded')).toBe('true');
+    expect(teste[1]!.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('⭐ TELEFONO · i due pannelli sono quelli del riferimento: Cliente e magazzino, Dettagli documento', async () => {
+    const vista = await apri(true);
+    const titoli = [...vista.querySelectorAll('.doc-panel__copy strong')].map((n) =>
+      n.textContent?.trim(),
+    );
+
+    expect(titoli).toEqual(['Cliente e magazzino', 'Dettagli documento']);
+  });
+
+  it('⛔ attraversando la soglia nessun campo si duplica, in nessuno dei due versi', async () => {
+    const compatta = signal(false);
+    const view = await render(CustomerOrderFormComponent, {
+      providers: [
+        ...formProviders(),
+        { provide: ViewportService, useValue: { compact: compatta } },
+      ],
+    });
+    const conta = () => etichette(view.container).filter((e) => e === 'Data documento').length;
+
+    expect(conta()).toBe(1);
+
+    compatta.set(true);
+    view.detectChanges();
+    expect(conta()).toBe(1);
+
+    compatta.set(false);
+    view.detectChanges();
+    expect(conta()).toBe(1);
   });
 });

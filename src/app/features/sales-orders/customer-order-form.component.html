@@ -223,442 +223,161 @@
 
       <fieldset class="doc-form__fieldset" [disabled]="formReadOnly()">
         <!-- Testata compatta (stessa impostazione dell'Arrivo merce). -->
+        <!--
+          ⭐ **La testata: UNA dichiarazione, due vesti.** (26/08/2026)
+
+          Fino a oggi questa maschera era l'unica delle otto a scriversi la
+          testata da sé, e se la scriveva DUE volte: una griglia di scrivania e
+          due pannelli mobili, entrambi vivi nel DOM, commutati dal foglio di
+          stile. Non erano due viste: era la stessa vista scritta due volte —
+          due insiemi di identificativi (co-m-* contro co-*), due
+          formControlName legati allo stesso controllo, e ogni correzione che ne
+          raggiungeva una sola. Il Preventivo ci ha perso «Consegna prevista» su
+          scrivania senza che nessuno se ne accorgesse, perché sul telefono si
+          vedeva.
+
+          ⭐ **La ripartizione è UNA, e viene dal mobile** (decisione del
+          proprietario, 26/08/2026): «Dati principali» tiene ciò che sblocca le
+          righe, «Dettagli documento» tutto il resto. Vale su ogni schermo: a
+          cambiare è l'aspetto, non quali campi esistono né dove appartengono.
+
+          ⚠️ **Su scrivania la disposizione cambia**, ed era messo in conto: la
+          fascia unica di prima diventa due fasce. La vestizione grafica di
+          scrivania è un passo separato, che userà questa stessa struttura senza
+          aggiungere markup funzionale.
+
+          ⚠️ compactView() qui dentro decide **dove vive l'unica istanza** di un
+          comando che su scrivania ha un'altra casa — mai due copie dello stesso
+          campo. Sono esattamente due casi, ed è scritto su ognuno.
+        -->
         <div class="doc-form__header">
-          <!-- Vista mobile: due pannelli apribili, come la reference. Vive nel
-               DOM accanto alla griglia desktop e si accende sotto lg — stesso
-               schema delle card riga, che convivono con la tabella.
-               Il primo pannello tiene i dati che sbloccano le righe, il secondo
-               quelli che hanno già un valore valido: si apre solo per cambiarli.
-               Nessuno dei due si richiude da solo quando i dati si completano. -->
-          <div class="doc-panels">
-            <!-- Il primo pannello tiene i dati che sbloccano le righe: aperto
-                 all'ingresso. Lo stato di apertura vive nel componente. -->
-            <app-document-mobile-panel
-              [title]="customerPanelTitle()"
-              [summaryParts]="[customerPanelSubtitle()]"
-              icon="pi-user"
-              [statusText]="customerPanelStatus()"
-              [statusReady]="headerDataReady()"
-              [initiallyOpen]="true"
+          <!-- ── Dati principali: ciò che sblocca le righe ─────────────────── -->
+          <app-document-header
+            [title]="customerPanelTitle()"
+            [summaryParts]="[customerPanelSubtitle()]"
+            icon="pi-user"
+            [statusText]="customerPanelStatus()"
+            [statusReady]="headerDataReady()"
+            [initiallyOpen]="true"
+            sectionTitle="Dati principali"
+            [dense]="true"
+            [flowRow]="true"
+          >
+            @let comando = compactView() ? 'doc-panel__field-action' : 'doc-form__inline-toggle';
+            @let controllo = compactView() ? 'doc-panel__control' : 'doc-form__input';
+
+            <app-document-header-field
+              [label]="isManualUnload ? 'Cliente (facoltativo)' : 'Cliente'"
+              [span2]="true"
+              [waiting]="fieldWaiting('customerId')"
+              [invalid]="!isManualUnload && fieldInvalid('customerId')"
+              errorId="co-customer-error"
             >
-              <p class="doc-panel__section">Dati principali</p>
+              <!--
+                I comandi stanno sulla riga dell'etichetta: sotto il campo
+                aggiungevano una riga per un collegamento che si usa di rado.
 
-              <div class="doc-panel__fields">
-                <div class="doc-panel__field">
-                  <div class="doc-panel__field-head">
-                    <span class="doc-panel__label" id="co-m-customer-label">
-                      {{ isManualUnload ? 'Cliente (facoltativo)' : 'Cliente' }}
-                    </span>
-                    <!--
-                      I due comandi stanno insieme sulla riga dell'etichetta.
-                      «Scheda cliente» stava sotto il campo, e da lì spingeva in
-                      basso tutto il resto del pannello per un collegamento che
-                      si usa di rado: in alto costa zero altezza, ed è accanto
-                      al nome a cui si riferisce.
+                ⚠️ Senza il permesso resta solo «Scheda cliente»: il cliente si
+                sceglie fra quelli già in anagrafica.
+              -->
+              <ng-container fieldActions>
+                @if (puoGestireClienti()) {
+                  <button type="button" [class]="comando" (click)="toggleCustomerForm()">
+                    <i
+                      class="pi"
+                      [class.pi-plus]="!showCustomerForm()"
+                      [class.pi-minus]="showCustomerForm()"
+                      aria-hidden="true"
+                    ></i>
+                    {{ showCustomerForm() ? 'Annulla nuovo cliente' : 'Crea nuovo cliente' }}
+                  </button>
+                }
+                @if (hasCustomer()) {
+                  <button type="button" [class]="comando" (click)="openCustomerDetail()">
+                    <i class="pi pi-external-link" aria-hidden="true"></i>
+                    Scheda cliente
+                  </button>
+                }
+              </ng-container>
 
-                      Il contenitore non è di troppo: la riga è `space-between`,
-                      e con tre figli i due comandi si spargerebbero invece di
-                      stare insieme a destra.
-                    -->
-                    <span class="doc-panel__field-actions">
-                      <!-- Senza il permesso il cliente si sceglie soltanto fra
-                           quelli gia' in anagrafica: la scorciatoia sparisce. -->
-                      @if (puoGestireClienti()) {
-                        <button
-                          type="button"
-                          class="doc-panel__field-action"
-                          (click)="toggleCustomerForm()"
-                        >
-                          <i
-                            class="pi"
-                            [class.pi-plus]="!showCustomerForm()"
-                            [class.pi-minus]="showCustomerForm()"
-                            aria-hidden="true"
-                          ></i>
-                          {{ showCustomerForm() ? 'Annulla nuovo cliente' : 'Crea nuovo cliente' }}
-                        </button>
-                      }
-                      @if (hasCustomer()) {
-                        <button
-                          type="button"
-                          class="doc-panel__field-action"
-                          (click)="openCustomerDetail()"
-                        >
-                          <i class="pi pi-external-link" aria-hidden="true"></i>
-                          Scheda cliente
-                        </button>
-                      }
-                    </span>
-                  </div>
+              <app-select-menu
+                [options]="customerOptions()"
+                [value]="form.controls.customerId.value"
+                ariaLabel="Cliente"
+                [placeholder]="
+                  isManualUnload ? 'Seleziona cliente (facoltativo)…' : 'Seleziona cliente…'
+                "
+                [compact]="true"
+                [fullWidth]="true"
+                [searchable]="true"
+                searchPlaceholder="Cerca cliente…"
+                searchAriaLabel="Cerca cliente"
+                [invalid]="!isManualUnload && fieldInvalid('customerId')"
+                describedBy="co-customer-error"
+                (valueChange)="onCustomerSelect($event)"
+              />
 
-                  <app-select-menu
-                    [options]="customerOptions()"
-                    [value]="form.controls.customerId.value"
-                    ariaLabel="Cliente"
-                    [placeholder]="
-                      isManualUnload ? 'Seleziona cliente (facoltativo)…' : 'Seleziona cliente…'
-                    "
-                    [fullWidth]="true"
-                    [searchable]="true"
-                    searchPlaceholder="Cerca cliente…"
-                    searchAriaLabel="Cerca cliente"
-                    [invalid]="!isManualUnload && fieldInvalid('customerId')"
-                    describedBy="co-m-customer-error"
-                    (valueChange)="onCustomerSelect($event)"
-                  />
-
-                  @if (!isManualUnload && fieldInvalid('customerId')) {
-                    <p id="co-m-customer-error" class="doc-form__error">Campo obbligatorio.</p>
-                  }
-                  @if (isManualUnload && !form.controls.customerId.value) {
-                    <!-- Cliente digitato liberamente (prompt Vendita manuale):
-                           compare solo in stampa, NON viene salvato in anagrafica. -->
-                    <input
-                      class="doc-panel__control"
-                      type="text"
-                      formControlName="customerFreeText"
-                      placeholder="…oppure digita il nome solo per la stampa"
-                      aria-label="Cliente a testo libero (solo stampa)"
-                      autocomplete="off"
-                    />
-                  }
-                </div>
-
-                <div class="doc-panel__field">
-                  <span class="doc-panel__label">{{
-                    isQuote ? 'Location' : 'Location di origine'
-                  }}</span>
-                  @if (locationOptions().length > 0) {
-                    <app-select-menu
-                      [options]="locationOptions()"
-                      [value]="form.controls.locationId.value"
-                      ariaLabel="Location di origine"
-                      placeholder="Seleziona location…"
-                      [fullWidth]="true"
-                      [searchable]="true"
-                      searchPlaceholder="Cerca location…"
-                      searchAriaLabel="Cerca location"
-                      [invalid]="fieldInvalid('locationId')"
-                      describedBy="co-m-location-error"
-                      (valueChange)="onLocationSelect($event)"
-                    />
-                  } @else {
-                    <p class="doc-form__error" role="alert">
-                      Non hai accesso ad alcun magazzino. Contatta il titolare o un amministratore
-                      dell'account.
-                    </p>
-                  }
-                  @if (fieldInvalid('locationId')) {
-                    <p id="co-m-location-error" class="doc-form__error">Campo obbligatorio.</p>
-                  }
-                </div>
-              </div>
-            </app-document-mobile-panel>
-
-            <!-- I dettagli hanno già valori validi: chiuso, si apre per cambiarli. -->
-            <app-document-mobile-panel
-              title="Dettagli documento"
-              [summaryParts]="detailsPanelSummaryParts()"
-              icon="pi-calendar"
-            >
-              <p class="doc-panel__section">Informazioni documento</p>
-
-              <div class="doc-panel__fields">
-                <div class="doc-panel__fields doc-panel__fields--two">
-                  <div class="doc-panel__field">
-                    <!-- ⛔ Diceva «Data» mentre la scrivania diceva «Data
-                         documento»: lo stesso campo con due nomi a seconda
-                         dello schermo. E l'`ariaLabel` qui sotto diceva gia'
-                         «Data documento», quindi l'occhio e lo screen reader
-                         leggevano due cose diverse SULLA STESSA RIGA. -->
-                    <label class="doc-panel__label" for="co-m-date">Data documento</label>
-                    <app-date-input
-                      inputId="co-m-date"
-                      formControlName="documentDate"
-                      ariaLabel="Data documento"
-                      [fullWidth]="true"
-                    />
-                  </div>
-
-                  @if (mostraCampo('state')) {
-                    <div class="doc-panel__field">
-                      <span class="doc-panel__label">Stato</span>
-                      @if (isSettledOrder()) {
-                        <p class="doc-form__readonly">{{ stateBadgeLabel() }}</p>
-                      } @else {
-                        <app-select-menu
-                          [options]="stateOptions"
-                          [value]="form.controls.status.value"
-                          ariaLabel="Stato documento"
-                          placeholder="Confermato"
-                          [fullWidth]="true"
-                          [includeEmptyOption]="false"
-                          (valueChange)="onStateSelect($event)"
-                        />
-                      }
-                    </div>
-                  }
-
-                  @if (mostraCampo('expectedDelivery')) {
-                    <div class="doc-panel__field">
-                      <label class="doc-panel__label" for="co-m-delivery">Consegna prevista</label>
-                      <app-date-input
-                        inputId="co-m-delivery"
-                        formControlName="expectedDeliveryDate"
-                        ariaLabel="Data prevista consegna"
-                        placeholder="Opzionale"
-                        [fullWidth]="true"
-                      />
-                    </div>
-                  }
-                </div>
-
-                <!-- Numero e serie: da 12/08/2026 anche sull'Ordine cliente.
-                     Il campo era dietro un `@if (!isOrder)` che teneva nascosta
-                     la numerazione proprio al documento che dà il nome alla
-                     maschera — l'unico di Categoria A a non mostrarla. -->
-                <app-document-number-field
-                  numberInputId="co-m-number"
-                  [number]="form.controls.documentNumber.value"
-                  [isProposal]="numberIsProposal()"
-                  [series]="form.controls.series.value"
-                  [seriesOptions]="numbering.seriesOptions()"
-                  [canManageSeries]="puoConfigurareNumerazioni()"
-                  (numberChange)="numbering.onNumberChange($event)"
-                  (seriesChange)="numbering.onSeriesChange($event)"
-                  (manageSeries)="seriesDialogOpen.set(true)"
+              @if (isManualUnload && !form.controls.customerId.value) {
+                <!-- Cliente digitato liberamente (prompt Vendita manuale):
+                     compare solo in stampa, NON viene salvato in anagrafica. -->
+                <input
+                  [class]="controllo"
+                  type="text"
+                  formControlName="customerFreeText"
+                  placeholder="…oppure digita il nome solo per la stampa"
+                  aria-label="Cliente a testo libero (solo stampa)"
+                  autocomplete="off"
                 />
-
-                <!-- Modalità prezzo: netto o ivato. Su desktop lo stesso
-                     controllo vive nell'intestazione di colonna. Dal 16/08/2026
-                     c'è anche sull'Ordine cliente: la modalità si persiste su
-                     SalesOrder.pricesIncludeVat, che era il supporto mancante. -->
-                <div class="doc-panel__field">
-                  <span class="doc-panel__label">Modalità prezzo</span>
-                  <app-select-menu
-                    [options]="priceModeOptions"
-                    [value]="pricesIncludeVat() ? 'gross' : 'net'"
-                    ariaLabel="Modalità prezzo netto o ivato"
-                    placeholder="Netto"
-                    [includeEmptyOption]="false"
-                    [compact]="true"
-                    [fullWidth]="true"
-                    (valueChange)="setPriceMode($event === 'gross')"
-                  />
-                </div>
-
-                <!-- Listino (§B4): non è un dato del documento, è come lo si
-                       riempie. Sceglierlo riscrive i prezzi delle righe, che
-                       restano modificabili una per una. -->
-                @if (showListinoSelect()) {
-                  <div class="doc-panel__field">
-                    <span class="doc-panel__label">Listino</span>
-                    <app-document-listino-select
-                      [settings]="tenantSettings()"
-                      [choice]="listinoChoice()"
-                      [readOnly]="formReadOnly()"
-                      (choiceChange)="onListinoChoice($event)"
-                    />
-                  </div>
-                }
-
-                @if (mostraCampo('externalRef')) {
-                  <div class="doc-panel__field">
-                    <label class="doc-panel__label" for="co-m-external-ref">Rif.</label>
-                    <input
-                      id="co-m-external-ref"
-                      class="doc-panel__control"
-                      type="text"
-                      formControlName="externalRef"
-                      placeholder="Es. campionario fiera"
-                      autocomplete="off"
-                    />
-                  </div>
-                }
-
-                @if (mostraCampo('paymentMethod')) {
-                  <div class="doc-panel__field">
-                    <span class="doc-panel__label">Pagamento</span>
-                    <app-select-menu
-                      [options]="paymentMethodOptions()"
-                      [value]="form.controls.paymentMethod.value"
-                      ariaLabel="Modalità di pagamento"
-                      placeholder="Seleziona pagamento…"
-                      [fullWidth]="true"
-                      [searchable]="true"
-                      searchPlaceholder="Cerca modalità…"
-                      searchAriaLabel="Cerca modalità di pagamento"
-                      (valueChange)="onPaymentMethodSelect($event)"
-                    />
-                  </div>
-
-                  <label class="doc-form__check doc-form__check--header">
-                    <input type="checkbox" formControlName="followedBySalesDoc" />
-                    <span>Seguirà doc. di vendita</span>
-                  </label>
-                } @else if (mostraCampo('paymentTerms')) {
-                  <div class="doc-panel__field">
-                    <label class="doc-panel__label" for="co-m-payment">Pagamento</label>
-                    <input
-                      id="co-m-payment"
-                      class="doc-panel__control"
-                      type="text"
-                      formControlName="paymentTerms"
-                      placeholder="Es. 30 gg d.f."
-                      autocomplete="off"
-                    />
-                  </div>
-                }
-              </div>
-
-              <p class="doc-panel__helper">I valori predefiniti restano modificabili.</p>
-
-              <!-- ⭐ **«Includi documento» vive QUI su schermo compatto**
-                   (proprietario, 24/08/2026). Nella barra strumenti delle righe
-                   la sua etichetta lunga occupava da sola tutta la seconda riga
-                   della griglia, e il titolo «Righe documento» restava centrato
-                   contro una pila di due pulsanti.
-
-                   Sta fra i dati del documento perché è lì che si decide **da
-                   cosa il documento parte** — non è un attrezzo della tabella.
-
-                   ⚠️ **Il gate sul viewport è obbligatorio**, e la ragione è che
-                   questo pannello vive nel DOM anche su scrivania: commuta col
-                   foglio globale sotto `lg`, non con un `@if`. Senza il gate,
-                   questo pulsante e il suo gemello nella barra strumenti
-                   sarebbero **vivi insieme** — due comandi identici a schermo.
-
-                   ⛔ Qui c'era scritto «sarebbe un TERZO «Includi documento»
-                   nell'albero, e la guardia sui comandi doppi lo direbbe».
-                   Erano due affermazioni sbagliate: le dichiarazioni sono DUE,
-                   non tre, e **quella guardia non esiste** — misurato il
-                   26/08/2026. A tenere il conto è ora la prova di componente
-                   che asserisce «una sola in ogni vista». -->
-              @if (compactView() && includeSourceKinds.length > 0) {
-                <p class="doc-panel__section">Origine delle righe</p>
-                <div class="doc-panel__field">
-                  <app-button type="button" variant="secondary" (click)="openIncludePanel()">
-                    <i class="pi pi-file-import" aria-hidden="true"></i>
-                    Includi documento
-                  </app-button>
-                </div>
               }
-            </app-document-mobile-panel>
-          </div>
+            </app-document-header-field>
 
-          <div id="co-header-details" class="co-form__header-details">
-            <div
-              class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row co-form__header-row"
+            <app-document-header-field
+              [label]="isQuote ? 'Location' : 'Location di origine'"
+              [waiting]="fieldWaiting('locationId')"
+              [invalid]="fieldInvalid('locationId')"
+              errorId="co-location-error"
             >
-              <div
-                class="doc-form__field doc-form__field--span2"
-                [class.doc-form__field--waiting]="fieldWaiting('customerId')"
-              >
-                <div class="doc-form__field-head">
-                  <span class="doc-form__label" id="co-customer-label">
-                    {{ isManualUnload ? 'Cliente (facoltativo)' : 'Cliente' }}
-                  </span>
-                  <!-- I comandi stanno sulla riga dell'etichetta, come nel
-                       pannello mobile: lì c'è solo una parola e il resto è
-                       vuoto, mentre sotto il campo aggiungevano una riga. -->
-                  <span class="doc-form__field-actions">
-                    <!-- Senza il permesso resta solo «Scheda cliente»: il cliente
-                         si sceglie fra quelli già in anagrafica. -->
-                    @if (puoGestireClienti()) {
-                      <button
-                        type="button"
-                        class="doc-form__inline-toggle"
-                        (click)="toggleCustomerForm()"
-                      >
-                        <i
-                          class="pi"
-                          [class.pi-plus]="!showCustomerForm()"
-                          [class.pi-minus]="showCustomerForm()"
-                          aria-hidden="true"
-                        ></i>
-                        {{ showCustomerForm() ? 'Annulla nuovo cliente' : 'Nuovo cliente' }}
-                      </button>
-                    }
-                    @if (hasCustomer()) {
-                      <button
-                        type="button"
-                        class="doc-form__inline-toggle"
-                        (click)="openCustomerDetail()"
-                      >
-                        <i class="pi pi-external-link" aria-hidden="true"></i>
-                        Scheda cliente
-                      </button>
-                    }
-                  </span>
-                </div>
+              @if (locationOptions().length > 0) {
                 <app-select-menu
-                  [options]="customerOptions()"
-                  [value]="form.controls.customerId.value"
-                  ariaLabel="Cliente"
-                  [placeholder]="
-                    isManualUnload ? 'Seleziona cliente (facoltativo)…' : 'Seleziona cliente…'
-                  "
+                  [options]="locationOptions()"
+                  [value]="form.controls.locationId.value"
+                  ariaLabel="Location di origine"
+                  placeholder="Seleziona location…"
                   [compact]="true"
                   [fullWidth]="true"
                   [searchable]="true"
-                  searchPlaceholder="Cerca cliente…"
-                  searchAriaLabel="Cerca cliente"
-                  [invalid]="!isManualUnload && fieldInvalid('customerId')"
-                  describedBy="co-customer-error"
-                  (valueChange)="onCustomerSelect($event)"
+                  searchPlaceholder="Cerca location…"
+                  searchAriaLabel="Cerca location"
+                  [invalid]="fieldInvalid('locationId')"
+                  describedBy="co-location-error"
+                  (valueChange)="onLocationSelect($event)"
                 />
-                @if (!isManualUnload && fieldInvalid('customerId')) {
-                  <p id="co-customer-error" class="doc-form__error">Campo obbligatorio.</p>
-                }
-                @if (isManualUnload && !form.controls.customerId.value) {
-                  <!-- Cliente digitato liberamente (prompt Vendita manuale):
-                     compare solo in stampa, NON viene salvato in anagrafica. -->
-                  <input
-                    class="doc-form__input"
-                    type="text"
-                    formControlName="customerFreeText"
-                    placeholder="…oppure digita il nome solo per la stampa"
-                    aria-label="Cliente a testo libero (solo stampa)"
-                    autocomplete="off"
-                  />
-                }
-              </div>
+              } @else {
+                <p class="doc-form__error" role="alert">
+                  Non hai accesso ad alcun magazzino. Contatta il titolare o un amministratore
+                  dell'account.
+                </p>
+              }
+            </app-document-header-field>
+          </app-document-header>
 
-              <div
-                class="doc-form__field"
-                [class.doc-form__field--waiting]="fieldWaiting('locationId')"
-              >
-                <span class="doc-form__label">{{
-                  isQuote ? 'Location' : 'Location di origine'
-                }}</span>
-                @if (locationOptions().length > 0) {
-                  <app-select-menu
-                    [options]="locationOptions()"
-                    [value]="form.controls.locationId.value"
-                    ariaLabel="Location di origine"
-                    placeholder="Seleziona location…"
-                    [compact]="true"
-                    [fullWidth]="true"
-                    [searchable]="true"
-                    searchPlaceholder="Cerca location…"
-                    searchAriaLabel="Cerca location"
-                    [invalid]="fieldInvalid('locationId')"
-                    describedBy="co-location-error"
-                    (valueChange)="onLocationSelect($event)"
-                  />
-                } @else {
-                  <p class="doc-form__error" role="alert">
-                    Non hai accesso ad alcun magazzino. Contatta il titolare o un amministratore
-                    dell'account.
-                  </p>
-                }
-                @if (fieldInvalid('locationId')) {
-                  <p id="co-location-error" class="doc-form__error">Campo obbligatorio.</p>
-                }
-              </div>
+          <!-- ── Dettagli documento: quando, quale numero, a che condizioni ── -->
+          <app-document-header
+            title="Dettagli documento"
+            [summaryParts]="detailsPanelSummaryParts()"
+            icon="pi-calendar"
+            [initiallyOpen]="false"
+            sectionTitle="Informazioni documento"
+            [dense]="true"
+            [flowRow]="true"
+          >
+            @let controlloDettagli = compactView() ? 'doc-panel__control' : 'doc-form__input';
 
-              <div class="doc-form__field doc-form__field--end-md">
-                <label class="doc-form__label" for="co-date">Data documento</label>
+            <!-- Tre campi brevi che stanno bene affiancati sul telefono. Il
+                 raggruppatore è trasparente su scrivania: le celle salgono al
+                 livello della fascia e restano celle come le altre. -->
+            <app-document-header-group>
+              <app-document-header-field label="Data documento" controlId="co-date">
                 <app-date-input
                   inputId="co-date"
                   formControlName="documentDate"
@@ -666,30 +385,10 @@
                   [compact]="true"
                   [fullWidth]="true"
                 />
-              </div>
+              </app-document-header-field>
 
-              <!-- Identificativo VestiFlow: Numero + Serie accanto alla data.
-                   Da 12/08/2026 anche sull'Ordine cliente: il campo era dietro
-                   un `@if (!isOrder)` che teneva nascosta la numerazione
-                   proprio al documento che dà il nome alla maschera. Il numero
-                   il server glielo assegnava lo stesso, ma l'operatore non lo
-                   vedeva e non poteva scegliere la serie. -->
-              <app-document-number-field
-                numberInputId="co-number"
-                [number]="form.controls.documentNumber.value"
-                [isProposal]="numberIsProposal()"
-                [series]="form.controls.series.value"
-                [seriesOptions]="numbering.seriesOptions()"
-                [canManageSeries]="puoConfigurareNumerazioni()"
-                (numberChange)="numbering.onNumberChange($event)"
-                (seriesChange)="numbering.onSeriesChange($event)"
-                (manageSeries)="seriesDialogOpen.set(true)"
-              />
-
-              <!-- Preventivo e DDT vendita: nessuno stato documento in testata. -->
               @if (mostraCampo('state')) {
-                <div class="doc-form__field">
-                  <span class="doc-form__label">Stato</span>
+                <app-document-header-field label="Stato">
                   @if (isSettledOrder()) {
                     <p class="doc-form__readonly">{{ stateBadgeLabel() }}</p>
                   } @else {
@@ -704,144 +403,161 @@
                       (valueChange)="onStateSelect($event)"
                     />
                   }
-                </div>
+                </app-document-header-field>
               }
 
-              <!-- Testata DDT (prompt DDT): Cliente, Location, Data, Pagamento.
-                 Vendita manuale: solo Rif. (niente consegna/pagamento). -->
-              <!--
-                Il «Rif.» qui sotto è una causale libera della Vendita manuale
-                (es. «campionario fiera»), non il numero di un documento — ed è
-                per questo che è rimasto quando il blocco del documento della
-                controparte è stato tolto dalla testata (12/08/2026): un ordine
-                cliente è un documento nostro, e la numerazione che conta è in
-                prima fascia.
-              -->
-              @if (mostraCampo('externalRef')) {
-                <div class="doc-form__field">
-                  <label class="doc-form__label" for="co-external-ref">Rif.</label>
-                  <input
-                    id="co-external-ref"
-                    class="doc-form__input"
-                    type="text"
-                    formControlName="externalRef"
-                    placeholder="Es. campionario fiera"
-                    autocomplete="off"
-                  />
-                </div>
-              }
-              @if (mostraCampo('paymentMethod')) {
-                <div class="doc-form__field">
-                  <span class="doc-form__label" id="co-payment-method-label">Pagamento</span>
-                  <!-- Auto-compilato dal tipo di pagamento dell'anagrafica cliente;
-                     voci normative fatturazione elettronica (MP01–MP23),
-                     gestibili in Impostazioni → Pagamenti. -->
-                  <app-select-menu
-                    [options]="paymentMethodOptions()"
-                    [value]="form.controls.paymentMethod.value"
-                    ariaLabel="Modalità di pagamento"
-                    placeholder="Seleziona pagamento…"
+              @if (mostraCampo('expectedDelivery')) {
+                <app-document-header-field label="Consegna prevista" controlId="co-delivery">
+                  <app-date-input
+                    inputId="co-delivery"
+                    formControlName="expectedDeliveryDate"
+                    ariaLabel="Data prevista consegna"
+                    placeholder="Opzionale"
                     [compact]="true"
                     [fullWidth]="true"
-                    [searchable]="true"
-                    searchPlaceholder="Cerca modalità…"
-                    searchAriaLabel="Cerca modalità di pagamento"
-                    (valueChange)="onPaymentMethodSelect($event)"
                   />
-                </div>
-
-                <div class="doc-form__field doc-form__field--check">
-                  <label class="doc-form__check doc-form__check--header">
-                    <input type="checkbox" formControlName="followedBySalesDoc" />
-                    <span>Seguirà doc. di vendita</span>
-                  </label>
-                </div>
+                </app-document-header-field>
               }
+            </app-document-header-group>
 
-              <!-- ⭐ **Il Listino c'era SOLO sul telefono**, senza una ragione
-                   scritta — misurato il 26/08/2026 confrontando le due copie
-                   della testata. La regola del proprietario e' «stesse viste e
-                   funzioni, tranne casi espliciti», e questo non era esplicito.
+            <!-- Identificativo VestiFlow: Numero + Serie. Il componente porta
+                 la propria cella, come sulle altre maschere. -->
+            <app-document-number-field
+              numberInputId="co-number"
+              [number]="form.controls.documentNumber.value"
+              [isProposal]="numberIsProposal()"
+              [series]="form.controls.series.value"
+              [seriesOptions]="numbering.seriesOptions()"
+              [canManageSeries]="puoConfigurareNumerazioni()"
+              (numberChange)="numbering.onNumberChange($event)"
+              (seriesChange)="numbering.onSeriesChange($event)"
+              (manageSeries)="seriesDialogOpen.set(true)"
+            />
 
-                   ⚠️ Non e' una copia: e' lo STESSO componente montato due
-                   volte, in due contenitori che lo vestono diversamente. La
-                   scelta e l'effetto vivono in un posto solo. -->
-              @if (showListinoSelect()) {
-                <div class="doc-form__field">
-                  <span class="doc-form__label">Listino</span>
-                  <app-document-listino-select
-                    [settings]="tenantSettings()"
-                    [choice]="listinoChoice()"
-                    [readOnly]="formReadOnly()"
-                    (choiceChange)="onListinoChoice($event)"
-                  />
+            <!--
+              ⚠️ **UNA istanza, collocata dove serve** — non due copie.
+
+              Su scrivania la modalità netto/ivato vive nell'intestazione della
+              colonna Prezzo (11 A4), che è la sua casa. Le card di riga
+              un'intestazione di colonna non ce l'hanno, quindi sul telefono il
+              comando sta qui: è l'unico posto da cui si può cambiare.
+
+              ⛔ Senza questo gate se ne vedrebbero DUE su scrivania. Stesso
+              schema, e stesso motivo, di sales-document-form.
+            -->
+            @if (compactView()) {
+              <app-document-header-field label="Modalità prezzo">
+                <app-select-menu
+                  [options]="priceModeOptions"
+                  [value]="pricesIncludeVat() ? 'gross' : 'net'"
+                  ariaLabel="Modalità prezzo netto o ivato"
+                  placeholder="Netto"
+                  [includeEmptyOption]="false"
+                  [compact]="true"
+                  [fullWidth]="true"
+                  (valueChange)="setPriceMode($event === 'gross')"
+                />
+              </app-document-header-field>
+            }
+
+            <!-- Listino (§B4): non è un dato del documento, è come lo si
+                 riempie. Sceglierlo riscrive i prezzi delle righe, che restano
+                 modificabili una per una. -->
+            @if (showListinoSelect()) {
+              <app-document-header-field label="Listino">
+                <app-document-listino-select
+                  [settings]="tenantSettings()"
+                  [choice]="listinoChoice()"
+                  [readOnly]="formReadOnly()"
+                  (choiceChange)="onListinoChoice($event)"
+                />
+              </app-document-header-field>
+            }
+
+            <!-- Il «Rif.» è una causale libera della Vendita manuale (es.
+                 «campionario fiera»), non il numero di un documento: un ordine
+                 cliente è un documento NOSTRO, e la numerazione che conta è
+                 quella qui sopra. -->
+            @if (mostraCampo('externalRef')) {
+              <app-document-header-field label="Rif." controlId="co-external-ref">
+                <input
+                  id="co-external-ref"
+                  [class]="controlloDettagli"
+                  type="text"
+                  formControlName="externalRef"
+                  placeholder="Es. campionario fiera"
+                  autocomplete="off"
+                />
+              </app-document-header-field>
+            }
+
+            <!--
+              I due Pagamenti non convivono mai sullo stesso documento — è la
+              tabella a garantirlo, e customer-document-header-fields.util.spec
+              lo afferma. Per questo la catena @else if qui è sicura, mentre
+              quella fra consegna e pagamento non lo era.
+            -->
+            @if (mostraCampo('paymentMethod')) {
+              <app-document-header-field label="Pagamento">
+                <!-- Auto-compilato dal tipo di pagamento dell'anagrafica
+                     cliente; voci normative della fatturazione elettronica
+                     (MP01–MP23), gestibili in Impostazioni → Pagamenti. -->
+                <app-select-menu
+                  [options]="paymentMethodOptions()"
+                  [value]="form.controls.paymentMethod.value"
+                  ariaLabel="Modalità di pagamento"
+                  placeholder="Seleziona pagamento…"
+                  [compact]="true"
+                  [fullWidth]="true"
+                  [searchable]="true"
+                  searchPlaceholder="Cerca modalità…"
+                  searchAriaLabel="Cerca modalità di pagamento"
+                  (valueChange)="onPaymentMethodSelect($event)"
+                />
+              </app-document-header-field>
+
+              <label class="doc-form__check doc-form__check--header">
+                <input type="checkbox" formControlName="followedBySalesDoc" />
+                <span>Seguirà doc. di vendita</span>
+              </label>
+            } @else if (mostraCampo('paymentTerms')) {
+              <app-document-header-field label="Pagamento" controlId="co-payment">
+                <input
+                  id="co-payment"
+                  [class]="controlloDettagli"
+                  type="text"
+                  formControlName="paymentTerms"
+                  placeholder="Es. 30 gg d.f."
+                  autocomplete="off"
+                />
+              </app-document-header-field>
+            }
+
+            <!--
+              ⭐ Il piede del pannello: il componente lo rende SOLO in vesta
+              compatta, quindi qui non serve nessun gate sul viewport.
+
+              «Includi documento» è il secondo comando con due case: su
+              scrivania vive nella barra strumenti delle righe, sul telefono
+              qui — perché è dove si decide da cosa il documento parte, non un
+              attrezzo della tabella (proprietario, 24/08/2026).
+
+              ⚠️ Un solo elemento porta il marcatore, con i condizionali dentro:
+              è la forma sicura della proiezione per selettore.
+            -->
+            <div panelFooter>
+              <p class="doc-panel__helper">I valori predefiniti restano modificabili.</p>
+              @if (includeSourceKinds.length > 0) {
+                <p class="doc-panel__section">Origine delle righe</p>
+                <div class="doc-panel__field">
+                  <app-button type="button" variant="secondary" (click)="openIncludePanel()">
+                    <i class="pi pi-file-import" aria-hidden="true"></i>
+                    Includi documento
+                  </app-button>
                 </div>
               }
             </div>
-
-            <!-- Seconda fascia della testata (mockup v3): fondo attenuato, in
-               fondo alla card. Sull'Ordine cliente NON la disegna più questa
-               maschera: se la porta dietro il componente del documento del
-               cliente, che è la stessa forma in tutte le maschere documento. Il
-               Pagamento ci sta dentro, proiettato dopo le tre celle, invece di
-               aprire una terza fascia.
-               Il Preventivo il documento del cliente non ce l'ha: tiene la
-               propria fascia con «Consegna prevista», che è sua e basta. Il DDT
-               gestisce il pagamento in prima fascia e la vendita manuale non ha
-               né consegna né pagamento: nessuno dei due ha seconda fascia. -->
-            <!-- Fascia secondaria: Consegna prevista e/o Pagamento a termini liberi.
-                 Fino al 12/08/2026 la disegnava `app-document-counterparty-ref` — tipo,
-                 numero e data del documento del cliente — col Pagamento proiettato
-                 dentro. Il trio e' stato tolto (un ordine cliente e' un documento
-                 NOSTRO: la nostra numerazione sta in prima fascia), il Pagamento resta.
-
-                 ⛔ **Qui c'era una catena `@if … @else if`**, e il 26/08/2026 e' diventata
-                 sbagliata nel momento in cui la scelta dei campi e' passata alla tabella
-                 `CUSTOMER_HEADER_FIELDS`. `@if (isOrder) … @else if (isQuote)` era
-                 mutuamente esclusiva PER TIPO; `mostraCampo('paymentTerms')` e
-                 `mostraCampo('expectedDelivery')` non lo sono — il Preventivo dichiara
-                 entrambi i campi, quindi vinceva sempre il primo ramo e su scrivania la
-                 **Consegna prevista non compariva a nessuno**. Sul telefono si vedeva,
-                 perche' li' il campo ha un `@if` suo: il difetto stava su una vesta sola.
-
-                 ⭐ La condizione giusta non e' «l'uno o l'altro»: la fascia c'e' se
-                 almeno un campo la abita, e dentro ogni campo decide da se'. -->
-            @if (mostraCampo('expectedDelivery') || mostraCampo('paymentTerms')) {
-              <div
-                class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row co-form__header-row doc-form__header-row--secondary"
-              >
-                @if (mostraCampo('expectedDelivery')) {
-                  <div class="doc-form__field">
-                    <label class="doc-form__label" for="co-delivery">Consegna prevista</label>
-                    <app-date-input
-                      inputId="co-delivery"
-                      formControlName="expectedDeliveryDate"
-                      ariaLabel="Data prevista consegna"
-                      placeholder="Opzionale"
-                      [compact]="true"
-                      [fullWidth]="true"
-                    />
-                  </div>
-                }
-
-                @if (mostraCampo('paymentTerms')) {
-                  <div class="doc-form__field">
-                    <label class="doc-form__label" for="co-payment">Pagamento</label>
-                    <input
-                      id="co-payment"
-                      class="doc-form__input"
-                      type="text"
-                      formControlName="paymentTerms"
-                      placeholder="Es. 30 gg d.f."
-                      autocomplete="off"
-                    />
-                  </div>
-                }
-
-                <div class="doc-form__field doc-form__header-filler" aria-hidden="true"></div>
-              </div>
-            }
-          </div>
+          </app-document-header>
         </div>
 
         @if (showCustomerForm()) {

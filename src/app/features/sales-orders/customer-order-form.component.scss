@@ -54,43 +54,29 @@
   --field-height: var(--control-h-field);
 }
 
-// Stato di salvataggio, link sotto il campo cliente, meccanica delle fasce di
-// testata, piede tabella, banda footer e avviso disponibilità sono saliti ai
-// fogli globali (_document-form.scss e _document-form-footer.scss, FASE 0):
-// qui restano solo le QUOTE delle fasce, che sono di questa maschera.
-// La meccanica flex arriva da .doc-form__header-row (stessa classe nel
-// template accanto a co-form__header-row, che ancora le quote).
-@include bp.media-up('lg') {
-  // Cliente | Location | Data | Stato | Rif. — proporzioni del mockup.
-  .co-form .co-form__header-row > *:nth-child(1) {
-    flex-grow: 1.55;
-  }
-  .co-form .co-form__header-row > *:nth-child(2) {
-    flex-grow: 0.9;
-  }
-  .co-form .co-form__header-row > *:nth-child(3) {
-    flex-grow: 0.78;
-  }
-  .co-form .co-form__header-row > *:nth-child(4) {
-    flex-grow: 0.75;
-  }
-
-  // Consegna | Pagamento | spazio libero — la fascia del PREVENTIVO, l'unica
-  // che questa maschera disegni ancora da sé. Sull'Ordine cliente la seconda
-  // fascia è quella del documento del cliente e la disegna il componente
-  // condiviso: le sue celle stanno oltre il confine di incapsulamento e da qui
-  // non si raggiungono (né si devono raggiungere — regole-stile-ui §5). Lì le
-  // celle si dividono la fascia in parti uguali, come nelle altre maschere.
-  .co-form .doc-form__header-row--secondary > *:nth-child(1) {
-    flex-grow: 0.82;
-  }
-  .co-form .doc-form__header-row--secondary > *:nth-child(2) {
-    flex-grow: 1.05;
-  }
-  .co-form .doc-form__header-row--secondary > *:nth-child(3) {
-    flex-grow: 2.13;
-  }
-}
+// ⛔ **Qui c’erano le QUOTE di larghezza delle fasce di testata** — flex-grow
+// 1.55 / 0.9 / 0.78 / 0.75 sulla prima fascia e 0.82 / 1.05 / 2.13 sulla
+// secondaria, agganciate a `.co-form__header-row` e a
+// `.doc-form__header-row--secondary`.
+//
+// Sono state tolte il 26/08/2026 con la migrazione della testata su
+// `app-document-header`: **entrambe le classi hanno smesso di esistere nel
+// template**. La griglia ora la emette il componente condiviso, e una classe
+// messa sull’host non raggiungerebbe le celle — l’host ha come unico figlio
+// diretto la griglia, quindi `> *:nth-child(n)` non aggancia piu’ niente
+// (`regole-stile-ui` §5).
+//
+// ⚠️ Lasciarle sarebbe stato peggio che toglierle: regole senza bersaglio non
+// rompono niente, non fanno arrossare un test, e chi legge conclude che le
+// proporzioni ci siano ancora.
+//
+// ⏸ **Le proporzioni di scrivania si rifanno nella FASE 2**, che e’ il passo
+// dichiarato: stessa struttura, solo vestizione. Il canale previsto e’
+// `--doc-field-min` per cella (`_document-form.scss`), oppure le quote
+// riscritte sulla classe che il componente emette davvero
+// (`.co-form .doc-form__header-row > *:nth-child(n)`) — le celle sono
+// contenuto proiettato dalla maschera, quindi portano il suo attributo di
+// incapsulamento.
 
 // ── Riga di inserimento rapido, sempre in fondo alla tabella (§RIGHE) ───────
 .co-form__quick-row td {

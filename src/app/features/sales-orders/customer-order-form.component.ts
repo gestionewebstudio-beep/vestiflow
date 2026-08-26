@@ -105,7 +105,9 @@ import { DocumentPrefillErrorComponent } from '@domain/documents/components/docu
 import { DocumentNotesComponent } from '@domain/documents/components/document-notes/document-notes.component';
 import { DocumentIncludePanelComponent } from '@domain/documents/components/document-include-panel/document-include-panel.component';
 import { vatCodeIdForLinePayload } from '@domain/documents/utils/document-line-vat-payload.util';
-import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
+import { DocumentHeaderComponent } from '@domain/documents/components/document-header/document-header.component';
+import { DocumentHeaderFieldComponent } from '@domain/documents/components/document-header/document-header-field.component';
+import { DocumentHeaderGroupComponent } from '@domain/documents/components/document-header/document-header-group.component';
 import { UnitOfMeasureManagerDialogComponent } from '@domain/products/components/unit-of-measure-manager-dialog/unit-of-measure-manager-dialog.component';
 import type { UnitOfMeasureOption } from '@domain/products/models/unit-of-measure-option.model';
 import { UnitOfMeasureOptionService } from '@domain/products/services/unit-of-measure-option.service';
@@ -371,7 +373,9 @@ interface AvailabilityIssue {
     DocumentSeriesManagerDialogComponent,
     DocumentChronologyWarningDialogComponent,
     DocumentIncludePanelComponent,
-    DocumentMobilePanelComponent,
+    DocumentHeaderComponent,
+    DocumentHeaderFieldComponent,
+    DocumentHeaderGroupComponent,
     ProductFormComponent,
     EmptyStateComponent,
     SelectMenuComponent,
