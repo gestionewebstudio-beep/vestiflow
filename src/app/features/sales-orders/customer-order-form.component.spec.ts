@@ -2477,3 +2477,74 @@ describe('CustomerOrderFormComponent — la Vendita manuale è una vendita', () 
     expect(quanti).toBe(2);
   });
 });
+
+/**
+ * ⛔ **La fascia secondaria di scrivania: una regressione del 26/08/2026.**
+ *
+ * Il commit `e85027d6` ha portato la scelta dei campi per tipo in una tabella
+ * (`CUSTOMER_HEADER_FIELDS`) e ha riscritto le condizioni del template di
+ * conseguenza. Sulla fascia secondaria di scrivania la sostituzione è stata
+ * sbagliata, e in un modo che nessun test vedeva:
+ *
+ * ```text
+ * prima   @if (isOrder) { Pagamento }  @else if (isQuote) { Consegna · Pagamento }
+ *         → mutuamente esclusivi PER TIPO: un documento è l'uno o l'altro
+ *
+ * dopo    @if (mostraCampo('paymentTerms')) { … } @else if (mostraCampo('expectedDelivery')) { … }
+ *         → NON mutuamente esclusivi: il Preventivo ha ENTRAMBI i campi in
+ *           tabella (quote: ['expectedDelivery','paymentTerms']), quindi vince
+ *           sempre il primo ramo e il secondo non si raggiunge mai
+ * ```
+ *
+ * ⚠️ **Effetto misurato**: su scrivania il Preventivo aveva perso «Consegna
+ * prevista». Sul telefono no — lì il campo ha un `@if` autonomo — quindi il
+ * difetto si vedeva su una vesta sola, che è il modo in cui la doppia testata
+ * nasconde i propri difetti.
+ *
+ * ⭐ La condizione giusta non è «l'uno o l'altro»: è **la fascia c'è se almeno
+ * un campo la abita**, e dentro ogni campo decide da sé.
+ */
+describe('CustomerOrderFormComponent — la fascia secondaria di scrivania', () => {
+  async function apri(kind?: 'quote' | 'sales-ddt' | 'manual-unload') {
+    const view = await render(CustomerOrderFormComponent, {
+      providers: formProviders(kind ? { kind } : {}),
+    });
+    return view.container;
+  }
+
+  it('⛔ il Preventivo mostra «Consegna prevista» anche su SCRIVANIA, non solo sul telefono', async () => {
+    const vista = await apri('quote');
+
+    // `co-delivery` è l'identificativo della vesta scrivania, `co-m-delivery`
+    // quello della compatta: distinguono le due senza ambiguità.
+    expect(vista.querySelector('#co-delivery')).not.toBeNull();
+    expect(vista.querySelector('#co-m-delivery')).not.toBeNull();
+  });
+
+  it('⭐ e il Pagamento resta accanto alla consegna, come prima', async () => {
+    const vista = await apri('quote');
+
+    expect(vista.querySelector('#co-payment')).not.toBeNull();
+  });
+
+  it('⭐ l’Ordine cliente ha il Pagamento e NON la consegna', async () => {
+    const vista = await apri();
+
+    expect(vista.querySelector('#co-payment')).not.toBeNull();
+    expect(vista.querySelector('#co-delivery')).toBeNull();
+  });
+
+  it('⭐ il DDT vendita non ha fascia secondaria: il suo pagamento sta in prima', async () => {
+    const vista = await apri('sales-ddt');
+
+    expect(vista.querySelector('#co-payment')).toBeNull();
+    expect(vista.querySelector('#co-delivery')).toBeNull();
+  });
+
+  it('⭐ la Vendita manuale non ha né consegna né pagamento', async () => {
+    const vista = await apri('manual-unload');
+
+    expect(vista.querySelector('#co-payment')).toBeNull();
+    expect(vista.querySelector('#co-delivery')).toBeNull();
+  });
+});

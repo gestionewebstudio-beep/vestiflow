@@ -789,58 +789,54 @@
                propria fascia con «Consegna prevista», che è sua e basta. Il DDT
                gestisce il pagamento in prima fascia e la vendita manuale non ha
                né consegna né pagamento: nessuno dei due ha seconda fascia. -->
-            @if (mostraCampo('paymentTerms')) {
-              <!-- Fascia secondaria dell'Ordine: solo il Pagamento.
-                   Fino al 12/08/2026 questa fascia la disegnava
-                   `app-document-counterparty-ref` — tipo, numero e data del
-                   documento del cliente — e il Pagamento ci stava proiettato
-                   dentro. Il trio è stato tolto (un ordine cliente è un
-                   documento NOSTRO: la nostra numerazione è in prima fascia),
-                   il Pagamento resta. -->
+            <!-- Fascia secondaria: Consegna prevista e/o Pagamento a termini liberi.
+                 Fino al 12/08/2026 la disegnava `app-document-counterparty-ref` — tipo,
+                 numero e data del documento del cliente — col Pagamento proiettato
+                 dentro. Il trio e' stato tolto (un ordine cliente e' un documento
+                 NOSTRO: la nostra numerazione sta in prima fascia), il Pagamento resta.
+
+                 ⛔ **Qui c'era una catena `@if … @else if`**, e il 26/08/2026 e' diventata
+                 sbagliata nel momento in cui la scelta dei campi e' passata alla tabella
+                 `CUSTOMER_HEADER_FIELDS`. `@if (isOrder) … @else if (isQuote)` era
+                 mutuamente esclusiva PER TIPO; `mostraCampo('paymentTerms')` e
+                 `mostraCampo('expectedDelivery')` non lo sono — il Preventivo dichiara
+                 entrambi i campi, quindi vinceva sempre il primo ramo e su scrivania la
+                 **Consegna prevista non compariva a nessuno**. Sul telefono si vedeva,
+                 perche' li' il campo ha un `@if` suo: il difetto stava su una vesta sola.
+
+                 ⭐ La condizione giusta non e' «l'uno o l'altro»: la fascia c'e' se
+                 almeno un campo la abita, e dentro ogni campo decide da se'. -->
+            @if (mostraCampo('expectedDelivery') || mostraCampo('paymentTerms')) {
               <div
                 class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row co-form__header-row doc-form__header-row--secondary"
               >
-                <div class="doc-form__field">
-                  <label class="doc-form__label" for="co-payment">Pagamento</label>
-                  <input
-                    id="co-payment"
-                    class="doc-form__input"
-                    type="text"
-                    formControlName="paymentTerms"
-                    placeholder="Es. 30 gg d.f."
-                    autocomplete="off"
-                  />
-                </div>
+                @if (mostraCampo('expectedDelivery')) {
+                  <div class="doc-form__field">
+                    <label class="doc-form__label" for="co-delivery">Consegna prevista</label>
+                    <app-date-input
+                      inputId="co-delivery"
+                      formControlName="expectedDeliveryDate"
+                      ariaLabel="Data prevista consegna"
+                      placeholder="Opzionale"
+                      [compact]="true"
+                      [fullWidth]="true"
+                    />
+                  </div>
+                }
 
-                <div class="doc-form__field doc-form__header-filler" aria-hidden="true"></div>
-              </div>
-            } @else if (mostraCampo('expectedDelivery')) {
-              <div
-                class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row co-form__header-row doc-form__header-row--secondary"
-              >
-                <div class="doc-form__field">
-                  <label class="doc-form__label" for="co-delivery">Consegna prevista</label>
-                  <app-date-input
-                    inputId="co-delivery"
-                    formControlName="expectedDeliveryDate"
-                    ariaLabel="Data prevista consegna"
-                    placeholder="Opzionale"
-                    [compact]="true"
-                    [fullWidth]="true"
-                  />
-                </div>
-
-                <div class="doc-form__field">
-                  <label class="doc-form__label" for="co-payment">Pagamento</label>
-                  <input
-                    id="co-payment"
-                    class="doc-form__input"
-                    type="text"
-                    formControlName="paymentTerms"
-                    placeholder="Es. 30 gg d.f."
-                    autocomplete="off"
-                  />
-                </div>
+                @if (mostraCampo('paymentTerms')) {
+                  <div class="doc-form__field">
+                    <label class="doc-form__label" for="co-payment">Pagamento</label>
+                    <input
+                      id="co-payment"
+                      class="doc-form__input"
+                      type="text"
+                      formControlName="paymentTerms"
+                      placeholder="Es. 30 gg d.f."
+                      autocomplete="off"
+                    />
+                  </div>
+                }
 
                 <div class="doc-form__field doc-form__header-filler" aria-hidden="true"></div>
               </div>
