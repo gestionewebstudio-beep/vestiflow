@@ -52,7 +52,10 @@ export class SaveManualSalesOrderLineDto {
   quantity!: number;
 
   @IsOptional()
-  @IsInt()
+  // ⚠️ NON `@IsInt()`: in modalità ivata il client manda il netto SCORPORATO,
+  //   che ha la coda decimale per contratto («2049,180328»), e la colonna
+  //   `sales_order_lines.unit_price_minor` è `numeric(16,6)` — verificato.
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
   unitPriceMinor?: number;
 

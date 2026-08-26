@@ -60,7 +60,12 @@ export class PurchaseInvoiceLineDto {
   @MaxLength(500)
   description!: string;
 
-  @IsInt()
+  // ⚠️ NON `@IsInt()`: in modalità ivata il client manda il netto SCORPORATO,
+  //   con la coda che il contratto del denaro PRESCRIVE. Arrotondarlo nel
+  //   client farebbe ballare il valore al giro successivo (test in
+  //   `purchase-invoice-form.component.spec.ts`). Arrotonda il SERVIZIO, e
+  //   solo sulle due colonne intere di destinazione.
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   netMinor!: number;
 
   @IsNumber()

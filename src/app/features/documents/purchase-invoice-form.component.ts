@@ -54,7 +54,7 @@ import { ToastService } from '@core/services/toast.service';
 import type { VatCode, VatSnapshot } from '@core/models/vat-code.model';
 import { isPurchaseVatCode } from '@core/models/vat-code.model';
 import { VatCodeService } from '@core/services/vat-code.service';
-import { DEFAULT_CURRENCY, formatMoney } from '@core/utils/money.util';
+import { DEFAULT_CURRENCY, formatMoney, toStorableMinor } from '@core/utils/money.util';
 import { formatDate } from '@core/utils/date.util';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
 import { bindBreadcrumbEntityLabel } from '@core/services/breadcrumb-label.service';
@@ -948,9 +948,30 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
    * L'operatore scrive nel campo importo: si converte in netto canonico e si
    * ripropone l'imposta.
    *
-   * ⚠️ `netFromGrossExact` e non la sua gemella arrotondata: è la coda che fa
-   * tornare identico l'ivato al giro successivo (`regole-gestionale`, sei
-   * decimali).
+   * ⚠️ **`netFromGrossExact`, e la coda resta.** Il 26/08/2026 questa riga è
+   * stata cambiata in `netFromGrossMinor` per far passare il salvataggio, e
+   * era il posto sbagliato: un test l’ha colto subito — «digitando un ivato,
+   * tornando in netto il valore NON balla» — perché è proprio la coda a farlo
+   * tornare identico.
+   *
+   * ⭐ Il salvataggio andava in 400 per un motivo vero, ma il rimedio sta
+   * **all’uscita**, non qui: `netMinor` finisce in tre colonne diverse —
+   * `unit_price_minor` è `numeric(16,6)` e la coda la tiene, mentre
+   * `line_total_minor` e `line_gross_total_minor` sono `integer`. È il
+   * SERVIZIO che arrotonda quelle due, con `roundToMinor`.
+   *
+   * ⚠️ **E la coda si taglia a QUATTRO cifre di centesimo prima di partire**,
+   * con `toStorableMinor`: oltre lì non c’è precisione, c’è il rumore del
+   * float. Il DTO dichiara `maxDecimalPlaces: 4` e rifiuterebbe le sei cifre
+   * grezze di `netFromGrossExact`.
+   *
+   * ⭐ Questa maschera era l’UNICA delle sei che mandano denaro a non
+   * chiamarlo — misurato il 26/08/2026. Non è una scelta: è la ragione del
+   * 400.
+   *
+   * ⛔ È la regola di `regole-gestionale` presa alla lettera: «si arrotonda
+   * solo all’uscita, mai nei passaggi intermedi», e «l’arrotondamento sta sul
+   * totale di riga, mai sul prezzo unitario».
    */
   protected onLineAmountChange(index: number, value: number | null): void {
     const group = this.lines.at(index);
@@ -964,7 +985,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       // abbatterebbe l'imponibile del 22% — misurato da una prova.
       group.controls.netMinor.setValue(value);
     } else {
-      group.controls.netMinor.setValue(netFromGrossExact(value, vat.ratePercent));
+      group.controls.netMinor.setValue(toStorableMinor(netFromGrossExact(value, vat.ratePercent)));
     }
     this.lines.markAsDirty();
     this.recalcLineVat(index);

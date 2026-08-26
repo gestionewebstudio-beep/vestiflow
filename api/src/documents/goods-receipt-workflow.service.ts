@@ -72,6 +72,7 @@ import {
 import type { DocumentAddressDto } from './dto/document-transport.dto';
 import type { SaveGoodsReceiptDto } from './dto/save-goods-receipt.dto';
 import type { SavePurchaseInvoiceDto } from './dto/save-purchase-invoice.dto';
+import { roundToMinor } from '../common/money.util';
 
 /** Tipi arrivo merce che richiedono il fornitore già alla creazione (§9.2). */
 const SUPPLIER_REQUIRED_TYPES: readonly DocumentType[] = INVOICE_LINKABLE_RECEIPT_TYPES;
@@ -1374,9 +1375,22 @@ export class GoodsReceiptWorkflowService {
           quantity: 1,
           unitPriceMinor: line.netMinor,
           discountPercent: 0,
-          lineTotalMinor: line.netMinor,
+          // ⭐ **Qui si arrotonda, e solo qui.** `netMinor` arriva col netto
+          //   scorporato e la sua coda decimale, che il contratto del denaro
+          //   prescrive: è ciò che fa tornare identico l’ivato quando l’operatore
+          //   rientra nel documento.
+          //
+          // ⚠️ Ma le colonne di destinazione NON sono uguali, misurato il 26/08/2026:
+          //   `unit_price_minor` è `numeric(16,6)` e la coda la tiene;
+          //   `line_total_minor` e `line_gross_total_minor` sono `integer`.
+          //
+          // ⛔ Senza questo arrotondamento il salvataggio andava in 400. E la
+          //   tentazione di arrotondare nel CLIENT è sbagliata: lì la coda serve
+          //   ancora. «Si arrotonda solo all’uscita» (`regole-gestionale`), e la
+          //   scrittura in una colonna intera è l’uscita.
+          lineTotalMinor: roundToMinor(line.netMinor),
           lineVatTotalMinor: line.vatMinor,
-          lineGrossTotalMinor: line.netMinor + line.vatMinor,
+          lineGrossTotalMinor: roundToMinor(line.netMinor) + line.vatMinor,
           vatCodeId: vat.vatCodeId,
           vatSnapshot: vat.vatSnapshot,
           loadsStock: false,

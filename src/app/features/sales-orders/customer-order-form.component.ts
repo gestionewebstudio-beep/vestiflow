@@ -600,7 +600,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       return this.isEditMode() ? 'Modifica DDT vendita' : 'Nuovo DDT vendita';
     }
     if (this.isManualUnload) {
-      return this.isEditMode() ? 'Modifica vendita manuale' : 'Nuovo vendita manuale';
+      return this.isEditMode() ? 'Modifica vendita manuale' : 'Nuova vendita manuale';
     }
     return this.isEditMode() ? 'Modifica ordine cliente' : 'Nuovo ordine cliente';
   });

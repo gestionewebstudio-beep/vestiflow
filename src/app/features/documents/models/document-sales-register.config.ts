@@ -244,12 +244,12 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
     type: DocumentType.ManualUnload,
     pageTitle: 'Vendite manuali',
     pageSubtitle: 'Attenzione! Scarico diretto delle giacenze.',
-    createLabel: 'Nuovo vendita manuale',
+    createLabel: 'Nuova vendita manuale',
     createPath: '/app/documents/manual-unload/new',
     listPath: '/app/documents/manual-unload',
-    emptyTitle: 'Nessuno vendita manuale',
+    emptyTitle: 'Nessuna vendita manuale',
     emptyDescription:
-      'Non ci sono vendite manuali che corrispondono ai filtri. Crea un nuovo scarico per registrare uscite di merce non legate a vendita (campionario, omaggi, merce deteriorata).',
+      'Non ci sono vendite manuali che corrispondono ai filtri. Crea una nuova vendita manuale per registrare una vendita che riduce la giacenza senza generare movimenti di magazzino.',
     emptyIcon: 'pi-minus-circle',
     searchPlaceholder: 'Cerca per numero o cliente…',
     // Salvataggio = conferma immediata: nessun ciclo stati da filtrare.

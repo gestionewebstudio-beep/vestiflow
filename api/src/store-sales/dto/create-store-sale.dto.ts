@@ -1,7 +1,6 @@
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
-  ArrayMinSize,
   IsArray,
   IsBoolean,
   IsIn,
@@ -59,7 +58,9 @@ export class StoreSaleLineInputDto {
   unitPriceMinor!: number;
 
   @IsOptional()
-  @IsInt()
+  // ⚠️ NON `@IsInt()`: lo sconto del banco è una percentuale EFFETTIVA con
+  //   decimali, e la colonna è `numeric(7,4)` — verificato sul database.
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
   @Max(100)
   discountPercent?: number;
@@ -241,7 +242,13 @@ export class CreateStoreSaleDto {
   notes?: string;
 
   @IsArray()
-  @ArrayMinSize(1)
+  // ⛔ Qui c’era `@ArrayMinSize(1)`, tolto il 26/08/2026.
+  //   La decisione «un documento vuoto si salva» (25/08) era stata applicata al
+  //   SOLO frontend: «Concludi vendita» si abilitava con zero righe e il server
+  //   rispondeva 400 col messaggio generico, senza dire quale campo.
+  //   È lo stesso difetto già corretto sull’Ordine fornitore: quella verifica
+  //   enumerava tre famiglie di DTO, e il banco è la QUARTA strada — persiste un
+  //   Document ma non passa da `confirmDocumentTx`, quindi non fu guardata.
   @ArrayMaxSize(200)
   @ValidateNested({ each: true })
   @Type(() => StoreSaleLineInputDto)

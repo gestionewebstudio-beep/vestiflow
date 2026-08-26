@@ -418,7 +418,7 @@ export const documentsRoutes: Routes = [
     // manual-unload (prompt Vendita manuale — righe con prezzi e totali,
     // cliente facoltativo, scarico diretto giacenze al salvataggio).
     path: 'manual-unload/new',
-    title: 'Nuovo vendita manuale',
+    title: 'Nuova vendita manuale',
     loadComponent: () =>
       import('@features/sales-orders/customer-order-form.component').then(
         (m) => m.CustomerOrderFormComponent,

@@ -1425,7 +1425,14 @@
         } @else if (
           isOrder && isEditMode() && orderState() === 'confirmed' && dirtySinceLastSave()
         ) {
+          <!--
+            ⚠️ `documentActionsExtra` NON è decorativo: `app-document-actions`
+            proietta solo `[documentActionsNote]` e `[documentActionsExtra]`, senza
+            jolly. Senza l’attributo questo pulsante non finisce da nessuna parte —
+            non si disegna affatto, e nessun test lo vedeva.
+          -->
           <app-button
+            documentActionsExtra
             type="button"
             variant="secondary"
             [disabled]="true"
@@ -1465,7 +1472,14 @@
             }
           </div>
         } @else if (isSalesDdt && isEditMode() && dirtySinceLastSave()) {
+          <!--
+            ⚠️ `documentActionsExtra` NON è decorativo: `app-document-actions`
+            proietta solo `[documentActionsNote]` e `[documentActionsExtra]`, senza
+            jolly. Senza l’attributo questo pulsante non finisce da nessuna parte —
+            non si disegna affatto, e nessun test lo vedeva.
+          -->
           <app-button
+            documentActionsExtra
             type="button"
             variant="secondary"
             [disabled]="true"
