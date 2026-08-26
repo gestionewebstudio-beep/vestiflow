@@ -71,6 +71,15 @@ export class UnitOfMeasureOptionsService {
       ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
       ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
       ...(input.isDefault !== undefined ? { isDefault: input.isDefault } : {}),
+      // ⛔ **Spegnere una voce le toglie l’essere predefinita**, e non è pignoleria:
+      //   la tendina filtra le inattive, quindi una predefinita spenta sparirebbe
+      //   dall’elenco continuando a seminare gli articoli nuovi con un’unità che
+      //   non si può più scegliere. Lo stato «spenta e predefinita» non deve esistere.
+      //
+      // ⚠️ Diverso dai codici IVA, che hanno `deleted_at` nell’indice parziale: qui
+      //   la disattivazione è `isActive`, che l’indice NON guarda — quindi la riga
+      //   spenta terrebbe occupato il posto unico del tenant.
+      ...(input.isActive === false ? { isDefault: false } : {}),
     };
 
     if (input.isDefault !== true) {

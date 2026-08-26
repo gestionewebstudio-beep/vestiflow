@@ -2027,7 +2027,16 @@ model TenantFeatureSettings {
   /// Governa creazione e modifica. NON l’eliminazione, che resta con i
   /// permessi di sempre.
   manualUnloadEnabled       Boolean  @default(false) @map("manual_unload_enabled")
-  defaultUnitOfMeasure      String   @default("pz") @map("default_unit_of_measure")
+  // ⛔ Qui c’era `defaultUnitOfMeasure String @default("pz")`, tolta il 26/08/2026.
+  //   La sostituisce `UnitOfMeasureOption.isDefault`, che sta sulla riga che riguarda
+  //   e ha il vincolo a livello di database (indice unico parziale per tenant).
+  //
+  // ⚠️ La COLONNA `default_unit_of_measure` RESTA nel database, orfana, e non è una
+  //   dimenticanza: gli altri rami la dichiarano ancora e il database è condiviso.
+  //   Eliminarla ora romperebbe le loro query che la nominano. Si toglie con un
+  //   `DROP COLUMN` quando i rami sono riallineati — vedi `docs/DA-FARE.md`.
+  //   Una colonna che il database ha e lo schema non dichiara è invisibile a Prisma:
+  //   nel progetto è già così per i 12 oggetti del ramo cassa.
   /// Codice IVA predefinito aziendale.
   defaultVatCodeId          String?  @map("default_vat_code_id") @db.Uuid
   /// Convenzione aziendale sui PREZZI DI VENDITA: netti o ivati.

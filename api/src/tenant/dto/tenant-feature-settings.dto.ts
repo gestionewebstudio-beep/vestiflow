@@ -12,7 +12,6 @@ export class TenantFeatureSettingsDto {
   warnNegativeInventory!: boolean;
   blockNegativeInventory!: boolean;
   manualUnloadEnabled!: boolean;
-  defaultUnitOfMeasure!: string;
   defaultVatCodeId!: string | null;
   /** Convenzione aziendale sui prezzi di vendita: `true` = ivati. */
   salesPricesIncludeVat!: boolean;
@@ -81,7 +80,6 @@ export class UpdateTenantFeatureSettingsDto {
   @IsOptional()
   @IsString()
   @MaxLength(16)
-  defaultUnitOfMeasure?: string;
 
   @IsOptional()
   @IsUUID()

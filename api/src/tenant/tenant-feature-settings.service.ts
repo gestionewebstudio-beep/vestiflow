@@ -26,7 +26,6 @@ const DEFAULTS: Omit<TenantFeatureSettings, 'id' | 'tenantId' | 'createdAt' | 'u
   // interruttore di sicurezza — e uno che nasce acceso protegge solo chi si
   // ricorda di spegnerlo.
   manualUnloadEnabled: false,
-  defaultUnitOfMeasure: 'pz',
   defaultVatCodeId: null,
   // Ivato: è come partiva il sistema prima che l'impostazione esistesse.
   salesPricesIncludeVat: true,
@@ -124,7 +123,6 @@ export class TenantFeatureSettingsService {
       warnNegativeInventory: row.warnNegativeInventory,
       blockNegativeInventory: row.blockNegativeInventory,
       manualUnloadEnabled: row.manualUnloadEnabled,
-      defaultUnitOfMeasure: row.defaultUnitOfMeasure,
       defaultVatCodeId: row.defaultVatCodeId,
       salesPricesIncludeVat: row.salesPricesIncludeVat,
       listino1Name: row.listino1Name,

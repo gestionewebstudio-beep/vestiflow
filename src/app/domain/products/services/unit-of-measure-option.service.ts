@@ -82,7 +82,10 @@ export class UnitOfMeasureOptionService {
    * vuole una predefinita, e la spunta si può togliere.
    */
   defaultCode(): string | null {
-    return this.options()().find((o) => o.isDefault)?.name ?? null;
+    // ⚠️ `isActive` ANCHE qui, benché il server ormai non lasci più esistere una
+    //   predefinita spenta: le righe scritte prima del 26/08/2026 potrebbero,
+    //   e una predefinita che non compare nella tendina non deve seminare niente.
+    return this.options()().find((o) => o.isDefault && o.isActive)?.name ?? null;
   }
 
   /** Carica l'elenco se non c'è ancora. Chiamarla più volte non costa niente. */

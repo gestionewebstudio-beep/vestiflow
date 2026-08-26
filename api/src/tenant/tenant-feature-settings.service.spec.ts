@@ -35,7 +35,6 @@ describe('TenantFeatureSettingsService', () => {
       allowNegativeInventory: false,
       warnNegativeInventory: true,
       blockNegativeInventory: false,
-      defaultUnitOfMeasure: 'pz',
     });
 
     await expect(service.getOrCreate(tenantId)).resolves.toMatchObject({
@@ -44,7 +43,10 @@ describe('TenantFeatureSettingsService', () => {
     expect(prisma.tenantFeatureSettings.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { tenantId },
-        create: expect.objectContaining({ tenantId, defaultUnitOfMeasure: 'pz' }),
+        // ⚠️ L'asserzione nominava anche `defaultUnitOfMeasure: 'pz'`, tolto il
+        //   26/08/2026. L’intento resta, e non va perso: la creazione deve portare
+        //   il tenant e partire dai valori di default, non da un oggetto vuoto.
+        create: expect.objectContaining({ tenantId, lotsEnabled: false }),
       }),
     );
   });
@@ -96,19 +98,16 @@ describe('TenantFeatureSettingsService', () => {
       allowNegativeInventory: false,
       warnNegativeInventory: true,
       blockNegativeInventory: false,
-      defaultUnitOfMeasure: 'kg',
     });
 
     await expect(
       service.update(tenantId, {
         lotsEnabled: true,
         serialsEnabled: true,
-        defaultUnitOfMeasure: 'kg',
       }),
     ).resolves.toMatchObject({
       lotsEnabled: true,
       serialsEnabled: true,
-      defaultUnitOfMeasure: 'kg',
     });
 
     expect(prisma.tenantFeatureSettings.update).toHaveBeenCalledWith({
@@ -116,7 +115,6 @@ describe('TenantFeatureSettingsService', () => {
       data: {
         lotsEnabled: true,
         serialsEnabled: true,
-        defaultUnitOfMeasure: 'kg',
       },
     });
   });

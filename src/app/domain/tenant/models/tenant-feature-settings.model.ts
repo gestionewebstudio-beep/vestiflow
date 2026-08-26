@@ -25,7 +25,6 @@ export interface TenantFeatureSettings {
    * listini). I COSTI non hanno la gemella — partono sempre netti.
    */
   readonly salesPricesIncludeVat: boolean;
-  readonly defaultUnitOfMeasure: string;
   readonly defaultVatCodeId: string | null;
   /**
    * Listini aggiuntivi (§B): tre posizioni fisse. Nome `null` = etichetta di

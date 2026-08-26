@@ -83,3 +83,37 @@ describe('unità di misura predefinita', () => {
     expect(dto.unitOfMeasure).toBe('pz');
   });
 });
+
+describe('predefinita spenta', () => {
+  let service: UnitOfMeasureOptionService;
+  let http: HttpTestingController;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: APP_CONFIG, useValue: { apiBaseUrl: 'http://localhost:3000/api/v1' } },
+        UnitOfMeasureOptionService,
+      ],
+    });
+    service = TestBed.inject(UnitOfMeasureOptionService);
+    http = TestBed.inject(HttpTestingController);
+  });
+
+  it('⛔ una voce disattivata NON semina, anche se porta ancora la spunta', () => {
+    // ⚠️ Il caso: si spegne «kg» che era la predefinita. La tendina filtra le
+    // inattive, quindi «kg» sparisce dall'elenco — ma se la predefinita non
+    // guardasse `isActive`, continuerebbe a scriverla sugli articoli nuovi:
+    // un'unità che l'operatore non può più scegliere, comparsa da sola.
+    service.options();
+    http
+      .expectOne((r) => r.url.includes('unit-of-measure-options'))
+      .flush([
+        { id: '1', name: 'pz', sortOrder: 0, isSystem: true, isActive: true, isDefault: false },
+        { id: '2', name: 'kg', sortOrder: 1, isSystem: false, isActive: false, isDefault: true },
+      ]);
+
+    expect(service.defaultCode()).toBeNull();
+  });
+});
