@@ -47,15 +47,34 @@
 
     <fieldset class="tenant-ops__group">
       <legend class="tenant-ops__legend">Default articoli</legend>
-      <label class="tenant-ops__field" for="tenant-ops-uom">
-        Unità di misura predefinita
-        <input
-          id="tenant-ops-uom"
-          type="text"
-          formControlName="defaultUnitOfMeasure"
-          maxlength="16"
-        />
-      </label>
+      <!--
+        ⛔ **Qui c’era un campo di TESTO LIBERO** su
+           `tenant_feature_settings.default_unit_of_measure`, che nessuno leggeva.
+           Scollegato dall’elenco — si cancellava «m» dalle voci e il campo
+           continuava a dire «m» — e incapace di dire «nessuna», perché il suo
+           default era `pz`.
+
+        ⭐ La predefinita è ora una proprietà DELL’ELENCO (`isDefault` sulla
+           voce), zero o una per tenant, garantita da indice parziale. Qui si
+           legge e si apre il gestore, come la finestrella dell’U.M. dei
+           gestionali che l’operatore già conosce.
+      -->
+      <div class="tenant-ops__field">
+        <span id="tenant-ops-uom-label">Unità di misura predefinita</span>
+        <div class="tenant-ops__inline">
+          <output class="tenant-ops__value" aria-labelledby="tenant-ops-uom-label">
+            {{ unitaPredefinita() ?? 'Nessuna' }}
+          </output>
+          <app-button
+            type="button"
+            variant="secondary"
+            ariaLabel="Gestisci le unità di misura e scegli la predefinita"
+            (click)="unitManagerOpen.set(true)"
+          >
+            Gestisci…
+          </app-button>
+        </div>
+      </div>
       <label class="tenant-ops__field" for="tenant-ops-vat-code">
         Codice IVA predefinito
         <select id="tenant-ops-vat-code" formControlName="defaultVatCodeId">
@@ -158,3 +177,10 @@
     </div>
   </form>
 }
+
+<!-- Uno per pannello: il campo chiede, il pannello ospita. -->
+<app-unit-of-measure-manager-dialog
+  [open]="unitManagerOpen()"
+  (closed)="unitManagerOpen.set(false)"
+  (changed)="unitOptions.reload()"
+/>

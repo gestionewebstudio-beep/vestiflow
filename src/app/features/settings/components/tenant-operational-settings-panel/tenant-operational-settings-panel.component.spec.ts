@@ -1,3 +1,5 @@
+import { signal } from '@angular/core';
+import { UnitOfMeasureOptionService } from '@domain/products/services/unit-of-measure-option.service';
 import { ProfileRefreshService } from '@core/auth/profile-refresh.service';
 import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
@@ -33,6 +35,12 @@ const SETTINGS: TenantFeatureSettings = {
   listino3Active: false,
 };
 
+/** Elenco unita’ del tenant, con una predefinita: e’ lo stato normale. */
+const UNITA = [
+  { id: 'um-1', name: 'pz', sortOrder: 1, isSystem: true, isActive: true, isDefault: false },
+  { id: 'um-2', name: 'kg', sortOrder: 2, isSystem: false, isActive: true, isDefault: true },
+];
+
 function setup(updateSettings = vi.fn(() => of(SETTINGS)), refreshNow = vi.fn()) {
   return render(TenantOperationalSettingsPanelComponent, {
     providers: [
@@ -45,6 +53,13 @@ function setup(updateSettings = vi.fn(() => of(SETTINGS)), refreshNow = vi.fn())
       //   alcune impostazioni sono capacita’ del tenant che viaggiano di li’, e
       //   senza rilettura l’interruttore appena girato non farebbe niente.
       { provide: ProfileRefreshService, useValue: { refreshNow } },
+      // ⚠️ La predefinita U.M. e’ una proprieta’ dell’ELENCO, quindi il pannello
+      //   legge il servizio delle opzioni. Stub: il servizio vero vorrebbe
+      //   APP_CONFIG e il client HTTP, e questi test guardano altro.
+      {
+        provide: UnitOfMeasureOptionService,
+        useValue: { options: () => signal(UNITA), reload: vi.fn() },
+      },
     ],
   });
 }
@@ -124,5 +139,52 @@ describe('TenantOperationalSettingsPanelComponent — la sessione si aggiorna', 
     await userEvent.setup().click(await screen.findByRole('button', { name: /Salva/i }));
 
     expect(refreshNow).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * ⭐ **La predefinita U.M. è una proprietà dell'elenco, e «nessuna» è valida.**
+ *
+ * ⛔ Qui c'era un campo di testo libero su `defaultUnitOfMeasure`, che nessuno
+ * leggeva: si scollegava dall'elenco e non sapeva dire «nessuna», perché il suo
+ * default era `pz`. Ora il pannello **legge** la voce marcata e apre il gestore.
+ */
+describe('TenantOperationalSettingsPanelComponent — unità di misura predefinita', () => {
+  async function apri(unita: readonly unknown[]) {
+    return render(TenantOperationalSettingsPanelComponent, {
+      providers: [
+        {
+          provide: TenantFeatureSettingsService,
+          useValue: { getSettings: () => of(SETTINGS), updateSettings: vi.fn(() => of(SETTINGS)) },
+        },
+        { provide: VatCodeService, useValue: { list: () => of([]) } },
+        { provide: ProfileRefreshService, useValue: { refreshNow: vi.fn() } },
+        {
+          provide: UnitOfMeasureOptionService,
+          useValue: { options: () => signal(unita), reload: vi.fn() },
+        },
+      ],
+    });
+  }
+
+  it('⭐ mostra la voce marcata come predefinita', async () => {
+    await apri(UNITA);
+
+    expect(await screen.findByText('kg')).toBeInTheDocument();
+  });
+
+  it('⭐ senza nessuna marcata dice «Nessuna», e non inventa «pz»', async () => {
+    // ⚠️ È lo stato che il proprietario ha chiesto di rendere possibile: chi ha
+    //   articoli misti non deve dover cambiare l'unità ogni volta.
+    await apri(UNITA.map((voce) => ({ ...voce, isDefault: false })));
+
+    expect(await screen.findByText('Nessuna')).toBeInTheDocument();
+  });
+
+  it('⛔ e il campo di testo libero non esiste più', async () => {
+    // Se tornasse, tornerebbero due predefinite che non si parlano.
+    const { container } = await apri(UNITA);
+
+    expect(container.querySelector('#tenant-ops-uom')).toBeNull();
   });
 });

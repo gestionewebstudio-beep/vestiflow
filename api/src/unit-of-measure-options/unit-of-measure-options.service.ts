@@ -51,7 +51,7 @@ export class UnitOfMeasureOptionsService {
   async update(
     tenantId: string,
     id: string,
-    input: { name?: string; isActive?: boolean; sortOrder?: number },
+    input: { name?: string; isActive?: boolean; sortOrder?: number; isDefault?: boolean },
   ): Promise<UnitOfMeasureOption> {
     const current = await this.getById(tenantId, id);
 
@@ -66,13 +66,30 @@ export class UnitOfMeasureOptionsService {
       }
     }
 
-    return this.prisma.unitOfMeasureOption.update({
-      where: { id: current.id },
-      data: {
-        ...(name !== undefined ? { name } : {}),
-        ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
-        ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
-      },
+    const data = {
+      ...(name !== undefined ? { name } : {}),
+      ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
+      ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
+      ...(input.isDefault !== undefined ? { isDefault: input.isDefault } : {}),
+    };
+
+    if (input.isDefault !== true) {
+      // Toglierla, o non toccarla: nessuna altra riga e’ coinvolta. «Nessuna
+      // predefinita» resta uno stato valido.
+      return this.prisma.unitOfMeasureOption.update({ where: { id: current.id }, data });
+    }
+
+    // ⛔ **Sceglierne una spegne l’altra, e in TRANSAZIONE.** L’indice parziale
+    //   `unit_of_measure_options_tenant_default_key` garantisce «al piu’ una per
+    //   tenant» a database: senza spegnere la precedente nello stesso atto, la
+    //   scrittura verrebbe RIFIUTATA — e due richieste in parallelo ne
+    //   lascerebbero comunque due se il vincolo non ci fosse.
+    return this.prisma.$transaction(async (tx) => {
+      await tx.unitOfMeasureOption.updateMany({
+        where: { tenantId, isDefault: true, NOT: { id: current.id } },
+        data: { isDefault: false },
+      });
+      return tx.unitOfMeasureOption.update({ where: { id: current.id }, data });
     });
   }
 

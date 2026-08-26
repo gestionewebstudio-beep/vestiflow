@@ -212,14 +212,17 @@
 
         <div class="general-step__field">
           <span class="general-step__label" id="product-uom-label">U.M.</span>
-          <app-select-menu
-            [options]="uomSelectOptions"
+          <!--
+            ⛔ Qui c’era un `app-select-menu` con SEI voci da una costante
+               compilata (`COMMON_UNIT_OF_MEASURE`): un’azienda che aggiungeva
+               «m» dal gestore la vedeva sulle righe documento e NON qui.
+               Il seed del server lo dichiarava già temporaneo — «la costante
+               del frontend serve solo come ripiego finché l’elenco non è
+               arrivato».
+          -->
+          <app-unit-of-measure-select
             [value]="form.controls.unitOfMeasure.value"
             ariaLabel="Unità di misura"
-            placeholder="pz"
-            [compact]="true"
-            [fitContent]="true"
-            [includeEmptyOption]="false"
             (valueChange)="onUomSelect($event)"
           />
         </div>

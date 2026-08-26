@@ -3,6 +3,7 @@ import {
   Component,
   computed,
   DestroyRef,
+  effect,
   HostListener,
   inject,
   input,
@@ -61,6 +62,7 @@ import { ProductImagesFieldComponent } from './components/product-images-field/p
 import { ProductOptionsStepComponent } from './components/product-options-step/product-options-step.component';
 import { ProductQuickVariantFieldsComponent } from './components/product-quick-variant-fields/product-quick-variant-fields.component';
 import { ProductVariantsStepComponent } from './components/product-variants-step/product-variants-step.component';
+import { UnitOfMeasureOptionService } from './services/unit-of-measure-option.service';
 import type { ProductEmbeddedCreatePrefill } from './models/product-form.mapper';
 import {
   emptyProductFormDraft,
@@ -167,6 +169,7 @@ export class ProductFormComponent implements CanComponentDeactivate {
   readonly panelDismissed = output<void>();
 
   private readonly service = inject(ProductService);
+  private readonly unitOptions = inject(UnitOfMeasureOptionService);
   private readonly vatCodeService = inject(VatCodeService);
   private readonly catalogCategoryService = inject(CatalogCategoryService);
   private readonly supplierService = inject(SupplierService);
@@ -396,6 +399,45 @@ export class ProductFormComponent implements CanComponentDeactivate {
   private priceModeTouched = false;
 
   constructor() {
+    /**
+     * **La predefinita del tenant precompila un articolo NUOVO. Solo quello.**
+     *
+     * ⛔ Non è retroattiva e non riscrive niente: un articolo esistente conserva
+     * la sua U.M., e rinominare o eliminare una voce dell’elenco non tocca
+     * articoli né documenti — deciso dal proprietario il 26/08/2026.
+     *
+     * ⛔ E **non** sostituisce il default della riga documento, che continua a
+     * venire dall’articolo. Sono due sorgenti diverse, e confonderle farebbe
+     * scrivere l’unità dell’azienda su una riga il cui articolo ne ha un’altra.
+     *
+     * ⚠️ Perché un `effect` e non la fabbrica della bozza: l’elenco U.M. si carica
+     * a richiesta e la prima lettura torna vuota. Seminare al momento della
+     * costruzione mancherebbe il bersaglio a freddo, in silenzio.
+     *
+     * ⚠️ E perché il `pristine` si ri-allinea solo se era pulito: seminare non è
+     * una modifica dell’operatore e non deve far comparire «modifiche non
+     * salvate» su una scheda appena aperta — ma se l’operatore aveva già scritto
+     * qualcosa, quelle modifiche non vanno inghiottite dal ri-allineamento.
+     */
+    effect(() => {
+      const predefinita = this.unitOptions.defaultCode();
+      if (!predefinita || this.mode() !== 'create') {
+        return;
+      }
+      const bozza = this.draft();
+      if (bozza.general.unitOfMeasure.trim()) {
+        return;
+      }
+      const eraPulito = this.serialize(bozza) === this.pristine();
+      const seminata = {
+        ...bozza,
+        general: { ...bozza.general, unitOfMeasure: predefinita },
+      };
+      this.draft.set(seminata);
+      if (eraPulito) {
+        this.pristine.set(this.serialize(seminata));
+      }
+    });
     // Preferenza modalità prezzi: vale anche per le schede esistenti (la
     // modalità è di chi guarda, non dell'articolo). Errore = si resta sul netto.
     this.service

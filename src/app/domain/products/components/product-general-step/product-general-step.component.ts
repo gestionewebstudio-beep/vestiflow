@@ -1,3 +1,4 @@
+import { UnitOfMeasureSelectComponent } from '../unit-of-measure-select/unit-of-measure-select.component';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -147,6 +148,7 @@ function minorToMajor(minor: number): number {
     ShopifyTaxonomyPickerComponent,
     ShopifyCategoryAttributesComponent,
     CatalogCategoryManagerComponent,
+    UnitOfMeasureSelectComponent,
   ],
   templateUrl: './product-general-step.component.html',
   styleUrl: './product-general-step.component.scss',
@@ -409,7 +411,10 @@ export class ProductGeneralStepComponent implements OnInit {
     tags: this.fb.control(''),
     status: this.fb.control<ProductStatus>(ProductStatus.Draft),
     shopifySyncEnabled: this.fb.control(true),
-    unitOfMeasure: this.fb.control('pz'),
+    // ⚠️ Nasce VUOTO, non `pz`: se partisse compilato la predefinita del tenant
+    //   non avrebbe niente da seminare, e non si distinguerebbe «pz scelto» da
+    //   «pz per inerzia». Il ripiego tecnico resta al salvataggio.
+    unitOfMeasure: this.fb.control(''),
     defaultVatCodeId: this.fb.control(''),
     inventoryTracking: this.fb.control<InventoryTrackingMode>(InventoryTrackingMode.Standard),
     managesStock: this.fb.control(true),

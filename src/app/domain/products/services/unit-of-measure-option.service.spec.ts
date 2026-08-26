@@ -18,10 +18,25 @@ interface ApiRow {
   readonly sortOrder: number;
   readonly isSystem: boolean;
   readonly isActive: boolean;
+  readonly isDefault?: boolean;
 }
 
-const ROW_PZ: ApiRow = { id: 'um-1', name: 'pz', sortOrder: 1, isSystem: true, isActive: true };
-const ROW_KG: ApiRow = { id: 'um-2', name: 'kg', sortOrder: 2, isSystem: false, isActive: false };
+const ROW_PZ: ApiRow = {
+  id: 'um-1',
+  name: 'pz',
+  sortOrder: 1,
+  isSystem: true,
+  isActive: true,
+  isDefault: false,
+};
+const ROW_KG: ApiRow = {
+  id: 'um-2',
+  name: 'kg',
+  sortOrder: 2,
+  isSystem: false,
+  isActive: false,
+  isDefault: false,
+};
 
 describe('UnitOfMeasureOptionService (HTTP)', () => {
   let service: UnitOfMeasureOptionService;
@@ -54,8 +69,15 @@ describe('UnitOfMeasureOptionService (HTTP)', () => {
       req.flush([ROW_PZ, ROW_KG]);
 
       expect(await promise).toEqual([
-        { id: 'um-1', name: 'pz', sortOrder: 1, isSystem: true, isActive: true },
-        { id: 'um-2', name: 'kg', sortOrder: 2, isSystem: false, isActive: false },
+        { id: 'um-1', name: 'pz', sortOrder: 1, isSystem: true, isActive: true, isDefault: false },
+        {
+          id: 'um-2',
+          name: 'kg',
+          sortOrder: 2,
+          isSystem: false,
+          isActive: false,
+          isDefault: false,
+        },
       ]);
     });
 
@@ -67,7 +89,7 @@ describe('UnitOfMeasureOptionService (HTTP)', () => {
         .flush([{ ...ROW_PZ, tenantId: 'tenant-1', createdAt: '2026-08-19T00:00:00.000Z' }]);
 
       expect(await promise).toEqual([
-        { id: 'um-1', name: 'pz', sortOrder: 1, isSystem: true, isActive: true },
+        { id: 'um-1', name: 'pz', sortOrder: 1, isSystem: true, isActive: true, isDefault: false },
       ]);
     });
 
@@ -101,6 +123,7 @@ describe('UnitOfMeasureOptionService (HTTP)', () => {
         sortOrder: 3,
         isSystem: false,
         isActive: true,
+        isDefault: false,
       });
     });
 
@@ -118,6 +141,7 @@ describe('UnitOfMeasureOptionService (HTTP)', () => {
         sortOrder: 2,
         isSystem: false,
         isActive: true,
+        isDefault: false,
       });
     });
 

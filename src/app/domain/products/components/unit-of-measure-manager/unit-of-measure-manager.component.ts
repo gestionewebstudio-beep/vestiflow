@@ -169,6 +169,22 @@ export class UnitOfMeasureManagerComponent {
     this.run(this.service.delete(option.id), `«${option.name}» eliminata.`);
   }
 
+  /**
+   * Sceglie la predefinita, o la toglie se lo era già.
+   *
+   * ⛔ Il vincolo «al più una per tenant» sta nel DATABASE (indice parziale),
+   * e il server spegne la precedente nella stessa transazione. Qui non si
+   * spegne niente a mano: due scritture separate lascerebbero una finestra in
+   * cui l’indice rifiuta.
+   */
+  protected toggleDefault(option: UnitOfMeasureOption): void {
+    const attiva = !option.isDefault;
+    this.run(
+      this.service.update(option.id, { isDefault: attiva }),
+      attiva ? `«${option.name}» è ora l’unità predefinita.` : 'Nessuna unità predefinita.',
+    );
+  }
+
   protected onDismissDelete(): void {
     this.confirmOpen.set(false);
     this.pendingDelete.set(null);

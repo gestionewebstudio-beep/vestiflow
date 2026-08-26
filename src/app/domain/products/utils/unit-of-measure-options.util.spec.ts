@@ -7,6 +7,7 @@ const voce = (name: string, isActive = true) => ({
   name,
   sortOrder: 0,
   isSystem: false,
+  isDefault: false,
   isActive,
 });
 

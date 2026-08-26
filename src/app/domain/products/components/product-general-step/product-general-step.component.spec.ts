@@ -1,3 +1,4 @@
+import { signal } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { ReactiveFormsModule } from '@angular/forms';
 import { render, screen } from '@testing-library/angular';
@@ -13,6 +14,8 @@ import { DocumentLineSelectCellComponent } from '@domain/documents/components/do
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 
 import { ProductGeneralStepComponent } from './product-general-step.component';
+import { UnitOfMeasureOptionService } from '../../services/unit-of-measure-option.service';
+import { UnitOfMeasureSelectComponent } from '../unit-of-measure-select/unit-of-measure-select.component';
 import type { ProductGeneralDraft } from '../../models/product-form.model';
 import type { ProductListinoSlot } from '../../models/product-listino.model';
 import { CatalogCategoryService } from '../../services/catalog-category.service';
@@ -81,13 +84,29 @@ const EMPTY_GENERAL: ProductGeneralDraft = {
   listino3Price: null,
 };
 
+/** L’elenco U.M. finto: due voci, nessuna rete. */
+const unitOptionsMock = {
+  options: () =>
+    signal([
+      { id: '1', name: 'pz', sortOrder: 0, isSystem: true, isActive: true, isDefault: true },
+      { id: '2', name: 'kg', sortOrder: 1, isSystem: false, isActive: true, isDefault: false },
+    ]).asReadonly(),
+  reload: () => undefined,
+};
+
 /**
  * Render dello step con le sole dipendenze reali che servono ai test (la
  * tassonomia Shopify e la gestione categorie restano fuori: parlano col server).
  */
 function renderStep(componentInputs: Record<string, unknown>) {
   return render(ProductGeneralStepComponent, {
-    providers: [{ provide: CatalogCategoryService, useValue: catalogCategoryServiceMock }],
+    providers: [
+      { provide: CatalogCategoryService, useValue: catalogCategoryServiceMock },
+      // ⚠️ Il selettore U.M. è AUTOSUFFICIENTE: si procura l’elenco da sé e ospita
+      //   il proprio gestore. È il suo pregio — chi lo usa non deve sapere niente
+      //   — ma in prova significa una chiamata al server, che qui non c’entra.
+      { provide: UnitOfMeasureOptionService, useValue: unitOptionsMock },
+    ],
     configureTestBed: (testBed) => {
       testBed.overrideComponent(ProductGeneralStepComponent, {
         set: {
@@ -98,6 +117,7 @@ function renderStep(componentInputs: Record<string, unknown>) {
             DocumentLineSelectCellComponent,
             SegmentedComponent,
             HoverTooltipComponent,
+            UnitOfMeasureSelectComponent,
           ],
         },
       });

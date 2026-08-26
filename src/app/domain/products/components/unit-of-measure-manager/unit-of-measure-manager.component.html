@@ -61,6 +61,39 @@
             niente: i documenti portano il testo. Uno stato in meno da capire.
           -->
           <div class="uom-manager__actions">
+            <!--
+              ⭐ **La predefinita si sceglie e si TOGLIE dallo stesso comando.**
+              Premerla su una voce qualunque la sceglie; premerla su quella già
+              predefinita la toglie — e «nessuna predefinita» è uno stato
+              valido, per chi ha articoli misti e non vuole cambiarla ogni
+              volta. Senza il secondo verso non ci si tornerebbe più.
+
+              ⚠️ `aria-pressed` e non un'icona muta: lo stato deve arrivare
+              anche a chi non vede la stella.
+            -->
+            <button
+              type="button"
+              class="uom-manager__icon-btn"
+              [class.uom-manager__icon-btn--default]="option.isDefault"
+              [attr.aria-pressed]="option.isDefault"
+              [attr.aria-label]="
+                option.isDefault
+                  ? 'Togli ' + option.name + ' come unità predefinita'
+                  : 'Usa ' + option.name + ' come unità predefinita'
+              "
+              [title]="
+                option.isDefault ? 'Predefinita — premi per toglierla' : 'Usa come predefinita'
+              "
+              [disabled]="busy()"
+              (click)="toggleDefault(option)"
+            >
+              <i
+                class="pi"
+                [class.pi-star-fill]="option.isDefault"
+                [class.pi-star]="!option.isDefault"
+                aria-hidden="true"
+              ></i>
+            </button>
             <button
               type="button"
               class="uom-manager__icon-btn"

@@ -244,7 +244,10 @@ export function emptyProductFormDraft(): ProductFormDraft {
       tags: '',
       status: ProductStatus.Draft,
       shopifySyncEnabled: true,
-      unitOfMeasure: 'pz',
+      // ⚠️ VUOTA, non `pz`: se nascesse compilata la predefinita del tenant non
+      //   avrebbe niente da seminare. Il ripiego tecnico resta al salvataggio
+      //   (`unitOfMeasure.trim() || 'pz'`), dove è sempre stato.
+      unitOfMeasure: '',
       defaultVatCodeId: '',
       inventoryTracking: InventoryTrackingMode.Standard,
       managesStock: true,

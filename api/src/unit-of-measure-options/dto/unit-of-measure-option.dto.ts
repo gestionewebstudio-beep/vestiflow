@@ -21,4 +21,15 @@ export class UpdateUnitOfMeasureOptionDto {
   @IsOptional()
   @IsInt()
   sortOrder?: number;
+
+  /**
+   * Predefinita del tenant: `true` la sceglie, `false` la toglie.
+   *
+   * ⚠️ «Nessuna predefinita» è uno stato VALIDO e voluto: chi ha articoli misti
+   * non deve cambiarla ogni volta. Mandare `false` sulla voce corrente è il
+   * modo di tornarci.
+   */
+  @IsOptional()
+  @IsBoolean()
+  isDefault?: boolean;
 }

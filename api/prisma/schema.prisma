@@ -1304,6 +1304,17 @@ model UnitOfMeasureOption {
   sortOrder Int      @default(0) @map("sort_order")
   isSystem  Boolean  @default(false) @map("is_system")
   isActive  Boolean  @default(true) @map("is_active")
+  /// Predefinita del tenant: precompila la U.M. di un ARTICOLO NUOVO, anche
+  /// creato inline da una riga documento.
+  ///
+  /// ⛔ NON e’ il default della riga documento: quella prende l’unita’
+  /// DELL’ARTICOLO e la congela. Leggerla qui rimetterebbe un effetto
+  /// retroattivo — cambiare l’impostazione cambierebbe cosa una riga sembra
+  /// proporre per articoli che hanno gia’ la loro unita’.
+  ///
+  /// ⚠️ Zero o una per tenant, garantita da indice parziale. «Nessuna» e’ uno
+  /// stato valido: chi ha articoli misti non deve cambiarla ogni volta.
+  isDefault Boolean  @default(false) @map("is_default")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

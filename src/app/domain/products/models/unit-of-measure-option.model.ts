@@ -13,4 +13,12 @@ export interface UnitOfMeasureOption {
   readonly sortOrder: number;
   readonly isSystem: boolean;
   readonly isActive: boolean;
+  /**
+   * Predefinita del tenant: precompila un ARTICOLO NUOVO, anche creato inline.
+   *
+   * ⛔ Non è il default della riga documento, che prende l’unità
+   * DELL’ARTICOLO e la congela. Zero o una per tenant, e «nessuna» è uno
+   * stato valido.
+   */
+  readonly isDefault: boolean;
 }
