@@ -177,8 +177,8 @@ export const documentsRoutes: Routes = [
   // in modo pulito». Un indirizzo che sopravvive a se stesso è una seconda
   // strada verso la stessa pagina, e prima o poi qualcuno la scrive nei link.
   {
-    // Scarico manuale giacenze: pagina elenco dedicata (prompt Scarico
-    // manuale) — il documento resta qui finché l'operatore non lo elimina.
+    // Vendita manuale: pagina elenco dedicata — il documento resta qui
+    // finché l'operatore non lo elimina.
     path: 'manual-unload',
     title: 'Vendite manuali',
     loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
@@ -414,11 +414,11 @@ export const documentsRoutes: Routes = [
     data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('transfer') },
   },
   {
-    // Scarico manuale: stessa maschera del DDT vendita in modalità
-    // manual-unload (prompt Scarico manuale — righe con prezzi e totali,
+    // Vendita manuale: stessa maschera del DDT vendita in modalità
+    // manual-unload (prompt Vendita manuale — righe con prezzi e totali,
     // cliente facoltativo, scarico diretto giacenze al salvataggio).
     path: 'manual-unload/new',
-    title: 'Nuovo scarico manuale',
+    title: 'Nuovo vendita manuale',
     loadComponent: () =>
       import('@features/sales-orders/customer-order-form.component').then(
         (m) => m.CustomerOrderFormComponent,
@@ -432,7 +432,7 @@ export const documentsRoutes: Routes = [
   },
   {
     path: 'manual-unload/:id/edit',
-    title: 'Modifica scarico manuale',
+    title: 'Modifica vendita manuale',
     loadComponent: () =>
       import('@features/sales-orders/customer-order-form.component').then(
         (m) => m.CustomerOrderFormComponent,
@@ -448,7 +448,7 @@ export const documentsRoutes: Routes = [
     // Anteprima dettaglio dedicata (layout Ordine cliente): registrata dopo
     // `manual-unload/new` così «new» non viene interpretato come id.
     path: 'manual-unload/:id',
-    title: 'Dettaglio scarico manuale',
+    title: 'Dettaglio vendita manuale',
     loadComponent: () =>
       import('./sales-document-detail.component').then((m) => m.SalesDocumentDetailComponent),
     canActivate: [tenantPermissionGuard],

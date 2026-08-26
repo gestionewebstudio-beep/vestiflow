@@ -107,7 +107,7 @@ const PRINT_KIND: Readonly<Record<DocumentType, DocumentPrintKind>> = {
   [DocumentType.supplier_invoice]: 'purchase_invoice',
   [DocumentType.sales_ddt]: 'sales',
   [DocumentType.transfer]: 'transfer',
-  // Scarico manuale: layout vendita (Cliente + righe con prezzi/totali).
+  // Vendita manuale: layout vendita (Cliente + righe con prezzi/totali).
   [DocumentType.manual_unload]: 'sales',
   // Rettifica e inventario: la sede è tutto il contesto che hanno.
   [DocumentType.adjustment]: 'stock',

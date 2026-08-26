@@ -158,7 +158,7 @@
           isQuote
             ? 'Il documento non è un preventivo modificabile da questa maschera.'
             : isManualUnload
-              ? 'Il documento non è uno scarico manuale modificabile da questa maschera.'
+              ? 'Il documento non è uno vendita manuale modificabile da questa maschera.'
               : 'Solo gli ordini di origine Manuale possono essere modificati da questa maschera.'
         "
         ctaLabel="Torna al registro"
@@ -311,7 +311,7 @@
                     <p id="co-m-customer-error" class="doc-form__error">Campo obbligatorio.</p>
                   }
                   @if (isManualUnload && !form.controls.customerId.value) {
-                    <!-- Cliente digitato liberamente (prompt Scarico manuale):
+                    <!-- Cliente digitato liberamente (prompt Vendita manuale):
                            compare solo in stampa, NON viene salvato in anagrafica. -->
                     <input
                       class="doc-panel__control"
@@ -611,7 +611,7 @@
                   <p id="co-customer-error" class="doc-form__error">Campo obbligatorio.</p>
                 }
                 @if (isManualUnload && !form.controls.customerId.value) {
-                  <!-- Cliente digitato liberamente (prompt Scarico manuale):
+                  <!-- Cliente digitato liberamente (prompt Vendita manuale):
                      compare solo in stampa, NON viene salvato in anagrafica. -->
                   <input
                     class="doc-form__input"
@@ -708,9 +708,9 @@
               }
 
               <!-- Testata DDT (prompt DDT): Cliente, Location, Data, Pagamento.
-                 Scarico manuale: solo Rif. (niente consegna/pagamento). -->
+                 Vendita manuale: solo Rif. (niente consegna/pagamento). -->
               <!--
-                Il «Rif.» qui sotto è una causale libera dello Scarico manuale
+                Il «Rif.» qui sotto è una causale libera della Vendita manuale
                 (es. «campionario fiera»), non il numero di un documento — ed è
                 per questo che è rimasto quando il blocco del documento della
                 controparte è stato tolto dalla testata (12/08/2026): un ordine
@@ -787,7 +787,7 @@
                aprire una terza fascia.
                Il Preventivo il documento del cliente non ce l'ha: tiene la
                propria fascia con «Consegna prevista», che è sua e basta. Il DDT
-               gestisce il pagamento in prima fascia e lo scarico manuale non ha
+               gestisce il pagamento in prima fascia e la vendita manuale non ha
                né consegna né pagamento: nessuno dei due ha seconda fascia. -->
             @if (mostraCampo('paymentTerms')) {
               <!-- Fascia secondaria dell'Ordine: solo il Pagamento.

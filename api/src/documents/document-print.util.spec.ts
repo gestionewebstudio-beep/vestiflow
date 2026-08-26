@@ -58,7 +58,7 @@ describe('document-print.util', () => {
     expect(documentPrintKind(DocumentType.adjustment)).toBe('stock');
     expect(documentPrintKind(DocumentType.inventory)).toBe('stock');
     expect(documentPrintKind(DocumentType.sales_ddt)).toBe('sales');
-    // Scarico manuale: layout vendita (Cliente + prezzi/totali).
+    // Vendita manuale: layout vendita (Cliente + prezzi/totali).
     expect(documentPrintKind(DocumentType.manual_unload)).toBe('sales');
     expect(documentPrintKind(DocumentType.store_sale)).toBe('sales');
   });

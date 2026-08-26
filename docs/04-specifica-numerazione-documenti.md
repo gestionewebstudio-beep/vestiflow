@@ -626,7 +626,7 @@ _Lista definita da Luigi l'11 agosto 2026._
 | DDT di vendita           | Da valutare il nome, vedi §10                                                                                      |
 | Fattura                  | Con tutta la famiglia di sottotipi: accompagnatoria, d'acconto, nota di credito. **Un solo progressivo condiviso** |
 | Ordini fornitore         |                                                                                                                    |
-| Scarico manuale giacenze |                                                                                                                    |
+| Vendita manuale          |                                                                                                                    |
 | Trasferimenti interni    | Numerazione propria. Il DDT eventualmente generato ha la sua                                                       |
 
 ### Categoria B — due blocchi distinti
@@ -665,7 +665,7 @@ La confusione col numero del fornitore si risolve con la separazione visiva dei 
 
 **Superato:** «Protocollo» come etichetta (24 luglio) — motivato da un obbligo che non esiste.
 
-**Superata** anche la Categoria C (Scarico manuale, Trasferimenti, Rettifiche con numero non editabile e senza serie), proposta il 24 luglio e sciolta subito dopo.
+**Superata** anche la Categoria C (Vendita manuale, Trasferimenti, Rettifiche con numero non editabile e senza serie), proposta il 24 luglio e sciolta subito dopo.
 
 ### Quale data usa la numerazione
 

@@ -476,7 +476,7 @@ export interface CreateDocumentBody {
   readonly supplierId?: EntityId;
   readonly customerId?: EntityId;
   /**
-   * Cliente a testo libero (Scarico manuale): usato solo senza customerId —
+   * Cliente a testo libero (Vendita manuale): usato solo senza customerId —
    * snapshot per la stampa, mai salvato in anagrafica.
    */
   readonly customerName?: string;

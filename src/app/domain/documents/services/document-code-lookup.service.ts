@@ -47,7 +47,7 @@ export interface DocumentCodeLookupOptions {
  * per corrispondenza **esatta**, e gli esiti sono tre.
  *
  * Vive qui, e non nelle maschere, perché la regola è identica su tutte:
- * Ordine cliente (e con lui DDT vendita, Preventivi, Scarico manuale), Arrivo
+ * Ordine cliente (e con lui DDT vendita, Preventivi, Vendita manuale), Arrivo
  * merce, Ordine fornitore. Tre copie di questa catena sarebbero il difetto che
  * il lavoro sulle righe documento sta rimuovendo.
  *

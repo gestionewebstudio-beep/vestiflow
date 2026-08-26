@@ -13,7 +13,7 @@ import {
 
 /**
  * Profili lista dedicati con pagina propria (voci sidebar Vendite più lo
- * Scarico manuale di Magazzino e le Registrazioni fattura di Acquisti, che
+ * Vendita manuale di Magazzino e le Registrazioni fattura di Acquisti, che
  * riusano la stessa impostazione a pagina dedicata).
  */
 export type SalesDocumentRegisterProfile =
@@ -244,19 +244,19 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
     type: DocumentType.ManualUnload,
     pageTitle: 'Vendite manuali',
     pageSubtitle: 'Attenzione! Scarico diretto delle giacenze.',
-    createLabel: 'Nuovo scarico manuale',
+    createLabel: 'Nuovo vendita manuale',
     createPath: '/app/documents/manual-unload/new',
     listPath: '/app/documents/manual-unload',
-    emptyTitle: 'Nessuno scarico manuale',
+    emptyTitle: 'Nessuno vendita manuale',
     emptyDescription:
-      'Non ci sono scarichi manuali che corrispondono ai filtri. Crea un nuovo scarico per registrare uscite di merce non legate a vendita (campionario, omaggi, merce deteriorata).',
+      'Non ci sono vendite manuali che corrispondono ai filtri. Crea un nuovo scarico per registrare uscite di merce non legate a vendita (campionario, omaggi, merce deteriorata).',
     emptyIcon: 'pi-minus-circle',
     searchPlaceholder: 'Cerca per numero o cliente…',
     // Salvataggio = conferma immediata: nessun ciclo stati da filtrare.
     statusOptions: null,
     showPendingInvoiceFilter: false,
     viewId: TableViewId.ManualUnloadDocumentsList,
-    detailPanelTitle: 'Dati scarico manuale',
+    detailPanelTitle: 'Dati vendita manuale',
     detailNotFoundTitle: 'Vendita manuale non trovata',
   },
   'purchase-invoice': {

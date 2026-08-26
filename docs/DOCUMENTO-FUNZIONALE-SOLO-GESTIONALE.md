@@ -321,13 +321,13 @@ L'annullo dell'arrivo merce collegato riporta l'ordine a Confermato. Filtri list
 Route `/app/documents`: scelta della tipologia, organizzata per flusso:
 
 - **Acquisti e fornitori:** Ordini fornitore (→ `/app/orders`) · Arrivi merce (`/app/documents/arrivi-merce`) · Registrazione fattura (registro filtrato `supplier_invoice`).
-- **Magazzino:** Trasferimenti · Rettifiche (registri filtrati) · Scarichi manuali (pagina dedicata `/app/documents/manual-unload`) · Inventario (registro filtrato).
+- **Magazzino:** Trasferimenti · Rettifiche (registri filtrati) · Vendite manuali (pagina dedicata `/app/documents/manual-unload`) · Inventario (registro filtrato).
 - **Vendite:** Vendite al banco (elenco dedicato `/app/vendita-al-banco`, condiviso `store_sale` + `store_return` con filtro «Tipo», e da lì le due creazioni) · Proforma · DDT vendita · Bozze fattura · Preventivi (registro filtrato `quote`).
 - **Registro:** Tutti i documenti (`/app/documents/registro`).
 
 ### 10.2 Tipi di documento
 
-`supplier_order` Ordine fornitore · `goods_receipt` Arrivo merce · `supplier_ddt` DDT fornitore · `supplier_invoice_accompanying` Fattura accompagnatoria · `supplier_invoice` Fattura fornitore (registrazione) · `manual_load` Carico manuale · `initial_load` Carico iniziale · `sales_ddt` DDT vendita · `transfer` Trasferimento · `manual_unload` Scarico manuale · `adjustment` Rettifica · `inventory` Inventario · `proforma` Proforma · `invoice_draft` Bozza fattura · `store_sale` Vendita negozio · `store_return` Reso vendita negozio.
+`supplier_order` Ordine fornitore · `goods_receipt` Arrivo merce · `supplier_ddt` DDT fornitore · `supplier_invoice_accompanying` Fattura accompagnatoria · `supplier_invoice` Fattura fornitore (registrazione) · `manual_load` Carico manuale · `initial_load` Carico iniziale · `sales_ddt` DDT vendita · `transfer` Trasferimento · `manual_unload` Vendita manuale · `adjustment` Rettifica · `inventory` Inventario · `proforma` Proforma · `invoice_draft` Bozza fattura · `store_sale` Vendita negozio · `store_return` Reso vendita negozio.
 
 ### 10.3 Stati e regole generali
 
@@ -363,14 +363,14 @@ Form `/app/documents/registrazioni-fatture-fornitori/new`: registra la fattura r
 
 Form dedicati (`transfer/new`, `adjustment/new`): documenti di magazzino con righe articolo; alla conferma generano i movimenti corrispondenti (trasferimento = uscita origine + ingresso destinazione; rettifica con motivo).
 
-### 10.6-bis Scarico manuale (maschera DDT, scarico diretto)
+### 10.6-bis Vendita manuale (maschera DDT, scarico diretto)
 
 Maschera tipo DDT vendita (`manual-unload/new`, stessa struttura righe: articolo, quantità, prezzo richiamato automaticamente ed editabile, totale; totali in fondo; stampa documento):
 
 - **Cliente facoltativo:** dall'anagrafica clienti oppure **digitato liberamente solo per la stampa** (in quel caso NON viene salvato in anagrafica).
 - **Logica giacenze (deroga documentata):** al **salvataggio** la giacenza si aggiorna **direttamente sottraendo le quantità** (es. 10 − 3 = 7), **senza creare movimenti** nel log magazzino; il push inventario verso i canali resta attivo. Nessuna gestione seriali.
 - **Avviso non bloccante:** se la quantità supera la disponibilità → «Stai scaricando più di quanto disponibile. Continuare?» (Sì / Annulla).
-- **Persistenza:** il documento resta nell'elenco Scarichi manuali (`/app/documents/manual-unload`) finché l'operatore non lo **elimina**; nessun annullamento.
+- **Persistenza:** il documento resta nell'elenco Vendite manuali (`/app/documents/manual-unload`) finché l'operatore non lo **elimina**; nessun annullamento.
 - **Eliminazione definitiva:** cancella SOLO il documento — le giacenze già scalate **non vengono ripristinate**.
 - **Modifica:** riconciliazione a delta (3 → 5 scarica solo 2 in più; cambio location ripristina la vecchia e scarica la nuova), sempre senza movimenti.
 

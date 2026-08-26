@@ -36,7 +36,7 @@ affiancate: quello che dicevano di sbagliato resta in una riga, il resto sta in 
 
 | Componente                       | Tipi                                                     |
 | -------------------------------- | -------------------------------------------------------- |
-| `CustomerOrderFormComponent`     | Ordine cliente, Preventivo, DDT vendita, Scarico manuale |
+| `CustomerOrderFormComponent`     | Ordine cliente, Preventivo, DDT vendita, Vendita manuale |
 | `GoodsReceiptFormComponent`      | Arrivo merce                                             |
 | `SupplierOrderFormComponent`     | Ordine fornitore                                         |
 | `SalesDocumentFormComponent`     | Proforma, Fattura, Fattura accompagnatoria               |
@@ -58,7 +58,7 @@ Prima di tutto il resto, perché il database Supabase è unico e condiviso.
 | ----------------------------------------------------------------- | ------------------------------------------------- | ------------------- |
 | Unificazione della navigazione di riga                            | **nessuna**                                       | solo codice Angular |
 | Ordinamento/trascinamento su Ordine fornitore                     | **sì** — colonna posizione su `SupplierOrderLine` | additiva            |
-| U.M. di riga su Preventivi / DDT / Scarico manuale e Arrivi merce | **sì** — colonna su `DocumentLine`                | additiva            |
+| U.M. di riga su Preventivi / DDT / Vendita manuale e Arrivi merce | **sì** — colonna su `DocumentLine`                | additiva            |
 | U.M. di riga su Ordine fornitore                                  | **sì** — colonna su `SupplierOrderLine`           | additiva            |
 | Elenco U.M. gestibile dall'operatore                              | **sì** — tabella nuova per-tenant, con RLS        | additiva            |
 | Tutto il resto in questo documento                                | nessuna                                           | —                   |
@@ -82,7 +82,7 @@ nessuna migrazione toglie — **su quale tabella la riga si persiste**.
 | Tipi documento                             | Componente                       | Modello riga        |
 | ------------------------------------------ | -------------------------------- | ------------------- |
 | Ordine cliente                             | `CustomerOrderFormComponent`     | `SalesOrderLine`    |
-| Preventivi, DDT vendita, Scarico manuale   | `CustomerOrderFormComponent`     | **`DocumentLine`**  |
+| Preventivi, DDT vendita, Vendita manuale   | `CustomerOrderFormComponent`     | **`DocumentLine`**  |
 | Arrivi merce                               | `GoodsReceiptFormComponent`      | `DocumentLine`      |
 | Ordine fornitore                           | `SupplierOrderFormComponent`     | `SupplierOrderLine` |
 | Proforma, Fattura, Fattura accompagnatoria | `SalesDocumentFormComponent`     | `DocumentLine`      |
@@ -90,7 +90,7 @@ nessuna migrazione toglie — **su quale tabella la riga si persiste**.
 | Trasferimento                              | `TransferFormComponent`          | `DocumentLine`      |
 | Vendita e Reso al banco                    | `StoreSaleDocumentFormComponent` | `DocumentLine`      |
 
-**La biforcazione che sorprende.** `CustomerOrderFormComponent` serve quattro tipi tramite il route data `customerDocumentKind`, ma **salva su due tabelle diverse**: il predicato `isRegistryDocument` devia Preventivi / DDT / Scarico manuale su `saveRegistryDocument` → `DocumentLine`; solo l'Ordine cliente passa da `SalesOrderLine`.
+**La biforcazione che sorprende.** `CustomerOrderFormComponent` serve quattro tipi tramite il route data `customerDocumentKind`, ma **salva su due tabelle diverse**: il predicato `isRegistryDocument` devia Preventivi / DDT / Vendita manuale su `saveRegistryDocument` → `DocumentLine`; solo l'Ordine cliente passa da `SalesOrderLine`.
 
 ⚠️ **È la biforcazione che teneva l'Ordine cliente indietro** _(risolto il 16/08/2026)_. Le due
 strade di salvataggio dello stesso componente non facevano la stessa cosa col prezzo:
@@ -401,7 +401,7 @@ Il ciclo si chiude su sé stesso: l'arrivo merce li scrive, e `findSupplierPrice
 
 #### ✅ Decisa per tre maschere, applicata a una — poi chiusa su tutte e tre _(08/2026)_
 
-> **Stato: chiuso.** Il percorso di conferma esiste ora in **tutte e tre** le maschere — Ordine cliente (e con lui Preventivi, DDT vendita, Scarico manuale), Ordine fornitore, Arrivo merce. Il resoconto qui sotto **resta**: descrive come una decisione presa per tre documenti sia finita su uno solo, ed è il caso che la regola in fondo alla sezione serve a intercettare. Cosa è stato fatto per chiuderla: §3-ter.
+> **Stato: chiuso.** Il percorso di conferma esiste ora in **tutte e tre** le maschere — Ordine cliente (e con lui Preventivi, DDT vendita, Vendita manuale), Ordine fornitore, Arrivo merce. Il resoconto qui sotto **resta**: descrive come una decisione presa per tre documenti sia finita su uno solo, ed è il caso che la regola in fondo alla sezione serve a intercettare. Cosa è stato fatto per chiuderla: §3-ter.
 
 Vale la pena tenerlo scritto, perché il modo in cui è successo è più insidioso dell'errore.
 
@@ -461,7 +461,7 @@ Chiude §3-bis su tutte e tre le maschere. **La catena non è stata copiata: è 
 
 #### ✅ Il codice fornitore scritto nella riga _(deciso e fatto 08/2026)_
 
-**Perimetro, per nome: Arrivo merce e Ordine fornitore.** Sono i due documenti che hanno la colonna Cod. fornitore; Ordine cliente, Preventivi, DDT vendita e Scarico manuale non ce l'hanno, e per loro non c'era niente da fare — verificato, non presunto.
+**Perimetro, per nome: Arrivo merce e Ordine fornitore.** Sono i due documenti che hanno la colonna Cod. fornitore; Ordine cliente, Preventivi, DDT vendita e Vendita manuale non ce l'hanno, e per loro non c'era niente da fare — verificato, non presunto.
 
 **Il difetto.** Agganciando un articolo, la riga riscriveva il campo Cod. fornitore con `summary.supplierSku`. Da quando la lettura non filtra più per fornitore, quel valore è **il primo collegamento in ordine deterministico** — che può essere il codice di un altro fornitore. L'operatore digitava il codice del listino che aveva davanti, l'articolo si agganciava, e nel campo compariva un codice diverso da quello che aveva scritto.
 
@@ -573,7 +573,7 @@ L'elenco delle unità è una costante compilata (`COMMON_UNIT_OF_MEASURE`, sei v
 
 **Ordine cliente** — cella di **sola lettura**. Il valore mostrato lo calcola `lineUnitOfMeasure` con precedenza: summary → valore di riga → `pz`. Il campo di riga **viene salvato**, ma siccome `Product.unitOfMeasure` è NOT NULL con default, la summary porta sempre un valore e vince sempre. **Lo snapshot salvato non si vede mai.**
 
-**Preventivi / DDT / Scarico manuale** — `buildRegistryLines` non include `unitOfMeasure`, e `DocumentLine` non ha la colonna. Non essendoci campo editabile non si perde nulla di digitato: si perde la possibilità.
+**Preventivi / DDT / Vendita manuale** — `buildRegistryLines` non include `unitOfMeasure`, e `DocumentLine` non ha la colonna. Non essendoci campo editabile non si perde nulla di digitato: si perde la possibilità.
 
 **Arrivo merce** — la `<select>` compare **solo in creazione articolo**. Il valore finisce nel corpo di creazione prodotto, che fa `product.create` e **mai** `product.update`. Su riga con articolo esistente la cella è calcolata e di sola lettura. **Corretto: nessun difetto.**
 
@@ -601,7 +601,7 @@ poi `pz`**.
   esisteva, `newProductUnitOfMeasure` serviva solo alla creazione articolo) e
   ora è **uno**: l'unità della riga è anche quella che va in anagrafica quando
   l'articolo nasce.
-- **Preventivi / DDT / Scarico manuale** — ereditano dalla colonna su
+- **Preventivi / DDT / Vendita manuale** — ereditano dalla colonna su
   `DocumentLine`, come previsto.
 
 L'elenco delle unità vive in `unit_of_measure_options` (per-tenant, forma
@@ -852,7 +852,7 @@ Restano fuori i campi che **non** vengono dall'articolo: lo sconto di riga viene
 
 | Maschera                                            | Campi                                                     | Chiamante            |
 | --------------------------------------------------- | --------------------------------------------------------- | -------------------- |
-| Ordine cliente · DDT · Preventivo · Scarico manuale | `unitPrice`, `vatCodeId`                                  | `applySummaryToLine` |
+| Ordine cliente · DDT · Preventivo · Vendita manuale | `unitPrice`, `vatCodeId`                                  | `applySummaryToLine` |
 | Arrivo merce                                        | `unitCost`, `sellingPrice`, `compareAtPrice`, `vatCodeId` | `onVariantSelect`    |
 
 «Vuoto» era usato come sinonimo di «nessuno ha ancora deciso». Su una riga nuova è vero; su una riga a cui si cambia articolo è falso — quei valori li aveva decisi **l'articolo di prima**.
@@ -921,7 +921,7 @@ _Tenuto agli atti: la decisione poggia su queste misure, non è arbitraria._
 `goods-receipt-line-sort.util.ts`». Erano vere entrambe, e non lo sono più** _(rivisto 20/08/2026)_.
 
 L’ordinamento delle righe da intestazione esiste in **sei maschere** — Arrivo merce, Ordine
-fornitore, la maschera cliente (Ordine cliente · Preventivo · DDT vendita · Scarico manuale),
+fornitore, la maschera cliente (Ordine cliente · Preventivo · DDT vendita · Vendita manuale),
 Fatture, Rettifica, Trasferimento — tutte montate su `DocumentLineSortStore`
 (`domain/documents/state/`).
 
@@ -1434,7 +1434,7 @@ Ognuna risponde a «il documento è un'altra cosa», non a «è stato scritto in
 | **Lotto e scadenza**             | ✅                                                              | —                                   | —                                                         | nascono quando la merce **entra**. Ordinandola non esistono ancora                                                   |
 | **Numeri di serie**              | ✅ (si registrano)                                              | —                                   | ✅ (si scelgono)                                          | stesso campo, due momenti diversi della vita del pezzo                                                               |
 | **Il documento a monte**         | ordine fornitore collegato (`poOrdered/poReceived/poRemaining`) | —                                   | documento di origine (preventivo → ordine)                | due catene diverse, e l'ordine fornitore è l'inizio della sua                                                        |
-| **Quanti tipi serve**            | 1                                                               | 1                                   | **4** (ordine, DDT, preventivo, scarico manuale)          | il `documentType` cambia colonne e regole dentro lo stesso componente. È la ragione principale della sua dimensione  |
+| **Quanti tipi serve**            | 1                                                               | 1                                   | **4** (ordine, DDT, preventivo, vendita manuale)          | il `documentType` cambia colonne e regole dentro lo stesso componente. È la ragione principale della sua dimensione  |
 | **Quale giacenza si guarda**     | disponibile                                                     | **giacenza e** disponibile          | disponibile                                               | ordinando si guarda quanta ce n'è; vendendo, quanta se ne può promettere. Domanda diversa, colonna diversa           |
 | **Codice fornitore in colonna**  | ✅                                                              | ✅                                  | —                                                         | esiste solo dove c'è un fornitore                                                                                    |
 

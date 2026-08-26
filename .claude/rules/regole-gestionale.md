@@ -90,7 +90,7 @@ L'interfaccia deve privilegiare:
 - `createdBy` + snapshot `createdByName`
 - È VIETATO aggiornare quantità stock senza lasciare traccia del movimento, salvo migrazioni documentate.
 - **Eccezione sync**: i delta di giacenza che arrivano da Shopify (vendite online, rettifiche fatte nell'admin Shopify) generano movimenti con origine `shopify` (`type: sale` o `adjustment`). Non sono "modifiche silenziose" ma nemmeno azioni utente: l'origine deve essere distinguibile nello storico.
-- **DEROGA Scarico manuale (prompt Scarico manuale, 2026-07 — scelta esplicita del cliente)**: il SOLO tipo documento `manual_unload` aggiorna la giacenza direttamente al salvataggio SENZA creare `StockMovement` (implementazione: `api/src/documents/document-stock-manual-unload.util.ts`). Il documento è l'unica evidenza dello scarico; la sua eliminazione NON ripristina le giacenze. Il push inventario verso i canali (Shopify/TikTok) resta obbligatorio post-commit: la sync legge la giacenza, non i movimenti. Questa deroga NON è un precedente per altri tipi documento.
+- **DEROGA Vendita manuale (prompt Vendita manuale, 2026-07 — scelta esplicita del cliente)**: il SOLO tipo documento `manual_unload` aggiorna la giacenza direttamente al salvataggio SENZA creare `StockMovement` (implementazione: `api/src/documents/document-stock-manual-unload.util.ts`). Il documento è l'unica evidenza dello scarico; la sua eliminazione NON ripristina le giacenze. Il push inventario verso i canali (Shopify/TikTok) resta obbligatorio post-commit: la sync legge la giacenza, non i movimenti. Questa deroga NON è un precedente per altri tipi documento.
 
 ### Un movimento per riga, aggiornato in posto — non uno per salvataggio _(15/08/2026)_
 
@@ -113,7 +113,7 @@ Non è una scelta nuova: è nello schema, con il vincolo che la fa rispettare �
 
 Ne discende anche che **due righe dello stesso articolo restano due movimenti distinti**: aggregare per variante perde il legame con la riga, ed è ciò che rende impossibile ritrovare il movimento al salvataggio dopo.
 
-_Stato al 15/08:_ la regola è rispettata da **tutti** i documenti che movimentano — Arrivo merce, Rettifica, Trasferimento e, da oggi, lo **scarico di vendita** (DDT vendita e Fattura accompagnatoria). Misure, cause e correzione in `docs/09-specifica-movimenti-per-riga.md`. La deroga dello Scarico manuale qui sopra resta fuori da tutto questo: non crea movimenti affatto.
+_Stato al 15/08:_ la regola è rispettata da **tutti** i documenti che movimentano — Arrivo merce, Rettifica, Trasferimento e, da oggi, lo **scarico di vendita** (DDT vendita e Fattura accompagnatoria). Misure, cause e correzione in `docs/09-specifica-movimenti-per-riga.md`. La deroga della Vendita manuale qui sopra resta fuori da tutto questo: non crea movimenti affatto.
 
 I documenti storici si convertono **da sé al primo salvataggio**: il sync somma l'effetto netto dei movimenti aggregati, lo annulla, li cancella e riscrive un movimento per riga. La giacenza non si muove di un pezzo. Non esiste uno script di conversione, e non deve esistere.
 
@@ -499,7 +499,7 @@ le etichette dei pulsanti sono uguali su ogni maschera (`regole-stile-ui` §5).
 
 ⚠️ **Qui c'era «la regola è rispettata solo in parte»**, con una tabella che divideva i
 tipi fra chi apriva la maschera (Preventivo, Registrazione fattura, famiglia carico) e chi
-apriva l'anteprima (Proforma, DDT vendita, Scarico manuale, Fatture, Vendite al banco). La
+apriva l'anteprima (Proforma, DDT vendita, Vendita manuale, Fatture, Vendite al banco). La
 divisione non esiste più.
 
 > **La decisione sta in un solo posto, dichiarata per tipo:** `DOCUMENT_ROW_OPENS` in

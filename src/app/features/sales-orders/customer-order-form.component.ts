@@ -448,7 +448,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   /**
    * Modalità della maschera (route data `customerDocumentKind`): 'order' =
    * Ordine cliente manuale (default), 'quote' = Preventivo, 'sales-ddt' =
-   * DDT vendita, 'manual-unload' = Scarico manuale. Le modalità documento
+   * DDT vendita, 'manual-unload' = Vendita manuale. Le modalità documento
    * usano la STESSA schermata e lo stesso funzionamento delle righe,
    * persistendo nel registro documenti coi rispettivi numeratori
    * (PRE / DDT / SCA). Differenze chiave:
@@ -457,7 +457,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
    *   «Scarica mag.» e le giacenze vengono SCARICATE al salvataggio; in più
    *   testata con Pagamento (modalità normativa fatt. elettronica), «Seguirà
    *   doc. di vendita», sezione Trasporto e sezione Indirizzi (prompt DDT).
-   * - Scarico manuale (prompt Scarico manuale): come il DDT per righe, prezzi
+   * - Vendita manuale (prompt Vendita manuale): come il DDT per righe, prezzi
    *   e totali, ma cliente FACOLTATIVO (anagrafica o testo libero solo per la
    *   stampa), niente trasporto/indirizzi; la giacenza viene sottratta
    *   direttamente al salvataggio SENZA movimenti di magazzino (deroga
@@ -592,7 +592,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       return this.isEditMode() ? 'Modifica DDT vendita' : 'Nuovo DDT vendita';
     }
     if (this.isManualUnload) {
-      return this.isEditMode() ? 'Modifica scarico manuale' : 'Nuovo scarico manuale';
+      return this.isEditMode() ? 'Modifica vendita manuale' : 'Nuovo vendita manuale';
     }
     return this.isEditMode() ? 'Modifica ordine cliente' : 'Nuovo ordine cliente';
   });
@@ -630,19 +630,19 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   // ── Form ────────────────────────────────────────────────────────────────
   readonly form = this.fb.group({
-    // Scarico manuale: cliente FACOLTATIVO (prompt Scarico manuale) — dalla
+    // Vendita manuale: cliente FACOLTATIVO (prompt Vendita manuale) — dalla
     // anagrafica oppure digitato liberamente (customerFreeText, solo stampa).
     customerId: this.fb.control('', {
       validators: this.isManualUnload ? [] : [Validators.required],
     }),
-    /** Cliente a testo libero (solo scarico manuale): mai salvato in anagrafica. */
+    /** Cliente a testo libero (sola vendita manuale): mai salvato in anagrafica. */
     customerFreeText: this.fb.control(''),
     // Obbligatoria: la testata (cliente + location) è il minimo salvabile.
     locationId: this.fb.control('', { validators: [Validators.required] }),
     documentDate: this.fb.control(toIsoDateLocal(new Date()), {
       validators: [Validators.required],
     }),
-    // Numero e serie del registro (Preventivo/DDT vendita/Scarico manuale):
+    // Numero e serie del registro (Preventivo/DDT vendita/Vendita manuale):
     // proposti dal numeratore, sovrascrivibili in testata.
     documentNumber: this.fb.control<number | null>(null),
     series: this.fb.control(''),
@@ -911,7 +911,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   // assegnato c'è già. O non si vedevano, o si vedevano al posto del numero
   // vero mentre il documento si stava caricando. Il numero che il documento
   // riceverà lo dice il campo Numero in testata, che lo chiede con sede e data.
-  // ── Numero documento (registro: Preventivo / DDT vendita / Scarico manuale) ──
+  // ── Numero documento (registro: Preventivo / DDT vendita / Vendita manuale) ──
   /** Conflitto numero restituito dal server: dialogo «Usa N» / «Annulla». */
   // Stato del dialog «numero già assegnato»: la macchina vive in domain, il
   // form decide solo quale controllo riceve il numero e cosa risalvare.
@@ -1020,7 +1020,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   /** Id attualmente registrato nel breadcrumb (per pulizia mirata). */
   private breadcrumbLabelId: string | null = null;
   /**
-   * Documenti con cui si può concludere l'ordine. Lo Scarico manuale è escluso:
+   * Documenti con cui si può concludere l'ordine. La Vendita manuale è esclusa:
    * serve ai casi extra (campionario, omaggi, merce deteriorata), non all'
    * evasione naturale di un ordine cliente.
    */
@@ -1058,7 +1058,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   );
 
   // ── Gate: righe disabilitate finché mancano cliente E location (P5) ─────
-  // Scarico manuale: il cliente è facoltativo, basta la location di scarico.
+  // Vendita manuale: il cliente è facoltativo, basta la location di scarico.
   protected readonly headerGateActive = computed(() => {
     if (this.formReadOnly()) {
       return false;
@@ -1105,7 +1105,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   //
   // Un documento già salvato si riapre BLOCCATO e va sbloccato con «Sblocca
   // modifica». Vale per tutti e quattro i tipi che questa maschera ospita: DDT
-  // vendita e Scarico manuale prendevano `editUnlocked = true` perché il blocco
+  // vendita e Vendita manuale prendevano `editUnlocked = true` perché il blocco
   // fu scritto per il solo Ordine cliente — un ripiego, non una scelta.
   //
   // La regola non vive più qui: sta in DocumentEditLockService, scritta una
@@ -1307,7 +1307,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     : this.isSalesDdt
       ? 'DDT'
       : this.isManualUnload
-        ? 'scarico manuale'
+        ? 'vendita manuale'
         : 'ordine';
 
   /** Testo del banner di sola lettura, per tipo documento. */
@@ -1327,7 +1327,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     if (this.isQuote) {
       return 'Sblocca il preventivo per modificarne righe e testata e salvarlo di nuovo.';
     }
-    // DDT e Scarico manuale muovono la giacenza al salvataggio: risalvandoli si
+    // DDT e Vendita manuale muovono la giacenza al salvataggio: risalvandoli si
     // riconcilia a delta, non si scarica una seconda volta.
     if (this.isSalesDdt || this.isManualUnload) {
       return `Modificando il ${this.documentNoun}, VestiFlow ricalcolerà lo scarico di magazzino al salvataggio.`;
@@ -1367,7 +1367,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
                 return 'not-found' as const;
               }
               // Un documento che si riapre nasce protetto — preventivo, DDT o
-              // scarico manuale, senza distinzioni. La regola vive in
+              // vendita manuale, senza distinzioni. La regola vive in
               // DocumentEditLockService: qui non si decide più niente, si
               // sincronizza soltanto. Le bozze restano modificabili perché
               // `isConfirmedEdit()` non le considera, non per un ramo di qui.
@@ -1728,7 +1728,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   /**
    * Modalità prezzo del documento (netto/ivato), solo per i documenti del
-   * registro (DDT, preventivo, scarico manuale): true = prezzi riga IVA inclusa.
+   * registro (DDT, preventivo, vendita manuale): true = prezzi riga IVA inclusa.
    * Sorgente iniziale: preferenza (nuovo), documento (modifica), origine
    * (generato/duplicato). Cambiandola i prezzi si convertono, totali fermi.
    */
@@ -1750,9 +1750,10 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   protected readonly listinoWarnings = signal<readonly string[]>([]);
   /**
    * ⛔ **Qui c'era `!this.isManualUnload &&`**, col commento «la tendina non
-   * compare sullo Scarico manuale: non e' un documento di vendita».
+   * compare sullo Scarico manuale: non e' un documento di vendita» — col nome
+   * VECCHIO del documento, che e' esattamente la ragione dell'errore.
    *
-   * ⚠️ **Era il NOME a decidere, non il requisito.** Chi legge «Scarico manuale
+   * ⚠️ **Era il NOME a decidere, non il requisito.** Chi legge «Vendita manuale
    * magazzino» ragiona correttamente per quel nome — «non e' vendita, perche'
    * dovrebbe avere il Listino?» — ma quel documento e' una **Vendita manuale**:
    * una vendita inserita a mano che riduce la giacenza senza generare movimenti
@@ -1948,7 +1949,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   /**
    * «Duplica documento» (Fase 3, no bozze): il param `duplicateFrom` porta il
-   * documento originale (DDT vendita / scarico manuale), di cui si copia il
+   * documento originale (DDT vendita / vendita manuale), di cui si copia il
    * contenuto in un documento NUOVO. Nessuna copia nasce a monte: si crea
    * (confermato) solo al salvataggio.
    */
@@ -2131,7 +2132,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     // ⛔ **`lineColumnDefs`, non `CUSTOMER_ORDER_LINE_COLUMNS`**: questa
     // maschera serve QUATTRO tipi, e i loro cataloghi non coincidono. Col
     // catalogo dell'Ordine cliente al posto del proprio, il DDT vendita e lo
-    // Scarico manuale non mostravano MAI la colonna Seriali — che solo loro
+    // Vendita manuale non mostravano MAI la colonna Seriali — che solo loro
     // dichiarano — e il Preventivo mostrava «Imp.», che invece esclude.
     if (!this.lineColumnDefs.some((column) => column.id === columnId)) {
       return false;
@@ -2692,7 +2693,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   protected readonly isLineColumnVisibleFn = (column: DocumentLineColumnId): boolean =>
     this.isLineColumnVisible(column);
 
-  /** «Impegna» su un ordine, «Scarica» su DDT e Scarico manuale. */
+  /** «Impegna» su un ordine, «Scarica» su DDT e Vendita manuale. */
   protected lineStockToggleLabel(): string {
     return this.isSalesDdt || this.isManualUnload ? 'Scarica magazzino' : 'Impegna magazzino';
   }
@@ -4713,7 +4714,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     }
     this.dropTrailingEmptyLines();
     // Testata minima salvabile: cliente + location (righe opzionali, P6).
-    // Scarico manuale: basta la location — il cliente è facoltativo.
+    // Vendita manuale: basta la location — il cliente è facoltativo.
     this.form.controls.customerId.markAsTouched();
     this.form.controls.locationId.markAsTouched();
     const missingCustomer = !this.isManualUnload && !this.form.controls.customerId.value;
@@ -4727,7 +4728,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
             : this.isSalesDdt
               ? 'Seleziona cliente e location per salvare il DDT vendita.'
               : this.isManualUnload
-                ? 'Seleziona la location di scarico per salvare lo scarico manuale.'
+                ? 'Seleziona la location di scarico per salvare la vendita manuale.'
                 : "Seleziona cliente e location di origine per salvare l'ordine.",
         },
       });
@@ -4752,7 +4753,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
             message: this.isSalesDdt
               ? 'Aggiungi almeno una riga valida per salvare il DDT vendita.'
               : this.isManualUnload
-                ? 'Aggiungi almeno una riga valida per salvare lo scarico manuale.'
+                ? 'Aggiungi almeno una riga valida per salvare la vendita manuale.'
                 : 'Aggiungi almeno una riga valida per salvare il preventivo.',
           },
         });
@@ -4763,7 +4764,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         this.saveDocument();
         return;
       }
-      // DDT vendita e Scarico manuale: avviso disponibilità non bloccante
+      // DDT vendita e Vendita manuale: avviso disponibilità non bloccante
       // («Stai scaricando più di quanto disponibile. Continuare?»). Per il
       // DDT la catena prosegue con dati trasporto/indirizzi e copertura
       // ordini (prompt DDT §AVVISI); lo scarico salva direttamente.
@@ -5124,14 +5125,14 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
           persistedVatCodeId: raw.persistedVatCodeId,
           isExistingLine: Boolean(raw.id),
         }),
-        // Preventivo: mai effetti magazzino. DDT vendita e Scarico manuale:
+        // Preventivo: mai effetti magazzino. DDT vendita e Vendita manuale:
         // la spunta «Scarica mag.» decide se la riga scarica la giacenza.
         loadsStock:
           this.isSalesDdt || this.isManualUnload
             ? raw.commitsStock && Boolean(raw.variantId)
             : false,
         // Seriali consumati dallo scarico (solo DDT, prodotti tracciati):
-        // lo scarico manuale diretto non gestisce i numeri di serie.
+        // la vendita manuale diretta non gestisce i numeri di serie.
         serialNumbers: this.isSalesDdt ? parseSerialNumbersText(raw.serialNumbersText) : undefined,
         isReference: raw.isReference,
       });
@@ -5202,7 +5203,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
     const ddtCreateFields = this.isSalesDdt ? this.buildSalesDdtHeaderFields() : null;
 
-    // Scarico manuale: cliente facoltativo — anagrafica (customerId) oppure
+    // Vendita manuale: cliente facoltativo — anagrafica (customerId) oppure
     // testo libero solo-stampa (customerName, mai salvato in anagrafica).
     const freeTextCustomer =
       this.isManualUnload && !value.customerId ? value.customerFreeText.trim() : '';
@@ -5227,7 +5228,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
           customerId: this.isManualUnload ? value.customerId || null : value.customerId,
           ...(this.isManualUnload ? { customerName: freeTextCustomer || null } : {}),
           locationId: value.locationId || undefined,
-          // Campo esposto solo dallo Scarico manuale: sugli altri tipi non si
+          // Campo esposto solo dalla Vendita manuale: sugli altri tipi non si
           // invia affatto, così il valore storico non viene azzerato.
           ...(this.isManualUnload ? { externalRef: value.externalRef.trim() || null } : {}),
           paymentTerms: value.paymentTerms.trim() || null,
@@ -5348,7 +5349,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     try {
       this.form.patchValue({
         customerId: doc.customerId ?? '',
-        // Scarico manuale: senza anagrafica il nome salvato è il testo libero.
+        // Vendita manuale: senza anagrafica il nome salvato è il testo libero.
         customerFreeText: doc.customerId ? '' : (doc.customerName ?? ''),
         locationId: doc.locationId ?? '',
         documentDate: doc.documentDate.slice(0, 10),

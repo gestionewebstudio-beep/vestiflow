@@ -309,7 +309,7 @@ Sono due cose che oggi VestiFlow tiene in una lista sola, ed è la causa di tre 
 
 |                 | Cosa fa                                                       | Cosa offre oggi                                                                                                             |
 | --------------- | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| **Conclusione** | fa uscire la merce                                            | `DOCUMENT_STOCK_UNLOAD_TYPES` = DDT vendita · Scarico manuale · Fattura accompagnatoria                                     |
+| **Conclusione** | fa uscire la merce                                            | `DOCUMENT_STOCK_UNLOAD_TYPES` = DDT vendita · Vendita manuale · Fattura accompagnatoria                                     |
 | **Conversione** | genera un documento da un altro, **nessun effetto magazzino** | esiste per Proforma e DDT (`PROFORMA_CONVERT_TARGET_TYPES`, `SALES_DDT_CONVERT_TARGET_TYPES`), **non per l'Ordine cliente** |
 
 _Misurato 14/08:_ il menù «Concludi ordine» offre esattamente `DOCUMENT_STOCK_UNLOAD_TYPES`. **Non è un elenco di documenti: è l'elenco di ciò che scarica.** Per questo la Fattura non c'è — non perché sia stata dimenticata, ma perché non scaricava.
@@ -933,7 +933,7 @@ Il 15/08 è stata **aggiunta una terza voce a quel meccanismo** invece di notare
 - `Nuovo` è **un menu a tre voci**, identico con qualsiasi filtro attivo, e ogni voce va alla propria rotta esplicita senza toccare il filtro.
 - Lo stato vuoto riceve **lo stesso menu** per proiezione — non una seconda decisione, e non una CTA che sceglierebbe un tipo al posto dell'operatore.
 
-Gli elenchi a **tipo singolo** (Preventivi, Proforma, DDT, Scarico manuale, Registrazioni fattura) restano col bottone diretto: non hanno niente da scegliere. La discriminante è la presenza di `createVariants`, non il nome del profilo.
+Gli elenchi a **tipo singolo** (Preventivi, Proforma, DDT, Vendita manuale, Registrazioni fattura) restano col bottone diretto: non hanno niente da scegliere. La discriminante è la presenza di `createVariants`, non il nome del profilo.
 
 ### L'hub: una sola porta
 

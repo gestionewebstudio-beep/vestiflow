@@ -14,6 +14,13 @@
 Gli spec sono in `e2e-local/`, gli screenshot in `docs/test-results/screenshots-local/`.
 Il codice dell'applicazione non è stato modificato.
 
+> **Nota del 26/08/2026 — è una rinomina, non una revisione del collaudo.** Il documento
+> che quel giorno si chiamava «Scarico manuale giacenze» oggi si chiama **Vendita manuale**:
+> è una vendita registrata a mano, che riduce la giacenza senza generare movimenti. Qui
+> sotto è stato aggiornato il **nome**, perché è quello che si cerca oggi — ma le schermate
+> del 17/08 dicevano ancora il nome vecchio. Nessun esito, nessuna misura e nessuna
+> osservazione sono stati toccati.
+
 ---
 
 ## Avvertenza sul metodo
@@ -1532,12 +1539,12 @@ A confronto, stessa richiesta su un articolo con movimenti: 409 {"message":"Il p
 2. Leggi i gruppi e le card: «Acquisti e fornitori», «Magazzino», «Vendite», «Registro».
 3. Nel gruppo Magazzino conta le voci.
 
-**Atteso:** Secondo docs/DOCUMENTO-FUNZIONALE-SOLO-GESTIONALE.md §10.1 il gruppo Magazzino contiene: Trasferimenti · Rettifiche · Scarichi manuali · **Inventario (registro filtrato)**. Il tipo documento `inventory` esiste (§10.2) e nel tenant ci sono documenti INV-000x visibili nel registro generico.
+**Atteso:** Secondo docs/DOCUMENTO-FUNZIONALE-SOLO-GESTIONALE.md §10.1 il gruppo Magazzino contiene: Trasferimenti · Rettifiche · Vendite manuali · **Inventario (registro filtrato)**. Il tipo documento `inventory` esiste (§10.2) e nel tenant ci sono documenti INV-000x visibili nel registro generico.
 
-**Osservato:** Il gruppo Magazzino ha solo tre voci: «Trasferimenti» (/app/documents/registro?type=transfer), «Rettifiche di magazzino» (/app/documents/registro?type=adjustment), «Scarico manuale giacenze» (/app/documents/manual-unload). Nessuna voce «Inventario», nemmeno disabilitata con l'etichetta «Presto»: il sorgente documents-hub.component.ts non contiene alcuna occorrenza di «Inventario»/«inventory». Ai documenti di inventario si arriva solo dal registro generico filtrando a mano. Nessuna delle 14 voci presenti è rotta.
+**Osservato:** Il gruppo Magazzino ha solo tre voci: «Trasferimenti» (/app/documents/registro?type=transfer), «Rettifiche di magazzino» (/app/documents/registro?type=adjustment), «Vendita manuale» (/app/documents/manual-unload). Nessuna voce «Inventario», nemmeno disabilitata con l'etichetta «Presto»: il sorgente documents-hub.component.ts non contiene alcuna occorrenza di «Inventario»/«inventory». Ai documenti di inventario si arriva solo dal registro generico filtrando a mano. Nessuna delle 14 voci presenti è rotta.
 
-**Evidenza:** Output del test «hub documenti: ogni voce porta a una pagina viva» — 14 card, tutte con h1 e senza app-error-state; elenco completo: Ordini fornitore, Arrivi merce, Registrazione fattura fornitore, Trasferimenti, Rettifiche di magazzino, Scarico manuale giacenze, Ordini cliente, Vendita al banco, Vendita/Reso in negozio, Proforma, DDT vendita, Fatture, Preventivi, Tutti i documenti. Verifica sul sorgente: `grep -n "Inventario|inventory" src/app/features/documents/documents-hub.component.ts` → nessun risultato.
+**Evidenza:** Output del test «hub documenti: ogni voce porta a una pagina viva» — 14 card, tutte con h1 e senza app-error-state; elenco completo: Ordini fornitore, Arrivi merce, Registrazione fattura fornitore, Trasferimenti, Rettifiche di magazzino, Vendita manuale, Ordini cliente, Vendita al banco, Vendita/Reso in negozio, Proforma, DDT vendita, Fatture, Preventivi, Tutti i documenti. Verifica sul sorgente: `grep -n "Inventario|inventory" src/app/features/documents/documents-hub.component.ts` → nessun risultato.
 
-**Verifica indipendente:** Riprodotto con script indipendente (test D4): l'hub /app/documents non contiene la parola «Inventario» in nessun punto del testo di pagina, e il gruppo Magazzino ha solo Trasferimenti (/registro?type=transfer), Rettifiche di magazzino (/registro?type=adjustment) e Scarico manuale giacenze (/app/documents/manual-unload). Il tipo esiste davvero e ha dati: /app/documents/registro?type=inventory risponde «6 documenti». Il documento funzionale §10.1 (riga 324) elenca invece «Magazzino: Trasferimenti · Rettifiche (registri filtrati) · Scarichi manuali · Inventario (registro filtrato)». Nessuna occorrenza di Inventario/inventory nel sorgente documents-hub.component.ts.
+**Verifica indipendente:** Riprodotto con script indipendente (test D4): l'hub /app/documents non contiene la parola «Inventario» in nessun punto del testo di pagina, e il gruppo Magazzino ha solo Trasferimenti (/registro?type=transfer), Rettifiche di magazzino (/registro?type=adjustment) e Vendita manuale (/app/documents/manual-unload). Il tipo esiste davvero e ha dati: /app/documents/registro?type=inventory risponde «6 documenti». Il documento funzionale §10.1 (riga 324) elenca invece «Magazzino: Trasferimenti · Rettifiche (registri filtrati) · Vendite manuali · Inventario (registro filtrato)». Nessuna occorrenza di Inventario/inventory nel sorgente documents-hub.component.ts.
 
 ---

@@ -351,8 +351,8 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
   protected readonly documentType = computed(
     () => this.routeData()['stockDocumentType'] as DocumentType,
   );
-  // Dallo spostamento dello Scarico manuale sulla maschera DDT (prompt
-  // Scarico manuale) questo form serve SOLO le Rettifiche di magazzino.
+  // Dallo spostamento della Vendita manuale sulla maschera DDT (prompt
+  // Vendita manuale) questo form serve SOLO le Rettifiche di magazzino.
   protected readonly isAdjustment = computed(() => isAdjustmentDocumentType(this.documentType()));
 
   protected readonly editDocumentId = computed(() => this.paramMap().get('id'));
@@ -397,7 +397,7 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
   protected readonly pageTitle = computed(() => {
     const adjustment = this.isAdjustment();
     if (!this.isEditMode()) {
-      return adjustment ? 'Nuova rettifica di magazzino' : 'Nuovo scarico manuale';
+      return adjustment ? 'Nuova rettifica di magazzino' : 'Nuovo vendita manuale';
     }
     if (this.isConfirmedEdit()) {
       return adjustment ? 'Modifica rettifica confermata' : 'Modifica scarico confermato';
@@ -1762,7 +1762,7 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
     // Rettifica già confermata: la modifica righe deve preservare gli id
     // stabili, così i movimenti per riga si aggiornano invece di duplicarsi
     // (mirror arrivo merce — vedi POST /documents/adjustment/save). Lo
-    // scarico manuale NON fa parte di questa migrazione: resta sempre sul
+    // vendita manuale NON fa parte di questa migrazione: resta sempre sul
     // flusso generico, anche a documento confermato.
     const request$ =
       confirmedEdit && this.isAdjustment()

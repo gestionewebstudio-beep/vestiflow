@@ -1927,7 +1927,7 @@ E gli indizi dicono che li comprende. I motivi che le maschere proiettano in que
 | Trasferimento, Rettifica, Arrivo merce, Fatture | «Documento non modificabile» — il documento c'è, non si può toccare **da qui**        |
 | Vendita al banco                                | «Documento non disponibile — questo indirizzo non corrisponde al documento richiesto» |
 | Registrazione fattura                           | «Questa pagina gestisce solo le registrazioni fattura fornitore»                      |
-| Ordine cliente                                  | tre motivi calcolati: preventivo, scarico manuale, ordine                             |
+| Ordine cliente                                  | tre motivi calcolati: preventivo, vendita manuale, ordine                             |
 
 ⭐ **Nessuno dei sette dice «non trovato».** Dicono tutti «esiste, ma non è roba di questa
 maschera» — che è esattamente la condizione che rende il nome sbagliato.
@@ -2403,14 +2403,14 @@ senza una ragione scritta — la parità di §44.3.
 
 ---
 
-# §46 — «Scarico manuale magazzino» è una **Vendita manuale** _(26/08/2026)_
+# §46 — «Vendita manuale» è una **Vendita manuale** _(26/08/2026)_
 
 ## 46.1 ⛔ Il nome sbagliato ha già prodotto difetti, ed è misurabile
 
 Deciso dal proprietario: _«quella è una vendita creata per non lasciare movimentazione e viene
-sempre confusa perché si chiama scarico manuale magazzino»_.
+sempre confusa perché si chiama vendita manuale»_.
 
-⚠️ **La confusione non è teorica: è nel codice.** Chi legge «Scarico manuale magazzino» ragiona
+⚠️ **La confusione non è teorica: è nel codice.** Chi legge «Vendita manuale» ragiona
 correttamente **per quel nome** — «non è vendita, perché dovrebbe avere il Listino?» — e infatti:
 
 ```text
@@ -2450,7 +2450,7 @@ manuale non è vendita, quindi niente Listino».
 | Nome                                                        | Verdetto                                                                                         |
 | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | **Vendita manuale**                                         | ✅ dice subito perché ha prezzi, IVA, sconto, Listino, cliente facoltativo, totali               |
-| «Scarico manuale», «Scarico magazzino», «Movimento manuale» | ⛔ spingono verso Trasferimenti / Rettifiche / Inventario, e fanno perdere la natura commerciale |
+| «Vendita manuale», «Scarico magazzino», «Movimento manuale» | ⛔ spingono verso Trasferimenti / Rettifiche / Inventario, e fanno perdere la natura commerciale |
 
 La famiglia diventa leggibile:
 
@@ -2501,7 +2501,7 @@ commettiamo errori e le cambiamo in peggio, allora meglio di no, non saprei»_.
 
 |                            |                                                                                                                                                                                                                                                                                                |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Non rettificare costa**  | la specifica diceva «lo Scarico manuale non è vendita», e quella frase ha fatto **spegnere il Listino** su quel documento. Un difetto vero, nato da un testo                                                                                                                                   |
+| **Non rettificare costa**  | la specifica diceva «lo Scarico manuale non è vendita» _(nome vecchio, citato com'era)_, e quella frase ha fatto **spegnere il Listino** su quel documento. Un difetto vero, nato da un testo                                                                                                  |
 | **Rettificare male costa** | nella stessa giornata ho scritto **tre misure sbagliate** — «sette maschere senza testata comprimibile», «cinque divergenze fra le copie», «due logiche di dominio». Se fossero entrate nei documenti come fatti, oggi le specifiche porterebbero tre falsità con l'autorità del testo scritto |
 
 ## 47.1 Il criterio: si scrive ciò che è MISURATO o DECISO, mai ciò che è dedotto

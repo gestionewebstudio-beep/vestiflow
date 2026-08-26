@@ -18,7 +18,7 @@ const TYPE_LABELS: Record<DocumentType, string> = {
   [DocumentType.InitialLoad]: 'Carico iniziale',
   [DocumentType.SalesDdt]: 'DDT vendita',
   [DocumentType.Transfer]: 'Trasferimento',
-  // ⭐ «Vendita manuale», non «Scarico manuale»: e' una vendita inserita a
+  // ⭐ «Vendita manuale», non «Vendita manuale»: e' una vendita inserita a
   // mano che riduce la giacenza SENZA generare movimenti di magazzino
   // (proprietario, 26/08/2026). Il nome vecchio spingeva verso Trasferimenti e
   // Rettifiche, e aveva gia' fatto spegnere il Listino su questo documento.

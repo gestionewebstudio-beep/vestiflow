@@ -38,6 +38,21 @@
  *   · «cassa esterna» e «cassa fiscale»: A10 parla proprio di quelle, che sono
  *     un'altra cosa dal nostro documento.
  *
+ * ## 3 · «Scarico manuale» _(26/08/2026)_
+ *
+ * ⛔ **Il nome sbagliato aveva gia' prodotto un difetto**, ed e' la ragione per
+ * cui questa voce merita una guardia piu' delle altre due: chi legge «Scarico
+ * manuale magazzino» conclude ragionevolmente «non e' vendita», e infatti il
+ * Listino era stato SPENTO su quel documento con quel commento esatto.
+ *
+ * Il documento e' una **Vendita manuale**: una vendita inserita a mano che
+ * riduce la giacenza senza generare movimenti. Che non produca `StockMovement`
+ * e' la sua eccezione tecnica, non la sua identita'.
+ *
+ * ⚠️ Gli identificatori restano: `manual_unload`, `isManualUnload`, la rotta
+ * `manual-unload`. Il proprietario ha deciso «prima la semantica, poi i nomi
+ * tecnici», come per `invoice_draft`.
+ *
  * ## 2 · «Bozza fattura» _(25/08/2026)_
  *
  * ⛔ Il documento si chiama **Fattura**: è così in `documentTypeLabel`,
@@ -96,10 +111,31 @@ const VIETATI = [
     termine: 'bozze fattura',
     perche: 'si dice «Fatture»: la schermata «Bozze fattura» non esiste più.',
   },
+  {
+    termine: 'scarico manuale',
+    perche:
+      "si dice «Vendita manuale»: e' una vendita che riduce la giacenza senza generare " +
+      "movimenti di magazzino. Il nome vecchio spingeva verso Trasferimenti e Rettifiche, e " +
+      "aveva gia' fatto SPEGNERE il Listino su quel documento — un difetto vero, nato da un nome.",
+  },
+  {
+    termine: 'scarichi manuali',
+    perche: 'si dice «Vendite manuali».',
+  },
 ];
 
 /** Righe che RACCONTANO il ritiro: sono la memoria del perché, e restano. */
-const MARCATORI_DI_RITIRO = ['ritirat', 'legacy', "qui c'era", 'qui c’era', 'non si dice'];
+const MARCATORI_DI_RITIRO = [
+  'ritirat',
+  'legacy',
+  "qui c'era",
+  'qui c’era',
+  'non si dice',
+  // ⭐ Un commento che spiega PERCHE' un nome e' stato ritirato deve poterlo
+  // nominare: senza questo marcatore la reazione naturale sarebbe cancellarlo,
+  // cioe' togliere proprio la spiegazione che serve a chi arriva dopo.
+  'nome vecchio',
+];
 
 /** Questo file nomina i termini per mestiere: si esclude da sé. */
 const ESENTI = new Set([relative(root, fileURLToPath(import.meta.url)).split(SEP_WIN).join('/')]);

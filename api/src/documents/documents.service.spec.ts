@@ -998,7 +998,7 @@ describe('DocumentsService', () => {
     });
 
     it('manual_unload: alla conferma sottrae la giacenza SENZA creare movimenti', async () => {
-      // Deroga prompt Scarico manuale: giacenza modificata direttamente,
+      // Deroga prompt Vendita manuale: giacenza modificata direttamente,
       // niente StockMovement; push canali comunque eseguito post-commit.
       const { service, channelSync } = createService(
         prisma,
@@ -2567,7 +2567,7 @@ describe('DocumentsService', () => {
       expect(prisma.documentRevision.create).toHaveBeenCalled();
     });
 
-    it('manual_unload confermato: riconcilia scarico manuale', async () => {
+    it('manual_unload confermato: riconcilia vendita manuale', async () => {
       const { service } = createService(
         prisma,
         resolvedSetting({ type: DocumentType.manual_unload }),
@@ -2630,7 +2630,7 @@ describe('DocumentsService', () => {
         ],
       });
 
-      // Deroga prompt Scarico manuale: riconciliazione a delta diretto
+      // Deroga prompt Vendita manuale: riconciliazione a delta diretto
       // (2 → 4 scarica solo -2) SENZA creare movimenti.
       expect(prisma.stockMovement.create).not.toHaveBeenCalled();
       expect(prisma.inventoryLevel.updateMany).toHaveBeenCalledWith(

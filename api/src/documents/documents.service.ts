@@ -1074,7 +1074,7 @@ export class DocumentsService {
 
     const supplierName = await this.snapshotSupplierName(tenantId, dto.supplierId);
     // Cliente da anagrafica (snapshot) oppure testo libero solo-stampa
-    // (prompt Scarico manuale): il testo libero NON crea record in anagrafica.
+    // (prompt Vendita manuale): il testo libero NON crea record in anagrafica.
     const customerName =
       (await this.snapshotCustomerName(tenantId, dto.customerId)) ??
       (dto.customerName?.trim() || null);
@@ -1919,7 +1919,7 @@ export class DocumentsService {
       // che aggregava per variante e accodava «rettifica scarico».
 
       if (isConfirmedEdit && doc.type === DocumentType.manual_unload && doc.locationId) {
-        // Scarico manuale diretto: riconciliazione a delta SENZA movimenti
+        // Vendita manuale diretta: riconciliazione a delta SENZA movimenti
         // (deroga documentata in document-stock-manual-unload.util) — evita
         // la doppia sottrazione quando l'operatore risalva il documento.
         const newLinesComputed =
@@ -2258,8 +2258,8 @@ export class DocumentsService {
       }
 
       if (isConfirmedEdit && lines && saved.lines.length > 0) {
-        // Solo DDT vendita: lo scarico manuale diretto non gestisce seriali
-        // (deroga prompt Scarico manuale — nessun movimento, nessun consumo).
+        // Solo DDT vendita: la vendita manuale diretta non gestisce seriali
+        // (deroga prompt Vendita manuale — nessun movimento, nessun consumo).
         if (saved.type === DocumentType.sales_ddt && saved.locationId) {
           await assertSerialNumbersForUnloadLines(tx, tenantId, saved.locationId, saved.lines);
           await consumeInventorySerialsFromDocumentLines(
@@ -2510,7 +2510,7 @@ export class DocumentsService {
     }
 
     if (doc.type === DocumentType.manual_unload) {
-      // Scarico manuale diretto (prompt Scarico manuale): la giacenza viene
+      // Vendita manuale diretta (prompt Vendita manuale): la giacenza viene
       // sottratta SENZA creare movimenti né consumare seriali — deroga
       // documentata in document-stock-manual-unload.util. Quantità oltre la
       // giacenza ammesse: l'avviso non bloccante è responsabilità della UI.
@@ -2720,12 +2720,12 @@ export class DocumentsService {
         'Una Vendita al banco non si annulla: registra un Reso vendita al banco per il rientro della merce.',
       );
     }
-    // Scarico manuale diretto (prompt Scarico manuale): niente annullamento —
+    // Vendita manuale diretta (prompt Vendita manuale): niente annullamento —
     // il documento si elimina dall'elenco e le giacenze già scalate NON
     // vengono ripristinate (scelta esplicita, deroga documentata).
     if (doc.type === DocumentType.manual_unload) {
       throw new ConflictException(
-        "Gli scarichi manuali non si annullano: elimina il documento dall'elenco. Le giacenze già scalate non vengono ripristinate.",
+        "Gli vendite manuali non si annullano: elimina il documento dall'elenco. Le giacenze già scalate non vengono ripristinate.",
       );
     }
     if (doc.status === DocumentStatus.cancelled) {
@@ -3054,7 +3054,7 @@ export class DocumentsService {
     const isDeletableReceipt =
       documentTypeLoadsStockOnConfirm(doc.type) || doc.type === DocumentType.supplier_invoice;
 
-    // Scarico manuale diretto (prompt Scarico manuale): il documento resta in
+    // Vendita manuale diretta (prompt Vendita manuale): il documento resta in
     // elenco finché l'operatore non lo elimina; l'eliminazione è definitiva
     // SOLO sul documento — le giacenze già scalate NON vengono ripristinate.
     const isDeletableManualUnload = doc.type === DocumentType.manual_unload;
@@ -3262,8 +3262,8 @@ export class DocumentsService {
         'Seleziona la location di origine prima di confermare lo scarico.',
       );
     }
-    // Niente motivo obbligatorio: la maschera tipo DDT (prompt Scarico
-    // manuale) non prevede il commento interno come campo richiesto.
+    // Niente motivo obbligatorio: la maschera tipo DDT della Vendita manuale
+    // non prevede il commento interno come campo richiesto.
     for (const line of stockLines) {
       if (!line.variantId) {
         throw new UnprocessableEntityException(
@@ -4033,8 +4033,8 @@ export class DocumentsService {
 
   /**
    * Nome cliente al PATCH: con customerId lo snapshot anagrafica vince sempre;
-   * senza customerId vale il testo libero solo-stampa (prompt Scarico
-   * manuale) — `customerName: null` lo svuota, assente lo lascia invariato.
+   * senza customerId vale il testo libero solo-stampa della Vendita manuale
+   * — `customerName: null` lo svuota, assente lo lascia invariato.
    */
   private async resolveUpdatedCustomerName(
     tenantId: string,

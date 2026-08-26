@@ -274,7 +274,7 @@ sua copia con `SESSION_UNLOCKED_ORDER_IDS`, ed è per questo che funzionava ment
 no. Ora la copia non c'è più.
 
 1. **Adotta il servizio** e **si riblocca al salvataggio**, come le altre cinque maschere.
-2. **DDT vendita e Scarico manuale si aprono protetti.** Quella maschera ospita quattro
+2. **DDT vendita e Vendita manuale si aprono protetti.** Quella maschera ospita quattro
    tipi documento e il blocco era stato scritto per uno solo: gli altri due avevano preso
    `editUnlocked = true` come ripiego. Era un residuo, non una scelta, e la decisione
    dell'08/2026 non fa eccezioni per tipo documento.

@@ -2281,7 +2281,7 @@ cosa sbagliata.
 
 ---
 
-### T-140 — Scarico manuale e rettifica con motivo
+### T-140 — Vendita manuale e rettifica con motivo
 
 |              |          |
 | ------------ | -------- |
@@ -2291,7 +2291,7 @@ cosa sbagliata.
 
 **Passaggi:**
 
-1. **Documenti → Scarico manuale**: scarica 1 pezzo con conferma.
+1. **Documenti → Vendita manuale**: scarica 1 pezzo con conferma.
 2. **Documenti → Rettifica inventario**: imposta quantità diversa da sistema; **motivo obbligatorio** (es. «Conteggio errato»).
 3. Conferma entrambi.
 

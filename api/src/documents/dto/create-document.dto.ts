@@ -158,7 +158,7 @@ export class CreateDocumentDto extends DocumentTransportFieldsDto {
   customerId?: string;
 
   /**
-   * Cliente a testo libero (prompt Scarico manuale): usato SOLO quando
+   * Cliente a testo libero (prompt Vendita manuale): usato SOLO quando
    * customerId è assente — snapshot per la stampa, mai salvato in anagrafica.
    */
   @IsOptional()

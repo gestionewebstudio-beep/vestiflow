@@ -105,7 +105,7 @@ Dichiara quali valori la riga di quel documento **sa ospitare**. L'uscita del ri
 
 | Profilo             | Maschere                                                                                                                                       |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `vendita`           | Preventivo, Ordine cliente, DDT vendita, Scarico manuale, Proforma, Fattura, Fattura accompagnatoria, Nota di credito, Vendita e Reso al banco |
+| `vendita`           | Preventivo, Ordine cliente, DDT vendita, Vendita manuale, Proforma, Fattura, Fattura accompagnatoria, Nota di credito, Vendita e Reso al banco |
 | `acquisto-ordine`   | Ordine fornitore                                                                                                                               |
 | `acquisto-arrivo`   | Arrivo merce                                                                                                                                   |
 | `movimento-interno` | Trasferimento interno, Rettifica di magazzino                                                                                                  |
@@ -416,7 +416,7 @@ Le righe già salvate hanno la variante dentro la descrizione. Il risolutore non
 - `articleCode` e `barcode` non tornano dal caricamento e li mostrano due getter che leggono dal riepilogo (`lineArticleCode()`, `lineBarcode()`): se il risolutore li scrive nei controlli, quei due getter diventano una seconda verità.
 - **Ordine di scrittura irrilevante qui** (niente IVA, niente denaro): è la ragione per cui questa maschera va per prima.
 - `onVariantSelect(index, null)` sgancerebbe lasciando descrizione e codici del vecchio articolo. Ramo oggi morto, ma la firma lo ammette: il risolutore non modella lo sgancio, e va tolto dalla firma locale invece di ereditarlo.
-- Codice morto dello Scarico manuale (`'Riga scarico'`, «Salva e scarica»): **non è un requisito**, è un residuo. Non trattarlo come un secondo tipo da servire.
+- Codice morto della Vendita manuale (`'Riga scarico'`, «Salva e scarica»): **non è un requisito**, è un residuo. Non trattarlo come un secondo tipo da servire.
 
 ### 4.2 Trasferimento interno
 
@@ -459,7 +459,7 @@ Le righe già salvate hanno la variante dentro la descrizione. Il risolutore non
 - **La doppia applicazione**: tre call site chiamano `onVariantSelect` **e poi** `pinVariantSummary` in fila. Oggi l'esito coincide per caso; col reset uniforme la seconda passata è idempotente ma **rifà la fetch**. Togliere la seconda chiamata.
 - `onProductUpdatedFromPanel` riscrive senza condizioni nome, codici, U.M., variantLabel e **la spunta girata a mano**. Non è un richiamo: va staccato, o limitato alle sole **letture vive**.
 - `refreshAllLineSummaries` riscrive `articleCode` su tutte le righe, in modo asincrono, dopo ogni caricamento, include, conversione e cambio location. Se il risolutore prende in carico `articleCode`, quella funzione gli fa concorrenza: va ridotta alle letture vive.
-- **Il registro perde tre campi**: su Preventivo, DDT vendita e Scarico manuale, `barcode`, `unitOfMeasure` e `variantLabel` sono forzati a `''` al caricamento e non escono nel payload. Il risolutore li produce e **si perderanno al primo salvataggio** finché non arriva la colonna. Dichiararlo, non scoprirlo.
+- **Il registro perde tre campi**: su Preventivo, DDT vendita e Vendita manuale, `barcode`, `unitOfMeasure` e `variantLabel` sono forzati a `''` al caricamento e non escono nel payload. Il risolutore li produce e **si perderanno al primo salvataggio** finché non arriva la colonna. Dichiararlo, non scoprirlo.
 - `rememberLineNet`: chi scrive `unitPrice` deve aggiornare il netto canonico, o la coda a sei decimali sparisce al primo risalvataggio. Il risolutore dà il netto minor — memorizzarlo è della maschera.
 - **IVA prima del prezzo**: `priceFieldValue(minor, lineRateOf(line))`. Scrivere il prezzo prima del codice mostra il netto dove si vede l'ivato.
 - Se il risolutore riapre i campi codice sulla riga agganciata (oggi `commitCodeLookup` esce subito e `isFieldEnabled` li spegne), **ogni conferma di codice su riga agganciata diventerà un reset**. Va deciso: non è un effetto collaterale accettabile.

@@ -274,7 +274,7 @@ export const DOCUMENT_FAMILY_LABELS: Readonly<Record<DocumentPermissionFamily, s
   online_sale: 'Vendite online e corrispettivi',
   transfer: 'Trasferimento tra sedi',
   adjustment: 'Rettifiche e carichi manuali',
-  manual_unload: 'Scarico manuale',
+  manual_unload: 'Vendita manuale',
 };
 
 /** Famiglie senza una vera «gestione» (documenti generati dal sistema): l'editor offre solo Consulta. */

@@ -72,7 +72,7 @@ export const SECONDARY_PAGES: readonly SecondaryPage[] = [
     parent: '/app/inventory',
   },
   // Azioni rapide documentali. Le azioni «Nuovo …» dei documenti di vendita
-  // (preventivo, proforma, DDT, fatture, scarico manuale, registrazione
+  // (preventivo, proforma, DDT, fatture, vendita manuale, registrazione
   // fattura) NON stanno qui: la ricerca le deriva dalle config dei registri
   // documentali, una per profilo.
   {

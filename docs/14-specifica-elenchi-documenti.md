@@ -633,7 +633,7 @@ tutto il resto             → /app/documents/:id               ⛔ dettaglio
 
 È la funzione che rende possibile il §2 senza inventare rotte: copre preventivo, DDT
 vendita, i quattro tipi della famiglia vendita (via `SALES_FORM_ROUTE_SEGMENT`),
-trasferimento, scarico manuale, rettifica, registrazione fattura, vendita e reso al banco.
+trasferimento, vendita manuale, rettifica, registrazione fattura, vendita e reso al banco.
 
 ⛔ **Il ramo finale, però, è `/app/documents/:id/edit`, che è la maschera dell'ARRIVO
 MERCE** (`goods-receipt-form.component`). Oggi non fa danno perché ci arrivano solo i tipi
@@ -1103,7 +1103,7 @@ funzionare, e che **non venga rimosso o rotto** durante il lavoro sugli elenchi.
 | Proforma                                                                    | `documents/proforma/:id`      | idem                           |
 | DDT vendita                                                                 | `documents/sales-ddt/:id`     | idem                           |
 | Fattura                                                                     | `documents/fattura/:id`       | idem                           |
-| Scarico manuale                                                             | `documents/manual-unload/:id` | idem                           |
+| Vendita manuale                                                             | `documents/manual-unload/:id` | idem                           |
 | Vendita al banco                                                            | rotte del banco, `:id`        | idem                           |
 | **tutto il resto** (Arrivo merce, Registrazione fattura, registro generico) | `documents/:id`               | `DocumentDetailComponent`      |
 | Ordine fornitore                                                            | `orders/:id`                  | `SupplierOrderDetailComponent` |
@@ -1246,7 +1246,7 @@ _Verificato il 20/08/2026, su richiesta del proprietario._
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Esiste?**          | ✅ sì: `POST /documents/:id/cancel` (`documents.controller.ts:458` → `documents.service.ts:2573-2604`)                                                                                              |
 | **È raggiungibile?** | ⚠️ **endpoint orfano**: l'unico chiamante nel frontend è il **dettaglio** (`document-detail.component.ts:701`). Da un elenco non si raggiunge                                                       |
-| **Per quali tipi**   | generic · goods-receipt · quote · proforma · sales-ddt · invoice · purchase-invoice. ⛔ **FUORI**: scarico manuale (409, «si elimina, non si annulla») e vendita al banco (409, «registra un Reso») |
+| **Per quali tipi**   | generic · goods-receipt · quote · proforma · sales-ddt · invoice · purchase-invoice. ⛔ **FUORI**: vendita manuale (409, «si elimina, non si annulla») e vendita al banco (409, «registra un Reso») |
 | **In quali stati**   | qualunque **tranne** già annullato (409). Vietata se il documento è collegato (`linkStatus === 'linked'`)                                                                                           |
 | **Permesso**         | `manage` della famiglia + sede scrivibile. **Non esiste** un permesso `cancel` distinto                                                                                                             |
 

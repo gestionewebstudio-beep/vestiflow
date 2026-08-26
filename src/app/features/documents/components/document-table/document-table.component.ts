@@ -239,7 +239,7 @@ export class DocumentTableComponent {
       canManageRow &&
       (doc.status === DocumentStatus.Draft ||
         doc.status === DocumentStatus.Cancelled ||
-        // Scarico manuale (prompt Scarico manuale): resta in elenco finché
+        // Vendita manuale (prompt Vendita manuale): resta in elenco finché
         // l'operatore non lo elimina — l'eliminazione NON ripristina le
         // giacenze già scalate, quindi è disponibile in qualunque stato.
         isManualUnloadDocumentType(doc.type) ||

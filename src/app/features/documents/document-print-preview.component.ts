@@ -181,7 +181,7 @@ export class DocumentPrintPreviewComponent {
   });
 
   /**
-   * Sede sui documenti di vendita: scarico manuale e vendita al banco. Sulla
+   * Sede sui documenti di vendita: vendita manuale e vendita al banco. Sulla
    * vendita al banco è spesso l'unico contesto, perché il cliente può mancare.
    */
   protected readonly showsLocation = computed(() => {

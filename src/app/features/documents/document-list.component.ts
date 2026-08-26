@@ -1331,7 +1331,7 @@ export class DocumentListComponent {
       return count === 1 ? 'Elimina preventivo' : `Elimina ${count} preventivi`;
     }
     if (count === 1 && docs[0]?.type === DocumentType.ManualUnload) {
-      return 'Elimina scarico manuale';
+      return 'Elimina vendita manuale';
     }
     return count === 1 ? 'Elimina documento' : `Elimina ${count} documenti`;
   });
@@ -1352,7 +1352,7 @@ export class DocumentListComponent {
         : `I ${count} preventivi selezionati verranno eliminati definitivamente.`;
     }
     if (count === 1 && docs[0]?.type === DocumentType.ManualUnload) {
-      return 'Lo scarico manuale verrà eliminato. Le giacenze già scalate NON verranno ripristinate.';
+      return 'La vendita manuale verrà eliminata. Le giacenze già scalate NON verranno ripristinate.';
     }
     return count === 1
       ? 'Il documento verrà eliminato.'

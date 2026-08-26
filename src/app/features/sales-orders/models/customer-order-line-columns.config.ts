@@ -156,7 +156,7 @@ export const SALES_DDT_LINE_PRESETS: TableViewPresetMap = {
   [PresetId.Operational]: SALES_DDT_ALL_COLUMN_IDS,
 };
 
-// ── Scarico manuale (stessa maschera del DDT vendita, prompt Scarico manuale) ─
+// ── Vendita manuale (stessa maschera del DDT vendita, prompt Vendita manuale) ─
 // Stesse colonne del DDT («Scarica mag.», prezzi, totali); niente «Seriali»:
 // lo scarico diretto non gestisce i numeri di serie (nessun movimento).
 export const MANUAL_UNLOAD_LINES_VIEW = TableViewId.ManualUnloadLines;

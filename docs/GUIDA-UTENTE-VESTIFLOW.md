@@ -772,10 +772,10 @@ VestiFlow centralizza i documenti che impattano magazzino e contabilità. **Non 
 | **Carico manuale**          | Carico magazzino senza DDT fornitore (fornitore opzionale)            |
 | **Carico iniziale**         | Stock di partenza / primo inventario (fornitore opzionale)            |
 | **DDT vendita**             | Consegna merce al cliente; base per successiva fatturazione           |
-| **Bozza fattura**           | Dati per emissione fattura (anche da conversione DDT)                 |
+| **Fattura**                 | Dati per emissione fattura (anche da conversione DDT)                 |
 | **Proforma**                | Preventivo non fiscale                                                |
 | **Trasferimento**           | Spostamento stock tra sedi (origine → destinazione)                   |
-| **Scarico manuale**         | Uscita merce (campionario, deteriorata, …)                            |
+| **Vendita manuale**         | Vendita registrata a mano; riduce la giacenza senza movimenti         |
 | **Rettifica**               | Correzione quantità con motivo obbligatorio                           |
 | **DDT / fatture fornitore** | Registrazione documenti in ingresso (collegamento a carichi)          |
 
@@ -810,12 +810,12 @@ I filtri restano nell'**URL** della pagina: puoi salvare o condividere il link c
 
 Da **Documenti**, pulsante **Nuovo documento** (se hai **Gestire documenti**):
 
-| Documento                      | Percorso tipico                                 |
-| ------------------------------ | ----------------------------------------------- |
-| Arrivo merce                   | **Documenti → Arrivo merce**                    |
-| Trasferimento                  | **Documenti → Trasferimento**                   |
-| Scarico / Rettifica            | **Documenti → Scarico manuale** / **Rettifica** |
-| DDT / Proforma / Bozza fattura | **Documenti → Nuovo** (tipo vendita)            |
+| Documento                   | Percorso tipico                                 |
+| --------------------------- | ----------------------------------------------- |
+| Arrivo merce                | **Documenti → Arrivo merce**                    |
+| Trasferimento               | **Documenti → Trasferimento**                   |
+| Vendita manuale / Rettifica | **Documenti → Vendita manuale** / **Rettifica** |
+| DDT / Proforma / Fattura    | **Documenti → Nuovo** (tipo vendita)            |
 
 **Arrivo merce — schermata e campi principali**
 

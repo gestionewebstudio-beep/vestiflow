@@ -47,7 +47,7 @@ const ROME_TIME_FORMAT = new Intl.DateTimeFormat('it-IT', {
 });
 
 /**
- * Documenti di vendita in cui la sede va stampata: lo scarico manuale (dove la
+ * Documenti di vendita in cui la sede va stampata: la vendita manuale (dove la
  * location è il contesto dell'operazione) e la vendita al banco, dove il cliente
  * può non esserci affatto e la sede resta l'unico riferimento.
  */
@@ -528,7 +528,7 @@ export class DocumentPdfService {
         if (document.billingCause) {
           y = drawPdfMetaLine(doc, 'Causale', document.billingCause, y);
         }
-        // Scarico manuale e vendita al banco: la sede è il contesto operativo, e
+        // Vendita manuale e vendita al banco: la sede è il contesto operativo, e
         // sulla vendita al banco è spesso l'unico (il cliente può mancare).
         if (SALES_TYPES_WITH_LOCATION.includes(document.type) && document.locationId) {
           y = drawPdfMetaLine(doc, 'Location', locations.get(document.locationId) ?? '—', y);

@@ -331,7 +331,7 @@ export class DocumentDetailComponent {
       // annullato che resta a storico occuperebbe un numero senza dire nulla.
       return false;
     }
-    // Scarico manuale (prompt Scarico manuale): niente annullamento — si
+    // Vendita manuale (prompt Vendita manuale): niente annullamento — si
     // elimina dall'elenco e le giacenze già scalate NON vengono ripristinate.
     if (isManualUnloadDocumentType(doc.type)) {
       return false;
@@ -350,8 +350,8 @@ export class DocumentDetailComponent {
     if (isStoreFlowDocumentType(doc.type)) {
       return this.canManage();
     }
-    // Scarico manuale: eliminabile in qualunque stato (definitiva solo sul
-    // documento, mai sulle giacenze — prompt Scarico manuale).
+    // Vendita manuale: eliminabile in qualunque stato (definitiva solo sul
+    // documento, mai sulle giacenze — prompt Vendita manuale).
     if (isManualUnloadDocumentType(doc.type)) {
       return this.canManage();
     }
@@ -361,7 +361,7 @@ export class DocumentDetailComponent {
     );
   });
 
-  /** Scarico manuale: l'eliminazione NON ripristina le giacenze già scalate. */
+  /** Vendita manuale: l'eliminazione NON ripristina le giacenze già scalate. */
   protected readonly deleteDialogMessage = computed(() => {
     const doc = this.document();
     if (doc && isStoreFlowDocumentType(doc.type)) {
@@ -372,7 +372,7 @@ export class DocumentDetailComponent {
     }
     if (doc && isManualUnloadDocumentType(doc.type)) {
       return (
-        'Lo scarico manuale verrà eliminato definitivamente. Le giacenze già ' +
+        'La vendita manuale verrà eliminata definitivamente. Le giacenze già ' +
         'scalate NON verranno ripristinate. Procedere?'
       );
     }

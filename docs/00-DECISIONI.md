@@ -120,7 +120,7 @@ strumenti di lavoro. Non ci si cercano decisioni.
 | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
 | **Una riga che movimenta ha UN movimento**, identificato da `sourceLineId`, aggiornato in posto                                              | `09` · regole            |
 | **La riga è una fotografia**: un valore non modificato conserva quello persistito                                                            | regole                   |
-| Lo **Scarico manuale** non crea movimenti — deroga esplicita, non un precedente                                                              | regole                   |
+| Lo **Vendita manuale** non crea movimenti — deroga esplicita, non un precedente                                                              | regole                   |
 | ⭐ **L'Ordine cliente è il riferimento MOBILE** di tutti i documenti a righe articolo: una sola struttura comune, mai una card per documento | `03d` §1                 |
 | ⭐ **Prima la convergenza strutturale, le differenze alla fine** — e si esprimono come configurazione, mai come seconda implementazione      | `03d` §2, §12            |
 | **Una maschera entra nel sistema comune UNA volta**, per tutte le responsabilità comuni insieme                                              | `03d` §11                |

@@ -54,7 +54,7 @@ describe('documentTypeLabel', () => {
       [DocumentType.SalesDdt]: 'DDT vendita',
       [DocumentType.Transfer]: 'Trasferimento',
       // ⭐ «Vendita manuale» dal 26/08/2026: e' una vendita che riduce la
-      // giacenza senza generare movimenti. Il nome vecchio — «Scarico manuale»
+      // giacenza senza generare movimenti. Il nome vecchio — «Vendita manuale»
       // — aveva gia' fatto spegnere il Listino su quel documento, perche' chi
       // lo leggeva concludeva ragionevolmente «non e' vendita».
       [DocumentType.ManualUnload]: 'Vendita manuale',

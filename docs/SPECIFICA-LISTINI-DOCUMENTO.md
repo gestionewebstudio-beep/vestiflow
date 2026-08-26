@@ -243,7 +243,7 @@ maschere su otto, e su una delle due solo nella vista mobile.
 | ------------------------------------- | ---------------------- | ------------------------------------------- |
 | Proforma · Fattura · Fatt. accompagn. | ✅ c'è                 | l'unico già su entrambe le viste            |
 | Ordine cliente · Preventivo · DDT     | ⚠️ solo mobile         | da portare su scrivania                     |
-| Scarico manuale                       | ✅ **sì**              | deciso il 24/08 — vedi §5.1                 |
+| Vendita manuale                       | ✅ **sì**              | deciso il 24/08 — vedi §5.1                 |
 | Vendita / Reso al banco               | ➕ da mettere          | oggi cablato sul prezzo di vendita          |
 | Ordine fornitore · Arrivo merce       | ⛔ no                  | sono documenti di **costo**, non di vendita |
 | **Trasferimento · Rettifica**         | ⛔ **non applicabile** | vedi sotto                                  |
@@ -253,13 +253,13 @@ loro profilo colonne **non ha un campo prezzo**. È `articleCode · sku · barco
 product · variantLabel · quantity · serials · actions`. Un listino riscrive prezzi, e lì
 non c'è prezzo da riscrivere — la merce si sposta o si corregge, non si vende.
 
-### 5.1 ✅ Lo Scarico manuale è dentro — deciso il 24/08/2026
+### 5.1 ✅ La Vendita manuale è dentro — deciso il 24/08/2026
 
 Qui era l'unico ⏸ del perimetro. **Rientra in tutto quello che dice questa specifica**, come
 gli altri tre tipi della sua maschera: selettore in testata, listino proposto dal cliente,
 riprezzamento delle righe, zero mostrato vuoto, scelta conservata al salvataggio.
 
-⚠️ **Quello che lo distingue non c'entra col listino.** Lo Scarico manuale **agisce
+⚠️ **Quello che lo distingue non c'entra col listino.** La Vendita manuale **agisce
 direttamente sulle giacenze e non crea `StockMovement`**: il documento è l'unica evidenza
 dello scarico, e cancellarlo non ripristina la giacenza. È la deroga già scritta in
 `regole-gestionale`, decisa dal cliente, e riguarda il **magazzino** — non i prezzi.
@@ -391,7 +391,7 @@ ed è la ragione per cui questo è arrivato fin qui.
 ✅ **A — chiusa.** «Tutte le righe» vuol dire tutte, comprese quelle trattate a mano. Vedi
 §2. Ne discende il requisito della conferma prima di riprezzare.
 
-✅ **C — chiusa.** Lo Scarico manuale è dentro il perimetro. Vedi §5.1.
+✅ **C — chiusa.** La Vendita manuale è dentro il perimetro. Vedi §5.1.
 
 ✅ **B — chiusa, e non da decidere: da SCOPRIRE.** Il listino assente mentre un listino è
 scelto manda la riga a **zero con segnalazione**, senza ripiego sul prezzo di vendita. Non è
@@ -529,7 +529,7 @@ cliente, Preventivo, DDT vendita, **Vendita manuale** — più la maschera Fattu
 testo, due glifi a seconda della maschera, nessun test che lo vedesse.
 
 ⚠️ **Il Listino era spento sulla Vendita manuale**, col commento «non è un documento di
-vendita». Non era una decisione commerciale: era il **nome** — «Scarico manuale magazzino» — a
+vendita». Non era una decisione commerciale: era il **nome** — «Vendita manuale» — a
 farlo concludere. Il documento è una vendita che riduce la giacenza senza generare movimenti
 (§46 della specifica testate).
 

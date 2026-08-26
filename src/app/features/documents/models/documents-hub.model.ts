@@ -98,8 +98,8 @@ export const DOCUMENT_HUB_GROUPS: readonly DocumentHubGroup[] = [
         available: true,
       },
       {
-        // Pagina dedicata (prompt Scarico manuale): elenco con «Nuovo scarico
-        // manuale», eliminazione senza ripristino giacenze e stampa.
+        // Pagina dedicata: elenco con «Nuova vendita manuale», eliminazione
+        // senza ripristino giacenze e stampa.
         id: 'manual-unload',
         family: 'manual_unload',
         label: 'Vendita manuale',

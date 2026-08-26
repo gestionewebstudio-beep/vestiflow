@@ -974,7 +974,7 @@ describe('CustomerOrderFormComponent — caratterizzazione', () => {
  * Il blocco alla riapertura.
  *
  * Questa maschera ospita QUATTRO tipi di documento, e fino al 08/2026 il blocco
- * ne copriva due: DDT vendita e Scarico manuale si aprivano scrivibili perché il
+ * ne copriva due: DDT vendita e Vendita manuale si aprivano scrivibili perché il
  * meccanismo era stato scritto per il solo Ordine cliente, e gli altri avevano
  * preso `editUnlocked = true` come ripiego. Questi test dicono che ora la regola
  * è una sola, e che dopo il salvataggio il documento torna protetto senza che si
@@ -1074,7 +1074,7 @@ describe('CustomerOrderFormComponent — blocco alla riapertura', () => {
     expect(form.formReadOnly()).toBe(true);
   });
 
-  it('uno scarico manuale salvato si riapre protetto', async () => {
+  it('uno vendita manuale salvato si riapre protetto', async () => {
     const form = await apri({
       kind: 'manual-unload',
       id: 'doc-1',
@@ -2399,7 +2399,7 @@ describe('CustomerOrderFormComponent — il contratto dell’uscita', () => {
  * ⭐ **La Vendita manuale È una vendita**, e il Listino le appartiene.
  *
  * ⛔ Era spento — `!this.isManualUnload && …` — e non per una decisione
- * commerciale: **per il nome**. Chi legge «Scarico manuale magazzino» ragiona
+ * commerciale: **per il nome**. Chi legge «Vendita manuale» ragiona
  * correttamente per quel nome («non è vendita, perché dovrebbe avere il
  * Listino?»), ma il requisito è l'opposto.
  *

@@ -47,10 +47,16 @@ import type { DocumentListinoChoice } from '../../utils/document-listino.util';
  * ⭐ Il dominio sta in `document-listino.util`: `listinoRepricing` e
  * `listinoMissingWarning`. Le maschere lo chiamano, non lo riscrivono.
  *
- * **Se mostrarlo affatto.** Lo Scarico manuale non è un documento di vendita e
- * la tendina non ci va: è una regola di dominio del chiamante. Qui c'è solo la
- * parte che vale per tutti — *se c'è un solo listino attivo, la scelta non
+ * **Se mostrarlo affatto.** È una regola di dominio del chiamante. Qui c'è solo
+ * la parte che vale per tutti — *se c'è un solo listino attivo, la scelta non
  * esiste e il controllo non si mostra*.
+ *
+ * ⛔ **Qui c'era «lo Scarico manuale non è un documento di vendita e la
+ * tendina non ci va»** — col nome vecchio, citato com'era. Falso, e nato
+ * proprio dal nome vecchio, che faceva concludere che non
+ * fosse una vendita, e il Listino era stato spento per quello. È una vendita
+ * che riduce la giacenza senza generare movimenti, e il Listino le appartiene
+ * come a ogni altro documento di vendita.
  *
  * ## Le due vesti, senza una riga di logica in più
  *

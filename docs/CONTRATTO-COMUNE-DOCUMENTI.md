@@ -481,9 +481,9 @@ Un collegamento documentale **non autorizza mai a duplicare un effetto fisico gi
 
 Il primo documento che realizza l’effetto fisico movimenta; i successivi conservano il collegamento ma non ripetono quello stesso effetto.
 
-## 6.5 Eccezione: Scarico manuale
+## 6.5 Eccezione: Vendita manuale
 
-Lo **Scarico manuale** è una deroga esplicita:
+Lo **Vendita manuale** è una deroga esplicita:
 
 - riduce direttamente la Giacenza;
 - **non crea `StockMovement`**;
@@ -735,7 +735,7 @@ Partecipa a **Includi** in modo specifico:
 
 # 12. Eccezioni esplicite da non normalizzare
 
-## Scarico manuale
+## Vendita manuale
 
 Vedi §6.5: modifica direttamente la Giacenza e non crea movimenti.
 

@@ -58,7 +58,7 @@ export async function applyStockLoad(
   });
 }
 
-/** Scarico atomico collegato a documento (scarico manuale / storno carichi). */
+/** Scarico atomico collegato a documento (vendita manuale / storno carichi). */
 export async function applyStockUnload(
   tx: Prisma.TransactionClient,
   input: ApplyStockLoadInput,

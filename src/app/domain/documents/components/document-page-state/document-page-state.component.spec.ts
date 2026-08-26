@@ -54,7 +54,7 @@ describe('DocumentPageStateComponent', () => {
 
   it('⭐ «not-found»: la struttura è comune, il MOTIVO lo porta il documento', async () => {
     // ⛔ E' la distinzione che il componente esiste per tenere: l'Ordine cliente
-    // calcola tre motivi diversi — preventivo, scarico manuale, ordine — e il
+    // calcola tre motivi diversi — preventivo, vendita manuale, ordine — e il
     // livello comune non deve conoscerne nessuno.
     const { container } = await monta('not-found');
 
