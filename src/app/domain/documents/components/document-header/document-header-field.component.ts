@@ -51,7 +51,30 @@ import { ViewportService } from '@core/services/viewport.service';
       nasce chiuso. Chi legge questa riga non concluda che sia risolto.
     -->
     <span [class]="compatto() ? 'doc-panel__field-head' : 'doc-form__field-head'">
-      <span [class]="compatto() ? 'doc-panel__label' : 'doc-form__label'">{{ label() }}</span>
+      <!--
+        ⭐ **Con controlId l'etichetta e' un <label for> VERO.**
+
+        ⛔ Qui c'era solo lo <span>, e non era una scelta di stile: cinque campi
+        della testata Ordine cliente hanno oggi un <label for> — Data documento,
+        Consegna prevista, Rif., Pagamento — e migrarli su un campo che sa
+        rendere solo uno <span> avrebbe PERSO l'associazione. Sarebbe stata una
+        perdita di accessibilita' introdotta da una deduplica, cioe' il modo
+        peggiore di perderla: invisibile, e dentro un lavoro che si presenta
+        come «nessun cambiamento di comportamento».
+
+        ⚠️ E' opzionale, ed e' giusto che lo sia. Un for deve puntare a un id che
+        esiste: app-select-menu e' un bottone con menu, non ha un id di
+        controllo, e li' l'etichetta corretta resta lo <span> accanto al suo
+        ariaLabel. Dichiarare un controlId che nessuno porta sarebbe peggio del
+        niente — un'etichetta che punta al vuoto.
+      -->
+      @if (controlId(); as idControllo) {
+        <label [class]="compatto() ? 'doc-panel__label' : 'doc-form__label'" [for]="idControllo">{{
+          label()
+        }}</label>
+      } @else {
+        <span [class]="compatto() ? 'doc-panel__label' : 'doc-form__label'">{{ label() }}</span>
+      }
       <span [class]="compatto() ? 'doc-panel__field-actions' : 'doc-form__field-actions'">
         <ng-content select="[fieldActions]" />
       </span>
@@ -66,6 +89,15 @@ export class DocumentHeaderFieldComponent {
   private readonly viewport = inject(ViewportService);
 
   readonly label = input.required<string>();
+  /**
+   * L'id del controllo che questo campo etichetta. Dichiarandolo, l'etichetta
+   * diventa un `<label for>` vero: cliccarla porta il fuoco nel campo, e chi usa
+   * un lettore di schermo sente il nome del campo quando ci entra.
+   *
+   * ⚠️ Vuoto = `<span>`, ed è la forma giusta per i controlli che un id non ce
+   * l'hanno — i menu a bottone, che si annunciano con `ariaLabel`.
+   */
+  readonly controlId = input('');
   /** Il campo principale occupa due colonne: Cliente, Fornitore. */
   readonly span2 = input(false);
   /**

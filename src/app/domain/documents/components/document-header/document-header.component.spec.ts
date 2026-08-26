@@ -163,3 +163,58 @@ describe('DocumentHeaderComponent', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Cliente e location sono obbligatori.');
   });
 });
+
+/**
+ * ⚠️ **La proiezione per selettore e il control flow: una trappola misurata.**
+ *
+ * `<ng-content select="[panelFooter]">` abbina i nodi **dichiarati al primo
+ * livello** del contenuto. Un elemento avvolto in un `@if` sta dentro una vista
+ * incorporata, non al primo livello — e la domanda «viene proiettato lo stesso?»
+ * non è deducibile leggendo il codice.
+ *
+ * ⛔ Conta perché è esattamente la forma che il chiamante scriverebbe per
+ * primo: oggi il blocco «Origine delle righe» dell'Ordine cliente vive dentro
+ * `@if (compactView() && includeSourceKinds.length > 0)`. Se la proiezione non
+ * lo agganciasse, il piede sparirebbe **in silenzio** — nessun errore, nessun
+ * test rosso, solo un pezzo di testata che non c'è più.
+ *
+ * Queste due prove inchiodano la risposta, qualunque sia, così che chi arriva
+ * dopo la legga invece di riscoprirla.
+ */
+describe('DocumentHeaderComponent — piede e control flow', () => {
+  async function monta(corpo: string) {
+    return render(
+      `<app-document-header title="Dati" icon="pi-user">${corpo}</app-document-header>`,
+      {
+        imports: [DocumentHeaderComponent],
+        providers: [{ provide: ViewportService, useValue: { compact: signal(true) } }],
+      },
+    );
+  }
+
+  it('⭐ la forma SICURA: un solo elemento col marcatore, i condizionali dentro', async () => {
+    // È la forma raccomandata, e quella che la maschera deve usare.
+    const { container } = await monta(
+      '<p class="campo">Cliente</p>' +
+        '<div panelFooter class="piede">@if (true) { <span class="dentro">Origine</span> }</div>',
+    );
+
+    expect(container.querySelector('.piede')).not.toBeNull();
+    expect(container.querySelector('.dentro')).not.toBeNull();
+  });
+
+  it('⚠️ il marcatore DENTRO un @if: ecco cosa fa davvero', async () => {
+    const { container } = await monta(
+      '<p class="campo">Cliente</p>' +
+        '@if (true) { <div panelFooter class="piede-condizionale">Origine</div> }',
+    );
+
+    // ⚠️ Angular proietta comunque: il nodo conserva il proprio slot anche
+    // dentro una vista incorporata. Se un giorno questa prova diventasse rossa,
+    // la forma sicura qui sopra resta quella da usare — non è un ripiego.
+    expect(container.querySelector('.piede-condizionale')).not.toBeNull();
+    expect(
+      container.querySelector('.piede-condizionale')?.closest('.doc-panel__fields'),
+    ).toBeNull();
+  });
+});
