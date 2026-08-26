@@ -1296,7 +1296,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       : this.isSalesDdt
         ? 'DDT protetto da modifica. Sblocca per continuare a lavorare.'
         : this.isManualUnload
-          ? 'Scarico manuale protetto da modifica. Sblocca per continuare a lavorare.'
+          ? 'Vendita manuale protetta da modifica. Sblocca per continuare a lavorare.'
           : 'Ordine protetto da modifica. Sblocca per continuare a lavorare.',
   );
 
@@ -1727,10 +1727,21 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   });
   /** Righe rimaste a zero perche' l'articolo non ha un prezzo per quel listino. */
   protected readonly listinoWarnings = signal<readonly string[]>([]);
-  /** La tendina non compare sullo Scarico manuale: non e' un documento di vendita. */
-  protected readonly showListinoSelect = computed(
-    () => !this.isManualUnload && this.listinoOptions().length > 1,
-  );
+  /**
+   * ⛔ **Qui c'era `!this.isManualUnload &&`**, col commento «la tendina non
+   * compare sullo Scarico manuale: non e' un documento di vendita».
+   *
+   * ⚠️ **Era il NOME a decidere, non il requisito.** Chi legge «Scarico manuale
+   * magazzino» ragiona correttamente per quel nome — «non e' vendita, perche'
+   * dovrebbe avere il Listino?» — ma quel documento e' una **Vendita manuale**:
+   * una vendita inserita a mano che riduce la giacenza senza generare movimenti
+   * di magazzino (proprietario, 26/08/2026). Il fatto che non produca
+   * `StockMovement` e' la sua eccezione tecnica, non la sua identita'.
+   *
+   * ⭐ Resta l'unica condizione che vale per tutti: con un solo listino attivo
+   * non c'e' niente da scegliere.
+   */
+  protected readonly showListinoSelect = computed(() => this.listinoOptions().length > 1);
   protected readonly priceRowLabel = computed(() => priceModeRowLabel(this.pricesIncludeVat()));
   protected readonly priceModeOptions: readonly SelectMenuOption[] = [
     { value: 'net', label: 'Netto' },

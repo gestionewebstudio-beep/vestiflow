@@ -2394,3 +2394,56 @@ describe('CustomerOrderFormComponent — il contratto dell’uscita', () => {
     expect(comp.canDeactivate()).not.toBe(true);
   });
 });
+
+/**
+ * ⭐ **La Vendita manuale È una vendita**, e il Listino le appartiene.
+ *
+ * ⛔ Era spento — `!this.isManualUnload && …` — e non per una decisione
+ * commerciale: **per il nome**. Chi legge «Scarico manuale magazzino» ragiona
+ * correttamente per quel nome («non è vendita, perché dovrebbe avere il
+ * Listino?»), ma il requisito è l'opposto.
+ *
+ * Deciso dal proprietario il 26/08/2026: è una vendita inserita manualmente che
+ * riduce la giacenza **senza generare movimenti di magazzino**. Il fatto che non
+ * produca `StockMovement` è la sua ECCEZIONE tecnica, non la sua identità.
+ */
+describe('CustomerOrderFormComponent — la Vendita manuale è una vendita', () => {
+  /** Un tenant con un listino ACCESO: senza, non c'è niente da scegliere. */
+  const CON_LISTINI = {
+    listino1Active: true,
+    listino1Name: 'Ingrosso',
+    listino2Active: false,
+    listino2Name: null,
+    listino3Active: false,
+    listino3Name: null,
+  };
+
+  async function apriConListini(kind?: 'manual-unload') {
+    const view = await render(CustomerOrderFormComponent, {
+      providers: [
+        ...formProviders(kind ? { kind } : {}),
+        {
+          provide: TenantFeatureSettingsService,
+          useValue: { getSettings: () => of(CON_LISTINI) },
+        },
+      ],
+    });
+    return view.container;
+  }
+
+  it('⭐ ha il Listino, come ogni altro documento di vendita', async () => {
+    const vista = await apriConListini('manual-unload');
+
+    expect(vista.querySelectorAll('app-document-listino-select').length).toBeGreaterThan(0);
+  });
+
+  it('⭐ e lo ha con le stesse regole degli altri: due viste, un componente', async () => {
+    // ⚠️ Il confronto con l'Ordine cliente è il punto: se la Vendita manuale
+    // ne montasse un numero diverso, il nome avrebbe ricominciato a decidere
+    // qualcosa che non gli compete.
+    const manuale = await apriConListini('manual-unload');
+    const quanti = manuale.querySelectorAll('app-document-listino-select').length;
+
+    expect(quanti).toBe(2);
+  });
+});

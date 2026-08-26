@@ -102,8 +102,12 @@ export const DOCUMENT_HUB_GROUPS: readonly DocumentHubGroup[] = [
         // manuale», eliminazione senza ripristino giacenze e stampa.
         id: 'manual-unload',
         family: 'manual_unload',
-        label: 'Scarico manuale giacenze',
-        description: 'Attenzione! Scarico diretto delle giacenze.',
+        label: 'Vendita manuale',
+        // ⭐ La stessa frase che spiega la funzione in Impostazioni: dice le
+        // tre cose essenziali — e' una vendita, agisce sulla giacenza, e la
+        // particolarita' e' che non lascia movimenti.
+        description:
+          'Registra una vendita e riduce la giacenza senza creare movimenti di magazzino.',
         route: ['/app/documents/manual-unload'],
         icon: 'pi-minus-circle',
         available: true,

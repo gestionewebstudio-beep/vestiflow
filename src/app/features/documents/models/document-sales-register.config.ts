@@ -242,7 +242,7 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
   'manual-unload': {
     profile: 'manual-unload',
     type: DocumentType.ManualUnload,
-    pageTitle: 'Scarico manuale giacenze',
+    pageTitle: 'Vendite manuali',
     pageSubtitle: 'Attenzione! Scarico diretto delle giacenze.',
     createLabel: 'Nuovo scarico manuale',
     createPath: '/app/documents/manual-unload/new',
@@ -257,7 +257,7 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
     showPendingInvoiceFilter: false,
     viewId: TableViewId.ManualUnloadDocumentsList,
     detailPanelTitle: 'Dati scarico manuale',
-    detailNotFoundTitle: 'Scarico manuale non trovato',
+    detailNotFoundTitle: 'Vendita manuale non trovata',
   },
   'purchase-invoice': {
     profile: 'purchase-invoice',

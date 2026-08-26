@@ -45,7 +45,7 @@ const SEGMENT_LABELS: Readonly<Record<string, string>> = {
   'registrazioni-fatture-fornitori': 'Reg. fatture fornitori',
   transfer: 'Trasferimento',
   adjustment: 'Rettifica',
-  'manual-unload': 'Scarico manuale giacenze',
+  'manual-unload': 'Vendite manuali',
   proforma: 'Proforma',
   fattura: 'Fatture',
   'fattura-accompagnatoria': 'Fattura accompagnatoria',

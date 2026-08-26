@@ -180,7 +180,7 @@ export const documentsRoutes: Routes = [
     // Scarico manuale giacenze: pagina elenco dedicata (prompt Scarico
     // manuale) — il documento resta qui finché l'operatore non lo elimina.
     path: 'manual-unload',
-    title: 'Scarico manuale giacenze',
+    title: 'Vendite manuali',
     loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
     canActivate: [tenantPermissionGuard],
     data: {

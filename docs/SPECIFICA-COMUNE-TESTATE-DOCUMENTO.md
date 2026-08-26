@@ -2400,3 +2400,92 @@ nessun test lo vedeva. Ora c'è una prova che lo inchioda.
 
 ⭐ **E il Listino è arrivato anche sulla testata desktop dell'Ordine cliente**, dove mancava
 senza una ragione scritta — la parità di §44.3.
+
+---
+
+# §46 — «Scarico manuale magazzino» è una **Vendita manuale** _(26/08/2026)_
+
+## 46.1 ⛔ Il nome sbagliato ha già prodotto difetti, ed è misurabile
+
+Deciso dal proprietario: _«quella è una vendita creata per non lasciare movimentazione e viene
+sempre confusa perché si chiama scarico manuale magazzino»_.
+
+⚠️ **La confusione non è teorica: è nel codice.** Chi legge «Scarico manuale magazzino» ragiona
+correttamente **per quel nome** — «non è vendita, perché dovrebbe avere il Listino?» — e infatti:
+
+```text
+customer-order-form.component.ts:1732
+  showListinoSelect = computed(() => !this.isManualUnload && …)
+```
+
+Il Listino era **spento** su questo documento. Non per una decisione commerciale: per il nome.
+
+⛔ **E i documenti si contraddicevano fra loro.** Le specifiche più vecchie lo descrivono come
+un'operazione di magazzino (danneggiato, uso interno, campioni); il contratto recente registra
+invece l'eccezione tecnica vera — riduce la giacenza e **non crea `StockMovement`**. Nel codice,
+intanto, usa la **stessa maschera dei documenti cliente**, con righe, prezzi, totali e cliente
+facoltativo.
+
+## 46.2 L'identità, fissata
+
+> **Vendita manuale = una vendita inserita manualmente che riduce direttamente la giacenza senza
+> generare movimenti di magazzino.**
+
+|                               |                                                                             |
+| ----------------------------- | --------------------------------------------------------------------------- |
+| **È** un documento di vendita | righe con prezzo, **Listino**, IVA, sconto, totali                          |
+| Cliente                       | **facoltativo**                                                             |
+| Effetto                       | **riduce la giacenza**                                                      |
+| ⚠️ Eccezione tecnica          | **non crea `StockMovement`**: aggiorna la giacenza per differenza           |
+| Corrispettivi                 | ⛔ **no** — non entra nel Registro                                          |
+| Tracce                        | ⛔ **nessuna**: solo il proprio riepilogo documenti                         |
+| Componenti e funzionamento    | **gli stessi della Vendita al banco**; cambia solo l'effetto sulla giacenza |
+
+⭐ **Il fatto che non produca `StockMovement` è la sua ECCEZIONE, non la sua identità.** È la
+distinzione che il nome vecchio rendeva impossibile, e con lei cade la conclusione «lo Scarico
+manuale non è vendita, quindi niente Listino».
+
+## 46.3 Perché «Vendita manuale» e non altro
+
+| Nome                                                        | Verdetto                                                                                         |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| **Vendita manuale**                                         | ✅ dice subito perché ha prezzi, IVA, sconto, Listino, cliente facoltativo, totali               |
+| «Scarico manuale», «Scarico magazzino», «Movimento manuale» | ⛔ spingono verso Trasferimenti / Rettifiche / Inventario, e fanno perdere la natura commerciale |
+
+La famiglia diventa leggibile:
+
+```text
+Vendita al banco    vendita operativa da banco/cassa, flusso normale
+Vendita manuale     vendita inserita a mano, scarica la giacenza senza movimenti
+DDT vendita         consegna/trasporto, con eventuale effetto fisico
+```
+
+## 46.4 ⚠️ Prima la semantica, poi i nomi tecnici
+
+Deciso: **non si cambiano subito enum, rotta, database e nomi interni.** Si fissa prima
+l'identità; il resto è un lavoro suo, con la stessa disciplina della rinomina di `invoice_draft`
+(§ del commit del 26/08: migration di catalogo, guardia, nessun `sed`).
+
+## 46.5 L'impostazione che la disattiva
+
+Toggle in **Impostazioni generali**, con la frase che la spiega:
+
+> **Vendita manuale** — «Consente di registrare una vendita e ridurre la giacenza senza creare
+> movimenti di magazzino.»
+
+| Regola              |                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------ |
+| attiva              | disponibile normalmente                                                                    |
+| disattiva           | ⛔ nessuna voce, nessun menu, nessuna azione per crearne di nuove                          |
+| ⚠️ backend          | **deve impedire la creazione via API**: nascondere la UI non basta                         |
+| documenti esistenti | **non** si cancellano né si modificano                                                     |
+| ambito              | **aziendale (tenant)**, non personale dell'operatore                                       |
+| default             | **attiva** per i tenant esistenti — il cambio non deve far sparire una funzione già in uso |
+
+## 46.6 ⏸ Aperto, e non dedotto
+
+- **Termini di pagamento**: oggi spenti su questo documento (`else if (!this.isManualUnload)`).
+  Il Listino era una decisione esplicita del proprietario; questo **no**. Va chiesto prima di
+  toccarlo.
+- **I riepiloghi da unire**, prendendo come riferimento **quello dei Corrispettivi**, che è il
+  più completo (`regole-stile-ui` §5, «Riepilogo di fondo pagina»).

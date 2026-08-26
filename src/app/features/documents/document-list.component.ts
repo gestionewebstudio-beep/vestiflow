@@ -159,7 +159,7 @@ export const SECONDARY_CREATE_ENTRIES: readonly (SelectMenuOption & {
     type: DocumentType.SupplierInvoice,
   },
   { value: 'transfer', label: 'Trasferimento', type: DocumentType.Transfer },
-  { value: 'manual-unload', label: 'Scarico manuale', type: DocumentType.ManualUnload },
+  { value: 'manual-unload', label: 'Vendita manuale', type: DocumentType.ManualUnload },
   { value: 'adjustment', label: 'Rettifica di magazzino', type: DocumentType.Adjustment },
   { value: 'sales-ddt', label: 'DDT vendita', type: DocumentType.SalesDdt },
   { value: 'quote', label: 'Preventivo', type: DocumentType.Quote },

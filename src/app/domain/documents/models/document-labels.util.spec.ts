@@ -53,7 +53,11 @@ describe('documentTypeLabel', () => {
       [DocumentType.InitialLoad]: 'Carico iniziale',
       [DocumentType.SalesDdt]: 'DDT vendita',
       [DocumentType.Transfer]: 'Trasferimento',
-      [DocumentType.ManualUnload]: 'Scarico manuale',
+      // ⭐ «Vendita manuale» dal 26/08/2026: e' una vendita che riduce la
+      // giacenza senza generare movimenti. Il nome vecchio — «Scarico manuale»
+      // — aveva gia' fatto spegnere il Listino su quel documento, perche' chi
+      // lo leggeva concludeva ragionevolmente «non e' vendita».
+      [DocumentType.ManualUnload]: 'Vendita manuale',
       [DocumentType.Adjustment]: 'Rettifica',
       [DocumentType.Inventory]: 'Inventario',
       [DocumentType.Proforma]: 'Proforma',
