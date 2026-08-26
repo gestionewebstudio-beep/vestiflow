@@ -561,9 +561,15 @@ Sottotitolo profilo gestionale: _«Analytics commerciali, export corrispettivi e
 3. **Performance commerciale:** stesso pannello analytics della Dashboard ([§5](#5-dashboard)) filtrato sul periodo scelto.
 4. **Giacenze per location:** snapshot attuale per sede (non filtrato per periodo).
 
-### 15.2 Corrispettivi commercialista (`/app/reports/corrispettivi`)
+### 15.2 ⛔ Qui c’era «Corrispettivi commercialista» — la schermata non esiste più
 
-Riepilogo delle vendite online registrate nel gestionale con stati fiscali, **export** e **storico consegne** al commercialista (azione «segna consegnato»); vendite POS escluse (gestite dalla cassa fiscale). Pagina di **stampa** dedicata (`/app/reports/corrispettivi/print`).
+La maschera legacy è caduta il **17/08/2026** con la migration
+`20260817140000_ritira_corrispettivo_legacy`, e l’indirizzo `/app/reports/corrispettivi`
+il **25/08** (`a1dd40fd`): oggi cade nel catch-all e atterra sulla Dashboard senza dire
+niente.
+
+⭐ **Il registro vivo è §13.2**, su `/app/sales/corrispettivi`. Chi leggeva questa
+sezione cercava una pagina che non c’è, e non capiva perché.
 
 ### 15.3 Registro commercialista (`/app/reports/accountant-register`)
 

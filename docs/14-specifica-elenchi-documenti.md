@@ -2300,3 +2300,37 @@ risultato del filtro.
 comportamenti da uniformare. Resta il solo tetto del **Registro Corrispettivi**
 (`REGISTER_MERGE_CEILING`), che è un'altra cosa e preesisteva — là cinque sorgenti si fondono in
 memoria, ed è una rete che non si vede finché non serve.
+
+---
+
+## H15 · H16 — l'argomento è caduto il 21/08/2026, le decisioni no
+
+⚠️ **Le due sezioni sono esistite** e sono state cancellate insieme alla coda del documento
+dal commit `02a0c071` («via il tetto sulle righe»), che ha sostituito 533 righe con 23
+**senza nominarle nel messaggio**. Le decisioni restano vigenti, e **tredici puntatori in
+quattro file continuano a citarle** — misurato il 26/08/2026.
+
+⛔ **I numeri si rivendicano, non si riscrivono le sezioni.** Git è l'archivio: chi vuole
+l'argomentazione la recupera con `git show 0f1e1957 -- docs/14-specifica-elenchi-documenti.md`.
+Qui resta ciò che serve a chi atterra da un puntatore.
+
+### §H15 — Ordinamento
+
+**`DataTableSort[]` è l'unica grammatica**; il parametro HTTP ne è la serializzazione, non
+una seconda forma. Sugli elenchi paginati l'ordinamento deve valere sull'**intero risultato
+filtrato**, non sulle righe già caricate.
+
+⚠️ Due lacune erano registrate lì e **restano aperte**, con la loro casa in `docs/DA-FARE.md`:
+la **Controparte** dell'elenco documenti non è ordinabile (serve una fonte sola per il dato),
+e lo **Stato** degli ordini cliente nemmeno.
+
+### §H16 — Selezione
+
+**Tre predicati che non si confondono**: `canEdit`, `canViewDetail`, `canSelect`. Una riga
+non modificabile può restare consultabile e selezionabile — sono domande diverse.
+
+**Riga selezionata**: il cambio di sfondo è comune a ogni riepilogo. La **mano** solo dove il
+clic apre qualcosa.
+
+⚠️ **«Non modificabile ⇒ non selezionabile» è registrata ma NON applicata**: applicarla oggi
+toglierebbe funzioni di sola lettura (stampa, esportazione) a righe che le hanno.

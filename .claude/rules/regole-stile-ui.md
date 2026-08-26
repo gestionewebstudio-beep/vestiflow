@@ -10,7 +10,7 @@ Ultima revisione: agosto 2026.
 
 - **VestiFlow è un gestionale**, non un sito vetrina. Densità informativa controllata, layout compatti ma leggibili, nessuna proporzione da marketing page.
 - **Tema chiaro**. Le regole di questo documento descrivono il tema chiaro.
-- **Mobile è cittadino di prima classe**. Le regole mobile non sono "adattamenti"; sono parte del sistema. Su schermi stretti le tabelle diventano card, la testata diventa comprimibile, le azioni principali (Annulla, Salva) stanno in fondo al documento — nessuna barra fissa che sottrae spazio al contenuto.
+- **Mobile è cittadino di prima classe**. Le regole mobile non sono "adattamenti"; sono parte del sistema. Su schermi stretti le tabelle diventano card, la testata diventa comprimibile, le azioni principali (Chiudi, Salva) stanno in fondo al documento — nessuna barra fissa che sottrae spazio al contenuto.
 - **Un solo modo di fare le cose**. Se un pattern esiste per un caso, va riusato negli stessi casi altrove. Card, tabelle, sezioni di form, riepiloghi totali: uno standard, non varianti.
 - **Bordi disegnano la forma, ombre danno profondità sottile**. Uso limitato di ombre marcate; il grosso della gerarchia visiva sta nei bordi e negli sfondi.
 
@@ -610,16 +610,28 @@ diversi: «Salva» sulla scrivania e «Salva movimento» sul telefono — **due 
 comando a seconda dello schermo** — poi «Salva movimento» ovunque, che nominava l'entità
 giusta per il database e sbagliata per l'operatore.
 
+⭐ **Terzo caso, e NON segue il criterio** _(dichiarato il 26/08/2026)_. **Vendita e Reso
+al banco stanno in `documents`**, quindi il criterio qui sopra li manderebbe a «Salva
+documento». Dicono invece **«Concludi vendita»** e **«Concludi reso»**.
+
+⚠️ **Non è un’applicazione di questa regola: è una decisione di prodotto presa a parte**,
+e va scritto perché senza questa riga chi legge §5, guarda quella maschera e conclude che
+il pulsante è sbagliato. Cambiarla richiede una decisione nuova ed esplicita.
+
+⛔ Il commento nel codice la chiamava «l’eccezione prevista da §5», e non lo era —
+corretto lo stesso giorno. Una falsa citazione di regola è peggio di nessuna citazione:
+chiude la domanda invece di lasciarla aperta.
+
 **Mobile e tablet (≤ 1024px)** — Azioni in fondo al documento:
 
-- I pulsanti **Annulla** (secondary) e **Salva ordine** (primary) vanno posizionati in fondo al documento, dopo il riepilogo totali, come coppia allineata a destra: Annulla a sinistra di Salva ordine
+- I pulsanti **Chiudi** (secondary) e **Salva documento** (primary) vanno posizionati in fondo al documento, dopo il riepilogo totali, come coppia allineata a destra: Chiudi a sinistra di Salva documento
 - Nessuna barra sticky in basso, nessun pulsante azione in topbar
 - La topbar mobile mantiene la sua configurazione standard (hamburger, ricerca globale, chip sync, avatar)
 - Il totale documento va in coda al documento come sezione finale (vedi §7)
 
 ### Barra azioni sticky mobile
 
-Distinta dalle azioni documento: quella barra riguarda **salvare e uscire**, questa riguarda **inserire prodotti** mentre si compila. Convivono senza contraddirsi — Annulla/Salva restano in fondo al documento e scorrono col contenuto.
+Distinta dalle azioni documento: quella barra riguarda **salvare e uscire**, questa riguarda **inserire prodotti** mentre si compila. Convivono senza contraddirsi — Chiudi/Salva restano in fondo al documento e scorrono col contenuto.
 
 - Compare **solo su mobile** e **solo durante l'edit** di un documento (Ordine cliente: `/app/sales/new` e `/app/sales/:id`); mai su desktop né su altre schermate
 - Altezza 44px, full-width, `position: fixed` con `bottom: 0`: la barra tocca il bordo inferiore utile dello schermo, senza spazio decorativo sotto. Il documento compensa con un `padding-block-end` pari all'ingombro, così l'ultima riga non finisce nascosta
@@ -971,7 +983,7 @@ Vale su **tutte** le viste: desktop e mobile mostrano lo stesso stato vuoto, con
 - IVA
 - **Totale documento** più marcato, 20px weight 700, valore in colore `--color-primary`
 
-Il totale mobile è visibile solo scrollando fino in fondo; i pulsanti Annulla / Salva ordine seguono subito dopo, come coppia allineata a destra (vedi §5).
+Il totale mobile è visibile solo scrollando fino in fondo; i pulsanti Chiudi / Salva documento seguono subito dopo, come coppia allineata a destra (vedi §5).
 
 ### Note documento
 
@@ -981,7 +993,7 @@ Il totale mobile è visibile solo scrollando fino in fondo; i pulsanti Annulla /
 
 ### Azioni documento
 
-Vedi §5 "Azioni documento (per device)": desktop usa footer sticky in basso; mobile e tablet mostrano Annulla/Salva ordine in fondo al documento dopo il riepilogo totali.
+Vedi §5 "Azioni documento (per device)": desktop usa footer sticky in basso; mobile e tablet mostrano Chiudi/Salva documento in fondo al documento dopo il riepilogo totali.
 
 ---
 
@@ -1037,13 +1049,13 @@ Su mobile: la barra diventa un'icona lente; il tap apre la palette full-screen.
 
 ## 9. Responsive breakpoints
 
-| Nome            | Range       | Comportamento chiave                                                                            |
-| --------------- | ----------- | ----------------------------------------------------------------------------------------------- |
-| Phone stretto   | ≤ 400px     | Testata form in 1 colonna, padding ridotti al minimo                                            |
-| Phone           | 401–480px   | Card mobile compatte, metriche essenziali                                                       |
-| Mobile / Tablet | 481–1024px  | Card view sostituisce tabelle, testata comprimibile, azioni Annulla/Salva in fondo al documento |
-| Desktop         | 1025–1799px | Layout standard, tabelle piene, sidebar persistente                                             |
-| Desktop largo   | ≥ 1800px    | `max-width` contenuto a 1720px, no stiramento                                                   |
+| Nome            | Range       | Comportamento chiave                                                                           |
+| --------------- | ----------- | ---------------------------------------------------------------------------------------------- |
+| Phone stretto   | ≤ 400px     | Testata form in 1 colonna, padding ridotti al minimo                                           |
+| Phone           | 401–480px   | Card mobile compatte, metriche essenziali                                                      |
+| Mobile / Tablet | 481–1024px  | Card view sostituisce tabelle, testata comprimibile, azioni Chiudi/Salva in fondo al documento |
+| Desktop         | 1025–1799px | Layout standard, tabelle piene, sidebar persistente                                            |
+| Desktop largo   | ≥ 1800px    | `max-width` contenuto a 1720px, no stiramento                                                  |
 
 Token breakpoint: solo variabili CSS, mai valori px in `@media`.
 

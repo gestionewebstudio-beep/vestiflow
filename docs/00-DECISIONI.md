@@ -74,6 +74,22 @@ documents.service.ts:355                                   type: { in: [...ACCOU
 ⛔ **Nessun deploy è implicitamente autorizzato**, e questo non fa eccezione: è una
 decisione del proprietario, non una conseguenza tecnica di questa pagina.
 
+### ⛔ E i backup esportati prima del 26/08/2026 non si ripristinano più
+
+Il formato dell’archivio **Backup negozio** è passato da **1 a 3 nello stesso giorno**:
+la rinomina del valore di enum, poi `defaultUnitOfMeasure` tolta dallo schema.
+
+⭐ **Il cancello di versione li rifiuta a monte**, con un messaggio che dice cosa è
+successo — invece di farli esplodere a metà ripristino su un `Unknown argument` che non
+spiega niente. È il meccanismo che esiste apposta, e stavolta ha funzionato.
+
+**Cosa fare**: esportare un backup nuovo. Gli archivi vecchi restano leggibili come file,
+ma non sono più ripristinabili su questo schema.
+
+⚠️ Il proprietario ha già dichiarato che non si costruiscono filtri di import per chiavi
+obsolete: durante lo sviluppo un archivio si rigenera, e mantenere la compatibilità
+costerebbe più di quanto valga.
+
 ⚠️ **E la specifica diceva un’altra cosa.** `07-specifica-famiglia-fattura` §«Quando
 rinominarlo» prescriveva _«il momento giusto è insieme al merge col ramo del collega,
 quando il database smette di avere due storie»_. La rinomina è stata fatta **prima**, il

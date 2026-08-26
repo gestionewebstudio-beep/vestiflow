@@ -1596,6 +1596,19 @@ Misurato il 25/08/2026 sull'ordine sinistra→destra della barra di scrivania:
 dove il tipo nomina la propria operazione (Banco: «Concludi vendita» / «Concludi reso»). Vale
 `check-exit-label` per l'uscita; per il salvataggio la regola è §5.
 
+### 34.7 ⭐ E la barra porta anche Ctrl/Cmd + S _(proprietario, 25/08/2026)_
+
+La scorciatoia di salvataggio esisteva sul **solo Arrivo merce**. Ora vale su **tutte e
+nove** le maschere che montano la barra azioni comune.
+
+⭐ **È implementata come «premi il pulsante Salva», non come «chiama il salvataggio»**, e
+la differenza è tutta qui: così serve sia le maschere a `submit` sia quelle a gestore di
+clic, ed eredita da sola gli stati «in salvataggio» e «sola lettura» senza riderivarli.
+
+⚠️ **Prima toglie il fuoco al campo attivo.** La cella a ricerca-e-selezione conferma sul
+`blur` quello che si è digitato: senza quel passaggio, Ctrl+S salverebbe il valore
+precedente **in silenzio**, che è il modo peggiore di perdere una battitura.
+
 ## 34.7 Il confronto con Danea, e le due cose che ha fatto vedere
 
 Il proprietario ha portato la maschera «Ordine cliente» di Danea come riferimento di
@@ -1879,14 +1892,22 @@ il gruppo esplicito il componente esploderebbe con NG01050 — ed è già succes
 
 ## 39.3 Chi resta fuori, e perché non è pigrizia
 
-|                           |                                                                                                                                                                                                       |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Ordine cliente**        | salva su `SalesOrder`, che nello schema ha `notes` e basta — `internalComment` esiste **solo** su `Document`. Dargli il commento interno è una **migration** sul database condiviso, non un montaggio |
-| **Banco**                 | i suoi campi non stanno in un `FormGroup`: li tiene in un segnale `preserved()`, perché la testata sopravvive fra una vendita e la successiva. E la sua «Causale» è un campo di dominio, non una nota |
-| **Registrazione fattura** | ha entrambi i controlli, ma il commento interno sta in **testata**. Spostarlo si vede, e va deciso                                                                                                    |
+|           |                                                                                                                                                                                                       |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Banco** | i suoi campi non stanno in un `FormGroup`: li tiene in un segnale `preserved()`, perché la testata sopravvive fra una vendita e la successiva. E la sua «Causale» è un campo di dominio, non una nota |
 
-⚠️ La decisione del proprietario «Nota interna ovunque» resta quindi **aperta per l'Ordine
-cliente**: il componente c'è, la maschera no, e in mezzo c'è una colonna che non esiste.
+⭐ **Ordine cliente e Registrazione fattura non sono più fuori — chiusi il 25/08/2026**
+con `bb80a886`: la migration `20260825160000_nota_interna_sull_ordine_cliente` ha aggiunto
+`sales_orders.internal_comment` (additiva e nullable), e il «Commento interno» della
+Registrazione fattura è sceso dalla testata al piede. Resta fuori il solo **Banco**.
+
+⚠️ **La ragione per cui l’Ordine cliente era fuori si conserva**, perché è il tipo di
+ostacolo che ritorna: mancava una COLONNA, non un montaggio — e su un database condiviso
+una colonna in meno è una migration da concordare, non un `input` da collegare.
+
+⛔ Il testo qui sopra è stato corretto il 26/08/2026: dichiarava la decisione ancora
+**aperta**, cinquanta minuti dopo che era stata chiusa. Chi lo leggeva progettava una
+migration già applicata.
 
 ## 39.4 ⛔ Nessuna prova toccava quei campi. In nessuna delle cinque
 
