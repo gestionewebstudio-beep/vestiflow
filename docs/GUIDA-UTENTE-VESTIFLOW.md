@@ -152,9 +152,14 @@ Pannello visibile a **Titolare** e **Amministratore** (accesso completo al tenan
 - **Gestione numeri seriali** — colonna seriali in arrivo merce
 - **Policy aggiornamento prezzo fornitore** in carico: sempre / chiedi conferma / mai
 - **Unità di misura** e **IVA predefinita** per nuovi articoli
-- Avvisi e blocco su **giacenze negative**
 
 Le modifiche si applicano a tutti gli utenti del negozio.
+
+> **Le giacenze negative non si configurano, ed è una scelta.** Qui c’era «Avvisi e
+> blocco su giacenze negative»: due caselle che non facevano niente, tolte il
+> 26/08/2026. Il comportamento è uno solo e vale sempre: se scarichi più di quanto
+> hai, VestiFlow **ti avvisa e ti lascia proseguire** — Giacenza e Disponibile
+> possono diventare negative. Non esiste un blocco, e non è disattivabile.
 
 ##### Prezzi di vendita: Netti o Ivati _(dal 16 agosto 2026)_
 

@@ -1290,6 +1290,26 @@ Confronto T5: [T5] dopo 7 giorni: http://localhost:4200/app/reports?period=7d �
 
 **Verifica indipendente:** Riprodotto con disponibile 8 e quantità 12. In riga compare correttamente l'avviso non bloccante «Supera il disponibile (8)». Il dialogo di conferma, letto per intero, è: «Conferma scarico · Registrare 1 articolo come scarico su Test SG? · Annulla · Registra» — nessuna occorrenza della quantità 12, nessun riferimento al disponibile né alla giacenza risultante, e l'avviso di riga non viene ripetuto. Confermando, onHand e available vanno a -4. Confermato nel codice: movement-form.component.ts:538-547, confirmMessage() usa this.lines().length (conta gli articoli, non i pezzi). Impostazioni tenant al momento della prova: allowNegativeInventory=false, warnNegativeInventory=true, blockNegativeInventory=false — quindi il mancato blocco è coerente con la configurazione, il difetto è solo la mutezza del riepilogo.
 
+> ⛔ **Nota del 26/08/2026 — il nesso causale in coda a questa riga è INVENTATO, e
+> il testo osservato resta com’è.**
+>
+> «il mancato blocco è coerente con la configurazione» attribuisce l’assenza di
+> blocco al flag `blockNegativeInventory` spento. **Quel flag non è letto da
+> nessuno**: misurato il 26/08/2026 con ricerca esaustiva su camelCase,
+> snake_case, SQL grezzo e template. Il blocco non c’è perché VestiFlow ha deciso
+> che l’insufficienza di stock **non blocca mai** — policy dichiarata in
+> `api/src/inventory/inventory-level-delta.util.ts` e in quattro specifiche. Con il
+> flag acceso il risultato sarebbe stato identico.
+>
+> ⚠️ Perché l’annotazione conta più della correzione: questa riga è **l’unica prova
+> documentale** che qualcuno crederebbe, ed è esattamente ciò che porterebbe a
+> «far funzionare» un flag che le regole escludono. Le due caselle sono state tolte
+> dal pannello Impostazioni lo stesso giorno; le colonne restano in tabella per il
+> problema dei backup già prodotti.
+>
+> Il difetto **vero** registrato qui — la mutezza del riepilogo di conferma — resta
+> valido e non è toccato da questa nota.
+
 ---
 
 ### P3.18 · Il dialogo di conferma del movimento viene annunciato agli screen reader col titolo del dialogo di logout (id DOM duplicato)

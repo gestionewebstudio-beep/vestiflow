@@ -40,16 +40,16 @@ Qui c'è **cosa resta da fare**, non perché.
 
 ## ✅ Fatto e committato — non va rifatto
 
-| Commit     | Cosa                                                                                                                                                                                                      |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `8fa6b3d0` | **L'IVA di riga dell'Ordine cliente si azzerava al risalvataggio.** Il contratto binario era onorato dal client e non dal server (`preservedLineVat` mancava in `sales-orders`). Colpiva 4 tipi documento |
-| `f743c6e6` | **La spunta «Scarica giacenze» della Vendita al banco non viaggiava**: il client non la mandava, il server cablava `true`. Toglierla non fermava la merce                                                 |
-| `569ae890` | **«Duplica riga» rimossa** da tutte le maschere, wrapper card e componenti condivisi. Due test-guardia impediscono il rientro                                                                             |
-| `66a4f5f4` | **U.M.: una regola sola.** Tolti i due ripieghi client e quello server; la maschera cattura, la riga conserva                                                                                             |
-| `87369c2d` | **T0 varianti: una funzione sola** (`api/src/common/variant-label.util.ts` + gemella client). Chiude la forma a mappa e il sentinella Shopify                                                             |
+| Commit     | Cosa                                                                                                                                                                                                                          |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `8fa6b3d0` | **L'IVA di riga dell'Ordine cliente si azzerava al risalvataggio.** Il contratto binario era onorato dal client e non dal server (`preservedLineVat` mancava in `sales-orders`). Colpiva 4 tipi documento                     |
+| `f743c6e6` | **La spunta «Scarica giacenze» della Vendita al banco non viaggiava**: il client non la mandava, il server cablava `true`. Toglierla non fermava la merce                                                                     |
+| `569ae890` | **«Duplica riga» rimossa** da tutte le maschere, wrapper card e componenti condivisi. Due test-guardia impediscono il rientro                                                                                                 |
+| `66a4f5f4` | **U.M.: una regola sola.** Tolti i due ripieghi client e quello server; la maschera cattura, la riga conserva                                                                                                                 |
+| `87369c2d` | **T0 varianti: una funzione sola** (`api/src/common/variant-label.util.ts` + gemella client). Chiude la forma a mappa e il sentinella Shopify                                                                                 |
 | `16b78933` | **Arrivo merce sulla riga comune** — l'ultima delle sette. 26 `<th>` e 29 `<td>` locali → 0. Catalogo canonico a **31 colonne**; `fieldBlur` promosso a primitiva condivisa; il controllo sconto si chiama `discount` ovunque |
-| `3462ad65` | **37 import senza template** rimossi dalle cinque maschere migrate (NG8113). Restano fuori i tre `InlineBannerComponent` degli elenchi, precedenti a questo filone                                        |
-| `27bbb89a` | **Il `<colgroup>` dell'Ordine cliente non conosceva la Variante**: 16 `<col>` che mappano per posizione, con la sesta in poi sulla colonna sbagliata. Stesso difetto dell'Arrivo merce, nella maschera di riferimento |
+| `3462ad65` | **37 import senza template** rimossi dalle cinque maschere migrate (NG8113). Restano fuori i tre `InlineBannerComponent` degli elenchi, precedenti a questo filone                                                            |
+| `27bbb89a` | **Il `<colgroup>` dell'Ordine cliente non conosceva la Variante**: 16 `<col>` che mappano per posizione, con la sesta in poi sulla colonna sbagliata. Stesso difetto dell'Arrivo merce, nella maschera di riferimento         |
 
 ## 🔵 BLOCCO A — la colonna Variante
 
@@ -1744,3 +1744,47 @@ trenta giorni, di cui 106 in un solo giorno.
 di leggere e risponde «il periodo contiene N righe: restringi le date». Si copia **la forma**,
 mai la cifra — il suo 5.000 protegge da un costo di backend che nei Movimenti non esiste, e non
 nomina mai il browser.
+
+---
+
+# ⚠️ La Fattura accompagnatoria scarica e non avvisa — 26/08/2026
+
+Trovato chiudendo il passo 1 dell'audit dei flag di `TenantFeatureSettings`. **Non è stato
+corretto**: la disposizione del proprietario era di registrarlo separatamente, senza
+nasconderlo dietro la rimozione dei flag e senza correggerlo incidentalmente.
+
+## Il fatto
+
+I tipi documento che scaricano giacenza sono **tre**
+(`api/src/documents/document-stock.constants.ts` → `DOCUMENT_STOCK_UNLOAD_TYPES`):
+
+| Tipo                       | Maschera                  | Avviso di disponibilità                           |
+| -------------------------- | ------------------------- | ------------------------------------------------- |
+| `sales_ddt`                | `customer-order-form`     | ✅ `exceedsAvailability` + `availabilityHint`     |
+| `manual_unload`            | `customer-order-form`     | ✅ stessi                                         |
+| **`invoice_accompanying`** | **`sales-document-form`** | ⛔ **nessuno** — e nemmeno la colonna Disponibile |
+
+Misurato contando chi alimenta `exceedsAvailability` / `availabilityHint` della riga
+condivisa, in `.ts` **e** in template: `customer-order-form` 3, `store-sale-document-form` 3,
+`sales-document-form` **0**.
+
+## Perché conta
+
+La regola è che l'insufficienza di stock **avvisa e non blocca mai**
+(`regole-gestionale` «Controlli e validazioni», `CONTRATTO-COMUNE-DOCUMENTI` §stock,
+`11` BANK-016). Escluso il blocco, **l'avviso è l'unico presidio rimasto**: dove manca, lo
+scarico oltre disponibile passa in perfetto silenzio.
+
+⚠️ E la riga condivisa lo **supporta già** (`document-line-row.model.ts:264-266`, con il
+commento «Avviso di disponibilità, mai blocco: `null` = nessun avviso»). Non manca una
+capacità: manca chi la alimenta.
+
+## ⛔ Cosa NON è deciso, e non va dedotto
+
+- **Trasferimento e Rettifica** riducono anch'essi una giacenza, ma **non** stanno in
+  `DOCUMENT_STOCK_UNLOAD_TYPES` e passano da un altro meccanismo. Se debbano mostrare lo
+  stesso avviso è una domanda aperta, non un difetto misurato. Il Movimento di magazzino ha
+  già il proprio (`movement-form.component.ts:421-428`), con parole e meccanica sue.
+- **Se l'avviso vada unificato** su un solo componente invece delle tre implementazioni
+  attuali (Ordine cliente, Vendita al banco, Movimento). Il censimento dei consumatori va
+  fatto **prima** di toccarli, come per ogni altra unificazione di questo filone.

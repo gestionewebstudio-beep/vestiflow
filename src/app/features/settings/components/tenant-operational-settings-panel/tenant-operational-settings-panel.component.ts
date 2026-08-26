@@ -66,8 +66,6 @@ export class TenantOperationalSettingsPanelComponent {
     salesPricesIncludeVat: this.fb.control('gross'),
     defaultUnitOfMeasure: this.fb.control('pz'),
     defaultVatCodeId: this.fb.control(''),
-    warnNegativeInventory: this.fb.control(true),
-    blockNegativeInventory: this.fb.control(false),
     // ⛔ Capacità operativa, non preferenza: la Vendita manuale riduce la
     //   giacenza senza generare movimenti. Nasce SPENTA, e la gira solo il
     //   titolare — il rifiuto vero è lato API, questo è solo il campo.
@@ -121,9 +119,7 @@ export class TenantOperationalSettingsPanelComponent {
           salesPricesIncludeVat: result.settings.salesPricesIncludeVat ? 'gross' : 'net',
           defaultUnitOfMeasure: result.settings.defaultUnitOfMeasure,
           defaultVatCodeId: result.settings.defaultVatCodeId ?? '',
-          warnNegativeInventory: result.settings.warnNegativeInventory,
           manualUnloadEnabled: result.settings.manualUnloadEnabled,
-          blockNegativeInventory: result.settings.blockNegativeInventory,
           listino1Name: result.settings.listino1Name ?? '',
           listino1Active: result.settings.listino1Active,
           listino2Name: result.settings.listino2Name ?? '',
@@ -149,8 +145,6 @@ export class TenantOperationalSettingsPanelComponent {
         salesPricesIncludeVat: raw.salesPricesIncludeVat === 'gross',
         defaultUnitOfMeasure: raw.defaultUnitOfMeasure,
         defaultVatCodeId: raw.defaultVatCodeId || null,
-        warnNegativeInventory: raw.warnNegativeInventory,
-        blockNegativeInventory: raw.blockNegativeInventory,
         manualUnloadEnabled: raw.manualUnloadEnabled,
         // Nome vuoto = `null`: il listino torna a chiamarsi «Listino N», non
         // resta senza nome.

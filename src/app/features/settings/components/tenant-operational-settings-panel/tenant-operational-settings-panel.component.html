@@ -95,17 +95,32 @@
       }
     </fieldset>
 
-    <fieldset class="tenant-ops__group">
-      <legend class="tenant-ops__legend">Giacenze negative</legend>
-      <label class="tenant-ops__check">
-        <input type="checkbox" formControlName="warnNegativeInventory" />
-        Avvisa su giacenza negativa
-      </label>
-      <label class="tenant-ops__check">
-        <input type="checkbox" formControlName="blockNegativeInventory" />
-        Blocca scarichi oltre disponibile
-      </label>
-    </fieldset>
+    <!--
+      ⛔ **Qui c’era il gruppo «Giacenze negative», con due caselle che non
+         comandavano niente** — «Avvisa su giacenza negativa» e «Blocca scarichi
+         oltre disponibile». Tolte il 26/08/2026.
+
+      La più grave era la seconda: prometteva una PROTEZIONE, non una comodità.
+      Il titolare la spuntava, credeva di aver messo in sicurezza il magazzino, e
+      lo scarico oltre disponibile passava identico. Misurato nel collaudo del
+      17/08: disponibile 8, quantità 12, salvataggio riuscito, giacenza a −4.
+
+      ⛔ **E non erano da collegare: erano da togliere.** VestiFlow ha deciso che
+         l’insufficienza di stock NON blocca mai e che Giacenza e Disponibile
+         possono essere negative (`regole-gestionale` «Controlli e validazioni»,
+         `CONTRATTO-COMUNE-DOCUMENTI` §stock, `11` BANK-016). Il warning non
+         bloccante è la regola generale, non un’opzione: escluso il blocco, è
+         l’unico presidio rimasto e spegnerlo per azienda lo azzererebbe.
+
+      ⚠️ **I flag precedono la decisione che li ha svuotati**: la migration che li
+         crea è del 02/07/2026, il commit che fissa la policy del 14/07 — dodici
+         giorni dopo. Non erano un lavoro lasciato a metà: erano un’ipotesi
+         superata.
+
+      Le colonne restano in tabella per ora: gli archivi di backup già prodotti
+      le contengono, e toglierle senza prima filtrare le chiavi ignote in
+      importazione farebbe fallire l’INTERO ripristino.
+    -->
 
     <!--
       ⛔ Sezione a sé, e non una spunta fra le altre: è un interruttore di
