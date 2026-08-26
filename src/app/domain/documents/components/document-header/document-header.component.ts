@@ -35,6 +35,20 @@ import { DocumentMobilePanelComponent } from '../document-mobile-panel/document-
  * sarebbero univoci, e ogni pannello condiviso potrebbe aprirsi in quella che
  * non si vede.
  *
+ * ## Il piede del pannello — `panelFooter`
+ *
+ * Ciò che nel pannello sta **dopo** i campi e non è un campo: una nota di
+ * aiuto, un comando che dichiara da dove partono le righe. Si proietta con
+ * l'attributo `panelFooter` su un elemento qualunque.
+ *
+ * ⭐ **Si rende SOLO nella vesta compatta**, ed è il nome a dirlo: è il piede
+ * di un PANNELLO, e su scrivania un pannello non c’è. Chi lo usa non deve
+ * quindi avvolgerlo in un `@if (compactView())` — la collocazione la decide il
+ * componente, che è l’unico a sapere quale vesta sta rendendo.
+ *
+ * ⚠️ Sta **fuori** da `.doc-panel__fields`: dentro, si incolonnerebbe come se
+ * fosse un campo, e non lo è.
+ *
  * ## Cosa NON entra qui
  *
  * Quali campi ci sono. Che l'Arrivo merce abbia il fornitore e l'Ordine cliente
@@ -46,6 +60,12 @@ import { DocumentMobilePanelComponent } from '../document-mobile-panel/document-
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [NgTemplateOutlet, DocumentMobilePanelComponent],
   template: `
+    <!--
+      ⚠️ Il piede si dichiara PRIMA del raccoglitore: la proiezione abbina i
+      selettori nell’ordine in cui compaiono, e un <ng-content> senza select
+      dichiarato prima si prenderebbe anche il piede.
+    -->
+    <ng-template #piede><ng-content select="[panelFooter]" /></ng-template>
     <ng-template #campi><ng-content /></ng-template>
 
     @if (compatto()) {
@@ -64,6 +84,7 @@ import { DocumentMobilePanelComponent } from '../document-mobile-panel/document-
           <div class="doc-panel__fields" [class.doc-panel__fields--two]="twoColumns()">
             <ng-container [ngTemplateOutlet]="campi" />
           </div>
+          <ng-container [ngTemplateOutlet]="piede" />
         </app-document-mobile-panel>
       </div>
     } @else {
