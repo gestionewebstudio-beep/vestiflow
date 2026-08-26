@@ -207,26 +207,48 @@ chiede: una `select` mirata sopravvive, cadono le query senza `select` (`upsert`
 ⛔ **E non è «facoltativo per sempre».** Non è urgente, ma una colonna fantasma è debito:
 si toglie quando nessun ramo la dichiara più.
 
-#### ⚠️ CHI la blocca davvero — misurato il 26/08/2026, e non è chi sembra
+#### ⛔ La condizione è sui PROCESSI, non sulle dichiarazioni _(corretto dal proprietario, 26/08/2026)_
+
+⛔ **Qui c’era scritto «si toglie quando nessun ramo la dichiara più». È troppo rigido**, e
+trasformava un fatto operativo in una condizione quasi impossibile da soddisfare: un ramo
+fermo su GitHub **non interroga niente**. Può dichiarare cento campi vecchi senza
+conseguenze.
+
+> **La condizione reale: nessun codice REALMENTE IN ESECUZIONE contro quel database deve
+> ancora richiedere `defaultUnitOfMeasure`.**
+
+I rami inattivi si riallineano **col merge** prima di essere rieseguiti — è esattamente a
+questo che servono:
 
 ```text
-origin/main                        la dichiara     ← e main gira su Railway
-origin/develop                     la dichiara
-origin/feature/cassa               la dichiara
-origin/feature/pagamenti-tesoriera la dichiara
+ramo corrente (schema senza il campo)
+   ├── merge → develop     develop diventa compatibile
+   └── merge → main        main diventa compatibile
+                              ↓
+                   ⚠️ e POI il processo va ridistribuito:
+                      il merge cambia il codice, non ciò che gira
 ```
 
-⛔ **Eliminare il ramo del collega NON sblocca il `DROP`.** La colonna è dichiarata da
-**tutti e quattro**: tolto `feature/cassa`, restano `main` e `develop`. La condizione è
-«nessuno la dichiara», non «il collega ha smesso».
+⚠️ **Il merge non è una copia**: se quei rami hanno modifiche proprie divergenti, i
+conflitti si risolvono — non si presume che diventino identici byte per byte.
 
-⚠️ E `main` è il ramo che gira su Railway: toglierla aggiungerebbe una seconda
-incompatibilità a un ambiente **già** incompatibile per la rinomina dell’enum
-(vedi `00-DECISIONI`, in testa).
+#### Chi gira davvero contro questo database — misurato, con la sua riserva
 
-⭐ **Costerà zero quando si farà**: nessun tenant ha mai cambiato quel valore —
-`select count(*) where default_unit_of_measure <> 'pz'` → **0 righe**. Non c’è un dato
-da salvare, solo una colonna da togliere.
+Interrogato `pg_stat_activity` il 26/08/2026: **sei connessioni, tutte infrastruttura
+Supabase** (`pg_cron`, `pg_net`, `postgres_exporter`, `PostgREST`, `Supavisor`) più una
+anonima ferma da dodici giorni. **Nessuna connessione applicativa Prisma/NestJS visibile.**
+
+⚠️ **Ma questa misura NON prova che Railway non sia connesso**, e va detto: le connessioni
+passano dal pooler Supavisor, che le multiplexa — un client applicativo può non comparire
+come connessione distinta. La misura dice «non se ne vede una», non «non ce ne sono».
+
+⭐ **L’unico processo che conta resta `main` su Railway**, ed è lo stesso attore della
+rinomina dell’enum (vedi `00-DECISIONI`, in testa). Le due cose si chiudono insieme, con
+lo stesso merge e lo stesso ridispiegamento — non sono due lavori.
+
+⭐ **E il `DROP` costerà zero**: nessun tenant ha mai cambiato quel valore —
+`select count(*) where default_unit_of_measure <> 'pz'` → **0 righe**. Non c’è un dato da
+salvare, solo una colonna da togliere.
 
 #### Se il ramo cassa viene eliminato — cosa resta comunque da decidere
 
