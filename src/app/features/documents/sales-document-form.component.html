@@ -211,21 +211,18 @@
                  Rinominarlo «Prezzo» — fatto per errore in `3d1afa37` e
                  annullato — confonde le due cose e usa la stessa parola della
                  colonna degli importi. -->
-            @if (showListinoSelect() && !formReadOnly()) {
+            <!-- ⭐ Il controllo e' UNO: `app-document-listino-select` porta con
+                 se' opzioni, valore, segnaposto e la regola «con un solo listino
+                 attivo non si mostra». Qui resta la sola condizione di dominio
+                 — se questo documento abbia i listini — e l'effetto sulle
+                 righe, che le due maschere fanno in modo diverso. -->
+            @if (showListinoSelect()) {
               <app-document-header-field label="Listino">
-                <!-- La voce vuota resta SPENTA: l'elenco ha gia' la sua voce
-                     neutra («Prezzo di vendita», la prima), e il segnaposto
-                     dice le stesse identiche parole. Accendendola il pannello
-                     mostra due righe uguali, di cui la prima e' finta. -->
-                <app-select-menu
-                  [options]="listinoOptions()"
-                  [value]="listinoValue()"
-                  ariaLabel="Listino applicato alle righe"
-                  placeholder="Prezzo di vendita"
-                  [includeEmptyOption]="false"
-                  [compact]="true"
-                  [fullWidth]="true"
-                  (valueChange)="onListinoChange($event)"
+                <app-document-listino-select
+                  [settings]="tenantSettings()"
+                  [choice]="listinoChoice()"
+                  [readOnly]="formReadOnly()"
+                  (choiceChange)="onListinoChoice($event)"
                 />
               </app-document-header-field>
             }

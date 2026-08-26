@@ -77,8 +77,8 @@ import { CustomerService } from '@domain/customers/services/customer.service';
 import {
   ARTICLE_LISTINO_VALUE,
   listinoSelectOptions,
-  listinoUnitPrice,
-  parseListinoChoice,
+  listinoMissingWarning,
+  listinoRepricing,
   type DocumentListinoChoice,
 } from '@domain/documents/utils/document-listino.util';
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
@@ -164,6 +164,7 @@ import type { DocumentLineCodeField } from '@domain/documents/utils/document-cod
 import { DocumentIncludePanelComponent } from '@domain/documents/components/document-include-panel/document-include-panel.component';
 import { DocumentHeaderComponent } from '@domain/documents/components/document-header/document-header.component';
 import { DocumentHeaderFieldComponent } from '@domain/documents/components/document-header/document-header-field.component';
+import { DocumentListinoSelectComponent } from '@domain/documents/components/document-listino-select/document-listino-select.component';
 import {
   IncludeSourceKind,
   conversionReferenceLine,
@@ -287,6 +288,7 @@ type ConversionPrefill = CreateDocumentBody & {
     DocumentIncludePanelComponent,
     DocumentHeaderComponent,
     DocumentHeaderFieldComponent,
+    DocumentListinoSelectComponent,
     DocumentProductSearchPanelComponent,
     TableColumnPickerComponent,
     CdkDrag,
@@ -734,7 +736,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       .map(vatCodeSelectOption),
   );
 
-  private readonly tenantSettings = toSignal(
+  protected readonly tenantSettings = toSignal(
     this.tenantFeatureSettingsService.getSettings().pipe(catchError(() => of(null))),
     { initialValue: null as TenantFeatureSettings | null },
   );
@@ -2953,8 +2955,16 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
    * deliberato e raro. Un articolo senza valore per il listino scelto NON
    * ripiega sul prezzo articolo: la riga va a zero e l'avviso dice quale.
    */
-  protected onListinoChange(value: string | null): void {
-    const choice = parseListinoChoice(value);
+  /**
+   * ⭐ Adattatore: `app-document-listino-select` emette gia' la scelta
+   * TIPIZZATA, quindi la traduzione da testo non serve piu' qui — sta in un
+   * posto solo, dentro il componente.
+   */
+  protected onListinoChoice(choice: DocumentListinoChoice): void {
+    this.applyListinoChoice(choice);
+  }
+
+  private applyListinoChoice(choice: DocumentListinoChoice): void {
     this.listinoChoice.set(choice);
     if (this.formReadOnly()) {
       return;
@@ -2980,38 +2990,32 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     )
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe((summaries) => {
-        const missing: string[] = [];
-        summaries.forEach((summary, position) => {
+        // ⭐ **Il dominio sta in `listinoRepricing`**, non qui: quale prezzo,
+        // quali righe restano senza, come si chiamano nell'avviso. Di questa
+        // maschera resta la STRADA per procurarsi i riepiloghi — il servizio —
+        // e come scrive il campo, che dipende dalla sua modalità netto/ivato.
+        //
+        // ⛔ Qui c'erano venticinque righe che rifacevano quel dominio, e
+        // divergevano dalla copia dell'Ordine cliente su un APOSTROFO: lo
+        // stesso messaggio con due glifi diversi a seconda della maschera.
+        const esito = listinoRepricing(
+          targets.map(({ line }, position) => ({
+            displayName: line.controls.productName.value,
+            variant: summaries[position] ?? null,
+          })),
+          choice,
+        );
+        esito.prices.forEach((price, position) => {
           const target = targets[position];
-          if (!summary || !target) {
+          if (!target || !summaries[position]) {
             return;
-          }
-          const price = listinoUnitPrice(summary, choice);
-          if (!price) {
-            // ⛔ Qui c'era `|| summary.title`, e il titolo CONTIENE la variante:
-            // il messaggio nominava l'articolo con dentro taglia e colore,
-            // mentre la riga non li aveva. Il nome è `productName`, e la
-            // variante — se serve — si compone accanto, non dentro.
-            missing.push(
-              target.line.controls.productName.value.trim() ||
-                [summary.productName, summary.variantLabel].filter(Boolean).join(' · '),
-            );
           }
           target.line.controls.unitPrice.setValue(
             this.priceFieldValue(price?.amountMinor ?? 0, this.lineRatePercent(target.line)),
           );
         });
-        this.listinoWarnings.set(
-          missing.length === 0
-            ? []
-            : [
-                `${this.listinoLabel()}: nessun prezzo per ${
-                  missing.length === 1 ? "l'articolo" : 'gli articoli'
-                } ${missing.join(', ')}. ${
-                  missing.length === 1 ? 'La riga è rimasta' : 'Le righe sono rimaste'
-                } a zero.`,
-              ],
-        );
+        const avviso = listinoMissingWarning(this.listinoLabel(), esito.missing);
+        this.listinoWarnings.set(avviso ? [avviso] : []);
       });
   }
 

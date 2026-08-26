@@ -450,21 +450,14 @@
                 <!-- Listino (§B4): non è un dato del documento, è come lo si
                        riempie. Sceglierlo riscrive i prezzi delle righe, che
                        restano modificabili una per una. -->
-                @if (showListinoSelect() && !formReadOnly()) {
+                @if (showListinoSelect()) {
                   <div class="doc-panel__field">
                     <span class="doc-panel__label">Listino</span>
-                    <!-- La voce vuota resta SPENTA: l'elenco ha gia' la sua
-                         voce neutra («Prezzo di vendita», la prima), e il
-                         segnaposto dice le stesse identiche parole. -->
-                    <app-select-menu
-                      [options]="listinoOptions()"
-                      [value]="listinoValue()"
-                      ariaLabel="Listino applicato alle righe"
-                      placeholder="Prezzo di vendita"
-                      [includeEmptyOption]="false"
-                      [compact]="true"
-                      [fullWidth]="true"
-                      (valueChange)="onListinoChange($event)"
+                    <app-document-listino-select
+                      [settings]="tenantSettings()"
+                      [choice]="listinoChoice()"
+                      [readOnly]="formReadOnly()"
+                      (choiceChange)="onListinoChoice($event)"
                     />
                   </div>
                 }
@@ -762,6 +755,26 @@
                     <input type="checkbox" formControlName="followedBySalesDoc" />
                     <span>Seguirà doc. di vendita</span>
                   </label>
+                </div>
+              }
+
+              <!-- ⭐ **Il Listino c'era SOLO sul telefono**, senza una ragione
+                   scritta — misurato il 26/08/2026 confrontando le due copie
+                   della testata. La regola del proprietario e' «stesse viste e
+                   funzioni, tranne casi espliciti», e questo non era esplicito.
+
+                   ⚠️ Non e' una copia: e' lo STESSO componente montato due
+                   volte, in due contenitori che lo vestono diversamente. La
+                   scelta e l'effetto vivono in un posto solo. -->
+              @if (showListinoSelect()) {
+                <div class="doc-form__field">
+                  <span class="doc-form__label">Listino</span>
+                  <app-document-listino-select
+                    [settings]="tenantSettings()"
+                    [choice]="listinoChoice()"
+                    [readOnly]="formReadOnly()"
+                    (choiceChange)="onListinoChoice($event)"
+                  />
                 </div>
               }
             </div>

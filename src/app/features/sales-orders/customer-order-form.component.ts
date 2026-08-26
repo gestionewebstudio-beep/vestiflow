@@ -185,8 +185,8 @@ import type { ProductEmbeddedCreatePrefill } from '@domain/products/models/produ
 import {
   ARTICLE_LISTINO_VALUE,
   listinoSelectOptions,
-  listinoUnitPrice,
-  parseListinoChoice,
+  listinoMissingWarning,
+  listinoRepricing,
   type DocumentListinoChoice,
 } from '@domain/documents/utils/document-listino.util';
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
@@ -207,6 +207,7 @@ import {
 } from '@domain/products/utils/variant-summary-search.util';
 import { ProductPickerDialogComponent } from '@domain/products/components/product-picker-dialog/product-picker-dialog.component';
 import { DocumentLineCardComponent } from '@domain/documents/components/document-line-card/document-line-card.component';
+import { DocumentListinoSelectComponent } from '@domain/documents/components/document-listino-select/document-listino-select.component';
 import { DocumentLineCardBodyComponent } from '@domain/documents/components/document-line-card/document-line-card-body.component';
 import { DocumentTotalsComponent } from '@domain/documents/components/document-totals/document-totals.component';
 import type { DocumentTotalRow } from '@domain/documents/components/document-totals/document-totals.model';
@@ -343,6 +344,7 @@ interface AvailabilityIssue {
   imports: [
     ReactiveFormsModule,
     DocumentLineCardComponent,
+    DocumentListinoSelectComponent,
     DocumentLineCardBodyComponent,
     DocumentTotalsComponent,
     DocumentLineCardReferenceComponent,
@@ -847,7 +849,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     ),
   );
 
-  private readonly tenantSettings = toSignal(
+  protected readonly tenantSettings = toSignal(
     this.tenantFeatureSettingsService.getSettings().pipe(catchError(() => of(null))),
     { initialValue: null as TenantFeatureSettings | null },
   );
@@ -3295,45 +3297,56 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
    * farebbe uscire un documento a un prezzo che nessuno ha deciso, e nessuno se
    * ne accorgerebbe.
    */
-  protected onListinoChange(value: string | null): void {
-    const choice = parseListinoChoice(value);
+  /**
+   * ⭐ Adattatore: `app-document-listino-select` emette gia' la scelta
+   * TIPIZZATA, quindi la traduzione da testo sta in un posto solo — dentro il
+   * componente.
+   */
+  protected onListinoChoice(choice: DocumentListinoChoice): void {
+    this.applyListinoChoice(choice);
+  }
+
+  private applyListinoChoice(choice: DocumentListinoChoice): void {
     this.listinoChoice.set(choice);
     if (this.formReadOnly()) {
       return;
     }
 
-    const missing: string[] = [];
-    this.lines.controls.forEach((line, index) => {
-      if (this.isReferenceLine(line) || !line.controls.variantId.value) {
+    // ⭐ **Il dominio sta in `listinoRepricing`**, non qui: quale prezzo, quali
+    // righe restano senza, come si chiamano nell'avviso. Di questa maschera
+    // resta la STRADA per procurarsi i riepiloghi — li ha già in memoria — e
+    // come scrive il campo, che dipende dalla sua modalità netto/ivato.
+    //
+    // ⚠️ Che una maschera chieda al servizio e l'altra legga la memoria NON è
+    // una differenza funzionale: è come si arriva allo stesso dato.
+    const righe = this.lines.controls.map((line, index) => ({
+      line,
+      index,
+      riprezzabile: !this.isReferenceLine(line) && !!line.controls.variantId.value,
+      summary: this.lineVariantSummary(index) ?? null,
+    }));
+
+    const esito = listinoRepricing(
+      righe.map((r) => ({
+        displayName: r.line.controls.productName.value,
+        variant: r.riprezzabile ? r.summary : null,
+      })),
+      choice,
+    );
+
+    esito.prices.forEach((price, position) => {
+      const r = righe[position];
+      if (!r || !r.riprezzabile || !r.summary) {
         return;
       }
-      const summary = this.lineVariantSummary(index);
-      if (!summary) {
-        return;
-      }
-      const price = listinoUnitPrice(summary, choice);
-      if (!price) {
-        // ⛔ Qui c'era `|| summary.title`: il messaggio nominava l'articolo
-        // col titolo completo, che contiene la variante. Nome e variante si
-        // compongono accanto, non dentro.
-        missing.push(
-          line.controls.productName.value.trim() ||
-            [summary.productName, summary.variantLabel].filter(Boolean).join(' · '),
-        );
-      }
-      line.controls.unitPrice.setValue(
-        this.priceFieldValue(price?.amountMinor ?? 0, this.lineVatRate(index)),
+      r.line.controls.unitPrice.setValue(
+        this.priceFieldValue(price?.amountMinor ?? 0, this.lineVatRate(r.index)),
         { emitEvent: false },
       );
     });
 
-    this.listinoWarnings.set(
-      missing.length === 0
-        ? []
-        : [
-            `${this.listinoLabel()}: nessun prezzo per ${missing.length === 1 ? 'l’articolo' : 'gli articoli'} ${missing.join(', ')}. ${missing.length === 1 ? 'La riga è rimasta' : 'Le righe sono rimaste'} a zero.`,
-          ],
-    );
+    const avviso = listinoMissingWarning(this.listinoLabel(), esito.missing);
+    this.listinoWarnings.set(avviso ? [avviso] : []);
     this.markFormDirty();
   }
 

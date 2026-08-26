@@ -2328,3 +2328,75 @@ Ordine cliente e Vendita al banco.
 ⭐ Sta a **riga 1799**, fuori dal blocco testata (233–850): la migrazione di §44.4 **non lo
 tocca**. Ma quando il mobile si propagherà alle altre maschere, lo scanner è un pezzo da
 **portare**, non da reinventare.
+
+---
+
+# §45 — Il Listino: un comportamento solo, e non fa aritmetica _(26/08/2026)_
+
+## 45.1 ⛔ L'errore di analisi, e il suo motivo
+
+Misurando le due maschere che hanno il Listino si era trovato che una recupera i dati della
+variante col servizio (`forkJoin`) e l'altra li ha già in memoria. Da lì era stato concluso:
+_«l'effetto non è condiviso perché sono due logiche di dominio diverse»_.
+
+⛔ **È sbagliato.** Il proprietario l'ha corretto: _«Sono due implementazioni tecniche diverse
+dello stesso comportamento funzionale… non costituisce una differenza funzionale»_.
+
+⚠️ **Il motivo dell'errore è ripetibile, e per questo va nominato.** La regola «una divergenza è
+spesso una decisione» ha una **precondizione**: verificare se qualcuno l'ha dichiarata. Per i
+campi della testata mobile quel controllo era stato fatto, ed è per questo che «Modalità prezzo»
+è rimasta e «Listino» no. Per il riprezzamento **non è stato fatto**: trovate due
+implementazioni, sono state chiamate due domini senza cercare una sola riga che lo dicesse.
+
+> **Prendere lo stato dell'implementazione e promuoverlo a regola di dominio è esattamente il
+> contrario di quello che questo progetto fa.**
+
+## 45.2 Che cosa fa il Listino
+
+> **Il Listino di testata stabilisce quale prezzo dell'anagrafica diventa il prezzo proposto
+> delle righe. Vale per le righe nuove E per quelle già inserite.**
+
+```text
+Articolo:  Prezzo vendita 25,00 · Listino 1 22,00 · Listino 2 20,00
+
+seleziono Listino 2   →  la riga vale 20,00
+cambio a Listino 1    →  le righe GIÀ PRESENTI diventano 22,00
+```
+
+⛔ **Non calcola uno sconto, non applica una percentuale, non divide niente.** Sceglie il campo
+sorgente. Il 22,00 sta in anagrafica: non si ricava dal 25,00.
+
+Il documento conserva poi il prezzo come **snapshot**: se l'anagrafica cambia dopo, il documento
+salvato non si muove (regola «la riga di un documento è una fotografia»).
+
+## 45.3 ⭐ Listino e netto/ivato sono DUE meccanismi indipendenti
+
+È la confusione che ha generato l'equivoco, e va tenuta separata a parole prima che nel codice:
+
+|                 | Che cosa decide                             | Aritmetica                      |
+| --------------- | ------------------------------------------- | ------------------------------- |
+| **Listino**     | la **sorgente** del prezzo                  | ⛔ nessuna                      |
+| **Netto/ivato** | la **rappresentazione** dello stesso prezzo | ⭐ qui, e solo qui, lo scorporo |
+
+```text
+25,00 ivati al 22%  →  netto = 25,00 × 100 / 122 = 20,491803…
+```
+
+⚠️ E la divisione **non arrotonda**: è quella coda a far tornare 25,00 al giro successivo.
+Falsificato con **1,03** — troncando il netto a 84 centesimi, l'ivato torna 1,02.
+
+## 45.4 Dove vive, adesso
+
+| Pezzo                                                                  | Dove                                                        |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------- |
+| il controllo (opzioni, valore, «nascondi se ce n'è uno solo»)          | `document-listino-select` — **un componente**, due maschere |
+| il dominio (quale prezzo, chi resta senza, come si chiama nell'avviso) | `listinoRepricing` · `listinoMissingWarning`                |
+| **come si procura il riepilogo**                                       | la maschera — servizio o memoria, indifferente              |
+| **come scrive il campo**                                               | la maschera — dipende dalla sua modalità netto/ivato        |
+
+⚠️ **Le due copie dell'avviso divergevano su un APOSTROFO**: `l'articolo` dritto in una,
+`l’articolo` tipografico nell'altra. Lo stesso testo con due glifi a seconda della maschera, e
+nessun test lo vedeva. Ora c'è una prova che lo inchioda.
+
+⭐ **E il Listino è arrivato anche sulla testata desktop dell'Ordine cliente**, dove mancava
+senza una ragione scritta — la parità di §44.3.
