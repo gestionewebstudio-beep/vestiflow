@@ -1,3 +1,4 @@
+import { ProfileRefreshService } from '@core/auth/profile-refresh.service';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -41,6 +42,7 @@ export class TenantOperationalSettingsPanelComponent {
   private readonly vatCodeService = inject(VatCodeService);
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly profileRefresh = inject(ProfileRefreshService);
 
   protected readonly loading = signal(true);
   protected readonly loadError = signal(false);
@@ -164,6 +166,17 @@ export class TenantOperationalSettingsPanelComponent {
         next: () => {
           this.saving.set(false);
           this.saveMessage.set('Impostazioni operative salvate.');
+          // ⛔ **Senza questa riga l’impostazione «non funziona».**
+          //
+          //   Alcune di queste impostazioni non sono solo dati: sono CAPACITA’
+          //   che viaggiano sul profilo utente — oggi la Vendita manuale. Il
+          //   valore va in tabella subito, ma la sessione continua a portare
+          //   quello vecchio finche’ il profilo non si rilegge: il titolare
+          //   accende l’interruttore e non succede niente.
+          //
+          // ⚠️ `refreshNow` e non `refresh`: il giro periodico ha una finestra
+          //   minima, e qui verrebbe saltato proprio nel momento che conta.
+          this.profileRefresh.refreshNow();
         },
         error: () => {
           this.saving.set(false);

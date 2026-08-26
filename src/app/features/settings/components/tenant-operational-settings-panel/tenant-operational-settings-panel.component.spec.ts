@@ -1,6 +1,7 @@
+import { ProfileRefreshService } from '@core/auth/profile-refresh.service';
 import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { VatCodeService } from '@core/services/vat-code.service';
@@ -32,7 +33,7 @@ const SETTINGS: TenantFeatureSettings = {
   listino3Active: false,
 };
 
-function setup(updateSettings = vi.fn(() => of(SETTINGS))) {
+function setup(updateSettings = vi.fn(() => of(SETTINGS)), refreshNow = vi.fn()) {
   return render(TenantOperationalSettingsPanelComponent, {
     providers: [
       {
@@ -40,6 +41,10 @@ function setup(updateSettings = vi.fn(() => of(SETTINGS))) {
         useValue: { getSettings: () => of(SETTINGS), updateSettings },
       },
       { provide: VatCodeService, useValue: { list: () => of([]) } },
+      // ⚠️ Dal 26/08/2026 il pannello rilegge il PROFILO dopo il salvataggio:
+      //   alcune impostazioni sono capacita’ del tenant che viaggiano di li’, e
+      //   senza rilettura l’interruttore appena girato non farebbe niente.
+      { provide: ProfileRefreshService, useValue: { refreshNow } },
     ],
   });
 }
@@ -75,5 +80,49 @@ describe('TenantOperationalSettingsPanelComponent — listini', () => {
         listino2Active: true,
       }),
     );
+  });
+});
+
+/**
+ * ⛔ **Il difetto che questa prova impedisce di far tornare — 26/08/2026.**
+ *
+ * Il titolare ha acceso la Vendita manuale in Impostazioni, il valore è andato
+ * in tabella davvero, e **non è successo niente**: la funzione restava spenta.
+ *
+ * Perché: alcune impostazioni aziendali non sono solo dati, sono **capacità**
+ * che viaggiano sul profilo utente (`/auth/me`). Il valore cambia in tabella
+ * subito, ma la sessione continua a portare quello vecchio finché il profilo non
+ * si rilegge — e nessuno lo rileggeva. Con la cache del profilo lato server
+ * (60s) e il giro periodico del client (3 min), l'interruttore «funzionava»
+ * dopo qualche minuto: cioè, per chi lo stava usando, non funzionava.
+ *
+ * ⚠️ La prova guarda la RILETTURA, non il salvataggio: il salvataggio non era
+ * mai stato il problema, ed è per questo che il difetto era difficile da vedere.
+ */
+describe('TenantOperationalSettingsPanelComponent — la sessione si aggiorna', () => {
+  it('⛔ dopo il salvataggio il profilo si rilegge, o l’impostazione non ha effetto', async () => {
+    const refreshNow = vi.fn();
+    await setup(
+      vi.fn(() => of(SETTINGS)),
+      refreshNow,
+    );
+
+    await userEvent.setup().click(await screen.findByRole('button', { name: /Salva/i }));
+
+    expect(refreshNow).toHaveBeenCalledTimes(1);
+  });
+
+  it('⛔ e NON si rilegge se il salvataggio fallisce', async () => {
+    // ⚠️ Rileggere dopo un errore mostrerebbe i valori vecchi come se fossero
+    //   stati salvati: peggio del non fare niente.
+    const refreshNow = vi.fn();
+    await setup(
+      vi.fn(() => throwError(() => new Error('rete'))),
+      refreshNow,
+    );
+
+    await userEvent.setup().click(await screen.findByRole('button', { name: /Salva/i }));
+
+    expect(refreshNow).not.toHaveBeenCalled();
   });
 });
