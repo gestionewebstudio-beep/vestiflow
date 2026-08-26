@@ -78,10 +78,6 @@ export class UpdateTenantFeatureSettingsDto {
   manualUnloadEnabled?: boolean;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(16)
-
-  @IsOptional()
   @IsUUID()
   defaultVatCodeId?: string;
 

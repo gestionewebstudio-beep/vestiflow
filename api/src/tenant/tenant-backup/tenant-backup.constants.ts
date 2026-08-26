@@ -13,11 +13,15 @@
  *
  * ── Storia ──────────────────────────────────────────────────────────────────
  * 1  formato iniziale
- * 2  26/08/2026 — rinomina del valore di enum `invoice` in `invoice`:
+ * 2  26/08/2026 — rinomina del valore di enum `invoice_draft` in `invoice`:
  *    i pacchetti v1 portano il nome vecchio dentro `data/documents.json`,
  *    `documentTypeSettings`, `documentSequences` e `stockMovements`.
+ * 3  26/08/2026 — `TenantFeatureSettings.defaultUnitOfMeasure` tolta dallo schema:
+ *    i pacchetti v2 la portano dentro `data/tenantFeatureSettings.json`, e l’import
+ *    fa `createMany` con le righe così come stanno — nessuna whitelist di colonne.
+ *    Senza questo scatto Prisma alzerebbe `Unknown argument` a metà ripristino.
  */
-export const TENANT_BACKUP_FORMAT_VERSION = 2;
+export const TENANT_BACKUP_FORMAT_VERSION = 3;
 
 export const TENANT_BACKUP_MANIFEST_FILE = 'manifest.json';
 export const TENANT_BACKUP_DATA_DIR = 'data';
