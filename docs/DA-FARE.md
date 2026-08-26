@@ -170,30 +170,43 @@ Trovati dal censimento del 23/08, tutti con file e riga nella sintesi. Per gravi
     giacenza al valore contato; `createdByName` è la stringa `'API'`; il documento è creato
     **fuori** dalla transazione che ha già scritto giacenze e movimenti
 
-## ⏸ BLOCCATO da un vincolo esterno — non è una dimenticanza _(26/08/2026)_
+## ⏸ Da fare al riallineamento dei rami — `defaultUnitOfMeasure` _(26/08/2026)_
 
-### `TenantFeatureSettings.defaultUnitOfMeasure` — autorizzata la rimozione, non eseguibile ora
+⛔ **Qui c’era scritto «si toglie al merge, non prima», e il presupposto era sbagliato.**
+Dava per scontato che per ripulire il codice bisognasse eliminare la colonna. Non serve —
+e «si toglie al merge» non era nemmeno un meccanismo: nessuno l’avrebbe letto al momento
+giusto, e il collega non ne sapeva niente.
 
-La colonna è **morta**: il nuovo modello (`unit_of_measure_options.is_default`) la
-sostituisce, il pannello Impostazioni non la scrive più, e il proprietario ne ha
-autorizzato la rimozione dichiarando che i backup vecchi si considerano incompatibili
-e non vale la pena filtrare le chiavi obsolete.
+### Quello che si può fare SUBITO, senza coordinare niente
 
-⛔ **Resta comunque in piedi, per un motivo diverso da quello risolto.** Misurato il
-26/08: **tutti e quattro i rami remoti** la portano nello `schema.prisma` —
+Il campo esce da `schema.prisma`, dal DTO, dai `DEFAULTS`, da `toDto` e dal modello
+frontend. **La colonna resta nel database, orfana.**
+
+⭐ **Una colonna che il database ha e lo schema non dichiara è invisibile a Prisma**, e
+nel progetto è già così — provato il 26/08 sul database condiviso:
 
 ```text
-origin/main · origin/develop · origin/feature/cassa · origin/feature/pagamenti-tesoriera
+documents.cash_session_id     nel DB ✔   nel nostro schema ✘
+p.document.count()        →   169        nessun errore
+p.document.findFirst()    →   66 campi   cashSessionId non c’è
 ```
 
-— e il database è **condiviso**. Il client Prisma rigenerato del collega seleziona tutti
-gli scalari della tabella: tolta la colonna, **ogni** lettura di `tenant_feature_settings`
-andrebbe in 500, comprese quelle che con l’unità di misura non c’entrano niente. È
-esattamente «lo schema e la sua migration sono una coppia» di `regole-qualita`, vista dal
-lato di chi non ha ancora la migration.
+È una colonna del ramo cassa, sulla tabella più letta dell’applicazione. E non è sola:
+il ramo locale ha già applicato le 6 migration di cassa (commit `445eabb7`), quindi nel
+database vivono **12 oggetti** che questo `schema.prisma` non dichiara.
 
-**Si toglie al merge**, insieme al ramo del collega — non prima. Vale lo stesso per gli
-altri flag morti quando saranno decisi.
+### Quello che invece NON si fa adesso: il `DROP` fisico
+
+Gli altri rami dichiarano ancora la colonna. Toglierla dal database romperebbe le loro
+query che la **nominano**.
+
+⚠️ **Perimetro, misurato — non «ogni lettura».** Prisma nomina le colonne che la query
+chiede: una `select` mirata sopravvive, cadono le query senza `select` (`upsert`,
+`update`, l’export di backup) che fanno `RETURNING` di tutti gli scalari.
+
+⛔ **E non è «facoltativo per sempre».** Non è urgente, ma una colonna fantasma è debito:
+si toglie quando i rami sono riallineati e nessuno la dichiara più — a quel punto è una
+riga a rischio zero. Vale lo stesso per gli altri flag morti, quando saranno decisi.
 
 ---
 

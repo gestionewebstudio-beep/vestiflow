@@ -878,6 +878,16 @@ E c'è la coincidenza che lo rende fuorviante: **«Bozza» oggi è uno _stato_**
 
 **Quando rinominarlo.** Non durante questo lavoro. Il valore non è solo un'etichetta in tre punti che contano: è scritto **dentro l'indice unico** come espressione (`THEN 'invoice_draft'::"DocumentType"`), vive nel **database condiviso** dove il collega ha un ramo aperto sulla stessa famiglia, e compare negli **indirizzi** (`?type=invoice_draft`) e nelle preferenze colonne salvate dagli operatori. Superficie: 61 file di codice, 6 migration. Il momento giusto è **insieme al merge col ramo del collega**, quando il database smette di avere due storie.
 
+⛔ **Non è andata così, ed è la parte che conta.** La rinomina è stata fatta il **26/08/2026**
+— commit `d851e9b9`, migration `20260826003840` — **prima** del merge. Il database condiviso
+ha ora `invoice`, e tutti e quattro i rami remoti dichiarano ancora il valore vecchio.
+
+⚠️ **La superficie descritta qui sopra era stimata giusta**: il rischio non era teorico, si è
+materializzato. Gli endpoint concretamente incompatibili, le verifiche da fare prima di
+distribuire un ramo vecchio e lo stato reale del database stanno in **`00-DECISIONI`, in
+testa** — non qui, perché è un fatto operativo che deve leggere anche chi non apre questa
+specifica.
+
 ### «Inviata al commercialista» non serve: è una struttura in più
 
 **Decisione del proprietario del progetto, 16/08.** La marcatura di quale fattura è stata mandata al commercialista **non si tiene**.

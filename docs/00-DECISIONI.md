@@ -22,6 +22,65 @@ cronaca — 33.000 righe che crescono di una riga tolta ogni sedici aggiunte.
 
 ---
 
+## ⛔ INCOMPATIBILITÀ ATTIVA COL DATABASE CONDIVISO — letta per prima _(26/08/2026)_
+
+> **Il database condiviso ha già il valore `invoice`. Il codice che dice `invoice_draft`
+> non è compatibile con quel database.** Non serve che esista una riga del tipo nuovo: basta
+> che una query NOMINI il valore vecchio.
+
+⚠️ **Sta qui e non in un documento di merge**, di proposito. `MERGE-QUESTO-RAMO.md` esiste ma
+non lo cita nessuno — zero riferimenti in tutto il repository — quindi un avviso scritto lì
+sarebbe scritto nel vuoto. Un rischio così deve essere impossibile da mancare, non nascosto
+dietro un secondo documento.
+
+### I fatti, misurati il 26/08/2026
+
+|                               |                                                                                                                                                 |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Chi l’ha cambiato**         | commit `d851e9b9` · migration `20260826003840` · `ALTER TYPE "DocumentType" RENAME VALUE`                                                       |
+| **Stato reale del database**  | `pg_enum` dice **`invoice`**. Il valore vecchio **non esiste più**                                                                              |
+| **Rami ancora incompatibili** | `origin/main` · `origin/develop` · `origin/feature/cassa` · `origin/feature/pagamenti-tesoriera` — tutti e quattro dichiarano il valore vecchio |
+| **Chi è a posto**             | solo il ramo LOCALE, che è 192 commit avanti al proprio remoto                                                                                  |
+| **Righe già convertite**      | nessuna: 169 documenti, zero del tipo nuovo                                                                                                     |
+
+### La conseguenza, e perché non serve una riga nuova per subirla
+
+Postgres rifiuta un’etichetta enum che non esiste, anche solo nominata in un confronto:
+`invalid input value for enum "DocumentType"`. Su `origin/main`, misurato:
+
+```text
+accountant-register-document-counts.util.ts:42,65,70,75   SQL grezzo, cast letterale del valore
+documents.service.ts:355                                   type: { in: [...ACCOUNTANT_DOCUMENT_TYPES] }
+```
+
+| Endpoint                                     | Stato                                                                  |
+| -------------------------------------------- | ---------------------------------------------------------------------- |
+| **Registro commercialista**                  | ⛔ incompatibile sempre: i conteggi sono SQL grezzo col valore cablato |
+| **Elenco documenti** con filtro `accountant` | ⛔ incompatibile quando quel filtro è usato                            |
+| tutto il resto                               | ✅ non nomina il valore, non se ne accorge                             |
+
+### ⚠️ Da verificare PRIMA di usare o distribuire uno di quei rami
+
+1. **Quel processo punta a questo database?** Se sì, gli endpoint sopra rispondono 500.
+2. **Quale commit sta eseguendo davvero?** ⛔ Non è deducibile dal repository: non c’è
+   configurazione di deploy committata (solo `api/Dockerfile`), `ci.yml` nomina il deploy
+   solo in un commento, e `GET /health` restituisce `{status, database}` — nessuna versione.
+   Lo sa solo il cruscotto del fornitore.
+3. **L’auto-deploy è attivo sul ramo che segue?** Se non lo è, un push non basta: serve il
+   deploy vero.
+4. ⛔ **La migration NON va rifatta.** L’enum nel database è già rinominato: ripetere
+   `RENAME VALUE` fallisce. Quello che manca è il CODICE, non lo schema.
+
+⛔ **Nessun deploy è implicitamente autorizzato**, e questo non fa eccezione: è una
+decisione del proprietario, non una conseguenza tecnica di questa pagina.
+
+⚠️ **E la specifica diceva un’altra cosa.** `07-specifica-famiglia-fattura` §«Quando
+rinominarlo» prescriveva _«il momento giusto è insieme al merge col ramo del collega,
+quando il database smette di avere due storie»_. La rinomina è stata fatta **prima**, il
+26/08. La prescrizione è superata dai fatti; la conseguenza è questa pagina.
+
+---
+
 ## ⭐ IL CONTRATTO COMUNE viene prima — aggiunto dal proprietario il 22/08/2026
 
 > **`CONTRATTO-COMUNE-DOCUMENTI.md` è il «Blocco 0 canonico»: il contratto normativo
