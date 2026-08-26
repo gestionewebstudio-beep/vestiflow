@@ -335,18 +335,6 @@ describe('CustomerOrderFormComponent — le due viste di riga', () => {
    * esistesse. Non esiste: misurato il 26/08/2026, e nessuno dei 22 script di
    * `npm run lint` fa quel controllo. Questa prova è la rete che mancava.
    */
-  it('⭐ «Includi documento» compare una sola volta, in ciascuna vista', async () => {
-    const esteso = await apri(false);
-
-    expect(comandiChiamati(esteso, 'Includi documento')).toHaveLength(1);
-  });
-
-  it('⭐ e una sola anche nella veste compatta', async () => {
-    const compatto = await apri(true);
-
-    expect(comandiChiamati(compatto, 'Includi documento')).toHaveLength(1);
-  });
-
   it('⭐ nessuna delle due viste chiama la data solo «Data»', async () => {
     // ⭐ **Una prova sola basta, ed è per una ragione che vale la pena sapere:**
     // in questa maschera il pannello mobile vive nel DOM ANCHE nella vista
@@ -361,6 +349,18 @@ describe('CustomerOrderFormComponent — le due viste di riga', () => {
 
     expect(etichette).toContain('Data documento');
     expect(etichette).not.toContain('Data');
+  });
+
+  it('⭐ «Includi documento» compare una sola volta, in ciascuna vista', async () => {
+    const esteso = await apri(false);
+
+    expect(comandiChiamati(esteso, 'Includi documento')).toHaveLength(1);
+  });
+
+  it('⭐ e una sola anche nella veste compatta', async () => {
+    const compatto = await apri(true);
+
+    expect(comandiChiamati(compatto, 'Includi documento')).toHaveLength(1);
   });
 
   it('⭐ e resta una sola anche nella veste compatta', async () => {
@@ -2430,6 +2430,36 @@ describe('CustomerOrderFormComponent — la Vendita manuale è una vendita', () 
     });
     return view.container;
   }
+
+  /**
+   * ⭐ **La tabella decide, e decide per ENTRAMBE le viste.**
+   *
+   * ⚠️ È il motivo per cui la dichiarazione esiste: la testata dell'Ordine
+   * cliente vive in due copie — vista estesa e pannello mobile — e ogni
+   * biforcazione per tipo era scritta due volte. Cambiare idea su un campo
+   * voleva dire trovarne tutte le occorrenze, col rischio di correggerne una
+   * sola. È il difetto già misurato sulla data, dove le due copie divergevano
+   * su «Data» e «Data documento».
+   *
+   * ⭐ Ora la riga della tabella è una sola, e questa prova lo inchioda: il
+   * «Rif.» c'è sulla Vendita manuale e su nessun altro tipo, in tutte e due le
+   * viste, senza che nessuno debba ricordarsi di guardarne due.
+   */
+  it('⭐ il «Rif.» c’è sulla Vendita manuale, in entrambe le viste', async () => {
+    const vista = await apriConListini('manual-unload');
+
+    const etichette = [...vista.querySelectorAll('label')].map((l) => l.textContent?.trim());
+    // Due: una per la vista estesa, una per il pannello mobile — convivono nel
+    // DOM e a sceglierne una è il CSS.
+    expect(etichette.filter((t) => t === 'Rif.')).toHaveLength(2);
+  });
+
+  it('⛔ e non c’è sull’Ordine cliente, sempre in entrambe', async () => {
+    const vista = await apriConListini();
+
+    const etichette = [...vista.querySelectorAll('label')].map((l) => l.textContent?.trim());
+    expect(etichette.filter((t) => t === 'Rif.')).toHaveLength(0);
+  });
 
   it('⭐ ha il Listino, come ogni altro documento di vendita', async () => {
     const vista = await apriConListini('manual-unload');

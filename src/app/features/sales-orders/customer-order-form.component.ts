@@ -208,6 +208,11 @@ import {
 import { ProductPickerDialogComponent } from '@domain/products/components/product-picker-dialog/product-picker-dialog.component';
 import { DocumentLineCardComponent } from '@domain/documents/components/document-line-card/document-line-card.component';
 import { DocumentListinoSelectComponent } from '@domain/documents/components/document-listino-select/document-listino-select.component';
+
+import {
+  showsHeaderField,
+  type CustomerHeaderField,
+} from './models/customer-document-header-fields.util';
 import { DocumentLineCardBodyComponent } from '@domain/documents/components/document-line-card/document-line-card-body.component';
 import { DocumentTotalsComponent } from '@domain/documents/components/document-totals/document-totals.component';
 import type { DocumentTotalRow } from '@domain/documents/components/document-totals/document-totals.model';
@@ -464,6 +469,22 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   protected readonly isQuote = this.formKind === 'quote';
   protected readonly isSalesDdt = this.formKind === 'sales-ddt';
   protected readonly isManualUnload = this.formKind === 'manual-unload';
+
+  /**
+   * ⭐ **Quali campi di testata mostra questo documento**, letto da una tabella
+   * dichiarata una volta invece che da `@if (isManualUnload)` sparsi.
+   *
+   * ⚠️ La testata vive in DUE copie — vista estesa e pannello mobile — quindi
+   * ogni biforcazione per tipo era scritta due volte: cambiare idea su un campo
+   * voleva dire trovarne tutte le occorrenze, col rischio di correggerne una
+   * sola. È il difetto già misurato sulla data, dove le due copie divergevano.
+   *
+   * ⭐ E il proprietario ha dichiarato il criterio (26/08/2026): la struttura è
+   * condivisa, e ciò che non si vuole vedere **si spegne dalla tabella**.
+   */
+  protected mostraCampo(field: CustomerHeaderField): boolean {
+    return showsHeaderField(this.formKind, field);
+  }
   /** Ordine cliente manuale (persistenza in SalesOrder, stati e impegni). */
   protected readonly isOrder = this.formKind === 'order';
   /** Modalità che persistono nel registro documenti (quote / sales_ddt / manual_unload). */

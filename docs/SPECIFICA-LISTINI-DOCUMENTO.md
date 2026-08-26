@@ -345,16 +345,16 @@ una colonna che nel database non c'è manda in errore ogni lettura di quella tab
 
 ### Otto difetti già presenti, che questa specifica chiude o rende decidibili
 
-| #   | Difetto                                                                 | Lo chiude       |
-| --- | ----------------------------------------------------------------------- | --------------- |
-| 1   | il Listino non esiste su scrivania per Ordine cliente, Preventivo, DDT  | §5              |
-| 2   | una riga entra a 0,00 in silenzio aggiungendola dopo aver scelto        | §3 (+ avviso)   |
-| 3   | la stessa condizione dà **quattro** esiti diversi fra le maschere       | §3              |
-| 4   | una riga resta fuori dal riprezzamento senza comparire in nessun avviso | §2 (da coprire) |
-| 5   | sull'Ordine cliente i totali restano fermi dopo il cambio listino       | difetto a sé    |
-| 6   | zero e assente indistinguibili sul documento                            | §3 per lo zero  |
-| 7   | la coda decimale si perde al primo passaggio nel campo                  | difetto a sé    |
-| 8   | **«Prezzo di vendita» compare DUE volte nella tendina**                 | §6.1            |
+| #   | Difetto                                                                           | Lo chiude       |
+| --- | --------------------------------------------------------------------------------- | --------------- |
+| 1   | ✅ **CHIUSO il 26/08/2026** — il Listino è su scrivania in tutti e quattro i tipi | §5              |
+| 2   | una riga entra a 0,00 in silenzio aggiungendola dopo aver scelto                  | §3 (+ avviso)   |
+| 3   | la stessa condizione dà **quattro** esiti diversi fra le maschere                 | §3              |
+| 4   | una riga resta fuori dal riprezzamento senza comparire in nessun avviso           | §2 (da coprire) |
+| 5   | sull'Ordine cliente i totali restano fermi dopo il cambio listino                 | difetto a sé    |
+| 6   | zero e assente indistinguibili sul documento                                      | §3 per lo zero  |
+| 7   | la coda decimale si perde al primo passaggio nel campo                            | difetto a sé    |
+| 8   | **«Prezzo di vendita» compare DUE volte nella tendina**                           | §6.1            |
 
 ### 6.1 ⛔ La voce doppia — misurata e verificata il 24/08/2026
 
@@ -508,3 +508,32 @@ di questa specifica, e non blocca niente.
 ⭐ **È lo stesso difetto del 17/08 girato al contrario.** Allora il prezzo barrato **ignorava**
 il selettore in silenzio; oggi i listini gli **obbediscono** in silenzio. In entrambi i casi il
 guaio è che a schermo non si vede quale delle due cose stia succedendo.
+
+---
+
+## ✅ Chiuso il 26/08/2026 — il controllo è UNO, e il dominio anche
+
+**Difetto 1** (il Listino assente su scrivania) e la sua radice.
+
+⛔ **Il controllo era scritto due volte** — dodici righe di template e tre `computed` identici
+in DDT/Fatture e Ordine cliente — e sull'Ordine cliente viveva **solo nel pannello mobile**.
+Portarlo sulla scrivania copiando il blocco avrebbe creato la terza copia.
+
+Ora è `app-document-listino-select`: un componente, montato nei due contenitori che lo vestono
+diversamente. Vale per tutti e quattro i tipi che passano da `customer-order-form` — Ordine
+cliente, Preventivo, DDT vendita, **Vendita manuale** — più la maschera Fatture.
+
+⭐ **E il riprezzamento è diventato dominio condiviso**: `listinoRepricing` e
+`listinoMissingWarning`. Erano venticinque righe scritte due volte, e le due copie
+**divergevano su un apostrofo** — `l'articolo` dritto in una, tipografico nell'altra. Stesso
+testo, due glifi a seconda della maschera, nessun test che lo vedesse.
+
+⚠️ **Il Listino era spento sulla Vendita manuale**, col commento «non è un documento di
+vendita». Non era una decisione commerciale: era il **nome** — «Scarico manuale magazzino» — a
+farlo concludere. Il documento è una vendita che riduce la giacenza senza generare movimenti
+(§46 della specifica testate).
+
+### Quello che resta
+
+I difetti 2, 3, 4, 6, 7, 8 della tabella **non sono stati toccati** da questo lavoro: riguardano
+il comportamento delle righe al cambio listino, non il controllo né la sorgente del prezzo.

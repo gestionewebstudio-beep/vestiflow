@@ -2489,3 +2489,48 @@ Toggle in **Impostazioni generali**, con la frase che la spiega:
   toccarlo.
 - **I riepiloghi da unire**, prendendo come riferimento **quello dei Corrispettivi**, che è il
   più completo (`regole-stile-ui` §5, «Riepilogo di fondo pagina»).
+
+---
+
+# §47 — Come si rettificano le specifiche senza peggiorarle _(26/08/2026)_
+
+Domanda del proprietario: _«anche le specifiche andrebbero man mano rettificate… però se
+commettiamo errori e le cambiamo in peggio, allora meglio di no, non saprei»_.
+
+⚠️ **Il dubbio è fondato da entrambi i lati, e la giornata lo dimostra due volte.**
+
+|                            |                                                                                                                                                                                                                                                                                                |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Non rettificare costa**  | la specifica diceva «lo Scarico manuale non è vendita», e quella frase ha fatto **spegnere il Listino** su quel documento. Un difetto vero, nato da un testo                                                                                                                                   |
+| **Rettificare male costa** | nella stessa giornata ho scritto **tre misure sbagliate** — «sette maschere senza testata comprimibile», «cinque divergenze fra le copie», «due logiche di dominio». Se fossero entrate nei documenti come fatti, oggi le specifiche porterebbero tre falsità con l'autorità del testo scritto |
+
+## 47.1 Il criterio: si scrive ciò che è MISURATO o DECISO, mai ciò che è dedotto
+
+```text
+MISURATO   un conteggio, un file:riga, una prova falsificata     → si scrive
+DECISO     una scelta del proprietario                           → si scrive
+DEDOTTO    «leggendo il codice mi pare che…»                     → ⛔ NON si scrive
+```
+
+⭐ **Tutti e tre i miei errori erano deduzioni**, e una sola cosa li accomuna: nascevano dal
+leggere lo stato dell'implementazione e trattarlo come regola. La misura vera li ha smentiti
+ogni volta.
+
+## 47.2 Le tre regole che rendono la rettifica reversibile
+
+1. **Datare e nominare il metodo.** «Misurato il 26/08 confrontando i tre blocchi desktop» invita
+   a rimisurare; «le maschere sono sette» no. Due dei miei tre errori li ho trovati proprio
+   rifacendo la misura che avevo dichiarato.
+2. **Cancellare il testo superato, lasciando UNA riga** che dica cosa è cambiato — è già la
+   regola di `regole-qualita` («TESTO MORTO NELLE SPECIFICHE»). Una specifica che accumula
+   versioni costringe a leggere la cronaca per sapere cosa vale oggi.
+3. **Marcare l'incerto invece di ometterlo.** Il vocabolario c'è già: ⏸ per una decisione aperta,
+   ⚠️ per un rischio, ⛔ per un divieto. Una domanda aperta scritta come tale non fa danno; una
+   deduzione scritta come fatto sì.
+
+## 47.3 ⛔ E quando si sbaglia, la correzione vale più della misura
+
+Le tre misure sbagliate **restano scritte** in §44.2 e §45.1, con accanto quella giusta. Non per
+scrupolo: perché il motivo di ciascuna è ripetibile, e chi lo legge non lo rifà. La regola «una
+divergenza è spesso una decisione» ha una **precondizione** — verificare se qualcuno l'ha
+dichiarata — e saltarla è il modo in cui si è sbagliato tre volte su tre.

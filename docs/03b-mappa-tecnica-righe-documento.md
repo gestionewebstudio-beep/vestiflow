@@ -1587,14 +1587,33 @@ Il **cambio del listino in testata** riscrive i prezzi delle righe. Ma:
 
 Quindi un prezzo negoziato — arrivato da un preventivo incluso, o digitato a mano — **viene sovrascritto** se si tocca il listino dopo. In silenzio: l'unico avviso scatta quando il listino quel prezzo non ce l'ha affatto.
 
-**Due letture, entrambe difendibili**, e la scelta è di dominio:
+## ✅ DECISA il 26/08/2026 — vince la prima lettura
 
-1. _«cambiare listino vuol dire riprezzare tutto»_ → il comportamento è giusto, manca un avviso prima di farlo;
-2. _«un prezzo concordato non si tocca»_ → il cambio listino deve saltare le righe con prezzo modificato a mano.
+⛔ **Qui c'erano due letture lasciate aperte** — «riprezzare tutto» contro «un prezzo concordato
+non si tocca» — con la nota che serviva un'informazione in più per distinguerli.
 
-**Dato che pesa sulla scelta:** oggi la riga **non registra** se il suo prezzo viene dal listino o è stato negoziato. Per distinguerli servirebbe un'informazione in più.
+> **Il cambio Listino riprezza le righe già presenti con i prezzi proposti dal nuovo Listino.**
 
-Comunque si decida, **la differenza fra le due maschere resta da sanare**: la stessa azione dà due risultati diversi a seconda di dove la fai.
+Deciso dal proprietario. Ne discende che il dato mancante — «questo prezzo viene dal listino o è
+stato negoziato?» — **non serve più**: nessuna riga va risparmiata, quindi non c'è niente da
+distinguere.
+
+⚠️ **E la differenza fra le due maschere è sanata**, ma non scegliendo una delle due: il
+riprezzamento vive ora in `listinoRepricing` (`domain/documents/utils/document-listino.util`),
+chiamato da entrambe. Restano diverse solo la **strada** per procurarsi i dati della variante —
+servizio o memoria — e **come si scrive il campo**, che dipende dalla modalità netto/ivato del
+documento. Nessuna delle due è il Listino.
+
+⭐ **La distinzione da tenere, perché è quella che ha generato l'equivoco:**
+
+```text
+LISTINO       sceglie la SORGENTE del prezzo          ⛔ nessuna aritmetica
+NETTO/IVATO   sceglie la RAPPRESENTAZIONE dello stesso prezzo   ⭐ qui, e solo qui, lo scorporo
+```
+
+Serve in due direzioni: impedisce di concludere che il Listino sia due domini perché due
+maschere lo implementano diversamente, **e** impedisce di infilare conversioni IVA dentro il
+motore del Listino, dove non appartengono.
 
 ### Registrato e non fatto: il netto/ivato su «Prezzo di vendita»
 

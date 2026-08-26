@@ -380,7 +380,7 @@
                     />
                   </div>
 
-                  @if (isOrder) {
+                  @if (mostraCampo('state')) {
                     <div class="doc-panel__field">
                       <span class="doc-panel__label">Stato</span>
                       @if (isSettledOrder()) {
@@ -399,7 +399,7 @@
                     </div>
                   }
 
-                  @if (isQuote) {
+                  @if (mostraCampo('expectedDelivery')) {
                     <div class="doc-panel__field">
                       <label class="doc-panel__label" for="co-m-delivery">Consegna prevista</label>
                       <app-date-input
@@ -462,7 +462,7 @@
                   </div>
                 }
 
-                @if (isManualUnload) {
+                @if (mostraCampo('externalRef')) {
                   <div class="doc-panel__field">
                     <label class="doc-panel__label" for="co-m-external-ref">Rif.</label>
                     <input
@@ -476,7 +476,7 @@
                   </div>
                 }
 
-                @if (isSalesDdt) {
+                @if (mostraCampo('paymentMethod')) {
                   <div class="doc-panel__field">
                     <span class="doc-panel__label">Pagamento</span>
                     <app-select-menu
@@ -496,7 +496,7 @@
                     <input type="checkbox" formControlName="followedBySalesDoc" />
                     <span>Seguirà doc. di vendita</span>
                   </label>
-                } @else if (!isManualUnload) {
+                } @else if (mostraCampo('paymentTerms')) {
                   <div class="doc-panel__field">
                     <label class="doc-panel__label" for="co-m-payment">Pagamento</label>
                     <input
@@ -687,7 +687,7 @@
               />
 
               <!-- Preventivo e DDT vendita: nessuno stato documento in testata. -->
-              @if (isOrder) {
+              @if (mostraCampo('state')) {
                 <div class="doc-form__field">
                   <span class="doc-form__label">Stato</span>
                   @if (isSettledOrder()) {
@@ -717,7 +717,7 @@
                 cliente è un documento nostro, e la numerazione che conta è in
                 prima fascia.
               -->
-              @if (isManualUnload) {
+              @if (mostraCampo('externalRef')) {
                 <div class="doc-form__field">
                   <label class="doc-form__label" for="co-external-ref">Rif.</label>
                   <input
@@ -730,7 +730,7 @@
                   />
                 </div>
               }
-              @if (isSalesDdt) {
+              @if (mostraCampo('paymentMethod')) {
                 <div class="doc-form__field">
                   <span class="doc-form__label" id="co-payment-method-label">Pagamento</span>
                   <!-- Auto-compilato dal tipo di pagamento dell'anagrafica cliente;
@@ -789,7 +789,7 @@
                propria fascia con «Consegna prevista», che è sua e basta. Il DDT
                gestisce il pagamento in prima fascia e lo scarico manuale non ha
                né consegna né pagamento: nessuno dei due ha seconda fascia. -->
-            @if (isOrder) {
+            @if (mostraCampo('paymentTerms')) {
               <!-- Fascia secondaria dell'Ordine: solo il Pagamento.
                    Fino al 12/08/2026 questa fascia la disegnava
                    `app-document-counterparty-ref` — tipo, numero e data del
@@ -814,7 +814,7 @@
 
                 <div class="doc-form__field doc-form__header-filler" aria-hidden="true"></div>
               </div>
-            } @else if (isQuote) {
+            } @else if (mostraCampo('expectedDelivery')) {
               <div
                 class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row co-form__header-row doc-form__header-row--secondary"
               >
