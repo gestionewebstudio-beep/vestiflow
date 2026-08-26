@@ -2534,3 +2534,160 @@ Le tre misure sbagliate **restano scritte** in §44.2 e §45.1, con accanto quel
 scrupolo: perché il motivo di ciascuna è ripetibile, e chi lo legge non lo rifà. La regola «una
 divergenza è spesso una decisione» ha una **precondizione** — verificare se qualcuno l'ha
 dichiarata — e saltarla è il modo in cui si è sbagliato tre volte su tre.
+
+---
+
+# §48 · L'Ordine cliente entra nella testata comune — 26/08/2026
+
+L'ottava e ultima maschera documentale. Era **l'unica a scriversi la testata da sé**, e se
+la scriveva **due volte**.
+
+```text
+app-document-header montati                0 → 2
+app-document-mobile-panel scritti a mano   2 → 0
+griglie di testata scritte a mano          3 → 0
+identificativi co-m-*                      8 → 0
+righe della testata                      620 → 308
+maschere documentali sul componente      7/8 → 8/8
+```
+
+## 48.1 ⛔ Non erano due viste: era la stessa vista scritta due volte
+
+Le due vesti **convivevano nel DOM** e la commutazione la faceva il foglio di stile
+(`.doc-panels { display: none }` sopra `lg`, `.co-form__header-details` collassata a
+`max-block-size: 0` sotto). Da lì discendeva tutto il resto: due insiemi di identificativi
+(`co-m-*` contro `co-*`), **due `formControlName` legati allo stesso controllo**, e ogni
+correzione che ne raggiungeva una sola.
+
+⚠️ **Il difetto misurato è la prova del costo.** Il commit `e85027d6` del 26/08 ha portato la
+scelta dei campi per tipo nella tabella `CUSTOMER_HEADER_FIELDS` e ha riscritto una catena
+`@if … @else if` che aveva smesso di essere esclusiva: sulla scrivania il Preventivo ha
+**perso «Consegna prevista»**. Sul telefono si vedeva lo stesso, perché lì il campo aveva un
+`@if` suo. Il difetto è vissuto su **una vesta sola** — ed è esattamente il modo in cui una
+testata scritta in due copie nasconde i propri difetti. Corretto in `0280ab4b`.
+
+## 48.2 ⭐ Una sola ripartizione, e viene dal mobile
+
+**Deciso dal proprietario il 26/08/2026.** Non esistono una ripartizione «desktop» e una
+«mobile»: sarebbero due verità, solo nascoste dentro `app-document-header`.
+
+```text
+TESTATA DOCUMENTO
+├─ DATI PRINCIPALI          ciò che sblocca le righe
+│  ├─ Cliente / controparte
+│  └─ Location
+└─ DETTAGLI DOCUMENTO
+   ├─ Data
+   ├─ Stato
+   ├─ Consegna, se prevista
+   ├─ Numero / Serie
+   ├─ Listino, se previsto
+   ├─ Rif., se previsto
+   └─ Pagamento, se previsto
+```
+
+A cambiare fra i dispositivi è **l'aspetto**, non quali campi esistono né dove appartengono.
+Sul telefono la struttura si veste come due pannelli apribili; su scrivania come fasce — e
+come le si affianchi è una scelta grafica, non strutturale.
+
+⛔ **Vietata la forma che questo lavoro esiste per togliere**, cioè lo stesso campo scritto
+due volte con due gate opposti:
+
+```text
+@if (compactView())  { cliente · location }
+@if (!compactView()) { cliente · location · data · numero · … }
+```
+
+⛔ **E vietata anche la sua versione in configurazione** — `mobileFields: [...]` accanto a
+`desktopFields: [...]` con gli stessi campi riordinati: sarebbero di nuovo due contratti da
+tenere allineati.
+
+## 48.3 ⚠️ `compactView()` decide la COLLOCAZIONE, non la logica
+
+Due comandi restano dietro un gate sul viewport, e **non sono duplicazione**: hanno un'altra
+**casa** su scrivania, quindi il gate sceglie dove vive l'**unica** istanza.
+
+| Comando               | Casa su scrivania                           | Casa sul telefono                            |
+| --------------------- | ------------------------------------------- | -------------------------------------------- |
+| **Modalità prezzo**   | intestazione della colonna Prezzo (`11` A4) | pannello Dettagli: le card non hanno colonne |
+| **Includi documento** | barra strumenti delle righe                 | pannello Dettagli (decisione del 24/08/2026) |
+
+```text
+⛔ NON è   desktop → copia A          ⭐ ma è   desktop → UNA istanza, fuori dalla testata
+           mobile  → copia B                    mobile  → UNA istanza, dentro la testata
+```
+
+**La discriminante, e vale per chi verrà:**
+
+> Se scrivania e telefono mostrano lo **stesso dato nello stesso ruolo funzionale**, ci deve
+> essere **un solo controllo condiviso** e non due markup alternativi. Se invece la scrivania
+> possiede già una **collocazione funzionale che sul telefono non esiste** — come
+> l'intestazione di colonna — è legittimo collocare l'unica istanza in posti diversi.
+
+Tre vincoli posti dal proprietario, e vanno letti insieme:
+
+1. `compactView()` può decidere la **collocazione**, mai la logica o il comportamento;
+2. a ogni viewport deve esistere **una sola istanza effettiva**, non due con una nascosta dal CSS;
+3. l'eccezione resta **limitata ai controlli che hanno davvero un'altra casa**: non è un
+   precedente per riscrivere Cliente, Location, Data, Listino o Stato due volte.
+
+⚠️ Senza il gate, su scrivania se ne vedrebbero **due a schermo**. Con il gate applicato a un
+campo che non ha un'altra casa, si sarebbe reintrodotta la duplicazione sotto un altro nome.
+
+## 48.4 Tre capacità portate nel COMPONENTE COMUNE, non aggirate
+
+Vincolo del proprietario: _«se emerge una capacità mancante nel componente comune, si porta nel
+componente comune, non si lascia un'eccezione locale»_. Nessun `::ng-deep`, nessun foglio che
+scavalchi il confine.
+
+| Capacità                        | Perché serviva                                                                                                                                                                     |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| slot **`panelFooter`**          | il pannello ha due cose **dopo** i campi — la nota «I valori predefiniti restano modificabili.» e il blocco «Origine delle righe» — che non avevano dove atterrare                 |
+| input **`controlId`**           | cinque campi avevano un `<label for>` **vero**; il campo condiviso sapeva rendere solo uno `<span>`, e migrarli avrebbe perso l'associazione **in silenzio**                       |
+| **`app-document-header-group`** | `twoColumns` è tutto-o-niente: la testata affianca solo Data, Stato e Consegna e impila gli altri cinque. Accenderlo sull'intero pannello avrebbe cambiato la vista di riferimento |
+
+⚠️ **`controlId` è la più importante**, e la ragione va ricordata: sarebbe stata una **perdita
+di accessibilità introdotta da una deduplica** — invisibile, e dentro un lavoro che si presenta
+come «nessun cambiamento di comportamento». È il tipo di regressione che nessun test di layout
+trova e che nessuno collega alla migrazione sei mesi dopo.
+
+## 48.5 ⏸ FASE 2 — la vestizione di scrivania, dichiarata e non dimenticata
+
+La disposizione di scrivania **è cambiata**: la fascia unica è diventata due fasce, e le quote
+di larghezza (`flex-grow` 1.55 / 0.9 / 0.78 / 0.75) sono cadute con la classe locale
+`.co-form__header-row` a cui erano agganciate — il componente comune emette
+`doc-form__header-row`, e una classe messa sull'host non raggiunge le celle.
+
+Era **messo in conto**: prima una sola architettura vera, poi la si veste. Il passo successivo
+tocca **solo layout e CSS**, con la stessa struttura e gli stessi componenti: nessun markup
+funzionale nuovo, nessuna condizione di dominio nuova.
+
+Il canale previsto per le larghezze è `--doc-field-min` per cella (`_document-form.scss`) —
+oggi **non dichiarato da nessuna maschera in tutta l'app**, il che significa che le sette
+migrate hanno accettato il ripiego uguale per tutti. In alternativa, le quote riscritte sulla
+classe che il componente emette davvero: le celle sono contenuto proiettato **dalla maschera**,
+quindi portano il suo attributo di incapsulamento e da lì si raggiungono.
+
+## 48.6 ⭐ Due cambiamenti visibili, dichiarati invece che scoperti a schermo
+
+- **La tinta «campo in attesa» ora compare anche sul telefono**, su Cliente e Location. Non è
+  una novità inventata qui: **cinque maschere su sette** la mostrano già in entrambe le vesti
+  (`[waiting]` senza gate sul viewport) — l'Ordine cliente era l'eccezione, e allinearlo è
+  unificazione.
+- **Il comando dice «Crea nuovo cliente» anche su scrivania**, dove diceva «Nuovo cliente».
+  Erano due parole per lo stesso comando a seconda dello schermo, e il telefono è il
+  riferimento.
+
+## 48.7 Le prove del criterio 4, e perché ognuna dichiara la vesta
+
+Il quarto criterio chiedeva di **dimostrare** invariati campi visibili, valori e default,
+modificabilità, stato/lock, Listino, netto/ivato, «Includi», scanner, comportamento nelle due
+vesti e cambio di soglia.
+
+⚠️ **Prima della migrazione una prova non doveva dichiarare la vesta**, perché le due vivevano
+insieme nel DOM e una query le vedeva entrambe. Ora sono esclusive: **un test che non la
+dichiara guarda solo la scrivania**, e resta verde mentre smette di coprire metà di quello che
+copriva. È il modo peggiore di perdere copertura, e per questo ogni prova nuova la dichiara.
+
+⭐ Le quattro prove che contavano `2` — cioè proprio la coesistenza — ora contano **`1` per
+vesta, verificato in tutte e due**: è una prova più forte di prima, non più debole.

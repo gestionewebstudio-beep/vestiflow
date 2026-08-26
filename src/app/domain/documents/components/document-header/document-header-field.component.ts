@@ -44,11 +44,10 @@ import { ViewportService } from '@core/services/viewport.service';
       tiene la riga in «space-between» senza che l'etichetta scivoli. Con tre
       figli i due comandi si spargerebbero invece di stare insieme a destra.
 
-      ⛔ **Era** la lacuna che teneva l'Ordine cliente fuori dalla testata
-      comune. L'ostacolo tecnico non c'e' piu', ma **la maschera non l'ha ancora
-      adottata**: e' l'unica delle otto. Finche' non lo fa, il suo campo
-      «Listino» resta visibile **solo su telefono** — e dentro un pannello che
-      nasce chiuso. Chi legge questa riga non concluda che sia risolto.
+      ⭐ Era la lacuna che teneva l'Ordine cliente fuori dalla testata comune, e
+      il 26/08/2026 quella maschera l’ha adottata: lo slot ha il suo primo
+      consumatore, e le maschere documentali sulla testata comune sono otto su
+      otto.
     -->
     <span [class]="compatto() ? 'doc-panel__field-head' : 'doc-form__field-head'">
       <!--

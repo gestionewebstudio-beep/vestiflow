@@ -9,7 +9,7 @@ import { DocumentHeaderComponent } from './document-header.component';
 /**
  * ⭐ **La testata comune: una dichiarazione, due vesti, mai due istanze.**
  *
- * ⛔ Questo componente non aveva prove, e ci poggiano sette maschere. La
+ * ⛔ Questo componente non aveva prove, e ci poggiano otto maschere. La
  * migrazione dell'Ordine cliente ne aggiunge l'ottava e gli chiede una capacità
  * nuova (il piede del pannello): entrambe le cose vanno inchiodate qui, non
  * nella maschera che le usa per prima.
