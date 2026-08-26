@@ -253,6 +253,7 @@
         <div class="doc-form__header">
           <!-- ── Dati principali: ciò che sblocca le righe ─────────────────── -->
           <app-document-header
+            class="co-form__header-section co-form__header-section--main"
             [title]="customerPanelTitle()"
             [summaryParts]="[customerPanelSubtitle()]"
             icon="pi-user"
@@ -268,6 +269,7 @@
 
             <app-document-header-field
               [label]="isManualUnload ? 'Cliente (facoltativo)' : 'Cliente'"
+              style="--doc-field-min: var(--field-w-lg)"
               [span2]="true"
               [waiting]="fieldWaiting('customerId')"
               [invalid]="!isManualUnload && fieldInvalid('customerId')"
@@ -333,6 +335,7 @@
 
             <app-document-header-field
               [label]="isQuote ? 'Location' : 'Location di origine'"
+              style="--doc-field-min: var(--field-w-lg)"
               [waiting]="fieldWaiting('locationId')"
               [invalid]="fieldInvalid('locationId')"
               errorId="co-location-error"
@@ -363,6 +366,7 @@
 
           <!-- ── Dettagli documento: quando, quale numero, a che condizioni ── -->
           <app-document-header
+            class="co-form__header-section co-form__header-section--details"
             title="Dettagli documento"
             [summaryParts]="detailsPanelSummaryParts()"
             icon="pi-calendar"
@@ -388,7 +392,7 @@
               </app-document-header-field>
 
               @if (mostraCampo('state')) {
-                <app-document-header-field label="Stato">
+                <app-document-header-field label="Stato" style="--doc-field-min: var(--field-w-sm)">
                   @if (isSettledOrder()) {
                     <p class="doc-form__readonly">{{ stateBadgeLabel() }}</p>
                   } @else {

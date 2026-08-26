@@ -32,13 +32,18 @@ describe('DocumentHeaderGroupComponent', () => {
     expect(host.classList.contains('doc-panel__fields--two')).toBe(true);
   });
 
-  it('⛔ su scrivania NON porta nessuna classe: è trasparente, non un contenitore', async () => {
-    // ⚠️ Con una classe di contenitore le tre celle diventerebbero UNA cella
-    // della fascia che ne contiene tre. `display: contents` le fa salire al
-    // livello della fascia, dove sono celle come le altre.
+  it('⛔ su scrivania porta SOLO la classe che il foglio globale deve raggiungere', async () => {
+    // ⚠️ Non è decorativa, ed è la correzione del 26/08/2026: `display:
+    //   contents` toglie la scatola ma non l'elemento, e le regole della fascia
+    //   usano il combinatore di figlio diretto. Senza un secondo livello di
+    //   selettore — che questa classe rende possibile — Data, Stato e Consegna
+    //   restano senza quota flex e con un filo inferiore che le celle sorelle
+    //   non hanno.
     const { container } = await monta(false);
+    const host = container.querySelector('app-document-header-group')!;
 
-    expect(container.querySelector('app-document-header-group')!.className).toBe('');
+    expect(host.className).toBe('doc-form__header-group');
+    expect(host.classList.contains('doc-panel__fields')).toBe(false);
   });
 
   it('⭐ i campi proiettati restano figli dell’host in tutte e due le vesti', async () => {

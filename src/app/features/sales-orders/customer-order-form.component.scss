@@ -78,6 +78,43 @@
 // contenuto proiettato dalla maschera, quindi portano il suo attributo di
 // incapsulamento.
 
+// ── Le due sezioni di testata, vestite per la scrivania (FASE 2) ────────────
+// La STRUTTURA e’ una e resta quella comune: «Dati principali» e «Dettagli
+// documento». Qui si decide solo come le due si dispongono quando lo schermo
+// e’ largo — sul telefono restano i due pannelli apribili del riferimento.
+//
+// ⛔ Il problema che risolve: la prima sezione ha DUE soli campi, e a tutta
+// larghezza Cliente e Location diventavano larghi il doppio di quanto serva,
+// con la seconda sezione incolonnata sotto. Due fasce alte al posto di una.
+//
+// ⭐ Affiancarle e’ la vestizione naturale, e `flex-wrap` fa da rete: dove le
+// due non ci stanno affiancate, la seconda va a capo e si torna incolonnati.
+// Nessuna soglia scritta a mano, nessuna seconda struttura.
+//
+// ⚠️ Le sezioni si raggiungono per NOME, non per posizione. Le quote di prima
+// erano su `nth-child`, e cambiare la ripartizione dei campi le spostava tutte
+// — e’ il difetto che questo foglio ha gia’ pagato una volta.
+@include bp.media-up('lg') {
+  .co-form .doc-form__header {
+    flex-direction: row;
+    flex-wrap: wrap;
+    // Ogni sezione alta quanto il suo contenuto: con `stretch` la prima si
+    // allungherebbe fino alla seconda lasciando aria sotto i due campi.
+    align-items: flex-start;
+  }
+
+  .co-form .co-form__header-section {
+    flex: 1 1 auto;
+    min-inline-size: 0;
+  }
+
+  // I «Dettagli» ospitano sei o sette campi contro due: la quota segue quanti
+  // dati porta la sezione, non un’estetica scelta a occhio.
+  .co-form .co-form__header-section--details {
+    flex-grow: 2.4;
+  }
+}
+
 // ── Riga di inserimento rapido, sempre in fondo alla tabella (§RIGHE) ───────
 .co-form__quick-row td {
   padding: var(--space-2) var(--table-cell-pad-inline);

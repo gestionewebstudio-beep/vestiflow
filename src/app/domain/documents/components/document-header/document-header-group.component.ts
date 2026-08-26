@@ -34,6 +34,13 @@ import { ViewportService } from '@core/services/viewport.service';
  *             al livello della fascia e restano celle come gli altri
  * ```
  *
+ * ⚠️ **L'aspetto vive nel foglio globale, in tutte e due le vesti**, come per
+ * ogni classe proiettata dentro il pannello: `.doc-panel__fields--two` sta in
+ * `_document-form-mobile.scss`, `.doc-form__header-group { display: contents }`
+ * in `_document-form.scss` — accanto a `doc-form__gate-fields`, che ha la
+ * stessa natura e lo stesso trattamento. Qui non c'è un foglio locale: sarebbe
+ * una seconda dichiarazione della stessa cosa.
+ *
  * ⚠️ `display: contents` è ciò che lo rende **trasparente** e non solo invisibile:
  * l'elemento resta nell'albero ma non genera una scatola, quindi le tre celle
  * partecipano al flex della fascia esattamente come se il raggruppatore non ci
@@ -49,7 +56,6 @@ import { ViewportService } from '@core/services/viewport.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { '[class]': 'classi()' },
   template: `<ng-content />`,
-  styles: [':host { display: contents; }'],
 })
 export class DocumentHeaderGroupComponent {
   private readonly viewport = inject(ViewportService);
@@ -65,7 +71,16 @@ export class DocumentHeaderGroupComponent {
 
   protected readonly classi = computed(() => {
     if (!this.compatto()) {
-      return '';
+      // ⚠️ Su scrivania la classe NON e’ decorativa: serve al foglio globale
+      //   per raggiungere le celle di dentro. `display: contents` toglie la
+      //   scatola ma **non** cambia l’albero DOM, e le regole della fascia
+      //   usano il combinatore di figlio diretto — senza un secondo livello
+      //   di selettore, le celle raggruppate resterebbero senza quota flex e
+      //   con un filo inferiore che le sorelle non hanno.
+      //
+      //   E’ lo stesso identico caso di `doc-form__gate-fields`, che il
+      //   foglio risolve cosi’ da prima (`_document-form.scss`).
+      return 'doc-form__header-group';
     }
     return this.twoColumns() ? 'doc-panel__fields doc-panel__fields--two' : 'doc-panel__fields';
   });

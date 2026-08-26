@@ -242,6 +242,20 @@ app-customer-order-form {
   display: contents;
 }
 
+// ⚠️ **Secondo contenitore `display: contents` nella fascia**, e per la stessa
+// ragione va raggiunto allo stesso modo: `app-document-header-group` affianca
+// due campi brevi dentro il pannello mobile ed e' TRASPARENTE su scrivania, ma
+// `display: contents` toglie la scatola e non l'elemento — il combinatore `>`
+// delle regole della fascia (piu’ sotto, media-up lg) guarda il DOM e senza un
+// secondo livello si ferma qui.
+//
+// ⛔ Misurato il 26/08/2026, subito dopo la migrazione dell’Ordine cliente: Data,
+// Stato e Consegna restavano senza quota flex E con il filo inferiore che le
+// celle sorelle non hanno — una riga orizzontale sotto quelle tre sole.
+.doc-form__header-group {
+  display: contents;
+}
+
 // Ultima colonna della riga senza bordo destro, per ogni breakpoint della
 // griglia compatta (1 col base, 4 col md, 6 col xl).
 .doc-form__header .doc-form__field {
@@ -1754,6 +1768,7 @@ app-customer-order-form {
 
   .doc-form .doc-form__header-row > .doc-form__field,
   .doc-form .doc-form__header-row > .doc-form__gate-fields > .doc-form__field,
+  .doc-form .doc-form__header-row > .doc-form__header-group > .doc-form__field,
   .doc-form .doc-form__header-row app-document-number-field .doc-number__field {
     flex: 1 1 var(--doc-field-min, var(--field-w-md));
     min-inline-size: var(--doc-field-min, var(--field-w-md));
@@ -1765,9 +1780,10 @@ app-customer-order-form {
   // della fascia, ma il combinatore > guarda il DOM — vanno raggiunti
   // attraverso il fieldset (selettore qui sopra) e chiusi qui sotto.
   .doc-form .doc-form__header-row > .doc-form__field:last-child,
+  .doc-form .doc-form__header-row > .doc-form__gate-fields:last-child > .doc-form__field:last-child,
   .doc-form
     .doc-form__header-row
-    > .doc-form__gate-fields:last-child
+    > .doc-form__header-group:last-child
     > .doc-form__field:last-child {
     border-inline-end: 0;
   }
@@ -1775,7 +1791,8 @@ app-customer-order-form {
   // La quota doppia del campo principale (Cliente, Fornitore) vale anche
   // nella fascia flex, dove il grid-column dello span2 non ha effetto.
   .doc-form .doc-form__header-row > .doc-form__field--span2,
-  .doc-form .doc-form__header-row > .doc-form__gate-fields > .doc-form__field--span2 {
+  .doc-form .doc-form__header-row > .doc-form__gate-fields > .doc-form__field--span2,
+  .doc-form .doc-form__header-row > .doc-form__header-group > .doc-form__field--span2 {
     flex-grow: 2;
   }
 }
