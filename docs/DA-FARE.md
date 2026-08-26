@@ -170,6 +170,45 @@ Trovati dal censimento del 23/08, tutti con file e riga nella sintesi. Per gravi
     giacenza al valore contato; `createdByName` è la stringa `'API'`; il documento è creato
     **fuori** dalla transazione che ha già scritto giacenze e movimenti
 
+## ⏸ BLOCCATO da un vincolo esterno — non è una dimenticanza _(26/08/2026)_
+
+### `TenantFeatureSettings.defaultUnitOfMeasure` — autorizzata la rimozione, non eseguibile ora
+
+La colonna è **morta**: il nuovo modello (`unit_of_measure_options.is_default`) la
+sostituisce, il pannello Impostazioni non la scrive più, e il proprietario ne ha
+autorizzato la rimozione dichiarando che i backup vecchi si considerano incompatibili
+e non vale la pena filtrare le chiavi obsolete.
+
+⛔ **Resta comunque in piedi, per un motivo diverso da quello risolto.** Misurato il
+26/08: **tutti e quattro i rami remoti** la portano nello `schema.prisma` —
+
+```text
+origin/main · origin/develop · origin/feature/cassa · origin/feature/pagamenti-tesoriera
+```
+
+— e il database è **condiviso**. Il client Prisma rigenerato del collega seleziona tutti
+gli scalari della tabella: tolta la colonna, **ogni** lettura di `tenant_feature_settings`
+andrebbe in 500, comprese quelle che con l’unità di misura non c’entrano niente. È
+esattamente «lo schema e la sua migration sono una coppia» di `regole-qualita`, vista dal
+lato di chi non ha ancora la migration.
+
+**Si toglie al merge**, insieme al ramo del collega — non prima. Vale lo stesso per gli
+altri flag morti quando saranno decisi.
+
+---
+
+## ⏸ DA PORTARE AL PROPRIETARIO — l’audit dei nove flag `TenantFeatureSettings`
+
+⚠️ **Passo 1 fatto** (commit `caa9c82c`): tolte le due caselle «Giacenze negative»
+(`warnNegativeInventory`, `blockNegativeInventory`) dal pannello Impostazioni, perché
+non comandavano niente — nessun consumer, e la politica vera è quella di
+`inventory-level-delta.util`: l’insufficienza **avvisa e non blocca mai**. Le colonne
+restano nel database (vedi blocco qui sopra).
+
+⛔ **I sette flag restanti NON si toccano** finché le domande sotto non hanno risposta.
+Il proprietario è stato esplicito: _«non farei ancora modifiche automatiche»_, e un flag
+che esiste non è un motivo per implementarlo.
+
 ## ⏸ DOMANDE APERTE — non colmarle per verosimiglianza
 
 - **Prezzo fornitore**: dove vive il valore impostabile (blocco C)
@@ -178,6 +217,8 @@ Trovati dal censimento del 23/08, tutti con file e riga nella sintesi. Per gravi
 - **Import prodotti via XML**: il proprietario segnala che molti clienti caricano così. È un
   feed **diverso** da FatturaPA, e non ha ancora una specifica
 - **Movimenti irreversibili** di Registra movimento (difetto 2 qui sopra)
+- **I sette flag `TenantFeatureSettings` superstiti**: per ognuno, si implementa, si
+  rimuove, o resta dichiarato aperto? Sono decisioni di prodotto, non di pulizia
 
 ---
 

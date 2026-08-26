@@ -116,17 +116,18 @@ strumenti di lavoro. Non ci si cercano decisioni.
 
 ## Documenti e righe — `03`, `03c`, `03d`, `09`, `12`
 
-| Decisione                                                                                                                                    | Dove                     |
-| -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
-| **Una riga che movimenta ha UN movimento**, identificato da `sourceLineId`, aggiornato in posto                                              | `09` · regole            |
-| **La riga è una fotografia**: un valore non modificato conserva quello persistito                                                            | regole                   |
-| Lo **Vendita manuale** non crea movimenti — deroga esplicita, non un precedente                                                              | regole                   |
-| ⭐ **L'Ordine cliente è il riferimento MOBILE** di tutti i documenti a righe articolo: una sola struttura comune, mai una card per documento | `03d` §1                 |
-| ⭐ **Prima la convergenza strutturale, le differenze alla fine** — e si esprimono come configurazione, mai come seconda implementazione      | `03d` §2, §12            |
-| **Una maschera entra nel sistema comune UNA volta**, per tutte le responsabilità comuni insieme                                              | `03d` §11                |
-| **Il titolo è uno, la variante sta in `variantLabel`**: mai concatenata dentro la descrizione                                                | `03d` §6 · Blocco 0 §3.2 |
-| **Un solo risolutore** per «l'articolo entra nella riga»; acquisizione, `FormControl` e anagrafica restano fuori                             | `03c`                    |
-| **Impegna, Carica e Scarica** condividono la regola di eleggibilità, **non** campo, default, effetto e significato                           | `03d` §4 · `03` §18.4    |
+| Decisione                                                                                                                                    | Dove                        |
+| -------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| **Una riga che movimenta ha UN movimento**, identificato da `sourceLineId`, aggiornato in posto                                              | `09` · regole               |
+| **La riga è una fotografia**: un valore non modificato conserva quello persistito                                                            | regole                      |
+| Lo **Vendita manuale** non crea movimenti — deroga esplicita, non un precedente                                                              | regole                      |
+| ⭐ **La Vendita manuale si accende, e la accende il TITOLARE**: nasce spenta; governa creazione e modifica, non l’eliminazione               | `SOLO-GESTIONALE` §10.6-bis |
+| ⭐ **L'Ordine cliente è il riferimento MOBILE** di tutti i documenti a righe articolo: una sola struttura comune, mai una card per documento | `03d` §1                    |
+| ⭐ **Prima la convergenza strutturale, le differenze alla fine** — e si esprimono come configurazione, mai come seconda implementazione      | `03d` §2, §12               |
+| **Una maschera entra nel sistema comune UNA volta**, per tutte le responsabilità comuni insieme                                              | `03d` §11                   |
+| **Il titolo è uno, la variante sta in `variantLabel`**: mai concatenata dentro la descrizione                                                | `03d` §6 · Blocco 0 §3.2    |
+| **Un solo risolutore** per «l'articolo entra nella riga»; acquisizione, `FormControl` e anagrafica restano fuori                             | `03c`                       |
+| **Impegna, Carica e Scarica** condividono la regola di eleggibilità, **non** campo, default, effetto e significato                           | `03d` §4 · `03` §18.4       |
 
 ## Denaro — `regole-gestionale`
 
@@ -148,6 +149,16 @@ strumenti di lavoro. Non ci si cercano decisioni.
 | «Vendita negozio» è **legacy**: il nome è «Vendita al banco»                                                                                                             | A6         |
 
 ---
+
+## Anagrafica e impostazioni — `SOLO-GESTIONALE`, `03b`
+
+| Decisione                                                                                                       | Dove                               |
+| --------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| ⭐ **Un solo elenco di unità di misura**, quello dell’azienda: righe documento e anagrafica leggono lo stesso   | `SOLO-GESTIONALE` §16.1 · `03b` §5 |
+| **La predefinita precompila un articolo NUOVO** — anche creato in linea — e nient’altro                         | `SOLO-GESTIONALE` §16.1            |
+| ⛔ **Non sostituisce il default della riga documento**, che viene dall’articolo                                 | `SOLO-GESTIONALE` §16.1            |
+| **Vuota è legittima**: zero o una per azienda, garantito da indice unico parziale                               | `03b` §5                           |
+| ⛔ **Rinominare o eliminare una voce non riscrive articoli né documenti**: l’unità è testo sulla riga, senza FK | `03b` §5                           |
 
 ## ⏸ Le decisioni APERTE — in un posto solo
 

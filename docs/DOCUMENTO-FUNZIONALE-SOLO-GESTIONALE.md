@@ -374,6 +374,50 @@ Maschera tipo DDT vendita (`manual-unload/new`, stessa struttura righe: articolo
 - **Eliminazione definitiva:** cancella SOLO il documento — le giacenze già scalate **non vengono ripristinate**.
 - **Modifica:** riconciliazione a delta (3 → 5 scarica solo 2 in più; cambio location ripristina la vecchia e scarica la nuova), sempre senza movimenti.
 
+#### ⭐ Si accende, e la accende il titolare — deciso il 26/08/2026
+
+> **La Vendita manuale è una funzione che l’azienda attiva. Nasce SPENTA, e solo il
+> titolare dell’account può accenderla** (Impostazioni → Magazzino e documenti).
+
+**Perché esiste l’interruttore.** È l’unico tipo documento che scarica la giacenza
+**senza lasciare un movimento**, e la sua eliminazione **non ripristina** ciò che ha
+scaricato (deroga qui sopra). Chi non vuole quella scorciatoia in casa deve poterla
+togliere di mezzo, non doverla solo evitare per disciplina.
+
+⚠️ **Nasce spenta, e non è prudenza generica:** una funzione che altera il magazzino
+senza traccia non si eredita per default. Chi la vuole la accende sapendo cosa fa.
+
+⛔ **Solo il titolare**, non «chi ha il permesso Impostazioni azienda»: quel permesso ce
+l’hanno anche ruoli che con la responsabilità di una deroga sul magazzino non c’entrano.
+Il rifiuto è **del server** — `ForbiddenException` sul solo campo sensibile — perché una
+tendina nascosta non è un controllo.
+
+**Che cosa governa, esattamente.** Due cose e non una terza:
+
+| Con l’interruttore spento         |                                                 |
+| --------------------------------- | ----------------------------------------------- |
+| **Creare** una Vendita manuale    | ⛔ rifiutato dal server (422)                   |
+| **Modificare** una esistente      | ⛔ rifiutato dal server (409), sblocco compreso |
+| **Eliminare** una esistente       | ✅ resta possibile                              |
+| **Leggere** quelle già registrate | ✅ restano nell’elenco e nel Dettaglio          |
+
+⭐ **L’eliminazione resta libera di proposito** _(deciso dal proprietario)_: spegnere una
+funzione non deve intrappolare i documenti già creati. Chi spegne vuole smettere di
+produrne, non perdere il controllo di quelli che ha.
+
+⚠️ **E il clic di riga si adegua da sé.** Con la funzione spenta il documento non è più
+modificabile, quindi la sua riga porta al **Dettaglio** invece che alla Modifica —
+attraverso `canOpenDocumentForm`, cioè lo stesso punto di decisione che serve anche la
+ricerca globale e i collegamenti trasversali (`14` §2.1). Non è un’eccezione scritta a
+parte: se lo fosse, lo stesso documento avrebbe due aperture diverse a seconda di dove
+lo si è trovato.
+
+⚠️ **Accendere e spegnere si vede SUBITO**, e ha richiesto una correzione: la capacità
+viaggia su `/auth/me` (non su `/tenant/feature-settings`, che manager e commesso non
+possono leggere), e il profilo è in cache per 60 secondi. Senza invalidarla, l’operatore
+girava l’interruttore e per un minuto non cambiava niente — cioè il difetto sembrava
+essere nel salvataggio, che invece funzionava.
+
 ### 10.7 Documenti di vendita (Proforma · DDT vendita · Bozza fattura)
 
 Form unico `sales-document-form` su route dedicate (`proforma/new`, `sales-ddt/new`, `invoice-draft/new`, modifica `sales/:id/edit`):
@@ -534,16 +578,63 @@ Riepilogo per **periodo** su due tab:
 
 Route `/app/settings`. Pannelli visibili nel profilo Solo gestionale (in quest'ordine):
 
-| Pannello                  | Visibilità                                      | Contenuto                                                                                                                                                                                                                     |
-| ------------------------- | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Profilo**               | Tutti                                           | Dati utente e **foto profilo**: upload JPEG/PNG/WebP max 2 MB, ritaglio circolare con zoom; Cambia/Rimuovi; senza foto → iniziali                                                                                             |
-| **Sede fisica**           | Permesso Impostazioni azienda                   | Anagrafica commerciale del negozio registrata dall'operatore VestiFlow (ragione sociale, P.IVA, indirizzo, contatti) con riquadro espandibile **Dati fiscali e contatti**; indipendente dalle sedi operative                  |
-| **Magazzino e documenti** | Titolare/Admin (accesso completo)               | **Gestione lotti e scadenze** · **Gestione numeri seriali** · **Policy aggiornamento prezzo fornitore** (sempre / chiedi / mai) · **Unità di misura** e **IVA predefinita** per i nuovi articoli. Valida per tutto il negozio |
-| **Codici IVA**            | Titolare/Admin                                  | Gestione codici IVA (aliquota, natura, ambito vendite/acquisti, attivo) — pagina dedicata `/app/settings/codici-iva`                                                                                                          |
-| **Pagamenti**             | Titolare/Admin                                  | Opzioni di pagamento/condizioni usate da clienti, ordini e documenti — pagina dedicata `/app/settings/pagamenti`                                                                                                              |
-| **Backup negozio**        | Titolare/Admin (azioni riservate al titolare)   | **Esporta** o **ripristina** una copia completa dei dati del negozio                                                                                                                                                          |
-| **Sicurezza account**     | Tutti (gestione MFA: titolare/admin per policy) | **Verifica in due passaggi (MFA)** con app authenticator; al login successivo password + codice a 6 cifre                                                                                                                     |
-| **Aspetto**               | Tutti                                           | Tema **Chiaro / Scuro / Sistema** (anche dalla topbar)                                                                                                                                                                        |
+| Pannello                  | Visibilità                                      | Contenuto                                                                                                                                                                                                                                                                                                                                  |
+| ------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Profilo**               | Tutti                                           | Dati utente e **foto profilo**: upload JPEG/PNG/WebP max 2 MB, ritaglio circolare con zoom; Cambia/Rimuovi; senza foto → iniziali                                                                                                                                                                                                          |
+| **Sede fisica**           | Permesso Impostazioni azienda                   | Anagrafica commerciale del negozio registrata dall'operatore VestiFlow (ragione sociale, P.IVA, indirizzo, contatti) con riquadro espandibile **Dati fiscali e contatti**; indipendente dalle sedi operative                                                                                                                               |
+| **Magazzino e documenti** | Titolare/Admin (accesso completo)               | **Gestione lotti e scadenze** · **Gestione numeri seriali** · **Policy aggiornamento prezzo fornitore** (sempre / chiedi / mai) · **Unità di misura** (elenco gestibile + predefinita, vedi 16.1) · **IVA predefinita** per i nuovi articoli · **Vendita manuale** (interruttore del titolare, vedi 10.6-bis). Valida per tutto il negozio |
+| **Codici IVA**            | Titolare/Admin                                  | Gestione codici IVA (aliquota, natura, ambito vendite/acquisti, attivo) — pagina dedicata `/app/settings/codici-iva`                                                                                                                                                                                                                       |
+| **Pagamenti**             | Titolare/Admin                                  | Opzioni di pagamento/condizioni usate da clienti, ordini e documenti — pagina dedicata `/app/settings/pagamenti`                                                                                                                                                                                                                           |
+| **Backup negozio**        | Titolare/Admin (azioni riservate al titolare)   | **Esporta** o **ripristina** una copia completa dei dati del negozio                                                                                                                                                                                                                                                                       |
+| **Sicurezza account**     | Tutti (gestione MFA: titolare/admin per policy) | **Verifica in due passaggi (MFA)** con app authenticator; al login successivo password + codice a 6 cifre                                                                                                                                                                                                                                  |
+| **Aspetto**               | Tutti                                           | Tema **Chiaro / Scuro / Sistema** (anche dalla topbar)                                                                                                                                                                                                                                                                                     |
+
+### 16.1 Unità di misura — l’elenco è dell’azienda, la predefinita è un seme _(26/08/2026)_
+
+Dal pannello **Magazzino e documenti** si apre il gestore delle unità: **creare**,
+**rinominare**, **eliminare**, e **scegliere la predefinita**.
+
+⛔ **Qui c’era un campo di testo libero.** Si scriveva «pz» a mano, e non aveva niente a
+che vedere con l’elenco vero — quello che l’operatore compone e che le righe documento
+già usavano. Due elenchi diversi a seconda di dove si guardava: un’azienda che aggiungeva
+«m» dal gestore lo trovava sulle righe e **non** sull’articolo.
+
+**La predefinita fa UNA cosa: precompila un articolo NUOVO**, compresi quelli creati in
+linea da una riga documento. Le cinque condizioni poste dal proprietario, e come sono
+garantite:
+
+| Condizione                                          | Dove è garantita                                           |
+| --------------------------------------------------- | ---------------------------------------------------------- |
+| **Zero o una** per azienda                          | indice unico parziale sul database, come per i codici IVA  |
+| **Togliere la spunta** lascia senza predefinita     | è uno stato legittimo, non un guasto                       |
+| **Eliminare** la predefinita lascia l’azienda senza | nessun ripiego automatico su un’altra voce                 |
+| **Nessun articolo o documento** si riscrive         | l’U.M. è una stringa sulle righe, **senza chiave esterna** |
+| Serve alla **creazione**, non alla lettura          | non è retroattiva, e non tocca ciò che esiste              |
+
+⭐ **Vuota è una scelta, non una dimenticanza.** Chi tiene articoli misti non vuole una
+predefinita: dovrebbe cambiarla ogni volta, e — peggio — rischierebbe di non accorgersene.
+
+⛔ **La predefinita dell’azienda NON è il default della riga documento**, che continua a
+venire **dall’articolo**. Sono due sorgenti diverse: confonderle scriverebbe l’unità
+dell’azienda su una riga il cui articolo ne ha un’altra.
+
+⚠️ **Rinominare o eliminare una voce non riscrive lo storico.** È la stessa disciplina
+del Codice IVA — «la riga di un documento è una fotografia» — ma ottenuta in modo più
+semplice: l’unità è salvata come **testo** sulla riga, quindi non c’è un puntatore da
+azzerare né uno snapshot da congelare. Cancellare una voce toglie una scelta futura,
+non un dato passato.
+
+**Il seme e il ripiego non sono la stessa cosa**, e vanno tenuti distinti:
+
+```text
+articolo nuovo   →  nasce SENZA unità  →  seme: la predefinita dell’azienda, se c’è
+salvataggio      →  se ancora vuota    →  ripiego tecnico «pz», come è sempre stato
+```
+
+⚠️ Se l’articolo nuovo nascesse già a «pz», la predefinita non avrebbe niente da seminare
+— e non si distinguerebbe «pz scelto» da «pz per inerzia».
+
+---
 
 **Non presenti in questo profilo:** Integrazione Shopify, Integrazione TikTok Shop, pannello Location con sync/licensing sedi (le sedi operative sono gestite dall'operatore piattaforma).
 

@@ -610,6 +610,55 @@ quindi eliminare una voce non ha guardie da superare e non tocca un dato
 salvato. Chi copierà il servizio da quello dei codici IVA non deve aggiungerne
 una per simmetria — c'è uno spec che lo ferma.
 
+### ⭐ E dal 26/08/2026 quell’elenco è l’UNICO — prima erano due
+
+⛔ **L’anagrafica articolo non lo leggeva.** Prendeva le sue sei voci da una costante
+compilata (`COMMON_UNIT_OF_MEASURE`), quindi un’azienda che aggiungeva «m» dal gestore
+la trovava sulle righe documento e **non** sulla scheda articolo. Non era debito
+nascosto: il seed del server lo dichiarava già temporaneo — _«la costante del frontend
+serve solo come ripiego finché l’elenco non è arrivato»_. Era arrivato.
+
+Ora c’è **un solo controllo**, `app-unit-of-measure-select`, **autosufficiente**: si
+procura l’elenco da sé e ospita il proprio gestore, così chi lo usa non deve sapere
+niente. L’anagrafica lo adotta.
+
+⚠️ **È un FRATELLO di `document-line-unit-cell`, non il suo interno**, e la ragione è
+misurata: la cella di riga **non è agnostica** — `lineIndex` obbligatorio,
+`inColumnCycle`, quattro uscite di navigazione fra celle — e non lo è nemmeno il
+`document-line-select-cell` che ha dentro. Farla scendere in anagrafica ci avrebbe
+portato il giro del fuoco di una griglia che lì non esiste.
+
+### La predefinita per tenant — `is_default`
+
+`unit_of_measure_options.is_default`, con **indice unico parziale** per tenant: al più
+una, esattamente come `vat_codes_tenant_default_key`.
+
+⭐ **Scartata l’alternativa `Tenant.defaultUnitOfMeasureOptionId`** (chiave esterna dal
+tenant alla voce). Sarebbe stata altrettanto corretta; `is_default` tiene la decisione
+sulla riga che la riguarda e riusa un pattern che il progetto ha già, con la stessa
+garanzia a livello di database.
+
+**Cosa fa**: precompila un articolo **nuovo**, compresi quelli creati in linea da una
+riga documento. **Cosa non fa**: non è retroattiva, non riscrive nulla, e **non**
+sostituisce il default della riga documento — che continua a venire dall’articolo.
+
+⚠️ **Il seme è un `effect`, non la fabbrica della bozza.** L’elenco si carica a
+richiesta e la **prima lettura torna vuota**: seminare al momento della costruzione
+mancherebbe il bersaglio a freddo, e lo mancherebbe **in silenzio**.
+
+⚠️ E il `pristine` si ri-allinea **solo se era pulito**: seminare non è una modifica
+dell’operatore e non deve far comparire «modifiche non salvate» su una scheda appena
+aperta — ma non deve nemmeno inghiottire quello che l’operatore aveva già scritto.
+
+⚠️ **La bozza di articolo nuovo nasce quindi SENZA unità**, non a `pz`. Il ripiego
+tecnico `pz` resta dov’è sempre stato: al salvataggio (`unitOfMeasure.trim() || 'pz'`).
+Se nascesse già compilata, la predefinita non avrebbe niente da seminare.
+
+⭐ **La frase qui sopra — «suggerimento, non autorità» — resta vera, ed è ciò che rende
+sicura la cancellazione**: senza FK, eliminare una voce toglie una scelta futura e non
+tocca un documento passato. È la disciplina del «documento fotografia» ottenuta senza
+snapshot, perché l’unità sulla riga è già testo.
+
 ---
 
 ## 6. Le due forme di riferimento: `VatCode` e `PaymentOption`
