@@ -193,3 +193,104 @@ describe('TenantFeatureSettingsService', () => {
     });
   });
 });
+
+/**
+ * ⛔ **L'interruttore della Vendita manuale lo gira SOLO il titolare.**
+ *
+ * Non è una preferenza fra le altre: quel documento riduce la giacenza senza
+ * generare movimenti di magazzino, e l'interruttore serve a proteggersene. Chi
+ * amministra le impostazioni non deve poterselo riaccendere.
+ *
+ * ⚠️ **La UI non è la protezione.** Il pannello Impostazioni è già visibile al
+ * solo titolare, ma un amministratore può chiamare `PATCH /tenant/feature-settings`
+ * direttamente. Queste due prove guardano il servizio, non lo schermo — sono le
+ * due che il proprietario ha reso obbligatorie il 26/08/2026.
+ */
+describe('TenantFeatureSettingsService — chi può girare l’interruttore', () => {
+  const tenantId = 'tenant-1';
+
+  function creaServizio() {
+    const prisma = {
+      tenantFeatureSettings: {
+        upsert: vi.fn().mockResolvedValue({ tenantId, manualUnloadEnabled: false }),
+        update: vi.fn().mockResolvedValue({ tenantId, manualUnloadEnabled: true }),
+      },
+      userDocumentPriceModePreference: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+    };
+    return {
+      prisma,
+      service: new TenantFeatureSettingsService(prisma as unknown as PrismaService),
+    };
+  }
+
+  /** Un utente qualunque, col ruolo e i permessi che gli si vogliono dare. */
+  function utente(role: string, permessi: readonly string[] = []) {
+    return { role, permissions: permessi, supportSession: null } as never;
+  }
+
+  it('⭐ il TITOLARE la accende', async () => {
+    const { service, prisma } = creaServizio();
+
+    await service.update(tenantId, { manualUnloadEnabled: true }, utente('owner'));
+
+    expect(prisma.tenantFeatureSettings.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { manualUnloadEnabled: true } }),
+    );
+  });
+
+  it('⭐ e la spegne', async () => {
+    const { service, prisma } = creaServizio();
+
+    await service.update(tenantId, { manualUnloadEnabled: false }, utente('owner'));
+
+    expect(prisma.tenantFeatureSettings.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { manualUnloadEnabled: false } }),
+    );
+  });
+
+  it('⛔ un AMMINISTRATORE con tutti i permessi viene respinto dall’API', async () => {
+    // ⚠️ `settings.company` è il permesso che apre le Impostazioni generali:
+    //   averlo non basta, ed è esattamente il punto della richiesta.
+    const { service, prisma } = creaServizio();
+
+    await expect(
+      service.update(
+        tenantId,
+        { manualUnloadEnabled: true },
+        utente('admin', ['settings.company']),
+      ),
+    ).rejects.toThrow(/titolare/i);
+    expect(prisma.tenantFeatureSettings.update).not.toHaveBeenCalled();
+  });
+
+  it('⛔ e viene respinto anche SPEGNENDOLA, non solo accendendola', async () => {
+    const { service } = creaServizio();
+
+    await expect(
+      service.update(
+        tenantId,
+        { manualUnloadEnabled: false },
+        utente('admin', ['settings.company']),
+      ),
+    ).rejects.toThrow(/titolare/i);
+  });
+
+  it('⛔ e senza utente affatto', async () => {
+    const { service } = creaServizio();
+
+    await expect(service.update(tenantId, { manualUnloadEnabled: true })).rejects.toThrow(
+      /titolare/i,
+    );
+  });
+
+  it('⭐ ma le ALTRE impostazioni restano dell’amministratore', async () => {
+    // ⚠️ Il rifiuto è mirato al campo sensibile. Se coprisse tutto il PATCH,
+    //   IVA predefinita, listini e netto/ivato diventerebbero owner-only senza
+    //   che nessuno l'abbia chiesto.
+    const { service, prisma } = creaServizio();
+
+    await service.update(tenantId, { lotsEnabled: true }, utente('admin', ['settings.company']));
+
+    expect(prisma.tenantFeatureSettings.update).toHaveBeenCalled();
+  });
+});

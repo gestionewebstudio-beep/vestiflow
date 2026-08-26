@@ -2619,16 +2619,25 @@ describe('DocumentsService', () => {
       prisma.documentLine.deleteMany.mockResolvedValue({ count: 1 });
       prisma.document.update.mockResolvedValue({ ...doc, lines: doc.lines });
 
-      await service.update(tenantId, 'doc-sca', {
-        lines: [
-          {
-            description: 'Maglia',
-            variantId: 'var-1',
-            quantity: 4,
-            loadsStock: true,
-          },
-        ],
-      });
+      // ⚠️ L’utente ora serve: dal 26/08/2026 modificare una Vendita manuale
+      //   richiede che la funzione sia ACCESA per l’azienda, e il flag viaggia
+      //   sul profilo. Senza utente il servizio rifiuta — fail-closed voluto,
+      //   perche' l'interruttore e' una misura di sicurezza.
+      await service.update(
+        tenantId,
+        'doc-sca',
+        {
+          lines: [
+            {
+              description: 'Maglia',
+              variantId: 'var-1',
+              quantity: 4,
+              loadsStock: true,
+            },
+          ],
+        },
+        testOwnerUser(),
+      );
 
       // Deroga prompt Vendita manuale: riconciliazione a delta diretto
       // (2 → 4 scarica solo -2) SENZA creare movimenti.
@@ -3114,10 +3123,7 @@ describe('DocumentsService', () => {
     });
 
     it('non blocca le mutazioni dei documenti senza sede (es. fattura)', async () => {
-      const { service } = createService(
-        prisma,
-        resolvedSetting({ type: DocumentType.invoice }),
-      );
+      const { service } = createService(prisma, resolvedSetting({ type: DocumentType.invoice }));
       prisma.document.findFirst.mockResolvedValue(
         docInLocB({ type: DocumentType.invoice, locationId: null }),
       );
@@ -3248,5 +3254,109 @@ describe('DocumentsService', () => {
       await expect(service.delete(tenantId, 'doc-1')).rejects.toBeInstanceOf(ConflictException);
       expect(prisma.document.delete).not.toHaveBeenCalled();
     });
+  });
+});
+
+/**
+ * ⛔ **L'interruttore aziendale della Vendita manuale, dove conta: sull'API.**
+ *
+ * La UI non è la protezione. Nascondere il pulsante toglie la strada comoda, non
+ * la strada: `POST /documents` accetta il tipo, e lo sblocco della maschera è
+ * solo stato del client. Chi vuole aggirare il blocco apre una Vendita manuale
+ * storica, la sblocca, cambia le quantità e salva — ottenendo la stessa
+ * variazione diretta di giacenza, senza `StockMovement`.
+ *
+ * Per questo il rifiuto copre **creazione e modifica**, e per questo sta qui.
+ */
+describe('DocumentsService — l’interruttore della Vendita manuale', () => {
+  const tenantId = 'tenant-1';
+
+  function utente(acceso: boolean) {
+    return { ...testOwnerUser(), manualUnloadEnabled: acceso };
+  }
+
+  it('⛔ spenta: la creazione è rifiutata dall’API, non solo nascosta', async () => {
+    const prisma = createPrismaMock();
+    const { service } = createService(
+      prisma,
+      resolvedSetting({ type: DocumentType.manual_unload }),
+    );
+
+    await expect(
+      service.create(
+        tenantId,
+        { type: DocumentType.manual_unload, documentDate: '2026-08-26' },
+        utente(false),
+      ),
+    ).rejects.toThrow(/non è attiva per questa azienda/i);
+    expect(prisma.document.create).not.toHaveBeenCalled();
+  });
+
+  it('⛔ e senza utente affatto: spenta', async () => {
+    // ⚠️ Fail-closed voluto, e diverso dalla convenzione del file — dove
+    //   «utente assente» significa «chiamata interna fidata». Qui il flag è del
+    //   TENANT, non della persona: nessun utente = nessuna azienda = spenta.
+    //   Nessun chiamante interno crea manual_unload (verificato il 26/08/2026):
+    //   le creazioni interne passano da `createDocumentRecord`, più a valle.
+    const prisma = createPrismaMock();
+    const { service } = createService(
+      prisma,
+      resolvedSetting({ type: DocumentType.manual_unload }),
+    );
+
+    await expect(
+      service.create(tenantId, { type: DocumentType.manual_unload, documentDate: '2026-08-26' }),
+    ).rejects.toThrow(/non è attiva per questa azienda/i);
+  });
+
+  it('⭐ accesa: il rifiuto NON scatta', async () => {
+    // ⚠️ Espresso come «non fallisce per QUESTO motivo» invece che «riesce»: far
+    //   arrivare `create` in fondo richiederebbe di simulare mezzo dominio, e la
+    //   prova finirebbe per misurare i mock invece dell'interruttore.
+    const prisma = createPrismaMock();
+    const { service } = createService(
+      prisma,
+      resolvedSetting({ type: DocumentType.manual_unload }),
+    );
+
+    const esito = await service
+      .create(
+        tenantId,
+        { type: DocumentType.manual_unload, documentDate: '2026-08-26' },
+        utente(true),
+      )
+      .catch((errore: Error) => errore);
+
+    expect(String(esito)).not.toMatch(/non è attiva per questa azienda/i);
+  });
+
+  it('⛔ spenta: anche la MODIFICA è rifiutata', async () => {
+    const prisma = createPrismaMock();
+    const { service } = createService(
+      prisma,
+      resolvedSetting({ type: DocumentType.manual_unload }),
+    );
+    prisma.document.findFirst.mockResolvedValue({
+      id: 'doc-vm',
+      tenantId,
+      type: DocumentType.manual_unload,
+      status: DocumentStatus.confirmed,
+      lines: [],
+    });
+
+    await expect(service.update(tenantId, 'doc-vm', { lines: [] }, utente(false))).rejects.toThrow(
+      /non è attiva per questa azienda/i,
+    );
+  });
+
+  it('⭐ e nessun ALTRO tipo è toccato, nemmeno a funzione spenta', async () => {
+    const prisma = createPrismaMock();
+    const { service } = createService(prisma, resolvedSetting({ type: DocumentType.quote }));
+
+    const esito = await service
+      .create(tenantId, { type: DocumentType.quote, documentDate: '2026-08-26' }, utente(false))
+      .catch((errore: Error) => errore);
+
+    expect(String(esito)).not.toMatch(/non è attiva per questa azienda/i);
   });
 });

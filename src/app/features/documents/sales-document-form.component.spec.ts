@@ -738,6 +738,7 @@ describe('SalesDocumentFormComponent', () => {
       allowNegativeInventory: false,
       warnNegativeInventory: true,
       blockNegativeInventory: false,
+      manualUnloadEnabled: false,
       defaultUnitOfMeasure: 'pz',
       defaultVatCodeId: null,
       listino1Name: 'Ingrosso',

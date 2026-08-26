@@ -66,6 +66,10 @@ export class TenantOperationalSettingsPanelComponent {
     defaultVatCodeId: this.fb.control(''),
     warnNegativeInventory: this.fb.control(true),
     blockNegativeInventory: this.fb.control(false),
+    // ⛔ Capacità operativa, non preferenza: la Vendita manuale riduce la
+    //   giacenza senza generare movimenti. Nasce SPENTA, e la gira solo il
+    //   titolare — il rifiuto vero è lato API, questo è solo il campo.
+    manualUnloadEnabled: this.fb.control(false),
     // Listini aggiuntivi (§B): tre posizioni fisse, nome e attivazione.
     listino1Name: this.fb.control(''),
     listino1Active: this.fb.control(true),
@@ -116,6 +120,7 @@ export class TenantOperationalSettingsPanelComponent {
           defaultUnitOfMeasure: result.settings.defaultUnitOfMeasure,
           defaultVatCodeId: result.settings.defaultVatCodeId ?? '',
           warnNegativeInventory: result.settings.warnNegativeInventory,
+          manualUnloadEnabled: result.settings.manualUnloadEnabled,
           blockNegativeInventory: result.settings.blockNegativeInventory,
           listino1Name: result.settings.listino1Name ?? '',
           listino1Active: result.settings.listino1Active,
@@ -144,6 +149,7 @@ export class TenantOperationalSettingsPanelComponent {
         defaultVatCodeId: raw.defaultVatCodeId || null,
         warnNegativeInventory: raw.warnNegativeInventory,
         blockNegativeInventory: raw.blockNegativeInventory,
+        manualUnloadEnabled: raw.manualUnloadEnabled,
         // Nome vuoto = `null`: il listino torna a chiamarsi «Listino N», non
         // resta senza nome.
         listino1Name: raw.listino1Name.trim() || null,

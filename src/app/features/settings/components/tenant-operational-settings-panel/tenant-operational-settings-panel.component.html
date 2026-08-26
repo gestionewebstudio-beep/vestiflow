@@ -107,6 +107,28 @@
       </label>
     </fieldset>
 
+    <!--
+      ⛔ Sezione a sé, e non una spunta fra le altre: è un interruttore di
+      SICUREZZA. La Vendita manuale è l’unico documento che riduce la giacenza
+      senza generare un movimento di magazzino, e il documento resta l’unica
+      evidenza dello scarico.
+
+      ⚠️ La spunta la gira solo il titolare. Qui non c’è un gate: il pannello
+      intero è già visibile al solo titolare, e la protezione vera è lato API —
+      nascondere un comando non è proteggerlo.
+    -->
+    <fieldset class="tenant-ops__group">
+      <legend>Vendita manuale</legend>
+      <p class="tenant-ops__hint">
+        Consente di registrare una vendita e ridurre la giacenza senza creare movimenti di
+        magazzino.
+      </p>
+      <label class="tenant-ops__check">
+        <input type="checkbox" formControlName="manualUnloadEnabled" />
+        Attiva la Vendita manuale
+      </label>
+    </fieldset>
+
     @if (saveMessage(); as msg) {
       <p class="tenant-ops__success" role="status">{{ msg }}</p>
     }

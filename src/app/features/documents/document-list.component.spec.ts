@@ -65,6 +65,14 @@ interface ProfileLabels {
 interface UtenteDiProva {
   readonly role: string;
   readonly permissions: readonly string[];
+  /**
+   * Interruttore aziendale della Vendita manuale.
+   *
+   * ⚠️ Nei test nasce ACCESO, al contrario della produzione: questi provano i
+   * comandi e i permessi, non l’interruttore. Chi prova l’interruttore lo
+   * dichiara, in un verso o nell’altro.
+   */
+  readonly manualUnloadEnabled?: boolean;
 }
 
 async function renderList(
@@ -93,7 +101,12 @@ async function renderList(
           queryParamMap: of(convertToParamMap(queryParams)),
         },
       },
-      { provide: AuthService, useValue: { currentUser: () => user } },
+      {
+        provide: AuthService,
+        useValue: {
+          currentUser: () => (user ? { manualUnloadEnabled: true, ...user } : null),
+        },
+      },
       {
         provide: DocumentService,
         useValue: {

@@ -444,6 +444,29 @@ export function canOpenRetailRegister(user: User | null | undefined): boolean {
   );
 }
 
+/**
+ * ⛔ **La Vendita manuale è operativa solo dove il titolare l’ha accesa.**
+ *
+ * È l’unico documento che riduce la giacenza **senza** generare uno
+ * `StockMovement`: il documento è l’unica evidenza dello scarico, e la sua
+ * eliminazione non ripristina le giacenze. Per questo è un interruttore di
+ * sicurezza, e per questo nasce **spento**.
+ *
+ * ⚠️ Sta qui, e non nei chiamanti, per la stessa ragione di
+ * `canOpenRetailRegister`: le porte di creazione sono **sei** — card dell’hub,
+ * pulsante di testata, stato vuoto, menu «Altro documento», e due punti della
+ * ricerca globale — e una condizione scritta sei volte comincia a divergere
+ * subito dopo.
+ *
+ * ⭐ Il flag arriva col **profilo**, quindi il predicato è sincrono e vale per
+ * ogni ruolo. Letto da `/tenant/feature-settings` sarebbe rimasto acceso per
+ * manager e commesso, che quell’endpoint non lo possono chiamare.
+ */
+export function isManualUnloadEnabled(user: User | null | undefined): boolean {
+  // `=== true` e non `!== false`: profilo senza il campo = spenta.
+  return user?.manualUnloadEnabled === true;
+}
+
 export function canManageMfa(user: User | null | undefined): boolean {
   if (!user) {
     return false;

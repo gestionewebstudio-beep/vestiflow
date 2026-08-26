@@ -92,6 +92,55 @@ L'interfaccia deve privilegiare:
 - **Eccezione sync**: i delta di giacenza che arrivano da Shopify (vendite online, rettifiche fatte nell'admin Shopify) generano movimenti con origine `shopify` (`type: sale` o `adjustment`). Non sono "modifiche silenziose" ma nemmeno azioni utente: l'origine deve essere distinguibile nello storico.
 - **DEROGA Vendita manuale (prompt Vendita manuale, 2026-07 — scelta esplicita del cliente)**: il SOLO tipo documento `manual_unload` aggiorna la giacenza direttamente al salvataggio SENZA creare `StockMovement` (implementazione: `api/src/documents/document-stock-manual-unload.util.ts`). Il documento è l'unica evidenza dello scarico; la sua eliminazione NON ripristina le giacenze. Il push inventario verso i canali (Shopify/TikTok) resta obbligatorio post-commit: la sync legge la giacenza, non i movimenti. Questa deroga NON è un precedente per altri tipi documento.
 
+### ⭐ E la deroga ha un interruttore — deciso il 26/08/2026
+
+> **La Vendita manuale è operativa solo dove il titolare l’ha accesa, e nasce SPENTA.**
+
+Impostazione aziendale `TenantFeatureSettings.manualUnloadEnabled`, in Impostazioni →
+operative. Non è una preferenza fra le altre: è un **interruttore di sicurezza** su una
+capacità che scavalca il motore dei movimenti.
+
+⛔ **Il default è `false`, al contrario di ogni altra colonna di quella tabella.** Non
+riproduce il comportamento precedente — è una scelta esplicita: un interruttore di
+sicurezza che nasce acceso protegge solo chi si ricorda di spegnerlo. I tenant che oggi
+la usano se la trovano spenta e il titolare deve riaccenderla, e questo era messo in conto.
+
+| A funzione spenta    |                                                             |
+| -------------------- | ----------------------------------------------------------- |
+| creare               | ⛔ vietato, e il rifiuto è sull’**API** — non solo nella UI |
+| modificare           | ⛔ vietato, per la stessa ragione                           |
+| aprire la maschera   | ⛔ non ci si arriva: la riga porta al **Dettaglio**         |
+| consultare, stampare | ✅ sempre: lo storico resta                                 |
+| eliminare            | ✅ **nessuna regola nuova**, permessi di sempre             |
+| annullare            | — non esiste per questo tipo, e non si è inventato          |
+
+⚠️ **La modifica è vietata quanto la creazione, e non è pignoleria**: aprire una Vendita
+manuale storica, cambiarne le quantità e salvare produce la **stessa** variazione diretta
+di giacenza senza `StockMovement`. Lasciarla aperta avrebbe reso il blocco aggirabile in un
+clic — e lo sblocco della maschera è solo stato del client, quindi il blocco vero può stare
+soltanto sull’API.
+
+⭐ **La maschera NON si apre «in sola lettura».** Rendere editabile-ma-bloccato avrebbe
+significato nascondere Salva, nascondere Sblocca, disabilitare i campi e inventare uno
+stato parallelo. La destinazione per consultare un documento esiste già ed è il Dettaglio:
+`canOpenDocumentForm` dice no, e `documentRowPath` ci ripiega da solo — quindi clic di riga,
+ricerca globale e link trasversali seguono senza che nessuno li tocchi.
+
+⚠️ **Chi gira l’interruttore è il titolare**, e il rifiuto è mirato al solo campo sensibile:
+le altre impostazioni restano dell’amministratore. Il predicato è `hasFullTenantAccess`,
+quello canonico — quindi comprende anche la **sessione di assistenza**, che è una
+conseguenza dichiarata e non una svista.
+
+⛔ **Si legge sempre `=== true`.** Il default è spento e la riga di `tenant_feature_settings`
+si materializza solo quando qualcuno apre il pannello: «riga assente», «colonna false» e
+«profilo senza il campo» devono dire tutte la stessa cosa. Scritto `!== false`, sarebbe
+acceso per ogni azienda che non ha mai aperto le Impostazioni.
+
+⚠️ **Il flag viaggia sul profilo utente (`/auth/me`), non su `/tenant/feature-settings`**:
+quell’endpoint chiede `settings.company`, che manager e commesso non hanno, e i consumatori
+assorbono il 403 con `catchError(() => of(null))`. Letto per quella strada, sarebbe rimasto
+**acceso proprio per chi lo si vuole spegnere**.
+
 ### Un movimento per riga, aggiornato in posto — non uno per salvataggio _(15/08/2026)_
 
 «Ogni modifica inventariale produce un movimento tracciabile» qui sopra dice **cosa deve esistere**, non **quante volte va scritto**. La distinzione va esplicitata, perché letta male produce un registro che cresce a ogni correzione di battitura.

@@ -26,6 +26,10 @@ const TITOLARE = {
   // ⚠️ Serve al banco: `canOpenRetailRegister` guarda anche il profilo canale
   // del tenant, non il solo permesso. Senza, il titolare non aprirebbe la cassa.
   tenantChannelProfile: TenantChannelProfile.Shopify,
+  // ⚠️ E serve alla Vendita manuale: dal 26/08/2026 la sua maschera si apre solo
+  //   dove l’interruttore aziendale e’ acceso. Spento, la riga porta al
+  //   Dettaglio — che e’ il caso provato piu’ sotto.
+  manualUnloadEnabled: true,
 } as unknown as User;
 
 /** Nessun permesso: vede l'elenco per famiglia, ma non gestisce niente. */
@@ -278,5 +282,59 @@ describe('requireSalesDocumentType', () => {
   it('una rotta senza tipo si rompe, invece di far finta che sia una proforma', () => {
     expect(() => requireSalesDocumentType({})).toThrow(/salesDocumentType/);
     expect(() => requireSalesDocumentType({ salesDocumentType: DocumentType.SalesDdt })).toThrow();
+  });
+});
+
+/**
+ * ⛔ **La Vendita manuale spenta non apre la maschera: porta al Dettaglio.**
+ *
+ * È il modo in cui l'interruttore protegge lo storico senza inventare uno stato
+ * parallelo. La maschera non si apre «in sola lettura» — nascondendo Salva,
+ * nascondendo Sblocca, bloccando i campi: **non ci si arriva**, e la
+ * destinazione giusta esiste già.
+ *
+ * ⚠️ La prova sta qui e non nei chiamanti: `documentRowPath` è l'unica risposta
+ * per tutti gli elenchi, e `documentOpenPath` (ricerca globale, link
+ * trasversali) le delega. Chiuso qui, è chiuso ovunque.
+ */
+describe('Vendita manuale spenta: dove porta il documento', () => {
+  const SPENTA = {
+    role: UserRole.Owner,
+    tenantChannelProfile: TenantChannelProfile.Shopify,
+    manualUnloadEnabled: false,
+  } as unknown as User;
+
+  const doc = (type: DocumentType, status: DocumentStatus = DocumentStatus.Confirmed) => ({
+    id: 'doc-1',
+    type,
+    status,
+  });
+
+  it('⛔ a funzione spenta la riga porta al DETTAGLIO, non alla maschera', () => {
+    // ⚠️ Il Dettaglio della Vendita manuale ha una rotta DEDICATA, non quella
+    //   generica: e' `/manual-unload/:id` senza `/edit`. La differenza sta tutta
+    //   in quel suffisso, e scriverla per intero e’ il modo di non confonderle.
+    expect(documentRowPath(doc(DocumentType.ManualUnload), SPENTA)).toBe(
+      '/app/documents/manual-unload/doc-1',
+    );
+  });
+
+  it('⭐ accesa, porta alla maschera come ogni altro documento', () => {
+    expect(documentRowPath(doc(DocumentType.ManualUnload), TITOLARE)).toBe(
+      '/app/documents/manual-unload/doc-1/edit',
+    );
+  });
+
+  it('⛔ e la ricerca globale segue, perché delega alla stessa funzione', () => {
+    expect(documentOpenPath(doc(DocumentType.ManualUnload), SPENTA)).toBe(
+      '/app/documents/manual-unload/doc-1',
+    );
+  });
+
+  it('⭐ nessun ALTRO tipo cambia destinazione a Vendita manuale spenta', () => {
+    // ⚠️ È il confine: spegne una funzione, non il registro.
+    expect(documentRowPath(doc(DocumentType.Quote), SPENTA)).toContain('/edit');
+    expect(documentRowPath(doc(DocumentType.SalesDdt), SPENTA)).toContain('/edit');
+    expect(documentRowPath(doc(DocumentType.GoodsReceipt), SPENTA)).toContain('/edit');
   });
 });

@@ -10,6 +10,11 @@ export function testOwnerUser(overrides: Partial<UserProfileDto> = {}): UserProf
     tenantId: 'tenant-1',
     tenantName: 'Test Tenant',
     tenantChannelProfile: 'gestionale',
+    // ⚠️ Nei test la Vendita manuale nasce ACCESA, al contrario della
+    //   produzione (default `false`): questi fixture servono a provare la
+    //   logica documentale, non l'interruttore. Chi prova l'interruttore lo
+    //   dichiara, in un verso o nell’altro.
+    manualUnloadEnabled: true,
     email: 'owner@test.it',
     displayName: 'Owner Test',
     avatarUrl: null,
@@ -36,6 +41,11 @@ export function testClerkUser(overrides: Partial<UserProfileDto> = {}): UserProf
     tenantId: 'tenant-1',
     tenantName: 'Test Tenant',
     tenantChannelProfile: 'gestionale',
+    // ⚠️ Nei test la Vendita manuale nasce ACCESA, al contrario della
+    //   produzione (default `false`): questi fixture servono a provare la
+    //   logica documentale, non l'interruttore. Chi prova l'interruttore lo
+    //   dichiara, in un verso o nell’altro.
+    manualUnloadEnabled: true,
     email: 'clerk@test.it',
     displayName: 'Clerk Test',
     avatarUrl: null,

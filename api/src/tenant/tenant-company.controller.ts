@@ -4,6 +4,8 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { TenantPermission } from '../auth/tenant-permission.constants';
 import { RequirePermissions } from '../common/auth/tenant-permissions.decorator';
 import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { UserProfileDto } from './../auth/dto/user-profile.dto';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import type { TenantCompanyDto } from './dto/tenant-company.dto';
 import type { TenantFeatureSettingsDto } from './dto/tenant-feature-settings.dto';
@@ -36,7 +38,8 @@ export class TenantCompanyController {
   updateFeatureSettings(
     @CurrentTenant() tenantId: string,
     @Body() dto: UpdateTenantFeatureSettingsDto,
+    @CurrentUser() user: UserProfileDto,
   ): Promise<TenantFeatureSettingsDto> {
-    return this.featureSettings.update(tenantId, dto);
+    return this.featureSettings.update(tenantId, dto, user);
   }
 }

@@ -17,6 +17,7 @@ function clerkUser(permissions: readonly string[]): UserProfileDto {
     tenantId: 't1',
     tenantName: 'Negozio',
     tenantChannelProfile: 'gestionale',
+  manualUnloadEnabled: true,
     email: 'clerk@test.com',
     displayName: 'Clerk',
     avatarUrl: null,

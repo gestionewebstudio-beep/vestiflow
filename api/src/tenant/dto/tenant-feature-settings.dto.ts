@@ -11,6 +11,7 @@ export class TenantFeatureSettingsDto {
   allowNegativeInventory!: boolean;
   warnNegativeInventory!: boolean;
   blockNegativeInventory!: boolean;
+  manualUnloadEnabled!: boolean;
   defaultUnitOfMeasure!: string;
   defaultVatCodeId!: string | null;
   /** Convenzione aziendale sui prezzi di vendita: `true` = ivati. */
@@ -66,6 +67,16 @@ export class UpdateTenantFeatureSettingsDto {
   @IsOptional()
   @IsBoolean()
   blockNegativeInventory?: boolean;
+
+  /**
+   * ⚠️ Senza questa dichiarazione il `ValidationPipe` globale
+   * (`forbidNonWhitelisted: true`) RIFIUTA il PATCH invece di ignorare il
+   * campo: il difetto si presenta come un salvataggio che fallisce, non come
+   * un interruttore che non si muove.
+   */
+  @IsOptional()
+  @IsBoolean()
+  manualUnloadEnabled?: boolean;
 
   @IsOptional()
   @IsString()

@@ -1,3 +1,4 @@
+import { canCreateDocumentType } from '@core/permissions/document-permission.util';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -302,6 +303,12 @@ export class GlobalSearchComponent {
       for (const profile of SALES_DOCUMENT_REGISTER_PROFILES) {
         const config = salesDocumentRegisterConfig(profile);
         if (!config || config.hideCreateAction) {
+          continue;
+        }
+        // ⛔ Vendita manuale spenta: qui sparisce solo «Nuova vendita manuale».
+        //   La voce «Pagine» qui sopra RESTA: porta all’elenco, che e’ la strada
+        //   allo storico e deve restare percorribile.
+        if (!canCreateDocumentType(this.authService.currentUser(), config.type)) {
           continue;
         }
         const variants: readonly { label: string; path: string }[] = config.createVariants ?? [

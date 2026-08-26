@@ -2004,6 +2004,18 @@ model TenantFeatureSettings {
   allowNegativeInventory    Boolean  @default(false) @map("allow_negative_inventory")
   warnNegativeInventory     Boolean  @default(true) @map("warn_negative_inventory")
   blockNegativeInventory    Boolean  @default(false) @map("block_negative_inventory")
+  /// Vendita manuale: la capacita’ operativa e’ disponibile solo dove il
+  /// titolare l’ha accesa. Riduce la giacenza SENZA generare StockMovement
+  /// (deroga di `regole-gestionale`), quindi e’ un interruttore di sicurezza e
+  /// non una preferenza: nasce SPENTA, al contrario delle altre colonne qui.
+  ///
+  /// ⚠️ Si legge sempre `=== true`. Riga assente e colonna `false` devono dire
+  /// la stessa cosa — spento — perche’ la riga si materializza solo quando
+  /// qualcuno apre il pannello Impostazioni.
+  ///
+  /// Governa creazione e modifica. NON l’eliminazione, che resta con i
+  /// permessi di sempre.
+  manualUnloadEnabled       Boolean  @default(false) @map("manual_unload_enabled")
   defaultUnitOfMeasure      String   @default("pz") @map("default_unit_of_measure")
   /// Codice IVA predefinito aziendale.
   defaultVatCodeId          String?  @map("default_vat_code_id") @db.Uuid

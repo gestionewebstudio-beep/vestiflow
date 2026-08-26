@@ -21,6 +21,7 @@ const baseUser: User = {
   isActive: true,
   isPlatformAdmin: true,
   tenantChannelProfile: 'gestionale',
+  manualUnloadEnabled: true,
   tenantName: 'Cliente test',
   hasAllLocationsAccess: true,
   assignedLocationIds: [],

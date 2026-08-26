@@ -37,6 +37,10 @@ import { assertLocationInUserScope } from '../inventory/user-location-scope.util
 import { StockReservationService } from '../order-reservations/stock-reservation.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type { VatCodeWithNature } from '../vat/vat-codes.service';
+import {
+  isManualUnloadDisabled,
+  MANUAL_UNLOAD_DISABLED_MESSAGE,
+} from '../documents/manual-unload-feature.util';
 import type { SaveManualSalesOrderDto } from './dto/save-manual-sales-order.dto';
 import {
   computeManualOrderLines,
@@ -290,11 +294,7 @@ export class ManualSalesOrdersService {
     });
 
     const documentDiscountPercent = dto.documentDiscountPercent ?? 0;
-    const computedLines = computeManualOrderLines(
-      persistableLines,
-      vatCodesById,
-      persistedVatById,
-    );
+    const computedLines = computeManualOrderLines(persistableLines, vatCodesById, persistedVatById);
     const totals = computeManualOrderTotals(computedLines, documentDiscountPercent);
 
     // Impegno effettivo: segue la spunta della riga, MA mai per prodotti che
@@ -658,6 +658,13 @@ export class ManualSalesOrdersService {
       );
     }
     const type = documentType as DocumentType;
+    // ⛔ Seconda porta di creazione, e finora era aperta: `concludePrefill`
+    //   accetta manual_unload perche' sta in DOCUMENT_STOCK_UNLOAD_TYPES, ed era
+    //   escluso SOLO da un `.filter()` della maschera. Un filtro di UI non e’
+    //   una protezione.
+    if (isManualUnloadDisabled(user, type)) {
+      throw new UnprocessableEntityException(MANUAL_UNLOAD_DISABLED_MESSAGE);
+    }
 
     const order = await this.prisma.salesOrder.findFirst({
       where: { id: orderId, tenantId },

@@ -22,6 +22,7 @@ function userWithProfile(profile: User['tenantChannelProfile']): User {
     isActive: true,
     isPlatformAdmin: false,
     tenantChannelProfile: profile,
+    manualUnloadEnabled: true,
     tenantName: 'Cliente test',
     hasAllLocationsAccess: true,
     assignedLocationIds: [],

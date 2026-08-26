@@ -8,7 +8,10 @@ import {
   canManageDocumentType,
   canViewDocumentType,
 } from '@core/permissions/document-permission.util';
-import { canOpenRetailRegister } from '@core/permissions/tenant-permissions.util';
+import {
+  canOpenRetailRegister,
+  isManualUnloadEnabled,
+} from '@core/permissions/tenant-permissions.util';
 
 import { isGoodsReceiptDocumentType } from './document-goods-receipt.util';
 import {
@@ -223,6 +226,17 @@ export function canOpenDocumentForm(
 ): boolean {
   if (storeSaleModeOfDocumentType(type)) {
     return canOpenRetailRegister(user);
+  }
+  // ⛔ **Vendita manuale spenta: la maschera operativa non si apre**, né in
+  //   creazione né in modifica — e non si apre «in sola lettura», che
+  //   significherebbe nascondere Salva, nascondere Sblocca, bloccare i campi e
+  //   inventare uno stato parallelo. Lo storico ha già la sua destinazione: il
+  //   Dettaglio, dove `documentRowPath` ripiega da solo quando questo dice no.
+  //
+  // ⭐ Da qui lo seguono TUTTI i consumatori: clic di riga, ricerca globale
+  //   (`documentOpenPath` delega qui), e i link trasversali.
+  if (type === DocumentType.ManualUnload && !isManualUnloadEnabled(user)) {
+    return false;
   }
   // ⚠️ L'Ordine cliente ha già fatto questa migrazione: la sua rotta `:id/edit`
   // è gated in VISTA e il form si apre bloccato, con lo sblocco gated dentro —

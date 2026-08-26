@@ -1,3 +1,4 @@
+import { isManualUnloadEnabled } from './tenant-permissions.util';
 import { DocumentType } from '@core/models/document.model';
 import {
   DOCUMENT_PERMISSION_FAMILIES,
@@ -88,6 +89,27 @@ export function canManageDocumentType(
   }
   const family = documentFamilyOf(type);
   return family ? hasTenantPermission(user, docManagePermission(family)) : false;
+}
+
+/**
+ * ⛔ **Se questo utente può CREARE un documento di questo tipo.**
+ *
+ * Non è un sinonimo di `canManageDocumentType`, e la differenza è tutta nella
+ * Vendita manuale: il permesso dice se la persona può, l’interruttore aziendale
+ * dice se l’azienda **usa** quella funzione. Sono due assi, e servono entrambi.
+ *
+ * ⚠️ **Gestire non è creare.** Chi ha il permesso continua a consultare,
+ * stampare ed eliminare i documenti storici anche a funzione spenta: quello
+ * resta governato da `canManageDocumentType`, che qui non si tocca.
+ *
+ * ⭐ Esiste perché le porte di creazione sono SEI, e una condizione scritta sei
+ * volte comincia a divergere subito dopo.
+ */
+export function canCreateDocumentType(user: User | null | undefined, type: DocumentType): boolean {
+  if (type === DocumentType.ManualUnload && !isManualUnloadEnabled(user)) {
+    return false;
+  }
+  return canManageDocumentType(user, type);
 }
 
 /** Famiglie che l'utente può gestire: guida i menu «Nuovo documento». */

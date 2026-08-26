@@ -131,6 +131,10 @@ import {
   isInternalOnlyDocumentType,
 } from './document-defaults';
 import type { ResolvedDocumentTypeSetting } from './document-defaults';
+import {
+  isManualUnloadDisabled,
+  MANUAL_UNLOAD_DISABLED_MESSAGE,
+} from './manual-unload-feature.util';
 import type { ConvertDocumentDto } from './dto/convert-document.dto';
 import type { CreateDocumentDto, DocumentLineInputDto } from './dto/create-document.dto';
 import type { DocumentAddressDto } from './dto/document-transport.dto';
@@ -1024,6 +1028,13 @@ export class DocumentsService {
         'Arrivi merce e documenti di carico si registrano con «Salva documento» (Arrivo merce), non dal registro documenti generico.',
       );
     }
+    // ⛔ Quarto rifiuto, e sta QUI e non in `assertDocumentTypeManageable`: quella
+    //   e’ chiamata anche da update, cancel, delete e dagli allegati, e il flag
+    //   non deve toccare lo storico. Sta anche PRIMA di `createDocumentRecord`,
+    //   che serve alle creazioni interne legittime.
+    if (isManualUnloadDisabled(user, dto.type)) {
+      throw new UnprocessableEntityException(MANUAL_UNLOAD_DISABLED_MESSAGE);
+    }
     return this.createDocumentRecord(tenantId, dto, user);
   }
 
@@ -1538,6 +1549,13 @@ export class DocumentsService {
       throw new ConflictException(
         'Gli arrivi merce si modificano con «Salva documento» (Arrivo merce), non dal registro documenti generico.',
       );
+    }
+    // ⚠️ A funzione spenta non si MODIFICA: aprire una Vendita manuale storica,
+    //   cambiarne le quantita’ e salvare produrrebbe lo stesso effetto sensibile
+    //   sulla giacenza di una creazione. E lo sblocco della maschera e’ solo
+    //   stato del client, quindi il blocco vero puo’ stare soltanto qui.
+    if (isManualUnloadDisabled(user, doc.type)) {
+      throw new ConflictException(MANUAL_UNLOAD_DISABLED_MESSAGE);
     }
     const isDraft = doc.status === DocumentStatus.draft;
     const isConfirmedEdit = CONFIRMED_EDITABLE_STATUSES.includes(doc.status);

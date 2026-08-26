@@ -33,14 +33,15 @@ import type { DocumentRecord } from '@core/models/document.model';
 import type { Money } from '@core/models/money.model';
 import type { DocumentPermissionFamily } from '@core/models/tenant-permission.model';
 import {
-  canManageDocumentType,
   documentTypesOfFamily,
   manageableDocumentFamilies,
+  canCreateDocumentType,
 } from '@core/permissions/document-permission.util';
 import {
   canManageDocFamily,
   canManageDocuments,
   canOpenRetailRegister,
+  isManualUnloadEnabled,
 } from '@core/permissions/tenant-permissions.util';
 import type { PaymentOption } from '@core/models/payment-option.model';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
@@ -347,9 +348,23 @@ export class DocumentListComponent {
   protected readonly salesCreateLabel = computed(() => this.salesRegister()?.createLabel);
 
   /** Pagine di sola consultazione (Vendita/Reso al banco): nessun «Nuovo …». */
-  protected readonly showCreateAction = computed(
-    () => this.salesRegister()?.hideCreateAction !== true,
-  );
+  protected readonly showCreateAction = computed(() => {
+    const sales = this.salesRegister();
+    if (sales?.hideCreateAction === true) {
+      return false;
+    }
+    // ⛔ Vendita manuale spenta: l’ELENCO resta — e’ la porta allo storico, che
+    //   deve restare consultabile — ma il comando che crea non c’e’. Vale sia
+    //   per il pulsante di testata sia per la CTA dello stato vuoto, che legge
+    //   di qui.
+    if (
+      sales?.type === DocumentType.ManualUnload &&
+      !isManualUnloadEnabled(this.authService.currentUser())
+    ) {
+      return false;
+    }
+    return true;
+  });
 
   protected readonly emptyStateCtaLabel = computed(() => {
     if (!this.showCreateAction()) {
@@ -579,7 +594,10 @@ export class DocumentListComponent {
    */
   protected readonly secondaryCreateOptions = computed<readonly SelectMenuOption[]>(() => {
     const user = this.authService.currentUser();
-    return SECONDARY_CREATE_ENTRIES.filter((entry) => canManageDocumentType(user, entry.type)).map(
+    // ⚠️ `canCreateDocumentType` e non `canManageDocumentType`: gestire non e’
+    //   creare. Chi ha il permesso continua a consultare e stampare le Vendite
+    //   manuali storiche anche a funzione spenta.
+    return SECONDARY_CREATE_ENTRIES.filter((entry) => canCreateDocumentType(user, entry.type)).map(
       ({ value, label }) => ({ value, label }),
     );
   });

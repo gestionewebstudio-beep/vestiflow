@@ -44,6 +44,7 @@ const titolare: User = {
   isActive: true,
   isPlatformAdmin: false,
   tenantChannelProfile: TenantChannelProfile.Shopify,
+  manualUnloadEnabled: true,
   tenantName: 'Negozio test',
   hasAllLocationsAccess: true,
   assignedLocationIds: [],
