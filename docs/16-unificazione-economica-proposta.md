@@ -16,6 +16,155 @@ lasciato fuori.
 
 ---
 
+## ⛔ BLOCCO 0 ECONOMICO — questa proposta NON è approvata, e va falsificata anch’essa
+
+**Aggiunto il 27/08/2026, su rilievo del proprietario**, dopo che una prova numerica ha
+smentito una delle sue premesse.
+
+> ⛔ **`docs/16` non è il nuovo oracle.** Il §5.3 del contratto comune non va usato per
+> progettare l’API finché il §5.3 stesso non è verificato — e la stessa cautela vale per
+> questo documento.
+
+### Cosa è confermato, e cosa no
+
+| Punto                                                           | Stato                                                             |
+| --------------------------------------------------------------- | ----------------------------------------------------------------- |
+| un solo motore economico                                        | ✅ obiettivo corretto                                             |
+| HALF_UP decimale                                                | ✅ decisione corretta                                             |
+| aritmetica esatta                                               | ✅ principio corretto                                             |
+| **`NUMERIC(16,6)` basta a garantire la neutralità Netto/Ivato** | ⛔ **SMENTITO** — vedi sotto                                      |
+| **niente altro da conservare sul prezzo di vendita**            | ⛔ non più dimostrato: dipende dalla decisione qui sotto          |
+| **`nonDeductible*` nel core neutro**                            | ⛔ **da togliere** — è ciclo passivo, come `supplierPayableMinor` |
+| **semantica di `taxMinor` con IVA non standard**                | ⚠️ **da definire** — vedi sotto                                   |
+| `lineVatTotalMinor` vs breakdown finale                         | ✅ direzione buona, persistenza da decidere                       |
+| golden vectors                                                  | ✅ obbligatori                                                    |
+| golden vectors **al posto** del codice condiviso                | ⚠️ compromesso, **non** vera unificazione                         |
+| mappa di eliminazione dei vecchi motori                         | ✅ fondamentale                                                   |
+
+### ⛔ B0.1 — La neutralità Netto/Ivato NON regge alla persistenza
+
+La prova algebrica del §0 manteneva **razionali infiniti**. Il database persiste una
+precisione **finita**, e `1/1,22` è periodico: nessun `NUMERIC(n, m)` lo conserva.
+
+**Il caso, verificato in aritmetica decimale esatta — nessun float coinvolto:**
+
+```text
+1,03 € ivato · IVA 22% · qty 5 · sconto 10%
+
+  netto unitario ESATTO      84,426229508196 cent
+  PERSISTITO (4 cifre)       84,426200000000 cent   ← qui si perde
+  × 5 × 90%                 379,91790000
+  ricomposto ivato          463,49983800  → HALF_UP → 4,63 €
+
+  conto commerciale         463,50000000  → HALF_UP → 4,64 €
+```
+
+⭐ **E aumentare le cifre NON risolve.** Misurato:
+
+| cifre persistite | 2      | 4          | 6      | 8      | 10     |
+| ---------------- | ------ | ---------- | ------ | ------ | ------ |
+| divergenze       | 6,944% | **6,807%** | 6,807% | 6,807% | 6,807% |
+
+Satura a quattro cifre e da lì non scende. Il motivo è verificato: **tutte e 4.901 le
+divergenze sono casi in cui il conto commerciale vale esattamente `.5`** — non-tie: ZERO.
+Ricomponendo il lordo da un netto troncato **non si può mai atterrare esattamente su `.5`**:
+ci si arriva sempre appena sotto.
+
+> ⛔ **Quindi la domanda non è tecnica ma funzionale: quando il valore autorevole è il
+> prezzo IVATO, chi decide il centesimo — il conto che l’operatore vede, o la ricomposizione
+> dal netto memorizzato?**
+
+⚠️ **Il §5.3 presuppone la seconda senza averlo mai deciso.** Con precisione infinita le due
+strade sono equivalenti; con la precisione reale non lo sono.
+
+### ⚠️ B0.2 — `taxMinor` è SOTTOSPECIFICATO. Non è un bug: è un requisito mancante
+
+⛔ **Una prima stesura diceva «reverse charge e split payment non espongono l’imposta». È
+FALSA sullo split payment**, e l’avevo scritta senza leggere il corpo della funzione:
+
+```ts
+function vatIsExposed(mode) {
+  return mode === 'standard' || mode === 'split_payment'; // ⭐ split payment È esposto
+}
+```
+
+**REGOLA RICHIESTA** — non ancora sufficientemente definita per le modalità IVA non
+standard. Il requisito minimo consolidato è «IVA per riga e Codice IVA»; split payment,
+regime del margine, indetraibilità e reverse charge contabile completo erano dichiarati
+**estensioni da verificare o rinviare**.
+
+**COMPORTAMENTO OSSERVATO** — quattro fatti misurati, nessuna deduzione:
+
+- `documents.service` **non consulta** `calculationMode` nel calcolo dei totali (zero occorrenze);
+- `vat-line-calculation.util` **lo distingue**;
+- `split_payment` è considerato **IVA esposta** dal motore condiviso;
+- `reverse_charge` calcola l’imposta a parte e **non** la include nel lordo esposto.
+
+**IPOTESI TECNICA** — la semantica di `taxMinor` / `totalMinor` / importo dovuto **non è
+unificata**, e ⛔ **non è stabilito quale percorso rappresenti il requisito definitivo**.
+
+#### Le cinque grandezze che oggi si confondono
+
+Coincidono in una fattura ordinaria — imponibile 100, IVA 22, totale 122, dovuto 122 — e
+**non necessariamente altrove**:
+
+| Grandezza                            | La domanda                                             |
+| ------------------------------------ | ------------------------------------------------------ |
+| **IVA calcolata**                    | quanto vale matematicamente l’imposta?                 |
+| **IVA esposta**                      | appare nel documento e nel riepilogo?                  |
+| **IVA che concorre al totale**       | fa parte del lordo commerciale?                        |
+| **Importo dovuto dalla controparte** | quanto paga davvero il cliente o si deve al fornitore? |
+| **IVA contabile/informativa**        | va registrata anche se non aumenta il dovuto?          |
+
+⭐ **Nel codice due di queste sono già distinte, ma con nomi che le confondono**:
+`supplierPayableMinor` è documentato come «netto + IVA **solo se concorre**». Quindi
+«esposta» e «concorre al dovuto» sono già due assi diversi.
+
+⚠️ **Esempio che rompe l’assunzione di `docs/16`**: nello split payment è concettualmente
+possibile avere imponibile 100, IVA esposta 22, totale documento 122 e **dovuto al cedente
+100**. Quindi `totalMinor = subtotalMinor + taxMinor` **non è detto che valga sempre**.
+
+⛔ **E l’invariante che questa proposta contiene — `Σ vatBreakdown.vatMinor === taxMinor` —
+assume un concetto unico di IVA finale che non è ancora stato definito.**
+
+#### ⚠️ Il reverse charge in VENDITA non è il reverse charge in acquisto
+
+La specifica storica dice «l’IVA non aumenta il totale da pagare **al fornitore**»: è
+formulata sul **ciclo passivo**. Ma esistono Codici IVA `reverse_charge` con ambito
+**vendite**. ⛔ Non si può trasferire automaticamente quella semantica al cliente.
+
+#### Cosa serve prima dell’API: una matrice FISCALE, non una firma
+
+Per ognuna delle sei modalità — `standard` · `zero_rate` · `reverse_charge` ·
+`split_payment` · `margin_scheme` · `informational` — e per vendita/acquisto dove
+applicabile:
+
+```text
+IVA calcolata · IVA esposta · concorre al totale documento? · concorre al dovuto? · dato da persistere
+```
+
+E per ogni riga, la provenienza: **già deciso da una specifica** · **solo comportamento
+attuale** · **decisione mancante**. ⛔ Nessuna deduzione.
+
+⭐ **Conseguenza sul progetto**: l’autorità economica comune potrebbe non poter esporre
+soltanto `subtotalMinor · taxMinor · totalMinor` — tre numeri potrebbero non bastare a
+rappresentare tutti i regimi. Ma **questa è la decisione che deve uscire dall’audit, non
+dalla firma TypeScript.**
+
+### Le frasi del contratto ora in discussione
+
+| Frase                                                                    | Classificazione                                                                  |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| §5.2 «precisione `NUMERIC(16,6)` end-to-end»                             | ⚠️ **incompleta** — non dice cosa fare quando il razionale non ci sta            |
+| §5.3 «unitari precisi → scorpori → quantità → un arrotondamento»         | ⛔ **da decidere** — in modalità Ivato non dà il conto dell’operatore            |
+| §5.4 «il cambio di rappresentazione non cambia il significato economico» | ⛔ **da correggere** — non è vera a precisione finita, dimostrato                |
+| §5.3 «riepiloghi IVA = somma dei valori definitivi di riga»              | ⚠️ **ambigua** — «definitivi» prima o dopo la ripartizione dello sconto testata? |
+
+⛔ **Finché queste quattro non sono chiuse, la firma dell’API non si finalizza.** Unificare
+cinque documenti su un contratto sbagliato produce **un errore perfettamente centralizzato**.
+
+---
+
 ## 0 · La scoperta che ha ribaltato la proposta precedente
 
 ⛔ **Una prima versione di questo documento proponeva due policy — `gross-line` e `net-unit` —
@@ -146,7 +295,10 @@ interface LineInput {
 interface VatInput {
   readonly ratePercent: Exact;        // ⛔ Decimal(7,4), MAI Math.round: 12,5% resta 12,5
   readonly calculationMode: VatCalculationMode;
-  readonly nonDeductiblePercent: Exact;
+  // ⛔ `nonDeductiblePercent` TOLTO il 27/08/2026, su rilievo del proprietario: è
+  //    ciclo passivo — «non modifica il totale fornitore» — esattamente come
+  //    `supplierPayableMinor`, che avevo già escluso. Avevo applicato il criterio
+  //    a metà. Sul percorso generico è cablato a zero.
 }
 
 interface LineResult {
@@ -155,7 +307,7 @@ interface LineResult {
   readonly netMinor: number;          // definitivi, HALF_UP, una volta sola
   readonly vatMinor: number;
   readonly grossMinor: number;
-  readonly nonDeductibleVatMinor: number;
+  // ⛔ `nonDeductibleVatMinor` idem: appartiene alla policy acquisti, non al livello riga comune.
 }
 ```
 
@@ -195,6 +347,10 @@ interface VatBreakdownEntry {
 ⭐ **Invariante che il motore deve garantire**: `Σ vatBreakdown[].netMinor === subtotalMinor`
 e `Σ vatBreakdown[].vatMinor === taxMinor`. Se non torna, è un difetto del motore, non un
 arrotondamento accettabile.
+
+⚠️ **E `taxMinor` va definito prima**: oggi il percorso generico ignora
+`calculationMode`, quindi in reverse charge somma un’imposta che il documento non
+espone. Vedi Blocco 0, B0.2.
 
 ---
 
