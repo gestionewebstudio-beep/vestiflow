@@ -54,7 +54,7 @@ import { TenantPermission } from '@core/models/tenant-permission.model';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { DocumentStatus, DocumentType, TransportPort } from '@core/models/document.model';
-import { requireSalesDocumentType } from './models/document-routing.util';
+import { requireSalesDocumentType } from '@domain/documents/utils/document-routing.util';
 import type { DocumentRecord } from '@core/models/document.model';
 import { isConfirmedEditableDocumentStatus } from '@core/models/document.model';
 import {

@@ -751,14 +751,14 @@ describe('SupplierOrderFormComponent', () => {
   // mai uscire dal documento. È il giro che a mano sembrava a posto due volte
   // mentre non lo era: la prima perché il blocco non si agganciava, la seconda
   // perché non si richiudeva mai dopo il primo sblocco.
-  async function setupEdit() {
+  async function setupEdit(status: SupplierOrderStatus = SupplierOrderStatus.Confirmed) {
     const updateOrder = vi.fn(() => of({ id: 'po-1', status: SupplierOrderStatus.Confirmed }));
     const ordine = {
       id: 'po-1',
       reference: 'OF-2026-0001',
       supplierId: 'sup-1',
       supplierName: 'Tessuti Italia',
-      status: SupplierOrderStatus.Confirmed,
+      status,
       currency: 'EUR',
       costEntryMode: 'vat_excluded' as const,
       orderDate: '2026-08-01T00:00:00.000Z',
@@ -846,6 +846,30 @@ describe('SupplierOrderFormComponent', () => {
 
     expect(await screen.findByRole('button', { name: /Sblocca/ })).toBeVisible();
     // Protetto = form disabilitato: non si digita a vuoto.
+    expect(screen.getByLabelText('Quantità riga 1')).toBeDisabled();
+  });
+
+  /**
+   * ⭐ **La maschera si apre in TUTTI E TRE gli stati** — decisione del
+   * proprietario del 27-28/08/2026.
+   *
+   * ⛔ Qui la maschera faceva `if (order.status !== Confirmed) return 'not-found'`
+   * e mostrava «Ordine non modificabile». Il clic di riga su un ordine CONCLUSO
+   * — che dal 20/08 punta alla maschera — finiva quindi in un vicolo cieco.
+   *
+   * ⚠️ **Lo stato dell'Ordine serve ai COLLEGAMENTI documentali**: Confermato è
+   * eleggibile in «Includi/Genera», Concluso e Annullato no. Non governa
+   * l'apertura, la modifica né il lucchetto — che resta, e vale per ogni stato.
+   */
+  it.each([
+    SupplierOrderStatus.Confirmed,
+    SupplierOrderStatus.Concluded,
+    SupplierOrderStatus.Cancelled,
+  ])('⭐ stato %s: la maschera carica, e nasce protetta', async (status) => {
+    await setupEdit(status);
+
+    // Caricata = c'è il documento, non lo stato vuoto «Ordine non modificabile».
+    expect(await screen.findByRole('button', { name: /Sblocca/ })).toBeVisible();
     expect(screen.getByLabelText('Quantità riga 1')).toBeDisabled();
   });
 

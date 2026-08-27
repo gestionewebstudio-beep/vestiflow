@@ -89,7 +89,7 @@ import type {
 import {
   GOODS_RECEIPT_DOCUMENT_TYPES,
   isGoodsReceiptDocumentType,
-} from './models/document-goods-receipt.util';
+} from '@domain/documents/utils/document-goods-receipt.util';
 import {
   documentStatusLabel,
   documentTypeLabel,
@@ -100,7 +100,7 @@ import {
   documentDuplicateFormRoute,
   documentRowPath,
   salesFormRouteSegment,
-} from './models/document-routing.util';
+} from '@domain/documents/utils/document-routing.util';
 import {
   DOCUMENT_LIST_SORTABLE_COLUMNS,
   DOCUMENT_LIST_COLUMN_DEFS,

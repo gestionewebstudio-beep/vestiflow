@@ -44,6 +44,8 @@ import type { Subscription } from 'rxjs';
 
 import type { PageMeta } from '@core/models/api.model';
 import { AuthService } from '@core/auth';
+import { DocumentType } from '@core/models/document.model';
+import { documentRowPath } from '@domain/documents/utils/document-routing.util';
 import { canManageSupplierOrders } from '@core/permissions/tenant-permissions.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
@@ -382,7 +384,23 @@ export class SupplierOrderListComponent {
   }
 
   protected openOrder(order: SupplierOrder): void {
-    void this.router.navigate(['/app/orders', order.id]);
+    // ⛔ Qui c’era `router.navigate(['/app/orders', order.id])`, cioè il DETTAGLIO,
+    //   mentre `DOCUMENT_ROW_OPENS[SupplierOrder]` dichiara `'form'` dal 20/08/2026.
+    //   L’elenco cablava la destinazione e non leggeva la regola.
+    //
+    // ⛔ **E qui c’era anche un ADATTATORE di stato** — `Cancelled ? Cancelled :
+    //   Confirmed` — che alimentava il ramo «annullato → Dettaglio» di
+    //   `documentRowPath`. Quel ramo non esiste più (decisione del 27/08/2026: lo
+    //   stato non decide dove porta la riga), quindi l’adattatore non adattava
+    //   più niente. Peggio: mappando `concluded → Confirmed` mandava gli ordini
+    //   CONCLUSI su una maschera che allora li rifiutava con «Ordine non
+    //   modificabile». Rimosso con il ramo che serviva.
+    void this.router.navigateByUrl(
+      documentRowPath(
+        { id: order.id, type: DocumentType.SupplierOrder },
+        this.authService.currentUser(),
+      ),
+    );
   }
 
   protected createOrder(): void {

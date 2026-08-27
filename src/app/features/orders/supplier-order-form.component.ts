@@ -50,7 +50,6 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { Money } from '@core/models/common.model';
 import { DocumentType } from '@core/models/document.model';
-import { SupplierOrderStatus } from '@core/models/supplier-order.model';
 import type { SupplierOrder } from '@core/models/supplier-order.model';
 import {
   DEFAULT_CURRENCY,
@@ -379,9 +378,23 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
         }
         return this.orderService.getSupplierOrderById(id).pipe(
           map((order) => {
-            if (order.status !== SupplierOrderStatus.Confirmed) {
-              return 'not-found' as const;
-            }
+            // ⛔ Qui c’era `if (order.status !== SupplierOrderStatus.Confirmed)
+            //   return 'not-found'`, cioè: un ordine CONCLUSO o ANNULLATO non si
+            //   apriva affatto — la maschera mostrava «Ordine non modificabile».
+            //
+            // ⭐ Superato dal proprietario il 28/08/2026. **Gli stati dell’Ordine
+            //   fornitore — Confermato, Concluso, Annullato — servono ai
+            //   COLLEGAMENTI documentali**: Confermato è eleggibile in
+            //   «Includi/Genera», Concluso e Annullato no. Non governano
+            //   l’apertura di questa maschera, né la modifica, né il lucchetto.
+            //
+            // ⚠️ Il blocco non sparisce, si SPOSTA: `formReadOnly` protegge ogni
+            //   ordine riaperto e chiede lo sblocco esplicito prima di scrivere,
+            //   qualunque sia lo stato.
+            //
+            // ⚠️ Senza questa riga il clic sulla riga di un ordine concluso
+            //   sarebbe finito su un vicolo cieco, che è peggio del Dettaglio da
+            //   cui la decisione lo toglie.
             // Solo QUI, non dentro patchFormFromOrder: quel metodo viene
             // richiamato anche dopo un salvataggio in modifica, e ricalcolare il
             // blocco lì richiuderebbe la maschera in faccia a chi sta lavorando.

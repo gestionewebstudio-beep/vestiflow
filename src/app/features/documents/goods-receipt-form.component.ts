@@ -185,7 +185,7 @@ import {
   documentStatusDisplayLabel,
   documentStatusDisplayTone,
 } from '@domain/documents/models/document-labels.util';
-import { isGoodsReceiptDocumentType } from './models/document-goods-receipt.util';
+import { isGoodsReceiptDocumentType } from '@domain/documents/utils/document-goods-receipt.util';
 import { isPrintableDocumentType } from './models/document-print.util';
 import { renderCausalTemplate } from './models/causal-template.util';
 import type { ExternalDocumentType } from '@domain/documents/models/external-document-type.model';

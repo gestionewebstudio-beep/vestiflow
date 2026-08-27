@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthService } from '@core/auth';
 import { DocumentStatus, DocumentType } from '@core/models/document.model';
+import { SalesOrderSource } from '@core/models/sales-order.model';
 import { UserRole, type User } from '@core/models/user.model';
 import { CustomerService } from '@domain/customers/services/customer.service';
 import { DocumentService } from '@domain/documents/services/document.service';
@@ -27,6 +28,9 @@ const FULL_NAV: readonly NavSection[] = [
       { label: 'Fornitori', icon: 'pi-building', route: '/app/suppliers' },
       { label: 'Documenti', icon: 'pi-file', route: '/app/documents' },
       { label: 'Clienti', icon: 'pi-users', route: '/app/customers' },
+      // La sorgente `salesOrders` è gated su questa voce: senza, la ricerca
+      // non la interroga nemmeno e le prove sull’origine non vedrebbero nulla.
+      { label: 'Ordini cliente', icon: 'pi-shopping-cart', route: '/app/sales' },
     ],
   },
 ];
@@ -81,13 +85,14 @@ describe('GlobalSearchComponent', () => {
     readonly documents?: readonly unknown[];
     readonly suppliers?: readonly unknown[];
     readonly supplierOrders?: readonly unknown[];
+    readonly salesOrders?: readonly unknown[];
   }) {
     const getProducts = vi.fn(() => of(paginated([])));
     const getCustomers = vi.fn(() => of(paginated(options?.customers ?? [])));
     const getDocuments = vi.fn(() => of(paginated(options?.documents ?? [])));
     const list = vi.fn(() => of(paginated(options?.suppliers ?? [])));
     const getSupplierOrders = vi.fn(() => of(paginated(options?.supplierOrders ?? [])));
-    const getSalesOrders = vi.fn(() => of(paginated([])));
+    const getSalesOrders = vi.fn(() => of(paginated(options?.salesOrders ?? [])));
 
     const rendered = await render(GlobalSearchComponent, {
       componentInputs: {
@@ -212,5 +217,101 @@ describe('GlobalSearchComponent', () => {
     fireEvent.input(screen.getByRole('combobox'), { target: { value: 'r' } });
     detectChanges();
     expect(screen.queryByRole('option', { name: /Rossi Moda SRL/ })).toBeNull();
+  });
+  /**
+   * ⛔ **La prova che mancava, e testare il solo resolver non la dava.**
+   *
+   * `salesOrderRowPath` può essere corretto e il consumer non usarlo: la ricerca
+   * globale aveva la rotta CABLATA, e nessuno se ne accorgeva. Queste prove
+   * attraversano `GlobalSearchComponent` — digitazione, risultato, clic — e
+   * guardano dove il router viene davvero mandato.
+   *
+   * ⚠️ **Un `SalesOrder` non è sempre un Ordine cliente.** Le origini sono tre e
+   * solo `manual` è del gestionale: `online` e `pos` sono possedute dal canale e
+   * restano in sola lettura (`regole-gestionale`, ownership dei dati).
+   */
+  /**
+   * ⭐ **La ricerca globale porta un Ordine fornitore alla Modifica**, come il
+   * clic sulla riga dell'elenco.
+   *
+   * ⛔ Qui la rotta era CABLATA a `/app/orders/${order.id}` — il Dettaglio —
+   * mentre l'elenco apriva la Modifica: lo stesso ordine aveva due aperture a
+   * seconda di dove lo si era trovato. Il commit `166e7cb` dichiarava la parità
+   * già ottenuta perché `documentOpenPath` delegava al punto comune: vero per i
+   * documenti che stanno in `documents`, **falso per i due ordini**, che una
+   * riga lì non ce l'hanno mai e arrivano da una sorgente propria.
+   */
+  it('⭐ un Ordine fornitore si apre in MODIFICA, come dall’elenco', async () => {
+    const { search, navigate } = await setup({ supplierOrders: [SUPPLIER_ORDER] });
+
+    await search('of-2026');
+
+    fireEvent.click(screen.getByRole('option', { name: /OF-2026-0042/ }));
+    expect(navigate).toHaveBeenCalledWith(['/app/orders/po-1/edit'], { queryParams: {} });
+  });
+
+  describe('risultati Ordine cliente: la destinazione dipende dall’ORIGINE', () => {
+    const ordine = (id: string, source: SalesOrderSource) => ({
+      id,
+      orderNumber: `OC-2026-${id}`,
+      source,
+      customerName: 'Rossi Moda SRL',
+      placedAt: '2026-08-10',
+    });
+
+    it('⭐ origine MANUALE: apre la Modifica', async () => {
+      const { search, navigate } = await setup({
+        salesOrders: [ordine('so-1', SalesOrderSource.Manual)],
+      });
+
+      await search('oc-2026');
+
+      fireEvent.click(screen.getByRole('option', { name: /OC-2026-so-1/ }));
+      expect(navigate).toHaveBeenCalledWith(['/app/sales/so-1/edit'], { queryParams: {} });
+    });
+
+    it('⛔ origine ONLINE: sola lettura, e l’indirizzo non dice /edit', async () => {
+      const { search, navigate } = await setup({
+        salesOrders: [ordine('so-2', SalesOrderSource.Online)],
+      });
+
+      await search('oc-2026');
+
+      fireEvent.click(screen.getByRole('option', { name: /OC-2026-so-2/ }));
+      expect(navigate).toHaveBeenCalledWith(['/app/sales/so-2'], { queryParams: {} });
+      expect(navigate.mock.calls[0]?.[0]?.[0]).not.toContain('/edit');
+    });
+
+    it('⛔ origine POS: identica all’online, mai la Modifica', async () => {
+      const { search, navigate } = await setup({
+        salesOrders: [ordine('so-3', SalesOrderSource.Pos)],
+      });
+
+      await search('oc-2026');
+
+      fireEvent.click(screen.getByRole('option', { name: /OC-2026-so-3/ }));
+      expect(navigate).toHaveBeenCalledWith(['/app/sales/so-3'], { queryParams: {} });
+      expect(navigate.mock.calls[0]?.[0]?.[0]).not.toContain('/edit');
+    });
+
+    /**
+     * ⚠️ L'errore vicino: `/app/sales/online/:id` appartiene alla **Vendita
+     * online** (`OnlineSale`, documento interno generato dall'evasione), che non
+     * è un Ordine di canale. Nessuna origine deve produrlo.
+     *
+     * ⚠️ Un `it` per origine, non un ciclo dentro uno solo: `TestBed` non si
+     * riconfigura dopo il primo `render`.
+     */
+    it.each(Object.values(SalesOrderSource))(
+      '⛔ origine %s: non produce il percorso della Vendita online',
+      async (source) => {
+        const { search, navigate } = await setup({ salesOrders: [ordine('so-4', source)] });
+
+        await search('oc-2026');
+
+        fireEvent.click(screen.getByRole('option', { name: /OC-2026-so-4/ }));
+        expect(navigate.mock.calls[0]?.[0]?.[0]).not.toContain('/sales/online/');
+      },
+    );
   });
 });

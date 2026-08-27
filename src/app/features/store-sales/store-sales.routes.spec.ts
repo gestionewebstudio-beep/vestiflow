@@ -1,7 +1,7 @@
 import type { Route } from '@angular/router';
 import { describe, expect, it } from 'vitest';
 
-import { DocumentStatus, DocumentType } from '@core/models/document.model';
+import { DocumentType } from '@core/models/document.model';
 import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
 import { UserRole, type User } from '@core/models/user.model';
 import { retailSalesRegisterGuard } from '@core/guards/retail-sales.guard';
@@ -12,7 +12,7 @@ import { REQUIRED_TENANT_PERMISSION_GROUPS_KEY } from '@core/permissions/tenant-
 import { routes as appRoutes } from '../../app.routes';
 import { storeSaleDocumentRoutes } from '../documents/documents.routes';
 import { salesDocumentRegisterConfig } from '../documents/models/document-sales-register.config';
-import { DOCUMENT_ROW_OPENS, documentRowPath } from '../documents/models/document-routing.util';
+import { DOCUMENT_ROW_OPENS, documentRowPath } from '@domain/documents/utils/document-routing.util';
 import { storeSalesRegisterRoutes } from './store-sales.routes';
 import {
   STORE_SALE_EDIT_SEGMENT,
@@ -318,9 +318,7 @@ describe('FASE UI 1 — i due comandi di creazione sull’elenco', () => {
   it('⛔ la riga apre la MODIFICA, non l’anteprima', () => {
     for (const tipo of [DocumentType.StoreSale, DocumentType.StoreReturn]) {
       expect(DOCUMENT_ROW_OPENS[tipo]).toBe('form');
-      expect(
-        documentRowPath({ id: 'd1', type: tipo, status: DocumentStatus.Confirmed }, TITOLARE_BANCO),
-      ).toContain('/edit');
+      expect(documentRowPath({ id: 'd1', type: tipo }, TITOLARE_BANCO)).toContain('/edit');
     }
   });
 });
@@ -396,27 +394,25 @@ describe('C 3b — la riga apre la modifica, e la maschera sa caricare', () => {
   });
 
   it('la riga dell’elenco apre la maschera, per ENTRAMBI i tipi', () => {
-    expect(
-      documentRowPath(
-        { id: 'd1', type: DocumentType.StoreSale, status: DocumentStatus.Confirmed },
-        TITOLARE_BANCO,
-      ),
-    ).toBe('/app/vendita-al-banco/vendita/d1/edit');
-    expect(
-      documentRowPath(
-        { id: 'd2', type: DocumentType.StoreReturn, status: DocumentStatus.Confirmed },
-        TITOLARE_BANCO,
-      ),
-    ).toBe('/app/vendita-al-banco/reso/d2/edit');
+    expect(documentRowPath({ id: 'd1', type: DocumentType.StoreSale }, TITOLARE_BANCO)).toBe(
+      '/app/vendita-al-banco/vendita/d1/edit',
+    );
+    expect(documentRowPath({ id: 'd2', type: DocumentType.StoreReturn }, TITOLARE_BANCO)).toBe(
+      '/app/vendita-al-banco/reso/d2/edit',
+    );
   });
 
-  /** ⚠️ §2.1: un annullato non si modifica, quindi la riga porta all'anteprima. */
-  it('⚠️ un documento ANNULLATO apre l’anteprima, non la maschera', () => {
-    expect(
-      documentRowPath(
-        { id: 'd3', type: DocumentType.StoreSale, status: DocumentStatus.Cancelled },
-        TITOLARE_BANCO,
-      ),
-    ).toBe('/app/vendita-al-banco/d3');
-  });
+  /**
+   * ⛔ **Qui c'era: «un documento ANNULLATO apre l'anteprima, non la maschera»**,
+   * con `documentRowPath({ …, status: Cancelled })` e l’attesa
+   * `'/app/vendita-al-banco/d3'`.
+   *
+   * ⭐ Rimosso il 28/08/2026, per decisione del proprietario: **Vendita e Reso
+   * al banco non hanno stati funzionali**. Ne hanno solo Ordine cliente e
+   * Ordine fornitore, e lì lo stato governa l’eleggibilità in
+   * «Includi/Genera» — non il routing.
+   *
+   * ⚠️ **Non è stato sostituito dall'asserzione opposta**: sarebbe la stessa
+   * policy generica alla rovescia. Il routing non riceve lo stato.
+   */
 });

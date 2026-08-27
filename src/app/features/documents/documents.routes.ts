@@ -19,7 +19,7 @@ import {
   type SalesFormDocumentType,
 } from '@domain/documents/models/document-sales.util';
 
-import { SALES_FORM_ROUTE_SEGMENT } from './models/document-routing.util';
+import { SALES_FORM_ROUTE_SEGMENT } from '@domain/documents/utils/document-routing.util';
 
 // Matrice permessi documenti: ogni rotta chiede la SEZIONE (porta) E la
 // FAMIGLIA del tipo — gli stessi due gruppi che l'API esige a livello di

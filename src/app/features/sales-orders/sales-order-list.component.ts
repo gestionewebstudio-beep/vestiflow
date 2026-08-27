@@ -26,6 +26,7 @@ import type { Subscription } from 'rxjs';
 
 import type { PageMeta } from '@core/models/api.model';
 import { AuthService } from '@core/auth';
+import { salesOrderRowPath } from '@domain/sales-orders/models/sales-order-routing.util';
 import {
   canExportOperationalData,
   canManageDocFamily,
@@ -839,7 +840,17 @@ export class SalesOrderListComponent {
   }
 
   protected openOrder(order: SalesOrder): void {
-    void this.router.navigate(['/app/sales', order.id]);
+    // ⛔ Qui c’era `router.navigate(['/app/sales', order.id])`, cablata. Non era
+    //   SBAGLIATA — `:id` e `:id/edit` montano lo stesso componente con lo stesso
+    //   guard — ma dava un URL diverso da quello della ricerca globale per lo
+    //   stesso ordine: stessa pagina, due indirizzi.
+    //
+    // ⭐ Ora elenco e ricerca globale passano dallo STESSO risolutore, quindi la
+    //   destinazione è identica alla lettera e non solo nell’esito.
+    // ⚠️ **Vale per entrambi i profili**, `customer-orders` e `shopify-orders`:
+    //    `openOrder` e’ condiviso, e la riga Shopify passa di qui. Il risolutore
+    //    guarda l’ORIGINE, perché un ordine di canale non è un `CustomerOrder`.
+    void this.router.navigateByUrl(salesOrderRowPath(order, this.authService.currentUser()));
   }
 
   protected createManualOrder(): void {

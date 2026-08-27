@@ -1,3 +1,4 @@
+import { DocumentType } from '@core/models/document.model';
 import { canCreateDocumentType } from '@core/permissions/document-permission.util';
 import {
   ChangeDetectionStrategy,
@@ -31,7 +32,8 @@ import { SupplierOrderService } from '@domain/supplier-orders/services/supplier-
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
 import { DOCUMENT_HUB_GROUPS } from '@features/documents/models/documents-hub.model';
 import { AuthService } from '@core/auth';
-import { documentOpenPath } from '@features/documents/models/document-routing.util';
+import { documentOpenPath } from '@domain/documents/utils/document-routing.util';
+import { salesOrderRowPath } from '@domain/sales-orders/models/sales-order-routing.util';
 import {
   SALES_DOCUMENT_REGISTER_PROFILES,
   salesDocumentRegisterConfig,
@@ -213,14 +215,33 @@ export class GlobalSearchComponent {
                     .filter(Boolean)
                     .join(' · '),
                   icon: 'pi-shopping-bag',
-                  route: `/app/orders/${order.id}`,
+                  // ⛔ Qui c’era `/app/orders/${order.id}` CABLATA, cioè il Dettaglio,
+                  //   mentre il clic sulla riga dell’elenco apre la Modifica: lo stesso
+                  //   ordine aveva DUE aperture a seconda di dove lo si era trovato.
+                  //
+                  // ⚠️ Il commit 166e7cb dichiarava la parità già ottenuta — «vale anche
+                  //   per la ricerca globale, `documentOpenPath` delega alla stessa
+                  //   funzione». Vero per i documenti veri, FALSO per i due ordini, che
+                  //   non hanno mai una riga in `documents` (schema: «questo enum è le
+                  //   chiavi dei numeratori, non l’elenco dei documenti») e arrivano qui
+                  //   da una sorgente propria.
+                  route: documentOpenPath(
+                    { id: order.id, type: DocumentType.SupplierOrder },
+                    this.authService.currentUser(),
+                  ),
                 })),
                 ...salesOrders.map((order) => ({
                   group: 'Ordini cliente',
                   label: order.orderNumber,
                   sub: [order.customerName, formatDate(order.placedAt)].filter(Boolean).join(' · '),
                   icon: 'pi-shopping-cart',
-                  route: `/app/sales/${order.id}`,
+                  // ⛔ Qui c’era `/app/sales/${order.id}` CABLATA. Sostituirla con
+                  //   `documentOpenPath({ type: CustomerOrder })` sarebbe stato un
+                  //   errore diverso: la ricerca restituisce ordini di OGNI origine
+                  //   — `manual`, `online`, `pos` — e solo il primo è un Ordine
+                  //   cliente del gestionale. Gli altri due sono posseduti dal
+                  //   canale e sono read-only per regola.
+                  route: salesOrderRowPath(order, this.authService.currentUser()),
                 })),
                 ...documents.map((doc) => ({
                   group: 'Documenti',

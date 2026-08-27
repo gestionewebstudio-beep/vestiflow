@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { DocumentStatus, DocumentType } from '@core/models/document.model';
+import { DocumentType } from '@core/models/document.model';
 import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
 import { docManagePermission, docViewPermission } from '@core/models/tenant-permission.model';
 import { UserRole } from '@core/models/user.model';
@@ -39,10 +39,11 @@ const SOLA_CONSULTAZIONE = {
 } as unknown as User;
 
 describe('documentOpenPath', () => {
-  const doc = (type: DocumentType, status: DocumentStatus = DocumentStatus.Confirmed) => ({
+  // ⭐ Nessuno `status`: dal 28/08/2026 il routing non lo riceve — la firma di
+  //   `documentRowPath` accetta id e tipo, e basta.
+  const doc = (type: DocumentType) => ({
     id: 'doc-1',
     type,
-    status,
   });
 
   it('famiglia carico: apre il form, unica vista completa', () => {
@@ -57,15 +58,20 @@ describe('documentOpenPath', () => {
     );
   });
 
-  it('registrazione fattura attiva nel form del modulo, annullata nel dettaglio generico', () => {
+  it('registrazione fattura: il form del modulo', () => {
+    // ⛔ Qui c'era una seconda asserzione — `Cancelled → '/app/documents/doc-1'` —
+    //   ed era il caso da cui la regola «annullato → Dettaglio» venne
+    //   GENERALIZZATA a tutti i tipi il 20/08.
+    //
+    // ⭐ Rimossa il 28/08/2026, per decisione del proprietario: **la
+    //   Registrazione fattura non ha stati funzionali**. Ne hanno soltanto
+    //   l'Ordine cliente e l'Ordine fornitore, e servono ai COLLEGAMENTI
+    //   documentali, non al routing. Qui non si asserisce niente per stato,
+    //   in nessuna delle due direzioni.
     expect(documentOpenPath(doc(DocumentType.SupplierInvoice), TITOLARE)).toBe(
       '/app/documents/registrazioni-fatture-fornitori/doc-1/edit',
     );
-    expect(
-      documentOpenPath(doc(DocumentType.SupplierInvoice, DocumentStatus.Cancelled), TITOLARE),
-    ).toBe('/app/documents/doc-1');
   });
-
   /**
    * ⛔ Qui c'era «documenti di vendita: Dettaglio dedicato per tipo»,
    * e sotto «tipi operativi restanti: dettaglio generico». Erano la fotografia
@@ -133,22 +139,34 @@ describe('documentOpenPath', () => {
   });
 
   /**
-   * ⚠️ Un ANNULLATO non si modifica, e la regola non dipende più dal profilo di
-   * elenco: prima valeva per le registrazioni fattura e per i profili «in stile
-   * Arrivi merce», e non per gli altri.
+   * ⛔ **Qui c'era: «un documento annullato apre il Dettaglio, qualunque sia il
+   * tipo»**, con tre asserzioni su Preventivo, Trasferimento e Vendita al banco.
+   *
+   * ⭐ Rimosso il 28/08/2026, per decisione del proprietario: **quei documenti
+   * non hanno stati funzionali**. Ne hanno solo l'Ordine cliente e l'Ordine
+   * fornitore, e lì lo stato governa l'eleggibilità in «Includi/Genera» — non
+   * il routing, non l'apertura, non la modifica.
+   *
+   * ⚠️ **E non è stato sostituito con l'asserzione opposta**: dire «un annullato
+   * apre la Modifica» sarebbe di nuovo una policy generica sugli stati, cioè lo
+   * stesso errore alla rovescia. Il routing non riceve lo stato — la firma di
+   * `documentRowPath` non lo accetta più — e non c'è niente da provare per stato.
+   *
+   * ⚠️ Che `DocumentStatus` esista comunque su questi tipi è debito noto:
+   * GAP-DOC-STATUS-LEGACY, censimento separato.
    */
-  it('⚠️ un documento annullato apre il Dettaglio, qualunque sia il tipo', () => {
-    expect(documentOpenPath(doc(DocumentType.Quote, DocumentStatus.Cancelled), TITOLARE)).toBe(
-      '/app/documents/quote/doc-1',
+  it('⭐ la destinazione dipende dal TIPO e dai permessi, mai dallo stato', () => {
+    // La stessa risposta di sopra, e la firma impedisce di chiedere altro.
+    expect(documentOpenPath(doc(DocumentType.Quote), TITOLARE)).toBe(
+      '/app/documents/quote/doc-1/edit',
     );
-    expect(documentOpenPath(doc(DocumentType.Transfer, DocumentStatus.Cancelled), TITOLARE)).toBe(
-      '/app/documents/doc-1',
+    expect(documentOpenPath(doc(DocumentType.Transfer), TITOLARE)).toBe(
+      '/app/documents/transfer/doc-1/edit',
     );
-    expect(documentOpenPath(doc(DocumentType.StoreSale, DocumentStatus.Cancelled), TITOLARE)).toBe(
-      '/app/vendita-al-banco/doc-1',
+    expect(documentOpenPath(doc(DocumentType.StoreSale), TITOLARE)).toBe(
+      '/app/vendita-al-banco/vendita/doc-1/edit',
     );
   });
-
   /**
    * ⭐ La guardia che tiene insieme il contratto: `DOCUMENT_ROW_OPENS` è un
    * Record esaustivo, quindi un tipo nuovo non compila senza decisione — ma
@@ -187,10 +205,11 @@ describe('documentOpenPath', () => {
  * lista sola; rendere la regola comune lo avrebbe portato su tutte.
  */
 describe('documentRowPath — chi non può gestire resta sul Dettaglio', () => {
+  // ⭐ Nessuno `status`: dal 28/08/2026 il routing non lo riceve — la firma di
+  //   `documentRowPath` accetta id e tipo, e basta.
   const doc = (type: DocumentType) => ({
     id: 'doc-1',
     type,
-    status: DocumentStatus.Confirmed,
   });
 
   it('⛔ sola consultazione: il preventivo apre l’ANTEPRIMA, non la maschera', () => {
@@ -304,10 +323,11 @@ describe('Vendita manuale spenta: dove porta il documento', () => {
     manualUnloadEnabled: false,
   } as unknown as User;
 
-  const doc = (type: DocumentType, status: DocumentStatus = DocumentStatus.Confirmed) => ({
+  // ⭐ Nessuno `status`: dal 28/08/2026 il routing non lo riceve — la firma di
+  //   `documentRowPath` accetta id e tipo, e basta.
+  const doc = (type: DocumentType) => ({
     id: 'doc-1',
     type,
-    status,
   });
 
   it('⛔ a funzione spenta la riga porta al DETTAGLIO, non alla maschera', () => {

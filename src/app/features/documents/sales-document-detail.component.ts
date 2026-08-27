@@ -29,7 +29,7 @@ import {
   isInvoiceDocumentType,
   isSalesDdtDocumentType,
 } from '@domain/documents/models/document-sales.util';
-import { isManualUnloadDocumentType } from './models/document-stock-operation.util';
+import { isManualUnloadDocumentType } from '@domain/documents/utils/document-stock-operation.util';
 import { counterpartyDocLabel } from '@domain/documents/models/document-labels.util';
 import type { DocumentListProfile } from '@domain/documents/models/document-list-query.model';
 

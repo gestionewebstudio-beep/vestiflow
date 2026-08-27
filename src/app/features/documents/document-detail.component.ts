@@ -42,15 +42,18 @@ import {
   documentStatusLabelForType,
   documentTypeLabel,
 } from '@domain/documents/models/document-labels.util';
-import { isGoodsReceiptDocumentType } from './models/document-goods-receipt.util';
+import { isGoodsReceiptDocumentType } from '@domain/documents/utils/document-goods-receipt.util';
 import { isPrintableDocumentType } from './models/document-print.util';
-import { documentDuplicateFormRoute, documentEditPath } from './models/document-routing.util';
-import { isTransferDocumentType } from './models/document-transfer.util';
+import {
+  documentDuplicateFormRoute,
+  documentEditPath,
+} from '@domain/documents/utils/document-routing.util';
+import { isTransferDocumentType } from '@domain/documents/utils/document-transfer.util';
 import {
   isAdjustmentDocumentType,
   isManualUnloadDocumentType,
   isStockOperationDocumentType,
-} from './models/document-stock-operation.util';
+} from '@domain/documents/utils/document-stock-operation.util';
 import { isStoreFlowDocumentType } from '@domain/documents/models/document-operational.util';
 import {
   isInvoiceDocumentType,

@@ -10,7 +10,7 @@ import {
 } from '@domain/documents/models/document-sales.util';
 
 import { documentsRoutes } from './documents.routes';
-import { SALES_FORM_ROUTE_SEGMENT } from './models/document-routing.util';
+import { SALES_FORM_ROUTE_SEGMENT } from '@domain/documents/utils/document-routing.util';
 
 /**
  * Le rotte della maschera vendita — regressione di `07-…§18`.

@@ -118,7 +118,7 @@ import { DocumentEditLockService } from '@domain/documents/services/document-edi
 import { formatItalianInputDate } from '@shared/utils/calendar.util';
 
 import { documentReferenceLabel } from '@domain/documents/models/document-labels.util';
-import { isTransferDocumentType } from './models/document-transfer.util';
+import { isTransferDocumentType } from '@domain/documents/utils/document-transfer.util';
 import { DocumentService } from '@domain/documents/services/document.service';
 import { DocumentNumberingStore } from '@domain/documents/state/document-numbering.store';
 import { DocumentCountersService } from '@domain/documents/services/document-counters.service';

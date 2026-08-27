@@ -11,7 +11,7 @@ import { BadgeComponent } from '@shared/components/badge/badge.component';
 import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
 import { storeSalePaymentMethodLabelWithNote } from '@domain/store-sales/models/store-sale-payment.util';
 
-import { isGoodsReceiptDocumentType } from '../../models/document-goods-receipt.util';
+import { isGoodsReceiptDocumentType } from '@domain/documents/utils/document-goods-receipt.util';
 import {
   documentReferenceLabel,
   documentStatusDisplayLabel,
@@ -23,7 +23,7 @@ import {
 import { isStoreFlowDocumentType } from '@domain/documents/models/document-operational.util';
 import { isPrintableDocumentType } from '../../models/document-print.util';
 import { isQuoteDocumentType } from '@domain/documents/models/document-sales.util';
-import { isManualUnloadDocumentType } from '../../models/document-stock-operation.util';
+import { isManualUnloadDocumentType } from '@domain/documents/utils/document-stock-operation.util';
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
 import { DataTableRowActionsDirective } from '@shared/components/data-table/data-table-row-actions.directive';
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';

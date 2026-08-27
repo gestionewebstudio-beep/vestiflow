@@ -1,8 +1,7 @@
-import { DocumentStatus, DocumentType } from '@core/models/document.model';
-import type {
-  DocumentStatus as DocumentStatusValue,
-  DocumentType as DocumentTypeValue,
-} from '@core/models/document.model';
+import { DocumentType } from '@core/models/document.model';
+// ⚠️ `DocumentStatus` non compare più: dal 27/08/2026 lo STATO non entra nella
+//    decisione di dove porta la riga (vedi `documentRowPath`).
+import type { DocumentType as DocumentTypeValue } from '@core/models/document.model';
 import type { User } from '@core/models/user.model';
 import {
   canManageDocumentType,
@@ -193,6 +192,20 @@ export function documentDetailPath(doc: {
     case DocumentType.StoreSale:
     case DocumentType.StoreReturn:
       return `${STORE_SALE_ROOT_PATH}/${doc.id}`;
+    // ⛔ I DUE ORDINI vivono FUORI da `/app/documents`, e senza questi due casi
+    //   cadevano nel `default` — cioè su un indirizzo che per loro non esiste.
+    //   `documentEditPath` ha lo stesso ramo da sempre; qui mancava lo specchio.
+    //
+    // ⚠️ Non era teorico: la RICERCA GLOBALE restituisce ordini fornitore e passa
+    //   da `documentOpenPath` → `documentRowPath`, che per un ordine ANNULLATO
+    //   ripiega sul Dettaglio. Misurato il 27/08/2026.
+    // ⛔ L’Ordine CLIENTE resta fuori, e non è una dimenticanza: verificato il
+    //   27/08/2026 che NON HA una rotta di Dettaglio — `/app/sales/:id` monta la
+    //   maschera di MODIFICA (`sales-orders.routes.ts:62`). Mapparlo qui farebbe
+    //   dire «Dettaglio» a una cosa che apre la Modifica: una bugia semantica,
+    //   peggio del `default` sbagliato. Il suo Dettaglio va prima progettato.
+    case DocumentType.SupplierOrder:
+      return `/app/orders/${doc.id}`;
     default:
       return `/app/documents/${doc.id}`;
   }
@@ -257,22 +270,43 @@ export function canOpenDocumentForm(
  * in modifica e una fattura in sola lettura, e l'operatore doveva ricordarsi
  * quale. Ora la differenza sta in un solo posto, dichiarata per tipo.
  *
- * ⚠️ **Un documento ANNULLATO apre il Dettaglio**, qualunque sia il tipo: non
- * c'è nulla da modificare. Era già la scelta del codice per le registrazioni
- * fattura e per i profili «in stile Arrivi merce» — qui diventa la regola, e
- * smette di dipendere dal profilo di elenco da cui si è passati.
+ * ⭐ **Lo STATO non entra in questa decisione**, e non è una dimenticanza: la
+ * firma non lo accetta.
+ *
+ * ⛔ Qui c'era: *«Un documento ANNULLATO apre il Dettaglio, qualunque sia il
+ * tipo»*. **Superata dal proprietario il 27-28/08/2026**, e la ragione è più
+ * profonda del routing: **la gran parte dei documenti locali non ha stati
+ * funzionali**. Preventivo, Proforma, DDT, le tre Fatture, Arrivo merce,
+ * Trasferimento, Rettifica, Vendita e Reso al banco non ne hanno.
+ *
+ * ⭐ **Ne hanno due soli: Ordine cliente e Ordine fornitore** — Confermato,
+ * Concluso, Annullato — e servono ai **collegamenti documentali**: Confermato è
+ * eleggibile in «Includi/Genera», Concluso e Annullato no, e Concluso lo assegna
+ * il collegamento valido col documento successivo. Lo stato, da solo, non tocca
+ * routing, apertura, Modifica, Salva, Elimina, permessi, stampa o movimenti.
+ *
+ * ⚠️ **La regola precedente non era mai stata deliberata**: era dedotta dal
+ * comportamento di un caso — la Registrazione fattura — e generalizzata a tutti.
+ *
+ * ⛔ **E non è stata sostituita da una policy inversa.** Dire «un annullato apre
+ * la Modifica» sarebbe lo stesso errore alla rovescia: qui non si decide NULLA
+ * per stato, e il parametro è sparito perché non ci sia niente da leggere.
+ *
+ * ⚠️ Che `DocumentStatus` e l'annullamento generico esistano comunque su tipi
+ * che stati non hanno è debito noto — **GAP-DOC-STATUS-LEGACY**, censimento
+ * separato di UI, API, database ed effetti collaterali.
+ *
+ * ⚠️ Restano fuori dal clic di riga, e per ragioni diverse: il **permesso**
+ * (`canOpenDocumentForm`) e la **capacità del tipo** (`DOCUMENT_ROW_OPENS`).
+ * Sono decisioni distinte dallo stato, e nessuna delle due è cambiata.
  */
 export function documentRowPath(
   doc: {
     readonly id: string;
     readonly type: DocumentTypeValue;
-    readonly status: DocumentStatusValue;
   },
   user: User | null | undefined,
 ): string {
-  if (doc.status === DocumentStatus.Cancelled) {
-    return documentDetailPath(doc);
-  }
   // ⛔ L'utente è un parametro OBBLIGATORIO, non un'opzione con un default: un
   // default «può» manderebbe in silenzio chi non può contro il guard, ed è
   // proprio il difetto che questa funzione esiste per non avere.
@@ -294,7 +328,6 @@ export function documentOpenPath(
   doc: {
     readonly id: string;
     readonly type: DocumentTypeValue;
-    readonly status: DocumentStatusValue;
   },
   user: User | null | undefined,
 ): string {

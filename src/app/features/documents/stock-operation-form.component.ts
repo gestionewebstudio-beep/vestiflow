@@ -128,7 +128,7 @@ import { DocumentEditLockService } from '@domain/documents/services/document-edi
 import { formatItalianInputDate } from '@shared/utils/calendar.util';
 
 import { documentReferenceLabel } from '@domain/documents/models/document-labels.util';
-import { isAdjustmentDocumentType } from './models/document-stock-operation.util';
+import { isAdjustmentDocumentType } from '@domain/documents/utils/document-stock-operation.util';
 import { isPrintableDocumentType } from './models/document-print.util';
 import { DocumentPrintActionsComponent } from '@domain/documents/components/document-print-actions/document-print-actions.component';
 import { DocumentService } from '@domain/documents/services/document.service';
