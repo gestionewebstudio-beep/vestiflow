@@ -1,6 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { render, screen } from '@testing-library/angular';
+import { render, screen, waitFor } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { of, throwError } from 'rxjs';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -237,6 +237,11 @@ interface SetupOptions {
   readonly defaultLocation?: string | null;
   /** Modalità netto/ivato proposta dal contratto comune. */
   readonly priceMode?: boolean;
+  /**
+   * Il servizio comune, pilotabile: serve a esercitare il ramo di ERRORE.
+   * Senza, un rifiuto dell’API non si può nemmeno simulare.
+   */
+  readonly searchVariantSummaries?: ReturnType<typeof vi.fn>;
   /** L'articolo che ricerca e scansione risolvono (default: `VARIANTE`). */
   readonly variant?: typeof VARIANTE;
   /** Vista compatta (card) invece della tabella: il criterio responsive comune. */
@@ -324,7 +329,8 @@ async function setup(options: SetupOptions = {}) {
       {
         provide: ProductService,
         useValue: {
-          searchVariantSummaries: vi.fn(() => of([options.variant ?? VARIANTE])),
+          searchVariantSummaries:
+            options.searchVariantSummaries ?? vi.fn(() => of([options.variant ?? VARIANTE])),
         },
       },
       {
@@ -389,6 +395,10 @@ async function setup(options: SetupOptions = {}) {
     setPriceMode(pricesIncludeVat: boolean): void;
     onStockToggle(index: number, checked: boolean): void;
     onLocationChange(value: string | null): void;
+    /** Il pannello «cerca articolo» aperto DA una riga: l’altro chiamante di
+     *  `readVariant()`, quello che SOSTITUISCE l’articolo invece di aggiungerlo. */
+    openLineProductSearch(lineIndex: number): void;
+    onProductSearchPick(variantId: string): void;
     /** Il gancio dell'overlay fotocamera: la riga la costruisce la maschera. */
     onScanLineAdded(event: { variantId: string; quantity: number }): void;
     /** Lo store comune della numerazione: il banco non ne ha uno proprio. */
@@ -1819,6 +1829,120 @@ describe('StoreSaleDocumentFormComponent — avvisi di giacenza', () => {
       rendered.fixture.detectChanges();
 
       expect(comp.canDeactivate()).not.toBe(true);
+    });
+  });
+
+  /**
+   * ⛔ **Un 403 non è «articolo non trovato».**
+   *
+   * `readVariant()` chiudeva con `catchError(() => of(null))`, e `null` è già il
+   * valore che significa «nessuna riga». Le due cose diventavano
+   * indistinguibili: la maschera taceva, o diceva «Codice non trovato» a un
+   * operatore che il codice l'aveva letto bene.
+   *
+   * ⚠️ **Da quando `listVariantSummaries` verifica la sede** (28/08/2026, `21`
+   * §2) quel ramo può ricevere un **403 vero**: cercare un articolo con una sede
+   * fuori dal proprio ambito non è più un caso teorico.
+   *
+   * Il contratto richiesto è quello che questa maschera ha già: `searchMessage`.
+   * Non un secondo sistema, non un toast nuovo.
+   */
+  describe('errore dell’API durante la ricerca articolo', () => {
+    const vietato = () => ({
+      kind: 'forbidden',
+      message: 'Sede non consentita.',
+      status: 403,
+    });
+
+    /** Il servizio comune rifiuta: l'errore risale, non diventa `of(null)`. */
+    const cheRifiuta = () => vi.fn(() => throwError(() => vietato()));
+
+    it('⛔ scansione con 403: il messaggio dell’API arriva a schermo', async () => {
+      const searchVariantSummaries = cheRifiuta();
+      const { component } = await setup({ searchVariantSummaries });
+
+      component.onScanLineAdded({ variantId: VARIANTE.variantId, quantity: 1 });
+      await waitFor(() => expect(screen.getByText('Sede non consentita.')).toBeTruthy());
+    });
+
+    /**
+     * ⭐ **La prova che il difetto non torna.** Con `catchError(() => of(null))`
+     * rimesso, l'errore diventa `null` e questo ramo prende la strada di
+     * «codice non trovato»: il messaggio sarebbe quello, non quello dell'API.
+     */
+    it('⛔ e NON viene scambiato per «codice non trovato»', async () => {
+      const searchVariantSummaries = cheRifiuta();
+      const { component } = await setup({ searchVariantSummaries });
+
+      component.onScanLineAdded({ variantId: VARIANTE.variantId, quantity: 1 });
+      await waitFor(() => expect(screen.getByText('Sede non consentita.')).toBeTruthy());
+      expect(screen.queryByText(/Nessun articolo/)).toBeNull();
+    });
+
+    // ⛔ Nessuna riga con dati a metà: se l'articolo non si è letto, non entra.
+    it('⛔ e nessuna riga viene aggiunta al documento', async () => {
+      const searchVariantSummaries = cheRifiuta();
+      const { component } = await setup({ searchVariantSummaries });
+
+      component.onScanLineAdded({ variantId: VARIANTE.variantId, quantity: 1 });
+      await waitFor(() => expect(screen.getByText('Sede non consentita.')).toBeTruthy());
+      expect(component.righeCompilate().length).toBe(0);
+    });
+
+    /**
+     * ⚠️ **L'attesa deve finire comunque.** Il ramo `error` di un `subscribe`
+     * non esegue quello `next`: senza spegnere la spia lì dentro, un rifiuto
+     * lascerebbe la maschera in ricerca per sempre e la scansione dopo non
+     * partirebbe (`commitScan` esce se `searchPending()`).
+     */
+    it('⛔ e la maschera non resta in attesa: la scansione dopo funziona', async () => {
+      const searchVariantSummaries = vi
+        .fn()
+        .mockImplementationOnce(() => throwError(() => vietato()))
+        .mockImplementation(() => of([VARIANTE]));
+      const { component } = await setup({ searchVariantSummaries });
+
+      component.onScanLineAdded({ variantId: VARIANTE.variantId, quantity: 1 });
+      await waitFor(() => expect(screen.getByText('Sede non consentita.')).toBeTruthy());
+
+      component.onScanLineAdded({ variantId: VARIANTE.variantId, quantity: 1 });
+      await waitFor(() => expect(component.righeCompilate().length).toBe(1));
+    });
+
+    // ✅ Comportamento PRESERVATO: una risposta valida senza righe resta
+    //    «nessun summary», ed è il caso che `null` deve continuare a coprire.
+    it('✅ risposta valida ma vuota: resta «codice non trovato», non un errore', async () => {
+      const searchVariantSummaries = vi.fn(() => of([]));
+      const { component } = await setup({ searchVariantSummaries });
+
+      component.onScanLineAdded({ variantId: VARIANTE.variantId, quantity: 1 });
+      await waitFor(() => expect(screen.getByText(/Nessun articolo/)).toBeTruthy());
+      expect(component.righeCompilate().length).toBe(0);
+    });
+
+    /**
+     * ⭐ **L’altro chiamante, e non è una ripetizione.** `readVariant()` ha due
+     * consumatori con due esiti diversi: uno aggiunge una riga, l’altro
+     * SOSTITUISCE l’articolo di una riga esistente. Il secondo taceva del tutto
+     * — `if (!summary) return;` — quindi un 403 lasciava la riga com’era senza
+     * dire niente, ed era il caso peggiore dei due.
+     */
+    it('⛔ sostituzione articolo di una riga con 403: lo dice, e la riga non cambia', async () => {
+      const searchVariantSummaries = vi
+        .fn()
+        .mockImplementationOnce(() => of([VARIANTE]))
+        .mockImplementation(() => throwError(() => vietato()));
+      const { component } = await setup({ searchVariantSummaries });
+
+      component.onScanLineAdded({ variantId: VARIANTE.variantId, quantity: 1 });
+      await waitFor(() => expect(component.righeCompilate().length).toBe(1));
+      const primaDescrizione = component.righeCompilate()[0]!.description;
+
+      component.openLineProductSearch(0);
+      component.onProductSearchPick(VARIANTE.variantId);
+
+      await waitFor(() => expect(screen.getByText('Sede non consentita.')).toBeTruthy());
+      expect(component.righeCompilate()[0]!.description).toBe(primaDescrizione);
     });
   });
 });

@@ -967,12 +967,16 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
     }
     this.readVariant(variantId)
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((summary) => {
-        if (!summary) {
-          return;
-        }
-        this.applyVariantToLine(lineIndex, summary);
-        this.form.controls.lines.markAsDirty();
+      .subscribe({
+        next: (summary) => {
+          if (!summary) {
+            return;
+          }
+          this.applyVariantToLine(lineIndex, summary);
+          this.form.controls.lines.markAsDirty();
+        },
+        // ⛔ Nessun dato parziale sulla riga: l’errore si dice, non si applica.
+        error: (err: unknown) => this.searchMessage.set(errorMessage(err)),
       });
   }
 
@@ -1050,22 +1054,29 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
     }
     this.readVariant(variantId)
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((summary) => {
-        this.searchPending.set(false);
-        if (!summary) {
-          this.notFound(variantId);
-          return;
-        }
-        const group = this.createLine();
-        group.patchValue({ quantity: Math.max(1, quantity) });
-        // ⭐ **Prima delle righe vuote in coda**, come sull'Ordine cliente: la
-        //    riga in cui si digita resta l'ultima. Accodando e basta, dopo ogni
-        //    scansione resterebbe una riga vuota INCASTRATA sopra l'articolo.
-        const posizione = this.indiceDiInserimento();
-        righe.insert(posizione, group);
-        this.applyVariantToLine(posizione, summary);
-        righe.markAsDirty();
-        this.afterAcquire();
+      .subscribe({
+        next: (summary) => {
+          this.searchPending.set(false);
+          if (!summary) {
+            this.notFound(variantId);
+            return;
+          }
+          const group = this.createLine();
+          group.patchValue({ quantity: Math.max(1, quantity) });
+          // ⭐ **Prima delle righe vuote in coda**, come sull'Ordine cliente: la
+          //    riga in cui si digita resta l'ultima. Accodando e basta, dopo ogni
+          //    scansione resterebbe una riga vuota INCASTRATA sopra l'articolo.
+          const posizione = this.indiceDiInserimento();
+          righe.insert(posizione, group);
+          this.applyVariantToLine(posizione, summary);
+          righe.markAsDirty();
+          this.afterAcquire();
+        },
+        // ⛔ Un 403 non è «articolo non trovato»: si dice, e non si crea la riga.
+        error: (err: unknown) => {
+          this.searchPending.set(false);
+          this.searchMessage.set(errorMessage(err));
+        },
       });
   }
 
@@ -1199,8 +1210,17 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
       })
       .pipe(
         take(1),
+        // ⛔ **`null` significa «nessun risultato», non «è andata male».**
+        //
+        // Qui c'era `catchError(() => of(null))`, e rendeva indistinguibili due
+        // cose diverse: una risposta valida senza righe, e un errore dell’API.
+        // Da quando `listVariantSummaries` verifica la sede (28/08/2026) quel
+        // ramo può ricevere un **403**, e lo faceva sparire: la riga restava
+        // senza dati di giacenza e l’operatore non sapeva perché.
+        //
+        // ⭐ L’errore ora risale, e i due chiamanti lo mostrano in
+        // `searchMessage` — il contratto che questa maschera usa già.
         map((rows) => rows[0] ?? null),
-        catchError(() => of(null)),
       );
   }
 
