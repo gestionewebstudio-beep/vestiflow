@@ -16,6 +16,7 @@ import {
 } from '@prisma/client';
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
+import { OrderState, assertManualTransition, supplierOrderState } from '../common/order-state.util';
 import { resolveReadableListLocationScope } from '../inventory/licensed-location-scope.util';
 import { assertLocationReadableInUserScope } from '../inventory/user-location-scope.util';
 import { partyDisplayName } from '../common/party/party.util';
@@ -365,10 +366,21 @@ export class SupplierOrdersService {
     user?: UserProfileDto,
   ): Promise<SupplierOrderWithLines> {
     const order = await this.getById(tenantId, id, user);
-    if (order.status !== SupplierOrderStatus.confirmed) {
-      throw new ConflictException(
-        'Solo gli ordini confermati possono essere annullati. Un ordine concluso resta collegato al suo arrivo merce.',
-      );
+
+    // ⭐ La legalità della transizione la decide la macchina comune
+    // (`common/order-state.util`), non questo servizio: è la stessa che
+    // governa l’Ordine cliente, e tiene ferma la regola che da Concluso non
+    // si esce a mano — ci si esce togliendo il legame (`17` §2.5, §2.6).
+    const current = supplierOrderState(order);
+    assertManualTransition(current, OrderState.Cancelled);
+
+    // ⚠️ Comportamento PRESERVATO, non ereditato dalla macchina: per la
+    // macchina «annullato → annullato» è una transizione legale (un no-op),
+    // mentre qui è sempre stato un rifiuto. L’estrazione non cambia cosa fa
+    // l’API: se un giorno si vorrà renderlo idempotente, è questa riga da
+    // togliere, ed è una decisione a sé.
+    if (current === OrderState.Cancelled) {
+      throw new ConflictException("L'ordine è già annullato.");
     }
     const updated = await this.prisma.supplierOrder.update({
       where: { id },
