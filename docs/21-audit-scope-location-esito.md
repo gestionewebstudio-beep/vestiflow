@@ -2,7 +2,8 @@
 
 **Data:** 28/08/2026
 **Perimetro:** autorizzazione di sede sugli accessi per ID nel backend.
-**Stato:** ⛔ **chiuso.** Nessun altro audit di sicurezza è in corso.
+**Stato:** ⛔ **chiuso.** Nessun altro audit di sicurezza è in corso. Il test di
+integrazione su PostgreSQL reale è stato eseguito il 28/08/2026 (§7 A).
 
 > **La regola che il Passo 5 ha reso vera:** conoscere un ID non concede alcun
 > diritto. Filtrare un elenco è ergonomia; autorizzare è rifiutare la richiesta
@@ -171,39 +172,67 @@ registrate come rischio residuo «non urgente». Cercati i chiamanti di ognuna,
 (più tre propagate dal compilatore), e `BASELINE_UTENTE_OPZIONALE` è ora **vuota**.
 Un metodo nuovo che ci finirebbe dentro fallisce il lint.
 
-### ⏸ A · Il test d'integrazione su database vero — **BLOCCATO**
+### ✅ A · Il test d'integrazione su database vero — **ESEGUITO**
 
-⛔ **La verifica più forte del Passo 5 non è stata eseguita, e la sua assenza va
-detta qui invece che in fondo a una chat.** Le sei correzioni sono provate contro
-**mock di Prisma**: nessuna prova ha mai visto due tenant veri, due sedi vere e un
-utente assegnato a una sola.
-
-**Cosa manca, misurato il 28/08/2026:**
+⚠️ **Qui era registrato come BLOCCATO**, in attesa di `DATABASE_URL_TEST`, che
+non esisteva. Il blocco è caduto il 28/08/2026: l'ambiente esiste ed è
+infrastruttura permanente.
 
 ```text
-DATABASE_URL_TEST            0 file nel repository
-api/.env.example             DATABASE_URL · BACKUP_DATABASE_URL — nessuna terza
-test con PrismaClient vero   0
+PostgreSQL 17 in Docker · localhost:5433 · vestiflow_test · 141 migration
+HTTP → JwtAuthGuard → controller → service → Prisma → PostgreSQL
 ```
 
-> **Stato: BLOCCATO — e SOLO finché non esiste `DATABASE_URL_TEST`.** Non è una
-> decisione di prodotto e non aspetta una deliberazione: aspetta un database di
-> prova dedicato. Il giorno in cui quella variabile esiste, il blocco cade da sé.
+⭐ **L'autenticazione è REALE.** Il guard verifica il token e legge il profilo —
+`assignedLocationIds` compreso — **dal database**. Cambia solo chi emette i
+token: un emittente locale invece del progetto Supabase, così la verifica è
+HS256 in memoria e non parte nessuna chiamata di rete. Nessuna guardia è
+sostituita, nessun `@CurrentUser()` è iniettato a mano.
 
-⛔ **E non si scrive un test saltabile nel frattempo.** Un `describe.skip`
-condizionale che diventa verde quando il database manca è peggio dell'assenza:
-contribuisce alla sensazione che l'integrazione sia verificata mentre non lo è —
-che è esattamente il difetto che questo audit ha trovato sei volte nel codice.
-Quando l'infrastruttura ci sarà, il test dovrà **fallire** se il database non è
-configurato, non saltare.
+#### ⛔ La copertura è RAPPRESENTATIVA, non completa: 3 correzioni su 6
 
-⛔ **Il database DEV condiviso non è un ripiego.** Porta le migration del ramo del
-collega, e questa suite non lo tocca in nessun caso.
+**Non chiamarla «copertura completa».** Il numero è misurato per
+falsificazione — rimuovendo una alla volta la guardia e osservando le prove
+arrossire — non affermato.
 
-**Cosa coprirà quando si potrà scrivere** — Tenant A `{A1, A2}` + Tenant B `{B1}`,
-utente limitato ad A1: lettura diretta per ID · cambio di sede in scrittura ·
-relazione per ID verso un documento di un'altra sede · anteprima import come
-oracolo di giacenza.
+| #   | correzione                            | integrazione HTTP                   | prove rosse alla falsificazione |
+| --- | ------------------------------------- | ----------------------------------- | ------------------------------- |
+| 1   | `GET /inventory/reservations`         | ⛔ no — prove di servizio + guardia | —                               |
+| 2   | `GET /store-sales/lookup`             | ✅ **sì**                           | 1                               |
+| 3   | `GET /online-sales/:id` · `/by-order` | ⛔ no — prove di servizio + guardia | —                               |
+| 4   | `PATCH /documents/:id` (sede del DTO) | ✅ **sì**                           | 2                               |
+| 5   | `POST` · `PATCH /supplier-orders`     | ⛔ no — prove di servizio + guardia | —                               |
+| 6   | riferimenti per ID                    | ⚠️ solo `linkedSalesDdtIds`         | 2                               |
+
+⛔ Fuori dall'integrazione restano anche `linkedGoodsReceiptId`,
+`supplierOrderId` e `import/preview` della #6.
+
+⭐ **Le tre coperte non sono scelte a caso: sono una per FORMA del difetto** —
+guardia morta (#2), guardia parziale (#4), guardia assente (#6). È un campione
+dei meccanismi, non delle rotte.
+
+#### Le 14 prove: 11 richieste HTTP + 3 verifiche sul database
+
+⚠️ **Le due cose non coincidono**, e vanno tenute distinte: tre prove non
+chiamano l'API — verificano che dopo un rifiuto il database non si sia mosso.
+
+```text
+11  richieste HTTP     401 · 200 /auth/me · 200/403/404 su GET /documents/:id
+                       403 PATCH {locationId} × 2 · 403 PATCH {linkedSalesDdtIds}
+                       403/200 lookup · 200 lettura col permesso
+ 3  verifiche DB       nessuna riga · nessun collegamento · nessun totale importato
+```
+
+⚠️ **I tre `GET /documents/:id` certificano il pattern, non una correzione**: quel
+gate è **preesistente** (`ce73846a`), e non è fra le sei.
+
+⭐ **E la #4 è provata due volte, con due utenti diversi**: un commesso e un
+supervisore con `inventory.view_all_locations`. Il secondo **legge** A2 (200) e
+**non può scriverci** (403) — la dimostrazione che lettura e scrittura restano
+due politiche distinte.
+
+⚠️ **Il cleanup ri-verifica la barriera prima del `TRUNCATE`**, non si fida di
+quella fatta all'avvio: è l'unica operazione distruttiva della suite.
 
 ⭐ **La lezione che vale più delle sei correzioni:** un test di servizio verde
 non dimostra che la rotta sia protetta. Il servizio della cassa aveva la guardia,
