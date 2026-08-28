@@ -40,7 +40,6 @@ export class ProductTableComponent {
   readonly columns = input.required<readonly ResolvedTableColumn[]>();
   readonly sortField = input<ProductSortField>();
   readonly sortOrder = input<SortOrder>();
-  readonly showShopifyColumn = input(false);
   readonly selectedProductIds = input<ReadonlySet<string>>(new Set<string>());
   readonly allOnPageSelected = input(false);
   readonly someOnPageSelected = input(false);

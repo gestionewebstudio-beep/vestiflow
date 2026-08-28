@@ -298,9 +298,26 @@ export class ProductListComponent {
   private readonly searchSubscription: Subscription;
 
   constructor() {
+    // ⛔ **Senza il canale Shopify la colonna non entra nel SELETTORE**, non
+    //    si limita a non rendersi. Qui c’era `PRODUCT_LIST_COLUMN_DEFS` intero:
+    //    la voce «Shopify» compariva nel tasto Colonne di ogni tenant, si
+    //    poteva accendere, e non succedeva niente — la resa aveva una seconda
+    //    condizione (`showShopifyColumn`) che il selettore non conosceva.
+    //    Un comando che non comanda (`docs/03` §22 · LINE-012).
+    //
+    // ⚠️ **Il gating sta alla DICHIARAZIONE, non nella cella**, ed è lo stesso
+    //    punto scelto dall’Arrivo merce: è l’unico posto in cui le colonne si
+    //    dichiarano, quindi selettore, preset e resa leggono la stessa verità.
+    //
+    // ⭐ I preset restano interi: `applyPresetToState` mette comunque l’id in
+    //    `columnOrder`, ma `resolveVisibleColumns` scarta ciò che non sta nelle
+    //    `defs`. Filtrarli anche qui sarebbe una seconda regola da tenere
+    //    allineata alla prima.
     this.columnPreferences.registerView(
       PRODUCT_LIST_VIEW,
-      PRODUCT_LIST_COLUMN_DEFS,
+      this.showShopifyColumn()
+        ? PRODUCT_LIST_COLUMN_DEFS
+        : PRODUCT_LIST_COLUMN_DEFS.filter((column) => column.id !== 'shopify'),
       PRODUCT_LIST_COLUMN_PRESETS,
     );
     this.tableColumns = this.columnPreferences.visibleColumns(PRODUCT_LIST_VIEW);

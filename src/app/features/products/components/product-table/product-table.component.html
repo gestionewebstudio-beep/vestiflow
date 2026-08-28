@@ -110,7 +110,7 @@
             {{ columnLabel('source') }}
           </th>
         }
-        @if (showColumn('shopify') && showShopifyColumn()) {
+        @if (showColumn('shopify')) {
           <th scope="col" class="product-table__cell--shopify product-table__col--shopify">
             {{ columnLabel('shopify') }}
           </th>
@@ -203,7 +203,7 @@
               </span>
             </td>
           }
-          @if (showColumn('shopify') && showShopifyColumn()) {
+          @if (showColumn('shopify')) {
             <td class="product-table__cell--shopify" [attr.data-label]="columnLabel('shopify')">
               <span class="product-table__shopify-value">
                 <app-badge [tone]="shopifyTone(product)">{{ shopifyLabel(product) }}</app-badge>
