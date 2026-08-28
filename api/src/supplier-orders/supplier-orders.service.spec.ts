@@ -179,7 +179,7 @@ describe('SupplierOrdersService', () => {
     const service = createService(prisma);
 
     await expect(
-      service.create(tenantId, { supplierId: 'missing', lines: [] }),
+      service.create(tenantId, { supplierId: 'missing', lines: [] }, testOwnerUser()),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
@@ -206,7 +206,7 @@ describe('SupplierOrdersService', () => {
         supplierId: 'sup-1',
         supplierReference: 'ORD-FORN-77',
         lines: [{ variantId: 'var-1', orderedQuantity: 5, enteredUnitCostMinor: 1000 }],
-      }),
+      }, testOwnerUser()),
     ).resolves.toMatchObject({
       id: 'po-new',
       reference: 'OF-0007',
@@ -262,7 +262,7 @@ describe('SupplierOrdersService', () => {
           vatCodeId: 'vat-22',
         },
       ],
-    });
+    }, testOwnerUser());
 
     expect(prisma.supplierOrder.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -312,7 +312,7 @@ describe('SupplierOrdersService', () => {
       await service.create(tenantId, {
         supplierId: 'sup-1',
         lines: [{ variantId: 'var-1', orderedQuantity: 1, enteredUnitCostMinor: 1000 }],
-      });
+      }, testOwnerUser());
 
       // Non 'kg': il documento non ha un'unità, e deve vedersi.
       expect(rigaSalvata(prisma)['unitOfMeasure']).toBeNull();
@@ -333,7 +333,7 @@ describe('SupplierOrdersService', () => {
             unitOfMeasure: 'conf',
           },
         ],
-      });
+      }, testOwnerUser());
 
       expect(rigaSalvata(prisma)['unitOfMeasure']).toBe('conf');
     });
@@ -353,7 +353,7 @@ describe('SupplierOrdersService', () => {
             unitOfMeasure: '   ',
           },
         ],
-      });
+      }, testOwnerUser());
 
       expect(rigaSalvata(prisma)['unitOfMeasure']).toBeNull();
     });
@@ -418,7 +418,7 @@ describe('SupplierOrdersService', () => {
             vatCodeId: 'vat-22',
           },
         ],
-      });
+      }, testOwnerUser());
 
       const created = prisma.supplierOrder.create.mock.calls[0]![0] as {
         data: { lines: { create: readonly { unitCostMinor: unknown }[] } };
@@ -441,7 +441,7 @@ describe('SupplierOrdersService', () => {
       service.create(tenantId, {
         supplierId: 'sup-1',
         lines: [{ variantId: 'var-x', orderedQuantity: 1, enteredUnitCostMinor: 100 }],
-      }),
+      }, testOwnerUser()),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 
@@ -477,7 +477,7 @@ describe('SupplierOrdersService', () => {
             vatCodeId: 'vat-sales',
           },
         ],
-      }),
+      }, testOwnerUser()),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 
@@ -501,7 +501,7 @@ describe('SupplierOrdersService', () => {
     });
     const service = createService(prisma);
 
-    await expect(service.getById(tenantId, 'po-1')).resolves.toMatchObject({
+    await expect(service.getById(tenantId, 'po-1', testOwnerUser())).resolves.toMatchObject({
       id: 'po-1',
       linkedDocuments: [expect.objectContaining({ reference: 'CAR-2026-0003' })],
     });
@@ -512,7 +512,7 @@ describe('SupplierOrdersService', () => {
     prisma.supplierOrder.findFirst.mockResolvedValue(null);
     const service = createService(prisma);
 
-    await expect(service.getById(tenantId, 'missing')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.getById(tenantId, 'missing', testOwnerUser())).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('update sostituisce righe su ordine Confermato', async () => {
@@ -545,7 +545,7 @@ describe('SupplierOrdersService', () => {
     await expect(
       service.update(tenantId, 'po-1', {
         lines: [{ variantId: 'var-1', orderedQuantity: 3, enteredUnitCostMinor: 500 }],
-      }),
+      }, testOwnerUser()),
     ).resolves.toMatchObject({ id: 'po-1' });
     expect(prisma.supplierOrderLine.deleteMany).toHaveBeenCalledWith({
       where: { orderId: 'po-1' },
@@ -566,7 +566,7 @@ describe('SupplierOrdersService', () => {
     await expect(
       service.update(tenantId, 'po-1', {
         lines: [{ variantId: 'var-1', orderedQuantity: 3, enteredUnitCostMinor: 500 }],
-      }),
+      }, testOwnerUser()),
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
@@ -586,7 +586,7 @@ describe('SupplierOrdersService', () => {
     });
     const service = createService(prisma);
 
-    await expect(service.cancel(tenantId, 'po-1')).resolves.toMatchObject({
+    await expect(service.cancel(tenantId, 'po-1', testOwnerUser())).resolves.toMatchObject({
       status: SupplierOrderStatus.cancelled,
     });
   });
@@ -602,7 +602,7 @@ describe('SupplierOrdersService', () => {
     });
     const service = createService(prisma);
 
-    await expect(service.cancel(tenantId, 'po-1')).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.cancel(tenantId, 'po-1', testOwnerUser())).rejects.toBeInstanceOf(ConflictException);
     expect(prisma.supplierOrder.update).not.toHaveBeenCalled();
   });
 
@@ -618,7 +618,7 @@ describe('SupplierOrdersService', () => {
     prisma.supplierOrder.delete.mockResolvedValue({ id: 'po-1' });
     const service = createService(prisma);
 
-    await expect(service.delete(tenantId, 'po-1')).resolves.toBeUndefined();
+    await expect(service.delete(tenantId, 'po-1', testOwnerUser())).resolves.toBeUndefined();
     expect(prisma.supplierOrder.delete).toHaveBeenCalledWith({ where: { id: 'po-1' } });
   });
 
@@ -633,7 +633,7 @@ describe('SupplierOrdersService', () => {
     });
     const service = createService(prisma);
 
-    await expect(service.delete(tenantId, 'po-1')).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.delete(tenantId, 'po-1', testOwnerUser())).rejects.toBeInstanceOf(ConflictException);
   });
 
   describe('scope location (solo ordini legacy con destinazione)', () => {

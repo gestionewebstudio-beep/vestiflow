@@ -174,7 +174,7 @@ describe('Allegati — i casi limite, dichiarati e non casuali', () => {
   it('ordine di CANALE: lo scope sede non si applica', async () => {
     const { service } = createService({
       locationId: SEDE_ALTRUI,
-      source: SalesOrderSource.online,
+      source: SalesOrderSource.shopify_online,
     });
 
     await expect(service.list(TENANT, 'sales_order', ORDINE, commesso())).resolves.toEqual([]);

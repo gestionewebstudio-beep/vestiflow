@@ -459,7 +459,7 @@ describe('ManualSalesOrdersService.delete', () => {
     });
     const { service } = createService(prisma);
 
-    await expect(service.delete(tenantId, 'order-1')).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.delete(tenantId, 'order-1', testOwnerUser())).rejects.toBeInstanceOf(ConflictException);
     expect(prisma.salesOrder.delete).not.toHaveBeenCalled();
   });
 
@@ -476,7 +476,7 @@ describe('ManualSalesOrdersService.delete', () => {
     });
     const { service } = createService(prisma);
 
-    await service.delete(tenantId, 'order-1');
+    await service.delete(tenantId, 'order-1', testOwnerUser());
 
     expect(prisma.salesOrder.delete).toHaveBeenCalledWith({ where: { id: 'order-1' } });
   });
@@ -494,7 +494,7 @@ describe('ManualSalesOrdersService.delete', () => {
     });
     const { service } = createService(prisma);
 
-    await expect(service.delete(tenantId, 'order-1')).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.delete(tenantId, 'order-1', testOwnerUser())).rejects.toBeInstanceOf(ConflictException);
     expect(prisma.salesOrder.delete).not.toHaveBeenCalled();
   });
 });
@@ -795,7 +795,7 @@ describe('ManualSalesOrdersService.listActiveReservationsForUser', () => {
   it('ordine di canale: lo scope sede non si applica', async () => {
     const { service } = conOrdine({
       locationId: SEDE_ALTRUI,
-      source: SalesOrderSource.online,
+      source: SalesOrderSource.shopify_online,
     });
 
     await expect(

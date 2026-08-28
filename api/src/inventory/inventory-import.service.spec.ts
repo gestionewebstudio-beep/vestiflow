@@ -63,7 +63,7 @@ describe('InventoryImportService', () => {
   it('previewCsv restituisce righe pronte e con errori', async () => {
     const { service } = createService();
 
-    const preview = await service.previewCsv('tenant-1', SAMPLE_CSV);
+    const preview = await service.previewCsv('tenant-1', SAMPLE_CSV, testOwnerUser());
 
     expect(preview.summary.total).toBe(2);
     expect(preview.summary.ready).toBe(1);
@@ -85,7 +85,7 @@ describe('InventoryImportService', () => {
     });
 
     const csv = `SKU,Location,Disponibile\nSKU-RED-M,Napoli,10\n`;
-    const preview = await service.previewCsv('tenant-1', csv);
+    const preview = await service.previewCsv('tenant-1', csv, testOwnerUser());
 
     expect(preview.summary.unchanged).toBe(1);
     expect(preview.rows[0]?.status).toBe('unchanged');
@@ -94,7 +94,7 @@ describe('InventoryImportService', () => {
   it('previewCsv rifiuta CSV non valido', async () => {
     const { service } = createService();
 
-    await expect(service.previewCsv('tenant-1', 'SKU,Disponibile\nx,1\n')).rejects.toBeInstanceOf(
+    await expect(service.previewCsv('tenant-1', 'SKU,Disponibile\nx,1\n', testOwnerUser())).rejects.toBeInstanceOf(
       BadRequestException,
     );
   });

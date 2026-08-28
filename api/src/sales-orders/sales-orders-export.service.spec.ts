@@ -54,7 +54,7 @@ describe('SalesOrdersExportService', () => {
 
       await service.exportCsv('tenant-1', {}, testClerkUser({ assignedLocationIds: ['loc-roma'] }));
 
-      const where = prisma.salesOrder.findMany.mock.calls[0][0].where;
+      const where = prisma.salesOrder.findMany.mock.calls[0]![0].where;
       // ⭐ Il vincolo è quello di SalesOrdersService.list, alla lettera: i
       //    manuali solo dalle sedi proprie, il resto passa.
       expect(where.AND).toContainEqual({
@@ -72,7 +72,7 @@ describe('SalesOrdersExportService', () => {
 
       await service.exportCsv('tenant-1', {}, testOwnerUser());
 
-      const where = prisma.salesOrder.findMany.mock.calls[0][0].where;
+      const where = prisma.salesOrder.findMany.mock.calls[0]![0].where;
       expect(where.AND).toBeUndefined();
     });
 

@@ -261,8 +261,12 @@ export class ProductsService {
    * perché il costo, se serializzato, resterebbe leggibile nella risposta HTTP
    * anche quando l'interfaccia non lo mostra.
    *
-   * `user` è opzionale per non rompere i chiamanti interni; quando è assente
-   * il costo NON viene esposto (default prudente).
+   * ⚠️ **Qui c'era «`user` è opzionale per non rompere i chiamanti interni;
+   * quando è assente il costo NON viene esposto».** Descriveva un contratto che
+   * non esiste più — `user` è obbligatorio dal 28/08/2026 — e i chiamanti
+   * interni che giustificavano l'opzionalità **non c'erano**: l'unico chiamante
+   * è la rotta, e l'utente lo passa. Un commento che dichiara opzionale un
+   * parametro obbligatorio insegna a passare `undefined` dove il tipo lo vieta.
    */
   async listVariantSummaries(
     tenantId: string,

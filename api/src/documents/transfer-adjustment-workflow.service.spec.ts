@@ -198,7 +198,7 @@ describe('TransferAdjustmentWorkflowService.saveTransfer', () => {
     const { service } = createService(prisma);
 
     await expect(
-      service.saveTransfer(tenantId, transferDto({ targetLocationId: 'loc-a' })),
+      service.saveTransfer(tenantId, transferDto({ targetLocationId: 'loc-a' }), testOwnerUser()),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 
@@ -206,7 +206,7 @@ describe('TransferAdjustmentWorkflowService.saveTransfer', () => {
     const { service } = createService(prisma);
     prisma.document.findFirst.mockResolvedValue(null);
 
-    await expect(service.saveTransfer(tenantId, transferDto())).rejects.toThrow();
+    await expect(service.saveTransfer(tenantId, transferDto(), testOwnerUser())).rejects.toThrow();
   });
 
   it('rifiuta se il documento è ancora in bozza (nessun movimento da preservare)', async () => {
@@ -215,7 +215,7 @@ describe('TransferAdjustmentWorkflowService.saveTransfer', () => {
       existingTransferDocument({ status: DocumentStatus.draft }),
     );
 
-    await expect(service.saveTransfer(tenantId, transferDto())).rejects.toBeInstanceOf(
+    await expect(service.saveTransfer(tenantId, transferDto(), testOwnerUser())).rejects.toBeInstanceOf(
       ConflictException,
     );
   });
@@ -226,7 +226,7 @@ describe('TransferAdjustmentWorkflowService.saveTransfer', () => {
       existingTransferDocument({ status: DocumentStatus.cancelled }),
     );
 
-    await expect(service.saveTransfer(tenantId, transferDto())).rejects.toBeInstanceOf(
+    await expect(service.saveTransfer(tenantId, transferDto(), testOwnerUser())).rejects.toBeInstanceOf(
       ConflictException,
     );
   });
@@ -265,6 +265,7 @@ describe('TransferAdjustmentWorkflowService.saveTransfer', () => {
           },
         ],
       }),
+      testOwnerUser(),
     );
 
     expect(prisma.documentLine.update).toHaveBeenCalledTimes(1);
@@ -297,7 +298,7 @@ describe('TransferAdjustmentWorkflowService.saveTransfer', () => {
       { id: lineId, lineNumber: 1, variantId, sku: 'SKU-1', quantity: 8, loadsStock: true },
     ]);
 
-    await service.saveTransfer(tenantId, transferDto({ number: 9 }));
+    await service.saveTransfer(tenantId, transferDto({ number: 9 }), testOwnerUser());
 
     const data = prisma.document.update.mock.calls[0]?.[0].data;
     expect(data.number).toBe(9);
@@ -318,7 +319,7 @@ describe('TransferAdjustmentWorkflowService.saveTransfer', () => {
       { id: lineId, lineNumber: 1, variantId, sku: 'SKU-1', quantity: 8, loadsStock: true },
     ]);
 
-    await service.saveTransfer(tenantId, transferDto({ number: 2 }));
+    await service.saveTransfer(tenantId, transferDto({ number: 2 }), testOwnerUser());
 
     const data = prisma.document.update.mock.calls[0]?.[0].data;
     expect(data.number).toBe(2);
@@ -364,6 +365,7 @@ describe('TransferAdjustmentWorkflowService.saveTransfer', () => {
           },
         ],
       }),
+      testOwnerUser(),
     );
 
     expect(prisma.stockMovement.create).not.toHaveBeenCalled();
@@ -454,7 +456,7 @@ describe('TransferAdjustmentWorkflowService.saveAdjustment', () => {
     const { service } = createService(prisma);
 
     await expect(
-      service.saveAdjustment(tenantId, adjustmentDto({ internalComment: '  ' })),
+      service.saveAdjustment(tenantId, adjustmentDto({ internalComment: '  ' }), testOwnerUser()),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 
@@ -464,7 +466,7 @@ describe('TransferAdjustmentWorkflowService.saveAdjustment', () => {
       existingAdjustmentDocument({ status: DocumentStatus.draft }),
     );
 
-    await expect(service.saveAdjustment(tenantId, adjustmentDto())).rejects.toBeInstanceOf(
+    await expect(service.saveAdjustment(tenantId, adjustmentDto(), testOwnerUser())).rejects.toBeInstanceOf(
       ConflictException,
     );
   });
@@ -496,6 +498,7 @@ describe('TransferAdjustmentWorkflowService.saveAdjustment', () => {
           },
         ],
       }),
+      testOwnerUser(),
     );
 
     expect(prisma.stockMovement.create).toHaveBeenCalledTimes(1);
@@ -525,6 +528,7 @@ describe('TransferAdjustmentWorkflowService.saveAdjustment', () => {
           { variantId, sku: 'SKU-1', description: 'Maglia', quantity: 4, loadsStock: true },
         ],
       }),
+      testOwnerUser(),
     );
 
     expect(prisma.documentLine.create).toHaveBeenCalledTimes(2);
@@ -618,6 +622,7 @@ describe('TransferAdjustmentWorkflowService — la data del documento numera', (
     await service.saveTransfer(
       tenantId,
       transferDto({ documentDate: '2026-07-13', series: 'B' }),
+      testOwnerUser(),
     );
 
     const where = prisma.document.aggregate.mock.calls[0]?.[0]?.where as {

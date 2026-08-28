@@ -2,6 +2,7 @@ import { NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { PrismaService } from '../prisma/prisma.service';
+import { testOwnerUser } from '../test/fixtures/user-profile.fixture';
 import { SalesOrdersService } from './sales-orders.service';
 
 describe('SalesOrdersService', () => {
@@ -117,7 +118,7 @@ describe('SalesOrdersService', () => {
     });
     const service = new SalesOrdersService(prisma as unknown as PrismaService);
 
-    await expect(service.getById(tenantId, 'order-1')).resolves.toMatchObject({
+    await expect(service.getById(tenantId, 'order-1', testOwnerUser())).resolves.toMatchObject({
       id: 'order-1',
     });
   });
@@ -127,6 +128,6 @@ describe('SalesOrdersService', () => {
     prisma.salesOrder.findFirst.mockResolvedValue(null);
     const service = new SalesOrdersService(prisma as unknown as PrismaService);
 
-    await expect(service.getById(tenantId, 'missing')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.getById(tenantId, 'missing', testOwnerUser())).rejects.toBeInstanceOf(NotFoundException);
   });
 });

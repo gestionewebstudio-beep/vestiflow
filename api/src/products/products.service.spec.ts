@@ -767,17 +767,29 @@ describe('ProductsService', () => {
     });
   });
 
-  it('listVariantSummaries omette il costo senza utente nel chiamante', async () => {
+  /**
+   * ⚠️ **Qui c’era «omette il costo SENZA UTENTE nel chiamante»**, e la sua
+   * premessa non esiste più: dal 28/08/2026 `user` non è più opzionale, quindi
+   * una chiamata senza utente non compila. Il commento del servizio diceva
+   * «opzionale per non rompere i chiamanti interni» — di chiamanti interni non
+   * ce n’erano: l’unico è la rotta, e l’utente lo passa.
+   *
+   * ⭐ Al suo posto la controprova che mancava: chi il permesso CE L’HA il costo
+   * lo vede. Senza, l’unica prova sul costo sarebbe negativa, e una regola che
+   * nasconde sempre passerebbe verde.
+   */
+  it('listVariantSummaries espone il costo a chi ha il permesso costi', async () => {
     const { service, prisma } = createService();
     prisma.productVariant.findMany.mockResolvedValue([variantRowWithCost]);
     prisma.productVariant.count.mockResolvedValue(1);
 
-    const result = await service.listVariantSummaries(tenantId, {
-      page: 1,
-      pageSize: 20,
-    } as never);
+    const result = await service.listVariantSummaries(
+      tenantId,
+      { page: 1, pageSize: 20 } as never,
+      testOwnerUser(),
+    );
 
-    expect(result.items[0]?.purchasePrice).toBeNull();
+    expect(result.items[0]?.purchasePrice).not.toBeNull();
   });
 
   it('listVariantSummaries applica ricerca e filtro variantId', async () => {
@@ -790,7 +802,7 @@ describe('ProductsService', () => {
       pageSize: 10,
       search: 'mag',
       variantId: 'var-9',
-    } as never);
+    } as never, testOwnerUser());
 
     const where = (
       prisma.productVariant.findMany.mock.calls[0]?.[0] as { where: Record<string, unknown> }
@@ -808,7 +820,7 @@ describe('ProductsService', () => {
       page: 1,
       pageSize: 10,
       productId: 'prod-7',
-    } as never);
+    } as never, testOwnerUser());
 
     const where = (
       prisma.productVariant.findMany.mock.calls[0]?.[0] as { where: Record<string, unknown> }

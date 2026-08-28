@@ -227,7 +227,7 @@ describe('InventoryController', () => {
 
   it('previewLevelsImport rifiuta file CSV mancante', () => {
 
-    expect(() => controller.previewLevelsImport(tenantId, undefined as never)).toThrow(
+    expect(() => controller.previewLevelsImport(tenantId, user, undefined as never)).toThrow(
 
       'File CSV mancante o vuoto.',
 

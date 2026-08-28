@@ -3319,7 +3319,21 @@ describe('DocumentsService', () => {
           permissions: [TenantPermission.InventoryManage, 'doc.invoice.manage'],
         });
 
-      const ddt = (id: string, locationId: string | null) => ({
+      /**
+       * La forma che la query SELEZIONA, non quella del caso felice: la
+       * `findMany` dei DDT agganciati legge `type` e `cancelledAt` proprio
+       * per poterli scartare, quindi un DDT trovato può avere qualunque tipo
+       * ed essere annullato. Stretta a `sales_ddt`/`null`, la fixture non
+       * poteva esprimere i casi che il test deve coprire.
+       */
+      type DdtTrovato = {
+        readonly id: string;
+        readonly locationId: string | null;
+        readonly type: DocumentType;
+        readonly cancelledAt: Date | null;
+      };
+
+      const ddt = (id: string, locationId: string | null): DdtTrovato => ({
         id,
         locationId,
         type: DocumentType.sales_ddt,
@@ -3343,7 +3357,7 @@ describe('DocumentsService', () => {
         linkedSalesOrders: [],
       });
 
-      function preparaFattura(ddtTrovati: ReturnType<typeof ddt>[]) {
+      function preparaFattura(ddtTrovati: readonly DdtTrovato[]) {
         prisma.document.findFirst.mockResolvedValue(fattura());
         prisma.document.update.mockResolvedValue({ ...fattura(), lines: [] });
         prisma.location.findFirst.mockResolvedValue({ id: SEDE_MIA });
