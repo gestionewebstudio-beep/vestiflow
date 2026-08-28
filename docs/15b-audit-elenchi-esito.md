@@ -1,9 +1,10 @@
 # 15b · Audit elenchi, riepiloghi e griglie — l'esito
 
-**Eseguito il 26-27/08/2026** su mandato di `docs/15`. Otto lenti di censimento,
-**72 domande risposte, 232 voci censite**, tutte con file e simbolo.
+**Versione:** 1.1  
+**Eseguito il 26-27/08/2026; fan-out B1 completato e riverificato il 28/08/2026.**  
+Otto lenti di censimento, **72 domande risposte, 232 voci censite**, tutte con file e simbolo.
 
-⛔ **Nessuna modifica al codice.** Questo documento è il censimento e la proposta.
+⛔ **Nessuna modifica al codice.** Questo documento è il censimento tecnico e la proposta. La specifica normativa del segno è `docs/15c-contratto-segno-economico-riepiloghi.md`.
 
 ---
 
@@ -21,9 +22,11 @@ guardie di lint che lo sorvegliano.
 Le pagine hanno preso l'aspetto e lasciato la logica.
 
 ⛔ **Ma il rilievo grave non è la duplicazione: sono i NUMERI SBAGLIATI.** Quattro motori
-calcolano i totali di un documento e **danno risultati diversi**; nove punti decidono il
-segno di resi e note di credito con almeno cinque regole; e in due elenchi la somma della
-selezione **addiziona una nota di credito invece di sottrarla**.
+calcolano i totali di un documento e **danno risultati diversi**. Sul segno economico,
+il fan-out finale ha ristretto il difetto attivo a due profili misti dello stesso elenco
+documentale — Fatture e Vendite al banco — più due codifiche già corrette ma separate
+all'interno dei Corrispettivi. La somma della selezione e i footer di CSV/stampa
+**addizionano Nota di credito e Reso invece di sottrarli**.
 
 ## Le quindici domande del §18, con la risposta misurata
 
@@ -52,41 +55,142 @@ selezione **addiziona una nota di credito invece di sottrarla**.
 Questi **non sono duplicazione da rifattorizzare**: sono errori che l'operatore vede o che
 escono dall'azienda. Vanno separati dal resto del piano.
 
-### B1 · La somma della selezione addiziona le note di credito
+### B1 · La somma della selezione addiziona Note di credito e Resi
 
+**Rettifica dopo fan-out completo del 28/08/2026.**
+
+Il difetto attivo è nel `DocumentListComponent`, su due profili che mescolano tipi di verso opposto:
+
+```text
+Registro Fatture
+  Invoice + InvoiceAccompanying + CreditNote
+
+Registro Vendite al banco
+  StoreSale + StoreReturn
 ```
-document-list.component.ts:876-881   docs.reduce((s, d) => s + d.total.amountMinor, 0)
-sales-order-list.component.ts:460-465   stesso codice, duplicato
+
+Il totale della selezione somma i valori persistiti positivi senza guardare il tipo:
+
+```text
+document-list.component.ts
+  docs.reduce((sum, doc) => sum + doc.total.amountMinor, 0)
 ```
 
-L'elenco **Fatture** contiene per costruzione i tre tipi della famiglia, **Nota di credito
-compresa** (`SALES_INVOICE_DOCUMENT_TYPES`). L'elenco **Vendite al banco** contiene Vendita
-e Reso.
+Casi reali:
 
-> Selezionando una fattura da **100 €** e una nota di credito da **30 €**, la barra dice
-> **«Totale 130,00 €»** invece di **70,00 €**.
+```text
+Fattura 100 + Nota di credito 30 → 130,00   atteso 70,00
+Vendita 100 + Reso 30            → 130,00   atteso 70,00
+```
 
-⚠️ E lo stesso difetto è nei **piedi degli export**: `sumMoney` in
-`list-export.util.ts:49-54`, alimentato dai `footer: { kind: 'sumMoney' }` — quindi la
-stessa somma cieca finisce in un CSV e in una pagina stampata.
+⭐ **Il Reso al banco persiste positivo.** Verificato in `store-sales.service.ts`: il totale
+documento è la somma positiva dei totali lordi delle righe. Il difetto è quindi
+nell'aggregazione, non nella persistenza.
 
-⛔ La convenzione del progetto è **dichiarata**: gli importi si memorizzano positivi e
-«il verso economico negativo lo dà il TIPO, non il segno» (`document-type.util.ts:28`).
-Qui il tipo non viene guardato.
+### B1.1 Export e stampa
 
-### B2 · Quattro motori dei totali documento, e non concordano
+Lo stesso difetto arriva ai footer di CSV e stampa.
 
-Misurato eseguendo le quattro funzioni: **su 19.901 prezzi lordi da 1 a 199 €, 3.589
-divergono** — il 18,0% al 22%.
+- `list-export.util.ts` contiene la primitiva `sumMoney`;
+- `document-list-export.util.ts` le passa accessori monetari che restituiscono
+  `doc.total`, `doc.subtotal` e `doc.tax` senza applicare il tipo;
+- Fatture e Vendite al banco cadono entrambe sulla configurazione di ripiego
+  `GOODS_RECEIPT_LIST_EXPORT`.
 
-`computeManualOrderTotals` (Ordine cliente) ricava l'IVA da `Math.round(totalMinor × rate / 100)`,
-cioè dal netto **già arrotondato** — la forma che `lineVatFromNetExact` dichiara superata
-(«perdeva un centesimo ogni volta che l'imponibile portava una coda decimale»).
+Un solo punto di configurazione documentale copre quindi i due registri misti.
 
-> 123,97 € digitato ivato → **Documenti 123,97 · Ordine cliente 123,96**
+### B1.2 Ordini cliente: non affetti oggi
 
-⚠️ E il **frontend** dell'Ordine cliente sta coi Documenti: schermo e database non dicono
-la stessa cosa.
+`sales-order-list.component.ts` contiene una somma analoga, ma l'elenco non mescola oggi
+record di verso opposto:
+
+- `SalesOrder` non ha un tipo Reso/Rimborso autonomo;
+- il rimborso è uno stato/evento associato;
+- la regola normativa vieta di usare lo stato come fonte del verso.
+
+La somma è fragile per un'eventuale evoluzione futura, ma non produce oggi il caso B1 e
+non va modificata nella correzione chirurgica.
+
+### B1.3 Due motori di export
+
+`sales-order-list-export.util.ts` è un secondo motore indipendente:
+
+- non importa `list-export.util.ts`;
+- possiede `sumTotals`, serializzazione CSV e HTML propri.
+
+È una divergenza architetturale misurata, ma non un consumer affetto oggi dal segno misto.
+
+### B1.4 Excel e altri elenchi
+
+Non sono affetti oggi:
+
+- Excel Ordini fornitore;
+- Excel Corrispettivi;
+- Ordini fornitore;
+- Movimenti.
+
+Nessuno di questi aggrega nello stesso elenco tipi locali di verso opposto.
+
+### B1.5 Corrispettivi: risultato corretto, due codifiche
+
+Il Registro Corrispettivi esprime già correttamente il verso, ma in due modi:
+
+1. righe del registro:
+   - la proiezione API nega gli importi di Resi/Rimborsi;
+
+2. riepilogo:
+   - legge valori persistiti positivi e sottrae il totale delle rettifiche nella formula.
+
+Le due implementazioni producono oggi lo stesso risultato e non ricalcolano prezzi, sconti
+o IVA. Non devono ricevere la funzione dei documenti locali durante la correzione B1,
+altrimenti si produce un doppio segno.
+
+### B1.6 Causa radice finale
+
+La convenzione è dichiarata nel modello:
+
+> quantità e importi restano positivi; il verso economico negativo lo dà il tipo.
+
+Ma non esiste una funzione del dominio documentale che la renda eseguibile.
+
+Il punto comune minimo è una funzione pura:
+
+```text
+documentEconomicSign(documentType) → +1 | -1
+```
+
+applicata ai valori persistiti dai soli consumer documentali affetti.
+
+### B2 · Quattro motori dei totali documento — ma la divergenza è LATENTE
+
+⛔ **Questa voce sovrastimava, ed è stato corretto il 27/08/2026 leggendo il codice per
+intero invece della sola formula.** Diceva «su 19.901 prezzi 3.589 divergono»: vero della
+formula isolata, **falso dello stato reale**.
+
+`computeManualOrderTotals` ha **due rami**, e l’audit ne aveva misurato uno solo:
+
+```text
+sconto documento = 0   →  taxMinor = somma di line.lineVatTotalMinor      ✅ SOMMA
+sconto documento > 0   →  ripartisce e ricalcola dal netto arrotondato    ⛔ ricalcola
+```
+
+⭐ **Nel ramo senza sconto documento fa già esattamente ciò che la regola prescrive:
+somma i valori finali delle righe.** La divergenza può scattare solo col secondo ramo.
+
+### ⭐ E i dati storici sono ZERO — misurato sul database il 27/08/2026
+
+```sql
+select count(*) filter (where coalesce(document_discount_percent,0) > 0) from sales_orders
+→ 0   su 39 ordini
+```
+
+**Nessun ordine cliente ha uno sconto documento.** Il difetto è quindi **reale ma mai
+scattato**: non esiste un solo record da correggere, e la domanda «si riscrive lo storico
+o si lascia?» **non si pone**.
+
+⚠️ Resta da correggere il ramo con sconto, che è **avanti**, non indietro. E il ramo va
+guardato con attenzione: ripartire uno sconto di testata sulle aliquote non è «sommare»,
+è un calcolo genuinamente necessario — il punto è che deve usare la forma esatta.
 
 ### B3 · L'export corrispettivi valorizza al listino di OGGI
 
@@ -149,13 +253,13 @@ tolta il 25/08: il catch-all lo assorbe e atterra sulla Dashboard.
 ⛔ **Non si inventano famiglie senza consumer.** Queste hanno tutte più di una vista, tranne
 dove dichiarato.
 
-| Famiglia                | Viste                                                                                            | Perché è una famiglia a sé                                                                                                                                                                               |
-| ----------------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Elenchi documentali** | 13 rotte servite da `document-table` (9 profili) e `sales-order-table` (2), più Ordini fornitore | Le righe sono tutte **documenti**: numero, data, controparte, stato, totale. Condividono già motore, colonne e selezione                                                                                 |
-| **Registri economici**  | **Corrispettivi soltanto**                                                                       | ⚠️ **Una vista sola.** La riga è un evento economico con id compositi (`sale:… / refund:… / store:…`) perché unisce più sorgenti — non è una riga documento, e la selezione non entra per quella ragione |
-| **Movimenti**           | Movimenti di magazzino                                                                           | Eventi **fisici**: quantità, location, origine. Usa il motore, non ha stato documento né pagamento                                                                                                       |
-| **Anagrafiche**         | Prodotti, Clienti, Fornitori                                                                     | ⭐ Il mandato non la nomina, ma **esiste**: 3 viste con tabella a mano, selettore Colonne condiviso e nessun motore                                                                                      |
-| **Report/analisi**      | Report, Analytics, Giacenze, Situazione                                                          | Perimetri e formule proprie                                                                                                                                                                              |
+| Famiglia                | Viste                                                                                                                                  | Perché è una famiglia a sé                                                                                                                                                                               |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Elenchi documentali** | 13 rotte servite da `document-table` (9 profili) e `sales-order-table` (2), più Ordini fornitore e **Registrazione fattura fornitore** | Le righe sono tutte **documenti**: numero, data, controparte, stato, totale. Condividono già motore, colonne e selezione                                                                                 |
+| **Registri economici**  | **Corrispettivi soltanto**                                                                                                             | ⚠️ **Una vista sola.** La riga è un evento economico con id compositi (`sale:… / refund:… / store:…`) perché unisce più sorgenti — non è una riga documento, e la selezione non entra per quella ragione |
+| **Movimenti**           | Movimenti di magazzino                                                                                                                 | Eventi **fisici**: quantità, location, origine. Usa il motore, non ha stato documento né pagamento                                                                                                       |
+| **Anagrafiche**         | Prodotti, Clienti, Fornitori                                                                                                           | ⭐ Il mandato non la nomina, ma **esiste**: 3 viste con tabella a mano, selettore Colonne condiviso e nessun motore                                                                                      |
+| **Report/analisi**      | Report, Analytics, Giacenze, Situazione                                                                                                | Perimetri e formule proprie                                                                                                                                                                              |
 
 ⚠️ **`/app/inventory/lookup` non è un elenco**: è una ricerca a risultato singolo con
 scanner. Non entra in nessuna famiglia.
@@ -181,7 +285,8 @@ scanner. Non entra in nessuna famiglia.
    componente shell di elenco    c'è il mixin SCSS, non il markup
    componente barra filtri       4 implementazioni CSS, nessun componente
    motore Periodo unico          3 motori, due incompatibili
-   contratto del segno economico 9 punti, 5 regole
+   contratto del segno economico assente nei registri documentali misti;
+   Corrispettivi usa già due codifiche interne coerenti
 ```
 
 ## E · Architettura proposta
@@ -200,21 +305,24 @@ scanner. Non entra in nessuna famiglia.
         *-columns.config.ts · filtri · azioni · metriche
 ```
 
-⛔ **Il pezzo mancante non è un componente: è il CONTRATTO DEL SEGNO.** Nove punti che
-decidono se un reso sottrae, con cinque regole, sono la vera «duplicazione di regola» del
-mandato §13 — e l'unica che produce numeri sbagliati sotto gli occhi dell'operatore.
+⛔ **Il pezzo mancante non è un componente: è il CONTRATTO DEL SEGNO.** Nei due profili
+documentali misti manca una funzione che trasformi il tipo in direzione economica;
+nei Corrispettivi la stessa regola è già codificata in due punti diversi. È questa la
+duplicazione di regola che produce oggi numeri sbagliati sotto gli occhi dell'operatore.
 
 ## F · Piano proposto — ogni passo si ferma per approvazione
 
-| #     | Passo                                   | Scopo                                                              | Rischio                                | Stop                                                                             |
-| ----- | --------------------------------------- | ------------------------------------------------------------------ | -------------------------------------- | -------------------------------------------------------------------------------- |
-| **0** | **I difetti B1-B10**                    | Sono correzioni, non refactor. B1, B3 e B4 escono dall'azienda     | Basso, chirurgico                      | Dopo ognuno                                                                      |
-| **1** | **Contratto del segno economico**       | Una funzione sola decide se un tipo sottrae. Chiude B1 alla radice | Medio: tocca 9 punti                   | Prima di applicarlo ai 9                                                         |
-| **2** | **Un solo motore dei totali documento** | Chiude B2. `computeManualOrderTotals` adotta `lineVatFromNetExact` | ⚠️ **Alto**: cambia numeri già salvati | ⛔ **Decisione del proprietario**: i documenti storici si ricalcolano o restano? |
-| **3** | **Un solo motore Periodo**              | Chiude B6                                                          | Medio: due semantiche da riconciliare  | Prima di scegliere quale vince                                                   |
-| **4** | **Le 3 anagrafiche sul motore**         | Prodotti, Clienti, Fornitori. Chiude B5 e B7 per strada            | Medio: 3 tabelle riscritte             | Una per volta                                                                    |
-| **5** | **`summary-grammar` alle anagrafiche**  | Uniforma l'aspetto senza toccare la logica                         | Basso, ma **si vede**                  | Verifica a schermo                                                               |
-| **6** | **Componente shell + barra filtri**     | L'unico «costruire» del piano                                      | Alto: tocca 16 pagine                  | ⛔ Solo dopo i precedenti                                                        |
+> **Rettifica B1:** il primo intervento sul segno non tocca nove punti generici. Tocca la selezione del `DocumentListComponent`, gli accessori monetari dell'export documentale e i relativi test. Ordini cliente e Corrispettivi restano fuori.
+
+| #     | Passo                                   | Scopo                                                              | Rischio                                                             | Stop                                                                             |
+| ----- | --------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| **0** | **I difetti B1-B10**                    | Sono correzioni, non refactor. B1, B3 e B4 escono dall'azienda     | Basso, chirurgico                                                   | Dopo ognuno                                                                      |
+| **1** | **Contratto del segno economico**       | Una funzione documentale decide il verso. Chiude B1 alla radice    | Basso/medio: selezione + accessori CSV/stampa dei due profili misti | Stop prima di estenderla a consumer non affetti o ai Corrispettivi               |
+| **2** | **Un solo motore dei totali documento** | Chiude B2. `computeManualOrderTotals` adotta `lineVatFromNetExact` | ⚠️ **Alto**: cambia numeri già salvati                              | ⛔ **Decisione del proprietario**: i documenti storici si ricalcolano o restano? |
+| **3** | **Un solo motore Periodo**              | Chiude B6                                                          | Medio: due semantiche da riconciliare                               | Prima di scegliere quale vince                                                   |
+| **4** | **Le 3 anagrafiche sul motore**         | Prodotti, Clienti, Fornitori. Chiude B5 e B7 per strada            | Medio: 3 tabelle riscritte                                          | Una per volta                                                                    |
+| **5** | **`summary-grammar` alle anagrafiche**  | Uniforma l'aspetto senza toccare la logica                         | Basso, ma **si vede**                                               | Verifica a schermo                                                               |
+| **6** | **Componente shell + barra filtri**     | L'unico «costruire» del piano                                      | Alto: tocca 16 pagine                                               | ⛔ Solo dopo i precedenti                                                        |
 
 ⚠️ **Il passo 2 non è un refactor: è una decisione di prodotto.** Cambiare il motore dei
 totali cambia numeri che stanno già nel database.
@@ -226,3 +334,46 @@ totali cambia numeri che stanno già nel database.
 - **Se il Registro Corrispettivi debba adottare il motore**: `14` §H14 dichiara il rinvio
   con una ragione argomentata (la card mobile progettata, che non è il ripiego del motore).
   Non è una svista da correggere.
+
+---
+
+## H · La Registrazione fattura fornitore — dove sta, e dove NON sta
+
+**Decisione del proprietario, 27/08/2026.**
+
+> **Va nella famiglia degli ELENCHI DOCUMENTALI**, non fra i registri economici.
+
+È un **documento economico e di controllo**, e ha una numerazione interna VestiFlow: Data
+registrazione + Serie + Numero, oltre a N. fattura + Data fattura del documento **ricevuto**
+dal fornitore. Sono due identità distinte sullo stesso record.
+
+⭐ **Ma «stessa famiglia» non significa «stesse colonne».** Riusa shell, motore griglia,
+Colonne, ordinamento, resize, preferenze e i comportamenti comuni dei documenti — e
+**configura le proprie**:
+
+```text
+Data registrazione · Numero registrazione · Fornitore
+N. fattura fornitore · Data fattura · Totale
+Tipo pagamento · Stato pagamento/saldo se pertinente
+```
+
+⛔ **Niente Location**: la specifica corrente stabilisce che la Registrazione fattura
+fornitore non ce l’ha.
+
+### ⭐ E compare due volte, senza che sia duplicazione
+
+È l’esempio migliore di cosa va condiviso e cosa **non va fuso**:
+
+```text
+ELENCO DOCUMENTI                    REGISTRO PAGAMENTI / TESORERIA
+Registrazione fattura #RF-001       Scadenza 1.000 € verso Fornitore X
+→ apro / modifico il DOCUMENTO         origine: RF-001
+                                    → gestisco debito e pagamento
+```
+
+⚠️ **Nel Registro Pagamenti non si sta guardando il documento in quanto documento**: si sta
+guardando la **posizione finanziaria derivata** da esso. Stesso record, due prospettive di
+dominio diverse — e sono entrambe legittime.
+
+⛔ Fonderle produrrebbe una vista che non serve bene né all’una né all’altra: è esattamente
+il rischio che il mandato §1 chiama «un riepilogo universale che fonde semantiche diverse».
