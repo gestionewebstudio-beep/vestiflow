@@ -979,6 +979,12 @@ LASCIA POSSIBILE: nulla di proprio. Ma non aggiunge alcuna protezione a valle �
 
 **Comando** — Forza a «Concluso» un ordine parzialmente concluso.
 
+⛔ **Questo endpoint serve un workflow che NON deve esistere** — deciso il 27-28/08/2026
+(`17` §2.7, `18` §2.1/§2.3/§7.4, indice `00`). Non esiste lo stato «Parzialmente concluso»:
+un documento di destinazione che copre solo parte delle quantità conclude comunque l’ordine,
+e non c’è niente da forzare. La misura di idempotenza qui sotto resta valida come
+**fotografia dell’API di oggi**, ma l’endpoint è destinato a sparire con il workflow che serve.
+
 **Il client manda** — LETTO. Nessun corpo; id in rotta (sales-orders.controller.ts:151-160).
 
 **Create vs update** — Non si applica: transizione su record esistente, solo caso B.

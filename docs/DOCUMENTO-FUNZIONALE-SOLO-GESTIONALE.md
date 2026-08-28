@@ -331,19 +331,44 @@ Route `/app/documents`: scelta della tipologia, organizzata per flusso:
 
 ### 10.3 Stati e regole generali
 
-| Stato                       | Significato                                                           |
-| --------------------------- | --------------------------------------------------------------------- |
-| **Bozza**                   | Modificabile, **nessun movimento di magazzino**                       |
-| **Confermato**              | Numero progressivo assegnato; movimenti applicati                     |
-| **Stampato / Inviato**      | Tracciamento operativo (invio al commercialista per le bozze fattura) |
-| **Registrato esternamente** | Documento emesso/registrato fuori da VestiFlow                        |
-| **Annullato**               | Invalidato; gli effetti di magazzino vengono stornati secondo il tipo |
+| Stato                       | Significato                                                                                                                                                                  |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Confermato**              | **Lo stato con cui il documento nasce**: salvato e numerato. ⛔ **Non** significa «movimenta magazzino»: gli effetti fisici li decide il **tipo** e il contratto delle righe |
+| **Stampato / Inviato**      | Tracciamento operativo (invio al commercialista per le bozze fattura)                                                                                                        |
+| **Registrato esternamente** | Documento emesso/registrato fuori da VestiFlow                                                                                                                               |
+| **Annullato**               | Invalidato; gli effetti di magazzino vengono stornati secondo il tipo                                                                                                        |
 
-- **Numerazione:** in bozza si vede l'**anteprima** (es. `CAR-2026-0045`); il numero definitivo è assegnato **alla conferma**. Prefissi e serie per tipo in **Impostazioni documenti** (`/app/documents/settings`, permesso Gestire documenti).
+⛔ **«Bozza» non esiste — deciso il 28/08/2026.** Un documento **nasce Confermato**: non c’è
+uno stato intermedio in cui esiste ma non conta. È la stessa regola già in vigore per gli
+ordini (`17` §2.4, `18` §2.1) e il progetto la chiama **nascita-confermato**.
+
+⚠️ **Il codice è indietro**: `DocumentStatus.draft` esiste ancora nello schema e governa
+la modifica libera, l’anteprima del numero e l’eliminazione. La decisione vale; l’allineamento
+è lavoro (indice `00`).
+
+⛔ **«Confermato» NON vuol dire «movimenta magazzino».** Vuol dire **documento salvato**.
+Gli effetti fisici appartengono al **tipo** e alle sue righe, non al valore dello stato:
+
+```text
+Arrivo merce            Salva → Confermato + carichi delle righe abilitate
+DDT                     Salva → Confermato + scarichi pertinenti
+Proforma                Salva → Confermato,  nessun movimento: il tipo non movimenta
+Registrazione fattura   Salva → Confermato,  nessun movimento: il tipo non movimenta
+```
+
+⚠️ **La vecchia equazione «Bozza = niente movimenti / Confermato = movimenti» cade insieme
+alla Bozza.** Era quella a far sembrare necessario un doppio passaggio Salva → Conferma.
+
+⭐ **E «Confermato» non obbliga a mostrare nulla.** Lo stato può restare **tecnico e interno**
+quando il tipo non ha un ciclo di stato che riguardi l’operatore: un Preventivo è un documento
+salvato e operativo senza bisogno di un selettore o di un badge «Confermato». ⛔ Non si
+aggiunge interfaccia solo perché il record internamente è confermato.
+
+- **Numerazione:** il numero progressivo è assegnato **al salvataggio**, insieme allo stato Confermato.
 - **Modifica di un confermato:** pulsante **Sblocca modifica** con avviso; al salvataggio VestiFlow ricalcola movimenti/giacenze e conserva lo storico revisioni.
-- **Duplica documento:** crea una **bozza** scollegata (nessun riferimento a ordini/fatture di origine) che non genera movimenti finché non viene salvata/confermata.
+- **Duplica documento:** crea un documento **nuovo e scollegato** (nessun riferimento a ordini/fatture di origine) che non genera movimenti finché non viene salvata/confermata.
 - **Stampa:** anteprima di stampa da `/app/documents/:id/print`.
-- **Allegati:** nel form arrivo merce (dopo il primo salvataggio bozza) e nel dettaglio: upload PDF/immagini.
+- **Allegati:** nel form arrivo merce (dopo il primo salvataggio) e nel dettaglio: upload PDF/immagini.
 - **Registro** (`/app/documents/registro`): filtri Tipo, Stato, Periodo, Cliente, ricerca (numero/riferimento/note), **vista commercialista** e **DDT da fatturare**; i filtri restano nell'URL (link condivisibili). Colonne personalizzabili.
 
 ### 10.4 Arrivo merce
@@ -353,7 +378,7 @@ Form `/app/documents/goods-receipt/new` (permesso Gestire documenti):
 - **Testata:** tipo (Arrivo merce, DDT fornitore, Fattura accompagnatoria, Carico manuale, Carico iniziale), fornitore (obbligatorio per arrivo/DDT/fattura; opzionale per carichi), sede di destinazione, data, numero/data **documento fornitore**, **causale di carico**, flag **Seguirà fattura**, riferimento fattura, note.
 - **Righe in griglia:** ricerca articolo per nome/SKU/EAN, **Crea articolo rapido** o **Crea anagrafica completa** (pannello laterale), quantità, costo, IVA, **lotto/scadenza/seriali** (se attivi in Impostazioni), flag **Carica magazzino**, totale riga. Giro Tab/Invio deterministico tra le celle; scan `quantità*codice`.
 - Se aperto da un ordine: colonne **Ordinato / Già ricevuto / Residuo**.
-- **Conferma e carica magazzino:** genera i carichi, aggiorna giacenze, ordine collegato e «in arrivo». Se il costo differisce dall'ultimo prezzo fornitore e la policy lo prevede → dialog **aggiorna prezzi fornitore**.
+- **Salva:** il documento nasce Confermato e **applica già i carichi** delle righe abilitate, aggiorna giacenze, ordine collegato e «in arrivo». Se il costo differisce dall'ultimo prezzo fornitore e la policy lo prevede → dialog **aggiorna prezzi fornitore**.
 
 ### 10.5 Registrazione fattura fornitore
 
@@ -688,8 +713,8 @@ Inoltre: la sezione `/app/admin` è riservata all'**operatore piattaforma** (un 
 Regole sempre vere, utili come oracoli nei test end-to-end:
 
 1. **Disponibile = Giacenza − Impegnata.** Le vendite al banco e i controlli di cassa usano la **Disponibile**, non la giacenza.
-2. **Un documento in Bozza non muove mai il magazzino.** I movimenti nascono solo alla **conferma** (o da Registra movimento / import CSV / chiusura inventario).
-3. **Il numero definitivo del documento è assegnato alla conferma**; in bozza si vede solo l'anteprima della numerazione.
+2. **I movimenti nascono col documento, che nasce Confermato.** I movimenti nascono solo alla **conferma** (o da Registra movimento / import CSV / chiusura inventario).
+3. **Il numero definitivo del documento è assegnato al salvataggio**; in bozza si vede solo l'anteprima della numerazione.
 4. **Ogni variazione di stock è un movimento tracciato** (data, operatore, origine) visibile in Magazzino → Movimenti.
 5. **Ordine cliente:** il salvataggio impegna (Impegnata ↑, Disponibile ↓, Giacenza invariata); l'annullo rilascia; la conclusione via documento di scarico consuma impegni e scarica la giacenza; l'annullo del documento di scarico riapre l'ordine e ricrea gli impegni.
 6. **L'ordine fornitore non incide mai su giacenze o disponibilità** (prompt 2026-07): nasce Confermato e diventa Concluso quando viene incluso/agganciato a un Arrivo merce; solo la conferma dell'arrivo merce carica la giacenza.

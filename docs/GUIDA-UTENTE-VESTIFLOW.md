@@ -718,8 +718,8 @@ Gestiti **solo in VestiFlow** (non su Shopify).
 ### Flusso tipico
 
 1. **Ordini Fornitori → Nuovo ordine** — fornitore, destinazione merce, righe (variante, quantità, costo unitario)
-2. **Invia ordine** — tracciamento interno; le quantità compaiono in **In arrivo** in Giacenze
-3. All'arrivo merce: dal dettaglio ordine **Registra arrivo merce** (crea bozza in Documenti collegata all'ordine) **oppure** **Documenti → Arrivo merce** manuale — incrementa giacenze, azzera _in arrivo_ e crea movimenti di carico tracciati
+2. **Confermato** — è lo stato con cui l’ordine nasce, ed è l’unico che lo rende includibile in un Arrivo merce. ⛔ L’Ordine fornitore **non muove nessuna quantità**: né giacenza, né impegnata, né «In arrivo»
+3. All'arrivo merce: dal dettaglio ordine **Registra arrivo merce** (crea in Documenti un Arrivo merce collegato all'ordine) **oppure** **Documenti → Arrivo merce** manuale — è **qui** che le giacenze si incrementano e nascono i movimenti di carico
 
 Il pulsante **Registra arrivo merce** sull'ordine apre il form **Documenti → Arrivo merce** con righe e quantità residue già precompilate; non esiste più una ricezione «silenziosa» senza documento.
 
@@ -733,14 +733,38 @@ Il pulsante **Registra arrivo merce** sull'ordine apre il form **Documenti → A
 
 ### Stati e azioni
 
-| Stato ordine         | Cosa puoi fare (Manager e superiori, salvo dove indicato)           |
-| -------------------- | ------------------------------------------------------------------- |
-| **Bozza**            | Modifica bozza, Invia ordine, Annulla ordine                        |
-| **Inviato**          | Annulla ordine, **Registra arrivo merce** (tutti i ruoli operativi) |
-| **Annullato**        | **Elimina ordine** — rimozione definitiva dall'elenco               |
-| **Ricevuto** / parz. | Solo consultazione                                                  |
+Un Ordine fornitore ha **quattro stati**. Servono a una cosa sola: decidere se
+l'ordine compare fra quelli **includibili** in un Arrivo merce.
 
-L'**Annulla ordine** segna l'ordine come annullato ma lo lascia in lista. **Elimina ordine** (solo su ordini già annullati) lo rimuove in modo irreversibile.
+| Stato             | Compare in «Includi» dell'Arrivo merce | Come ci si arriva                                  |
+| ----------------- | -------------------------------------- | -------------------------------------------------- |
+| **Da confermare** | No                                     | lo imposti tu                                      |
+| **Confermato**    | **Sì**                                 | è lo stato con cui l'ordine nasce                  |
+| **Concluso**      | No                                     | ci va da solo quando lo colleghi a un Arrivo merce |
+| **Annullato**     | No                                     | lo imposti tu, e puoi tornare indietro             |
+
+**Lo stato non ti impedisce di lavorare sull'ordine.** In qualunque stato l'ordine
+si apre, si modifica, si salva, si stampa e si elimina secondo i tuoi permessi: lo
+stato dice se l'ordine è pronto per l'arrivo merce, non se puoi toccarlo.
+
+- **Da confermare, Confermato e Annullato** li scegli tu, e li cambi quando vuoi in
+  qualsiasi direzione: annullare non è definitivo.
+- **Concluso non si sceglie.** L'ordine ci finisce quando lo colleghi a un Arrivo
+  merce, e finché quel collegamento esiste **lo stato resta fermo**. Per sbloccarlo
+  annulli o elimini l'Arrivo merce: l'ordine torna Confermato da solo.
+- **Eliminare** un ordine è una questione di permessi, non di stato. Se elimini un
+  ordine già collegato, **l'Arrivo merce resta**, con la sua merce e le sue
+  quantità: perde solo il riferimento all'ordine che l'ha originato.
+
+L'Ordine fornitore **non muove il magazzino in nessuno stato**: né giacenza, né
+impegnata, né quantità in arrivo. La merce entra con l'Arrivo merce, non con l'ordine.
+
+⚠️ **Quello che il programma non fa ancora.** Il modello qui sopra è la decisione del
+28/08/2026; l'applicazione oggi è indietro su due punti, e sono in lavorazione:
+
+- **«Da confermare» non c'è ancora**: gli stati disponibili sono tre, e un ordine
+  nuovo nasce Confermato.
+- **«Annullato» non è ancora reversibile**, e oggi si imposta solo da Confermato.
 
 - Creazione e modifica: **Manager** e superiori
 - Ricezione merce: tutti i ruoli operativi (verifica con il titolare le regole interne)
@@ -788,13 +812,38 @@ Alcuni tipi (es. inventario fisico) possono essere generati automaticamente da a
 
 ### Stati del documento
 
-| Stato                       | Significato                                                      |
-| --------------------------- | ---------------------------------------------------------------- |
-| **Bozza**                   | Modificabile; **nessun** movimento di magazzino                  |
-| **Confermato**              | Numero assegnato; movimenti applicati                            |
-| **Stampato** / **Inviato**  | Tracciamento operativo / invio al commercialista (bozze fattura) |
-| **Registrato esternamente** | Fattura o documento registrato fuori da VestiFlow                |
-| **Annullato**               | Documento invalidato (con regole di reversibilità stock)         |
+| Stato                       | Significato                                                                                                                                                                  |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Confermato**              | **Lo stato con cui il documento nasce**: salvato e numerato. ⛔ **Non** significa «movimenta magazzino»: gli effetti fisici li decide il **tipo** e il contratto delle righe |
+| **Stampato** / **Inviato**  | Tracciamento operativo / invio al commercialista (bozze fattura)                                                                                                             |
+| **Registrato esternamente** | Fattura o documento registrato fuori da VestiFlow                                                                                                                            |
+| **Annullato**               | Documento invalidato (con regole di reversibilità stock)                                                                                                                     |
+
+⛔ **«Bozza» non esiste — deciso il 28/08/2026.** Un documento **nasce Confermato**: non c’è
+uno stato intermedio in cui esiste ma non conta. È la stessa regola già in vigore per gli
+ordini (`17` §2.4, `18` §2.1) e il progetto la chiama **nascita-confermato**.
+
+⚠️ **Il codice è indietro**: `DocumentStatus.draft` esiste ancora nello schema e governa
+la modifica libera, l’anteprima del numero e l’eliminazione. La decisione vale; l’allineamento
+è lavoro (indice `00`).
+
+⛔ **«Confermato» NON vuol dire «movimenta magazzino».** Vuol dire **documento salvato**.
+Gli effetti fisici appartengono al **tipo** e alle sue righe, non al valore dello stato:
+
+```text
+Arrivo merce            Salva → Confermato + carichi delle righe abilitate
+DDT                     Salva → Confermato + scarichi pertinenti
+Proforma                Salva → Confermato,  nessun movimento: il tipo non movimenta
+Registrazione fattura   Salva → Confermato,  nessun movimento: il tipo non movimenta
+```
+
+⚠️ **La vecchia equazione «Bozza = niente movimenti / Confermato = movimenti» cade insieme
+alla Bozza.** Era quella a far sembrare necessario un doppio passaggio Salva → Conferma.
+
+⭐ **E «Confermato» non obbliga a mostrare nulla.** Lo stato può restare **tecnico e interno**
+quando il tipo non ha un ciclo di stato che riguardi l’operatore: un Preventivo è un documento
+salvato e operativo senza bisogno di un selettore o di un badge «Confermato». ⛔ Non si
+aggiunge interfaccia solo perché il record internamente è confermato.
 
 Le azioni disponibili nel **dettaglio documento** dipendono da tipo e stato (conferma, stampa, invio, registrazione esterna, conversione DDT → bozza fattura, annullamento).
 
@@ -825,7 +874,7 @@ Da **Documenti**, pulsante **Nuovo documento** (se hai **Gestire documenti**):
 **Arrivo merce — schermata e campi principali**
 
 - **Testata:** tipo documento (**Arrivo merce**, DDT fornitore, Fattura accompagnatoria, **Carico manuale**, **Carico iniziale**), fornitore (obbligatorio per arrivo/DDT/fattura accomp.; opzionale per carichi manuali), sede destinazione, data documento VestiFlow, numero/data **documento fornitore** (es. DDT 242/2026), **causale di carico**, flag **Seguirà fattura**, riferimento fattura fornitore, note.
-- **Numero interno VestiFlow:** in bozza vedi l'**anteprima** (es. `CAR-2026-0045`); il numero definitivo viene assegnato alla **conferma** (distinto dal documento del fornitore).
+- **Numero interno VestiFlow:** assegnato **al salvataggio**, insieme allo stato Confermato.
 - **Righe in griglia:** menu **Colonne** (preset, resize intestazioni, **Ripristina colonne**); cerca articolo per **nome, SKU o barcode/EAN**; **Crea articolo rapido** o **Crea anagrafica completa** (pannello laterale senza uscire dal documento). Colonne: descrizione, quantità, costo, IVA, lotto/scadenza/seriali (se attivi in Impostazioni), flag **Carica magazzino**, totale riga.
 - **Ordine fornitore collegato:** se apri l'arrivo da **Registra arrivo merce** sull'ordine, compaiono anche colonne **Ordinato / Già ricevuto / Residuo** per ogni riga.
 - **Conferma:** se il costo differisce dall'ultimo prezzo fornitore e la policy lo prevede, compare un dialog per **aggiornare i prezzi fornitore**.
@@ -891,7 +940,7 @@ del canale segue quello di listino solo quando questo cambia davvero.
 
 ### Allegati
 
-Nel **form arrivo merce** (dopo il primo salvataggio bozza) e nel **dettaglio documento**, pannello **Allegati**: carica PDF o immagini (es. DDT cartaceo del fornitore, foto colli). Utile per audit e consegna al commercialista.
+Nel **form arrivo merce** (dopo il primo salvataggio) e nel **dettaglio documento**, pannello **Allegati**: carica PDF o immagini (es. DDT cartaceo del fornitore, foto colli). Utile per audit e consegna al commercialista.
 
 ### Colonne personalizzabili
 
@@ -1268,7 +1317,7 @@ Sono i **DDT vendita** su cui hai spuntato **«Seguirà doc. di vendita»** e ch
 
 ### Differenza tra Registra arrivo merce (ordine) e Arrivo merce manuale
 
-Entrambi usano lo **stesso form Documenti → Arrivo merce**. Da un ordine **Inviato**, **Registra arrivo merce** crea una **bozza collegata** con righe e quantità residue precompilate (colonne Ord./Ric./Res.). Da **Documenti → Nuovo arrivo merce** crei un carico anche **senza ordine** precedente. In entrambi i casi serve **Conferma e carica magazzino** per movimentare lo stock; in bozza il magazzino non cambia.
+Entrambi usano lo **stesso form Documenti → Arrivo merce**. Da un ordine **Confermato**, **Registra arrivo merce** apre il form **precompilato e collegato**, con righe e quantità residue (colonne Ord./Ric./Res.). Da **Documenti → Nuovo arrivo merce** crei un carico anche **senza ordine** precedente. In entrambi i casi è il **Salva** che crea il documento e applica i carichi: non c’è un secondo passo di conferma, e non esiste uno stato intermedio in cui il documento esiste senza aver movimentato.
 
 ### Il prodotto creato in VestiFlow non compare su Shopify
 

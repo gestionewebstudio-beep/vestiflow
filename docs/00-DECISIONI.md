@@ -147,21 +147,24 @@ specifica funzionale, poi si confronta il codice, e solo dopo si prepara l'inter
 
 ## La mappa: quale documento governa cosa
 
-| Documento                                 | Governa                                                         |
-| ----------------------------------------- | --------------------------------------------------------------- |
-| ⭐ **`CONTRATTO-COMUNE-DOCUMENTI`**       | **il contratto trasversale di ogni maschera documento a righe** |
-| `01-registro-difetti-shopify`             | i difetti aperti dell'integrazione Shopify                      |
-| `02-specifica-sincronizzazione-shopify`   | come si sincronizza, chi possiede il dato                       |
-| `03` + `03b`                              | righe documento unificate, tastiera, U.M., ricerca              |
-| `04-specifica-numerazione-documenti`      | progressivi, serie, anno, indice unico                          |
-| `06b` · `07` · `QUADRO-DECISIONI-FATTURE` | famiglia Fattura (fattura, accompagnatoria, nota di credito)    |
-| `08` · `10`                               | resi e annullamenti di canale · Registro Corrispettivi          |
-| `09-specifica-movimenti-per-riga`         | un movimento per riga documento, aggiornato in posto            |
-| `11-specifica-vendita-al-banco`           | Vendita e Reso al banco                                         |
-| `12-specifica-collegamenti-documentali`   | «Includi» e «Genera» fra documenti, effetti a magazzino         |
-| `13-specifica-prestazioni-salvataggio`    | prestazioni del salvataggio e pipeline inventario (C4)          |
-| `14-specifica-elenchi-documenti`          | **elenchi e riepiloghi**: apertura, selezione, azioni, tabella  |
-| `.claude/rules/regole-*`                  | le regole permanenti: architettura, dominio, stile, sicurezza   |
+| Documento                                 | Governa                                                                |
+| ----------------------------------------- | ---------------------------------------------------------------------- |
+| ⭐ **`CONTRATTO-COMUNE-DOCUMENTI`**       | **il contratto trasversale di ogni maschera documento a righe**        |
+| `01-registro-difetti-shopify`             | i difetti aperti dell'integrazione Shopify                             |
+| `02-specifica-sincronizzazione-shopify`   | come si sincronizza, chi possiede il dato                              |
+| `03` + `03b`                              | righe documento unificate, tastiera, U.M., ricerca                     |
+| `04-specifica-numerazione-documenti`      | progressivi, serie, anno, indice unico                                 |
+| `06b` · `07` · `QUADRO-DECISIONI-FATTURE` | famiglia Fattura (fattura, accompagnatoria, nota di credito)           |
+| `08` · `10`                               | resi e annullamenti di canale · Registro Corrispettivi                 |
+| `09-specifica-movimenti-per-riga`         | un movimento per riga documento, aggiornato in posto                   |
+| `11-specifica-vendita-al-banco`           | Vendita e Reso al banco                                                |
+| `12-specifica-collegamenti-documentali`   | «Includi» e «Genera»: **Parte 0 è il contratto** e vince sul resto     |
+| `13-specifica-prestazioni-salvataggio`    | prestazioni del salvataggio e pipeline inventario (C4)                 |
+| `14-specifica-elenchi-documenti`          | **elenchi e riepiloghi**: apertura, selezione, azioni, tabella         |
+| `17-specifica-ordine-fornitore`           | **stati dell’Ordine fornitore**, eleggibilità, Concluso derivato       |
+| `18-specifica-ordine-cliente-manuale`     | **stati dell’Ordine cliente manuale**, Impegnata, collegamenti         |
+| `19-audit-ordine-cliente-manuale`         | ⛔ **misura congelata** del 28/08, non una specifica: non decide nulla |
+| `.claude/rules/regole-*`                  | le regole permanenti: architettura, dominio, stile, sicurezza          |
 
 ⚠️ **`PIANO-TEST`, `GUIDA-*`, `DA-FARE*`, `GUARDIE-MANCANTI` non sono specifiche**: sono
 strumenti di lavoro. Non ci si cercano decisioni.
@@ -203,6 +206,159 @@ strumenti di lavoro. Non ci si cercano decisioni.
 | **Il titolo è uno, la variante sta in `variantLabel`**: mai concatenata dentro la descrizione                                                | `03d` §6 · Blocco 0 §3.2    |
 | **Un solo risolutore** per «l'articolo entra nella riga»; acquisizione, `FormControl` e anagrafica restano fuori                             | `03c`                       |
 | **Impegna, Carica e Scarica** condividono la regola di eleggibilità, **non** campo, default, effetto e significato                           | `03d` §4 · `03` §18.4       |
+
+## Stati — documenti e ordini — `17`, `18` _(decise il 27-28/08/2026)_
+
+⭐ **Uno stato d'ordine decide UNA cosa sola: se l'ordine è includibile in un documento
+di destinazione.** Non decide se si apre, se si modifica, se si salva, se si stampa, se
+si elimina, né come si comporta il lucchetto. Vale per entrambi gli ordini.
+
+| Decisione                                                                                                         | Dove          |
+| ----------------------------------------------------------------------------------------------------------------- | ------------- |
+| **Quattro stati**: Da confermare · Confermato · Concluso · Annullato                                              | `17` §2.1     |
+| Lo stato governa **solo l'eleggibilità** in Includi/Genera                                                        | `17` §2.2     |
+| **Eleggibile è il solo Confermato.** Da confermare, Concluso e Annullato no                                       | `17` §4       |
+| **Il documento nasce Confermato.** «Da confermare» lo imposta l'operatore                                         | `17` §2.3-2.4 |
+| **«Annullato» è uno STATO, non un comando — e si torna indietro.** Nessun punto di non ritorno                    | `17` §2.6     |
+| **«Concluso» è derivato** dal collegamento, mai scelto. Si disfa da sé togliendo il legame                        | `17` §2.5     |
+| Finché è Concluso lo **stato** è bloccato: nessuna transizione manuale, annullamento compreso                     | `17` §2.5     |
+| ⭐ Ma il **documento** resta libero: si elimina, e l'Arrivo merce **sopravvive orfano** (`SetNull`, già a schema) | `17` §5.3     |
+| **Niente stato parziale.** Né «Parzialmente concluso», né residui, né evasione parziale in v1                     | `17` §2.7     |
+| L'Ordine fornitore **non muove magazzino in nessuno stato**. «In arrivo» è fuori perimetro v1                     | `17` §1, §1.1 |
+
+### ⭐ DUE ASSI DIVERSI, e confonderli è l'equivoco che questa sezione previene
+
+⛔ **«Da confermare» NON è la nuova Bozza.** L'associazione è la prima che verrà in mente fra
+un mese, ed è sbagliata: sono due assi che non si toccano.
+
+```text
+ASSE 1 · PERSISTENZA          ogni documento
+  non salvato   →  non esiste
+  salvato       →  Confermato          ← stato interno operativo
+
+ASSE 2 · CICLO COMMERCIALE    solo Ordine cliente e Ordine fornitore
+  salvato       →  Da confermare  ·  Confermato  ·  Annullato
+  Confermato    →  Includi/Genera conclusivo  →  Concluso, e lì si blocca
+```
+
+|                          | Asse 1 — persistenza | Asse 2 — ciclo commerciale     |
+| ------------------------ | -------------------- | ------------------------------ |
+| **Chi ce l'ha**          | ogni documento       | solo i due ordini              |
+| **Che domanda risponde** | «esiste?»            | «è pronto per essere incluso?» |
+| **Chi lo governa**       | il salvataggio       | l'operatore, salvo Concluso    |
+| **Se manca**             | il documento non c'è | —                              |
+
+⭐ **Un Ordine «Da confermare» è un documento GIÀ SALVATO E GIÀ NUMERATO.** Non aspetta il
+passaggio a Confermato per nascere: è nato al Salva, come ogni altro documento. «Da confermare»
+descrive dove sta nella **trattativa commerciale**, non se esiste.
+
+⚠️ **Questo ha una conseguenza diretta sulla numerazione** (`04`): il progressivo si assegna al
+salvataggio, non alla conferma commerciale. Un ordine Da confermare ha già il suo numero, e non
+lo cambia passando a Confermato.
+
+⚠️ **«Confermato» compare su entrambi gli assi con significati diversi**, ed è il punto in cui
+si sbaglia: su un Preventivo vuol dire «salvato»; su un Ordine cliente vuol dire «salvato **e**
+pronto per l'Includi». Se un giorno la sovrapposizione costasse un errore vero, i nomi dell'asse
+2 si possono cambiare — sono etichette di prodotto, non valori di database.
+
+#### ⛔ I due assi restano separati anche TECNICAMENTE, non solo spiegati qui
+
+> **Quando arriverà «Da confermare», il sistema non deve rappresentare i due assi con lo stesso
+> campo o lo stesso enum.** Sono due domande diverse e vogliono due colonne diverse.
+
+```text
+documento persistito?      sì / no
+stato commerciale ordine?  da_confermare | confermato | concluso | annullato
+```
+
+Un Ordine «Da confermare» è **contemporaneamente**:
+
+|              |                   |
+| ------------ | ----------------- |
+| persistito   | **sì**            |
+| numerato     | **sì**            |
+| stato ordine | **Da confermare** |
+
+⛔ **Non deve essere necessario falsificare `DocumentStatus`, né riportarlo a `draft`, per
+rappresentarlo.** Se per esprimere «Da confermare» si finisse per rimettere il documento in
+bozza, si sarebbe reintrodotta la Bozza sotto un altro nome — dopo averla abolita.
+
+⚠️ **Questo vincola la migration** (punto 6 del piano): la soluzione tecnica dello stato Ordine
+va progettata come **stato commerciale dell'ordine**, non come reincarnazione della vecchia
+Bozza documento. È il criterio con cui giudicare la proposta, prima ancora di guardare se
+funziona.
+
+### ⛔ «Confermato» NON vuol dire «movimenta magazzino»
+
+> **Vuol dire documento salvato.** Gli effetti fisici li decide il **tipo** del documento e il
+> contratto delle sue righe — mai il valore generico dello stato.
+
+```text
+Salva  →  nasce il documento
+       →  numero assegnato
+       →  stato interno operativo = Confermato
+       →  gli effetti dipendono DAL TIPO
+
+Arrivo merce            →  Confermato + carichi delle righe abilitate
+DDT                     →  Confermato + scarichi pertinenti
+Proforma                →  Confermato,  nessun movimento: il tipo non movimenta
+Registrazione fattura   →  Confermato,  nessun movimento: il tipo non movimenta
+```
+
+⚠️ **La vecchia equazione «Bozza = niente movimenti / Confermato = movimenti» cade insieme alla
+Bozza**, ed è quella che faceva sembrare necessario un doppio passaggio Salva → Conferma.
+
+⛔ **Per l'Arrivo merce la direzione era già fissata da tempo**: niente «Salva bozza» e
+«Conferma carico» separati, e niente badge «Bozza» — il codice lo applica già per i tipi
+operativi (`domain/documents/models/document-operational.util.ts`). **Il Salva salva e applica
+gli effetti previsti dalle righe**, in un gesto solo.
+
+⭐ **E «Confermato» non obbliga a mostrare niente.** Lo stato può restare **tecnico e interno**
+quando il tipo non ha un ciclo di stato che riguardi l'operatore: un Preventivo è un documento
+salvato e operativo senza bisogno di un selettore o di un badge. ⛔ Non si aggiunge interfaccia
+solo perché il record internamente è confermato.
+
+⭐ **E «Bozza» non esiste — né sui documenti né sugli ordini.** Un documento **nasce
+Confermato**, col numero assegnato al salvataggio: non c’è uno stato intermedio in cui esiste
+ma non conta. È la **nascita-confermato**, che il progetto già nominava
+(`SPECIFICA-COMUNE-TESTATE-DOCUMENTO` §1320) e che l’Ordine cliente applica già.
+
+⛔ **Non esiste «Parzialmente concluso»**, in nessuna forma: né stato, né residuo, né evasione
+parziale. Un documento di destinazione che copre parte delle quantità **conclude comunque**
+l’ordine. L’endpoint `force-conclude` serve un workflow abolito ed è destinato a sparire.
+
+### ⭐ La gerarchia fra norma e codice, che non si capovolge
+
+> **La definizione normativa degli stati e delle transizioni è il CONTRATTO APPROVATO.**
+> `api/src/common/order-state.util.ts` è l’unica autorità **eseguibile** del codice per la
+> macchina comune, e i consumer non devono riscriverne le regole. **Se codice e specifica
+> approvata divergono, la divergenza è un difetto da correggere, non una regola nuova.**
+
+```text
+NORMA                       docs/00 + specifica approvata
+        ↓
+IMPLEMENTAZIONE CANONICA    order-state.util.ts
+        ↓
+CONSUMER                    Ordine cliente · Ordine fornitore · Includi/Genera
+```
+
+⛔ **Non l’inverso.** «Il codice attuale decide cosa il prodotto deve fare» è la lettura da
+impedire, e oggi si smentisce da sé: il codice non sa ancora produrre `to_confirm`, l’Ordine
+cliente non usa ancora la macchina comune, e porta ancora il workflow legacy del parziale.
+
+⚠️ **Il codice è indietro su tutto questo, e i documenti lo dichiarano.** Mancano «Da
+confermare» e il selettore di stato; l’annullamento è un comando a senso unico; due guardie
+bloccano modifica ed eliminazione per stato; `DocumentStatus.draft` esiste ancora nello schema;
+`PartiallyConcluded` e `partially_fulfilled` sono vivi con il loro endpoint e il loro dialogo.
+`17` §2.2/§2.6/§5.3 e `19` misurano lo scarto. **Le decisioni valgono; l’allineamento è lavoro.**
+
+⛔ **E `DocumentStatus.draft` NON si cancella dal codice così com’è.** «Bozza» è abolita come
+**stato funzionale**, ma quel valore ha **consumatori reali già misurati** — governa modifica
+libera, anteprima del numero ed eliminazione, con nove usi nel solo `documents.service.ts`.
+La documentazione indica la **destinazione**; il codice si bonifica in modo **coordinato**,
+dentro il blocco di implementazione, non con una cancellazione.
+
+---
 
 ## Denaro — `regole-gestionale`
 
@@ -252,6 +408,28 @@ strumenti di lavoro. Non ci si cercano decisioni.
 | **Corrispettivi nel motore tabella**: fermi, e non per pigrizia                                      | `14` §H14          |
 | **Riga manuale** senza articolo in anagrafica                                                        | `11` A21           |
 | **Header di sicurezza** del documento HTML — lacuna aperta                                           | `regole-sicurezza` |
+
+---
+
+## ⛔ Filtrare non è autorizzare — principio trasversale _(28/08/2026)_
+
+```text
+query / elenco filtrato        =  ERGONOMIA
+validazione dell’ID richiesto  =  AUTORIZZAZIONE
+```
+
+> **Un utente non deve poter scavalcare l’ambito di sede semplicemente conoscendo un ID.**
+
+⚠️ Un elenco che mostra meno righe è comodità: non impedisce niente a chi chiede per `id`. Il
+controllo vive nel livello che possiede davvero **tenant + sede + utente** — non nella UI, non
+nella `where` dell’elenco.
+
+⛔ **Vale per tutte le rotte, non solo per quelle che «sembrano» sensibili**: lettura diretta
+per ID, download e upload di allegati, eliminazione, e ogni lettura collegata.
+
+⚠️ **Lacuna aperta e misurata:** `19` §3.9 conta **sette rotte** dell’Ordine cliente che
+accedono per `id` senza verificare la sede. `assertLocationReadableInUserScope` esiste ed è il
+predicato giusto. Vedi anche `12` §0.8.
 
 ---
 

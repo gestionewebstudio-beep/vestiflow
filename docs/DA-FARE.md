@@ -1679,8 +1679,8 @@ annullare.
 nessun campo Stato** — non esiste neanche il form control. Ma l’elenco offre i filtri:
 
 ```text
-DDT vendita   Bozza · Confermato · STAMPATO · INVIATO · Annullato
-Fattura       Bozza · Da emettere · INVIATA AL COMMERCIALISTA · Annullata
+DDT vendita   Confermato · STAMPATO · INVIATO · Annullato
+Fattura       Da emettere · INVIATA AL COMMERCIALISTA · Annullata
 ```
 
 Gli stati in maiuscolo **nessun documento nuovo può assumerli**: quei filtri, salvo storici,
