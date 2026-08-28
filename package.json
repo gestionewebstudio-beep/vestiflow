@@ -28,7 +28,7 @@
     "e2e:ci": "playwright test --project=chromium-guest --project=chromium-ci",
     "e2e:authenticated": "playwright test --project=setup --project=chromium --project=mobile-chrome",
     "e2e:guest": "playwright test --project=chromium-guest",
-    "lint": "ng lint && npm run lint:api && npm run check:tokens && npm run check:subscriptions && npm run check:table-views && npm run check:permissions && npm run check:endpoint-gates && npm run check:form-errors && npm run check:print-types && npm run check:registro && npm run check:terminologia && npm run check:modalita-prezzo && npm run check:tab-stops && npm run check:sort-columns && npm run check:search-config && npm run check:variant-label && npm run check:column-handles && npm run check:document-grammar && npm run check:exit-label && npm run check:exit-dialog && npm run check:document-actions && npm run check:page-state && npm run check:money-input && npm run check:nome-fattura && npm run check:header-groups && npm run check:decoratori-orfani && npm run check:dto-decimali",
+    "lint": "ng lint && npm run lint:api && npm run check:tokens && npm run check:subscriptions && npm run check:table-views && npm run check:permissions && npm run check:endpoint-gates && npm run check:form-errors && npm run check:print-types && npm run check:registro && npm run check:terminologia && npm run check:modalita-prezzo && npm run check:tab-stops && npm run check:sort-columns && npm run check:search-config && npm run check:variant-label && npm run check:column-handles && npm run check:document-grammar && npm run check:exit-label && npm run check:exit-dialog && npm run check:document-actions && npm run check:page-state && npm run check:money-input && npm run check:nome-fattura && npm run check:header-groups && npm run check:decoratori-orfani && npm run check:dto-decimali && npm run check:location-scope",
     "lint:fix": "ng lint --fix",
     "lint:api": "npm run lint --prefix api",
     "audit:lhci": "lhci autorun",
@@ -73,7 +73,8 @@
     "check:page-state": "node scripts/check-page-state.mjs",
     "check:header-groups": "node scripts/check-header-groups.mjs",
     "check:decoratori-orfani": "node scripts/check-decoratori-orfani.mjs",
-    "check:dto-decimali": "node scripts/check-dto-decimali.mjs"
+    "check:dto-decimali": "node scripts/check-dto-decimali.mjs",
+    "check:location-scope": "node scripts/check-location-scope.mjs"
   },
   "private": true,
   "packageManager": "npm@10.9.0",
