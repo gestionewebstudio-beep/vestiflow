@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
-import { render, screen } from '@testing-library/angular';
+import { fireEvent, render, screen } from '@testing-library/angular';
 import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -8,7 +8,7 @@ import { AuthService } from '@core/auth';
 import { DocumentStatus, DocumentType } from '@core/models/document.model';
 import type { DocumentRecord } from '@core/models/document.model';
 import { UserRole } from '@core/models/user.model';
-import { DEFAULT_CURRENCY } from '@core/utils/money.util';
+import { DEFAULT_CURRENCY, formatMoney } from '@core/utils/money.util';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { CustomerService } from '@domain/customers/services/customer.service';
 import type { DocumentListProfile } from '@domain/documents/models/document-list-query.model';
@@ -605,5 +605,86 @@ describe('DocumentListComponent — niente pagine, ultimi 30 giorni', () => {
 
     expect(apiQuery(view).dateFrom).toBe('2026-01-01');
     expect(apiQuery(view).dateTo).toBe('2026-01-31');
+  });
+});
+
+/**
+ * ⛔ **Il verso economico nel totale della selezione** (`15c` §6.1, §12.2-12.3).
+ *
+ * Qui la somma era `sum + doc.total.amountMinor`, senza verso. Due registri
+ * mescolano tipi di direzione opposta — Fatture con la **Nota di credito**,
+ * Vendite al banco col **Reso** — quindi una Fattura da 100 e una Nota di
+ * credito da 30 davano 130 nella barra della selezione.
+ */
+describe('DocumentListComponent — totale della selezione col verso economico', () => {
+  const TITOLARE = { role: UserRole.Owner, permissions: [] };
+
+  const docEuro = (
+    id: string,
+    type: DocumentType,
+    totaleMinor: number,
+  ): DocumentRecord => ({
+    ...DOCUMENTO_DI_PROVA,
+    id,
+    type,
+    total: { amountMinor: totaleMinor, currencyCode: DEFAULT_CURRENCY },
+  });
+
+  /**
+   * Seleziona tutte le righe e restituisce il totale letto dalla barra.
+   *
+   * ⚠️ **Per NOME accessibile, non per indice.** Le caselle rese sono quattro
+   * per due righe, e l’ordine non è quello che sembra: l’indice 1 è
+   * «Seleziona tutti i documenti», non la prima riga. Un ciclo sugli indici
+   * 1-2 selezionava tutto e poi DESELEZIONAVA la prima — il totale contava
+   * una riga sola, e la prova falliva per un difetto suo.
+   *
+   * ⚠️ E legge il SECONDO `.list-actions__selection-value`: il primo è il
+   * conteggio dei selezionati, il totale viene dopo.
+   */
+  async function totaleDiTutte(righe: readonly DocumentRecord[]): Promise<string> {
+    const view = await renderList('generic', TITOLARE, undefined, righe);
+    const tutte = await screen.findByRole(`checkbox`, { name: `Seleziona tutti i documenti` });
+
+    fireEvent.click(tutte);
+    view.detectChanges();
+
+    const valori = view.container.querySelectorAll('.list-actions__selection-value');
+    expect(valori.length, `la barra non mostra conteggio e totale`).toBe(2);
+    expect(valori[0]?.textContent?.trim(), `non sono selezionate tutte le righe`).toBe(
+      String(righe.length),
+    );
+    return valori[1]?.textContent?.trim() ?? '';
+  }
+
+  it('⭐ Fattura 100 + Nota di credito 30 = 70', async () => {
+    const totale = await totaleDiTutte([
+      docEuro('f-1', DocumentType.Invoice, 10000),
+      docEuro('nc-1', DocumentType.CreditNote, 3000),
+    ]);
+
+    expect(totale).toBe(formatMoney({ amountMinor: 7000, currencyCode: DEFAULT_CURRENCY }));
+  });
+
+  it('⭐ Vendita al banco 100 + Reso al banco 30 = 70', async () => {
+    const totale = await totaleDiTutte([
+      docEuro('v-1', DocumentType.StoreSale, 10000),
+      docEuro('r-1', DocumentType.StoreReturn, 3000),
+    ]);
+
+    expect(totale).toBe(formatMoney({ amountMinor: 7000, currencyCode: DEFAULT_CURRENCY }));
+  });
+
+  /**
+   * ⚠️ Un elenco a verso unico non cambia: se cambiasse, il segno starebbe
+   * entrando dove non serve.
+   */
+  it('⭐ un elenco a verso unico somma come prima', async () => {
+    const totale = await totaleDiTutte([
+      docEuro('a', DocumentType.GoodsReceipt, 10000),
+      docEuro('b', DocumentType.GoodsReceipt, 3000),
+    ]);
+
+    expect(totale).toBe(formatMoney({ amountMinor: 13000, currencyCode: DEFAULT_CURRENCY }));
   });
 });

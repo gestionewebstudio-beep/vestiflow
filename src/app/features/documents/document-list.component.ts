@@ -95,6 +95,7 @@ import {
   documentTypeLabel,
 } from '@domain/documents/models/document-labels.util';
 import { canBulkDeleteDocuments } from './models/document-bulk-actions.util';
+import { signedDocumentMoney } from '@domain/documents/models/document-economic-sign.util';
 import {
   documentDetailPath,
   documentDuplicateFormRoute,
@@ -872,11 +873,29 @@ export class DocumentListComponent {
     return azioni;
   });
 
-  /** Somma dei totali documento selezionati, mostrata nella barra massiva. */
+  /**
+   * Somma dei totali documento selezionati, mostrata nella barra massiva.
+   *
+   * ⛔ Qui c'era `sum + doc.total.amountMinor`, senza verso. Questo registro
+   * mescola tipi di direzione opposta — Fattura, Fattura accompagnatoria e
+   * **Nota di credito** stanno nello stesso elenco, e così Vendita e **Reso** al
+   * banco — quindi una Fattura da 100 e una Nota di credito da 30 davano 130.
+   *
+   * ⭐ Il verso lo dà `documentEconomicSign` (`15c` §5), unica autorità: qui non
+   * si decide niente per tipo, si moltiplica. E si moltiplica il valore
+   * PERSISTITO, che resta positivo e già arrotondato — nessun ricalcolo.
+   */
   protected readonly selectionTotal = computed<Money>(() => {
     const docs = this.selectedDocs();
     const currencyCode = docs[0]?.currency ?? DEFAULT_CURRENCY;
-    const amountMinor = docs.reduce((sum, doc) => sum + doc.total.amountMinor, 0);
+    // ⚠️ Passa da `signedDocumentMoney`, non da `documentEconomicSign`: quella
+    //    accetta solo i tipi con direzione DICHIARATA, e questo elenco ne
+    //    contiene anche altri. Per quelli lo snapshot resta invariato, senza
+    //    che nessuno gli attribuisca una direzione economica.
+    const amountMinor = docs.reduce(
+      (sum, doc) => sum + signedDocumentMoney(doc.type, doc.total).amountMinor,
+      0,
+    );
     return { amountMinor, currencyCode };
   });
 

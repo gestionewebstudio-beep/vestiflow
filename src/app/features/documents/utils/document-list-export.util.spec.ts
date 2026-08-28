@@ -8,7 +8,7 @@ import {
 } from '@core/models/document.model';
 import type { Money } from '@core/models/money.model';
 import { formatDate } from '@core/utils/date.util';
-import { formatMoney } from '@core/utils/money.util';
+import { formatMoney, moneyToDecimalString } from '@core/utils/money.util';
 
 import { counterpartyDocLabel } from '@domain/documents/models/document-labels.util';
 
@@ -490,5 +490,113 @@ describe('buildDocumentListPrintHtml', () => {
     expect(html).toContain(`<td class="num">${formatMoney(money(15000))}</td>`);
     expect(html).toContain(`<td class="num">${formatMoney(money(3300))}</td>`);
     expect(html).toContain(`<td class="num">${formatMoney(money(18300))}</td>`);
+  });
+});
+
+/**
+ * ⛔ **Il verso economico nel piede di CSV e stampa** (`15c` §6.2, §12.4-12.5).
+ *
+ * Due registri mescolano tipi di direzione opposta — Fatture (`invoice`,
+ * `invoice_accompanying`, `credit_note`) e Vendite al banco (`store_sale`,
+ * `store_return`) — e il piede sommava importi grezzi: una Fattura da 100 e una
+ * Nota di credito da 30 davano **130**.
+ *
+ * ⚠️ Entrambi i registri usano `GOODS_RECEIPT_LIST_EXPORT`: solo il Preventivo
+ * dichiara una configurazione propria, gli altri cadono su quel ripiego
+ * (`document-list.component.ts`, `activeListExport`). Una configurazione sola
+ * serve quindi tutti e due i casi di accettazione.
+ */
+describe('segno economico nel piede di CSV e stampa', () => {
+  /** Il piede è l'ultima riga del CSV: «Totale (n documenti);…». */
+  /**
+   * Il decimale come lo scrive il CSV: virgola, **nessun simbolo valuta**.
+   *
+   * ⚠️ Le due uscite formattano diversamente — il CSV con `csvMoney`, la
+   * stampa con `formatMoney` — e una prova che usasse un formato solo
+   * fallirebbe su meta dei casi senza che il calcolo sia sbagliato.
+   */
+  const csvImporto = (minor: number): string => moneyToDecimalString(money(minor)).replace('.', ',');
+
+  const piedeCsv = (righe: readonly DocumentRecord[]): string => {
+    const linee = buildDocumentListCsv(righe, GOODS_RECEIPT_LIST_EXPORT).trim().split('\r\n');
+    return linee[linee.length - 1] ?? '';
+  };
+
+  const FATTURA = makeDoc({
+    id: 'f-1',
+    type: DocumentType.Invoice,
+    subtotal: money(8197),
+    tax: money(1803),
+    total: money(10000),
+  });
+  const NOTA_CREDITO = makeDoc({
+    id: 'nc-1',
+    type: DocumentType.CreditNote,
+    subtotal: money(2459),
+    tax: money(541),
+    total: money(3000),
+  });
+  const VENDITA = makeDoc({ id: 'v-1', type: DocumentType.StoreSale, total: money(10000) });
+  const RESO = makeDoc({ id: 'r-1', type: DocumentType.StoreReturn, total: money(3000) });
+
+  it('⭐ CSV · Fattura 100 + Nota di credito 30 = 70', () => {
+    expect(piedeCsv([FATTURA, NOTA_CREDITO])).toContain(csvImporto(7000));
+  });
+
+  it('⭐ CSV · Vendita 100 + Reso 30 = 70', () => {
+    expect(piedeCsv([VENDITA, RESO])).toContain(csvImporto(7000));
+  });
+  /**
+   * ⚠️ Un `it` per REGISTRO, non uno per entrambi: se la stampa dei due casi
+   * stesse in una prova sola, cadrebbe a ogni modifica del segno e non
+   * direbbe QUALE registro si è rotto — che è esattamente ciò che `15c` §13
+   * chiede di poter distinguere.
+   */
+  it(`⭐ stampa · Fattura 100 + Nota di credito 30 = 70`, () => {
+    const html = buildDocumentListPrintHtml([FATTURA, NOTA_CREDITO], GOODS_RECEIPT_LIST_EXPORT);
+    expect(html).toContain(formatMoney(money(7000)));
+  });
+
+  it(`⭐ stampa · Vendita 100 + Reso 30 = 70`, () => {
+    const html = buildDocumentListPrintHtml([VENDITA, RESO], GOODS_RECEIPT_LIST_EXPORT);
+    expect(html).toContain(formatMoney(money(7000)));
+  });
+
+  /**
+   * ⚠️ **Le tre grandezze sono firmate SEPARATAMENTE** (`15c` §6.3): il piede
+   * non ricompone `totale = imponibile + IVA`, riporta gli snapshot.
+   */
+  it('⭐ imponibile e IVA seguono la stessa direzione del totale', () => {
+    const piede = piedeCsv([FATTURA, NOTA_CREDITO]);
+
+    expect(piede).toContain(csvImporto(8197 - 2459)); // imponibile 57,38
+    expect(piede).toContain(csvImporto(1803 - 541)); // IVA 12,62
+    expect(piede).toContain(csvImporto(7000)); // totale 70,00
+  });
+
+  /**
+   * ⛔ **La CELLA non cambia** (`15c` §7): questa correzione disciplina le
+   * aggregazioni, non la rappresentazione della riga. Una Nota di credito
+   * continua a leggersi 30,00 nella sua riga — che mostri il meno è una
+   * decisione separata e non presa.
+   */
+  it('⛔ la riga della Nota di credito resta col valore persistito, positivo', () => {
+    const csv = buildDocumentListCsv([NOTA_CREDITO], GOODS_RECEIPT_LIST_EXPORT);
+    const righe = csv.trim().split('\r\n');
+    const rigaDocumento = righe[1] ?? '';
+
+    expect(rigaDocumento).toContain(csvImporto(3000));
+    expect(rigaDocumento).not.toContain(csvImporto(-3000));
+  });
+
+  /**
+   * ⚠️ Un elenco a verso unico non cambia di una virgola: se cambiasse, il
+   * segno starebbe entrando dove non serve.
+   */
+  it('⭐ un elenco a verso unico somma come prima', () => {
+    const a = makeDoc({ id: 'a', type: DocumentType.GoodsReceipt, total: money(10000) });
+    const b = makeDoc({ id: 'b', type: DocumentType.GoodsReceipt, total: money(3000) });
+
+    expect(piedeCsv([a, b])).toContain(csvImporto(13000));
   });
 });

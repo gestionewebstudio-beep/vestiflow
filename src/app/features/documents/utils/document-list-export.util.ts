@@ -14,6 +14,7 @@
 import type { DocumentRecord } from '@core/models/document.model';
 import { formatDate } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
+import { signedDocumentMoney } from '@domain/documents/models/document-economic-sign.util';
 import {
   buildListCsv,
   buildListPrintHtml,
@@ -111,19 +112,19 @@ export const GOODS_RECEIPT_LIST_EXPORT: DocumentListExportConfig = {
       header: 'Imponibile',
       numeric: true,
       cell: (doc) => formatMoney(doc.subtotal),
-      footer: { kind: 'sumMoney', money: (doc) => doc.subtotal },
+      footer: { kind: 'sumMoney', money: (doc) => signedDocumentMoney(doc.type, doc.subtotal) },
     },
     {
       header: 'IVA',
       numeric: true,
       cell: (doc) => formatMoney(doc.tax),
-      footer: { kind: 'sumMoney', money: (doc) => doc.tax },
+      footer: { kind: 'sumMoney', money: (doc) => signedDocumentMoney(doc.type, doc.tax) },
     },
     {
       header: 'Totale',
       numeric: true,
       cell: (doc) => formatMoney(doc.total),
-      footer: { kind: 'sumMoney', money: (doc) => doc.total },
+      footer: { kind: 'sumMoney', money: (doc) => signedDocumentMoney(doc.type, doc.total) },
     },
     { header: 'Fattura collegata', cell: (doc) => goodsReceiptLinkStatusLabel(doc) ?? '' },
   ],
