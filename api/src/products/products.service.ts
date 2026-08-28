@@ -267,7 +267,7 @@ export class ProductsService {
   async listVariantSummaries(
     tenantId: string,
     query: ListVariantSummariesQueryDto,
-    user?: UserProfileDto,
+    user: UserProfileDto,
   ): Promise<Paginated<VariantSummaryDto>> {
     // Il gate della rotta chiede la sola sezione «Prodotti», ma il `locationId`
     // della query sposta la lettura sulle giacenze di UNA sede: senza questo

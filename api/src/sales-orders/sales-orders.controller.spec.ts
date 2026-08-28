@@ -66,10 +66,15 @@ describe('SalesOrdersController', () => {
     });
   });
 
-  it('exportCsv restituisce StreamableFile CSV', async () => {
-    const file = await controller.exportCsv(tenantId, {});
+  it('exportCsv restituisce StreamableFile CSV e INOLTRA l’utente', async () => {
+    // ⛔ Qui c'era `controller.exportCsv(tenantId, {})` con
+    //    `toHaveBeenCalledWith(tenantId, {})`: asseriva la firma SENZA utente,
+    //    cioè il contratto bucato. L'export non riceveva lo scope sede che
+    //    l'elenco applica, e il CSV usciva dal perimetro dell'operatore.
+    const user = { id: 'user-1', role: 'clerk' } as never;
+    const file = await controller.exportCsv(tenantId, user, {});
 
-    expect(salesOrdersExport.exportCsv).toHaveBeenCalledWith(tenantId, {});
+    expect(salesOrdersExport.exportCsv).toHaveBeenCalledWith(tenantId, {}, user);
     expect(file.options.disposition).toContain('vendite-vestiflow');
   });
 

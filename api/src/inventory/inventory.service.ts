@@ -698,7 +698,7 @@ export class InventoryService {
     tenantId: string,
     id: string,
     minThreshold: number,
-    user?: UserProfileDto,
+    user: UserProfileDto,
   ): Promise<InventoryLevelWithRefs> {
     const level = await this.prisma.inventoryLevel.findFirst({
       where: { id, tenantId },

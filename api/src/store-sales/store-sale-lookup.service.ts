@@ -41,7 +41,17 @@ export class StoreSaleLookupService {
   async lookupItems(
     tenantId: string,
     query: LookupStoreSaleItemQueryDto,
-    user?: UserProfileDto,
+    // ⛔ **`UserProfileDto`, non `UserProfileDto | undefined`.** Misurato il
+    // 28/08/2026: la rotta sta sotto `JwtAuthGuard` senza `@Public()`, il
+    // decoratore `@CurrentUser()` e tipizzato non-nullable e la guardia popola
+    // `request.appUser` su entrambi i rami che restituiscono `true` per una
+    // rotta protetta. L’identita non puo essere assente qui.
+    //
+    // ⚠️ `undefined` era convenzione ereditata dalle utility, non necessita
+    // tecnica: ed e esattamente la forma che ha prodotto lo stesso difetto in
+    // tre domini diversi. Se un giorno servisse una chiamata di sistema, avra
+    // una strada esplicita (`…ForSystem`), non questa scorciatoia.
+    user: UserProfileDto,
   ): Promise<StoreSaleItemLookupResult[]> {
     // Il gate della rotta chiede «usa la cassa», ma la sede arriva dalla query
     // ed è validata solo come UUID: senza questo controllo la cassa di un

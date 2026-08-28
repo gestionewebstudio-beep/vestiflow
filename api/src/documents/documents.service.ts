@@ -14,7 +14,6 @@ import {
   ReservationStatus,
   SalesOrderFulfillmentStatus,
   SalesOrderSource,
-  SupplierOrderStatus,
   type Document,
   type DocumentLine,
   type DocumentPaymentInstallment,
@@ -121,7 +120,7 @@ import {
   reverseDocumentStockUnload,
 } from './document-stock-reconcile.util';
 import { loadStockLineVariantsOrThrow } from './document-line-variants.util';
-import { reverseSupplierOrderReceipt } from './document-supplier-order.util';
+import { assertSupplierOrderLinkable, reverseSupplierOrderReceipt } from './document-supplier-order.util';
 import { findSupplierPriceDiffs } from './document-supplier-price.util';
 import { DocumentSettingsService } from './document-settings.service';
 import { DocumentPriceModePreferenceService } from './document-price-mode-preference.service';
@@ -1054,7 +1053,7 @@ export class DocumentsService {
 
     await this.assertCounterparties(tenantId, dto);
     if (dto.supplierOrderId) {
-      await this.assertSupplierOrderReceivable(tenantId, dto.supplierOrderId);
+      await this.assertSupplierOrderReceivable(tenantId, dto.supplierOrderId, user);
     }
 
     // Modalità prezzo del documento (netto/ivato): come l'operatore stava
@@ -1180,6 +1179,7 @@ export class DocumentsService {
             created.id,
             dto.linkedSalesDdtIds,
             created.type,
+            user,
           );
         }
 
@@ -1338,6 +1338,7 @@ export class DocumentsService {
     invoiceId: string,
     ddtIds: readonly string[],
     invoiceType: DocumentType,
+    user: UserProfileDto | undefined,
   ): Promise<void> {
     // ⛔ **Solo la Fattura aggancia DDT**, ed è la fattura DIFFERITA: DDT
     // durante il periodo, fattura che li riepiloga (riferimenti nell'XML
@@ -1370,16 +1371,35 @@ export class DocumentsService {
     const uniqueIds = [...new Set(ddtIds)];
 
     if (uniqueIds.length > 0) {
+      // ⛔ **La sede PRIMA delle condizioni documentali.** Il tipo e
+      // l'annullamento stavano nella `where`: un DDT fuori ambito ma per il
+      // resto valido veniva **agganciato** senza che nessuno guardasse la sua
+      // sede. La lettura ora prende i documenti del tenant per quegli id e li
+      // filtra qui, così la sede si può confrontare per prima.
       const found = await tx.document.findMany({
-        where: {
-          id: { in: uniqueIds },
-          tenantId,
-          type: DocumentType.sales_ddt,
-          cancelledAt: null,
-        },
-        select: { id: true },
+        where: { id: { in: uniqueIds }, tenantId },
+        select: { id: true, locationId: true, type: true, cancelledAt: true },
       });
-      if (found.length !== uniqueIds.length) {
+
+      // ⛔ **Tutti, non il primo.** Un solo DDT fuori ambito in mezzo ad altri
+      // autorizzati rifiuta l’operazione intera: siamo dentro la transazione del
+      // salvataggio, quindi non resta niente a metà.
+      //
+      // ⚠️ Politica di LETTURA: la regola è «non si aggancia un DDT che non si
+      // potrebbe aprire». Che il selettore mostri solo DDT consentiti non è
+      // autorizzazione: gli id arrivano dall'API validati come soli UUID.
+      for (const ddt of found) {
+        assertLocationReadableInUserScope(
+          user,
+          ddt.locationId,
+          'Non sei autorizzato ad accedere a uno dei DDT indicati.',
+        );
+      }
+
+      const collegabili = found.filter(
+        (ddt) => ddt.type === DocumentType.sales_ddt && ddt.cancelledAt === null,
+      );
+      if (collegabili.length !== uniqueIds.length) {
         throw new UnprocessableEntityException(
           'Uno o più DDT indicati non esistono, non sono DDT vendita o sono annullati.',
         );
@@ -1634,6 +1654,24 @@ export class DocumentsService {
     const newLocationId = dto.locationId !== undefined ? dto.locationId : doc.locationId;
     const newTargetLocationId =
       dto.targetLocationId !== undefined ? dto.targetLocationId : doc.targetLocationId;
+
+    // ⛔ **Si autorizza anche lo stato RISULTANTE, non solo quello persistito.**
+    //
+    // La guardia a `:1533` autorizza `doc`, cioè il documento com’era. Ma il DTO
+    // può cambiarne la sede, e da qui in poi è `newLocationId` a decidere dove
+    // vanno movimenti, giacenze e push ai canali. Senza questa seconda verifica,
+    // un operatore autorizzato sulla sede A apriva un proprio documento di A, lo
+    // salvava con sede B, e muoveva il magazzino di B — su cui non ha alcun
+    // diritto di scrittura. Le sedi in ingresso sono validate per esistenza e
+    // tenant (`assertReferences`), **non** per l’ambito dell’utente.
+    //
+    // ⭐ Riusa la politica esistente e non ne inventa una: `write` sulla sede,
+    // `transferDestination` sulla destinazione. Sta **prima** di qualunque
+    // scrittura — fra la guardia di riga 1533 e qui non si persiste nulla.
+    this.assertDocumentLocationWritable(user, {
+      locationId: newLocationId,
+      targetLocationId: newTargetLocationId,
+    });
     const newAdjustmentDirection =
       dto.adjustmentDirection !== undefined ? dto.adjustmentDirection : doc.adjustmentDirection;
     const newInternalComment =
@@ -1815,7 +1853,7 @@ export class DocumentsService {
           'Questo documento è già collegato a un altro ordine fornitore.',
         );
       }
-      await this.assertSupplierOrderReceivable(tenantId, dto.supplierOrderId);
+      await this.assertSupplierOrderReceivable(tenantId, dto.supplierOrderId, user);
       const order = await this.prisma.supplierOrder.findFirst({
         where: { id: dto.supplierOrderId, tenantId },
         select: { supplierId: true },
@@ -2220,6 +2258,7 @@ export class DocumentsService {
           saved.id,
           dto.linkedSalesDdtIds,
           saved.type,
+          user,
         );
       }
 
@@ -3915,27 +3954,20 @@ export class DocumentsService {
     return { ...rest, tenantId, vatSnapshot: line.vatSnapshot ?? Prisma.DbNull };
   }
 
+  /**
+   * ⭐ Delega al punto comune: stato **e** sede dell’ordine agganciato.
+   *
+   * ⛔ Qui c'era una risoluzione propria che selezionava il solo `status`, piu’
+   * un parametro `status?` che nessun chiamante ha mai passato. Il controllo di
+   * sede mancava, e mancava anche nel gemello di `goods-receipt-workflow`:
+   * adesso i tre ingressi passano dalla stessa funzione.
+   */
   private async assertSupplierOrderReceivable(
     tenantId: string,
     supplierOrderId: string,
-    status?: SupplierOrderStatus,
+    user: UserProfileDto | undefined,
   ): Promise<void> {
-    let resolvedStatus = status;
-    if (resolvedStatus == null) {
-      const order = await this.prisma.supplierOrder.findFirst({
-        where: { id: supplierOrderId, tenantId },
-        select: { status: true },
-      });
-      if (!order) {
-        throw new NotFoundException('Ordine fornitore non trovato');
-      }
-      resolvedStatus = order.status;
-    }
-    if (resolvedStatus !== SupplierOrderStatus.confirmed) {
-      throw new ConflictException(
-        'Solo ordini fornitore confermati (non ancora conclusi) possono essere agganciati a un arrivo merce.',
-      );
-    }
+    await assertSupplierOrderLinkable(this.prisma, tenantId, supplierOrderId, user);
   }
 
   /**

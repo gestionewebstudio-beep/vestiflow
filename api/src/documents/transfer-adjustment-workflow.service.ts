@@ -216,7 +216,7 @@ export class TransferAdjustmentWorkflowService {
   async saveTransfer(
     tenantId: string,
     dto: SaveTransferDto,
-    user?: UserProfileDto,
+    user: UserProfileDto,
   ): Promise<DocumentWithLines> {
     if (dto.locationId === dto.targetLocationId) {
       throw new UnprocessableEntityException(
@@ -454,7 +454,7 @@ export class TransferAdjustmentWorkflowService {
   async saveAdjustment(
     tenantId: string,
     dto: SaveAdjustmentDto,
-    user?: UserProfileDto,
+    user: UserProfileDto,
   ): Promise<DocumentWithLines> {
     await this.assertLocation(tenantId, dto.locationId);
     if (user) {

@@ -1,10 +1,69 @@
-import { UnprocessableEntityException } from '@nestjs/common';
+import { ConflictException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import {
   DocumentStatus,
   SupplierOrderStatus,
   type DocumentLine,
   type Prisma,
 } from '@prisma/client';
+
+import type { UserProfileDto } from '../auth/dto/user-profile.dto';
+import { assertLocationReadableInUserScope } from '../inventory/user-location-scope.util';
+
+/** Il minimo che serve per risolvere un ordine: funziona con `prisma` e con una `tx`. */
+type SupplierOrderReader = {
+  readonly supplierOrder: {
+    findFirst: (args: {
+      where: { id: string; tenantId: string };
+      select: { status: true; destinationLocationId: true };
+    }) => Promise<{ status: SupplierOrderStatus; destinationLocationId: string | null } | null>;
+  };
+};
+
+/**
+ * L'ordine fornitore si puo' agganciare a un Arrivo merce?
+ *
+ * ⭐ **Punto comune dei TRE ingressi** che accettano un `supplierOrderId` dal
+ * client: `POST /documents`, `PATCH /documents/:id` e
+ * `POST /documents/goods-receipt/save`. Prima del 28/08/2026 i primi due
+ * passavano da un assert che guardava il solo stato, e il terzo aveva la
+ * propria risoluzione inline: nessuno dei tre confrontava la sede.
+ *
+ * ⛔ **Che il selettore mostri solo ordini consentiti non e' autorizzazione.**
+ * L'id arriva dall'API validato come solo UUID: va risolto lato server e
+ * confrontato con l’ambito di chi chiede. Senza, un utente assegnato alla
+ * sola sede A agganciava un ordine della sede B e ne leggeva i dati che
+ * l'apertura diretta gli rifiuterebbe.
+ *
+ * ⚠️ Politica di **LETTURA**, la stessa di `SupplierOrdersService.getById`: la
+ * regola e' «non si usa un ordine che non si potrebbe leggere», e chi ha
+ * `inventory.view_all_locations` legge ovunque.
+ */
+export async function assertSupplierOrderLinkable(
+  db: SupplierOrderReader,
+  tenantId: string,
+  supplierOrderId: string,
+  user: UserProfileDto | undefined,
+): Promise<void> {
+  const order = await db.supplierOrder.findFirst({
+    where: { id: supplierOrderId, tenantId },
+    select: { status: true, destinationLocationId: true },
+  });
+  if (!order) {
+    throw new NotFoundException('Ordine fornitore non trovato');
+  }
+  // La sede PRIMA dello stato: un ordine che non si puo’ leggere non deve
+  // nemmeno rivelare in che stato si trova.
+  assertLocationReadableInUserScope(
+    user,
+    order.destinationLocationId,
+    'Non sei autorizzato ad accedere a questo ordine fornitore.',
+  );
+  if (order.status !== SupplierOrderStatus.confirmed) {
+    throw new ConflictException(
+      'Solo ordini fornitore confermati (non ancora conclusi) possono essere agganciati a un arrivo merce.',
+    );
+  }
+}
 
 type ReceiptLine = Pick<DocumentLine, 'variantId' | 'sku' | 'quantity' | 'loadsStock'> & {
   supplierOrderLineId: string | null;

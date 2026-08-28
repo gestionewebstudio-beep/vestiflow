@@ -3133,6 +3133,360 @@ describe('DocumentsService', () => {
 
       expect(prisma.document.delete).toHaveBeenCalledWith({ where: { id: 'doc-b' } });
     });
+
+    /**
+     * ⛔ **P0 — si autorizzava la sede vecchia e si scriveva nella nuova.**
+     *
+     * `assertDocumentLocationWritable(user, doc)` autorizza il documento
+     * COM'ERA. Ma `dto.locationId` può cambiarne la sede, e da lì in poi è
+     * quella nuova a decidere dove vanno movimenti, giacenze e push ai canali.
+     * Le sedi in ingresso erano validate per esistenza e tenant, non per
+     * l'ambito dell'utente.
+     *
+     * L'attacco: apro un MIO documento della sede A — il gate passa, A è mia —
+     * lo salvo con sede B, e muovo il magazzino di B.
+     *
+     * ⭐ La correzione autorizza anche lo stato RISULTANTE, nel punto in cui
+     * viene costruito e prima di qualunque scrittura.
+     */
+    describe('P0 — la sede risultante dalla modifica', () => {
+      const docInLocA = (overrides: Record<string, unknown> = {}) => ({
+        id: 'doc-a',
+        tenantId,
+        type: DocumentType.sales_ddt,
+        status: DocumentStatus.draft,
+        locationId: 'loc-A',
+        targetLocationId: null,
+        lines: [],
+        salesOrder: null,
+        supplierOrder: null,
+        ...overrides,
+      });
+
+      const preparaDocumento = (doc: Record<string, unknown>) => {
+        prisma.document.findFirst.mockResolvedValue(doc);
+        prisma.document.update.mockResolvedValue({ ...doc, lines: [] });
+        // Le sedi ESISTONO nel tenant: è il punto. La validazione di esistenza
+        // passa, e resta da decidere se l'utente possa scriverci.
+        prisma.location.findFirst.mockResolvedValue({ id: 'loc-B' });
+      };
+
+      /**
+       * Il soggetto è il GATE DI SEDE, non l'intero salvataggio: il mock non
+       * arriva in fondo a un update completo, e non serve che ci arrivi.
+       * Restituisce l'errore, o `null` se è andato a buon fine.
+       */
+      const esitoDi = (p: Promise<unknown>): Promise<unknown> =>
+        p.then(
+          () => null,
+          (errore: unknown) => errore,
+        );
+
+      it('⛔ A → B con diritto di scrittura sulla sola A: RIFIUTATO', async () => {
+        const { service } = createService(prisma);
+        preparaDocumento(docInLocA());
+
+        await expect(
+          service.update(tenantId, 'doc-a', { locationId: 'loc-B' }, clerkViewAll()),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+      });
+
+      // ⭐ Il criterio che rende la correzione utile: il rifiuto arriva PRIMA di
+      // ogni effetto. Un 403 dopo aver mosso il magazzino non è una protezione.
+      it('⛔ e dopo il rifiuto: zero update, zero movimenti', async () => {
+        const { service } = createService(prisma);
+        preparaDocumento(docInLocA());
+
+        await expect(
+          service.update(tenantId, 'doc-a', { locationId: 'loc-B' }, clerkViewAll()),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+
+        expect(prisma.document.update).not.toHaveBeenCalled();
+        expect(prisma.stockMovement.create).not.toHaveBeenCalled();
+      });
+
+      /**
+       * ⚠️ `inventory.view_all_locations` LEGGE ovunque, non SCRIVE ovunque.
+       * `clerkViewAll` ce l'ha e ha `loc-A` assegnata: se il gate usasse per
+       * sbaglio la politica di lettura, questo test diventerebbe verde con la
+       * porta aperta.
+       */
+      it('⛔ leggere ovunque non autorizza a spostare il documento altrove', async () => {
+        const { service } = createService(prisma);
+        preparaDocumento(docInLocA());
+
+        await expect(
+          service.update(tenantId, 'doc-a', { locationId: 'loc-B' }, clerkViewAll()),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+      });
+
+      it('✅ A → resta A: il gate di sede non rifiuta', async () => {
+        const { service } = createService(prisma);
+        preparaDocumento(docInLocA());
+
+        const esito = await esitoDi(
+          service.update(tenantId, 'doc-a', { internalComment: 'nota' }, clerkViewAll()),
+        );
+
+        expect(esito).not.toBeInstanceOf(ForbiddenException);
+      });
+
+      it('✅ A → B per chi ha scrittura su ENTRAMBE: il gate non rifiuta', async () => {
+        const { service } = createService(prisma);
+        preparaDocumento(docInLocA());
+        const multisede = testClerkUser({
+          assignedLocationIds: ['loc-A', 'loc-B'],
+          permissions: [TenantPermission.InventoryManage, 'doc.sales_ddt.manage'],
+        });
+
+        const esito = await esitoDi(
+          service.update(tenantId, 'doc-a', { locationId: 'loc-B' }, multisede),
+        );
+
+        expect(esito).not.toBeInstanceOf(ForbiddenException);
+      });
+
+      // Idempotenza: rimandare la sede che c'è già non diventa un rifiuto.
+      it('✅ rimandare la stessa sede non rifiuta', async () => {
+        const { service } = createService(prisma);
+        preparaDocumento(docInLocA());
+
+        const esito = await esitoDi(
+          service.update(tenantId, 'doc-a', { locationId: 'loc-A' }, clerkViewAll()),
+        );
+
+        expect(esito).not.toBeInstanceOf(ForbiddenException);
+      });
+
+      /**
+       * ⚠️ **Comportamento PRESERVATO, non norma dedotta qui.**
+       *
+       * `assertLocationInUserScope` esenta deliberatamente la destinazione di un
+       * trasferimento: `if (purpose === 'transferDestination') return;`. La
+       * correzione riusa la politica esistente e non la cambia — se quella
+       * esenzione sia voluta è una decisione da confermare a parte, insieme al
+       * caso «record senza sede».
+       */
+      it('la destinazione di un trasferimento resta esente: policy preservata', async () => {
+        const { service } = createService(prisma);
+        preparaDocumento(docInLocA({ type: DocumentType.transfer, targetLocationId: 'loc-A' }));
+        const soloA = testClerkUser({
+          assignedLocationIds: ['loc-A'],
+          permissions: [TenantPermission.InventoryManage, 'doc.transfer.manage'],
+        });
+
+        const esito = await esitoDi(
+          service.update(tenantId, 'doc-a', { targetLocationId: 'loc-B' }, soloA),
+        );
+
+        expect(esito).not.toBeInstanceOf(ForbiddenException);
+      });
+
+      // ⭐ Ma la SORGENTE del trasferimento no: quella è soggetta a `write`.
+      it('⛔ la sorgente del trasferimento NON è esente', async () => {
+        const { service } = createService(prisma);
+        preparaDocumento(docInLocA({ type: DocumentType.transfer, targetLocationId: 'loc-A' }));
+        const soloA = testClerkUser({
+          assignedLocationIds: ['loc-A'],
+          permissions: [TenantPermission.InventoryManage, 'doc.transfer.manage'],
+        });
+
+        await expect(
+          service.update(tenantId, 'doc-a', { locationId: 'loc-B' }, soloA),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+      });
+    });
+
+    /**
+     * ⛔ **Ogni DDT agganciato dev'essere un DDT che l'utente potrebbe aprire.**
+     *
+     * `linkedSalesDdtIds` è un array di UUID che arriva dal client. Prima del
+     * 28/08/2026 gli id erano risolti con
+     * `where: { id: { in }, tenantId, type: sales_ddt, cancelledAt: null }` e
+     * `select: { id: true }`: la sede non era né letta né confrontata, quindi un
+     * DDT di un'altra sede — per il resto valido — veniva **agganciato**.
+     *
+     * ⚠️ Che la Fattura abbia una propria sede autorizzata non autorizza i DDT:
+     * sono documenti distinti, ciascuno con la sua.
+     */
+    describe('P0 — la sede dei DDT agganciati alla fattura differita', () => {
+      const SEDE_MIA = 'loc-A';
+      const SEDE_ALTRUI = 'loc-B';
+
+      const limitato = () =>
+        testClerkUser({
+          assignedLocationIds: [SEDE_MIA],
+          permissions: [TenantPermission.InventoryManage, 'doc.invoice.manage'],
+        });
+
+      const ddt = (id: string, locationId: string | null) => ({
+        id,
+        locationId,
+        type: DocumentType.sales_ddt,
+        cancelledAt: null,
+      });
+
+      const fattura = () => ({
+        id: 'inv-1',
+        tenantId,
+        type: DocumentType.invoice,
+        status: DocumentStatus.draft,
+        locationId: SEDE_MIA,
+        targetLocationId: null,
+        documentDate: new Date('2026-08-01'),
+        series: null,
+        number: null,
+        reference: null,
+        lines: [],
+        salesOrder: null,
+        supplierOrder: null,
+        linkedSalesOrders: [],
+      });
+
+      function preparaFattura(ddtTrovati: ReturnType<typeof ddt>[]) {
+        prisma.document.findFirst.mockResolvedValue(fattura());
+        prisma.document.update.mockResolvedValue({ ...fattura(), lines: [] });
+        prisma.location.findFirst.mockResolvedValue({ id: SEDE_MIA });
+        prisma.document.findMany.mockResolvedValue(ddtTrovati);
+      }
+
+      const esitoDi = (p: Promise<unknown>): Promise<unknown> =>
+        p.then(
+          () => null,
+          (errore: unknown) => errore,
+        );
+
+      it('✅ un DDT della propria sede: il gate non rifiuta', async () => {
+        const { service } = createService(prisma);
+        preparaFattura([ddt('ddt-1', SEDE_MIA)]);
+
+        const esito = await esitoDi(
+          service.update(tenantId, 'inv-1', { linkedSalesDdtIds: ['ddt-1'] }, limitato()),
+        );
+
+        expect(esito).not.toBeInstanceOf(ForbiddenException);
+      });
+
+      it('✅ più DDT tutti autorizzati: il gate non rifiuta', async () => {
+        const { service } = createService(prisma);
+        preparaFattura([ddt('ddt-1', SEDE_MIA), ddt('ddt-2', SEDE_MIA)]);
+
+        const esito = await esitoDi(
+          service.update(
+            tenantId,
+            'inv-1',
+            { linkedSalesDdtIds: ['ddt-1', 'ddt-2'] },
+            limitato(),
+          ),
+        );
+
+        expect(esito).not.toBeInstanceOf(ForbiddenException);
+      });
+
+      /**
+       * ⭐ **Il DDT fuori ambito NON è il primo dell'array**, ed è deliberato:
+       * un controllo che si fermasse al primo id passerebbe questo test se il
+       * fuori-ambito fosse in testa. Qui è in mezzo.
+       */
+      it('⛔ un solo DDT fuori ambito fra tre: l’operazione INTERA è rifiutata', async () => {
+        const { service } = createService(prisma);
+        preparaFattura([
+          ddt('ddt-1', SEDE_MIA),
+          ddt('ddt-2', SEDE_ALTRUI),
+          ddt('ddt-3', SEDE_MIA),
+        ]);
+
+        await expect(
+          service.update(
+            tenantId,
+            'inv-1',
+            { linkedSalesDdtIds: ['ddt-1', 'ddt-2', 'ddt-3'] },
+            limitato(),
+          ),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+      });
+
+      it('⛔ e nessun collegamento viene creato o cancellato', async () => {
+        const { service } = createService(prisma);
+        preparaFattura([ddt('ddt-1', SEDE_MIA), ddt('ddt-2', SEDE_ALTRUI)]);
+
+        await expect(
+          service.update(
+            tenantId,
+            'inv-1',
+            { linkedSalesDdtIds: ['ddt-1', 'ddt-2'] },
+            limitato(),
+          ),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+
+        expect(prisma.invoiceSalesDdtLink.createMany).not.toHaveBeenCalled();
+        expect(prisma.invoiceSalesDdtLink.deleteMany).not.toHaveBeenCalled();
+      });
+
+      it('⛔ DDT di un altro tenant: non si trova, messaggio generico', async () => {
+        const { service } = createService(prisma);
+        preparaFattura([]);
+
+        await expect(
+          service.update(tenantId, 'inv-1', { linkedSalesDdtIds: ['ddt-x'] }, limitato()),
+        ).rejects.toBeInstanceOf(UnprocessableEntityException);
+      });
+
+      it('✅ chi ha inventory.view_all_locations aggancia qualunque sede', async () => {
+        const { service } = createService(prisma);
+        preparaFattura([ddt('ddt-1', SEDE_ALTRUI)]);
+        const supervisore = testClerkUser({
+          assignedLocationIds: [SEDE_MIA],
+          permissions: [
+            TenantPermission.InventoryManage,
+            TenantPermission.InventoryViewAllLocations,
+            'doc.invoice.manage',
+          ],
+        });
+
+        const esito = await esitoDi(
+          service.update(tenantId, 'inv-1', { linkedSalesDdtIds: ['ddt-1'] }, supervisore),
+        );
+
+        expect(esito).not.toBeInstanceOf(ForbiddenException);
+      });
+
+      /**
+       * ⭐ **Il DDT fuori ambito non è un oracolo sulla propria condizione.**
+       *
+       * Questi DDT sono di sede altrui **e** non collegabili — tipo sbagliato o
+       * annullato. Se il controllo di sede stesse dopo, la risposta direbbe
+       * «non esiste, non è un DDT o è annullato», rivelando una condizione di un
+       * documento che il richiedente non può vedere.
+       */
+      it.each([
+        ['tipo sbagliato', { type: DocumentType.invoice }],
+        ['annullato', { cancelledAt: new Date('2026-08-01') }],
+      ])(
+        '⛔ DDT fuori ambito e %s: risponde 403, non la condizione',
+        async (_caso, extra) => {
+          const { service } = createService(prisma);
+          preparaFattura([{ ...ddt('ddt-1', SEDE_ALTRUI), ...extra }]);
+
+          await expect(
+            service.update(tenantId, 'inv-1', { linkedSalesDdtIds: ['ddt-1'] }, limitato()),
+          ).rejects.toBeInstanceOf(ForbiddenException);
+        },
+      );
+
+      // ⚠️ Comportamento PRESERVATO: un DDT senza sede non ha nulla da
+      // confrontare. Non è una decisione presa qui.
+      it('DDT senza sede: passa, policy preservata', async () => {
+        const { service } = createService(prisma);
+        preparaFattura([ddt('ddt-1', null)]);
+
+        const esito = await esitoDi(
+          service.update(tenantId, 'inv-1', { linkedSalesDdtIds: ['ddt-1'] }, limitato()),
+        );
+
+        expect(esito).not.toBeInstanceOf(ForbiddenException);
+      });
+    });
   });
 
   describe('previewNextReference', () => {

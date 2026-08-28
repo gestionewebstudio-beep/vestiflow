@@ -114,9 +114,27 @@ describe('StoreSaleLookupService — la giacenza è quella della propria sede', 
     ).resolves.toHaveLength(1);
   });
 
-  it('senza utente in contesto non decide: le chiamate interne passano', async () => {
-    const { service } = createService();
+  /**
+   * ⛔ **Qui c'erano DUE test che codificavano il difetto come contratto.**
+   *
+   * Il primo diceva «senza utente in contesto non decide: le chiamate interne
+   * passano» — di chiamanti interni non ce n’erano. Il secondo, che l’aveva
+   * sostituito il 28/08, ammetteva `undefined` esplicito.
+   *
+   * ⭐ Ora la firma e `user: UserProfileDto`: passare `undefined` **non
+   * compila**, quindi non c’e piu niente da testare. Misurato che la rotta sta
+   * sotto `JwtAuthGuard` senza `@Public()`, l'identita non puo essere assente.
+   */
 
-    await expect(service.lookupItems(TENANT, query(SEDE_ALTRUI))).resolves.toHaveLength(1);
+  // ⭐ Il caso REALE della rotta: un utente vero, una sede non sua.
+  it('sede altrui: rifiuto, e nemmeno una query di prodotto o giacenza', async () => {
+    const { service, prisma } = createService();
+
+    await expect(
+      service.lookupItems(TENANT, query(SEDE_ALTRUI), commesso()),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(prisma.productVariant.findMany).not.toHaveBeenCalled();
+    expect(prisma.inventoryLevel.findMany).not.toHaveBeenCalled();
   });
 });

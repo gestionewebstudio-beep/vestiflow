@@ -150,10 +150,11 @@ export class InventoryController {
   @UseInterceptors(FileInterceptor('file', csvUploadMulterOptions))
   previewLevelsImport(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @UploadedFile() file: Express.Multer.File,
   ) {
     this.assertCsvFile(file);
-    return this.inventoryImport.previewCsv(tenantId, file.buffer.toString('utf-8'));
+    return this.inventoryImport.previewCsv(tenantId, file.buffer.toString('utf-8'), user);
   }
 
   @Post('levels/import')
@@ -202,12 +203,16 @@ export class InventoryController {
   @RequireAnyPermissions(INVENTORY_SECTION_PERMISSIONS)
   async listReservations(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Query() query: ListReservationsQueryDto,
   ): Promise<ReservationListRowDto[]> {
+    // ⛔ La sede arriva dalla QUERY: senza l’utente, chiunque abbia la sezione
+    // Magazzino leggeva gli impegni di qualunque sede del tenant.
     const reservations = await this.stockReservations.listActiveForLevel(
       tenantId,
       query.variantId,
       query.locationId,
+      user,
     );
     return reservations.map((reservation) => ({
       id: reservation.id,

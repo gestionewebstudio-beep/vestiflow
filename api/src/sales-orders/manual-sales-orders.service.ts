@@ -18,6 +18,7 @@ import {
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
+import { assertLocationReadableInUserScope } from '../inventory/user-location-scope.util';
 import { partyDisplayName } from '../common/party/party.util';
 import { DOCUMENT_STOCK_UNLOAD_TYPES } from '../documents/document-stock.constants';
 import { DocumentSettingsService } from '../documents/document-settings.service';
@@ -112,8 +113,50 @@ export class ManualSalesOrdersService {
     return { unloadDocumentTypes: DOCUMENT_STOCK_UNLOAD_TYPES };
   }
 
-  /** Impegni attivi dell'ordine (per la Q.tà disponibile in modifica). */
-  async listActiveReservations(
+  /**
+   * Impegni attivi dell'ordine, per il chiamante ESTERNO.
+   *
+   * ⛔ **La sede si verifica PRIMA di leggere.** Conoscere l’id di un ordine non
+   * concede il diritto di vederne gli impegni: se la sede è fuori ambito si
+   * rifiuta senza eseguire la query degli impegni (`12` §0.8).
+   *
+   * ⚠️ **Esiste apposta separata da `listActiveReservations`**, che è la lettura
+   * nuda usata da `save` a valle di un’autorizzazione già avvenuta. Fonderle
+   * dietro un `user?` opzionale renderebbe il controllo saltabile per
+   * dimenticanza, che è il difetto che questa correzione chiude.
+   */
+  async listActiveReservationsForUser(
+    tenantId: string,
+    orderId: string,
+    user: UserProfileDto,
+  ): Promise<readonly ManualOrderReservationRow[]> {
+    const order = await this.prisma.salesOrder.findFirst({
+      where: { id: orderId, tenantId },
+      select: { locationId: true, source: true },
+    });
+    if (!order) {
+      throw new NotFoundException('Ordine non trovato');
+    }
+    // Solo gli ordini manuali sono legati alla sede di chi li ha scritti:
+    // stessa distinzione di `SalesOrdersService.getById`.
+    if (order.source === SalesOrderSource.manual) {
+      assertLocationReadableInUserScope(
+        user,
+        order.locationId,
+        'Non sei autorizzato ad accedere a questo ordine.',
+      );
+    }
+    return this.listActiveReservations(tenantId, orderId);
+  }
+
+  /**
+   * Impegni attivi dell'ordine: lettura nuda, senza controllo di sede.
+   *
+   * ⛔ **Solo per chiamanti INTERNI già autorizzati** (`save`, a valle del
+   * proprio controllo). Chi serve una richiesta esterna usa
+   * `listActiveReservationsForUser`.
+   */
+  private async listActiveReservations(
     tenantId: string,
     orderId: string,
   ): Promise<readonly ManualOrderReservationRow[]> {
@@ -130,7 +173,7 @@ export class ManualSalesOrdersService {
   async save(
     tenantId: string,
     dto: SaveManualSalesOrderDto,
-    user?: UserProfileDto,
+    user: UserProfileDto,
   ): Promise<ManualSalesOrderSaveResult> {
     const status = dto.status ?? 'confirmed';
 
@@ -650,7 +693,7 @@ export class ManualSalesOrdersService {
     tenantId: string,
     orderId: string,
     documentType: string,
-    user?: UserProfileDto,
+    user: UserProfileDto,
   ): Promise<ConcludePrefillDto> {
     if (!(DOCUMENT_STOCK_UNLOAD_TYPES as readonly string[]).includes(documentType)) {
       throw new UnprocessableEntityException(
@@ -754,7 +797,7 @@ export class ManualSalesOrdersService {
    * viene chiuso d'ufficio. Gli eventuali impegni residui vengono rilasciati
    * (merce mai spedita: torna disponibile, nessun movimento di magazzino).
    */
-  async forceConclude(tenantId: string, orderId: string, user?: UserProfileDto): Promise<void> {
+  async forceConclude(tenantId: string, orderId: string, user: UserProfileDto): Promise<void> {
     const order = await this.prisma.salesOrder.findFirst({
       where: { id: orderId, tenantId },
       select: {
@@ -820,7 +863,7 @@ export class ManualSalesOrdersService {
    * ordine + righe (cascade DB). Non manuali e ordini con Vendita online
    * collegata NON sono eliminabili.
    */
-  async delete(tenantId: string, id: string, user?: UserProfileDto): Promise<void> {
+  async delete(tenantId: string, id: string, user: UserProfileDto): Promise<void> {
     const order = await this.prisma.salesOrder.findFirst({
       where: { id, tenantId },
       select: {
@@ -884,7 +927,7 @@ export class ManualSalesOrdersService {
     tenantId: string,
     sourceId: string,
     customerId: string,
-    user?: UserProfileDto,
+    user: UserProfileDto,
   ): Promise<ManualSalesOrderSaveResult> {
     const source = await this.prisma.salesOrder.findFirst({
       where: { id: sourceId, tenantId },

@@ -7,6 +7,7 @@ import {
 import { PurchaseCostEntryMode, SupplierOrderStatus } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 
+import { TenantPermission } from '../auth/tenant-permission.constants';
 import { grossFromNetMinor } from '../vat/vat-line-calculation.util';
 
 import type { DocumentSettingsService } from '../documents/document-settings.service';
@@ -693,6 +694,139 @@ describe('SupplierOrdersService', () => {
       await expect(
         service.getById(tenantId, 'po-1', testClerkUser({ assignedLocationIds: ['loc-1'] })),
       ).resolves.toMatchObject({ id: 'po-1' });
+    });
+  });
+
+  /**
+   * ⛔ **La sede dell'ordine si autorizza, in creazione e in modifica.**
+   *
+   * `destinationLocationId` arriva dal client validato come solo UUID. Prima
+   * del 28/08/2026 nessuno lo confrontava con l'ambito dell'utente: un
+   * assegnato alla sola sede A creava ordini nel contesto della sede B, e con
+   * `PATCH` ci spostava quelli esistenti.
+   *
+   * ⚠️ Il campo porta ancora il nome vecchio, ma ciò che si autorizza è la
+   * **Location come contesto operativo** — il contratto corrente
+   * (`SPECIFICA-COMUNE-TESTATE-DOCUMENTO` §10.2). Il significato «destinazione
+   * fisica della merce» è superato e questi test non lo riconsolidano.
+   */
+  describe('la sede dell’ordine è dentro l’ambito dell’utente', () => {
+    const SEDE_MIA = 'loc-mia';
+    const SEDE_ALTRUI = 'loc-altrui';
+    const commesso = () =>
+      testClerkUser({
+        assignedLocationIds: [SEDE_MIA],
+        permissions: [TenantPermission.InventoryManage, 'doc.supplier_order.manage'],
+      });
+
+    const ordineEsistente = (destinationLocationId: string | null) => ({
+      id: 'po-1',
+      tenantId,
+      status: SupplierOrderStatus.confirmed,
+      supplierId: 'sup-1',
+      destinationLocationId,
+      lines: [],
+      linkedDocuments: [],
+    });
+
+    it('⛔ creare nel contesto di una sede non propria: RIFIUTATO', async () => {
+      const prisma = createPrismaMock();
+      const service = createService(prisma);
+
+      await expect(
+        service.create(
+          tenantId,
+          { supplierId: 'sup-1', destinationLocationId: SEDE_ALTRUI, lines: [] } as never,
+          commesso(),
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    // ⭐ Il rifiuto arriva prima di ogni scrittura: non basta rifiutare, deve
+    // rifiutare senza aver creato niente.
+    it('⛔ e non si crea nulla', async () => {
+      const prisma = createPrismaMock();
+      const service = createService(prisma);
+
+      await expect(
+        service.create(
+          tenantId,
+          { supplierId: 'sup-1', destinationLocationId: SEDE_ALTRUI, lines: [] } as never,
+          commesso(),
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(prisma.supplierOrder.create).not.toHaveBeenCalled();
+    });
+
+    it('✅ creare nella propria sede supera il gate', async () => {
+      const prisma = createPrismaMock();
+      const service = createService(prisma);
+
+      const esito = await service
+        .create(
+          tenantId,
+          { supplierId: 'sup-1', destinationLocationId: SEDE_MIA, lines: [] } as never,
+          commesso(),
+        )
+        .then(
+          () => null,
+          (e: unknown) => e,
+        );
+
+      expect(esito).not.toBeInstanceOf(ForbiddenException);
+    });
+
+    /**
+     * ⭐ Il caso che il fix su `PATCH /documents/:id` ha insegnato: `getById`
+     * autorizza l'ordine com'è, ma il DTO può spostarlo altrove.
+     */
+    it('⛔ SPOSTARE un ordine proprio in una sede altrui: RIFIUTATO', async () => {
+      const prisma = createPrismaMock();
+      prisma.supplierOrder.findFirst.mockResolvedValue(ordineEsistente(SEDE_MIA));
+      const service = createService(prisma);
+
+      await expect(
+        service.update(
+          tenantId,
+          'po-1',
+          { destinationLocationId: SEDE_ALTRUI } as never,
+          commesso(),
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(prisma.supplierOrder.update).not.toHaveBeenCalled();
+    });
+
+    it('✅ modificare senza toccare la sede supera il gate', async () => {
+      const prisma = createPrismaMock();
+      prisma.supplierOrder.findFirst.mockResolvedValue(ordineEsistente(SEDE_MIA));
+      const service = createService(prisma);
+
+      const esito = await service
+        .update(tenantId, 'po-1', { lines: [] } as never, commesso())
+        .then(
+          () => null,
+          (e: unknown) => e,
+        );
+
+      expect(esito).not.toBeInstanceOf(ForbiddenException);
+    });
+
+    // ⚠️ Comportamento PRESERVATO: un ordine senza sede non ha nulla da
+    // confrontare. Se debba essere ammesso è la domanda §4.8, non decisa qui.
+    it('ordine senza sede: nessun confronto, policy preservata', async () => {
+      const prisma = createPrismaMock();
+      const service = createService(prisma);
+
+      const esito = await service
+        .create(tenantId, { supplierId: 'sup-1', lines: [] } as never, commesso())
+        .then(
+          () => null,
+          (e: unknown) => e,
+        );
+
+      expect(esito).not.toBeInstanceOf(ForbiddenException);
     });
   });
 });

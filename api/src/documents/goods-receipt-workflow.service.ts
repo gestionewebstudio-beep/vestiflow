@@ -10,7 +10,6 @@ import {
   DocumentStatus,
   DocumentType,
   Prisma,
-  SupplierOrderStatus,
   type Document,
   type DocumentLine,
 } from '@prisma/client';
@@ -22,7 +21,10 @@ import { canViewPurchaseCosts, hasTenantPermission } from '../auth/user-permissi
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import { applyInventoryLotsFromDocumentLines } from '../inventory/inventory-lot.util';
 import { resolveReadableListLocationScope } from '../inventory/licensed-location-scope.util';
-import { assertLocationInUserScope } from '../inventory/user-location-scope.util';
+import {
+  assertLocationInUserScope,
+  assertLocationReadableInUserScope,
+} from '../inventory/user-location-scope.util';
 import {
   applyInventorySerialsFromDocumentLines,
   assertSerialNumbersForDocumentLines,
@@ -38,7 +40,7 @@ import {
   DOCUMENT_STOCK_LOAD_TYPES,
   INVOICE_LINKABLE_RECEIPT_TYPES,
 } from './document-stock.constants';
-import {
+import { assertSupplierOrderLinkable,
   enrichReceiptLinesWithSupplierOrderLineIds,
   reconcileSupplierOrderReceipt,
 } from './document-supplier-order.util';
@@ -529,18 +531,10 @@ export class GoodsReceiptWorkflowService {
       // fornitore Confermati. Un ordine già Concluso è agganciato a un altro
       // arrivo; il documento già collegato allo STESSO ordine resta valido.
       if (dto.supplierOrderId && dto.supplierOrderId !== existing?.supplierOrderId) {
-        const linkedOrder = await tx.supplierOrder.findFirst({
-          where: { id: dto.supplierOrderId, tenantId },
-          select: { status: true },
-        });
-        if (!linkedOrder) {
-          throw new NotFoundException('Ordine fornitore non trovato');
-        }
-        if (linkedOrder.status !== SupplierOrderStatus.confirmed) {
-          throw new ConflictException(
-            'Solo ordini fornitore confermati (non ancora conclusi) possono essere agganciati a un arrivo merce.',
-          );
-        }
+        // ⭐ Stato **e sede**, dal punto comune ai tre ingressi. Qui c’era una
+        // risoluzione inline che selezionava il solo `status`: la sede non era
+        // nemmeno letta, quindi non poteva essere confrontata.
+        await assertSupplierOrderLinkable(tx, tenantId, dto.supplierOrderId, user);
       }
 
       const supplierName = await this.snapshotSupplierName(tx, tenantId, dto.supplierId);
@@ -1077,6 +1071,24 @@ export class GoodsReceiptWorkflowService {
       throw new NotFoundException('Uno degli arrivi merce selezionati non esiste più.');
     }
     for (const receipt of receipts) {
+      // ⛔ **La sede PRIMA di ogni altra condizione, e l’ordine non è arbitrario.**
+      // Le verifiche che seguono parlano del documento: il tipo, il fornitore,
+      // l’annullamento, e soprattutto «già collegato a un’altra fattura», che nel
+      // messaggio **nomina il riferimento** dell’arrivo. Un documento fuori ambito
+      // non deve diventare un oracolo sulla propria esistenza né sul proprio stato.
+      //
+      // ⚠️ Politica di LETTURA, la stessa con cui è filtrato il selettore che
+      // alimenta questo campo — `listLinkableGoodsReceipts` usa
+      // `resolveReadableListLocationScope`: la regola è «non si include un arrivo
+      // che non si potrebbe aprire».
+      //
+      // ⛔ Che il selettore mostri solo arrivi consentiti non è autorizzazione:
+      // l’id arriva dall’API validato come solo UUID.
+      assertLocationReadableInUserScope(
+        user,
+        receipt.locationId,
+        'Non sei autorizzato ad accedere a uno degli arrivi merce selezionati.',
+      );
       if (!(INVOICE_LINKABLE_RECEIPT_TYPES as readonly string[]).includes(receipt.type)) {
         throw new UnprocessableEntityException(
           'Si possono includere solo documenti di arrivo merce.',

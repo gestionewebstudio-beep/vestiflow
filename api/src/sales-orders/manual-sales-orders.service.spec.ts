@@ -1,4 +1,10 @@
-import { ConflictException, UnprocessableEntityException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
+import { SalesOrderSource } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ChannelSyncFacade } from '../channels/channel-sync.facade';
@@ -6,7 +12,7 @@ import type { DocumentSettingsService } from '../documents/document-settings.ser
 import type { ExternalDocumentTypesService } from '../documents/external-document-types.service';
 import type { StockReservationService } from '../order-reservations/stock-reservation.service';
 import type { PrismaService } from '../prisma/prisma.service';
-import { testOwnerUser } from '../test/fixtures/user-profile.fixture';
+import { testClerkUser, testOwnerUser } from '../test/fixtures/user-profile.fixture';
 import { ManualSalesOrdersService } from './manual-sales-orders.service';
 
 const tenantId = 'tenant-1';
@@ -596,10 +602,7 @@ describe('ManualSalesOrdersService — etichetta della variante', () => {
   }
 
   /** Un ordine gia' salvato, con una riga che porta la sua fotografia. */
-  function ordineEsistente(riga: {
-    variantId: string | null;
-    variantLabel: string;
-  }): void {
+  function ordineEsistente(riga: { variantId: string | null; variantLabel: string }): void {
     prisma.salesOrder.findFirst.mockResolvedValue({
       id: 'order-1',
       orderNumber: 'OC-0012',
@@ -720,5 +723,91 @@ describe('ManualSalesOrdersService — etichetta della variante', () => {
     );
 
     expect(righeScritte()[0]!['variantLabel']).toBe('Bordeaux / M');
+  });
+});
+
+/**
+ * ⛔ La settima rotta fuori scope sede: gli impegni dell'ordine.
+ *
+ * `GET /sales-orders/manual/:id/reservations` risolveva l'ordine **solo per
+ * tenant**. Conoscere l'id bastava a leggere gli impegni di un ordine di una
+ * sede non propria — e da lì la disponibilità di quella sede.
+ *
+ * ⭐ Il metodo pubblico si chiama `listActiveReservationsForUser` **apposta**:
+ * la lettura nuda resta privata e serve `save`, che ha già autorizzato. Fonderle
+ * dietro un `user?` opzionale renderebbe il controllo saltabile per
+ * dimenticanza.
+ */
+describe('ManualSalesOrdersService.listActiveReservationsForUser', () => {
+  const SEDE_MIA = 'loc-mia';
+  const SEDE_ALTRUI = 'loc-altrui';
+  const commesso = () => testClerkUser({ assignedLocationIds: [SEDE_MIA] });
+
+  function conOrdine(order: { locationId: string | null; source?: SalesOrderSource } | null) {
+    const prisma = createPrismaMock();
+    prisma.salesOrder.findFirst = vi
+      .fn()
+      .mockResolvedValue(order === null ? null : { source: SalesOrderSource.manual, ...order });
+    prisma.stockReservation.findMany = vi
+      .fn()
+      .mockResolvedValue([{ variantId: 'var-1', remainingQuantity: 3 }]);
+    return { prisma, ...createService(prisma) };
+  }
+
+  it('⛔ sede altrui: negato anche conoscendo l’id', async () => {
+    const { service } = conOrdine({ locationId: SEDE_ALTRUI });
+
+    await expect(
+      service.listActiveReservationsForUser('tenant-1', 'ordine-1', commesso()),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('⛔ e nessuna query sugli impegni viene eseguita dopo il rifiuto', async () => {
+    const { service, prisma } = conOrdine({ locationId: SEDE_ALTRUI });
+
+    await expect(
+      service.listActiveReservationsForUser('tenant-1', 'ordine-1', commesso()),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(prisma.stockReservation.findMany).not.toHaveBeenCalled();
+  });
+
+  it('✅ la propria sede si legge', async () => {
+    const { service } = conOrdine({ locationId: SEDE_MIA });
+
+    await expect(
+      service.listActiveReservationsForUser('tenant-1', 'ordine-1', commesso()),
+    ).resolves.toEqual([{ variantId: 'var-1', remainingQuantity: 3 }]);
+  });
+
+  it('✅ il titolare accede a qualunque sede', async () => {
+    const { service } = conOrdine({ locationId: SEDE_ALTRUI });
+
+    await expect(
+      service.listActiveReservationsForUser(
+        'tenant-1',
+        'ordine-1',
+        testOwnerUser({ assignedLocationIds: [] }),
+      ),
+    ).resolves.toHaveLength(1);
+  });
+
+  it('ordine di canale: lo scope sede non si applica', async () => {
+    const { service } = conOrdine({
+      locationId: SEDE_ALTRUI,
+      source: SalesOrderSource.online,
+    });
+
+    await expect(
+      service.listActiveReservationsForUser('tenant-1', 'ordine-1', commesso()),
+    ).resolves.toHaveLength(1);
+  });
+
+  it('tenant diverso: 404 come prima', async () => {
+    const { service } = conOrdine(null);
+
+    await expect(
+      service.listActiveReservationsForUser('tenant-1', 'ordine-1', commesso()),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });

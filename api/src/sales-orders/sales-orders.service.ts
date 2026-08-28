@@ -170,7 +170,7 @@ export class SalesOrdersService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async getById(tenantId: string, id: string, user?: UserProfileDto): Promise<SalesOrderDetailRow> {
+  async getById(tenantId: string, id: string, user: UserProfileDto): Promise<SalesOrderDetailRow> {
     const order = await this.prisma.salesOrder.findFirst({
       where: { id, tenantId },
       include: {

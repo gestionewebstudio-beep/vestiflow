@@ -18,7 +18,10 @@ import {
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { OrderState, assertManualTransition, supplierOrderState } from '../common/order-state.util';
 import { resolveReadableListLocationScope } from '../inventory/licensed-location-scope.util';
-import { assertLocationReadableInUserScope } from '../inventory/user-location-scope.util';
+import {
+  assertLocationInUserScope,
+  assertLocationReadableInUserScope,
+} from '../inventory/user-location-scope.util';
 import { partyDisplayName } from '../common/party/party.util';
 import { PrismaService } from '../prisma/prisma.service';
 import type { Paginated } from '../common/dto/pagination.dto';
@@ -137,10 +140,27 @@ export class SupplierOrdersService {
     // azione sensibile si possa mostrare chi l'ha eseguita.
     //
     // ⛔ Chiuderla richiede due colonne nuove su un database condiviso: è un
-    // lavoro a sé, non un ritocco. Il parametro resta perché la firma è già
-    // quella giusta, e il giorno in cui le colonne ci saranno non cambia.
-    _user?: UserProfileDto,
+    // lavoro a sé, non un ritocco.
+    //
+    // ⭐ **Dal 28/08/2026 il parametro NON è più inutilizzato**: serve ad
+    // autorizzare la sede dell'ordine. Il vuoto sopra riguarda la tracciabilità
+    // (chi lo ha creato), che è un’altra cosa e resta aperta.
+    user: UserProfileDto,
   ): Promise<SupplierOrderWithLines> {
+    // ⛔ **La sede si autorizza PRIMA di creare.** Il campo arriva dal client
+    // validato come solo UUID: senza questo controllo un utente assegnato alla
+    // sola sede A creava ordini nel contesto della sede B.
+    //
+    // ⚠️ La colonna si chiama ancora `destinationLocationId`, ma qui si
+    // autorizza la **Location dell’ordine come contesto operativo**, che è il
+    // contratto corrente (`SPECIFICA-COMUNE-TESTATE-DOCUMENTO` §10.2). Il
+    // vecchio significato «destinazione fisica della merce» è superato, e
+    // questo controllo non lo riconsolida: la specifica chiede espressamente di
+    // non attribuire in silenzio un significato nuovo a un campo legacy.
+    if (user && dto.destinationLocationId) {
+      assertLocationInUserScope(user, dto.destinationLocationId, 'write');
+    }
+
     const supplier = await this.prisma.supplier.findFirst({
       where: { id: dto.supplierId, tenantId },
       include: { party: true },
@@ -252,13 +272,25 @@ export class SupplierOrdersService {
     tenantId: string,
     id: string,
     dto: UpdateSupplierOrderDto,
-    user?: UserProfileDto,
+    user: UserProfileDto,
   ): Promise<SupplierOrderWithLines> {
     const order = await this.getById(tenantId, id, user);
     if (order.status !== SupplierOrderStatus.confirmed) {
       throw new ConflictException(
         'Solo gli ordini confermati (non conclusi né annullati) possono essere modificati.',
       );
+    }
+
+    // ⛔ **Si autorizza anche la sede RISULTANTE, non solo quella persistita.**
+    // `getById` sopra ha già autorizzato l'ordine com'era; il DTO però può
+    // cambiarne la sede, ed è quella nuova a valere da qui in poi. È la stessa
+    // forma corretta il 28/08 su `PATCH /documents/:id`.
+    const sedeRisultante =
+      dto.destinationLocationId !== undefined
+        ? dto.destinationLocationId
+        : order.destinationLocationId;
+    if (user && sedeRisultante) {
+      assertLocationInUserScope(user, sedeRisultante, 'write');
     }
 
     const supplier = await this.prisma.supplier.findFirst({
@@ -363,7 +395,7 @@ export class SupplierOrdersService {
   async cancel(
     tenantId: string,
     id: string,
-    user?: UserProfileDto,
+    user: UserProfileDto,
   ): Promise<SupplierOrderWithLines> {
     const order = await this.getById(tenantId, id, user);
 
@@ -391,7 +423,7 @@ export class SupplierOrdersService {
   }
 
   /** Elimina definitivamente un ordine annullato (righe in cascade). */
-  async delete(tenantId: string, id: string, user?: UserProfileDto): Promise<void> {
+  async delete(tenantId: string, id: string, user: UserProfileDto): Promise<void> {
     const order = await this.getById(tenantId, id, user);
     if (order.status !== SupplierOrderStatus.cancelled) {
       throw new ConflictException('Solo gli ordini annullati possono essere eliminati.');
@@ -535,7 +567,7 @@ export class SupplierOrdersService {
   async getById(
     tenantId: string,
     id: string,
-    user?: UserProfileDto,
+    user: UserProfileDto,
   ): Promise<SupplierOrderWithLines> {
     const order = await this.prisma.supplierOrder.findFirst({
       where: { id, tenantId },

@@ -10,6 +10,7 @@ import { GoodsReceiptWorkflowService } from './goods-receipt-workflow.service';
 
 import type { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { PrismaService } from '../prisma/prisma.service';
+import { TenantPermission } from '../auth/tenant-permission.constants';
 import { testClerkUser, testOwnerUser } from '../test/fixtures/user-profile.fixture';
 import type { DocumentSettingsService } from './document-settings.service';
 import type { DocumentPriceModePreferenceService } from './document-price-mode-preference.service';
@@ -1108,6 +1109,9 @@ describe('GoodsReceiptWorkflowService.savePurchaseInvoice', () => {
   function linkableReceipt(overrides: Record<string, unknown> = {}) {
     return {
       id: '44444444-4444-4444-8444-444444444444',
+        // Senza questo campo la fixture era CIECA alla sede: nessun test
+        // poteva dimostrare isolamento, qualunque cosa facesse il codice.
+        locationId: 'loc-mia',
       type: DocumentType.goods_receipt,
       status: DocumentStatus.confirmed,
       supplierId: 'sup-1',
@@ -1682,4 +1686,158 @@ describe('GoodsReceiptWorkflowService.savePurchaseInvoice', () => {
     );
   });
 
+
+    /**
+     * ⛔ **Un arrivo di sede altrui non si include, e non si fa nemmeno
+     * interrogare.**
+     *
+     * `linkedGoodsReceiptId` arriva dall'API validato come solo UUID. Prima del
+     * 28/08/2026 gli arrivi erano risolti con `where: { tenantId, id: { in } }`
+     * e l'unica guardia che vedeva l'utente controllava il **permesso di
+     * famiglia**, non la sede.
+     *
+     * ⚠️ **E la fixture era strutturalmente cieca:** `linkableReceipt` non
+     * aveva un campo `locationId`, ed entrambi gli utenti di prova hanno
+     * `hasAllLocationsAccess: true`. Un test così non può dimostrare isolamento
+     * per sede — qualunque cosa faccia il codice, resta verde.
+     */
+    describe('la sede dell’arrivo incluso', () => {
+      const SEDE_MIA = 'loc-mia';
+      const SEDE_ALTRUI = 'loc-altrui';
+
+      /** Utente davvero limitato a UNA sede: è il punto di tutto il blocco. */
+      const limitatoAllaMiaSede = () =>
+        testClerkUser({
+          assignedLocationIds: [SEDE_MIA],
+          permissions: [
+            'doc.purchase_invoice.view',
+            'doc.purchase_invoice.manage',
+            'doc.goods_receipt.view',
+            'doc.goods_receipt.manage',
+          ],
+        });
+
+      const dtoConArrivo = () =>
+        invoiceDto({
+          lines: [
+            {
+              description: 'Riga',
+              quantity: 1,
+              unitPriceMinor: 10000,
+              linkedGoodsReceiptId: linkableReceipt().id,
+            } as never,
+          ],
+        });
+
+      const esitoDi = (p: Promise<unknown>): Promise<unknown> =>
+        p.then(
+          () => null,
+          (errore: unknown) => errore,
+        );
+
+      it('✅ arrivo della propria sede: il gate di sede non rifiuta', async () => {
+        const { service } = createService(prisma);
+        prisma.document.findMany.mockResolvedValue([linkableReceipt({ locationId: SEDE_MIA })]);
+        mockSavedInvoice();
+
+        const esito = await esitoDi(
+          service.savePurchaseInvoice(tenantId, dtoConArrivo(), limitatoAllaMiaSede()),
+        );
+
+        expect(esito).not.toBeInstanceOf(ForbiddenException);
+      });
+
+      it('⛔ stesso tenant, arrivo di sede fuori ambito: RIFIUTATO', async () => {
+        const { service } = createService(prisma);
+        prisma.document.findMany.mockResolvedValue([linkableReceipt({ locationId: SEDE_ALTRUI })]);
+        mockSavedInvoice();
+
+        await expect(
+          service.savePurchaseInvoice(tenantId, dtoConArrivo(), limitatoAllaMiaSede()),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+      });
+
+      it('⛔ e la fattura non si crea: nessun effetto parziale', async () => {
+        const { service } = createService(prisma);
+        prisma.document.findMany.mockResolvedValue([linkableReceipt({ locationId: SEDE_ALTRUI })]);
+        mockSavedInvoice();
+
+        await expect(
+          service.savePurchaseInvoice(tenantId, dtoConArrivo(), limitatoAllaMiaSede()),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+
+        expect(prisma.document.create).not.toHaveBeenCalled();
+      });
+
+      it('✅ chi ha inventory.view_all_locations include qualunque sede', async () => {
+        const { service } = createService(prisma);
+        prisma.document.findMany.mockResolvedValue([linkableReceipt({ locationId: SEDE_ALTRUI })]);
+        mockSavedInvoice();
+        const supervisore = testClerkUser({
+          assignedLocationIds: [SEDE_MIA],
+          permissions: [
+            'doc.purchase_invoice.view',
+            'doc.purchase_invoice.manage',
+            'doc.goods_receipt.view',
+            'doc.goods_receipt.manage',
+            TenantPermission.InventoryViewAllLocations,
+          ],
+        });
+
+        const esito = await esitoDi(
+          service.savePurchaseInvoice(tenantId, dtoConArrivo(), supervisore),
+        );
+
+        expect(esito).not.toBeInstanceOf(ForbiddenException);
+      });
+
+
+      /**
+       * ⭐ **Ogni condizione che segue rivela qualcosa, non solo «già
+       * collegato».**
+       *
+       * Misurato falsificando: spostando la guardia dopo tipo, fornitore e
+       * annullamento, la sola prova sull'oracolo restava verde — perché il suo
+       * arrivo supera quei tre controlli. Servono tutti e quattro i casi, o la
+       * rete protegge un ordine solo su quattro.
+       *
+       * I messaggi che questi controlli producono dicono, nell'ordine: che il
+       * documento non è un arrivo merce; che appartiene a un altro fornitore;
+       * che è annullato. Tutte informazioni su un documento che il richiedente
+       * non può vedere.
+       */
+      it.each([
+        ['tipo sbagliato', { type: DocumentType.supplier_invoice }],
+        ['altro fornitore', { supplierId: 'sup-altro' }],
+        ['annullato', { status: DocumentStatus.cancelled }],
+        ['già collegato', { purchaseInvoiceLinks: [{ purchaseInvoiceId: 'altra' }] }],
+      ])(
+        '⛔ arrivo fuori ambito e %s: risponde 403, senza rivelare la condizione',
+        async (_caso, extra) => {
+          const { service } = createService(prisma);
+          prisma.document.findMany.mockResolvedValue([
+            linkableReceipt({ locationId: SEDE_ALTRUI, ...extra }),
+          ]);
+          mockSavedInvoice();
+
+          await expect(
+            service.savePurchaseInvoice(tenantId, dtoConArrivo(), limitatoAllaMiaSede()),
+          ).rejects.toBeInstanceOf(ForbiddenException);
+        },
+      );
+
+      // ⚠️ Comportamento PRESERVATO: un arrivo senza sede non ha nulla da
+      // confrontare. Non è una decisione presa qui.
+      it('arrivo senza sede: passa, policy preservata', async () => {
+        const { service } = createService(prisma);
+        prisma.document.findMany.mockResolvedValue([linkableReceipt({ locationId: null })]);
+        mockSavedInvoice();
+
+        const esito = await esitoDi(
+          service.savePurchaseInvoice(tenantId, dtoConArrivo(), limitatoAllaMiaSede()),
+        );
+
+        expect(esito).not.toBeInstanceOf(ForbiddenException);
+      });
+    });
 });

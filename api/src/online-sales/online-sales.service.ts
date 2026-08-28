@@ -1,7 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { DocumentType, type Prisma } from '@prisma/client';
 
+import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import type { Paginated } from '../common/dto/pagination.dto';
+import { assertLocationReadableInUserScope } from '../inventory/user-location-scope.util';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   fromPrismaSource,
@@ -112,7 +114,22 @@ export class OnlineSalesService {
     };
   }
 
-  async getDetail(tenantId: string, id: string): Promise<OnlineSaleDetail> {
+  /**
+   * Dettaglio di una vendita online.
+   *
+   * ⛔ **La sede si verifica sul record, non sull'elenco.** `OnlineSale.locationId`
+   * è la sede di scarico: senza questo controllo, conoscere un id bastava a
+   * leggere righe, movimenti e perfino il NOME della sede di un magazzino non
+   * proprio. Filtrare un elenco è ergonomia; autorizzare è rifiutare la
+   * richiesta diretta per id (`12` §0.8).
+   *
+   * ⚠️ `user` NON è opzionale: un parametro saltabile è come non averlo.
+   */
+  async getDetail(
+    tenantId: string,
+    id: string,
+    user: UserProfileDto,
+  ): Promise<OnlineSaleDetail> {
     const sale = await this.prisma.onlineSale.findFirst({
       where: { id, tenantId },
       include: {
@@ -126,6 +143,11 @@ export class OnlineSalesService {
     if (!sale) {
       throw new NotFoundException('Vendita online non trovata');
     }
+    assertLocationReadableInUserScope(
+      user,
+      sale.locationId,
+      'Non sei autorizzato ad accedere a questa vendita.',
+    );
 
     const movements = await this.prisma.stockMovement.findMany({
       where: {
@@ -184,12 +206,13 @@ export class OnlineSalesService {
   async findByOrder(
     tenantId: string,
     salesOrderId: string,
+    user: UserProfileDto,
   ): Promise<OnlineSaleDetail | null> {
     const sale = await this.prisma.onlineSale.findFirst({
       where: { tenantId, salesOrderId },
       select: { id: true },
     });
-    return sale ? this.getDetail(tenantId, sale.id) : null;
+    return sale ? this.getDetail(tenantId, sale.id, user) : null;
   }
 
   private buildWhere(
