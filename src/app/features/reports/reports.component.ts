@@ -129,10 +129,10 @@ export class ReportsComponent {
   );
 
   /**
-   * ⛔ **Il link al Registro non si mostra a chi puo ESPORTARE: a chi puo
+   * ⛔ **Il link al Registro non si mostra a chi può ESPORTARE: a chi può
    * ENTRARE.** Erano due domande diverse tenute per una sola.
    *
-   * Il predicato e lo stesso che usa la voce di sidebar «Corrispettivi», ed e
+   * Il predicato è lo stesso che usa la voce di sidebar «Corrispettivi», ed è
    * la traduzione di `ONLINE_SALES_VIEW_GROUPS` — i permessi che la rotta
    * canonica pretende. Con `canExportOperationalData` il link compariva anche
    * a chi la guardia poi rimbalzava in dashboard.
