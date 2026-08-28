@@ -92,5 +92,15 @@ export const reportsRoutes: Routes = [
   // quindi un segnalibro sulla stampa per il commercialista usciva con un altro
   // periodo. Un 404 è una risposta migliore di una stampa sbagliata.
   //
-  // ⭐ E nel codice non ci puntava più nessuno: solo i documenti.
+  // ⛔ **Qui c’era «E nel codice non ci puntava più nessuno: solo i documenti».
+  //    Era FALSO**, e il 27/08 la pagina Report aveva ancora il suo link.
+  //
+  //    ⚠️ Non era distrazione: il link era `routerLink="corrispettivi"`,
+  //    RELATIVO, quindi cercare `reports/corrispettivi` non lo trovava — un
+  //    link relativo non contiene il percorso che apre. La misura era giusta
+  //    sulla domanda sbagliata.
+  //
+  //    ⭐ Ora il link è assoluto su `/app/sales/corrispettivi`, e
+  //    `check:router-links` (in `npm run lint`) impedisce che ne ricompaia uno
+  //    relativo: era l’unico dell’app.
 ];

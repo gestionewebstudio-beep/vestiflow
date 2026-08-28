@@ -4,13 +4,16 @@
     <p class="reports__subtitle">{{ pageSubtitle() }}</p>
   </header>
 
-  @if (canExportCorrispettivi()) {
+  <!-- Il link ENTRA nel Registro: condizione della rotta, non dell’export. -->
+  @if (canOpenCorrispettiviRegister()) {
     <div class="reports__corrispettivi-link">
-      <a routerLink="corrispettivi" class="reports__corrispettivi-anchor">
+      <a routerLink="/app/sales/corrispettivi" class="reports__corrispettivi-anchor">
         Apri registro corrispettivi commercialista →
       </a>
     </div>
+  }
 
+  @if (canExportCorrispettivi()) {
     <app-report-corrispettivi-export
       [period]="displayPeriod()"
       [dateFrom]="dateFromDraft()"

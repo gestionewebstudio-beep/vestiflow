@@ -13,7 +13,11 @@ import { catchError, map, of, startWith, switchMap } from 'rxjs';
 import { AuthService } from '@core/auth';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
-import { canExportOperationalData } from '@core/permissions/tenant-permissions.util';
+import {
+  canAccessSalesSection,
+  canExportOperationalData,
+  canViewDocFamily,
+} from '@core/permissions/tenant-permissions.util';
 import { REPORTS_CORRISPETTIVI_CSV_EXPORT_ID } from '@core/export/background-blob-export.constants';
 import { vestiflowExportFilename } from '@core/export/background-blob-export-filename.util';
 import { BackgroundBlobExportService } from '@core/services/background-blob-export.service';
@@ -123,6 +127,20 @@ export class ReportsComponent {
   protected readonly canExportCorrispettivi = computed(() =>
     canExportOperationalData(this.authService.currentUser()),
   );
+
+  /**
+   * ⛔ **Il link al Registro non si mostra a chi puo ESPORTARE: a chi puo
+   * ENTRARE.** Erano due domande diverse tenute per una sola.
+   *
+   * Il predicato e lo stesso che usa la voce di sidebar «Corrispettivi», ed e
+   * la traduzione di `ONLINE_SALES_VIEW_GROUPS` — i permessi che la rotta
+   * canonica pretende. Con `canExportOperationalData` il link compariva anche
+   * a chi la guardia poi rimbalzava in dashboard.
+   */
+  protected readonly canOpenCorrispettiviRegister = computed(() => {
+    const user = this.authService.currentUser();
+    return canAccessSalesSection(user) && canViewDocFamily(user, 'online_sale');
+  });
 
   private readonly exportRange = computed(() =>
     resolveReportDateRange({ ...this.query(), period: this.displayPeriod() }),
