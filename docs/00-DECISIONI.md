@@ -185,8 +185,40 @@ strumenti di lavoro. Non ci si cercano decisioni.
 | **La selezione batte i filtri**: 0 selezionati → il filtrato; 1+ → solo quelle                                             | §5.3     |
 | **Stampa · Excel · Esporta** sono tre azioni indipendenti                                                                  | §5.2     |
 | **«Esporta» richiede `reports.export`** ovunque sia disponibile                                                            | §E5      |
-| **I riepiloghi non impaginano**: si aprono sugli ultimi 30 giorni, «Tutti» resta una voce                                  | §H14-bis |
-| **Le anagrafiche restano paginate**: senza un asse temporale, «30 giorni» nasconde il catalogo                             | §H14-bis |
+| **Nessun TETTO di righe a schermo**: un elenco mostra tutto il risultato del filtro e lo si scorre         | `14` §11.4 |
+| **La ricerca globale è fuori perimetro**: è un’anteprima da 5 righe per fonte, non un elenco              | `14` §11.4 |
+| **L’intestazione resta fissa** e le righe scorrono: senza tetto, un elenco è lungo centinaia di schermate  | `14` §11.5 |
+| **Un filtro senza colonna diventa una COLONNA** spenta di serie (Operatore, Controparte, Location)         | `14` §11.5 |
+| **I filtri DERIVANO dalle colonne**: ogni colonna è filtrabile, Periodo e Ricerca restano esterni          | `14` §0.2  |
+| **Il pulsante «Filtri» accende la modalità**, e spegnerlo azzera i filtri di colonna                       | `14` §0.2  |
+| **Colonna spenta = filtro spento**; ma ogni colonna ha il suo filtro, anche quelle spente di serie         | `14` §0.2  |
+| ⛔ **Nei riepiloghi non esce la MAIL di un cliente**, per nessun ripiego                                     | `14` §11.6 |
+| **Il contenitore di scorrimento di una tabella si dichiara col mixin** `table-scroll`, mai a mano           | stile §6   |
+| ⭐ **Un'unica AUTORITÀ strutturale sì; un mega-COMPONENTE universale no**                                    | `14` §0    |
+| **Lo shell fisico è EVENTUALE**: si estrae solo se, applicati i contratti, resta duplicazione reale         | `14` Fase G |
+| **Il criterio**: residuo geometrico → manca un contratto · residuo strutturale → candidato a shell          | `14` Fase G |
+| **La guardia cambia bersaglio**: non «pagina fuori dallo shell» ma «seconda implementazione equivalente»    | `14` §56   |
+| ⭐ **Il telaio `app-list-page` esiste**: testata, zona controlli, stati e sedi sono POSSEDUTI                 | `14` §0.7  |
+| ⛔ **La zona controlli non è uno slot libero**: la pagina passa valori, non markup                            | `14` §0.7  |
+| ⭐ **Un solo pulsante «Filtri»**, interruttore: acceso mostra i controlli di colonna, spento li AZZERA         | `14` §0.7  |
+| ⛔ **Niente sottotitoli** negli elenchi: il telaio non ha l'input                                             | `14` §0.7  |
+| **Il titolo di pagina è un `<h1>`** e si stila una volta sola: peso `semibold` globale                        | `14` §0.7  |
+| **Lo stato vuoto si uniforma**, Corrispettivi compreso, e non ha CTA                                          | `14` §0.7  |
+| ⛔ **`app-list-filters` non si monta**: il suo contratto è superato, resta utile solo il pannello mobile       | `14` §0.7  |
+| ⭐ **Il pannello filtri sotto `lg` è del TELAIO**, uno per tutti: stesso contenitore, altra veste            | `14` §0.2  |
+| ⛔ **Il contenuto proiettato si rende UNA volta**: due `ng-content` con lo stesso selettore non rendono niente | `14` §0.2  |
+| ⭐ **Ricerca e Periodo restano in barra a ogni larghezza**; Periodo ha lo slot `[period]`                     | `14` §0.2  |
+| ⭐ **Chiudere il pannello NON azzera; su scrivania spegnere «Filtri» SÌ** (ha preso il posto di «Azzera filtri») | `14` §0.2  |
+| ⛔ **Il telaio SCARTA il contenuto senza slot**, in silenzio: guardia `check:list-page-slots`                 | `14` §0.2  |
+| ⏸ **`[overlays]` è una casella PROVVISORIA**: il posto definitivo dei dialoghi è da decidere                 | `14` §0.2  |
+| ⭐ **Tutte le funzioni stanno nella barra in basso e NON si nascondono**: a vuoto sono spente col motivo       | `14` §0.2  |
+| ⛔ **Il messaggio è il motivo sull'azione spenta**, non un dialogo dopo il clic                                | `14` §0.2  |
+| ⏸ **Prodotti va portata sulla barra comune**, «Copie per etichetta» compresa                                  | `14` §0.2  |
+| ⭐ **«Nuovo ordine fornitore» PROPONE**: apre un ordine nuovo precompilato, non lo crea                       | `14` §0.2  |
+| ⭐ **Il precompilato porta gli id**, non i valori: le righe passano dal risolutore comune                     | `14` §0.2  |
+| ⛔ **Il fornitore non si propone più in automatico** dagli articoli; quello nuovo si crea e resta            | `14` §0.2  |
+| ⛔ **Digitare in una riga NON rilegge il catalogo**: `distinctUntilChanged` sui contenuti degli id           | `14` §0.2  |
+| ⏸ **Il catalogo si interroga un articolo alla volta**: un `variantIds[]` porterebbe l'apertura da 2N a 2   | `14` §0.2  |
 | **Ordinamento**: `DataTableSort[]` è l'unica grammatica, il parametro HTTP la sua serializzazione                          | §H15     |
 | **Corrispettivi**: con «Raggruppa: Giorno» niente sorting manuale, con «Nessuno» il sorting comune. I filtri sempre attivi | `10` §20 |
 | **La grammatica visiva**: 12px · 4×12 · intestazione 32px MAIUSCOLA · niente divisori di colonna                           | §F6      |

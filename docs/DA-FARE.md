@@ -78,6 +78,20 @@ Le decisioni argomentate stanno in **`docs/CONTRATTO-COMUNE-DOCUMENTI.md`** (§3
 e variante, §4 richiamo articolo, §5.5 sconto, §5.7 listino, §6.2 spunte magazzino).
 Qui c'è **cosa resta da fare**, non perché.
 
+## ⛔ Il richiamo articolo rilegge il catalogo a ogni battuta — misurato 29/08/2026
+
+Il blocco `selectedVariantIds` + `pinnedVariants` è copiato identico in **quattro**
+maschere. Solo l'Ordine fornitore ha il `distinctUntilChanged`: sulle altre tre —
+**Arrivo merce**, **Carico/scarico/rettifica**, **Trasferimento** — ogni carattere
+digitato in una riga rilegge una variante per articolo del documento.
+
+Il rimedio non è la stessa toppa tre volte: il blocco va **estratto una volta**, accanto
+a `document-line-article.service.ts`. Con lui conviene il passaggio a una lettura sola
+(`variantIds[]` nel DTO API, nessuna migrazione): l'apertura di un documento da 50 righe
+passa da 100 chiamate a 2.
+
+Misure e tabella in `14` §0.2.
+
 ## ✅ Fatto e committato — non va rifatto
 
 | Commit     | Cosa                                                                                                                                                                                                                          |
@@ -353,7 +367,8 @@ Questo file resta quello che era — **cosa manca** — e non è un indice.
 | **pulsante Dettaglio** su elenco documenti e ordini fornitore                         | `14` §E4, §E6  |
 | **ordinamento** su tutti e tre gli elenchi paginati, con la guardia in `npm run lint` | `14` §H15      |
 | **grammatica visiva** dei riepiloghi, decisa voce per voce                            | `14` §F6       |
-| **niente paginazione**, apertura a 30 giorni, tetto dichiarato nel meta               | `14` §H14-bis  |
+| **niente paginazione** su OGNI elenco, anagrafiche comprese                           | `14` §11.4    |
+| **filtri derivati dalle colonne**, con il pulsante che li accende e azzera             | `14` §0.2      |
 
 ⚠️ **Restano da guardare a schermo**: le quattro schermate migrate, dopo la promozione della
 grammatica. Build e test dicono che compila, non come si vede.
@@ -1948,3 +1963,26 @@ progetto sono già divergute **su un apostrofo**, e nessun test lo vedeva.
 - **Ordine cliente e Arrivo merce** procurano ancora i riepiloghi **inline**, con un ciclo di
   chiamate e `mergeVariantSummaries`, invece di `summariesByIds`. Seguito meccanico, misurato,
   non incluso qui per non allargare una correzione mirata.
+
+## Filtri per colonna — perimetro misurato il 29/08/2026
+
+Mappa avversariale (7 agenti, 2 di sola smentita), riverificata a mano. Decisioni in
+`14` §11.4 e §11.5; qui c'è solo cosa resta da fare.
+
+| Da fare | Dove |
+| --- | --- |
+| **intestazione fissa**: dare uno scrollport verticale a `.data-table-scroll` | `14` §11.5 D3 |
+| **togliere il tetto di righe** sui sei elenchi col paginatore (clienti, fornitori, prodotti, giacenze, situazione, vendite online) | `14` §11.4 |
+| **tre colonne nuove**, spente di serie: Operatore, Controparte, Location | `14` §11.5 D1 |
+| `cellText` non copre `status` e `linkStatus`: il filtro a valori nascerebbe vuoto | `14` §11.5 |
+| `filter: false` sulle 9 pseudo-colonne (`select`, `actions`) | `14` §11.1 |
+| `filter: 'range'` sulle 11 colonne data: nessuna lo deduce | `14` §11.1 |
+| escludere le 91 colonne di RIGHE documento dalla filtrabilità | `14` §11.5 |
+| portare `corrispettivi-orders-table` e `online-sale-table` sul contratto colonne | `14` §11.5 |
+| veste filtri mobile per sei elenchi che non ce l'hanno | `14` §0.2 |
+| `filter` in `document-line-columns.consistency.spec.ts:80` | `14` §11.5 |
+| l'e2e `permissions-owner.spec.ts:143` aggancia `'Filtra per location'` per nome | `14` §11.5 |
+| il commento `data-table.component.ts:48-51` dice ancora «paginati lato server» | `14` §11.4 |
+
+⚠️ **Da guardare a schermo, non con i test**: che l'intestazione resti davvero fissa
+scorrendo un elenco lungo. Un `sticky` che non appiccica non fallisce — non fa niente.

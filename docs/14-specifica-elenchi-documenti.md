@@ -20,7 +20,49 @@
 
 # 0. Decisione normativa da congelare
 
-VestiFlow deve avere **un unico contenitore comune per gli elenchi operativi**.
+VestiFlow deve avere **un'unica AUTORITÀ STRUTTURALE per gli elenchi operativi**: una sola
+grammatica, un solo insieme di contratti comuni.
+
+> ⛔ **Non significa un unico COMPONENTE che tutti rendono.** Deciso il 29/08/2026.
+
+```text
+unica autorità strutturale     ✅ sì, ed è dove si lavora
+mega-componente universale     ⛔ non è un requisito
+shell leggero comune           ⏸ eventuale, e solo sui residui misurati
+```
+
+⚠️ **Qui c'era «un unico contenitore comune», letto come obbligo di un componente.** La
+misura del 29/08/2026 ha mostrato perché non regge come prescrizione:
+
+| | portata misurata |
+| --- | --- |
+| i **mixin** condivisi | **23** file |
+| il **componente** condiviso `app-data-table` | **4** file |
+
+⭐ **Il contratto costa una riga di `@include` e raggiunge anche chi non migrerà mai** — i
+mixin di scorrimento e di altezza hanno raggiunto in un pomeriggio il Registro Corrispettivi,
+che ha una tabella propria. Il componente è **tutto-o-niente per pagina**: chi non può
+permettersi la migrazione oggi non prende niente e resta indietro finché qualcuno non trova
+mezza giornata. È la ragione per cui lo stesso difetto dell'intestazione appiccicata è vissuto
+in **quattro** posti: il motore l'aveva risolto per i suoi quattro consumatori, gli altri no.
+
+### Dove passa la riga
+
+```text
+ASPETTO · GEOMETRIA · REGOLE          →  CONTRATTO  (mixin, token, modello)
+  grammatica visiva, altezza righe, catena di altezze, regione di
+  scorrimento, colonne, filtri, Periodo, riepilogo, azioni, stampa
+  → normativi, e raggiungono il 100%
+
+COMPORTAMENTO · STATO · INTERAZIONE   →  COMPONENTE
+  ordinamento multi-chiave, selezione, selettore colonne, vista a card
+  → non esprimibile in un mixin: va reso
+```
+
+⛔ **I sottocontratti restano normativi**: togliere l'obbligo dello shell **non** li indebolisce.
+Stessa grammatica e stessi contratti ≠ stesso componente involucro.
+
+Il contenitore è il telaio della pagina. Offre sempre le stesse **zone funzionali** e la stessa grammatica d'interazione; ogni modulo dichiara invece quali filtri, colonne, metriche, azioni, query e differenze di dominio utilizzare.
 
 Il contenitore è il telaio della pagina. Offre sempre le stesse **zone funzionali** e la stessa grammatica d'interazione; ogni modulo dichiara invece quali filtri, colonne, metriche, azioni, query e differenze di dominio utilizzare.
 
@@ -63,7 +105,11 @@ La riga delle funzioni sta **sotto i totali**. Non occupa spazio nella testata e
 
 ## 0.1 Comune non significa contenuto identico
 
-Il contenitore comune decide:
+⚠️ **«Decide» è l'AUTORITÀ, non un componente** (§0): l'elenco qui sotto dice cosa è
+**normato in un posto solo** — che sia un mixin, un token, un modello o, un giorno, uno
+shell. Chi lo rende non cambia la norma.
+
+L'autorità comune decide:
 
 - impaginazione;
 - posizione delle zone;
@@ -116,22 +162,466 @@ un elenco senza riepilogo approvato
 → nessun riepilogo inventato
 ```
 
-## 0.2 Un solo meccanismo filtri, configurazioni diverse
+## 0.2 ⭐ I filtri DERIVANO dalle colonne — deciso il 29/08/2026
 
-Il comportamento già presente nei Corrispettivi è il riferimento iniziale:
+> **I filtri di un elenco non si dichiarano: sono le sue colonne.** Ogni colonna del
+> riepilogo è filtrabile, e la dichiarazione vive dove la colonna è già dichiarata.
+> Restano **esterni** solo Periodo e Ricerca, che colonne non sono.
+
+⛔ **Qui c'era «il contenitore non inventa filtri di dominio: rende quelli dichiarati dal
+modulo»**, e dietro quella riga una matrice di filtri profilo per profilo (§42-bis).
+Misurato il 29/08/2026 sui due elenchi più grandi:
 
 ```text
-desktop
-→ filtri inline sopra l'elenco
+Ordini cliente   Stato · Origine · Pagamento · Evasione · Cliente · Location
+                 → 6 filtri su 6 sono già COLONNE dello stesso elenco
 
-mobile
-→ un solo Filtri (n)
-→ un solo SlidePanel
+Arrivi merce     Fornitore · Collegamento · Magazzino · Tipo doc. · Pagamento
+                 → 5 filtri su 5 sono già COLONNE dello stesso elenco
 ```
 
-Desktop e mobile leggono **lo stesso stato**, usano gli stessi handler e producono la stessa query.
+**La matrice per profilo duplicava una differenziazione che il file delle colonne già
+conteneva**, perché anche le colonne sono per profilo. Il costo cresceva con
+`profili × filtri × consumer` e ogni elenco nuovo lo riapriva: è la ragione misurabile
+per cui questa migrazione non convergeva.
 
-Il contenitore non inventa filtri di dominio. Rende quelli dichiarati dal modulo.
+| | strada per profilo | strada per colonna |
+| --- | --- | --- |
+| dichiarazioni | 9 profili nel solo `document-list` | `filter` sulle **195 colonne già dichiarate** |
+| markup filtri | **640 righe** in un solo consumer | zero: il controllo sta nel motore tabella |
+| specifica | **648 righe** di matrici | la colonna **è** la matrice |
+| un elenco nuovo | ricomincia | eredita |
+
+### Le due vesti — che servono comunque
+
+⛔ **Un meccanismo unico per desktop e mobile non esiste, e non è una scelta:** sotto `lg`
+la tabella diventa card e `_responsive-table.scss` mette `thead { display: none }`. Dove
+non c'è intestazione non c'è nulla su cui appoggiare un controllo di colonna.
+
+```text
+UNA dichiarazione     la colonna dice se è filtrabile e come
+
+DUE rese              desktop → controllo nell'intestazione della colonna
+                      mobile  → voce nel pannello Filtri (n)
+```
+
+⭐ **Il conto delle due vesti è già pagato oggi** — ogni elenco ha barra su desktop e
+pannello su mobile. Il controllo in intestazione **sostituisce** la veste desktop, non ne
+aggiunge una terza.
+
+Desktop e mobile leggono lo **stesso stato**, usano gli stessi handler e producono la
+stessa query.
+
+### Il pulsante «Filtri» accende la modalità, e spegnerlo azzera
+
+_Decisione owner, 29/08/2026._ I controlli di colonna **non sono sempre a schermo**: li
+accende il pulsante «Filtri», come nel benchmark Danea.
+
+| | |
+| --- | --- |
+| **acceso** | ogni colonna visibile mostra il proprio controllo di filtro |
+| **spento** | i controlli spariscono **e i filtri di colonna si azzerano** |
+
+⭐ **Lo spegnimento È l'azzeramento**, e non è una scorciatoia implementativa: un filtro
+che resta attivo mentre il suo controllo non si vede è esattamente il difetto che Danea
+deve rimediare con la striscia «Clicca qui per impostare un filtro».
+
+⚠️ **Periodo e Ricerca non seguono il pulsante**: sono esterni, restano sempre visibili e
+non si azzerano spegnendo la modalità.
+
+### ⭐ Il PANNELLO filtri sotto `lg` è del telaio — deciso il 29/08/2026
+
+_Su richiesta del proprietario: «il pannello filtri da mobile devi gestirlo bene in base
+al nostro obiettivo»._
+
+Cinque pagine avevano un `app-slide-panel` **proprio**, che **duplicava a mano** i
+controlli della barra legandoli agli stessi segnali. Non più: il pannello è **uno**, del
+telaio, e vale per ogni elenco.
+
+⛔ **E non è una seconda copia: è LO STESSO contenitore, con un'altra veste.**
+
+```text
+scrivania    .list-page__filters   riga della barra strumenti
+sotto lg     .list-page__filters   foglio laterale, aperto dal pulsante «Filtri»
+```
+
+⚠️ **La strada ovvia non funziona, e non fallisce.** Misurato il 29/08/2026: due
+`<ng-content select="[filters]">` in rami esclusivi — uno in barra, uno dentro un
+pannello — lasciano il contenuto in **nessuno dei due**. Nessun errore, nessun test rosso,
+filtri spariti. Il contenuto proiettato si può rendere **una volta sola**.
+
+⭐ È anche la regola di `regole-stile-ui` §9: «la stessa riga non esiste due volte». Le
+cinque vesti duplicate erano già una violazione; ora l'istanza è una.
+
+#### Cosa resta in barra anche sotto `lg`
+
+**Ricerca** e **Periodo** — i due che non entrano nelle colonne (§0.2). Periodo ha per
+questo uno slot proprio, `[period]`, in posizione fissa fra ricerca e filtri: è un
+controllo di dominio, ma la sua **posizione** non è negoziabile.
+
+#### Il pulsante «Filtri» ha due mestieri, perché sono due vesti
+
+```text
+scrivania    accende i controlli nelle INTESTAZIONI di colonna    spegnere = azzerare
+sotto lg     APRE e chiude il pannello                            chiudere ≠ azzerare
+```
+
+⛔ **Chiudere il pannello NON azzera**, ed è il motivo per cui gli stati sono **due
+segnali distinti**: chi apre i filtri, li imposta e preme «Vedi risultati» perderebbe
+esattamente quello che ha appena scelto. Nel pannello l'azzeramento c'è, ed è **esplicito**
+(«Azzera filtri»).
+
+⭐ **Su scrivania spegnere azzera davvero, e da subito**: quel pulsante ha **preso il
+posto** di «Azzera filtri», che stava in barra su sei pagine. Se spegnere non azzerasse,
+l'azzeramento non esisterebbe più da nessuna parte.
+
+#### Il conteggio lo dà la PAGINA
+
+`[activeFilterCount]` — il telaio non sa cosa sia un filtro attivo, non conosce il
+dominio. Sotto `lg` quel numero è l'unica cosa che dice che qualcosa sta restringendo
+l'elenco, perché i controlli sono chiusi nel pannello.
+
+⚠️ **Oggi lo espone il solo Ordini fornitore**, ed è transitorio: con i filtri di colonna
+il telaio possiede lo stato dei filtri e **il conteggio se lo calcola da sé**. Le pagine
+non dovranno dichiararlo — quindi non è lavoro da fare adesso su dieci pagine.
+
+⭐ **E sulla scrivania il numero diventa quasi ridondante**: ogni colonna filtrata mostra
+il proprio controllo acceso. Resta essenziale **sotto `lg`**, dove i controlli sono
+chiusi nel pannello e quel numero è l'unico segnale che l'elenco è ristretto.
+
+### ⛔ Il telaio SCARTA in silenzio ciò che non ha uno slot — misurato il 29/08/2026
+
+`app-list-page` ha caselle **tutte nominate** e nessuna casella senza nome. Angular
+elimina dal DOM il contenuto proiettato che non trova uno slot.
+
+```text
+il costruttore del componente   GIRA
+il suo DOM                      non compare da nessuna parte
+errori, lint, test              nessuno
+```
+
+**Due pannelli persi così**, e li ha trovati una lettura a mano:
+
+| Dove | Cosa non funzionava |
+| --- | --- |
+| Ordini fornitore | il pulsante «Filtri (n)» su mobile non apriva niente |
+| Situazione magazzino | «Nuovo ordine fornitore» dagli articoli selezionati non compariva mai |
+
+⚠️ E un terzo caso era peggio: su **Giacenze** il pannello «Quantità impegnata» non era
+stato scartato — era stato **cancellato dal file** dallo script di migrazione. Ripristinato.
+
+#### La casella `[overlays]`, e perché è provvisoria
+
+_Proprietario, 29/08/2026: «gli overlay, se non trovi il posto giusto, mettili in overlay
+da decidere dopo»._
+
+Ci vanno le cose che non occupano **nessuna zona** perché sono `position: fixed`:
+dialoghi di conferma, pannelli laterali di azione. ⏸ Il posto definitivo è da decidere —
+la casella esiste perché non vengano scartate nel frattempo.
+
+#### La guardia
+
+`npm run check:list-page-slots`, dentro `npm run lint`: **scopre** le caselle dal
+template del telaio (non le elenca) e fallisce su ogni figlio di primo livello che non ne
+dichiari una. Falsificata in due modi il 29/08/2026 — e la prima stesura era **cieca**, un
+gruppo greedy nel riconoscitore di tag inghiottiva la barra di `/>` e contava ogni tag
+auto-chiuso come aperto.
+
+### ⭐ Tutte le funzioni stanno nella barra in basso — confermato il 29/08/2026
+
+_Proprietario, sul riferimento Danea: «come danea, tutte le funzioni vanno messe nella
+barra decisa in basso» e «il tasto non deve essere nascosto, se non ci sono articoli
+selezionati esce un messaggio»._
+
+⭐ **Non è una regola nuova: è §5.1, e il contratto la scriveva già.**
+`ListActionRequirement` in `list-selection.model.ts` dice testualmente che il campo
+«ha cambiato mestiere: prima decideva se l'azione COMPARIVA; da quando le azioni sono
+sempre visibili decide se è **abilitata**, e con quale motivo».
+
+```text
+0 selezionati   requires: 'none'        attiva, lavora sul risultato filtrato
+                requires: 'oneOrMore'   SPENTA, «Seleziona almeno un elemento»
+                requires: 'one'         SPENTA, «Seleziona un elemento»
+```
+
+⛔ **Il messaggio è il MOTIVO sull'azione spenta, non un dialogo al clic.** Sta lì prima
+che si prema, si legge col mouse e col fuoco (`app-hover-tooltip` + `softDisabled`, che
+tiene il pulsante nel giro del Tab). Un modale che spiega dopo il clic sarebbe un secondo
+modo di dire la stessa cosa — `regole-stile-ui` §1.
+
+#### Chi era fuori dalla regola — misurato il 29/08/2026
+
+| Pagina | Stato |
+| --- | --- |
+| Ordini fornitore · Movimenti · Documenti · Ordini cliente | ✅ `app-list-actions-bar`, azioni sempre visibili |
+| **Situazione magazzino** | ⛔ barra fatta a mano, «Nuovo ordine fornitore» **nascosto** senza selezione → **corretto**: ora usa la barra comune, `requires: 'oneOrMore'` |
+| **Prodotti** | ⛔ barra fatta a mano, «Stampa etichette selezionate» nascosto senza selezione → ⏸ da portare sulla barra comune |
+
+⏸ **Su Prodotti ci va anche «Copie per etichetta»**, che oggi sta nella riga dei filtri e
+non è un filtro: è un parametro della stampa etichette, e appartiene al comando che lo usa.
+
+### ⭐ «Nuovo ordine fornitore» PROPONE, non emette — deciso il 29/08/2026
+
+_Proprietario: «poi si crea direttamente un ordine ed è errato. Gli articoli devono finire
+in nuovo ordine e lì vanno gestiti gli articoli e le quantità da ordinare»._
+
+```text
+prima    scegli fornitore → CREA l'ordine via API → apre la modifica dell'ordine creato
+ora      scegli fornitore → apre un ordine NUOVO precompilato → gestisci → salvi tu
+```
+
+⛔ **Il documento esisteva prima che l'operatore avesse visto una riga.** Le quantità
+nascono tutte a 1 e vanno quasi sempre corrette: si finiva per modificare un documento già
+emesso invece di compilarne uno.
+
+| Cosa arriva | |
+| --- | --- |
+| **fornitore** | quello scelto nel pannello, in testata |
+| **righe** | una per articolo selezionato, **quantità 1** |
+| **descrizione, costo, IVA, U.M., codice fornitore** | dal **risolutore comune di richiamo articolo** (`03c`), lo stesso del percorso manuale |
+
+⚠️ **Il precompilato porta gli IDENTIFICATIVI, non i valori.** Passare anche descrizione e
+costo darebbe una seconda strada per riempire una riga, libera di divergere dalla prima —
+e a divergere comincerebbe il giorno in cui il risolutore cambia.
+
+#### Come viaggia
+
+Nello **stato del router**, chiave `supplierOrderPrefill`
+(`domain/supplier-orders/models/supplier-order-prefill.model.ts`), non nell'indirizzo.
+
+⚠️ Con gli identificativi in query string l'indirizzo reggerebbe il ricarica-pagina, ma
+cinquanta articoli fanno quasi duemila caratteri. Ricaricando la maschera si apre vuota —
+e lì c'è comunque lavoro non salvato, che la maschera segnala già per conto suo.
+
+⚠️ **Lo stato malformato vale «nessun precompilato»**, mai «un pezzo sì e uno no»: la
+maschera si apre vuota invece che con un fornitore senza righe.
+
+#### Due cose che sono cambiate con lei
+
+- ⛔ **Il fornitore non si propone più in automatico** dagli articoli selezionati: il
+  pannello lo chiede comunque, quindi la proposta aggiungeva un comportamento da spiegare
+  senza togliere un passo.
+- ✅ **Il fornitore nuovo si crea lì e resta creato** — è la scelta del proprietario: la
+  creazione avviene prima di aprire la maschera, e il fornitore esiste anche se poi
+  l'ordine non si salva.
+
+#### ⚠️ «È lenta» — misurato, e una causa era vecchia
+
+_Segnalato dal proprietario il 29/08/2026 provandola: «è lenta la precompilazione, ma il
+sistema funziona bene, è corretto»._
+
+Contate le interrogazioni al catalogo per un precompilato di **due** articoli:
+
+```text
+apertura precompilata     4 chiamate = 2 per articolo
+  N   il richiamo articolo di ogni riga legge la sua variante
+  N   le varianti «appuntate» del selettore le rileggono tutte in un colpo
+```
+
+⛔ **E ne è venuta fuori una che non c'entrava col precompilato.** `selectedVariantIds`
+ricalcolava un array nuovo a **ogni** `lines.valueChanges` — cioè a ogni carattere
+digitato in qualunque campo di riga — e l'array nuovo è sempre diverso per `Object.is`:
+`pinnedVariants` rileggeva **una variante per riga del documento a ogni battuta**.
+
+> Misurato: digitare un carattere in Quantità con un solo articolo faceva **3** chiamate
+> invece di 2. Su un ordine da trenta righe sono trenta richieste per digitare «5».
+
+✅ Corretto con un `distinctUntilChanged` sui **contenuti** della lista di id: è
+l'insieme degli articoli a dover cambiare perché ci sia qualcosa da rileggere. Due prove lo
+tengono fermo, e la falsificazione le fa arrossire entrambe.
+
+#### Quanto costa davvero — sonda del 29/08/2026
+
+Misurato con risposte **istantanee** (catalogo finto, nessuna rete), per isolare il lavoro
+del client da quello del trasporto:
+
+| Articoli | Chiamate | Lavoro del client |
+| --- | --- | --- |
+| 10 | 20 | 115 ms |
+| 25 | 50 | 214 ms |
+| 50 | **100** | **383 ms** |
+
+⭐ **È lineare**, non quadratico: circa 7 ms per articolo più una quarantina fissi. Il
+numero di chiamate è esattamente **2N**, come previsto.
+
+⚠️ **La rete non è misurabile da qui**: servirebbe l'API contro il database condiviso. Il
+tempo che l'operatore percepisce è quei ~0,4 s di client **più** cento andate e ritorni.
+
+⏸ **Resta aperto il 2N.** Il catalogo si interroga **un articolo alla volta**: il DTO
+`ListVariantSummariesQueryDto` accetta `variantId` singolo. Con un `variantIds[]`
+— parametro di query, nessuna migrazione — le chiamate passerebbero da 100 a **2**, e ne
+beneficerebbe **ogni** documento con molte righe, non solo il precompilato.
+
+⚠️ **I ~0,4 s di client resterebbero**: la parte che si toglie è solo il trasporto. Incide
+**solo sulla velocità** — stessi dati, stesso risultato.
+
+#### ⛔ E il difetto NON è del precompilato: è del richiamo articolo, in QUATTRO maschere
+
+_Intuizione del proprietario il 29/08/2026 — «forse il problema è altrove, è proprio nel
+richiamo articolo nei documenti» — verificata subito._
+
+Il blocco `selectedVariantIds` + `pinnedVariants` è **copiato identico** in quattro
+maschere. Confrontati carattere per carattere: tre hanno la **stessa impronta**, la quarta
+differisce solo per la correzione appena fatta.
+
+| Maschera | `distinctUntilChanged` |
+| --- | --- |
+| Ordine fornitore | ✅ corretto il 29/08/2026 |
+| **Arrivo merce** | ⛔ **manca** |
+| **Carico / scarico / rettifica** | ⛔ **manca** |
+| **Trasferimento** | ⛔ **manca** |
+
+> Su quelle tre, **ogni carattere digitato in una riga rilegge dal catalogo una variante
+> per articolo del documento.** Sono le maschere che si usano tutti i giorni, e il
+> precompilato dell'ordine fornitore non c'entra: il difetto è lì da prima.
+
+⭐ **Il rimedio non è applicare la stessa toppa tre volte.** Il blocco va estratto una
+volta sola — accanto a `document-line-article.service.ts`, dove il richiamo articolo già
+vive — e con lui il passaggio a una lettura sola (`variantIds[]`) varrebbe per tutte e
+quattro insieme, invece che quattro volte.
+
+⏸ **Da fare, non fatto**: è un lavoro a sé, e apre la maschera dell'Arrivo merce, che è la
+più delicata.
+
+### Colonna spenta, filtro spento
+
+_Decisione owner, 29/08/2026._ Una colonna nascosta dal selettore Colonne **non ha
+filtro**: il controllo vive nella sua intestazione, e senza intestazione non c'è niente da
+mostrare.
+
+⛔ **Qui la regola precedente diceva il contrario** — «la presenza di un filtro non si lega
+alla visibilità della colonna». Cade con la derivazione dalle colonne: filtrare una colonna
+che non si vede significa restringere l'elenco per un criterio invisibile.
+
+⭐ **Ma ogni colonna ha il suo filtro, anche quelle spente di serie**: la filtrabilità
+appartiene alla colonna, non alla sua visibilità corrente. Accendendo una colonna dal
+selettore Colonne, il suo filtro arriva con lei.
+
+### Selezione multipla
+
+I controlli di colonna sono a **selezione multipla** dove il dato è un insieme di valori,
+come già fanno i Corrispettivi.
+
+⚠️ Non è lavoro nuovo: `select-menu` espone `multiple` da prima di questa decisione.
+
+---
+
+## 0.7 ⭐ Il telaio `app-list-page` — deciso il 29/08/2026
+
+Il censimento della Fase G ha risposto «sì» (vedi lì): tre zone su tre in tutte e undici le
+pagine, e i quattro rami di stato scritti undici volte con gli **stessi nomi di segnale**.
+Il telaio esiste.
+
+```text
+app-list-page
+├─ TESTATA               posseduta   Indietro · titolo · [pageActions]
+├─ [tabs]                slot        le quattro viste di Magazzino
+├─ ZONA CONTROLLI        posseduta   ricerca · [period] · [filters] · Colonne · Filtri (n)
+├─ [warnings]            slot
+├─ AREA DATI             posseduta   i quattro stati; dentro, [data] libero
+├─ [summary]             sede normata
+├─ [listActions]         sede normata
+└─ [overlays]            ⏸ provvisoria — dialoghi e pannelli `position: fixed`
+```
+
+### ⛔ La zona controlli è POSSEDUTA, non proiettata
+
+⛔ **Qui la prima proposta aveva uno slot `[tools]` libero, e sarebbe stato inutile.**
+Misurate il 29/08/2026, le undici pagine avevano **quattro forme diverse** di barra
+strumenti — chi in una card, chi coi filtri nudi, chi con l'etichetta «Ricerca», chi dentro
+un componente proprio. Uno slot libero le avrebbe lasciate diverse **per costruzione**, che
+è esattamente il difetto che il telaio esiste per chiudere.
+
+> **La pagina passa VALORI, non markup.** Dichiara il segnaposto della ricerca e la vista
+> delle colonne; non decide dove stanno né che forma hanno.
+
+⭐ Resta proiettato il solo gruppo **`[filters]`** — Periodo e i filtri di dominio — perché
+sono controlli che il telaio non deve conoscere. **La loro posizione però non è
+negoziabile.**
+
+⚠️ **La forma è NUDA, senza card**: è quella del Registro Corrispettivi, riferimento visivo
+dichiarato (`regole-stile-ui` §5). Quattro pagine avevano una card e si allineano.
+
+### ⭐ Un solo pulsante: «Filtri», e non è un «Azzera»
+
+_Decisione del proprietario, 29/08/2026._
+
+⛔ **«Azzera filtri» sparisce.** Al suo posto c'è **«Filtri»**, che è un **interruttore**:
+
+| | |
+| --- | --- |
+| **acceso** | ogni colonna visibile mostra il proprio controllo di filtro |
+| **spento** | i controlli spariscono **e i filtri di colonna si azzerano** |
+
+⭐ **Lo spegnimento È l'azzeramento**: non servono due pulsanti, perché non esistono due
+azioni. Un filtro attivo il cui controllo non si vede è il difetto che Danea deve rimediare
+con una striscia d'avviso in cima all'elenco.
+
+⚠️ **Periodo e Ricerca non seguono l'interruttore**: sono esterni alle colonne (§11.2), e
+spegnere i filtri di colonna non deve cambiare il periodo che si sta guardando.
+
+⚠️ Il pulsante porta `aria-pressed`, aggiunto ad `app-button` per questo: un interruttore
+che cambia solo aspetto non dice il proprio stato a chi non lo vede.
+
+### ⛔ Niente sottotitoli
+
+_Decisione del proprietario, 29/08/2026: «non servono, recuperiamo spazio»._
+
+Prendevano una riga intera per dire cosa la schermata è, in una vista che serve a
+consultare. **Il telaio non ha un input `subtitle`**: non è una convenzione da rispettare,
+è una cosa che non si può passare.
+
+⭐ Il Registro Corrispettivi c'era già arrivato da solo, tenendolo per i soli lettori di
+schermo. Ora vale per tutti gli elenchi.
+
+### Il titolo si dichiara una volta sola
+
+⛔ Era stilato in **quattro** posti — `_list-page`, `_detail-page`, `_document-form` e il
+telaio — tutti con le stesse quattro proprietà, di cui tre **già date dalla regola globale
+degli heading**. La quarta, `font-weight: bold`, sovrascriveva il `semibold` globale.
+
+⭐ Unificato: resta `margin: 0`, il peso è quello globale. **Un titolo di pagina è un `<h1>`
+e si stila come tale.**
+
+### Cosa NON fa il telaio, mai
+
+- ⛔ niente dominio, niente query, niente `if tipo documento` (§59);
+- ⛔ non decide colonne, filtri, metriche o permessi;
+- ⛔ non conosce il renderer che ospita.
+
+⭐ **Lo slot `[data]` accetta qualunque renderer.** È la ragione per cui il Registro
+Corrispettivi — raggruppamenti e subtotali propri, fuori dal motore tabella comune — può
+usare lo stesso telaio di un elenco documenti.
+
+### ⚠️ `app-list-filters` non si monta
+
+Quel componente è nato per il contratto **precedente**: Periodo più alcuni filtri scelti per
+profilo. Quel contratto è stato superato dalla derivazione dalle colonne (§0.2).
+
+| pezzo | destino |
+| --- | --- |
+| filtri scelti per profilo, `ListFilterDef` | ⛔ **superati** |
+| il **pannello mobile** | ✅ resta utile: sotto `lg` non ci sono intestazioni, e i filtri di colonna hanno bisogno di una casa |
+| Periodo | ✅ resta, ma esterno |
+
+⛔ **Non si conserva codice perché è già stato scritto.** Quando i filtri di colonna
+esisteranno, il pannello sarà rialimentato dalle colonne invece che da `ListFilterDef`; se a
+quel punto non servirà, si cancella.
+
+### Lo stato vuoto si uniforma
+
+⛔ Corrispettivi, filtrando per una Sede senza registrazioni, mostrava una tabella con le
+sole intestazioni e un riepilogo a zero. Le altre dieci mostrano un riquadro che dice cosa è
+successo.
+
+_Decisione del proprietario, 29/08/2026: si uniforma._ Il telaio rende il riquadro; la
+pagina dichiara titolo, descrizione e icona.
+
+⛔ **Senza CTA**: «nel riquadro resta vuoto, e i tasti sono quelli già predisposti, Indietro
+e Nuovo in alto». Tre pagine ne avevano una, e duplicava un pulsante che sta già in testata a
+due centimetri di distanza.
+
+---
 
 ## 0.3 Un solo contenitore riepilogo, metriche diverse
 
@@ -538,7 +1028,15 @@ gli **stessi handler**. Su `document-list` in quattro casi l'etichetta lo dichia
 
 ⭐ **È questo il `0 → n` della Fase B**, e vale 42 dichiarazioni in meno.
 
-## 3.4 Piloti della Fase B — congelati
+⚠️ **La misura resta valida, la cura è cambiata** — 29/08/2026. La duplicazione non si
+toglie dichiarando gli stessi filtri una volta sola per profilo, ma **derivandoli dalle
+colonne** (§0.2): le 102 dichiarazioni non diventano 60, diventano **zero**.
+
+## 3.4 Piloti della Fase B — ⛔ superati il 29/08/2026
+
+⚠️ **Non esistono più piloti da scegliere**: derivando i filtri dalle colonne (§0.2) non c'è
+una migrazione consumer per consumer, quindi non c'è un primo consumer. La misura qui sotto
+resta perché dice **dove sta la duplicazione**, non più perché indichi da dove cominciare.
 
 ```text
 document-list      21 desktop · 18 copie · già motore · già azioni · già picker
@@ -834,44 +1332,377 @@ La ricerca non viene aggiunta a una pagina che non ne ha bisogno.
 
 # 11. Contratto comune dei filtri
 
-Il contratto deve poter rappresentare almeno:
+La derivazione dalle colonne è in §0.2. Qui c'è **cosa** una colonna può dichiarare e
+**dove** finisce ciò che colonna non è.
 
-1. Periodo;
-2. select singola;
-3. select multipla;
-4. entità ricercabile;
-5. data singola;
-6. intervallo date;
-7. checkbox/toggle;
-8. testo libero specifico;
-9. controllo di presentazione.
+## 11.1 Ciò che si dichiara sulla colonna
 
-Se due pagine usano lo stesso concetto:
-
-- Periodo;
-- Stato;
-- Cliente;
-- Fornitore;
-- Sede;
-- Tipo;
-- Metodo pagamento;
-- Operatore;
-
-devono riusare lo stesso comportamento comune quando la semantica è equivalente.
-
-Ordine visuale consigliato:
+La filtrabilità sta su `TableColumnDef`, accanto a `sortable` — che è già una capacità
+dichiarata sulla colonna e non un elenco a parte.
 
 ```text
-Periodo
-→ Tipo/Stato
-→ Soggetto
-→ Sede
-→ filtri specifici
-→ Raggruppa
-→ Colonne
+TableColumnDef {
+  sortable?  già presente
+  filter?    'values' | 'text' | 'range'
+}
 ```
 
-La ricerca resta separata.
+| forma | quando | reso come |
+| --- | --- | --- |
+| `values` | insieme chiuso o ricorrente (Stato, Pagamento, Sede, Cliente) | elenco a **selezione multipla** dei valori presenti |
+| `text` | testo libero (Commento, riferimenti) | contiene / non contiene |
+| `range` | numerico e denaro (Totale, Netto, Righe) | da–a |
+
+⚠️ **`values` legge i valori dall'insieme caricato**, non da un endpoint per colonna. È
+corretto perché l'insieme caricato **è** il risultato del filtro (§11.4): senza quella
+condizione l'elenco dei valori sarebbe parziale e non si vedrebbe che lo è.
+
+### ⭐ Opt-out: una colonna nasce filtrabile — chiuso il 29/08/2026
+
+> **Chi non dichiara niente È filtrabile. Si dichiara solo l'eccezione: `filter: false`.**
+
+⚠️ Qui la domanda era aperta. L'ha chiusa il codice: `TableColumnDef.sortable` porta già
+questa disciplina, scritta con la sua ragione — _«una colonna nasce ordinabile e
+ridimensionabile, e dichiara solo ciò che non deve essere: il difetto da evitare è la
+colonna che si è dimenticata di essere ordinabile, che nessuno nota»_.
+
+⭐ **Vale identico per il filtro, e con meno vincoli.** `sortable` è una whitelist dove
+l'elenco lo consulta — `DOCUMENT_LIST_SORTABLE_COLUMNS` — perché **il server** deve saper
+ordinare quella colonna. Il filtro legge l'insieme già caricato (§11.4): non c'è nessun
+server da insegnare, quindi nessuna ragione per una whitelist.
+
+La forma, quando non è dichiarata, si **deduce**:
+
+```text
+filter dichiarato    →  quello
+filter: false        →  nessun filtro
+numeric              →  range     totali, quantità, importi
+display code/trunc   →  text      alta cardinalità: SKU, riferimenti, commenti
+altrimenti           →  values    insieme di valori distinti, a scelta multipla
+```
+
+⚠️ **La deduzione è un default sensato, non un oracolo**, e sbaglia in una direzione
+precisa: una colonna DATA porta spesso `display: 'code'` e finirebbe `text` mentre vuole
+`range`. Lì il `filter` si dichiara.
+
+⭐ **La direzione dell'errore è voluta**: si sbaglia verso il *filtro sbagliato*, mai verso
+il *filtro assente*. Il primo si vede aprendolo, il secondo non si vede mai.
+
+Implementato in `table-column-filter.util.ts` (`resolveColumnFilterKind`), con la sua
+guardia: tre falsificazioni — default a `null`, `filter: false` ignorato, `numeric`
+dedotto `text` — mandano rossi rispettivamente 3, 2 e 2 test.
+
+## 11.2 Ciò che resta fuori dalle colonne
+
+```text
+Periodo    filtra la data ma deve MOSTRARE il proprio default senza aprire nulla
+Ricerca    non è una colonna
+```
+
+Restano nella barra, sempre visibili, e **non seguono il pulsante «Filtri»**.
+
+⚠️ **Un'eccezione è una condizione che nessuna colonna esprime COME SI VUOLE CHIEDERLA.**
+Non basta che il dato manchi da una colonna: se la colonna c'è ma la domanda naturale è
+un'altra, l'eccezione è legittima — «non saldato» su una colonna che contiene un importo,
+per esempio.
+
+⛔ Qui era citato «DDT da fatturare» come eccezione: **non lo è**, si filtra dalla colonna
+Collegamento (vedi sotto). L'unica eccezione confermata è il **Saldo delle Fatture**.
+
+⚠️ Se le eccezioni crescessero, il segno è che manca una colonna, non che ne serve un'altra.
+
+### ⭐ Il bersaglio della barra, scritto invece che dedotto — 29/08/2026
+
+Applicata la regola, in barra resta pochissimo. Vale per **ogni** elenco:
+
+```text
+FILTRO          Periodo          se le righe hanno una data (§12.2)
+FILTRO          Ricerca          dove prevista
+CONTROLLO       Raggruppa        non è un filtro: non cambia il dataset (§16)
+CONTROLLO       Colonne
+INTERRUTTORE    Filtri           accende i controlli di colonna, spegnendolo li azzera (§0.7)
+```
+
+⛔ **Tutto il resto sparisce dalla barra** e vive nell'intestazione della propria colonna.
+
+| Elenco | oggi in barra | dopo |
+| --- | --- | --- |
+| **Corrispettivi** | Periodo · Origine · Tipo · Sede · Raggruppa | Periodo · Raggruppa — **Origine, Tipo e Sede diventano colonne** |
+| **Ordini cliente** | Periodo · Stato · Origine · Pagamento · Evasione · Cliente · Location | Periodo — **le altre sei sono già colonne** |
+| **Arrivi merce** | Periodo · Fornitore · Collegamento · Magazzino · Tipo doc. · Pagamento | Periodo — **le altre cinque sono già colonne** |
+
+⭐ **È la misura di §0.2 letta al contrario**: erano già colonne, per questo possono tornarci.
+
+### ⭐ «DDT da fatturare» NON è un'eccezione — 29/08/2026
+
+_Decisione del proprietario:_ «per i DDT non ci sono altri filtri oltre a periodico e
+cliente, perché quelli da fatturare si possono già filtrare dalla colonna in testata».
+
+La colonna **Collegamento** mostra la fattura derivata quando c'è: filtrarla per «nessuna»
+dà i DDT da fatturare. Un filtro in meno in barra, e nessuna condizione derivata da
+mantenere a parte.
+
+⚠️ **Una differenza misurata, e va conosciuta**: il filtro attuale `pendingInvoice` non
+chiede solo «senza fattura». Chiede anche che il DDT sia **confermato, stampato o inviato**
+— quindi **esclude le bozze** — e ignora le fatture **annullate**, perché una fattura
+annullata non consuma il DDT.
+
+```text
+filtro colonna «Collegamento: nessuna»   →  include anche le BOZZE
+pendingInvoice di oggi                   →  le esclude
+```
+
+⛔ **Se una bozza di DDT non deve comparire fra quelli da fatturare, i due non sono
+equivalenti** e la colonna da sola non basta. È una domanda di prodotto, non tecnica, e sta
+qui perché non si perda quando qualcuno toglierà `pendingInvoice`.
+
+### ⭐ Le Fatture hanno «Saldato / Non saldato», in barra — confermato il 29/08/2026
+
+_Decisione del proprietario._ Non è un forse: è un filtro **esterno**, accanto al Periodo,
+come nel benchmark Danea.
+
+⛔ **E non lo copre la colonna, anche se la colonna c'è.** «Ancora da saldare» contiene un
+**importo**; «non saldato» è una **condizione** su quell'importo. Tradotta in filtro di
+colonna sarebbe un intervallo «da 0,01 a infinito» — tecnicamente equivalente e
+inutilizzabile per chi vuole solo vedere cosa deve incassare.
+
+⭐ **È la forma dell'eccezione prevista da §11.2**: una condizione derivata che nessuna
+colonna esprime *come si vorrebbe chiederla*. Vale per le Fatture e per la Proforma, dove
+lo stato economico è già dichiarato in specifica.
+
+⚠️ **Resta subordinato al motore Pagamenti**: finché non dà il dato canonico, il filtro non
+si simula con campi tecnici (§42-bis.1). Si dichiara e si implementa quando la sorgente
+esiste.
+
+### ⛔ Nessun costruttore di filtri avanzati
+
+_Decisione del proprietario, 29/08/2026, guardando il «Filtro avanzato» di Danea:_ «non
+dico di costruire tutto ciò, ma di fare in modo di poter filtrare l'essenziale nelle
+colonne».
+
+Le forme sono **tre**, e non se ne aggiungono altre per analogia:
+
+```text
+values   insieme di valori distinti, a scelta multipla
+text     contiene / non contiene
+range    da–a
+```
+
+⛔ Niente finestra «mostra le righe che… assomiglia a… E/O…», niente operatori componibili,
+niente filtri salvati. Chi ha bisogno di quella potenza usa l'export.
+
+### ⚠️ Su mobile la barra non esiste: c'è il pannello
+
+Sotto `lg` non ci sono intestazioni di colonna, quindi i filtri di colonna vivono nel
+pannello «Filtri (n)», e le righe restano **card**. Non è un'eccezione al modello: è la
+seconda veste dello stesso contratto (§0.2), e non cambia con questa decisione.
+
+## 11.3 Concetti condivisi
+
+Se due elenchi usano lo stesso concetto — Periodo, Stato, Cliente, Fornitore, Sede, Tipo,
+Metodo pagamento, Operatore — riusano lo **stesso comportamento comune** quando la
+semantica è equivalente.
+
+Ordine visuale della barra esterna:
+
+```text
+Periodo → Ricerca → Filtri → Raggruppa → Colonne
+```
+
+La ricerca resta separata dai filtri.
+
+## 11.4 Il presupposto: nessun TETTO di righe a schermo
+
+_Decisione owner, 29/08/2026._ **Un elenco mostra tutto il risultato del proprio filtro, e
+lo si scorre.** Non c'è un tetto di venti righe, non c'è un paginatore.
+
+⛔ **Qui la regola divideva**: riepiloghi senza impaginazione, anagrafiche paginate «perché
+senza asse temporale 30 giorni nasconde il catalogo». La divisione cade — non perché
+l'argomento fosse sbagliato, ma perché **un filtro di colonna che legge l'insieme caricato
+richiede che l'insieme caricato sia tutto**, e due comportamenti diversi darebbero un
+filtro corretto su un elenco e silenziosamente parziale sull'altro.
+
+### ⚠️ Ma «niente impaginazione» è il TETTO DI VISUALIZZAZIONE, non ogni concetto di pagina
+
+⛔ **L'interpretazione larga rompeva un file che non è un elenco.** Misurato:
+`global-search.component.ts:149` chiede cinque righe per fonte a **sei** servizi di elenco
+in `forkJoin`, a ogni tasto. Presa alla lettera, ogni ricerca globale avrebbe scaricato
+catalogo, clienti, fornitori, ordini e documenti interi — o, tolti `page`/`pageSize` dai
+tipi, quel file non avrebbe più compilato.
+
+> _«Niente impaginazione mi riferivo a quella limitata a 20 righe … mi riferivo solo alla
+> visualizzazione. Per chi non ha il filtro periodo, possiamo far visualizzare l'elenco nel
+> contenitore e man mano si scorrono i risultati.»_ — proprietario, 29/08/2026
+
+| | |
+| --- | --- |
+| **elenchi** — documenti, ordini, anagrafiche, movimenti, giacenze | niente tetto: tutto il risultato, e si scorre |
+| **ricerca globale** | ⛔ **fuori perimetro**: è un'anteprima da cinque righe per fonte, non un elenco |
+
+⚠️ **Il contenimento resta diseguale, e la scelta è dichiarata provvisoria**: i riepiloghi
+datati si contengono col Periodo (§12.2), le anagrafiche non hanno un asse temporale che
+faccia lo stesso mestiere e fino a nuova decisione caricano tutto — _«per ora lo facciamo
+semplice e libero da limiti, poi ce ne occuperemo in un secondo momento»_.
+
+### ⭐ E da qui discende un requisito, non una preferenza
+
+Senza tetto di righe un elenco può essere lungo centinaia di schermate. **L'intestazione
+deve quindi restare fissa mentre le righe scorrono** — altrimenti porterebbe via con sé i
+controlli di filtro che questa migrazione ci mette dentro. Misura e decisione in §11.5 D3.
+
+## 11.5 I tre blocchi, e come il proprietario li ha sciolti — 29/08/2026
+
+Mappa avversariale su tutto il repository: sette agenti, due col solo compito di smentire
+gli altri cinque. Le misure sono state **riverificate a mano** sul codice, una per una.
+
+⛔ **Tre cose bloccavano la derivazione.** Sono state decise il 29/08/2026 e sono qui sotto
+con le misure che le hanno motivate: senza quelle, la decisione fra un mese sembra
+arbitraria.
+
+---
+
+### ✅ D1 · I cinque filtri senza colonna — decisione: si aggiunge la COLONNA
+
+**La misura.** Presi alla lettera, «i filtri sono le colonne» cancellava cinque filtri
+funzionanti, che §42-bis.0 vieta di rimuovere in un refactor:
+
+| Filtro | Dove | Colonna corrispondente |
+| --- | --- | --- |
+| **Operatore** (`createdById`) | elenco documenti, html:313 | ⛔ nessuna: nei 18 id non c'è `createdBy` |
+| **Cliente/Fornitore** | movimenti, html:127 | ⛔ nessuna colonna controparte |
+| **Location** | situazione magazzino, html:80 | ⛔ nessuna delle 16 è location |
+| DDT da fatturare | elenco documenti | condizione derivata — eccezione già prevista in §11.2 |
+| Ambito (Fisico/Online/Manuale) | dentro Origine, Corrispettivi | `app-segmented` proiettato, non una colonna |
+
+> **La decisione del proprietario:** _«la colonna operatore possiamo metterla attivabile,
+> spenta per default e, quando accesa, si impostano regole semplici che non ci bloccano il
+> lavoro né altro»._
+
+⭐ **Il filtro non era orfano: mancava la colonna.** Operatore, Controparte e Location sono
+dati veri che l'elenco non mostrava. Diventano colonne normali — `defaultVisible: false` —
+e il filtro arriva da sé, senza nessuna eccezione al contratto.
+
+⚠️ **Combacia con una decisione già presa lo stesso giorno**: _«il filtro deve esserci anche
+sulle colonne spente per default»_ (§0.2). Le due insieme dicono che una colonna spenta non
+è una colonna assente: porta il suo filtro nel pannello e si accende quando serve.
+
+⛔ **Restano due eccezioni vere**, e restano dichiarate in §11.2: «DDT da fatturare» è una
+condizione derivata che nessuna colonna esprime, e l'Ambito dei Corrispettivi è una
+scorciatoia proiettata dentro un altro filtro.
+
+---
+
+### ✅ D2 · «Niente impaginazione» era il LIMITE DI VISUALIZZAZIONE, non il meccanismo
+
+**La misura.** L'interpretazione larga rompeva un file che non è un elenco:
+`global-search.component.ts:149` chiede **5 righe per fonte a sei servizi** in `forkJoin`, a
+ogni tasto — prodotti, clienti, fornitori, ordini fornitore, ordini cliente, documenti.
+
+```text
+interpretazione larga  →  ogni tasto scarica catalogo + clienti + fornitori + ordini + documenti
+                       →  oppure, tolti page/pageSize dai tipi, quel file non compila
+```
+
+> **La decisione del proprietario:** _«niente impaginazione mi riferivo a quella limitata a
+> 20 righe. Il problema è solo sull'impaginazione che non hanno filtro periodo, ma mi
+> riferivo solo alla visualizzazione. Per chi non ha il filtro periodo, possiamo far
+> visualizzare l'elenco nel contenitore e man mano si scorrono i risultati. Per ora lo
+> facciamo semplice e libero da limiti, poi ce ne occuperemo in un secondo momento.»_
+
+⭐ **Quello che sparisce è il TETTO DI RIGHE A SCHERMO, non ogni concetto di pagina.** Un
+elenco mostra tutto il risultato del filtro dentro il proprio contenitore, e lo si scorre.
+
+| | |
+| --- | --- |
+| **elenchi** — documenti, ordini, anagrafiche, movimenti, giacenze | niente tetto: si mostra il risultato e si scorre |
+| **ricerca globale** | ⛔ **fuori perimetro**: non è un elenco, è un'anteprima da cinque righe per fonte |
+
+⚠️ **Il contenimento resta diseguale, ed è accettato per ora.** I riepiloghi datati si
+contengono col Periodo (§12.2); le anagrafiche non hanno un asse temporale che faccia lo
+stesso mestiere, quindi caricano tutto. Il proprietario ha dichiarato la scelta
+**provvisoria**: _«poi ce ne occuperemo in un secondo momento»_.
+
+⛔ **Non si chiuda questa voce dicendo che il problema non esiste.** I DEFAULT misurati oggi
+— `DEFAULT_CUSTOMER_PAGE_SIZE` 20, `DEFAULT_PRODUCT_PAGE_SIZE` 10, `DEFAULT_INVENTORY_PAGE_SIZE`
+20, `DEFAULT_SUPPLIER_PAGE_SIZE` 20 — e i sei elenchi che hanno ancora un paginatore a
+schermo (clienti, fornitori, prodotti, giacenze, situazione magazzino, vendite online) sono
+il perimetro del lavoro, non un dettaglio.
+
+---
+
+### ✅ D3 · L'intestazione DEVE restare fissa mentre le righe scorrono
+
+**La misura, ed è il difetto più insidioso dei tre.** `data-table.component.scss:146-149`:
+
+```scss
+.data-table-scroll {
+  overflow-x: auto;   // l'altro asse computa `auto` per spec
+  inline-size: 100%;
+}                     // ⛔ nessun max-block-size: non scorre MAI in verticale
+```
+
+Lo scorrimento verticale vero vive in `.shell__content`
+(`shell-layout.component.scss:191-192`). Il `position: sticky; inset-block-start: 0` del
+`<th>` (`data-table.component.scss:167-172`) si ancora quindi a uno scrollport che non
+scorre.
+
+⛔ **L'intestazione appiccicata probabilmente non appiccica già oggi**, e nessuno se n'era
+accorto perché con venti righe a schermo non si vedeva.
+
+> **La decisione del proprietario:** _«l'intestazione deve essere fissa e scorrere le
+> righe»._
+
+⭐ **Diventa un requisito, non una correzione.** E le due decisioni si tengono in piedi a
+vicenda: senza tetto di righe un elenco può essere lungo centinaia di schermate, e
+un'intestazione che scorre via porterebbe con sé **i controlli di filtro** — che è
+esattamente ciò che questa migrazione mette lassù.
+
+```text
+niente tetto di righe   →   elenchi lunghi
+elenchi lunghi          →   l'intestazione DEVE restare
+l'intestazione resta    →   i filtri in intestazione hanno senso
+```
+
+⚠️ **Va verificato col browser, non con i test.** Build e prove non dicono se una cosa
+resta a schermo: è la stessa ragione per cui questo difetto è vissuto finora senza che
+nessuna guardia lo notasse.
+
+---
+
+### ⏸ Cosa resta aperto: da dove arrivano le VOCI di un filtro a valori
+
+Oggi «Operatore» arriva da due endpoint dedicati — `documents.controller.ts:101`,
+`inventory.controller.ts:241` — ed elenca **tutti** gli operatori. Letto dall'insieme
+caricato elencherebbe **solo quelli presenti nel risultato corrente**.
+
+⚠️ **Non è un dettaglio implementativo**: chi non trova più un collega in tendina conclude
+che non ha movimenti, mentre è il Periodo ad averli esclusi.
+
+⭐ **La decisione D2 lo attenua ma non lo chiude**: senza tetto di righe l'insieme caricato
+è tutto il risultato del filtro, quindi la tendina è completa **rispetto a ciò che si sta
+guardando**. Resta la differenza fra «tutti gli operatori» e «gli operatori di questo
+periodo».
+
+Si procede con la strada semplice — **valori dall'insieme caricato** — coerente con
+_«per ora lo facciamo semplice»_. Se i due endpoint restano orfani si ritirano, ma non in
+questo passaggio.
+
+---
+
+### Gli ostacoli tecnici — lavoro dichiarato, non decisioni
+
+| | Misura |
+| --- | --- |
+| **`cellText` non copre `status` né `linkStatus`** | `document-table.component.ts:361` ha `default: return ''`; le due colonne sono rese da `<ng-template appCell>`. **Un filtro a valori nascerebbe VUOTO proprio dove il caso d'uso è principale** |
+| **Le pseudo-colonne prenderebbero un filtro** | `select` e `actions` sono `TableColumnDef` come le altre: sotto opt-out ne ricevono uno. Nove casi. Serve `filter: false` |
+| **Nessuna delle 11 colonne data deduce `range`** | 7 deducono `text` (portano `display: 'code'`), 4 deducono `values` — cioè una tendina con un valore per ogni data |
+| **91 colonne non sono elenchi** | sei configurazioni sono griglie di RIGHE DOCUMENTO, rese da `document-line-head` e non da `app-data-table`: `filterableColumns()` offrirebbe un filtro anche a loro |
+| **Due elenchi non ricevono i `TableColumnDef`** | `corrispettivi-orders-table` prende `visibleColumns: string[]`; `online-sale-table` non ha né colonne né `TableViewId` |
+| **Sei elenchi non hanno veste filtri mobile** | prodotti, movimenti, giacenze, situazione, clienti, fornitori: il pannello va creato, non adattato |
+| **La consistenza righe non guarda `filter`** | `document-line-columns.consistency.spec.ts:80` elenca cinque proprietà e non questa |
+| **Un e2e aggancia un filtro per nome** | `permissions-owner.spec.ts:143` cerca `'Filtra per location'`: spostarlo nell'intestazione lo rompe |
+| **Il commento del motore contraddice §11.4** | `data-table.component.ts:48-51`: «Gli elenchi sono paginati lato server» |
+| **237 colonne, ZERO dichiarano `filter`** | dedotte oggi: `values` 147 · `text` 21 · `range` 69 |
 
 ---
 
@@ -913,6 +1744,90 @@ Il periodo è inclusivo sugli estremi e deve rappresentare gli stessi giorni civ
 La scelta definitiva UTC/ora locale del motore Periodo resta separata se non già definita dalla specifica del modulo.
 
 Non si decide osservando quale implementazione è più frequente.
+
+## 12.2 ⭐ Periodo obbligatorio e visibile sui riepiloghi datati — 29/08/2026
+
+> **Un riepilogo le cui righe hanno una data di riferimento DEVE esporre un filtro
+> Periodo visibile, con default «Ultimi 30 giorni».**
+
+```text
+riepilogo con righe datate
+  → filtro Periodo VISIBILE
+  → default «Ultimi 30 giorni»
+  → la chiamata iniziale è già limitata a quei 30 giorni
+  → l'operatore VEDE il limite applicato
+  → può scegliere gli altri preset, «Tutti» o «Personalizzato»
+
+«Tutti»            rimuove `dateFrom`/`dateTo` — nessun limite temporale
+«Personalizzato»   usa Dal/Al, inclusivi sugli estremi (§12.1)
+```
+
+⭐ **Lo scopo è anche prestazionale**, e va detto perché è metà della ragione: la
+prima chiamata chiede solo le righe del periodo invece di tutto lo storico del
+tenant. Un elenco che si apre su «Tutti» fa contare al database ogni riga prima
+ancora che l'operatore abbia guardato qualcosa.
+
+### ⛔ Ciò che non deve più esistere
+
+> **Un limite temporale applicato alla query senza un controllo che lo mostri.**
+
+Misurato il 29/08/2026 su `document-list`: il costruttore scriveva `dateFrom`/
+`dateTo` a trenta giorni **per ogni profilo**, ma il selettore Periodo esisteva
+**solo** sull'Arrivo merce. I Preventivi si aprivano filtrati sugli ultimi trenta
+giorni senza dirlo — con «Azzera filtri» già visibile e il badge a 1, e nessun
+controllo a schermo che spiegasse perché.
+
+⚠️ **Se il riepilogo è limitato, l'operatore deve poterlo vedere e cambiare.**
+Le due cose vanno insieme o nessuna delle due: un limite invisibile è peggio di
+nessun limite, perché l'operatore cerca righe che ci sono e non le trova.
+
+### La data di riferimento è quella che il riepilogo già usa
+
+⛔ **Non si introduce una seconda semantica temporale** durante una migrazione.
+
+Per `document-list` è **verificato**: l'API filtra sempre su `documentDate`
+(`api/src/documents/documents.service.ts`), per tutti e nove i profili.
+`registrationDate` è una colonna di sola visualizzazione e **non è filtrabile** —
+zero occorrenze nel servizio. Nessuna ambiguità da risolvere.
+
+⚠️ Se un riepilogo presentasse **più date** e non fosse determinabile dal
+comportamento corrente quale governa il filtro, ci si ferma e si riporta: non si
+sceglie per analogia.
+
+⛔ **Non si inventa un Periodo dove non c'è una data funzionale di riferimento.**
+La regola dice «riepilogo con righe datate», non «tutti i riepiloghi».
+
+### L'eccezione dell'Arrivo merce, che resta
+
+```text
+Arrivo merce             Dal/Al visibili SOLO con «Personalizzato»
+altri profili            Dal/Al sempre visibili
+```
+
+È la condizione `!isGoodsReceiptList() || isCustomPeriod()` già in essere, e
+questa decisione **non autorizza a uniformarla**: due rese diverse di Dal/Al sono
+un fatto misurato, non un'incoerenza da correggere di passaggio.
+
+### ⚠️ Divergenza dichiarata: dodici preset scritti, otto implementati
+
+§12 elenca dodici voci — vi compaiono «Giorno specifico», «Mese di calendario»,
+«Trimestre», «Anno di calendario». L'implementazione condivisa
+(`MOVEMENT_PERIOD_OPTIONS`, in `domain/inventory/models/movement-period.util.ts`)
+ne ha **otto**:
+
+```text
+Tutti · Ultimi 7 giorni · Ultimi 30 giorni · Mese corrente
+Mese scorso · Anno corrente · Anno scorso · Personalizzato
+```
+
+⛔ **Le quattro mancanti non si aggiungono in un refactor dei filtri.** §12 dice
+«supporta almeno», quindi non c'è violazione — ma chi legge le due sezioni
+insieme deve sapere che la lista lunga è un obiettivo e la corta è ciò che esiste.
+Aggiungere un preset è una decisione con la sua aritmetica dei giorni civili, e
+appartiene al motore Periodo, non a questa migrazione.
+
+⚠️ La questione **UTC / ora locale** resta rinviata come da §12.1: questa
+decisione non la tocca.
 
 ---
 
@@ -1833,29 +2748,18 @@ Sono esempi di forma, non autorizzazioni a creare nuove metriche.
 
 ---
 
-# 31. Matrice filtri iniziale
+# 31. ⛔ La terza matrice dei filtri — tolta il 29/08/2026
 
-Per i profili congelati al §42-bis prevale la matrice specifica del §42-bis.12. Per gli altri profili questa matrice resta indicativa e va verificata prima di implementare.
+Qui c'era una **«matrice filtri iniziale»**: un terzo elenco di quali filtri spettassero a
+ogni profilo, che rimandava a sua volta al §42-bis.12.
 
-| Elenco                          | Filtri/controlli attesi                                                                              |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Preventivi                      | Periodo · Cliente                                                                                    |
-| Ordini cliente                  | Periodo · Stato · Cliente                                                                            |
-| Ordini fornitore                | Periodo · Stato · Fornitore                                                                          |
-| Fatture                         | Periodo · Tipo · Stato/Saldo se previsto · Cliente · eventuale Pagamento                             |
-| DDT vendita                     | Periodo · Stato se previsto · Cliente/Soggetto · DDT da fatturare                                    |
-| Vendita/Reso al banco           | Periodo · Tipo · Cliente · eventuale Pagamento · Operatore · Sede se prevista                        |
-| Arrivi merce                    | Periodo · Fornitore · Sede/Location · filtri specifici già esistenti                                 |
-| Registrazioni fatture fornitori | Periodo · Stato saldo · Fornitore                                                                    |
-| Corrispettivi                   | Periodo · Origine · Tipo · Sede · Raggruppa                                                          |
-| Movimenti                       | Periodo · Tipo/Stato movimento · Cliente/Fornitore · Prodotto · Lotto/Seriale · Location se prevista |
+Erano tre copie della stessa cosa — questa, le dieci sezioni per profilo e la matrice
+sintetica — e tenerle allineate era un lavoro che nessuno avrebbe fatto.
 
-Questa tabella **non autorizza a inventare filtri**.
+⭐ **I filtri di un elenco sono le sue colonne** (§0.2): la dichiarazione sta dove la
+colonna è già dichiarata, e non esiste un elenco parallelo da mantenere.
 
-Ogni filtro deve avere:
-
-- fonte normativa;
-- oppure comportamento già approvato.
+⚠️ Restano fuori dalle colonne solo **Periodo** e **Ricerca** (§11.2).
 
 ---
 
@@ -2231,54 +3135,60 @@ Corrispettivi non è il primo consumer della migrazione DataTable.
 
 ---
 
-# 42-bis. Profili documentali: filtri base, riepiloghi e benchmark Danea
+# 42-bis. Profili documentali: regole comuni e riepiloghi
 
-Questa sezione congela il **profilo minimo della pagina elenco** per i documenti indicati dall'owner il 29/08/2026.
+Restano qui le regole **comuni ai profili** (§42-bis.1) e la matrice dei **riepiloghi**
+(§42-bis.13).
 
-Le regole qui sotto prevalgono sulla matrice generica del §31 quando più specifiche.
+⛔ **I filtri non stanno più qui**: derivano dalle colonne (§0.2, §11).
 
-## 42-bis.0 ⭐ «Filtri base», non whitelist — deciso il 29/08/2026
+## 42-bis.0 ⛔ Le matrici di filtri per profilo sono state TOLTE — 29/08/2026
 
-> **Le matrici di questa sezione indicano i filtri BASE del profilo: il minimo che
-> ogni profilo deve avere. NON sono un elenco esclusivo, e non autorizzano a
-> rimuovere un filtro che l'elenco già possiede.**
+Qui c'erano dieci sezioni con i «filtri base» di ogni profilo, più una matrice sintetica
+che li ricapitolava: **circa 550 righe di elenchi**.
 
-⛔ **Qui la parola era «filtri fissi», e letta durante l'unificazione avrebbe
-cancellato funzioni esistenti.** La matrice di §42-bis.12 dice `Stato: no` per gli
-Arrivi merce e chiude con «non aggiungere filtri oltre questa matrice»: applicata
-alla lettera, l'elenco Arrivi merce avrebbe perso **quattro filtri che ha oggi** —
-Stato collegamento fattura, Magazzino, Tipo di documento, Pagamento — nessuno dei
-quali è mai stato messo in discussione.
+Sono state cancellate perché descrivevano a mano una cosa che le colonne già dichiarano
+(§0.2): misurati, **6 filtri su 6 dell'Ordine cliente e 5 su 5 dell'Arrivo merce erano già
+colonne dello stesso elenco**.
 
-Quindi, durante la convergenza al contenitore comune:
+⚠️ **Due errori valgono la pena di essere ricordati, perché possono tornare.**
 
-```text
-filtri base del profilo            dalle matrici qui sotto
-+ filtri specifici già esistenti   coerenti con i dati del riepilogo
-= ciò che l'elenco deve avere DOPO la migrazione
-```
+Il primo: la matrice era nata con la parola **«filtri fissi»**, e letta alla lettera
+durante l'unificazione avrebbe **cancellato quattro filtri esistenti** dell'Arrivo merce —
+Collegamento, Magazzino, Tipo di documento e Pagamento — nessuno dei quali era mai stato
+messo in discussione. La correzione del 29/08 la ribattezzò «filtri base, non whitelist».
 
-⛔ **Nessuna rimozione funzionale durante un refactor.** Un filtro esistente si
-toglie solo con una decisione esplicita del proprietario, mai perché non compare in
-una matrice sintetica.
+Il secondo, nella correzione stessa: **«non si introduce un filtro per ogni colonna»**. Era
+una guardia contro il generare filtri a caso, e puntava esattamente contro la decisione
+presa poche ore dopo.
 
-⚠️ **E nemmeno l'opposto**: non si introduce un filtro per ogni colonna. I filtri
-esistenti restano perché esistono e servono, non perché una colonna li suggerisce.
+> ⛔ **Nessuna rimozione funzionale durante un refactor.** Resta valida e non dipende dalle
+> matrici: un filtro esistente si toglie con una decisione esplicita del proprietario, mai
+> perché non compare in un elenco sintetico.
 
-⛔ **La presenza di un filtro non si lega alla visibilità corrente della colonna nel
-selettore Colonne.** Sono due cose diverse: l'operatore che spegne una colonna non
-sta chiedendo di perdere il filtro corrispondente.
+Ciò che governa i filtri oggi sta in **§0.2** (derivazione dalle colonne, le due vesti, il
+pulsante che accende e azzera, colonna spenta = filtro spento) e in **§11** (cosa dichiara
+una colonna, cosa resta fuori, niente impaginazione).
 
-### Cosa deve fare chi migra un profilo
+⭐ §42-bis.1 resta: sono le regole **comuni** — presets del Periodo, valori di Stato,
+controllo entità per i soggetti, footer dei totali — che non erano per profilo e non
+dipendono da come i filtri si dichiarano.
 
-1. **misurare** i filtri che l'elenco ha oggi;
-2. **distinguere** base da specifici già esistenti;
-3. **conservare entrambi**, salvo decisione esplicita di rimozione;
-4. **verificare** che query, handler, default e URL non cambino di una virgola.
+### E copre i profili che qui erano esclusi
 
-⭐ **Il contenitore comune non c'entra con questa decisione**: rende i filtri che il
-consumer dichiara. È il consumer a sapere quali possiede — e per questo la scelta
-resta dove sta il dominio.
+⛔ Qui c'era anche un elenco di profili «non congelati da questa decisione» — Registrazione
+fattura fornitore, Trasferimenti, Rettifiche, Inventario, altri report — con la regola
+«nessun nuovo filtro fino a decisione specifica».
+
+⭐ **Cade, ed è voluto**: derivando dalle colonne, ogni elenco riceve i propri filtri
+perché ha delle colonne, non perché qualcuno gliene abbia assegnati. _«I filtri sulle
+colonne, e a tutte quelle del riepilogo, qualsiasi esso sia»_ — decisione owner del
+29/08/2026.
+
+⚠️ **Resta invece ferma per le METRICHE**: un riepilogo non guadagna totali nuovi perché
+ha colonne nuove. Filtri e metriche non si muovono insieme (§29, §42-bis.13).
+
+---
 
 ## 42-bis.1 Regole comuni ai profili
 
@@ -2371,493 +3281,6 @@ Le metriche Danea osservate nelle immagini sono usate come benchmark. Non autori
 
 ---
 
-## 42-bis.2 Preventivi
-
-### Filtri base del profilo — decisione owner
-
-```text
-Periodo
-Cliente
-```
-
-Non introdurre filtro Stato per analogia.
-
-### Benchmark Danea osservato
-
-La schermata mostra:
-
-- filtro Periodo;
-- filtro Cliente;
-- colonne fra cui `Tot. dovuto`;
-- nessun filtro Stato funzionale visibile nel pannello;
-- nel ritaglio fornito il footer non è visibile, quindi non si deducono altri totali Danea.
-
-### Riepilogo VestiFlow minimo
-
-```text
-N preventivi
-Totale documenti
-```
-
-Se nel profilo VestiFlow esistono già colonne canoniche Netto/IVA e si decide di mostrarne l'aggregato, possono essere aggiunte al footer senza cambiare il contenitore. Non vanno introdotte soltanto perché disponibili nel database.
-
-### Funzioni
-
-Usa la riga funzioni comune in basso.
-
-Le azioni concrete restano quelle già approvate dal modulo. Non copiare automaticamente le azioni Danea.
-
----
-
-## 42-bis.3 Ordini cliente
-
-### Filtri base del profilo — decisione owner
-
-```text
-Periodo
-Stato commerciale
-Cliente
-```
-
-Valori Stato:
-
-```text
-Tutti
-Da confermare
-Confermato
-Concluso
-Annullato
-```
-
-### Benchmark Danea osservato
-
-Nel footer dell'immagine risultano aggregazioni sotto le colonne:
-
-- `Tot. dovuto` → 1.006,76 €;
-- `Tot. netto` → 915,22 €;
-- `Guadagno` → 467,93 €;
-- `IVA` → 91,54 €;
-- conteggio righe → 17 voci.
-
-`Guadagno` è benchmark Danea, **non requisito automatico VestiFlow**.
-
-### Riepilogo VestiFlow
-
-Target minimo:
-
-```text
-N ordini
-Netto
-IVA
-Totale
-```
-
-I valori devono provenire dai valori canonici/persistiti dell'ordine.
-
-Nessun calcolo di Impegnata nel footer viene introdotto da questa specifica.
-
-### Funzioni
-
-Riga funzioni sotto il footer.
-
-Le funzioni documentali restano configurazione dell'Ordine cliente.
-
----
-
-## 42-bis.4 Proforma
-
-### Filtri base del profilo — decisione owner
-
-```text
-Periodo
-Stato economico
-Cliente
-```
-
-Stato economico target:
-
-```text
-Tutti
-Da saldare
-Saldati
-```
-
-### Benchmark Danea osservato
-
-Il pannello mostra:
-
-- Periodo;
-- Stato `Tutti / Da saldare / Saldati`;
-- Cliente.
-
-L'immagine fornita non contiene righe e non rende leggibile un footer con totali; non si inventano metriche Danea non osservate.
-
-### Riepilogo VestiFlow target
-
-Quando la posizione di saldo è disponibile da fonte canonica:
-
-```text
-N proforma
-Netto
-IVA
-Totale
-Da saldare
-```
-
-`Da saldare` dipende dal motore pagamenti/saldo e non viene ricostruito localmente dalla lista.
-
----
-
-## 42-bis.5 DDT vendita
-
-### Filtri base del profilo — decisione owner
-
-```text
-Periodo
-Cliente / Soggetto
-```
-
-Nessun filtro Stato aggiunto per analogia in questo profilo.
-
-### Benchmark Danea osservato
-
-Il footer mostra:
-
-- `300 voci`;
-- `Tot. documento` → 17.509,11 €;
-- `Guadagno` → 978,23 €.
-
-`Guadagno` resta benchmark, non requisito automatico VestiFlow.
-
-### Riepilogo VestiFlow minimo
-
-```text
-N DDT
-Totale documenti
-```
-
-Se la specifica economica della famiglia DDT approva anche Netto/IVA nell'elenco, il contenitore può renderli, ma non vengono introdotti da questa specifica.
-
----
-
-## 42-bis.6 Vendita al banco / Reso al banco
-
-### Filtri base del profilo — decisione owner
-
-```text
-Periodo
-Cliente
-```
-
-Il profilo può includere `Tipo = Vendita / Reso` soltanto se la lista fisica unisce già i due documenti e la specifica del modulo lo prevede. Questa riga non autorizza a creare una nuova unione.
-
-### Riepilogo VestiFlow
-
-Quando Vendita e Reso convivono nello stesso elenco:
-
-```text
-N documenti
-Netto
-IVA
-Totale
-```
-
-con verso economico centralizzato:
-
-```text
-Vendita → +
-Reso    → −
-```
-
-Se la lista è separata per tipo, il riepilogo mantiene gli stessi valori senza bisogno di un motore di segno aggiuntivo.
-
----
-
-## 42-bis.7 Fatture
-
-Il profilo comprende la famiglia di vendita che convive nell'elenco secondo la configurazione già approvata, senza ridefinire qui la matrice dei tipi.
-
-### Filtri base del profilo — decisione owner
-
-```text
-Periodo
-Stato economico
-Cliente
-```
-
-Stato economico target:
-
-```text
-Tutti
-Da saldare
-Saldati
-```
-
-Non è lo stato FE e non è un generico stato documentale.
-
-### Benchmark Danea osservato
-
-Il footer mostra chiaramente:
-
-- `20 voci`;
-- `Tot. dovuto` → 4.818,78 €;
-- `Tot. netto` → 4.383,96 €;
-- `Ancora da saldare` → 1.998,60 €;
-- `IVA` → 434,82 €.
-
-È inoltre visibile un'ulteriore aggregazione nell'area Guadagno/Margine, ma lo screenshot non è sufficiente per consolidarne la semantica; non viene trasformata in requisito.
-
-### Riepilogo VestiFlow
-
-```text
-N documenti
-Netto
-IVA
-Totale
-Da saldare
-```
-
-Per aggregazioni miste Fattura/Nota di credito il verso usa l'autorità economica centralizzata.
-
-`Da saldare` arriva dalla fonte finanziaria canonica.
-
----
-
-## 42-bis.8 Ordini fornitore
-
-### Filtri base del profilo — decisione owner
-
-```text
-Periodo
-Stato commerciale
-Fornitore
-```
-
-Valori Stato:
-
-```text
-Tutti
-Da confermare
-Confermato
-Concluso
-Annullato
-```
-
-### Benchmark Danea osservato
-
-Il footer mostra:
-
-- `2 voci`;
-- `Tot. documento` → 334,67 €.
-
-### Riepilogo VestiFlow
-
-```text
-N ordini
-Totale documenti
-```
-
-Non introdurre nel footer:
-
-- Giacenza;
-- Impegnata;
-- Disponibile;
-- `In arrivo`;
-
-per analogia.
-
-Le informazioni Ricevuto/Residuo già appartenenti al flusso Ordine fornitore/Arrivo merce restano materia della specifica del modulo, non del riepilogo comune.
-
----
-
-## 42-bis.9 Arrivi merce
-
-### Filtri base del profilo
-
-Il filtro temporale è definitivo:
-
-```text
-Periodo
-```
-
-Per il soggetto, il benchmark Danea usa `Soggetto`; nel dominio VestiFlow l'Arrivo merce ordinario è legato al fornitore.
-
-Il profilo VestiFlow usa quindi:
-
-```text
-Periodo
-Fornitore / Soggetto
-```
-
-senza trasformarlo in `Cliente` per analogia.
-
-Se l'owner intende includere in questo stesso elenco arrivi da soggetti non-fornitore, la label `Soggetto` va confermata nella specifica Arrivo merce; il contenitore comune non prende questa decisione.
-
-### Benchmark Danea osservato
-
-Il footer mostra:
-
-- `105 voci`;
-- `Tot. documento` → 182.800,80 €.
-
-### Riepilogo VestiFlow
-
-```text
-N arrivi
-Totale documenti
-```
-
-Nessun riepilogo di Giacenza viene calcolato qui: la Giacenza deriva dai movimenti, non dai totali documentali della lista.
-
----
-
-### ⚠️ I filtri che l’elenco ha GIÀ, e che restano
-
-Misurati il 29/08/2026 su `document-list`, profilo `goods-receipt`:
-
-```text
-Periodo                       base, con Dal/Al solo su «Personalizzato»
-Fornitore                     base
-──
-Stato collegamento fattura     specifico, esistente
-Magazzino                      specifico, esistente
-Tipo di documento              specifico, esistente
-Pagamento                      specifico, esistente
-```
-
-⛔ **I quattro specifici NON si toccano nella migrazione** (§42-bis.0). Non
-compaiono nella matrice sintetica perché quella elenca il minimo comune ai profili,
-e toglierli sarebbe una rimozione funzionale dentro un refactor.
-
-⚠️ **Il Periodo qui è un’eccezione rispetto agli altri profili**: i campi Dal/Al
-compaiono **solo** col preset «Personalizzato», mentre altrove sono sempre visibili.
-La condizione reale è `!isGoodsReceiptList() || isCustomPeriod()`, e il contenitore
-comune la riceve già risolta: non deve conoscere l’Arrivo merce.
-
-⚠️ **Il preset non è un query param**: è stato locale, e si ricostruisce all’avvio
-da `dateFrom`/`dateTo` — con date presenti si parte da «Personalizzato». Le date
-sole stanno nell’URL. Chi migra non deve «correggere» questa asimmetria: è il
-comportamento corrente, e cambiarlo cambierebbe gli URL condivisi.
-
-## 42-bis.10 Corrispettivi — baseline da compattare
-
-### Filtri attuali VestiFlow da preservare
-
-```text
-Periodo
-Origine
-Tipo
-Sede
-```
-
-Controllo vista:
-
-```text
-Raggruppa
-```
-
-`Raggruppa` non è un filtro.
-
-### Metriche attuali da preservare
-
-Oggi il riepilogo VestiFlow contiene:
-
-```text
-Rettifiche
-Annullamenti
-Vendite
-Imponibile
-IVA
-Totale vendite
-Corrispettivo
-```
-
-La convergenza non modifica valori né formule.
-
-### Nuovo layout comune
-
-Sul desktop le metriche vengono rese in **una sola fascia compatta**:
-
-```text
-N righe
-Rettifiche
-Annullamenti
-Vendite
-Imponibile
-IVA
-Totale vendite
-Corrispettivo
-```
-
-Le metriche monetarie possono allinearsi alle colonne economiche quando ciò migliora la lettura.
-
-Le funzioni:
-
-```text
-Stampa
-PDF
-Excel
-CSV/Esporta
-...
-```
-
-passano nella riga funzioni **sotto il riepilogo**, invece di occupare la testata, salvo eccezione specifica approvata.
-
-Su mobile le stesse metriche possono disporsi su più righe compatte; non devono essere duplicate o ricalcolate.
-
----
-
-## 42-bis.11 Profili non congelati da questa decisione
-
-Questa sezione non decide automaticamente filtri/totali per:
-
-- Registrazione fattura fornitore;
-- Trasferimenti;
-- Rettifiche;
-- altri profili `document-list`;
-- Inventario;
-- altri report.
-
-Fino a una decisione specifica:
-
-```text
-preservare comportamento corrente
-→ nessun nuovo filtro
-→ nessuna nuova metrica
-```
-
-Il contenitore comune può essere adottato senza cambiare il contenuto funzionale del profilo.
-
----
-
-## 42-bis.12 Matrice sintetica definitiva dei filtri
-
-| Profilo          | Periodo | Stato                         | Soggetto           | Altri filtri base                         |
-| ---------------- | ------- | ----------------------------- | ------------------ | ----------------------------------------- |
-| Preventivi       | sì      | no                            | Cliente            | —                                         |
-| Ordini cliente   | sì      | Commerciale                   | Cliente            | —                                         |
-| Proforma         | sì      | Economico: Da saldare/Saldati | Cliente            | —                                         |
-| DDT vendita      | sì      | no                            | Cliente/Soggetto   | —                                         |
-| Vendita al banco | sì      | no                            | Cliente            | —                                         |
-| Fatture          | sì      | Economico: Da saldare/Saldati | Cliente            | —                                         |
-| Ordini fornitore | sì      | Commerciale                   | Fornitore          | —                                         |
-| Arrivi merce     | sì      | no                            | Fornitore/Soggetto | —                                         |
-| Corrispettivi    | sì      | no                            | —                  | Origine · Tipo · Sede · Raggruppa (vista) |
-
-⚠️ **Questa matrice è normativa per il MINIMO, non per il massimo** (§42-bis.0).
-Dice quali filtri ogni profilo **deve** avere; non elenca tutto ciò che può avere, e
-**non autorizza a rimuovere** un filtro che l’elenco già possiede.
-
-⛔ Gli Arrivi merce, per esempio, hanno oggi anche **Stato collegamento fattura,
-Magazzino, Tipo di documento e Pagamento**: la riga qui sopra dice `Stato: no` perché
-quello è lo stato _commerciale_, che l’Arrivo merce non ha — non perché gli altri
-quattro vadano tolti.
-
-Un filtro **nuovo** oltre questa matrice richiede una decisione owner o una specifica
-di modulo più recente. Un filtro **esistente** resta.
-
----
-
 ## 42-bis.13 Matrice sintetica dei riepiloghi
 
 | Profilo               | Conteggio    | Totali minimi VestiFlow                                                                 |
@@ -2880,9 +3303,12 @@ di modulo più recente. Un filtro **esistente** resta.
 
 # 43. Strategia di implementazione definitiva
 
-Le fasi seguenti costruiscono lo **stesso contenitore comune**.
+Le fasi seguenti costruiscono la **stessa autorità strutturale** (§0): un solo insieme di
+contratti, non sei refactor indipendenti.
 
-Non sono sei refactor indipendenti.
+⚠️ **Non costruiscono necessariamente un componente involucro.** La Fase G — l'unica che
+produrrebbe uno shell fisico — è **condizionata** alla duplicazione che resta dopo i
+contratti, e può concludersi con «non c'è niente da estrarre».
 
 ## 43.0 Disciplina delle fonti durante l'implementazione
 
@@ -2957,29 +3383,29 @@ pannello mobile in §3.5.
 
 ⛔ **Zero modifiche al codice**, come la fase richiede.
 
-## Fase B — contenitore filtri comune `0 → n`
+## Fase B — filtri derivati dalle colonne
 
-Definire un contratto che renda gli stessi filtri in:
+⛔ **Qui c'era «definire un contratto che renda gli stessi filtri dichiarati dal modulo»**,
+con i piloti `document-list` e `sales-order-list` uno alla volta. La strada è cambiata il
+29/08/2026 (§0.2): i filtri non si dichiarano per consumer, derivano dalle colonne — quindi
+non c'è una migrazione consumer per consumer da pilotare.
+
+Ordine dei passi:
 
 ```text
-desktop inline
-mobile Filtri (n)
+1  TableColumnDef       aggiungere  filter?: 'values' | 'text' | 'range'
+2  motore tabella       il controllo nell'intestazione, acceso dal pulsante Filtri
+3  pannello mobile      le stesse colonne filtrabili come voci
+4  barra esterna        restano Periodo e Ricerca
+5  consumer             togliere le dichiarazioni e il markup filtri
 ```
 
-con:
+⚠️ **Il passo 5 arriva per ultimo e per tutti insieme**: finché i consumer dichiarano
+ancora i propri filtri, i due meccanismi convivrebbero e la stessa colonna avrebbe due
+controlli — che è il difetto vietato da §17.4.
 
-- stesso stato;
-- stessi handler;
-- stessi query param.
-
-Pilotare su almeno due consumer con esigenze diverse, uno alla volta, preferendo:
-
-- `document-list`;
-- `sales-order-list`;
-
-o altri consumer già vicini all'infrastruttura comune.
-
-Non partire da Corrispettivi se ciò obbliga a inglobare grouping/subtotali/card nello stesso intervento.
+⭐ **`app-list-filters` non si butta**: diventa la veste mobile e ospita Periodo e Ricerca
+sul desktop.
 
 ## Fase C — motore tabella comune `4 → n`
 
@@ -3046,11 +3472,61 @@ cambio sort a schermo
 
 quando l'export dichiara la vista corrente.
 
-## Fase G — consolidamento fisico shell e rimozione duplicazioni
+## Fase G — ⏸ shell leggero, SE resta duplicazione reale
 
-Il contratto del contenitore è già deciso al §0.
+⛔ **Non è più un passo obbligato.** Deciso il 29/08/2026: lo shell fisico si estrae solo se,
+applicati e verificati tutti i sottocontratti, resta duplicazione **strutturale e
+comportamentale** vera.
 
-Questa fase consolida fisicamente lo shell quando i sottocontratti sono già provati.
+### Il criterio, e non è opinabile
+
+```text
+il residuo è GEOMETRIA o ASPETTO
+  → manca un contratto, o va migliorato
+  → ⛔ NON giustifica uno shell
+
+il residuo è la STESSA STRUTTURA
+  stessi slot · stessi stati loading/empty/error · stesso comportamento ripetuto
+  → ✅ candidato reale a shell leggero
+```
+
+⚠️ **Senza questo criterio «censire i residui» è una domanda a cui si può rispondere in due
+modi opposti**, ed è il motivo per cui sta qui e non nella testa di chi eseguirà.
+
+### ✅ Il censimento è stato fatto, e dice SÌ — 29/08/2026
+
+Applicati i contratti di geometria alle undici pagine elenco, il residuo è stato misurato.
+**Non è geometria: è struttura.**
+
+```text
+ZONE                          SEGNALI DI STATO
+testata       11 / 11         loading()             11 / 11
+stati         11 / 11         error()               11 / 11
+dati          11 / 11         isEmpty()             10 / 11
+toolbar       10 / 11         app-table-skeleton    11 / 11
+totali/pag.    9 / 11
+azioni         6 / 11
+```
+
+⭐ **Tre zone in tutte e undici, e i tre segnali di stato con gli STESSI NOMI.** Non è una
+somiglianza: è una convenzione che esiste già e non è mai stata formalizzata. I quattro rami
+`@if (loading()) … @else if (error()) … @else if (isEmpty()) … @else` sono scritti undici
+volte, identici, con gli stessi componenti nello stesso ordine.
+
+⭐ **E i contratti non erano l'alternativa allo shell: erano il suo prerequisito.** Prima,
+adottarlo significava anche riparare undici geometrie diverse — ed è la ragione per cui non
+è mai stato fatto. Ora resta **solo consolidamento di markup**, senza rischio funzionale.
+
+⚠️ **Corrispettivi è l'unica senza `isEmpty()`**, e va guardata prima di generalizzare: se
+gestisce il vuoto dentro la tabella, o lo shell prevede il caso o quella pagina resta fuori
+da una zona.
+
+⚠️ **`product-list` ha i filtri dentro `app-product-toolbar`**, un componente proprio: nel
+conteggio sta a 0 sulla toolbar. Non è un ostacolo — è uno slot riempito da un componente
+invece che da markup — ma va previsto.
+
+⭐ E lo shell, se nascerà, dev'essere **stupido**: niente dominio, niente query, niente
+`if tipo documento`. Compone sottocontratti già provati, o non serve.
 
 Il risultato:
 
@@ -3108,7 +3584,10 @@ L'HTML provvisorio non è prova definitiva del comportamento.
 
 ---
 
-# 46. Criteri di accettazione — Shell
+# 46. Criteri di accettazione — Shell ⏸ *(valgono SE lo shell viene estratto)*
+
+⚠️ Lo shell fisico non è un requisito (§0, Fase G). Questi criteri descrivono **com'è fatto
+bene se si decide di estrarlo**, non un traguardo da raggiungere.
 
 - unico telaio per consumer equivalenti;
 - ordine zone conforme al §0;
@@ -3319,9 +3798,17 @@ Per ogni consumer migrato:
 
 # 56. Guardia architetturale
 
+⛔ **Qui il primo punto era «nuovo elenco operativo fuori dal shell comune».** Cambiato il
+29/08/2026 insieme al §0: pretendeva lo shell fisico, che non è più un requisito — ed era la
+formulazione più insidiosa delle cinque, perché è quella che **qualcuno esegue**.
+
+⭐ Il bersaglio giusto è più forte dell'originale: non «una pagina fuori dal telaio», ma **una
+seconda implementazione di qualcosa che è già comune**. È il difetto vero — quello che ha
+prodotto quattro contenitori di scorrimento scritti a mano, ognuno col proprio difetto.
+
 Dopo la convergenza, introdurre protezioni contro:
 
-- nuovo elenco operativo fuori dal shell comune senza eccezione;
+- nuova implementazione **equivalente** di un contratto già comune;
 - nuovo Periodo locale equivalente;
 - nuovo pannello mobile filtri equivalente;
 - nuovo summary container equivalente;
@@ -3390,7 +3877,7 @@ Il blocco è concluso solo quando:
 
 - Non copiare Danea pixel-per-pixel.
 - Non creare un mega-componente che conosce tutti i domini.
-- Non introdurre `if pagina === ...` nel shell.
+- Non introdurre `if pagina === ...` in NIENTE di condiviso — shell, mixin o componente.
 - Non creare nuovi filtri per analogia.
 - Non creare nuovi riepiloghi per analogia.
 - Non creare metriche perché il renderer le supporta.

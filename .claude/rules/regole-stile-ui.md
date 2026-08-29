@@ -293,6 +293,75 @@ taglia vecchia mentre il resto della riga è già sceso: misurato su
 `--field-font-size` impostata), restava a 13px da solo mentre i `select-menu`
 accanto erano già a 12px.
 
+### I filtri di un elenco stanno nelle sue COLONNE _(29/08/2026)_
+
+⭐ **I filtri di un elenco non si disegnano: sono le sue colonne** (`14` §0.2).
+Il controllo di filtro vive nell'**intestazione della colonna** su scrivania e
+come **voce del pannello** sotto `lg`, dove la testata non esiste.
+
+Restano fuori dalle colonne, e sempre visibili in barra, solo **Periodo** e
+**Ricerca**.
+
+| Il pulsante «Filtri» | |
+| --- | --- |
+| **acceso** | ogni colonna visibile mostra il proprio controllo |
+| **spento** | i controlli spariscono **e i filtri di colonna si azzerano** |
+
+⚠️ **Lo spegnimento È l'azzeramento**, e non è una scorciatoia: un filtro attivo
+il cui controllo non si vede è il difetto che Danea deve rimediare con una
+striscia d'avviso. Periodo e Ricerca non seguono il pulsante.
+
+⛔ **Colonna spenta dal selettore Colonne, filtro spento.** Il controllo vive
+nella sua intestazione: senza intestazione non c'è dove metterlo, e restringere
+l'elenco per una colonna invisibile è peggio che non poterlo fare.
+
+⭐ Ma **ogni** colonna ha il suo filtro, anche quelle spente di serie: la
+filtrabilità appartiene alla colonna, non alla sua visibilità corrente.
+
+⚠️ **La veste mobile qui sotto non cambia**: «Filtri (n)» e il suo pannello
+restano quello che erano. Cambia **cosa** ci finisce dentro — le colonne
+filtrabili invece di un elenco dichiarato a mano dalla pagina.
+
+#### ⭐ Il pannello filtri è del TELAIO, e il contenitore è UNO _(29/08/2026)_
+
+Cinque pagine avevano un `app-slide-panel` proprio che **duplicava a mano** i
+controlli della barra. Ora il pannello è uno solo, di `app-list-page`, e non è
+una copia: è **lo stesso** `.list-page__filters`, che sotto `lg` diventa un
+foglio laterale.
+
+```text
+scrivania    riga della barra strumenti
+sotto lg     foglio laterale, aperto dal pulsante «Filtri (n)»
+```
+
+⛔ **Due `<ng-content>` con lo stesso selettore non risolvono il problema: lo
+creano.** Misurato il 29/08/2026 — uno in barra, uno dentro un pannello, in rami
+`@if` esclusivi: il contenuto non arriva in **nessuno dei due**, senza errori
+e senza test rossi. Il contenuto proiettato si rende **una volta sola**.
+
+⭐ Ed è la stessa regola di §9: «la stessa riga non esiste due volte». Le cinque
+vesti duplicate erano già una violazione.
+
+⚠️ **Ricerca e Periodo restano in barra a ogni larghezza** — sono i due che non
+entrano nelle colonne. Periodo ha per questo uno slot proprio, `[period]`.
+
+⛔ **Chiudere il pannello non azzera.** L'azzeramento nel pannello è un pulsante
+suo, esplicito: chi apre i filtri, li imposta e preme «Vedi risultati»
+perderebbe altrimenti quello che ha appena scelto. Su scrivania invece spegnere
+«Filtri» **azzera davvero**, perché quel pulsante ha preso il posto di «Azzera
+filtri».
+
+#### ⛔ Un telaio con sole caselle nominate SCARTA il resto _(29/08/2026)_
+
+Angular elimina dal DOM il contenuto proiettato che non trova uno slot. Non
+sbaglia posizione: **non compare**, e il componente viene perfino costruito —
+nessun errore, nessun test rosso.
+
+Persi così due pannelli, e un terzo cancellato dal file dallo script di
+migrazione. Le cose `position: fixed` — dialoghi, pannelli laterali — vanno
+oggi in `[overlays]`, ⏸ casella provvisoria. La guardia è
+`npm run check:list-page-slots`.
+
 ### Su mobile si riduce il NUMERO dei comandi, non la loro taglia _(18/08/2026)_
 
 Il minimo tappabile di 44px non si tocca: i token lo impongono da soli sotto
@@ -757,6 +826,118 @@ Le tabelle sono l'elemento centrale del gestionale.
 - Testo lungo in cella: ellipsis oltre 24ch con `title` per full text
 - SKU / EAN: `--font-mono`, size 12px, colore `--color-focus` se cliccabile
 - Sticky header sul bg dell'header (non su surface)
+
+#### La pagina elenco si adatta alla finestra: cede solo l'ELENCO _(29/08/2026)_
+
+> **Una pagina elenco non produce una barra di scorrimento propria.** Testata, filtri,
+> riepilogo e barra azioni restano al loro posto e alla loro altezza; a cedere è solo la
+> finestra sulle righe, e le righe non si abbassano mai — se ne vedono meno.
+
+_Deciso dal proprietario il 29/08/2026, sul comportamento di Danea messo a confronto a tre
+altezze di finestra._
+
+```scss
+.pagina        { display: flex; flex-direction: column; flex: 1; min-block-size: 0; }
+.pagina > *    { flex: none; }                      // testata, filtri, riepilogo, azioni
+.pagina__elenco { flex: 1; min-block-size: 0; }     // l'unico che cede
+```
+
+⛔ **Mai `grid-template-rows` per assegnare il ruolo elastico.** Una traccia si dà al
+**terzo figlio**, chiunque esso sia: basta un banner condizionale — e `@if` non crea un
+elemento — perché tutto slitti di uno e la fascia che cresce finisca sull'avviso mentre
+l'elenco perde la propria regione di scorrimento.
+
+⚠️ **Non è teorico: era il difetto del Registro Corrispettivi**, cioè della pagina presa
+a modello. Bastava filtrare per Sede con registrazioni senza sede. Corretto il 29/08/2026 —
+e le pagine che dovevano copiarlo hanno molti più figli condizionali di lui: `product-list`
+ne conta **undici** fra banner Shopify, feedback sync, chip bozze, riga colonne, scansione,
+barra selezione ed errore duplicato.
+
+⭐ **Chi cresce si dichiara per IDENTITÀ.** `> * { flex: none }` più una sola eccezione
+nominata: la regola non si sposta quando il markup cambia.
+
+#### E niente si comprime per far entrare: si vede di meno
+
+⭐ È la stessa regola di «su mobile si riduce il NUMERO dei comandi, non la loro taglia»
+(sotto), sull'asse verticale. Font, altezze di riga, pulsanti e bande **non si
+rimpiccioliscono** quando lo spazio scarseggia: diminuisce la quantità di contenuto
+visibile.
+
+⛔ **`flex: none` va scritto esplicitamente su ciò che non deve cedere.** In una colonna
+flessibile il default è `flex: 0 1 auto`, cioè *comprimibile*: `app-pagination` ha oggi
+questo default e il suo filo si schiaccia **prima** che le righe cedano — il contrario
+esatto del modello.
+
+⚠️ **Il ritaglio estremo di Danea non si copia**: quando la finestra si riduce sotto le
+bande fisse, a tagliare è il gestore finestre di Windows. In un browser non si può
+togliere la barra strumenti: sotto una certa altezza la pagina scorre, e basta.
+
+⛔ **E il riepilogo non sta DENTRO la regione elastica.** Metterlo lì, con un
+`overflow: hidden` sul contenitore, lo renderebbe **irraggiungibile** su una finestra
+bassa — la barra di scorrimento è un livello più sotto, sull'elenco. Su un registro si
+perderebbe proprio «N voci · Imponibile · IVA · Totale», che è il dato che si va a
+leggere. Resta **fratello** dell'elenco, con `flex: none`.
+
+#### ⛔ `position: sticky` senza uno scrollport NON appiccica _(29/08/2026)_
+
+> **Il contenitore di scorrimento di una tabella si dichiara col mixin**
+> `table-scroll($selettore, $limite)` di `styles/_responsive-table.scss`. Mai a mano.
+
+Il mixin emette **scorrimento e limite insieme**, e questo è tutto il punto: un wrapper
+scritto a mano dimentica metà della coppia, e la metà che manca non fallisce.
+
+| `$limite` | Quando | Cosa emette |
+| --- | --- | --- |
+| `tetto` *(default)* | il contenitore non ha un genitore che gli dia altezza | `max-block-size: var(--table-scroll-max-h)` |
+| `riempi` | sta già dentro una regione delimitata dalla catena di altezze | `block-size: 100%` |
+
+⛔ **Scegliere `tetto` dentro una regione già delimitata produce due barre annidate**, e
+l'intestazione si ancora a un bordo che esce dalla vista del genitore. È il caso del
+Registro Corrispettivi dentro `.corrispettivi__panel-scroll`.
+
+⚠️ **Il difetto era in QUATTRO posti**, misurato il 29/08/2026 — motore comune, Registro
+Corrispettivi, elenco prodotti, vendite online. Le prime due si sono corrette una alla
+volta, e la seconda l'ha trovata il proprietario **a schermo**: la correzione fatta sul
+motore non raggiunge chi il motore non lo usa.
+
+⭐ **Le tabelle senza wrapper sono sane, e vanno lasciate stare.** Clienti, Giacenze e
+Situazione magazzino non hanno nessun contenitore proprio: si ancorano a
+`.shell__content`, che è già uno scrollport vero perché la shell è `100dvh` con
+`overflow: hidden`. **Funzionano da sempre.** Aggiungere loro un wrapper le romperebbe.
+
+⚠️ **E la stampa va resettata.** I mixin di breakpoint emettono `@media (min-width: …)`
+senza tipo di media, quindi restano attivi dentro `@media print`: su A4 orizzontale il
+tetto sopravvive e **taglia tutto ciò che sta oltre il primo riquadro**. Il reset sta in
+`styles.scss`, nel blocco `@media print`.
+
+La guardia è `npm run check:sticky-scrollport`, dentro `npm run lint`: **cerca** ogni
+intestazione appiccicata e fallisce su quelle non dichiarate, con tre categorie —
+`mixin`, `shell`, `storica`.
+
+---
+
+##### Il difetto originale, e perché nessuno lo vedeva
+
+> **L'intestazione di un elenco resta fissa e le righe scorrono sotto.** Non è una
+> preferenza: senza tetto di righe a schermo (`14` §11.4) un elenco è lungo centinaia di
+> schermate, e l'intestazione porta i **controlli di filtro** (`14` §0.2).
+
+⚠️ **Il difetto è invisibile finché le righe sono poche**, ed è già in casa: misurato il
+29/08/2026, `.data-table-scroll` dichiara `overflow-x: auto` e **nessun `max-block-size`**.
+Lo scorrimento verticale vive in `.shell__content`, quindi il `sticky` del `<th>` si ancora
+a un contenitore che non scorre mai — e non appiccica.
+
+```scss
+// ⛔ non basta: il contenitore non scorre in verticale, il sticky non ha a cosa ancorarsi
+.tabella-scroll { overflow-x: auto; }
+
+// ✅ il contenitore diventa uno scrollport anche in verticale, e il sticky funziona
+.tabella-scroll { overflow: auto; max-block-size: var(--table-scroll-max-h); }
+```
+
+⭐ **Un `sticky` che non appiccica non fallisce: non fa niente.** Nessun errore, nessun
+test rosso, nessuna guardia — si vede solo aprendo il browser e scorrendo. Va verificato a
+schermo ogni volta che si tocca il contenitore di scorrimento di una tabella.
 
 ### ⭐ La grammatica dei riepiloghi — decisa il 20/08/2026
 
