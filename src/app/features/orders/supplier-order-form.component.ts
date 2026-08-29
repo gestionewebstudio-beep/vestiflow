@@ -169,6 +169,7 @@ import {
   netFromGrossExact,
 } from '@domain/documents/utils/document-vat.util';
 
+import { readSupplierOrderPrefill } from '@domain/supplier-orders/models/supplier-order-prefill.model';
 import { SupplierOrderService } from '@domain/supplier-orders/services/supplier-order.service';
 import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
 import { DocumentNumberingStore } from '@domain/documents/state/document-numbering.store';
@@ -826,10 +827,27 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     return this.form.controls.lines;
   }
 
+  /**
+   * Gli articoli agganciati alle righe, senza ripetizioni.
+   *
+   * ⛔ **`distinctUntilChanged` non è un'ottimizzazione: toglie un difetto
+   * misurato.** `lines.valueChanges` emette a ogni carattere digitato in
+   * QUALUNQUE campo di riga — quantità, sconto, costo — e `map` produce ogni
+   * volta un array nuovo, quindi diverso per `Object.is`. Senza il confronto,
+   * `pinnedVariants` qui sotto rileggeva dal catalogo **una variante per riga
+   * del documento a ogni battuta**: su un ordine da trenta righe, trenta
+   * richieste per digitare «5».
+   *
+   * ⭐ Il confronto è sui CONTENUTI, non sull'identità dell'array: è l'insieme
+   * degli articoli a dover cambiare perché ci sia qualcosa da rileggere.
+   */
   private readonly selectedVariantIds = toSignal(
     this.form.controls.lines.valueChanges.pipe(
       startWith(this.form.getRawValue().lines),
       map((lines) => [...new Set(lines.map((line) => line.variantId).filter(Boolean))]),
+      distinctUntilChanged(
+        (prima, dopo) => prima.length === dopo.length && prima.every((id, i) => id === dopo[i]),
+      ),
     ),
     { initialValue: [] as string[] },
   );
@@ -1176,6 +1194,41 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     // Nuovo ordine: la modalità costi iniziale viene dalla preferenza operatore
     // per tipo (non da un default fisso). In modifica la sovrascrive l'ordine.
     this.initCostModeForNewOrder();
+
+    this.applyPrefill();
+  }
+
+  /**
+   * ⭐ **Un ordine nuovo può arrivare già compilato** — oggi dalla Situazione
+   * magazzino, che manda fornitore e articoli selezionati (`14` §0.2).
+   *
+   * ⚠️ **Passa dallo STESSO richiamo articolo del percorso manuale**
+   * (`onVariantSelect` → risolutore comune `03c`): descrizione, costo, codice
+   * fornitore, IVA e unità di misura non si scrivono qui. Una seconda strada
+   * per riempire una riga sarebbe libera di divergere dalla prima, e a
+   * divergere comincerebbe il giorno in cui il risolutore cambia.
+   *
+   * ⚠️ Il form resta **sporco**: è lavoro non salvato, e la guardia
+   * «modifiche non salvate» deve proteggerlo come qualunque altro.
+   */
+  private applyPrefill(): void {
+    if (this.isEditMode()) {
+      return;
+    }
+    const prefill = readSupplierOrderPrefill(this.router.getCurrentNavigation()?.extras.state);
+    if (!prefill) {
+      return;
+    }
+
+    this.form.controls.supplierId.setValue(prefill.supplierId);
+
+    // La prima riga esiste già: un ordine nuovo nasce con una riga vuota.
+    prefill.variantIds.forEach((variantId, indice) => {
+      if (indice > 0) {
+        this.addLine();
+      }
+      this.onVariantSelect(indice, variantId);
+    });
   }
 
   /**

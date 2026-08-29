@@ -7,7 +7,7 @@ import userEvent from '@testing-library/user-event';
 import type { UserEvent } from '@testing-library/user-event';
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import { of, throwError } from 'rxjs';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AppErrorKind } from '@core/models/app-error.model';
 import { SupplierOrderStatus } from '@core/models/supplier-order.model';
@@ -204,7 +204,35 @@ describe('SupplierOrderFormComponent', () => {
     // Le due sono ESCLUSIVE, quindi una prova che riguarda la testata deve dire
     // quale sta guardando.
     compatta?: boolean;
+    /**
+     * Lo stato di navigazione con cui la Situazione magazzino apre un ordine
+     * nuovo già compilato. Si finge sul PROTOTIPO del Router: `render` crea il
+     * componente subito, e `getCurrentNavigation` va sostituita prima.
+     */
+    prefill?: { readonly supplierId: string; readonly variantIds: readonly string[] };
   }) {
+    if (options?.prefill) {
+      vi.spyOn(Router.prototype, 'getCurrentNavigation').mockReturnValue({
+        extras: { state: { supplierOrderPrefill: options.prefill } },
+      } as unknown as ReturnType<Router['getCurrentNavigation']>);
+    }
+
+    /**
+     * ⚠️ Risponde anche per `variantId`: è la chiave con cui il richiamo
+     * articolo risolve una riga già agganciata — quella su cui si appoggia il
+     * precompilato. Rispondendo solo a `search`, la riga precompilata sarebbe
+     * restata vuota **senza errori**.
+     *
+     * ⭐ È una spia contata: quante volte la maschera interroga il catalogo è
+     * una proprietà che si può provare, e la lentezza segnalata dal
+     * proprietario il 29/08/2026 sta lì.
+     */
+    const cercaVarianti = vi.fn((query?: { search?: string; variantId?: string }) => {
+      if (query?.variantId) {
+        return of(VARIANTS.filter((v) => v.variantId === query.variantId));
+      }
+      return query?.search && query.search.length >= 2 ? of(VARIANTS) : of([]);
+    });
     const createOrder = options?.createFails
       ? vi.fn(() =>
           throwError(() => ({
@@ -244,8 +272,7 @@ describe('SupplierOrderFormComponent', () => {
         {
           provide: ProductService,
           useValue: {
-            searchVariantSummaries: (query?: { search?: string }) =>
-              query?.search && query.search.length >= 2 ? of(VARIANTS) : of([]),
+            searchVariantSummaries: cercaVarianti,
           },
         },
         {
@@ -304,7 +331,7 @@ describe('SupplierOrderFormComponent', () => {
       ],
     });
 
-    return { fixture, createOrder };
+    return { fixture, createOrder, cercaVarianti };
   }
 
   /**
@@ -1471,6 +1498,116 @@ describe('SupplierOrderFormComponent', () => {
       expect(screen.queryByRole('columnheader', { name: /Impegnata/i })).toBeNull();
       expect(screen.queryByRole('columnheader', { name: /In arrivo/i })).toBeNull();
       expect(screen.queryByRole('columnheader', { name: /^Imp\.$/ })).toBeNull();
+    });
+  });
+
+  /**
+   * ⭐ **Un ordine nuovo può arrivare già compilato** dalla Situazione
+   * magazzino: fornitore scelto lì, una riga per articolo selezionato,
+   * quantità 1 (`14` §0.2).
+   *
+   * ⛔ Fino al 29/08/2026 la Situazione **creava l'ordine** chiamando l'API e
+   * apriva la sua modifica: il documento esisteva prima che l'operatore avesse
+   * visto una riga. Queste prove tengono ferma la direzione — la maschera si
+   * apre compilata, e a salvare è l'operatore.
+   */
+  describe('ordine nuovo precompilato', () => {
+    // ⚠️ Il progetto non ha `restoreMocks`: la finta su `Router.prototype` è
+    //    sul PROTOTIPO e sopravviverebbe alla prova, precompilando anche quella
+    //    che verifica il contrario.
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    /**
+     * ⚠️ Si legge il VALORE DEL FORM, non il DOM: SKU e nome prodotto non hanno
+     * una colonna visibile nel preset di default, quindi cercarli a schermo
+     * proverebbe la configurazione delle colonne invece del precompilato.
+     */
+    function righe(fixture: { componentInstance: unknown }) {
+      const form = (
+        fixture.componentInstance as {
+          form: { value: { lines?: readonly { variantId?: string; quantity?: number }[] } };
+        }
+      ).form;
+      return form.value.lines ?? [];
+    }
+
+    it('⭐ una riga per articolo, quantità 1, e NIENTE salvataggio', async () => {
+      const { fixture, createOrder } = await setup({
+        vatCodes: [VAT_22],
+        prefill: { supplierId: 'sup-1', variantIds: ['var-1'] },
+      });
+      await fixture.whenStable();
+
+      expect(righe(fixture)).toHaveLength(1);
+      expect(righe(fixture)[0]?.variantId).toBe('var-1');
+      // ⚠️ Quantità 1 è il default di riga: è l'operatore a decidere quanti
+      //    pezzi ordinare, ed è tutto il motivo per cui la maschera si apre.
+      expect(righe(fixture)[0]?.quantity).toBe(1);
+      // ⛔ Nessuna chiamata all'API: aprire non è emettere.
+      expect(createOrder).not.toHaveBeenCalled();
+    });
+
+    it('⭐ il fornitore arriva già scelto', async () => {
+      await setup({ vatCodes: [VAT_22], prefill: { supplierId: 'sup-1', variantIds: ['var-1'] } });
+
+      expect(await screen.findByText('Tessuti Italia')).toBeTruthy();
+    });
+
+    it('⭐ più articoli, più righe: una ciascuno, nell’ordine della selezione', async () => {
+      const { fixture } = await setup({
+        vatCodes: [VAT_22],
+        prefill: { supplierId: 'sup-1', variantIds: ['var-1', 'var-senza-nome'] },
+      });
+      await fixture.whenStable();
+
+      expect(righe(fixture).map((r) => r.variantId)).toEqual(['var-1', 'var-senza-nome']);
+    });
+
+    /**
+     * ⭐ **La misura, non l'impressione.** Il proprietario ha segnalato che la
+     * precompilazione «è lenta»: questa prova conta le interrogazioni per
+     * articolo, così la lentezza ha un numero e una regressione si vede.
+     */
+    it('⭐ non interroga il catalogo più di due volte per articolo', async () => {
+      const { fixture, cercaVarianti } = await setup({
+        vatCodes: [VAT_22],
+        prefill: { supplierId: 'sup-1', variantIds: ['var-1', 'var-senza-nome'] },
+      });
+      await fixture.whenStable();
+
+      // ⚠️ Il tetto è 2N, non N: il richiamo articolo di ogni riga fa la sua
+      //    lettura, e le varianti «appuntate» del selettore fanno la loro.
+      //    Quadratico invece — `pinnedVariants` rileggeva TUTTE le varianti a
+      //    ogni riga aggiunta — su venti articoli fa 230 chiamate.
+      expect(cercaVarianti.mock.calls.length).toBeLessThanOrEqual(4);
+    });
+
+    it('⛔ digitare una quantità NON rilegge il catalogo', async () => {
+      const user = userEvent.setup();
+      const { fixture, cercaVarianti } = await setup({
+        vatCodes: [VAT_22],
+        prefill: { supplierId: 'sup-1', variantIds: ['var-1'] },
+      });
+      await fixture.whenStable();
+      const prima = cercaVarianti.mock.calls.length;
+
+      await user.type(screen.getAllByLabelText(/Quantità/i)[0]!, '5');
+      await fixture.whenStable();
+
+      // ⛔ L'insieme degli articoli non è cambiato: non c'è niente da rileggere.
+      //    Senza questa guardia ogni carattere digitato rileggeva una variante
+      //    per riga del documento.
+      expect(cercaVarianti.mock.calls.length).toBe(prima);
+    });
+
+    it('⛔ senza precompilato la maschera si apre vuota, come sempre', async () => {
+      const { fixture } = await setup({ vatCodes: [VAT_22] });
+      await fixture.whenStable();
+
+      // Nessuna riga porta un articolo: la maschera nasce da compilare.
+      expect(righe(fixture).every((r) => !r.variantId)).toBe(true);
     });
   });
 });
