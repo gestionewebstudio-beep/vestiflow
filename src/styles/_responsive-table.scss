@@ -48,6 +48,27 @@
     display: table-header-group;
   }
 
+  /*
+    ⭐ **L'intestazione resta ferma mentre le righe scorrono** — e la dichiara il
+    MIXIN, non ogni tabella.
+
+    ⛔ Otto tabelle se la scrivevano da sé, e la nona se l'era dimenticata:
+    l'elenco Fornitori non l'ha mai avuta, e si è visto solo scorrendo. Una
+    proprietà che ogni consumatore deve ricordarsi è una proprietà che prima o
+    poi qualcuno non ricorda.
+
+    ⚠️ Funziona solo dentro uno scrollport: il contenitore va dichiarato con
+    `table-scroll()`, che emette scorrimento e limite insieme. Senza, questa
+    riga non fallisce — non fa niente.
+  */
+  .#{$block} thead th,
+  .#{$block}__head th {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: var(--z-raised);
+    background-color: var(--color-table-header-bg);
+  }
+
   .#{$block} tbody tr,
   .#{$block}__row {
     display: table-row;
@@ -321,5 +342,77 @@
     inline-size: var(--space-10);
     text-align: center;
     white-space: nowrap;
+  }
+}
+
+/**
+ * Il contenitore di scorrimento di una tabella — **scorrimento e limite
+ * insieme**, che è tutto il punto.
+ *
+ * ⛔ **Difetto misurato il 29/08/2026, in quattro posti diversi.** Un wrapper
+ * che dichiara il solo `overflow-x: auto` diventa, per spec, lo scrollport più
+ * vicino su **entrambi** gli assi — ma senza un limite d'altezza non scorre mai
+ * in verticale, e l'intestazione `position: sticky` che gli sta dentro si ancora
+ * a un contenitore fermo: **non appiccica, e non fallisce.** Nessun errore,
+ * nessun test rosso. Si vede solo scorrendo un elenco lungo.
+ *
+ * ⭐ **`.doc-form__table-wrap` non ha mai avuto questo difetto**, e la ragione è
+ * che lì contenitore e tetto sono nati insieme. Questo mixin rende quella forma
+ * l'unica disponibile: chi scrive un wrapper nuovo non può dimenticarsi metà
+ * della coppia, perché la coppia è una cosa sola.
+ *
+ * ## Due forme legittime, e vanno scelte
+ *
+ * - `$limite: tetto` *(default)* — il contenitore non ha un genitore che gli dia
+ *   un'altezza, quindi se la prende da sé in unità di viewport.
+ * - `$limite: riempi` — il contenitore **sta già** dentro una regione delimitata
+ *   (la catena di altezze della pagina): allora coincide con lei, e un tetto in
+ *   unità di viewport sarebbe una seconda barra annidata. È il caso del Registro
+ *   Corrispettivi dentro `.corrispettivi__panel-scroll`.
+ *
+ * ⚠️ **Solo sopra `lg`.** Sotto, le tabelle diventano card che scorrono con la
+ * pagina: uno scroll dentro uno scroll sotto il dito è la trappola classica del
+ * mobile, e l'intestazione lì non esiste nemmeno (`data-table-mobile-cards` la
+ * mette a `display: none`).
+ *
+ * ⚠️ **La stampa è già gestita** in `src/styles.scss`: i mixin di breakpoint
+ * emettono `@media (min-width: …)` senza tipo di media, quindi restano attivi
+ * dentro `@media print` e su A4 orizzontale taglierebbero tutto ciò che sta
+ * oltre il primo riquadro.
+ */
+@mixin table-scroll($selettore, $limite: tetto) {
+  #{$selettore} {
+    overflow-x: auto;
+    inline-size: 100%;
+
+    @include bp.media-up('lg') {
+      overflow: auto;
+
+      @if $limite == flessibile {
+        // ⭐ Il contenitore È lui stesso un elemento flessibile e riceve la
+        //    propria altezza da `flex: 1` di chi lo ospita: qui basta togliergli
+        //    il pavimento.
+        //
+        // ⛔ `riempi` sarebbe SBAGLIATO: `block-size: 100%` si risolve contro
+        //    l'altezza del genitore, non contro la quota che il flex gli ha
+        //    assegnato — le due misure litigherebbero.
+        //
+        // ⚠️ **E il pavimento è DUE**, uno per asse. Senza quello orizzontale un
+        //    elemento flessibile si rifiuta di stringersi sotto la larghezza del
+        //    proprio contenuto: una tabella larga spinge il contenitore oltre il
+        //    bordo della pagina invece di scorrere dentro di sé. Misurato su
+        //    Clienti il 29/08/2026 — l'ultima colonna usciva dallo schermo, e su
+        //    Fornitori lo stesso difetto non si vedeva solo perché la sua tabella
+        //    è stretta.
+        min-block-size: 0;
+        min-inline-size: 0;
+      } @else if $limite == riempi {
+        block-size: 100%;
+      } @else if $limite == tetto {
+        max-block-size: var(--table-scroll-max-h);
+      } @else {
+        @error "table-scroll: $limite dev'essere `tetto`, `riempi` o `flessibile`, non `#{$limite}`.";
+      }
+    }
   }
 }

@@ -326,6 +326,30 @@ app-shell-layout .shell__content > *:not(router-outlet) {
     block-size: auto !important;
     overflow: visible !important;
   }
+
+  /*
+    ⛔ **Anche i contenitori di scorrimento delle TABELLE devono aprirsi.**
+
+    Qui c'erano solo `.shell` e `.shell__content`, e non bastava: i mixin di
+    breakpoint emettono `@media (min-width: …)` **senza tipo di media**
+    (`_breakpoints.scss:24-31`), quindi restano attivi dentro `@media print`.
+    Su A4 orizzontale (~1123px CSS) la soglia `lg` scatta, il contenitore
+    resta `overflow: auto` con la sua altezza — e **tutto ciò che sta oltre il
+    primo riquadro non viene stampato**.
+
+    ⚠️ Non fallisce e non si vede a schermo: si scopre con un foglio in mano.
+
+    ⭐ `.doc-form__table-wrap` era già in questa forma da prima (un tetto
+    `min(75vh, …)` in `_document-form.scss`): il difetto non è nuovo per lei,
+    ma il rimedio è lo stesso e vale la pena chiuderlo insieme.
+  */
+  .data-table-scroll,
+  .corrispettivi-table-wrap,
+  .doc-form__table-wrap {
+    overflow: visible !important;
+    max-block-size: none !important;
+    block-size: auto !important;
+  }
 }
 
 // -----------------------------------------------------------------------------
