@@ -449,21 +449,124 @@ Questi numeri sono una fotografia, non una norma eterna.
 
 Prima di implementare si riconfermano i consumer reali.
 
-## 3.1 Fotografia tecnica di partenza
+## 3.1 Fotografia tecnica — RICONFERMATA il 29/08/2026
 
-Misurazione del 28/08/2026 da riconfermare:
+La misurazione del 28/08 chiedeva di essere riconfermata prima di implementare. **È stata
+rifatta sui dieci consumer**, ed è questa. È una fotografia datata, non una norma.
 
 ```text
-mixin/stili list-page          ~18 consumer
-colonne picker + service       ~16-17 consumer
-primitive export               ~10 consumer
-motore tabella comune             4 consumer
-barra azioni comune               4 consumer
-contenitore filtri comune          0 consumer
-contenitore riepilogo comune       1 consumer circa
+consumer fisici                   10
+dichiarazioni filtro             102   = 60 desktop + 42 copie mobile
+motore tabella comune              4
+barra azioni comune                4
+selettore colonne                  7   ← nel perimetro dei dieci
+contenitore riepilogo comune       1
+contenitore filtri comune          0   ← il gap
 ```
 
-Il gap principale misurato è il contenitore filtri.
+### ⚠️ Due perimetri diversi, e non vanno confusi
+
+Il `~16-17` del selettore colonne **non era sbagliato: misurava un perimetro più ampio.**
+
+```text
+selettore colonne, TUTTO il repository        16 file
+  di cui elenchi del perimetro                 7
+  di cui maschere documento e viste inventario 9
+```
+
+I nove fuori perimetro sono `goods-receipt-form`, `sales-document-form`,
+`stock-operation-form`, `transfer-form`, `supplier-order-form`, `customer-order-form`,
+`store-sale-document-form`, `inventory-levels`, `inventory-situation`. **Non sono elenchi**,
+e non entrano in questa unificazione. Chi rimisura deve dire quale dei due perimetri sta
+contando, o i numeri sembreranno smentirsi da soli.
+
+## 3.2 La matrice della Fase A — misurata il 29/08/2026
+
+⭐ **È l'output che la Fase A chiede**, e da qui parte la Fase B. Fotografia tecnica
+datata: non decide niente di funzionale.
+
+| Consumer                    | Filtri desktop | Copie mobile | Motore | Azioni | Picker | Riepilogo | Export |
+| --------------------------- | -------------: | -----------: | :----: | :----: | :----: | :-------: | :----: |
+| `document-list` (9 profili) |             21 |       **18** |   ✅   |   ✅   |   ✅   |     —     |   ✅   |
+| `corrispettivi-report`      |             12 |       **11** |   —    |   —    |   ✅   |    ✅     |   ✅   |
+| `sales-order-list`          |             10 |        **9** |   ✅   |   ✅   |   ✅   |     —     |   ✅   |
+| `stock-movements`           |              8 |            0 |   ✅   |   ✅   |   ✅   |     —     |   ✅   |
+| `product-list`              |              4 |            0 |   —    |   —    |   ✅   |     —     |   ✅   |
+| `online-sale-list`          |              3 |        **3** |   —    |   —    |   —    |     —     |   —    |
+| `supplier-order-list`       |              2 |        **1** |   ✅   |   ✅   |   —    |     —     |   ✅   |
+| `customer-list`             |              0 |            0 |   —    |   —    |   ✅   |     —     |   ✅   |
+| `supplier-list`             |              0 |            0 |   —    |   —    |   ✅   |     —     |   —    |
+| `inventory-count-list`      |              0 |            0 |   —    |   —    |   —    |     —     |   —    |
+| **totale**                  |         **60** |       **42** |   4    |   4    |   7    |     1     |   6    |
+
+Differenze di dominio rilevanti, misurate:
+
+- **`document-list`** serve **nove profili** con un solo componente: è il consumer con più
+  filtri e più copie, ed è già sul motore, sulla barra azioni e sul selettore colonne.
+- **`corrispettivi-report`** porta **637 righe di SCSS proprie** — la tabella più grande del
+  perimetro — più raggruppamento, subtotali di giornata, card mobile e l'**unico** riepilogo
+  esistente.
+- **`product-list`** ha i filtri in un **componente figlio** (`app-product-toolbar`), non nel
+  proprio template.
+- **`supplier-order-list`** e **`stock-movements`** montano `app-data-table` **direttamente**;
+  `document-list` e `sales-order-list` lo montano tramite la propria tabella di feature.
+
+### ⚠️ Perché questi numeri differiscono da una misura precedente
+
+Una prima misura dello stesso giorno aveva dato `97 = 55 + 42`. **Era sbagliata, e il modo
+in cui lo era vale più del numero**: contava i controlli solo nel template del consumer.
+
+```text
+product-list        risultava 0 filtri     ha 4 in `app-product-toolbar`
+app-segmented       non contato            i Corrispettivi lo usano per l'Ambito
+```
+
+⛔ **Un censimento di componenti non può fermarsi al primo livello del template.** Il numero
+delle copie (42) non cambiava, ma il denominatore sì — e con lui la percentuale.
+
+## 3.3 La causa tecnica della Fase B
+
+```text
+102 dichiarazioni filtro complessive
+ 60 desktop
+ 42 copie mobile          ← 41% delle dichiarazioni è duplicazione
+```
+
+Non è una stima: è la stessa `<app-select-menu>` scritta due volte, con lo **stesso stato** e
+gli **stessi handler**. Su `document-list` in quattro casi l'etichetta lo dichiara —
+«Filtra per cliente» e «Filtra per cliente (pannello filtri)».
+
+⭐ **È questo il `0 → n` della Fase B**, e vale 42 dichiarazioni in meno.
+
+## 3.4 Piloti della Fase B — congelati
+
+```text
+document-list      21 desktop · 18 copie · già motore · già azioni · già picker
+sales-order-list   10 desktop ·  9 copie · già motore · già azioni · già picker
+```
+
+Sono i due che **duplicano di più** e che hanno **già tutto il resto in comune**: il
+contenitore filtri è l'unico pezzo che manca, quindi il pilota non trascina altro.
+
+⛔ **Corrispettivi non è il primo consumer da modificare**, ed è confermato dalla misura: 11
+copie ma anche 637 righe di stile proprio, raggruppamento, subtotali, card e l'unico
+riepilogo. Ogni intervento lì ne trascina cinque insieme. **Resta il benchmark**: il
+contenitore comune nasce generalizzando ciò che Corrispettivi fa già bene, non adeguando
+Corrispettivi al contenitore.
+
+## 3.5 Consumer senza pannello filtri mobile — due casi, non uno
+
+⛔ **Vanno tenuti distinti**, perché il contenitore comune fa cose diverse ai due gruppi.
+
+|                                                  | Consumer                                                 | Cosa comporta                                                                                                                           |
+| ------------------------------------------------ | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **ha filtri desktop, non ha il pannello mobile** | `stock-movements` (8), `product-list` (4)                | il contenitore **aggiungerebbe** la parità mobile: è il contratto già approvato in questo documento, ma **non fa parte dei due piloti** |
+| **non ha filtri affatto**                        | `customer-list`, `supplier-list`, `inventory-count-list` | ⛔ il contenitore **non deve inventarne**: nessun filtro oggi, nessuno domani per analogia                                              |
+
+⚠️ `inventory-count-list` resta **subordinato alla specifica Inventario**, come già scritto in
+§2.7: il censimento tecnico c'è, la migrazione no.
+
+⚠️ Da questa misura **non discende nessuna modifica funzionale**. È una fotografia.
 
 ---
 
@@ -2724,7 +2827,11 @@ Per ogni consumer:
 - duplicazioni;
 - differenze reali.
 
-Output: matrice verificata.
+✅ **ESEGUITA il 29/08/2026. L’output è in §3.2**, con la fotografia riconfermata
+in §3.1, la causa tecnica in §3.3, i piloti congelati in §3.4 e i consumer senza
+pannello mobile in §3.5.
+
+⛔ **Zero modifiche al codice**, come la fase richiede.
 
 ## Fase B — contenitore filtri comune `0 → n`
 
