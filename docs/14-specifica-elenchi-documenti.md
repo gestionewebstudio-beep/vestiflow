@@ -2186,11 +2186,54 @@ Corrispettivi non è il primo consumer della migrazione DataTable.
 
 ---
 
-# 42-bis. Profili documentali: filtri fissi, riepiloghi e benchmark Danea
+# 42-bis. Profili documentali: filtri base, riepiloghi e benchmark Danea
 
 Questa sezione congela il **profilo minimo della pagina elenco** per i documenti indicati dall'owner il 29/08/2026.
 
 Le regole qui sotto prevalgono sulla matrice generica del §31 quando più specifiche.
+
+## 42-bis.0 ⭐ «Filtri base», non whitelist — deciso il 29/08/2026
+
+> **Le matrici di questa sezione indicano i filtri BASE del profilo: il minimo che
+> ogni profilo deve avere. NON sono un elenco esclusivo, e non autorizzano a
+> rimuovere un filtro che l'elenco già possiede.**
+
+⛔ **Qui la parola era «filtri fissi», e letta durante l'unificazione avrebbe
+cancellato funzioni esistenti.** La matrice di §42-bis.12 dice `Stato: no` per gli
+Arrivi merce e chiude con «non aggiungere filtri oltre questa matrice»: applicata
+alla lettera, l'elenco Arrivi merce avrebbe perso **quattro filtri che ha oggi** —
+Stato collegamento fattura, Magazzino, Tipo di documento, Pagamento — nessuno dei
+quali è mai stato messo in discussione.
+
+Quindi, durante la convergenza al contenitore comune:
+
+```text
+filtri base del profilo            dalle matrici qui sotto
++ filtri specifici già esistenti   coerenti con i dati del riepilogo
+= ciò che l'elenco deve avere DOPO la migrazione
+```
+
+⛔ **Nessuna rimozione funzionale durante un refactor.** Un filtro esistente si
+toglie solo con una decisione esplicita del proprietario, mai perché non compare in
+una matrice sintetica.
+
+⚠️ **E nemmeno l'opposto**: non si introduce un filtro per ogni colonna. I filtri
+esistenti restano perché esistono e servono, non perché una colonna li suggerisce.
+
+⛔ **La presenza di un filtro non si lega alla visibilità corrente della colonna nel
+selettore Colonne.** Sono due cose diverse: l'operatore che spegne una colonna non
+sta chiedendo di perdere il filtro corrispondente.
+
+### Cosa deve fare chi migra un profilo
+
+1. **misurare** i filtri che l'elenco ha oggi;
+2. **distinguere** base da specifici già esistenti;
+3. **conservare entrambi**, salvo decisione esplicita di rimozione;
+4. **verificare** che query, handler, default e URL non cambino di una virgola.
+
+⭐ **Il contenitore comune non c'entra con questa decisione**: rende i filtri che il
+consumer dichiara. È il consumer a sapere quali possiede — e per questo la scelta
+resta dove sta il dominio.
 
 ## 42-bis.1 Regole comuni ai profili
 
@@ -2285,7 +2328,7 @@ Le metriche Danea osservate nelle immagini sono usate come benchmark. Non autori
 
 ## 42-bis.2 Preventivi
 
-### Filtri fissi — decisione owner
+### Filtri base del profilo — decisione owner
 
 ```text
 Periodo
@@ -2323,7 +2366,7 @@ Le azioni concrete restano quelle già approvate dal modulo. Non copiare automat
 
 ## 42-bis.3 Ordini cliente
 
-### Filtri fissi — decisione owner
+### Filtri base del profilo — decisione owner
 
 ```text
 Periodo
@@ -2378,7 +2421,7 @@ Le funzioni documentali restano configurazione dell'Ordine cliente.
 
 ## 42-bis.4 Proforma
 
-### Filtri fissi — decisione owner
+### Filtri base del profilo — decisione owner
 
 ```text
 Periodo
@@ -2422,7 +2465,7 @@ Da saldare
 
 ## 42-bis.5 DDT vendita
 
-### Filtri fissi — decisione owner
+### Filtri base del profilo — decisione owner
 
 ```text
 Periodo
@@ -2454,7 +2497,7 @@ Se la specifica economica della famiglia DDT approva anche Netto/IVA nell'elenco
 
 ## 42-bis.6 Vendita al banco / Reso al banco
 
-### Filtri fissi — decisione owner
+### Filtri base del profilo — decisione owner
 
 ```text
 Periodo
@@ -2489,7 +2532,7 @@ Se la lista è separata per tipo, il riepilogo mantiene gli stessi valori senza 
 
 Il profilo comprende la famiglia di vendita che convive nell'elenco secondo la configurazione già approvata, senza ridefinire qui la matrice dei tipi.
 
-### Filtri fissi — decisione owner
+### Filtri base del profilo — decisione owner
 
 ```text
 Periodo
@@ -2537,7 +2580,7 @@ Per aggregazioni miste Fattura/Nota di credito il verso usa l'autorità economic
 
 ## 42-bis.8 Ordini fornitore
 
-### Filtri fissi — decisione owner
+### Filtri base del profilo — decisione owner
 
 ```text
 Periodo
@@ -2584,7 +2627,7 @@ Le informazioni Ricevuto/Residuo già appartenenti al flusso Ordine fornitore/Ar
 
 ## 42-bis.9 Arrivi merce
 
-### Filtri fissi
+### Filtri base del profilo
 
 Il filtro temporale è definitivo:
 
@@ -2622,6 +2665,34 @@ Totale documenti
 Nessun riepilogo di Giacenza viene calcolato qui: la Giacenza deriva dai movimenti, non dai totali documentali della lista.
 
 ---
+
+### ⚠️ I filtri che l’elenco ha GIÀ, e che restano
+
+Misurati il 29/08/2026 su `document-list`, profilo `goods-receipt`:
+
+```text
+Periodo                       base, con Dal/Al solo su «Personalizzato»
+Fornitore                     base
+──
+Stato collegamento fattura     specifico, esistente
+Magazzino                      specifico, esistente
+Tipo di documento              specifico, esistente
+Pagamento                      specifico, esistente
+```
+
+⛔ **I quattro specifici NON si toccano nella migrazione** (§42-bis.0). Non
+compaiono nella matrice sintetica perché quella elenca il minimo comune ai profili,
+e toglierli sarebbe una rimozione funzionale dentro un refactor.
+
+⚠️ **Il Periodo qui è un’eccezione rispetto agli altri profili**: i campi Dal/Al
+compaiono **solo** col preset «Personalizzato», mentre altrove sono sempre visibili.
+La condizione reale è `!isGoodsReceiptList() || isCustomPeriod()`, e il contenitore
+comune la riceve già risolta: non deve conoscere l’Arrivo merce.
+
+⚠️ **Il preset non è un query param**: è stato locale, e si ricostruisce all’avvio
+da `dateFrom`/`dateTo` — con date presenti si parte da «Personalizzato». Le date
+sole stanno nell’URL. Chi migra non deve «correggere» questa asimmetria: è il
+comportamento corrente, e cambiarlo cambierebbe gli URL condivisi.
 
 ## 42-bis.10 Corrispettivi — baseline da compattare
 
@@ -2716,7 +2787,7 @@ Il contenitore comune può essere adottato senza cambiare il contenuto funzional
 
 ## 42-bis.12 Matrice sintetica definitiva dei filtri
 
-| Profilo          | Periodo | Stato                         | Soggetto           | Altri filtri fissi                        |
+| Profilo          | Periodo | Stato                         | Soggetto           | Altri filtri base                         |
 | ---------------- | ------- | ----------------------------- | ------------------ | ----------------------------------------- |
 | Preventivi       | sì      | no                            | Cliente            | —                                         |
 | Ordini cliente   | sì      | Commerciale                   | Cliente            | —                                         |
@@ -2728,9 +2799,17 @@ Il contenitore comune può essere adottato senza cambiare il contenuto funzional
 | Arrivi merce     | sì      | no                            | Fornitore/Soggetto | —                                         |
 | Corrispettivi    | sì      | no                            | —                  | Origine · Tipo · Sede · Raggruppa (vista) |
 
-Questa matrice è normativa per i profili elencati.
+⚠️ **Questa matrice è normativa per il MINIMO, non per il massimo** (§42-bis.0).
+Dice quali filtri ogni profilo **deve** avere; non elenca tutto ciò che può avere, e
+**non autorizza a rimuovere** un filtro che l’elenco già possiede.
 
-Non aggiungere filtri oltre questa matrice senza una decisione owner o una specifica di modulo più recente.
+⛔ Gli Arrivi merce, per esempio, hanno oggi anche **Stato collegamento fattura,
+Magazzino, Tipo di documento e Pagamento**: la riga qui sopra dice `Stato: no` perché
+quello è lo stato _commerciale_, che l’Arrivo merce non ha — non perché gli altri
+quattro vadano tolti.
+
+Un filtro **nuovo** oltre questa matrice richiede una decisione owner o una specifica
+di modulo più recente. Un filtro **esistente** resta.
 
 ---
 
