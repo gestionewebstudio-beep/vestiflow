@@ -2,12 +2,13 @@
 
 ## Contenitore comune, filtri, griglia, selezione, riepiloghi, azioni, ordinamento ed export
 
-**Versione:** candidata 1.0-r3  
+**Versione:** candidata 1.0-r5  
 **Data:** 29/08/2026  
-**Stato:** candidata consolidata e dettagliata; da approvare prima dell'implementazione  
+**Stato:** candidata consolidata definitiva per l'implementazione; layout, profili documentali, riepilogo compatto e policy colonne congelati  
 **Ambito:** elenchi operativi/documentali VestiFlow  
 **Riferimento UX:** coerenza strutturale Danea Easyfatt, adattata alla UI web/mobile VestiFlow  
 **Fonti consolidate:** specifica comune elenchi r2 del 29/08/2026; precedente `docs/14` r2 del 28/08/2026; decisioni owner successive e specifiche di modulo prevalenti  
+**Fonte unica:** questo file. ⛔ Le versioni r3 e r4 e i file `VestiFlow_Specifica_Comune_Elenchi_*` sono stati **eliminati** il 29/08/2026: una specifica normativa che esiste in tre copie non è una specifica, e la storia sta in `git log -p`.  
 **Natura:** specifica normativa. Non è un audit, un diario dei commit o una proposta di nuove funzioni.
 
 > Questa versione consolida il documento nuovo con i contratti già decisi nel precedente `docs/14`.
@@ -38,11 +39,11 @@ CONTENITORE ELENCO COMUNE
 │ tabella / griglia / renderer dati del consumer               │
 │ selezione · sorting · celle · sezioni                        │
 ├─────────────────────────────────────────────────────────────┤
-│ RIGA FUNZIONI / AZIONI SULLA SELEZIONE                       │
-│ stabile dopo i dati e prima del riepilogo                    │
+│ TOTALI / RIEPILOGO COMPATTO                                 │
+│ una fascia desktop; valori allineati alle colonne se utile   │
 ├─────────────────────────────────────────────────────────────┤
-│ RIEPILOGO                                                   │
-│ contenitore comune · metriche e valori forniti dal modulo    │
+│ RIGA FUNZIONI                                               │
+│ funzioni del profilo, sotto i totali                         │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -50,11 +51,15 @@ Questa sequenza è normativa:
 
 ```text
 dati
-→ riga funzioni / azioni sulla selezione
-→ riepilogo / totali
+→ totali / riepilogo compatto
+→ funzioni
 ```
 
-La riga delle funzioni **non** va dopo il riepilogo.
+Obiettivo esplicito: **massimizzare l'altezza disponibile per le righe**.
+
+Il riepilogo desktop usa normalmente **una sola fascia orizzontale**. Quando una metrica corrisponde semanticamente a una colonna della griglia, il rendering può allinearla a quella colonna come un footer tabellare. Le metriche generali che non corrispondono a una colonna restano nella stessa fascia, in un gruppo compatto.
+
+La riga delle funzioni sta **sotto i totali**. Non occupa spazio nella testata e non si confonde con i filtri.
 
 ## 0.1 Comune non significa contenuto identico
 
@@ -215,6 +220,8 @@ STOP
 
 Questa specifica governa l'infrastruttura comune degli elenchi.
 
+**Questa r5 sostituisce integralmente, per questo blocco, le precedenti r4/r3 e il vecchio `docs/14` come fonte normativa operativa.** Le versioni precedenti restano solo storico e non devono essere rilette per ridecidere il layout o i contratti già congelati qui.
+
 Non sostituisce le specifiche di dominio.
 
 In particolare:
@@ -225,6 +232,21 @@ In particolare:
 - le specifiche economiche governano segni e valori canonici;
 - le specifiche Shopify governano ownership e canale;
 - le specifiche di modulo governano filtri, metriche e azioni realmente approvate.
+
+### Conflitti con regole UI precedenti
+
+Se `regole-stile-ui` o altre regole trasversali precedenti descrivono ancora il riepilogo Corrispettivi in **due fasce desktop**, quella formulazione è superata da questa r5.
+
+La decisione vigente è:
+
+```text
+desktop
+→ una sola fascia compatta di totali/riepilogo
+→ subito sotto i dati
+→ funzioni subito sotto il riepilogo
+```
+
+Quando questa specifica entra nel repository come fonte approvata, **`regole-stile-ui` deve essere aggiornata nello stesso blocco documentale**, eliminando il riferimento alle due fasce come regola corrente. Non devono restare due testi normativi concorrenti.
 
 ---
 
@@ -525,11 +547,11 @@ COMMON LIST PAGE
 │ selezione · sort · celle · sezioni                      │
 │ conteggio risultato                                     │
 ├──────────────────────────────────────────────────────────┤
-│ LIST ACTION BAR                                          │
-│ azioni sulla selezione / sul filtrato                    │
+│ LIST SUMMARY / TOTALS                                    │
+│ una fascia compatta · metriche fornite dal modulo        │
 ├──────────────────────────────────────────────────────────┤
-│ LIST SUMMARY                                             │
-│ metriche fornite dal modulo                             │
+│ LIST FUNCTIONS                                           │
+│ funzioni del profilo / selezione / filtrato              │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -831,10 +853,10 @@ Desktop usa filtri **inline sopra l'elenco**.
 
 ```text
 [Testata]
-[Ricerca] [Periodo] [Tipo] [Stato] [Soggetto] [Sede] [...] [Raggruppa] [Colonne]
+[Ricerca opzionale] [Periodo] [Tipo] [Stato] [Soggetto] [Sede] [...] [Raggruppa] [Colonne]
 [Dati]
-[Riga funzioni]
-[Riepilogo]
+[Totali / riepilogo compatto]
+[Funzioni]
 ```
 
 Non viene adottato il pannello laterale permanente Danea.
@@ -844,11 +866,11 @@ Non viene adottato il pannello laterale permanente Danea.
 Mobile usa:
 
 ```text
-[Testata / azioni compatte]
-[Filtri (n)] [Colonne] [eventuale export]
+[Testata / Nuovo]
+[Filtri (n)] [Colonne] [controlli vista]
 [Card/righe]
-[Riga funzioni]
-[Riepilogo]
+[Riepilogo compatto]
+[Funzioni]
 ```
 
 I filtri sono resi in un unico `SlidePanel`.
@@ -992,16 +1014,34 @@ La riga delle funzioni è stabile:
 
 ```text
 dati
-→ riga delle funzioni
-→ riepilogo/totali
+→ totali / riepilogo
+→ funzioni
 ```
 
 Non:
 
 - nella testata;
-- dopo i totali;
+- mescolata ai filtri;
+- sopra i totali;
 - sticky in fondo allo schermo;
 - visibile soltanto quando qualcosa è selezionato.
+
+La separazione concettuale è obbligatoria:
+
+```text
+FILTRI / VISTA
+→ decidono cosa e come vedere
+
+TOTALI / RIEPILOGO
+→ descrivono il risultato filtrato
+
+FUNZIONI
+→ agiscono sui record o sull'intero filtrato
+```
+
+Stampa, PDF, Excel, CSV/Esporta e le altre operazioni della pagina sono **funzioni**, non filtri né controlli di vista. Nel layout comune stanno normalmente nella riga funzioni inferiore, salvo eccezione di modulo esplicitamente approvata.
+
+`Nuovo` resta invece nella testata perché crea un nuovo record e costituisce la CTA primaria della pagina.
 
 ## 21.2 Stato con zero/una/più selezioni
 
@@ -1075,16 +1115,17 @@ Questa regola non obbliga ogni pulsante disabilitato dell'app ad avere lo stesso
 
 ## 21.6 Mobile
 
-Su mobile la riga delle funzioni resta:
+Su mobile la sequenza resta:
 
 ```text
-dopo le card
-prima dei totali
+card
+→ riepilogo compatto
+→ funzioni
 ```
 
-Può comprimere azioni in menu nominati.
+Le funzioni possono essere raccolte in menu nominati quando lo spazio non consente di mostrarle tutte.
 
-Non usare un `...` anonimo come unica casa delle azioni principali.
+Non usare un `...` anonimo come unica casa delle funzioni principali.
 
 ---
 
@@ -1097,28 +1138,115 @@ Riutilizzare:
 - `TableViewId`;
 - configurazioni colonne esistenti.
 
-## 22.1 Persistenza
+## 22.1 Visibilità e preset
 
 Per utente × tenant × vista si persistono:
 
 - preset;
 - colonne visibili.
 
-Non si persistono salvo futura decisione:
+Il comando `Colonne` serve quindi a **mostrare/nascondere** le colonne secondo il contratto già esistente.
 
-- larghezze manuali;
-- sort corrente;
-- ordine manuale delle colonne.
+## 22.2 Ordine delle colonne — decisione owner 29/08/2026
 
-## 22.2 Resize
+Per questa fase l'ordine delle colonne è **fisso e dichiarato dal profilo/configurazione**.
 
-Il resize:
+Non si implementano:
+
+- drag&drop delle intestazioni;
+- riordino manuale delle colonne;
+- persistenza dell'ordine personale delle colonne;
+- meccanismi temporanei di riordino validi solo fino al refresh.
+
+Motivo funzionale: un riordino manuale che non viene salvato produce un'esperienza incompleta e non giustifica nuova complessità nel primo blocco di unificazione.
+
+Quindi:
+
+```text
+Colonne
+→ visibilità/preset
+
+NON
+→ riordino manuale
+```
+
+Se in futuro si vorrà rendere l'ordine personalizzabile, la funzione dovrà nascere insieme alla **persistenza dell'ordine per utente × tenant × vista**. Il drag senza persistenza non è un obiettivo.
+
+## 22.3 Resize
+
+Il resize già esistente resta consentito dove oggi previsto:
 
 - usa la direttiva comune;
-- è temporaneo nella sessione della pagina;
-- non crea una seconda persistenza locale.
+- non introduce un secondo meccanismo locale;
+- resta temporaneo nella sessione della pagina salvo futura decisione diversa.
 
-## 22.3 Colonna stretta — decisione rinviata
+La decisione «ordine colonne fisso» non elimina il resize delle larghezze.
+
+## 22.4 Allineamento riepilogo ↔ colonne
+
+Il target funzionale è:
+
+```text
+metrica che corrisponde a una colonna
+→ può essere allineata sotto quella colonna
+
+metrica generale
+→ resta nella zona libera della stessa fascia
+```
+
+L'implementazione **non deve introdurre un nuovo motore di misurazione DOM a runtime** soltanto per inseguire le larghezze di una tabella `table-layout:auto`.
+
+Prima si verifica se il consumer può riusare una fonte di larghezze già esistente e condivisa, per esempio i contratti già presenti per:
+
+- distribuzione larghezze;
+- resize;
+- visibilità colonne.
+
+Se l'allineamento preciso richiede invece nuova infrastruttura complessa o una modifica trasversale `auto/fixed`, ci si ferma e si riporta all'owner. La fascia compatta resta corretta anche senza allineamento pixel-perfect.
+
+Questa specifica decide **il risultato funzionale**, non impone una nuova architettura tecnica per ottenerlo.
+
+### ⭐ Verifica ESEGUITA il 29/08/2026 — esito: fascia esterna, senza allineamento
+
+Il paragrafo qui sopra chiede di verificare prima di costruire, e di fermarsi se serve
+infrastruttura nuova. **La verifica è stata fatta, e la decisione è dell'owner.**
+
+Cosa si è misurato sul Registro Corrispettivi, che è il consumer di riferimento:
+
+```text
+tabella           table-layout: auto        il browser calcola le larghezze
+                                            internamente: nel DOM le celle non
+                                            portano nessun `width` leggibile
+
+riepilogo         componente FRATELLO       fuori dalla regione di scroll, perché
+                                            deve restare fermo mentre le righe
+                                            scorrono
+```
+
+Le due strade possibili, e perché nessuna delle due si prende adesso:
+
+|                                                                                                                                       |                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| misurare il DOM a runtime e rispecchiare le larghezze                                                                                 | ⛔ è esattamente il «nuovo motore di misurazione» che §22.4 vieta                                     |
+| adottare le larghezze dichiarate già esistenti (`line-column-widths.store`, `column-width-distribution.util`, la direttiva di resize) | ⛔ vivono su `table-layout: fixed`: adottarle è la modifica trasversale `auto/fixed` che §22.5 rinvia |
+
+> **Decisione owner: i totali stanno in una fascia FISSA ed ESTERNA, su una riga, senza
+> allineamento alle colonne.**
+
+⭐ **La fascia compatta resta corretta**, come §22.4 stesso prevede: l'obiettivo era
+recuperare spazio verticale, e una fascia sola lo recupera anche senza allineamento.
+
+⚠️ **Il subtotale di RAGGRUPPAMENTO è un'altra cosa e non si tocca.** «Totale giornata»
+è un `<tr>` **dentro** la tabella, quindi si allinea da sé — gratis, anche con
+`table-layout: auto`, perché è la tabella a mettere la quinta cella nella quinta colonna.
+Funziona già oggi ed è corretto. La decisione qui sopra riguarda **solo** la fascia
+finale, che è fuori dalla tabella e non ha colonne sotto cui stare.
+
+⭐ **Quando l'allineamento tornerà sul tavolo**, la strada è la seconda: le larghezze
+dichiarate sono lo **stesso prerequisito** di allineamento, resize e riordino colonne —
+un lavoro solo che ne abilita tre. Ma è una decisione `auto/fixed`, e §22.5 la rinvia.
+
+## 22.5 Colonna stretta — decisione ancora rinviata
 
 Non è consolidata una regola globale unica fra:
 
@@ -1336,6 +1464,32 @@ Non confondere row count e metriche economiche.
 
 # 27. Riepilogo comune dell'elenco
 
+## 27.0 Layout desktop: una fascia compatta
+
+Per gli elenchi documentali il riepilogo desktop usa come default **una sola riga/fascia**, subito sotto i dati e subito sopra le funzioni.
+
+Schema:
+
+```text
+┌──────────────────────────────────────────────────────────────┐
+│ N voci        metrica libera        NETTO     IVA     TOTALE │
+└──────────────────────────────────────────────────────────────┘
+```
+
+Regole:
+
+- `N voci`/conteggio può stare nella prima cella/zona a sinistra;
+- quando una metrica corrisponde a una colonna visibile, può allinearsi alla stessa colonna;
+- una metrica generale senza colonna corrispondente resta nella stessa fascia;
+- niente seconda banda desktop salvo eccezione esplicita del modulo;
+- niente ricalcoli nel renderer;
+- il riepilogo deve occupare meno altezza possibile senza perdere leggibilità;
+- sul mobile lo stesso contenuto può ridisporsi su più righe/card compatte.
+
+L'allineamento alle colonne è **opportunistico, non obbligatorio a costo di nuova complessità**: si riusa l'infrastruttura larghezze esistente quando disponibile; non si crea un sistema di misurazione DOM dedicato soltanto per il footer.
+
+Corrispettivi oggi usa due bande: nella convergenza al contenitore comune le stesse metriche devono essere **compattate in una fascia desktop**, senza modificarne valori, segni o semantica.
+
 ## 27.1 Responsabilità
 
 Il componente rende, il dominio calcola.
@@ -1469,20 +1623,7 @@ non sostituzione con dato anagrafico corrente.
 
 ## 29.3 Autorità del segno economico
 
-Il verso economico usa **l’autorità centralizzata** definita in
-`docs/15c-contratto-segno-economico-riepiloghi.md` e implementata in
-`src/app/domain/documents/models/document-economic-sign.util.ts`
-(`documentEconomicSign`, `signedDocumentMoney`).
-
-⛔ **Questa specifica NON ridefinisce il contratto del segno**: lo usa. Se le due
-divergono, vale `15c`.
-
-⚠️ Qui c’era «la stessa autorità già centralizzata» senza dire QUALE, ed è la forma
-da cui nasce il difetto che tutto questo documento vuole evitare: chi non trova
-l’autorità esistente ne ricostruisce un’altra, e da quel momento la stessa
-transazione vale numeri diversi a seconda di dove la si guarda.
-
-La tabella qui sotto è quindi un **promemoria di lettura**, non la fonte.
+La stessa autorità già centralizzata deve essere usata dove pertinente.
 
 Regole:
 
@@ -1546,7 +1687,7 @@ Sono esempi di forma, non autorizzazioni a creare nuove metriche.
 
 # 31. Matrice filtri iniziale
 
-Da verificare sul codice e sulle specifiche prima di implementare.
+Per i profili congelati al §42-bis prevale la matrice specifica del §42-bis.12. Per gli altri profili questa matrice resta indicativa e va verificata prima di implementare.
 
 | Elenco                          | Filtri/controlli attesi                                                                              |
 | ------------------------------- | ---------------------------------------------------------------------------------------------------- |
@@ -1942,11 +2083,603 @@ Corrispettivi non è il primo consumer della migrazione DataTable.
 
 ---
 
+# 42-bis. Profili documentali: filtri fissi, riepiloghi e benchmark Danea
+
+Questa sezione congela il **profilo minimo della pagina elenco** per i documenti indicati dall'owner il 29/08/2026.
+
+Le regole qui sotto prevalgono sulla matrice generica del §31 quando più specifiche.
+
+## 42-bis.1 Regole comuni ai profili
+
+### Periodo
+
+Tutti i profili indicati come `Periodo` riusano **lo stesso controllo data comune**.
+
+Il controllo deve poter rappresentare almeno:
+
+- Tutti;
+- Oggi;
+- Ieri;
+- Ultimi 7 giorni;
+- Ultimi 30 giorni;
+- Settimana corrente;
+- Settimana scorsa;
+- Mese corrente;
+- Mese scorso;
+- Trimestre corrente;
+- Trimestre scorso;
+- Anno corrente;
+- Anno scorso;
+- mese di calendario;
+- intervallo personalizzato `Dal / Al`.
+
+La UI può raggruppare le scelte meno frequenti sotto `Altro…`, come nel benchmark Danea, senza cambiare il contratto.
+
+Il filtro Periodo:
+
+- è sempre lo stesso concetto fra questi profili;
+- usa giorni civili coerenti fra UI e API;
+- scrive date riproducibili nell'URL quando applicabile;
+- non viene reimplementato localmente per documento.
+
+### Stato commerciale Ordini
+
+Per Ordine cliente e Ordine fornitore il filtro Stato usa soltanto:
+
+```text
+Tutti
+Da confermare
+Confermato
+Concluso
+Annullato
+```
+
+La semantica appartiene alle specifiche Ordini.
+
+### Stato economico Proforma/Fatture
+
+Per Proforma e Fatture il filtro non è uno stato documentale.
+
+È uno **stato economico/di saldo**:
+
+```text
+Tutti
+Da saldare
+Saldati
+```
+
+Questa capacità è il target funzionale, ma non va simulata con campi tecnici se il motore Pagamenti/Saldo non fornisce ancora il dato canonico.
+
+Finché la sorgente canonica non esiste:
+
+```text
+filtro dichiarato nel profilo
+→ implementazione sospesa
+→ nessun dato inventato
+```
+
+### Cliente / Fornitore / Soggetto
+
+I filtri soggetto usano il controllo entità comune.
+
+Non si crea un filtro testuale parallelo per ogni pagina.
+
+### Totali
+
+Il riepilogo per i profili documentali è un **footer a una riga**.
+
+Regola:
+
+```text
+conteggio a sinistra
++ aggregazioni approvate
++ allineamento alle colonne quando possibile
+```
+
+Le metriche Danea osservate nelle immagini sono usate come benchmark. Non autorizzano automaticamente metriche non ancora presenti/canoniche in VestiFlow, in particolare `Guadagno` e `Margine`.
+
+---
+
+## 42-bis.2 Preventivi
+
+### Filtri fissi — decisione owner
+
+```text
+Periodo
+Cliente
+```
+
+Non introdurre filtro Stato per analogia.
+
+### Benchmark Danea osservato
+
+La schermata mostra:
+
+- filtro Periodo;
+- filtro Cliente;
+- colonne fra cui `Tot. dovuto`;
+- nessun filtro Stato funzionale visibile nel pannello;
+- nel ritaglio fornito il footer non è visibile, quindi non si deducono altri totali Danea.
+
+### Riepilogo VestiFlow minimo
+
+```text
+N preventivi
+Totale documenti
+```
+
+Se nel profilo VestiFlow esistono già colonne canoniche Netto/IVA e si decide di mostrarne l'aggregato, possono essere aggiunte al footer senza cambiare il contenitore. Non vanno introdotte soltanto perché disponibili nel database.
+
+### Funzioni
+
+Usa la riga funzioni comune in basso.
+
+Le azioni concrete restano quelle già approvate dal modulo. Non copiare automaticamente le azioni Danea.
+
+---
+
+## 42-bis.3 Ordini cliente
+
+### Filtri fissi — decisione owner
+
+```text
+Periodo
+Stato commerciale
+Cliente
+```
+
+Valori Stato:
+
+```text
+Tutti
+Da confermare
+Confermato
+Concluso
+Annullato
+```
+
+### Benchmark Danea osservato
+
+Nel footer dell'immagine risultano aggregazioni sotto le colonne:
+
+- `Tot. dovuto` → 1.006,76 €;
+- `Tot. netto` → 915,22 €;
+- `Guadagno` → 467,93 €;
+- `IVA` → 91,54 €;
+- conteggio righe → 17 voci.
+
+`Guadagno` è benchmark Danea, **non requisito automatico VestiFlow**.
+
+### Riepilogo VestiFlow
+
+Target minimo:
+
+```text
+N ordini
+Netto
+IVA
+Totale
+```
+
+I valori devono provenire dai valori canonici/persistiti dell'ordine.
+
+Nessun calcolo di Impegnata nel footer viene introdotto da questa specifica.
+
+### Funzioni
+
+Riga funzioni sotto il footer.
+
+Le funzioni documentali restano configurazione dell'Ordine cliente.
+
+---
+
+## 42-bis.4 Proforma
+
+### Filtri fissi — decisione owner
+
+```text
+Periodo
+Stato economico
+Cliente
+```
+
+Stato economico target:
+
+```text
+Tutti
+Da saldare
+Saldati
+```
+
+### Benchmark Danea osservato
+
+Il pannello mostra:
+
+- Periodo;
+- Stato `Tutti / Da saldare / Saldati`;
+- Cliente.
+
+L'immagine fornita non contiene righe e non rende leggibile un footer con totali; non si inventano metriche Danea non osservate.
+
+### Riepilogo VestiFlow target
+
+Quando la posizione di saldo è disponibile da fonte canonica:
+
+```text
+N proforma
+Netto
+IVA
+Totale
+Da saldare
+```
+
+`Da saldare` dipende dal motore pagamenti/saldo e non viene ricostruito localmente dalla lista.
+
+---
+
+## 42-bis.5 DDT vendita
+
+### Filtri fissi — decisione owner
+
+```text
+Periodo
+Cliente / Soggetto
+```
+
+Nessun filtro Stato aggiunto per analogia in questo profilo.
+
+### Benchmark Danea osservato
+
+Il footer mostra:
+
+- `300 voci`;
+- `Tot. documento` → 17.509,11 €;
+- `Guadagno` → 978,23 €.
+
+`Guadagno` resta benchmark, non requisito automatico VestiFlow.
+
+### Riepilogo VestiFlow minimo
+
+```text
+N DDT
+Totale documenti
+```
+
+Se la specifica economica della famiglia DDT approva anche Netto/IVA nell'elenco, il contenitore può renderli, ma non vengono introdotti da questa specifica.
+
+---
+
+## 42-bis.6 Vendita al banco / Reso al banco
+
+### Filtri fissi — decisione owner
+
+```text
+Periodo
+Cliente
+```
+
+Il profilo può includere `Tipo = Vendita / Reso` soltanto se la lista fisica unisce già i due documenti e la specifica del modulo lo prevede. Questa riga non autorizza a creare una nuova unione.
+
+### Riepilogo VestiFlow
+
+Quando Vendita e Reso convivono nello stesso elenco:
+
+```text
+N documenti
+Netto
+IVA
+Totale
+```
+
+con verso economico centralizzato:
+
+```text
+Vendita → +
+Reso    → −
+```
+
+Se la lista è separata per tipo, il riepilogo mantiene gli stessi valori senza bisogno di un motore di segno aggiuntivo.
+
+---
+
+## 42-bis.7 Fatture
+
+Il profilo comprende la famiglia di vendita che convive nell'elenco secondo la configurazione già approvata, senza ridefinire qui la matrice dei tipi.
+
+### Filtri fissi — decisione owner
+
+```text
+Periodo
+Stato economico
+Cliente
+```
+
+Stato economico target:
+
+```text
+Tutti
+Da saldare
+Saldati
+```
+
+Non è lo stato FE e non è un generico stato documentale.
+
+### Benchmark Danea osservato
+
+Il footer mostra chiaramente:
+
+- `20 voci`;
+- `Tot. dovuto` → 4.818,78 €;
+- `Tot. netto` → 4.383,96 €;
+- `Ancora da saldare` → 1.998,60 €;
+- `IVA` → 434,82 €.
+
+È inoltre visibile un'ulteriore aggregazione nell'area Guadagno/Margine, ma lo screenshot non è sufficiente per consolidarne la semantica; non viene trasformata in requisito.
+
+### Riepilogo VestiFlow
+
+```text
+N documenti
+Netto
+IVA
+Totale
+Da saldare
+```
+
+Per aggregazioni miste Fattura/Nota di credito il verso usa l'autorità economica centralizzata.
+
+`Da saldare` arriva dalla fonte finanziaria canonica.
+
+---
+
+## 42-bis.8 Ordini fornitore
+
+### Filtri fissi — decisione owner
+
+```text
+Periodo
+Stato commerciale
+Fornitore
+```
+
+Valori Stato:
+
+```text
+Tutti
+Da confermare
+Confermato
+Concluso
+Annullato
+```
+
+### Benchmark Danea osservato
+
+Il footer mostra:
+
+- `2 voci`;
+- `Tot. documento` → 334,67 €.
+
+### Riepilogo VestiFlow
+
+```text
+N ordini
+Totale documenti
+```
+
+Non introdurre nel footer:
+
+- Giacenza;
+- Impegnata;
+- Disponibile;
+- `In arrivo`;
+
+per analogia.
+
+Le informazioni Ricevuto/Residuo già appartenenti al flusso Ordine fornitore/Arrivo merce restano materia della specifica del modulo, non del riepilogo comune.
+
+---
+
+## 42-bis.9 Arrivi merce
+
+### Filtri fissi
+
+Il filtro temporale è definitivo:
+
+```text
+Periodo
+```
+
+Per il soggetto, il benchmark Danea usa `Soggetto`; nel dominio VestiFlow l'Arrivo merce ordinario è legato al fornitore.
+
+Il profilo VestiFlow usa quindi:
+
+```text
+Periodo
+Fornitore / Soggetto
+```
+
+senza trasformarlo in `Cliente` per analogia.
+
+Se l'owner intende includere in questo stesso elenco arrivi da soggetti non-fornitore, la label `Soggetto` va confermata nella specifica Arrivo merce; il contenitore comune non prende questa decisione.
+
+### Benchmark Danea osservato
+
+Il footer mostra:
+
+- `105 voci`;
+- `Tot. documento` → 182.800,80 €.
+
+### Riepilogo VestiFlow
+
+```text
+N arrivi
+Totale documenti
+```
+
+Nessun riepilogo di Giacenza viene calcolato qui: la Giacenza deriva dai movimenti, non dai totali documentali della lista.
+
+---
+
+## 42-bis.10 Corrispettivi — baseline da compattare
+
+### Filtri attuali VestiFlow da preservare
+
+```text
+Periodo
+Origine
+Tipo
+Sede
+```
+
+Controllo vista:
+
+```text
+Raggruppa
+```
+
+`Raggruppa` non è un filtro.
+
+### Metriche attuali da preservare
+
+Oggi il riepilogo VestiFlow contiene:
+
+```text
+Rettifiche
+Annullamenti
+Vendite
+Imponibile
+IVA
+Totale vendite
+Corrispettivo
+```
+
+La convergenza non modifica valori né formule.
+
+### Nuovo layout comune
+
+Sul desktop le metriche vengono rese in **una sola fascia compatta**:
+
+```text
+N righe
+Rettifiche
+Annullamenti
+Vendite
+Imponibile
+IVA
+Totale vendite
+Corrispettivo
+```
+
+Le metriche monetarie possono allinearsi alle colonne economiche quando ciò migliora la lettura.
+
+Le funzioni:
+
+```text
+Stampa
+PDF
+Excel
+CSV/Esporta
+...
+```
+
+passano nella riga funzioni **sotto il riepilogo**, invece di occupare la testata, salvo eccezione specifica approvata.
+
+Su mobile le stesse metriche possono disporsi su più righe compatte; non devono essere duplicate o ricalcolate.
+
+---
+
+## 42-bis.11 Profili non congelati da questa decisione
+
+Questa sezione non decide automaticamente filtri/totali per:
+
+- Registrazione fattura fornitore;
+- Trasferimenti;
+- Rettifiche;
+- altri profili `document-list`;
+- Inventario;
+- altri report.
+
+Fino a una decisione specifica:
+
+```text
+preservare comportamento corrente
+→ nessun nuovo filtro
+→ nessuna nuova metrica
+```
+
+Il contenitore comune può essere adottato senza cambiare il contenuto funzionale del profilo.
+
+---
+
+## 42-bis.12 Matrice sintetica definitiva dei filtri
+
+| Profilo          | Periodo | Stato                         | Soggetto           | Altri filtri fissi                        |
+| ---------------- | ------- | ----------------------------- | ------------------ | ----------------------------------------- |
+| Preventivi       | sì      | no                            | Cliente            | —                                         |
+| Ordini cliente   | sì      | Commerciale                   | Cliente            | —                                         |
+| Proforma         | sì      | Economico: Da saldare/Saldati | Cliente            | —                                         |
+| DDT vendita      | sì      | no                            | Cliente/Soggetto   | —                                         |
+| Vendita al banco | sì      | no                            | Cliente            | —                                         |
+| Fatture          | sì      | Economico: Da saldare/Saldati | Cliente            | —                                         |
+| Ordini fornitore | sì      | Commerciale                   | Fornitore          | —                                         |
+| Arrivi merce     | sì      | no                            | Fornitore/Soggetto | —                                         |
+| Corrispettivi    | sì      | no                            | —                  | Origine · Tipo · Sede · Raggruppa (vista) |
+
+Questa matrice è normativa per i profili elencati.
+
+Non aggiungere filtri oltre questa matrice senza una decisione owner o una specifica di modulo più recente.
+
+---
+
+## 42-bis.13 Matrice sintetica dei riepiloghi
+
+| Profilo               | Conteggio    | Totali minimi VestiFlow                                                                 |
+| --------------------- | ------------ | --------------------------------------------------------------------------------------- |
+| Preventivi            | N preventivi | Totale documenti                                                                        |
+| Ordini cliente        | N ordini     | Netto · IVA · Totale                                                                    |
+| Proforma              | N proforma   | Netto · IVA · Totale · Da saldare                                                       |
+| DDT vendita           | N DDT        | Totale documenti                                                                        |
+| Vendita/Reso al banco | N documenti  | Netto · IVA · Totale                                                                    |
+| Fatture               | N documenti  | Netto · IVA · Totale · Da saldare                                                       |
+| Ordini fornitore      | N ordini     | Totale documenti                                                                        |
+| Arrivi merce          | N arrivi     | Totale documenti                                                                        |
+| Corrispettivi         | N righe      | Rettifiche · Annullamenti · Vendite · Imponibile · IVA · Totale vendite · Corrispettivo |
+
+`Da saldare` viene implementato soltanto quando la fonte finanziaria canonica è disponibile.
+
+`Guadagno`/`Margine` osservati in Danea non diventano metriche VestiFlow senza decisione esplicita.
+
+---
+
 # 43. Strategia di implementazione definitiva
 
 Le fasi seguenti costruiscono lo **stesso contenitore comune**.
 
 Non sono sei refactor indipendenti.
+
+## 43.0 Disciplina delle fonti durante l'implementazione
+
+Per questo blocco Claude deve usare **questa r5 come fonte normativa principale**.
+
+Non deve riaprire:
+
+- r4/r3;
+- vecchio `docs/14`;
+- audit storici;
+- proposte ritirate;
+
+per ridecidere struttura, filtri, riepiloghi, posizione funzioni o colonne.
+
+Altri documenti si consultano soltanto quando questa r5 rimanda esplicitamente a una regola di dominio che serve per conoscere un valore, un filtro o un'azione concreta.
+
+Se un altro documento storico contraddice una decisione congelata qui:
+
+```text
+non si media
+non si sceglie la versione più comoda
+→ vale la fonte più recente e specifica
+→ la contraddizione documentale viene segnalata e bonificata
+```
 
 Regola:
 
@@ -2190,7 +2923,8 @@ L'HTML provvisorio non è prova definitiva del comportamento.
 
 # 49. Criteri di accettazione — Azioni
 
-- riga funzioni dopo dati e prima riepilogo;
+- riepilogo/totali subito dopo i dati;
+- riga funzioni subito dopo il riepilogo;
 - posizione stabile con 0/1/N selezioni;
 - arità rispettata;
 - `filtered` = intero dataset filtrato;
@@ -2205,6 +2939,9 @@ L'HTML provvisorio non è prova definitiva del comportamento.
 # 50. Criteri di accettazione — Tabella/Griglia
 
 - motore comune riusato dove compatibile;
+- ordine colonne fisso da configurazione;
+- nessun drag/reorder colonne in questa fase;
+- `Colonne` governa visibilità/preset, non ordine manuale;
 - niente secondo motore equivalente;
 - celle speciali preservate;
 - sorting comune;
@@ -2234,6 +2971,9 @@ L'HTML provvisorio non è prova definitiva del comportamento.
 # 52. Criteri di accettazione — Riepilogo
 
 - stesso contenitore sui consumer con summary;
+- una sola fascia desktop come default;
+- posizione: dopo dati, prima delle funzioni;
+- metriche allineabili alle colonne quando semanticamente corrispondenti;
 - metriche configurate dal modulo;
 - nessuna nuova metrica inventata;
 - nessun ricalcolo documento;
@@ -2253,7 +2993,8 @@ L'HTML provvisorio non è prova definitiva del comportamento.
 - stessi handler;
 - Colonne accessibile;
 - azioni nominate;
-- riga funzioni dopo card/prima riepilogo;
+- riepilogo compatto dopo le card;
+- riga funzioni dopo il riepilogo;
 - una sola rappresentazione DOM attiva;
 - chevron solo per navigazione;
 - nessuna logica duplicata desktop/mobile.
@@ -2384,7 +3125,7 @@ Restano fuori e non autorizzano deduzioni:
 - semantica unica UTC/ora locale del Periodo se non già definita;
 - comportamento globale colonna stretta;
 - persistenza larghezze colonne;
-- ordine manuale colonne;
+- eventuale riordino manuale colonne futuro, soltanto insieme alla persistenza dell'ordine per utente/tenant/vista;
 - ulteriori metriche non già approvate.
 
 ---
@@ -2434,12 +3175,17 @@ Il blocco è concluso solo quando:
 - Non degradare Corrispettivi per farlo entrare nel motore comune.
 - Non usare una build verde come prova visiva.
 - Non inventare decisioni quando la specifica non copre il caso.
+- Non implementare drag&drop/riordino colonne in questa fase.
+- Non introdurre un riordino colonne non persistente.
+- Non creare un motore di misurazione DOM per allineare il riepilogo se l'infrastruttura larghezze esistente non basta.
+- Non ricreare due bande desktop di riepilogo quando le metriche possono stare nella fascia unica comune.
+- Non lasciare Stampa/PDF/Excel/CSV in testata se appartengono alla riga funzioni del profilo comune, salvo eccezione approvata.
 
 ---
 
 # 60. Decisione finale da riportare nel Master
 
-> **Gli elenchi operativi VestiFlow convergono su un unico contenitore/telaio di pagina.** Il contenitore offre zone comuni e ordinate per testata, ricerca/filtri, dati, riga delle funzioni e riepilogo. Sul desktop i filtri dichiarati dal modulo sono inline sopra l'elenco; sul mobile gli stessi filtri, con lo stesso stato e gli stessi handler, sono resi tramite un unico `Filtri (n)`/pannello. La selezione è distinta dall'apertura della riga e la riga delle funzioni resta stabile dopo i dati e prima dei totali. Il riepilogo usa un contenitore comune di rendering, mentre metriche e valori sono forniti dal dominio e non vengono ricalcolati dal shell. Il renderer dati usa il motore tabella comune quando compatibile e può restare specifico soltanto per differenze reali documentate. Colonne, sorting, azioni ed export riusano i contratti comuni esistenti. Corrispettivi è il riferimento visivo e comportamentale per filtri, densità, mobile e riepilogo, ma non viene degradato né migrato meccanicamente per primo. `document-list` resta un unico consumer fisico con configurazioni per profilo. L'unificazione elimina duplicazione strutturale equivalente e **non autorizza nuove funzioni, nuove metriche o cambi di dominio**.
+> **Gli elenchi operativi VestiFlow convergono su un unico contenitore/telaio di pagina.** Il contenitore offre zone comuni e ordinate per testata, ricerca/filtri, dati, riepilogo/totali compatti e funzioni. Sul desktop i filtri dichiarati dal modulo sono inline sopra l'elenco; sul mobile gli stessi filtri, con lo stesso stato e gli stessi handler, sono resi tramite un unico `Filtri (n)`/pannello. La selezione è distinta dall'apertura della riga e il riepilogo/totali resta subito sotto i dati e la riga delle funzioni resta stabile subito sotto il riepilogo. Il riepilogo usa un contenitore comune di rendering, mentre metriche e valori sono forniti dal dominio e non vengono ricalcolati dal shell. Il renderer dati usa il motore tabella comune quando compatibile e può restare specifico soltanto per differenze reali documentate. Colonne, sorting, azioni ed export riusano i contratti comuni esistenti. Corrispettivi è il riferimento visivo e comportamentale per filtri, densità, mobile e riepilogo, ma non viene degradato né migrato meccanicamente per primo. `document-list` resta un unico consumer fisico con configurazioni per profilo. L'ordine delle colonne resta fisso nella configurazione del profilo; `Colonne` gestisce visibilità/preset e non introduce drag&drop. L'allineamento dei totali alle colonne viene realizzato solo quando può riusare infrastrutture di larghezza già esistenti, senza un nuovo motore di misurazione. L'unificazione elimina duplicazione strutturale equivalente e **non autorizza nuove funzioni, nuove metriche o cambi di dominio**.
 
 ---
 
@@ -2450,8 +3196,8 @@ UN SOLO CONTENITORE
   testata
   ricerca/filtri
   dati
-  riga funzioni
-  riepilogo
+  riepilogo/totali
+  funzioni
 
 FILTRI
   desktop inline
@@ -2471,16 +3217,18 @@ SELEZIONE
   identità canonica
 
 AZIONI
-  dopo i dati
-  prima dei totali
+  dopo il riepilogo/totali
   posizione stabile
   none / one / oneOrMore
   filtered ≠ pagina visibile
 
 RIEPILOGO
   contenitore comune
+  una fascia desktop come default
+  subito sotto i dati
   valori del dominio
   intero filtrato
+  allineabile alle colonne
   nessun ricalcolo
 
 GRIGLIA
@@ -2494,7 +3242,9 @@ ORDINAMENTO
   export coerente
 
 COLONNE
+  ordine fisso per profilo
   preset + visibilità persistiti
+  nessun drag/reorder in questa fase
   resize temporaneo
 
 MOBILE
@@ -2510,4 +3260,49 @@ NESSUNA DERIVA
   niente nuove metriche
   niente cambi di dominio
   dubbio → owner
+```
+
+---
+
+# 62. Fonte visiva della revisione r4
+
+La revisione r4 consolida il layout sulla base della UI VestiFlow Corrispettivi esistente e delle schermate Danea fornite dall'owner il 29/08/2026 per Preventivi, Ordini cliente, Proforma, DDT, Fatture, Ordini fornitore e Arrivi merce.
+
+Le schermate Danea sono benchmark di struttura, filtri e footer; non sono fonte per introdurre funzioni non approvate in VestiFlow.
+
+---
+
+# 63. Chiusura decisioni della revisione r5
+
+Decisioni owner consolidate il 29/08/2026:
+
+```text
+RIEPILOGO DESKTOP
+→ una sola fascia compatta
+→ sotto i dati
+→ sopra le funzioni
+→ obiettivo: più spazio verticale per le righe
+
+FUNZIONI
+→ sotto il riepilogo
+→ separate da filtri e controlli vista
+
+COLONNE
+→ ordine fisso per ora
+→ visibilità/preset configurabili
+→ resize esistente preservato
+→ nessun drag/reorder senza persistenza
+
+ALLINEAMENTO TOTALI  — verificato e CHIUSO il 29/08
+→ fascia FISSA ed ESTERNA, su una riga
+→ NESSUN allineamento alle colonne: richiederebbe o un motore DOM
+  (vietato da §22.4) o il passaggio auto→fixed (rinviato da §22.5)
+→ il subtotale di raggruppamento resta allineato: è dentro la tabella
+→ quando si riaprirà: larghezze dichiarate, non misurazione DOM
+
+FONTI  — consolidate il 29/08
+→ QUESTO file (`docs/14`) è la fonte operativa, e l’unica
+→ le versioni r3/r4 e i file `VestiFlow_Specifica_Comune_Elenchi_*`
+  sono stati ELIMINATI: la storia sta in git, non in copie parallele
+→ `regole-stile-ui` è stata allineata sulla fascia unica
 ```

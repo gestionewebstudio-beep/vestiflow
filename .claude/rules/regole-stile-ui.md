@@ -482,16 +482,29 @@ scartate sono la parte utile.
   sull'ultima), mai con un riquadro ciascuna. Il `gap` orizzontale resta `0`:
   lo spazio lo dà il padding della voce, o il filo cade in mezzo a un vuoto
   doppio.
-- **Due fasce, divise da un filo orizzontale**: sopra i **conteggi** (quante
-  rettifiche, quanti annullamenti, quante vendite), sotto gli **importi**
-  (imponibile, IVA, totale vendite, e per ultimo il totale che risponde alla
-  domanda della pagina). Un conteggio e un importo rispondono a domande
-  diverse: nella stessa fila si leggono come se fossero la stessa grandezza.
+- ⭐ **UNA sola fascia sul desktop** — deciso dal proprietario il 29/08/2026
+  (`14` §27.0, §63). Conteggi a sinistra, importi a destra, sulla stessa riga:
+  `N voci · metriche libere · NETTO · IVA · TOTALE`.
+
+  ⛔ **Qui c’erano DUE fasce** — sopra i conteggi, sotto gli importi — con la
+  motivazione che _«un conteggio e un importo rispondono a domande diverse:
+  nella stessa fila si leggono come se fossero la stessa grandezza»_.
+  L’argomento non era sbagliato, ma è stato pesato contro un altro e ha perso:
+  **la seconda fascia costa una fascia di altezza a ogni schermata**, e in fondo
+  a un elenco lungo lo spazio verticale vale più della separazione semantica.
+  La distinzione resta leggibile dalla posizione e dalla taglia, non dalla riga.
+
+  ⚠️ La fascia sta **fuori** dalla regione di scroll e **non si allinea alle
+  colonne** (`14` §22.4): il subtotale di raggruppamento invece sì, perché è una
+  riga dentro la tabella. Sono due cose diverse e non vanno uniformate.
+
 - **Le colonne se le conta la griglia**: `repeat(auto-fit, minmax(var(--summary-item-min-w), 1fr))`
-  su ogni fascia. Con le fasce separate una da tre voci occupa tre colonne e
-  una da quattro ne occupa quattro, **a qualunque larghezza e senza una sola
-  media query**. Il componente di riferimento aveva tre blocchi responsive: ora
-  ne ha zero.
+  sulla fascia. Le voci si dispongono da sé **a qualunque larghezza e senza una
+  sola media query**: il componente di riferimento aveva tre blocchi responsive,
+  ora ne ha zero. ⚠️ Con la fascia unica il conto è uno solo, e va verificato che
+  le voci ci stiano: su schermo stretto la griglia manda a capo, ed è il
+  comportamento previsto (`14` §27.0: «sul mobile lo stesso contenuto può
+  ridisporsi su più righe»).
 - **`--summary-item-min-w` si misura sull'etichetta più lunga**, non si sceglie
   a occhio: larghezza del testo a `--text-2xs` uppercase con tracking `.045em`,
   più il padding orizzontale della voce. Le `dt` portano `white-space: nowrap`
