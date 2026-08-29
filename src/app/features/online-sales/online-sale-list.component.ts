@@ -22,16 +22,11 @@ import type { Subscription } from 'rxjs';
 import type { PageMeta } from '@core/models/api.model';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
-import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
-import { ButtonComponent } from '@shared/components/button/button.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
+import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import { PaginationComponent } from '@shared/components/pagination/pagination.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
-import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
-import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 import { OnlineSaleTableComponent } from './components/online-sale-table/online-sale-table.component';
 import type { OnlineSaleListQuery, OnlineSaleRow } from './models/online-sale.model';
@@ -62,15 +57,10 @@ type ListState =
   selector: 'app-online-sale-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    BackButtonComponent,
-    ButtonComponent,
+    ListPageComponent,
     DateInputComponent,
-    EmptyStateComponent,
-    ErrorStateComponent,
     PaginationComponent,
     SelectMenuComponent,
-    SlidePanelComponent,
-    TableSkeletonComponent,
     OnlineSaleTableComponent,
   ],
   templateUrl: './online-sale-list.component.html',
@@ -163,8 +153,6 @@ export class OnlineSaleListComponent {
   });
 
   /** Pannello filtri mobile (layout comune pagine-registro): pulsante «Filtri (n)». */
-  protected readonly mobileFiltersOpen = signal(false);
-
   /**
    * Quanti filtri sono attivi, per il badge del pulsante «Filtri». La ricerca
    * non conta: ha il suo campo sempre visibile. Dal/Al formano un unico
@@ -189,10 +177,6 @@ export class OnlineSaleListComponent {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((value) => this.applySearch(value));
-  }
-
-  protected onSearchInput(event: Event): void {
-    this.searchDraft.set((event.target as HTMLInputElement).value);
   }
 
   protected onChannelFilterChange(value: string | null): void {

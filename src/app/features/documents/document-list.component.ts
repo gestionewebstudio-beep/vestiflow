@@ -55,19 +55,15 @@ import {
   resolveMovementPeriodRange,
 } from '@domain/inventory/models/movement-period.util';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
-import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
+import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
-import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
-import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
-import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import {
   FILTERED_SCOPE_NOT_AVAILABLE,
   type ListAction,
@@ -204,18 +200,14 @@ type DeleteResult =
   selector: 'app-document-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    BackButtonComponent,
+    ListPageComponent,
     ButtonComponent,
     ConfirmDialogComponent,
     DateInputComponent,
-    EmptyStateComponent,
     ErrorStateComponent,
     ListActionsBarComponent,
     SelectMenuComponent,
-    SlidePanelComponent,
-    TableSkeletonComponent,
     DocumentTableComponent,
-    TableColumnPickerComponent,
   ],
   templateUrl: './document-list.component.html',
   styleUrl: './document-list.component.scss',

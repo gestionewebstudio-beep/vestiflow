@@ -1,19 +1,26 @@
-<section class="sales-list">
-  <header class="sales-list__header">
-    <div class="sales-list__heading">
-      <!-- Pagina di primo livello senza padre nell'URL: il ritorno esplicito
-           è «Documenti», coerente col breadcrumb. -->
-      <app-back-button fallbackLink="/app/documents" />
-      <div class="sales-list__title-row">
-        <h1 class="sales-list__title">{{ pageTitle() }}</h1>
-        @if (!loading()) {
-          <span class="sales-list__count tabular-nums">
-            {{ meta().total }} {{ meta().total === 1 ? 'documento' : 'documenti' }}
-          </span>
-        }
-      </div>
-      <p class="sales-list__subtitle">{{ pageSubtitle() }}</p>
-    </div>
+<app-list-page
+  class="sales-list"
+  [pageTitle]="pageTitle()"
+  [showBack]="true"
+  backFallback="/app/documents"
+  [count]="loading() ? undefined : meta().total + (meta().total === 1 ? ' ordine' : ' ordini')"
+  [loading]="loading()"
+  [error]="error()?.message ?? null"
+  [isEmpty]="isEmpty()"
+  [skeletonColumns]="skeletonColumns"
+  [columnsViewId]="columnsView()"
+  [activeFilterCount]="activeFilterCount()"
+  searchAriaLabel="Cerca vendite"
+  searchPlaceholder="Cerca per ordine, cliente, prodotto o SKU…"
+  [searchValue]="searchDraft()"
+  emptyTitle="Nessun ordine"
+  emptyDescription="Nessun ordine corrisponde ai filtri attuali. Gli ordini arrivano dai canali collegati o dalla registrazione manuale."
+  emptyIcon="pi-shopping-cart"
+  (searchChange)="searchDraft.set($event)"
+  (filtersCleared)="resetFilters()"
+  (retry)="reload()"
+>
+  <div pageActions>
     @if (canCreateManualOrder()) {
       <div class="sales-list__actions">
         <app-button (click)="createManualOrder()">
@@ -36,8 +43,9 @@
         </app-button>
       </div>
     }
-  </header>
+  </div>
 
+  <div warnings>
   @if (shopifySyncError(); as message) {
     <p class="sales-list__shopify-error" role="alert">{{ message }}</p>
   }
@@ -69,440 +77,270 @@
     />
   }
 
-  <div class="sales-list__toolbar sales-list__toolbar--card">
-    <!-- Riga 1: ricerca (cresce) + azioni a destra. -->
-    <div class="sales-list__toolbar-main">
-      <div class="sales-list__search">
-        <i class="pi pi-search sales-list__search-icon" aria-hidden="true"></i>
-        <input
-          id="sales-search"
-          class="sales-list__input"
-          type="search"
-          [value]="searchDraft()"
-          placeholder="Cerca per ordine, cliente, prodotto o SKU…"
-          aria-label="Cerca vendite"
-          (input)="onSearchInput($event)"
-        />
-      </div>
-
-      <div class="sales-list__toolbar-actions">
-        <button
-          type="button"
-          class="sales-list__mobile-filters"
-          (click)="mobileFiltersOpen.set(true)"
-        >
-          <i class="pi pi-sliders-h" aria-hidden="true"></i>
-          Filtri
-          @if (activeFilterCount() > 0) {
-            <span class="sales-list__filter-badge tabular-nums">{{ activeFilterCount() }}</span>
-          }
-        </button>
-
-        <app-table-column-picker [viewId]="columnsView()" />
-      </div>
-    </div>
-
-    <!-- Riga 2: chip filtro a piena larghezza (ognuna cresce), su mobile
-         spariscono a favore del pulsante «Filtri». -->
-    <div class="sales-list__filters sales-list__filters--inline">
-      <div class="sales-list__field">
-        <app-select-menu
-          chipLabel="Periodo"
-          [options]="periodOptions"
-          [value]="periodPreset()"
-          ariaLabel="Filtra per periodo"
-          placeholder="Tutto"
-          [compact]="true"
-          [fullWidth]="true"
-          [filterChip]="true"
-          (valueChange)="onPeriodPresetChange($event)"
-        />
-      </div>
-
-      @if (isCustomPeriod()) {
-        <div class="sales-list__field sales-list__field--date">
-          <label class="sales-list__label" for="sales-date-from">Dal</label>
-          <app-date-input
-            inputId="sales-date-from"
-            [value]="query().placedFrom ?? ''"
-            ariaLabel="Data inizio periodo"
-            placeholder="gg/mm/aaaa"
-            [compact]="true"
-            [fullWidth]="true"
-            [max]="query().placedTo || undefined"
-            (valueChange)="onDateFromChange($event)"
-          />
-        </div>
-
-        <div class="sales-list__field sales-list__field--date">
-          <label class="sales-list__label" for="sales-date-to">Al</label>
-          <app-date-input
-            inputId="sales-date-to"
-            [value]="query().placedTo ?? ''"
-            ariaLabel="Data fine periodo"
-            placeholder="gg/mm/aaaa"
-            [compact]="true"
-            [fullWidth]="true"
-            [min]="query().placedFrom || undefined"
-            (valueChange)="onDateToChange($event)"
-          />
-        </div>
-      }
-
-      <div class="sales-list__field">
-        <app-select-menu
-          chipLabel="Stato"
-          [options]="stateOptions"
-          [value]="query().state ?? ''"
-          ariaLabel="Filtra per stato ordine"
-          placeholder="Tutti"
-          [compact]="true"
-          [fullWidth]="true"
-          (valueChange)="onStateFilterChange($event)"
-          [filterChip]="true"
-        />
-      </div>
-
-      <div class="sales-list__field">
-        <app-select-menu
-          chipLabel="Origine"
-          [options]="sourceOptions()"
-          [value]="query().source ?? ''"
-          ariaLabel="Filtra per origine ordine"
-          placeholder="Tutte"
-          [compact]="true"
-          [fullWidth]="true"
-          (valueChange)="onSourceFilterChange($event)"
-          [filterChip]="true"
-        />
-      </div>
-
-      <div class="sales-list__field">
-        <app-select-menu
-          chipLabel="Pagamento"
-          [options]="financialStatusOptions"
-          [value]="query().financialStatus ?? ''"
-          ariaLabel="Filtra per stato pagamento"
-          placeholder="Tutti"
-          [compact]="true"
-          [fullWidth]="true"
-          (valueChange)="onFinancialFilterChange($event)"
-          [filterChip]="true"
-        />
-      </div>
-
-      <div class="sales-list__field">
-        <app-select-menu
-          chipLabel="Evasione"
-          [options]="fulfillmentStatusOptions"
-          [value]="query().fulfillmentStatus ?? ''"
-          ariaLabel="Filtra per stato evasione"
-          placeholder="Tutte"
-          [compact]="true"
-          [fullWidth]="true"
-          (valueChange)="onFulfillmentFilterChange($event)"
-          [filterChip]="true"
-        />
-      </div>
-
-      <div class="sales-list__field">
-        <app-select-menu
-          chipLabel="Cliente"
-          [options]="customerOptions()"
-          [value]="query().customerId ?? ''"
-          ariaLabel="Filtra per cliente"
-          placeholder="Tutti"
-          [compact]="true"
-          [fullWidth]="true"
-          [searchable]="true"
-          searchPlaceholder="Cerca cliente…"
-          searchAriaLabel="Cerca cliente"
-          (valueChange)="onCustomerFilterChange($event)"
-          [filterChip]="true"
-        />
-      </div>
-
-      <div class="sales-list__field">
-        <app-select-menu
-          chipLabel="Location"
-          [options]="locationOptions()"
-          [value]="query().locationId ?? ''"
-          ariaLabel="Filtra per location"
-          placeholder="Tutte"
-          [compact]="true"
-          [fullWidth]="true"
-          (valueChange)="onLocationFilterChange($event)"
-          [filterChip]="true"
-        />
-      </div>
-
-      @if (hasActiveFilters()) {
-        <button type="button" class="sales-list__clear" (click)="resetFilters()">Azzera</button>
-      }
-    </div>
+    <!--
+      ⚠️ L'errore di AZIONE non è l'errore di caricamento: quello lo rende il
+      telaio al posto della tabella, questo si affianca ai dati che restano
+      visibili.
+    -->
+    @if (actionError(); as err) {
+      <app-error-state [description]="err.message" />
+    }
   </div>
 
   <!--
-    La barra contestuale è il componente COMUNE (`14` parte D): questa pagina
-    dichiara le proprie azioni, non ne disegna i pulsanti. Qui c'erano gli
-    stessi cinque `app-button` dell'elenco documenti, copiati.
+    ⭐ Periodo resta in barra a ogni larghezza: è uno dei due che non entrano
+    nelle colonne (`14` §0.2).
   -->
-  <app-list-actions-bar
-    [count]="selectionCount()"
-    [ids]="[...selectedIds()]"
-    [actions]="selectionActions()"
-    labelSingular="ordine selezionato"
-    labelPlural="ordini selezionati"
-    summaryLabel="Totale"
-    [summaryValue]="formatMoney(selectionTotal())"
-    (cleared)="clearSelection()"
-  />
+  <div period>
+    <div class="sales-list__field">
+      <app-select-menu
+        chipLabel="Periodo"
+        [options]="periodOptions"
+        [value]="periodPreset()"
+        ariaLabel="Filtra per periodo"
+        placeholder="Tutto"
+        [compact]="true"
+        [fullWidth]="true"
+        [filterChip]="true"
+        (valueChange)="onPeriodPresetChange($event)"
+      />
+    </div>
 
-  @if (actionError(); as err) {
-    <app-error-state [description]="err.message" />
-  }
+    @if (isCustomPeriod()) {
+      <div class="sales-list__field sales-list__field--date">
+        <label class="sales-list__label" for="sales-date-from">Dal</label>
+        <app-date-input
+          inputId="sales-date-from"
+          [value]="query().placedFrom ?? ''"
+          ariaLabel="Data inizio periodo"
+          placeholder="gg/mm/aaaa"
+          [compact]="true"
+          [fullWidth]="true"
+          [max]="query().placedTo || undefined"
+          (valueChange)="onDateFromChange($event)"
+        />
+      </div>
 
-  @if (loading()) {
-    <app-table-skeleton [columns]="skeletonColumns" [rows]="8" />
-  } @else if (error(); as appError) {
-    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
-  } @else if (isEmpty()) {
-    <app-empty-state
-      title="Nessun ordine"
-      description="Nessun ordine corrisponde ai filtri attuali. Gli ordini arrivano dai canali collegati o dalla registrazione manuale."
-      icon="pi-shopping-cart"
-    />
-  } @else {
-    <app-sales-order-table
-      [orders]="orders()"
-      [columns]="visibleColumns()"
-      [profile]="listProfile()"
-      [selectable]="canManage()"
-      [selectedIds]="selectedIds()"
-      [canManage]="canManage()"
-      [sort]="query().sort ?? []"
-      (rowClick)="openOrder($event)"
-      (sortChange)="onSortChange($event)"
-      (action)="onTableAction($event)"
-      (selectionChange)="onToggleSelection($event)"
-      (selectAllChange)="onToggleSelectAll($event)"
-    />
-  }
-
-  <!-- Eliminazione a due conferme (avviso + conferma finale), come Arrivi merce. -->
-  <app-confirm-dialog
-    [(open)]="deleteWarnOpen"
-    [title]="deleteWarnTitle()"
-    [message]="deleteWarnMessage()"
-    confirmLabel="Continua"
-    [danger]="true"
-    (confirmed)="onDeleteWarnConfirm()"
-    (dismissed)="onDeleteCancel()"
-  />
-  <app-confirm-dialog
-    [(open)]="deleteConfirmOpen"
-    [title]="deleteWarnTitle()"
-    message="Conferma definitiva: l'operazione non è reversibile."
-    confirmLabel="Elimina"
-    [danger]="true"
-    [busy]="deleteBusy()"
-    (confirmed)="onDeleteConfirm()"
-    (dismissed)="onDeleteCancel()"
-  />
-
-  <!-- Avviso "canale esterno" prima di agire (Duplica/Modifica/Elimina) su un
-       ordine NON manuale. -->
-  <app-confirm-dialog
-    [(open)]="externalWarnOpen"
-    title="Ordine da canale esterno"
-    [message]="externalWarnMessage()"
-    confirmLabel="Continua"
-    (confirmed)="onExternalWarnConfirm()"
-    (dismissed)="onExternalWarnCancel()"
-  />
-
-  <!-- Pannello filtri mobile: gli stessi filtri della toolbar, a tutta
-       larghezza. Scrivono su query() come le chip, quindi restano allineati. -->
-  <app-slide-panel
-    [open]="mobileFiltersOpen()"
-    title="Filtri"
-    size="narrow"
-    (closed)="mobileFiltersOpen.set(false)"
-  >
-    @if (mobileFiltersOpen()) {
-      <div class="sales-list__panel-filters">
-        <div class="sales-list__field">
-          <span class="sales-list__label">Periodo</span>
-          <app-select-menu
-            [options]="periodOptions"
-            [value]="periodPreset()"
-            ariaLabel="Filtra per periodo"
-            placeholder="Tutto"
-            [compact]="true"
-            [fullWidth]="true"
-            (valueChange)="onPeriodPresetChange($event)"
-          />
-        </div>
-
-        @if (isCustomPeriod()) {
-          <div class="sales-list__field">
-            <span class="sales-list__label">Dal</span>
-            <app-date-input
-              inputId="sales-panel-date-from"
-              [value]="query().placedFrom ?? ''"
-              ariaLabel="Data inizio periodo"
-              placeholder="gg/mm/aaaa"
-              [compact]="true"
-              [fullWidth]="true"
-              [max]="query().placedTo || undefined"
-              (valueChange)="onDateFromChange($event)"
-            />
-          </div>
-          <div class="sales-list__field">
-            <span class="sales-list__label">Al</span>
-            <app-date-input
-              inputId="sales-panel-date-to"
-              [value]="query().placedTo ?? ''"
-              ariaLabel="Data fine periodo"
-              placeholder="gg/mm/aaaa"
-              [compact]="true"
-              [fullWidth]="true"
-              [min]="query().placedFrom || undefined"
-              (valueChange)="onDateToChange($event)"
-            />
-          </div>
-        }
-
-        <div class="sales-list__field">
-          <span class="sales-list__label">Stato</span>
-          <app-select-menu
-            [options]="stateOptions"
-            [value]="query().state ?? ''"
-            ariaLabel="Filtra per stato ordine"
-            placeholder="Tutti"
-            [compact]="true"
-            [fullWidth]="true"
-            (valueChange)="onStateFilterChange($event)"
-          />
-        </div>
-
-        <div class="sales-list__field">
-          <span class="sales-list__label">Origine</span>
-          <app-select-menu
-            [options]="sourceOptions()"
-            [value]="query().source ?? ''"
-            ariaLabel="Filtra per origine ordine"
-            placeholder="Tutte"
-            [compact]="true"
-            [fullWidth]="true"
-            (valueChange)="onSourceFilterChange($event)"
-          />
-        </div>
-
-        <div class="sales-list__field">
-          <span class="sales-list__label">Pagamento</span>
-          <app-select-menu
-            [options]="financialStatusOptions"
-            [value]="query().financialStatus ?? ''"
-            ariaLabel="Filtra per stato pagamento"
-            placeholder="Tutti"
-            [compact]="true"
-            [fullWidth]="true"
-            (valueChange)="onFinancialFilterChange($event)"
-          />
-        </div>
-
-        <div class="sales-list__field">
-          <span class="sales-list__label">Evasione</span>
-          <app-select-menu
-            [options]="fulfillmentStatusOptions"
-            [value]="query().fulfillmentStatus ?? ''"
-            ariaLabel="Filtra per stato evasione"
-            placeholder="Tutte"
-            [compact]="true"
-            [fullWidth]="true"
-            (valueChange)="onFulfillmentFilterChange($event)"
-          />
-        </div>
-
-        <div class="sales-list__field">
-          <span class="sales-list__label">Cliente</span>
-          <app-select-menu
-            [options]="customerOptions()"
-            [value]="query().customerId ?? ''"
-            ariaLabel="Filtra per cliente"
-            placeholder="Tutti"
-            [compact]="true"
-            [fullWidth]="true"
-            [searchable]="true"
-            searchPlaceholder="Cerca cliente…"
-            searchAriaLabel="Cerca cliente"
-            (valueChange)="onCustomerFilterChange($event)"
-          />
-        </div>
-
-        <div class="sales-list__field">
-          <span class="sales-list__label">Location</span>
-          <app-select-menu
-            [options]="locationOptions()"
-            [value]="query().locationId ?? ''"
-            ariaLabel="Filtra per location"
-            placeholder="Tutte"
-            [compact]="true"
-            [fullWidth]="true"
-            (valueChange)="onLocationFilterChange($event)"
-          />
-        </div>
-
-        <div class="sales-list__panel-actions">
-          @if (hasActiveFilters()) {
-            <app-button variant="ghost" (click)="resetFilters()">Azzera filtri</app-button>
-          }
-          <app-button (click)="mobileFiltersOpen.set(false)">Vedi risultati</app-button>
-        </div>
+      <div class="sales-list__field sales-list__field--date">
+        <label class="sales-list__label" for="sales-date-to">Al</label>
+        <app-date-input
+          inputId="sales-date-to"
+          [value]="query().placedTo ?? ''"
+          ariaLabel="Data fine periodo"
+          placeholder="gg/mm/aaaa"
+          [compact]="true"
+          [fullWidth]="true"
+          [min]="query().placedFrom || undefined"
+          (valueChange)="onDateToChange($event)"
+        />
       </div>
     }
-  </app-slide-panel>
+  </div>
 
-  <!-- Duplica: scelta del cliente per il nuovo ordine manuale. -->
-  @if (duplicateModalOpen()) {
-    <div
-      class="sales-list__modal-backdrop"
-      tabindex="0"
-      (click)="onBackdropClick($event)"
-      (keydown.escape)="cancelDuplicate()"
-    >
-      <div class="sales-list__modal" role="dialog" aria-modal="true" aria-label="Duplica ordine">
-        <h2 class="sales-list__modal-title">Duplica ordine</h2>
-        <p class="sales-list__modal-text">
-          Scegli il cliente per il nuovo ordine. Le righe vengono copiate; l'ordine di partenza non
-          viene toccato.
-        </p>
-        <app-select-menu
-          chipLabel="Cliente"
-          [options]="customerOptions()"
-          [value]="duplicateCustomerId() ?? ''"
-          ariaLabel="Cliente del nuovo ordine"
-          placeholder="Seleziona cliente"
-          [fullWidth]="true"
-          [searchable]="true"
-          searchPlaceholder="Cerca cliente…"
-          searchAriaLabel="Cerca cliente"
-          (valueChange)="duplicateCustomerId.set($event)"
-        />
-        <div class="sales-list__modal-actions">
-          <app-button variant="ghost" [disabled]="duplicateBusy()" (click)="cancelDuplicate()">
-            Annulla
-          </app-button>
-          <app-button
-            [disabled]="!duplicateCustomerId() || duplicateBusy()"
-            [loading]="duplicateBusy()"
-            (click)="confirmDuplicate()"
-          >
-            Duplica
-          </app-button>
-        </div>
+  <div filters>
+    <div class="sales-list__field">
+      <app-select-menu
+        chipLabel="Stato"
+        [options]="stateOptions"
+        [value]="query().state ?? ''"
+        ariaLabel="Filtra per stato ordine"
+        placeholder="Tutti"
+        [compact]="true"
+        [fullWidth]="true"
+        (valueChange)="onStateFilterChange($event)"
+        [filterChip]="true"
+      />
+    </div>
+
+    <div class="sales-list__field">
+      <app-select-menu
+        chipLabel="Origine"
+        [options]="sourceOptions()"
+        [value]="query().source ?? ''"
+        ariaLabel="Filtra per origine ordine"
+        placeholder="Tutte"
+        [compact]="true"
+        [fullWidth]="true"
+        (valueChange)="onSourceFilterChange($event)"
+        [filterChip]="true"
+      />
+    </div>
+
+    <div class="sales-list__field">
+      <app-select-menu
+        chipLabel="Pagamento"
+        [options]="financialStatusOptions"
+        [value]="query().financialStatus ?? ''"
+        ariaLabel="Filtra per stato pagamento"
+        placeholder="Tutti"
+        [compact]="true"
+        [fullWidth]="true"
+        (valueChange)="onFinancialFilterChange($event)"
+        [filterChip]="true"
+      />
+    </div>
+
+    <div class="sales-list__field">
+      <app-select-menu
+        chipLabel="Evasione"
+        [options]="fulfillmentStatusOptions"
+        [value]="query().fulfillmentStatus ?? ''"
+        ariaLabel="Filtra per stato evasione"
+        placeholder="Tutte"
+        [compact]="true"
+        [fullWidth]="true"
+        (valueChange)="onFulfillmentFilterChange($event)"
+        [filterChip]="true"
+      />
+    </div>
+
+    <div class="sales-list__field">
+      <app-select-menu
+        chipLabel="Cliente"
+        [options]="customerOptions()"
+        [value]="query().customerId ?? ''"
+        ariaLabel="Filtra per cliente"
+        placeholder="Tutti"
+        [compact]="true"
+        [fullWidth]="true"
+        [searchable]="true"
+        searchPlaceholder="Cerca cliente…"
+        searchAriaLabel="Cerca cliente"
+        (valueChange)="onCustomerFilterChange($event)"
+        [filterChip]="true"
+      />
+    </div>
+
+    <div class="sales-list__field">
+      <app-select-menu
+        chipLabel="Location"
+        [options]="locationOptions()"
+        [value]="query().locationId ?? ''"
+        ariaLabel="Filtra per location"
+        placeholder="Tutte"
+        [compact]="true"
+        [fullWidth]="true"
+        (valueChange)="onLocationFilterChange($event)"
+        [filterChip]="true"
+      />
+    </div>
+
+    @if (hasActiveFilters()) {
+      <button type="button" class="sales-list__clear" (click)="resetFilters()">Azzera</button>
+    }
+  </div>
+
+  <app-sales-order-table
+    data
+    [orders]="orders()"
+    [columns]="visibleColumns()"
+    [profile]="listProfile()"
+    [selectable]="canManage()"
+    [selectedIds]="selectedIds()"
+    [canManage]="canManage()"
+    [sort]="query().sort ?? []"
+    (rowClick)="openOrder($event)"
+    (sortChange)="onSortChange($event)"
+    (action)="onTableAction($event)"
+    (selectionChange)="onToggleSelection($event)"
+    (selectAllChange)="onToggleSelectAll($event)"
+  />
+
+  <!-- `14` §21.1: le funzioni stanno sotto i dati. -->
+  <div listActions>
+    <!--
+      La barra contestuale è il componente COMUNE (`14` parte D): questa pagina
+      dichiara le proprie azioni, non ne disegna i pulsanti. Qui c'erano gli
+      stessi cinque `app-button` dell'elenco documenti, copiati.
+    -->
+    <app-list-actions-bar
+      [count]="selectionCount()"
+      [ids]="[...selectedIds()]"
+      [actions]="selectionActions()"
+      labelSingular="ordine selezionato"
+      labelPlural="ordini selezionati"
+      summaryLabel="Totale"
+      [summaryValue]="formatMoney(selectionTotal())"
+      (cleared)="clearSelection()"
+    />
+  </div>
+</app-list-page>
+
+<!--
+  ⚠️ I dialoghi stanno FUORI dal telaio: sono `position: fixed`, non occupano
+  nessuna zona. Dentro, senza slot, Angular li scarterebbe in silenzio.
+-->
+<!-- Eliminazione a due conferme (avviso + conferma finale), come Arrivi merce. -->
+<app-confirm-dialog
+  [(open)]="deleteWarnOpen"
+  [title]="deleteWarnTitle()"
+  [message]="deleteWarnMessage()"
+  confirmLabel="Continua"
+  [danger]="true"
+  (confirmed)="onDeleteWarnConfirm()"
+  (dismissed)="onDeleteCancel()"
+/>
+<app-confirm-dialog
+  [(open)]="deleteConfirmOpen"
+  [title]="deleteWarnTitle()"
+  message="Conferma definitiva: l'operazione non è reversibile."
+  confirmLabel="Elimina"
+  [danger]="true"
+  [busy]="deleteBusy()"
+  (confirmed)="onDeleteConfirm()"
+  (dismissed)="onDeleteCancel()"
+/>
+
+<!-- Avviso "canale esterno" prima di agire (Duplica/Modifica/Elimina) su un
+     ordine NON manuale. -->
+<app-confirm-dialog
+  [(open)]="externalWarnOpen"
+  title="Ordine da canale esterno"
+  [message]="externalWarnMessage()"
+  confirmLabel="Continua"
+  (confirmed)="onExternalWarnConfirm()"
+  (dismissed)="onExternalWarnCancel()"
+/>
+
+
+<!-- Duplica: scelta del cliente per il nuovo ordine manuale. -->
+@if (duplicateModalOpen()) {
+  <div
+    class="sales-list__modal-backdrop"
+    tabindex="0"
+    (click)="onBackdropClick($event)"
+    (keydown.escape)="cancelDuplicate()"
+  >
+    <div class="sales-list__modal" role="dialog" aria-modal="true" aria-label="Duplica ordine">
+      <h2 class="sales-list__modal-title">Duplica ordine</h2>
+      <p class="sales-list__modal-text">
+        Scegli il cliente per il nuovo ordine. Le righe vengono copiate; l'ordine di partenza non
+        viene toccato.
+      </p>
+      <app-select-menu
+        chipLabel="Cliente"
+        [options]="customerOptions()"
+        [value]="duplicateCustomerId() ?? ''"
+        ariaLabel="Cliente del nuovo ordine"
+        placeholder="Seleziona cliente"
+        [fullWidth]="true"
+        [searchable]="true"
+        searchPlaceholder="Cerca cliente…"
+        searchAriaLabel="Cerca cliente"
+        (valueChange)="duplicateCustomerId.set($event)"
+      />
+      <div class="sales-list__modal-actions">
+        <app-button variant="ghost" [disabled]="duplicateBusy()" (click)="cancelDuplicate()">
+          Annulla
+        </app-button>
+        <app-button
+          [disabled]="!duplicateCustomerId() || duplicateBusy()"
+          [loading]="duplicateBusy()"
+          (click)="confirmDuplicate()"
+        >
+          Duplica
+        </app-button>
       </div>
     </div>
-  }
-</section>
+  </div>
+}

@@ -41,26 +41,22 @@ import { SalesOrderSource, type SalesOrder } from '@core/models/sales-order.mode
 import { customerDisplayName } from '@core/models/customer.model';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { CustomerService } from '@domain/customers/services/customer.service';
-import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
+import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
-import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
 import { formatMoney } from '@core/utils/money.util';
 import type { Money } from '@core/models/money.model';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
-import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 import {
   DEFAULT_MOVEMENT_PERIOD,
   MovementPeriodPreset,
   resolveMovementPeriodRange,
 } from '@domain/inventory/models/movement-period.util';
-import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { FILTERED_SCOPE_NOT_AVAILABLE, type ListAction } from '@shared/models/list-selection.model';
 import {
   serializeDataTableSort,
@@ -136,19 +132,15 @@ type SalesListState =
   selector: 'app-sales-order-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    BackButtonComponent,
+    ListPageComponent,
     ButtonComponent,
     ConfirmDialogComponent,
     DateInputComponent,
-    EmptyStateComponent,
     ErrorStateComponent,
     ListActionsBarComponent,
     SelectMenuComponent,
-    SlidePanelComponent,
-    TableSkeletonComponent,
     ReportCorrispettiviExportComponent,
     SalesOrderTableComponent,
-    TableColumnPickerComponent,
     ShopifySyncFeedbackComponent,
   ],
   templateUrl: './sales-order-list.component.html',

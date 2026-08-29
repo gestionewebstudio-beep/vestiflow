@@ -109,3 +109,12 @@
   proprio figlio (vedi il suo foglio).
 */
 @include lp.list-page-fills-viewport('doc-list', 'app-document-table');
+
+/* I gruppi proiettati non sono scatole: sono contenuto (vedi telaio elenco). */
+[pageActions],
+[period],
+[filters],
+[warnings],
+[listActions] {
+  display: contents;
+}

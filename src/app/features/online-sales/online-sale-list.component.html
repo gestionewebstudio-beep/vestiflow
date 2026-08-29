@@ -1,179 +1,82 @@
-<section class="os-list">
-  <header class="os-list__header">
-    <div class="os-list__heading">
-      <app-back-button />
-      <div class="os-list__title-row">
-        <h1 class="os-list__title">Vendite online</h1>
-        @if (!loading()) {
-          <span class="os-list__count tabular-nums">
-            {{ meta().total }} {{ meta().total === 1 ? 'documento' : 'documenti' }}
-          </span>
-        }
-      </div>
-      <p class="os-list__subtitle">
-        Registro delle vendite generate dagli ordini online evasi: lo scarico di magazzino
-        collegati. Gli ordini restano consultabili in Ordini cliente.
-      </p>
-    </div>
-  </header>
-
-  <div class="os-list__toolbar os-list__toolbar--card">
-    <!-- Riga 1: ricerca (cresce) + azioni a destra. -->
-    <div class="os-list__toolbar-main">
-      <div class="os-list__search">
-        <i class="pi pi-search os-list__search-icon" aria-hidden="true"></i>
-        <input
-          id="online-sales-search"
-          class="os-list__input"
-          type="search"
-          [value]="searchDraft()"
-          placeholder="Cerca per numero, ordine, cliente…"
-          aria-label="Cerca vendite online"
-          (input)="onSearchInput($event)"
-        />
-      </div>
-
-      <div class="os-list__toolbar-actions">
-        <button type="button" class="os-list__mobile-filters" (click)="mobileFiltersOpen.set(true)">
-          <i class="pi pi-sliders-h" aria-hidden="true"></i>
-          Filtri
-          @if (activeFilterCount() > 0) {
-            <span class="os-list__filter-badge tabular-nums">{{ activeFilterCount() }}</span>
-          }
-        </button>
-      </div>
+<app-list-page
+  class="os-list"
+  pageTitle="Vendite online"
+  [showBack]="true"
+  [count]="loading() ? undefined : meta().total + (meta().total === 1 ? ' documento' : ' documenti')"
+  [loading]="loading()"
+  [error]="error()?.message ?? null"
+  [isEmpty]="isEmpty()"
+  [skeletonColumns]="skeletonColumns"
+  [activeFilterCount]="activeFilterCount()"
+  searchPlaceholder="Cerca per numero, ordine, cliente…"
+  searchAriaLabel="Cerca vendite online"
+  [searchValue]="searchDraft()"
+  emptyTitle="Nessuna vendita online"
+  emptyDescription="Le Vendite online vengono create automaticamente quando un ordine online risulta completamente evaso."
+  emptyIcon="pi-send"
+  (searchChange)="searchDraft.set($event)"
+  (filtersCleared)="resetFilters()"
+  (retry)="reload()"
+>
+  <!--
+    ⭐ Il periodo resta in barra a ogni larghezza: è uno dei due che non entrano
+    nelle colonne (`14` §0.2). Gli altri filtri vanno nel pannello sotto `lg`, e
+    il pannello è del telaio.
+  -->
+  <div period>
+    <div class="os-list__field os-list__field--date">
+      <label class="os-list__label" for="online-sales-from">Evase dal</label>
+      <app-date-input
+        inputId="online-sales-from"
+        [value]="query().fulfilledFrom ?? ''"
+        ariaLabel="Data evasione da"
+        placeholder="gg/mm/aaaa"
+        [compact]="true"
+        [fullWidth]="true"
+        [max]="query().fulfilledTo || undefined"
+        (valueChange)="onFulfilledFromChange($event)"
+      />
     </div>
 
-    <!-- Riga 2: chip filtro a piena larghezza; su mobile spariscono a favore
-         del pulsante «Filtri». -->
-    <div class="os-list__filters os-list__filters--inline">
-      <div class="os-list__field">
-        <app-select-menu
-          chipLabel="Canale"
-          [options]="channelOptions"
-          [value]="query().channel ?? ''"
-          ariaLabel="Filtra per canale"
-          placeholder="Tutti"
-          [compact]="true"
-          [fullWidth]="true"
-          (valueChange)="onChannelFilterChange($event)"
-          [filterChip]="true"
-        />
-      </div>
-
-      <div class="os-list__field os-list__field--date">
-        <label class="os-list__label" for="online-sales-from">Evase dal</label>
-        <app-date-input
-          inputId="online-sales-from"
-          [value]="query().fulfilledFrom ?? ''"
-          ariaLabel="Data evasione da"
-          placeholder="gg/mm/aaaa"
-          [compact]="true"
-          [fullWidth]="true"
-          [max]="query().fulfilledTo || undefined"
-          (valueChange)="onFulfilledFromChange($event)"
-        />
-      </div>
-
-      <div class="os-list__field os-list__field--date">
-        <label class="os-list__label" for="online-sales-to">al</label>
-        <app-date-input
-          inputId="online-sales-to"
-          [value]="query().fulfilledTo ?? ''"
-          ariaLabel="Data evasione a"
-          placeholder="gg/mm/aaaa"
-          [compact]="true"
-          [fullWidth]="true"
-          [min]="query().fulfilledFrom || undefined"
-          (valueChange)="onFulfilledToChange($event)"
-        />
-      </div>
-
-      @if (hasActiveFilters()) {
-        <button type="button" class="os-list__clear" (click)="resetFilters()">Azzera</button>
-      }
+    <div class="os-list__field os-list__field--date">
+      <label class="os-list__label" for="online-sales-to">al</label>
+      <app-date-input
+        inputId="online-sales-to"
+        [value]="query().fulfilledTo ?? ''"
+        ariaLabel="Data evasione a"
+        placeholder="gg/mm/aaaa"
+        [compact]="true"
+        [fullWidth]="true"
+        [min]="query().fulfilledFrom || undefined"
+        (valueChange)="onFulfilledToChange($event)"
+      />
     </div>
   </div>
 
-  @if (loading()) {
-    <app-table-skeleton [columns]="skeletonColumns" [rows]="8" />
-  } @else if (error(); as appError) {
-    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
-  } @else if (isEmpty()) {
-    <app-empty-state
-      title="Nessuna vendita online"
-      description="Le Vendite online vengono create automaticamente quando un ordine online risulta completamente evaso."
-      icon="pi-send"
-    />
-  } @else {
-    <app-online-sale-table [sales]="sales()" (rowClick)="openSale($event)" />
-    <app-pagination
-      label="Paginazione vendite online"
-      [meta]="meta()"
-      [pageSizeOptions]="pageSizeOptions"
-      (pageChange)="goToPage($event)"
-      (pageSizeChange)="onPageSizeChange($event)"
-    />
-  }
+  <div filters>
+    <div class="os-list__field">
+      <app-select-menu
+        chipLabel="Canale"
+        [options]="channelOptions"
+        [value]="query().channel ?? ''"
+        ariaLabel="Filtra per canale"
+        placeholder="Tutti"
+        [compact]="true"
+        [fullWidth]="true"
+        (valueChange)="onChannelFilterChange($event)"
+        [filterChip]="true"
+      />
+    </div>
+  </div>
 
-  <!-- Pannello filtri mobile: gli stessi filtri della toolbar, a tutta
-       larghezza. Scrivono su query() come le chip, quindi restano allineati. -->
-  <app-slide-panel
-    [open]="mobileFiltersOpen()"
-    title="Filtri"
-    size="narrow"
-    (closed)="mobileFiltersOpen.set(false)"
-  >
-    @if (mobileFiltersOpen()) {
-      <div class="os-list__panel-filters">
-        <div class="os-list__field">
-          <span class="os-list__label">Canale</span>
-          <app-select-menu
-            [options]="channelOptions"
-            [value]="query().channel ?? ''"
-            ariaLabel="Filtra per canale"
-            placeholder="Tutti"
-            [compact]="true"
-            [fullWidth]="true"
-            (valueChange)="onChannelFilterChange($event)"
-          />
-        </div>
+  <app-online-sale-table data [sales]="sales()" (rowClick)="openSale($event)" />
 
-        <div class="os-list__field">
-          <span class="os-list__label">Evase dal</span>
-          <app-date-input
-            inputId="online-sales-panel-from"
-            [value]="query().fulfilledFrom ?? ''"
-            ariaLabel="Data evasione da"
-            placeholder="gg/mm/aaaa"
-            [compact]="true"
-            [fullWidth]="true"
-            [max]="query().fulfilledTo || undefined"
-            (valueChange)="onFulfilledFromChange($event)"
-          />
-        </div>
-
-        <div class="os-list__field">
-          <span class="os-list__label">al</span>
-          <app-date-input
-            inputId="online-sales-panel-to"
-            [value]="query().fulfilledTo ?? ''"
-            ariaLabel="Data evasione a"
-            placeholder="gg/mm/aaaa"
-            [compact]="true"
-            [fullWidth]="true"
-            [min]="query().fulfilledFrom || undefined"
-            (valueChange)="onFulfilledToChange($event)"
-          />
-        </div>
-
-        <div class="os-list__panel-actions">
-          @if (hasActiveFilters()) {
-            <app-button variant="ghost" (click)="resetFilters()">Azzera filtri</app-button>
-          }
-          <app-button (click)="mobileFiltersOpen.set(false)">Vedi risultati</app-button>
-        </div>
-      </div>
-    }
-  </app-slide-panel>
-</section>
+  <app-pagination
+    summary
+    label="Paginazione vendite online"
+    [meta]="meta()"
+    [pageSizeOptions]="pageSizeOptions"
+    (pageChange)="goToPage($event)"
+    (pageSizeChange)="onPageSizeChange($event)"
+  />
+</app-list-page>
