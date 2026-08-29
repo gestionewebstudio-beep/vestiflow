@@ -10,7 +10,7 @@ import {
  * come in Giacenze; Carichi/Scarichi sono i totali movimentati della variante.
  */
 export const INVENTORY_SITUATION_COLUMN_DEFS: readonly TableColumnDef[] = [
-  { id: 'select', label: 'Selezione', defaultVisible: true },
+  { id: 'select', label: 'Selezione', defaultVisible: true, filter: false },
   { id: 'title', label: 'Articolo', pinnable: true, defaultVisible: true },
   { id: 'code', label: 'Codice', defaultVisible: true },
   { id: 'sku', label: 'SKU', defaultVisible: false },

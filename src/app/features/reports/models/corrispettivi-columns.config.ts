@@ -24,7 +24,7 @@ import {
  * vuole le riaccende, senza che nessuno tocchi il codice.
  */
 export const CORRISPETTIVI_REGISTER_COLUMN_DEFS: readonly TableColumnDef[] = [
-  { id: 'occurredAt', label: 'Data', defaultVisible: true },
+  { id: 'occurredAt', label: 'Data', defaultVisible: true, filter: 'range' },
   { id: 'kind', label: 'Tipo', defaultVisible: true },
   { id: 'orderNumber', label: 'Numero', pinnable: true, defaultVisible: true },
   { id: 'source', label: 'Origine', defaultVisible: true },

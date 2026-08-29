@@ -7,6 +7,7 @@ import { SALES_DOCUMENT_LINE_COLUMNS } from '@features/documents/models/sales-do
 import { SUPPLIER_ORDER_LINE_COLUMNS } from '@features/orders/models/supplier-order-line-columns.config';
 import { CUSTOMER_ORDER_LINE_COLUMNS } from '@features/sales-orders/models/customer-order-line-columns.config';
 
+import { resolveColumnFilterKind } from '@shared/table-columns/table-column-filter.util';
 import type { TableColumnDef } from '@shared/table-columns/table-column.model';
 
 /**
@@ -77,11 +78,31 @@ describe('coerenza delle colonne riga documento', () => {
     'lineTotal',
   ] as const;
 
-  const PROPRIETA = ['label', 'numeric', 'defaultVisible', 'defaultWidthPx', 'minWidthPx'] as const;
+  /*
+    ⚠️ **`filter` è entrata il 29/08/2026, e senza di lei la divergenza era muta.**
+
+    I filtri di un elenco derivano dalle colonne (`14` §0.2): la forma del filtro
+    è una proprietà della colonna come la larghezza, e due configurazioni che
+    dichiarano la stessa colonna con forme diverse sono lo stesso difetto che
+    questo file esiste per rendere visibile.
+  */
+  const PROPRIETA = [
+    'label',
+    'numeric',
+    'defaultVisible',
+    'defaultWidthPx',
+    'minWidthPx',
+    'filter',
+  ] as const;
 
   const valore = (def: TableColumnDef, prop: (typeof PROPRIETA)[number]) => {
     if (prop === 'numeric') return def.numeric ?? false;
     if (prop === 'defaultVisible') return def.defaultVisible ?? true;
+    // ⭐ Si confronta la forma EFFETTIVA, non quella dichiarata: `filter` è
+    //    opt-out e quasi nessuna colonna lo scrive, quindi confrontare il campo
+    //    nudo direbbe «uguali» su due colonne che il motore filtra in modi
+    //    diversi — cioè il difetto passerebbe proprio dove sta.
+    if (prop === 'filter') return resolveColumnFilterKind(def);
     return def[prop];
   };
 

@@ -61,6 +61,21 @@ export const TABLE_VIEW_PRESET_LABELS: Record<TableViewPresetId, string> = {
   [TableViewPresetId.Operational]: 'Operativa',
 };
 
+/**
+ * ⭐ **La forma del filtro di una colonna** (`14` §11.1).
+ *
+ * I filtri di un elenco non si dichiarano a parte: **sono le sue colonne**
+ * (`14` §0.2). Questa è l'unica cosa che una colonna deve dire in più — come
+ * si filtra il suo contenuto, non se è filtrabile.
+ *
+ * - `values` — insieme di valori distinti, a selezione multipla. È la forma
+ *   del benchmark Danea e quella dei Corrispettivi: Stato, Pagamento, Sede,
+ *   Cliente. I valori si leggono dall'insieme caricato, non da un endpoint.
+ * - `text` — testo libero: contiene / non contiene. Commenti, riferimenti.
+ * - `range` — da–a su numeri, denaro e date. Totali, quantità.
+ */
+export type TableColumnFilterKind = 'values' | 'text' | 'range';
+
 export interface TableColumnDef {
   readonly id: string;
   readonly label: string;
@@ -123,6 +138,21 @@ export interface TableColumnDef {
    * colonna può avere entrambe.
    */
   readonly display?: 'code' | 'truncate';
+
+  /**
+   * Come si filtra questa colonna — `false` per non filtrarla affatto.
+   *
+   * ⚠️ **Opt-out, non opt-in**, come `sortable` qui sopra e per la stessa
+   * ragione: il difetto da evitare è la colonna che «si è dimenticata» di
+   * essere filtrabile, che nessuno nota finché non serve. Omesso, il motore
+   * deduce la forma da `numeric` e `display` — vedi
+   * `resolveColumnFilterKind`.
+   *
+   * ⛔ **Non c'è il vincolo che rende `sortable` una whitelist lato pagina**:
+   * là serve che il SERVER sappia ordinare, qui il filtro legge l'insieme già
+   * caricato (`14` §11.4, nessun elenco impagina).
+   */
+  readonly filter?: TableColumnFilterKind | false;
 }
 
 export interface TableViewState {

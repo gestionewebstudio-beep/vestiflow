@@ -18,7 +18,7 @@ export const CUSTOMER_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   { id: 'discount', label: 'Sconto', defaultVisible: false },
   { id: 'paymentTerms', label: 'Pagamento', defaultVisible: false },
   { id: 'alsoSupplier', label: 'Anche fornitore', defaultVisible: false },
-  { id: 'createdAt', label: 'Creato il', defaultVisible: false },
+  { id: 'createdAt', label: 'Creato il', defaultVisible: false, filter: 'range' },
 ];
 
 export const CUSTOMER_LIST_COLUMN_PRESETS: TableViewPresetMap = {

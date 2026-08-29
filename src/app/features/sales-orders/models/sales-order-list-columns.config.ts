@@ -40,7 +40,7 @@ export const SALES_ORDER_LIST_SORTABLE_COLUMNS: ReadonlySet<string> = new Set([
 export const SALES_ORDER_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   { id: 'orderNumber', label: 'Ordine', pinnable: true, defaultVisible: true },
   { id: 'source', label: 'Origine', defaultVisible: true },
-  { id: 'placedAt', label: 'Data', defaultVisible: true },
+  { id: 'placedAt', label: 'Data', defaultVisible: true, filter: 'range' },
   { id: 'customerCode', label: 'Cod. cliente', defaultVisible: false },
   { id: 'customerName', label: 'Cliente', defaultVisible: true },
   { id: 'total', label: 'Totale', numeric: true, defaultVisible: true },
@@ -100,7 +100,7 @@ export const SALES_ORDER_LIST_COLUMN_PRESETS: TableViewPresetMap = {
 export const SHOPIFY_ORDER_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   ...SALES_ORDER_LIST_COLUMN_DEFS.filter((column) => column.id !== 'source'),
   { id: 'ddt', label: 'DDT', defaultVisible: true },
-  { id: 'updatedAt', label: 'Aggiornato', defaultVisible: true },
+  { id: 'updatedAt', label: 'Aggiornato', defaultVisible: true, filter: 'range' },
   { id: 'syncState', label: 'Sync', defaultVisible: true },
 ] as const;
 

@@ -42,7 +42,7 @@ export const SALES_DOCUMENT_LINE_COLUMNS: readonly TableColumnDef[] = [
   { id: 'discount', label: 'Sconto', numeric: true, defaultWidthPx: 84, minWidthPx: 60 },
   { id: 'vat', label: 'IVA', defaultWidthPx: 120, minWidthPx: 84 },
   { id: 'loadsStock', label: 'Scarica mag.', defaultWidthPx: 88, minWidthPx: 64 },
-  { id: 'actions', label: 'Azioni', defaultWidthPx: 44, minWidthPx: 44 },
+  { id: 'actions', label: 'Azioni', defaultWidthPx: 44, minWidthPx: 44, filter: false },
 ];
 
 const TUTTE = SALES_DOCUMENT_LINE_COLUMNS.map((column) => column.id);

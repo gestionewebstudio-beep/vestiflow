@@ -37,7 +37,7 @@ export const DOCUMENT_LIST_SORTABLE_COLUMNS: ReadonlySet<string> = new Set([
 ]);
 
 export const DOCUMENT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
-  { id: 'documentDate', label: 'Data', pinnable: true, defaultVisible: true, display: 'code' },
+  { id: 'documentDate', label: 'Data', pinnable: true, defaultVisible: true, display: 'code', filter: 'range' },
   { id: 'type', label: 'Tipo', defaultVisible: true },
   { id: 'reference', label: 'Numero', defaultVisible: true, display: 'code' },
   { id: 'counterparty', label: 'Controparte', defaultVisible: true, display: 'truncate' },
@@ -77,7 +77,7 @@ export const DOCUMENT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
  * usano INVOICE_LIST_COLUMN_DEFS, perché condividono un elenco fra due tipi.
  */
 export const SALES_DOCUMENT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
-  { id: 'documentDate', label: 'Data', pinnable: true, defaultVisible: true, display: 'code' },
+  { id: 'documentDate', label: 'Data', pinnable: true, defaultVisible: true, display: 'code', filter: 'range' },
   { id: 'reference', label: 'Numero', defaultVisible: true, display: 'code' },
   { id: 'counterparty', label: 'Cliente', defaultVisible: true, display: 'truncate' },
   { id: 'status', label: 'Stato', defaultVisible: true },
@@ -107,7 +107,7 @@ export const SALES_DOCUMENT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
  * colonna sta subito dopo il Numero, dove l'operatore la cerca leggendo la riga.
  */
 export const INVOICE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
-  { id: 'documentDate', label: 'Data', pinnable: true, defaultVisible: true, display: 'code' },
+  { id: 'documentDate', label: 'Data', pinnable: true, defaultVisible: true, display: 'code', filter: 'range' },
   { id: 'reference', label: 'Numero', defaultVisible: true, display: 'code' },
   { id: 'type', label: 'Tipo', defaultVisible: true },
   { id: 'counterparty', label: 'Cliente', defaultVisible: true, display: 'truncate' },
@@ -178,7 +178,7 @@ export const PURCHASE_INVOICE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
     defaultVisible: true,
     display: 'code',
   },
-  { id: 'registrationDate', label: 'Data registrazione', defaultVisible: true, display: 'code' },
+  { id: 'registrationDate', label: 'Data registrazione', defaultVisible: true, display: 'code', filter: 'range' },
   // «N.» è il numero interno, da non confondere con quello della
   // fattura del fornitore (colonna accanto).
   {
@@ -246,7 +246,7 @@ export const PURCHASE_INVOICE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
  * confermati e non hanno ciclo di vita (§11 documento funzionale).
  */
 export const STORE_SALE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
-  { id: 'documentDate', label: 'Data', pinnable: true, defaultVisible: true, display: 'code' },
+  { id: 'documentDate', label: 'Data', pinnable: true, defaultVisible: true, display: 'code', filter: 'range' },
   { id: 'reference', label: 'Numero', defaultVisible: true, display: 'code' },
   { id: 'type', label: 'Tipo', defaultVisible: true },
   { id: 'counterparty', label: 'Cliente', defaultVisible: true, display: 'truncate' },
@@ -295,7 +295,7 @@ export const STORE_SALE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
 
 export const GOODS_RECEIPT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   // Colonne visibili di default (ordine di lettura della riga).
-  { id: 'documentDate', label: 'Data', pinnable: true, defaultVisible: true, display: 'code' },
+  { id: 'documentDate', label: 'Data', pinnable: true, defaultVisible: true, display: 'code', filter: 'range' },
   // «N.» è il numero interno, non quello del documento fornitore.
   {
     id: 'reference',

@@ -6,7 +6,7 @@ import {
 import { TableViewPresetId as PresetId } from '@shared/table-columns/table-column.model';
 
 export const PRODUCT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
-  { id: 'select', label: 'Selezione', defaultVisible: true },
+  { id: 'select', label: 'Selezione', defaultVisible: true, filter: false },
   // Identificatore anagrafico interno (§Codice articolo): colonna disponibile
   // nella selezione colonne, non mostrata di default.
   { id: 'articleCode', label: 'Codice articolo', defaultVisible: false },
@@ -18,7 +18,7 @@ export const PRODUCT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   { id: 'status', label: 'Stato', defaultVisible: true },
   { id: 'source', label: 'Origine', defaultVisible: true },
   { id: 'shopify', label: 'Shopify', defaultVisible: true },
-  { id: 'actions', label: 'Azioni', defaultVisible: true },
+  { id: 'actions', label: 'Azioni', defaultVisible: true, filter: false },
 ];
 
 export const PRODUCT_LIST_COLUMN_PRESETS: TableViewPresetMap = {

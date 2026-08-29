@@ -5,7 +5,7 @@ import {
 } from '@shared/table-columns/table-column.model';
 
 export const STOCK_MOVEMENT_COLUMN_DEFS: readonly TableColumnDef[] = [
-  { id: 'createdAt', label: 'Data', pinnable: true, defaultVisible: true },
+  { id: 'createdAt', label: 'Data', pinnable: true, defaultVisible: true, filter: 'range' },
   { id: 'type', label: 'Tipo', defaultVisible: true },
   // Identificatore anagrafico interno (§Codice articolo): colonna
   // selezionabile, non mostrata di default (fuori dai preset).

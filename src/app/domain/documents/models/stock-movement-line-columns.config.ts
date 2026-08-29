@@ -32,7 +32,7 @@ export const STOCK_MOVEMENT_LINE_COLUMNS: readonly TableColumnDef[] = [
   // I seriali sono l'eccezione, non la regola: la colonna c'è per chi tratta
   // merce serializzata, ma non deve mangiarsi la riga di chi non la tratta.
   { id: 'serials', label: 'Seriali', defaultWidthPx: 150, minWidthPx: 90 },
-  { id: 'actions', label: 'Azioni', defaultWidthPx: 44, minWidthPx: 44 },
+  { id: 'actions', label: 'Azioni', defaultWidthPx: 44, minWidthPx: 44, filter: false },
 ];
 
 const TUTTE = STOCK_MOVEMENT_LINE_COLUMNS.map((column) => column.id);

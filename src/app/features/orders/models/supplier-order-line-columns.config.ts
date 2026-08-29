@@ -106,7 +106,7 @@ export const SUPPLIER_ORDER_LINE_COLUMNS: readonly TableColumnDef[] = [
   { id: 'lineTotal', label: 'Totale', numeric: true, defaultWidthPx: 88, minWidthPx: 56 },
   // Un solo pulsante (elimina): le frecce di riordino vivono nella colonna
   // indice. Stessa misura di `stock-movement-line-columns`.
-  { id: 'actions', label: 'Azioni', defaultWidthPx: 44, minWidthPx: 44 },
+  { id: 'actions', label: 'Azioni', defaultWidthPx: 44, minWidthPx: 44, filter: false },
 ];
 
 // I preset partono dalle colonne visibili di default: quelle opzionali

@@ -64,7 +64,7 @@ export const STORE_SALE_LINE_COLUMNS: readonly TableColumnDef[] = [
   // ⭐ Dichiararle le allinea anche all'Ordine cliente, che è il riferimento:
   // là stanno nel catalogo e nel selettore Colonne come tutte le altre.
   { id: 'commitsStock', label: 'Scarica giacenze', defaultWidthPx: 96, minWidthPx: 72 },
-  { id: 'actions', label: 'Azioni', defaultWidthPx: 96, minWidthPx: 56 },
+  { id: 'actions', label: 'Azioni', defaultWidthPx: 96, minWidthPx: 56, filter: false },
 ];
 
 /**
