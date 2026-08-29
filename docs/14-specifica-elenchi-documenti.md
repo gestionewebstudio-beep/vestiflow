@@ -1469,7 +1469,20 @@ non sostituzione con dato anagrafico corrente.
 
 ## 29.3 Autorità del segno economico
 
-La stessa autorità già centralizzata deve essere usata dove pertinente.
+Il verso economico usa **l’autorità centralizzata** definita in
+`docs/15c-contratto-segno-economico-riepiloghi.md` e implementata in
+`src/app/domain/documents/models/document-economic-sign.util.ts`
+(`documentEconomicSign`, `signedDocumentMoney`).
+
+⛔ **Questa specifica NON ridefinisce il contratto del segno**: lo usa. Se le due
+divergono, vale `15c`.
+
+⚠️ Qui c’era «la stessa autorità già centralizzata» senza dire QUALE, ed è la forma
+da cui nasce il difetto che tutto questo documento vuole evitare: chi non trova
+l’autorità esistente ne ricostruisce un’altra, e da quel momento la stessa
+transazione vale numeri diversi a seconda di dove la si guarda.
+
+La tabella qui sotto è quindi un **promemoria di lettura**, non la fonte.
 
 Regole:
 
