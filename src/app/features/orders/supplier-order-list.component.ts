@@ -7,6 +7,7 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
 import {
   FILTERED_SCOPE_NOT_AVAILABLE,
@@ -50,15 +51,10 @@ import { canManageSupplierOrders } from '@core/permissions/tenant-permissions.ut
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { SupplierOrder } from '@core/models/supplier-order.model';
-import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
-import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
-import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
-import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
@@ -103,14 +99,10 @@ type OrderListState =
   selector: 'app-supplier-order-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    BackButtonComponent,
+    ListPageComponent,
     ButtonComponent,
-    EmptyStateComponent,
     ErrorStateComponent,
-    InlineBannerComponent,
     SelectMenuComponent,
-    SlidePanelComponent,
-    TableSkeletonComponent,
     ListActionsBarComponent,
     BadgeComponent,
     DataTableCellDirective,
@@ -364,10 +356,6 @@ export class SupplierOrderListComponent {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((value) => this.applySearch(value));
-  }
-
-  protected onSearchInput(event: Event): void {
-    this.searchDraft.set((event.target as HTMLInputElement).value);
   }
 
   protected onStatusFilterChange(value: string | null): void {

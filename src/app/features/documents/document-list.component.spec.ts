@@ -18,6 +18,9 @@ import { SupplierService } from '@domain/suppliers/services/supplier.service';
 import type { ListAction } from '@shared/models/list-selection.model';
 import { TableViewPreferenceApiService } from '@shared/table-columns/table-view-preference-api.service';
 
+import { salesDocumentRegisterConfig } from './models/document-sales-register.config';
+import { MovementPeriodPreset } from '@domain/inventory/models/movement-period.util';
+import type { ListFilterDef } from '@shared/components/list-filters/list-filter.model';
 import { DocumentListComponent, SECONDARY_CREATE_ENTRIES } from './document-list.component';
 import { ExternalDocumentTypeService } from '@domain/documents/services/external-document-type.service';
 
@@ -84,11 +87,17 @@ async function renderList(
   documents: readonly DocumentRecord[] = [],
   /** Ordinamento già nell'URL, come se si arrivasse da un link condiviso. */
   sort?: string,
+  /**
+   * Altri parametri gia' nell'URL: servono ai test che provano cosa succede
+   * quando un link porta un filtro che il profilo NON espone.
+   */
+  extraQuery: Readonly<Record<string, string>> = {},
 ) {
   const data = { documentListProfile: profile };
   const queryParams = {
     ...(typeFilter ? { type: typeFilter } : {}),
     ...(sort ? { sort } : {}),
+    ...extraQuery,
   };
   return render(DocumentListComponent, {
     providers: [
@@ -686,5 +695,337 @@ describe('DocumentListComponent — totale della selezione col verso economico',
     ]);
 
     expect(totale).toBe(formatMoney({ amountMinor: 13000, currencyCode: DEFAULT_CURRENCY }));
+  });
+});
+
+/**
+ * ⭐ **Fase B — il profilo Arrivo merce sul contenitore filtri comune.**
+ *
+ * Questi test si scrivono PRIMA di sostituire il markup, e misurano il
+ * comportamento di oggi: se passano prima e dopo, la migrazione non ha cambiato
+ * una funzione. È il criterio di accettazione di `14` §42-bis.0 — «verificare che
+ * query, handler, default e URL non cambino di una virgola».
+ *
+ * ⛔ **I sei filtri dell'Arrivo merce restano sei.** La matrice sintetica di
+ * `14` §42-bis.12 elenca il minimo, non un elenco esclusivo: Collegamento,
+ * Magazzino, Tipo di documento e Pagamento esistono e non si tolgono in un
+ * refactor.
+ */
+describe('DocumentListComponent — Arrivo merce: i filtri del profilo', () => {
+  /** L'accesso ai membri che il montaggio non espone. */
+  interface Interno {
+    readonly filtriElenco: () => readonly ListFilterDef[];
+    readonly periodPreset: { (): string; set: (v: string) => void };
+    readonly isCustomPeriod: () => boolean;
+  }
+  const interno = (view: Awaited<ReturnType<typeof renderList>>): Interno =>
+    view.fixture.componentInstance as unknown as Interno;
+
+  const chiavi = (f: readonly ListFilterDef[]): readonly string[] => f.map((x) => x.key);
+  const etichette = (f: readonly ListFilterDef[]): readonly string[] => f.map((x) => x.label);
+  const trova = (f: readonly ListFilterDef[], key: string): ListFilterDef | undefined =>
+    f.find((x) => x.key === key);
+
+  it('⭐ dichiara esattamente SEI filtri, e sono quelli di oggi', async () => {
+    const view = await renderList('goods-receipt');
+
+    expect(chiavi(interno(view).filtriElenco())).toEqual([
+      'periodPreset',
+      'supplierId',
+      'linkStatus',
+      'locationId',
+      'externalDocumentTypeId',
+      'paymentMethod',
+    ]);
+  });
+
+  it('⭐ il filtro `linkStatus` si chiama «Collegamento», non «Stato»', async () => {
+    const view = await renderList('goods-receipt');
+    const filtri = interno(view).filtriElenco();
+
+    // `14` §7.1: «Stato» copriva tre concetti diversi. Questo è il
+    // COLLEGAMENTO documentale, non la Fase commerciale né il Saldo.
+    expect(trova(filtri, 'linkStatus')?.label).toBe('Collegamento');
+    expect(etichette(filtri)).not.toContain('Stato');
+  });
+
+  it('⛔ la chiave TECNICA resta `linkStatus`: la rinomina è solo visuale', async () => {
+    const view = await renderList('goods-receipt');
+
+    // Rinominare il query param per allineare un nome a schermo romperebbe gli
+    // URL condivisi, e non serve alla funzione (`14` §7.1).
+    expect(chiavi(interno(view).filtriElenco())).toContain('linkStatus');
+  });
+
+  it('⭐ le etichette sono quelle di oggi, voce per voce', async () => {
+    const view = await renderList('goods-receipt');
+
+    expect(etichette(interno(view).filtriElenco())).toEqual([
+      'Periodo',
+      'Fornitore',
+      'Collegamento',
+      'Magazzino',
+      'Tipo di documento',
+      'Pagamento',
+    ]);
+  });
+
+  it('✅ Fornitore e Pagamento restano ricercabili, gli altri no', async () => {
+    const view = await renderList('goods-receipt');
+    const filtri = interno(view).filtriElenco();
+
+    expect(trova(filtri, 'supplierId')?.searchable).toBe(true);
+    expect(trova(filtri, 'paymentMethod')?.searchable).toBe(true);
+    expect(trova(filtri, 'linkStatus')?.searchable).toBeFalsy();
+  });
+
+  it('✅ Magazzino conserva il segnaposto «Tutte»', async () => {
+    const view = await renderList('goods-receipt');
+
+    // ⚠️ È femminile perché sono le sedi: uniformarlo a «Tutti» sarebbe una
+    //    generalizzazione distratta.
+    expect(trova(interno(view).filtriElenco(), 'locationId')?.placeholder).toBe('Tutte');
+  });
+
+  describe('il Periodo', () => {
+    it('⛔ non conta nel badge «Filtri (n)»', async () => {
+      const view = await renderList('goods-receipt');
+
+      // `14` §19: il Periodo di default non è una restrizione opzionale.
+      expect(trova(interno(view).filtriElenco(), 'periodPreset')?.countsAsActive).toBe(false);
+    });
+
+    it('⛔ con preset ORDINARIO i campi Dal/Al non compaiono', async () => {
+      const view = await renderList('goods-receipt');
+      const it = interno(view);
+      it.periodPreset.set(MovementPeriodPreset.Last30Days);
+
+      expect(trova(it.filtriElenco(), 'periodPreset')?.showDateRange).toBe(false);
+    });
+
+    it('✅ con «Personalizzato» i campi Dal/Al compaiono', async () => {
+      const view = await renderList('goods-receipt');
+      const it = interno(view);
+      it.periodPreset.set(MovementPeriodPreset.Custom);
+
+      expect(trova(it.filtriElenco(), 'periodPreset')?.showDateRange).toBe(true);
+    });
+
+    it('⭐ è UN filtro composto: Dal e Al vivono nella sua definizione', async () => {
+      const view = await renderList('goods-receipt');
+      const periodo = trova(interno(view).filtriElenco(), 'periodPreset');
+
+      // ⚠️ Spezzarli in due filtri indipendenti perderebbe il vincolo reciproco
+      //    e lascerebbe scegliere un «Dal» successivo all'«Al».
+      expect(periodo?.kind).toBe('period');
+      expect(periodo?.fromKey).toBe('dateFrom');
+      expect(periodo?.toKey).toBe('dateTo');
+      expect(chiavi(interno(view).filtriElenco())).not.toContain('dateFrom');
+    });
+
+    it('⛔ il preset NON è un query param: resta stato locale', async () => {
+      const view = await renderList('goods-receipt');
+      const router = TestBed.inject(Router);
+      const navigate = vi.spyOn(router, 'navigate');
+      const periodo = trova(interno(view).filtriElenco(), 'periodPreset');
+
+      periodo?.onPresetChange?.(MovementPeriodPreset.Custom);
+
+      // «Personalizzato» conserva le date correnti e non naviga: l'handler
+      // esistente fa `return` prima di toccare l'URL.
+      expect(navigate).not.toHaveBeenCalled();
+      expect(interno(view).periodPreset()).toBe(MovementPeriodPreset.Custom);
+    });
+  });
+});
+
+/**
+ * ⭐ **Fase B — i filtri degli otto profili restanti.**
+ *
+ * Ogni profilo dichiara i filtri che ha OGGI, più il Periodo comune deciso il
+ * 29/08/2026 (`14` §12-bis). I test misurano la dichiarazione prima che il
+ * markup venga sostituito: se restano verdi anche dopo, la migrazione non ha
+ * cambiato una funzione.
+ *
+ * ⛔ **Nessun filtro esistente si toglie e nessuno si aggiunge per analogia**
+ * (`14` §42-bis.0): la matrice sintetica elenca il minimo, non un elenco
+ * esclusivo.
+ *
+ * ⚠️ **Un montaggio per `it`.** `TestBed` non si riconfigura dentro un test già
+ * istanziato: ogni profilo ha il proprio caso, mai un ciclo che monta due volte.
+ */
+describe('DocumentListComponent — i filtri, profilo per profilo', () => {
+  interface Interno {
+    readonly filtriElenco: () => readonly ListFilterDef[];
+    readonly apiQuery: () => Record<string, unknown>;
+    readonly activeFilterCount: () => number;
+  }
+  const interno = (view: Awaited<ReturnType<typeof renderList>>): Interno =>
+    view.fixture.componentInstance as unknown as Interno;
+  const chiavi = (f: readonly ListFilterDef[]): readonly string[] => f.map((x) => x.key);
+
+  /**
+   * Le chiavi attese per profilo, misurate sul comportamento reale il
+   * 29/08/2026 e riconfermate da una verifica incrociata.
+   *
+   * ⭐ `periodPreset` è in TUTTI: ogni riepilogo con righe datate ha il Periodo
+   *    visibile, con default «Ultimi 30 giorni» (`14` §12-bis). Prima il limite
+   *    temporale veniva applicato lo stesso, ma senza un controllo che lo
+   *    mostrasse — l'elenco si apriva filtrato e non lo diceva.
+   */
+  const ATTESI: readonly (readonly [DocumentListProfile, readonly string[]])[] = [
+    ['quote', ['periodPreset', 'customerId']],
+    ['manual-unload', ['periodPreset', 'customerId']],
+    ['proforma', ['periodPreset', 'status', 'customerId']],
+    ['sales-ddt', ['periodPreset', 'status', 'customerId', 'pendingInvoice']],
+    ['purchase-invoice', ['periodPreset', 'settlement', 'supplierId']],
+    ['invoice', ['periodPreset', 'type', 'status', 'customerId']],
+    ['store-sale', ['periodPreset', 'type', 'customerId', 'paymentMethod', 'createdById']],
+    ['generic', ['periodPreset', 'type', 'status', 'customerId', 'pendingInvoice']],
+  ];
+
+  it.each(ATTESI)('⭐ «%s» dichiara esattamente i filtri misurati', async (profilo, attese) => {
+    const view = await renderList(profilo);
+
+    expect(chiavi(interno(view).filtriElenco())).toEqual(attese);
+  });
+
+  it.each(ATTESI.map(([p]) => p))('⭐ «%s» ha il Periodo, e non conta nel badge', async (profilo) => {
+    const view = await renderList(profilo);
+    const periodo = interno(view)
+      .filtriElenco()
+      .find((f) => f.key === 'periodPreset');
+
+    expect(periodo?.kind).toBe('period');
+    // `14` §19: il Periodo di default non è una restrizione opzionale.
+    expect(periodo?.countsAsActive).toBe(false);
+  });
+
+  it.each(ATTESI.map(([p]) => p))('⚠️ «%s»: Dal/Al sempre visibili', async (profilo) => {
+    // La condizione di oggi è `!isGoodsReceiptList() || isCustomPeriod()`: la
+    // peculiarità dell'Arrivo merce non si estende agli altri per uniformità.
+    const view = await renderList(profilo);
+    const periodo = interno(view)
+      .filtriElenco()
+      .find((f) => f.key === 'periodPreset');
+
+    expect(periodo?.showDateRange).toBe(true);
+  });
+
+  describe('⭐ le uniformazioni decise il 29/08/2026', () => {
+    it('«Pagamento», ricercabile, anche sulla Vendita al banco', async () => {
+      const view = await renderList('store-sale');
+      const pagamento = interno(view)
+        .filtriElenco()
+        .find((f) => f.key === 'paymentMethod');
+
+      // ⛔ Era «Metodo pagamento» e non ricercabile qui, «Pagamento» e
+      //    ricercabile sull'Arrivo merce: stesso filtro, due vesti.
+      expect(pagamento?.label).toBe('Pagamento');
+      expect(pagamento?.searchable).toBe(true);
+    });
+
+    it('⚠️ ma le OPZIONI restano quelle del profilo', async () => {
+      const view = await renderList('store-sale');
+      const pagamento = interno(view)
+        .filtriElenco()
+        .find((f) => f.key === 'paymentMethod');
+
+      // Codici cassa contro le voci MP01–MP23 dell'Arrivo merce: la differenza
+      // è deliberata e documentata nella configurazione.
+      expect(pagamento?.options).toBe(
+        salesDocumentRegisterConfig('store-sale')?.paymentMethodOptions,
+      );
+    });
+
+    it('Cliente è ricercabile anche sul Registro documenti', async () => {
+      // Era l'unico profilo senza ricerca, su una tendina da cento clienti.
+      const view = await renderList('generic');
+      const cliente = interno(view)
+        .filtriElenco()
+        .find((f) => f.key === 'customerId');
+
+      expect(cliente?.searchable).toBe(true);
+    });
+
+    /**
+     * ⛔ **La spunta «DDT da fatturare» è un filtro, e stava per sparire.**
+     *
+     * Era assente dalla prima dichiarazione: sostituire il markup l'avrebbe
+     * cancellata dai due profili che la hanno. Non l’hanno trovata i test —
+     * misuravano `filtriElenco()`, che non la conteneva — ma il confronto col
+     * markup prima di toglierlo.
+     */
+    it.each(['sales-ddt', 'generic'] as const)(
+      '«%s» conserva la spunta «DDT da fatturare»',
+      async (profilo) => {
+        const view = await renderList(profilo);
+        const spunta = interno(view)
+          .filtriElenco()
+          .find((f) => f.key === 'pendingInvoice');
+
+        expect(spunta?.kind, 'una spunta, non una tendina').toBe('checkbox');
+        expect(spunta?.label).toBe('DDT da fatturare');
+        expect(spunta?.onCheckedChange, 'handler booleano').toBeTypeOf('function');
+      },
+    );
+
+    it('⛔ i profili che NON la hanno restano senza', async () => {
+      const view = await renderList('proforma');
+
+      // `showPendingInvoiceFilter: false`: non si aggiunge per analogia.
+      expect(chiavi(interno(view).filtriElenco())).not.toContain('pendingInvoice');
+    });
+
+    it('«Saldo», non «Stato», sulle Registrazioni fatture', async () => {
+      const view = await renderList('purchase-invoice');
+      const filtri = interno(view).filtriElenco();
+
+      // `14` §7.1: è la situazione ECONOMICA, distinta da Fase e Collegamento.
+      expect(filtri.find((f) => f.key === 'settlement')?.label).toBe('Saldo');
+      expect(filtri.map((f) => f.label)).not.toContain('Stato');
+    });
+  });
+
+  /**
+   * ⛔ **Un filtro che il profilo non espone non filtra e non conta.**
+   *
+   * Sui quattro profili con `statusOptions: null` un `?status=` scritto a mano
+   * filtrava davvero l'elenco, e i contatori lo contavano: badge «Filtri (1)» e
+   * pannello che si apre senza mostrare niente di attivo. L'unica uscita era
+   * «Azzera filtri».
+   */
+  describe('⛔ `?status=` dove il profilo non ha lo Stato', () => {
+    const SENZA_STATO: readonly DocumentListProfile[] = [
+      'quote',
+      'manual-unload',
+      'purchase-invoice',
+      'store-sale',
+    ];
+
+    it.each(SENZA_STATO)('«%s» non dichiara il filtro Stato', async (profilo) => {
+      const view = await renderList(profilo);
+
+      expect(chiavi(interno(view).filtriElenco())).not.toContain('status');
+    });
+
+    it.each(SENZA_STATO)('«%s»: `?status=` non entra nella query API', async (profilo) => {
+      const view = await renderList(profilo, null, undefined, [], undefined, {
+        status: 'confirmed',
+      });
+
+      expect(interno(view).apiQuery()['status']).toBeUndefined();
+    });
+
+    it.each(SENZA_STATO)('«%s»: `?status=` non incrementa il badge', async (profilo) => {
+      const view = await renderList(profilo, null, undefined, [], undefined, {
+        status: 'confirmed',
+      });
+
+      // ⚠️ Il conteggio resta quello del solo periodo: lo Stato invisibile non
+      //    deve aggiungersi. Con un `?status=` e nessun controllo a schermo il
+      //    badge diceva «Filtri (1)» su un pannello vuoto.
+      expect(interno(view).activeFilterCount()).toBe(0);
+    });
   });
 });

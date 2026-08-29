@@ -50,6 +50,7 @@ import { DEFAULT_CURRENCY, formatMoney } from '@core/utils/money.util';
 import { CustomerService } from '@domain/customers/services/customer.service';
 import {
   DEFAULT_MOVEMENT_PERIOD,
+  MOVEMENT_PERIOD_OPTIONS,
   MovementPeriodPreset,
   resolveMovementPeriodRange,
 } from '@domain/inventory/models/movement-period.util';
@@ -60,7 +61,6 @@ import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confir
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
-import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
@@ -128,6 +128,10 @@ import {
   type DocumentListQuery,
 } from '@domain/documents/models/document-list-query.model';
 import { DocumentService } from '@domain/documents/services/document.service';
+import type {
+  ListFilterDef,
+  ListFilterValues,
+} from '@shared/components/list-filters/list-filter.model';
 import { ExternalDocumentTypeService } from '@domain/documents/services/external-document-type.service';
 import { isPrintableDocumentType } from './models/document-print.util';
 import {
@@ -206,7 +210,6 @@ type DeleteResult =
     DateInputComponent,
     EmptyStateComponent,
     ErrorStateComponent,
-    InlineBannerComponent,
     ListActionsBarComponent,
     SelectMenuComponent,
     SlidePanelComponent,
@@ -491,6 +494,290 @@ export class DocumentListComponent {
     () => this.periodPreset() === MovementPeriodPreset.Custom,
   );
 
+  /**
+   * ⭐ **Il Periodo, comune a tutti i profili** — regola normativa `14` §12-bis,
+   * decisa dal proprietario il 29/08/2026.
+   *
+   * Ogni riepilogo con righe datate ha un filtro Periodo **visibile**, con default
+   * «Ultimi 30 giorni». Lo scopo è anche prestazionale: la prima chiamata chiede
+   * solo le righe del periodo, invece di tutto lo storico.
+   *
+   * ⛔ **Non deve più esistere** un limite temporale applicato alla query senza un
+   * controllo che lo mostri: fino a oggi il costruttore scriveva `dateFrom`/`dateTo`
+   * a 30 giorni per ogni profilo, ma il selettore esisteva **solo** sull'Arrivo
+   * merce. I Preventivi si aprivano filtrati senza dirlo, con «Azzera filtri» già
+   * visibile e il badge a 1.
+   *
+   * ⚠️ La data di riferimento è `documentDate`, per tutti: è quella su cui l'API
+   * filtra. `registrationDate` è solo di visualizzazione e non è filtrabile —
+   * nessuna ambiguità da risolvere.
+   */
+  private filtroPeriodo(): ListFilterDef {
+    return {
+      key: 'periodPreset',
+      label: 'Periodo',
+      kind: 'period',
+      options: MOVEMENT_PERIOD_OPTIONS,
+      placeholder: 'Tutto',
+      // ⚠️ **La peculiarità dell'Arrivo merce si conserva**: lì Dal/Al compaiono
+      //    solo col preset «Personalizzato», altrove sono sempre visibili. È la
+      //    condizione `!isGoodsReceiptList() || isCustomPeriod()` di oggi, e la
+      //    decisione sul Periodo comune non autorizza a uniformarla.
+      showDateRange: this.isGoodsReceiptList() ? this.isCustomPeriod() : true,
+      fromKey: 'dateFrom',
+      toKey: 'dateTo',
+      // ⛔ Il Periodo non è una restrizione opzionale (`14` §19).
+      countsAsActive: false,
+      onPresetChange: (value) => this.onPeriodPresetChange(value),
+      onFromChange: (value) => this.onDateFromChange(value),
+      onToChange: (value) => this.onDateToChange(value),
+    };
+  }
+
+  /**
+   * ⭐ **«DDT da fatturare»: una spunta, non una tendina.**
+   *
+   * ⚠️ Era stata omessa dalla prima dichiarazione, e sostituire il markup
+   * l'avrebbe cancellata da `sales-ddt` e `generic` — una rimozione funzionale
+   * dentro un refactor, che `14` §42-bis.0 vieta. Non l’hanno trovata i test:
+   * misuravano `filtriElenco()`, che per definizione non la conteneva. L’ha
+   * trovata il confronto col markup prima di toglierlo.
+   *
+   * ⛔ Il valore è un **booleano** e resta tale: `pendingInvoice` nel query
+   * param, `onPendingInvoiceFilterChange(checked: boolean)` come handler.
+   */
+  private filtroDaFatturare(): ListFilterDef {
+    return {
+      key: 'pendingInvoice',
+      label: 'DDT da fatturare',
+      kind: 'checkbox',
+      onCheckedChange: (checked) => this.onPendingInvoiceFilterChange(checked),
+    };
+  }
+
+  /** Cliente: stesse opzioni e stesso handler ovunque compaia. */
+  private filtroCliente(): ListFilterDef {
+    return {
+      key: 'customerId',
+      label: 'Cliente',
+      kind: 'select',
+      options: this.customerOptions(),
+      // ⭐ Ricercabile ANCHE sul Registro documenti (deciso il 29/08/2026): era
+      //    l'unico profilo senza ricerca, ed è l'elenco più largo dell'app — una
+      //    tendina da cento clienti senza campo di ricerca.
+      searchable: true,
+      searchPlaceholder: 'Cerca cliente…',
+      onChange: (value) => this.onCustomerFilterChange(value),
+    };
+  }
+
+  /**
+   * ⭐ **I filtri dell'elenco, dichiarati una volta e resi due** (`14` §11, §17.3).
+   *
+   * Le condizioni di dominio restano QUI: il contenitore comune riceve l'array dei
+   * filtri effettivamente visibili e lo rende, senza sapere che cosa siano un
+   * Arrivo merce, un fornitore o un metodo di pagamento.
+   *
+   * ⛔ **Sono i filtri che l'elenco ha già** (`14` §42-bis.0): la matrice sintetica
+   * elenca il minimo, non un elenco esclusivo. Nessun filtro esistente si toglie in
+   * un refactor, e nessuno si aggiunge per analogia.
+   */
+  protected readonly filtriElenco = computed<readonly ListFilterDef[]>(() => {
+    const filtri: ListFilterDef[] = [this.filtroPeriodo()];
+    const sales = this.salesRegister();
+
+    // ── Ramo REGISTRI DI VENDITA ───────────────────────────────────────
+    //    quote · proforma · sales-ddt · invoice · manual-unload
+    //    purchase-invoice · store-sale
+    if (sales) {
+      if (this.showSharedTypeFilter()) {
+        filtri.push({
+          key: 'type',
+          label: 'Tipo',
+          kind: 'select',
+          options: this.sharedTypeOptions(),
+          onChange: (value) => this.onSharedTypeFilterChange(value),
+        });
+      }
+      if (sales.statusOptions) {
+        filtri.push({
+          key: 'status',
+          label: 'Stato',
+          kind: 'select',
+          options: sales.statusOptions,
+          onChange: (value) => this.onStatusFilterChange(value),
+        });
+      }
+      if (sales.showSettlementFilter) {
+        filtri.push({
+          // ⭐ «Saldo», non «Stato» (`14` §7.1): è la situazione ECONOMICA — Da
+          //    saldare / Saldati — distinta dalla Fase commerciale e dal
+          //    Collegamento documentale. ⚠️ La chiave tecnica resta `settlement`.
+          key: 'settlement',
+          label: 'Saldo',
+          kind: 'select',
+          options: this.settlementOptions,
+          onChange: (value) => this.onSettlementFilterChange(value),
+        });
+      }
+      if (sales.showSupplierFilter) {
+        filtri.push({
+          key: 'supplierId',
+          label: 'Fornitore',
+          kind: 'select',
+          options: this.supplierOptions(),
+          searchable: true,
+          searchPlaceholder: 'Cerca fornitore…',
+          onChange: (value) => this.onSupplierFilterChange(value),
+        });
+      }
+      if (!sales.hideCustomerFilter) {
+        filtri.push(this.filtroCliente());
+      }
+      if (sales.paymentMethodOptions) {
+        filtri.push({
+          key: 'paymentMethod',
+          // ⭐ «Pagamento» e ricercabile ovunque (deciso il 29/08/2026): lo stesso
+          //    filtro aveva due etichette e due `searchable` — «Metodo pagamento»
+          //    non ricercabile qui, «Pagamento» ricercabile sull'Arrivo merce.
+          //    ⚠️ Le OPZIONI restano diverse per profilo, ed è deliberato: codici
+          //    cassa contro voci MP01–MP23.
+          label: 'Pagamento',
+          kind: 'select',
+          options: sales.paymentMethodOptions,
+          searchable: true,
+          searchPlaceholder: 'Cerca pagamento…',
+          onChange: (value) => this.onPaymentMethodFilterChange(value),
+        });
+      }
+      if (sales.showOperatorFilter) {
+        filtri.push({
+          key: 'createdById',
+          label: 'Operatore',
+          kind: 'select',
+          options: this.operatorOptions(),
+          searchable: true,
+          searchPlaceholder: 'Cerca operatore…',
+          onChange: (value) => this.onOperatorFilterChange(value),
+        });
+      }
+      if (sales.showPendingInvoiceFilter) {
+        filtri.push(this.filtroDaFatturare());
+      }
+      return filtri;
+    }
+
+    // ── Ramo ARRIVO MERCE ──────────────────────────────────────────────
+    if (this.isGoodsReceiptList()) {
+      filtri.push(
+        {
+          key: 'supplierId',
+          label: 'Fornitore',
+          kind: 'select',
+          options: this.supplierOptions(),
+          searchable: true,
+          searchPlaceholder: 'Cerca fornitore…',
+          onChange: (value) => this.onSupplierFilterChange(value),
+        },
+        {
+          // ⭐ «Collegamento», non «Stato» (`14` §7.1): è la situazione del
+          //    documento rispetto ad altri documenti, non la Fase commerciale.
+          //    ⚠️ La chiave tecnica resta `linkStatus`: rinominarla romperebbe
+          //    gli URL condivisi e non serve alla funzione.
+          key: 'linkStatus',
+          label: 'Collegamento',
+          kind: 'select',
+          options: this.linkStatusOptions,
+          onChange: (value) => this.onLinkStatusFilterChange(value),
+        },
+        {
+          key: 'locationId',
+          label: 'Magazzino',
+          kind: 'select',
+          options: this.locationOptions(),
+          // ⚠️ Femminile: sono le sedi. Uniformarlo a «Tutti» sarebbe una
+          //    generalizzazione distratta.
+          placeholder: 'Tutte',
+          onChange: (value) => this.onLocationFilterChange(value),
+        },
+        {
+          key: 'externalDocumentTypeId',
+          label: 'Tipo di documento',
+          kind: 'select',
+          options: this.externalDocTypeOptions(),
+          onChange: (value) => this.onExternalDocTypeFilterChange(value),
+        },
+        {
+          key: 'paymentMethod',
+          label: 'Pagamento',
+          kind: 'select',
+          options: this.paymentMethodFilterOptions(),
+          searchable: true,
+          searchPlaceholder: 'Cerca pagamento…',
+          onChange: (value) => this.onPaymentFilterChange(value),
+        },
+      );
+      return filtri;
+    }
+
+    // ── Ramo GENERICO: il Registro documenti ───────────────────────────
+    //    ⚠️ I suoi filtri sono CABLATI nel template, non configurati: non passa
+    //       da `salesDocumentRegisterConfig`, che per `generic` ritorna `null`.
+    filtri.push(
+      {
+        key: 'type',
+        label: 'Tipo',
+        kind: 'select',
+        options: this.typeOptions,
+        onChange: (value) => this.onTypeFilterChange(value),
+      },
+      {
+        key: 'status',
+        label: 'Stato',
+        kind: 'select',
+        options: this.statusOptions,
+        onChange: (value) => this.onStatusFilterChange(value),
+      },
+      this.filtroCliente(),
+      // ⚠️ Il Registro documenti la mostra SEMPRE: qui i filtri sono cablati,
+      //    non passano da una configurazione con `showPendingInvoiceFilter`.
+      this.filtroDaFatturare(),
+    );
+    return filtri;
+  });
+
+  /**
+   * I valori correnti dei filtri.
+   *
+   * ⚠️ Il contenitore comune non sa — e non deve sapere — che il preset è stato
+   * LOCALE e le date stanno nell'URL: riceve un record piatto e lo rende.
+   */
+  protected readonly valoriFiltri = computed<ListFilterValues>(() => {
+    const q = this.query();
+    return {
+      // ⚠️ Il preset è stato LOCALE, le date stanno nell’URL: il contenitore
+      //    comune riceve un record piatto e non sa — né deve sapere — da dove
+      //    viene ciascun valore.
+      periodPreset: this.periodPreset(),
+      dateFrom: q.dateFrom ?? '',
+      dateTo: q.dateTo ?? '',
+      // ⭐ Il Tipo dei registri condivisi passa dal proprio computed, che
+      //    scarta un `?type=` non valido per il profilo.
+      type: this.salesRegister() ? this.sharedTypeFilter() : (q.type ?? ''),
+      status: q.status ?? '',
+      settlement: q.settlement ?? '',
+      supplierId: q.supplierId ?? '',
+      customerId: q.customerId ?? '',
+      createdById: q.createdById ?? '',
+      linkStatus: q.linkStatus ?? '',
+      locationId: q.locationId ?? '',
+      externalDocumentTypeId: q.externalDocumentTypeId ?? '',
+      paymentMethod: q.paymentMethod ?? '',
+      // ⚠️ Booleano, non stringa: è il valore che la spunta legge.
+      pendingInvoice: this.isPendingInvoiceView(),
+    };
+  });
+
   /** Stato saldo delle Registrazioni fattura (spec: Tutti, Da saldare, Saldati). */
   protected readonly settlementOptions: readonly SelectMenuOption[] = [
     { value: 'pending', label: 'Da saldare' },
@@ -705,6 +992,16 @@ export class DocumentListComponent {
         ...q,
         type: shared ? pickedType : sales.type,
         types: shared && !pickedType ? [...shared] : undefined,
+        // ⛔ **`status` si spegne come tutti gli altri.** Passava dallo spread
+        //    `...q` senza guardia: sui quattro profili con `statusOptions: null`
+        //    — Preventivi, Vendita manuale, Registrazione fatture, Vendita al
+        //    banco — un `?status=` scritto a mano filtrava davvero l’elenco, e i
+        //    contatori lo contavano: badge «Filtri (1)» e pannello che si apre
+        //    senza mostrare niente di attivo. Un filtro che il profilo non
+        //    espone non deve poter restringere il risultato.
+        //
+        // ⚠️ Il parametro NON si ripulisce dall'URL: si ignora, e basta.
+        status: sales.statusOptions ? q.status : undefined,
         customerId: sales.hideCustomerFilter ? undefined : q.customerId,
         supplierId: sales.showSupplierFilter ? q.supplierId : undefined,
         settlement: sales.showSettlementFilter ? q.settlement : undefined,
@@ -962,7 +1259,9 @@ export class DocumentListComponent {
       return (
         Boolean(
           q.search ??
-          q.status ??
+          // Come in `apiQuery`: dove il profilo non offre lo Stato, un
+          // `?status=` non è un filtro attivo.
+          (sales.statusOptions ? q.status : undefined) ??
           q.dateFrom ??
           q.dateTo ??
           // Elenchi condivisi: anche il filtro «Tipo» è azzerabile.
@@ -1009,7 +1308,7 @@ export class DocumentListComponent {
     let count = 0;
     if (q.dateFrom ?? q.dateTo) count++;
     if (sales) {
-      if (q.status) count++;
+      if (sales.statusOptions && q.status) count++;
       if (sales.types && this.sharedTypeFilter()) count++;
       if (!sales.hideCustomerFilter && q.customerId) count++;
       if (sales.showSupplierFilter && q.supplierId) count++;

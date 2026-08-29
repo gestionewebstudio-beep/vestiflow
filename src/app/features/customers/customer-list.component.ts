@@ -32,12 +32,9 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { ShopifyConnection } from '@core/models/shopify-connection.model';
 import type { Customer } from '@core/models/customer.model';
+import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { PaginationComponent } from '@shared/components/pagination/pagination.component';
-import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
-import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
 import { ShopifySyncFeedbackComponent } from '@domain/channels/shopify/components/shopify-sync-feedback/shopify-sync-feedback.component';
@@ -88,14 +85,11 @@ type CustomerListState =
   selector: 'app-customer-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    ListPageComponent,
     RouterLink,
     ButtonComponent,
-    EmptyStateComponent,
-    ErrorStateComponent,
     PaginationComponent,
-    TableSkeletonComponent,
     CustomerTableComponent,
-    TableColumnPickerComponent,
     ShopifySyncFeedbackComponent,
   ],
   templateUrl: './customer-list.component.html',
@@ -218,10 +212,6 @@ export class CustomerListComponent {
       .watchRemoteDataChanged()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.reload());
-  }
-
-  protected onSearchInput(event: Event): void {
-    this.searchDraft.set((event.target as HTMLInputElement).value);
   }
 
   protected resetFilters(): void {

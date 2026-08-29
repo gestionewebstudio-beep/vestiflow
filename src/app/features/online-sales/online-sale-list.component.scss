@@ -1,3 +1,8 @@
 @use 'list-page' as lp;
 
 @include lp.list-page('os-list');
+
+/*
+  ⭐ La pagina si adatta alla finestra (`regole-stile-ui` §6).
+*/
+@include lp.list-page-fills-viewport('os-list', 'app-online-sale-table');

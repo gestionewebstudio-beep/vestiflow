@@ -6,13 +6,16 @@
 @include rt.data-table-mobile-cards('os-table');
 @include rt.data-table-mobile-title('os-table__number');
 
-.os-table-scroll {
-  inline-size: 100%;
-  max-inline-size: 100%;
+/*
+  ⛔ Stesso difetto dell'elenco prodotti, in una forma che lo nascondeva meglio:
+  lo `overflow-x` stava già dentro `media-up('lg')` ma senza l'altezza che gli
+  fa da coppia — quindi il contenitore diventava scrollport esattamente dove
+  l'intestazione si vede, e proprio lì non appiccicava.
+*/
+@include rt.table-scroll('.os-table-scroll', riempi);
 
-  @include bp.media-up('lg') {
-    overflow-x: auto;
-  }
+.os-table-scroll {
+  max-inline-size: 100%;
 }
 
 .os-table__head th {
@@ -66,4 +69,21 @@
   .os-table__row {
     border-radius: var(--radius-lg);
   }
+}
+
+
+/*
+  ⚠️ **Il ponte dell'altezza.**
+
+  La pagina dà `flex: 1` a questo componente; se non lo gira al proprio
+  contenitore di scorrimento, l'altezza si ferma qui e l'intestazione `sticky`
+  smette di appiccicare — **senza errori e senza test rossi**.
+
+  ⚠️ `list-card-table-host()` mette l'host a `display: block`: va ridichiarato
+  DOPO, o vince lui.
+*/
+:host {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
 }

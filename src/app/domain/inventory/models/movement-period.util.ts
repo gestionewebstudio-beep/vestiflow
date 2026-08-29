@@ -31,6 +31,33 @@ export type MovementPeriodPreset = (typeof MovementPeriodPreset)[keyof typeof Mo
  */
 export const DEFAULT_MOVEMENT_PERIOD: MovementPeriodPreset = MovementPeriodPreset.Last30Days;
 
+/**
+ * Le voci del selettore Periodo, **in un posto solo**.
+ *
+ * ⛔ Erano dichiarate identiche in due elenchi — `document-list` e
+ * `sales-order-list` — voce per voce, e la misura del 29/08/2026 le ha trovate
+ * uguali (`14` §3.2). Due copie della stessa lista sono due posti in cui
+ * aggiungere un preset, e uno solo in cui dimenticarselo.
+ *
+ * ⚠️ Qui sta la **presentazione**, non la semantica: le etichette e l'ordine.
+ * Il calcolo delle date resta in `resolveMovementPeriodRange`, i valori
+ * persistiti restano quelli dell'enum, e nessuno dei due cambia.
+ */
+export const MOVEMENT_PERIOD_OPTIONS: readonly { readonly value: string; readonly label: string }[] =
+  [
+    // ⭐ «Tutti» resta scegliibile ma NON è il predefinito (`14` §H14-bis): un
+    //    elenco che si apre su tutta la storia del tenant chiede al database di
+    //    leggerla prima ancora che l'operatore abbia guardato qualcosa.
+    { value: MovementPeriodPreset.All, label: 'Tutti' },
+    { value: MovementPeriodPreset.Last7Days, label: 'Ultimi 7 giorni' },
+    { value: MovementPeriodPreset.Last30Days, label: 'Ultimi 30 giorni' },
+    { value: MovementPeriodPreset.ThisMonth, label: 'Mese corrente' },
+    { value: MovementPeriodPreset.LastMonth, label: 'Mese scorso' },
+    { value: MovementPeriodPreset.ThisYear, label: 'Anno corrente' },
+    { value: MovementPeriodPreset.LastYear, label: 'Anno scorso' },
+    { value: MovementPeriodPreset.Custom, label: 'Personalizzato' },
+  ];
+
 /** Estremi inclusivi YYYY-MM-DD (ora locale); assenti = nessun vincolo. */
 export interface MovementDateRange {
   readonly from?: string;

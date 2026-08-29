@@ -25,12 +25,9 @@ import type { AppError } from '@core/models/app-error.model';
 import type { Supplier } from '@core/models/supplier.model';
 import { canManageSupplierOrders } from '@core/permissions/tenant-permissions.util';
 import { ButtonComponent } from '@shared/components/button/button.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
+import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import { PaginationComponent } from '@shared/components/pagination/pagination.component';
-import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
-import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableViewId } from '@shared/table-columns/table-column.model';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
@@ -71,12 +68,9 @@ type SupplierListState =
   imports: [
     RouterLink,
     ButtonComponent,
-    EmptyStateComponent,
-    ErrorStateComponent,
+    ListPageComponent,
     PaginationComponent,
-    TableSkeletonComponent,
     SupplierTableComponent,
-    TableColumnPickerComponent,
   ],
   templateUrl: './supplier-list.component.html',
   styleUrl: './supplier-list.component.scss',
@@ -99,6 +93,11 @@ export class SupplierListComponent {
   );
 
   private readonly refreshTick = signal(0);
+  /**
+   * ⚠️ Lo scrive il telaio: `app-list-page` possiede il campo di ricerca e
+   *    emette la stringa. Qui non c'è più un gestore di evento — il
+   *    `(input)` con il cast a `HTMLInputElement` viveva in undici pagine.
+   */
   protected readonly searchDraft = signal('');
   private readonly queryParams = toSignal(this.route.queryParamMap, { requireSync: true });
 
@@ -178,9 +177,6 @@ export class SupplierListComponent {
       });
   }
 
-  protected onSearchInput(event: Event): void {
-    this.searchDraft.set((event.target as HTMLInputElement).value);
-  }
 
   protected resetFilters(): void {
     const current = parseSupplierListQuery(this.queryParams());

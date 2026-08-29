@@ -27,11 +27,15 @@
     <thead class="corrispettivi-table__head">
       <!--
         ⚠️ **Le colonne sono configurabili** (`TableViewId.CorrispettiviRegister`).
-        Cliente, Email cliente, Pagamento e Nota esistono ma nascono **spente**:
-        il Registro non è un archivio clienti, e lo stato di pagamento oggi crea
-        soprattutto incoerenza fra sorgenti che un ciclo di pagamento non ce
-        l'hanno. Chi le vuole le riaccende dal selettore Colonne — i dati
-        arrivano comunque dall'API ed escono comunque nell'export.
+        Cliente e Pagamento esistono ma nascono **spente**: il Registro non è un
+        archivio clienti, e lo stato di pagamento oggi crea soprattutto
+        incoerenza fra sorgenti che un ciclo di pagamento non ce l'hanno. Chi le
+        vuole le riaccende dal selettore Colonne.
+
+        ⛔ **Qui era nominata anche una colonna «Email cliente». Non esiste**, e
+        non deve esistere: un riepilogo non mostra l'indirizzo di un cliente
+        (decisione del proprietario, 29/08/2026). Verificato il 29/08: non è fra
+        le dieci colonne dichiarate e non entra nell'export.
       -->
       <tr>
         @if (isVisible('occurredAt')) {

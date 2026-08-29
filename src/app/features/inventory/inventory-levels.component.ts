@@ -41,12 +41,10 @@ import type { InventoryLevel } from '@core/models/inventory-level.model';
 import { StockStatus } from '@core/models/inventory-level.model';
 import type { Location } from '@core/models/location.model';
 import { stockStatusOf } from '@core/utils/inventory.util';
+import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import { BarcodeScannerComponent } from '@shared/components/barcode-scanner/barcode-scanner.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { PaginationComponent } from '@shared/components/pagination/pagination.component';
-import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
@@ -61,11 +59,9 @@ import {
 import { ShopifyConnectionService } from '@domain/channels/shopify/services/shopify-connection.service';
 import { ShopifySyncWatchService } from '@domain/channels/shopify/services/shopify-sync-watch.service';
 
-import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableViewId } from '@shared/table-columns/table-column.model';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
-import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
 
 import { InventoryLevelTableComponent } from './components/inventory-level-table/inventory-level-table.component';
 import { InventoryTabsComponent } from './components/inventory-tabs/inventory-tabs.component';
@@ -111,21 +107,29 @@ const EMPTY_META: PageMeta = {
  * Giacenze per variante × location (smart). Filtri e paginazione server-side;
  * SKU/titolo dalla risposta API (ref variante inclusi).
  */
+import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
+
+import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
+
+import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
+
+import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+
 @Component({
   selector: 'app-inventory-levels',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    BarcodeScannerComponent,
-    ButtonComponent,
     EmptyStateComponent,
     ErrorStateComponent,
     TableSkeletonComponent,
+    ListPageComponent,
+    BarcodeScannerComponent,
+    ButtonComponent,
     SelectMenuComponent,
     PaginationComponent,
     InventoryTabsComponent,
     InventoryLevelTableComponent,
     ShopifySyncFeedbackComponent,
-    TableColumnPickerComponent,
     SlidePanelComponent,
   ],
   templateUrl: './inventory-levels.component.html',

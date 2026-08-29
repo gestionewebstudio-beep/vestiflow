@@ -37,12 +37,10 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { ProductStatus } from '@core/models/product.model';
 import type { Product } from '@core/models/product.model';
+import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { PaginationComponent } from '@shared/components/pagination/pagination.component';
-import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
-import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
 import { ProductTableComponent } from './components/product-table/product-table.component';
@@ -104,14 +102,12 @@ type ProductListState =
   selector: 'app-product-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    ListPageComponent,
     ButtonComponent,
-    EmptyStateComponent,
     ErrorStateComponent,
-    TableSkeletonComponent,
     PaginationComponent,
     ProductToolbarComponent,
     ProductTableComponent,
-    TableColumnPickerComponent,
     ShopifySyncFeedbackComponent,
   ],
   templateUrl: './product-list.component.html',

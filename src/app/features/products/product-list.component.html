@@ -1,87 +1,79 @@
-<section class="product-list">
-  <header class="product-list__header">
-    <h1 class="product-list__title">Prodotti</h1>
-    <div class="product-list__actions">
-      @if (showShopifyCatalogSync()) {
-        <app-button
-          variant="secondary"
-          loadingIndicator="icon"
-          [loading]="shopifyCatalogLoading()"
-          [disabled]="shopifyCatalogLoading()"
-          (click)="importCatalogFromShopify()"
-        >
-          <i class="pi pi-sync" aria-hidden="true"></i>
-          Sincronizza catalogo da Shopify
-        </app-button>
-      }
-      @if (canImportExportCatalog()) {
-        <app-button variant="secondary" [disabled]="exporting()" (click)="exportProducts()">
-          <i class="pi pi-download" aria-hidden="true"></i>
-          @if (exporting()) {
-            Export in corso…
-          } @else {
-            Esporta CSV
-          }
-        </app-button>
-        <app-button variant="secondary" (click)="importProducts()">
-          <i class="pi pi-upload" aria-hidden="true"></i>
-          Importa CSV
-        </app-button>
-      }
-      @if (canManageCatalog()) {
-        <app-button (click)="createProduct()">
-          <i class="pi pi-plus" aria-hidden="true"></i>
-          Aggiungi prodotto
-        </app-button>
-      }
-    </div>
-  </header>
+<app-list-page
+  class="product-list"
+  pageTitle="Prodotti"
+  [loading]="loading()"
+  [error]="error()?.message ?? null"
+  [isEmpty]="isEmpty()"
+  [skeletonColumns]="skeletonColumns()"
+  [columnsViewId]="productListView"
+  emptyTitle="Nessun prodotto"
+  emptyDescription="Nessun prodotto corrisponde ai filtri attuali."
+  emptyIcon="pi-tag"
+  (retry)="reload()"
+>
+  <div pageActions>
+    @if (showShopifyCatalogSync()) {
+      <app-button
+        variant="secondary"
+        loadingIndicator="icon"
+        [loading]="shopifyCatalogLoading()"
+        [disabled]="shopifyCatalogLoading()"
+        (click)="importCatalogFromShopify()"
+      >
+        <i class="pi pi-sync" aria-hidden="true"></i>
+        Sincronizza catalogo da Shopify
+      </app-button>
+    }
+    @if (canImportExportCatalog()) {
+      <app-button variant="secondary" [disabled]="exporting()" (click)="exportProducts()">
+        <i class="pi pi-download" aria-hidden="true"></i>
+        @if (exporting()) {
+          Export in corso…
+        } @else {
+          Esporta CSV
+        }
+      </app-button>
+      <app-button variant="secondary" (click)="importProducts()">
+        <i class="pi pi-upload" aria-hidden="true"></i>
+        Importa CSV
+      </app-button>
+    }
+    @if (canManageCatalog()) {
+      <app-button (click)="createProduct()">
+        <i class="pi pi-plus" aria-hidden="true"></i>
+        Aggiungi prodotto
+      </app-button>
+    }
+  </div>
 
-  @if (shopifySyncError(); as message) {
-    <p class="product-list__shopify-error" role="alert">{{ message }}</p>
-  }
-
-  @if (shopifyFeedback(); as feedback) {
-    <app-shopify-sync-feedback
-      [message]="feedback.message"
-      [tone]="feedback.tone"
-      (dismissed)="dismissShopifyFeedback()"
+  <!--
+    ⚠️ Ricerca e filtri stanno dentro `app-product-toolbar`, un componente di
+    questa pagina. Il telaio non li conosce: proietta il componente intero nella
+    zona dei filtri, che è dove la sua riga appartiene.
+  -->
+  <div filters>
+    <app-product-toolbar
+      [search]="searchDraft()"
+      [filters]="query()"
+      [categories]="filterOptions().categories"
+      [brands]="filterOptions().brands"
+      [seasons]="filterOptions().seasons"
+      [statusOptions]="statusOptions"
+      [hasActiveFilters]="hasActiveFilters()"
+      [barcodeScannerEnabled]="barcodeScannerEnabled()"
+      (searchChange)="onSearchInput($event)"
+      (filterChange)="onFilterChange($event)"
+      (resetFilters)="onResetFilters()"
+      (barcodeScanned)="onBarcodeScanned($event)"
     />
-  }
+  </div>
 
-  <app-product-toolbar
-    [search]="searchDraft()"
-    [filters]="query()"
-    [categories]="filterOptions().categories"
-    [brands]="filterOptions().brands"
-    [seasons]="filterOptions().seasons"
-    [statusOptions]="statusOptions"
-    [hasActiveFilters]="hasActiveFilters()"
-    [barcodeScannerEnabled]="barcodeScannerEnabled()"
-    (searchChange)="onSearchInput($event)"
-    (filterChange)="onFilterChange($event)"
-    (resetFilters)="onResetFilters()"
-    (barcodeScanned)="onBarcodeScanned($event)"
-  />
-
-  <!-- F6d: accesso rapido agli articoli in bozza (es. creati al volo da scanner
-       ordine), da completare con anagrafica prima della sync Shopify. -->
-  @if (draftCount() > 0 || draftFilterActive()) {
-    <button
-      type="button"
-      class="product-list__drafts-chip"
-      [class.product-list__drafts-chip--active]="draftFilterActive()"
-      [attr.aria-pressed]="draftFilterActive()"
-      (click)="toggleDraftFilter()"
-    >
-      <i class="pi pi-inbox" aria-hidden="true"></i>
-      Articoli da completare
-      <span class="product-list__drafts-count tabular-nums">{{ draftCount() }}</span>
-    </button>
-  }
-
-  <div class="product-list__columns">
-    <app-table-column-picker [viewId]="productListView" />
+  <!--
+    ⏸ **Casa da decidere.** Non è un filtro: è quante copie stampa «Stampa
+    etichette». Stava nella riga del selettore Colonne, che ora è del
+    telaio; qui torna visibile, ma il posto giusto va scelto.
+  -->
+  <div filters>
     <label class="product-list__label-copies">
       Copie per etichetta
       <input
@@ -96,21 +88,68 @@
     </label>
   </div>
 
-  @if (scanFeedback(); as message) {
-    <p class="product-list__scan-feedback" role="status">{{ message }}</p>
-  }
+  <div warnings>
+    @if (shopifySyncError(); as message) {
+      <p class="product-list__shopify-error" role="alert">{{ message }}</p>
+    }
 
-  @if (loading()) {
-    <app-table-skeleton [columns]="skeletonColumns()" [rows]="8" />
-  } @else if (error(); as appError) {
-    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
-  } @else if (isEmpty()) {
-    <app-empty-state
-      title="Nessun prodotto"
-      description="Nessun prodotto corrisponde ai filtri attuali. Modifica i criteri o azzera i filtri."
-      icon="pi-tags"
-    />
-  } @else {
+    @if (shopifyFeedback(); as feedback) {
+      <app-shopify-sync-feedback
+        [message]="feedback.message"
+        [tone]="feedback.tone"
+        (dismissed)="dismissShopifyFeedback()"
+      />
+    }
+    @if (draftCount() > 0 || draftFilterActive()) {
+      <button
+        type="button"
+        class="product-list__drafts-chip"
+        [class.product-list__drafts-chip--active]="draftFilterActive()"
+        [attr.aria-pressed]="draftFilterActive()"
+        (click)="toggleDraftFilter()"
+      >
+        <i class="pi pi-inbox" aria-hidden="true"></i>
+        Articoli da completare
+        <span class="product-list__drafts-count tabular-nums">{{ draftCount() }}</span>
+      </button>
+    }
+    @if (scanFeedback(); as message) {
+      <p class="product-list__scan-feedback" role="status">{{ message }}</p>
+    }
+    @if (duplicateError(); as message) {
+      <app-error-state [description]="message" />
+    }
+  </div>
+
+  <app-product-table
+    data
+    [products]="products()"
+    [columns]="tableColumns()"
+    [sortField]="query().sort"
+    [sortOrder]="query().order"
+    [selectedProductIds]="selectedProductIds()"
+    [allOnPageSelected]="allOnPageSelected()"
+    [someOnPageSelected]="someOnPageSelected()"
+    [canManage]="canManageCatalog()"
+    (rowClick)="openProduct($event)"
+    (printLabel)="printProductLabels($event)"
+    (duplicate)="duplicateProduct($event)"
+    (selectionToggle)="toggleProductSelection($event.productId, $event.selected)"
+    (selectAllToggle)="toggleSelectAllOnPage($event)"
+    (sortChange)="onSortChange($event)"
+  />
+
+  <app-pagination
+    summary
+    label="Paginazione prodotti"
+    [meta]="meta()"
+    [pageSizeOptions]="pageSizeOptions"
+    (pageChange)="goToPage($event)"
+    (pageSizeChange)="onPageSizeChange($event)"
+  />
+
+  <!-- `14` §21.1: le funzioni stanno sotto i dati. -->
+  <div listActions>
     @if (selectedCount() > 0) {
       <div class="product-list__bulk-actions" aria-live="polite">
         <p class="product-list__bulk-summary">
@@ -134,31 +173,5 @@
         </div>
       </div>
     }
-    @if (duplicateError(); as message) {
-      <app-error-state [description]="message" />
-    }
-    <app-product-table
-      [products]="products()"
-      [columns]="tableColumns()"
-      [sortField]="query().sort"
-      [sortOrder]="query().order"
-      [selectedProductIds]="selectedProductIds()"
-      [allOnPageSelected]="allOnPageSelected()"
-      [someOnPageSelected]="someOnPageSelected()"
-      [canManage]="canManageCatalog()"
-      (rowClick)="openProduct($event)"
-      (printLabel)="printProductLabels($event)"
-      (duplicate)="duplicateProduct($event)"
-      (selectionToggle)="toggleProductSelection($event.productId, $event.selected)"
-      (selectAllToggle)="toggleSelectAllOnPage($event)"
-      (sortChange)="onSortChange($event)"
-    />
-    <app-pagination
-      label="Paginazione prodotti"
-      [meta]="meta()"
-      [pageSizeOptions]="pageSizeOptions"
-      (pageChange)="goToPage($event)"
-      (pageSizeChange)="onPageSizeChange($event)"
-    />
-  }
-</section>
+  </div>
+</app-list-page>

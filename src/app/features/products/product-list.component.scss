@@ -102,3 +102,42 @@
   background-color: var(--status-warning-fg);
   border-radius: var(--radius-full);
 }
+
+/*
+  ⭐ La pagina si adatta alla finestra (`regole-stile-ui` §6).
+
+  ⚠️ È la radice con più figli condizionali dell'app — banner Shopify, feedback
+  sync, chip bozze, riga colonne, feedback scansione, barra selezione, errore
+  duplicato. Con una griglia posizionale la fascia elastica sarebbe finita
+  quasi sempre sull'elemento sbagliato: qui il flex non è una preferenza.
+*/
+@include lp.list-page-fills-viewport('product-list', 'app-product-table');
+
+
+/* ── telaio ─────────────────────────────────────────────────────────────
+  ⭐ Passata a `app-list-page`: testata, zona controlli e stati sono suoi.
+
+  ⚠️ La tabella proiettata deve riempire l'area dati, e lo dice QUESTA pagina:
+  le regole del telaio portano il proprio attributo di incapsulamento e non
+  raggiungono il contenuto proiettato. Una regola come `.list-page__data > *`
+  non lo tocca — e non fallisce: non fa niente.
+  ──────────────────────────────────────────────────────────────────────── */
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-block-size: 0;
+}
+
+app-product-table {
+  flex: 1;
+  min-block-size: 0;
+}
+
+/* I gruppi proiettati non sono scatole: sono contenuto (vedi telaio elenco). */
+[pageActions],
+[filters],
+[warnings],
+[listActions] {
+  display: contents;
+}

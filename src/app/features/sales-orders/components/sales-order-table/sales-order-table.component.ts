@@ -130,12 +130,24 @@ export class SalesOrderTableComponent {
   }
 
   /**
-   * Riga secondaria del cliente: il codice anagrafica quando c'è, altrimenti
-   * l'email. Il modello ordine non porta P.IVA né storico ordini, quindi qui
-   * non compaiono (a differenza del mockup, popolato con dati d'esempio).
+   * Riga secondaria del cliente: il **codice anagrafica**, e nient'altro.
+   *
+   * ⛔ **Mai l'email** — decisione del proprietario, 29/08/2026. Qui c'era un
+   * ripiego `customerCode || customerEmail`: sugli ordini del canale online il
+   * codice anagrafica non c'è quasi mai, quindi il ripiego non era un caso
+   * limite — era il comportamento normale, e l'indirizzo di ogni cliente
+   * finiva stampato sotto il suo nome in un elenco che si consulta tutto il
+   * giorno, anche a schermo condiviso.
+   *
+   * ⚠️ Un dato personale non entra in un riepilogo per ripiego. Se un giorno
+   * dovesse servire, è una **colonna** che l'operatore accende — non una riga
+   * che compare da sé.
+   *
+   * Il modello ordine non porta P.IVA né storico ordini, quindi qui non
+   * compaiono (a differenza del mockup, popolato con dati d'esempio).
    */
   protected customerSecondary(order: SalesOrder): string {
-    return order.customerCode?.trim() || order.customerEmail?.trim() || '';
+    return order.customerCode?.trim() ?? '';
   }
 
   protected orderStateLabel(order: SalesOrder): string {

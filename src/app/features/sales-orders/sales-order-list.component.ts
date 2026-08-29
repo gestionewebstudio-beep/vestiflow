@@ -47,7 +47,6 @@ import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confir
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
-import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
@@ -143,7 +142,6 @@ type SalesListState =
     DateInputComponent,
     EmptyStateComponent,
     ErrorStateComponent,
-    InlineBannerComponent,
     ListActionsBarComponent,
     SelectMenuComponent,
     SlidePanelComponent,

@@ -1,11 +1,19 @@
-<section class="stock-movements">
-  <header class="stock-movements__header">
-    <div class="stock-movements__heading">
-      <!-- Torna alla pagina precedente; senza cronologia interna ricade
-           sull'hub Magazzino dedotto dall'URL. -->
-      <app-back-button />
-      <h1 class="stock-movements__title">Movimenti di magazzino</h1>
-    </div>
+<app-list-page
+  class="stock-movements"
+  pageTitle="Movimenti di magazzino"
+  [showBack]="true"
+  [loading]="loading()"
+  [error]="error()?.message ?? null"
+  [isEmpty]="isEmpty()"
+  [skeletonColumns]="skeletonColumns"
+  [columnsViewId]="tableViewId"
+  emptyTitle="Nessun movimento"
+  emptyDescription="Nessun movimento corrisponde ai filtri attuali. Registra un carico, uno scarico o un trasferimento."
+  emptyIcon="pi-arrow-right-arrow-left"
+  (filtersCleared)="resetFilters()"
+  (retry)="reload()"
+>
+  <div pageActions>
     @if (canManageInventory()) {
       <div class="stock-movements__actions">
         @for (action of movementActions; track action.type) {
@@ -16,165 +24,201 @@
         }
       </div>
     }
-  </header>
+  </div>
 
-  <app-inventory-tabs />
+  <app-inventory-tabs tabs />
 
-  <div class="stock-movements__filters">
-    <div class="stock-movements__field stock-movements__field--select">
-      <app-select-menu
-        chipLabel="Tipo movimento"
-        [options]="movementTypeOptions"
-        [value]="typeFilter()"
-        ariaLabel="Filtra per tipo movimento"
-        placeholder="Tutti"
+  <!--
+    ⚠️ Il selettore Colonne non è più qui: lo rende il telaio. Restano i filtri
+    di dominio, che il telaio non conosce.
+  -->
+  <div filters>
+  <div class="stock-movements__field stock-movements__field--select">
+    <app-select-menu
+      chipLabel="Tipo movimento"
+      [options]="movementTypeOptions"
+      [value]="typeFilter()"
+      ariaLabel="Filtra per tipo movimento"
+      placeholder="Tutti"
+      [compact]="true"
+      [fullWidth]="true"
+      (valueChange)="onTypeFilterChange($event)"
+      [filterChip]="true"
+    />
+  </div>
+
+  <div class="stock-movements__field stock-movements__field--select">
+    <app-select-menu
+      chipLabel="Origine"
+      [options]="originOptions()"
+      [value]="originFilter()"
+      ariaLabel="Filtra per origine movimento"
+      placeholder="Tutti"
+      [compact]="true"
+      [fullWidth]="true"
+      (valueChange)="onOriginFilterChange($event)"
+      [filterChip]="true"
+    />
+  </div>
+
+  <div class="stock-movements__field stock-movements__field--select">
+    <app-select-menu
+      chipLabel="Location"
+      [options]="locationOptions()"
+      [value]="locationFilter()"
+      ariaLabel="Filtra per location"
+      placeholder="Tutte"
+      [compact]="true"
+      [fullWidth]="true"
+      (valueChange)="onLocationFilterChange($event)"
+      [filterChip]="true"
+    />
+  </div>
+
+  <div class="stock-movements__field stock-movements__field--select">
+    <app-select-menu
+      chipLabel="Periodo"
+      [options]="periodOptions"
+      [value]="periodFilter()"
+      ariaLabel="Filtra per periodo"
+      placeholder="Periodo"
+      [compact]="true"
+      [fitContent]="true"
+      [includeEmptyOption]="false"
+      (valueChange)="onPeriodFilterChange($event)"
+    />
+  </div>
+
+  @if (isCustomPeriod()) {
+    <div class="stock-movements__field stock-movements__field--date">
+      <label class="stock-movements__label" for="movements-from">Dal</label>
+      <app-date-input
+        inputId="movements-from"
+        [value]="fromFilter()"
+        ariaLabel="Data inizio periodo"
+        placeholder="gg/mm/aaaa"
         [compact]="true"
         [fullWidth]="true"
-        (valueChange)="onTypeFilterChange($event)"
-        [filterChip]="true"
+        [max]="toFilter() || undefined"
+        (valueChange)="onFromFilterChange($event)"
       />
     </div>
 
-    <div class="stock-movements__field stock-movements__field--select">
-      <app-select-menu
-        chipLabel="Origine"
-        [options]="originOptions()"
-        [value]="originFilter()"
-        ariaLabel="Filtra per origine movimento"
-        placeholder="Tutti"
+    <div class="stock-movements__field stock-movements__field--date">
+      <label class="stock-movements__label" for="movements-to">Al</label>
+      <app-date-input
+        inputId="movements-to"
+        [value]="toFilter()"
+        ariaLabel="Data fine periodo"
+        placeholder="gg/mm/aaaa"
         [compact]="true"
         [fullWidth]="true"
-        (valueChange)="onOriginFilterChange($event)"
-        [filterChip]="true"
+        [min]="fromFilter() || undefined"
+        (valueChange)="onToFilterChange($event)"
       />
     </div>
+  }
 
-    <div class="stock-movements__field stock-movements__field--select">
-      <app-select-menu
-        chipLabel="Location"
-        [options]="locationOptions()"
-        [value]="locationFilter()"
-        ariaLabel="Filtra per location"
-        placeholder="Tutte"
-        [compact]="true"
-        [fullWidth]="true"
-        (valueChange)="onLocationFilterChange($event)"
-        [filterChip]="true"
+  <div class="stock-movements__field stock-movements__field--search">
+    <label class="stock-movements__label" for="movements-search">Prodotto</label>
+    <div class="stock-movements__search">
+      <i class="pi pi-search stock-movements__search-icon" aria-hidden="true"></i>
+      <input
+        id="movements-search"
+        class="stock-movements__search-input"
+        type="search"
+        [value]="searchDraft()"
+        placeholder="Nome, SKU o cod. articolo"
+        aria-label="Cerca per nome prodotto, SKU o codice articolo"
+        (input)="onSearchInput($event)"
       />
-    </div>
-
-    <div class="stock-movements__field stock-movements__field--select">
-      <app-select-menu
-        chipLabel="Periodo"
-        [options]="periodOptions"
-        [value]="periodFilter()"
-        ariaLabel="Filtra per periodo"
-        placeholder="Periodo"
-        [compact]="true"
-        [fitContent]="true"
-        [includeEmptyOption]="false"
-        (valueChange)="onPeriodFilterChange($event)"
-      />
-    </div>
-
-    @if (isCustomPeriod()) {
-      <div class="stock-movements__field stock-movements__field--date">
-        <label class="stock-movements__label" for="movements-from">Dal</label>
-        <app-date-input
-          inputId="movements-from"
-          [value]="fromFilter()"
-          ariaLabel="Data inizio periodo"
-          placeholder="gg/mm/aaaa"
-          [compact]="true"
-          [fullWidth]="true"
-          [max]="toFilter() || undefined"
-          (valueChange)="onFromFilterChange($event)"
-        />
-      </div>
-
-      <div class="stock-movements__field stock-movements__field--date">
-        <label class="stock-movements__label" for="movements-to">Al</label>
-        <app-date-input
-          inputId="movements-to"
-          [value]="toFilter()"
-          ariaLabel="Data fine periodo"
-          placeholder="gg/mm/aaaa"
-          [compact]="true"
-          [fullWidth]="true"
-          [min]="fromFilter() || undefined"
-          (valueChange)="onToFilterChange($event)"
-        />
-      </div>
-    }
-
-    <div class="stock-movements__field stock-movements__field--search">
-      <label class="stock-movements__label" for="movements-search">Prodotto</label>
-      <div class="stock-movements__search">
-        <i class="pi pi-search stock-movements__search-icon" aria-hidden="true"></i>
-        <input
-          id="movements-search"
-          class="stock-movements__search-input"
-          type="search"
-          [value]="searchDraft()"
-          placeholder="Nome, SKU o cod. articolo"
-          aria-label="Cerca per nome prodotto, SKU o codice articolo"
-          (input)="onSearchInput($event)"
-        />
-      </div>
-    </div>
-
-    <div class="stock-movements__field stock-movements__field--select">
-      <app-select-menu
-        chipLabel="Cliente/Fornitore"
-        [options]="partyOptions()"
-        [value]="partyFilter()"
-        ariaLabel="Filtra per cliente o fornitore"
-        placeholder="Tutti"
-        [compact]="true"
-        [fullWidth]="true"
-        [searchable]="true"
-        (valueChange)="onPartyFilterChange($event)"
-        [filterChip]="true"
-      />
-    </div>
-
-    <div class="stock-movements__field stock-movements__field--select">
-      <app-select-menu
-        chipLabel="Operatore"
-        [options]="operatorOptions()"
-        [value]="operatorFilter()"
-        ariaLabel="Filtra per operatore"
-        placeholder="Tutti"
-        [compact]="true"
-        [fullWidth]="true"
-        [searchable]="true"
-        (valueChange)="onOperatorFilterChange($event)"
-        [filterChip]="true"
-      />
-    </div>
-
-    <div class="stock-movements__filters-action">
-      <app-table-column-picker [viewId]="tableViewId" />
-      <app-button variant="secondary" [disabled]="!hasActiveFilters()" (click)="resetFilters()">
-        <i class="pi pi-filter-slash" aria-hidden="true"></i>
-        Azzera filtri
-      </app-button>
     </div>
   </div>
 
-  @if (loading()) {
-    <app-table-skeleton [columns]="skeletonColumns" [rows]="8" />
-  } @else if (error(); as appError) {
-    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
-  } @else if (isEmpty()) {
-    <app-empty-state
-      title="Nessun movimento"
-      description="Nessun movimento corrisponde ai filtri attuali. Registra un carico, uno scarico o un trasferimento."
-      icon="pi-arrow-right-arrow-left"
-      [ctaLabel]="emptyStateCtaLabel()"
-      (ctaClick)="onEmptyStateAction()"
+  <div class="stock-movements__field stock-movements__field--select">
+    <app-select-menu
+      chipLabel="Cliente/Fornitore"
+      [options]="partyOptions()"
+      [value]="partyFilter()"
+      ariaLabel="Filtra per cliente o fornitore"
+      placeholder="Tutti"
+      [compact]="true"
+      [fullWidth]="true"
+      [searchable]="true"
+      (valueChange)="onPartyFilterChange($event)"
+      [filterChip]="true"
     />
-  } @else {
+  </div>
+
+  <div class="stock-movements__field stock-movements__field--select">
+    <app-select-menu
+      chipLabel="Operatore"
+      [options]="operatorOptions()"
+      [value]="operatorFilter()"
+      ariaLabel="Filtra per operatore"
+      placeholder="Tutti"
+      [compact]="true"
+      [fullWidth]="true"
+      [searchable]="true"
+      (valueChange)="onOperatorFilterChange($event)"
+      [filterChip]="true"
+    />
+  </div>
+
+  </div>
+
+  <app-data-table
+    data
+    caption="Movimenti di magazzino"
+    [columns]="tableColumns()"
+    [sections]="sezioni()"
+    [rowId]="rowId"
+    [cellText]="cellText"
+    selectionMode="multiple"
+    [selectedIds]="selectedIds()"
+    [selectionLabel]="selectionLabel"
+    selectAllLabel="Seleziona tutti i movimenti"
+    [sortable]="true"
+    [sort]="sortState()"
+    (sortChange)="sortState.set($event)"
+    (selectionChange)="onToggleSelection($event)"
+    (selectAllChange)="onToggleSelectAll($event)"
+  >
+    <!-- L'unica cella che non è testo: il tipo, con la sua pill. -->
+    <ng-template appCell="type" let-row>
+      <app-badge [tone]="typeTone(row.type)">{{ typeLabel(row.type) }}</app-badge>
+    </ng-template>
+
+    <!--
+      Le altre quattro celle non portano un componente: portano TIPOGRAFIA —
+      codice in mono, data smorzata, descrizione troncata.
+
+      ⭐ Il testo resta uno solo (`cellText`): il template aggiunge il
+      vestito, non una seconda verità.
+
+      ⚠️ Stanno qui e non nel motore perché il contenuto proiettato porta
+      l'incapsulamento di QUESTA pagina: è il solo modo di dare stile a una
+      cella senza `::ng-deep`, che `regole-stile-ui` §5 vieta.
+    -->
+    <ng-template appCell="createdAt" let-row>
+      <span class="stock-movements__data">{{ cellText(row, 'createdAt') }}</span>
+    </ng-template>
+
+    <ng-template appCell="articleCode" let-row>
+      <span class="stock-movements__codice">{{ cellText(row, 'articleCode') }}</span>
+    </ng-template>
+
+    <ng-template appCell="sku" let-row>
+      <span class="stock-movements__codice">{{ cellText(row, 'sku') }}</span>
+    </ng-template>
+
+    <ng-template appCell="product" let-row>
+      <span class="stock-movements__prodotto">{{ cellText(row, 'product') }}</span>
+    </ng-template>
+  </app-data-table>
+
+  <!-- `14` §21.1: dati → totali → funzioni. -->
+  <div listActions>
     <app-list-actions-bar
       [count]="selectionCount()"
       [ids]="[...selectedIds()]"
@@ -183,62 +227,5 @@
       labelPlural="movimenti selezionati"
       (cleared)="clearSelection()"
     />
-
-    <!--
-      ⭐ Il motore comune (`14` parte H). Una lista piatta è UNA sezione senza
-      intestazione né piede: non c'è un secondo modo di rendere il corpo.
-
-      ⚠️ L'ordinamento resta spento: la query dei movimenti non ha un campo
-      d'ordinamento, e accendere le intestazioni prometterebbe qualcosa che il
-      server non sa fare.
-    -->
-    <app-data-table
-      caption="Movimenti di magazzino"
-      [columns]="tableColumns()"
-      [sections]="sezioni()"
-      [rowId]="rowId"
-      [cellText]="cellText"
-      selectionMode="multiple"
-      [selectedIds]="selectedIds()"
-      [selectionLabel]="selectionLabel"
-      selectAllLabel="Seleziona tutti i movimenti"
-      [sortable]="true"
-      [sort]="sortState()"
-      (sortChange)="sortState.set($event)"
-      (selectionChange)="onToggleSelection($event)"
-      (selectAllChange)="onToggleSelectAll($event)"
-    >
-      <!-- L'unica cella che non è testo: il tipo, con la sua pill. -->
-      <ng-template appCell="type" let-row>
-        <app-badge [tone]="typeTone(row.type)">{{ typeLabel(row.type) }}</app-badge>
-      </ng-template>
-
-      <!--
-        Le altre quattro celle non portano un componente: portano TIPOGRAFIA —
-        codice in mono, data smorzata, descrizione troncata.
-
-        ⭐ Il testo resta uno solo (`cellText`): il template aggiunge il
-        vestito, non una seconda verità.
-
-        ⚠️ Stanno qui e non nel motore perché il contenuto proiettato porta
-        l'incapsulamento di QUESTA pagina: è il solo modo di dare stile a una
-        cella senza `::ng-deep`, che `regole-stile-ui` §5 vieta.
-      -->
-      <ng-template appCell="createdAt" let-row>
-        <span class="stock-movements__data">{{ cellText(row, 'createdAt') }}</span>
-      </ng-template>
-
-      <ng-template appCell="articleCode" let-row>
-        <span class="stock-movements__codice">{{ cellText(row, 'articleCode') }}</span>
-      </ng-template>
-
-      <ng-template appCell="sku" let-row>
-        <span class="stock-movements__codice">{{ cellText(row, 'sku') }}</span>
-      </ng-template>
-
-      <ng-template appCell="product" let-row>
-        <span class="stock-movements__prodotto">{{ cellText(row, 'product') }}</span>
-      </ng-template>
-    </app-data-table>
-  }
-</section>
+  </div>
+</app-list-page>

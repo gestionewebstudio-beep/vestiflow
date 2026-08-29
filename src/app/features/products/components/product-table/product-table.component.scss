@@ -6,10 +6,13 @@
 @include rt.data-table-mobile-cards('product-table');
 @include rt.data-table-mobile-title('product-table__name');
 
-.product-table-scroll {
-  overflow-x: auto;
-  inline-size: 100%;
-}
+/*
+  ⛔ Qui c'era il solo `overflow-x: auto`, cioè il difetto del mixin: scrollport
+  su entrambi gli assi, nessuna altezza, intestazione `sticky` che non appiccica.
+  Trovato dal censimento del 29/08/2026 — questa tabella non usa il motore
+  comune, quindi la correzione del motore non la raggiungeva.
+*/
+@include rt.table-scroll('.product-table-scroll', riempi);
 
 .product-table__head th {
   position: sticky;
@@ -228,4 +231,21 @@
 
 .product-table__cell--actions {
   white-space: nowrap;
+}
+
+
+/*
+  ⚠️ **Il ponte dell'altezza.**
+
+  La pagina dà `flex: 1` a questo componente; se non lo gira al proprio
+  contenitore di scorrimento, l'altezza si ferma qui e l'intestazione `sticky`
+  smette di appiccicare — **senza errori e senza test rossi**.
+
+  ⚠️ `list-card-table-host()` mette l'host a `display: block`: va ridichiarato
+  DOPO, o vince lui.
+*/
+:host {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
 }

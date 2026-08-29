@@ -41,3 +41,18 @@
     border-radius: var(--radius-lg);
   }
 }
+
+/*
+  ⚠️ **L'host È la regione che scorre**, e qui non c'è un wrapper da usare:
+  la `<table>` è figlia diretta dell'host.
+
+  Finora l'intestazione `sticky` si ancorava a `.shell__content` e funzionava
+  — misurato il 29/08/2026, era una delle tre tabelle **sane per
+  costruzione**. Con la catena di altezze la pagina non scorre più, quindi
+  l'ancoraggio deve scendere qui: senza, le righe traboccherebbero sopra il
+  paginatore invece di scorrere.
+
+  ⭐ Nessuna modifica di markup: `flessibile` toglie il pavimento all'host e
+  lascia che sia il `flex: 1` della pagina a dargli l'altezza.
+*/
+@include rt.table-scroll(':host', flessibile);

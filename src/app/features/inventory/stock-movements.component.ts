@@ -8,6 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
 import {
   FILTERED_SCOPE_NOT_AVAILABLE,
@@ -63,16 +64,11 @@ import type { Location } from '@core/models/location.model';
 import { MovementOrigin, StockMovementType } from '@core/models/stock-movement.model';
 import type { StockMovement } from '@core/models/stock-movement.model';
 import { formatDateTime } from '@core/utils/date.util';
-import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
-import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 
-import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableViewId } from '@shared/table-columns/table-column.model';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
@@ -137,19 +133,15 @@ const SEARCH_DEBOUNCE_MS = 300;
   selector: 'app-stock-movements',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    BackButtonComponent,
+    ListPageComponent,
     ButtonComponent,
     ListActionsBarComponent,
-    EmptyStateComponent,
-    ErrorStateComponent,
-    TableSkeletonComponent,
     SelectMenuComponent,
     DateInputComponent,
     InventoryTabsComponent,
     BadgeComponent,
     DataTableCellDirective,
     DataTableComponent,
-    TableColumnPickerComponent,
   ],
   templateUrl: './stock-movements.component.html',
   styleUrl: './stock-movements.component.scss',

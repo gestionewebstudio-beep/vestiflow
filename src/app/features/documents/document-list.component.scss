@@ -100,3 +100,12 @@
   cursor: pointer;
   white-space: nowrap;
 }
+
+/*
+  ⭐ La pagina si adatta alla finestra (`regole-stile-ui` §6).
+
+  ⚠️ L'elenco è `app-document-table`, non il motore: fra la pagina e
+  `app-data-table` c'è un componente intermedio, che deve girare l'altezza al
+  proprio figlio (vedi il suo foglio).
+*/
+@include lp.list-page-fills-viewport('doc-list', 'app-document-table');

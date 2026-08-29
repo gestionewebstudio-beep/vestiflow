@@ -1,3 +1,74 @@
 @use 'list-page' as lp;
 
+/*
+  ⚠️ **Il mixin resta, ma serve meno di prima.**
+
+  Passata al telaio `app-list-page`, questa pagina non scrive più testata, stati
+  e catena di altezze: li eredita. Del mixin restano in uso solo le classi della
+  barra strumenti — `__toolbar`, `__search`, `__input`, `__toolbar-actions` —
+  che sono ancora nel markup.
+
+  ⛔ Le regole di `__header`, `__title` e `__subtitle` diventano CSS morto: il
+  telaio rende quelle zone con classi proprie. Non si tolgono qui perché il
+  mixin è condiviso — si toglieranno da lui quando **tutte** le pagine saranno
+  passate, e non prima.
+*/
 @include lp.list-page('supplier-list');
+
+/*
+  ⭐ L'unico anello che resta alla pagina: il suo host deve essere una colonna
+  flessibile, o `app-list-page` non ha da chi ricevere l'altezza.
+
+  ⚠️ `list-page-fills-viewport` non serve più — il telaio porta la catena con
+  sé. Chiamarlo qui aggiungerebbe regole su `.supplier-list > *` che ora colpisce
+  il contenuto proiettato, non le zone.
+*/
+/*
+  ⚠️ **Il pavimento è DUE, uno per asse.**
+
+  ⛔ `min-inline-size: 0` mancava, e la catena orizzontale si rompeva QUI: il
+  telaio si poteva stringere, ma questa pagina che lo contiene no — e allora
+  una tabella larga la spingeva oltre il bordo dello schermo. Misurato su
+  Clienti il 29/08/2026, con tredici colonne.
+*/
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+
+
+/*
+  ⚠️ **La tabella proiettata deve riempire l'area dati, e lo dice QUESTA pagina.**
+
+  ⛔ Il telaio non può stilarla: le sue regole portano il proprio attributo di
+  incapsulamento, che il contenuto proiettato non ha. Una regola come
+  `.list-page__data > *` non lo raggiunge — e non fallisce: non fa niente.
+*/
+app-supplier-table {
+  flex: 1;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+
+
+/*
+  ⚠️ **I gruppi proiettati non sono scatole: sono contenuto.**
+
+  ⛔ Un `<div filters>` che avvolge due campi è una scatola IN PIÙ dentro la
+  zona del telaio: il telaio stila la propria (`display: flex`), non questa —
+  le sue regole portano l'attributo di incapsulamento del telaio e non
+  raggiungono il contenuto proiettato. Dentro un blocco, i campi si impilano.
+
+  ⭐ `display: contents` toglie la scatola e lascia i figli partecipare alla
+  riga del telaio. Misurato su Ordini fornitore il 29/08/2026: «Stato» e
+  «Periodo» impilati, e i comandi della barra azioni uno per riga.
+*/
+[pageActions],
+[filters],
+[warnings],
+[listActions] {
+  display: contents;
+}
