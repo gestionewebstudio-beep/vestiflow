@@ -73,6 +73,8 @@ export type SupplierOrderWithLines = SupplierOrder & {
 };
 
 interface ComputedOrderLine {
+  /** Identità della riga già salvata; `null` per una riga nuova. */
+  readonly id: string | null;
   readonly variantId: string;
   readonly sku: string;
   /** Il SOLO nome del prodotto: la variante sta nel campo qui sotto. */
@@ -240,7 +242,7 @@ export class SupplierOrdersService {
             totalMinor: totals.totalMinor,
             expectedAt: dto.expectedAt ? new Date(dto.expectedAt) : null,
             lines: {
-              create: computedLines.map((line, i) => this.toLineCreateData(line, i + 1)),
+              create: computedLines.map((line, i) => this.toLineData(line, i + 1)),
             },
           },
           include: { lines: { orderBy: { lineNumber: 'asc' } } },
@@ -328,7 +330,10 @@ export class SupplierOrdersService {
 
     return this.prisma
       .$transaction(async (tx) => {
-        await tx.supplierOrderLine.deleteMany({ where: { orderId: id } });
+        // ⭐ Le righe si salvano CONSERVANDO la loro identità: update per
+        //    quelle che restano, create per le nuove, delete per quelle
+        //    davvero tolte. Prima era deleteMany + ricrea tutto.
+        await this.persistLinesByIdTx(tx, id, order.lines, computedLines);
         const updated = await tx.supplierOrder.update({
           where: { id },
           data: {
@@ -370,10 +375,9 @@ export class SupplierOrdersService {
                 : dto.expectedAt
                   ? new Date(dto.expectedAt)
                   : order.expectedAt,
-            lines: {
-              create: computedLines.map((line, i) => this.toLineCreateData(line, i + 1)),
-            },
           },
+          // Le righe le ha già scritte persistLinesByIdTx qui sopra, nella
+          // stessa transazione: qui si rileggono soltanto.
           include: { lines: { orderBy: { lineNumber: 'asc' } } },
         });
         return { ...updated, linkedDocuments: order.linkedDocuments ?? [] };
@@ -727,6 +731,9 @@ export class SupplierOrdersService {
         ? toStorableMinor(netFromGrossExact(line.enteredUnitCostMinor, vat.ratePercent))
         : toStorableMinor(line.enteredUnitCostMinor);
       return {
+        // L'identità arriva dal client e attraversa il calcolo intatta: è
+        // quella che decide update contro create al momento di scrivere.
+        id: line.id ?? null,
         variantId: line.variantId,
         sku: variant.sku ?? '',
         description: line.description?.trim() || variant.product.name,
@@ -737,9 +744,11 @@ export class SupplierOrdersService {
         // salvataggio, e un ordine di marzo che diceva «Rosso / M» diventerebbe
         // «Bordeaux / M» perche' qualcuno ha rinominato un valore d'opzione.
         //
-        // ⚠️ Qui non c'e' lo snapshot per id delle altre due tabelle: il
-        // salvataggio e' deleteMany + create, le righe perdono l'id, e non
-        // esiste un persistito da confrontare. Temporaneo (24/08/2026).
+        // ⚠️ Il valore viaggia sempre nel payload, e in modifica il client
+        // rimanda quello che ha letto: su una riga esistente resta quindi
+        // quello del documento. Dal 29/08/2026 la riga conserva anche l'id
+        // (`persistLinesByIdTx`), quindi il presupposto del vecchio
+        // «deleteMany + create» non c'e' piu'.
         variantLabel: line.variantLabel?.trim() ?? '',
         orderedQuantity: line.orderedQuantity,
         unitCostMinor,
@@ -763,15 +772,106 @@ export class SupplierOrdersService {
   }
 
   /**
+   * Righe in modifica, **conservandone l'identità**.
+   *
+   * ⭐ È lo stesso algoritmo che l'Ordine cliente applica a `salesOrderLine` e
+   * l'Arrivo merce a `documentLine`, e che `persistDocumentLinesByIdTx`
+   * documenta per i documenti. L'Ordine fornitore era l'ultimo rimasto a
+   * `deleteMany` + ricrea, ed è la causa radice già misurata in
+   * `docs/09-specifica-movimenti-per-riga.md` §3: le righe rinascevano con id
+   * nuovi, e con loro si staccava tutto ciò che a una riga si aggancia — qui
+   * `receivedQuantity`, che tornava a 0, e il `DocumentLine.supplierOrderLineId`
+   * dell'Arrivo merce, che andava a NULL per via del suo `onDelete: SetNull`.
+   *
+   * ⛔ **La funzione condivisa non si poteva riusare così com'è**: scrive su
+   * `tx.documentLine`, e questa è un'altra tabella. Si riusa l'algoritmo, nella
+   * forma che l'Ordine cliente ha già per lo stesso motivo.
+   *
+   * Nell'ordine, e deterministico:
+   * 1. riga con `id` noto   → **update**, stesso id, posizione aggiornata;
+   * 2. riga senza `id`      → **create**, id nuovo dal database;
+   * 3. riga non più inviata → **delete** della sola riga sparita;
+   * 4. `id` sconosciuto o ripetuto → **422**, mai una creazione silenziosa.
+   *
+   * ⚠️ Sostituire l'articolo su una riga esistente la lascia la STESSA riga:
+   * l'id non cambia, e i valori che il client non modifica restano quelli del
+   * documento. Eliminare una riga la fa finire; l'articolo aggiunto dopo è una
+   * riga nuova, che non eredita niente da quella eliminata.
+   *
+   * ⚠️ L'Arrivo merce già salvato non viene toccato da qui: resta autonomo, con
+   * le sue righe e i suoi movimenti (`17` §2.5).
+   */
+  private async persistLinesByIdTx(
+    tx: Prisma.TransactionClient,
+    orderId: string,
+    existingLines: readonly { readonly id: string }[],
+    computedLines: readonly ComputedOrderLine[],
+  ): Promise<void> {
+    const existing = new Set(existingLines.map((line) => line.id));
+    const claimed = new Set<string>();
+
+    // ── Appartenenza, PRIMA di scrivere qualunque cosa ──
+    // `existingLines` viene dall'ordine già letto per tenant e sede: un id che
+    // non sta lì è di un altro ordine, di un altro tenant, o è già stato
+    // eliminato da qualcun altro. In nessuno dei tre casi si tira a indovinare.
+    for (const line of computedLines) {
+      if (line.id == null) {
+        continue;
+      }
+      if (!existing.has(line.id)) {
+        throw new UnprocessableEntityException(
+          'Una riga fa riferimento a un identificativo che non appartiene a questo ordine. Ricarica l\u2019ordine e riprova.',
+        );
+      }
+      if (claimed.has(line.id)) {
+        throw new UnprocessableEntityException(
+          'La stessa riga è stata inviata due volte nello stesso salvataggio.',
+        );
+      }
+      claimed.add(line.id);
+    }
+
+    // ── 3. Le righe sparite dall'ordine ──
+    const removedIds = [...existing].filter((lineId) => !claimed.has(lineId));
+    if (removedIds.length > 0) {
+      await tx.supplierOrderLine.deleteMany({
+        where: { orderId, id: { in: removedIds } },
+      });
+    }
+
+    // ── 1 e 2. Aggiornamento in posto, oppure creazione ──
+    for (const [index, line] of computedLines.entries()) {
+      const data = this.toLineData(line, index + 1);
+      if (line.id == null) {
+        await tx.supplierOrderLine.create({ data: { ...data, orderId } });
+        continue;
+      }
+      // `updateMany` e non `update`: il `where` porta anche l'ordine, quindi
+      // l'appartenenza la impone il database e non solo il controllo qui sopra.
+      // Se la riga è sparita sotto i piedi il conteggio è zero e la transazione
+      // si ferma, invece di scrivere altrove.
+      const { count } = await tx.supplierOrderLine.updateMany({
+        where: { id: line.id, orderId },
+        data,
+      });
+      if (count === 0) {
+        throw new ConflictException(
+          'Una riga di questo ordine è stata modificata o eliminata da un altro salvataggio. Ricarica l\u2019ordine e riprova.',
+        );
+      }
+    }
+  }
+
+  /**
    * `position` e' l'indice della riga nel payload, 1-based: l'ordine in cui le
    * righe arrivano E' l'ordine del documento. Va scritto, perche' senza il
    * database le restituisce come gli pare — di norma per inserimento, ma senza
    * nessuna garanzia.
    */
-  private toLineCreateData(
+  private toLineData(
     line: ComputedOrderLine,
     position: number,
-  ): Prisma.SupplierOrderLineCreateWithoutOrderInput {
+  ): Prisma.SupplierOrderLineUncheckedCreateWithoutOrderInput {
     return {
       lineNumber: position,
       variantId: line.variantId,
@@ -787,7 +887,10 @@ export class SupplierOrdersService {
       lineTotalMinor: line.lineTotalMinor,
       unitOfMeasure: line.unitOfMeasure,
       vatSnapshot: line.vatSnapshot ?? Prisma.DbNull,
-      ...(line.vatCodeId ? { vatCode: { connect: { id: line.vatCodeId } } } : {}),
+      // Scalare invece di `connect`: la stessa forma vale per la creazione e
+      // per l'aggiornamento, e su un aggiornamento `null` toglie il legame —
+      // cosa che `connect` non saprebbe fare.
+      vatCodeId: line.vatCodeId,
     };
   }
 

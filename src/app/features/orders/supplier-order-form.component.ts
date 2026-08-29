@@ -2573,6 +2573,11 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
         ? toStorableMinor(grossFromNetExact(net, this.lineRate(index)))
         : toStorableMinor(net);
       return {
+        // L’identità della riga viaggia col payload: assente su una riga
+        // nuova, presente su una già salvata. È ciò che permette al server di
+        // aggiornarla invece di ricrearla — e sostituire l’articolo NON la
+        // cambia, resta la stessa riga.
+        id: line.id ?? undefined,
         variantId: line.variantId,
         // Il nome scritto sulla RIGA, non il titolo del catalogo (11/08/2026).
         // Da quando la cella è modificabile anche ad articolo agganciato, quel

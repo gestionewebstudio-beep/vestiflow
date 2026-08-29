@@ -18,6 +18,23 @@ import {
 import { PurchaseCostEntryMode } from '@prisma/client';
 
 export class CreateSupplierOrderLineDto {
+  /**
+   * Identità della riga già salvata. **Assente = riga NUOVA.**
+   *
+   * ⭐ È ciò che permette al salvataggio di AGGIORNARE la riga invece di
+   * ricrearla, e con lei di conservare tutto quello che a una riga si aggancia:
+   * `receivedQuantity` e il `DocumentLine.supplierOrderLineId` dell’Arrivo merce.
+   * Stessa forma di `SaveManualSalesOrderLineDto.id` sull’Ordine cliente.
+   *
+   * ⚠️ Sostituire l’articolo su una riga esistente NON la sostituisce: l’id
+   * resta, e i valori che il client non modifica restano quelli del documento.
+   * Una riga eliminata finisce; un articolo aggiunto dopo è una riga nuova, che
+   * non eredita niente da quella eliminata.
+   */
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
   @IsUUID()
   variantId!: string;
 

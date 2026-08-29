@@ -119,6 +119,8 @@ describe('SupplierOrdersService', () => {
       },
       supplierOrderLine: {
         update: vi.fn(),
+        updateMany: vi.fn(),
+        create: vi.fn(),
         findMany: vi.fn(),
         deleteMany: vi.fn(),
       },
@@ -535,6 +537,7 @@ describe('SupplierOrdersService', () => {
       { id: 'var-1', sku: 'SKU-1', product: { name: 'Felpa' } },
     ]);
     prisma.supplierOrderLine.deleteMany.mockResolvedValue({ count: 1 });
+    prisma.supplierOrderLine.create.mockResolvedValue({ id: 'line-nuova' });
     prisma.supplierOrder.update.mockResolvedValue({
       id: 'po-1',
       status: SupplierOrderStatus.confirmed,
@@ -547,9 +550,56 @@ describe('SupplierOrdersService', () => {
         lines: [{ variantId: 'var-1', orderedQuantity: 3, enteredUnitCostMinor: 500 }],
       }, testOwnerUser()),
     ).resolves.toMatchObject({ id: 'po-1' });
-    expect(prisma.supplierOrderLine.deleteMany).toHaveBeenCalledWith({
-      where: { orderId: 'po-1' },
+    // ⭐ Una riga SENZA `id` è una riga nuova: si crea. E siccome l'ordine non
+    //    aveva righe, non c'è niente da eliminare — prima si cancellava
+    //    comunque tutto, ed è la causa che questo cambio toglie.
+    expect(prisma.supplierOrderLine.create).toHaveBeenCalledTimes(1);
+    expect(prisma.supplierOrderLine.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('update AGGIORNA in posto la riga che porta il proprio id', async () => {
+    const prisma = createPrismaMock();
+    prisma.supplierOrder.findFirst.mockResolvedValue({
+      id: 'po-1',
+      status: SupplierOrderStatus.confirmed,
+      destinationLocationId: null,
+      currency: 'EUR',
+      costEntryMode: PurchaseCostEntryMode.vat_excluded,
+      documentDiscountPercent: 0,
+      orderDate: new Date('2026-08-01'),
+      number: 1,
+      series: null,
+      supplierId: 'sup-1',
+      supplierReference: null,
+      expectedAt: null,
+      lines: [{ id: 'line-1' }],
+      documents: [],
     });
+    prisma.supplier.findFirst.mockResolvedValue({ id: 'sup-1', party: supplierParty });
+    prisma.productVariant.findMany.mockResolvedValue([
+      { id: 'var-1', sku: 'SKU-1', product: { name: 'Felpa' } },
+    ]);
+    prisma.supplierOrderLine.updateMany.mockResolvedValue({ count: 1 });
+    prisma.supplierOrder.update.mockResolvedValue({
+      id: 'po-1',
+      status: SupplierOrderStatus.confirmed,
+      lines: [{ id: 'line-1' }],
+    });
+    const service = createService(prisma);
+
+    await service.update(tenantId, 'po-1', {
+      lines: [
+        { id: 'line-1', variantId: 'var-1', orderedQuantity: 9, enteredUnitCostMinor: 500 },
+      ],
+    }, testOwnerUser());
+
+    // La riga resta la stessa: `updateMany` sul suo id, e nessuna creazione.
+    expect(prisma.supplierOrderLine.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'line-1', orderId: 'po-1' } }),
+    );
+    expect(prisma.supplierOrderLine.create).not.toHaveBeenCalled();
+    // ⛔ E nulla viene eliminato: la riga è ancora fra quelle inviate.
+    expect(prisma.supplierOrderLine.deleteMany).not.toHaveBeenCalled();
   });
 
   it('update rifiuta ordine Concluso', async () => {

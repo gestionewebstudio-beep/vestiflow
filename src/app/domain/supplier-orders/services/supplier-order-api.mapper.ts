@@ -128,6 +128,14 @@ function mapLinkedDocument(row: SupplierOrderLinkedDocumentApiRow): SupplierOrde
  * già risolta dalla cascata («4+10%» → 13,6).
  */
 export interface CreateSupplierOrderLineBody {
+  /**
+   * Identità della riga già salvata. **Assente = riga NUOVA.**
+   *
+   * ⭐ Il server aggiorna la riga invece di ricrearla, e conserva quello che
+   * ci si aggancia: il Ricevuto e il legame con l’Arrivo merce. Senza questo
+   * campo il salvataggio ricreava tutte le righe con id nuovi.
+   */
+  readonly id?: EntityId;
   readonly variantId: EntityId;
   readonly description?: string;
   readonly orderedQuantity: number;
