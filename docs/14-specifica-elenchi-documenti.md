@@ -678,6 +678,51 @@ VestiFlow distingue:
 
 La stampa non è il Dettaglio.
 
+## 7.1 ⭐ «Stato» non è una parola sola — deciso il 29/08/2026
+
+> **Dove esiste un termine più preciso, «Stato» non si usa.** Tre concetti diversi
+> stavano sotto la stessa etichetta, e l'operatore che passa da una schermata
+> all'altra non poteva sapere quale dei tre stesse guardando.
+
+| Termine                           | Che cosa dice                                                               | Dove vive                                                         |
+| --------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| **Fase**                          | il **ciclo commerciale**: Da confermare · Confermato · Concluso · Annullato | Ordine cliente e Ordine fornitore (`17` §2.1, `18` §2.1)          |
+| **Collegamento**                  | la situazione del documento **rispetto ad altri documenti**                 | ogni riepilogo dove il concetto esiste — Arrivo merce, e i futuri |
+| **Saldo** (o **Stato economico**) | la situazione **economica**: Da saldare · Saldati                           | Proforma e Fatture                                                |
+
+⛔ **I tre non sono sfumature dello stesso concetto.** Un Arrivo merce non ha una
+Fase — non attraversa il ciclo commerciale — e una Fattura Saldata non è
+«Conclusa». Chiamarli tutti «Stato» costringe a leggere le opzioni per capire di
+che cosa si stia parlando.
+
+### Come si applica
+
+```text
+etichetta a schermo      Fase · Collegamento · Saldo
+chiave tecnica           invariata
+```
+
+⚠️ **Una rinomina visuale NON trascina quella tecnica.** `linkStatus`, `status`,
+`commercialState`, i DTO, i query param e le rotte **restano come sono**: cambiarli
+per allineare un nome a schermo è un refactor a sé, con la sua migrazione e i suoi
+URL da non rompere, e non appartiene a un lavoro sui filtri.
+
+### ⏸ Conseguenza misurata, non ancora applicata
+
+Il ciclo commerciale chiuso col Passo 6 oggi si chiama **«Stato»** a schermo, in tre
+punti misurati il 29/08/2026:
+
+```text
+supplier-order-form.component.html:188    <app-document-header-field label="Stato">
+customer-order-form.component.html:391    <app-document-header-field label="Stato">
+supplier-order-list.component.ts:575      { id: 'status', label: 'Stato' }
+```
+
+Secondo questa regola dovrebbero dire **«Fase»**. ⛔ **Non è stato cambiato**: è
+fuori dal perimetro del lavoro sui filtri, e rinominare un campo di testata mentre
+si migra un contenitore di elenco mescola due cose che vanno verificate
+separatamente. Resta una voce aperta, e questa riga è il suo promemoria.
+
 ---
 
 # 8. Apertura delle righe e routing
