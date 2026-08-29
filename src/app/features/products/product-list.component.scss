@@ -40,37 +40,6 @@
   color: var(--status-error-fg);
 }
 
-.product-list__bulk-actions {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--card-pad-sm);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background-color: var(--color-surface);
-}
-
-@include bp.media-up('md') {
-  .product-list__bulk-actions {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-  }
-}
-
-.product-list__bulk-summary {
-  margin: 0;
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text);
-}
-
-.product-list__bulk-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
 // F6d — chip «Articoli da completare»: prodotti in bozza da rifinire.
 .product-list__drafts-chip {
   display: inline-flex;
@@ -137,7 +106,27 @@ app-product-table {
 /* I gruppi proiettati non sono scatole: sono contenuto (vedi telaio elenco). */
 [pageActions],
 [filters],
-[warnings],
-[listActions] {
+[warnings] {
   display: contents;
+}
+
+/*
+  ⚠️ La riga funzioni qui è l'ECCEZIONE: NON `display: contents`.
+
+  Ospita due cose che devono stare sulla stessa riga — la barra azioni e «Copie
+  per etichetta», che è un parametro della stampa. Dissolvendo il gruppo
+  diventerebbero due figli del telaio, e il telaio è una colonna: si
+  impilerebbero, con il campo copie staccato dal comando che lo usa.
+*/
+[listActions] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* La barra prende lo spazio; il campo copie la seguerebbe a destra da solo. */
+[listActions] app-list-actions-bar {
+  flex: 1 1 auto;
+  min-inline-size: 0;
 }

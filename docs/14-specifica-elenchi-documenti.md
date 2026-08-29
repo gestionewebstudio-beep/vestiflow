@@ -355,10 +355,15 @@ modo di dire la stessa cosa — `regole-stile-ui` §1.
 | --- | --- |
 | Ordini fornitore · Movimenti · Documenti · Ordini cliente | ✅ `app-list-actions-bar`, azioni sempre visibili |
 | **Situazione magazzino** | ⛔ barra fatta a mano, «Nuovo ordine fornitore» **nascosto** senza selezione → **corretto**: ora usa la barra comune, `requires: 'oneOrMore'` |
-| **Prodotti** | ⛔ barra fatta a mano, «Stampa etichette selezionate» nascosto senza selezione → ⏸ da portare sulla barra comune |
+| **Prodotti** | ✅ portata sulla barra comune il 29/08/2026, `requires: 'oneOrMore'` |
 
-⏸ **Su Prodotti ci va anche «Copie per etichetta»**, che oggi sta nella riga dei filtri e
-non è un filtro: è un parametro della stampa etichette, e appartiene al comando che lo usa.
+✅ **E con lei «Copie per etichetta»**, che stava nella riga dei filtri e filtro non è: non
+restringe l'elenco, è un parametro della stampa, e appartiene al comando che lo usa.
+
+⚠️ **La riga funzioni di Prodotti è l'unica che NON è `display: contents`**, ed è voluto:
+ospita due cose che devono stare sulla stessa riga — la barra e il campo copie. Dissolvendo
+il gruppo diventerebbero due figli del telaio, che è una colonna, e si impilerebbero con il
+campo staccato dal comando che lo usa.
 
 ### ⭐ «Nuovo ordine fornitore» PROPONE, non emette — deciso il 29/08/2026
 

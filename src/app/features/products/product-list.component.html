@@ -68,26 +68,6 @@
     />
   </div>
 
-  <!--
-    ⏸ **Casa da decidere.** Non è un filtro: è quante copie stampa «Stampa
-    etichette». Stava nella riga del selettore Colonne, che ora è del
-    telaio; qui torna visibile, ma il posto giusto va scelto.
-  -->
-  <div filters>
-    <label class="product-list__label-copies">
-      Copie per etichetta
-      <input
-        class="product-list__label-copies-input"
-        type="number"
-        min="1"
-        max="500"
-        step="1"
-        [value]="labelCopies()"
-        (change)="setLabelCopies($any($event.target).valueAsNumber)"
-      />
-    </label>
-  </div>
-
   <div warnings>
     @if (shopifySyncError(); as message) {
       <p class="product-list__shopify-error" role="alert">{{ message }}</p>
@@ -148,30 +128,38 @@
     (pageSizeChange)="onPageSizeChange($event)"
   />
 
-  <!-- `14` §21.1: le funzioni stanno sotto i dati. -->
+  <!--
+    ⭐ **Tutte le funzioni nella barra in basso, e non si nascondono** (`14`
+    §0.2). Qui c'era una barra fatta a mano che compariva solo a righe spuntate:
+    chi non sapeva che si selezionano non vedeva nemmeno che le etichette si
+    possono stampare. Ora è `app-list-actions-bar`, con `requires: 'oneOrMore'` —
+    l'azione c'è sempre, e a selezione vuota è spenta CON il motivo.
+
+    ⚠️ «Copie per etichetta» sta QUI e non fra i filtri: non restringe l'elenco,
+    è un parametro della stampa, e appartiene al comando che lo usa.
+  -->
   <div listActions>
-    @if (selectedCount() > 0) {
-      <div class="product-list__bulk-actions" aria-live="polite">
-        <p class="product-list__bulk-summary">
-          {{ selectedCount() }}
-          {{ selectedCount() === 1 ? 'prodotto selezionato' : 'prodotti selezionati' }}
-        </p>
-        <div class="product-list__bulk-buttons">
-          <app-button variant="secondary" (click)="clearSelection()">Deseleziona</app-button>
-          <app-button
-            loadingIndicator="icon"
-            [loading]="bulkPrintLoading()"
-            [disabled]="bulkPrintLoading()"
-            (click)="printSelectedLabels()"
-          >
-            <i class="pi pi-print" aria-hidden="true"></i>
-            Stampa etichette selezionate
-            @if (labelCopies() > 1) {
-              ({{ labelCopies() }} copie cad.)
-            }
-          </app-button>
-        </div>
-      </div>
-    }
+    <app-list-actions-bar
+      [count]="selectedCount()"
+      [ids]="[...selectedProductIds()]"
+      [actions]="selectionActions()"
+      labelSingular="prodotto selezionato"
+      labelPlural="prodotti selezionati"
+      clearLabel="Deseleziona"
+      (cleared)="clearSelection()"
+    />
+
+    <label class="product-list__label-copies">
+      Copie per etichetta
+      <input
+        class="product-list__label-copies-input"
+        type="number"
+        min="1"
+        max="500"
+        step="1"
+        [value]="labelCopies()"
+        (change)="setLabelCopies($any($event.target).valueAsNumber)"
+      />
+    </label>
   </div>
 </app-list-page>

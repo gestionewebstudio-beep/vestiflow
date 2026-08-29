@@ -213,7 +213,7 @@ strumenti di lavoro. Non ci si cercano decisioni.
 | ⏸ **`[overlays]` è una casella PROVVISORIA**: il posto definitivo dei dialoghi è da decidere                 | `14` §0.2  |
 | ⭐ **Tutte le funzioni stanno nella barra in basso e NON si nascondono**: a vuoto sono spente col motivo       | `14` §0.2  |
 | ⛔ **Il messaggio è il motivo sull'azione spenta**, non un dialogo dopo il clic                                | `14` §0.2  |
-| ⏸ **Prodotti va portata sulla barra comune**, «Copie per etichetta» compresa                                  | `14` §0.2  |
+| ✅ **Prodotti è sulla barra comune**, «Copie per etichetta» compresa: non è un filtro, è un parametro della stampa | `14` §0.2  |
 | ⭐ **«Nuovo ordine fornitore» PROPONE**: apre un ordine nuovo precompilato, non lo crea                       | `14` §0.2  |
 | ⭐ **Il precompilato porta gli id**, non i valori: le righe passano dal risolutore comune                     | `14` §0.2  |
 | ⛔ **Il fornitore non si propone più in automatico** dagli articoli; quello nuovo si crea e resta            | `14` §0.2  |

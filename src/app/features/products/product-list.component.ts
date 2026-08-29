@@ -37,7 +37,9 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { ProductStatus } from '@core/models/product.model';
 import type { Product } from '@core/models/product.model';
+import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
+import type { ListAction } from '@shared/models/list-selection.model';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { PaginationComponent } from '@shared/components/pagination/pagination.component';
@@ -103,6 +105,7 @@ type ProductListState =
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ListPageComponent,
+    ListActionsBarComponent,
     ButtonComponent,
     ErrorStateComponent,
     PaginationComponent,
@@ -462,6 +465,27 @@ export class ProductListComponent {
       return next;
     });
   }
+
+  /**
+   * ⭐ **Le funzioni dell'elenco, sempre visibili** (`14` §5.1): a selezione
+   * vuota l'azione è **spenta col motivo**, non assente.
+   *
+   * ⛔ Prima compariva solo con righe spuntate, e chi non sapeva che si
+   * selezionano non vedeva nemmeno che le etichette si possono stampare.
+   * _Decisione del proprietario, 29/08/2026: tutte le funzioni nella barra in
+   * basso, sul riferimento Danea._
+   */
+  protected readonly selectionActions = computed<readonly ListAction[]>(() => [
+    {
+      id: 'print-labels',
+      label: 'Stampa etichette',
+      icon: 'pi-print',
+      requires: 'oneOrMore',
+      busy: this.bulkPrintLoading(),
+      ariaLabel: 'Stampa le etichette dei prodotti selezionati',
+      run: () => this.printSelectedLabels(),
+    },
+  ]);
 
   protected clearSelection(): void {
     this.selectedProductIds.set(new Set<string>());
