@@ -3,6 +3,7 @@ import {
   ArrayMaxSize,
   IsArray,
   IsEnum,
+  IsIn,
   IsInt,
   IsISO8601,
   IsNumber,
@@ -23,10 +24,10 @@ export class CreateSupplierOrderLineDto {
    *
    * ⭐ È ciò che permette al salvataggio di AGGIORNARE la riga invece di
    * ricrearla, e con lei di conservare tutto quello che a una riga si aggancia:
-   * `receivedQuantity` e il `DocumentLine.supplierOrderLineId` dell’Arrivo merce.
-   * Stessa forma di `SaveManualSalesOrderLineDto.id` sull’Ordine cliente.
+   * `receivedQuantity` e il `DocumentLine.supplierOrderLineId` dell'Arrivo merce.
+   * Stessa forma di `SaveManualSalesOrderLineDto.id` sull'Ordine cliente.
    *
-   * ⚠️ Sostituire l’articolo su una riga esistente NON la sostituisce: l’id
+   * ⚠️ Sostituire l'articolo su una riga esistente NON la sostituisce: l'id
    * resta, e i valori che il client non modifica restano quelli del documento.
    * Una riga eliminata finisce; un articolo aggiunto dopo è una riga nuova, che
    * non eredita niente da quella eliminata.
@@ -147,6 +148,21 @@ export class CreateSupplierOrderDto {
   @IsOptional()
   @IsISO8601()
   expectedAt?: string;
+
+  /**
+   * Stato del ciclo commerciale, scelto dall'operatore.
+   *
+   * ⭐ **`confirmed` resta il default alla creazione** (`17` OF-001): chi crea
+   * normalmente un ordine non deve fare un passaggio in più perché è stato
+   * introdotto un quarto stato. «Da confermare» è una scelta esplicita.
+   *
+   * ⛔ **`concluded` NON è accettato**: è derivato dal collegamento a un Arrivo
+   * merce non annullato, e lo ricalcola `syncSupplierOrderConclusion`. Un
+   * valore scelto verrebbe sovrascritto, e nel frattempo mentirebbe.
+   */
+  @IsOptional()
+  @IsIn(['to_confirm', 'confirmed', 'cancelled'])
+  status?: 'to_confirm' | 'confirmed' | 'cancelled';
 
   /** "Rif. ordine fornitore": riferimento libero comunicato dal fornitore. */
   @IsOptional()
