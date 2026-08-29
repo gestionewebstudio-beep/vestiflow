@@ -98,23 +98,21 @@ permessi               ⟶ matrice permessi, non stato
 stampa                 ⟶ sempre
 ```
 
-⛔ **STATO TECNICO — due divergenze misurate, e sono difetti:**
+⭐ **APPLICATO il 28/08/2026.** Qui c'era il blocco «STATO TECNICO — due divergenze
+misurate», che elencava due guardie in `supplier-orders.service.ts` e concludeva
+_«oggi un ordine Concluso non si modifica e un ordine Confermato non si elimina»_.
+**Le due guardie non ci sono più**, per decisione del proprietario: la gestione del
+documento non dipende dallo stato, e il codice ora lo rispetta.
 
-```text
-supplier-orders.service.ts:257   update  →  status !== confirmed  → ConflictException
-supplier-orders.service.ts:384   delete  →  status !== cancelled  → ConflictException
-```
+⚠️ **Andavano tolte insieme**, e vale la pena saperlo: si componevano in un vicolo
+cieco. Da Concluso non si usciva (`cancel` voleva `confirmed`) e senza passare da
+Annullato non si eliminava (`delete` voleva `cancelled`) — quattro passi per
+un'operazione che ne vale uno. Toglierne una sola avrebbe lasciato il vicolo.
 
-Oggi un ordine **Concluso non si modifica** e un ordine **Confermato non si
-elimina**. Sono due regole opposte fra loro e **entrambe errate** rispetto a
-questa specifica: la gestione del documento non dipende dallo stato.
-
-⚠️ Correggerle ha una conseguenza da guardare in faccia, e va decisa quando si
-implementa, non ora: l'Arrivo merce collegato scrive `receivedQuantity` sulle
-righe dell'ordine, e **modificare le righe dopo la ricezione le fa divergere dal
-documento che le ha ricevute**. La regola «lo stato non blocca» resta; il
-trattamento di quella divergenza è materia della `12` e del contratto della
-coppia, non un motivo per rimettere un blocco di stato.
+⚠️ La conseguenza che questa sezione annunciava — _«modificare le righe dopo la
+ricezione le fa divergere dal documento che le ha ricevute»_ — è stata affrontata il
+**29/08/2026** e non con un blocco di stato: le righe conservano la loro identità al
+salvataggio, quindi il Ricevuto non si perde più. Vedi §5.3.
 
 ### 2.3 «Da confermare»
 
@@ -124,6 +122,16 @@ Un Ordine fornitore salvato che **non è ancora un impegno d'acquisto**.
 cliente dove «Da confermare» serve a non impegnare la merce. L'Ordine fornitore
 non impegna niente in nessuno stato: «Da confermare» serve a **tenerlo fuori
 dall'elenco Includi dell'Arrivo merce** finché non è confermato.
+
+⭐ **NON è il default, e la decisione è chiusa il 28/08/2026** (vedi OF-001): un ordine
+nuovo nasce **Confermato**, come oggi. «Da confermare» è una scelta esplicita
+dell'operatore — chi crea normalmente un ordine non deve fare un passaggio in più
+solo perché è stato introdotto un quarto stato.
+
+**STATO TECNICO:** il valore si aggiunge all'enum esistente in modo **additivo**
+(`ALTER TYPE "SupplierOrderStatus" ADD VALUE 'to_confirm'`), e il default di
+creazione resta `confirmed` (`supplier-orders.service.ts:228`). Nessun ordine
+esistente cambia stato, e nessun backfill è necessario su questo lato.
 
 **STATO TECNICO:** non esiste. L'enum ha tre valori:
 
@@ -225,6 +233,31 @@ ricalcolo automatico evita.
 `status === confirmed` in `status !== concluded`: vero per quella condizione, ma insufficiente.
 Ciò che manca è che **le transizioni di stato non hanno una porta** — esiste un `cancel` e
 nient’altro. Vedi §2.6, «l’implementazione è un altro modello».
+
+#### ⭐ La riapertura: policy decisa il 28/08/2026 — la norma è in `12` §0.4-bis
+
+⚠️ **Qui il ricalcolo era registrato come «comportamento misurato, non norma».** Ora è norma, e
+il comportamento corrente **è già conforme**: non c’è niente da cambiare su questo lato.
+
+> **Annullare o eliminare un Arrivo merce collegato è un’operazione documentale che RICALCOLA lo
+> stato dell’ordine.** Non è l’assenza del legame a riaprirlo.
+
+| dopo l’operazione                                 | stato          |
+| ------------------------------------------------- | -------------- |
+| resta almeno un Arrivo merce `status ≠ cancelled` | **Concluso**   |
+| non ne resta nessuno attivo                       | **Confermato** |
+
+⭐ **Il collegamento a un documento annullato è NORMALE qui**, al contrario dell’Ordine cliente:
+`cancel()` **non** azzera `Document.supplierOrderId`, ed è `status = cancelled` a rendere il
+legame non conclusivo. Per questo l’eleggibilità si scrive:
+
+```text
+status = confirmed  AND  documents.none(status ≠ cancelled)
+```
+
+⛔ **E nessuno di questi cambi di stato produce effetti quantitativi**: non tocca Giacenza,
+non crea Impegnata né reservation, non genera movimenti, non mantiene un «In arrivo». Lo stato
+serve al ciclo commerciale e all’eleggibilità, e a nient’altro (§2.2, §1.1).
 
 ### 2.6 «Annullato»
 
@@ -384,6 +417,34 @@ Vale per tutti e quattro gli stati. **STATO TECNICO: già conforme** — il rout
 comune non riceve più lo stato (la firma di `documentRowPath` non lo accetta), e
 la maschera carica `confirmed`, `concluded` e `cancelled`.
 
+### ⭐ Il campo Stato esiste in maschera — 29/08/2026
+
+> **Prima di oggi l'Ordine fornitore non mostrava affatto il proprio stato**: era
+> filtrabile nell'elenco e invisibile nel documento. Con quattro stati, «Da confermare»
+> sarebbe stato irraggiungibile.
+
+In testata, dopo «Consegna prevista», con lo **stesso** selettore dell'Ordine cliente —
+`app-document-header-field` + `app-select-menu`, le tre voci da `ORDER_STATE_OPTIONS`.
+
+```text
+Da confermare · Confermato · Annullato        scegliibili
+Concluso                                      mostrato quando è lo stato corrente,
+                                              in sola lettura, mai selezionabile
+```
+
+⛔ **Su un ordine Concluso lo stato NON viaggia nel payload.** Il campo è bloccato,
+quindi il controllo porta un valore che l'operatore non ha scelto: mandarlo farebbe
+rifiutare il salvataggio dalla macchina comune, e l'ordine non sarebbe più modificabile
+in nulla — l'opposto di §5.3.
+
+⚠️ **Nessun effetto quantitativo introdotto**: nessuna colonna «Impegnata», nessuna «In
+arrivo». Giacenza e impegni restano dell'Arrivo merce (§1.1, OF-002), e il flusso
+Ordine → Arrivo merce è invariato — Ricevuto/residuo, collegamenti di riga e Arrivo
+merce come snapshot autonomo.
+
+⏸ **Verifica visiva in un browser: pendente**, registrata in `docs/DA-FARE.md`. Non
+blocca la chiusura funzionale.
+
 ### 5.2 Lucchetto
 
 Un ordine riaperto nasce **protetto** e si sblocca con un gesto esplicito.
@@ -393,9 +454,13 @@ Un ordine riaperto nasce **protetto** e si sblocca con un gesto esplicito.
 
 ### 5.3 Modifica ed eliminazione
 
-Vedi §2.2: le due guardie di stato oggi presenti (`update` da `confirmed`,
-`delete` da `cancelled`) sono **difetti da correggere**, non regole da
-documentare.
+> **Lo stato non governa né la modifica né l'eliminazione: valgono i permessi
+> comuni.** L'unica eccezione è il campo **Stato** di un ordine Concluso, che è
+> derivato e quindi bloccato (§2.5).
+
+⭐ Le due guardie di stato che stavano qui (`update` da `confirmed`, `delete` da
+`cancelled`) sono state **rimosse il 28/08/2026**: vedi §2.2, che ne conserva la
+ragione.
 
 #### ⭐ Eliminare un Concluso è AMMESSO, e l'Arrivo merce resta orfano — deciso il 28/08/2026
 
@@ -424,21 +489,73 @@ sue quantità, e `supplierOrderId` diventa `NULL`. ⛔ Un `Cascade` sul document
 avrebbe cancellato un Arrivo merce già registrato — cioè avrebbe fatto sparire
 merce entrata davvero.
 
-⛔ **STATO TECNICO — oggi un ordine Concluso non si può né annullare né
-eliminare.** Le due guardie si compongono, e nessuna delle due lo dichiara:
+⭐ **La strada diretta è aperta dal 28/08/2026.** Qui c'era un blocco «STATO TECNICO»
+che descriveva l'ordine Concluso come impossibile da annullare e da eliminare, e la
+strada dei quattro passi per arrivarci. Non è più così: le due guardie sono state
+rimosse, e la ragione per cui andavano tolte **insieme** sta in §2.2.
+
+⭐ **Il messaggio d'errore di `cancel` diceva già la dottrina di §2.5** — _«Un ordine
+concluso resta collegato al suo arrivo merce»_ — e la guardia era giusta nel merito,
+sbagliata nella forma. Ora il rifiuto arriva dalla macchina comune
+(`assertManualTransition`), che è l'unico posto dove sta scritto.
+
+#### ⭐ Le righe conservano la loro IDENTITÀ al salvataggio — corretto il 29/08/2026
+
+> **Salvare un Ordine fornitore non ricrea le sue righe: aggiorna quelle che
+> restano, crea quelle nuove, elimina quelle davvero tolte.**
+
+⛔ **Qui il salvataggio era `deleteMany` + ricrea tutto**, e la conseguenza si
+misurava su un ordine già concluso — **a ogni salvataggio, anche senza modifiche**:
 
 ```text
-cancel  → status !== confirmed  → rifiuto     Concluso non passa
-delete  → status !== cancelled  → rifiuto     e senza cancel non ci arriva mai
+PRIMA   riga df0c0691…   ordinato 10   ricevuto 8   legami dell'Arrivo merce 1
+        ↓  PATCH con le RIGHE IDENTICHE, nessun campo cambiato
+DOPO    riga 5c740c94…   ordinato 10   ricevuto 0   legami dell'Arrivo merce 0
 ```
 
-L'unica strada è annullare l'Arrivo merce, tornare Confermato, annullare,
-eliminare: **quattro passi per un'operazione che ne vale uno**. Correggendo
-`delete` secondo §2.2 la strada diretta si apre da sé.
+Le righe rinascevano con id nuovi, quindi cadeva **il Ricevuto** (`receivedQuantity`
+tornava al suo `@default(0)`: il servizio non la scriveva affatto) e **il legame**
+`DocumentLine.supplierOrderLineId`, per via del suo `onDelete: SetNull`.
 
-⭐ **Il messaggio d'errore di `cancel` dice già la dottrina di §2.5** — _«Un ordine
-concluso resta collegato al suo arrivo merce»_. La guardia è giusta nel merito e
-sbagliata nella forma: va scritta `status !== concluded`.
+⚠️ **Bastava riaprire l'ordine e premere Salva** — anche solo per correggere la
+data — e la colonna Ricevuto mostrava 0 su merce arrivata davvero.
+
+⭐ **Non è una causa nuova: è la stessa di `docs/09` §3**, dove le righe documento
+staccavano i movimenti via `sourceLineId`. Ordine cliente, Arrivo merce e Vendita al
+banco erano già stati corretti; l'Ordine fornitore era l'ultimo rimasto, e il codice
+lo dichiarava — _«il salvataggio è deleteMany + create, le righe perdono l'id […]
+Temporaneo (24/08/2026)»_.
+
+**Il contratto, deterministico e nell'ordine:**
+
+| Cosa arriva dal client      | Cosa fa il server               |
+| --------------------------- | ------------------------------- |
+| riga con `id` noto          | **update**, stesso id           |
+| riga senza `id`             | **create**, id nuovo            |
+| riga non più inviata        | **delete** della sola sparita   |
+| `id` sconosciuto o ripetuto | **422**, mai una creazione muta |
+
+**Le quattro conseguenze funzionali**, decise dal proprietario il 29/08/2026:
+
+- **sostituire l'articolo sulla stessa riga NON la sostituisce**: l'id resta, e i
+  valori che il client non modifica restano quelli del documento;
+- **eliminare una riga la fa finire davvero**, in ogni stato — nessun blocco, nessun
+  soft-delete, nessuna tombstone;
+- **un articolo aggiunto dopo è una riga nuova**, che non eredita niente da quella
+  eliminata: nasce con Ricevuto a zero;
+- **l'Arrivo merce già salvato resta autonomo**: tiene le sue righe, le sue quantità
+  e i suoi movimenti. Se la riga d'ordine viene eliminata perde solo il puntatore —
+  è il `SetNull` dello schema, non una riscrittura del documento.
+
+⛔ **La funzione condivisa `persistDocumentLinesByIdTx` non era riusabile così com'è**:
+scrive su `tx.documentLine`, e questa è un'altra tabella. Si è riusato l'**algoritmo**,
+nella forma che l'Ordine cliente ha già su `salesOrderLine` per lo stesso motivo.
+
+⚠️ **Serviva anche il client**: il DTO di riga non aveva `id`, quindi l'identità non
+era nemmeno esprimibile. La maschera l'id ce l'aveva già in `form` e lo leggeva dal
+server — semplicemente non lo rimandava.
+
+---
 
 ---
 

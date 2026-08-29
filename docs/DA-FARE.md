@@ -1,6 +1,6 @@
 # Cosa resta da fare — VestiFlow
 
-**Aggiornato:** 23/08/2026
+**Aggiornato:** 29/08/2026
 **A che serve:** riprendere il lavoro in un'altra sessione **senza ricostruire niente**.
 Ogni voce dice cosa è già misurato, cosa è deciso e cosa no.
 
@@ -27,6 +27,46 @@ il lavoro grosso aperto).
 `feature/pagamenti-tesoriera`. Chi riprende verifichi con `git branch --show-current`
 invece di fidarsi di quanto scritto qui.
 
+---
+
+# ⏸ VERIFICA VISIVA MANUALE PENDENTE — Passo 6 _(29/08/2026)_
+
+> **Non blocca la chiusura funzionale del Passo 6**, che è CHIUSO: 6A backend e 6B UI.
+> È un controllo successivo, non un difetto aperto.
+
+Il selettore di stato commerciale (Ordine cliente e Ordine fornitore) e la visibilità
+della colonna «Impegna magazzino» sono coperti da 18 prove di componente e 53 di
+integrazione HTTP su PostgreSQL, ma **non sono mai stati guardati in un browser**.
+
+⛔ **Perché non è stato fatto, e perché non va ritentato per altre strade.** Il
+proprietario era da telefono. La via automatica si è fermata su due ostacoli misurati:
+i progetti Playwright autenticati non esistono senza `E2E_USER_EMAIL`/`E2E_USER_PASSWORD`,
+e la via `mock-auth` riusa il server di sviluppo già in ascolto su `:4200` — compilato
+con la configurazione vera invece che con `--configuration e2e`, quindi il login finto
+non passa. Farla girare richiederebbe di fermare il server di sviluppo di chi sta
+lavorando: **non si fa, e non si cercano configurazioni alternative.**
+
+Quando si potrà, si guardano queste cose e basta:
+
+```text
+ORDINE CLIENTE
+  nuovo                   Stato = Confermato · colonna «Impegna magazzino» visibile
+  → Da confermare         la colonna sparisce subito · nessun effetto quantitativo
+  salva e riapri          lo stato resta quello scelto (i tre)
+  Concluso                mostrato, campo bloccato, altri campi modificabili,
+                          «Impegna» nascosto
+
+ORDINE FORNITORE
+  nuovo                   Stato = Confermato
+  selettore               Da confermare · Confermato · Annullato
+  Concluso                mostrato e bloccato · nessuna colonna «Impegna» né «In arrivo»
+  Ordine → Arrivo merce   flusso invariato: Ricevuto/residuo, collegamenti riga,
+                          Arrivo merce snapshot autonomo
+```
+
+⭐ **Un punto della lista è già verificato**, e non serve rifarlo: l'endpoint
+`POST /sales-orders/manual/:id/force-conclude` risponde **404** sull'API viva e non
+compare fra le rotte mappate all'avvio.
 ---
 
 # ⛔ LAVORO IN CORSO — righe documento, varianti, struttura _(23/08/2026)_

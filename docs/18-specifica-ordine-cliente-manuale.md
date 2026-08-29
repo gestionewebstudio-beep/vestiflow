@@ -88,12 +88,12 @@ Non esiste nel workflow manuale VestiFlow lo stato:
 
 ## 2.2 Significato sintetico
 
-| Stato             | Impegna magazzino                  | Includibile come sorgente  | Colonna `Impegna magazzino`             | Origine dello stato                            |
-| ----------------- | ---------------------------------- | -------------------------- | --------------------------------------- | ---------------------------------------------- |
-| **Da confermare** | No                                 | No                         | **Nascosta**                            | selezionabile dall'operatore                   |
-| **Confermato**    | Sì, secondo le righe               | Sì, se la coppia è ammessa | **Visibile**                            | selezionabile dall'operatore; default corrente |
-| **Concluso**      | Nessun nuovo impegno               | No                         | **DECISIONE UI DA CHIUDERE: vedi §9.2** | automatico da collegamento conclusivo valido   |
-| **Annullato**     | No; rilascia gli impegni esistenti | No                         | **Nascosta**                            | selezionabile dall'operatore                   |
+| Stato             | Impegna magazzino                  | Includibile come sorgente  | Colonna `Impegna magazzino`          | Origine dello stato                            |
+| ----------------- | ---------------------------------- | -------------------------- | ------------------------------------ | ---------------------------------------------- |
+| **Da confermare** | No                                 | No                         | **Nascosta**                         | selezionabile dall'operatore                   |
+| **Confermato**    | Sì, secondo le righe               | Sì, se la coppia è ammessa | **Visibile**                         | selezionabile dall'operatore; default corrente |
+| **Concluso**      | Nessun nuovo impegno               | No                         | **Nascosta** (deciso il 29/08, §9.2) | automatico da collegamento conclusivo valido   |
+| **Annullato**     | No; rilascia gli impegni esistenti | No                         | **Nascosta**                         | selezionabile dall'operatore                   |
 
 `Concluso` deve essere visibile come stato effettivo dell'ordine, ma non è una normale scelta manuale equivalente a Confermato/Da confermare/Annullato.
 
@@ -119,6 +119,33 @@ Se un documento conclusivo viene modificato prima del salvataggio in modo da non
 - se procede e il documento conclusivo viene salvato validamente, l'Ordine viene comunque considerato **Concluso**;
 - non nasce alcun residuo evadibile;
 - non nasce alcuno stato intermedio.
+
+### ⭐ L'avviso di copertura incompleta — testo approvato il 29/08/2026
+
+Il documento conclusivo che non copre tutte le righe/quantità mostra questo, **e nient'altro**:
+
+```text
+titolo    Il documento non copre tutto l'ordine
+
+testo     Il documento non copre completamente l'ordine. Se prosegui,
+          l'ordine verrà comunque concluso e non resterà alcun residuo.
+
+elenco    i numeri degli ordini coinvolti
+
+azioni    [ Annulla ]  ghost        [ Salva comunque ]  primary
+```
+
+⛔ **Non è un workflow di evasione parziale, ed è per questo che il testo è stato
+riscritto.** Diceva _«Ordine non evaso del tutto — Non sono stati evasi tutti i prodotti
+previsti. Forzare lo stato a Concluso?»_ con **tre** pulsanti: «Sì» chiamava
+`force-conclude`, «No» lasciava l'ordine «Parzialmente concluso». Il criterio ora è la
+**copertura**, non l'evasione, e gli esiti sono due.
+
+⚠️ **La primitiva a tre pulsanti del componente condiviso NON è stata rimossa**
+(`ConfirmDialog.extraLabel`), pur essendo rimasta senza consumer: è una primitiva
+generica, e resta inattiva a condizione che non esponga il workflow parziale nella UI,
+non venga chiamata dal workflow manuale, non produca effetti e non introduca stati o
+percorsi alternativi. Il suo test è stato reso **neutro** apposta.
 
 ## 2.4 Vincolo tecnico già misurato: `Da confermare` richiede persistenza esplicita
 
@@ -147,6 +174,79 @@ Conseguenze:
 - nessuno deve simulare `Da confermare` con combinazioni ambigue dei timestamp esistenti o con stato solo client-side.
 
 Questo è un **rinvio tecnico**, non un rinvio funzionale: lo stato resta requisito della v1.
+
+### ⭐ 2.4-bis · Il rinvio è sciolto — modello e backfill decisi il 28/08/2026
+
+```text
+SalesOrder.commercialState   enum OrderCommercialState        ANNULLABILE
+                             to_confirm · confirmed · concluded · cancelled
+                             NULL quando source ≠ manual
+```
+
+⭐ **Annullabile, e non è una comodità**: un ordine di canale **non ha** un ciclo commerciale
+VestiFlow. `NULL` lo dichiara, e rende la separazione da Shopify **strutturale** invece che
+convenzionale. Costa zero: l’eleggibilità filtra già `source = manual`.
+
+⛔ **Non si riciclano `fulfilledAt` / `fulfillmentStatus`**, e non solo perché sono del canale:
+`corrispettivi.service.ts` usa `fulfilledAt` come **data dell’evento economico** del registro.
+Sovraccaricarlo sposterebbe righe di un registro fiscale.
+
+⚠️ L’Ordine **fornitore** non prende una colonna nuova: il suo enum esiste e riceve `to_confirm`
+in modo additivo (`17` §2.3). L’autorità comune resta `order-state.util.ts`; l’unificazione
+fisica dei due tipi PostgreSQL è un refactor futuro separato, dichiarato e non urgente.
+
+#### Il backfill: decide la RELAZIONE, non l’etichetta legacy
+
+| condizione (in quest’ordine)       | → stato         |
+| ---------------------------------- | --------------- |
+| `source ≠ manual`                  | **`NULL`**      |
+| `cancelledAt` valorizzato          | **`cancelled`** |
+| collegamento conclusivo **attivo** | **`concluded`** |
+| altrimenti                         | **`confirmed`** |
+
+⛔ **`fulfilledAt` da solo NON è più prova di Concluso**, ed è la conseguenza diretta della
+misura di §7.2-bis: `delete` può lasciarlo valorizzato dopo aver perso il collegamento. Un
+ordine con `fulfilledAt` e nessun link attivo è un **residuo del vecchio workflow**, e il
+backfill lo riporta a `confirmed`.
+
+⭐ **Per la stessa ragione `partially_fulfilled` non ha più bisogno di una regola propria:** con
+link attivo è `concluded`, senza è `confirmed`. È la relazione documentale a dire se quell’ordine
+era davvero concluso.
+
+⛔ **Nessun record storico diventa `to_confirm`**: non esiste un dato che lo dimostri. Quel
+valore nasce solo per ordini nuovi.
+
+#### ⭐ Il default alla creazione — deciso il 28/08/2026
+
+⚠️ **Qui c'era un rinvio** («quale sia il default alla prima creazione è una decisione a
+parte»). È chiuso:
+
+> **Un Ordine cliente nuovo nasce CONFERMATO.** «Da confermare» è una scelta esplicita
+> dell'operatore, non il nuovo default.
+
+⭐ **La ragione è operativa, non tecnica:** chi crea normalmente un ordine non deve compiere un
+passaggio in più solo perché abbiamo introdotto un quarto stato. Il comportamento di oggi resta
+quello di domani; il nuovo valore serve a chi vuole **deliberatamente** salvare un ordine non
+ancora operativo.
+
+| alla creazione                             |                                                                   |
+| ------------------------------------------ | ----------------------------------------------------------------- |
+| l'operatore lascia **Confermato** e salva  | reservation secondo le righe · Impegnata aggiornata · includibile |
+| sceglie **Da confermare** prima di salvare | nessuna reservation · nessuna Impegnata · non includibile         |
+
+#### ⛔ Il default sta nel SERVIZIO, non nel database
+
+> **`commercialState` NON prende un `DEFAULT 'confirmed'` a livello PostgreSQL.** Resta
+> annullabile e senza default; è il servizio ad assegnare `confirmed` quando crea un ordine
+> con `source = manual`.
+
+⚠️ **Un default di colonna assegnerebbe uno stato commerciale VestiFlow anche a un record di
+canale**, ogni volta che una `INSERT` omettesse il campo — un import, una sync, uno script.
+`NULL` per gli ordini di canale è una garanzia solo finché **nulla** la riempie da sé.
+
+⭐ Sull'Ordine **fornitore** il problema non si pone: non esistono ordini fornitore di canale.
+Lì la colonna ha già un default e lo conserva — `confirmed` — e l'enum riceve `to_confirm` in
+modo additivo, senza cambiare il comportamento di creazione (`17` OF-001).
 
 ---
 
@@ -363,6 +463,51 @@ nessun collegamento definitivo
 nessun movimento aggiuntivo
 ```
 
+## 7.2-bis ⭐ La riapertura — decisa il 28/08/2026, norma in `12` §0.4-bis
+
+> **Annullare o eliminare il documento conclusivo è un’operazione documentale che RIAPRE
+> l’ordine.** Non è l’assenza del collegamento a farlo.
+
+```text
+⛔ NON è la regola    manca documentId  →  riapri
+⭐ È la regola        l'operatore annulla/elimina il documento conclusivo
+                      →  quella operazione riporta l'ordine a Confermato
+                         e ripristina gli impegni, nella STESSA transazione
+```
+
+### La matrice, e il filtro che ne discende
+
+| stato       | `documentId` | lettura                                       |
+| ----------- | ------------ | --------------------------------------------- |
+| `confirmed` | `NULL`       | ✅ **includibile**                            |
+| `confirmed` | valorizzato  | ⛔ incoerenza `state-stale` → non includibile |
+| `concluded` | valorizzato  | ✅ corretto, non includibile                  |
+| `concluded` | `NULL`       | ⛔ incoerenza `link-stale` → non includibile  |
+
+> **Filtro includibili:** `commercialState = confirmed AND documentId IS NULL`.
+
+⛔ **Nessun ramo «documento collegato annullato»**, e non è una semplificazione: `cancel()`
+azzera `documentId` su **tutti** gli ordini agganciati, incondizionatamente. Sul Cliente quel
+caso non è uno stato normale, e ammetterlo nel filtro legittimerebbe una condizione che il
+codice non produce. ⚠️ Sull’Ordine **fornitore** è invece normale, perché lì la chiave sta sul
+documento e non sull’ordine (`17` §2.5).
+
+### ⛔ Un difetto misurato: `cancel` e `delete` non convergono
+
+```text
+cancel   azzera documentId (sempre)  +  riapre lo stato (se il documento scaricava)
+delete   azzera documentId dal DATABASE (ON DELETE SET NULL) e basta
+         → l'ordine resta «Concluso» senza collegamento
+```
+
+Oggi non si vede, perché il filtro guarda solo `documentId IS NULL` e quell’ordine **ricompare**
+fra gli includibili. Con l’eleggibilità sullo stato sparirebbe: è il verso opposto, e altrettanto
+sbagliato.
+
+> **`delete` deve usare la STESSA primitive di riapertura di `cancel`** — quella che riporta lo
+> stato a Confermato e ripristina gli impegni. ⛔ **Non una funzione nuova:** due strade separate
+> sono ciò che le ha fatte divergere una volta.
+
 ## 7.3 Effetti sulle reservation
 
 Il passaggio a `Concluso` non deve essere un secondo motore di stock.
@@ -458,18 +603,29 @@ Confermato    → colonna visibile
 Annullato     → colonna nascosta
 ```
 
-### Concluso — decisione UI ancora da chiudere
+### ⭐ Concluso — decisione CHIUSA il 29/08/2026
 
-È già deciso che un Ordine `Concluso` non mantiene Impegnata attiva e che modificare l'Ordine concluso non deve ricreare reservation.
+> **Anche in `Concluso` la colonna `Impegna magazzino` è nascosta.**
 
-Resta da deliberare **soltanto la resa della colonna**:
+Il proprietario ha confermato l'opzione raccomandata. La ragione è quella già
+scritta qui: in `Concluso` non nasce nessun nuovo impegno, quindi la colonna non
+rappresenta più un effetto operativo attivo — e ⛔ **non è ammesso lasciare una
+checkbox apparentemente operativa che non comanda alcun effetto.**
 
-- **Opzione raccomandata:** colonna `Impegna magazzino` nascosta anche in `Concluso`, perché non rappresenta più un effetto operativo attivo;
-- alternativa: mostrare un dato puramente storico/read-only, ma deve essere inequivocabile che non produce Impegnata.
+```text
+Da confermare → colonna nascosta
+Confermato    → colonna visibile
+Concluso      → colonna nascosta
+Annullato     → colonna nascosta
+```
 
-⛔ Non è ammesso lasciare in `Concluso` una checkbox apparentemente operativa che non comanda alcun effetto.
+⚠️ **La colonna segue il valore del CAMPO, non lo stato salvato**, e discende
+dalla stessa proibizione: scegliendo «Da confermare» su un ordine nuovo, lo stato
+salvato è ancora Confermato: gate sul salvato, la colonna resterebbe visibile su
+un ordine che non impegnerà niente — cioè la checkbox che questo paragrafo vieta.
 
-Questa scelta deve essere confermata dall'owner prima della modifica UI.
+⚠️ Nascondere **non cancella** `commitsStock` sulle righe: vedi §9.3, che resta
+com'è. L'intento di riga sopravvive e torna visibile rimettendo `Confermato`.
 
 ## 9.3 Persistenza dell'intento di riga
 

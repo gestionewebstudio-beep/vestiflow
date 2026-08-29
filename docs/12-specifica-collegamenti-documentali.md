@@ -112,19 +112,94 @@ decisa, e discende dalle decisioni del 27-28/08 (`17` §2.5, `18` §7.2).
 | -------------------------- | ---------------------------------------------------------------------- |
 | **Chi lo scrive**          | il ricalcolo, dentro la transazione del salvataggio della destinazione |
 | **Chi NON lo scrive**      | l'operatore. Nessun selettore lo offre, nessun comando lo forza        |
-| **Come si torna indietro** | ⏸️ **non dedotto qui** — vedi la nota sotto                            |
+| **Come si torna indietro** | ⭐ **§0.4-bis** — deciso il 28/08/2026                                 |
 
-⛔ **«Bloccato» non significa «si sblocca togliendo il link».** È la lettura da impedire, e non
-è stata decisa:
+### ⭐ 0.4-bis · La riapertura è un'OPERAZIONE, non un'assenza — deciso il 28/08/2026
 
-> **Concluso resta bloccato e non è modificabile manualmente.** L’eventuale effetto di una
-> futura operazione **esplicita** di scollegamento o riapertura sullo stato dell’Ordine è
-> disciplinato dalla relativa policy, e **non si deduce dalla semplice assenza del link**.
+⚠️ **Qui c'era «la policy di riapertura non è ancora scritta».** Lo era deliberatamente: un
+comportamento osservato non diventa norma perché esiste. Ora è decisa, e la distinzione che la
+regge è una sola:
 
-⚠️ **La norma approvata è più stretta di quanto il codice fa.** Che oggi un ricalcolo riporti
-l’Ordine fornitore a Confermato quando il collegamento sparisce è un **comportamento misurato**
-(`17` §2.5), non una regola: un comportamento osservato non diventa norma perché esiste. La
-policy di riapertura appartiene a questo documento e **non è ancora scritta**.
+```text
+⛔ NON è la regola        manca un collegamento  →  riapri
+⭐ È la regola            l'operatore ANNULLA o ELIMINA il documento conclusivo
+                          →  quella operazione documentale ricalcola lo stato dell'Ordine
+                          →  se non resta alcun collegamento conclusivo attivo → Confermato
+```
+
+**Perché la differenza conta.** «Manca il link, quindi riapri» renderebbe la semplice assenza
+un comando: un dato perso, una FK azzerata da un `ON DELETE SET NULL`, una migrazione fatta
+male riaprirebbero ordini che nessuno ha riaperto. «L'operatore ha annullato il documento,
+quindi ricalcolo» lega il cambio di stato a un **atto**, e lascia l'assenza inspiegata dov'è —
+cioè come **anomalia**, che è quello che è.
+
+⭐ **È compatibile col lock**: Concluso non si toglie dal selettore, e continua a non togliersi.
+Ci si esce solo per conseguenza di un'operazione documentale esplicita.
+
+#### La matrice, per l'Ordine cliente
+
+| stato       | collegamento | lettura                                         |
+| ----------- | ------------ | ----------------------------------------------- |
+| `confirmed` | assente      | ✅ **includibile**                              |
+| `confirmed` | attivo       | ⛔ incoerenza (`state-stale`) → non includibile |
+| `concluded` | attivo       | ✅ corretto, non includibile                    |
+| `concluded` | assente      | ⛔ incoerenza (`link-stale`) → non includibile  |
+
+> **Filtro includibili (Cliente):** `commercialState = confirmed AND documentId IS NULL`.
+
+⛔ **Nessun ramo «documento collegato annullato»**, e la ragione è misurata: `cancel()` azzera
+`documentId` su TUTTI gli ordini agganciati, incondizionatamente. Sul Cliente un collegamento a
+documento annullato **non è uno stato normale** — ammetterlo nel filtro legittimerebbe una
+condizione che il codice non produce.
+
+#### Per l'Ordine fornitore la regola è la stessa, la forma no
+
+La chiave sta sul **documento** (`Document.supplierOrderId`), non sull'ordine: un ordine ha N
+arrivi merce.
+
+> **Filtro includibili (Fornitore):** `status = confirmed AND documents.none(status ≠ cancelled)`.
+
+Annullando o eliminando **uno** di più arrivi, se ne resta almeno uno attivo l'ordine **resta
+Concluso**; quando non ne resta nessuno torna Confermato. ⛔ E qui il collegamento a un documento
+annullato **è** normale: `cancel()` non azzera `supplierOrderId`, è `status = cancelled` a
+renderlo non conclusivo.
+
+⚠️ **Zero effetti quantitativi.** Il cambio di stato dell'Ordine fornitore non tocca Giacenza,
+Impegnata, reservation né movimenti, e non introduce «In arrivo».
+
+#### ⛔ Un difetto misurato che questa policy rende visibile
+
+Sul Cliente, `cancel` e `delete` **non convergono**:
+
+```text
+cancel   azzera documentId (sempre) + riapre lo stato (se il documento scaricava)
+delete   azzera documentId dal DATABASE (ON DELETE SET NULL) e basta
+         → l'ordine resta «Concluso» senza collegamento
+```
+
+Oggi non si vede, perché il filtro guarda solo `documentId IS NULL` e quell'ordine ricompare
+fra gli includibili. Con l'eleggibilità sullo stato **sparirebbe**, ed è il verso opposto.
+
+> **`delete` deve usare la STESSA primitive di riapertura di `cancel`** — quella che riporta lo
+> stato a Confermato e ripristina gli impegni nella stessa transazione. Non una funzione nuova:
+> le due strade devono convergere, o divergeranno di nuovo.
+
+#### La guardia di coerenza, e cosa se ne fa
+
+Corretti `cancel` e `delete`, le due combinazioni incoerenti diventano **anomalie**, non
+flusso ordinario. Restano sorvegliate:
+
+| dove                 | comportamento                                                                 |
+| -------------------- | ----------------------------------------------------------------------------- |
+| **elenco**           | fail closed: l'ordine non compare, e un `warn` porta id, stato e collegamento |
+| **richiesta per ID** | rifiuto **esplicito**, mai un «non trovato»                                   |
+
+⭐ Il messaggio all'operatore è **funzionale, non diagnostico**:
+
+> «L'ordine non è più disponibile per l'inclusione. Aggiorna l'elenco e riprova.»
+
+⚠️ `state-stale` / `link-stale` restano **nei log**: nominano una condizione che l'operatore non
+può risolvere da solo, e metterla a schermo trasformerebbe un'anomalia tecnica in un compito suo.
 
 ### Il lock, che è nuovo
 
