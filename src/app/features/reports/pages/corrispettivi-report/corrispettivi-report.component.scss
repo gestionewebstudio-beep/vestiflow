@@ -7,7 +7,10 @@
   `_list-page.scss` che serve anche a chi — come questo Registro — ha un layout
   proprio e non vuole l'intero impianto delle pagine-registro.
 */
-@include lp.list-page-mobile-filters('corrispettivi');
+// ⛔ Il pannello filtri mobile e' del TELAIO: qui c'era
+//    `list-page-mobile-filters('corrispettivi')`, che generava un secondo
+//    pulsante «Filtri (n)» e un secondo pannello — quello che duplicava a mano
+//    i controlli della barra.
 
 /*
   ⚠️ **`block-size: 100%` qui non poteva funzionare, e faceva il danno opposto.**
@@ -52,12 +55,19 @@
   La densità è da gestionale: il `gap` era `--space-5` fra tutti i blocchi, e su
   una schermata da consultare significava mezzo schermo di aria.
 */
+/*
+  ⛔ **Qui c'era `grid-template-rows: auto auto minmax(0, 1fr) auto`**, cioe' il
+  ruolo elastico assegnato per POSIZIONE: la terza traccia. Bastava un blocco
+  condizionale in piu' perche' tutto slittasse di uno — ed e' il difetto che
+  `regole-stile-ui` §6 vieta, misurato proprio su questa pagina.
+
+  Ora la catena la da' il telaio, per IDENTITA': `> *` non cede, l'area dati si'.
+  Resta la sola densita', che e' una scelta di questa schermata: il telaio usa
+  `--space-5`, qui `--space-3` — su una vista da consultare mezzo schermo d'aria
+  non si spende.
+*/
 .corrispettivi {
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
   gap: var(--space-3);
-  flex: 1;
-  min-block-size: 0;
 }
 
 /*
@@ -395,11 +405,6 @@
     flex: none;
   }
 
-  .corrispettivi {
-    display: flex;
-    flex-direction: column;
-  }
-
   /*
     ⚠️ **Il pannello smette di essere una card: le card sono le righe.**
 
@@ -455,4 +460,36 @@
     align-items: flex-start;
     justify-content: space-between;
   }
+}
+
+/* I gruppi proiettati non sono scatole: sono contenuto (vedi telaio elenco). */
+[pageActions],
+[period],
+[filters],
+[warnings],
+[summary] {
+  display: contents;
+}
+
+/*
+  ⚠️ **La zona dati NON è `display: contents`, e qui la ragione è tecnica.**
+
+  Il telaio dà `flex: 1; min-block-size: 0` con `.list-page__data > *`, e i
+  selettori guardano il DOM: dissolvendo il gruppo, la regola continuerebbe a
+  puntare al `<div data>` — che non genera più una scatola — e la card non
+  riceverebbe l'altezza. Resta un contenitore vero che passa la catena al
+  pannello.
+
+  ⭐ È la catena che rende possibile l'unica regione di scorrimento della pagina:
+  `__panel-scroll` scorre solo se il pannello ha un'altezza definita sopra di sé.
+*/
+[data] {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
+}
+
+[data] > .corrispettivi__panel {
+  flex: 1;
+  min-block-size: 0;
 }

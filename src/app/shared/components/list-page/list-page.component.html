@@ -12,6 +12,9 @@
       soli lettori di schermo. Ora vale per tutti gli elenchi.
     -->
     <h1 class="list-page__title">{{ pageTitle() }}</h1>
+    @if (pageDescription(); as descrizione) {
+      <span class="sr-only">{{ descrizione }}</span>
+    }
     @if (count(); as conteggio) {
       <span class="list-page__count tabular-nums">{{ conteggio }}</span>
     }

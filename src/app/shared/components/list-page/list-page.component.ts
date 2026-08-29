@@ -156,6 +156,19 @@ export class ListPageComponent {
    */
   readonly count = input<string>();
 
+  /**
+   * ⭐ **Descrizione per i soli lettori di schermo**, resa come `.sr-only`.
+   *
+   * ⚠️ **Non è il sottotitolo tolto il 29/08/2026**, e la distinzione conta:
+   * quella decisione riguardava una riga VISIBILE che prendeva spazio in una
+   * vista che serve a consultare. Qui non si occupa un pixel — si dice a chi la
+   * pagina non la vede che cosa sta guardando.
+   *
+   * Il Registro Corrispettivi c'era già arrivato da solo, e senza questo campo
+   * la migrazione al telaio gli avrebbe tolto l'unica descrizione che aveva.
+   */
+  readonly pageDescription = input<string>();
+
   // ── Stati — lo shell li POSSIEDE ──────────────────────────────────────
   readonly loading = input.required<boolean>();
   /** Il **messaggio** dell'errore, non l'`AppError`: lo shell non conosce il dominio. */

@@ -34,18 +34,13 @@ import {
 } from '@core/models/tenant-channel-profile.model';
 import { ActionMenuComponent } from '@shared/components/action-menu/action-menu.component';
 import type { ActionMenuItem } from '@shared/components/action-menu/action-menu.component';
-import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
-import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
+import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import { SegmentedComponent } from '@shared/components/segmented/segmented.component';
 import type { SegmentedOption } from '@shared/components/segmented/segmented.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
-import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
-import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { TableViewId } from '@shared/table-columns/table-column.model';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
@@ -105,20 +100,15 @@ type CorrispettiviState =
   selector: 'app-corrispettivi-report',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    ListPageComponent,
     ActionMenuComponent,
-    BackButtonComponent,
     ButtonComponent,
     CorrispettiviOrdersTableComponent,
     CorrispettiviSummaryComponent,
     DateInputComponent,
-    EmptyStateComponent,
-    ErrorStateComponent,
     InlineBannerComponent,
     SegmentedComponent,
     SelectMenuComponent,
-    SlidePanelComponent,
-    TableColumnPickerComponent,
-    TableSkeletonComponent,
   ],
   templateUrl: './corrispettivi-report.component.html',
   styleUrl: './corrispettivi-report.component.scss',
