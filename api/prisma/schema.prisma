@@ -125,6 +125,23 @@ enum TikTokSyncStatus {
 /// creazione (nessun effetto su giacenze/disponibilità); Concluso scatta
 /// quando l'ordine viene incluso/agganciato a un Arrivo merce.
 enum SupplierOrderStatus {
+  /// Salvato ma non ancora un impegno d'acquisto: NON eleggibile in Includi.
+  /// Aggiunto il 28/08/2026 in modo additivo — nessun ordine storico lo assume,
+  /// e `confirmed` resta il default applicativo alla creazione (`17` §2.3).
+  to_confirm
+  confirmed
+  concluded
+  cancelled
+}
+
+/// I quattro stati del ciclo commerciale, comuni ai due Ordini.
+///
+/// ⚠️ L'Ordine fornitore NON usa questo tipo: ha il proprio enum, esteso in modo
+/// additivo. L'autorità comune è `api/src/common/order-state.util.ts`, non il
+/// tipo PostgreSQL — l'unificazione fisica dei due tipi è un refactor futuro
+/// separato e dichiarato (`18` §2.4-bis).
+enum OrderCommercialState {
+  to_confirm
   confirmed
   concluded
   cancelled
@@ -1340,6 +1357,19 @@ model SalesOrder {
   source                       SalesOrderSource            @default(manual)
   financialStatus              SalesOrderFinancialStatus   @default(pending) @map("financial_status")
   fulfillmentStatus            SalesOrderFulfillmentStatus @default(unfulfilled) @map("fulfillment_status")
+  /// Stato del ciclo commerciale VestiFlow — l'AUTORITÀ per `source = manual`.
+  ///
+  /// ⛔ **Annullabile e SENZA default, entrambi deliberati.** `NULL` significa
+  /// «questo ordine non ha un ciclo commerciale VestiFlow», ed è il caso di ogni
+  /// ordine di canale: la separazione da Shopify è strutturale, non
+  /// convenzionale. Un `@default(confirmed)` assegnerebbe uno stato nostro a un
+  /// record di canale ogni volta che una INSERT omettesse il campo — un import,
+  /// una sync, uno script. Il valore alla creazione lo scrive il SERVIZIO.
+  ///
+  /// ⚠️ Dopo la migration, un ordine `manual` con questo campo a NULL è
+  /// un'INCOERENZA da rilevare, non un quinto modo di dedurre lo stato: non
+  /// esiste alcun ripiego su `fulfilledAt`/`fulfillmentStatus` (`18` §2.4-bis).
+  commercialState              OrderCommercialState?       @map("commercial_state")
   customerId                   String?                     @map("customer_id") @db.Uuid
   /// Snapshot nome cliente (display stabile, anche senza anagrafica).
   customerName                 String                      @map("customer_name")

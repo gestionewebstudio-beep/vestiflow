@@ -39,6 +39,7 @@ export type SupplierOrderExportRow = Record<SupplierOrderExportHeader, string>;
  * «Concluso» a schermo e un'altra parola nel foglio che ha appena scaricato.
  */
 const STATUS_LABELS: Readonly<Record<SupplierOrderStatus, string>> = {
+  [SupplierOrderStatus.to_confirm]: 'Da confermare',
   [SupplierOrderStatus.confirmed]: 'Confermato',
   [SupplierOrderStatus.concluded]: 'Concluso',
   [SupplierOrderStatus.cancelled]: 'Annullato',

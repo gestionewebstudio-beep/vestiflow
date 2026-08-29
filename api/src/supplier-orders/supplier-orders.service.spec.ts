@@ -602,7 +602,63 @@ describe('SupplierOrdersService', () => {
     expect(prisma.supplierOrderLine.deleteMany).not.toHaveBeenCalled();
   });
 
-  it('update rifiuta ordine Concluso', async () => {
+  /**
+   * ⭐ **Lo stato NON governa la modificabilità** (`17` §2.2, §5.3).
+   *
+   * ⛔ Qui il test si chiamava «update rifiuta ordine Concluso» e aspettava un
+   * `ConflictException`: asseriva il gate rimosso il 28/08/2026 su decisione del
+   * proprietario. Un Ordine fornitore Concluso si modifica come gli altri —
+   * l'unica eccezione è il campo Stato, provata dal test subito sotto.
+   */
+  it('update AMMETTE un ordine Concluso, e lo stato non si muove', async () => {
+    const prisma = createPrismaMock();
+    prisma.supplierOrder.findFirst.mockResolvedValue({
+      id: 'po-1',
+      status: SupplierOrderStatus.concluded,
+      destinationLocationId: null,
+      currency: 'EUR',
+      costEntryMode: PurchaseCostEntryMode.vat_excluded,
+      documentDiscountPercent: 0,
+      orderDate: new Date('2026-08-01'),
+      number: 1,
+      series: null,
+      supplierId: 'sup-1',
+      supplierReference: null,
+      expectedAt: null,
+      lines: [{ id: 'line-1' }],
+      documents: [],
+    });
+    prisma.supplier.findFirst.mockResolvedValue({ id: 'sup-1', party: supplierParty });
+    prisma.productVariant.findMany.mockResolvedValue([
+      { id: 'var-1', sku: 'SKU-1', product: { name: 'Felpa' } },
+    ]);
+    prisma.supplierOrderLine.updateMany.mockResolvedValue({ count: 1 });
+    prisma.supplierOrder.update.mockResolvedValue({
+      id: 'po-1',
+      status: SupplierOrderStatus.concluded,
+      supplierReference: 'RIF-NUOVO',
+      lines: [{ id: 'line-1' }],
+    });
+    const service = createService(prisma);
+
+    // Campo ordinario + riga: entrambi passano, su un ordine Concluso.
+    await expect(
+      service.update(tenantId, 'po-1', {
+        supplierReference: 'RIF-NUOVO',
+        lines: [
+          { id: 'line-1', variantId: 'var-1', orderedQuantity: 9, enteredUnitCostMinor: 500 },
+        ],
+      }, testOwnerUser()),
+    ).resolves.toMatchObject({ id: 'po-1', status: SupplierOrderStatus.concluded });
+
+    // ⛔ E lo stato non viene riscritto: `status` non entra nemmeno nei dati.
+    //    Senza questa asserzione il test resterebbe verde anche se il
+    //    salvataggio riportasse l'ordine a Confermato.
+    const scritti = prisma.supplierOrder.update.mock.calls[0]![0].data as Record<string, unknown>;
+    expect(scritti).not.toHaveProperty('status');
+  });
+
+  it('update RIFIUTA il cambio manuale di stato da Concluso', async () => {
     const prisma = createPrismaMock();
     prisma.supplierOrder.findFirst.mockResolvedValue({
       id: 'po-1',
@@ -613,11 +669,17 @@ describe('SupplierOrdersService', () => {
     });
     const service = createService(prisma);
 
+    // ⭐ Il rifiuto arriva dalla macchina comune (`assertManualTransition`), non
+    //    da un gate di modificabilità: da Concluso si esce annullando o
+    //    eliminando l'Arrivo merce collegato (`17` §2.5).
     await expect(
       service.update(tenantId, 'po-1', {
+        status: 'confirmed',
         lines: [{ variantId: 'var-1', orderedQuantity: 3, enteredUnitCostMinor: 500 }],
       }, testOwnerUser()),
     ).rejects.toBeInstanceOf(ConflictException);
+    // Niente è stato scritto: il rifiuto precede la transazione.
+    expect(prisma.supplierOrder.update).not.toHaveBeenCalled();
   });
 
   it('cancel annulla solo ordini Confermati', async () => {
@@ -672,7 +734,15 @@ describe('SupplierOrdersService', () => {
     expect(prisma.supplierOrder.delete).toHaveBeenCalledWith({ where: { id: 'po-1' } });
   });
 
-  it('delete rifiuta ordini non annullati', async () => {
+  /**
+   * ⭐ **L'eliminazione segue i PERMESSI, non lo stato** (`17` §5.3).
+   *
+   * ⛔ Qui il test si chiamava «delete rifiuta ordini non annullati» e aspettava
+   * un `ConflictException`: asseriva il gate `status !== cancelled` rimosso il
+   * 28/08/2026. Era la gemella del gate di `update`, e le due si componevano in
+   * un vicolo cieco — un Concluso non si poteva né annullare né eliminare.
+   */
+  it('delete elimina un ordine Confermato: lo stato non lo impedisce', async () => {
     const prisma = createPrismaMock();
     prisma.supplierOrder.findFirst.mockResolvedValue({
       id: 'po-1',
@@ -683,7 +753,26 @@ describe('SupplierOrdersService', () => {
     });
     const service = createService(prisma);
 
-    await expect(service.delete(tenantId, 'po-1', testOwnerUser())).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.delete(tenantId, 'po-1', testOwnerUser())).resolves.toBeUndefined();
+    expect(prisma.supplierOrder.delete).toHaveBeenCalledWith({ where: { id: 'po-1' } });
+  });
+
+  it('delete elimina anche un ordine Concluso', async () => {
+    const prisma = createPrismaMock();
+    prisma.supplierOrder.findFirst.mockResolvedValue({
+      id: 'po-1',
+      status: SupplierOrderStatus.concluded,
+      destinationLocationId: null,
+      lines: [],
+      documents: [],
+    });
+    const service = createService(prisma);
+
+    // ⚠️ L'Arrivo merce collegato SOPRAVVIVE e resta senza origine: è la
+    //    conseguenza accettata esplicitamente, ed è lo schema a garantirla
+    //    (`Document.supplierOrder … onDelete: SetNull`).
+    await expect(service.delete(tenantId, 'po-1', testOwnerUser())).resolves.toBeUndefined();
+    expect(prisma.supplierOrder.delete).toHaveBeenCalledWith({ where: { id: 'po-1' } });
   });
 
   describe('scope location (solo ordini legacy con destinazione)', () => {

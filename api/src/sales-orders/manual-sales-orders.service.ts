@@ -10,11 +10,16 @@ import {
   DocumentType,
   Prisma,
   ReservationStatus,
-  SalesOrderFulfillmentStatus,
+  OrderCommercialState,
   SalesOrderSource,
   type SalesOrder,
   type SalesOrderLine,
 } from '@prisma/client';
+import {
+  OrderState,
+  assertManualTransition,
+  statoOrdineClienteRichiesto,
+} from '../common/order-state.util';
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
@@ -175,8 +180,6 @@ export class ManualSalesOrdersService {
     dto: SaveManualSalesOrderDto,
     user: UserProfileDto,
   ): Promise<ManualSalesOrderSaveResult> {
-    const status = dto.status ?? 'confirmed';
-
     // Righe con quantità 0 o senza prodotto non sono salvabili (regola già
     // stabilita per Arrivo merce, coerente qui): si scartano in silenzio.
     // Un ordine può però esistere con la SOLA testata (cliente + location):
@@ -387,13 +390,45 @@ export class ManualSalesOrdersService {
           }
         }
 
-        // Ordine evaso (anche parzialmente) da un documento di scarico: la
-        // riapertura in modifica è consentita (prompt DDT — l'avviso «collegato
-        // a un DDT» vive nella maschera), ma gli impegni consumati NON vengono
-        // né ricreati né rilasciati: lo scarico reale è già del documento.
+        /**
+         * ⛔ **`status` assente significa «non lo cambio», non «riportalo a
+         * Confermato».** Il default appartiene alla CREAZIONE, non a ogni
+         * salvataggio: è lo stesso contratto binario del Codice IVA di riga
+         * (`regole-gestionale`, «la riga è una fotografia»).
+         *
+         * ⚠️ Senza questa distinzione, salvare un ordine **Concluso** senza
+         * toccarne lo stato lo riporterebbe a Confermato — e la macchina comune
+         * lo rifiuterebbe, rendendo di fatto non salvabile un ordine che per
+         * norma resta modificabile (`18` §1, `17` §2.2).
+         */
+        const statoCorrente = existing ? statoOrdineClienteRichiesto(existing) : null;
+        const statoRichiesto: OrderState = dto.status
+          ? (dto.status as OrderState)
+          : (statoCorrente ?? OrderState.Confirmed);
+
+        /**
+         * ⭐ **La transizione passa dalla macchina comune, non da un `if`.**
+         * `assertManualTransition` rifiuta «Concluso» scelto a mano e rifiuta di
+         * uscire da Concluso, che si lascia solo annullando o eliminando il
+         * documento collegato (`12` §0.4-bis).
+         *
+         * ⚠️ Si valida solo un cambio VERO: risalvare un ordine nello stato in
+         * cui già si trova non è una transizione.
+         */
+        if (statoCorrente !== null && statoRichiesto !== statoCorrente) {
+          assertManualTransition(statoCorrente, statoRichiesto);
+        }
+
+        // Ordine concluso da un documento di scarico: la riapertura in modifica è
+        // consentita (prompt DDT — l'avviso «collegato a un DDT» vive nella
+        // maschera), ma gli impegni consumati NON vengono né ricreati né
+        // rilasciati: lo scarico reale è già del documento.
+        //
+        // ⭐ Si legge dallo STATO, non più da `fulfilledAt`/`partially_fulfilled`:
+        //    quelli sono campi del canale, e «Parzialmente concluso» non esiste.
         const isSettled =
-          Boolean(existing?.fulfilledAt) ||
-          existing?.fulfillmentStatus === SalesOrderFulfillmentStatus.partially_fulfilled;
+          existing !== null &&
+          statoOrdineClienteRichiesto(existing) === OrderState.Concluded;
 
         // Numero assegnato al primo salvataggio (contatore customer_order). Colonne
         // numeriche (serie + numero) sorgente della numerazione; orderNumber
@@ -445,9 +480,21 @@ export class ManualSalesOrdersService {
           orderNumber = formatDocumentReference(setting.numberPrefix, series, number ?? 0);
         }
 
-        const cancelledAt = status === 'cancelled' ? (existing?.cancelledAt ?? new Date()) : null;
+        const cancelledAt = statoRichiesto === OrderState.Cancelled ? (existing?.cancelledAt ?? new Date()) : null;
 
         const headerData = {
+          /**
+           * ⭐ **Lo stato lo scrive il SERVIZIO, esplicitamente.** La colonna non
+           * ha un `DEFAULT` a livello PostgreSQL, e non deve averlo: un default
+           * assegnerebbe uno stato commerciale VestiFlow anche a un record di
+           * canale ogni volta che una `INSERT` omettesse il campo — un import,
+           * una sync, uno script (`18` §2.4-bis).
+           *
+           * ⚠️ `cancelledAt` resta scritto per gli ordini annullati: è il
+           * timestamp compagno, e il Registro corrispettivi lo legge. Non è più
+           * il modo in cui si DECIDE lo stato — è un dato accanto ad esso.
+           */
+          commercialState: statoRichiesto as OrderCommercialState,
           orderNumber,
           series,
           number,
@@ -538,10 +585,23 @@ export class ManualSalesOrdersService {
 
         // Impegni: Confermato → allineati alle righe con spunta ON; Annullato →
         // tutti rilasciati. Ricalcolo atomico nella stessa transazione (§DISPONIBILITÀ).
-        // Ordini evasi (isSettled): impegni consumati intoccati.
+        /**
+         * ⭐ **Il contratto degli impegni, uno stato per riga** (`18` §2.4-bis):
+         *
+         * ```text
+         *   to_confirm   nessuna reservation attiva          → release
+         *   confirmed    sync secondo le righe               → sync
+         *   cancelled    release                             → release
+         *   concluded    nessuna residua, nessuna nuova      → intoccate
+         * ```
+         *
+         * ⛔ Tutto nella STESSA transazione del salvataggio: la sola modifica
+         *    del selettore non produce effetti finché il salvataggio non va a
+         *    buon fine.
+         */
         if (isSettled) {
-          // Nessuna variazione impegni: lo scarico è già del documento collegato.
-        } else if (status === 'confirmed' && dto.locationId) {
+          // Concluso: impegni consumati intoccati, lo scarico è del documento.
+        } else if (statoRichiesto === OrderState.Confirmed && dto.locationId) {
           const reservationLines = computedLines.filter(effectiveCommits).map((line) => ({
             salesOrderLineId: savedLineIdByIndex.get(line.lineNumber)!,
             variantId: line.variantId!,
@@ -563,14 +623,19 @@ export class ManualSalesOrdersService {
           await this.reservations.releaseOrderReservationsTx(tx, {
             tenantId,
             salesOrderId: order.id,
-            note: status === 'cancelled' ? 'Ordine cliente annullato' : 'Righe senza impegno',
+            note:
+              statoRichiesto === OrderState.Cancelled
+                ? 'Ordine cliente annullato'
+                : statoRichiesto === OrderState.ToConfirm
+                  ? 'Ordine da confermare: nessun impegno'
+                  : 'Righe senza impegno',
           });
         }
 
         // Controllo disponibilità NON bloccante (§CONTROLLI): dopo il ricalcolo,
         // una disponibilità negativa segnala righe oltre la giacenza reale.
         const warningMessages: string[] = [];
-        if (!isSettled && status === 'confirmed' && dto.locationId) {
+        if (!isSettled && statoRichiesto === OrderState.Confirmed && dto.locationId) {
           const requestedByVariant = new Map<string, number>();
           for (const line of computedLines.filter(effectiveCommits)) {
             requestedByVariant.set(
@@ -630,7 +695,7 @@ export class ManualSalesOrdersService {
 
     const reservations = await this.listActiveReservations(tenantId, saved.id);
     this.logger.log(
-      `Ordine cliente ${saved.orderNumber} salvato (${tenantId}): stato ${status}, ${saved.lines.length} righe`,
+      `Ordine cliente ${saved.orderNumber} salvato (${tenantId}): stato ${saved.commercialState}, ${saved.lines.length} righe`,
     );
     return { order: saved, reservations, warnings };
   }
@@ -792,70 +857,18 @@ export class ManualSalesOrdersService {
   }
 
   /**
-   * «Forzare lo stato a Concluso?» (prompt DDT §LOGICA MAGAZZINO): un ordine
-   * Parzialmente concluso — evaso da un DDT che non copre tutti i prodotti —
-   * viene chiuso d'ufficio. Gli eventuali impegni residui vengono rilasciati
-   * (merce mai spedita: torna disponibile, nessun movimento di magazzino).
+   * ⛔ **Qui c’era `forceConclude`, ritirato il 28/08/2026.**
+   *
+   * Chiudeva d’ufficio un ordine «Parzialmente concluso». Quello stato non
+   * esiste più (`18` §2.3): una destinazione che copre parte delle quantità
+   * **conclude comunque** l’ordine, e non lascia residui da forzare.
+   *
+   * ⚠️ Non era solo inutile, era dannoso sui dati storici: il suo unico
+   * guardiano era `fulfillmentStatus === partially_fulfilled`, che il backfill
+   * NON ha ripulito (è un campo del canale). Su un ordine già portato a
+   * `concluded` avrebbe riscritto `fulfilledAt` e rilasciato impegni di un
+   * ordine già chiuso.
    */
-  async forceConclude(tenantId: string, orderId: string, user: UserProfileDto): Promise<void> {
-    const order = await this.prisma.salesOrder.findFirst({
-      where: { id: orderId, tenantId },
-      select: {
-        id: true,
-        orderNumber: true,
-        source: true,
-        cancelledAt: true,
-        fulfilledAt: true,
-        fulfillmentStatus: true,
-        locationId: true,
-      },
-    });
-    if (!order) {
-      throw new NotFoundException('Ordine cliente non trovato');
-    }
-    if (order.source !== SalesOrderSource.manual) {
-      throw new ConflictException('Solo gli ordini manuali si concludono da questa maschera.');
-    }
-    if (order.cancelledAt) {
-      throw new ConflictException('Un ordine annullato non può essere concluso.');
-    }
-    if (order.fulfilledAt) {
-      return; // Già concluso: forzatura idempotente.
-    }
-    if (order.fulfillmentStatus !== SalesOrderFulfillmentStatus.partially_fulfilled) {
-      throw new ConflictException(
-        'Solo un ordine Parzialmente concluso può essere forzato a Concluso.',
-      );
-    }
-    if (user && order.locationId) {
-      assertLocationInUserScope(user, order.locationId, 'write');
-    }
-
-    const syncTargets = new Set<string>();
-    await this.prisma.$transaction(async (tx) => {
-      const active = await tx.stockReservation.findMany({
-        where: { tenantId, salesOrderId: order.id, status: ReservationStatus.active },
-        select: { variantId: true, locationId: true },
-      });
-      await this.reservations.releaseOrderReservationsTx(tx, {
-        tenantId,
-        salesOrderId: order.id,
-        note: `Stato forzato a Concluso (ordine ${order.orderNumber})`,
-      });
-      for (const reservation of active) {
-        syncTargets.add(`${reservation.variantId}:${reservation.locationId}`);
-      }
-      await tx.salesOrder.update({
-        where: { id: order.id },
-        data: {
-          fulfilledAt: new Date(),
-          fulfillmentStatus: SalesOrderFulfillmentStatus.fulfilled,
-        },
-      });
-    });
-    await this.pushInventoryTargets(tenantId, syncTargets);
-    this.logger.log(`Ordine cliente ${order.orderNumber} forzato a Concluso (${tenantId})`);
-  }
 
   /**
    * Elimina un Ordine cliente MANUALE (come Arrivi merce, azione dall'elenco):

@@ -1,5 +1,5 @@
 import { ConflictException } from '@nestjs/common';
-import { SalesOrderFulfillmentStatus, SupplierOrderStatus } from '@prisma/client';
+import { OrderCommercialState, SalesOrderSource, SupplierOrderStatus } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -8,7 +8,11 @@ import {
   canTransitionManually,
   isEligibleAsSource,
   isStateLocked,
-  manualSalesOrderState,
+  coerenzaCollegamento,
+  eleggibileConGuardia,
+  leggiStatoOrdineCliente,
+  statoOrdineClienteRichiesto,
+  supplierOrderStatusDa,
   supplierOrderState,
 } from './order-state.util';
 
@@ -91,6 +95,7 @@ describe('Macchina stati ordini — le transizioni manuali', () => {
 
 describe('Adattatore Ordine fornitore', () => {
   it.each([
+    [SupplierOrderStatus.to_confirm, OrderState.ToConfirm],
     [SupplierOrderStatus.confirmed, OrderState.Confirmed],
     [SupplierOrderStatus.concluded, OrderState.Concluded],
     [SupplierOrderStatus.cancelled, OrderState.Cancelled],
@@ -98,72 +103,113 @@ describe('Adattatore Ordine fornitore', () => {
     expect(supplierOrderState({ status })).toBe(atteso);
   });
 
-  // ⚠️ Inchioda la distanza dalla decisione, così quando la migration arriverà
-  // questo test fallisce e obbliga ad aggiornare l'adattatore invece di
-  // lasciarlo indietro in silenzio.
-  it('oggi non può produrre «Da confermare»: la colonna non ha quel valore', () => {
+  // ⚠️ Qui c'era «oggi non può produrre Da confermare: la colonna non ha quel
+  //    valore». Era scritto per FALLIRE all'arrivo della migration, e ha fatto
+  //    il suo mestiere: l'enum ora ha quattro valori.
+  it('⭐ ora sa produrre tutti e quattro gli stati', () => {
     const prodotti = Object.values(SupplierOrderStatus).map((status) =>
       supplierOrderState({ status }),
     );
-    expect(prodotti).not.toContain(OrderState.ToConfirm);
+    expect(new Set(prodotti)).toEqual(new Set(TUTTI));
+  });
+
+  it('e la conversione inversa è totale', () => {
+    for (const stato of TUTTI) {
+      expect(supplierOrderState({ status: supplierOrderStatusDa(stato) })).toBe(stato);
+    }
   });
 });
 
-describe('Adattatore Ordine cliente manuale', () => {
-  const base = {
-    cancelledAt: null,
-    fulfilledAt: null,
-    fulfillmentStatus: SalesOrderFulfillmentStatus.unfulfilled,
-  };
-
-  it('un ordine appena salvato è Confermato', () => {
-    expect(manualSalesOrderState(base)).toBe(OrderState.Confirmed);
+describe('Ordine cliente manuale — lo stato si LEGGE, non si deduce', () => {
+  const manuale = (commercialState: OrderCommercialState | null) => ({
+    source: SalesOrderSource.manual,
+    commercialState,
   });
 
-  it('annullato vince su tutto', () => {
-    expect(
-      manualSalesOrderState({
-        ...base,
-        cancelledAt: new Date('2026-08-01'),
-        fulfilledAt: new Date('2026-08-02'),
-        fulfillmentStatus: SalesOrderFulfillmentStatus.fulfilled,
-      }),
-    ).toBe(OrderState.Cancelled);
+  it.each([
+    [OrderCommercialState.to_confirm, OrderState.ToConfirm],
+    [OrderCommercialState.confirmed, OrderState.Confirmed],
+    [OrderCommercialState.concluded, OrderState.Concluded],
+    [OrderCommercialState.cancelled, OrderState.Cancelled],
+  ])('%s → %s', (persistito, atteso) => {
+    const lettura = leggiStatoOrdineCliente(manuale(persistito));
+    expect(lettura).toEqual({ ok: true, state: atteso });
   });
 
-  it('evaso è Concluso', () => {
-    expect(manualSalesOrderState({ ...base, fulfilledAt: new Date('2026-08-02') })).toBe(
-      OrderState.Concluded,
-    );
-  });
-
-  // ⭐ La decisione, non una comodità: «Parzialmente concluso» è abolito, e una
-  // copertura ridotta conclude comunque l'ordine.
-  it('parzialmente evaso si legge Concluso, non uno stato a sé', () => {
-    expect(
-      manualSalesOrderState({
-        ...base,
-        fulfillmentStatus: SalesOrderFulfillmentStatus.partially_fulfilled,
-      }),
-    ).toBe(OrderState.Concluded);
-  });
-
-  it('e non è eleggibile, come non lo era prima', () => {
-    const stato = manualSalesOrderState({
-      ...base,
-      fulfillmentStatus: SalesOrderFulfillmentStatus.partially_fulfilled,
+  /**
+   * ⛔ La prova che vieta il ripiego: un ordine manuale senza stato NON viene
+   * dedotto dai campi del canale. È un'incoerenza, e si dichiara.
+   */
+  it('⛔ manuale senza stato: incoerenza, non una deduzione', () => {
+    expect(leggiStatoOrdineCliente(manuale(null))).toEqual({
+      ok: false,
+      motivo: 'stato-assente',
     });
-    expect(isEligibleAsSource(stato)).toBe(false);
+    expect(() => statoOrdineClienteRichiesto(manuale(null))).toThrow(ConflictException);
   });
 
-  it('oggi non può produrre «Da confermare»: non c’è dove memorizzarlo', () => {
-    const combinazioni = [
-      base,
-      { ...base, fulfilledAt: new Date() },
-      { ...base, cancelledAt: new Date() },
-      { ...base, fulfillmentStatus: SalesOrderFulfillmentStatus.partially_fulfilled },
-      { ...base, fulfillmentStatus: SalesOrderFulfillmentStatus.fulfilled },
-    ];
-    expect(combinazioni.map(manualSalesOrderState)).not.toContain(OrderState.ToConfirm);
+  it.each([
+    SalesOrderSource.shopify_online,
+    SalesOrderSource.shopify_pos,
+    SalesOrderSource.store,
+  ])('%s non ha un ciclo commerciale VestiFlow', (source) => {
+    expect(leggiStatoOrdineCliente({ source, commercialState: null })).toEqual({
+      ok: false,
+      motivo: 'ordine-di-canale',
+    });
   });
+
+  /**
+   * ⚠️ Anche se qualcuno riempisse la colonna su un ordine di canale — che il
+   * database non impedisce, perché non c'è un DEFAULT ma nemmeno un vincolo —
+   * la lettura resta «non è roba nostra». È il `source` a decidere.
+   */
+  it("⚠️ un ordine di canale con lo stato valorizzato resta fuori", () => {
+    expect(
+      leggiStatoOrdineCliente({
+        source: SalesOrderSource.shopify_online,
+        commercialState: OrderCommercialState.confirmed,
+      }),
+    ).toEqual({ ok: false, motivo: 'ordine-di-canale' });
+  });
+});
+
+describe('Guardia d’integrità fra stato e collegamento', () => {
+  it.each([
+    [OrderState.Confirmed, false, 'coerente'],
+    [OrderState.Concluded, true, 'coerente'],
+    [OrderState.ToConfirm, false, 'coerente'],
+    [OrderState.Cancelled, false, 'coerente'],
+  ])('%s con collegamento=%s → %s', (stato, link, atteso) => {
+    expect(coerenzaCollegamento(stato, link)).toBe(atteso);
+  });
+
+  it('⛔ confermato CON collegamento attivo: lo stato è vecchio', () => {
+    expect(coerenzaCollegamento(OrderState.Confirmed, true)).toBe('stato-vecchio');
+  });
+
+  it('⛔ concluso SENZA collegamento: il legame è vecchio', () => {
+    expect(coerenzaCollegamento(OrderState.Concluded, false)).toBe('legame-vecchio');
+  });
+
+  /**
+   * ⭐ Fail closed, ed è il punto: un ordine incoerente non deve ricomparire in
+   * silenzio fra gli includibili (`12` §0.4-bis).
+   */
+  it('⛔ un incoerente NON è eleggibile, benché il suo stato sia Confermato', () => {
+    expect(isEligibleAsSource(OrderState.Confirmed)).toBe(true);
+    expect(eleggibileConGuardia(OrderState.Confirmed, true)).toBe(false);
+  });
+
+  it('✅ un coerente Confermato è eleggibile', () => {
+    expect(eleggibileConGuardia(OrderState.Confirmed, false)).toBe(true);
+  });
+
+  it.each([OrderState.ToConfirm, OrderState.Concluded, OrderState.Cancelled])(
+    '%s non è eleggibile in nessun caso',
+    (stato) => {
+      expect(eleggibileConGuardia(stato, false)).toBe(false);
+      expect(eleggibileConGuardia(stato, true)).toBe(false);
+    },
+  );
 });

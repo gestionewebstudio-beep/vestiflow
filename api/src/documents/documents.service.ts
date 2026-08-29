@@ -13,6 +13,7 @@ import {
   Prisma,
   ReservationStatus,
   SalesOrderFulfillmentStatus,
+  OrderCommercialState,
   SalesOrderSource,
   type Document,
   type DocumentLine,
@@ -3193,6 +3194,23 @@ export class DocumentsService {
               });
         syncTargets.push(...sync.syncTargets);
       }
+
+      /**
+       * ⛔ **`delete` converge sulla stessa primitive di `cancel`, e prima non
+       * lo faceva.** L'eliminazione si affidava all'`ON DELETE SET NULL` della
+       * FK: il collegamento spariva, ma lo stato restava «Concluso». L'ordine
+       * finiva `link-stale` — concluso senza nulla a cui esserlo — e il vecchio
+       * filtro su `documentId IS NULL` lo rimetteva perfino fra gli includibili.
+       *
+       * ⭐ Sta PRIMA della `delete` della riga, perché la primitive ritrova gli
+       * ordini proprio dal `documentId` che sta per essere azzerato.
+       *
+       * ⚠️ Non è «manca il link, quindi riapri»: è un'operazione documentale
+       * esplicita che ricalcola lo stato (`12` §0.4-bis).
+       */
+      const reopenTargets = await this.reopenLinkedManualOrderTx(tx, tenantId, id);
+      syncTargets.push(...reopenTargets);
+
       await tx.document.delete({ where: { id } });
     });
 
@@ -3529,18 +3547,30 @@ export class DocumentsService {
         }
       }
 
+      /**
+       * ⛔ **Qui c'era una scrittura di `partially_fulfilled` a copertura
+       * ridotta.** «Parzialmente concluso» è abolito (`18` §2.3): una
+       * destinazione che copre parte delle quantità **conclude comunque**
+       * l'ordine, non ne apre uno stato intermedio né lascia un residuo.
+       *
+       * ⭐ Lo stato ora si SCRIVE in `commercialState`. `fulfilledAt` resta
+       * valorizzato perché è la data dell'evento — il Registro corrispettivi la
+       * legge come `occurredAt` — ma non è più ciò che DECIDE lo stato.
+       *
+       * ⚠️ `fullyCovered` non decide più lo stato: resta perché alimenta
+       * l'avviso non bloccante in maschera, che è un'altra cosa.
+       */
       await tx.salesOrder.update({
         where: { id: order.id },
-        data: fullyCovered
-          ? {
-              fulfilledAt: new Date(),
-              fulfillmentStatus: SalesOrderFulfillmentStatus.fulfilled,
-            }
-          : { fulfillmentStatus: SalesOrderFulfillmentStatus.partially_fulfilled },
+        data: {
+          commercialState: OrderCommercialState.concluded,
+          fulfilledAt: new Date(),
+          fulfillmentStatus: SalesOrderFulfillmentStatus.fulfilled,
+        },
       });
       this.logger.log(
-        `Ordine cliente ${order.orderNumber} ${
-          fullyCovered ? 'concluso' : 'parzialmente concluso'
+        `Ordine cliente ${order.orderNumber} concluso${
+          fullyCovered ? '' : ' (copertura parziale: nessun residuo)'
         } (${tenantId})`,
       );
     }
@@ -3557,16 +3587,15 @@ export class DocumentsService {
     tenantId: string,
     documentId: string,
   ): Promise<Array<{ variantId: string; locationId: string }>> {
+    // ⭐ Si riaprono gli ordini CONCLUSI da questo documento, letti dallo stato.
+    //    Qui c'era un `OR` su `fulfilledAt`/`partially_fulfilled`: due campi del
+    //    canale usati per dedurre una cosa nostra.
     const orders = await tx.salesOrder.findMany({
       where: {
         tenantId,
         documentId,
         source: SalesOrderSource.manual,
-        cancelledAt: null,
-        OR: [
-          { fulfilledAt: { not: null } },
-          { fulfillmentStatus: SalesOrderFulfillmentStatus.partially_fulfilled },
-        ],
+        commercialState: OrderCommercialState.concluded,
       },
       select: { id: true },
     });
@@ -3601,16 +3630,22 @@ export class DocumentsService {
     if (!order || !order.locationId) {
       return [];
     }
-    const wasFulfilled =
-      order.fulfilledAt != null ||
-      order.fulfillmentStatus === SalesOrderFulfillmentStatus.partially_fulfilled;
-    if (!wasFulfilled) {
+    // ⭐ **La primitive di riapertura, e ora è UNA sola** (`12` §0.4-bis):
+    //    `cancel` e `delete` del documento conclusivo convergono qui. Prima
+    //    `delete` si limitava all'`ON DELETE SET NULL` della FK, lasciando
+    //    l'ordine «Concluso» senza collegamento — un `link-stale` invisibile,
+    //    che il vecchio filtro su `documentId IS NULL` rendeva perfino di nuovo
+    //    includibile.
+    if (order.commercialState !== OrderCommercialState.concluded) {
       return [];
     }
 
     await tx.salesOrder.update({
       where: { id: order.id },
       data: {
+        commercialState: OrderCommercialState.confirmed,
+        // I campi del canale tornano al valore neutro: restano dati accanto
+        // allo stato, non più il modo in cui lo si deduce.
         fulfilledAt: null,
         fulfillmentStatus: SalesOrderFulfillmentStatus.unfulfilled,
       },

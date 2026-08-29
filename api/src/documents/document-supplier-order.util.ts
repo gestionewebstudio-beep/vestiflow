@@ -1,4 +1,9 @@
-import { ConflictException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import {
+  ConflictException,
+  Logger,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import {
   DocumentStatus,
   SupplierOrderStatus,
@@ -8,6 +13,14 @@ import {
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { assertLocationReadableInUserScope } from '../inventory/user-location-scope.util';
+import {
+  NON_PIU_ELEGGIBILE,
+  OrderState,
+  coerenzaCollegamento,
+  supplierOrderState,
+} from '../common/order-state.util';
+
+const logger = new Logger('SupplierOrderLink');
 
 /** Il minimo che serve per risolvere un ordine: funziona con `prisma` e con una `tx`. */
 type SupplierOrderReader = {
@@ -16,6 +29,12 @@ type SupplierOrderReader = {
       where: { id: string; tenantId: string };
       select: { status: true; destinationLocationId: true };
     }) => Promise<{ status: SupplierOrderStatus; destinationLocationId: string | null } | null>;
+  };
+  /** Serve alla guardia d’integrità: quanti Arrivi merce attivi sono collegati. */
+  readonly document: {
+    count: (args: {
+      where: { supplierOrderId: string; status: { not: DocumentStatus } };
+    }) => Promise<number>;
   };
 };
 
@@ -58,10 +77,33 @@ export async function assertSupplierOrderLinkable(
     order.destinationLocationId,
     'Non sei autorizzato ad accedere a questo ordine fornitore.',
   );
-  if (order.status !== SupplierOrderStatus.confirmed) {
-    throw new ConflictException(
-      'Solo ordini fornitore confermati (non ancora conclusi) possono essere agganciati a un arrivo merce.',
+  /**
+   * ⭐ **La regola commerciale è lo STATO; il collegamento è la guardia**
+   * (`12` §0.4-bis, `17` §2.5).
+   *
+   * Solo `confirmed` è eleggibile: «Da confermare» non è ancora un impegno
+   * d'acquisto, «Concluso» ha già il suo arrivo, «Annullato» non si farà.
+   */
+  if (supplierOrderState(order) !== OrderState.Confirmed) {
+    throw new ConflictException(NON_PIU_ELEGGIBILE);
+  }
+
+  /**
+   * ⛔ **Fail closed sull'incoerenza.** Se l'ordine dice «Confermato» ma un
+   * Arrivo merce non annullato è già collegato, il ricalcolo non è passato o la
+   * sua scrittura si è persa: agganciarne un secondo peggiorerebbe il dato.
+   *
+   * ⚠️ Il messaggio all'operatore è FUNZIONALE, non diagnostico: `stato-vecchio`
+   * è una condizione che non può risolvere da solo, e sta nei log.
+   */
+  const arriviAttivi = await db.document.count({
+    where: { supplierOrderId, status: { not: DocumentStatus.cancelled } },
+  });
+  if (coerenzaCollegamento(supplierOrderState(order), arriviAttivi > 0) !== 'coerente') {
+    logger.warn(
+      `Ordine fornitore ${supplierOrderId}: stato ${order.status} con ${arriviAttivi} arrivi attivi — incoerenza, escluso dall'inclusione.`,
     );
+    throw new ConflictException(NON_PIU_ELEGGIBILE);
   }
 }
 

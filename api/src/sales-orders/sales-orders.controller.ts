@@ -150,18 +150,6 @@ export class SalesOrdersController {
     return this.manualOrders.concludePrefill(tenantId, id, dto.documentType, user);
   }
 
-  /** Forza a Concluso un ordine Parzialmente concluso (prompt DDT). */
-  @Post('manual/:id/force-conclude')
-  @RequireAnyPermissions(SALES_ORDERS_MANAGE_PERMISSIONS)
-  async forceConcludeManual(
-    @CurrentTenant() tenantId: string,
-    @CurrentUser() user: UserProfileDto,
-    @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<{ ok: true }> {
-    await this.manualOrders.forceConclude(tenantId, id, user);
-    return { ok: true };
-  }
-
   /** Elimina un ordine cliente manuale dall'elenco (rilascia gli impegni). */
   @Delete('manual/:id')
   @HttpCode(204)

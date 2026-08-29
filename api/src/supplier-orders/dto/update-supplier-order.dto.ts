@@ -3,6 +3,7 @@ import {
   ArrayMaxSize,
   IsArray,
   IsEnum,
+  IsIn,
   IsInt,
   IsISO8601,
   IsNumber,
@@ -55,6 +56,21 @@ export class UpdateSupplierOrderDto {
   @IsOptional()
   @IsISO8601()
   expectedAt?: string | null;
+
+  /**
+   * Stato del ciclo commerciale, scelto dall'operatore.
+   *
+   * ⭐ **`confirmed` resta il default alla creazione** (`17` OF-001): chi crea
+   * normalmente un ordine non deve fare un passaggio in più perché è stato
+   * introdotto un quarto stato. «Da confermare» è una scelta esplicita.
+   *
+   * ⛔ **`concluded` NON è accettato**: è derivato dal collegamento a un Arrivo
+   * merce non annullato, e lo ricalcola `syncSupplierOrderConclusion`. Un
+   * valore scelto verrebbe sovrascritto, e nel frattempo mentirebbe.
+   */
+  @IsOptional()
+  @IsIn(['to_confirm', 'confirmed', 'cancelled'])
+  status?: 'to_confirm' | 'confirmed' | 'cancelled';
 
   @IsOptional()
   @IsString()

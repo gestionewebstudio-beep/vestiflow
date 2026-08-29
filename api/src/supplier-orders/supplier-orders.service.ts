@@ -16,7 +16,12 @@ import {
 } from '@prisma/client';
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
-import { OrderState, assertManualTransition, supplierOrderState } from '../common/order-state.util';
+import {
+  OrderState,
+  assertManualTransition,
+  supplierOrderState,
+  supplierOrderStatusDa,
+} from '../common/order-state.util';
 import { resolveReadableListLocationScope } from '../inventory/licensed-location-scope.util';
 import {
   assertLocationInUserScope,
@@ -227,7 +232,10 @@ export class SupplierOrdersService {
             number,
             supplierId: supplier.id,
             supplierName: partyDisplayName(supplier.party),
-            status: SupplierOrderStatus.confirmed,
+            // ⭐ `confirmed` resta il default alla creazione (`17` OF-001): il
+            //    quarto stato non cambia il gesto di chi crea un ordine normale.
+            //    «Da confermare» è una scelta esplicita dell’operatore.
+            status: supplierOrderStatusDa((dto.status ?? OrderState.Confirmed) as OrderState),
             currency: dto.currency ?? 'EUR',
             costEntryMode,
             orderDate,
@@ -277,10 +285,31 @@ export class SupplierOrdersService {
     user: UserProfileDto,
   ): Promise<SupplierOrderWithLines> {
     const order = await this.getById(tenantId, id, user);
-    if (order.status !== SupplierOrderStatus.confirmed) {
-      throw new ConflictException(
-        'Solo gli ordini confermati (non conclusi né annullati) possono essere modificati.',
-      );
+
+    /**
+     * ⭐ **Lo stato NON governa la modificabilità — deciso il 28/08/2026.**
+     *
+     * Qui c'era un gate che ammetteva la modifica solo a `confirmed` (poi anche
+     * `to_confirm`). Era la divergenza misurata da `17` §2.2: «lo stato governa
+     * SOLO l'eleggibilità in Includi/Genera», non l'apertura, non il Salva, non
+     * l'Elimina. In tutti e quattro gli stati l'ordine resta modificabile negli
+     * altri campi.
+     *
+     * ⛔ **Restano tutte le guardie indipendenti dallo stato**: tenant, sede,
+     * permessi, validazioni del DTO. È solo il gate «stato → non modificabile»
+     * a cadere.
+     */
+
+    /**
+     * ⛔ **L'unica eccezione: il campo STATO è bloccato quando Concluso.**
+     *
+     * Non si torna a `confirmed`, `to_confirm` o `cancelled` col selettore: da
+     * Concluso si esce annullando o eliminando l’Arrivo merce collegato, che
+     * fa scattare il ricalcolo (`12` §0.4-bis). Lo dice la macchina comune, non
+     * un `if` scritto qui.
+     */
+    if (dto.status !== undefined) {
+      assertManualTransition(supplierOrderState(order), dto.status as OrderState);
     }
 
     // ⛔ **Si autorizza anche la sede RISULTANTE, non solo quella persistita.**
@@ -340,6 +369,11 @@ export class SupplierOrdersService {
             supplierId: supplier.id,
             supplierName: partyDisplayName(supplier.party),
             currency: dto.currency ?? order.currency,
+            // Lo stato si scrive solo se richiesto: la transizione è già stata
+            // validata dalla macchina comune qui sopra.
+            ...(dto.status !== undefined
+              ? { status: supplierOrderStatusDa(dto.status as OrderState) }
+              : {}),
             costEntryMode,
             // Il riferimento leggibile si ricompone da prefisso, serie e numero:
             // è derivato, non un dato a sé.
@@ -428,10 +462,16 @@ export class SupplierOrdersService {
 
   /** Elimina definitivamente un ordine annullato (righe in cascade). */
   async delete(tenantId: string, id: string, user: UserProfileDto): Promise<void> {
-    const order = await this.getById(tenantId, id, user);
-    if (order.status !== SupplierOrderStatus.cancelled) {
-      throw new ConflictException('Solo gli ordini annullati possono essere eliminati.');
-    }
+    /**
+     * ⛔ **Qui c'era «solo gli ordini annullati possono essere eliminati».** È
+     * la seconda divergenza di `17` §2.2, gemella e opposta a quella di
+     * `update`: l'eliminazione segue i PERMESSI, mai lo stato.
+     *
+     * ⚠️ Eliminare un ordine Concluso lascia l'Arrivo merce senza origine, ed è
+     * una conseguenza accettata esplicitamente dal proprietario: il documento
+     * è uno snapshot autonomo e resta valido senza l'ordine che lo ha generato.
+     */
+    await this.getById(tenantId, id, user);
     await this.prisma.supplierOrder.delete({ where: { id } });
   }
 

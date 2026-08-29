@@ -166,10 +166,21 @@ export class SaveManualSalesOrderDto {
   @IsISO8601()
   expectedDeliveryDate?: string;
 
-  /** Stato documento: Confermato (default) o Annullato. Concluso solo via "Concludi ordine". */
+  /**
+   * Stato del ciclo commerciale, scelto dall'operatore.
+   *
+   * ⭐ **`confirmed` resta il default**: chi crea normalmente un ordine non deve
+   * fare un passaggio in più perché è stato introdotto un quarto stato
+   * (`18` §2.4-bis). «Da confermare» è una scelta esplicita.
+   *
+   * ⛔ **`concluded` NON è accettato**, e non per dimenticanza: è derivato dal
+   * collegamento a un documento conclusivo. Un valore scelto verrebbe
+   * sovrascritto al primo ricalcolo, e nel frattempo mentirebbe. Lo rifiuta
+   * anche `assertManualTransition`, che è l'autorità.
+   */
   @IsOptional()
-  @IsIn(['confirmed', 'cancelled'])
-  status?: 'confirmed' | 'cancelled';
+  @IsIn(['to_confirm', 'confirmed', 'cancelled'])
+  status?: 'to_confirm' | 'confirmed' | 'cancelled';
 
   @IsOptional()
   @IsString()

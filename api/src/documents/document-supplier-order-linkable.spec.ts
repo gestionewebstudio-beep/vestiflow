@@ -30,11 +30,19 @@ const SEDE_ALTRUI = 'loc-altrui';
 
 const commesso = () => testClerkUser({ assignedLocationIds: [SEDE_MIA] });
 
+/**
+ * ⚠️ `arriviAttivi` è il secondo dato che il reader deve saper dare: dal
+ * 28/08/2026 l'assert non guarda solo lo stato, ma anche se quello stato
+ * concorda col collegamento (`12` §0.4-bis). Il default è **0** — nessun arrivo
+ * attivo — che è la condizione coerente per un ordine Confermato.
+ */
 function reader(
   order: { status: SupplierOrderStatus; destinationLocationId: string | null } | null,
+  arriviAttivi = 0,
 ) {
   const findFirst = vi.fn().mockResolvedValue(order);
-  return { db: { supplierOrder: { findFirst } } as never, findFirst };
+  const count = vi.fn().mockResolvedValue(arriviAttivi);
+  return { db: { supplierOrder: { findFirst }, document: { count } } as never, findFirst, count };
 }
 
 const confermato = (destinationLocationId: string | null) => ({
@@ -139,4 +147,45 @@ describe('assertSupplierOrderLinkable — la sede dell’ordine agganciato', () 
       select: { status: true, destinationLocationId: true },
     });
   });
+
+  /**
+   * ⭐ **La regola commerciale è lo STATO, il collegamento è la guardia**
+   * (`12` §0.4-bis). Solo «Confermato» è eleggibile.
+   */
+  it.each([
+    [SupplierOrderStatus.to_confirm, 'Da confermare non è ancora un impegno'],
+    [SupplierOrderStatus.concluded, 'Concluso ha già il suo arrivo'],
+    [SupplierOrderStatus.cancelled, 'Annullato non si farà'],
+  ])('⛔ %s non è agganciabile — %s', async (status, _perche) => {
+    const { db } = reader({ status, destinationLocationId: SEDE_MIA });
+
+    await expect(assertSupplierOrderLinkable(db, TENANT, ORDINE, commesso())).rejects.toThrow(
+      /non è più disponibile per l'inclusione/,
+    );
+  });
+
+  /**
+   * ⛔ **Fail closed sull'incoerenza.** «Confermato» con un Arrivo merce attivo
+   * già collegato significa che il ricalcolo non è passato: agganciarne un
+   * secondo peggiorerebbe il dato.
+   *
+   * ⚠️ Il messaggio è FUNZIONALE, non diagnostico: `stato-vecchio` sta nei log.
+   */
+  it('⛔ Confermato ma con un arrivo attivo già collegato: rifiutato', async () => {
+    const { db } = reader(confermato(SEDE_MIA), 1);
+
+    await expect(assertSupplierOrderLinkable(db, TENANT, ORDINE, commesso())).rejects.toThrow(
+      /non è più disponibile per l'inclusione/,
+    );
+  });
+
+  it('✅ Confermato senza arrivi attivi: coerente, agganciabile', async () => {
+    const { db, count } = reader(confermato(SEDE_MIA), 0);
+
+    await expect(
+      assertSupplierOrderLinkable(db, TENANT, ORDINE, commesso()),
+    ).resolves.toBeUndefined();
+    expect(count).toHaveBeenCalled();
+  });
+
 });

@@ -334,6 +334,9 @@ describe('ManualSalesOrdersService.save', () => {
       id: 'order-1',
       orderNumber: 'OC-0012',
       source: 'manual',
+      // ⭐ Lo stato è la COLONNA, non più i campi del canale: la fixture lo
+      //    dichiara come fa il database dopo la migration (`18` §2.4-bis).
+      commercialState: 'concluded',
       fulfilledAt: new Date(),
       fulfillmentStatus: 'fulfilled',
       locationId: 'loc-1',
@@ -367,6 +370,7 @@ describe('ManualSalesOrdersService.conclude', () => {
       // fatto emergere la lacuna del fixture.
       placedAt: new Date('2026-07-29T00:00:00.000Z'),
       source: 'manual',
+          commercialState: 'confirmed',
       cancelledAt: null,
       fulfilledAt: null,
       documentId: null,
@@ -422,6 +426,7 @@ describe('ManualSalesOrdersService.conclude', () => {
     prisma.salesOrder.findFirst.mockResolvedValue({
       id: 'order-1',
       source: 'manual',
+          commercialState: 'cancelled',
       cancelledAt: new Date(),
       fulfilledAt: null,
       lines: [],
@@ -513,6 +518,7 @@ describe('ManualSalesOrdersService.concludePrefill — riferimenti', () => {
       orderNumber: 'OC-0012',
       placedAt: new Date('2026-07-29T00:00:00.000Z'),
       source: 'manual',
+          commercialState: 'confirmed',
       cancelledAt: null,
       fulfilledAt: null,
       documentId: null,
@@ -607,6 +613,7 @@ describe('ManualSalesOrdersService — etichetta della variante', () => {
       id: 'order-1',
       orderNumber: 'OC-0012',
       source: 'manual',
+          commercialState: 'confirmed',
       locationId: 'loc-1',
       lines: [
         {
