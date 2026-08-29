@@ -221,6 +221,18 @@ export class ListPageComponent {
   readonly columnsViewId = input<TableViewId>();
   /** Il Registro Corrispettivi non riordina le colonne: le sue hanno un ordine di lettura. */
   readonly columnsReorderable = input(true);
+
+  /**
+   * ⭐ **Se la riga strumenti si rende.** Accesa di default: ogni elenco ha
+   * almeno un filtro o la ricerca.
+   *
+   * ⚠️ Si spegne solo dove NON c'è nessuna delle quattro cose che quella riga
+   * ospita — ricerca, periodo, filtri, colonne. È il caso della maschera
+   * «Cerca», che è una ricerca a invio con un risultato, non un elenco
+   * filtrabile: una fascia vuota con dentro un «Filtri» che non filtra niente
+   * sarebbe peggio di non averla.
+   */
+  readonly showTools = input(true);
   /**
    * ⭐ **«Filtri» è un INTERRUTTORE, non un «Azzera»** — decisione del
    * proprietario del 29/08/2026, e già scritta in `14` §0.2.

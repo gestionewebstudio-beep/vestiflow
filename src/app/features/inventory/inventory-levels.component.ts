@@ -41,9 +41,10 @@ import type { InventoryLevel } from '@core/models/inventory-level.model';
 import { StockStatus } from '@core/models/inventory-level.model';
 import type { Location } from '@core/models/location.model';
 import { stockStatusOf } from '@core/utils/inventory.util';
+import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
+import type { ListAction } from '@shared/models/list-selection.model';
 import { BarcodeScannerComponent } from '@shared/components/barcode-scanner/barcode-scanner.component';
-import { ButtonComponent } from '@shared/components/button/button.component';
 import { PaginationComponent } from '@shared/components/pagination/pagination.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
@@ -119,12 +120,12 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
   selector: 'app-inventory-levels',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    ListActionsBarComponent,
     EmptyStateComponent,
     ErrorStateComponent,
     TableSkeletonComponent,
     ListPageComponent,
     BarcodeScannerComponent,
-    ButtonComponent,
     SelectMenuComponent,
     PaginationComponent,
     InventoryTabsComponent,
@@ -410,6 +411,52 @@ export class InventoryLevelsComponent {
     this.pageSize.set(size);
     this.page.set(1);
   }
+
+  /**
+   * ⭐ **I comandi dell'elenco, tutti nella barra in basso** (`14` §0.2).
+   *
+   * ⚠️ I permessi stanno QUI, non nel template: la condizione che decide se un
+   * comando esiste sta dove il comando si dichiara.
+   */
+  protected readonly listActions = computed<readonly ListAction[]>(() => {
+    const azioni: ListAction[] = [];
+
+    if (this.canImportExportInventory()) {
+      azioni.push(
+        {
+          id: 'export',
+          label: 'Esporta CSV',
+          icon: 'pi-download',
+          requires: 'none',
+          busy: this.exporting(),
+          ariaLabel: 'Esporta le giacenze in CSV',
+          run: () => this.exportInventory(),
+        },
+        {
+          id: 'import',
+          label: 'Importa CSV',
+          icon: 'pi-upload',
+          requires: 'none',
+          ariaLabel: 'Importa le giacenze da CSV',
+          run: () => this.importInventory(),
+        },
+      );
+    }
+
+    if (this.showShopifyInventorySync()) {
+      azioni.push({
+        id: 'shopify-sync',
+        label: 'Riallinea su Shopify',
+        icon: 'pi-sync',
+        requires: 'none',
+        busy: this.shopifyInventoryLoading(),
+        ariaLabel: 'Riallinea le giacenze su Shopify',
+        run: () => this.syncInventoryFromShopify(),
+      });
+    }
+
+    return azioni;
+  });
 
   protected reload(): void {
     this.refreshTick.update((tick) => tick + 1);

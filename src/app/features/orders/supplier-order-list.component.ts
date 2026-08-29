@@ -51,7 +51,6 @@ import { canManageSupplierOrders } from '@core/permissions/tenant-permissions.ut
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { SupplierOrder } from '@core/models/supplier-order.model';
-import { ButtonComponent } from '@shared/components/button/button.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
@@ -99,8 +98,7 @@ type OrderListState =
   selector: 'app-supplier-order-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    ListPageComponent,
-    ButtonComponent,
+    ListPageComponent,
     ErrorStateComponent,
     SelectMenuComponent,
     ListActionsBarComponent,
@@ -224,6 +222,22 @@ export class SupplierOrderListComponent {
    * quello che è.
    */
   protected readonly selectionActions = computed<readonly ListAction[]>(() => [
+    // ⭐ **«Nuovo» sta QUI, non in testata** — decisione del proprietario,
+    //    30/08/2026: tutti i comandi in una riga in basso, totali subito sopra.
+    //    Non è duplicato: si è spostato.
+    ...(this.canManageSupplierOrders()
+      ? ([
+          {
+            id: 'new',
+            label: 'Nuovo',
+            icon: 'pi-plus',
+            variant: 'primary',
+            requires: 'none',
+            ariaLabel: 'Nuovo ordine fornitore',
+            run: () => this.createOrder(),
+          },
+        ] as const)
+      : []),
     {
       // ⭐ Il **Dettaglio** (`14` §6, §E6): la consultazione in sola lettura,
       // che qui esiste da sempre — `orders/:id`, «Dettaglio ordine fornitore»,

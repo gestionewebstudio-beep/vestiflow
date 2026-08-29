@@ -20,15 +20,6 @@
   (filtersCleared)="resetFilters()"
   (retry)="reload()"
 >
-  <div pageActions>
-    @if (canManageSupplierOrders()) {
-      <app-button (click)="createOrder()">
-        <i class="pi pi-plus" aria-hidden="true"></i>
-        Nuovo ordine
-      </app-button>
-    }
-  </div>
-
   <div period>
     <div class="po-list__field">
       <!-- Il segnaposto NON nomina un preset: qui c'era «Ultimi 30 giorni»,

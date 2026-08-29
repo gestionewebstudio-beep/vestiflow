@@ -40,7 +40,6 @@ import type { Product } from '@core/models/product.model';
 import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import type { ListAction } from '@shared/models/list-selection.model';
-import { ButtonComponent } from '@shared/components/button/button.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { PaginationComponent } from '@shared/components/pagination/pagination.component';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
@@ -106,7 +105,6 @@ type ProductListState =
   imports: [
     ListPageComponent,
     ListActionsBarComponent,
-    ButtonComponent,
     ErrorStateComponent,
     PaginationComponent,
     ProductToolbarComponent,
@@ -476,6 +474,56 @@ export class ProductListComponent {
    * basso, sul riferimento Danea._
    */
   protected readonly selectionActions = computed<readonly ListAction[]>(() => [
+    // ⭐ **I comandi di pagina stanno QUI, non in testata** — decisione del
+    //    proprietario, 30/08/2026: tutti in una riga in basso, totali sopra.
+    //    Non sono duplicati: si sono spostati.
+    ...(this.canManageCatalog()
+      ? ([
+          {
+            id: 'new',
+            label: 'Nuovo',
+            icon: 'pi-plus',
+            variant: 'primary',
+            requires: 'none',
+            ariaLabel: 'Aggiungi prodotto',
+            run: () => this.createProduct(),
+          },
+        ] as const)
+      : []),
+    ...(this.canImportExportCatalog()
+      ? ([
+          {
+            id: 'export',
+            label: 'Esporta CSV',
+            icon: 'pi-download',
+            requires: 'none',
+            busy: this.exporting(),
+            ariaLabel: 'Esporta il catalogo in CSV',
+            run: () => this.exportProducts(),
+          },
+          {
+            id: 'import',
+            label: 'Importa CSV',
+            icon: 'pi-upload',
+            requires: 'none',
+            ariaLabel: 'Importa il catalogo da CSV',
+            run: () => this.importProducts(),
+          },
+        ] as const)
+      : []),
+    ...(this.showShopifyCatalogSync()
+      ? ([
+          {
+            id: 'shopify-sync',
+            label: 'Importa catalogo',
+            icon: 'pi-sync',
+            requires: 'none',
+            busy: this.shopifyCatalogLoading(),
+            ariaLabel: 'Sincronizza il catalogo da Shopify',
+            run: () => this.importCatalogFromShopify(),
+          },
+        ] as const)
+      : []),
     {
       id: 'print-labels',
       label: 'Stampa etichette',

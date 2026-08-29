@@ -55,7 +55,6 @@ import {
   resolveMovementPeriodRange,
 } from '@domain/inventory/models/movement-period.util';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
-import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
@@ -67,6 +66,7 @@ import type { SelectMenuOption } from '@shared/components/select-menu/select-men
 import {
   FILTERED_SCOPE_NOT_AVAILABLE,
   type ListAction,
+  type ListActionItem,
   type ListActionTarget,
 } from '@shared/models/list-selection.model';
 import {
@@ -204,7 +204,6 @@ type DeleteResult =
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ListPageComponent,
-    ButtonComponent,
     ConfirmDialogComponent,
     DateInputComponent,
     ErrorStateComponent,
@@ -1089,8 +1088,119 @@ export class DocumentListComponent {
    * primitiva. Una voce che promette un foglio Excel vero va aggiunta quando ci
    * sarà chi lo genera, non prima.
    */
+  /**
+   * ⭐ **I comandi di CREAZIONE, come azioni della barra in basso** — decisione
+   * del proprietario, 30/08/2026: tutti i comandi in una riga, totali sopra.
+   *
+   * ⛔ Stavano in testata con tre rami di template e due `app-select-menu` usati
+   * come menu «Nuovo». Non sono stati duplicati: si sono spostati, e i due menu
+   * sono diventati **azioni con voci** — la barra comune sa già renderle
+   * (`ListAction.items`), è lo stesso meccanismo di «Esporta» sui Corrispettivi.
+   *
+   * ⚠️ Le condizioni sono le stesse di prima, una per una: chi non gestisce i
+   * carichi non vede l'invito a registrarne uno, e se nessuno dei nove tipi è
+   * gestibile sparisce anche la tendina.
+   */
+  private readonly azioniDiCreazione = computed<readonly ListAction[]>(() => {
+    if (!this.showCreateActions()) {
+      return [];
+    }
+
+    const daOpzioni = (
+      opzioni: readonly { readonly value: string; readonly label: string }[],
+    ): readonly ListActionItem[] =>
+      opzioni.map((opzione) => ({
+        id: opzione.value,
+        label: opzione.label,
+        run: () => this.onCreateDocumentType(opzione.value),
+      }));
+
+    const registro = this.salesRegister();
+    if (registro) {
+      const varianti = this.createVariantButtons();
+      if (varianti.length > 0) {
+        // Due tipi, due comandi diretti: con due sole voci un menu costerebbe
+        // un clic per scoprire cosa si può creare (`11` A2).
+        return varianti.map((variante, indice): ListAction => ({
+          id: 'new-' + variante.type,
+          label: variante.label,
+          icon: 'pi-plus',
+          variant: indice === 0 ? 'primary' : 'secondary',
+          requires: 'none',
+          run: () => this.onCreateVariant(variante.type),
+        }));
+      }
+      const opzioni = this.createVariantOptions();
+      if (opzioni.length > 0) {
+        return [
+          {
+            id: 'new',
+            label: 'Nuovo',
+            icon: 'pi-plus',
+            variant: 'primary',
+            requires: 'none',
+            ariaLabel: 'Nuovo documento',
+            items: opzioni.map((opzione) => ({
+              id: opzione.value,
+              label: opzione.label,
+              run: () => this.onCreateVariant(opzione.value),
+            })),
+          },
+        ];
+      }
+      return [
+        {
+          id: 'new',
+          label: this.salesCreateLabel() ?? 'Nuovo',
+          icon: 'pi-plus',
+          variant: 'primary',
+          requires: 'none',
+          run: () => this.openNewSalesDocument(),
+        },
+      ];
+    }
+
+    if (this.isGoodsReceiptList()) {
+      return [
+        {
+          id: 'new',
+          label: 'Nuovo arrivo merce',
+          icon: 'pi-plus',
+          variant: 'primary',
+          requires: 'none',
+          run: () => this.openNewGoodsReceipt(),
+        },
+      ];
+    }
+
+    const azioni: ListAction[] = [];
+    if (this.canManageGoodsReceipts()) {
+      azioni.push({
+        id: 'new-goods-receipt',
+        label: 'Nuovo arrivo merce',
+        icon: 'pi-plus',
+        variant: 'primary',
+        requires: 'none',
+        run: () => this.openNewGoodsReceipt(),
+      });
+    }
+    const altri = this.secondaryCreateOptions();
+    if (altri.length > 0) {
+      azioni.push({
+        id: 'new-other',
+        label: 'Altro documento',
+        icon: 'pi-file',
+        requires: 'none',
+        ariaLabel: 'Crea altro tipo di documento',
+        items: daOpzioni(altri),
+      });
+    }
+    return azioni;
+  });
+
   protected readonly selectionActions = computed<readonly ListAction[]>(() => {
     const azioni: ListAction[] = [
+      ...this.azioniDiCreazione(),
       {
         // ⭐ **Il Dettaglio è la porta che mancava** (`14` §E4/§E5). Da quando
         // il clic di riga apre la Modifica, la vista di consultazione non

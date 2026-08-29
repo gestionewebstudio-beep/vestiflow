@@ -16,35 +16,6 @@
   (filtersCleared)="resetFilters()"
   (retry)="reload()"
 >
-  <div pageActions>
-    @if (showShopifyInventorySync()) {
-      <app-button
-        variant="secondary"
-        loadingIndicator="icon"
-        [loading]="shopifyInventoryLoading()"
-        [disabled]="shopifyInventoryLoading()"
-        (click)="syncInventoryFromShopify()"
-      >
-        <i class="pi pi-sync" aria-hidden="true"></i>
-        Riallinea le giacenze su Shopify
-      </app-button>
-    }
-    @if (canImportExportInventory()) {
-      <app-button variant="secondary" [disabled]="exporting()" (click)="exportInventory()">
-        <i class="pi pi-download" aria-hidden="true"></i>
-        @if (exporting()) {
-          Export in corso…
-        } @else {
-          Esporta CSV
-        }
-      </app-button>
-      <app-button variant="secondary" (click)="importInventory()">
-        <i class="pi pi-upload" aria-hidden="true"></i>
-        Importa CSV
-      </app-button>
-    }
-  </div>
-
   <app-inventory-tabs tabs />
 
   <div warnings>
@@ -172,5 +143,17 @@
         </ul>
       }
     </app-slide-panel>
+  </div>
+
+  <!--
+    ⭐ **Tutti i comandi in UNA riga in basso**, totali subito sopra —
+    decisione del proprietario, 30/08/2026, sul riferimento Danea.
+
+    ⛔ Stavano in testata. Non sono duplicati: si sono SPOSTATI. Due posti
+    per i comandi erano una divisione storica — creare sopra, agire sotto —
+    non un criterio.
+  -->
+  <div listActions>
+    <app-list-actions-bar [actions]="listActions()" />
   </div>
 </app-list-page>

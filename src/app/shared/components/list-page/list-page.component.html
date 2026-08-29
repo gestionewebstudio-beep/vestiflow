@@ -49,22 +49,23 @@
 
   ⭐ E non resta mai vuota: «Filtri» c'è su ogni elenco.
 -->
-<div class="list-page__tools">
-  @if (searchPlaceholder(); as segnaposto) {
-    <div class="list-page__search">
-      <i class="pi pi-search list-page__search-icon" aria-hidden="true"></i>
-      <input
-        class="list-page__input"
-        type="search"
-        [value]="searchValue()"
-        [placeholder]="segnaposto"
-        [attr.aria-label]="searchAriaLabel() || segnaposto"
-        (input)="onSearch($event)"
-      />
-    </div>
-  }
+@if (showTools()) {
+  <div class="list-page__tools">
+    @if (searchPlaceholder(); as segnaposto) {
+      <div class="list-page__search">
+        <i class="pi pi-search list-page__search-icon" aria-hidden="true"></i>
+        <input
+          class="list-page__input"
+          type="search"
+          [value]="searchValue()"
+          [placeholder]="segnaposto"
+          [attr.aria-label]="searchAriaLabel() || segnaposto"
+          (input)="onSearch($event)"
+        />
+      </div>
+    }
 
-  <!--
+    <!--
       ⚠️ **Periodo resta proiettato, e in posizione fissa.**
 
       È un controllo di dominio — preset più intervallo personalizzato — e il
@@ -74,67 +75,72 @@
       ⭐ Periodo e Ricerca sono i due che **non** entrano nelle colonne e restano
       sempre in barra, anche sotto `lg` (`14` §0.2).
     -->
-  <ng-content select="[period]" />
+    <ng-content select="[period]" />
 
-  <!--
+    <!--
       ⭐ **I filtri sono di dominio; la loro POSIZIONE no.**
 
       Periodo, e finché i filtri di colonna non esistono anche quelli di dominio
       — Origine, Tipo, Sede, Stato. Il telaio non sa cosa siano: sa dove stanno e
       con che passo.
     -->
-  @if (compatto() && pannelloAperto()) {
-    <button
-      type="button"
-      class="list-page__scrim"
-      aria-label="Chiudi i filtri"
-      (click)="pannelloAperto.set(false)"
-    ></button>
-  }
-
-  <div
-    class="list-page__filters"
-    [class.list-page__filters--panel]="compatto()"
-    [class.list-page__filters--open]="compatto() && pannelloAperto()"
-    [attr.role]="compatto() ? 'dialog' : null"
-    [attr.aria-modal]="compatto() ? 'true' : null"
-    [attr.aria-label]="compatto() ? 'Filtri' : null"
-    tabindex="-1"
-    #pannelloFiltri
-    (keydown)="onFiltriKeydown($event)"
-  >
-    @if (compatto()) {
-      <div class="list-page__filters-head">
-        <h2 class="list-page__filters-title">Filtri</h2>
-        <app-button variant="ghost" ariaLabel="Chiudi i filtri" (click)="pannelloAperto.set(false)">
-          <i class="pi pi-times" aria-hidden="true"></i>
-        </app-button>
-      </div>
+    @if (compatto() && pannelloAperto()) {
+      <button
+        type="button"
+        class="list-page__scrim"
+        aria-label="Chiudi i filtri"
+        (click)="pannelloAperto.set(false)"
+      ></button>
     }
 
-    <ng-content select="[filters]" />
-
-    @if (compatto()) {
-      <div class="list-page__filters-foot">
-        <app-button variant="ghost" (click)="azzeraFiltri()">Azzera filtri</app-button>
-        <app-button (click)="pannelloAperto.set(false)">Vedi risultati</app-button>
-      </div>
-    }
-  </div>
-
-  <div class="list-page__view">
-    @if (columnsViewId(); as vista) {
-      <app-table-column-picker [viewId]="vista" [reorderable]="columnsReorderable()" />
-    }
-    <app-button variant="secondary" [ariaPressed]="filtersOn()" (click)="toggleFiltri()">
-      <i class="pi pi-filter" aria-hidden="true"></i>
-      Filtri
-      @if (activeFilterCount() > 0) {
-        <span>&nbsp;({{ activeFilterCount() }})</span>
+    <div
+      class="list-page__filters"
+      [class.list-page__filters--panel]="compatto()"
+      [class.list-page__filters--open]="compatto() && pannelloAperto()"
+      [attr.role]="compatto() ? 'dialog' : null"
+      [attr.aria-modal]="compatto() ? 'true' : null"
+      [attr.aria-label]="compatto() ? 'Filtri' : null"
+      tabindex="-1"
+      #pannelloFiltri
+      (keydown)="onFiltriKeydown($event)"
+    >
+      @if (compatto()) {
+        <div class="list-page__filters-head">
+          <h2 class="list-page__filters-title">Filtri</h2>
+          <app-button
+            variant="ghost"
+            ariaLabel="Chiudi i filtri"
+            (click)="pannelloAperto.set(false)"
+          >
+            <i class="pi pi-times" aria-hidden="true"></i>
+          </app-button>
+        </div>
       }
-    </app-button>
+
+      <ng-content select="[filters]" />
+
+      @if (compatto()) {
+        <div class="list-page__filters-foot">
+          <app-button variant="ghost" (click)="azzeraFiltri()">Azzera filtri</app-button>
+          <app-button (click)="pannelloAperto.set(false)">Vedi risultati</app-button>
+        </div>
+      }
+    </div>
+
+    <div class="list-page__view">
+      @if (columnsViewId(); as vista) {
+        <app-table-column-picker [viewId]="vista" [reorderable]="columnsReorderable()" />
+      }
+      <app-button variant="secondary" [ariaPressed]="filtersOn()" (click)="toggleFiltri()">
+        <i class="pi pi-filter" aria-hidden="true"></i>
+        Filtri
+        @if (activeFilterCount() > 0) {
+          <span>&nbsp;({{ activeFilterCount() }})</span>
+        }
+      </app-button>
+    </div>
   </div>
-</div>
+}
 
 <!--
   Gli avvisi non hanno un contenitore proprio: sono banner che si dispongono da

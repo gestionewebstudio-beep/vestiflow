@@ -16,20 +16,6 @@
   (filtersCleared)="resetFilters()"
   (retry)="reload()"
 >
-  <!--
-    ⚠️ L'attributo di proiezione sta su un elemento STABILE, con l'`@if` dentro.
-    Una proiezione che non aggancia non fallisce: il contenuto sparisce e basta,
-    senza errori e senza test rossi.
-  -->
-  <div pageActions>
-    @if (canManage()) {
-      <app-button variant="primary" [routerLink]="['/app/suppliers/new']">
-        <i class="pi pi-plus" aria-hidden="true"></i>
-        Nuovo fornitore
-      </app-button>
-    }
-  </div>
-
   <app-supplier-table
     data
     [suppliers]="suppliers()"
@@ -45,4 +31,16 @@
     (pageChange)="goToPage($event)"
     (pageSizeChange)="onPageSizeChange($event)"
   />
+
+  <!--
+    ⭐ **Tutti i comandi in UNA riga in basso**, totali subito sopra — decisione
+    del proprietario, 30/08/2026, sul riferimento Danea.
+
+    ⛔ «Nuovo» stava in testata. Non è stato duplicato: si è SPOSTATO. Due posti
+    per i comandi erano una divisione storica — creare sopra, agire sotto — non
+    un criterio, e costavano all'operatore la domanda «dove sarà questo?».
+  -->
+  <div listActions>
+    <app-list-actions-bar [actions]="listActions()" />
+  </div>
 </app-list-page>

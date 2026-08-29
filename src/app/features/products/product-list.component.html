@@ -11,41 +11,6 @@
   emptyIcon="pi-tag"
   (retry)="reload()"
 >
-  <div pageActions>
-    @if (showShopifyCatalogSync()) {
-      <app-button
-        variant="secondary"
-        loadingIndicator="icon"
-        [loading]="shopifyCatalogLoading()"
-        [disabled]="shopifyCatalogLoading()"
-        (click)="importCatalogFromShopify()"
-      >
-        <i class="pi pi-sync" aria-hidden="true"></i>
-        Sincronizza catalogo da Shopify
-      </app-button>
-    }
-    @if (canImportExportCatalog()) {
-      <app-button variant="secondary" [disabled]="exporting()" (click)="exportProducts()">
-        <i class="pi pi-download" aria-hidden="true"></i>
-        @if (exporting()) {
-          Export in corso…
-        } @else {
-          Esporta CSV
-        }
-      </app-button>
-      <app-button variant="secondary" (click)="importProducts()">
-        <i class="pi pi-upload" aria-hidden="true"></i>
-        Importa CSV
-      </app-button>
-    }
-    @if (canManageCatalog()) {
-      <app-button (click)="createProduct()">
-        <i class="pi pi-plus" aria-hidden="true"></i>
-        Aggiungi prodotto
-      </app-button>
-    }
-  </div>
-
   <!--
     ⚠️ Ricerca e filtri stanno dentro `app-product-toolbar`, un componente di
     questa pagina. Il telaio non li conosce: proietta il componente intero nella

@@ -1,218 +1,232 @@
-<section class="stock-lookup">
-  <header class="stock-lookup__header">
-    <!-- Torna alla pagina precedente; senza cronologia interna ricade
-         sull'hub Magazzino dedotto dall'URL. -->
-    <app-back-button />
-    <h1 class="stock-lookup__title">Magazzino</h1>
-    <p class="stock-lookup__subtitle">Cerca per SKU o barcode e consulta le giacenze.</p>
-  </header>
+<app-list-page
+  class="stock-lookup"
+  pageTitle="Cerca"
+  pageDescription="Cerca per SKU o barcode e consulta le giacenze."
+  [showBack]="true"
+  [loading]="false"
+  [skeletonColumns]="3"
+  [showTools]="false"
+>
+  <app-inventory-tabs tabs />
 
-  <app-inventory-tabs />
+  <!--
+    ⚠️ **Il corpo resta suo, e la ragione va detta.** Questa non è una pagina
+    elenco: è una RICERCA a invio — un codice, un pulsante, un risultato che
+    può essere «non trovato». Il telaio le dà la testata, che era l'unica cosa
+    diversa dalle altre schermate: la sua era una colonna, quindi il titolo
+    finiva SOTTO il pulsante Indietro invece che accanto.
 
-  @if (canInstallPwa()) {
-    <div class="stock-lookup__install" role="status">
-      <p class="stock-lookup__install-text">
-        Installa VestiFlow sul telefono per accesso rapido in magazzino.
-      </p>
-      <app-button variant="secondary" (click)="installApp()">Installa app</app-button>
-    </div>
-  }
-
-  <div class="stock-lookup__search">
-    <form class="stock-lookup__form" [formGroup]="searchForm" (ngSubmit)="lookup()">
-      <label class="stock-lookup__field" for="stock-code">
-        <span class="stock-lookup__field-label">SKU o barcode</span>
-        <input
-          id="stock-code"
-          class="stock-lookup__input"
-          type="search"
-          formControlName="code"
-          autocomplete="off"
-          spellcheck="false"
-          enterkeyhint="search"
-          placeholder="Es. TSB-M-WHT"
-          [attr.aria-invalid]="showError('code')"
-        />
-        @if (showError('code')) {
-          <span class="stock-lookup__field-error">
-            @if (searchForm.controls.code.hasError('required')) {
-              Inserisci uno SKU o un barcode da cercare.
-            } @else {
-              Il codice può avere al massimo 100 caratteri.
-            }
-          </span>
-        }
-      </label>
-
-      <div class="stock-lookup__actions">
-        @if (barcodeScannerEnabled()) {
-          <app-barcode-scanner label="Scansiona barcode" (scanned)="onScanned($event)" />
-        }
-        <app-button type="submit">Cerca giacenza</app-button>
+    ⛔ E `showTools` è spento: ricerca, periodo, filtri e colonne qui non
+    esistono, e una fascia vuota con dentro un «Filtri» che non filtra niente
+    sarebbe peggio di non averla.
+  -->
+  <div data>
+  
+    @if (canInstallPwa()) {
+      <div class="stock-lookup__install" role="status">
+        <p class="stock-lookup__install-text">
+          Installa VestiFlow sul telefono per accesso rapido in magazzino.
+        </p>
+        <app-button variant="secondary" (click)="installApp()">Installa app</app-button>
       </div>
-    </form>
-  </div>
-
-  @switch (lookupState().status) {
-    @case ('loading') {
-      <app-table-skeleton [columns]="3" [rows]="4" />
     }
-    @case ('not-found') {
-      <app-empty-state
-        title="Nessuna variante trovata"
-        description="Verifica SKU o barcode e riprova."
-        icon="pi-search"
-      />
-    }
-    @case ('error') {
-      @if (lookupState(); as state) {
-        @if (state.status === 'error') {
-          <app-error-state
-            [description]="state.error.message"
-            retryLabel="Riprova"
-            (retry)="lookup()"
+  
+    <div class="stock-lookup__search">
+      <form class="stock-lookup__form" [formGroup]="searchForm" (ngSubmit)="lookup()">
+        <label class="stock-lookup__field" for="stock-code">
+          <span class="stock-lookup__field-label">SKU o barcode</span>
+          <input
+            id="stock-code"
+            class="stock-lookup__input"
+            type="search"
+            formControlName="code"
+            autocomplete="off"
+            spellcheck="false"
+            enterkeyhint="search"
+            placeholder="Es. TSB-M-WHT"
+            [attr.aria-invalid]="showError('code')"
           />
-        }
-      }
-    }
-    @case ('success') {
-      @let result = lookupState();
-      @if (result.status === 'success') {
-        <section class="stock-lookup__result" aria-labelledby="lookup-result-title">
-          <div class="stock-lookup__result-header">
-            <h2 id="lookup-result-title" class="stock-lookup__result-title">
-              {{ result.variant.productName }}
-            </h2>
-            <p class="stock-lookup__meta tabular-nums">
-              SKU <strong>{{ result.variant.sku }}</strong>
-              @if (result.variant.barcode) {
-                · Barcode <strong>{{ result.variant.barcode }}</strong>
+          @if (showError('code')) {
+            <span class="stock-lookup__field-error">
+              @if (searchForm.controls.code.hasError('required')) {
+                Inserisci uno SKU o un barcode da cercare.
+              } @else {
+                Il codice può avere al massimo 100 caratteri.
               }
-            </p>
-          </div>
-
-          <div class="stock-lookup__actions">
-            <a
-              class="stock-lookup__link"
-              [routerLink]="['/app/products', result.variant.productId]"
-            >
-              Dettaglio prodotto
-            </a>
-            @if (canManageInventory()) {
-              <a
-                class="stock-lookup__link"
-                [routerLink]="['/app/inventory/movements/new']"
-                [queryParams]="movementQueryParams(result.variant.variantId)"
-              >
-                Registra movimento
-              </a>
-            }
-          </div>
-
-          @if (result.levels.length > 0) {
-            <div class="stock-lookup__table-wrap">
-              <table class="stock-lookup__table">
-                <thead>
-                  <tr>
-                    <th scope="col">Location</th>
-                    <th scope="col" class="stock-lookup__num">Giacenza</th>
-                    <th scope="col" class="stock-lookup__num">Impegnata</th>
-                    <th scope="col" class="stock-lookup__num">Disponibile</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (level of result.levels; track level.id) {
-                    <tr [class.stock-lookup__row--active]="isActiveLocation(level.locationId)">
-                      <td>{{ locationName(level.locationId, result.locations) }}</td>
-                      <td
-                        class="stock-lookup__num tabular-nums"
-                        [class.stock-lookup__num--negative]="level.onHand < 0"
-                      >
-                        {{ level.onHand }}
-                      </td>
-                      <td class="stock-lookup__num tabular-nums">
-                        @if (level.committed > 0) {
-                          <button
-                            type="button"
-                            class="stock-lookup__committed-link tabular-nums"
-                            title="Vedi gli ordini che compongono la quantità impegnata"
-                            (click)="openReservations(result.variant, level, result.locations)"
-                          >
-                            {{ level.committed }}
-                          </button>
-                        } @else {
-                          {{ level.committed }}
-                        }
-                      </td>
-                      <td
-                        class="stock-lookup__num tabular-nums"
-                        [class.stock-lookup__num--negative]="level.available < 0"
-                      >
-                        {{ level.available }}
-                      </td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
-          } @else {
-            <app-empty-state
-              title="Nessuna giacenza"
-              description="Questa variante non ha livelli inventario registrati."
-              icon="pi-box"
+            </span>
+          }
+        </label>
+  
+        <div class="stock-lookup__actions">
+          @if (barcodeScannerEnabled()) {
+            <app-barcode-scanner label="Scansiona barcode" (scanned)="onScanned($event)" />
+          }
+          <app-button type="submit">Cerca giacenza</app-button>
+        </div>
+      </form>
+    </div>
+  
+    @switch (lookupState().status) {
+      @case ('loading') {
+        <app-table-skeleton [columns]="3" [rows]="4" />
+      }
+      @case ('not-found') {
+        <app-empty-state
+          title="Nessuna variante trovata"
+          description="Verifica SKU o barcode e riprova."
+          icon="pi-search"
+        />
+      }
+      @case ('error') {
+        @if (lookupState(); as state) {
+          @if (state.status === 'error') {
+            <app-error-state
+              [description]="state.error.message"
+              retryLabel="Riprova"
+              (retry)="lookup()"
             />
           }
-        </section>
+        }
+      }
+      @case ('success') {
+        @let result = lookupState();
+        @if (result.status === 'success') {
+          <section class="stock-lookup__result" aria-labelledby="lookup-result-title">
+            <div class="stock-lookup__result-header">
+              <h2 id="lookup-result-title" class="stock-lookup__result-title">
+                {{ result.variant.productName }}
+              </h2>
+              <p class="stock-lookup__meta tabular-nums">
+                SKU <strong>{{ result.variant.sku }}</strong>
+                @if (result.variant.barcode) {
+                  · Barcode <strong>{{ result.variant.barcode }}</strong>
+                }
+              </p>
+            </div>
+  
+            <div class="stock-lookup__actions">
+              <a
+                class="stock-lookup__link"
+                [routerLink]="['/app/products', result.variant.productId]"
+              >
+                Dettaglio prodotto
+              </a>
+              @if (canManageInventory()) {
+                <a
+                  class="stock-lookup__link"
+                  [routerLink]="['/app/inventory/movements/new']"
+                  [queryParams]="movementQueryParams(result.variant.variantId)"
+                >
+                  Registra movimento
+                </a>
+              }
+            </div>
+  
+            @if (result.levels.length > 0) {
+              <div class="stock-lookup__table-wrap">
+                <table class="stock-lookup__table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Location</th>
+                      <th scope="col" class="stock-lookup__num">Giacenza</th>
+                      <th scope="col" class="stock-lookup__num">Impegnata</th>
+                      <th scope="col" class="stock-lookup__num">Disponibile</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (level of result.levels; track level.id) {
+                      <tr [class.stock-lookup__row--active]="isActiveLocation(level.locationId)">
+                        <td>{{ locationName(level.locationId, result.locations) }}</td>
+                        <td
+                          class="stock-lookup__num tabular-nums"
+                          [class.stock-lookup__num--negative]="level.onHand < 0"
+                        >
+                          {{ level.onHand }}
+                        </td>
+                        <td class="stock-lookup__num tabular-nums">
+                          @if (level.committed > 0) {
+                            <button
+                              type="button"
+                              class="stock-lookup__committed-link tabular-nums"
+                              title="Vedi gli ordini che compongono la quantità impegnata"
+                              (click)="openReservations(result.variant, level, result.locations)"
+                            >
+                              {{ level.committed }}
+                            </button>
+                          } @else {
+                            {{ level.committed }}
+                          }
+                        </td>
+                        <td
+                          class="stock-lookup__num tabular-nums"
+                          [class.stock-lookup__num--negative]="level.available < 0"
+                        >
+                          {{ level.available }}
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            } @else {
+              <app-empty-state
+                title="Nessuna giacenza"
+                description="Questa variante non ha livelli inventario registrati."
+                icon="pi-box"
+              />
+            }
+          </section>
+        }
       }
     }
-  }
-
-  <app-slide-panel
-    [open]="reservationsPanelOpen()"
-    title="Quantità impegnata"
-    ariaLabel="Ordini che compongono la quantità impegnata"
-    (closed)="closeReservations()"
-  >
-    @if (reservationsTarget(); as target) {
-      <p class="stock-lookup__reservations-context">
-        {{ target.productName }} — <span class="tabular-nums">{{ target.sku }}</span>
-        <br />
-        {{ target.locationName }}: <strong class="tabular-nums">{{ target.committed }}</strong>
-        impegnati
-      </p>
-    }
-
-    @if (reservationsLoading()) {
-      <app-table-skeleton [columns]="3" [rows]="3" />
-    } @else if (reservationsError(); as message) {
-      <app-error-state
-        [description]="message"
-        retryLabel="Riprova"
-        (retry)="reloadReservations()"
-      />
-    } @else if (reservations().length === 0) {
-      <app-empty-state
-        title="Nessun impegno attivo"
-        description="Nessun ordine sta impegnando questa variante in questa location."
-        icon="pi-inbox"
-      />
-    } @else {
-      <ul class="stock-lookup__reservations">
-        @for (reservation of reservations(); track reservation.id) {
-          <li class="stock-lookup__reservation">
-            <span class="stock-lookup__reservation-order">
-              {{ channelLabel(reservation.channel) }}
-              <strong class="tabular-nums">{{ reservation.orderNumber }}</strong>
-            </span>
-            <span class="stock-lookup__reservation-qty tabular-nums">
-              {{ reservation.quantity }} {{ reservation.quantity === 1 ? 'pezzo' : 'pezzi' }}
-            </span>
-            <span class="stock-lookup__reservation-location">
-              {{ reservation.locationName }}
-            </span>
-          </li>
-        }
-      </ul>
-    }
-  </app-slide-panel>
-</section>
+  
+    <app-slide-panel
+      [open]="reservationsPanelOpen()"
+      title="Quantità impegnata"
+      ariaLabel="Ordini che compongono la quantità impegnata"
+      (closed)="closeReservations()"
+    >
+      @if (reservationsTarget(); as target) {
+        <p class="stock-lookup__reservations-context">
+          {{ target.productName }} — <span class="tabular-nums">{{ target.sku }}</span>
+          <br />
+          {{ target.locationName }}: <strong class="tabular-nums">{{ target.committed }}</strong>
+          impegnati
+        </p>
+      }
+  
+      @if (reservationsLoading()) {
+        <app-table-skeleton [columns]="3" [rows]="3" />
+      } @else if (reservationsError(); as message) {
+        <app-error-state
+          [description]="message"
+          retryLabel="Riprova"
+          (retry)="reloadReservations()"
+        />
+      } @else if (reservations().length === 0) {
+        <app-empty-state
+          title="Nessun impegno attivo"
+          description="Nessun ordine sta impegnando questa variante in questa location."
+          icon="pi-inbox"
+        />
+      } @else {
+        <ul class="stock-lookup__reservations">
+          @for (reservation of reservations(); track reservation.id) {
+            <li class="stock-lookup__reservation">
+              <span class="stock-lookup__reservation-order">
+                {{ channelLabel(reservation.channel) }}
+                <strong class="tabular-nums">{{ reservation.orderNumber }}</strong>
+              </span>
+              <span class="stock-lookup__reservation-qty tabular-nums">
+                {{ reservation.quantity }} {{ reservation.quantity === 1 ? 'pezzo' : 'pezzi' }}
+              </span>
+              <span class="stock-lookup__reservation-location">
+                {{ reservation.locationName }}
+              </span>
+            </li>
+          }
+        </ul>
+      }
+    </app-slide-panel>
+  </div>
+</app-list-page>

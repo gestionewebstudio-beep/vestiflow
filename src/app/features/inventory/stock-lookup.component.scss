@@ -237,3 +237,8 @@
   color: var(--color-text-muted);
   font-size: var(--text-xs);
 }
+
+/* Il gruppo proiettato non è una scatola: è contenuto (vedi telaio elenco). */
+[data] {
+  display: contents;
+}

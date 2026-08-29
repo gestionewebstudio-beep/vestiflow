@@ -39,36 +39,24 @@
 }
 
 /* Le due fasce, impilate. A disporre le voci è la fascia, non questo. */
-.corrispettivi-summary__grid {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin: 0;
-}
-
 /*
-  Una fascia per famiglia: sopra i CONTEGGI (rettifiche, annullamenti,
-  vendite), sotto gli IMPORTI (imponibile, IVA, totale vendite, corrispettivo).
+  ⭐ **UNA fascia sola** — decisione del proprietario, 29/08/2026.
 
-  ⚠️ **Ognuna si conta le colonne da sola** con `auto-fit`, che crea quante
-  tracce ci stanno e **collassa quelle vuote**: la prima fascia ne occupa tre e
-  la seconda quattro, a qualunque larghezza e senza una sola media query.
-  Questo componente ne aveva tre; ora nessuna.
+  ⚠️ **Si conta le colonne da sola** con `auto-fit`, che crea quante tracce ci
+  stanno e collassa quelle vuote: sette voci in linea sul desktop, e su schermo
+  stretto la griglia manda a capo — a qualunque larghezza, senza una sola media
+  query. Questo componente ne aveva tre; ora nessuna.
 
   ⚠️ Il gap ORIZZONTALE è zero apposta: lo spazio fra le voci lo dà il padding
   della voce, non due misure sommate — con entrambi attivi il filo finirebbe a
   metà di un vuoto doppio, staccato dal testo che dovrebbe separare.
 */
-.corrispettivi-summary__band {
+.corrispettivi-summary__grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(var(--summary-item-min-w), 1fr));
   gap: var(--space-2) 0;
+  margin: 0;
   padding-block: var(--space-1);
-}
-
-/* Filo orizzontale fra i conteggi e gli importi: due famiglie, due fasce. */
-.corrispettivi-summary__band + .corrispettivi-summary__band {
-  border-block-start: var(--border-width) solid var(--color-border);
 }
 
 /*

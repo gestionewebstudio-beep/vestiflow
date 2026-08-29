@@ -230,7 +230,11 @@ describe('DocumentListComponent — comandi di creazione e matrice permessi', ()
     });
 
     expect(screen.queryByRole('button', { name: /Nuovo arrivo merce/i })).toBeNull();
-    expect(screen.queryByRole('button', { name: /Crea altro tipo di documento/i })).toBeNull();
+    // ⚠️ Il nome accessibile è ora l'ETICHETTA VISIBILE «Altro documento»: da
+    //    quando il comando sta nella barra in basso lo rende `app-action-menu`,
+    //    che con `triggerLabel` toglie l'`aria-label` — il nome lo dà il testo,
+    //    ed è giusto che visibile e accessibile coincidano.
+    expect(screen.queryByRole('button', { name: /Altro documento/i })).toBeNull();
   });
 
   it('al titolare resta tutto il menu', async () => {
@@ -240,7 +244,7 @@ describe('DocumentListComponent — comandi di creazione e matrice permessi', ()
     // andava aggiornato a mano a ogni voce nuova, e diceva «sono nove» invece di
     // «non ne manca nessuna» — che è la regola vera per chi ha tutti i permessi.
     expect(tipiOfferti(view)).toEqual(SECONDARY_CREATE_ENTRIES.map((entry) => entry.label));
-    expect(screen.queryByRole('button', { name: /Crea altro tipo di documento/i })).not.toBeNull();
+    expect(screen.queryByRole('button', { name: /Altro documento/i })).not.toBeNull();
   });
 });
 

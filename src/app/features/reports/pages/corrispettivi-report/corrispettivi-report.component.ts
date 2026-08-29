@@ -32,10 +32,8 @@ import {
   corrispettiviReportFilterSubtitle,
   corrispettiviReportSubtitle,
 } from '@core/models/tenant-channel-profile.model';
-import { ActionMenuComponent } from '@shared/components/action-menu/action-menu.component';
-import type { ActionMenuItem } from '@shared/components/action-menu/action-menu.component';
-import { ButtonComponent } from '@shared/components/button/button.component';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
+import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import { SegmentedComponent } from '@shared/components/segmented/segmented.component';
 import type { SegmentedOption } from '@shared/components/segmented/segmented.component';
@@ -101,8 +99,7 @@ type CorrispettiviState =
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ListPageComponent,
-    ActionMenuComponent,
-    ButtonComponent,
+    ListActionsBarComponent,
     CorrispettiviOrdersTableComponent,
     CorrispettiviSummaryComponent,
     DateInputComponent,
@@ -832,55 +829,65 @@ export class CorrispettiviReportComponent {
    * — in silenzio.
    */
   protected readonly listActions = computed<readonly ListAction[]>(() => [
-    {
-      id: 'print',
-      label: 'Stampa',
-      icon: 'pi-print',
-      variant: 'ghost',
-      requires: 'none',
-      run: () => this.printReport(),
-    },
-    {
-      id: 'pdf',
-      label: 'PDF',
-      icon: 'pi-file-pdf',
-      variant: 'secondary',
-      requires: 'none',
-      busy: this.exportingPdf(),
-      run: () => this.exportPdf(),
-    },
-    {
-      id: 'spreadsheet',
-      label: 'Excel',
-      icon: 'pi-file-excel',
-      variant: 'secondary',
-      requires: 'none',
-      busy: this.exportingSpreadsheet(),
-      run: () => this.exportSpreadsheet(),
-    },
-    {
-      id: 'csv',
-      label: 'CSV',
-      icon: 'pi-download',
-      variant: 'secondary',
-      requires: 'none',
-      busy: this.exporting(),
-      run: () => this.exportAccountantCsv(),
-    },
+    // ⭐ **«Nuovo» sta QUI, non in testata** — decisione del proprietario,
+    //    30/08/2026: tutti i comandi in una riga in basso. Non è duplicato: si
+    //    è spostato, e la testata resta Indietro + titolo.
+    ...(this.canManageRegister()
+      ? ([
+          {
+            id: 'new',
+            label: 'Nuovo',
+            icon: 'pi-plus',
+            variant: 'primary',
+            requires: 'none',
+            ariaLabel: 'Aggiungi corrispettivo',
+            run: () => this.addManualReceipt(),
+          },
+        ] as const)
+      : []),
+    // ⚠️ Le quattro esportazioni compaiono solo con il permesso: prima erano
+    //    dentro un `@if (canExport())` nel template, ora la condizione sta
+    //    dove sta la dichiarazione — non in due posti.
+    ...(this.canExport()
+      ? ([
+          {
+            id: 'print',
+            label: 'Stampa',
+            icon: 'pi-print',
+            variant: 'ghost',
+            requires: 'none',
+            run: () => this.printReport(),
+          },
+          {
+            id: 'pdf',
+            label: 'PDF',
+            icon: 'pi-file-pdf',
+            variant: 'secondary',
+            requires: 'none',
+            busy: this.exportingPdf(),
+            run: () => this.exportPdf(),
+          },
+          {
+            id: 'spreadsheet',
+            label: 'Excel',
+            icon: 'pi-file-excel',
+            variant: 'secondary',
+            requires: 'none',
+            busy: this.exportingSpreadsheet(),
+            run: () => this.exportSpreadsheet(),
+          },
+          {
+            id: 'csv',
+            label: 'CSV',
+            icon: 'pi-download',
+            variant: 'secondary',
+            requires: 'none',
+            busy: this.exporting(),
+            run: () => this.exportAccountantCsv(),
+          },
+        ] as const)
+      : []),
   ]);
-
-  /**
-   * Le voci del menu compatto: **derivate dalle stesse azioni**, non un secondo
-   * elenco. Prima erano una copia a mano, ed è il genere di copia che diverge
-   * al primo formato aggiunto.
-   */
-  protected readonly exportMenuItems = computed<readonly ActionMenuItem[]>(() =>
-    this.listActions().map((azione) => ({
-      id: azione.id,
-      label: azione.label,
-      icon: azione.icon,
-    })),
-  );
 
   /** Lo stato di un'azione: dal contratto comune, non da regole locali. */
   protected actionState(action: ListAction): ListActionState {

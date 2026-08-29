@@ -7,7 +7,7 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import {
   catchError,
   debounceTime,
@@ -24,8 +24,9 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { Supplier } from '@core/models/supplier.model';
 import { canManageSupplierOrders } from '@core/permissions/tenant-permissions.util';
-import { ButtonComponent } from '@shared/components/button/button.component';
+import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
+import type { ListAction } from '@shared/models/list-selection.model';
 import { PaginationComponent } from '@shared/components/pagination/pagination.component';
 
 import { TableViewId } from '@shared/table-columns/table-column.model';
@@ -66,8 +67,7 @@ type SupplierListState =
   selector: 'app-supplier-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    RouterLink,
-    ButtonComponent,
+    ListActionsBarComponent,
     ListPageComponent,
     PaginationComponent,
     SupplierTableComponent,
@@ -199,8 +199,35 @@ export class SupplierListComponent {
     });
   }
 
+  /**
+   * ⭐ **I comandi dell'elenco, tutti nella barra in basso** (`14` §0.2).
+   *
+   * ⚠️ L'etichetta è corta perché il nome dell'entità è già scritto sopra, a
+   * caratteri grandi: «Nuovo» sotto «Fornitori» non è ambiguo. Il nome per
+   * esteso resta nell'`ariaLabel`, per chi la pagina non la vede.
+   */
+  protected readonly listActions = computed<readonly ListAction[]>(() =>
+    this.canManage()
+      ? [
+          {
+            id: 'new',
+            label: 'Nuovo',
+            icon: 'pi-plus',
+            variant: 'primary',
+            requires: 'none',
+            ariaLabel: 'Nuovo fornitore',
+            run: () => this.createSupplier(),
+          },
+        ]
+      : [],
+  );
+
   protected openSupplier(supplier: Supplier): void {
     void this.router.navigate(['/app/suppliers', supplier.id]);
+  }
+
+  private createSupplier(): void {
+    void this.router.navigate(['/app/suppliers/new']);
   }
 
   protected reload(): void {

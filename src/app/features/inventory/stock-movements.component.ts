@@ -64,7 +64,6 @@ import type { Location } from '@core/models/location.model';
 import { MovementOrigin, StockMovementType } from '@core/models/stock-movement.model';
 import type { StockMovement } from '@core/models/stock-movement.model';
 import { formatDateTime } from '@core/utils/date.util';
-import { ButtonComponent } from '@shared/components/button/button.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
@@ -133,8 +132,7 @@ const SEARCH_DEBOUNCE_MS = 300;
   selector: 'app-stock-movements',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    ListPageComponent,
-    ButtonComponent,
+    ListPageComponent,
     ListActionsBarComponent,
     SelectMenuComponent,
     DateInputComponent,
@@ -607,6 +605,25 @@ export class StockMovementsComponent {
    * conosce il filtro.
    */
   protected readonly listActions = computed<readonly ListAction[]>(() => [
+    // ⭐ **I quattro «registra» stanno QUI, non in testata** — decisione del
+    //    proprietario, 30/08/2026: tutti i comandi in una riga in basso.
+    //
+    // ⚠️ Sono QUATTRO azioni, non una: carico, scarico, rettifica e
+    //    trasferimento aprono la stessa maschera su tipi diversi, e il tipo si
+    //    sceglie prima, non dentro. Restano dichiarate una volta sola in
+    //    `movementActions`.
+    ...(this.canManageInventory()
+      ? this.movementActions.map(
+          (azione): ListAction => ({
+            id: 'new-' + azione.type,
+            label: azione.label,
+            icon: azione.icon,
+            requires: 'none',
+            ariaLabel: 'Registra ' + azione.label.toLowerCase(),
+            run: () => this.newMovement(azione.type),
+          }),
+        )
+      : []),
     {
       id: 'print',
       label: 'Stampa',

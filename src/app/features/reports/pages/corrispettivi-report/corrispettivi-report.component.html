@@ -15,98 +15,6 @@
   emptyIcon="pi-shopping-cart"
   (retry)="reload()"
 >
-  <div pageActions>
-    @if (canManageRegister()) {
-      <!--
-        La primary CTA della pagina (`docs/10` §12). Il posto era stato
-        liberato spegnendo il pulsante di export doppione del componente
-        periodo: due primary nella stessa vista sono vietate
-        (regole-stile-ui §5).
-
-        ⚠️ **Sta nella riga del titolo, e dice «Nuovo».** Su mobile occupava
-        da sola una fascia intera sopra il primo dato; qui divide la riga col
-        titolo, che è spazio già speso. L'etichetta si accorcia perché il
-        nome dell'entità è già scritto accanto, a caratteri grandi: «Nuovo»
-        sotto «Corrispettivi» non è ambiguo. Il nome per esteso resta
-        nell'`aria-label`, per chi la pagina non la vede.
-      -->
-      <app-button
-        class="corrispettivi__new"
-        ariaLabel="Aggiungi corrispettivo"
-        (click)="addManualReceipt()"
-      >
-        <i class="pi pi-plus" aria-hidden="true"></i>
-        Nuovo
-      </app-button>
-    }
-
-    @if (canExport()) {
-      <!--
-        ⚠️ **Le stesse quattro azioni, in due vesti per due larghezze.**
-
-        Sotto `lg` i quattro pulsanti spariscono e restano dietro un solo
-        comando «Esporta» (`app-action-menu` con `triggerLabel`): su un
-        telefono da 375px prendevano due file intere sopra il primo dato,
-        e chi consulta il registro in magazzino esporta di rado.
-
-        Sopra `lg` restano in linea come prima — sul desktop lo spazio c'è e
-        quattro formati a vista sono più veloci di un menu da aprire.
-
-        Le due vesti chiamano gli STESSI metodi: non esiste un
-        comportamento «del menu» separato da quello dei pulsanti.
-      -->
-      <!--
-        ⚠️ **Quattro etichette lunghe, non quattro azioni in più.** «Anteprima
-        stampa», «Scarica PDF», «Export Excel» e «Export per commercialista»
-        prendevano due file di pulsanti larghi in cima alla pagina: il verbo
-        era ripetuto quattro volte, e a distinguerle bastava il formato.
-
-        Restano le stesse quattro azioni, con il nome del formato e l'icona
-        che dice il resto: quattro formati, quattro parole.
-      -->
-      <!--
-        ⭐ Le quattro azioni arrivano DICHIARATE dal contratto comune
-        (`14` parte D), non scritte qui a mano.
-
-        ⛔ Il markup che ne esce è identico a quello di prima — stessa
-        classe, stesse varianti, stesse icone, stessi stati: è un refactor
-        infrastrutturale, non un cambio grafico. Prima le stesse quattro
-        azioni vivevano in TRE posti (questi pulsanti, le voci del menu
-        compatto, e lo switch che le smistava), da tenere allineati a mano.
-      -->
-      @for (azione of listActions(); track azione.id) {
-        @let stato = actionState(azione);
-        <app-button
-          class="corrispettivi__export-inline"
-          [variant]="azione.variant ?? 'secondary'"
-          [loading]="azione.busy === true"
-          [disabled]="stato.disabled"
-          (click)="onExportAction(azione.id)"
-        >
-          <i class="pi {{ azione.icon }}" aria-hidden="true"></i>
-          {{ azione.label }}
-        </app-button>
-      }
-    }
-
-    <!--
-      ⚠️ **«Esporta» sta QUI, non nella testata.** È mobile-only (su desktop
-      comandano i quattro pulsanti in linea, e questo è spento), quindi la sua
-      posizione nel DOM conta solo dove si vede: accanto a Filtri e Colonne,
-      dove forma una fila sola di tre comandi «sulla vista» invece di occupare
-      una fascia propria sopra.
-    -->
-    @if (canExport()) {
-      <app-action-menu
-        class="corrispettivi__export-menu"
-        triggerLabel="Esporta"
-        triggerIcon="pi-download"
-        ariaLabel="Esporta il registro"
-        [items]="exportMenuItems()"
-        (actionSelected)="onExportAction($event)"
-      />
-    }
-  </div>
 
   <!--
     ⭐ Periodo resta in barra a ogni larghezza: è uno dei due che non entrano
@@ -399,5 +307,17 @@
       -->
       <app-corrispettivi-summary [summary]="pageSummary" [periodLabel]="periodLabel()" />
     }
+  </div>
+
+  <!--
+    ⭐ **Tutti i comandi in UNA riga in basso**, totali subito sopra —
+    decisione del proprietario, 30/08/2026, sul riferimento Danea.
+
+    ⛔ Le quattro azioni stavano in testata e il menu «Esporta» qui sotto:
+    due posti per lo stesso rango di comandi. Ora è uno, e il menu compatto
+    lo rende la barra comune quando serve — è lo stesso `ListAction[]`.
+  -->
+  <div listActions>
+    <app-list-actions-bar [actions]="listActions()" />
   </div>
 </app-list-page>

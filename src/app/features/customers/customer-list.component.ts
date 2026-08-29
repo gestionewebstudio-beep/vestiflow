@@ -7,7 +7,7 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import {
   catchError,
   debounceTime,
@@ -32,8 +32,9 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { ShopifyConnection } from '@core/models/shopify-connection.model';
 import type { Customer } from '@core/models/customer.model';
+import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
-import { ButtonComponent } from '@shared/components/button/button.component';
+import type { ListAction } from '@shared/models/list-selection.model';
 import { PaginationComponent } from '@shared/components/pagination/pagination.component';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
@@ -85,9 +86,8 @@ type CustomerListState =
   selector: 'app-customer-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    ListActionsBarComponent,
     ListPageComponent,
-    RouterLink,
-    ButtonComponent,
     PaginationComponent,
     CustomerTableComponent,
     ShopifySyncFeedbackComponent,
@@ -274,6 +274,53 @@ export class CustomerListComponent {
   protected dismissShopifyFeedback(): void {
     this.clearShopifyFeedback();
   }
+
+  /**
+   * ⭐ **I comandi dell'elenco, tutti nella barra in basso** (`14` §0.2).
+   *
+   * ⚠️ I permessi stanno QUI, non nel template: la condizione che decide se un
+   * comando esiste sta dove il comando si dichiara, non in un `@if` altrove.
+   */
+  protected readonly listActions = computed<readonly ListAction[]>(() => {
+    const azioni: ListAction[] = [];
+
+    if (this.canManage()) {
+      azioni.push({
+        id: 'new',
+        label: 'Nuovo',
+        icon: 'pi-plus',
+        variant: 'primary',
+        requires: 'none',
+        ariaLabel: 'Nuovo cliente',
+        run: () => void this.router.navigate(['/app/customers/new']),
+      });
+    }
+
+    if (this.canExportData()) {
+      azioni.push({
+        id: 'export',
+        label: 'Esporta CSV',
+        icon: 'pi-download',
+        requires: 'none',
+        busy: this.exporting(),
+        ariaLabel: "Esporta l'elenco clienti in CSV",
+        run: () => this.exportCustomers(),
+      });
+    }
+
+    if (this.showShopifyCustomersSync()) {
+      azioni.push({
+        id: 'shopify-sync',
+        label: 'Sincronizza da Shopify',
+        icon: 'pi-sync',
+        requires: 'none',
+        busy: this.shopifyCustomersLoading(),
+        run: () => this.syncCustomersFromShopify(),
+      });
+    }
+
+    return azioni;
+  });
 
   protected openCustomer(customer: Customer): void {
     void this.router.navigate(['/app/customers', customer.id]);

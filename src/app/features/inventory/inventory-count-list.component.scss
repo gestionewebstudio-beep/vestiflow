@@ -6,3 +6,8 @@
 .inventory-count-list__subtitle {
   max-inline-size: var(--content-wide);
 }
+
+/* I gruppi proiettati non sono scatole: sono contenuto (vedi telaio elenco). */
+[listActions] {
+  display: contents;
+}

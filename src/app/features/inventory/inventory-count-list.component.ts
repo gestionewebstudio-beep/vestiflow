@@ -13,12 +13,10 @@ import { catchError, map, of, startWith, switchMap } from 'rxjs';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { InventoryCountSession } from '@core/models/inventory-count.model';
-import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
-import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
-import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
+import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
+import { ListPageComponent } from '@shared/components/list-page/list-page.component';
+import type { ListAction } from '@shared/models/list-selection.model';
 
 import { InventoryCountTableComponent } from './components/inventory-count-table/inventory-count-table.component';
 import { InventoryTabsComponent } from './components/inventory-tabs/inventory-tabs.component';
@@ -34,12 +32,9 @@ type CountListState =
   selector: 'app-inventory-count-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    BackButtonComponent,
-    ButtonComponent,
+    ListPageComponent,
+    ListActionsBarComponent,
     ConfirmDialogComponent,
-    EmptyStateComponent,
-    ErrorStateComponent,
-    TableSkeletonComponent,
     InventoryTabsComponent,
     InventoryCountTableComponent,
   ],
@@ -104,6 +99,23 @@ export class InventoryCountListComponent {
   protected readonly isEmpty = computed(
     () => this.listState().status === 'success' && this.sessions().length === 0,
   );
+
+  /**
+   * ⭐ **I comandi dell'elenco, tutti nella barra in basso** (`14` §0.2).
+   *
+   * ⚠️ «Nuova sessione» stava in testata: si è spostata, non duplicata.
+   */
+  protected readonly listActions = computed<readonly ListAction[]>(() => [
+    {
+      id: 'new',
+      label: 'Nuova sessione',
+      icon: 'pi-plus',
+      variant: 'primary',
+      requires: 'none',
+      ariaLabel: 'Avvia una nuova sessione di inventario',
+      run: () => this.newSession(),
+    },
+  ]);
 
   protected newSession(): void {
     void this.router.navigate(['/app/inventory/counts/new']);

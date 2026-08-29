@@ -486,7 +486,33 @@ export class SalesOrderListComponent {
    * calcola la pagina, e la barra non sa nemmeno che esista un caso simile.
    */
   protected readonly selectionActions = computed<readonly ListAction[]>(() => {
+    // ⭐ **I comandi di pagina stanno QUI, non in testata** — decisione del
+    //    proprietario, 30/08/2026: tutti in una riga in basso, totali sopra.
+    const diPagina: ListAction[] = [];
+    if (this.canCreateManualOrder()) {
+      diPagina.push({
+        id: 'new',
+        label: 'Nuovo',
+        icon: 'pi-plus',
+        variant: 'primary',
+        requires: 'none',
+        ariaLabel: 'Nuovo ordine manuale',
+        run: () => this.createManualOrder(),
+      });
+    }
+    if (this.showShopifyOrdersSync()) {
+      diPagina.push({
+        id: 'shopify-sync',
+        label: 'Sincronizza',
+        icon: 'pi-sync',
+        requires: 'none',
+        busy: this.shopifyOrdersLoading(),
+        ariaLabel: 'Sincronizza le vendite da Shopify',
+        run: () => this.syncOrdersFromShopify(),
+      });
+    }
     const azioni: ListAction[] = [
+      ...diPagina,
       {
         id: 'print',
         label: 'Stampa',

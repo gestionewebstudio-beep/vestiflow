@@ -13,19 +13,6 @@
   (filtersCleared)="resetFilters()"
   (retry)="reload()"
 >
-  <div pageActions>
-    @if (canManageInventory()) {
-      <div class="stock-movements__actions">
-        @for (action of movementActions; track action.type) {
-          <app-button variant="secondary" (click)="newMovement(action.type)">
-            <i class="pi {{ action.icon }}" aria-hidden="true"></i>
-            {{ action.label }}
-          </app-button>
-        }
-      </div>
-    }
-  </div>
-
   <app-inventory-tabs tabs />
 
   <!--

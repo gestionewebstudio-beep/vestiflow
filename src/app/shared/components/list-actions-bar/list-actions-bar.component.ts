@@ -43,11 +43,18 @@ import type {
   styleUrl: './list-actions-bar.component.scss',
 })
 export class ListActionsBarComponent {
-  /** Quante righe sono selezionate: governa ambito e stato delle azioni. */
-  readonly count = input.required<number>();
+  /**
+   * Quante righe sono selezionate: governa ambito e stato delle azioni.
+   *
+   * ⭐ **Zero di default, e non è pigrizia**: da quando ogni elenco ha la barra
+   * in basso (30/08/2026), le pagine senza selezione — che hanno comandi ma non
+   * caselle — dovrebbero scrivere `[count]="0" [ids]="[]"` una per una. Il caso
+   * comune lo assorbe il componente.
+   */
+  readonly count = input<number>(0);
 
   /** Gli ID selezionati. Vuoto = l'ambito è il risultato filtrato. */
-  readonly ids = input.required<readonly string[]>();
+  readonly ids = input<readonly string[]>([]);
 
   readonly actions = input.required<readonly ListAction[]>();
 

@@ -16,39 +16,6 @@
   (filtersCleared)="resetFilters()"
   (retry)="reload()"
 >
-  <div pageActions>
-    @if (canExportData()) {
-      <app-button variant="secondary" [disabled]="exporting()" (click)="exportCustomers()">
-        <i class="pi pi-download" aria-hidden="true"></i>
-        @if (exporting()) {
-          Export in corso…
-        } @else {
-          Esporta CSV
-        }
-      </app-button>
-    }
-
-    @if (showShopifyCustomersSync()) {
-      <app-button
-        variant="secondary"
-        loadingIndicator="icon"
-        [loading]="shopifyCustomersLoading()"
-        [disabled]="shopifyCustomersLoading()"
-        (click)="syncCustomersFromShopify()"
-      >
-        <i class="pi pi-sync" aria-hidden="true"></i>
-        Sincronizza da Shopify
-      </app-button>
-    }
-
-    @if (canManage()) {
-      <app-button variant="primary" routerLink="/app/customers/new">
-        <i class="pi pi-plus" aria-hidden="true"></i>
-        Nuovo cliente
-      </app-button>
-    }
-  </div>
-
   <div warnings>
     @if (shopifySyncError(); as message) {
       <p class="customer-list__shopify-error" role="alert">{{ message }}</p>
@@ -78,4 +45,16 @@
     (pageChange)="goToPage($event)"
     (pageSizeChange)="onPageSizeChange($event)"
   />
+
+  <!--
+    ⭐ **Tutti i comandi in UNA riga in basso**, totali subito sopra —
+    decisione del proprietario, 30/08/2026, sul riferimento Danea.
+
+    ⛔ Stavano in testata. Non sono duplicati: si sono SPOSTATI. Due posti
+    per i comandi erano una divisione storica — creare sopra, agire sotto —
+    non un criterio.
+  -->
+  <div listActions>
+    <app-list-actions-bar [actions]="listActions()" />
+  </div>
 </app-list-page>

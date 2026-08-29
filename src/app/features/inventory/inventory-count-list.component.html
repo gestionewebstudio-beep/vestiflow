@@ -1,44 +1,44 @@
-<section class="inventory-count-list">
-  <header class="inventory-count-list__header">
-    <div class="inventory-count-list__heading">
-      <!-- Torna alla pagina precedente; senza cronologia interna ricade
-           sull'hub Magazzino dedotto dall'URL. -->
-      <app-back-button />
-      <h1 class="inventory-count-list__title">Inventario</h1>
-      <p class="inventory-count-list__subtitle">
-        Conteggio periodico delle giacenze per location. Alla chiusura genera rettifiche tracciate e
-        aggiorna il magazzino.
-      </p>
-    </div>
-    <app-button (click)="newSession()">
-      <i class="pi pi-plus" aria-hidden="true"></i>
-      Nuova sessione
-    </app-button>
-  </header>
+<app-list-page
+  class="inventory-count-list"
+  pageTitle="Inventario"
+  pageDescription="Conteggio periodico delle giacenze per location. Alla chiusura genera rettifiche tracciate e aggiorna il magazzino."
+  [showBack]="true"
+  [loading]="loading()"
+  [error]="error()?.message ?? null"
+  [isEmpty]="isEmpty()"
+  [skeletonColumns]="skeletonColumns"
+  [skeletonRows]="6"
+  emptyTitle="Nessuna sessione inventario"
+  emptyDescription="Avvia un inventario fisico per confrontare le quantità di sistema con il conteggio reale in negozio o magazzino."
+  emptyIcon="pi-list-check"
+  (retry)="reload()"
+>
+  <app-inventory-tabs tabs />
 
-  <app-inventory-tabs />
+  <app-inventory-count-table
+    data
+    [sessions]="sessions()"
+    (rowClick)="openSession($event)"
+    (deleteClick)="requestDelete($event)"
+  />
 
-  @if (loading()) {
-    <app-table-skeleton [columns]="skeletonColumns" [rows]="6" />
-  } @else if (error(); as appError) {
-    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
-  } @else if (isEmpty()) {
-    <app-empty-state
-      title="Nessuna sessione inventario"
-      description="Avvia un inventario fisico per confrontare le quantità di sistema con il conteggio reale in negozio o magazzino."
-      icon="pi-list-check"
-      ctaLabel="Nuova sessione"
-      (ctaClick)="newSession()"
-    />
-  } @else {
-    <app-inventory-count-table
-      [sessions]="sessions()"
-      (rowClick)="openSession($event)"
-      (deleteClick)="requestDelete($event)"
-    />
-  }
-</section>
+  <!--
+    ⭐ **Tutti i comandi in UNA riga in basso** — decisione del proprietario,
+    30/08/2026. «Nuova sessione» stava in testata: si è spostata, non duplicata.
 
+    ⚠️ Il sottotitolo non si rende più: resta come `pageDescription` per i
+    lettori di schermo. Prendeva due righe per dire cosa la schermata è, in una
+    vista che serve a consultare.
+  -->
+  <div listActions>
+    <app-list-actions-bar [actions]="listActions()" />
+  </div>
+</app-list-page>
+
+<!--
+  ⚠️ Il dialogo sta FUORI dal telaio: è `position: fixed`, non occupa nessuna
+  zona. Dentro, senza slot, Angular lo scarterebbe in silenzio.
+-->
 <app-confirm-dialog
   [(open)]="deleteDialogOpen"
   title="Eliminare la sessione?"
