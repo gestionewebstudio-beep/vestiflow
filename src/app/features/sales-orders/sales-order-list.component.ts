@@ -423,9 +423,6 @@ export class SalesOrderListComponent {
 
   protected readonly formatMoney = formatMoney;
 
-  /** Pannello filtri mobile (mockup restyling): un solo pulsante «Filtri (n)». */
-  protected readonly mobileFiltersOpen = signal(false);
-
   /**
    * Quanti filtri sono attivi, per il badge del pulsante «Filtri». La ricerca
    * non conta: ha il suo campo sempre visibile. Dal/Al fanno parte del periodo,
@@ -646,10 +643,6 @@ export class SalesOrderListComponent {
     toObservable(this.orders)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((orders) => this.selection.prune(orders.map((order) => order.id)));
-  }
-
-  protected onSearchInput(event: Event): void {
-    this.searchDraft.set((event.target as HTMLInputElement).value);
   }
 
   protected onFinancialFilterChange(value: string | null): void {

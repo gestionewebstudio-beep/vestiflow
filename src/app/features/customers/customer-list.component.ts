@@ -187,8 +187,6 @@ export class CustomerListComponent {
     return current.status === 'success' && current.meta.total === 0;
   });
 
-  protected readonly hasActiveFilters = computed(() => Boolean(this.query().search));
-
   // takeUntilDestroyed() gestisce l'unsubscribe; il campo evita subscription "ignorate".
   private readonly searchSubscription: Subscription;
 

@@ -1286,9 +1286,6 @@ export class DocumentListComponent {
     );
   });
 
-  /** Pannello filtri mobile (layout comune pagine-registro): apertura UI pura. */
-  protected readonly mobileFiltersOpen = signal(false);
-
   /**
    * Quanti filtri sono attivi, per il badge del pulsante «Filtri». La ricerca
    * non conta (ha il campo sempre visibile); Dal/Al contano una volta sola.
@@ -1428,10 +1425,6 @@ export class DocumentListComponent {
         this.searchDraft.set(fromUrl);
       }
     });
-  }
-
-  protected onSearchInput(event: Event): void {
-    this.searchDraft.set((event.target as HTMLInputElement).value);
   }
 
   /** Cambio preset periodo: calcola Dal/Al o mantiene i campi custom. */
@@ -2006,15 +1999,6 @@ export class DocumentListComponent {
   /** Cambio filtro «Tipo» sugli elenchi condivisi (Fatture). */
   protected onSharedTypeFilterChange(value: string | null): void {
     this.updateParams({ type: value || null, page: null });
-  }
-
-  /** CTA dello stato vuoto: creazione contestuale alla pagina. */
-  protected onEmptyStateCta(): void {
-    if (this.salesRegister()) {
-      this.openNewSalesDocument();
-      return;
-    }
-    this.openNewGoodsReceipt();
   }
 
   private updateParams(params: Record<string, string | number | null>, replace = false): void {

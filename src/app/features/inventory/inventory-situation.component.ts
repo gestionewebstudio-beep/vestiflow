@@ -307,16 +307,6 @@ export class InventorySituationComponent {
     () => this.state().status === 'success' && this.meta().total === 0,
   );
 
-  protected readonly hasActiveFilters = computed(() =>
-    Boolean(
-      this.statusFilter() ||
-      this.supplierFilter() ||
-      this.categoryFilter() ||
-      this.locationFilter() ||
-      this.search().trim(),
-    ),
-  );
-
   protected onSearchInput(event: Event): void {
     this.searchDraft.set((event.target as HTMLInputElement).value);
   }

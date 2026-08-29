@@ -147,11 +147,6 @@ export class OnlineSaleListComponent {
     return current.status === 'success' && current.meta.total === 0;
   });
 
-  protected readonly hasActiveFilters = computed(() => {
-    const q = this.query();
-    return Boolean(q.search ?? q.channel ?? q.fulfilledFrom ?? q.fulfilledTo);
-  });
-
   /** Pannello filtri mobile (layout comune pagine-registro): pulsante «Filtri (n)». */
   /**
    * Quanti filtri sono attivi, per il badge del pulsante «Filtri». La ricerca

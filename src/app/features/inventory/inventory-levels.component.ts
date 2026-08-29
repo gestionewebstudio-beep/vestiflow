@@ -367,15 +367,6 @@ export class InventoryLevelsComponent {
     () => this.state().status === 'success' && this.rows().length === 0,
   );
 
-  protected readonly hasActiveFilters = computed(() =>
-    Boolean(
-      this.locationFilter() ||
-      this.statusFilter() ||
-      this.search().trim() ||
-      this.variantIdFilter(),
-    ),
-  );
-
   protected onScanned(code: string): void {
     this.scanFeedback.set(null);
     this.productService
@@ -391,11 +382,6 @@ export class InventoryLevelsComponent {
           this.scanFeedback.set('Nessuna variante trovata per questo SKU o barcode.');
         },
       });
-  }
-
-  protected onSearchInput(event: Event): void {
-    this.variantIdFilter.set('');
-    this.searchDraft.set((event.target as HTMLInputElement).value);
   }
 
   protected onLocationFilterChange(value: string | null): void {

@@ -277,11 +277,6 @@ export class SupplierOrderListComponent {
     return current.status === 'success' && current.meta.total === 0;
   });
 
-  protected readonly hasActiveFilters = computed(() => {
-    const q = this.query();
-    return Boolean(q.search ?? q.status);
-  });
-
   /**
    * Preset del periodo. ⭐ Arriva con la rimozione delle pagine
    * (`14` §H14-bis): un riepilogo che non impagina ha bisogno di un

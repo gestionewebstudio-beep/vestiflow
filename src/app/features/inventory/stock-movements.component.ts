@@ -264,10 +264,6 @@ export class StockMovementsComponent {
     { type: StockMovementType.Transfer, label: 'Trasferimento', icon: 'pi-arrow-right-arrow-left' },
   ] as const;
 
-  protected readonly emptyStateCtaLabel = computed(() =>
-    this.canManageInventory() ? 'Registra carico' : undefined,
-  );
-
   private readonly refreshTick = signal(0);
 
   protected readonly typeFilter = signal('');
@@ -525,25 +521,6 @@ export class StockMovementsComponent {
     return current.status === 'success' && current.data.meta.total === 0;
   });
 
-  /**
-   * ⚠️ Il periodo conta come filtro attivo solo se NON è il predefinito: altrimenti
-   * «azzera filtri» resterebbe acceso all'apertura, su una schermata che nessuno ha
-   * ancora filtrato.
-   */
-  protected readonly hasActiveFilters = computed(() =>
-    Boolean(
-      this.typeFilter() ||
-      this.originFilter() ||
-      this.periodFilter() !== DEFAULT_MOVEMENT_PERIOD ||
-      this.fromFilter() ||
-      this.toFilter() ||
-      this.locationFilter() ||
-      this.search().trim() ||
-      this.partyFilter() ||
-      this.operatorFilter(),
-    ),
-  );
-
   protected onTypeFilterChange(value: string | null): void {
     this.typeFilter.set(value ?? '');
   }
@@ -608,10 +585,6 @@ export class StockMovementsComponent {
 
   protected newMovement(type: StockMovementType): void {
     void this.router.navigate(['/app/inventory/movements/new'], { queryParams: { type } });
-  }
-
-  protected onEmptyStateAction(): void {
-    this.newMovement(StockMovementType.Load);
   }
 
   private toAppError(err: unknown): AppError {

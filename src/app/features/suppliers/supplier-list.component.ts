@@ -141,9 +141,6 @@ export class SupplierListComponent {
   protected readonly isEmpty = computed(
     () => this.state().status === 'success' && this.suppliers().length === 0,
   );
-  protected readonly hasActiveFilters = computed(
-    () => parseSupplierListQuery(this.queryParams()).search.trim().length > 0,
-  );
 
   constructor() {
     this.columnPreferences.registerView(
@@ -208,10 +205,6 @@ export class SupplierListComponent {
 
   protected reload(): void {
     this.refreshTick.update((tick) => tick + 1);
-  }
-
-  protected goToNew(): void {
-    void this.router.navigate(['/app/suppliers/new']);
   }
 
   private toErrorState(err: unknown): SupplierListState {
