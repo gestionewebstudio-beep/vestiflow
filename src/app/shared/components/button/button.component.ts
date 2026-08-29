@@ -60,6 +60,14 @@ export class ButtonComponent {
    * il testo del pulsante, che è il caso normale e va lasciato tale.
    */
   readonly ariaLabel = input<string | undefined>();
+  /**
+   * Lo stato di un pulsante-INTERRUTTORE.
+   *
+   * ⚠️ Un interruttore che cambia solo aspetto non dice il proprio stato a chi
+   *    non lo vede. Aggiunto il 29/08/2026 per il pulsante «Filtri» degli
+   *    elenchi, che accende i controlli di colonna.
+   */
+  readonly ariaPressed = input<boolean | undefined>();
 
   /** Elemento che descrive il pulsante: il motivo della disabilitazione. */
   readonly ariaDescribedBy = input<string | undefined>();

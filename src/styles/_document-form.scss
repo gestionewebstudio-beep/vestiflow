@@ -91,12 +91,18 @@ app-customer-order-form {
   min-inline-size: 0;
 }
 
+/*
+  ⭐ **Solo `margin`.** Il resto lo dà già la regola globale degli heading
+  (`styles.scss:128-143`): il titolo è un `<h1>`, e `font-size`, `color`,
+  `letter-spacing` e `line-height` arrivano da lì.
+
+  ⛔ Qui c'erano quattro proprietà duplicate, di cui `font-weight: bold`
+  sovrascriveva il `semibold` globale. Erano **quattro copie in quattro file**
+  — questo, `_list-page`, `_detail-page` e il telaio elenco — libere di
+  divergere. Unificate il 29/08/2026: i titoli di pagina pesano `semibold`.
+*/
 .doc-form__title {
   margin: 0;
-  font-size: var(--text-2xl);
-  font-weight: var(--font-weight-bold);
-  letter-spacing: var(--tracking-tight);
-  color: var(--color-text);
 }
 
 .doc-form__po-link {

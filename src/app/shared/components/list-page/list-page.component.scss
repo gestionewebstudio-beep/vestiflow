@@ -1,0 +1,306 @@
+@use 'breakpoints' as bp;
+
+/*
+  ⭐ **La catena di altezze, ereditata invece che riscritta.**
+
+  Le undici pagine elenco la dichiaravano una per una con
+  `lp.list-page-fills-viewport`. Chi usa questo telaio non la scrive: la riceve —
+  ed è la differenza fra una guardia che trova l'errore e una struttura che non
+  lo lascia esprimere.
+
+  ⛔ **Chi cresce è dichiarato per IDENTITÀ**, non per posizione: `> *` mette
+  tutto a `flex: none`, e l'unica eccezione è nominata. Qualunque banner
+  condizionale compaia, la regola non si sposta (`14` §0.2).
+*/
+/*
+  ⚠️ **`min-inline-size: 0` è il gemello orizzontale di `min-block-size: 0`**,
+  e si dimentica esattamente allo stesso modo.
+
+  ⛔ Senza, un elemento flessibile si rifiuta di stringersi sotto la larghezza
+  del proprio contenuto: una tabella larga spinge il contenitore oltre il bordo
+  della pagina invece di scorrere dentro di sé. Misurato su Clienti il
+  29/08/2026 — l'ultima colonna usciva dallo schermo e la barra dei filtri
+  finiva prima della tabella.
+*/
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  flex: 1;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+
+:host > * {
+  flex: none;
+}
+
+/*
+  ⚠️ Il discendente diretto porta la specificità a (0,1,1) e batte il `> *` qui
+  sopra, che vale (0,1,0). Scritto come sola classe perderebbe il confronto e
+  l'area dati non crescerebbe — **in silenzio**.
+*/
+/*
+  ⛔ **L'area dati NON ha una cornice propria** — decisione del proprietario,
+  29/08/2026.
+
+  Provata nel verso opposto e scartata: avevo alzato qui la card del Registro
+  Corrispettivi — sfondo, bordo, raggio, padding — per darla a tutte. La forma
+  giusta è l'altra: **la scatola la disegna la tabella**, e le pagine si
+  allineano a lei.
+
+  ⚠️ Restano le sole proprietà di FLUSSO: chi sta qui dentro deve poter cedere
+  in altezza, ed è geometria, non aspetto.
+*/
+:host > .list-page__data {
+  flex: 1;
+  min-block-size: 0;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+  ⚠️ **Questi valori NON sono nuovi: sono quelli del mixin `list-page`**, copiati
+  esatti. Una pagina che passa al telaio smette di usare `.blocco__title` e
+  comincia a usare `.list-page__title`: se i due divergessero, il titolo
+  cambierebbe taglia alla migrazione — e non lo direbbe nessun errore.
+
+  ⛔ Misurato il 29/08/2026 scrivendo il pilota: mancavano `font-size` e
+  `font-weight`, e il titolo sarebbe rimpicciolito su undici pagine.
+*/
+.list-page__header {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-3);
+}
+
+/* Indietro e titolo sulla stessa riga, come nelle sette pagine che ce l'hanno. */
+.list-page__heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+@include bp.media-up('md') {
+  .list-page__header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+/*
+    ⭐ **Solo `margin`.** `font-size`, `font-weight`, `color`, `font-family` e
+    `line-height` li dà già la regola globale degli heading
+    (`styles.scss:128-143`): il titolo è un `<h1>`.
+
+    ⛔ Qui c'erano anche `font-size: var(--text-2xl)` — identico al globale — e
+    `font-weight: var(--font-weight-bold)`, che lo **sovrascriveva**. Erano
+    quattro copie delle stesse quattro righe, in quattro file, libere di
+    divergere. Unificate il 29/08/2026: il peso dei titoli di pagina è quello
+    globale, `semibold`.
+  */
+.list-page__title {
+  margin: 0;
+}
+
+/*
+  ⚠️ Sotto `lg` la catena si smonta: le tabelle sono a card e scorrono con la
+  pagina. Uno scroll dentro uno scroll sotto il dito è la trappola classica del
+  mobile.
+*/
+@include bp.media-down('lg') {
+  :host {
+    display: block;
+    flex: none;
+  }
+
+  :host > .list-page__data {
+    display: block;
+    flex: none;
+    min-block-size: auto;
+  }
+
+}
+
+/*
+  ⭐ **La zona controlli, forma unica.**
+
+  Ricerca a sinistra e flessibile, Periodo al centro, controlli di vista a
+  destra. La forma NUDA — senza card — è quella del Registro Corrispettivi, che
+  `regole-stile-ui` §5 dichiara riferimento visivo.
+
+  ⚠️ I valori sono quelli del mixin `list-page`, che le pagine usavano: la
+  migrazione non deve cambiare la taglia dei campi.
+*/
+.list-page__tools {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+@include bp.media-up('md') {
+  .list-page__tools {
+    flex-direction: row;
+    align-items: center;
+  }
+}
+
+.list-page__search {
+  position: relative;
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.list-page__search-icon {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: var(--space-3);
+  transform: translateY(-50%);
+  color: var(--color-text-subtle);
+  pointer-events: none;
+}
+
+.list-page__input {
+  inline-size: 100%;
+  block-size: var(--field-height);
+  padding-inline: var(--space-8) var(--space-3);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
+.list-page__input:focus-visible {
+  outline: none;
+  border-color: var(--color-focus);
+  box-shadow: 0 0 0 3px var(--color-focus-ring-alpha);
+}
+
+/*
+  ⚠️ **`flex: none` sui filtri, o la ricerca se li mangia.**
+
+  ⛔ La ricerca è `flex: 1 1 auto`: senza un pavimento, i filtri accanto si
+  stringono fino ad andare a capo uno per riga. Misurato su Ordini fornitore
+  il 29/08/2026 — «Stato» e «Periodo» impilati invece che affiancati.
+
+  ⭐ È la stessa regola della catena verticale: **ciò che non deve cedere lo
+  dichiara**, perché il default di un elemento flessibile è cedere.
+*/
+.list-page__filters,
+.list-page__view {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+}
+
+/* I controlli di vista stanno a destra, sempre. */
+.list-page__view {
+  margin-inline-start: auto;
+}
+
+/*
+  ⭐ **Ciò che sta nell'area dati la RIEMPIE.**
+
+  Il contenuto proiettato in `[data]` è un figlio flessibile: senza queste due
+  righe prende `flex: 0 1 auto` e resta alto quanto il suo contenuto, mentre
+  l'area cresce e sotto resta bianco.
+
+  ⚠️ Vale anche per lo scheletro e per i riquadri di stato, ed è giusto: devono
+  occupare la regione, non galleggiarci dentro.
+*/
+.list-page__data > * {
+  flex: 1;
+  min-block-size: 0;
+}
+
+/* Il conteggio accanto al titolo: informazione di servizio, non un dato. */
+.list-page__count {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/*
+  ⭐ **Sotto `lg` la zona filtri diventa un PANNELLO**, e non è una seconda
+  copia dei controlli: è **lo stesso contenitore**, con un'altra veste.
+
+  ⛔ La strada ovvia — un `<ng-content select="[filters]">` in barra e un altro
+  dentro un pannello — **non funziona**, e non fallisce: misurato il 29/08/2026,
+  due slot con lo stesso selettore in rami esclusivi lasciano il contenuto in
+  nessuno dei due. Niente errore, niente test rosso, filtri spariti.
+
+  ⭐ Ed è anche la regola di `regole-stile-ui` §9: «la stessa riga non esiste due
+  volte». Le cinque pagine che avevano un pannello proprio ne duplicavano i
+  controlli a mano, legati agli stessi segnali; qui l'istanza è una sola.
+
+  ⚠️ Ricerca e Periodo **restano in barra** anche qui: sono i due che non entrano
+  nelle colonne (`14` §0.2).
+*/
+@include bp.media-down('lg') {
+  .list-page__scrim {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-modal);
+    padding: 0;
+    border: none;
+    background-color: var(--color-backdrop);
+    cursor: pointer;
+  }
+
+  .list-page__filters--panel {
+    position: fixed;
+    inset-block: 0;
+    inset-inline-end: 0;
+    z-index: calc(var(--z-modal) + 1);
+    display: none;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: var(--space-4);
+    inline-size: min(92vw, 22rem);
+    padding: var(--space-4);
+    overflow-y: auto;
+    background-color: var(--color-surface);
+    box-shadow: var(--shadow-menu);
+  }
+
+  /*
+    ⚠️ `display: none` e non una traslazione fuori schermo: un pannello chiuso ma
+    presente resta raggiungibile col Tab e leggibile dallo screen reader, e chi
+    naviga da tastiera finisce dentro controlli che non vede.
+  */
+  .list-page__filters--open {
+    display: flex;
+  }
+
+  .list-page__filters-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding-block-end: var(--space-3);
+    border-block-end: var(--border-width) solid var(--color-border);
+  }
+
+  .list-page__filters-title {
+    margin: 0;
+    font-size: var(--text-base);
+  }
+
+  /* In fondo al pannello, spinto in basso: si legge dopo i filtri, non prima. */
+  .list-page__filters-foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    margin-block-start: auto;
+    padding-block-start: var(--space-3);
+    border-block-start: var(--border-width) solid var(--color-border);
+  }
+}

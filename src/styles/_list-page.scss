@@ -46,11 +46,19 @@
     gap: var(--space-2);
   }
 
+  /*
+      ⭐ **Solo `margin`.** `font-size`, `font-weight`, `color`, `font-family` e
+      `line-height` li dà già la regola globale degli heading
+      (`styles.scss:128-143`): il titolo è un `<h1>`.
+  
+      ⛔ Qui c'erano anche `font-size: var(--text-2xl)` — identico al globale — e
+      `font-weight: var(--font-weight-bold)`, che lo **sovrascriveva**. Erano
+      quattro copie delle stesse quattro righe, in quattro file, libere di
+      divergere. Unificate il 29/08/2026: il peso dei titoli di pagina è quello
+      globale, `semibold`.
+    */
   .#{$block}__title {
     margin: 0;
-    font-size: var(--text-2xl);
-    font-weight: var(--font-weight-bold);
-    color: var(--color-text);
   }
 
   .#{$block}__subtitle {
@@ -307,5 +315,82 @@
     margin-block-start: var(--space-2);
     padding-block-start: var(--space-4);
     border-block-start: var(--border-width) solid var(--color-border);
+  }
+}
+
+/// **La pagina elenco si adatta alla finestra: cede solo l'ELENCO.**
+///
+/// Testata, filtri, riepilogo e paginatore restano al loro posto e alla loro
+/// altezza; a cedere è solo la finestra sulle righe, e le righe non si abbassano
+/// mai — se ne vedono meno. Decisione del proprietario del 29/08/2026, presa sul
+/// comportamento di Danea messo a confronto a tre altezze di finestra.
+///
+/// ```scss
+/// @include lp.list-page('supplier-list');
+/// @include lp.list-page-fills-viewport('supplier-list', 'app-supplier-table');
+/// ```
+///
+/// ⛔ **Mai `grid-template-rows` per dire chi cresce.** Una traccia si dà al
+/// *terzo figlio*, chiunque esso sia: basta un banner condizionale — e `@if` non
+/// crea un elemento — perché tutto slitti di uno e la fascia elastica finisca
+/// sull'avviso mentre l'elenco perde la propria regione di scorrimento. Era il
+/// difetto del Registro Corrispettivi, cioè della pagina presa a modello.
+///
+/// ⭐ Qui chi cresce è dichiarato per **identità**: tutto `flex: none`, e una
+/// sola eccezione nominata. La regola non si sposta quando il markup cambia.
+///
+/// ⚠️ **`flex: none` va scritto**, non dato per scontato: in una colonna
+/// flessibile il default è `flex: 0 1 auto`, cioè *comprimibile*. Senza,
+/// `app-pagination` si schiaccia **prima** che le righe cedano — il contrario
+/// esatto del modello.
+///
+/// ⚠️ **Sotto `lg` si smonta tutto**: la tabella è a card e scorre con la
+/// pagina. Uno scroll dentro uno scroll sotto il dito è la trappola classica del
+/// mobile.
+///
+/// @param {String} $block - il blocco BEM della pagina, senza punto
+/// @param {String} $elenco - il selettore dell'elenco che cresce (es. `app-supplier-table`)
+@mixin list-page-fills-viewport($block, $elenco) {
+  // ⚠️ Il pavimento è DUE, uno per asse: senza quello orizzontale un elemento
+  //    flessibile non si stringe sotto la larghezza del proprio contenuto, e una
+  //    tabella larga spinge la pagina oltre il bordo dello schermo.
+  :host {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-block-size: 0;
+    min-inline-size: 0;
+  }
+
+  .#{$block} {
+    flex: 1;
+    min-block-size: 0;
+    min-inline-size: 0;
+  }
+
+  // Tutto ciò che non è l'elenco tiene la propria altezza.
+  .#{$block} > * {
+    flex: none;
+  }
+
+  // ⚠️ Il discendente diretto porta la specificità a (0,1,1) e batte il `> *`
+  //    qui sopra, che vale (0,1,0). Scritto come solo `#{$elenco}` perderebbe il
+  //    confronto e l'elenco non crescerebbe — in silenzio.
+  .#{$block} > #{$elenco} {
+    flex: 1;
+    min-block-size: 0;
+  }
+
+  @include bp.media-down('lg') {
+    :host {
+      display: block;
+      flex: none;
+    }
+
+    .#{$block},
+    .#{$block} > #{$elenco} {
+      flex: none;
+      min-block-size: auto;
+    }
   }
 }

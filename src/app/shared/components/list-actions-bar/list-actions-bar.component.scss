@@ -11,6 +11,20 @@
   `--button-font-size`, il trigger di `app-action-menu` legge `--field-*`.
   Dichiararne una sola lascerebbe metà dei comandi alla taglia vecchia.
 */
+/*
+  ⚠️ **Un componente deve dichiarare il proprio `display`.**
+
+  ⛔ Non lo faceva, quindi l'host restava `inline`: finché è stato figlio
+  diretto di una colonna flessibile il difetto non si vedeva — il flex
+  «blocchizza» i figli. Proiettato dentro il telaio elenco, la barra è tornata
+  inline e i suoi comandi si sono impilati uno per riga.
+
+  ⭐ Misurato il 29/08/2026 su Ordini fornitore, guardando lo schermo.
+*/
+:host {
+  display: block;
+}
+
 .list-actions {
   display: flex;
   flex-wrap: wrap;
@@ -70,4 +84,27 @@
     padding-inline-end: 0;
     border-inline-end: 0;
   }
+}
+
+
+/*
+  ⚠️ **Il tooltip che avvolge un comando non deve prendere la riga.**
+
+  ⛔ `app-hover-tooltip` ha `:host { display: block; inline-size: 100% }` — giusto
+  per un campo di form, sbagliato dentro una barra di comandi: come elemento
+  flessibile occupa l'intera riga e manda a capo tutti i comandi successivi.
+
+  ⭐ Misurato il 29/08/2026 su Ordini fornitore: Dettaglio, Stampa ed Excel —
+  spenti con una ragione, quindi avvolti — su tre righe invece che affiancati.
+  Il difetto era **preesistente**: si vedeva ogni volta che un comando era
+  spento, e il telaio l'ha solo reso evidente su tre insieme.
+
+  ⚠️ Si corregge QUI e non nel tooltip: là il 100% serve ai campi, che sono la
+  maggioranza dei suoi usi. È il contenitore a dichiarare come vuole i propri
+  figli.
+*/
+.list-actions app-hover-tooltip {
+  display: inline-flex;
+  inline-size: auto;
+  max-inline-size: none;
 }

@@ -1,0 +1,212 @@
+<!--
+  ⛔ **Due rami, non due vesti nascoste** (`14` §17.4): la stessa riga non deve
+  esistere in due DOM attivi sulla stessa finestra. Con `display: none` gli
+  elementi resterebbero nell'albero — annunciati due volte da uno screen reader
+  e attraversati due volte dal Tab.
+-->
+@if (compact()) {
+  <!-- ── Mobile: un solo pulsante, e un solo pannello (`14` §17.2) ── -->
+  <app-button
+    type="button"
+    variant="secondary"
+    class="list-filters__trigger"
+    [ariaLabel]="filtersLabel() + ': apri il pannello dei filtri'"
+    (click)="openPanel()"
+  >
+    {{ filtersLabel() }}
+  </app-button>
+
+  <app-slide-panel [open]="panelOpen()" title="Filtri" (closed)="closePanel()">
+    <div class="list-filters__panel">
+      @for (filtro of filters(); track filtro.key) {
+        <div class="list-filters__field">
+          <!--
+            ⭐ L'etichetta è la STESSA dichiarata una volta dalla pagina: sul
+            desktop diventa il testo del chip, qui la riga sopra il controllo.
+          -->
+          <span class="list-filters__label" [id]="'flt-' + filtro.key">{{ filtro.label }}</span>
+          @switch (filtro.kind) {
+            @case ('select') {
+              <app-select-menu
+                [options]="filtro.options ?? []"
+                [value]="value(filtro.key)"
+                [ariaLabel]="'Filtra per ' + filtro.label"
+                [placeholder]="filtro.placeholder ?? 'Tutti'"
+                [compact]="true"
+                [fullWidth]="true"
+                [searchable]="filtro.searchable ?? false"
+                [searchPlaceholder]="filtro.searchPlaceholder ?? 'Cerca…'"
+                [searchAriaLabel]="'Cerca in ' + filtro.label"
+                (valueChange)="onFilterChange(filtro, $event)"
+              />
+            }
+            @case ('period') {
+              <!--
+                ⭐ **Il Periodo è UN filtro, anche quando mostra due date.** Dal e
+                   Al si vincolano a vicenda, quindi vivono nella stessa
+                   definizione: spezzarli in due filtri indipendenti farebbe
+                   scegliere un «Dal» successivo all'«Al».
+              -->
+              <app-select-menu
+                [options]="filtro.options ?? []"
+                [value]="value(filtro.key)"
+                [ariaLabel]="'Filtra per ' + filtro.label"
+                [placeholder]="filtro.placeholder ?? 'Tutti'"
+                [compact]="true"
+                [fullWidth]="true"
+                (valueChange)="onPresetChange(filtro, $event)"
+              />
+              @if (showsRange(filtro)) {
+                <div class="list-filters__range">
+                  <div class="list-filters__field">
+                    <span class="list-filters__label">{{ filtro.fromLabel ?? 'Dal' }}</span>
+                    <app-date-input
+                      [value]="value(filtro.fromKey ?? '')"
+                      [ariaLabel]="filtro.label + ': data iniziale'"
+                      [max]="value(filtro.toKey ?? '') || undefined"
+                      [compact]="true"
+                      [fullWidth]="true"
+                      (valueChange)="onFromChange(filtro, $event)"
+                    />
+                  </div>
+                  <div class="list-filters__field">
+                    <span class="list-filters__label">{{ filtro.toLabel ?? 'Al' }}</span>
+                    <app-date-input
+                      [value]="value(filtro.toKey ?? '')"
+                      [ariaLabel]="filtro.label + ': data finale'"
+                      [min]="value(filtro.fromKey ?? '') || undefined"
+                      [compact]="true"
+                      [fullWidth]="true"
+                      (valueChange)="onToChange(filtro, $event)"
+                    />
+                  </div>
+                </div>
+              }
+            }
+            @case ('checkbox') {
+              <!--
+                ⭐ Una spunta, non una tendina da due voci: cambiarne la resa
+                   sarebbe una modifica funzionale dentro un refactor.
+                ⚠️ L’etichetta sta DENTRO la `<label>`, non sopra: una spunta si
+                   legge accanto al suo testo, e il testo la rende cliccabile.
+              -->
+              <label class="list-filters__check">
+                <input
+                  type="checkbox"
+                  [attr.aria-label]="filtro.label"
+                  [checked]="checked(filtro.key)"
+                  (change)="onCheckedChange(filtro, $event)"
+                />
+                <span>{{ filtro.label }}</span>
+              </label>
+            }
+            @case ('date') {
+              <app-date-input
+                [value]="value(filtro.key)"
+                [ariaLabel]="'Filtra per ' + filtro.label"
+                [placeholder]="filtro.placeholder ?? 'Nessuna data'"
+                [compact]="true"
+                [fullWidth]="true"
+                (valueChange)="onFilterChange(filtro, $event)"
+              />
+            }
+          }
+        </div>
+      }
+
+      <!--
+        ⭐ I due comandi del pannello appartengono alla MECCANICA dello
+           SlidePanel, non ai filtri: stanno qui perché ogni elenco che apre
+           un pannello di filtri ha gli stessi due, e ripeterli in ogni
+           consumer è la duplicazione che questo contenitore toglie.
+      -->
+      <div class="list-filters__panel-actions">
+        @if (resetVisible()) {
+          <app-button type="button" variant="ghost" (click)="onReset()">
+            Azzera filtri
+          </app-button>
+        }
+        <!--
+          ⚠️ «Vedi risultati» CHIUDE e basta: nessuna nuova query, nessun
+             filtro toccato, nessun URL riscritto. I filtri hanno già scritto
+             mentre l’operatore li cambiava — questo è solo il gesto di
+             tornare a guardare l’elenco.
+        -->
+        <app-button type="button" (click)="closePanel()">Vedi risultati</app-button>
+      </div>
+    </div>
+  </app-slide-panel>
+} @else {
+  <!-- ── Desktop: gli stessi filtri, in linea (`14` §17.1) ── -->
+  @for (filtro of filters(); track filtro.key) {
+    @switch (filtro.kind) {
+      @case ('select') {
+        <app-select-menu
+          [chipLabel]="filtro.label"
+          [options]="filtro.options ?? []"
+          [value]="value(filtro.key)"
+          [ariaLabel]="'Filtra per ' + filtro.label"
+          [placeholder]="filtro.placeholder ?? 'Tutti'"
+          [compact]="true"
+          [searchable]="filtro.searchable ?? false"
+          [searchPlaceholder]="filtro.searchPlaceholder ?? 'Cerca…'"
+          [searchAriaLabel]="'Cerca in ' + filtro.label"
+          [filterChip]="true"
+          (valueChange)="onFilterChange(filtro, $event)"
+        />
+      }
+      @case ('period') {
+        <app-select-menu
+          [chipLabel]="filtro.label"
+          [options]="filtro.options ?? []"
+          [value]="value(filtro.key)"
+          [ariaLabel]="'Filtra per ' + filtro.label"
+          [placeholder]="filtro.placeholder ?? 'Tutti'"
+          [compact]="true"
+          [filterChip]="true"
+          (valueChange)="onFilterChange(filtro, $event)"
+        />
+        @if (showsRange(filtro)) {
+          <!-- ⭐ Il vincolo incrociato è lo stesso della veste mobile: una sola
+               definizione, due rappresentazioni. -->
+          <app-date-input
+            [value]="value(filtro.fromKey ?? '')"
+            [ariaLabel]="filtro.label + ': data iniziale'"
+            [placeholder]="filtro.fromLabel ?? 'Dal'"
+            [max]="value(filtro.toKey ?? '') || undefined"
+            [compact]="true"
+            (valueChange)="onFromChange(filtro, $event)"
+          />
+          <app-date-input
+            [value]="value(filtro.toKey ?? '')"
+            [ariaLabel]="filtro.label + ': data finale'"
+            [placeholder]="filtro.toLabel ?? 'Al'"
+            [min]="value(filtro.fromKey ?? '') || undefined"
+            [compact]="true"
+            (valueChange)="onToChange(filtro, $event)"
+          />
+        }
+      }
+      @case ('checkbox') {
+        <label class="list-filters__check">
+          <input
+            type="checkbox"
+            [attr.aria-label]="filtro.label"
+            [checked]="checked(filtro.key)"
+            (change)="onCheckedChange(filtro, $event)"
+          />
+          <span>{{ filtro.label }}</span>
+        </label>
+      }
+      @case ('date') {
+        <app-date-input
+          [value]="value(filtro.key)"
+          [ariaLabel]="'Filtra per ' + filtro.label"
+          [placeholder]="filtro.placeholder ?? filtro.label"
+          [compact]="true"
+          (valueChange)="onFilterChange(filtro, $event)"
+        />
+      }
+    }
+  }
+}

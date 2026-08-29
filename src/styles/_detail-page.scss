@@ -37,11 +37,19 @@
     gap: var(--space-2);
   }
 
+  /*
+      ⭐ **Solo `margin`.** `font-size`, `font-weight`, `color`, `font-family` e
+      `line-height` li dà già la regola globale degli heading
+      (`styles.scss:128-143`): il titolo è un `<h1>`.
+  
+      ⛔ Qui c'erano anche `font-size: var(--text-2xl)` — identico al globale — e
+      `font-weight: var(--font-weight-bold)`, che lo **sovrascriveva**. Erano
+      quattro copie delle stesse quattro righe, in quattro file, libere di
+      divergere. Unificate il 29/08/2026: il peso dei titoli di pagina è quello
+      globale, `semibold`.
+    */
   .#{$block}__title {
     margin: 0;
-    font-size: var(--text-2xl);
-    font-weight: var(--font-weight-bold);
-    color: var(--color-text);
   }
 
   .#{$block}__subtitle {

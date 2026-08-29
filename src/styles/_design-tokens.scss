@@ -590,6 +590,12 @@
   --table-head-h: 2rem; // 32px — intestazione tabella
   --table-cell-pad-block: 0.125rem; // 2px
   --table-cell-pad-inline: 0.3125rem; // 5px
+  // Altezza massima del contenitore di scorrimento di una tabella.
+  // ⭐ Serve a rendere VERO il sticky dell'intestazione: senza un limite, quel
+  //    contenitore non scorre mai in verticale e l'intestazione non si ancora a
+  //    niente (`14` §11.5 D3). Una pagina che ha bisogno di più o di meno lo
+  //    ridichiara su di sé — è il canale previsto da `regole-stile-ui` §5.
+  --table-scroll-max-h: 70dvh;
 
   // ── 4. Z-INDEX ─────────────────────────────────────────────────────────────
   --z-base: 0;

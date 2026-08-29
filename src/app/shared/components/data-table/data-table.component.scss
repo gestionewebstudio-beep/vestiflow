@@ -12,6 +12,24 @@
   ripetere.
 */
 @include rt.list-card-table-host();
+
+/*
+  ⚠️ **L'host deve GIRARE l'altezza al contenitore di scorrimento.**
+
+  `list-card-table-host()` lo mette a `display: block`: va bene finché la tabella
+  cresce col contenuto, ma nella pagina che si adatta alla finestra
+  (`regole-stile-ui` §6) l'host riceve `flex: 1` dalla pagina e deve passarlo al
+  figlio. Senza questo blocco l'altezza si ferma qui, il contenitore non scorre e
+  l'intestazione `sticky` non appiccica — **in silenzio**.
+
+  ⚠️ Dichiarato DOPO il mixin: stessa specificità, vince l'ultimo.
+*/
+:host {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
+}
+
 @include rt.data-table-desktop('data-table');
 @include rt.data-table-mobile-cards('data-table');
 @include rt.selection-column('data-table');
@@ -143,10 +161,39 @@
   densa non entra, e `regole-gestionale` vieta l'overflow incontrollato — non
   lo scorrimento, che è una delle strategie ammesse.
 */
-.data-table-scroll {
-  overflow-x: auto;
-  inline-size: 100%;
-}
+/*
+  ⛔ **`position: sticky` senza uno scrollport non appiccica: non fa NIENTE.**
+
+  Qui c'era il solo `overflow-x: auto`. Per spec l'altro asse computa comunque
+  `auto`, quindi questo div È il contenitore di scorrimento più vicino su
+  entrambi gli assi — ma senza un limite di altezza non scorre mai in verticale,
+  e l'intestazione `sticky` (sotto, `.data-table__head th`) si ancorava a uno
+  scrollport fermo. Misurato il 29/08/2026: non appiccicava, e con venti righe a
+  schermo non si vedeva.
+
+  ⭐ Ora è un requisito, non una correzione (`14` §11.5 D3): senza tetto di righe
+  (`14` §11.4) un elenco è lungo centinaia di schermate, e l'intestazione porta
+  con sé i controlli di FILTRO.
+
+  ⚠️ Solo sopra `lg`. Sotto, la tabella è fatta di card che scorrono con la
+  pagina: un contenitore che scorre dentro un altro che scorre, sotto il dito, è
+  la trappola classica del mobile.
+*/
+/*
+  ⭐ **`riempi`, non `tetto`** — 29/08/2026.
+
+  Il tetto in unità di viewport era un numero indovinato: faceva comparire la
+  barra anche quando lo schermo aveva ancora spazio, e lasciava bianco quando le
+  righe erano poche. È lo stesso difetto che il Registro Corrispettivi aveva già
+  incontrato e scartato prima di questo lavoro.
+
+  ⚠️ **Presuppone che la PAGINA dia l'altezza** (`lp.list-page-fills-viewport`):
+  tutte e quattro le pagine che rendono questo motore l'hanno. Una pagina nuova
+  che non la desse avrebbe una tabella che cresce col contenuto e un'intestazione
+  che scorre via — la guardia `check:sticky-scrollport` non lo vede, perché è una
+  proprietà della pagina, non del foglio della tabella.
+*/
+@include rt.table-scroll('.data-table-scroll', riempi);
 
 .data-table {
   inline-size: 100%;
