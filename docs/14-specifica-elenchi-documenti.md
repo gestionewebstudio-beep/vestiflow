@@ -289,6 +289,29 @@ non dovranno dichiararlo — quindi non è lavoro da fare adesso su dieci pagine
 il proprio controllo acceso. Resta essenziale **sotto `lg`**, dove i controlli sono
 chiusi nel pannello e quel numero è l'unico segnale che l'elenco è ristretto.
 
+### ✅ Undici pagine su undici — 29/08/2026
+
+Il telaio le ha prese tutte, Registro Corrispettivi compreso. Le due che avevano una forma
+propria si sono allineate senza perderla:
+
+| | |
+| --- | --- |
+| **Corrispettivi** | tiene la **card** e la propria **regione di scorrimento**: il telaio non disegna la scatola dei dati |
+| **Prodotti** | tiene la riga funzioni come contenitore vero, perché ospita la barra e «Copie per etichetta» sulla stessa riga |
+
+⛔ **E la griglia posizionale è sparita da dove faceva più danno.** `.corrispettivi`
+dichiarava `grid-template-rows: auto auto minmax(0, 1fr) auto` — il ruolo elastico assegnato
+al **terzo figlio**, chiunque fosse. Era sulla pagina presa a riferimento, ed è esattamente
+il difetto che `regole-stile-ui` §6 vieta.
+
+⭐ **Il telaio aggiunge `pageDescription`**, reso `.sr-only`. ⚠️ Non è il sottotitolo tolto:
+quella decisione riguardava una riga **visibile** che prendeva spazio. Questa non occupa un
+pixel e dice a chi la pagina non la vede che cosa sta guardando — il Registro ce l'aveva già,
+e la migrazione gliel'avrebbe tolta in silenzio.
+
+⏸ Resta da potare il CSS orfano del Registro (14 blocchi inerti) e da allineare il suo
+riepilogo alla regola della fascia unica: entrambi in `DA-FARE`.
+
 ### ⛔ Il telaio SCARTA in silenzio ciò che non ha uno slot — misurato il 29/08/2026
 
 `app-list-page` ha caselle **tutte nominate** e nessuna casella senza nome. Angular

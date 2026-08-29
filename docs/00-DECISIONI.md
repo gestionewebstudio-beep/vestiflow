@@ -198,7 +198,7 @@ strumenti di lavoro. Non ci si cercano decisioni.
 | **Lo shell fisico è EVENTUALE**: si estrae solo se, applicati i contratti, resta duplicazione reale         | `14` Fase G |
 | **Il criterio**: residuo geometrico → manca un contratto · residuo strutturale → candidato a shell          | `14` Fase G |
 | **La guardia cambia bersaglio**: non «pagina fuori dallo shell» ma «seconda implementazione equivalente»    | `14` §56   |
-| ⭐ **Il telaio `app-list-page` esiste**: testata, zona controlli, stati e sedi sono POSSEDUTI                 | `14` §0.7  |
+| ✅ **Il telaio `app-list-page` c'è, e le prende tutte e undici**: testata, zona controlli, stati e sedi sono POSSEDUTI                 | `14` §0.7  |
 | ⛔ **La zona controlli non è uno slot libero**: la pagina passa valori, non markup                            | `14` §0.7  |
 | ⭐ **Un solo pulsante «Filtri»**, interruttore: acceso mostra i controlli di colonna, spento li AZZERA         | `14` §0.7  |
 | ⛔ **Niente sottotitoli** negli elenchi: il telaio non ha l'input                                             | `14` §0.7  |

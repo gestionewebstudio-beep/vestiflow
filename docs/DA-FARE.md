@@ -78,6 +78,30 @@ Le decisioni argomentate stanno in **`docs/CONTRATTO-COMUNE-DOCUMENTI.md`** (§3
 e variante, §4 richiamo articolo, §5.5 sconto, §5.7 listino, §6.2 spunte magazzino).
 Qui c'è **cosa resta da fare**, non perché.
 
+## ⏸ Corrispettivi: 14 blocchi di CSS orfano dopo il telaio — 29/08/2026
+
+Testata, riga filtri, pulsante «Filtri» mobile e i campi del vecchio pannello sono del
+telaio: le loro regole in `corrispettivi-report.component.scss` non agganciano più niente.
+
+`corrispettivi__header · __heading · __title-row · __title · __count · __subtitle ·
+__header-actions · __filters · __filters-main · __filter--active · __mobile-filters ·
+__columns-picker · __field · __label`
+
+⚠️ **Sono inerti** — non possono sporcare la resa — ma vanno tolte. Un tentativo con uno
+script il 29/08 ha mangiato le chiusure dei commenti e sbilanciato le graffe: **annullato**.
+Va fatto a mano, blocco per blocco, con la build a ogni passo.
+
+## ⏸ Il riepilogo Corrispettivi ha DUE fasce, la regola ne vuole UNA — 29/08/2026
+
+`regole-stile-ui` («Riepilogo di fondo pagina») registra la decisione del proprietario del
+29/08: **una sola fascia sul desktop**, conteggi a sinistra e importi a destra sulla stessa
+riga, perché la seconda fascia costa una fascia di altezza a ogni schermata.
+
+`corrispettivi-summary.component.html` ha ancora **due** `__band`, e si vede a schermo:
+sopra `Rettifiche · Annullamenti · Vendite`, sotto `Imponibile · IVA · Totale · Corrispettivo`.
+
+⚠️ Decisione scritta, codice non allineato. Non è un difetto del telaio — c'era già.
+
 ## ⛔ Il richiamo articolo rilegge il catalogo a ogni battuta — misurato 29/08/2026
 
 Il blocco `selectedVariantIds` + `pinnedVariants` è copiato identico in **quattro**
