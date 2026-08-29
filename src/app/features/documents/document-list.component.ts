@@ -90,7 +90,10 @@ import {
   documentStatusLabel,
   documentTypeLabel,
 } from '@domain/documents/models/document-labels.util';
-import { canBulkDeleteDocuments } from './models/document-bulk-actions.util';
+import {
+  bulkDeleteBlockReason,
+  canBulkDeleteDocuments,
+} from './models/document-bulk-actions.util';
 import { signedDocumentMoney } from '@domain/documents/models/document-economic-sign.util';
 import {
   documentDetailPath,
@@ -1146,16 +1149,18 @@ export class DocumentListComponent {
     // rumore; chi lo gestisce lo vede sempre, e se la selezione contiene tipi
     // che non si eliminano legge perché.
     if (this.canManageDocuments()) {
-      const nonEliminabili = !canBulkDeleteDocuments(this.selectedDocs());
+      // ⭐ Il motivo lo scrive la REGOLA, non questa pagina: è la stessa
+      //    funzione che decide se il comando si accende, quindi non possono
+      //    divergere (`document-bulk-actions.util`).
+      const motivo = this.selectionCount() > 0 ? bulkDeleteBlockReason(this.selectedDocs()) : null;
       azioni.push({
         id: 'delete',
         label: 'Elimina',
         icon: 'pi-trash',
         variant: 'danger',
         requires: 'oneOrMore',
-        disabled: this.selectionCount() > 0 && nonEliminabili,
-        disabledReason:
-          'La selezione contiene documenti che non si eliminano: Vendite e Resi al banco.',
+        disabled: motivo !== null,
+        disabledReason: motivo ?? '',
         run: () => this.requestDeleteSelection(),
       });
     }
