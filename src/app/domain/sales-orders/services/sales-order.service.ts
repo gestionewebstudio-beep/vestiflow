@@ -60,7 +60,13 @@ export interface SaveManualOrderInput {
    */
   readonly number?: number;
   readonly expectedDeliveryDate?: string;
-  readonly status?: 'confirmed' | 'cancelled';
+  /**
+   * Stato del ciclo commerciale scelto dall’operatore (`18` §2.1).
+   *
+   * ⛔ **`concluded` non è ammesso**: è derivato dal collegamento a un
+   * documento conclusivo, e lo ricalcola il server.
+   */
+  readonly status?: 'to_confirm' | 'confirmed' | 'cancelled';
   readonly notes?: string;
   /**
    * Nota interna, mai in stampa.
@@ -225,13 +231,6 @@ export class SalesOrderService {
       .post<ConcludePrefillBody>(this.url(`/sales-orders/manual/${id}/conclude-prefill`), {
         documentType,
       })
-      .pipe(timeout(HTTP_TIMEOUT_MS));
-  }
-
-  /** Forza a Concluso un ordine Parzialmente concluso (prompt DDT). */
-  forceConcludeManualOrder(id: EntityId): Observable<{ ok: true }> {
-    return this.http
-      .post<{ ok: true }>(this.url(`/sales-orders/manual/${id}/force-conclude`), {})
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 

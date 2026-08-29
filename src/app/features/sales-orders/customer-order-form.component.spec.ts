@@ -969,6 +969,131 @@ describe('CustomerOrderFormComponent — caratterizzazione', () => {
       expect(view.component.numberConflictDialog.isOpen()).toBe(false);
     });
   });
+
+  /**
+   * ⭐ **Passo 6B — lo stato commerciale a schermo.**
+   *
+   * Il contratto è quello approvato dal proprietario il 29/08/2026: quattro
+   * stati, tre scegliibili, Concluso mostrato ma bloccato, e la colonna
+   * «Impegna magazzino» visibile solo a Confermato (`18` §2.2, §9.2).
+   */
+  describe('⭐ stato commerciale del documento (6B)', () => {
+    /** L'accesso ai membri che il montaggio non espone. */
+    interface Interno {
+      readonly loadedOrder: { set: (o: unknown) => void };
+      readonly isLineColumnVisible: (id: string) => boolean;
+      readonly orderState: () => string;
+      readonly isStateLocked: () => boolean;
+    }
+    const interno = (component: unknown): Interno => component as Interno;
+
+    /** Un ordine salvato con lo stato dichiarato, come lo manda l'API. */
+    const ordineConStato = (commercialState: string | null) => ({
+      id: 'so-1',
+      orderNumber: 'ORD-1',
+      source: 'manual',
+      commercialState,
+      lines: [],
+    });
+
+    it('✅ ordine NUOVO: il selettore parte da Confermato', async () => {
+      const { component } = await setup();
+
+      expect(component.form.controls['status']!.value).toBe('confirmed');
+      const stato = screen.getByRole('button', { name: 'Stato documento' });
+      expect(stato).toHaveTextContent('Confermato');
+    });
+
+    it.each([
+      ['to_confirm', 'Da confermare'],
+      ['confirmed', 'Confermato'],
+      ['cancelled', 'Annullato'],
+    ])('✅ scelta «%s»: viaggia nel payload di salvataggio', async (stato, _etichetta) => {
+      const { component } = await setup();
+
+      component.form.controls['status']!.setValue(stato);
+
+      expect(component.buildSavePayload()['status']).toBe(stato);
+    });
+
+    it('✅ ordine riaperto: lo stato si LEGGE dall’API, non si deduce', async () => {
+      const { component } = await setup();
+
+      // ⛔ `cancelledAt` e `fulfilledAt` non entrano più nella decisione: qui
+      //    non ce ne sono, e lo stato è comunque «Da confermare».
+      interno(component).loadedOrder.set(ordineConStato('to_confirm'));
+
+      expect(interno(component).orderState()).toBe('to_confirm');
+    });
+
+    it('⛔ Concluso: lo stato è MOSTRATO ma non modificabile', async () => {
+      const { component, detectChanges } = await setup();
+
+      interno(component).loadedOrder.set(ordineConStato('concluded'));
+      detectChanges();
+
+      // Mostrato: l'etichetta si legge.
+      expect(await screen.findByText('Concluso')).toBeInTheDocument();
+      // Non modificabile: il selettore non c'è più.
+      expect(screen.queryByRole('button', { name: 'Stato documento' })).toBeNull();
+      expect(interno(component).isStateLocked()).toBe(true);
+    });
+
+    it('✅ Concluso: gli ALTRI campi restano modificabili', async () => {
+      const { component, detectChanges } = await setup();
+
+      interno(component).loadedOrder.set(ordineConStato('concluded'));
+      detectChanges();
+
+      // ⭐ Il lucchetto è sul solo campo Stato: il documento no.
+      component.form.controls['notes']!.setValue('nota scritta a Concluso');
+      expect(component.form.controls['notes']!.value).toBe('nota scritta a Concluso');
+    });
+
+    it('⛔ Concluso: il salvataggio NON manda lo stato', async () => {
+      const { component } = await setup();
+
+      interno(component).loadedOrder.set(ordineConStato('concluded'));
+
+      // Mandarlo farebbe rifiutare il salvataggio dalla macchina comune, e
+      // l'ordine non sarebbe più modificabile in nulla.
+      expect(component.buildSavePayload()['status']).toBeUndefined();
+    });
+
+    describe('la colonna «Impegna magazzino» segue lo stato', () => {
+      it.each([
+        ['confirmed', true],
+        ['to_confirm', false],
+        ['cancelled', false],
+      ])('stato «%s» → colonna visibile: %s', async (stato, atteso) => {
+        const { component } = await setup();
+
+        component.form.controls['status']!.setValue(stato);
+
+        expect(interno(component).isLineColumnVisible('commitsStock')).toBe(atteso);
+      });
+
+      it('stato «concluded» → colonna nascosta', async () => {
+        const { component } = await setup();
+
+        interno(component).loadedOrder.set(ordineConStato('concluded'));
+
+        expect(interno(component).isLineColumnVisible('commitsStock')).toBe(false);
+      });
+
+      it('⚠️ nascondere la colonna NON cancella l’intento di riga', async () => {
+        const { component } = await setup();
+        fillLine(component, 0, { name: 'Maglia', qty: 2, price: '10,00' });
+        component.lines.at(0).controls['commitsStock']!.setValue(true);
+
+        component.form.controls['status']!.setValue('to_confirm');
+
+        // `18` §9.3: la colonna sparisce, il dato di riga resta.
+        expect(interno(component).isLineColumnVisible('commitsStock')).toBe(false);
+        expect(component.lines.at(0).controls['commitsStock']!.value).toBe(true);
+      });
+    });
+  });
 });
 
 /**

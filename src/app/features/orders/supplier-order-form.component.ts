@@ -50,7 +50,15 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { Money } from '@core/models/common.model';
 import { DocumentType } from '@core/models/document.model';
+import { SupplierOrderStatus } from '@core/models/supplier-order.model';
 import type { SupplierOrder } from '@core/models/supplier-order.model';
+import {
+  ORDER_STATE_OPTIONS,
+  OrderState,
+  isOrderStateLocked,
+  isSelectableOrderState,
+  orderStateLabel,
+} from '@core/models/order-state.model';
 import {
   DEFAULT_CURRENCY,
   formatMoney,
@@ -744,6 +752,14 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
      */
     locationId: this.fb.control(''),
     expectedAt: this.fb.control(''),
+    /**
+     * ⭐ Stato del ciclo commerciale (`17` §2.1), lo stesso dell’Ordine cliente.
+     *
+     * ⚠️ Nasce **Confermato**: chi crea normalmente un ordine non deve fare un
+     * passaggio in più perché è stato introdotto un quarto stato — «Da
+     * confermare» è una scelta esplicita (`17` OF-001).
+     */
+    status: this.fb.control<OrderState>(OrderState.Confirmed),
     supplierReference: this.fb.control(''),
     // Tipo, numero e data della conferma d'ordine del fornitore. Il rendering
     // è del componente condiviso: qui vive solo il dato.
@@ -764,6 +780,47 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
    * cosa che tiene in piedi l'opzione nella tendina — senza, la dicitura
    * apparirebbe vuota e il salvataggio successivo la cancellerebbe davvero.
    */
+
+  /**
+   * Lo stato SALVATO dell’ordine; su un ordine nuovo, il default di creazione.
+   *
+   * ⚠️ `SupplierOrderStatus` e `OrderState` hanno gli stessi quattro valori:
+   *    la lettura è diretta, senza tradurre. Se un giorno divergessero, qui
+   *    servirebbe un adattatore — come quello che l’API ha in
+   *    `supplierOrderState()`.
+   */
+  /**
+   * Lo stato con cui l’ordine è stato letto dal server.
+   *
+   * ⚠️ Si aggiorna anche DOPO un salvataggio, ed è voluto: se l’Arrivo merce
+   *    collegato ha portato l’ordine a Concluso, il campo si deve bloccare
+   *    senza che l’operatore debba riaprire la maschera.
+   */
+  private readonly _savedStatus = signal<SupplierOrderStatus | null>(null);
+  protected readonly orderState = computed<OrderState>(
+    () => this._savedStatus() ?? OrderState.Confirmed,
+  );
+  /**
+   * ⛔ **Concluso: il campo Stato è bloccato, il resto del documento no**
+   * (`17` §2.5, §5.3). Da Concluso si esce annullando o eliminando l’Arrivo
+   * merce collegato, non col selettore.
+   */
+  protected readonly isStateLocked = computed(() => isOrderStateLocked(this.orderState()));
+
+  /** Le stesse tre voci dell’Ordine cliente, dallo stesso elenco. */
+  protected readonly stateOptions: readonly SelectMenuOption[] = ORDER_STATE_OPTIONS;
+
+  protected stateBadgeLabel(): string {
+    return orderStateLabel(this.orderState());
+  }
+
+  protected onStateSelect(value: string | null): void {
+    // ⛔ Solo i tre scegliibili: «concluded» è derivato e l’API lo rifiuta.
+    if (value !== null && isSelectableOrderState(value)) {
+      this.form.controls.status.setValue(value);
+      this.markFormDirty();
+    }
+  }
 
   protected get lines(): FormArray<ReturnType<SupplierOrderFormComponent['createLine']>> {
     return this.form.controls.lines;
@@ -2617,6 +2674,15 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
       number: this.numbering.imposedNumber(),
       orderDate: raw.orderDate ? new Date(raw.orderDate).toISOString() : undefined,
       expectedAt: raw.expectedAt ? new Date(raw.expectedAt).toISOString() : undefined,
+      // ⛔ **Su un ordine Concluso lo stato NON viaggia.** Il campo è bloccato,
+      //    quindi il controllo porta un valore che l’operatore non ha scelto:
+      //    mandarlo farebbe rifiutare il salvataggio dalla macchina comune, e
+      //    l’ordine non sarebbe più modificabile in nulla (`17` §5.3).
+      //
+      // ⚠️ Il confronto con `Concluded` non è ridondante rispetto a
+      //    `isStateLocked()`: è ciò che RESTRINGE il tipo, e senza il
+      //    compilatore accetterebbe di mandare uno stato che l’API rifiuta.
+      status: this.isStateLocked() || raw.status === OrderState.Concluded ? undefined : raw.status,
       // Sede di destinazione della merce (§1-bis). `null` — non `undefined` —
       // per la stessa ragione dei campi qui sotto: in modifica l'assenza vuol
       // dire «lascialo com'è», e togliere la sede non la toglierebbe davvero.
@@ -2695,12 +2761,20 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   }
 
   private applyOrderToForm(order: SupplierOrder): void {
+    this._savedStatus.set(order.status);
     this.form.patchValue({
       supplierId: order.supplierId,
       documentNumber: order.number ?? null,
       series: order.series ?? '',
       orderDate: order.orderDate ? order.orderDate.slice(0, 10) : todayIsoDate(),
       expectedAt: order.expectedAt ? order.expectedAt.slice(0, 10) : '',
+      // ⚠️ Un ordine Concluso non entra nel controllo (accetta i tre
+      //    scegliibili) e non deve: il campo è in sola lettura, e il
+      //    salvataggio non manda uno stato che l’operatore non ha scelto.
+      status:
+        order.status === SupplierOrderStatus.Concluded
+          ? OrderState.Confirmed
+          : (order.status ?? OrderState.Confirmed),
       locationId: order.destinationLocationId ?? '',
       supplierReference: order.supplierReference ?? '',
       // Il campo lavora sul solo giorno: la colonna è una `date`, ma in JSON

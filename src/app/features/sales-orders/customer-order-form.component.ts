@@ -58,11 +58,18 @@ import {
 } from '@core/permissions/tenant-permissions.util';
 import { hasTenantPermission } from '@core/permissions/user-permissions.util';
 import { AppErrorKind, isAppError, type AppError } from '@core/models/app-error.model';
+import {
+  ORDER_STATE_OPTIONS,
+  OrderState,
+  isOrderStateLocked,
+  isSelectableOrderState,
+  orderStateLabel,
+  orderStateTone,
+} from '@core/models/order-state.model';
 import { documentNumberConflictOf } from '@core/models/document-number-conflict.util';
 import type { Money } from '@core/models/common.model';
 import { customerDisplayName, type Customer } from '@core/models/customer.model';
 import {
-  ManualOrderState,
   manualOrderState,
   SalesOrderSource,
   type SalesOrder,
@@ -575,22 +582,30 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     return state.status === 'error' ? state.error : null;
   });
 
+  /**
+   * Lo stato SALVATO dell'ordine. Su un ordine nuovo non c'è ancora nulla di
+   * salvato, e il default della creazione è Confermato (`18` §2.4).
+   */
   protected readonly orderState = computed(() => {
     const order = this.loadedOrder();
-    return order ? manualOrderState(order) : ManualOrderState.Confirmed;
+    return order ? manualOrderState(order) : OrderState.Confirmed;
   });
-  protected readonly isConcluded = computed(() => this.orderState() === ManualOrderState.Concluded);
-  protected readonly isPartiallyConcluded = computed(
-    () => this.orderState() === ManualOrderState.PartiallyConcluded,
-  );
   /**
-   * Ordine evaso (anche parzialmente) da un documento di scarico: la modifica
-   * resta consentita (prompt DDT), ma alla chiusura con modifiche compare
-   * l'avviso «collegato a un DDT».
+   * ⛔ **Concluso: il campo Stato è bloccato, il resto no.**
+   *
+   * Il documento resta modificabile secondo i permessi comuni; ciò che non si
+   * può fare è dichiararlo diverso da com’è — da Concluso si esce annullando o
+   * eliminando il documento collegato (`18` §2.5, `12` §0.4-bis).
    */
-  protected readonly isSettledOrder = computed(
-    () => this.isConcluded() || this.isPartiallyConcluded(),
-  );
+  protected readonly isStateLocked = computed(() => isOrderStateLocked(this.orderState()));
+  /**
+   * Ordine già evaso da un documento di scarico: la modifica resta consentita,
+   * ma alla chiusura con modifiche compare l'avviso «collegato a un DDT».
+   *
+   * ⛔ Qui c'era anche `isPartiallyConcluded`: **l'evasione parziale non esiste
+   * in VestiFlow** (`18` §2.3), quindi «evaso» e «Concluso» sono la stessa cosa.
+   */
+  protected readonly isSettledOrder = this.isStateLocked;
 
   protected readonly pageTitle = computed(() => {
     if (this.isQuote) {
@@ -605,35 +620,18 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     return this.isEditMode() ? 'Modifica ordine cliente' : 'Nuovo ordine cliente';
   });
 
-  protected readonly stateOptions: readonly SelectMenuOption[] = [
-    { value: ManualOrderState.Confirmed, label: 'Confermato' },
-    { value: ManualOrderState.Cancelled, label: 'Annullato' },
-  ];
+  /**
+   * ⭐ Le stesse tre voci su Ordine cliente e Ordine fornitore, dallo stesso
+   *    elenco: Concluso non c’è perché è derivato, e l’API lo rifiuterebbe.
+   */
+  protected readonly stateOptions: readonly SelectMenuOption[] = ORDER_STATE_OPTIONS;
 
   protected stateBadgeLabel(): string {
-    switch (this.orderState()) {
-      case ManualOrderState.Cancelled:
-        return 'Annullato';
-      case ManualOrderState.Concluded:
-        return 'Concluso';
-      case ManualOrderState.PartiallyConcluded:
-        return 'Parzialmente concluso';
-      default:
-        return 'Confermato';
-    }
+    return orderStateLabel(this.orderState());
   }
 
   protected stateBadgeTone(): 'success' | 'error' | 'info' | 'warning' {
-    switch (this.orderState()) {
-      case ManualOrderState.Cancelled:
-        return 'error';
-      case ManualOrderState.Concluded:
-        return 'info';
-      case ManualOrderState.PartiallyConcluded:
-        return 'warning';
-      default:
-        return 'success';
-    }
+    return orderStateTone(this.orderState());
   }
 
   // ── Form ────────────────────────────────────────────────────────────────
@@ -658,7 +656,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     // cliente ha emesso. Trio, non tre campi sparsi: lo rende il componente
     // condiviso, qui restano solo i controlli che lo alimentano.
     expectedDeliveryDate: this.fb.control(''),
-    status: this.fb.control<'confirmed' | 'cancelled'>('confirmed'),
+    // ⭐ I tre stati scegliibili. Concluso non entra qui: è derivato, e il
+    //    campo si blocca quando l’ordine lo è già (`isStateLocked`).
+    status: this.fb.control<OrderState>(OrderState.Confirmed),
     paymentTerms: this.fb.control(''),
     // DDT vendita: modalità di pagamento normativa (dropdown, prompt DDT).
     paymentMethod: this.fb.control(''),
@@ -2151,6 +2151,29 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     if (columnId === 'serials') {
       const settings = this.tenantSettings();
       if (settings && !settings.serialsEnabled) {
+        return false;
+      }
+    }
+    // ⭐ **«Impegna magazzino» solo a Confermato** (`18` §9.2).
+    //
+    // ⛔ La regola vieta di lasciare «una checkbox apparentemente operativa che
+    //    non comanda alcun effetto»: a Da confermare e ad Annullato non nasce
+    //    nessuna reservation, e a Concluso non ne nascono di nuove.
+    //
+    // ⚠️ **Si legge il valore del CAMPO, non lo stato salvato.** Scegliendo
+    //    «Da confermare» su un ordine nuovo, lo stato salvato è ancora
+    //    Confermato: la colonna resterebbe visibile su un ordine che non
+    //    impegnerà niente — cioè la checkbox che §9.2 vieta.
+    //
+    // ⚠️ Nascondere NON cancella `commitsStock` sulle righe (`18` §9.3):
+    //    l’intento di riga resta, e tornando a Confermato si rivede intatto.
+    if (columnId === 'commitsStock' && this.isOrder) {
+      // ⚠️ Il valore del controllo non è un signal: senza leggere `formValue()`
+      //    la colonna non si ridisegnerebbe al cambio di stato — comparirebbe
+      //    o sparirebbe alla prima altra modifica, cioè in ritardo e a caso.
+      this.formValue();
+      const corrente = this.isStateLocked() ? this.orderState() : this.form.controls.status.value;
+      if (corrente !== OrderState.Confirmed) {
         return false;
       }
     }
@@ -4504,7 +4527,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   }
 
   protected onStateSelect(value: string | null): void {
-    if (value === 'confirmed' || value === 'cancelled') {
+    // ⛔ Solo i tre scegliibili: un «concluded» che arrivasse da qui sarebbe
+    //    rifiutato dall’API, e nel frattempo mentirebbe a schermo.
+    if (value !== null && isSelectableOrderState(value)) {
       this.form.controls.status.setValue(value);
       this.markFormDirty();
     }
@@ -4656,7 +4681,17 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         expectedDeliveryDate: order.expectedDeliveryDate
           ? toIsoDateLocal(new Date(order.expectedDeliveryDate))
           : '',
-        status: order.cancelledAt ? 'cancelled' : 'confirmed',
+        // ⭐ Lo stato arriva dall’API. ⛔ Qui c’era
+        //    `order.cancelledAt ? cancelled : confirmed`, che lo DEDUCEVA: un
+        //    ordine «Da confermare» si riapriva come Confermato, e salvandolo
+        //    tornava operativo senza che nessuno l’avesse chiesto.
+        //
+        // ⚠️ Un ordine Concluso non può stare nel controllo (accetta i tre
+        //    scegliibili) e non deve: il campo è in sola lettura, e il
+        //    salvataggio non manda uno stato che l’operatore non ha scelto.
+        status: isOrderStateLocked(manualOrderState(order))
+          ? OrderState.Confirmed
+          : manualOrderState(order),
         paymentTerms: order.paymentTerms ?? '',
         notes: order.notes ?? '',
         internalComment: order.internalComment ?? '',
@@ -4886,8 +4921,12 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   /**
    * Copertura degli ordini inclusi: quantità per variante delle righe DDT,
-   * allocate in sequenza sugli ordini (stessa regola del backend). Gli ordini
-   * non coperti del tutto diventeranno «Parzialmente concluso».
+   * allocate in sequenza sugli ordini (stessa regola del backend).
+   *
+   * ⚠️ Serve SOLO all’avviso non bloccante: un ordine non coperto del tutto
+   * diventa comunque **Concluso**, e non resta alcun residuo. ⛔ Qui c’era
+   * «diventeranno Parzialmente concluso», che descriveva il workflow abolito
+   * (`18` §2.3).
    */
   private computePartialOrders(): readonly { id: string; orderNumber: string }[] {
     const included = this.includedOrders();
@@ -4934,16 +4973,19 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     this.saveDocument();
   }
 
-  /** «Sì»: salva e forza a Concluso gli ordini parzialmente evasi. */
+  /**
+   * ⭐ **«Salva comunque»: si salva, e basta** (`18` §2.3).
+   *
+   * ⛔ Qui c'erano TRE esiti — «Sì» che chiamava `force-conclude`, «No» che
+   * lasciava l’ordine in «Parzialmente concluso», «Annulla». I primi due non
+   * hanno più significato: **l’evasione parziale non esiste**, e il documento
+   * conclusivo porta l’ordine a Concluso da sé, lato server, nella stessa
+   * transazione del salvataggio. Non c’è più niente da forzare né da declinare.
+   *
+   * ⚠️ **L’avviso resta, ed è non bloccante**, come la regola richiede: dice
+   * che il documento non copre tutto e lascia annullare l’operazione.
+   */
   protected confirmPartialOrdersDialog(): void {
-    this.partialOrdersDialogOpen.set(false);
-    const orderIds = this.pendingPartialOrderIds;
-    this.pendingPartialOrderIds = [];
-    this.saveDocument(() => this.forceConcludeOrders(orderIds));
-  }
-
-  /** «No»: salva lasciando gli ordini in «Parzialmente concluso». */
-  protected declinePartialOrdersDialog(): void {
     this.partialOrdersDialogOpen.set(false);
     this.pendingPartialOrderIds = [];
     this.saveDocument();
@@ -4953,26 +4995,6 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   protected dismissPartialOrdersDialog(): void {
     this.partialOrdersDialogOpen.set(false);
     this.pendingPartialOrderIds = [];
-  }
-
-  private forceConcludeOrders(orderIds: readonly string[]): void {
-    for (const orderId of orderIds) {
-      this.salesOrderService
-        .forceConcludeManualOrder(orderId)
-        .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-        .subscribe({
-          error: () => {
-            this._submitState.set({
-              status: 'error',
-              error: {
-                kind: AppErrorKind.Unknown,
-                message:
-                  'DDT salvato, ma non è stato possibile forzare a Concluso un ordine incluso.',
-              },
-            });
-          },
-        });
-    }
   }
 
   private buildSavePayload(): SaveManualOrderInput {
@@ -5024,7 +5046,16 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       // Vuoto vuol dire svuotato — la testata viene riscritta per intero, e il
       // campo assente azzera quello che il documento portava.
       expectedDeliveryDate: value.expectedDeliveryDate || undefined,
-      status: value.status,
+      // ⛔ **Su un ordine Concluso lo stato NON viaggia.** Il campo è in sola
+      //    lettura, quindi il controllo porta un valore che l’operatore non ha
+      //    scelto: mandarlo farebbe rifiutare il salvataggio dalla macchina
+      //    comune, e l’ordine non sarebbe più modificabile in nulla.
+      //
+      // ⚠️ Il confronto con `Concluded` è anche ciò che RESTRINGE il tipo:
+      //    senza, il compilatore accetterebbe di mandare uno stato che l’API
+      //    rifiuta.
+      status:
+        this.isStateLocked() || value.status === OrderState.Concluded ? undefined : value.status,
       notes: value.notes.trim() || undefined,
       internalComment: value.internalComment.trim() || undefined,
       paymentTerms: value.paymentTerms.trim() || undefined,
@@ -5530,7 +5561,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       this.isOrder &&
       this.isEditMode() &&
       !this.isExternalOrder() &&
-      this.orderState() === ManualOrderState.Confirmed &&
+      this.orderState() === OrderState.Confirmed &&
       !this.dirtySinceLastSave() &&
       this.unloadTypeOptions().length > 0,
   );
@@ -5620,9 +5651,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   // ── Uscita con modifiche non salvate ────────────────────────────────────
 
   /**
-   * Messaggio del dialogo di uscita: un ordine Concluso/Parzialmente concluso
-   * è collegato a un documento di scarico — l'avviso lo segnala e chiede cosa
-   * fare (prompt DDT §LOGICA MAGAZZINO).
+   * Messaggio del dialogo di uscita: un ordine **Concluso** è collegato a un
+   * documento di scarico — l'avviso lo segnala e chiede cosa fare (prompt DDT
+   * §LOGICA MAGAZZINO). ⛔ Qui c’era anche «Parzialmente concluso», ritirato.
    */
   /**
    * Il messaggio del dialogo d'uscita. ⭐ Resta CALCOLATO, e non e' fronzolo:

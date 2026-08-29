@@ -1409,6 +1409,70 @@ describe('SupplierOrderFormComponent', () => {
       expect(riga['variantId']!.value).toBe('');
     });
   });
+
+  /**
+   * ⭐ **Passo 6B — il campo Stato dell'Ordine fornitore.**
+   *
+   * Prima di oggi questa maschera non mostrava lo stato affatto: era filtrabile
+   * nell'elenco e invisibile nel documento, quindi «Da confermare» sarebbe stato
+   * irraggiungibile. È lo STESSO selettore dell'Ordine cliente, dalle stesse
+   * `ORDER_STATE_OPTIONS` (`17` §2.1).
+   *
+   * ⚠️ **Qui si prova la RESA, non il giro completo.** In modifica la maschera
+   * nasce protetta e il dialogo di sblocco usa `<dialog>`, che jsdom non
+   * implementa (vedi il TODO più sopra): il round-trip salva/riapre dei tre
+   * stati è provato sull'API, in `stati-ordini.integration-spec.ts`.
+   */
+  describe('⭐ stato commerciale dell’Ordine fornitore (6B)', () => {
+    it('✅ ordine NUOVO: il selettore c’è e parte da Confermato', async () => {
+      await setup({ vatCodes: [VAT_22] });
+
+      const stato = await screen.findByRole('button', { name: 'Stato documento' });
+      expect(stato).toHaveTextContent('Confermato');
+    });
+
+    it.each([SupplierOrderStatus.Confirmed, SupplierOrderStatus.Cancelled])(
+      '✅ stato %s: il selettore resta disponibile',
+      async (status) => {
+        await setupEdit(status);
+
+        expect(await screen.findByRole('button', { name: 'Stato documento' })).toBeVisible();
+      },
+    );
+
+    it('⛔ Concluso: lo stato è MOSTRATO ma il selettore non c’è', async () => {
+      await setupEdit(SupplierOrderStatus.Concluded);
+
+      // Mostrato: l'etichetta si legge in testata.
+      expect(await screen.findByText('Concluso')).toBeVisible();
+      // Non modificabile: nessun selettore da cui uscirne.
+      expect(screen.queryByRole('button', { name: 'Stato documento' })).toBeNull();
+    });
+
+    it('✅ Concluso: il resto del documento resta raggiungibile', async () => {
+      await setupEdit(SupplierOrderStatus.Concluded);
+
+      // ⭐ Il lucchetto è sul solo campo Stato: la maschera carica e si sblocca
+      //    come per ogni altro stato — non è un vicolo cieco.
+      expect(await screen.findByRole('button', { name: /Sblocca/ })).toBeVisible();
+      expect(screen.getByLabelText('Quantità riga 1')).toBeInTheDocument();
+    });
+
+    /**
+     * ⛔ **L'Ordine fornitore non muove quantità, e non deve iniziare adesso.**
+     *
+     * Nessuna colonna «Impegnata», nessuna «In arrivo»: giacenza e impegni sono
+     * dell'Arrivo merce (`17` §1.1, OF-002). Il quarto stato non porta con sé
+     * nessun effetto quantitativo.
+     */
+    it('⛔ nessuna colonna di quantità di magazzino nella griglia righe', async () => {
+      await setup({ vatCodes: [VAT_22] });
+
+      expect(screen.queryByRole('columnheader', { name: /Impegnata/i })).toBeNull();
+      expect(screen.queryByRole('columnheader', { name: /In arrivo/i })).toBeNull();
+      expect(screen.queryByRole('columnheader', { name: /^Imp\.$/ })).toBeNull();
+    });
+  });
 });
 
 /**

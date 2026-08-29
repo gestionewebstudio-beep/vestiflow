@@ -1,3 +1,4 @@
+import type { OrderState } from '@core/models/order-state.model';
 import type { CurrencyCode, EntityId, IsoDateString } from '@core/models/common.model';
 import {
   OnlineSaleInventoryStatus,
@@ -61,6 +62,8 @@ export interface SalesOrderApiRow {
   readonly discountMinor?: number;
   readonly placedAt: IsoDateString;
   readonly cancelledAt?: IsoDateString | null;
+  /** Stato commerciale persistito; `null` sugli ordini di canale. */
+  readonly commercialState?: OrderState | null;
   readonly fulfilledAt?: IsoDateString | null;
   readonly requiresReview?: boolean;
   readonly reviewReason?: string | null;
@@ -208,6 +211,10 @@ export function mapSalesOrderApiRow(row: SalesOrderApiRow): SalesOrder {
     discount: { amountMinor: row.discountMinor ?? 0, currencyCode: currency },
     placedAt: row.placedAt,
     cancelledAt: row.cancelledAt ?? undefined,
+    // ⭐ L’autorità dello stato manuale: si passa cos’è, `null` compreso.
+    //    Un `?? confirmed` qui rimetterebbe in piedi la derivazione che
+    //    questo lavoro toglie, e la renderebbe invisibile.
+    commercialState: row.commercialState ?? null,
     fulfilledAt: row.fulfilledAt ?? undefined,
     requiresReview: row.requiresReview ?? false,
     reviewReason: row.reviewReason ?? undefined,

@@ -14,6 +14,8 @@ import type { PurchaseCostEntryMode } from './vat-code.model';
  * l'ordine viene incluso/agganciato a un Arrivo merce.
  */
 export const SupplierOrderStatus = {
+  /** Salvato ma non ancora un impegno: fuori da «Includi» (`17` §2.3). */
+  ToConfirm: 'to_confirm',
   Confirmed: 'confirmed',
   Concluded: 'concluded',
   Cancelled: 'cancelled',

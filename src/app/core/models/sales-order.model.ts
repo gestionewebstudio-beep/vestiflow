@@ -1,3 +1,5 @@
+import { OrderState } from './order-state.model';
+
 import type {
   CurrencyCode,
   EntityId,
@@ -127,6 +129,14 @@ export interface SalesOrder extends TenantScoped, Timestamped {
   readonly placedAt: IsoDateString;
   /** Annullamento comunicato dal canale (impegni rilasciati). */
   readonly cancelledAt?: IsoDateString;
+  /**
+   * Stato del ciclo commerciale, per i soli ordini `manual`.
+   *
+   * ⛔ `null` sugli ordini di CANALE, e non è un dato mancante: un ordine
+   * Shopify non ha un ciclo commerciale VestiFlow, e il suo stato si legge
+   * dai campi del canale come sempre.
+   */
+  readonly commercialState?: OrderState | null;
   /** Evasione completa registrata dal canale (scarico in fase successiva). */
   readonly fulfilledAt?: IsoDateString;
   /** Evasione parziale o anomalia: richiede verifica manuale (fase 1 §7). */
@@ -197,32 +207,25 @@ export interface SalesOrder extends TenantScoped, Timestamped {
 }
 
 /**
- * Stato dell'Ordine cliente manuale (§STATI + prompt DDT): stati derivati.
- * Non esiste Bozza: o Confermato, o non esiste. «Parzialmente concluso»
- * nasce quando il DDT che ha incluso l'ordine non copre tutti i prodotti.
+ * Stato commerciale dell'Ordine cliente MANUALE.
+ *
+ * ⭐ **Dal 29/08/2026 lo stato si LEGGE, non si deduce.** L'autorità è
+ * `commercialState`, che l'API persiste in colonna; `cancelledAt`, `fulfilledAt`
+ * e `fulfillmentStatus` conservano il significato che hanno per il canale e per
+ * il Registro, ma non decidono più lo stato di un ordine manuale.
+ *
+ * ⛔ Qui c'era `manualOrderState(order)`, che lo derivava da quei tre campi.
+ * ⛔ Qui c'era anche un quinto valore, `PartiallyConcluded`: **l'evasione
+ * parziale non esiste in
+ * VestiFlow**: il primo Arrivo/DDT conclusivo porta l'ordine a Concluso, e il
+ * residuo resta informazione — non riapre l'ordine (`18` §2.3).
+ *
+ * ⚠️ Il ripiego su `Confirmed` copre un solo caso: una riga salvata PRIMA della
+ * migration `20260828210000`, che il backfill ha già convertito. Non è una
+ * quinta derivazione — è il valore che quell'ordine aveva comunque.
  */
-export const ManualOrderState = {
-  Confirmed: 'confirmed',
-  Cancelled: 'cancelled',
-  Concluded: 'concluded',
-  PartiallyConcluded: 'partially_concluded',
-} as const;
-export type ManualOrderState = (typeof ManualOrderState)[keyof typeof ManualOrderState];
-
-/** Stato derivato: Annullato > Concluso > Parzialmente concluso > Confermato. */
-export function manualOrderState(
-  order: Pick<SalesOrder, 'cancelledAt' | 'fulfilledAt' | 'fulfillmentStatus'>,
-): ManualOrderState {
-  if (order.cancelledAt) {
-    return ManualOrderState.Cancelled;
-  }
-  if (order.fulfilledAt) {
-    return ManualOrderState.Concluded;
-  }
-  if (order.fulfillmentStatus === SalesOrderFulfillmentStatus.Partial) {
-    return ManualOrderState.PartiallyConcluded;
-  }
-  return ManualOrderState.Confirmed;
+export function manualOrderState(order: Pick<SalesOrder, 'commercialState'>): OrderState {
+  return order.commercialState ?? OrderState.Confirmed;
 }
 
 /** Stato magazzino della Vendita online collegata. */

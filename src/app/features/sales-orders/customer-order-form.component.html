@@ -204,12 +204,8 @@
       @if (isOrder && isSettledOrder()) {
         <div class="doc-form__unlock-banner" role="status">
           <p>
-            {{
-              isPartiallyConcluded()
-                ? 'Ordine parzialmente concluso: non tutti i prodotti sono stati evasi dal documento di trasporto collegato.'
-                : 'Ordine concluso: è collegato a un documento di trasporto.'
-            }}
-            Le modifiche fatte qui NON aggiornano il documento già emesso.
+            Ordine concluso: è collegato a un documento di trasporto. Le modifiche fatte qui NON
+            aggiornano il documento già emesso.
           </p>
         </div>
       }
@@ -393,7 +389,7 @@
 
               @if (mostraCampo('state')) {
                 <app-document-header-field label="Stato" style="--doc-field-min: var(--field-w-sm)">
-                  @if (isSettledOrder()) {
+                  @if (isStateLocked()) {
                     <p class="doc-form__readonly">{{ stateBadgeLabel() }}</p>
                   } @else {
                     <app-select-menu
@@ -1616,23 +1612,28 @@
     aria-modal="true"
     aria-labelledby="ddt-partial-title"
   >
-    <h2 id="ddt-partial-title" class="doc-form__exit-title">Ordine non evaso del tutto</h2>
+    <!-- ⛔ **Non è un workflow di evasione parziale**, che è abolito (`18`
+         §2.3): è un avviso NON bloccante. Titolo e testo dicono che il
+         documento non COPRE tutto e che l’ordine si conclude comunque — non
+         parlano di «evaso», di residuo o di una seconda evasione, perché
+         nessuna delle tre esiste più. -->
+    <h2 id="ddt-partial-title" class="doc-form__exit-title">
+      Il documento non copre tutto l’ordine
+    </h2>
     <p class="doc-form__exit-message">
-      Non sono stati evasi tutti i prodotti previsti. Forzare lo stato a Concluso?
+      Il documento non copre completamente l’ordine. Se prosegui, l’ordine verrà comunque concluso e
+      non resterà alcun residuo.
     </p>
     <ul class="co-form__availability-list">
       @for (orderNumber of partialOrderNumbers(); track orderNumber) {
-        <li>{{ orderNumber }} → altrimenti resterà «Parzialmente concluso»</li>
+        <li>{{ orderNumber }}</li>
       }
     </ul>
     <div class="doc-form__exit-actions">
       <app-button type="button" variant="ghost" (click)="dismissPartialOrdersDialog()">
         Annulla
       </app-button>
-      <app-button type="button" variant="secondary" (click)="declinePartialOrdersDialog()">
-        No
-      </app-button>
-      <app-button type="button" (click)="confirmPartialOrdersDialog()">Sì</app-button>
+      <app-button type="button" (click)="confirmPartialOrdersDialog()">Salva comunque</app-button>
     </div>
   </div>
 }

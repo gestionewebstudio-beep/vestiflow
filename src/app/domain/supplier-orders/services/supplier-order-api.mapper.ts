@@ -148,6 +148,18 @@ export interface CreateSupplierOrderLineBody {
 /** Body POST /supplier-orders. */
 export interface CreateSupplierOrderBody {
   readonly supplierId: EntityId;
+  /**
+   * Stato del ciclo commerciale scelto dall’operatore (`17` §2.1).
+   *
+   * ⛔ **`concluded` non è ammesso**: è derivato dal collegamento a un
+   * Arrivo merce e lo ricalcola il server. L’API lo rifiuta con 409.
+   *
+   * ⚠️ **Assente = non modificato.** Su un ordine Concluso il campo è
+   * bloccato e la maschera non manda niente: mandare lo stato che il
+   * controllo porta — che l’operatore non ha scelto — farebbe rifiutare
+   * il salvataggio e renderebbe l’ordine non modificabile in nulla.
+   */
+  readonly status?: 'to_confirm' | 'confirmed' | 'cancelled';
   readonly orderDate?: string;
   readonly expectedAt?: string;
   readonly supplierReference?: string;

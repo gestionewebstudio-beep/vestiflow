@@ -122,6 +122,32 @@ const VIETATI = [
     termine: 'scarichi manuali',
     perche: 'si dice «Vendite manuali».',
   },
+  // ## 4 · L’evasione parziale dell’Ordine cliente — 29/08/2026
+  //
+  // ⛔ **VestiFlow non gestisce l’evasione parziale** (`18` §2.3): niente stato
+  // «Parzialmente concluso», niente residuo evadibile, niente `forceConclude`.
+  // Il primo documento conclusivo porta l’Ordine a Concluso, e il server lo fa
+  // da sé nella transazione del salvataggio.
+  //
+  // ⚠️ **`partially_fulfilled` NON è in questa lista, ed è deliberato**: è lo
+  // stato di evasione del CANALE (Shopify), che esiste e resta. Bandirlo
+  // spegnerebbe la sincronizzazione degli ordini online.
+  {
+    termine: 'partially_concluded',
+    perche: 'l’evasione parziale non esiste (`18` §2.3).',
+  },
+  {
+    termine: 'partiallyconcluded',
+    perche: 'l’evasione parziale non esiste (`18` §2.3).',
+  },
+  {
+    termine: 'forceconclude',
+    perche: 'rimosso: il documento conclusivo conclude l’Ordine da sé (`18` §2.3).',
+  },
+  {
+    termine: 'force-conclude',
+    perche: 'rimosso: il documento conclusivo conclude l’Ordine da sé (`18` §2.3).',
+  },
 ];
 
 /** Righe che RACCONTANO il ritiro: sono la memoria del perché, e restano. */

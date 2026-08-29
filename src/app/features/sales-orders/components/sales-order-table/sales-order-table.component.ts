@@ -146,8 +146,8 @@ export class SalesOrderTableComponent {
           return 'Annullato';
         case 'concluded':
           return 'Concluso';
-        case 'partially_concluded':
-          return 'Parzialmente concluso';
+        case 'to_confirm':
+          return 'Da confermare';
         default:
           return 'Confermato';
       }
@@ -169,7 +169,7 @@ export class SalesOrderTableComponent {
       switch (manualOrderState(order)) {
         case 'concluded':
           return 'info';
-        case 'partially_concluded':
+        case 'to_confirm':
           return 'warning';
         default:
           return 'success';

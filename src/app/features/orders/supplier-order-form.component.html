@@ -178,6 +178,30 @@
           />
         </app-document-header-field>
 
+        <!-- ⭐ Stato del ciclo commerciale (`17` §2.1), lo STESSO selettore
+             dell’Ordine cliente: le tre voci scegliibili vengono da
+             `ORDER_STATE_OPTIONS`, non da un elenco scritto qui.
+             ⛔ Su un ordine Concluso il campo è in SOLA LETTURA: quello
+             stato è derivato dal collegamento a un Arrivo merce, e da lì
+             si esce annullando o eliminando quel documento — non col
+             selettore. Il resto della maschera resta modificabile. -->
+        <app-document-header-field label="Stato">
+          @if (isStateLocked()) {
+            <p class="doc-form__readonly">{{ stateBadgeLabel() }}</p>
+          } @else {
+            <app-select-menu
+              [options]="stateOptions"
+              [value]="form.controls.status.value"
+              ariaLabel="Stato documento"
+              placeholder="Confermato"
+              [compact]="true"
+              [fullWidth]="true"
+              [includeEmptyOption]="false"
+              (valueChange)="onStateSelect($event)"
+            />
+          }
+        </app-document-header-field>
+
         <!-- Modalità costo: netto o ivato. È un comando di DOCUMENTO — decide
              come si leggono tutti i costi, non uno — e per questo sta fra i dati
              di testata, non sopra le righe dov'era prima.
