@@ -60,6 +60,7 @@
     "check:terminologia": "node scripts/check-terminologia.mjs",
     "check:modalita-prezzo": "node scripts/check-modalita-prezzo.mjs",
     "check:api-boot": "node scripts/check-api-boot.mjs",
+    "check:types": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.spec.json",
     "check:tab-stops": "node scripts/check-tab-stops.mjs",
     "check:sort-columns": "node scripts/check-sort-columns.mjs",
     "check:search-config": "node scripts/check-search-config.mjs",
