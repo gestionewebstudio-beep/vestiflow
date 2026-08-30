@@ -66,6 +66,72 @@ all'API con un parametro che oggi non esiste. ⏸ Scelta non ancora presa.
 
 ---
 
+# 0-ter. ⭐ COME SI SELEZIONANO LE RIGHE _(deciso il 30/08/2026)_
+
+Due meccanismi, uno per vista, e la divisione è deliberata.
+
+| Vista                       | Come si seleziona                                                                 |
+| --------------------------- | --------------------------------------------------------------------------------- |
+| **Tabella** (da `lg` in su) | la **colonna di caselle**, che esiste già negli altri elenchi                     |
+| **Card** (sotto `lg`)       | il pulsante **«Seleziona»**: acceso, il tocco sulla riga sceglie invece di aprire |
+
+⚠️ **È una deroga a «un solo modo di fare le cose»**, e va dichiarata invece di
+lasciarla scoprire. Regge perché la card è **già** una veste diversa dalla riga
+di tabella: aggiungere un'affordance diversa dentro una vista diversa non
+introduce una seconda grammatica nello stesso posto.
+
+## ⛔ La casella dentro la card è stata provata e scartata
+
+Prima implementazione: la cella di selezione restava visibile accanto alla card.
+Funzionava, ma **si prendeva ~22px di larghezza su ogni card, sempre** — anche
+quando nessuno stava selezionando. Misurato col caso peggiore (numero e sede
+lunghi):
+
+```text
+320px   «17 ago 2026  Vendita»  troncato (con ellissi)
+360px   idem
+390px   ✓
+```
+
+⭐ Larghezza pagata **tutti i giorni** per una funzione usata **ogni tanto**. La
+modalità costa zero quando è spenta.
+
+⛔ **E la casella non poteva stare DENTRO il template della card**: quella cella
+porta `aria-hidden="true"` — è una veste, non un dato — e un controllo
+interattivo dentro un sottoalbero nascosto ai lettori di schermo è un errore di
+accessibilità, non un dettaglio di resa.
+
+## ⛔ Nemmeno la pressione prolungata
+
+Sul web mobile è già presa dal browser (selezione del testo, menu contestuale), e
+soprattutto **non ha nessun segno che ne dichiari l'esistenza**. Su un gestionale
+che si usa in magazzino, una funzione invisibile è una funzione che non c'è.
+
+## Le due regole della modalità
+
+1. ⛔ **A modalità accesa la riga NON si apre.** Non è una scorciatoia in più: è
+   la sostituzione del gesto. Un elenco in cui il tocco a volte apre e a volte
+   seleziona, senza che nulla lo dichiari, è il difetto che questa modalità
+   evita — per questo il pulsante resta acceso e visibile finché dura.
+
+2. ⭐ **Spegnere AZZERA la selezione.** Non è una scelta nuova: è la stessa regola
+   del pulsante «Filtri» (`regole-stile-ui`, «lo spegnimento È l'azzeramento»).
+   Qui vale doppio, perché a modalità spenta il tocco torna ad aprire e non
+   resterebbe **nessun gesto** per deselezionare.
+
+⚠️ **La selezione ignora il permesso di APERTURA**: una riga che non si apre — un
+documento annullato, una registrazione senza maschera — resta selezionabile per
+stampa ed export. Sono due permessi diversi, e legarli toglierebbe dall'export
+proprio le righe che più spesso si vogliono estrarre.
+
+⭐ **«Seleziona» sta nel CATALOGO dei comandi**, non nella pagina: ogni elenco con
+la vista a card ne avrà bisogno, e dichiararlo una volta evita che il secondo lo
+chiami «Scegli» e il terzo gli dia un'altra icona. È l'unico comando con
+`requires: 'none'` per una ragione rovesciata rispetto agli altri — è quello che
+PRODUCE una selezione, quindi non può chiederne una.
+
+---
+
 # 0. Decisione normativa da congelare
 
 VestiFlow deve avere **un'unica AUTORITÀ STRUTTURALE per gli elenchi operativi**: una sola

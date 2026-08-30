@@ -78,6 +78,12 @@ export class DataTableComponent<T> {
 
   // ── Selezione ─────────────────────────────────────────────────────────────
   readonly selectionMode = input<SelectionMode>('none');
+
+  /**
+   * Quando è vero il clic di riga seleziona invece di aprire: è la modalità
+   * selezione della vista a card, dove non c'è una casella da toccare.
+   */
+  readonly rowClickSelects = input(false);
   readonly selectedIds = input<ReadonlySet<string>>(new Set<string>());
   /** Nome accessibile della casella di riga: senza, sarebbe «casella» N volte. */
   readonly selectionLabel = input<(row: T) => string>(() => 'Seleziona la riga');
@@ -267,7 +273,27 @@ export class DataTableComponent<T> {
     return this.rowClickable() && this.rowClickableWhen()(row);
   }
 
+  /*
+    ⭐ **In modalità selezione il clic di riga SELEZIONA, non apre** — deciso dal
+    proprietario il 30/08/2026 per la vista a card: «in modalità seleziona non si
+    apre la riga, pulsante spento tutto ritorna normale».
+
+    ⛔ **Non è una scorciatoia in più: è la SOSTITUZIONE del gesto.** Un elenco in
+    cui il tocco a volte apre e a volte seleziona, senza che nulla lo dichiari,
+    è il difetto che questa modalità evita — per questo il pulsante che la accende
+    resta acceso e visibile finché dura.
+
+    ⚠️ **La selezione ignora `canClickRow`**: una riga che non si APRE — un
+    documento annullato, una registrazione senza maschera — resta comunque
+    selezionabile per stampa ed export. Sono due permessi diversi, e legarli
+    toglierebbe dall'export proprio le righe che più spesso si vogliono estrarre.
+  */
   protected onRowClick(row: T): void {
+    if (this.rowClickSelects()) {
+      const id = this.rowId()(row);
+      this.selectionChange.emit({ row, selected: !this.selectedIds().has(id) });
+      return;
+    }
     if (this.canClickRow(row)) {
       this.rowClick.emit(row);
     }

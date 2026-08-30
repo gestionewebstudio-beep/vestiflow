@@ -76,6 +76,7 @@ import {
 } from '@shared/components/data-table/data-table.model';
 import type { DataTableSelectionEvent } from '@shared/components/data-table/data-table.component';
 import type { Money } from '@core/models/money.model';
+import { ViewportService } from '@core/services/viewport.service';
 import { createListSelection } from '@shared/utils/list-selection';
 import {
   LOCATION_UNDETERMINED_LABEL,
@@ -646,6 +647,21 @@ export class CorrispettiviReportComponent {
     `supplier-order-list`, e usarne un secondo avrebbe reso i due elenchi diversi
     proprio nel comportamento che questo lavoro esiste per unificare.
   */
+  private readonly viewport = inject(ViewportService);
+
+  /*
+    ⭐ **La modalità selezione esiste solo nella vista a card.** Su scrivania la
+    tabella ha la sua colonna di caselle, che non toglie spazio a niente: due
+    affordance per la stessa funzione sarebbero una di troppo.
+
+    ⚠️ È il `ViewportService` a dire quale vista è viva — la stessa soglia che
+    decide se la tabella è tabella o card, non una seconda scritta a mano.
+  */
+  protected readonly modalitaSelezione = signal(false);
+  protected readonly selezionePerTocco = computed(
+    () => this.viewport.compact() && this.modalitaSelezione(),
+  );
+
   private readonly selection = createListSelection('multiple');
   protected readonly selectedIds = this.selection.ids;
   protected readonly selectionCount = this.selection.count;
@@ -951,7 +967,35 @@ export class CorrispettiviReportComponent {
    * sull'aggregazione, e senza quello una checkbox esporterebbe tutto lo stesso
    * — in silenzio.
    */
+  /*
+    ⭐ **Spegnere la modalità AZZERA la selezione** — «pulsante spento tutto
+    ritorna normale».
+
+    ⚠️ Non è una scelta nuova: è la stessa regola che il progetto ha già per il
+    pulsante «Filtri» (`regole-stile-ui`, «lo spegnimento È l'azzeramento»).
+    Lasciare righe selezionate senza il modo di vederle o toglierle è il difetto
+    che quella regola evita — qui varrebbe doppio, perché a modalità spenta il
+    tocco torna ad aprire e non c'è più nessun gesto per deselezionare.
+  */
+  protected toggleModalitaSelezione(): void {
+    const acceso = !this.modalitaSelezione();
+    this.modalitaSelezione.set(acceso);
+    if (!acceso) {
+      this.selection.clear();
+    }
+  }
+
   protected readonly listActions = computed<readonly ListAction[]>(() => [
+    // Solo dove serve: nella vista a card non c'è una colonna di caselle.
+    ...(this.viewport.compact()
+      ? [
+          comando('select', {
+            variant: this.modalitaSelezione() ? 'primary' : undefined,
+            run: () => this.toggleModalitaSelezione(),
+          }),
+        ]
+      : []),
+
     // ⭐ **La forma dei comandi viene dal CATALOGO**, non riscritta qui: era
     //    così che «Stampa» era diventata ghost solo su questa pagina, e «CSV»
     //    aveva tre icone diverse in tre elenchi (misurato il 30/08/2026).

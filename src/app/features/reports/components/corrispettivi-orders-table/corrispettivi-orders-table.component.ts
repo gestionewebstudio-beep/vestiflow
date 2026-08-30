@@ -123,6 +123,9 @@ export class CorrispettiviOrdersTableComponent {
     nel comportamento che questo lavoro esiste per unificare.
   */
   readonly selectedIds = input<ReadonlySet<string>>(new Set<string>());
+
+  /** Modalità selezione: il tocco sulla riga sceglie invece di aprire. */
+  readonly rowClickSelects = input(false);
   readonly selectionChange = output<DataTableSelectionEvent<CorrispettiviRegisterRow>>();
   readonly selectAllChange = output<boolean>();
 

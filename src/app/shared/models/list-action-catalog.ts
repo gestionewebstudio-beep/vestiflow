@@ -1,4 +1,9 @@
-import type { ListAction, ListActionItem, ListActionRequirement, ListActionVariant } from './list-selection.model';
+import type {
+  ListAction,
+  ListActionItem,
+  ListActionRequirement,
+  ListActionVariant,
+} from './list-selection.model';
 
 /**
  * ⭐ **La FORMA dei comandi comuni, dichiarata una volta sola.**
@@ -64,6 +69,21 @@ interface FormaComando {
  */
 export const CATALOGO_COMANDI = {
   new: { label: 'Nuovo', icon: 'pi-plus', variant: 'primary', requires: 'none' },
+
+  /*
+    ⭐ **La modalità selezione della vista a card**, decisa dal proprietario il
+    30/08/2026: acceso, il tocco sulla riga seleziona invece di aprire; spento,
+    tutto torna come prima.
+
+    ⚠️ **`requires: 'none'`**: è il comando che PRODUCE una selezione, quindi non
+    può chiederne una. È l'unico del catalogo per cui la domanda si rovescia.
+
+    ⚠️ Sta nel catalogo e non nella pagina perché ogni elenco con la vista a card
+    ne avrà bisogno: dichiararlo una volta evita che il secondo lo chiami
+    «Scegli» e il terzo gli dia un'altra icona — che è esattamente il difetto
+    per cui questo catalogo esiste.
+  */
+  select: { label: 'Seleziona', icon: 'pi-check-square', requires: 'none' },
   detail: {
     label: 'Dettaglio',
     icon: 'pi-eye',

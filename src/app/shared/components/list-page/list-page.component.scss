@@ -120,11 +120,19 @@
       flex-direction: column;
       flex: 0 0 auto;
       /*
-        ⚠️ **Nessun gap fra riepilogo e comandi**: il target è un dock unico, e
-        un vuoto in mezzo lo farebbe leggere come due blocchi. A separarli, se
-        serve, basta un filo.
+        ⭐ **Un filo d'aria fra totali e comandi** — chiesto dal proprietario il
+        30/08/2026: «un po' di margine tra totali e pulsanti».
+
+        ⛔ Qui c'era `gap: 0`, con la motivazione che «il target è un dock unico,
+        e un vuoto in mezzo lo farebbe leggere come due blocchi». L'argomento
+        reggeva finché il riepilogo era una fascia sola e bassa; ora che è un
+        riquadro con bordo, incollarci sotto i pulsanti li faceva sembrare
+        attaccati alla sua cornice.
+
+        ⚠️ **Quattro pixel, non otto**: separano senza rifare due blocchi — che
+        è la ragione per cui il gap era zero, e resta valida.
       */
-      gap: 0;
+      gap: var(--space-1);
       padding-block-end: env(safe-area-inset-bottom);
       background-color: var(--color-bg);
     }

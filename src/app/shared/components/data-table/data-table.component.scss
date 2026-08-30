@@ -561,6 +561,40 @@
     }
 
     /*
+      ⭐ **LA CASELLA DI SELEZIONE RESTA VISIBILE ANCHE NELLA VISTA A CARD** —
+      chiesto dal proprietario il 30/08/2026: sul telefono non c'era modo di
+      selezionare, perché la cella vera finiva sotto la ricetta `.sr-only`
+      insieme a tutte le altre.
+
+      ⛔ **La casella NON può stare DENTRO la card**, ed è la ragione per cui è
+      un'eccezione a quella regola e non un'aggiunta al template: la cella card
+      porta `aria-hidden="true"` — è una veste, non un dato — e un controllo
+      interattivo dentro un sottoalbero nascosto ai lettori di schermo è un
+      errore di accessibilità, non un dettaglio.
+
+      ⭐ Tenendo visibile la CELLA VERA si ottiene un controllo solo, quello che
+      c'è già anche sulla scrivania: stessa casella, stessa etichetta, stesso
+      evento. Nessuna seconda grammatica da tenere allineata.
+
+      ⛔ **E non è la pressione prolungata.** Sul web mobile è già presa dal
+      browser (selezione del testo, menu contestuale) e soprattutto non ha
+      nessun segno che ne dichiari l'esistenza: su un gestionale che si usa in
+      magazzino, una funzione invisibile è una funzione che non c'è.
+    */
+    /*
+      ⛔ **QUI AVEVO MESSO LA CASELLA VISIBILE NELLA CARD, ed è stata scartata.**
+
+      Funzionava, ma si prendeva ~22px di larghezza **su ogni card, sempre** —
+      anche quando nessuno sta selezionando. Misurato col caso peggiore (numero
+      lungo e sede lunga): a 320 e 360px l'identità della card finiva troncata.
+      Larghezza pagata tutti i giorni per una funzione usata ogni tanto.
+
+      ⭐ **Al suo posto la modalità selezione**, decisa dal proprietario: un
+      pulsante «Seleziona» nella barra, e a modalità accesa il tocco sulla riga
+      seleziona invece di aprire. Costo zero quando è spenta.
+    */
+
+    /*
       ⚠️ **Il selettore porta `td` apposta: è una questione di specificità.**
       La regola desktop è `.data-table__row td` — classe più elemento — e batte
       una classe sola. Scritto come `.data-table__card` questo blocco perderebbe

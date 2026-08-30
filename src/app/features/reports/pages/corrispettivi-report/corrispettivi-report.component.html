@@ -286,6 +286,7 @@
         [sort]="sortState()"
         (sortChange)="onSortChange($event)"
         [selectedIds]="selectedIds()"
+        [rowClickSelects]="selezionePerTocco()"
         (selectionChange)="onToggleSelection($event)"
         (selectAllChange)="onToggleSelectAll($event)"
         [perGiornata]="summary()?.perGiornata ?? []"

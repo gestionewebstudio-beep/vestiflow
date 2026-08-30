@@ -875,24 +875,26 @@
       una volta e ha una parola sopra che dice cosa fa. Sotto i 38 non si scende.
     */
     /*
-      34px — bottoni di barra sul TELEFONO.
+      32px — bottoni di barra sul TELEFONO.
 
       ⭐ Scesi da 38 il 30/08/2026, su richiesta del proprietario messa accanto
       alla schermata da scrivania: «facciamo la stessa cosa, pulsanti più stretti
-      verticalmente». È il terzo gradino anche qui — 44 → 40 → 38 → 34.
+      verticalmente», e poi ancora «facciamolo leggermente più piccolo». I gradini
+      qui sono stati 44 → 40 → 38 → 34 → 32.
 
       ⛔ **Qui c'era scritto «sotto i 38 non si scende»**, deciso poche ore prima
       con il riferimento HTML alla mano. Superato da chi l'aveva deciso: resta
       valido il PERCHÉ — sono pulsanti **etichettati e distanziati**, non icone
-      nude, e il minimo WCAG 2.2 AA è 24×24 CSS px, che a 34 resta sopra con dieci
-      pixel di margine.
+      nude, e il minimo WCAG 2.2 AA è 24×24 CSS px, che a 32 resta sopra con otto
+      pixel di margine. ⛔ **Sotto i 32 non si scende senza scendere anche di
+      font**, e il font qui è già a 12px.
 
       ⚠️ **Non vale per i CAMPI**, che restano a 44: un campo si sbaglia mentre si
       scrive, un pulsante di barra si preme una volta e ha una parola sopra che
       dice cosa fa. È la distinzione che regge tutta questa deroga, e cade se si
       applica anche a `--control-h-field`.
     */
-    --control-h-button: 2.125rem;
+    --control-h-button: 2rem;
   }
 }
 
