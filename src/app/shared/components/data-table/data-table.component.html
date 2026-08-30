@@ -110,11 +110,20 @@
                 basta, quello sulla riga apre (`14` §4). Due gesti distinti.
               -->
               <td class="data-table__cell--select" (click)="$event.stopPropagation()">
-                <app-selection-check
-                  [ariaLabel]="selectionLabel()(row)"
-                  [checked]="selectedIds().has(rowId()(row))"
-                  (changed)="selectionChange.emit({ row, selected: $event })"
-                />
+                <!--
+                  ⚠️ **Dove non si può scegliere, la casella NON C'È.** Una casella
+                  spenta direbbe «forse più tardi»; qui la risposta è no e basta —
+                  quella riga non si elimina da questo elenco.
+
+                  La cella resta, così le colonne restano incolonnate.
+                -->
+                @if (rowSelectable()(row)) {
+                  <app-selection-check
+                    [ariaLabel]="selectionLabel()(row)"
+                    [checked]="selectedIds().has(rowId()(row))"
+                    (changed)="selectionChange.emit({ row, selected: $event })"
+                  />
+                }
               </td>
             }
             @for (col of columns(); track col.id) {

@@ -113,20 +113,36 @@ describe('riga cliccabile del Registro', () => {
     expect(tr.getAttribute('tabindex')).toBeNull();
 
     /*
-      ⚠️ **La casella di selezione NON conta come «giro del fuoco della riga».**
+      ⭐ **E non ha nemmeno la casella**, per una ragione diversa da quella per
+      cui non si apre: nel Registro si sceglie solo ciò che da qui si può
+      eliminare, cioè il **Corrispettivo manuale**. Una vendita Shopify entra nel
+      registro perché l'ordine esiste, e si cancella cancellando l'ordine.
 
-      Il test cercava `input` e pretendeva `null`: valeva finché la riga non
-      aveva controlli propri. Da quando ha la selezione (30/08/2026) quel
-      controllo c'è ed è **giusto** che sia raggiungibile da tastiera — è
-      l'unico modo di selezionare senza mouse.
-
-      Cambia l'asserzione, non l'intento: la riga non si APRE, ed è quello che
-      questi due test presidiano.
+      ⚠️ **Sono due permessi distinti** e questo test li presidia entrambi sulla
+      stessa riga: non si apre (`apribile`) e non si sceglie (`selezionabile`).
+      Una riga che non si apre potrebbe benissimo essere selezionabile — un
+      documento annullato lo è — quindi la coincidenza qui è del dato, non della
+      regola.
     */
-    expect(tr.querySelector('input.selection-check')).not.toBeNull();
+    expect(tr.querySelector('input.selection-check')).toBeNull();
 
     await userEvent.click(cella);
     expect(aperta).not.toHaveBeenCalled();
+  });
+
+  /*
+    ⭐ **Il caso POSITIVO della stessa regola**, e senza di lui la coppia non
+    prova niente: un predicato che dicesse sempre «no» passerebbe il test qui
+    sopra e romperebbe la selezione senza che nessun test diventi rosso.
+
+    È il difetto che questo progetto ha già incontrato — «test che verificano
+    solo i rifiuti» — e la coppia rifiuto+accettazione è il rimedio.
+  */
+  it('la riga del Corrispettivo manuale si può scegliere', async () => {
+    await montaTabella([riga()]);
+
+    const tr = screen.getByText('2', { selector: 'td' }).closest('tr')!;
+    expect(tr.querySelector('input.selection-check')).not.toBeNull();
   });
 
   /**

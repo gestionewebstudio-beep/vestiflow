@@ -106,22 +106,62 @@ quella giusta.
 sapere a quale larghezza la fascia a riga unica dovesse cedere. Impilata ci sta sempre —
 615px invece di 918 — quindi non c'è più una soglia da decidere.
 
-## ⏸ La SELEZIONE DI RIGA manca su Corrispettivi — 30/08/2026
+## ⛔ ELIMINARE UN ORDINE DI CANALE — dubbio dichiarato, non risolto _(30/08/2026)_
 
-Chiesta dal proprietario. **Non è una regressione**: verificato con `git log -S`, quella
-tabella non ha mai avuto la selezione, nemmeno prima del passaggio al motore comune.
+> _«Su corrispettivi forse sarebbe giusto poter eliminare, altrimenti non ci
+> sarebbe mai modo di farlo. Quello che poi va gestita è la sincro con Shopify,
+> che non dovrebbe sempre riportare ordini già cancellati. Ma si avrebbero
+> problemi di sincro immagino. È una cosa che va risolta.»_ — il proprietario
 
-⭐ **Il motore la supporta già per intero**: `selectionMode`, `selectedIds`,
-`selectionChange`, `selectAllChange`, più `createListSelection()` e
-`app-selection-check`. Lo schema completo si legge in `supplier-order-list`, che la usa.
+⭐ **La regola di prodotto è chiara e vale già**: _«se elimino un ordine, si
+dovrebbe eliminare il corrispettivo»_. La cancellazione si fa **sull'ordine**, e
+il registro segue.
 
-⛔ **Non è stata aggiunta perché mancano due decisioni**, e senza sono caselle che non
-fanno niente:
+⭐ **La conseguenza immediata è stata applicata**: nel Registro si può scegliere
+**solo il Corrispettivo manuale** — l'unica cosa che nasce lì. Le righe che
+vengono da un ordine restano consultabili e non selezionabili.
 
-| Domanda                                 | Perché non si può dedurre                                                                                                                                                                                            |
-| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Selezionare cambia il riepilogo?**    | `regole-stile-ui` dice che la riga TOTALI segue la selezione — ma Corrispettivi non ha la riga totali, ha il riepilogo, e i suoi valori sono **canonici e arrivano dall'API**. Ricalcolarli nel componente è vietato |
-| **Quali azioni diventano contestuali?** | Stampa, Excel ed Esporta oggi agiscono sull'elenco filtrato. Farle agire sulla selezione tocca anche stampa ed export, non solo la UI                                                                                |
+## ⏸ Ma il problema di fondo resta aperto, ed è di SINCRONIZZAZIONE
+
+Se un ordine Shopify si elimina nel gestionale, **il prossimo scarico lo
+riporta**: per Shopify quell'ordine esiste ancora, e la nostra cancellazione è
+invisibile. Oggi il codice lo dice esplicitamente — «gli ordini di canale non si
+eliminano: appartengono a Shopify, e il prossimo scarico li riporterebbe» — e
+consente l'eliminazione solo di quelli che **su Shopify non risultano più**
+(`channelMissingSince`).
+
+⚠️ **Le domande da chiudere**, e nessuna ha oggi una risposta nel codice:
+
+| Domanda                                                                 | Perché non è banale                                                                                          |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Eliminare da noi deve **cancellare anche su Shopify**?                  | è l'unica cancellazione che non torna indietro, ma è distruttiva su un sistema che non possediamo            |
+| Oppure serve una **lista di esclusi** che il sync non reimporta?        | cresce senza fine, e un ordine escluso per errore sparisce per sempre senza che nessuno se ne accorga        |
+| Oppure si «elimina» solo **dal registro**, lasciando vivo l'ordine?     | contraddice la regola del proprietario — sarebbero due verità diverse sullo stesso fatto                     |
+| E un ordine cancellato su Shopify **dopo** essere entrato nel registro? | fiscalmente il corrispettivo di un giorno chiuso non si riscrive: è una **rettifica**, non una cancellazione |
+
+⛔ **L'ultima riga è la più importante e cambia la forma della risposta**: un
+registro dei corrispettivi è un documento fiscale. Cancellare una riga di un
+giorno già chiuso non è un'operazione di database — è una rettifica, che il
+registro sa già rappresentare. Prima di scrivere codice va deciso **se
+«eliminare» qui significhi davvero eliminare**, o rettificare.
+
+---
+
+## ✅ La selezione di riga su Corrispettivi — fatta il 30/08/2026
+
+⛔ **Qui c'erano due domande aperte**, entrambe chiuse dal proprietario lo stesso giorno:
+
+- **il riepilogo segue la selezione** — sommando i valori di riga, che sono già finali
+  (`docs/14` §0-bis, «sommare non è ricalcolare»). ⚠️ Avevo scritto che fosse vietato: era
+  falso, ed è stato corretto;
+- **«Annullamenti» resta del periodo**, perché non è una riga del registro.
+
+⏸ **Resta aperto solo cosa fanno le AZIONI**: Stampa, Excel ed Esporta agiscono ancora
+sull'elenco filtrato, non sulla selezione. Toccarle significa toccare stampa ed export, non
+solo la UI.
+
+⭐ La forma della selezione — caselle su scrivania, modalità «Seleziona» nella vista a card
+— è in `docs/14` §0-ter.
 
 ---
 

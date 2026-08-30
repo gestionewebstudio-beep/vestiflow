@@ -84,6 +84,21 @@ export class DataTableComponent<T> {
    * selezione della vista a card, dove non c'è una casella da toccare.
    */
   readonly rowClickSelects = input(false);
+
+  /*
+    ⭐ **Quali righe si possono scegliere.** Deciso dal proprietario il
+    30/08/2026: «possiamo non permettere di eliminare i corrispettivi stabiliti
+    che non vanno eliminati e li rendiamo semplicemente non cliccabili quando
+    Seleziona è attivo».
+
+    ⚠️ **Non è il permesso di APRIRE**, e i due non vanno confusi: una riga può
+    essere consultabile e non eliminabile, o viceversa. Un ordine Shopify si apre
+    e non si elimina; un documento annullato non si apre e va comunque esportato.
+
+    ⭐ **Il default dice sì**, quindi gli elenchi che non hanno restrizioni non
+    cambiano di una riga.
+  */
+  readonly rowSelectable = input<(row: T) => boolean>(() => true);
   readonly selectedIds = input<ReadonlySet<string>>(new Set<string>());
   /** Nome accessibile della casella di riga: senza, sarebbe «casella» N volte. */
   readonly selectionLabel = input<(row: T) => string>(() => 'Seleziona la riga');
@@ -290,6 +305,9 @@ export class DataTableComponent<T> {
   */
   protected onRowClick(row: T): void {
     if (this.rowClickSelects()) {
+      if (!this.rowSelectable()(row)) {
+        return;
+      }
       const id = this.rowId()(row);
       this.selectionChange.emit({ row, selected: !this.selectedIds().has(id) });
       return;

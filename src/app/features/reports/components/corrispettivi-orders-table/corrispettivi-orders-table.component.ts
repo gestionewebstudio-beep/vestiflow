@@ -126,6 +126,23 @@ export class CorrispettiviOrdersTableComponent {
 
   /** Modalità selezione: il tocco sulla riga sceglie invece di aprire. */
   readonly rowClickSelects = input(false);
+
+  /*
+    ⭐ **Si sceglie solo ciò che da qui si può eliminare**, e nel Registro è il
+    solo **Corrispettivo manuale**. Deciso dal proprietario il 30/08/2026.
+
+    ⛔ **Le altre righe sono ordini**, non registrazioni: una vendita Shopify o
+    una vendita al banco entra nel registro perché l'ordine esiste. Eliminarla da
+    qui lascerebbe l'ordine vivo e il registro incoerente — e la regola è
+    l'opposto: «se elimino un ordine, si dovrebbe eliminare il corrispettivo».
+    La cancellazione va fatta sull'ordine, e il registro segue.
+
+    ⚠️ **La riga resta consultabile**: non è un permesso di lettura, è un
+    permesso di scelta. Chi guarda vede tutto; chi seleziona può prendere solo
+    ciò che questo elenco possiede.
+  */
+  protected readonly selezionabile = (row: CorrispettiviRegisterRow): boolean =>
+    Boolean(row.manualReceiptId);
   readonly selectionChange = output<DataTableSelectionEvent<CorrispettiviRegisterRow>>();
   readonly selectAllChange = output<boolean>();
 
