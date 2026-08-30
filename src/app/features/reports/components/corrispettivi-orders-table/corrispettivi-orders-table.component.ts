@@ -6,6 +6,7 @@ import type { BadgeTone } from '@shared/components/badge/badge.component';
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
 import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';
+import type { DataTableSelectionEvent } from '@shared/components/data-table/data-table.component';
 import { nextSort } from '@shared/components/data-table/data-table.model';
 import type {
   DataTableRowTone,
@@ -108,6 +109,35 @@ export class CorrispettiviOrdersTableComponent {
 
   readonly sort = input<readonly DataTableSort[]>([]);
   readonly sortChange = output<readonly DataTableSort[]>();
+
+  /*
+    ⭐ **La selezione ATTRAVERSA questo componente, non ci vive.**
+
+    La tabella è dumb (`regole-architettura`, Smart/Dumb): riceve quali righe sono
+    scelte e dice quando l'utente ne tocca una. Lo STATO sta nella pagina, che è
+    l'unica a sapere cosa farne — e ad avere il servizio che lo restringe quando
+    cambiano filtri o periodo.
+
+    ⚠️ È lo stesso schema di `supplier-order-list`, che la selezione ce l'ha da
+    prima: un secondo modo di farla avrebbe reso i due elenchi diversi proprio
+    nel comportamento che questo lavoro esiste per unificare.
+  */
+  readonly selectedIds = input<ReadonlySet<string>>(new Set<string>());
+  readonly selectionChange = output<DataTableSelectionEvent<CorrispettiviRegisterRow>>();
+  readonly selectAllChange = output<boolean>();
+
+  /*
+    ⛔ **NON si costruisce da `rowLabel`**, ed è l'errore che ho fatto scrivendola:
+    quella è l'etichetta di un'AZIONE — «Apri il corrispettivo manuale n. #1009» —
+    e composta dava «Seleziona Apri il corrispettivo manuale n. #1009».
+
+    ⭐ Una casella di selezione nomina **la riga**, non cosa succede premendola.
+    Il difetto l'ha trovato un test che asserisce tutt'altro, leggendo l'attributo
+    nel messaggio di errore: senza quello sarebbe finito a schermo — anzi, in uno
+    screen reader, dove nessuno l'avrebbe visto.
+  */
+  protected readonly selectionLabel = (row: CorrispettiviRegisterRow): string =>
+    `Seleziona la registrazione n. ${row.orderNumber}`;
 
   /**
    * ⛔ **A raggruppamento acceso non si ordina.** Le giornate sono una piegatura

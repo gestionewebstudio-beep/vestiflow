@@ -14,8 +14,31 @@
   `.corrispettivi-table__row--refund`, ora è `rowTone: 'negative'` del motore.
   Ogni elenco con movimenti in due versi la eredita.
 */
+/*
+  ⭐ **QUESTO ERA L'ANELLO MANCANTE DELLA CATENA DI ALTEZZE.**
+
+  Perché la card bianca arrivi in fondo alla regione (§6, «la pagina elenco cede
+  solo l'ELENCO»), l'altezza deve passare **senza interruzioni** dal contenitore
+  di scorrimento fino al `<table>`. Con `display: block` questo componente la
+  fermava: il motore dentro è già `flex` in colonna, ma non riceveva niente da
+  distribuire.
+
+  ⚠️ **Un anello `block` non fallisce: assorbe.** La regola `min-block-size: 100%`
+  sulla tabella restava senza effetto perché il suo antenato non aveva un'altezza
+  definita da cui calcolare il 100% — nessun errore, nessun test rosso, solo una
+  fascia grigia sotto l'ultima riga. Misurato il 30/08/2026: tabella 357px in una
+  zona dati da 533.
+*/
 :host {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
+}
+
+/* E lo passa al motore, che da lì in giù la distribuisce già da sé. */
+app-data-table {
+  flex: 1;
+  min-block-size: 0;
 }
 
 /*

@@ -112,6 +112,19 @@ describe('riga cliccabile del Registro', () => {
     const tr = cella.closest('tr')!;
     expect(tr.getAttribute('tabindex')).toBeNull();
 
+    /*
+      ⚠️ **La casella di selezione NON conta come «giro del fuoco della riga».**
+
+      Il test cercava `input` e pretendeva `null`: valeva finché la riga non
+      aveva controlli propri. Da quando ha la selezione (30/08/2026) quel
+      controllo c'è ed è **giusto** che sia raggiungibile da tastiera — è
+      l'unico modo di selezionare senza mouse.
+
+      Cambia l'asserzione, non l'intento: la riga non si APRE, ed è quello che
+      questi due test presidiano.
+    */
+    expect(tr.querySelector('input.selection-check')).not.toBeNull();
+
     await userEvent.click(cella);
     expect(aperta).not.toHaveBeenCalled();
   });

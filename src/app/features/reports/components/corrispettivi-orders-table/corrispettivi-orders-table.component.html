@@ -21,8 +21,14 @@
   [rowLabel]="rowLabel"
   [sortable]="ordinabile()"
   [sort]="sort()"
+  selectionMode="multiple"
+  [selectedIds]="selectedIds()"
+  [selectionLabel]="selectionLabel"
+  selectAllLabel="Seleziona tutte le registrazioni"
   (rowClick)="onRowClick($event)"
   (sortChange)="onSort($event)"
+  (selectionChange)="selectionChange.emit($event)"
+  (selectAllChange)="selectAllChange.emit($event)"
 >
   <!--
     ⚠️ **Testo colorato, non una pill.** Un badge dentro una cella alza la riga e

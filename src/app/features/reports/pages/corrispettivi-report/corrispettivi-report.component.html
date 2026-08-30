@@ -285,6 +285,9 @@
         [raggruppaPerGiorno]="raggruppaPerGiorno()"
         [sort]="sortState()"
         (sortChange)="onSortChange($event)"
+        [selectedIds]="selectedIds()"
+        (selectionChange)="onToggleSelection($event)"
+        (selectAllChange)="onToggleSelectAll($event)"
         [perGiornata]="summary()?.perGiornata ?? []"
         (manualReceiptOpened)="openManualReceipt($event)"
       />

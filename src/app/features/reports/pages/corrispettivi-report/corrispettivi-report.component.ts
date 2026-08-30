@@ -74,6 +74,8 @@ import {
   serializeDataTableSort,
   type DataTableSort,
 } from '@shared/components/data-table/data-table.model';
+import type { DataTableSelectionEvent } from '@shared/components/data-table/data-table.component';
+import { createListSelection } from '@shared/utils/list-selection';
 import {
   LOCATION_UNDETERMINED_LABEL,
   corrispettivoSourceLabel,
@@ -144,6 +146,22 @@ export class CorrispettiviReportComponent {
     effect(() => {
       this.query();
       this.uiPeriod.set(null);
+    });
+
+    /*
+      ⛔ **La selezione si pota a ogni cambio del risultato.**
+
+      Cambiando periodo, filtro o ordinamento le righe scelte possono uscire dal
+      risultato: senza `prune` resterebbero selezionate **invisibili**, e
+      un'azione contestuale agirebbe su registrazioni che l'operatore non vede
+      più. È lo stesso obbligo che il servizio dichiara nella propria API.
+
+      ⚠️ Qui è un `effect` e non una sottoscrizione come in `supplier-order-list`
+      perché il risultato di questa pagina è un `computed`, non un Observable:
+      cambia la forma, non la regola.
+    */
+    effect(() => {
+      this.selection.prune(this.orders().map((row) => row.rowId));
     });
   }
 
@@ -619,6 +637,29 @@ export class CorrispettiviReportComponent {
   );
   protected readonly summary = computed(() => this.data()?.summary ?? null);
   protected readonly totalOrders = computed(() => this.data()?.totalOrders ?? 0);
+
+  // ── Selezione di riga (`14` §5, parte D) ─────────────────────────────────
+
+  /*
+    ⭐ **Lo stato sta nella PAGINA**, non nella tabella: è lo schema già usato da
+    `supplier-order-list`, e usarne un secondo avrebbe reso i due elenchi diversi
+    proprio nel comportamento che questo lavoro esiste per unificare.
+  */
+  private readonly selection = createListSelection('multiple');
+  protected readonly selectedIds = this.selection.ids;
+  protected readonly selectionCount = this.selection.count;
+
+  protected onToggleSelection(event: DataTableSelectionEvent<CorrispettiviRegisterRow>): void {
+    this.selection.toggle(event.row.rowId, event.selected);
+  }
+
+  /** La casella di testata agisce sulle righe CARICATE (`14` §4.1). */
+  protected onToggleSelectAll(checked: boolean): void {
+    this.selection.setAll(
+      this.orders().map((row) => row.rowId),
+      checked,
+    );
+  }
 
   protected onPeriodChange(period: ReportPeriodPreset): void {
     this.uiPeriod.set(period);
