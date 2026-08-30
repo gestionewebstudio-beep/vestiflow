@@ -388,6 +388,154 @@ ospita due cose che devono stare sulla stessa riga — la barra e il campo copie
 il gruppo diventerebbero due figli del telaio, che è una colonna, e si impilerebbero con il
 campo staccato dal comando che lo usa.
 
+### ⭐ Le due fasce in fondo: TOTALI sopra, COMANDI sotto — deciso il 30/08/2026
+
+_Proprietario, sul riferimento Danea: «giù in basso, su una riga, tutte le funzioni; i
+totali subito sopra alla riga delle funzioni»._
+
+```text
+┌ elenco ───────────────────────────────────────────────┐
+├───────────────────────────────────────────────────────┤
+│ 17 voci            1.157,26 €   1.052,04 €   556,02 € │  ← TOTALI, sottile
+├───────────────────────────────────────────────────────┤
+│ Nuovo · Modifica · Duplica · Elimina · Stampa · …     │  ← COMANDI, posizione FISSA
+└───────────────────────────────────────────────────────┘
+```
+
+#### ⛔ La riga comandi non si muove MAI
+
+L'indicatore di selezione stava **nella stessa riga** dei comandi: spuntando una riga
+compariva «ORDINE SELEZIONATO 1 · Deseleziona» a sinistra e i comandi slittavano a destra.
+Sono gli stessi comandi che si spostano sotto le dita.
+
+Da qui `app-list-actions-bar` **perde** l'indicatore, il pulsante «Deseleziona»,
+`labelSingular`/`labelPlural`, `summaryLabel`/`summaryValue` e l'evento `cleared`: resta
+la sola fila di comandi. È meno codice, non di più.
+
+⭐ **«Deseleziona» non serve**: si deseleziona dalla casella principale in testata, che
+c'è già. E **non serve un secondo conteggio**: «N voci» è già il numero delle righe, e
+cambia da sé quando si seleziona — «3 selezionati» accanto direbbe la stessa cosa due volte.
+
+#### ⭐ La riga totali NON sparisce mai
+
+```text
+nessuna selezione   i totali del risultato FILTRATO      «17 voci · 1.157,26 € · …»
+con selezione       i totali della SELEZIONE             « 3 voci ·   107,65 € · …»
+```
+
+⛔ **Non compare-e-scompare con la selezione**: una fascia che appare sposta i comandi in
+verticale, cioè lo stesso difetto girato di novanta gradi. C'è sempre, e cambia contenuto.
+
+⚠️ Vale **a maggior ragione dove il documento ha totali**: l'Ordine fornitore deve averli,
+e senza selezione mostra quelli di tutto il periodo filtrato.
+
+#### ⭐ Che cosa si somma: le colonne VISIBILI, e la regola è un opt-out
+
+> **Se la colonna è accesa, il suo totale c'è. Se è spenta, non c'è.**
+
+_Proprietario: «quando attivi una colonna contabile ti mostra il totale di quella», e
+«anche la somma della colonna righe: se sono selezionate tre allora esce 3»._
+
+⭐ **Il totale segue la COLONNA, non una configurazione a parte.** È anche il modo in cui
+un titolare che non vuole mostrare gli importi li toglie: spegne la colonna, e sparisce
+anche la somma. Una decisione sola invece di due che possono contraddirsi.
+
+⛔ **Opt-out, come i filtri** (§0.2): una colonna `numeric` nuova entra nei totali senza
+che nessuno se ne ricordi. Chi non deve sommarsi lo dichiara — `summable: false` — ed è il
+caso delle **percentuali** e dei **valori unitari**: sommare un'aliquota o un prezzo
+unitario dà un numero che non risponde a nessuna domanda.
+
+⚠️ **Non basta `numeric`**, e la distinzione resta scritta nel modello: `numeric` dice
+«allinea a destra», non «è una quantità». Su una colonna di elenco le due cose coincidono
+quasi sempre — e partire dal sì evita l'elenco di annotazioni che nessuno tiene aggiornato.
+
+#### Il selettore Colonne serve su OGNI elenco
+
+Da quando i totali seguono le colonne, un elenco senza selettore Colonne è un elenco in cui
+non si possono né scegliere i dati né i totali. Misurati il 30/08/2026, **due elenchi non
+l'avevano**: Ordini fornitore e Vendite online, con le colonne cablate nel componente.
+
+### ⭐ Il menu tre-puntini di riga SPARISCE — deciso il 30/08/2026
+
+_Proprietario: «il menu tre puntini sparisce»._
+
+Tutte le funzioni passano dalla **selezione** e stanno nella barra in basso. Le sei voci
+del menu si ricollocano così:
+
+| Voce | Dove va |
+| --- | --- |
+| Apri / Modifica | sparisce: è già il clic di riga |
+| **Duplica** | `ListAction`, `requires: 'one'` |
+| Stampa PDF | c'era già nella barra |
+| **Etichette** | `ListAction`, `requires: 'one'` |
+| **Allegati** | `ListAction`, `requires: 'one'` |
+| Elimina | c'era già, con la regola unificata |
+
+⚠️ **La condizione cambia natura, non contenuto.** Nel menu decideva se la voce
+**compariva** su quella riga; nella barra decide se l'azione è **abilitata** sulla riga
+scelta, e con quale motivo (§5.1). Le regole sono le stesse, una per una.
+
+⛔ **Il difetto che ha reso urgente toglierlo**: le regole di eliminabilità del menu e
+quelle della barra **non concordavano**. Su una fattura confermata la barra offriva Elimina
+e l'API rispondeva 409, dopo aver fatto premere l'operatore. Due strade per lo stesso
+comando, con due regole diverse.
+
+### ⭐ La FORMA dei comandi sta in un catalogo — deciso il 30/08/2026
+
+_Proprietario: «attenzione a non duplicare nulla se non occorre, vedo diversi»._
+
+Da quando ogni elenco dichiara le proprie azioni, il **gestore** è giustamente diverso —
+eliminare un documento non è eliminare un fornitore — ma etichetta, icona, variante e
+requisito venivano ridigitati ogni volta. Misurata la deriva il 30/08/2026:
+
+```text
+«print»    5 punti, 2 forme    ghost sui Corrispettivi, secondary altrove
+«csv»      4 punti, 3 forme    pi-file-excel · pi-file · pi-download
+«pdf»      3 punti, 2 forme    'PDF (.pdf)' contro 'PDF'
+«export»   7 punti, 2 forme    'Esporta' contro 'Esporta CSV'
+```
+
+Il proprietario l'ha vista a schermo: lo stesso «Stampa» senza cornice su una pagina e con
+la cornice su un'altra.
+
+```ts
+comando('print', { run: () => this.stampaSelezione() })
+voceEsporta('csv', () => this.esportaCsv())
+```
+
+La pagina passa **il gestore** e ciò che è davvero suo — `disabled`, `busy`, un
+`ariaLabel` più preciso, un'etichetta che **deve** differire per una ragione dichiarata.
+
+⭐ **E la deriva non può tornare**: `npm run check:list-actions` scopre gli id dal catalogo
+— non li elenca — e fallisce se qualcuno riscrive `{ id: 'print', label: … }` a mano.
+
+#### ⭐ «Esporta» è il MENU dei tracciati
+
+_Proprietario: «potremmo utilizzare Esporta e lì mettere le funzioni di esporta come pdf,
+csv, xml se serve»._
+
+```text
+Stampa      comando proprio     produce la stampa
+Excel       comando proprio     un vero foglio di calcolo, colonne comprese
+Esporta ▾   menu                PDF · CSV · XML dove serve
+```
+
+⛔ **PDF e CSV non sono più pulsanti a sé.** Sui Corrispettivi lo erano — quattro comandi
+in fila per quattro formati — e sulle altre pagine erano già voci del menu: la stessa cosa
+aveva due forme. L'estensione fra parentesi resta **dentro il menu**, dove distingue; su un
+pulsante da sola sarebbe rumore.
+
+⚠️ **Stampa ed Excel restano comandi propri** e non entrano nel menu: non sono formati di
+esportazione (§5.2).
+
+#### ⚠️ I quattro pulsanti Shopify NON entrano nel catalogo
+
+Si chiamano tutti `shopify-sync` ma sono **quattro operazioni diverse** — «Importa
+catalogo» tira dentro i prodotti, «Riallinea su Shopify» spinge fuori le giacenze.
+Unificarne la forma nasconderebbe la differenza. Vanno **distinti gli id**, ed è registrato
+in `docs/01-registro-difetti-shopify.md` §Livello 5, dove il problema esisteva già come
+«otto pulsanti per quattro operazioni».
+
 ### ⭐ «Nuovo ordine fornitore» PROPONE, non emette — deciso il 29/08/2026
 
 _Proprietario: «poi si crea direttamente un ordine ed è errato. Gli articoli devono finire

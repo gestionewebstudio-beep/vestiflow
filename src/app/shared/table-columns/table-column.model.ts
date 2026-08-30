@@ -105,17 +105,25 @@ export interface TableColumnDef {
   readonly numeric?: boolean;
 
   /**
-   * ⭐ **La colonna è CONTABILE: la sua somma ha un significato.**
+   * ⭐ **La colonna si SOMMA nella riga totali** — e la risposta di serie è sì
+   * per ogni colonna `numeric`.
    *
    * _Deciso dal proprietario il 30/08/2026, sul riferimento Danea: «quando
-   * attivi una colonna contabile, ti mostra il totale di quella»._
+   * attivi una colonna contabile ti mostra il totale di quella», e «anche la
+   * somma della colonna righe: se sono selezionate tre allora esce 3»._
    *
-   * ⛔ **Non è `numeric`**, e confonderle darebbe numeri senza senso. `numeric`
-   * dice «allinea a destra»: la colonna *Righe* di un ordine è numerica — 2, 1,
-   * 0 — ma sommarla dà un totale che non risponde a nessuna domanda. Contabile
-   * è l'imponibile, l'IVA, il totale documento.
+   * ⛔ **È un opt-OUT, come i filtri di colonna** (`14` §0.2): una colonna
+   * numerica nuova entra nei totali senza che nessuno se ne ricordi. Chi non
+   * deve sommarsi lo dichiara — `summable: false` — ed è il caso delle
+   * **percentuali e dei valori unitari**: sommare un'aliquota o un prezzo
+   * unitario dà un numero che non risponde a nessuna domanda.
    *
-   * ⭐ **E il totale segue la COLONNA, non una configurazione a parte**: se
+   * ⚠️ **Non basta `numeric` da sola**, e la ragione sta scritta sopra:
+   * `numeric` dice «allinea a destra», non «è una quantità». Ma su una colonna
+   * di elenco le due cose coincidono quasi sempre, e partire dal sì evita
+   * l'elenco di annotazioni che nessuno tiene aggiornato.
+   *
+   * ⭐ **Il totale segue la COLONNA, non una configurazione a parte**: se
    * l'imponibile è spento dal selettore Colonne, la sua somma non compare. È
    * anche il modo in cui un titolare che non vuole mostrare gli importi li
    * toglie — una decisione sola invece di due che possono contraddirsi.

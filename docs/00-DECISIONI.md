@@ -214,6 +214,16 @@ strumenti di lavoro. Non ci si cercano decisioni.
 | ⭐ **Tutte le funzioni stanno nella barra in basso e NON si nascondono**: a vuoto sono spente col motivo       | `14` §0.2  |
 | ⛔ **Il messaggio è il motivo sull'azione spenta**, non un dialogo dopo il clic                                | `14` §0.2  |
 | ✅ **Prodotti è sulla barra comune**, «Copie per etichetta» compresa: non è un filtro, è un parametro della stampa | `14` §0.2  |
+| ⭐ **Due fasce in fondo**: TOTALI sopra, COMANDI sotto — e la riga comandi non si muove mai      | `14` §0.2  |
+| ⛔ **La riga totali non sparisce**: senza selezione mostra il filtrato, con selezione la selezione | `14` §0.2  |
+| ⭐ **Si somma ciò che è VISIBILE**: colonna spenta, totale assente — una decisione sola          | `14` §0.2  |
+| ⛔ **`summable` è un opt-out** su `numeric`: si dichiara chi NON si somma (percentuali, unitari) | `14` §0.2  |
+| ⛔ **Via l’indicatore di selezione dalla barra**: «N voci» dei totali è già il conteggio         | `14` §0.2  |
+| ⭐ **Il selettore Colonne serve su OGNI elenco**: senza, non si scelgono né dati né totali       | `14` §0.2  |
+| ⛔ **Il menu tre-puntini di riga sparisce**: Duplica, Etichette e Allegati vanno nella barra     | `14` §0.2  |
+| ⭐ **La FORMA dei comandi sta in un catalogo**, la pagina passa solo il gestore                  | `14` §0.2  |
+| ⭐ **«Esporta» è il menu dei tracciati** (PDF · CSV · XML); Stampa ed Excel restano comandi      | `14` §0.2  |
+| ⚠️ **I quattro pulsanti Shopify NON si unificano**: sono operazioni diverse con lo stesso id     | `01` §L5   |
 | ⭐ **«Nuovo ordine fornitore» PROPONE**: apre un ordine nuovo precompilato, non lo crea                       | `14` §0.2  |
 | ⭐ **Il precompilato porta gli id**, non i valori: le righe passano dal risolutore comune                     | `14` §0.2  |
 | ⛔ **Il fornitore non si propone più in automatico** dagli articoli; quello nuovo si crea e resta            | `14` §0.2  |

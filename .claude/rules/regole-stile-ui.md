@@ -531,6 +531,40 @@ markup e stile restano insieme.
 - Ombra `--shadow-card`
 - Padding interno: `--space-16` mobile, `--space-12` a `--space-14` desktop denso
 
+### La riga TOTALI di un elenco — _deciso 30/08/2026_
+
+⚠️ **Non è il «Riepilogo di fondo pagina» qui sotto**, e confonderli porta a due cose
+diverse nello stesso posto:
+
+| | **Riga totali** (ogni elenco) | **Riepilogo** (report) |
+| --- | --- | --- |
+| che cosa mostra | la **somma delle colonne visibili** | metriche nominate, anche non di colonna |
+| esempio | `17 voci · 1.157,26 € · 1.052,04 €` | `RETTIFICHE (4) · ANNULLAMENTI 2 · VENDITE 8` |
+| etichette | nessuna: il nome è l'intestazione della colonna | ognuna ha la sua |
+| allineamento | **sotto la propria colonna** | a fascia, non incolonnato |
+
+⭐ **La riga totali sta SOPRA la riga comandi**, ed è l'ordine che il telaio già dà:
+zona dati → `[summary]` → `[listActions]`.
+
+**Le due regole che la governano**
+
+1. ⛔ **Non sparisce mai.** Senza selezione mostra i totali del risultato **filtrato**; con
+   una selezione, quelli della **selezione**. Una fascia che compare e scompare sposta i
+   comandi in verticale — lo stesso difetto della riga comandi che slitta, girato di
+   novanta gradi.
+
+2. ⭐ **Si somma ciò che è VISIBILE.** Colonna spenta dal selettore Colonne, totale assente.
+   È anche il modo in cui un titolare che non vuole mostrare gli importi li toglie: una
+   decisione sola invece di due che possono contraddirsi.
+
+**Il conteggio è «N voci»**, a sinistra, e cambia da sé con la selezione. ⛔ Non serve un
+secondo indicatore «3 selezionati» accanto ai comandi: direbbe la stessa cosa due volte, e
+per dirla spostava i comandi.
+
+⚠️ **Su Corrispettivi la questione è aperta.** Il suo riepilogo è della seconda famiglia —
+ha metriche che non sono colonne — quindi o resta com'è, o convive con una riga totali, o
+le due cose si fondono. ⏸ Da decidere: è l'unico elenco dove il conflitto si presenta.
+
 ### Riepilogo di fondo pagina (report / elenchi) — _rivisto 18/08/2026_
 
 Distinto dal «Riepilogo totali» di un documento (§7): quello chiude un
@@ -614,6 +648,23 @@ il difetto.
 | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Lista verticale** (una riga per voce) | ~190px su un telefono, cioè un quarto di schermo — e in fondo a una pagina lunga, dove ci si arriva dopo aver scorso tutto. La regola §7 la prescrive per i **documenti**, che hanno quattro voci: applicarla a un report da otto è stato l'errore |
 | **Un riquadro per voce** (otto scatole) | isola troppo: otto scatole affiancate si leggono come otto dati indipendenti, mentre un riepilogo è fatto di numeri che si sommano fra loro                                                                                                        |
+
+### La barra comandi di un elenco — _deciso 30/08/2026_
+
+**Tutti i comandi in UNA riga in basso**, testata ridotta a Indietro + titolo + conteggio.
+Non due posti — creare sopra, agire sotto — che era una divisione storica e non un criterio.
+
+```text
+Nuovo · Modifica · Duplica · Elimina · Stampa · Etichette · Excel · Esporta ▾
+```
+
+⛔ **La posizione dei comandi è FISSA**: niente entra o esce dalla riga a seconda della
+selezione. Quello che cambia è se un comando è **acceso o spento**, e il perché si legge
+sull'azione spenta (`14` §5.1).
+
+⭐ **La forma di un comando comune sta nel catalogo**, non nella pagina: etichetta, icona,
+variante e requisito una volta sola. La pagina passa il gestore. La guardia è
+`npm run check:list-actions`.
 
 ### Bottoni
 
