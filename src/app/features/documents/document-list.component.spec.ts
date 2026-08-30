@@ -203,7 +203,7 @@ describe('DocumentListComponent — comandi di creazione e matrice permessi', ()
     permissions: ['section.documents', 'doc.quote.manage'],
   };
 
-  /** Voci offerte dal menu «Altro documento», per etichetta. */
+  /** Voci offerte dal menu «Crea documento», per etichetta. */
   function tipiOfferti(view: { fixture: { componentInstance: unknown } }): readonly string[] {
     const component = view.fixture.componentInstance as {
       secondaryCreateOptions: () => readonly { readonly label: string }[];
@@ -217,7 +217,7 @@ describe('DocumentListComponent — comandi di creazione e matrice permessi', ()
     expect(screen.queryByRole('button', { name: /Nuovo arrivo merce/i })).toBeNull();
   });
 
-  it('nel menu «Altro documento» lascia solo i tipi gestibili', async () => {
+  it('nel menu «Crea documento» lascia solo i tipi gestibili', async () => {
     const view = await renderList('generic', SOLO_PREVENTIVI);
 
     expect(tipiOfferti(view)).toEqual(['Preventivo']);
@@ -230,11 +230,11 @@ describe('DocumentListComponent — comandi di creazione e matrice permessi', ()
     });
 
     expect(screen.queryByRole('button', { name: /Nuovo arrivo merce/i })).toBeNull();
-    // ⚠️ Il nome accessibile è ora l'ETICHETTA VISIBILE «Altro documento»: da
+    // ⚠️ Il nome accessibile è ora l'ETICHETTA VISIBILE «Crea documento»: da
     //    quando il comando sta nella barra in basso lo rende `app-action-menu`,
     //    che con `triggerLabel` toglie l'`aria-label` — il nome lo dà il testo,
     //    ed è giusto che visibile e accessibile coincidano.
-    expect(screen.queryByRole('button', { name: /Altro documento/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Crea documento/i })).toBeNull();
   });
 
   it('al titolare resta tutto il menu', async () => {
@@ -244,7 +244,7 @@ describe('DocumentListComponent — comandi di creazione e matrice permessi', ()
     // andava aggiornato a mano a ogni voce nuova, e diceva «sono nove» invece di
     // «non ne manca nessuna» — che è la regola vera per chi ha tutti i permessi.
     expect(tipiOfferti(view)).toEqual(SECONDARY_CREATE_ENTRIES.map((entry) => entry.label));
-    expect(screen.queryByRole('button', { name: /Altro documento/i })).not.toBeNull();
+    expect(screen.queryByRole('button', { name: /Crea documento/i })).not.toBeNull();
   });
 });
 

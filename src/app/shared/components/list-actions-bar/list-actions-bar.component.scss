@@ -46,6 +46,19 @@
   --action-menu-panel-top: auto;
   --action-menu-panel-bottom: calc(100% + var(--space-1));
 
+  /*
+    ⛔ **E si apre verso DESTRA**, non verso sinistra — segnalato dal proprietario
+    il 30/08/2026 su «Crea documento»: il pannello sconfinava sotto la barra
+    laterale e le voci si leggevano tagliate a metà («…vo merce»,
+    «…istrazione fattura fornitore»).
+
+    ⚠️ Stessa causa della direzione verticale: il default del menu è pensato per
+    il «···» in fondo a una riga di tabella, dove a destra non c'è più niente.
+    Qui i comandi cominciano da sinistra, e a sinistra c'è la sidebar.
+  */
+  --action-menu-panel-start: 0;
+  --action-menu-panel-end: auto;
+
   --field-height: var(--control-h-button);
   --button-font-size: var(--text-xs);
   --field-font-size: var(--text-xs);

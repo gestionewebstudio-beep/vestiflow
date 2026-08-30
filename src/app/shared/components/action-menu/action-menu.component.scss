@@ -135,8 +135,17 @@
   position: absolute;
   inset-block-start: var(--action-menu-panel-top, calc(100% + var(--space-1)));
   inset-block-end: var(--action-menu-panel-bottom, auto);
-  inset-inline-end: 0;
-  inset-inline-start: auto;
+  /*
+    ⭐ **Anche l'allineamento orizzontale è un punto di regolazione**, per la
+    stessa ragione della direzione verticale: il menu non sa dove sta.
+
+    Di serie si allinea al bordo DESTRO del trigger — giusto per un menu «···» in
+    fondo a una riga di tabella, dove a destra non c'è più niente. Sbagliato per
+    un trigger che sta all'inizio di una barra: il pannello si apre verso sinistra
+    e finisce sotto la barra laterale.
+  */
+  inset-inline-end: var(--action-menu-panel-end, 0);
+  inset-inline-start: var(--action-menu-panel-start, auto);
   z-index: var(--z-dropdown);
   min-inline-size: calc(var(--space-10) * 4.5);
   margin: 0;

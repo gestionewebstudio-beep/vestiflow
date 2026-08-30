@@ -157,6 +157,15 @@ const EMPTY_META: PageMeta = {
 export const SECONDARY_CREATE_ENTRIES: readonly (SelectMenuOption & {
   readonly type: DocumentType;
 })[] = [
+  /*
+    ⭐ **L'arrivo merce è una voce come le altre**, da quando il Registro
+    generico non ha più un pulsante dedicato (30/08/2026).
+
+    ⛔ Va in CIMA e non in fondo: è il documento che si crea più spesso, e
+    metterlo in coda avrebbe scambiato «non ha un pulsante suo» con «conta meno
+    degli altri». Togliere la scorciatoia non doveva significare nasconderlo.
+  */
+  { value: 'goods-receipt', label: 'Arrivo merce', type: DocumentType.GoodsReceipt },
   {
     value: 'purchase-invoice',
     label: 'Registrazione fattura fornitore',
@@ -1158,29 +1167,39 @@ export class DocumentListComponent {
       ];
     }
 
-    const azioni: ListAction[] = [];
-    if (this.canManageGoodsReceipts()) {
-      azioni.push({
-        id: 'new-goods-receipt',
-        label: 'Nuovo arrivo merce',
-        icon: 'pi-plus',
-        variant: 'primary',
-        requires: 'none',
-        run: () => this.openNewGoodsReceipt(),
-      });
-    }
+    /*
+      ⛔ **QUI C'ERA «Nuovo arrivo merce» COME AZIONE PRIMARIA**, e nel Registro
+      generico non aveva senso — deciso dal proprietario il 30/08/2026: «nei
+      documenti generali non ha senso che esista quel pulsante».
+
+      Quell'elenco mostra TUTTI i tipi: offrire come azione primaria la creazione
+      di UNO privilegia un tipo senza una ragione che l'operatore possa vedere, e
+      `regole-gestionale` chiede **una sola** azione primaria per vista — quella
+      che risponde alla domanda della schermata. Su un registro che si consulta,
+      la domanda non è «quale documento creo».
+
+      ⚠️ **Riguarda il solo Registro generico.** Gli elenchi filtrati per famiglia
+      — Arrivi merce, Vendite al banco — tengono la loro azione primaria: lì il
+      tipo è uno solo e non c'è niente da scegliere.
+
+      ⭐ **La funzione non si perde: si sposta.** L'arrivo merce è entrato in
+      `SECONDARY_CREATE_ENTRIES`, in cima. Toglierlo dalla testata senza
+      aggiungerlo al menu avrebbe tolto la capacità di crearlo da qui.
+    */
     const altri = this.secondaryCreateOptions();
-    if (altri.length > 0) {
-      azioni.push({
+    if (altri.length === 0) {
+      return [];
+    }
+    return [
+      {
         id: 'new-other',
-        label: 'Altro documento',
+        label: 'Crea documento',
         icon: 'pi-file',
         requires: 'none',
-        ariaLabel: 'Crea altro tipo di documento',
+        ariaLabel: 'Scegli il tipo di documento da creare',
         items: daOpzioni(altri),
-      });
-    }
-    return azioni;
+      },
+    ];
   });
 
   protected readonly selectionActions = computed<readonly ListAction[]>(() => {
