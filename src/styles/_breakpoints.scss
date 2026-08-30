@@ -51,3 +51,39 @@ $breakpoints: (
     @content;
   }
 }
+
+/// ⭐ **La vista a card: sotto la soglia, OPPURE perché l'operatore l'ha scelto.**
+///
+/// Impostazioni → Aspetto, «Sempre compatta» (30/08/2026). Serve al **monitor
+/// touch grande** e al tablet, dove la larghezza c'è ma il dito no: la tabella
+/// si regge su passaggio del mouse, puntatore fine e Tab, e chi tocca non ne ha
+/// nessuno dei tre.
+///
+/// ⛔ **Si usa SOLO dove la vista commuta davvero** — cinque blocchi fra il
+/// motore tabella e il mixin delle card — non al posto di `media-down`. Applicato
+/// a tutti i 95 blocchi mobili triplicherebbe il CSS per regole che con la vista
+/// non c'entrano.
+///
+/// ⚠️ **`:host-context` e non `:root`**, ed è la ragione per cui questo mixin
+/// esiste invece di due righe dentro `media-down`: con l'incapsulamento di
+/// Angular un `:root[data-vista]` scritto in un foglio di componente diventa
+/// `:root[_ngcontent-x]` e non aggancia mai niente. Il mixin delle card è incluso
+/// **solo** da fogli di componente — verificato — quindi la forma è una sola.
+///
+/// ⚠️ **`@if &`**: metà delle chiamate sta a livello di file, dove `&` è nullo e
+/// Sass rifiuta un selettore che lo contiene.
+@mixin vista-compatta($name: 'lg') {
+  @media (max-width: down-max($name)) {
+    @content;
+  }
+
+  @if & {
+    :host-context([data-vista='compatta']) & {
+      @content;
+    }
+  } @else {
+    :host-context([data-vista='compatta']) {
+      @content;
+    }
+  }
+}

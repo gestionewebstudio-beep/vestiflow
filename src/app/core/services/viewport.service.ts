@@ -1,5 +1,7 @@
 import { DOCUMENT } from '@angular/common';
-import { DestroyRef, Injectable, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
+
+import { DEFAULT_VIEW_MODE, VIEW_MODES, type ViewMode } from '@shared/models/view-mode.model';
 
 /**
  * Il token da cui nasce la soglia. Il VALORE sta nel CSS e qui non si ripete:
@@ -12,6 +14,16 @@ import { DestroyRef, Injectable, inject, signal } from '@angular/core';
  * l'app resterebbe sulla vista desktop anche su un telefono, in silenzio.
  */
 const COMPACT_MAX_TOKEN = '--viewport-compact-max';
+
+/**
+ * ⚠️ **La scelta vive nel DISPOSITIVO, non sul profilo utente.**
+ *
+ * È una proprietà di QUESTO schermo: chi impone la vista compatta sul monitor
+ * touch del banco non la vuole anche sul portatile di casa. Sincronizzarla fra
+ * dispositivi sarebbe il difetto, non la funzione — ed è la stessa ragione per
+ * cui il tema si comporta così.
+ */
+const VIEW_MODE_KEY = 'vestiflow.view-mode';
 
 /**
  * Quale vista è attiva: compatta (card) o estesa (tabella).
@@ -36,10 +48,62 @@ export class ViewportService {
 
   private readonly _compact = signal(false);
 
-  /** `true` sotto la soglia: è la vista a card, quella dove si tocca. */
-  readonly compact = this._compact.asReadonly();
+  /** Cosa dice la LARGHEZZA, prima che l'operatore ci metta bocca. */
+  readonly automatico = this._compact.asReadonly();
+
+  private readonly _mode = signal<ViewMode>(this.leggiModo());
+
+  /** La scelta dell'operatore: automatica, sempre compatta, sempre estesa. */
+  readonly mode = this._mode.asReadonly();
+
+  /*
+    ⭐ **La domanda a cui i 17 consumatori rispondono è sempre la stessa** — «è
+    viva la vista a card?» — e questo è il solo punto in cui cambia la risposta.
+
+    ⛔ Nessuno di loro deve sapere che esiste una scelta manuale: se dovessero
+    combinare soglia e preferenza per conto proprio, la vista tornerebbe a essere
+    decisa in diciassette posti, che è il difetto da cui questo servizio nasce.
+  */
+  readonly compact = computed(() => {
+    const scelto = this._mode();
+    if (scelto === 'compact') {
+      return true;
+    }
+    if (scelto === 'wide') {
+      return false;
+    }
+    return this._compact();
+  });
+
+  setMode(mode: ViewMode): void {
+    this._mode.set(mode);
+    this.scriviModo(mode);
+  }
 
   constructor() {
+    /*
+      ⭐ **L'attributo sulla radice è il ponte verso il CSS**, che una scelta
+      dell'applicazione non la può leggere in nessun altro modo.
+
+      Lo legge il mixin `vista-compatta` di `styles/_breakpoints.scss`, usato nei
+      soli tre punti in cui la riga diventa card. ⚠️ Si scrive **solo** quando la
+      vista compatta è imposta: in automatico l'attributo non c'è, quindi il ramo
+      non esiste e nessuna regola cambia peso — è la ragione per cui questa metà
+      è a rischio zero per chi non usa l'impostazione.
+
+      ⚠️ È lo stesso schema del tema (`theme.service.ts:42`), e deve restarlo: due
+      modi di scrivere una preferenza sulla radice sarebbero due posti da tenere
+      allineati.
+    */
+    effect(() => {
+      const radice = this.document.documentElement;
+      if (this._mode() === 'compact') {
+        radice.setAttribute('data-vista', 'compatta');
+      } else {
+        radice.removeAttribute('data-vista');
+      }
+    });
+
     const query = this.mediaQuery();
     if (!query) {
       return;
@@ -56,6 +120,28 @@ export class ViewportService {
    * caso resta la vista estesa — è il default anche del CSS, che nasconde la
    * tabella solo dentro la media query.
    */
+  /**
+   * ⚠️ Il ripiego è `auto` a ogni intoppo — `localStorage` assente in modalità
+   * privata, valore scritto a mano, schermata di prova senza `window`: la
+   * larghezza decide, che è il comportamento di sempre.
+   */
+  private leggiModo(): ViewMode {
+    try {
+      const salvato = this.document.defaultView?.localStorage.getItem(VIEW_MODE_KEY);
+      return VIEW_MODES.includes(salvato as ViewMode) ? (salvato as ViewMode) : DEFAULT_VIEW_MODE;
+    } catch {
+      return DEFAULT_VIEW_MODE;
+    }
+  }
+
+  private scriviModo(mode: ViewMode): void {
+    try {
+      this.document.defaultView?.localStorage.setItem(VIEW_MODE_KEY, mode);
+    } catch {
+      // Ripiego silenzioso: la scelta vale per questa sessione e non si ricorda.
+    }
+  }
+
   private mediaQuery(): MediaQueryList | null {
     const view = this.document.defaultView;
     if (!view?.matchMedia) {

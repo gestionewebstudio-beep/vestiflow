@@ -112,41 +112,76 @@ Tre lavori chiesti dal proprietario nella stessa sessione, in ordine di come li
 ha posti. ⚠️ Nessuno è cominciato: qui c'è quanto basta a riprenderli senza
 ricostruire il ragionamento.
 
-## 1. ⭐ Il SELETTORE DI VISTA in Impostazioni → Aspetto
+## 1. ⏸ Il SELETTORE DI VISTA — base fatta, manca l'ultimo pezzo _(30/08/2026)_
 
-> _«Selettore per scegliere la vista normale automatica, la vista fissa mobile e
-> la vista fissa desktop. In questo modo si risolve il problema dei pc troppo
-> piccoli o tablet troppo grandi.»_
+### ✅ Quello che c'è già, e non va rifatto
 
 ```text
-Automatica     la soglia decide, com'è oggi
-Sempre mobile  card e comandi compatti, a qualunque larghezza
-Sempre desktop tabella piena, a qualunque larghezza
+view-mode.model.ts        auto · compact · wide, con etichette e spiegazioni
+ViewportService           la scelta, la persistenza per DISPOSITIVO, e compact()
+                          che la rispetta — i 17 consumatori non sanno che esiste
+attributo data-vista      scritto sulla radice solo quando la vista è imposta
+mixin vista-compatta      il ramo CSS, +4 kB (+0,09%)
 ```
 
-⛔ **E SOSTITUISCE la doppia soglia per tipo di puntatore** di
-`regole-stile-ui` §9 — mouse 820px, dito 1400px — che era «decisa l'11/08/2026,
-da eseguire» e non è mai stata eseguita. Il proprietario l'ha superata il
-30/08: «questa va eliminata».
+⭐ **È inerte e non fa danno**: senza il selettore nessuno può impostare nulla,
+quindi `data-vista` non viene mai scritto e nessuna regola cambia peso.
 
-⭐ **Ed è la scelta giusta**, per una ragione che la regola vecchia già
-conteneva senza saperla applicare: due soglie tarate sui dispositivi sbagliano
-comunque sui casi limite — il monitor touch grande, il 2-in-1, il portatile
-stretto — e ogni errore costa all'operatore un giro nelle impostazioni. Un
-selettore a tre stati **non deve indovinare niente**: chi ha un caso limite lo
-dichiara una volta e non ci pensa più.
+### ⛔ E QUELLO CHE MANCA, con la misura che l'ha smascherato
 
-**Dove si aggancia:** `ViewportService.compact` è già l'unico segnale, letto da
-17 consumatori. Diventa `automatica ? mediaQuery : scelta`. Il valore vive nel
-dispositivo (localStorage), non sul profilo: è una proprietà di QUESTO schermo,
-e sincronizzarla fra telefono e scrivania sarebbe il difetto, non la funzione.
+Il selettore in Impostazioni → Aspetto era stato scritto, provato **a schermo** e
+poi **ritirato**, perché la funzione non funzionava:
 
-**Dove si mette:** `settings.component.html`, sezione «Aspetto», accanto al tema
-— che è l'altra scelta di questo genere e ha già la sua forma a tre opzioni.
+```text
+1400px, «Sempre compatta»    card visibili 6 · intestazioni visibili 9
+```
 
-⚠️ **Va tolta anche la sezione §9 di `regole-stile-ui`** con le due soglie, non
-lasciata accanto: due regole che dicono cose diverse sullo stesso argomento sono
-peggio di nessuna regola.
+⛔ **Le due viste insieme** — il difetto che `regole-stile-ui` §9 chiama «la
+stessa riga non esiste due volte». A nascondere l'intestazione è
+`data-table-mobile-cards`, che è **incluso da 19 componenti**: convertirlo
+moltiplica la duplicazione per diciannove.
+
+```text
+solo il motore tabella (3 blocchi)    +4 kB     ⛔ card e intestazioni insieme
++ il mixin delle card (19 volte)      +100 kB   ✅ funziona   (+2,2% su 4,48 MB)
+```
+
+⚠️ **La prima misura era giusta e la conclusione sbagliata**: avevo misurato il
+costo senza verificare che il risultato funzionasse. L'ho scoperto solo provandolo
+nel browser — build e test erano verdi in entrambi i casi.
+
+### ⭐ COME RIPRENDERLO, in un colpo solo
+
+Deciso dal proprietario il 30/08/2026: «adesso nessuno utilizza il gestionale,
+possiamo lasciare così, completare altro lavoro e poi riprendere questo,
+eviteremmo di fare il doppio».
+
+1. **Rifattorizzare `data-table-mobile-cards`** perché la regola che nasconde
+   l'intestazione stia in un punto solo invece che dentro il mixin incluso 19
+   volte. È il lavoro che fa tornare indietro i 100 kB.
+2. **Poi** convertire quel punto a `vista-compatta`.
+3. **Infine** il selettore in Impostazioni, accanto al tema — che è la sua casa:
+   sono le due scelte su come si vede l'app su QUESTO schermo.
+
+⛔ **In quest'ordine, e non al contrario.** Aggiungere prima il selettore
+consegnerebbe una funzione rotta; rifattorizzare prima di avere la funzione che
+gira significa lavorare al buio — ed è da lì che è nato il difetto sopra.
+
+### Le decisioni già prese, che restano
+
+|                                                                           |                                                                                                                                                                                 |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **«Compatta» ed «estesa»**, non «mobile» e «desktop»                      | nominano ciò che si vede, non il dispositivo che si suppone. Chi sceglie «compatta» su un monitor da 27 pollici vuole le card, non sta dicendo di essere su un telefono         |
+| **La scelta vive nel DISPOSITIVO**                                        | non sul profilo: chi impone la compatta sul monitor del banco non la vuole sul portatile                                                                                        |
+| **Il default è `auto`**                                                   | la soglia sbaglia solo sui casi limite: partire da una vista imposta li renderebbe la regola                                                                                    |
+| ⛔ **Sostituisce la doppia soglia per PUNTATORE** di `regole-stile-ui` §9 | decisa l'11/08, mai eseguita, superata il 30/08. La ragione stava già in quella regola: «nessuna linea fissa chiude la questione» — e vale identica per le soglie del puntatore |
+
+⚠️ **Copre la vista, non ogni dettaglio.** Metà del progetto è mobile-first — 105
+`media-up` contro 95 `media-down` — e quei blocchi continuano a valere sullo
+schermo largo: la tabella diventa card, ma qualche spaziatura resta quella da
+scrivania. Sopprimere anche i `media-up` chiede di avvolgerli, e **quello sì**
+cambia la specificità di ogni regola responsive — con tre difetti di specificità
+già incontrati in una sola giornata, è un lavoro a sé.
 
 ## 2. ⛔ «Nuovo arrivo merce» non ha senso nel Registro documenti
 

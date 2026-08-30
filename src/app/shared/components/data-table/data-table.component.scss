@@ -202,7 +202,7 @@
   l'ha visto il proprietario, non un test: le classi orfane non falliscono.
   È salita qui perché non era del Registro, come il tono che la governa.
 */
-@include bp.media-down('lg') {
+@include bp.vista-compatta('lg') {
   .data-table tbody tr.data-table__row--positive,
   .data-table tbody tr.data-table__row--negative,
   .data-table tbody tr.data-table__row--muted {
@@ -295,7 +295,7 @@
   text-align: end;
 }
 
-@include bp.media-down('lg') {
+@include bp.vista-compatta('lg') {
   // Sulla card la maniglia non ha senso: non c'è colonna da allargare, e
   // sarebbe un bersaglio invisibile sotto il dito.
   .data-table__resize {
@@ -544,7 +544,7 @@
 }
 
 :host(.data-table-host--row-card) {
-  @include bp.media-down('lg') {
+  @include bp.vista-compatta('lg') {
     /*
       ⚠️ **Le celle vere non spariscono: si nascondono all'OCCHIO.**
 
