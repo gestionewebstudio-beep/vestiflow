@@ -52,14 +52,20 @@ async function renderRiepilogo(riepilogo: CorrispettiviSummary = RIEPILOGO) {
  * come un tooltip letto per errore.
  */
 function etichette(): readonly string[] {
-  return Array.from(document.querySelectorAll('.corrispettivi-summary__item dt')).map((dt) =>
-    Array.from(dt.childNodes)
-      .filter((n) => n.nodeType === Node.TEXT_NODE)
-      .map((n) => n.textContent ?? '')
-      .join('')
-      .trim()
-      .replace(/\s+/g, ' '),
-  );
+  return Array.from(document.querySelectorAll('.corrispettivi-summary__item dt')).map((dt) => {
+    // ⭐ Tre etichette hanno DUE forme — lunga e abbreviata (`14` §0.2): qui si
+    //    legge sempre la LUNGA, che è quella semantica. Quale delle due si veda
+    //    lo decide una media query, e in jsdom i fogli del componente non si
+    //    applicano, quindi non è verificabile qui.
+    const lunga = dt.querySelector('.corrispettivi-summary__lungo');
+    const testo =
+      lunga?.textContent ??
+      Array.from(dt.childNodes)
+        .filter((n) => n.nodeType === Node.TEXT_NODE)
+        .map((n) => n.textContent ?? '')
+        .join('');
+    return testo.trim().replace(/\s+/g, ' ');
+  });
 }
 
 describe('CorrispettiviSummaryComponent', () => {
@@ -112,8 +118,8 @@ describe('CorrispettiviSummaryComponent', () => {
     await renderRiepilogo();
 
     expect(etichette()).toEqual([
-      'Annullamenti',
       'Vendite',
+      'Annullamenti',
       'Rettifiche (4)',
       'Imponibile',
       'IVA',
@@ -173,6 +179,28 @@ describe('CorrispettiviSummaryComponent', () => {
   it('senza conteggio la voce non compare affatto', async () => {
     await renderRiepilogo();
     expect(document.querySelector('.corrispettivi-summary__count')).toBeNull();
+  });
+
+  /**
+   * ⭐ **Le etichette della banda economica sono SEMPRE per esteso.**
+   *
+   * ⛔ Qui c'erano due forme dichiarate — `Imp.`, `Tot.`, `Corrisp.` — perché la
+   * banda aveva quattro colonne UGUALI: «Corrispettivo» chiedeva 87px in una
+   * colonna che a 320px ne aveva 64.
+   *
+   * ⭐ **Misurato di nuovo il 30/08/2026 dopo che la banda è passata a colonne A
+   * CONTENUTO**: «Imponibile» — la più lunga delle quattro — chiede 55px e ne
+   * ha 55, già a 320px. L'abbreviazione era la risposta giusta a una domanda
+   * che non si poneva più.
+   */
+  it('le etichette della banda economica sono sempre per esteso', async () => {
+    await renderRiepilogo();
+
+    const testi = Array.from(
+      document.querySelectorAll('.corrispettivi-summary__band--money dt'),
+    ).map((dt) => dt.textContent?.trim());
+
+    expect(testi).toEqual(['Imponibile', 'IVA', 'Tot. vendite', 'Corrispettivo']);
   });
 
   it('le vendite evase senza data si dichiarano, non spariscono', async () => {

@@ -81,6 +81,18 @@
         </p>
       }
 
+      <!--
+        ⭐ **VENDITE prima di ANNULLAMENTI** — dallo screenshot del proprietario,
+        30/08/2026: «Vendite 8 · Annullamenti 2». Erano invertiti — Annullamenti
+        era condizionale e nel markup precedeva Vendite, che è sempre presente.
+      -->
+      <div
+        class="corrispettivi-summary__item corrispettivi-summary__item--count corrispettivi-summary__item--sales"
+      >
+        <dt>Vendite</dt>
+        <dd class="tabular-nums">{{ summary().orderCount }}</dd>
+      </div>
+
       @if (summary().cancellationCount > 0) {
         <div class="corrispettivi-summary__item corrispettivi-summary__item--count">
           <dt>
@@ -99,11 +111,6 @@
         </div>
       }
 
-      <div class="corrispettivi-summary__item corrispettivi-summary__item--count">
-        <dt>Vendite</dt>
-        <dd class="tabular-nums">{{ summary().orderCount }}</dd>
-      </div>
-
       <!--
         ⭐ **Riga B della banda**: etichetta a sinistra, importo a destra. È
         l'unica voce della prima banda che porta denaro, e a 320px chiede 169px
@@ -121,6 +128,25 @@
       }
     </div>
 
+    <!--
+      ⭐ **Due forme per le etichette lunghe, e l'abbreviazione è DICHIARATA.**
+
+      Misurato col browser a 320px: una colonna ha **54px** di spazio per il
+      testo, e «CORRISPETTIVO» a 10px maiuscolo ne chiede **99**. Il font non è
+      la strada — servirebbero 7px, illeggibili: è la larghezza che non c'è.
+
+      ```text
+      ≥ 480px   Imponibile · IVA · Tot. vendite · Corrispettivo
+      < 480px   Imp.       · IVA · Tot.         · Corrisp.
+      ```
+
+      ⛔ **Le abbreviazioni sono scritte, non generate**: un troncamento
+      automatico produrrebbe «CORRISPETT…», che non è una parola.
+
+      ⚠️ **Una sola arriva ai lettori di schermo**: la forma nascosta usa
+      `display: none`, che la toglie anche dall'albero accessibile. Con
+      `visibility` o `.sr-only` l'etichetta verrebbe annunciata due volte.
+    -->
     <div class="corrispettivi-summary__band corrispettivi-summary__band--money">
       <div class="corrispettivi-summary__item">
         <dt>Imponibile</dt>

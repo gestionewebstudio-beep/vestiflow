@@ -99,6 +99,50 @@
   linea di base si appoggiano tutti sulla stessa riga, che è come si legge una
   fila di numeri.
 */
+/*
+  ⛔ **LA FASCIA ANDAVA A DUE RIGHE FRA 1024 E ~1180px** — misurato il
+  30/08/2026 su sei larghezze:
+
+  ```text
+  1024   fascia  754px · serve 918   ⛔ mancano 164
+  1150   fascia  880px · serve 918   ⛔ mancano  38
+  1200   fascia  930px · serve 918   ✓
+  ```
+
+  Non è un caso limite: è la finestra di un portatile piccolo, e la fascia
+  cresceva di una riga proprio dove lo spazio verticale scarseggia.
+
+  ⛔ **La soglia non si sposta a mano.** Un `@media (min-width: 1200px)` sarebbe
+  tarato su QUESTE otto voci con QUESTI importi, e tornerebbe a rompersi al primo
+  totale a cinque cifre. È lo stesso errore già fatto sulla banda mobile.
+
+  ⭐ **Decide il contenuto**: `nowrap` più voci comprimibili. Quando lo spazio
+  manca, a cedere è la larghezza del testo, non l'altezza della fascia — la
+  stessa scelta già presa sotto `lg`, qui portata anche sulla scrivania.
+*/
+/*
+  ⛔ **IL `nowrap` QUI ERA SBAGLIATO, ed è durato mezza giornata.**
+
+  Lo avevo messo il 30/08/2026 per chiudere un difetto vero — fra 1024 e ~1180px
+  la fascia andava a due righe — con la motivazione «decide il contenuto: quando
+  lo spazio manca cede la larghezza del testo, non l'altezza della fascia».
+
+  ⚠️ **Il testo non poteva cedere.** Le etichette sono `white-space: nowrap` per
+  contratto (una `dt` spezzata alzerebbe l'intera fascia), quindi con
+  `min-inline-size: 0` le voci si stringevano SOTTO il proprio contenuto e il
+  testo traboccava sulla voce accanto. Il proprietario l'ha visto su una finestra
+  stretta: «ANNULLAMENTI 2IMPONIBILE 517,99 €IVA 96,02 €…», tutto attaccato.
+
+  ⛔ **Una riga illeggibile è peggio di due righe leggibili**, ed è il metro con
+  cui va giudicata la scelta: il difetto che credevo di correggere costava
+  un'altezza di fascia, quello che ho introdotto costava la lettura dei totali.
+
+  ⭐ Il `wrap` torna quindi a essere il comportamento: quando la fascia non ci
+  sta, va a capo. La soglia a cui succede resta da decidere — e la decisione è
+  fra spostare la forma a una riga più in alto (`xl`) o farla dipendere dalla
+  larghezza REALE del contenitore, che con la barra laterale non coincide con
+  quella della finestra.
+*/
 .corrispettivi-summary__grid {
   display: flex;
   flex-wrap: wrap;
@@ -177,21 +221,156 @@
   più. È lo stesso difetto delle regole scavalcate, girato al contrario.
 */
 @include bp.media-down('lg') {
+  /*
+    ⛔ **QUI LA FASCIA DEVE TORNARE A CAPO**, ed è l'opposto della scrivania.
+
+    Sopra `lg` le bande sono dissolte (`display: contents`) e i figli della
+    fascia sono le singole voci: `nowrap` le comprime, ed è quello che si vuole.
+    Sotto `lg` le bande esistono e chiedono `flex: 1 1 100%` ciascuna — con
+    `nowrap` non possono impilarsi, quindi si spartiscono la riga e collassano.
+
+    ⚠️ **Misurato il 30/08/2026, ed era una regressione introdotta un'ora prima**:
+    portando il `nowrap` sulla scrivania senza rimetterlo qui, sotto i 480px ogni
+    etichetta e ogni importo finivano in una colonna larga **zero pixel** — tutto
+    tagliato — e il piede passava da 82 a 379px di altezza.
+  */
+  .corrispettivi-summary__grid {
+    flex-wrap: wrap;
+  }
+
+  /*
+    ⛔ **LE BANDE NON RIEMPIVANO IL PIEDE** — misurato nel browser il 30/08/2026:
+
+    ```text
+    a 630px   piede 598px
+              banda conteggi  346px   ⛔ si ferma a metà
+              banda importi   274px   ⛔
+    ```
+
+    ⭐ **La causa**: `.corrispettivi-summary__grid` è un contenitore FLEX, e una
+    figlia flessibile resta larga quanto il proprio contenuto. Su scrivania è
+    giusto — lì le bande si dissolvono (`display: contents`) e a disporsi sono le
+    voci — ma sotto `lg` le bande sono contenitori veri, e devono prendere la
+    riga intera perché le voci dentro possano distribuirsi.
+
+    ⚠️ **`flex-basis: 100%` e non `width`**: in un contenitore flex con
+    `flex-wrap`, è la base flessibile a decidere se una figlia occupa la riga —
+    e a mandarle a capo l'una sotto l'altra, che è la forma delle due bande.
+  */
+  /*
+    ⭐ **LE BANDE NON VANNO A CAPO: SI STRINGONO** — deciso dal proprietario il
+    30/08/2026, guardando il piede a schermo stretto: «non deve andare a capo,
+    può restringersi».
+
+    ⛔ Con `flex-wrap: wrap` la banda dei conteggi si spezzava in due righe
+    appena il contenuto non entrava — e il piede cresceva in altezza proprio
+    dove lo spazio verticale è più scarso. Il ripiego era peggiore del problema.
+
+    ⭐ `nowrap` più `min-inline-size: 0` sulle voci: quando lo spazio manca, a
+    cedere è la LARGHEZZA del testo — che si comprime e, se serve, tronca — non
+    l'altezza del piede. Il numero di righe del dock diventa così una costante,
+    non una conseguenza del contenuto.
+  */
+  /*
+    ⛔ **IL `nowrap` QUI TRABOCCAVA, non stringeva** — ed è lo stesso difetto già
+    trovato e ritirato sulla fascia da scrivania, un piano più sotto.
+
+    Era stato messo il 30/08/2026 su indicazione del proprietario («non deve
+    andare a capo, può restringersi»). Ma **le etichette sono `nowrap` per
+    contratto**: con `min-inline-size: 0` le voci si stringono sotto il proprio
+    contenuto e il testo esce dal riquadro invece di comprimersi.
+
+    Misurato a 430px dopo il passaggio alle etichette maiuscole — che sono più
+    larghe delle minuscole: «− 205,01 €» **fuori dal riquadro**, tagliato dal
+    bordo dello schermo. A 320px usciva di 70px.
+
+    ⭐ **Un valore tagliato è peggio di una riga in più**, in un registro fiscale
+    più che altrove: «− 205,01 €» troncato non è brutto, è un numero sbagliato.
+
+    ⚠️ **Perché il difetto è comparso ORA e non prima**: le maiuscole richieste il
+    30/08 hanno allargato le etichette quanto basta a superare la soglia. Il
+    `nowrap` era già rotto a 375px — la richiesta l'ha solo reso visibile a 430.
+  */
   .corrispettivi-summary__band {
+    flex: 1 1 100%;
     display: flex;
     flex-wrap: wrap;
+    justify-content: space-between;
     align-items: baseline;
     /* Il target è 3–4px per fascia: qui e basta, niente gap fra le righe. */
     padding-block: var(--space-1);
   }
 
+  /*
+    ⭐ **Colonne a CONTENUTO, non quattro uguali** — misurato nel browser il
+    30/08/2026.
+
+    ⛔ Con `repeat(4, minmax(0, 1fr))` ogni colonna vale un quarto della banda, e
+    la più larga non ci sta:
+
+    ```text
+    «Corrispettivo» serve 87px
+      a 320px la colonna ne vale 64   ⛔ mancano 23
+      a 390px                    81   ⛔ mancano  6
+      ci starebbe solo da 412px
+    ```
+
+    A contenuto le quattro etichette sommano ~230px contro i 280 disponibili a
+    320: ci stanno **tutte e quattro per esteso**, e «IVA» smette di occupare
+    quanto «Corrispettivo».
+
+    ⚠️ **Le abbreviazioni restano**, e non sono un doppione: sotto `sm` (480px)
+    entra la forma corta, dichiarata a mano nel markup — non generata. Con le
+    colonne a contenuto la soglia si potrà probabilmente abbassare, ma è una
+    misura da rifare a schermo, non un numero da indovinare qui.
+
+    ⚠️ **`space-between` e non `gap`**: le quattro voci si distribuiscono sulla
+    larghezza, quindi la prima resta a filo sinistro e l'ultima a filo destro —
+    che è dove la risposta va cercata.
+  */
+  /*
+    ⭐ **QUATTRO COLONNE UGUALI, allineate a SINISTRA** — dal mockup del
+    proprietario, 30/08/2026.
+
+    ⛔ Qui c'era `flex` con `space-between`: le voci si dimensionavano sul
+    contenuto e si spingevano ai due bordi, quindi «IVA» — corta — restava
+    incollata a «Imponibile» mentre in fondo si apriva un vuoto. A schermo si
+    leggeva come un allineamento sbagliato, ed era.
+
+    ⭐ **In griglia ogni voce ha la stessa colonna**, e dentro la colonna
+    etichetta e valore stanno a filo sinistro: è la forma del mockup, e quella
+    che rende i quattro numeri confrontabili incolonnandoli sotto il proprio
+    nome.
+
+    ⚠️ **`minmax(0, 1fr)` e non `1fr`**: senza il minimo a zero una colonna non
+    può stringersi sotto il proprio contenuto, e a 320px la griglia sborderebbe
+    invece di comprimersi.
+  */
   .corrispettivi-summary__band--money {
-    /*
-      Quattro colonne uguali: qui i valori DEVONO incolonnarsi sotto le proprie
-      etichette, ed è l'unico posto dove la griglia è la forma giusta.
-    */
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    /*
+      ⛔ **A QUATTRO COLONNE FISSE «CORRISPETTIVO» SI SPEZZAVA A METÀ** —
+      «CORRISPETTIV / O», da 320 a 412px. Misurato il 30/08/2026.
+
+      La causa erano due decisioni corrette che insieme non stavano in piedi:
+      `overflow-wrap: anywhere` (messo per non TAGLIARE il testo) e le etichette
+      maiuscole (più larghe delle minuscole). Con quattro colonne su un telefono
+      restano ~85px per colonna, e «CORRISPETTIVO» a 11px maiuscolo ne chiede ~95.
+
+      ⭐ **Il numero di colonne lo decide lo spazio, non io**: `auto-fit` ne mette
+      quattro dove ci stanno e due dove non ci stanno, e la colonna non scende
+      mai sotto la larghezza in cui un'etichetta ci sta intera.
+
+      ⚠️ **`min(…, 100%)` e non il token nudo**: sotto i 132px di larghezza utile
+      una traccia con minimo fisso sfonderebbe il contenitore invece di cedere.
+      È la stessa cautela di `minmax(0, …)`, scritta per un minimo non nullo.
+
+      ⭐ Il token `--summary-item-min-w` esisteva già ed era rimasto inutilizzato
+      da quando la banda era passata a colonne uguali: torna a fare il mestiere
+      per cui era stato dichiarato.
+    */
+    grid-template-columns: repeat(auto-fit, minmax(min(var(--summary-item-min-w), 100%), 1fr));
+    align-items: baseline;
     border-block-start: var(--border-width) solid var(--color-border);
   }
 
@@ -199,22 +378,68 @@
     ⭐ **Banda 1 — riga A**: i conteggi in fila, etichetta e valore affiancati.
     Larghezza a contenuto, così «12 righe» non si prende un quarto di schermo.
   */
+  /*
+    ⚠️ **`flex: 0 1 auto` e non `0 0 auto`**: lo zero centrale impediva alle voci
+    di stringersi, quindi la banda non aveva altra scelta che andare a capo. Con
+    il ritiro abilitato e `min-inline-size: 0` a togliere il pavimento implicito
+    del contenuto, le voci si comprimono in ordine e la riga resta una.
+  */
   .corrispettivi-summary__band--stats > * {
-    flex: 0 0 auto;
+    flex: 0 1 auto;
+    min-inline-size: 0;
     padding-inline: 0 var(--space-3);
     border-inline-end: 0;
-    text-align: start;
+    /*
+      ⚠️ **A destra come gli importi**: da quando le voci sono impilate,
+      etichetta e valore stanno nella stessa colonna e l'allineamento non li
+      separa più. Tenerle a sinistra mentre la banda sotto è a destra faceva
+      leggere le due fasce come due componenti diversi.
+    */
+    text-align: end;
   }
 
+  /*
+    ⭐ **ANCHE I CONTEGGI IMPILATI: ETICHETTA SOPRA, VALORE SOTTO** — deciso dal
+    proprietario il 30/08/2026 guardando il telefono: «forse dovremmo mettere i
+    valori anche da mobile su due righe, testo sopra e valore sotto».
+
+    ⛔ Qui restavano AFFIANCATI mentre gli importi erano già impilati, e la
+    stessa fascia mostrava due grammatiche diverse una sopra l'altra. Su
+    scrivania sono impilati tutti da oggi: il telefono era l'ultimo pezzo
+    rimasto indietro.
+
+    ⭐ E risolve da sé il traboccamento: una voce impilata è larga
+    `max(etichetta, valore)` invece di `etichetta + gap + valore`, quindi la
+    banda dei conteggi ci sta dove prima usciva dal riquadro.
+  */
   .corrispettivi-summary__item--count {
-    flex-direction: row;
-    align-items: baseline;
-    gap: var(--space-2);
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-05);
   }
 
+  /*
+    ⛔ **IL TELEFONO SBIADIVA I CONTEGGI, LA SCRIVANIA NO** — «Vendite 8» era
+    #657075 sotto `lg` e #20282b sopra.
+
+    ⭐ Tolto, seguendo la decisione del proprietario del 30/08/2026: «per la
+    versione mobile utilizziamo i colori utilizzati per la versione desktop e
+    anche le impostazioni del font, a parte la grandezza».
+
+    ⚠️ Il peso resta dichiarato: è lo stesso della scrivania, e senza questa riga
+    la `dd` ripiegherebbe sul peso normale della regola base.
+  */
   .corrispettivi-summary__item--count dd {
     font-weight: var(--font-weight-semibold);
-    color: var(--color-text-muted);
+  }
+
+  /*
+    ⭐ **«Vendite» nel verde nostro**, deciso dal proprietario il 30/08/2026
+    guardando lo screenshot: le altre voci restano nel muted comune, questa
+    prende `--color-ok` — lo stesso token del Corrispettivo, non un verde nuovo.
+  */
+  .corrispettivi-summary__item--sales dd {
+    color: var(--color-ok);
   }
 
   /*
@@ -248,11 +473,32 @@
     l'ordine**, e con l'incapsulamento i conti si fanno sul selettore compilato,
     non su quello scritto.
   */
+  /*
+    ⭐ **`auto`, non `100%`** — corretto il 30/08/2026 dopo che le bande hanno
+    smesso di fermarsi a metà piede.
+
+    ⛔ Qui c'era `flex: 1 0 100%`: le rettifiche prendevano SEMPRE una riga
+    tutta loro. Era la conclusione giusta della misura di allora — con le bande
+    larghe 346px il contenuto ne chiedeva 364, e in riga non ci stava. Ma quella
+    misura è scaduta: da quando `.corrispettivi-summary__band` è
+    `flex: 1 1 100%`, a 630px la banda è larga **572px** e il contenuto ne chiede
+    **340**.
+
+    ```text
+    prima   banda 346px · serve 364   ⛔ una riga sua, per forza
+    ora     banda 572px · serve 340   ✓ sta in riga con le altre
+    ```
+
+    ⭐ **A contenuto va a capo DA SÉ dove serve**: sotto i 390px il `flex-wrap`
+    della banda la manda sotto senza che nessuno lo imponga, e sopra resta in
+    riga. È la differenza fra dichiarare un ripiego e lasciarlo accadere quando
+    è vero.
+  */
   .corrispettivi-summary__band--stats > .corrispettivi-summary__item--negative {
-    flex: 1 0 100%;
+    flex: 0 1 auto;
     flex-direction: row;
     align-items: baseline;
-    justify-content: space-between;
+    gap: var(--space-2);
     padding-inline: 0;
   }
 
@@ -263,11 +509,57 @@
     strette e i numeri di colonne diverse si toccano quasi. Un filo al 40%
     separa senza disegnare una tabella.
   */
+  /*
+    ⛔ **IL TESTO VENIVA TRONCATO SOTTO I 412px** — misurato il 30/08/2026 su
+    diciotto larghezze:
+
+    ```text
+    320px   «Corrispettivo» 87px in 64   ⛔ tagliato
+            «614,01 €»      71px in 64   ⛔ tagliato
+    390px   «Corrispettivo» 87px in 81   ⛔ tagliato
+    412px                                ✓
+    ```
+
+    ⭐ **La causa era il `nowrap` messo per non far andare a capo la BANDA**: si
+    applicava anche alle etichette, che quindi non potevano andare a capo dentro
+    la propria colonna e venivano tagliate. Sono due cose diverse — la banda non
+    deve spezzarsi, il testo sì.
+
+    ⚠️ **Un importo tagliato è peggio di un importo su due righe**: «614,01 €»
+    troncato a «614,0» è un numero sbagliato, e in un registro fiscale non è un
+    difetto estetico.
+  */
   .corrispettivi-summary__band--money > .corrispettivi-summary__item {
     flex-direction: column;
     align-items: stretch;
-    gap: 0;
+    /*
+      ⛔ **QUI C'ERA `gap: 0`**: etichetta e valore si toccavano, e il
+      proprietario l'ha segnalato a schermo il 30/08/2026 — «alcuni troppo
+      attaccati alle scritte».
+
+      ⚠️ **2px, non 4**: è un piede che si vuole basso, e il filo d'aria serve a
+      separare due righe di testo, non a distanziarle. Quattro pixel per quattro
+      colonne sono una riga in più di piede quando la fascia va a capo.
+    */
+    gap: var(--space-05);
+    min-inline-size: 0;
     padding-inline: var(--space-1);
+    /*
+      ⭐ **A DESTRA, come su scrivania** — segnalato dal proprietario il
+      30/08/2026 guardando il telefono: «allineamento dei testi a sinistra».
+
+      ⛔ Qui c'era `start`, con la motivazione che in una griglia a colonne il
+      testo a destra «staccherebbe ogni etichetta dal proprio valore». Non
+      reggeva alla prova: etichetta e valore stanno nella STESSA colonna, quindi
+      allineati a destra restano incolonnati fra loro esattamente come a sinistra
+      — e in più le cifre si incolonnano fra le quattro voci, che è la
+      convenzione contabile di `regole-stile-ui` («a destra, etichetta compresa,
+      alle due larghezze»).
+
+      ⭐ Ed è la stessa decisione già presa per la scrivania: le due larghezze
+      ora concordano invece di divergere.
+    */
+    text-align: end;
     border-inline-end: var(--border-width) solid
       color-mix(in srgb, var(--color-border) 40%, transparent);
   }
@@ -302,14 +594,40 @@
 .corrispettivi-summary__item {
   display: flex;
   /*
-    ⭐ **In fila, non impilati** (30/08/2026): è la modifica che porta la fascia
-    da 39px a 25px sulla FORMA DA SCRIVANIA. Sotto `lg` torna in colonna — vedi
-    il blocco sotto — perché lì lo spazio orizzontale è quello che manca, non
-    l'altezza.
+    ⚠️ **`flex: 0 1 auto` con `min-inline-size: 0`**: una voce che non puo'
+    stringersi manda a capo la fascia intera. Sono la coppia che permette al
+    `nowrap` qui sopra di reggere a ogni larghezza — a cedere e' il testo, non
+    l'altezza della fascia.
   */
-  flex-direction: row;
-  align-items: baseline;
-  gap: var(--space-2);
+  flex: 0 1 auto;
+  /*
+    ⭐ **IMPILATI: ETICHETTA SOPRA, VALORE SOTTO — a ogni larghezza** — deciso dal
+    proprietario il 30/08/2026: «forse dobbiamo tornare ad occupare due righe per
+    i totali, scritte sopra e valori sotto, altrimenti va sempre a capo».
+
+    ⛔ **Qui c'erano etichetta e valore AFFIANCATI**, decisi lo stesso giorno per
+    portare la fascia da 39px a 25px. La misura era giusta ma incompleta: una
+    voce in fila è larga `etichetta + gap + valore`, cioè quasi il doppio di una
+    impilata, e otto voci così chiedevano **918px** — che una finestra sotto i
+    1180 non ha.
+
+    ```text
+    in fila     25px di altezza · 918px di larghezza  →  va a capo, 2 righe ≈ 50px
+    impilati    39px di altezza · ~500px              →  UNA riga, sempre
+    ```
+
+    ⭐ **Una riga da 39px batte due righe da 25**, e non è solo aritmetica: la
+    fascia a capo spezzava il gruppo degli importi a metà, lasciando
+    «CORRISPETTIVO 614,01 €» da solo sotto — cioè staccava proprio la voce che
+    chiude il registro da quelle che la compongono.
+
+    ⚠️ **E toglie la soglia dal problema.** La forma impilata sta in una riga a
+    QUALUNQUE larghezza da `lg` in su, quindi non c'è più una soglia da indovinare
+    né una larghezza a cui degrada.
+  */
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-05);
   min-inline-size: 0;
   /*
     ⚠️ **`--space-2`, non `--space-3`**: gli 8px risparmiati per lato su sette
@@ -333,9 +651,13 @@
     flex-direction: column;
     align-items: stretch;
     gap: 0;
-    padding-block-start: var(--space-2);
+    /*
+      ⛔ **Nessun padding sopra la cella**: il filo che apre la banda ce l'ha la
+      BANDA, e il suo  da 4px è già lo stacco che il target
+      chiede. Sommandone un secondo qui la banda misurava 51px contro i 38-42
+      richiesti — misurato col browser a 320px.
+    */
     padding-inline: var(--space-2);
-    border-block-start: var(--border-width) solid var(--color-border);
   }
 }
 
@@ -347,6 +669,24 @@
   Quante righe ci sono davanti. Muted e senza filo: non è una voce della
   riconciliazione, è il contesto in cui si legge.
 */
+/*
+  ⛔ **QUI C'ERANO LE ETICHETTE ABBREVIATE** — «Imp.», «Tot.», «Corrisp.» in un
+  secondo `<span>`, che sotto `sm` (480px) prendeva il posto di quella lunga.
+
+  ⭐ **Non servono più, misurato il 30/08/2026**: da quando la banda degli
+  importi ha colonne a CONTENUTO invece che quattro uguali, le etichette per
+  esteso entrano **da 320px in su**.
+
+  ```text
+  con 4 colonne uguali    «Corrispettivo» 87px in 64   ⛔ a 320
+  a contenuto             «Imponibile»    55px in 55   ✓ a 320
+  ```
+
+  ⚠️ **L'abbreviazione era la risposta giusta alla domanda sbagliata**: si
+  accorciava il testo perché la colonna era stretta, invece di chiedersi perché
+  fosse stretta. La colonna lo era per costruzione, non per mancanza di spazio.
+*/
+
 .corrispettivi-summary__count {
   margin: 0;
   padding-inline-end: var(--space-2);
@@ -544,16 +884,24 @@
     c'è spazio e vanno a capo insieme quando non ce n'è.
   */
   /*
-    ⭐ **Banda dei CONTEGGI**: etichetta e valore IN FILA, niente filo verticale,
-    niente filo sopra. È contesto, non aritmetica — e la forma diversa è ciò che
-    lo dice, prima ancora del colore.
+    ⛔ **QUI CONTEGGI E RETTIFICHE TORNAVANO IN FILA**, ed è la regola che vinceva
+    su quella scritta più sopra: due dichiarazioni per lo stesso elemento nello
+    stesso file, l'ultima delle quali disfaceva la prima.
+
+    La motivazione era che i conteggi «sono contesto, non aritmetica, e la forma
+    diversa è ciò che lo dice». ⛔ Superata dal proprietario il 30/08/2026: «forse
+    dovremmo mettere i valori anche da mobile su due righe, testo sopra e valore
+    sotto». A distinguere il contesto dall'aritmetica restano il filo che separa
+    le due bande e la posizione — non serve una seconda grammatica.
+
+    ⭐ E la forma unica risolve il traboccamento: una voce impilata è larga
+    `max(etichetta, valore)` invece di `etichetta + gap + valore`.
   */
   .corrispettivi-summary__item--count,
   .corrispettivi-summary__item--negative {
-    flex-direction: row;
-    align-items: baseline;
-    justify-content: flex-start;
-    gap: var(--space-2);
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-05);
     padding-block-start: 0;
     padding-inline: 0 var(--space-3);
     border-block-start: 0;
@@ -561,18 +909,36 @@
     text-align: start;
   }
 
+  /*
+    ⛔ **IL TELEFONO SBIADIVA I CONTEGGI, LA SCRIVANIA NO** — «Vendite 8» era
+    #657075 sotto `lg` e #20282b sopra.
+
+    ⭐ Tolto, seguendo la decisione del proprietario del 30/08/2026: «per la
+    versione mobile utilizziamo i colori utilizzati per la versione desktop e
+    anche le impostazioni del font, a parte la grandezza».
+
+    ⚠️ Il peso resta dichiarato: è lo stesso della scrivania, e senza questa riga
+    la `dd` ripiegherebbe sul peso normale della regola base.
+  */
   .corrispettivi-summary__item--count dd {
     font-weight: var(--font-weight-semibold);
-    color: var(--color-text-muted);
   }
 
   /*
-    Le rettifiche chiudono la banda dei conteggi, e il loro importo si appoggia
-    al bordo destro: è l'unico numero della prima riga, e a sinistra si
-    perderebbe fra le parole.
+    ⛔ **QUI C'ERA `margin-inline-start: auto`, e mandava le rettifiche A CAPO.**
+
+    Misurato nel browser il 30/08/2026: il contenuto della banda chiede 340px e
+    da 390px in su ne ha 340 — **ci starebbe** su una riga. Ma un margine
+    automatico in un contenitore `flex-wrap` consuma lo spazio residuo *prima*
+    di decidere se mandare a capo: con zero spazio residuo la voce va a capo
+    comunque, e l'a-capo sembrava una mancanza di larghezza.
+
+    ⭐ **`space-between` sulla banda fa lo stesso lavoro senza il difetto**:
+    distribuisce le voci sull'intera riga — prima a filo sinistro, ultima a filo
+    destro — ed è la stessa regola della banda degli importi, quindi le due si
+    leggono incolonnate.
   */
   .corrispettivi-summary__item--negative {
-    justify-content: space-between;
     padding-inline-end: 0;
   }
 
@@ -622,7 +988,17 @@
     numero non alza la fascia.
   */
   @include bp.media-down('lg') {
-    font-size: var(--text-lg);
+    /*
+      ⛔ **ERA `--text-lg` (16px) CONTRO GLI 11px DEGLI ALTRI**, cioè +45%: il
+      proprietario l'ha chiamato «sproporzionato agli altri dati» il 30/08/2026,
+      guardando la fascia a quattro colonne.
+
+      ⭐ **14px** — `--text-md`, la taglia che `regole-stile-ui` §5 prescrive per
+      l'unico valore evidenziato, e sotto la quale quella regola dice di non
+      scendere. Resta +27% sugli altri, che con il peso e il verde basta e
+      avanza: a distinguerlo non serviva la taglia più grande della fascia.
+    */
+    font-size: var(--text-md);
     color: var(--color-ok);
   }
 }
@@ -677,3 +1053,84 @@
   Non serve un sostituto: con la fila a contenuto e `flex-wrap` le voci che non
   entrano vanno a capo da sole, a qualunque larghezza.
 */
+
+/*
+  ⭐ **SUL TELEFONO LE ETICHETTE SONO IN TONDO**, non maiuscole — dal mockup del
+  proprietario, 30/08/2026.
+
+  ⛔ La ricetta maiuscola con `letter-spacing: .045em` è quella dell'intestazione
+  TABELLA, ed è giusta su scrivania: là la fascia È una riga di intestazioni
+  sopra una colonna di valori. Sul telefono costa il 25-30% di larghezza, e da lì
+  venivano tutti e tre i difetti visti a schermo — la riga che andava a capo, le
+  etichette compresse in «IMP.» e «CORRISP.», il numero che traboccava.
+
+  ```text
+  banda 1 a 390px (350px utili)
+    MAIUSCOLE + tracking   411px   ⛔
+    tondo normale          347px   ✓
+  ```
+
+  ⚠️ **Non è un ripiego per far stare le cose**: su una banda di due righe le
+  etichette sono TESTO, non intestazioni di colonna. Il maiuscoletto serve a
+  reggere una colonna di valori sotto di sé, che è il caso della scrivania.
+
+  ⭐ **Il Corrispettivo resta maiuscolo**: è la voce che intesta la risposta, e il
+  maiuscoletto è ciò che la distingue dalle altre.
+
+  ⚠️ **Sta in FONDO al foglio, e non è un dettaglio**: la regola base delle `dt`
+  ha la stessa specificità, quindi a decidere è l'ordine. Scritta più in alto —
+  come era nella prima stesura — perdeva il confronto **in silenzio**: nessun
+  errore, e le etichette restavano maiuscole a schermo.
+*/
+@include bp.media-down('lg') {
+  /*
+    ⭐ **Nella banda degli importi il testo PUÒ andare a capo.** Il `nowrap` che
+    la fascia eredita serve alla BANDA — che non deve spezzarsi in due righe —
+    non alle singole etichette, che senza questa deroga venivano troncate sotto
+    i 412px.
+  */
+  .corrispettivi-summary__band--money dt,
+  .corrispettivi-summary__band--money dd {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  /*
+    ⭐ **SOLO LA TAGLIA CAMBIA FRA TELEFONO E SCRIVANIA** — deciso dal
+    proprietario il 30/08/2026: «per la versione mobile utilizziamo i colori
+    utilizzati per la versione desktop e anche le impostazioni del font, a parte
+    la grandezza, ma maiuscole e pesi».
+
+    ⛔ Qui il telefono aveva una tipografia PROPRIA — minuscole, peso 600,
+    nessuna spaziatura — e il risultato era che la stessa fascia si leggeva come
+    due componenti diversi a seconda dello schermo.
+
+    ```text
+    prima    scrivania  10px p700 MAIUSCOLE ls .45   ·   telefono  11px p600 minuscole ls 0
+    ora      la sola differenza è 10 contro 11 px
+    ```
+
+    ⚠️ **La taglia resta più grande sul telefono**, e non è una svista: a 10px
+    con la spaziatura in maiuscoletto un'etichetta su uno schermo piccolo si
+    legge peggio. È l'unica leva che la decisione lascia aperta.
+  */
+  .corrispettivi-summary__item dt {
+    /*
+      ⚠️ **10px come su scrivania.** Erano 11: un pixel in più moltiplicato per
+      la spaziatura del maiuscoletto porta «CORRISPETTIVO» a ~95px, e a quella
+      larghezza le colonne della fascia diventano tre invece di quattro.
+
+      La decisione del proprietario del 30/08 lasciava aperta la sola taglia
+      («a parte la grandezza»): qui la si chiude allineandola, così telefono e
+      scrivania hanno davvero la stessa tipografia.
+    */
+    font-size: var(--text-3xs);
+  }
+
+  .corrispettivi-summary__item--highlight dt {
+    font-size: var(--text-3xs);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.045em;
+  }
+}
