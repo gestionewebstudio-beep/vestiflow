@@ -40,6 +40,7 @@ import { readFileSync, globSync } from 'node:fs';
 function dichiarazioni(scss) {
   const out = [];
   const pila = [];
+  const versi = [];
   let inMedia = 0;
   let inCommento = false;
 
@@ -56,6 +57,9 @@ function dichiarazioni(scss) {
       const testa = n.slice(0, n.indexOf('{')).trim();
       if (/@include\s+\w+\.media-/.test(testa) || testa.startsWith('@media')) {
         inMedia += 1;
+        // Il VERSO serve al secondo controllo: `order` è un difetto solo
+        // scendendo, dove l'ordine del DOM deve essere quello visivo.
+        versi.push(/media-down/.test(testa) ? 'down' : 'up');
         pila.push('@media');
       } else if (testa) {
         const genitore = pila.filter((p) => p !== '@media').at(-1) ?? '';
@@ -66,11 +70,16 @@ function dichiarazioni(scss) {
     } else if (/^[a-z-]+:/.test(n)) {
       const prop = n.slice(0, n.indexOf(':')).trim();
       const sel = pila.filter((p) => p !== '@media').at(-1) ?? '';
-      if (sel) out.push({ sel, prop, riga: i + 1, media: inMedia > 0 });
+      if (sel) {
+        out.push({ sel, prop, riga: i + 1, media: inMedia > 0, verso: versi.at(-1) ?? null });
+      }
     }
 
     for (const _ of n.match(/\}/g) ?? []) {
-      if (pila.pop() === '@media') inMedia -= 1;
+      if (pila.pop() === '@media') {
+        inMedia -= 1;
+        versi.pop();
+      }
     }
   });
 
@@ -122,12 +131,50 @@ for (const f of fogli) {
   }
 }
 
+/**
+ * ⛔ **SECONDO CONTROLLO: `order` dentro `media-down`.**
+ *
+ * Sullo schermo stretto **l'ordine del DOM deve essere quello visivo**: è quello
+ * che sente uno screen reader e che segue la tastiera, ed è il caso in cui un
+ * ordine sbagliato costa una riga in più.
+ *
+ * ⚠️ **E un `order` sopravvive ai cambi di struttura senza fallire.** Misurato il
+ * 30/08/2026: la fascia totali del Registro è passata da una griglia unica a due
+ * bande, l'ordine del DOM è tornato a bastare — ma **cinque `order` sono
+ * rimasti**, e uno spingeva «Tot. vendite» DOPO il Corrispettivo. Continuava a
+ * fare quello per cui era nato, in un contesto in cui quel lavoro non serviva
+ * più.
+ *
+ * ⭐ Chi ne ha bisogno davvero lo dichiara qui, con la ragione.
+ */
+const ORDER_AMMESSI = new Map([
+  [
+    'src/app/features/sales-orders/customer-order-form.mobile-cards.scss | .co-form .doc-form__internal-ref',
+    'riordino dentro un contenitore `display: contents`: il DOM serve al desktop',
+  ],
+  [
+    'src/app/features/sales-orders/customer-order-form.mobile-cards.scss | .co-form .doc-form__save-state',
+    'idem: lo stato di salvataggio va sopra il riferimento interno',
+  ],
+]);
+
+for (const f of fogli) {
+  const chiave = f.replace(/\\/g, '/');
+  for (const d of dichiarazioni(readFileSync(f, 'utf8'))) {
+    if (d.prop !== 'order' || !d.media || d.verso !== 'down') continue;
+    if (ORDER_AMMESSI.has(`${chiave} | ${d.sel}`)) continue;
+    problemi.push(
+      `⛔ ${f}:${d.riga}\n   «${d.sel}» { order } dentro media-down.\n   Sullo schermo stretto l'ordine del DOM dev'essere quello visivo: riordina\n   il markup, oppure dichiaralo in ORDER_AMMESSI con la ragione.`,
+    );
+  }
+}
+
 if (problemi.length > 0) {
-  console.error(`${problemi.length} variante/i responsive morte:\n`);
+  console.error(`${problemi.length} regola/e responsive che mentono:\n`);
   for (const p of problemi) console.error(`${p}\n`);
   process.exit(1);
 }
 
 console.log(
-  `check:media-scavalcate — ${fogli.length} fogli, nessuna variante responsive scavalcata da una base successiva.`,
+  `check:media-scavalcate — ${fogli.length} fogli: nessuna variante scavalcata, nessun \`order\` non dichiarato sotto \`media-down\`.`,
 );

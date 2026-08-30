@@ -163,6 +163,19 @@
   `border-block-start`: otto fili più quelli verticali ereditati dalla scrivania
   disegnavano una mini-tabella.
 */
+/*
+  ⛔ **NESSUN `order` sotto `lg`, e questa riga è la guardia.**
+
+  Ce n'erano cinque, residui della griglia unica a quattro colonne: quando le
+  bande sono diventate contenitori veri, l'ordine del DOM è tornato a bastare —
+  ma gli `order` sono rimasti, e uno di loro (`--sum: 7`) spingeva **Tot.
+  vendite dopo il Corrispettivo**. A schermo la banda leggeva
+  «Imponibile · IVA · CORRISPETTIVO · Tot. vendite».
+
+  ⚠️ **Un `order` sopravvissuto a un cambio di struttura non fallisce**: continua
+  a fare quello per cui era nato, in un contesto in cui quel lavoro non serve
+  più. È lo stesso difetto delle regole scavalcate, girato al contrario.
+*/
 @include bp.media-down('lg') {
   .corrispettivi-summary__band {
     display: flex;
@@ -317,7 +330,6 @@
     le colonne — la forma della scrivania, incolonnata su quattro.
   */
   @include bp.media-down('lg') {
-    order: 5;
     flex-direction: column;
     align-items: stretch;
     gap: 0;
@@ -356,7 +368,6 @@
     contesto in cui si legge.
   */
   @include bp.media-down('lg') {
-    order: 1;
     align-self: baseline;
     padding-inline: 0 var(--space-3);
     text-align: start;
@@ -539,7 +550,6 @@
   */
   .corrispettivi-summary__item--count,
   .corrispettivi-summary__item--negative {
-    order: 2;
     flex-direction: row;
     align-items: baseline;
     justify-content: flex-start;
@@ -562,7 +572,6 @@
     perderebbe fra le parole.
   */
   .corrispettivi-summary__item--negative {
-    order: 3;
     justify-content: space-between;
     padding-inline-end: 0;
   }
@@ -575,10 +584,6 @@
     Il peso basta: è il primo dei due addendi, e si distingue da imponibile e IVA
     che sono la sua scomposizione.
   */
-  .corrispettivi-summary__item--sum {
-    order: 7;
-  }
-
   .corrispettivi-summary__item--sum dd {
     font-weight: var(--font-weight-semibold);
   }
