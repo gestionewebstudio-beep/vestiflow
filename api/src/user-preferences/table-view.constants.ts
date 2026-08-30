@@ -33,6 +33,9 @@ export const TABLE_VIEW_IDS = [
   'customers_list',
   'sales_orders_list',
   'shopify_orders_list',
+  // Aggiunte il 30/08/2026: erano i due soli elenchi senza selettore Colonne.
+  'supplier_orders_list',
+  'online_sales_list',
   'corrispettivi_register',
 ] as const;
 

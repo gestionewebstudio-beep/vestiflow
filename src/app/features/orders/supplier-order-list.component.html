@@ -8,6 +8,7 @@
   [error]="error()?.message ?? null"
   [isEmpty]="isEmpty()"
   [skeletonColumns]="skeletonColumns"
+  [columnsViewId]="tableViewId"
   [skeletonRows]="6"
   searchPlaceholder="Cerca per riferimento o fornitore…"
   searchAriaLabel="Cerca ordini fornitori"
@@ -72,7 +73,7 @@
   <app-data-table
     data
     caption="Ordini fornitore"
-    [columns]="tableColumns"
+    [columns]="tableColumns()"
     [sections]="tableSections()"
     [rowId]="rowId"
     [cellText]="cellText"

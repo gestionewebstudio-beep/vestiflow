@@ -8,6 +8,12 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
+import { TableViewId } from '@shared/table-columns/table-column.model';
+import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
+import {
+  SUPPLIER_ORDER_LIST_COLUMN_DEFS,
+  SUPPLIER_ORDER_LIST_COLUMN_PRESETS,
+} from './models/supplier-order-list-columns.config';
 import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
 import { comando } from '@shared/models/list-action-catalog';
 import {
@@ -61,7 +67,6 @@ import { DataTableCellDirective } from '@shared/components/data-table/data-table
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';
 import type { DataTableSelectionEvent } from '@shared/components/data-table/data-table.component';
 import type { DataTableSection } from '@shared/components/data-table/data-table.model';
-import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
 import { formatDate } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
 import {
@@ -116,6 +121,7 @@ export class SupplierOrderListComponent {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly columnPreferences = inject(TableColumnPreferenceService);
 
   protected readonly canManageSupplierOrders = computed(() =>
     canManageSupplierOrders(this.authService.currentUser()),
@@ -326,6 +332,13 @@ export class SupplierOrderListComponent {
   private readonly searchSubscription: Subscription;
 
   constructor() {
+    this.columnPreferences.registerView(
+      TableViewId.SupplierOrdersList,
+      SUPPLIER_ORDER_LIST_COLUMN_DEFS,
+      SUPPLIER_ORDER_LIST_COLUMN_PRESETS,
+    );
+    this.tableColumns = this.columnPreferences.visibleColumns(TableViewId.SupplierOrdersList);
+
     // ⭐ **URL completo quando un periodo è applicato** (`14` §H14-bis, deciso
     // il 20/08/2026). Il predefinito di 30 giorni È un filtro applicato —
     // l'elenco mostra solo quelle righe — quindi finisce nell'indirizzo: un
@@ -523,14 +536,6 @@ export class SupplierOrderListComponent {
   // ── La tabella, sul motore comune (`14` parte H) ──────────────────────────
 
   /**
-   * Le colonne dell'elenco ordini fornitore.
-   *
-   * ⚠️ Dichiarate qui e non prese da `TableColumnPreferenceService`: questo elenco
-   * **non ha un selettore colonne**, e dargliene uno sarebbe aggiungere una
-   * funzione mentre se ne assorbe un'altra. Il motore chiede un modello colonne,
-   * non un servizio di preferenze.
-   */
-  /**
    * Le colonne che il server sa ordinare: specchio di
    * `api/src/supplier-orders/supplier-orders-sort.util.ts`.
    */
@@ -543,17 +548,21 @@ export class SupplierOrderListComponent {
     'status',
   ]);
 
-  protected readonly tableColumns: readonly ResolvedTableColumn[] = [
-    { id: 'reference', label: 'Riferimento', pinned: false },
-    { id: 'supplier', label: 'Fornitore', pinned: false },
-    // ⭐ «Stato» si ordina, con l'ordine dell'ENUM: confermato → concluso →
-    // annullato, il ciclo di vita dichiarato nello schema. Qui c'era scritto
-    // che il database avrebbe ordinato «in inglese», ed era falso.
-    { id: 'status', label: 'Stato', pinned: false },
-    { id: 'lines', label: 'Righe', pinned: false },
-    { id: 'expected', label: 'Attesa il', pinned: false },
-    { id: 'total', label: 'Totale', numeric: true, pinned: false },
-  ];
+  /**
+   * ⭐ **Le colonne vengono dalle PREFERENZE**, non più cablate qui.
+   *
+   * ⛔ C'era scritto che questo elenco «non ha un selettore colonne, e dargliene
+   * uno sarebbe aggiungere una funzione mentre se ne assorbe un'altra».
+   * Superato dal proprietario il 30/08/2026: da quando i totali seguono le
+   * colonne (`14` §0.2), un elenco senza selettore è un elenco in cui non si
+   * scelgono né i dati né i totali — e questo era uno dei due soli senza.
+   *
+   * ⚠️ «Stato» si ordina con l'ordine dell'ENUM — confermato → concluso →
+   * annullato, il ciclo di vita dello schema. Qui c'era scritto che il database
+   * avrebbe ordinato «in inglese», ed era falso.
+   */
+  protected readonly tableColumns: ReturnType<TableColumnPreferenceService['visibleColumns']>;
+  protected readonly tableViewId = TableViewId.SupplierOrdersList;
 
   /**
    * Le chiavi che il server sa davvero ordinare.

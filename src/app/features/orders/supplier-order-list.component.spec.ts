@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
+import { APP_CONFIG } from '@core/config/app-config.token';
 import { AuthService } from '@core/auth';
 import { SupplierOrderStatus } from '@core/models/supplier-order.model';
 import type { SupplierOrder } from '@core/models/supplier-order.model';
@@ -39,6 +40,17 @@ async function renderList(ordini: readonly SupplierOrder[] = []) {
   return render(SupplierOrderListComponent, {
     providers: [
       provideRouter([]),
+      // ⚠️ Serve da quando l'elenco ha il selettore Colonne (30/08/2026): le
+      //    preferenze passano da un servizio che legge la configurazione.
+      {
+        provide: APP_CONFIG,
+        useValue: {
+          production: false,
+          appName: 'VestiFlow',
+          apiBaseUrl: '',
+          features: { barcodeScanner: false, shopify: false },
+        },
+      },
       {
         provide: ActivatedRoute,
         useValue: {
@@ -134,7 +146,7 @@ describe('SupplierOrderListComponent — l’ordinamento', () => {
   function pagina(view: { fixture: { componentInstance: unknown } }) {
     return view.fixture.componentInstance as {
       onSortChange: (chiavi: readonly { columnId: string; direction: string }[]) => void;
-      tableColumns: readonly { readonly id: string; readonly sortable?: boolean }[];
+      tableColumns: () => readonly { readonly id: string; readonly sortable?: boolean }[];
     };
   }
 
@@ -152,7 +164,11 @@ describe('SupplierOrderListComponent — l’ordinamento', () => {
 
   it('⭐ «Stato» è ordinabile: l’enum del database porta il ciclo di vita', async () => {
     const view = await renderList();
-    const stato = pagina(view).tableColumns.find((colonna) => colonna.id === 'status');
+    // ⚠️ `tableColumns` è un signal dal 30/08/2026: le colonne vengono dalle
+    //    preferenze, non più da un array cablato nel componente.
+    const stato = pagina(view)
+      .tableColumns()
+      .find((colonna) => colonna.id === 'status');
 
     // L'unica colonna che l'API non sa ordinare, qui, non esiste:
     // `sortable` non dichiarato significa ordinabile.
