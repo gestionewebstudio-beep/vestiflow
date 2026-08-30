@@ -1,3 +1,4 @@
+import { colonna } from '@shared/table-columns/column-catalog';
 import {
   TableViewPresetId,
   type TableColumnDef,
@@ -5,12 +6,12 @@ import {
 } from '@shared/table-columns/table-column.model';
 
 export const SUPPLIER_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
-  { id: 'code', label: 'Codice', pinnable: true, defaultVisible: true },
+  colonna('code', { pinnable: true, defaultVisible: true }),
   { id: 'name', label: 'Ragione sociale', defaultVisible: true },
-  { id: 'vatNumber', label: 'P. IVA', defaultVisible: true },
-  { id: 'email', label: 'Email', defaultVisible: true },
-  { id: 'city', label: 'Città', defaultVisible: true },
-  { id: 'phone', label: 'Telefono', defaultVisible: false },
+  colonna('vatNumber', { defaultVisible: true }),
+  colonna('email', { defaultVisible: true }),
+  colonna('city', { defaultVisible: true }),
+  colonna('phone', { defaultVisible: false }),
   { id: 'paymentTerms', label: 'Pagamento', defaultVisible: false },
   { id: 'roleStatus', label: 'Stato ruolo', defaultVisible: false },
 ] as const;

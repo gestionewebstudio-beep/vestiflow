@@ -40,12 +40,12 @@ const SCOPE_DISPLAY: Record<string, ShopifyScopeDisplay> = {
     access: 'write',
   },
   read_locations: {
-    label: 'Location',
+    label: 'Sedi',
     description: 'Legge magazzini e punti vendita configurati su Shopify.',
     access: 'read',
   },
   write_locations: {
-    label: 'Location',
+    label: 'Sedi',
     description: 'Crea e modifica location su Shopify.',
     access: 'write',
   },

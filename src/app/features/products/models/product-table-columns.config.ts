@@ -1,3 +1,4 @@
+import { colonna } from '@shared/table-columns/column-catalog';
 import {
   TableViewId,
   type TableColumnDef,
@@ -9,14 +10,14 @@ export const PRODUCT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   { id: 'select', label: 'Selezione', defaultVisible: true, filter: false },
   // Identificatore anagrafico interno (§Codice articolo): colonna disponibile
   // nella selezione colonne, non mostrata di default.
-  { id: 'articleCode', label: 'Codice articolo', defaultVisible: false },
+  colonna('articleCode', { defaultVisible: false }),
   { id: 'name', label: 'Nome', pinnable: true, defaultVisible: true },
   { id: 'brand', label: 'Venditore/Brand', defaultVisible: true },
-  { id: 'category', label: 'Categoria', defaultVisible: true },
+  colonna('category', { defaultVisible: true }),
   { id: 'season', label: 'Stagione', defaultVisible: true },
   { id: 'variants', label: 'Varianti', numeric: true, defaultVisible: true },
-  { id: 'status', label: 'Stato', defaultVisible: true },
-  { id: 'source', label: 'Origine', defaultVisible: true },
+  colonna('status', { defaultVisible: true }),
+  colonna('source', { defaultVisible: true }),
   { id: 'shopify', label: 'Shopify', defaultVisible: true },
   { id: 'actions', label: 'Azioni', defaultVisible: true, filter: false },
 ];

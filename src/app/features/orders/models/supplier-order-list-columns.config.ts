@@ -1,3 +1,4 @@
+import { colonna } from '@shared/table-columns/column-catalog';
 import {
   TableViewPresetId,
   type TableColumnDef,
@@ -18,12 +19,12 @@ import {
  * il comportamento del riferimento Danea.
  */
 export const SUPPLIER_ORDER_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
-  { id: 'reference', label: 'Riferimento', pinnable: true, defaultVisible: true },
-  { id: 'supplier', label: 'Fornitore', defaultVisible: true },
-  { id: 'status', label: 'Stato', defaultVisible: true },
+  colonna('reference', { pinnable: true, defaultVisible: true }),
+  colonna('supplier', { defaultVisible: true }),
+  colonna('status', { defaultVisible: true }),
   { id: 'lines', label: 'Righe', numeric: true, defaultVisible: true },
   { id: 'expected', label: 'Attesa il', defaultVisible: true },
-  { id: 'total', label: 'Totale', numeric: true, defaultVisible: true },
+  colonna('total', { defaultVisible: true }),
 ] as const;
 
 export const SUPPLIER_ORDER_LIST_COLUMN_PRESETS: TableViewPresetMap = {

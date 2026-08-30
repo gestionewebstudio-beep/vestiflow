@@ -632,11 +632,7 @@ describe('DocumentListComponent — niente pagine, ultimi 30 giorni', () => {
 describe('DocumentListComponent — totale della selezione col verso economico', () => {
   const TITOLARE = { role: UserRole.Owner, permissions: [] };
 
-  const docEuro = (
-    id: string,
-    type: DocumentType,
-    totaleMinor: number,
-  ): DocumentRecord => ({
+  const docEuro = (id: string, type: DocumentType, totaleMinor: number): DocumentRecord => ({
     ...DOCUMENTO_DI_PROVA,
     id,
     type,
@@ -712,8 +708,10 @@ describe('DocumentListComponent — totale della selezione col verso economico',
  *
  * ⛔ **I sei filtri dell'Arrivo merce restano sei.** La matrice sintetica di
  * `14` §42-bis.12 elenca il minimo, non un elenco esclusivo: Collegamento,
- * Magazzino, Tipo di documento e Pagamento esistono e non si tolgono in un
- * refactor.
+ * Sede, Tipo di documento e Pagamento esistono e non si tolgono in un refactor.
+ *
+ * ⚠️ **La rinomina «Magazzino» → «Sede» (30/08/2026) NON toglie il filtro**: la
+ * chiave resta `locationId`, cambia la parola che si legge.
  */
 describe('DocumentListComponent — Arrivo merce: i filtri del profilo', () => {
   /** L'accesso ai membri che il montaggio non espone. */
@@ -768,7 +766,10 @@ describe('DocumentListComponent — Arrivo merce: i filtri del profilo', () => {
       'Periodo',
       'Fornitore',
       'Collegamento',
-      'Magazzino',
+      // ⭐ Era «Magazzino» fino al 30/08/2026. La sede si chiama «Sede» ovunque
+      //    (`14` §15): «Magazzino» e «Negozio» sono i due TIPI di sede, e usarne
+      //    uno come nome del filtro dice che l'altro non ci finisce.
+      'Sede',
       'Tipo di documento',
       'Pagamento',
     ]);
@@ -783,7 +784,7 @@ describe('DocumentListComponent — Arrivo merce: i filtri del profilo', () => {
     expect(trova(filtri, 'linkStatus')?.searchable).toBeFalsy();
   });
 
-  it('✅ Magazzino conserva il segnaposto «Tutte»', async () => {
+  it('✅ Sede conserva il segnaposto «Tutte»', async () => {
     const view = await renderList('goods-receipt');
 
     // ⚠️ È femminile perché sono le sedi: uniformarlo a «Tutti» sarebbe una
@@ -894,16 +895,19 @@ describe('DocumentListComponent — i filtri, profilo per profilo', () => {
     expect(chiavi(interno(view).filtriElenco())).toEqual(attese);
   });
 
-  it.each(ATTESI.map(([p]) => p))('⭐ «%s» ha il Periodo, e non conta nel badge', async (profilo) => {
-    const view = await renderList(profilo);
-    const periodo = interno(view)
-      .filtriElenco()
-      .find((f) => f.key === 'periodPreset');
+  it.each(ATTESI.map(([p]) => p))(
+    '⭐ «%s» ha il Periodo, e non conta nel badge',
+    async (profilo) => {
+      const view = await renderList(profilo);
+      const periodo = interno(view)
+        .filtriElenco()
+        .find((f) => f.key === 'periodPreset');
 
-    expect(periodo?.kind).toBe('period');
-    // `14` §19: il Periodo di default non è una restrizione opzionale.
-    expect(periodo?.countsAsActive).toBe(false);
-  });
+      expect(periodo?.kind).toBe('period');
+      // `14` §19: il Periodo di default non è una restrizione opzionale.
+      expect(periodo?.countsAsActive).toBe(false);
+    },
+  );
 
   it.each(ATTESI.map(([p]) => p))('⚠️ «%s»: Dal/Al sempre visibili', async (profilo) => {
     // La condizione di oggi è `!isGoodsReceiptList() || isCustomPeriod()`: la

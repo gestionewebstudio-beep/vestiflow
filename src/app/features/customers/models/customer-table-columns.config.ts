@@ -1,3 +1,4 @@
+import { colonna } from '@shared/table-columns/column-catalog';
 import {
   TableViewId,
   type TableColumnDef,
@@ -6,19 +7,19 @@ import {
 import { TableViewPresetId as PresetId } from '@shared/table-columns/table-column.model';
 
 export const CUSTOMER_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
-  { id: 'code', label: 'Codice', pinnable: true, defaultVisible: true },
+  colonna('code', { pinnable: true, defaultVisible: true }),
   { id: 'name', label: 'Cliente', pinnable: true, defaultVisible: true },
-  { id: 'source', label: 'Origine', defaultVisible: true },
-  { id: 'email', label: 'Email', defaultVisible: true },
-  { id: 'phone', label: 'Telefono', defaultVisible: true },
-  { id: 'city', label: 'Città', defaultVisible: false },
+  colonna('source', { defaultVisible: true }),
+  colonna('email', { defaultVisible: true }),
+  colonna('phone', { defaultVisible: true }),
+  colonna('city', { defaultVisible: false }),
   { id: 'province', label: 'Provincia', defaultVisible: false },
   { id: 'companyName', label: 'Ragione sociale', defaultVisible: false },
-  { id: 'vatNumber', label: 'P. IVA', defaultVisible: false },
+  colonna('vatNumber', { defaultVisible: false }),
   { id: 'discount', label: 'Sconto', defaultVisible: false },
   { id: 'paymentTerms', label: 'Pagamento', defaultVisible: false },
   { id: 'alsoSupplier', label: 'Anche fornitore', defaultVisible: false },
-  { id: 'createdAt', label: 'Creato il', defaultVisible: false, filter: 'range' },
+  colonna('createdAt', { defaultVisible: false, filter: 'range' }),
 ];
 
 export const CUSTOMER_LIST_COLUMN_PRESETS: TableViewPresetMap = {

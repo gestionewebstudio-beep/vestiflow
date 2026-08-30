@@ -1,3 +1,4 @@
+import { colonna } from '@shared/table-columns/column-catalog';
 import {
   TableViewPresetId,
   type TableColumnDef,
@@ -37,13 +38,18 @@ export const DOCUMENT_LIST_SORTABLE_COLUMNS: ReadonlySet<string> = new Set([
 ]);
 
 export const DOCUMENT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
-  { id: 'documentDate', label: 'Data', pinnable: true, defaultVisible: true, display: 'code', filter: 'range' },
-  { id: 'type', label: 'Tipo', defaultVisible: true },
-  { id: 'reference', label: 'Numero', defaultVisible: true, display: 'code' },
-  { id: 'counterparty', label: 'Controparte', defaultVisible: true, display: 'truncate' },
-  { id: 'status', label: 'Stato', defaultVisible: true },
-  { id: 'lineCount', label: 'Righe', numeric: true, defaultVisible: true },
-  { id: 'total', label: 'Totale', numeric: true, defaultVisible: true },
+  colonna('documentDate', {
+    pinnable: true,
+    defaultVisible: true,
+    display: 'code',
+    filter: 'range',
+  }),
+  colonna('type', { defaultVisible: true }),
+  colonna('reference', { label: 'Numero', defaultVisible: true, display: 'code' }),
+  colonna('counterparty', { defaultVisible: true, display: 'truncate' }),
+  colonna('status', { defaultVisible: true }),
+  colonna('lineCount', { defaultVisible: true }),
+  colonna('total', { defaultVisible: true }),
 ] as const;
 
 export const DOCUMENT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
@@ -77,12 +83,17 @@ export const DOCUMENT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
  * usano INVOICE_LIST_COLUMN_DEFS, perché condividono un elenco fra due tipi.
  */
 export const SALES_DOCUMENT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
-  { id: 'documentDate', label: 'Data', pinnable: true, defaultVisible: true, display: 'code', filter: 'range' },
-  { id: 'reference', label: 'Numero', defaultVisible: true, display: 'code' },
-  { id: 'counterparty', label: 'Cliente', defaultVisible: true, display: 'truncate' },
-  { id: 'status', label: 'Stato', defaultVisible: true },
-  { id: 'lineCount', label: 'Righe', numeric: true, defaultVisible: true },
-  { id: 'total', label: 'Totale', numeric: true, defaultVisible: true },
+  colonna('documentDate', {
+    pinnable: true,
+    defaultVisible: true,
+    display: 'code',
+    filter: 'range',
+  }),
+  colonna('reference', { label: 'Numero', defaultVisible: true, display: 'code' }),
+  colonna('counterparty', { label: 'Cliente', defaultVisible: true, display: 'truncate' }),
+  colonna('status', { defaultVisible: true }),
+  colonna('lineCount', { defaultVisible: true }),
+  colonna('total', { defaultVisible: true }),
 ] as const;
 
 export const SALES_DOCUMENT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
@@ -107,13 +118,18 @@ export const SALES_DOCUMENT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
  * colonna sta subito dopo il Numero, dove l'operatore la cerca leggendo la riga.
  */
 export const INVOICE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
-  { id: 'documentDate', label: 'Data', pinnable: true, defaultVisible: true, display: 'code', filter: 'range' },
-  { id: 'reference', label: 'Numero', defaultVisible: true, display: 'code' },
-  { id: 'type', label: 'Tipo', defaultVisible: true },
-  { id: 'counterparty', label: 'Cliente', defaultVisible: true, display: 'truncate' },
-  { id: 'status', label: 'Stato', defaultVisible: true },
-  { id: 'lineCount', label: 'Righe', numeric: true, defaultVisible: true },
-  { id: 'total', label: 'Totale', numeric: true, defaultVisible: true },
+  colonna('documentDate', {
+    pinnable: true,
+    defaultVisible: true,
+    display: 'code',
+    filter: 'range',
+  }),
+  colonna('reference', { label: 'Numero', defaultVisible: true, display: 'code' }),
+  colonna('type', { defaultVisible: true }),
+  colonna('counterparty', { label: 'Cliente', defaultVisible: true, display: 'truncate' }),
+  colonna('status', { defaultVisible: true }),
+  colonna('lineCount', { defaultVisible: true }),
+  colonna('total', { defaultVisible: true }),
 ] as const;
 
 export const INVOICE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
@@ -149,7 +165,7 @@ export const INVOICE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
 export const QUOTE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   ...SALES_DOCUMENT_LIST_COLUMN_DEFS.filter((column) => column.id !== 'status'),
   { id: 'supplierCode', label: 'Cod. soggetto', defaultVisible: false, display: 'code' },
-  { id: 'notes', label: 'Commento', defaultVisible: false },
+  colonna('notes', { defaultVisible: false }),
 ];
 
 export const QUOTE_LIST_COLUMN_PRESETS: TableViewPresetMap = presetsWithoutColumn(
@@ -171,28 +187,32 @@ function presetsWithoutColumn(presets: TableViewPresetMap, columnId: string): Ta
  * saldare, Pagamento) — mai la colonna "Tipo".
  */
 export const PURCHASE_INVOICE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
-  {
-    id: 'documentDate',
+  colonna('documentDate', {
     label: 'Data documento',
     pinnable: true,
     defaultVisible: true,
     display: 'code',
+  }),
+  {
+    id: 'registrationDate',
+    label: 'Data registrazione',
+    defaultVisible: true,
+    display: 'code',
+    filter: 'range',
   },
-  { id: 'registrationDate', label: 'Data registrazione', defaultVisible: true, display: 'code', filter: 'range' },
   // «N.» è il numero interno, da non confondere con quello della
   // fattura del fornitore (colonna accanto).
-  {
-    id: 'reference',
+  colonna('reference', {
     label: 'N.',
     headerTooltip: 'Numero interno di catalogazione VestiFlow',
     defaultVisible: true,
-  },
-  { id: 'counterparty', label: 'Fornitore', defaultVisible: true, display: 'truncate' },
+  }),
+  colonna('counterparty', { label: 'Fornitore', defaultVisible: true, display: 'truncate' }),
   { id: 'invoiceNumber', label: 'N. fattura', defaultVisible: true, display: 'code' },
-  { id: 'notes', label: 'Commento', defaultVisible: true },
-  { id: 'total', label: 'Totale', numeric: true, defaultVisible: true },
+  colonna('notes', { defaultVisible: true }),
+  colonna('total', { defaultVisible: true }),
   { id: 'outstanding', label: 'Ancora da saldare', numeric: true, defaultVisible: true },
-  { id: 'paymentMethod', label: 'Pagamento', defaultVisible: true },
+  colonna('paymentMethod', { defaultVisible: true }),
 ] as const;
 
 export const PURCHASE_INVOICE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
@@ -246,14 +266,19 @@ export const PURCHASE_INVOICE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
  * confermati e non hanno ciclo di vita (§11 documento funzionale).
  */
 export const STORE_SALE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
-  { id: 'documentDate', label: 'Data', pinnable: true, defaultVisible: true, display: 'code', filter: 'range' },
-  { id: 'reference', label: 'Numero', defaultVisible: true, display: 'code' },
-  { id: 'type', label: 'Tipo', defaultVisible: true },
-  { id: 'counterparty', label: 'Cliente', defaultVisible: true, display: 'truncate' },
-  { id: 'total', label: 'Totale', numeric: true, defaultVisible: true },
-  { id: 'paymentMethod', label: 'Metodo pagamento', defaultVisible: true },
-  { id: 'lineCount', label: 'Righe', numeric: true, defaultVisible: true },
-  { id: 'location', label: 'Negozio', defaultVisible: false },
+  colonna('documentDate', {
+    pinnable: true,
+    defaultVisible: true,
+    display: 'code',
+    filter: 'range',
+  }),
+  colonna('reference', { label: 'Numero', defaultVisible: true, display: 'code' }),
+  colonna('type', { defaultVisible: true }),
+  colonna('counterparty', { label: 'Cliente', defaultVisible: true, display: 'truncate' }),
+  colonna('total', { defaultVisible: true }),
+  colonna('paymentMethod', { label: 'Metodo pagamento', defaultVisible: true }),
+  colonna('lineCount', { defaultVisible: true }),
+  colonna('location', { defaultVisible: false }),
 ] as const;
 
 export const STORE_SALE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
@@ -295,26 +320,30 @@ export const STORE_SALE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
 
 export const GOODS_RECEIPT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   // Colonne visibili di default (ordine di lettura della riga).
-  { id: 'documentDate', label: 'Data', pinnable: true, defaultVisible: true, display: 'code', filter: 'range' },
+  colonna('documentDate', {
+    pinnable: true,
+    defaultVisible: true,
+    display: 'code',
+    filter: 'range',
+  }),
   // «N.» è il numero interno, non quello del documento fornitore.
-  {
-    id: 'reference',
+  colonna('reference', {
     label: 'N.',
     headerTooltip: 'Numero interno di catalogazione VestiFlow',
     defaultVisible: true,
-  },
-  { id: 'counterparty', label: 'Soggetto', defaultVisible: true, display: 'truncate' },
-  { id: 'lineCount', label: 'Righe', numeric: true, defaultVisible: true },
-  { id: 'total', label: 'Tot. documento', numeric: true, defaultVisible: true },
+  }),
+  colonna('counterparty', { label: 'Soggetto', defaultVisible: true, display: 'truncate' }),
+  colonna('lineCount', { defaultVisible: true }),
+  colonna('total', { label: 'Tot. documento', defaultVisible: true }),
   { id: 'linkStatus', label: 'Stato', defaultVisible: true },
-  { id: 'location', label: 'Magazzino', defaultVisible: true },
+  colonna('location', { defaultVisible: true }),
   { id: 'externalDocNumber', label: 'Doc. fornitore', defaultVisible: true, display: 'code' },
   // Colonne opzionali (attivabili da «Colonne»): dati di dettaglio non
   // necessari alla lettura rapida della riga.
   { id: 'supplierCode', label: 'Cod. soggetto', defaultVisible: false, display: 'code' },
-  { id: 'paymentMethod', label: 'Pagamento', defaultVisible: false },
+  colonna('paymentMethod', { defaultVisible: false }),
   { id: 'causal', label: 'Causale carico', defaultVisible: false },
-  { id: 'notes', label: 'Commento', defaultVisible: false },
+  colonna('notes', { defaultVisible: false }),
   { id: 'subtotal', label: 'Tot. netto', numeric: true, defaultVisible: false },
   // Niente colonna "Stato documento": l'Arrivo merce non ha più il ciclo
   // Bozza/Confermato selezionabile (il salvataggio conferma sempre) e

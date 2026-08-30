@@ -111,7 +111,7 @@ export class SalesDocumentDetailComponent extends DocumentDetailComponent {
     }
     facts.push({ label: 'Cliente', value: doc.customerName ?? '—' });
     if (isStoreFlowDocumentType(doc.type) && doc.locationName) {
-      facts.push({ label: 'Negozio', value: doc.locationName });
+      facts.push({ label: 'Sede', value: doc.locationName });
     }
     if (
       (isSalesDdtDocumentType(doc.type) || isManualUnloadDocumentType(doc.type)) &&

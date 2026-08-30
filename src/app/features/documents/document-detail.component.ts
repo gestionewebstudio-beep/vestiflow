@@ -215,7 +215,7 @@ export class DocumentDetailComponent {
     if (isStockOperationDocumentType(doc.type)) {
       const locationName = this.locationLabel(doc.locationId);
       if (locationName) {
-        facts.push({ label: 'Location', value: locationName });
+        facts.push({ label: 'Sede', value: locationName });
       }
       if (isAdjustmentDocumentType(doc.type) && doc.adjustmentDirection) {
         facts.push({

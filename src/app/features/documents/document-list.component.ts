@@ -91,10 +91,7 @@ import {
   documentStatusLabel,
   documentTypeLabel,
 } from '@domain/documents/models/document-labels.util';
-import {
-  bulkDeleteBlockReason,
-  canBulkDeleteDocuments,
-} from './models/document-bulk-actions.util';
+import { bulkDeleteBlockReason, canBulkDeleteDocuments } from './models/document-bulk-actions.util';
 import { signedDocumentMoney } from '@domain/documents/models/document-economic-sign.util';
 import {
   documentDetailPath,
@@ -688,7 +685,7 @@ export class DocumentListComponent {
         },
         {
           key: 'locationId',
-          label: 'Magazzino',
+          label: 'Sede',
           kind: 'select',
           options: this.locationOptions(),
           // ⚠️ Femminile: sono le sedi. Uniformarlo a «Tutti» sarebbe una

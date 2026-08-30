@@ -116,6 +116,55 @@ passa da 100 chiamate a 2.
 
 Misure e tabella in `14` §0.2.
 
+## ⏸ Quattro API non sanno ordinare — misurato 30/08/2026
+
+L'ordinamento di colonna è una capacità del **motore comune**, e sugli elenchi paginati
+funziona solo se l'API lo applica **prima** di impaginare.
+
+```text
+sanno ordinare      corrispettivi · documents · sales-orders · supplier-orders
+NON sanno ordinare  suppliers · customers · inventory · online-sales
+```
+
+Nei quattro che non sanno, il DTO non ha un parametro `sort` e l'`orderBy` è cablato.
+
+⛔ **La toppa lato client è peggio del buco.** Ordinare l'array già ricevuto riordina la
+**pagina corrente** — venti righe su centoventisette — e l'intestazione si comporta come
+se avesse funzionato. Chi ordina per «Totale» decrescente e legge la prima riga crede di
+avere il documento più alto: ne ha il più alto fra venti.
+
+Quindi finché l'API non c'è, quelle colonne dichiarano `sortable: false`, che è la
+verità. Vendite online è già così (30/08/2026).
+
+**Il lavoro**: parametro `sort` nei quattro DTO, mappatura colonna → `orderBy` con una
+lista bianca (mai il nome di colonna grezzo dentro Prisma), e poi `sortable` torna al suo
+valore di serie — che è acceso.
+
+## ⏸ La sede è «Sede» negli elenchi, non ancora nei nomi accessibili — 30/08/2026
+
+La decisione di `14` §15 è **applicata** a colonne di elenco, filtri visibili e schede di
+dettaglio, ed è tenuta ferma da `npm run check:column-catalog`.
+
+⛔ **Restano indietro i nomi ACCESSIBILI e la topbar**, e sono stati lasciati apposta:
+cambiarli rompe due specifiche e2e che non si possono eseguire senza un server, quindi la
+correzione va fatta insieme al loro aggiornamento, non prima.
+
+| Dove                                                                   | Quante | Dice ancora                |
+| ---------------------------------------------------------------------- | ------ | -------------------------- |
+| `ariaLabel` dei filtri sede (5 elenchi)                                | 5      | «Filtra per location»      |
+| topbar, selettore sede attiva                                          | 3      | «Tutte le location»        |
+| `e2e/permissions-owner.spec.ts:143,149` · `e2e/permissions.spec.ts:89` | 3      | agganciano quelle stringhe |
+
+⚠️ **Un `ariaLabel` è testo che qualcuno legge** — glielo pronuncia lo screen reader — e
+sta nell'elenco di §15 come «etichetta di filtro». Non è un identificatore tecnico, e
+lasciarlo «location» significa che chi non vede sente una parola che sullo schermo non c'è.
+
+⚠️ **E non è un'uniformazione da fare in blocco.** Alcuni «Magazzino» sono **giusti** e non
+sono la sede: la sezione di navigazione, la scheda dell'articolo, la colonna «impegna
+magazzino» di una riga documento. Il criterio è §15 — si cambia dove la parola nomina **la
+location** — e restano da rileggere, quando si toccano, titoli di stampa, intestazioni di
+export, testi di aiuto e messaggi di errore.
+
 ## ✅ Fatto e committato — non va rifatto
 
 | Commit     | Cosa                                                                                                                                                                                                                          |
@@ -391,8 +440,8 @@ Questo file resta quello che era — **cosa manca** — e non è un indice.
 | **pulsante Dettaglio** su elenco documenti e ordini fornitore                         | `14` §E4, §E6  |
 | **ordinamento** su tutti e tre gli elenchi paginati, con la guardia in `npm run lint` | `14` §H15      |
 | **grammatica visiva** dei riepiloghi, decisa voce per voce                            | `14` §F6       |
-| **niente paginazione** su OGNI elenco, anagrafiche comprese                           | `14` §11.4    |
-| **filtri derivati dalle colonne**, con il pulsante che li accende e azzera             | `14` §0.2      |
+| **niente paginazione** su OGNI elenco, anagrafiche comprese                           | `14` §11.4     |
+| **filtri derivati dalle colonne**, con il pulsante che li accende e azzera            | `14` §0.2      |
 
 ⚠️ **Restano da guardare a schermo**: le quattro schermate migrate, dopo la promozione della
 grammatica. Build e test dicono che compila, non come si vede.
@@ -1993,20 +2042,20 @@ progetto sono già divergute **su un apostrofo**, e nessun test lo vedeva.
 Mappa avversariale (7 agenti, 2 di sola smentita), riverificata a mano. Decisioni in
 `14` §11.4 e §11.5; qui c'è solo cosa resta da fare.
 
-| Da fare | Dove |
-| --- | --- |
-| **intestazione fissa**: dare uno scrollport verticale a `.data-table-scroll` | `14` §11.5 D3 |
-| **togliere il tetto di righe** sui sei elenchi col paginatore (clienti, fornitori, prodotti, giacenze, situazione, vendite online) | `14` §11.4 |
-| **tre colonne nuove**, spente di serie: Operatore, Controparte, Location | `14` §11.5 D1 |
-| `cellText` non copre `status` e `linkStatus`: il filtro a valori nascerebbe vuoto | `14` §11.5 |
-| `filter: false` sulle 9 pseudo-colonne (`select`, `actions`) | `14` §11.1 |
-| `filter: 'range'` sulle 11 colonne data: nessuna lo deduce | `14` §11.1 |
-| escludere le 91 colonne di RIGHE documento dalla filtrabilità | `14` §11.5 |
-| portare `corrispettivi-orders-table` e `online-sale-table` sul contratto colonne | `14` §11.5 |
-| veste filtri mobile per sei elenchi che non ce l'hanno | `14` §0.2 |
-| `filter` in `document-line-columns.consistency.spec.ts:80` | `14` §11.5 |
-| l'e2e `permissions-owner.spec.ts:143` aggancia `'Filtra per location'` per nome | `14` §11.5 |
-| il commento `data-table.component.ts:48-51` dice ancora «paginati lato server» | `14` §11.4 |
+| Da fare                                                                                                                            | Dove          |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| **intestazione fissa**: dare uno scrollport verticale a `.data-table-scroll`                                                       | `14` §11.5 D3 |
+| **togliere il tetto di righe** sui sei elenchi col paginatore (clienti, fornitori, prodotti, giacenze, situazione, vendite online) | `14` §11.4    |
+| **tre colonne nuove**, spente di serie: Operatore, Controparte, Location                                                           | `14` §11.5 D1 |
+| `cellText` non copre `status` e `linkStatus`: il filtro a valori nascerebbe vuoto                                                  | `14` §11.5    |
+| `filter: false` sulle 9 pseudo-colonne (`select`, `actions`)                                                                       | `14` §11.1    |
+| `filter: 'range'` sulle 11 colonne data: nessuna lo deduce                                                                         | `14` §11.1    |
+| escludere le 91 colonne di RIGHE documento dalla filtrabilità                                                                      | `14` §11.5    |
+| portare `corrispettivi-orders-table` e `online-sale-table` sul contratto colonne                                                   | `14` §11.5    |
+| veste filtri mobile per sei elenchi che non ce l'hanno                                                                             | `14` §0.2     |
+| `filter` in `document-line-columns.consistency.spec.ts:80`                                                                         | `14` §11.5    |
+| l'e2e `permissions-owner.spec.ts:143` aggancia `'Filtra per location'` per nome                                                    | `14` §11.5    |
+| il commento `data-table.component.ts:48-51` dice ancora «paginati lato server»                                                     | `14` §11.4    |
 
 ⚠️ **Da guardare a schermo, non con i test**: che l'intestazione resti davvero fissa
 scorrendo un elenco lungo. Un `sticky` che non appiccica non fallisce — non fa niente.

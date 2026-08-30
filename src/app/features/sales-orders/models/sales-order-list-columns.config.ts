@@ -1,3 +1,4 @@
+import { colonna } from '@shared/table-columns/column-catalog';
 import {
   TableViewPresetId,
   type TableColumnDef,
@@ -39,17 +40,17 @@ export const SALES_ORDER_LIST_SORTABLE_COLUMNS: ReadonlySet<string> = new Set([
 
 export const SALES_ORDER_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   { id: 'orderNumber', label: 'Ordine', pinnable: true, defaultVisible: true },
-  { id: 'source', label: 'Origine', defaultVisible: true },
+  colonna('source', { defaultVisible: true }),
   { id: 'placedAt', label: 'Data', defaultVisible: true, filter: 'range' },
   { id: 'customerCode', label: 'Cod. cliente', defaultVisible: false },
-  { id: 'customerName', label: 'Cliente', defaultVisible: true },
-  { id: 'total', label: 'Totale', numeric: true, defaultVisible: true },
+  colonna('customerName', { defaultVisible: true }),
+  colonna('total', { defaultVisible: true }),
   { id: 'netTotal', label: 'Tot. netto', numeric: true, defaultVisible: false },
   { id: 'state', label: 'Stato', defaultVisible: true },
   { id: 'financialStatus', label: 'Pagamento', defaultVisible: true },
   { id: 'fulfillmentStatus', label: 'Evasione', defaultVisible: true },
-  { id: 'location', label: 'Location', defaultVisible: true },
-  { id: 'notes', label: 'Commento', defaultVisible: false },
+  colonna('location', { defaultVisible: true }),
+  colonna('notes', { defaultVisible: false }),
   // Nascosta di serie (mockup restyling): l'info è marginale, attivabile dal
   // selettore Colonne quando serve.
   { id: 'onlineSale', label: 'Vendita online', defaultVisible: false },
@@ -99,7 +100,7 @@ export const SALES_ORDER_LIST_COLUMN_PRESETS: TableViewPresetMap = {
 // un documento con un identificativo. Vedi specifica 08 §10.
 export const SHOPIFY_ORDER_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   ...SALES_ORDER_LIST_COLUMN_DEFS.filter((column) => column.id !== 'source'),
-  { id: 'ddt', label: 'DDT', defaultVisible: true },
+  colonna('ddt', { defaultVisible: true }),
   { id: 'updatedAt', label: 'Aggiornato', defaultVisible: true, filter: 'range' },
   { id: 'syncState', label: 'Sync', defaultVisible: true },
 ] as const;

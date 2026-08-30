@@ -302,10 +302,10 @@ come **voce del pannello** sotto `lg`, dove la testata non esiste.
 Restano fuori dalle colonne, e sempre visibili in barra, solo **Periodo** e
 **Ricerca**.
 
-| Il pulsante «Filtri» | |
-| --- | --- |
-| **acceso** | ogni colonna visibile mostra il proprio controllo |
-| **spento** | i controlli spariscono **e i filtri di colonna si azzerano** |
+| Il pulsante «Filtri» |                                                              |
+| -------------------- | ------------------------------------------------------------ |
+| **acceso**           | ogni colonna visibile mostra il proprio controllo            |
+| **spento**           | i controlli spariscono **e i filtri di colonna si azzerano** |
 
 ⚠️ **Lo spegnimento È l'azzeramento**, e non è una scorciatoia: un filtro attivo
 il cui controllo non si vede è il difetto che Danea deve rimediare con una
@@ -536,12 +536,12 @@ markup e stile restano insieme.
 ⚠️ **Non è il «Riepilogo di fondo pagina» qui sotto**, e confonderli porta a due cose
 diverse nello stesso posto:
 
-| | **Riga totali** (ogni elenco) | **Riepilogo** (report) |
-| --- | --- | --- |
-| che cosa mostra | la **somma delle colonne visibili** | metriche nominate, anche non di colonna |
-| esempio | `17 voci · 1.157,26 € · 1.052,04 €` | `RETTIFICHE (4) · ANNULLAMENTI 2 · VENDITE 8` |
-| etichette | nessuna: il nome è l'intestazione della colonna | ognuna ha la sua |
-| allineamento | **sotto la propria colonna** | a fascia, non incolonnato |
+|                 | **Riga totali** (ogni elenco)                   | **Riepilogo** (report)                        |
+| --------------- | ----------------------------------------------- | --------------------------------------------- |
+| che cosa mostra | la **somma delle colonne visibili**             | metriche nominate, anche non di colonna       |
+| esempio         | `17 voci · 1.157,26 € · 1.052,04 €`             | `RETTIFICHE (4) · ANNULLAMENTI 2 · VENDITE 8` |
+| etichette       | nessuna: il nome è l'intestazione della colonna | ognuna ha la sua                              |
+| allineamento    | **sotto la propria colonna**                    | a fascia, non incolonnato                     |
 
 ⭐ **La riga totali sta SOPRA la riga comandi**, ed è l'ordine che il telaio già dà:
 zona dati → `[summary]` → `[listActions]`.
@@ -561,9 +561,16 @@ zona dati → `[summary]` → `[listActions]`.
 secondo indicatore «3 selezionati» accanto ai comandi: direbbe la stessa cosa due volte, e
 per dirla spostava i comandi.
 
-⚠️ **Su Corrispettivi la questione è aperta.** Il suo riepilogo è della seconda famiglia —
-ha metriche che non sono colonne — quindi o resta com'è, o convive con una riga totali, o
-le due cose si fondono. ⏸ Da decidere: è l'unico elenco dove il conflitto si presenta.
+⭐ **Su Corrispettivi vince il RIEPILOGO** — deciso dal proprietario il 30/08/2026: «in
+corrispettivi ha senso, non complichiamoci la vita sui totali, servono».
+
+È l'unico elenco dove le due famiglie si incontrano, e la ragione per cui vince la seconda
+sta nel contenuto: **metà di quelle voci non sono colonne.** «Annullamenti 2» e «Rettifiche
+(4) − 205,01 €» non stanno in nessuna intestazione della tabella — sono la riconciliazione
+del registro, cioè il motivo per cui lo si guarda. Una riga di somme di colonne le
+perderebbe.
+
+⛔ Quindi Corrispettivi **non ha** la riga totali: ha il suo riepilogo, e basta.
 
 ### Riepilogo di fondo pagina (report / elenchi) — _rivisto 18/08/2026_
 
@@ -888,9 +895,19 @@ _Deciso dal proprietario il 29/08/2026, sul comportamento di Danea messo a confr
 altezze di finestra._
 
 ```scss
-.pagina        { display: flex; flex-direction: column; flex: 1; min-block-size: 0; }
-.pagina > *    { flex: none; }                      // testata, filtri, riepilogo, azioni
-.pagina__elenco { flex: 1; min-block-size: 0; }     // l'unico che cede
+.pagina {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-block-size: 0;
+}
+.pagina > * {
+  flex: none;
+} // testata, filtri, riepilogo, azioni
+.pagina__elenco {
+  flex: 1;
+  min-block-size: 0;
+} // l'unico che cede
 ```
 
 ⛔ **Mai `grid-template-rows` per assegnare il ruolo elastico.** Una traccia si dà al
@@ -915,7 +932,7 @@ rimpiccioliscono** quando lo spazio scarseggia: diminuisce la quantità di conte
 visibile.
 
 ⛔ **`flex: none` va scritto esplicitamente su ciò che non deve cedere.** In una colonna
-flessibile il default è `flex: 0 1 auto`, cioè *comprimibile*: `app-pagination` ha oggi
+flessibile il default è `flex: 0 1 auto`, cioè _comprimibile_: `app-pagination` ha oggi
 questo default e il suo filo si schiaccia **prima** che le righe cedano — il contrario
 esatto del modello.
 
@@ -937,10 +954,10 @@ leggere. Resta **fratello** dell'elenco, con `flex: none`.
 Il mixin emette **scorrimento e limite insieme**, e questo è tutto il punto: un wrapper
 scritto a mano dimentica metà della coppia, e la metà che manca non fallisce.
 
-| `$limite` | Quando | Cosa emette |
-| --- | --- | --- |
-| `tetto` *(default)* | il contenitore non ha un genitore che gli dia altezza | `max-block-size: var(--table-scroll-max-h)` |
-| `riempi` | sta già dentro una regione delimitata dalla catena di altezze | `block-size: 100%` |
+| `$limite`           | Quando                                                        | Cosa emette                                 |
+| ------------------- | ------------------------------------------------------------- | ------------------------------------------- |
+| `tetto` _(default)_ | il contenitore non ha un genitore che gli dia altezza         | `max-block-size: var(--table-scroll-max-h)` |
+| `riempi`            | sta già dentro una regione delimitata dalla catena di altezze | `block-size: 100%`                          |
 
 ⛔ **Scegliere `tetto` dentro una regione già delimitata produce due barre annidate**, e
 l'intestazione si ancora a un bordo che esce dalla vista del genitore. È il caso del
@@ -980,10 +997,15 @@ a un contenitore che non scorre mai — e non appiccica.
 
 ```scss
 // ⛔ non basta: il contenitore non scorre in verticale, il sticky non ha a cosa ancorarsi
-.tabella-scroll { overflow-x: auto; }
+.tabella-scroll {
+  overflow-x: auto;
+}
 
 // ✅ il contenitore diventa uno scrollport anche in verticale, e il sticky funziona
-.tabella-scroll { overflow: auto; max-block-size: var(--table-scroll-max-h); }
+.tabella-scroll {
+  overflow: auto;
+  max-block-size: var(--table-scroll-max-h);
+}
 ```
 
 ⭐ **Un `sticky` che non appiccica non fallisce: non fa niente.** Nessun errore, nessun

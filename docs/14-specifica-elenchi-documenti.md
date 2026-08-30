@@ -34,10 +34,10 @@ shell leggero comune           ⏸ eventuale, e solo sui residui misurati
 ⚠️ **Qui c'era «un unico contenitore comune», letto come obbligo di un componente.** La
 misura del 29/08/2026 ha mostrato perché non regge come prescrizione:
 
-| | portata misurata |
-| --- | --- |
-| i **mixin** condivisi | **23** file |
-| il **componente** condiviso `app-data-table` | **4** file |
+|                                              | portata misurata |
+| -------------------------------------------- | ---------------- |
+| i **mixin** condivisi                        | **23** file      |
+| il **componente** condiviso `app-data-table` | **4** file       |
 
 ⭐ **Il contratto costa una riga di `@include` e raggiunge anche chi non migrerà mai** — i
 mixin di scorrimento e di altezza hanno raggiunto in un pomeriggio il Registro Corrispettivi,
@@ -185,12 +185,12 @@ conteneva**, perché anche le colonne sono per profilo. Il costo cresceva con
 `profili × filtri × consumer` e ogni elenco nuovo lo riapriva: è la ragione misurabile
 per cui questa migrazione non convergeva.
 
-| | strada per profilo | strada per colonna |
-| --- | --- | --- |
-| dichiarazioni | 9 profili nel solo `document-list` | `filter` sulle **195 colonne già dichiarate** |
-| markup filtri | **640 righe** in un solo consumer | zero: il controllo sta nel motore tabella |
-| specifica | **648 righe** di matrici | la colonna **è** la matrice |
-| un elenco nuovo | ricomincia | eredita |
+|                 | strada per profilo                 | strada per colonna                            |
+| --------------- | ---------------------------------- | --------------------------------------------- |
+| dichiarazioni   | 9 profili nel solo `document-list` | `filter` sulle **195 colonne già dichiarate** |
+| markup filtri   | **640 righe** in un solo consumer  | zero: il controllo sta nel motore tabella     |
+| specifica       | **648 righe** di matrici           | la colonna **è** la matrice                   |
+| un elenco nuovo | ricomincia                         | eredita                                       |
 
 ### Le due vesti — che servono comunque
 
@@ -217,9 +217,9 @@ stessa query.
 _Decisione owner, 29/08/2026._ I controlli di colonna **non sono sempre a schermo**: li
 accende il pulsante «Filtri», come nel benchmark Danea.
 
-| | |
-| --- | --- |
-| **acceso** | ogni colonna visibile mostra il proprio controllo di filtro |
+|            |                                                              |
+| ---------- | ------------------------------------------------------------ |
+| **acceso** | ogni colonna visibile mostra il proprio controllo di filtro  |
 | **spento** | i controlli spariscono **e i filtri di colonna si azzerano** |
 
 ⭐ **Lo spegnimento È l'azzeramento**, e non è una scorciatoia implementativa: un filtro
@@ -294,10 +294,10 @@ chiusi nel pannello e quel numero è l'unico segnale che l'elenco è ristretto.
 Il telaio le ha prese tutte, Registro Corrispettivi compreso. Le due che avevano una forma
 propria si sono allineate senza perderla:
 
-| | |
-| --- | --- |
-| **Corrispettivi** | tiene la **card** e la propria **regione di scorrimento**: il telaio non disegna la scatola dei dati |
-| **Prodotti** | tiene la riga funzioni come contenitore vero, perché ospita la barra e «Copie per etichetta» sulla stessa riga |
+|                   |                                                                                                                |
+| ----------------- | -------------------------------------------------------------------------------------------------------------- |
+| **Corrispettivi** | tiene la **card** e la propria **regione di scorrimento**: il telaio non disegna la scatola dei dati           |
+| **Prodotti**      | tiene la riga funzioni come contenitore vero, perché ospita la barra e «Copie per etichetta» sulla stessa riga |
 
 ⛔ **E la griglia posizionale è sparita da dove faceva più danno.** `.corrispettivi`
 dichiarava `grid-template-rows: auto auto minmax(0, 1fr) auto` — il ruolo elastico assegnato
@@ -325,9 +325,9 @@ errori, lint, test              nessuno
 
 **Due pannelli persi così**, e li ha trovati una lettura a mano:
 
-| Dove | Cosa non funzionava |
-| --- | --- |
-| Ordini fornitore | il pulsante «Filtri (n)» su mobile non apriva niente |
+| Dove                 | Cosa non funzionava                                                   |
+| -------------------- | --------------------------------------------------------------------- |
+| Ordini fornitore     | il pulsante «Filtri (n)» su mobile non apriva niente                  |
 | Situazione magazzino | «Nuovo ordine fornitore» dagli articoli selezionati non compariva mai |
 
 ⚠️ E un terzo caso era peggio: su **Giacenze** il pannello «Quantità impegnata» non era
@@ -374,11 +374,11 @@ modo di dire la stessa cosa — `regole-stile-ui` §1.
 
 #### Chi era fuori dalla regola — misurato il 29/08/2026
 
-| Pagina | Stato |
-| --- | --- |
-| Ordini fornitore · Movimenti · Documenti · Ordini cliente | ✅ `app-list-actions-bar`, azioni sempre visibili |
-| **Situazione magazzino** | ⛔ barra fatta a mano, «Nuovo ordine fornitore» **nascosto** senza selezione → **corretto**: ora usa la barra comune, `requires: 'oneOrMore'` |
-| **Prodotti** | ✅ portata sulla barra comune il 29/08/2026, `requires: 'oneOrMore'` |
+| Pagina                                                    | Stato                                                                                                                                         |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ordini fornitore · Movimenti · Documenti · Ordini cliente | ✅ `app-list-actions-bar`, azioni sempre visibili                                                                                             |
+| **Situazione magazzino**                                  | ⛔ barra fatta a mano, «Nuovo ordine fornitore» **nascosto** senza selezione → **corretto**: ora usa la barra comune, `requires: 'oneOrMore'` |
+| **Prodotti**                                              | ✅ portata sulla barra comune il 29/08/2026, `requires: 'oneOrMore'`                                                                          |
 
 ✅ **E con lei «Copie per etichetta»**, che stava nella riga dei filtri e filtro non è: non
 restringe l'elenco, è un parametro della stampa, e appartiene al comando che lo usa.
@@ -462,14 +462,14 @@ _Proprietario: «il menu tre puntini sparisce»._
 Tutte le funzioni passano dalla **selezione** e stanno nella barra in basso. Le sei voci
 del menu si ricollocano così:
 
-| Voce | Dove va |
-| --- | --- |
-| Apri / Modifica | sparisce: è già il clic di riga |
-| **Duplica** | `ListAction`, `requires: 'one'` |
-| Stampa PDF | c'era già nella barra |
-| **Etichette** | `ListAction`, `requires: 'one'` |
-| **Allegati** | `ListAction`, `requires: 'one'` |
-| Elimina | c'era già, con la regola unificata |
+| Voce            | Dove va                            |
+| --------------- | ---------------------------------- |
+| Apri / Modifica | sparisce: è già il clic di riga    |
+| **Duplica**     | `ListAction`, `requires: 'one'`    |
+| Stampa PDF      | c'era già nella barra              |
+| **Etichette**   | `ListAction`, `requires: 'one'`    |
+| **Allegati**    | `ListAction`, `requires: 'one'`    |
+| Elimina         | c'era già, con la regola unificata |
 
 ⚠️ **La condizione cambia natura, non contenuto.** Nel menu decideva se la voce
 **compariva** su quella riga; nella barra decide se l'azione è **abilitata** sulla riga
@@ -499,8 +499,8 @@ Il proprietario l'ha vista a schermo: lo stesso «Stampa» senza cornice su una 
 la cornice su un'altra.
 
 ```ts
-comando('print', { run: () => this.stampaSelezione() })
-voceEsporta('csv', () => this.esportaCsv())
+comando('print', { run: () => this.stampaSelezione() });
+voceEsporta('csv', () => this.esportaCsv());
 ```
 
 La pagina passa **il gestore** e ciò che è davvero suo — `disabled`, `busy`, un
@@ -536,6 +536,100 @@ Unificarne la forma nasconderebbe la differenza. Vanno **distinti gli id**, ed �
 in `docs/01-registro-difetti-shopify.md` §Livello 5, dove il problema esisteva già come
 «otto pulsanti per quattro operazioni».
 
+### ⭐ Vendite online sul motore comune — 30/08/2026
+
+_«Vendite online è un altro riepilogo che serve per visualizzare i dati e va sistemato
+anche lui»._
+
+⛔ Aveva una **tabella tutta sua**: dieci `<th>` scritti a mano, e con Ordini fornitore
+era uno dei **due soli elenchi senza selettore Colonne**. Tre cose mancavano insieme —
+colonne configurabili, ordinamento, selezione — e vengono tutte e tre dal motore comune,
+quindi riscriverla le ha chiuse in un passaggio invece di rattopparne una.
+
+|                 |                                                                           |
+| --------------- | ------------------------------------------------------------------------- |
+| **colonne**     | dieci, dal catalogo dove esiste; sei viste salvate come gli altri elenchi |
+| **selezione**   | dal motore                                                                |
+| **ordinamento** | ⏸ **spento**, e non per dimenticanza — vedi sotto                         |
+
+⛔ **L'ordinamento resta spento perché l'API non lo sa fare.** Misurato il 30/08: le
+vendite online si ordinano sempre per data di evasione, non c'è un parametro `sort` nel
+DTO. Accendere le intestazioni riordinerebbe la **pagina corrente** di un elenco paginato
+— venti righe su centoventisette — e sembrerebbe funzionare. Una colonna che dichiara
+`sortable: false` dice il vero; una che ordina venti righe mente.
+
+⚠️ **Non è l'unico**: `suppliers`, `customers`, `inventory` e `online-sales` non hanno
+ordinamento lato API. È lavoro di backend, registrato in `docs/DA-FARE.md`.
+
+⭐ **L'elenco non aveva NESSUN test.** Ne ha cinque ora, e due sono stati falsificati —
+rinominando «Sede» in «Location» e togliendo il trattino della cella vuota — per
+verificare che diventino rossi davvero.
+
+### ⭐ Le COLONNE stanno in un catalogo — deciso il 30/08/2026
+
+_Domanda del proprietario: «Le colonne nei riepiloghi sono duplicate per tutti i
+riepiloghi? È giusto così come sono?»._
+
+**Misurato il 30/08/2026**, prima di rispondere:
+
+```text
+11 elenchi · 162 dichiarazioni di colonna
+35 identificatori compaiono in più di un elenco
+10 di questi portano ETICHETTE DIVERSE per lo stesso concetto
+```
+
+| id             | volte | come lo chiamavano                           |
+| -------------- | ----- | -------------------------------------------- |
+| `total`        | ×10   | Totale / Tot. documento                      |
+| `reference`    | ×8    | Riferimento / Numero / N.                    |
+| `counterparty` | ×6    | Controparte / Cliente / Fornitore / Soggetto |
+| `location`     | ×5    | Location / **Sede** / Negozio / Magazzino    |
+
+⚠️ **Non sono tutte difetti, e questa è la distinzione che il catalogo fa.**
+«Cliente» su un elenco di vendita e «Fornitore» su uno di acquisto sono la stessa
+colonna e **due parole giuste**: la controparte di una vendita _è_ il cliente.
+«Location» e «Sede» invece sono la stessa cosa detta in due modi.
+
+> **La colonna si dichiara con `colonna('id')`.** L'etichetta viene dal catalogo
+> (`shared/table-columns/column-catalog.ts`); l'elenco aggiunge solo ciò che è suo —
+> visibilità di serie, aggancio, larghezza, filtro.
+
+#### ⭐ Due categorie, e la differenza la impone il TIPO
+
+|                   |                                                                                   |
+| ----------------- | --------------------------------------------------------------------------------- |
+| **`fisso: true`** | l'etichetta è quella e basta: `colonna('location', { label: … })` **non compila** |
+| _senza `fisso`_   | l'etichetta del catalogo è quella di serie, e l'elenco può dichiararne un'altra   |
+
+⛔ **Una guardia da sola non bastava.** Un controllo che confronta stringhe trova la
+divergenza **dopo** che è stata scritta; un tipo che la rifiuta la impedisce **mentre**
+si scrive. È la stessa scelta fatta per il catalogo dei comandi.
+
+⚠️ **La guardia serve comunque**, e per una ragione precisa: il catalogo si scavalca
+riscrivendo l'oggetto a mano — `{ id: 'location', label: 'Magazzino' }` — e lì il
+compilatore non ha niente da dire, perché è un `TableColumnDef` valido.
+`npm run check:column-catalog` chiude quella porta.
+
+⭐ E **conta anche le dichiarazioni su più righe**: quelle con un commento in mezzo ne
+occupano quattro. La prima stesura della guardia leggeva riga per riga e ne saltava
+**tre** — `documentDate` e `reference` degli elenchi documenti, entrambe a catalogo.
+
+#### Cosa è cambiato a schermo
+
+⭐ **Tre etichette**, tutte e tre la sede: «Location» sugli Ordini cliente, «Negozio»
+sulle Vendite al banco, «Magazzino» sugli Arrivi merce → **«Sede»** (§15). Più le due
+colonne con un id proprio (`locationName`, `locationLabel`) e quattro schede di
+dettaglio, corrette nello stesso passaggio.
+
+⛔ **Nient'altro si è mosso**, ed è stato verificato invece che dichiarato: le 162
+colonne sono state confrontate una a una prima e dopo la migrazione, e le sole
+differenze sono quelle tre.
+
+⚠️ **95 dichiarazioni su 162 sono passate al catalogo.** Le altre 67 restano scritte a
+mano perché il loro id **compare in un elenco solo**: una colonna che non si ripete non
+ha ragione di salire, e farla salire riempirebbe il catalogo di voci che non arbitrano
+niente.
+
 ### ⭐ «Nuovo ordine fornitore» PROPONE, non emette — deciso il 29/08/2026
 
 _Proprietario: «poi si crea direttamente un ordine ed è errato. Gli articoli devono finire
@@ -550,10 +644,10 @@ ora      scegli fornitore → apre un ordine NUOVO precompilato → gestisci →
 nascono tutte a 1 e vanno quasi sempre corrette: si finiva per modificare un documento già
 emesso invece di compilarne uno.
 
-| Cosa arriva | |
-| --- | --- |
-| **fornitore** | quello scelto nel pannello, in testata |
-| **righe** | una per articolo selezionato, **quantità 1** |
+| Cosa arriva                                         |                                                                                        |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| **fornitore**                                       | quello scelto nel pannello, in testata                                                 |
+| **righe**                                           | una per articolo selezionato, **quantità 1**                                           |
 | **descrizione, costo, IVA, U.M., codice fornitore** | dal **risolutore comune di richiamo articolo** (`03c`), lo stesso del percorso manuale |
 
 ⚠️ **Il precompilato porta gli IDENTIFICATIVI, non i valori.** Passare anche descrizione e
@@ -612,10 +706,10 @@ Misurato con risposte **istantanee** (catalogo finto, nessuna rete), per isolare
 del client da quello del trasporto:
 
 | Articoli | Chiamate | Lavoro del client |
-| --- | --- | --- |
-| 10 | 20 | 115 ms |
-| 25 | 50 | 214 ms |
-| 50 | **100** | **383 ms** |
+| -------- | -------- | ----------------- |
+| 10       | 20       | 115 ms            |
+| 25       | 50       | 214 ms            |
+| 50       | **100**  | **383 ms**        |
 
 ⭐ **È lineare**, non quadratico: circa 7 ms per articolo più una quarantina fissi. Il
 numero di chiamate è esattamente **2N**, come previsto.
@@ -640,12 +734,12 @@ Il blocco `selectedVariantIds` + `pinnedVariants` è **copiato identico** in qua
 maschere. Confrontati carattere per carattere: tre hanno la **stessa impronta**, la quarta
 differisce solo per la correzione appena fatta.
 
-| Maschera | `distinctUntilChanged` |
-| --- | --- |
-| Ordine fornitore | ✅ corretto il 29/08/2026 |
-| **Arrivo merce** | ⛔ **manca** |
-| **Carico / scarico / rettifica** | ⛔ **manca** |
-| **Trasferimento** | ⛔ **manca** |
+| Maschera                         | `distinctUntilChanged`    |
+| -------------------------------- | ------------------------- |
+| Ordine fornitore                 | ✅ corretto il 29/08/2026 |
+| **Arrivo merce**                 | ⛔ **manca**              |
+| **Carico / scarico / rettifica** | ⛔ **manca**              |
+| **Trasferimento**                | ⛔ **manca**              |
 
 > Su quelle tre, **ogni carattere digitato in una riga rilegge dal catalogo una variante
 > per articolo del documento.** Sono le maschere che si usano tutti i giorni, e il
@@ -724,9 +818,9 @@ _Decisione del proprietario, 29/08/2026._
 
 ⛔ **«Azzera filtri» sparisce.** Al suo posto c'è **«Filtri»**, che è un **interruttore**:
 
-| | |
-| --- | --- |
-| **acceso** | ogni colonna visibile mostra il proprio controllo di filtro |
+|            |                                                              |
+| ---------- | ------------------------------------------------------------ |
+| **acceso** | ogni colonna visibile mostra il proprio controllo di filtro  |
 | **spento** | i controlli spariscono **e i filtri di colonna si azzerano** |
 
 ⭐ **Lo spegnimento È l'azzeramento**: non servono due pulsanti, perché non esistono due
@@ -774,11 +868,11 @@ usare lo stesso telaio di un elenco documenti.
 Quel componente è nato per il contratto **precedente**: Periodo più alcuni filtri scelti per
 profilo. Quel contratto è stato superato dalla derivazione dalle colonne (§0.2).
 
-| pezzo | destino |
-| --- | --- |
-| filtri scelti per profilo, `ListFilterDef` | ⛔ **superati** |
-| il **pannello mobile** | ✅ resta utile: sotto `lg` non ci sono intestazioni, e i filtri di colonna hanno bisogno di una casa |
-| Periodo | ✅ resta, ma esterno |
+| pezzo                                      | destino                                                                                              |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| filtri scelti per profilo, `ListFilterDef` | ⛔ **superati**                                                                                      |
+| il **pannello mobile**                     | ✅ resta utile: sotto `lg` non ci sono intestazioni, e i filtri di colonna hanno bisogno di una casa |
+| Periodo                                    | ✅ resta, ma esterno                                                                                 |
 
 ⛔ **Non si conserva codice perché è già stato scritto.** Quando i filtri di colonna
 esisteranno, il pannello sarà rialimentato dalle colonne invece che da `ListFilterDef`; se a
@@ -1523,11 +1617,11 @@ TableColumnDef {
 }
 ```
 
-| forma | quando | reso come |
-| --- | --- | --- |
+| forma    | quando                                                        | reso come                                           |
+| -------- | ------------------------------------------------------------- | --------------------------------------------------- |
 | `values` | insieme chiuso o ricorrente (Stato, Pagamento, Sede, Cliente) | elenco a **selezione multipla** dei valori presenti |
-| `text` | testo libero (Commento, riferimenti) | contiene / non contiene |
-| `range` | numerico e denaro (Totale, Netto, Righe) | da–a |
+| `text`   | testo libero (Commento, riferimenti)                          | contiene / non contiene                             |
+| `range`  | numerico e denaro (Totale, Netto, Righe)                      | da–a                                                |
 
 ⚠️ **`values` legge i valori dall'insieme caricato**, non da un endpoint per colonna. È
 corretto perché l'insieme caricato **è** il risultato del filtro (§11.4): senza quella
@@ -1561,8 +1655,8 @@ altrimenti           →  values    insieme di valori distinti, a scelta multipl
 precisa: una colonna DATA porta spesso `display: 'code'` e finirebbe `text` mentre vuole
 `range`. Lì il `filter` si dichiara.
 
-⭐ **La direzione dell'errore è voluta**: si sbaglia verso il *filtro sbagliato*, mai verso
-il *filtro assente*. Il primo si vede aprendolo, il secondo non si vede mai.
+⭐ **La direzione dell'errore è voluta**: si sbaglia verso il _filtro sbagliato_, mai verso
+il _filtro assente_. Il primo si vede aprendolo, il secondo non si vede mai.
 
 Implementato in `table-column-filter.util.ts` (`resolveColumnFilterKind`), con la sua
 guardia: tre falsificazioni — default a `null`, `filter: false` ignorato, `numeric`
@@ -1601,11 +1695,11 @@ INTERRUTTORE    Filtri           accende i controlli di colonna, spegnendolo li 
 
 ⛔ **Tutto il resto sparisce dalla barra** e vive nell'intestazione della propria colonna.
 
-| Elenco | oggi in barra | dopo |
-| --- | --- | --- |
-| **Corrispettivi** | Periodo · Origine · Tipo · Sede · Raggruppa | Periodo · Raggruppa — **Origine, Tipo e Sede diventano colonne** |
-| **Ordini cliente** | Periodo · Stato · Origine · Pagamento · Evasione · Cliente · Location | Periodo — **le altre sei sono già colonne** |
-| **Arrivi merce** | Periodo · Fornitore · Collegamento · Magazzino · Tipo doc. · Pagamento | Periodo — **le altre cinque sono già colonne** |
+| Elenco             | oggi in barra                                                          | dopo                                                             |
+| ------------------ | ---------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| **Corrispettivi**  | Periodo · Origine · Tipo · Sede · Raggruppa                            | Periodo · Raggruppa — **Origine, Tipo e Sede diventano colonne** |
+| **Ordini cliente** | Periodo · Stato · Origine · Pagamento · Evasione · Cliente · Location  | Periodo — **le altre sei sono già colonne**                      |
+| **Arrivi merce**   | Periodo · Fornitore · Collegamento · Magazzino · Tipo doc. · Pagamento | Periodo — **le altre cinque sono già colonne**                   |
 
 ⭐ **È la misura di §0.2 letta al contrario**: erano già colonne, per questo possono tornarci.
 
@@ -1643,7 +1737,7 @@ colonna sarebbe un intervallo «da 0,01 a infinito» — tecnicamente equivalent
 inutilizzabile per chi vuole solo vedere cosa deve incassare.
 
 ⭐ **È la forma dell'eccezione prevista da §11.2**: una condizione derivata che nessuna
-colonna esprime *come si vorrebbe chiederla*. Vale per le Fatture e per la Proforma, dove
+colonna esprime _come si vorrebbe chiederla_. Vale per le Fatture e per la Proforma, dove
 lo stato economico è già dichiarato in specifica.
 
 ⚠️ **Resta subordinato al motore Pagamenti**: finché non dà il dato canonico, il filtro non
@@ -1710,10 +1804,10 @@ tipi, quel file non avrebbe più compilato.
 > visualizzazione. Per chi non ha il filtro periodo, possiamo far visualizzare l'elenco nel
 > contenitore e man mano si scorrono i risultati.»_ — proprietario, 29/08/2026
 
-| | |
-| --- | --- |
-| **elenchi** — documenti, ordini, anagrafiche, movimenti, giacenze | niente tetto: tutto il risultato, e si scorre |
-| **ricerca globale** | ⛔ **fuori perimetro**: è un'anteprima da cinque righe per fonte, non un elenco |
+|                                                                   |                                                                                 |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| **elenchi** — documenti, ordini, anagrafiche, movimenti, giacenze | niente tetto: tutto il risultato, e si scorre                                   |
+| **ricerca globale**                                               | ⛔ **fuori perimetro**: è un'anteprima da cinque righe per fonte, non un elenco |
 
 ⚠️ **Il contenimento resta diseguale, e la scelta è dichiarata provvisoria**: i riepiloghi
 datati si contengono col Periodo (§12.2), le anagrafiche non hanno un asse temporale che
@@ -1742,13 +1836,13 @@ arbitraria.
 **La misura.** Presi alla lettera, «i filtri sono le colonne» cancellava cinque filtri
 funzionanti, che §42-bis.0 vieta di rimuovere in un refactor:
 
-| Filtro | Dove | Colonna corrispondente |
-| --- | --- | --- |
-| **Operatore** (`createdById`) | elenco documenti, html:313 | ⛔ nessuna: nei 18 id non c'è `createdBy` |
-| **Cliente/Fornitore** | movimenti, html:127 | ⛔ nessuna colonna controparte |
-| **Location** | situazione magazzino, html:80 | ⛔ nessuna delle 16 è location |
-| DDT da fatturare | elenco documenti | condizione derivata — eccezione già prevista in §11.2 |
-| Ambito (Fisico/Online/Manuale) | dentro Origine, Corrispettivi | `app-segmented` proiettato, non una colonna |
+| Filtro                         | Dove                          | Colonna corrispondente                                |
+| ------------------------------ | ----------------------------- | ----------------------------------------------------- |
+| **Operatore** (`createdById`)  | elenco documenti, html:313    | ⛔ nessuna: nei 18 id non c'è `createdBy`             |
+| **Cliente/Fornitore**          | movimenti, html:127           | ⛔ nessuna colonna controparte                        |
+| **Location**                   | situazione magazzino, html:80 | ⛔ nessuna delle 16 è location                        |
+| DDT da fatturare               | elenco documenti              | condizione derivata — eccezione già prevista in §11.2 |
+| Ambito (Fisico/Online/Manuale) | dentro Origine, Corrispettivi | `app-segmented` proiettato, non una colonna           |
 
 > **La decisione del proprietario:** _«la colonna operatore possiamo metterla attivabile,
 > spenta per default e, quando accesa, si impostano regole semplici che non ci bloccano il
@@ -1788,10 +1882,10 @@ interpretazione larga  →  ogni tasto scarica catalogo + clienti + fornitori + 
 ⭐ **Quello che sparisce è il TETTO DI RIGHE A SCHERMO, non ogni concetto di pagina.** Un
 elenco mostra tutto il risultato del filtro dentro il proprio contenitore, e lo si scorre.
 
-| | |
-| --- | --- |
-| **elenchi** — documenti, ordini, anagrafiche, movimenti, giacenze | niente tetto: si mostra il risultato e si scorre |
-| **ricerca globale** | ⛔ **fuori perimetro**: non è un elenco, è un'anteprima da cinque righe per fonte |
+|                                                                   |                                                                                   |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| **elenchi** — documenti, ordini, anagrafiche, movimenti, giacenze | niente tetto: si mostra il risultato e si scorre                                  |
+| **ricerca globale**                                               | ⛔ **fuori perimetro**: non è un elenco, è un'anteprima da cinque righe per fonte |
 
 ⚠️ **Il contenimento resta diseguale, ed è accettato per ora.** I riepiloghi datati si
 contengono col Periodo (§12.2); le anagrafiche non hanno un asse temporale che faccia lo
@@ -1812,9 +1906,9 @@ il perimetro del lavoro, non un dettaglio.
 
 ```scss
 .data-table-scroll {
-  overflow-x: auto;   // l'altro asse computa `auto` per spec
+  overflow-x: auto; // l'altro asse computa `auto` per spec
   inline-size: 100%;
-}                     // ⛔ nessun max-block-size: non scorre MAI in verticale
+} // ⛔ nessun max-block-size: non scorre MAI in verticale
 ```
 
 Lo scorrimento verticale vero vive in `.shell__content`
@@ -1867,18 +1961,18 @@ questo passaggio.
 
 ### Gli ostacoli tecnici — lavoro dichiarato, non decisioni
 
-| | Misura |
-| --- | --- |
+|                                                   | Misura                                                                                                                                                                                          |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **`cellText` non copre `status` né `linkStatus`** | `document-table.component.ts:361` ha `default: return ''`; le due colonne sono rese da `<ng-template appCell>`. **Un filtro a valori nascerebbe VUOTO proprio dove il caso d'uso è principale** |
-| **Le pseudo-colonne prenderebbero un filtro** | `select` e `actions` sono `TableColumnDef` come le altre: sotto opt-out ne ricevono uno. Nove casi. Serve `filter: false` |
-| **Nessuna delle 11 colonne data deduce `range`** | 7 deducono `text` (portano `display: 'code'`), 4 deducono `values` — cioè una tendina con un valore per ogni data |
-| **91 colonne non sono elenchi** | sei configurazioni sono griglie di RIGHE DOCUMENTO, rese da `document-line-head` e non da `app-data-table`: `filterableColumns()` offrirebbe un filtro anche a loro |
-| **Due elenchi non ricevono i `TableColumnDef`** | `corrispettivi-orders-table` prende `visibleColumns: string[]`; `online-sale-table` non ha né colonne né `TableViewId` |
-| **Sei elenchi non hanno veste filtri mobile** | prodotti, movimenti, giacenze, situazione, clienti, fornitori: il pannello va creato, non adattato |
-| **La consistenza righe non guarda `filter`** | `document-line-columns.consistency.spec.ts:80` elenca cinque proprietà e non questa |
-| **Un e2e aggancia un filtro per nome** | `permissions-owner.spec.ts:143` cerca `'Filtra per location'`: spostarlo nell'intestazione lo rompe |
-| **Il commento del motore contraddice §11.4** | `data-table.component.ts:48-51`: «Gli elenchi sono paginati lato server» |
-| **237 colonne, ZERO dichiarano `filter`** | dedotte oggi: `values` 147 · `text` 21 · `range` 69 |
+| **Le pseudo-colonne prenderebbero un filtro**     | `select` e `actions` sono `TableColumnDef` come le altre: sotto opt-out ne ricevono uno. Nove casi. Serve `filter: false`                                                                       |
+| **Nessuna delle 11 colonne data deduce `range`**  | 7 deducono `text` (portano `display: 'code'`), 4 deducono `values` — cioè una tendina con un valore per ogni data                                                                               |
+| **91 colonne non sono elenchi**                   | sei configurazioni sono griglie di RIGHE DOCUMENTO, rese da `document-line-head` e non da `app-data-table`: `filterableColumns()` offrirebbe un filtro anche a loro                             |
+| **Due elenchi non ricevono i `TableColumnDef`**   | `corrispettivi-orders-table` prende `visibleColumns: string[]`; `online-sale-table` non ha né colonne né `TableViewId`                                                                          |
+| **Sei elenchi non hanno veste filtri mobile**     | prodotti, movimenti, giacenze, situazione, clienti, fornitori: il pannello va creato, non adattato                                                                                              |
+| **La consistenza righe non guarda `filter`**      | `document-line-columns.consistency.spec.ts:80` elenca cinque proprietà e non questa                                                                                                             |
+| **Un e2e aggancia un filtro per nome**            | `permissions-owner.spec.ts:143` cerca `'Filtra per location'`: spostarlo nell'intestazione lo rompe                                                                                             |
+| **Il commento del motore contraddice §11.4**      | `data-table.component.ts:48-51`: «Gli elenchi sono paginati lato server»                                                                                                                        |
+| **237 colonne, ZERO dichiarano `filter`**         | dedotte oggi: `values` 147 · `text` 21 · `range` 69                                                                                                                                             |
 
 ---
 
@@ -2053,6 +2147,30 @@ Uniformità = interazione e rendering, non fusione dei domini.
 ---
 
 # 15. Sede / Location
+
+## ⭐ All'operatore si dice «Sede» — deciso il 30/08/2026
+
+> **`location` è il nome del MODELLO. «Sede» è la parola che si legge a schermo:**
+> etichetta di colonna, di filtro, di campo, intestazione di stampa, colonna di export.
+
+Il proprietario ha chiesto quale delle due usare, e di guardare come la chiama Shopify.
+Shopify la chiama **Location** in inglese e **Sede** nell'interfaccia italiana — quindi la
+scelta non introduce un termine nostro: è la stessa parola che usa il canale a cui il
+gestionale è collegato, e l'operatore la ritrova identica da entrambe le parti.
+
+⛔ **Il nome del modello NON si italianizza**: `locationId`, `locationName`,
+`LocationScope`, `location_id` restano. Tradurre il codice romperebbe la corrispondenza
+con Shopify, che è esattamente ciò che rende leggibile un errore di sync.
+
+| Dove                                                              | Cosa si scrive |
+| ----------------------------------------------------------------- | -------------- |
+| etichetta di colonna, di filtro, di campo, titolo, testo di aiuto | **Sede**       |
+| identificatore di colonna, campo del modello, DTO, tabella, rotta | `location`     |
+
+⚠️ **La parola era in quattro forme**, misurate il 30/08/2026 sugli elenchi: «Location»,
+«Sede», «Magazzino» e «Negozio». Le ultime due non sono sinonimi sbagliati per caso — sono
+**i due tipi** di sede, e usarne uno come nome della colonna esclude l'altro: un elenco che
+intesta «Magazzino» sta dicendo che le vendite del negozio non ci finiscono.
 
 Quando pertinente:
 
@@ -3760,7 +3878,7 @@ L'HTML provvisorio non è prova definitiva del comportamento.
 
 ---
 
-# 46. Criteri di accettazione — Shell ⏸ *(valgono SE lo shell viene estratto)*
+# 46. Criteri di accettazione — Shell ⏸ _(valgono SE lo shell viene estratto)_
 
 ⚠️ Lo shell fisico non è un requisito (§0, Fase G). Questi criteri descrivono **com'è fatto
 bene se si decide di estrarlo**, non un traguardo da raggiungere.

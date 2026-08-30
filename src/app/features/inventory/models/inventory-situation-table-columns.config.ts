@@ -1,3 +1,4 @@
+import { colonna } from '@shared/table-columns/column-catalog';
 import {
   TableViewPresetId,
   type TableColumnDef,
@@ -12,20 +13,20 @@ import {
 export const INVENTORY_SITUATION_COLUMN_DEFS: readonly TableColumnDef[] = [
   { id: 'select', label: 'Selezione', defaultVisible: true, filter: false },
   { id: 'title', label: 'Articolo', pinnable: true, defaultVisible: true },
-  { id: 'code', label: 'Codice', defaultVisible: true },
-  { id: 'sku', label: 'SKU', defaultVisible: false },
-  { id: 'category', label: 'Categoria', defaultVisible: true },
-  { id: 'supplier', label: 'Fornitore', defaultVisible: true },
-  { id: 'available', label: 'Disponibile', numeric: true, defaultVisible: true },
-  { id: 'onHand', label: 'Giacenza', numeric: true, defaultVisible: true },
-  { id: 'committed', label: 'Impegnata', numeric: true, defaultVisible: false },
-  { id: 'incoming', label: 'In arrivo', numeric: true, defaultVisible: false },
-  { id: 'minThreshold', label: 'Soglia min.', numeric: true, defaultVisible: false },
+  colonna('code', { defaultVisible: true }),
+  colonna('sku', { defaultVisible: false }),
+  colonna('category', { defaultVisible: true }),
+  colonna('supplier', { defaultVisible: true }),
+  colonna('available', { defaultVisible: true }),
+  colonna('onHand', { defaultVisible: true }),
+  colonna('committed', { defaultVisible: false }),
+  colonna('incoming', { defaultVisible: false }),
+  colonna('minThreshold', { defaultVisible: false }),
   { id: 'purchasePrice', label: 'Prezzo acquisto', numeric: true, defaultVisible: true },
   { id: 'sellingPrice', label: 'Prezzo di vendita', numeric: true, defaultVisible: true },
   { id: 'totalIn', label: 'Carichi totali', numeric: true, defaultVisible: false },
   { id: 'totalOut', label: 'Scarichi totali', numeric: true, defaultVisible: false },
-  { id: 'status', label: 'Stato', defaultVisible: true },
+  colonna('status', { defaultVisible: true }),
 ] as const;
 
 export const INVENTORY_SITUATION_COLUMN_PRESETS: TableViewPresetMap = {
