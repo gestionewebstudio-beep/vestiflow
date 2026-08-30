@@ -22,6 +22,18 @@ export interface DataTableSectionFooter {
   readonly label: string;
   /** `columnId` → testo. Le colonne assenti restano vuote. */
   readonly values: Readonly<Record<string, string>>;
+  /**
+   * ⭐ **Quale valore RISPONDE alla domanda del gruppo**, e sale al terzo livello
+   * di peso (`regole-stile-ui`, «Riga di subtotale»): grassetto e
+   * `--color-primary`.
+   *
+   * Su un registro è il Totale; su un elenco di magazzino potrebbe essere la
+   * quantità. Il motore non lo sa e non deve indovinarlo.
+   *
+   * ⚠️ Omesso, nessun valore si distingue — e va bene per un piede che chiude e
+   * basta.
+   */
+  readonly emphasis?: string;
 }
 
 /**
@@ -37,6 +49,23 @@ export interface DataTableSection<T> {
   readonly rows: readonly T[];
   readonly footer?: DataTableSectionFooter;
 }
+
+/**
+ * ⭐ **I toni ammessi per una riga.** Insieme chiuso, non una classe libera.
+ *
+ * - `positive` — la riga AGGIUNGE: una vendita, un carico. Non tinge niente su
+ *   scrivania — è il caso normale — ma sulla **card** porta l'accento laterale.
+ * - `negative` — la riga TOGLIE: reso, rettifica, nota di credito, rimborso.
+ * - `muted` — la riga è annullata o non concorre: si legge, non si conta.
+ *
+ * ⚠️ **`null` non è `positive`.** Un elenco che non distingue i versi — documenti,
+ * clienti, prodotti — restituisce `null` e non prende nessun accento: la striscia
+ * colorata su ogni card di ogni elenco sarebbe rumore, non informazione.
+ *
+ * ⚠️ Il tono non è lo stato di selezione né quello di passaggio del mouse: è
+ * una proprietà del DATO, e resta visibile anche quando la riga è selezionata.
+ */
+export type DataTableRowTone = 'positive' | 'negative' | 'muted';
 
 export type DataTableSortDirection = 'asc' | 'desc';
 

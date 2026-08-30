@@ -139,6 +139,7 @@ export class CorrispettiviReportComponent {
       CORRISPETTIVI_REGISTER_COLUMN_DEFS,
       CORRISPETTIVI_REGISTER_COLUMN_PRESETS,
     );
+    this.tableColumns = this.columnPreferences.visibleColumns(this.columnsView);
 
     effect(() => {
       this.query();
@@ -316,10 +317,24 @@ export class CorrispettiviReportComponent {
    * alla tabella serve solo sapere quali mostrare — resta dumb, e non impara
    * cos'è una preferenza.
    */
+  /**
+   * Le colonne visibili, **risolte**, per il motore comune.
+   *
+   * ⛔ Qui c'era `.map((column) => column.id)`: la pagina buttava via larghezza,
+   * ancoraggio e ordine, e la tabella li riscriveva a mano. Da quando il
+   * Registro sta sul motore (30/08/2026) le colonne ci arrivano intere, ed è
+   * il motore a disegnarle.
+   *
+   * ⚠️ **Si assegna nel costruttore, non qui**, e la ragione è misurata: i campi
+   * si inizializzano PRIMA del corpo del costruttore, quindi `visibleColumns()`
+   * verrebbe chiamata prima di `registerView()` e il servizio rifiuterebbe con
+   * «Vista tabella non registrata». Sei test di pagina l'hanno detto subito.
+   */
+  protected readonly tableColumns: ReturnType<TableColumnPreferenceService['visibleColumns']>;
+
+  /** I soli id: serve all'export, che ragiona per colonna e non per larghezza. */
   protected readonly visibleColumns = computed(() =>
-    this.columnPreferences
-      .visibleColumns(this.columnsView)()
-      .map((column) => column.id),
+    this.tableColumns().map((column) => column.id),
   );
 
   // ── Periodo: un chip fra i filtri, non una card ───────────────────────────
@@ -834,7 +849,12 @@ export class CorrispettiviReportComponent {
     //    così che «Stampa» era diventata ghost solo su questa pagina, e «CSV»
     //    aveva tre icone diverse in tre elenchi (misurato il 30/08/2026).
     ...(this.canManageRegister()
-      ? [comando('new', { ariaLabel: 'Aggiungi corrispettivo', run: () => this.addManualReceipt() })]
+      ? [
+          comando('new', {
+            ariaLabel: 'Aggiungi corrispettivo',
+            run: () => this.addManualReceipt(),
+          }),
+        ]
       : []),
 
     // ⭐ **Stampa, Excel ed Esporta sono TRE comandi** (`14` §5.2), ed Esporta

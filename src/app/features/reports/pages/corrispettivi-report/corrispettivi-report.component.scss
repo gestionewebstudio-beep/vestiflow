@@ -431,14 +431,6 @@
   }
 }
 
-/* Conteggio in coda all'elenco: informazione di servizio, non un dato. */
-.corrispettivi__rowcount {
-  margin: var(--space-2) 0 0;
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
-  text-align: end;
-}
-
 /* Campo del pannello filtri: etichetta sopra, controllo a piena larghezza. */
 .corrispettivi__field {
   display: flex;
@@ -492,4 +484,43 @@
 [data] > .corrispettivi__panel {
   flex: 1;
   min-block-size: 0;
+}
+
+/*
+  ⭐ **La fascia totali è ATTACCATA al riquadro dell'elenco** — deciso dal
+  proprietario il 30/08/2026.
+
+  Il telaio distanzia le proprie zone di `--space-5` (20px), ed è giusto per
+  zone che sono cose diverse: filtri, dati, comandi. Qui però le due zone sono
+  la stessa cosa — le righe e la loro somma — e il vuoto in mezzo le faceva
+  leggere come due blocchi indipendenti.
+
+  ⚠️ **Lo chiude la pagina, non il telaio**, e non è pigrizia: lo slot
+  `[summary]` oggi ospita anche il PAGINATORE delle sei anagrafiche, e
+  attaccarlo lì cambierebbe sei schermate che nessuno ha chiesto di cambiare.
+  Quando la riga totali comune arriverà su tutti gli elenchi (`14` §0.2), la
+  decisione tornerà al telaio e questa regola sparirà.
+*/
+[summary] {
+  margin-block-start: calc(var(--space-5) * -1);
+}
+
+/*
+  ⭐ **Sotto `lg` il Periodo perde il prefisso e sta in riga con Colonne e
+  Filtri** — deciso dal proprietario il 30/08/2026: «possiamo togliere la
+  scritta periodo tanto si capisce leggendo il filtro, stringere la casella e
+  far diventare unica linea con gli altri tasti».
+
+  Il controllo era **già** nella stessa zona degli altri: andava a capo perché
+  «Periodo: Ultimi 30 giorni» è largo. Tolto il prefisso, la casella si stringe
+  di ~60px e la riga si chiude da sé — nessuna riorganizzazione del telaio.
+
+  ⚠️ **Lo decide la PAGINA, non il telaio**, e non è pigrizia: il telaio
+  spegnerebbe il prefisso anche ai controlli dentro il pannello filtri, dove è
+  l'unica cosa che dice di quale filtro si tratti.
+*/
+@include bp.media-down('lg') {
+  [period] {
+    --select-menu-chip-label-display: none;
+  }
 }

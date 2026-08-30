@@ -56,9 +56,62 @@
   flex: 1;
   min-block-size: 0;
   min-inline-size: 0;
-  display: flex;
-  flex-direction: column;
+  /*
+    ⭐ **GRIGLIA, non colonna flessibile** — corretto il 30/08/2026, dopo aver
+    misurato che la strada flessibile non poteva funzionare.
+
+    In una griglia il figlio **si stira per default**, e lo stiramento viene dal
+    CONTENITORE. Con il flex invece serviva una regola sul figlio — `flex: 1` —
+    e quella regola non lo raggiunge mai: vedi il blocco qui sotto.
+
+    `minmax(0, 1fr)` invece di `1fr` perché una traccia `1fr` nuda ha per
+    pavimento il contenuto: una tabella lunga la spingerebbe oltre l'altezza
+    della zona invece di farla scorrere dentro.
+
+    ⚠️ **`grid-auto-rows`, non `grid-template-rows`**: le tracce non si
+    assegnano per POSIZIONE. Se una pagina proiettasse due elementi in `[data]`,
+    con un template la seconda finirebbe in una traccia implicita fuori misura;
+    così invece ogni figlio riceve la stessa regola, chiunque sia e quanti
+    siano. È la distinzione che `regole-stile-ui` §6 chiede di rispettare.
+  */
+  display: grid;
+  grid-auto-rows: minmax(0, 1fr);
 }
+
+/*
+  ⛔ **QUI C'ERA `.list-page__data > * { flex: 1; min-block-size: 0 }`, e non ha
+  mai funzionato.** Misurato il 30/08/2026 rendendo il telaio e leggendo gli
+  attributi di incapsulamento:
+
+  ```text
+  zona dati   _ngcontent-a-c1375802046   ← attributo del TELAIO
+  contenuto   _ngcontent-a-c1044159087   ← attributo della PAGINA
+  ```
+
+  Con l'incapsulamento emulato, `.list-page__data > *` compila in
+  `.list-page__data[_ngcontent-telaio] > *[_ngcontent-telaio]`, e il contenuto
+  proiettato porta l'attributo della pagina che lo scrive. **La regola non
+  aggancia nulla**, e il commento che le stava sopra dichiarava il contrario:
+  «ciò che sta nell'area dati la RIEMPIE».
+
+  ⚠️ **Non falliva, non faceva niente** — nessun errore, nessun test rosso. Si
+  vedeva solo a schermo, e solo sulle pagine che ci contavano davvero:
+
+  ```text
+  ✅ prodotti · fornitori · documenti · ordini · vendite online · movimenti
+     la loro tabella usa `block-size: 100%` e si riempie DA SÉ
+  ⛔ clienti · giacenze · situazione
+     usano `table-scroll(…, flessibile)`, che per progetto «riceve la propria
+     altezza da flex: 1 di chi lo ospita» — cioè da questa regola
+  ⛔ corrispettivi
+     il suo pannello aspettava lo stesso flex: 1
+  ```
+
+  ⛔ **`::ng-deep` non è la risposta** ed è vietato (`regole-stile-ui` §5): un
+  difetto di API di un componente condiviso si corregge nel componente, non
+  scavalcandolo. La griglia qui sopra lo corregge nel posto giusto, perché lo
+  stiramento è una proprietà del contenitore.
+*/
 
 /*
   ⚠️ **Questi valori NON sono nuovi: sono quelli del mixin `list-page`**, copiati
@@ -118,12 +171,18 @@
     flex: none;
   }
 
+  /*
+    Sotto `lg` la pagina scorre tutta: la zona dati torna un blocco normale e
+    non impone più un'altezza ai figli.
+
+    ⚠️ `display: block` spegne la griglia insieme al resto — `grid-auto-rows`
+    resta dichiarata ma non ha effetto senza `display: grid`.
+  */
   :host > .list-page__data {
     display: block;
     flex: none;
     min-block-size: auto;
   }
-
 }
 
 /*
@@ -204,21 +263,6 @@
 /* I controlli di vista stanno a destra, sempre. */
 .list-page__view {
   margin-inline-start: auto;
-}
-
-/*
-  ⭐ **Ciò che sta nell'area dati la RIEMPIE.**
-
-  Il contenuto proiettato in `[data]` è un figlio flessibile: senza queste due
-  righe prende `flex: 0 1 auto` e resta alto quanto il suo contenuto, mentre
-  l'area cresce e sotto resta bianco.
-
-  ⚠️ Vale anche per lo scheletro e per i riquadri di stato, ed è giusto: devono
-  occupare la regione, non galleggiarci dentro.
-*/
-.list-page__data > * {
-  flex: 1;
-  min-block-size: 0;
 }
 
 /* Il conteggio accanto al titolo: informazione di servizio, non un dato. */

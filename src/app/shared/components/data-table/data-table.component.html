@@ -94,6 +94,9 @@
           <tr
             class="data-table__row"
             [class.data-table__row--clickable]="canClickRow(row)"
+            [class.data-table__row--positive]="rowTone()(row) === 'positive'"
+            [class.data-table__row--negative]="rowTone()(row) === 'negative'"
+            [class.data-table__row--muted]="rowTone()(row) === 'muted'"
             [class.is-selected]="selectedIds().has(rowId()(row))"
             [attr.tabindex]="canClickRow(row) ? 0 : null"
             [attr.aria-label]="canClickRow(row) ? rowLabel()(row) : null"
@@ -179,7 +182,11 @@
               {{ piede.label }}
             </td>
             @for (col of footerColumns(piede.values); track col.id) {
-              <td [class.data-table__cell--numeric]="col.numeric" [attr.data-label]="col.label">
+              <td
+                [class.data-table__cell--numeric]="col.numeric"
+                [class.data-table__section-total-value--emphasis]="piede.emphasis === col.id"
+                [attr.data-label]="col.label"
+              >
                 {{ footerValue(piede.values, col) }}
               </td>
             }

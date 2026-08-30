@@ -20,7 +20,7 @@ import { DataTableCellDirective } from './data-table-cell.directive';
 import { DataTableRowActionsDirective } from './data-table-row-actions.directive';
 import { DataTableRowCardDirective } from './data-table-row-card.directive';
 import { ariaSortOf, nextSort, sortDirectionOf, sortRankOf } from './data-table.model';
-import type { DataTableSection, DataTableSort } from './data-table.model';
+import type { DataTableRowTone, DataTableSection, DataTableSort } from './data-table.model';
 
 /** Riga selezionata o deselezionata dalla casella. */
 export interface DataTableSelectionEvent<T> {
@@ -116,6 +116,23 @@ export class DataTableComponent<T> {
    */
   readonly rowClickableWhen = input<(row: T) => boolean>(() => true);
   readonly rowLabel = input<(row: T) => string>(() => 'Apri la riga');
+
+  /**
+   * ⭐ **Il TONO di una riga**, quando il suo tipo la distingue dalle altre.
+   *
+   * Un registro non ha solo righe: ha righe che tolgono. Un reso, una rettifica,
+   * una nota di credito si leggono a colpo d'occhio perché la riga è segnata —
+   * ed è una capacità del motore, non di una tabella sola: ogni elenco che
+   * contenga movimenti in due versi ne ha bisogno.
+   *
+   * ⛔ **Non è una classe CSS libera**, ed è voluto: un `rowClass` che accetti
+   * qualunque stringa lascia ogni elenco inventarsi la propria tinta, ed è
+   * esattamente la divergenza che il motore comune esiste per togliere. I toni
+   * sono quelli del vocabolario di stato (`regole-stile-ui` §2).
+   *
+   * `null` — la stragrande maggioranza delle righe — non aggiunge nulla.
+   */
+  readonly rowTone = input<(row: T) => DataTableRowTone | null>(() => null);
 
   readonly rowClick = output<T>();
   readonly selectionChange = output<DataTableSelectionEvent<T>>();

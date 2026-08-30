@@ -536,6 +536,71 @@ Unificarne la forma nasconderebbe la differenza. Vanno **distinti gli id**, ed �
 in `docs/01-registro-difetti-shopify.md` §Livello 5, dove il problema esisteva già come
 «otto pulsanti per quattro operazioni».
 
+### ⭐ Il REGISTRO CORRISPETTIVI sul motore comune — 30/08/2026
+
+_Il proprietario, guardando la schermata: «mancano le caselline»._
+
+Non erano una dimenticanza: il Registro aveva **una tabella tutta sua**, 1.462 righe fra
+`.ts`, `.html` e `.scss`, e la selezione non c'era perché nessuno l'aveva riscritta lì.
+Era una delle **sei** fuori dal motore.
+
+|                                         | prima            | dopo                     |
+| --------------------------------------- | ---------------- | ------------------------ |
+| markup                                  | 483 righe        | **230**                  |
+| stile                                   | 638 righe        | **303**                  |
+| caselline e selezione                   | ⛔               | dal motore               |
+| il riquadro si allunga con la pagina    | ⛔               | dal telaio               |
+| ordinamento, colonne, ridimensionamento | riscritti a mano | dal motore               |
+| **la card compatta**                    | progettata       | **progettata, identica** |
+
+#### ⭐ La card compatta non è cambiata, ed è la ragione per cui la migrazione aspettava
+
+Il ripiego del motore trasforma ogni cella in una riga «etichetta … valore»: con dieci
+colonne dà **dieci righe tutte dello stesso peso**, dove niente è primario e la card è più
+alta dello schermo. È il difetto che `regole-stile-ui` §6 vieta — «la card di un ELENCO si
+progetta, non si impila».
+
+⛔ **Migrare così avrebbe guadagnato il desktop e perso il mobile.**
+
+⭐ **La direttiva `appRowCard` esisteva già**, e la sua documentazione nominava proprio il
+Registro come riferimento. Il Registro è il suo **primo consumatore**: consegna al motore
+il proprio markup della card, e il motore lo usa al posto dell'impilamento.
+
+⚠️ **La casella è per elenco, la GRAMMATICA è condivisa.** Se ogni elenco si disegnasse la
+card da zero avremmo undici card diverse — duplicazione di un altro tipo. La forma sta in
+§6, e il Registro è il modello.
+
+#### ⭐ Due cose sono SALITE al motore, perché non erano sue
+
+|                       |                                                                                                                                                                     |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **il tono di riga**   | `rowTone: 'negative' \| 'muted'`. Era `.corrispettivi-table__row--refund` — fondo tenue e importi in rosso — e ogni elenco con movimenti in due versi ne ha bisogno |
+| **il raggruppamento** | era due `<tr>` speciali con i `colspan` calcolati a mano; `DataTableSection` porta già intestazione e piede                                                         |
+
+⛔ **Il tono NON è una classe CSS libera**, ed è voluto: un `rowClass` che accetti
+qualunque stringa lascia ogni elenco inventarsi la propria tinta, che è la divergenza che
+il motore esiste per togliere. È un insieme chiuso.
+
+#### ⚠️ Tre cose misurate durante la migrazione, e nessuna era prevista
+
+1. **Il telaio non riempiva la zona dati**, e non poteva: `.list-page__data > *` compila
+   con l'attributo di incapsulamento del TELAIO, mentre il contenuto proiettato porta
+   quello della PAGINA. Regola morta — nessun errore, nessun test rosso. Corretta con una
+   griglia a traccia unica, dove lo stiramento viene dal contenitore. Riparava quattro
+   pagine: clienti, giacenze, situazione e Corrispettivi.
+
+2. **I Corrispettivi avvolgevano il contenuto in un `<div data>`**, mentre le altre undici
+   pagine mettono `data` **direttamente** sulla tabella. La crescita si fermava sul `div`.
+
+3. **Il campo `tableColumns` si inizializzava prima di `registerView()`**, e il servizio
+   rifiutava con «Vista tabella non registrata». Sei test di pagina l'hanno detto subito —
+   ed è la ragione per cui si assegna nel costruttore, non come campo.
+
+⭐ **La voce ⏸ APERTA di `check:sticky-scrollport` si è chiusa da sé**, e non come si
+pensava: l'intestazione appiccicata del Registro non è stata corretta, è **sparita** —
+ora è quella del motore, che il suo scrollport ce l'ha. Se n'è accorta la guardia, non chi
+ha fatto la migrazione.
+
 ### ⭐ Vendite online sul motore comune — 30/08/2026
 
 _«Vendite online è un altro riepilogo che serve per visualizzare i dati e va sistemato
@@ -859,9 +924,10 @@ e si stila come tale.**
 - ⛔ non decide colonne, filtri, metriche o permessi;
 - ⛔ non conosce il renderer che ospita.
 
-⭐ **Lo slot `[data]` accetta qualunque renderer.** È la ragione per cui il Registro
-Corrispettivi — raggruppamenti e subtotali propri, fuori dal motore tabella comune — può
-usare lo stesso telaio di un elenco documenti.
+⭐ **Lo slot `[data]` accetta qualunque renderer**, e resta vero anche ora che il
+Registro Corrispettivi è passato al motore comune (30/08/2026): il telaio non sa chi
+disegna le righe, ed è la proprietà che gli ha permesso di ospitarlo prima e dopo la
+migrazione, senza cambiare una riga.
 
 ### ⚠️ `app-list-filters` non si monta
 
@@ -1961,18 +2027,18 @@ questo passaggio.
 
 ### Gli ostacoli tecnici — lavoro dichiarato, non decisioni
 
-|                                                   | Misura                                                                                                                                                                                          |
-| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`cellText` non copre `status` né `linkStatus`** | `document-table.component.ts:361` ha `default: return ''`; le due colonne sono rese da `<ng-template appCell>`. **Un filtro a valori nascerebbe VUOTO proprio dove il caso d'uso è principale** |
-| **Le pseudo-colonne prenderebbero un filtro**     | `select` e `actions` sono `TableColumnDef` come le altre: sotto opt-out ne ricevono uno. Nove casi. Serve `filter: false`                                                                       |
-| **Nessuna delle 11 colonne data deduce `range`**  | 7 deducono `text` (portano `display: 'code'`), 4 deducono `values` — cioè una tendina con un valore per ogni data                                                                               |
-| **91 colonne non sono elenchi**                   | sei configurazioni sono griglie di RIGHE DOCUMENTO, rese da `document-line-head` e non da `app-data-table`: `filterableColumns()` offrirebbe un filtro anche a loro                             |
-| **Due elenchi non ricevono i `TableColumnDef`**   | `corrispettivi-orders-table` prende `visibleColumns: string[]`; `online-sale-table` non ha né colonne né `TableViewId`                                                                          |
-| **Sei elenchi non hanno veste filtri mobile**     | prodotti, movimenti, giacenze, situazione, clienti, fornitori: il pannello va creato, non adattato                                                                                              |
-| **La consistenza righe non guarda `filter`**      | `document-line-columns.consistency.spec.ts:80` elenca cinque proprietà e non questa                                                                                                             |
-| **Un e2e aggancia un filtro per nome**            | `permissions-owner.spec.ts:143` cerca `'Filtra per location'`: spostarlo nell'intestazione lo rompe                                                                                             |
-| **Il commento del motore contraddice §11.4**      | `data-table.component.ts:48-51`: «Gli elenchi sono paginati lato server»                                                                                                                        |
-| **237 colonne, ZERO dichiarano `filter`**         | dedotte oggi: `values` 147 · `text` 21 · `range` 69                                                                                                                                             |
+|                                                    | Misura                                                                                                                                                                                          |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`cellText` non copre `status` né `linkStatus`**  | `document-table.component.ts:361` ha `default: return ''`; le due colonne sono rese da `<ng-template appCell>`. **Un filtro a valori nascerebbe VUOTO proprio dove il caso d'uso è principale** |
+| **Le pseudo-colonne prenderebbero un filtro**      | `select` e `actions` sono `TableColumnDef` come le altre: sotto opt-out ne ricevono uno. Nove casi. Serve `filter: false`                                                                       |
+| **Nessuna delle 11 colonne data deduce `range`**   | 7 deducono `text` (portano `display: 'code'`), 4 deducono `values` — cioè una tendina con un valore per ogni data                                                                               |
+| **91 colonne non sono elenchi**                    | sei configurazioni sono griglie di RIGHE DOCUMENTO, rese da `document-line-head` e non da `app-data-table`: `filterableColumns()` offrirebbe un filtro anche a loro                             |
+| ✅ ~~Due elenchi non ricevono i `TableColumnDef`~~ | **Chiuso il 30/08/2026**: Vendite online è passato al motore con le sue colonne, e il Registro pure — `corrispettivi-orders-table` riceve ora `ResolvedTableColumn[]`                           |
+| **Sei elenchi non hanno veste filtri mobile**      | prodotti, movimenti, giacenze, situazione, clienti, fornitori: il pannello va creato, non adattato                                                                                              |
+| **La consistenza righe non guarda `filter`**       | `document-line-columns.consistency.spec.ts:80` elenca cinque proprietà e non questa                                                                                                             |
+| **Un e2e aggancia un filtro per nome**             | `permissions-owner.spec.ts:143` cerca `'Filtra per location'`: spostarlo nell'intestazione lo rompe                                                                                             |
+| **Il commento del motore contraddice §11.4**       | `data-table.component.ts:48-51`: «Gli elenchi sono paginati lato server»                                                                                                                        |
+| **237 colonne, ZERO dichiarano `filter`**          | dedotte oggi: `values` 147 · `text` 21 · `range` 69                                                                                                                                             |
 
 ---
 

@@ -15,7 +15,6 @@
   emptyIcon="pi-shopping-cart"
   (retry)="reload()"
 >
-
   <!--
     ⭐ Periodo resta in barra a ogni larghezza: è uno dei due che non entrano
     nelle colonne (`14` §0.2). Qui il periodo è il filtro principale del
@@ -239,16 +238,26 @@
     disegna la scatola dei dati (`14` §0.7): qui dentro va l'elenco così com'è,
     con il proprio scorrimento e il conteggio righe in coda.
   -->
-  <div data>
-    @if (summary(); as pageSummary) {
-      <!--
-        ⚠️ **Una sola regione di scroll, ed è l'ELENCO.** La pagina sta ferma —
-        testata, filtri e riepilogo restano dove sono — e a scorrere sono le righe
+  <!--
+    ⛔ **Qui c'era un `<div data>` che avvolgeva la sezione, ed è ciò che
+    impediva al riquadro di crescere.** Misurato il 30/08/2026: le altre undici
+    pagine mettono `data` **direttamente** sulla propria tabella, quindi la
+    regola del telaio — `.list-page__data > * { flex: 1 }` — la raggiunge. Qui
+    raggiungeva il `<div>`, che cresceva, mentre la sezione dentro restava alta
+    quanto le sue righe e sotto restava bianco.
+
+    ⚠️ **L'`@if` che stava qui era ridondante**, e la sua rimozione è ciò che
+    rende possibile togliere l'involucro: il telaio rende la zona `[data]` solo
+    quando NON è in caricamento, in errore o vuota — quindi il riepilogo a quel
+    punto c'è. Dove serviva a spacchettarlo basta `?.` con un valore di ripiego.
+
+    ⚠️ **Una sola regione di scroll, ed è l'ELENCO.** La pagina sta ferma —
+    testata, filtri e riepilogo restano dove sono — e a scorrere sono le righe
         del periodo, che è la cosa che si consulta. È il criterio della shell
         (`regole-gestionale`: una sola regione principale di scroll) applicato
         dentro la schermata.
       -->
-      <!--
+  <!--
         ⚠️ **Niente più intestazione «Righe del periodo» sopra la tabella.**
 
         Era una riga intera — titolo, conteggio, pulsante Colonne — che esisteva
@@ -260,43 +269,37 @@
         Il pannello etichetta sé stesso puntando all'H1 della pagina — è ancora
         lui il nome di questa regione, non serviva un secondo titolo identico.
       -->
-      <section class="corrispettivi__panel" aria-labelledby="corrispettivi-title">
-        <!--
-          ⛔ Qui c'era un secondo `app-empty-state`, dentro la card. Non serve
-          più: il vuoto lo dichiara la pagina al telaio (`isEmpty`), e quando è
-          vero il telaio rende il proprio riquadro AL POSTO di questa zona —
-          quindi la card non compare affatto, come su ogni altro elenco.
-        -->
-        <div class="corrispettivi__panel-scroll">
-          <app-corrispettivi-orders-table
-            [rows]="orders()"
-            [visibleColumns]="visibleColumns()"
-            [canEditManual]="canManageRegister()"
-            [raggruppaPerGiorno]="raggruppaPerGiorno()"
-            [sort]="sortState()"
-            (sortChange)="onSortChange($event)"
-            [perGiornata]="pageSummary.perGiornata"
-            (manualReceiptOpened)="openManualReceipt($event)"
-          />
-        </div>
+  <section data class="corrispettivi__panel" aria-labelledby="corrispettivi-title">
+    <!--
+        ⛔ Qui c'era un secondo `app-empty-state`, dentro la card. Non serve
+        più: il vuoto lo dichiara la pagina al telaio (`isEmpty`), e quando è
+        vero il telaio rende il proprio riquadro AL POSTO di questa zona —
+        quindi la card non compare affatto, come su ogni altro elenco.
+      -->
+    <div class="corrispettivi__panel-scroll">
+      <app-corrispettivi-orders-table
+        [rows]="orders()"
+        [columns]="tableColumns()"
+        [canEditManual]="canManageRegister()"
+        [raggruppaPerGiorno]="raggruppaPerGiorno()"
+        [sort]="sortState()"
+        (sortChange)="onSortChange($event)"
+        [perGiornata]="summary()?.perGiornata ?? []"
+        (manualReceiptOpened)="openManualReceipt($event)"
+      />
+    </div>
 
-        <!--
-          ⚠️ **In coda all'elenco, non in testata né fra i totali.**
+    <!--
+        ⛔ **Qui c'era il conteggio righe, ed è passato nella fascia totali**
+        (30/08/2026, decisione del proprietario).
 
-          Qui risponde alla domanda che ci si fa arrivando in fondo — «le ho viste
-          tutte?» — e su mobile arriva subito dopo l'eventuale «Mostra le altre N
-          righe», così le due informazioni si leggono insieme. Nella banda dei
-          totali si confondeva con gli addendi della riconciliazione, che è
-          un'altra cosa: quello è denaro, questo è quante card hai davanti.
-        -->
-        @if (orders().length > 0) {
-          <p class="corrispettivi__rowcount tabular-nums">
-            {{ totalOrders() }} {{ totalOrders() === 1 ? 'riga' : 'righe' }}
-          </p>
-        }
-      </section>
-    }
-  </div>
+        La motivazione di prima diceva che «nella banda dei totali si confondeva
+        con gli addendi della riconciliazione». Il rischio era reale, e lo
+        risolve la POSIZIONE invece dell'esclusione: il conteggio sta all'altro
+        capo della fascia, a sinistra, mentre gli importi restano a destra.
+        Costava una fascia di altezza per tre parole.
+      -->
+  </section>
 
   <div summary>
     @if (summary(); as pageSummary) {
@@ -305,7 +308,11 @@
         schermata a ciò che si deve consultare, ed è la stessa scelta della banda
         totali delle maschere documento (`regole-stile-ui` §7).
       -->
-      <app-corrispettivi-summary [summary]="pageSummary" [periodLabel]="periodLabel()" />
+      <app-corrispettivi-summary
+        [summary]="pageSummary"
+        [periodLabel]="periodLabel()"
+        [rowCount]="orders().length > 0 ? totalOrders() : null"
+      />
     }
   </div>
 

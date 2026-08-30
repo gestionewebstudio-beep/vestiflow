@@ -15,9 +15,17 @@
     ragione per cui le rettifiche compaiono come voce e non solo nel totale.
   -->
   <!--
-    ⭐ **UNA fascia sola**, e l'ordine è quello del discorso: prima ciò che è
-    ACCADUTO — rettifiche, annullamenti, vendite — poi ciò che ne RISULTA:
-    imponibile, IVA, totale vendite e, in fondo, il corrispettivo.
+    ⭐ **UNA fascia sola**, e l'ordine è quello del CONTO: prima i conteggi di
+    ciò che è accaduto — annullamenti, vendite — poi gli importi che ne
+    risultano, e in coda i tre che si compongono fra loro:
+
+    ```text
+    ANNULLAMENTI · VENDITE │ IMPONIBILE · IVA │ TOTALE VENDITE − RETTIFICHE = CORRISPETTIVO
+    ```
+
+    ⛔ Le rettifiche stavano in TESTA. L'ordine era «prima ciò che è accaduto,
+    poi ciò che ne risulta», che è un criterio ragionevole e sbagliato qui: il
+    numero rosso arrivava prima di ciò da cui si toglie.
 
     ⛔ Qui c'erano DUE fasce, divise da un filo, con la motivazione che «un
     conteggio e un importo rispondono a domande diverse». L'argomento non era
@@ -30,17 +38,28 @@
     e già scritto in `regole-stile-ui` («Riepilogo di fondo pagina»)._
   -->
   <dl class="corrispettivi-summary__grid">
-    @if (summary().refundCount > 0) {
-      <div class="corrispettivi-summary__item corrispettivi-summary__item--negative">
-        <dt>Rettifiche ({{ summary().refundCount }})</dt>
-        <dd class="tabular-nums">− {{ formatMoney(summary().refundTotal) }}</dd>
-      </div>
+    <!--
+      ⭐ **A sinistra, staccato dal resto** (30/08/2026). Non ha `dt`: «12 righe»
+      si legge da sé, e un'etichetta «RIGHE» sopra un numero che già dice «righe»
+      sarebbe la stessa parola due volte.
+    -->
+    @if (rowCount(); as righe) {
+      <p class="corrispettivi-summary__count tabular-nums">
+        {{ righe }} {{ righe === 1 ? 'riga' : 'righe' }}
+      </p>
     }
 
     @if (summary().cancellationCount > 0) {
       <div class="corrispettivi-summary__item">
+        <!--
+          ⭐ **Abbreviata col punto** — deciso dal proprietario il 30/08/2026:
+          «metterei alcuni testi abbreviati col punto per recuperare spazio
+          orizzontale». Quattro etichette su sette; le tre corte restano intere,
+          e «Corrispettivo» pure — è la risposta della fascia, e abbreviarla per
+          guadagnare 30px sarebbe il risparmio nel posto sbagliato.
+        -->
         <dt>
-          Annullamenti
+          Annull.
           <!--
             La spiegazione sta in un tooltip, non in una riga di testo: su una
             banda di numeri allineati una frase su due righe alzava l'intera
@@ -62,7 +81,7 @@
     </div>
 
     <div class="corrispettivi-summary__item">
-      <dt>Imponibile</dt>
+      <dt>Impon.</dt>
       <dd class="tabular-nums">{{ formatMoney(summary().netTaxable) }}</dd>
     </div>
     <div class="corrispettivi-summary__item">
@@ -70,9 +89,33 @@
       <dd class="tabular-nums">{{ formatMoney(summary().netTax) }}</dd>
     </div>
     <div class="corrispettivi-summary__item">
-      <dt>Totale vendite</dt>
+      <dt>Tot. vendite</dt>
       <dd class="tabular-nums">{{ formatMoney(summary().total) }}</dd>
     </div>
+
+    <!--
+      ⭐ **Le rettifiche stanno FRA i suoi due addendi** — deciso dal proprietario
+      il 30/08/2026, guardando la fascia a schermo.
+
+      Non è una preferenza di posizione: è l'operazione che la banda dichiara.
+
+      ```text
+      TOTALE VENDITE  819,02  −  RETTIFICHE  205,01  =  CORRISPETTIVO  614,01
+      ```
+
+      ⛔ In testa alla fascia il numero rosso arrivava PRIMA di ciò da cui si
+      toglie, e la sottrazione si poteva ricostruire solo saltando all'indietro
+      sopra quattro voci. Qui i tre numeri che compongono il conto sono
+      adiacenti, e la riconciliazione si legge da sinistra a destra come si
+      scriverebbe a mano.
+    -->
+    @if (summary().refundCount > 0) {
+      <div class="corrispettivi-summary__item corrispettivi-summary__item--negative">
+        <dt>Rettif. ({{ summary().refundCount }})</dt>
+        <dd class="tabular-nums">− {{ formatMoney(summary().refundTotal) }}</dd>
+      </div>
+    }
+
     <div class="corrispettivi-summary__item corrispettivi-summary__item--highlight">
       <dt>Corrispettivo</dt>
       <dd class="tabular-nums">{{ formatMoney(summary().netTotal) }}</dd>

@@ -102,6 +102,109 @@
 }
 
 /*
+  ⛔ **L'anello di fuoco MANCAVA nel motore**, misurato il 30/08/2026.
+
+  Le righe cliccabili prendono `tabindex` e si raggiungono col Tab — il motore
+  gliela dà — ma nessuna regola le disegnava a fuoco: chi naviga da tastiera non
+  vedeva dove si trovava. Ce l'aveva il solo Registro Corrispettivi, sulla sua
+  tabella propria, e si sarebbe persa nella migrazione.
+
+  ⚠️ **Riguarda ogni elenco sul motore**, non il Registro: documenti, ordini
+  cliente, ordini fornitore, vendite online e movimenti ne erano privi da
+  sempre. È una lacuna di accessibilità, non un dettaglio di stile.
+*/
+.data-table tbody tr.data-table__row--clickable:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus);
+  outline-offset: calc(var(--focus-ring-width) * -1);
+}
+
+/*
+  ⭐ **I TONI DI RIGA** — portati nel motore il 30/08/2026.
+
+  Erano nel Registro Corrispettivi (`.corrispettivi-table__row--refund`), che è
+  l'unico elenco ad averli avuti finora. Non sono suoi: **ogni elenco che
+  contenga movimenti in due versi ne ha bisogno** — resi, note di credito,
+  rimborsi — e lasciarli lì significava che il secondo elenco a chiederli se li
+  sarebbe riscritti, con la sua tinta.
+
+  ⛔ **Il tono non è una pill.** Una pill segnala un'eccezione; qui ogni riga ha
+  un tipo, quindi un riquadro attorno non distingue niente e alza soltanto la
+  riga. Si legge dal fondo tenue e dal colore dei numeri.
+*/
+
+/*
+  `negative` — la riga TOGLIE. Fondo appena accennato e importi in rosso: sono
+  i due segnali già in uso nel Registro, e sono ridondanti apposta — chi non
+  distingue i colori vede comunque il segno meno nel numero.
+
+  ⚠️ Il colore va sulle CELLE NUMERICHE, non su tutta la riga: rosso sulla
+  descrizione la farebbe leggere come un errore invece che come un segno.
+*/
+.data-table tbody tr.data-table__row--negative > td {
+  background: var(--color-surface-soft);
+}
+
+.data-table tbody tr.data-table__row--negative > td.data-table__cell--numeric {
+  color: var(--color-danger);
+}
+
+/*
+  `muted` — la riga si legge ma non concorre: annullata, esclusa dal conteggio.
+  Nessun fondo, solo il testo smorzato: non è un'uscita, è un'assenza.
+*/
+.data-table tbody tr.data-table__row--muted > td {
+  color: var(--color-text-muted);
+}
+
+/*
+  ⭐ **L'ACCENTO LATERALE DELLA CARD** — sotto `lg`, dove la riga è una card.
+
+  Il tipo si legge dall'accento, non da un pallino: è il vocabolario già in uso
+  per la riga «Documento collegato» e per la voce attiva in sidebar
+  (`regole-stile-ui` §6). **Tinta smorzata** perché qui ogni card ha un tipo —
+  il colore accompagna, non segnala un'eccezione.
+
+  ⛔ **Solo dove il tono è dichiarato.** Una card senza tono non prende nessun
+  accento: una striscia colorata su ogni card di ogni elenco sarebbe rumore.
+
+  ⚠️ **Era del Registro Corrispettivi** (`.corrispettivi-table__row` con
+  `--card-accent`), e nella migrazione al motore del 30/08/2026 è stata potata
+  con il resto dello scheletro — **perdendo l'accento a schermo**. Il difetto
+  l'ha visto il proprietario, non un test: le classi orfane non falliscono.
+  È salita qui perché non era del Registro, come il tono che la governa.
+*/
+@include bp.media-down('lg') {
+  .data-table tbody tr.data-table__row--positive,
+  .data-table tbody tr.data-table__row--negative,
+  .data-table tbody tr.data-table__row--muted {
+    border-inline-start: var(--border-width-accent) solid
+      color-mix(in srgb, var(--data-table-row-accent) 55%, transparent);
+  }
+
+  .data-table tbody tr.data-table__row--positive {
+    --data-table-row-accent: var(--color-ok);
+  }
+
+  .data-table tbody tr.data-table__row--negative {
+    --data-table-row-accent: var(--color-danger);
+  }
+
+  .data-table tbody tr.data-table__row--muted {
+    --data-table-row-accent: var(--color-text-subtle);
+  }
+
+  /*
+    ⚠️ **Il fondo tenue della riga negativa NON serve sulla card**, e va tolto:
+    l'accento e gli importi rossi lo dicono già, e un terzo segnale disegna un
+    riquadro grigio dentro il riquadro bianco. È la stessa scelta di §6 —
+    «segnali ridondanti si tolgono».
+  */
+  .data-table tbody tr.data-table__row--negative > td {
+    background: transparent;
+  }
+}
+
+/*
   La selezione vince sul passaggio: la riga scelta resta riconoscibile mentre il
   puntatore ci corre sopra. Nel mixin le due regole hanno la stessa specificità
   e l'hover viene dopo — senza questa riga, passare su una riga selezionata la
@@ -134,9 +237,29 @@
   Il piede di sezione chiude il gruppo: più pesante del dettaglio, senza però
   gridare quanto il totale generale.
 */
+/*
+  ⭐ **TRE livelli di peso, non due** (`regole-stile-ui`, «Riga di subtotale»).
+
+  La riga intera parte da `semibold` — si distingue dal dettaglio sopra, che è a
+  peso normale — e il SOLO valore che risponde alla domanda del gruppo sale a
+  `bold` + `--color-primary`.
+
+  ⛔ **Il motore aveva solo i primi due**, e la terza la faceva il Registro con
+  una classe sua (`__day-total-final`). Pesare tutte le celle del subtotale allo
+  stesso modo confonde «chiude il gruppo» con «è la risposta del gruppo».
+
+  ⚠️ **Quale colonna sia la risposta lo dice la SEZIONE**, non il motore: su un
+  registro è il Totale, altrove potrebbe essere la quantità. Vedi `emphasis` in
+  `DataTableSectionFooter`.
+*/
 .data-table__section-total {
   font-weight: var(--font-weight-semibold);
   background-color: var(--color-table-header-bg);
+}
+
+.data-table__section-total-value--emphasis {
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary);
 }
 
 .data-table__section-total-label {
@@ -321,6 +444,37 @@
       gap: var(--space-1);
       padding: 0;
       border: 0;
+      /*
+        ⛔ **`text-align: start` NON è decorazione: senza, la card si allinea a
+        destra.** Misurato il 30/08/2026 col proprietario, sul Registro
+        Corrispettivi — primo consumatore di `appRowCard`.
+
+        Il ripiego a etichetta:valore del mixin condiviso dà a OGNI `td`
+        `text-align: end`, perché lì il valore sta nella colonna destra. La cella
+        che ospita la card lo ereditava: l'identità («17 ago 2026 · Vendita»),
+        che è un elemento flessibile largo, finiva incollata a destra invece che
+        a sinistra, e la card sembrava centrata.
+
+        ⚠️ **Va dichiarato qui e non nella schermata**: la card è un meccanismo
+        del motore, e ogni elenco che ne userà una troverebbe lo stesso difetto.
+      */
+      text-align: start;
+    }
+
+    /*
+      ⛔ **La pseudo-etichetta del ripiego non deve comparire dentro la card.**
+
+      Il mixin mette `content: attr(data-label)` su ogni `td::before`. La cella
+      card non ha `data-label`, quindi il contenuto è vuoto — ma l'elemento
+      esiste lo stesso, diventa un figlio flessibile e si prende un `gap`: uno
+      spazio in cima alla card che nessuno ha chiesto.
+
+      ⚠️ La regola del mixin che spegne il `::before` guarda `[data-label='']`,
+      cioè l'attributo VUOTO — non quello **assente**, che è il caso qui.
+    */
+    .data-table__row td.data-table__card::before {
+      content: none;
+      display: none;
     }
   }
 }

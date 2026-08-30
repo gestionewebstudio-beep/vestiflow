@@ -2,8 +2,24 @@ import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
+import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
+
+import { CORRISPETTIVI_REGISTER_COLUMN_DEFS } from '../../models/corrispettivi-columns.config';
 import type { CorrispettiviRegisterRow } from '../../models/corrispettivi.model';
 import { CorrispettiviOrdersTableComponent } from './corrispettivi-orders-table.component';
+
+/**
+ * ⚠️ **Le colonne ora si passano, e non è un dettaglio del test.**
+ *
+ * Prima il componente riceveva soli id e trattava l'elenco vuoto come «tutte
+ * visibili»; il motore comune invece disegna **solo** ciò che riceve, e un
+ * elenco vuoto è una tabella vuota. È la forma giusta — «tutte» non è un caso
+ * speciale, è l'elenco completo — ma va dichiarata qui.
+ */
+const COLONNE: readonly ResolvedTableColumn[] = CORRISPETTIVI_REGISTER_COLUMN_DEFS.map((col) => ({
+  ...col,
+  pinned: false,
+}));
 
 /**
  * Come si apre una riga del Registro (17/08/2026).
@@ -44,7 +60,7 @@ const rigaShopify = riga({
 async function montaTabella(rows: readonly CorrispettiviRegisterRow[], canEditManual = true) {
   const aperta = vi.fn();
   await render(CorrispettiviOrdersTableComponent, {
-    inputs: { rows, canEditManual },
+    inputs: { rows, canEditManual, columns: COLONNE },
     on: { manualReceiptOpened: aperta },
   });
   return aperta;
@@ -130,7 +146,11 @@ describe('riga cliccabile del Registro', () => {
     // Nessun invito ad aprire il resto: non c'è un resto.
     expect(screen.queryByText(/Mostra le altre/)).toBeNull();
     // E le righe disegnate sono tutte quelle ricevute.
-    expect(document.querySelectorAll('.corrispettivi-table__row').length).toBe(60);
+    //
+    // ⚠️ La classe è `data-table__row` dal 30/08/2026: le righe le disegna il
+    //    motore comune. Il comportamento non è cambiato — è cambiato chi lo
+    //    rende, ed è la ragione per cui questo test è stato scritto sul DOM.
+    expect(document.querySelectorAll('.data-table__row').length).toBe(60);
   });
 
   /**
@@ -142,7 +162,10 @@ describe('riga cliccabile del Registro', () => {
   it('la veste a card non viene annunciata: i dati sono le colonne', async () => {
     await montaTabella([riga()]);
 
-    const card = document.querySelector('.corrispettivi-table__card');
+    // ⚠️ `data-table__card`: la cella che ospita la card è del motore, il suo
+    //    contenuto è del Registro (`appRowCard`). L'`aria-hidden` lo mette il
+    //    motore, ed è proprio quello che questo test presidia.
+    const card = document.querySelector('.data-table__card');
     expect(card).not.toBeNull();
     expect(card!.getAttribute('aria-hidden')).toBe('true');
 
@@ -165,7 +188,7 @@ describe('ordinamento del Registro', () => {
   it('con «Raggruppa: Nessuno» le intestazioni si premono', async () => {
     const chiavi = vi.fn();
     await render(CorrispettiviOrdersTableComponent, {
-      inputs: { rows: [riga()], raggruppaPerGiorno: false },
+      inputs: { rows: [riga()], raggruppaPerGiorno: false, columns: COLONNE },
       on: { sortChange: chiavi },
     });
 
@@ -176,7 +199,7 @@ describe('ordinamento del Registro', () => {
 
   it('⛔ con «Raggruppa: Giorno» nessuna intestazione è un pulsante', async () => {
     await render(CorrispettiviOrdersTableComponent, {
-      inputs: { rows: [riga()], raggruppaPerGiorno: true },
+      inputs: { rows: [riga()], raggruppaPerGiorno: true, columns: COLONNE },
     });
 
     expect(screen.queryByRole('button', { name: /Data/ })).toBeNull();
@@ -189,6 +212,7 @@ describe('ordinamento del Registro', () => {
       inputs: {
         rows: [riga()],
         raggruppaPerGiorno: false,
+        columns: COLONNE,
         sort: [{ columnId: 'total', direction: 'asc' as const }],
       },
       on: { sortChange: chiavi },

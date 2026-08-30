@@ -56,21 +56,21 @@ const DICHIARATE = {
     contenitore: '.data-table-scroll',
     perche: 'motore tabella comune',
   },
-  // ⛔ **APERTA, e dichiarata invece che nascosta.** Il Registro Corrispettivi
-  //    ha l'intestazione `sticky` e NON ha uno scrollport: non appiccica, e non
-  //    ha mai appiccicato.
+  // ✅ **CHIUSA il 30/08/2026, e non come si pensava.**
   //
-  //    ⚠️ Provata a chiudere il 29/08/2026 e FALLITA tre volte: dare il tetto al
-  //    wrapper non bastava, perché `.corrispettivi__panel-scroll` è una seconda
-  //    regione di scorrimento che lo contiene; togliere quella ha rotto lo
-  //    scorrimento delle righe e fatto salire il riepilogo sopra la tabella.
-  //    Tutto ripristinato.
+  //    Qui c'era `.corrispettivi-table__head th`, dichiarata APERTA: intestazione
+  //    `sticky` senza scrollport, provata a chiudere tre volte il 29/08 e sempre
+  //    ripristinata — dare il tetto al wrapper non bastava perché
+  //    `.corrispettivi__panel-scroll` era una seconda regione annidata.
   //
-  //    ⭐ Si chiude col browser aperto, non a deduzioni.
-  '.corrispettivi-table__head th': {
-    categoria: 'aperta',
-    perche: 'sticky senza scrollport: due regioni annidate, da sciogliere con verifica visiva',
-  },
+  //    ⭐ **Non è stata corretta: è sparita.** Il Registro è passato al motore
+  //    comune, quindi la sua intestazione ora è `.data-table__head th` — che sta
+  //    qui sopra, ha il suo scrollport dal mixin, e appiccica come su ogni altro
+  //    elenco. Il difetto non si è risolto: si è tolto il codice che lo aveva.
+  //
+  //    ⚠️ **Se ne è accorta la guardia**, non chi ha fatto la migrazione: al primo
+  //    `npm run lint` ha detto «dichiarata qui ma non esiste più in src/». È il
+  //    mestiere per cui esiste — anche al contrario, su una voce che scade.
   '.product-table__head th': {
     categoria: 'mixin',
     contenitore: '.product-table-scroll',

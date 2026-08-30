@@ -117,7 +117,25 @@
   font-weight: var(--font-weight-semibold);
 }
 
+/*
+  ⭐ **Il prefisso si può spegnere dal CONTENITORE** — aggiunto il 30/08/2026.
+
+  `--select-menu-chip-label-display: none` toglie il «Periodo:» davanti al
+  valore. Non è una preferenza estetica: su una barra strumenti stretta il
+  prefisso è ciò che manda il controllo a capo, e il valore da solo dice già
+  tutto — «Ultimi 30 giorni» non ha bisogno di essere presentato.
+
+  ⛔ **Non si spegne mai globalmente sotto `lg`.** Dentro il pannello filtri il
+  prefisso è l'unica cosa che dice DI QUALE filtro si tratta: lì «Shopify
+  online» da solo non si capisce. Lo decide chi ospita il controllo, ed è la
+  ragione per cui è una custom property e non un input.
+
+  ⚠️ È lo stesso canale di `--date-input-icon-display`: un contenitore che
+  spegne un pezzo del figlio senza scavalcarne l'incapsulamento
+  (`regole-stile-ui` §5, punto 2).
+*/
 .select-menu__chip-label {
+  display: var(--select-menu-chip-label-display, inline);
   flex-shrink: 0;
   color: var(--color-text-muted);
 }

@@ -608,32 +608,85 @@ scartate sono la parte utile.
   colonne** (`14` §22.4): il subtotale di raggruppamento invece sì, perché è una
   riga dentro la tabella. Sono due cose diverse e non vanno uniformate.
 
-- **Le colonne se le conta la griglia**: `repeat(auto-fit, minmax(var(--summary-item-min-w), 1fr))`
-  sulla fascia. Le voci si dispongono da sé **a qualunque larghezza e senza una
-  sola media query**: il componente di riferimento aveva tre blocchi responsive,
-  ora ne ha zero. ⚠️ Con la fascia unica il conto è uno solo, e va verificato che
-  le voci ci stiano: su schermo stretto la griglia manda a capo, ed è il
-  comportamento previsto (`14` §27.0: «sul mobile lo stesso contenuto può
-  ridisporsi su più righe»).
-- **`--summary-item-min-w` si misura sull'etichetta più lunga**, non si sceglie
-  a occhio: larghezza del testo a `--text-2xs` uppercase con tracking `.045em`,
-  più il padding orizzontale della voce. Le `dt` portano `white-space: nowrap`
-  apposta — se un'etichetta più lunga non ci stesse, il difetto deve vedersi
-  subito invece di nascondersi in un a capo silenzioso.
+- ⭐ **Etichetta e valore AFFIANCATI, su una riga sola** — deciso dal proprietario il
+  30/08/2026: _«dobbiamo diminuire e cercare di mettere su una riga, deve essere più
+  stretta in altezza»_.
+
+  ```text
+  ANNULLAMENTI 2 │ VENDITE 8 │ IMPONIBILE 517,99 € │ … │ CORRISPETTIVO 614,01 €
+  ```
+
+  ⛔ **Qui c'era «etichetta sopra, valore sotto»**, che è la forma del piede totali di un
+  DOCUMENTO. Su un riepilogo di fondo elenco costa il doppio dell'altezza per dire le
+  stesse cose, e quell'altezza si paga a ogni schermata. Misurato: **56,5 px → 25,5 px,
+  il 55% in meno**.
+
+  ⚠️ **Le voci si allineano sulla LINEA DI BASE**, non al centro: etichetta a 11px e
+  valore a 12-14px centrati «ballano» di un pixel lungo la fila.
+
+- **La fila si dimensiona sul CONTENUTO**, non a colonne uguali: `display: flex` con
+  `flex-wrap` e nessuna larghezza imposta.
+
+  ⛔ **Non `auto-fit` + `1fr`.** A colonne uguali «IVA 96,02 €» occupa quanto
+  «RETTIFICHE (4) − 205,01 €», e sette voci affiancate non ci starebbero mai. A contenuto
+  sommano ~1.017px e stanno su una riga **da 1280px di finestra in su**.
+
+  ⚠️ **Il padding fra le voci è `--space-2`, non `--space-3`**: gli 8px per lato su sette
+  voci sono i 56px che fanno entrare la fila a 1280. A separare c'è già il filo.
+
+  ⛔ **Qui c'era «sotto quella larghezza `flex-wrap` manda a capo da sé, nessuna media
+  query». Era sbagliato**, e il proprietario l'ha visto a schermo il 30/08/2026.
+
+  `flex-wrap` manda a capo le VOCI, non l'etichetta e il valore dentro ciascuna: con
+  sette voci larghe ~1.000px su uno schermo da 360, il risultato non sono «due righe più
+  basse» — sono **tre righe di frammenti incollati**, illeggibili.
+
+  ⭐ **La riga unica è una forma DA SCRIVANIA**: presuppone la larghezza per starci, e
+  sotto quella soglia non degrada, si rompe.
+
+- ⭐ **Sotto `lg` la fascia torna a GRIGLIA, con le voci impilate** — etichetta sopra,
+  valore sotto, colonne da `minmax(var(--summary-item-min-w), 1fr)`. Due-tre per riga su
+  un telefono, di più su un tablet.
+
+  ⚠️ **Non è un ripensamento sulla riga unica: è il ripiego che le mancava.** Le due forme
+  rispondono a scarsità diverse — su scrivania manca l'altezza, sul telefono la larghezza.
+
+  ⚠️ **Il conteggio righe occupa la fascia intera**, in cima e a sinistra: in griglia
+  finirebbe in una colonna a caso, e «12 righe» si leggerebbe incolonnato sotto Vendite
+  come se fosse un'altra metrica.
+
+  ⛔ **E l'attacco al riquadro vale solo da `lg` in su**: sotto, il telaio non mette
+  spazio fra le zone, quindi il margine negativo che lo chiude farebbe **salire la fascia
+  sopra l'ultima card**.
+
+- **L'etichetta non va a capo** (`white-space: nowrap` sulle `dt`), e in fila conta
+  più di prima: spezzata, la voce diventerebbe alta due righe e alzerebbe l'intera
+  fascia — cioè annullerebbe la ragione per cui è in fila. Se un'etichetta più lunga
+  non ci sta, va a capo **la fascia**, che è previsto.
+
+  ⚠️ `--summary-item-min-w` **non è più usata** dalla fascia: serviva alla griglia a
+  colonne uguali. Il token resta dichiarato, ma non governa più questo riquadro.
 
 **La tipografia** (invariata, e verificata)
 
-- **La label (`dt`) riusa la ricetta dell'intestazione tabella**: `--text-2xs`,
+- **La label (`dt`) riusa la ricetta dell'intestazione tabella**, un gradino sotto:
+  `--text-3xs` (10px, l'estremo basso della fascia «label uppercase 9,5–10px» di §3),
   weight `--font-weight-bold`, `--color-table-header-fg`, uppercase,
   `letter-spacing: .045em`. Un'etichetta che riassume una tabella e un'etichetta
   di colonna della stessa tabella sono lo stesso ruolo — pesano uguale.
 - **Il valore (`dd`) pesa un gradino SOTTO il corpo tabella**: `--text-xs`,
   weight `--font-weight-regular`. Riassume un dato già leggibile riga per riga
   sopra, non è un dato nuovo.
-- **Un solo valore evidenziato**: `--text-lg`, `--font-weight-bold`,
+- **Un solo valore evidenziato**: `--text-md`, `--font-weight-bold`,
   `--color-primary`, e **nessuna tinta di fondo** — una cella colorata dentro
   il riquadro sarebbe il riquadro nel riquadro. A distinguerlo bastano taglia
   e peso, che restano unici in tutta la banda.
+
+  ⚠️ **Era `--text-lg` (16px), sceso a `--text-md` (14px) il 30/08/2026**: è
+  l'elemento più alto della riga, quindi ogni punto che perde lo perde tutta la
+  fascia. **Sotto i 14 non si scende** — a 13px pareggia il corpo della tabella
+  e smette di leggersi come «la risposta».
+
 - **Il negativo si legge dal colore, non dal peso**: `--color-danger` sul solo
   `dd`, come le righe di reso in tabella.
 

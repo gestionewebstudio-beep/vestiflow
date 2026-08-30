@@ -116,6 +116,132 @@ passa da 100 chiamate a 2.
 
 Misure e tabella in `14` §0.2.
 
+## ⭐ TOGLIERE L'IMPAGINAZIONE dalle anagrafiche — deciso il 30/08/2026
+
+_Il proprietario: «mettere un tetto alla visualizzazione di clienti e prodotti rende
+difficile la gestione», e poi «per sistemare tutto, a questo punto, conviene togliere le
+impaginazioni»._
+
+Ha ragione, ed è la stessa cosa che fanno i gestionali di riferimento: **Danea non impagina
+le anagrafiche**, mostra l'archivio intero in una griglia che scorre. Su un'anagrafica
+spesso non sai cosa cerchi — **scorri per riconoscerlo** — e «pagina 3 di 250» è una domanda
+a cui l'operatore non sa rispondere.
+
+⛔ **Ma è l'ULTIMO dei tre passi, non il primo.** Toglierlo per primo peggiora tutto:
+
+```text
+oggi, pagina da 20      30 kB di rete ·     220 nodi DOM
+tetto tolto, così       7,4 MB di rete · 115.000 nodi DOM   ⛔
+tetto tolto, dopo 1 e 2 1,3 MB di rete ·     900 nodi DOM   ✅
+```
+
+⚠️ **Danea è un'applicazione DESKTOP** con il database sulla stessa macchina: «tutto» gli
+costa niente. Una web app paga la rete a ogni riga, e i due passi qui sotto sono ciò che
+colma quella differenza.
+
+---
+
+### 1 ⭐ LA RIGA MAGRA — l'API manda 47 campi per mostrarne 9
+
+**Misurato il 30/08/2026 sull'elenco prodotti.**
+
+`PRODUCT_LIST_SELECT` (`api/src/products/products.service.ts`) chiede **47 colonne**. La
+tabella dell'elenco ne legge **nove**:
+
+```text
+articleCode · brand · catalogOrigin · id · name · options · season · shopify · status
+```
+
+Gli altri 38 partono dal database, attraversano la rete, arrivano nel browser e **nessuno
+li guarda**: `shopifyMetafields`, `shopifyCollections`, `seoTitle`, `seoDescription`,
+`shopifyTaxonomyCategoryFullName`, i tre listini, i cinque campi TikTok, `internalNotes`,
+`description`.
+
+**«Riga magra» significa una cosa sola: l'endpoint dell'elenco restituisce una forma sua,
+con i soli campi dell'elenco.** Il prodotto completo resta quello che si carica aprendo la
+scheda, dove serve davvero.
+
+|                                | riga di oggi | riga magra              |
+| ------------------------------ | ------------ | ----------------------- |
+| una riga                       | 1.525 B      | **270 B** — 82% in meno |
+| 5.000 articoli                 | 7,4 MB       | **1,3 MB**              |
+| 30 aziende insieme, picco Node | 218 MB       | **39 MB**               |
+
+⚠️ **I 218 MB sono un picco simultaneo**, non una media: `JSON.stringify` tiene la stringa
+intera in memoria prima di scriverla sul socket. Su un container da 512 MB, trenta richieste
+contemporanee lo saturano.
+
+⭐ **Verificata fattibile, non solo desiderabile.** Il rischio era che qualcosa leggesse la
+riga intera: la duplicazione — l'unico sospetto — chiama `duplicateProduct(product.id)`,
+manda **solo l'id** e il resto lo fa il server. Nessun ostacolo trovato.
+
+⭐ **Conviene anche se il tetto restasse**: oggi una pagina da 20 articoli trasferisce
+30 kB per mostrarne 5.
+
+**Il lavoro**: un `select` di elenco distinto da quello di dettaglio, per prodotti,
+clienti, fornitori, giacenze e vendite online. Nessuna migration, nessun cambio di schema.
+
+---
+
+### 2 ⭐ VIRTUALIZZARE il motore tabella
+
+Il browser tiene **tutte** le righe in memoria, ma ne **disegna** solo le ~40 visibili.
+
+```text
+contenitore     altezza dichiarata: 5.000 × 30px = 150.000px
+  ├─ blocco vuoto alto quanto le righe SOPRA la vista
+  ├─ ~40 <tr> veri     ← le uniche che esistono nel DOM
+  └─ blocco vuoto alto quanto le righe SOTTO
+```
+
+La barra di scorrimento è vera perché il contenitore è davvero alto. Scorrendo, il codice
+calcola `prima riga = scorrimento ÷ altezza riga` e **riscrive il contenuto** di quelle
+stesse quaranta `<tr>` — non le crea e non le distrugge.
+
+⛔ **Non è il caricamento progressivo** (_infinite scroll_), e la differenza decide
+l'ordinamento:
+
+|                            | virtualizza il DOM       | carica scorrendo                         |
+| -------------------------- | ------------------------ | ---------------------------------------- |
+| dati nel browser           | **tutti**                | solo quelli scaricati                    |
+| **riordinare una colonna** | ⭐ istantaneo e corretto | ⛔ lo rifà il server, si riparte da capo |
+| filtrare, cercare          | istantaneo               | round-trip                               |
+
+⭐ **Risolve l'ordinamento senza toccare l'API**: se il client ha tutte le righe, ordinare è
+un `sort` su un array — niente `orderBy` Prisma, niente lista bianca, niente DTO. Rende
+superfluo il lavoro descritto nella sezione «Quattro API non sanno ordinare» qui sotto.
+
+⚠️ **Richiede altezza di riga nota e uguale per tutte**, quindi non si applica alla vista a
+card mobile: lì serve una tecnica diversa, o si lascia non virtualizzata.
+
+⚠️ **Un'azione su una riga oggi ricarica la pagina da 20.** Senza tetto ricaricherebbe
+5.000 righe a ogni eliminazione: va aggiornata **la sola riga toccata** in memoria. È lavoro
+in più rispetto a oggi, e va messo in conto.
+
+⚠️ **Regge comodamente fino a ~50.000 righe** — dieci volte i numeri dichiarati (5.000
+articoli, 3.000 clienti). Oltre le 200.000 sarebbe un'altra conversazione.
+
+---
+
+### 3 ⭐ E la vista di serie non è «tutto»: è «tutto quello che è vivo»
+
+Articoli attivi, clienti non archiviati. «Tutto tutto» diventa un filtro che si accende.
+Riduce il carico senza togliere niente — nessuno lavora sugli archiviati per sbaglio.
+
+---
+
+### ✅ Deciso e NON da fare: lo staleness
+
+_Il proprietario, 30/08/2026: «per ora questo va bene»._
+
+Nessun polling, nessun avviso «aggiornato alle 14:32», nessun canale in tempo reale.
+L'operatore ricarica quando gli serve.
+
+⚠️ Misurato lo stesso giorno: **è già così oggi** — nessun WebSocket, nessun SSE, nessun
+ricaricamento al ritorno sulla scheda. Una pagina da 20 righe è già una fotografia, quindi
+togliere il tetto non introduce il problema. Lo rende solo più visibile, perché su un elenco
+senza tetto ci si sta più a lungo.
+
 ## ⏸ Quattro API non sanno ordinare — misurato 30/08/2026
 
 L'ordinamento di colonna è una capacità del **motore comune**, e sugli elenchi paginati
@@ -2051,7 +2177,7 @@ Mappa avversariale (7 agenti, 2 di sola smentita), riverificata a mano. Decision
 | `filter: false` sulle 9 pseudo-colonne (`select`, `actions`)                                                                       | `14` §11.1    |
 | `filter: 'range'` sulle 11 colonne data: nessuna lo deduce                                                                         | `14` §11.1    |
 | escludere le 91 colonne di RIGHE documento dalla filtrabilità                                                                      | `14` §11.5    |
-| portare `corrispettivi-orders-table` e `online-sale-table` sul contratto colonne                                                   | `14` §11.5    |
+| ✅ ~~portare `corrispettivi-orders-table` e `online-sale-table` sul contratto colonne~~ — **fatto il 30/08/2026**                  | `14` §11.5    |
 | veste filtri mobile per sei elenchi che non ce l'hanno                                                                             | `14` §0.2     |
 | `filter` in `document-line-columns.consistency.spec.ts:80`                                                                         | `14` §11.5    |
 | l'e2e `permissions-owner.spec.ts:143` aggancia `'Filtra per location'` per nome                                                    | `14` §11.5    |
