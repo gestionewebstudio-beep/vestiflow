@@ -262,15 +262,37 @@
   ⚠️ **Solo da `md` in su.** Sotto, i token salgono da sé al minimo tappabile, e
   quella è la regola che vince (`regole-stile-ui` §4).
 */
-@include bp.media-up('md') {
-  .list-page__filters,
-  .list-page__tools {
-    --field-height: var(--control-h-button);
-    --field-h: var(--control-h-button);
-    --field-font-size: var(--text-xs);
-    --field-gap: var(--space-1);
-    --button-font-size: var(--text-xs);
-  }
+/*
+  ⛔ **LA DENSITÀ VALEVA SOLO DA `md` IN SU**, e sul telefono i controlli in alto
+  restavano più alti di quelli in basso. Misurato il 30/08/2026, a 430px:
+
+  ```text
+  Seleziona · Colonne · Filtri      h38 · font 13
+  Nuovo · Stampa · Excel · Esporta  h32 · font 12
+  ```
+
+  Segnalato dal proprietario: «i filtri sopra sono troppo grandi rispetto ai
+  pulsanti che stanno sotto». Su scrivania erano già uniformi a 28 — il difetto
+  esisteva solo dove lo spazio è più scarso.
+
+  ⚠️ **Non contraddice il minimo tappabile di `regole-stile-ui` §4**, e la ragione
+  è quella che la regola stessa dà: il pavimento a 44px è dei **campi di form** —
+  «un campo si sbaglia mentre si scrive» — mentre questi sono **controlli di
+  barra**, etichettati e distanziati, per cui la deroga esiste già.
+
+  ⛔ **La zona `__filters` resta fuori**, ed è deliberato: sotto `lg` quei
+  controlli vivono nel PANNELLO laterale, che è una maschera da compilare col
+  dito e non una barra. Là il minimo tappabile va tenuto.
+*/
+.list-page__view,
+.list-page__tools,
+.list-page__filters {
+  --btn-min-height: var(--control-h-button);
+  --field-height: var(--control-h-button);
+  --field-h: var(--control-h-button);
+  --field-font-size: var(--text-xs);
+  --field-gap: var(--space-1);
+  --button-font-size: var(--text-xs);
 }
 
 .list-page__heading {
@@ -424,14 +446,15 @@
   portano una parola — e devono leggersi tali. A 44 contro 38 sembravano due
   cose diverse.
 */
-@include bp.media-down('md') {
-  .list-page__tools,
-  .list-page__filters,
-  .list-page__view {
-    --btn-min-height: var(--control-h-button);
-    --field-height: var(--control-h-field);
-  }
-}
+/*
+  ⛔ **QUI C'ERA UN SECONDO BLOCCO CHE RIMETTEVA `--control-h-field` (38px)**
+  sotto `md`, e vinceva perché veniva dopo: era lui a tenere alti i controlli in
+  testata mentre quelli in fondo erano a 32.
+
+  ⭐ Ora la densità è dichiarata **una volta sola**, sopra, senza media query.
+  Due dichiarazioni della stessa cosa a due soglie diverse sono il modo in cui
+  questo difetto è nato.
+*/
 
 .list-page__search {
   position: relative;
@@ -465,13 +488,35 @@
 .list-page__input {
   inline-size: 100%;
   block-size: var(--field-height);
+
   padding-inline: var(--space-8) var(--space-3);
   border: var(--border-width) solid var(--color-border-strong);
   border-radius: var(--radius-sm);
   background-color: var(--color-surface);
   font: inherit;
+
   font-size: var(--text-sm);
   color: var(--color-text);
+
+  /*
+    ⛔ **La ricerca NON segue la densità della barra**, ed è l'unica eccezione.
+
+    È un campo di TESTO: `regole-stile-ui` §4 tiene i campi al minimo tappabile
+    perché «un campo si sbaglia mentre si scrive», e §3 chiede ≥16px sugli input
+    mobili — sotto quella misura iOS ingrandisce la pagina al fuoco.
+
+    ⚠️ **Sta in FONDO alla regola apposta**, ed è costato due tentativi: sopra
+    veniva azzerata prima da `font: inherit` — la scorciatoia reimposta anche
+    `font-size` — e poi da un secondo `font-size` più in basso. La deroga
+    esisteva e non aveva effetto, due volte. L'ha trovata
+    `check:media-scavalcate`, non l'occhio: una media query scavalcata non
+    fallisce, semplicemente non fa niente.
+  */
+  @include bp.media-down('md') {
+    block-size: var(--control-h-field);
+    // `--text-lg` e' 16px: e' IL valore che evita lo zoom iOS, non un'enfasi.
+    font-size: var(--text-lg);
+  }
 }
 
 .list-page__input:focus-visible {

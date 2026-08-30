@@ -128,6 +128,19 @@
     </div>
 
     <div class="list-page__view">
+      <!--
+        ⭐ **I comandi che cambiano la VISTA stanno coi loro pari** — deciso dal
+        proprietario il 30/08/2026 per «Seleziona»: «spostarlo vicino ai filtri».
+
+        ⚠️ **Non è una preferenza di posizione: è una classificazione.** Colonne,
+        Filtri e Seleziona non fanno niente ai dati — cambiano *come si guarda*
+        l'elenco. Nuovo, Stampa, Excel ed Esporta agiscono sui dati e stanno
+        nella barra in fondo (`14` §5). Tenere «Seleziona» là in mezzo lo
+        faceva sembrare un'azione, e su un telefono portava i comandi di barra a
+        cinque, con «Esporta» troncato in «Es…».
+      -->
+      <ng-content select="[viewActions]" />
+
       @if (columnsViewId(); as vista) {
         <app-table-column-picker [viewId]="vista" [reorderable]="columnsReorderable()" />
       }

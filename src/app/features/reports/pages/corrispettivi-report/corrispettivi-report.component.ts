@@ -38,6 +38,7 @@ import { ListActionsBarComponent } from '@shared/components/list-actions-bar/lis
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import { SegmentedComponent } from '@shared/components/segmented/segmented.component';
 import type { SegmentedOption } from '@shared/components/segmented/segmented.component';
+import { ButtonComponent } from '@shared/components/button/button.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
@@ -111,6 +112,7 @@ type CorrispettiviState =
     InlineBannerComponent,
     SegmentedComponent,
     SelectMenuComponent,
+    ButtonComponent,
   ],
   templateUrl: './corrispettivi-report.component.html',
   styleUrl: './corrispettivi-report.component.scss',
@@ -657,6 +659,9 @@ export class CorrispettiviReportComponent {
     ⚠️ È il `ViewportService` a dire quale vista è viva — la stessa soglia che
     decide se la tabella è tabella o card, non una seconda scritta a mano.
   */
+  /** La vista viva: la modalita selezione esiste solo dove le righe sono card. */
+  protected readonly viewportCompatto = this.viewport.compact;
+
   protected readonly modalitaSelezione = signal(false);
   protected readonly selezionePerTocco = computed(
     () => this.viewport.compact() && this.modalitaSelezione(),
@@ -986,16 +991,6 @@ export class CorrispettiviReportComponent {
   }
 
   protected readonly listActions = computed<readonly ListAction[]>(() => [
-    // Solo dove serve: nella vista a card non c'è una colonna di caselle.
-    ...(this.viewport.compact()
-      ? [
-          comando('select', {
-            variant: this.modalitaSelezione() ? 'primary' : undefined,
-            run: () => this.toggleModalitaSelezione(),
-          }),
-        ]
-      : []),
-
     // ⭐ **La forma dei comandi viene dal CATALOGO**, non riscritta qui: era
     //    così che «Stampa» era diventata ghost solo su questa pagina, e «CSV»
     //    aveva tre icone diverse in tre elenchi (misurato il 30/08/2026).

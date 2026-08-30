@@ -100,6 +100,27 @@
     }
   </div>
 
+  <!--
+    ⭐ **«Seleziona» sta coi comandi di VISTA, non con le azioni.** Colonne,
+    Filtri e Seleziona non fanno niente ai dati: cambiano come si guarda
+    l'elenco. Deciso dal proprietario il 30/08/2026.
+
+    ⚠️ **Solo nella vista a card**: sulla tabella la selezione ce l'ha già la sua
+    colonna di caselle, e due affordance per la stessa funzione sono una di
+    troppo.
+  -->
+  @if (viewportCompatto()) {
+    <app-button
+      viewActions
+      variant="secondary"
+      [ariaPressed]="modalitaSelezione()"
+      (click)="toggleModalitaSelezione()"
+    >
+      <i class="pi pi-check-square" aria-hidden="true"></i>
+      Seleziona
+    </app-button>
+  }
+
   <div filters>
     <!--
     Ambito e tipo sono indipendenti dal periodo e fra loro: si può chiedere
