@@ -277,6 +277,92 @@ binding: va rieseguita a ogni passo, non solo alla fine.
 rinomina di rotte che sbaglia non fallisce a compilazione: manda l'operatore su
 una pagina diversa.
 
+## 3-bis. ⛔ LA VERA DOMANDA NON È LA LINGUA: È LA STRUTTURA _(30/08/2026)_
+
+⚠️ **Scoperto discutendo i nomi, non cercandolo.** Il proprietario ha chiesto
+perché `sales` e `orders` si chiamino su due assi diversi, e la risposta ha
+spostato tutto il lavoro.
+
+```text
+rotte      dashboard products inventory orders suppliers documents sales customers reports guide settings admin
+cartelle   dashboard products inventory orders suppliers documents sales-orders customers reports guide settings admin
+```
+
+⛔ **Le rotte ricalcano le cartelle di `features/`, una per una.** Non c'è
+nessuna divisione per acquisti e vendite, nessuna logica fiscale: c'è **il layout
+del codice finito nella barra degli indirizzi**.
+
+### I sintomi, tutti incontrati senza cercarli
+
+| Sintomo                                         | Causa                                                                                                                                                                                             |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `orders` (fornitore) e `sales` (cliente)        | due cartelle chiamate così, non una decisione: la stessa cosa nominata per ENTITÀ e per DOMINIO                                                                                                   |
+| Ordini cliente sulla **radice** di `/app/sales` | `sales-orders.routes` ha un `path: ''`, quindi la pagina occupa la sezione e gli altri tre rami sembrano suoi figli                                                                               |
+| Corrispettivi sotto `/app/sales`                | il componente sta in `features/reports/` ma la voce di menu è in Vendite                                                                                                                          |
+| `vendita-al-banco` fuori da tutto               | ⛔ la prova più netta: quell'indirizzo sta lì per un vincolo di ARCHITETTURA — «una feature non importa da un'altra feature», dice il commento — non per una ragione che l'operatore possa capire |
+
+### ⭐ Il criterio, indicato dal proprietario senza chiamarlo così
+
+> **L'indirizzo deve ricalcare il percorso che l'operatore fa col MENU**, perché
+> è l'unica struttura che lui conosce. Le cartelle sono un fatto nostro.
+
+Il menu oggi raggruppa così — ed è la mappa da cui ripartire:
+
+```text
+Fornitori        → Ordini fornitore
+VENDITE          → Nuova vendita al banco · Vendite online · Corrispettivi
+CANALI ONLINE    → Ordini Shopify
+Clienti · Documenti · Magazzino · Report · Impostazioni
+```
+
+### ⛔ Una proposta scartata, e perché non va rifatta
+
+Raggruppare tutto sotto `/app/ordini/` — ordine cliente, ordine fornitore,
+shopify, online — **raggruppa per grammatica, non per lavoro**: due ordini hanno
+in comune il sostantivo, non il mestiere. Chi compra e chi vende non aprono mai
+l'elenco dell'altro, hanno permessi diversi, e stanno in due punti opposti del
+menu. In più due delle quattro voci non sono ordini (le vendite online sono
+vendite) e i **corrispettivi non avrebbero casa**.
+
+### ✅ Una preoccupazione verificata e infondata
+
+⚠️ «Spostare le rotte separerebbe i riepiloghi che oggi condividono il motore» —
+**falso, misurato**: `DocumentListComponent` è montato su **dieci rotte**, alcune
+su rami del tutto separati (`/app/vendita-al-banco` sta fuori da `documents` e
+usa lo stesso riepilogo). E **nessuna rotta dichiara `providers:` o `resolve:`** —
+l'unico meccanismo per cui figli della stessa rotta condividerebbero un'istanza.
+Il riuso passa dal componente, non dall'indirizzo.
+
+### Decisioni già prese, che restano valide
+
+|                                   |                                                                                                                          |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `/app/admin/clienti`              | il prefisso `admin` disambigua già dai clienti del negozio: aggiungere un suffisso ripeterebbe ciò che il percorso porta |
+| `/app/documenti/registro`         | il segmento genitore dice già di che registro si parla                                                                   |
+| `new`/`nuovo` e `edit`/`modifica` | oggi convivono **nelle due lingue**: vanno unificati comunque                                                            |
+| `edit` **è** modifica             | `/…/:id/edit` rende la maschera, `/…/:id` il Dettaglio. Già corretti, cambia solo la parola                              |
+
+### ⏸ Cosa manca prima di toccare qualunque rotta
+
+1. **L'esito dell'audit a sette lenti** (permessi, persistenza, navigazione
+   composta, backend, superfici esterne, test/e2e, deduzione dall'URL). Se
+   qualcosa dipende dalla FORMA attuale dei percorsi, spostare costa più che
+   rinominare.
+2. **Uno strumento di rinomina che capisca il CONTESTO**, non il testo. Quello
+   usato finora sostituisce ogni occorrenza quotata, ed è così che ha rotto
+   `quote`. Deve toccare solo `path:`, gli indirizzi `/app/…`, `routerLink`,
+   `navigate([...])`, le chiavi delle briciole e i documenti — e **mai** valori di
+   enum, chiavi di permesso (`section.products`), viste salvate
+   (`products_list`) o scope Shopify (`read_products`).
+3. **La decisione di struttura**, che viene prima dei nomi: se gli indirizzi
+   ricalcano il menu, alcune pagine si SPOSTANO, e allora non è più una
+   rinomina.
+
+⭐ `scripts/censimento-rotte.mjs` dice, per ogni segmento, **quanti mestieri fa**
+oltre a essere un indirizzo. ⚠️ Restringe il campo, **non decide**: su `products`
+ha trovato due accoppiamenti veri (permesso, vista) e due falsi allarmi (scope
+Shopify, un binding di template). La prova va letta.
+
 ## 4. ⏸ Elimina: restano nove schermate e due pulizie
 
 Fatto: il componente condiviso, Documenti, Ordini cliente, `edit-client`.
