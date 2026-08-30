@@ -76,11 +76,6 @@ const DICHIARATE = {
     contenitore: '.product-table-scroll',
     perche: 'elenco prodotti, tabella propria',
   },
-  '.os-table__head th': {
-    categoria: 'mixin',
-    contenitore: '.os-table-scroll',
-    perche: 'vendite online, tabella propria',
-  },
   '.doc-form__table thead th': {
     categoria: 'storica',
     contenitore: '.doc-form__table-wrap',

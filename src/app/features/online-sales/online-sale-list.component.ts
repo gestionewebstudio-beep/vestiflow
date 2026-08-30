@@ -24,11 +24,26 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
+import { BadgeComponent } from '@shared/components/badge/badge.component';
+import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
+import { DataTableComponent } from '@shared/components/data-table/data-table.component';
+import type { DataTableSection } from '@shared/components/data-table/data-table.model';
+import { TableViewId } from '@shared/table-columns/table-column.model';
+import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
+import {
+  ONLINE_SALE_LIST_COLUMN_DEFS,
+  ONLINE_SALE_LIST_COLUMN_PRESETS,
+} from './models/online-sale-list-columns.config';
+import { formatDate } from '@core/utils/date.util';
+import { formatMoney } from '@core/utils/money.util';
+import {
+  onlineSaleInventoryStatusLabel,
+  onlineSaleInventoryStatusTone,
+} from '@domain/sales-orders/models/sales-order-labels.util';
 import { PaginationComponent } from '@shared/components/pagination/pagination.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
-import { OnlineSaleTableComponent } from './components/online-sale-table/online-sale-table.component';
 import type { OnlineSaleListQuery, OnlineSaleRow } from './models/online-sale.model';
 import { OnlineSalesService } from './services/online-sales.service';
 
@@ -58,10 +73,12 @@ type ListState =
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ListPageComponent,
+    BadgeComponent,
+    DataTableCellDirective,
+    DataTableComponent,
     DateInputComponent,
     PaginationComponent,
     SelectMenuComponent,
-    OnlineSaleTableComponent,
   ],
   templateUrl: './online-sale-list.component.html',
   styleUrl: './online-sale-list.component.scss',
@@ -71,6 +88,10 @@ export class OnlineSaleListComponent {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly columnPreferences = inject(TableColumnPreferenceService);
+
+  protected readonly tableViewId = TableViewId.OnlineSalesList;
+  protected readonly tableColumns: ReturnType<TableColumnPreferenceService['visibleColumns']>;
 
   protected readonly skeletonColumns = 8;
   protected readonly pageSizeOptions = PAGE_SIZE_OPTIONS;
@@ -165,6 +186,13 @@ export class OnlineSaleListComponent {
   private readonly searchSubscription: Subscription;
 
   constructor() {
+    this.columnPreferences.registerView(
+      TableViewId.OnlineSalesList,
+      ONLINE_SALE_LIST_COLUMN_DEFS,
+      ONLINE_SALE_LIST_COLUMN_PRESETS,
+    );
+    this.tableColumns = this.columnPreferences.visibleColumns(TableViewId.OnlineSalesList);
+
     this.searchSubscription = toObservable(this.searchDraft)
       .pipe(
         debounceTime(SEARCH_DEBOUNCE_MS),
@@ -201,6 +229,53 @@ export class OnlineSaleListComponent {
   protected onPageSizeChange(size: number): void {
     this.updateParams({ pageSize: size === DEFAULT_PAGE_SIZE ? null : size, page: null });
   }
+
+  // ── La tabella, sul motore comune (`14` parte H) ────────────────────────
+
+  /** Una sezione sola, senza intestazione né piede: l'elenco è piatto. */
+  protected readonly tableSections = computed<readonly DataTableSection<OnlineSaleRow>[]>(() => [
+    { id: 'all', rows: this.sales() },
+  ]);
+
+  protected readonly rowId = (sale: OnlineSaleRow): string => sale.id;
+
+  protected readonly rowLabel = (sale: OnlineSaleRow): string =>
+    `Apri vendita online ${sale.reference} dell'ordine ${sale.orderNumber}`;
+
+  /**
+   * ⭐ **Il testo di una cella sta QUI, una volta sola**: la tabella lo usa per
+   * il desktop, per la card mobile e per la ricerca. Un template che rendesse
+   * un testo diverso sarebbe una seconda verità.
+   */
+  protected readonly cellText = (sale: OnlineSaleRow, columnId: string): string => {
+    switch (columnId) {
+      case 'reference':
+        return sale.reference;
+      case 'channel':
+        return sale.channelLabel;
+      case 'orderNumber':
+        return sale.orderNumber;
+      case 'fulfilledAt':
+        return formatDate(sale.fulfilledAt);
+      case 'customer':
+        return sale.customerName;
+      case 'location':
+        return sale.locationName ?? '—';
+      case 'total':
+        return formatMoney({ amountMinor: sale.totalMinor, currencyCode: sale.currency });
+      case 'inventoryStatus':
+        return this.inventoryLabel(sale.inventoryStatus);
+      case 'ddt':
+        return sale.ddtReference ?? '—';
+      case 'refund':
+        return sale.refundedAt ? `Rimborso ${formatDate(sale.refundedAt)}` : '—';
+      default:
+        return '';
+    }
+  };
+
+  protected readonly inventoryLabel = onlineSaleInventoryStatusLabel;
+  protected readonly inventoryTone = onlineSaleInventoryStatusTone;
 
   protected reload(): void {
     this.refreshTick.update((tick) => tick + 1);

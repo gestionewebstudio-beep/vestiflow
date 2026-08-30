@@ -2,11 +2,14 @@
   class="os-list"
   pageTitle="Vendite online"
   [showBack]="true"
-  [count]="loading() ? undefined : meta().total + (meta().total === 1 ? ' documento' : ' documenti')"
+  [count]="
+    loading() ? undefined : meta().total + (meta().total === 1 ? ' documento' : ' documenti')
+  "
   [loading]="loading()"
   [error]="error()?.message ?? null"
   [isEmpty]="isEmpty()"
   [skeletonColumns]="skeletonColumns"
+  [columnsViewId]="tableViewId"
   [activeFilterCount]="activeFilterCount()"
   searchPlaceholder="Cerca per numero, ordine, cliente…"
   searchAriaLabel="Cerca vendite online"
@@ -69,7 +72,36 @@
     </div>
   </div>
 
-  <app-online-sale-table data [sales]="sales()" (rowClick)="openSale($event)" />
+  <!--
+    ⭐ **Sul motore comune dal 30/08/2026.** Qui c'era `app-online-sale-table`,
+    dieci `<th>` scritti a mano: niente selettore Colonne, niente ordinamento,
+    niente selezione. Le tre cose vengono tutte da `app-data-table`, e
+    riscriverla ha chiuso i tre buchi insieme invece di rattopparne uno.
+
+    ⚠️ **L'ordinamento resta spento**, e non per dimenticanza: l'API delle
+    vendite online non ha un parametro `sort` — ordina sempre per data di
+    evasione. Accendere le intestazioni riordinerebbe la PAGINA CORRENTE di un
+    elenco paginato, cioè venti righe su centoventisette: sembrerebbe funzionare
+    ed è peggio di non ordinare. Si accende quando l'API lo sa fare.
+  -->
+  <app-data-table
+    data
+    caption="Vendite online"
+    [columns]="tableColumns()"
+    [sections]="tableSections()"
+    [rowId]="rowId"
+    [cellText]="cellText"
+    [rowClickable]="true"
+    [rowLabel]="rowLabel"
+    (rowClick)="openSale($event)"
+  >
+    <!-- L'unica cella che non è testo: lo stato magazzino, con la sua pill. -->
+    <ng-template appCell="inventoryStatus" let-sale>
+      <app-badge [tone]="inventoryTone(sale.inventoryStatus)">
+        {{ inventoryLabel(sale.inventoryStatus) }}
+      </app-badge>
+    </ng-template>
+  </app-data-table>
 
   <app-pagination
     summary

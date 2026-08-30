@@ -114,7 +114,7 @@ export class OnlineSaleDetailComponent {
       { label: 'Data evasione', value: formatDateTime(sale.fulfilledAt), numeric: true },
       { label: 'Cliente', value: sale.customerName },
       { label: 'Indirizzo', value: sale.customerAddress ?? '—' },
-      { label: 'Location', value: sale.locationName ?? '—' },
+      { label: 'Sede', value: sale.locationName ?? '—' },
       { label: 'Stato pagamento', value: sale.paymentStatus },
     ];
     if (sale.externalFulfillmentId) {
