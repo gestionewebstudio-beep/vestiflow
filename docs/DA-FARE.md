@@ -167,7 +167,90 @@ gestibili dai permessi: quelli vanno aggiornati, non rifatti.
 Arrivi merce, Vendite al banco — hanno un'azione primaria legittima, perché lì
 il tipo è uno solo e non c'è niente da scegliere.
 
-## 3. ⏸ Elimina: restano nove schermate e due pulizie
+## 3. ⛔ Gli INDIRIZZI mescolano due lingue, e tre sono nomi di database
+
+Misurato il 30/08/2026 sull'intera mappa delle rotte.
+
+```text
+primo livello   corrispettivi · vendita-al-banco · cambia-password        ← italiano
+                dashboard · products · inventory · orders · suppliers
+                documents · sales · online · customers · reports
+                guide · settings · admin                                  ← inglese
+
+dentro Documenti  arrivi-merce · registro · proforma
+                  registrazioni-fatture-fornitori                         ← italiano
+                  sales-ddt · manual-unload · quote · fattura             ← inglese, e «fattura» in mezzo
+```
+
+⛔ **Tre sono difetti veri, non incoerenze estetiche**: `manual-unload`,
+`sales-ddt` e `quote` sono **nomi di enum del database finiti nell'indirizzo**.
+Dicono all'operatore una parola che non esiste da nessun'altra parte nell'app —
+lui legge «Vendita manuale» ovunque e nella barra indirizzi trova
+«manual-unload».
+
+⭐ **Diventano:** `vendita-manuale`, `ddt-vendita`, `preventivo`.
+
+### ⭐ La rinomina COMPLETA all'italiano: si fa
+
+⚠️ **I due vincoli che la frenavano non esistono più**, ed entrambi li ha tolti
+il proprietario il 30/08/2026:
+
+- **niente clienti, niente dominio** — «il gestionale è in realizzazione e nessun
+  cliente lo tiene»: nessun segnalibro da rompere, nessun redirect di
+  compatibilità da mantenere;
+- **il ramo del collega** «andrà cancellato o adattato, noi procediamo»: cade
+  l'argomento dei conflitti fantasma su oltre 200 file.
+
+## ⛔ IL METODO, e non è una formalità
+
+> _«Bisogna farlo facendo attenzione a cosa è davvero ogni rotta e non combinare
+> guai, e vedere bene dove si trova.»_ — il proprietario
+
+### 1. Quattro segmenti sono SOTTOSTRINGA di un altro
+
+Una sostituzione cieca ne corrompe un secondo, e il danno **non si vede**: la
+rotta continua a esistere, punta altrove.
+
+```text
+«sales»   dentro «sales-ddt»
+«edit»    dentro «nota-di-cr-EDIT-o»      ← la peggiore
+«print»   dentro «print-label»
+«fattura» dentro «fattura-accompagnatoria»
+```
+
+### 2. Due parole esistono già NELLE DUE LINGUE
+
+`new` e `nuovo`, `edit` e `modifica`: la stessa azione con due nomi, che è
+peggio di una scelta coerente in una lingua sola.
+
+### 3. ⛔ `clients` e `customers` sono DUE COSE DIVERSE
+
+```text
+/app/admin/clients   i TENANT della piattaforma   (titolo: «Clienti»)
+/app/customers       i clienti dell'AZIENDA
+```
+
+Tradurli entrambi in `clienti` farebbe collidere due concetti che il gestionale
+tiene separati. Serve una parola diversa per il primo — `aziende`, `tenant` — e
+la scelta è di prodotto, non tecnica.
+
+### 4. I segmenti non sono tutti letterali
+
+`SALES_FORM_ROUTE_SEGMENT` e `STORE_SALE_ROUTE_SEGMENT` costruiscono rotte da
+costanti: chi cerca solo `path: '...'` non li trova.
+
+### 5. Dove guardare, oltre ai file di rotta
+
+`routerLink`, `router.navigate`, i `redirectTo`, le utility di navigazione
+(`document-routing.util`, `store-sale-routing.util`), gli e2e. ⭐ La guardia
+`check:router-links` esiste già e conta 21 destinazioni statiche più 10 in
+binding: va rieseguita a ogni passo, non solo alla fine.
+
+⭐ **Si procede un segmento alla volta**, con build e test dopo ciascuno. Una
+rinomina di rotte che sbaglia non fallisce a compilazione: manda l'operatore su
+una pagina diversa.
+
+## 4. ⏸ Elimina: restano nove schermate e due pulizie
 
 Fatto: il componente condiviso, Documenti, Ordini cliente, `edit-client`.
 
