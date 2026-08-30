@@ -163,9 +163,9 @@ export const SECONDARY_CREATE_ENTRIES: readonly (SelectMenuOption & {
     type: DocumentType.SupplierInvoice,
   },
   { value: 'transfer', label: 'Trasferimento', type: DocumentType.Transfer },
-  { value: 'manual-unload', label: 'Vendita manuale', type: DocumentType.ManualUnload },
+  { value: 'vendita-manuale', label: 'Vendita manuale', type: DocumentType.ManualUnload },
   { value: 'adjustment', label: 'Rettifica di magazzino', type: DocumentType.Adjustment },
-  { value: 'sales-ddt', label: 'DDT vendita', type: DocumentType.SalesDdt },
+  { value: 'ddt-vendita', label: 'DDT vendita', type: DocumentType.SalesDdt },
   { value: 'quote', label: 'Preventivo', type: DocumentType.Quote },
   { value: 'proforma', label: 'Proforma', type: DocumentType.Proforma },
   { value: 'invoice', label: 'Fattura', type: DocumentType.Invoice },
@@ -531,7 +531,7 @@ export class DocumentListComponent {
    * ⭐ **«DDT da fatturare»: una spunta, non una tendina.**
    *
    * ⚠️ Era stata omessa dalla prima dichiarazione, e sostituire il markup
-   * l'avrebbe cancellata da `sales-ddt` e `generic` — una rimozione funzionale
+   * l'avrebbe cancellata da `ddt-vendita` e `generic` — una rimozione funzionale
    * dentro un refactor, che `14` §42-bis.0 vieta. Non l’hanno trovata i test:
    * misuravano `filtriElenco()`, che per definizione non la conteneva. L’ha
    * trovata il confronto col markup prima di toglierlo.
@@ -580,7 +580,7 @@ export class DocumentListComponent {
     const sales = this.salesRegister();
 
     // ── Ramo REGISTRI DI VENDITA ───────────────────────────────────────
-    //    quote · proforma · sales-ddt · invoice · manual-unload
+    //    quote · proforma · ddt-vendita · invoice · vendita-manuale
     //    purchase-invoice · store-sale
     if (sales) {
       if (this.showSharedTypeFilter()) {
@@ -836,13 +836,13 @@ export class DocumentListComponent {
         return 'quote';
       case 'proforma':
         return 'proforma';
-      case 'sales-ddt':
+      case 'ddt-vendita':
         return 'sales_ddt';
       case 'invoice':
         return 'invoice';
       case 'store-sale':
         return 'store_sale';
-      case 'manual-unload':
+      case 'vendita-manuale':
         return 'manual_unload';
       default:
         return null;
@@ -1495,8 +1495,10 @@ export class DocumentListComponent {
     this.salesTableColumns = {
       quote: this.columnPreferences.visibleColumns(TableViewId.QuoteDocumentsList),
       proforma: this.columnPreferences.visibleColumns(TableViewId.ProformaDocumentsList),
-      'sales-ddt': this.columnPreferences.visibleColumns(TableViewId.SalesDdtDocumentsList),
-      'manual-unload': this.columnPreferences.visibleColumns(TableViewId.ManualUnloadDocumentsList),
+      'ddt-vendita': this.columnPreferences.visibleColumns(TableViewId.SalesDdtDocumentsList),
+      'vendita-manuale': this.columnPreferences.visibleColumns(
+        TableViewId.ManualUnloadDocumentsList,
+      ),
       invoice: this.columnPreferences.visibleColumns(TableViewId.InvoiceDraftDocumentsList),
       'purchase-invoice': this.columnPreferences.visibleColumns(
         TableViewId.PurchaseInvoiceDocumentsList,
@@ -1606,13 +1608,13 @@ export class DocumentListComponent {
       case 'transfer':
         this.openNewTransfer();
         break;
-      case 'manual-unload':
+      case 'vendita-manuale':
         this.openNewManualUnload();
         break;
       case 'adjustment':
         this.openNewAdjustment();
         break;
-      case 'sales-ddt':
+      case 'ddt-vendita':
         this.openNewSalesDdt();
         break;
       case 'quote':
@@ -2106,11 +2108,11 @@ export class DocumentListComponent {
   }
 
   protected openNewManualUnload(): void {
-    void this.router.navigate(['/app/documents/manual-unload/new']);
+    void this.router.navigate(['/app/documents/vendita-manuale/new']);
   }
 
   protected openNewSalesDdt(): void {
-    void this.router.navigate(['/app/documents/sales-ddt/new']);
+    void this.router.navigate(['/app/documents/ddt-vendita/new']);
   }
 
   protected openNewAdjustment(): void {

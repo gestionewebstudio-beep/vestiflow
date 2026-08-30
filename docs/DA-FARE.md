@@ -182,13 +182,40 @@ dentro Documenti  arrivi-merce · registro · proforma
                   sales-ddt · manual-unload · quote · fattura             ← inglese, e «fattura» in mezzo
 ```
 
-⛔ **Tre sono difetti veri, non incoerenze estetiche**: `manual-unload`,
-`sales-ddt` e `quote` sono **nomi di enum del database finiti nell'indirizzo**.
-Dicono all'operatore una parola che non esiste da nessun'altra parte nell'app —
-lui legge «Vendita manuale» ovunque e nella barra indirizzi trova
-«manual-unload».
+✅ **Due fatti il 30/08/2026**: `manual-unload` → `vendita-manuale` e
+`sales-ddt` → `ddt-vendita`, in codice, test, briciole, guida admin e documenti.
 
-⭐ **Diventano:** `vendita-manuale`, `ddt-vendita`, `preventivo`.
+## ⛔ E il terzo — `quote` — NON si rinomina come gli altri
+
+Provato, e **ha rotto la build in cinque punti**. La causa è una distinzione che
+non si vede finché non la si urta:
+
+```text
+SalesDdt      'sales_ddt'      ≠  rotta 'sales-ddt'       → rinominabile
+ManualUnload  'manual_unload'  ≠  rotta 'manual-unload'   → rinominabile
+Quote         'quote'          =  rotta 'quote'           ⛔ LA STESSA STRINGA
+```
+
+⭐ **Il trattino contro l'underscore** teneva separati il tipo documento e il
+segmento di rotta nei primi due. Su `quote` la stessa stringa fa **due mestieri**:
+è il valore che va e viene dal database _e_ l'indirizzo. Rinominarla ha cambiato
+un membro dell'unione `DocumentType`, cioè un valore che l'API si aspetta.
+
+⛔ **E il danno non era solo di compilazione.** Sono state trovate a mano due cose
+che nessun errore avrebbe segnalato:
+
+- `describe('quote')` in un test sulle **quote percentuali** delle colonne,
+  rinominato in `describe('preventivo')` — la parola italiana «quote» non c'entra
+  niente con i preventivi;
+- la mappa delle **briciole** aveva la chiave `quote:` non quotata, quindi la
+  sostituzione non la toccava: la rotta sarebbe diventata `preventivo` e la
+  briciola avrebbe mostrato il segmento grezzo. Il commento sopra quella mappa lo
+  dice da sempre — «senza questa voce il segmento usciva grezzo».
+
+⏸ **Come si farà**: non rinominando il tipo, ma **disaccoppiando** la rotta dal
+tipo. `SALES_FORM_ROUTE_SEGMENT` fa già esattamente questo per altri quattro —
+`Invoice → 'fattura'`, `CreditNote → 'nota-di-credito'` — e `quote` va aggiunto
+lì invece che sostituito ovunque.
 
 ### ⭐ La rinomina COMPLETA all'italiano: si fa
 

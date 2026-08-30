@@ -1368,11 +1368,11 @@ Al 28/08/2026 erano stati individuati:
 1. `document-list` — un componente con 9 profili:
    - `quote`;
    - `proforma`;
-   - `sales-ddt`;
+   - `ddt-vendita`;
    - `invoice`;
    - `generic`;
    - `goods-receipt`;
-   - `manual-unload`;
+   - `vendita-manuale`;
    - `purchase-invoice`;
    - `store-sale`;
 2. `sales-order-list`;

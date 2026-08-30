@@ -19,8 +19,8 @@ import {
 export type SalesDocumentRegisterProfile =
   | 'quote'
   | 'proforma'
-  | 'sales-ddt'
-  | 'manual-unload'
+  | 'ddt-vendita'
+  | 'vendita-manuale'
   | 'invoice'
   | 'purchase-invoice'
   | 'store-sale';
@@ -220,14 +220,14 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
     detailPanelTitle: 'Dati proforma',
     detailNotFoundTitle: 'Proforma non trovata',
   },
-  'sales-ddt': {
-    profile: 'sales-ddt',
+  'ddt-vendita': {
+    profile: 'ddt-vendita',
     type: DocumentType.SalesDdt,
     pageTitle: 'DDT vendita',
     pageSubtitle: 'Documenti di trasporto verso clienti, con scarico magazzino alla conferma.',
     createLabel: 'Nuovo DDT vendita',
-    createPath: '/app/documents/sales-ddt/new',
-    listPath: '/app/documents/sales-ddt',
+    createPath: '/app/documents/ddt-vendita/new',
+    listPath: '/app/documents/ddt-vendita',
     emptyTitle: 'Nessun DDT vendita',
     emptyDescription:
       'Non ci sono DDT vendita che corrispondono ai filtri. Crea un nuovo DDT per accompagnare la merce verso il cliente.',
@@ -239,14 +239,14 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
     detailPanelTitle: 'Dati DDT',
     detailNotFoundTitle: 'DDT vendita non trovato',
   },
-  'manual-unload': {
-    profile: 'manual-unload',
+  'vendita-manuale': {
+    profile: 'vendita-manuale',
     type: DocumentType.ManualUnload,
     pageTitle: 'Vendite manuali',
     pageSubtitle: 'Attenzione! Scarico diretto delle giacenze.',
     createLabel: 'Nuova vendita manuale',
-    createPath: '/app/documents/manual-unload/new',
-    listPath: '/app/documents/manual-unload',
+    createPath: '/app/documents/vendita-manuale/new',
+    listPath: '/app/documents/vendita-manuale',
     emptyTitle: 'Nessuna vendita manuale',
     emptyDescription:
       'Non ci sono vendite manuali che corrispondono ai filtri. Crea una nuova vendita manuale per registrare una vendita che riduce la giacenza senza generare movimenti di magazzino.',
@@ -385,8 +385,8 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
 export const SALES_DOCUMENT_REGISTER_PROFILES: readonly SalesDocumentRegisterProfile[] = [
   'quote',
   'proforma',
-  'sales-ddt',
-  'manual-unload',
+  'ddt-vendita',
+  'vendita-manuale',
   'invoice',
   'purchase-invoice',
   'store-sale',

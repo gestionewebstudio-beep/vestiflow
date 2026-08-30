@@ -16,8 +16,8 @@ export type DocumentListProfile =
   | 'goods-receipt'
   | 'quote'
   | 'proforma'
-  | 'sales-ddt'
-  | 'manual-unload'
+  | 'ddt-vendita'
+  | 'vendita-manuale'
   // Elenco condiviso Fattura / Fattura accompagnatoria (ex 'invoice-draft').
   | 'invoice'
   | 'purchase-invoice'

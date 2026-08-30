@@ -1,10 +1,10 @@
 # Elenco DDT di vendita — cose da fare
 
-_Nota di lavoro sulla schermata `/app/documents/sales-ddt`. Aperta il 13 agosto 2026._
+_Nota di lavoro sulla schermata `/app/documents/ddt-vendita`. Aperta il 13 agosto 2026._
 
 ## Perché esiste questa nota
 
-Non è una schermata a sé: è **l'elenco documenti col profilo `sales-ddt`**
+Non è una schermata a sé: è **l'elenco documenti col profilo `ddt-vendita`**
 (`documents.routes.ts:68-74`). Ma le cose da fare su di lei non avevano un posto,
 e sono finora vissute in chat — questo file è quel posto.
 

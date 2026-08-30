@@ -77,9 +77,9 @@ export function documentEditPath(doc: {
   if (doc.type === DocumentType.SupplierOrder) {
     return `/app/orders/${doc.id}/edit`;
   }
-  // DDT vendita: maschera dell'Ordine cliente in modalità sales-ddt (prompt DDT).
+  // DDT vendita: maschera dell'Ordine cliente in modalità ddt-vendita (prompt DDT).
   if (doc.type === DocumentType.SalesDdt) {
-    return `/app/documents/sales-ddt/${doc.id}/edit`;
+    return `/app/documents/ddt-vendita/${doc.id}/edit`;
   }
   // Un indirizzo per tipo: il form deve conoscere il tipo PRIMA di leggere il
   // documento, altrimenti fino alla risposta si comporta da proforma (`07-…§18`).
@@ -91,7 +91,7 @@ export function documentEditPath(doc: {
     return `/app/documents/transfer/${doc.id}/edit`;
   }
   if (isManualUnloadDocumentType(doc.type)) {
-    return `/app/documents/manual-unload/${doc.id}/edit`;
+    return `/app/documents/vendita-manuale/${doc.id}/edit`;
   }
   if (isAdjustmentDocumentType(doc.type)) {
     return `/app/documents/adjustment/${doc.id}/edit`;
@@ -180,7 +180,7 @@ export function documentDetailPath(doc: {
     case DocumentType.Proforma:
       return `/app/documents/proforma/${doc.id}`;
     case DocumentType.SalesDdt:
-      return `/app/documents/sales-ddt/${doc.id}`;
+      return `/app/documents/ddt-vendita/${doc.id}`;
     // I tre tipi della famiglia si aprono sullo STESSO elenco: il progressivo è
     // uno solo, e un dettaglio su una pagina propria suggerirebbe il contrario.
     case DocumentType.Invoice:
@@ -188,7 +188,7 @@ export function documentDetailPath(doc: {
     case DocumentType.CreditNote:
       return `/app/documents/fattura/${doc.id}`;
     case DocumentType.ManualUnload:
-      return `/app/documents/manual-unload/${doc.id}`;
+      return `/app/documents/vendita-manuale/${doc.id}`;
     case DocumentType.StoreSale:
     case DocumentType.StoreReturn:
       return `${STORE_SALE_ROOT_PATH}/${doc.id}`;
@@ -355,11 +355,11 @@ export function documentDuplicateFormRoute(type: DocumentTypeValue): string | nu
   }
   switch (type) {
     case DocumentType.SalesDdt:
-      return '/app/documents/sales-ddt/new';
+      return '/app/documents/ddt-vendita/new';
     case DocumentType.Quote:
       return '/app/documents/quote/new';
     case DocumentType.ManualUnload:
-      return '/app/documents/manual-unload/new';
+      return '/app/documents/vendita-manuale/new';
     case DocumentType.Transfer:
       return '/app/documents/transfer/new';
     case DocumentType.Adjustment:

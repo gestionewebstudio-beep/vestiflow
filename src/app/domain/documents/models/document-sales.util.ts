@@ -3,7 +3,7 @@ import { DocumentType } from '@core/models/document.model';
 /**
  * Documenti vendita gestiti dal form condiviso (proforma, fatture).
  * Il DDT vendita usa la maschera dell'Ordine cliente (prompt DDT §BASE):
- * rotta dedicata /app/documents/sales-ddt.
+ * rotta dedicata /app/documents/ddt-vendita.
  */
 export const SALES_FORM_DOCUMENT_TYPES = [
   DocumentType.Proforma,

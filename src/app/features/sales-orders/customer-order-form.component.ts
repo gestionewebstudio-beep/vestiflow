@@ -462,8 +462,8 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   /**
    * Modalità della maschera (route data `customerDocumentKind`): 'order' =
-   * Ordine cliente manuale (default), 'quote' = Preventivo, 'sales-ddt' =
-   * DDT vendita, 'manual-unload' = Vendita manuale. Le modalità documento
+   * Ordine cliente manuale (default), 'quote' = Preventivo, 'ddt-vendita' =
+   * DDT vendita, 'vendita-manuale' = Vendita manuale. Le modalità documento
    * usano la STESSA schermata e lo stesso funzionamento delle righe,
    * persistendo nel registro documenti coi rispettivi numeratori
    * (PRE / DDT / SCA). Differenze chiave:
@@ -480,10 +480,10 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
    */
   private readonly formKind =
     (this.route.snapshot.data['customerDocumentKind'] as
-      'order' | 'quote' | 'sales-ddt' | 'manual-unload' | undefined) ?? 'order';
+      'order' | 'quote' | 'ddt-vendita' | 'vendita-manuale' | undefined) ?? 'order';
   protected readonly isQuote = this.formKind === 'quote';
-  protected readonly isSalesDdt = this.formKind === 'sales-ddt';
-  protected readonly isManualUnload = this.formKind === 'manual-unload';
+  protected readonly isSalesDdt = this.formKind === 'ddt-vendita';
+  protected readonly isManualUnload = this.formKind === 'vendita-manuale';
 
   /**
    * ⭐ **Quali campi di testata mostra questo documento**, letto da una tabella
@@ -534,9 +534,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   protected readonly listPath = '/app/sales';
   /** Elenco dedicato del tipo (mai il registro generico filtrato). */
   private readonly registryListPath = this.isSalesDdt
-    ? '/app/documents/sales-ddt'
+    ? '/app/documents/ddt-vendita'
     : this.isManualUnload
-      ? '/app/documents/manual-unload'
+      ? '/app/documents/vendita-manuale'
       : '/app/documents/quote';
   protected readonly currency = DEFAULT_CURRENCY;
   protected readonly formatMoney = formatMoney;
@@ -572,7 +572,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   protected readonly isEditMode = computed(() => Boolean(this.editOrderId()));
 
   protected readonly loadedOrder = signal<SalesOrder | null>(null);
-  /** Documento caricato in modifica (modalità quote/sales-ddt: registro documenti). */
+  /** Documento caricato in modifica (modalità quote/ddt-vendita: registro documenti). */
   protected readonly loadedQuoteDoc = signal<DocumentRecord | null>(null);
   protected readonly saveWarnings = signal<readonly string[]>([]);
   private readonly _submitState = signal<SubmitState>({ status: 'idle' });
@@ -1241,9 +1241,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   private readonly permissionFamily: DocumentPermissionFamily =
     this.formKind === 'quote'
       ? 'quote'
-      : this.formKind === 'sales-ddt'
+      : this.formKind === 'ddt-vendita'
         ? 'sales_ddt'
-        : this.formKind === 'manual-unload'
+        : this.formKind === 'vendita-manuale'
           ? 'manual_unload'
           : 'sales_order';
 
@@ -5313,9 +5313,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         this.editLock.relock(doc.id);
         if (!this.editOrderId()) {
           const editPath = this.isSalesDdt
-            ? 'sales-ddt'
+            ? 'ddt-vendita'
             : this.isManualUnload
-              ? 'manual-unload'
+              ? 'vendita-manuale'
               : 'quote';
           void this.router.navigate(['/app/documents', editPath, doc.id, 'edit'], {
             replaceUrl: true,
@@ -5591,7 +5591,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   private concludeTargetRoute(documentType: DocumentType): string | null {
     switch (documentType) {
       case DocumentType.SalesDdt:
-        return '/app/documents/sales-ddt/new';
+        return '/app/documents/ddt-vendita/new';
       case DocumentType.InvoiceAccompanying:
         return '/app/documents/fattura-accompagnatoria/new';
       default:

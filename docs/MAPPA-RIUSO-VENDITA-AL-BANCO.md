@@ -63,7 +63,7 @@ _document-form*.scss          3167 righe GLOBALI, già caricate, che il banco no
 ```
 
 ⭐ **Il rapporto 5230:1337 inganna.** L'Ordine cliente serve **quattro** tipi documento —
-`order`, `quote`, `sales-ddt`, `manual-unload` (`formKind` da `route.data`) — e porta trasporto,
+`order`, `quote`, `ddt-vendita`, `vendita-manuale` (`formKind` da `route.data`) — e porta trasporto,
 indirizzi, allegati, «Includi», «Genera», conversioni. La parte che il banco userebbe è una
 frazione. **Non è il file da copiare: è il file da cui prendere i pezzi**, e i pezzi migliori
 sono già usciti da lì e stanno in `domain/`.
@@ -145,7 +145,7 @@ ha una sede sola, e vedersela come etichetta invece che come tendina è il compo
 
 ⭐ Il gate «senza Location non si prosegue» (`11` A13, A22) è **già implementato** nell'Ordine
 cliente come `headerGateActive()` più lo stato vuoto al posto della tabella. Per il banco vale la
-forma `manual-unload`: **solo** `locationId`, non il cliente.
+forma `vendita-manuale`: **solo** `locationId`, non il cliente.
 
 ### 2.4 Numerazione — SPECIFICO BANCO (adozione, non costruzione)
 

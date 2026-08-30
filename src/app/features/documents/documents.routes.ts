@@ -125,13 +125,13 @@ export const documentsRoutes: Routes = [
     },
   },
   {
-    path: 'sales-ddt',
+    path: 'ddt-vendita',
     title: 'DDT vendita',
     loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
     canActivate: [tenantPermissionGuard],
     data: {
       [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyView('sales_ddt'),
-      documentListProfile: 'sales-ddt',
+      documentListProfile: 'ddt-vendita',
       reuse: true,
     },
   },
@@ -179,13 +179,13 @@ export const documentsRoutes: Routes = [
   {
     // Vendita manuale: pagina elenco dedicata — il documento resta qui
     // finché l'operatore non lo elimina.
-    path: 'manual-unload',
+    path: 'vendita-manuale',
     title: 'Vendite manuali',
     loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
     canActivate: [tenantPermissionGuard],
     data: {
       [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyView('manual_unload'),
-      documentListProfile: 'manual-unload',
+      documentListProfile: 'vendita-manuale',
       reuse: true,
     },
   },
@@ -242,10 +242,10 @@ export const documentsRoutes: Routes = [
     },
   },
   {
-    // DDT vendita: stessa maschera dell'Ordine cliente in modalità sales-ddt
+    // DDT vendita: stessa maschera dell'Ordine cliente in modalità ddt-vendita
     // (prompt DDT §BASE — righe identiche, testata con Pagamento e «Seguirà
     // doc. di vendita», sezioni Trasporto e Indirizzi, scarico al salvataggio).
-    path: 'sales-ddt/new',
+    path: 'ddt-vendita/new',
     title: 'Nuovo DDT vendita',
     loadComponent: () =>
       import('@features/sales-orders/customer-order-form.component').then(
@@ -255,11 +255,11 @@ export const documentsRoutes: Routes = [
     canDeactivate: [unsavedChangesGuard],
     data: {
       [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('sales_ddt'),
-      customerDocumentKind: 'sales-ddt',
+      customerDocumentKind: 'ddt-vendita',
     },
   },
   {
-    path: 'sales-ddt/:id/edit',
+    path: 'ddt-vendita/:id/edit',
     title: 'Modifica DDT vendita',
     loadComponent: () =>
       import('@features/sales-orders/customer-order-form.component').then(
@@ -269,7 +269,7 @@ export const documentsRoutes: Routes = [
     canDeactivate: [unsavedChangesGuard],
     data: {
       [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('sales_ddt'),
-      customerDocumentKind: 'sales-ddt',
+      customerDocumentKind: 'ddt-vendita',
     },
   },
   {
@@ -327,14 +327,14 @@ export const documentsRoutes: Routes = [
     },
   },
   {
-    path: 'sales-ddt/:id',
+    path: 'ddt-vendita/:id',
     title: 'Dettaglio DDT vendita',
     loadComponent: () =>
       import('./sales-document-detail.component').then((m) => m.SalesDocumentDetailComponent),
     canActivate: [tenantPermissionGuard],
     data: {
       [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyView('sales_ddt'),
-      documentListProfile: 'sales-ddt',
+      documentListProfile: 'ddt-vendita',
     },
   },
   {
@@ -415,9 +415,9 @@ export const documentsRoutes: Routes = [
   },
   {
     // Vendita manuale: stessa maschera del DDT vendita in modalità
-    // manual-unload (prompt Vendita manuale — righe con prezzi e totali,
+    // vendita-manuale (prompt Vendita manuale — righe con prezzi e totali,
     // cliente facoltativo, scarico diretto giacenze al salvataggio).
-    path: 'manual-unload/new',
+    path: 'vendita-manuale/new',
     title: 'Nuova vendita manuale',
     loadComponent: () =>
       import('@features/sales-orders/customer-order-form.component').then(
@@ -427,11 +427,11 @@ export const documentsRoutes: Routes = [
     canDeactivate: [unsavedChangesGuard],
     data: {
       [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('manual_unload'),
-      customerDocumentKind: 'manual-unload',
+      customerDocumentKind: 'vendita-manuale',
     },
   },
   {
-    path: 'manual-unload/:id/edit',
+    path: 'vendita-manuale/:id/edit',
     title: 'Modifica vendita manuale',
     loadComponent: () =>
       import('@features/sales-orders/customer-order-form.component').then(
@@ -441,20 +441,20 @@ export const documentsRoutes: Routes = [
     canDeactivate: [unsavedChangesGuard],
     data: {
       [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('manual_unload'),
-      customerDocumentKind: 'manual-unload',
+      customerDocumentKind: 'vendita-manuale',
     },
   },
   {
     // Anteprima dettaglio dedicata (layout Ordine cliente): registrata dopo
-    // `manual-unload/new` così «new» non viene interpretato come id.
-    path: 'manual-unload/:id',
+    // `vendita-manuale/new` così «new» non viene interpretato come id.
+    path: 'vendita-manuale/:id',
     title: 'Dettaglio vendita manuale',
     loadComponent: () =>
       import('./sales-document-detail.component').then((m) => m.SalesDocumentDetailComponent),
     canActivate: [tenantPermissionGuard],
     data: {
       [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyView('manual_unload'),
-      documentListProfile: 'manual-unload',
+      documentListProfile: 'vendita-manuale',
     },
   },
   {

@@ -63,7 +63,7 @@ function operationalLocationsMock() {
  * Ordine cliente nuovo e un DDT già salvato che si riapre.
  */
 interface FormOptions {
-  readonly kind?: 'quote' | 'sales-ddt' | 'manual-unload';
+  readonly kind?: 'quote' | 'ddt-vendita' | 'vendita-manuale';
   readonly id?: string;
   readonly user?: unknown;
   readonly document?: unknown;
@@ -1192,7 +1192,7 @@ describe('CustomerOrderFormComponent — blocco alla riapertura', () => {
 
   it('un DDT vendita salvato si riapre protetto', async () => {
     const form = await apri({
-      kind: 'sales-ddt',
+      kind: 'ddt-vendita',
       id: 'doc-1',
       document: documentoConfermato('sales_ddt'),
     });
@@ -1202,7 +1202,7 @@ describe('CustomerOrderFormComponent — blocco alla riapertura', () => {
 
   it('uno vendita manuale salvato si riapre protetto', async () => {
     const form = await apri({
-      kind: 'manual-unload',
+      kind: 'vendita-manuale',
       id: 'doc-1',
       document: documentoConfermato('manual_unload'),
     });
@@ -1236,7 +1236,7 @@ describe('CustomerOrderFormComponent — blocco alla riapertura', () => {
     const documento = documentoConfermato('sales_ddt');
     const updateDocument = vi.fn(() => of(documento));
     const form = await apri({
-      kind: 'sales-ddt',
+      kind: 'ddt-vendita',
       id: 'doc-1',
       document: documento,
       updateDocument,
@@ -1257,7 +1257,7 @@ describe('CustomerOrderFormComponent — blocco alla riapertura', () => {
   // salvataggio.
   it('su un documento protetto il riordino delle righe non ha effetto', async () => {
     const form = await apri({
-      kind: 'sales-ddt',
+      kind: 'ddt-vendita',
       id: 'doc-1',
       document: documentoConfermato('sales_ddt'),
     });
@@ -2013,7 +2013,7 @@ describe('CustomerOrderFormComponent — conferma dei codici', () => {
  * cronologia (§4) su una serie che non è la sua.
  */
 describe('CustomerOrderFormComponent — quale numeratore chiede ogni modalità', () => {
-  async function apri(kind?: 'quote' | 'sales-ddt' | 'manual-unload') {
+  async function apri(kind?: 'quote' | 'ddt-vendita' | 'vendita-manuale') {
     const available = vi.fn((_type: DocumentType, _locationId?: string | null, _data?: string) =>
       of({ counters: [], proposedCounterId: null }),
     );
@@ -2091,7 +2091,7 @@ describe('CustomerOrderFormComponent — quale numeratore chiede ogni modalità'
   });
 
   it('il DDT di vendita resta sul proprio', async () => {
-    const { available } = await apri('sales-ddt');
+    const { available } = await apri('ddt-vendita');
 
     expect(available.mock.calls[0]![0]).toBe(DocumentType.SalesDdt);
   });
@@ -2544,7 +2544,7 @@ describe('CustomerOrderFormComponent — la Vendita manuale è una vendita', () 
     listino3Name: null,
   };
 
-  async function apriConListini(kind?: 'manual-unload', compatta = false) {
+  async function apriConListini(kind?: 'vendita-manuale', compatta = false) {
     const view = await render(CustomerOrderFormComponent, {
       providers: [
         ...formProviders(kind ? { kind } : {}),
@@ -2579,14 +2579,14 @@ describe('CustomerOrderFormComponent — la Vendita manuale è una vendita', () 
    * sarebbe una prova più debole di prima, non più forte.
    */
   it('⭐ il «Rif.» c’è sulla Vendita manuale — su scrivania', async () => {
-    const vista = await apriConListini('manual-unload');
+    const vista = await apriConListini('vendita-manuale');
 
     const etichette = [...vista.querySelectorAll('label')].map((l) => l.textContent?.trim());
     expect(etichette.filter((t) => t === 'Rif.')).toHaveLength(1);
   });
 
   it('⭐ …e sul telefono, una volta sola anche lì', async () => {
-    const vista = await apriConListini('manual-unload', true);
+    const vista = await apriConListini('vendita-manuale', true);
 
     const etichette = [...vista.querySelectorAll('label')].map((l) => l.textContent?.trim());
     expect(etichette.filter((t) => t === 'Rif.')).toHaveLength(1);
@@ -2607,7 +2607,7 @@ describe('CustomerOrderFormComponent — la Vendita manuale è una vendita', () 
   });
 
   it('⭐ ha il Listino, come ogni altro documento di vendita', async () => {
-    const vista = await apriConListini('manual-unload');
+    const vista = await apriConListini('vendita-manuale');
 
     expect(vista.querySelectorAll('app-document-listino-select').length).toBeGreaterThan(0);
   });
@@ -2616,13 +2616,13 @@ describe('CustomerOrderFormComponent — la Vendita manuale è una vendita', () 
     // ⚠️ Il confronto con l'Ordine cliente è il punto: se la Vendita manuale
     // ne montasse un numero diverso, il nome avrebbe ricominciato a decidere
     // qualcosa che non gli compete.
-    const manuale = await apriConListini('manual-unload');
+    const manuale = await apriConListini('vendita-manuale');
 
     expect(manuale.querySelectorAll('app-document-listino-select')).toHaveLength(1);
   });
 
   it('⭐ …e una sola sul telefono', async () => {
-    const manuale = await apriConListini('manual-unload', true);
+    const manuale = await apriConListini('vendita-manuale', true);
 
     expect(manuale.querySelectorAll('app-document-listino-select')).toHaveLength(1);
   });
@@ -2655,7 +2655,7 @@ describe('CustomerOrderFormComponent — la Vendita manuale è una vendita', () 
  * un campo la abita**, e dentro ogni campo decide da sé.
  */
 describe('CustomerOrderFormComponent — la fascia secondaria di scrivania', () => {
-  async function apri(kind?: 'quote' | 'sales-ddt' | 'manual-unload', compatta = false) {
+  async function apri(kind?: 'quote' | 'ddt-vendita' | 'vendita-manuale', compatta = false) {
     const view = await render(CustomerOrderFormComponent, {
       providers: [
         ...formProviders(kind ? { kind } : {}),
@@ -2694,14 +2694,14 @@ describe('CustomerOrderFormComponent — la fascia secondaria di scrivania', () 
   });
 
   it('⭐ il DDT vendita non ha fascia secondaria: il suo pagamento sta in prima', async () => {
-    const vista = await apri('sales-ddt');
+    const vista = await apri('ddt-vendita');
 
     expect(vista.querySelector('#co-payment')).toBeNull();
     expect(vista.querySelector('#co-delivery')).toBeNull();
   });
 
   it('⭐ la Vendita manuale non ha né consegna né pagamento', async () => {
-    const vista = await apri('manual-unload');
+    const vista = await apri('vendita-manuale');
 
     expect(vista.querySelector('#co-payment')).toBeNull();
     expect(vista.querySelector('#co-delivery')).toBeNull();
@@ -2733,7 +2733,7 @@ describe('CustomerOrderFormComponent — la testata migrata: invarianti', () => 
     listino3Name: null,
   };
 
-  async function apri(compatta: boolean, kind?: 'quote' | 'sales-ddt' | 'manual-unload') {
+  async function apri(compatta: boolean, kind?: 'quote' | 'ddt-vendita' | 'vendita-manuale') {
     const view = await render(CustomerOrderFormComponent, {
       providers: [
         ...formProviders(kind ? { kind } : {}),

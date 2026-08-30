@@ -89,7 +89,7 @@ describe('documentOpenPath', () => {
       '/app/documents/proforma/doc-1/edit',
     );
     expect(documentOpenPath(doc(DocumentType.SalesDdt), TITOLARE)).toBe(
-      '/app/documents/sales-ddt/doc-1/edit',
+      '/app/documents/ddt-vendita/doc-1/edit',
     );
     expect(documentOpenPath(doc(DocumentType.Invoice), TITOLARE)).toBe(
       '/app/documents/fattura/doc-1/edit',
@@ -101,7 +101,7 @@ describe('documentOpenPath', () => {
       '/app/documents/nota-di-credito/doc-1/edit',
     );
     expect(documentOpenPath(doc(DocumentType.ManualUnload), TITOLARE)).toBe(
-      '/app/documents/manual-unload/doc-1/edit',
+      '/app/documents/vendita-manuale/doc-1/edit',
     );
     expect(documentOpenPath(doc(DocumentType.Transfer), TITOLARE)).toBe(
       '/app/documents/transfer/doc-1/edit',
@@ -332,22 +332,22 @@ describe('Vendita manuale spenta: dove porta il documento', () => {
 
   it('⛔ a funzione spenta la riga porta al DETTAGLIO, non alla maschera', () => {
     // ⚠️ Il Dettaglio della Vendita manuale ha una rotta DEDICATA, non quella
-    //   generica: e' `/manual-unload/:id` senza `/edit`. La differenza sta tutta
+    //   generica: e' `/vendita-manuale/:id` senza `/edit`. La differenza sta tutta
     //   in quel suffisso, e scriverla per intero e’ il modo di non confonderle.
     expect(documentRowPath(doc(DocumentType.ManualUnload), SPENTA)).toBe(
-      '/app/documents/manual-unload/doc-1',
+      '/app/documents/vendita-manuale/doc-1',
     );
   });
 
   it('⭐ accesa, porta alla maschera come ogni altro documento', () => {
     expect(documentRowPath(doc(DocumentType.ManualUnload), TITOLARE)).toBe(
-      '/app/documents/manual-unload/doc-1/edit',
+      '/app/documents/vendita-manuale/doc-1/edit',
     );
   });
 
   it('⛔ e la ricerca globale segue, perché delega alla stessa funzione', () => {
     expect(documentOpenPath(doc(DocumentType.ManualUnload), SPENTA)).toBe(
-      '/app/documents/manual-unload/doc-1',
+      '/app/documents/vendita-manuale/doc-1',
     );
   });
 

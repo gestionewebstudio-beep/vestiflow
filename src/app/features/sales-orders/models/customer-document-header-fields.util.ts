@@ -38,7 +38,7 @@
  */
 
 /** Il tipo di documento cliente, come lo dichiara la rotta. */
-export type CustomerDocumentKind = 'order' | 'quote' | 'sales-ddt' | 'manual-unload';
+export type CustomerDocumentKind = 'order' | 'quote' | 'ddt-vendita' | 'vendita-manuale';
 
 /**
  * I campi di testata la cui presenza dipende dal tipo.
@@ -70,12 +70,12 @@ export const CUSTOMER_HEADER_FIELDS: Record<CustomerDocumentKind, readonly Custo
   {
     order: ['state', 'paymentTerms'],
     quote: ['expectedDelivery', 'paymentTerms'],
-    'sales-ddt': ['paymentMethod', 'followedBySalesDoc'],
+    'ddt-vendita': ['paymentMethod', 'followedBySalesDoc'],
     // ⚠️ La Vendita manuale non mostra oggi né pagamento né consegna. È lo stato
     // di partenza, non una decisione presa: il proprietario ha dichiarato che si
     // spegne dalla tabella ciò che non si vuole vedere, e questa riga è il posto
     // dove farlo.
-    'manual-unload': ['externalRef'],
+    'vendita-manuale': ['externalRef'],
   };
 
 /** Questo documento mostra questo campo di testata? */

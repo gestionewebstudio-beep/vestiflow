@@ -831,7 +831,7 @@ Modulo `api/src/documents/` + feature Angular `src/app/features/documents/`.
 
 **Seriali/lotti:** in conferma `goods_receipt`, `inventory-serial.util.ts` e righe `DocumentLine` con `lotCode` / `serialNumbers`.
 
-**Frontend route:** `/app/documents` (+ form dedicati `goods-receipt`, `transfer`, `sales-ddt`, …). Liste e form con `TableColumnPickerComponent` + sync preferenze: documenti, giacenze, movimenti, fornitori, prodotti, clienti, righe ordine fornitore (`supplier-order-form`), righe arrivo merce.
+**Frontend route:** `/app/documents` (+ form dedicati `goods-receipt`, `transfer`, `ddt-vendita`, …). Liste e form con `TableColumnPickerComponent` + sync preferenze: documenti, giacenze, movimenti, fornitori, prodotti, clienti, righe ordine fornitore (`supplier-order-form`), righe arrivo merce.
 
 ### Impostazioni operative tenant
 

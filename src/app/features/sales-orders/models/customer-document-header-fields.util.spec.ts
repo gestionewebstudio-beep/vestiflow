@@ -16,7 +16,12 @@ import {
  * stata svuotata per sbaglio, e che il contenuto sia quello misurato.
  */
 describe('CUSTOMER_HEADER_FIELDS', () => {
-  const TIPI: readonly CustomerDocumentKind[] = ['order', 'quote', 'sales-ddt', 'manual-unload'];
+  const TIPI: readonly CustomerDocumentKind[] = [
+    'order',
+    'quote',
+    'ddt-vendita',
+    'vendita-manuale',
+  ];
 
   it('⭐ dichiara ogni tipo di documento cliente, senza buchi', () => {
     for (const tipo of TIPI) {
@@ -31,14 +36,14 @@ describe('CUSTOMER_HEADER_FIELDS', () => {
     expect(CUSTOMER_HEADER_FIELDS).toEqual({
       order: ['state', 'paymentTerms'],
       quote: ['expectedDelivery', 'paymentTerms'],
-      'sales-ddt': ['paymentMethod', 'followedBySalesDoc'],
-      'manual-unload': ['externalRef'],
+      'ddt-vendita': ['paymentMethod', 'followedBySalesDoc'],
+      'vendita-manuale': ['externalRef'],
     });
   });
 
   it('⭐ il «Rif.» è della sola Vendita manuale', () => {
-    expect(showsHeaderField('manual-unload', 'externalRef')).toBe(true);
-    for (const tipo of ['order', 'quote', 'sales-ddt'] as const) {
+    expect(showsHeaderField('vendita-manuale', 'externalRef')).toBe(true);
+    for (const tipo of ['order', 'quote', 'ddt-vendita'] as const) {
       expect(showsHeaderField(tipo, 'externalRef'), tipo).toBe(false);
     }
   });

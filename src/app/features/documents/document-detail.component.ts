@@ -685,7 +685,7 @@ export class DocumentDetailComponent {
       case DocumentType.Proforma:
         return '/app/documents/proforma/new';
       case DocumentType.SalesDdt:
-        return '/app/documents/sales-ddt/new';
+        return '/app/documents/ddt-vendita/new';
       default:
         return null;
     }

@@ -100,7 +100,7 @@ export const DOCUMENT_HUB_GROUPS: readonly DocumentHubGroup[] = [
       {
         // Pagina dedicata: elenco con «Nuova vendita manuale», eliminazione
         // senza ripristino giacenze e stampa.
-        id: 'manual-unload',
+        id: 'vendita-manuale',
         family: 'manual_unload',
         label: 'Vendita manuale',
         // ⭐ La stessa frase che spiega la funzione in Impostazioni: dice le
@@ -108,7 +108,7 @@ export const DOCUMENT_HUB_GROUPS: readonly DocumentHubGroup[] = [
         // particolarita' e' che non lascia movimenti.
         description:
           'Registra una vendita e riduce la giacenza senza creare movimenti di magazzino.',
-        route: ['/app/documents/manual-unload'],
+        route: ['/app/documents/vendita-manuale'],
         icon: 'pi-minus-circle',
         available: true,
       },
@@ -158,11 +158,11 @@ export const DOCUMENT_HUB_GROUPS: readonly DocumentHubGroup[] = [
         available: true,
       },
       {
-        id: 'sales-ddt',
+        id: 'ddt-vendita',
         family: 'sales_ddt',
         label: 'DDT vendita',
         description: 'Documenti di trasporto verso clienti.',
-        route: ['/app/documents/sales-ddt'],
+        route: ['/app/documents/ddt-vendita'],
         icon: 'pi-truck',
         available: true,
       },

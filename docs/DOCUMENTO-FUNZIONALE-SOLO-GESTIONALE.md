@@ -321,7 +321,7 @@ L'annullo dell'arrivo merce collegato riporta l'ordine a Confermato. Filtri list
 Route `/app/documents`: scelta della tipologia, organizzata per flusso:
 
 - **Acquisti e fornitori:** Ordini fornitore (→ `/app/orders`) · Arrivi merce (`/app/documents/arrivi-merce`) · Registrazione fattura (registro filtrato `supplier_invoice`).
-- **Magazzino:** Trasferimenti · Rettifiche (registri filtrati) · Vendite manuali (pagina dedicata `/app/documents/manual-unload`) · Inventario (registro filtrato).
+- **Magazzino:** Trasferimenti · Rettifiche (registri filtrati) · Vendite manuali (pagina dedicata `/app/documents/vendita-manuale`) · Inventario (registro filtrato).
 - **Vendite:** Vendite al banco (elenco dedicato `/app/vendita-al-banco`, condiviso `store_sale` + `store_return` con filtro «Tipo», e da lì le due creazioni) · Proforma · DDT vendita · Bozze fattura · Preventivi (registro filtrato `quote`).
 - **Registro:** Tutti i documenti (`/app/documents/registro`).
 
@@ -390,12 +390,12 @@ Form dedicati (`transfer/new`, `adjustment/new`): documenti di magazzino con rig
 
 ### 10.6-bis Vendita manuale (maschera DDT, scarico diretto)
 
-Maschera tipo DDT vendita (`manual-unload/new`, stessa struttura righe: articolo, quantità, prezzo richiamato automaticamente ed editabile, totale; totali in fondo; stampa documento):
+Maschera tipo DDT vendita (`vendita-manuale/new`, stessa struttura righe: articolo, quantità, prezzo richiamato automaticamente ed editabile, totale; totali in fondo; stampa documento):
 
 - **Cliente facoltativo:** dall'anagrafica clienti oppure **digitato liberamente solo per la stampa** (in quel caso NON viene salvato in anagrafica).
 - **Logica giacenze (deroga documentata):** al **salvataggio** la giacenza si aggiorna **direttamente sottraendo le quantità** (es. 10 − 3 = 7), **senza creare movimenti** nel log magazzino; il push inventario verso i canali resta attivo. Nessuna gestione seriali.
 - **Avviso non bloccante:** se la quantità supera la disponibilità → «Stai scaricando più di quanto disponibile. Continuare?» (Sì / Annulla).
-- **Persistenza:** il documento resta nell'elenco Vendite manuali (`/app/documents/manual-unload`) finché l'operatore non lo **elimina**; nessun annullamento.
+- **Persistenza:** il documento resta nell'elenco Vendite manuali (`/app/documents/vendita-manuale`) finché l'operatore non lo **elimina**; nessun annullamento.
 - **Eliminazione definitiva:** cancella SOLO il documento — le giacenze già scalate **non vengono ripristinate**.
 - **Modifica:** riconciliazione a delta (3 → 5 scarica solo 2 in più; cambio location ripristina la vecchia e scarica la nuova), sempre senza movimenti.
 
@@ -445,7 +445,7 @@ essere nel salvataggio, che invece funzionava.
 
 ### 10.7 Documenti di vendita (Proforma · DDT vendita · Bozza fattura)
 
-Form unico `sales-document-form` su route dedicate (`proforma/new`, `sales-ddt/new`, `invoice-draft/new`, modifica `sales/:id/edit`):
+Form unico `sales-document-form` su route dedicate (`proforma/new`, `ddt-vendita/new`, `invoice-draft/new`, modifica `sales/:id/edit`):
 
 - Testata con **cliente** (anagrafica di [§14](#14-clienti), con eventuale nota automatica/avviso configurati sul cliente), date, condizioni di pagamento, note; righe articolo con quantità, prezzi, sconti, IVA.
 - **Proforma:** documento non fiscale (preventivo), nessun effetto magazzino.
@@ -727,43 +727,43 @@ Regole sempre vere, utili come oracoli nei test end-to-end:
 
 ## 21. Appendice — Mappa route e permessi
 
-| Route                                                                                       | Pagina                              | Permesso richiesto (uno tra)                                                    |
-| ------------------------------------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------- |
-| `/login`, `/login/forgot-password`, `/login/reset-password`                                 | Autenticazione                      | — (guest)                                                                       |
-| `/app/dashboard`                                                                            | Dashboard                           | autenticato                                                                     |
-| `/app/products`                                                                             | Lista prodotti                      | sezione catalogo (catalogo/giacenze/ordini fornitore)                           |
-| `/app/products/new`, `/app/products/:id/edit`                                               | Form prodotto                       | Gestire catalogo                                                                |
-| `/app/products/import`                                                                      | Import CSV prodotti                 | Import/export prodotti                                                          |
-| `/app/products/:id`, `/app/products/:id/print-label`                                        | Dettaglio / etichetta               | sezione catalogo                                                                |
-| `/app/inventory`                                                                            | Giacenze                            | sezione magazzino                                                               |
-| `/app/inventory/lookup`                                                                     | Cerca giacenza                      | sezione magazzino                                                               |
-| `/app/inventory/movements`                                                                  | Movimenti                           | sezione magazzino                                                               |
-| `/app/inventory/movements/new`                                                              | Registra movimento                  | Gestire giacenze                                                                |
-| `/app/inventory/import`                                                                     | Import CSV giacenze                 | Import/export giacenze                                                          |
-| `/app/inventory/counts/new`, `/app/inventory/counts/:id`                                    | Inventario fisico                   | Gestire giacenze                                                                |
-| `/app/suppliers` (+`/new`, `/:id`, `/:id/edit`)                                             | Fornitori                           | vista: area ordini · gestione: Gestire ordini fornitore                         |
-| `/app/orders` (+`/new`, `/:id`, `/:id/edit`)                                                | Ordini fornitori                    | vista: Gestire o Ricevere ordini fornitore · gestione: Gestire ordini fornitore |
-| `/app/documents`                                                                            | Hub documenti                       | Consultare o Gestire documenti                                                  |
-| `/app/documents/registro`, `/app/documents/arrivi-merce`                                    | Registri                            | Consultare o Gestire documenti                                                  |
-| `/app/documents/goods-receipt/new`, `…/:id/edit`                                            | Arrivo merce                        | Gestire documenti                                                               |
-| `/app/documents/registrazioni-fatture-fornitori/new`                                        | Registrazione fattura               | Gestire documenti                                                               |
-| `/app/documents/transfer/new`, `…/manual-unload/new`, `…/adjustment/new`                    | Trasferimento / Scarico / Rettifica | Gestire documenti                                                               |
-| `/app/documents/proforma/new`, `…/sales-ddt/new`, `…/invoice-draft/new`, `…/sales/:id/edit` | Documenti di vendita                | Gestire documenti                                                               |
-| `/app/documents/settings`                                                                   | Impostazioni numerazione            | Gestire documenti                                                               |
-| `/app/documents/:id`, `/app/documents/:id/print`                                            | Dettaglio / stampa                  | Consultare o Gestire documenti                                                  |
-| `/app/sales`                                                                                | Ordini cliente (lista)              | Consultare report                                                               |
-| `/app/sales/new`, `/app/sales/:id/edit`                                                     | Ordine cliente (form)               | Gestire documenti                                                               |
-| `/app/sales/:id`                                                                            | Dettaglio ordine                    | Consultare report                                                               |
-| `/app/vendita-al-banco/nuova-vendita-al-banco`                                              | Vendite al banco                    | Registrare vendite al banco                                                     |
-| `/app/sales/online`, `/app/sales/online/:id`                                                | Vendite online                      | Consultare report                                                               |
-| `/app/sales/corrispettivi`                                                                  | Corrispettivi                       | Consultare report                                                               |
-| `/app/customers` (+`/:id`)                                                                  | Clienti                             | Visualizzare o Gestire clienti                                                  |
-| `/app/customers/new`, `/app/customers/:id/edit`                                             | Form cliente                        | Gestire clienti                                                                 |
-| `/app/reports`                                                                              | Report                              | Consultare report                                                               |
-| `/app/reports/corrispettivi` (+`/print`)                                                    | Corrispettivi commercialista        | Consultare report                                                               |
-| `/app/reports/accountant-register`                                                          | Registro commercialista             | Consultare report                                                               |
-| `/app/settings` (+`/codici-iva`, `/pagamenti`)                                              | Impostazioni                        | autenticato (pannelli per permesso)                                             |
-| `/app/guide`                                                                                | Guida                               | autenticato                                                                     |
+| Route                                                                                         | Pagina                              | Permesso richiesto (uno tra)                                                    |
+| --------------------------------------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------- |
+| `/login`, `/login/forgot-password`, `/login/reset-password`                                   | Autenticazione                      | — (guest)                                                                       |
+| `/app/dashboard`                                                                              | Dashboard                           | autenticato                                                                     |
+| `/app/products`                                                                               | Lista prodotti                      | sezione catalogo (catalogo/giacenze/ordini fornitore)                           |
+| `/app/products/new`, `/app/products/:id/edit`                                                 | Form prodotto                       | Gestire catalogo                                                                |
+| `/app/products/import`                                                                        | Import CSV prodotti                 | Import/export prodotti                                                          |
+| `/app/products/:id`, `/app/products/:id/print-label`                                          | Dettaglio / etichetta               | sezione catalogo                                                                |
+| `/app/inventory`                                                                              | Giacenze                            | sezione magazzino                                                               |
+| `/app/inventory/lookup`                                                                       | Cerca giacenza                      | sezione magazzino                                                               |
+| `/app/inventory/movements`                                                                    | Movimenti                           | sezione magazzino                                                               |
+| `/app/inventory/movements/new`                                                                | Registra movimento                  | Gestire giacenze                                                                |
+| `/app/inventory/import`                                                                       | Import CSV giacenze                 | Import/export giacenze                                                          |
+| `/app/inventory/counts/new`, `/app/inventory/counts/:id`                                      | Inventario fisico                   | Gestire giacenze                                                                |
+| `/app/suppliers` (+`/new`, `/:id`, `/:id/edit`)                                               | Fornitori                           | vista: area ordini · gestione: Gestire ordini fornitore                         |
+| `/app/orders` (+`/new`, `/:id`, `/:id/edit`)                                                  | Ordini fornitori                    | vista: Gestire o Ricevere ordini fornitore · gestione: Gestire ordini fornitore |
+| `/app/documents`                                                                              | Hub documenti                       | Consultare o Gestire documenti                                                  |
+| `/app/documents/registro`, `/app/documents/arrivi-merce`                                      | Registri                            | Consultare o Gestire documenti                                                  |
+| `/app/documents/goods-receipt/new`, `…/:id/edit`                                              | Arrivo merce                        | Gestire documenti                                                               |
+| `/app/documents/registrazioni-fatture-fornitori/new`                                          | Registrazione fattura               | Gestire documenti                                                               |
+| `/app/documents/transfer/new`, `…/vendita-manuale/new`, `…/adjustment/new`                    | Trasferimento / Scarico / Rettifica | Gestire documenti                                                               |
+| `/app/documents/proforma/new`, `…/ddt-vendita/new`, `…/invoice-draft/new`, `…/sales/:id/edit` | Documenti di vendita                | Gestire documenti                                                               |
+| `/app/documents/settings`                                                                     | Impostazioni numerazione            | Gestire documenti                                                               |
+| `/app/documents/:id`, `/app/documents/:id/print`                                              | Dettaglio / stampa                  | Consultare o Gestire documenti                                                  |
+| `/app/sales`                                                                                  | Ordini cliente (lista)              | Consultare report                                                               |
+| `/app/sales/new`, `/app/sales/:id/edit`                                                       | Ordine cliente (form)               | Gestire documenti                                                               |
+| `/app/sales/:id`                                                                              | Dettaglio ordine                    | Consultare report                                                               |
+| `/app/vendita-al-banco/nuova-vendita-al-banco`                                                | Vendite al banco                    | Registrare vendite al banco                                                     |
+| `/app/sales/online`, `/app/sales/online/:id`                                                  | Vendite online                      | Consultare report                                                               |
+| `/app/sales/corrispettivi`                                                                    | Corrispettivi                       | Consultare report                                                               |
+| `/app/customers` (+`/:id`)                                                                    | Clienti                             | Visualizzare o Gestire clienti                                                  |
+| `/app/customers/new`, `/app/customers/:id/edit`                                               | Form cliente                        | Gestire clienti                                                                 |
+| `/app/reports`                                                                                | Report                              | Consultare report                                                               |
+| `/app/reports/corrispettivi` (+`/print`)                                                      | Corrispettivi commercialista        | Consultare report                                                               |
+| `/app/reports/accountant-register`                                                            | Registro commercialista             | Consultare report                                                               |
+| `/app/settings` (+`/codici-iva`, `/pagamenti`)                                                | Impostazioni                        | autenticato (pannelli per permesso)                                             |
+| `/app/guide`                                                                                  | Guida                               | autenticato                                                                     |
 
 ---
 

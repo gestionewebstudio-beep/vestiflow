@@ -43,13 +43,13 @@ const paginato = (data: readonly DocumentRecord[] = []) => ({
   meta: { page: 1, pageSize: 20, total: data.length, totalPages: data.length > 0 ? 1 : 0 },
 });
 
-const PROFILI_VENDITA = ['quote', 'proforma', 'sales-ddt', 'invoice'] as const;
+const PROFILI_VENDITA = ['quote', 'proforma', 'ddt-vendita', 'invoice'] as const;
 
 const PROFILI: readonly DocumentListProfile[] = [
   'generic',
   'goods-receipt',
   ...PROFILI_VENDITA,
-  'manual-unload',
+  'vendita-manuale',
   'purchase-invoice',
   'store-sale',
 ];
@@ -880,9 +880,9 @@ describe('DocumentListComponent — i filtri, profilo per profilo', () => {
    */
   const ATTESI: readonly (readonly [DocumentListProfile, readonly string[]])[] = [
     ['quote', ['periodPreset', 'customerId']],
-    ['manual-unload', ['periodPreset', 'customerId']],
+    ['vendita-manuale', ['periodPreset', 'customerId']],
     ['proforma', ['periodPreset', 'status', 'customerId']],
-    ['sales-ddt', ['periodPreset', 'status', 'customerId', 'pendingInvoice']],
+    ['ddt-vendita', ['periodPreset', 'status', 'customerId', 'pendingInvoice']],
     ['purchase-invoice', ['periodPreset', 'settlement', 'supplierId']],
     ['invoice', ['periodPreset', 'type', 'status', 'customerId']],
     ['store-sale', ['periodPreset', 'type', 'customerId', 'paymentMethod', 'createdById']],
@@ -964,7 +964,7 @@ describe('DocumentListComponent — i filtri, profilo per profilo', () => {
      * misuravano `filtriElenco()`, che non la conteneva — ma il confronto col
      * markup prima di toglierlo.
      */
-    it.each(['sales-ddt', 'generic'] as const)(
+    it.each(['ddt-vendita', 'generic'] as const)(
       '«%s» conserva la spunta «DDT da fatturare»',
       async (profilo) => {
         const view = await renderList(profilo);
@@ -1006,7 +1006,7 @@ describe('DocumentListComponent — i filtri, profilo per profilo', () => {
   describe('⛔ `?status=` dove il profilo non ha lo Stato', () => {
     const SENZA_STATO: readonly DocumentListProfile[] = [
       'quote',
-      'manual-unload',
+      'vendita-manuale',
       'purchase-invoice',
       'store-sale',
     ];
