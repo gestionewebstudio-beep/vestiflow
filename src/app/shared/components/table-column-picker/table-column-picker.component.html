@@ -1,7 +1,14 @@
 <div class="table-column-picker">
-  <app-button variant="secondary" type="button" (click)="togglePanel()">
+  <app-button
+    variant="secondary"
+    type="button"
+    [ariaLabel]="iconOnly() ? 'Colonne visibili' : undefined"
+    (click)="togglePanel()"
+  >
     <i class="pi pi-table" aria-hidden="true"></i>
-    Colonne
+    @if (!iconOnly()) {
+      Colonne
+    }
   </app-button>
 
   @if (open()) {

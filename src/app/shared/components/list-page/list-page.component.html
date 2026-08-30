@@ -141,12 +141,36 @@
       -->
       <ng-content select="[viewActions]" />
 
+      <!--
+        ⭐ **Sotto `md` restano le sole ICONE** — chiesto dal proprietario il
+        30/08/2026: «da mobile possiamo mettere solo il simbolo dei filtri e
+        recuperiamo spazio».
+
+        ⚠️ **Il conteggio dei filtri attivi NON sparisce**: è l'unica cosa che
+        dice che un filtro c'è, e nasconderla lascerebbe un elenco ristretto
+        senza nessun segno del perché — il difetto che `14` §0.2 evita facendo
+        azzerare i filtri allo spegnimento.
+
+        ⚠️ **Il nome resta nell'`aria-label`**: sparisce alla vista, non a chi
+        legge con uno screen reader.
+      -->
       @if (columnsViewId(); as vista) {
-        <app-table-column-picker [viewId]="vista" [reorderable]="columnsReorderable()" />
+        <app-table-column-picker
+          [viewId]="vista"
+          [reorderable]="columnsReorderable()"
+          [iconOnly]="compatto()"
+        />
       }
-      <app-button variant="secondary" [ariaPressed]="filtersOn()" (click)="toggleFiltri()">
+      <app-button
+        variant="secondary"
+        [ariaPressed]="filtersOn()"
+        [ariaLabel]="compatto() ? 'Filtri' : undefined"
+        (click)="toggleFiltri()"
+      >
         <i class="pi pi-filter" aria-hidden="true"></i>
-        Filtri
+        @if (!compatto()) {
+          Filtri
+        }
         @if (activeFilterCount() > 0) {
           <span>&nbsp;({{ activeFilterCount() }})</span>
         }

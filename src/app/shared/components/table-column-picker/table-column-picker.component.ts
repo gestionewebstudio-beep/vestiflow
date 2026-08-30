@@ -52,6 +52,15 @@ export class TableColumnPickerComponent {
    */
   readonly reorderable = input(true);
 
+  /*
+    ⭐ **A sola icona**, per le barre strette. Il nome resta nell'`aria-label`:
+    sparisce alla vista, non a chi legge con uno screen reader.
+
+    ⚠️ L'icona è `pi-table` e il pannello si intitola «Colonne visibili»: chi la
+    preme trova subito la parola, quindi il simbolo non deve indovinarsi da solo.
+  */
+  readonly iconOnly = input(false);
+
   protected readonly open = signal(false);
 
   protected readonly presetOptions = computed((): readonly SelectMenuOption[] =>
