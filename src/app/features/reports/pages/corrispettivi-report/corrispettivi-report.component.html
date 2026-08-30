@@ -306,16 +306,25 @@
   </section>
 
   <div summary>
-    @if (summary(); as pageSummary) {
+    @if (summaryMostrato(); as pageSummary) {
       <!--
         Il riepilogo sta in FONDO e resta fisso: sopra la tabella rubava la prima
         schermata a ciò che si deve consultare, ed è la stessa scelta della banda
         totali delle maschere documento (`regole-stile-ui` §7).
       -->
+      <!--
+        ⭐ **Il conteggio segue la selezione**: con righe scelte dice quante sono
+        quelle, non quante ne ha il periodo. Un riepilogo che descrive la
+        selezione e un conteggio che descrive il filtro sarebbero due risposte a
+        due domande diverse nella stessa riga.
+      -->
       <app-corrispettivi-summary
         [summary]="pageSummary"
         [periodLabel]="periodLabel()"
-        [rowCount]="orders().length > 0 ? totalOrders() : null"
+        [perSelezione]="riepilogoDiSelezione()"
+        [rowCount]="
+          riepilogoDiSelezione() ? selectionCount() : orders().length > 0 ? totalOrders() : null
+        "
       />
     }
   </div>

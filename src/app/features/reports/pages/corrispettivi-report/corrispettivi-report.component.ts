@@ -75,6 +75,7 @@ import {
   type DataTableSort,
 } from '@shared/components/data-table/data-table.model';
 import type { DataTableSelectionEvent } from '@shared/components/data-table/data-table.component';
+import type { Money } from '@core/models/money.model';
 import { createListSelection } from '@shared/utils/list-selection';
 import {
   LOCATION_UNDETERMINED_LABEL,
@@ -652,6 +653,71 @@ export class CorrispettiviReportComponent {
   protected onToggleSelection(event: DataTableSelectionEvent<CorrispettiviRegisterRow>): void {
     this.selection.toggle(event.row.rowId, event.selected);
   }
+
+  /*
+    ⭐ **CON UNA SELEZIONE, IL RIEPILOGO È QUELLO DELLA SELEZIONE** — deciso dal
+    proprietario il 30/08/2026.
+
+    ⭐ **Sommare non è ricalcolare**, ed è la precisazione che rende questo
+    lecito: `docs/14` §0-bis. I valori di riga sono già finali e già persistiti —
+    qui si aggregano, non si riderivano. Non c'è **nessuna** moltiplicazione per
+    un'aliquota in questo blocco, ed è il controllo da rifare se un giorno lo si
+    tocca.
+
+    ⛔ **«Annullamenti» resta quello del PERIODO**, e non è una scorciatoia: gli
+    annullamenti **non sono righe del registro**. Sono ordini Shopify annullati
+    prima dell'evasione, quindi la loro vendita non è mai entrata nel registro —
+    sottrarli porterebbe il totale sotto zero (misurato dal backend: 110,00 € su
+    agosto 2026). Si contano per trasparenza e non si sommano mai: selezionare
+    righe non può cambiarne il numero, perché non c'è nessuna riga da
+    selezionare.
+
+    ⚠️ **Le rettifiche sono righe NEGATIVE.** `netTotal` è quindi la somma
+    diretta di tutte le righe scelte, mentre `refundTotal` — che il riepilogo
+    mostra come importo positivo preceduto dal segno — è l'opposto della somma
+    delle sole rettifiche. Confondere le due convenzioni fa comparire il totale
+    giusto col segno sbagliato.
+  */
+  protected readonly summaryMostrato = computed<CorrispettiviSummary | null>(() => {
+    const periodo = this.summary();
+    if (periodo == null) {
+      return null;
+    }
+
+    const scelte = this.orders().filter((row) => this.selectedIds().has(row.rowId));
+    if (scelte.length === 0) {
+      return periodo;
+    }
+
+    const somma = (
+      righe: readonly CorrispettiviRegisterRow[],
+      campo: 'taxable' | 'tax' | 'total',
+    ) => righe.reduce((acc, row) => acc + row[campo].amountMinor, 0);
+
+    const vendite = scelte.filter((row) => row.kind !== 'refund');
+    const rettifiche = scelte.filter((row) => row.kind === 'refund');
+    const valuta = periodo.total.currencyCode;
+    const money = (amountMinor: number): Money => ({ amountMinor, currencyCode: valuta });
+
+    return {
+      ...periodo,
+      orderCount: vendite.length,
+      refundCount: rettifiche.length,
+      refundsCount: rettifiche.length,
+      // Positivo per convenzione del riepilogo: le righe sono negative.
+      refundTotal: money(-somma(rettifiche, 'total')),
+      refundTax: money(-somma(rettifiche, 'tax')),
+      total: money(somma(vendite, 'total')),
+      taxable: money(somma(vendite, 'taxable')),
+      tax: money(somma(vendite, 'tax')),
+      netTotal: money(somma(scelte, 'total')),
+      netTax: money(somma(scelte, 'tax')),
+      netTaxable: money(somma(scelte, 'taxable')),
+    };
+  });
+
+  /** Vero quando il riepilogo sta descrivendo una selezione, non il periodo. */
+  protected readonly riepilogoDiSelezione = computed(() => this.selectionCount() > 0);
 
   /** La casella di testata agisce sulle righe CARICATE (`14` §4.1). */
   protected onToggleSelectAll(checked: boolean): void {

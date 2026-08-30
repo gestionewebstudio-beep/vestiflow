@@ -104,7 +104,11 @@
             -->
             <app-hover-tooltip
               [inline]="true"
-              text="Vendite mai avvenute: si contano per trasparenza, ma non tolgono niente al corrispettivo del periodo."
+              [text]="
+                perSelezione()
+                  ? 'Del periodo, non della selezione: un annullamento è una vendita mai avvenuta, quindi non è una riga del registro e non si può selezionare.'
+                  : 'Vendite mai avvenute: si contano per trasparenza, ma non tolgono niente al corrispettivo del periodo.'
+              "
             />
           </dt>
           <dd class="tabular-nums">{{ summary().cancellationCount }}</dd>

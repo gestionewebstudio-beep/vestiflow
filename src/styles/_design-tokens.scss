@@ -27,7 +27,15 @@
   color-scheme: light;
 
   // Superfici — grigio-blu desaturato (regole-stile-ui §2)
-  --color-bg: #eef0f2;
+  /*
+    ⭐ Schiarito di poco il 30/08/2026 — «pensavo di ridurre leggermente il
+    background grigio e schiarirlo, ma poco». Era `#eef0f2`.
+
+    ⚠️ **Resta un grigio, e deve restarlo**: è ciò che stacca le card bianche
+    dalla pagina. Portato al bianco, i riquadri sparirebbero e la separazione
+    andrebbe cercata nei bordi, che sono tenui apposta.
+  */
+  --color-bg: #f2f4f5;
   --color-surface: #ffffff;
   --color-surface-soft: #f6f7f8;
   --color-surface-hover: #f8faf9;
@@ -866,7 +874,25 @@
       conta: un campo si sbaglia mentre si scrive, un pulsante di barra si preme
       una volta e ha una parola sopra che dice cosa fa. Sotto i 38 non si scende.
     */
-    --control-h-button: 2.375rem; // 38px
+    /*
+      34px — bottoni di barra sul TELEFONO.
+
+      ⭐ Scesi da 38 il 30/08/2026, su richiesta del proprietario messa accanto
+      alla schermata da scrivania: «facciamo la stessa cosa, pulsanti più stretti
+      verticalmente». È il terzo gradino anche qui — 44 → 40 → 38 → 34.
+
+      ⛔ **Qui c'era scritto «sotto i 38 non si scende»**, deciso poche ore prima
+      con il riferimento HTML alla mano. Superato da chi l'aveva deciso: resta
+      valido il PERCHÉ — sono pulsanti **etichettati e distanziati**, non icone
+      nude, e il minimo WCAG 2.2 AA è 24×24 CSS px, che a 34 resta sopra con dieci
+      pixel di margine.
+
+      ⚠️ **Non vale per i CAMPI**, che restano a 44: un campo si sbaglia mentre si
+      scrive, un pulsante di barra si preme una volta e ha una parola sopra che
+      dice cosa fa. È la distinzione che regge tutta questa deroga, e cade se si
+      applica anche a `--control-h-field`.
+    */
+    --control-h-button: 2.125rem;
   }
 }
 

@@ -29,6 +29,16 @@ export class CorrispettiviSummaryComponent {
    * le righe. La distanza fa il lavoro che faceva la riga separata.
    */
   readonly rowCount = input<number | null>(null);
+
+  /*
+    ⭐ **Vero quando i numeri sono quelli di una SELEZIONE**, non del periodo.
+
+    Serve a una voce sola — «Annullamenti» — che resta del periodo anche a
+    selezione attiva, perché gli annullamenti non sono righe del registro e non
+    c'è niente da selezionare. Senza questo segnale il riepilogo mostrerebbe sei
+    numeri della selezione e uno del periodo, senza dirlo.
+  */
+  readonly perSelezione = input(false);
   readonly periodLabel = input.required<string>();
 
   /*
