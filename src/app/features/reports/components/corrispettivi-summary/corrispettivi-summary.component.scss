@@ -167,6 +167,17 @@
 
   @include bp.media-down('lg') {
     flex-direction: column;
+    /*
+      ⛔ **`stretch`, non `baseline`.** In una FILA `baseline` appoggia etichetta e
+      valore sulla stessa linea di scrittura, ed è giusto. In una COLONNA agisce
+      sull'asse orizzontale come `flex-start`: le `dt`/`dd` si stringono al loro
+      contenuto e vanno a SINISTRA, annullando il `text-align: end` qui sopra.
+
+      ⚠️ È lo stesso difetto della cella-card nel motore, un piano più sotto, e
+      si è visto lo stesso giorno: un `align-items` pensato per un asse che
+      continua ad agire quando l'asse cambia.
+    */
+    align-items: stretch;
     gap: 0;
     padding-inline: var(--space-3);
   }
@@ -350,6 +361,25 @@
   scende — a 13px pareggerebbe il corpo della tabella e smetterebbe di leggersi
   come «la risposta».
 */
+/*
+  ⭐ **Sotto `lg` il Corrispettivo prende la riga intera.**
+
+  Con sette voci in due colonne l'ultima resta sola nella colonna di sinistra:
+  il numero che risponde alla domanda del registro finiva spaiato, accanto a un
+  vuoto. A tutta larghezza chiude la fascia come fa in riga sulla scrivania —
+  ultimo, e da solo.
+
+  ⚠️ Vale a qualunque numero di voci: senza rettifiche né annullamenti sono
+  cinque, e la regola non cambia.
+*/
+@include bp.media-down('lg') {
+  .corrispettivi-summary__item--highlight {
+    grid-column: 1 / -1;
+    padding-block-start: var(--space-1);
+    border-block-start: var(--border-width) solid var(--color-border);
+  }
+}
+
 .corrispettivi-summary__item--highlight dd {
   font-size: var(--text-sm);
   font-weight: var(--font-weight-bold);

@@ -195,16 +195,44 @@
   ⚠️ I valori sono quelli del mixin `list-page`, che le pagine usavano: la
   migrazione non deve cambiare la taglia dei campi.
 */
+/*
+  ⭐ **UNA riga anche sul telefono** — deciso dal proprietario il 30/08/2026:
+  «stringere la casella e far diventare unica linea con gli altri tasti».
+
+  ⛔ Qui c'era `flex-direction: column` sotto `md`: ogni controllo prendeva una
+  fascia intera, e su un elenco senza ricerca — il Registro — significava due
+  fasce da 44px per tre pulsanti che ci stavano in una.
+
+  ⚠️ **La RICERCA resta a piena larghezza**, e non è un'eccezione: è un campo di
+  testo, e stretto a un terzo di schermo non si scrive. Prende la riga sua e
+  manda gli altri a capo — è `flex-wrap` che lo fa, non una seconda regola.
+
+  ```text
+  [  Cerca…                                    ]   ← se c'è, riga sua
+  [ Ultimi 30 giorni ] ......... [Colonne] [Filtri]
+  ```
+*/
 .list-page__tools {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 @include bp.media-up('md') {
   .list-page__tools {
-    flex-direction: row;
-    align-items: center;
+    gap: var(--space-3);
+  }
+}
+
+@include bp.media-down('md') {
+  /*
+    Il campo di ricerca occupa la riga: `flex: 1 1 auto` lo lascerebbe stringere
+    accanto al periodo fino a due parole di larghezza.
+  */
+  .list-page__search {
+    flex: 1 1 100%;
   }
 }
 

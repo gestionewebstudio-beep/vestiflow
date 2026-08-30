@@ -441,6 +441,22 @@
     .data-table__row td.data-table__card {
       display: flex;
       flex-direction: column;
+      /*
+        ⛔ **`stretch` NON è il default qui: va dichiarato**, e senza, la card si
+        legge CENTRATA. Misurato il 30/08/2026, secondo giro sullo stesso difetto.
+
+        Il ripiego a etichetta:valore del mixin dà a ogni `td`
+        `align-items: center` — corretto per una griglia a due colonne, dove
+        etichetta e valore si allineano in mezzo. Questa cella lo ereditava, e in
+        una colonna flessibile `center` allinea sull'asse ORIZZONTALE: le tre
+        fasce della card, larghe quanto il loro contenuto, finivano al centro
+        invece di occupare la riga.
+
+        ⚠️ **È la ragione per cui `flex: 1` sull'identità non bastava**: un figlio
+        centrato non riceve la larghezza da distribuire, quindi non c'era niente
+        da spingere a destra e il numero restava incollato al tipo.
+      */
+      align-items: stretch;
       gap: var(--space-1);
       padding: 0;
       border: 0;

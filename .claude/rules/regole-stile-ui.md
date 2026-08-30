@@ -362,6 +362,63 @@ migrazione. Le cose `position: fixed` — dialoghi, pannelli laterali — vanno
 oggi in `[overlays]`, ⏸ casella provvisoria. La guardia è
 `npm run check:list-page-slots`.
 
+### ⛔ `align-items` sopravvive al cambio d'asse, e allinea dalla parte sbagliata _(30/08/2026)_
+
+Trovato **due volte nello stesso pomeriggio**, a due piani diversi, e la seconda solo perché
+la prima aveva insegnato a cercarlo.
+
+> **Un `align-items` scritto per una FILA continua ad agire quando il contenitore diventa
+> una COLONNA — ma su un asse diverso, e quindi con un effetto diverso.**
+
+| Valore     | in fila (`row`)                   | in colonna (`column`)                                  |
+| ---------- | --------------------------------- | ------------------------------------------------------ |
+| `center`   | centra in verticale               | ⛔ **centra in ORIZZONTALE**                           |
+| `baseline` | appoggia sulla linea di scrittura | ⛔ **si comporta come `flex-start`: tutto a sinistra** |
+
+**Le due volte:**
+
+- la **cella che ospita la card** ereditava `align-items: center` dal ripiego a
+  etichetta:valore — corretto per una griglia a due colonne — e in colonna centrava
+  orizzontalmente le tre fasce: la card si leggeva **centrata**;
+- la **fascia totali sotto `lg`** aveva `align-items: baseline` dalla forma in fila, e in
+  colonna schiacciava `dt` e `dd` a sinistra, **annullando il `text-align: end`**.
+
+⭐ **In una colonna che deve occupare la riga si dichiara `align-items: stretch`**, sempre,
+anche quando sembra il default: non lo è mai, se il contenitore lo eredita da altrove.
+
+⚠️ **E `flex: 1` su un figlio non basta a rimediare**: un figlio non stirato non riceve
+larghezza da distribuire, quindi non c'è niente da spingere all'estremo opposto. È la
+ragione per cui, sulla card, il numero restava incollato al tipo invece di ancorarsi a
+destra.
+
+⛔ **Nessuno dei due falliva.** Build, lint e 2.986 test verdi; li ha visti il proprietario
+a schermo, uno dopo l'altro.
+
+### ⭐ La barra strumenti sta su UNA riga anche sul telefono _(30/08/2026)_
+
+_«Stringere la casella e far diventare unica linea con gli altri tasti.»_
+
+⛔ Qui la barra era `flex-direction: column` sotto `md`: **ogni controllo prendeva una
+fascia intera**. Su un elenco senza ricerca — il Registro — erano due fasce da 44px per
+tre pulsanti che ci stavano in una.
+
+```text
+[  Cerca…                                    ]   ← se c'è, riga sua
+[ Ultimi 30 giorni ] ......... [Colonne] [Filtri]
+```
+
+⚠️ **La ricerca resta a piena larghezza**, e non è un'eccezione: è un campo di testo, e
+stretto a un terzo di schermo non si scrive. Prende la riga sua e manda gli altri a capo —
+lo fa `flex-wrap`, non una seconda regola.
+
+⭐ **E il prefisso del chip si spegne dal CONTENITORE**, non con un `::ng-deep`:
+`--select-menu-chip-label-display: none` toglie il «Periodo:» davanti al valore, ed è
+quello che fa stare la casella in riga con gli altri.
+
+⛔ **Non si spegne globalmente sotto `lg`**: dentro il pannello filtri il prefisso è
+l'unica cosa che dice **di quale filtro** si tratti — lì «Shopify online» da solo non si
+capisce. Lo decide chi ospita il controllo.
+
 ### Su mobile si riduce il NUMERO dei comandi, non la loro taglia _(18/08/2026)_
 
 Il minimo tappabile di 44px non si tocca: i token lo impongono da soli sotto
