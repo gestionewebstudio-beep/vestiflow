@@ -2,7 +2,9 @@
   class="doc-list"
   [pageTitle]="pageTitle()"
   [showBack]="true"
-  [count]="loading() ? undefined : meta().total + (meta().total === 1 ? ' documento' : ' documenti')"
+  [count]="
+    loading() ? undefined : meta().total + (meta().total === 1 ? ' documento' : ' documenti')
+  "
   [loading]="loading()"
   [error]="error()?.message ?? null"
   [isEmpty]="isEmpty()"
@@ -21,11 +23,11 @@
   (retry)="reload()"
 >
   <div warnings>
-  @if (isPendingInvoiceView()) {
-    <p class="doc-list__banner doc-list__banner--highlight" role="status">
-      DDT vendita confermati senza fattura collegata.
-    </p>
-  }
+    @if (isPendingInvoiceView()) {
+      <p class="doc-list__banner doc-list__banner--highlight" role="status">
+        DDT vendita confermati senza fattura collegata.
+      </p>
+    }
 
     <!--
       ⚠️ L'errore di AZIONE non è l'errore di caricamento: quello lo rende il
@@ -362,9 +364,7 @@
     }
 
     @if (hasActiveFilters()) {
-      <button type="button" class="doc-list__clear" (click)="resetFilters()">
-        Azzera filtri
-      </button>
+      <button type="button" class="doc-list__clear" (click)="resetFilters()">Azzera filtri</button>
     }
   </div>
 
@@ -399,25 +399,15 @@
   </div>
 </app-list-page>
 
-<!-- Eliminazione a due conferme: 1) avviso su righe/giacenze, 2) conferma finale. -->
-<app-confirm-dialog
+<!--
+  ⭐ **La sequenza a due conferme è del componente condiviso.** Il primo
+  passaggio dice cosa succede — «le giacenze caricate verranno ripristinate» — e
+  quella frase resta di questa pagina, perché dipende dal tipo di documento.
+-->
+<app-delete-confirm
   [(open)]="deleteWarnOpen"
   [title]="deleteWarnTitle()"
-  [message]="deleteWarnMessage()"
-  confirmLabel="Continua"
-  cancelLabel="Annulla"
-  [danger]="true"
-  (confirmed)="onDeleteWarnConfirm()"
-  (dismissed)="onDeleteCancel()"
-/>
-
-<app-confirm-dialog
-  [(open)]="deleteConfirmOpen"
-  title="Confermi l'eliminazione?"
-  message="L'operazione non è reversibile."
-  confirmLabel="Elimina definitivamente"
-  cancelLabel="Annulla"
-  [danger]="true"
+  [consequence]="deleteWarnMessage()"
   [busy]="deleteBusy()"
   (confirmed)="onDeleteConfirm()"
   (dismissed)="onDeleteCancel()"

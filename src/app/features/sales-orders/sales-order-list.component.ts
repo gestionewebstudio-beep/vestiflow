@@ -43,6 +43,7 @@ import { OperationalLocationsService } from '@domain/inventory/services/operatio
 import { CustomerService } from '@domain/customers/services/customer.service';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
@@ -136,6 +137,7 @@ type SalesListState =
     ListPageComponent,
     ButtonComponent,
     ConfirmDialogComponent,
+    DeleteConfirmComponent,
     DateInputComponent,
     ErrorStateComponent,
     ListActionsBarComponent,
@@ -552,7 +554,6 @@ export class SalesOrderListComponent {
   );
   protected readonly pendingDeleteOrders = signal<readonly SalesOrder[]>([]);
   protected readonly deleteWarnOpen = signal(false);
-  protected readonly deleteConfirmOpen = signal(false);
   protected readonly deleteBusy = signal(false);
   protected readonly actionError = signal<AppError | null>(null);
   /** Ordine in stampa PDF (blocca doppio click sull'azione di riga). */
@@ -1072,12 +1073,6 @@ export class SalesOrderListComponent {
     this.deleteWarnOpen.set(true);
   }
 
-  /** 1° modale (avviso) confermato → apre il 2° modale (conferma finale). */
-  protected onDeleteWarnConfirm(): void {
-    this.deleteWarnOpen.set(false);
-    this.deleteConfirmOpen.set(true);
-  }
-
   /** Annulla/ESC su uno dei due modali: azzera la coda di eliminazione. */
   protected onDeleteCancel(): void {
     if (this.deleteBusy()) {
@@ -1094,7 +1089,7 @@ export class SalesOrderListComponent {
   protected onDeleteConfirm(): void {
     const orders = this.pendingDeleteOrders();
     if (orders.length === 0 || this.deleteBusy()) {
-      this.deleteConfirmOpen.set(false);
+      this.deleteWarnOpen.set(false);
       return;
     }
     this.deleteBusy.set(true);
@@ -1114,7 +1109,7 @@ export class SalesOrderListComponent {
       )
       .subscribe((results) => {
         this.deleteBusy.set(false);
-        this.deleteConfirmOpen.set(false);
+        this.deleteWarnOpen.set(false);
         this.pendingDeleteOrders.set([]);
         const deletedIds = new Set(results.filter((r) => r.ok).map((r) => r.order.id));
         if (deletedIds.size > 0) {

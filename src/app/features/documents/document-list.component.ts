@@ -55,7 +55,7 @@ import {
   resolveMovementPeriodRange,
 } from '@domain/inventory/models/movement-period.util';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
-import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
@@ -203,7 +203,7 @@ type DeleteResult =
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ListPageComponent,
-    ConfirmDialogComponent,
+    DeleteConfirmComponent,
     DateInputComponent,
     ErrorStateComponent,
     ListActionsBarComponent,
@@ -1029,7 +1029,6 @@ export class DocumentListComponent {
   // selezione): entrambe passano per i due modali consecutivi.
   protected readonly pendingDeleteDocs = signal<readonly DocumentRecord[]>([]);
   protected readonly deleteWarnOpen = signal(false);
-  protected readonly deleteConfirmOpen = signal(false);
   protected readonly deleteBusy = signal(false);
 
   // ── Selezione e azioni contestuali (`14` §5, parte D) ──────────────────────
@@ -1797,12 +1796,6 @@ export class DocumentListComponent {
     this.deleteWarnOpen.set(true);
   }
 
-  /** 1° modale (avviso) confermato → apre il 2° modale (conferma finale). */
-  protected onDeleteWarnConfirm(): void {
-    this.deleteWarnOpen.set(false);
-    this.deleteConfirmOpen.set(true);
-  }
-
   /** Annulla/ESC su uno dei due modali: azzera la coda di eliminazione. */
   protected onDeleteCancel(): void {
     if (this.deleteBusy()) {
@@ -1819,7 +1812,7 @@ export class DocumentListComponent {
   protected onDeleteConfirm(): void {
     const docs = this.pendingDeleteDocs();
     if (docs.length === 0 || this.deleteBusy()) {
-      this.deleteConfirmOpen.set(false);
+      this.deleteWarnOpen.set(false);
       return;
     }
     this.deleteBusy.set(true);
@@ -1839,7 +1832,7 @@ export class DocumentListComponent {
       )
       .subscribe((results) => {
         this.deleteBusy.set(false);
-        this.deleteConfirmOpen.set(false);
+        this.deleteWarnOpen.set(false);
         this.pendingDeleteDocs.set([]);
         const deletedIds = new Set(results.filter((r) => r.ok).map((r) => r.doc.id));
         if (deletedIds.size > 0) {

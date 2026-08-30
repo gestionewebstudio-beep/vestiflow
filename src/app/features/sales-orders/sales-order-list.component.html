@@ -21,36 +21,36 @@
   (retry)="reload()"
 >
   <div warnings>
-  @if (shopifySyncError(); as message) {
-    <p class="sales-list__shopify-error" role="alert">{{ message }}</p>
-  }
+    @if (shopifySyncError(); as message) {
+      <p class="sales-list__shopify-error" role="alert">{{ message }}</p>
+    }
 
-  @if (shopifyFeedback(); as feedback) {
-    <app-shopify-sync-feedback
-      [message]="feedback.message"
-      [tone]="feedback.tone"
-      (dismissed)="dismissShopifyFeedback()"
-    />
-  }
+    @if (shopifyFeedback(); as feedback) {
+      <app-shopify-sync-feedback
+        [message]="feedback.message"
+        [tone]="feedback.tone"
+        (dismissed)="dismissShopifyFeedback()"
+      />
+    }
 
-  @if (canExportData()) {
-    <app-report-corrispettivi-export
-      title="Corrispettivi Shopify"
-      subtitle="Esporta l'elenco ordini Shopify del periodo selezionato, con importi reali, per il commercialista."
-      exportButtonLabel="Esporta corrispettivi Shopify"
-      [showChannelFilter]="false"
-      [period]="corrispettiviDisplayPeriod()"
-      [dateFrom]="corrispettiviDateFromDraft()"
-      [dateTo]="corrispettiviDateToDraft()"
-      [periodLabel]="corrispettiviPeriodLabel()"
-      channelHint="Ordini sincronizzati da Shopify con importi e date corretti. Online e POS Shopify sono inclusi."
-      [exporting]="exportingCorrispettivi()"
-      (periodChange)="onCorrispettiviPeriodChange($event)"
-      (dateFromChange)="onCorrispettiviDateFromChange($event)"
-      (dateToChange)="onCorrispettiviDateToChange($event)"
-      (exportClick)="exportCorrispettiviShopify()"
-    />
-  }
+    @if (canExportData()) {
+      <app-report-corrispettivi-export
+        title="Corrispettivi Shopify"
+        subtitle="Esporta l'elenco ordini Shopify del periodo selezionato, con importi reali, per il commercialista."
+        exportButtonLabel="Esporta corrispettivi Shopify"
+        [showChannelFilter]="false"
+        [period]="corrispettiviDisplayPeriod()"
+        [dateFrom]="corrispettiviDateFromDraft()"
+        [dateTo]="corrispettiviDateToDraft()"
+        [periodLabel]="corrispettiviPeriodLabel()"
+        channelHint="Ordini sincronizzati da Shopify con importi e date corretti. Online e POS Shopify sono inclusi."
+        [exporting]="exportingCorrispettivi()"
+        (periodChange)="onCorrispettiviPeriodChange($event)"
+        (dateFromChange)="onCorrispettiviDateFromChange($event)"
+        (dateToChange)="onCorrispettiviDateToChange($event)"
+        (exportClick)="exportCorrispettiviShopify()"
+      />
+    }
 
     <!--
       ⚠️ L'errore di AZIONE non è l'errore di caricamento: quello lo rende il
@@ -245,22 +245,15 @@
   ⚠️ I dialoghi stanno FUORI dal telaio: sono `position: fixed`, non occupano
   nessuna zona. Dentro, senza slot, Angular li scarterebbe in silenzio.
 -->
-<!-- Eliminazione a due conferme (avviso + conferma finale), come Arrivi merce. -->
-<app-confirm-dialog
+<!--
+  ⭐ **La sequenza a due conferme è del componente condiviso**, non più scritta
+  qui. Era replicata a mano, e la divergenza era già cominciata: il secondo
+  pulsante diceva «Elimina» mentre su Documenti diceva «Elimina definitivamente».
+-->
+<app-delete-confirm
   [(open)]="deleteWarnOpen"
   [title]="deleteWarnTitle()"
-  [message]="deleteWarnMessage()"
-  confirmLabel="Continua"
-  [danger]="true"
-  (confirmed)="onDeleteWarnConfirm()"
-  (dismissed)="onDeleteCancel()"
-/>
-<app-confirm-dialog
-  [(open)]="deleteConfirmOpen"
-  [title]="deleteWarnTitle()"
-  message="Conferma definitiva: l'operazione non è reversibile."
-  confirmLabel="Elimina"
-  [danger]="true"
+  [consequence]="deleteWarnMessage()"
   [busy]="deleteBusy()"
   (confirmed)="onDeleteConfirm()"
   (dismissed)="onDeleteCancel()"
@@ -276,7 +269,6 @@
   (confirmed)="onExternalWarnConfirm()"
   (dismissed)="onExternalWarnCancel()"
 />
-
 
 <!-- Duplica: scelta del cliente per il nuovo ordine manuale. -->
 @if (duplicateModalOpen()) {
