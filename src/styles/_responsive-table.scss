@@ -223,14 +223,38 @@
       display: none;
     }
 
+    /*
+      ⭐ **Il respiro della card è ASIMMETRICO** — deciso dal proprietario il
+      30/08/2026, indicando a schermo lo spazio sopra la prima riga e sotto
+      l'ultima: «possiamo cercare di recuperare altro spazio da questo qui
+      interno della card e un po' da quello esterno».
+
+      ```text
+      verticale     8px   ← si stringe: e' spazio ripetuto a ogni card
+      orizzontale  12px   ← resta: e' lo stacco dal bordo dello schermo
+      fra card      6px   ← si stringe
+      ```
+
+      ⚠️ **Verticale e orizzontale non valgono uguale**, ed è la ragione per cui
+      il padding smette di essere un valore solo. Su un telefono lo schermo è
+      alto e stretto: i 4px verticali risparmiati si moltiplicano per il numero
+      di card — venticinque, con il tetto di `regole-stile-ui` — mentre i 4
+      orizzontali si pagherebbero una volta sola e avvicinerebbero il testo al
+      bordo, dove si legge peggio.
+
+      ⛔ **Sotto gli 8px non si scende.** La regola di `regole-stile-ui` §4 dice
+      14px, ed erano già 12: il margine di manovra è finito. Ulteriore spazio va
+      cercato nel NUMERO di righe a schermo (il tetto a 25), non nel loro
+      respiro.
+    */
     .#{$block} tbody tr,
     .#{$block}__row {
       display: block;
       inline-size: 100%;
       max-inline-size: 100%;
       box-sizing: border-box;
-      margin-block-end: var(--space-2);
-      padding: var(--space-3);
+      margin-block-end: var(--space-15);
+      padding: var(--space-2) var(--space-3);
       background-color: var(--color-surface);
       border: var(--border-width) solid var(--color-border);
       border-radius: var(--radius-md);

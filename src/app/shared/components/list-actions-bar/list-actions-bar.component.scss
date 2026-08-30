@@ -34,6 +34,18 @@
   --field-height: var(--control-h-button);
   --button-font-size: var(--text-xs);
   --field-font-size: var(--text-xs);
+
+  /*
+    ⭐ **Sul telefono il gap fra le file di comandi è 4px** (30/08/2026). Quando
+    i comandi vanno a capo — e su un telefono ci vanno sempre — ogni fila in più
+    costava 8px di vuoto oltre ai 44 del pulsante.
+
+    ⚠️ Il gap ORIZZONTALE resta più largo del verticale: i pulsanti affiancati
+    vanno distinti col dito, quelli sovrapposti li distingue già la riga.
+  */
+  @include bp.media-down('md') {
+    gap: var(--space-1) var(--space-2);
+  }
 }
 
 /*
@@ -85,7 +97,6 @@
     border-inline-end: 0;
   }
 }
-
 
 /*
   ⚠️ **Il tooltip che avvolge un comando non deve prendere la riga.**

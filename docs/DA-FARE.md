@@ -116,6 +116,41 @@ passa da 100 chiamate a 2.
 
 Misure e tabella in `14` §0.2.
 
+## ⛔ LA VIRTUALIZZAZIONE È DIVENTATA UN PREREQUISITO — 30/08/2026
+
+Era il **punto 2** di un piano in tre passi, ed era descritta come un'ottimizzazione. Non
+lo è più.
+
+_Decisione del proprietario, lo stesso giorno:_
+
+> «Non deve esserci nessun limite di visualizzazione. Se il cliente ha il filtro di 30
+> giorni, deve sapere vedere il totale di quel periodo, anche se si tratta di vedere mille
+> ordini. **Questo vale ovunque.**»
+
+⭐ **Il tetto di 25 righe su schermo compatto è stato tolto** dal Registro Corrispettivi, e
+la regola vale per ogni elenco. Il problema che il tetto risolveva — arrivare ai totali
+senza scorrere centinaia di card — lo risolve il **piede ancorato** (`regole-stile-ui`).
+
+⛔ **Ma senza tetto, mille righe sono mille card nel DOM**, e il motore tabella non
+virtualizza:
+
+```text
+righe    nodi DOM (card mobile, ~6 nodi ciascuna)
+   25         150
+  300       1.800
+1.000       6.000
+5.000      30.000     ⛔ qui il primo disegno costa secondi
+```
+
+⚠️ **Non è più «si può fare dopo»**: la decisione di mostrare tutto è già presa e già
+applicata, quindi l'unica cosa che tiene in piedi il caso «mille ordini in 30 giorni» è la
+virtualizzazione. Va misurata e fatta.
+
+⭐ **E vale per la CARD, non solo per la tabella.** La tecnica descritta più sotto —
+altezza di riga nota e uguale — sulla tabella funziona; sulla card no, perché le card hanno
+altezze diverse. Serve una misura per card, o un'altezza dichiarata. È il pezzo che manca
+al piano.
+
 ## ⭐ TOGLIERE L'IMPAGINAZIONE dalle anagrafiche — deciso il 30/08/2026
 
 _Il proprietario: «mettere un tetto alla visualizzazione di clienti e prodotti rende

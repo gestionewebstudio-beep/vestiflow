@@ -1,14 +1,5 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-  input,
-  output,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
-import { ViewportService } from '@core/services/viewport.service';
 import { formatDate } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
@@ -137,54 +128,30 @@ export class CorrispettiviOrdersTableComponent {
     this.onSort(nextSort(this.sort(), columnId));
   }
 
-  // ── Troncamento su schermo compatto ───────────────────────────────────────
+  /*
+    ⛔ **QUI C'ERA IL TRONCAMENTO A 25 RIGHE, ed è stato tolto** — deciso dal
+    proprietario il 30/08/2026:
 
-  private readonly viewport = inject(ViewportService);
+    > «Non deve esserci nessun limite di visualizzazione. Se il cliente ha il
+    > filtro di 30 giorni, deve sapere vedere il totale di quel periodo, anche
+    > se si tratta di vedere mille ordini. **Questo vale ovunque.**»
 
-  /**
-   * Quante righe si mostrano su schermo compatto prima di fermarsi.
-   *
-   * ⚠️ **È un limite di VISUALIZZAZIONE, non di dati.** I totali — riepilogo
-   * del periodo, subtotali di giornata, conteggio righe — arrivano tutti
-   * dall'API e non si ricalcolano da ciò che è a schermo: troncare l'elenco
-   * non può spostarli di un centesimo. È la ragione per cui questo taglio è
-   * ammissibile in un registro fiscale, dove nascondere un dato dal conteggio
-   * sarebbe il difetto peggiore possibile.
-   *
-   * Il motivo del taglio è che il riepilogo sta in FONDO: con un mese di
-   * vendite su un telefono, arrivarci significa scorrere centinaia di card.
-   */
-  private static readonly RIGHE_INIZIALI_COMPATTO = 25;
+    ⚠️ **Il motivo scritto qui era esatto ma non bastava.** Diceva — e restava
+    vero — che i totali arrivano dall'API e coprono l'intero periodo, quindi
+    troncare l'elenco non li spostava di un centesimo. Il difetto era un altro:
+    **chi guarda non può saperlo.** Un registro che mostra una parte delle righe
+    non è verificabile, e in un registro fiscale la verificabilità è la funzione,
+    non un di più.
 
-  private readonly _tutteLeRighe = signal(false);
+    ⭐ **Il problema che il troncamento risolveva resta**, ed è risolto meglio:
+    il riepilogo e i comandi sono ANCORATI in fondo allo schermo sotto `lg`
+    (`list-page.component.scss`). Non si scorre per vederli — sono sempre lì —
+    e le righe si scorrono tutte, quante sono.
 
-  protected readonly troncato = computed(
-    () =>
-      this.viewport.compact() &&
-      !this._tutteLeRighe() &&
-      this.rows().length > CorrispettiviOrdersTableComponent.RIGHE_INIZIALI_COMPATTO,
-  );
-
-  /** Quante righe restano fuori: il pulsante le dichiara invece di alludervi. */
-  protected readonly righeNascoste = computed(() =>
-    this.troncato()
-      ? this.rows().length - CorrispettiviOrdersTableComponent.RIGHE_INIZIALI_COMPATTO
-      : 0,
-  );
-
-  /**
-   * Le righe effettivamente disegnate. Su desktop è sempre l'elenco intero: lì
-   * la tabella è densa e scorrere trecento righe costa un gesto, non un minuto.
-   */
-  protected readonly righeVisibili = computed(() =>
-    this.troncato()
-      ? this.rows().slice(0, CorrispettiviOrdersTableComponent.RIGHE_INIZIALI_COMPATTO)
-      : this.rows(),
-  );
-
-  protected mostraTutte(): void {
-    this._tutteLeRighe.set(true);
-  }
+    ⚠️ **Con mille righe questo diventa mille card nel DOM**, ed è la ragione per
+    cui la virtualizzazione del motore tabella smette di essere un'ottimizzazione
+    e diventa un prerequisito (`docs/DA-FARE.md`).
+  */
 
   // ── Le sezioni: il raggruppamento per giornata, nella forma del motore ────
 
@@ -200,12 +167,12 @@ export class CorrispettiviOrdersTableComponent {
    * ordinato, quindi qui si taglia soltanto. Righe della stessa giornata sono
    * già contigue.
    *
-   * ⚠️ **I subtotali restano quelli dell'API**, anche a elenco troncato: sono
+   * ⚠️ **I subtotali restano quelli dell'API**: sono
    * addendi del totale del periodo, non somme di ciò che si vede.
    */
   protected readonly sections = computed<readonly DataTableSection<CorrispettiviRegisterRow>[]>(
     () => {
-      const righe = this.righeVisibili();
+      const righe = this.rows();
       if (!this.raggruppaPerGiorno()) {
         return [{ id: 'tutte', rows: righe }];
       }

@@ -177,10 +177,28 @@
   un elemento transitorio (`14` §11.4). Dargli una regione strutturale
   istituzionalizzerebbe qualcosa che deve sparire.
 -->
-<ng-content select="[summary]" />
+<!--
+  ⭐ **IL PIEDE: totali e comandi, ANCORATI in fondo sotto `lg`** — deciso dal
+  proprietario il 30/08/2026, insieme alla rimozione del tetto di righe:
 
-<!-- La RIGA FUNZIONI di `14` §0: ci va `app-list-actions-bar`. -->
-<ng-content select="[listActions]" />
+  > «Non deve esserci nessun limite di visualizzazione… una soluzione è rendere
+  > il blocco sotto fisso.»
+
+  ⚠️ **Il contenitore serve perché le due zone si ancorano INSIEME.** Ancorate
+  una per una servirebbe dare alla seconda uno scostamento pari all'altezza
+  della prima — un numero da tenere allineato a mano, che si sfalsa appena il
+  riepilogo va a capo. In un blocco solo lo fa il flusso.
+
+  ⚠️ **Su scrivania il piede NON esiste**: `display: contents` lo dissolve, e le
+  due zone restano figlie dirette del telaio esattamente come prima. Nessuna
+  pagina cambia sopra `lg`.
+-->
+<div class="list-page__foot">
+  <ng-content select="[summary]" />
+
+  <!-- La RIGA FUNZIONI di `14` §0: ci va `app-list-actions-bar`. -->
+  <ng-content select="[listActions]" />
+</div>
 
 <!--
   ⏸ **CASELLA PROVVISORIA — il posto giusto è da decidere** (proprietario,

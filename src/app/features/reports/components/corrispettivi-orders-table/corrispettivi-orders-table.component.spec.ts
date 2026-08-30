@@ -130,12 +130,22 @@ describe('riga cliccabile del Registro', () => {
   });
 
   /**
-   * ⚠️ Il troncamento a 25 righe è una scelta di VISUALIZZAZIONE su schermo
-   * compatto. In un registro fiscale il rischio è che diventi un troncamento
-   * dei dati: questo test inchioda il confine — su schermo normale non si
-   * tronca niente, e le righe consegnate restano tutte a schermo.
+   * ⛔ **NESSUN TETTO DI RIGHE, a nessuna larghezza** — deciso dal proprietario
+   * il 30/08/2026:
+   *
+   * > «Non deve esserci nessun limite di visualizzazione. Se il cliente ha il
+   * > filtro di 30 giorni, deve sapere vedere il totale di quel periodo, anche
+   * > se si tratta di vedere mille ordini. **Questo vale ovunque.**»
+   *
+   * ⚠️ **Qui c'era un troncamento a 25 righe su schermo compatto**, e questo
+   * test presidiava il suo confine: che su schermo largo non tagliasse. Il
+   * confine non esiste più, e il test è diventato più forte — **nessuna riga
+   * consegnata resta fuori, mai.**
+   *
+   * ⭐ Il problema che il troncamento risolveva — arrivare ai totali senza
+   * scorrere centinaia di card — è risolto dal PIEDE ANCORATO del telaio.
    */
-  it("su schermo non compatto l'elenco non si tronca mai", async () => {
+  it('rende TUTTE le righe che riceve, senza tetto', async () => {
     const molte = Array.from({ length: 60 }, (_, i) => ({
       ...riga(),
       rowId: `r-${i}`,
@@ -143,13 +153,8 @@ describe('riga cliccabile del Registro', () => {
     }));
     await montaTabella(molte);
 
-    // Nessun invito ad aprire il resto: non c'è un resto.
+    // ⛔ Nessun invito ad aprire «il resto»: non esiste un resto.
     expect(screen.queryByText(/Mostra le altre/)).toBeNull();
-    // E le righe disegnate sono tutte quelle ricevute.
-    //
-    // ⚠️ La classe è `data-table__row` dal 30/08/2026: le righe le disegna il
-    //    motore comune. Il comportamento non è cambiato — è cambiato chi lo
-    //    rende, ed è la ragione per cui questo test è stato scritto sul DOM.
     expect(document.querySelectorAll('.data-table__row').length).toBe(60);
   });
 

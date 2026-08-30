@@ -31,6 +31,74 @@
   min-inline-size: 0;
 }
 
+/*
+  ⭐ **Sul telefono il passo fra le zone è 8px, non 20** — deciso dal
+  proprietario il 30/08/2026: «altro spazio dovremmo recuperarlo dai pulsanti in
+  basso che occupano molto spazio verticale tra padding e margini esterni».
+
+  ⚠️ **Non erano i pulsanti: erano i VUOTI intorno.** Misurato — dalla fine del
+  riepilogo al bordo dello schermo c'erano 92px, di cui 44 di pulsante (il
+  minimo tappabile, intoccabile) e 48 di aria. Stringendo il passo del telaio e
+  il gap interno della barra si scende a 64px: **28px recuperati**, mezza card.
+
+  ⛔ **I 44px dei pulsanti non si toccano** — è il minimo tappabile di
+  `regole-stile-ui` §4, e stringerli è il modo sbagliato di fare spazio: «su
+  mobile si riduce il NUMERO dei comandi, non la loro taglia».
+
+  ⚠️ Vale per **tutte** le zone, non solo il piede: su uno schermo da 640px un
+  passo da 20px fra sei zone è un decimo dello schermo speso in vuoti.
+*/
+@include bp.media-down('md') {
+  :host {
+    gap: var(--space-2);
+  }
+}
+
+/*
+  ⭐ **IL PIEDE — totali e comandi.**
+
+  Su scrivania non esiste: `display: contents` lo dissolve e le due zone tornano
+  figlie dirette del telaio, con il passo di sempre.
+*/
+.list-page__foot {
+  display: contents;
+}
+
+@include bp.media-down('lg') {
+  /*
+    ⭐ **Sotto `lg` il piede si ANCORA in fondo allo schermo.**
+
+    È ciò che ha reso inutile il tetto di 25 righe: i totali e i comandi non si
+    raggiungono più scorrendo — sono sempre lì — quindi l'elenco può essere
+    lungo quanto il periodo richiede. Un registro che mostra una parte delle
+    righe non è verificabile, e la verificabilità è la sua funzione.
+
+    ⚠️ **`sticky`, non `fixed`.** Fisso, il piede coprirebbe l'ultima card e
+    resterebbe attaccato anche dove non serve — sopra il pannello filtri aperto,
+    per esempio. Appiccicato scorre col contenuto finché c'è contenuto sotto, e
+    si ferma al bordo quando non ce n'è più.
+
+    ⚠️ **Il fondo è OPACO**, e non velato: sotto ci scorrono card con numeri, e a
+    tinta velata i due testi si leggerebbero sovrapposti. È la stessa scelta già
+    presa per la banda note/totali delle maschere documento
+    (`regole-stile-ui` §5).
+
+    ⚠️ **`env(safe-area-inset-bottom)`** solo per non finire sotto la barra di
+    sistema di iOS e Android, mai come spaziatura estetica.
+  */
+  .list-page__foot {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    position: sticky;
+    inset-block-end: 0;
+    z-index: var(--z-sticky);
+    margin-block-start: auto;
+    padding-block-end: env(safe-area-inset-bottom);
+    background-color: var(--color-bg);
+  }
+}
+
 :host > * {
   flex: none;
 }

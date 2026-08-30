@@ -176,13 +176,35 @@ Su phone il contenuto vale più dell'aria ai lati: su uno schermo da 375px i mar
 
 **Phone (≤ 768px)**
 
-| Uso                              | Valore                                                                    |
-| -------------------------------- | ------------------------------------------------------------------------- |
-| Margine laterale contenitore     | 8px                                                                       |
-| Gap verticale tra card e sezioni | 8px                                                                       |
-| Padding interno card             | 14px su tutti i lati                                                      |
-| Ombra card                       | rimossa (`box-shadow: none`)                                              |
-| Bordo card                       | 1px tenue (`--color-border`): la separazione la dà il bianco su bg pagina |
+| Uso                              | Valore                        |
+| -------------------------------- | ----------------------------- |
+| Margine laterale contenitore     | 8px                           |
+| **Passo fra le zone del telaio** | **8px** sotto `md` (era 20px) |
+| **Passo fra due card**           | **6px** (`--space-15`)        |
+| **Padding card — verticale**     | **8px**                       |
+| **Padding card — orizzontale**   | **12px**                      |
+| **Gap verticale barra comandi**  | **4px**                       |
+| Ombra card                       | rimossa (`box-shadow: none`)  |
+
+⭐ **Il respiro della card è ASIMMETRICO** — deciso il 30/08/2026. Verticale e orizzontale
+non valgono uguale: su un telefono lo schermo è alto e stretto, quindi i pixel verticali si
+moltiplicano per il numero di card mentre gli orizzontali si pagano una volta sola e
+avvicinano il testo al bordo, dove si legge peggio.
+
+⛔ **Qui c'era «padding interno card 14px su tutti i lati».** Erano già 12 nel codice, e la
+misura ha mostrato dove finiva davvero lo spazio: **dalla fine del riepilogo al bordo dello
+schermo c'erano 92px, di cui 44 di pulsante e 48 di aria.** Non erano i controlli: erano i
+vuoti intorno.
+
+```text
+altezza di una card       81 px  →  71 px
+25 card                 2,03k px → 1,78k px     250 px
+dal riepilogo al bordo     92 px →    64 px      28 px
+```
+
+⚠️ **Sotto gli 8px verticali non si scende**: oltre lì lo spazio va cercato nel NUMERO di
+contenuti a schermo, non nel loro respiro.
+| Bordo card | 1px tenue (`--color-border`): la separazione la dà il bianco su bg pagina |
 
 **Tablet (769–1024px)**: valori intermedi (margine ~12px, gap ~10px). La compressione spinta serve solo al phone.
 
@@ -192,23 +214,34 @@ Le card restano contenitori (superficie bianca + radius), ma occupano quasi tutt
 
 **44px** ovunque sia un elemento tappabile su mobile. Su desktop si può scendere a 32–34px per bottoni densi e a 29–30px per input in griglia densa.
 
+⚠️ **Una sola eccezione, e vale solo per i pulsanti di BARRA**: `--control-h-button` scende
+a **40px** sotto `md` (deciso il 30/08/2026). WCAG 2.2 chiede 24×24 CSS px al livello AA —
+i 44 sono la raccomandazione di Apple e il livello AAA — quindi a 40px il bersaglio resta
+ampiamente sopra il minimo richiesto, e sono comunque pulsanti **etichettati e
+distanziati**, non icone nude.
+
+⛔ **Campi e controlli di form restano a 44**, e la distinzione è quella che conta: un campo
+si sbaglia mentre si scrive, un pulsante di barra si preme una volta e ha una parola sopra
+che dice cosa fa. **Sotto i 40 non si scende.**
+
 ### Altezze dei controlli — token
 
 L'altezza di un controllo è una decisione di **sistema**, non di singola maschera:
 vive nei token e non va reimpostata nel foglio di un componente.
 
-| Uso                              | Token                | Desktop | Mobile |
-| -------------------------------- | -------------------- | ------- | ------ |
-| Bottoni e select generici        | `--btn-min-height`   | 34px    | 44px   |
-| Input generici                   | `--field-height`     | 34px    | 44px   |
-| Controlli di testata documento   | `--control-h-field`  | 29px    | 44px   |
-| Bottoni barra strumenti / azioni | `--control-h-button` | 31px    | 44px   |
-| Input dentro le righe            | `--control-h-cell`   | 24px    | 24px   |
-| Riga tabella                     | `--table-row-h`      | 30px    | —      |
-| Intestazione tabella             | `--table-head-h`     | 32px    | —      |
+| Uso                              | Token                | Desktop | Mobile   |
+| -------------------------------- | -------------------- | ------- | -------- |
+| Bottoni e select generici        | `--btn-min-height`   | 34px    | 44px     |
+| Input generici                   | `--field-height`     | 34px    | 44px     |
+| Controlli di testata documento   | `--control-h-field`  | 29px    | 44px     |
+| Bottoni barra strumenti / azioni | `--control-h-button` | 31px    | **40px** |
+| Input dentro le righe            | `--control-h-cell`   | 24px    | 24px     |
+| Riga tabella                     | `--table-row-h`      | 30px    | —        |
+| Intestazione tabella             | `--table-head-h`     | 32px    | —        |
 
 Il passaggio a 44px sotto il breakpoint `md` è centralizzato in
-`_design-tokens.scss`: **non** si ripete nei componenti. Il minimo tappabile è il
+`_design-tokens.scss`: **non** si ripete nei componenti. ⚠️ I soli **pulsanti di barra**
+si fermano a 40px — vedi «Touch target minimo» qui sopra per il perché. Il minimo tappabile è il
 valore mobile, non quello universale — applicarlo anche su desktop rende l'intera
 interfaccia più larga della densità scelta.
 
@@ -453,24 +486,44 @@ sostituisce.
 funziona sotto un titolo «Corrispettivi»; da solo, in un elenco di comandi
 letto da uno screen reader, no — per questo `app-button` ha `ariaLabel`.
 
-### Elenco troncato: si limita la VISTA, mai il dato _(18/08/2026)_
+### ⛔ NESSUN TETTO DI RIGHE — deciso il 30/08/2026
 
-Su schermo compatto un elenco lungo rende irraggiungibile ciò che gli sta
-sotto — in un report, il riepilogo. Si mostra un primo blocco di righe e si
-offre un comando per il resto.
+> **Un elenco mostra TUTTE le righe del filtro attivo, a qualunque larghezza.**
 
-- **Solo su schermo compatto** (`ViewportService.compact()`), mai su desktop:
-  lì la tabella è densa e scorrere costa un gesto, non un minuto.
-- **Il comando dice QUANTE righe restano** — «Mostra le altre 47 righe» — non
-  «Mostra altre righe»: senza il numero non si capisce se ne mancano tre o
-  trecento.
-- ⚠️ **Totali, subtotali e conteggi NON si ricalcolano da ciò che è a schermo.**
-  Arrivano dall'API e valgono l'intero periodo. È la condizione che rende il
-  troncamento ammissibile in un registro fiscale — e va **verificata**, non
-  data per scontata: se un totale fosse una somma delle righe renderizzate,
-  troncare l'elenco falserebbe il registro.
-- **Serve un test che inchiodi il confine**: su schermo non compatto nessun
-  troncamento, e tutte le righe consegnate restano a schermo.
+_Il proprietario: «Non deve esserci nessun limite di visualizzazione. Se il cliente ha il
+filtro di 30 giorni, deve sapere vedere il totale di quel periodo, anche se si tratta di
+vedere mille ordini. **Questo vale ovunque.**»_
+
+⛔ **Qui c'era «Elenco troncato: si limita la VISTA, mai il dato»**: su schermo compatto si
+mostravano 25 righe e un comando «Mostra le altre N righe». La regola si difendeva
+sostenendo che i totali arrivano dall'API e non si ricalcolano da ciò che è a schermo —
+**e quello resta vero**: troncare non spostava un centesimo.
+
+⭐ **Il difetto era un altro: chi guarda non può saperlo.** Un registro che mostra una
+parte delle righe non è verificabile, e in un registro fiscale la verificabilità **è** la
+funzione. La difesa era corretta e rispondeva alla domanda sbagliata.
+
+#### Il problema che il tetto risolveva resta, e si risolve meglio
+
+Il tetto esisteva perché il riepilogo sta in fondo: con un mese di vendite, arrivarci
+significava scorrere centinaia di card.
+
+⭐ **Sotto `lg` il PIEDE si ancora in fondo allo schermo** — totali e comandi insieme,
+`position: sticky`. Non si scorre per vederli: sono sempre lì, e l'elenco può essere lungo
+quanto il periodo richiede.
+
+⚠️ **`sticky`, non `fixed`**: fisso coprirebbe l'ultima card e resterebbe attaccato anche
+dove non serve. E il fondo è **opaco**, non velato — sotto scorrono card con numeri, e a
+tinta velata i due testi si leggerebbero sovrapposti.
+
+⚠️ **Il piede è UN contenitore, non due zone ancorate a parte**: ancorate una per una
+servirebbe dare alla seconda uno scostamento pari all'altezza della prima, un numero da
+tenere allineato a mano che si sfalsa appena il riepilogo va a capo. Su scrivania il
+contenitore si dissolve con `display: contents`, e nulla cambia.
+
+⛔ **Con mille righe questo diventa mille card nel DOM.** La virtualizzazione del motore
+tabella smette di essere un'ottimizzazione e diventa un **prerequisito**
+(`docs/DA-FARE.md`).
 
 ### `select-menu` — tre modalità di larghezza, e non sono intercambiabili
 

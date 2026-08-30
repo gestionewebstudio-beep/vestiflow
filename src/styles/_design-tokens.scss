@@ -534,6 +534,10 @@
   // salto 0 → 4px e' tutto o niente.
   --space-05: 0.125rem; // 2px
   --space-1: 0.25rem; // 4px
+  // ⭐ 6px — il passo fra due card sul telefono (30/08/2026). La scala di
+  //    `regole-stile-ui` §4 lo elenca gia' («0 · 2 · 4 · 6 · 8 …»); mancava
+  //    soltanto il token. Il nome segue `--space-05`: il numero e' in quarti.
+  --space-15: 0.375rem; // 6px
   --space-1-5: 0.375rem; // 6px
   // Velo delle barre appoggiate al contenuto (topbar, piede documento): la
   // stessa sfocatura in quattro punti, cosi' le barre si somigliano davvero.
@@ -784,7 +788,23 @@
     --btn-min-height: 2.75rem; // 44px
     --field-height: 2.75rem; // 44px
     --control-h-field: 2.75rem;
-    --control-h-button: 2.75rem;
+
+    /*
+      ⚠️ **40px, non 44: i pulsanti di BARRA fanno eccezione** — deciso dal
+      proprietario il 30/08/2026 («i tasti proverei leggermente a ridurre
+      l'altezza»), dopo che i 44px erano stati dichiarati intoccabili.
+
+      ⭐ **Non è una deroga all'accessibilità, ed è la ragione per cui vale solo
+      qui.** WCAG 2.2 chiede 24×24 CSS px al livello AA; i 44 sono la
+      raccomandazione di Apple e il livello AAA. A 40px il bersaglio resta
+      ampiamente sopra il minimo richiesto, e sono comunque **pulsanti
+      etichettati e distanziati**, non icone nude.
+
+      ⛔ **Gli altri controlli restano a 44**, e la distinzione è quella che
+      conta: un campo si sbaglia mentre si scrive, un pulsante di barra si preme
+      una volta e ha una parola sopra che dice cosa fa. Sotto i 40 non si scende.
+    */
+    --control-h-button: 2.5rem; // 40px
   }
 }
 

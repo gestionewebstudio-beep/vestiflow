@@ -49,8 +49,14 @@
       </p>
     }
 
+    <!--
+      ⭐ **I due CONTEGGI portano un modificatore**, e non è cosmetica: sotto
+      `lg` la fascia diventa un conto verticale, e un conteggio in mezzo agli
+      addendi si leggerebbe come una cifra da sommare. Con `--count` restano in
+      cima, in fila col numero di righe, dove sono contesto e non aritmetica.
+    -->
     @if (summary().cancellationCount > 0) {
-      <div class="corrispettivi-summary__item">
+      <div class="corrispettivi-summary__item corrispettivi-summary__item--count">
         <!--
           ⭐ **Abbreviata col punto** — deciso dal proprietario il 30/08/2026:
           «metterei alcuni testi abbreviati col punto per recuperare spazio
@@ -75,7 +81,7 @@
       </div>
     }
 
-    <div class="corrispettivi-summary__item">
+    <div class="corrispettivi-summary__item corrispettivi-summary__item--count">
       <dt>Vendite</dt>
       <dd class="tabular-nums">{{ summary().orderCount }}</dd>
     </div>
@@ -88,7 +94,12 @@
       <dt>IVA</dt>
       <dd class="tabular-nums">{{ formatMoney(summary().netTax) }}</dd>
     </div>
-    <div class="corrispettivi-summary__item">
+    <!--
+      ⭐ **`--sum` apre il conto**: sotto `lg` prende un filo sopra, ed è il
+      segnale che da qui in giù si somma. Imponibile e IVA restano sopra quella
+      linea perché sono la SCOMPOSIZIONE del totale, non due addendi suoi.
+    -->
+    <div class="corrispettivi-summary__item corrispettivi-summary__item--sum">
       <dt>Tot. vendite</dt>
       <dd class="tabular-nums">{{ formatMoney(summary().total) }}</dd>
     </div>

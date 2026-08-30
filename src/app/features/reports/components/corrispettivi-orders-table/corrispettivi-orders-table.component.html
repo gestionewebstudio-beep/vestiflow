@@ -216,15 +216,3 @@
     }
   </ng-template>
 </app-data-table>
-
-<!--
-  ⚠️ **Fuori dalla tabella, ed è giusto**: non è una riga: è un comando che
-  riguarda l'elenco. Dice QUANTE righe restano — «Mostra le altre 47 righe» —
-  perché senza il numero non si capisce se ne mancano tre o trecento
-  (`regole-stile-ui`, «Elenco troncato»).
--->
-@if (troncato()) {
-  <button type="button" class="corrispettivi-table__more" (click)="mostraTutte()">
-    Mostra le altre {{ righeNascoste() }} righe
-  </button>
-}

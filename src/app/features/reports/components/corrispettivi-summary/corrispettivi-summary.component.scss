@@ -118,14 +118,58 @@
   padding-block: 0;
 
   /*
-    ⭐ **Sotto `lg`: griglia, voci impilate** (30/08/2026). Ogni voce prende una
-    colonna larga almeno `--summary-item-min-w` (132px, misurata sull'etichetta
-    più lunga): due-tre per riga su un telefono, di più su un tablet — e mai la
-    fila-parete che il layout desktop produce sotto la sua soglia.
+    ⭐ **Sotto `lg` la fascia è un CONTO, non una griglia** — deciso dal
+    proprietario il 30/08/2026: «dovresti fare qualcosa di bello e non solo
+    impaginare».
+
+    ⛔ La griglia a due colonne era corretta e muta: sette celle uguali, in cui
+    l'aritmetica che la banda dichiara — TOT. VENDITE − RETTIFICHE =
+    CORRISPETTIVO — non si vedeva. Un riepilogo si verifica scorrendo **una
+    colonna sola di numeri**, ed è la forma di ogni scontrino e di ogni piede
+    documento (`regole-stile-ui` §7).
+
+    ```text
+    12 righe   ANNULL. 2   VENDITE 8        ← contesto, non aritmetica
+      Impon.                    517,99 €
+      IVA                        96,02 €
+      ────────────────────────────────
+      Tot. vendite              819,02 €    ← da qui si somma
+      Rettif. (4)             − 205,01 €
+      ════════════════════════════════
+      CORRISPETTIVO            614,01 €     ← la risposta
+    ```
+
+    ⚠️ **Lo fa `flex-wrap`, non una griglia**: i conteggi sono `flex: 0 0 auto` e
+    stanno in fila; ogni voce monetaria è `flex: 0 0 100%` e si prende la riga.
+    Nessun `grid-column` da contare, quindi una voce in più o in meno non
+    scompagina niente.
+  */
+  /*
+    ⭐ **Sotto `lg`: QUATTRO colonne, due righe** — dal mockup del proprietario,
+    30/08/2026.
+
+    ⛔ Qui c'era un conto verticale — una voce per riga, etichetta a sinistra e
+    numero a destra. Si leggeva bene ed era **alto sei righe**: su un telefono,
+    in fondo a un elenco, sei righe sono un terzo di schermata spesa per otto
+    numeri. La griglia ne usa **due**.
+
+    ```text
+    12 righe  │ ANNULL.   2 │ VENDITE   8 │ IMPON.  517,99 €
+    IVA 96,02 │ TOT. VEND.  │ RETTIF. (4) │ CORRISPETTIVO
+              │    819,02 € │  − 205,01 € │       614,01 €
+    ```
+
+    ⭐ **Otto voci in quattro colonne fanno due righe piene**, e l'ordine del DOM
+    — che porta l'aritmetica — fa cadere la risposta **in fondo a destra**, dove
+    la cerca l'occhio.
+
+    ⚠️ **Colonne uguali, non a contenuto**: qui i numeri devono incolonnarsi fra
+    la prima e la seconda riga. A contenuto le colonne si sfalserebbero e la
+    banda sembrerebbe disallineata.
   */
   @include bp.media-down('lg') {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(var(--summary-item-min-w), 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: var(--space-2) 0;
     padding-block: var(--space-1);
   }
@@ -165,21 +209,27 @@
   border-inline-end: var(--border-width) solid var(--color-border);
   text-align: end;
 
+  /*
+    ⭐ **Sotto `lg` la voce è una CELLA**: etichetta sopra, numero sotto, allineati
+    a destra come sulla scrivania. Il filo verticale separa le colonne, e cade
+    sull'ultima di ogni riga — non sull'ultima voce.
+  */
   @include bp.media-down('lg') {
     flex-direction: column;
-    /*
-      ⛔ **`stretch`, non `baseline`.** In una FILA `baseline` appoggia etichetta e
-      valore sulla stessa linea di scrittura, ed è giusto. In una COLONNA agisce
-      sull'asse orizzontale come `flex-start`: le `dt`/`dd` si stringono al loro
-      contenuto e vanno a SINISTRA, annullando il `text-align: end` qui sopra.
-
-      ⚠️ È lo stesso difetto della cella-card nel motore, un piano più sotto, e
-      si è visto lo stesso giorno: un `align-items` pensato per un asse che
-      continua ad agire quando l'asse cambia.
-    */
     align-items: stretch;
     gap: 0;
-    padding-inline: var(--space-3);
+    padding-inline: var(--space-2);
+  }
+
+  @include bp.media-down('lg') {
+    &:nth-child(4n) {
+      padding-inline-end: 0;
+      border-inline-end: 0;
+    }
+
+    &:nth-child(4n + 1) {
+      padding-inline-start: 0;
+    }
   }
 }
 
@@ -200,16 +250,20 @@
   white-space: nowrap;
 
   /*
-    ⭐ **In cima alla griglia, non incolonnato con le altre voci.** In riga è un
-    figlio flessibile qualunque; in griglia diventerebbe una cella di una
-    colonna a caso — «12 righe» letto come se fosse un'altra Vendite. Occupa
-    tutta la larghezza e sta per conto suo, sopra la riconciliazione.
+    ⭐ **Prima cella della griglia**, allineata a sinistra come sulla scrivania.
+
+    ⛔ Prima occupava la riga intera (`grid-column: 1 / -1`) con un filo sotto: era
+    giusto quando la fascia era un conto verticale e il conteggio faceva da
+    intestazione. In quattro colonne quella riga costerebbe un terzo dello spazio
+    guadagnato — e le voci sono **otto**, cioè esattamente due righe piene se il
+    conteggio è una cella come le altre.
+
+    ⚠️ Resta a sinistra e smorzato: non è una voce della riconciliazione, è il
+    contesto in cui si legge.
   */
   @include bp.media-down('lg') {
-    grid-column: 1 / -1;
-    padding-inline-end: 0;
-    padding-block-end: var(--space-1);
-    border-block-end: var(--border-width) solid var(--color-border);
+    align-self: end;
+    padding-inline: 0 var(--space-2);
     text-align: start;
   }
 }
@@ -373,10 +427,46 @@
   cinque, e la regola non cambia.
 */
 @include bp.media-down('lg') {
-  .corrispettivi-summary__item--highlight {
-    grid-column: 1 / -1;
-    padding-block-start: var(--space-1);
-    border-block-start: var(--border-width) solid var(--color-border);
+  /*
+    ⭐ **I CONTEGGI stanno in cima, in fila col numero di righe.**
+
+    Non sono addendi: «8 vendite» e «2 annullamenti» dicono quante cose ci sono,
+    non quanto valgono. In mezzo alle righe del conto si leggerebbero come cifre
+    da sommare — e «2» sotto «517,99 €» è esattamente l'equivoco da evitare.
+
+    `flex: 0 0 auto` li tiene stretti al contenuto, quindi stanno in fila finché
+    c'è spazio e vanno a capo insieme quando non ce n'è.
+  */
+  /*
+    I conteggi sono celle come le altre, ma il numero resta smorzato: dice
+    quante cose ci sono, non quanto valgono, e a piena tinta si leggerebbe come
+    un importo.
+  */
+  .corrispettivi-summary__item--count dd {
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-muted);
+  }
+
+  /*
+    ⛔ **Niente filo orizzontale sopra il totale vendite.** Aveva senso nel conto
+    verticale, dove segnava il punto in cui si comincia a sommare; in una griglia
+    a quattro colonne cadrebbe a metà di una riga e sembrerebbe un errore.
+
+    Il peso basta: è il primo dei due addendi, e si distingue da imponibile e IVA
+    che sono la sua scomposizione.
+  */
+  .corrispettivi-summary__item--sum dd {
+    font-weight: var(--font-weight-semibold);
+  }
+
+  /*
+    ⭐ **La risposta chiude la griglia in fondo a destra**, ed è la posizione a
+    dirlo: ultima cella dell'ultima riga. Nessun filo — in una griglia
+    segnerebbe una separazione che non c'è — solo taglia e colore, che restano
+    unici in tutta la banda.
+  */
+  .corrispettivi-summary__item--highlight dd {
+    font-size: var(--text-lg);
   }
 }
 
