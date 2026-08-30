@@ -31,6 +31,21 @@
   align-items: center;
   gap: var(--space-2) var(--space-3);
 
+  /*
+    ⛔ **QUI IL MENU SI APRIVA VERSO IL BASSO E USCIVA DALLO SCHERMO** —
+    segnalato dal proprietario il 30/08/2026 sul menu «Esporta».
+
+    Non è un difetto del menu: è la barra a essere **l'ultima cosa della
+    pagina** (`14` §5, «tutti i comandi in UNA riga in basso»). Sotto di lei non
+    c'è spazio per costruzione, a nessuna larghezza e con qualunque numero di
+    righe.
+
+    ⭐ Lo dichiara quindi il contenitore, che è l'unico a saperlo — non il menu,
+    che in una testata o in una riga filtri deve continuare ad aprirsi in giù.
+  */
+  --action-menu-panel-top: auto;
+  --action-menu-panel-bottom: calc(100% + var(--space-1));
+
   --field-height: var(--control-h-button);
   --button-font-size: var(--text-xs);
   --field-font-size: var(--text-xs);
@@ -44,7 +59,76 @@
     vanno distinti col dito, quelli sovrapposti li distingue già la riga.
   */
   @include bp.media-down('md') {
-    gap: var(--space-1) var(--space-2);
+    /*
+      ⛔ **QUI C'ERA `flex-wrap: wrap` STRETTO CON PADDING**, e non garantiva
+      niente: il commento diceva «i quattro comandi stanno su una riga», ma
+      l'implementazione andava a capo appena il TESTO REALE non ci stava — e il
+      calcolo era fatto sulle mie etichette misurate, non su quelle vere
+      dell'app. Segnalato dal proprietario su schermo reale: i pulsanti non si
+      distribuivano, andavano a capo in modo imprevedibile.
+
+      ⭐ **Ora è strutturale: NON VA MAI A CAPO**, quale che sia il numero di
+      comandi. `grid-auto-flow: column` genera una colonna per figlio, tutte
+      sulla riga 0 — non esiste una riga 1 in cui andare. `grid-auto-columns:
+      minmax(0, 1fr)` le fa larghe uguali e le lascia comprimere fino a 0: è il
+      testo del pulsante a farsi piccolo (ellissi, se serve), mai la barra a
+      spezzarsi.
+
+      ⚠️ **Il componente è condiviso da elenchi con un numero di comandi
+      diverso** — 3, 4, 6 — quindi una griglia con `grid-template-columns`
+      fissa (buona per Corrispettivi, che ne ha sempre 4) avrebbe rotto tutti
+      gli altri. `grid-auto-flow` non ha bisogno di conoscere il numero in
+      anticipo.
+
+      ⛔ **L'altezza NON si tocca**: 40px resta la deroga di `regole-stile-ui`
+      §4, e sotto non si scende.
+    */
+    display: grid;
+    grid-auto-flow: column;
+    /*
+      ⛔ **QUI C'ERA `minmax(0, 1fr)`, cioè colonne UGUALI E STIRATE**, e il
+      proprietario l'ha visto allargando la finestra il 30/08/2026: «i pulsanti
+      non sono fissi, si allargano man mano che allargo lo schermo e fino a una
+      certa dimensione, poi ritornano piccoli».
+
+      Il salto è al confine `md`: sotto, la griglia li stirava a un quarto della
+      barra ciascuno; sopra, la barra torna `flex` e riprendono la larghezza del
+      proprio contenuto. Lo stesso pulsante cambiava taglia due volte lungo la
+      stessa manovra.
+
+      ⭐ **`max-content` toglie lo stiramento**: ogni comando è largo quanto la
+      propria etichetta, alle DUE larghezze — e il confine `md` smette di essere
+      un salto visibile.
+
+      ⚠️ **Il minimo resta 0, e non è un dettaglio**: è ciò che permette alle
+      colonne di comprimersi quando lo spazio manca davvero, invece di sfondare
+      la barra. La garanzia di `grid-auto-flow: column` — non esiste una riga in
+      cui andare a capo — è intatta.
+    */
+    grid-auto-columns: minmax(0, max-content);
+    gap: var(--space-1);
+
+    --button-pad-inline: var(--space-2);
+
+    /*
+      ⛔ **QUI C'ERA SOLO `--button-pad-inline`**, ed è la violazione della regola
+      che questo stesso file cita in cima — «due proprietà, non una»
+      (`regole-stile-ui` §5): `app-button` e il trigger di `app-action-menu`
+      leggono nomi diversi, e dichiararne uno solo lascia l'altro alla taglia
+      larga.
+
+      Misurato il 30/08/2026, con «Esporta» accanto a tre `app-button`:
+
+      ```text
+      Nuovo · Stampa · Excel   pad 16 · icona 12 · gap 8           = 36
+      Esporta                  pad 24 · icona 12 · gap 8 · ⌄ 19    = 63
+      ```
+
+      Quasi il doppio di struttura nella STESSA traccia da 71px: è la ragione
+      per cui la sua etichetta si troncava mentre le altre no.
+    */
+    --action-menu-pad-inline: var(--space-2);
+    --action-menu-gap: var(--space-1);
   }
 }
 
