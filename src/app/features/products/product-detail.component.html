@@ -92,18 +92,22 @@
       <p class="product-detail__sync-message" role="status">{{ syncMessage }}</p>
     }
 
-    <app-confirm-dialog
+    <!--
+      ⚠️ «L'azione non è reversibile» non si ripete qui: lo dice il SECONDO
+      passaggio, sempre e in tutta l'app. Resta la conseguenza VERA — le
+      varianti che se ne vanno col prodotto — che è ciò che l'operatore deve
+      sapere prima di continuare.
+    -->
+    <app-delete-confirm
       [(open)]="deleteDialogOpen"
       title="Eliminare il prodotto?"
-      [message]="
+      [consequence]="
         'Verranno eliminati &quot;' +
         p.name +
         '&quot; e tutte le sue ' +
         variants().length +
-        ' varianti. L\u0027azione non è reversibile.'
+        ' varianti.'
       "
-      confirmLabel="Elimina prodotto"
-      [danger]="true"
       [busy]="deleting()"
       (confirmed)="confirmDelete(p.id)"
     />

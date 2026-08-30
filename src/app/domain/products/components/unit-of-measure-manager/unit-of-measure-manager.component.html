@@ -129,12 +129,15 @@
   </ul>
 </div>
 
-<app-confirm-dialog
+<!--
+  ⭐ La conseguenza qui è di quelle che servono davvero: l'unità sparisce dalle
+  proposte ma i documenti che la portano continuano a mostrarla. È esattamente
+  ciò che il primo passaggio esiste per dire.
+-->
+<app-delete-confirm
   [(open)]="confirmOpen"
   [title]="confirmTitle()"
-  message="Non verrà più proposta. I documenti che la portano continuano a mostrarla."
-  confirmLabel="Elimina"
-  [danger]="true"
+  consequence="Non verrà più proposta. I documenti che la portano continuano a mostrarla."
   (confirmed)="onConfirmDelete()"
   (dismissed)="onDismissDelete()"
 />

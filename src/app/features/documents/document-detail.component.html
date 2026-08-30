@@ -143,12 +143,10 @@
   (confirmed)="cancelDocument()"
 />
 
-<app-confirm-dialog
+<app-delete-confirm
   [(open)]="deleteDialogOpen"
   title="Elimina documento"
-  [message]="deleteDialogMessage()"
-  confirmLabel="Elimina"
-  [danger]="true"
+  [consequence]="deleteDialogMessage()"
   [busy]="actionSaving()"
   (confirmed)="deleteDocument()"
 />

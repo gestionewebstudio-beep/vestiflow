@@ -139,13 +139,14 @@
   (confirmed)="cancelOrder()"
 />
 
-<app-confirm-dialog
+<!--
+  ⚠️ «Operazione irreversibile» non si ripete qui: lo dice il SECONDO passaggio,
+  sempre, per ogni eliminazione dell'app.
+-->
+<app-delete-confirm
   [(open)]="deleteDialogOpen"
   title="Elimina ordine"
-  message="L'ordine annullato verrà eliminato definitivamente dall'elenco. Operazione irreversibile."
-  confirmLabel="Elimina ordine"
-  cancelLabel="Torna indietro"
-  [danger]="true"
+  consequence="L'ordine verrà eliminato definitivamente dall'elenco."
   [busy]="actionSaving()"
   (confirmed)="removeOrder()"
 />

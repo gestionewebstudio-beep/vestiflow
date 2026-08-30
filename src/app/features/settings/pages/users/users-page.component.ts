@@ -23,6 +23,7 @@ import { isLicensedOperationalLocation } from '@core/utils/location-selection.ut
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { InlineSpinnerComponent } from '@shared/components/inline-spinner/inline-spinner.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
@@ -63,6 +64,7 @@ interface TenantUserPatch {
     BackButtonComponent,
     ButtonComponent,
     ConfirmDialogComponent,
+    DeleteConfirmComponent,
     ErrorStateComponent,
     InlineSpinnerComponent,
     SelectMenuComponent,

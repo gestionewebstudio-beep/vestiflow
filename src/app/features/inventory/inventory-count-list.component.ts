@@ -13,7 +13,7 @@ import { catchError, map, of, startWith, switchMap } from 'rxjs';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { InventoryCountSession } from '@core/models/inventory-count.model';
-import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
 import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import { comando } from '@shared/models/list-action-catalog';
@@ -35,7 +35,7 @@ type CountListState =
   imports: [
     ListPageComponent,
     ListActionsBarComponent,
-    ConfirmDialogComponent,
+    DeleteConfirmComponent,
     InventoryTabsComponent,
     InventoryCountTableComponent,
   ],

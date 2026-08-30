@@ -46,7 +46,7 @@ import { BackButtonComponent } from '@shared/components/back-button/back-button.
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
-import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
@@ -137,7 +137,7 @@ function shopifyCustomMetafieldLabel(namespace: string, key: string): string {
     BackButtonComponent,
     BadgeComponent,
     ButtonComponent,
-    ConfirmDialogComponent,
+    DeleteConfirmComponent,
     EmptyStateComponent,
     ErrorStateComponent,
     TableSkeletonComponent,

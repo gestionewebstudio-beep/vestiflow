@@ -9,6 +9,7 @@ import { BackButtonComponent } from '@shared/components/back-button/back-button.
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
 import { DetailFactsComponent } from '@shared/components/detail-facts/detail-facts.component';
 import type { DetailFact } from '@shared/components/detail-facts/detail-facts.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -53,6 +54,7 @@ const TRANSPORT_PORT_LABELS: Record<TransportPort, string> = {
     BadgeComponent,
     ButtonComponent,
     ConfirmDialogComponent,
+    DeleteConfirmComponent,
     DetailFactsComponent,
     EmptyStateComponent,
     ErrorStateComponent,

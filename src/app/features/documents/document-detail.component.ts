@@ -25,6 +25,7 @@ import { formatMoney } from '@core/utils/money.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
 import { bindBreadcrumbEntityLabel } from '@core/services/breadcrumb-label.service';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { DetailFactsComponent } from '@shared/components/detail-facts/detail-facts.component';
@@ -96,6 +97,7 @@ type DetailState =
     BadgeComponent,
     ButtonComponent,
     ConfirmDialogComponent,
+    DeleteConfirmComponent,
     DetailFactsComponent,
     EmptyStateComponent,
     ErrorStateComponent,

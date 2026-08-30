@@ -39,13 +39,10 @@
   ⚠️ Il dialogo sta FUORI dal telaio: è `position: fixed`, non occupa nessuna
   zona. Dentro, senza slot, Angular lo scarterebbe in silenzio.
 -->
-<app-confirm-dialog
+<app-delete-confirm
   [(open)]="deleteDialogOpen"
   title="Eliminare la sessione?"
-  [message]="deleteConfirmMessage()"
-  confirmLabel="Elimina sessione"
-  cancelLabel="Torna indietro"
-  [danger]="true"
+  [consequence]="deleteConfirmMessage()"
   [busy]="deleteLoading()"
   (confirmed)="confirmDelete()"
 />
