@@ -253,7 +253,16 @@
       inline-size: 100%;
       max-inline-size: 100%;
       box-sizing: border-box;
-      margin-block-end: var(--space-15);
+      /*
+        ⭐ **4px fra due card, non 6** — indicato dal proprietario il 30/08/2026:
+        «è il margine di 6px tra una card e l'altra».
+
+        ⚠️ È il margine ESTERNO, non il respiro interno: quello resta 8/12 ed è
+        già al pavimento dichiarato poco sopra. A separare due card bianche su
+        fondo grigio bastano il bordo e pochi pixel — sei erano un respiro da
+        elenco corto, e questo elenco non ha più un tetto di righe.
+      */
+      margin-block-end: var(--space-1);
       padding: var(--space-2) var(--space-3);
       background-color: var(--color-surface);
       border: var(--border-width) solid var(--color-border);

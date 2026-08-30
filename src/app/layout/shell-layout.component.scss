@@ -235,7 +235,20 @@
 
   // Piu' respiro sul desktop denso: 20px verticale, 24px orizzontale.
   .shell__content {
-    padding: var(--space-5) var(--space-6);
+    /*
+      ⭐ **MARGINI STRETTI: 8/12 invece di 20/24** — deciso dal proprietario il
+      30/08/2026, davanti alla schermata: «devi diminuire molto di più il
+      margine e recuperare spazio per il contenitore centrale».
+
+      Sono 24px di altezza e 24 di larghezza restituiti al contenuto su OGNI
+      schermata dell'applicazione — su un elenco, quasi una riga di tabella in
+      più e mezza colonna.
+
+      ⚠️ **È un gestionale, non una pagina di contenuto**: `regole-gestionale`
+      chiede densità informativa controllata e vieta «proporzioni da marketing
+      page». Venti pixel di cornice intorno a una tabella erano quella cosa lì.
+    */
+    padding: var(--space-15) var(--space-2);
   }
 
   .shell__sidebar {

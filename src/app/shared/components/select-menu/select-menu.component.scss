@@ -301,6 +301,12 @@
 .select-menu__search {
   display: block;
   inline-size: 100%;
+  /*
+    ⚠️ **La ricerca NON segue la densità delle voci**, ed è deliberato: è un
+    campo di testo, e `regole-stile-ui` §4 tiene i campi al minimo tappabile
+    anche dove i comandi scendono. Ci era finita per errore il 30/08/2026, con
+    una sostituzione troppo larga.
+  */
   min-block-size: var(--field-height);
   padding-inline: var(--space-2);
   color: var(--color-text);
@@ -337,7 +343,18 @@
   align-items: center;
   gap: var(--space-2);
   inline-size: 100%;
-  min-block-size: var(--field-height);
+  /*
+    ⭐ **Punto di regolazione dell'altezza di voce** (`regole-stile-ui` §5): una
+    tendina di dodici voci in una barra filtri densa non ha la stessa altezza di
+    riga di un campo isolato in mezzo alla pagina. Misurato il 30/08/2026 sulla
+    tendina del Periodo: 34px per voce, font 13px, **zero** padding — l'altezza
+    la dava tutta `--field-height`.
+
+    ⚠️ **Il ripiego resta `--field-height`**, quindi chi non dichiara nulla non
+    vede alcuna differenza — e sotto `md` continua a salire da sé al minimo
+    tappabile, che per un elenco di scelte da toccare col dito è quello che serve.
+  */
+  min-block-size: var(--select-menu-option-h, var(--field-height));
   padding-inline: var(--space-2);
   color: var(--color-text);
   font-size: var(--text-sm);

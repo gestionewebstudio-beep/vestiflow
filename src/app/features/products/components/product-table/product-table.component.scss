@@ -181,8 +181,8 @@
 }
 
 .product-table__checkbox {
-  inline-size: var(--space-4);
-  block-size: var(--space-4);
+  inline-size: var(--check-size);
+  block-size: var(--check-size);
   margin: 0;
   cursor: pointer;
   accent-color: var(--color-link);
@@ -232,7 +232,6 @@
 .product-table__cell--actions {
   white-space: nowrap;
 }
-
 
 /*
   ⚠️ **Il ponte dell'altezza.**

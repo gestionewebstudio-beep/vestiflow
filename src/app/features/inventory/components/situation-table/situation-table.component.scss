@@ -48,8 +48,8 @@
 }
 
 .situation-table__checkbox {
-  inline-size: 1rem;
-  block-size: 1rem;
+  inline-size: var(--check-size);
+  block-size: var(--check-size);
   accent-color: var(--color-primary);
   cursor: pointer;
 }

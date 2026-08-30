@@ -82,6 +82,35 @@
 }
 
 /*
+  ⭐ **INTESTAZIONI A 10px** — deciso dal proprietario il 30/08/2026: «anche la
+  testata delle intestazioni colonna possiamo portarla a 10px».
+
+  Erano 11px (`--text-2xs`). Dieci è il gradino sotto (`--text-3xs`) ed è la
+  taglia che `regole-stile-ui` §3 dà già alle etichette maiuscole: l'intestazione
+  di colonna diventa così coerente con le etichette del riepilogo che la riassume,
+  invece di stare mezzo gradino sopra.
+
+  ⚠️ **Sta nel MOTORE, non nel mixin `data-table-desktop`**: quel mixin veste
+  anche le griglie di riga dei documenti, che sono maschere di inserimento e non
+  elenchi — la densità di un elenco non è una decisione che li riguarda.
+*/
+.data-table thead th {
+  font-size: var(--text-3xs);
+
+  /*
+    ⭐ **Intestazione più stretta in verticale** — «la riga delle intestazioni
+    colonne leggermente più piccola», 30/08/2026. Il padding verticale scende da
+    8 a 4px e il token di altezza da 32 a 28.
+
+    ⚠️ **Il padding ORIZZONTALE non si tocca**: è quello che tiene le
+    intestazioni staccate dai fili di colonna, e stringerlo non restituisce
+    altezza — restituisce larghezza a una tabella che non ne ha bisogno.
+  */
+  padding-block: var(--space-1);
+  block-size: var(--table-head-h);
+}
+
+/*
   ⭐ **Due segnali distinti, e la distinzione è una decisione del proprietario
   (20/08/2026)**:
 
@@ -318,7 +347,86 @@
 */
 @include rt.table-scroll('.data-table-scroll', riempi);
 
+/*
+  ⭐ **E la regione di scorrimento PRENDE lo spazio, non solo lo consente.**
+
+  L'host è `flex` in colonna, ma questo figlio restava `flex: 0 1 auto`, cioè
+  alto quanto il contenuto: misurato il 30/08/2026, **357px dentro una zona dati
+  da 533**, e i 176 di differenza erano la fascia grigia che il proprietario
+  vedeva fra l'ultima riga e il riepilogo.
+
+  ⚠️ **Il `block-size: 100%` del mixin non bastava**: come elemento flessibile la
+  base di flex prevale, e il 100% si calcolava comunque su un'altezza che nessuno
+  aveva ancora determinato. Serve `flex: 1` — «prendi ciò che avanza» — più
+  `min-block-size: 0`, senza il quale un figlio flex non scende sotto il proprio
+  contenuto e la barra di scorrimento non comparirebbe mai.
+
+  ⚠️ **Dove la catena di altezze non c'è, questa regola non fa nulla**: in un
+  contenitore ad altezza automatica «ciò che avanza» è zero, e la tabella resta
+  alta quanto le sue righe. Le tabelle ancorate alla shell (§6) sono invariate.
+*/
+.data-table-scroll {
+  flex: 1;
+  min-block-size: 0;
+
+  /*
+    ⭐ **LA CARD È LA REGIONE, NON LA TABELLA** — è ciò che fa arrivare il bianco
+    fino alla riga dei totali anche con poche righe.
+
+    ⛔ **`min-block-size: 100%` sulla tabella non funziona**, ed è il tentativo
+    che ho fatto prima: su un elemento `display: table` l'altezza minima
+    percentuale non viene onorata: misurato, la tabella restava a 357px in una
+    regione da 533 già corretta. Non falliva — semplicemente non aveva effetto.
+
+    ⭐ Spostare bordo, raggio e fondo sul contenitore di scorrimento risolve per
+    costruzione: quel contenitore un'altezza ce l'ha, ed è esattamente quella che
+    il proprietario vuole veder riempita.
+
+    ⚠️ **Sta QUI e non nel mixin `data-table-desktop`**: quel mixin lo usano anche
+    le griglie di riga dei documenti, che non hanno un contenitore di scorrimento
+    e perderebbero la propria cornice. Il mixin continua a vestire la tabella; il
+    motore elenco gliela toglie e la mette un livello più fuori.
+
+    ⚠️ **`overflow` ritaglia sul raggio**, quindi l'intestazione appiccicata non
+    sborda dagli angoli arrotondati e non serve un secondo ritaglio.
+  */
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+/*
+  La tabella smette di essere la card: la cornice la porta il contenitore sopra.
+  Restano i raggi sulle celle d'angolo, che ora cadono dentro il ritaglio del
+  contenitore e non si vedono — innocui, e toglierli significherebbe toccare il
+  mixin condiviso per un effetto nullo.
+*/
 .data-table {
+  background-color: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+/*
+  ⭐ **LA CARD BIANCA ARRIVA IN FONDO ALLA REGIONE, anche con poche righe** —
+  deciso dal proprietario il 30/08/2026: «questa parte la farei diventare
+  contenitore vuoto, il continuo».
+
+  ⛔ Con dodici righe in una finestra alta, la card finiva sotto l'ultima riga e
+  lasciava una fascia di fondo pagina grigio prima del riepilogo. A schermo si
+  leggeva come un buco, non come spazio disponibile.
+
+  ⚠️ **`min-block-size` e non `block-size`**: la tabella deve poter CRESCERE
+  oltre il contenitore quando le righe sono tante — è ciò che fa scorrere la
+  regione. Un'altezza fissa la bloccherebbe all'altezza della finestra e le
+  righe in più sparirebbero.
+
+  ⚠️ **Dove il contenitore non ha un'altezza definita, il 100% vale `auto`** e
+  questa regola non fa nulla: le tabelle che si ancorano alla shell (§6) restano
+  esattamente come sono.
+*/
+.data-table {
+  min-block-size: 100%;
   inline-size: 100%;
   min-inline-size: 100%;
 }
@@ -410,7 +518,28 @@
   primario e la card è più alta dello schermo (`regole-stile-ui` §6). Non è il
   pattern dei documenti, che hanno un'anatomia loro.
 */
-.data-table__card {
+/*
+  ⛔ **QUESTA REGOLA PERDEVA IL CONFRONTO, ed è invisibile finché non guardi.**
+
+  Misurato nel browser il 30/08/2026 con le regole calcolate del motore CSS: la
+  cella della card era `display: table-cell` e larga **295,6px** su scrivania —
+  una colonna in più che ripeteva la riga accanto alle celle vere.
+
+  ```text
+  .data-table__card                                  (0,1,0)  display: none
+  .data-table tbody td, .data-table__row td          (0,2,2)  display: table-cell  ← vince
+  ```
+
+  ⭐ **La correzione è la specificità, non una media query.** Aggiungere
+  `@media (min-width: lg) { .data-table__card { display: none } }` — la strada
+  ovvia — non serviva a niente: perdeva lo stesso confronto, in ogni fascia.
+
+  ⚠️ **Nessun test la coglie**: il markup è corretto, la cella porta il suo
+  `aria-hidden`, e jsdom non calcola la cascata. Si vede solo a schermo, ed è
+  stata trovata guardando una schermata.
+*/
+.data-table tbody td.data-table__card,
+.data-table__row td.data-table__card {
   display: none;
 }
 

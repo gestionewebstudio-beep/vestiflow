@@ -230,11 +230,83 @@
 }
 
 /* Indietro e titolo sulla stessa riga, come nelle sette pagine che ce l'hanno. */
+/*
+  ⭐ **LA BARRA FILTRI HA LA DENSITÀ DELLA BARRA COMANDI** — deciso dal
+  proprietario il 30/08/2026, mettendo le due a confronto: «in generale li farei
+  più piccoli, come quelli in fondo alla pagina, e diminuirei i margini».
+
+  Misurato prima:
+
+  ```text
+  chip filtro       h34 · font 13px · gap interno 8px
+  comandi in fondo  h31 · font 12px
+  ```
+
+  ⛔ **Non era una scelta: era il default che filtrava.** `regole-stile-ui` §5
+  prescrive già la barra densa — `--control-h-*` e `--text-xs` — ma la
+  dichiarava ogni pagina per conto proprio, e chi non la dichiarava restava alla
+  taglia del campo autonomo. Qui la dichiara il TELAIO: chi lo usa la eredita, e
+  la prossima pagina non nasce disallineata.
+
+  ⚠️ **Il gap interno scende a 4px**: sono gli 8px fra l'etichetta e il chevron
+  che il proprietario ha segnato a schermo. A separarli basta la metà.
+
+  ⚠️ **Solo da `md` in su.** Sotto, i token salgono da sé al minimo tappabile, e
+  quella è la regola che vince (`regole-stile-ui` §4).
+*/
+@include bp.media-up('md') {
+  .list-page__filters,
+  .list-page__tools {
+    --field-height: var(--control-h-button);
+    --field-h: var(--control-h-button);
+    --field-font-size: var(--text-xs);
+    --field-gap: var(--space-1);
+    --button-font-size: var(--text-xs);
+  }
+}
+
 .list-page__heading {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
+
+  /*
+    ⛔ **«INDIETRO» ERA L'UNICO COMANDO FUORI TAGLIA** — segnalato dal
+    proprietario a schermo il 30/08/2026, e misurato a 390px:
+
+    ```text
+    Indietro                       h44   padX 16
+    Colonne · Filtri · Periodo     h38   padX 12
+    ```
+
+    ⚠️ **Non era una svista di una pagina: era il default.** `--back-button-h`
+    non lo dichiarava nessuno, quindi ripiegava su `--btn-min-height` — 44px,
+    il minimo tappabile dei CAMPI. Ma «Indietro» non è un campo: è un comando di
+    barra, e per quelli `regole-stile-ui` §4 dichiara la deroga a 38px.
+
+    ⚠️ **Ed è costato due tentativi**: la stessa dichiarazione messa in
+    `styles/_list-page.scss` non produceva nulla, perché quel mixin veste le
+    pagine che si costruiscono il layout da sé — `.list-page__heading` nasce
+    invece dal template di QUESTO componente. La regola non compariva affatto
+    nel CSS servito, e non lo segnalava niente.
+
+    ⭐ Dichiarato qui vale per ogni elenco che usa il telaio: la prossima pagina
+    non nasce disallineata.
+  */
+  /*
+    ⭐ **E vale a OGNI larghezza** — il proprietario è tornato sul punto il
+    30/08/2026 guardando la scrivania: «il pulsante indietro va adattato agli
+    altri, più piccolo».
+
+    ⛔ La prima stesura lo dichiarava solo sotto `md`, quindi su scrivania
+    «Indietro» restava a 34px accanto a filtri e comandi già scesi a 31.
+    Correggeva metà del difetto, e la metà che restava era quella che si guarda
+    tutto il giorno.
+  */
+  --back-button-h: var(--control-h-button);
+  --back-button-pad-inline: var(--space-3);
+  --back-button-font-size: var(--text-xs);
 }
 
 @include bp.media-up('md') {
@@ -326,7 +398,31 @@
   }
 }
 
+/*
+  ⭐ **Sul telefono la TESTATA ha la stessa altezza del PIEDE** — deciso dal
+  proprietario il 30/08/2026: «i pulsanti di sopra sono ancora più alti rispetto
+  a quelli sotto».
+
+  ⛔ **Misurato prima di correggere**: testata 44px, piede 38px. I due token
+  `--control-h-field` e `--control-h-button` erano già a 38, ma «Colonne» e
+  «Filtri» sono `app-button` — leggono `--btn-min-height`, che resta a 44 perché
+  governa i pulsanti veri delle maschere.
+
+  ⭐ **Si configura dal CONTENITORE**, come prescrive `regole-stile-ui` §5: la
+  barra dichiara l'altezza per tutti i controlli che ospita, e nessun componente
+  condiviso viene scavalcato dall'esterno.
+
+  ⚠️ Le due barre sono la stessa famiglia — comandi che si premono una volta e
+  portano una parola — e devono leggersi tali. A 44 contro 38 sembravano due
+  cose diverse.
+*/
 @include bp.media-down('md') {
+  .list-page__tools,
+  .list-page__filters,
+  .list-page__view {
+    --btn-min-height: var(--control-h-button);
+    --field-height: var(--control-h-field);
+  }
 }
 
 .list-page__search {

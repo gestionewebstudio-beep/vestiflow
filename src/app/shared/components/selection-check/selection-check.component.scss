@@ -1,8 +1,8 @@
 // La casella di selezione: una misura sola per tutte le tabelle, o le colonne
 // «seleziona» risulterebbero di larghezza diversa da un elenco all'altro.
 .selection-check {
-  inline-size: var(--space-4);
-  block-size: var(--space-4);
+  inline-size: var(--check-size);
+  block-size: var(--check-size);
   accent-color: var(--color-primary);
   cursor: pointer;
 }

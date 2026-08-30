@@ -27,9 +27,28 @@
     background-color var(--transition-fast) var(--ease-standard),
     border-color var(--transition-fast) var(--ease-standard);
 
+  /*
+    ⛔ **QUESTO BLOCCO SPEGNEVA LE CUSTOM PROPERTY DEL COMPONENTE.**
+
+    Le due dichiarazioni qui sopra leggono `--back-button-h` e
+    `--back-button-pad-inline` proprio perché un contenitore stretto possa
+    configurarle senza raggiungere gli interni (`regole-stile-ui` §5). Sotto
+    `md` il ramo mobile le sostituiva con valori **fissi**: il canale previsto
+    esisteva, ma smetteva di funzionare esattamente dove serve di più.
+
+    ⚠️ **Misurato il 30/08/2026**, dopo che il proprietario ha chiesto di
+    adattare «Indietro» agli altri comandi: la dichiarazione nel telaio elenco
+    non produceva alcun effetto, e il pulsante restava a 44px accanto a
+    Colonne, Filtri e Periodo a 38. Non falliva niente — semplicemente il
+    valore dichiarato non veniva letto.
+
+    ⭐ **Il ripiego resta identico** (`--btn-min-height`, cioè 44px, il minimo
+    tappabile dei campi): cambia solo che ora è un ripiego, non un muro. Chi non
+    dichiara nulla non vede alcuna differenza.
+  */
   @include bp.media-down('md') {
-    min-block-size: var(--btn-min-height);
-    padding-inline: var(--space-4);
+    min-block-size: var(--back-button-h, var(--btn-min-height));
+    padding-inline: var(--back-button-pad-inline, var(--space-4));
   }
 }
 
