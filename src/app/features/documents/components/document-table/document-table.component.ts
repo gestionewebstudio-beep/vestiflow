@@ -1,17 +1,13 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
-import { DocumentStatus } from '@core/models/document.model';
 import type { DocumentRecord, LinkedPurchaseInvoiceInfo } from '@core/models/document.model';
 import { formatDate } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
-import { ActionMenuComponent } from '@shared/components/action-menu/action-menu.component';
-import type { ActionMenuItem } from '@shared/components/action-menu/action-menu.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
 import { storeSalePaymentMethodLabelWithNote } from '@domain/store-sales/models/store-sale-payment.util';
 
-import { isGoodsReceiptDocumentType } from '@domain/documents/utils/document-goods-receipt.util';
 import {
   documentReferenceLabel,
   documentStatusDisplayLabel,
@@ -21,11 +17,7 @@ import {
   goodsReceiptLinkStatusTone,
 } from '@domain/documents/models/document-labels.util';
 import { isStoreFlowDocumentType } from '@domain/documents/models/document-operational.util';
-import { isPrintableDocumentType } from '../../models/document-print.util';
-import { isQuoteDocumentType } from '@domain/documents/models/document-sales.util';
-import { isManualUnloadDocumentType } from '@domain/documents/utils/document-stock-operation.util';
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
-import { DataTableRowActionsDirective } from '@shared/components/data-table/data-table-row-actions.directive';
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';
 import type { DataTableSort } from '@shared/components/data-table/data-table.model';
 
@@ -58,12 +50,10 @@ export interface DocumentTableSelectionEvent {
   selector: 'app-document-table',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    ActionMenuComponent,
     BadgeComponent,
     RouterLink,
     DataTableComponent,
     DataTableCellDirective,
-    DataTableRowActionsDirective,
   ],
   templateUrl: './document-table.component.html',
   styleUrl: './document-table.component.scss',
@@ -203,62 +193,18 @@ export class DocumentTableComponent {
   protected rowLabel(doc: DocumentRecord): string {
     return `Apri documento ${this.referenceLabel(doc)} (${this.typeLabel(doc.type)})`;
   }
-
-  /**
-   * Voci del menu Azioni per la riga: solo quelle realmente disponibili per
-   * questo tipo/stato documento — mai voci disabilitate silenziosamente.
-   */
-  protected rowActions(doc: DocumentRecord): readonly ActionMenuItem[] {
-    // Nel registro generico convivono tipi diversi: ogni riga decide sulla
-    // PROPRIA famiglia, altrimenti «Duplica» ed «Elimina» comparirebbero su
-    // documenti che l'API poi rifiuta.
-    const canManageRow = this.canManage() && this.manageableTypes().includes(doc.type);
-
-    // ⛔ Qui il banco aveva «Apri», con un commento che diceva «mai una
-    // modifica». Non è più vero da quando la riga apre la MODIFICA come per
-    // ogni altro tipo (`14` §2, `DOCUMENT_ROW_OPENS`): il testo era rimasto
-    // indietro rispetto alla decisione, ed è il gap T12 della mappa del banco.
-    const items: ActionMenuItem[] = [{ id: 'open', label: 'Apri / Modifica', icon: 'pi-pencil' }];
-
-    if (canManageRow && !isStoreFlowDocumentType(doc.type)) {
-      items.push({ id: 'duplicate', label: 'Duplica', icon: 'pi-copy' });
-    }
-    if (isPrintableDocumentType(doc.type)) {
-      items.push({ id: 'print', label: 'Stampa PDF', icon: 'pi-print' });
-    }
-    if (
-      isGoodsReceiptDocumentType(doc.type) &&
-      doc.status !== DocumentStatus.Cancelled &&
-      doc.status !== DocumentStatus.Draft &&
-      (doc.lineCount ?? 0) > 0
-    ) {
-      items.push({ id: 'labels', label: 'Etichette', icon: 'pi-tag' });
-    }
-    items.push({ id: 'attachments', label: 'Allegati', icon: 'pi-paperclip' });
-    if (
-      canManageRow &&
-      (doc.status === DocumentStatus.Draft ||
-        doc.status === DocumentStatus.Cancelled ||
-        // Vendita manuale (prompt Vendita manuale): resta in elenco finché
-        // l'operatore non lo elimina — l'eliminazione NON ripristina le
-        // giacenze già scalate, quindi è disponibile in qualunque stato.
-        isManualUnloadDocumentType(doc.type) ||
-        // Preventivo: salvato già confermato (numero PRE assegnato al
-        // salvataggio), ma senza effetti magazzino — eliminabile in ogni stato.
-        isQuoteDocumentType(doc.type) ||
-        // Arrivi merce: eliminabili anche da confermati — l'API rimuove i
-        // movimenti e ripristina le giacenze. Escluso solo se collegato a una
-        // fattura registrata (va prima scollegato).
-        (isGoodsReceiptDocumentType(doc.type) && doc.linkStatus !== 'linked') ||
-        // ⭐ Vendita e Reso al banco: nascono confermati e SI ELIMINANO
-        // (`11` A2, passo 14). L'API neutralizza i movimenti e restituisce
-        // la merce — l'annullamento invece non esiste, per loro.
-        isStoreFlowDocumentType(doc.type))
-    ) {
-      items.push({ id: 'delete', label: 'Elimina', icon: 'pi-trash', danger: true });
-    }
-    return items;
-  }
+  // ⛔ **Qui c'era `rowActions()`, il menu tre-puntini della riga.**
+  //
+  //    Sparito il 30/08/2026 per decisione del proprietario: tutte le funzioni
+  //    passano dalla SELEZIONE e stanno nella barra in basso. Sei voci — Apri,
+  //    Duplica, Stampa, Etichette, Allegati, Elimina — di cui una ridondante
+  //    (il clic di riga apre gia' la modifica) e cinque che ora sono azioni
+  //    dichiarate dall'elenco.
+  //
+  // ⚠️ Il difetto che ha reso urgente toglierlo: le sue regole di
+  //    eliminabilita' e quelle della barra NON concordavano, e la barra
+  //    offriva Elimina dove l'API risponde 409. Due strade per lo stesso
+  //    comando, con due regole diverse.
 
   protected onAction(actionId: string, doc: DocumentRecord): void {
     this.action.emit({ action: actionId as DocumentTableActionId, doc });

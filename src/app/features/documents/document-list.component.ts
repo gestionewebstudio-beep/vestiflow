@@ -63,6 +63,7 @@ import { ListPageComponent } from '@shared/components/list-page/list-page.compon
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
+import { comando, voceEsporta } from '@shared/models/list-action-catalog';
 import {
   FILTERED_SCOPE_NOT_AVAILABLE,
   type ListAction,
@@ -132,6 +133,7 @@ import type {
   ListFilterValues,
 } from '@shared/components/list-filters/list-filter.model';
 import { ExternalDocumentTypeService } from '@domain/documents/services/external-document-type.service';
+import { isStoreFlowDocumentType } from '@domain/documents/models/document-operational.util';
 import { isPrintableDocumentType } from './models/document-print.util';
 import {
   GOODS_RECEIPT_LIST_EXPORT,
@@ -1133,43 +1135,30 @@ export class DocumentListComponent {
       const opzioni = this.createVariantOptions();
       if (opzioni.length > 0) {
         return [
-          {
-            id: 'new',
-            label: 'Nuovo',
-            icon: 'pi-plus',
-            variant: 'primary',
-            requires: 'none',
+          comando('new', {
             ariaLabel: 'Nuovo documento',
             items: opzioni.map((opzione) => ({
               id: opzione.value,
               label: opzione.label,
               run: () => this.onCreateVariant(opzione.value),
             })),
-          },
+          }),
         ];
       }
       return [
-        {
-          id: 'new',
+        comando('new', {
           label: this.salesCreateLabel() ?? 'Nuovo',
-          icon: 'pi-plus',
-          variant: 'primary',
-          requires: 'none',
           run: () => this.openNewSalesDocument(),
-        },
+        }),
       ];
     }
 
     if (this.isGoodsReceiptList()) {
       return [
-        {
-          id: 'new',
+        comando('new', {
           label: 'Nuovo arrivo merce',
-          icon: 'pi-plus',
-          variant: 'primary',
-          requires: 'none',
           run: () => this.openNewGoodsReceipt(),
-        },
+        }),
       ];
     }
 
@@ -1201,56 +1190,58 @@ export class DocumentListComponent {
   protected readonly selectionActions = computed<readonly ListAction[]>(() => {
     const azioni: ListAction[] = [
       ...this.azioniDiCreazione(),
-      {
-        // ⭐ **Il Dettaglio è la porta che mancava** (`14` §E4/§E5). Da quando
-        // il clic di riga apre la Modifica, la vista di consultazione non
-        // aveva più nessun ingresso nell'interfaccia: ci si arrivava solo per
-        // URL, o quando `documentRowPath` ci mandava un documento annullato.
-        //
-        // Sta PRIMA degli altri comandi perché è l'unico che si limita a
-        // guardare: si legge prima di produrre, e chi arriva con la mano su
-        // Elimina la trova comunque dove l'ha lasciata (§5, i comandi non si
-        // spostano).
-        id: 'detail',
-        label: 'Dettaglio',
-        icon: 'pi-eye',
-        requires: 'one',
+      // ⭐ **Il Dettaglio è la porta che mancava** (`14` §E4/§E5). Da quando
+      // il clic di riga apre la Modifica, la vista di consultazione non
+      // aveva più nessun ingresso nell'interfaccia: ci si arrivava solo per
+      // URL, o quando `documentRowPath` ci mandava un documento annullato.
+      //
+      // Sta PRIMA degli altri comandi perché è l'unico che si limita a
+      // guardare: si legge prima di produrre, e chi arriva con la mano su
+      // Elimina la trova comunque dove l'ha lasciata (§5, i comandi non si
+      // spostano).
+      comando('detail', {
         ariaLabel: 'Apri il dettaglio del documento selezionato',
         run: (target) => this.openSelectionDetail(target),
-      },
-      {
-        id: 'print',
-        label: 'Stampa',
-        icon: 'pi-print',
-        requires: 'none',
+      }),
+      // ⭐ **Le tre azioni che stavano nel menu tre-puntini della riga**, sceso
+      //    nella barra insieme alle altre — decisione del proprietario,
+      //    30/08/2026: il menu di riga sparisce, tutto passa dalla selezione.
+      //
+      // ⚠️ **La condizione cambia natura, non contenuto.** Nel menu decideva se
+      //    la voce COMPARIVA su quella riga; qui decide se l'azione e' ABILITATA
+      //    sulla riga scelta, e con quale motivo (`14` §5.1). Le regole sono le
+      //    stesse, una per una.
+      comando('duplicate', {
+        disabled: this.selezioneNonDuplicabile() !== null,
+        disabledReason: this.selezioneNonDuplicabile() ?? '',
+        ariaLabel: 'Duplica il documento selezionato',
+        run: (target) => this.duplicaSelezione(target),
+      }),
+      comando('labels', {
+        disabled: this.selezioneSenzaEtichette() !== null,
+        disabledReason: this.selezioneSenzaEtichette() ?? '',
+        ariaLabel: 'Stampa le etichette del documento selezionato',
+        run: (target) => this.apriSelezioneSuDettaglio(target),
+      }),
+      comando('attachments', {
+        ariaLabel: 'Allegati del documento selezionato',
+        run: (target) => this.apriSelezioneSuDettaglio(target, 'doc-detail-attachments'),
+      }),
+      comando('print', {
         disabled: this.selectionCount() === 0,
         disabledReason: FILTERED_SCOPE_NOT_AVAILABLE,
         ariaLabel: "Stampa l'elenco dei documenti selezionati",
         run: () => this.printSelectionList(),
-      },
-      {
-        id: 'export',
-        label: 'Esporta',
-        icon: 'pi-download',
-        requires: 'none',
+      }),
+      comando('export', {
         busy: this.bulkPdfBusy(),
         disabled: this.selectionCount() === 0,
         disabledReason: FILTERED_SCOPE_NOT_AVAILABLE,
         items: [
-          {
-            id: 'csv',
-            label: 'CSV (.csv)',
-            icon: 'pi-file-excel',
-            run: () => this.exportSelectionCsv(),
-          },
-          {
-            id: 'pdf',
-            label: 'PDF (.pdf)',
-            icon: 'pi-file-pdf',
-            run: () => this.downloadSelectionPdfs(),
-          },
+          voceEsporta('csv', () => this.exportSelectionCsv()),
+          voceEsporta('pdf', () => this.downloadSelectionPdfs()),
         ],
-      },
+      }),
     ];
     // ⛔ Il PERMESSO decide la presenza, il TIPO decide l'abilitazione.
     //
@@ -1263,16 +1254,13 @@ export class DocumentListComponent {
       //    funzione che decide se il comando si accende, quindi non possono
       //    divergere (`document-bulk-actions.util`).
       const motivo = this.selectionCount() > 0 ? bulkDeleteBlockReason(this.selectedDocs()) : null;
-      azioni.push({
-        id: 'delete',
-        label: 'Elimina',
-        icon: 'pi-trash',
-        variant: 'danger',
-        requires: 'oneOrMore',
-        disabled: motivo !== null,
-        disabledReason: motivo ?? '',
-        run: () => this.requestDeleteSelection(),
-      });
+      azioni.push(
+        comando('delete', {
+          disabled: motivo !== null,
+          disabledReason: motivo ?? '',
+          run: () => this.requestDeleteSelection(),
+        }),
+      );
     }
     return azioni;
   });
@@ -2012,6 +2000,76 @@ export class DocumentListComponent {
    * scritto: l'unione discriminata esiste proprio perché «tutto il filtrato»
    * non possa essere confuso con «non c'è niente da fare» (§5.3).
    */
+  /** Il solo documento selezionato, o `null` se non e' esattamente uno. */
+  private readonly documentoSelezionato = computed(() => {
+    const scelti = this.selectedDocs();
+    return scelti.length === 1 ? scelti[0]! : null;
+  });
+
+  /**
+   * Perche' il duplicato non si puo', **con parole sue**.
+   *
+   * ⚠️ Due condizioni, e vengono da dove venivano prima: la famiglia dev'essere
+   * gestibile da chi guarda, e il banco non si duplica — Vendita e Reso nascono
+   * dalla cassa (`11` A2).
+   */
+  private readonly selezioneNonDuplicabile = computed<string | null>(() => {
+    const doc = this.documentoSelezionato();
+    if (!doc) {
+      return null;
+    }
+    if (!this.canManageDocuments() || !this.manageableTypes().includes(doc.type)) {
+      return 'Non hai i permessi per creare documenti di questo tipo.';
+    }
+    if (isStoreFlowDocumentType(doc.type)) {
+      return 'Vendite e Resi al banco si registrano dalla cassa, non si duplicano.';
+    }
+    if (documentDuplicateFormRoute(doc.type) === null) {
+      return 'Questo tipo di documento non ha una maschera da cui ripartire.';
+    }
+    return null;
+  });
+
+  /** Le etichette esistono solo dove c'e' merce arrivata: arrivi merce con righe. */
+  private readonly selezioneSenzaEtichette = computed<string | null>(() => {
+    const doc = this.documentoSelezionato();
+    if (!doc) {
+      return null;
+    }
+    if (!isGoodsReceiptDocumentType(doc.type)) {
+      return 'Le etichette si stampano dagli arrivi merce.';
+    }
+    if (doc.status === DocumentStatus.Draft || doc.status === DocumentStatus.Cancelled) {
+      return 'Un arrivo merce in bozza o annullato non ha etichette da stampare.';
+    }
+    if ((doc.lineCount ?? 0) === 0) {
+      return "Questo arrivo merce non ha righe: non c'e' niente da etichettare.";
+    }
+    return null;
+  });
+
+  private rigaSelezionata(target: ListActionTarget): DocumentRecord | null {
+    if (target.scope !== 'selection') {
+      return null;
+    }
+    const id = target.ids[0];
+    return (id ? this.documents().find((riga) => riga.id === id) : undefined) ?? null;
+  }
+
+  private duplicaSelezione(target: ListActionTarget): void {
+    const doc = this.rigaSelezionata(target);
+    if (doc) {
+      this.duplicateDocument(doc);
+    }
+  }
+
+  private apriSelezioneSuDettaglio(target: ListActionTarget, ancora?: string): void {
+    const doc = this.rigaSelezionata(target);
+    if (doc) {
+      this.openDocumentDetail(doc, ancora);
+    }
+  }
+
   private openSelectionDetail(target: ListActionTarget): void {
     if (target.scope !== 'selection') {
       return;

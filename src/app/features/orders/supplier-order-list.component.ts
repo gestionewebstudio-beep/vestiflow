@@ -9,6 +9,7 @@ import {
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
+import { comando } from '@shared/models/list-action-catalog';
 import {
   FILTERED_SCOPE_NOT_AVAILABLE,
   type ListAction,
@@ -98,7 +99,7 @@ type OrderListState =
   selector: 'app-supplier-order-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    ListPageComponent,
+    ListPageComponent,
     ErrorStateComponent,
     SelectMenuComponent,
     ListActionsBarComponent,
@@ -227,58 +228,37 @@ export class SupplierOrderListComponent {
     //    Non è duplicato: si è spostato.
     ...(this.canManageSupplierOrders()
       ? ([
-          {
-            id: 'new',
-            label: 'Nuovo',
-            icon: 'pi-plus',
-            variant: 'primary',
-            requires: 'none',
+          comando('new', {
             ariaLabel: 'Nuovo ordine fornitore',
             run: () => this.createOrder(),
-          },
+          }),
         ] as const)
       : []),
-    {
-      // ⭐ Il **Dettaglio** (`14` §6, §E6): la consultazione in sola lettura,
-      // che qui esiste da sempre — `orders/:id`, «Dettaglio ordine fornitore»,
-      // protetta dai soli permessi di vista. Da quando il clic di riga apre la
-      // Modifica non ci portava piu' nessuno.
-      //
-      // Sta PRIMA degli altri: e' l'unico comando che si limita a guardare.
-      id: 'detail',
-      label: 'Dettaglio',
-      icon: 'pi-eye',
-      requires: 'one',
+    // ⭐ Il **Dettaglio** (`14` §6, §E6): la consultazione in sola lettura,
+    // che qui esiste da sempre — `orders/:id`, «Dettaglio ordine fornitore»,
+    // protetta dai soli permessi di vista. Da quando il clic di riga apre la
+    // Modifica non ci portava piu' nessuno.
+    //
+    // Sta PRIMA degli altri: e' l'unico comando che si limita a guardare.
+    comando('detail', {
       ariaLabel: "Apri il dettaglio dell'ordine selezionato",
       run: (bersaglio) => this.openDetail(bersaglio),
-    },
-    {
-      id: 'print',
-      label: 'Stampa',
-      icon: 'pi-print',
-      requires: 'none',
+    }),
+    comando('print', {
       disabled: this.selectionCount() === 0,
       disabledReason: FILTERED_SCOPE_NOT_AVAILABLE,
       ariaLabel: "Stampa l'elenco degli ordini selezionati",
       run: (bersaglio) => this.printSelection(bersaglio),
-    },
-    {
-      id: 'excel',
-      label: 'Excel',
-      icon: 'pi-file-excel',
-      requires: 'none',
+    }),
+    comando('excel', {
       busy: this.excelBusy(),
       run: (bersaglio) => this.downloadExcel(bersaglio),
-    },
-    {
-      id: 'export',
-      label: 'Esporta',
-      icon: 'pi-download',
-      requires: 'none',
+    }),
+    comando('export', {
       disabled: this.selectionCount() === 0,
       disabledReason: FILTERED_SCOPE_NOT_AVAILABLE,
       items: [{ id: 'csv', label: 'CSV (.csv)', icon: 'pi-file', run: (b) => this.exportCsv(b) }],
-    },
+    }),
   ]);
 
   protected readonly meta = computed<PageMeta>(() => {

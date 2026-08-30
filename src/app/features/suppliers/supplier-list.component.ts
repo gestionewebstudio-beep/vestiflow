@@ -26,6 +26,7 @@ import type { Supplier } from '@core/models/supplier.model';
 import { canManageSupplierOrders } from '@core/permissions/tenant-permissions.util';
 import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
+import { comando } from '@shared/models/list-action-catalog';
 import type { ListAction } from '@shared/models/list-selection.model';
 import { PaginationComponent } from '@shared/components/pagination/pagination.component';
 
@@ -209,15 +210,10 @@ export class SupplierListComponent {
   protected readonly listActions = computed<readonly ListAction[]>(() =>
     this.canManage()
       ? [
-          {
-            id: 'new',
-            label: 'Nuovo',
-            icon: 'pi-plus',
-            variant: 'primary',
-            requires: 'none',
+          comando('new', {
             ariaLabel: 'Nuovo fornitore',
             run: () => this.createSupplier(),
-          },
+          }),
         ]
       : [],
   );

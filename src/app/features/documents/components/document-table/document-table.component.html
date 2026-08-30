@@ -25,7 +25,6 @@
   [selectedIds]="selectedIds()"
   [selectionLabel]="selectionLabel"
   selectAllLabel="Seleziona tutti i documenti"
-  [rowActionsLabel]="'Azioni'"
   (rowClick)="rowClick.emit($event)"
   (sortChange)="sortChange.emit($event)"
   (selectionChange)="onToggleSelect($event.row, $event.selected)"
@@ -82,15 +81,4 @@
     }
   </ng-template>
 
-  <!--
-    ⏸ Il menu per riga. `14` §C0.1 ha deciso che le funzioni per singolo
-    documento ne escano: resta finché la matrice azioni non le ha ricollocate.
-  -->
-  <ng-template appRowActions let-doc>
-    <app-action-menu
-      [items]="rowActions(doc)"
-      [ariaLabel]="'Azioni su ' + referenceLabel(doc)"
-      (actionSelected)="onAction($event, doc)"
-    />
-  </ng-template>
 </app-data-table>

@@ -1091,6 +1091,22 @@ Questi non rompono niente, ma sono il motivo per cui un operatore non può saper
 
 **Otto pulsanti per quattro operazioni.** Quattro endpoint hanno due etichette ciascuno a seconda di dove ti trovi: «Importa catalogo» / «Sincronizza catalogo da Shopify», «Sync giacenze» / «Sincronizza giacenze da Shopify», «Sync clienti» / «Sincronizza da Shopify», «Sync vendite» / «Sincronizza vendite da Shopify». Tre vocabolari — importa, sync, sincronizza — per la stessa famiglia, senza nessuna regola.
 
+**E ora si chiamano anche tutte allo stesso modo nel codice** _(misurato il 30/08/2026)_. Da
+quando i comandi degli elenchi sono azioni dichiarate, i quattro pulsanti sono **quattro
+`ListAction` con lo stesso id — `shopify-sync`** — e quattro etichette diverse:
+
+| Dove | Etichetta | Che cosa fa |
+| --- | --- | --- |
+| Prodotti | «Importa catalogo» | PULL: porta dentro i prodotti |
+| Giacenze | «Riallinea su Shopify» | PUSH: manda fuori le giacenze |
+| Clienti | «Sincronizza da Shopify» | PULL |
+| Ordini cliente | «Sincronizza» | PULL |
+
+⛔ **Non sono lo stesso comando e non vanno unificati**: due tirano dentro, uno spinge fuori.
+Vanno **distinti gli id** — un id che non distingue è peggio di un'etichetta che non spiega,
+perché nessuno strumento può accorgersene. È la controparte, nel codice, degli «otto pulsanti
+per quattro operazioni» qui sopra, e si risolve con la stessa riorganizzazione.
+
 **Due etichette quasi identiche fanno l'opposto.** «Sincronizza con Shopify» (dettaglio prodotto: l'unico push dell'intera applicazione) e «Sincronizza catalogo da Shopify» (pull).
 
 **Tre pulsanti «Riprova» su tre endpoint diversi**, nessuno dei quali contatta Shopify.

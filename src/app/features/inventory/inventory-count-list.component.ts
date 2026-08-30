@@ -16,6 +16,7 @@ import type { InventoryCountSession } from '@core/models/inventory-count.model';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
+import { comando } from '@shared/models/list-action-catalog';
 import type { ListAction } from '@shared/models/list-selection.model';
 
 import { InventoryCountTableComponent } from './components/inventory-count-table/inventory-count-table.component';
@@ -106,15 +107,14 @@ export class InventoryCountListComponent {
    * ⚠️ «Nuova sessione» stava in testata: si è spostata, non duplicata.
    */
   protected readonly listActions = computed<readonly ListAction[]>(() => [
-    {
-      id: 'new',
+    // ⚠️ L'etichetta differisce dal catalogo, ed è voluto: «Nuovo» sotto
+    //    «Inventario» direbbe cosa si crea solo a chi lo sa già — una sessione
+    //    di conteggio non è un documento.
+    comando('new', {
       label: 'Nuova sessione',
-      icon: 'pi-plus',
-      variant: 'primary',
-      requires: 'none',
       ariaLabel: 'Avvia una nuova sessione di inventario',
       run: () => this.newSession(),
-    },
+    }),
   ]);
 
   protected newSession(): void {

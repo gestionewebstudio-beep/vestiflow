@@ -57,6 +57,7 @@ import {
   MovementPeriodPreset,
   resolveMovementPeriodRange,
 } from '@domain/inventory/models/movement-period.util';
+import { comando, voceEsporta } from '@shared/models/list-action-catalog';
 import { FILTERED_SCOPE_NOT_AVAILABLE, type ListAction } from '@shared/models/list-selection.model';
 import {
   serializeDataTableSort,
@@ -490,15 +491,12 @@ export class SalesOrderListComponent {
     //    proprietario, 30/08/2026: tutti in una riga in basso, totali sopra.
     const diPagina: ListAction[] = [];
     if (this.canCreateManualOrder()) {
-      diPagina.push({
-        id: 'new',
-        label: 'Nuovo',
-        icon: 'pi-plus',
-        variant: 'primary',
-        requires: 'none',
-        ariaLabel: 'Nuovo ordine manuale',
-        run: () => this.createManualOrder(),
-      });
+      diPagina.push(
+        comando('new', {
+          ariaLabel: 'Nuovo ordine manuale',
+          run: () => this.createManualOrder(),
+        }),
+      );
     }
     if (this.showShopifyOrdersSync()) {
       diPagina.push({
@@ -513,54 +511,37 @@ export class SalesOrderListComponent {
     }
     const azioni: ListAction[] = [
       ...diPagina,
-      {
-        id: 'print',
-        label: 'Stampa',
-        icon: 'pi-print',
-        requires: 'none',
+      comando('print', {
         disabled: this.selectionCount() === 0,
         disabledReason: FILTERED_SCOPE_NOT_AVAILABLE,
         ariaLabel: "Stampa l'elenco degli ordini selezionati",
         run: () => this.printSelectionList(),
-      },
-      {
-        id: 'export',
-        label: 'Esporta',
-        icon: 'pi-download',
-        requires: 'none',
+      }),
+      comando('export', {
         disabled: this.selectionCount() === 0,
         disabledReason: FILTERED_SCOPE_NOT_AVAILABLE,
         busy: this.bulkPdfBusy(),
         items: [
-          {
-            id: 'csv',
-            label: 'CSV (.csv)',
-            icon: 'pi-file-excel',
-            run: () => this.exportSelectionCsv(),
-          },
-          {
-            id: 'pdf',
-            label: 'PDF (.pdf)',
-            icon: 'pi-file-pdf',
-            run: () => this.downloadSelectionPdfs(),
-          },
+          voceEsporta('csv', () => this.exportSelectionCsv()),
+          voceEsporta('pdf', () => this.downloadSelectionPdfs()),
         ],
-      },
+      }),
     ];
     const eliminabili = this.deletableSelectedOrders().length;
     const selezionati = this.selectedOrders().length;
     if (eliminabili > 0) {
-      azioni.push({
-        id: 'delete',
-        // Non più «manuali»: fra gli eliminabili ci sono anche gli ordini di
-        // canale che su Shopify non risultano più.
-        label: eliminabili === selezionati ? 'Elimina' : `Elimina ${eliminabili} di ${selezionati}`,
-        icon: 'pi-trash',
-        variant: 'danger',
-        requires: 'oneOrMore',
-        disabled: this.deleteBusy(),
-        run: () => this.requestDeleteSelection(),
-      });
+      azioni.push(
+        comando('delete', {
+          // ⚠️ L'etichetta differisce dal catalogo, ed è voluto: dice QUANTI
+          //    dei selezionati si eliminano davvero. Non più «manuali» — fra
+          //    gli eliminabili ci sono anche gli ordini di canale che su
+          //    Shopify non risultano più.
+          label:
+            eliminabili === selezionati ? 'Elimina' : `Elimina ${eliminabili} di ${selezionati}`,
+          disabled: this.deleteBusy(),
+          run: () => this.requestDeleteSelection(),
+        }),
+      );
     }
     return azioni;
   });

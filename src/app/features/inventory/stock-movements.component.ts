@@ -10,6 +10,7 @@ import {
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
+import { comando, voceEsporta } from '@shared/models/list-action-catalog';
 import {
   FILTERED_SCOPE_NOT_AVAILABLE,
   type ListAction,
@@ -624,32 +625,19 @@ export class StockMovementsComponent {
           }),
         )
       : []),
-    {
-      id: 'print',
-      label: 'Stampa',
-      icon: 'pi-print',
-      requires: 'none',
+    comando('print', {
       disabled: this.selectionCount() === 0,
       disabledReason: FILTERED_SCOPE_NOT_AVAILABLE,
       ariaLabel: 'Stampa i movimenti selezionati',
       run: (bersaglio) => this.printSelection(bersaglio),
-    },
-    {
-      id: 'export',
-      label: 'Esporta',
-      icon: 'pi-download',
-      requires: 'none',
+    }),
+    comando('export', {
       disabled: this.selectionCount() === 0,
       disabledReason: FILTERED_SCOPE_NOT_AVAILABLE,
       items: [
-        {
-          id: 'csv',
-          label: 'CSV (.csv)',
-          icon: 'pi-file',
-          run: (bersaglio) => this.exportCsv(bersaglio),
-        },
+        voceEsporta('csv', (bersaglio) => this.exportCsv(bersaglio)),
       ],
-    },
+    }),
   ]);
 
   /** Una sezione sola, senza intestazione né piede: la lista è piatta. */

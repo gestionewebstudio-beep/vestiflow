@@ -2,6 +2,7 @@ import type { Type } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { render, screen } from '@testing-library/angular';
+import userEvent from '@testing-library/user-event';
 import { of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -208,8 +209,13 @@ describe('Anteprima stampa — gli stessi filtri del Registro', () => {
 
 describe('Scarica PDF — gli stessi filtri del Registro', () => {
   it('il PDF parte con i filtri effettivi, sede compresa', async () => {
+    const user = userEvent.setup();
     const service = await apri(CorrispettiviReportComponent, FILTRI_EFFETTIVI);
-    screen.getByRole('button', { name: /^PDF$/i }).click();
+
+    // ⚠️ PDF è una VOCE del menu «Esporta» dal 30/08/2026, non più un pulsante
+    //    in fila: il menu va aperto prima.
+    await user.click(screen.getByRole('button', { name: /^Esporta$/i }));
+    await user.click(screen.getByRole('menuitem', { name: /PDF/i }));
 
     expect(domandaAllApi(service.exportPdf.mock.calls[0]![0])).toEqual(
       domandaAllApi(service.listOrders.mock.calls[0]![0]),

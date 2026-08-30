@@ -39,6 +39,7 @@ import { ProductStatus } from '@core/models/product.model';
 import type { Product } from '@core/models/product.model';
 import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
+import { comando, voceEsporta } from '@shared/models/list-action-catalog';
 import type { ListAction } from '@shared/models/list-selection.model';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { PaginationComponent } from '@shared/components/pagination/pagination.component';
@@ -479,28 +480,23 @@ export class ProductListComponent {
     //    Non sono duplicati: si sono spostati.
     ...(this.canManageCatalog()
       ? ([
-          {
-            id: 'new',
-            label: 'Nuovo',
-            icon: 'pi-plus',
-            variant: 'primary',
-            requires: 'none',
+          comando('new', {
             ariaLabel: 'Aggiungi prodotto',
             run: () => this.createProduct(),
-          },
+          }),
         ] as const)
       : []),
     ...(this.canImportExportCatalog()
       ? ([
-          {
-            id: 'export',
-            label: 'Esporta CSV',
-            icon: 'pi-download',
-            requires: 'none',
+          // ⭐ **Esporta è il MENU dei tracciati**, non un pulsante per formato
+          //    (`14` §5.2, deciso dal proprietario il 30/08/2026). Qui era
+          //    «Esporta CSV» diretto, e su altre pagine «Esporta» con le voci:
+          //    la stessa cosa aveva due forme.
+          comando('export', {
             busy: this.exporting(),
-            ariaLabel: 'Esporta il catalogo in CSV',
-            run: () => this.exportProducts(),
-          },
+            ariaLabel: 'Esporta il catalogo',
+            items: [voceEsporta('csv', () => this.exportProducts())],
+          }),
           {
             id: 'import',
             label: 'Importa CSV',

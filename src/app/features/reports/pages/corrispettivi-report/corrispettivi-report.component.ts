@@ -8,6 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { comando, voceEsporta } from '@shared/models/list-action-catalog';
 import { listActionState } from '@shared/models/list-selection.model';
 import type { ListAction, ListActionState } from '@shared/models/list-selection.model';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -829,63 +830,34 @@ export class CorrispettiviReportComponent {
    * — in silenzio.
    */
   protected readonly listActions = computed<readonly ListAction[]>(() => [
-    // ⭐ **«Nuovo» sta QUI, non in testata** — decisione del proprietario,
-    //    30/08/2026: tutti i comandi in una riga in basso. Non è duplicato: si
-    //    è spostato, e la testata resta Indietro + titolo.
+    // ⭐ **La forma dei comandi viene dal CATALOGO**, non riscritta qui: era
+    //    così che «Stampa» era diventata ghost solo su questa pagina, e «CSV»
+    //    aveva tre icone diverse in tre elenchi (misurato il 30/08/2026).
     ...(this.canManageRegister()
-      ? ([
-          {
-            id: 'new',
-            label: 'Nuovo',
-            icon: 'pi-plus',
-            variant: 'primary',
-            requires: 'none',
-            ariaLabel: 'Aggiungi corrispettivo',
-            run: () => this.addManualReceipt(),
-          },
-        ] as const)
+      ? [comando('new', { ariaLabel: 'Aggiungi corrispettivo', run: () => this.addManualReceipt() })]
       : []),
-    // ⚠️ Le quattro esportazioni compaiono solo con il permesso: prima erano
-    //    dentro un `@if (canExport())` nel template, ora la condizione sta
-    //    dove sta la dichiarazione — non in due posti.
+
+    // ⭐ **Stampa, Excel ed Esporta sono TRE comandi** (`14` §5.2), ed Esporta
+    //    è il menu dei tracciati — deciso dal proprietario il 30/08/2026.
+    //
+    // ⛔ Qui PDF e CSV erano due pulsanti a sé, in fila con gli altri: quattro
+    //    comandi per quattro formati. Sulle altre pagine erano già voci del
+    //    menu, e la stessa cosa aveva due forme.
     ...(this.canExport()
-      ? ([
-          {
-            id: 'print',
-            label: 'Stampa',
-            icon: 'pi-print',
-            variant: 'ghost',
-            requires: 'none',
-            run: () => this.printReport(),
-          },
-          {
-            id: 'pdf',
-            label: 'PDF',
-            icon: 'pi-file-pdf',
-            variant: 'secondary',
-            requires: 'none',
-            busy: this.exportingPdf(),
-            run: () => this.exportPdf(),
-          },
-          {
-            id: 'spreadsheet',
-            label: 'Excel',
-            icon: 'pi-file-excel',
-            variant: 'secondary',
-            requires: 'none',
+      ? [
+          comando('print', { run: () => this.printReport() }),
+          comando('excel', {
             busy: this.exportingSpreadsheet(),
             run: () => this.exportSpreadsheet(),
-          },
-          {
-            id: 'csv',
-            label: 'CSV',
-            icon: 'pi-download',
-            variant: 'secondary',
-            requires: 'none',
-            busy: this.exporting(),
-            run: () => this.exportAccountantCsv(),
-          },
-        ] as const)
+          }),
+          comando('export', {
+            busy: this.exportingPdf() || this.exporting(),
+            items: [
+              voceEsporta('pdf', () => this.exportPdf()),
+              voceEsporta('csv', () => this.exportAccountantCsv()),
+            ],
+          }),
+        ]
       : []),
   ]);
 

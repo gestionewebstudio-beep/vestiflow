@@ -35,6 +35,12 @@ export const TableViewId = {
   CustomersList: 'customers_list',
   SalesOrdersList: 'sales_orders_list',
   ShopifyOrdersList: 'shopify_orders_list',
+  // ⭐ Aggiunte il 30/08/2026: erano i **due soli elenchi senza selettore
+  //    Colonne**, con le colonne cablate nel componente. Il proprietario le ha
+  //    volute allineate — «dobbiamo avere il tasto delle colonne, che in alcuni
+  //    riepiloghi è sparito, e che siano attivabili».
+  SupplierOrdersList: 'supplier_orders_list',
+  OnlineSalesList: 'online_sales_list',
   // Registro Corrispettivi: Cliente, Email, Pagamento e Nota vivono qui, spente
   // di serie. Non sono state rimosse — si riaccendono dal selettore Colonne.
   CorrispettiviRegister: 'corrispettivi_register',
@@ -97,6 +103,25 @@ export interface TableColumnDef {
    * documenti e `false` in due.
    */
   readonly numeric?: boolean;
+
+  /**
+   * ⭐ **La colonna è CONTABILE: la sua somma ha un significato.**
+   *
+   * _Deciso dal proprietario il 30/08/2026, sul riferimento Danea: «quando
+   * attivi una colonna contabile, ti mostra il totale di quella»._
+   *
+   * ⛔ **Non è `numeric`**, e confonderle darebbe numeri senza senso. `numeric`
+   * dice «allinea a destra»: la colonna *Righe* di un ordine è numerica — 2, 1,
+   * 0 — ma sommarla dà un totale che non risponde a nessuna domanda. Contabile
+   * è l'imponibile, l'IVA, il totale documento.
+   *
+   * ⭐ **E il totale segue la COLONNA, non una configurazione a parte**: se
+   * l'imponibile è spento dal selettore Colonne, la sua somma non compare. È
+   * anche il modo in cui un titolare che non vuole mostrare gli importi li
+   * toglie — una decisione sola invece di due che possono contraddirsi.
+   */
+  readonly summable?: boolean;
+
   /** Colonna visibile di default se nessuna preferenza salvata. */
   readonly defaultVisible?: boolean;
   readonly pinnable?: boolean;

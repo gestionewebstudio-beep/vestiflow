@@ -43,6 +43,7 @@ import type { Location } from '@core/models/location.model';
 import { stockStatusOf } from '@core/utils/inventory.util';
 import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
+import { comando, voceEsporta } from '@shared/models/list-action-catalog';
 import type { ListAction } from '@shared/models/list-selection.model';
 import { BarcodeScannerComponent } from '@shared/components/barcode-scanner/barcode-scanner.component';
 import { PaginationComponent } from '@shared/components/pagination/pagination.component';
@@ -423,15 +424,15 @@ export class InventoryLevelsComponent {
 
     if (this.canImportExportInventory()) {
       azioni.push(
-        {
-          id: 'export',
-          label: 'Esporta CSV',
-          icon: 'pi-download',
-          requires: 'none',
+        // ⭐ **Esporta è il MENU dei tracciati**, non un pulsante per formato
+        //    (`14` §5.2, deciso dal proprietario il 30/08/2026). Qui era
+        //    «Esporta CSV» diretto, e su altre pagine «Esporta» con le voci:
+        //    la stessa cosa aveva due forme.
+        comando('export', {
           busy: this.exporting(),
-          ariaLabel: 'Esporta le giacenze in CSV',
-          run: () => this.exportInventory(),
-        },
+          ariaLabel: 'Esporta le giacenze',
+          items: [voceEsporta('csv', () => this.exportInventory())],
+        }),
         {
           id: 'import',
           label: 'Importa CSV',

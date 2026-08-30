@@ -34,6 +34,7 @@ import type { ShopifyConnection } from '@core/models/shopify-connection.model';
 import type { Customer } from '@core/models/customer.model';
 import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
+import { comando, voceEsporta } from '@shared/models/list-action-catalog';
 import type { ListAction } from '@shared/models/list-selection.model';
 import { PaginationComponent } from '@shared/components/pagination/pagination.component';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
@@ -285,27 +286,26 @@ export class CustomerListComponent {
     const azioni: ListAction[] = [];
 
     if (this.canManage()) {
-      azioni.push({
-        id: 'new',
-        label: 'Nuovo',
-        icon: 'pi-plus',
-        variant: 'primary',
-        requires: 'none',
-        ariaLabel: 'Nuovo cliente',
-        run: () => void this.router.navigate(['/app/customers/new']),
-      });
+      azioni.push(
+        comando('new', {
+          ariaLabel: 'Nuovo cliente',
+          run: () => void this.router.navigate(['/app/customers/new']),
+        }),
+      );
     }
 
     if (this.canExportData()) {
-      azioni.push({
-        id: 'export',
-        label: 'Esporta CSV',
-        icon: 'pi-download',
-        requires: 'none',
-        busy: this.exporting(),
-        ariaLabel: "Esporta l'elenco clienti in CSV",
-        run: () => this.exportCustomers(),
-      });
+      // ⭐ **Esporta è il MENU dei tracciati**, non un pulsante per formato
+      //    (`14` §5.2, deciso dal proprietario il 30/08/2026). Qui era
+      //    «Esporta CSV» diretto, e su altre pagine «Esporta» con le voci:
+      //    la stessa cosa aveva due forme.
+      azioni.push(
+        comando('export', {
+          busy: this.exporting(),
+          ariaLabel: "Esporta l'elenco clienti",
+          items: [voceEsporta('csv', () => this.exportCustomers())],
+        }),
+      );
     }
 
     if (this.showShopifyCustomersSync()) {
