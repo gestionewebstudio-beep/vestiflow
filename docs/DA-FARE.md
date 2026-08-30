@@ -91,16 +91,75 @@ __columns-picker · __field · __label`
 script il 29/08 ha mangiato le chiusure dei commenti e sbilanciato le graffe: **annullato**.
 Va fatto a mano, blocco per blocco, con la build a ogni passo.
 
-## ⏸ Il riepilogo Corrispettivi ha DUE fasce, la regola ne vuole UNA — 29/08/2026
+## ✅ Il riepilogo Corrispettivi — chiuso il 30/08/2026
 
-`regole-stile-ui` («Riepilogo di fondo pagina») registra la decisione del proprietario del
-29/08: **una sola fascia sul desktop**, conteggi a sinistra e importi a destra sulla stessa
-riga, perché la seconda fascia costa una fascia di altezza a ogni schermata.
+⛔ **Qui c'era «ha DUE fasce, la regola ne vuole UNA»**, aperta il 29/08. La voce è
+superata: il 30/08 la forma è cambiata di nuovo, e la domanda «una o due fasce» non è più
+quella giusta.
 
-`corrispettivi-summary.component.html` ha ancora **due** `__band`, e si vede a schermo:
-sopra `Rettifiche · Annullamenti · Vendite`, sotto `Imponibile · IVA · Totale · Corrispettivo`.
+**Come sta adesso**, e la regola lo dichiara in «Riepilogo di fondo pagina»: voci
+**impilate** (etichetta sopra, valore sotto) a **ogni** larghezza, in una griglia
+`auto-fit` che decide da sé quante colonne stanno — due a 320px, tre a 390, quattro da
+430, tutte su una riga da `lg` in su.
 
-⚠️ Decisione scritta, codice non allineato. Non è un difetto del telaio — c'era già.
+⭐ **La forma impilata ha chiuso anche la «DECISIONE APERTA» sulla soglia**: serviva
+sapere a quale larghezza la fascia a riga unica dovesse cedere. Impilata ci sta sempre —
+615px invece di 918 — quindi non c'è più una soglia da decidere.
+
+## ⏸ La SELEZIONE DI RIGA manca su Corrispettivi — 30/08/2026
+
+Chiesta dal proprietario. **Non è una regressione**: verificato con `git log -S`, quella
+tabella non ha mai avuto la selezione, nemmeno prima del passaggio al motore comune.
+
+⭐ **Il motore la supporta già per intero**: `selectionMode`, `selectedIds`,
+`selectionChange`, `selectAllChange`, più `createListSelection()` e
+`app-selection-check`. Lo schema completo si legge in `supplier-order-list`, che la usa.
+
+⛔ **Non è stata aggiunta perché mancano due decisioni**, e senza sono caselle che non
+fanno niente:
+
+| Domanda                                 | Perché non si può dedurre                                                                                                                                                                                            |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Selezionare cambia il riepilogo?**    | `regole-stile-ui` dice che la riga TOTALI segue la selezione — ma Corrispettivi non ha la riga totali, ha il riepilogo, e i suoi valori sono **canonici e arrivano dall'API**. Ricalcolarli nel componente è vietato |
+| **Quali azioni diventano contestuali?** | Stampa, Excel ed Esporta oggi agiscono sull'elenco filtrato. Farle agire sulla selezione tocca anche stampa ed export, non solo la UI                                                                                |
+
+---
+
+## ⏸ Quattro elenchi ancora fuori dal motore comune — misurato 30/08/2026
+
+```text
+sul motore   document-table · stock-movements · online-sale-list
+             supplier-order-list · corrispettivi-orders-table · sales-order-table
+fuori        customer-table · product-table · inventory-level-table · situation-table
+```
+
+⚠️ **E si vede nelle caselle di selezione**: quelle quattro hanno `<input type="checkbox">`
+scritti a mano invece di `app-selection-check`. Al 30/08 erano dimensionati in **tre modi
+diversi** per dire la stessa cosa — `--space-4` nel componente condiviso, `--space-4` in
+`product-table`, `1rem` nudo in `situation-table` (valore nudo, vietato dalla regola).
+
+⭐ **Sanato per ora col token `--check-size`**, che li porta tutti a 14px. Ma è un cerotto:
+finché il markup è duplicato, la prossima decisione sulle caselle andrà applicata in
+quattro posti e uno resterà indietro.
+
+⚠️ **Restano 44 `<input type="checkbox">` altrove** — form, pannelli impostazioni: quelli
+NON sono selezione di riga e non devono seguire questo token.
+
+---
+
+## ⏸ Due domande di forma rimaste aperte — 30/08/2026
+
+1. **I due verdi del telefono.** «Vendite» e «Corrispettivo» usano `--color-ok` sotto `lg`
+   e `--color-primary` sopra. Il proprietario ha chiesto il verde la mattina e
+   l'allineamento ai colori della scrivania la sera: le due indicazioni si contraddicono, e
+   **non è stata presa una decisione al posto suo**. O si allineano al navy, o il verde sale
+   anche sulla scrivania.
+
+2. **L'allineamento dei totali su tablet.** Fra 768 e 1024px le colonne della fascia sono
+   larghe ~240px per ~60px di contenuto: la forma del telefono applicata a una larghezza da
+   scrivania. Nessuna decisione presa.
+
+---
 
 ## ⛔ Il richiamo articolo rilegge il catalogo a ogni battuta — misurato 29/08/2026
 

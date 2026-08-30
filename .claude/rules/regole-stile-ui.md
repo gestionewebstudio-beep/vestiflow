@@ -215,29 +215,61 @@ Le card restano contenitori (superficie bianca + radius), ma occupano quasi tutt
 **44px** ovunque sia un elemento tappabile su mobile. Su desktop si può scendere a 32–34px per bottoni densi e a 29–30px per input in griglia densa.
 
 ⚠️ **Una sola eccezione, e vale solo per i pulsanti di BARRA**: `--control-h-button` scende
-a **40px** sotto `md` (deciso il 30/08/2026). WCAG 2.2 chiede 24×24 CSS px al livello AA —
-i 44 sono la raccomandazione di Apple e il livello AAA — quindi a 40px il bersaglio resta
-ampiamente sopra il minimo richiesto, e sono comunque pulsanti **etichettati e
-distanziati**, non icone nude.
+a **38px** sotto `md` (deciso il 30/08/2026, in due passi: 44 → 40 a voce, 40 → 38 col
+riferimento HTML del proprietario alla mano). WCAG 2.2 chiede 24×24 CSS px al livello AA —
+i 44 sono la raccomandazione di Apple e il livello AAA — quindi a 38px il bersaglio resta
+sopra il minimo richiesto, e sono comunque pulsanti **etichettati e distanziati**, non
+icone nude.
 
 ⛔ **Campi e controlli di form restano a 44**, e la distinzione è quella che conta: un campo
 si sbaglia mentre si scrive, un pulsante di barra si preme una volta e ha una parola sopra
-che dice cosa fa. **Sotto i 40 non si scende.**
+che dice cosa fa. **Sotto i 38 non si scende.**
 
 ### Altezze dei controlli — token
 
 L'altezza di un controllo è una decisione di **sistema**, non di singola maschera:
 vive nei token e non va reimpostata nel foglio di un componente.
 
-| Uso                              | Token                | Desktop | Mobile   |
-| -------------------------------- | -------------------- | ------- | -------- |
-| Bottoni e select generici        | `--btn-min-height`   | 34px    | 44px     |
-| Input generici                   | `--field-height`     | 34px    | 44px     |
-| Controlli di testata documento   | `--control-h-field`  | 29px    | 44px     |
-| Bottoni barra strumenti / azioni | `--control-h-button` | 31px    | **40px** |
-| Input dentro le righe            | `--control-h-cell`   | 24px    | 24px     |
-| Riga tabella                     | `--table-row-h`      | 30px    | —        |
-| Intestazione tabella             | `--table-head-h`     | 32px    | —        |
+| Uso                              | Token                | Desktop  | Mobile   |
+| -------------------------------- | -------------------- | -------- | -------- |
+| Bottoni e select generici        | `--btn-min-height`   | 34px     | 44px     |
+| Input generici                   | `--field-height`     | 34px     | 44px     |
+| Controlli di testata documento   | `--control-h-field`  | 29px     | 44px     |
+| Bottoni barra strumenti / azioni | `--control-h-button` | **28px** | **38px** |
+| Input dentro le righe            | `--control-h-cell`   | 24px     | 24px     |
+| Riga tabella                     | `--table-row-h`      | 30px     | —        |
+| Intestazione tabella             | `--table-head-h`     | **28px** | —        |
+| Casella di selezione riga        | `--check-size`       | 14px     | 14px     |
+
+### ⭐ La densità da scrivania è scesa di tre gradini — 30/08/2026
+
+Deciso dal proprietario in tre passaggi successivi, guardando la stessa schermata:
+_«i pulsanti li farei ancora più piccoli verticalmente, meno padding»_.
+
+```text
+bottoni di barra      34 → 31 → 28 px
+intestazione tabella       32 → 28 px
+margini della shell    20/24 → 6/8 px
+passo fra le zone         20 → 6 px
+casella di selezione       16 → 14 px
+```
+
+⭐ **Il guadagno si misura sul contenitore delle righe**, che è il punto: da
+**586 a 648px** a parità di finestra, cioè due righe e mezza in più.
+
+⛔ **Sotto i 28px non si scende senza rivedere il font.** WCAG 2.2 AA chiede
+24×24 CSS px: a 28 il bersaglio resta sopra il minimo con un margine onesto e
+l'etichetta a 12px ci sta senza comprimersi. Più giù si tocca la leggibilità
+prima dell'ergonomia.
+
+⚠️ **Il padding verticale di quei pulsanti è ZERO**: l'altezza la dà interamente
+il token, quindi «meno padding» si traduce nel token e non in una dichiarazione
+di padding che non esiste.
+
+⚠️ **La casella di selezione è un controllo, non una spaziatura.** Era dimensionata
+con `--space-4` in un posto, `--space-4` in un altro e `1rem` nudo in un terzo:
+tre modi di dire 16px, uno dei quali vietato dalla regola dei valori nudi. Ora è
+`--check-size`, e il suo bersaglio reale resta la cella che la contiene.
 
 Il passaggio a 44px sotto il breakpoint `md` è centralizzato in
 `_design-tokens.scss`: **non** si ripete nei componenti. ⚠️ I soli **pulsanti di barra**
@@ -754,50 +786,71 @@ scartate sono la parte utile.
   colonne** (`14` §22.4): il subtotale di raggruppamento invece sì, perché è una
   riga dentro la tabella. Sono due cose diverse e non vanno uniformate.
 
-- ⭐ **Etichetta e valore AFFIANCATI, su una riga sola** — deciso dal proprietario il
-  30/08/2026: _«dobbiamo diminuire e cercare di mettere su una riga, deve essere più
-  stretta in altezza»_.
+- ⭐ **Etichetta SOPRA, valore SOTTO — a ogni larghezza** _(deciso il 30/08/2026, dopo
+  averli provati affiancati)_: _«forse dobbiamo tornare ad occupare due righe per i
+  totali, scritte sopra e valori sotto, altrimenti va sempre a capo»_.
+
+  ⛔ **Qui c'era la forma AFFIANCATA**, decisa lo stesso giorno per portare la fascia da
+  39px a 25px. La misura era giusta e incompleta: una voce in fila è larga
+  `etichetta + gap + valore`, quasi il doppio di una impilata, e otto voci così
+  chiedevano **918px** — che una finestra sotto i 1180 non ha.
 
   ```text
-  ANNULLAMENTI 2 │ VENDITE 8 │ IMPONIBILE 517,99 € │ … │ CORRISPETTIVO 614,01 €
+  in fila     25px di altezza · 918px di larghezza  →  va a capo, due righe ≈ 50px
+  impilati    39px di altezza · 615px               →  UNA riga, sempre
   ```
 
-  ⛔ **Qui c'era «etichetta sopra, valore sotto»**, che è la forma del piede totali di un
-  DOCUMENTO. Su un riepilogo di fondo elenco costa il doppio dell'altezza per dire le
-  stesse cose, e quell'altezza si paga a ogni schermata. Misurato: **56,5 px → 25,5 px,
-  il 55% in meno**.
+  ⭐ **Una riga da 39px batte due righe da 25**, e non è solo aritmetica: la fascia a
+  capo spezzava il gruppo degli importi a metà, lasciando «CORRISPETTIVO 614,01 €» da
+  solo sotto — cioè staccava proprio la voce che chiude il registro da quelle che la
+  compongono.
 
-  ⚠️ **Le voci si allineano sulla LINEA DI BASE**, non al centro: etichetta a 11px e
-  valore a 12-14px centrati «ballano» di un pixel lungo la fila.
+  ⭐ **E toglie la soglia dal problema**: la forma impilata sta in una riga a qualunque
+  larghezza da `lg` in su, quindi non c'è più una soglia da indovinare né una larghezza
+  a cui degrada. La «DECISIONE APERTA» sulla soglia, aperta la mattina, è chiusa così.
 
-- **La fila si dimensiona sul CONTENUTO**, non a colonne uguali: `display: flex` con
-  `flex-wrap` e nessuna larghezza imposta.
+  ⚠️ **Vale anche sul telefono**, ed è arrivata dopo: lì i conteggi restavano affiancati
+  mentre gli importi erano già impilati, e la stessa fascia mostrava due grammatiche una
+  sopra l'altra. La forma è ora una sola alle due larghezze.
 
-  ⛔ **Non `auto-fit` + `1fr`.** A colonne uguali «IVA 96,02 €» occupa quanto
-  «RETTIFICHE (4) − 205,01 €», e sette voci affiancate non ci starebbero mai. A contenuto
-  sommano ~1.017px e stanno su una riga **da 1280px di finestra in su**.
+  ⭐ **Il numero di colonne lo decide lo spazio**: `auto-fit` con minimo
+  `--summary-item-min-w` (94px, la larghezza in cui «CORRISPETTIVO» a 10px maiuscolo ci
+  sta intero). Due colonne a 320px, tre a 390, quattro da 430.
 
-  ⚠️ **Il padding fra le voci è `--space-2`, non `--space-3`**: gli 8px per lato su sette
-  voci sono i 56px che fanno entrare la fila a 1280. A separare c'è già il filo.
+  ⛔ **Il minimo non si stima a occhio**: tarato a 88px l'etichetta si spezzava a metà —
+  «CORRISPETTIV / O» — e a 132 la fascia scendeva a due colonne su un telefono da 390,
+  con metà larghezza sprecata. Va misurato sull'etichetta più lunga, nel suo contesto
+  reale: una misura fatta su un clone fuori dal DOM dava 80px e sbagliava di cinque.
 
-  ⛔ **Qui c'era «sotto quella larghezza `flex-wrap` manda a capo da sé, nessuna media
-  query». Era sbagliato**, e il proprietario l'ha visto a schermo il 30/08/2026.
+  ⛔ **Provate e scartate nella stessa giornata, e non vanno rifatte:**
 
-  `flex-wrap` manda a capo le VOCI, non l'etichetta e il valore dentro ciascuna: con
-  sette voci larghe ~1.000px su uno schermo da 360, il risultato non sono «due righe più
-  basse» — sono **tre righe di frammenti incollati**, illeggibili.
+  | Tentativo                                         | Perché è caduto                                                                                        |
+  | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+  | voci **affiancate** (etichetta accanto al valore) | chiedono 918px: sotto i 1180 la fascia va a capo e stacca «CORRISPETTIVO» dalle voci che lo compongono |
+  | `flex-wrap: nowrap` per impedire il capo a capo   | le `dt` sono `nowrap` per contratto: le voci si stringono sotto il contenuto e **traboccano**          |
+  | spostare la soglia a mano (`@media min-width`)    | tarata su QUELLE voci con QUEGLI importi, si rompe al primo totale a cinque cifre                      |
 
-  ⭐ **La riga unica è una forma DA SCRIVANIA**: presuppone la larghezza per starci, e
-  sotto quella soglia non degrada, si rompe.
+  ⭐ Il `nowrap` è l'errore che sembra la soluzione ovvia, ed è stato fatto **due volte
+  nello stesso giorno** — sulla fascia da scrivania e sulla banda dei conteggi del
+  telefono. In entrambi i casi produce testo sovrapposto, non testo compresso:
 
-- ⭐ **Sotto `lg` la fascia torna a GRIGLIA, con le voci impilate** — etichetta sopra,
-  valore sotto, colonne da `minmax(var(--summary-item-min-w), 1fr)`. Due-tre per riga su
-  un telefono, di più su un tablet.
+  ```text
+  ANNULLAMENTI 2IMPONIBILE 517,99 €IVA 96,02 €…
+  ```
 
-  ⚠️ **Non è un ripensamento sulla riga unica: è il ripiego che le mancava.** Le due forme
-  rispondono a scarsità diverse — su scrivania manca l'altezza, sul telefono la larghezza.
+  ⭐ **Una riga illeggibile è peggio di due righe leggibili**: il difetto costava
+  un'altezza di fascia, il rimedio costava la lettura dei totali.
 
-  ⚠️ **Il conteggio righe occupa la fascia intera**, in cima e a sinistra: in griglia
+  ⚠️ **Le voci si allineano sulla LINEA DI BASE**, non al centro: etichetta e valore di
+  taglia diversa centrati «ballano» di un pixel lungo la fila.
+
+  ⛔ **E sotto `lg` il `wrap` è obbligatorio per una seconda ragione**: lì le bande
+  esistono e chiedono `flex: 1 1 100%` ciascuna. Con `nowrap` non possono impilarsi, si
+  spartiscono la riga e collassano — misurato: sotto i 480px ogni etichetta e ogni importo
+  finivano in una colonna larga **zero pixel**, tutto tagliato, e il piede passava da 103
+  a 379px.
+
+- ⚠️ **Il conteggio righe occupa la fascia intera**, in cima e a sinistra: in griglia
   finirebbe in una colonna a caso, e «12 righe» si leggerebbe incolonnato sotto Vendite
   come se fosse un'altra metrica.
 
@@ -805,13 +858,14 @@ scartate sono la parte utile.
   spazio fra le zone, quindi il margine negativo che lo chiude farebbe **salire la fascia
   sopra l'ultima card**.
 
-- **L'etichetta non va a capo** (`white-space: nowrap` sulle `dt`), e in fila conta
-  più di prima: spezzata, la voce diventerebbe alta due righe e alzerebbe l'intera
-  fascia — cioè annullerebbe la ragione per cui è in fila. Se un'etichetta più lunga
-  non ci sta, va a capo **la fascia**, che è previsto.
+- **L'etichetta non va a capo** (`white-space: nowrap` sulle `dt`): spezzata, la voce
+  diventerebbe alta due righe e alzerebbe l'intera fascia. Se un'etichetta più lunga non
+  ci sta, è **la colonna** a doversi allargare — cioè `--summary-item-min-w` a essere
+  tarato male.
 
-  ⚠️ `--summary-item-min-w` **non è più usata** dalla fascia: serviva alla griglia a
-  colonne uguali. Il token resta dichiarato, ma non governa più questo riquadro.
+  ⭐ `--summary-item-min-w` **governa la fascia a ogni larghezza**: era rimasto
+  inutilizzato quando la banda usava colonne uguali, ed è tornato a fare il proprio
+  mestiere con `auto-fit`.
 
 **La tipografia** (invariata, e verificata)
 

@@ -18,6 +18,54 @@
 
 ---
 
+# 0-bis. ⭐ UN RIEPILOGO SOMMA — vale per TUTTI gli elenchi _(30/08/2026)_
+
+> _«La logica di sommare vale per tutti i riepiloghi, solo così si può essere veloci e
+> precisi.»_ — il proprietario
+
+⭐ **Non è una novità: è la conferma esplicita**, estesa a ogni elenco, di ciò che
+`regole-gestionale` («Il riepilogo SOMMA, non ricalcola») dichiara per il dominio. Sta
+qui perché è la specifica degli elenchi, ed è qui che si viene a cercarla.
+
+```text
+riga documento   CALCOLA imponibile, IVA e totale finali
+documento        SOMMA le proprie righe
+riepilogo        SOMMA i documenti, applicando filtri, classificazione e verso
+```
+
+⛔ **Un riepilogo non è un secondo motore economico.** Se ogni schermata ricostruisse
+l'IVA, la stessa transazione varrebbe numeri diversi a seconda di dove la si guarda —
+100,00 nel documento, 100,01 nell'elenco, 99,99 nel CSV — per i diversi punti di
+arrotondamento.
+
+⭐ **Sommare NON è ricalcolare, e la distinzione va tenuta ferma.** Precisazione del
+proprietario, arrivata perché avevo scritto il contrario: _«le schermate non devono
+ricalcolare, devono solo sommare quello che già è presente; i valori già ci sono»_.
+Aggregare valori finali — anche nel browser, anche su una selezione — è **permesso e
+corretto**. È vietato riderivarli: prendere l'imponibile e rimoltiplicarlo per l'aliquota.
+
+## ⚠️ E per una SELEZIONE non tutto è derivabile — misurato il 30/08/2026
+
+Sul Registro Corrispettivi, sommando le righe **visibili** si ottengono:
+
+| Voce                                       | Derivabile dalle righe?                                        |
+| ------------------------------------------ | -------------------------------------------------------------- |
+| N righe · Imponibile · IVA · Corrispettivo | ✅ somma diretta: le rettifiche sono righe con valori negativi |
+| Rettifiche (conteggio e importo)           | ✅ le righe con `kind === 'refund'`                            |
+| Tot. vendite                               | ✅ le righe con `kind === 'sale'`                              |
+| **Annullamenti**                           | ⛔ **no, e non è un limite dell'implementazione**              |
+
+⛔ **Gli annullamenti non sono righe del registro.** Il backend li tiene in un insieme a
+parte (`accumulaCorrispettivi`, bucket `annullamenti`) e il commento dice perché: _«la
+vendita che annullano non è mai entrata nel registro»_. Si **contano** per trasparenza e
+non si sottraggono mai.
+
+⭐ Quindi un riepilogo di selezione calcolato nel browser può mostrare tutto **tranne
+«Annullamenti»**: quella voce o resta quella del filtro, dichiarandolo, o va chiesta
+all'API con un parametro che oggi non esiste. ⏸ Scelta non ancora presa.
+
+---
+
 # 0. Decisione normativa da congelare
 
 VestiFlow deve avere **un'unica AUTORITÀ STRUTTURALE per gli elenchi operativi**: una sola
