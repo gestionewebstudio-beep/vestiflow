@@ -106,6 +106,81 @@ quella giusta.
 sapere a quale larghezza la fascia a riga unica dovesse cedere. Impilata ci sta sempre —
 615px invece di 918 — quindi non c'è più una soglia da decidere.
 
+# ⛔ APERTO ADESSO — deciso il 30/08/2026, da eseguire
+
+Tre lavori chiesti dal proprietario nella stessa sessione, in ordine di come li
+ha posti. ⚠️ Nessuno è cominciato: qui c'è quanto basta a riprenderli senza
+ricostruire il ragionamento.
+
+## 1. ⭐ Il SELETTORE DI VISTA in Impostazioni → Aspetto
+
+> _«Selettore per scegliere la vista normale automatica, la vista fissa mobile e
+> la vista fissa desktop. In questo modo si risolve il problema dei pc troppo
+> piccoli o tablet troppo grandi.»_
+
+```text
+Automatica     la soglia decide, com'è oggi
+Sempre mobile  card e comandi compatti, a qualunque larghezza
+Sempre desktop tabella piena, a qualunque larghezza
+```
+
+⛔ **E SOSTITUISCE la doppia soglia per tipo di puntatore** di
+`regole-stile-ui` §9 — mouse 820px, dito 1400px — che era «decisa l'11/08/2026,
+da eseguire» e non è mai stata eseguita. Il proprietario l'ha superata il
+30/08: «questa va eliminata».
+
+⭐ **Ed è la scelta giusta**, per una ragione che la regola vecchia già
+conteneva senza saperla applicare: due soglie tarate sui dispositivi sbagliano
+comunque sui casi limite — il monitor touch grande, il 2-in-1, il portatile
+stretto — e ogni errore costa all'operatore un giro nelle impostazioni. Un
+selettore a tre stati **non deve indovinare niente**: chi ha un caso limite lo
+dichiara una volta e non ci pensa più.
+
+**Dove si aggancia:** `ViewportService.compact` è già l'unico segnale, letto da
+17 consumatori. Diventa `automatica ? mediaQuery : scelta`. Il valore vive nel
+dispositivo (localStorage), non sul profilo: è una proprietà di QUESTO schermo,
+e sincronizzarla fra telefono e scrivania sarebbe il difetto, non la funzione.
+
+**Dove si mette:** `settings.component.html`, sezione «Aspetto», accanto al tema
+— che è l'altra scelta di questo genere e ha già la sua forma a tre opzioni.
+
+⚠️ **Va tolta anche la sezione §9 di `regole-stile-ui`** con le due soglie, non
+lasciata accanto: due regole che dicono cose diverse sullo stesso argomento sono
+peggio di nessuna regola.
+
+## 2. ⛔ «Nuovo arrivo merce» non ha senso nel Registro documenti
+
+> _«Nuovo arrivo merci nei documenti generali non ha senso che esista quel
+> pulsante. Al massimo resta quello affianco "Altro documento" e viene
+> rinominato in "Crea documento" e fa selezionare il documento che vogliamo.»_
+
+Il Registro documenti è l'elenco di TUTTI i tipi: offrire come azione primaria la
+creazione di UNO — l'arrivo merce — è una scorciatoia che privilegia un tipo
+senza una ragione visibile.
+
+**Da fare:** togliere il pulsante primario, e rinominare il menu accanto da
+«Altro documento» a **«Crea documento»**. ⚠️ Il menu ha già i test
+(`document-list.component.spec.ts`) che verificano che offra solo i tipi
+gestibili dai permessi: quelli vanno aggiornati, non rifatti.
+
+⚠️ **Riguarda il solo Registro generale.** Gli elenchi filtrati per famiglia —
+Arrivi merce, Vendite al banco — hanno un'azione primaria legittima, perché lì
+il tipo è uno solo e non c'è niente da scegliere.
+
+## 3. ⏸ Elimina: restano nove schermate e due pulizie
+
+Fatto: il componente condiviso, Documenti, Ordini cliente, `edit-client`.
+
+**Restano a conferma singola:** dettaglio documento, dettaglio prodotto,
+dettaglio ordine fornitore, utenti, codici IVA, elenco inventari, maschera
+Corrispettivo manuale, pannello allegati.
+
+**E due pulizie:** «Elimina» dal catalogo negli elenchi che non ce l'hanno, e via
+il duplicato dal menu di riga di Ordini cliente — che è scritto a mano e per
+questo sfugge a `check:list-actions`.
+
+---
+
 ## ⛔ ELIMINARE UN ORDINE DI CANALE — dubbio dichiarato, non risolto _(30/08/2026)_
 
 > _«Su corrispettivi forse sarebbe giusto poter eliminare, altrimenti non ci
@@ -171,6 +246,14 @@ solo la UI.
 sul motore   document-table · stock-movements · online-sale-list
              supplier-order-list · corrispettivi-orders-table · sales-order-table
 fuori        customer-table · product-table · inventory-level-table · situation-table
+
+⭐ E «document-table» copre PIÙ elenchi di quanti sembri: Registro documenti,
+   Arrivi merce, Vendite al banco e Vendita manuale sono tutti
+   `DocumentListComponent` con un profilo diverso, quindi hanno già telaio,
+   motore e colonne condivise. Misurato il 30/08/2026 dopo che avevo risposto
+   male al proprietario — avevo cercato l'elenco del banco nella cartella
+   `store-sales`, dove c'è solo la maschera: le sue rotte compongono l'elenco
+   da `documents.routes`.
 ```
 
 ⚠️ **E si vede nelle caselle di selezione**: quelle quattro hanno `<input type="checkbox">`
