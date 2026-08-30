@@ -395,6 +395,42 @@ migrazione. Le cose `position: fixed` — dialoghi, pannelli laterali — vanno
 oggi in `[overlays]`, ⏸ casella provvisoria. La guardia è
 `npm run check:list-page-slots`.
 
+### ⛔ L'incapsulamento RADDOPPIA la specificità di `A > B` _(30/08/2026)_
+
+> **Con `ViewEncapsulation.Emulated`, Angular aggiunge l'attributo di
+> incapsulamento a ENTRAMBE le parti di un selettore discendente. I conti di
+> specificità si fanno sul selettore COMPILATO, non su quello scritto.**
+
+```text
+scritto                          compilato                                  peso
+.band > *                        .band[_ngc] > *[_ngc]                       3
+.item--negative                  .item--negative[_ngc]                       2
+```
+
+⛔ **La regola del genitore vince**, anche se quella del figlio è più specifica
+"a occhio" e viene dopo. Misurato: `flex: 0 0 auto` da `.band > *` batteva
+`flex: 1 0 100%` su `.item--negative`, e la voce non prendeva la riga intera.
+
+⚠️ **Non fallisce e sembra funzionare.** Le rettifiche andavano a capo lo
+stesso — ma **per caso**, perché a 430px non ci stavano — e non essendo larghe
+quanto la banda, il `space-between` non aveva niente da distribuire. A schermo
+si vede solo che l'importo non si stacca a destra.
+
+⭐ **Il rimedio è nominare il genitore**: `.band > .item--negative` pesa 4 e
+vince. Non è verbosità: è l'unico modo di scrivere «questo figlio, dentro questa
+banda» con un peso che regga.
+
+⚠️ **È la stessa trappola già scritta più sotto** («La specificità batte
+l'ordine», §6), in una forma che quel testo non copriva: lì il caso era
+`.classe` contro `.classe elemento` dentro lo stesso foglio; qui è
+l'incapsulamento che aggiunge peso a un selettore che sembrava leggero.
+
+⛔ **E vale anche al contrario**, ed è il difetto gemello trovato lo stesso
+giorno: `.list-page__data > *` del telaio **non raggiungeva** il contenuto
+proiettato, perché l'attributo sul `*` è quello del TELAIO e il contenuto porta
+quello della PAGINA. Stessa causa, due sintomi opposti — troppa specificità di
+qua, nessuna corrispondenza di là.
+
 ### ⛔ `align-items` sopravvive al cambio d'asse, e allinea dalla parte sbagliata _(30/08/2026)_
 
 Trovato **due volte nello stesso pomeriggio**, a due piani diversi, e la seconda solo perché

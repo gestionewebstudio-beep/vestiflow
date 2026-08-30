@@ -350,6 +350,44 @@ app-shell-layout .shell__content > *:not(router-outlet) {
     max-block-size: none !important;
     block-size: auto !important;
   }
+
+  /*
+    ⛔ **LA STAMPA NON È LA VISTA MOBILE**, ed è lo stesso difetto di sopra su un
+    altro elemento — segnalato dal proprietario il 30/08/2026.
+
+    A4 in verticale misura **~794px CSS**, orizzontale ~1123: entrambi **sotto
+    `lg` (1024px)** per la verticale, e i mixin di breakpoint emettono
+    `@media (max-width: …)` **senza tipo di media**. Il riepilogo Corrispettivi
+    stampato prenderebbe quindi la forma da telefono — due bande impilate,
+    conteggi in fila, valori sotto le etichette — invece della riga unica.
+
+    ⚠️ **Non è teorico: l'anteprima di stampa monta lo STESSO componente**
+    (`corrispettivi-print.component.html`), quindi eredita ogni regola mobile.
+
+    ⭐ Qui si riportano le due bande alla forma di scrivania: si dissolvono, e le
+    otto voci tornano una fila sola. È la forma giusta per un foglio, che di
+    larghezza ne ha.
+  */
+  .corrispettivi-summary__band {
+    display: contents !important;
+  }
+
+  .corrispettivi-summary__grid {
+    display: flex !important;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+
+  .corrispettivi-summary__item {
+    flex-direction: row !important;
+    align-items: baseline !important;
+    gap: var(--space-2) !important;
+    padding-block-start: 0 !important;
+    padding-inline: var(--space-2) !important;
+    border-block-start: 0 !important;
+    text-align: end !important;
+  }
 }
 
 // -----------------------------------------------------------------------------

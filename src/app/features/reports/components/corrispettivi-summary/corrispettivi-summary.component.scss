@@ -103,75 +103,182 @@
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  /*
-    Il conteggio a sinistra, gli importi a destra: `space-between` li spinge ai
-    due capi senza che nessuno dei due abbia bisogno di un margine automatico.
-    Senza conteggio la fascia ha un figlio solo e resta comunque a destra.
-  */
   justify-content: space-between;
   margin: 0;
-  /*
-    ⭐ **Nessun padding verticale qui** — deciso il 30/08/2026, con la stretta
-    in altezza. Ce l'ha già il riquadro (`.corrispettivi-summary`): sommati,
-    erano 16px di aria in una fascia alta 56, cioè quasi un terzo.
-  */
   padding-block: 0;
+}
 
-  /*
-    ⭐ **Sotto `lg` la fascia è un CONTO, non una griglia** — deciso dal
-    proprietario il 30/08/2026: «dovresti fare qualcosa di bello e non solo
-    impaginare».
+/*
+  ⭐ **LE BANDE.** Su scrivania non esistono — `display: contents` le dissolve e
+  le otto voci tornano figlie dirette della fascia, una riga sola come deciso il
+  29/08/2026. Esistono solo dove servono.
+*/
+.corrispettivi-summary__band {
+  display: contents;
+}
 
-    ⛔ La griglia a due colonne era corretta e muta: sette celle uguali, in cui
-    l'aritmetica che la banda dichiara — TOT. VENDITE − RETTIFICHE =
-    CORRISPETTIVO — non si vedeva. Un riepilogo si verifica scorrendo **una
-    colonna sola di numeri**, ed è la forma di ogni scontrino e di ogni piede
-    documento (`regole-stile-ui` §7).
+/*
+  ⭐ **Su scrivania le rettifiche stanno FRA i due addendi** — decisione del
+  proprietario del 30/08/2026: `TOT. VENDITE − RETTIFICHE = CORRISPETTIVO`.
 
-    ```text
-    12 righe   ANNULL. 2   VENDITE 8        ← contesto, non aritmetica
-      Impon.                    517,99 €
-      IVA                        96,02 €
-      ────────────────────────────────
-      Tot. vendite              819,02 €    ← da qui si somma
-      Rettif. (4)             − 205,01 €
-      ════════════════════════════════
-      CORRISPETTIVO            614,01 €     ← la risposta
-    ```
+  ⚠️ **Sono le uniche due `order` rimaste, e valgono solo qui.** L'ordine del DOM
+  è quello del TELEFONO — dove le rettifiche chiudono la banda dei conteggi,
+  come da mockup — perché è il caso stretto, quello in cui un ordine sbagliato
+  costa una riga in più. Sulla scrivania lo spazio c'è, e riordinare non costa
+  niente.
 
-    ⚠️ **Lo fa `flex-wrap`, non una griglia**: i conteggi sono `flex: 0 0 auto` e
-    stanno in fila; ogni voce monetaria è `flex: 0 0 100%` e si prende la riga.
-    Nessun `grid-column` da contare, quindi una voce in più o in meno non
-    scompagina niente.
-  */
-  /*
-    ⭐ **Sotto `lg`: QUATTRO colonne, due righe** — dal mockup del proprietario,
-    30/08/2026.
+  ⛔ Toglierle riporterebbe le rettifiche prima dell'imponibile anche su
+  scrivania, cioè disferebbe una decisione presa e verificata.
+*/
+@include bp.media-up('lg') {
+  .corrispettivi-summary__item--negative {
+    order: 7;
+  }
 
-    ⛔ Qui c'era un conto verticale — una voce per riga, etichetta a sinistra e
-    numero a destra. Si leggeva bene ed era **alto sei righe**: su un telefono,
-    in fondo a un elenco, sei righe sono un terzo di schermata spesa per otto
-    numeri. La griglia ne usa **due**.
+  .corrispettivi-summary__item--highlight {
+    order: 8;
+  }
+}
 
-    ```text
-    12 righe  │ ANNULL.   2 │ VENDITE   8 │ IMPON.  517,99 €
-    IVA 96,02 │ TOT. VEND.  │ RETTIF. (4) │ CORRISPETTIVO
-              │    819,02 € │  − 205,01 € │       614,01 €
-    ```
+/*
+  ⭐ **Sotto `lg`: DUE BANDE, e l'ordine del DOM È quello visivo.**
 
-    ⭐ **Otto voci in quattro colonne fanno due righe piene**, e l'ordine del DOM
-    — che porta l'aritmetica — fa cadere la risposta **in fondo a destra**, dove
-    la cerca l'occhio.
+  ```text
+  ┌──────────────────────────────────────────────┐
+  │ 12 righe    Vendite 8    Annullamenti 2      │  banda 1, riga A
+  │ Rettifiche (4)                   − 205,01 €  │  banda 1, riga B
+  ├──────────────────────────────────────────────┤  ← unico filo
+  │ Imponibile │ IVA     │ Tot. vend. │ CORRISP. │  banda 2
+  │ 517,99 €   │ 96,02 € │ 819,02 €   │ 614,01 € │
+  └──────────────────────────────────────────────┘
+  ```
 
-    ⚠️ **Colonne uguali, non a contenuto**: qui i numeri devono incolonnarsi fra
-    la prima e la seconda riga. A contenuto le colonne si sfalserebbero e la
-    banda sembrerebbe disallineata.
-  */
-  @include bp.media-down('lg') {
+  ⛔ **Qui c'era una griglia `repeat(4, minmax(0, 1fr))` per tutte e otto le
+  voci.** Misurato a 320px: le colonne valgono 70px e
+  «Rettifiche (4) − 205,01 €» ne chiede **169** — due colonne e mezza. Nessuna
+  riduzione di font risolve una cella larga 2,4 colonne: il difetto era
+  strutturale, e si correggeva solo cambiando struttura.
+
+  ⚠️ **Un filo solo, fra le bande.** Prima ogni cella portava
+  `border-block-start`: otto fili più quelli verticali ereditati dalla scrivania
+  disegnavano una mini-tabella.
+*/
+@include bp.media-down('lg') {
+  .corrispettivi-summary__band {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    /* Il target è 3–4px per fascia: qui e basta, niente gap fra le righe. */
+    padding-block: var(--space-1);
+  }
+
+  .corrispettivi-summary__band--money {
+    /*
+      Quattro colonne uguali: qui i valori DEVONO incolonnarsi sotto le proprie
+      etichette, ed è l'unico posto dove la griglia è la forma giusta.
+    */
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: var(--space-2) 0;
-    padding-block: var(--space-1);
+    border-block-start: var(--border-width) solid var(--color-border);
+  }
+
+  /*
+    ⭐ **Banda 1 — riga A**: i conteggi in fila, etichetta e valore affiancati.
+    Larghezza a contenuto, così «12 righe» non si prende un quarto di schermo.
+  */
+  .corrispettivi-summary__band--stats > * {
+    flex: 0 0 auto;
+    padding-inline: 0 var(--space-3);
+    border-inline-end: 0;
+    text-align: start;
+  }
+
+  .corrispettivi-summary__item--count {
+    flex-direction: row;
+    align-items: baseline;
+    gap: var(--space-2);
+  }
+
+  .corrispettivi-summary__item--count dd {
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-muted);
+  }
+
+  /*
+    ⭐ **Banda 1 — riga B**: le rettifiche prendono la riga intera, etichetta a
+    sinistra e importo a destra. È l'unica voce con denaro della prima banda, e
+    a 320px chiede 169px — più di due colonne. Una riga sua è l'unica forma in
+    cui ci sta senza rimpicciolire niente.
+
+    ⚠️ **L'etichetta resta neutra**: solo l'importo è rosso. Colorare anche la
+    parola raddoppia un segnale che il numero già dà.
+  */
+  /*
+    ⛔ **Il selettore porta il GENITORE apposta: è una questione di specificità.**
+
+    Misurato sulla CSS compilata il 30/08/2026, dopo che a schermo l'importo
+    non si staccava a destra:
+
+    ```text
+    .band--stats[_ngcontent] > *[_ngcontent]   classe + DUE attributi  = 3
+    .item--negative[_ngcontent]                classe + un attributo   = 2
+    ```
+
+    Con l'incapsulamento emulato Angular aggiunge l'attributo **a entrambe** le
+    parti di `A > B`, quindi la regola del genitore vince e il suo
+    `flex: 0 0 auto` batteva `flex: 1 0 100%`. Le rettifiche andavano a capo per
+    CASO — perché a 430px non ci stavano — non perché avessero la riga loro: e
+    non essendo larghe quanto la banda, `space-between` non aveva niente da
+    distribuire.
+
+    ⚠️ È la trappola già scritta in `regole-stile-ui` §6: **la specificità batte
+    l'ordine**, e con l'incapsulamento i conti si fanno sul selettore compilato,
+    non su quello scritto.
+  */
+  .corrispettivi-summary__band--stats > .corrispettivi-summary__item--negative {
+    flex: 1 0 100%;
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+    padding-inline: 0;
+  }
+
+  /*
+    ⭐ **Banda 2 — le celle**: etichetta sopra, valore sotto, allineate a destra.
+
+    ⚠️ **Fili verticali molto tenui**, non assenti: a 320px le colonne sono
+    strette e i numeri di colonne diverse si toccano quasi. Un filo al 40%
+    separa senza disegnare una tabella.
+  */
+  .corrispettivi-summary__band--money > .corrispettivi-summary__item {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding-inline: var(--space-1);
+    border-inline-end: var(--border-width) solid
+      color-mix(in srgb, var(--color-border) 40%, transparent);
+  }
+
+  .corrispettivi-summary__band--money > .corrispettivi-summary__item:last-child {
+    padding-inline-end: 0;
+    border-inline-end: 0;
+  }
+
+  .corrispettivi-summary__band--money > .corrispettivi-summary__item:first-child {
+    padding-inline-start: 0;
+  }
+
+  .corrispettivi-summary__item--sum dd {
+    font-weight: var(--font-weight-semibold);
+  }
+
+  /*
+    La risposta chiude la banda in fondo a destra. Verde NOSTRO — il token degli
+    stati positivi — non quello acceso del mockup, che nel progetto non esiste.
+  */
+  .corrispettivi-summary__item--highlight dd {
+    font-size: var(--text-md);
+    color: var(--color-ok);
   }
 }
 
@@ -214,21 +321,22 @@
     a destra come sulla scrivania. Il filo verticale separa le colonne, e cade
     sull'ultima di ogni riga — non sull'ultima voce.
   */
+  /*
+    ⭐ **Banda degli IMPORTI**: etichetta sopra, numero sotto, filo verticale fra
+    le colonne — la forma della scrivania, incolonnata su quattro.
+  */
   @include bp.media-down('lg') {
+    order: 5;
     flex-direction: column;
     align-items: stretch;
     gap: 0;
+    padding-block-start: var(--space-2);
     padding-inline: var(--space-2);
-  }
+    border-block-start: var(--border-width) solid var(--color-border);
 
-  @include bp.media-down('lg') {
-    &:nth-child(4n) {
+    &:last-child {
       padding-inline-end: 0;
       border-inline-end: 0;
-    }
-
-    &:nth-child(4n + 1) {
-      padding-inline-start: 0;
     }
   }
 }
@@ -262,8 +370,9 @@
     contesto in cui si legge.
   */
   @include bp.media-down('lg') {
-    align-self: end;
-    padding-inline: 0 var(--space-2);
+    order: 1;
+    align-self: baseline;
+    padding-inline: 0 var(--space-3);
     text-align: start;
   }
 }
@@ -438,13 +547,38 @@
     c'è spazio e vanno a capo insieme quando non ce n'è.
   */
   /*
-    I conteggi sono celle come le altre, ma il numero resta smorzato: dice
-    quante cose ci sono, non quanto valgono, e a piena tinta si leggerebbe come
-    un importo.
+    ⭐ **Banda dei CONTEGGI**: etichetta e valore IN FILA, niente filo verticale,
+    niente filo sopra. È contesto, non aritmetica — e la forma diversa è ciò che
+    lo dice, prima ancora del colore.
   */
+  .corrispettivi-summary__item--count,
+  .corrispettivi-summary__item--negative {
+    order: 2;
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: flex-start;
+    gap: var(--space-2);
+    padding-block-start: 0;
+    padding-inline: 0 var(--space-3);
+    border-block-start: 0;
+    border-inline-end: 0;
+    text-align: start;
+  }
+
   .corrispettivi-summary__item--count dd {
     font-weight: var(--font-weight-semibold);
     color: var(--color-text-muted);
+  }
+
+  /*
+    Le rettifiche chiudono la banda dei conteggi, e il loro importo si appoggia
+    al bordo destro: è l'unico numero della prima riga, e a sinistra si
+    perderebbe fra le parole.
+  */
+  .corrispettivi-summary__item--negative {
+    order: 3;
+    justify-content: space-between;
+    padding-inline-end: 0;
   }
 
   /*
@@ -455,18 +589,26 @@
     Il peso basta: è il primo dei due addendi, e si distingue da imponibile e IVA
     che sono la sua scomposizione.
   */
+  .corrispettivi-summary__item--sum {
+    order: 7;
+  }
+
   .corrispettivi-summary__item--sum dd {
     font-weight: var(--font-weight-semibold);
   }
 
   /*
-    ⭐ **La risposta chiude la griglia in fondo a destra**, ed è la posizione a
-    dirlo: ultima cella dell'ultima riga. Nessun filo — in una griglia
-    segnerebbe una separazione che non c'è — solo taglia e colore, che restano
-    unici in tutta la banda.
+    ⭐ **La risposta chiude la seconda banda**, in fondo a destra: ultima colonna
+    dell'ultima riga. Verde NOSTRO — `--color-ok`, non quello acceso del mockup,
+    che nel progetto non esiste da nessuna parte — e taglia piena.
   */
+  .corrispettivi-summary__item--highlight {
+    order: 8;
+  }
+
   .corrispettivi-summary__item--highlight dd {
     font-size: var(--text-lg);
+    color: var(--color-ok);
   }
 }
 

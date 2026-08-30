@@ -64,38 +64,60 @@ function etichette(): readonly string[] {
 
 describe('CorrispettiviSummaryComponent', () => {
   /**
-   * ⭐ **Le rettifiche stanno FRA Totale vendite e Corrispettivo** — deciso dal
-   * proprietario il 30/08/2026, ed è l'operazione che la fascia dichiara:
+   * ⭐ **L'ordine del DOM è quello del TELEFONO** — 30/08/2026, seconda stesura.
    *
-   * ```text
-   * TOTALE VENDITE  819,02  −  RETTIFICHE  205,01  =  CORRISPETTIVO  614,01
-   * ```
+   * Le rettifiche chiudono la banda dei CONTEGGI, prima degli importi: è la
+   * forma del mockup, ed è l'unica in cui «Rettifiche (4) − 205,01 €» ci sta a
+   * 320px senza rimpicciolire niente — misurato, chiede 169px contro i 70 di
+   * una colonna.
    *
-   * ⛔ Stavano in TESTA, cioè prima di ciò da cui si toglie.
+   * ⚠️ **Su scrivania le rettifiche stanno FRA i due addendi**, come deciso lo
+   * stesso giorno: `TOT. VENDITE − RETTIFICHE = CORRISPETTIVO`. Ci arrivano con
+   * due dichiarazioni `order` dentro `media-up('lg')`.
+   *
+   * ⛔ **Quell'ordine NON è verificabile qui**, ed è una lacuna dichiarata: i
+   * test di componente girano in jsdom, che non applica i fogli di stile del
+   * componente né calcola il layout. Si vede solo a schermo.
    */
-  it('mette le rettifiche fra i due numeri che compongono il conto', async () => {
+  it('sul DOM le rettifiche chiudono i conteggi, prima degli importi', async () => {
     await renderRiepilogo();
     const ordine = etichette();
 
-    const totale = ordine.findIndex((e) => e.startsWith('Tot. vendite'));
-    const rettifiche = ordine.findIndex((e) => e.startsWith('Rettif.'));
+    const rettifiche = ordine.findIndex((e) => e.startsWith('Rettifiche'));
+    const imponibile = ordine.findIndex((e) => e.startsWith('Imponibile'));
     const corrispettivo = ordine.findIndex((e) => e.startsWith('Corrispettivo'));
 
-    expect(totale).toBeGreaterThanOrEqual(0);
-    expect(rettifiche).toBeGreaterThan(totale);
-    expect(corrispettivo).toBeGreaterThan(rettifiche);
+    expect(rettifiche).toBeGreaterThanOrEqual(0);
+    expect(imponibile).toBeGreaterThan(rettifiche);
+    expect(corrispettivo).toBeGreaterThan(imponibile);
+  });
+
+  /**
+   * ⭐ **Le due bande esistono nel DOM**, e non sono una veste: sono ciò che
+   * permette alla prima di andare a capo senza trascinarsi dietro la seconda.
+   */
+  it('le voci stanno in due bande distinte', async () => {
+    await renderRiepilogo();
+
+    const conteggi = document.querySelector('.corrispettivi-summary__band--stats');
+    const importi = document.querySelector('.corrispettivi-summary__band--money');
+
+    expect(conteggi).not.toBeNull();
+    expect(importi).not.toBeNull();
+    // Gli importi sono quattro: imponibile, IVA, totale vendite, corrispettivo.
+    expect(importi!.querySelectorAll('.corrispettivi-summary__item').length).toBe(4);
   });
 
   it("l'ordine completo della fascia è quello deciso", async () => {
     await renderRiepilogo();
 
     expect(etichette()).toEqual([
-      'Annull.',
+      'Annullamenti',
       'Vendite',
-      'Impon.',
+      'Rettifiche (4)',
+      'Imponibile',
       'IVA',
       'Tot. vendite',
-      'Rettif. (4)',
       'Corrispettivo',
     ]);
   });
@@ -113,7 +135,7 @@ describe('CorrispettiviSummaryComponent', () => {
   it('senza rettifiche e senza annullamenti quelle due voci non compaiono', async () => {
     await renderRiepilogo({ ...RIEPILOGO, refundCount: 0, cancellationCount: 0 });
 
-    expect(etichette()).toEqual(['Vendite', 'Impon.', 'IVA', 'Tot. vendite', 'Corrispettivo']);
+    expect(etichette()).toEqual(['Vendite', 'Imponibile', 'IVA', 'Tot. vendite', 'Corrispettivo']);
   });
 
   it('la rettifica si legge col segno meno, e resta ultima prima del totale', async () => {

@@ -52,6 +52,14 @@
   :host {
     gap: var(--space-2);
   }
+
+  /*
+    ⚠️ Il passo del telaio non si applica DENTRO il dock: lì il piede è un
+    blocco solo, e il vuoto lo toglie `gap: 0` qui sopra.
+  */
+  :host(.list-page--docked) > .list-page__foot {
+    margin-block-start: 0;
+  }
 }
 
 /*
@@ -64,38 +72,62 @@
   display: contents;
 }
 
-@include bp.media-down('lg') {
-  /*
-    ⭐ **Sotto `lg` il piede si ANCORA in fondo allo schermo.**
+/*
+  ⭐ **IL DOCK È STRUTTURALE, non appiccicato** — e va acceso dalla pagina.
 
-    È ciò che ha reso inutile il tetto di 25 righe: i totali e i comandi non si
-    raggiungono più scorrendo — sono sempre lì — quindi l'elenco può essere
-    lungo quanto il periodo richiede. Un registro che mostra una parte delle
-    righe non è verificabile, e la verificabilità è la sua funzione.
+  ⛔ **Qui c'era `position: sticky` per tutte e 13 le pagine.** Due difetti:
+  l'ultima card restava coperta (lo `sticky` non riserva spazio a sé, e
+  compensarlo vuole un `padding-block-end` pari all'altezza del dock — cioè una
+  misura da tenere allineata a mano, o un `ResizeObserver`), e cambiava il
+  comportamento di dodici pagine che un dock non l'hanno chiesto.
 
-    ⚠️ **`sticky`, non `fixed`.** Fisso, il piede coprirebbe l'ultima card e
-    resterebbe attaccato anche dove non serve — sopra il pannello filtri aperto,
-    per esempio. Appiccicato scorre col contenuto finché c'è contenuto sotto, e
-    si ferma al bordo quando non ce n'è più.
+  ⭐ **La struttura per farne a meno c'era già**, e l'ho verificata prima di
+  scrivere: la shell è `100dvh` con `overflow: hidden`, e `.shell__content` è
+  una colonna flessibile che scorre — **a ogni larghezza**. Basta quindi che il
+  telaio resti una colonna anche sotto `lg`, con la sola zona dati che cede:
 
-    ⚠️ **Il fondo è OPACO**, e non velato: sotto ci scorrono card con numeri, e a
-    tinta velata i due testi si leggerebbero sovrapposti. È la stessa scelta già
-    presa per la banda note/totali delle maschere documento
-    (`regole-stile-ui` §5).
+  ```text
+  :host            colonna flex, altezza piena
+    zona dati      flex: 1 · min-block-size: 0 · scorre
+    piede          flex: 0 0 auto            ← non scorre, non copre
+  ```
 
-    ⚠️ **`env(safe-area-inset-bottom)`** solo per non finire sotto la barra di
-    sistema di iOS e Android, mai come spaziatura estetica.
-  */
-  .list-page__foot {
+  ⭐ **Nessuna compensazione, nessuna seconda barra di scorrimento, e l'ultima
+  card scorre fino in fondo** — perché il piede occupa spazio davvero, invece di
+  galleggiarci sopra.
+
+  ⚠️ **Si accende con `[dockedFoot]`**, non per tutti: dodici pagine su tredici
+  oggi mettono nel piede solo il paginatore, e un paginatore ancorato non è
+  qualcosa che qualcuno abbia chiesto. Chi lo vuole lo dichiara.
+*/
+:host(.list-page--docked) {
+  @include bp.media-down('lg') {
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
-    position: sticky;
-    inset-block-end: 0;
-    z-index: var(--z-sticky);
-    margin-block-start: auto;
-    padding-block-end: env(safe-area-inset-bottom);
-    background-color: var(--color-bg);
+    flex: 1;
+    min-block-size: 0;
+
+    > .list-page__data {
+      display: grid;
+      grid-auto-rows: minmax(0, 1fr);
+      flex: 1;
+      min-block-size: 0;
+      overflow: hidden;
+    }
+
+    .list-page__foot {
+      display: flex;
+      flex-direction: column;
+      flex: 0 0 auto;
+      /*
+        ⚠️ **Nessun gap fra riepilogo e comandi**: il target è un dock unico, e
+        un vuoto in mezzo lo farebbe leggere come due blocchi. A separarli, se
+        serve, basta un filo.
+      */
+      gap: 0;
+      padding-block-end: env(safe-area-inset-bottom);
+      background-color: var(--color-bg);
+    }
   }
 }
 

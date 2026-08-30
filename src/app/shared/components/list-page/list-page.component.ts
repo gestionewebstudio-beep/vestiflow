@@ -75,6 +75,9 @@ import type { TableViewId } from '@shared/table-columns/table-column.model';
  */
 @Component({
   selector: 'app-list-page',
+  host: {
+    '[class.list-page--docked]': 'dockedFoot()',
+  },
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './list-page.component.html',
   styleUrl: './list-page.component.scss',
@@ -260,6 +263,26 @@ export class ListPageComponent {
    * controlli sono chiusi nel pannello.
    */
   readonly activeFilterCount = input(0);
+
+  /**
+   * ⭐ **Il piede diventa un DOCK sotto `lg`**: totali e comandi restano sempre
+   * visibili, e a scorrere è la sola zona dati.
+   *
+   * ⛔ **Non è il comportamento predefinito**, e la ragione è misurata: dodici
+   * pagine su tredici oggi mettono nel piede il solo **paginatore**, e un
+   * paginatore ancorato in fondo allo schermo non è qualcosa che qualcuno abbia
+   * chiesto. Chi vuole il dock lo dichiara.
+   *
+   * ⭐ **La struttura non richiede compensazioni**: il telaio resta una colonna
+   * flessibile, la zona dati cede (`flex: 1; min-block-size: 0`) e il piede no
+   * (`flex: 0 0 auto`). Quindi il piede **occupa spazio davvero** — l'ultima
+   * riga scorre fino in fondo invece di finirgli sotto — e non serve né un
+   * `padding-block-end` da tenere allineato a mano né un `ResizeObserver`.
+   *
+   * ⚠️ Sopra `lg` non cambia niente: il piede torna due zone del telaio come
+   * prima.
+   */
+  readonly dockedFoot = input(false);
 
   /**
    * ⭐ **«Azzera filtri» del pannello compatto.** Esplicito, mai un effetto
