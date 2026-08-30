@@ -327,19 +327,26 @@
 }
 
 @include bp.media-down('md') {
-  /*
-    Il campo di ricerca occupa la riga: `flex: 1 1 auto` lo lascerebbe stringere
-    accanto al periodo fino a due parole di larghezza.
-  */
-  .list-page__search {
-    flex: 1 1 100%;
-  }
 }
 
 .list-page__search {
   position: relative;
   flex: 1 1 auto;
   min-inline-size: 0;
+
+  /*
+    ⭐ **Sul telefono la ricerca prende la riga intera**: è un campo di testo, e
+    stretto accanto al periodo si riduce a due parole di larghezza. `flex-wrap`
+    manda gli altri controlli a capo da sé.
+
+    ⛔ **Questa variante era scritta in un blocco `media-down('md')` più sopra, ed
+    era MORTA**: stessa specificità della regola base qui, che veniva dopo e
+    vinceva a ogni larghezza. Trovata da `check:media-scavalcate` un'ora dopo
+    averla scritta — a schermo sembrava solo che la barra andasse a capo male.
+  */
+  @include bp.media-down('md') {
+    flex: 1 1 100%;
+  }
 }
 
 .list-page__search-icon {

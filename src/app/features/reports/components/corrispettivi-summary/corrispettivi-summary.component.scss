@@ -271,15 +271,6 @@
   .corrispettivi-summary__item--sum dd {
     font-weight: var(--font-weight-semibold);
   }
-
-  /*
-    La risposta chiude la banda in fondo a destra. Verde NOSTRO — il token degli
-    stati positivi — non quello acceso del mockup, che nel progetto non esiste.
-  */
-  .corrispettivi-summary__item--highlight dd {
-    font-size: var(--text-md);
-    color: var(--color-ok);
-  }
 }
 
 /*
@@ -333,11 +324,6 @@
     padding-block-start: var(--space-2);
     padding-inline: var(--space-2);
     border-block-start: var(--border-width) solid var(--color-border);
-
-    &:last-child {
-      padding-inline-end: 0;
-      border-inline-end: 0;
-    }
   }
 }
 
@@ -602,20 +588,38 @@
     dell'ultima riga. Verde NOSTRO — `--color-ok`, non quello acceso del mockup,
     che nel progetto non esiste da nessuna parte — e taglia piena.
   */
-  .corrispettivi-summary__item--highlight {
-    order: 8;
-  }
-
-  .corrispettivi-summary__item--highlight dd {
-    font-size: var(--text-lg);
-    color: var(--color-ok);
-  }
 }
 
+/*
+  ⛔ **UNA regola sola per il totale, e la variante mobile sta DENTRO.**
+
+  Misurato il 30/08/2026, dopo che a schermo il Corrispettivo non era né verde
+  né più grande: ce n'erano **TRE** per lo stesso elemento — due nei blocchi
+  `media-down('lg')` e questa base, **in fondo al file**. Hanno tutte la stessa
+  specificità (classe + due attributi di incapsulamento = 3), quindi decide
+  l'ORDINE: l'ultima vinceva, e le due mobile erano morte.
+
+  ⚠️ **È la terza volta oggi che ordine e specificità mordono su questo foglio.**
+  Il rimedio strutturale è questo: la variante annidata nella regola che
+  modifica, così non può finire prima di lei.
+*/
 .corrispettivi-summary__item--highlight dd {
   font-size: var(--text-sm);
   font-weight: var(--font-weight-bold);
   color: var(--color-primary);
+
+  /*
+    ⭐ **Sul telefono il Corrispettivo è la risposta, e si vede**: taglia piena e
+    verde NOSTRO — `--color-ok`, il token degli stati positivi — non quello
+    acceso del mockup, che nel progetto non esiste da nessuna parte.
+
+    Qui lo spazio verticale c'è: la banda è di quattro colonne, e alzare un
+    numero non alza la fascia.
+  */
+  @include bp.media-down('lg') {
+    font-size: var(--text-lg);
+    color: var(--color-ok);
+  }
 }
 
 /*
