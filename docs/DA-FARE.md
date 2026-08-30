@@ -277,6 +277,109 @@ binding: va rieseguita a ogni passo, non solo alla fine.
 rinomina di rotte che sbaglia non fallisce a compilazione: manda l'operatore su
 una pagina diversa.
 
+## 3-ter. ⛔ L'AUDIT: 41 RISCHI, TUTTI SILENZIOSI _(30/08/2026)_
+
+Il proprietario ha chiesto: «sei certo che la rinomina delle rotte non crei
+danni?». **No.** Novantasei agenti su sette lenti, ognuno obbligato a CONFUTARE
+il rischio prima che entrasse in elenco.
+
+```text
+41 rischi confermati · 41 silenziosi · 0 che falliscono a compilazione o in un test
+   4 bloccano   31 seri   6 minori
+```
+
+### ⛔ I QUATTRO CHE BLOCCANO
+
+**1. `authGuard` rimanda a `'/login'` scritto a mano** — `auth.guard.ts:19`
+
+```text
+utente non autenticato → /accesso (non esiste) → wildcard → app/dashboard
+                       → authGuard → /accesso → …
+```
+
+⛔ **Nessuno raggiunge più la maschera di accesso.** Verificato che nulla lo
+intercetta: `check:router-links` legge solo gli `.html` e solo `routerLink`,
+mentre questo è un `.ts` con `createUrlTree`. E lo spec resta verde **per
+costruzione** — fornisce un Router finto, quindi confronta il letterale della
+guardia con una sua copia.
+
+⚠️ Nota di merito dell'agente: la rotta reale è `/login` alla **radice**, non
+`/app/login` come dicevo io. Da lei dipendono anche `login/forgot-password` e
+`login/reset-password`.
+
+**2. Il link di recupero password nelle EMAIL** — `supabase-auth.gateway.ts:128-130`
+
+**3. Lo stesso link, costruito anche dal BACKEND** — `api/src/admin/admin-tenants.service.ts:480`
+
+⛔ E l'indirizzo `/login/reset-password` è registrato in una **allow-list di
+Supabase che sta FUORI dal repository**: nessun grep lo trova, nessun test lo
+copre, e il link nell'email smette di funzionare per chi lo riceve.
+
+**4. La sidebar lega ogni voce a DUE letterali** — `shell-layout.component.ts:347-348`
+`route` e `activeRoutePrefix`: rinominarne uno solo lascia la voce che naviga
+bene e non si evidenzia più, o viceversa.
+
+### ⛔ Il moltiplicatore: il wildcard rende tutto muto
+
+`app.routes.ts:204` — `{ path: '**', redirectTo: 'app/dashboard' }`. Un agente ha
+**scritto ed eseguito una sonda** e misurato:
+
+```text
+con il wildcard      navigazione RIUSCITA · url = /app/dashboard · nessun errore
+senza il wildcard    NG04002: Cannot match any routes
+```
+
+⭐ **Non è un difetto da correggere**: è ciò che trasforma ogni indirizzo morto in
+«il pulsante porta in dashboard» invece che in un errore. La contromisura è
+**procedurale** — spegnerlo _per la durata_ della rinomina.
+
+### I temi degli altri 37
+
+| Tema                                         | Esempi                                                                                                                                                                                                                                                 |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Il backend costruisce URL del frontend**   | callback OAuth Shopify e TikTok → `/app/settings`; link email di invito e recupero. Due unità di deploy, nessun confine di compilazione                                                                                                                |
+| **Codice che DECIDE confrontando segmenti**  | `parentRoute`/`ACTION_SEGMENTS` (il pulsante Indietro), le briciole (**cinque** confronti cablati, non solo la mappa), la ricerca globale (**due** tabelle di letterali), `CreateClientComponent`, `SECONDARY_PAGES`, i query param dell'hub Documenti |
+| **I test restano verdi per costruzione**     | i guard spec mockano `createUrlTree`; lo spec di `parentRoute` si alimenta con letterali inglesi propri; quello della ricerca globale sostituisce la nav reale                                                                                         |
+| **Nessuna guardia verifica le destinazioni** | `check:router-links` lo **dichiara** nella propria intestazione, e cita un precedente già avvenuto qui: rotta rimossa il 25/08, link superstite, 4817 test verdi, difetto visibile solo cliccando                                                      |
+
+### ⚠️ Una mia affermazione da correggere
+
+Avevo verificato e detto: «nessuna preferenza salvata dipende dai segmenti di
+rotta». È vero **solo se non si tocca `TableViewId`**: la chiave di
+`table-column-preference.service.ts:201` finisce con quell'id, e **20 dei 30 id
+contengono una parola di rotta** (`products_list`, `sales_orders_list`…). Una
+rinomina testuale li prenderebbe e orfanerebbe le preferenze salvate di tutti.
+
+### ⚠️ E il censimento che ho scritto è cieco
+
+`scripts/censimento-rotte.mjs` guarda solo `src/` ed `e2e/`: **non vede
+`api/`, `public/`, `docs/` né i file di configurazione** — cioè esattamente dove
+stanno i quattro rischi che bloccano. Va esteso prima di usarlo per decidere.
+
+### Il numero che governa tutto
+
+```text
+334 letterali di percorso in TypeScript   documents 133 · sales 56 · inventory 40 · products 34 · orders 23
+ 72 dentro navigate/navigateByUrl
+ 16 routerLink negli HTML
+  0 costanti di rotta                     non esiste nessun path-builder
+```
+
+### ⭐ LE TRE PRECONDIZIONI, prima di rinominare qualunque cosa
+
+1. **Le costanti di rotta.** Un solo posto che dichiari i segmenti, e tutto il
+   resto che lo importa. Senza, ogni rinomina è 334 sostituzioni a mano.
+2. **Il wildcard spento durante il lavoro**, così i letterali rimasti si
+   annunciano come `NG04002` invece che come un atterraggio in dashboard.
+3. **Una guardia che verifichi le DESTINAZIONI**, non solo la forma: anche in
+   `.ts`, anche dentro `createUrlTree` e `navigate`, e anche in `api/`.
+
+⚠️ E il backend va trattato come un consumatore esterno: i suoi URL non li
+protegge nessun compilatore, e la allow-list Supabase non sta nemmeno nel
+repository.
+
+---
+
 ## 3-bis. ⛔ LA VERA DOMANDA NON È LA LINGUA: È LA STRUTTURA _(30/08/2026)_
 
 ⚠️ **Scoperto discutendo i nomi, non cercandolo.** Il proprietario ha chiesto
