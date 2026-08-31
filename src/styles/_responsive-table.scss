@@ -228,9 +228,28 @@
     taglio a colonna tiene tutto su una riga sola — sono due decisioni che si
     tengono in piedi a vicenda.
   */
-  .#{$block} tbody tr,
-  .#{$block}__row {
-    block-size: var(--table-row-h);
+  /*
+    ⛔ **SOLO DA `lg` IN SU, e non è pignoleria: senza, le card si sovrappongono.**
+
+    Su un `<tr>` di tabella `block-size` è un MINIMO — la riga cresce se il
+    contenuto è più alto. Ma sotto `lg` la riga diventa `display: block`
+    (`data-table-mobile-cards`), e su un elemento a blocco la stessa dichiarazione
+    è un'**altezza fissa**: la card veniva bloccata a 30px e le sue tre fasce
+    traboccavano sopra la card successiva.
+
+    ⚠️ **Misurato dal proprietario a schermo il 31/08/2026**, non da un test:
+    build verde, lint pulito, 3.012 prove verdi. Su desktop non si manifesta
+    affatto — è la stessa dichiarazione che si comporta in due modi a seconda del
+    `display`, e nessun controllo automatico distingue i due casi.
+
+    ⭐ **L'altezza della card la fa il suo contenuto**, ed è giusto così: tre fasce
+    di testo non stanno in una misura decisa per una riga di tabella.
+  */
+  @include bp.media-up('lg') {
+    .#{$block} tbody tr,
+    .#{$block}__row {
+      block-size: var(--table-row-h);
+    }
   }
 
   .#{$block} tbody td,

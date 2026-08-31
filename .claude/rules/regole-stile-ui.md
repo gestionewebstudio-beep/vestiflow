@@ -463,6 +463,29 @@ proiettato, perché l'attributo sul `*` è quello del TELAIO e il contenuto port
 quello della PAGINA. Stessa causa, due sintomi opposti — troppa specificità di
 qua, nessuna corrispondenza di là.
 
+### ⛔ `block-size` su una riga: MINIMO in tabella, FISSO su una card _(31/08/2026)_
+
+> **La stessa dichiarazione cambia significato quando la riga cambia `display`.**
+
+```text
+<tr> in una tabella        block-size: 30px   →  MINIMO: la riga cresce col contenuto
+display: block (la card)   block-size: 30px   →  ALTEZZA FISSA: il contenuto trabocca
+```
+
+⚠️ **E sotto `lg` la riga diventa `display: block`**, perché è lì che si trasforma
+in card (`data-table-mobile-cards`). Un'altezza dichiarata per la tabella arriva
+alla card e la blocca: le sue tre fasce escono dal riquadro e si sovrappongono
+alla card successiva.
+
+⛔ **Misurato dal proprietario a schermo il 31/08/2026**, un giorno dopo aver
+introdotto `--table-row-h` sulle righe. Build verde, lint pulito, 3.012 test
+verdi: **su scrivania non si manifesta affatto**, e nessun controllo automatico
+distingue i due `display`.
+
+⭐ **L'altezza di riga si dichiara dentro `media-up('lg')`**, e basta. L'altezza
+della card la fa il suo contenuto: tre fasce di testo non stanno in una misura
+decisa per una riga di tabella.
+
 ### ⛔ `align-items` sopravvive al cambio d'asse, e allinea dalla parte sbagliata _(30/08/2026)_
 
 Trovato **due volte nello stesso pomeriggio**, a due piani diversi, e la seconda solo perché
