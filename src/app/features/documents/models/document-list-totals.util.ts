@@ -40,6 +40,15 @@ export function totaliDocumenti(
         valore: (doc) => signedDocumentMoney(doc.type, doc.subtotal).amountMinor,
         formato: soldi,
       },
+      /*
+        ⭐ **L'IVA si somma come le altre due**, e col suo verso: una nota di
+        credito ha imposta negativa, e sommarla senza segno gonfierebbe l'IVA
+        del periodo invece di scalarla.
+      */
+      tax: {
+        valore: (doc) => signedDocumentMoney(doc.type, doc.tax).amountMinor,
+        formato: soldi,
+      },
       total: {
         valore: (doc) => signedDocumentMoney(doc.type, doc.total).amountMinor,
         formato: soldi,

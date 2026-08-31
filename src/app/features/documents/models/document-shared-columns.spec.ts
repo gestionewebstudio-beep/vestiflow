@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
+import { DocumentType } from '@core/models/document.model';
 import type { DocumentRecord } from '@core/models/document.model';
+import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 import type { TableColumnDef } from '@shared/table-columns/table-column.model';
 
 import {
@@ -59,6 +61,46 @@ describe('colonne documentali condivise', () => {
       expect(testoColonnaCondivisa(vuoto, 'paymentDueDate')).toBe('—');
     });
 
+    /*
+      ⛔ **`formatMoney(undefined)` ESPLODE**, e questa prova l'ha trovato un
+      minuto dopo che i due renderer economici erano stati scritti senza guardia.
+      Un elenco leggero può non portare gli importi, e una cella che lancia porta
+      giù l'intera tabella — non solo se stessa.
+    */
+    it('⛔ un importo assente dà il segnaposto invece di lanciare', () => {
+      const senzaImporti = doc({});
+      expect(testoColonnaCondivisa(senzaImporti, 'subtotal')).toBe('—');
+      expect(testoColonnaCondivisa(senzaImporti, 'tax')).toBe('—');
+    });
+
+    /*
+      ⚠️ **Il VERSO economico**: una nota di credito ha imponibile e IVA
+      negativi, e sommarli senza segno gonfierebbe entrambi invece di scalarli.
+    */
+    it('⚠️ imponibile e IVA portano il verso del tipo documento', () => {
+      const fattura = doc({
+        type: DocumentType.Invoice,
+        subtotal: { amountMinor: 10000, currencyCode: DEFAULT_CURRENCY },
+        tax: { amountMinor: 2200, currencyCode: DEFAULT_CURRENCY },
+      });
+      const nota = doc({
+        type: DocumentType.CreditNote,
+        subtotal: { amountMinor: 10000, currencyCode: DEFAULT_CURRENCY },
+        tax: { amountMinor: 2200, currencyCode: DEFAULT_CURRENCY },
+      });
+      /*
+        ⚠️ **Il segno è quello di `Intl.NumberFormat`**, cioè il meno da tastiera
+        (`-`), non il meno tipografico (`−`, U+2212) che il progetto usa dove
+        scrive i numeri a mano. Sono due caratteri diversi: asserire quello
+        sbagliato fa fallire un codice corretto — è successo scrivendo questo
+        test.
+      */
+      const negativo = /^s*-/;
+      expect(testoColonnaCondivisa(fattura, 'subtotal')).not.toMatch(negativo);
+      expect(testoColonnaCondivisa(nota, 'subtotal')).toMatch(negativo);
+      expect(testoColonnaCondivisa(nota, 'tax')).toMatch(negativo);
+    });
+
     it('uno spazio non è un valore', () => {
       expect(testoColonnaCondivisa(doc({ locationName: '   ' }), 'locationName')).toBe('—');
     });
@@ -79,7 +121,13 @@ describe('colonne documentali condivise', () => {
 
     it('le aggiunge tutte a un catalogo che non ne ha nessuna', () => {
       const nuove = colonneDocumentoCondivise([cd('reference', 'Numero')]);
-      expect(nuove.map((c) => c.id)).toEqual(['createdByName', 'locationName', 'paymentDueDate']);
+      expect(nuove.map((c) => c.id)).toEqual([
+        'createdByName',
+        'locationName',
+        'paymentDueDate',
+        'subtotal',
+        'tax',
+      ]);
     });
 
     it('non ripete una colonna con lo stesso id', () => {
@@ -98,7 +146,12 @@ describe('colonne documentali condivise', () => {
     it('⛔ non ripete una colonna con la stessa ETICHETTA e id diverso', () => {
       const nuove = colonneDocumentoCondivise([cd('location', 'Sede')]);
       expect(nuove.map((c) => c.id)).not.toContain('locationName');
-      expect(nuove.map((c) => c.id)).toEqual(['createdByName', 'paymentDueDate']);
+      expect(nuove.map((c) => c.id)).toEqual([
+        'createdByName',
+        'paymentDueDate',
+        'subtotal',
+        'tax',
+      ]);
     });
 
     it('su un catalogo vuoto le aggiunge tutte, senza inventarne altre', () => {

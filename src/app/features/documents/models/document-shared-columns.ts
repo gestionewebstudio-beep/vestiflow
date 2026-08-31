@@ -1,5 +1,7 @@
 import type { DocumentRecord } from '@core/models/document.model';
 import { formatDate } from '@core/utils/date.util';
+import { formatMoney } from '@core/utils/money.util';
+import { signedDocumentMoney } from '@domain/documents/models/document-economic-sign.util';
 import type { TableColumnDef } from '@shared/table-columns/table-column.model';
 
 /**
@@ -57,6 +59,26 @@ interface ColonnaDocumentoCondivisa {
 const VUOTO = '—';
 
 /**
+ * Un importo di documento, col verso economico e col segnaposto se manca.
+ *
+ * ⛔ **`formatMoney(undefined)` ESPLODE**, e non è teorico: l'ha trovato il test
+ * «ogni colonna dichiarata sa rendersi» un minuto dopo che avevo scritto questi
+ * due renderer senza guardia. Un elenco leggero può non portare gli importi, e
+ * una cella che lancia porta giù l'intera tabella — non solo se stessa.
+ *
+ * ⚠️ **Gli altri renderer di questo modulo la guardia ce l'avevano** (`?.trim()
+ * || VUOTO`): questi due l'hanno persa perché il denaro sembrava sempre
+ * presente. È il tipo di svista che una prova generica sul catalogo intercetta e
+ * una prova sul caso felice no.
+ */
+function importoConSegno(
+  doc: DocumentRecord,
+  importo: DocumentRecord['total'] | undefined,
+): string {
+  return importo ? formatMoney(signedDocumentMoney(doc.type, importo)) : VUOTO;
+}
+
+/**
  * ⭐ **Le colonne che OGNI documento ha**, quale che sia il tipo.
  *
  * Chi l'ha creato, in che sede, entro quando va pagato: tre domande che si
@@ -78,6 +100,28 @@ export const COLONNE_DOCUMENTO_CONDIVISE = {
   paymentDueDate: {
     def: { id: 'paymentDueDate', label: 'Scadenza', defaultVisible: false },
     testo: (doc) => (doc.paymentDueDate ? formatDate(doc.paymentDueDate) : VUOTO),
+  },
+
+  /*
+    ⭐ **IMPONIBILE e IVA, che mancavano su Fatture e DDT** — segnalato dal
+    proprietario il 31/08/2026: «le righe economiche dovrebbero avere anche
+    fattura e DDT».
+
+    ⛔ **Quei due elenchi avevano il solo Totale**, e su un documento fiscale è
+    la voce meno utile delle tre: chi riconcilia col commercialista guarda
+    imponibile e imposta, non la somma. L'IVA non era colonna in nessun profilo.
+
+    ⚠️ **Portano il VERSO economico**, come il totale: una nota di credito ha
+    imponibile e IVA **negativi**, e sommarli senza segno gonfierebbe entrambi
+    invece di scalarli.
+  */
+  subtotal: {
+    def: { id: 'subtotal', label: 'Imponibile', numeric: true, defaultVisible: false },
+    testo: (doc) => importoConSegno(doc, doc.subtotal),
+  },
+  tax: {
+    def: { id: 'tax', label: 'IVA', numeric: true, defaultVisible: false },
+    testo: (doc) => importoConSegno(doc, doc.tax),
   },
 } as const satisfies Record<string, ColonnaDocumentoCondivisa>;
 
