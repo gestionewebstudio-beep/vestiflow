@@ -81,18 +81,18 @@ const DICHIARATE = {
     perche:
       "forma storica con tetto `min(75vh, …)`: contenitore e tetto sono nati insieme, ed è il motivo per cui questa famiglia non ha MAI avuto il difetto. Candidata a passare al mixin, ma il suo tetto è diverso e cambiarlo cambierebbe il comportamento di sette maschere",
   },
-  // ⚠️ Queste tre erano di categoria `shell` — nessun wrapper, ancorate a
+  // ⚠️ Queste erano di categoria `shell` — nessun wrapper, ancorate a
   //    `.shell__content` — ed erano SANE. Sono passate a `mixin` il 29/08/2026
   //    non per uniformità, ma perché la catena di altezze ha tolto lo
   //    scorrimento alla pagina: senza una regione propria le righe
   //    traboccherebbero sopra il paginatore.
   //
   //    ⭐ Il contenitore è l'HOST, non un div nuovo: nessuna modifica di markup.
-  '.customer-table__head th': {
-    categoria: 'mixin',
-    contenitore: ':host',
-    perche: "la `<table>` è figlia diretta dell'host: è lui la regione che scorre",
-  },
+  //
+  //    ✅ **E il 30/08 è sparita `.customer-table__head th`**, terza dopo
+  //    Corrispettivi e Prodotti: anche l'anagrafica clienti è passata al motore,
+  //    quindi la sua intestazione è ora `.data-table__head th`. Anche qui l'ha
+  //    detto la guardia al primo lint, non chi ha fatto la migrazione.
   '.level-table__head th': {
     categoria: 'mixin',
     contenitore: ':host',
