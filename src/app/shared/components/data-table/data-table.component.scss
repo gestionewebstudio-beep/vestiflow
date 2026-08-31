@@ -881,3 +881,133 @@
     letter-spacing: var(--tracking-caps);
   }
 }
+
+/*
+  ── Le fasce di GRUPPO sotto `lg` ───────────────────────────────────────────
+
+  ⛔ **L'intestazione e il piede di giornata si vestivano da CARD.**
+
+  Sono due `<tr>` dentro `tbody`, quindi `data-table-mobile-cards` li prendeva
+  con tutti gli altri: fondo bianco, bordo, raggio, margine. Una giornata
+  diventava un riquadro identico a una registrazione, e il subtotale un secondo
+  riquadro con le sue celle impilate a «ETICHETTA: valore» — metà larghezza vuota
+  per ogni voce, perché il `::before` occupa comunque la prima colonna.
+
+  ⚠️ **Il difetto era già live sul Registro Corrispettivi**, unico elenco che
+  raggruppava, ed è emerso il 31/08/2026 estendendo «Raggruppa» ad altri sei.
+  Non falliva niente: è CSS, e nessun test di componente calcola il layout.
+
+  ⭐ **Il disegno giusto era già scritto**: `regole-stile-ui` §6 dice «la giornata
+  è un separatore, non una card», e il commento del Registro lo ripeteva. Qui il
+  codice divergeva dalla regola, non la regola dal codice.
+
+  ⭐ **E la forma del piede è quella della riga TOTALI**, non una terza: stessa
+  fascia, stesse etichette da `data-label`, stesso allineamento a destra. Sono la
+  stessa cosa a due livelli — il totale di un gruppo e il totale dell'elenco — e
+  inventargli due grammatiche costringerebbe a leggerle come due cose diverse.
+*/
+@include bp.vista-compatta('lg') {
+  .data-table tbody tr.data-table__section-head,
+  .data-table tbody tr.data-table__section-total {
+    /*
+      ⚠️ **`display: block`, non un ripristino a `table-row`.** La tabella intera
+      è a blocchi qui: una riga che tornasse `table-row` da sola cercherebbe un
+      contesto di tabella che non esiste più, e il browser gliene fabbricherebbe
+      uno anonimo — larghezze fuori sincrono con le card intorno.
+    */
+    display: block;
+    margin-block-end: 0;
+    padding: 0;
+    background-color: transparent;
+    border: 0;
+    border-radius: 0;
+  }
+
+  /* Il separatore di giornata: una fascia di struttura, a piena larghezza. */
+  .data-table tbody tr.data-table__section-head {
+    margin-block-start: var(--space-2);
+  }
+
+  .data-table .data-table__section-head-cell {
+    display: block;
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-sm);
+  }
+
+  /*
+    Il subtotale: la stessa fascia della riga totali, un tono più leggero perché
+    chiude un gruppo e non l'elenco.
+  */
+  .data-table tbody tr.data-table__section-total {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: var(--space-1) var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    margin-block-end: var(--space-1);
+    background-color: var(--color-table-header-bg);
+    border-radius: var(--radius-sm);
+  }
+
+  .data-table .data-table__section-total td {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--space-1);
+    inline-size: auto;
+    padding: 0;
+    text-align: end;
+  }
+
+  /* L'etichetta del gruppo spinge i numeri all'estremo opposto. */
+  .data-table .data-table__section-total-label {
+    margin-inline-end: auto;
+    text-align: start;
+  }
+
+  /*
+    ⚠️ **Il `::before` della griglia card qui non serve e va spento**: in fascia
+    l'etichetta sta accanto al numero, non in una colonna al 42%.
+  */
+  .data-table .data-table__section-total td::before {
+    display: inline;
+    grid-column: auto;
+    font-size: var(--text-3xs);
+    font-weight: var(--font-weight-regular);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-caps);
+  }
+
+  .data-table .data-table__section-total-label::before {
+    content: none;
+  }
+}
+
+/*
+  ── ⛔ Le celle di totale SENZA valore, sotto `lg` ──────────────────────────
+
+  In tabella una cella di piede vuota **serve**: tiene l'incolonnamento, perché il
+  numero deve cadere sotto la sua intestazione. `footerColumns` per questo
+  restituisce tutte le colonne dalla prima con un valore in poi, vuote comprese.
+
+  ⛔ **Sulla fascia mobile quella stessa cella diventa un'etichetta nuda.** Lì il
+  piede è flex e ogni cella stampa il proprio `data-label`: le colonne senza
+  numero producevano una fila di parole senza niente accanto —
+
+  ```text
+  50 voci   VARIANTI 29   STATO   ORIGINE   SHOPIFY   CODICE ARTICOLO
+  ```
+
+  Segnalato dal proprietario sui Prodotti il 31/08/2026, con la schermata alla
+  mano. ⚠️ **Non falliva niente**: le celle esistono, il valore è la stringa
+  vuota, e nessun test di componente calcola il layout.
+
+  ⭐ **Si spengono solo dove non servono.** Su scrivania restano, o l'allineamento
+  che le giustifica se ne va con loro.
+*/
+@include bp.vista-compatta('lg') {
+  .data-table .data-table__total-cell--vuota {
+    display: none;
+  }
+}

@@ -208,6 +208,7 @@
               <td
                 [class.data-table__cell--numeric]="col.numeric"
                 [class.data-table__section-total-value--emphasis]="piede.emphasis === col.id"
+                [class.data-table__total-cell--vuota]="footerValue(piede.values, col) === null"
                 [attr.data-label]="col.label"
               >
                 {{ footerValue(piede.values, col) }}
@@ -234,6 +235,7 @@
             <td
               class="data-table__totals-value"
               [class.data-table__cell--numeric]="col.numeric"
+              [class.data-table__total-cell--vuota]="footerValue(tot.values, col) === null"
               [attr.data-label]="col.label"
             >
               {{ footerValue(tot.values, col) }}
