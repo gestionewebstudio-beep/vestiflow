@@ -53,7 +53,9 @@
       <span class="list-card__ident">
         <span class="list-card__what">{{ displayName(customer) }}</span>
       </span>
-      <span class="list-card__anchor">{{ cellText(customer, 'code') }}</span>
+      @if (valoreCard(cellText(customer, 'code')); as ancora) {
+        <span class="list-card__anchor">{{ ancora }}</span>
+      }
     </div>
 
     <!--

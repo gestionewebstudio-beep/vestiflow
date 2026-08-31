@@ -54,3 +54,39 @@ export function colonnaVisibile(
  * colonna.
  */
 export const IDENTITA_CARD = 'identità' as const;
+
+/**
+ * ⭐ **Il valore di un campo di card, o niente.**
+ *
+ * ⛔ **In tabella il trattino è giusto, su una card no**, e la differenza è
+ * l'intestazione: sotto una colonna «Cod. articolo» un `—` dice «questo articolo
+ * non ha codice», e distingue il vuoto dal non caricato (`regole-gestionale`).
+ * In cima a una card non c'è nessuna intestazione, e lo stesso trattino è un
+ * segno nudo che sembra un errore di caricamento.
+ *
+ * ```text
+ * in tabella     COD. ARTICOLO        card       — fornitore test 1   OF-Mi-0020
+ *                     —                          ↑ un trattino che non dice niente
+ * ```
+ *
+ * Segnalato dal proprietario il 31/08/2026 sugli Ordini fornitore. Lì il rimedio
+ * era un altro — la card mostrava la data sbagliata — ma il difetto vale per
+ * quattro altre card, e la forma giusta è **omettere**, non trattinare.
+ *
+ * ⚠️ **Non tocca il testo delle CELLE**: `cellText` continua a restituire il
+ * trattino, perché in tabella serve. È la card a filtrarlo, e solo nella fascia
+ * identità.
+ */
+export function valoreCard(testo: string | null | undefined): string | null {
+  const pulito = testo?.trim() ?? '';
+  return pulito === '' || SEGNAPOSTO.has(pulito) ? null : pulito;
+}
+
+/**
+ * I segnaposto di «vuoto» in uso nelle celle.
+ *
+ * ⚠️ **Il trattino è quello LUNGO** (—, U+2014), non il meno da tastiera: sono
+ * due caratteri diversi, e cercare quello sbagliato non fallisce — semplicemente
+ * non trova mai niente.
+ */
+const SEGNAPOSTO = new Set(['—', '–', '-', 'N/D', 'n/d']);

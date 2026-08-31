@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
-import { colonnaVisibile } from '@shared/models/list-card-fields.util';
+import { colonnaVisibile, valoreCard } from '@shared/models/list-card-fields.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
 import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
@@ -60,6 +60,9 @@ export class InventoryLevelTableComponent {
     ⚠️ **Le colonne spente non si controllano a mano.** La card legge quelle che
     il motore ha già ricevuto: una fonte sola invece di due che possono divergere.
   */
+  /** ⚠️ In cima a una card un trattino è un segno nudo: si omette. */
+  protected readonly valoreCard = valoreCard;
+
   protected visibile(columnId: string): boolean {
     return colonnaVisibile(this.columns(), columnId);
   }

@@ -5,7 +5,7 @@ import type { ProductStatus } from '@core/models/product.model';
 import { DEFAULT_CURRENCY, formatMoney } from '@core/utils/money.util';
 import type { Product } from '@core/models/product.model';
 import { ShopifySyncStatus } from '@core/models/shopify.model';
-import { colonnaVisibile } from '@shared/models/list-card-fields.util';
+import { colonnaVisibile, valoreCard } from '@shared/models/list-card-fields.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
@@ -170,6 +170,9 @@ export class ProductTableComponent {
     ⚠️ **Le colonne spente non si controllano a mano.** La card legge quelle che
     il motore ha già ricevuto: una fonte sola invece di due che possono divergere.
   */
+  /** ⚠️ In cima a una card un trattino è un segno nudo: si omette. */
+  protected readonly valoreCard = valoreCard;
+
   protected visibile(columnId: string): boolean {
     return colonnaVisibile(this.engineColumns(), columnId);
   }
