@@ -282,7 +282,24 @@ export class ListPageComponent {
    * ⚠️ Sopra `lg` non cambia niente: il piede torna due zone del telaio come
    * prima.
    */
-  readonly dockedFoot = input(false);
+  /**
+   * ⭐ **Il piede resta in fondo allo schermo sotto `lg`** — acceso per tutti dal
+   * 31/08/2026, su indicazione del proprietario: «dovrebbe essere fissa a tutti
+   * per avere sempre totali e funzioni a portata di mano».
+   *
+   * ⛔ **Nasceva spento**, e la ragione era questa: «dodici pagine su tredici oggi
+   * mettono nel piede solo il paginatore, e un paginatore ancorato non è qualcosa
+   * che qualcuno abbia chiesto».
+   *
+   * ⭐ **Quella premessa non vale più.** Il paginatore non esiste più su nessun
+   * elenco (30/08), e al suo posto il piede porta ora la **riga totali** e la
+   * **barra comandi** — cioè esattamente le due cose che devono restare a portata
+   * di mano mentre si scorre.
+   *
+   * ⚠️ **Resta un `input`**, non una costante: una schermata che nel piede non
+   * mette niente non ha motivo di riservargli spazio, e va potuta spegnere.
+   */
+  readonly dockedFoot = input(true);
 
   /**
    * ⭐ **«Azzera filtri» del pannello compatto.** Esplicito, mai un effetto

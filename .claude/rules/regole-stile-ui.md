@@ -599,9 +599,42 @@ funzione. La difesa era corretta e rispondeva alla domanda sbagliata.
 Il tetto esisteva perché il riepilogo sta in fondo: con un mese di vendite, arrivarci
 significava scorrere centinaia di card.
 
-⭐ **Sotto `lg` il PIEDE si ancora in fondo allo schermo** — totali e comandi insieme,
-`position: sticky`. Non si scorre per vederli: sono sempre lì, e l'elenco può essere lungo
-quanto il periodo richiede.
+⭐ **Sotto `lg` il PIEDE si ancora in fondo allo schermo** — totali e comandi insieme.
+Non si scorre per vederli: sono sempre lì, e l'elenco può essere lungo quanto il periodo
+richiede.
+
+⭐ **E vale per OGNI elenco, non solo per il Registro** — indicato dal proprietario il
+31/08/2026 guardando le Giacenze: _«dovrebbe essere fissa a tutti per avere sempre totali
+e funzioni a portata di mano»_.
+
+⛔ **Nasceva acceso solo dove lo si chiedeva**, e la ragione era che «dodici pagine su
+tredici mettono nel piede solo il paginatore, e un paginatore ancorato non è qualcosa che
+qualcuno abbia chiesto». **Quella premessa non vale più**: il paginatore non esiste più su
+nessun elenco, e al suo posto il piede porta la riga totali e la barra comandi — cioè
+esattamente le due cose che devono restare a portata di mano.
+
+⚠️ **Il piede è STRUTTURALE, non appiccicato**: la zona dati cede, il piede occupa spazio
+davvero. Uno `sticky` non riserva spazio a sé, e coprirebbe l'ultima card a meno di
+compensarlo con un `padding` pari alla sua altezza — una misura da tenere allineata a mano.
+
+#### ⛔ E la riga totali perde l'ancoraggio quando la tabella diventa a blocchi
+
+Sotto `lg` la tabella è `display: block` (`data-table-mobile-cards`) e con lei il
+`<tfoot>`: un `table-footer-group` che non è più tale **perde lo `sticky`, senza
+fallire**. Va ridichiarato come blocco.
+
+⚠️ **E il fondo passa dalla cella alla RIGA.** In tabella ogni `td` porta fondo e filo, e
+insieme formano una banda continua; in flex fra una cella e l'altra c'è il `gap`, che
+resterebbe **trasparente** — la banda si vedrebbe a strisce, con le card che scorrono sotto.
+
+#### ⭐ Su una card i numeri portano il proprio NOME
+
+In tabella il nome è l'intestazione di colonna. Sotto `lg` l'intestazione non c'è, e la riga
+totali diventa una fila di numeri nudi — «59 voci 607 741 134», che non dice quale sia la
+giacenza e quale il disponibile. L'etichetta la porta già `data-label` su ogni cella.
+
+⚠️ Vale anche per il **totale della card**, dove il numero è ambiguo: su un importo no
+(«25,00 €» si legge da sé), su una quantità sì — «Disp. −1», non «−1».
 
 ⚠️ **`sticky`, non `fixed`**: fisso coprirebbe l'ultima card e resterebbe attaccato anche
 dove non serve. E il fondo è **opaco**, non velato — sotto scorrono card con numeri, e a
