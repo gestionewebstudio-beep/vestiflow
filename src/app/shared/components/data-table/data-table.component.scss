@@ -480,10 +480,16 @@
   `relative` — e va bene: anche una cella appiccicata fa da riferimento alla
   maniglia di ridimensionamento, che resta al suo posto.
 */
+/*
+  ⚠️ **La scala è dichiarata sotto `.data-table__totals`**, che è l'unico punto
+  in cui i quattro strati si incontrano. Cambiarne uno qui senza rileggerla
+  rimette in piedi il difetto del 31/08/2026: una cella fissata che scorre SOPRA
+  il piede invece che sotto.
+*/
 .data-table__head th {
   position: sticky;
   inset-block-start: 0;
-  z-index: var(--z-raised);
+  z-index: calc(var(--z-raised) + 3);
   background-color: var(--color-table-header-bg);
 }
 
@@ -495,7 +501,7 @@
 }
 
 .data-table__head .data-table__cell--pinned {
-  z-index: calc(var(--z-raised) + 2);
+  z-index: calc(var(--z-raised) + 4);
   background-color: var(--color-table-header-bg);
 }
 
@@ -720,15 +726,38 @@
   dell'intestazione, come la riga di subtotale di gruppo — un totale e una riga di
   dati non condividono la tinta, o il primo si legge come un'altra riga.
 */
+/*
+  ── ⛔ LA SCALA DEGLI STRATI, e perché ne mancava uno ───────────────────────
+
+  Segnalato dal proprietario il 31/08/2026 sui Prodotti, con la freccia sulla
+  schermata: **la colonna Nome finiva SOPRA la riga dei totali**. L'ultima riga
+  si leggeva attraverso il piede — ma solo nella prima colonna.
+
+  ⚠️ **Solo lì perché solo quella è FISSATA**: `name` è `pinnable`, e una cella
+  fissata è `position: sticky` con `z-index: --z-raised + 1`. La riga totali
+  stava a `--z-raised`, cioè **uno sotto**: la cella le scorreva sopra invece
+  che sotto, e il suo fondo bianco copriva il piede.
+
+  ⛔ **Il commento che stava qui diceva il contrario di ciò che il codice
+  faceva**: «sopra le righe, ma sotto l'intestazione appiccicata (+1 e +2 qui
+  sopra)». Aveva contato l'intestazione e dimenticato che il `+1` è anche di
+  **ogni cella fissata di ogni riga** — che scorre, e quindi passa di lì.
+
+  ```text
+  riga normale              auto
+  cella fissata di riga     +1
+  RIGA TOTALI               +2   ← deve coprire ciò che le scorre sotto
+  intestazione              +3
+  intestazione fissata      +4
+  ```
+
+  ⚠️ **Non si vede in nessun test**: jsdom non calcola gli strati. Si vede solo
+  a schermo, scorrendo un elenco con una colonna fissata.
+*/
 .data-table__totals {
   position: sticky;
   inset-block-end: 0;
-  /*
-    ⚠️ Sopra le righe, ma **sotto l'intestazione appiccicata** (`--z-raised` + 1
-    e + 2 qui sopra): se si scavalcassero, scorrendo fino in cima i due si
-    coprirebbero a vicenda.
-  */
-  z-index: var(--z-raised);
+  z-index: calc(var(--z-raised) + 2);
 }
 
 .data-table__totals td {
