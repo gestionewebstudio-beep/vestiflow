@@ -99,27 +99,35 @@ export class CustomersController {
   }
 
   /**
-   * ⭐ **Elimina la scheda cliente.** Lo storico resta: vedi `remove` nel servizio.
-   *
-   * ⚠️ **Stesso permesso della modifica**: chi può cambiare un'anagrafica può
-   * toglierla. Un permesso a sé per l'eliminazione sarebbe una terza autorità su
-   * un'entità che ne ha già una.
-   */
-  /**
    * ⭐ **Duplica**: una scheda nuova col prossimo codice, che si apre per
    * rifinirla. Partita IVA e codice fiscale non si copiano — vedi il servizio.
+   *
+   * ⚠️ **Stesso permesso della modifica**: chi può cambiare un'anagrafica può
+   * crearne una copia. Un permesso a sé sarebbe una terza autorità su un'entità
+   * che ne ha già una.
    */
   @Post(':id/duplicate')
+  @RequirePermissions(TenantPermission.CustomersManage)
   duplicate(
     @CurrentTenant() tenantId: string,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ): Promise<{ readonly id: string }> {
     return this.customers.duplicate(tenantId, id);
   }
 
+  /**
+   * ⭐ **Elimina la scheda cliente.** Lo storico resta: vedi `remove` nel servizio.
+   *
+   * ⚠️ **Stesso permesso della modifica**: chi può cambiare un'anagrafica può
+   * toglierla.
+   */
   @Delete(':id')
+  @RequirePermissions(TenantPermission.CustomersManage)
   @HttpCode(204)
-  remove(@CurrentTenant() tenantId: string, @Param('id') id: string): Promise<void> {
+  remove(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
     return this.customers.remove(tenantId, id);
   }
 

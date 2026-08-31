@@ -37,6 +37,11 @@ export const TABLE_VIEW_IDS = [
   'supplier_orders_list',
   'online_sales_list',
   'corrispettivi_register',
+  // Aggiunta il 31/08/2026: l'elenco Inventario dichiarava la vista lato
+  // frontend e l'API non la conosceva — 400 su lettura e salvataggio, e le
+  // colonne scelte non venivano mai memorizzate. L'ha trovata
+  // `npm run check:table-views`, che esiste per questo.
+  'inventory_counts',
 ] as const;
 
 export type TableViewId = (typeof TABLE_VIEW_IDS)[number];
