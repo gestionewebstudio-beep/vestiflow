@@ -81,6 +81,7 @@
     data
     [rows]="rows()"
     [columns]="tableColumns()"
+    [viewId]="tableViewId"
     [selectedIds]="selectedRowIds()"
     (committedClick)="openReservations($event)"
     (selectionToggle)="toggleRowSelection($event.rowId, $event.selected)"

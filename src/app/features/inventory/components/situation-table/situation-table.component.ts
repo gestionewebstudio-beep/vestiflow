@@ -10,8 +10,9 @@ import type {
   DataTableSection,
   DataTableTotals,
 } from '@shared/components/data-table/data-table.model';
+import { createColumnFilters } from '@shared/table-columns/column-filters';
 import { totaliDiElenco } from '@shared/models/list-totals.util';
-import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
+import type { ResolvedTableColumn, TableViewId } from '@shared/table-columns/table-column.model';
 
 import { stockStatusLabel, stockStatusTone } from '../../models/inventory-labels.util';
 import type { InventorySituationRow } from '@domain/inventory/models/inventory-situation.model';
@@ -42,6 +43,9 @@ export class SituationTableComponent {
    */
   readonly rowClickSelects = input(false);
   readonly columns = input.required<readonly ResolvedTableColumn[]>();
+
+  /** La vista, e con essa i filtri di colonna (`14` §0.2). */
+  readonly viewId = input<TableViewId>();
   readonly selectedIds = input.required<ReadonlySet<string>>();
 
   readonly rowToggle = output<InventorySituationRow>();
@@ -62,7 +66,7 @@ export class SituationTableComponent {
 
   /** Lista piatta: una sezione senza intestazione né piede. */
   protected readonly sections = computed<readonly DataTableSection<InventorySituationRow>[]>(() => [
-    { id: 'situazione', rows: this.rows() },
+    { id: 'situazione', rows: this.righe() },
   ]);
   /*
     ⚠️ **Le colonne spente non si controllano a mano.** La card legge quelle che
@@ -81,6 +85,43 @@ export class SituationTableComponent {
     `Seleziona ${row.title}`;
 
   /*
+    ⭐ **I filtri di colonna** (`14` §0.2). Otto colonne numeriche più i due
+    prezzi: senza estrattore i campi da–a comparirebbero senza restringere.
+
+    ⚠️ **I prezzi si confrontano in unità MINORI**, non sul testo formattato:
+    «1.250,00 €» come stringa sta dopo «9,00 €».
+  */
+  private readonly righe = createColumnFilters({
+    viewId: this.viewId,
+    righe: this.rows,
+    cellText: (row, columnId) => this.cellText(row, columnId),
+    numeroDi: (row, columnId) => {
+      switch (columnId) {
+        case 'available':
+          return row.available;
+        case 'onHand':
+          return row.onHand;
+        case 'committed':
+          return row.committed;
+        case 'incoming':
+          return row.incoming;
+        case 'minThreshold':
+          return row.minThreshold;
+        case 'totalIn':
+          return row.totalIn;
+        case 'totalOut':
+          return row.totalOut;
+        case 'purchasePrice':
+          return row.purchasePriceMinor ?? null;
+        case 'sellingPrice':
+          return row.sellingPriceMinor ?? null;
+        default:
+          return null;
+      }
+    },
+  });
+
+  /*
     ⭐ **Le quantità si sommano, i PREZZI no.**
 
     ⛔ Prezzo d'acquisto e prezzo di vendita sono valori **unitari**: sommarli fra
@@ -90,7 +131,7 @@ export class SituationTableComponent {
   */
   protected readonly totals = computed<DataTableTotals>(() => {
     const q = (n: number): string => String(n);
-    return totaliDiElenco(this.rows(), {
+    return totaliDiElenco(this.righe(), {
       rowId: this.rowId,
       selectedIds: this.selectedIds(),
       columns: this.engineColumns(),

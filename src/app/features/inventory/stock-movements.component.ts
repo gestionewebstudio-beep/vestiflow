@@ -102,6 +102,7 @@ import { InventoryService } from '@domain/inventory/services/inventory.service';
 import type { DataTableTotals } from '@shared/components/data-table/data-table.model';
 import { raggruppaPerGiorno } from '@shared/models/list-grouping.util';
 import { totaliDiElenco } from '@shared/models/list-totals.util';
+import { createColumnFilters } from '@shared/table-columns/column-filters';
 
 interface MovementsData {
   readonly movements: readonly StockMovement[];
@@ -707,7 +708,7 @@ export class StockMovementsComponent {
    * dall'API, perché il suo risultato è più grande di quello che ha a schermo.
    */
   protected readonly sezioni = computed<readonly DataTableSection<StockMovementRow>[]>(() => {
-    const righe = this.rows();
+    const righe = this.righeFiltrate();
     if (!this.raggruppaPerGiornata()) {
       return [{ id: 'movimenti', rows: righe }];
     }
@@ -734,8 +735,25 @@ export class StockMovementsComponent {
     caricati e dieci scaricati farebbero venti, che non è una giacenza né una
     variazione — è un numero che non risponde a nessuna domanda.
   */
+  /*
+    ⭐ **I filtri di colonna** (`14` §0.2).
+
+    ⚠️ **La quantità col SEGNO è l'estrattore giusto**: «da −5 in giù» cerca gli
+    scarichi grossi, e sul valore assoluto quella domanda non si può porre.
+
+    ⚠️ La data si legge in ISO da `createdAt`, non da `createdAtLabel`, che è il
+    testo mostrato.
+  */
+  protected readonly righeFiltrate = createColumnFilters({
+    viewId: () => this.tableViewId,
+    righe: this.rows,
+    cellText: (row, columnId) => this.cellText(row, columnId),
+    numeroDi: (row, columnId) => (columnId === 'signedQuantity' ? row.signedQuantityValue : null),
+    dataDi: (row, columnId) => (columnId === 'createdAt' ? row.createdAt : null),
+  });
+
   protected readonly totals = computed<DataTableTotals>(() =>
-    totaliDiElenco(this.rows(), {
+    totaliDiElenco(this.righeFiltrate(), {
       rowId: this.rowId,
       selectedIds: this.selectedIds(),
       columns: this.tableColumns(),

@@ -9,8 +9,9 @@ import type {
   DataTableSection,
   DataTableTotals,
 } from '@shared/components/data-table/data-table.model';
+import { createColumnFilters } from '@shared/table-columns/column-filters';
 import { totaliDiElenco } from '@shared/models/list-totals.util';
-import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
+import type { ResolvedTableColumn, TableViewId } from '@shared/table-columns/table-column.model';
 
 import { stockStatusLabel, stockStatusTone } from '../../models/inventory-labels.util';
 import type { InventoryLevelRow } from '../../models/inventory-view.model';
@@ -43,6 +44,9 @@ export class InventoryLevelTableComponent {
   readonly rowClickSelects = input(false);
   readonly columns = input.required<readonly ResolvedTableColumn[]>();
 
+  /** La vista, e con essa i filtri di colonna (`14` §0.2). */
+  readonly viewId = input<TableViewId>();
+
   readonly selectedIds = input<ReadonlySet<string>>(new Set<string>());
 
   readonly committedClick = output<InventoryLevelRow>();
@@ -54,7 +58,7 @@ export class InventoryLevelTableComponent {
 
   /** Lista piatta: una sezione senza intestazione né piede. */
   protected readonly sections = computed<readonly DataTableSection<InventoryLevelRow>[]>(() => [
-    { id: 'giacenze', rows: this.rows() },
+    { id: 'giacenze', rows: this.righe() },
   ]);
   /*
     ⚠️ **Le colonne spente non si controllano a mano.** La card legge quelle che
@@ -79,6 +83,32 @@ export class InventoryLevelTableComponent {
     `Seleziona ${row.title} in ${row.locationName}`;
 
   /*
+    ⭐ **I filtri di colonna** (`14` §0.2). Le cinque colonne numeriche hanno il
+    loro estrattore: senza, i due campi da–a compaiono e non restringono niente.
+  */
+  private readonly righe = createColumnFilters({
+    viewId: this.viewId,
+    righe: this.rows,
+    cellText: (row, columnId) => this.cellText(row, columnId),
+    numeroDi: (row, columnId) => {
+      switch (columnId) {
+        case 'available':
+          return row.available;
+        case 'onHand':
+          return row.onHand;
+        case 'committed':
+          return row.committed;
+        case 'incoming':
+          return row.incoming;
+        case 'minThreshold':
+          return row.minThreshold ?? null;
+        default:
+          return null;
+      }
+    },
+  });
+
+  /*
     ⭐ **Le quantità si sommano, ed è il dato che si va a leggere**: filtrando per
     sede o per articolo, «quanti pezzi in tutto» è la domanda.
 
@@ -88,7 +118,7 @@ export class InventoryLevelTableComponent {
   */
   protected readonly totals = computed<DataTableTotals>(() => {
     const q = (n: number): string => String(n);
-    return totaliDiElenco(this.rows(), {
+    return totaliDiElenco(this.righe(), {
       rowId: this.rowId,
       selectedIds: this.selectedIds(),
       columns: this.columns(),

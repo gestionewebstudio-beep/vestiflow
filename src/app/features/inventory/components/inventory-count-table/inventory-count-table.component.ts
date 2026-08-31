@@ -18,7 +18,8 @@ import type {
 } from '@shared/components/data-table/data-table.model';
 import { sezioniDiElenco } from '@shared/models/list-grouping.util';
 import { totaliDiElenco } from '@shared/models/list-totals.util';
-import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
+import { createColumnFilters } from '@shared/table-columns/column-filters';
+import type { ResolvedTableColumn, TableViewId } from '@shared/table-columns/table-column.model';
 
 import {
   inventoryCountStatusLabel,
@@ -58,6 +59,9 @@ export class InventoryCountTableComponent {
   readonly rowClickSelects = input(false);
   readonly columns = input.required<readonly ResolvedTableColumn[]>();
 
+  /** La vista, e con essa i filtri di colonna (`14` §0.2). */
+  readonly viewId = input<TableViewId>();
+
   /**
    * ⭐ **Raggruppare per giornata**, deciso dalla pagina che possiede il controllo
    * «Raggruppa». Qui arriva già risolto: la tabella non conosce il menu, sa solo
@@ -76,13 +80,33 @@ export class InventoryCountTableComponent {
   protected readonly statusLabel = inventoryCountStatusLabel;
   protected readonly statusTone = inventoryCountStatusTone;
 
+  /*
+    ⭐ **I filtri di colonna** (`14` §0.2), coi due estrattori che servono qui:
+    «Differenze» è numerica, «Creata il» e «Completata il» sono date.
+
+    ⚠️ **«Progresso» resta fuori da entrambi**: «3 / 39» non è un numero, è un
+    rapporto — si filtra come testo, che è la deduzione di serie.
+  */
+  private readonly righe = createColumnFilters({
+    viewId: this.viewId,
+    righe: this.sessions,
+    cellText: (session, columnId) => this.cellText(session, columnId),
+    numeroDi: (session, columnId) => (columnId === 'deltas' ? session.linesWithDelta : null),
+    dataDi: (session, columnId) => {
+      if (columnId === 'createdAt') {
+        return session.createdAt;
+      }
+      return columnId === 'completedAt' ? (session.completedAt ?? null) : null;
+    },
+  });
+
   /**
    * ⚠️ **Il subtotale conta le righe con scostamento**, che è la domanda della
    * giornata su un inventario: quante differenze ha prodotto. ⛔ Non si somma la
    * percentuale di avanzamento — la somma di due rapporti non è un rapporto.
    */
   protected readonly sections = computed<readonly DataTableSection<InventoryCountSession>[]>(() =>
-    sezioniDiElenco(this.sessions(), this.groupByDay(), {
+    sezioniDiElenco(this.righe(), this.groupByDay(), {
       idPiatto: 'sessioni',
       giornoDi: (session) => session.createdAt,
       columns: this.columns(),
@@ -116,7 +140,7 @@ export class InventoryCountTableComponent {
     somma di due rapporti non è un rapporto.
   */
   protected readonly totals = computed<DataTableTotals>(() =>
-    totaliDiElenco(this.sessions(), {
+    totaliDiElenco(this.righe(), {
       rowId: this.rowId,
       selectedIds: this.selectedIds(),
       columns: this.columns(),
