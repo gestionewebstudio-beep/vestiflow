@@ -100,10 +100,15 @@
       sta sempre nello stesso punto, e l'occhio la trova senza cercarla. Dentro il
       gruppo seguirebbe la lunghezza del tipo e ballerebbe da una card all'altra.
     */
+    /*
+      ⚠️ **I numeri incolonnati li dà `.tabular-nums` del template**, non questa
+      classe: è la utility che ogni card usa già sui propri valori, e dichiararlo
+      due volte in due posti diversi lascerebbe chi scrive una card nuova senza
+      sapere quale vale.
+    */
     .list-card__anchor {
       flex-shrink: 0;
       color: var(--color-text-muted);
-      font-variant-numeric: tabular-nums;
     }
 
     /* ── Fascia 2: solo parole ──────────────────────────────────────────── */
@@ -140,7 +145,6 @@
       display: flex;
       flex-wrap: wrap;
       justify-content: flex-end;
-      align-items: center;
       gap: var(--space-1) var(--space-3);
       font-size: var(--text-xs);
       color: var(--color-text-muted);
@@ -156,7 +160,6 @@
       font-size: var(--text-sm);
       font-weight: var(--font-weight-bold);
       color: var(--color-text);
-      font-variant-numeric: tabular-nums;
     }
 
     /* Il verso negativo si legge dal colore, come le righe di reso in tabella. */
