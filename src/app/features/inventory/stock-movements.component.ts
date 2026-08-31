@@ -95,6 +95,8 @@ import {
   resolveMovementPeriodRange,
 } from '@domain/inventory/models/movement-period.util';
 import { InventoryService } from '@domain/inventory/services/inventory.service';
+import type { DataTableTotals } from '@shared/components/data-table/data-table.model';
+import { totaliDiElenco } from '@shared/models/list-totals.util';
 
 interface MovementsData {
   readonly movements: readonly StockMovement[];
@@ -133,7 +135,8 @@ const SEARCH_DEBOUNCE_MS = 300;
   selector: 'app-stock-movements',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    ListPageComponent,
+    ListPageComponent,
+
     ListActionsBarComponent,
     SelectMenuComponent,
     DateInputComponent,
@@ -422,6 +425,7 @@ export class StockMovementsComponent {
       sku: movement.sku,
       articleCode: movement.articleCode ?? '',
       signedQuantity: formatMovementQuantity(movement),
+      signedQuantityValue: movementSignedQuantity(movement),
       locationLabel:
         movement.type === StockMovementType.Transfer && movement.targetLocationId
           ? `${nameOf(movement.locationId)} → ${nameOf(movement.targetLocationId)}`
@@ -614,16 +618,14 @@ export class StockMovementsComponent {
     //    sceglie prima, non dentro. Restano dichiarate una volta sola in
     //    `movementActions`.
     ...(this.canManageInventory()
-      ? this.movementActions.map(
-          (azione): ListAction => ({
-            id: 'new-' + azione.type,
-            label: azione.label,
-            icon: azione.icon,
-            requires: 'none',
-            ariaLabel: 'Registra ' + azione.label.toLowerCase(),
-            run: () => this.newMovement(azione.type),
-          }),
-        )
+      ? this.movementActions.map((azione): ListAction => ({
+          id: 'new-' + azione.type,
+          label: azione.label,
+          icon: azione.icon,
+          requires: 'none',
+          ariaLabel: 'Registra ' + azione.label.toLowerCase(),
+          run: () => this.newMovement(azione.type),
+        }))
       : []),
     comando('print', {
       disabled: this.selectionCount() === 0,
@@ -634,9 +636,7 @@ export class StockMovementsComponent {
     comando('export', {
       disabled: this.selectionCount() === 0,
       disabledReason: FILTERED_SCOPE_NOT_AVAILABLE,
-      items: [
-        voceEsporta('csv', (bersaglio) => this.exportCsv(bersaglio)),
-      ],
+      items: [voceEsporta('csv', (bersaglio) => this.exportCsv(bersaglio))],
     }),
   ]);
 
@@ -644,6 +644,29 @@ export class StockMovementsComponent {
   protected readonly sezioni = computed<readonly DataTableSection<StockMovementRow>[]>(() => [
     { id: 'movimenti', rows: this.rows() },
   ]);
+
+  /*
+    ⭐ **La riga totali dei movimenti somma la quantità COL SEGNO**, ed è l'unico
+    numero che ha senso sommare qui: dice quanto è entrato al netto di quanto è
+    uscito nel periodo filtrato.
+
+    ⛔ **Sommare `quantity` senza segno darebbe il TRAFFICO, non il saldo**: dieci
+    caricati e dieci scaricati farebbero venti, che non è una giacenza né una
+    variazione — è un numero che non risponde a nessuna domanda.
+  */
+  protected readonly totals = computed<DataTableTotals>(() =>
+    totaliDiElenco(this.rows(), {
+      rowId: this.rowId,
+      selectedIds: this.selectedIds(),
+      columns: this.tableColumns(),
+      campi: {
+        signedQuantity: {
+          valore: (row) => row.signedQuantityValue,
+          formato: (n) => (n > 0 ? `+${n}` : String(n)),
+        },
+      },
+    }),
+  );
 
   protected readonly rowId = (row: StockMovementRow): string => row.id;
   protected readonly selectionLabel = (row: StockMovementRow): string =>

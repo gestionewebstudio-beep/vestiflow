@@ -78,6 +78,9 @@ import {
   parseSupplierOrderListQuery,
 } from '@domain/supplier-orders/models/supplier-order-list-query.model';
 import { SupplierOrderService } from '@domain/supplier-orders/services/supplier-order.service';
+import type { DataTableTotals } from '@shared/components/data-table/data-table.model';
+import { totaliDiElenco } from '@shared/models/list-totals.util';
+import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -589,6 +592,28 @@ export class SupplierOrderListComponent {
   protected readonly tableSections = computed<readonly DataTableSection<SupplierOrder>[]>(() => [
     { id: 'ordini', rows: this.orders() },
   ]);
+
+  /*
+    ⭐ **La riga totali** (`regole-stile-ui`, «La riga TOTALI di un elenco»): somma
+    le colonne visibili, e con una selezione somma quelle scelte.
+
+    ⚠️ **Si somma `amountMinor` e si formatta UNA volta sola**: è la regola del
+    denaro — «si arrotonda solo all'uscita, mai nei passaggi intermedi».
+  */
+  protected readonly totals = computed<DataTableTotals>(() => {
+    const valuta = this.orders()[0]?.totalAmount.currencyCode ?? DEFAULT_CURRENCY;
+    return totaliDiElenco(this.orders(), {
+      rowId: this.rowId,
+      selectedIds: this.selectedIds(),
+      columns: this.tableColumns(),
+      campi: {
+        total: {
+          valore: (o) => o.totalAmount.amountMinor,
+          formato: (n) => formatMoney({ amountMinor: n, currencyCode: valuta }),
+        },
+      },
+    });
+  });
 
   protected readonly rowId = (order: SupplierOrder): string => order.id;
 

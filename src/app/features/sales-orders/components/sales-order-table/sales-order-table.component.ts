@@ -31,6 +31,9 @@ import {
   salesOrderLinesSummary,
   sourceLabel,
 } from '@domain/sales-orders/models/sales-order-labels.util';
+import type { DataTableTotals } from '@shared/components/data-table/data-table.model';
+import { totaliDiElenco } from '@shared/models/list-totals.util';
+import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 
 /** Vista lista ordini: registro generale o canale Shopify (fase 3 §2-§3). */
 export type SalesOrderTableProfile = 'customer-orders' | 'shopify-orders';
@@ -289,6 +292,27 @@ export class SalesOrderTableComponent {
   protected readonly sections = computed<readonly DataTableSection<SalesOrder>[]>(() => [
     { id: 'ordini', rows: this.orders() },
   ]);
+
+  /*
+    ⭐ **La riga totali** (`regole-stile-ui`, «La riga TOTALI di un elenco»): somma
+    le colonne visibili, e con una selezione somma quelle scelte.
+
+    ⚠️ **Si somma `amountMinor` e si formatta UNA volta sola**: è la regola del
+    denaro — «si arrotonda solo all'uscita, mai nei passaggi intermedi».
+  */
+  protected readonly totals = computed<DataTableTotals>(() => {
+    const valuta = this.orders()[0]?.total.currencyCode ?? DEFAULT_CURRENCY;
+    const soldi = (n: number): string => formatMoney({ amountMinor: n, currencyCode: valuta });
+    return totaliDiElenco(this.orders(), {
+      rowId: this.rowId,
+      selectedIds: this.selectedIds(),
+      columns: this.columns(),
+      campi: {
+        total: { valore: (o) => o.total.amountMinor, formato: soldi },
+        netTotal: { valore: (o) => o.subtotal.amountMinor, formato: soldi },
+      },
+    });
+  });
 
   protected readonly rowId = (order: SalesOrder): string => order.id;
 

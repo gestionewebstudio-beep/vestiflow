@@ -42,20 +42,30 @@ describe('ListActionsBarComponent', () => {
     expect(screen.getByRole('button', { name: /Stampa/ })).toBeTruthy();
   });
 
-  it('l’indicatore di selezione compare solo quando serve', async () => {
+  /**
+   * ⭐ **La barra non conta più: mostra «Deseleziona».**
+   *
+   * ⛔ Qui si verificava che comparisse «N documenti selezionati». Quel conteggio
+   * è stato tolto il 30/08/2026 perché la **riga totali** lo dice già, e due
+   * indicatori dello stesso numero a quattro centimetri di distanza sono il
+   * difetto che `regole-stile-ui` vieta.
+   *
+   * ⚠️ Il test resta perché la CONDIZIONE resta la stessa: la fascia compare solo
+   * con una selezione attiva. Cambia cosa contiene.
+   */
+  it('la fascia di selezione compare solo quando serve', async () => {
     const { rerender } = await apri({ count: 0, actions: [stampa()] });
-    expect(screen.getByRole('toolbar')).not.toHaveTextContent('documenti selezionati');
+    expect(screen.queryByRole('button', { name: 'Deseleziona' })).toBeNull();
 
     await rerender({
       inputs: {
         count: 3,
         ids: ['a', 'b', 'c'],
         actions: [stampa()],
-        labelSingular: 'documento selezionato',
-        labelPlural: 'documenti selezionati',
+        clearLabel: 'Deseleziona',
       },
     });
-    expect(screen.getByRole('toolbar')).toHaveTextContent('documenti selezionati');
+    expect(screen.getByRole('button', { name: 'Deseleziona' })).toBeTruthy();
   });
 
   describe("l'ambito segue la selezione (`14` §5.3)", () => {

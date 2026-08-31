@@ -640,16 +640,19 @@ describe('DocumentListComponent — totale della selezione col verso economico',
   });
 
   /**
-   * Seleziona tutte le righe e restituisce il totale letto dalla barra.
+   * Seleziona tutte le righe e restituisce il totale letto dalla RIGA TOTALI.
+   *
+   * ⚠️ **Il numero si è spostato, la regola no.** Fino al 30/08/2026 questo
+   * totale stava nella barra comandi; da quando ogni elenco ha la sua riga
+   * totali, lì diceva la stessa cosa due volte a quattro centimetri di distanza
+   * (`regole-stile-ui`). Questi test presidiano il VERSO economico — una regola
+   * di dominio — non il punto in cui il numero compare.
    *
    * ⚠️ **Per NOME accessibile, non per indice.** Le caselle rese sono quattro
    * per due righe, e l’ordine non è quello che sembra: l’indice 1 è
    * «Seleziona tutti i documenti», non la prima riga. Un ciclo sugli indici
    * 1-2 selezionava tutto e poi DESELEZIONAVA la prima — il totale contava
    * una riga sola, e la prova falliva per un difetto suo.
-   *
-   * ⚠️ E legge il SECONDO `.list-actions__selection-value`: il primo è il
-   * conteggio dei selezionati, il totale viene dopo.
    */
   async function totaleDiTutte(righe: readonly DocumentRecord[]): Promise<string> {
     const view = await renderList('generic', TITOLARE, undefined, righe);
@@ -658,12 +661,18 @@ describe('DocumentListComponent — totale della selezione col verso economico',
     fireEvent.click(tutte);
     view.detectChanges();
 
-    const valori = view.container.querySelectorAll('.list-actions__selection-value');
-    expect(valori.length, `la barra non mostra conteggio e totale`).toBe(2);
-    expect(valori[0]?.textContent?.trim(), `non sono selezionate tutte le righe`).toBe(
-      String(righe.length),
+    const conteggio = view.container.querySelector('.data-table__totals-count');
+    expect(conteggio?.textContent?.trim(), `non sono selezionate tutte le righe`).toBe(
+      `${righe.length} ${righe.length === 1 ? 'voce' : 'voci'}`,
     );
-    return valori[1]?.textContent?.trim() ?? '';
+
+    /*
+      ⚠️ **L'ULTIMO valore della riga totali è il Totale**, ed è quello che questi
+      test guardano: la colonna «Imponibile» viene prima e porta lo stesso verso.
+    */
+    const valori = view.container.querySelectorAll('.data-table__totals-value');
+    expect(valori.length, `la riga totali non mostra nessuna somma`).toBeGreaterThan(0);
+    return valori[valori.length - 1]?.textContent?.trim() ?? '';
   }
 
   it('⭐ Fattura 100 + Nota di credito 30 = 70', async () => {

@@ -90,6 +90,7 @@
     [columns]="tableColumns()"
     [sections]="tableSections()"
     [rowId]="rowId"
+    [totals]="totals()"
     [cellText]="cellText"
     [rowClickable]="true"
     [rowLabel]="rowLabel"
@@ -103,12 +104,11 @@
     </ng-template>
   </app-data-table>
 
-  <app-pagination
-    summary
-    label="Paginazione vendite online"
-    [meta]="meta()"
-    [pageSizeOptions]="pageSizeOptions"
-    (pageChange)="goToPage($event)"
-    (pageSizeChange)="onPageSizeChange($event)"
-  />
+  <!--
+    ⛔ **Qui c'era l'impaginazione**, tolta il 30/08/2026: un elenco mostra tutte
+    le righe del filtro attivo (`regole-stile-ui`, «NESSUN TETTO DI RIGHE»).
+
+    ⚠️ Il conteggio lo dice la riga totali del motore, «N voci», che ora conta il
+    risultato intero invece della pagina.
+  -->
 </app-list-page>

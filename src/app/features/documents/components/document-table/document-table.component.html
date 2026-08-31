@@ -23,6 +23,7 @@
   [rowLabel]="rowLabelFor"
   [selectionMode]="selectable() ? 'multiple' : 'none'"
   [selectedIds]="selectedIds()"
+  [totals]="totals()"
   [selectionLabel]="selectionLabel"
   selectAllLabel="Seleziona tutti i documenti"
   (rowClick)="rowClick.emit($event)"
@@ -80,5 +81,4 @@
       </span>
     }
   </ng-template>
-
 </app-data-table>

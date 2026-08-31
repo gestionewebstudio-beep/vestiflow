@@ -28,7 +28,6 @@ import { ListActionsBarComponent } from '@shared/components/list-actions-bar/lis
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import { comando } from '@shared/models/list-action-catalog';
 import type { ListAction } from '@shared/models/list-selection.model';
-import { PaginationComponent } from '@shared/components/pagination/pagination.component';
 
 import { TableViewId } from '@shared/table-columns/table-column.model';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
@@ -41,7 +40,6 @@ import {
 import {
   DEFAULT_SUPPLIER_PAGE_SIZE,
   parseSupplierListQuery,
-  SUPPLIER_PAGE_SIZE_OPTIONS,
   supplierListQueryToParams,
 } from './models/supplier-list-query.model';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
@@ -67,12 +65,7 @@ type SupplierListState =
 @Component({
   selector: 'app-supplier-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    ListActionsBarComponent,
-    ListPageComponent,
-    PaginationComponent,
-    SupplierTableComponent,
-  ],
+  imports: [ListActionsBarComponent, ListPageComponent, SupplierTableComponent],
   templateUrl: './supplier-list.component.html',
   styleUrl: './supplier-list.component.scss',
 })
@@ -88,7 +81,6 @@ export class SupplierListComponent {
   protected readonly tableColumns: ReturnType<TableColumnPreferenceService['visibleColumns']>;
 
   protected readonly skeletonColumns = 5;
-  protected readonly pageSizeOptions = SUPPLIER_PAGE_SIZE_OPTIONS;
   protected readonly canManage = computed(() =>
     canManageSupplierOrders(this.authService.currentUser()),
   );
@@ -110,14 +102,13 @@ export class SupplierListComponent {
   private readonly state = toSignal(
     toObservable(this.listQuery).pipe(
       switchMap(({ page, pageSize, search }) =>
-        this.service.list({ page, pageSize, search }).pipe(
-          map(
-            (response): SupplierListState => ({
-              status: 'success',
-              suppliers: response.data,
-              meta: response.meta,
-            }),
-          ),
+        // ⭐ `tutto`: l'elenco mostra tutte le righe del filtro, non una pagina.
+        this.service.list({ page, pageSize, search }, { tutto: true }).pipe(
+          map((response): SupplierListState => ({
+            status: 'success',
+            suppliers: response.data,
+            meta: response.meta,
+          })),
           startWith<SupplierListState>({ status: 'loading' }),
           catchError((err: unknown) => of(this.toErrorState(err))),
         ),
@@ -175,28 +166,11 @@ export class SupplierListComponent {
       });
   }
 
-
   protected resetFilters(): void {
     const current = parseSupplierListQuery(this.queryParams());
     void this.router.navigate([], {
       relativeTo: this.route,
       queryParams: supplierListQueryToParams({ ...current, page: 1, search: '' }),
-    });
-  }
-
-  protected goToPage(page: number): void {
-    const current = parseSupplierListQuery(this.queryParams());
-    void this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: supplierListQueryToParams({ ...current, page }),
-    });
-  }
-
-  protected onPageSizeChange(pageSize: number): void {
-    const current = parseSupplierListQuery(this.queryParams());
-    void this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: supplierListQueryToParams({ ...current, page: 1, pageSize }),
     });
   }
 

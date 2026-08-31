@@ -13,6 +13,7 @@ import {
 } from '../sales-orders/sales-order.enum-mapper';
 import { vatSnapshotDisplayLabel, vatSnapshotRatePercent } from '../vat/vat-snapshot.util';
 import type { ListOnlineSalesQueryDto } from './dto/list-online-sales.query.dto';
+import { pageWindow } from '../common/dto/unpaged.util';
 
 export interface OnlineSaleRow {
   readonly id: string;
@@ -101,8 +102,8 @@ export class OnlineSalesService {
           documents: { select: { type: true, reference: true } },
         },
         orderBy: { fulfilledAt: 'desc' },
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
+        // ⚠️ Con `all=1` la finestra deve SPARIRE, non diventare grande.
+        ...pageWindow(query),
       }),
     ]);
 

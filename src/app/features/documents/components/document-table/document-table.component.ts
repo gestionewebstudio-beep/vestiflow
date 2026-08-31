@@ -3,7 +3,7 @@ import { RouterLink } from '@angular/router';
 
 import type { DocumentRecord, LinkedPurchaseInvoiceInfo } from '@core/models/document.model';
 import { formatDate } from '@core/utils/date.util';
-import { formatMoney } from '@core/utils/money.util';
+import { DEFAULT_CURRENCY, formatMoney } from '@core/utils/money.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
 import { storeSalePaymentMethodLabelWithNote } from '@domain/store-sales/models/store-sale-payment.util';
@@ -16,10 +16,15 @@ import {
   goodsReceiptLinkStatusLabel,
   goodsReceiptLinkStatusTone,
 } from '@domain/documents/models/document-labels.util';
+import { signedDocumentMoney } from '@domain/documents/models/document-economic-sign.util';
 import { isStoreFlowDocumentType } from '@domain/documents/models/document-operational.util';
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';
-import type { DataTableSort } from '@shared/components/data-table/data-table.model';
+import type {
+  DataTableSort,
+  DataTableTotals,
+} from '@shared/components/data-table/data-table.model';
+import { totaliDiElenco } from '@shared/models/list-totals.util';
 
 import { DOCUMENT_LIST_SORTABLE_COLUMNS } from '../../models/document-table-columns.config';
 import type { DataTableSection } from '@shared/components/data-table/data-table.model';
@@ -49,12 +54,7 @@ export interface DocumentTableSelectionEvent {
 @Component({
   selector: 'app-document-table',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    BadgeComponent,
-    RouterLink,
-    DataTableComponent,
-    DataTableCellDirective,
-  ],
+  imports: [BadgeComponent, RouterLink, DataTableComponent, DataTableCellDirective],
   templateUrl: './document-table.component.html',
   styleUrl: './document-table.component.scss',
 })
@@ -234,6 +234,44 @@ export class DocumentTableComponent {
   protected readonly sections = computed<readonly DataTableSection<DocumentRecord>[]>(() => [
     { id: 'documenti', rows: this.documents() },
   ]);
+
+  /*
+    ⭐ **La riga totali dei documenti**, e porta il VERSO economico.
+
+    ⛔ **Non è una somma cieca**: `regole-gestionale` è esplicita — «il riepilogo
+    applica la CLASSIFICAZIONE e il verso economico, non rifà il calcolo
+    fiscale». Una fattura da 100 e una nota di credito da 50 fanno **50**, e ci si
+    arriva col segno del tipo, non ricalcolando l'IVA della fattura.
+
+    ⚠️ **`signedDocumentMoney` e non `documentEconomicSign`**: la seconda accetta
+    solo i tipi con direzione DICHIARATA, e questo elenco ne contiene anche altri.
+    Per quelli l'importo resta invariato, senza che nessuno gli attribuisca una
+    direzione che non ha. È la stessa scelta già fatta per il totale della
+    selezione, di cui questa riga prende il posto.
+
+    ⭐ **Si somma `amountMinor`, si formatta UNA volta**: è la regola del denaro —
+    «si arrotonda solo all'uscita, mai nei passaggi intermedi».
+  */
+  protected readonly totals = computed<DataTableTotals>(() => {
+    const valuta = this.documents()[0]?.currency ?? DEFAULT_CURRENCY;
+    const soldi = (n: number): string => formatMoney({ amountMinor: n, currencyCode: valuta });
+    return totaliDiElenco(this.documents(), {
+      rowId: this.rowId,
+      selectedIds: this.selectedIds(),
+      columns: this.columns(),
+      campi: {
+        subtotal: {
+          valore: (doc) => signedDocumentMoney(doc.type, doc.subtotal).amountMinor,
+          formato: soldi,
+        },
+        total: {
+          valore: (doc) => signedDocumentMoney(doc.type, doc.total).amountMinor,
+          formato: soldi,
+        },
+        lineCount: { valore: (doc) => this.lineCount(doc), formato: (n) => String(n) },
+      },
+    });
+  });
 
   protected readonly rowId = (doc: DocumentRecord): string => doc.id;
 

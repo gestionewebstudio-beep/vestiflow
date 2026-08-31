@@ -65,6 +65,14 @@ export class ListActionsBarComponent {
    * ⚠️ Due input e non uno con la `s` aggiunta: in italiano cambia anche il
    * participio, e il genere non si indovina da una stringa.
    */
+  /*
+    ⏸ **Non più mostrate: il conteggio lo dice la riga totali.** Restano perché
+    undici schermate le passano ancora, e toglierle di colpo sarebbe una
+    modifica in undici file per nessun effetto visibile.
+
+    ⛔ Non vanno rimesse in uso: due indicatori dello stesso numero sono il
+    difetto che questa rimozione ha chiuso.
+  */
   readonly labelSingular = input<string>('elemento selezionato');
   readonly labelPlural = input<string>('elementi selezionati');
 

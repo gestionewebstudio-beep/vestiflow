@@ -24,6 +24,7 @@ import type { ListSuppliersQueryDto } from './dto/list-suppliers.query.dto';
 import type { UpdateSupplierDto } from './dto/update-supplier.dto';
 import type { UpsertSupplierVariantLinkDto } from './dto/upsert-supplier-variant-link.dto';
 import { nextNumericSupplierCode, SUPPLIER_NUMERIC_CODE_PAD } from './supplier-code.util';
+import { pageWindow } from '../common/dto/unpaged.util';
 
 const SUPPLIER_VARIANT_LINK_INCLUDE = {
   supplier: {
@@ -146,8 +147,8 @@ export class SuppliersService {
         where,
         include: SUPPLIER_PARTY_INCLUDE,
         orderBy: [{ party: { companyName: 'asc' } }, { party: { lastName: 'asc' } }],
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
+        // ⚠️ Con `all=1` la finestra deve SPARIRE, non diventare grande.
+        ...pageWindow(query),
       }),
       this.prisma.supplier.count({ where }),
     ]);

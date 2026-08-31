@@ -37,6 +37,15 @@ export interface StockMovementRow {
   readonly articleCode: string;
   /** Quantità con segno display (es. '+40', '−2', '6' per i trasferimenti). */
   readonly signedQuantity: string;
+  /**
+   * ⭐ **Lo stesso valore, come NUMERO**, per la riga totali dell'elenco.
+   *
+   * ⛔ **Non si ricava dalla stringa qui sopra.** Quella è già formattata e porta
+   * un meno tipografico (−, U+2212) che `Number()` non riconosce: riparsarla
+   * darebbe `NaN` su ogni scarico, e il totale sarebbe silenziosamente sbagliato
+   * invece che rotto.
+   */
+  readonly signedQuantityValue: number;
   /** 'Napoli' oppure 'Magazzino → Milano' per i trasferimenti. */
   readonly locationLabel: string;
   readonly direction?: AdjustmentDirection;

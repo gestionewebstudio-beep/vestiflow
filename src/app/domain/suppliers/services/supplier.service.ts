@@ -37,8 +37,20 @@ export class SupplierService {
     return this.http.get<Supplier[]>(`${this.baseUrl()}/all`).pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
-  list(params: ListSuppliersParams = {}): Observable<PaginatedResponse<Supplier>> {
+  /**
+   * ⭐ **`tutto`: l'intero risultato del filtro**, non una pagina (30/08/2026).
+   *
+   * ⛔ **Il default resta paginato**: questo metodo lo chiamano anche le maschere
+   * per riempire elenchi a tendina, e non devono scaricare l'anagrafica intera.
+   */
+  list(
+    params: ListSuppliersParams = {},
+    opzioni: { readonly tutto?: boolean } = {},
+  ): Observable<PaginatedResponse<Supplier>> {
     const query = new URLSearchParams();
+    if (opzioni.tutto) {
+      query.set('all', '1');
+    }
     if (params.page) {
       query.set('page', String(params.page));
     }

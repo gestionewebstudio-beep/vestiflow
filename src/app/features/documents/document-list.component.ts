@@ -30,7 +30,6 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { DocumentStatus, DocumentType } from '@core/models/document.model';
 import type { DocumentRecord } from '@core/models/document.model';
-import type { Money } from '@core/models/money.model';
 import type { DocumentPermissionFamily } from '@core/models/tenant-permission.model';
 import {
   documentTypesOfFamily,
@@ -46,7 +45,7 @@ import {
 import type { PaymentOption } from '@core/models/payment-option.model';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
-import { DEFAULT_CURRENCY, formatMoney } from '@core/utils/money.util';
+import { formatMoney } from '@core/utils/money.util';
 import { CustomerService } from '@domain/customers/services/customer.service';
 import {
   DEFAULT_MOVEMENT_PERIOD,
@@ -92,7 +91,6 @@ import {
   documentTypeLabel,
 } from '@domain/documents/models/document-labels.util';
 import { bulkDeleteBlockReason, canBulkDeleteDocuments } from './models/document-bulk-actions.util';
-import { signedDocumentMoney } from '@domain/documents/models/document-economic-sign.util';
 import {
   documentDetailPath,
   documentDuplicateFormRoute,
@@ -1280,31 +1278,16 @@ export class DocumentListComponent {
     return azioni;
   });
 
-  /**
-   * Somma dei totali documento selezionati, mostrata nella barra massiva.
-   *
-   * ⛔ Qui c'era `sum + doc.total.amountMinor`, senza verso. Questo registro
-   * mescola tipi di direzione opposta — Fattura, Fattura accompagnatoria e
-   * **Nota di credito** stanno nello stesso elenco, e così Vendita e **Reso** al
-   * banco — quindi una Fattura da 100 e una Nota di credito da 30 davano 130.
-   *
-   * ⭐ Il verso lo dà `documentEconomicSign` (`15c` §5), unica autorità: qui non
-   * si decide niente per tipo, si moltiplica. E si moltiplica il valore
-   * PERSISTITO, che resta positivo e già arrotondato — nessun ricalcolo.
-   */
-  protected readonly selectionTotal = computed<Money>(() => {
-    const docs = this.selectedDocs();
-    const currencyCode = docs[0]?.currency ?? DEFAULT_CURRENCY;
-    // ⚠️ Passa da `signedDocumentMoney`, non da `documentEconomicSign`: quella
-    //    accetta solo i tipi con direzione DICHIARATA, e questo elenco ne
-    //    contiene anche altri. Per quelli lo snapshot resta invariato, senza
-    //    che nessuno gli attribuisca una direzione economica.
-    const amountMinor = docs.reduce(
-      (sum, doc) => sum + signedDocumentMoney(doc.type, doc.total).amountMinor,
-      0,
-    );
-    return { amountMinor, currencyCode };
-  });
+  /*
+    ⏸ **Qui c'era `selectionTotal`**, la somma col verso economico mostrata nella
+    barra comandi. Dal 30/08/2026 quel numero sta nella **riga totali** della
+    tabella, insieme alle altre somme di colonna: nella barra diceva la stessa
+    cosa due volte a quattro centimetri di distanza.
+
+    ⭐ **La regola che presidiava non si è persa**: il verso economico è nella
+    tabella documenti (`signedDocumentMoney`), e i tre test che lo inchiodano —
+    «Fattura 100 + Nota di credito 30 = 70» — leggono ora la riga totali.
+  */
 
   protected readonly searchDraft = signal(this.route.snapshot.queryParamMap.get('search') ?? '');
 

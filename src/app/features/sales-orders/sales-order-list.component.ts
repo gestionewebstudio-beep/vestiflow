@@ -50,7 +50,6 @@ import { ListActionsBarComponent } from '@shared/components/list-actions-bar/lis
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import { formatMoney } from '@core/utils/money.util';
-import type { Money } from '@core/models/money.model';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
 import {
@@ -442,17 +441,6 @@ export class SalesOrderListComponent {
     if (q.locationId) count++;
     if (q.placedFrom ?? q.placedTo) count++;
     return count;
-  });
-
-  /**
-   * Somma dei totali degli ordini selezionati, mostrata nella barra massiva.
-   * Solo aritmetica sui dati già caricati (nessun ricalcolo di sconti/IVA).
-   */
-  protected readonly selectionTotal = computed<Money>(() => {
-    const orders = this.selectedOrders();
-    const amountMinor = orders.reduce((sum, order) => sum + order.total.amountMinor, 0);
-    const currencyCode = orders[0]?.total.currencyCode ?? 'EUR';
-    return { amountMinor, currencyCode };
   });
 
   // ── Selezione multipla + eliminazione a due conferme (come Arrivi merce) ──

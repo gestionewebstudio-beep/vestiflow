@@ -20,138 +20,137 @@
     di dominio, che il telaio non conosce.
   -->
   <div filters>
-  <div class="stock-movements__field stock-movements__field--select">
-    <app-select-menu
-      chipLabel="Tipo movimento"
-      [options]="movementTypeOptions"
-      [value]="typeFilter()"
-      ariaLabel="Filtra per tipo movimento"
-      placeholder="Tutti"
-      [compact]="true"
-      [fullWidth]="true"
-      (valueChange)="onTypeFilterChange($event)"
-      [filterChip]="true"
-    />
-  </div>
-
-  <div class="stock-movements__field stock-movements__field--select">
-    <app-select-menu
-      chipLabel="Origine"
-      [options]="originOptions()"
-      [value]="originFilter()"
-      ariaLabel="Filtra per origine movimento"
-      placeholder="Tutti"
-      [compact]="true"
-      [fullWidth]="true"
-      (valueChange)="onOriginFilterChange($event)"
-      [filterChip]="true"
-    />
-  </div>
-
-  <div class="stock-movements__field stock-movements__field--select">
-    <app-select-menu
-      chipLabel="Location"
-      [options]="locationOptions()"
-      [value]="locationFilter()"
-      ariaLabel="Filtra per location"
-      placeholder="Tutte"
-      [compact]="true"
-      [fullWidth]="true"
-      (valueChange)="onLocationFilterChange($event)"
-      [filterChip]="true"
-    />
-  </div>
-
-  <div class="stock-movements__field stock-movements__field--select">
-    <app-select-menu
-      chipLabel="Periodo"
-      [options]="periodOptions"
-      [value]="periodFilter()"
-      ariaLabel="Filtra per periodo"
-      placeholder="Periodo"
-      [compact]="true"
-      [fitContent]="true"
-      [includeEmptyOption]="false"
-      (valueChange)="onPeriodFilterChange($event)"
-    />
-  </div>
-
-  @if (isCustomPeriod()) {
-    <div class="stock-movements__field stock-movements__field--date">
-      <label class="stock-movements__label" for="movements-from">Dal</label>
-      <app-date-input
-        inputId="movements-from"
-        [value]="fromFilter()"
-        ariaLabel="Data inizio periodo"
-        placeholder="gg/mm/aaaa"
+    <div class="stock-movements__field stock-movements__field--select">
+      <app-select-menu
+        chipLabel="Tipo movimento"
+        [options]="movementTypeOptions"
+        [value]="typeFilter()"
+        ariaLabel="Filtra per tipo movimento"
+        placeholder="Tutti"
         [compact]="true"
         [fullWidth]="true"
-        [max]="toFilter() || undefined"
-        (valueChange)="onFromFilterChange($event)"
+        (valueChange)="onTypeFilterChange($event)"
+        [filterChip]="true"
       />
     </div>
 
-    <div class="stock-movements__field stock-movements__field--date">
-      <label class="stock-movements__label" for="movements-to">Al</label>
-      <app-date-input
-        inputId="movements-to"
-        [value]="toFilter()"
-        ariaLabel="Data fine periodo"
-        placeholder="gg/mm/aaaa"
+    <div class="stock-movements__field stock-movements__field--select">
+      <app-select-menu
+        chipLabel="Origine"
+        [options]="originOptions()"
+        [value]="originFilter()"
+        ariaLabel="Filtra per origine movimento"
+        placeholder="Tutti"
         [compact]="true"
         [fullWidth]="true"
-        [min]="fromFilter() || undefined"
-        (valueChange)="onToFilterChange($event)"
+        (valueChange)="onOriginFilterChange($event)"
+        [filterChip]="true"
       />
     </div>
-  }
 
-  <div class="stock-movements__field stock-movements__field--search">
-    <label class="stock-movements__label" for="movements-search">Prodotto</label>
-    <div class="stock-movements__search">
-      <i class="pi pi-search stock-movements__search-icon" aria-hidden="true"></i>
-      <input
-        id="movements-search"
-        class="stock-movements__search-input"
-        type="search"
-        [value]="searchDraft()"
-        placeholder="Nome, SKU o cod. articolo"
-        aria-label="Cerca per nome prodotto, SKU o codice articolo"
-        (input)="onSearchInput($event)"
+    <div class="stock-movements__field stock-movements__field--select">
+      <app-select-menu
+        chipLabel="Location"
+        [options]="locationOptions()"
+        [value]="locationFilter()"
+        ariaLabel="Filtra per location"
+        placeholder="Tutte"
+        [compact]="true"
+        [fullWidth]="true"
+        (valueChange)="onLocationFilterChange($event)"
+        [filterChip]="true"
       />
     </div>
-  </div>
 
-  <div class="stock-movements__field stock-movements__field--select">
-    <app-select-menu
-      chipLabel="Cliente/Fornitore"
-      [options]="partyOptions()"
-      [value]="partyFilter()"
-      ariaLabel="Filtra per cliente o fornitore"
-      placeholder="Tutti"
-      [compact]="true"
-      [fullWidth]="true"
-      [searchable]="true"
-      (valueChange)="onPartyFilterChange($event)"
-      [filterChip]="true"
-    />
-  </div>
+    <div class="stock-movements__field stock-movements__field--select">
+      <app-select-menu
+        chipLabel="Periodo"
+        [options]="periodOptions"
+        [value]="periodFilter()"
+        ariaLabel="Filtra per periodo"
+        placeholder="Periodo"
+        [compact]="true"
+        [fitContent]="true"
+        [includeEmptyOption]="false"
+        (valueChange)="onPeriodFilterChange($event)"
+      />
+    </div>
 
-  <div class="stock-movements__field stock-movements__field--select">
-    <app-select-menu
-      chipLabel="Operatore"
-      [options]="operatorOptions()"
-      [value]="operatorFilter()"
-      ariaLabel="Filtra per operatore"
-      placeholder="Tutti"
-      [compact]="true"
-      [fullWidth]="true"
-      [searchable]="true"
-      (valueChange)="onOperatorFilterChange($event)"
-      [filterChip]="true"
-    />
-  </div>
+    @if (isCustomPeriod()) {
+      <div class="stock-movements__field stock-movements__field--date">
+        <label class="stock-movements__label" for="movements-from">Dal</label>
+        <app-date-input
+          inputId="movements-from"
+          [value]="fromFilter()"
+          ariaLabel="Data inizio periodo"
+          placeholder="gg/mm/aaaa"
+          [compact]="true"
+          [fullWidth]="true"
+          [max]="toFilter() || undefined"
+          (valueChange)="onFromFilterChange($event)"
+        />
+      </div>
 
+      <div class="stock-movements__field stock-movements__field--date">
+        <label class="stock-movements__label" for="movements-to">Al</label>
+        <app-date-input
+          inputId="movements-to"
+          [value]="toFilter()"
+          ariaLabel="Data fine periodo"
+          placeholder="gg/mm/aaaa"
+          [compact]="true"
+          [fullWidth]="true"
+          [min]="fromFilter() || undefined"
+          (valueChange)="onToFilterChange($event)"
+        />
+      </div>
+    }
+
+    <div class="stock-movements__field stock-movements__field--search">
+      <label class="stock-movements__label" for="movements-search">Prodotto</label>
+      <div class="stock-movements__search">
+        <i class="pi pi-search stock-movements__search-icon" aria-hidden="true"></i>
+        <input
+          id="movements-search"
+          class="stock-movements__search-input"
+          type="search"
+          [value]="searchDraft()"
+          placeholder="Nome, SKU o cod. articolo"
+          aria-label="Cerca per nome prodotto, SKU o codice articolo"
+          (input)="onSearchInput($event)"
+        />
+      </div>
+    </div>
+
+    <div class="stock-movements__field stock-movements__field--select">
+      <app-select-menu
+        chipLabel="Cliente/Fornitore"
+        [options]="partyOptions()"
+        [value]="partyFilter()"
+        ariaLabel="Filtra per cliente o fornitore"
+        placeholder="Tutti"
+        [compact]="true"
+        [fullWidth]="true"
+        [searchable]="true"
+        (valueChange)="onPartyFilterChange($event)"
+        [filterChip]="true"
+      />
+    </div>
+
+    <div class="stock-movements__field stock-movements__field--select">
+      <app-select-menu
+        chipLabel="Operatore"
+        [options]="operatorOptions()"
+        [value]="operatorFilter()"
+        ariaLabel="Filtra per operatore"
+        placeholder="Tutti"
+        [compact]="true"
+        [fullWidth]="true"
+        [searchable]="true"
+        (valueChange)="onOperatorFilterChange($event)"
+        [filterChip]="true"
+      />
+    </div>
   </div>
 
   <app-data-table
@@ -160,6 +159,7 @@
     [columns]="tableColumns()"
     [sections]="sezioni()"
     [rowId]="rowId"
+    [totals]="totals()"
     [cellText]="cellText"
     selectionMode="multiple"
     [selectedIds]="selectedIds()"

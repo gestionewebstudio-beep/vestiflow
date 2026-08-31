@@ -40,12 +40,14 @@ import {
   onlineSaleInventoryStatusLabel,
   onlineSaleInventoryStatusTone,
 } from '@domain/sales-orders/models/sales-order-labels.util';
-import { PaginationComponent } from '@shared/components/pagination/pagination.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
 import type { OnlineSaleListQuery, OnlineSaleRow } from './models/online-sale.model';
 import { OnlineSalesService } from './services/online-sales.service';
+import type { DataTableTotals } from '@shared/components/data-table/data-table.model';
+import { totaliDiElenco } from '@shared/models/list-totals.util';
+import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 
 const SEARCH_DEBOUNCE_MS = 300;
 const DEFAULT_PAGE_SIZE = 20;
@@ -77,7 +79,6 @@ type ListState =
     DataTableCellDirective,
     DataTableComponent,
     DateInputComponent,
-    PaginationComponent,
     SelectMenuComponent,
   ],
   templateUrl: './online-sale-list.component.html',
@@ -94,7 +95,6 @@ export class OnlineSaleListComponent {
   protected readonly tableColumns: ReturnType<TableColumnPreferenceService['visibleColumns']>;
 
   protected readonly skeletonColumns = 8;
-  protected readonly pageSizeOptions = PAGE_SIZE_OPTIONS;
 
   protected readonly channelOptions: readonly SelectMenuOption[] = [
     { value: 'online', label: 'Shopify online' },
@@ -130,7 +130,8 @@ export class OnlineSaleListComponent {
   private readonly state = toSignal(
     toObservable(this.request).pipe(
       switchMap(({ query }) =>
-        this.service.getOnlineSales(query).pipe(
+        // ⭐ `tutto`: l'elenco mostra tutte le righe del filtro, non una pagina.
+        this.service.getOnlineSales(query, { tutto: true }).pipe(
           map((response): ListState => ({
             status: 'success',
             sales: response.data,
@@ -222,20 +223,34 @@ export class OnlineSaleListComponent {
     );
   }
 
-  protected goToPage(page: number): void {
-    this.updateParams({ page: page <= 1 ? null : page });
-  }
-
-  protected onPageSizeChange(size: number): void {
-    this.updateParams({ pageSize: size === DEFAULT_PAGE_SIZE ? null : size, page: null });
-  }
-
   // ── La tabella, sul motore comune (`14` parte H) ────────────────────────
 
   /** Una sezione sola, senza intestazione né piede: l'elenco è piatto. */
   protected readonly tableSections = computed<readonly DataTableSection<OnlineSaleRow>[]>(() => [
     { id: 'all', rows: this.sales() },
   ]);
+
+  /*
+    ⭐ **La riga totali** (`regole-stile-ui`, «La riga TOTALI di un elenco»): somma
+    le colonne visibili, e con una selezione somma quelle scelte.
+
+    ⚠️ **Si somma `amountMinor` e si formatta UNA volta sola**: è la regola del
+    denaro — «si arrotonda solo all'uscita, mai nei passaggi intermedi».
+  */
+  protected readonly totals = computed<DataTableTotals>(() => {
+    const valuta = this.sales()[0]?.currency ?? DEFAULT_CURRENCY;
+    return totaliDiElenco(this.sales(), {
+      rowId: this.rowId,
+      selectedIds: new Set<string>(),
+      columns: this.tableColumns(),
+      campi: {
+        total: {
+          valore: (s) => s.totalMinor,
+          formato: (n) => formatMoney({ amountMinor: n, currencyCode: valuta }),
+        },
+      },
+    });
+  });
 
   protected readonly rowId = (sale: OnlineSaleRow): string => sale.id;
 

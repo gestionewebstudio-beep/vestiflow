@@ -1,17 +1,26 @@
 <div class="list-actions" role="toolbar" aria-label="Azioni dell'elenco">
   <!--
-    L'indicatore compare con la selezione; le AZIONI no, quelle ci sono sempre
-    (`14` §5.1). Sta prima dei comandi e non fra loro, così i pulsanti non si
-    spostano di un pixel quando si spunta una casella.
+    ⭐ **Qui resta SOLO «Deseleziona»** — 30/08/2026.
+
+    ⛔ C'erano anche il conteggio della selezione e il totale, e dal momento in cui
+    ogni elenco ha la sua **riga totali** dicevano la stessa cosa a quattro
+    centimetri di distanza:
+
+        riga totali      3 voci        1.157,26 €
+        barra comandi    selezionati 3   Totale 1.157,26 €   [Deseleziona]
+
+    `regole-stile-ui` lo vieta con queste parole: «non serve un secondo indicatore
+    "3 selezionati" accanto ai comandi: direbbe la stessa cosa due volte, e per
+    dirla spostava i comandi».
+
+    ⚠️ **«Deseleziona» invece non sta altrove**, ed è un comando, non un dato: la
+    riga totali dice quante righe sono scelte, non offre di lasciarle andare.
+
+    ⚠️ Sta prima dei comandi e non fra loro, così i pulsanti non si spostano di un
+    pixel quando si spunta una casella.
   -->
   @if (count() > 0) {
     <div class="list-actions__selection">
-      <span class="list-actions__selection-label">{{ countLabel() }}</span>
-      <span class="list-actions__selection-value tabular-nums">{{ count() }}</span>
-      @if (summaryValue()) {
-        <span class="list-actions__selection-label">{{ summaryLabel() }}</span>
-        <span class="list-actions__selection-value tabular-nums">{{ summaryValue() }}</span>
-      }
       <app-button variant="ghost" (click)="cleared.emit()">{{ clearLabel() }}</app-button>
     </div>
   }
