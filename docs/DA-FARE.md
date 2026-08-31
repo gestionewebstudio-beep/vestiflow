@@ -693,35 +693,23 @@ solo la UI.
 
 ---
 
-## ⏸ Quattro elenchi ancora fuori dal motore comune — misurato 30/08/2026
+## ✅ Il motore comune li ha presi TUTTI — chiuso il 31/08/2026
 
-```text
-sul motore   document-table · stock-movements · online-sale-list
-             supplier-order-list · corrispettivi-orders-table · sales-order-table
-fuori        customer-table · product-table · inventory-level-table · situation-table
+⛔ Qui c'era l'elenco dei quattro rimasti fuori (clienti, prodotti, giacenze,
+situazione) e la nota che «document-table copre più elenchi di quanti sembri».
 
-⭐ E «document-table» copre PIÙ elenchi di quanti sembri: Registro documenti,
-   Arrivi merce, Vendite al banco e Vendita manuale sono tutti
-   `DocumentListComponent` con un profilo diverso, quindi hanno già telaio,
-   motore e colonne condivise. Misurato il 30/08/2026 dopo che avevo risposto
-   male al proprietario — avevo cercato l'elenco del banco nella cartella
-   `store-sales`, dove c'è solo la maschera: le sue rotte compongono l'elenco
-   da `documents.routes`.
-```
+**Sono dodici su dodici**, e l'ultimo — i **fornitori** — non era nemmeno in quella
+lista: aveva una `<table>` scritta a mano e non usava `app-data-table`, quindi il
+conteggio non lo vedeva. È il tipo di svista che una lista scritta a mano produce,
+ed è la ragione per cui le guardie di questo progetto **cercano** invece di
+elencare.
 
-⚠️ **E si vede nelle caselle di selezione**: quelle quattro hanno `<input type="checkbox">`
-scritti a mano invece di `app-selection-check`. Al 30/08 erano dimensionati in **tre modi
-diversi** per dire la stessa cosa — `--space-4` nel componente condiviso, `--space-4` in
-`product-table`, `1rem` nudo in `situation-table` (valore nudo, vietato dalla regola).
+⭐ Ognuno ha ora: taglio a colonna, altezza di riga dichiarata, maniglia visibile,
+riga totali, card progettata a tre fasce e piede ancorato sotto `lg`.
 
-⭐ **Sanato per ora col token `--check-size`**, che li porta tutti a 14px. Ma è un cerotto:
-finché il markup è duplicato, la prossima decisione sulle caselle andrà applicata in
-quattro posti e uno resterà indietro.
-
-⚠️ **Restano 44 `<input type="checkbox">` altrove** — form, pannelli impostazioni: quelli
-NON sono selezione di riga e non devono seguire questo token.
-
----
+⏸ **Tre non hanno la selezione** — Inventario, Giacenze, Vendite online — perché
+non hanno azioni che la usino. Ora che la riga totali segue la selezione, resta
+comunque una differenza fra elenchi: va decisa, non lasciata cadere.
 
 ## ⏸ Due domande di forma rimaste aperte — 30/08/2026
 
