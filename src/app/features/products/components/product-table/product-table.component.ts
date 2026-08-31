@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
 
 import type { SortOrder } from '@core/models/api.model';
 import type { ProductStatus } from '@core/models/product.model';
-import { DEFAULT_CURRENCY, formatMoney } from '@core/utils/money.util';
+import { formatMoney } from '@core/utils/money.util';
 import type { Product } from '@core/models/product.model';
 import { ShopifySyncStatus } from '@core/models/shopify.model';
 import { colonnaVisibile, valoreCard } from '@shared/models/list-card-fields.util';
@@ -141,19 +141,28 @@ export class ProductTableComponent {
           formato: (n) => String(n),
         },
         /*
-          ⚠️ **Su un catalogo la somma dei prezzi non è il valore del magazzino**:
-          è la somma dei listini, e vale come cifra di controllo su una
-          selezione. ⛔ Il valore a magazzino sarebbe prezzo × giacenza, e la
-          giacenza in questo elenco non c'è.
+          ⛔ **QUI SI SOMMAVA IL PREZZO, e non voleva dire niente.**
+
+          Segnalato dal proprietario il 31/08/2026: _«non c'entra nulla il totale
+          economico con i prodotti»_. La riga totali mostrava «PREZZO 238,21 €» —
+          la somma dei listini di cinquanta articoli, che non è il valore del
+          magazzino, non è un fatturato e non è il prezzo di niente.
+
+          ⚠️ **La giustificazione che avevo scritto era debole e l'ho lasciata a
+          futura memoria**: «vale come cifra di controllo su una selezione». Una
+          cifra di controllo che nessuno controlla è un numero in più su una riga
+          che si legge tutto il giorno.
+
+          ⭐ **Un catalogo somma i CONTEGGI, non i prezzi.** Quante voci, quante
+          varianti: sono domande vere. Il valore a magazzino sarebbe
+          prezzo × giacenza — un'altra grandezza, e la giacenza in questo elenco
+          non c'è (vedi `docs/DA-FARE.md`).
+
+          ⚠️ **La forma della riga totali resta**, ed è quella condivisa: il
+          proprietario l'ha confermata — «potrebbe anche andare bene la riga del
+          totale così, è renderla condivisa con maschere simili». A cambiare è
+          cosa ci finisce dentro.
         */
-        sellingPrice: {
-          valore: (product) => product.sellingPrice?.amountMinor ?? 0,
-          formato: (n) =>
-            formatMoney({
-              amountMinor: n,
-              currencyCode: this.products()[0]?.sellingPrice?.currencyCode ?? DEFAULT_CURRENCY,
-            }),
-        },
       },
     }),
   );
