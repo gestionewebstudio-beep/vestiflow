@@ -2062,7 +2062,37 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
         this.saveError.set(errorMessage(err));
         this.alreadyCreatedDocumentId.set(creationIntentErrorOf(err)?.resultRef ?? null);
         this.rotateCreationIntentIfCertain(err);
+        this.portaInVistaLErrore();
       },
+    });
+  }
+
+  /*
+    ⛔ **UN ERRORE CHE NON SI VEDE È UN SALVATAGGIO CHE NON SUCCEDE.**
+
+    L'avviso di errore sta in cima alla maschera; «Concludi vendita» sta in fondo,
+    cinquecento righe di markup più giù. Su un documento con qualche riga i due
+    punti non sono nella stessa schermata: il salvataggio falliva, lo diceva, e
+    l'operatore vedeva soltanto che non succedeva niente.
+
+    ⚠️ **Segnalato dal proprietario il 30/08/2026** — «bisogna vedere perché non
+    si salva una nuova vendita al banco» — e questa è la parte che si può
+    correggere senza conoscere la causa del rifiuto: qualunque essa sia, deve
+    arrivare agli occhi di chi ha premuto.
+
+    ⚠️ **`setTimeout` e non subito**: il banner non esiste ancora nel DOM quando
+    il segnale cambia — Angular lo rende al giro di rilevamento successivo, e
+    cercarlo prima non trova nulla. Zero millisecondi bastano: serve il turno, non
+    l'attesa.
+
+    ⭐ **`block: 'start'`, come la sezione Allegati dell'Ordine cliente**: è il
+    pattern già in uso, e portare in vista qualcosa non merita un secondo modo.
+  */
+  private portaInVistaLErrore(): void {
+    setTimeout(() => {
+      this.host.nativeElement
+        .querySelector('app-inline-banner')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }
 

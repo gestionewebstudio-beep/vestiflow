@@ -581,6 +581,34 @@ describe('StoreSaleDocumentFormComponent', () => {
       ).toBe(true);
     });
 
+    /**
+     * ⛔ **Il salvataggio che fallisce DEVE dirlo a chi ha premuto.**
+     *
+     * L'avviso sta in cima alla maschera, «Concludi vendita» in fondo: su un
+     * documento con qualche riga non sono nella stessa schermata. Il salvataggio
+     * falliva, lo diceva, e l'operatore vedeva solo che non succedeva niente.
+     *
+     * ⚠️ jsdom non scorre: quello che questo test può inchiodare è che
+     * `scrollIntoView` venga CHIAMATO sul banner — cioè che il collegamento
+     * esista. Che la pagina si muova davvero si vede a schermo.
+     */
+    it('⭐ un salvataggio fallito porta l’avviso sotto gli occhi', async () => {
+      const scorri = vi.fn();
+      Element.prototype.scrollIntoView = scorri;
+
+      const createSale = vi.fn(() => throwError(() => ({ kind: 'server', message: 'Rifiutato.' })));
+      const vista = await setup({ createSale });
+      const component = vista.component;
+
+      component.save();
+      vista.fixture.detectChanges();
+      // Il banner nasce al giro dopo: il rimedio usa `setTimeout`, e qui si aspetta.
+      await new Promise((r) => setTimeout(r, 0));
+
+      expect(screen.getByText('Rifiutato.'), 'l’avviso non compare').toBeTruthy();
+      expect(scorri, 'l’avviso compare ma la vista non ci va').toHaveBeenCalled();
+    });
+
     it('⭐ la sede del documento non viene sovrascritta da quella assegnata', async () => {
       // Con una sede unica assegnata, aprire un documento di un'ALTRA sede non
       // deve spostarlo: sarebbe un cambio di magazzino fatto aprendo, e su un
