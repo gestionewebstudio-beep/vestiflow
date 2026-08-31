@@ -106,6 +106,71 @@ quella giusta.
 sapere a quale larghezza la fascia a riga unica dovesse cedere. Impilata ci sta sempre —
 615px invece di 918 — quindi non c'è più una soglia da decidere.
 
+# ⛔ DA FARE OGGI — deciso dal proprietario il 30/08/2026
+
+_«Segnati queste cose da fare e oggi vanno fatte, non perderle.»_
+
+## 1. ⛔ La nuova VENDITA AL BANCO non si salva
+
+Difetto segnalato, causa da trovare. **Priorità sulle altre voci**: è una funzione
+rotta, non un'uniformazione.
+
+## 2. ⛔ ELIMINA e DUPLICA — la semantica è quella dell'U.M. e del Codice IVA
+
+⭐ **Decisione del proprietario, 30/08/2026**, e chiude la domanda che era rimasta
+aperta:
+
+> _«Quello che deve succedere con Elimina è come funziona con l'IVA e con l'U.M.:
+> quando cancello un'u.m., il dato nei documenti diventa testo e non sparisce.
+> Tutto quello che è salvato nel gestionale resta, quindi i dati dai movimenti e
+> documenti non spariscono, sparisce solo la scheda cliente.»_
+
+**Il criterio:** ciò che è **fotografato** dentro un documento o un movimento è
+del documento, non dell'anagrafica. Eliminare l'anagrafica toglie la scheda; gli
+snapshot restano leggibili come testo.
+
+⚠️ **Non è un soft-delete travestito**: la riga anagrafica sparisce davvero. È il
+documento che non aveva bisogno di lei, perché aveva già copiato quello che gli
+serviva.
+
+⛔ **Da verificare PRIMA di scrivere l'endpoint**: quali snapshot esistono già
+sulle righe (nome, codice, partita IVA), e quali riferimenti sono invece **chiavi
+esterne** che il database rifiuterebbe di lasciare orfane. Dove manca lo snapshot,
+va aggiunto prima — o l'eliminazione romperebbe una lettura.
+
+Entità coinvolte: **Clienti**, **Fornitori** (nessun `DELETE` nell'API oggi).
+
+## 3. ⛔ Le PILL colorate spariscono dai riepiloghi
+
+_«Le card colorate intorno ai testi vanno levate nei riepiloghi, resta solo il
+testo colorato, come abbiamo già fatto altrove.»_
+
+Fatto su prodotti, clienti, giacenze e situazione. **Restano** i movimenti (colonna
+Tipo), i documenti, gli ordini, le vendite online, l'inventario.
+
+## 4. ⛔ INVENTARIO — l'elenco sessioni non è nel motore
+
+`/app/inventory/counts`: tabella propria, niente riga totali, niente selezione,
+pill piene. Va nel motore come gli altri undici.
+
+## 5. ⛔ VENDITA MANUALE — riepilogo e maschera
+
+Sia l'**elenco** (contenitore comune e colonne) sia la **maschera di nuova vendita
+manuale**.
+
+⚠️ **Attenzione al pannello di controllo**: la Vendita manuale si disattiva da
+Impostazioni (`TenantFeatureSettings.manualUnloadEnabled`), nasce **spenta**, e il
+rifiuto è sull'**API** — non solo nella UI. Toccare quella maschera senza tenerne
+conto significa riaprire un interruttore di sicurezza.
+
+## 6. ⛔ I riepiloghi dei DOCUMENTI come quelli dei Corrispettivi
+
+_«I riepiloghi, almeno quelli dei documenti, possiamo sistemarli e unificarli come
+quelli dei corrispettivi.»_ — e verificare che **contenitore e colonne** siano
+davvero quelli comuni, non solo simili.
+
+---
+
 # ✅ IL MOTORE TABELLA È COMPLETO — 30/08/2026
 
 **Undici elenchi su undici** usano lo stesso motore. Nessuno impagina più.
