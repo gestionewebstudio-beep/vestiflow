@@ -12,6 +12,7 @@
   identici sarebbero il difetto che questo assorbimento toglie.
 -->
 <app-data-table
+  [rowClickSelects]="rowClickSelects()"
   caption="Elenco documenti"
   [columns]="engineColumns()"
   [sections]="sections()"

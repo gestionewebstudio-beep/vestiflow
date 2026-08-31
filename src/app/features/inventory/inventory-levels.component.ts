@@ -112,6 +112,7 @@ import { ErrorStateComponent } from '@shared/components/error-state/error-state.
 
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { createListSelection } from '@shared/utils/list-selection';
+import { createSelectionMode } from '@shared/utils/selection-mode';
 
 @Component({
   selector: 'app-inventory-levels',
@@ -407,6 +408,16 @@ export class InventoryLevelsComponent {
   //    volta per ogni sede, e col solo `variantId` si selezionerebbero tutte le
   //    sue righe insieme.
   private readonly selection = createListSelection('multiple');
+
+  /**
+   * ⭐ **La modalità «Seleziona» della vista a card**, dal telaio.
+   *
+   * ⛔ Non è scritta qui: `createSelectionMode` porta con sé la regola che
+   * spegnerla AZZERA la selezione — a modalità spenta il tocco torna ad aprire
+   * la riga, e non resta nessun gesto per deselezionare.
+   */
+  protected readonly modoSelezione = createSelectionMode(this.selection);
+
   protected readonly selectedRowIds = this.selection.ids;
 
   /** ⛔ Al cambio di filtro la selezione si restringe alle righe caricate. */

@@ -31,6 +31,7 @@ import {
   resolveMovementPeriodRange,
 } from '@domain/inventory/models/movement-period.util';
 import { createListSelection } from '@shared/utils/list-selection';
+import { createSelectionMode } from '@shared/utils/selection-mode';
 import { downloadBlob } from '@shared/utils/download-blob.util';
 import {
   buildListCsv,
@@ -210,6 +211,16 @@ export class SupplierOrderListComponent {
 
   // ── Selezione e azioni contestuali (`14` §5, parte D) ─────────────────────
   private readonly selection = createListSelection('multiple');
+
+  /**
+   * ⭐ **La modalità «Seleziona» della vista a card**, dal telaio.
+   *
+   * ⛔ Non è scritta qui: `createSelectionMode` porta con sé la regola che
+   * spegnerla AZZERA la selezione — a modalità spenta il tocco torna ad aprire
+   * la riga, e non resta nessun gesto per deselezionare.
+   */
+  protected readonly modoSelezione = createSelectionMode(this.selection);
+
   protected readonly selectedIds = this.selection.ids;
   protected readonly selectionCount = this.selection.count;
   protected readonly excelBusy = signal(false);
@@ -687,6 +698,8 @@ export class SupplierOrderListComponent {
         return order.supplierName;
       case 'lines':
         return String(order.lineCount ?? order.lines.length);
+      case 'documentDate':
+        return formatDate(order.orderDate);
       case 'expected':
         return order.expectedAt ? formatDate(order.expectedAt) : '—';
       case 'total':

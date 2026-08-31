@@ -102,6 +102,10 @@ export class ListPageComponent {
    */
   protected readonly compatto = inject(ViewportService).compact;
 
+  protected onToggleSelectionMode(): void {
+    this.selectionMode.set(!this.selectionMode());
+  }
+
   /** Aperto/chiuso del pannello compatto. Vive qui: nessuna pagina lo scrive. */
   protected readonly pannelloAperto = signal(false);
 
@@ -300,6 +304,26 @@ export class ListPageComponent {
    * mette niente non ha motivo di riservargli spazio, e va potuta spegnere.
    */
   readonly dockedFoot = input(true);
+
+  /**
+   * ⭐ **L'elenco si può selezionare?** Acceso, il telaio rende il pulsante
+   * «Seleziona» sotto `lg` — dove le righe sono card e la colonna di caselle
+   * non c'è.
+   *
+   * ⚠️ **Nasce spento.** Un elenco che non ha azioni di selezione mostrerebbe un
+   * comando che non porta da nessuna parte.
+   */
+  readonly selectionToggleable = input(false);
+
+  /**
+   * ⭐ **La modalità, two-way.** Lo stato resta della pagina — è lei a possedere
+   * la selezione vera — e il telaio si limita a commutarlo.
+   *
+   * ⛔ **Chi lo riceve deve AZZERARE la selezione quando si spegne**, ed è la
+   * ragione per cui esiste `createSelectionMode`: a modalità spenta il tocco
+   * torna ad aprire la riga e non resta nessun gesto per deselezionare.
+   */
+  readonly selectionMode = model(false);
 
   /**
    * ⭐ **«Azzera filtri» del pannello compatto.** Esplicito, mai un effetto

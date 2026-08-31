@@ -26,6 +26,7 @@ import type { Subscription } from 'rxjs';
 import { customerDisplayName } from '@core/models/customer.model';
 import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
 import { createListSelection } from '@shared/utils/list-selection';
+import { createSelectionMode } from '@shared/utils/selection-mode';
 
 import type { PageMeta } from '@core/models/api.model';
 import { AuthService } from '@core/auth';
@@ -290,6 +291,16 @@ export class CustomerListComponent {
     Serve comunque, ed è utile da subito: il conteggio della riga totali la segue.
   */
   private readonly selection = createListSelection('multiple');
+
+  /**
+   * ⭐ **La modalità «Seleziona» della vista a card**, dal telaio.
+   *
+   * ⛔ Non è scritta qui: `createSelectionMode` porta con sé la regola che
+   * spegnerla AZZERA la selezione — a modalità spenta il tocco torna ad aprire
+   * la riga, e non resta nessun gesto per deselezionare.
+   */
+  protected readonly modoSelezione = createSelectionMode(this.selection);
+
   protected readonly selectedCustomerIds = this.selection.ids;
 
   /**

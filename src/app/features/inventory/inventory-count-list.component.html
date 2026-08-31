@@ -1,4 +1,7 @@
 <app-list-page
+  [selectionToggleable]="true"
+  [selectionMode]="modoSelezione.acceso()"
+  (selectionModeChange)="modoSelezione.commuta($event)"
   class="inventory-count-list"
   pageTitle="Inventario"
   pageDescription="Conteggio periodico delle giacenze per location. Alla chiusura genera rettifiche tracciate e aggiorna il magazzino."
@@ -27,6 +30,7 @@
   </div>
 
   <app-inventory-count-table
+    [rowClickSelects]="modoSelezione.perTocco()"
     data
     [sessions]="sessions()"
     [columns]="tableColumns()"

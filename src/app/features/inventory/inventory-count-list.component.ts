@@ -30,6 +30,7 @@ import { InventoryCountTableComponent } from './components/inventory-count-table
 import { InventoryTabsComponent } from './components/inventory-tabs/inventory-tabs.component';
 import { InventoryService } from '@domain/inventory/services/inventory.service';
 import { createListSelection } from '@shared/utils/list-selection';
+import { createSelectionMode } from '@shared/utils/selection-mode';
 import { GroupByMenuComponent } from '@shared/components/group-by-menu/group-by-menu.component';
 
 type CountListState =
@@ -135,6 +136,16 @@ export class InventoryCountListComponent {
    */
   // ── Selezione ─────────────────────────────────────────────────────────────
   private readonly selection = createListSelection('multiple');
+
+  /**
+   * ⭐ **La modalità «Seleziona» della vista a card**, dal telaio.
+   *
+   * ⛔ Non è scritta qui: `createSelectionMode` porta con sé la regola che
+   * spegnerla AZZERA la selezione — a modalità spenta il tocco torna ad aprire
+   * la riga, e non resta nessun gesto per deselezionare.
+   */
+  protected readonly modoSelezione = createSelectionMode(this.selection);
+
   protected readonly selectedSessionIds = this.selection.ids;
 
   /** ⛔ Al cambio di filtro la selezione si restringe alle righe caricate. */

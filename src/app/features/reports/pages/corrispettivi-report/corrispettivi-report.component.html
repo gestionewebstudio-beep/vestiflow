@@ -1,4 +1,7 @@
 <app-list-page
+  [selectionToggleable]="true"
+  [selectionMode]="modoSelezione.acceso()"
+  (selectionModeChange)="modoSelezione.commuta($event)"
   class="corrispettivi"
   pageTitle="Corrispettivi"
   [pageDescription]="pageSubtitle()"
@@ -109,17 +112,6 @@
     colonna di caselle, e due affordance per la stessa funzione sono una di
     troppo.
   -->
-  @if (viewportCompatto()) {
-    <app-button
-      viewActions
-      variant="secondary"
-      [ariaPressed]="modalitaSelezione()"
-      (click)="toggleModalitaSelezione()"
-    >
-      <i class="pi pi-check-square" aria-hidden="true"></i>
-      Seleziona
-    </app-button>
-  }
 
   <div filters>
     <!--

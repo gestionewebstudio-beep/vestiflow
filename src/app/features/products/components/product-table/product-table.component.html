@@ -12,6 +12,7 @@
   cella che è solo testo non ha bisogno di un template.
 -->
 <app-data-table
+  [rowClickSelects]="rowClickSelects()"
   caption="Elenco prodotti"
   [columns]="engineColumns()"
   [sections]="sections()"

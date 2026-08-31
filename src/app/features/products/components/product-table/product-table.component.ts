@@ -65,6 +65,16 @@ const PRODUCT_SORTABLE_COLUMNS: ReadonlySet<string> = new Set([
 })
 export class ProductTableComponent {
   readonly products = input.required<readonly Product[]>();
+
+  /**
+   * ⭐ **Sotto `lg` il tocco SELEZIONA invece di aprire**, quando la modalità
+   * «Seleziona» del telaio è accesa.
+   *
+   * ⚠️ Input di passaggio: la tabella non decide, inoltra al motore. La modalità
+   * la possiede la pagina (`createSelectionMode`), che è anche l'unica a poter
+   * azzerare la selezione quando si spegne.
+   */
+  readonly rowClickSelects = input(false);
   readonly columns = input.required<readonly ResolvedTableColumn[]>();
   readonly sortField = input<ProductSortField>();
   readonly sortOrder = input<SortOrder>();

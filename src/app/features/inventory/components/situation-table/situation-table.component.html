@@ -11,6 +11,7 @@
   stato, e lo stato di scorta.
 -->
 <app-data-table
+  [rowClickSelects]="rowClickSelects()"
   caption="Situazione di magazzino"
   [columns]="engineColumns()"
   [sections]="sections()"

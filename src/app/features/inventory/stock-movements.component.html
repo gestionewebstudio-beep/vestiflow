@@ -1,4 +1,7 @@
 <app-list-page
+  [selectionToggleable]="true"
+  [selectionMode]="modoSelezione.acceso()"
+  (selectionModeChange)="modoSelezione.commuta($event)"
   class="stock-movements"
   pageTitle="Movimenti di magazzino"
   [showBack]="true"
@@ -162,6 +165,7 @@
   </div>
 
   <app-data-table
+    [rowClickSelects]="modoSelezione.perTocco()"
     data
     caption="Movimenti di magazzino"
     [columns]="tableColumns()"

@@ -74,6 +74,7 @@ import {
   type DataTableSort,
 } from '@shared/components/data-table/data-table.model';
 import { createListSelection } from '@shared/utils/list-selection';
+import { createSelectionMode } from '@shared/utils/selection-mode';
 import { TableViewId } from '@shared/table-columns/table-column.model';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
@@ -1050,6 +1051,16 @@ export class DocumentListComponent {
   // questo componente e in `sales-order-list`, e sarebbe stato copiato in altri
   // cinque elenchi.
   private readonly selection = createListSelection('multiple');
+
+  /**
+   * ⭐ **La modalità «Seleziona» della vista a card**, dal telaio.
+   *
+   * ⛔ Non è scritta qui: `createSelectionMode` porta con sé la regola che
+   * spegnerla AZZERA la selezione — a modalità spenta il tocco torna ad aprire
+   * la riga, e non resta nessun gesto per deselezionare.
+   */
+  protected readonly modoSelezione = createSelectionMode(this.selection);
+
   protected readonly selectedIds = this.selection.ids;
   protected readonly selectionCount = this.selection.count;
   protected readonly bulkPdfBusy = signal(false);

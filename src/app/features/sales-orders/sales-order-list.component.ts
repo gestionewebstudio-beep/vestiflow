@@ -64,6 +64,7 @@ import {
   type DataTableSort,
 } from '@shared/components/data-table/data-table.model';
 import { createListSelection } from '@shared/utils/list-selection';
+import { createSelectionMode } from '@shared/utils/selection-mode';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { TableViewId } from '@shared/table-columns/table-column.model';
 import { ShopifySyncFeedbackComponent } from '@domain/channels/shopify/components/shopify-sync-feedback/shopify-sync-feedback.component';
@@ -504,6 +505,16 @@ export class SalesOrderListComponent {
   // Lo STATO viene dalla primitiva comune (`14` parte D): era duplicato
   // identico qui e in `document-list`, e sarebbe stato copiato in altri cinque.
   private readonly selection = createListSelection('multiple');
+
+  /**
+   * ⭐ **La modalità «Seleziona» della vista a card**, dal telaio.
+   *
+   * ⛔ Non è scritta qui: `createSelectionMode` porta con sé la regola che
+   * spegnerla AZZERA la selezione — a modalità spenta il tocco torna ad aprire
+   * la riga, e non resta nessun gesto per deselezionare.
+   */
+  protected readonly modoSelezione = createSelectionMode(this.selection);
+
   protected readonly selectedIds = this.selection.ids;
   protected readonly selectionCount = this.selection.count;
   protected readonly selectedOrders = computed(() =>

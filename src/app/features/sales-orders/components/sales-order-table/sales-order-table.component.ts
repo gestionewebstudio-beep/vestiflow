@@ -73,6 +73,16 @@ export interface SalesOrderTableSelectionEvent {
 })
 export class SalesOrderTableComponent {
   readonly orders = input.required<readonly SalesOrder[]>();
+
+  /**
+   * ⭐ **Sotto `lg` il tocco SELEZIONA invece di aprire**, quando la modalità
+   * «Seleziona» del telaio è accesa.
+   *
+   * ⚠️ Input di passaggio: la tabella non decide, inoltra al motore. La modalità
+   * la possiede la pagina (`createSelectionMode`), che è anche l'unica a poter
+   * azzerare la selezione quando si spegne.
+   */
+  readonly rowClickSelects = input(false);
   /** Colonne visibili, nell'ordine scelto dal selettore «Colonne». */
   readonly columns = input.required<readonly ResolvedTableColumn[]>();
 

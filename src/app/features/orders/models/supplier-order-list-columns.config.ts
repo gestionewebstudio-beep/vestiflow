@@ -20,6 +20,22 @@ import {
  */
 export const SUPPLIER_ORDER_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   colonna('reference', { pinnable: true, defaultVisible: true, cardTitle: true }),
+  /*
+    ⛔ **L'elenco non aveva la data dell'ordine**, e se n'è accorto il
+    proprietario il 31/08/2026 guardando la card sul telefono: in cima c'era un
+    trattino, cioè «Attesa il» vuota.
+
+    L'unica colonna di data era `expected` — la **consegna prevista**, che è
+    facoltativa e nella pratica quasi sempre vuota. Un registro di ordini senza
+    la data dell'ordine non si può ordinare per data, non si può raggruppare per
+    giornata, e la sua card non ha nulla da mettere in cima.
+
+    ⚠️ **E rendeva incoerente il raggruppamento appena introdotto**: piegavo
+    l'elenco per `orderDate` mentre nessuna colonna la mostrava — cioè
+    intestazioni di giornata che non corrispondevano a niente di visibile, che è
+    esattamente ciò che `14` §64.2 vieta.
+  */
+  colonna('documentDate', { defaultVisible: true }),
   colonna('supplier', { defaultVisible: true }),
   colonna('status', { defaultVisible: true }),
   { id: 'lines', label: 'Righe', numeric: true, defaultVisible: true },
@@ -28,10 +44,25 @@ export const SUPPLIER_ORDER_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
 ] as const;
 
 export const SUPPLIER_ORDER_LIST_COLUMN_PRESETS: TableViewPresetMap = {
-  [TableViewPresetId.Default]: ['reference', 'supplier', 'status', 'lines', 'expected', 'total'],
-  [TableViewPresetId.Warehouse]: ['reference', 'supplier', 'status', 'lines', 'expected'],
-  [TableViewPresetId.Accountant]: ['reference', 'supplier', 'status', 'total'],
-  [TableViewPresetId.Supplier]: ['reference', 'supplier', 'expected', 'lines'],
-  [TableViewPresetId.Analysis]: ['reference', 'supplier', 'status', 'total'],
-  [TableViewPresetId.Operational]: ['reference', 'supplier', 'status', 'expected'],
+  [TableViewPresetId.Default]: [
+    'reference',
+    'documentDate',
+    'supplier',
+    'status',
+    'lines',
+    'expected',
+    'total',
+  ],
+  [TableViewPresetId.Warehouse]: [
+    'reference',
+    'documentDate',
+    'supplier',
+    'status',
+    'lines',
+    'expected',
+  ],
+  [TableViewPresetId.Accountant]: ['reference', 'documentDate', 'supplier', 'status', 'total'],
+  [TableViewPresetId.Supplier]: ['reference', 'documentDate', 'supplier', 'expected', 'lines'],
+  [TableViewPresetId.Analysis]: ['reference', 'documentDate', 'supplier', 'status', 'total'],
+  [TableViewPresetId.Operational]: ['reference', 'documentDate', 'supplier', 'status', 'expected'],
 };

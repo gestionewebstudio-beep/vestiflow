@@ -31,6 +31,7 @@ import { canManageSupplierOrders } from '@core/permissions/tenant-permissions.ut
 import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
 import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
 import { createListSelection } from '@shared/utils/list-selection';
+import { createSelectionMode } from '@shared/utils/selection-mode';
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import { comando } from '@shared/models/list-action-catalog';
 import type { ListAction } from '@shared/models/list-selection.model';
@@ -230,6 +231,16 @@ export class SupplierListComponent {
 
   // ── Selezione ─────────────────────────────────────────────────────────────
   private readonly selection = createListSelection('multiple');
+
+  /**
+   * ⭐ **La modalità «Seleziona» della vista a card**, dal telaio.
+   *
+   * ⛔ Non è scritta qui: `createSelectionMode` porta con sé la regola che
+   * spegnerla AZZERA la selezione — a modalità spenta il tocco torna ad aprire
+   * la riga, e non resta nessun gesto per deselezionare.
+   */
+  protected readonly modoSelezione = createSelectionMode(this.selection);
+
   protected readonly selectedSupplierIds = this.selection.ids;
 
   /**

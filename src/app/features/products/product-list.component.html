@@ -1,4 +1,7 @@
 <app-list-page
+  [selectionToggleable]="true"
+  [selectionMode]="modoSelezione.acceso()"
+  (selectionModeChange)="modoSelezione.commuta($event)"
   class="product-list"
   pageTitle="Prodotti"
   [loading]="loading()"
@@ -67,6 +70,7 @@
   </div>
 
   <app-product-table
+    [rowClickSelects]="modoSelezione.perTocco()"
     data
     [products]="products()"
     [columns]="tableColumns()"

@@ -17,6 +17,7 @@ import {
   type ListActionTarget,
 } from '@shared/models/list-selection.model';
 import { createListSelection } from '@shared/utils/list-selection';
+import { createSelectionMode } from '@shared/utils/selection-mode';
 import { downloadBlob } from '@shared/utils/download-blob.util';
 import {
   buildListCsv,
@@ -165,6 +166,16 @@ export class StockMovementsComponent {
 
   // ── Selezione e azioni (`14` §5) ───────────────────────────────────────────
   private readonly selection = createListSelection('multiple');
+
+  /**
+   * ⭐ **La modalità «Seleziona» della vista a card**, dal telaio.
+   *
+   * ⛔ Non è scritta qui: `createSelectionMode` porta con sé la regola che
+   * spegnerla AZZERA la selezione — a modalità spenta il tocco torna ad aprire
+   * la riga, e non resta nessun gesto per deselezionare.
+   */
+  protected readonly modoSelezione = createSelectionMode(this.selection);
+
   protected readonly selectedIds = this.selection.ids;
   protected readonly selectionCount = this.selection.count;
   private readonly columnPreferences = inject(TableColumnPreferenceService);

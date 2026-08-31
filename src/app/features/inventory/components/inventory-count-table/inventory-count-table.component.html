@@ -6,6 +6,7 @@
   selettore Colonne, niente larghezze, niente riga totali, niente selezione.
 -->
 <app-data-table
+  [rowClickSelects]="rowClickSelects()"
   caption="Sessioni di inventario"
   [columns]="columns()"
   [sections]="sections()"

@@ -38,6 +38,8 @@ import {
   canManageCatalog,
 } from '@core/permissions/tenant-permissions.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
+import { createListSelection } from '@shared/utils/list-selection';
+import { createSelectionMode } from '@shared/utils/selection-mode';
 import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
 import type { AppError } from '@core/models/app-error.model';
 import { ProductStatus } from '@core/models/product.model';
@@ -162,7 +164,17 @@ export class ProductListComponent {
   protected readonly shopifyFeedback = signal<ShopifySyncFeedback | null>(null);
   protected readonly shopifySyncError = signal<string | null>(null);
   protected readonly bulkPrintLoading = signal(false);
-  protected readonly selectedProductIds = signal<ReadonlySet<string>>(new Set<string>());
+  private readonly selection = createListSelection('multiple');
+  protected readonly selectedProductIds = this.selection.ids;
+
+  /**
+   * ⭐ **La modalità «Seleziona» della vista a card**, dal telaio.
+   *
+   * ⛔ `createSelectionMode` porta con sé la regola che spegnerla AZZERA la
+   * selezione: a modalità spenta il tocco torna ad aprire la riga, e non resta
+   * nessun gesto per deselezionare.
+   */
+  protected readonly modoSelezione = createSelectionMode(this.selection);
   protected readonly duplicatingProductId = signal<string | null>(null);
   protected readonly duplicateError = signal<string | null>(null);
 
@@ -312,8 +324,7 @@ export class ProductListComponent {
     this.tableColumns = this.columnPreferences.visibleColumns(PRODUCT_LIST_VIEW);
 
     effect(() => {
-      this.query();
-      this.selectedProductIds.set(new Set<string>());
+      this.selection.prune(this.products().map((p) => p.id));
     });
 
     // Debounce ricerca: il draft locale guida la navigazione (idempotente).
@@ -409,30 +420,18 @@ export class ProductListComponent {
   }
 
   protected toggleProductSelection(productId: string, selected: boolean): void {
-    this.selectedProductIds.update((current) => {
-      const next = new Set(current);
-      if (selected) {
-        next.add(productId);
-      } else {
-        next.delete(productId);
-      }
-      return next;
-    });
+    this.selection.toggle(productId, selected);
   }
 
+  /*
+    ⚠️ **«Tutti» sono tutti quelli del FILTRO**, non della pagina: da quando
+    l'elenco non impagina più, le due cose coincidono.
+  */
   protected toggleSelectAllOnPage(selected: boolean): void {
-    const pageProducts = this.products();
-    this.selectedProductIds.update((current) => {
-      const next = new Set(current);
-      for (const product of pageProducts) {
-        if (selected) {
-          next.add(product.id);
-        } else {
-          next.delete(product.id);
-        }
-      }
-      return next;
-    });
+    this.selection.setAll(
+      this.products().map((p) => p.id),
+      selected,
+    );
   }
 
   /**
@@ -554,7 +553,7 @@ export class ProductListComponent {
   ]);
 
   protected clearSelection(): void {
-    this.selectedProductIds.set(new Set<string>());
+    this.selection.clear();
   }
 
   /*
@@ -630,9 +629,11 @@ export class ProductListComponent {
         this.pendingDeleteIds.set([]);
         const eliminati = new Set(esiti.filter((e) => e.ok).map((e) => e.id));
         if (eliminati.size > 0) {
-          this.selectedProductIds.update(
-            (correnti) => new Set([...correnti].filter((id) => !eliminati.has(id))),
-          );
+          // La potatura arriva col ricaricamento; questo toglie subito ciò che
+          // non c'è più, senza aspettare il giro di rete.
+          for (const id of eliminati) {
+            this.selection.toggle(id, false);
+          }
         }
         const falliti = esiti.length - eliminati.size;
         this.duplicateError.set(

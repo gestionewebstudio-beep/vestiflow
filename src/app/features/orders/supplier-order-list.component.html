@@ -1,4 +1,7 @@
 <app-list-page
+  [selectionToggleable]="true"
+  [selectionMode]="modoSelezione.acceso()"
+  (selectionModeChange)="modoSelezione.commuta($event)"
   class="po-list"
   pageTitle="Ordini Fornitori"
   [showBack]="true"
@@ -79,6 +82,7 @@
   </div>
 
   <app-data-table
+    [rowClickSelects]="modoSelezione.perTocco()"
     data
     caption="Ordini fornitore"
     [columns]="tableColumns()"
@@ -131,8 +135,18 @@
     <ng-template appRowCard let-order>
       <div class="list-card__head">
         <span class="list-card__ident">
-          @if (visibile('expected')) {
-            <span class="list-card__when tabular-nums">{{ cellText(order, 'expected') }}</span>
+          <!--
+            ⭐ **In cima alla card va la data dell'ORDINE**, non la consegna
+            prevista: quella è facoltativa, e dove manca lasciava un trattino
+            nudo in cima alla card — un segnaposto che in tabella ha senso
+            (sotto un'intestazione che lo nomina) e su una card no.
+
+            ⚠️ **Ed è la stessa data del raggruppamento per giornata**: se le due
+            divergessero, l'intestazione del gruppo direbbe un giorno e la card
+            dentro un altro.
+          -->
+          @if (visibile('documentDate')) {
+            <span class="list-card__when tabular-nums">{{ cellText(order, 'documentDate') }}</span>
           }
           @if (visibile('supplier')) {
             <span class="list-card__what">{{ cellText(order, 'supplier') }}</span>

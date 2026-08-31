@@ -1,4 +1,7 @@
 <app-list-page
+  [selectionToggleable]="true"
+  [selectionMode]="modoSelezione.acceso()"
+  (selectionModeChange)="modoSelezione.commuta($event)"
   class="customer-list"
   pageTitle="Clienti"
   [loading]="loading()"
@@ -31,6 +34,7 @@
   </div>
 
   <app-customer-table
+    [rowClickSelects]="modoSelezione.perTocco()"
     data
     [customers]="customers()"
     [columns]="tableColumns()"

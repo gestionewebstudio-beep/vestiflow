@@ -30,6 +30,16 @@ import type { InventorySituationRow } from '@domain/inventory/models/inventory-s
 })
 export class SituationTableComponent {
   readonly rows = input.required<readonly InventorySituationRow[]>();
+
+  /**
+   * ⭐ **Sotto `lg` il tocco SELEZIONA invece di aprire**, quando la modalità
+   * «Seleziona» del telaio è accesa.
+   *
+   * ⚠️ Input di passaggio: la tabella non decide, inoltra al motore. La modalità
+   * la possiede la pagina (`createSelectionMode`), che è anche l'unica a poter
+   * azzerare la selezione quando si spegne.
+   */
+  readonly rowClickSelects = input(false);
   readonly columns = input.required<readonly ResolvedTableColumn[]>();
   readonly selectedIds = input.required<ReadonlySet<string>>();
 

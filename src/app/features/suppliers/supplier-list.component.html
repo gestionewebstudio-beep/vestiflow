@@ -1,4 +1,7 @@
 <app-list-page
+  [selectionToggleable]="true"
+  [selectionMode]="modoSelezione.acceso()"
+  (selectionModeChange)="modoSelezione.commuta($event)"
   class="supplier-list"
   pageTitle="Fornitori"
   [loading]="loading()"
@@ -17,6 +20,7 @@
   (retry)="reload()"
 >
   <app-supplier-table
+    [rowClickSelects]="modoSelezione.perTocco()"
     data
     [suppliers]="suppliers()"
     [columns]="tableColumns()"

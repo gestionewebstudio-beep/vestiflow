@@ -119,14 +119,16 @@
   }
 
   /*
-    ⚠️ **Il conteggio occupa la fascia intera, in cima e a sinistra.**
+    ⚠️ **Il conteggio è FRATELLO della griglia, non un suo figlio.**
 
-    In griglia finirebbe in una colonna qualsiasi, e «17 voci» si leggerebbe
-    incolonnato sotto Imponibile come se fosse un'altra metrica.
+    In griglia finirebbe in una colonna qualsiasi — «17 voci» incolonnato sotto
+    Imponibile come se fosse un'altra metrica — e per evitarlo servirebbe
+    `grid-column: 1 / -1`, che è proprio ciò che impediva alle tracce vuote di
+    collassare (vedi il template).
   */
   .list-summary__count {
-    flex: 1 1 100%;
     margin: 0;
+    padding-block: var(--space-1);
     font-size: var(--text-2xs);
     font-weight: var(--font-weight-semibold);
     color: var(--color-text-muted);
@@ -207,12 +209,14 @@
   @include bp.media-down('lg') {
     .list-summary__grid {
       display: grid;
+      /*
+        ⚠️ **`auto-fill` no, `auto-fit` sì**: il primo tiene in piedi le tracce
+        vuote, il secondo le collassa. Con una voce sola la differenza è fra un
+        totale incollato a sinistra e uno al suo posto.
+      */
       grid-template-columns: repeat(auto-fit, minmax(min(var(--summary-item-min-w), 100%), 1fr));
       align-items: baseline;
-    }
-
-    .list-summary__count {
-      grid-column: 1 / -1;
+      justify-content: end;
     }
 
     .list-summary__item {

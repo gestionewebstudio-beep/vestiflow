@@ -1,4 +1,7 @@
 <app-list-page
+  [selectionToggleable]="true"
+  [selectionMode]="modoSelezione.acceso()"
+  (selectionModeChange)="modoSelezione.commuta($event)"
   class="inventory-situation"
   pageTitle="Situazione magazzino"
   [showBack]="true"
@@ -121,6 +124,7 @@
   </div>
 
   <app-situation-table
+    [rowClickSelects]="modoSelezione.perTocco()"
     data
     [rows]="rows()"
     [columns]="tableColumns()"

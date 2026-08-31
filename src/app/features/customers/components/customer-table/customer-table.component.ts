@@ -33,6 +33,16 @@ import type { ResolvedTableColumn } from '@shared/table-columns/table-column.mod
 })
 export class CustomerTableComponent {
   readonly customers = input.required<readonly Customer[]>();
+
+  /**
+   * ⭐ **Sotto `lg` il tocco SELEZIONA invece di aprire**, quando la modalità
+   * «Seleziona» del telaio è accesa.
+   *
+   * ⚠️ Input di passaggio: la tabella non decide, inoltra al motore. La modalità
+   * la possiede la pagina (`createSelectionMode`), che è anche l'unica a poter
+   * azzerare la selezione quando si spegne.
+   */
+  readonly rowClickSelects = input(false);
   readonly columns = input.required<readonly ResolvedTableColumn[]>();
   readonly selectedIds = input<ReadonlySet<string>>(new Set<string>());
 

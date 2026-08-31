@@ -1,4 +1,7 @@
 <app-list-page
+  [selectionToggleable]="true"
+  [selectionMode]="modoSelezione.acceso()"
+  (selectionModeChange)="modoSelezione.commuta($event)"
   class="sales-list"
   [pageTitle]="pageTitle()"
   [showBack]="true"
@@ -214,6 +217,7 @@
   </div>
 
   <app-sales-order-table
+    [rowClickSelects]="modoSelezione.perTocco()"
     data
     [orders]="orders()"
     [columns]="visibleColumns()"

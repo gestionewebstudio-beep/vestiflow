@@ -8,9 +8,33 @@
     -->
     <h2 id="list-summary-title" class="sr-only">Riepilogo dell'elenco</h2>
 
-    <dl class="list-summary__grid">
-      <p class="list-summary__count tabular-nums">{{ conteggio() }}</p>
+    <!--
+      ⛔ **Il conteggio sta FUORI dal `<dl>`, e non è pignoleria semantica.**
 
+      Segnalato dal proprietario il 31/08/2026 sugli Ordini fornitore: con una
+      voce sola, «TOTALE 948,05 €» restava incollato a sinistra invece di andare
+      a destra come vuole la convenzione contabile.
+
+      La causa erano due difetti nello stesso elemento:
+
+      1. **HTML non valido.** Dentro un `<dl>` stanno solo `dt`, `dd`, `div`,
+         `script` e `template`: un `<p>` figlio diretto non è ammesso. Il
+         Registro Corrispettivi ha lo stesso `<p>`, ma dentro un `div` di banda —
+         là è valido, e copiandolo qui senza la banda è diventato invalido.
+
+      2. **⭐ Rompeva `auto-fit`.** Il conteggio prendeva `grid-column: 1 / -1`
+         per occupare la riga intera, e un elemento che copre tutte le colonne
+         **impedisce alle tracce vuote di collassare**: con una voce sola
+         restavano quattro tracce da 94px, la voce finiva nella prima e il suo
+         `text-align: end` la allineava a destra di 94 pixel, non dello schermo.
+
+      Fuori dal `<dl>` il conteggio è un fratello nella colonna della fascia, le
+      tracce vuote collassano davvero, e una voce sola prende tutta la larghezza —
+      cioè finisce a destra, dove deve stare.
+    -->
+    <p class="list-summary__count tabular-nums">{{ conteggio() }}</p>
+
+    <dl class="list-summary__grid">
       @for (voce of voci(); track voce.id) {
         <div
           class="list-summary__item"

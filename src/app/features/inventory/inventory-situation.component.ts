@@ -29,6 +29,7 @@ import { canManageSupplierOrders } from '@core/permissions/tenant-permissions.ut
 import { LocationContextService } from '@core/services/location-context.service';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { canSwitchOperationalLocation } from '@core/utils/user-location-scope.util';
+import { createSelectionMode } from '@shared/utils/selection-mode';
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
 import type { ListAction } from '@shared/models/list-selection.model';
@@ -145,6 +146,18 @@ export class InventorySituationComponent {
   protected readonly selectedCount = computed(() => this.selectedRows().size);
 
   protected readonly selectedRowIds = computed(() => [...this.selectedRows().keys()]);
+
+  /**
+   * ⭐ **La modalità «Seleziona» della vista a card**, dal telaio.
+   *
+   * ⚠️ **Qui la selezione NON si pota al cambio filtro**, ed è voluto: la `Map`
+   * qui sopra esiste perché le righe scelte sopravvivano ai filtri, per poi
+   * diventare le righe di un ordine fornitore. Spegnere la modalità le azzera
+   * comunque — quello vale ovunque.
+   */
+  protected readonly modoSelezione = createSelectionMode({
+    clear: () => this.selectedRows.set(new Map()),
+  });
 
   /**
    * ⭐ **Le funzioni dell'elenco, sempre visibili** (`14` §5.1): a selezione

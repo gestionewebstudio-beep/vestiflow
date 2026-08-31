@@ -79,6 +79,7 @@ import type { DataTableSelectionEvent } from '@shared/components/data-table/data
 import type { Money } from '@core/models/money.model';
 import { ViewportService } from '@core/services/viewport.service';
 import { createListSelection } from '@shared/utils/list-selection';
+import { createSelectionMode } from '@shared/utils/selection-mode';
 import {
   LOCATION_UNDETERMINED_LABEL,
   corrispettivoSourceLabel,
@@ -662,12 +663,18 @@ export class CorrispettiviReportComponent {
   /** La vista viva: la modalita selezione esiste solo dove le righe sono card. */
   protected readonly viewportCompatto = this.viewport.compact;
 
-  protected readonly modalitaSelezione = signal(false);
-  protected readonly selezionePerTocco = computed(
-    () => this.viewport.compact() && this.modalitaSelezione(),
-  );
-
   private readonly selection = createListSelection('multiple');
+  /**
+   * ⭐ **La modalità «Seleziona», dalla primitiva comune** — dal 31/08/2026 è del
+   * telaio e la usano tutti e dodici gli elenchi.
+   *
+   * ⛔ Era scritta qui, insieme alla regola che spegnerla azzera. Restava
+   * l'unico elenco ad averla, e copiarla altrove avrebbe copiato anche quella
+   * regola: undici occasioni di dimenticarla.
+   */
+  protected readonly modoSelezione = createSelectionMode(this.selection);
+  protected readonly selezionePerTocco = this.modoSelezione.perTocco;
+
   protected readonly selectedIds = this.selection.ids;
   protected readonly selectionCount = this.selection.count;
 
@@ -982,13 +989,6 @@ export class CorrispettiviReportComponent {
     che quella regola evita — qui varrebbe doppio, perché a modalità spenta il
     tocco torna ad aprire e non c'è più nessun gesto per deselezionare.
   */
-  protected toggleModalitaSelezione(): void {
-    const acceso = !this.modalitaSelezione();
-    this.modalitaSelezione.set(acceso);
-    if (!acceso) {
-      this.selection.clear();
-    }
-  }
 
   protected readonly listActions = computed<readonly ListAction[]>(() => [
     // ⭐ **La forma dei comandi viene dal CATALOGO**, non riscritta qui: era

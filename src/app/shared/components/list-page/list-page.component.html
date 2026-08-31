@@ -139,6 +139,31 @@
         faceva sembrare un'azione, e su un telefono portava i comandi di barra a
         cinque, con «Esporta» troncato in «Es…».
       -->
+      <!--
+        ⭐ **«Seleziona» è del TELAIO** — proprietario, 31/08/2026: «bisogna
+        inserire "Seleziona" in questi riepiloghi e credo in tutti».
+
+        ⛔ **Esisteva solo sul Registro Corrispettivi, scritto a mano.** Copiarlo
+        su altri undici elenchi avrebbe copiato anche la regola non ovvia che lo
+        governa — spegnere azzera — e sarebbe bastato dimenticarla una volta per
+        lasciare righe selezionate che nessuno può più vedere né togliere.
+
+        ⚠️ **Solo dove le righe sono card**: sulla tabella la selezione ce l'ha
+        già la sua colonna di caselle, e due affordance per la stessa funzione
+        sono una di troppo. Lo decide `selectionToggleable`, che la pagina
+        accende solo se l'elenco è davvero selezionabile.
+      -->
+      @if (selectionToggleable() && compatto()) {
+        <app-button
+          variant="secondary"
+          [ariaPressed]="selectionMode()"
+          (click)="onToggleSelectionMode()"
+        >
+          <i class="pi pi-check-square" aria-hidden="true"></i>
+          Seleziona
+        </app-button>
+      }
+
       <ng-content select="[viewActions]" />
 
       <!--

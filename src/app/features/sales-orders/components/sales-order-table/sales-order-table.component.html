@@ -9,6 +9,7 @@
   sopra. La stessa riga non esiste mai due volte.
 -->
 <app-data-table
+  [rowClickSelects]="rowClickSelects()"
   caption="Ordini cliente"
   [columns]="engineColumns()"
   [sections]="sections()"
