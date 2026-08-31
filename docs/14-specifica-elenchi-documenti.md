@@ -541,20 +541,47 @@ solo confrontando le date — in ordine alfabetico è il contrario.
 ⭐ **Non restringere è meglio che restringere per un confronto che non sappiamo fare**: un
 `range` applicato al testo formattato darebbe un risultato sbagliato senza dire niente.
 
-#### ✅ Quattro elenchi su dodici — 31/08/2026
+#### ✅ Undici elenchi su dodici — 31/08/2026
 
 ```text
-✅ Fornitori          pilota: otto colonne, tutte di testo
-✅ Clienti            prima colonna `date` («Creato il»)
-✅ Ordini fornitore   quattro colonne numeriche e due date: entrambi gli estrattori
-✅ Vendite online     stesso schema, più «Ordine origine» riportato a `text`
-⏸ Inventario · Giacenze · Situazione · Movimenti · Prodotti · Ordini cliente
-⏸ Corrispettivi
-⏸ Documenti           per ultimo: quindici controlli e cinquantasei colonne
+✅ Fornitori · Clienti · Ordini fornitore · Vendite online
+✅ Giacenze · Situazione · Inventario · Movimenti
+✅ Prodotti · Ordini cliente · Documenti
+⏸ Registro Corrispettivi     — decisione aperta, vedi sotto
 ```
 
-⚠️ **Documenti resta in fondo di proposito**: è quello dove un errore costa di più, e ogni
-elenco migrato prima insegna qualcosa che lì si applica una volta sola.
+⭐ **Documenti non ha avuto bisogno di niente di nuovo**, ed è la verifica che il
+meccanismo regge: cinquantasei colonne, e le stesse tre righe di cablaggio degli altri.
+
+#### ⛔ Il Registro Corrispettivi NON si migra così — deciso il 31/08/2026
+
+> **Il suo riepilogo arriva dall'API, già sommato sul periodo. Filtrare le righe lato
+> client lascerebbe i totali fermi sul periodo intero.**
+
+Un registro fiscale che mostra dieci righe e i totali di cento non è un difetto estetico:
+la verificabilità **è** la sua funzione (`regole-gestionale`, «il riepilogo SOMMA»).
+
+⚠️ **Non è un residuo di lavoro: è una domanda di prodotto.** Le strade sono due, e vanno
+scelte —
+
+|                                                     |                                                                      |
+| --------------------------------------------------- | -------------------------------------------------------------------- |
+| i filtri di colonna diventano parte della **query** | il server filtra e risomma: coerente, ma è lavoro d'API              |
+| il Registro **non ha** filtri di colonna            | tiene i suoi filtri di dominio, già server-side: Origine, Tipo, Sede |
+
+⭐ **Lo stesso vincolo vale per chiunque prenda i totali dall'API**, ed è il criterio da
+applicare al prossimo elenco che lo faccia: si può filtrare lato client solo dove i totali
+si calcolano dalle righe che si hanno in mano.
+
+#### ⚠️ La premessa che regge tutto: nessun elenco impagina
+
+Filtrare le righe caricate è corretto **perché** l'insieme in mano è il risultato intero
+del filtro (`tutto: true`). Su un elenco paginato quel filtro restringerebbe **una pagina**
+e chiamerebbe il risultato «l'elenco».
+
+⛔ `product-table` dichiarava ancora «l'elenco prodotti PAGINA» — falso dal 30/08 — ed è
+il tipo di commento che va corretto e non ignorato: descrive la condizione da cui dipende
+la correttezza di ciò che gli sta intorno.
 
 ⚠️ La guardia è `npm run check:filtri-colonna`: un `[viewId]` sul motore senza
 `createColumnFilters` accende i controlli e **non restringe niente** — un comando che
