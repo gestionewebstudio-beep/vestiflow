@@ -10,14 +10,21 @@ import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-i
 import { ActivatedRoute, Router } from '@angular/router';
 import {
   catchError,
+  concatMap,
   debounceTime,
   distinctUntilChanged,
+  from,
   map,
   of,
   startWith,
   switchMap,
+  take,
+  toArray,
 } from 'rxjs';
 import type { Subscription } from 'rxjs';
+
+import { customerDisplayName } from '@core/models/customer.model';
+import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
 
 import type { PageMeta } from '@core/models/api.model';
 import { AuthService } from '@core/auth';
@@ -89,6 +96,7 @@ type CustomerListState =
     ListPageComponent,
     CustomerTableComponent,
     ShopifySyncFeedbackComponent,
+    DeleteConfirmComponent,
   ],
   templateUrl: './customer-list.component.html',
   styleUrl: './customer-list.component.scss',
@@ -282,6 +290,90 @@ export class CustomerListComponent {
   */
   protected readonly selectedCustomerIds = signal<ReadonlySet<string>>(new Set<string>());
 
+  // ── Eliminazione: la sequenza a due conferme sta nel componente condiviso ──
+  protected readonly deleteWarnOpen = signal(false);
+  protected readonly deleteBusy = signal(false);
+  private readonly pendingDeleteIds = signal<readonly string[]>([]);
+
+  /*
+    ⚠️ **Il titolo NOMINA chi sparisce**, non l'operazione: «Elimina Mario Rossi»
+    dice all'operatore che cosa sta per perdere.
+  */
+  protected readonly deleteWarnTitle = computed(() => {
+    const ids = this.pendingDeleteIds();
+    if (ids.length === 1) {
+      const cliente = this.customers().find((c) => c.id === ids[0]);
+      return cliente ? `Elimina ${customerDisplayName(cliente)}` : 'Elimina cliente';
+    }
+    return `Elimina ${ids.length} clienti`;
+  });
+
+  /*
+    ⭐ **La conseguenza dice che cosa NON sparisce**, ed è la parte che conta: chi
+    elimina un cliente teme di perdere le fatture. Non le perde — il nome resta
+    scritto su ogni documento, sparisce solo la scheda.
+
+    ⚠️ È la stessa promessa che l'unità di misura e il Codice IVA fanno già, e
+    va detta con le stesse parole: «il dato resta come testo».
+  */
+  protected readonly deleteWarnMessage = computed(() => {
+    const n = this.pendingDeleteIds().length;
+    const soggetto = n === 1 ? 'La scheda sparisce' : `Le ${n} schede spariscono`;
+    return `${soggetto} dall'anagrafica. Documenti, ordini e vendite restano invariati: il nome resta scritto su ognuno, e si continua a leggere.`;
+  });
+
+  private requestDeleteSelection(ids: readonly string[]): void {
+    if (ids.length === 0 || this.deleteBusy()) {
+      return;
+    }
+    this.pendingDeleteIds.set(ids);
+    this.deleteWarnOpen.set(true);
+  }
+
+  protected onDeleteCancel(): void {
+    if (this.deleteBusy()) {
+      return;
+    }
+    this.pendingDeleteIds.set([]);
+  }
+
+  /*
+    ⚠️ **`concatMap`, non `forkJoin`**: una per una, così un fallimento a metà
+    lascia uno stato leggibile invece di un esito unico che non dice quali.
+  */
+  protected onDeleteConfirm(): void {
+    const ids = this.pendingDeleteIds();
+    if (ids.length === 0 || this.deleteBusy()) {
+      this.deleteWarnOpen.set(false);
+      return;
+    }
+    this.deleteBusy.set(true);
+    from(ids)
+      .pipe(
+        concatMap((id) =>
+          this.service.deleteCustomer(id).pipe(
+            map(() => ({ ok: true, id })),
+            catchError(() => of({ ok: false, id })),
+          ),
+        ),
+        toArray(),
+        take(1),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((esiti) => {
+        this.deleteBusy.set(false);
+        this.deleteWarnOpen.set(false);
+        this.pendingDeleteIds.set([]);
+        const eliminati = new Set(esiti.filter((e) => e.ok).map((e) => e.id));
+        if (eliminati.size > 0) {
+          this.selectedCustomerIds.update(
+            (correnti) => new Set([...correnti].filter((id) => !eliminati.has(id))),
+          );
+        }
+        this.reload();
+      });
+  }
+
   protected toggleCustomerSelection(customerId: string, selected: boolean): void {
     this.selectedCustomerIds.update((correnti) => {
       const prossimi = new Set(correnti);
@@ -317,6 +409,28 @@ export class CustomerListComponent {
         comando('new', {
           ariaLabel: 'Nuovo cliente',
           run: () => void this.router.navigate(['/app/customers/new']),
+        }),
+      );
+    }
+
+    /*
+      ⭐ **Elimina, dal catalogo** (30/08/2026): `requires: 'oneOrMore'`, quindi a
+      selezione vuota c'è ed è spento CON il motivo.
+
+      ⚠️ **Stesso permesso della modifica**: chi può cambiare un'anagrafica può
+      toglierla. Un permesso a sé sarebbe una terza autorità su un'entità che ne
+      ha già una.
+    */
+    if (this.canManage()) {
+      azioni.push(
+        comando('delete', {
+          busy: this.deleteBusy(),
+          ariaLabel: 'Elimina i clienti selezionati',
+          run: (target) => {
+            if (target.scope === 'selection') {
+              this.requestDeleteSelection(target.ids);
+            }
+          },
         }),
       );
     }

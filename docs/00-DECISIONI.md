@@ -444,6 +444,47 @@ dentro il blocco di implementazione, non con una cancellazione.
 | **Vuota è legittima**: zero o una per azienda, garantito da indice unico parziale                               | `03b` §5                           |
 | ⛔ **Rinominare o eliminare una voce non riscrive articoli né documenti**: l’unità è testo sulla riga, senza FK | `03b` §5                           |
 
+## ⭐ ELIMINARE un'anagrafica — deciso il 30/08/2026
+
+> **Eliminare una scheda toglie la SCHEDA, non la storia.** Ciò che è fotografato
+> dentro un documento resta come testo e si continua a leggere.
+
+_Il proprietario:_
+
+> _«Quello che deve succedere con Elimina è come funziona con l'IVA e con l'u.m.:
+> quando cancello un'u.m., il dato nei documenti diventa testo e non sparisce.
+> Tutto quello che è salvato nel gestionale resta — i dati dai movimenti e dai
+> documenti non spariscono — sparisce solo la scheda cliente.»_
+
+⭐ **Non è una regola nuova: è quella dell'unità di misura, estesa.** La riga qui
+sopra la dice già per le u.m. — «rinominare o eliminare una voce non riscrive
+articoli né documenti» — e vale per la stessa ragione: il valore sulla riga è uno
+**snapshot**, non un riferimento.
+
+|          |                                                                         |
+| -------- | ----------------------------------------------------------------------- |
+| sparisce | la riga di anagrafica, davvero: non è una disattivazione                |
+| resta    | il **nome fotografato** su documenti, ordini e vendite (`customerName`) |
+| resta    | ogni movimento, ogni totale, ogni stampa                                |
+| si perde | solo il **collegamento**: dal documento non si apre più la scheda       |
+
+### ⛔ Lo sgancio è ESPLICITO, non un `onDelete` del database
+
+Due relazioni su tre erano `Restrict`. La strada breve era `onDelete: SetNull` in
+migration — ma quel comportamento sarebbe stato **invisibile a chi legge il
+servizio**, e su un'operazione che tocca documenti fiscali ciò che accade va
+scritto dove si esegue. Lo sgancio avviene in transazione, riga per riga, e un
+test inchioda che si scrive **solo** `customerId: null` — mai `customerName`.
+
+### ⚠️ L'anagrafica condivisa sopravvive al fornitore
+
+Cliente e fornitore possono essere la stessa azienda in due ruoli, e condividono
+la `Party`. Eliminando il ruolo cliente, l'anagrafica sparisce **solo se nessun
+fornitore la usa**: toglierla comunque cancellerebbe un fornitore attivo passando
+dalla porta di servizio.
+
+⏸ **Fornitori: stessa regola, ancora da fare.** L'endpoint non esiste.
+
 ## ⏸ Le decisioni APERTE — in un posto solo
 
 ⛔ **Nessuna di queste si chiude scrivendo codice che funziona.** Si chiudono decidendo.

@@ -500,4 +500,68 @@ export class CustomersService {
     assign('commercialNotes', dto.commercialNotes);
     return result;
   }
+
+  /**
+   * ⭐ **Elimina la SCHEDA cliente, non la sua storia.**
+   *
+   * Deciso dal proprietario il 30/08/2026, e il criterio è quello già in uso per
+   * l'unità di misura e il Codice IVA:
+   *
+   * > _«Quando cancello un'u.m., il dato nei documenti diventa testo e non
+   * > sparisce. Tutto quello che è salvato nel gestionale resta — i dati dai
+   * > movimenti e dai documenti non spariscono — sparisce solo la scheda
+   * > cliente.»_
+   *
+   * ## Perché si può fare senza perdere niente
+   *
+   * Il nome del cliente è **già fotografato** su ogni cosa che lo nomina:
+   * `Document.customerName`, `SalesOrder.customerName`, `OnlineSale.customerName`,
+   * scritti alla creazione da `snapshotCustomerName`. Il riferimento
+   * all'anagrafica serve ad aprirne la scheda, non a leggere il nome.
+   *
+   * ## ⛔ Lo sgancio è ESPLICITO, non un `onDelete` del database
+   *
+   * Due delle tre relazioni sono `Restrict` (il default di Prisma), quindi il
+   * database rifiuterebbe. La strada breve sarebbe cambiare lo schema in
+   * `onDelete: SetNull` e migrare — ma quel comportamento diventerebbe
+   * **invisibile a chi legge questo servizio**, e su un'operazione che tocca
+   * documenti fiscali la cosa che succede va scritta dove si esegue.
+   *
+   * ⚠️ Tutto in **una transazione**: sganciare e non eliminare lascerebbe
+   * documenti orfani di un cliente che esiste ancora.
+   *
+   * ## La Party sopravvive se serve a un fornitore
+   *
+   * ⚠️ Cliente e fornitore possono condividere la stessa `Party` — è la stessa
+   * azienda in due ruoli. Eliminando il ruolo cliente, l'anagrafica sparisce
+   * **solo se nessun fornitore la usa**: toglierla comunque cancellerebbe un
+   * fornitore attivo passando dalla porta di servizio.
+   */
+  async remove(tenantId: string, id: string): Promise<void> {
+    const customer = await this.prisma.customer.findFirst({
+      where: { id, tenantId },
+      select: { id: true, partyId: true },
+    });
+    if (!customer) {
+      throw new NotFoundException('Cliente non trovato.');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      // Lo storico resta: si toglie il collegamento, non il nome.
+      const riferimento = { where: { tenantId, customerId: id }, data: { customerId: null } };
+      await tx.document.updateMany(riferimento);
+      await tx.salesOrder.updateMany(riferimento);
+      await tx.onlineSale.updateMany(riferimento);
+
+      await tx.customer.delete({ where: { id } });
+
+      const anchefornitore = await tx.supplier.findFirst({
+        where: { partyId: customer.partyId },
+        select: { id: true },
+      });
+      if (!anchefornitore) {
+        await tx.party.delete({ where: { id: customer.partyId } });
+      }
+    });
+  }
 }

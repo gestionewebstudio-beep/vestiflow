@@ -64,6 +64,15 @@ export class CustomerService {
   }
 
   /**
+   * ⭐ **Elimina la scheda cliente**, non la sua storia: documenti, ordini e
+   * vendite online conservano il nome fotografato e perdono solo il collegamento
+   * (deciso il 30/08/2026, stesso criterio dell'unità di misura e del Codice IVA).
+   */
+  deleteCustomer(id: string): Observable<void> {
+    return this.http.delete<void>(this.url(`/customers/${id}`)).pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
+  /**
    * Elenco completo dei clienti ATTIVI per le select inline (Ordine cliente),
    * speculare a getSuppliers() dell'Arrivo merce: endpoint dedicato senza
    * paginazione (la lista paginata ha pageSize massimo 100).

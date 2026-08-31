@@ -1,8 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Header,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -94,6 +96,19 @@ export class CustomersController {
     @Body() dto: CreateCustomerDto,
   ): Promise<CustomerView> {
     return this.customers.create(tenantId, dto);
+  }
+
+  /**
+   * ⭐ **Elimina la scheda cliente.** Lo storico resta: vedi `remove` nel servizio.
+   *
+   * ⚠️ **Stesso permesso della modifica**: chi può cambiare un'anagrafica può
+   * toglierla. Un permesso a sé per l'eliminazione sarebbe una terza autorità su
+   * un'entità che ne ha già una.
+   */
+  @Delete(':id')
+  @HttpCode(204)
+  remove(@CurrentTenant() tenantId: string, @Param('id') id: string): Promise<void> {
+    return this.customers.remove(tenantId, id);
   }
 
   @Patch(':id')
