@@ -26,6 +26,7 @@ import {
 import { MOVEMENT_LIST_EXPORT } from './utils/movement-list-export.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
+import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';
 import type { DataTableSelectionEvent } from '@shared/components/data-table/data-table.component';
 import type {
@@ -143,6 +144,7 @@ const SEARCH_DEBOUNCE_MS = 300;
     InventoryTabsComponent,
     BadgeComponent,
     DataTableCellDirective,
+    DataTableRowCardDirective,
     DataTableComponent,
   ],
   templateUrl: './stock-movements.component.html',
@@ -667,6 +669,13 @@ export class StockMovementsComponent {
       },
     }),
   );
+  /*
+    ⚠️ **Le colonne spente non si controllano a mano.** La card legge quelle che
+    il motore ha già ricevuto: una fonte sola invece di due che possono divergere.
+  */
+  protected visibile(columnId: string): boolean {
+    return this.tableColumns().some((column) => column.id === columnId);
+  }
 
   protected readonly rowId = (row: StockMovementRow): string => row.id;
   protected readonly selectionLabel = (row: StockMovementRow): string =>

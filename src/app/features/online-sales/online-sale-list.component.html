@@ -102,6 +102,47 @@
         {{ inventoryLabel(sale.inventoryStatus) }}
       </app-badge>
     </ng-template>
+    <!--
+    ⭐ **La card di un ELENCO si progetta, non si impila** (`regole-stile-ui`):
+    tre fasce, «a sinistra le parole, a destra i numeri». La grammatica è comune
+    (`styles/_list-card.scss`), il contenuto è di questo elenco.
+
+    ⛔ Prima c'era il ripiego a `data-label` del motore: una riga «ETICHETTA:
+    valore» per colonna, tutte dello stesso peso, e niente di primario.
+  -->
+    <ng-template appRowCard let-sale>
+      <div class="list-card__head">
+        <span class="list-card__ident">
+          @if (visibile('fulfilledAt')) {
+            <span class="list-card__when tabular-nums">{{ cellText(sale, 'fulfilledAt') }}</span>
+          }
+          @if (visibile('customer')) {
+            <span class="list-card__what">{{ cellText(sale, 'customer') }}</span>
+          }
+        </span>
+        @if (visibile('reference')) {
+          <span class="list-card__anchor">{{ cellText(sale, 'reference') }}</span>
+        }
+      </div>
+
+      <div class="list-card__words">
+        @if (visibile('channel')) {
+          <span>{{ cellText(sale, 'channel') }}</span>
+        }
+        @if (visibile('location')) {
+          <span>{{ cellText(sale, 'location') }}</span>
+        }
+        @if (visibile('inventoryStatus')) {
+          <span>{{ inventoryLabel(sale.inventoryStatus) }}</span>
+        }
+      </div>
+
+      @if (visibile('total')) {
+        <div class="list-card__figures">
+          <span class="list-card__total">{{ cellText(sale, 'total') }}</span>
+        </div>
+      }
+    </ng-template>
   </app-data-table>
 
   <!--

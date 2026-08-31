@@ -12,7 +12,15 @@
 // Vista mobile di riferimento della maschera documento: opt-in con il
 // modificatore .doc-form--m-ref (vedi il partial).
 @use 'styles/document-form-mobile';
+// La card di un ELENCO sotto `lg`: tre fasce, «a sinistra le parole, a destra i
+// numeri». Sta qui perché è contenuto PROIETTATO (`appRowCard`) e una regola nel
+// motore non lo raggiungerebbe — non fallirebbe, non farebbe niente.
+//
+// ⚠️ L'`@include` sta DOPO tutti gli `@use`: Sass li pretende in cima al file.
+@use 'styles/list-card' as vf-list-card;
 @use 'styles/a11y';
+
+@include vf-list-card.list-card();
 
 // -----------------------------------------------------------------------------
 // RESET MODERNO

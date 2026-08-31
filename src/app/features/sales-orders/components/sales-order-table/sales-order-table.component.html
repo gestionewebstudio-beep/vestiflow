@@ -126,6 +126,47 @@
       (actionSelected)="onAction($event, order)"
     />
   </ng-template>
+  <!--
+    ⭐ **La card di un ELENCO si progetta, non si impila** (`regole-stile-ui`):
+    tre fasce, «a sinistra le parole, a destra i numeri». La grammatica è comune
+    (`styles/_list-card.scss`), il contenuto è di questo elenco.
+
+    ⛔ Prima c'era il ripiego a `data-label` del motore: una riga «ETICHETTA:
+    valore» per colonna, tutte dello stesso peso, e niente di primario.
+  -->
+  <ng-template appRowCard let-order>
+    <div class="list-card__head">
+      <span class="list-card__ident">
+        @if (visibile('placedAt')) {
+          <span class="list-card__when tabular-nums">{{ cellText(order, 'placedAt') }}</span>
+        }
+        @if (visibile('customerName')) {
+          <span class="list-card__what">{{ order.customerName }}</span>
+        }
+      </span>
+      @if (visibile('orderNumber')) {
+        <span class="list-card__anchor">{{ order.orderNumber }}</span>
+      }
+    </div>
+
+    <div class="list-card__words">
+      @if (visibile('location')) {
+        <span>{{ cellText(order, 'location') }}</span>
+      }
+      <span>{{ orderStateLabel(order) }}</span>
+    </div>
+
+    @if (visibile('netTotal') || visibile('total')) {
+      <div class="list-card__figures">
+        @if (visibile('netTotal')) {
+          <span class="tabular-nums">Imp. {{ formatMoney(order.subtotal) }}</span>
+        }
+        @if (visibile('total')) {
+          <span class="list-card__total">{{ formatMoney(order.total) }}</span>
+        }
+      </div>
+    }
+  </ng-template>
 </app-data-table>
 
 <!-- Vista mobile (mockup restyling): card verticali a layout fisso, non la

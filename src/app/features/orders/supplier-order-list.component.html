@@ -113,6 +113,42 @@
     <ng-template appCell="expected" let-order>
       <span class="po-list__attesa">{{ cellText(order, 'expected') }}</span>
     </ng-template>
+    <!--
+    ⭐ **La card di un ELENCO si progetta, non si impila** (`regole-stile-ui`):
+    tre fasce, «a sinistra le parole, a destra i numeri». La grammatica è comune
+    (`styles/_list-card.scss`), il contenuto è di questo elenco.
+
+    ⛔ Prima c'era il ripiego a `data-label` del motore: una riga «ETICHETTA:
+    valore» per colonna, tutte dello stesso peso, e niente di primario.
+  -->
+    <ng-template appRowCard let-order>
+      <div class="list-card__head">
+        <span class="list-card__ident">
+          @if (visibile('expected')) {
+            <span class="list-card__when tabular-nums">{{ cellText(order, 'expected') }}</span>
+          }
+          @if (visibile('supplier')) {
+            <span class="list-card__what">{{ cellText(order, 'supplier') }}</span>
+          }
+        </span>
+        @if (visibile('reference')) {
+          <span class="list-card__anchor">{{ cellText(order, 'reference') }}</span>
+        }
+      </div>
+
+      <div class="list-card__words">
+        <span>{{ statusLabel(order.status) }}</span>
+        @if (visibile('lines')) {
+          <span>{{ cellText(order, 'lines') }} righe</span>
+        }
+      </div>
+
+      @if (visibile('total')) {
+        <div class="list-card__figures">
+          <span class="list-card__total">{{ cellText(order, 'total') }}</span>
+        </div>
+      }
+    </ng-template>
   </app-data-table>
 
   <!--

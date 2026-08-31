@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
 
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
 import { DataTableRowActionsDirective } from '@shared/components/data-table/data-table-row-actions.directive';
+import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';
 import type { DataTableSort } from '@shared/components/data-table/data-table.model';
 
@@ -65,6 +66,7 @@ export interface SalesOrderTableSelectionEvent {
     RouterLink,
     DataTableComponent,
     DataTableCellDirective,
+    DataTableRowCardDirective,
     DataTableRowActionsDirective,
   ],
   templateUrl: './sales-order-table.component.html',
@@ -313,6 +315,13 @@ export class SalesOrderTableComponent {
       },
     });
   });
+  /*
+    ⚠️ **Le colonne spente non si controllano a mano.** La card legge quelle che
+    il motore ha già ricevuto: una fonte sola invece di due che possono divergere.
+  */
+  protected visibile(columnId: string): boolean {
+    return this.columns().some((column) => column.id === columnId);
+  }
 
   protected readonly rowId = (order: SalesOrder): string => order.id;
 

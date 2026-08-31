@@ -105,14 +105,48 @@ describe('OnlineSaleListComponent', () => {
     expect(screen.queryByRole('columnheader', { name: /location/i })).toBeNull();
   });
 
+  /**
+   * ⚠️ **I valori compaiono DUE volte, ed è corretto**: la riga ha due vesti — le
+   * celle vere e la card progettata (`appRowCard`), che sotto `lg` prende il
+   * posto della tabella. Da qui il `getAllByText`: cercarne uno solo sarebbe
+   * chiedere che una delle due vesti non esista.
+   */
   it('rende i valori della riga passando per il motore comune', async () => {
     await renderElenco();
 
-    expect(screen.getByText('VO-2026-0007')).toBeTruthy();
-    expect(screen.getByText('#1042')).toBeTruthy();
-    expect(screen.getByText('Mario Rossi')).toBeTruthy();
-    expect(screen.getByText('Magazzino test 3')).toBeTruthy();
-    expect(screen.getByText('DDT-2026-0003')).toBeTruthy();
+    for (const valore of [
+      'VO-2026-0007',
+      '#1042',
+      'Mario Rossi',
+      'Magazzino test 3',
+      'DDT-2026-0003',
+    ]) {
+      expect(screen.getAllByText(valore).length, `manca «${valore}»`).toBeGreaterThan(0);
+    }
+  });
+
+  /**
+   * ⛔ **Le due vesti sono un difetto di accessibilità se i ruoli non si
+   * dividono**: senza, uno screen reader annuncerebbe ogni riga DUE volte.
+   *
+   * ⭐ La divisione la fa il motore: la cella che ospita la card porta
+   * `aria-hidden` — è una veste, non un dato — mentre le celle vere restano
+   * nell'albero accessibile e sotto `lg` spariscono solo alla vista.
+   *
+   * ⚠️ **Non si vede a schermo e nessun controllo di layout lo trova.**
+   */
+  it('⭐ la card è una VESTE: porta aria-hidden, le celle vere no', async () => {
+    const { container } = await renderElenco();
+
+    const card = container.querySelector('td.data-table__card');
+    expect(card, 'la card progettata non è resa').toBeTruthy();
+    expect(card?.getAttribute('aria-hidden')).toBe('true');
+
+    // La cella vera dello stesso valore non è nascosta all'albero accessibile.
+    const celle = [...container.querySelectorAll('tbody td:not(.data-table__card)')];
+    const cellaNumero = celle.find((c) => c.textContent?.includes('VO-2026-0007'));
+    expect(cellaNumero, 'la cella vera del numero non esiste').toBeTruthy();
+    expect(cellaNumero?.getAttribute('aria-hidden')).toBeNull();
   });
 
   it('senza sede, senza DDT e senza rimborso la cella dice «—», non resta vuota', async () => {

@@ -202,6 +202,41 @@
     <ng-template appCell="product" let-row>
       <span class="stock-movements__prodotto">{{ cellText(row, 'product') }}</span>
     </ng-template>
+    <!--
+    ⭐ **La card di un ELENCO si progetta, non si impila** (`regole-stile-ui`):
+    tre fasce, «a sinistra le parole, a destra i numeri». La grammatica è comune
+    (`styles/_list-card.scss`), il contenuto è di questo elenco.
+
+    ⛔ Prima c'era il ripiego a `data-label` del motore: una riga «ETICHETTA:
+    valore» per colonna, tutte dello stesso peso, e niente di primario.
+  -->
+    <ng-template appRowCard let-row>
+      <div class="list-card__head">
+        <span class="list-card__ident">
+          @if (visibile('createdAt')) {
+            <span class="list-card__when tabular-nums">{{ cellText(row, 'createdAt') }}</span>
+          }
+          <span class="list-card__what">{{ cellText(row, 'type') }}</span>
+        </span>
+        <!--
+        ⚠️ **L'ancora dei movimenti è la QUANTITÀ, non un numero di documento**:
+        è il dato per cui si scorre il registro, e porta il segno.
+      -->
+        <span class="list-card__anchor">{{ row.signedQuantity }}</span>
+      </div>
+
+      <div class="list-card__words">
+        @if (visibile('product')) {
+          <span>{{ cellText(row, 'product') }}</span>
+        }
+        @if (visibile('locationLabel')) {
+          <span>{{ cellText(row, 'locationLabel') }}</span>
+        }
+        @if (visibile('documentRef')) {
+          <span>{{ cellText(row, 'documentRef') }}</span>
+        }
+      </div>
+    </ng-template>
   </app-data-table>
 
   <!-- `14` §21.1: dati → totali → funzioni. -->

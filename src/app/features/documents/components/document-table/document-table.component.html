@@ -81,4 +81,70 @@
       </span>
     }
   </ng-template>
+  <!--
+    ⭐ **La card di un ELENCO si progetta, non si impila** (`regole-stile-ui`).
+
+    ⛔ Qui c'era il ripiego a `data-label` del motore: diciotto colonne diventavano
+    diciotto righe «ETICHETTA: valore», tutte dello stesso peso, e la card era più
+    alta dello schermo. Niente era primario.
+
+    ⭐ Tre fasce, la grammatica comune di `styles/_list-card.scss`: **a sinistra le
+    parole, a destra i numeri**. È la stessa forma del Registro Corrispettivi —
+    decisione del proprietario, 30/08/2026: «i riepiloghi dei documenti possiamo
+    unificarli come quelli dei corrispettivi».
+
+    ⚠️ `aria-hidden` lo mette il MOTORE sulla cella che ospita il template: la card
+    è una veste, i dati sono le celle vere, che sotto `lg` restano nell'albero
+    accessibile. Senza quella divisione ogni riga verrebbe annunciata due volte.
+  -->
+  <ng-template appRowCard let-doc>
+    <div class="list-card__head">
+      <!-- Fascia 1 — quando e cosa. Due voci brevi: non va mai a capo. -->
+      <span class="list-card__ident">
+        @if (visibile('documentDate')) {
+          <span class="list-card__when tabular-nums">{{ dateLabel(doc) }}</span>
+        }
+        @if (visibile('type')) {
+          <span class="list-card__what">{{ typeLabel(doc.type) }}</span>
+        }
+      </span>
+      <!-- L'ancora: il numero sta sempre nello stesso punto, card dopo card. -->
+      @if (visibile('reference')) {
+        <span class="list-card__anchor">{{ referenceLabel(doc) }}</span>
+      }
+    </div>
+
+    <!--
+      Fascia 2 — SOLO parole: chi, dove, in che stato. Nessun importo qui dentro:
+      mescolare «Magazzino test 3» e «25,00 €» nello stesso rigo grigio è ciò che
+      toglie alla card il suo criterio.
+    -->
+    <div class="list-card__words">
+      @if (visibile('counterparty') && counterparty(doc)) {
+        <span>{{ counterparty(doc) }}</span>
+      }
+      @if (visibile('location') && locationLabel(doc)) {
+        <span>{{ locationLabel(doc) }}</span>
+      }
+      @if (visibile('status') && statusLabel(doc); as stato) {
+        <span>{{ stato }}</span>
+      }
+    </div>
+
+    <!--
+      Fascia 3 — SOLO numeri. Imponibile e totale sono il calcolo e il suo
+      risultato: sulla stessa riga si leggono insieme, e il totale resta l'unico
+      in grassetto — si distingue per peso, non per posizione.
+    -->
+    @if (visibile('subtotal') || visibile('total')) {
+      <div class="list-card__figures">
+        @if (visibile('subtotal')) {
+          <span class="tabular-nums">Imp. {{ formatMoney(doc.subtotal) }}</span>
+        }
+        @if (visibile('total')) {
+          <span class="list-card__total">{{ formatMoney(doc.total) }}</span>
+        }
+      </div>
+    }
+  </ng-template>
 </app-data-table>

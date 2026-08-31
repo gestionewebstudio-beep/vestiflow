@@ -1456,6 +1456,40 @@ un'altra colonna direbbe una cosa per un'altra.
 ⭐ **Chi ha una card PROGETTATA non lo usa**: il Registro Corrispettivi disegna la
 propria (`appRowCard`), e lì il titolo è già parte del disegno.
 
+### ✅ La grammatica della card è UNA, e sta in un foglio globale _(30/08/2026)_
+
+⭐ **La forma a tre fasce descritta qui sotto non è più del solo Registro
+Corrispettivi**: è `styles/_list-card.scss`, e la usano tutti gli elenchi.
+
+_Deciso dal proprietario: «i riepiloghi dei documenti possiamo sistemarli e
+unificarli come quelli dei corrispettivi»._
+
+```text
+.list-card__head      fascia 1 — identità: __when · __what, e __anchor a destra
+.list-card__words     fascia 2 — solo parole
+.list-card__figures   fascia 3 — solo numeri, con __total e __caret
+```
+
+⛔ **Sta in un foglio GLOBALE e non nel motore**, e la ragione è la stessa di
+`_shared-directives.scss`: la card è **contenuto proiettato** (`appRowCard`), e
+una regola dentro il motore porta l'attributo di incapsulamento del motore —
+**non raggiunge** il contenuto proiettato, e non fallisce: non fa niente.
+
+⚠️ **Ogni fascia è facoltativa**: un elenco senza importi omette la terza. Quello
+che non si fa è spostare un importo fra le parole — è l'unico criterio che la
+card ha.
+
+#### ⛔ E la direttiva va IMPORTATA, o il template sparisce in silenzio
+
+Un `<ng-template appRowCard>` in un componente che non importa
+`DataTableRowCardDirective` non è un errore per Angular: l'attributo è sconosciuto
+e viene **ignorato**. Il template compila, i test passano, e sotto `lg` la card non
+c'è — si torna al ripiego a etichetta:valore senza che niente lo dica.
+
+⚠️ **Misurato lo stesso giorno su cinque elenchi**: la card scritta, la direttiva
+non importata, la build verde. La guardia è `npm run check:row-card`, e vale anche
+per `appCell` e `appRowActions`, che si comportano allo stesso modo.
+
 ### La card di un ELENCO si progetta, non si impila _(18/08/2026)_
 
 Quanto sopra vale per le righe di un documento. Per un **elenco di

@@ -26,6 +26,7 @@ import { DateInputComponent } from '@shared/components/date-input/date-input.com
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
+import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';
 import type { DataTableSection } from '@shared/components/data-table/data-table.model';
 import { TableViewId } from '@shared/table-columns/table-column.model';
@@ -77,6 +78,7 @@ type ListState =
     ListPageComponent,
     BadgeComponent,
     DataTableCellDirective,
+    DataTableRowCardDirective,
     DataTableComponent,
     DateInputComponent,
     SelectMenuComponent,
@@ -251,6 +253,13 @@ export class OnlineSaleListComponent {
       },
     });
   });
+  /*
+    ⚠️ **Le colonne spente non si controllano a mano.** La card legge quelle che
+    il motore ha già ricevuto: una fonte sola invece di due che possono divergere.
+  */
+  protected visibile(columnId: string): boolean {
+    return this.tableColumns().some((column) => column.id === columnId);
+  }
 
   protected readonly rowId = (sale: OnlineSaleRow): string => sale.id;
 

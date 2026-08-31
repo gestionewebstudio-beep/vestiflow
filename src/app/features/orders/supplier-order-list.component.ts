@@ -64,6 +64,7 @@ import type { SelectMenuOption } from '@shared/components/select-menu/select-men
 
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
+import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';
 import type { DataTableSelectionEvent } from '@shared/components/data-table/data-table.component';
 import type { DataTableSection } from '@shared/components/data-table/data-table.model';
@@ -113,6 +114,7 @@ type OrderListState =
     ListActionsBarComponent,
     BadgeComponent,
     DataTableCellDirective,
+    DataTableRowCardDirective,
     DataTableComponent,
   ],
   templateUrl: './supplier-order-list.component.html',
@@ -614,6 +616,13 @@ export class SupplierOrderListComponent {
       },
     });
   });
+  /*
+    ⚠️ **Le colonne spente non si controllano a mano.** La card legge quelle che
+    il motore ha già ricevuto: una fonte sola invece di due che possono divergere.
+  */
+  protected visibile(columnId: string): boolean {
+    return this.tableColumns().some((column) => column.id === columnId);
+  }
 
   protected readonly rowId = (order: SupplierOrder): string => order.id;
 

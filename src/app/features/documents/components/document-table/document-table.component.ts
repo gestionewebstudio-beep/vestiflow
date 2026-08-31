@@ -19,6 +19,7 @@ import {
 import { signedDocumentMoney } from '@domain/documents/models/document-economic-sign.util';
 import { isStoreFlowDocumentType } from '@domain/documents/models/document-operational.util';
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
+import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';
 import type {
   DataTableSort,
@@ -54,7 +55,19 @@ export interface DocumentTableSelectionEvent {
 @Component({
   selector: 'app-document-table',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [BadgeComponent, RouterLink, DataTableComponent, DataTableCellDirective],
+  /*
+    ⛔ **`DataTableRowCardDirective` NON è facoltativa**: senza, l'attributo
+    `appRowCard` sul template è un attributo sconosciuto — Angular non fallisce,
+    lo IGNORA, e la card progettata semplicemente non esiste. Nessun errore,
+    nessun test rosso, e sotto `lg` si torna al ripiego a etichetta:valore.
+  */
+  imports: [
+    BadgeComponent,
+    RouterLink,
+    DataTableComponent,
+    DataTableCellDirective,
+    DataTableRowCardDirective,
+  ],
   templateUrl: './document-table.component.html',
   styleUrl: './document-table.component.scss',
 })
@@ -272,6 +285,14 @@ export class DocumentTableComponent {
       },
     });
   });
+
+  /*
+    ⚠️ **Le colonne spente non si controllano a mano.** Legge quelle che il motore
+    ha già ricevuto: una fonte sola invece di due che possono divergere.
+  */
+  protected visibile(columnId: string): boolean {
+    return this.columns().some((column) => column.id === columnId);
+  }
 
   protected readonly rowId = (doc: DocumentRecord): string => doc.id;
 
