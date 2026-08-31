@@ -2618,6 +2618,64 @@ condiviso col collega.
 
 # Elenchi lunghi: la resa, non i dati _(rimandato 20/08/2026, con evidenza)_
 
+## ⏸ QUANDO SI FA: **alla fine di tutti i lavori** — deciso il 30/08/2026
+
+_Il proprietario: «la virtualizzazione la inserirei nel documento da fare e la riprenderei alla
+fine di tutti i lavori»._
+
+⭐ **Non è un rinvio prudenziale: è l'ordine che costa meno**, e la ragione è che la
+virtualizzazione va scritta contro un motore FERMO. Il motore tabella sta ancora prendendo forma —
+il 30/08 ha preso `table-layout: fixed`, i divisori di colonna e il taglio a colonna; deve ancora
+prendere la **riga totali**, che si incolonna con le colonne, e tre elenchi devono ancora
+entrarci. La virtualizzazione tocca **esattamente** quelle cose: altezza di riga, intestazione
+appiccicata, allineamento delle colonne. Scritta prima, si riscrive dopo.
+
+### ⭐ E il lavoro del 30/08 è il suo PREREQUISITO, non un suo rivale
+
+Una lista virtualizzata deve sapere **quanto è alta una riga** per calcolare quali disegnare.
+Fino al 30/08 l'altezza dipendeva dal contenuto: un nome lungo mandava la riga a due righe di
+testo. Il **taglio a colonna** l'ha resa costante — cioè ha appena reso la virtualizzazione
+scrivibile.
+
+### ⛔ L'impaginazione si toglie PRIMA, non dopo — corretto il 30/08/2026
+
+⛔ **Qui c'era l'ordine opposto**, scritto un'ora prima: «l'impaginazione va tolta AL PASSO 3»,
+insieme alla virtualizzazione, «la stessa modifica fatta una volta invece di due».
+
+⭐ **Il proprietario l'ha ribaltato con una frase**: _«se non togli l'impaginazione non possiamo
+ottimizzarla»_. Ed è dirimente: **con dieci righe a pagina il costo di un elenco lungo non si
+manifesta mai.** Non lo si può misurare, non lo si può tarare, e la virtualizzazione resterebbe
+una scelta al buio — cioè esattamente ciò che questo documento rimprovera altrove («il numero va
+scelto su dati reali»).
+
+⚠️ **L'argomento che avevo usato era vero e irrilevante**: sì, sono due modifiche invece di una.
+Ma la seconda non si può nemmeno progettare finché la prima non è fatta, quindi il risparmio non
+esisteva.
+
+### L'ordine, corretto
+
+```text
+1. togliere l'impaginazione      ✅ fatto sui PRODOTTI il 30/08
+2. finire la forma del motore    riga totali · spazi · gli ultimi tre elenchi
+3. virtualizzare                 alla fine, con il costo finalmente visibile e misurabile
+```
+
+⏸ **Restano cinque elenchi che impaginano ancora**: Clienti, Fornitori, Giacenze, Situazione
+magazzino, Vendite online. Vanno fatti con lo stesso schema — `all=1` lato API
+(`pageWindow`), `<app-pagination>` via, il conteggio che passa alla riga totali.
+
+⭐ **Il meccanismo lato API esisteva già** e non è stato inventato per l'occasione:
+`UnpagedQueryDto` + `pageWindow` li usano documenti, ordini cliente, ordini fornitore e
+inventario dal 21/08. Sui prodotti è bastato aggiungere `all?: boolean` al DTO e sostituire lo
+`skip`/`take` scritto a mano.
+
+⛔ **Il rischio, dichiarato**: da ora un elenco lungo è lento davvero, e si vedrà. **È lo scopo**
+— ma va detto, perché la prima segnalazione di lentezza non sarà una regressione: sarà la misura
+che serviva.
+
+⚠️ **Oggi resta comunque quasi nullo**: nessun cliente usa il gestionale e il catalogo di prova
+ha 50 articoli.
+
 Il registro Movimenti non pagina più: entra sugli **ultimi 30 giorni** e «Tutti» è una scelta
 esplicita. Resta aperto **cosa succede quando il risultato è molto grande** — e la decisione del
 proprietario è di **non fissare ora un tetto**, perché non esistono dati reali su cui tararlo.

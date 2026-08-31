@@ -42,7 +42,6 @@ import { ListPageComponent } from '@shared/components/list-page/list-page.compon
 import { comando, voceEsporta } from '@shared/models/list-action-catalog';
 import type { ListAction } from '@shared/models/list-selection.model';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
-import { PaginationComponent } from '@shared/components/pagination/pagination.component';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
 import { ProductTableComponent } from './components/product-table/product-table.component';
@@ -63,7 +62,6 @@ import {
   DEFAULT_PRODUCT_ORDER,
   DEFAULT_PRODUCT_PAGE_SIZE,
   DEFAULT_PRODUCT_SORT,
-  PRODUCT_PAGE_SIZE_OPTIONS,
   parseProductListQuery,
 } from '@domain/products/models/product-list-query.model';
 import type { ProductSortField } from '@domain/products/models/product-list-query.model';
@@ -107,7 +105,6 @@ type ProductListState =
     ListPageComponent,
     ListActionsBarComponent,
     ErrorStateComponent,
-    PaginationComponent,
     ProductToolbarComponent,
     ProductTableComponent,
     ShopifySyncFeedbackComponent,
@@ -142,7 +139,6 @@ export class ProductListComponent {
 
   protected readonly skeletonColumns = computed(() => (this.showShopifyColumn() ? 8 : 7));
   protected readonly statusOptions = STATUS_OPTIONS;
-  protected readonly pageSizeOptions = PRODUCT_PAGE_SIZE_OPTIONS;
 
   // URL come fonte di verita': la query deriva (pura) dai query param.
   private readonly queryParams = toSignal(this.route.queryParamMap, { requireSync: true });
@@ -163,26 +159,7 @@ export class ProductListComponent {
   protected readonly selectedProductIds = signal<ReadonlySet<string>>(new Set<string>());
   protected readonly duplicatingProductId = signal<string | null>(null);
   protected readonly duplicateError = signal<string | null>(null);
-  /** Copie per articolo alla stampa etichette: sia per la riga singola sia per la selezione multipla. */
-  protected readonly labelCopies = signal(1);
-
   protected readonly selectedCount = computed(() => this.selectedProductIds().size);
-
-  protected readonly allOnPageSelected = computed(() => {
-    const pageProducts = this.products();
-    if (pageProducts.length === 0) {
-      return false;
-    }
-    const selected = this.selectedProductIds();
-    return pageProducts.every((product) => selected.has(product.id));
-  });
-
-  protected readonly someOnPageSelected = computed(() => {
-    const pageProducts = this.products();
-    const selected = this.selectedProductIds();
-    const anySelected = pageProducts.some((product) => selected.has(product.id));
-    return anySelected && !this.allOnPageSelected();
-  });
 
   protected readonly showShopifyCatalogSync = computed(
     () =>
@@ -204,6 +181,10 @@ export class ProductListComponent {
   protected readonly draftCount = toSignal(
     toObservable(computed(() => this.refreshTick() + this.softRefreshTick())).pipe(
       switchMap(() =>
+        // ⚠️ **Senza `tutto`, e non è una dimenticanza**: qui serve solo
+        //    `meta.total`, e `pageSize: 1` è il modo di ottenerlo senza scaricare
+        //    niente. Con `all=1` questa riga scaricherebbe l'intero catalogo delle
+        //    bozze a ogni ricarica dell'elenco.
         this.service.getProducts({ page: 1, pageSize: 1, status: ProductStatus.Draft }).pipe(
           map((response) => response.meta.total),
           catchError(() => of(0)),
@@ -244,14 +225,13 @@ export class ProductListComponent {
         const silentRefresh = softTick > 0 && tick === 0 && queryKey === this.lastFetchQueryKey;
         this.lastFetchQueryKey = queryKey;
 
-        const fetch$ = this.service.getProducts(query).pipe(
-          map(
-            (response): ProductListState => ({
-              status: 'success',
-              products: response.data,
-              meta: response.meta,
-            }),
-          ),
+        // ⭐ `tutto`: l'elenco mostra tutte le righe del filtro, non una pagina.
+        const fetch$ = this.service.getProducts(query, { tutto: true }).pipe(
+          map((response): ProductListState => ({
+            status: 'success',
+            products: response.data,
+            meta: response.meta,
+          })),
           catchError((err: unknown) =>
             of<ProductListState>({ status: 'error', error: this.toAppError(err) }),
           ),
@@ -388,15 +368,6 @@ export class ProductListComponent {
     );
   }
 
-  protected goToPage(page: number): void {
-    // Paginazione: history normale, cosi' il back torna alla pagina precedente.
-    this.updateParams({ page: page <= 1 ? null : page });
-  }
-
-  protected onPageSizeChange(size: number): void {
-    this.updateParams({ pageSize: size === DEFAULT_PRODUCT_PAGE_SIZE ? null : size, page: null });
-  }
-
   protected reload(): void {
     this.refreshTick.update((tick) => tick + 1);
   }
@@ -405,26 +376,14 @@ export class ProductListComponent {
     void this.router.navigate(['/app/products', product.id]);
   }
 
-  protected printProductLabels(product: Product): void {
-    this.labelPrintService.triggerDirectPrint(product.id, undefined, this.labelCopies());
-  }
-
-  /** Copie per articolo scelte dall'utente prima di stampare (min 1, max 500). */
-  protected setLabelCopies(value: number): void {
-    if (!Number.isFinite(value)) {
-      return;
-    }
-    this.labelCopies.set(Math.min(Math.max(Math.floor(value), 1), 500));
-  }
-
   /** Duplica articolo (audit cliente §2b): naviga alla copia per rifinire SKU/campi. */
-  protected duplicateProduct(product: Product): void {
+  protected duplicateProduct(productId: string): void {
     if (this.duplicatingProductId()) {
       return;
     }
-    this.duplicatingProductId.set(product.id);
+    this.duplicatingProductId.set(productId);
     this.service
-      .duplicateProduct(product.id)
+      .duplicateProduct(productId)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (created) => {
@@ -520,6 +479,31 @@ export class ProductListComponent {
           },
         ] as const)
       : []),
+    /*
+      ⭐ **Duplica è sceso dalla riga alla barra** (30/08/2026), e il catalogo lo
+      aveva già: `requires: 'one'` — acceso con un articolo scelto, spento CON il
+      motivo quando ce ne sono zero o più d'uno.
+
+      ⚠️ **Non è una perdita di comodità**: sulla riga era un'icona senza nome,
+      visibile solo passandoci sopra col mouse. In barra ha l'etichetta.
+    */
+    ...(this.canManageCatalog()
+      ? ([
+          comando('duplicate', {
+            busy: this.duplicatingProductId() !== null,
+            ariaLabel: 'Duplica il prodotto selezionato',
+            run: (target) => {
+              if (target.scope !== 'selection') {
+                return;
+              }
+              const primo = target.ids[0];
+              if (primo) {
+                this.duplicateProduct(primo);
+              }
+            },
+          }),
+        ] as const)
+      : []),
     {
       id: 'print-labels',
       label: 'Stampa etichette',
@@ -543,7 +527,7 @@ export class ProductListComponent {
 
     this.bulkPrintLoading.set(true);
     this.labelPrintService
-      .triggerDirectPrintMany(productIds, undefined, this.labelCopies())
+      .triggerDirectPrintMany(productIds)
       .pipe(
         finalize(() => this.bulkPrintLoading.set(false)),
         takeUntilDestroyed(this.destroyRef),

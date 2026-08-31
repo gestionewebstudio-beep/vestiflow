@@ -35,4 +35,21 @@ export class ListProductsQueryDto extends PaginationQueryDto {
   @Transform(({ value }) => value === true || value === 'true')
   @IsBoolean()
   includeVariants?: boolean;
+
+  /**
+   * `all=1` — tutto il risultato del filtro invece di una pagina.
+   *
+   * ⭐ **L'elenco prodotti non impagina più** (deciso il 30/08/2026): «se non
+   * togli l'impaginazione non possiamo ottimizzarla». Con dieci righe a pagina il
+   * costo di un elenco lungo non si manifesta mai, quindi non lo si può né
+   * misurare né tarare — e la virtualizzazione resterebbe una scelta al buio.
+   *
+   * ⚠️ **Il parametro resta opzionale e la paginazione continua a funzionare**:
+   * l'export e le chiamate di servizio la usano ancora, e toglierla dal contratto
+   * sarebbe una rottura che nessuno ha chiesto.
+   */
+  @IsOptional()
+  @Transform(({ value }) => value === '1' || value === 'true' || value === true)
+  @IsBoolean()
+  all?: boolean;
 }

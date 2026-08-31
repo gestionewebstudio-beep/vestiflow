@@ -119,10 +119,37 @@ export class ProductService {
 
   private filterOptionsCache: TimedCache<ProductFilterOptions> | null = null;
 
-  getProducts(query: ProductListQuery): Observable<PaginatedResponse<Product>> {
+  /**
+   * ⭐ **L'elenco prodotti non impagina più** — deciso il 30/08/2026: «se non
+   * togli l'impaginazione non possiamo ottimizzarla».
+   *
+   * ⚠️ **`tutto` non è «una pagina grande»**: lato API fa sparire la finestra
+   * (`pageWindow`), quindi arriva l'intero risultato del filtro. È ciò che rende
+   * onesti l'ordinamento, la selezione «tutti» e la riga totali — che altrimenti
+   * riguarderebbero la pagina e sembrerebbero riguardare tutto.
+   *
+   * ⛔ **Il default resta PAGINATO, e non è timidezza.** Chi chiama questo metodo
+   * non è sempre l'elenco: la ricerca globale ne vuole i primi risultati, e il
+   * contatore «Articoli da completare» chiede `pageSize: 1` per leggere solo
+   * `meta.total`. Con `all` acceso per tutti, quel contatore **scaricherebbe
+   * l'intero catalogo delle bozze per contarlo** — difetto misurato e corretto lo
+   * stesso giorno, un'ora dopo averlo introdotto.
+   *
+   * ⚠️ **`page` e `pageSize` restano sempre nella richiesta**: il DTO li pretende
+   * (estende `PaginationQueryDto`) e con `all=1` vengono ignorati. Toglierli
+   * farebbe fallire la validazione, non la paginazione.
+   */
+  getProducts(
+    query: ProductListQuery,
+    opzioni: { readonly tutto?: boolean } = {},
+  ): Observable<PaginatedResponse<Product>> {
     let params = new HttpParams()
       .set('page', String(query.page))
       .set('pageSize', String(query.pageSize));
+
+    if (opzioni.tutto) {
+      params = params.set('all', '1');
+    }
 
     if (query.search) params = params.set('search', query.search);
     if (query.status) params = params.set('status', query.status);

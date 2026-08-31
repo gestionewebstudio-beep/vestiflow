@@ -3,36 +3,14 @@
 
 @include lp.list-page('product-list');
 
-.product-list__columns {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-4);
-  // Riga di supporto della toolbar: resta agganciata ai filtri, non alla tabella.
-  margin-block-start: calc(-1 * var(--space-2));
-}
+/*
+  ⛔ Qui c'erano tre regole ORFANE, cioè classi che nessun template porta più:
+  `__columns` (la riga colonne è passata al telaio) e le due di «Copie per
+  etichetta», tolta il 30/08/2026.
 
-.product-list__label-copies {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-}
-
-.product-list__label-copies-input {
-  inline-size: 4.5rem;
-  block-size: var(--field-height);
-  padding-inline: var(--space-2);
-  font-size: var(--text-base);
-  font-family: inherit;
-  color: var(--color-text);
-  text-align: center;
-  background-color: var(--color-surface);
-  border: var(--border-width) solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-}
+  ⚠️ **Una classe orfana non fallisce**: resta nel bundle, e chi la legge crede
+  che l'elemento esista ancora. Le trova `npm run check:classi-orfane`.
+*/
 
 .product-list__scan-feedback {
   margin: 0;
@@ -81,7 +59,6 @@
   quasi sempre sull'elemento sbagliato: qui il flex non è una preferenza.
 */
 @include lp.list-page-fills-viewport('product-list', 'app-product-table');
-
 
 /* ── telaio ─────────────────────────────────────────────────────────────
   ⭐ Passata a `app-list-page`: testata, zona controlli e stati sono suoi.

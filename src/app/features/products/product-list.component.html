@@ -73,26 +73,20 @@
     [sortField]="query().sort"
     [sortOrder]="query().order"
     [selectedProductIds]="selectedProductIds()"
-    [allOnPageSelected]="allOnPageSelected()"
-    [someOnPageSelected]="someOnPageSelected()"
-    [canManage]="canManageCatalog()"
     (rowClick)="openProduct($event)"
-    (printLabel)="printProductLabels($event)"
-    (duplicate)="duplicateProduct($event)"
     (selectionToggle)="toggleProductSelection($event.productId, $event.selected)"
     (selectAllToggle)="toggleSelectAllOnPage($event)"
     (sortChange)="onSortChange($event)"
   />
 
-  <app-pagination
-    summary
-    label="Paginazione prodotti"
-    [meta]="meta()"
-    [pageSizeOptions]="pageSizeOptions"
-    (pageChange)="goToPage($event)"
-    (pageSizeChange)="onPageSizeChange($event)"
-  />
+  <!--
+    ⛔ **Qui c'era l'impaginazione**, tolta il 30/08/2026. L'elenco mostra tutte le
+    righe del filtro attivo, che è la regola generale («NESSUN TETTO DI RIGHE»,
+    `regole-stile-ui`) e non un'eccezione di questa schermata.
 
+    ⚠️ **Il conteggio non si è perso**: lo dice la riga totali del motore, «N voci»,
+    che ora conta il risultato intero invece della pagina.
+  -->
   <!--
     ⭐ **Tutte le funzioni nella barra in basso, e non si nascondono** (`14`
     §0.2). Qui c'era una barra fatta a mano che compariva solo a righe spuntate:
@@ -100,8 +94,10 @@
     possono stampare. Ora è `app-list-actions-bar`, con `requires: 'oneOrMore'` —
     l'azione c'è sempre, e a selezione vuota è spenta CON il motivo.
 
-    ⚠️ «Copie per etichetta» sta QUI e non fra i filtri: non restringe l'elenco,
-    è un parametro della stampa, e appartiene al comando che lo usa.
+    ⛔ **Qui c'era «Copie per etichetta»**, un campo numerico accanto ai comandi.
+    Tolto il 30/08/2026: «non ne vedo il senso, lo andremo a gestire nella stampa
+    delle etichette». Un parametro di stampa in fondo a un elenco chiede una
+    decisione a chi non sta stampando — la sua casa è la maschera di stampa.
   -->
   <div listActions>
     <app-list-actions-bar
@@ -113,18 +109,5 @@
       clearLabel="Deseleziona"
       (cleared)="clearSelection()"
     />
-
-    <label class="product-list__label-copies">
-      Copie per etichetta
-      <input
-        class="product-list__label-copies-input"
-        type="number"
-        min="1"
-        max="500"
-        step="1"
-        [value]="labelCopies()"
-        (change)="setLabelCopies($any($event.target).valueAsNumber)"
-      />
-    </label>
   </div>
 </app-list-page>

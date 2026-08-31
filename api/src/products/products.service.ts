@@ -55,6 +55,7 @@ import type { ProductFacetsDto } from './dto/product-facets.dto';
 import type { VariantSummaryDto } from './dto/variant-summary.dto';
 import type { UpdateProductDto } from './dto/update-product.dto';
 import type { UpdateVariantDto } from './dto/update-variant.dto';
+import { pageWindow } from '../common/dto/unpaged.util';
 
 export type ProductWithVariants = Product & {
   variants: ProductVariant[];
@@ -163,11 +164,16 @@ export class ProductsService {
         : {}),
     };
 
+    /*
+      ⚠️ **`pageWindow`, non `skip`/`take` scritti a mano**: con `all=1` deve
+      sparire la finestra, non diventare una finestra grande. È la stessa funzione
+      che usano documenti, ordini cliente e ordini fornitore — quattro modi di
+      dire «tutto» sarebbero quattro modi di sbagliarlo.
+    */
     const paging = {
       where,
       orderBy: { updatedAt: 'desc' as const },
-      skip: (query.page - 1) * query.pageSize,
-      take: query.pageSize,
+      ...pageWindow(query),
     };
 
     const [items, total] = await Promise.all([
