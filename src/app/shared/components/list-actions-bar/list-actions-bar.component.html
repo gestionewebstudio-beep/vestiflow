@@ -25,7 +25,7 @@
     </div>
   }
 
-  @for (action of actions(); track action.id) {
+  @for (action of azioniInBarra(); track action.id) {
     @let stato = stateOf(action);
 
     @if (action.items) {
@@ -74,5 +74,26 @@
         {{ action.label }}
       </app-button>
     }
+  }
+
+  <!--
+    ⭐ **Sul telefono i comandi oltre il primo stanno in un menu.**
+
+    ⛔ La barra sfondava: «Importa CSV» e «Importa catalogo» andavano a capo
+    dentro il pulsante, «Duplica» ed «Elimina» si sovrapponevano, «Stampa
+    etichette» finiva tagliata fuori dallo schermo. Sette comandi non stanno in
+    390px nemmeno a padding zero.
+
+    ⚠️ **Nessun comando sparisce**: cambia da dove si raggiunge. Sopra `lg`
+    `azioniNelMenu()` è vuoto e la barra è quella di sempre.
+  -->
+  @if (vociAltro().length > 0) {
+    <app-action-menu
+      [items]="vociAltro()"
+      triggerLabel="Altro"
+      triggerIcon="pi-ellipsis-h"
+      ariaLabel="Altri comandi dell'elenco"
+      (actionSelected)="eseguiDaAltro($event)"
+    />
   }
 </div>

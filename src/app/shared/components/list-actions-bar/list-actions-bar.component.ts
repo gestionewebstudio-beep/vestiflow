@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
 
+import { ViewportService } from '@core/services/viewport.service';
 import { ActionMenuComponent } from '@shared/components/action-menu/action-menu.component';
 import type { ActionMenuItem } from '@shared/components/action-menu/action-menu.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
@@ -106,6 +107,86 @@ export class ListActionsBarComponent {
       icon: item.icon,
       danger: item.danger,
     }));
+  }
+
+  // ── ⭐ Sul telefono si riduce il NUMERO dei comandi, non la loro taglia ────
+
+  /*
+    ⛔ **La barra sfondava.** Segnalato dal proprietario il 31/08/2026 sui
+    Prodotti, con la schermata: «Importa CSV» e «Importa catalogo» a capo dentro
+    il pulsante, «Duplica» ed «Elimina» sovrapposti, «Stampa etichette» tagliato
+    fuori dallo schermo.
+
+    ⚠️ **Non è un difetto di misure**: sette comandi non stanno in 390px nemmeno
+    a padding zero. `regole-stile-ui` lo dice da prima che succedesse — «su mobile
+    si riduce il NUMERO dei comandi, non la loro taglia» — e la forma prevista è
+    la CTA primaria più un **menu nominato** per il resto.
+
+    ⭐ **La prima azione resta un pulsante, le altre entrano nel menu.** Due
+    elementi entrano a qualunque larghezza, e nessun comando sparisce: cambia da
+    dove si raggiunge.
+
+    ⚠️ **Sopra `lg` non cambia niente**: `azioniInBarra` restituisce tutto, e le
+    dodici pagine che hanno la barra larga non se ne accorgono.
+  */
+  private readonly compatto = inject(ViewportService).compact;
+
+  protected readonly azioniInBarra = computed<readonly ListAction[]>(() =>
+    this.compatto() ? this.actions().slice(0, 1) : this.actions(),
+  );
+
+  protected readonly azioniNelMenu = computed<readonly ListAction[]>(() =>
+    this.compatto() ? this.actions().slice(1) : [],
+  );
+
+  /**
+   * Le voci del menu «Altro»: le azioni rimaste, con i sotto-menu **appiattiti**.
+   *
+   * ⚠️ **Un menu dentro un menu non si apre**, e appiattire è l'unica forma che
+   * funziona: le voci di «Esporta» diventano voci di «Altro», col nome del padre
+   * davanti perché «CSV» da solo non dice di che cosa.
+   */
+  protected readonly vociAltro = computed<readonly ActionMenuItem[]>(() =>
+    this.azioniNelMenu().flatMap((action) => {
+      const stato = this.stateOf(action);
+      if (!action.items) {
+        return [
+          {
+            id: action.id,
+            label: action.label,
+            icon: action.icon,
+            danger: action.variant === 'danger',
+            disabled: stato.disabled,
+            disabledReason: stato.reason ?? undefined,
+          },
+        ];
+      }
+      return action.items.map((item) => ({
+        id: `${action.id}:${item.id}`,
+        label: `${action.label} · ${item.label}`,
+        icon: item.icon ?? action.icon,
+        danger: item.danger,
+        disabled: stato.disabled,
+        disabledReason: stato.reason ?? undefined,
+      }));
+    }),
+  );
+
+  /**
+   * ⚠️ **L'id composto va sciolto**: una voce di sotto-menu porta
+   * `azione:voce`, e va eseguita sull'azione padre col suo item.
+   */
+  protected eseguiDaAltro(id: string): void {
+    const [idAzione, idVoce] = id.split(':');
+    const azione = this.azioniNelMenu().find((a) => a.id === idAzione);
+    if (!azione) {
+      return;
+    }
+    if (idVoce === undefined) {
+      this.run(azione);
+      return;
+    }
+    this.runItem(azione, idVoce);
   }
 
   /**
