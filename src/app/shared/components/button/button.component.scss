@@ -118,3 +118,33 @@
   opacity: var(--opacity-disabled);
   cursor: not-allowed;
 }
+
+/*
+  ── ⭐ UN INTERRUTTORE ACCESO SI VEDE ──────────────────────────────────────
+
+  ⛔ **`aria-pressed` era solo un attributo**, senza stato visivo. Segnalato dal
+  proprietario il 31/08/2026 su «Seleziona»: _«bisogna rendere evidente quando il
+  tasto selezione è attivo. Attualmente non riusciamo a distinguerli finché non
+  clicchiamo su una card»_.
+
+  ⚠️ **Il difetto era di ACCESSIBILITÀ prima che di estetica**: lo stato c'era per
+  chi usa un lettore di schermo e non per chi guarda — cioè l'informazione era
+  già nel DOM, e mancava solo a chi la cerca con gli occhi.
+
+  ⭐ **Sta nel componente condiviso**, non su «Seleziona»: `aria-pressed` è il
+  contratto di QUALUNQUE interruttore, e il prossimo lo eredita senza saperlo.
+
+  ⚠️ **Tinta piena, non un bordo più scuro.** Un interruttore acceso si distingue
+  a colpo d'occhio scorrendo la barra, e un bordo di un tono diverso si nota solo
+  guardandolo — che è esattamente il difetto segnalato.
+*/
+.app-button[aria-pressed='true'] {
+  color: var(--color-text-inverse);
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.app-button[aria-pressed='true']:hover:not(:disabled) {
+  background-color: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+}
