@@ -23,7 +23,7 @@ import { TableViewPresetId as PresetId } from '@shared/table-columns/table-colum
 */
 export const CUSTOMER_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   colonna('code', { pinnable: true, defaultVisible: true, defaultWidthPx: 96 }),
-  { id: 'name', label: 'Cliente', pinnable: true, defaultVisible: true },
+  { id: 'name', label: 'Cliente', pinnable: true, defaultVisible: true, cardTitle: true },
   colonna('source', { defaultVisible: true, defaultWidthPx: 80 }),
   colonna('email', { defaultVisible: true, defaultWidthPx: 200 }),
   colonna('phone', { defaultVisible: true, defaultWidthPx: 120 }),

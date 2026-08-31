@@ -39,7 +39,7 @@ export const SALES_ORDER_LIST_SORTABLE_COLUMNS: ReadonlySet<string> = new Set([
 ]);
 
 export const SALES_ORDER_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
-  { id: 'orderNumber', label: 'Ordine', pinnable: true, defaultVisible: true },
+  { id: 'orderNumber', label: 'Ordine', pinnable: true, defaultVisible: true, cardTitle: true },
   colonna('source', { defaultVisible: true }),
   { id: 'placedAt', label: 'Data', defaultVisible: true, filter: 'range' },
   { id: 'customerCode', label: 'Cod. cliente', defaultVisible: false },

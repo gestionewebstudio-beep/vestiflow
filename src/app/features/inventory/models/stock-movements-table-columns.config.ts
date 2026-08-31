@@ -12,7 +12,7 @@ export const STOCK_MOVEMENT_COLUMN_DEFS: readonly TableColumnDef[] = [
   // selezionabile, non mostrata di default (fuori dai preset).
   colonna('articleCode', { defaultVisible: false }),
   colonna('sku', { label: 'Codice', defaultVisible: true }),
-  { id: 'product', label: 'Prodotto', defaultVisible: true },
+  { id: 'product', label: 'Prodotto', defaultVisible: true, cardTitle: true },
   { id: 'signedQuantity', label: 'Quantità', numeric: true, defaultVisible: true },
   { id: 'locationLabel', label: 'Sede', defaultVisible: true },
   { id: 'documentRef', label: 'Documento', defaultVisible: false },

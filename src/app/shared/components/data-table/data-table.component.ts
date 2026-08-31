@@ -396,6 +396,18 @@ export class DataTableComponent<T> {
     voci» selezionate e «50 voci» filtrate si leggono uguale, e a dire quale dei
     due è lo stato della casella in testa.
   */
+  /*
+    ⭐ **Quale colonna fa da titolo alla card**, sotto `lg`.
+
+    ⚠️ **La PRIMA che lo dichiara fra quelle VISIBILI**: se l'operatore spegne la
+    colonna del nome, il titolo non può essere una cella che non c'è. In quel caso
+    la card resta tutta a etichetta:valore, che è il comportamento onesto —
+    inventare un titolo da un'altra colonna direbbe una cosa per un'altra.
+  */
+  protected readonly cardTitleId = computed(
+    () => this.columns().find((column) => column.cardTitle)?.id ?? null,
+  );
+
   protected readonly totalsCountLabel = computed(() => {
     const n = this.totals()?.count ?? 0;
     return `${n} ${n === 1 ? 'voce' : 'voci'}`;

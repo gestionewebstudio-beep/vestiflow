@@ -173,6 +173,26 @@ export interface TableColumnDef {
   readonly display?: 'code' | 'truncate';
 
   /**
+   * ⭐ **Questa colonna è il TITOLO della card**, nella vista compatta.
+   *
+   * Sotto `lg` una riga diventa una card e ogni cella prende la forma
+   * «ETICHETTA: valore». Va bene per dodici campi secondari; **non** per quello
+   * che dice di che riga si tratta — il nome del prodotto, del cliente, il
+   * numero del documento. Quello è il titolo, e si legge senza etichetta, più
+   * grande, in cima.
+   *
+   * ⛔ **Era un mixin CSS che prendeva una classe** (`data-table-mobile-title`),
+   * quindi funzionava solo per le tabelle scritte a mano: il motore non mette
+   * classi per colonna, e migrando l'elenco prodotti e quello clienti il titolo
+   * si è **perso in silenzio**. Gli altri cinque elenchi sul motore non l'hanno
+   * mai avuto, perché non c'era modo di dirglielo.
+   *
+   * ⚠️ **Una sola per elenco.** Se più colonne la dichiarano vale la prima
+   * visibile: due titoli non sono un titolo.
+   */
+  readonly cardTitle?: boolean;
+
+  /**
    * Come si filtra questa colonna — `false` per non filtrarla affatto.
    *
    * ⚠️ **Opt-out, non opt-in**, come `sortable` qui sopra e per la stessa

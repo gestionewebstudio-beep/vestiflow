@@ -771,3 +771,33 @@
     white-space: normal;
   }
 }
+
+/*
+  ── Il TITOLO della card ────────────────────────────────────────────────────
+
+  ⭐ Sotto `lg` la cella dichiarata `cardTitle` smette di essere una riga
+  «ETICHETTA: valore» e diventa il titolo: più grande, senza etichetta, in cima.
+
+  ⛔ **Era `data-table-mobile-title`**, un mixin che prendeva una classe CSS —
+  quindi funzionava solo per le tabelle scritte a mano. Migrando prodotti e
+  clienti al motore il titolo si è perso, e gli altri cinque elenchi non
+  l'avevano mai avuto: il motore non sa quali celle siano quali, se non glielo
+  dice il modello colonne.
+
+  ⚠️ **La riga di prima è ancora nel mixin condiviso**, che serve alle tabelle
+  non ancora migrate. Sparirà con l'ultima di loro.
+*/
+@include bp.vista-compatta('lg') {
+  .data-table td.data-table__cell--card-title {
+    margin-block-end: var(--space-1);
+    font-size: var(--text-md);
+    font-weight: var(--font-weight-semibold);
+    text-align: start;
+  }
+
+  /* L'etichetta davanti al valore: su un titolo non ci va. */
+  .data-table td.data-table__cell--card-title::before {
+    content: none;
+    display: none;
+  }
+}

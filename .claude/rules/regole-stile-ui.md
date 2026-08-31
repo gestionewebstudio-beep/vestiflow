@@ -1434,6 +1434,28 @@ Su schermi stretti la tabella si trasforma. Ogni riga diventa una card con:
 
 **Regola importante:** i valori primari (nome, codice, quantità, prezzo, totale) restano leggibili sulla card chiusa. Espandere serve solo per informazioni secondarie o edit di campi meno frequenti.
 
+### ⭐ Il TITOLO della card lo dichiara la colonna _(30/08/2026)_
+
+> **In una card, la colonna che dice DI CHE RIGA SI TRATTA non è una riga
+> «ETICHETTA: valore»: è il titolo.** Più grande, senza etichetta, in cima.
+
+Si dichiara nel modello colonne, `cardTitle: true`, e il motore la riconosce.
+Una sola per elenco: se più colonne la dichiarano vale la prima visibile — due
+titoli non sono un titolo.
+
+⛔ **Prima era un mixin CSS che prendeva una CLASSE** (`data-table-mobile-title`),
+quindi funzionava solo per le tabelle scritte a mano: il motore non mette classi
+per colonna. Migrando prodotti e clienti il titolo **è sparito in silenzio**, e
+gli altri cinque elenchi sul motore non l'avevano mai avuto — non c'era modo di
+dirglielo.
+
+⚠️ **Se la colonna del titolo è spenta dal selettore Colonne, il titolo non c'è**,
+e la card resta tutta a etichetta:valore. È il comportamento onesto: promuovere
+un'altra colonna direbbe una cosa per un'altra.
+
+⭐ **Chi ha una card PROGETTATA non lo usa**: il Registro Corrispettivi disegna la
+propria (`appRowCard`), e lì il titolo è già parte del disegno.
+
 ### La card di un ELENCO si progetta, non si impila _(18/08/2026)_
 
 Quanto sopra vale per le righe di un documento. Per un **elenco di

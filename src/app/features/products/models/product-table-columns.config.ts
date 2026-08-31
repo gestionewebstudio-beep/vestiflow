@@ -49,7 +49,7 @@ export const PRODUCT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
     che se lo ricordano. Dichiararlo qui rimetterebbe un `max-inline-size` a
     concorrere con la larghezza della colonna, cioè due misure per la stessa cosa.
   */
-  { id: 'name', label: 'Nome', pinnable: true, defaultVisible: true },
+  { id: 'name', label: 'Nome', pinnable: true, defaultVisible: true, cardTitle: true },
   { id: 'brand', label: 'Venditore/Brand', defaultVisible: true, defaultWidthPx: 130 },
   colonna('category', { defaultVisible: true, defaultWidthPx: 130 }),
   { id: 'season', label: 'Stagione', defaultVisible: true, defaultWidthPx: 70 },

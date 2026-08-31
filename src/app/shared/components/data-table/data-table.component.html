@@ -145,6 +145,7 @@
                 [class.data-table__cell--pinned]="col.pinned"
                 [class.data-table__cell--code]="col.display === 'code'"
                 [class.data-table__cell--truncate]="col.display === 'truncate'"
+                [class.data-table__cell--card-title]="col.id === cardTitleId()"
                 [attr.data-label]="col.label"
                 [attr.title]="cellText()(row, col.id) || null"
               >

@@ -279,6 +279,81 @@ describe('DataTableComponent', () => {
  * classe, lo stile smetterebbe di agire in silenzio — che è il modo in cui
  * questo genere di difetto passa (`14` §H14).
  */
+/**
+ * ⭐ **Il titolo della card**, che è la cosa più facile da perdere in silenzio.
+ *
+ * ⛔ È già successo: fino al 30/08/2026 lo dava un mixin CSS che prendeva una
+ * CLASSE (`data-table-mobile-title`), quindi funzionava solo per le tabelle
+ * scritte a mano. Migrando prodotti e clienti al motore il titolo è sparito —
+ * senza errori, senza test rossi, e visibile solo aprendo la pagina su uno
+ * schermo stretto.
+ *
+ * ⚠️ **Il CSS non si può provare qui** (jsdom non calcola la cascata): questi
+ * test presidiano il PONTE — che il motore riconosca la dichiarazione del
+ * modello e la porti sulla cella giusta.
+ */
+describe('DataTableComponent — il titolo della card', () => {
+  const conTitolo: readonly ResolvedTableColumn[] = [
+    { id: 'sku', label: 'SKU', pinned: false, cardTitle: true },
+    { id: 'qta', label: 'Quantità', numeric: true, pinned: false },
+  ];
+
+  @Component({
+    imports: [DataTableComponent],
+    template: `
+      <app-data-table
+        [columns]="colonne()"
+        [sections]="sezioni"
+        [rowId]="rowId"
+        [cellText]="cellText"
+      />
+    `,
+  })
+  class OspiteTitoloComponent {
+    readonly colonne = signal<readonly ResolvedTableColumn[]>(conTitolo);
+    readonly sezioni: readonly DataTableSection<Riga>[] = [{ id: 'unica', rows: RIGHE }];
+    readonly rowId = (row: Riga): string => row.id;
+    readonly cellText = (row: Riga, columnId: string): string =>
+      columnId === 'sku' ? row.sku : row.qta;
+  }
+
+  const celleTitolo = (c: HTMLElement): NodeListOf<Element> =>
+    c.querySelectorAll('td.data-table__cell--card-title');
+
+  it('⭐ la colonna dichiarata prende la classe del titolo, una per riga', async () => {
+    const { container } = await render(OspiteTitoloComponent);
+
+    expect(celleTitolo(container).length).toBe(RIGHE.length);
+    expect(celleTitolo(container)[0]?.textContent?.trim()).toBe('AAA');
+  });
+
+  it('nessuna colonna dichiarata, nessun titolo', async () => {
+    const { container } = await render(OspiteTitoloComponent, {
+      componentProperties: { colonne: signal(COLONNE) },
+    });
+
+    expect(celleTitolo(container).length).toBe(0);
+  });
+
+  /**
+   * ⛔ **Due titoli non sono un titolo**: se più colonne lo dichiarano vale la
+   * prima, e le altre restano celle normali.
+   */
+  it('⭐ con due colonne dichiarate vince la prima', async () => {
+    const { container } = await render(OspiteTitoloComponent, {
+      componentProperties: {
+        colonne: signal([
+          { id: 'sku', label: 'SKU', pinned: false, cardTitle: true },
+          { id: 'qta', label: 'Quantità', pinned: false, cardTitle: true },
+        ] as readonly ResolvedTableColumn[]),
+      },
+    });
+
+    expect(celleTitolo(container).length).toBe(RIGHE.length);
+    expect(celleTitolo(container)[0]?.textContent?.trim()).toBe('AAA');
+  });
+});
+
 describe('DataTableComponent — quali righe sono comandi', () => {
   it('⛔ spento: nessuna riga si dichiara cliccabile, e nessuna è una fermata del Tab', async () => {
     await apri();

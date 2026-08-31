@@ -18,7 +18,13 @@ import {
  * anche il pannello Shopify in italiano.
  */
 export const ONLINE_SALE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
-  colonna('reference', { label: 'Numero', numeric: true, pinnable: true, defaultVisible: true }),
+  colonna('reference', {
+    label: 'Numero',
+    numeric: true,
+    pinnable: true,
+    defaultVisible: true,
+    cardTitle: true,
+  }),
   { id: 'channel', label: 'Canale', defaultVisible: true },
   { id: 'orderNumber', label: 'Ordine origine', numeric: true, defaultVisible: true },
   { id: 'fulfilledAt', label: 'Data evasione', defaultVisible: true },

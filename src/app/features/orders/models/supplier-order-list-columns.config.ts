@@ -19,7 +19,7 @@ import {
  * il comportamento del riferimento Danea.
  */
 export const SUPPLIER_ORDER_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
-  colonna('reference', { pinnable: true, defaultVisible: true }),
+  colonna('reference', { pinnable: true, defaultVisible: true, cardTitle: true }),
   colonna('supplier', { defaultVisible: true }),
   colonna('status', { defaultVisible: true }),
   { id: 'lines', label: 'Righe', numeric: true, defaultVisible: true },
