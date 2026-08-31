@@ -45,6 +45,23 @@ export function totaliDocumenti(
         formato: soldi,
       },
       lineCount: { valore: (doc) => righeDi(doc), formato: (n) => String(n) },
+      /*
+        ⭐ **«Ancora da saldare» sommato è l'ESPOSIZIONE**, ed è il numero che
+        interessa di più su un elenco di Registrazioni fattura: non «quanto ho
+        comprato», ma «quanto devo».
+
+        ⚠️ **Senza verso economico, e non è una svista**: il residuo è già un
+        importo positivo che indica un debito. Applicargli il segno del tipo
+        farebbe scendere l'esposizione quando arriva una nota di credito che il
+        residuo l'ha già scalato.
+
+        ⚠️ **Assente vale zero**: un documento saldato non ha residuo, e non
+        toglie niente alla somma.
+      */
+      outstanding: {
+        valore: (doc) => doc.outstanding?.amountMinor ?? 0,
+        formato: soldi,
+      },
     },
   });
 }

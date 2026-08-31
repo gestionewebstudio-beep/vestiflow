@@ -644,6 +644,26 @@ export class SupplierOrderListComponent {
       columns: this.tableColumns(),
       emphasis: 'total',
       campi: {
+        /*
+          ⭐ **Le tre colonne aggiunte oggi hanno anche il loro totale.**
+
+          Erano state dichiarate come colonne senza somma: accendendole si
+          vedevano i valori riga per riga e la riga totali restava muta proprio
+          sulle voci che su un ordine d'acquisto si confrontano con la fattura
+          quando arriva.
+        */
+        lines: {
+          valore: (order) => order.lineCount ?? order.lines.length,
+          formato: (n) => String(n),
+        },
+        subtotal: {
+          valore: (order) => order.subtotal.amountMinor,
+          formato: (n) => formatMoney({ amountMinor: n, currencyCode: valuta }),
+        },
+        tax: {
+          valore: (order) => order.tax.amountMinor,
+          formato: (n) => formatMoney({ amountMinor: n, currencyCode: valuta }),
+        },
         total: {
           valore: (order) => order.totalAmount.amountMinor,
           formato: (n) => formatMoney({ amountMinor: n, currencyCode: valuta }),
