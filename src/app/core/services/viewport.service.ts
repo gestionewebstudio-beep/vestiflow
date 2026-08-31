@@ -1,7 +1,5 @@
 import { DOCUMENT } from '@angular/common';
-import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
-
-import { DEFAULT_VIEW_MODE, VIEW_MODES, type ViewMode } from '@shared/models/view-mode.model';
+import { DestroyRef, Injectable, inject, signal } from '@angular/core';
 
 /**
  * Il token da cui nasce la soglia. Il VALORE sta nel CSS e qui non si ripete:
@@ -16,12 +14,25 @@ import { DEFAULT_VIEW_MODE, VIEW_MODES, type ViewMode } from '@shared/models/vie
 const COMPACT_MAX_TOKEN = '--viewport-compact-max';
 
 /**
- * ⚠️ **La scelta vive nel DISPOSITIVO, non sul profilo utente.**
+ * ⏸ **La chiave della scelta manuale, che oggi si CANCELLA e basta.**
  *
- * È una proprietà di QUESTO schermo: chi impone la vista compatta sul monitor
- * touch del banco non la vuole anche sul portatile di casa. Sincronizzarla fra
- * dispositivi sarebbe il difetto, non la funzione — ed è la stessa ragione per
- * cui il tema si comporta così.
+ * ⛔ Il selettore di vista è stato ritirato il 30/08/2026 e la sua meccanica è
+ * rimasta collegata: nessuna schermata poteva più scrivere questo valore, ma chi
+ * l'aveva scritto durante le prove restava **bloccato in vista compatta a
+ * qualunque larghezza, senza un modo per tornare indietro**.
+ *
+ * ⚠️ **E non si vedeva come un blocco.** L'app mostrava le due vesti insieme —
+ * card sotto un'intestazione di tabella, «Seleziona» e i filtri del telefono su
+ * uno schermo da 1338px — perché metà delle regole compatte risponde
+ * all'attributo sulla radice e l'altra metà a una media query: è esattamente il
+ * difetto misurato il 30/08 che ha fatto ritirare il selettore, ed è arrivato
+ * agli occhi del proprietario prima che il ponte fosse staccato.
+ *
+ * ⭐ **Si cancella invece di ignorarla**, e la ragione è che ignorarla sarebbe
+ * una mina: il giorno in cui il selettore torna, quel valore rimasto lì
+ * riporterebbe lo stesso schermo in vista compatta senza che nessuno l'abbia
+ * chiesto. Non si perde una scelta di nessuno — non c'era nessun posto dove
+ * farla.
  */
 const VIEW_MODE_KEY = 'vestiflow.view-mode';
 
@@ -48,61 +59,17 @@ export class ViewportService {
 
   private readonly _compact = signal(false);
 
-  /** Cosa dice la LARGHEZZA, prima che l'operatore ci metta bocca. */
-  readonly automatico = this._compact.asReadonly();
-
-  private readonly _mode = signal<ViewMode>(this.leggiModo());
-
-  /** La scelta dell'operatore: automatica, sempre compatta, sempre estesa. */
-  readonly mode = this._mode.asReadonly();
-
   /*
     ⭐ **La domanda a cui i 17 consumatori rispondono è sempre la stessa** — «è
-    viva la vista a card?» — e questo è il solo punto in cui cambia la risposta.
+    viva la vista a card?» — e questo è il solo punto in cui si risponde.
 
-    ⛔ Nessuno di loro deve sapere che esiste una scelta manuale: se dovessero
-    combinare soglia e preferenza per conto proprio, la vista tornerebbe a essere
-    decisa in diciassette posti, che è il difetto da cui questo servizio nasce.
+    ⏸ Qui passava anche la scelta manuale dell'operatore. È tornata a essere la
+    sola larghezza finché il selettore non è finito davvero: vedi `VIEW_MODE_KEY`.
   */
-  readonly compact = computed(() => {
-    const scelto = this._mode();
-    if (scelto === 'compact') {
-      return true;
-    }
-    if (scelto === 'wide') {
-      return false;
-    }
-    return this._compact();
-  });
-
-  setMode(mode: ViewMode): void {
-    this._mode.set(mode);
-    this.scriviModo(mode);
-  }
+  readonly compact = this._compact.asReadonly();
 
   constructor() {
-    /*
-      ⭐ **L'attributo sulla radice è il ponte verso il CSS**, che una scelta
-      dell'applicazione non la può leggere in nessun altro modo.
-
-      Lo legge il mixin `vista-compatta` di `styles/_breakpoints.scss`, usato nei
-      soli tre punti in cui la riga diventa card. ⚠️ Si scrive **solo** quando la
-      vista compatta è imposta: in automatico l'attributo non c'è, quindi il ramo
-      non esiste e nessuna regola cambia peso — è la ragione per cui questa metà
-      è a rischio zero per chi non usa l'impostazione.
-
-      ⚠️ È lo stesso schema del tema (`theme.service.ts:42`), e deve restarlo: due
-      modi di scrivere una preferenza sulla radice sarebbero due posti da tenere
-      allineati.
-    */
-    effect(() => {
-      const radice = this.document.documentElement;
-      if (this._mode() === 'compact') {
-        radice.setAttribute('data-vista', 'compatta');
-      } else {
-        radice.removeAttribute('data-vista');
-      }
-    });
+    this.dimenticaModoImposto();
 
     const query = this.mediaQuery();
     if (!query) {
@@ -121,24 +88,17 @@ export class ViewportService {
    * tabella solo dentro la media query.
    */
   /**
-   * ⚠️ Il ripiego è `auto` a ogni intoppo — `localStorage` assente in modalità
-   * privata, valore scritto a mano, schermata di prova senza `window`: la
-   * larghezza decide, che è il comportamento di sempre.
+   * Toglie dal browser la vista imposta durante le prove del selettore ritirato.
+   *
+   * ⚠️ **Silenzioso a ogni intoppo** — `localStorage` assente in modalità privata,
+   * schermata di prova senza `window`: non c'è niente da salvare e niente da
+   * riferire, la larghezza decide comunque.
    */
-  private leggiModo(): ViewMode {
+  private dimenticaModoImposto(): void {
     try {
-      const salvato = this.document.defaultView?.localStorage.getItem(VIEW_MODE_KEY);
-      return VIEW_MODES.includes(salvato as ViewMode) ? (salvato as ViewMode) : DEFAULT_VIEW_MODE;
+      this.document.defaultView?.localStorage.removeItem(VIEW_MODE_KEY);
     } catch {
-      return DEFAULT_VIEW_MODE;
-    }
-  }
-
-  private scriviModo(mode: ViewMode): void {
-    try {
-      this.document.defaultView?.localStorage.setItem(VIEW_MODE_KEY, mode);
-    } catch {
-      // Ripiego silenzioso: la scelta vale per questa sessione e non si ricorda.
+      // Nessun rimedio possibile, e nessuno serve: `compact` non lo legge più.
     }
   }
 

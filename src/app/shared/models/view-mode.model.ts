@@ -19,6 +19,15 @@
  * Un selettore a tre stati **non deve indovinare niente**: chi ha un caso limite
  * lo dichiara una volta.
  */
+/*
+  ⏸ **NESSUNO importa più questo file, ed è voluto.**
+
+  Il selettore è stato ritirato il 30/08/2026 — non prima della rifattorizzazione
+  che gli serve (`docs/DA-FARE.md`) — e `ViewportService` è tornato a decidere
+  con la sola larghezza. Queste definizioni restano perché sono la parte già
+  decisa: i tre stati, i loro nomi e il motivo per cui si chiamano «compatta» ed
+  «estesa». ⛔ Non sono in uso: chi le ritrova non concluda che la funzione c'è.
+*/
 export type ViewMode = 'auto' | 'compact' | 'wide';
 
 export const VIEW_MODES: readonly ViewMode[] = ['auto', 'compact', 'wide'];

@@ -72,6 +72,11 @@ $breakpoints: (
 ///
 /// ⚠️ **`@if &`**: metà delle chiamate sta a livello di file, dove `&` è nullo e
 /// Sass rifiuta un selettore che lo contiene.
+/// ⏸ **Oggi il ramo dell'attributo non scatta mai**: `ViewportService` ha
+/// smesso di scrivere `data-vista` quando il selettore è stato ritirato
+/// (30/08/2026). Il mixin resta perché i tre blocchi del motore sono già
+/// convertiti, e il giorno in cui il selettore torna funzionano da soli —
+/// ⛔ ma finché quella riga non torna, qui si comporta come un `media-down`.
 @mixin vista-compatta($name: 'lg') {
   @media (max-width: down-max($name)) {
     @content;
