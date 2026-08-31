@@ -28,6 +28,14 @@
   display: flex;
   flex-direction: column;
   min-block-size: 0;
+  /*
+    ⚠️ **Il pavimento ORIZZONTALE, che mancava.** Senza, questo host si rifiuta di
+    stringersi sotto la larghezza della tabella che contiene, e una tabella larga
+    spinge la pagina oltre il bordo invece di scorrere dentro `.data-table-scroll`.
+    Misurato sui Clienti il 30/08/2026 — tredici colonne, barra di scorrimento
+    orizzontale sulla pagina.
+  */
+  min-inline-size: 0;
 }
 
 @include rt.data-table-desktop('data-table');

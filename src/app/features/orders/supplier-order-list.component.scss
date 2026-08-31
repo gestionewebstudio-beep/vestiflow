@@ -34,7 +34,6 @@
 */
 @include lp.list-page-fills-viewport('po-list', 'app-data-table');
 
-
 /* ── telaio ─────────────────────────────────────────────────────────────
   ⭐ Passata a `app-list-page`: testata, zona controlli e stati sono suoi.
 
@@ -53,8 +52,14 @@
 app-data-table {
   flex: 1;
   min-block-size: 0;
+  /*
+    ⚠️ **Il pavimento ORIZZONTALE**: senza, un elemento flessibile si rifiuta di
+    stringersi sotto la larghezza del proprio contenuto, e una tabella larga
+    spinge la pagina oltre il bordo invece di scorrere dentro di sé. Misurato sui
+    Clienti il 30/08/2026, dove le colonne sono tredici.
+  */
+  min-inline-size: 0;
 }
-
 
 /*
   ⚠️ **I gruppi proiettati non sono scatole: sono contenuto.**

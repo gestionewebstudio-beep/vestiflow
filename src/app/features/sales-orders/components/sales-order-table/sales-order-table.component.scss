@@ -1,3 +1,5 @@
+@use 'responsive-table' as rt;
+
 @use 'breakpoints' as bp;
 
 /*
@@ -173,7 +175,6 @@
   }
 }
 
-
 /*
   ⚠️ **Il ponte dell'altezza.**
 
@@ -182,13 +183,4 @@
   scorrimento del motore non scorre — l'intestazione `sticky` smette di
   appiccicare, **senza errori e senza test rossi**.
 */
-:host {
-  display: flex;
-  flex-direction: column;
-  min-block-size: 0;
-}
-
-app-data-table {
-  flex: 1;
-  min-block-size: 0;
-}
+@include rt.ponte-tabella();

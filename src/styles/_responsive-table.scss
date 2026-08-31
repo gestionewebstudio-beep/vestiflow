@@ -433,6 +433,42 @@
  * ⚠️ Qui c'è la CELLA. La casella dentro è `app-selection-check`, che porta i
  * propri stili: la cella non deve conoscerli.
  */
+/// ⭐ **Il PONTE fra la pagina e il motore tabella.**
+///
+/// Un componente di feature che ospita `app-data-table` sta in mezzo: la pagina
+/// gli dà `flex: 1`, e lui deve girarlo al figlio. Se non lo fa, la catena si
+/// interrompe lì.
+///
+/// ⛔ **E i pavimenti sono DUE, uno per asse** — è la parte che si dimentica.
+///
+/// | manca | cosa succede |
+/// | --- | --- |
+/// | `min-block-size: 0` | l'altezza si ferma qui: il contenitore non scorre e l'intestazione `sticky` **smette di appiccicare, in silenzio** |
+/// | `min-inline-size: 0` | un elemento flessibile si rifiuta di stringersi sotto la larghezza del proprio contenuto: una tabella larga **spinge la pagina oltre il bordo** invece di scorrere dentro di sé |
+///
+/// ⚠️ **Misurato il 30/08/2026: nessuno dei sette ponti aveva quello
+/// orizzontale.** Si vedeva sui Clienti, che ha tredici colonne ed è la tabella
+/// più larga; sugli altri il difetto c'era e non si manifestava. Ed era già
+/// successo il 29/08 sulla stessa pagina, un anello più su — la correzione era
+/// stata fatta nella pagina e non nel ponte.
+///
+/// ⭐ **È un mixin e non due righe copiate** proprio per questo: scritte a mano,
+/// la coppia si dimentica a metà. È già successo due volte.
+@mixin ponte-tabella($figlio: 'app-data-table') {
+  :host {
+    display: flex;
+    flex-direction: column;
+    min-block-size: 0;
+    min-inline-size: 0;
+  }
+
+  #{$figlio} {
+    flex: 1;
+    min-block-size: 0;
+    min-inline-size: 0;
+  }
+}
+
 @mixin selection-column($block) {
   .#{$block}__cell--select {
     inline-size: var(--space-10);
