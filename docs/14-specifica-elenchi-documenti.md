@@ -553,21 +553,47 @@ solo confrontando le date — in ordine alfabetico è il contrario.
 ⭐ **Documenti non ha avuto bisogno di niente di nuovo**, ed è la verifica che il
 meccanismo regge: cinquantasei colonne, e le stesse tre righe di cablaggio degli altri.
 
-#### ⛔ Il Registro Corrispettivi NON si migra così — deciso il 31/08/2026
+#### ⛔ Il Registro Corrispettivi NON si migra così — 31/08/2026, corretto il 01/09
 
-> **Il suo riepilogo arriva dall'API, già sommato sul periodo. Filtrare le righe lato
-> client lascerebbe i totali fermi sul periodo intero.**
+> **I suoi numeri li calcola il SERVER sul proprio insieme filtrato.** Un filtro applicato
+> lato client non li raggiungerebbe: dieci righe a schermo, i totali di cento.
 
 Un registro fiscale che mostra dieci righe e i totali di cento non è un difetto estetico:
 la verificabilità **è** la sua funzione (`regole-gestionale`, «il riepilogo SOMMA»).
 
+##### ⛔ E la ragione che avevo scritto prima era sbagliata
+
+Qui c'era: _«metà delle voci non sono righe — rettifiche alla loro data, evasi senza
+data…»_. **Falso, e trovato dal proprietario**: _«mi sembra strano che funzioni
+diversamente se un ordine dovrebbe avere la propria data»_.
+
+Letto il codice dell'API il 01/09/2026: **il riepilogo legge le stesse quattro sorgenti
+dell'elenco, con gli stessi interruttori** — è un invariante dichiarato lì dentro. Le
+rettifiche hanno la propria data e **sono righe** del registro.
+
+⭐ **«Non sono colonne» non vuol dire «non sono righe»**, ed è la confusione che ha
+prodotto due spiegazioni sbagliate di fila. `regole-stile-ui` dice che le voci di quel
+riepilogo non stanno in nessuna **intestazione** — «Annullamenti 2», «Rettifiche (4)» — non
+che manchino le righe da cui nascono.
+
+⚠️ **Senza riga sono solo due contatori dichiarativi**, e sono già per contratto immuni ai
+filtri dell'elenco: gli **annullamenti** (letti ignorando il filtro Tipo, perché «una
+dichiarazione che sparisce quando si filtra dice meno del vero») e gli **evasi senza data**
+(contati senza periodo e senza filtri). Sotto un filtro di colonna resterebbero fermi
+**legittimamente**, come già restano fermi sotto il filtro Tipo.
+
 ⚠️ **Non è un residuo di lavoro: è una domanda di prodotto.** Le strade sono due, e vanno
 scelte —
 
-|                                                     |                                                                      |
-| --------------------------------------------------- | -------------------------------------------------------------------- |
-| i filtri di colonna diventano parte della **query** | il server filtra e risomma: coerente, ma è lavoro d'API              |
-| il Registro **non ha** filtri di colonna            | tiene i suoi filtri di dominio, già server-side: Origine, Tipo, Sede |
+|                                                     |                                                                                                                             |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| i filtri di colonna diventano parte della **query** | il server filtra e risomma: coerente, ed è la strada naturale — l'API ha già la stessa impalcatura per Origine, Tipo e Sede |
+| il Registro **non ha** filtri di colonna            | tiene i suoi filtri di dominio, già server-side                                                                             |
+
+⛔ **Una terza strada c'è e va scartata**: ricalcolare il riepilogo lato client dalle righe
+filtrate. È possibile — sono somme di valori finali, che `regole-gestionale` consente — ma
+darebbe **due aggregatori per la stessa transazione**, e la loro divergenza è precisamente
+il difetto che quella regola esiste per prevenire.
 
 ⭐ **Lo stesso vincolo vale per chiunque prenda i totali dall'API**, ed è il criterio da
 applicare al prossimo elenco che lo faccia: si può filtrare lato client solo dove i totali

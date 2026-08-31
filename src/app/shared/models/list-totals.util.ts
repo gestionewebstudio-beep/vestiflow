@@ -11,21 +11,27 @@ import type { ResolvedTableColumn } from '@shared/table-columns/table-column.mod
  * ⛔ **Non è per chi ha un RIEPILOGO invece di una riga totali.** Il Registro
  * Corrispettivi costruisce da sé il proprio, e non passa di qui.
  *
- * ⭐ **«Il suo risultato è più grande di quello che ha a schermo», e resta vero
- * anche a periodo filtrato** — è normale, non un effetto della paginazione.
+ * ⭐ **Le voci di quel riepilogo NON SONO COLONNE**, ed è la distinzione che
+ * `regole-stile-ui` fa fra riga totali e riepilogo: «Annullamenti 2» e
+ * «Rettifiche (4) − 205,01 €» non stanno in nessuna intestazione della tabella.
+ * Questa funzione somma colonne; quel riepilogo risponde ad altro.
  *
- * ⚠️ **Il perché non è il caricamento**: quel registro carica tutte le righe del
- * periodo, come ogni altro elenco, e parte dagli stessi trenta giorni. È che
- * **metà delle voci del riepilogo non sono colonne**, quindi non esistono come
- * righe da sommare: evasi senza data, annullamenti (contati, mai sottratti),
- * rettifiche alla loro data — che non è quella della riga che rettificano —,
- * netto venduto-meno-reso.
+ * ⛔ **«Non sono colonne» NON vuol dire «non sono righe»**, e confonderli è
+ * l'errore che ho fatto due volte prima di leggere l'API (01/09/2026). Le
+ * rettifiche hanno la propria data e SONO righe del registro; il riepilogo legge
+ * le stesse quattro sorgenti dell'elenco, con gli stessi interruttori — lo dice
+ * il commento dell'API, che lo dichiara come invariante.
  *
- * ⛔ **Una riga totali somma ciò che si vede; un riepilogo risponde a domande che
- * le colonne non pongono** (`regole-stile-ui`). È la ragione per cui il Registro
- * costruisce da sé il proprio, e per cui i filtri di colonna lato client là non
- * si applicano: filtrerebbero le righe lasciando ferme le voci che righe non
- * hanno.
+ * ⚠️ **Genuinamente senza riga sono solo due contatori dichiarativi**, e sono
+ * già per contratto immuni ai filtri dell'elenco: gli **annullamenti** (letti
+ * ignorando il filtro Tipo, perché «una dichiarazione che sparisce quando si
+ * filtra dice meno del vero») e gli **evasi senza data** (contati senza periodo
+ * e senza filtri).
+ *
+ * ⭐ **L'ostacolo vero ai filtri di colonna là è un altro, ed è più stretto**:
+ * quei numeri li calcola il SERVER sul proprio insieme filtrato, quindi un
+ * filtro applicato lato client non li raggiungerebbe. O i filtri entrano nella
+ * query, o il registro si ritrova due aggregatori per la stessa transazione.
  *
  * ⚠️ **L'ambito lo decide la selezione**: nessuna riga scelta → tutte; una o più
  * → solo quelle. È la regola «senza selezione mostra i totali del risultato
