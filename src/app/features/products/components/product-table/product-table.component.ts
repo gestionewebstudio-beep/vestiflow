@@ -17,7 +17,8 @@ import type {
   DataTableTotals,
 } from '@shared/components/data-table/data-table.model';
 import { totaliDiElenco } from '@shared/models/list-totals.util';
-import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
+import { createColumnFilters } from '@shared/table-columns/column-filters';
+import type { ResolvedTableColumn, TableViewId } from '@shared/table-columns/table-column.model';
 
 import {
   catalogOriginShortLabel,
@@ -31,10 +32,14 @@ import type { ProductSortField } from '@domain/products/models/product-list-quer
  * ⭐ **Le colonne che questo elenco sa ordinare**, e sono quelle che l'API sa
  * ordinare — non una in più.
  *
- * ⚠️ **L'elenco prodotti PAGINA**, e il motore avverte che accendere
- * l'ordinamento su un elenco paginato ordinerebbe la sola pagina. Qui non
- * succede: l'ordinamento è del SERVER — `sortChange` risale fino alla query, e
- * il motore rende solo l'affordance.
+ * ⚠️ **L'ordinamento è del SERVER**: `sortChange` risale fino alla query, e il
+ * motore rende solo l'affordance.
+ *
+ * ⛔ **Qui c'era «l'elenco prodotti PAGINA»**, e non è più vero dal 30/08/2026:
+ * la pagina chiede `tutto: true` e non ha paginatore. La distinzione non è
+ * accademica — è la premessa che rende corretto filtrare le righe caricate
+ * (`14` §0.2). Su un elenco davvero paginato quel filtro restringerebbe una
+ * pagina e chiamerebbe il risultato «l'elenco».
  */
 const PRODUCT_SORTABLE_COLUMNS: ReadonlySet<string> = new Set([
   'name',
@@ -77,6 +82,9 @@ export class ProductTableComponent {
    */
   readonly rowClickSelects = input(false);
   readonly columns = input.required<readonly ResolvedTableColumn[]>();
+
+  /** La vista, e con essa i filtri di colonna (`14` §0.2). */
+  readonly viewId = input<TableViewId>();
   readonly sortField = input<ProductSortField>();
   readonly sortOrder = input<SortOrder>();
   readonly selectedProductIds = input<ReadonlySet<string>>(new Set<string>());
@@ -116,9 +124,32 @@ export class ProductTableComponent {
 
   protected readonly selezionabile = computed(() => colonnaVisibile(this.columns(), 'select'));
 
+  /*
+    ⭐ **I filtri di colonna** (`14` §0.2).
+
+    ⚠️ **Il prezzo si confronta in unità MINORI**, non sul testo: «1.250,00 €»
+    come stringa sta dopo «9,00 €». E un prodotto senza prezzo dà `null`, che
+    per contratto lascia passare la riga invece di escluderla in silenzio.
+  */
+  private readonly righe = createColumnFilters({
+    viewId: this.viewId,
+    righe: this.products,
+    cellText: (product, columnId) => this.cellText(product, columnId),
+    numeroDi: (product, columnId) => {
+      switch (columnId) {
+        case 'variants':
+          return this.variantCount(product);
+        case 'sellingPrice':
+          return product.sellingPrice?.amountMinor ?? null;
+        default:
+          return null;
+      }
+    },
+  });
+
   /** Lista piatta: una sezione senza intestazione né piede. */
   protected readonly sections = computed<readonly DataTableSection<Product>[]>(() => [
-    { id: 'prodotti', rows: this.products() },
+    { id: 'prodotti', rows: this.righe() },
   ]);
 
   /*
@@ -131,7 +162,7 @@ export class ProductTableComponent {
     voci» è il dato che l'operatore cerca per primo quando filtra.
   */
   protected readonly totals = computed<DataTableTotals>(() =>
-    totaliDiElenco(this.products(), {
+    totaliDiElenco(this.righe(), {
       rowId: this.rowId,
       selectedIds: this.selectedProductIds(),
       columns: this.engineColumns(),

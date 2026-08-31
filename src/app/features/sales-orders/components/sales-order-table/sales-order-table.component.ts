@@ -27,7 +27,8 @@ import { ActionMenuComponent } from '@shared/components/action-menu/action-menu.
 import type { ActionMenuItem } from '@shared/components/action-menu/action-menu.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
-import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
+import { createColumnFilters } from '@shared/table-columns/column-filters';
+import type { ResolvedTableColumn, TableViewId } from '@shared/table-columns/table-column.model';
 
 import {
   financialStatusLabel,
@@ -90,6 +91,9 @@ export class SalesOrderTableComponent {
   readonly rowClickSelects = input(false);
   /** Colonne visibili, nell'ordine scelto dal selettore «Colonne». */
   readonly columns = input.required<readonly ResolvedTableColumn[]>();
+
+  /** La vista, e con essa i filtri di colonna. */
+  readonly viewId = input<TableViewId>();
 
   /**
    * ⭐ **Raggruppare per giornata**, deciso dalla pagina che possiede il controllo
@@ -320,7 +324,7 @@ export class SalesOrderTableComponent {
   protected readonly sections = computed<readonly DataTableSection<SalesOrder>[]>(() => {
     const valuta = this.orders()[0]?.total.currencyCode ?? DEFAULT_CURRENCY;
     const soldi = (n: number): string => formatMoney({ amountMinor: n, currencyCode: valuta });
-    return sezioniDiElenco(this.orders(), this.groupByDay(), {
+    return sezioniDiElenco(this.righe(), this.groupByDay(), {
       idPiatto: 'ordini',
       giornoDi: (order) => order.placedAt,
       columns: this.columns(),
@@ -339,10 +343,37 @@ export class SalesOrderTableComponent {
    * ⚠️ **Si somma `amountMinor` e si formatta UNA volta sola**: è la regola del
    * denaro — «si arrotonda solo all'uscita, mai nei passaggi intermedi».
    */
+  /*
+    ⭐ **I filtri di colonna** (`14` §0.2). Gli importi si confrontano in unità
+    minori e le date in ISO: sul testo mostrato «1.250,00 €» starebbe dopo
+    «9,00 €», e `31/01` dopo `01/02`.
+  */
+  private readonly righe = createColumnFilters({
+    viewId: this.viewId,
+    righe: this.orders,
+    cellText: (order, columnId) => this.cellText(order, columnId),
+    numeroDi: (order, columnId) => {
+      switch (columnId) {
+        case 'total':
+          return order.total.amountMinor;
+        case 'netTotal':
+          return order.subtotal.amountMinor;
+        default:
+          return null;
+      }
+    },
+    dataDi: (order, columnId) => {
+      if (columnId === 'placedAt') {
+        return order.placedAt;
+      }
+      return columnId === 'updatedAt' ? (order.updatedAt ?? null) : null;
+    },
+  });
+
   protected readonly totals = computed<DataTableTotals>(() => {
     const valuta = this.orders()[0]?.total.currencyCode ?? DEFAULT_CURRENCY;
     const soldi = (n: number): string => formatMoney({ amountMinor: n, currencyCode: valuta });
-    return totaliDiElenco(this.orders(), {
+    return totaliDiElenco(this.righe(), {
       rowId: this.rowId,
       selectedIds: this.selectedIds(),
       columns: this.columns(),
