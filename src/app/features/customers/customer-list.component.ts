@@ -322,6 +322,15 @@ export class CustomerListComponent {
     return `${soggetto} dall'anagrafica. Documenti, ordini e vendite restano invariati: il nome resta scritto su ognuno, e si continua a leggere.`;
   });
 
+  private duplicaCliente(id: string): void {
+    this.service
+      .duplicateCustomer(id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (copia) => void this.router.navigate(['/app/customers', copia.id, 'edit']),
+      });
+  }
+
   private requestDeleteSelection(ids: readonly string[]): void {
     if (ids.length === 0 || this.deleteBusy()) {
       return;
@@ -409,6 +418,26 @@ export class CustomerListComponent {
         comando('new', {
           ariaLabel: 'Nuovo cliente',
           run: () => void this.router.navigate(['/app/customers/new']),
+        }),
+      );
+    }
+
+    /*
+      ⭐ **Duplica**: `requires: 'one'` dal catalogo — si duplica una scheda per
+      volta, e a selezione multipla il comando è spento CON il motivo.
+
+      ⚠️ **Apre la copia**, non resta sull'elenco: si duplica per rifinire, e la
+      prima cosa da fare è cambiare ciò che deve essere diverso.
+    */
+    if (this.canManage()) {
+      azioni.push(
+        comando('duplicate', {
+          ariaLabel: 'Duplica il cliente selezionato',
+          run: (target) => {
+            if (target.scope === 'selection' && target.ids[0]) {
+              this.duplicaCliente(target.ids[0]);
+            }
+          },
         }),
       );
     }

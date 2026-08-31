@@ -10,12 +10,16 @@ import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-i
 import { ActivatedRoute, Router } from '@angular/router';
 import {
   catchError,
+  concatMap,
   debounceTime,
   distinctUntilChanged,
+  from,
   map,
   of,
   startWith,
   switchMap,
+  take,
+  toArray,
 } from 'rxjs';
 
 import { AuthService } from '@core/auth';
@@ -25,6 +29,7 @@ import type { AppError } from '@core/models/app-error.model';
 import type { Supplier } from '@core/models/supplier.model';
 import { canManageSupplierOrders } from '@core/permissions/tenant-permissions.util';
 import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
+import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import { comando } from '@shared/models/list-action-catalog';
 import type { ListAction } from '@shared/models/list-selection.model';
@@ -65,7 +70,12 @@ type SupplierListState =
 @Component({
   selector: 'app-supplier-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ListActionsBarComponent, ListPageComponent, SupplierTableComponent],
+  imports: [
+    ListActionsBarComponent,
+    ListPageComponent,
+    SupplierTableComponent,
+    DeleteConfirmComponent,
+  ],
   templateUrl: './supplier-list.component.html',
   styleUrl: './supplier-list.component.scss',
 })
@@ -188,9 +198,149 @@ export class SupplierListComponent {
             ariaLabel: 'Nuovo fornitore',
             run: () => this.createSupplier(),
           }),
+          /*
+            ⭐ **Duplica**: `requires: 'one'` dal catalogo — una scheda per volta.
+            Apre la copia, perché si duplica per rifinire.
+          */
+          comando('duplicate', {
+            ariaLabel: 'Duplica il fornitore selezionato',
+            run: (target) => {
+              if (target.scope === 'selection' && target.ids[0]) {
+                this.duplicaFornitore(target.ids[0]);
+              }
+            },
+          }),
+          /*
+            ⭐ **Elimina**: `requires: 'oneOrMore'`, con la doppia conferma del
+            componente condiviso. Lo storico resta — vedi `delete` nel servizio API.
+          */
+          comando('delete', {
+            busy: this.deleteBusy(),
+            ariaLabel: 'Elimina i fornitori selezionati',
+            run: (target) => {
+              if (target.scope === 'selection') {
+                this.requestDeleteSelection(target.ids);
+              }
+            },
+          }),
         ]
       : [],
   );
+
+  // ── Selezione ─────────────────────────────────────────────────────────────
+  protected readonly selectedSupplierIds = signal<ReadonlySet<string>>(new Set<string>());
+
+  protected toggleSupplierSelection(supplierId: string, selected: boolean): void {
+    this.selectedSupplierIds.update((correnti) => {
+      const prossimi = new Set(correnti);
+      if (selected) {
+        prossimi.add(supplierId);
+      } else {
+        prossimi.delete(supplierId);
+      }
+      return prossimi;
+    });
+  }
+
+  protected toggleSelectAll(selected: boolean): void {
+    this.selectedSupplierIds.set(
+      selected ? new Set(this.suppliers().map((s) => s.id)) : new Set<string>(),
+    );
+  }
+
+  protected clearSelection(): void {
+    this.selectedSupplierIds.set(new Set<string>());
+  }
+
+  // ── Eliminazione: la sequenza a due conferme sta nel componente condiviso ──
+  protected readonly deleteWarnOpen = signal(false);
+  protected readonly deleteBusy = signal(false);
+  private readonly pendingDeleteIds = signal<readonly string[]>([]);
+
+  /** ⚠️ Il titolo NOMINA chi sparisce, non l'operazione. */
+  protected readonly deleteWarnTitle = computed(() => {
+    const ids = this.pendingDeleteIds();
+    if (ids.length === 1) {
+      const fornitore = this.suppliers().find((s) => s.id === ids[0]);
+      return fornitore ? `Elimina ${fornitore.name}` : 'Elimina fornitore';
+    }
+    return `Elimina ${ids.length} fornitori`;
+  });
+
+  /*
+    ⭐ **La conseguenza dice che cosa NON sparisce.** Chi elimina un fornitore teme
+    di perdere ordini e fatture d'acquisto: non li perde — il nome resta scritto su
+    ognuno.
+
+    ⚠️ **E dice anche che cosa sparisce davvero**: i legami prodotto-fornitore,
+    che erano SUOI. È l'unica cosa che si perde, e va detta prima.
+  */
+  protected readonly deleteWarnMessage = computed(() => {
+    const n = this.pendingDeleteIds().length;
+    const soggetto = n === 1 ? 'La scheda sparisce' : `Le ${n} schede spariscono`;
+    return `${soggetto} dall'anagrafica, insieme ai collegamenti con gli articoli. Ordini e documenti restano invariati: il nome resta scritto su ognuno.`;
+  });
+
+  private duplicaFornitore(id: string): void {
+    this.service
+      .duplicateSupplier(id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (copia) => void this.router.navigate(['/app/suppliers', copia.id, 'edit']),
+      });
+  }
+
+  private requestDeleteSelection(ids: readonly string[]): void {
+    if (ids.length === 0 || this.deleteBusy()) {
+      return;
+    }
+    this.pendingDeleteIds.set(ids);
+    this.deleteWarnOpen.set(true);
+  }
+
+  protected onDeleteCancel(): void {
+    if (this.deleteBusy()) {
+      return;
+    }
+    this.pendingDeleteIds.set([]);
+  }
+
+  /*
+    ⚠️ **`concatMap`, non `forkJoin`**: una per una, così un fallimento a metà
+    lascia uno stato leggibile invece di un esito unico che non dice quali.
+  */
+  protected onDeleteConfirm(): void {
+    const ids = this.pendingDeleteIds();
+    if (ids.length === 0 || this.deleteBusy()) {
+      this.deleteWarnOpen.set(false);
+      return;
+    }
+    this.deleteBusy.set(true);
+    from(ids)
+      .pipe(
+        concatMap((id) =>
+          this.service.deleteSupplier(id).pipe(
+            map(() => ({ ok: true, id })),
+            catchError(() => of({ ok: false, id })),
+          ),
+        ),
+        toArray(),
+        take(1),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((esiti) => {
+        this.deleteBusy.set(false);
+        this.deleteWarnOpen.set(false);
+        this.pendingDeleteIds.set([]);
+        const eliminati = new Set(esiti.filter((e) => e.ok).map((e) => e.id));
+        if (eliminati.size > 0) {
+          this.selectedSupplierIds.update(
+            (correnti) => new Set([...correnti].filter((id) => !eliminati.has(id))),
+          );
+        }
+        this.reload();
+      });
+  }
 
   protected openSupplier(supplier: Supplier): void {
     void this.router.navigate(['/app/suppliers', supplier.id]);

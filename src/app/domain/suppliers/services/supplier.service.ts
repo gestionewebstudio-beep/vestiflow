@@ -81,6 +81,16 @@ export class SupplierService {
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
+  /**
+   * ⭐ **Duplica la scheda**, con la stessa forma dei clienti e dei prodotti.
+   * Partita IVA e codice fiscale non si copiano.
+   */
+  duplicateSupplier(id: string): Observable<{ readonly id: string }> {
+    return this.http
+      .post<{ readonly id: string }>(`${this.baseUrl()}/${id}/duplicate`, {})
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
   deleteSupplier(id: string): Observable<{ readonly ok: true }> {
     return this.http
       .delete<{ readonly ok: true }>(`${this.baseUrl()}/${id}`)

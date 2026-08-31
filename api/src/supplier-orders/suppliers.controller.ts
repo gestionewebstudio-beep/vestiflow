@@ -131,6 +131,19 @@ export class SuppliersController {
     return this.suppliers.update(tenantId, id, dto);
   }
 
+  /**
+   * ⭐ **Duplica**: una scheda nuova che si apre per rifinirla. Partita IVA e
+   * codice fiscale non si copiano — vedi il servizio.
+   */
+  @Post(':id/duplicate')
+  @RequireAnyPermissions(SUPPLIER_ORDERS_MANAGE_PERMISSIONS)
+  duplicate(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ readonly id: string }> {
+    return this.suppliers.duplicate(tenantId, id);
+  }
+
   @Delete(':id')
   @RequireAnyPermissions(SUPPLIER_ORDERS_MANAGE_PERMISSIONS)
   async delete(

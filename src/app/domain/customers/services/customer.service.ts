@@ -68,6 +68,17 @@ export class CustomerService {
    * vendite online conservano il nome fotografato e perdono solo il collegamento
    * (deciso il 30/08/2026, stesso criterio dell'unità di misura e del Codice IVA).
    */
+  /**
+   * ⭐ **Duplica la scheda**: una copia col prossimo codice, che si apre per
+   * rifinirla. Partita IVA e codice fiscale non si copiano — due anagrafiche con
+   * la stessa partita IVA non sono una copia, sono un errore.
+   */
+  duplicateCustomer(id: string): Observable<{ readonly id: string }> {
+    return this.http
+      .post<{ readonly id: string }>(this.url(`/customers/${id}/duplicate`), {})
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
   deleteCustomer(id: string): Observable<void> {
     return this.http.delete<void>(this.url(`/customers/${id}`)).pipe(timeout(HTTP_TIMEOUT_MS));
   }

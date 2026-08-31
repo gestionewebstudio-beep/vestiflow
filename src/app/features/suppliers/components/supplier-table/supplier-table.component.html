@@ -1,71 +1,59 @@
-<div class="supplier-table-wrap">
-  <table class="supplier-table">
-    <thead>
-      <tr>
-        @for (col of columns(); track col.id) {
-          <th scope="col" [class.supplier-table__cell--pinned]="col.pinned">
-            {{ col.label }}
-          </th>
-        }
-      </tr>
-    </thead>
-    <tbody>
-      @for (supplier of suppliers(); track supplier.id) {
-        <tr
-          class="supplier-table__row"
-          tabindex="0"
-          role="link"
-          [attr.aria-label]="rowLabel(supplier)"
-          (click)="rowClick.emit(supplier)"
-          (keydown.enter)="rowClick.emit(supplier)"
-          (keydown.space)="$event.preventDefault(); rowClick.emit(supplier)"
-        >
-          @for (col of columns(); track col.id) {
-            @switch (col.id) {
-              @case ('code') {
-                <td [class.supplier-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
-                  {{ displayCode(supplier) }}
-                </td>
-              }
-              @case ('name') {
-                <td [class.supplier-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
-                  {{ supplier.name }}
-                </td>
-              }
-              @case ('vatNumber') {
-                <td [class.supplier-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
-                  {{ displayVat(supplier) }}
-                </td>
-              }
-              @case ('email') {
-                <td [class.supplier-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
-                  {{ supplier.email ?? '—' }}
-                </td>
-              }
-              @case ('city') {
-                <td [class.supplier-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
-                  {{ displayCity(supplier) }}
-                </td>
-              }
-              @case ('phone') {
-                <td [class.supplier-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
-                  {{ supplier.phone?.trim() || '—' }}
-                </td>
-              }
-              @case ('paymentTerms') {
-                <td [class.supplier-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
-                  {{ supplier.paymentTerms?.trim() || '—' }}
-                </td>
-              }
-              @case ('roleStatus') {
-                <td [class.supplier-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
-                  {{ supplier.isActive ? 'Attivo' : 'Disattivato' }}
-                </td>
-              }
-            }
-          }
-        </tr>
+<!--
+  ⭐ **Lo scheletro è del motore comune** (`14` parte H) dal 31/08/2026 —
+  dodicesimo e ultimo elenco a entrarci.
+
+  ⛔ **Qui c'erano 71 righe** con un `@switch (col.id)` di otto rami: nessuna delle
+  otto colonne è altro che testo, quindi quel markup non diceva niente che
+  `cellText` non dica meglio. E senza motore mancavano selezione, riga totali,
+  taglio a colonna e card progettata.
+-->
+<app-data-table
+  caption="Elenco fornitori"
+  [columns]="columns()"
+  [sections]="sections()"
+  [rowId]="rowId"
+  [cellText]="cellText"
+  [rowClickable]="true"
+  [rowLabel]="rowLabelFor"
+  [totals]="totals()"
+  selectionMode="multiple"
+  [selectedIds]="selectedIds()"
+  [selectionLabel]="selectionLabel"
+  selectAllLabel="Seleziona tutti i fornitori"
+  (rowClick)="rowClick.emit($event)"
+  (selectionChange)="selectionToggle.emit({ supplierId: $event.row.id, selected: $event.selected })"
+  (selectAllChange)="selectAllToggle.emit($event)"
+>
+  <!--
+    ⭐ **La card di un ELENCO si progetta, non si impila**: tre fasce, grammatica
+    comune (`styles/_list-card.scss`).
+
+    ⚠️ **Nessuna terza fascia**: un fornitore non ha numeri da isolare, come i
+    clienti. Inventarne una per riempirla sarebbe rumore.
+  -->
+  <ng-template appRowCard let-supplier>
+    <div class="list-card__head">
+      <span class="list-card__ident">
+        <span class="list-card__what">{{ supplier.name }}</span>
+      </span>
+      @if (visibile('code')) {
+        <span class="list-card__anchor">{{ displayCode(supplier) }}</span>
       }
-    </tbody>
-  </table>
-</div>
+    </div>
+
+    <div class="list-card__words">
+      @if (visibile('vatNumber')) {
+        <span>{{ displayVat(supplier) }}</span>
+      }
+      @if (visibile('email') && supplier.email) {
+        <span>{{ supplier.email }}</span>
+      }
+      @if (visibile('city')) {
+        <span>{{ displayCity(supplier) }}</span>
+      }
+      @if (visibile('roleStatus')) {
+        <span>{{ supplier.isActive ? 'Attivo' : 'Disattivato' }}</span>
+      }
+    </div>
+  </ng-template>
+</app-data-table>

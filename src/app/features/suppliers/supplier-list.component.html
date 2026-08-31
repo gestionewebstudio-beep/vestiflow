@@ -20,6 +20,9 @@
     data
     [suppliers]="suppliers()"
     [columns]="tableColumns()"
+    [selectedIds]="selectedSupplierIds()"
+    (selectionToggle)="toggleSupplierSelection($event.supplierId, $event.selected)"
+    (selectAllToggle)="toggleSelectAll($event)"
     (rowClick)="openSupplier($event)"
   />
 
@@ -40,6 +43,27 @@
     un criterio, e costavano all'operatore la domanda «dove sarà questo?».
   -->
   <div listActions>
-    <app-list-actions-bar [actions]="listActions()" />
+    <app-list-actions-bar
+      [count]="selectedSupplierIds().size"
+      [ids]="[...selectedSupplierIds()]"
+      [actions]="listActions()"
+      clearLabel="Deseleziona"
+      (cleared)="clearSelection()"
+    />
   </div>
+
+  <!--
+    ⚠️ Nello slot `overlays`: le cose `position: fixed` hanno una casella loro nel
+    telaio, e il contenuto proiettato che non trova uno slot Angular lo elimina
+    dal DOM, senza errori.
+  -->
+  <app-delete-confirm
+    overlays
+    [(open)]="deleteWarnOpen"
+    [title]="deleteWarnTitle()"
+    [consequence]="deleteWarnMessage()"
+    [busy]="deleteBusy()"
+    (confirmed)="onDeleteConfirm()"
+    (dismissed)="onDeleteCancel()"
+  />
 </app-list-page>

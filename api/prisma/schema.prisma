@@ -1132,7 +1132,10 @@ model SupplierOrder {
   /// interni, il vincolo parziale copre tutte le righe con numero valorizzato.
   series                       String?
   number                       Int?
-  supplierId                   String                @map("supplier_id") @db.Uuid
+  /// ⭐ Facoltativo: l'ordine SOPRAVVIVE al fornitore eliminato (31/08/2026).
+  /// Il nome resta in `supplierName`, che è uno snapshot — il riferimento serve
+  /// ad aprire la scheda, non a leggere il nome.
+  supplierId                   String?               @map("supplier_id") @db.Uuid
   /// Snapshot nome fornitore (display stabile).
   supplierName                 String                @map("supplier_name")
   /// Legacy: destinazione merce dei vecchi ordini. L'ordine fornitore non
@@ -1168,7 +1171,7 @@ model SupplierOrder {
   updatedAt                    DateTime              @updatedAt @map("updated_at")
 
   tenant               Tenant                @relation(fields: [tenantId], references: [id])
-  supplier             Supplier              @relation(fields: [supplierId], references: [id])
+  supplier             Supplier?             @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   destinationLocation  Location?             @relation(fields: [destinationLocationId], references: [id])
   externalDocumentType ExternalDocumentType? @relation(fields: [externalDocumentTypeId], references: [id], onDelete: SetNull)
   lines                SupplierOrderLine[]

@@ -324,8 +324,25 @@ export class SupplierOrdersService {
       assertLocationInUserScope(user, sedeRisultante, 'write');
     }
 
+    /*
+      ⚠️ **`order.supplierId` può essere vuoto** da quando un fornitore si può
+      eliminare (31/08/2026): l'ordine resta, col nome fotografato, e non punta
+      più a nessuno.
+
+      ⛔ **Modificare un ordine così richiede di sceglierne uno nuovo**, e il
+      rifiuto lo dice: senza fornitore non si può ricalcolare niente di ciò che
+      dipende da lui — condizioni, valuta, listino. Non è un impedimento
+      tecnico, è che l'ordine non saprebbe a chi è indirizzato.
+    */
+    const idFornitore = dto.supplierId ?? order.supplierId;
+    if (!idFornitore) {
+      throw new UnprocessableEntityException(
+        'Questo ordine non ha più un fornitore in anagrafica: scegline uno per modificarlo.',
+      );
+    }
+
     const supplier = await this.prisma.supplier.findFirst({
-      where: { id: dto.supplierId ?? order.supplierId, tenantId },
+      where: { id: idFornitore, tenantId },
       include: { party: true },
     });
     if (!supplier) {

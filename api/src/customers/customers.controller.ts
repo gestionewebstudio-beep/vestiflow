@@ -105,6 +105,18 @@ export class CustomersController {
    * toglierla. Un permesso a sé per l'eliminazione sarebbe una terza autorità su
    * un'entità che ne ha già una.
    */
+  /**
+   * ⭐ **Duplica**: una scheda nuova col prossimo codice, che si apre per
+   * rifinirla. Partita IVA e codice fiscale non si copiano — vedi il servizio.
+   */
+  @Post(':id/duplicate')
+  duplicate(
+    @CurrentTenant() tenantId: string,
+    @Param('id') id: string,
+  ): Promise<{ readonly id: string }> {
+    return this.customers.duplicate(tenantId, id);
+  }
+
   @Delete(':id')
   @HttpCode(204)
   remove(@CurrentTenant() tenantId: string, @Param('id') id: string): Promise<void> {

@@ -15,6 +15,7 @@ import {
   type CustomerView,
   type CustomerWithParty,
 } from '../common/party/party-views';
+import { partyDuplicateData } from '../common/party-duplicate.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { nextNumericSupplierCode } from '../supplier-orders/supplier-code.util';
 import type { CreateCustomerDto } from './dto/create-customer.dto';
@@ -562,6 +563,56 @@ export class CustomersService {
       if (!anchefornitore) {
         await tx.party.delete({ where: { id: customer.partyId } });
       }
+    });
+  }
+
+  /**
+   * ⭐ **Duplica la scheda cliente**: una copia con codice proprio, che si apre
+   * per rifinire ciò che deve essere diverso — la stessa forma del duplica
+   * prodotto.
+   *
+   * ⛔ **Partita IVA e codice fiscale NON si copiano** (`partyDuplicateData`): due
+   * anagrafiche con la stessa partita IVA non sono una copia, sono un errore.
+   *
+   * ⚠️ **Non si copia lo storico**, e non è una scelta: documenti, ordini e
+   * vendite appartengono al soggetto che li ha fatti. La copia è un soggetto
+   * nuovo, e nasce senza passato.
+   */
+  async duplicate(tenantId: string, id: string): Promise<{ readonly id: string }> {
+    const original = await this.prisma.customer.findFirst({
+      where: { id, tenantId },
+      include: { party: true },
+    });
+    if (!original) {
+      throw new NotFoundException('Cliente non trovato.');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const code = await this.allocateNextCustomerCode(tx, tenantId);
+      const party = await tx.party.create({
+        data: partyDuplicateData(original.party, tenantId),
+      });
+      const copia = await tx.customer.create({
+        data: {
+          tenantId,
+          partyId: party.id,
+          code,
+          isActive: original.isActive,
+          // Le condizioni commerciali SI copiano: sono il motivo per cui si
+          // duplica invece di creare da zero.
+          customerDiscount: original.customerDiscount,
+          paymentMethod: original.paymentMethod,
+          paymentTerms: original.paymentTerms,
+          transportResponsible: original.transportResponsible,
+          documentCreationAlert: original.documentCreationAlert,
+          documentCreationNote: original.documentCreationNote,
+          commercialNotes: original.commercialNotes,
+          // ⛔ `shopifyCustomerId` NO: quel legame è dell'originale, e il canale
+          //    non conosce la copia.
+        },
+        select: { id: true },
+      });
+      return copia;
     });
   }
 }

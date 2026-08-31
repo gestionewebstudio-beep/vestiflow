@@ -1,26 +1,7 @@
 @use 'responsive-table' as rt;
 
-// Tabella fornitori sul mixin condiviso (v4): stessa veste card, header,
-// divisori e card mobile di tutte le altre liste del gestionale.
-@include rt.list-card-table-host();
-@include rt.stack-table('supplier-table');
-
 /*
-  ⚠️ **L'host deve poter passare l'altezza al wrapper.**
-
-  `list-card-table-host()` lo mette a `display: block`: va bene finché la tabella
-  cresce col contenuto, ma nella pagina che si adatta alla finestra l'host riceve
-  `flex: 1` e deve girarlo al proprio figlio. Senza questo blocco l'altezza si
-  ferma qui e il wrapper non scorre — **in silenzio**.
+  ⭐ Qui c'erano 26 righe di layout tabella. **Le rende il motore comune**, che le
+  include una volta invece di una per tabella.
 */
-:host {
-  display: flex;
-  flex-direction: column;
-  min-block-size: 0;
-}
-
-@include rt.table-scroll('.supplier-table-wrap', riempi);
-
-.supplier-table__row {
-  cursor: pointer;
-}
+@include rt.ponte-tabella();

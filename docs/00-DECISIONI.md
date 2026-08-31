@@ -483,7 +483,47 @@ la `Party`. Eliminando il ruolo cliente, l'anagrafica sparisce **solo se nessun
 fornitore la usa**: toglierla comunque cancellerebbe un fornitore attivo passando
 dalla porta di servizio.
 
-⏸ **Fornitori: stessa regola, ancora da fare.** L'endpoint non esiste.
+### ✅ Fornitori — fatto il 31/08/2026, e l'endpoint c'era già
+
+⛔ **Faceva l'OPPOSTO**: «il fornitore è collegato a ordini o documenti: non può
+essere eliminato». Quel blocco impediva di togliere un fornitore con cui si fosse
+lavorato — cioè proprio quelli che si vuole togliere.
+
+⚠️ **È costato una migration** (`20260831110000`), e per i clienti no:
+`supplier_orders.supplier_id` era `NOT NULL`, quindi il database avrebbe rifiutato
+comunque. Le due alternative erano peggiori — cancellare gli ordini (sono
+documenti) o lasciare il blocco.
+
+⭐ La colonna è ora facoltativa e la relazione `onDelete: SetNull`. **Le due
+dichiarazioni vanno insieme**: la sola colonna nullable non basta, il vincolo
+continuerebbe a rifiutare.
+
+## ⭐ DUPLICARE un'anagrafica — deciso il 31/08/2026
+
+> **Una copia è un SOGGETTO NUOVO, non un gemello.** Si apre per rifinire ciò che
+> deve essere diverso — la stessa forma del duplica prodotto.
+
+|                     |                                                                                                              |
+| ------------------- | ------------------------------------------------------------------------------------------------------------ |
+| si copia            | contatti, indirizzo, **condizioni commerciali** — sono il motivo per cui si duplica invece di creare da zero |
+| ⛔ **non** si copia | **partita IVA** e **codice fiscale**                                                                         |
+| ⛔ non si copia     | il legame di canale (Shopify): appartiene all'originale                                                      |
+| non si copia        | lo storico: documenti e ordini sono del soggetto che li ha fatti                                             |
+
+⛔ **Partita IVA e codice fiscale sono la regola che conta.** Due anagrafiche con
+la stessa partita IVA non sono una copia: sono un **errore**. Chi duplica sta
+creando un soggetto diverso — una sede, una società collegata — e quei due campi
+sono esattamente ciò che lo distingue.
+
+⚠️ **Il nome prende «(Copia)»**: due schede identiche in un elenco non si
+distinguono, e la prima cosa che si fa dopo un duplica è cercare quella nuova. Il
+suffisso va sul nome che l'elenco MOSTRA — ragione sociale se c'è, altrimenti
+cognome — o si otterrebbe «Rossi (Copia) S.r.l. (Copia)».
+
+⭐ **La parte comune sta in `common/party-duplicate.util`**: la `Party` è la stessa
+struttura per entrambi i ruoli, e scrivere due volte l'elenco dei campi significa
+che il giorno in cui se ne aggiunge uno viene copiato solo da una parte, in
+silenzio.
 
 ## ⏸ Le decisioni APERTE — in un posto solo
 
