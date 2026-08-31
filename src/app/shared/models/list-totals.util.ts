@@ -8,11 +8,24 @@ import type { ResolvedTableColumn } from '@shared/table-columns/table-column.mod
  * export AGGREGANO i valori finali già determinati e persistiti». Qui si somma,
  * non si ricalcola: nessuna aliquota, nessuno sconto, nessuna formula.
  *
- * ⛔ **Non è per chi prende i totali dall'API.** Il Registro Corrispettivi li
- * riceve già sommati dal server, perché il suo risultato è più grande di quello
- * che ha a schermo — sommare le righe rese darebbe il totale della vista, non
- * del periodo. Chi è in quella condizione costruisce da sé il proprio
- * `DataTableTotals` e non passa di qui.
+ * ⛔ **Non è per chi ha un RIEPILOGO invece di una riga totali.** Il Registro
+ * Corrispettivi costruisce da sé il proprio, e non passa di qui.
+ *
+ * ⭐ **«Il suo risultato è più grande di quello che ha a schermo», e resta vero
+ * anche a periodo filtrato** — è normale, non un effetto della paginazione.
+ *
+ * ⚠️ **Il perché non è il caricamento**: quel registro carica tutte le righe del
+ * periodo, come ogni altro elenco, e parte dagli stessi trenta giorni. È che
+ * **metà delle voci del riepilogo non sono colonne**, quindi non esistono come
+ * righe da sommare: evasi senza data, annullamenti (contati, mai sottratti),
+ * rettifiche alla loro data — che non è quella della riga che rettificano —,
+ * netto venduto-meno-reso.
+ *
+ * ⛔ **Una riga totali somma ciò che si vede; un riepilogo risponde a domande che
+ * le colonne non pongono** (`regole-stile-ui`). È la ragione per cui il Registro
+ * costruisce da sé il proprio, e per cui i filtri di colonna lato client là non
+ * si applicano: filtrerebbero le righe lasciando ferme le voci che righe non
+ * hanno.
  *
  * ⚠️ **L'ambito lo decide la selezione**: nessuna riga scelta → tutte; una o più
  * → solo quelle. È la regola «senza selezione mostra i totali del risultato
