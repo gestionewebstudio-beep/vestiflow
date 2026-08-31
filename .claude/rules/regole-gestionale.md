@@ -293,6 +293,82 @@ butterebbe via proprio la coda), e la coda oltre le quattro cifre di centesimo s
 `toStorableMinor`, perché oltre lì non c'è precisione — c'è il rumore del float, e la colonna
 rifiuterebbe la scala.
 
+### ⭐ Il riepilogo SOMMA, non ricalcola — deciso dal proprietario il 27/08/2026
+
+> **Il calcolo economico avviene nel DOCUMENTO, una volta sola, secondo il contratto
+> comune. Elenchi, report, selezioni, export e registri AGGREGANO i valori finali già
+> determinati e persistiti.**
+
+⛔ **Un riepilogo non è un secondo motore economico.** Se ogni consumatore ricostruisce
+l’IVA, cominciano le differenze dovute ai diversi punti di arrotondamento — e la stessa
+transazione finisce per valere numeri diversi a seconda di dove la si guarda:
+
+```text
+documento   100,00
+elenco      100,01     ⛔ questo non deve poter accadere
+CSV          99,99
+report      100,00
+```
+
+#### Le tre responsabilità, e non se ne scambia nessuna
+
+| Livello                | Responsabilità                                                  |
+| ---------------------- | --------------------------------------------------------------- |
+| **Riga documento**     | calcola imponibile, IVA e totale **finali**                     |
+| **Documento**          | **somma** i valori finali delle proprie righe                   |
+| **Riepilogo / report** | **somma** i valori dei documenti, applicando filtri e **verso** |
+
+⛔ **Nel report non ci sta un `calcolaTotaleFattura()`.** Concettualmente ha solo:
+
+```text
+aggregate(document.taxableTotal)
+aggregate(document.vatTotal)
+aggregate(document.grandTotal)
++ economicSign(document.type)      quando serve
+```
+
+⭐ **Il riepilogo applica la CLASSIFICAZIONE e il VERSO economico, non rifà il calcolo
+fiscale.** Una fattura da 100 e una nota di credito da 50 fanno 50 — e ci si arriva col
+segno del tipo, non ricalcolando l’IVA della fattura.
+
+#### ⚠️ L’IVA per aliquota segue la stessa regola
+
+`IVA 22% · IVA 10% · IVA 4%` si ottengono **sommando gli importi IVA finali delle righe**
+di quel codice. ⛔ **Mai** prendere l’imponibile totale e rifare `imponibile × aliquota`:
+è lo stesso errore di arrotondamento, un piano più in alto.
+
+#### Dove pesca un elenco
+
+Dai **valori di testata** del documento (`taxableTotal`, `vatTotal`, `total`): è la strada
+più semplice e più veloce. Le **righe** servono solo quando il riepilogo chiede una
+dimensione che la testata non contiene — l’IVA per aliquota, per esempio — e anche lì si
+aggregano **valori finali salvati**, non si rifanno le formule.
+
+⭐ **La velocità è un beneficio secondario**, e va detto perché non è la ragione: un
+`SUM()` su valori già determinati costa molto meno che rileggere migliaia di righe e
+ripetere quantità × prezzo × modalità × sconto × sconto documento × aliquota ×
+arrotondamento. Ma il vantaggio fondamentale è **un risultato economico solo** per una
+transazione.
+
+#### ⭐ E risolve lo storico, che è lo stesso principio della fotografia
+
+Se agosto ha registrato un totale di riga da 25,00 €, il report di agosto deve continuare
+a leggere 25,00 € anche dopo che a settembre si è cambiato il listino. Andare
+sull’articolo corrente e chiedersi «quanto costerebbe oggi?» **non è un riepilogo: è una
+rivalutazione.** Gli snapshot esistono esattamente per questo.
+
+#### Il bersaglio: un motore, N aggregatori
+
+⛔ Il target **non è scegliere uno dei motori esistenti così com’è**. È:
+
+```text
+1 motore canonico documentale   +   N aggregatori semplici
+```
+
+⚠️ **Il difetto trovato sull’Ordine cliente non è del riepilogo: è del motore.** Chi
+aggrega quei numeri li aggrega correttamente — aggrega numeri sbagliati. Correggere il
+motore, e i consumatori si sistemano da soli.
+
 ### Netto/ivato: chi decide, in che ordine _(deciso 16/08/2026)_
 
 > **La modalità netto/ivato ha DUE livelli per i prezzi di vendita e UNO per i costi. Non di
