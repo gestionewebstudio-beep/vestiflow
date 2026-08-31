@@ -56,6 +56,7 @@ function arrivo(
     tax: { amountMinor: 0, currencyCode: 'EUR' },
     total: { amountMinor: totalMinor, currencyCode: 'EUR' },
     lines: [],
+    locationName: id === 'c' ? 'Magazzino test 4' : 'Magazzino test 3',
   } as unknown as DocumentRecord;
 }
 
@@ -175,6 +176,25 @@ describe('Arrivi merce — i filtri di colonna', () => {
     reso.fixture.detectChanges();
 
     expect(righeVisibili()).toBe(1);
+  });
+
+  /*
+    ⭐ **Il menu a valori è l'ultimo dei tre controlli**, e su questo elenco è
+    «Sede»: le scelte sono i valori PRESENTI, e sceglierne uno deve restringere.
+  */
+  it('⭐ la sede si sceglie dal menu, e restringe', async () => {
+    const reso = await apriConFiltri();
+
+    await userEvent.click(screen.getByLabelText('Filtra per Sede'));
+    reso.fixture.detectChanges();
+
+    const scelte = screen.getAllByRole('option').map((o) => o.textContent?.trim());
+    expect(scelte).toContain('Magazzino test 3');
+
+    await userEvent.click(screen.getByRole('option', { name: 'Magazzino test 3' }));
+    reso.fixture.detectChanges();
+
+    expect(righeVisibili()).toBe(2);
   });
 
   /*

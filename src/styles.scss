@@ -19,6 +19,7 @@
 // ⚠️ L'`@include` sta DOPO tutti gli `@use`: Sass li pretende in cima al file.
 @use 'styles/list-card' as vf-list-card;
 @use 'styles/a11y';
+@use 'styles/list-data-fill';
 
 @include vf-list-card.list-card();
 
