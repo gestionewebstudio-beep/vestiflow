@@ -335,13 +335,15 @@ export class InventorySituationComponent {
     this.locationFilter.set(value ?? '');
   }
 
+  /*
+    ⚠️ **La RICERCA non si azzera qui** (`14` §0.2, ribadito dal proprietario il
+    31/08/2026): ha il proprio campo sempre a vista e non segue «Filtri».
+  */
   protected resetFilters(): void {
     this.statusFilter.set('');
     this.supplierFilter.set('');
     this.categoryFilter.set('');
     this.locationFilter.set('');
-    this.searchDraft.set('');
-    this.search.set('');
     this.page.set(1);
   }
 

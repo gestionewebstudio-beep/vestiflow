@@ -218,10 +218,17 @@ export class CustomerListComponent {
       .subscribe(() => this.reload());
   }
 
-  protected resetFilters(): void {
-    this.searchDraft.set('');
-    this.updateParams({ search: null, page: null }, true);
-  }
+  /*
+    ⛔ **Qui c'era `resetFilters()`, e azzerava la RICERCA** — tolto il
+    31/08/2026, decisione del proprietario: «ricerca e periodo possono restare
+    fuori».
+
+    Era legato a `(filtersCleared)`, cioè allo spegnimento di «Filtri», e
+    `14` §0.2 dice il contrario: Ricerca e Periodo non seguono quel pulsante,
+    perché hanno il proprio controllo sempre a vista. Su questo elenco la
+    ricerca era **l'unica cosa** che quel metodo azzerava: tolta lei, non
+    restava niente da azzerare, e i filtri di colonna li pulisce lo store.
+  */
 
   protected reload(): void {
     this.refreshTick.update((tick) => tick + 1);

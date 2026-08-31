@@ -1360,18 +1360,23 @@ export class DocumentListComponent {
     return current.status === 'success' && current.meta.total === 0;
   });
 
+  /*
+    ⭐ **Dice se «Azzera filtri» ha qualcosa da azzerare**, e deve quindi
+    rispecchiare ESATTAMENTE ciò che `resetFilters()` tocca.
+
+    ⚠️ **Ricerca e Periodo ne sono usciti** insieme al metodo (31/08/2026):
+    lasciandoli qui il pulsante sarebbe comparso con la sola ricerca scritta, e
+    premendolo non sarebbe successo niente — un comando che finge di funzionare.
+  */
   protected readonly hasActiveFilters = computed(() => {
     const q = this.query();
     const sales = this.salesRegister();
     if (sales) {
       return (
         Boolean(
-          q.search ??
           // Come in `apiQuery`: dove il profilo non offre lo Stato, un
           // `?status=` non è un filtro attivo.
           (sales.statusOptions ? q.status : undefined) ??
-          q.dateFrom ??
-          q.dateTo ??
           // Elenchi condivisi: anche il filtro «Tipo» è azzerabile.
           (sales.types ? this.sharedTypeFilter() || undefined : undefined) ??
           (sales.hideCustomerFilter ? undefined : q.customerId) ??
@@ -1385,33 +1390,26 @@ export class DocumentListComponent {
     }
     if (this.isGoodsReceiptList()) {
       return Boolean(
-        q.search ??
-        q.dateFrom ??
-        q.dateTo ??
-        q.locationId ??
-        q.supplierId ??
-        q.linkStatus ??
-        q.externalDocumentTypeId ??
-        q.paymentMethod,
+        q.locationId ?? q.supplierId ?? q.linkStatus ?? q.externalDocumentTypeId ?? q.paymentMethod,
       );
     }
     // pendingInvoice è boolean (mai nullish): va in OR esplicito.
-    return (
-      Boolean(q.search ?? q.type ?? q.status ?? q.dateFrom ?? q.dateTo ?? q.customerId) ||
-      q.pendingInvoice === true
-    );
+    return Boolean(q.type ?? q.status ?? q.customerId) || q.pendingInvoice === true;
   });
 
-  /**
-   * Quanti filtri sono attivi, per il badge del pulsante «Filtri». La ricerca
-   * non conta (ha il campo sempre visibile); Dal/Al contano una volta sola.
-   * Stessi campi già valutati da hasActiveFilters, per profilo: zero logica nuova.
-   */
+  /*
+    Quanti filtri sono attivi, per il badge del pulsante «Filtri». Stessi campi
+    già valutati da `hasActiveFilters`, per profilo: zero logica nuova.
+
+    ⚠️ **Il PERIODO non conta nel badge**, per la stessa ragione della ricerca:
+    ha il proprio controllo sempre visibile in barra, a ogni larghezza. Il badge
+    dice che qualcosa restringe l'elenco **senza che si veda** — è il segnale che
+    serve sotto `lg`, dove i filtri stanno chiusi nel pannello.
+  */
   protected readonly activeFilterCount = computed(() => {
     const q = this.query();
     const sales = this.salesRegister();
     let count = 0;
-    if (q.dateFrom ?? q.dateTo) count++;
     if (sales) {
       if (sales.statusOptions && q.status) count++;
       if (sales.types && this.sharedTypeFilter()) count++;
@@ -1654,22 +1652,20 @@ export class DocumentListComponent {
     }
   }
 
+  /*
+    ⚠️ **Ricerca e Periodo restano fuori** (`14` §0.2, ribadito dal proprietario
+    il 31/08/2026): hanno il proprio controllo sempre a vista in barra — la
+    ricerca il suo campo, il periodo il suo slot — e non seguono «Filtri».
+
+    ⛔ Qui il periodo veniva riportato al preset predefinito dell'elenco, quindi
+    spegnere «Filtri» spostava anche le date: l'operatore che aveva scelto un
+    trimestre se lo ritrovava sul mese corrente senza averlo chiesto.
+  */
   protected resetFilters(): void {
-    this.searchDraft.set('');
-    // Dove il preset esiste il periodo torna al default dell'elenco («Mese
-    // corrente»), altrove resta senza vincolo di date.
-    const preset = this.isGoodsReceiptList()
-      ? MovementPeriodPreset.ThisMonth
-      : MovementPeriodPreset.All;
-    this.periodPreset.set(preset);
-    const range = resolveMovementPeriodRange(preset, '', '');
     this.updateParams(
       {
-        search: null,
         type: null,
         status: null,
-        dateFrom: range.from ?? null,
-        dateTo: range.to ?? null,
         customerId: null,
         locationId: null,
         supplierId: null,

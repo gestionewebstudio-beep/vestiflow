@@ -461,27 +461,32 @@ export class SalesOrderListComponent {
     return current.status === 'success' && current.meta.total === 0;
   });
 
+  /*
+    ⭐ **Dice se «Azzera» ha qualcosa da azzerare**, e deve quindi rispecchiare
+    esattamente ciò che `resetFilters()` tocca: senza, il pulsante comparirebbe
+    con la sola ricerca scritta e premendolo non succederebbe niente.
+  */
   protected readonly hasActiveFilters = computed(() => {
     const q = this.query();
     return Boolean(
-      q.search ??
       q.financialStatus ??
       q.fulfillmentStatus ??
       q.source ??
       q.state ??
       q.customerId ??
-      q.locationId ??
-      q.placedFrom ??
-      q.placedTo,
+      q.locationId,
     );
   });
 
   protected readonly formatMoney = formatMoney;
 
   /**
-   * Quanti filtri sono attivi, per il badge del pulsante «Filtri». La ricerca
-   * non conta: ha il suo campo sempre visibile. Dal/Al fanno parte del periodo,
-   * quindi si contano insieme una sola volta.
+   * Quanti filtri sono attivi, per il badge del pulsante «Filtri».
+   *
+   * ⚠️ **Ricerca e Periodo non contano**: hanno il proprio controllo sempre
+   * visibile in barra, a ogni larghezza. Il badge dice che qualcosa restringe
+   * l'elenco **senza che si veda** — è il segnale che serve sotto `lg`, dove i
+   * filtri stanno chiusi nel pannello.
    */
   protected readonly activeFilterCount = computed(() => {
     const q = this.query();
@@ -492,7 +497,6 @@ export class SalesOrderListComponent {
     if (q.fulfillmentStatus) count++;
     if (q.customerId) count++;
     if (q.locationId) count++;
-    if (q.placedFrom ?? q.placedTo) count++;
     return count;
   });
 
@@ -803,22 +807,23 @@ export class SalesOrderListComponent {
     );
   }
 
+  /*
+    ⚠️ **Ricerca e Periodo restano fuori** (`14` §0.2, ribadito dal proprietario
+    il 31/08/2026): hanno il proprio controllo sempre a vista in barra — la
+    ricerca il suo campo, il periodo il suo slot — e non seguono «Filtri».
+
+    ⛔ Qui il periodo tornava al «Mese corrente», quindi spegnere «Filtri»
+    spostava le date senza che nessuno lo chiedesse.
+  */
   protected resetFilters(): void {
-    this.searchDraft.set('');
-    // Il periodo torna al default dell'elenco («Mese corrente»), non a «Tutto».
-    this.periodPreset.set(MovementPeriodPreset.ThisMonth);
-    const range = resolveMovementPeriodRange(MovementPeriodPreset.ThisMonth, '', '');
     this.updateParams(
       {
-        search: null,
         financialStatus: null,
         fulfillmentStatus: null,
         source: null,
         state: null,
         customerId: null,
         locationId: null,
-        placedFrom: range.from ?? null,
-        placedTo: range.to ?? null,
         page: null,
       },
       true,

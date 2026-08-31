@@ -386,11 +386,17 @@ export class InventoryLevelsComponent {
     this.statusFilter.set(value ?? '');
   }
 
+  /*
+    ⚠️ **La RICERCA non si azzera qui** (`14` §0.2, ribadito dal proprietario il
+    31/08/2026): ha il proprio campo sempre a vista e non segue «Filtri».
+
+    ⭐ **Il filtro da scansione invece SÌ**, e non è la ricerca: nasce da un
+    codice letto col lettore, non ha un campo in barra che lo mostri, e senza un
+    comando che lo tolga l'elenco resterebbe su una variante sola.
+  */
   protected resetFilters(): void {
     this.locationFilter.set('');
     this.statusFilter.set('');
-    this.searchDraft.set('');
-    this.search.set('');
     this.variantIdFilter.set('');
     this.scanFeedback.set(null);
     this.page.set(1);

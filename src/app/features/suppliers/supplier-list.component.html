@@ -16,7 +16,6 @@
   [searchValue]="searchDraft()"
   [columnsViewId]="tableViewId"
   (searchChange)="searchDraft.set($event)"
-  (filtersCleared)="resetFilters()"
   (retry)="reload()"
 >
   <app-supplier-table

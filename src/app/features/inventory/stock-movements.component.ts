@@ -596,17 +596,21 @@ export class StockMovementsComponent {
     this.toFilter.set(value);
   }
 
+  /*
+    ⚠️ **Ricerca e Periodo restano fuori** (`14` §0.2, ribadito dal proprietario
+    il 31/08/2026): hanno il proprio controllo sempre a vista in barra e non
+    seguono il pulsante «Filtri». Qui il periodo è la terna
+    `periodFilter`/`fromFilter`/`toFilter`.
+
+    ⛔ Era l'elenco che ne azzerava di più — periodo compreso — quindi spegnere
+    «Filtri» riportava le date al predefinito senza che nessuno lo chiedesse.
+  */
   protected resetFilters(): void {
     this.typeFilter.set('');
     this.originFilter.set('');
-    this.periodFilter.set(DEFAULT_MOVEMENT_PERIOD);
-    this.fromFilter.set('');
-    this.toFilter.set('');
     this.locationFilter.set('');
     this.partyFilter.set('');
     this.operatorFilter.set('');
-    this.searchDraft.set('');
-    this.search.set('');
   }
 
   protected reload(): void {

@@ -178,13 +178,16 @@ export class SupplierListComponent {
       });
   }
 
-  protected resetFilters(): void {
-    const current = parseSupplierListQuery(this.queryParams());
-    void this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: supplierListQueryToParams({ ...current, page: 1, search: '' }),
-    });
-  }
+  /*
+    ⛔ **Qui c'era `resetFilters()`, e azzerava la RICERCA** — tolto il
+    31/08/2026, decisione del proprietario: «ricerca e periodo possono restare
+    fuori».
+
+    `14` §0.2 lo dice già: Ricerca e Periodo non seguono il pulsante «Filtri»,
+    perché hanno il proprio controllo sempre a vista. Su questo elenco la
+    ricerca era l'unica cosa che quel metodo azzerava, e i filtri di colonna li
+    pulisce lo store.
+  */
 
   /**
    * ⭐ **I comandi dell'elenco, tutti nella barra in basso** (`14` §0.2).
