@@ -1,4 +1,5 @@
 import { colonna } from '@shared/table-columns/column-catalog';
+import { conColonneCondivise } from './document-shared-columns';
 import {
   TableViewPresetId,
   type TableColumnDef,
@@ -37,28 +38,23 @@ export const DOCUMENT_LIST_SORTABLE_COLUMNS: ReadonlySet<string> = new Set([
   'status',
 ]);
 
-/**
- * ⭐ **Le colonne che OGNI documento ha, e nessun profilo mostrava.**
- *
- * Chi ha creato il documento, in che sede, entro quando va pagato: tre domande
- * che si pongono su qualunque tipo, e che il modello portava già senza che
- * nessuna colonna le esponesse.
- *
- * ⚠️ **Spente di serie**: aggiungere una colonna al preset predefinito cambia
- * ciò che tutti vedono senza che nessuno l'abbia chiesto. Il selettore Colonne
- * esiste perché sia l'operatore a decidere.
- *
- * ⛔ **Dichiarate qui e non in ogni profilo**: sette copie sono sette posti dove
- * una si può dimenticare e sette etichette che possono divergere — è già
- * successo con i preset, lo stesso giorno.
- */
-export const COLONNE_DOCUMENTALI_EXTRA: readonly TableColumnDef[] = [
-  { id: 'createdByName', label: 'Operatore', defaultVisible: false },
-  { id: 'locationName', label: 'Sede', defaultVisible: false },
-  { id: 'paymentDueDate', label: 'Scadenza', defaultVisible: false },
-] as const;
+/*
+  ⛔ **Qui c'era `COLONNE_DOCUMENTALI_EXTRA`**, un array sparso con lo spread in
+  cinque cataloghi. Due difetti, trovati da una revisione avversariale poche ore
+  dopo averlo scritto:
 
-export const DOCUMENT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
+  1. le tre colonne **non avevano un renderer** — nessun `case` in `cellText` —
+     quindi accendendole si ottenevano tre colonne SEMPRE VUOTE su cinque
+     elenchi. Nulla falliva: una colonna senza renderer è una stringa in un array;
+  2. uno spread non sa che cosa c'è nell'array che lo ospita, e dove il profilo
+     dichiarava già `location` («Sede») il selettore mostrava **due voci gemelle**.
+
+  ⭐ Ora stanno in `document-shared-columns.ts`, dove **dichiarazione e resa sono
+  lo stesso oggetto** e la funzione `conColonneCondivise` riceve il catalogo e
+  non ripete ciò che c'è.
+*/
+
+export const DOCUMENT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = conColonneCondivise([
   colonna('documentDate', {
     pinnable: true,
     defaultVisible: true,
@@ -71,8 +67,7 @@ export const DOCUMENT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   colonna('status', { defaultVisible: true }),
   colonna('lineCount', { defaultVisible: true }),
   colonna('total', { defaultVisible: true }),
-  ...COLONNE_DOCUMENTALI_EXTRA,
-] as const;
+]);
 
 export const DOCUMENT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
   [TableViewPresetId.Default]: [
@@ -111,7 +106,7 @@ export const DOCUMENT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
  * tipo — e controparte etichettata "Cliente". Le Fatture fanno eccezione e
  * usano INVOICE_LIST_COLUMN_DEFS, perché condividono un elenco fra due tipi.
  */
-export const SALES_DOCUMENT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
+export const SALES_DOCUMENT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = conColonneCondivise([
   colonna('documentDate', {
     pinnable: true,
     defaultVisible: true,
@@ -123,8 +118,7 @@ export const SALES_DOCUMENT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   colonna('status', { defaultVisible: true }),
   colonna('lineCount', { defaultVisible: true }),
   colonna('total', { defaultVisible: true }),
-  ...COLONNE_DOCUMENTALI_EXTRA,
-] as const;
+]);
 
 export const SALES_DOCUMENT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
   [TableViewPresetId.Default]: [
@@ -147,7 +141,7 @@ export const SALES_DOCUMENT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
  * condiviso da Fattura e Fattura accompagnatoria (numeratore unico). La
  * colonna sta subito dopo il Numero, dove l'operatore la cerca leggendo la riga.
  */
-export const INVOICE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
+export const INVOICE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = conColonneCondivise([
   colonna('documentDate', {
     pinnable: true,
     defaultVisible: true,
@@ -160,8 +154,7 @@ export const INVOICE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   colonna('status', { defaultVisible: true }),
   colonna('lineCount', { defaultVisible: true }),
   colonna('total', { defaultVisible: true }),
-  ...COLONNE_DOCUMENTALI_EXTRA,
-] as const;
+]);
 
 export const INVOICE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
   [TableViewPresetId.Default]: [
@@ -313,7 +306,7 @@ export const PURCHASE_INVOICE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
  * quindi con la colonna "Tipo". Niente colonna "Stato" — nascono già
  * confermati e non hanno ciclo di vita (§11 documento funzionale).
  */
-export const STORE_SALE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
+export const STORE_SALE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = conColonneCondivise([
   colonna('documentDate', {
     pinnable: true,
     defaultVisible: true,
@@ -327,8 +320,7 @@ export const STORE_SALE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   colonna('paymentMethod', { label: 'Metodo pagamento', defaultVisible: true }),
   colonna('lineCount', { defaultVisible: true }),
   colonna('location', { defaultVisible: false }),
-  ...COLONNE_DOCUMENTALI_EXTRA,
-] as const;
+]);
 
 export const STORE_SALE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
   [TableViewPresetId.Default]: [
@@ -374,7 +366,7 @@ export const STORE_SALE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
   ],
 };
 
-export const GOODS_RECEIPT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
+export const GOODS_RECEIPT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = conColonneCondivise([
   // Colonne visibili di default (ordine di lettura della riga).
   colonna('documentDate', {
     pinnable: true,
@@ -407,8 +399,7 @@ export const GOODS_RECEIPT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   // l'annullamento è già esposto dalla colonna "Stato" (collegamento fattura).
   // Niente colonna "Tipo": nella lista Arrivi merce il tipo interno è sempre
   // "Arrivo merce" (il selettore è stato rimosso dal form).
-  ...COLONNE_DOCUMENTALI_EXTRA,
-] as const;
+]);
 
 export const GOODS_RECEIPT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
   [TableViewPresetId.Default]: [

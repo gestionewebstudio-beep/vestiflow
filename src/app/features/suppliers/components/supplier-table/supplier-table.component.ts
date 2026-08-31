@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
 import type { Supplier } from '@core/models/supplier.model';
-import { colonnaVisibile } from '@shared/models/list-card-fields.util';
+import { colonnaVisibile, valoreCard } from '@shared/models/list-card-fields.util';
 import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';
 import type {
@@ -103,6 +103,9 @@ export class SupplierTableComponent {
   };
 
   /** ⚠️ Il trattino lungo per il vuoto è la convenzione già in uso qui. */
+  /** ⚠️ In cima a una card un trattino è un segno nudo: si omette. */
+  protected readonly valoreCard = valoreCard;
+
   protected displayCode(supplier: Supplier): string {
     return supplier.code?.trim() || '—';
   }

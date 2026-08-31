@@ -25,6 +25,7 @@ import {
 import { isStoreFlowDocumentType } from '@domain/documents/models/document-operational.util';
 
 import { righeDi } from '../../models/document-list-totals.util';
+import { testoColonnaCondivisa } from '../../models/document-shared-columns';
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
 import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';
@@ -372,6 +373,26 @@ export class DocumentTableComponent {
    * legge come un errore di caricamento, non come «non c'è».
    */
   protected readonly cellText = (doc: DocumentRecord, columnId: string): string => {
+    /*
+      ⭐ **Le colonne condivise si rendono da sé.** In `document-shared-columns`
+      dichiarazione e resa sono lo stesso oggetto: non si può aggiungere una di
+      quelle colonne dimenticandone il ramo.
+
+      ⛔ **È il difetto trovato il 31/08/2026 da una revisione avversariale**:
+      Operatore, Sede e Scadenza erano state aggiunte a cinque cataloghi senza
+      `case`, e accendendole si ottenevano tre colonne SEMPRE VUOTE. Nulla
+      falliva — una colonna senza renderer è una stringa in un array e una cella
+      vuota a schermo.
+
+      ⚠️ **`null` significa «non è una mia colonna»**, non «cella vuota»: la
+      stringa vuota è un valore legittimo per una cella, e confonderle
+      rimetterebbe in piedi il difetto che questa riga previene.
+    */
+    const condivisa = testoColonnaCondivisa(doc, columnId);
+    if (condivisa !== null) {
+      return condivisa;
+    }
+
     switch (columnId) {
       case 'documentDate':
         return this.dateLabel(doc);

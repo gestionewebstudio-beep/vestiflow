@@ -114,9 +114,7 @@ export class ProductTableComponent {
       })),
   );
 
-  protected readonly selezionabile = computed(() =>
-    this.columns().some((column) => column.id === 'select'),
-  );
+  protected readonly selezionabile = computed(() => colonnaVisibile(this.columns(), 'select'));
 
   /** Lista piatta: una sezione senza intestazione né piede. */
   protected readonly sections = computed<readonly DataTableSection<Product>[]>(() => [

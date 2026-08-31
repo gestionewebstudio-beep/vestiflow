@@ -4825,3 +4825,93 @@ template lo chiamano, ma delega.
 
 ⚠️ **Dodici copie di tre righe non sono un problema di volume**: sono dodici
 posti dove la stessa domanda può cominciare a significare cose diverse.
+
+---
+
+# 68. Colonne condivise dei documenti — 31/08/2026
+
+> _«Crea colonne condivise che vanno poi riutilizzate nei documenti.»_
+
+## 68.1 ⭐ Dichiarazione e resa sono lo STESSO oggetto
+
+`document-shared-columns.ts`: ogni voce porta la propria `def` **e** il proprio
+`testo`. Non si può dichiarare una colonna e dimenticarne la resa, perché sono
+la stessa cosa.
+
+```ts
+createdByName: {
+  def:   { id: 'createdByName', label: 'Operatore', defaultVisible: false },
+  testo: (doc) => doc.createdByName?.trim() || '—',
+}
+```
+
+⛔ **Il difetto che questo rende impossibile, misurato lo stesso giorno**: tre
+colonne aggiunte a cinque cataloghi **senza il ramo in `cellText`**. Accendendole
+dal selettore si ottenevano tre colonne **sempre vuote** su Documenti, Vendite,
+Fatture, Vendite al banco e Arrivi merce.
+
+⚠️ **Nulla falliva.** Una colonna senza renderer compila, passa il lint e passa
+5.281 test: è una stringa in un array e una cella vuota a schermo. L'ha trovata
+una revisione avversariale, non un controllo.
+
+## 68.2 ⚠️ Una FUNZIONE che avvolge, non uno spread
+
+```ts
+export const X_COLUMN_DEFS = conColonneCondivise([ …colonne proprie… ]);
+```
+
+⛔ **Lo spread aveva prodotto un secondo difetto**: `...COLONNE_EXTRA` non sa che
+cosa c'è nell'array che lo ospita, e dove il profilo dichiarava già `location`
+(etichettata «Sede») il selettore mostrava **due voci gemelle** — una funzionante
+e una vuota.
+
+⭐ **Il confronto è sull'ETICHETTA, non sull'id**: `location` e `locationName`
+sono id diversi e la stessa colonna per chi guarda.
+
+## 68.3 La guardia, e i due buchi che aveva
+
+`npm run check:colonne-rese` incrocia il catalogo colonne con chi rende quella
+cella: `case`, `appCell`, o il renderer condiviso.
+
+⛔ **Nella prima stesura era cieca due volte**, ed è stata falsificata prima di
+crederle:
+
+1. **dava per rese le colonne condivise perché il modulo esisteva** — e in quel
+   momento `cellText` non lo invocava affatto: passava verde sul difetto per cui
+   era nata. Ora una colonna condivisa conta solo se la feature **chiama**
+   `testoColonnaCondivisa`;
+2. **non contava affatto le colonne aggiunte da una funzione**, che nel testo del
+   catalogo non compaiono. Un catalogo che usa `conColonneCondivise` eredita
+   colonne invisibili all'analisi statica: ora la guardia le aggiunge da sé.
+
+## 68.4 ⛔ E `check:preset-documentali` ne aveva altri due
+
+Trovati dalla stessa revisione:
+
+| Buco                                                     | Conseguenza                                  |
+| -------------------------------------------------------- | -------------------------------------------- |
+| il gate cercava 4 date su 6 dichiarate                   | copertura reale **3 cataloghi su 11**        |
+| i preset che puntano a una **costante** venivano saltati | 5 su 54 non controllati, fra cui **Default** |
+
+⭐ **Il perimetro è ora DICHIARATO**, non dedotto da una regex. Allargarlo a
+tutti i registri era l'errore opposto, ed è stato provato: comparivano 27
+«difetti» su regole che nessuno ha deciso — la regola «data + numero» vale per i
+**documenti** (§67.2), non per Movimenti o per il Registro.
+
+⚠️ **E non basta che la colonna ESISTA: deve essere ACCESA.** Una costante
+derivata prende `defaultVisible !== false`, quindi spegnendo `orderNumber` i
+preset Default, Fornitore e Operativo perdevano il numero **e la guardia restava
+verde**. Falsificato e corretto.
+
+## 68.5 Sul metodo, perché è costato
+
+⛔ **Tre tentativi con regex multi-riga hanno rotto lo stesso file in tre modi**,
+l'ultimo un `[\s\S]*?` non-greedy che partiva dal primo `/**` del file e
+inglobava `DOCUMENT_LIST_SORTABLE_COLUMNS` dentro un array di colonne.
+
+> **Su un file di codice, una regex che attraversa le righe non si controlla.**
+> Si lavora riga per riga, o con sostituzioni esatte e univoche.
+
+⚠️ **E gli heredoc di shell mangiano le barre doppie**: `[\s\S]` arriva nel
+file come `[sS]`, una regex che non trova mai niente e non fallisce. Quattro
+volte in una giornata. Gli script si scrivono col tool, non con `cat <<`.
