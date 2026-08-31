@@ -1,121 +1,35 @@
-@use 'breakpoints' as bp;
 @use 'responsive-table' as rt;
 
-@include rt.list-card-table-host();
-@include rt.data-table-desktop('situation-table');
-@include rt.data-table-mobile-cards('situation-table');
-@include rt.data-table-mobile-title('situation-table__title');
+/*
+  ⭐ Qui c'erano 121 righe: contenitore a scorrimento, layout desktop, ripiego a
+  card, colonna di selezione e allineamenti. **Le rende il motore comune.**
 
-.situation-table__head th {
-  position: sticky;
-  inset-block-start: 0;
-  z-index: var(--z-raised);
-  padding: var(--space-3) var(--space-4);
-  background-color: var(--color-table-header-bg);
-}
-
-.situation-table__row:hover {
-  background-color: var(--color-surface-hover);
-}
-
-.situation-table__row--selected {
-  background-color: var(--color-surface-hover);
-}
-
-.situation-table__row td {
-  padding: var(--space-3) var(--space-4);
-  vertical-align: top;
-}
-
-.situation-table__title {
-  font-weight: var(--font-weight-semibold);
-}
-
-// Codice/SKU in mono (restyle spec §Tabelle).
-.situation-table__code {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--color-link);
-}
-
-.situation-table__cell--select {
-  inline-size: var(--space-8);
-}
-
-.situation-table__select-all {
-  display: inline-flex;
-  align-items: center;
-}
-
-.situation-table__checkbox {
-  inline-size: var(--check-size);
-  block-size: var(--check-size);
-  accent-color: var(--color-primary);
-  cursor: pointer;
-}
-
-.situation-table__cell--negative {
-  color: var(--status-error-fg);
-  font-weight: var(--font-weight-semibold);
-}
-
-// Disponibile colorato per soglia (restyle spec §Tabelle):
-// rosso a zero/sotto zero, ambra sotto la soglia minima.
-.situation-table__cell--empty {
-  color: var(--status-empty-fg);
-  font-weight: var(--font-weight-semibold);
-}
-
-.situation-table__cell--low {
-  color: var(--status-low-fg);
-  font-weight: var(--font-weight-semibold);
-}
-
-@include bp.media-up('lg') {
-  .situation-table__title {
-    max-inline-size: var(--table-cell-max);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .situation-table__code {
-    max-inline-size: var(--table-cell-max);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .situation-table tbody td.situation-table__cell--status,
-  .situation-table__head th.situation-table__cell--status {
-    text-align: end;
-    white-space: nowrap;
-  }
-
-  .situation-table__status-value {
-    display: flex;
-    justify-content: flex-end;
-    inline-size: 100%;
-  }
-}
-
-@include bp.media-down('lg') {
-  .situation-table__row {
-    border-radius: var(--radius-lg);
-  }
-}
+  Resta il vestito dell'unica cella che questo componente disegna ancora di suo:
+  la disponibilità, che porta il proprio stato.
+*/
+@include rt.ponte-tabella();
 
 /*
-  ⚠️ **L'host È la regione che scorre**, e qui non c'è un wrapper da usare:
-  la `<table>` è figlia diretta dell'host.
-
-  Finora l'intestazione `sticky` si ancorava a `.shell__content` e funzionava
-  — misurato il 29/08/2026, era una delle tre tabelle **sane per
-  costruzione**. Con la catena di altezze la pagina non scorre più, quindi
-  l'ancoraggio deve scendere qui: senza, le righe traboccherebbero sopra il
-  paginatore invece di scorrere.
-
-  ⭐ Nessuna modifica di markup: `flessibile` toglie il pavimento all'host e
-  lascia che sia il `flex: 1` della pagina a dargli l'altezza.
+  ⚠️ **Il colore accompagna il numero, non lo sostituisce**: `regole-gestionale`
+  vieta di usare lo stock come solo colore, e il numero resta sempre leggibile.
 */
-@include rt.table-scroll(':host', flessibile);
+.situation-table__available {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Sotto zero: è un'incoerenza da sanare, non una scorta bassa. */
+.situation-table__cell--negative {
+  color: var(--color-danger);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* A zero: non c'è nulla da vendere. */
+.situation-table__cell--empty {
+  color: var(--color-text-muted);
+}
+
+/* Sotto la soglia minima: è il caso per cui si apre questa schermata. */
+.situation-table__cell--low {
+  color: var(--color-warning);
+  font-weight: var(--font-weight-semibold);
+}

@@ -46,7 +46,6 @@ import { ListPageComponent } from '@shared/components/list-page/list-page.compon
 import { comando, voceEsporta } from '@shared/models/list-action-catalog';
 import type { ListAction } from '@shared/models/list-selection.model';
 import { BarcodeScannerComponent } from '@shared/components/barcode-scanner/barcode-scanner.component';
-import { PaginationComponent } from '@shared/components/pagination/pagination.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
@@ -64,7 +63,6 @@ import { ShopifySyncWatchService } from '@domain/channels/shopify/services/shopi
 import { TableViewId } from '@shared/table-columns/table-column.model';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
-
 import { InventoryLevelTableComponent } from './components/inventory-level-table/inventory-level-table.component';
 import { InventoryTabsComponent } from './components/inventory-tabs/inventory-tabs.component';
 import {
@@ -77,10 +75,7 @@ import {
   INVENTORY_LEVEL_COLUMN_DEFS,
   INVENTORY_LEVEL_COLUMN_PRESETS,
 } from './models/inventory-levels-table-columns.config';
-import {
-  DEFAULT_INVENTORY_PAGE_SIZE,
-  INVENTORY_PAGE_SIZE_OPTIONS,
-} from '@domain/inventory/models/inventory-list-query.model';
+import { DEFAULT_INVENTORY_PAGE_SIZE } from '@domain/inventory/models/inventory-list-query.model';
 import type { InventoryLevelsListQuery } from '@domain/inventory/models/inventory-list-query.model';
 import { InventoryService } from '@domain/inventory/services/inventory.service';
 
@@ -128,7 +123,6 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
     ListPageComponent,
     BarcodeScannerComponent,
     SelectMenuComponent,
-    PaginationComponent,
     InventoryTabsComponent,
     InventoryLevelTableComponent,
     ShopifySyncFeedbackComponent,
@@ -162,7 +156,6 @@ export class InventoryLevelsComponent {
   protected readonly scanFeedback = signal<string | null>(null);
 
   protected readonly skeletonColumns = 6;
-  protected readonly pageSizeOptions = INVENTORY_PAGE_SIZE_OPTIONS;
 
   protected readonly stockStatusOptions: readonly SelectMenuOption[] = [
     { value: 'ok', label: 'Disponibile' },
@@ -236,19 +229,18 @@ export class InventoryLevelsComponent {
     toObservable(this.request).pipe(
       switchMap(({ query }) =>
         forkJoin({
-          levels: this.inventoryService.getLevels(query),
+          // ⭐ `tutto`: l'elenco mostra tutte le righe del filtro, non una pagina.
+          levels: this.inventoryService.getLevels(query, { tutto: true }),
           locations: this.inventoryService.getLocations(),
         }).pipe(
-          map(
-            ({ levels, locations }): LevelsState => ({
-              status: 'success',
-              data: {
-                levels: levels.data,
-                locations,
-                meta: levels.meta,
-              },
-            }),
-          ),
+          map(({ levels, locations }): LevelsState => ({
+            status: 'success',
+            data: {
+              levels: levels.data,
+              locations,
+              meta: levels.meta,
+            },
+          })),
           startWith<LevelsState>({ status: 'loading' }),
           catchError((err: unknown) =>
             of<LevelsState>({ status: 'error', error: this.toAppError(err) }),
@@ -333,24 +325,22 @@ export class InventoryLevelsComponent {
     const status = this.statusFilter();
 
     return levels
-      .map(
-        (level): InventoryLevelRow => ({
-          id: level.id,
-          variantId: level.variantId,
-          locationId: level.locationId,
-          sku: level.displaySku,
-          articleCode: level.articleCode,
-          title: level.displayTitle,
-          locationName:
-            level.locationName ?? locationById.get(level.locationId)?.name ?? level.locationId,
-          available: level.available,
-          onHand: level.onHand,
-          committed: level.committed,
-          incoming: level.incoming,
-          minThreshold: level.minThreshold,
-          status: this.statusOf(level),
-        }),
-      )
+      .map((level): InventoryLevelRow => ({
+        id: level.id,
+        variantId: level.variantId,
+        locationId: level.locationId,
+        sku: level.displaySku,
+        articleCode: level.articleCode,
+        title: level.displayTitle,
+        locationName:
+          level.locationName ?? locationById.get(level.locationId)?.name ?? level.locationId,
+        available: level.available,
+        onHand: level.onHand,
+        committed: level.committed,
+        incoming: level.incoming,
+        minThreshold: level.minThreshold,
+        status: this.statusOf(level),
+      }))
       .filter((row) => {
         if (status === StockStatus.Empty && row.status !== StockStatus.Empty) {
           return false;
@@ -401,15 +391,6 @@ export class InventoryLevelsComponent {
     this.search.set('');
     this.variantIdFilter.set('');
     this.scanFeedback.set(null);
-    this.page.set(1);
-  }
-
-  protected goToPage(page: number): void {
-    this.page.set(page);
-  }
-
-  protected onPageSizeChange(size: number): void {
-    this.pageSize.set(size);
     this.page.set(1);
   }
 

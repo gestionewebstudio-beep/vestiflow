@@ -174,8 +174,17 @@ export class InventorySituationService {
       .filter((row) => !query.stockStatus || row.stockStatus === query.stockStatus);
 
     const total = rows.length;
-    const start = (query.page - 1) * query.pageSize;
-    const pageRows = rows.slice(start, start + query.pageSize);
+    /*
+      ⭐ **Con `all=1` non si affetta**: l'elenco mostra tutte le righe del filtro
+      (30/08/2026).
+
+      ⚠️ **Qui la finestra è in MEMORIA, non in Prisma**: le righe sono già tutte
+      caricate e aggregate per variante — questa `slice` non risparmiava una
+      query, tagliava soltanto la risposta. È il caso in cui l'impaginazione
+      costava senza rendere.
+    */
+    const start = query.all ? 0 : (query.page - 1) * query.pageSize;
+    const pageRows = query.all ? rows : rows.slice(start, start + query.pageSize);
     const movementTotals = await this.movementTotals(
       tenantId,
       scope,

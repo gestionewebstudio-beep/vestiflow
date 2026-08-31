@@ -33,7 +33,6 @@ import { ListPageComponent } from '@shared/components/list-page/list-page.compon
 import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
 import type { ListAction } from '@shared/models/list-selection.model';
 import { ButtonComponent } from '@shared/components/button/button.component';
-import { PaginationComponent } from '@shared/components/pagination/pagination.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
@@ -49,10 +48,7 @@ import { SupplierService } from '@domain/suppliers/services/supplier.service';
 
 import { InventoryTabsComponent } from './components/inventory-tabs/inventory-tabs.component';
 import { SituationTableComponent } from './components/situation-table/situation-table.component';
-import {
-  DEFAULT_INVENTORY_PAGE_SIZE,
-  INVENTORY_PAGE_SIZE_OPTIONS,
-} from '@domain/inventory/models/inventory-list-query.model';
+import { DEFAULT_INVENTORY_PAGE_SIZE } from '@domain/inventory/models/inventory-list-query.model';
 import {
   INVENTORY_SITUATION_COLUMN_DEFS,
   INVENTORY_SITUATION_COLUMN_PRESETS,
@@ -100,7 +96,6 @@ const EMPTY_META: PageMeta = {
     ButtonComponent,
     SelectMenuComponent,
     SlidePanelComponent,
-    PaginationComponent,
     InventoryTabsComponent,
     SituationTableComponent,
   ],
@@ -122,7 +117,6 @@ export class InventorySituationComponent {
   protected readonly tableColumns: ReturnType<TableColumnPreferenceService['visibleColumns']>;
 
   protected readonly skeletonColumns = 8;
-  protected readonly pageSizeOptions = INVENTORY_PAGE_SIZE_OPTIONS;
 
   protected readonly stockStatusOptions: readonly SelectMenuOption[] = [
     { value: 'ok', label: 'Disponibile' },
@@ -271,7 +265,8 @@ export class InventorySituationComponent {
   private readonly state = toSignal(
     toObservable(this.request).pipe(
       switchMap(({ query }) =>
-        this.inventoryService.getSituation(query).pipe(
+        // ⭐ `tutto`: l'elenco mostra tutte le righe del filtro, non una pagina.
+        this.inventoryService.getSituation(query, { tutto: true }).pipe(
           map((response): SituationState => ({
             status: 'success',
             data: { rows: response.data, meta: response.meta },
@@ -334,15 +329,6 @@ export class InventorySituationComponent {
     this.locationFilter.set('');
     this.searchDraft.set('');
     this.search.set('');
-    this.page.set(1);
-  }
-
-  protected goToPage(page: number): void {
-    this.page.set(page);
-  }
-
-  protected onPageSizeChange(size: number): void {
-    this.pageSize.set(size);
     this.page.set(1);
   }
 

@@ -192,12 +192,23 @@ export class InventoryService {
     );
   }
 
+  /**
+   * ⭐ **`tutto`: tutte le giacenze del filtro**, non una pagina (30/08/2026).
+   *
+   * ⛔ **Il default resta paginato**: `getVariantLevels` passa di qui per una
+   * variante sola, e la scheda prodotto non deve scaricare il magazzino intero.
+   */
   getLevels(
     query: InventoryLevelsListQuery = {},
+    opzioni: { readonly tutto?: boolean } = {},
   ): Observable<PaginatedResponse<InventoryLevelListItem>> {
     let params = new HttpParams()
       .set('page', String(query.page ?? 1))
       .set('pageSize', String(query.pageSize ?? DEFAULT_INVENTORY_PAGE_SIZE));
+
+    if (opzioni.tutto) {
+      params = params.set('all', '1');
+    }
 
     if (query.locationId) params = params.set('locationId', query.locationId);
     if (query.search) params = params.set('search', query.search);
@@ -239,12 +250,18 @@ export class InventoryService {
   }
 
   /** Situazione magazzino: riepilogo per variante (tab Situazione). */
+  /** ⭐ `tutto`: tutte le righe del filtro, non una pagina (30/08/2026). */
   getSituation(
     query: InventorySituationListQuery = {},
+    opzioni: { readonly tutto?: boolean } = {},
   ): Observable<PaginatedResponse<InventorySituationRow>> {
     let params = new HttpParams()
       .set('page', String(query.page ?? 1))
       .set('pageSize', String(query.pageSize ?? DEFAULT_INVENTORY_PAGE_SIZE));
+
+    if (opzioni.tutto) {
+      params = params.set('all', '1');
+    }
 
     if (query.locationId) params = params.set('locationId', query.locationId);
     if (query.supplierId) params = params.set('supplierId', query.supplierId);

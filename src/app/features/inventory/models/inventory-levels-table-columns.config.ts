@@ -6,7 +6,7 @@ import {
 } from '@shared/table-columns/table-column.model';
 
 export const INVENTORY_LEVEL_COLUMN_DEFS: readonly TableColumnDef[] = [
-  { id: 'title', label: 'Articolo', pinnable: true, defaultVisible: true },
+  { id: 'title', label: 'Articolo', pinnable: true, defaultVisible: true, cardTitle: true },
   // «Codice» mostra il Cod. articolo VestiFlow (fallback SKU variante se assente).
   colonna('sku', { label: 'Codice', defaultVisible: true }),
   { id: 'locationName', label: 'Sede', defaultVisible: true },

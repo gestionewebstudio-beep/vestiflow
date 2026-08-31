@@ -12,7 +12,7 @@ import {
  */
 export const INVENTORY_SITUATION_COLUMN_DEFS: readonly TableColumnDef[] = [
   { id: 'select', label: 'Selezione', defaultVisible: true, filter: false },
-  { id: 'title', label: 'Articolo', pinnable: true, defaultVisible: true },
+  { id: 'title', label: 'Articolo', pinnable: true, defaultVisible: true, cardTitle: true },
   colonna('code', { defaultVisible: true }),
   colonna('sku', { defaultVisible: false }),
   colonna('category', { defaultVisible: true }),

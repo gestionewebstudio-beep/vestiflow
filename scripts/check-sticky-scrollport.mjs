@@ -93,16 +93,12 @@ const DICHIARATE = {
   //    Corrispettivi e Prodotti: anche l'anagrafica clienti è passata al motore,
   //    quindi la sua intestazione è ora `.data-table__head th`. Anche qui l'ha
   //    detto la guardia al primo lint, non chi ha fatto la migrazione.
-  '.level-table__head th': {
-    categoria: 'mixin',
-    contenitore: ':host',
-    perche: 'stessa forma di Clienti: nessun wrapper, host come scrollport',
-  },
-  '.situation-table__head th': {
-    categoria: 'mixin',
-    contenitore: ':host',
-    perche: 'stessa forma di Clienti: nessun wrapper, host come scrollport',
-  },
+  //    ✅ **E il 30/08 anche `.level-table__head th`**: le Giacenze sono passate
+  //    al motore, quarta voce che scade per la stessa ragione. Quattro volte su
+  //    quattro l'ha detto la guardia al primo lint.
+  //    ✅ **E il 30/08 anche `.situation-table__head th`**, quinta e ultima: la
+  //    Situazione magazzino chiude la migrazione al motore. Cinque volte su
+  //    cinque l'ha detto la guardia al primo lint — mai chi faceva la migrazione.
 };
 
 /** Ogni `.scss` sotto `src/`. */

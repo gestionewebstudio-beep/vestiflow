@@ -80,14 +80,13 @@
     (committedClick)="openReservations($event)"
   />
 
-  <app-pagination
-    summary
-    label="Paginazione giacenze"
-    [meta]="meta()"
-    [pageSizeOptions]="pageSizeOptions"
-    (pageChange)="goToPage($event)"
-    (pageSizeChange)="onPageSizeChange($event)"
-  />
+  <!--
+    ⛔ **Qui c'era l'impaginazione**, tolta il 30/08/2026: un elenco mostra tutte
+    le righe del filtro attivo (`regole-stile-ui`, «NESSUN TETTO DI RIGHE»).
+
+    ⚠️ Il conteggio lo dice la riga totali del motore, insieme alle somme delle
+    quantità — che su un magazzino filtrato sono il dato che si va a leggere.
+  -->
   <!--
     ⚠️ Sta in `[overlays]` perché è `position: fixed`: non occupa nessuna
     zona del telaio. Senza slot Angular lo SCARTA in silenzio — è successo

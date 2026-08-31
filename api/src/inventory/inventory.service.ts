@@ -27,6 +27,7 @@ import {
 } from './licensed-location-scope.util';
 import { assertUserCanAccessLocation } from './user-location-scope.util';
 import { frozenTotalCostMinor } from './movement-cost.util';
+import { pageWindow } from '../common/dto/unpaged.util';
 
 import type { Paginated } from '../common/dto/pagination.dto';
 import type {
@@ -147,8 +148,8 @@ export class InventoryService {
           location: { select: LEVEL_LOCATION_INCLUDE },
         },
         orderBy: { updatedAt: 'desc' },
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
+        // ⚠️ Con `all=1` la finestra deve SPARIRE, non diventare grande.
+        ...pageWindow(query),
       }),
       this.prisma.inventoryLevel.count({ where }),
     ]);

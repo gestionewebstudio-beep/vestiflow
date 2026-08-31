@@ -82,13 +82,16 @@ $breakpoints: (
     @content;
   }
 
-  @if & {
-    :host-context([data-vista='compatta']) & {
-      @content;
-    }
-  } @else {
-    :host-context([data-vista='compatta']) {
-      @content;
-    }
-  }
+  /*
+    ⛔ **Qui il contenuto veniva emesso una SECONDA volta**, sotto
+    `:host-context([data-vista='compatta'])`, per il selettore di vista.
+
+    ⚠️ **Quel ramo non può scattare da quando il selettore è stato ritirato**
+    (30/08/2026): `ViewportService` ha smesso di scrivere l'attributo. Erano
+    regole duplicate nel bundle che nessun elemento poteva soddisfare — e sul
+    foglio del motore tabella pesavano abbastanza da sforare il budget di stile.
+
+    ⭐ **Il mixin resta**: i punti che lo includono sono già convertiti, e il
+    giorno in cui il selettore torna basta rimettere il ramo qui, in un posto solo.
+  */
 }
