@@ -106,6 +106,60 @@ quella giusta.
 sapere a quale larghezza la fascia a riga unica dovesse cedere. Impilata ci sta sempre —
 615px invece di 918 — quindi non c'è più una soglia da decidere.
 
+# ✅ IL MOTORE TABELLA È COMPLETO — 30/08/2026
+
+**Undici elenchi su undici** usano lo stesso motore. Nessuno impagina più.
+
+|                      |                                                                                            |
+| -------------------- | ------------------------------------------------------------------------------------------ |
+| **entrati oggi**     | Prodotti · Clienti · Giacenze · Situazione magazzino                                       |
+| **c'erano già**      | Documenti · Ordini cliente · Ordini fornitore · Vendite online · Movimenti · Corrispettivi |
+| **fuori dal motore** | Fornitori — ha ancora una tabella propria, ma non impagina più                             |
+
+## Che cosa ha preso ognuno
+
+- **taglio a colonna**: il testo sta su una riga e viene tagliato dalla colonna
+  successiva, col divisore verticale che segna dove. Il testo intero resta nel
+  `title` di ogni cella;
+- **altezza di riga dichiarata** (`--table-row-h`), che prima era un token che
+  nessun elenco leggeva;
+- **maniglia di larghezza visibile** — era un bersaglio trasparente da 4px;
+- **riga totali**: «N voci» più le somme delle colonne visibili, che seguono la
+  selezione. Sui documenti col **verso economico** — fattura 100 + nota di credito
+  30 = 70;
+- **titolo della card** dichiarato dalla colonna (`cardTitle: true`), che prima lo
+  dava un mixin CSS legato a una classe e si era perso migrando;
+- **pill piatte**: testo colorato invece di pastiglie, che è anche ciò che
+  assottiglia la riga.
+
+## ⏸ Quel che resta, e serve una decisione
+
+⛔ **«Duplica ed Elimina dappertutto» non si può completare.** L'eliminazione c'è
+sui prodotti e sui documenti, dove l'API la espone. Altrove **non esiste
+l'endpoint**:
+
+| entità                          | `DELETE`      | duplicazione  |
+| ------------------------------- | ------------- | ------------- |
+| Clienti · Fornitori · Movimenti | ⛔ non esiste | ⛔ non esiste |
+
+⚠️ **E prima dell'endpoint c'è una decisione di dominio, non tecnica**: si può
+eliminare un cliente che ha **fatture emesse**? Il documento conserva i suoi dati
+fotografati e non si romperebbe, ma sparirebbe l'anagrafica da cui è nato. Le
+strade sono tre — eliminazione vera, disattivazione (come `linkedSupplierActive`,
+che già esiste), blocco se ha movimenti — e sono tre lavori diversi.
+
+⏸ **I filtri dei Prodotti** sono ancora in una toolbar dedicata
+(`app-product-toolbar`), mentre `regole-stile-ui` dal 29/08 dice che «i filtri di
+un elenco sono le sue colonne». È l'ultimo elenco con la forma vecchia.
+
+⏸ **Le larghezze di colonna** vanno tarate pagina per pagina — decisione del
+proprietario, 30/08: «le gestiremo pagina per pagina successivamente».
+
+⚠️ **Nulla di tutto questo è stato verificato a schermo**: la build di prova non
+ha dati, e le misure sono state fatte leggendo il codice e i test.
+
+---
+
 # ⛔ APERTO ADESSO — deciso il 30/08/2026, da eseguire
 
 Tre lavori chiesti dal proprietario nella stessa sessione, in ordine di come li
