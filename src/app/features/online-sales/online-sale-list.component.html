@@ -98,7 +98,6 @@
     [columns]="tableColumns()"
     [sections]="tableSections()"
     [rowId]="rowId"
-    [totals]="totals()"
     [cellText]="cellText"
     [rowClickable]="true"
     [rowLabel]="rowLabel"
@@ -154,10 +153,21 @@
   </app-data-table>
 
   <!--
+    ⭐ **Il riepilogo nella forma del Registro Corrispettivi** — proprietario,
+    31/08/2026: «per i riepiloghi dei documenti, quindi acquisti, ordini e
+    vendite, la struttura dei totali dovrebbe essere come quella dei
+    corrispettivi per avere coerenza di visualizzazione».
+
+    ⛔ **Sostituisce la riga totali del motore**, che su questo elenco è spenta:
+    insieme direbbero gli stessi numeri due volte nella stessa schermata.
+  -->
+  <app-list-summary summary [totals]="totals()" [columns]="tableColumns()" emphasis="total" />
+
+  <!--
     ⛔ **Qui c'era l'impaginazione**, tolta il 30/08/2026: un elenco mostra tutte
     le righe del filtro attivo (`regole-stile-ui`, «NESSUN TETTO DI RIGHE»).
 
-    ⚠️ Il conteggio lo dice la riga totali del motore, «N voci», che ora conta il
+    ⚠️ Il conteggio lo dice il riepilogo qui sopra, «N voci», che conta il
     risultato intero invece della pagina.
   -->
 </app-list-page>

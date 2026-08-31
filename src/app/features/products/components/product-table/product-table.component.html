@@ -70,6 +70,16 @@
       }
     </div>
 
+    <!--
+      ⭐ **Gli stati portano il loro COLORE anche sulla card** — chiesto dal
+      proprietario il 31/08/2026: «gestiamo anche le info coi colori, per esempio
+      la sincro con shopify, bozza o attivo o errore».
+
+      ⛔ Erano testo grigio come brand e categoria: «Errore sync» e «Attivo» si
+      leggevano solo fermandosi a leggerli, mentre in tabella lo stesso dato è
+      già colorato. Sono gli **stessi** badge piatti della tabella — il tono lo
+      decide il design system, non questa card.
+    -->
     <div class="list-card__words">
       @if (visibile('brand')) {
         <span>{{ cellText(product, 'brand') }}</span>
@@ -78,16 +88,37 @@
         <span>{{ cellText(product, 'category') }}</span>
       }
       @if (visibile('status')) {
-        <span>{{ statusLabel(product.status) }}</span>
+        <app-badge [flat]="true" [tone]="statusTone(product.status)">{{
+          statusLabel(product.status)
+        }}</app-badge>
+      }
+      @if (visibile('source')) {
+        <app-badge [flat]="true" [tone]="sourceTone(product)">{{ sourceLabel(product) }}</app-badge>
       }
       @if (visibile('shopify')) {
-        <span>{{ shopifyLabel(product) }}</span>
+        <app-badge [flat]="true" [tone]="shopifyTone(product)">{{
+          shopifyLabel(product)
+        }}</app-badge>
       }
     </div>
 
-    @if (visibile('variants')) {
+    <!--
+      ⛔ **«N varianti» non è più in grassetto** — proprietario, 31/08/2026:
+      «inutile mettere varianti in grassetto».
+
+      `list-card__total` è il peso della RISPOSTA della card, e su un catalogo
+      la risposta non è quante varianti ha un articolo: è quanto costa. Il
+      grassetto va al prezzo, che è anche il solo numero che si confronta
+      scorrendo l'elenco.
+    -->
+    @if (visibile('variants') || visibile('sellingPrice')) {
       <div class="list-card__figures">
-        <span class="list-card__total">{{ variantCount(product) }} varianti</span>
+        @if (visibile('variants')) {
+          <span>{{ variantCount(product) }} varianti</span>
+        }
+        @if (visibile('sellingPrice')) {
+          <span class="list-card__total">{{ priceLabel(product) }}</span>
+        }
       </div>
     }
   </ng-template>

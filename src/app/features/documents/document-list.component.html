@@ -394,6 +394,17 @@
   />
 
   <!-- `14` §21.1: le funzioni stanno sotto i dati, non in testata. -->
+  <!--
+    ⭐ **Il riepilogo nella forma del Registro Corrispettivi** — proprietario,
+    31/08/2026: «per i riepiloghi dei documenti, quindi acquisti, ordini e
+    vendite, la struttura dei totali dovrebbe essere come quella dei
+    corrispettivi per avere coerenza di visualizzazione».
+
+    ⛔ **Sostituisce la riga totali del motore**, che su questo elenco è spenta:
+    insieme direbbero gli stessi numeri due volte nella stessa schermata.
+  -->
+  <app-list-summary summary [totals]="totals()" [columns]="tableColumns()" emphasis="total" />
+
   <div listActions>
     <app-list-actions-bar
       [count]="selectionCount()"

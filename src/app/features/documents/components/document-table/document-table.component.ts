@@ -22,16 +22,16 @@ import {
   signedDocumentMoney,
 } from '@domain/documents/models/document-economic-sign.util';
 import { isStoreFlowDocumentType } from '@domain/documents/models/document-operational.util';
+
+import { righeDi } from '../../models/document-list-totals.util';
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
 import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';
 import type {
   DataTableRowTone,
   DataTableSort,
-  DataTableTotals,
 } from '@shared/components/data-table/data-table.model';
 import { sezioniDiElenco } from '@shared/models/list-grouping.util';
-import { totaliDiElenco } from '@shared/models/list-totals.util';
 
 import { DOCUMENT_LIST_SORTABLE_COLUMNS } from '../../models/document-table-columns.config';
 import type { DataTableSection } from '@shared/components/data-table/data-table.model';
@@ -140,7 +140,7 @@ export class DocumentTableComponent {
   }
 
   protected lineCount(doc: DocumentRecord): number {
-    return doc.lineCount ?? doc.lines?.length ?? 0;
+    return righeDi(doc);
   }
 
   protected notesLabel(doc: DocumentRecord): string {
@@ -289,42 +289,16 @@ export class DocumentTableComponent {
   });
 
   /*
-    ⭐ **La riga totali dei documenti**, e porta il VERSO economico.
+    ⛔ **La riga totali del motore è SPENTA su questo elenco.** Dal 31/08/2026 i
+    riepiloghi dei documenti — acquisti, ordini, vendite — usano la **fascia**
+    nella forma del Registro Corrispettivi (`app-list-summary`), e le due insieme
+    direbbero gli stessi numeri due volte nella stessa schermata.
 
-    ⛔ **Non è una somma cieca**: `regole-gestionale` è esplicita — «il riepilogo
-    applica la CLASSIFICAZIONE e il verso economico, non rifà il calcolo
-    fiscale». Una fattura da 100 e una nota di credito da 50 fanno **50**, e ci si
-    arriva col segno del tipo, non ricalcolando l'IVA della fattura.
-
-    ⚠️ **`signedDocumentMoney` e non `documentEconomicSign`**: la seconda accetta
-    solo i tipi con direzione DICHIARATA, e questo elenco ne contiene anche altri.
-    Per quelli l'importo resta invariato, senza che nessuno gli attribuisca una
-    direzione che non ha. È la stessa scelta già fatta per il totale della
-    selezione, di cui questa riga prende il posto.
-
-    ⭐ **Si somma `amountMinor`, si formatta UNA volta**: è la regola del denaro —
-    «si arrotonda solo all'uscita, mai nei passaggi intermedi».
+    ⭐ **Il calcolo non è sparito: si è spostato**, perché la fascia vive nello
+    slot `[summary]` del telaio, cioè nella PAGINA. Sta in una funzione pura, e
+    resta una sola — due somme della stessa cosa divergono in silenzio il giorno
+    in cui una cambia.
   */
-  protected readonly totals = computed<DataTableTotals>(() => {
-    const valuta = this.documents()[0]?.currency ?? DEFAULT_CURRENCY;
-    const soldi = (n: number): string => formatMoney({ amountMinor: n, currencyCode: valuta });
-    return totaliDiElenco(this.documents(), {
-      rowId: this.rowId,
-      selectedIds: this.selectedIds(),
-      columns: this.columns(),
-      campi: {
-        subtotal: {
-          valore: (doc) => signedDocumentMoney(doc.type, doc.subtotal).amountMinor,
-          formato: soldi,
-        },
-        total: {
-          valore: (doc) => signedDocumentMoney(doc.type, doc.total).amountMinor,
-          formato: soldi,
-        },
-        lineCount: { valore: (doc) => this.lineCount(doc), formato: (n) => String(n) },
-      },
-    });
-  });
 
   /*
     ⚠️ **Le colonne spente non si controllano a mano.** Legge quelle che il motore

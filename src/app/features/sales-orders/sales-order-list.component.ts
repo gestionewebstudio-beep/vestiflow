@@ -109,6 +109,10 @@ import {
 } from '@domain/sales-orders/models/sales-order-list-query.model';
 import { SalesOrderService } from '@domain/sales-orders/services/sales-order.service';
 import { GroupByMenuComponent } from '@shared/components/group-by-menu/group-by-menu.component';
+import { ListSummaryComponent } from '@shared/components/list-summary/list-summary.component';
+import type { DataTableTotals } from '@shared/components/data-table/data-table.model';
+import { DEFAULT_CURRENCY } from '@core/utils/money.util';
+import { totaliDiElenco } from '@shared/models/list-totals.util';
 
 const SEARCH_DEBOUNCE_MS = 300;
 const SHOPIFY_FEEDBACK_DISMISS_MS = 8000;
@@ -134,6 +138,7 @@ type SalesListState =
   selector: 'app-sales-order-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    ListSummaryComponent,
     GroupByMenuComponent,
     ListPageComponent,
     ButtonComponent,
@@ -368,6 +373,27 @@ export class SalesOrderListComponent {
   protected onSortChange(chiavi: readonly DataTableSort[]): void {
     this.updateParams({ sort: serializeDataTableSort(chiavi) || null, page: null }, true);
   }
+
+  /**
+   * ⭐ **I totali della FASCIA riepilogo**, che dal 31/08/2026 ha preso il posto
+   * della riga totali dentro la tabella.
+   *
+   * ⚠️ **Si somma `amountMinor` e si formatta UNA volta sola**: è la regola del
+   * denaro — «si arrotonda solo all'uscita, mai nei passaggi intermedi».
+   */
+  protected readonly totals = computed<DataTableTotals>(() => {
+    const valuta = this.orders()[0]?.total.currencyCode ?? DEFAULT_CURRENCY;
+    const soldi = (n: number): string => formatMoney({ amountMinor: n, currencyCode: valuta });
+    return totaliDiElenco(this.orders(), {
+      rowId: (order) => order.id,
+      selectedIds: this.selectedIds(),
+      columns: this.visibleColumns(),
+      campi: {
+        total: { valore: (o) => o.total.amountMinor, formato: soldi },
+        netTotal: { valore: (o) => o.subtotal.amountMinor, formato: soldi },
+      },
+    });
+  });
 
   // ── Raggruppa ─────────────────────────────────────────────────────────────
 

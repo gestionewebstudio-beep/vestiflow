@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
 
 import type { SortOrder } from '@core/models/api.model';
 import type { ProductStatus } from '@core/models/product.model';
+import { DEFAULT_CURRENCY, formatMoney } from '@core/utils/money.util';
 import type { Product } from '@core/models/product.model';
 import { ShopifySyncStatus } from '@core/models/shopify.model';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
@@ -130,6 +131,20 @@ export class ProductTableComponent {
           valore: (product) => this.variantCount(product),
           formato: (n) => String(n),
         },
+        /*
+          ⚠️ **Su un catalogo la somma dei prezzi non è il valore del magazzino**:
+          è la somma dei listini, e vale come cifra di controllo su una
+          selezione. ⛔ Il valore a magazzino sarebbe prezzo × giacenza, e la
+          giacenza in questo elenco non c'è.
+        */
+        sellingPrice: {
+          valore: (product) => product.sellingPrice?.amountMinor ?? 0,
+          formato: (n) =>
+            formatMoney({
+              amountMinor: n,
+              currencyCode: this.products()[0]?.sellingPrice?.currencyCode ?? DEFAULT_CURRENCY,
+            }),
+        },
       },
     }),
   );
@@ -177,6 +192,8 @@ export class ProductTableComponent {
         return product.season ?? '—';
       case 'variants':
         return String(this.variantCount(product));
+      case 'sellingPrice':
+        return this.priceLabel(product);
       default:
         return '';
     }
@@ -210,6 +227,16 @@ export class ProductTableComponent {
     if (premuta) {
       this.sortChange.emit(premuta as ProductSortField);
     }
+  }
+
+  /**
+   * ⚠️ **Un prodotto senza prezzo non vale zero**: il trattino dice «non
+   * impostato», e `0,00 €` direbbe «è gratis». La distinzione conta su un
+   * catalogo dove gli articoli si completano nel tempo — e questo elenco ha un
+   * chip «Articoli da completare» proprio per quelli.
+   */
+  protected priceLabel(product: Product): string {
+    return product.sellingPrice ? formatMoney(product.sellingPrice) : '—';
   }
 
   /** Numero di combinazioni di varianti derivato dalle opzioni del prodotto. */

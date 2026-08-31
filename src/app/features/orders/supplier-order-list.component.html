@@ -84,7 +84,6 @@
     [columns]="tableColumns()"
     [sections]="tableSections()"
     [rowId]="rowId"
-    [totals]="totals()"
     [cellText]="cellText"
     [rowClickable]="true"
     [sortable]="true"
@@ -165,6 +164,16 @@
     già.
   -->
   <div listActions>
+    <!--
+    ⭐ **Il riepilogo nella forma del Registro Corrispettivi** — proprietario,
+    31/08/2026: «per i riepiloghi dei documenti la struttura dei totali dovrebbe
+    essere come quella dei corrispettivi, per coerenza di visualizzazione».
+
+    ⛔ **Sostituisce la riga totali del motore**, che su questo elenco è spenta:
+    insieme direbbero gli stessi numeri due volte.
+  -->
+    <app-list-summary summary [totals]="totals()" [columns]="tableColumns()" emphasis="total" />
+
     <app-list-actions-bar
       [count]="selectionCount()"
       [ids]="[...selectedIds()]"

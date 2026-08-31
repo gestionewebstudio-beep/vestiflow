@@ -54,6 +54,19 @@ export const PRODUCT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   colonna('category', { defaultVisible: true, defaultWidthPx: 130 }),
   { id: 'season', label: 'Stagione', defaultVisible: true, defaultWidthPx: 70 },
   { id: 'variants', label: 'Varianti', numeric: true, defaultVisible: true, defaultWidthPx: 70 },
+  /*
+    ⭐ **Il PREZZO, acceso di serie** — chiesto dal proprietario il 31/08/2026:
+    «i dati non sono coerenti con l'esigenza che può avere questa pagina».
+
+    Un catalogo operativo si consulta per sapere quanto costa una cosa, e il
+    prezzo non c'era in nessuna colonna: c'erano brand, categoria, stagione,
+    stato, origine e Shopify — sei colonne di classificazione e nessun numero.
+
+    ⚠️ **È il prezzo del PRODOTTO**, non della variante: l'elenco è di prodotti, e
+    dove le varianti divergono la cella lo dichiara invece di scegliere per conto
+    proprio (vedi `cellText`).
+  */
+  { id: 'sellingPrice', label: 'Prezzo', numeric: true, defaultVisible: true, defaultWidthPx: 92 },
   colonna('status', { defaultVisible: true, defaultWidthPx: 76 }),
   colonna('source', { defaultVisible: true, defaultWidthPx: 80 }),
   { id: 'shopify', label: 'Shopify', defaultVisible: true, defaultWidthPx: 100 },
@@ -67,15 +80,16 @@ export const PRODUCT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'category',
     'season',
     'variants',
+    'sellingPrice',
     'status',
     'source',
     'shopify',
   ],
-  [PresetId.Warehouse]: ['select', 'name', 'category', 'variants', 'status'],
+  [PresetId.Warehouse]: ['select', 'name', 'category', 'variants', 'sellingPrice', 'status'],
   [PresetId.Accountant]: ['name', 'brand', 'category', 'status'],
   [PresetId.Supplier]: ['name', 'brand', 'category', 'variants', 'status'],
   [PresetId.Analysis]: ['name', 'brand', 'category', 'season', 'variants', 'status'],
-  [PresetId.Operational]: ['select', 'name', 'brand', 'variants', 'status'],
+  [PresetId.Operational]: ['select', 'name', 'brand', 'variants', 'sellingPrice', 'status'],
 };
 
 export const PRODUCT_LIST_VIEW = TableViewId.ProductsList;

@@ -131,6 +131,9 @@ import { ExternalDocumentTypeService } from '@domain/documents/services/external
 import { isStoreFlowDocumentType } from '@domain/documents/models/document-operational.util';
 import { isPrintableDocumentType } from './models/document-print.util';
 import { GroupByMenuComponent } from '@shared/components/group-by-menu/group-by-menu.component';
+import { totaliDocumenti } from './models/document-list-totals.util';
+import type { DataTableTotals } from '@shared/components/data-table/data-table.model';
+import { ListSummaryComponent } from '@shared/components/list-summary/list-summary.component';
 import {
   GOODS_RECEIPT_LIST_EXPORT,
   buildDocumentListCsv,
@@ -210,6 +213,7 @@ type DeleteResult =
   selector: 'app-document-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    ListSummaryComponent,
     GroupByMenuComponent,
     ListPageComponent,
     DeleteConfirmComponent,
@@ -2187,6 +2191,22 @@ export class DocumentListComponent {
    * quinta pagina di un ordine appena cambiato mostra righe che con la
    * posizione precedente non c'entrano nulla.
    */
+  /**
+   * ⭐ **I totali della FASCIA riepilogo**, che dal 31/08/2026 ha preso il posto
+   * della riga totali dentro la tabella.
+   *
+   * ⚠️ **Stanno qui e non nella tabella** perché la fascia vive nello slot
+   * `[summary]` del telaio, cioè in questa pagina. Il calcolo è una funzione
+   * pura condivisa: due somme della stessa cosa divergerebbero in silenzio il
+   * giorno in cui una cambia.
+   */
+  protected readonly totals = computed<DataTableTotals>(() =>
+    totaliDocumenti(this.documents(), {
+      columns: this.tableColumns(),
+      selectedIds: this.selectedIds(),
+    }),
+  );
+
   // ── Raggruppa ─────────────────────────────────────────────────────────────
 
   /**

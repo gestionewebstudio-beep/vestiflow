@@ -1,0 +1,227 @@
+@use 'breakpoints' as bp;
+
+/// ⭐ **La tipografia di un'etichetta di riepilogo**, in un posto solo.
+///
+/// ⛔ **Era scritta due volte** — qui e in `corrispettivi-summary` — e il
+/// proprietario l'ha chiamata il 31/08/2026: «non duplicare se non serve».
+/// Cambiarne una lasciava l'altra indietro, e le due fasce sono affiancate nella
+/// stessa applicazione: la differenza si sarebbe vista.
+///
+/// Riusa la ricetta dell'intestazione di tabella, un gradino sotto: un'etichetta
+/// che riassume una colonna e l'intestazione di quella colonna sono lo stesso
+/// ruolo.
+///
+/// ⚠️ **Non va a capo**: spezzata, la voce diventerebbe alta due righe e
+/// alzerebbe l'intera fascia — cioè annullerebbe la ragione per cui è impilata.
+@mixin etichetta-riepilogo() {
+  margin: 0;
+  font-size: var(--text-3xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-table-header-fg);
+  text-transform: uppercase;
+  letter-spacing: 0.045em;
+  line-height: var(--leading-tight);
+  white-space: nowrap;
+}
+
+/// ⭐ **La tipografia di un valore di riepilogo.**
+///
+/// ⚠️ **Semibold, non regular**: a 11px il regular è sottile e su fondo bianco
+/// perde contrasto percepito, ma ingrandire il testo rialzerebbe la fascia. Il
+/// peso non costa un pixel di altezza — deciso il 30/08/2026 guardando lo
+/// schermo, e vale per ogni riepilogo, non solo per quello del Registro.
+@mixin valore-riepilogo() {
+  margin: 0;
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  line-height: var(--leading-tight);
+  white-space: nowrap;
+}
+
+/// ⚠️ Avvolto in un mixin come `list-card()`: `styles.scss` lo include una volta
+/// sola, e nessun componente può tirarselo dentro per sbaglio moltiplicandolo nel
+/// bundle.
+@mixin list-summary() {
+  /*
+    ═══════════════════════════════════════════════════════════════════════════
+    LA FASCIA RIEPILOGO DI UN ELENCO — grammatica comune
+    ═══════════════════════════════════════════════════════════════════════════
+
+    ⭐ **È il disegno del Registro Corrispettivi**, indicato dal proprietario il
+    31/08/2026: _«per i riepiloghi dei documenti, quindi acquisti, ordini e
+    vendite, la struttura dei totali dovrebbe essere come quella dei corrispettivi
+    per avere coerenza di visualizzazione. I totali poi compariranno in base alla
+    colonna attiva.»_
+
+    ```text
+    ┌─────────────────────────────────────────────────────────┐
+    │ 17 voci                                                 │
+    │        IMPONIBILE        IVA           TOTALE           │
+    │          1.052,04     105,22         1.157,26           │
+    └─────────────────────────────────────────────────────────┘
+    ```
+
+    ⛔ **SOSTITUISCE la riga totali dentro la tabella, non la affianca.** Chiesto
+    esplicitamente dal proprietario — «se affianca si raddoppiano le info?» — e la
+    risposta è sì: gli stessi numeri due volte nella stessa schermata.
+
+    ⚠️ **Si perde l'incolonnamento**, e va saputo: una fascia esterna alla tabella
+    non può allinearsi alle sue colonne (`14` §63, «allineamento totali»), perché
+    dovrebbe rifarsi le larghezze da sola e si disallineerebbe al primo
+    trascinamento di una maniglia. È il prezzo dichiarato della coerenza visiva.
+
+    ── Che cosa è comune e che cosa no ──────────────────────────────────────────
+
+    ⛔ **Il Registro Corrispettivi NON usa questo foglio**, e resta col proprio.
+    Il suo riepilogo porta voci che colonne non sono — «Annullamenti 2»,
+    «Rettifiche (4) − 205,01 €» — cioè la riconciliazione del registro, che è il
+    motivo per cui lo si guarda. Le sue misure sono congelate da
+    `check:list-summary`, e questo foglio ne è la trascrizione per elenchi le cui
+    voci vengono dalle colonne.
+
+    ⚠️ **Sta in un foglio GLOBALE**, non dentro il componente, per la stessa
+    ragione di `_list-card.scss`: la fascia è contenuto **proiettato** nello slot
+    `[summary]` del telaio, e una regola dentro un componente porta il proprio
+    attributo di incapsulamento — non raggiungerebbe il contenuto proiettato, e
+    non fallirebbe: non farebbe niente.
+  */
+
+  .list-summary {
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-1) var(--space-3);
+    background-color: var(--color-surface);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius-lg);
+  }
+
+  /*
+    ⭐ **L'attacco al riquadro sopra vale solo da `lg` in su**: sotto, il telaio non
+    mette spazio fra le zone, e un bordo superiore soppresso farebbe salire la
+    fascia sull'ultima card.
+  */
+  @include bp.media-up('lg') {
+    .list-summary {
+      border-block-start: 0;
+      border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+    }
+  }
+
+  .list-summary__grid {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 0;
+    margin: 0;
+    padding-block: var(--space-1);
+  }
+
+  /*
+    ⚠️ **Il conteggio occupa la fascia intera, in cima e a sinistra.**
+
+    In griglia finirebbe in una colonna qualsiasi, e «17 voci» si leggerebbe
+    incolonnato sotto Imponibile come se fosse un'altra metrica.
+  */
+  .list-summary__count {
+    flex: 1 1 100%;
+    margin: 0;
+    font-size: var(--text-2xs);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-muted);
+    line-height: var(--leading-tight);
+    text-align: start;
+  }
+
+  /*
+    ⭐ **Etichetta SOPRA, valore SOTTO — a ogni larghezza** (`regole-stile-ui`,
+    «Riepilogo di fondo pagina», deciso il 30/08/2026 dopo averli provati
+    affiancati).
+
+    Una voce in fila è larga `etichetta + gap + valore`, quasi il doppio di una
+    impilata: otto voci così chiedevano 918px, e sotto i 1180 la fascia andava a
+    capo staccando il totale dalle voci che lo compongono.
+  */
+  .list-summary__item {
+    display: flex;
+    flex: 0 1 auto;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-05);
+    min-inline-size: 0;
+    padding-inline: var(--space-2);
+    text-align: end;
+    border-inline-end: var(--border-width) solid
+      color-mix(in srgb, var(--color-border) 40%, transparent);
+  }
+
+  .list-summary__item:last-child {
+    padding-inline-end: 0;
+    border-inline-end: 0;
+  }
+
+  .list-summary__item dt {
+    @include etichetta-riepilogo();
+  }
+
+  .list-summary__item dd {
+    @include valore-riepilogo();
+    font-variant-numeric: tabular-nums;
+  }
+
+  /*
+    ⭐ **Un solo valore evidenziato**, e nessuna tinta di fondo: una cella colorata
+    dentro il riquadro sarebbe il riquadro nel riquadro. A distinguerlo bastano
+    taglia e peso, che restano unici in tutta la banda.
+
+    ⚠️ 14px e non 16: è l'elemento più alto della riga, quindi ogni punto che
+    perde lo perde tutta la fascia. Sotto i 14 pareggia il corpo della tabella e
+    smette di leggersi come «la risposta».
+  */
+  .list-summary__item--highlight dd {
+    font-size: var(--text-md);
+    color: var(--color-primary);
+  }
+
+  /* Il negativo si legge dal colore, non dal peso — come le righe di reso. */
+  .list-summary__item--negative dd {
+    color: var(--color-danger);
+  }
+
+  /*
+    ── Sotto `lg`: il numero di colonne lo decide lo spazio ────────────────────
+
+    ⛔ **Mai `flex-wrap: nowrap` per tenerle in riga.** Le `dt` sono `nowrap` per
+    contratto: le voci si stringerebbero sotto il contenuto e **traboccherebbero**
+    — testo sovrapposto, non testo compresso. Provato e scartato due volte lo
+    stesso giorno sui Corrispettivi.
+
+    ⭐ **`auto-fit` con minimo `--summary-item-min-w`** (94px, la larghezza in cui
+    «CORRISPETTIVO» a 10px maiuscolo ci sta intero): due colonne a 320px, tre a
+    390, quattro da 430.
+
+    ⚠️ **`min(…, 100%)` e non il token nudo**: sotto quella larghezza utile una
+    traccia con minimo fisso sfonderebbe il contenitore invece di cedere.
+  */
+  @include bp.media-down('lg') {
+    .list-summary__grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(var(--summary-item-min-w), 100%), 1fr));
+      align-items: baseline;
+    }
+
+    .list-summary__count {
+      grid-column: 1 / -1;
+    }
+
+    .list-summary__item {
+      padding-inline: var(--space-1);
+    }
+
+    .list-summary__item dd {
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+  }
+}

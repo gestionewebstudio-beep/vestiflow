@@ -107,12 +107,39 @@
     flex: 1;
     min-block-size: 0;
 
+    /*
+      ⛔ **QUI C'ERA `overflow: hidden`, e il piede non si ancorava.**
+
+      Segnalato dal proprietario il 31/08/2026 sugli Ordini fornitore, con la
+      schermata alla mano: «vedi bene i totali, non sono fissati» — la fascia si
+      raggiungeva solo scorrendo fino in fondo.
+
+      ⚠️ **La causa non è nel piede: è che sotto `lg` la tabella non ha una
+      regione di scorrimento propria.** `table-scroll` dichiara lo scorrimento
+      verticale dentro `media-up('lg')`: sul telefono resta il solo
+      `overflow-x`, quindi le card crescono e a scorrere è `.shell__content` —
+      cioè l'intera pagina, piede compreso.
+
+      Con `hidden` la zona dati cedeva in altezza ma **tagliava** invece di far
+      scorrere; il contenuto usciva dal riquadro e la pagina si allungava lo
+      stesso. Le due cose insieme davano un piede che scorreva via.
+
+      ⭐ **`auto` la rende la regione che scorre**, che è esattamente ciò che il
+      dock presuppone: cede solo l'elenco, il piede resta fermo e occupa spazio
+      davvero (`regole-stile-ui`, «il piede è STRUTTURALE, non appiccicato»).
+
+      ⚠️ **`overscroll-behavior: contain`**: arrivati in fondo alle card, il
+      gesto non deve proseguire trascinando la pagina sotto — altrimenti il
+      piede si stacca comunque, per un pollice di troppo.
+    */
     > .list-page__data {
       display: grid;
       grid-auto-rows: minmax(0, 1fr);
       flex: 1;
       min-block-size: 0;
-      overflow: hidden;
+      overflow-y: auto;
+      overflow-x: hidden;
+      overscroll-behavior: contain;
     }
 
     .list-page__foot {

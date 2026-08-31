@@ -4657,3 +4657,89 @@ private readonly potaturaSelezione = toObservable(this.righe)
 ⚠️ **Dopo un'eliminazione la selezione si sfoltisce subito**, senza aspettare il
 giro di rete: la potatura arriva col ricaricamento, ma fra il rifiuto del server
 e la risposta la barra conterebbe righe che non ci sono più.
+
+---
+
+# 66. La fascia riepilogo dei documenti — deciso il 31/08/2026
+
+> _«Per i riepiloghi dei documenti, quindi acquisti, ordini e vendite, la
+> struttura dei totali dovrebbe essere come quella dei corrispettivi per avere
+> coerenza di visualizzazione. I totali poi compariranno in base alla colonna
+> attiva.»_ — proprietario, 31/08/2026
+
+## 66.1 ⛔ Sostituisce la riga totali, non la affianca
+
+Chiesto esplicitamente — _«se affianca si raddoppiano le info?»_ — e la risposta
+è sì: gli stessi numeri due volte nella stessa schermata, a pochi centimetri di
+distanza. Un elenco che monta la fascia **non** passa `[totals]` al motore.
+
+```text
+┌ tabella ────────────────────────────┐
+│ 12/08  Fattura   N.5    1.220,00 €  │
+│ 13/08  Nota cr.  N.2   − 150,00 €   │
+└─────────────────────────────────────┘
+┌ riepilogo ──────────────────────────┐
+│ 17 voci                             │
+│   IMPONIBILE     IVA      TOTALE    │
+│     1.052,04  105,22    1.157,26    │
+└─────────────────────────────────────┘
+```
+
+⚠️ **Si perde l'incolonnamento**, e va saputo: una fascia esterna alla tabella non
+può allinearsi alle sue colonne (§63) — dovrebbe rifarsi le larghezze da sola e
+si disallineerebbe al primo trascinamento di una maniglia. È il prezzo dichiarato
+della coerenza visiva, e il proprietario l'ha scelto sapendolo.
+
+## 66.2 Dove c'è
+
+Quattro elenchi, indicati uno per uno: **Documenti** (tutte le famiglie),
+**Ordini fornitore**, **Ordini cliente**, **Vendite online**.
+
+⛔ **Gli altri nove tengono la riga totali dentro la tabella**: Prodotti,
+Clienti, Fornitori, Giacenze, Situazione, Movimenti, Inventario. Non sono
+riepiloghi documentali, e lì l'incolonnamento sotto la colonna vale più della
+somiglianza col Registro.
+
+⭐ **Il Registro Corrispettivi resta col proprio**, e non è un'eccezione mancata:
+il suo riepilogo porta voci che colonne non sono — «Annullamenti 2»,
+«Rettifiche (4) − 205,01 €» — cioè la riconciliazione del registro, che è il
+motivo per cui lo si guarda (§F5).
+
+## 66.3 Il contenuto viene dalle COLONNE ATTIVE
+
+Non c'è un elenco di metriche scritto a mano: le voci sono le colonne visibili
+che portano un totale, nell'ordine in cui stanno in tabella. Spegnere una colonna
+dal selettore Colonne ne toglie il totale — la stessa regola della riga totali,
+che la fascia sostituisce e non riscrive.
+
+⭐ **Una voce è EVIDENZIATA**, dichiarata da `emphasis`: sui documenti è il
+Totale. È la risposta alla domanda dell'elenco, e si distingue per taglia e peso
+— mai con una tinta di fondo, che sarebbe il riquadro dentro il riquadro.
+
+## 66.4 ⛔ Il calcolo si è spostato, non duplicato
+
+La fascia vive nello slot `[summary]` del telaio, cioè nella **pagina**; i totali
+stavano dentro il componente tabella. La strada sbagliata era ricalcolarli anche
+nella pagina: due somme della stessa cosa, che il giorno in cui una cambia
+divergono in silenzio.
+
+Sono ora funzioni pure — `totaliDocumenti` per i documenti, `totaliDiElenco` per
+gli altri — e chi le chiama non conta.
+
+## 66.5 ⛔ La tipografia sta in DUE mixin, non in due fogli
+
+_«Non duplicare se non serve»_ — proprietario, lo stesso giorno, vedendo nascere
+la grammatica comune accanto a quella del Registro.
+
+`etichetta-riepilogo()` e `valore-riepilogo()` vivono in `styles/_list-summary.scss`
+e li includono **entrambi** i consumer. La sostituzione è stata verificata
+confrontando il CSS emesso prima e dopo: **44 regole, identiche byte per byte** —
+il disegno chiuso del Registro non è cambiato di un pixel.
+
+La guardia è `npm run check:list-summary`.
+
+⚠️ **Quella guardia è nata cieca**, e vale la pena saperlo: scritta con un
+heredoc di shell, le sue `\s` erano diventate `\s`, che in un template literal
+JS collassa a `s`. Cercava `(^|;|s)font-weights*:` e non trovava nulla, senza
+fallire. L'hanno scoperta le tre falsificazioni — che è la ragione per cui si
+falsifica ogni guardia invece di fidarsi del suo «tutto a posto».

@@ -1,4 +1,5 @@
 @use 'breakpoints' as bp;
+@use 'list-summary' as ls;
 
 :host {
   display: block;
@@ -756,37 +757,19 @@
   nitida — il contrario di una gerarchia coerente.
 */
 .corrispettivi-summary__item dt {
-  margin: 0;
   /*
-    ⭐ **10px, non 11px** (30/08/2026, «farei i font più piccoli» e poi «forse
-    può tornare a essere leggermente più grande, prima era 10px»). È
-    l'estremo basso della fascia «label uppercase 9,5–10px» che `regole-stile-ui`
-    §3 dichiara per le etichette di campo e di tabella: non è un valore
-    inventato per stringere qui.
+    ⭐ **La tipografia è del riepilogo, non di questo registro** — estratta il
+    31/08/2026 su indicazione del proprietario, «non duplicare se non serve»:
+    era scritta identica anche in `styles/_list-summary.scss`, e le due fasce
+    stanno nella stessa applicazione.
 
-    ⚠️ Passata prima a 9,5px (`--text-label`) e risalita a 10px lo stesso giorno,
-    guardandola a schermo: a 9,5 l'etichetta perdeva leggibilità, e il mezzo
-    pixel non cambiava l'altezza della fascia — la detta il valore, non lei.
+    ⚠️ **Le decisioni che l'hanno prodotta restano leggibili nel mixin.** In
+    particolare i 10px e non 11 (30/08/2026): è l'estremo basso della fascia
+    «label uppercase 9,5–10px» di `regole-stile-ui` §3, ed era passata prima a
+    9,5 e risalita lo stesso giorno guardandola a schermo — a 9,5 l'etichetta
+    perdeva leggibilità, e il mezzo pixel non cambiava l'altezza della fascia.
   */
-  font-size: var(--text-3xs);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-table-header-fg);
-  text-transform: uppercase;
-  letter-spacing: 0.045em;
-  /*
-    ⭐ **Interlinea stretta, non testo più piccolo** (30/08/2026). Un'etichetta
-    su una riga sola non ha nulla da spaziare: l'interlinea normale del corpo
-    (1.5) le costruiva sotto 5px di vuoto che nessuno vede e che alzano la
-    fascia. È il modo di stringere che non toglie niente alla leggibilità.
-  */
-  line-height: var(--leading-tight);
-  /*
-    L'etichetta non va a capo, e in fila conta più di prima: spezzata, la voce
-    diventerebbe alta due righe e alzerebbe l'intera fascia — cioè annullerebbe
-    la ragione per cui è in fila. Così, se un giorno un'etichetta più lunga non
-    ci stesse, va a capo la FASCIA (che è previsto) e non la voce.
-  */
-  white-space: nowrap;
+  @include ls.etichetta-riepilogo();
 }
 
 /*
@@ -798,28 +781,13 @@
   distinguersi, qui sotto.
 */
 .corrispettivi-summary__item dd {
-  margin: 0;
-  // Un passo sotto la tabella (12px contro 13px): questi sei valori
-  // RIASSUMONO un dato già leggibile riga per riga sopra, quindi pesano meno
-  // della fonte, non uguale — coerente con la stessa densità ridotta lì.
-  font-size: var(--text-2xs);
   /*
-    ⭐ **Semibold, non regular** — deciso il 30/08/2026: «forse adesso si leggono
-    poco i totali, o è il peso del font o grandezza. Proviamo prima col peso?».
-
-    ⚠️ **Il peso prima della taglia, ed è l'ordine giusto**: a 11px il regular è
+    ⚠️ **Semibold, non regular**, ed è nel mixin comune: a 11px il regular è
     sottile e su fondo bianco perde contrasto percepito, ma ingrandire il testo
     rialzerebbe la fascia — cioè disferebbe il lavoro appena fatto. Il peso non
-    costa un pixel di altezza.
-
-    ⛔ Qui c'era `regular`, con la motivazione che questi valori «riassumono un
-    dato già leggibile riga per riga sopra, quindi pesano meno della fonte».
-    Reggeva a 12px in una fascia alta il doppio; a 11px su una riga sola, no.
+    costa un pixel di altezza (30/08/2026).
   */
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text);
-  line-height: var(--leading-tight);
-  white-space: nowrap;
+  @include ls.valore-riepilogo();
 }
 
 /*

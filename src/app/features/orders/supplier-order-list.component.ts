@@ -60,6 +60,7 @@ import type { AppError } from '@core/models/app-error.model';
 import type { SupplierOrder } from '@core/models/supplier-order.model';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { GroupByMenuComponent } from '@shared/components/group-by-menu/group-by-menu.component';
+import { ListSummaryComponent } from '@shared/components/list-summary/list-summary.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
@@ -110,6 +111,7 @@ type OrderListState =
   selector: 'app-supplier-order-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    ListSummaryComponent,
     GroupByMenuComponent,
     ListPageComponent,
     ErrorStateComponent,

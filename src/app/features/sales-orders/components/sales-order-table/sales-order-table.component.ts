@@ -32,9 +32,7 @@ import {
   salesOrderLinesSummary,
   sourceLabel,
 } from '@domain/sales-orders/models/sales-order-labels.util';
-import type { DataTableTotals } from '@shared/components/data-table/data-table.model';
 import { sezioniDiElenco } from '@shared/models/list-grouping.util';
-import { totaliDiElenco } from '@shared/models/list-totals.util';
 import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 
 /** Vista lista ordini: registro generale o canale Shopify (fase 3 §2-§3). */
@@ -320,25 +318,14 @@ export class SalesOrderTableComponent {
   });
 
   /*
-    ⭐ **La riga totali** (`regole-stile-ui`, «La riga TOTALI di un elenco»): somma
-    le colonne visibili, e con una selezione somma quelle scelte.
+    ⛔ **La riga totali del motore è SPENTA su questo elenco.** Dal 31/08/2026 i
+    riepiloghi dei documenti — acquisti, ordini, vendite — usano la **fascia**
+    nella forma del Registro Corrispettivi (`app-list-summary`), e le due insieme
+    direbbero gli stessi numeri due volte nella stessa schermata.
 
-    ⚠️ **Si somma `amountMinor` e si formatta UNA volta sola**: è la regola del
-    denaro — «si arrotonda solo all'uscita, mai nei passaggi intermedi».
+    ⭐ **Il calcolo non è sparito: si è spostato** nella PAGINA, che è dove vive lo
+    slot `[summary]` del telaio.
   */
-  protected readonly totals = computed<DataTableTotals>(() => {
-    const valuta = this.orders()[0]?.total.currencyCode ?? DEFAULT_CURRENCY;
-    const soldi = (n: number): string => formatMoney({ amountMinor: n, currencyCode: valuta });
-    return totaliDiElenco(this.orders(), {
-      rowId: this.rowId,
-      selectedIds: this.selectedIds(),
-      columns: this.columns(),
-      campi: {
-        total: { valore: (o) => o.total.amountMinor, formato: soldi },
-        netTotal: { valore: (o) => o.subtotal.amountMinor, formato: soldi },
-      },
-    });
-  });
   /*
     ⚠️ **Le colonne spente non si controllano a mano.** La card legge quelle che
     il motore ha già ricevuto: una fonte sola invece di due che possono divergere.

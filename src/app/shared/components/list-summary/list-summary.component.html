@@ -1,0 +1,26 @@
+@if (haTotali()) {
+  <section class="list-summary" aria-labelledby="list-summary-title">
+    <!--
+      Il titolo resta per i lettori di schermo — la sezione ha un
+      `aria-labelledby` e senza intestazione sarebbe una regione senza nome — ma
+      non occupa una riga: in fondo alle righe, «Riepilogo» sarebbe la didascalia
+      di ciò che si sta già guardando.
+    -->
+    <h2 id="list-summary-title" class="sr-only">Riepilogo dell'elenco</h2>
+
+    <dl class="list-summary__grid">
+      <p class="list-summary__count tabular-nums">{{ conteggio() }}</p>
+
+      @for (voce of voci(); track voce.id) {
+        <div
+          class="list-summary__item"
+          [class.list-summary__item--highlight]="voce.id === emphasis()"
+          [class.list-summary__item--negative]="isNegativa(voce.id)"
+        >
+          <dt>{{ voce.label }}</dt>
+          <dd>{{ voce.value }}</dd>
+        </div>
+      }
+    </dl>
+  </section>
+}

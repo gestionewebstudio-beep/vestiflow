@@ -18,9 +18,14 @@
 //
 // ⚠️ L'`@include` sta DOPO tutti gli `@use`: Sass li pretende in cima al file.
 @use 'styles/list-card' as vf-list-card;
+// La fascia RIEPILOGO di un elenco: stessa ragione della card — è proiettata
+// nello slot `[summary]` del telaio, e una regola dentro un componente non la
+// raggiungerebbe.
+@use 'styles/list-summary' as vf-list-summary;
 @use 'styles/a11y';
 
 @include vf-list-card.list-card();
+@include vf-list-summary.list-summary();
 
 // -----------------------------------------------------------------------------
 // RESET MODERNO

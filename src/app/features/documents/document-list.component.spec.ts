@@ -699,11 +699,11 @@ describe('DocumentListComponent — totale della selezione col verso economico',
   /**
    * Seleziona tutte le righe e restituisce il totale letto dalla RIGA TOTALI.
    *
-   * ⚠️ **Il numero si è spostato, la regola no.** Fino al 30/08/2026 questo
-   * totale stava nella barra comandi; da quando ogni elenco ha la sua riga
-   * totali, lì diceva la stessa cosa due volte a quattro centimetri di distanza
-   * (`regole-stile-ui`). Questi test presidiano il VERSO economico — una regola
-   * di dominio — non il punto in cui il numero compare.
+   * ⚠️ **Il numero si è spostato DUE volte, la regola no.** Stava nella barra
+   * comandi fino al 30/08/2026, poi nella riga totali della tabella, e dal
+   * 31/08/2026 nella **fascia riepilogo** che ha preso il posto di quella riga
+   * sui riepiloghi documentali. Questi test presidiano il VERSO economico — una
+   * regola di dominio — non il punto in cui il numero compare.
    *
    * ⚠️ **Per NOME accessibile, non per indice.** Le caselle rese sono quattro
    * per due righe, e l’ordine non è quello che sembra: l’indice 1 è
@@ -718,18 +718,19 @@ describe('DocumentListComponent — totale della selezione col verso economico',
     fireEvent.click(tutte);
     view.detectChanges();
 
-    const conteggio = view.container.querySelector('.data-table__totals-count');
+    const conteggio = view.container.querySelector('.list-summary__count');
     expect(conteggio?.textContent?.trim(), `non sono selezionate tutte le righe`).toBe(
       `${righe.length} ${righe.length === 1 ? 'voce' : 'voci'}`,
     );
 
     /*
-      ⚠️ **L'ULTIMO valore della riga totali è il Totale**, ed è quello che questi
-      test guardano: la colonna «Imponibile» viene prima e porta lo stesso verso.
+      ⭐ **Si legge la voce EVIDENZIATA**, che è il Totale per dichiarazione
+      (`emphasis="total"`), non l'ultima per posizione: l'ordine delle voci segue
+      le colonne accese, e un indice si romperebbe alla prima colonna aggiunta.
     */
-    const valori = view.container.querySelectorAll('.data-table__totals-value');
-    expect(valori.length, `la riga totali non mostra nessuna somma`).toBeGreaterThan(0);
-    return valori[valori.length - 1]?.textContent?.trim() ?? '';
+    const totale = view.container.querySelector('.list-summary__item--highlight dd');
+    expect(totale, `il riepilogo non mostra il totale`).not.toBeNull();
+    return totale?.textContent?.trim() ?? '';
   }
 
   it('⭐ Fattura 100 + Nota di credito 30 = 70', async () => {
