@@ -106,6 +106,51 @@ quella giusta.
 sapere a quale larghezza la fascia a riga unica dovesse cedere. Impilata ci sta sempre —
 615px invece di 918 — quindi non c'è più una soglia da decidere.
 
+## ⛔ Corrispettivi: manca l'imponibile diviso per ALIQUOTA — 01/09/2026
+
+_Proprietario: «manca la divisione dell'imponibile in base alle aliquote, almeno nelle
+stampe ed esportazione per dare i dati al commercialista»._
+
+⭐ **Il perimetro è dichiarato: stampa ed export.** A schermo può restare com'è — questa
+voce non chiede una colonna nuova nel Registro né una fascia nel riepilogo.
+
+### Cosa c'è già, e non va rifatto
+
+|                            |                                                                                                |
+| -------------------------- | ---------------------------------------------------------------------------------------------- |
+| la **struttura per riga**  | `CorrispettivoVatBreakdownRow` — `ratePercent · netMinor · vatMinor`, già nel modello dell'API |
+| la **colonna nell'export** | «Dettaglio IVA», ultima colonna di `corrispettivi-export.service`                              |
+| chi la **riempie**         | **solo il Corrispettivo manuale**, l'unica sorgente che conserva le proprie righe per aliquota |
+
+### ⛔ Cosa manca, e perché è stato lasciato così
+
+Le altre tre sorgenti — ordini, vendite al banco, resi — lasciano quella colonna **vuota**,
+e il commento dell'export dice perché:
+
+> _«il dato esiste nel database ma il Registro non lo legge, e riempirla per corrispondenza
+> inversa direbbe una cosa non verificata su un file che va fuori dall'azienda»_
+
+⚠️ **La cautela era giusta e va rispettata**: il lavoro non è «riempire la colonna», è
+**leggere le righe IVA delle altre tre sorgenti** e portarle fino all'export. Ricavare
+l'aliquota per differenza (imposta ÷ imponibile) è la scorciatoia da non prendere: su un
+documento a due aliquote dà un numero che non esiste.
+
+### ⏸ Le due domande da chiudere prima di scrivere
+
+1. **Per riga o per periodo?** Il commercialista di solito vuole il **riepilogo per
+   aliquota del periodo** — «imponibile 22%, imposta 22%, imponibile 10%…» — che è una cosa
+   diversa dal dettaglio riga per riga che l'export ha oggi. Probabilmente servono
+   entrambi, e vanno decisi separatamente.
+2. **Nel riepilogo del Registro no, ma nella stampa dove?** In coda al documento come
+   sezione di riconciliazione, o come foglio a parte dell'export.
+
+⚠️ **Vale la regola del riepilogo**: gli importi per aliquota si ottengono **sommando gli
+importi IVA finali delle righe** di quel codice — mai `imponibile × aliquota`, che è lo
+stesso errore di arrotondamento un piano più in alto (`regole-gestionale`, «L'IVA per
+aliquota segue la stessa regola»).
+
+---
+
 # ⛔ DA FARE OGGI — deciso dal proprietario il 30/08/2026
 
 _«Segnati queste cose da fare e oggi vanno fatte, non perderle.»_
