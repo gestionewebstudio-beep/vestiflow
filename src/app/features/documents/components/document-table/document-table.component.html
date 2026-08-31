@@ -35,7 +35,7 @@
   <ng-template appCell="status" let-doc>
     @if (statusLabel(doc); as label) {
       <span class="doc-table__cell-value">
-        <app-badge [tone]="statusTone(doc)!">{{ label }}</app-badge>
+        <app-badge [flat]="true" [tone]="statusTone(doc)!">{{ label }}</app-badge>
       </span>
     } @else {
       —
@@ -57,12 +57,12 @@
           {{ linkStatusLabel(doc) }}
         </a>
         @if (invoice.totalsCheckPending) {
-          <app-badge tone="warning">Totali da verificare</app-badge>
+          <app-badge [flat]="true" tone="warning">Totali da verificare</app-badge>
         }
       </span>
     } @else if (linkStatusLabel(doc); as label) {
       <span class="doc-table__cell-value">
-        <app-badge [tone]="linkStatusTone(doc)!">{{ label }}</app-badge>
+        <app-badge [flat]="true" [tone]="linkStatusTone(doc)!">{{ label }}</app-badge>
       </span>
     }
   </ng-template>
@@ -77,7 +77,7 @@
       {{ label }}
     } @else {
       <span class="doc-table__cell-value">
-        <app-badge tone="success">Saldata</app-badge>
+        <app-badge [flat]="true" tone="success">Saldata</app-badge>
       </span>
     }
   </ng-template>

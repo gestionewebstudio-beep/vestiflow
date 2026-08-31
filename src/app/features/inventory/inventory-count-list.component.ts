@@ -19,6 +19,13 @@ import { ListPageComponent } from '@shared/components/list-page/list-page.compon
 import { comando } from '@shared/models/list-action-catalog';
 import type { ListAction } from '@shared/models/list-selection.model';
 
+import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
+import { TableViewId } from '@shared/table-columns/table-column.model';
+
+import {
+  INVENTORY_COUNT_COLUMN_DEFS,
+  INVENTORY_COUNT_COLUMN_PRESETS,
+} from './models/inventory-count-table-columns.config';
 import { InventoryCountTableComponent } from './components/inventory-count-table/inventory-count-table.component';
 import { InventoryTabsComponent } from './components/inventory-tabs/inventory-tabs.component';
 import { InventoryService } from '@domain/inventory/services/inventory.service';
@@ -46,9 +53,26 @@ export class InventoryCountListComponent {
   private readonly inventoryService = inject(InventoryService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly columnPreferences = inject(TableColumnPreferenceService);
 
-  protected readonly skeletonColumns = 7;
+  /*
+    ⭐ **Il selettore Colonne, che qui non c'era**: la tabella aveva sette `<th>`
+    fissi, quindi niente da scegliere. È l'ultima schermata a prenderlo (30/08/2026).
+  */
+  protected readonly tableViewId = TableViewId.InventoryCounts;
+  protected readonly tableColumns: ReturnType<TableColumnPreferenceService['visibleColumns']>;
+
+  protected readonly skeletonColumns = 6;
   private readonly refreshTick = signal(0);
+
+  constructor() {
+    this.columnPreferences.registerView(
+      TableViewId.InventoryCounts,
+      INVENTORY_COUNT_COLUMN_DEFS,
+      INVENTORY_COUNT_COLUMN_PRESETS,
+    );
+    this.tableColumns = this.columnPreferences.visibleColumns(TableViewId.InventoryCounts);
+  }
 
   protected readonly deleteDialogOpen = signal(false);
   protected readonly deleteLoading = signal(false);

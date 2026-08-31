@@ -32,7 +32,7 @@
           <td data-label="Cliente">{{ row.customerName }}</td>
           <td data-label="Stato">
             <span class="recent-sales__cell-value">
-              <app-badge [tone]="statusTone(row.financialStatus)">
+              <app-badge [flat]="true" [tone]="statusTone(row.financialStatus)">
                 {{ statusLabel(row.financialStatus) }}
               </app-badge>
             </span>

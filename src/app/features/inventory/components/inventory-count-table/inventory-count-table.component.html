@@ -1,57 +1,44 @@
-<div class="count-table__scroll">
-  <table class="count-table">
-    <thead>
-      <tr>
-        <th scope="col">Sessione</th>
-        <th scope="col">Location</th>
-        <th scope="col">Stato</th>
-        <th scope="col" class="count-table__col--numeric">Progresso</th>
-        <th scope="col" class="count-table__col--numeric">Differenze</th>
-        <th scope="col">Creato</th>
-        <th scope="col" class="count-table__col--actions">
-          <span class="sr-only">Azioni</span>
-        </th>
-      </tr>
-    </thead>
-    <tbody>
-      @for (session of sessions(); track session.id) {
-        <tr
-          class="count-table__row"
-          tabindex="0"
-          (click)="rowClick.emit(session)"
-          (keydown.enter)="rowClick.emit(session)"
-        >
-          <td data-label="Sessione">
-            <span class="count-table__name">{{ session.name }}</span>
-          </td>
-          <td data-label="Location">{{ session.locationName }}</td>
-          <td data-label="Stato">
-            <app-badge [tone]="statusTone(session.status)">
-              {{ statusLabel(session.status) }}
-            </app-badge>
-          </td>
-          <td class="count-table__numeric tabular-nums" data-label="Progresso">
-            {{ progress(session) }}
-          </td>
-          <td class="count-table__numeric tabular-nums" data-label="Differenze">
-            {{ session.linesWithDelta }}
-          </td>
-          <td data-label="Creato">{{ formatDate(session.createdAt) }}</td>
-          <td class="count-table__col--actions" data-label="Azioni">
-            @if (session.status === InventoryCountStatus.Cancelled) {
-              <button
-                type="button"
-                class="count-table__action-btn"
-                [attr.aria-label]="'Elimina sessione ' + session.name"
-                [attr.title]="'Elimina sessione'"
-                (click)="onDeleteClick($event, session)"
-              >
-                <i class="pi pi-trash" aria-hidden="true"></i>
-              </button>
-            }
-          </td>
-        </tr>
-      }
-    </tbody>
-  </table>
-</div>
+<!--
+  ⭐ **Lo scheletro è del motore comune** (`14` parte H) dal 30/08/2026 — ultimo
+  elenco a entrarci, segnalato dal proprietario.
+
+  ⛔ **Qui c'erano sette `<th>` scritti a mano** e un `<td>` per colonna: niente
+  selettore Colonne, niente larghezze, niente riga totali, niente selezione.
+-->
+<app-data-table
+  caption="Sessioni di inventario"
+  [columns]="columns()"
+  [sections]="sections()"
+  [rowId]="rowId"
+  [cellText]="cellText"
+  [rowClickable]="true"
+  [rowLabel]="rowLabelFor"
+  [totals]="totals()"
+  rowActionsLabel="Azioni"
+  (rowClick)="rowClick.emit($event)"
+>
+  <ng-template appCell="status" let-session>
+    <app-badge [flat]="true" [tone]="statusTone(session.status)">
+      {{ statusLabel(session.status) }}
+    </app-badge>
+  </ng-template>
+
+  <!--
+    ⚠️ **Si elimina SOLO una sessione annullata**, ed è una regola di dominio: una
+    sessione in corso o chiusa è un fatto di magazzino, e cancellarla toglierebbe
+    la traccia di un conteggio avvenuto.
+  -->
+  <ng-template appRowActions let-session>
+    @if (session.status === InventoryCountStatus.Cancelled) {
+      <button
+        type="button"
+        class="count-table__action-btn"
+        [attr.aria-label]="'Elimina sessione ' + session.name"
+        title="Elimina sessione"
+        (click)="onDeleteClick($event, session)"
+      >
+        <i class="pi pi-trash" aria-hidden="true"></i>
+      </button>
+    }
+  </ng-template>
+</app-data-table>

@@ -98,7 +98,7 @@
   >
     <!-- L'unica cella che non è testo: lo stato magazzino, con la sua pill. -->
     <ng-template appCell="inventoryStatus" let-sale>
-      <app-badge [tone]="inventoryTone(sale.inventoryStatus)">
+      <app-badge [flat]="true" [tone]="inventoryTone(sale.inventoryStatus)">
         {{ inventoryLabel(sale.inventoryStatus) }}
       </app-badge>
     </ng-template>

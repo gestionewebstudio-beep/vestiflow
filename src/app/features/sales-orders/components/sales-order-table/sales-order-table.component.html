@@ -52,13 +52,15 @@
 
   <ng-template appCell="state" let-order>
     <span class="sales-table__cell-value">
-      <app-badge [tone]="orderStateTone(order)">{{ orderStateLabel(order) }}</app-badge>
+      <app-badge [flat]="true" [tone]="orderStateTone(order)">{{
+        orderStateLabel(order)
+      }}</app-badge>
     </span>
   </ng-template>
 
   <ng-template appCell="financialStatus" let-order>
     <span class="sales-table__cell-value">
-      <app-badge [tone]="financialTone(order.financialStatus)">
+      <app-badge [flat]="true" [tone]="financialTone(order.financialStatus)">
         {{ financialLabel(order.financialStatus) }}
       </app-badge>
     </span>
@@ -66,7 +68,7 @@
 
   <ng-template appCell="fulfillmentStatus" let-order>
     <span class="sales-table__cell-value">
-      <app-badge [tone]="fulfillmentTone(order.fulfillmentStatus)">
+      <app-badge [flat]="true" [tone]="fulfillmentTone(order.fulfillmentStatus)">
         {{ fulfillmentLabel(order.fulfillmentStatus) }}
       </app-badge>
     </span>
@@ -75,7 +77,7 @@
   <!-- Lo stato di sync porta il motivo nel `title`: la pill da sola non basta. -->
   <ng-template appCell="syncState" let-order>
     <span class="sales-table__cell-value" [attr.title]="syncStateHint(order)">
-      <app-badge [tone]="syncStateTone(order)">{{ syncStateLabel(order) }}</app-badge>
+      <app-badge [flat]="true" [tone]="syncStateTone(order)">{{ syncStateLabel(order) }}</app-badge>
     </span>
   </ng-template>
 
@@ -158,11 +160,13 @@
         </div>
         <div class="sales-cards__customer">{{ order.customerName }}</div>
         <div class="sales-cards__badges">
-          <app-badge [tone]="orderStateTone(order)">{{ orderStateLabel(order) }}</app-badge>
-          <app-badge [tone]="financialTone(order.financialStatus)">
+          <app-badge [flat]="true" [tone]="orderStateTone(order)">{{
+            orderStateLabel(order)
+          }}</app-badge>
+          <app-badge [flat]="true" [tone]="financialTone(order.financialStatus)">
             {{ financialLabel(order.financialStatus) }}
           </app-badge>
-          <app-badge [tone]="fulfillmentTone(order.fulfillmentStatus)">
+          <app-badge [flat]="true" [tone]="fulfillmentTone(order.fulfillmentStatus)">
             {{ fulfillmentLabel(order.fulfillmentStatus) }}
           </app-badge>
         </div>

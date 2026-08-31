@@ -3,6 +3,7 @@ export const TableViewId = {
   StockMovements: 'stock_movements',
   InventoryLevels: 'inventory_levels',
   InventorySituation: 'inventory_situation',
+  InventoryCounts: 'inventory_counts',
   DocumentsList: 'documents_list',
   GoodsReceiptDocumentsList: 'goods_receipt_documents_list',
   QuoteDocumentsList: 'quote_documents_list',

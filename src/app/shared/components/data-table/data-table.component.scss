@@ -445,25 +445,26 @@
 }
 
 /*
-  ⭐ **LA CARD BIANCA ARRIVA IN FONDO ALLA REGIONE, anche con poche righe** —
-  deciso dal proprietario il 30/08/2026: «questa parte la farei diventare
-  contenitore vuoto, il continuo».
+  ⛔ **QUI C'ERA `min-block-size: 100%`, ED È STATO TOLTO — 30/08/2026.**
 
-  ⛔ Con dodici righe in una finestra alta, la card finiva sotto l'ultima riga e
-  lasciava una fascia di fondo pagina grigio prima del riepilogo. A schermo si
-  leggeva come un buco, non come spazio disponibile.
+  Serviva a far arrivare la card bianca in fondo alla regione con poche righe. Il
+  commento su `.data-table-scroll` qui sopra racconta che **non funzionava**:
+  misurato, la tabella restava a 357px in una regione da 533. La cornice è quindi
+  passata al contenitore, e questa riga è rimasta lì, ritenuta inerte.
 
-  ⚠️ **`min-block-size` e non `block-size`**: la tabella deve poter CRESCERE
-  oltre il contenitore quando le righe sono tante — è ciò che fa scorrere la
-  regione. Un'altezza fissa la bloccherebbe all'altezza della finestra e le
-  righe in più sparirebbero.
+  ⛔ **Inerte lo era solo finché il contenitore non aveva un'altezza.** Da quando
+  ce l'ha — `table-scroll(riempi)`, che gli dà `block-size: 100%` — la regola ha
+  ripreso effetto, e su una `<table>` un'altezza al 100% **si distribuisce fra le
+  righe**: cinque righe in una regione alta diventano cinque righe da 95px.
 
-  ⚠️ **Dove il contenitore non ha un'altezza definita, il 100% vale `auto`** e
-  questa regola non fa nulla: le tabelle che si ancorano alla shell (§6) restano
-  esattamente come sono.
+  ⚠️ **E `--table-row-h` non lo impediva**: su un `tr` è un MINIMO, non un
+  massimo. Segnalato dal proprietario guardando le Vendite online — cinque
+  documenti, righe alte tre volte quelle dei Corrispettivi.
+
+  ⭐ **Il fondo bianco non si perde**: lo porta `.data-table-scroll`, che
+  un'altezza ce l'ha davvero. È già così dal 30/08.
 */
 .data-table {
-  min-block-size: 100%;
   inline-size: 100%;
   min-inline-size: 100%;
 }

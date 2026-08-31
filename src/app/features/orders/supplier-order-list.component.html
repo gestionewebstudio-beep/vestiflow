@@ -93,7 +93,9 @@
   >
     <!-- L'unica cella che non è testo: lo stato, con la sua pill. -->
     <ng-template appCell="status" let-order>
-      <app-badge [tone]="statusTone(order.status)">{{ statusLabel(order.status) }}</app-badge>
+      <app-badge [flat]="true" [tone]="statusTone(order.status)">{{
+        statusLabel(order.status)
+      }}</app-badge>
     </ng-template>
 
     <!--

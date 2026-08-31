@@ -542,6 +542,45 @@ describe('StoreSaleDocumentFormComponent', () => {
       expect(screen.getByText('Documento non disponibile')).toBeTruthy();
     });
 
+    /**
+     * ⛔ **Il percorso dell'OPERATORE, che nessun test aveva mai fatto.**
+     *
+     * Tutti i test di salvataggio chiamano `component.save()` direttamente. Va
+     * bene per provare il payload, e **non prova niente** su ciò che l'operatore
+     * fa davvero: premere «Concludi vendita». Fra il pulsante e il metodo ci sono
+     * il piede, il suo `saveDisabled`, e l'evento che deve arrivare — tre punti
+     * dove il collegamento può mancare senza che una riga di codice sembri
+     * sbagliata.
+     *
+     * Segnalato dal proprietario il 30/08/2026: «bisogna vedere perché non si
+     * salva una nuova vendita al banco».
+     */
+    it('⭐ premere «Concludi vendita» salva davvero', async () => {
+      const createSale = vi.fn(() => of(ESITO));
+      await setup({ createSale });
+
+      const pulsante = screen.getByRole('button', { name: 'Concludi vendita' });
+      expect(pulsante.hasAttribute('disabled'), 'il pulsante è spento').toBe(false);
+
+      await userEvent.click(pulsante);
+
+      expect(createSale, 'il clic non è arrivato a save()').toHaveBeenCalledTimes(1);
+    });
+
+    /**
+     * ⚠️ **Senza sede il pulsante è SPENTO, e deve esserlo**: `save()` esce in
+     * silenzio se manca, quindi un pulsante acceso non farebbe niente — che è il
+     * modo peggiore di rifiutare.
+     */
+    it('senza sede il pulsante è spento, non silenzioso', async () => {
+      const createSale = vi.fn(() => of(ESITO));
+      await setup({ createSale, defaultLocation: null });
+
+      expect(
+        screen.getByRole('button', { name: 'Concludi vendita' }).hasAttribute('disabled'),
+      ).toBe(true);
+    });
+
     it('⭐ la sede del documento non viene sovrascritta da quella assegnata', async () => {
       // Con una sede unica assegnata, aprire un documento di un'ALTRA sede non
       // deve spostarlo: sarebbe un cambio di magazzino fatto aprendo, e su un
