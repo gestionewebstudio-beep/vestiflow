@@ -38,7 +38,6 @@ import { ListActionsBarComponent } from '@shared/components/list-actions-bar/lis
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import { SegmentedComponent } from '@shared/components/segmented/segmented.component';
 import type { SegmentedOption } from '@shared/components/segmented/segmented.component';
-import { ButtonComponent } from '@shared/components/button/button.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
@@ -113,7 +112,6 @@ type CorrispettiviState =
     InlineBannerComponent,
     SegmentedComponent,
     SelectMenuComponent,
-    ButtonComponent,
   ],
   templateUrl: './corrispettivi-report.component.html',
   styleUrl: './corrispettivi-report.component.scss',

@@ -77,10 +77,38 @@ function suffisso(classe) {
 function classiDelFoglio(scss) {
   const trovate = new Set();
   const pila = [];
+  /*
+    ⛔ **UN ELENCO DI SELETTORI SPEZZATO SU PIÙ RIGHE** — corretto il 31/08/2026.
+
+    Qui si guardava la sola riga che porta la graffa, quindi di
+
+    ```scss
+    .blocco__uno,
+    .blocco__due {
+    ```
+
+    vedeva `.blocco__due` e **perdeva `.blocco__uno`**: la classe risultava
+    orfana pur essendo vestita, e il lint falliva su un difetto che non c'è.
+
+    ⚠️ **È la formattazione che Prettier produce da sé** quando l'elenco supera
+    la larghezza di riga: non è uno stile insolito, è quello prevalente. Trovato
+    su `column-filter`, che ne ha quattro coppie.
+  */
+  let sospeso = '';
 
   for (const rigaGrezza of scss.split(/\r?\n/)) {
-    const riga = rigaGrezza.trim();
+    let riga = rigaGrezza.trim();
     if (riga.startsWith('//') || riga.startsWith('/*') || riga.startsWith('*')) continue;
+
+    if (sospeso) {
+      riga = `${sospeso} ${riga}`;
+      sospeso = '';
+    }
+
+    if (riga.endsWith(',') && !riga.includes('{')) {
+      sospeso = riga;
+      continue;
+    }
 
     if (riga.includes('{')) {
       const testa = riga.slice(0, riga.indexOf('{')).trim();
