@@ -373,6 +373,35 @@ cinque vesti duplicate erano già una violazione; ora l'istanza è una.
 questo uno slot proprio, `[period]`, in posizione fissa fra ricerca e filtri: è un
 controllo di dominio, ma la sua **posizione** non è negoziabile.
 
+##### ⭐ E stanno FUORI dal pulsante, in tutti e tre i sensi — 31/08/2026
+
+_Proprietario: «ricerca e periodo possono restare fuori»._
+
+```text
+spegnere «Filtri»      non li tocca
+«Azzera filtri»        non li tocca
+il badge «Filtri (n)»  non li conta
+```
+
+⭐ **Il criterio è uno solo: hanno il proprio controllo sempre a vista**, a ogni
+larghezza. Il badge esiste per dire che qualcosa restringe l'elenco **senza che si
+veda** — ed è il segnale che serve sotto `lg`, dove i filtri stanno chiusi nel pannello.
+Contare ciò che è già visibile lo diluisce.
+
+⛔ **Il codice faceva il contrario in NOVE pagine su nove**, e nessun test lo copriva: la
+regola era scritta e il comportamento era l'opposto. Chi spegneva «Filtri» si ritrovava
+la ricerca svuotata e — su Movimenti, Documenti e Ordini cliente — anche le date riportate
+al predefinito, cioè un periodo che nessuno aveva chiesto di cambiare.
+
+⚠️ **`hasActiveFilters()` va tenuto allineato a `resetFilters()`**: governa la comparsa
+del pulsante «Azzera filtri» dentro la riga dei filtri, e se contasse ancora la ricerca il
+pulsante comparirebbe con la sola ricerca scritta — premuto, non farebbe niente.
+
+La guardia è `npm run check:ricerca-fuori-filtri`. ⚠️ Controlla **per nome**, e non può
+fare altrimenti: i campi del periodo si chiamano diversamente su ogni elenco
+(`dateFrom`, `placedFrom`, `fulfilledFrom`, `fromFilter`, `periodPreset`). Un elenco nuovo
+con un nome nuovo va aggiunto anche lì.
+
 #### Il pulsante «Filtri» ha due mestieri, perché sono due vesti
 
 ```text
@@ -402,6 +431,134 @@ non dovranno dichiararlo — quindi non è lavoro da fare adesso su dieci pagine
 ⭐ **E sulla scrivania il numero diventa quasi ridondante**: ogni colonna filtrata mostra
 il proprio controllo acceso. Resta essenziale **sotto `lg`**, dove i controlli sono
 chiusi nel pannello e quel numero è l'unico segnale che l'elenco è ristretto.
+
+### ⭐ Come è fatto — lo STORE per vista, deciso il 31/08/2026
+
+> **Lo stato dei filtri di colonna vive in un servizio radice chiavato sulla
+> `TableViewId`** (`ColumnFilterStore`). Non passa da `input()`/`output()`.
+
+⛔ **La strada ovvia era una terna di proprietà** sul motore — controlli visibili, stato,
+cambiamento — inoltrata dalla pagina alla tabella dumb e da lì al motore. È quella
+sbagliata, e la ragione è misurabile: i **tre consumatori non stanno in linea**, nessuno
+dei tre è genitore degli altri due.
+
+```text
+app-data-table    disegna i controlli nelle intestazioni, e li SCRIVE
+app-list-page     conta i filtri attivi e, sotto lg, li mostra nel PANNELLO
+la tabella dumb   FILTRA le proprie righe — e da lì totali, sezioni e card
+```
+
+Cablarli a mano avrebbe voluto dire ripetere in dodici elenchi anche **la regola non ovvia
+che li governa** — spegnere azzera: sarebbe bastato dimenticarla una volta per lasciare un
+elenco ristretto da un filtro invisibile.
+
+⭐ **La chiave è la stessa del selettore Colonne**, e non per comodità: i filtri di un
+elenco _sono_ le sue colonne, quindi chi sa quali colonne mostra sa anche come si
+filtrano. È il pattern che `app-table-column-picker` usa da sempre.
+
+#### Che cosa resta da cablare, per elenco
+
+```text
+la pagina           [viewId]="tableViewId"    sulla tabella dumb
+la tabella dumb     [viewId]="viewId()"       sul motore
+                    createColumnFilters(…)    una riga: le righe filtrate
+```
+
+⚠️ **Il filtro si applica nella tabella dumb, non nel motore**, ed è deliberato: lì
+vivono le righe, il `cellText` e la riga totali. Filtrando nel motore i totali resterebbero
+quelli delle righe intere, mentre la regola chiede il totale del **risultato filtrato**.
+
+#### ⛔ Le scelte di un filtro `values` vengono dalle righe NON filtrate
+
+È il difetto classico di questo controllo, ed è muto: lette dalle righe già ristrette,
+scelto «Bozza» sparirebbe «Confermato» dall'elenco delle scelte — **il filtro si potrebbe
+stringere e mai allargare**. Le registra `createColumnFilters`, che è l'unico posto dove
+le righe intere esistono.
+
+#### ⛔ Zero righe per i filtri si dice DENTRO la tabella
+
+Non con lo stato vuoto della pagina: quello sostituisce la tabella, e porterebbe via le
+intestazioni — cioè **i controlli con cui si toglie il filtro**. L'operatore resterebbe in
+un vicolo cieco. Il motore rende una riga a piena larghezza, e **solo con un filtro di
+colonna attivo**: zero righe per altre ragioni le racconta la pagina, che sa perché.
+
+#### Il conteggio somma dominio e colonne
+
+Durante la migrazione un elenco può avere entrambi. `[activeFilterCount]` resta quello di
+dominio; il telaio ci somma i propri. ⛔ Contarne uno solo direbbe «nessun filtro» a un
+elenco ristretto — il difetto per cui il badge esiste.
+
+#### ⛔ La deduzione mandava TUTTO a `values` — corretto il 31/08/2026
+
+Il pilota non filtrava, e la causa non era il meccanismo: era la **forma** del controllo.
+La deduzione dà `values` a ogni colonna che non sia numerica e non porti un `display`, e
+misurato sui Fornitori **nessuna delle otto** dichiarava l'uno o l'altro:
+
+```text
+Codice · Ragione sociale · P. IVA · Email · Città · Telefono · Pagamento · Stato
+  → 8 menu su 8, con un valore per riga
+```
+
+⛔ **Su una colonna di IDENTITÀ il menu è la forma sbagliata**, e si vede subito: di una
+ragione sociale si vuole scrivere «ros», non sceglierla intera da un elenco lungo quanto
+l'anagrafica.
+
+⭐ **La correzione sta nel CATALOGO**, non elenco per elenco: la risposta appartiene al
+concetto — un codice si cerca scrivendo dovunque compaia. `filter: 'text'` su
+`reference · code · sku · articleCode · vatNumber · email · phone · ddt · notes`.
+
+⚠️ **Città resta un menu, e la distinzione è quella che conta**: le città in cui si hanno
+fornitori sono poche e si vogliono **vedere**. Lo stesso per Stato, Tipo, Sede, Pagamento.
+
+⭐ **E il menu è ora CERCABILE** (`searchable`): un insieme chiuso ma lungo — Cliente,
+Sede su un tenant grande — resta usabile senza cambiare forma.
+
+#### ⭐ Le date hanno una forma PROPRIA — `date`, 31/08/2026
+
+⛔ **`date` non è `range` con un'altra etichetta**, e sei colonne «Data» erano dichiarate
+`range`: mostravano **due caselle numeriche**, e su una data non c'è numero da scrivere.
+Altre — Clienti, Ordini fornitore, Vendite online — non dichiaravano niente e finivano su
+un **menu di date formattate**.
+
+```text
+date   due app-date-input, e il confronto avviene in ISO (AAAA-MM-GG)
+```
+
+⚠️ **Il confronto è sulla data, non sul testo mostrato**: `31/01` viene prima di `01/02`
+solo confrontando le date — in ordine alfabetico è il contrario.
+
+⚠️ **E l'istante si tronca al GIORNO.** `2026-08-31T14:30` confrontato con un estremo
+`2026-08-31` risulta **maggiore**: senza il troncamento la riga di oggi sparirebbe da un
+«fino a oggi». È il difetto che si scopre solo il giorno in cui lo si usa.
+
+#### ⚠️ I due estrattori, e cosa succede senza
+
+|            |                                                                                                                                                                                                        |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `numeroDi` | serve alle colonne `range`. **Senza, la colonna lascia passare tutto**: due campi che non restringono niente. Il denaro si confronta in **unità minori** — «1.250,00 €» come stringa sta dopo «9,00 €» |
+| `dataDi`   | serve alle colonne `date`, e restituisce **ISO**. Senza, stessa cosa                                                                                                                                   |
+
+⭐ **Non restringere è meglio che restringere per un confronto che non sappiamo fare**: un
+`range` applicato al testo formattato darebbe un risultato sbagliato senza dire niente.
+
+#### ✅ Quattro elenchi su dodici — 31/08/2026
+
+```text
+✅ Fornitori          pilota: otto colonne, tutte di testo
+✅ Clienti            prima colonna `date` («Creato il»)
+✅ Ordini fornitore   quattro colonne numeriche e due date: entrambi gli estrattori
+✅ Vendite online     stesso schema, più «Ordine origine» riportato a `text`
+⏸ Inventario · Giacenze · Situazione · Movimenti · Prodotti · Ordini cliente
+⏸ Corrispettivi
+⏸ Documenti           per ultimo: quindici controlli e cinquantasei colonne
+```
+
+⚠️ **Documenti resta in fondo di proposito**: è quello dove un errore costa di più, e ogni
+elenco migrato prima insegna qualcosa che lì si applica una volta sola.
+
+⚠️ La guardia è `npm run check:filtri-colonna`: un `[viewId]` sul motore senza
+`createColumnFilters` accende i controlli e **non restringe niente** — un comando che
+finge di funzionare, che è peggio di un comando assente.
 
 ### ✅ Undici pagine su undici — 29/08/2026
 
