@@ -629,6 +629,63 @@ describe('DocumentListComponent — niente pagine, ultimi 30 giorni', () => {
  * Vendite al banco col **Reso** — quindi una Fattura da 100 e una Nota di
  * credito da 30 davano 130 nella barra della selezione.
  */
+/**
+ * ⭐ **Il verso si legge anche SULLA RIGA**, non solo nel totale.
+ *
+ * Questo registro mescola tipi di direzione opposta, e sulla card — dove non c'è
+ * una colonna incolonnata a fare il confronto — distinguerli è la differenza fra
+ * scorrere e dover leggere.
+ *
+ * ⛔ **Il caso che conta è il TERZO**: un tipo senza direzione dichiarata resta
+ * `null`, non `positive`. Attribuirgli un verso sarebbe una decisione economica
+ * che nessuno ha preso, e `regole-stile-ui` la vieta: «la striscia colorata su
+ * ogni card di ogni elenco sarebbe rumore».
+ */
+describe('DocumentListComponent — il tono della riga segue il verso', () => {
+  const TITOLARE = { role: UserRole.Owner, permissions: [] };
+
+  const conTipo = (id: string, type: DocumentType): DocumentRecord => ({
+    ...DOCUMENTO_DI_PROVA,
+    id,
+    type,
+  });
+
+  const toniResi = async (righe: readonly DocumentRecord[]): Promise<string[]> => {
+    const view = await renderList('generic', TITOLARE, undefined, righe);
+    return [...view.container.querySelectorAll('tbody tr')].map((tr) => {
+      if (tr.classList.contains('data-table__row--negative')) return 'negative';
+      if (tr.classList.contains('data-table__row--positive')) return 'positive';
+      return 'nessuno';
+    });
+  };
+
+  it('⭐ la Nota di credito è negativa, la Fattura positiva', async () => {
+    expect(
+      await toniResi([
+        conTipo('f-1', DocumentType.Invoice),
+        conTipo('nc-1', DocumentType.CreditNote),
+      ]),
+    ).toEqual(['positive', 'negative']);
+  });
+
+  it('⭐ Vendita e Reso al banco, stessa distinzione', async () => {
+    expect(
+      await toniResi([
+        conTipo('v-1', DocumentType.StoreSale),
+        conTipo('r-1', DocumentType.StoreReturn),
+      ]),
+    ).toEqual(['positive', 'negative']);
+  });
+
+  /**
+   * ⛔ Un trasferimento non aggiunge e non toglie denaro: non ha una direzione
+   * economica, e non deve prenderne una per ripiego.
+   */
+  it('⛔ un tipo SENZA verso dichiarato non prende nessun tono', async () => {
+    expect(await toniResi([conTipo('t-1', DocumentType.Transfer)])).toEqual(['nessuno']);
+  });
+});
+
 describe('DocumentListComponent — totale della selezione col verso economico', () => {
   const TITOLARE = { role: UserRole.Owner, permissions: [] };
 

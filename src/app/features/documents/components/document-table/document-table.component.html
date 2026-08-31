@@ -21,6 +21,7 @@
   [sortable]="true"
   [sort]="sort()"
   [rowLabel]="rowLabelFor"
+  [rowTone]="rowTone"
   [selectionMode]="selectable() ? 'multiple' : 'none'"
   [selectedIds]="selectedIds()"
   [totals]="totals()"
@@ -105,7 +106,12 @@
           <span class="list-card__when tabular-nums">{{ dateLabel(doc) }}</span>
         }
         @if (visibile('type')) {
-          <span class="list-card__what">{{ typeLabel(doc.type) }}</span>
+          <!-- Il tipo che toglie si legge rosso: stesso vocabolario dell'accento. -->
+          <span
+            class="list-card__what"
+            [class.list-card__what--negative]="rowTone(doc) === 'negative'"
+            >{{ typeLabel(doc.type) }}</span
+          >
         }
       </span>
       <!-- L'ancora: il numero sta sempre nello stesso punto, card dopo card. -->

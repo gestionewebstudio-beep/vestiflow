@@ -16,12 +16,17 @@ import {
   goodsReceiptLinkStatusLabel,
   goodsReceiptLinkStatusTone,
 } from '@domain/documents/models/document-labels.util';
-import { signedDocumentMoney } from '@domain/documents/models/document-economic-sign.util';
+import {
+  documentEconomicSign,
+  hasDeclaredEconomicSign,
+  signedDocumentMoney,
+} from '@domain/documents/models/document-economic-sign.util';
 import { isStoreFlowDocumentType } from '@domain/documents/models/document-operational.util';
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
 import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';
 import type {
+  DataTableRowTone,
   DataTableSort,
   DataTableTotals,
 } from '@shared/components/data-table/data-table.model';
@@ -290,6 +295,28 @@ export class DocumentTableComponent {
     ⚠️ **Le colonne spente non si controllano a mano.** Legge quelle che il motore
     ha già ricevuto: una fonte sola invece di due che possono divergere.
   */
+  /*
+    ⭐ **Il TONO della riga, che l'elenco documenti non aveva.**
+
+    Questo registro mescola tipi di direzione opposta — Fattura e **Nota di
+    credito**, Vendita e **Reso** al banco — e li mostrava tutti uguali. Su card,
+    dove il verso non si legge da una colonna incolonnata, distinguerli è la
+    differenza fra scorrere e dover leggere.
+
+    ⛔ **Non si decide niente qui**: il verso lo dà `documentEconomicSign`, unica
+    autorità, e i tipi che non ne hanno uno DICHIARATO restano `null` — non
+    `positive`. `regole-stile-ui` è esplicita: «un elenco che non distingue i
+    versi restituisce `null`, la striscia colorata su ogni card sarebbe rumore».
+    Trasferimenti, rettifiche e inventari non hanno una direzione economica, e
+    attribuirgliene una sarebbe una decisione che nessuno ha preso.
+  */
+  protected readonly rowTone = (doc: DocumentRecord): DataTableRowTone | null => {
+    if (!hasDeclaredEconomicSign(doc.type)) {
+      return null;
+    }
+    return documentEconomicSign(doc.type) < 0 ? 'negative' : 'positive';
+  };
+
   protected visibile(columnId: string): boolean {
     return this.columns().some((column) => column.id === columnId);
   }

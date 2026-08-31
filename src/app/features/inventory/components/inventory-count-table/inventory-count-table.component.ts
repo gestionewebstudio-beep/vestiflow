@@ -8,6 +8,7 @@ import { formatDateTime } from '@core/utils/date.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
 import { DataTableRowActionsDirective } from '@shared/components/data-table/data-table-row-actions.directive';
+import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';
 import type {
   DataTableSection,
@@ -34,6 +35,7 @@ import {
     BadgeComponent,
     DataTableComponent,
     DataTableCellDirective,
+    DataTableRowCardDirective,
     DataTableRowActionsDirective,
   ],
   templateUrl: './inventory-count-table.component.html',
@@ -54,6 +56,13 @@ export class InventoryCountTableComponent {
   protected readonly sections = computed<readonly DataTableSection<InventoryCountSession>[]>(() => [
     { id: 'sessioni', rows: this.sessions() },
   ]);
+  /*
+    ⚠️ **Le colonne spente non si controllano a mano.** La card legge quelle che
+    il motore ha già ricevuto: una fonte sola invece di due che possono divergere.
+  */
+  protected visibile(columnId: string): boolean {
+    return this.columns().some((column) => column.id === columnId);
+  }
 
   protected readonly rowId = (session: InventoryCountSession): string => session.id;
 

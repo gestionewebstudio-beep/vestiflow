@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
 import { DEFAULT_CURRENCY, formatMoney } from '@core/utils/money.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
+import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';
 import type {
   DataTableSection,
@@ -23,7 +24,7 @@ import type { InventorySituationRow } from '@domain/inventory/models/inventory-s
 @Component({
   selector: 'app-situation-table',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [BadgeComponent, DataTableComponent, DataTableCellDirective],
+  imports: [BadgeComponent, DataTableComponent, DataTableCellDirective, DataTableRowCardDirective],
   templateUrl: './situation-table.component.html',
   styleUrl: './situation-table.component.scss',
 })
@@ -52,6 +53,13 @@ export class SituationTableComponent {
   protected readonly sections = computed<readonly DataTableSection<InventorySituationRow>[]>(() => [
     { id: 'situazione', rows: this.rows() },
   ]);
+  /*
+    ⚠️ **Le colonne spente non si controllano a mano.** La card legge quelle che
+    il motore ha già ricevuto: una fonte sola invece di due che possono divergere.
+  */
+  protected visibile(columnId: string): boolean {
+    return this.engineColumns().some((column) => column.id === columnId);
+  }
 
   protected readonly rowId = (row: InventorySituationRow): string => row.variantId;
 

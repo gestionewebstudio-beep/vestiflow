@@ -87,6 +87,15 @@
     }
 
     /*
+      ⭐ **Il tipo che TOGLIE si legge rosso**: un reso, una nota di credito, un
+      rimborso. È lo stesso vocabolario dei toni di riga in tabella — il colore
+      accompagna la parola, che resta leggibile da sola.
+    */
+    .list-card__what--negative {
+      color: var(--color-danger);
+    }
+
+    /*
       ⭐ **L'ANCORA a destra, fuori dal gruppo che si stringe**: scorrendo l'elenco
       sta sempre nello stesso punto, e l'occhio la trova senza cercarla. Dentro il
       gruppo seguirebbe la lunghezza del tipo e ballerebbe da una card all'altra.

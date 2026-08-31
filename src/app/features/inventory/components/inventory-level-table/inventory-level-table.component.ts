@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
 
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
+import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';
 import type {
   DataTableSection,
@@ -23,7 +24,7 @@ import type { InventoryLevelRow } from '../../models/inventory-view.model';
 @Component({
   selector: 'app-inventory-level-table',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [BadgeComponent, DataTableComponent, DataTableCellDirective],
+  imports: [BadgeComponent, DataTableComponent, DataTableCellDirective, DataTableRowCardDirective],
   templateUrl: './inventory-level-table.component.html',
   styleUrl: './inventory-level-table.component.scss',
 })
@@ -40,6 +41,13 @@ export class InventoryLevelTableComponent {
   protected readonly sections = computed<readonly DataTableSection<InventoryLevelRow>[]>(() => [
     { id: 'giacenze', rows: this.rows() },
   ]);
+  /*
+    ⚠️ **Le colonne spente non si controllano a mano.** La card legge quelle che
+    il motore ha già ricevuto: una fonte sola invece di due che possono divergere.
+  */
+  protected visibile(columnId: string): boolean {
+    return this.columns().some((column) => column.id === columnId);
+  }
 
   protected readonly rowId = (row: InventoryLevelRow): string =>
     `${row.variantId}-${row.locationId}`;

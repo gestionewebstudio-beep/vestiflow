@@ -55,4 +55,40 @@
   <ng-template appCell="shopify" let-product>
     <app-badge [flat]="true" [tone]="shopifyTone(product)">{{ shopifyLabel(product) }}</app-badge>
   </ng-template>
+  <!--
+    ⭐ **La card di un ELENCO si progetta, non si impila** (`regole-stile-ui`):
+    tre fasce, «a sinistra le parole, a destra i numeri». La grammatica è comune
+    (`styles/_list-card.scss`), il contenuto è di questo elenco.
+  -->
+  <ng-template appRowCard let-product>
+    <div class="list-card__head">
+      <span class="list-card__ident">
+        <span class="list-card__what">{{ product.name }}</span>
+      </span>
+      @if (visibile('articleCode')) {
+        <span class="list-card__anchor">{{ cellText(product, 'articleCode') }}</span>
+      }
+    </div>
+
+    <div class="list-card__words">
+      @if (visibile('brand')) {
+        <span>{{ cellText(product, 'brand') }}</span>
+      }
+      @if (visibile('category')) {
+        <span>{{ cellText(product, 'category') }}</span>
+      }
+      @if (visibile('status')) {
+        <span>{{ statusLabel(product.status) }}</span>
+      }
+      @if (visibile('shopify')) {
+        <span>{{ shopifyLabel(product) }}</span>
+      }
+    </div>
+
+    @if (visibile('variants')) {
+      <div class="list-card__figures">
+        <span class="list-card__total">{{ variantCount(product) }} varianti</span>
+      </div>
+    }
+  </ng-template>
 </app-data-table>

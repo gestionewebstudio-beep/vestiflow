@@ -118,10 +118,6 @@ app-data-table {
   è il modo onesto di dire che il dato oggi non c'è, e non deve somigliare a
   una terza sede accanto alle altre.
 */
-.corrispettivi-table__undetermined {
-  color: var(--color-text-subtle);
-  font-style: italic;
-}
 
 /*
   ⚠️ **Il passaggio a card avviene a `lg` (1024px), non a `md` (768px)** —
@@ -162,43 +158,14 @@ app-data-table {
     `min-inline-size: 0` per poter cedere spazio invece di spingere fuori gli
     altri due.
   */
-  .corrispettivi-table__card-head {
-    display: flex;
-    flex-wrap: nowrap;
-    align-items: baseline;
-    gap: var(--space-2);
-    font-size: var(--text-sm);
-  }
 
   /*
     Non va a capo: sono due parole brevi (tipo e numero). Se un giorno un tipo
     lungo non ci stesse, a cedere è il testo con l'ellissi — non il numero
     scaricato su una riga sua, che è il difetto che c'era.
   */
-  .corrispettivi-table__card-ident {
-    display: flex;
-    align-items: baseline;
-    gap: var(--space-2);
-    min-inline-size: 0;
-    flex: 1;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-
-  .corrispettivi-table__card-kind {
-    font-weight: var(--font-weight-semibold);
-  }
-
-  .corrispettivi-table__card-kind--refund {
-    color: var(--color-danger);
-  }
 
   /* Ancorato a destra: stesso punto in ogni card, qualunque sia il tipo. */
-  .corrispettivi-table__card-num {
-    flex-shrink: 0;
-    color: var(--color-text-muted);
-  }
 
   /*
     Fascia 3: gli importi di dettaglio, a destra come nella tabella desktop.
@@ -206,14 +173,6 @@ app-data-table {
     a quel numero, e leggerli in verticale con lui è ciò che permette di
     verificarlo a occhio.
   */
-  .corrispettivi-table__card-amounts {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: var(--space-1) var(--space-3);
-    font-size: var(--text-xs);
-    color: var(--color-text-muted);
-  }
 
   /*
     Il totale prende tutto lo spazio che avanza e si appoggia a destra: è la
@@ -224,26 +183,12 @@ app-data-table {
     La data apre la riga: in un registro è la prima cosa che si cerca, e
     incolonnata a sinistra si scorre senza leggere il resto.
   */
-  .corrispettivi-table__card-date {
-    flex-shrink: 0;
-    color: var(--color-text-muted);
-  }
 
   /*
     Il totale chiude la terza fascia: stessa riga di imponibile e IVA, ma
     l'unico in grassetto e a piena tinta — si distingue per PESO, non per
     posizione, e resta l'ultimo numero che l'occhio incontra.
   */
-  .corrispettivi-table__card-total {
-    flex-shrink: 0;
-    font-size: var(--text-sm);
-    font-weight: var(--font-weight-bold);
-    color: var(--color-text);
-  }
-
-  .corrispettivi-table__card-total--refund {
-    color: var(--color-danger);
-  }
 
   /*
     ⚠️ **Centrata sulla RIGA DEGLI IMPORTI**, non sulla card.
@@ -257,16 +202,6 @@ app-data-table {
     `visibility: hidden` sulle righe che non si aprono: il segno via, lo spazio
     resta, e i totali si incolonnano fra card apribili e non.
   */
-  .corrispettivi-table__card-caret {
-    flex-shrink: 0;
-    align-self: center;
-    font-size: var(--text-xs);
-    color: var(--color-text-subtle);
-  }
-
-  .corrispettivi-table__card-caret--empty {
-    visibility: hidden;
-  }
 
   /*
     Fascia 2: il contorno. Le voci si separano da sé con un punto medio
@@ -280,13 +215,6 @@ app-data-table {
     più su non toglie gerarchia, perché a distinguerla bastano il colore muted
     e la posizione.
   */
-  .corrispettivi-table__card-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1) var(--space-2);
-    font-size: var(--text-xs);
-    color: var(--color-text-muted);
-  }
 
   /*
     ⚠️ **Il separatore CHIUDE la voce, non apre la successiva.**

@@ -8,6 +8,7 @@ import {
 import { formatDate } from '@core/utils/date.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
+import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';
 import type {
   DataTableSection,
@@ -26,7 +27,7 @@ import type { ResolvedTableColumn } from '@shared/table-columns/table-column.mod
 @Component({
   selector: 'app-customer-table',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [BadgeComponent, DataTableComponent, DataTableCellDirective],
+  imports: [BadgeComponent, DataTableComponent, DataTableCellDirective, DataTableRowCardDirective],
   templateUrl: './customer-table.component.html',
   styleUrl: './customer-table.component.scss',
 })
@@ -71,6 +72,14 @@ export class CustomerTableComponent {
     ⛔ **Frecce, non metodi passati per nome**: il motore chiama la callback come
     valore, e un metodo di classe arriverebbe senza `this`.
   */
+  /*
+    ⚠️ **Le colonne spente non si controllano a mano.** La card legge quelle che
+    il motore ha già ricevuto: una fonte sola invece di due che possono divergere.
+  */
+  protected visibile(columnId: string): boolean {
+    return this.columns().some((column) => column.id === columnId);
+  }
+
   protected readonly rowId = (customer: Customer): string => customer.id;
 
   protected readonly rowLabelFor = (customer: Customer): string => this.rowLabel(customer);

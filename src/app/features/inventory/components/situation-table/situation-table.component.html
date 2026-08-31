@@ -50,4 +50,40 @@
       statusLabel(row.status)
     }}</app-badge>
   </ng-template>
+  <!--
+    ⭐ **La card di un ELENCO si progetta, non si impila** (`regole-stile-ui`):
+    tre fasce, «a sinistra le parole, a destra i numeri». La grammatica è comune
+    (`styles/_list-card.scss`), il contenuto è di questo elenco.
+  -->
+  <ng-template appRowCard let-row>
+    <div class="list-card__head">
+      <span class="list-card__ident">
+        <span class="list-card__what">{{ row.title }}</span>
+      </span>
+      @if (visibile('code')) {
+        <span class="list-card__anchor">{{ cellText(row, 'code') }}</span>
+      }
+    </div>
+
+    <div class="list-card__words">
+      @if (visibile('category')) {
+        <span>{{ cellText(row, 'category') }}</span>
+      }
+      @if (visibile('supplier')) {
+        <span>{{ cellText(row, 'supplier') }}</span>
+      }
+      @if (visibile('status')) {
+        <span>{{ statusLabel(row.status) }}</span>
+      }
+    </div>
+
+    <div class="list-card__figures">
+      @if (visibile('onHand')) {
+        <span class="tabular-nums">Giac. {{ row.onHand }}</span>
+      }
+      @if (visibile('available')) {
+        <span class="list-card__total">{{ row.available }}</span>
+      }
+    </div>
+  </ng-template>
 </app-data-table>

@@ -42,4 +42,39 @@
   <ng-template appCell="source" let-customer>
     <app-badge [flat]="true" [tone]="sourceTone(customer)">{{ sourceLabel(customer) }}</app-badge>
   </ng-template>
+  <!--
+    ⭐ **La card di un ELENCO si progetta, non si impila** (`regole-stile-ui`):
+    tre fasce, «a sinistra le parole, a destra i numeri». La grammatica è comune
+    (`styles/_list-card.scss`), il contenuto è di questo elenco.
+  -->
+  <ng-template appRowCard let-customer>
+    <div class="list-card__head">
+      <span class="list-card__ident">
+        <span class="list-card__what">{{ displayName(customer) }}</span>
+      </span>
+      @if (visibile('code')) {
+        <span class="list-card__anchor">{{ cellText(customer, 'code') }}</span>
+      }
+    </div>
+
+    <!--
+      ⚠️ **I clienti non hanno una terza fascia**: nessuna colonna porta un numero
+      che valga la pena isolare. La card resta di due fasce, ed è la forma giusta —
+      inventare una fascia numeri per riempirla sarebbe rumore.
+    -->
+    <div class="list-card__words">
+      @if (visibile('email') && customer.email) {
+        <span>{{ customer.email }}</span>
+      }
+      @if (visibile('phone') && customer.phone) {
+        <span>{{ customer.phone }}</span>
+      }
+      @if (visibile('city')) {
+        <span>{{ cellText(customer, 'city') }}</span>
+      }
+      @if (visibile('source')) {
+        <span>{{ sourceLabel(customer) }}</span>
+      }
+    </div>
+  </ng-template>
 </app-data-table>
