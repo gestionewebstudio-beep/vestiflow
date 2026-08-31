@@ -2901,3 +2901,58 @@ Mappa avversariale (7 agenti, 2 di sola smentita), riverificata a mano. Decision
 
 ⚠️ **Da guardare a schermo, non con i test**: che l'intestazione resti davvero fissa
 scorrendo un elenco lungo. Un `sticky` che non appiccica non fallisce — non fa niente.
+
+---
+
+## ⏸ Il residuo negativo e il modello ENTRATE / USCITE — 31/08/2026
+
+> _«Registrazione fattura fornitore avrà colonna entrate ed uscite e una delle
+> differenze.»_ — proprietario
+
+⭐ **È la forma che risolve il difetto trovato**, e risolve anche perché il
+rimedio ovvio non era quello giusto.
+
+### Il difetto misurato
+
+`goods-receipt-workflow.service.ts:1174` calcola
+
+```ts
+const outstandingMinor = Math.max(0, totalMinor - settledMinor);
+```
+
+e su quel documento **un importo negativo è legittimo**: in Registrazione
+fattura entrano anche le **note di credito del fornitore**, e
+`save-purchase-invoice.dto.ts` è l'unico DTO monetario del progetto senza
+`@Min(0)` — con un test che lo dichiara voluto.
+
+⛔ **Conseguenza**: una nota di credito da −146,40 € risulta **saldata**, e
+l'esposizione sommata non scende mai. In quattro punti — colonna, riga totali,
+PDF, maschera — tutti coerenti con quello zero e tutti sbagliati.
+
+⚠️ **Aggravante**: le rate hanno `@Min(0)`, quindi la scadenza negativa che
+chiuderebbe il conto **non è nemmeno registrabile**.
+
+### Perché «togliere il clamp» NON è la risposta
+
+Un «Ancora da saldare» che scende sotto zero dice una cosa che quella colonna
+non significa: sotto zero non c'è nulla _da saldare_, c'è un **credito**. Sono
+due grandezze diverse costrette in una colonna sola.
+
+⭐ **Il modello deciso sono TRE colonne**: entrate, uscite, e la differenza fra
+le due. Ogni riga contabile sta dalla sua parte, e il saldo è una sottrazione
+esplicita invece di un numero che cambia significato col segno.
+
+### Da fare, e da decidere prima
+
+- [ ] verificare **come si tratta contabilmente** un credito verso fornitore
+      (indagine chiesta dal proprietario, non ancora fatta)
+- [ ] definire che cosa entra in «entrate» e che cosa in «uscite» per la
+      Registrazione fattura
+- [ ] togliere `@Min(0)` dalle rate, o dichiarare quale altra forma chiude il
+      conto
+- [ ] ⚠️ **anche gli ORDINI gestiscono i negativi** (indicato dal proprietario):
+      il perimetro non è la sola Registrazione fattura
+
+⛔ **Fino ad allora nulla si tocca.** Il clamp resta, e con lui il commento
+sbagliato che avevo scritto nella riga totali — «il residuo l'ha già scalato»:
+non lo scala, glielo impedisce il clamp.
