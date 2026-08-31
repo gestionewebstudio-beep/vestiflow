@@ -66,19 +66,6 @@ export interface DataTableResizeEvent {
 const LARGHEZZA_NUMERICA = 92;
 const LARGHEZZA_CODICE = 128;
 
-/**
- * ⭐ **Il peso di una colonna di testo libero** — nome prodotto, ragione sociale,
- * descrizione.
- *
- * ⚠️ **È un peso, non un vincolo**: con `table-layout: fixed` e `width: 100%` il
- * browser scala le larghezze in proporzione, quindi 220 significa «il doppio di
- * una numerica», non «220 pixel».
- *
- * ⛔ Senza, una colonna di testo rimasta l'unica scoperta si prende TUTTO lo
- * spazio residuo: sui Prodotti la colonna Nome occupava metà tabella.
- */
-const LARGHEZZA_TESTO = 220;
-
 @Component({
   selector: 'app-data-table',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -284,21 +271,9 @@ export class DataTableComponent<T> {
     numerica, codice, testo — e da lì si deduce quanto le serve.
 
     ⚠️ **Il ripiego è un MINIMO ragionevole, non una misura giusta**: chi ha una
-    larghezza dichiarata la usa, e l'operatore la cambia trascinando.
-
-    ⛔ **Qui il testo libero restava SENZA larghezza**, con la motivazione che
-    «sono le colonne che devono respirare quando avanza spazio». Segnalato dal
-    proprietario il 31/08/2026 sui Prodotti, con la schermata alla mano: la
-    colonna Nome si prendeva **metà tabella**.
-
-    La causa è `table-layout: fixed`: le colonne senza larghezza si dividono lo
-    spazio residuo, e quando ne resta **una sola** senza, quella non respira —
-    ingoia tutto. Su Prodotti le altre nove hanno tutte una misura, dichiarata o
-    dedotta, e Nome era l'unica scoperta.
-
-    ⭐ **E il respiro non si perde dandogliene una**: con `width: 100%` il browser
-    scala le larghezze in proporzione per riempire la riga. Una misura di partenza
-    non fissa la colonna — le dà un PESO, che è ciò che serviva.
+    larghezza dichiarata la usa, e l'operatore la cambia trascinando. Il testo
+    libero resta senza, apposta: sono le colonne che devono respirare quando
+    avanza spazio.
   */
   protected widthOf(column: ResolvedTableColumn): number | null {
     const richiesta = this.widths().get(column.id) ?? column.defaultWidthPx;
@@ -311,7 +286,7 @@ export class DataTableComponent<T> {
     if (column.display === 'code') {
       return LARGHEZZA_CODICE;
     }
-    return LARGHEZZA_TESTO;
+    return null;
   }
 
   protected ariaSort(columnId: string): 'ascending' | 'descending' | 'none' {
