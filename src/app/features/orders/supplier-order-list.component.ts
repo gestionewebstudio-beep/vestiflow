@@ -7,6 +7,7 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { colonnaVisibile } from '@shared/models/list-card-fields.util';
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import { TableViewId } from '@shared/table-columns/table-column.model';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
@@ -679,7 +680,7 @@ export class SupplierOrderListComponent {
     il motore ha già ricevuto: una fonte sola invece di due che possono divergere.
   */
   protected visibile(columnId: string): boolean {
-    return this.tableColumns().some((column) => column.id === columnId);
+    return colonnaVisibile(this.tableColumns(), columnId);
   }
 
   protected readonly rowId = (order: SupplierOrder): string => order.id;

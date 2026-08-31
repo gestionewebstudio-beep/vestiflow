@@ -8,6 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { colonnaVisibile } from '@shared/models/list-card-fields.util';
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
 import { comando, voceEsporta } from '@shared/models/list-action-catalog';
@@ -747,7 +748,7 @@ export class StockMovementsComponent {
     il motore ha già ricevuto: una fonte sola invece di due che possono divergere.
   */
   protected visibile(columnId: string): boolean {
-    return this.tableColumns().some((column) => column.id === columnId);
+    return colonnaVisibile(this.tableColumns(), columnId);
   }
 
   protected readonly rowId = (row: StockMovementRow): string => row.id;

@@ -72,7 +72,14 @@ export const DOCUMENT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'total',
   ],
   [TableViewPresetId.Supplier]: ['documentDate', 'type', 'reference', 'counterparty', 'total'],
-  [TableViewPresetId.Analysis]: ['documentDate', 'type', 'status', 'lineCount', 'total'],
+  [TableViewPresetId.Analysis]: [
+    'documentDate',
+    'reference',
+    'type',
+    'status',
+    'lineCount',
+    'total',
+  ],
   [TableViewPresetId.Operational]: ['documentDate', 'type', 'reference', 'status', 'counterparty'],
 };
 
@@ -108,7 +115,7 @@ export const SALES_DOCUMENT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
   [TableViewPresetId.Warehouse]: ['documentDate', 'reference', 'counterparty', 'lineCount'],
   [TableViewPresetId.Accountant]: ['documentDate', 'reference', 'counterparty', 'status', 'total'],
   [TableViewPresetId.Supplier]: ['documentDate', 'reference', 'counterparty', 'total'],
-  [TableViewPresetId.Analysis]: ['documentDate', 'status', 'lineCount', 'total'],
+  [TableViewPresetId.Analysis]: ['documentDate', 'reference', 'status', 'lineCount', 'total'],
   [TableViewPresetId.Operational]: ['documentDate', 'reference', 'status', 'counterparty'],
 };
 
@@ -152,7 +159,14 @@ export const INVOICE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'total',
   ],
   [TableViewPresetId.Supplier]: ['documentDate', 'reference', 'type', 'counterparty', 'total'],
-  [TableViewPresetId.Analysis]: ['documentDate', 'type', 'status', 'lineCount', 'total'],
+  [TableViewPresetId.Analysis]: [
+    'documentDate',
+    'reference',
+    'type',
+    'status',
+    'lineCount',
+    'total',
+  ],
   [TableViewPresetId.Operational]: ['documentDate', 'reference', 'type', 'status', 'counterparty'],
 };
 
@@ -237,6 +251,7 @@ export const PURCHASE_INVOICE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
   ],
   [TableViewPresetId.Accountant]: [
     'documentDate',
+    'reference',
     'registrationDate',
     'counterparty',
     'invoiceNumber',
@@ -245,15 +260,23 @@ export const PURCHASE_INVOICE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
   ],
   [TableViewPresetId.Supplier]: [
     'documentDate',
+    'reference',
     'counterparty',
     'invoiceNumber',
     'total',
     'outstanding',
     'paymentMethod',
   ],
-  [TableViewPresetId.Analysis]: ['documentDate', 'total', 'outstanding', 'paymentMethod'],
+  [TableViewPresetId.Analysis]: [
+    'documentDate',
+    'reference',
+    'total',
+    'outstanding',
+    'paymentMethod',
+  ],
   [TableViewPresetId.Operational]: [
     'documentDate',
+    'reference',
     'registrationDate',
     'counterparty',
     'invoiceNumber',
@@ -309,7 +332,14 @@ export const STORE_SALE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'paymentMethod',
   ],
   [TableViewPresetId.Supplier]: ['documentDate', 'reference', 'type', 'counterparty', 'total'],
-  [TableViewPresetId.Analysis]: ['documentDate', 'type', 'total', 'paymentMethod', 'lineCount'],
+  [TableViewPresetId.Analysis]: [
+    'documentDate',
+    'reference',
+    'type',
+    'total',
+    'paymentMethod',
+    'lineCount',
+  ],
   [TableViewPresetId.Operational]: [
     'documentDate',
     'reference',

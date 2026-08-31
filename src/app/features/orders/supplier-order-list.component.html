@@ -145,16 +145,10 @@
             divergessero, l'intestazione del gruppo direbbe un giorno e la card
             dentro un altro.
           -->
-          @if (visibile('documentDate')) {
-            <span class="list-card__when tabular-nums">{{ cellText(order, 'documentDate') }}</span>
-          }
-          @if (visibile('supplier')) {
-            <span class="list-card__what">{{ cellText(order, 'supplier') }}</span>
-          }
+          <span class="list-card__when tabular-nums">{{ cellText(order, 'documentDate') }}</span>
+          <span class="list-card__what">{{ cellText(order, 'supplier') }}</span>
         </span>
-        @if (visibile('reference')) {
-          <span class="list-card__anchor">{{ cellText(order, 'reference') }}</span>
-        }
+        <span class="list-card__anchor">{{ cellText(order, 'reference') }}</span>
       </div>
 
       <div class="list-card__words">

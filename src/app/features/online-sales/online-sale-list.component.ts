@@ -22,6 +22,7 @@ import type { Subscription } from 'rxjs';
 import type { PageMeta } from '@core/models/api.model';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
+import { colonnaVisibile } from '@shared/models/list-card-fields.util';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
@@ -297,7 +298,7 @@ export class OnlineSaleListComponent {
     il motore ha già ricevuto: una fonte sola invece di due che possono divergere.
   */
   protected visibile(columnId: string): boolean {
-    return this.tableColumns().some((column) => column.id === columnId);
+    return colonnaVisibile(this.tableColumns(), columnId);
   }
 
   protected readonly rowId = (sale: OnlineSaleRow): string => sale.id;

@@ -4743,3 +4743,85 @@ heredoc di shell, le sue `\s` erano diventate `\s`, che in un template literal
 JS collassa a `s`. Cercava `(^|;|s)font-weights*:` e non trovava nulla, senza
 fallire. L'hanno scoperta le tre falsificazioni — che è la ragione per cui si
 falsifica ogni guardia invece di fidarsi del suo «tutto a posto».
+
+---
+
+# 67. Le tre decisioni del 31/08/2026 sulle card e sulle colonne
+
+## 67.1 ⭐ «Seleziona» è del TELAIO
+
+> _«Bisogna inserire "Seleziona" in questi riepiloghi e credo in tutti. Non
+> duplicare componenti o funzioni, riusa se si può e vale la pena.»_
+
+Esisteva solo sul Registro Corrispettivi, scritta a mano. Ora il pulsante lo rende
+`app-list-page` (`[selectionToggleable]`) e la regola sta in
+`createSelectionMode` — **una definizione, undici chiamate di una riga**.
+
+⛔ **Spegnere AZZERA**, ed è la regola che valeva la pena non copiare: a modalità
+spenta il tocco torna ad aprire la riga, e non resta **nessun** gesto per
+deselezionare. È la stessa regola dello spegnimento dei Filtri, e qui vale
+doppio.
+
+⚠️ **Il contratto è `{ clear() }`, non `ListSelection`**: Situazione magazzino
+tiene la selezione in una `Map` perché le righe scelte sopravvivano ai filtri e
+diventino le righe di un ordine fornitore. Chiedere l'intera primitiva l'avrebbe
+esclusa per un tipo, non per una ragione.
+
+## 67.2 ⭐ Data e numero in OGNI preset documentale
+
+> _«I documenti hanno tutti la propria data, quindi va messa la colonna data,
+> numero (numero + serie), e sia da scrivania che da mobile avremo la colonna
+> data del documento e numerazione interna propria.»_
+
+Sono le due colonne che un registro non può non avere: senza il numero non si
+identifica la riga, senza la data non si ordina né si raggruppa.
+
+⛔ **I preset sono il posto dove si perdono**, perché ognuno è un elenco scritto
+a mano: **dieci su quarantanove** avevano la data e non il numero. Il peggiore
+era «Registrazione fattura · Contabile», che portava il numero della fattura
+**del fornitore** e non quello interno — due numeri che il catalogo stesso
+dichiara di non confondere.
+
+⚠️ **Nessun test poteva vederlo**: un preset è un array di stringhe, compila e
+passa. Si vede solo scegliendo quel preset e guardando la tabella. La guardia è
+`npm run check:preset-documentali`, e `invoiceNumber` **non** conta come numero.
+
+## 67.3 ⛔ Spegnere una colonna non rompe la card
+
+> _«Spegnere una colonna non deve rompere la card dei riepiloghi.»_
+
+⛔ **Qui c'era la decisione opposta, ed è stata rovesciata.** Ogni campo della
+card era condizionato a `visibile(...)`, con la motivazione — scritta in dodici
+file — che «la card legge le colonne che il motore ha già ricevuto: una fonte
+sola invece di due che possono divergere».
+
+L'argomento non era sbagliato, ed è stato pesato contro un altro: **spegnendo due
+o tre colonne la card restava senza data, senza numero o del tutto vuota.** Il
+selettore Colonne governa la **tabella** — è lì che si guadagna larghezza — e una
+card non ha colonne da restringere.
+
+|                                                 |                    |
+| ----------------------------------------------- | ------------------ |
+| **identità** — `__when` · `__what` · `__anchor` | ⭐ sempre presente |
+| fascia **parole** (origine, sede, stato)        | segue le colonne   |
+| fascia **numeri** (importi, quantità)           | segue le colonne   |
+
+⚠️ **La distinzione non è arbitraria**: l'identità risponde a «di che riga si
+tratta», e una riga di cui non si sa quale sia non è consultabile. Il resto è
+dettaglio, ed è esattamente ciò che l'operatore chiede di togliere spegnendo una
+colonna.
+
+⭐ **Ne discende che `cardTitle` cambia significato**: governa il **ripiego** a
+etichetta:valore, non la card progettata. Dove c'è `appRowCard` il titolo lo
+disegna lei, e non si spegne.
+
+23 campi liberati su 12 card. La guardia è `npm run check:identita-card`.
+
+## 67.4 ⭐ E `visibile()` era scritta dodici volte
+
+Identica, tre righe, in ogni tabella di elenco. Ora è `colonnaVisibile()` in
+`shared/models/list-card-fields.util.ts`; il metodo resta nei componenti perché i
+template lo chiamano, ma delega.
+
+⚠️ **Dodici copie di tre righe non sono un problema di volume**: sono dodici
+posti dove la stessa domanda può cominciare a significare cose diverse.

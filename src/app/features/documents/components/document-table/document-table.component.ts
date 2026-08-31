@@ -4,6 +4,7 @@ import { RouterLink } from '@angular/router';
 import type { DocumentRecord, LinkedPurchaseInvoiceInfo } from '@core/models/document.model';
 import { formatDate } from '@core/utils/date.util';
 import { DEFAULT_CURRENCY, formatMoney } from '@core/utils/money.util';
+import { colonnaVisibile } from '@shared/models/list-card-fields.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
 import { storeSalePaymentMethodLabelWithNote } from '@domain/store-sales/models/store-sale-payment.util';
@@ -337,7 +338,7 @@ export class DocumentTableComponent {
   };
 
   protected visibile(columnId: string): boolean {
-    return this.columns().some((column) => column.id === columnId);
+    return colonnaVisibile(this.columns(), columnId);
   }
 
   protected readonly rowId = (doc: DocumentRecord): string => doc.id;

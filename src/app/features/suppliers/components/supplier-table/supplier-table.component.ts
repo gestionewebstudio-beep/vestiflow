@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
 import type { Supplier } from '@core/models/supplier.model';
+import { colonnaVisibile } from '@shared/models/list-card-fields.util';
 import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';
 import type {
@@ -52,7 +53,7 @@ export class SupplierTableComponent {
     il motore ha già ricevuto: una fonte sola invece di due che possono divergere.
   */
   protected visibile(columnId: string): boolean {
-    return this.columns().some((column) => column.id === columnId);
+    return colonnaVisibile(this.columns(), columnId);
   }
 
   protected readonly rowId = (supplier: Supplier): string => supplier.id;

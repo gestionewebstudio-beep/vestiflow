@@ -79,7 +79,14 @@ export const SALES_ORDER_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'financialStatus',
   ],
   [TableViewPresetId.Supplier]: DEFAULT_IDS,
-  [TableViewPresetId.Analysis]: ['placedAt', 'customerName', 'netTotal', 'total', 'state'],
+  [TableViewPresetId.Analysis]: [
+    'placedAt',
+    'orderNumber',
+    'customerName',
+    'netTotal',
+    'total',
+    'state',
+  ],
   [TableViewPresetId.Operational]: [
     'orderNumber',
     'placedAt',
@@ -120,6 +127,13 @@ export const SHOPIFY_ORDER_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'financialStatus',
   ],
   [TableViewPresetId.Supplier]: SHOPIFY_DEFAULT_IDS,
-  [TableViewPresetId.Analysis]: ['placedAt', 'customerName', 'netTotal', 'total', 'state'],
+  [TableViewPresetId.Analysis]: [
+    'placedAt',
+    'orderNumber',
+    'customerName',
+    'netTotal',
+    'total',
+    'state',
+  ],
   [TableViewPresetId.Operational]: SHOPIFY_DEFAULT_IDS,
 };

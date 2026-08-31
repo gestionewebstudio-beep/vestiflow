@@ -137,16 +137,10 @@
   <ng-template appRowCard let-order>
     <div class="list-card__head">
       <span class="list-card__ident">
-        @if (visibile('placedAt')) {
-          <span class="list-card__when tabular-nums">{{ cellText(order, 'placedAt') }}</span>
-        }
-        @if (visibile('customerName')) {
-          <span class="list-card__what">{{ order.customerName }}</span>
-        }
+        <span class="list-card__when tabular-nums">{{ cellText(order, 'placedAt') }}</span>
+        <span class="list-card__what">{{ order.customerName }}</span>
       </span>
-      @if (visibile('orderNumber')) {
-        <span class="list-card__anchor">{{ order.orderNumber }}</span>
-      }
+      <span class="list-card__anchor">{{ order.orderNumber }}</span>
     </div>
 
     <div class="list-card__words">

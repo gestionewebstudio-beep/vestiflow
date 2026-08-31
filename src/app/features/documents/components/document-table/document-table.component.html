@@ -102,22 +102,16 @@
     <div class="list-card__head">
       <!-- Fascia 1 — quando e cosa. Due voci brevi: non va mai a capo. -->
       <span class="list-card__ident">
-        @if (visibile('documentDate')) {
-          <span class="list-card__when tabular-nums">{{ dateLabel(doc) }}</span>
-        }
-        @if (visibile('type')) {
-          <!-- Il tipo che toglie si legge rosso: stesso vocabolario dell'accento. -->
-          <span
-            class="list-card__what"
-            [class.list-card__what--negative]="rowTone(doc) === 'negative'"
-            >{{ typeLabel(doc.type) }}</span
-          >
-        }
+        <span class="list-card__when tabular-nums">{{ dateLabel(doc) }}</span>
+        <!-- Il tipo che toglie si legge rosso: stesso vocabolario dell'accento. -->
+        <span
+          class="list-card__what"
+          [class.list-card__what--negative]="rowTone(doc) === 'negative'"
+          >{{ typeLabel(doc.type) }}</span
+        >
       </span>
       <!-- L'ancora: il numero sta sempre nello stesso punto, card dopo card. -->
-      @if (visibile('reference')) {
-        <span class="list-card__anchor">{{ referenceLabel(doc) }}</span>
-      }
+      <span class="list-card__anchor">{{ referenceLabel(doc) }}</span>
     </div>
 
     <!--

@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
 import { DEFAULT_CURRENCY, formatMoney } from '@core/utils/money.util';
+import { colonnaVisibile } from '@shared/models/list-card-fields.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
 import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
@@ -68,7 +69,7 @@ export class SituationTableComponent {
     il motore ha già ricevuto: una fonte sola invece di due che possono divergere.
   */
   protected visibile(columnId: string): boolean {
-    return this.engineColumns().some((column) => column.id === columnId);
+    return colonnaVisibile(this.engineColumns(), columnId);
   }
 
   protected readonly rowId = (row: InventorySituationRow): string => row.variantId;

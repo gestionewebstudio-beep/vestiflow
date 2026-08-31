@@ -225,9 +225,7 @@
     <ng-template appRowCard let-row>
       <div class="list-card__head">
         <span class="list-card__ident">
-          @if (visibile('createdAt')) {
-            <span class="list-card__when tabular-nums">{{ cellText(row, 'createdAt') }}</span>
-          }
+          <span class="list-card__when tabular-nums">{{ cellText(row, 'createdAt') }}</span>
           <span class="list-card__what">{{ cellText(row, 'type') }}</span>
         </span>
         <!--

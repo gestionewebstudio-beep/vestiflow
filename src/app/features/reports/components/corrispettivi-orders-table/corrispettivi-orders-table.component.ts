@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
 
 import { formatDate } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
+import { colonnaVisibile } from '@shared/models/list-card-fields.util';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
 import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
@@ -279,7 +280,7 @@ export class CorrispettiviOrdersTableComponent {
    * ha già ricevuto.
    */
   protected visibile(columnId: string): boolean {
-    return this.columns().some((column) => column.id === columnId);
+    return colonnaVisibile(this.columns(), columnId);
   }
 
   protected readonly rowId = (row: CorrispettiviRegisterRow): string => row.rowId;

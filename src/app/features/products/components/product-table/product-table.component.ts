@@ -5,6 +5,7 @@ import type { ProductStatus } from '@core/models/product.model';
 import { DEFAULT_CURRENCY, formatMoney } from '@core/utils/money.util';
 import type { Product } from '@core/models/product.model';
 import { ShopifySyncStatus } from '@core/models/shopify.model';
+import { colonnaVisibile } from '@shared/models/list-card-fields.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
@@ -170,7 +171,7 @@ export class ProductTableComponent {
     il motore ha già ricevuto: una fonte sola invece di due che possono divergere.
   */
   protected visibile(columnId: string): boolean {
-    return this.engineColumns().some((column) => column.id === columnId);
+    return colonnaVisibile(this.engineColumns(), columnId);
   }
 
   protected readonly rowId = (product: Product): string => product.id;

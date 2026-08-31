@@ -56,14 +56,10 @@
   <ng-template appRowCard let-session>
     <div class="list-card__head">
       <span class="list-card__ident">
-        @if (visibile('createdAt')) {
-          <span class="list-card__when tabular-nums">{{ cellText(session, 'createdAt') }}</span>
-        }
+        <span class="list-card__when tabular-nums">{{ cellText(session, 'createdAt') }}</span>
         <span class="list-card__what">{{ session.name }}</span>
       </span>
-      @if (visibile('progress')) {
-        <span class="list-card__anchor">{{ cellText(session, 'progress') }}</span>
-      }
+      <span class="list-card__anchor">{{ cellText(session, 'progress') }}</span>
     </div>
 
     <div class="list-card__words">

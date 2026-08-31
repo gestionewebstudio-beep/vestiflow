@@ -128,16 +128,12 @@
         descrizione: sta nella fascia sotto, con le altre.
       -->
       <span class="list-card__ident">
-        @if (visibile('occurredAt')) {
-          <span class="list-card__when tabular-nums">
-            {{ formatDate(row.occurredAt) }}
-          </span>
-        }
-        @if (visibile('kind')) {
-          <span class="list-card__what" [class.list-card__what--negative]="row.kind === 'refund'">
-            {{ row.kind === 'refund' ? refundLabel(row.refundKind) : 'Vendita' }}
-          </span>
-        }
+        <span class="list-card__when tabular-nums">
+          {{ formatDate(row.occurredAt) }}
+        </span>
+        <span class="list-card__what" [class.list-card__what--negative]="row.kind === 'refund'">
+          {{ row.kind === 'refund' ? refundLabel(row.refundKind) : 'Vendita' }}
+        </span>
       </span>
       <!--
         ⚠️ **Il numero è un'ANCORA a destra**, fuori dal gruppo che va a capo:
@@ -145,9 +141,7 @@
         senza cercarlo. Dentro il gruppo seguiva la lunghezza del tipo e ballava
         da una card all'altra.
       -->
-      @if (visibile('orderNumber')) {
-        <span class="list-card__anchor tabular-nums">N. {{ row.orderNumber }}</span>
-      }
+      <span class="list-card__anchor tabular-nums">N. {{ row.orderNumber }}</span>
     </div>
 
     <!--
