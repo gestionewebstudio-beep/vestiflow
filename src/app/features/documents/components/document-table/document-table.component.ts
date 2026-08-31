@@ -6,7 +6,8 @@ import { formatDate } from '@core/utils/date.util';
 import { DEFAULT_CURRENCY, formatMoney } from '@core/utils/money.util';
 import { colonnaVisibile } from '@shared/models/list-card-fields.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
-import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
+import { createColumnFilters } from '@shared/table-columns/column-filters';
+import type { ResolvedTableColumn, TableViewId } from '@shared/table-columns/table-column.model';
 import { storeSalePaymentMethodLabelWithNote } from '@domain/store-sales/models/store-sale-payment.util';
 
 import {
@@ -93,6 +94,9 @@ export class DocumentTableComponent {
    */
   readonly rowClickSelects = input(false);
   readonly columns = input.required<readonly ResolvedTableColumn[]>();
+
+  /** La vista, e con essa i filtri di colonna. */
+  readonly viewId = input<TableViewId>();
 
   /**
    * ⭐ **Raggruppare per giornata**, deciso dalla pagina che possiede il controllo
@@ -279,10 +283,49 @@ export class DocumentTableComponent {
    * ⚠️ **Somma le righe caricate**, ed è corretto: l'elenco non impagina, quindi
    * ciò che ha in mano **è** il risultato del filtro.
    */
+  /*
+    ⭐ **I filtri di colonna** (`14` §0.2), sull'elenco più grande dell'app.
+
+    ⚠️ **Gli importi si filtrano SENZA segno**, ed è la scelta che qui va detta:
+    la riga totali applica il verso economico — una nota di credito toglie — ma
+    chi scrive «da 100 a 500» nella colonna Totale cerca **documenti da quella
+    cifra**, non note di credito da −100. Il segno è una proprietà della somma,
+    non del documento.
+  */
+  private readonly righe = createColumnFilters({
+    viewId: this.viewId,
+    righe: this.documents,
+    cellText: (doc, columnId) => this.cellText(doc, columnId),
+    numeroDi: (doc, columnId) => {
+      switch (columnId) {
+        case 'subtotal':
+          return doc.subtotal?.amountMinor ?? null;
+        case 'tax':
+          return doc.tax?.amountMinor ?? null;
+        case 'total':
+          return doc.total?.amountMinor ?? null;
+        default:
+          return null;
+      }
+    },
+    dataDi: (doc, columnId) => {
+      switch (columnId) {
+        case 'documentDate':
+          return doc.documentDate;
+        case 'registrationDate':
+          return doc.registrationDate ?? null;
+        case 'paymentDueDate':
+          return doc.paymentDueDate ?? null;
+        default:
+          return null;
+      }
+    },
+  });
+
   protected readonly sections = computed<readonly DataTableSection<DocumentRecord>[]>(() => {
     const valuta = this.documents()[0]?.currency ?? DEFAULT_CURRENCY;
     const soldi = (n: number): string => formatMoney({ amountMinor: n, currencyCode: valuta });
-    return sezioniDiElenco(this.documents(), this.groupByDay(), {
+    return sezioniDiElenco(this.righe(), this.groupByDay(), {
       idPiatto: 'documenti',
       giornoDi: (doc) => doc.documentDate,
       columns: this.columns(),
@@ -317,7 +360,7 @@ export class DocumentTableComponent {
    * questo dietrofront è due righe e non una riscrittura.
    */
   protected readonly totals = computed<DataTableTotals>(() =>
-    totaliDocumenti(this.documents(), {
+    totaliDocumenti(this.righe(), {
       columns: this.columns(),
       selectedIds: this.selectedIds(),
     }),
