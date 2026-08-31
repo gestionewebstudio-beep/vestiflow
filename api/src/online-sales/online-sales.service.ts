@@ -226,6 +226,20 @@ export class OnlineSalesService {
     if (channel) {
       where.channel = channel;
     }
+    /*
+      ⭐ **Il periodo del registro è la data d'ORDINE** (01/09/2026): «vendita
+      online vale la data d'ordine».
+
+      ⚠️ **L'estremo superiore arriva a fine giornata**: con `T00:00:00Z` un
+      «fino al 31» escluderebbe tutto ciò che è stato ordinato il 31 dopo la
+      mezzanotte, cioè quasi tutto quel giorno.
+    */
+    if (query.placedFrom || query.placedTo) {
+      where.orderPlacedAt = {
+        ...(query.placedFrom ? { gte: new Date(`${query.placedFrom}T00:00:00Z`) } : {}),
+        ...(query.placedTo ? { lte: new Date(`${query.placedTo}T23:59:59.999Z`) } : {}),
+      };
+    }
     if (query.fulfilledFrom || query.fulfilledTo) {
       where.fulfilledAt = {
         ...(query.fulfilledFrom ? { gte: new Date(`${query.fulfilledFrom}T00:00:00Z`) } : {}),

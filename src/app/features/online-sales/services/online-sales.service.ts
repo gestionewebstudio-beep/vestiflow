@@ -69,6 +69,8 @@ export class OnlineSalesService {
     params = appendIfPresent(params, {
       search: query.search,
       channel: query.channel,
+      placedFrom: query.placedFrom,
+      placedTo: query.placedTo,
       fulfilledFrom: query.fulfilledFrom,
       fulfilledTo: query.fulfilledTo,
     });

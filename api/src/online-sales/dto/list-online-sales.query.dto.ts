@@ -19,7 +19,29 @@ export class ListOnlineSalesQueryDto extends PaginationQueryDto {
   @IsIn([API_SOURCE_ONLINE, API_SOURCE_POS])
   channel?: string;
 
-  /** Filtro su data evasione (inclusivo). */
+  /**
+   * ⭐ **Il PERIODO di questo registro è la data d'ORDINE** — deciso dal
+   * proprietario il 01/09/2026: «vendita online vale la data d'ordine».
+   *
+   * ⚠️ Le due date non sono intercambiabili, ed è il motivo per cui l'elenco
+   * mostra entrambe le colonne: quando è stato comprato e quando è partito. A
+   * delimitare il periodo è la prima.
+   */
+  @IsOptional()
+  @Matches(ISO_DATE)
+  placedFrom?: string;
+
+  @IsOptional()
+  @Matches(ISO_DATE)
+  placedTo?: string;
+
+  /**
+   * Filtro su data evasione (inclusivo).
+   *
+   * ⚠️ **Non è più il periodo dell'elenco**, ma resta filtrabile: la colonna
+   * «Data evasione» ha il proprio filtro di colonna, e toglierlo dall'API
+   * significherebbe non poterlo più servire.
+   */
   @IsOptional()
   @Matches(ISO_DATE)
   fulfilledFrom?: string;

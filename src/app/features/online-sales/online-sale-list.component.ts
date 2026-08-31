@@ -23,7 +23,11 @@ import type { PageMeta } from '@core/models/api.model';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { colonnaVisibile } from '@shared/models/list-card-fields.util';
-import { DateInputComponent } from '@shared/components/date-input/date-input.component';
+import {
+  DEFAULT_MOVEMENT_PERIOD,
+  MovementPeriodPreset,
+  resolveMovementPeriodRange,
+} from '@domain/inventory/models/movement-period.util';
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
@@ -73,7 +77,7 @@ type ListState =
 /**
  * Registro Vendite online (fase 3 §4): solo vendite generate dagli ordini
  * evasi (regola invariante 3). Read-only: nessuna schermata crea o modifica
- * vendite. URL come fonte di verità (page, search, canale, periodo evasione).
+ * vendite. URL come fonte di verità (page, search, canale, periodo d'ordine).
  */
 @Component({
   selector: 'app-online-sale-list',
@@ -85,7 +89,6 @@ type ListState =
     DataTableCellDirective,
     DataTableRowCardDirective,
     DataTableComponent,
-    DateInputComponent,
     SelectMenuComponent,
   ],
   templateUrl: './online-sale-list.component.html',
@@ -116,6 +119,8 @@ export class OnlineSaleListComponent {
     const pageSize = Number(params.get('pageSize'));
     const fulfilledFrom = params.get('fulfilledFrom') ?? '';
     const fulfilledTo = params.get('fulfilledTo') ?? '';
+    const placedFrom = params.get('placedFrom') ?? '';
+    const placedTo = params.get('placedTo') ?? '';
     return {
       page: Number.isInteger(page) && page > 0 ? page : 1,
       pageSize:
@@ -126,6 +131,8 @@ export class OnlineSaleListComponent {
       channel: params.get('channel') ?? undefined,
       fulfilledFrom: ISO_DATE.test(fulfilledFrom) ? fulfilledFrom : undefined,
       fulfilledTo: ISO_DATE.test(fulfilledTo) ? fulfilledTo : undefined,
+      placedFrom: ISO_DATE.test(placedFrom) ? placedFrom : undefined,
+      placedTo: ISO_DATE.test(placedTo) ? placedTo : undefined,
     };
   });
 
@@ -201,6 +208,20 @@ export class OnlineSaleListComponent {
     );
     this.tableColumns = this.columnPreferences.visibleColumns(TableViewId.OnlineSalesList);
 
+    /*
+      ⭐ **Il periodo predefinito finisce NELL'INDIRIZZO**, come su Ordini
+      fornitore: i trenta giorni sono un filtro applicato — l'elenco mostra solo
+      quelle righe — quindi un riepilogo filtrato si capisce, si condivide e si
+      riapre uguale.
+
+      ⛔ **Una volta sola, alla creazione**: riscriverlo a ogni giro cancellerebbe
+      la scelta «Tutti», che è l'unico caso in cui nessun periodo è applicato.
+    */
+    if (this.periodPreset() !== MovementPeriodPreset.All) {
+      const iniziale = resolveMovementPeriodRange(this.periodPreset(), '', '');
+      this.updateParams({ placedFrom: iniziale.from ?? null, placedTo: iniziale.to ?? null }, true);
+    }
+
     this.searchSubscription = toObservable(this.searchDraft)
       .pipe(
         debounceTime(SEARCH_DEBOUNCE_MS),
@@ -214,12 +235,43 @@ export class OnlineSaleListComponent {
     this.updateParams({ channel: value, page: null }, true);
   }
 
-  protected onFulfilledFromChange(value: string): void {
-    this.updateParams({ fulfilledFrom: value || null, page: null }, true);
-  }
+  /**
+   * ⭐ **Il periodo di questo registro è la data d'ORDINE** — deciso dal
+   * proprietario il 01/09/2026: «vendita online vale la data d'ordine».
+   *
+   * ⛔ **Era l'unico elenco con date senza periodo predefinito**: due campi
+   * nudi su «Evase dal / al», e all'apertura tutto lo storico. Gli altri cinque
+   * partono dagli ultimi trenta giorni, e ora anche questo.
+   */
+  protected readonly periodOptions: readonly SelectMenuOption[] = [
+    { value: MovementPeriodPreset.All, label: 'Tutti' },
+    { value: MovementPeriodPreset.Last7Days, label: 'Ultimi 7 giorni' },
+    { value: MovementPeriodPreset.Last30Days, label: 'Ultimi 30 giorni' },
+    { value: MovementPeriodPreset.ThisMonth, label: 'Mese corrente' },
+    { value: MovementPeriodPreset.LastMonth, label: 'Mese scorso' },
+    { value: MovementPeriodPreset.ThisYear, label: 'Anno corrente' },
+    { value: MovementPeriodPreset.LastYear, label: 'Anno scorso' },
+  ];
 
-  protected onFulfilledToChange(value: string): void {
-    this.updateParams({ fulfilledTo: value || null, page: null }, true);
+  /*
+    ⚠️ **Un periodo già nell'indirizzo vince sul predefinito**, e diventa
+    «Personalizzato»: un riepilogo filtrato si condivide e si riapre uguale.
+  */
+  protected readonly periodPreset = signal<MovementPeriodPreset>(
+    this.route.snapshot.queryParamMap.get('placedFrom') ||
+      this.route.snapshot.queryParamMap.get('placedTo')
+      ? MovementPeriodPreset.Custom
+      : DEFAULT_MOVEMENT_PERIOD,
+  );
+
+  protected onPeriodPresetChange(value: string | null): void {
+    const preset = (value ?? MovementPeriodPreset.All) as MovementPeriodPreset;
+    this.periodPreset.set(preset);
+    const range = resolveMovementPeriodRange(preset, '', '');
+    this.updateParams(
+      { placedFrom: range.from ?? null, placedTo: range.to ?? null, page: null },
+      true,
+    );
   }
 
   /*

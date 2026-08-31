@@ -26,32 +26,32 @@
     nelle colonne (`14` §0.2). Gli altri filtri vanno nel pannello sotto `lg`, e
     il pannello è del telaio.
   -->
-  <div period>
-    <div class="os-list__field os-list__field--date">
-      <label class="os-list__label" for="online-sales-from">Evase dal</label>
-      <app-date-input
-        inputId="online-sales-from"
-        [value]="query().fulfilledFrom ?? ''"
-        ariaLabel="Data evasione da"
-        placeholder="gg/mm/aaaa"
-        [compact]="true"
-        [fullWidth]="true"
-        [max]="query().fulfilledTo || undefined"
-        (valueChange)="onFulfilledFromChange($event)"
-      />
-    </div>
+  <!--
+    ⭐ **Il periodo è la DATA D'ORDINE** — deciso dal proprietario il
+    01/09/2026: «vendita online vale la data d'ordine».
 
-    <div class="os-list__field os-list__field--date">
-      <label class="os-list__label" for="online-sales-to">al</label>
-      <app-date-input
-        inputId="online-sales-to"
-        [value]="query().fulfilledTo ?? ''"
-        ariaLabel="Data evasione a"
-        placeholder="gg/mm/aaaa"
+    ⛔ **Qui c'erano due campi data nudi su «Evase dal / al»**, ed era l'unico
+    elenco con date senza un periodo predefinito: si apriva su tutto lo storico
+    mentre gli altri cinque partono dagli ultimi trenta giorni. Ora è lo stesso
+    controllo, con la stessa scala di preset.
+
+    ⚠️ **La data di evasione non sparisce**: resta una colonna, col proprio
+    filtro. Sono due domande diverse — quando è stato comprato, quando è partito
+    — e su un canale online la distanza fra le due è il dato che si guarda.
+  -->
+  <div period>
+    <div class="os-list__field">
+      <app-select-menu
+        chipLabel="Periodo"
+        [options]="periodOptions"
+        [value]="periodPreset()"
+        ariaLabel="Filtra per periodo"
+        placeholder="Periodo"
+        [includeEmptyOption]="false"
         [compact]="true"
         [fullWidth]="true"
-        [min]="query().fulfilledFrom || undefined"
-        (valueChange)="onFulfilledToChange($event)"
+        [labelOnly]="true"
+        (valueChange)="onPeriodPresetChange($event)"
       />
     </div>
   </div>
