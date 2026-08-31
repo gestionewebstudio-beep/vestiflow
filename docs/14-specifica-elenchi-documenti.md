@@ -4660,108 +4660,26 @@ e la risposta la barra conterebbe righe che non ci sono più.
 
 ---
 
-# 66. ⛔ La fascia riepilogo dei documenti — RITIRATA la sera stessa
+# 66. ⛔ La fascia riepilogo sui documenti — decisa e RITIRATA lo stesso giorno
 
-> **La decisione di questa sezione è durata poche ore.** È stata rovesciata dal
-> proprietario il 31/08/2026, e la sezione resta perché la ragione del
-> ripensamento è la parte utile: vedi **§69**.
->
-> _«Sotto alle righe dei prodotti hai creato la riga dei totali e i totali si
-> spostano in base alla colonna. L'avevo chiesta anche per i documenti ma avevi
-> detto che era complicato. Non sarebbe meglio creare la riga sotto ai documenti
-> come quella dei prodotti?»_
+Per poche ore i quattro elenchi documentali hanno avuto una fascia riepilogo
+esterna, nella forma del Registro Corrispettivi, al posto della riga totali.
+È stata rovesciata dal proprietario la sera stessa: **§69** dice cosa vale
+oggi e con quale criterio.
 
-⚠️ **E il «complicato» che avevo detto era su un'altra cosa** — una fascia
-ESTERNA che si allineasse alle colonne, che è davvero impraticabile. La riga
-dentro il `<tfoot>` incolonna gratis: è la stessa tabella.
+## ⚠️ Le due cose da non rifare
 
----
+⛔ **Non rispondere «è complicato» sull'incolonnamento.** Alla richiesta di
+totali incolonnati sui documenti avevo risposto così, e la risposta era su
+un'ALTRA cosa: una fascia **esterna** che si allinei alle colonne è davvero
+impraticabile — dovrebbe rifarsi le larghezze da sola. La riga dentro il
+`<tfoot>` incolonna **gratis**: è la stessa tabella, le stesse colonne.
 
-## Il testo originale, che vale come cronaca
-
-> _«Per i riepiloghi dei documenti, quindi acquisti, ordini e vendite, la
-> struttura dei totali dovrebbe essere come quella dei corrispettivi per avere
-> coerenza di visualizzazione. I totali poi compariranno in base alla colonna
-> attiva.»_ — proprietario, 31/08/2026
-
-## 66.1 ⛔ Sostituisce la riga totali, non la affianca
-
-Chiesto esplicitamente — _«se affianca si raddoppiano le info?»_ — e la risposta
-è sì: gli stessi numeri due volte nella stessa schermata, a pochi centimetri di
-distanza. Un elenco che monta la fascia **non** passa `[totals]` al motore.
-
-```text
-┌ tabella ────────────────────────────┐
-│ 12/08  Fattura   N.5    1.220,00 €  │
-│ 13/08  Nota cr.  N.2   − 150,00 €   │
-└─────────────────────────────────────┘
-┌ riepilogo ──────────────────────────┐
-│ 17 voci                             │
-│   IMPONIBILE     IVA      TOTALE    │
-│     1.052,04  105,22    1.157,26    │
-└─────────────────────────────────────┘
-```
-
-⚠️ **Si perde l'incolonnamento**, e va saputo: una fascia esterna alla tabella non
-può allinearsi alle sue colonne (§63) — dovrebbe rifarsi le larghezze da sola e
-si disallineerebbe al primo trascinamento di una maniglia. È il prezzo dichiarato
-della coerenza visiva, e il proprietario l'ha scelto sapendolo.
-
-## 66.2 Dove c'è
-
-Quattro elenchi, indicati uno per uno: **Documenti** (tutte le famiglie),
-**Ordini fornitore**, **Ordini cliente**, **Vendite online**.
-
-⛔ **Gli altri nove tengono la riga totali dentro la tabella**: Prodotti,
-Clienti, Fornitori, Giacenze, Situazione, Movimenti, Inventario. Non sono
-riepiloghi documentali, e lì l'incolonnamento sotto la colonna vale più della
-somiglianza col Registro.
-
-⭐ **Il Registro Corrispettivi resta col proprio**, e non è un'eccezione mancata:
-il suo riepilogo porta voci che colonne non sono — «Annullamenti 2»,
-«Rettifiche (4) − 205,01 €» — cioè la riconciliazione del registro, che è il
-motivo per cui lo si guarda (§F5).
-
-## 66.3 Il contenuto viene dalle COLONNE ATTIVE
-
-Non c'è un elenco di metriche scritto a mano: le voci sono le colonne visibili
-che portano un totale, nell'ordine in cui stanno in tabella. Spegnere una colonna
-dal selettore Colonne ne toglie il totale — la stessa regola della riga totali,
-che la fascia sostituisce e non riscrive.
-
-⭐ **Una voce è EVIDENZIATA**, dichiarata da `emphasis`: sui documenti è il
-Totale. È la risposta alla domanda dell'elenco, e si distingue per taglia e peso
-— mai con una tinta di fondo, che sarebbe il riquadro dentro il riquadro.
-
-## 66.4 ⛔ Il calcolo si è spostato, non duplicato
-
-La fascia vive nello slot `[summary]` del telaio, cioè nella **pagina**; i totali
-stavano dentro il componente tabella. La strada sbagliata era ricalcolarli anche
-nella pagina: due somme della stessa cosa, che il giorno in cui una cambia
-divergono in silenzio.
-
-Sono ora funzioni pure — `totaliDocumenti` per i documenti, `totaliDiElenco` per
-gli altri — e chi le chiama non conta.
-
-## 66.5 ⛔ La tipografia sta in DUE mixin, non in due fogli
-
-_«Non duplicare se non serve»_ — proprietario, lo stesso giorno, vedendo nascere
-la grammatica comune accanto a quella del Registro.
-
-`etichetta-riepilogo()` e `valore-riepilogo()` vivono in `styles/_list-summary.scss`
-e li includono **entrambi** i consumer. La sostituzione è stata verificata
-confrontando il CSS emesso prima e dopo: **44 regole, identiche byte per byte** —
-il disegno chiuso del Registro non è cambiato di un pixel.
-
-La guardia è `npm run check:list-summary`.
-
-⚠️ **Quella guardia è nata cieca**, e vale la pena saperlo: scritta con un
-heredoc di shell, le sue `\s` erano diventate `\s`, che in un template literal
-JS collassa a `s`. Cercava `(^|;|s)font-weights*:` e non trovava nulla, senza
-fallire. L'hanno scoperta le tre falsificazioni — che è la ragione per cui si
-falsifica ogni guardia invece di fidarsi del suo «tutto a posto».
-
----
+⚠️ **Non dichiarare «si perde l'incolonnamento» come prezzo accettabile**
+senza aver contato cosa si perde davvero: la riga in tabella scorre
+ORIZZONTALMENTE con le colonne, quindi il totale resta sotto la propria
+intestazione anche su un elenco largo. Una fascia sta ferma, e con dieci
+colonne il numero non si sa più a cosa appartenga. Questo non lo avevo pesato.
 
 # 67. Le tre decisioni del 31/08/2026 sulle card e sulle colonne
 
@@ -4979,3 +4897,79 @@ la pagina prima, la tabella adesso.
 ⚠️ **I due mixin di `_list-summary.scss` restano**: `etichetta-riepilogo` e
 `valore-riepilogo` li usa il Registro, che la fascia ce l'ha ancora. È sparito il
 mixin `list-summary()`, cioè la veste del componente rimosso.
+
+---
+
+# 70. I filtri di colonna — misurati il 31/08/2026, sera
+
+## 70.1 ⛔ La premessa che avevo dichiarato falsa, ed era vera
+
+Prima di costruire ho letto `DEFAULT_DOCUMENT_PAGE_SIZE = 20` e il `page: 1` nei
+query param, e ho concluso che otto elenchi impaginassero ancora — dichiarando
+che un filtro di colonna avrebbe filtrato **venti righe su cinquecento**.
+
+⛔ **Era sbagliato.** Verificato uno per uno seguendo la richiesta fino al
+servizio: **tutti e sette gli elenchi chiedono `all=1`**, movimenti compresi.
+`pageSize` resta nei query param e l'API lo ignora.
+
+⭐ Quindi la premessa di §11.4 — «il filtro legge l'insieme già caricato, nessun
+elenco impagina» — **regge**, e il filtro client-side è corretto: l'insieme in
+mano _è_ il risultato di periodo e ricerca.
+
+⚠️ **La lezione non è sul risultato, è sul metodo**: avevo letto una costante e
+un query param, non la richiesta che parte. Due indizi coerenti fra loro e una
+conclusione sbagliata.
+
+## 70.2 Perché nelle colonne conviene — i numeri
+
+|                       | in barra (oggi)                | di colonna           |
+| --------------------- | ------------------------------ | -------------------- |
+| filtri disponibili    | 34                             | **156**              |
+| da configurare a mano | tutti e 34                     | **11** (145 dedotti) |
+| costo per elenco      | markup + gestore + query param | eredita dal motore   |
+
+⭐ **145 colonne diventano filtrabili senza una riga di configurazione**: la
+forma la deduce `resolveColumnFilterKind`, che era già scritto e testato — e che
+**non usava nessuno**.
+
+Il codice che col tempo si toglie: **755 righe** di markup nei blocchi filtri e
+**63 metodi** gestori, su dieci pagine.
+
+## 70.3 Le tre forme, e il vuoto che non è un valore
+
+```text
+values   insieme chiuso — stato, tipo, sede: si sceglie fra i valori PRESENTI
+text     alta cardinalità — SKU, riferimenti, nomi: si scrive un pezzo
+range    numeri e date — importi, quantità: minimo e massimo
+```
+
+⛔ **Il valore vuoto è «nessun filtro», non «valore vuoto».** Un `values` con
+l'insieme vuoto non restringe niente. Confonderli renderebbe impossibile
+**togliere** un filtro: il controllo resterebbe acceso e l'elenco tornerebbe zero
+righe.
+
+⚠️ **Zero è un estremo legittimo**: scritto con un `if (min)` il filtro «da 0 in
+su» non scatterebbe mai.
+
+⭐ **Il confronto usa `cellText`, cioè ciò che l'operatore LEGGE** — non il
+valore grezzo: chi filtra «Confermato» sta scegliendo la parola che vede, e un
+filtro sull'enum `confirmed` offrirebbe scelte che nella colonna non compaiono.
+
+⚠️ **`range` invece legge il NUMERO**, e chi dichiara una colonna `range`
+fornisce l'estrattore. Senza, la colonna **non filtra** invece di filtrare male:
+meglio non restringere che restringere per un confronto che non sappiamo fare.
+
+⛔ **I negativi sono righe come le altre**: un filtro «fino a 0» deve prendere
+resi e note di credito — è il caso in cui si cercano proprio quelli.
+
+## 70.4 Stato del lavoro
+
+- [x] `column-filter.model.ts` — stato, conteggio del badge, applicazione, valori
+      distinti. **15 test**, fra cui i negativi e l'ordinamento per lingua
+- [ ] il motore rende il controllo nell'intestazione
+- [ ] sotto `lg` gli stessi controlli nel pannello del telaio
+- [ ] migrazione elenco per elenco, dal più piccolo verso Documenti
+
+⚠️ **La corrispondenza «filtro di barra → colonna» non si deduce con uno
+script**: l'ho provato e dà falsi positivi (`Tipo` non trova `type`, `Cliente`
+non trova `counterparty`). È lavoro di dominio, elenco per elenco.
