@@ -24,7 +24,17 @@
  * senza fallire, senza dirlo. Le tre falsificazioni qui sotto sono quelle che
  * l'hanno scoperta.
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+
+function tuttiIFile(dir, acc = []) {
+  for (const nome of readdirSync(dir)) {
+    const p = join(dir, nome);
+    if (statSync(p).isDirectory()) tuttiIFile(p, acc);
+    else acc.push(p.replace(/\\/g, '/'));
+  }
+  return acc;
+}
 
 /**
  * Le proprietà che i mixin governano: nessun consumer le ridichiara.
@@ -42,12 +52,54 @@ const GOVERNATE = [
   'white-space',
 ];
 
-const CONSUMER = [
-  {
-    file: 'src/app/features/reports/components/corrispettivi-summary/corrispettivi-summary.component.scss',
-    blocco: 'corrispettivi-summary',
-  },
-];
+/**
+ * ⛔ **I consumer si SCOPRONO, non si elencano a mano.**
+ *
+ * Qui c'era una lista scritta di un solo file: un secondo riepilogo che
+ * duplicasse la tipografia non sarebbe mai stato guardato. Ora è chiunque
+ * dichiari un `__item dt`/`dd` in un blocco che finisce per `-summary`.
+ */
+const CONSUMER = tuttiIFile('src/app')
+  .filter((f) => f.endsWith('.scss'))
+  .flatMap((file) => {
+    const testo = readFileSync(file, 'utf8');
+    const blocchi = new Set(
+      [...testo.matchAll(/\.([\w-]*summary)__item\b/g)].map((m) => m[1]),
+    );
+    return [...blocchi].map((blocco) => ({ file, blocco }));
+  });
+
+/**
+ * I ruleset annidati `nome { figlio { … } }`, con le graffe bilanciate.
+ *
+ * ⚠️ **Bilanciate e non `[^}]*`**: dentro un blocco annidato ci sono altre
+ * graffe, e una regex che si ferma alla prima chiusa taglia il blocco a metà.
+ */
+function annidati(testo, selettore) {
+  const trovati = [];
+  const re = new RegExp(selettore.replace(/[.]/g, '\\$&') + '\\s*\\{', 'g');
+  let m;
+
+  while ((m = re.exec(testo))) {
+    let i = m.index + m[0].length;
+    let profondita = 1;
+    const inizio = i;
+    while (i < testo.length && profondita > 0) {
+      if (testo[i] === '{') profondita += 1;
+      else if (testo[i] === '}') profondita -= 1;
+      i += 1;
+    }
+    if (profondita !== 0) {
+      continue;
+    }
+    const corpo = testo.slice(inizio, i - 1);
+    for (const figlio of corpo.matchAll(/(?:^|\n)\s*(dt|dd)\s*\{([^{}]*)\}/g)) {
+      trovati.push({ quale: figlio[1], corpo: figlio[2] });
+    }
+  }
+
+  return trovati;
+}
 
 const MIXIN = 'src/styles/_list-summary.scss';
 
@@ -65,22 +117,40 @@ for (const nome of ['etichetta-riepilogo', 'valore-riepilogo']) {
 // 2. Nessun consumer ridichiara a mano le proprietà governate su dt/dd.
 for (const { file, blocco } of CONSUMER) {
   const testo = readFileSync(file, 'utf8');
-  const re = new RegExp('\\.' + blocco + '__item (dt|dd) \\{([^}]*)\\}', 'g');
-  let m;
   let visti = 0;
 
-  while ((m = re.exec(testo))) {
+  /*
+    ⛔ **Due forme, non una** — la seconda l'ha trovata una revisione
+    avversariale il 31/08/2026, ed è quella che uno scriverebbe per prima:
+
+    ```scss
+    .blocco__item dt { … }              disteso — l'unica che la guardia vedeva
+    .blocco__item { dt { … } }          annidato — compila identico, passava
+    ```
+
+    Dieci righe di duplicazione vera nella forma annidata, guardia verde.
+  */
+  const rulesets = [
+    // Forma distesa: `.blocco__item dt { … }`
+    ...[...testo.matchAll(new RegExp('\\.' + blocco + '__item (dt|dd)\\s*\\{([^}]*)\\}', 'g'))].map(
+      (m) => ({ quale: m[1], corpo: m[2] }),
+    ),
+    // Forma annidata: `.blocco__item { … dt { … } … }`
+    ...annidati(testo, `.${blocco}__item`),
+  ];
+
+  for (const { quale, corpo } of rulesets) {
     visti += 1;
-    const corpo = m[2].replace(/\/\*[\s\S]*?\*\//g, '');
+    const pulito = corpo.replace(/\/\*[\s\S]*?\*\//g, '');
     const ridichiarate = GOVERNATE.filter((p) =>
-      new RegExp('(^|;|\\s)' + p + '\\s*:').test(corpo),
+      new RegExp('(^|;|\\s)' + p + '\\s*:').test(pulito),
     );
     if (ridichiarate.length === 0) {
       continue;
     }
     difetti += 1;
     console.error(
-      `⛔ ${file}: .${blocco}__item ${m[1]} ridichiara ${ridichiarate.join(', ')} — ` +
+      `⛔ ${file}: .${blocco}__item ${quale} ridichiara ${ridichiarate.join(', ')} — ` +
         `sta nel mixin di ${MIXIN}, e due copie divergono in silenzio.`,
     );
   }

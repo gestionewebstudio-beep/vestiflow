@@ -39,8 +39,20 @@ let controllati = 0;
 
 for (const html of file('src', '.html')) {
   const markup = readFileSync(html, 'utf8');
+  /*
+    ⛔ **`<ng-template>` non è l'unica forma**, e la revisione avversariale del
+    31/08/2026 l'ha dimostrata: il selettore della direttiva è `[appRowCard]`,
+    quindi `<div *appRowCard="let riga">` è markup valido e fa la stessa cosa.
+
+    Convertendo una card a quella forma **e** togliendo la direttiva dagli
+    `imports`, la guardia non segnalava nulla: il conteggio scendeva da 12 a 11
+    componenti — l'unico indizio, e non fa fallire niente.
+
+    ⚠️ La forma con l'asterisco è zucchero sintattico per un `<ng-template>`: se
+    la guardia ne conosce una sola, chi usa l'altra è fuori dal suo sguardo.
+  */
   const usate = Object.keys(DIRETTIVE).filter((attr) =>
-    new RegExp(`<ng-template[^>]*\\b${attr}\\b`).test(markup),
+    new RegExp(`(?:<ng-template[^>]*\\b${attr}\\b|\\*${attr}\\b)`).test(markup),
   );
   if (usate.length === 0) {
     continue;

@@ -80,18 +80,45 @@ const DISEGNO = {
 
 const foglio = readFileSync('src/styles/_list-card.scss', 'utf8');
 
-/** Le dichiarazioni di un ruleset, normalizzate e ordinate. */
+/**
+ * Le dichiarazioni di una classe, da **TUTTI** i suoi ruleset.
+ *
+ * ⛔ **Qui c'era `re.exec` una volta sola**, cioè il primo ruleset e basta —
+ * misurato da una revisione avversariale il 31/08/2026: aggiungendo un secondo
+ * `.list-card__total { … }` più in basso nello stesso foglio, con dodici righe
+ * che **in CSS vincono** (stessa specificità, dopo), la guardia restava verde.
+ *
+ * ⚠️ **Ed è il modo più naturale di ritoccare un foglio**: si aggiunge in fondo
+ * invece di toccare il blocco esistente. Proprio la forma che il congelamento
+ * deve intercettare.
+ *
+ * ⚠️ **Il selettore esige un confine a destra** (`{`, `,`, spazio o `:`): senza,
+ * `.list-card__total` aggancerebbe anche `.list-card__total--negative`, e le
+ * dichiarazioni del modificatore risulterebbero «aggiunte» a quelle della base.
+ */
 function regoleDi(classe) {
-  const re = new RegExp(`\\.${classe.replace(/-/g, '\\-')}\\s*\\{([^}]*)\\}`);
-  const m = re.exec(foglio);
-  if (!m) {
-    return null;
+  const re = new RegExp(`\\.${classe.replace(/-/g, '\\-')}(?=[\\s,{:])[^{}]*\\{([^}]*)\\}`, 'g');
+  const dichiarazioni = [];
+  let m;
+  let trovato = false;
+
+  while ((m = re.exec(foglio))) {
+    // ⚠️ Solo il selettore ESATTO: `.x { }` e `.x, .y { }`, non `.x .figlio { }`.
+    const selettore = foglio.slice(m.index, m.index + m[0].indexOf('{')).trim();
+    const parti = selettore.split(',').map((p) => p.trim());
+    if (!parti.includes(`.${classe}`)) {
+      continue;
+    }
+    trovato = true;
+    dichiarazioni.push(
+      ...m[1]
+        .split(';')
+        .map((r) => r.replace(/\s+/g, ' ').trim())
+        .filter((r) => r.length > 0 && !r.startsWith('//') && !r.startsWith('/*')),
+    );
   }
-  return m[1]
-    .split(';')
-    .map((r) => r.replace(/\s+/g, ' ').trim())
-    .filter((r) => r.length > 0 && !r.startsWith('//') && !r.startsWith('/*'))
-    .sort();
+
+  return trovato ? dichiarazioni.sort() : null;
 }
 
 let difetti = 0;
