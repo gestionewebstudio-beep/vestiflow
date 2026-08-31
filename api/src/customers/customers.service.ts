@@ -20,6 +20,7 @@ import { nextNumericSupplierCode } from '../supplier-orders/supplier-code.util';
 import type { CreateCustomerDto } from './dto/create-customer.dto';
 import type { ListCustomersQueryDto } from './dto/list-customers.query.dto';
 import type { UpdateCustomerDto } from './dto/update-customer.dto';
+import { pageWindow } from '../common/dto/unpaged.util';
 
 type PartyWriteData = {
   companyName?: string | null;
@@ -122,8 +123,11 @@ export class CustomersService {
           { party: { firstName: 'asc' } },
           { party: { companyName: 'asc' } },
         ],
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
+        // ⚠️ `pageWindow`, non `skip`/`take` a mano: con `all=1` la finestra deve
+        //    SPARIRE, non diventare grande. È la funzione che usano documenti,
+        //    ordini e prodotti — quattro modi di dire «tutto» sarebbero quattro
+        //    modi di sbagliarlo.
+        ...pageWindow(query),
       }),
       this.prisma.customer.count({ where }),
     ]);

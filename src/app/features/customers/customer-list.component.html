@@ -34,18 +34,19 @@
     data
     [customers]="customers()"
     [columns]="tableColumns()"
+    [selectedIds]="selectedCustomerIds()"
     (rowClick)="openCustomer($event)"
+    (selectionToggle)="toggleCustomerSelection($event.customerId, $event.selected)"
+    (selectAllToggle)="toggleSelectAll($event)"
   />
 
-  <app-pagination
-    summary
-    label="Paginazione clienti"
-    [meta]="meta()"
-    [pageSizeOptions]="pageSizeOptions"
-    (pageChange)="goToPage($event)"
-    (pageSizeChange)="onPageSizeChange($event)"
-  />
+  <!--
+    ⛔ **Qui c'era l'impaginazione**, tolta il 30/08/2026: un elenco mostra tutte
+    le righe del filtro attivo (`regole-stile-ui`, «NESSUN TETTO DI RIGHE»).
 
+    ⚠️ **Il conteggio non si è perso**: lo dice la riga totali del motore, «N
+    voci», che ora conta il risultato intero invece della pagina.
+  -->
   <!--
     ⭐ **Tutti i comandi in UNA riga in basso**, totali subito sopra —
     decisione del proprietario, 30/08/2026, sul riferimento Danea.
@@ -55,6 +56,14 @@
     non un criterio.
   -->
   <div listActions>
-    <app-list-actions-bar [actions]="listActions()" />
+    <app-list-actions-bar
+      [count]="selectedCustomerIds().size"
+      [ids]="[...selectedCustomerIds()]"
+      [actions]="listActions()"
+      labelSingular="cliente selezionato"
+      labelPlural="clienti selezionati"
+      clearLabel="Deseleziona"
+      (cleared)="clearSelection()"
+    />
   </div>
 </app-list-page>

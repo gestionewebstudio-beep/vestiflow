@@ -11,15 +11,19 @@ import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-i
 import { ActivatedRoute, Router } from '@angular/router';
 import {
   catchError,
+  concatMap,
   debounceTime,
   distinctUntilChanged,
   finalize,
+  from,
   map,
   of,
   startWith,
   switchMap,
+  take,
+  toArray,
 } from 'rxjs';
-import type { Subscription } from 'rxjs';
+import type { Observable, Subscription } from 'rxjs';
 
 import type { PageMeta } from '@core/models/api.model';
 import { BarcodeDetectionService } from '@core/services/barcode-detection.service';
@@ -34,6 +38,7 @@ import {
   canManageCatalog,
 } from '@core/permissions/tenant-permissions.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
+import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
 import type { AppError } from '@core/models/app-error.model';
 import { ProductStatus } from '@core/models/product.model';
 import type { Product } from '@core/models/product.model';
@@ -108,6 +113,7 @@ type ProductListState =
     ProductToolbarComponent,
     ProductTableComponent,
     ShopifySyncFeedbackComponent,
+    DeleteConfirmComponent,
   ],
   templateUrl: './product-list.component.html',
   styleUrl: './product-list.component.scss',
@@ -159,6 +165,11 @@ export class ProductListComponent {
   protected readonly selectedProductIds = signal<ReadonlySet<string>>(new Set<string>());
   protected readonly duplicatingProductId = signal<string | null>(null);
   protected readonly duplicateError = signal<string | null>(null);
+
+  // ── Eliminazione: la sequenza a due conferme sta nel componente condiviso ──
+  protected readonly deleteWarnOpen = signal(false);
+  protected readonly deleteBusy = signal(false);
+  private readonly pendingDeleteIds = signal<readonly string[]>([]);
   protected readonly selectedCount = computed(() => this.selectedProductIds().size);
 
   protected readonly showShopifyCatalogSync = computed(
@@ -504,6 +515,33 @@ export class ProductListComponent {
           }),
         ] as const)
       : []),
+    /*
+      ⭐ **Elimina, e sta nel catalogo** (30/08/2026): «il tasto duplica ed elimina
+      vanno dappertutto». `requires: 'oneOrMore'` — si eliminano anche più
+      articoli insieme, e a selezione vuota il comando c'è ma è spento CON il
+      motivo.
+
+      ⚠️ **Solo a chi gestisce il catalogo**: è la stessa condizione di Duplica, e
+      non una in più. Chi può creare un articolo può toglierlo.
+
+      ⛔ **La doppia conferma non è scritta qui.** È del componente condiviso
+      `app-delete-confirm`, e la guardia `check:delete-confirm` fa fallire il lint
+      se qualcuno la riscrive a mano: «doppio avviso sempre per elimina» deve
+      essere vero per costruzione, non per disciplina.
+    */
+    ...(this.canManageCatalog()
+      ? ([
+          comando('delete', {
+            busy: this.deleteBusy(),
+            ariaLabel: 'Elimina i prodotti selezionati',
+            run: (target) => {
+              if (target.scope === 'selection') {
+                this.requestDeleteSelection(target.ids);
+              }
+            },
+          }),
+        ] as const)
+      : []),
     {
       id: 'print-labels',
       label: 'Stampa etichette',
@@ -517,6 +555,95 @@ export class ProductListComponent {
 
   protected clearSelection(): void {
     this.selectedProductIds.set(new Set<string>());
+  }
+
+  /*
+    ⚠️ **Il titolo NOMINA quello che sparisce**, non l'operazione: «Elimina
+    maglietta» dice all'operatore che cosa sta per perdere, «Elimina prodotto» no.
+    Con più di uno il nome non ci sta e si dichiara il numero.
+  */
+  protected readonly deleteWarnTitle = computed(() => {
+    const ids = this.pendingDeleteIds();
+    if (ids.length === 1) {
+      const prodotto = this.products().find((p) => p.id === ids[0]);
+      return prodotto ? `Elimina ${prodotto.name}` : 'Elimina prodotto';
+    }
+    return `Elimina ${ids.length} prodotti`;
+  });
+
+  /*
+    ⭐ **La conseguenza dice cosa succede AL MAGAZZINO E AI CANALI**, non che
+    l'operazione è irreversibile — quello lo dice già il secondo passaggio.
+
+    ⚠️ Un articolo eliminato porta con sé le sue varianti e le loro giacenze: è
+    l'informazione che decide se procedere, e va detta prima e non dopo.
+  */
+  protected readonly deleteWarnMessage = computed(() => {
+    const n = this.pendingDeleteIds().length;
+    return n === 1
+      ? 'Spariscono anche le sue varianti e le relative giacenze. I documenti già emessi restano invariati.'
+      : `Spariscono anche le varianti dei ${n} articoli e le relative giacenze. I documenti già emessi restano invariati.`;
+  });
+
+  private requestDeleteSelection(ids: readonly string[]): void {
+    if (ids.length === 0 || this.deleteBusy()) {
+      return;
+    }
+    this.pendingDeleteIds.set(ids);
+    this.deleteWarnOpen.set(true);
+  }
+
+  protected onDeleteCancel(): void {
+    if (this.deleteBusy()) {
+      return;
+    }
+    this.pendingDeleteIds.set([]);
+  }
+
+  /*
+    ⚠️ **`concatMap`, non `forkJoin`**: le eliminazioni vanno una per una, così un
+    fallimento a metà lascia uno stato leggibile — «3 su 5 eliminati» — invece di
+    un esito unico che non dice quali.
+  */
+  protected onDeleteConfirm(): void {
+    const ids = this.pendingDeleteIds();
+    if (ids.length === 0 || this.deleteBusy()) {
+      this.deleteWarnOpen.set(false);
+      return;
+    }
+    this.deleteBusy.set(true);
+    from(ids)
+      .pipe(
+        concatMap((id) =>
+          this.service.deleteProduct(id).pipe(
+            map(() => ({ ok: true, id }) as const),
+            catchError(() => of({ ok: false, id }) as Observable<{ ok: boolean; id: string }>),
+          ),
+        ),
+        toArray(),
+        take(1),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((esiti) => {
+        this.deleteBusy.set(false);
+        this.deleteWarnOpen.set(false);
+        this.pendingDeleteIds.set([]);
+        const eliminati = new Set(esiti.filter((e) => e.ok).map((e) => e.id));
+        if (eliminati.size > 0) {
+          this.selectedProductIds.update(
+            (correnti) => new Set([...correnti].filter((id) => !eliminati.has(id))),
+          );
+        }
+        const falliti = esiti.length - eliminati.size;
+        this.duplicateError.set(
+          falliti === 0
+            ? null
+            : falliti === 1
+              ? 'Un prodotto non è stato eliminato.'
+              : `${falliti} prodotti non sono stati eliminati.`,
+        );
+        this.reload();
+      });
   }
 
   protected printSelectedLabels(): void {

@@ -36,7 +36,6 @@ import { ListActionsBarComponent } from '@shared/components/list-actions-bar/lis
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import { comando, voceEsporta } from '@shared/models/list-action-catalog';
 import type { ListAction } from '@shared/models/list-selection.model';
-import { PaginationComponent } from '@shared/components/pagination/pagination.component';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
 import { ShopifySyncFeedbackComponent } from '@domain/channels/shopify/components/shopify-sync-feedback/shopify-sync-feedback.component';
@@ -52,7 +51,6 @@ import { ShopifyConnectionService } from '@domain/channels/shopify/services/shop
 import { ShopifySyncWatchService } from '@domain/channels/shopify/services/shopify-sync-watch.service';
 import { CustomerTableComponent } from './components/customer-table/customer-table.component';
 import {
-  CUSTOMER_PAGE_SIZE_OPTIONS,
   DEFAULT_CUSTOMER_PAGE_SIZE,
   parseCustomerListQuery,
 } from '@domain/customers/models/customer-list-query.model';
@@ -89,7 +87,6 @@ type CustomerListState =
   imports: [
     ListActionsBarComponent,
     ListPageComponent,
-    PaginationComponent,
     CustomerTableComponent,
     ShopifySyncFeedbackComponent,
   ],
@@ -113,7 +110,6 @@ export class CustomerListComponent {
   private shopifyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
   protected readonly skeletonColumns = 5;
-  protected readonly pageSizeOptions = CUSTOMER_PAGE_SIZE_OPTIONS;
 
   private readonly queryParams = toSignal(this.route.queryParamMap, { requireSync: true });
   protected readonly query = computed(() => parseCustomerListQuery(this.queryParams()));
@@ -148,14 +144,13 @@ export class CustomerListComponent {
   private readonly state = toSignal(
     toObservable(this.request).pipe(
       switchMap(({ query }) =>
-        this.service.getCustomers(query).pipe(
-          map(
-            (response): CustomerListState => ({
-              status: 'success',
-              customers: response.data,
-              meta: response.meta,
-            }),
-          ),
+        // ⭐ `tutto`: l'elenco mostra tutte le righe del filtro, non una pagina.
+        this.service.getCustomers(query, { tutto: true }).pipe(
+          map((response): CustomerListState => ({
+            status: 'success',
+            customers: response.data,
+            meta: response.meta,
+          })),
           startWith<CustomerListState>({ status: 'loading' }),
           catchError((err: unknown) =>
             of<CustomerListState>({ status: 'error', error: this.toAppError(err) }),
@@ -218,14 +213,6 @@ export class CustomerListComponent {
     this.updateParams({ search: null, page: null }, true);
   }
 
-  protected goToPage(page: number): void {
-    this.updateParams({ page: page <= 1 ? null : page });
-  }
-
-  protected onPageSizeChange(size: number): void {
-    this.updateParams({ pageSize: size === DEFAULT_CUSTOMER_PAGE_SIZE ? null : size, page: null });
-  }
-
   protected reload(): void {
     this.refreshTick.update((tick) => tick + 1);
   }
@@ -282,6 +269,46 @@ export class CustomerListComponent {
    * ⚠️ I permessi stanno QUI, non nel template: la condizione che decide se un
    * comando esiste sta dove il comando si dichiara, non in un `@if` altrove.
    */
+  /*
+    ⭐ **La selezione mancava, ed era la differenza che si vedeva** (30/08/2026):
+    senza la sua colonna, la prima colonna dei clienti partiva da un'altra
+    posizione e l'elenco «sembrava» un altro telaio. Era lo stesso telaio —
+    `list-page` e `list-page-fills-viewport`, come i prodotti — con una colonna in
+    meno.
+
+    ⚠️ **Oggi la selezione non ha ancora azioni proprie qui**: l'API clienti non
+    espone né eliminazione né duplicazione, quindi la barra resta quella che era.
+    Serve comunque, ed è utile da subito: il conteggio della riga totali la segue.
+  */
+  protected readonly selectedCustomerIds = signal<ReadonlySet<string>>(new Set<string>());
+
+  protected toggleCustomerSelection(customerId: string, selected: boolean): void {
+    this.selectedCustomerIds.update((correnti) => {
+      const prossimi = new Set(correnti);
+      if (selected) {
+        prossimi.add(customerId);
+      } else {
+        prossimi.delete(customerId);
+      }
+      return prossimi;
+    });
+  }
+
+  /*
+    ⚠️ **«Tutti» sono tutti quelli del FILTRO**, non della pagina: da quando
+    l'elenco non impagina più, le due cose coincidono — ed è una delle ragioni per
+    cui l'impaginazione è stata tolta prima e non dopo.
+  */
+  protected toggleSelectAll(selected: boolean): void {
+    this.selectedCustomerIds.set(
+      selected ? new Set(this.customers().map((c) => c.id)) : new Set<string>(),
+    );
+  }
+
+  protected clearSelection(): void {
+    this.selectedCustomerIds.set(new Set<string>());
+  }
+
   protected readonly listActions = computed<readonly ListAction[]>(() => {
     const azioni: ListAction[] = [];
 

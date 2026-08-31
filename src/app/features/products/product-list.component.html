@@ -110,4 +110,19 @@
       (cleared)="clearSelection()"
     />
   </div>
+
+  <!--
+    ⚠️ **Nello slot `overlays`, non in fondo al markup**: le cose `position: fixed`
+    hanno una casella loro nel telaio, e il contenuto proiettato che non trova uno
+    slot Angular lo **elimina dal DOM** — senza errori e senza test rossi.
+  -->
+  <app-delete-confirm
+    overlays
+    [(open)]="deleteWarnOpen"
+    [title]="deleteWarnTitle()"
+    [consequence]="deleteWarnMessage()"
+    [busy]="deleteBusy()"
+    (confirmed)="onDeleteConfirm()"
+    (dismissed)="onDeleteCancel()"
+  />
 </app-list-page>

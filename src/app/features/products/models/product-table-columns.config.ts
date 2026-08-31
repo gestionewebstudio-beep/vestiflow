@@ -24,15 +24,24 @@ import { TableViewPresetId as PresetId } from '@shared/table-columns/table-colum
   dichiara. Per questo il nome non ne ha e non deve averne: prende quello che
   avanza, e cresce con la finestra.
 
-  ⚠️ **I numeri non sono definitivi**: sono misurati sul contenuto tipico, e
-  l'operatore li cambia trascinando la maniglia. `14` §G1 dice che la modifica
-  **non si conserva** — è un aggiustamento del momento, non una preferenza.
+  ⛔ **E vanno tarate sul CONTENUTO, non sull'intestazione** — corretto il
+  30/08/2026, dopo che il proprietario ha segnalato due volte il nome tagliato.
+  Le prime misure erano generose: 96px per «Stagione», che mostra un trattino, e
+  120 per «Shopify». Sommavano 818px su una tabella da ~1020, e al nome restavano
+  ~160 — cioè la colonna più importante era la più stretta, di nuovo.
+
+      prima   150+160+96+92+96+104+120 = 818   →   al nome ~160
+      ora     130+130+70+70+76+80+100  = 656   →   al nome ~320
+
+  ⚠️ **I numeri non sono definitivi**: l'operatore li cambia trascinando la
+  maniglia, e `14` §G1 dice che la modifica **non si conserva** — è un
+  aggiustamento del momento, non una preferenza.
 */
 export const PRODUCT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   { id: 'select', label: 'Selezione', defaultVisible: true, filter: false },
   // Identificatore anagrafico interno (§Codice articolo): colonna disponibile
   // nella selezione colonne, non mostrata di default.
-  colonna('articleCode', { defaultVisible: false, defaultWidthPx: 128 }),
+  colonna('articleCode', { defaultVisible: false, defaultWidthPx: 110 }),
   /*
     ⚠️ **Nessuna di queste dichiara `display: 'truncate'`, ed è voluto.** Dal
     30/08/2026 il taglio a colonna è della grammatica degli elenchi
@@ -41,13 +50,13 @@ export const PRODUCT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
     concorrere con la larghezza della colonna, cioè due misure per la stessa cosa.
   */
   { id: 'name', label: 'Nome', pinnable: true, defaultVisible: true },
-  { id: 'brand', label: 'Venditore/Brand', defaultVisible: true, defaultWidthPx: 150 },
-  colonna('category', { defaultVisible: true, defaultWidthPx: 160 }),
-  { id: 'season', label: 'Stagione', defaultVisible: true, defaultWidthPx: 96 },
-  { id: 'variants', label: 'Varianti', numeric: true, defaultVisible: true },
-  colonna('status', { defaultVisible: true, defaultWidthPx: 96 }),
-  colonna('source', { defaultVisible: true, defaultWidthPx: 104 }),
-  { id: 'shopify', label: 'Shopify', defaultVisible: true, defaultWidthPx: 120 },
+  { id: 'brand', label: 'Venditore/Brand', defaultVisible: true, defaultWidthPx: 130 },
+  colonna('category', { defaultVisible: true, defaultWidthPx: 130 }),
+  { id: 'season', label: 'Stagione', defaultVisible: true, defaultWidthPx: 70 },
+  { id: 'variants', label: 'Varianti', numeric: true, defaultVisible: true, defaultWidthPx: 70 },
+  colonna('status', { defaultVisible: true, defaultWidthPx: 76 }),
+  colonna('source', { defaultVisible: true, defaultWidthPx: 80 }),
+  { id: 'shopify', label: 'Shopify', defaultVisible: true, defaultWidthPx: 100 },
 ];
 
 export const PRODUCT_LIST_COLUMN_PRESETS: TableViewPresetMap = {

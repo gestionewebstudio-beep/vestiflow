@@ -1,114 +1,45 @@
-<table class="customer-table">
-  <thead class="customer-table__head">
-    <tr>
-      @if (showColumn('code')) {
-        <th scope="col">{{ columnLabel('code') }}</th>
-      }
-      @if (showColumn('name')) {
-        <th scope="col">{{ columnLabel('name') }}</th>
-      }
-      @if (showColumn('source')) {
-        <th scope="col">{{ columnLabel('source') }}</th>
-      }
-      @if (showColumn('email')) {
-        <th scope="col">{{ columnLabel('email') }}</th>
-      }
-      @if (showColumn('phone')) {
-        <th scope="col">{{ columnLabel('phone') }}</th>
-      }
-      @if (showColumn('city')) {
-        <th scope="col">{{ columnLabel('city') }}</th>
-      }
-      @if (showColumn('province')) {
-        <th scope="col">{{ columnLabel('province') }}</th>
-      }
-      @if (showColumn('companyName')) {
-        <th scope="col">{{ columnLabel('companyName') }}</th>
-      }
-      @if (showColumn('vatNumber')) {
-        <th scope="col">{{ columnLabel('vatNumber') }}</th>
-      }
-      @if (showColumn('discount')) {
-        <th scope="col">{{ columnLabel('discount') }}</th>
-      }
-      @if (showColumn('paymentTerms')) {
-        <th scope="col">{{ columnLabel('paymentTerms') }}</th>
-      }
-      @if (showColumn('alsoSupplier')) {
-        <th scope="col">{{ columnLabel('alsoSupplier') }}</th>
-      }
-      @if (showColumn('createdAt')) {
-        <th scope="col">{{ columnLabel('createdAt') }}</th>
-      }
-    </tr>
-  </thead>
+<!--
+  ⭐ **Lo scheletro è del motore comune** (`14` parte H): `thead`, `tbody`, il
+  `@for` col `track`, le intestazioni e il ripiego mobile.
 
-  <tbody>
-    @for (customer of customers(); track customer.id) {
-      <tr
-        class="customer-table__row"
-        tabindex="0"
-        [attr.aria-label]="rowLabel(customer)"
-        (click)="rowClick.emit(customer)"
-        (keydown.enter)="rowClick.emit(customer)"
-        (keydown.space)="$event.preventDefault(); rowClick.emit(customer)"
-      >
-        @if (showColumn('code')) {
-          <td class="tabular-nums" [attr.data-label]="columnLabel('code')">
-            {{ customer.code ?? '—' }}
-          </td>
-        }
-        @if (showColumn('name')) {
-          <td class="customer-table__name" [attr.data-label]="columnLabel('name')">
-            {{ displayName(customer) }}
-          </td>
-        }
-        @if (showColumn('source')) {
-          <td [attr.data-label]="columnLabel('source')">
-            <app-badge [tone]="sourceTone(customer)">{{ sourceLabel(customer) }}</app-badge>
-          </td>
-        }
-        @if (showColumn('email')) {
-          <td [attr.data-label]="columnLabel('email')">{{ customer.email ?? '—' }}</td>
-        }
-        @if (showColumn('phone')) {
-          <td class="tabular-nums" [attr.data-label]="columnLabel('phone')">
-            {{ customer.phone ?? '—' }}
-          </td>
-        }
-        @if (showColumn('city')) {
-          <td [attr.data-label]="columnLabel('city')">{{ cityOf(customer) }}</td>
-        }
-        @if (showColumn('province')) {
-          <td [attr.data-label]="columnLabel('province')">{{ provinceOf(customer) }}</td>
-        }
-        @if (showColumn('companyName')) {
-          <td [attr.data-label]="columnLabel('companyName')">{{ customer.companyName ?? '—' }}</td>
-        }
-        @if (showColumn('vatNumber')) {
-          <td class="tabular-nums" [attr.data-label]="columnLabel('vatNumber')">
-            {{ customer.vatNumber ?? '—' }}
-          </td>
-        }
-        @if (showColumn('discount')) {
-          <td class="tabular-nums" [attr.data-label]="columnLabel('discount')">
-            {{ customer.customerDiscount ?? '—' }}
-          </td>
-        }
-        @if (showColumn('paymentTerms')) {
-          <td [attr.data-label]="columnLabel('paymentTerms')">
-            {{ customer.paymentTerms ?? '—' }}
-          </td>
-        }
-        @if (showColumn('alsoSupplier')) {
-          <td [attr.data-label]="columnLabel('alsoSupplier')">{{ alsoSupplierLabel(customer) }}</td>
-        }
-        @if (showColumn('createdAt')) {
-          <td class="tabular-nums" [attr.data-label]="columnLabel('createdAt')">
-            {{ createdAtLabel(customer) }}
-          </td>
-        }
-      </tr>
-    }
-  </tbody>
-</table>
+  ⛔ **Qui c'erano 114 righe**, ed erano tredici volte lo stesso blocco:
+  `@if (showColumn('x')) { <td [attr.data-label]="columnLabel('x')">…`. Su tredici
+  colonne di cui **dodici sono solo testo**, quel markup non diceva niente che
+  `cellText` non dica meglio.
+
+  Resta la sola cella che non è testo: l'origine del cliente.
+-->
+<app-data-table
+  caption="Elenco clienti"
+  [columns]="columns()"
+  [sections]="sections()"
+  [rowId]="rowId"
+  [cellText]="cellText"
+  [rowClickable]="true"
+  [rowLabel]="rowLabelFor"
+  selectionMode="multiple"
+  [selectedIds]="selectedIds()"
+  [selectionLabel]="selectionLabel"
+  selectAllLabel="Seleziona tutti i clienti"
+  [totals]="totals()"
+  (rowClick)="rowClick.emit($event)"
+  (selectionChange)="selectionToggle.emit({ customerId: $event.row.id, selected: $event.selected })"
+  (selectAllChange)="selectAllToggle.emit($event)"
+>
+  <!--
+    ⭐ **Testo colorato, non pastiglia** — la stessa forma dei prodotti
+    (30/08/2026): «ci sono card intorno alle scritte che vanno tolte e restano le
+    scritte colorate».
+
+    ⚠️ **Non è solo estetica: è ciò che assottiglia la riga.** Una pastiglia porta
+    padding e altezza minima propri, e li impone alla riga qualunque cosa dica il
+    token `--table-row-h`. Togliendola, la cella torna alta quanto il testo.
+
+    ⛔ Qui c'era scritto che una pill sola non è come tre. L'argomento reggeva
+    sull'affollamento e ignorava l'altezza — che era il difetto che l'operatore
+    stava guardando.
+  -->
+  <ng-template appCell="source" let-customer>
+    <app-badge [flat]="true" [tone]="sourceTone(customer)">{{ sourceLabel(customer) }}</app-badge>
+  </ng-template>
+</app-data-table>
