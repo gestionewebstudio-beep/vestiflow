@@ -319,6 +319,10 @@ export class OnlineSaleListComponent {
         return sale.channelLabel;
       case 'orderNumber':
         return sale.orderNumber;
+      case 'orderPlacedAt':
+        return formatDate(sale.orderPlacedAt);
+      case 'refundedAt':
+        return sale.refundedAt ? formatDate(sale.refundedAt) : '—';
       case 'fulfilledAt':
         return formatDate(sale.fulfilledAt);
       case 'customer':

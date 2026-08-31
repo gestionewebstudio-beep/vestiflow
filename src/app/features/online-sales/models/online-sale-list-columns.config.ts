@@ -34,6 +34,14 @@ export const ONLINE_SALE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   { id: 'inventoryStatus', label: 'Stato magazzino', defaultVisible: true },
   colonna('ddt', { defaultVisible: true }),
   { id: 'refund', label: 'Rimborso', defaultVisible: true },
+  /*
+    ⭐ **La data dell'ORDINE, oltre a quella di evasione** (31/08/2026): il
+    modello le porta entrambe e l'elenco ne mostrava una sola. Sono domande
+    diverse — quando è stato comprato, quando è partito — e su un canale online
+    la distanza fra le due è il dato che si guarda.
+  */
+  { id: 'orderPlacedAt', label: 'Data ordine', defaultVisible: false },
+  { id: 'refundedAt', label: 'Rimborsato il', defaultVisible: false },
 ] as const;
 
 export const ONLINE_SALE_LIST_COLUMN_PRESETS: TableViewPresetMap = {

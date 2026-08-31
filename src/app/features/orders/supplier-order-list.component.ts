@@ -703,6 +703,12 @@ export class SupplierOrderListComponent {
         return formatDate(order.orderDate);
       case 'expected':
         return order.expectedAt ? formatDate(order.expectedAt) : '—';
+      case 'subtotal':
+        return formatMoney(order.subtotal);
+      case 'tax':
+        return formatMoney(order.tax);
+      case 'supplierReference':
+        return order.supplierReference || '—';
       case 'total':
         return formatMoney(order.totalAmount);
       default:

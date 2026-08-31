@@ -1,3 +1,4 @@
+import { formatDate } from '@core/utils/date.util';
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
 import {
@@ -135,6 +136,12 @@ export class InventoryCountTableComponent {
         return this.progress(session);
       case 'deltas':
         return String(session.linesWithDelta);
+      case 'completedAt':
+        return session.completedAt ? formatDate(session.completedAt) : '—';
+      case 'createdByName':
+        return session.createdByName || '—';
+      case 'notes':
+        return session.notes?.trim() || '—';
       case 'createdAt':
         return formatDateTime(session.createdAt);
       default:

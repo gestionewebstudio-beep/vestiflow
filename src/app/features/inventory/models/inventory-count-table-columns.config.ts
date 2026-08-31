@@ -25,6 +25,14 @@ export const INVENTORY_COUNT_COLUMN_DEFS: readonly TableColumnDef[] = [
     allinearlo a destra come una quantità lo farebbe leggere come un totale.
   */
   { id: 'progress', label: 'Progresso', defaultVisible: true, defaultWidthPx: 110 },
+  /*
+    ⭐ **Tre colonne che il modello portava e nessuna mostrava** (31/08/2026):
+    quando l'inventario è stato chiuso, chi l'ha fatto, e le sue note. Su un
+    conteggio periodico sono le tre domande che si pongono a posteriori.
+  */
+  { id: 'completedAt', label: 'Completato il', defaultVisible: false },
+  { id: 'createdByName', label: 'Operatore', defaultVisible: false },
+  colonna('notes', { defaultVisible: false }),
   { id: 'deltas', label: 'Differenze', numeric: true, defaultVisible: true, defaultWidthPx: 110 },
   colonna('createdAt', { defaultVisible: true, defaultWidthPx: 150 }),
 ];

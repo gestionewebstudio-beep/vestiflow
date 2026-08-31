@@ -41,6 +41,17 @@ export const SUPPLIER_ORDER_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   { id: 'lines', label: 'Righe', numeric: true, defaultVisible: true },
   { id: 'expected', label: 'Attesa il', defaultVisible: true },
   colonna('total', { defaultVisible: true }),
+  /*
+    ⭐ **Tre colonne che il modello portava e nessuna mostrava** (31/08/2026):
+    l'elenco aveva il solo totale, e su un ordine d'acquisto imponibile e IVA
+    sono le voci che si confrontano con la fattura quando arriva.
+
+    ⚠️ Il **riferimento del fornitore** è il suo numero d'ordine, non il nostro:
+    è come lui chiama la stessa cosa, e serve a ritrovarla al telefono con lui.
+  */
+  { id: 'subtotal', label: 'Imponibile', numeric: true, defaultVisible: false },
+  { id: 'tax', label: 'IVA', numeric: true, defaultVisible: false },
+  { id: 'supplierReference', label: 'Rif. fornitore', defaultVisible: false },
 ] as const;
 
 export const SUPPLIER_ORDER_LIST_COLUMN_PRESETS: TableViewPresetMap = {

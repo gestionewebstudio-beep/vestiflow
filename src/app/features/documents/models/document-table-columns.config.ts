@@ -37,6 +37,27 @@ export const DOCUMENT_LIST_SORTABLE_COLUMNS: ReadonlySet<string> = new Set([
   'status',
 ]);
 
+/**
+ * ⭐ **Le colonne che OGNI documento ha, e nessun profilo mostrava.**
+ *
+ * Chi ha creato il documento, in che sede, entro quando va pagato: tre domande
+ * che si pongono su qualunque tipo, e che il modello portava già senza che
+ * nessuna colonna le esponesse.
+ *
+ * ⚠️ **Spente di serie**: aggiungere una colonna al preset predefinito cambia
+ * ciò che tutti vedono senza che nessuno l'abbia chiesto. Il selettore Colonne
+ * esiste perché sia l'operatore a decidere.
+ *
+ * ⛔ **Dichiarate qui e non in ogni profilo**: sette copie sono sette posti dove
+ * una si può dimenticare e sette etichette che possono divergere — è già
+ * successo con i preset, lo stesso giorno.
+ */
+export const COLONNE_DOCUMENTALI_EXTRA: readonly TableColumnDef[] = [
+  { id: 'createdByName', label: 'Operatore', defaultVisible: false },
+  { id: 'locationName', label: 'Sede', defaultVisible: false },
+  { id: 'paymentDueDate', label: 'Scadenza', defaultVisible: false },
+] as const;
+
 export const DOCUMENT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   colonna('documentDate', {
     pinnable: true,
@@ -50,6 +71,7 @@ export const DOCUMENT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   colonna('status', { defaultVisible: true }),
   colonna('lineCount', { defaultVisible: true }),
   colonna('total', { defaultVisible: true }),
+  ...COLONNE_DOCUMENTALI_EXTRA,
 ] as const;
 
 export const DOCUMENT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
@@ -101,6 +123,7 @@ export const SALES_DOCUMENT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   colonna('status', { defaultVisible: true }),
   colonna('lineCount', { defaultVisible: true }),
   colonna('total', { defaultVisible: true }),
+  ...COLONNE_DOCUMENTALI_EXTRA,
 ] as const;
 
 export const SALES_DOCUMENT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
@@ -137,6 +160,7 @@ export const INVOICE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   colonna('status', { defaultVisible: true }),
   colonna('lineCount', { defaultVisible: true }),
   colonna('total', { defaultVisible: true }),
+  ...COLONNE_DOCUMENTALI_EXTRA,
 ] as const;
 
 export const INVOICE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
@@ -303,6 +327,7 @@ export const STORE_SALE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   colonna('paymentMethod', { label: 'Metodo pagamento', defaultVisible: true }),
   colonna('lineCount', { defaultVisible: true }),
   colonna('location', { defaultVisible: false }),
+  ...COLONNE_DOCUMENTALI_EXTRA,
 ] as const;
 
 export const STORE_SALE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
@@ -382,6 +407,7 @@ export const GOODS_RECEIPT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   // l'annullamento è già esposto dalla colonna "Stato" (collegamento fattura).
   // Niente colonna "Tipo": nella lista Arrivi merce il tipo interno è sempre
   // "Arrivo merce" (il selettore è stato rimosso dal form).
+  ...COLONNE_DOCUMENTALI_EXTRA,
 ] as const;
 
 export const GOODS_RECEIPT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
