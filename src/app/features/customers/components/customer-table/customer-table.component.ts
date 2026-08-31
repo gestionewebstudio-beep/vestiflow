@@ -16,7 +16,8 @@ import type {
   DataTableTotals,
 } from '@shared/components/data-table/data-table.model';
 import { totaliDiElenco } from '@shared/models/list-totals.util';
-import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
+import { createColumnFilters } from '@shared/table-columns/column-filters';
+import type { ResolvedTableColumn, TableViewId } from '@shared/table-columns/table-column.model';
 
 /**
  * Tabella clienti (dumb puro): mostra le righe ed espone il clic.
@@ -45,15 +46,32 @@ export class CustomerTableComponent {
    */
   readonly rowClickSelects = input(false);
   readonly columns = input.required<readonly ResolvedTableColumn[]>();
+
+  /** La vista, e con essa i filtri di colonna (`14` §0.2). */
+  readonly viewId = input<TableViewId>();
   readonly selectedIds = input<ReadonlySet<string>>(new Set<string>());
 
   readonly rowClick = output<Customer>();
   readonly selectionToggle = output<{ readonly customerId: string; readonly selected: boolean }>();
   readonly selectAllToggle = output<boolean>();
 
+  /*
+    ⚠️ **Si filtra QUI, una volta sola**: da queste righe discendono sezioni, riga
+    totali e card. Filtrare nel motore lascerebbe i totali sulle righe intere.
+
+    ⭐ **`dataDi` serve a «Creato il»**, che è una colonna `date`: il testo mostrato
+    è `31/01/2026`, e confrontarlo come stringa metterebbe gennaio dopo dicembre.
+  */
+  private readonly righe = createColumnFilters({
+    viewId: this.viewId,
+    righe: this.customers,
+    cellText: (customer, columnId) => this.cellText(customer, columnId),
+    dataDi: (customer, columnId) => (columnId === 'createdAt' ? customer.createdAt : null),
+  });
+
   /** Lista piatta: una sezione senza intestazione né piede. */
   protected readonly sections = computed<readonly DataTableSection<Customer>[]>(() => [
-    { id: 'clienti', rows: this.customers() },
+    { id: 'clienti', rows: this.righe() },
   ]);
 
   /*
@@ -68,7 +86,7 @@ export class CustomerTableComponent {
     che serve.
   */
   protected readonly totals = computed<DataTableTotals>(() =>
-    totaliDiElenco(this.customers(), {
+    totaliDiElenco(this.righe(), {
       rowId: this.rowId,
       selectedIds: this.selectedIds(),
       columns: this.columns(),

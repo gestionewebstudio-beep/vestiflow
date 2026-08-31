@@ -59,7 +59,6 @@ export const DOCUMENT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = conColonneCo
     pinnable: true,
     defaultVisible: true,
     display: 'code',
-    filter: 'range',
   }),
   colonna('type', { defaultVisible: true }),
   colonna('reference', { label: 'Numero', defaultVisible: true, display: 'code', cardTitle: true }),
@@ -111,7 +110,6 @@ export const SALES_DOCUMENT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = conCol
     pinnable: true,
     defaultVisible: true,
     display: 'code',
-    filter: 'range',
   }),
   colonna('reference', { label: 'Numero', defaultVisible: true, display: 'code', cardTitle: true }),
   colonna('counterparty', { label: 'Cliente', defaultVisible: true, display: 'truncate' }),
@@ -158,7 +156,6 @@ export const INVOICE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = conColonneCon
     pinnable: true,
     defaultVisible: true,
     display: 'code',
-    filter: 'range',
   }),
   colonna('reference', { label: 'Numero', defaultVisible: true, display: 'code', cardTitle: true }),
   colonna('type', { defaultVisible: true }),
@@ -247,7 +244,7 @@ export const PURCHASE_INVOICE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
     label: 'Data registrazione',
     defaultVisible: true,
     display: 'code',
-    filter: 'range',
+    filter: 'date',
   },
   // «N.» è il numero interno, da non confondere con quello della
   // fattura del fornitore (colonna accanto).
@@ -329,7 +326,6 @@ export const STORE_SALE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = conColonne
     pinnable: true,
     defaultVisible: true,
     display: 'code',
-    filter: 'range',
   }),
   colonna('reference', { label: 'Numero', defaultVisible: true, display: 'code', cardTitle: true }),
   colonna('type', { defaultVisible: true }),
@@ -390,7 +386,6 @@ export const GOODS_RECEIPT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = conColo
     pinnable: true,
     defaultVisible: true,
     display: 'code',
-    filter: 'range',
   }),
   // «N.» è il numero interno, non quello del documento fornitore.
   colonna('reference', {

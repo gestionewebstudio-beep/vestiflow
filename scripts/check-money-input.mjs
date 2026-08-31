@@ -88,6 +88,15 @@ const DEROGHE = [
     quanti: 3,
     motivo: 'idem.',
   },
+  {
+    file: 'src/app/shared/components/column-filter/column-filter.component.html',
+    quanti: 2,
+    motivo:
+      'NON sono campi di denaro: sono i due estremi di un intervallo su una colonna ' +
+      'NUMERICA qualunque — quantita\', conteggio righe, importi. `app-money-input` porta ' +
+      'valuta e unita\' minori, che su «Righe da 3 a 10» non significano niente. Il ' +
+      'tastierino decimale serve lo stesso, ed e\' l\'unica cosa che condividono.',
+  },
   // ⭐ **La Registrazione fattura e' uscita dall'elenco il 25/08/2026.** Era il
   // caso che ha fatto scrivere questa guardia: quattro campi di denaro a mano,
   // piu' l'aliquota digitata. Ora usa `app-money-input` per gli importi e la

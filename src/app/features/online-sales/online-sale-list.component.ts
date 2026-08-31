@@ -51,6 +51,7 @@ import { OnlineSalesService } from './services/online-sales.service';
 import type { DataTableTotals } from '@shared/components/data-table/data-table.model';
 import { sezioniDiElenco } from '@shared/models/list-grouping.util';
 import { totaliDiElenco } from '@shared/models/list-totals.util';
+import { createColumnFilters } from '@shared/table-columns/column-filters';
 import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 
 const SEARCH_DEBOUNCE_MS = 300;
@@ -181,13 +182,13 @@ export class OnlineSaleListComponent {
    * non conta: ha il suo campo sempre visibile. Dal/Al formano un unico
    * intervallo e valgono uno.
    */
-  protected readonly activeFilterCount = computed(() => {
-    const q = this.query();
-    let count = 0;
-    if (q.channel) count++;
-    if (q.fulfilledFrom ?? q.fulfilledTo) count++;
-    return count;
-  });
+  /*
+    ⚠️ **Il PERIODO non conta nel badge**, per la stessa ragione della ricerca:
+    ha il proprio controllo sempre visibile in barra, a ogni larghezza. Il badge
+    dice che qualcosa restringe l'elenco **senza che si veda** — è il segnale che
+    serve sotto `lg`, dove i filtri stanno chiusi nel pannello.
+  */
+  protected readonly activeFilterCount = computed(() => (this.query().channel ? 1 : 0));
 
   // takeUntilDestroyed() gestisce l'unsubscribe; il campo evita subscription "ignorate".
   private readonly searchSubscription: Subscription;
@@ -221,12 +222,14 @@ export class OnlineSaleListComponent {
     this.updateParams({ fulfilledTo: value || null, page: null }, true);
   }
 
+  /*
+    ⚠️ **Ricerca e Periodo restano fuori** (`14` §0.2, ribadito dal proprietario
+    il 31/08/2026): hanno il proprio controllo sempre a vista in barra — la
+    ricerca il suo campo, il periodo il suo slot — e non seguono il pulsante
+    «Filtri». Qui il periodo è `fulfilledFrom`/`fulfilledTo`.
+  */
   protected resetFilters(): void {
-    this.searchDraft.set('');
-    this.updateParams(
-      { search: null, channel: null, fulfilledFrom: null, fulfilledTo: null, page: null },
-      true,
-    );
+    this.updateParams({ channel: null, page: null }, true);
   }
 
   // ── La tabella, sul motore comune (`14` parte H) ────────────────────────
@@ -256,7 +259,7 @@ export class OnlineSaleListComponent {
    */
   protected readonly tableSections = computed<readonly DataTableSection<OnlineSaleRow>[]>(() => {
     const valuta = this.sales()[0]?.currency ?? DEFAULT_CURRENCY;
-    return sezioniDiElenco(this.sales(), this.raggruppaPerGiornata(), {
+    return sezioniDiElenco(this.righeFiltrate(), this.raggruppaPerGiornata(), {
       idPiatto: 'all',
       giornoDi: (sale) => sale.fulfilledAt,
       columns: this.tableColumns(),
@@ -279,7 +282,7 @@ export class OnlineSaleListComponent {
   */
   protected readonly totals = computed<DataTableTotals>(() => {
     const valuta = this.sales()[0]?.currency ?? DEFAULT_CURRENCY;
-    return totaliDiElenco(this.sales(), {
+    return totaliDiElenco(this.righeFiltrate(), {
       rowId: this.rowId,
       selectedIds: new Set<string>(),
       columns: this.tableColumns(),
@@ -309,6 +312,31 @@ export class OnlineSaleListComponent {
    * il desktop, per la card mobile e per la ricerca. Un template che rendesse
    * un testo diverso sarebbe una seconda verità.
    */
+  /*
+    ⭐ **I filtri di colonna** (`14` §0.2), coi due estrattori che servono qui.
+
+    ⚠️ Il denaro si confronta in **unità minori** e le date in **ISO**: sul testo
+    mostrato «1.250,00 €» starebbe dopo «9,00 €», e `31/01` dopo `01/02`.
+  */
+  protected readonly righeFiltrate = createColumnFilters({
+    viewId: () => this.tableViewId,
+    righe: this.sales,
+    cellText: (sale, columnId) => this.cellText(sale, columnId),
+    numeroDi: (sale, columnId) => (columnId === 'total' ? sale.totalMinor : null),
+    dataDi: (sale, columnId) => {
+      switch (columnId) {
+        case 'fulfilledAt':
+          return sale.fulfilledAt;
+        case 'orderPlacedAt':
+          return sale.orderPlacedAt;
+        case 'refundedAt':
+          return sale.refundedAt ?? null;
+        default:
+          return null;
+      }
+    },
+  });
+
   protected readonly cellText = (sale: OnlineSaleRow, columnId: string): string => {
     switch (columnId) {
       case 'reference':

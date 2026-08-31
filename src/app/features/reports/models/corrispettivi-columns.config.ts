@@ -28,7 +28,7 @@ export const CORRISPETTIVI_REGISTER_COLUMN_DEFS: readonly TableColumnDef[] = [
   // `display: 'code'` è come il motore dice «non va a capo, e le cifre sono
   // tabulari»: una data spezzata su due righe non è una data. Il Registro lo
   // otteneva con una classe sua (`__cell--date`), persa nella migrazione.
-  { id: 'occurredAt', label: 'Data', defaultVisible: true, filter: 'range', display: 'code' },
+  { id: 'occurredAt', label: 'Data', defaultVisible: true, filter: 'date', display: 'code' },
   { id: 'kind', label: 'Tipo', defaultVisible: true },
   { id: 'orderNumber', label: 'Numero', pinnable: true, defaultVisible: true },
   colonna('source', { defaultVisible: true }),

@@ -79,9 +79,16 @@ export const TABLE_VIEW_PRESET_LABELS: Record<TableViewPresetId, string> = {
  *   del benchmark Danea e quella dei Corrispettivi: Stato, Pagamento, Sede,
  *   Cliente. I valori si leggono dall'insieme caricato, non da un endpoint.
  * - `text` — testo libero: contiene / non contiene. Commenti, riferimenti.
- * - `range` — da–a su numeri, denaro e date. Totali, quantità.
+ * - `range` — da–a su numeri e denaro. Totali, quantità.
+ * - `date` — da–a su date, con due campi data veri.
+ *
+ * ⛔ **`date` non è `range` con un'altra etichetta**, e tenerli separati è la
+ * lezione del 31/08/2026: una colonna data dichiarata `range` mostra due caselle
+ * numeriche, e su una data non c'è numero da scrivere. Il confronto poi è su ISO
+ * (`AAAA-MM-GG`), non sul testo mostrato — `31/01` viene **prima** di `01/02`
+ * solo se si confrontano le date, non le stringhe che si vedono.
  */
-export type TableColumnFilterKind = 'values' | 'text' | 'range';
+export type TableColumnFilterKind = 'values' | 'text' | 'range' | 'date';
 
 export interface TableColumnDef {
   readonly id: string;

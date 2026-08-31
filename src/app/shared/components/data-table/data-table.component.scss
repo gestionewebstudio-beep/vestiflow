@@ -300,6 +300,22 @@
 }
 
 /*
+  ⭐ **«Nessuna riga corrisponde ai filtri»**: una riga di SPIEGAZIONE, non un
+  dato e non una struttura.
+
+  ⚠️ Tinta di superficie tenue e testo muted, centrato: si distingue sia dalle
+  righe (che qui non ci sono) sia dalle fasce di struttura, che nella stessa
+  tabella hanno il fondo dell'intestazione.
+*/
+.data-table__no-match-cell {
+  padding: var(--space-6) var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  text-align: center;
+  background-color: var(--color-surface-soft);
+}
+
+/*
   Il piede di sezione chiude il gruppo: più pesante del dettaglio, senza però
   gridare quanto il totale generale.
 */
@@ -1039,4 +1055,37 @@
   .data-table .data-table__total-cell--vuota {
     display: none;
   }
+}
+
+/*
+  ── ⭐ IL FILTRO DENTRO L'INTESTAZIONE ─────────────────────────────────────
+
+  Il controllo sta **sotto** il titolo della colonna, non accanto: affiancato
+  dimezzerebbe lo spazio dell'etichetta proprio nelle colonne strette, che sono
+  quelle dove il titolo è già tagliato.
+
+  ⚠️ **L'intestazione cresce solo a filtri ACCESI.** Il pulsante «Filtri» del
+  telaio li mostra e li nasconde: spenti, la riga torna alta quanto prima e la
+  tabella recupera le due righe di contenuto.
+*/
+.data-table__filter {
+  display: block;
+  margin-block-start: var(--space-1);
+  /*
+    ⚠️ **`normal`, non il `nowrap` ereditato**: la grammatica degli elenchi
+    dichiara il taglio a colonna su ogni cella, e un controllo tagliato a metà
+    non si usa. Qui il testo non è un dato: è un comando.
+  */
+  white-space: normal;
+  /* ⛔ Il filtro non è cliccabile come l'intestazione: non ordina. */
+  cursor: auto;
+}
+
+/*
+  ⚠️ **L'intestazione con un filtro non si allinea più in fondo**: con
+  `vertical-align` ereditato, colonne con e senza filtro metterebbero il titolo
+  a due altezze diverse.
+*/
+.data-table__head th:has(.data-table__filter) {
+  vertical-align: top;
 }

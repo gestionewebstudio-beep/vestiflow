@@ -28,6 +28,14 @@ export interface ColumnFilterValue {
   /** `range`: gli estremi, entrambi facoltativi. */
   readonly min?: number;
   readonly max?: number;
+  /**
+   * `date`: gli estremi in ISO `AAAA-MM-GG`, entrambi facoltativi.
+   *
+   * ⚠️ **ISO e non il testo mostrato**: `31/01` viene prima di `01/02` solo
+   * confrontando le date, e in ISO il confronto fra stringhe è già quello giusto.
+   */
+  readonly dateFrom?: string;
+  readonly dateTo?: string;
 }
 
 /** Lo stato di tutti i filtri di colonna: `columnId` → valore. */
@@ -57,6 +65,8 @@ export function isColumnFilterActive(value: ColumnFilterValue | undefined): bool
       return (value.text?.trim().length ?? 0) > 0;
     case 'range':
       return value.min !== undefined || value.max !== undefined;
+    case 'date':
+      return value.dateFrom !== undefined || value.dateTo !== undefined;
     default:
       return false;
   }
@@ -92,6 +102,14 @@ export function applicaFiltriDiColonna<T>(
     readonly cellText: (row: T, columnId: string) => string;
     /** Il numero di una colonna `range`. Senza, la colonna non filtra. */
     readonly numeroDi?: (row: T, columnId: string) => number | null;
+    /**
+     * La data ISO (`AAAA-MM-GG`) di una colonna `date`. Senza, non filtra.
+     *
+     * ⚠️ **Un istante completo va troncato al giorno**: `2026-08-31T14:00Z`
+     * confrontato con un estremo `2026-08-31` risulterebbe **maggiore**, e la
+     * riga di oggi sparirebbe da un filtro «fino a oggi».
+     */
+    readonly dataDi?: (row: T, columnId: string) => string | null;
   },
 ): readonly T[] {
   const attivi = Object.entries(filtri).filter(([, v]) => isColumnFilterActive(v));
@@ -120,6 +138,19 @@ export function applicaFiltriDiColonna<T>(
             return false;
           }
           return !(filtro.max !== undefined && numero > filtro.max);
+        }
+        case 'date': {
+          const iso = opzioni.dataDi?.(riga, columnId) ?? null;
+          if (iso === null) {
+            return true;
+          }
+          // ⚠️ Al GIORNO: un istante completo confrontato con «fino al 31/08»
+          //    risulterebbe maggiore, e la riga di oggi sparirebbe.
+          const giorno = iso.slice(0, 10);
+          if (filtro.dateFrom !== undefined && giorno < filtro.dateFrom) {
+            return false;
+          }
+          return !(filtro.dateTo !== undefined && giorno > filtro.dateTo);
         }
         default:
           return true;

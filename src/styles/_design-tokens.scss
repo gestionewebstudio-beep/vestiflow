@@ -755,6 +755,18 @@
   // Sotto il breakpoint 'md' tornano a 44px: vedi il blocco @media in fondo.
   --btn-min-height: 2.125rem; // 34px — desktop
   --field-height: 2.125rem; // 34px — input desktop
+  /*
+    ⭐ **Il minimo tappabile, con un nome suo** — 44px (`regole-stile-ui` §4).
+
+    ⚠️ Serve a chi deve TORNARE al minimo dopo che un contenitore denso ha
+    riscritto `--btn-min-height` e `--field-height` su di sé: una custom property
+    ombreggiata non si può «rileggere dalla radice», e senza un nome l'unica
+    strada sarebbe riscrivere 44px a mano — il valore nudo che la regola vieta.
+
+    Il primo consumatore è il pannello filtri compatto, che è una maschera da
+    compilare col dito dentro una barra strumenti densa.
+  */
+  --control-h-tap: 2.75rem; // 44px
   --field-height-inline: 1.875rem; // 30px — input inline nelle righe documento (spec §Form)
   // Larghezza campi per tipo di contenuto (v3): un campo largo quanto il dato
   // che ospita, mai quanto la pagina.
@@ -839,8 +851,8 @@
 // -----------------------------------------------------------------------------
 @include bp.media-down('md') {
   :root {
-    --btn-min-height: 2.75rem; // 44px
-    --field-height: 2.75rem; // 44px
+    --btn-min-height: var(--control-h-tap);
+    --field-height: var(--control-h-tap);
 
     /*
       ⚠️ **38px anche per i controlli di TESTATA** — deciso dal proprietario il

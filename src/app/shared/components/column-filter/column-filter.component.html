@@ -1,0 +1,95 @@
+@switch (kind()) {
+  @case ('values') {
+    <!--
+      ⭐ **Le scelte sono i valori PRESENTI nelle righe**, non un elenco
+      dichiarato: così non c'è una voce che non dà risultati.
+
+      ⚠️ `labelOnly` tiene la larghezza stabile: in un'intestazione di colonna il
+      controllo non deve allargarsi col valore scelto, o la tabella balla.
+    -->
+    <app-select-menu
+      [options]="menuOptions()"
+      [multiple]="true"
+      [values]="selezionati()"
+      [ariaLabel]="'Filtra per ' + columnLabel()"
+      [chipLabel]="columnLabel()"
+      placeholder="Tutti"
+      [compact]="true"
+      [labelOnly]="true"
+      [fullWidth]="true"
+      [includeEmptyOption]="false"
+      [searchable]="true"
+      [searchPlaceholder]="'Cerca fra i valori…'"
+      [searchAriaLabel]="'Cerca fra i valori di ' + columnLabel()"
+      (valuesChange)="onValues($event)"
+    />
+  }
+
+  @case ('text') {
+    <input
+      type="search"
+      class="column-filter__text"
+      [value]="testo()"
+      [attr.aria-label]="'Filtra per ' + columnLabel()"
+      placeholder="Contiene…"
+      (input)="onText($event)"
+    />
+  }
+
+  @case ('range') {
+    <!--
+      ⚠️ **Due campi e non uno**: un intervallo ha due estremi indipendenti, e
+      ognuno può restare vuoto. Il tastierino decimale si apre da sé
+      sul telefono senza rifiutare il segno meno, che serve su resi e rettifiche.
+    -->
+    <span class="column-filter__range">
+      <input
+        type="text"
+        inputmode="decimal"
+        class="column-filter__number"
+        [value]="minimo() ?? ''"
+        [attr.aria-label]="columnLabel() + ' da'"
+        placeholder="da"
+        (input)="onMin($event)"
+      />
+      <input
+        type="text"
+        inputmode="decimal"
+        class="column-filter__number"
+        [value]="massimo() ?? ''"
+        [attr.aria-label]="columnLabel() + ' a'"
+        placeholder="a"
+        (input)="onMax($event)"
+      />
+    </span>
+  }
+
+  @case ('date') {
+    <!--
+      ⛔ **Due campi DATA, non due caselle numeriche.** Una colonna data
+      dichiarata `range` mostrava due caselle in cui non c'è niente da scrivere:
+      su una data si sceglie un giorno, non si digita un numero.
+
+      ⚠️ Il valore viaggia in ISO — è quello che `app-date-input` emette, ed è
+      l'unico formato in cui il confronto fra stringhe è già quello giusto.
+    -->
+    <span class="column-filter__range">
+      <app-date-input
+        [value]="dal()"
+        [ariaLabel]="columnLabel() + ' dal'"
+        placeholder="dal"
+        [compact]="true"
+        [fullWidth]="true"
+        (valueChange)="onDal($event)"
+      />
+      <app-date-input
+        [value]="al()"
+        [ariaLabel]="columnLabel() + ' al'"
+        placeholder="al"
+        [compact]="true"
+        [fullWidth]="true"
+        (valueChange)="onAl($event)"
+      />
+    </span>
+  }
+}

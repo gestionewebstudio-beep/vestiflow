@@ -26,8 +26,16 @@ export const ONLINE_SALE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
     cardTitle: true,
   }),
   { id: 'channel', label: 'Canale', defaultVisible: true },
-  { id: 'orderNumber', label: 'Ordine origine', numeric: true, defaultVisible: true },
-  { id: 'fulfilledAt', label: 'Data evasione', defaultVisible: true },
+  // ⚠️ Un numero d'ordine è un IDENTIFICATIVO, non una grandezza: si cerca
+  //    scrivendone un pezzo, non con un intervallo da–a.
+  {
+    id: 'orderNumber',
+    label: 'Ordine origine',
+    numeric: true,
+    filter: 'text',
+    defaultVisible: true,
+  },
+  { id: 'fulfilledAt', label: 'Data evasione', filter: 'date', defaultVisible: true },
   { id: 'customer', label: 'Cliente', defaultVisible: true },
   colonna('location', { defaultVisible: true }),
   colonna('total', { defaultVisible: true }),
@@ -40,8 +48,8 @@ export const ONLINE_SALE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
     diverse — quando è stato comprato, quando è partito — e su un canale online
     la distanza fra le due è il dato che si guarda.
   */
-  { id: 'orderPlacedAt', label: 'Data ordine', defaultVisible: false },
-  { id: 'refundedAt', label: 'Rimborsato il', defaultVisible: false },
+  { id: 'orderPlacedAt', label: 'Data ordine', filter: 'date', defaultVisible: false },
+  { id: 'refundedAt', label: 'Rimborsato il', filter: 'date', defaultVisible: false },
 ] as const;
 
 export const ONLINE_SALE_LIST_COLUMN_PRESETS: TableViewPresetMap = {

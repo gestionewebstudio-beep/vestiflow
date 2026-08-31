@@ -118,7 +118,14 @@ export const GOODS_RECEIPT_LINE_COLUMNS: readonly TableColumnDef[] = [
   // default e restringibile fino a 40px; il pannello si allarga da solo.
   { id: 'vat', label: 'IVA', defaultWidthPx: 56, minWidthPx: 40 },
   { id: 'lot', label: 'Lotto', defaultVisible: false, defaultWidthPx: 88, minWidthPx: 64 },
-  { id: 'expiry', label: 'Scadenza', defaultVisible: false, defaultWidthPx: 104, minWidthPx: 88, filter: 'range' },
+  {
+    id: 'expiry',
+    label: 'Scadenza',
+    defaultVisible: false,
+    defaultWidthPx: 104,
+    minWidthPx: 88,
+    filter: 'date',
+  },
   { id: 'serials', label: 'Seriali', defaultVisible: false, defaultWidthPx: 112, minWidthPx: 88 },
   { id: 'loadsStock', label: 'Mag.', defaultWidthPx: 48, minWidthPx: 40 },
   { id: 'lineTotal', label: 'Totale', numeric: true, defaultWidthPx: 88, minWidthPx: 56 },

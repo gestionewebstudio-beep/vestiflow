@@ -37,6 +37,7 @@
     data
     [customers]="customers()"
     [columns]="tableColumns()"
+    [viewId]="customerListView"
     [selectedIds]="selectedCustomerIds()"
     (rowClick)="openCustomer($event)"
     (selectionToggle)="toggleCustomerSelection($event.customerId, $event.selected)"

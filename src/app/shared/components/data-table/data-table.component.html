@@ -56,6 +56,27 @@
               {{ col.label }}
             }
 
+            <!--
+              ⭐ **Il filtro della colonna vive nella sua intestazione** (`14`
+              §0.2): è la colonna a essere filtrabile, non l'elenco ad avere dei
+              filtri.
+
+              ⚠️ **Compare solo a filtri ACCESI**: il pulsante «Filtri» del
+              telaio li mostra e li nasconde, e spegnerli AZZERA — un filtro
+              attivo il cui controllo non si vede è il difetto che quella regola
+              evita.
+            -->
+            @if (filtersVisible() && filterKindOf(col); as forma) {
+              <app-column-filter
+                class="data-table__filter"
+                [kind]="forma"
+                [columnLabel]="col.label"
+                [options]="filterOptionsOf(col.id)"
+                [value]="columnFilters()[col.id] ?? null"
+                (changed)="onColumnFilter(col.id, $event)"
+              />
+            }
+
             @if (col.resizable !== false) {
               <span
                 class="data-table__resize"
@@ -216,6 +237,28 @@
             }
           </tr>
         }
+      }
+
+      <!--
+        ⭐ **Zero righe PER I FILTRI si dice qui dentro**, non con lo stato vuoto
+        della pagina.
+
+        ⛔ Lo stato vuoto sostituisce la tabella, quindi porterebbe via anche le
+        intestazioni — e con esse i controlli di filtro. L'operatore resterebbe
+        davanti a un elenco vuoto **senza il comando per tornare indietro**: è il
+        vicolo cieco che `14` §0.2 evita facendo azzerare i filtri allo
+        spegnimento.
+
+        ⚠️ **Solo con un filtro di colonna attivo.** Zero righe per altre ragioni
+        le racconta la pagina, che sa perché: nessun dato, ricerca senza esito,
+        periodo vuoto.
+      -->
+      @if (nessunRisultatoPerFiltri()) {
+        <tr class="data-table__no-match">
+          <td class="data-table__no-match-cell" [attr.colspan]="totalColumns()">
+            Nessuna riga corrisponde ai filtri di colonna.
+          </td>
+        </tr>
       }
     </tbody>
 

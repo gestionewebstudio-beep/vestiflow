@@ -4,16 +4,27 @@ import {
   computed,
   contentChild,
   contentChildren,
+  effect,
+  inject,
   input,
   output,
   signal,
 } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 
+import { ColumnFilterComponent } from '@shared/components/column-filter/column-filter.component';
 import { SelectionCheckComponent } from '@shared/components/selection-check/selection-check.component';
 import { TableColumnResizeDirective } from '@shared/directives/table-column-resize.directive';
 import type { SelectionMode } from '@shared/models/list-selection.model';
-import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
+import { resolveColumnFilterKind } from '@shared/table-columns/table-column-filter.util';
+import { ColumnFilterStore } from '@shared/table-columns/column-filter.store';
+import { countActiveColumnFilters } from '@shared/table-columns/column-filter.model';
+import type { ColumnFilterValue } from '@shared/table-columns/column-filter.model';
+import type {
+  ResolvedTableColumn,
+  TableColumnFilterKind,
+  TableViewId,
+} from '@shared/table-columns/table-column.model';
 import { isAllSelected, isSomeSelected } from '@shared/utils/list-selection';
 
 import { DataTableCellDirective } from './data-table-cell.directive';
@@ -72,7 +83,12 @@ const LARGHEZZA_CODICE = 128;
   host: {
     '[class.data-table-host--row-card]': 'hasRowCard()',
   },
-  imports: [NgTemplateOutlet, SelectionCheckComponent, TableColumnResizeDirective],
+  imports: [
+    NgTemplateOutlet,
+    ColumnFilterComponent,
+    SelectionCheckComponent,
+    TableColumnResizeDirective,
+  ],
   templateUrl: './data-table.component.html',
   styleUrl: './data-table.component.scss',
 })
@@ -168,6 +184,78 @@ export class DataTableComponent<T> {
    */
   readonly rowTone = input<(row: T) => DataTableRowTone | null>(() => null);
 
+  // ── Filtri di colonna (`14` §0.2) ─────────────────────────────────────────
+
+  /**
+   * ⭐ **La vista, e con essa i suoi filtri di colonna.**
+   *
+   * ⛔ **Era una terna di `input()`/`output()`** — controlli visibili, stato,
+   * cambiamento — e avrebbe voluto dire cablarli a mano in dodici elenchi, con
+   * la regola non ovvia che li governa (spegnere azzera) copiata dodici volte.
+   *
+   * ⭐ **La chiave è la stessa del selettore Colonne**, e non per comodità: i
+   * filtri di un elenco SONO le sue colonne (`14` §0.2), quindi chi sa quali
+   * colonne mostra sa anche come si filtrano. È il pattern di
+   * `app-table-column-picker`, che da sempre prende un `viewId` e legge il
+   * proprio store.
+   *
+   * ⚠️ Senza `viewId` la tabella non ha filtri di colonna — ed è giusto: le
+   * griglie di riga dei documenti sono maschere di inserimento, non elenchi.
+   */
+  readonly viewId = input<TableViewId>();
+
+  private readonly filterStore = inject(ColumnFilterStore);
+
+  /*
+    ⭐ **Il motore PUBBLICA le proprie colonne visibili**, e serve al telaio: sotto
+    `lg` le intestazioni non esistono e i controlli diventano voci di pannello —
+    ma il telaio non deve sapere niente di preferenze colonne per saperlo.
+
+    ⚠️ **Un effetto, non un `computed`**: è una scrittura verso l'esterno, e
+    riparte quando le colonne cambiano — cioè quando l'operatore ne accende o
+    spegne una dal selettore Colonne.
+  */
+  constructor() {
+    effect(() => {
+      const vista = this.viewId();
+      if (vista !== undefined) {
+        this.filterStore.registraColonne(vista, this.columns());
+      }
+    });
+  }
+
+  /** I controlli sono a vista? Lo comanda il pulsante «Filtri» del telaio. */
+  protected readonly filtersVisible = computed(() => {
+    const vista = this.viewId();
+    return vista === undefined ? false : this.filterStore.acceso(vista)();
+  });
+
+  protected readonly columnFilters = computed(() => {
+    const vista = this.viewId();
+    return vista === undefined ? {} : this.filterStore.stato(vista)();
+  });
+
+  /**
+   * ⭐ **Zero righe, e la causa è un filtro di colonna.**
+   *
+   * ⚠️ **La condizione è doppia** e va tenuta tale: senza il controllo sui filtri
+   * attivi, questa riga comparirebbe su ogni tabella momentaneamente vuota —
+   * durante il caricamento, o su un elenco che non ha dati — dicendo una causa
+   * che non è quella.
+   */
+  protected readonly nessunRisultatoPerFiltri = computed(
+    () =>
+      countActiveColumnFilters(this.columnFilters()) > 0 &&
+      this.sections().every((sezione) => sezione.rows.length === 0),
+  );
+
+  protected onColumnFilter(columnId: string, value: ColumnFilterValue | null): void {
+    const vista = this.viewId();
+    if (vista !== undefined) {
+      this.filterStore.imposta(vista, { columnId, value });
+    }
+  }
+
   readonly rowClick = output<T>();
   readonly selectionChange = output<DataTableSelectionEvent<T>>();
   readonly selectAllChange = output<boolean>();
@@ -255,6 +343,32 @@ export class DataTableComponent<T> {
   protected readonly someSelected = computed(() =>
     isSomeSelected(this.visibleRowIds(), this.selectedIds()),
   );
+
+  /**
+   * La forma di filtro di una colonna, o `null` se non si filtra.
+   *
+   * ⚠️ **Opt-out**: una colonna che non dichiara niente È filtrabile e la forma
+   * si deduce — stessa disciplina di `sortable`, e per la stessa ragione.
+   */
+  protected filterKindOf(column: ResolvedTableColumn): TableColumnFilterKind | null {
+    return resolveColumnFilterKind(column);
+  }
+
+  /**
+   * ⭐ **Le scelte di un filtro `values`: i valori PRESENTI nelle righe.**
+   *
+   * ⛔ **NON si leggono dalle sezioni che il motore riceve**, ed è la trappola di
+   * questo controllo: quelle righe sono già ristrette dai filtri attivi, quindi
+   * scelto «Bozza» sparirebbe «Confermato» dalle scelte — il filtro si potrebbe
+   * stringere ma mai allargare.
+   *
+   * ⭐ Le registra chi ha in mano le righe INTERE (`createColumnFilters`), che è
+   * anche l'unico posto dove esistono.
+   */
+  protected filterOptionsOf(columnId: string): readonly string[] {
+    const vista = this.viewId();
+    return vista === undefined ? [] : this.filterStore.opzioniDi(vista, columnId);
+  }
 
   protected templateFor(columnId: string): DataTableCellDirective | undefined {
     return this.cellTemplates().find((cell) => cell.appCell() === columnId);

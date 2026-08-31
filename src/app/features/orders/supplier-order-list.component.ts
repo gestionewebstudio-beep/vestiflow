@@ -85,6 +85,7 @@ import { SupplierOrderService } from '@domain/supplier-orders/services/supplier-
 import type { DataTableTotals } from '@shared/components/data-table/data-table.model';
 import { sezioniDiElenco } from '@shared/models/list-grouping.util';
 import { totaliDiElenco } from '@shared/models/list-totals.util';
+import { createColumnFilters } from '@shared/table-columns/column-filters';
 import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 
 const SEARCH_DEBOUNCE_MS = 300;
@@ -384,9 +385,13 @@ export class SupplierOrderListComponent {
     this.updateParams({ status: value, page: null }, true);
   }
 
+  /*
+    ⚠️ **La RICERCA non si azzera qui** (`14` §0.2, ribadito dal proprietario il
+    31/08/2026): ha il proprio campo sempre a vista, e non segue il pulsante
+    «Filtri». Nemmeno il Periodo, che qui vive nel proprio slot in barra.
+  */
   protected resetFilters(): void {
-    this.searchDraft.set('');
-    this.updateParams({ search: null, status: null, page: null }, true);
+    this.updateParams({ status: null, page: null }, true);
   }
 
   protected reload(): void {
@@ -638,7 +643,7 @@ export class SupplierOrderListComponent {
    */
   protected readonly tableSections = computed<readonly DataTableSection<SupplierOrder>[]>(() => {
     const valuta = this.orders()[0]?.totalAmount.currencyCode ?? DEFAULT_CURRENCY;
-    return sezioniDiElenco(this.orders(), this.raggruppaPerGiornata(), {
+    return sezioniDiElenco(this.righeFiltrate(), this.raggruppaPerGiornata(), {
       idPiatto: 'ordini',
       giornoDi: (order) => order.orderDate,
       columns: this.tableColumns(),
@@ -681,7 +686,7 @@ export class SupplierOrderListComponent {
   */
   protected readonly totals = computed<DataTableTotals>(() => {
     const valuta = this.orders()[0]?.totalAmount.currencyCode ?? DEFAULT_CURRENCY;
-    return totaliDiElenco(this.orders(), {
+    return totaliDiElenco(this.righeFiltrate(), {
       rowId: this.rowId,
       selectedIds: this.selectedIds(),
       columns: this.tableColumns(),
@@ -733,6 +738,43 @@ export class SupplierOrderListComponent {
         return '';
     }
   };
+
+  /*
+    ⭐ **I filtri di colonna** (`14` §0.2), con i due estrattori che servono qui.
+
+    ⚠️ **Le colonne numeriche senza `numeroDi` non filtrano**: mostrerebbero due
+    caselle che non restringono niente. Qui sono quattro — Righe, Imponibile, IVA
+    e Totale — e il denaro si confronta in **unità minori**, non sul testo
+    formattato: «1.250,00 €» come stringa sta dopo «9,00 €».
+
+    ⚠️ Lo stesso per le date, in ISO: `formatDate` produce `31/01/2026`, e
+    confrontarlo come stringa metterebbe gennaio dopo dicembre.
+  */
+  protected readonly righeFiltrate = createColumnFilters({
+    viewId: () => this.tableViewId,
+    righe: this.orders,
+    cellText: (order, columnId) => this.cellText(order, columnId),
+    numeroDi: (order, columnId) => {
+      switch (columnId) {
+        case 'lines':
+          return order.lineCount ?? order.lines.length;
+        case 'subtotal':
+          return order.subtotal.amountMinor;
+        case 'tax':
+          return order.tax.amountMinor;
+        case 'total':
+          return order.totalAmount.amountMinor;
+        default:
+          return null;
+      }
+    },
+    dataDi: (order, columnId) => {
+      if (columnId === 'documentDate') {
+        return order.orderDate;
+      }
+      return columnId === 'expected' ? (order.expectedAt ?? null) : null;
+    },
+  });
 
   protected readonly statusLabel = supplierOrderStatusLabel;
   protected readonly statusTone = supplierOrderStatusTone;

@@ -609,7 +609,27 @@
     cursor: pointer;
   }
 
+  /*
+    ⛔ **IL PANNELLO NON È UNA BARRA STRUMENTI** — corretto il 31/08/2026.
+
+    La regola densa qui sopra lo dichiarava già — «la zona `__filters` resta
+    fuori… là il minimo tappabile va tenuto» — ma il selettore la includeva, e
+    le custom property si ereditano comunque da `.list-page__tools`. Sotto `md`
+    i campi del pannello venivano quindi a **32px**, l'altezza dei pulsanti di
+    barra, invece dei 44 dei campi.
+
+    ⚠️ **Non si vedeva su scrivania**, dove il pannello non esiste, e nessun
+    controllo automatico distingue un campo da compilare da un pulsante da
+    premere: la distinzione è di significato, ed è quella su cui poggia tutta la
+    deroga dei 32px.
+  */
   .list-page__filters--panel {
+    --btn-min-height: var(--control-h-tap);
+    --field-height: var(--control-h-tap);
+    --field-h: var(--control-h-tap);
+    --field-font-size: var(--text-sm);
+    --button-font-size: var(--text-sm);
+
     position: fixed;
     inset-block: 0;
     inset-inline-end: 0;
@@ -647,6 +667,37 @@
   .list-page__filters-title {
     margin: 0;
     font-size: var(--text-base);
+  }
+
+  /*
+    ⭐ **Una voce del pannello = una colonna filtrabile.**
+
+    Etichetta sopra, controllo sotto e a piena larghezza: sotto `lg` il nome
+    della colonna non c'è più in nessun'altra parte dello schermo, quindi il
+    controllo da solo non direbbe che cosa filtra.
+
+    ⚠️ **Case normale, non maiuscoletto** (`regole-stile-ui` §3): a questa
+    dimensione il maiuscoletto si legge peggio e stona col resto del pannello.
+  */
+  .list-page__filter-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .list-page__filter-label {
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-field-label);
+  }
+
+  /* ⚠️ Il contenuto di una voce occupa la riga: la colonna qui è una sola. */
+  .list-page__filter-field app-column-filter {
+    --select-menu-width: 100%;
+    --select-menu-max-width: 100%;
+
+    display: block;
+    inline-size: 100%;
   }
 
   /* In fondo al pannello, spinto in basso: si legge dopo i filtri, non prima. */

@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   effect,
   inject,
   input,
@@ -14,13 +15,24 @@ import type { ElementRef } from '@angular/core';
 
 import { ViewportService } from '@core/services/viewport.service';
 
+import { ColumnFilterComponent } from '@shared/components/column-filter/column-filter.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
-import type { TableViewId } from '@shared/table-columns/table-column.model';
+import { ColumnFilterStore } from '@shared/table-columns/column-filter.store';
+import {
+  isColumnFilterable,
+  resolveColumnFilterKind,
+} from '@shared/table-columns/table-column-filter.util';
+import type { ColumnFilterValue } from '@shared/table-columns/column-filter.model';
+import type {
+  ResolvedTableColumn,
+  TableColumnFilterKind,
+  TableViewId,
+} from '@shared/table-columns/table-column.model';
 
 /**
  * ⭐ **Il telaio di una pagina elenco** (`14` §0, Fase G).
@@ -86,12 +98,14 @@ import type { TableViewId } from '@shared/table-columns/table-column.model';
     ErrorStateComponent,
     EmptyStateComponent,
     TableColumnPickerComponent,
+    ColumnFilterComponent,
     ButtonComponent,
     BackButtonComponent,
   ],
 })
 export class ListPageComponent {
   private readonly document = inject(DOCUMENT);
+  private readonly filterStore = inject(ColumnFilterStore);
 
   /**
    * ⭐ La stessa soglia che decide quale vista di riga è viva nel DOM
@@ -256,17 +270,83 @@ export class ListPageComponent {
    * ⚠️ Periodo e Ricerca **non** seguono questo interruttore: sono esterni alle
    * colonne (`14` §11.2).
    */
-  readonly filtersOn = model(false);
+  protected readonly filtersOn = computed(() => {
+    const vista = this.columnsViewId();
+    return vista === undefined ? this.filtriLocali() : this.filterStore.acceso(vista)();
+  });
+
+  /**
+   * ⚠️ **Il ripiego per un elenco senza vista di colonne.** Oggi lo usa la sola
+   * maschera «Cerca», che di filtri di colonna non ne ha: l'interruttore resta
+   * un segnale locale invece di non esistere, così il pulsante non si comporta
+   * in due modi diversi a seconda della pagina.
+   */
+  private readonly filtriLocali = signal(false);
 
   /**
    * Quanti filtri sono attivi adesso: diventa «Filtri (2)» sul pulsante.
    *
-   * ⚠️ **Lo conta la pagina, non il telaio.** Il telaio non sa cosa sia un
-   * filtro attivo — non conosce il dominio (`14` §59). Sotto `lg` il numero è
-   * l'unica cosa che dice che qualcosa sta restringendo l'elenco, perché i
-   * controlli sono chiusi nel pannello.
+   * ⚠️ **Sono i filtri di DOMINIO**, quelli ancora proiettati in `[filters]`. I
+   * filtri di colonna li conta il telaio da sé — vedi `conteggioFiltri()` — e i
+   * due si sommano finché la migrazione non è finita.
    */
   readonly activeFilterCount = input(0);
+
+  /**
+   * ⭐ **Il numero del badge: dominio + colonne.**
+   *
+   * ⛔ **Non si può contare da una parte sola.** Durante la migrazione un elenco
+   * può avere entrambi, e mostrare solo gli uni direbbe «nessun filtro» a un
+   * elenco ristretto — che è il difetto che il badge esiste per evitare.
+   */
+  protected readonly conteggioFiltri = computed(() => {
+    const vista = this.columnsViewId();
+    const colonne = vista === undefined ? 0 : this.filterStore.conteggio(vista)();
+    return this.activeFilterCount() + colonne;
+  });
+
+  /**
+   * ⭐ **Le colonne che portano un filtro nel PANNELLO compatto** (`14` §0.2).
+   *
+   * Sotto `lg` le intestazioni non esistono, quindi i controlli che su scrivania
+   * vivono nella colonna diventano voci di un elenco. **Sono gli stessi
+   * controlli**, con gli stessi valori: lo stato è uno solo, nello store.
+   *
+   * ⚠️ **Solo le colonne VISIBILI.** Colonna spenta dal selettore Colonne, filtro
+   * spento: restringere l'elenco per una colonna che non si vede è peggio che non
+   * poterlo fare.
+   */
+  protected readonly colonneFiltrabili = computed<readonly ResolvedTableColumn[]>(() => {
+    const vista = this.columnsViewId();
+    if (vista === undefined || !this.compatto()) {
+      return [];
+    }
+    // ⭐ Le pubblica il motore tabella: il telaio non conosce le preferenze
+    //    colonne, e non deve tirarsi dietro `AuthService` su ogni elenco.
+    return this.filterStore.colonne(vista)().filter(isColumnFilterable);
+  });
+
+  protected formaFiltro(colonna: ResolvedTableColumn): TableColumnFilterKind {
+    // ⚠️ Non `null`: `colonneFiltrabili()` ha già tolto le colonne senza filtro.
+    return resolveColumnFilterKind(colonna) ?? 'values';
+  }
+
+  protected valoreFiltro(columnId: string): ColumnFilterValue | null {
+    const vista = this.columnsViewId();
+    return vista === undefined ? null : (this.filterStore.stato(vista)()[columnId] ?? null);
+  }
+
+  protected opzioniFiltro(columnId: string): readonly string[] {
+    const vista = this.columnsViewId();
+    return vista === undefined ? [] : this.filterStore.opzioniDi(vista, columnId);
+  }
+
+  protected onFiltroColonna(columnId: string, value: ColumnFilterValue | null): void {
+    const vista = this.columnsViewId();
+    if (vista !== undefined) {
+      this.filterStore.imposta(vista, { columnId, value });
+    }
+  }
 
   /**
    * ⭐ **Il piede diventa un DOCK sotto `lg`**: totali e comandi restano sempre
@@ -355,19 +435,31 @@ export class ListPageComponent {
       return;
     }
 
-    const acceso = !this.filtersOn();
-    this.filtersOn.set(acceso);
+    const vista = this.columnsViewId();
+    if (vista === undefined) {
+      this.filtriLocali.set(!this.filtriLocali());
+    } else {
+      // ⭐ Accende, spegne, e **spegnendo azzera i filtri di colonna**: la regola
+      //    sta nello store, dove stanno i valori, e non in questo pulsante.
+      this.filterStore.commuta(vista);
+    }
 
     // ⭐ «Lo spegnimento È l'azzeramento» (`14` §0.2). Su scrivania questo
     //    pulsante ha PRESO IL POSTO di «Azzera filtri», che stava in barra su
     //    sei pagine: se spegnere non azzerasse, l'azzeramento non esisterebbe
     //    più da nessuna parte.
-    if (!acceso) {
+    //
+    // ⚠️ L'evento resta per i filtri di DOMINIO, che la pagina possiede ancora.
+    if (!this.filtersOn()) {
       this.filtersCleared.emit();
     }
   }
 
   protected azzeraFiltri(): void {
+    const vista = this.columnsViewId();
+    if (vista !== undefined) {
+      this.filterStore.azzera(vista);
+    }
     this.filtersCleared.emit();
   }
 

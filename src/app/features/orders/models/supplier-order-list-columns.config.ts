@@ -39,7 +39,7 @@ export const SUPPLIER_ORDER_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   colonna('supplier', { defaultVisible: true }),
   colonna('status', { defaultVisible: true }),
   { id: 'lines', label: 'Righe', numeric: true, defaultVisible: true },
-  { id: 'expected', label: 'Attesa il', defaultVisible: true },
+  { id: 'expected', label: 'Attesa il', filter: 'date', defaultVisible: true },
   colonna('total', { defaultVisible: true }),
   /*
     ⭐ **Tre colonne che il modello portava e nessuna mostrava** (31/08/2026):

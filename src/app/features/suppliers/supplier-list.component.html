@@ -23,6 +23,7 @@
     data
     [suppliers]="suppliers()"
     [columns]="tableColumns()"
+    [viewId]="tableViewId"
     [selectedIds]="selectedSupplierIds()"
     (selectionToggle)="toggleSupplierSelection($event.supplierId, $event.selected)"
     (selectAllToggle)="toggleSelectAll($event)"

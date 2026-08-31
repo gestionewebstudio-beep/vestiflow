@@ -172,6 +172,82 @@ describe('applicaFiltriDiColonna', () => {
   });
 });
 
+describe('intervallo di DATE', () => {
+  interface Movimento {
+    readonly id: string;
+    readonly quando: string;
+  }
+
+  const MOVIMENTI: readonly Movimento[] = [
+    { id: 'gen', quando: '2026-01-31' },
+    { id: 'feb', quando: '2026-02-01' },
+    // ⚠️ Un istante completo, non un giorno: è la forma in cui l'API le manda.
+    { id: 'ago', quando: '2026-08-31T14:30:00.000Z' },
+  ];
+
+  const testoData = (m: Movimento): string => m.quando;
+  const dataDi = (m: Movimento): string => m.quando;
+  const idsM = (righe: readonly Movimento[]): string[] => righe.map((r) => r.id);
+
+  /*
+    ⛔ **In ISO il confronto fra stringhe è già quello giusto**, e sul testo
+    mostrato non lo sarebbe: «31/01» viene dopo «01/02» in ordine alfabetico.
+    È la ragione per cui `date` legge una data e non `cellText`.
+  */
+  it('⛔ confronta le date, non il testo mostrato', () => {
+    const out = applicaFiltriDiColonna(
+      MOVIMENTI,
+      { quando: { kind: 'date', dateFrom: '2026-02-01' } },
+      { cellText: testoData, dataDi },
+    );
+    expect(idsM(out)).toEqual(['feb', 'ago']);
+  });
+
+  /*
+    ⛔ **L'istante si tronca al GIORNO**, ed è la trappola di questo filtro:
+    `'2026-08-31T14:30'` confrontato con un estremo `'2026-08-31'` risulta
+    **maggiore**, quindi la riga di oggi sparirebbe da un «fino a oggi». È il
+    difetto che si scopre solo il giorno in cui lo si usa.
+  */
+  it('⛔ «fino al 31» prende anche la riga delle 14:30 del 31', () => {
+    const out = applicaFiltriDiColonna(
+      MOVIMENTI,
+      { quando: { kind: 'date', dateTo: '2026-08-31' } },
+      { cellText: testoData, dataDi },
+    );
+    expect(idsM(out)).toContain('ago');
+  });
+
+  it('i due estremi insieme delimitano', () => {
+    const out = applicaFiltriDiColonna(
+      MOVIMENTI,
+      { quando: { kind: 'date', dateFrom: '2026-01-01', dateTo: '2026-01-31' } },
+      { cellText: testoData, dataDi },
+    );
+    expect(idsM(out)).toEqual(['gen']);
+  });
+
+  /*
+    ⚠️ **Senza estrattore la colonna non filtra**, invece di filtrare male —
+    stessa scelta di `range`: meglio non restringere che restringere per un
+    confronto che non sappiamo fare.
+  */
+  it('⚠️ senza `dataDi` lascia passare tutto', () => {
+    const out = applicaFiltriDiColonna(
+      MOVIMENTI,
+      { quando: { kind: 'date', dateFrom: '2026-06-01' } },
+      { cellText: testoData },
+    );
+    expect(idsM(out)).toHaveLength(3);
+  });
+
+  it('un intervallo senza estremi non è un filtro', () => {
+    expect(isColumnFilterActive({ kind: 'date' })).toBe(false);
+    expect(isColumnFilterActive({ kind: 'date', dateFrom: '2026-01-01' })).toBe(true);
+    expect(isColumnFilterActive({ kind: 'date', dateTo: '2026-01-01' })).toBe(true);
+  });
+});
+
 describe('valoriDistinti', () => {
   it('elenca i valori presenti, senza ripetizioni', () => {
     expect(valoriDistinti(RIGHE, 'stato', cellText)).toEqual(['Annullato', 'Bozza', 'Confermato']);

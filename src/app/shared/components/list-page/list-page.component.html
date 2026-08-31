@@ -119,6 +119,32 @@
 
       <ng-content select="[filters]" />
 
+      <!--
+        ⭐ **I filtri di COLONNA nel pannello compatto** (`14` §0.2).
+
+        Sotto `lg` le intestazioni non esistono, quindi il controllo che su
+        scrivania vive nella colonna diventa una voce di elenco. **È lo stesso
+        controllo con lo stesso stato**: la sorgente è una sola, lo store per
+        vista — se fossero due, l'uno mostrerebbe filtri che l'altro non ha.
+
+        ⚠️ **Sopra `lg` non si rende affatto**, e non è un `display: none`:
+        `colonneFiltrabili()` torna vuoto. Il contenuto proiettato si rende una
+        volta sola, e due vesti vive insieme sono il difetto che §9 chiama «la
+        stessa riga non esiste due volte».
+      -->
+      @for (colonna of colonneFiltrabili(); track colonna.id) {
+        <div class="list-page__filter-field">
+          <span class="list-page__filter-label">{{ colonna.label }}</span>
+          <app-column-filter
+            [kind]="formaFiltro(colonna)"
+            [columnLabel]="colonna.label"
+            [options]="opzioniFiltro(colonna.id)"
+            [value]="valoreFiltro(colonna.id)"
+            (changed)="onFiltroColonna(colonna.id, $event)"
+          />
+        </div>
+      }
+
       @if (compatto()) {
         <div class="list-page__filters-foot">
           <app-button variant="ghost" (click)="azzeraFiltri()">Azzera filtri</app-button>
@@ -196,8 +222,8 @@
         @if (!compatto()) {
           Filtri
         }
-        @if (activeFilterCount() > 0) {
-          <span>&nbsp;({{ activeFilterCount() }})</span>
+        @if (conteggioFiltri() > 0) {
+          <span>&nbsp;({{ conteggioFiltri() }})</span>
         }
       </app-button>
     </div>

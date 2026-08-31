@@ -7,7 +7,7 @@ import {
 
 export const SUPPLIER_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   colonna('code', { pinnable: true, defaultVisible: true }),
-  { id: 'name', label: 'Ragione sociale', defaultVisible: true },
+  { id: 'name', label: 'Ragione sociale', filter: 'text', defaultVisible: true },
   colonna('vatNumber', { defaultVisible: true }),
   colonna('email', { defaultVisible: true }),
   colonna('city', { defaultVisible: true }),

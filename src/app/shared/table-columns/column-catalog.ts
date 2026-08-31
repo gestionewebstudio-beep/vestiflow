@@ -1,4 +1,4 @@
-import type { TableColumnDef } from './table-column.model';
+import type { TableColumnDef, TableColumnFilterKind } from './table-column.model';
 
 /**
  * ⭐ **Il catalogo delle colonne di elenco** — deciso il 30/08/2026.
@@ -39,14 +39,27 @@ interface VoceCatalogo {
   readonly label: string;
   readonly numeric?: true;
   readonly summable?: false;
+  /**
+   * ⭐ **Come si filtra**, quando la deduzione sbaglierebbe (`14` §0.2).
+   *
+   * ⛔ **La deduzione da sola manda tutto a `values`**, e su una colonna di
+   * IDENTITÀ è la forma sbagliata: misurato il 31/08/2026 sui Fornitori, il
+   * filtro di «Ragione sociale» era un menu con un valore per riga — si può solo
+   * scegliere un nome intero fra tutti, mai scrivere «ros».
+   *
+   * ⭐ **Sta nel catalogo perché la risposta è del CONCETTO, non dell'elenco**:
+   * un codice si cerca scrivendo dovunque compaia. Dichiararlo qui lo sistema
+   * per tutti gli elenchi che lo usano, invece che elenco per elenco.
+   */
+  readonly filter?: TableColumnFilterKind;
   /** L'etichetta non si sovrascrive: stesso concetto, stessa parola ovunque. */
   readonly fisso?: true;
 }
 
 export const CATALOGO_COLONNE = {
   // ── Identità del record ───────────────────────────────────────────────────
-  reference: { label: 'Riferimento' },
-  code: { label: 'Codice', fisso: true },
+  reference: { label: 'Riferimento', filter: 'text' },
+  code: { label: 'Codice', filter: 'text', fisso: true },
   type: { label: 'Tipo', fisso: true },
   status: { label: 'Stato', fisso: true },
   source: { label: 'Origine', fisso: true },
@@ -65,8 +78,12 @@ export const CATALOGO_COLONNE = {
   supplier: { label: 'Fornitore', fisso: true },
 
   // ── Quando ────────────────────────────────────────────────────────────────
-  documentDate: { label: 'Data' },
-  createdAt: { label: 'Creato il' },
+  /*
+    ⭐ **Le date si filtrano con DUE CAMPI DATA**, non con due caselle numeriche
+    e non con un menu di date formattate — che è dove le mandava la deduzione.
+  */
+  documentDate: { label: 'Data', filter: 'date' },
+  createdAt: { label: 'Creato il', filter: 'date' },
 
   // ── Quanto ────────────────────────────────────────────────────────────────
   total: { label: 'Totale', numeric: true },
@@ -78,18 +95,24 @@ export const CATALOGO_COLONNE = {
   minThreshold: { label: 'Soglia min.', numeric: true, fisso: true },
 
   // ── Anagrafica ────────────────────────────────────────────────────────────
-  sku: { label: 'SKU' },
-  articleCode: { label: 'Codice articolo', fisso: true },
+  sku: { label: 'SKU', filter: 'text' },
+  articleCode: { label: 'Codice articolo', filter: 'text', fisso: true },
   category: { label: 'Categoria', fisso: true },
-  vatNumber: { label: 'P. IVA', fisso: true },
-  email: { label: 'Email', fisso: true },
-  phone: { label: 'Telefono', fisso: true },
+  vatNumber: { label: 'P. IVA', filter: 'text', fisso: true },
+  email: { label: 'Email', filter: 'text', fisso: true },
+  phone: { label: 'Telefono', filter: 'text', fisso: true },
+  /*
+    ⚠️ **La città resta un MENU**, e la differenza col resto della riga è quella
+    che conta: le città in cui si hanno fornitori sono poche e si vogliono
+    **vedere**. Un codice o una P. IVA no — sono identificativi, e di quelli si
+    scrive un pezzo.
+  */
   city: { label: 'Città', fisso: true },
 
   // ── Coda ──────────────────────────────────────────────────────────────────
   paymentMethod: { label: 'Pagamento' },
-  ddt: { label: 'DDT', fisso: true },
-  notes: { label: 'Commento', fisso: true },
+  ddt: { label: 'DDT', filter: 'text', fisso: true },
+  notes: { label: 'Commento', filter: 'text', fisso: true },
 } as const satisfies Record<string, VoceCatalogo>;
 
 export type IdColonna = keyof typeof CATALOGO_COLONNE;
@@ -124,6 +147,7 @@ export function colonna(id: IdColonna, resto: Resto & { label?: string } = {}): 
     label: label ?? voce.label,
     ...(voce.numeric ? { numeric: true } : {}),
     ...(voce.summable === false ? { summable: false } : {}),
+    ...(voce.filter ? { filter: voce.filter } : {}),
     ...altro,
   };
 }

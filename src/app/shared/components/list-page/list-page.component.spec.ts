@@ -3,7 +3,13 @@ import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
+import { TestBed } from '@angular/core/testing';
+
 import { ViewportService } from '@core/services/viewport.service';
+import { ColumnFilterStore } from '@shared/table-columns/column-filter.store';
+import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
+import { TableViewId } from '@shared/table-columns/table-column.model';
+import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
 
 import { ListPageComponent } from './list-page.component';
 
@@ -21,7 +27,6 @@ import { ListPageComponent } from './list-page.component';
   template: `
     <app-list-page
       pageTitle="Fornitori"
-
       [loading]="loading"
       [error]="error"
       [isEmpty]="isEmpty"
@@ -267,5 +272,151 @@ describe('ListPageComponent — le due vesti dei filtri', () => {
     expect(filtri?.classList.contains('list-page__filters--panel')).toBe(false);
     expect(filtri?.getAttribute('role')).toBeNull();
     expect(screen.getByText('un filtro')).toBeVisible();
+  });
+});
+
+/**
+ * ⭐ **I FILTRI DI COLONNA NEL TELAIO** (`14` §0.2).
+ *
+ * Il telaio ne fa due cose: **conta** quelli attivi sul pulsante, e sotto `lg`
+ * **li mostra nel pannello** — dove le intestazioni di colonna non esistono.
+ */
+
+const COLONNE_VISTA: readonly ResolvedTableColumn[] = [
+  { id: 'stato', label: 'Stato', pinned: false },
+  { id: 'codice', label: 'Codice', display: 'code', pinned: false },
+  // ⛔ Dichiarata non filtrabile: non deve comparire nel pannello.
+  { id: 'note', label: 'Note', filter: false, pinned: false },
+];
+
+function preferenzeConVista() {
+  return {
+    registerView: vi.fn(),
+    columnDefs: vi.fn(() => COLONNE_VISTA),
+    visibleColumns: vi.fn(() => signal(COLONNE_VISTA).asReadonly()),
+
+    visibleColumnIds: vi.fn(() => COLONNE_VISTA.map((c) => c.id)),
+    state: vi.fn(() =>
+      signal({
+        presetId: 'default',
+        columnOrder: COLONNE_VISTA.map((c) => c.id),
+        hiddenColumnIds: [] as string[],
+        pinnedColumnIds: [] as string[],
+        columnWidths: {},
+      }).asReadonly(),
+    ),
+    presetMap: vi.fn(() => ({})),
+    isColumnVisible: vi.fn(() => true),
+    moveColumn: vi.fn(),
+    toggleColumn: vi.fn(),
+    togglePin: vi.fn(),
+    applyPreset: vi.fn(),
+    resetToDefault: vi.fn(),
+  };
+}
+
+@Component({
+  imports: [ListPageComponent],
+  template: `
+    <app-list-page
+      pageTitle="Fornitori"
+      [loading]="false"
+      [skeletonColumns]="5"
+      [activeFilterCount]="attivi"
+      [columnsViewId]="vista"
+    >
+      <div data>le righe</div>
+    </app-list-page>
+  `,
+})
+class ConsumerColonneComponent {
+  attivi = 0;
+  readonly vista = TableViewId.SuppliersList;
+}
+
+async function montaColonne(opzioni: { compatta?: boolean; attivi?: number } = {}) {
+  const reso = await render(ConsumerColonneComponent, {
+    componentProperties: { attivi: opzioni.attivi ?? 0 },
+    providers: [
+      { provide: ViewportService, useValue: { compact: signal(opzioni.compatta ?? false) } },
+      { provide: TableColumnPreferenceService, useValue: preferenzeConVista() },
+    ],
+  });
+  const store = TestBed.inject(ColumnFilterStore);
+  store.azzera(TableViewId.SuppliersList);
+  /*
+    ⚠️ **Le colonne le pubblica il MOTORE TABELLA**, che qui non c'è: il consumer
+    di prova proietta un `<div data>`. Registrarle a mano è quindi la fedeltà
+    giusta — si verifica che il telaio renda ciò che lo store espone, non che il
+    motore lo popoli (quello ha la sua prova).
+  */
+  store.registraColonne(TableViewId.SuppliersList, COLONNE_VISTA);
+  reso.fixture.detectChanges();
+  return { reso, store };
+}
+
+describe('ListPageComponent — i filtri di colonna', () => {
+  /*
+    ⭐ **Sotto `lg` il controllo di colonna diventa una voce di pannello**: lì le
+    intestazioni non esistono, quindi non c'è dove metterlo.
+  */
+  it('⭐ nel pannello compatto c’è una voce per colonna filtrabile', async () => {
+    const { reso } = await montaColonne({ compatta: true });
+
+    await userEvent.click(screen.getByRole('button', { name: /Filtri/ }));
+    reso.fixture.detectChanges();
+
+    expect(screen.getByLabelText('Filtra per Stato')).toBeTruthy();
+    expect(screen.getByLabelText('Filtra per Codice')).toBeTruthy();
+    // ⛔ `filter: false` vale anche qui.
+    expect(screen.queryByLabelText('Filtra per Note')).toBeNull();
+  });
+
+  /*
+    ⛔ **Sopra `lg` NON si rendono**, e non con un `display: none`: là i controlli
+    vivono nelle intestazioni di colonna, e averli in due posti insieme è «la
+    stessa riga esiste due volte» (`regole-stile-ui` §9).
+  */
+  it('⛔ nella veste estesa il pannello non li duplica', async () => {
+    await montaColonne();
+
+    expect(screen.queryByLabelText('Filtra per Stato')).toBeNull();
+    expect(screen.queryByLabelText('Filtra per Codice')).toBeNull();
+  });
+
+  /*
+    ⛔ **Il badge somma dominio e colonne.** Durante la migrazione un elenco può
+    avere entrambi: contarne uno solo direbbe «nessun filtro» a un elenco
+    ristretto, che è il difetto per cui il badge esiste.
+  */
+  it('⛔ il conteggio somma i filtri di dominio e quelli di colonna', async () => {
+    const { reso, store } = await montaColonne({ attivi: 2 });
+
+    store.imposta(TableViewId.SuppliersList, {
+      columnId: 'stato',
+      value: { kind: 'values', values: ['Bozza'] },
+    });
+    reso.fixture.detectChanges();
+
+    expect(screen.getByRole('button', { name: /Filtri\s*\(3\)/ })).toBeVisible();
+  });
+
+  /*
+    ⛔ **Spegnere «Filtri» azzera anche quelli di colonna** (`14` §0.2): un filtro
+    attivo il cui controllo non si vede è lo stato che la regola vieta.
+  */
+  it('⛔ su scrivania spegnere «Filtri» cancella i filtri di colonna', async () => {
+    const { reso, store } = await montaColonne();
+
+    await userEvent.click(screen.getByRole('button', { name: /Filtri/ })); // acceso
+    store.imposta(TableViewId.SuppliersList, {
+      columnId: 'stato',
+      value: { kind: 'values', values: ['Bozza'] },
+    });
+    reso.fixture.detectChanges();
+    expect(store.conteggio(TableViewId.SuppliersList)()).toBe(1);
+
+    await userEvent.click(screen.getByRole('button', { name: /Filtri/ })); // spento
+    expect(store.conteggio(TableViewId.SuppliersList)()).toBe(0);
   });
 });
