@@ -67,14 +67,43 @@
   La maniglia di ridimensionamento: pochi pixel sul bordo destro
   dell'intestazione. `regole-stile-ui` §9 ricorda che è un bersaglio da
   puntatore fine — su dispositivo a dito la tabella diventa card e non c'è.
+
+  ⭐ **E si vede** — deciso dal proprietario il 30/08/2026:
+  «bisognerebbe rendere visibile la linea di regolazione della larghezza colonna».
+
+  ⛔ Prima era un bersaglio **trasparente** da 4px: lo si trovava solo passandoci
+  sopra per caso. Una funzione che non si annuncia non esiste per chi non sa già
+  che c'è.
+
+  ⚠️ **Il bersaglio resta largo, il filo è sottile**: si allarga a 8px per essere
+  colpibile col mouse, ma disegna un pelo di 1px — la linea deve indicare dove si
+  trascina, non diventare un secondo divisore più grosso di quelli veri.
 */
 .data-table__resize {
   position: absolute;
   inset-block: 0;
   inset-inline-end: 0;
-  inline-size: var(--space-1);
+  inline-size: var(--space-2);
   cursor: col-resize;
   user-select: none;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset-block: var(--space-1);
+    inset-inline-end: 0;
+    inline-size: var(--border-width);
+    background-color: var(--color-table-header-rule);
+  }
+
+  &:hover::after,
+  &:active::after {
+    inset-block: 0;
+    // ⚠️ 2px, non 4: `--border-width-accent` è la striscia di tipo su una card,
+    //    e qui farebbe una barra più grossa dei divisori che deve solo affiancare.
+    inline-size: var(--border-width-strong);
+    background-color: var(--color-focus);
+  }
 }
 
 .data-table__head-cell {
@@ -483,6 +512,15 @@
   delle colonne dati — non è un dato, è una fascia di comando.
 */
 .data-table__cell--row-actions {
+  /*
+    ⚠️ **Fissa, e nessuno la configura.** Il 30/08/2026 era diventata
+    `var(--data-table-row-actions-w, …)` per far stare i due pulsanti di riga
+    dell'elenco prodotti; quei pulsanti sono poi passati alla barra in basso, e
+    il punto di regolazione è rimasto **senza un solo consumatore**.
+
+    ⛔ Un punto di regolazione che nessuno usa non è flessibilità: è una promessa
+    di configurabilità che nessuno ha verificato. Torna quando serve.
+  */
   inline-size: var(--space-12);
   text-align: center;
   white-space: nowrap;
@@ -655,5 +693,73 @@
       content: none;
       display: none;
     }
+  }
+}
+
+/*
+  ── La riga TOTALI ─────────────────────────────────────────────────────────
+
+  ⭐ **Appiccicata in fondo alla vista**, dentro lo stesso contenitore che scorre:
+  su un elenco lungo resta sempre leggibile, e resta incolonnata perché è una
+  riga della stessa tabella.
+
+  ⚠️ **Il fondo è OPACO, non velato**: sotto scorrono righe di numeri, e a tinta
+  trasparente i due testi si leggerebbero sovrapposti. È la stessa ragione per cui
+  il piede del riepilogo Corrispettivi è opaco.
+
+  ⚠️ **Peso di STRUTTURA, non di transazione**: prende il fondo
+  dell'intestazione, come la riga di subtotale di gruppo — un totale e una riga di
+  dati non condividono la tinta, o il primo si legge come un'altra riga.
+*/
+.data-table__totals {
+  position: sticky;
+  inset-block-end: 0;
+  /*
+    ⚠️ Sopra le righe, ma **sotto l'intestazione appiccicata** (`--z-raised` + 1
+    e + 2 qui sopra): se si scavalcassero, scorrendo fino in cima i due si
+    coprirebbero a vicenda.
+  */
+  z-index: var(--z-raised);
+}
+
+.data-table__totals td {
+  background-color: var(--color-table-header-bg);
+  border-block-start: var(--border-width) solid var(--color-table-header-rule);
+  border-block-end: 0;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+/*
+  Il conteggio è la voce meno importante della riga: dice quante cose ci sono,
+  non quanto valgono. Resta a sinistra, in tono minore.
+*/
+.data-table__totals-count {
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.data-table__totals-value {
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+  ⛔ **Il taglio a colonna NON vale sulla card**, e va spento esplicitamente.
+
+  `summary-grammar` dichiara `nowrap` + `overflow: hidden` sulle celle **senza
+  media query**, perché sulla tabella è sempre giusto. Sotto `lg` però le celle
+  diventano blocchi impilati: lì non esiste una colonna successiva che tagli, e
+  quello che resta è un nome **troncato a metà larghezza schermo** senza alcun
+  modo di leggerlo — su una card il testo deve andare a capo.
+
+  ⚠️ **Difetto introdotto e trovato lo stesso giorno** (30/08/2026), cercandolo:
+  non fallisce niente, non c'è test che lo veda, e su scrivania non si manifesta.
+*/
+@include bp.vista-compatta('lg') {
+  .data-table tbody td,
+  .data-table__row td {
+    overflow: visible;
+    white-space: normal;
   }
 }

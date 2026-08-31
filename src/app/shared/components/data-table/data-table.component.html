@@ -126,6 +126,19 @@
                 }
               </td>
             }
+            <!--
+              ⛔ **Il tooltip sta su OGNI cella, non solo su `display: 'truncate'`.**
+
+              Dal 30/08/2026 il taglio a colonna vale per tutte le celle di tutti
+              gli elenchi. Legare il tooltip a una dichiarazione di colonna
+              significava tagliare il testo **senza lasciare un modo di leggerlo**
+              su ogni colonna che non se lo ricordava — e su quella promessa erano
+              già state scritte due regole.
+
+              ⚠️ **Su una cella con template proiettato non compare**: `cellText`
+              risponde stringa vuota, e `|| null` toglie l'attributo. Il tooltip
+              riguarda il testo, e una pill non è testo.
+            -->
             @for (col of columns(); track col.id) {
               <td
                 [class.data-table__cell--numeric]="col.numeric"
@@ -133,7 +146,7 @@
                 [class.data-table__cell--code]="col.display === 'code'"
                 [class.data-table__cell--truncate]="col.display === 'truncate'"
                 [attr.data-label]="col.label"
-                [attr.title]="col.display === 'truncate' ? cellText()(row, col.id) : null"
+                [attr.title]="cellText()(row, col.id) || null"
               >
                 @if (templateFor(col.id); as cella) {
                   <ng-container
@@ -203,5 +216,30 @@
         }
       }
     </tbody>
+
+    <!--
+      ⭐ **La riga totali**: il conteggio occupa le colonne di testa, poi ogni
+      somma cade sotto la sua colonna. Riusa la stessa meccanica del piede di
+      sezione — `footerLabelSpan` / `footerColumns` / `footerValue` — invece di
+      inventarne una seconda che si incolonna allo stesso modo.
+    -->
+    @if (totals(); as tot) {
+      <tfoot class="data-table__totals">
+        <tr>
+          <td class="data-table__totals-count" [attr.colspan]="footerLabelSpan(tot.values)">
+            {{ totalsCountLabel() }}
+          </td>
+          @for (col of footerColumns(tot.values); track col.id) {
+            <td
+              class="data-table__totals-value"
+              [class.data-table__cell--numeric]="col.numeric"
+              [attr.data-label]="col.label"
+            >
+              {{ footerValue(tot.values, col) }}
+            </td>
+          }
+        </tr>
+      </tfoot>
+    }
   </table>
 </div>

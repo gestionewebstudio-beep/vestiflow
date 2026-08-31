@@ -721,8 +721,35 @@ diverse nello stesso posto:
 | etichette       | nessuna: il nome è l'intestazione della colonna | ognuna ha la sua                              |
 | allineamento    | **sotto la propria colonna**                    | a fascia, non incolonnato                     |
 
-⭐ **La riga totali sta SOPRA la riga comandi**, ed è l'ordine che il telaio già dà:
-zona dati → `[summary]` → `[listActions]`.
+⭐ **La riga totali sta SOPRA la riga comandi**, e la rende il MOTORE TABELLA: è un
+`<tfoot>` appiccicato in fondo alla vista, dentro lo stesso contenitore che scorre.
+
+⛔ **Qui c'era «è l'ordine che il telaio già dà: zona dati → `[summary]` →
+`[listActions]`»**, cioè una fascia fuori dalla tabella. Corretto il 30/08/2026
+scrivendola: **una fascia fuori dalla tabella non si può incolonnare.** Dovrebbe rifarsi
+le larghezze da sola, e sarebbero due misure per la stessa cosa — la seconda si
+disallineerebbe al primo trascinamento di una maniglia, che il motore tiene **in memoria**
+e nessun altro conosce.
+
+⭐ Dentro la tabella l'incolonnamento è **gratuito e non si può sbagliare**: è la stessa
+`<table>`, con le stesse colonne. E riusa la meccanica del **piede di sezione**, che
+incolonna già allo stesso modo, invece di inventarne una seconda.
+
+⚠️ **Appiccicata, non in coda alle righe**: in coda si raggiungerebbe solo scorrendo fino
+in fondo — che è il difetto che questa stessa sezione vieta per il riepilogo, «lo
+renderebbe irraggiungibile su una finestra bassa».
+
+⚠️ **Il fondo è OPACO** e prende la tinta dell'**intestazione**: sotto scorrono righe di
+numeri, e velato i due testi si leggerebbero sovrapposti. Un totale è **struttura**, non
+una riga di dati — la stessa ragione per cui la riga di subtotale di gruppo non condivide
+la tinta con una transazione.
+
+⛔ **I valori arrivano GIÀ FORMATTATI e già determinati: il motore non somma.**
+`regole-gestionale` è esplicita — «il riepilogo SOMMA, non ricalcola» — e un motore di
+tabella che rifacesse l'IVA sarebbe un secondo motore economico. Chi somma le righe che ha
+in mano usa `totaliDiElenco`, una funzione sola; chi riceve i totali dall'API (Corrispettivi)
+non passa di lì, perché il suo risultato è più grande di quello che ha a schermo e sommare
+le righe rese darebbe il totale della **vista**, non del periodo.
 
 **Le due regole che la governano**
 
@@ -1130,7 +1157,60 @@ Le tabelle sono l'elemento centrale del gestionale.
 > smetterebbe di distinguersi.
 
 - **Righe**: padding `--space-1 --space-3` (4 × 12), font `--text-xs` (12px), bordo 1px
-  `--color-border-cell`, **nessun divisore verticale** fra le colonne
+  `--color-border-cell`, **con divisore verticale** fra le colonne
+
+### ⭐ IL TAGLIO A COLONNA — deciso il 30/08/2026
+
+> **Il testo di ogni cella sta su UNA riga e viene tagliato dalla colonna
+> successiva.** Non va a capo, non si stringe: si taglia.
+
+_Il proprietario, col riferimento Danea alla mano: «il nome va su una riga e viene
+tagliato dalla colonna successiva. Non solo il nome ma tutti i dati»._
+
+⛔ **Qui c'era «nessun divisore verticale» fra le colonne**, con la motivazione che «il
+bianco separa da sé». Era vero **finché il testo non veniva tagliato**: da quando lo è, il
+bianco non basta più a dire dove la colonna finisce e il testo continua. Il proprietario
+li ha infatti chiesti **insieme** — «forse mettere anche la riga che separa le colonne» —
+e sono una cosa sola.
+
+Tre dichiarazioni che stanno insieme, e nessuna funziona senza le altre:
+
+|                                            |                                                                                                                                               |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `table-layout: fixed`                      | ⛔ **il presupposto**: con `auto` una cella `nowrap` **allarga la propria colonna** invece di tagliare, e la tabella cresce finché non scorre |
+| `white-space: nowrap` + `overflow: hidden` | il taglio vero                                                                                                                                |
+| divisore verticale di colonna              | la linea su cui il taglio avviene                                                                                                             |
+
+⚠️ **`text-overflow: clip`, non `ellipsis`**: in una colonna stretta tre puntini mangiano
+tre caratteri utili, e il riferimento taglia netto. Il testo intero resta nel `title` della
+cella.
+
+⭐ **E rende costante l'ALTEZZA di riga**, che è il vero guadagno: prima un nome lungo
+mandava la riga a due righe di testo, e bastava un articolo su dieci per far ballare
+l'altezza di tutto l'elenco. È anche la precondizione della virtualizzazione, che senza
+un'altezza nota non si può scrivere (`docs/DA-FARE.md`).
+
+#### ⛔ Le larghezze NON si scrivono a mano in undici file
+
+Con `fixed`, una colonna senza larghezza dichiarata **si prende una parte uguale alle
+altre**: «Stagione» larga quanto «Nome». E undici modelli colonne non ne dichiarano una.
+
+⭐ **La larghezza si DEDUCE dal tipo della colonna**, che il modello già dichiara —
+numerica stretta, codice media, testo libero nessuna (respira e prende lo spazio che
+avanza). Sta in `widthOf` del motore, in un posto solo. Chi ha una `defaultWidthPx` usa
+quella, e l'operatore la cambia trascinando.
+
+#### ⭐ La maniglia di larghezza SI VEDE
+
+_«Bisognerebbe rendere visibile la linea di regolazione della larghezza colonna.»_
+
+⛔ Era un bersaglio **trasparente** da 4px: lo si trovava solo passandoci sopra per caso.
+Una funzione che non si annuncia non esiste per chi non sa già che c'è.
+
+⚠️ **Bersaglio largo, filo sottile**: 8px per essere colpibile col mouse, 1px disegnato.
+La linea indica dove si trascina — se fosse più grossa dei divisori veri, diventerebbe lei
+il divisore. In hover e durante il trascinamento passa a 2px e prende `--color-focus`.
+
 - Hover riga: bg `--color-surface-hover`
 - Selezione riga: bg `--color-primary` al 6% + checkbox `--color-primary`
 - Colonne numeriche: allineate a destra, `tabular-nums`, `white-space: nowrap`

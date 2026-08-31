@@ -37,6 +37,39 @@ export interface DataTableSectionFooter {
 }
 
 /**
+ * ⭐ **La riga TOTALI di un elenco** (`regole-stile-ui` §5), da non confondere
+ * col **riepilogo** di un report: quella somma le colonne visibili e si
+ * incolonna sotto di esse, questo mostra metriche nominate che in tabella non
+ * esistono.
+ *
+ * ```text
+ * 50 voci                                 128            ← conteggio · somma di Varianti
+ * 17 voci        1.157,26 €      1.052,04 €              ← conteggio · Imponibile · Totale
+ * ```
+ *
+ * ⛔ **I valori sono GIÀ FORMATTATI e già determinati.** Il motore non somma e
+ * non ricalcola: `regole-gestionale` è esplicita — «il riepilogo SOMMA, non
+ * ricalcola», e un motore di tabella che rifacesse l'IVA sarebbe un secondo
+ * motore economico, cioè la ragione per cui la stessa transazione varrebbe
+ * numeri diversi a seconda di dove la si guarda.
+ *
+ * ⚠️ **Chi fornisce i valori decide anche l'AMBITO**: senza selezione sono quelli
+ * del risultato filtrato, con una selezione quelli della selezione. È una
+ * scelta della pagina perché solo lei sa se i suoi totali vengono dall'API
+ * (Corrispettivi) o dalla somma delle righe che ha in mano.
+ */
+export interface DataTableTotals {
+  /** Quante righe: diventa il conteggio dei selezionati quando c'è una selezione. */
+  readonly count: number;
+  /**
+   * `columnId` → testo già formattato. Le colonne assenti restano vuote, e una
+   * colonna spenta dal selettore non compare affatto: il motore rende solo ciò
+   * che è visibile, che è la regola «si somma ciò che è VISIBILE».
+   */
+  readonly values: Readonly<Record<string, string>>;
+}
+
+/**
  * Una sezione di righe.
  *
  * ⭐ **Una tabella piatta è UNA sezione senza intestazione e senza piede**: non

@@ -71,11 +71,10 @@ const DICHIARATE = {
   //    ⚠️ **Se ne è accorta la guardia**, non chi ha fatto la migrazione: al primo
   //    `npm run lint` ha detto «dichiarata qui ma non esiste più in src/». È il
   //    mestiere per cui esiste — anche al contrario, su una voce che scade.
-  '.product-table__head th': {
-    categoria: 'mixin',
-    contenitore: '.product-table-scroll',
-    perche: 'elenco prodotti, tabella propria',
-  },
+  //    ✅ **E il 30/08 è sparita anche `.product-table__head th`**, per la stessa
+  //    strada e con lo stesso avviso: l'elenco prodotti è passato al motore, la
+  //    sua tabella scritta a mano non esiste più, e la guardia l'ha detto al
+  //    primo lint invece di lasciare in elenco una voce che non presidia niente.
   '.doc-form__table thead th': {
     categoria: 'storica',
     contenitore: '.doc-form__table-wrap',

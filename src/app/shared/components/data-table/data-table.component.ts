@@ -20,7 +20,12 @@ import { DataTableCellDirective } from './data-table-cell.directive';
 import { DataTableRowActionsDirective } from './data-table-row-actions.directive';
 import { DataTableRowCardDirective } from './data-table-row-card.directive';
 import { ariaSortOf, nextSort, sortDirectionOf, sortRankOf } from './data-table.model';
-import type { DataTableRowTone, DataTableSection, DataTableSort } from './data-table.model';
+import type {
+  DataTableRowTone,
+  DataTableSection,
+  DataTableSort,
+  DataTableTotals,
+} from './data-table.model';
 
 /** Riga selezionata o deselezionata dalla casella. */
 export interface DataTableSelectionEvent<T> {
@@ -53,6 +58,14 @@ export interface DataTableResizeEvent {
  * ⚠️ **Ordinamento e larghezze non si conservano** (`14` §G1): alla riapertura
  * si torna al predefinito. Il motore non tocca nessuna preferenza.
  */
+/**
+ * Le larghezze di ripiego quando la colonna non ne dichiara una: vedi
+ * `widthOf`. Sono in px come `defaultWidthPx`, che è il campo che
+ * sostituiscono quando manca.
+ */
+const LARGHEZZA_NUMERICA = 92;
+const LARGHEZZA_CODICE = 128;
+
 @Component({
   selector: 'app-data-table',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -176,6 +189,29 @@ export class DataTableComponent<T> {
    */
   readonly rowActionsLabel = input<string>('');
 
+  /*
+    ⭐ **La riga totali, ed è resa DAL MOTORE** — non da un componente accanto.
+
+    ⛔ **La strada ovvia era una fascia nello slot `[summary]` del telaio**, ed è
+    quella sbagliata: la regola chiede che ogni somma stia **sotto la propria
+    colonna**, e una fascia fuori dalla tabella dovrebbe rifarsi le larghezze da
+    sola. Sarebbero due misure per la stessa cosa, e la seconda si disallineerebbe
+    al primo trascinamento di una maniglia — che il motore tiene in memoria e
+    nessun altro conosce.
+
+    ⭐ Dentro la tabella l'incolonnamento è **gratuito e non si può sbagliare**: è
+    la stessa `<table>`, con le stesse colonne.
+
+    ⚠️ **Sta in un `tfoot` appiccicato in fondo alla vista**, non in coda alle
+    righe: su un elenco lungo, in coda, si raggiungerebbe solo scorrendo fino in
+    fondo — ed è il difetto che `regole-stile-ui` vieta per il riepilogo
+    («lo renderebbe irraggiungibile su una finestra bassa»).
+
+    ⛔ **Non sparisce mai** (`null` significa «questo elenco non ha totali», non
+    «adesso no»): una fascia che compare e scompare sposta i comandi in verticale.
+  */
+  readonly totals = input<DataTableTotals | null>(null);
+
   private readonly cellTemplates = contentChildren(DataTableCellDirective);
   protected readonly rowActionsTemplate = contentChild(DataTableRowActionsDirective);
   protected readonly rowCardTemplate = contentChild(DataTableRowCardDirective);
@@ -224,8 +260,33 @@ export class DataTableComponent<T> {
     return this.cellTemplates().find((cell) => cell.appCell() === columnId);
   }
 
+  /*
+    ⭐ **Con `table-layout: fixed` una colonna senza larghezza si prende una
+    parte uguale alle altre**, e «Stagione» diventerebbe larga quanto «Nome».
+    Undici modelli colonne non ne dichiarano nemmeno una.
+
+    ⛔ **La strada ovvia era misurarle a mano in undici file**, ed è quella
+    sbagliata: sarebbero undici serie di numeri da tenere allineate, e la prima
+    colonna nuova nascerebbe senza. Il modello dice già che TIPO è una colonna —
+    numerica, codice, testo — e da lì si deduce quanto le serve.
+
+    ⚠️ **Il ripiego è un MINIMO ragionevole, non una misura giusta**: chi ha una
+    larghezza dichiarata la usa, e l'operatore la cambia trascinando. Il testo
+    libero resta senza, apposta: sono le colonne che devono respirare quando
+    avanza spazio.
+  */
   protected widthOf(column: ResolvedTableColumn): number | null {
-    return this.widths().get(column.id) ?? column.defaultWidthPx ?? null;
+    const richiesta = this.widths().get(column.id) ?? column.defaultWidthPx;
+    if (richiesta !== undefined) {
+      return richiesta;
+    }
+    if (column.numeric) {
+      return LARGHEZZA_NUMERICA;
+    }
+    if (column.display === 'code') {
+      return LARGHEZZA_CODICE;
+    }
+    return null;
   }
 
   protected ariaSort(columnId: string): 'ascending' | 'descending' | 'none' {
@@ -326,6 +387,20 @@ export class DataTableComponent<T> {
    * fisso delle colonne nel markup: qui l'ordine lo decide il selettore, e il
    * conto si rifà da solo.
    */
+  /*
+    ⭐ **«voci», non «righe» né «prodotti»**: è la parola che la regola usa, ed è
+    la stessa su ogni elenco — chi passa da uno all'altro non deve reimparare
+    come si chiama un conteggio.
+
+    ⚠️ **Il numero cambia significato con la selezione**, non il sostantivo: «3
+    voci» selezionate e «50 voci» filtrate si leggono uguale, e a dire quale dei
+    due è lo stato della casella in testa.
+  */
+  protected readonly totalsCountLabel = computed(() => {
+    const n = this.totals()?.count ?? 0;
+    return `${n} ${n === 1 ? 'voce' : 'voci'}`;
+  });
+
   protected footerLabelSpan(values: Readonly<Record<string, string>>): number {
     const prima = this.columns().findIndex((column) => values[column.id] !== undefined);
     const colonneDiTesta = prima < 0 ? this.columns().length : prima;

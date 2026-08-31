@@ -54,3 +54,21 @@
   background-color: var(--badge-vestiflow-bg);
   border-color: var(--badge-vestiflow-border);
 }
+
+/*
+  ⭐ **La variante piatta**: resta il colore del tono, spariscono pastiglia e
+  bordo.
+
+  ⚠️ **Sta in fondo apposta.** Deve battere le sei regole di tono qui sopra, che
+  hanno la stessa specificità: a parità di peso vince l'ultima scritta — è la
+  regola di §6 «la specificità batte l'ordine», usata qui nel verso giusto.
+
+  ⛔ **`background-color` e `border-color` vanno dichiarati entrambi**, non uno
+  solo: ogni tono li imposta tutti e due, e lasciarne uno acceso darebbe un
+  contorno colorato intorno a un testo senza fondo.
+*/
+.app-badge--flat {
+  padding: 0;
+  background-color: transparent;
+  border-color: transparent;
+}
