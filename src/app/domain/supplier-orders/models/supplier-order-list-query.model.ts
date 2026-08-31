@@ -32,7 +32,26 @@ export interface SupplierOrderListQuery {
   readonly all?: boolean;
 }
 
-const ISO_DATE = /^d{4}-d{2}-d{2}$/;
+/**
+ * ⛔ **Qui c'era `/^d{4}-d{2}-d{2}$/`, senza le barre rovesciate.**
+ *
+ * Quel regex accettava **solo la stringa letterale `dddd-dd-dd`**:
+ *
+ * ```text
+ * /^d{4}-d{2}-d{2}$/.test('2026-08-31')  →  false
+ * /^d{4}-d{2}-d{2}$/.test('dddd-dd-dd')  →  true
+ * ```
+ *
+ * Ogni `dateFrom`/`dateTo` letto dall'URL veniva scartato: l'operatore
+ * impostava un periodo, ricaricava la pagina o condivideva il link, e **il
+ * periodo spariva** — senza errore e senza test rosso.
+ *
+ * ⚠️ **È la barra mangiata dallo strumento di scrittura**, la stessa che oggi ha
+ * colpito quattro volte gli script di lavoro. Qui era finita in produzione e ci
+ * stava da allora: una regex che non aggancia mai non fallisce, si limita a
+ * rifiutare tutto.
+ */
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const STATUS_VALUES = new Set<string>(Object.values(SupplierOrderStatus));
 
 /** Parsing difensivo dei query param URL (URL = fonte di verita' della lista). */

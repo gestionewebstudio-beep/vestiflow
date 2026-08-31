@@ -123,6 +123,34 @@ export const COLONNE_DOCUMENTO_CONDIVISE = {
     def: { id: 'tax', label: 'IVA', numeric: true, defaultVisible: false },
     testo: (doc) => importoConSegno(doc, doc.tax),
   },
+
+  /*
+    ⛔ **IL TOTALE ERA RIMASTO GREZZO**, e la riga non tornava con se stessa.
+
+    Trovato da una revisione avversariale il 31/08/2026, poche ore dopo aver
+    firmato imponibile e IVA: `total` non stava in questo catalogo, cadeva nello
+    `switch` del profilo e si stampava senza verso.
+
+    ```text
+    Nota di credito    Imponibile −100,00 €   IVA −22,00 €   Totale  122,00 €
+                                                                     ↑ sbagliato
+    ```
+
+    ⚠️ **E non tornava nemmeno con la propria riga totali**, che il verso lo
+    applicava: due fatture da 122 e una nota da 122 mostravano `0,00 €` in fondo
+    e tre numeri positivi sopra.
+
+    ⭐ **Sta qui e non nello `switch`** perché è la stessa domanda delle altre
+    due: dichiarazione e resa insieme, e il verso in un posto solo.
+
+    ⚠️ **La colonna NON viene aggiunta ai cataloghi** — `colonneDocumentoCondivise`
+    non ripete ciò che c'è, e ogni profilo dichiara già `colonna('total')` con la
+    propria etichetta. Qui si aggiunge solo il RENDERER.
+  */
+  total: {
+    def: { id: 'total', label: 'Totale', numeric: true, defaultVisible: true },
+    testo: (doc) => importoConSegno(doc, doc.total),
+  },
 } as const satisfies Record<string, ColonnaDocumentoCondivisa>;
 
 export type ColonnaDocumentoCondivisaId = keyof typeof COLONNE_DOCUMENTO_CONDIVISE;

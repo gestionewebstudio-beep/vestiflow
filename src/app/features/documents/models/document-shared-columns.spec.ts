@@ -31,9 +31,19 @@ describe('colonne documentali condivise', () => {
     }
   });
 
-  it('⛔ tutte spente di serie: nessuna entra nel preset predefinito da sé', () => {
-    for (const voce of Object.values(COLONNE_DOCUMENTO_CONDIVISE)) {
-      expect(voce.def.defaultVisible, `${voce.def.id} nasce accesa`).toBe(false);
+  /*
+    ⚠️ **Tutte spente TRANNE il totale.** Le colonne condivise nascono spente
+    perché aggiungerne una accesa cambia ciò che tutti vedono; `total` è
+    l'eccezione dichiarata — nessun elenco documentale ha senso senza il totale,
+    e ogni profilo lo dichiara già per conto proprio.
+
+    ⭐ Sta nel catalogo condiviso per il RENDERER, non per la colonna: serve a
+    dare il verso economico, che mancava e faceva stampare una nota di credito
+    come positiva.
+  */
+  it('⛔ spente di serie, tranne il totale che ogni profilo dichiara già', () => {
+    for (const [id, voce] of Object.entries(COLONNE_DOCUMENTO_CONDIVISE)) {
+      expect(voce.def.defaultVisible, `${id} ha una visibilità inattesa`).toBe(id === 'total');
     }
   });
 
@@ -111,8 +121,8 @@ describe('colonne documentali condivise', () => {
       esattamente il difetto delle colonne senza renderer.
     */
     it('⛔ una colonna che non è sua restituisce null, non una cella vuota', () => {
-      expect(testoColonnaCondivisa(doc({}), 'total')).toBeNull();
       expect(testoColonnaCondivisa(doc({}), 'reference')).toBeNull();
+      expect(testoColonnaCondivisa(doc({}), 'counterparty')).toBeNull();
     });
   });
 
@@ -127,6 +137,7 @@ describe('colonne documentali condivise', () => {
         'paymentDueDate',
         'subtotal',
         'tax',
+        'total',
       ]);
     });
 
@@ -151,6 +162,7 @@ describe('colonne documentali condivise', () => {
         'paymentDueDate',
         'subtotal',
         'tax',
+        'total',
       ]);
     });
 

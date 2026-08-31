@@ -11,7 +11,7 @@ import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { catchError, debounceTime, distinctUntilChanged, of, switchMap, tap } from 'rxjs';
 
 import { StockStatus } from '@core/models/inventory-level.model';
-import { stockStatusOf } from '@core/utils/inventory.util';
+import { stockAvailabilityLabel, stockStatusOf } from '@core/utils/inventory.util';
 import { formatMoney } from '@core/utils/money.util';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import type { VariantSummary } from '../../models/variant-summary.model';
@@ -156,10 +156,15 @@ export class ProductPickerDialogComponent {
   }
 
   protected stockLabel(variant: VariantSummary): string {
-    if (this.stockStatus(variant) === StockStatus.Empty) {
-      return 'Esaurito';
-    }
-    return `Disp. ${variant.stockAvailable}`;
+    /*
+      ⭐ **Il numero resta leggibile anche sotto zero**: un oversell di −4 diceva
+      «Esaurito», identico a uno zero, proprio nella schermata da cui si mettono
+      righe in un documento.
+    */
+    return stockAvailabilityLabel({
+      available: variant.stockAvailable ?? 0,
+      minThreshold: variant.stockMinThreshold ?? 0,
+    });
   }
 
   protected onSearchInput(value: string): void {

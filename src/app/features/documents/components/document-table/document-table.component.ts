@@ -433,10 +433,16 @@ export class DocumentTableComponent {
         return this.paymentMethodLabel(doc);
       case 'lineCount':
         return String(this.lineCount(doc));
-      case 'subtotal':
-        return formatMoney(doc.subtotal);
-      case 'total':
-        return formatMoney(doc.total);
+      /*
+        ⛔ **Qui c'erano `subtotal` e `total` grezzi, senza verso economico.**
+
+        Erano codice MORTO e codice SBAGLIATO nello stesso punto: `subtotal` non
+        veniva mai raggiunto — lo intercetta già il catalogo condiviso — e
+        `total` invece sì, e stampava una nota di credito come positiva mentre
+        le due colonne accanto erano negative.
+
+        ⭐ Ora li rende entrambi `testoColonnaCondivisa`, col verso.
+      */
       case 'outstanding':
         return this.outstandingLabel(doc) ?? '';
       default:

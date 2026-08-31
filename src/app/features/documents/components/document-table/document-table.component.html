@@ -137,13 +137,33 @@
       risultato: sulla stessa riga si leggono insieme, e il totale resta l'unico
       in grassetto — si distingue per peso, non per posizione.
     -->
+    <!--
+      ⛔ **Qui gli importi erano GREZZI, e la card diceva il contrario della
+      tabella.** Stessa nota di credito: `−100,00 €` su scrivania, `100,00 €` sul
+      telefono. È la stessa riga.
+
+      ⭐ Ora passano da `cellText`, che delega al renderer condiviso: un solo
+      posto applica il verso, e le due viste non possono divergere.
+
+      ⚠️ **`tabular-nums` anche sul totale**: `_list-card.scss` non lo dichiara
+      apposta — «i numeri incolonnati li dà la classe del template» — ed era
+      l'unico totale di card senza cifre tabulari, cioè il numero più grande in
+      una pila di card che devono incolonnarsi.
+
+      ⚠️ **E il totale si tinge di rosso quando toglie**: la classe esiste e i
+      Corrispettivi la usano; qui il verso si leggeva solo dal tipo.
+    -->
     @if (visibile('subtotal') || visibile('total')) {
       <div class="list-card__figures">
         @if (visibile('subtotal')) {
-          <span class="tabular-nums">Imp. {{ formatMoney(doc.subtotal) }}</span>
+          <span class="tabular-nums">Imp. {{ cellText(doc, 'subtotal') }}</span>
         }
         @if (visibile('total')) {
-          <span class="list-card__total">{{ formatMoney(doc.total) }}</span>
+          <span
+            class="list-card__total tabular-nums"
+            [class.list-card__total--negative]="rowTone(doc) === 'negative'"
+            >{{ cellText(doc, 'total') }}</span
+          >
         }
       </div>
     }

@@ -28,7 +28,27 @@ export const MOVEMENT_LIST_EXPORT: ListExportConfig<StockMovementRow> = {
     { header: 'Cod. articolo', cell: (row) => row.articleCode },
     { header: 'SKU', cell: (row) => row.sku },
     { header: 'Prodotto', cell: (row) => row.productTitle ?? '' },
-    { header: 'Quantità', numeric: true, cell: (row) => row.signedQuantity },
+    /*
+      ⛔ **QUI C'ERA `row.signedQuantity`**, che è la stringa già formattata per
+      lo SCHERMO: porta il meno tipografico `−` (U+2212), non il meno da
+      tastiera.
+
+      ```text
+      Number('−205')  →  NaN        lo scarico diventa TESTO
+      Number('+205')  →  205        il carico resta numero
+      ```
+
+      Excel riconosce il primo come testo e il secondo come numero: la colonna
+      restava **metà numerica e metà testo**, e ogni `SUM()` o filtro saltava in
+      silenzio tutte le righe in uscita — un totale che sembra giusto e conta
+      solo i carichi.
+
+      ⭐ **Il valore numerico era già lì accanto e inutilizzato.**
+      `signedQuantityValue` esiste **esattamente per questo**, e il commento del
+      modello lo dice: riparsare la stringa darebbe `NaN` su ogni scarico.
+      L'export era l'unico consumatore che non aveva ricevuto la nota.
+    */
+    { header: 'Quantità', numeric: true, cell: (row) => String(row.signedQuantityValue) },
     { header: 'Sede', cell: (row) => row.locationLabel },
     { header: 'Documento', cell: (row) => row.documentReference ?? '' },
     { header: 'Causale', cell: (row) => row.reason ?? '' },

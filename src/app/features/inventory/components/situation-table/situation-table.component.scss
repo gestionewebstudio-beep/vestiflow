@@ -23,8 +23,20 @@
   font-weight: var(--font-weight-semibold);
 }
 
-/* A zero: non c'è nulla da vendere. */
-.situation-table__cell--empty {
+/*
+  A zero: non c'è nulla da vendere.
+
+  ⛔ **Il negativo prendeva ENTRAMBE le classi** — il template le lega con
+  `available < 0` e `available <= 0` — e a pari specificità vince chi è
+  dichiarata dopo: un oversell di −4 si leggeva **grigio**, la stessa tinta di
+  uno zero. Sopravviveva il solo `font-weight`.
+
+  ⭐ **`:not(--negative)` toglie il conflitto invece di spostare le regole**:
+  affidarsi all'ordine funziona finché qualcuno non riordina il foglio, e questa
+  è la trappola che `regole-stile-ui` §6 documenta già («la specificità batte
+  l'ordine»), qui nella variante *stesso peso, ordine sfavorevole*.
+*/
+.situation-table__cell--empty:not(.situation-table__cell--negative) {
   color: var(--color-text-muted);
 }
 
