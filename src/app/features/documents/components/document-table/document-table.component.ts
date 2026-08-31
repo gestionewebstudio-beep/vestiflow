@@ -24,7 +24,7 @@ import {
 } from '@domain/documents/models/document-economic-sign.util';
 import { isStoreFlowDocumentType } from '@domain/documents/models/document-operational.util';
 
-import { righeDi } from '../../models/document-list-totals.util';
+import { righeDi, totaliDocumenti } from '../../models/document-list-totals.util';
 import { testoColonnaCondivisa } from '../../models/document-shared-columns';
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
 import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
@@ -32,6 +32,7 @@ import { DataTableComponent } from '@shared/components/data-table/data-table.com
 import type {
   DataTableRowTone,
   DataTableSort,
+  DataTableTotals,
 } from '@shared/components/data-table/data-table.model';
 import { sezioniDiElenco } from '@shared/models/list-grouping.util';
 
@@ -300,17 +301,27 @@ export class DocumentTableComponent {
     });
   });
 
-  /*
-    ⛔ **La riga totali del motore è SPENTA su questo elenco.** Dal 31/08/2026 i
-    riepiloghi dei documenti — acquisti, ordini, vendite — usano la **fascia**
-    nella forma del Registro Corrispettivi (`app-list-summary`), e le due insieme
-    direbbero gli stessi numeri due volte nella stessa schermata.
-
-    ⭐ **Il calcolo non è sparito: si è spostato**, perché la fascia vive nello
-    slot `[summary]` del telaio, cioè nella PAGINA. Sta in una funzione pura, e
-    resta una sola — due somme della stessa cosa divergono in silenzio il giorno
-    in cui una cambia.
-  */
+  /**
+   * ⭐ **La riga totali, dentro la tabella** — dove ogni valore cade sotto la
+   * propria colonna.
+   *
+   * ⛔ **Per poche ore è stata una fascia esterna**, nella forma del Registro
+   * Corrispettivi, e il proprietario l'ha rivista guardando i Prodotti: su un
+   * elenco documentale TUTTE le voci sono colonne, quindi ognuna ha la propria
+   * intestazione sopra. La fascia serve dove metà delle voci colonne non sono.
+   *
+   * ⚠️ **Porta il VERSO economico**: una fattura da 100 e una nota di credito da
+   * 50 fanno 50, e ci si arriva col segno del tipo — mai rifacendo l'IVA.
+   *
+   * ⭐ **Il calcolo sta in una funzione pura condivisa**: è la ragione per cui
+   * questo dietrofront è due righe e non una riscrittura.
+   */
+  protected readonly totals = computed<DataTableTotals>(() =>
+    totaliDocumenti(this.documents(), {
+      columns: this.columns(),
+      selectedIds: this.selectedIds(),
+    }),
+  );
 
   /*
     ⚠️ **Le colonne spente non si controllano a mano.** Legge quelle che il motore

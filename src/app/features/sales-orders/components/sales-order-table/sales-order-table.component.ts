@@ -5,7 +5,11 @@ import { DataTableCellDirective } from '@shared/components/data-table/data-table
 import { DataTableRowActionsDirective } from '@shared/components/data-table/data-table-row-actions.directive';
 import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';
-import type { DataTableSort } from '@shared/components/data-table/data-table.model';
+import type {
+  DataTableSort,
+  DataTableTotals,
+} from '@shared/components/data-table/data-table.model';
+import { totaliDiElenco } from '@shared/models/list-totals.util';
 
 import { SALES_ORDER_LIST_SORTABLE_COLUMNS } from '../../models/sales-order-list-columns.config';
 import type { DataTableSection } from '@shared/components/data-table/data-table.model';
@@ -328,15 +332,26 @@ export class SalesOrderTableComponent {
     });
   });
 
-  /*
-    ⛔ **La riga totali del motore è SPENTA su questo elenco.** Dal 31/08/2026 i
-    riepiloghi dei documenti — acquisti, ordini, vendite — usano la **fascia**
-    nella forma del Registro Corrispettivi (`app-list-summary`), e le due insieme
-    direbbero gli stessi numeri due volte nella stessa schermata.
-
-    ⭐ **Il calcolo non è sparito: si è spostato** nella PAGINA, che è dove vive lo
-    slot `[summary]` del telaio.
-  */
+  /**
+   * ⭐ **La riga totali, dentro la tabella** — dove ogni valore cade sotto la
+   * propria colonna.
+   *
+   * ⚠️ **Si somma `amountMinor` e si formatta UNA volta sola**: è la regola del
+   * denaro — «si arrotonda solo all'uscita, mai nei passaggi intermedi».
+   */
+  protected readonly totals = computed<DataTableTotals>(() => {
+    const valuta = this.orders()[0]?.total.currencyCode ?? DEFAULT_CURRENCY;
+    const soldi = (n: number): string => formatMoney({ amountMinor: n, currencyCode: valuta });
+    return totaliDiElenco(this.orders(), {
+      rowId: this.rowId,
+      selectedIds: this.selectedIds(),
+      columns: this.columns(),
+      campi: {
+        total: { valore: (o) => o.total.amountMinor, formato: soldi },
+        netTotal: { valore: (o) => o.subtotal.amountMinor, formato: soldi },
+      },
+    });
+  });
   /*
     ⚠️ **Le colonne spente non si controllano a mano.** La card legge quelle che
     il motore ha già ricevuto: una fonte sola invece di due che possono divergere.

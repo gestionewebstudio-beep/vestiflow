@@ -110,7 +110,6 @@ import {
 } from '@domain/sales-orders/models/sales-order-list-query.model';
 import { SalesOrderService } from '@domain/sales-orders/services/sales-order.service';
 import { GroupByMenuComponent } from '@shared/components/group-by-menu/group-by-menu.component';
-import { ListSummaryComponent } from '@shared/components/list-summary/list-summary.component';
 import type { DataTableTotals } from '@shared/components/data-table/data-table.model';
 import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 import { totaliDiElenco } from '@shared/models/list-totals.util';
@@ -139,7 +138,6 @@ type SalesListState =
   selector: 'app-sales-order-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    ListSummaryComponent,
     GroupByMenuComponent,
     ListPageComponent,
     ButtonComponent,

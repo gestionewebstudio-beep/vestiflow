@@ -4660,7 +4660,24 @@ e la risposta la barra conterebbe righe che non ci sono più.
 
 ---
 
-# 66. La fascia riepilogo dei documenti — deciso il 31/08/2026
+# 66. ⛔ La fascia riepilogo dei documenti — RITIRATA la sera stessa
+
+> **La decisione di questa sezione è durata poche ore.** È stata rovesciata dal
+> proprietario il 31/08/2026, e la sezione resta perché la ragione del
+> ripensamento è la parte utile: vedi **§69**.
+>
+> _«Sotto alle righe dei prodotti hai creato la riga dei totali e i totali si
+> spostano in base alla colonna. L'avevo chiesta anche per i documenti ma avevi
+> detto che era complicato. Non sarebbe meglio creare la riga sotto ai documenti
+> come quella dei prodotti?»_
+
+⚠️ **E il «complicato» che avevo detto era su un'altra cosa** — una fascia
+ESTERNA che si allineasse alle colonne, che è davvero impraticabile. La riga
+dentro il `<tfoot>` incolonna gratis: è la stessa tabella.
+
+---
+
+## Il testo originale, che vale come cronaca
 
 > _«Per i riepiloghi dei documenti, quindi acquisti, ordini e vendite, la
 > struttura dei totali dovrebbe essere come quella dei corrispettivi per avere
@@ -4915,3 +4932,50 @@ inglobava `DOCUMENT_LIST_SORTABLE_COLUMNS` dentro un array di colonne.
 ⚠️ **E gli heredoc di shell mangiano le barre doppie**: `[\s\S]` arriva nel
 file come `[sS]`, una regex che non trova mai niente e non fallisce. Quattro
 volte in una giornata. Gli script si scrivono col tool, non con `cat <<`.
+
+---
+
+# 69. I totali dei documenti tornano DENTRO la tabella — 31/08/2026, sera
+
+> _«Non sarebbe meglio creare la riga sotto ai documenti come quella dei
+> prodotti?»_ — e la risposta è sì.
+
+## 69.1 Il criterio, che rende la scelta netta
+
+|                                                                | Le voci sono colonne?                   | Forma                 |
+| -------------------------------------------------------------- | --------------------------------------- | --------------------- |
+| Documenti · Ordini cliente · Ordini fornitore · Vendite online | **sì, tutte** — Imponibile, IVA, Totale | ⭐ riga nel `<tfoot>` |
+| Registro Corrispettivi                                         | **no, metà** — Annullamenti, Rettifiche | fascia                |
+
+⭐ **La fascia esiste per i Corrispettivi**, dove «Annullamenti 2» e «Rettifiche
+(4) − 205,01 €» non stanno in nessuna colonna. Sui documenti quel problema non
+c'è: ogni numero ha la sua intestazione sopra.
+
+⚠️ **E la riga in tabella scorre ORIZZONTALMENTE con le colonne**: il totale
+resta sotto la propria intestazione anche su un elenco largo. Una fascia esterna
+sta ferma, e con dieci colonne il numero non si sa più a cosa appartenga — cosa
+che avevo trascurato quando ho dichiarato «si perde l'incolonnamento» come
+prezzo accettabile.
+
+## 69.2 ⚠️ Sul telefono non c'è una seconda forma da scegliere
+
+**La riga in tabella DIVENTA una fascia sotto `lg`**, con le etichette prese dalle
+intestazioni: «50 voci · VARIANTI 29 · TOTALE 1.070,00 €». Funziona così su otto
+elenchi da stamattina, ed è la ragione per cui la domanda «e sul telefono?» non
+ha due risposte: è la stessa riga che si riadatta.
+
+## 69.3 Il bilancio
+
+```text
+−392 righe    +213 righe    →  netto −179
+3 file in meno: il componente fascia, il suo template, il suo spec
+```
+
+⭐ **`totaliDocumenti` resta**, e l'estrazione fatta al mattino non è lavoro
+sprecato: è la ragione per cui questo dietrofront è due righe per elenco e non
+una riscrittura. La somma esiste in un posto solo, e cambia solo chi la chiama —
+la pagina prima, la tabella adesso.
+
+⚠️ **I due mixin di `_list-summary.scss` restano**: `etichetta-riepilogo` e
+`valore-riepilogo` li usa il Registro, che la fascia ce l'ha ancora. È sparito il
+mixin `list-summary()`, cioè la veste del componente rimosso.

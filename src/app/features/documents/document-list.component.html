@@ -407,7 +407,21 @@
     ⛔ **Sostituisce la riga totali del motore**, che su questo elenco è spenta:
     insieme direbbero gli stessi numeri due volte nella stessa schermata.
   -->
-  <app-list-summary summary [totals]="totals()" [columns]="tableColumns()" emphasis="total" />
+  <!--
+    ⛔ **Qui c'era la fascia riepilogo alla Corrispettivi**, e il proprietario
+    l'ha rivista il 31/08/2026 guardando i Prodotti: «sotto alle righe hai creato
+    la riga dei totali e i totali si spostano in base alla colonna. Non sarebbe
+    meglio creare la riga sotto ai documenti come quella dei prodotti?».
+
+    ⭐ **Sì, ed è anche più corretta qui**: su un elenco documentale TUTTE le voci
+    sono colonne — Imponibile, IVA, Totale — quindi ognuna ha la propria
+    intestazione sopra. La fascia esiste per il Registro Corrispettivi, dove metà
+    delle voci colonne non sono («Annullamenti 2», «Rettifiche (4)»).
+
+    ⚠️ **E la riga in tabella scorre ORIZZONTALMENTE con le colonne**: il totale
+    resta sotto la sua intestazione anche su un elenco largo. Una fascia esterna
+    sta ferma, e con dieci colonne il numero non si sa più a cosa appartiene.
+  -->
 
   <div listActions>
     <app-list-actions-bar

@@ -43,7 +43,6 @@ import {
   onlineSaleInventoryStatusTone,
 } from '@domain/sales-orders/models/sales-order-labels.util';
 import { GroupByMenuComponent } from '@shared/components/group-by-menu/group-by-menu.component';
-import { ListSummaryComponent } from '@shared/components/list-summary/list-summary.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
@@ -79,7 +78,6 @@ type ListState =
   selector: 'app-online-sale-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    ListSummaryComponent,
     GroupByMenuComponent,
     ListPageComponent,
     BadgeComponent,

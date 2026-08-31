@@ -134,7 +134,6 @@ import { isPrintableDocumentType } from './models/document-print.util';
 import { GroupByMenuComponent } from '@shared/components/group-by-menu/group-by-menu.component';
 import { totaliDocumenti } from './models/document-list-totals.util';
 import type { DataTableTotals } from '@shared/components/data-table/data-table.model';
-import { ListSummaryComponent } from '@shared/components/list-summary/list-summary.component';
 import {
   GOODS_RECEIPT_LIST_EXPORT,
   buildDocumentListCsv,
@@ -214,7 +213,6 @@ type DeleteResult =
   selector: 'app-document-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    ListSummaryComponent,
     GroupByMenuComponent,
     ListPageComponent,
     DeleteConfirmComponent,
