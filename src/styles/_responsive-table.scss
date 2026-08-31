@@ -531,6 +531,46 @@
  * dentro `@media print` e su A4 orizzontale taglierebbero tutto ciò che sta
  * oltre il primo riquadro.
  */
+/// ═══════════════════════════════════════════════════════════════════════════
+/// ⭐ **IL WRAPPER DUMB NON DEVE INTERROMPERE LA CATENA DI ALTEZZE**
+/// ═══════════════════════════════════════════════════════════════════════════
+///
+/// ⛔ **Segnalato dal proprietario il 01/09/2026**: «il contenitore delle righe
+/// si adatta in base alle righe invece di prendere tutto lo spazio disponibile».
+///
+/// La zona dati del telaio è una griglia che **stira i propri figli**, e il
+/// motore tabella si riempie da sé (`table-scroll(…, riempi)` → `block-size:
+/// 100%`). Ma fra i due, su otto elenchi su undici, c'è una **tabella dumb** —
+/// `app-supplier-table`, `app-document-table`… — che di suo non ha `:host`:
+/// si stira lei come figlia di griglia, e il motore dentro resta alto quanto il
+/// contenuto.
+///
+/// ```text
+/// motore DIRETTO in [data]     movimenti · vendite online · ordini fornitore   ✅
+/// wrapper dumb in mezzo        gli altri otto                                  ⛔
+/// ```
+///
+/// ⚠️ **È la differenza strutturale fra i riepiloghi**: non una svista di una
+/// pagina, ma due forme diverse di comporre la stessa cosa.
+///
+/// ⛔ **`display: contents` sul wrapper sarebbe stato più corto e non è sicuro**:
+/// `sales-order-table` ha DUE radici — il motore e una lista a card — e con
+/// `contents` diventerebbero due elementi di griglia, ognuno con la propria
+/// traccia.
+@mixin table-host-fill($motore: 'app-data-table') {
+  :host {
+    display: flex;
+    flex-direction: column;
+    min-block-size: 0;
+    min-inline-size: 0;
+  }
+
+  :host > #{$motore} {
+    flex: 1;
+    min-block-size: 0;
+  }
+}
+
 @mixin table-scroll($selettore, $limite: tetto) {
   #{$selettore} {
     overflow-x: auto;

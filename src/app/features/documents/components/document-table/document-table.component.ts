@@ -298,12 +298,16 @@ export class DocumentTableComponent {
     cellText: (doc, columnId) => this.cellText(doc, columnId),
     numeroDi: (doc, columnId) => {
       switch (columnId) {
+        case 'lineCount':
+          return this.lineCount(doc);
         case 'subtotal':
           return doc.subtotal?.amountMinor ?? null;
         case 'tax':
           return doc.tax?.amountMinor ?? null;
         case 'total':
           return doc.total?.amountMinor ?? null;
+        case 'outstanding':
+          return doc.outstanding?.amountMinor ?? null;
         default:
           return null;
       }
