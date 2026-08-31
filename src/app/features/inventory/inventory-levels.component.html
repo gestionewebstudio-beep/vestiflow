@@ -77,7 +77,10 @@
     data
     [rows]="rows()"
     [columns]="tableColumns()"
+    [selectedIds]="selectedRowIds()"
     (committedClick)="openReservations($event)"
+    (selectionToggle)="toggleRowSelection($event.rowId, $event.selected)"
+    (selectAllToggle)="toggleSelectAllRows($event)"
   />
 
   <!--
@@ -153,6 +156,12 @@
     non un criterio.
   -->
   <div listActions>
-    <app-list-actions-bar [actions]="listActions()" />
+    <app-list-actions-bar
+      [count]="selectedRowIds().size"
+      [ids]="[...selectedRowIds()]"
+      [actions]="listActions()"
+      clearLabel="Deseleziona"
+      (cleared)="clearSelection()"
+    />
   </div>
 </app-list-page>

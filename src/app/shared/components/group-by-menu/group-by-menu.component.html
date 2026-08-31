@@ -1,0 +1,11 @@
+<app-select-menu
+  chipLabel="Raggruppa"
+  ariaLabel="Raggruppa le righe"
+  placeholder="Nessuno"
+  [options]="menuOptions()"
+  [value]="value()"
+  [compact]="true"
+  [fitContent]="true"
+  [includeEmptyOption]="false"
+  (valueChange)="onChange($event)"
+/>

@@ -29,6 +29,8 @@ import {
 import { InventoryCountTableComponent } from './components/inventory-count-table/inventory-count-table.component';
 import { InventoryTabsComponent } from './components/inventory-tabs/inventory-tabs.component';
 import { InventoryService } from '@domain/inventory/services/inventory.service';
+import { createListSelection } from '@shared/utils/list-selection';
+import { GroupByMenuComponent } from '@shared/components/group-by-menu/group-by-menu.component';
 
 type CountListState =
   | { readonly status: 'loading' }
@@ -40,6 +42,7 @@ type CountListState =
   selector: 'app-inventory-count-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    GroupByMenuComponent,
     ListPageComponent,
     ListActionsBarComponent,
     DeleteConfirmComponent,
@@ -130,6 +133,44 @@ export class InventoryCountListComponent {
    *
    * ⚠️ «Nuova sessione» stava in testata: si è spostata, non duplicata.
    */
+  // ── Selezione ─────────────────────────────────────────────────────────────
+  private readonly selection = createListSelection('multiple');
+  protected readonly selectedSessionIds = this.selection.ids;
+
+  /** ⛔ Al cambio di filtro la selezione si restringe alle righe caricate. */
+  private readonly potaturaSelezione = toObservable(this.sessions)
+    .pipe(takeUntilDestroyed(this.destroyRef))
+    .subscribe((righe) => this.selection.prune(righe.map((s) => s.id)));
+
+  protected toggleSessionSelection(sessionId: string, selected: boolean): void {
+    this.selection.toggle(sessionId, selected);
+  }
+
+  protected toggleSelectAllSessions(selected: boolean): void {
+    this.selection.setAll(
+      this.sessions().map((s) => s.id),
+      selected,
+    );
+  }
+
+  protected clearSelection(): void {
+    this.selection.clear();
+  }
+
+  // ── Raggruppa ─────────────────────────────────────────────────────────────
+
+  /**
+   * ⚠️ **Raggruppa è PRESENTAZIONE, non un filtro**: non entra in nessuna query,
+   * non conta nel badge «Filtri (n)» e «Azzera filtri» non lo tocca. Le righe
+   * restano le stesse — cambia come si leggono.
+   */
+  protected readonly raggruppa = signal<string>('none');
+  protected readonly raggruppaPerGiornata = computed(() => this.raggruppa() === 'day');
+
+  protected onRaggruppaChange(value: string): void {
+    this.raggruppa.set(value);
+  }
+
   protected readonly listActions = computed<readonly ListAction[]>(() => [
     // ⚠️ L'etichetta differisce dal catalogo, ed è voluto: «Nuovo» sotto
     //    «Inventario» direbbe cosa si crea solo a chi lo sa già — una sessione

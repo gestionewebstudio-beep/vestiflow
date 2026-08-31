@@ -16,6 +16,12 @@
   [rowId]="rowId"
   [cellText]="cellText"
   [totals]="totals()"
+  selectionMode="multiple"
+  [selectedIds]="selectedIds()"
+  [selectionLabel]="selectionLabel"
+  selectAllLabel="Seleziona tutte le giacenze"
+  (selectionChange)="selectionToggle.emit({ rowId: rowId($event.row), selected: $event.selected })"
+  (selectAllChange)="selectAllToggle.emit($event)"
 >
   <!--
     ⭐ **La quantità impegnata è un COMANDO quando c'è**: apre gli ordini che la

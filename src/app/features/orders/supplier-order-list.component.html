@@ -57,6 +57,14 @@
         [filterChip]="true"
       />
     </div>
+
+    <!--
+      Il raggruppamento sta con i filtri perché è lì che l'occhio lo cerca, ma
+      NON è un filtro: non cambia quali righe si vedono, solo come si leggono.
+    -->
+    <div class="po-list__field">
+      <app-group-by-menu [value]="raggruppa()" (valueChange)="onRaggruppaChange($event)" />
+    </div>
   </div>
 
   <!--

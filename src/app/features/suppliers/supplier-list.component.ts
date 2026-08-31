@@ -30,6 +30,7 @@ import type { Supplier } from '@core/models/supplier.model';
 import { canManageSupplierOrders } from '@core/permissions/tenant-permissions.util';
 import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
 import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
+import { createListSelection } from '@shared/utils/list-selection';
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import { comando } from '@shared/models/list-action-catalog';
 import type { ListAction } from '@shared/models/list-selection.model';
@@ -228,28 +229,32 @@ export class SupplierListComponent {
   );
 
   // ── Selezione ─────────────────────────────────────────────────────────────
-  protected readonly selectedSupplierIds = signal<ReadonlySet<string>>(new Set<string>());
+  private readonly selection = createListSelection('multiple');
+  protected readonly selectedSupplierIds = this.selection.ids;
+
+  /**
+   * ⛔ **Al cambio di filtro la selezione si restringe alle righe caricate.**
+   * Senza, la barra conterebbe schede che l'operatore non vede più e un'azione —
+   * eliminare, per esempio — agirebbe su fornitori che credeva di aver lasciato
+   * indietro. È la «selezione invisibile o ingannevole» che `14` §15 vieta.
+   */
+  private readonly potaturaSelezione = toObservable(this.suppliers)
+    .pipe(takeUntilDestroyed(this.destroyRef))
+    .subscribe((righe) => this.selection.prune(righe.map((r) => r.id)));
 
   protected toggleSupplierSelection(supplierId: string, selected: boolean): void {
-    this.selectedSupplierIds.update((correnti) => {
-      const prossimi = new Set(correnti);
-      if (selected) {
-        prossimi.add(supplierId);
-      } else {
-        prossimi.delete(supplierId);
-      }
-      return prossimi;
-    });
+    this.selection.toggle(supplierId, selected);
   }
 
   protected toggleSelectAll(selected: boolean): void {
-    this.selectedSupplierIds.set(
-      selected ? new Set(this.suppliers().map((s) => s.id)) : new Set<string>(),
+    this.selection.setAll(
+      this.suppliers().map((s) => s.id),
+      selected,
     );
   }
 
   protected clearSelection(): void {
-    this.selectedSupplierIds.set(new Set<string>());
+    this.selection.clear();
   }
 
   // ── Eliminazione: la sequenza a due conferme sta nel componente condiviso ──
@@ -334,9 +339,9 @@ export class SupplierListComponent {
         this.pendingDeleteIds.set([]);
         const eliminati = new Set(esiti.filter((e) => e.ok).map((e) => e.id));
         if (eliminati.size > 0) {
-          this.selectedSupplierIds.update(
-            (correnti) => new Set([...correnti].filter((id) => !eliminati.has(id))),
-          );
+          for (const id of eliminati) {
+            this.selection.toggle(id, false);
+          }
         }
         this.reload();
       });

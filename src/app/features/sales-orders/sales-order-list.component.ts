@@ -108,6 +108,7 @@ import {
   withShopifySourceScope,
 } from '@domain/sales-orders/models/sales-order-list-query.model';
 import { SalesOrderService } from '@domain/sales-orders/services/sales-order.service';
+import { GroupByMenuComponent } from '@shared/components/group-by-menu/group-by-menu.component';
 
 const SEARCH_DEBOUNCE_MS = 300;
 const SHOPIFY_FEEDBACK_DISMISS_MS = 8000;
@@ -133,6 +134,7 @@ type SalesListState =
   selector: 'app-sales-order-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    GroupByMenuComponent,
     ListPageComponent,
     ButtonComponent,
     ConfirmDialogComponent,
@@ -365,6 +367,32 @@ export class SalesOrderListComponent {
    */
   protected onSortChange(chiavi: readonly DataTableSort[]): void {
     this.updateParams({ sort: serializeDataTableSort(chiavi) || null, page: null }, true);
+  }
+
+  // ── Raggruppa ─────────────────────────────────────────────────────────────
+
+  /**
+   * ⚠️ **Raggruppa è PRESENTAZIONE, non un filtro**: non entra in nessuna query,
+   * non conta nel badge «Filtri (n)» e «Azzera filtri» non lo tocca. Le righe
+   * restano le stesse — cambia come si leggono.
+   */
+  protected readonly raggruppa = signal<string>('none');
+  protected readonly raggruppaPerGiornata = computed(() => this.raggruppa() === 'day');
+
+  protected onRaggruppaChange(value: string): void {
+    /*
+      ⛔ Passando a «Giorno» l'ordinamento manuale si AZZERA, non si mette in
+      pausa: uno stato che esiste e non si vede tornerebbe fuori al cambio
+      successivo senza che nessuno l'abbia chiesto.
+
+      ⚠️ È la stessa scelta del Registro Corrispettivi (`10` §20): il
+      raggruppamento **è già** una forma di ordinamento strutturato, e un «prima
+      il giorno, poi la colonna» spezzerebbe i gruppi e i loro subtotali.
+    */
+    if (value === 'day') {
+      this.updateParams({ sort: null }, true);
+    }
+    this.raggruppa.set(value);
   }
 
   private readonly state = toSignal(

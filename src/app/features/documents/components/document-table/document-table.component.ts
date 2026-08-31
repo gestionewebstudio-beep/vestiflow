@@ -30,6 +30,7 @@ import type {
   DataTableSort,
   DataTableTotals,
 } from '@shared/components/data-table/data-table.model';
+import { sezioniDiElenco } from '@shared/models/list-grouping.util';
 import { totaliDiElenco } from '@shared/models/list-totals.util';
 
 import { DOCUMENT_LIST_SORTABLE_COLUMNS } from '../../models/document-table-columns.config';
@@ -79,6 +80,13 @@ export interface DocumentTableSelectionEvent {
 export class DocumentTableComponent {
   readonly documents = input.required<readonly DocumentRecord[]>();
   readonly columns = input.required<readonly ResolvedTableColumn[]>();
+
+  /**
+   * ⭐ **Raggruppare per giornata**, deciso dalla pagina che possiede il controllo
+   * «Raggruppa». Qui arriva già risolto: la tabella non conosce il menu, sa solo
+   * se piegare l'elenco per giorno.
+   */
+  readonly groupByDay = input(false);
 
   /**
    * Le chiavi di ordinamento correnti, in ordine di priorità. Lo **stato sta
@@ -248,10 +256,37 @@ export class DocumentTableComponent {
     })),
   );
 
-  /** Lista piatta: una sezione senza intestazione né piede. */
-  protected readonly sections = computed<readonly DataTableSection<DocumentRecord>[]>(() => [
-    { id: 'documenti', rows: this.documents() },
-  ]);
+  /**
+   * ⭐ **Una sezione sola, o una per giornata** col subtotale nel piede.
+   *
+   * ⚠️ **Il subtotale porta il VERSO economico**, come la riga totali: una
+   * fattura da 100 e una nota di credito da 50 fanno 50 nella giornata, e ci si
+   * arriva col segno del tipo — non ricalcolando l'IVA.
+   *
+   * ⚠️ **Somma le righe caricate**, ed è corretto: l'elenco non impagina, quindi
+   * ciò che ha in mano **è** il risultato del filtro.
+   */
+  protected readonly sections = computed<readonly DataTableSection<DocumentRecord>[]>(() => {
+    const valuta = this.documents()[0]?.currency ?? DEFAULT_CURRENCY;
+    const soldi = (n: number): string => formatMoney({ amountMinor: n, currencyCode: valuta });
+    return sezioniDiElenco(this.documents(), this.groupByDay(), {
+      idPiatto: 'documenti',
+      giornoDi: (doc) => doc.documentDate,
+      columns: this.columns(),
+      emphasis: 'total',
+      campi: {
+        subtotal: {
+          valore: (doc) => signedDocumentMoney(doc.type, doc.subtotal).amountMinor,
+          formato: soldi,
+        },
+        total: {
+          valore: (doc) => signedDocumentMoney(doc.type, doc.total).amountMinor,
+          formato: soldi,
+        },
+        lineCount: { valore: (doc) => this.lineCount(doc), formato: (n) => String(n) },
+      },
+    });
+  });
 
   /*
     ⭐ **La riga totali dei documenti**, e porta il VERSO economico.

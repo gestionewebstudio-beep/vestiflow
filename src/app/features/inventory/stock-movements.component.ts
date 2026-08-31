@@ -65,7 +65,8 @@ import type { AppError } from '@core/models/app-error.model';
 import type { Location } from '@core/models/location.model';
 import { MovementOrigin, StockMovementType } from '@core/models/stock-movement.model';
 import type { StockMovement } from '@core/models/stock-movement.model';
-import { formatDateTime } from '@core/utils/date.util';
+import { formatDate, formatDateTime } from '@core/utils/date.util';
+import { GroupByMenuComponent } from '@shared/components/group-by-menu/group-by-menu.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
@@ -97,6 +98,7 @@ import {
 } from '@domain/inventory/models/movement-period.util';
 import { InventoryService } from '@domain/inventory/services/inventory.service';
 import type { DataTableTotals } from '@shared/components/data-table/data-table.model';
+import { raggruppaPerGiorno } from '@shared/models/list-grouping.util';
 import { totaliDiElenco } from '@shared/models/list-totals.util';
 
 interface MovementsData {
@@ -136,6 +138,7 @@ const SEARCH_DEBOUNCE_MS = 300;
   selector: 'app-stock-movements',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    GroupByMenuComponent,
     ListPageComponent,
 
     ListActionsBarComponent,
@@ -435,6 +438,7 @@ export class StockMovementsComponent {
       direction: movement.direction,
       reason: movement.reason,
       createdAtLabel: formatDateTime(movement.createdAt),
+      createdAt: movement.createdAt,
       createdByName: movement.createdByName,
       origin: movement.origin,
       originLabel: movementOriginLabel(movement.origin, profile),
@@ -455,7 +459,16 @@ export class StockMovementsComponent {
     righe: readonly StockMovementRow[],
     movimenti: readonly StockMovement[],
   ): readonly StockMovementRow[] {
-    const chiavi = this.sortState().filter((sort) => isMovementSortColumn(sort.columnId));
+    /*
+      ⛔ **Col raggruppamento acceso l'ordinamento manuale non esiste**, ed è la
+      stessa scelta del Registro Corrispettivi (`10` §20): il raggruppamento per
+      giornata **è già** una forma di ordinamento strutturato, e pretendere anche
+      quello per colonna richiederebbe un «prima il giorno, poi la colonna» che
+      spezza i gruppi e i loro subtotali.
+    */
+    const chiavi = this.raggruppaPerGiornata()
+      ? []
+      : this.sortState().filter((sort) => isMovementSortColumn(sort.columnId));
     if (chiavi.length === 0) {
       return righe;
     }
@@ -642,10 +655,59 @@ export class StockMovementsComponent {
     }),
   ]);
 
-  /** Una sezione sola, senza intestazione né piede: la lista è piatta. */
-  protected readonly sezioni = computed<readonly DataTableSection<StockMovementRow>[]>(() => [
-    { id: 'movimenti', rows: this.rows() },
-  ]);
+  // ── Raggruppa ─────────────────────────────────────────────────────────────
+
+  /**
+   * ⚠️ **Raggruppa è PRESENTAZIONE, non un filtro**: non entra in nessuna query,
+   * non conta nel badge «Filtri (n)» e «Azzera filtri» non lo tocca. Le righe
+   * restano le stesse — cambia come si leggono.
+   */
+  protected readonly raggruppa = signal<string>('none');
+  protected readonly raggruppaPerGiornata = computed(() => this.raggruppa() === 'day');
+
+  protected onRaggruppaChange(value: string): void {
+    /*
+      ⛔ Passando a «Giorno» l'ordinamento manuale si AZZERA, non si mette in
+      pausa: uno stato che esiste e non si vede tornerebbe fuori al cambio
+      successivo senza che nessuno l'abbia chiesto.
+    */
+    this.raggruppa.set(value);
+    if (value === 'day') {
+      this.sortState.set([]);
+    }
+  }
+
+  /**
+   * ⭐ **Una sezione sola quando non si raggruppa**; una per giornata quando sì,
+   * col subtotale della giornata nel piede.
+   *
+   * ⚠️ **Il subtotale SOMMA le righe caricate**, e qui è corretto: il registro
+   * non impagina più, quindi l'insieme che ha in mano **è** il risultato del
+   * filtro. È la stessa aritmetica della riga totali qui sotto, un livello più in
+   * basso — non un secondo motore economico.
+   *
+   * ⛔ **Sui Corrispettivi non sarebbe corretto**, ed è la ragione per cui quel
+   * registro costruisce le sezioni per conto proprio: i suoi subtotali arrivano
+   * dall'API, perché il suo risultato è più grande di quello che ha a schermo.
+   */
+  protected readonly sezioni = computed<readonly DataTableSection<StockMovementRow>[]>(() => {
+    const righe = this.rows();
+    if (!this.raggruppaPerGiornata()) {
+      return [{ id: 'movimenti', rows: righe }];
+    }
+    return raggruppaPerGiorno(righe, {
+      giornoDi: (row) => row.createdAt,
+      etichetta: (giorno) => (giorno ? formatDate(giorno) : 'Senza data'),
+      columns: this.tableColumns(),
+      emphasis: 'signedQuantity',
+      campi: {
+        signedQuantity: {
+          valore: (row) => row.signedQuantityValue,
+          formato: (n) => (n > 0 ? `+${n}` : String(n)),
+        },
+      },
+    });
+  });
 
   /*
     ⭐ **La riga totali dei movimenti somma la quantità COL SEGNO**, ed è l'unico

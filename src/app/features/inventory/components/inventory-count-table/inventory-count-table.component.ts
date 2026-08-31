@@ -14,6 +14,7 @@ import type {
   DataTableSection,
   DataTableTotals,
 } from '@shared/components/data-table/data-table.model';
+import { sezioniDiElenco } from '@shared/models/list-grouping.util';
 import { totaliDiElenco } from '@shared/models/list-totals.util';
 import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
 
@@ -45,17 +46,40 @@ export class InventoryCountTableComponent {
   readonly sessions = input.required<readonly InventoryCountSession[]>();
   readonly columns = input.required<readonly ResolvedTableColumn[]>();
 
+  /**
+   * ⭐ **Raggruppare per giornata**, deciso dalla pagina che possiede il controllo
+   * «Raggruppa». Qui arriva già risolto: la tabella non conosce il menu, sa solo
+   * se piegare l'elenco per giorno.
+   */
+  readonly groupByDay = input(false);
+
+  readonly selectedIds = input<ReadonlySet<string>>(new Set<string>());
+
   readonly rowClick = output<InventoryCountSession>();
   readonly deleteClick = output<InventoryCountSession>();
+  readonly selectionToggle = output<{ readonly sessionId: string; readonly selected: boolean }>();
+  readonly selectAllToggle = output<boolean>();
 
   protected readonly InventoryCountStatus = InventoryCountStatus;
   protected readonly statusLabel = inventoryCountStatusLabel;
   protected readonly statusTone = inventoryCountStatusTone;
 
-  /** Lista piatta: una sezione senza intestazione né piede. */
-  protected readonly sections = computed<readonly DataTableSection<InventoryCountSession>[]>(() => [
-    { id: 'sessioni', rows: this.sessions() },
-  ]);
+  /**
+   * ⚠️ **Il subtotale conta le righe con scostamento**, che è la domanda della
+   * giornata su un inventario: quante differenze ha prodotto. ⛔ Non si somma la
+   * percentuale di avanzamento — la somma di due rapporti non è un rapporto.
+   */
+  protected readonly sections = computed<readonly DataTableSection<InventoryCountSession>[]>(() =>
+    sezioniDiElenco(this.sessions(), this.groupByDay(), {
+      idPiatto: 'sessioni',
+      giornoDi: (session) => session.createdAt,
+      columns: this.columns(),
+      emphasis: 'deltas',
+      campi: {
+        deltas: { valore: (s) => s.linesWithDelta, formato: (n) => String(n) },
+      },
+    }),
+  );
   /*
     ⚠️ **Le colonne spente non si controllano a mano.** La card legge quelle che
     il motore ha già ricevuto: una fonte sola invece di due che possono divergere.
@@ -69,6 +93,9 @@ export class InventoryCountTableComponent {
   protected readonly rowLabelFor = (session: InventoryCountSession): string =>
     `Apri la sessione ${session.name}`;
 
+  protected readonly selectionLabel = (session: InventoryCountSession): string =>
+    `Seleziona ${session.name}`;
+
   /*
     ⭐ **Si somma solo il numero di DIFFERENZE**: è il dato per cui si guarda
     questo elenco — quante righe non tornano, in tutto.
@@ -79,7 +106,7 @@ export class InventoryCountTableComponent {
   protected readonly totals = computed<DataTableTotals>(() =>
     totaliDiElenco(this.sessions(), {
       rowId: this.rowId,
-      selectedIds: new Set<string>(),
+      selectedIds: this.selectedIds(),
       columns: this.columns(),
       campi: {
         deltas: { valore: (s) => s.linesWithDelta, formato: (n) => String(n) },

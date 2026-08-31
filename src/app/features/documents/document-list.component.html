@@ -363,6 +363,14 @@
       </div>
     }
 
+    <!--
+      Il raggruppamento sta con i filtri perché è lì che l'occhio lo cerca, ma
+      NON è un filtro: non cambia quali righe si vedono, solo come si leggono.
+    -->
+    <div class="doc-list__field">
+      <app-group-by-menu [value]="raggruppa()" (valueChange)="onRaggruppaChange($event)" />
+    </div>
+
     @if (hasActiveFilters()) {
       <button type="button" class="doc-list__clear" (click)="resetFilters()">Azzera filtri</button>
     }
@@ -372,6 +380,7 @@
     data
     [documents]="documents()"
     [columns]="tableColumns()"
+    [groupByDay]="raggruppaPerGiornata()"
     [canManage]="canManageDocuments()"
     [manageableTypes]="manageableTypes()"
     [selectable]="supportsSelection()"

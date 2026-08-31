@@ -14,8 +14,14 @@
   [rowClickable]="true"
   [rowLabel]="rowLabelFor"
   [totals]="totals()"
+  selectionMode="multiple"
+  [selectedIds]="selectedIds()"
+  [selectionLabel]="selectionLabel"
+  selectAllLabel="Seleziona tutte le sessioni"
   rowActionsLabel="Azioni"
   (rowClick)="rowClick.emit($event)"
+  (selectionChange)="selectionToggle.emit({ sessionId: $event.row.id, selected: $event.selected })"
+  (selectAllChange)="selectAllToggle.emit($event)"
 >
   <ng-template appCell="status" let-session>
     <app-badge [flat]="true" [tone]="statusTone(session.status)">

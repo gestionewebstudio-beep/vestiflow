@@ -41,12 +41,14 @@ import {
   onlineSaleInventoryStatusLabel,
   onlineSaleInventoryStatusTone,
 } from '@domain/sales-orders/models/sales-order-labels.util';
+import { GroupByMenuComponent } from '@shared/components/group-by-menu/group-by-menu.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
 import type { OnlineSaleListQuery, OnlineSaleRow } from './models/online-sale.model';
 import { OnlineSalesService } from './services/online-sales.service';
 import type { DataTableTotals } from '@shared/components/data-table/data-table.model';
+import { sezioniDiElenco } from '@shared/models/list-grouping.util';
 import { totaliDiElenco } from '@shared/models/list-totals.util';
 import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 
@@ -75,6 +77,7 @@ type ListState =
   selector: 'app-online-sale-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    GroupByMenuComponent,
     ListPageComponent,
     BadgeComponent,
     DataTableCellDirective,
@@ -227,10 +230,44 @@ export class OnlineSaleListComponent {
 
   // ── La tabella, sul motore comune (`14` parte H) ────────────────────────
 
-  /** Una sezione sola, senza intestazione né piede: l'elenco è piatto. */
-  protected readonly tableSections = computed<readonly DataTableSection<OnlineSaleRow>[]>(() => [
-    { id: 'all', rows: this.sales() },
-  ]);
+  // ── Raggruppa ─────────────────────────────────────────────────────────────
+
+  /**
+   * ⚠️ **Raggruppa è PRESENTAZIONE, non un filtro**: non entra in nessuna query,
+   * non conta nel badge «Filtri (n)» e «Azzera filtri» non lo tocca. Le righe
+   * restano le stesse — cambia come si leggono.
+   */
+  protected readonly raggruppa = signal<string>('none');
+  protected readonly raggruppaPerGiornata = computed(() => this.raggruppa() === 'day');
+
+  protected onRaggruppaChange(value: string): void {
+    this.raggruppa.set(value);
+  }
+
+  /**
+   * ⭐ **Si raggruppa per la data che l'elenco MOSTRA** — l'evasione, non
+   * l'ordine: raggruppare per una data che non è in nessuna colonna darebbe
+   * intestazioni che non corrispondono a niente di visibile.
+   *
+   * ⚠️ **Il subtotale somma le righe caricate**, ed è corretto: l'elenco non
+   * impagina, quindi ciò che ha in mano **è** il risultato del filtro. Stessa
+   * aritmetica della riga totali, un livello più in basso.
+   */
+  protected readonly tableSections = computed<readonly DataTableSection<OnlineSaleRow>[]>(() => {
+    const valuta = this.sales()[0]?.currency ?? DEFAULT_CURRENCY;
+    return sezioniDiElenco(this.sales(), this.raggruppaPerGiornata(), {
+      idPiatto: 'all',
+      giornoDi: (sale) => sale.fulfilledAt,
+      columns: this.tableColumns(),
+      emphasis: 'total',
+      campi: {
+        total: {
+          valore: (sale) => sale.totalMinor,
+          formato: (n) => formatMoney({ amountMinor: n, currencyCode: valuta }),
+        },
+      },
+    });
+  });
 
   /*
     ⭐ **La riga totali** (`regole-stile-ui`, «La riga TOTALI di un elenco»): somma

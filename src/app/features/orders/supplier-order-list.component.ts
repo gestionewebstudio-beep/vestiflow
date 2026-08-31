@@ -59,6 +59,7 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { SupplierOrder } from '@core/models/supplier-order.model';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
+import { GroupByMenuComponent } from '@shared/components/group-by-menu/group-by-menu.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
@@ -80,6 +81,7 @@ import {
 } from '@domain/supplier-orders/models/supplier-order-list-query.model';
 import { SupplierOrderService } from '@domain/supplier-orders/services/supplier-order.service';
 import type { DataTableTotals } from '@shared/components/data-table/data-table.model';
+import { sezioniDiElenco } from '@shared/models/list-grouping.util';
 import { totaliDiElenco } from '@shared/models/list-totals.util';
 import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 
@@ -108,6 +110,7 @@ type OrderListState =
   selector: 'app-supplier-order-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    GroupByMenuComponent,
     ListPageComponent,
     ErrorStateComponent,
     SelectMenuComponent,
@@ -590,10 +593,52 @@ export class SupplierOrderListComponent {
     this.updateParams({ sort: serializeDataTableSort(chiavi) || null, page: null }, true);
   }
 
-  /** Lista piatta: una sezione senza intestazione né piede. */
-  protected readonly tableSections = computed<readonly DataTableSection<SupplierOrder>[]>(() => [
-    { id: 'ordini', rows: this.orders() },
-  ]);
+  // ── Raggruppa ─────────────────────────────────────────────────────────────
+
+  /**
+   * ⚠️ **Raggruppa è PRESENTAZIONE, non un filtro**: non entra in nessuna query,
+   * non conta nel badge «Filtri (n)» e «Azzera filtri» non lo tocca. Le righe
+   * restano le stesse — cambia come si leggono.
+   */
+  protected readonly raggruppa = signal<string>('none');
+  protected readonly raggruppaPerGiornata = computed(() => this.raggruppa() === 'day');
+
+  protected onRaggruppaChange(value: string): void {
+    /*
+      ⛔ Passando a «Giorno» l'ordinamento manuale si AZZERA, non si mette in
+      pausa: uno stato che esiste e non si vede tornerebbe fuori al cambio
+      successivo senza che nessuno l'abbia chiesto.
+
+      ⚠️ È la stessa scelta del Registro Corrispettivi (`10` §20): il
+      raggruppamento **è già** una forma di ordinamento strutturato, e un «prima
+      il giorno, poi la colonna» spezzerebbe i gruppi e i loro subtotali.
+    */
+    if (value === 'day') {
+      this.updateParams({ sort: null }, true);
+    }
+    this.raggruppa.set(value);
+  }
+
+  /**
+   * ⚠️ **Il subtotale somma le righe caricate**, ed è corretto: l'elenco non
+   * impagina, quindi ciò che ha in mano **è** il risultato del filtro. Stessa
+   * aritmetica della riga totali, un livello più in basso.
+   */
+  protected readonly tableSections = computed<readonly DataTableSection<SupplierOrder>[]>(() => {
+    const valuta = this.orders()[0]?.totalAmount.currencyCode ?? DEFAULT_CURRENCY;
+    return sezioniDiElenco(this.orders(), this.raggruppaPerGiornata(), {
+      idPiatto: 'ordini',
+      giornoDi: (order) => order.orderDate,
+      columns: this.tableColumns(),
+      emphasis: 'total',
+      campi: {
+        total: {
+          valore: (order) => order.totalAmount.amountMinor,
+          formato: (n) => formatMoney({ amountMinor: n, currencyCode: valuta }),
+        },
+      },
+    });
+  });
 
   /*
     ⭐ **La riga totali** (`regole-stile-ui`, «La riga TOTALI di un elenco»): somma

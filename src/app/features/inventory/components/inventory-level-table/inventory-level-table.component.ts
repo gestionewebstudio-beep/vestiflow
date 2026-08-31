@@ -32,7 +32,11 @@ export class InventoryLevelTableComponent {
   readonly rows = input.required<readonly InventoryLevelRow[]>();
   readonly columns = input.required<readonly ResolvedTableColumn[]>();
 
+  readonly selectedIds = input<ReadonlySet<string>>(new Set<string>());
+
   readonly committedClick = output<InventoryLevelRow>();
+  readonly selectionToggle = output<{ readonly rowId: string; readonly selected: boolean }>();
+  readonly selectAllToggle = output<boolean>();
 
   protected readonly statusLabel = stockStatusLabel;
   protected readonly statusTone = stockStatusTone;
@@ -49,8 +53,16 @@ export class InventoryLevelTableComponent {
     return this.columns().some((column) => column.id === columnId);
   }
 
+  /*
+    ⚠️ **L'identità è la COPPIA variante-sede**, non la variante: la stessa
+    variante compare una volta per ogni sede in cui esiste, e usare il solo
+    `variantId` farebbe selezionare tutte le sue righe insieme.
+  */
   protected readonly rowId = (row: InventoryLevelRow): string =>
     `${row.variantId}-${row.locationId}`;
+
+  protected readonly selectionLabel = (row: InventoryLevelRow): string =>
+    `Seleziona ${row.title} in ${row.locationName}`;
 
   /*
     ⭐ **Le quantità si sommano, ed è il dato che si va a leggere**: filtrando per
@@ -64,7 +76,7 @@ export class InventoryLevelTableComponent {
     const q = (n: number): string => String(n);
     return totaliDiElenco(this.rows(), {
       rowId: this.rowId,
-      selectedIds: new Set<string>(),
+      selectedIds: this.selectedIds(),
       columns: this.columns(),
       campi: {
         available: { valore: (r) => r.available, formato: q },

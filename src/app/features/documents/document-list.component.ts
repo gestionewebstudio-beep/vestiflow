@@ -130,6 +130,7 @@ import type {
 import { ExternalDocumentTypeService } from '@domain/documents/services/external-document-type.service';
 import { isStoreFlowDocumentType } from '@domain/documents/models/document-operational.util';
 import { isPrintableDocumentType } from './models/document-print.util';
+import { GroupByMenuComponent } from '@shared/components/group-by-menu/group-by-menu.component';
 import {
   GOODS_RECEIPT_LIST_EXPORT,
   buildDocumentListCsv,
@@ -209,6 +210,7 @@ type DeleteResult =
   selector: 'app-document-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    GroupByMenuComponent,
     ListPageComponent,
     DeleteConfirmComponent,
     DateInputComponent,
@@ -2185,6 +2187,32 @@ export class DocumentListComponent {
    * quinta pagina di un ordine appena cambiato mostra righe che con la
    * posizione precedente non c'entrano nulla.
    */
+  // ── Raggruppa ─────────────────────────────────────────────────────────────
+
+  /**
+   * ⚠️ **Raggruppa è PRESENTAZIONE, non un filtro**: non entra in nessuna query,
+   * non conta nel badge «Filtri (n)» e «Azzera filtri» non lo tocca. Le righe
+   * restano le stesse — cambia come si leggono.
+   */
+  protected readonly raggruppa = signal<string>('none');
+  protected readonly raggruppaPerGiornata = computed(() => this.raggruppa() === 'day');
+
+  protected onRaggruppaChange(value: string): void {
+    /*
+      ⛔ Passando a «Giorno» l'ordinamento manuale si AZZERA, non si mette in
+      pausa: uno stato che esiste e non si vede tornerebbe fuori al cambio
+      successivo senza che nessuno l'abbia chiesto.
+
+      ⚠️ È la stessa scelta del Registro Corrispettivi (`10` §20): il
+      raggruppamento **è già** una forma di ordinamento strutturato, e un «prima
+      il giorno, poi la colonna» spezzerebbe i gruppi e i loro subtotali.
+    */
+    if (value === 'day') {
+      this.updateParams({ sort: null }, true);
+    }
+    this.raggruppa.set(value);
+  }
+
   protected onSortChange(chiavi: readonly DataTableSort[]): void {
     this.updateParams({ sort: serializeDataTableSort(chiavi) || null, page: null }, true);
   }

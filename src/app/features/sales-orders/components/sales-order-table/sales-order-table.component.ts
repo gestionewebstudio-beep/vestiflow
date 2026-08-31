@@ -33,6 +33,7 @@ import {
   sourceLabel,
 } from '@domain/sales-orders/models/sales-order-labels.util';
 import type { DataTableTotals } from '@shared/components/data-table/data-table.model';
+import { sezioniDiElenco } from '@shared/models/list-grouping.util';
 import { totaliDiElenco } from '@shared/models/list-totals.util';
 import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 
@@ -76,6 +77,13 @@ export class SalesOrderTableComponent {
   readonly orders = input.required<readonly SalesOrder[]>();
   /** Colonne visibili, nell'ordine scelto dal selettore «Colonne». */
   readonly columns = input.required<readonly ResolvedTableColumn[]>();
+
+  /**
+   * ⭐ **Raggruppare per giornata**, deciso dalla pagina che possiede il controllo
+   * «Raggruppa». Qui arriva già risolto: la tabella non conosce il menu, sa solo
+   * se piegare l'elenco per giorno.
+   */
+  readonly groupByDay = input(false);
 
   /** Chiavi di ordinamento correnti: lo stato sta nella pagina (`14` §H4). */
   readonly sort = input<readonly DataTableSort[]>([]);
@@ -291,9 +299,25 @@ export class SalesOrderTableComponent {
     })),
   );
 
-  protected readonly sections = computed<readonly DataTableSection<SalesOrder>[]>(() => [
-    { id: 'ordini', rows: this.orders() },
-  ]);
+  /**
+   * ⚠️ **Il subtotale somma le righe caricate**, ed è corretto: l'elenco non
+   * impagina, quindi ciò che ha in mano **è** il risultato del filtro. Stessa
+   * aritmetica della riga totali, un livello più in basso.
+   */
+  protected readonly sections = computed<readonly DataTableSection<SalesOrder>[]>(() => {
+    const valuta = this.orders()[0]?.total.currencyCode ?? DEFAULT_CURRENCY;
+    const soldi = (n: number): string => formatMoney({ amountMinor: n, currencyCode: valuta });
+    return sezioniDiElenco(this.orders(), this.groupByDay(), {
+      idPiatto: 'ordini',
+      giornoDi: (order) => order.placedAt,
+      columns: this.columns(),
+      emphasis: 'total',
+      campi: {
+        total: { valore: (o) => o.total.amountMinor, formato: soldi },
+        netTotal: { valore: (o) => o.subtotal.amountMinor, formato: soldi },
+      },
+    });
+  });
 
   /*
     ⭐ **La riga totali** (`regole-stile-ui`, «La riga TOTALI di un elenco»): somma

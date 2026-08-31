@@ -25,6 +25,7 @@ import type { Subscription } from 'rxjs';
 
 import { customerDisplayName } from '@core/models/customer.model';
 import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
+import { createListSelection } from '@shared/utils/list-selection';
 
 import type { PageMeta } from '@core/models/api.model';
 import { AuthService } from '@core/auth';
@@ -288,7 +289,18 @@ export class CustomerListComponent {
     espone né eliminazione né duplicazione, quindi la barra resta quella che era.
     Serve comunque, ed è utile da subito: il conteggio della riga totali la segue.
   */
-  protected readonly selectedCustomerIds = signal<ReadonlySet<string>>(new Set<string>());
+  private readonly selection = createListSelection('multiple');
+  protected readonly selectedCustomerIds = this.selection.ids;
+
+  /**
+   * ⛔ **Al cambio di filtro la selezione si restringe alle righe caricate.**
+   * Senza, la barra conterebbe schede che l'operatore non vede più e un'azione —
+   * eliminare, per esempio — agirebbe su clienti che credeva di aver lasciato
+   * indietro. È la «selezione invisibile o ingannevole» che `14` §15 vieta.
+   */
+  private readonly potaturaSelezione = toObservable(this.customers)
+    .pipe(takeUntilDestroyed(this.destroyRef))
+    .subscribe((righe) => this.selection.prune(righe.map((r) => r.id)));
 
   // ── Eliminazione: la sequenza a due conferme sta nel componente condiviso ──
   protected readonly deleteWarnOpen = signal(false);
@@ -375,24 +387,18 @@ export class CustomerListComponent {
         this.pendingDeleteIds.set([]);
         const eliminati = new Set(esiti.filter((e) => e.ok).map((e) => e.id));
         if (eliminati.size > 0) {
-          this.selectedCustomerIds.update(
-            (correnti) => new Set([...correnti].filter((id) => !eliminati.has(id))),
-          );
+          // La potatura arriva col ricaricamento; questo toglie subito ciò che
+          // non c'è più, senza aspettare il giro di rete.
+          for (const id of eliminati) {
+            this.selection.toggle(id, false);
+          }
         }
         this.reload();
       });
   }
 
   protected toggleCustomerSelection(customerId: string, selected: boolean): void {
-    this.selectedCustomerIds.update((correnti) => {
-      const prossimi = new Set(correnti);
-      if (selected) {
-        prossimi.add(customerId);
-      } else {
-        prossimi.delete(customerId);
-      }
-      return prossimi;
-    });
+    this.selection.toggle(customerId, selected);
   }
 
   /*
@@ -401,13 +407,14 @@ export class CustomerListComponent {
     cui l'impaginazione è stata tolta prima e non dopo.
   */
   protected toggleSelectAll(selected: boolean): void {
-    this.selectedCustomerIds.set(
-      selected ? new Set(this.customers().map((c) => c.id)) : new Set<string>(),
+    this.selection.setAll(
+      this.customers().map((c) => c.id),
+      selected,
     );
   }
 
   protected clearSelection(): void {
-    this.selectedCustomerIds.set(new Set<string>());
+    this.selection.clear();
   }
 
   protected readonly listActions = computed<readonly ListAction[]>(() => {

@@ -4498,3 +4498,162 @@ FONTI  — consolidate il 29/08
   sono stati ELIMINATI: la storia sta in git, non in copie parallele
 → `regole-stile-ui` è stata allineata sulla fascia unica
 ```
+
+---
+
+# 64. Raggruppa — deciso il 31/08/2026
+
+> _«L'impostazione "raggruppa" presente nei corrispettivi va inserita nei
+> riepiloghi con le date.»_ — proprietario, 31/08/2026
+
+## 64.1 Che cos'è, e cosa NON è
+
+⛔ **Raggruppa è PRESENTAZIONE, non un filtro.** Non cambia quali righe si
+vedono: cambia come si leggono. Ne discendono tre conseguenze, e vanno tenute
+tutte e tre:
+
+|                                          |                                                |
+| ---------------------------------------- | ---------------------------------------------- |
+| non entra in nessun costruttore di query | l'insieme dei dati resta identico              |
+| non conta nel badge **«Filtri (n)»**     | conta solo le restrizioni opzionali (§19)      |
+| **«Azzera filtri» non lo tocca**         | l'azzeramento non resetta i controlli di vista |
+
+⭐ **Sta con i filtri, non nella testata**, perché è lì che l'occhio lo cerca.
+Sui Corrispettivi ci era finito appeso al titolo per un errore di script, ed è
+stato spostato: quella nota è la ragione per cui oggi è un **componente**
+(`app-group-by-menu`) e non sette copie del solito `select-menu`.
+
+⚠️ **Mostra il valore** (`fitContent`), non solo l'etichetta: «Nessuno» e
+«Giorno» danno due schermate diverse, e saperlo a colpo d'occhio serve. ⛔ Mai
+`filterChip`: aggiungerebbe una × per cancellare un controllo che non può
+restare vuoto.
+
+## 64.2 Dove c'è, e perché non ovunque
+
+Sette elenchi su tredici — **quelli che hanno una data**:
+
+| Elenco                 | Si raggruppa per                              |
+| ---------------------- | --------------------------------------------- |
+| Registro Corrispettivi | `occurredAt` — c'era già, ed è il riferimento |
+| Documenti              | `documentDate`                                |
+| Ordini cliente         | `placedAt`                                    |
+| Ordini fornitore       | `orderDate`                                   |
+| Vendite online         | `fulfilledAt`                                 |
+| Movimenti di magazzino | `createdAt`                                   |
+| Inventario             | `createdAt`                                   |
+
+⛔ **Prodotti, Clienti, Fornitori, Giacenze e Situazione magazzino non ce
+l'hanno**, e non è una dimenticanza: sono anagrafiche e fotografie di stato, non
+registri di eventi. Raggruppare un catalogo per la data in cui l'articolo è
+stato creato non risponde a nessuna domanda che qualcuno si ponga.
+
+⭐ **Si raggruppa per la data che l'elenco MOSTRA.** Le vendite online hanno sia
+`orderPlacedAt` sia `fulfilledAt`: si usa l'evasione, perché è quella incolonnata
+— intestazioni di gruppo che non corrispondono a nessuna colonna visibile
+sarebbero illeggibili.
+
+## 64.3 Il subtotale di giornata SOMMA le righe caricate
+
+> **Il piede di gruppo aggrega i valori finali delle righe che ha in mano. Non
+> ricalcola niente.**
+
+⭐ **Ed è corretto proprio perché l'impaginazione è stata tolta**: l'insieme
+caricato **è** il risultato del filtro. È la stessa aritmetica della riga totali
+(`totaliDiElenco`), un livello più in basso — non un secondo motore economico.
+
+⚠️ **Sui Corrispettivi NON sarebbe corretto**, ed è la ragione per cui quel
+registro continua a costruire le proprie sezioni: i suoi subtotali arrivano
+**dall'API**, perché il suo risultato è più grande di quello che ha a schermo.
+Sommare le righe rese darebbe il totale della vista, non della giornata.
+
+⚠️ **Il verso economico si applica anche qui**: sui Documenti una fattura da 100
+e una nota di credito da 50 fanno 50 nella giornata, e ci si arriva col segno del
+tipo (`signedDocumentMoney`) — mai rifacendo l'IVA.
+
+⭐ **Si somma ciò che è VISIBILE**, come nella riga totali: una colonna spenta dal
+selettore Colonne non ha un subtotale.
+
+⛔ **Senza campi sommabili il gruppo ha la sola intestazione.** Un piede vuoto
+sarebbe una riga in più che non dice niente, moltiplicata per ogni giornata.
+
+## 64.4 Col raggruppamento acceso l'ordinamento manuale non esiste
+
+Estesa a tutti la scelta già presa sul Registro (`10` §20): il raggruppamento per
+giornata **è già** una forma di ordinamento strutturato, e pretendere anche
+quello per colonna richiederebbe un «prima il giorno, poi la colonna» che spezza
+i gruppi e i loro subtotali.
+
+⛔ **Passando a «Giorno» l'ordinamento si AZZERA, non si mette in pausa**: uno
+stato che esiste e non si vede tornerebbe fuori al cambio successivo senza che
+nessuno l'abbia chiesto.
+
+⚠️ Le due pagine senza ordinamento manuale — Vendite online e Inventario — non
+hanno niente da azzerare, e il loro handler lo dice.
+
+## 64.5 Il raggruppamento non RIORDINA
+
+`raggruppaPerGiorno` piega righe **consecutive**: due righe dello stesso giorno
+separate da una terza fanno due gruppi. È voluto — ordinare dentro la funzione
+scavalcherebbe l'ordinamento scelto — ed è la ragione per cui §64.4 esiste.
+
+⚠️ **Una riga senza data non sparisce**: finisce in un gruppo «Senza data».
+Perderla in silenzio è il difetto peggiore in un registro.
+
+## 64.6 Dove vive
+
+```text
+app-group-by-menu                      il controllo, una volta sola
+sezioniDiElenco(righe, raggruppa, …)   piatto o per giornata, in una riga
+raggruppaPerGiorno(righe, …)           la piegatura vera, 7 test
+```
+
+⭐ **La pagina possiede lo stato**, la tabella costruisce le sezioni. Dove la
+tabella è un componente figlio (Documenti, Ordini cliente, Inventario) il confine
+è l'input `[groupByDay]`: la tabella non conosce il menu, sa solo se piegare.
+
+---
+
+# 65. Selezione — completata il 31/08/2026
+
+> _«Elenchi inventario e giacenze vanno messe le selezioni.»_ — proprietario,
+> 31/08/2026
+
+Con Inventario e Giacenze la selezione è su **tutti e tredici** gli elenchi.
+
+## 65.1 Su Giacenze l'identità è la COPPIA variante-sede
+
+⛔ **Non il `variantId`.** La stessa variante compare una volta per ogni sede: con
+il solo identificativo della variante, spuntarne una selezionerebbe **tutte** le
+sue righe — quelle di Napoli e quelle di Milano insieme — e l'operatore non
+avrebbe modo di accorgersene guardando una schermata dove le altre righe stanno
+più in basso.
+
+```ts
+`${row.variantId}-${row.locationId}`;
+```
+
+## 65.2 ⛔ La selezione si POTA al cambio del filtro
+
+> **Ogni elenco restringe la selezione alle righe caricate quando l'insieme
+> cambia.**
+
+⚠️ **Era un difetto vero, misurato il 31/08/2026 su Clienti e Fornitori**: la
+selezione scritta a mano non aveva la potatura. Cambiando filtro, restavano
+selezionate schede che l'operatore non vedeva più — la barra le contava, e
+un'azione avrebbe agito su di loro. È la «selezione invisibile o ingannevole» che
+questa specifica vieta.
+
+⭐ **Il rimedio non è aggiungere la potatura in tredici posti: è usare la
+primitiva che ce l'ha.** `createListSelection` esisteva già ed era usata da
+cinque schermate; Clienti e Fornitori riscrivevano a mano `toggle`, `setAll` e
+`clear` — e nel riscriverli avevano perso l'unico pezzo non ovvio.
+
+```ts
+private readonly potaturaSelezione = toObservable(this.righe)
+  .pipe(takeUntilDestroyed(this.destroyRef))
+  .subscribe((righe) => this.selection.prune(righe.map(this.rowId)));
+```
+
+⚠️ **Dopo un'eliminazione la selezione si sfoltisce subito**, senza aspettare il
+giro di rete: la potatura arriva col ricaricamento, ma fra il rifiuto del server
+e la risposta la barra conterebbe righe che non ci sono più.

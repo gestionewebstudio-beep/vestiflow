@@ -200,6 +200,14 @@
       />
     </div>
 
+    <!--
+      Il raggruppamento sta con i filtri perché è lì che l'occhio lo cerca, ma
+      NON è un filtro: non cambia quali righe si vedono, solo come si leggono.
+    -->
+    <div class="sales-list__field">
+      <app-group-by-menu [value]="raggruppa()" (valueChange)="onRaggruppaChange($event)" />
+    </div>
+
     @if (hasActiveFilters()) {
       <button type="button" class="sales-list__clear" (click)="resetFilters()">Azzera</button>
     }
@@ -209,6 +217,7 @@
     data
     [orders]="orders()"
     [columns]="visibleColumns()"
+    [groupByDay]="raggruppaPerGiornata()"
     [profile]="listProfile()"
     [selectable]="canManage()"
     [selectedIds]="selectedIds()"

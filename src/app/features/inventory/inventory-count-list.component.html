@@ -16,12 +16,26 @@
 >
   <app-inventory-tabs tabs />
 
+  <div filters>
+    <!--
+      Il raggruppamento sta con i filtri perché è lì che l'occhio lo cerca, ma
+      NON è un filtro: non cambia quali righe si vedono, solo come si leggono.
+    -->
+    <div class="inventory-count-list__field">
+      <app-group-by-menu [value]="raggruppa()" (valueChange)="onRaggruppaChange($event)" />
+    </div>
+  </div>
+
   <app-inventory-count-table
     data
     [sessions]="sessions()"
     [columns]="tableColumns()"
+    [groupByDay]="raggruppaPerGiornata()"
+    [selectedIds]="selectedSessionIds()"
     (rowClick)="openSession($event)"
     (deleteClick)="requestDelete($event)"
+    (selectionToggle)="toggleSessionSelection($event.sessionId, $event.selected)"
+    (selectAllToggle)="toggleSelectAllSessions($event)"
   />
 
   <!--
@@ -33,7 +47,13 @@
     vista che serve a consultare.
   -->
   <div listActions>
-    <app-list-actions-bar [actions]="listActions()" />
+    <app-list-actions-bar
+      [count]="selectedSessionIds().size"
+      [ids]="[...selectedSessionIds()]"
+      [actions]="listActions()"
+      clearLabel="Deseleziona"
+      (cleared)="clearSelection()"
+    />
   </div>
 </app-list-page>
 

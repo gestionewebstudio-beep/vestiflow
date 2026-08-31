@@ -1,4 +1,4 @@
-import type { EntityId } from '@core/models/common.model';
+import type { EntityId, IsoDateString } from '@core/models/common.model';
 import type { StockStatus } from '@core/models/inventory-level.model';
 import type {
   AdjustmentDirection,
@@ -52,6 +52,15 @@ export interface StockMovementRow {
   readonly reason?: string;
   /** Data/ora già formattata. */
   readonly createdAtLabel: string;
+  /**
+   * ⭐ **La stessa data, GREZZA**, per il raggruppamento per giornata.
+   *
+   * ⛔ **Non si ricava dall'etichetta qui sopra.** Quella è già formattata in
+   * italiano («17 ago 2026, 14:30»): riparsarla per ritagliarne il giorno
+   * significherebbe scrivere un parser di date localizzate, che è esattamente il
+   * genere di conversione che poi sbaglia su un mese o su un fuso.
+   */
+  readonly createdAt: IsoDateString;
   readonly createdByName: string;
   readonly origin?: MovementOrigin;
   readonly originLabel?: string;

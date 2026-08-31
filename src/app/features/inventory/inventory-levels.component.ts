@@ -111,6 +111,7 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+import { createListSelection } from '@shared/utils/list-selection';
 
 @Component({
   selector: 'app-inventory-levels',
@@ -400,6 +401,34 @@ export class InventoryLevelsComponent {
    * ⚠️ I permessi stanno QUI, non nel template: la condizione che decide se un
    * comando esiste sta dove il comando si dichiara.
    */
+  // ── Selezione ─────────────────────────────────────────────────────────────
+  //
+  // ⚠️ **L'identità è la COPPIA variante-sede**: la stessa variante compare una
+  //    volta per ogni sede, e col solo `variantId` si selezionerebbero tutte le
+  //    sue righe insieme.
+  private readonly selection = createListSelection('multiple');
+  protected readonly selectedRowIds = this.selection.ids;
+
+  /** ⛔ Al cambio di filtro la selezione si restringe alle righe caricate. */
+  private readonly potaturaSelezione = toObservable(this.rows)
+    .pipe(takeUntilDestroyed(this.destroyRef))
+    .subscribe((righe) => this.selection.prune(righe.map((r) => `${r.variantId}-${r.locationId}`)));
+
+  protected toggleRowSelection(rowId: string, selected: boolean): void {
+    this.selection.toggle(rowId, selected);
+  }
+
+  protected toggleSelectAllRows(selected: boolean): void {
+    this.selection.setAll(
+      this.rows().map((r) => `${r.variantId}-${r.locationId}`),
+      selected,
+    );
+  }
+
+  protected clearSelection(): void {
+    this.selection.clear();
+  }
+
   protected readonly listActions = computed<readonly ListAction[]>(() => {
     const azioni: ListAction[] = [];
 
