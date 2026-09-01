@@ -2,6 +2,8 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
+  Injector,
+  afterNextRender,
   computed,
   inject,
   input,
@@ -30,6 +32,7 @@ import type { SelectMenuOption } from './select-menu.model';
     '[class.select-menu-host--chip]': 'filterChip()',
     '[class.select-menu-host--icon]': 'iconOnly()',
     '[class.select-menu-host--open]': 'open()',
+    '[class.select-menu-host--ribaltato]': 'ribaltato()',
     '(document:click)': 'onDocumentClick($event)',
     '(document:keydown.escape)': 'close()',
   },
@@ -42,6 +45,8 @@ export class SelectMenuComponent {
   // REASON: ElementRef.nativeElement e' tipizzato any in Angular; il host e' sempre HTMLElement.
   private readonly hostElement: HTMLElement = inject(ElementRef<HTMLElement>)
     .nativeElement as HTMLElement;
+  /** Serve a `afterNextRender` fuori dal contesto di iniezione (dentro un gestore). */
+  private readonly injector = inject(Injector);
   protected readonly searchInputId = `select-menu-search-${++SelectMenuComponent.nextInstanceId}`;
 
   readonly options = input.required<readonly SelectMenuOption[]>();
@@ -151,6 +156,26 @@ export class SelectMenuComponent {
 
   protected readonly open = signal(false);
   protected readonly searchQuery = signal('');
+
+  /**
+   * ⭐ **IL PANNELLO SI RIBALTA SE SBORDA DALLA FINESTRA** — proprietario,
+   * 01/09/2026: «in questo caso, la tabella del filtro esce fuori pagina»,
+   * aprendo il filtro della colonna Totale.
+   *
+   * ⛔ **La regola CSS che c'era copriva le ULTIME DUE colonne**, e la colonna
+   * Totale è la terzultima: il difetto è tornato una colonna più a sinistra.
+   * Contare le colonne è il criterio sbagliato — quello giusto è **quanto è
+   * largo il pannello e quanto spazio resta**, che dipende dalla larghezza della
+   * finestra e da quali colonne sono accese.
+   *
+   * ⚠️ **Si misura all'apertura, non si stima**: il pannello è `max-content`,
+   * quindi la sua larghezza la conosce solo il browser dopo averlo reso.
+   *
+   * ⚠️ **Il ribaltamento è l'ultima risorsa, non la prima**: si applica solo se
+   * a sinistra c'è più spazio che a destra. Su una finestra molto stretta il
+   * pannello sborda comunque, e ribaltarlo lo farebbe uscire dall'altra parte.
+   */
+  protected readonly ribaltato = signal(false);
 
   protected readonly visibleOptions = computed(() => {
     if (!this.searchable()) {
@@ -267,11 +292,82 @@ export class SelectMenuComponent {
       this.searchQuery.set(this.searchValue());
     }
     this.open.set(willOpen);
+    if (willOpen) {
+      /*
+        ⛔ **`queueMicrotask` NON basta, e la prima stesura lo usava.** Un
+        microtask viene eseguito prima che Angular abbia reso il pannello:
+        `querySelector` torna `null`, la funzione esce senza fare niente, e a
+        schermo il pannello resta ancorato dalla parte sbagliata. Nessun errore
+        — segnalato dal proprietario che continuava a vederlo uscire, con la
+        correzione già scritta e già compilata.
+
+        ⭐ `afterNextRender` è l'aggancio che garantisce il DOM dipinto, ed è
+        anche il solo momento in cui `getBoundingClientRect` dice la verità su
+        un pannello largo `max-content`.
+      */
+      afterNextRender(() => this.decidiIlLato(), { injector: this.injector });
+    } else {
+      this.ribaltato.set(false);
+    }
   }
 
   protected close(): void {
     this.open.set(false);
+    this.ribaltato.set(false);
     this.searchQuery.set(this.searchValue());
+  }
+
+  /**
+   * Il pannello sborda a destra? Allora si ancora a destra del trigger.
+   *
+   * ⭐ **Il confine è il contenitore che SCORRE, non la finestra** — proprietario,
+   * 01/09/2026: «in tabella non può riconoscere il confine e aprire dove ha
+   * spazio?». Dentro un elenco il pannello può stare comodamente nella finestra
+   * e sforare lo scrollport della tabella: lì non esce dallo schermo, allunga
+   * il contenuto scorrevole e si fa raggiungere solo scorrendo di lato.
+   *
+   * ⚠️ **Si RIBALTA solo se dall'altra parte ci sta**: un pannello più largo
+   * dello spazio disponibile in entrambe le direzioni esce comunque, e
+   * ribaltarlo sposterebbe il difetto invece di toglierlo.
+   */
+  private decidiIlLato(): void {
+    const pannello = this.hostElement.querySelector<HTMLElement>('.select-menu__panel');
+    if (!pannello) {
+      return;
+    }
+    const trigger = this.hostElement.getBoundingClientRect();
+    const largo = pannello.getBoundingClientRect().width;
+    const confine = this.confine();
+
+    const staADestra = trigger.left + largo <= confine.destra;
+    const staASinistra = trigger.right - largo >= confine.sinistra;
+    this.ribaltato.set(!staADestra && staASinistra);
+  }
+
+  /**
+   * Il rettangolo entro cui il pannello deve stare: il primo antenato che
+   * **ritaglia o scorre**, o in mancanza la finestra.
+   *
+   * ⚠️ **`overflow: visible` non conta**: un contenitore che non ritaglia lascia
+   * uscire il pannello, quindi il confine da rispettare è quello di chi ritaglia
+   * davvero — la barra strumenti, il pannello laterale, lo scrollport della
+   * tabella.
+   */
+  private confine(): { readonly sinistra: number; readonly destra: number } {
+    const finestra = this.hostElement.ownerDocument.defaultView;
+    let nodo = this.hostElement.parentElement;
+
+    while (nodo) {
+      const stile = finestra?.getComputedStyle(nodo);
+      const scorre = stile ? /auto|scroll|hidden|clip/.test(stile.overflowX) : false;
+      if (scorre) {
+        const r = nodo.getBoundingClientRect();
+        return { sinistra: r.left, destra: r.right };
+      }
+      nodo = nodo.parentElement;
+    }
+
+    return { sinistra: 0, destra: finestra?.innerWidth ?? 0 };
   }
 
   protected onSearchInput(event: Event): void {

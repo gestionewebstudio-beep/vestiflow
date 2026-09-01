@@ -143,6 +143,61 @@ test.describe('Filtri di colonna — resa nel browser', () => {
   });
 
   /**
+   * ⭐ **LA TENDINA DELL'ULTIMA COLONNA NON ESCE DAL CONTENITORE.**
+   *
+   * ⛔ Segnalato tre volte dal proprietario il 01/09/2026, e le prime due
+   * correzioni erano CSS che contava le colonne: prima l'ultima, poi le ultime
+   * due — e la terza volta a sforare era la **terzultima**. Contare le colonne è
+   * il criterio sbagliato: il pannello è largo più di due colonne numeriche, e
+   * quante ne sforano dipende dalla larghezza della finestra e da quali colonne
+   * sono accese.
+   *
+   * ⭐ **Ora il lato lo decide `select-menu` misurando all'apertura**, contro il
+   * primo antenato che ritaglia — lo scrollport della tabella, non la finestra:
+   * un pannello che sta nella finestra ma esce dalla tabella non si vede lo
+   * stesso, e allunga il contenuto scorrevole.
+   *
+   * ⚠️ **Nessuna prova di componente può vederlo**: jsdom non calcola i
+   * rettangoli, quindi `getBoundingClientRect` torna zero e ogni asserzione
+   * passerebbe qualunque cosa faccia il codice.
+   */
+  test('⛔ la tendina dell’ultima colonna resta dentro il contenitore', async ({ page }) => {
+    await apriElencoConFiltri(page);
+
+    const trigger = page.locator('thead .data-table__filter button').last();
+    await expect(trigger).toBeVisible();
+    await trigger.click();
+
+    const panel = page.locator('ul.select-menu__panel');
+    await expect(panel).toHaveCount(1);
+
+    const box = await panel.boundingBox();
+    const vista = page.viewportSize();
+    const dove = `pannello ${JSON.stringify(box)} · viewport ${JSON.stringify(vista)}`;
+
+    expect(box, dove).not.toBeNull();
+    expect(box!.x, `esce a sinistra — ${dove}`).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width, `esce a destra — ${dove}`).toBeLessThanOrEqual(vista!.width);
+
+    /*
+      ⚠️ **E deve essere anche VISIBILE**, non solo dentro i confini: è la
+      lezione della prova qui sopra — un pannello ritagliato ha un riquadro
+      perfetto e non lo si vede.
+    */
+    const alCentro = await page.evaluate(() => {
+      const p = document.querySelector('ul.select-menu__panel');
+      if (!p) return 'nessun pannello';
+      const r = p.getBoundingClientRect();
+      const sopra = document.elementFromPoint(
+        Math.round(r.left + r.width / 2),
+        Math.round(r.top + r.height / 2),
+      );
+      return sopra?.closest('ul.select-menu__panel') ? 'pannello' : `coperto da ${sopra?.tagName}`;
+    });
+    expect(alCentro, `al centro: ${alCentro} · ${dove}`).toBe('pannello');
+  });
+
+  /**
    * ⭐ **L'ESCLUSIONE, guardata da un browser** — «tutte tranne queste».
    *
    * ⚠️ Le prove di componente coprono il verso emesso e il modello copre il

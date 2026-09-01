@@ -100,6 +100,31 @@
 }
 
 /*
+  ⭐ **I VALORI INCOLONNABILI SI ALLINEANO A DESTRA** — proprietario,
+  01/09/2026: «nei filtri, le date non hanno allineamento a destra». La colonna
+  DATA mostra le sue date a destra, e il pannello che elenca quelle stesse date
+  le metteva a sinistra.
+
+  ⚠️ **La classe sta sull'host e la proprietà scende per EREDITÀ**: il pannello
+  di `select-menu` vive nel DOM di questo componente — nessun overlay, nessun
+  portal — quindi una custom property dichiarata qui lo raggiunge. È la strada
+  che `regole-stile-ui` §5 prescrive: un componente condiviso si configura col
+  suo punto di regolazione, non toccandone il markup dall'esterno.
+
+  ⛔ **LA CLASSE DA SOLA NON BASTA, E PER UN GIORNO NON È BASTATA.** Applicata
+  su `host: {}` senza questa regola, `--select-menu-option-align` non veniva
+  impostata da nessuno: il ripiego `start` vinceva sempre, e la correzione
+  chiesta non arrivava a schermo. Non falliva niente — `check:classi-orfane`
+  leggeva allora i soli `.component.html` e non vedeva le classi applicate
+  dall'host, e `check:tokens` accetta un knob che la tabella di
+  `regole-stile-ui` elenca: la riga che lo elencava l'aveva aggiunta lo stesso
+  lavoro. Due guardie, e la seconda disarmata dalla prima riga di documentazione.
+*/
+:host(.column-filter--incolonnato) {
+  --select-menu-option-align: end;
+}
+
+/*
   La testa del pannello: verso e «Tutti», poi — se la colonna è una data o un
   numero — le scorciatoie e gli estremi.
 

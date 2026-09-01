@@ -270,6 +270,16 @@
   // ancorato a sinistra uscirebbe dal bordo. Il contenitore dichiara
   // `--select-menu-panel-inset: auto 0` e lo ribalta.
   inset-inline: var(--select-menu-panel-inset, 0 auto);
+
+  /*
+    ⭐ **Ribaltato quando sborda**, deciso misurando all'apertura: la classe la
+    mette il componente, non il contenitore. Sostituisce la regola che ribaltava
+    «le ultime due colonne» — un criterio che sbagliava appena il pannello era
+    più largo di due colonne, come sulla colonna Totale (terzultima).
+  */
+  :host(.select-menu-host--ribaltato) & {
+    inset-inline: auto 0;
+  }
   // Largo quanto serve alle opzioni (v4): mai meno del trigger, mai oltre il
   // tetto — un trigger stretto (es. IVA 72px) apre comunque una tendina
   // leggibile su una riga.
@@ -471,12 +481,24 @@
   background-size: var(--space-1) var(--space-1);
 }
 
+/*
+  ⭐ **Punto di regolazione dell'allineamento di voce** (`regole-stile-ui` §5).
+
+  Serve a chi elenca **valori incolonnabili**: le date e i numeri di un filtro di
+  colonna. Segnalato dal proprietario il 01/09/2026 — «nei filtri, le date non
+  hanno allineamento a destra»: la colonna DATA mostra le sue date a destra, e il
+  pannello che elenca quelle stesse date le metteva a sinistra.
+
+  ⚠️ **Il ripiego è `start`**, quindi ogni altro menu resta com'è: un elenco di
+  nomi si legge da sinistra, e allinearlo a destra sarebbe un peggioramento.
+*/
 .select-menu__option-label {
   flex: 1 1 auto;
   min-inline-size: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: var(--select-menu-option-align, start);
 }
 
 .select-menu__option-btn--detailed .select-menu__option-label {

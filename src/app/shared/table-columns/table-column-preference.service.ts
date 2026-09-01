@@ -22,6 +22,7 @@ import {
   toggleColumnVisibility,
   applyPresetToState,
 } from './table-column.util';
+import { ColumnFilterStore } from './column-filter.store';
 import { parseTableViewStateJson } from './table-view-state.util';
 import { TableViewPreferenceApiService } from './table-view-preference-api.service';
 
@@ -38,6 +39,7 @@ export class TableColumnPreferenceService {
   private readonly authService = inject(AuthService);
   private readonly document = inject(DOCUMENT);
   private readonly api = inject(TableViewPreferenceApiService);
+  private readonly filtri = inject(ColumnFilterStore);
 
   private readonly registry = new Map<TableViewId, ViewRegistryEntry>();
   private readonly states = new Map<TableViewId, WritableSignal<TableViewState>>();
@@ -148,9 +150,44 @@ export class TableColumnPreferenceService {
   }
 
   private commit(viewId: TableViewId, state: TableViewState): void {
+    const prima = this.states.get(viewId)!();
     this.states.get(viewId)!.set(state);
+    this.spegniFiltriDiColonneNascoste(viewId, prima, state);
     this.persistLocal(viewId, state);
     void this.persistRemote(viewId, state);
+  }
+
+  /**
+   * ⭐ **COLONNA SPENTA DAL SELETTORE COLONNE, FILTRO SPENTO** (`regole-stile-ui`
+   * §5, `14` §0.2).
+   *
+   * ⛔ **La metà che mancava.** Spegnendo una colonna il suo CONTROLLO spariva già
+   * — dall'intestazione, che non c'è più, e dal pannello compatto, che elenca le
+   * sole colonne visibili — ma la RESTRIZIONE restava applicata: l'elenco
+   * continuava a mostrare meno righe per un criterio che non si vedeva più da
+   * nessuna parte, e non c'era modo di toglierlo se non riaccendendo la colonna.
+   *
+   * ⚠️ **Sta in `commit` e non in `toggleColumn`**, perché a nascondere una
+   * colonna ci si arriva da più di una parte: il selettore, un preset che ne
+   * spegne dieci in un colpo, e domani qualunque altra via. Il posto giusto è
+   * dove lo stato cambia, non dove uno dei chiamanti lo cambia.
+   *
+   * ⚠️ **Solo le colonne che diventano nascoste ADESSO**: ripetere la pulizia su
+   * quelle già nascoste riscriverebbe lo stato dei filtri a ogni commit — un
+   * ordinamento di colonne, un fissaggio — e ogni `computed` a valle
+   * ricalcolerebbe per niente.
+   */
+  private spegniFiltriDiColonneNascoste(
+    viewId: TableViewId,
+    prima: TableViewState,
+    dopo: TableViewState,
+  ): void {
+    const giaNascoste = new Set(prima.hiddenColumnIds);
+    for (const columnId of dopo.hiddenColumnIds) {
+      if (!giaNascoste.has(columnId)) {
+        this.filtri.imposta(viewId, { columnId, value: null });
+      }
+    }
   }
 
   private async hydrateFromServer(

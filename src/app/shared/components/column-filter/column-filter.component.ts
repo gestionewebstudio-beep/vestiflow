@@ -49,6 +49,17 @@ import type { TableColumnFilterKind } from '@shared/table-columns/table-column.m
   imports: [DateInputComponent, SegmentedComponent, SelectMenuComponent],
   templateUrl: './column-filter.component.html',
   styleUrl: './column-filter.component.scss',
+  /*
+    ⭐ **I valori INCOLONNABILI si elencano a destra**, come nella colonna che li
+    contiene — proprietario, 01/09/2026: «nei filtri, le date non hanno
+    allineamento a destra».
+
+    ⚠️ **La classe sta sull'host, non sul menu**: l'allineamento lo dichiara il
+    contenitore con una custom property (`regole-stile-ui` §5), e il
+    `select-menu` la legge dal proprio ripiego. Toccarne il markup dall'esterno
+    sarebbe la strada che quella regola vieta.
+  */
+  host: { '[class.column-filter--incolonnato]': 'incolonnato()' },
 })
 export class ColumnFilterComponent {
   private static nextInstanceId = 0;
@@ -84,6 +95,17 @@ export class ColumnFilterComponent {
 
   /** `null` toglie il filtro da questa colonna. */
   readonly changed = output<ColumnFilterValue | null>();
+
+  /**
+   * ⭐ **I valori si incolonnano** quando la colonna li incolonna: date e numeri.
+   *
+   * ⚠️ **Si decide dalla FORMA del filtro**, non dal contenuto delle voci: è la
+   * stessa informazione che la colonna usa per allinearsi a destra, quindi le
+   * due decisioni non possono divergere.
+   */
+  protected readonly incolonnato = computed(
+    () => this.kind() === 'date' || this.kind() === 'range',
+  );
 
   protected readonly MODI: readonly SegmentedOption[] = [
     { value: 'includi', label: 'Includi' },
