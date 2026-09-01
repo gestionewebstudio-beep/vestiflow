@@ -71,6 +71,8 @@ export interface Supplier extends TenantScoped, Timestamped {
 /** Payload creazione/aggiornamento fornitore. */
 export interface SupplierInput {
   readonly code?: string;
+  /** Stato del ruolo: spento, il fornitore esce dai nuovi utilizzi. */
+  readonly isActive?: boolean;
   readonly name: string;
   readonly vatNumber?: string;
   readonly taxCode?: string;

@@ -131,6 +131,12 @@ export class SupplierDetailComponent {
           { label: 'P. IVA', value: s.vatNumber ?? '—' },
           { label: 'Codice fiscale', value: s.taxCode ?? '—' },
           {
+            label: 'Stato',
+            value: s.isActive
+              ? 'Attivo'
+              : 'Disattivato — fuori dai documenti nuovi, storico intatto',
+          },
+          {
             label: 'Anche cliente',
             value: s.linkedCustomerId
               ? s.linkedCustomerActive

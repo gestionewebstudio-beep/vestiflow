@@ -92,6 +92,7 @@ type PartyWriteData = {
 
 type SupplierRoleWriteData = {
   code?: string | null;
+  isActive?: boolean;
   paymentMethod?: string | null;
   paymentTerms?: string | null;
   supplierDiscount?: string | null;
@@ -542,7 +543,13 @@ export class SuppliersService {
 
     const result: SupplierRoleWriteData = {};
     const assign = (
-      key: Exclude<keyof SupplierRoleWriteData, 'defaultVatCodeId'>,
+      /*
+        ⚠️ **`isActive` è escluso insieme a `defaultVatCodeId`**: questo aiuto
+        normalizza STRINGHE — taglia gli spazi e trasforma il vuoto in `null` —
+        e su un booleano non ha senso, perché `false` è un valore e non
+        un'assenza. Entrambi si assegnano da soli, più sotto.
+      */
+      key: Exclude<keyof SupplierRoleWriteData, 'defaultVatCodeId' | 'isActive'>,
       value: string | undefined,
     ): void => {
       const normalized = trim(value);
@@ -560,6 +567,15 @@ export class SuppliersService {
     assign('ourBankName', dto.ourBankName);
     assign('documentCreationAlert', dto.documentCreationAlert);
     assign('documentCreationNote', dto.documentCreationNote);
+
+    /*
+      ⚠️ **Non passa da `assign`**, che è scritto per le stringhe e le taglia:
+      qui il valore è un booleano, e `false` è un valore vero — non un vuoto
+      da normalizzare a `null`.
+    */
+    if (dto.isActive !== undefined) {
+      result.isActive = dto.isActive;
+    }
 
     if ('defaultVatCodeId' in dto && dto.defaultVatCodeId !== undefined) {
       result.defaultVatCodeId = dto.defaultVatCodeId;

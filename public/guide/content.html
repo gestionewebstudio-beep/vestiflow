@@ -1371,7 +1371,28 @@ cliente paga.</p>
 <td><strong>Gestire ordini fornitore</strong></td>
 </tr>
 </tbody></table>
-<p>Campi tipici: ragione sociale, P.IVA, indirizzo, email, telefono, note. Puoi anche creare un fornitore <strong>inline</strong> dal form ordine o arrivo merce (<strong>Nuovo fornitore</strong>).</p>
+<p>Campi tipici: ragione sociale, P.IVA e codice fiscale, indirizzo, contatti, condizioni commerciali (pagamento, sconto, Codice IVA, trasporto), IBAN e note. Puoi anche creare un fornitore <strong>inline</strong> dal form ordine o arrivo merce (<strong>Nuovo fornitore</strong>).</p>
+<h3 id="12-1-attivo-e-anche-cliente">I due interruttori: «Attivo» e «È anche cliente»</h3>
+<p>In fondo ai <strong>Dati generali</strong> della scheda ci sono due spunte che governano <strong>ruoli diversi</strong>: è la parte che più spesso si fraintende.</p>
+<table>
+<thead>
+<tr>
+<th>Spunta</th>
+<th>Che cosa fa</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Attivo</strong></td>
+<td>Riguarda <strong>questo</strong> fornitore. Toglila per ritirarlo dal giro: sparisce dalle tendine dei documenti nuovi (ordini fornitore, arrivi merce), ma <strong>non si perde niente</strong> — la scheda resta nell'elenco, e ordini, documenti e storico restano collegati. È l'alternativa all'eliminazione per un fornitore con cui non lavori più.</td>
+</tr>
+<tr>
+<td><strong>È anche cliente</strong></td>
+<td>Riguarda l'<strong>altro</strong> ruolo dello stesso soggetto. Attivandola, la stessa azienda diventa anche cliente: gli registri le fatture d'acquisto <em>e</em> gli puoi vendere merce, perché compare anche nelle tendine dei <strong>documenti di vendita</strong>.</td>
+</tr>
+</tbody></table>
+<p><strong>L'anagrafica resta una sola.</strong> Attivando il secondo ruolo non si duplica niente: ragione sociale, P.IVA, indirizzo e contatti sono condivisi, e correggerli da una scheda li corregge per entrambe. Ogni ruolo tiene solo i propri dati commerciali (codice, sconto, pagamenti) e il proprio stato Attivo.</p>
+<p>Togliendo «È anche cliente» il ruolo cliente viene <strong>disattivato</strong>, non cancellato: esce dalle tendine di vendita e i suoi documenti restano. Rimettendo la spunta torna attivo com'era.</p>
+<p>Lo stesso vale specularmente dalla scheda cliente, con la spunta <strong>«È anche fornitore»</strong>.</p>
 <hr>
 <h2 id="13-documenti-fiscali-e-operativi">13. Documenti fiscali e operativi</h2>
 <p>VestiFlow centralizza i documenti che impattano magazzino e contabilità. <strong>Non sostituisce</strong> il software di fatturazione elettronica o il commercialista: traccia numeri, stati, collegamenti e movimenti di stock.</p>

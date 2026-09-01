@@ -461,15 +461,36 @@
             formControlName="notes"
           ></textarea>
         </div>
+        <!--
+          ⭐ **I DUE INTERRUTTORI DI RUOLO, uno accanto all'altro.** Dicono
+          cosa questo soggetto è e se lo si usa ancora: si leggono insieme, e
+          separarli costringerebbe a cercarne uno dei due.
+
+          ⚠️ **Governano ruoli DIVERSI, e non è ovvio**: «Attivo» è lo stato di
+          QUESTO ruolo fornitore; «È anche cliente» accende o spegne il ruolo
+          CLIENTE dello stesso soggetto. Sono due interruttori, non uno doppio.
+        -->
+        <div class="supplier-fields__field supplier-fields__field--full">
+          <label class="supplier-fields__checkbox">
+            <input type="checkbox" formControlName="isActive" />
+            <span>Attivo</span>
+          </label>
+          <p class="supplier-fields__hint">
+            Un fornitore disattivato non compare più nelle tendine dei documenti nuovi, ma non si
+            perde niente: scheda, ordini, documenti e storico restano dove sono. Serve a ritirare
+            dal giro un fornitore con cui non si lavora più, senza eliminarlo.
+          </p>
+        </div>
         <div class="supplier-fields__field supplier-fields__field--full">
           <label class="supplier-fields__checkbox">
             <input type="checkbox" formControlName="alsoCustomer" />
             <span>È anche cliente</span>
           </label>
           <p class="supplier-fields__hint">
-            Aggiunge il ruolo cliente allo stesso soggetto, senza duplicare l'anagrafica: i dati
-            comuni restano condivisi. Togliendo la spunta il ruolo viene disattivato per i nuovi
-            utilizzi, ma documenti e storico restano intatti.
+            Lo stesso soggetto viene trattato anche come cliente: gli si registrano le fatture
+            d'acquisto e gli si può vendere merce, e compare nelle tendine dei documenti di vendita.
+            Nessun dato viene duplicato — l'anagrafica è una sola e resta condivisa. Togliendo la
+            spunta il ruolo cliente si disattiva, ma documenti e storico restano.
           </p>
         </div>
       </div>

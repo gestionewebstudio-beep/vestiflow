@@ -43,6 +43,15 @@ export class CreateSupplierDto {
   @MaxLength(50)
   phone?: string;
 
+  /**
+   * Stato del RUOLO fornitore. Spento, il fornitore esce dalle tendine dei
+   * documenti nuovi (`listAll` filtra `isActive: true`) e non si perde niente:
+   * ordini, documenti e collegamenti restano — `ANAGRAFICA-CANONICA-SPEC`.
+   */
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
   /** Cellulare: secondo recapito del soggetto (Danea: «Cell.»). */
   @IsOptional()
   @IsString()

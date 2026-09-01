@@ -92,7 +92,19 @@ qui).
 includano** la dichiarazione di densità che le altre hanno, non che abbiano una regola in
 più. Le due cose si correggono in modo opposto.
 
-### ⛔ Trovato per strada: «Stato ruolo» non si imposta da nessuna parte _(01/09/2026)_
+### ✅ «Stato ruolo»: risolto lo stesso giorno — scelta la strada 1
+
+Il proprietario ha scelto: _«a questo punto facciamo la 1. disattiviamo»_. La maschera
+fornitore ha ora la spunta **«Attivo»**, accanto a «È anche cliente». Meccanismo verificato
+sul database (tabella in `ANAGRAFICA-CANONICA-SPEC`), guida utente aggiornata con i due
+interruttori.
+
+⏸ **Resta da fare sul CLIENTE**, che ha esattamente lo stesso buco: nessuna spunta «Attivo»
+nella sua maschera. Va con §A.
+
+Qui sotto resta la diagnosi, perché spiega perché il difetto era invisibile.
+
+### ⛔ Com'era: «Stato ruolo» non si impostava da nessuna parte _(01/09/2026)_
 
 Domanda del proprietario: _«nel riepilogo del fornitore c'è uno "Stato ruolo" attivo, ma non
 so cosa sia e dove si imposta»._ **Non si imposta: da qui, non si può.**

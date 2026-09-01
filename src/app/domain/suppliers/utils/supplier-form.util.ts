@@ -11,6 +11,12 @@ function trimOptional(value: string | undefined | null): string | undefined {
 export function createSupplierFormGroup(fb: NonNullableFormBuilder) {
   return fb.group({
     code: fb.control(''),
+    /*
+      ⭐ **Lo stato del RUOLO**, acceso di serie: un fornitore nasce attivo.
+      Spento, sparisce dalle tendine dei documenti nuovi e resta tutto il
+      resto — schede, ordini, storico (`ANAGRAFICA-CANONICA-SPEC`).
+    */
+    isActive: fb.control(true),
     name: fb.control('', { validators: [Validators.required, Validators.minLength(1)] }),
     vatNumber: fb.control(''),
     taxCode: fb.control(''),
@@ -46,6 +52,7 @@ export type SupplierFormGroup = ReturnType<typeof createSupplierFormGroup>;
 export function mapSupplierFormToInput(raw: SupplierFormGroup['value']): SupplierInput {
   return {
     code: trimOptional(raw.code),
+    isActive: raw.isActive,
     name: raw.name?.trim() ?? '',
     vatNumber: trimOptional(raw.vatNumber),
     taxCode: trimOptional(raw.taxCode),
@@ -79,6 +86,7 @@ export function mapSupplierFormToInput(raw: SupplierFormGroup['value']): Supplie
 export function patchSupplierFormGroup(form: SupplierFormGroup, supplier: Supplier): void {
   form.patchValue({
     code: supplier.code ?? '',
+    isActive: supplier.isActive,
     name: supplier.name,
     vatNumber: supplier.vatNumber ?? '',
     taxCode: supplier.taxCode ?? '',
@@ -113,6 +121,7 @@ export function patchSupplierFormGroup(form: SupplierFormGroup, supplier: Suppli
 export function resetSupplierFormGroup(form: SupplierFormGroup): void {
   form.reset({
     code: '',
+    isActive: true,
     name: '',
     vatNumber: '',
     taxCode: '',
