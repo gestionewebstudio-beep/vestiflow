@@ -1,11 +1,21 @@
 <section class="supplier-form">
   <header class="supplier-form__header">
-    <!-- Torna alla pagina precedente; senza cronologia ricade sulla lista
-         Fornitori dedotta dall'URL. -->
-    <app-back-button />
-    <h1 class="supplier-form__title">
-      {{ isEdit() ? 'Modifica fornitore' : 'Nuovo fornitore' }}
-    </h1>
+    <!--
+      ⭐ **Indietro e titolo in UN contenitore solo** — come `company-page`,
+      l'unico altro form anagrafica della app. `list-page` mette il primo e
+      l'ultimo figlio della testata agli estremi opposti (per ospitare
+      un'azione a destra): con Indietro e H1 come DUE figli separati, il
+      titolo finiva spinto all'angolo destro, staccato dal pulsante che lo
+      precede. Un solo `<div>` li tiene vicini, a sinistra.
+    -->
+    <div class="supplier-form__heading">
+      <!-- Torna alla pagina precedente; senza cronologia ricade sulla lista
+           Fornitori dedotta dall'URL. -->
+      <app-back-button />
+      <h1 class="supplier-form__title">
+        {{ isEdit() ? 'Modifica fornitore' : 'Nuovo fornitore' }}
+      </h1>
+    </div>
   </header>
 
   @if (loading()) {
@@ -26,11 +36,17 @@
         <p class="supplier-form__error" role="alert">{{ message }}</p>
       }
 
+      <!--
+        ⭐ **Ghost a sinistra, primary all'estrema destra** — la stessa
+        sequenza di `company-page` (Impostazioni → Azienda), l'unico altro
+        form anagrafica della app: chi esce senza salvare trova il comando a
+        sinistra, il salvataggio è l'ultimo passo verso destra.
+      -->
       <div class="supplier-form__actions">
+        <app-button variant="ghost" [routerLink]="listPath">Annulla</app-button>
         <app-button type="submit" variant="primary" [loading]="saving()" [disabled]="saving()">
           Salva fornitore
         </app-button>
-        <app-button variant="ghost" [routerLink]="listPath">Annulla</app-button>
       </div>
     </form>
   }

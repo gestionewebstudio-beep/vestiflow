@@ -617,6 +617,24 @@
   */
   --control-h-button: 1.75rem;
   --control-h-cell: 1.5rem; // 24px — input dentro le righe
+
+  /*
+    ⭐ **28px — i campi di ANAGRAFICA**, deciso dal proprietario il 01/09/2026:
+    «credo che l'altezza non debba superare i 28 px, proviamo», dopo tre giri
+    su «le celle sono enormi… in un gestionale bisogna essere pratici e
+    tabulazione veloce».
+
+    ⚠️ **Perché un token nuovo e non `--control-h-button`**, che vale già 28px:
+    quello è l'altezza di un comando che si PREME, e sotto `md` scende a 38px
+    perché un pulsante etichettato regge un bersaglio più piccolo. Un campo
+    dove si SCRIVE no — sotto `md` questo torna al minimo tappabile, come
+    `--field-height`. Stessa misura su scrivania, due comportamenti diversi sul
+    telefono: due nomi.
+
+    ⛔ Non è `--control-h-cell` (24px): quello è l'input dentro una riga di
+    tabella, che vive in una griglia fitta e senza etichetta propria.
+  */
+  --control-h-entry: 1.75rem; // 28px — campi di anagrafica (inserimento rapido)
   --control-h-touch: 2.75rem; // 44px — minimo tappabile su mobile
   /*
     ⭐ **24px, da 30 — proprietario, 01/09/2026**: «riduci il padding interno
@@ -874,6 +892,25 @@
   :root {
     --btn-min-height: var(--control-h-tap);
     --field-height: var(--control-h-tap);
+
+    /*
+      ⭐ **28px anche sul telefono** — proprietario, 01/09/2026: «da mobile le
+      celle sono piu alte rispetto a desktop, sistemare».
+
+      ⛔ **Qui c'era `--control-h-tap` (44px)**, e la ragione scritta era che
+      «un campo si sbaglia mentre si scrive». La decisione la ribalta per
+      l'anagrafica: una scheda con venti campi a 44px diventa un rotolo, e si
+      compila peggio di una densa.
+
+      ⚠️ **Resta sopra il minimo WCAG 2.2 AA**, che chiede 24×24 CSS px — la
+      stessa misura con cui i pulsanti di barra si sono fermati a 38px. Il
+      bersaglio vero è più alto dei 28: lo allarga lo spazio fra le righe.
+
+      ⚠️ **E il corpo del testo NON scende sotto i 16px sul telefono**: sotto
+      quella soglia iOS ingrandisce la pagina da solo a ogni fuoco. È la parte
+      della regola che non si tocca, ed è dichiarata nel foglio del form.
+    */
+    --control-h-entry: 1.75rem; // 28px — deciso uguale alla scrivania
 
     /*
       ⚠️ **38px anche per i controlli di TESTATA** — deciso dal proprietario il

@@ -95,6 +95,56 @@ Ho confrontato le sette maschere campo per campo. **Le differenze con una ragion
 
 Fuori dalla catena resta il **reverse-match sull'aliquota legacy** (`vatRatePercent` → codice con la stessa aliquota) di Arrivo merce e Documenti vendita: non è un anello dell'ingresso articolo, è la migrazione di righe vecchie. Resta nella maschera.
 
+#### ⭐ L'ARTICOLO NUOVO: il Codice IVA del fornitore lo DETERMINA — proprietario, 01/09/2026
+
+> _«L'aliquota IVA presente nell'anagrafica fornitore serve a impostare l'IVA agli articoli
+> nuovi quando li creiamo nell'arrivo merce e selezioniamo quel fornitore. Il documento sa
+> che l'IVA del fornitore avrà prevalenza sul resto delle impostazioni. Se l'IVA del
+> fornitore non è impostata, valgono le altre regole di VestiFlow.»_
+
+⭐ **Non è un'eccezione alla catena qui sopra: è il suo caso limite.** Su una riga che crea
+un articolo, il primo anello — l'articolo — **non esiste ancora**, quindi il fornitore è il
+primo che risponde. Detto al contrario: il fornitore non scavalca l'articolo, arriva prima
+perché l'articolo non c'è.
+
+```text
+riga con articolo esistente   articolo → fornitore → predefinito aziendale
+riga che CREA l'articolo      (nessun articolo) → fornitore → predefinito aziendale
+```
+
+⚠️ **E il codice così scelto RESTA sull'anagrafica dell'articolo**: `vatCodeId` della riga
+diventa `defaultVatCodeId` del prodotto nuovo (`quick-product-create.util`). Da lì in poi
+l'articolo è il primo anello per ogni documento successivo — cioè la scelta del fornitore
+si eredita una volta sola, alla nascita, e poi vive sull'articolo.
+
+⚠️ **Il fornitore risponde solo se il suo codice è ATTIVO e di famiglia acquisto**: un
+codice disattivato o di sola vendita non è una scelta, è un residuo, e la catena prosegue
+al predefinito aziendale.
+
+##### ⛔ Difetto misurato: la catena salta l'anello se le righe si aggiungono DOPO
+
+Verificato il 01/09/2026 in `goods-receipt-form.component.ts`. Il Codice IVA del fornitore
+viene applicato **solo** da `onSupplierSelect`, che percorre le righe **già presenti**
+quando si sceglie il fornitore. Una riga aggiunta dopo passa da `applySupplierDefaultsToLine`,
+che applica **il solo sconto** e poi delega a `ensureLineVatCode` — il quale va dritto al
+predefinito **aziendale**, senza consultare il fornitore.
+
+```text
+righe già presenti, poi scelgo il fornitore   → articolo nuovo con l'IVA del FORNITORE
+scelgo il fornitore, poi aggiungo le righe    → articolo nuovo con l'IVA del TENANT   ⛔
+```
+
+⚠️ **Il secondo è l'ordine naturale dei gesti**, quindi è il caso che capita più spesso. E
+il server non fa da rete: il fallback `supplier?.defaultVatCodeId ?? tenantSettings?…` di
+`documents.service` sta nel percorso generico `computeLines`, che il flusso Arrivo merce
+(`goods-receipt-workflow.service`) non attraversa.
+
+⚠️ **Divergenza collaterale, stessa famiglia**: l'Ordine fornitore passa
+`codiceIvaControparte: null` al risolutore, con un commento che afferma «il fornitore di
+questa maschera non porta un Codice IVA d'anagrafica» — falso rispetto al modello, dove
+`Supplier.defaultVatCodeId` esiste. Due maschere d'acquisto trattano il campo in modo
+opposto.
+
 ### P2 — `campi: ReadonlySet<CampoArticolo>` (capacità della riga)
 
 Dichiara quali valori la riga di quel documento **sa ospitare**. L'uscita del risolutore è già filtrata su questo insieme: chi lo chiama non deve mai chiedersi se un campo lo riguarda.

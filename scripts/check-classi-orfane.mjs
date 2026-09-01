@@ -308,6 +308,15 @@ const NOTE = new Set([
   'stock-movements__search-input',
   'supplier-detail',
   'supplier-fields',
+  /*
+    ⚠️ `supplier-form` è vestita: `list-page($block)` la dichiara
+    (`.#{$block} { display:flex; ... }`), come già per `company-page` qui
+    sopra. La guardia risolve i suffissi dei mixin (`__x`, `--x`) ma non il
+    blocco NUDO — non c'è suffisso da estrarre da un'interpolazione senza
+    seguito — quindi non vede una regola che esiste davvero. Stessa causa,
+    stesso rimedio già in uso per `company-page`.
+  */
+  'supplier-form',
   'supplier-form__body',
   'supplier-table',
   'supplier-table__cell--pinned',

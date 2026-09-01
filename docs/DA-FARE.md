@@ -2393,6 +2393,24 @@ problema invece di chiuderlo — gli altri diciannove campi della scheda restano
   comportamenti non sono di per sé un difetto; VestiFlow però ha scelto di **unificarli sul
   modello delle righe**, che è più coerente.
 
+#### Stato al 01/09/2026 — l'anagrafica FORNITORE è fatta, le altre no
+
+Rifatta per intero (larghezze per contenuto, ordine di battitura, densità a 28px, sezioni
+piatte allineate, avvisi di digitazione). Il giro del Tab è stato **verificato in un browser
+vero**: 26 fermate in ordine di DOM, dalla ragione sociale ai due pulsanti, nessuna trappola,
+la cella del Codice IVA raggiunta come ogni altro campo. La forma è in `regole-stile-ui`
+§7-bis.
+
+⚠️ **Restano da fare: cliente, articolo, Impostazioni.** `customer-form-fields` è oggi la
+copia esatta del difetto corretto qui — griglia a due colonne uguali, nessun controllo su
+P. IVA, codice fiscale, CAP e provincia, `font: inherit` sugli input (13px: sotto la soglia
+iOS). I controlli fiscali sono già pronti e condivisi in `src/app/domain/fiscal/`.
+
+⛔ **E c'è un difetto di dominio trovato per strada**, che non riguarda la veste: il Codice
+IVA del fornitore non arriva sugli articoli creati da Arrivo merce se le righe si aggiungono
+DOPO aver scelto il fornitore — cioè nell'ordine naturale dei gesti. Misure, catena e
+divergenza dell'Ordine fornitore in `docs/03c-contratto-risolutore-riga.md` §P1.
+
 #### Stato al 18/08/2026 sera — cosa è già fatto del punto 7
 
 Due commit sul ramo, albero verde (build, lint con 9 guardie, 504 test di componente):

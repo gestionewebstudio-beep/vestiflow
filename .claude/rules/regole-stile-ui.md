@@ -236,6 +236,7 @@ vive nei token e non va reimpostata nel foglio di un componente.
 | Input generici                   | `--field-height`     | 34px     | 44px     |
 | Controlli di testata documento   | `--control-h-field`  | 29px     | 44px     |
 | Bottoni barra strumenti / azioni | `--control-h-button` | **28px** | **38px** |
+| Campi di anagrafica              | `--control-h-entry`  | **28px** | 44px     |
 | Input dentro le righe            | `--control-h-cell`   | 24px     | 24px     |
 | Riga tabella                     | `--table-row-h`      | **25px** | —        |
 | Intestazione tabella             | `--table-head-h`     | **28px** | —        |
@@ -1768,6 +1769,99 @@ Vale su **tutte** le viste: desktop e mobile mostrano lo stesso stato vuoto, con
 - **Totale documento** più marcato, 20px weight 700, valore in colore `--color-primary`
 
 Il totale mobile è visibile solo scrollando fino in fondo; i pulsanti Chiudi / Salva documento seguono subito dopo, come coppia allineata a destra (vedi §5).
+
+---
+
+## 7-bis. Anatomia di un'ANAGRAFICA (fornitore, cliente, articolo)
+
+⚠️ **Non è la maschera di un documento e non è una pagina di impostazioni.** È il posto
+dove si trascrive un dato da un foglio che si ha davanti, spesso venti campi di fila, e si
+giudica su una cosa sola: **quanto in fretta ci si passa dentro con la tastiera**.
+
+_Deciso il 01/09/2026 rifacendo l'anagrafica fornitore, dopo che il proprietario ha
+respinto tre versioni: «le celle sono enormi», «è tutto troppo grande, anche gli spazi sono
+enormi», «i testi vanno allineati»._
+
+### La misura di un campo è quella del suo dato
+
+⛔ **Mai una griglia a colonne uguali.** Misurato prima della correzione, a 1440px: CAP e
+Provincia larghi **589px** — per cinque cifre e due lettere — e la scheda alta **1792px**,
+cioè due schermate.
+
+⭐ Ogni campo dichiara la propria larghezza con una custom property che punta a un token
+`--field-w-*`, e la fila **va a capo** da sola:
+
+```html
+<div class="campo" style="--campo-w: var(--field-w-sm)">
+  <!-- CAP -->
+</div>
+```
+
+```scss
+.griglia {
+  display: flex;
+  flex-wrap: wrap;
+}
+.campo {
+  flex: 0 0 var(--campo-w, var(--field-w-lg));
+}
+```
+
+| Token          | Misura | Per                                    |
+| -------------- | ------ | -------------------------------------- |
+| `--field-w-xs` | 80px   | Provincia, Paese                       |
+| `--field-w-sm` | 128px  | CAP, sconto, percentuali               |
+| `--field-w-md` | 176px  | P. IVA, codice fiscale, Codice IVA     |
+| `--field-w-lg` | 224px  | città, referente, tendine di pagamento |
+| `--field-w-xl` | 352px  | ragione sociale, indirizzo, email      |
+
+⛔ **`flex-grow` è il difetto che torna in piccolo.** Con `flex: 1` i campi si rispartiscono
+la riga in parti uguali: misurato, «Città» a **1002px** e «Sito web» a **1194px**. A crescere
+restano le sole aree di testo. **Il bordo destro frastagliato è la forma giusta**, ed è
+quella del riferimento Danea.
+
+### Altezza, tipografia, allineamento
+
+- **Controlli a `--control-h-entry` (28px)**, sul telefono come sulla scrivania — la
+  decisione è nel token, con la ragione e il limite WCAG.
+- **Etichetta a `--text-2xs`, muted, 2px sopra il campo**: pesa quanto due terzi del
+  controllo che descrive, e su dieci righe vale una riga intera.
+- ⚠️ **Il corpo dell'input NON scende sotto i 16px sul telefono**: iOS ingrandisce la pagina
+  da solo a ogni fuoco. La densità tipografica sta dentro `media-up('md')`, **annidata nella
+  regola base** — scritta come blocco a parte viene scavalcata, e non se ne accorge nessuno
+  (`check:media-scavalcate` l'ha trovata il giorno stesso).
+- ⭐ **Tutto sulla stessa colonna**: titolo di pagina, titoli di sezione, etichette e campi.
+  Un riquadro con padding rientra il contenuto di 9px rispetto al titolo, e si vede. Le
+  sezioni di un'anagrafica usano quindi `app-form-section` **`[flat]`**: titolo con un filo
+  sotto, nessuna scatola.
+- ⭐ **Indietro e titolo sulla stessa riga**: impilati costano una fascia prima del primo
+  campo.
+
+### L'ordine dei campi è quello in cui si BATTE il dato
+
+⭐ Non quello del modello: si copia da un'intestazione di fattura o da un biglietto da
+visita — **ragione sociale → dati fiscali → indirizzo → contatti** — e le condizioni
+commerciali vengono dopo, perché si decidono invece di trascriverle. Dentro l'indirizzo:
+**CAP prima di Città, Città prima di Provincia**, come si legge un indirizzo italiano.
+
+⚠️ **Il giro del Tab è l'ordine del DOM**: nessun `tabindex` positivo, nessun riordino in
+CSS. Chi sposta un campo sposta anche la tabulazione, ed è voluto.
+
+### I controlli di digitazione sono AVVISI, non errori
+
+⛔ **Non bloccano il salvataggio**: `regole-gestionale` riserva il blocco a SKU, codice
+articolo e barcode — ciò che romperebbe database, sync o identità. Una partita IVA con la
+cifra di controllo sbagliata è quasi sempre un refuso, ma ogni tanto è il dato che il
+fornitore ha davvero mandato.
+
+- **Colore `--color-warning`, mai `--color-danger`**: il rosso significa «hai provato a
+  salvare e questo è sbagliato». Usarlo qui rende i due stati indistinguibili.
+- **Compaiono all'uscita dal campo**, non mentre si scrive: al primo carattere ogni partita
+  IVA è «non valida», e un avviso che lampeggia a ogni tasto si impara a ignorare.
+- Gli algoritmi (checksum P. IVA e codice fiscale) stanno in `domain/fiscal/` e sono
+  **copiati** da `docs/06b` §B, non riscritti.
+
+---
 
 ### Note documento
 

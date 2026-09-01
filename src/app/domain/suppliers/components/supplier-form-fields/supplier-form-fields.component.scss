@@ -1,13 +1,118 @@
 @use 'breakpoints' as bp;
 
-.supplier-fields__grid {
-  display: grid;
-  gap: var(--space-4);
+/*
+  ⭐ **UN'ANAGRAFICA È UN'AREA DENSA, non una pagina di impostazioni** —
+  proprietario, 01/09/2026: «le celle sono enormi. in un gestionale bisogna
+  essere pratici e tabulazione veloce. Celle enormi su desktop piccoli rendono
+  i procedimenti piu lunghi e fastidiosi».
+
+  ⭐ **La densità si dichiara dal CONTENITORE**, ed è il canale che
+  `regole-stile-ui` §5 descrive per filtri e barre strumenti: si imposta
+  `--field-height` su di sé e ogni campo dentro lo legge — input, `select-menu`
+  e la cella del Codice IVA insieme, senza toccarne nessuno.
+
+  ⭐ **28px**, deciso dal proprietario dopo tre giri: «credo che l'altezza non
+  debba superare i 28 px, proviamo». È il token `--control-h-entry`, che sotto
+  `md` torna da sé al minimo tappabile.
+
+  ⛔ **Non si tocca `--field-height` globale**: quello governa gli input di
+  tutta l'applicazione, comprese le schermate che non sono di inserimento
+  rapido.
+*/
+.supplier-fields {
+  --field-height: var(--control-h-entry);
+  --form-section-pad: var(--space-2);
+  --form-section-title-size: var(--text-sm);
+  --form-section-title-gap: var(--space-2);
 }
 
-@include bp.media-up('md') {
-  .supplier-fields__grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+.supplier-fields__sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/*
+  ⛔ **QUI C'ERA UNA GRIGLIA A DUE COLONNE UGUALI, ED È IL DIFETTO CHE IL
+  PROPRIETARIO HA VISTO** — 01/09/2026: «queste caselle enormi che occupano
+  tanto spazio inutile e le schermate diventano enormi e lunghe», «lunghezze
+  delle celle inappropriata, per esempio, quella dell'iva».
+
+  Misurato prima della correzione, su una finestra da 1440:
+
+  ```text
+  CAP            589px   per 5 cifre
+  Provincia      589px   per 2 lettere
+  Codice IVA     589px   per «22»
+  pagina alta   1792px   = 1,9 schermate
+  ```
+
+  ⭐ **Ogni campo dichiara due cose**: quante colonne occupa (`--span`, la
+  POSIZIONE) e, dove il dato è corto, fin dove può allargarsi (`--campo-max`,
+  la MISURA). Le due insieme sono «un campo è largo quanto il dato che ospita»
+  (`regole-architettura`, §Spaziatura) senza rinunciare a una disposizione
+  stabile.
+*/
+.supplier-fields__grid {
+  display: grid;
+  /*
+    ⭐ **DUE colonne anche sul telefono** — proprietario, 01/09/2026: «da mobile
+    è davvero poco pratico».
+
+    ⛔ Qui c'era una colonna sola, e su un'anagrafica significa che CAP, Prov. e
+    Paese si prendono una fascia intera ciascuno: ventiquattro fasce da
+    scorrere per una scheda che su scrivania sta in dieci righe. I campi corti
+    si appaiano (`--span-sm: 1`), quelli lunghi tengono la riga.
+  */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--space-1) var(--space-2);
+
+  /*
+    ⭐ **DODICI COLONNE, e ogni campo ne dichiara quante ne occupa.**
+
+    ⛔ **Qui c'era una fila che andava a capo da sé** (`flex-wrap`), e il
+    proprietario ha visto il difetto che porta con sé: «in base allo schermo si
+    adatta meglio o peggio». È vero — con la sola larghezza dichiarata, il
+    punto in cui la riga si spezza dipende dalla finestra: a 1230px «Paese»
+    restava da solo su una riga sua, staccato da «Prov.» che gli sta accanto in
+    ogni indirizzo. La stessa maschera aveva una disposizione diversa a ogni
+    larghezza, e non c'è muscolo che la impari.
+
+    ⭐ **Con le colonne la posizione è FISSA**: i campi si stringono insieme
+    invece di riordinarsi, e la riga «CAP · Città · Prov. · Paese» resta quella
+    riga a 1000px come a 1600.
+
+    ⚠️ **Le proporzioni restano quelle del dato** — la regola non cambia, cambia
+    come si esprime: 2 colonne su 12 per la Provincia, 6 per l'indirizzo.
+  */
+  @include bp.media-up('md') {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+}
+
+.supplier-fields__field {
+  min-inline-size: 0;
+  grid-column: span var(--span-sm, 2);
+
+  @include bp.media-up('md') {
+    grid-column: span var(--span, 3);
+  }
+}
+
+/*
+  ⛔ **QUI C'ERA `--cresce`, e faceva tornare il difetto in piccolo.** Un campo
+  che si prende l'avanzo della riga diventa largo quanto lo spazio, non quanto
+  il dato: misurato, «Città» a **1002px** e «Sito web» a **1194px** — un nome
+  di città e un indirizzo web, con dentro il vuoto.
+
+  ⭐ **Il bordo destro frastagliato è la forma giusta**, non un difetto: è così
+  che si legge il riferimento Danea, ed è la conseguenza diretta della regola.
+  A crescere restano le sole aree di testo, che il testo lo contengono davvero.
+*/
+.supplier-fields__field--mezzo {
+  @include bp.media-up('md') {
+    grid-column: span 6;
   }
 }
 
@@ -15,30 +120,66 @@
   grid-column: 1 / -1;
 }
 
-.supplier-fields__section-title {
-  margin: 0;
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text);
-}
-
+/*
+  ⚠️ **L etichetta è la META del costo verticale di un campo**: a 13px con 4px
+  di stacco pesa 22px, quanto due terzi del controllo che descrive. A 12px con
+  2px ne pesa 18 — su dieci righe sono quaranta pixel, cioè una riga intera.
+*/
 .supplier-fields__label {
   display: block;
-  margin-block-end: var(--space-1);
-  font-size: var(--text-sm);
+  margin-block-end: var(--space-05);
+  font-size: var(--text-xs);
   font-weight: var(--font-weight-medium);
-  color: var(--color-text);
+  color: var(--color-text-muted);
+
+  /*
+    ⚠️ **Annidata, non in un blocco a parte**: scritta dopo come regola sciolta
+    la scavalcava questa, che ha la stessa specificità e viene dopo — la
+    variante densa non si applicava affatto. L'ha trovata
+    `check:media-scavalcate`, non l'occhio.
+  */
+  @include bp.media-up('md') {
+    font-size: var(--text-2xs);
+  }
 }
 
 .supplier-fields__control {
   inline-size: 100%;
   block-size: var(--field-height);
   padding-inline: var(--space-3);
-  font: inherit;
+
+  /*
+    ⚠️ **16px sul telefono, e non è una scelta di gusto**: sotto quella soglia
+    iOS ingrandisce la pagina a ogni fuoco sul campo (`regole-stile-ui` §3).
+    Qui c'era `font: inherit`, cioè i 13px del corpo — la regola era già
+    disattesa prima di questo lavoro.
+  */
+  font-family: inherit;
+  font-size: var(--text-lg);
   color: var(--color-text);
   background-color: var(--color-surface);
   border: var(--border-width) solid var(--color-border-strong);
   border-radius: var(--radius-md);
+
+  /*
+    ⚠️ **Il corpo scende solo da `md` in su.** Su iOS un input sotto i 16px fa
+    ingrandire la pagina da solo (`regole-stile-ui` §3): un difetto peggiore
+    dei pixel guadagnati.
+  */
+  @include bp.media-up('md') {
+    padding-inline: var(--space-2);
+    font-size: var(--text-xs);
+  }
+}
+
+// SKU, codici fiscali: cifre e lettere che si leggono una per una.
+.supplier-fields__control--mono {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+}
+
+.supplier-fields__control--maiuscolo {
+  text-transform: uppercase;
 }
 
 .supplier-fields__control:focus-visible {
@@ -51,6 +192,21 @@
   margin-block-start: var(--space-1);
   font-size: var(--text-xs);
   color: var(--color-danger);
+}
+
+/*
+  ⭐ **L'avviso NON è l'errore, e non ne prende il colore.** Il rosso in una
+  maschera vuol dire «hai provato a salvare e questo è sbagliato»; qui il
+  salvataggio non è bloccato — è un possibile refuso da guardare
+  (`regole-gestionale`: i controlli sono avvisi non bloccanti, il blocco resta
+  a SKU, codice articolo e barcode). Usarlo rosso renderebbe i due stati
+  indistinguibili proprio dove servono distinti.
+*/
+.supplier-fields__field-warning {
+  display: block;
+  margin-block-start: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--color-warning);
 }
 
 // Il bordo colorato accompagna il messaggio: chi scorre il form con lo sguardo
@@ -79,4 +235,16 @@
   margin: var(--space-2) 0 0;
   font-size: var(--text-xs);
   color: var(--color-text-muted);
+}
+
+/*
+  ⭐ **La colonna dà la POSIZIONE, il token dà la MISURA.**
+
+  Nella griglia un campo si stira alla propria colonna: «Codice fiscale» a
+  350px per sedici caratteri, cioè il difetto delle celle enormi che rientra
+  dalla finestra. Il tetto lo riporta alla larghezza del dato, e lo spazio che
+  avanza resta nella colonna — la riga sotto continua ad allinearsi.
+*/
+.supplier-fields__field {
+  max-inline-size: var(--campo-max, none);
 }

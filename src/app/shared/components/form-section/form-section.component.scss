@@ -1,0 +1,64 @@
+// Componenti Angular: display inline per default. Senza questo, l'host non
+// partecipa al flusso — è flex/grid item nullo nel contenitore che lo ospita.
+:host {
+  display: block;
+}
+
+/*
+  ⚠️ **`<fieldset>` porta bordo, padding e min-inline-size di default dal
+  browser** — un riquadro grigio incassato, largo quanto il contenuto più
+  largo dentro. Si azzera tutto e si ridichiara da zero coi token del
+  progetto: è la stessa forma che `--card-pad-md` + `--radius-lg` danno alla
+  card (`regole-stile-ui` §5).
+*/
+/*
+  ⚠️ **Padding e taglia del titolo sono REGOLABILI dal contenitore**
+  (`regole-stile-ui` §5, «Come si configura un componente condiviso»): una
+  pagina di impostazioni respira, un'anagrafica da compilare in fretta no. Il
+  default è quello di `company-page`, da cui il pattern nasce; chi vuole la
+  versione densa imposta `--form-section-pad` su di sé.
+*/
+.form-section {
+  margin: 0;
+  padding: var(--form-section-pad, var(--card-pad-md));
+  min-inline-size: 0;
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+/*
+  ⚠️ **`<legend>` per default sta A CAVALLO del bordo superiore** — la
+  didascalia skeuomorfica di un vecchio pannello HTML. Qui deve leggersi come
+  un titolo di sezione dentro il riquadro, non come l'etichetta del riquadro
+  stesso: si resetta a blocco e si allinea al testo che segue, esattamente
+  come `company-page__panel-title`, il precedente da cui il pattern nasce.
+*/
+.form-section__title {
+  display: block;
+  padding: 0;
+  margin: 0 0 var(--form-section-title-gap, var(--space-3));
+  font-size: var(--form-section-title-size, var(--text-lg));
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+}
+
+/*
+  ⭐ **La variante piatta**: niente scatola, il titolo porta un filo sotto di
+  sé. Il contenuto cade sulla stessa colonna del titolo di pagina, che è la
+  ragione per cui esiste (vedi il commento sull'`input` nel `.ts`).
+*/
+.form-section--flat {
+  padding: 0;
+  background-color: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.form-section--flat .form-section__title {
+  inline-size: 100%;
+  padding-block-end: var(--space-1);
+  border-block-end: var(--border-width) solid var(--color-border);
+}

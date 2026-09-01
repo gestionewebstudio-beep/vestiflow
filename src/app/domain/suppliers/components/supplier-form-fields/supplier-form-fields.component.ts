@@ -5,15 +5,45 @@ import type { PaymentOption } from '@core/models/payment-option.model';
 import { isPurchaseVatCode, type VatCode } from '@core/models/vat-code.model';
 import { DocumentLineSelectCellComponent } from '@domain/documents/components/document-line-select-cell/document-line-select-cell.component';
 import { vatCodeSelectOption } from '@domain/documents/utils/document-vat-options.util';
+import {
+  countryCodeWarning,
+  postalCodeWarning,
+  provinceWarning,
+  taxCodeWarning,
+  vatNumberWarning,
+} from '@domain/fiscal/fiscal-fields.util';
+import { FormSectionComponent } from '@shared/components/form-section/form-section.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
 import type { SupplierFormGroup } from '@domain/suppliers/utils/supplier-form.util';
 
+/** I campi che hanno un controllo di digitazione. */
+type CampoConAvviso = 'vatNumber' | 'taxCode' | 'postalCode' | 'province' | 'countryCode';
+
+/**
+ * ⚠️ **Il tipo è la chiave esatta, non `string`**: con
+ * `noUncheckedIndexedAccess` un `Record<string, …>` restituisce
+ * `T | undefined`, e la mappa andrebbe interrogata col punto di domanda —
+ * cioè un avviso potrebbe sparire senza che nessuno se ne accorga.
+ */
+const AVVISI: Readonly<Record<CampoConAvviso, (valore: string) => string | null>> = {
+  vatNumber: vatNumberWarning,
+  taxCode: taxCodeWarning,
+  postalCode: postalCodeWarning,
+  province: provinceWarning,
+  countryCode: countryCodeWarning,
+};
+
 @Component({
   selector: 'app-supplier-form-fields',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, DocumentLineSelectCellComponent, SelectMenuComponent],
+  imports: [
+    ReactiveFormsModule,
+    DocumentLineSelectCellComponent,
+    FormSectionComponent,
+    SelectMenuComponent,
+  ],
   templateUrl: './supplier-form-fields.component.html',
   styleUrl: './supplier-form-fields.component.scss',
 })
@@ -55,6 +85,28 @@ export class SupplierFormFieldsComponent {
   protected showError(controlName: keyof SupplierFormGroup['controls']): boolean {
     const control = this.formGroup().controls[controlName];
     return control.invalid && control.touched;
+  }
+
+  /**
+   * ⭐ **L'avviso di digitazione** — partita IVA, codice fiscale, CAP,
+   * provincia, paese.
+   *
+   * ⛔ **Non è un errore e non blocca il salvataggio**: `regole-gestionale`
+   * riserva il blocco alle violazioni che romperebbero database, sync o
+   * identità (SKU, codice articolo, barcode). Una partita IVA con la cifra di
+   * controllo sbagliata è quasi sempre un refuso, ma ogni tanto è il dato che
+   * il fornitore ha davvero mandato — e va potuto salvare.
+   *
+   * ⚠️ **Compare all'uscita dal campo, non mentre si scrive**: al primo
+   * carattere ogni partita IVA è «non valida», e un avviso che lampeggia a
+   * ogni tasto si impara a ignorare. Stessa regola dell'errore qui sopra.
+   */
+  protected avviso(controlName: CampoConAvviso): string | null {
+    const control = this.formGroup().controls[controlName];
+    if (!control.touched) {
+      return null;
+    }
+    return AVVISI[controlName](control.value);
   }
 
   protected onVatSelect(value: string | null): void {

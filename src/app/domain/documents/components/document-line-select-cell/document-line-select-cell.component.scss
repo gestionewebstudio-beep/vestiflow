@@ -105,8 +105,15 @@
   }
 }
 
+/*
+  ⚠️ **Il bordo va SOTTRATTO, o la cella esce di due pixel dalla riga.** Il
+  riquadro chiede `--field-height` e l'input dentro chiedeva la stessa misura:
+  sommati al filo di sopra e a quello di sotto facevano `--field-height + 2`.
+  Misurato il 01/09/2026 sull'anagrafica fornitore, dove ogni campo era 28px e
+  il Codice IVA 30 — l'unico fuori riga, in mezzo agli altri.
+*/
 .doc-select-cell--boxed .doc-select-cell__input {
-  min-block-size: var(--field-height);
+  min-block-size: calc(var(--field-height) - var(--border-width) * 2);
   padding-inline-start: var(--space-3);
   font-size: var(--text-sm);
 }
