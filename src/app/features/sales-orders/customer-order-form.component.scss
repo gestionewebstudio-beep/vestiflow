@@ -223,7 +223,7 @@
   padding: var(--space-1) var(--space-2);
   font-size: var(--text-sm);
   color: var(--color-text);
-  background: var(--color-surface-subtle, var(--color-surface));
+  background: var(--color-surface-soft);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
 
@@ -306,7 +306,7 @@
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-3);
-  background: var(--color-surface-subtle, var(--color-surface));
+  background: var(--color-surface-soft);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
 

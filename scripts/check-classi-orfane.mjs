@@ -132,8 +132,52 @@ function classiDelFoglio(scss) {
 }
 
 const coppie = globSync('src/app/**/*.component.html')
-  .map((html) => ({ html, scss: html.replace(/\.html$/, '.scss') }))
+  .map((html) => ({
+    html,
+    scss: html.replace(/\.html$/, '.scss'),
+    ts: html.replace(/\.html$/, '.ts'),
+  }))
   .filter(({ scss }) => leggi(scss) !== '');
+
+/**
+ * ⭐ **LE CLASSI CHE IL COMPONENTE SI METTE ADDOSSO** — aggiunte il 01/09/2026.
+ *
+ * `host: { '[class.blocco--mod]': 'condizione()' }` applica una classe
+ * all'elemento host, e il foglio la veste con `:host(.blocco--mod)`. Il markup
+ * non la nomina mai: sta nel `.ts`.
+ *
+ * ⛔ **Ed è il buco da cui è passato un difetto vero.** Il 01/09/2026
+ * `column-filter--incolonnato` è stata applicata dall'host per allineare a
+ * destra le date del pannello filtro, e **la regola che la veste non è mai stata
+ * scritta**: la correzione chiesta dal proprietario non arrivava a schermo, e
+ * build, lint e l'intera suite restavano verdi. Questa guardia leggeva i soli
+ * `.component.html`, quindi la classe le era invisibile per costruzione.
+ *
+ * ⚠️ **Qui non si filtra per `nostra()`**, al contrario del markup:
+ * l'appartenenza è CERTA, la classe è dichiarata nel `.ts` di quel componente.
+ * Filtrare per blocco perderebbe proprio il caso peggiore — il foglio che quel
+ * blocco non lo nomina affatto.
+ */
+function classiDellHost(ts) {
+  const trovate = [];
+  for (const m of senzaCommenti(ts).matchAll(/'\[class\.([\w-]+)\]'/g)) {
+    trovate.push(m[1]);
+  }
+  return trovate;
+}
+
+/**
+ * ⚠️ **UN COMMENTO NON È CODICE**, e qui la differenza è tutto.
+ *
+ * ⛔ Trovato subito, il 01/09/2026: tolto il binding morto
+ * `inline-banner-host--block`, la riga che ne spiegava la rimozione lo nominava
+ * — e la guardia continuava a chiederne la veste. Una guardia che legge le
+ * proprie spiegazioni **impedisce di documentare ciò che ha appena trovato**,
+ * cioè si spegne da sé.
+ */
+function senzaCommenti(sorgente) {
+  return sorgente.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, ' ');
+}
 
 /**
  * ⏸ **LA FOTOGRAFIA DI OGGI — 30/08/2026.**
@@ -340,7 +384,7 @@ const NOTE = new Set([
 const rotte = [];
 const morte = [];
 
-for (const { html, scss } of coppie) {
+for (const { html, scss, ts } of coppie) {
   const markup = leggi(html);
   const foglio = leggi(scss);
 
@@ -356,6 +400,8 @@ for (const { html, scss } of coppie) {
     for (const c of m[1].split(/\s+/)) if (c && nostra(c)) nelMarkup.add(c);
   }
   for (const m of markup.matchAll(/\[class\.([\w-]+)\]/g)) if (nostra(m[1])) nelMarkup.add(m[1]);
+
+  for (const c of classiDellHost(leggi(ts))) nelMarkup.add(c);
 
   // Le classi composte a runtime: `'blocco--' + funzione(x)`.
   const dinamiche = [...markup.matchAll(/'([\w-]*(?:__|--))'\s*\+/g)].map((m) => m[1]);
@@ -389,5 +435,6 @@ if (rotte.length > 0) {
 }
 
 console.log(
-  `check:classi-orfane — ${coppie.length} componenti, nessuna classe nel markup resta senza veste.`,
+  `check:classi-orfane — ${coppie.length} componenti (markup e classi dell'host), ` +
+    'nessuna classe resta senza veste.',
 );
