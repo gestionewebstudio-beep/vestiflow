@@ -267,19 +267,43 @@ La catena è interrotta in **tre punti**, e ognuno da solo basta:
 `sortChange` risale fino alla query» — quindi non è un ripiego dimenticato: è una strada
 imboccata e non finita.
 
-⭐ **Non si rimedia ordinando in memoria.** L'elenco Prodotti è l'unico che può davvero
-diventare grande (5.000 articoli per tenant è il numero di riferimento), e `ordinaPerColonne`
-ordina ciò che è già a schermo. Le due vie sono:
+⛔ **QUI C'ERA SCRITTO «non si rimedia ordinando in memoria», e la premessa era FALSA** —
+corretto il 01/09/2026, un'ora dopo averlo scritto. La motivazione addotta era che l'elenco
+Prodotti carica una pagina per volta, quindi ordinare in memoria avrebbe ordinato la sola
+pagina a schermo.
 
-1. **Completare la strada del server** — `sort`/`order` nel DTO, whitelist delle colonne,
-   `orderBy` in Prisma, come già fanno `parseDocumentListSort` e `parseSupplierOrderSort`.
-   È la coerente con quanto il codice dichiara.
-2. **Togliere `sortable`** dalle cinque colonne finché la 1 non c'è: una freccia che non
-   ordina è peggio di nessuna freccia, perché fa dubitare del dato invece che del comando.
+⭐ **L'elenco Prodotti carica TUTTE le righe del filtro**, e lo dichiara:
+`getProducts(query, { tutto: true })` in `product-list.component.ts:252`, col commento
+«l'elenco mostra tutte le righe del filtro, non una pagina» — è la decisione «nessun tetto
+di righe». Esattamente come Clienti e Fornitori, che infatti ordinano in memoria.
 
-⚠️ **La 2 è reversibile e costa dieci minuti; la 1 è la destinazione.** Va scelto quale
-delle due si fa PRIMA, e non è una decisione tecnica: dipende da quanto si resta senza
-ordinamento sui Prodotti.
+⭐ **Quindi la via breve è quella giusta, e non è un ripiego**: `ordinaPerColonne`, la
+stessa funzione dei cinque elenchi che già la usano. Nel componente sono una decina di
+righe, sul modello di `customer-table.component.ts:86`:
+
+```ts
+private readonly ordinate = computed(() =>
+  ordinaPerColonne(this.righe(), this.sortState(), {
+    cellText: (riga, columnId) => this.cellText(riga, columnId),
+  }),
+);
+```
+
+⚠️ **Resta da decidere UNA cosa**, ed è di prodotto, non tecnica: l'ordinamento scelto oggi
+finisce nell'**URL** (`?sort=brand&order=asc`, scritto da `onSortChange` a riga 380), che è
+un pregio — il link si condivide e si ricarica ordinato. Ordinando in memoria quel pezzo si
+può tenere: l'URL resta la memoria della scelta, e ad applicarla è il client. Va confermato
+che si vuole tenerlo.
+
+⛔ **E il commento del componente va corretto insieme al codice.** Dice «L'ordinamento è del
+SERVER: `sortChange` risale fino alla query»: è il residuo della strada imboccata e non
+finita, e chi lo legge dopo la correzione cercherebbe un percorso che non esiste più.
+
+⚠️ **La strada del server resta possibile** — `sort`/`order` nel DTO, whitelist, `orderBy`
+in Prisma, come `parseDocumentListSort` e `parseSupplierOrderSort` — ma oggi non serve a
+niente: il server manda comunque tutte le righe, quindi ordinarle là costa un giro di rete
+in più per lo stesso risultato. Tornerà utile il giorno in cui i Prodotti reintroducessero
+la paginazione.
 
 ## ⏸ Corrispettivi: 14 blocchi di CSS orfano dopo il telaio — 29/08/2026
 
