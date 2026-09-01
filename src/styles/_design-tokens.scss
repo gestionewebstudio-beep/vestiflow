@@ -666,7 +666,23 @@
     si sono fermati a 28.
   */
   --table-row-h: 1.5625rem; // 25px — riga tabella (da 30, 01/09/2026)
-  --table-head-h: 1.75rem; // 28px — intestazione tabella (da 32, 30/08/2026)
+
+  /*
+    26px — intestazione della tabella.
+
+    ⭐ **Scesa da 28 il 01/09/2026**, su richiesta del proprietario messa accanto
+    all'elenco Ordini fornitori: «la testata delle colonne la porterei anche lei
+    a 26px». I gradini sono stati 32 → 28 (30/08) → 26.
+
+    ⭐ **Un solo pixel sopra la riga di dati**, che vale 25: l'intestazione resta
+    distinguibile — la distinzione la portano il fondo, il peso e il filo — e
+    smette di rubare l'altezza di mezza riga a ogni elenco.
+
+    ⛔ **Sotto i 26 non si scende senza rivedere la MANIGLIA di larghezza.** Quel
+    bersaglio è alto quanto l'intestazione, e il minimo WCAG 2.2 AA è 24×24 CSS
+    px: a 26 restano due pixel di margine, a 24 nessuno.
+  */
+  --table-head-h: 1.625rem; // 26px — intestazione tabella (da 28, 01/09/2026)
 
   /*
     14px — lato della casella di selezione di riga.
@@ -684,6 +700,28 @@
   --check-size: 0.875rem;
   --table-cell-pad-block: 0.125rem; // 2px
   --table-cell-pad-inline: 0.3125rem; // 5px
+
+  /*
+    8px — respiro orizzontale nelle celle di un ELENCO.
+
+    ⭐ **Sceso da 12px il 01/09/2026**, su richiesta del proprietario messa
+    accanto agli Ordini fornitori: «vedo troppo margine nelle celle dai bordi ai
+    testi, questo occupa ancor più spazio orizzontale».
+
+    ⭐ **Costa 8px per colonna, cioè 64px su otto colonne**: è larghezza che torna
+    ai dati, e da quando il testo si taglia a colonna (§6) ogni pixel in meno di
+    aria è un pixel in più di nome leggibile.
+
+    ⛔ **Non è `--table-cell-pad-inline` (5px)**, che è delle RIGHE DOCUMENTO: lì
+    la cella ospita un campo con un bordo proprio, e il respiro lo dà quello. In
+    un elenco il testo si appoggia direttamente al filo di colonna, e a 5px lo
+    toccherebbe.
+
+    ⚠️ **Sotto gli 8 il testo tocca il divisore**: con il taglio a colonna la
+    parola arriva davvero fino al bordo, e senza aria le due colonne si leggono
+    come una.
+  */
+  --table-list-pad-inline: 0.5rem; // 8px
   // Altezza massima del contenitore di scorrimento di una tabella.
   // ⭐ Serve a rendere VERO il sticky dell'intestazione: senza un limite, quel
   //    contenitore non scorre mai in verticale e l'intestazione non si ancora a

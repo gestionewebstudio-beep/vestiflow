@@ -404,6 +404,37 @@ nei sorgenti. L'alternativa per gli identificativi è `nuovoId()`
 il contesto sicuro e la si usa in magazzino, o si serve l'app in HTTPS o si
 prevede il ripiego — e in entrambi i casi si decide, non si scopre.
 
+### ⛔ `npm run e2e` da solo NON basta, e fallisce dove non guardi _(01/09/2026)_
+
+> **Gli e2e vogliono due cose che nessuno script ricorda: la variabile
+> `E2E_USE_MOCK_AUTH=1` e la porta 4200 LIBERA.**
+
+```bash
+E2E_USE_MOCK_AUTH=1 npx playwright test e2e/filtri-colonna.spec.ts
+```
+
+⚠️ **Senza la variabile**, `playwright.config.ts` avvia il frontend **normale** invece della
+build `e2e` — che è l'unica a contenere l'auth finta. Il login va allora all'API vera con
+`owner@vestiflow.test`, che lì non esiste, e il **setup** fallisce prima di arrivare al test:
+
+```text
+Error: expect(page).toHaveURL(/\/app\/dashboard/) failed
+       unexpected value "http://localhost:4200/login"
+```
+
+⛔ **E con un `ng serve` già in ascolto sulla 4200 la variabile non serve a niente**:
+`reuseExistingServer: true` riusa quel server — che è la build normale — e il sintomo è
+identico. È il caso peggiore, perché il comando *sembra* giusto.
+
+⭐ **Il sintomo non nomina la causa**: si vede «Email o password non corretti» nella schermata
+di fallimento, e sembra un problema di credenziali. Non lo è.
+
+⚠️ **Gli e2e NON girano in `npm run test:everything`** (che fa copertura, componenti e API), né
+al `pre-push`. Un test e2e aggiunto può quindi restare **non eseguito** con tutto verde — e
+succede: `e2e/filtri-colonna.spec.ts` è stato scritto il 01/09/2026 e lanciato per la prima
+volta lo stesso giorno, a lavoro finito. Era sano — 7 prove verdi in 35s — ma non lo sapeva
+nessuno.
+
 ## Coverage Reporting
 
 - Genera report `lcov` e mostralo nel CI (Codecov, Coveralls, GitHub Actions summary).
@@ -523,12 +554,74 @@ delle due.
 ```json
 [
   { "type": "initial", "maximumWarning": "800kB", "maximumError": "1.5MB" },
-  { "type": "anyComponentStyle", "maximumWarning": "12kB", "maximumError": "26kB" }
+  { "type": "anyComponentStyle", "maximumWarning": "20kB", "maximumError": "40kB" }
 ]
 ```
 
 - Sono i valori attualmente in `angular.json`: alzarli richiede una motivazione, non è la reazione di default a un budget sforato.
 - Ogni superamento del budget deve generare un'analisi: `npx source-map-explorer dist/.../main-*.js` per capire cosa pesa.
+
+## ⛔ `anyComponentStyle` PREMIA LA DUPLICAZIONE — misurato il 01/09/2026
+
+> **Il budget per-componente guarda un componente alla volta, quindi vede crescere il
+> contenitore e non vede crollare tutto il resto.** In un progetto che sta accorpando
+> motori, segnala come problema il risultato del lavoro.
+
+⚠️ **Non è un'opinione.** Presi i tredici fogli degli elenchi, prima e dopo il loro
+ingresso nel motore tabella comune:
+
+```text
+30/08, prima dell'unificazione    66.874 byte
+oggi                              40.436 byte      −26.438,  −40%
+```
+
+| foglio                     | prima  | dopo       |
+| -------------------------- | ------ | ---------- |
+| product-table              | 8.502  | **134**    |
+| situation-table            | 6.408  | **488**    |
+| inventory-level-table      | 5.925  | **375**    |
+| customer-table             | 5.338  | **134**    |
+| supplier-table             | 4.528  | **134**    |
+| **data-table** (il motore) | 10.690 | **14.303** |
+
+⭐ **Il motore è cresciuto di 3,6 kB e ne ha fatti sparire 30.** L'avviso a 12 kB ha
+cominciato a suonare **proprio perché l'accorpamento ha funzionato**: con tredici copie da
+5 kB non diceva niente, con una da 14 sì.
+
+### Che cosa misura, e che cosa costa davvero
+
+```text
+CSS del motore, non compresso   14.303 byte   ← quello che il budget conta
+in gzip                          2.464 byte   ← quello che viaggia
+l'app intera, initial          155.150 byte   trasferiti  (635 kB raw su 800 di soglia)
+```
+
+⚠️ **E il motore sta in un chunk _lazy_**: non è nel primo caricamento. Il costo reale è
+2,4 kB, una volta, sulla prima pagina di elenco.
+
+### Perché 20 e 40, e non 16 e 26
+
+|                        |                                                                                                                                                                                    |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **warning 20 kB**      | il motore crescerà ancora: gli elenchi ci sono già tutti e dodici, ma non le tabelle di **configurazione** (Utenti, Codici IVA, Sedi) né quelle della dashboard — e ogni funzione nuova gli costa, come sono costati i filtri di colonna e la riga totali. A 16 risuonerebbe in poche settimane. Resta **5× il default Angular** (4 kB) |
+| **errore 40 kB**       | a 26 il motore ci arriva con la crescita normale, e `npm run build` gira nell'hook `pre-push`: bloccherebbe il push per una crescita fisiologica, costringendo ad alzarlo di corsa    |
+
+⛔ **Qui c'era «Fornitori e Inventario devono entrarci», e non era vero già mentre lo
+scrivevo**: la tabella tre righe sopra li elenca fra i fogli **già** crollati —
+`supplier-table` 4.528 → 134, `inventory-level-table` 5.925 → 375. Due righe della stessa
+sezione che si smentivano a vicenda, e la motivazione di un numero non può reggersi su una
+premessa che il proprio dato contraddice.
+
+⚠️ **Il costo dell'alzata, dichiarato**: un componente-schermata può ora quasi raddoppiare
+senza avvisare. È accettabile solo perché **il controllo vero è `initial`**, che misura il
+costo reale ed è a 635 kB su 800.
+
+⛔ **E la storia dice perché serviva scriverlo.** Il valore nasce **8/16 kB** nel commit di
+setup del 05/06/2026 — già il doppio del default Angular, messo con l'impalcatura — e da
+allora è stato alzato due volte **dentro commit di feature** (`ca15df3c` il 10/07,
+`450a5fbc` il 15/07), senza una riga che dicesse perché. La regola qui sopra è stata scritta
+dopo. Questa volta la motivazione c'è, con i numeri: chi la trova fra sei mesi non deve
+rialzarla al buio.
 
 ---
 

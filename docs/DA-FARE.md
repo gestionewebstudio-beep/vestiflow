@@ -246,6 +246,41 @@ Le decisioni argomentate stanno in **`docs/CONTRATTO-COMUNE-DOCUMENTI.md`** (§3
 e variante, §4 richiamo articolo, §5.5 sconto, §5.7 listino, §6.2 spunte magazzino).
 Qui c'è **cosa resta da fare**, non perché.
 
+## ⛔ PRODOTTI: cinque colonne dichiarate ordinabili, e l'ordinamento non arriva — 01/09/2026
+
+_Trovato dalla revisione del 01/09/2026, e **non è lavoro di quella giornata**: è
+preesistente. Riportato invece di correggerlo di passaggio, perché la correzione tocca
+l'API e va decisa._
+
+> **L'operatore preme «Brand», la freccia si accende, l'URL diventa `?sort=brand&order=asc`
+> — e le righe non si muovono.**
+
+La catena è interrotta in **tre punti**, e ognuno da solo basta:
+
+| Dove                                                          | Cosa manca                                                            |
+| ------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `product-table.component.ts:44`                               | `PRODUCT_SORTABLE_COLUMNS` marca ordinabili name, brand, category, season, status |
+| `domain/products/services/product.service.ts` (`getProducts`) | costruisce gli `HttpParams` con page, pageSize, all, search, status, category, brand, season — **mai `sort` né `order`** |
+| `api/src/products/dto/list-products.query.dto.ts`             | non ha nessun campo `sort` o `order`: anche mandandoli, verrebbero scartati |
+
+⚠️ **Il commento del componente dichiara la strada scelta** — «L'ordinamento è del SERVER:
+`sortChange` risale fino alla query» — quindi non è un ripiego dimenticato: è una strada
+imboccata e non finita.
+
+⭐ **Non si rimedia ordinando in memoria.** L'elenco Prodotti è l'unico che può davvero
+diventare grande (5.000 articoli per tenant è il numero di riferimento), e `ordinaPerColonne`
+ordina ciò che è già a schermo. Le due vie sono:
+
+1. **Completare la strada del server** — `sort`/`order` nel DTO, whitelist delle colonne,
+   `orderBy` in Prisma, come già fanno `parseDocumentListSort` e `parseSupplierOrderSort`.
+   È la coerente con quanto il codice dichiara.
+2. **Togliere `sortable`** dalle cinque colonne finché la 1 non c'è: una freccia che non
+   ordina è peggio di nessuna freccia, perché fa dubitare del dato invece che del comando.
+
+⚠️ **La 2 è reversibile e costa dieci minuti; la 1 è la destinazione.** Va scelto quale
+delle due si fa PRIMA, e non è una decisione tecnica: dipende da quanto si resta senza
+ordinamento sui Prodotti.
+
 ## ⏸ Corrispettivi: 14 blocchi di CSS orfano dopo il telaio — 29/08/2026
 
 Testata, riga filtri, pulsante «Filtri» mobile e i campi del vecchio pannello sono del

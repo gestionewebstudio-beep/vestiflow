@@ -511,7 +511,11 @@ Se il token mancante è necessario: aggiungilo **prima** a `_design-tokens.scss`
 
 ## Breakpoint — Regola Assoluta
 
-I breakpoint nei media query usano SOLO i token definiti in `_design-tokens.scss`. Nessun valore px scritto direttamente in un `@media`.
+Nessun valore px scritto direttamente in un `@media`: si usano i **mixin** `bp.media-up('md')` / `bp.media-down('lg')` di `src/styles/_breakpoints.scss`.
+
+⛔ **I breakpoint NON sono custom property, e non possono esserlo** — corretto il 01/09/2026. Qui c'era «usano SOLO i token definiti in `_design-tokens.scss`»: seguita alla lettera produce `@media (min-width: var(--x))`, che **non aggancia mai nulla**, non fallisce e non arrossa nessun test. È il guasto muto che questo progetto combatte ovunque.
+
+Sono variabili **SCSS** (`$breakpoint-md: 48rem`) in un file separato, perché le custom property dentro `@media` non funzionano per specifica. Chi le cercasse in `_design-tokens.scss` non le troverebbe usabili, e non scoprirebbe il perché: 69 fogli di componente usano già i mixin.
 
 ## Classi BEM — Obbligatorio
 
@@ -612,7 +616,12 @@ vero caso d'uso del gestionale:
 
 - Configura `budgets` in `angular.json` per `initial` e `anyComponentStyle`. Valori sensati di partenza:
   - `initial`: warning 800kB, error 1.5MB.
-  - `anyComponentStyle`: warning 12kB, error 26kB.
+  - `anyComponentStyle`: warning 20kB, error 40kB.
+
+⚠️ **I due valori sono quelli di `angular.json`, e non sono «di partenza»**: sono stati
+alzati il 01/09/2026 con una misura e una motivazione, che stanno in `regole-qualita`
+(«`anyComponentStyle` PREMIA LA DUPLICAZIONE»). Qui erano rimasti 12/26, cioè la regola
+diceva un numero e la build ne applicava un altro.
 
 ## Core Web Vitals — ⚠️ uno dei tre conta davvero _(rivisto 19/08/2026)_
 

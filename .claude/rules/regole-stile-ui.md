@@ -24,12 +24,12 @@ Nessun colore va scritto direttamente in un componente: sempre `var(--token)`.
 
 | Uso                                    | Valore    | Token                       |
 | -------------------------------------- | --------- | --------------------------- |
-| Sfondo pagina                          | `#eef0f2` | `--color-bg`                |
+| Sfondo pagina                          | `#f2f4f5` | `--color-bg`                |
 | Superficie card / pannelli             | `#ffffff` | `--color-surface`           |
 | Superficie tenue (row alterne, sunken) | `#f6f7f8` | `--color-surface-soft`      |
 | Superficie tabella hover               | `#f8faf9` | `--color-surface-hover`     |
 | Header tabella                         | `#e9edee` | `--color-table-header-bg`   |
-| Testo header tabella                   | `#3f4c51` | `--color-table-header-fg`   |
+| Testo header tabella                   | `#2f3d43` | `--color-table-header-fg`   |
 | Filo sotto l'header tabella            | `#aebfb7` | `--color-table-header-rule` |
 
 ### Bordi e divisori
@@ -134,7 +134,7 @@ Inter è variable font: i pesi sono puntuali, non a step fissi. I valori specifi
 | Testo header summary compresso — small | —                                               | 11px / weight 600 / muted                        |
 | Input desktop                          | 12.5px                                          | —                                                |
 | Input mobile                           | —                                               | **≥16px** (regola iOS no-zoom)                   |
-| Numero grand total                     | 22–24px / weight 700 desktop                    | 20px / weight 700                                |
+| Numero grand total                     | `--text-grand-total` 17px / weight 700          | idem                                             |
 | Metric chip mobile (Qtà/Prezzo/Totale) | —                                               | 9px label / 12.5px valore                        |
 | Bottoni                                | 13px / weight 600                               | 13px / weight 600                                |
 | kbd (scorciatoie tastiera)             | 10.5px monospace                                | —                                                |
@@ -158,7 +158,7 @@ Nomi token: `--space-0` … `--space-24`.
 | Input, cella editabile, bottone secondario | 5–7px  | `--radius-sm`   |
 | Bottone primario, chip, badge              | 6–8px  | `--radius-md`   |
 | Card, pannello                             | 9–12px | `--radius-lg`   |
-| Pill di stato                              | 999px  | `--radius-pill` |
+| Pill di stato                              | 9999px | `--radius-pill` |
 
 ### Ombre
 
@@ -214,16 +214,21 @@ Le card restano contenitori (superficie bianca + radius), ma occupano quasi tutt
 
 **44px** ovunque sia un elemento tappabile su mobile. Su desktop si può scendere a 32–34px per bottoni densi e a 29–30px per input in griglia densa.
 
-⚠️ **Una sola eccezione, e vale solo per i pulsanti di BARRA**: `--control-h-button` scende
-a **38px** sotto `md` (deciso il 30/08/2026, in due passi: 44 → 40 a voce, 40 → 38 col
-riferimento HTML del proprietario alla mano). WCAG 2.2 chiede 24×24 CSS px al livello AA —
-i 44 sono la raccomandazione di Apple e il livello AAA — quindi a 38px il bersaglio resta
-sopra il minimo richiesto, e sono comunque pulsanti **etichettati e distanziati**, non
-icone nude.
+⚠️ **L'eccezione riguarda ciò che si PREME, non ciò che si compila** — deciso dal
+proprietario il 30/08/2026, a gradini nella stessa giornata: i pulsanti di barra
+(`--control-h-button`) da 44 a **32px**, i controlli di testata (`--control-h-field`) a
+**38px**. WCAG 2.2 chiede 24×24 CSS px al livello AA; i 44 sono la raccomandazione di Apple
+e il livello AAA — quindi il bersaglio resta sopra il minimo richiesto, e sono comunque
+controlli **etichettati e distanziati**, non icone nude.
 
-⛔ **Campi e controlli di form restano a 44**, e la distinzione è quella che conta: un campo
-si sbaglia mentre si scrive, un pulsante di barra si preme una volta e ha una parola sopra
-che dice cosa fa. **Sotto i 38 non si scende.**
+⛔ **Gli INPUT restano a 44** (`--field-height`), e la distinzione è quella che conta: un
+campo si sbaglia mentre si scrive, un pulsante di barra si preme una volta e ha una parola
+sopra che dice cosa fa. **Sotto i 32 non si scende senza scendere anche di font**, e il
+font di quei pulsanti è già a 12px.
+
+⚠️ **I numeri veri stanno nei token, con la loro storia**: qui c'era «38px» per i pulsanti
+e «sotto i 38 non si scende», deciso poche ore prima e superato lo stesso giorno da chi
+l'aveva deciso. La tabella qui sotto è ora verificata da `npm run check:regole-token`.
 
 ### Altezze dei controlli — token
 
@@ -234,12 +239,12 @@ vive nei token e non va reimpostata nel foglio di un componente.
 | -------------------------------- | -------------------- | -------- | -------- |
 | Bottoni e select generici        | `--btn-min-height`   | 34px     | 44px     |
 | Input generici                   | `--field-height`     | 34px     | 44px     |
-| Controlli di testata documento   | `--control-h-field`  | 29px     | 44px     |
-| Bottoni barra strumenti / azioni | `--control-h-button` | **28px** | **38px** |
+| Controlli di testata documento   | `--control-h-field`  | **32px** | **38px** |
+| Bottoni barra strumenti / azioni | `--control-h-button` | **28px** | **32px** |
 | Campi di anagrafica              | `--control-h-entry`  | **26px** | **26px** |
 | Input dentro le righe            | `--control-h-cell`   | 24px     | 24px     |
 | Riga tabella                     | `--table-row-h`      | **25px** | —        |
-| Intestazione tabella             | `--table-head-h`     | **28px** | —        |
+| Intestazione tabella             | `--table-head-h`     | **26px** | —        |
 | Casella di selezione riga        | `--check-size`       | 14px     | 14px     |
 
 ### ⭐ La densità da scrivania è scesa di tre gradini — 30/08/2026
@@ -272,11 +277,12 @@ con `--space-4` in un posto, `--space-4` in un altro e `1rem` nudo in un terzo:
 tre modi di dire 16px, uno dei quali vietato dalla regola dei valori nudi. Ora è
 `--check-size`, e il suo bersaglio reale resta la cella che la contiene.
 
-Il passaggio a 44px sotto il breakpoint `md` è centralizzato in
-`_design-tokens.scss`: **non** si ripete nei componenti. ⚠️ I soli **pulsanti di barra**
-si fermano a 40px — vedi «Touch target minimo» qui sopra per il perché. Il minimo tappabile è il
-valore mobile, non quello universale — applicarlo anche su desktop rende l'intera
-interfaccia più larga della densità scelta.
+Il passaggio ai valori mobili sotto il breakpoint `md` è centralizzato in
+`_design-tokens.scss`: **non** si ripete nei componenti. ⚠️ **Non tutti arrivano a 44**: i
+pulsanti di barra si fermano a 32px e i controlli di testata a 38 — vedi «Touch target
+minimo» qui sopra per il perché. Il minimo tappabile è il valore mobile, non quello
+universale — applicarlo anche su desktop rende l'intera interfaccia più larga della
+densità scelta.
 
 ---
 
@@ -310,7 +316,7 @@ dal più corretto al più invasivo:
    | `app-button`        | `--button-h`, `--button-font-size`, `--button-font-weight`, `--button-radius`, `--button-pad-inline`, `--button-inline-size`, `--button-flex`, `--button-grid-column` |
    |                     | colori: `--button-fg/-bg/-border`, `--button-bg-hover`; varianti `--button-danger-*`, `--button-ghost-*`                                                              |
    | `date-input`        | `--field-*` (sotto) piu' `--date-input-toggle-w`, `--date-input-toggle-pad`, `--date-input-icon-display`, `--date-input-panel-inset/-w/-min-w/-max-w`                 |
-   | `select-menu`       | `--field-*` (sotto) piu' `--select-menu-width`, `--select-menu-max-width`, `--select-menu-panel-inset`                                                                |
+   | `select-menu`       | `--field-*` (sotto) piu' `--select-menu-max-width`, `--select-menu-panel-inset`, `--select-menu-panel-min-width`, `--select-menu-option-align`                        |
    | campi (`--field-*`) | `--field-h`, `--field-gap`, `--field-font-size`, `--field-pad-inline`, `--field-radius`, `--field-fg`, `--field-bg`, `--field-bg-hover`, `--field-border-color`       |
    | `back-button`       | `--back-button-h`, `--back-button-gap`, `--back-button-pad-inline`, `--back-button-radius`, `--back-button-font-size`, `--back-button-font-weight`                    |
    | `action-menu`       | `--action-menu-pad-inline`, `--action-menu-inline-size` (solo sul trigger nominato); l'altezza segue `--field-height`                                                 |
@@ -318,6 +324,9 @@ dal più corretto al più invasivo:
    | `attachments-panel` | `--attachments-gap`, `--attachments-title-size`, `--attachments-item-pad`                                                                                             |
    | `barcode-scanner`   | `--barcode-scanner-w`                                                                                                                                                 |
    | `hover-tooltip`     | `--hover-tooltip-inset`                                                                                                                                               |
+   | `money-input`       | `--money-input-inline-size`, `--money-input-min-inline-size`, `--money-input-max-inline-size`                                                                         |
+   | `segmented`         | `--segmented-color`, `--segmented-font-weight`                                                                                                                        |
+   | `table-skeleton`    | `--table-skeleton-cols`                                                                                                                                               |
    | celle di riga       | `--doc-code-cell-fg`, `--doc-product-cell-weight`, `--doc-select-cell-toggle-w`                                                                                       |
    | pannello riga       | `--doc-suggestions-z`, `--doc-suggestions-offset`, `--doc-suggestions-inset`, `--doc-suggestions-max-h`, `--doc-suggestions-item-min-h`                               |
 
@@ -377,7 +386,7 @@ che col filtro non c'entra niente.
 
 | PRIMA il `kind` decideva                             | ORA decide                                                                                                           |
 | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| **come** si restringe → quattro filtri incompatibili | **che cosa il pannello offre in più**: le scorciatoie di periodo e gli estremi su una data, gli estremi su un numero |
+| **come** si restringe → quattro filtri incompatibili | **che cosa il pannello offre in più**: i due campi data su una colonna data, i due estremi su un numero |
 
 ⭐ **A restringere sono le restrizioni presenti nel valore, e convivono**: le spunte, il
 testo scritto, gli estremi. Si spunta «Milano» _e_ si scrive «via» _e_ si dà un intervallo,
@@ -387,12 +396,20 @@ e valgono tutte insieme.
 
 ```text
 [ Includi | Escludi ]                    Tutti
-Anno corrente · Mese corrente · Mese scorso      (solo colonne data)
 [ GG/MM/AAAA ] → [ GG/MM/AAAA ]                  (data)   oppure  [da] → [a]  (numero)
 Cerca o scrivi per filtrare…
 ☐ 02/01/2026
 ☐ 04/01/2026
 ```
+
+⛔ **QUI C'ERA UNA RIGA DI SCORCIATOIE** — «Anno corrente · Mese corrente · Mese scorso»,
+come in Danea. **Tolte il 01/09/2026 dal proprietario**, che le ha viste a schermo: _«avere
+nei filtri gli stessi filtri presenti nel periodo mi sembra ripetitivo»_.
+
+⭐ **La ragione è che qui il Periodo esiste già**, in barra e sempre visibile (§ «I filtri
+di un elenco stanno nelle sue COLONNE»): in Danea quella barra non c'è, e le scorciatoie
+dentro il menu ne prendevano il posto. Copiare la forma senza la premessa avrebbe messo lo
+stesso comando in due punti della stessa schermata.
 
 ⭐ **«Tutti» è il `(Tutto)` di Danea e SVUOTA**: qui «nessuna restrizione» è già «tutte le
 righe». Spuntarle a una a una darebbe lo stesso risultato con venti clic e un filtro che
@@ -768,10 +785,10 @@ l'anteprima di riga sta in `styles/_document-form.scss`.
 Un `::ng-deep` è un difetto di API del componente condiviso: la correzione è
 aggiungere il punto di regolazione che manca, non scavalcarlo.
 
-### I due controlli automatici sui token
+### I controlli automatici sui token
 
-`npm run check:tokens` (dentro `npm run lint`) fa fallire la build su due difetti
-che non si vedono, non rompono nulla in compilazione e non fanno arrossare un test:
+`npm run check:tokens` (dentro `npm run lint`) fa fallire la build su difetti che
+non si vedono, non rompono nulla in compilazione e non fanno arrossare un test:
 
 1. **Parità fra i temi.** Un token dichiarato in `theme-light` e non in
    `theme-dark` non ha valore quando il tema è scuro: la dichiarazione che lo usa
@@ -782,9 +799,48 @@ che non si vedono, non rompono nulla in compilazione e non fanno arrossare un te
    dichiara fa la stessa fine, e capita a ogni rinomina. Ne sono stati trovati
    undici, tutti preesistenti: `--color-text-primary`, `--space-sm`,
    `--focus-ring-color`, `--opacity-muted`…
+3. ⭐ **Fantasma CON fallback** _(01/09/2026)_ — il buco da cui i primi due si
+   facevano aggirare.
+
+⛔ **Qui c'era scritto che il controllo «copre solo i `var()` nudi, quindi un
+fantasma con fallback resta invisibile per costruzione».** Era vero, ed era la
+descrizione di un buco, non di un limite accettabile: sotto ci sono passati
+**sette** nomi inesistenti, in dodici punti, tutti muti.
+
+```text
+--color-warning-text    → var(--color-text)        l'avviso di stampa color testo normale
+--color-error-text      → var(--color-text)        l'errore degli allegati, idem
+--color-surface-subtle  → var(--color-surface)     cinque pannelli «tenui» resi bianchi
+--motion-fast           → 120ms                    due durate fuori dal design system
+--motion-duration-fast  → 180ms                    l'entrata del pannello laterale
+--space-7               → 1.75rem                  un'altezza minima
+--co-brand-soft         → var(--color-surface-soft) un fondo di marca che non esiste
+```
+
+⚠️ **L'elenco è completo, e conta i NOMI.** I punti di codice toccati sono dodici:
+`--color-surface-subtle` da solo ne occupa cinque. Un elenco che si fermi ai primi
+quattro senza dirlo si legge come esaustivo, ed è il modo in cui una misura giusta
+diventa una misura sbagliata — bastano tre righe non scritte.
+
+⭐ **Il fallback non degrada: ANNULLA il segnale.** Un errore reso color testo
+normale è indistinguibile dal testo intorno, e il colore era l'unica cosa che lo
+distingueva. È il difetto peggiore della famiglia proprio perché il fallback
+regge e a schermo sembra una scelta.
+
+⚠️ **Come si distingue un knob da un refuso**: un punto di regolazione è tale se
+**qualcuno lo imposta** (un contenitore, uno `style` inline) **o se la tabella
+qui sopra lo elenca**. Un nome che nessuno imposta e che nessuna regola nomina
+non è un canale di configurazione: è un nome che chi l'ha scritto credeva
+esistesse.
+
+⭐ **Documentarlo è la via d'uscita voluta**: un knob nuovo si dichiara nella
+tabella dei punti di regolazione, che è dove chi configura va a cercarlo. La
+guardia costringe quindi a tenerla aggiornata, invece di limitarsi a vietare.
 
 Non controlla i valori: quelli sono una scelta di design, e la fonte di verità è
-questo documento.
+questo documento — con una sola eccezione, `npm run check:regole-token`, che
+verifica che le **misure citate qui** siano quelle vere dei token (vedi «Altezze
+dei controlli»).
 
 ### Il livello globale — cosa ci sta e cosa no
 
@@ -1158,7 +1214,7 @@ Il pattern di "salvataggio e uscita da un documento in edit" cambia con la largh
 
 **Desktop** — Footer sticky in basso alla pagina:
 
-- Altezza 60–62px
+- Altezza **derivata, non fissa**: `--doc-actions-height` = altezza del bottone + due passi + i fili (oggi 52px). ⛔ Qui c'era «60–62px», un numero scritto a mano: fissarlo scollega il piede dai bottoni che contiene e **sfalsa lo scostamento della banda totali**, che si appoggia sopra leggendo la stessa variabile
 - Background `rgba(255,255,255,.94)` + `backdrop-filter: blur(12px)`
 - La banda note/totali che le sta sopra è invece **opaca**: è appiccicata in basso e su un documento corto passa sopra il piede della tabella. A tinta velata il testo sotto traspariva e si leggeva sovrapposto — coperto è coperto, e torna visibile scorrendo
 - Bordo superiore `--color-border`, ombra `--shadow-footer`
@@ -1312,7 +1368,8 @@ Le tabelle sono l'elemento centrale del gestionale.
 ### Tabella desktop
 
 - `table-layout: fixed`, `width: 100%`, colonne in `%`
-- **Header**: h28 (`--table-head-h`), padding `0 --space-3`, font **`--text-2xs` (11px)**
+- **Header**: h26 (`--table-head-h`), padding `0 --table-list-pad-inline` (8px), font
+  **`--text-2xs` (11px)**
   uppercase weight bold, tracking `--tracking-caps`, testo **`--color-table-header-fg`**, bg
   `--color-table-header-bg`, filo inferiore **`--color-table-header-rule`**
 
@@ -1335,7 +1392,8 @@ essere una riga sola e i 10px si leggevano più piccoli di quanto quella riga me
 > fondo dell'intestazione — restando comunque un gradino sopra il testo del corpo, che altrimenti
 > smetterebbe di distinguersi.
 
-- **Righe**: padding `calc(--space-05 + --border-width) --space-3 --border-width` (3 × 12 × 1),
+- **Righe**: h25 (`--table-row-h`), padding
+  `calc(--space-05 + --border-width) --table-list-pad-inline --border-width` (3 × 8 × 1),
   font `--text-xs` (12px), bordo 1px `--color-border-cell`, **con divisore verticale** fra le
   colonne
 
@@ -1437,6 +1495,67 @@ il divisore. In hover e durante il trascinamento passa a 2px e prende `--color-f
 - Selezione riga: bg `--color-primary` al 6% + checkbox `--color-primary`
 - Colonne numeriche: allineate a destra, `tabular-nums`, `white-space: nowrap`
 - Testo lungo in cella: ellipsis oltre 24ch con `title` per full text
+
+#### ⭐ «A destra» vuol dire TUTTE E TRE le fasce — deciso il 01/09/2026
+
+> **In una colonna numerica stanno a destra il TITOLO, i VALORI e il TOTALE.**
+
+_Proprietario, sugli Ordini fornitori: «gli importi si allineano a destra e i
+totali ci vanno sotto allo stesso modo», e poi «anche l'allineamento interno lo
+metterei a destra per gli importi»._
+
+⛔ **Due difetti diversi, e nessuno dei due falliva.** Erano entrambi
+`text-align` che non arrivava a destinazione:
+
+| Dove              | Perché non arrivava                                                                                                              |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **riga totali**   | il selettore copriva `th`, `tbody td` e le righe — **non `tfoot td`**: la somma restava a sinistra sotto una colonna di importi   |
+| **intestazione**  | il titolo sta in un contenitore **flex** (per ospitare il filtro accanto): `text-align` non muove i figli, e serve `margin-inline-start: auto` — vedi sotto perché non `justify-content` |
+
+⭐ **L'incolonnamento è la funzione**, non l'estetica: una colonna di importi si
+verifica confrontando le cifre incolonnate, e un totale o un titolo dall'altra
+parte costringono l'occhio ad attraversare la colonna.
+
+⚠️ **È la stessa trappola di `align-items` già scritta in §5**: una proprietà
+dichiarata per un contesto continua a esistere quando quel contesto cambia, e
+smette di fare quello che diceva senza dirlo.
+
+#### ⛔ Ma NON con `justify-content`: decide da che parte si TAGLIA il titolo
+
+⚠️ **Questa riga prescriveva `justify-content`**, ed era la prima stesura del
+01/09/2026 — smentita dal proprietario un minuto dopo, guardando la schermata:
+_«c'è un errore di battitura nella testata imponibile»_. Non c'era. L'etichetta è
+«Imponibile», e allineata a destra il titolo troppo lungo per la sua colonna esce
+dal lato **sinistro**: si legge «IPONIBILE», cioè un refuso invece di un
+troncamento.
+
+⭐ **Il margine automatico fa entrambe le cose giuste**: il titolo che ci sta
+viene spinto a destra sopra i suoi numeri; quello che non ci sta occupa la cella
+intera, parte da sinistra e si taglia in **coda**, come ovunque.
+
+```scss
+.data-table th.data-table__cell--numeric .data-table__head-label,
+.data-table th.data-table__cell--numeric .data-table__sort {
+  flex: 0 1 auto; // con `1 1 auto` il titolo occupa già tutto: nessun margine da distribuire
+  margin-inline-start: auto;
+}
+```
+
+⚠️ **Su TRE selettori, non uno**: il titolo può essere un `<button>` (colonna
+ordinabile), uno `<span>` semplice, o stare accanto al chevron di un filtro.
+Dichiarandone uno solo, la colonna si allinea o no a seconda che sia ordinabile —
+imprevedibile per chi guarda.
+
+#### ⛔ Una colonna numerica visibile ha il suo TOTALE
+
+Segnalato lo stesso giorno: «qui mancano anche i totali». Imponibile e IVA erano
+colonne accendibili dal selettore Colonne, allineate coi loro valori, e senza
+somma — cioè non verificabili.
+
+⚠️ **Non ogni colonna numerica si somma**, e la distinzione è il contenuto: un
+**prezzo unitario** o una **percentuale di sconto** sommati fra articoli diversi
+non producono un numero che significhi qualcosa. Si sommano le **grandezze
+additive** — importi, imposte, quantità, conteggi.
 - SKU / EAN: `--font-mono`, size 12px, colore `--color-focus` se cliccabile
 - Sticky header sul bg dell'header (non su surface)
 
@@ -1576,7 +1695,7 @@ Corrispettivi**, che `14` §F5 aveva indicato come riferimento di partenza:
 | ------------------------- | ------------------------------------ |
 | font del corpo            | `--text-xs` (12px)                   |
 | padding delle celle       | `--space-1 --space-3` (4 × 12)       |
-| altezza intestazione      | `--table-head-h` (32px), dichiarata  |
+| altezza intestazione      | `--table-head-h` (26px), dichiarata  |
 | divisori di colonna       | nessuno                              |
 | larghezze                 | sul contenuto (`table-layout: auto`) |
 | intestazioni              | MAIUSCOLE con `--tracking-caps`      |
@@ -1850,7 +1969,7 @@ Vale su **tutte** le viste: desktop e mobile mostrano lo stesso stato vuoto, con
 
 ### Riepilogo totali
 
-**Desktop.** Griglia orizzontale in card compatta, posizionata dopo la tabella righe: Imponibile righe · Sconto extra · Imponibile · IVA · Totale documento. Il **Grand total** è l'ultimo box, con piena tinta brand `--color-primary`, testo bianco, valore 22–24px weight 700. Valori intermedi weight 600, non tutti bold.
+**Desktop.** Griglia orizzontale in card compatta, posizionata dopo la tabella righe: Imponibile righe · Sconto extra · Imponibile · IVA · Totale documento. Il **Grand total** è l'ultimo box, con piena tinta brand `--color-primary`, testo bianco, valore `--text-grand-total` (17px) weight 700. Valori intermedi weight 600, non tutti bold.
 
 **Caselle dimensionate sul contenuto, non stirate** — e va preso alla lettera: spartire la banda in parti uguali fa sì che la stessa casella sia larga il doppio in un documento con tre voci e la metà in uno con otto, e in una maschera senza fascia note il riepilogo si stira per tutta la pagina. La misura minima di una casella è il suo contenuto, non zero: dove la cella ospita **due cose che si alternano** — il campo sconto e, finché lo sconto non c'è, il pulsante «+ Aggiungi sconto» — la larghezza fissa va sul **campo**, non sulla cella, o il pulsante sborda sopra la casella accanto.
 
@@ -2052,7 +2171,7 @@ Vedi §5 "Azioni documento (per device)": desktop usa footer sticky in basso; mo
 
 ### Topbar
 
-- Altezza 52–56px
+- Altezza `--topbar-height` (60px), allineata alla fascia brand della sidebar
 - Background `rgba(255,255,255,.96)` + backdrop-blur
 - Bordo inferiore `--color-border`
 - Contenuti da sinistra a destra:
@@ -2091,7 +2210,7 @@ Su mobile: la barra diventa un'icona lente; il tap apre la palette full-screen.
 | Desktop         | 1025–1799px | Layout standard, tabelle piene, sidebar persistente                                            |
 | Desktop largo   | ≥ 1800px    | `max-width` contenuto a 1720px, no stiramento                                                  |
 
-Token breakpoint: solo variabili CSS, mai valori px in `@media`.
+⛔ **Mai un valore px dentro un `@media`**: si usano i mixin `bp.media-up()` / `bp.media-down()` di `styles/_breakpoints.scss`. ⚠️ **Non sono custom property e non possono esserlo** — `@media (min-width: var(--x))` non aggancia niente, in silenzio: sono variabili SCSS, e stanno in quel file, non in `_design-tokens.scss`.
 
 ### La vista a card di un documento non è la vista stretta: è la vista del dito _(deciso 11/08/2026, da eseguire)_
 

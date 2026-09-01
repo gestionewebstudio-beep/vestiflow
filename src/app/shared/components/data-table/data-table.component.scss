@@ -146,8 +146,14 @@
 
   /*
     ⭐ **Intestazione più stretta in verticale** — «la riga delle intestazioni
-    colonne leggermente più piccola», 30/08/2026. Il padding verticale scende da
-    8 a 4px e il token di altezza da 32 a 28.
+    colonne leggermente più piccola», 30/08/2026, e «la testata delle colonne la
+    porterei anche lei a 26px», 01/09/2026. Il padding verticale è sceso da 8 a
+    4px, il token di altezza da 32 a 28 e poi a **26**.
+
+    ⚠️ **L'altezza sta nel TOKEN, non qui**: `--table-head-h` la porta insieme
+    alla sua ragione e al suo limite, e `check:regole-token` tiene allineata la
+    tabella della regola. Riscriverla in questo foglio la scollegherebbe da
+    entrambi.
 
     ⚠️ **Il padding ORIZZONTALE non si tocca**: è quello che tiene le
     intestazioni staccate dai fili di colonna, e stringerlo non restituisce
@@ -846,7 +852,19 @@
   z-index: calc(var(--z-raised) + 2);
 }
 
+/*
+  ⛔ **Il padding va dichiarato QUI**, e non è una ripetizione: le regole di cella
+  del mixin nominano `tbody td` e le righe, quindi il piede non le riceve.
+  Segnalato dal proprietario il 01/09/2026 — «nei totali, ai margini della riga
+  servirebbe un leggero margine»: «19 voci» toccava il bordo sinistro e l'ultimo
+  importo quello destro, mentre ogni riga sopra respirava.
+
+  ⚠️ È la stessa causa dell'allineamento a destra che mancava sulla stessa riga:
+  un `<tfoot>` non è un `<tbody>`, e ogni regola scritta per l'uno va nominata
+  anche per l'altro.
+*/
 .data-table__totals td {
+  padding: var(--space-1) var(--table-list-pad-inline);
   background-color: var(--color-table-header-bg);
   border-block-start: var(--border-width) solid var(--color-table-header-rule);
   border-block-end: 0;
@@ -1246,20 +1264,82 @@
 }
 
 /*
-  ⭐ **LE ULTIME COLONNE APRONO LA TENDINA VERSO SINISTRA** — proprietario,
-  01/09/2026: «ho trovato un difetto, l'ultimo filtro esce fuori schermo».
+  ⭐ **IL TITOLO DI UNA COLONNA NUMERICA STA A DESTRA, SOPRA I SUOI NUMERI** —
+  proprietario, 01/09/2026: «anche l'allineamento interno lo metterei a destra
+  per gli importi».
 
-  Il pannello è ancorato a sinistra del proprio trigger e largo almeno 12rem: su
-  una colonna che finisce al bordo della tabella quei pixel finiscono fuori, e
-  la pagina si ritrova una barra di scorrimento orizzontale che non serviva.
+  ⭐ **L'incolonnamento È la funzione**: una colonna di importi si legge
+  confrontando le cifre incolonnate, e un'intestazione che sta dall'altra parte
+  costringe l'occhio ad attraversare la colonna per sapere che cosa sta
+  leggendo.
 
-  ⚠️ **Il punto di regolazione esisteva già**, col suo commento che descriveva
-  esattamente questo caso: `--select-menu-panel-inset: auto 0` ribalta il lato di
-  ancoraggio. Mancava chi lo dichiarasse.
+  ⛔ **Il `text-align: end` del `th` non basta**, ed è la stessa trappola già
+  scritta in `regole-stile-ui` per `align-items`: da quando il contenuto
+  dell'intestazione sta in un contenitore **flex** — `.data-table__head-riga`,
+  introdotto per ospitare il filtro accanto al titolo — l'allineamento del testo
+  non muove più i figli.
 
-  ⚠️ **Le ultime DUE, non solo l'ultima**: l'ultima colonna può essere quella dei
-  comandi di riga, e allora a sforare sarebbe la penultima.
+  ⛔ **E NON si rimedia con `justify-content`**, che è il rimedio ovvio: la
+  ragione è il punto in cui il titolo si TAGLIA.
+
+  Segnalato dal proprietario un minuto dopo la prima stesura: «c'è un errore di
+  battitura nella testata imponibile». Non c'era — l'etichetta è «Imponibile».
+  Spinto a destra da `justify-content`, il titolo troppo lungo per la sua colonna
+  esce dal lato **sinistro** e perde la testa: «IPONIBILE», che si legge come un
+  refuso invece che come un troncamento. Allineato a sinistra perdeva la coda —
+  «IMPONIB» — che almeno si capisce.
+
+  ⭐ **Il margine automatico fa entrambe le cose giuste**: il titolo che ci sta
+  viene spinto a destra sopra i suoi numeri; quello che non ci sta occupa tutta
+  la cella, parte da sinistra e si taglia in coda, come ovunque.
+
+  ⚠️ **Serve anche `flex: 0 1 auto`**: con `flex: 1 1 auto` — il default che
+  queste due classi hanno per cedere spazio alla freccia — il titolo occupa già
+  tutta la riga e non c'è nessun margine da distribuire.
+
+  ⚠️ **Su DUE selettori, per tre situazioni.** Il titolo può essere un `<button>`
+  (colonna ordinabile, a sua volta flex) o uno `<span>` semplice, e in entrambi i
+  casi può avere accanto il chevron del filtro: dichiarandone uno solo, la colonna
+  si allinea o no a seconda che sia ordinabile — imprevedibile per chi guarda.
+
+  ⛔ **E IL MARGINE VA TOLTO AL FILTRO**, o non se ne va nessuno dei due dove
+  deve. `.data-table__filter` porta già `margin-inline-start: auto` (è ciò che lo
+  spinge a destra nelle colonne normali) e sta nello stesso contenitore flex: con
+  **due** margini automatici sulla stessa riga, lo spazio libero si spartisce in
+  parti uguali fra loro — non va tutto al primo.
+
+  ⚠️ **Misurato in un browser**, su una riga da 300px con «Imponibile» e la freccia:
+
+  ```text
+  margine su entrambi   116px prima del titolo · 120px fra titolo e freccia   ⛔ galleggia in mezzo
+  margine solo al filtro  0px                   · 235px                       titolo a sinistra
+  margine solo al titolo 231px                  ·   4px                       ✅ accostati a destra
+  ```
+
+  ⭐ **E il titolo che NON ci sta continua a tagliarsi in CODA**: senza spazio
+  libero non c'è margine da distribuire, il titolo parte da sinistra e perde la
+  fine — verificato a 80px di colonna.
 */
-.data-table__head th:nth-last-child(-n + 2) .data-table__filter {
-  --select-menu-panel-inset: auto 0;
+.data-table th.data-table__cell--numeric .data-table__head-label,
+.data-table th.data-table__cell--numeric .data-table__sort {
+  flex: 0 1 auto;
+  margin-inline-start: auto;
 }
+
+.data-table th.data-table__cell--numeric .data-table__filter {
+  margin-inline-start: 0;
+}
+
+/*
+  ⛔ **QUI C'ERA IL RIBALTAMENTO DELLE ULTIME DUE COLONNE**, e contare le colonne
+  era il criterio sbagliato.
+
+  Nato il 01/09/2026 da «l'ultimo filtro esce fuori schermo», è durato mezz'ora:
+  il proprietario ha aperto il filtro della colonna **Totale** — la terzultima —
+  e il pannello usciva di nuovo. Il pannello è largo 12rem, cioè più di due
+  colonne numeriche: nessun numero fisso di colonne è quello giusto, perché
+  dipende da quanto sono larghe e da quanto è larga la finestra.
+
+  ⭐ **Ora lo decide `select-menu` misurando all'apertura**, e vale per ogni
+  colonna e ogni larghezza — dentro una tabella come fuori.
+*/

@@ -138,9 +138,23 @@
     letter-spacing: inherit;
   }
 
-  // Colonne numeriche: destra, cifre tabulari, mai a capo (v4).
+  /*
+    Colonne numeriche: destra, cifre tabulari, mai a capo (v4).
+
+    ⛔ **`tfoot` va NOMINATO**, ed è il difetto trovato dal proprietario il
+    01/09/2026 sugli Ordini fornitori: «gli importi si allineano a destra e i
+    totali ci vanno sotto allo stesso modo». La riga totali porta già
+    `__cell--numeric` sulla cella, ma il selettore copriva `tbody` e le righe —
+    quindi la somma restava a sinistra sotto una colonna di importi allineati a
+    destra, cioè proprio dove l'incolonnamento serve a verificarla.
+
+    ⚠️ **Non basta togliere `tbody`**: il `thead` e il `tfoot` hanno regole
+    proprie di fondo e peso, e un selettore che li prende tutti insieme
+    renderebbe impossibile distinguerli più sotto.
+  */
   .#{$block} th.#{$block}__cell--numeric,
   .#{$block} tbody td.#{$block}__cell--numeric,
+  .#{$block} tfoot td.#{$block}__cell--numeric,
   .#{$block}__row td.#{$block}__cell--numeric {
     text-align: end;
     font-variant-numeric: var(--numeric-tabular);
@@ -299,7 +313,7 @@
       ⚠️ **Si compensa col token del bordo, non con un numero**: se un giorno il
       filo diventasse più spesso, il centramento seguirebbe da sé.
     */
-    padding: calc(var(--space-05) + var(--border-width)) var(--space-3) var(--border-width);
+    padding: calc(var(--space-05) + var(--border-width)) var(--table-list-pad-inline) var(--border-width);
     overflow: hidden;
     white-space: nowrap;
     text-overflow: clip;
@@ -313,7 +327,7 @@
 
   .#{$block} th {
     block-size: var(--table-head-h);
-    padding: 0 var(--space-3);
+    padding: 0 var(--table-list-pad-inline);
     color: var(--color-table-header-fg);
     border-block-end: var(--border-width) solid var(--color-table-header-rule);
     /*
