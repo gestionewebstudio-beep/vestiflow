@@ -1,10 +1,5 @@
-<dialog
-  #dialog
-  class="confirm-dialog"
-  aria-labelledby="confirm-dialog-title"
-  (close)="onNativeClose()"
->
-  <h2 id="confirm-dialog-title" class="confirm-dialog__title">{{ title() }}</h2>
+<dialog #dialog class="confirm-dialog" [attr.aria-labelledby]="titleId" (close)="onNativeClose()">
+  <h2 [id]="titleId" class="confirm-dialog__title">{{ title() }}</h2>
   <p class="confirm-dialog__message">{{ message() }}</p>
   <ng-content />
 

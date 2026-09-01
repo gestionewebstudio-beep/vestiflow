@@ -38,6 +38,27 @@ import type { TableColumnFilterKind } from '@shared/table-columns/table-column.m
   styleUrl: './column-filter.component.scss',
 })
 export class ColumnFilterComponent {
+  private static nextInstanceId = 0;
+
+  /**
+   * ⭐ **Ogni campo ha un `id` proprio**, e serve a due cose diverse.
+   *
+   * ⚠️ Il browser segnala «a form field element should have an id or name
+   * attribute» su ogni controllo che ne è privo — ventidue su una sola pagina,
+   * misurati il 01/09/2026 — e la segnalazione è giusta: senza id un campo non
+   * si può associare a un'etichetta né raggiungere da un test o da un'estensione.
+   *
+   * ⛔ **E toglie un id CONDIVISO**: `app-date-input` senza `inputId` ripiega su
+   * `date-input-parse-error` per il proprio messaggio d'errore, quindi due campi
+   * data nella stessa riga filtri lo userebbero entrambi.
+   */
+  private readonly istanza = ++ColumnFilterComponent.nextInstanceId;
+  protected readonly campoTestoId = `column-filter-text-${this.istanza}`;
+  protected readonly campoDaId = `column-filter-min-${this.istanza}`;
+  protected readonly campoAId = `column-filter-max-${this.istanza}`;
+  protected readonly campoDalId = `column-filter-from-${this.istanza}`;
+  protected readonly campoAlId = `column-filter-to-${this.istanza}`;
+
   readonly kind = input.required<TableColumnFilterKind>();
 
   /** Il nome della colonna: serve al nome accessibile del controllo. */

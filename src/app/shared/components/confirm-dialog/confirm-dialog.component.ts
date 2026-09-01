@@ -24,6 +24,22 @@ import { ButtonComponent } from '../button/button.component';
   styleUrl: './confirm-dialog.component.scss',
 })
 export class ConfirmDialogComponent {
+  private static nextInstanceId = 0;
+
+  /**
+   * ⛔ **L'id del titolo è PER ISTANZA, e non è pignoleria.**
+   *
+   * Era la costante `confirm-dialog-title`, e una pagina ne monta più di uno:
+   * misurato in un browser vero il 01/09/2026 su Prodotti — **tre elementi con
+   * lo stesso id**, che è quello che il browser segnala come «Duplicate form
+   * field id in the same form».
+   *
+   * ⚠️ **Il danno è sull'`aria-labelledby`**: con id ripetuti il lettore di
+   * schermo risolve sempre il PRIMO, quindi due dialoghi su tre si annunciano
+   * col titolo di un altro — e il dialogo giusto è invisibile a chi non vede.
+   */
+  protected readonly titleId = `confirm-dialog-title-${++ConfirmDialogComponent.nextInstanceId}`;
+
   readonly title = input.required<string>();
   readonly message = input.required<string>();
   readonly confirmLabel = input<string>('Conferma');

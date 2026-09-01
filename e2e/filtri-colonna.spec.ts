@@ -70,7 +70,24 @@ test.describe('Filtri di colonna — resa nel browser', () => {
     });
   });
 
-  test('la tendina di una colonna si apre e si VEDE', async ({ page }) => {
+  /*
+    ⏸ **APERTA — l'apparecchio non è ancora fedele, e va detto.**
+
+    Eseguita il 01/09/2026 contro un browser vero, la pagina rende la tabella ma
+    con **zero righe**: l'involucro intercettato dichiara `total: 3` e il corpo
+    resta vuoto, quindi i controlli di filtro non compaiono e non c'è niente da
+    misurare.
+
+    ⛔ **Non è una diagnosi del difetto segnalato**: finché la finzione non
+    popola l'elenco, «i controlli non ci sono» dice qualcosa sul mio apparecchio,
+    non sull'applicazione — dove le prove di componente li rendono e li usano.
+
+    ⚠️ Marcata `fixme` e non cancellata: la strada è quella giusta — misurare il
+    riquadro è l'unico modo di vedere un pannello ritagliato — e la prova degli
+    id qui sotto, costruita sullo stesso banco, ha già trovato e chiuso un
+    difetto vero.
+  */
+  test.fixme('la tendina di una colonna si apre e si VEDE', async ({ page }) => {
     await page.goto(ELENCO);
 
     // L'elenco è pronto quando la sua tabella c'è.
@@ -104,5 +121,30 @@ test.describe('Filtri di colonna — resa nel browser', () => {
     expect(box!.width, `larghezza del pannello: ${box!.width}`).toBeGreaterThan(40);
 
     await expect(panel).toBeInViewport();
+  });
+
+  /**
+   * ⭐ **Gli id duplicati sono un difetto vero, e li vede solo il DOM reso.**
+   *
+   * ⛔ Segnalati dal proprietario negli strumenti del browser il 01/09/2026: sei
+   * «Duplicate form field id in the same form» e ventidue campi senza `id` né
+   * `name`. Un id ripetuto rompe l'associazione `label`/campo — chi naviga con
+   * uno screen reader sente il nome sbagliato — e nessuna prova di componente
+   * lo vede, perché ognuna monta un pezzo solo.
+   */
+  test('⛔ nessun id duplicato con i filtri accesi', async ({ page }) => {
+    await page.goto(ELENCO);
+    await expect(page.locator('app-data-table table')).toBeVisible({ timeout: 45_000 });
+    await page.getByRole('button', { name: /^Filtri/ }).click();
+
+    const duplicati = await page.evaluate(() => {
+      const conta = new Map<string, number>();
+      for (const el of Array.from(document.querySelectorAll('[id]'))) {
+        conta.set(el.id, (conta.get(el.id) ?? 0) + 1);
+      }
+      return [...conta.entries()].filter(([, n]) => n > 1).map(([id, n]) => `${id} ×${n}`);
+    });
+
+    expect(duplicati, `id ripetuti nel documento: ${duplicati.join(', ')}`).toEqual([]);
   });
 });

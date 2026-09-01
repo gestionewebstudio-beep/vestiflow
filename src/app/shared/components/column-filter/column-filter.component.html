@@ -29,6 +29,7 @@
     <input
       type="search"
       class="column-filter__text"
+      [id]="campoTestoId"
       [value]="testo()"
       [attr.aria-label]="'Filtra per ' + columnLabel()"
       placeholder="Contiene…"
@@ -47,6 +48,7 @@
         type="text"
         inputmode="decimal"
         class="column-filter__number"
+        [id]="campoDaId"
         [value]="minimo() ?? ''"
         [attr.aria-label]="columnLabel() + ' da'"
         placeholder="da"
@@ -56,6 +58,7 @@
         type="text"
         inputmode="decimal"
         class="column-filter__number"
+        [id]="campoAId"
         [value]="massimo() ?? ''"
         [attr.aria-label]="columnLabel() + ' a'"
         placeholder="a"
@@ -75,6 +78,7 @@
     -->
     <span class="column-filter__range">
       <app-date-input
+        [inputId]="campoDalId"
         [value]="dal()"
         [ariaLabel]="columnLabel() + ' dal'"
         placeholder="dal"
@@ -83,6 +87,7 @@
         (valueChange)="onDal($event)"
       />
       <app-date-input
+        [inputId]="campoAlId"
         [value]="al()"
         [ariaLabel]="columnLabel() + ' al'"
         placeholder="al"
