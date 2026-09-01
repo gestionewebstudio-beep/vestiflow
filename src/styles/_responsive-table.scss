@@ -571,9 +571,34 @@
     ⭐ È la forma che la colonna numerica usa già in fondo a `data-table-desktop`,
     e per la stessa ragione.
   */
+  /*
+    ⛔ **E LA CASELLA SI APPOGGIA ALLA LINEA DI SCRITTURA** — proprietario,
+    01/09/2026, due volte: «tranne per la casellina di selezione», poi «quella
+    di fornitori è decentrata».
+
+    L'`<input>` è `inline-block` con `vertical-align: baseline`: sta seduto
+    sulla riga di testo, e sotto di lui resta lo spazio del **discendente**
+    della riga. Misurato in un browser vero: **3px sopra, 8 sotto** — cinque
+    pixel di scarto su una riga di venticinque.
+
+    ⛔ **La prima misura era un falso verde**: guardava l'host
+    `app-selection-check`, che è `display: inline` e il cui riquadro non è
+    quello che si vede. Il difetto era già lì e diceva 5/5.
+
+    ⭐ **`line-height: 0` toglie lo strut** della riga di testo: senza, la
+    cella ha comunque l'altezza di una riga di scrittura anche se dentro non
+    c'è testo, e il `vertical-align: middle` centra QUELLA, non la casella.
+
+    ⚠️ **Sta nella cella e non nel componente condiviso**: `selection-check` è
+    usato anche fuori dalle tabelle, e cambiargli `display` sposterebbe
+    schermate che nessuno ha guardato.
+  */
   .#{$block} tbody td.#{$block}__cell--select,
-  .#{$block}__row td.#{$block}__cell--select {
+  .#{$block}__row td.#{$block}__cell--select,
+  .#{$block} thead th.#{$block}__cell--select,
+  .#{$block}__head th.#{$block}__cell--select {
     padding-block: var(--space-05) var(--border-width);
+    line-height: 0;
   }
 }
 
