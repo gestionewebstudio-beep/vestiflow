@@ -370,6 +370,40 @@ configurazione: rendere il controllo più esplicito (un `typecheck` che includa 
 template, o un passo di build in CI) è una scelta separata, da fare quando si
 decide — non un effetto collaterale di questa nota._
 
+### ⛔ I test girano tutti in CONTESTO SICURO. L'applicazione no _(01/09/2026)_
+
+> **Le API che il browser espone solo in contesto sicuro non esistono su
+> `http://192.168.…`, e VestiFlow ci si apre: è il gestionale in mano a chi sta
+> in magazzino.**
+
+Misurato in Chrome sulla build di questa applicazione:
+
+```text
+http://127.0.0.1:4212      isSecureContext true    crypto.randomUUID  function
+http://192.168.1.50:4212   isSecureContext FALSE   crypto.randomUUID  undefined
+                                                    crypto.getRandomValues  function
+```
+
+⛔ **Non restituiscono un valore sbagliato: LANCIANO.** E se la chiamata sta
+dentro un'azione sincrona, l'eccezione non la raccoglie nessun gestore d'errore:
+a chi preme sembra che non succeda niente. È la causa di «la nuova Vendita al
+banco non si salva» — `crypto.randomUUID()` chiamata da «Concludi vendita» per
+generare l'intento di creazione, **prima** che partisse la richiesta.
+
+⚠️ **Nessuna suite può prenderlo, ed è il punto**: jsdom e Chrome headless su
+`localhost` sono **entrambi contesti sicuri**. Il difetto esiste solo dove
+l'applicazione si usa davvero, e lì non gira nessun test.
+
+⭐ **Quindi la rete non è un test, è una guardia statica**:
+`npm run check:contesto-sicuro` rifiuta `crypto.randomUUID` e `crypto.subtle`
+nei sorgenti. L'alternativa per gli identificativi è `nuovoId()`
+(`@core/utils/uuid.util`), che ripiega su `getRandomValues` — che invece c'è.
+
+⚠️ **La stessa domanda va fatta a ogni API di piattaforma nuova**: fotocamera
+(lo scanner!), geolocalizzazione, notifiche, service worker, appunti. Se serve
+il contesto sicuro e la si usa in magazzino, o si serve l'app in HTTPS o si
+prevede il ripiego — e in entrambi i casi si decide, non si scopre.
+
 ## Coverage Reporting
 
 - Genera report `lcov` e mostralo nel CI (Codecov, Coveralls, GitHub Actions summary).

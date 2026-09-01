@@ -323,10 +323,50 @@ aliquota segue la stessa regola»).
 
 _«Segnati queste cose da fare e oggi vanno fatte, non perderle.»_
 
-## 1. ⛔ La nuova VENDITA AL BANCO non si salva
+## 1. ⭐ La nuova VENDITA AL BANCO non si salva — causa TROVATA il 01/09/2026
 
-Difetto segnalato, causa da trovare. **Priorità sulle altre voci**: è una funzione
-rotta, non un'uniformazione.
+> **`crypto.randomUUID()` non esiste fuori dal contesto sicuro, e «Concludi
+> vendita» la chiama PRIMA di partire.**
+
+Misurato in Chrome, sulla build di questa applicazione:
+
+```text
+http://127.0.0.1:4212      isSecureContext true    crypto.randomUUID  function
+http://192.168.1.50:4212   isSecureContext FALSE   crypto.randomUUID  undefined
+                                                    crypto.getRandomValues  function
+```
+
+⛔ **Non restituisce un valore sbagliato: LANCIA.** E lancia nel punto peggiore —
+dentro `save()`, mentre genera l'intento di creazione, prima che parta la
+richiesta: nessun `error:` la raccoglie, nessun avviso compare. A chi preme
+sembra soltanto che **non succeda niente**, che è la segnalazione parola per
+parola.
+
+⚠️ **La correzione del 30/08 — portare in vista l'avviso d'errore — non poteva
+funzionare**: non c'era nessun errore da mostrare, perché la richiesta non
+nasceva.
+
+⭐ **Il server era ed è a posto**, e non è una deduzione: quattro prove di
+integrazione su PostgreSQL vero (`vendita-al-banco.integration-spec.ts`) creano
+una vendita con riga, una senza righe e verificano l'idempotenza dell'intento.
+Tutte verdi al primo colpo. La causa non era mai stata lì.
+
+⚠️ **Nessun test poteva prenderlo**, e vale la pena saperlo: jsdom e Chrome
+headless su `localhost` sono **entrambi contesti sicuri**. Il difetto esiste solo
+dove l'applicazione si usa davvero — il telefono in magazzino — e lì non gira
+nessuna suite.
+
+**Corretto** con `nuovoId()` (`@core/utils/uuid.util`), che ripiega su
+`getRandomValues` — che invece c'è, misurato. La guardia è
+`npm run check:contesto-sicuro`.
+
+⚠️ **Restava un secondo consumatore, e più largo**: `toast.service` usava la
+stessa API. Da un'origine di rete **ogni notifica** lanciava — cioè l'errore che
+nasconde l'errore.
+
+⏸ **Da confermare da lei**: se apre VestiFlow da `http://localhost` il difetto
+non si manifestava, e la causa del suo caso sarebbe un'altra. Il difetto qui
+descritto è comunque reale e misurato.
 
 ## 2. ⛔ ELIMINA e DUPLICA — la semantica è quella dell'U.M. e del Codice IVA
 

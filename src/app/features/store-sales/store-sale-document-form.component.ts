@@ -41,6 +41,7 @@ import {
 import { customerDisplayName, type Customer } from '@core/models/customer.model';
 import { isSalesVatCode, vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
 import { parseEffectiveDiscountPercent } from '@core/utils/discount-percent.util';
+import { nuovoId } from '@core/utils/uuid.util';
 import { BarcodeDetectionService } from '@core/services/barcode-detection.service';
 import { ViewportService } from '@core/services/viewport.service';
 import { VatCodeService } from '@core/services/vat-code.service';
@@ -875,7 +876,19 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
     if (gia) {
       return gia;
     }
-    const nuovo = crypto.randomUUID();
+    /*
+      ⛔ **Qui c'era `crypto.randomUUID()`, e da un'origine di rete LANCIA.**
+
+      Misurato in Chrome il 01/09/2026 sulla build di questa applicazione:
+      `http://192.168.1.50:4212` non è contesto sicuro, e lì `randomUUID` è
+      `undefined`. È il gestionale aperto dal telefono in magazzino.
+
+      ⚠️ **E lancia nel punto peggiore**: dentro `save()`, PRIMA che la
+      richiesta parta, quindi nessun `error:` la raccoglie e nessun avviso
+      compare. A chi premeva «Concludi vendita» sembrava soltanto che non
+      succedesse niente — che è la segnalazione del 30/08 (`DA-FARE` §1).
+    */
+    const nuovo = nuovoId();
     this._creationIntentId.set(nuovo);
     return nuovo;
   }
@@ -2020,11 +2033,11 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
    * se c'è (T1/T2). Un solo percorso client, due contratti sotto — è la
    * modalità a scegliere l'endpoint, non due maschere.
    *
-   * ⚠️ **Pubblico e senza chiamante in questa fase**: l'azione che lo invoca —
-   * «Concludi vendita» / «Concludi reso» — vive nel piede, e arriva con quello.
-   * Che cosa succede DOPO una conclusione riuscita (documento pronto per il
-   * prossimo cliente, o si resta su quello appena chiuso) è una decisione dello
-   * stesso blocco: qui l'esito si registra e basta.
+   * ⚠️ **Qui c'era «pubblico e senza chiamante in questa fase»**, e non è più
+   * vero da quando il piede esiste: lo invoca «Concludi vendita» / «Concludi
+   * reso» (`saveRequested` nel template). Corretto il 01/09/2026 leggendolo
+   * mentre si cercava perché la vendita non si salvasse — una nota che dice
+   * «nessuno lo chiama» è la prima cosa che manda fuori strada chi indaga.
    */
   save(): void {
     const locationId = this.form.controls.locationId.value;
