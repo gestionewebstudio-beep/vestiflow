@@ -18,10 +18,15 @@ import { SupplierOrderStatus } from '@prisma/client';
  * perché la rimozione era stata fatta tutta lato client, e nessun controllo
  * confronta le colonne dell'elenco con quelle dell'export.
  *
- * ⚠️ **Il conteggio `lineCount` resta**, e non è una svista: lo legge la
- * maschera di Arrivo merce per dire «N righe ordine» accanto a ogni ordine
- * ricevibile. Nel payload di elenco `lines` è vuoto — il server manda
- * `lines: []` — quindi lì il conteggio è l'unica via.
+ * ⚠️ **E con la colonna è caduto anche il campo `lineCount`**, il 01/09/2026.
+ * Reggeva ancora un consumatore — il «N righe ordine» accanto a ogni ordine nel
+ * pannello «Includi ordine» dell'Arrivo merce — e il proprietario l'ha tolto
+ * guardandolo: quel numero non distingue due ordini dello stesso fornitore, e su
+ * un ordine **parzialmente ricevuto** era sbagliato, perché contava tutte le
+ * righe mentre «Includi» ne aggiunge solo le residue.
+ *
+ * ⚠️ Il `lineCount` dei **documenti** è un altro modello e non è toccato: regge
+ * il blocco che impedisce di stampare le etichette di un arrivo merce senza righe.
  *
  * ⚠️ **«Data ordine» è l'unica aggiunta**, e va detto: l'elenco non la mostra
  * come colonna (ordina per data e basta), ma un foglio si filtra e si ordina

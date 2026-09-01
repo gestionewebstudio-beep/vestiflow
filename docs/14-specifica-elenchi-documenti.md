@@ -1513,9 +1513,26 @@ serve. Occupava una colonna in ogni vista senza rispondere a nessuna domanda.
 | celle, filtro a intervallo, ordinamento, totali   | e la classe di stile che le restava orfana                         |
 | export Excel/CSV                                  | di documenti e di ordini fornitore                                 |
 
-⚠️ **Il CAMPO `lineCount` resta sui modelli**, e non è un residuo: lo legge il controllo
-che impedisce di stampare le etichette di un arrivo merce **senza righe**. Quello risponde
-a una domanda vera, e non è una colonna.
+⚠️ **Il CAMPO `lineCount` resta sul modello DOCUMENTO**, e non è un residuo: lo legge il
+controllo che impedisce di stampare le etichette di un arrivo merce **senza righe**. Quello
+risponde a una domanda vera, e non è una colonna.
+
+⛔ **Su quello dell'ORDINE FORNITORE invece è caduto anche il campo** — 01/09/2026, deciso
+dal proprietario guardando l'unico posto che lo mostrava ancora: il «N righe ordine» accanto
+a ogni ordine nel pannello «Includi ordine» dell'Arrivo merce.
+
+⚠️ **Quel numero era debole, e in un caso sbagliato.** Non distingue due ordini dello stesso
+fornitore — a distinguerli è il numero d'ordine — e su un ordine **parzialmente ricevuto**
+contava TUTTE le righe mentre «Includi» ne aggiunge solo le **residue**: contraddiceva la
+frase che gli stava due righe sopra, «le righe residue verranno aggiunte al documento».
+
+⭐ **E il pannello è il percorso secondario**: di norma l'arrivo merce si crea dal Dettaglio
+ordine, che lo apre già collegato — lì quel pulsante non compare nemmeno. Il pannello serve
+a chi ha cominciato un arrivo merce vuoto e vuole tirarci dentro un ordine.
+
+Caduto il lettore, è caduta la catena: il campo sul modello client, la mappatura, il tipo
+di riga lato server e il `_count` delle due query di elenco — una sottoquery per riga
+chiesta al database per un numero che nessuno mostrava più.
 
 ## 2.2 Stati funzionali negli elenchi
 

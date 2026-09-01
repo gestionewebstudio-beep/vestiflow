@@ -60,7 +60,13 @@ import { SuppliersService } from './suppliers.service';
 import { parseSupplierOrderSort } from './supplier-orders-sort.util';
 import { pageWindow } from '../common/dto/unpaged.util';
 
-export type SupplierOrderListRow = SupplierOrder & { lineCount: number; lines: [] };
+/*
+  ⛔ **QUI C'ERA `lineCount`**, tolto il 01/09/2026 col conteggio «N righe
+  ordine» che era il suo unico lettore. Con lui è caduto il `_count` delle due
+  query di elenco: era una sottoquery per riga, chiesta al database per un numero
+  che nessuno mostrava più.
+*/
+export type SupplierOrderListRow = SupplierOrder & { lines: [] };
 
 /** Documento collegato (arrivo merce): il collegamento è visibile nell'ordine. */
 export interface SupplierOrderLinkedDocument {
@@ -587,10 +593,9 @@ export class SupplierOrdersService {
 
     const rows = await this.prisma.supplierOrder.findMany({
       where,
-      include: { _count: { select: { lines: true } } },
       orderBy: { createdAt: 'desc' },
     });
-    return rows.map(({ _count, ...order }) => ({ ...order, lineCount: _count.lines, lines: [] }));
+    return rows.map((order) => ({ ...order, lines: [] }));
   }
 
   async list(
@@ -606,18 +611,13 @@ export class SupplierOrdersService {
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.supplierOrder.findMany({
         where,
-        include: { _count: { select: { lines: true } } },
         orderBy: parseSupplierOrderSort(query.sort),
         ...pageWindow(query),
       }),
       this.prisma.supplierOrder.count({ where }),
     ]);
 
-    const items: SupplierOrderListRow[] = rows.map(({ _count, ...order }) => ({
-      ...order,
-      lineCount: _count.lines,
-      lines: [],
-    }));
+    const items: SupplierOrderListRow[] = rows.map((order) => ({ ...order, lines: [] }));
 
     // ⛔ Nessun tetto sulle righe (deciso il 21/08/2026): con `all` si
     // consegna tutto il risultato del filtro, e a contenerlo è il PERIODO —

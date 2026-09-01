@@ -67,7 +67,6 @@ export interface SupplierOrderApiRow {
   readonly createdAt: IsoDateString;
   readonly updatedAt: IsoDateString;
   readonly lines: readonly SupplierOrderLineApiRow[];
-  readonly lineCount?: number;
   readonly linkedDocuments?: readonly SupplierOrderLinkedDocumentApiRow[];
 }
 
@@ -212,7 +211,6 @@ export function mapSupplierOrderApiRow(row: SupplierOrderApiRow): SupplierOrder 
     externalDocumentTypeSnapshot: row.externalDocumentTypeSnapshot ?? undefined,
     documentDiscountPercent: row.documentDiscountPercent ?? undefined,
     lines: row.lines.map((line) => mapLine(line, row.currency)),
-    lineCount: row.lineCount,
     subtotal: { amountMinor: row.subtotalMinor ?? row.totalMinor, currencyCode: row.currency },
     tax: { amountMinor: row.taxMinor ?? 0, currencyCode: row.currency },
     totalAmount: { amountMinor: row.totalMinor, currencyCode: row.currency },

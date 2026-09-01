@@ -124,8 +124,6 @@ export interface SupplierOrder extends TenantScoped, Timestamped {
    */
   readonly documentDiscountPercent?: string | number;
   readonly lines: readonly SupplierOrderLine[];
-  /** Presente in lista: conteggio righe senza caricare il payload completo. */
-  readonly lineCount?: number;
   readonly subtotal: Money;
   readonly tax: Money;
   readonly totalAmount: Money;
