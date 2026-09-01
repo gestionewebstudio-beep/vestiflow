@@ -19,7 +19,13 @@ fornitore, o entrambi — **senza mai duplicare l'anagrafica**.
 ### `parties` — soggetto canonico
 
 `companyName`, `firstName`, `lastName`, `vatNumber`, `taxCode`, `email`,
-`pec`, `phone`, `website`, `contactName`, indirizzo completo, `notes`.
+`pec`, `sdiCode`, `phone`, `mobilePhone`, `iban`, `website`, `contactName`,
+indirizzo completo, `notes`.
+
+⚠️ **`iban` e `mobilePhone` stanno sul SOGGETTO, non sul ruolo**, e la conseguenza si vede
+in due schede: chi è cliente e fornitore ha **un conto solo**, e lo si aggiorna
+indifferentemente dall'una o dall'altra. È il conto della persona giuridica, non un patto
+commerciale — quello è `ourBankName`, che infatti sta sul ruolo fornitore.
 
 Denominazione minima: **ragione sociale oppure nome e cognome** (validata in
 form e in API).
@@ -90,8 +96,17 @@ strada fra le due possibili — l'altra era togliere la colonna dall'elenco.
 ruolo; «È anche cliente» accende o spegne il ruolo **gemello**. Sono due interruttori, non
 uno doppio.
 
-⏸ **Il cliente non ce l'ha ancora**: la stessa spunta va aggiunta alla maschera cliente
-quando si rifà quell'anagrafica (`DA-FARE` §A).
+✅ **E dal 01/09/2026 ce l'ha anche il CLIENTE**, col rifacimento di quell'anagrafica.
+
+⚠️ **Il buco era lo stesso, ma la diagnosi cambia di poco**: `Customer.isActive` esisteva
+nel database e usciva già nella vista API (quindi la colonna «Stato» dell'elenco lo
+mostrava), e `listAll` lo filtrava per le tendine dei documenti — **ma nessun payload di
+scrittura lo portava**. Il campo si poteva leggere e non scrivere, esattamente come sul
+fornitore.
+
+⭐ **Sono state chiuse tutte e tre le tappe**: `CreateCustomerDto.isActive`, l'assegnazione
+in `normalizeRoleWrite` (fuori dall'aiuto che normalizza le stringhe: su un booleano
+`false` è un valore, non un vuoto) e la spunta nella maschera.
 
 ## Spunta "È anche fornitore" / "È anche cliente"
 

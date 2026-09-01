@@ -33,6 +33,8 @@ type PartyWriteData = {
   pec?: string | null;
   sdiCode?: string | null;
   phone?: string | null;
+  mobilePhone?: string | null;
+  iban?: string | null;
   website?: string | null;
   contactName?: string | null;
   addressLine1?: string | null;
@@ -46,6 +48,7 @@ type PartyWriteData = {
 
 type CustomerRoleWriteData = {
   code?: string | null;
+  isActive?: boolean;
   customerDiscount?: string | null;
   paymentMethod?: string | null;
   paymentTerms?: string | null;
@@ -455,6 +458,8 @@ export class CustomersService {
     assign('pec', dto.pec);
     assign('sdiCode', dto.sdiCode);
     assign('phone', dto.phone);
+    assign('mobilePhone', dto.mobilePhone);
+    assign('iban', dto.iban);
     assign('website', dto.website);
     assign('contactName', dto.contactName);
     assign('addressLine1', dto.addressLine1);
@@ -484,7 +489,16 @@ export class CustomersService {
     };
 
     const result: CustomerRoleWriteData = {};
-    const assign = (key: keyof CustomerRoleWriteData, value: string | undefined): void => {
+    const assign = (
+      /*
+        ⚠️ **`isActive` è escluso**: questo aiuto normalizza STRINGHE — taglia
+        gli spazi e trasforma il vuoto in `null` — e su un booleano non ha
+        senso, perché `false` è un valore e non un'assenza. Si assegna da sé,
+        più sotto.
+      */
+      key: Exclude<keyof CustomerRoleWriteData, 'isActive'>,
+      value: string | undefined,
+    ): void => {
       const normalized = trim(value);
       if (normalized !== undefined) {
         result[key] = normalized;
@@ -499,6 +513,15 @@ export class CustomersService {
     assign('documentCreationAlert', dto.documentCreationAlert);
     assign('documentCreationNote', dto.documentCreationNote);
     assign('commercialNotes', dto.commercialNotes);
+
+    /*
+      ⚠️ **Non passa da `assign`**, che è scritto per le stringhe e le taglia:
+      qui il valore è un booleano, e `false` è un valore vero — non un vuoto
+      da normalizzare a `null`.
+    */
+    if (dto.isActive !== undefined) {
+      result.isActive = dto.isActive;
+    }
     return result;
   }
 

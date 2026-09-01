@@ -29,17 +29,30 @@ ha chiesto («poi passiamo ai filtri che abbiamo lasciato in sospeso»)._
 
 | #   | Cosa                                                                                                                             | Stato                                              |
 | --- | -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| A   | **Anagrafica CLIENTE come quella fornitore**                                                                                     | ⛔ da fare                                         |
+| A   | **Anagrafica CLIENTE come quella fornitore**                                                                                     | ✅ fatto (catalogo colonne compreso)               |
 | B   | **Colonne del riepilogo fornitore** = i campi dell'anagrafica, principali attive di serie, **larghezza per tipo di dato**        | ✅ fatto                                           |
 | C   | **Dettaglio fornitore**: togliere gli articoli collegati · vestirlo meglio · **decidere se le pagine di dettaglio si unificano** | ✅ fatto (l'unificazione: risposta col censimento) |
 | D   | **I bottoni delle pagine fornitore sono più grandi degli altri**                                                                 | ✅ fatto                                           |
 | E   | **I filtri**, ripresi da dove erano rimasti (modello Danea: selezione multipla, esclusione)                                      | ⏸ per ultimo, per sua indicazione                  |
 
-### A — L'anagrafica cliente
+### ✅ A — L'anagrafica cliente _(chiusa il 01/09/2026)_
 
-Stesso lavoro appena chiuso sul fornitore: larghezze per contenuto, ordine di battitura,
-densità a 28px (`--control-h-entry`), sezioni piatte allineate, avvisi di digitazione,
-giro del Tab verificato in un browser vero.
+Stesso lavoro del fornitore, e ora la **grammatica è scritta una volta sola**:
+`styles/_anagrafica.scss`, mixin `anagrafica-fields($blocco)`, incluso dalle due schede.
+Larghezze per contenuto, ordine di battitura, avvisi di digitazione, densità a **26px**
+(`--control-h-entry`, sceso da 28 su richiesta del proprietario).
+
+⭐ **Verificato in un browser vero** a 1440: 25 campi, scheda alta **945px**, nessuno
+scorrimento orizzontale, giro del Tab nell'ordine di battitura (denominazione → fiscale →
+indirizzo → contatti).
+
+⭐ **E la spunta «Attivo» c'è**: `Customer.isActive` esisteva già nel database e nella
+vista API, ma **nessuna maschera lo scriveva** — lo stesso buco del fornitore. Ora il DTO,
+il servizio e il form lo portano fino in fondo.
+
+⭐ **IBAN e cellulare** sono comparsi anche qui senza migration: stanno sul **soggetto**,
+quindi sono lo stesso dato della scheda fornitore. Chi è cliente e fornitore ha un conto
+solo, e si aggiorna da entrambe le schede.
 
 ⭐ **Costa poco adesso**: `domain/fiscal/` (P. IVA, codice fiscale, IBAN, CAP, provincia),
 `app-form-section` e i token esistono già. E **IBAN e cellulare sono già nel database sul
@@ -54,9 +67,14 @@ fornitori, ma **i campi sono gli stessi perché è lo stesso soggetto**: codice,
 codici fiscali, indirizzo, contatti, note. Restano di ruolo solo sconto, pagamenti, IVA
 predefinita, trasporto, IBAN/banca (fornitore) e SDI, listino, Shopify (cliente).
 
-⚠️ **L'estrazione si fa QUANDO esistono i due consumatori**, non prima: con un elenco solo
-in mano si indovina quale parte è comune. Il posto sarà `domain/` — `features → features` è
-vietato dal lint.
+✅ **Estratto il 01/09/2026, quando i consumatori sono diventati due**:
+`shared/table-columns/anagrafica-columns.ts` dichiara i segmenti del SOGGETTO — fiscali,
+indirizzo, contatti, pagamento, IBAN, trasporto, sito, stato ruolo, ruolo gemello — e i due
+elenchi li compongono con le proprie colonne di ruolo.
+
+⛔ **Non un array unico con bandierine**: i due elenchi hanno colonne diverse (Ns. banca e
+Porto di qua, Codice destinatario e Note commerciali di là), e un array solo avrebbe
+richiesto interruttori per spegnerne metà.
 
 ⚠️ Nel catalogo fornitore «Anche cliente» è già in prima posizione, che è la posizione del
 «Tipo» di Danea: quando i due elenchi condivideranno le definizioni, sarà il discriminante
@@ -116,8 +134,9 @@ fornitore ha ora la spunta **«Attivo»**, accanto a «È anche cliente». Mecca
 sul database (tabella in `ANAGRAFICA-CANONICA-SPEC`), guida utente aggiornata con i due
 interruttori.
 
-⏸ **Resta da fare sul CLIENTE**, che ha esattamente lo stesso buco: nessuna spunta «Attivo»
-nella sua maschera. Va con §A.
+✅ **Fatto anche sul CLIENTE** il 01/09/2026, con §A: la maschera ha la spunta «Attivo»
+accanto a «È anche fornitore», e il percorso di scrittura (DTO → servizio → `Customer`)
+esiste da oggi.
 
 Qui sotto resta la diagnosi, perché spiega perché il difetto era invisibile.
 

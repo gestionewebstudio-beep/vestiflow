@@ -1,3 +1,15 @@
+import {
+  COLONNA_SOGGETTO_IBAN,
+  COLONNA_SOGGETTO_SITO,
+  COLONNA_SOGGETTO_TRASPORTO,
+  COLONNA_STATO_RUOLO,
+  COLONNE_SOGGETTO_CONTATTI,
+  COLONNE_SOGGETTO_FISCALI,
+  COLONNE_SOGGETTO_INDIRIZZO,
+  COLONNE_SOGGETTO_PAGAMENTO,
+  colonnaNoteSoggetto,
+  colonnaRuoloGemello,
+} from '@shared/table-columns/anagrafica-columns';
 import { colonna } from '@shared/table-columns/column-catalog';
 import {
   TableViewPresetId,
@@ -77,22 +89,15 @@ export const SUPPLIER_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
     di colonne serve due elenchi** — clienti e fornitori — e la prima cosa da
     sapere su una riga è di quale dei due sta parlando.
 
-    ⏸ **Qui la condivisione non c'è ANCORA**: queste definizioni sono dei soli
-    fornitori. Diventeranno comuni col rifacimento dell'anagrafica cliente
-    (`DA-FARE` §A), dove i campi sono gli stessi perché è lo stesso soggetto —
-    e allora questa posizione sarà quella giusta anche qui.
+    ⭐ **E dal 01/09/2026 la condivisione c'è davvero**: i campi del SOGGETTO —
+    fiscali, indirizzo, contatti, pagamento, IBAN — arrivano da
+    `@shared/table-columns/anagrafica-columns`, e l'elenco clienti compone gli
+    stessi segmenti. Qui restano solo le colonne del RUOLO fornitore: sconto,
+    Ns. banca, porto.
   */
-  { id: 'alsoCustomer', label: 'Anche cliente', defaultVisible: false, defaultWidthPx: 120 },
+  colonnaRuoloGemello('alsoCustomer'),
   colonna('code', { pinnable: true, defaultVisible: true, display: 'code', defaultWidthPx: 96 }),
-  {
-    id: 'taxCode',
-    label: 'Codice fiscale',
-    filter: 'text',
-    display: 'code',
-    defaultVisible: false,
-    defaultWidthPx: 150,
-  },
-  colonna('vatNumber', { defaultVisible: true, display: 'code', defaultWidthPx: 128 }),
+  ...COLONNE_SOGGETTO_FISCALI,
   {
     id: 'name',
     label: 'Ragione sociale',
@@ -100,76 +105,13 @@ export const SUPPLIER_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
     defaultVisible: true,
     display: 'truncate',
   },
-  {
-    id: 'addressLine1',
-    label: 'Indirizzo',
-    filter: 'text',
-    display: 'truncate',
-    defaultVisible: false,
-    defaultWidthPx: 220,
-  },
-  {
-    id: 'postalCode',
-    label: 'CAP',
-    filter: 'text',
-    display: 'code',
-    defaultVisible: false,
-    defaultWidthPx: 88,
-  },
-  colonna('city', {
-    defaultVisible: true,
-    display: 'truncate',
-    defaultWidthPx: 180,
-    filter: 'values',
-  }),
-  { id: 'province', label: 'Prov.', filter: 'text', defaultVisible: true, defaultWidthPx: 72 },
-  { id: 'countryCode', label: 'Paese', filter: 'text', defaultVisible: false, defaultWidthPx: 72 },
-  {
-    id: 'contactName',
-    label: 'Referente',
-    filter: 'text',
-    display: 'truncate',
-    defaultVisible: false,
-    defaultWidthPx: 160,
-  },
-  colonna('phone', { defaultVisible: false, display: 'code', defaultWidthPx: 140 }),
-  {
-    id: 'mobilePhone',
-    label: 'Cellulare',
-    filter: 'text',
-    display: 'code',
-    defaultVisible: false,
-    defaultWidthPx: 140,
-  },
-  colonna('email', { defaultVisible: true, display: 'truncate', defaultWidthPx: 220 }),
-  {
-    id: 'pec',
-    label: 'PEC',
-    filter: 'text',
-    display: 'truncate',
-    defaultVisible: false,
-    defaultWidthPx: 220,
-  },
+  ...COLONNE_SOGGETTO_INDIRIZZO,
+  ...COLONNE_SOGGETTO_CONTATTI,
+
+  // ── Da qui in giù è del RUOLO fornitore, e il cliente ha le sue ──────────
   { id: 'supplierDiscount', label: 'Sconto', defaultVisible: false, defaultWidthPx: 90 },
-  colonna('paymentMethod', {
-    label: 'Modalità di pagamento',
-    defaultVisible: false,
-    defaultWidthPx: 150,
-  }),
-  {
-    id: 'paymentTerms',
-    label: 'Condizioni di pagamento',
-    defaultVisible: false,
-    defaultWidthPx: 150,
-  },
-  {
-    id: 'iban',
-    label: 'IBAN',
-    filter: 'text',
-    display: 'code',
-    defaultVisible: false,
-    defaultWidthPx: 250,
-  },
+  ...COLONNE_SOGGETTO_PAGAMENTO,
+  COLONNA_SOGGETTO_IBAN,
   {
     id: 'ourBankName',
     label: 'Ns. banca',
@@ -178,31 +120,12 @@ export const SUPPLIER_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
     defaultWidthPx: 160,
     filter: 'values',
   },
-  {
-    id: 'transportResponsible',
-    label: 'Incaricato trasporto',
-    defaultVisible: false,
-    defaultWidthPx: 140,
-  },
+  COLONNA_SOGGETTO_TRASPORTO,
   { id: 'freightTerms', label: 'Porto', defaultVisible: false, defaultWidthPx: 130 },
-  { id: 'roleStatus', label: 'Stato', defaultVisible: false, defaultWidthPx: 110 },
-  {
-    id: 'supplierNotes',
-    label: 'Note',
-    filter: 'text',
-    display: 'truncate',
-    defaultVisible: false,
-    defaultWidthPx: 220,
-  },
-  {
-    id: 'website',
-    label: 'Sito web',
-    filter: 'text',
-    display: 'truncate',
-    defaultVisible: false,
-    defaultWidthPx: 180,
-  },
-] as const;
+  COLONNA_STATO_RUOLO,
+  colonnaNoteSoggetto('supplierNotes'),
+  COLONNA_SOGGETTO_SITO,
+];
 
 /**
  * ⭐ **Di serie le principali**, com'è stato chiesto: codice, ragione sociale,
@@ -223,9 +146,17 @@ export const SUPPLIER_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
  * l'ordine torna quello delle DEFINIZIONI. Due sequenze diverse per la stessa
  * schermata, e la tabella si rimescolava sotto gli occhi.
  *
- * ⭐ Tenendole allineate, accendere o spegnere una colonna non sposta più
- * niente: il preset decide solo CHI si vede. La guardia
- * `check:ordine-preset` lo tiene fermo su tutti gli elenchi.
+ * ⭐ **La correzione sta in `resolveVisibleColumns`**, che oggi ordina SEMPRE
+ * per definizioni: il preset decide solo CHI si vede, e tenere qui la stessa
+ * sequenza è ormai una cortesia verso chi legge, non un requisito.
+ *
+ * ⚠️ **Qui c'era scritto «la guardia `check:ordine-preset` lo tiene fermo su
+ * tutti gli elenchi», e quella guardia NON ESISTEVA.** Scritta il 01/09/2026
+ * per non lasciare una citazione falsa — che è peggio di nessuna citazione,
+ * perché chiude la domanda invece di lasciarla aperta. Ma verifica un'altra
+ * cosa, ed è bene saperlo: che ogni id elencato in un preset **esista** fra le
+ * definizioni. Un refuso lì non è un errore per TypeScript, e a schermo si vede
+ * solo una colonna attesa che manca.
  */
 export const SUPPLIER_LIST_COLUMN_PRESETS: TableViewPresetMap = {
   [TableViewPresetId.Default]: ['code', 'vatNumber', 'name', 'city', 'province', 'email'],

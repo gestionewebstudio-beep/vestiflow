@@ -57,8 +57,26 @@
   box-shadow: none;
 }
 
+/*
+  ⭐ **L'ACCENTO DI SEZIONE** — proprietario, 01/09/2026: «bisognerebbe dare un
+  tocco di bellezza, distinzione visiva e magari utilizzare qualche riga col
+  verde per rendere la pagina elegante e intuitiva».
+
+  ⚠️ **La tinta è `--color-primary`, il BRAND, non i token della sidebar.**
+  `regole-stile-ui` §2 riserva `--color-nav-*` alla navigazione — «non è un
+  secondo brand, è la palette della navigazione» — e usarli qui li
+  trasformerebbe in un colore d'accento generico, che è la porta da cui rientra
+  il disordine cromatico. Il brand è della stessa famiglia scura e fa lo stesso
+  lavoro: distinguere senza gridare.
+
+  ⚠️ **Larghezza 0 di serie**: chi non la chiede non vede niente cambiare. La
+  scheda anagrafica la accende con `--form-section-accent-w`.
+*/
 .form-section--flat .form-section__title {
   inline-size: 100%;
   padding-block-end: var(--space-1);
-  border-block-end: var(--border-width) solid var(--color-border);
+  padding-inline-start: var(--form-section-accent-gap, 0);
+  border-block-end: var(--border-width) solid var(--form-section-rule, var(--color-border));
+  border-inline-start: var(--form-section-accent-w, 0) solid
+    var(--form-section-accent, var(--color-primary));
 }

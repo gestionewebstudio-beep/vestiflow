@@ -1,333 +1,535 @@
 <div class="customer-fields" [formGroup]="formGroup()">
-  <div class="customer-fields__grid">
-    <div class="customer-fields__field customer-fields__field--full">
-      <h3 class="customer-fields__section-title">Dati anagrafici</h3>
-      <p class="customer-fields__hint" role="note">
-        I dati anagrafici appartengono al soggetto e sono condivisi con l'eventuale ruolo fornitore:
-        modificarli qui li aggiorna ovunque.
-      </p>
-      @if (anagraficaReadOnly()) {
-        <p class="customer-fields__hint" role="note">
-          Anagrafica sincronizzata da Shopify: in sola lettura. I dati fiscali e commerciali restano
-          modificabili nel gestionale.
-        </p>
-      }
-    </div>
+  <div class="customer-fields__sections">
+    <!--
+      ⭐ **L'ordine è quello in cui si BATTE il dato**, non quello del modello:
+      si copia dall'intestazione di una fattura o da un biglietto da visita —
+      denominazione, dati fiscali, indirizzo, contatti — e le condizioni
+      commerciali vengono dopo, perché si decidono, non si trascrivono.
 
-    <div class="customer-fields__field">
-      <label class="customer-fields__label" [for]="idPrefix() + '-first-name'">Nome</label>
-      <input
-        [id]="idPrefix() + '-first-name'"
-        class="customer-fields__control"
-        type="text"
-        formControlName="firstName"
-        autocomplete="given-name"
-      />
-    </div>
-    <div class="customer-fields__field">
-      <label class="customer-fields__label" [for]="idPrefix() + '-last-name'">Cognome</label>
-      <input
-        [id]="idPrefix() + '-last-name'"
-        class="customer-fields__control"
-        type="text"
-        formControlName="lastName"
-        autocomplete="family-name"
-      />
-    </div>
-    <div class="customer-fields__field">
-      <label class="customer-fields__label" [for]="idPrefix() + '-company'">Ragione sociale</label>
-      <input
-        [id]="idPrefix() + '-company'"
-        class="customer-fields__control"
-        type="text"
-        formControlName="companyName"
-        autocomplete="organization"
-      />
-    </div>
-    <div class="customer-fields__field">
-      <label class="customer-fields__label" [for]="idPrefix() + '-vat'">P. IVA</label>
-      <input
-        [id]="idPrefix() + '-vat'"
-        class="customer-fields__control"
-        type="text"
-        formControlName="vatNumber"
-        autocomplete="off"
-      />
-    </div>
-    <div class="customer-fields__field">
-      <label class="customer-fields__label" [for]="idPrefix() + '-tax'">Codice fiscale</label>
-      <input
-        [id]="idPrefix() + '-tax'"
-        class="customer-fields__control"
-        type="text"
-        formControlName="taxCode"
-        autocomplete="off"
-      />
-    </div>
-    <div class="customer-fields__field">
-      <label class="customer-fields__label" [for]="idPrefix() + '-email'">Email</label>
-      <input
-        [id]="idPrefix() + '-email'"
-        class="customer-fields__control"
-        type="email"
-        formControlName="email"
-        autocomplete="email"
-        [attr.aria-invalid]="showError('email')"
-      />
-      @if (showError('email')) {
-        <p class="customer-fields__field-error">
-          Inserisci un indirizzo email valido, es. mario.rossi&#64;esempio.it.
-        </p>
-      }
-    </div>
-    <div class="customer-fields__field">
-      <label class="customer-fields__label" [for]="idPrefix() + '-pec'">PEC</label>
-      <input
-        [id]="idPrefix() + '-pec'"
-        class="customer-fields__control"
-        type="email"
-        formControlName="pec"
-        autocomplete="off"
-        [attr.aria-invalid]="showError('pec')"
-      />
-      @if (showError('pec')) {
-        <p class="customer-fields__field-error">
-          Inserisci un indirizzo PEC valido, es. cliente&#64;pec.esempio.it.
-        </p>
-      }
-    </div>
-    <div class="customer-fields__field">
-      <label class="customer-fields__label" [for]="idPrefix() + '-sdiCode'"
-        >Codice destinatario SDI</label
-      >
-      <input
-        [id]="idPrefix() + '-sdiCode'"
-        class="customer-fields__control"
-        type="text"
-        formControlName="sdiCode"
-        maxlength="7"
-        autocomplete="off"
-        placeholder="Es. ABC1234"
-      />
-      <p class="customer-fields__hint">
-        Dove il commercialista trasmette la fattura. In alternativa si usa la PEC.
-      </p>
-    </div>
-    <div class="customer-fields__field">
-      <label class="customer-fields__label" [for]="idPrefix() + '-phone'">Telefono</label>
-      <input
-        [id]="idPrefix() + '-phone'"
-        class="customer-fields__control"
-        type="tel"
-        formControlName="phone"
-        autocomplete="tel"
-      />
-    </div>
-    <div class="customer-fields__field">
-      <label class="customer-fields__label" [for]="idPrefix() + '-website'">Sito web</label>
-      <input
-        [id]="idPrefix() + '-website'"
-        class="customer-fields__control"
-        type="url"
-        formControlName="website"
-        autocomplete="url"
-      />
-    </div>
-    <div class="customer-fields__field">
-      <label class="customer-fields__label" [for]="idPrefix() + '-contact'">Referente</label>
-      <input
-        [id]="idPrefix() + '-contact'"
-        class="customer-fields__control"
-        type="text"
-        formControlName="contactName"
-        autocomplete="off"
-      />
-    </div>
-    <div class="customer-fields__field customer-fields__field--full">
-      <label class="customer-fields__label" [for]="idPrefix() + '-address1'">Indirizzo</label>
-      <input
-        [id]="idPrefix() + '-address1'"
-        class="customer-fields__control"
-        type="text"
-        formControlName="addressLine1"
-        autocomplete="street-address"
-      />
-    </div>
-    <div class="customer-fields__field customer-fields__field--full">
-      <label class="customer-fields__label" [for]="idPrefix() + '-address2'"
-        >Indirizzo (riga 2)</label
-      >
-      <input
-        [id]="idPrefix() + '-address2'"
-        class="customer-fields__control"
-        type="text"
-        formControlName="addressLine2"
-        autocomplete="off"
-      />
-    </div>
-    <div class="customer-fields__field">
-      <label class="customer-fields__label" [for]="idPrefix() + '-city'">Città</label>
-      <input
-        [id]="idPrefix() + '-city'"
-        class="customer-fields__control"
-        type="text"
-        formControlName="city"
-        autocomplete="address-level2"
-      />
-    </div>
-    <div class="customer-fields__field">
-      <label class="customer-fields__label" [for]="idPrefix() + '-cap'">CAP</label>
-      <input
-        [id]="idPrefix() + '-cap'"
-        class="customer-fields__control"
-        type="text"
-        formControlName="postalCode"
-        autocomplete="postal-code"
-      />
-    </div>
-    <div class="customer-fields__field">
-      <label class="customer-fields__label" [for]="idPrefix() + '-province'">Provincia</label>
-      <input
-        [id]="idPrefix() + '-province'"
-        class="customer-fields__control"
-        type="text"
-        formControlName="province"
-        autocomplete="address-level1"
-      />
-    </div>
-    <div class="customer-fields__field">
-      <label class="customer-fields__label" [for]="idPrefix() + '-country'">Paese</label>
-      <input
-        [id]="idPrefix() + '-country'"
-        class="customer-fields__control"
-        type="text"
-        formControlName="countryCode"
-        autocomplete="country"
-      />
-    </div>
-    <div class="customer-fields__field customer-fields__field--full">
-      <label class="customer-fields__label" [for]="idPrefix() + '-notes'">Note anagrafiche</label>
-      <textarea
-        [id]="idPrefix() + '-notes'"
-        class="customer-fields__control customer-fields__textarea"
-        rows="3"
-        formControlName="notes"
-      ></textarea>
-    </div>
+      ⚠️ **Il giro del Tab è l'ordine del DOM**: nessun `tabindex` positivo
+      (vietato da `regole-architettura`), nessun riordino in CSS. Chi sposta un
+      campo qui dentro sposta anche la tabulazione, ed è voluto.
+    -->
+    <app-form-section title="Dati generali" [flat]="true">
+      <div class="customer-fields__grid">
+        <!--
+          ⚠️ **I dati anagrafici appartengono al SOGGETTO, non al ruolo**: se
+          questo cliente è anche fornitore, modificarli qui li cambia anche là.
+          È il contratto dell'anagrafica canonica, e va detto dove si scrive.
+        -->
+        <div class="customer-fields__field customer-fields__field--full">
+          <p class="customer-fields__hint" role="note">
+            I dati anagrafici appartengono al soggetto e sono condivisi con l'eventuale ruolo
+            fornitore: modificarli qui li aggiorna ovunque.
+          </p>
+          @if (anagraficaReadOnly()) {
+            <p class="customer-fields__hint" role="note">
+              Anagrafica sincronizzata da Shopify: in sola lettura. I dati fiscali e commerciali
+              restano modificabili nel gestionale.
+            </p>
+          }
+        </div>
 
-    <div class="customer-fields__field customer-fields__field--full">
-      <h3 class="customer-fields__section-title">Dati commerciali — ruolo cliente</h3>
-    </div>
-    @if (showCodeField()) {
-      <div class="customer-fields__field">
-        <label class="customer-fields__label" [for]="idPrefix() + '-code'">Codice cliente</label>
-        <input
-          [id]="idPrefix() + '-code'"
-          class="customer-fields__control"
-          type="text"
-          formControlName="code"
-          autocomplete="off"
-        />
+        <!--
+          ⚠️ **La prima riga somma DODICI colonne** (6 + 3 + 3), e non è
+          pignoleria: se ne sommasse dieci, la P. IVA salirebbe a riempire il
+          buco e i tre campi fiscali si troverebbero spezzati su due righe —
+          uno in cima a destra e due sotto. Chi compila legge «denominazione»,
+          poi «fiscale»: sono due righe, e devono restare due.
+        -->
+        <div class="customer-fields__field" style="--span: 6">
+          <label class="customer-fields__label" [for]="idPrefix() + '-company'"
+            >Ragione sociale</label
+          >
+          <input
+            [id]="idPrefix() + '-company'"
+            class="customer-fields__control"
+            type="text"
+            formControlName="companyName"
+            autocomplete="organization"
+          />
+        </div>
+        @if (showCodeField()) {
+          <div
+            class="customer-fields__field"
+            style="--span: 2; --span-sm: 1; --campo-max: var(--field-w-md)"
+          >
+            <label class="customer-fields__label" [for]="idPrefix() + '-code'">Codice</label>
+            <input
+              [id]="idPrefix() + '-code'"
+              class="customer-fields__control"
+              type="text"
+              formControlName="code"
+              autocomplete="off"
+            />
+          </div>
+        }
+        <!--
+          ⚠️ **Nome e cognome NON sono un doppione della ragione sociale**: un
+          cliente è un'azienda o una persona fisica, e la denominazione minima
+          è l'una OPPURE i due insieme (`customerIdentityValidator`).
+        -->
+        <div
+          class="customer-fields__field"
+          style="--span: 3; --span-sm: 1; --campo-max: var(--field-w-lg)"
+        >
+          <label class="customer-fields__label" [for]="idPrefix() + '-first-name'">Nome</label>
+          <input
+            [id]="idPrefix() + '-first-name'"
+            class="customer-fields__control"
+            type="text"
+            formControlName="firstName"
+            autocomplete="given-name"
+          />
+        </div>
+        <div
+          class="customer-fields__field"
+          style="--span: 3; --span-sm: 1; --campo-max: var(--field-w-lg)"
+        >
+          <label class="customer-fields__label" [for]="idPrefix() + '-last-name'">Cognome</label>
+          <input
+            [id]="idPrefix() + '-last-name'"
+            class="customer-fields__control"
+            type="text"
+            formControlName="lastName"
+            autocomplete="family-name"
+          />
+        </div>
+        <div
+          class="customer-fields__field"
+          style="--span: 2; --span-sm: 1; --campo-max: var(--field-w-md)"
+        >
+          <label class="customer-fields__label" [for]="idPrefix() + '-vat'">P. IVA</label>
+          <input
+            [id]="idPrefix() + '-vat'"
+            class="customer-fields__control"
+            type="text"
+            inputmode="numeric"
+            maxlength="11"
+            formControlName="vatNumber"
+            autocomplete="off"
+            [attr.aria-describedby]="avviso('vatNumber') ? idPrefix() + '-vat-avviso' : null"
+          />
+          @if (avviso('vatNumber'); as messaggio) {
+            <span class="customer-fields__field-warning" [id]="idPrefix() + '-vat-avviso'">{{
+              messaggio
+            }}</span>
+          }
+        </div>
+        <div
+          class="customer-fields__field"
+          style="--span: 2; --span-sm: 1; --campo-max: var(--field-w-md)"
+        >
+          <label class="customer-fields__label" [for]="idPrefix() + '-tax'">Codice fiscale</label>
+          <input
+            [id]="idPrefix() + '-tax'"
+            class="customer-fields__control customer-fields__control--mono"
+            type="text"
+            maxlength="16"
+            formControlName="taxCode"
+            autocomplete="off"
+            [attr.aria-describedby]="avviso('taxCode') ? idPrefix() + '-tax-avviso' : null"
+          />
+          @if (avviso('taxCode'); as messaggio) {
+            <span class="customer-fields__field-warning" [id]="idPrefix() + '-tax-avviso'">{{
+              messaggio
+            }}</span>
+          }
+        </div>
+        <!--
+          ⭐ **Il Codice destinatario è del CLIENTE, non del fornitore**: è dove
+          il commercialista trasmette la fattura che gli si emette. Sulla scheda
+          fornitore non esiste, ed è la prima differenza fra le due anagrafiche.
+        -->
+        <div
+          class="customer-fields__field"
+          style="--span: 2; --span-sm: 1; --campo-max: var(--field-w-md)"
+        >
+          <label class="customer-fields__label" [for]="idPrefix() + '-sdiCode'"
+            >Codice destinatario</label
+          >
+          <input
+            [id]="idPrefix() + '-sdiCode'"
+            class="customer-fields__control customer-fields__control--mono"
+            type="text"
+            maxlength="7"
+            formControlName="sdiCode"
+            placeholder="ABC1234"
+            autocomplete="off"
+            [attr.aria-describedby]="idPrefix() + '-sdi-hint'"
+          />
+          <span class="customer-fields__hint" [id]="idPrefix() + '-sdi-hint'"
+            >Dove si trasmette la fattura. In alternativa vale la PEC.</span
+          >
+        </div>
       </div>
-    }
-    <div class="customer-fields__field">
-      <label class="customer-fields__label" [for]="idPrefix() + '-discount'">Sconto</label>
-      <input
-        [id]="idPrefix() + '-discount'"
-        class="customer-fields__control"
-        type="text"
-        formControlName="customerDiscount"
-        placeholder="es. 10% o 10+5+4"
-        autocomplete="off"
-      />
-    </div>
-    <div class="customer-fields__field">
-      <label class="customer-fields__label" [for]="idPrefix() + '-payment-method'"
-        >Modalità di pagamento</label
-      >
-      <app-select-menu
-        [options]="paymentMethodOptions()"
-        [value]="formGroup().controls.paymentMethod.value"
-        ariaLabel="Modalità di pagamento"
-        placeholder="Seleziona…"
-        [fullWidth]="true"
-        [includeEmptyOption]="true"
-        (valueChange)="onPaymentMethodSelect($event)"
-      />
-    </div>
-    <div class="customer-fields__field">
-      <label class="customer-fields__label" [for]="idPrefix() + '-payment-terms'"
-        >Condizioni di pagamento</label
-      >
-      <app-select-menu
-        [options]="paymentTermsOptions()"
-        [value]="formGroup().controls.paymentTerms.value"
-        ariaLabel="Condizioni di pagamento"
-        placeholder="Seleziona…"
-        [fullWidth]="true"
-        [includeEmptyOption]="true"
-        (valueChange)="onPaymentTermsSelect($event)"
-      />
-    </div>
-    <div class="customer-fields__field">
-      <label class="customer-fields__label" [for]="idPrefix() + '-transport'"
-        >Incaricato trasporto</label
-      >
-      <input
-        [id]="idPrefix() + '-transport'"
-        class="customer-fields__control"
-        type="text"
-        formControlName="transportResponsible"
-        placeholder="Es. Vettore, Mittente"
-        autocomplete="off"
-      />
-    </div>
-    <div class="customer-fields__field customer-fields__field--full">
-      <label class="customer-fields__label" [for]="idPrefix() + '-doc-alert'"
-        >Mostra avviso alla creazione documento</label
-      >
-      <textarea
-        [id]="idPrefix() + '-doc-alert'"
-        class="customer-fields__control customer-fields__textarea"
-        rows="2"
-        formControlName="documentCreationAlert"
-        placeholder="Es. Verificare il fido prima di confermare"
-      ></textarea>
-    </div>
-    <div class="customer-fields__field customer-fields__field--full">
-      <label class="customer-fields__label" [for]="idPrefix() + '-doc-note'"
-        >Inserisci nota nei documenti</label
-      >
-      <textarea
-        [id]="idPrefix() + '-doc-note'"
-        class="customer-fields__control customer-fields__textarea"
-        rows="2"
-        formControlName="documentCreationNote"
-        placeholder="Testo aggiunto automaticamente alle note del documento"
-      ></textarea>
-    </div>
-    <div class="customer-fields__field customer-fields__field--full">
-      <label class="customer-fields__label" [for]="idPrefix() + '-commercial-notes'"
-        >Note commerciali</label
-      >
-      <textarea
-        [id]="idPrefix() + '-commercial-notes'"
-        class="customer-fields__control customer-fields__textarea"
-        rows="3"
-        formControlName="commercialNotes"
-      ></textarea>
-    </div>
+    </app-form-section>
 
-    <div class="customer-fields__field customer-fields__field--full">
-      <label class="customer-fields__checkbox">
-        <input type="checkbox" formControlName="alsoSupplier" />
-        <span>È anche fornitore</span>
-      </label>
-      <p class="customer-fields__hint">
-        Aggiunge il ruolo fornitore allo stesso soggetto, senza duplicare l'anagrafica: i dati
-        comuni restano condivisi. Togliendo la spunta il ruolo viene disattivato per i nuovi
-        utilizzi, ma documenti e storico restano intatti.
-      </p>
-    </div>
+    <!--
+      ⚠️ **CAP prima di Città, Città prima di Provincia**: è l'ordine in cui si
+      legge un indirizzo italiano — «Via Roma 1, 80013 Casalnuovo (NA)» — e
+      quindi quello in cui la mano lo ribatte.
+    -->
+    <app-form-section title="Indirizzo" [flat]="true">
+      <div class="customer-fields__grid">
+        <div class="customer-fields__field" style="--span: 6">
+          <label class="customer-fields__label" [for]="idPrefix() + '-address1'">Indirizzo</label>
+          <input
+            [id]="idPrefix() + '-address1'"
+            class="customer-fields__control"
+            type="text"
+            formControlName="addressLine1"
+            autocomplete="street-address"
+          />
+        </div>
+        <div class="customer-fields__field" style="--span: 6">
+          <label class="customer-fields__label" [for]="idPrefix() + '-address2'"
+            >Indirizzo (riga 2)</label
+          >
+          <input
+            [id]="idPrefix() + '-address2'"
+            class="customer-fields__control"
+            type="text"
+            formControlName="addressLine2"
+            autocomplete="off"
+          />
+        </div>
+        <div
+          class="customer-fields__field"
+          style="--span: 2; --span-sm: 1; --campo-max: var(--field-w-sm)"
+        >
+          <label class="customer-fields__label" [for]="idPrefix() + '-cap'">CAP</label>
+          <input
+            [id]="idPrefix() + '-cap'"
+            class="customer-fields__control"
+            type="text"
+            inputmode="numeric"
+            maxlength="5"
+            formControlName="postalCode"
+            autocomplete="postal-code"
+            [attr.aria-describedby]="avviso('postalCode') ? idPrefix() + '-cap-avviso' : null"
+          />
+          @if (avviso('postalCode'); as messaggio) {
+            <span class="customer-fields__field-warning" [id]="idPrefix() + '-cap-avviso'">{{
+              messaggio
+            }}</span>
+          }
+        </div>
+        <div
+          class="customer-fields__field"
+          style="--span: 3; --span-sm: 1; --campo-max: var(--field-w-lg)"
+        >
+          <label class="customer-fields__label" [for]="idPrefix() + '-city'">Città</label>
+          <input
+            [id]="idPrefix() + '-city'"
+            class="customer-fields__control"
+            type="text"
+            formControlName="city"
+            autocomplete="address-level2"
+          />
+        </div>
+        <div
+          class="customer-fields__field"
+          style="--span: 1; --span-sm: 1; --campo-max: var(--field-w-xs)"
+        >
+          <label class="customer-fields__label" [for]="idPrefix() + '-province'">Prov.</label>
+          <input
+            [id]="idPrefix() + '-province'"
+            class="customer-fields__control customer-fields__control--maiuscolo"
+            type="text"
+            maxlength="2"
+            formControlName="province"
+            autocomplete="address-level1"
+            [attr.aria-describedby]="avviso('province') ? idPrefix() + '-province-avviso' : null"
+          />
+          @if (avviso('province'); as messaggio) {
+            <span class="customer-fields__field-warning" [id]="idPrefix() + '-province-avviso'">{{
+              messaggio
+            }}</span>
+          }
+        </div>
+        <div
+          class="customer-fields__field"
+          style="--span: 1; --span-sm: 1; --campo-max: var(--field-w-xs)"
+        >
+          <label class="customer-fields__label" [for]="idPrefix() + '-country'">Paese</label>
+          <input
+            [id]="idPrefix() + '-country'"
+            class="customer-fields__control customer-fields__control--maiuscolo"
+            type="text"
+            maxlength="2"
+            formControlName="countryCode"
+            autocomplete="country"
+            [attr.aria-describedby]="avviso('countryCode') ? idPrefix() + '-country-avviso' : null"
+          />
+          @if (avviso('countryCode'); as messaggio) {
+            <span class="customer-fields__field-warning" [id]="idPrefix() + '-country-avviso'">{{
+              messaggio
+            }}</span>
+          }
+        </div>
+      </div>
+    </app-form-section>
+
+    <app-form-section title="Contatti" [flat]="true">
+      <div class="customer-fields__grid">
+        <div class="customer-fields__field" style="--span: 4">
+          <label class="customer-fields__label" [for]="idPrefix() + '-email'">Email</label>
+          <input
+            [id]="idPrefix() + '-email'"
+            class="customer-fields__control"
+            type="email"
+            formControlName="email"
+            autocomplete="email"
+            [attr.aria-invalid]="showError('email')"
+          />
+          @if (showError('email')) {
+            <span class="customer-fields__field-error"
+              >Indirizzo non valido, es. mario.rossi&#64;esempio.it.</span
+            >
+          }
+        </div>
+        <div class="customer-fields__field" style="--span: 4">
+          <label class="customer-fields__label" [for]="idPrefix() + '-pec'">PEC</label>
+          <input
+            [id]="idPrefix() + '-pec'"
+            class="customer-fields__control"
+            type="email"
+            formControlName="pec"
+            autocomplete="off"
+            [attr.aria-invalid]="showError('pec')"
+          />
+          @if (showError('pec')) {
+            <span class="customer-fields__field-error"
+              >Indirizzo non valido, es. cliente&#64;pec.it.</span
+            >
+          }
+        </div>
+        <div
+          class="customer-fields__field"
+          style="--span: 2; --span-sm: 1; --campo-max: var(--field-w-md)"
+        >
+          <label class="customer-fields__label" [for]="idPrefix() + '-phone'">Telefono</label>
+          <input
+            [id]="idPrefix() + '-phone'"
+            class="customer-fields__control"
+            type="tel"
+            formControlName="phone"
+            autocomplete="tel"
+          />
+        </div>
+        <div
+          class="customer-fields__field"
+          style="--span: 2; --span-sm: 1; --campo-max: var(--field-w-md)"
+        >
+          <label class="customer-fields__label" [for]="idPrefix() + '-mobile'">Cellulare</label>
+          <input
+            [id]="idPrefix() + '-mobile'"
+            class="customer-fields__control"
+            type="tel"
+            formControlName="mobilePhone"
+            autocomplete="tel"
+          />
+        </div>
+        <div
+          class="customer-fields__field"
+          style="--span: 2; --span-sm: 1; --campo-max: var(--field-w-lg)"
+        >
+          <label class="customer-fields__label" [for]="idPrefix() + '-contact'">Referente</label>
+          <input
+            [id]="idPrefix() + '-contact'"
+            class="customer-fields__control"
+            type="text"
+            formControlName="contactName"
+            autocomplete="off"
+          />
+        </div>
+        <div class="customer-fields__field" style="--span: 4">
+          <label class="customer-fields__label" [for]="idPrefix() + '-website'">Sito web</label>
+          <input
+            [id]="idPrefix() + '-website'"
+            class="customer-fields__control"
+            type="url"
+            formControlName="website"
+            autocomplete="url"
+          />
+        </div>
+      </div>
+    </app-form-section>
+
+    <app-form-section title="Condizioni commerciali" [flat]="true">
+      <div class="customer-fields__grid">
+        <div class="customer-fields__field" style="--span: 3">
+          <label class="customer-fields__label" [for]="idPrefix() + '-payment-method'"
+            >Modalità di pagamento</label
+          >
+          <app-select-menu
+            [options]="paymentMethodOptions()"
+            [value]="formGroup().controls.paymentMethod.value"
+            ariaLabel="Modalità di pagamento"
+            placeholder="Seleziona…"
+            [fullWidth]="true"
+            [includeEmptyOption]="true"
+            (valueChange)="onPaymentMethodSelect($event)"
+          />
+        </div>
+        <div class="customer-fields__field" style="--span: 3">
+          <label class="customer-fields__label" [for]="idPrefix() + '-payment-terms'"
+            >Condizioni di pagamento</label
+          >
+          <app-select-menu
+            [options]="paymentTermsOptions()"
+            [value]="formGroup().controls.paymentTerms.value"
+            ariaLabel="Condizioni di pagamento"
+            placeholder="Seleziona…"
+            [fullWidth]="true"
+            [includeEmptyOption]="true"
+            (valueChange)="onPaymentTermsSelect($event)"
+          />
+        </div>
+        <div
+          class="customer-fields__field"
+          style="--span: 2; --span-sm: 1; --campo-max: var(--field-w-sm)"
+        >
+          <label class="customer-fields__label" [for]="idPrefix() + '-discount'">Sconto</label>
+          <input
+            [id]="idPrefix() + '-discount'"
+            class="customer-fields__control"
+            type="text"
+            formControlName="customerDiscount"
+            placeholder="10% o 4+10%"
+            autocomplete="off"
+          />
+        </div>
+        <div
+          class="customer-fields__field"
+          style="--span: 2; --span-sm: 1; --campo-max: var(--field-w-lg)"
+        >
+          <label class="customer-fields__label" [for]="idPrefix() + '-transport'"
+            >Incaricato trasporto</label
+          >
+          <input
+            [id]="idPrefix() + '-transport'"
+            class="customer-fields__control"
+            type="text"
+            formControlName="transportResponsible"
+            placeholder="Vettore, Mittente"
+            autocomplete="off"
+          />
+        </div>
+        <!--
+          ⚠️ **L'IBAN è del SOGGETTO, e quindi è lo stesso della scheda
+          fornitore**: è il conto della persona giuridica, non un patto
+          commerciale. Se lo stesso soggetto è cliente e fornitore, il conto è
+          uno solo e si aggiorna da entrambe le schede.
+        -->
+        <div class="customer-fields__field" style="--span: 5">
+          <label class="customer-fields__label" [for]="idPrefix() + '-iban'">IBAN</label>
+          <input
+            [id]="idPrefix() + '-iban'"
+            class="customer-fields__control customer-fields__control--mono"
+            type="text"
+            maxlength="34"
+            formControlName="iban"
+            placeholder="IT00 X000 0000 0000 0000 0000 000"
+            autocomplete="off"
+            [attr.aria-describedby]="avviso('iban') ? idPrefix() + '-iban-avviso' : null"
+          />
+          @if (avviso('iban'); as messaggio) {
+            <span class="customer-fields__field-warning" [id]="idPrefix() + '-iban-avviso'">{{
+              messaggio
+            }}</span>
+          }
+        </div>
+      </div>
+    </app-form-section>
+
+    <app-form-section title="Documenti e note" [flat]="true">
+      <div class="customer-fields__grid">
+        <div class="customer-fields__field customer-fields__field--mezzo">
+          <label class="customer-fields__label" [for]="idPrefix() + '-doc-alert'"
+            >Avviso alla creazione documento</label
+          >
+          <textarea
+            [id]="idPrefix() + '-doc-alert'"
+            class="customer-fields__control customer-fields__textarea"
+            rows="2"
+            formControlName="documentCreationAlert"
+            placeholder="Es. Verificare il fido prima di confermare"
+          ></textarea>
+        </div>
+        <div class="customer-fields__field customer-fields__field--mezzo">
+          <label class="customer-fields__label" [for]="idPrefix() + '-doc-note'"
+            >Nota nei documenti</label
+          >
+          <textarea
+            [id]="idPrefix() + '-doc-note'"
+            class="customer-fields__control customer-fields__textarea"
+            rows="2"
+            formControlName="documentCreationNote"
+            placeholder="Testo aggiunto automaticamente alle note del documento"
+          ></textarea>
+        </div>
+        <!--
+          ⚠️ **Due blocchi note, e la differenza non è di gusto**: quelle
+          anagrafiche stanno sul SOGGETTO — le vede anche la scheda fornitore —
+          mentre quelle commerciali appartengono al solo ruolo cliente.
+        -->
+        <div class="customer-fields__field customer-fields__field--mezzo">
+          <label class="customer-fields__label" [for]="idPrefix() + '-notes'"
+            >Note anagrafiche</label
+          >
+          <textarea
+            [id]="idPrefix() + '-notes'"
+            class="customer-fields__control customer-fields__textarea"
+            rows="2"
+            formControlName="notes"
+          ></textarea>
+        </div>
+        <div class="customer-fields__field customer-fields__field--mezzo">
+          <label class="customer-fields__label" [for]="idPrefix() + '-commercial-notes'"
+            >Note commerciali</label
+          >
+          <textarea
+            [id]="idPrefix() + '-commercial-notes'"
+            class="customer-fields__control customer-fields__textarea"
+            rows="2"
+            formControlName="commercialNotes"
+          ></textarea>
+        </div>
+        <!--
+          ⭐ **I DUE INTERRUTTORI DI RUOLO, uno accanto all'altro.** Dicono
+          cosa questo soggetto è e se lo si usa ancora: si leggono insieme, e
+          separarli costringerebbe a cercarne uno dei due.
+
+          ⚠️ **Governano ruoli DIVERSI, e non è ovvio**: «Attivo» è lo stato di
+          QUESTO ruolo cliente; «È anche fornitore» accende o spegne il ruolo
+          FORNITORE dello stesso soggetto. Sono due interruttori, non uno doppio.
+        -->
+        <div class="customer-fields__field customer-fields__field--full">
+          <label class="customer-fields__checkbox">
+            <input type="checkbox" formControlName="isActive" />
+            <span>Attivo</span>
+          </label>
+          <p class="customer-fields__hint">
+            Un cliente disattivato non compare più nelle tendine dei documenti nuovi, ma non si
+            perde niente: scheda, ordini, documenti e storico restano dove sono. Serve a ritirare
+            dal giro un cliente con cui non si lavora più, senza eliminarlo.
+          </p>
+        </div>
+        <div class="customer-fields__field customer-fields__field--full">
+          <label class="customer-fields__checkbox">
+            <input type="checkbox" formControlName="alsoSupplier" />
+            <span>È anche fornitore</span>
+          </label>
+          <p class="customer-fields__hint">
+            Lo stesso soggetto viene trattato anche come fornitore: gli si comprano merci e gli si
+            registrano le fatture d'acquisto, e compare nelle tendine dei documenti di acquisto.
+            Nessun dato viene duplicato — l'anagrafica è una sola e resta condivisa. Togliendo la
+            spunta il ruolo fornitore si disattiva, ma documenti e storico restano.
+          </p>
+        </div>
+      </div>
+    </app-form-section>
   </div>
 </div>

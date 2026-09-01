@@ -454,3 +454,88 @@ describe('DataTableComponent — la riga di riempimento', () => {
     expect(reso.container.querySelectorAll('tbody tr.data-table__filler')).toHaveLength(0);
   });
 });
+
+/**
+ * ⭐ **LE LARGHEZZE DI COLONNA SONO PESI, NON ORDINI** — proprietario,
+ * 01/09/2026: «il contenitore non doveva permettere di scorrere con barra di
+ * scorrimento ma il contenuto adattarsi in base alla grandezza del contenitore».
+ *
+ * Misurato in un browser vero: 25 colonne dichiarate in px sommavano 3.587px in
+ * un contenitore da 1.200 e la barra compariva; espresse in percentuale ne
+ * occupavano 1.198 conservando le proporzioni.
+ *
+ * ⛔ **Nessun test di componente può vedere la barra** — jsdom non dipinge — ma
+ * può tenere fermo ciò da cui la barra dipende: che l'attributo sia una QUOTA,
+ * che la somma faccia cento, e che le quote seguano le larghezze dichiarate.
+ */
+@Component({
+  imports: [DataTableComponent],
+  template: `
+    <app-data-table
+      [columns]="colonne()"
+      [sections]="sezioni"
+      [rowId]="rowId"
+      [cellText]="cellText"
+    />
+  `,
+})
+class OspiteLarghezzeComponent {
+  readonly colonne = signal<readonly ResolvedTableColumn[]>([
+    { id: 'sku', label: 'SKU', pinned: false, defaultWidthPx: 100 },
+    { id: 'qta', label: 'Quantità', numeric: true, pinned: false, defaultWidthPx: 300 },
+  ]);
+  readonly sezioni: readonly DataTableSection<Riga>[] = [{ id: 'unica', rows: RIGHE }];
+  readonly rowId = (row: Riga): string => row.id;
+  readonly cellText = (row: Riga, columnId: string): string =>
+    columnId === 'sku' ? row.sku : row.qta;
+}
+
+describe('DataTableComponent — le larghezze sono quote, non pixel', () => {
+  function quote(contenitore: HTMLElement | Element): number[] {
+    return [...contenitore.querySelectorAll('thead th')].map((th) =>
+      Number.parseFloat((th as HTMLElement).style.inlineSize),
+    );
+  }
+
+  it('⛔ nessuna colonna dichiara pixel: sarebbero un ordine, e il totale sfonderebbe', async () => {
+    const reso = await render(OspiteLarghezzeComponent);
+    const intestazioni = [...reso.container.querySelectorAll('thead th')] as HTMLElement[];
+
+    for (const th of intestazioni) {
+      expect(th.style.inlineSize).toMatch(/%$/);
+    }
+  });
+
+  it('⭐ le quote seguono le larghezze dichiarate e sommano cento', async () => {
+    const reso = await render(OspiteLarghezzeComponent);
+    const [sku, qta] = quote(reso.container);
+
+    // 100 e 300: un quarto e tre quarti.
+    expect(sku).toBeCloseTo(25, 1);
+    expect(qta).toBeCloseTo(75, 1);
+    expect(sku! + qta!).toBeCloseTo(100, 1);
+  });
+
+  it('⭐ spegnere una colonna ridistribuisce: le quote si rifanno sulle VISIBILI', async () => {
+    const reso = await render(OspiteLarghezzeComponent);
+    reso.fixture.componentInstance.colonne.set([
+      { id: 'qta', label: 'Quantità', numeric: true, pinned: false, defaultWidthPx: 300 },
+    ]);
+    await reso.fixture.whenStable();
+
+    expect(quote(reso.container)).toEqual([100]);
+  });
+
+  it('⚠️ una colonna senza larghezza NON resta a zero: prende la misura del suo tipo', async () => {
+    const reso = await render(OspiteLarghezzeComponent);
+    reso.fixture.componentInstance.colonne.set([
+      { id: 'sku', label: 'SKU', pinned: false },
+      { id: 'qta', label: 'Quantità', numeric: true, pinned: false },
+    ]);
+    await reso.fixture.whenStable();
+
+    for (const quota of quote(reso.container)) {
+      expect(quota).toBeGreaterThan(0);
+    }
+  });
+});

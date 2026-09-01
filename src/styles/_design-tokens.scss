@@ -634,7 +634,15 @@
     ⛔ Non è `--control-h-cell` (24px): quello è l'input dentro una riga di
     tabella, che vive in una griglia fitta e senza etichetta propria.
   */
-  --control-h-entry: 1.75rem; // 28px — campi di anagrafica (inserimento rapido)
+  /*
+    ⭐ **26px, da 28 — proprietario, 01/09/2026**: «per recuperare spazio
+    potremmo scendere la cella a 26px se va bene».
+
+    ⚠️ **Va bene, e il margine sul minimo resta**: WCAG 2.2 AA chiede 24×24 CSS
+    px, e il bersaglio vero è più alto del campo — lo allarga lo spazio fra le
+    righe della griglia. Sotto i 26 si toccherebbe il minimo, e lì ci si ferma.
+  */
+  --control-h-entry: 1.625rem; // 26px — campi di anagrafica (inserimento rapido)
   --control-h-touch: 2.75rem; // 44px — minimo tappabile su mobile
   /*
     ⭐ **24px, da 30 — proprietario, 01/09/2026**: «riduci il padding interno
@@ -944,7 +952,7 @@
       quella soglia iOS ingrandisce la pagina da solo a ogni fuoco. È la parte
       della regola che non si tocca, ed è dichiarata nel foglio del form.
     */
-    --control-h-entry: 1.75rem; // 28px — deciso uguale alla scrivania
+    --control-h-entry: 1.625rem; // 26px — deciso uguale alla scrivania
 
     // 18px: il titolo di pagina sul telefono (`regole-stile-ui` §3).
     --text-page-title: 1.125rem;

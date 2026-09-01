@@ -117,33 +117,83 @@ export class CustomerTableComponent {
   protected readonly rowLabelFor = (customer: Customer): string => this.rowLabel(customer);
 
   /*
-    ⭐ **Dodici colonne su tredici sono testo**, e stanno tutte qui: dare a ognuna
-    un `ng-template` sarebbe stato ripetere dodici volte la stessa riga.
+    ⭐ **Tutte le colonne sono testo tranne l'origine**, e stanno tutte qui: dare
+    a ognuna un `ng-template` sarebbe ripetere venti volte la stessa riga.
+
+    ⚠️ **Ogni colonna dichiarata nel catalogo DEVE avere il suo ramo**, o cade
+    nel `default` e resta una colonna vuota che si accende e non mostra niente:
+    è il difetto che `check:colonne-rese` esiste per prendere, e che nessun
+    test trova da solo.
+
+    ⚠️ **L'origine ha un ramo anche se la disegna un template**: il testo serve
+    al filtro di colonna e alla ricerca, che leggono da qui.
   */
   protected readonly cellText = (customer: Customer, columnId: string): string => {
     switch (columnId) {
+      // ── Identità ────────────────────────────────────────────────────────
       case 'code':
-        return customer.code ?? '—';
+        return customer.code?.trim() || '—';
       case 'name':
         return this.displayName(customer);
-      case 'email':
-        return customer.email ?? '—';
-      case 'phone':
-        return customer.phone ?? '—';
-      case 'city':
-        return customer.address?.city ?? '—';
-      case 'province':
-        return customer.address?.province ?? '—';
       case 'companyName':
-        return customer.companyName ?? '—';
+        return customer.companyName?.trim() || '—';
       case 'vatNumber':
-        return customer.vatNumber ?? '—';
-      case 'discount':
-        return customer.customerDiscount ?? '—';
+        return customer.vatNumber?.trim() || '—';
+      case 'taxCode':
+        return customer.taxCode?.trim() || '—';
+      case 'sdiCode':
+        return customer.sdiCode?.trim() || '—';
+
+      // ── Dove ────────────────────────────────────────────────────────────
+      case 'addressLine1':
+        return customer.address?.line1?.trim() || '—';
+      case 'postalCode':
+        return customer.address?.postalCode?.trim() || '—';
+      case 'city':
+        return customer.address?.city?.trim() || '—';
+      case 'province':
+        return customer.address?.province?.trim() || '—';
+      case 'countryCode':
+        return customer.address?.country?.trim() || '—';
+
+      // ── Contatti ────────────────────────────────────────────────────────
+      case 'email':
+        return customer.email?.trim() || '—';
+      case 'pec':
+        return customer.pec?.trim() || '—';
+      case 'phone':
+        return customer.phone?.trim() || '—';
+      case 'mobilePhone':
+        return customer.mobilePhone?.trim() || '—';
+      case 'contactName':
+        return customer.contactName?.trim() || '—';
+      case 'website':
+        return customer.website?.trim() || '—';
+
+      // ── Condizioni commerciali ──────────────────────────────────────────
+      case 'customerDiscount':
+        return customer.customerDiscount?.trim() || '—';
+      case 'paymentMethod':
+        return customer.paymentMethod?.trim() || '—';
       case 'paymentTerms':
-        return customer.paymentTerms ?? '—';
+        return customer.paymentTerms?.trim() || '—';
+      case 'iban':
+        return customer.iban?.trim() || '—';
+      case 'transportResponsible':
+        return customer.transportResponsible?.trim() || '—';
+
+      // ── Stato, ruoli e note ─────────────────────────────────────────────
+      case 'roleStatus':
+        return customer.isActive === false ? 'Disattivato' : 'Attivo';
       case 'alsoSupplier':
         return this.alsoSupplierLabel(customer);
+      case 'customerNotes':
+        return customer.notes?.trim() || '—';
+      case 'commercialNotes':
+        return customer.commercialNotes?.trim() || '—';
+
+      case 'source':
+        return this.sourceLabel(customer);
       case 'createdAt':
         return this.createdAtLabel(customer);
       default:
@@ -163,9 +213,16 @@ export class CustomerTableComponent {
     return customer.source === 'shopify' ? 'info' : 'neutral';
   }
 
+  /*
+    ⚠️ **Tre risposte, non due.** «No» e «sì ma disattivato» sono cose diverse:
+    la seconda dice che il ruolo fornitore c'è ed è stato ritirato, e
+    appiattirle nasconderebbe uno storico che esiste. È la stessa lettura della
+    colonna gemella sui fornitori — e ora anche la stessa parola: qui c'era «—»,
+    che in un elenco significa «dato mancante» e non «no».
+  */
   private alsoSupplierLabel(customer: Customer): string {
     if (!customer.linkedSupplierId) {
-      return '—';
+      return 'No';
     }
     return customer.linkedSupplierActive ? 'Sì' : 'Disattivato';
   }

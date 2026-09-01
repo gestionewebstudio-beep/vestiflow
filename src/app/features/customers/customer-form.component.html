@@ -1,11 +1,19 @@
 <section class="customer-form">
   <header class="customer-form__header">
-    <!-- Torna alla pagina precedente; senza cronologia interna ricade sulla
-         lista clienti dedotta dall'URL. -->
-    <app-back-button />
-    <h1 class="customer-form__title">
-      {{ isEdit() ? 'Modifica cliente' : 'Nuovo cliente' }}
-    </h1>
+    <!--
+      ⭐ **Indietro e titolo in UN contenitore solo**, come la scheda fornitore:
+      `list-page` mette il primo e l'ultimo figlio della testata agli estremi
+      opposti, quindi due figli separati spingerebbero il titolo a destra,
+      staccato dal pulsante che lo precede.
+    -->
+    <div class="customer-form__heading">
+      <!-- Torna alla pagina precedente; senza cronologia interna ricade sulla
+           lista clienti dedotta dall'URL. -->
+      <app-back-button />
+      <h1 class="customer-form__title">
+        {{ isEdit() ? 'Modifica cliente' : 'Nuovo cliente' }}
+      </h1>
+    </div>
   </header>
 
   @if (loading()) {

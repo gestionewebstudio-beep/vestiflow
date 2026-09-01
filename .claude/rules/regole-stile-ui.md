@@ -236,7 +236,7 @@ vive nei token e non va reimpostata nel foglio di un componente.
 | Input generici                   | `--field-height`     | 34px     | 44px     |
 | Controlli di testata documento   | `--control-h-field`  | 29px     | 44px     |
 | Bottoni barra strumenti / azioni | `--control-h-button` | **28px** | **38px** |
-| Campi di anagrafica              | `--control-h-entry`  | **28px** | 44px     |
+| Campi di anagrafica              | `--control-h-entry`  | **26px** | **26px** |
 | Input dentro le righe            | `--control-h-cell`   | 24px     | 24px     |
 | Riga tabella                     | `--table-row-h`      | **25px** | —        |
 | Intestazione tabella             | `--table-head-h`     | **28px** | —        |
@@ -1813,24 +1813,55 @@ enormi», «i testi vanno allineati»._
 Provincia larghi **589px** — per cinque cifre e due lettere — e la scheda alta **1792px**,
 cioè due schermate.
 
-⭐ Ogni campo dichiara la propria larghezza con una custom property che punta a un token
-`--field-w-*`, e la fila **va a capo** da sola:
+⛔ **Qui c'era una FILA che andava a capo da sola** (`flex-wrap` più `--campo-w`), e il
+proprietario ne ha visto il difetto: «in base allo schermo si adatta meglio o peggio». Era
+vero — col solo `flex-basis`, il punto in cui la riga si spezza dipende dalla finestra: a
+1230px «Paese» restava solo su una riga sua, staccato da «Prov.» che gli sta accanto in
+ogni indirizzo. La stessa maschera aveva una disposizione diversa a ogni larghezza, e non
+c'è muscolo che la impari.
+
+⭐ **È una GRIGLIA a dodici colonne, e ogni campo dichiara due cose**: quante colonne
+occupa (`--span`, la **posizione**) e, dove il dato è corto, fin dove può allargarsi
+(`--campo-max`, la **misura**).
 
 ```html
-<div class="campo" style="--campo-w: var(--field-w-sm)">
+<div class="campo" style="--span: 2; --span-sm: 1; --campo-max: var(--field-w-sm)">
   <!-- CAP -->
 </div>
 ```
 
 ```scss
 .griglia {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)); // due colonne anche sul telefono
+  @include bp.media-up('md') {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
 }
 .campo {
-  flex: 0 0 var(--campo-w, var(--field-w-lg));
+  grid-column: span var(--span-sm, 2);
+  max-inline-size: var(--campo-max, none);
+  @include bp.media-up('md') {
+    grid-column: span var(--span, 3);
+  }
 }
 ```
+
+⚠️ **Lo `--span` si sceglie VICINO al tetto, non largo.** Un campo con `--campo-max` che
+occupa più colonne del necessario lascia il resto della propria colonna **vuoto**, e il
+buco cade in mezzo alla riga: misurato il 01/09/2026, «Città» a `--span: 6` col tetto a
+224px apriva 148px di vuoto fra Città e Prov. Lo spazio che avanza deve finire **in coda
+alla riga**, dove il bordo frastagliato è la forma giusta.
+
+⚠️ **E una riga che deve restare intera somma DODICI**: se ne somma dieci, il primo campo
+della riga dopo sale a riempire il buco. Sulla scheda cliente questo spezzava i tre campi
+fiscali — la P. IVA in cima a destra, gli altri due sotto.
+
+⭐ **La grammatica sta in un posto solo**: `styles/_anagrafica.scss`, mixin
+`anagrafica-fields($blocco)`, incluso dalla scheda fornitore e da quella cliente. Non è un
+componente condiviso — i campi delle due schede sono diversi, e fonderli in un componente
+con venti `input()` per accendere e spegnere campi è l'anti-pattern che
+`regole-architettura` vieta. A ripetersi è la grammatica, non il contenuto.
 
 | Token          | Misura | Per                                    |
 | -------------- | ------ | -------------------------------------- |
@@ -1847,18 +1878,50 @@ quella del riferimento Danea.
 
 ### Altezza, tipografia, allineamento
 
-- **Controlli a `--control-h-entry` (28px)**, sul telefono come sulla scrivania — la
-  decisione è nel token, con la ragione e il limite WCAG.
+- **Controlli a `--control-h-entry` (26px)**, sul telefono come sulla scrivania — la
+  decisione è nel token, con la ragione e il limite WCAG. ⚠️ Erano 28, scesi a 26 il
+  01/09/2026 su richiesta del proprietario: «per recuperare spazio potremmo scendere la
+  cella a 26px». **Sotto i 26 non si scende**: il minimo AA è 24×24.
 - **Etichetta a `--text-2xs`, muted, 2px sopra il campo**: pesa quanto due terzi del
   controllo che descrive, e su dieci righe vale una riga intera.
 - ⚠️ **Il corpo dell'input NON scende sotto i 16px sul telefono**: iOS ingrandisce la pagina
   da solo a ogni fuoco. La densità tipografica sta dentro `media-up('md')`, **annidata nella
   regola base** — scritta come blocco a parte viene scavalcata, e non se ne accorge nessuno
   (`check:media-scavalcate` l'ha trovata il giorno stesso).
-- ⭐ **Tutto sulla stessa colonna**: titolo di pagina, titoli di sezione, etichette e campi.
-  Un riquadro con padding rientra il contenuto di 9px rispetto al titolo, e si vede. Le
-  sezioni di un'anagrafica usano quindi `app-form-section` **`[flat]`**: titolo con un filo
-  sotto, nessuna scatola.
+- ⭐ **Le sezioni sono `app-form-section` `[flat]`** — titolo con un filo sotto, nessuna
+  scatola per ciascuna: tutte sulla stessa colonna, così etichette e campi si incolonnano
+  con il titolo di sezione.
+
+### ⭐ La scheda è UNA card, e ogni sezione porta un filo di brand _(01/09/2026)_
+
+_Il proprietario: «l'unica cosa che non mi piace è avere una intera pagina con sfondo
+grigio e caselle bianche. Bisognerebbe dare un tocco di bellezza, distinzione visiva e
+magari utilizzare qualche riga col verde per rendere la pagina elegante e intuitiva.»_
+
+⛔ **Qui le sezioni piatte stavano sul fondo pagina**: venticinque caselle bianche
+appoggiate al grigio, senza niente che dicesse dove finisce una sezione e comincia l'altra.
+La densità era risolta, la **lettura** no.
+
+|                       |                                                                       |
+| --------------------- | --------------------------------------------------------------------- |
+| **la scheda intera**  | superficie bianca, bordo, `--radius-lg`, `--shadow-card`              |
+| **il titolo sezione** | barretta verticale `--border-width-accent` in `--color-primary`       |
+| **il filo sotto**     | `--color-border` **tinto** di brand al 22%, non verde pieno           |
+| **lo stacco**         | 6px fra sezioni: con la card e gli accenti è quanto basta a separarle |
+
+⚠️ **Il verde è quello del BRAND (`--color-primary`), non della sidebar.** §2 riserva
+`--color-nav-*` alla navigazione — «non è un secondo brand, è la palette della
+navigazione» — e prenderlo come accento generico è la porta da cui rientra il disordine
+cromatico. Il brand è della stessa famiglia scura e fa lo stesso lavoro.
+
+⚠️ **A piena tinta il filo sotto ogni titolo sarebbe cinque righe verdi in una schermata**,
+e l'accento smetterebbe di accentare: il colore lo porta la barretta, il filo lo accompagna.
+
+⭐ **E il conto dello spazio torna**: card, accenti e stacchi costano, i 26px del campo li
+restituiscono. Misurato a 1440 su venticinque campi — **955px prima, 945 dopo**.
+
+- ⭐ **Indietro e titolo sulla stessa riga**: impilati costano una fascia prima del primo
+  campo.
 - ⭐ **Indietro e titolo sulla stessa riga**: impilati costano una fascia prima del primo
   campo.
 

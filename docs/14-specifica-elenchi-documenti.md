@@ -2951,6 +2951,37 @@ volta che la apro»._
 ⚠️ **Il blocco a sinistra resta l'unica eccezione**, ed è diversa: è un ordine che
 l'operatore vede mentre lo decide, non una preferenza nascosta in un pannello.
 
+⭐ **La guardia esiste, e verifica un'altra cosa** — `npm run check:ordine-preset`, scritta
+il 01/09/2026: che ogni id elencato in un preset **esista** fra le definizioni. Un refuso
+lì non è un errore per TypeScript — è un array di stringhe valido — e a schermo si vede
+solo che una colonna attesa manca, il che si scambia per una preferenza salvata.
+
+⛔ **Non verifica l'ORDINE dei preset**, ed è una rinuncia dichiarata: da quando
+`resolveVisibleColumns` ordina per definizioni quell'ordine non cambia più niente, e nove
+preset già scritti lo hanno diverso. Farne un errore avrebbe significato riscrivere elenchi
+che nessuno ha chiesto di toccare.
+
+### ⭐ Le colonne di CLIENTI e FORNITORI sono le stesse, e si dichiarano una volta
+
+_Proprietario, 01/09/2026, spiegando perché Danea mette «Tipo» per primo: «saranno colonne
+condivise che si ripartiscono le schermate. Questa sarà condivisa con clienti»._
+
+Cliente e fornitore sono due **ruoli dello stesso soggetto**: codice fiscale, indirizzo,
+recapiti e IBAN sono lo stesso dato letto da due elenchi. I segmenti stanno in
+`shared/table-columns/anagrafica-columns.ts` — fiscali, indirizzo, contatti, pagamento,
+IBAN, trasporto, sito, stato del ruolo, ruolo gemello — e ogni elenco li **compone** con le
+proprie colonne di ruolo.
+
+⛔ **Non un array unico con bandierine**: il fornitore ha Ns. banca e Porto, il cliente il
+Codice destinatario e le Note commerciali. Un array solo avrebbe richiesto interruttori per
+spegnerne metà, che è il modo in cui due elenchi diversi diventano un componente
+ingovernabile.
+
+⚠️ **«Anche cliente» / «Anche fornitore» è il «Tipo» di Danea**, e sta in cima per la sua
+stessa ragione: quando un catalogo serve due elenchi, la prima cosa da sapere su una riga è
+se quel soggetto è anche l'altra cosa. Ha **tre** risposte, non due — «No», «Sì» e
+«Disattivato»: la terza dice che il ruolo esiste ed è stato ritirato.
+
 ## 22.3 Resize
 
 Il resize già esistente resta consentito dove oggi previsto:
