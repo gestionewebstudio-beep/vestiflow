@@ -6,7 +6,7 @@ import type { ResolvedTableColumn } from '@shared/table-columns/table-column.mod
 
 import { DataTableCellDirective } from './data-table-cell.directive';
 import { DataTableComponent } from './data-table.component';
-import type { DataTableSection, DataTableSort } from './data-table.model';
+import type { DataTableSection, DataTableSort, DataTableTotals } from './data-table.model';
 
 interface Riga {
   readonly id: string;
@@ -390,5 +390,67 @@ describe('DataTableComponent — quali righe sono comandi', () => {
     const righe = screen.getAllByRole('row').slice(1);
     expect(righe[0]?.classList.contains('is-selected')).toBe(false);
     expect(righe[1]?.classList.contains('is-selected')).toBe(true);
+  });
+});
+
+/**
+ * ⭐ **LA RIGA DI RIEMPIMENTO** — quella che spinge i totali in fondo al
+ * contenitore invece di lasciarli appesi sotto l'ultima riga (proprietario,
+ * 01/09/2026).
+ *
+ * ⛔ **Esiste perché è una riga vera nel DOM**, e quindi finisce in ogni query
+ * che chiede `tbody tr`. È già successo il giorno stesso: tre prove del tono
+ * di riga in `document-list` sono diventate rosse aggiungendo un `'nessuno'` in
+ * coda. Chi conta le righe deve contare `tr.data-table__row`.
+ *
+ * ⚠️ **Il suo POSTO in fondo non lo può vedere jsdom**, che non dipinge: quello
+ * lo misura `e2e/filtri-colonna.spec.ts` in un browser vero. Qui si tiene fermo
+ * ciò che jsdom sa dire — che c'è, che è una sola, che non è un dato.
+ */
+@Component({
+  imports: [DataTableComponent],
+  template: `
+    <app-data-table
+      [columns]="colonne"
+      [sections]="sezioni"
+      [rowId]="rowId"
+      [cellText]="cellText"
+      [totals]="totali()"
+    />
+  `,
+})
+class OspiteConTotaliComponent {
+  readonly colonne = COLONNE;
+  readonly sezioni: readonly DataTableSection<Riga>[] = [{ id: 'unica', rows: RIGHE }];
+  readonly rowId = (row: Riga): string => row.id;
+  readonly cellText = (row: Riga, columnId: string): string =>
+    columnId === 'sku' ? row.sku : row.qta;
+  readonly totali = signal<DataTableTotals | null>({ count: 2, values: { qta: '8' } });
+}
+
+describe('DataTableComponent — la riga di riempimento', () => {
+  it('⭐ con i totali accesi c’è una riga di riempimento, e una sola', async () => {
+    const reso = await render(OspiteConTotaliComponent);
+    const corpo = reso.container.querySelectorAll('tbody tr.data-table__filler');
+
+    expect(corpo).toHaveLength(1);
+  });
+
+  it('⛔ non è un dato: fuori dal conteggio delle righe e fuori dall’albero accessibile', async () => {
+    const reso = await render(OspiteConTotaliComponent);
+
+    // Le righe di dati restano due: chi le conta così non vede il riempimento.
+    expect(reso.container.querySelectorAll('tbody tr.data-table__row')).toHaveLength(2);
+    expect(
+      reso.container.querySelector('tbody tr.data-table__filler')?.getAttribute('aria-hidden'),
+    ).toBe('true');
+  });
+
+  it('⛔ senza totali non c’è niente da spingere in fondo, e la riga non si rende', async () => {
+    const reso = await render(OspiteConTotaliComponent);
+    reso.fixture.componentInstance.totali.set(null);
+    await reso.fixture.whenStable();
+
+    expect(reso.container.querySelectorAll('tbody tr.data-table__filler')).toHaveLength(0);
   });
 });

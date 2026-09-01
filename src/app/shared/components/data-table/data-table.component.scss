@@ -486,6 +486,66 @@
 }
 
 /*
+  ⭐ **LA RIGA TOTALI IN FONDO AL CONTENITORE** — proprietario, 01/09/2026:
+  «la barra non resta fissa sotto a piè di contenitore righe», poi «anche
+  fornitori va sistemata la barra sotto come per gli altri».
+
+  ⛔ **Non è lo `sticky` a essere rotto**: appiccica quando il contenuto ECCEDE
+  il contenitore, e con quattro righe non c'è niente da cui staccarsi. Misurato
+  su Fornitori: **288px di bianco** fra la riga totali e il fondo.
+
+  ⚠️ **E l'altezza da sola era già stata provata e scartata** — è il commento
+  qui sopra, 30/08/2026: su una `<table>` l'avanzo si distribuisce alle RIGHE, e
+  cinque documenti diventavano cinque righe da 95px. `--table-row-h` non lo
+  impedisce, perché su un `tr` è un MINIMO.
+
+  ⭐ **Quindi l'avanzo deve avere DOVE andare**: la riga di riempimento chiede
+  il 100%, cioè molto più di quanto avanzi, e se lo prende tutto lei. Le righe
+  di dati restano alla loro altezza.
+
+  ⚠️ **Solo da `lg` in su.** Sotto, la tabella è fatta di card (`display:
+  block`) e un'altezza dichiarata qui diventerebbe **fissa** invece che minima —
+  è il difetto misurato il 31/08/2026, con le fasce che uscivano dal riquadro.
+  La riga di riempimento, lì, sarebbe per giunta una card vuota.
+*/
+@include bp.media-up('lg') {
+  .data-table {
+    block-size: 100%;
+  }
+
+  /*
+    ⛔ **IL NOME DEL GENITORE NON È VERBOSITÀ: È IL PESO.**
+
+    `responsive-table` dichiara l'altezza di riga come `.data-table tbody tr`
+    — classe + due elementi, **peso 3**. Scritta `.data-table__filler`, questa
+    regola pesa **1** e perde: la riga di riempimento restava a 30px come le
+    altre, l'avanzo si spartiva fra tutte e quattro, e le righe di dati
+    salivano a **94,25px**. Misurato in un browser vero il 01/09/2026, e a
+    schermo dal proprietario.
+
+    ⚠️ **Non falliva**: la barra finiva comunque in fondo, quindi una prova che
+    guardasse solo il piede sarebbe stata verde. A tradirlo erano le righe.
+
+    ⭐ È la stessa trappola di `regole-stile-ui` §6 — «la specificità batte
+    l'ordine» — nella sua forma più costosa: la regola che perde è quella
+    scritta dopo, e sembra quella giusta.
+  */
+  .data-table tbody tr.data-table__filler {
+    block-size: 100%;
+  }
+
+  /*
+    Non è una riga: non porta filo, padding né tinta propria. Il fondo è quello
+    della card, che sotto di lei non c'è più.
+  */
+  .data-table tbody tr.data-table__filler td {
+    padding: 0;
+    border: 0;
+    background-color: var(--color-surface);
+  }
+}
+
+/*
   Intestazione appiccicata e colonna bloccata.
 
   ⭐ Stanno QUI e non nella pagina perché `pinned` è già nel modello colonne: se

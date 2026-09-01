@@ -126,24 +126,20 @@ test.describe('Filtri di colonna — resa nel browser', () => {
    * portarla in fondo dev'essere l'altezza della tabella.
    */
   /*
-    ⏸ **MISURATA E APERTA — 01/09/2026.** Con tre righe in un contenitore da
-    452px: contenitore `y 194 h 452` (fondo a 646), totali `y 337 h 21` (fondo a
-    358) → **288px di bianco sotto la riga totali**.
+    ⏸ **MISURATA APERTA E CHIUSA — 01/09/2026.** Con tre righe in un contenitore
+    da 452px: contenitore `y 194 h 452` (fondo a 646), totali `y 337 h 21`
+    (fondo a 358) → **288px di bianco sotto la riga totali**.
 
-    ⛔ **Non si corregge stirando la tabella.** `block-size: 100%` su un
+    ⛔ **Non si corregge stirando la tabella e basta.** `block-size: 100%` su un
     `display: table` distribuisce l'altezza in eccesso alle RIGHE: quattro righe
     da cento pixel invece di una riga totali in fondo — un difetto peggiore di
-    quello che chiude. È la stessa ragione per cui `min-block-size: 100%` era
-    già stato provato e scartato il 30/08.
+    quello che chiude, e già misurato il 30/08 sulle Vendite online.
 
-    ⭐ **La strada che resta è una riga di riempimento** nel corpo, resa dal
-    motore quando le righe non arrivano al fondo: assorbe lo spazio e lascia il
-    `tfoot` appiccicato dove deve stare. È lavoro dichiarato, non un ritocco —
-    per questo la prova resta qui, con la misura dentro.
+    ⭐ **Chiusa con una riga di RIEMPIMENTO** in coda al corpo, che chiede il
+    100% e si prende tutto l'avanzo: le righe di dati restano alla loro altezza
+    e il `tfoot` si trova davvero in fondo.
   */
-  test.fixme('⛔ la riga totali è in fondo al contenitore, anche con poche righe', async ({
-    page,
-  }) => {
+  test('⛔ la riga totali è in fondo al contenitore, anche con poche righe', async ({ page }) => {
     await apriElencoConFiltri(page);
 
     const contenitore = await page.locator('.data-table-scroll').boundingBox();
@@ -156,6 +152,17 @@ test.describe('Filtri di colonna — resa nel browser', () => {
     // ⚠️ Tolleranza di qualche pixel: bordo e raggio del contenitore.
     const distanzaDalFondo = contenitore!.y + contenitore!.height - (totali!.y + totali!.height);
     expect(distanzaDalFondo, dove).toBeLessThan(8);
+
+    /*
+      ⛔ **E le righe NON devono essersi allargate**, che è il difetto gemello:
+      la prima volta la tabella fu stirata e l'avanzo finì alle righe — cinque
+      documenti alti 95px (30/08/2026). Una prova che guarda solo il piede lo
+      lascerebbe passare, perché anche così il piede finisce in fondo.
+    */
+    const altezze = await page
+      .locator('tbody tr.data-table__row')
+      .evaluateAll((righe) => righe.map((r) => r.getBoundingClientRect().height));
+    expect(Math.max(...altezze), `altezze delle righe: ${altezze.join(', ')}`).toBeLessThan(60);
   });
 
   /**

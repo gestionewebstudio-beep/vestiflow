@@ -652,7 +652,13 @@ describe('DocumentListComponent — il tono della riga segue il verso', () => {
 
   const toniResi = async (righe: readonly DocumentRecord[]): Promise<string[]> => {
     const view = await renderList('generic', TITOLARE, undefined, righe);
-    return [...view.container.querySelectorAll('tbody tr')].map((tr) => {
+    /*
+      ⚠️ **`tr.data-table__row`, non `tbody tr`.** Dal 01/09/2026 il corpo porta
+      anche la riga di RIEMPIMENTO — quella che spinge i totali in fondo al
+      contenitore — che non è un documento e non ha un verso. Contata, aggiungeva
+      un `'nessuno'` in coda a ogni attesa.
+    */
+    return [...view.container.querySelectorAll('tbody tr.data-table__row')].map((tr) => {
       if (tr.classList.contains('data-table__row--negative')) return 'negative';
       if (tr.classList.contains('data-table__row--positive')) return 'positive';
       return 'nessuno';

@@ -260,6 +260,36 @@
           </td>
         </tr>
       }
+      <!--
+      ⭐ **LA RIGA DI RIEMPIMENTO** — proprietario, 01/09/2026 su Fornitori:
+      «vedo che la barra non resta fissa sotto a piè di contenitore righe», e poi
+      «anche fornitori va sistemata la barra sotto come per gli altri».
+
+      ⛔ **`position: sticky` da solo non basta**, ed è la parte che sorprende:
+      appiccica quando il contenuto ECCEDE il contenitore. Con quattro righe non
+      c'è niente da cui staccarsi, quindi il piede si posa subito sotto l'ultima
+      riga — misurato: **288px di bianco** fra la riga totali e il fondo.
+
+      ⭐ **A portarla in fondo è l'altezza**, non un secondo ancoraggio: la
+      tabella riempie il contenitore e questa riga assorbe l'avanzo, così il
+      `tfoot` si trova davvero in fondo e lo `sticky` continua a fare il suo
+      mestiere quando invece le righe abbondano.
+
+      ⛔ **Non si stira la tabella e basta**: l'avanzo si distribuirebbe alle
+      RIGHE — quattro righe da cento pixel invece di una riga totali in fondo.
+      L'avanzo deve avere dove andare, ed è questa riga.
+
+      ⚠️ **`aria-hidden`**: non è una riga di dati, e annunciata falserebbe il
+      conteggio delle righe della tabella.
+
+      ⚠️ **Solo con i totali accesi**: senza `tfoot` non c'è niente da spingere
+      in fondo, e una riga vuota in coda sarebbe solo una riga vuota.
+    -->
+      @if (totals()) {
+        <tr class="data-table__filler" aria-hidden="true">
+          <td [attr.colspan]="totalColumns()"></td>
+        </tr>
+      }
     </tbody>
 
     <!--
