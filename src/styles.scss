@@ -147,8 +147,14 @@ h6 {
   color: var(--color-text);
 }
 
+/*
+  ⚠️ **Il titolo di pagina ha un token suo**, che sotto `md` scende da sé: la
+  taglia è una decisione responsive, e sta con le altre in `_design-tokens`.
+  Qui c'era `--text-2xl` (24px) fisso, più grande di quanto `regole-stile-ui`
+  §3 dichiarasse già.
+*/
 h1 {
-  font-size: var(--text-2xl);
+  font-size: var(--text-page-title);
 }
 
 h2 {

@@ -8,38 +8,19 @@
 
 // ── Specifiche locali ─────────────────────────────────────────────────────────
 
+/*
+  ⛔ **QUI C'ERANO CINQUE REGOLE PER LA TABELLA «ARTICOLI COLLEGATI»** —
+  `__table-wrap`, `__table`, le sue celle, `__num` e `__empty-links` — tolte
+  insieme al pannello il 01/09/2026.
+
+  ⚠️ Sarebbero rimaste orfane: `check:classi-orfane` le conta come codice morto
+  (non blocca, ma le vede), e una tabella scritta a mano dentro una scheda di
+  dettaglio era comunque la copia di ciò che il motore fa altrove.
+*/
 .supplier-detail__link {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   margin: 0;
   font-size: var(--text-sm);
-}
-
-.supplier-detail__empty-links {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-}
-
-.supplier-detail__table-wrap {
-  overflow-x: auto;
-}
-
-.supplier-detail__table {
-  inline-size: 100%;
-  border-collapse: collapse;
-  font-size: var(--text-sm);
-}
-
-.supplier-detail__table th,
-.supplier-detail__table td {
-  padding: var(--space-2) var(--space-3);
-  border-block-end: var(--border-width) solid var(--color-border);
-  text-align: start;
-}
-
-.supplier-detail__num {
-  text-align: end;
-  font-variant-numeric: tabular-nums;
 }

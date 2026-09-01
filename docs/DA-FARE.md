@@ -19,6 +19,117 @@ diventa una decisione stabile, si sposta lì e qui resta il rimando.
 ATTENZIONE: il blocco in cima — **LAVORO IN CORSO, righe documento e varianti** — e' quello
 aperto adesso. Il resto del file e' arretrato di aree diverse.
 
+---
+
+## 🔴 APERTO ORA — le cinque cose chieste il 01/09/2026
+
+_Dettate dal proprietario dopo il rifacimento dell'anagrafica fornitore, in un messaggio
+solo. Sono elencate nell'ordine in cui le ha dette; **i filtri restano per ultimi**, come
+ha chiesto («poi passiamo ai filtri che abbiamo lasciato in sospeso»)._
+
+| #   | Cosa                                                                                                                             | Stato                                          |
+| --- | -------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| A   | **Anagrafica CLIENTE come quella fornitore**                                                                                     | ⛔ da fare                                     |
+| B   | **Colonne del riepilogo fornitore** = i campi dell'anagrafica, principali attive di serie, **larghezza per tipo di dato**        | ⛔ da fare                                     |
+| C   | **Dettaglio fornitore**: togliere gli articoli collegati · vestirlo meglio · **decidere se le pagine di dettaglio si unificano** | ⛔ da fare, con una domanda di progetto aperta |
+| D   | **I bottoni delle pagine fornitore sono più grandi degli altri**                                                                 | ⛔ da fare                                     |
+| E   | **I filtri**, ripresi da dove erano rimasti (modello Danea: selezione multipla, esclusione)                                      | ⏸ per ultimo, per sua indicazione              |
+
+### A — L'anagrafica cliente
+
+Stesso lavoro appena chiuso sul fornitore: larghezze per contenuto, ordine di battitura,
+densità a 28px (`--control-h-entry`), sezioni piatte allineate, avvisi di digitazione,
+giro del Tab verificato in un browser vero.
+
+⭐ **Costa poco adesso**: `domain/fiscal/` (P. IVA, codice fiscale, IBAN, CAP, provincia),
+`app-form-section` e i token esistono già. E **IBAN e cellulare sono già nel database sul
+soggetto**, quindi il cliente li eredita **senza migration**.
+
+⚠️ Il cliente ha in più il **codice SDI**, che il fornitore non ha: il controllo di forma
+sta già scritto in `docs/06b` §B.4, con la contraddizione dichiarata sui 6 caratteri della
+PA — va letta prima di implementarlo.
+
+### B — Le colonne del riepilogo fornitore
+
+> _«Adesso sappiamo quali colonne potrebbero essere selezionate nel riepilogo fornitore,
+> sarebbero quelle dell'anagrafica. Di default facciamo partire le colonne principali
+> attive e magari, se riusciamo, diamo una grandezza non obbligata ma di partenza consone
+> al tipo di colonna.»_
+
+Due cose distinte:
+
+1. **Il catalogo**: le colonne attivabili diventano i campi dell'anagrafica (compresi i
+   tre nuovi: IBAN, cellulare, Ns. banca). Le principali accese di serie.
+2. ⭐ **La larghezza per TIPO di dato**, non obbligata ma di partenza: «cap e codice
+   fornitore saranno molto ristrette, città leggermente più grande, denominazione ancora
+   più larga, altre hanno campi obbligati e quindi conosciamo la larghezza».
+
+⚠️ **Il motore ha già `widthOf`**, che deduce la larghezza dal tipo di colonna
+(`regole-stile-ui` §6): il lavoro è dichiarare il tipo sulle colonne dell'anagrafica, non
+inventare un secondo meccanismo.
+
+### C — Il Dettaglio fornitore, e la domanda che vale per tutti
+
+Tre pezzi, e il terzo è una **domanda di progetto**, non un compito:
+
+- ⛔ **Togliere gli articoli collegati** dal Dettaglio fornitore.
+- ⛔ **Vestire meglio la scheda.**
+- ⏸ _«Il dubbio che mi viene è che la pagina dettagli può avere il componente condiviso
+  con tutte le altre? Può essere unificata? Ottimizzata?»_
+
+⚠️ **La domanda va risposta con un censimento, non a intuito**: esistono già
+`_detail-page.scss` (mixin) e `app-detail-facts` (griglia etichetta/valore). Serve sapere
+quante pagine di dettaglio ci sono, cosa hanno davvero in comune e cosa è proprio di
+ognuna — e solo allora decidere se un componente condiviso è giustificato o se le
+differenze sono troppe (la regola «quando NON estrarre» di `regole-architettura` vale
+qui).
+
+### D — I bottoni delle pagine fornitore
+
+> _«I tasti di tutte le pagine che riguardano fornitore sono grandi rispetto agli altri.»_
+
+⚠️ Da misurare a schermo prima di toccare: l'ipotesi è che le pagine fornitore **non
+includano** la dichiarazione di densità che le altre hanno, non che abbiano una regola in
+più. Le due cose si correggono in modo opposto.
+
+### ⛔ Trovato per strada: «Stato ruolo» non si imposta da nessuna parte _(01/09/2026)_
+
+Domanda del proprietario: _«nel riepilogo del fornitore c'è uno "Stato ruolo" attivo, ma non
+so cosa sia e dove si imposta»._ **Non si imposta: da qui, non si può.**
+
+`Supplier.isActive` è lo stato del **ruolo** — disattivato significa «escluso dai nuovi
+utilizzi, storico intatto». Cercato chi lo scrive, in tutta l'API:
+
+```text
+customers.service.ts:352   supplier.update({ isActive: false })   ← toglie la spunta «È anche fornitore»
+                                                                     sulla scheda CLIENTE
+suppliers.service.ts:671   isActive: original.isActive            ← la duplicazione copia il valore
+```
+
+⛔ **Non c'è nessun altro scrittore.** Dalla scheda fornitore, dalla sua maschera e dal suo
+elenco non esiste un comando che lo cambi: un fornitore nasce attivo e resta attivo per
+sempre, a meno che lo stesso soggetto sia **anche cliente** e qualcuno tolga la spunta «È
+anche fornitore» **dalla scheda cliente**.
+
+⚠️ **Quindi la colonna mostra uno stato che quella pagina non governa**, e nella pratica dice
+sempre «Attivo». Le strade sono due, ed è una decisione:
+
+|                           |                                                                                                      |
+| ------------------------- | ---------------------------------------------------------------------------------------------------- |
+| **Dargli un comando**     | una spunta «Attivo» nella maschera fornitore, come «È anche cliente» — così la colonna diventa utile |
+| **Toglierla dall'elenco** | se il ruolo si disattiva solo di rimbalzo dal cliente, la colonna è rumore                           |
+
+⚠️ **La stessa asimmetria vale al contrario sul cliente** (`customers.service.ts:298`): lì la
+spunta c'è, ed è per questo che il difetto si vede solo da questa parte.
+
+### E — I filtri (per ultimi)
+
+Ripresa del lavoro lasciato in sospeso: adattare i filtri di colonna al modello Danea —
+**selezione multipla**, **esclusione**, `(Tutto)`, un avanzato semplice in AND. Il
+proprietario ha già detto: «non dobbiamo replicarli, però dobbiamo fare in modo di
+riuscire a fare qualche filtro dove posso selezionare più cose, escludere ecc.» e «sì,
+esatto, ma possiamo non fare cose complicate».
+
 **Le aree, in ordine di comparsa:** **righe documento e varianti (in corso)** · prima sincronizzazione Shopify · sedi · anagrafica
 articolo · difetti aperti · Corrispettivo manuale · **tabulazione da tastiera** (punto 7,
 il lavoro grosso aperto).

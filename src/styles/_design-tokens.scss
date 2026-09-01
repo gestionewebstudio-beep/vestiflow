@@ -715,6 +715,22 @@
   --text-lg: 1rem; // 16px
   --text-xl: 1.25rem; // 20px — titoli sezione/panel
   --text-2xl: 1.5rem; // 24px — page title (polish v2)
+
+  /*
+    ⭐ **IL TITOLO DI PAGINA** — proprietario, 01/09/2026: «anche il titolo può
+    diminuire, sia desktop che mobile», e subito dopo «ovunque, non solo
+    fornitori».
+
+    ⛔ **Il codice era più grande della regola.** `regole-stile-ui` §3 dichiara
+    l'H1 a **20px su scrivania e 18 sul telefono** dal restyle; `styles.scss`
+    lo teneva a `--text-2xl` (24px) fisso, senza nessuna soglia. Qui non si
+    inventa una taglia nuova: si applica quella già scritta.
+
+    ⚠️ **Sta nei token e non in `styles.scss`** perché è una misura che cambia
+    con la larghezza, e le misure responsive di questo progetto vivono tutte
+    qui — accanto a `--field-height` e `--control-h-*`, non sparse nei fogli.
+  */
+  --text-page-title: 1.25rem; // 20px — H1 di pagina (regole-stile-ui §3)
   --text-kpi: 1.75rem; // 28px — valore KPI stat-card (polish v2)
   --text-3xl: 1.875rem; // 30px — brand lockup topbar
   --text-4xl: 2.25rem; // 36px — brand lockup pagina login
@@ -792,6 +808,24 @@
   // larga della densita' scelta, e costringeva le singole maschere a
   // rimpicciolire i componenti condivisi con override locali.
   // Sotto il breakpoint 'md' tornano a 44px: vedi il blocco @media in fondo.
+  /*
+    ⚠️ **PROVATO A PORTARLO A 28, E RIMESSO A 34 — 01/09/2026.**
+
+    Sembrava la leva per «i tasti sono grandi»: non lo è. Misurato subito dopo,
+    `app-button` legge `var(--button-h, var(--field-height))` — il token dei
+    CAMPI, non questo. Abbassando `--btn-min-height` è cambiato un solo bottone
+    in tutta l'app: «Esci» nella barra laterale.
+
+    ⛔ **E la catena non si può girare su questo token**: una ventina di
+    contenitori (barre documento, telaio elenchi, barra azioni) dichiarano la
+    propria densità impostando `--field-height`, e i loro bottoni la seguono.
+    Cambiando il fallback smetterebbero di funzionare tutti insieme — sul
+    telefono riporterebbe le barre documento da 38 a 44px, disfacendo la deroga
+    decisa il 30/08.
+
+    ⭐ La densità dei bottoni si dichiara quindi **dal contenitore**, com'è
+    sempre stato, e la correzione vera sta nelle pagine che non la dichiaravano.
+  */
   --btn-min-height: 2.125rem; // 34px — desktop
   --field-height: 2.125rem; // 34px — input desktop
   /*
@@ -911,6 +945,9 @@
       della regola che non si tocca, ed è dichiarata nel foglio del form.
     */
     --control-h-entry: 1.75rem; // 28px — deciso uguale alla scrivania
+
+    // 18px: il titolo di pagina sul telefono (`regole-stile-ui` §3).
+    --text-page-title: 1.125rem;
 
     /*
       ⚠️ **38px anche per i controlli di TESTATA** — deciso dal proprietario il

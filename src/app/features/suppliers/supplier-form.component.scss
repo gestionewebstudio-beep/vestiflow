@@ -22,6 +22,41 @@
 @include lp.list-page('supplier-form');
 
 /*
+  ⭐ **I BOTTONI ALLA STESSA DENSITÀ DEI CAMPI** — proprietario, 01/09/2026: «i
+  tasti di tutte le pagine che riguardano fornitore sono grandi rispetto agli
+  altri».
+
+  Misurato: su questa maschera i campi stanno a **28px** e Indietro, Annulla e
+  Salva a **34** — sei pixel più alti di ogni altro controllo della pagina. Non
+  sono cresciuti i bottoni: sono rimasti al default mentre i campi scendevano,
+  e la pagina ha finito per parlare due densità.
+
+  ⚠️ **La dichiarazione è del CONTENITORE**, come `.doc-form__actions` e la
+  barra azioni degli elenchi: `--button-h` sulla pagina, e ogni `app-button`
+  dentro lo legge — quello della testata compreso, che sta fuori dalla barra.
+
+  ⛔ **Non si corregge dal token globale**: `--btn-min-height` non lo legge
+  nessun `app-button` (vedi il commento su quel token) e girargli la catena
+  romperebbe le venti barre che dichiarano la densità con `--field-height`.
+
+  ⛔ **E sull'ELENCO fornitori non serve**: lì i comandi sono già a 28px come
+  Clienti e Prodotti — misurato. La pagina fuori riga era questa.
+*/
+.supplier-form {
+  --button-h: var(--control-h-button);
+  --button-font-size: var(--text-xs);
+
+  /*
+    ⚠️ **`app-back-button` ha una catena SUA**: legge `--back-button-h` e
+    ripiega su `--field-height`, non su `--button-h`. Senza questa riga
+    «Indietro» resterebbe a 34px accanto a Salva e Annulla a 28 — cioè il
+    difetto segnalato, in piccolo e nella stessa fascia.
+  */
+  --back-button-h: var(--control-h-button);
+  --back-button-font-size: var(--text-xs);
+}
+
+/*
   ⭐ **Indietro e titolo sulla STESSA riga** — proprietario, 01/09/2026: «il
   nome va su». Impilati costavano una fascia intera prima del primo campo, su
   una maschera che si apre per scrivere.
