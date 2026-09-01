@@ -618,7 +618,28 @@
   --control-h-button: 1.75rem;
   --control-h-cell: 1.5rem; // 24px — input dentro le righe
   --control-h-touch: 2.75rem; // 44px — minimo tappabile su mobile
-  --table-row-h: 1.875rem; // 30px — riga tabella
+  /*
+    ⭐ **24px, da 30 — proprietario, 01/09/2026**: «riduci il padding interno
+    delle righe, devono essere piu piccole in altezza», e «a tutti e tutti
+    uguali».
+
+    ⚠️ **Il token e il padding della cella vanno mossi INSIEME.** L'altezza
+    utile di una riga è il maggiore fra i due: con 4px di padding sopra e sotto,
+    il contenuto (12px di testo, ~17px di riquadro) chiede già 25px, e abbassare
+    il solo token non avrebbe tolto un pixel. Il padding scende a 2px in
+    `_responsive-table.scss`, dove la cella è dichiarata.
+
+    ⭐ **25px, scelto dal proprietario** — «proviamo 25 px», dopo aver visto la
+    prima riduzione a schermo.
+
+    ⛔ **Sotto i 22 non si scende senza rivedere il font.** Misurato in un
+    browser vero il 01/09/2026: il contenuto della cella chiede **22px** — 18 di
+    interlinea più 2+2 di padding — quindi fino a 22 comanda il token e sotto
+    comanda il testo, che smette di obbedire e tocca il filo della cella. I 25
+    lasciano 3px di respiro, ed è la stessa logica con cui i pulsanti di barra
+    si sono fermati a 28.
+  */
+  --table-row-h: 1.5625rem; // 25px — riga tabella (da 30, 01/09/2026)
   --table-head-h: 1.75rem; // 28px — intestazione tabella (da 32, 30/08/2026)
 
   /*

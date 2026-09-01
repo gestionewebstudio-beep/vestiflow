@@ -254,7 +254,52 @@
 
   .#{$block} tbody td,
   .#{$block}__row td {
-    padding: var(--space-1) var(--space-3);
+    /*
+      ⭐ **2px sopra e sotto, da 4** — proprietario, 01/09/2026: «riduci il
+      padding interno delle righe», «a tutti e tutti uguali».
+
+      ⚠️ **Sta nella GRAMMATICA DEI RIEPILOGHI** perché «tutti uguali» vuol dire
+      «tutti gli elenchi»: qui passano i dodici che rendono il motore, il
+      Registro Corrispettivi compreso.
+
+      ⛔ **E per la stessa ragione NON tocca le griglie di riga dei documenti**,
+      che includono `data-table-desktop` e non questo mixin: sono maschere di
+      inserimento, con celle editabili e un'altezza propria
+      (`--control-h-cell`). Comprimerle sarebbe un effetto collaterale su
+      schermate che nessuno ha guardato — è la stessa separazione dichiarata in
+      testa a questo mixin.
+
+      ⚠️ **Orizzontale invariato**: `regole-stile-ui` §4 lo dice esplicito per
+      le card, e vale anche qui — i pixel verticali si moltiplicano per il
+      numero di righe, quelli orizzontali si pagano una volta e avvicinano il
+      testo al filo della colonna, dove si legge peggio.
+
+      ⭐ **SOPRA c'è un pixel in più, e non è una svista** — segnalato dal
+      proprietario a schermo, 01/09/2026: «il testo è leggermente non centrato
+      verticalmente, forse a causa di quel margine 1 presente».
+
+      Aveva ragione, ed era il filo della cella. La cella è `border-box` e porta
+      un bordo **solo in basso** (`--border-width`): il riquadro in cui il testo
+      si centra finisce un pixel prima del fondo, e con padding simmetrico il
+      testo si appoggia in alto.
+
+      Misurato in un browser vero, sopra/sotto il testo:
+
+      ```text
+      2 e 2, come prima            4 / 6     ⛔ 2px di scarto, quello visto a schermo
+      3 e 2                        4,5 / 5,5 ⛔ dimezzato, non chiuso
+      4 e 2                        5,5 / 5,5 ⛔ centrato, ma la riga sale a 26px
+      3 e 1  ← questa              5 / 5     ✅ centrato E la riga resta 25px
+      ```
+
+      ⭐ **Il pixel si sposta, non si aggiunge**: uno in più sopra e uno in meno
+      sotto lasciano l'ingombro invariato, quindi il centramento non costa
+      l'altezza appena guadagnata. Aggiungerlo soltanto sopra la faceva salire.
+
+      ⚠️ **Si compensa col token del bordo, non con un numero**: se un giorno il
+      filo diventasse più spesso, il centramento seguirebbe da sé.
+    */
+    padding: calc(var(--space-05) + var(--border-width)) var(--space-3) var(--border-width);
     overflow: hidden;
     white-space: nowrap;
     text-overflow: clip;
@@ -493,6 +538,42 @@
     inline-size: var(--space-10);
     text-align: center;
     white-space: nowrap;
+
+    /*
+      ⭐ **QUI IL PIXEL IN PIÙ NON CI VA** — proprietario, 01/09/2026:
+      «l'allineamento mi sembra corretto adesso, tranne per la casellina di
+      selezione».
+
+      La cella di riga porta un pixel in più sopra per compensare due cose
+      insieme: il filo in basso, e il fatto che il **riquadro dei glifi non è
+      centrato dentro la propria riga di testo** — un carattere ha più ascendente
+      che discendente. Qui dentro non c'è testo: c'è una casella, cioè un
+      oggetto **geometricamente simmetrico**, e quella seconda compensazione la
+      spinge in basso. Misurato: **5,5 sopra e 4,5 sotto**, di un pixel — nella
+      direzione opposta a quella del difetto del testo.
+
+      ⭐ Resta il solo compenso del filo: sopra `--space-05`, sotto
+      `--border-width`, e il centro della cella torna a coincidere con il centro
+      della riga. Misurato: **5 e 5**.
+
+      ⚠️ **Orizzontale invariato**: lo decide `inline-size` qui sopra, non il
+      padding.
+    */
+  }
+
+  /*
+    ⛔ **Il genitore va NOMINATO, o questa regola non vale niente.** La cella di
+    riga è dichiarata come `.blocco tbody td` — classe più due elementi, **peso
+    3** — mentre `.blocco__cell--select` da sola pesa **1** e perde, per quanto
+    sia scritta dopo. Misurato lo stesso giorno, due volte: prima sulla riga di
+    riempimento del motore, poi qui.
+
+    ⭐ È la forma che la colonna numerica usa già in fondo a `data-table-desktop`,
+    e per la stessa ragione.
+  */
+  .#{$block} tbody td.#{$block}__cell--select,
+  .#{$block}__row td.#{$block}__cell--select {
+    padding-block: var(--space-05) var(--border-width);
   }
 }
 

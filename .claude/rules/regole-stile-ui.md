@@ -237,7 +237,7 @@ vive nei token e non va reimpostata nel foglio di un componente.
 | Controlli di testata documento   | `--control-h-field`  | 29px     | 44px     |
 | Bottoni barra strumenti / azioni | `--control-h-button` | **28px** | **38px** |
 | Input dentro le righe            | `--control-h-cell`   | 24px     | 24px     |
-| Riga tabella                     | `--table-row-h`      | 30px     | —        |
+| Riga tabella                     | `--table-row-h`      | **25px** | —        |
 | Intestazione tabella             | `--table-head-h`     | **28px** | —        |
 | Casella di selezione riga        | `--check-size`       | 14px     | 14px     |
 
@@ -795,6 +795,35 @@ incolonna già allo stesso modo, invece di inventarne una seconda.
 in fondo — che è il difetto che questa stessa sezione vieta per il riepilogo, «lo
 renderebbe irraggiungibile su una finestra bassa».
 
+#### ⛔ E con POCHE righe `sticky` non basta: serve una riga di RIEMPIMENTO _(01/09/2026)_
+
+_Il proprietario, su Fornitori: «vedo che la barra non resta fissa sotto a piè di
+contenitore righe», poi «anche fornitori va sistemata la barra sotto come per gli altri»._
+
+⛔ **`position: sticky` appiccica quando il contenuto ECCEDE il contenitore.** Con quattro
+righe non c'è niente da cui staccarsi: il piede si posa sotto l'ultima riga e sotto di lui
+resta il vuoto. Misurato in un browser vero: **288px di bianco** fra la riga totali e il
+fondo.
+
+⛔ **E non si corregge stirando la tabella.** Su un `display: table` l'altezza in eccesso si
+distribuisce alle **righe**: misurato, quattro righe da **94,25px** — lo stesso difetto già
+visto il 30/08 sulle Vendite online, dove `min-block-size: 100%` fu tolto per questo.
+
+⭐ **L'avanzo deve avere DOVE andare**: una riga di riempimento in coda al corpo, che chiede
+il 100% e se lo prende tutto. Le righe di dati restano alla loro altezza, il `tfoot` si
+trova davvero in fondo, e quando invece le righe abbondano lo `sticky` continua a fare il
+proprio mestiere.
+
+⚠️ **Niente righe vuote a riempire lo schermo**, e non è una scorciatoia scartata: è una
+riga **sola**, invisibile e senza bordi. Il riferimento Danea lascia lo spazio vuoto, non
+finte righe.
+
+⚠️ **È una riga vera nel DOM**, quindi finisce in ogni query che chiede `tbody tr`: porta
+`aria-hidden` e chi conta le righe deve contare `tr.data-table__row`. Tre prove del tono di
+riga sono diventate rosse il giorno stesso, con un `'nessuno'` di troppo in coda.
+
+⛔ **Solo da `lg` in su**: sotto, la tabella è fatta di card e sarebbe una card vuota.
+
 ⚠️ **Il fondo è OPACO** e prende la tinta dell'**intestazione**: sotto scorrono righe di
 numeri, e velato i due testi si leggerebbero sovrapposti. Un totale è **struttura**, non
 una riga di dati — la stessa ragione per cui la riga di subtotale di gruppo non condivide
@@ -1212,8 +1241,51 @@ Le tabelle sono l'elemento centrale del gestionale.
 > fondo dell'intestazione — restando comunque un gradino sopra il testo del corpo, che altrimenti
 > smetterebbe di distinguersi.
 
-- **Righe**: padding `--space-1 --space-3` (4 × 12), font `--text-xs` (12px), bordo 1px
-  `--color-border-cell`, **con divisore verticale** fra le colonne
+- **Righe**: padding `calc(--space-05 + --border-width) --space-3 --border-width` (3 × 12 × 1),
+  font `--text-xs` (12px), bordo 1px `--color-border-cell`, **con divisore verticale** fra le
+  colonne
+
+### ⭐ La riga scende a 25px, e il padding è ASIMMETRICO — 01/09/2026
+
+_Il proprietario: «riduci il padding interno delle righe, devono essere piu piccole in
+altezza», «a tutti e tutti uguali», poi «proviamo 25 px»._
+
+```text
+altezza di riga    30 → 25 px      token `--table-row-h`
+padding verticale   4 → 3 sopra, 1 sotto
+```
+
+⛔ **Il token da solo non toglie un pixel.** L'altezza utile è il **maggiore** fra il token
+e il contenuto: con 4px sopra e sotto il contenuto ne chiedeva già 25. Token e padding si
+muovono insieme, o non si muove niente.
+
+⭐ **Sopra c'è un pixel in più che sotto, e non è una svista.** La cella è `border-box` e
+porta il filo **solo in basso**: il riquadro in cui il testo si centra finisce un pixel
+prima del fondo. Segnalato a schermo — «il testo è leggermente non centrato verticalmente,
+forse a causa di quel margine 1 presente» — e misurato in un browser vero, sopra/sotto:
+
+```text
+2 e 2      4 / 6       ⛔ 2px di scarto, quello visto a schermo
+3 e 2      4,5 / 5,5   ⛔ dimezzato, non chiuso
+4 e 2      5,5 / 5,5   ⛔ centrato, ma la riga sale a 26px
+3 e 1      5 / 5       ✅ centrato E la riga resta 25
+```
+
+⚠️ **Il pixel si SPOSTA, non si aggiunge**: uno in più sopra e uno in meno sotto lasciano
+l'ingombro invariato. Aggiungerlo soltanto sopra ricomprava l'altezza appena guadagnata.
+
+⛔ **E la casella di selezione NON prende quel pixel.** Il compenso serve a due cose
+insieme — il filo, e il fatto che il riquadro dei glifi non è centrato nella propria riga di
+testo. Una casella è **geometricamente simmetrica**: la seconda compensazione la spinge in
+basso di un pixel, nella direzione opposta al difetto del testo. Segnalato subito dopo —
+«tranne per la casellina di selezione» — e corretto col solo compenso del filo.
+
+⚠️ **Si compensa col token del bordo, mai con un numero nudo**: se il filo diventasse più
+spesso, il centramento seguirebbe da sé.
+
+⛔ **Vale per gli ELENCHI, non per le righe dei documenti.** La dichiarazione sta in
+`summary-grammar`, che le maschere di inserimento non includono: quelle hanno celle
+editabili e un'altezza propria (`--control-h-cell`).
 
 ### ⭐ IL TAGLIO A COLONNA — deciso il 30/08/2026
 
