@@ -1,3 +1,5 @@
+import { senzaValore } from '@shared/utils/segnaposto.util';
+
 import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
 
 /**
@@ -79,14 +81,10 @@ export const IDENTITA_CARD = 'identità' as const;
  */
 export function valoreCard(testo: string | null | undefined): string | null {
   const pulito = testo?.trim() ?? '';
-  return pulito === '' || SEGNAPOSTO.has(pulito) ? null : pulito;
+  /*
+    ⚠️ **L'insieme dei segnaposto sta in `segnaposto.util`**, non qui: la stessa
+    domanda se la fanno l'ordinamento e l'elenco dei valori di un filtro, e
+    finché ognuno aveva la propria risposta le tre divergevano.
+  */
+  return senzaValore(pulito) ? null : pulito;
 }
-
-/**
- * I segnaposto di «vuoto» in uso nelle celle.
- *
- * ⚠️ **Il trattino è quello LUNGO** (—, U+2014), non il meno da tastiera: sono
- * due caratteri diversi, e cercare quello sbagliato non fallisce — semplicemente
- * non trova mai niente.
- */
-const SEGNAPOSTO = new Set(['—', '–', '-', 'N/D', 'n/d']);

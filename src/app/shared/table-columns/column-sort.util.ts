@@ -1,4 +1,6 @@
 import type { DataTableSort } from '@shared/components/data-table/data-table.model';
+import { numeroItaliano, sonoTuttiNumeri } from '@shared/utils/numero-italiano.util';
+import { senzaValore } from '@shared/utils/segnaposto.util';
 import { sortByKeys, type SortKey } from '@shared/utils/sort-values.util';
 
 /**
@@ -75,6 +77,42 @@ export function ordinaPerColonne<T>(
         direction: chiave.direction,
       };
     }
+
+    /*
+      ⭐ **Senza estrattore, un numero SCRITTO si ordina lo stesso** — chiesto dal
+      proprietario il 01/09/2026: «considerare anche il segno negativo
+      nell'ordinamento dei filtri e anche nell'ordinamento delle colonne».
+
+      ⛔ **Il ripiego testuale su una colonna di importi è quasi casuale**:
+      `localeCompare` mette «10,98 €» prima di «3,66 €» e «−25,00 €» dopo
+      «10,00 €». Su una colonna di resi è il segno a sparire, cioè proprio
+      l'informazione per cui la si guarda.
+
+      ⚠️ **Solo se TUTTE le righe lette sono numeri**: con un «—» in mezzo il
+      confronto dovrebbe decidere dove metterlo, e mescolerebbe due grammatiche.
+
+      ⚠️ **Resta un ripiego, non un'alternativa**: dove l'estrattore c'è vince
+      lui, perché legge il valore prima della formattazione — e quella può
+      arrotondare.
+    */
+    const testi = campioni(righe, (riga) => opzioni.cellText(riga, chiave.columnId));
+    if (sonoTuttiNumeri(testi)) {
+      return {
+        /*
+          ⚠️ **L'assenza vale `-Infinity`, non `0`**, come sul percorso con
+          estrattore qui sopra e come dichiara il motore di confronto che
+          entrambi usano: «l'assenza deve stare a un estremo»
+          (`sort-values.util`). Con `0` una riga col segnaposto finirebbe **fra i
+          negativi e i positivi** — cioè in mezzo agli importi veri, dove sembra
+          un dato invece che una mancanza.
+        */
+        read: (riga: T) =>
+          numeroItaliano(opzioni.cellText(riga, chiave.columnId)) ?? Number.NEGATIVE_INFINITY,
+        kind: 'number' as const,
+        direction: chiave.direction,
+      };
+    }
+
     return {
       read: (riga: T) => opzioni.cellText(riga, chiave.columnId),
       kind: 'text' as const,
@@ -104,4 +142,29 @@ function primoNonNullo<T, V>(
     }
   }
   return null;
+}
+
+/**
+ * I testi delle prime righe, per capire di che tipo è la colonna.
+ *
+ * ⚠️ **Le celle vuote non entrano nel campione**: un «—» o una stringa vuota non
+ * dicono niente sul tipo, e contarle come «non numero» spegnerebbe l'ordinamento
+ * numerico su una colonna con una sola riga non compilata.
+ */
+function campioni<T>(righe: readonly T[], leggi: (riga: T) => string): readonly string[] {
+  const quante = Math.min(righe.length, 20);
+  const testi: string[] = [];
+  for (let i = 0; i < quante; i += 1) {
+    const testo = leggi(righe[i] as T).trim();
+    /*
+      ⚠️ **I segnaposto non decidono la grammatica della colonna**: un `—` è
+      l'assenza di un valore, non un valore di un'altra specie. Riconosceva il
+      solo trattino lungo; ora la domanda è quella comune di `segnaposto.util`,
+      la stessa che usa l'elenco dei valori del filtro.
+    */
+    if (!senzaValore(testo)) {
+      testi.push(testo);
+    }
+  }
+  return testi;
 }

@@ -1,3 +1,6 @@
+import { numeroItaliano, sonoTuttiNumeri } from '@shared/utils/numero-italiano.util';
+import { senzaValore } from '@shared/utils/segnaposto.util';
+
 import type { TableColumnFilterKind } from './table-column.model';
 
 /**
@@ -227,7 +230,30 @@ export function valoriDistinti<T>(
       visti.add(testo);
     }
   }
-  const valori = [...visti];
+  /*
+    ⭐ **IL SEGNAPOSTO NON DECIDE LA GRAMMATICA, E VA IN CODA** — 01/09/2026.
+
+    Un `—` è l'ASSENZA di un valore, non un valore di un'altra specie. Lasciato
+    in mezzo agli altri faceva fallire le due domande qui sotto — «sono tutte
+    date?», «sono tutti numeri?» — perché entrambe chiedono **tutti**.
+
+    ⛔ **Il risultato si vedeva, ed era una decisione presa che smetteva di
+    valere**: su una colonna data con anche una sola riga vuota — cioè quasi
+    ogni data facoltativa, «Attesa il», «Scadenza», «Data registrazione» —
+    l'elenco tornava all'ordine alfabetico, e le date decrescenti chieste dal
+    proprietario lo stesso giorno non comparivano.
+
+    ⚠️ **Resta spuntabile**: si filtra anche per «senza valore», ed è una scelta
+    legittima. Cambia solo dove sta — in fondo, dopo i valori veri, invece che
+    dove lo mette l'alfabeto.
+
+    ⚠️ Il percorso gemello dell'ordinamento (`column-sort.util`) questa
+    distinzione ce l'aveva già: erano due comportamenti diversi sulla stessa
+    domanda.
+  */
+  const tutti = [...visti];
+  const assenti = tutti.filter((v) => senzaValore(v));
+  const valori = tutti.filter((v) => !senzaValore(v));
 
   /*
     ⭐ **LE DATE SI ORDINANO COME DATE, E DALLA PIÙ RECENTE** — proprietario,
@@ -244,7 +270,35 @@ export function valoriDistinti<T>(
     completa, allora è un elenco di date.
   */
   if (valori.length > 0 && valori.every((v) => DATA_ITALIANA.test(v))) {
-    return valori.sort((a, b) => aIso(b).localeCompare(aIso(a)));
+    return [...valori.sort((a, b) => aIso(b).localeCompare(aIso(a))), ...assenti];
+  }
+
+  /*
+    ⭐ **I NUMERI SI ORDINANO COME NUMERI** — proprietario, 01/09/2026: «anche qui
+    l'ordinamento crescente non è valido», guardando il filtro della colonna
+    Totale.
+
+    ⛔ **L'ordine alfabetico su un importo formattato è quasi casuale**, ed è
+    quello che si vedeva:
+
+    ```text
+    0,00 €  ·  10,98 €  ·  3,66 €  ·  35,14 €  ·  39,66 €  ·  4,88 €  ·  732,00 €
+    ```
+
+    «10» prima di «3» perché confronta il primo carattere, e i 732 in mezzo ai
+    43. In un elenco di trenta importi non si trova più niente.
+
+    ⚠️ **Il SEGNO conta**, e va chiesto esplicitamente: −25,00 sta **prima** di
+    0,00, e un confronto che ignorasse il meno metterebbe una nota di credito
+    fra gli importi positivi. Vale qui e nell'ordinamento delle colonne, che usa
+    lo stesso `numeroItaliano`.
+
+    ⚠️ **Si riconosce dalla FORMA**, come per le date: `valoriDistinti` riceve
+    testo e non sa che colonna sia. Se ogni valore è un numero italiano —
+    con o senza simbolo di valuta — allora è un elenco di numeri.
+  */
+  if (sonoTuttiNumeri(valori)) {
+    return [...valori.sort((a, b) => (numeroItaliano(a) ?? 0) - (numeroItaliano(b) ?? 0)), ...assenti];
   }
 
   /*
@@ -252,12 +306,11 @@ export function valoriDistinti<T>(
     «Àncona» viene prima di «Bari», e non dopo «Zurigo» come farebbe un
     confronto binario.
   */
-  return valori.sort((a, b) => a.localeCompare(b, 'it'));
+  return [...valori.sort((a, b) => a.localeCompare(b, 'it')), ...assenti];
 }
 
 const DATA_ITALIANA = /^(\d{2})\/(\d{2})\/(\d{4})$/;
 
-/** `GG/MM/AAAA` → `AAAA-MM-GG`, l'unica forma in cui il confronto fra stringhe è giusto. */
 function aIso(valore: string): string {
   const m = DATA_ITALIANA.exec(valore);
   return m ? `${m[3]}-${m[2]}-${m[1]}` : valore;

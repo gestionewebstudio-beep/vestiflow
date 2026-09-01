@@ -401,8 +401,32 @@ describe('valoriDistinti — le date non sono testo', () => {
     completa, l'elenco non è di date e torna l'ordine alfabetico italiano.
   */
   it('⚠️ un solo valore non-data e l’elenco torna alfabetico', () => {
+    const righe: readonly Riga[] = [
+      { data: '29/08/2026' },
+      { data: 'Da definire' },
+      { data: '07/09/2026' },
+    ];
+
+    expect(valoriDistinti(righe, 'data', testoData)).toEqual([
+      '07/09/2026',
+      '29/08/2026',
+      'Da definire',
+    ]);
+  });
+
+  /*
+    ⭐ **IL SEGNAPOSTO È UN'ALTRA COSA, E NON SPEGNE L'ORDINE DELLE DATE.**
+
+    ⛔ Qui la prova asseriva `['—', '07/09/2026', '29/08/2026']`, cioè il ripiego
+    alfabetico: **fissava il difetto**. Su una data facoltativa — «Attesa il»,
+    «Scadenza» — basta una riga vuota, e la scelta «le date in ordine
+    decrescente» del 01/09/2026 smetteva di valere proprio dove serve.
+
+    ⚠️ **Resta spuntabile**: si filtra anche per «senza valore». Cambia dove sta.
+  */
+  it('⭐ un segnaposto non spegne l’ordine per data: va in coda', () => {
     const righe: readonly Riga[] = [{ data: '29/08/2026' }, { data: '—' }, { data: '07/09/2026' }];
 
-    expect(valoriDistinti(righe, 'data', testoData)).toEqual(['—', '07/09/2026', '29/08/2026']);
+    expect(valoriDistinti(righe, 'data', testoData)).toEqual(['07/09/2026', '29/08/2026', '—']);
   });
 });
