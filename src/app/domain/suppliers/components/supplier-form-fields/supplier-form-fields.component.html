@@ -239,6 +239,19 @@
         </div>
         <div
           class="supplier-fields__field"
+          style="--span: 2; --span-sm: 1; --campo-max: var(--field-w-md)"
+        >
+          <label class="supplier-fields__label" [for]="idPrefix() + '-mobile'">Cellulare</label>
+          <input
+            [id]="idPrefix() + '-mobile'"
+            class="supplier-fields__control"
+            type="tel"
+            formControlName="mobilePhone"
+            autocomplete="tel"
+          />
+        </div>
+        <div
+          class="supplier-fields__field"
           style="--span: 2; --span-sm: 1; --campo-max: var(--field-w-lg)"
         >
           <label class="supplier-fields__label" [for]="idPrefix() + '-contact'">Referente</label>
@@ -365,6 +378,48 @@
             type="text"
             formControlName="freightTerms"
             placeholder="Franco, Assegnato"
+            autocomplete="off"
+          />
+        </div>
+        <!--
+          ⭐ **L'IBAN è il dato con cui si PAGA il fornitore** — chiesto dal
+          proprietario il 01/09/2026 guardando l'anagrafica Danea. La modalità
+          di pagamento c'era già; il numero con cui il bonifico si fa no, e si
+          andava a cercarlo fuori dal gestionale.
+
+          ⚠️ È in mono e largo quanto un IBAN: ventisette caratteri che si
+          rileggono uno per uno quando si controlla un pagamento.
+        -->
+        <div class="supplier-fields__field" style="--span: 5">
+          <label class="supplier-fields__label" [for]="idPrefix() + '-iban'">IBAN</label>
+          <input
+            [id]="idPrefix() + '-iban'"
+            class="supplier-fields__control supplier-fields__control--mono"
+            type="text"
+            maxlength="34"
+            formControlName="iban"
+            placeholder="IT00 X000 0000 0000 0000 0000 000"
+            autocomplete="off"
+            [attr.aria-describedby]="avviso('iban') ? idPrefix() + '-iban-avviso' : null"
+          />
+          @if (avviso('iban'); as messaggio) {
+            <span class="supplier-fields__field-warning" [id]="idPrefix() + '-iban-avviso'">{{
+              messaggio
+            }}</span>
+          }
+        </div>
+        <div
+          class="supplier-fields__field"
+          style="--span: 4; --span-sm: 1; --campo-max: var(--field-w-lg)"
+        >
+          <label class="supplier-fields__label" [for]="idPrefix() + '-our-bank'">Ns. banca</label>
+          <input
+            [id]="idPrefix() + '-our-bank'"
+            class="supplier-fields__control"
+            type="text"
+            maxlength="120"
+            formControlName="ourBankName"
+            placeholder="La banca con cui lo paghiamo"
             autocomplete="off"
           />
         </div>

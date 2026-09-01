@@ -39,6 +39,7 @@ export const VAT_NUMBER_WARNING_MESSAGE =
   'Partita IVA non valida: servono 11 cifre con carattere di controllo corretto.';
 export const TAX_CODE_WARNING_MESSAGE =
   'Codice fiscale non valido: controlla i 16 caratteri (o le 11 cifre per le società).';
+export const IBAN_WARNING_MESSAGE = 'IBAN non valido: controlla le due cifre di controllo.';
 export const POSTAL_CODE_WARNING_MESSAGE = 'CAP non valido: servono 5 cifre.';
 export const PROVINCE_WARNING_MESSAGE = 'Provincia: due lettere, es. NA.';
 export const COUNTRY_CODE_WARNING_MESSAGE = 'Paese: due lettere, es. IT.';
@@ -144,6 +145,42 @@ export function isValidItalianTaxCode(value: string): boolean {
   return TAX_CODE_PATTERN.test(trimmed) && hasValidTaxCodeChecksum(trimmed);
 }
 
+/**
+ * IBAN: vuoto, oppure formato valido con il checksum mod-97 (ISO 13616).
+ *
+ * ⭐ **Il mod-97 è ciò che rende utile questo controllo**: un IBAN è lungo
+ * ventisette caratteri e si ribatte a mano dal cartaceo — la cifra sbagliata
+ * la trova solo il resto della divisione, non la lunghezza.
+ *
+ * ⚠️ **Non si pretende la lunghezza italiana.** Un fornitore estero ha un IBAN
+ * di lunghezza diversa (15–34 secondo il paese) e deve poter essere salvato: si
+ * verifica la forma generale e il checksum, che valgono per tutti i paesi.
+ *
+ * ⚠️ **Gli spazi si ignorano**: chi lo copia da una fattura lo incolla a gruppi
+ * di quattro, ed è la forma in cui viene stampato.
+ */
+export function isValidIban(value: string): boolean {
+  const clean = value.replace(/\s+/g, '').toUpperCase();
+  if (!clean) {
+    return true;
+  }
+  if (!/^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/.test(clean)) {
+    return false;
+  }
+  // ISO 13616: si spostano i primi quattro caratteri in coda, le lettere
+  // diventano numeri (A=10 … Z=35), e il resto della divisione per 97 fa 1.
+  const riordinato = clean.slice(4) + clean.slice(0, 4);
+  const numerico = [...riordinato]
+    .map((c) => (c >= 'A' && c <= 'Z' ? String(c.charCodeAt(0) - 55) : c))
+    .join('');
+  // Il numero supera i limiti di `Number`: si divide a pezzi, come si fa a mano.
+  let resto = 0;
+  for (const cifra of numerico) {
+    resto = (resto * 10 + Number(cifra)) % 97;
+  }
+  return resto === 1;
+}
+
 /** CAP italiano: vuoto o cinque cifre. */
 export function isValidItalianPostalCode(value: string): boolean {
   const trimmed = value.trim();
@@ -168,6 +205,10 @@ export function vatNumberWarning(value: string): string | null {
 
 export function taxCodeWarning(value: string): string | null {
   return isValidItalianTaxCode(value) ? null : TAX_CODE_WARNING_MESSAGE;
+}
+
+export function ibanWarning(value: string): string | null {
+  return isValidIban(value) ? null : IBAN_WARNING_MESSAGE;
 }
 
 export function postalCodeWarning(value: string): string | null {

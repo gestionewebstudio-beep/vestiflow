@@ -2401,6 +2401,28 @@ vero**: 26 fermate in ordine di DOM, dalla ragione sociale ai due pulsanti, ness
 la cella del Codice IVA raggiunta come ogni altro campo. La forma è in `regole-stile-ui`
 §7-bis.
 
+⭐ **E l'anagrafica ha tre dati in più — 01/09/2026**, chiesti dal proprietario davanti alle
+schede Danea: **IBAN**, **Cellulare**, **Ns. banca**. L'IBAN era il solo davvero essenziale:
+un fornitore lo si paga con un bonifico, la modalità di pagamento c'era già ma il numero con
+cui il bonifico si fa no.
+
+**La divisione fra le due tabelle non è arbitraria**, e vale come precedente per il cliente:
+
+```text
+iban          → parties     è il conto di CHI INCASSA, cioè del soggetto
+mobile_phone  → parties     è un recapito del soggetto, come `phone`
+our_bank_name → suppliers   è la NOSTRA banca per questo rapporto
+```
+
+Danea li mostra nella stessa scheda perché non separa soggetto e ruolo; VestiFlow sì, e il
+commento di `Party` lo dichiara. Quindi **il cliente eredita IBAN e cellulare senza
+migration**: le colonne sono già sue.
+
+⚠️ **Restano non aggiunti, e per una ragione**: Fido e Conto acq. presuppongono un
+affidamento e un piano dei conti che VestiFlow non ha — sarebbero caselle che nessuno
+riempie. Fax è obsoleto. Indirizzi e contatti multipli («Aggiungi indirizzo…») sono un
+lavoro a sé, non un campo.
+
 ⚠️ **Restano da fare: cliente, articolo, Impostazioni.** `customer-form-fields` è oggi la
 copia esatta del difetto corretto qui — griglia a due colonne uguali, nessun controllo su
 P. IVA, codice fiscale, CAP e provincia, `font: inherit` sugli input (13px: sotto la soglia

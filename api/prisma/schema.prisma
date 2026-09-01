@@ -1032,6 +1032,14 @@ model Party {
   /// la fattura. Alternativo alla PEC (CessionarioCommittente, FatturaPA).
   sdiCode      String?  @map("sdi_code")
   phone        String?
+  /// Cellulare: secondo recapito telefonico del soggetto (Danea: «Cell.»).
+  mobilePhone  String?  @map("mobile_phone")
+  /// IBAN del soggetto — il conto su cui SI PAGA lui.
+  ///
+  /// ⚠️ Sta sul soggetto e non sul ruolo fornitore: è il conto della persona
+  /// giuridica, non un patto commerciale. Se lo stesso soggetto è anche
+  /// cliente, l'IBAN è quello — non ne ha due.
+  iban         String?
   website      String?
   contactName  String?  @map("contact_name")
   addressLine1 String?  @map("address_line1")
@@ -1077,6 +1085,11 @@ model Supplier {
   transportResponsible  String?  @map("transport_responsible")
   /// Porto (es. "Franco", "Assegnato").
   freightTerms          String?  @map("freight_terms")
+  /// «Ns. banca»: la NOSTRA banca con cui si paga questo fornitore.
+  ///
+  /// ⚠️ Sta sul ruolo e non sul soggetto, al contrario dell'IBAN: quello è il
+  /// conto di chi incassa, questo è una scelta nostra sul rapporto con lui.
+  ourBankName           String?  @map("our_bank_name")
   /// "Mostra avviso": avviso mostrato alla creazione di documenti per questo fornitore.
   documentCreationAlert String?  @map("document_creation_alert")
   /// "Inserisci nota": nota inserita automaticamente nei documenti del fornitore.

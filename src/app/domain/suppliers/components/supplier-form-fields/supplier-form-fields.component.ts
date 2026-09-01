@@ -7,6 +7,7 @@ import { DocumentLineSelectCellComponent } from '@domain/documents/components/do
 import { vatCodeSelectOption } from '@domain/documents/utils/document-vat-options.util';
 import {
   countryCodeWarning,
+  ibanWarning,
   postalCodeWarning,
   provinceWarning,
   taxCodeWarning,
@@ -19,7 +20,7 @@ import type { SelectMenuOption } from '@shared/components/select-menu/select-men
 import type { SupplierFormGroup } from '@domain/suppliers/utils/supplier-form.util';
 
 /** I campi che hanno un controllo di digitazione. */
-type CampoConAvviso = 'vatNumber' | 'taxCode' | 'postalCode' | 'province' | 'countryCode';
+type CampoConAvviso = 'vatNumber' | 'taxCode' | 'iban' | 'postalCode' | 'province' | 'countryCode';
 
 /**
  * ⚠️ **Il tipo è la chiave esatta, non `string`**: con
@@ -33,6 +34,7 @@ const AVVISI: Readonly<Record<CampoConAvviso, (valore: string) => string | null>
   postalCode: postalCodeWarning,
   province: provinceWarning,
   countryCode: countryCodeWarning,
+  iban: ibanWarning,
 };
 
 @Component({
@@ -88,7 +90,7 @@ export class SupplierFormFieldsComponent {
   }
 
   /**
-   * ⭐ **L'avviso di digitazione** — partita IVA, codice fiscale, CAP,
+   * ⭐ **L'avviso di digitazione** — partita IVA, codice fiscale, IBAN, CAP,
    * provincia, paese.
    *
    * ⛔ **Non è un errore e non blocca il salvataggio**: `regole-gestionale`

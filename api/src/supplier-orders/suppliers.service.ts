@@ -77,6 +77,8 @@ type PartyWriteData = {
   email?: string | null;
   pec?: string | null;
   phone?: string | null;
+  mobilePhone?: string | null;
+  iban?: string | null;
   contactName?: string | null;
   website?: string | null;
   addressLine1?: string | null;
@@ -96,6 +98,7 @@ type SupplierRoleWriteData = {
   defaultVatCodeId?: string | null;
   transportResponsible?: string | null;
   freightTerms?: string | null;
+  ourBankName?: string | null;
   documentCreationAlert?: string | null;
   documentCreationNote?: string | null;
 };
@@ -514,6 +517,8 @@ export class SuppliersService {
     assign('email', dto.email);
     assign('pec', dto.pec);
     assign('phone', dto.phone);
+    assign('mobilePhone', dto.mobilePhone);
+    assign('iban', dto.iban);
     assign('contactName', dto.contactName);
     assign('website', dto.website);
     assign('addressLine1', dto.addressLine1);
@@ -552,6 +557,7 @@ export class SuppliersService {
     assign('supplierDiscount', dto.supplierDiscount);
     assign('transportResponsible', dto.transportResponsible);
     assign('freightTerms', dto.freightTerms);
+    assign('ourBankName', dto.ourBankName);
     assign('documentCreationAlert', dto.documentCreationAlert);
     assign('documentCreationNote', dto.documentCreationNote);
 

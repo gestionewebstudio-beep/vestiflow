@@ -29,6 +29,16 @@ export interface Supplier extends TenantScoped, Timestamped {
   readonly email?: string | null;
   readonly pec?: string | null;
   readonly phone?: string | null;
+  /** Cellulare: secondo recapito del soggetto (Danea: «Cell.»). */
+  readonly mobilePhone?: string | null;
+  /**
+   * IBAN del fornitore: il conto su cui SI PAGA lui.
+   *
+   * ⚠️ È un dato del SOGGETTO, non del ruolo: se lo stesso soggetto è anche
+   * cliente, l'IBAN è quello — non ne ha due. «Ns. banca» invece è nostra, e
+   * sta sul ruolo.
+   */
+  readonly iban?: string | null;
   readonly contactName?: string | null;
   readonly website?: string | null;
   readonly addressLine1?: string | null;
@@ -45,6 +55,8 @@ export interface Supplier extends TenantScoped, Timestamped {
   readonly defaultVatCodeId?: string | null;
   readonly transportResponsible?: string | null;
   readonly freightTerms?: string | null;
+  /** «Ns. banca»: la NOSTRA banca con cui si paga questo fornitore. */
+  readonly ourBankName?: string | null;
   /** "Mostra avviso": avviso mostrato alla creazione documenti per il fornitore. */
   readonly documentCreationAlert?: string | null;
   /** "Inserisci nota": nota inserita automaticamente nei documenti del fornitore. */
@@ -65,6 +77,8 @@ export interface SupplierInput {
   readonly email?: string;
   readonly pec?: string;
   readonly phone?: string;
+  readonly mobilePhone?: string;
+  readonly iban?: string;
   readonly contactName?: string;
   readonly website?: string;
   readonly addressLine1?: string;
@@ -79,6 +93,7 @@ export interface SupplierInput {
   readonly defaultVatCodeId?: string | null;
   readonly transportResponsible?: string;
   readonly freightTerms?: string;
+  readonly ourBankName?: string;
   readonly documentCreationAlert?: string;
   readonly documentCreationNote?: string;
   readonly notes?: string;
