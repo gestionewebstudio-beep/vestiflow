@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 
 import {
   customerDisplayName,
@@ -13,10 +13,12 @@ import { DataTableRowCardDirective } from '@shared/components/data-table/data-ta
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';
 import type {
   DataTableSection,
+  DataTableSort,
   DataTableTotals,
 } from '@shared/components/data-table/data-table.model';
 import { totaliDiElenco } from '@shared/models/list-totals.util';
 import { createColumnFilters } from '@shared/table-columns/column-filters';
+import { ordinaPerColonne } from '@shared/table-columns/column-sort.util';
 import type { ResolvedTableColumn, TableViewId } from '@shared/table-columns/table-column.model';
 
 /**
@@ -69,9 +71,28 @@ export class CustomerTableComponent {
     dataDi: (customer, columnId) => (columnId === 'createdAt' ? customer.createdAt : null),
   });
 
+  /**
+   * ⭐ **L'ordinamento è della PAGINA, non del motore** — il motore emette la
+   * pressione, chi ha le righe le riordina. Qui in memoria, perché l'elenco è
+   * caricato tutto (`all=1`).
+   */
+  readonly sortState = signal<readonly DataTableSort[]>([]);
+
+  /*
+    ⚠️ **Si ordina DOPO aver filtrato**, e sulle stesse tre funzioni: il
+    confronto è quello condiviso di `sortByKeys` — collatore italiano, denaro,
+    date — e la mappa colonna→valore è quella con cui la tabella si disegna.
+  */
+  private readonly ordinate = computed(() =>
+    ordinaPerColonne(this.righe(), this.sortState(), {
+      cellText: (riga, columnId) => this.cellText(riga, columnId),
+      dataDi: (cliente, columnId) => (columnId === 'createdAt' ? cliente.createdAt : null),
+    }),
+  );
+
   /** Lista piatta: una sezione senza intestazione né piede. */
   protected readonly sections = computed<readonly DataTableSection<Customer>[]>(() => [
-    { id: 'clienti', rows: this.righe() },
+    { id: 'clienti', rows: this.ordinate() },
   ]);
 
   /*

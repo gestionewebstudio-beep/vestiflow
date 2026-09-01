@@ -1244,3 +1244,22 @@
 .data-table__head-label {
   display: block;
 }
+
+/*
+  ⭐ **LE ULTIME COLONNE APRONO LA TENDINA VERSO SINISTRA** — proprietario,
+  01/09/2026: «ho trovato un difetto, l'ultimo filtro esce fuori schermo».
+
+  Il pannello è ancorato a sinistra del proprio trigger e largo almeno 12rem: su
+  una colonna che finisce al bordo della tabella quei pixel finiscono fuori, e
+  la pagina si ritrova una barra di scorrimento orizzontale che non serviva.
+
+  ⚠️ **Il punto di regolazione esisteva già**, col suo commento che descriveva
+  esattamente questo caso: `--select-menu-panel-inset: auto 0` ribalta il lato di
+  ancoraggio. Mancava chi lo dichiarasse.
+
+  ⚠️ **Le ultime DUE, non solo l'ultima**: l'ultima colonna può essere quella dei
+  comandi di riga, e allora a sforare sarebbe la penultima.
+*/
+.data-table__head th:nth-last-child(-n + 2) .data-table__filter {
+  --select-menu-panel-inset: auto 0;
+}

@@ -316,7 +316,20 @@
     padding: 0 var(--space-3);
     color: var(--color-table-header-fg);
     border-block-end: var(--border-width) solid var(--color-table-header-rule);
-    border-inline-end: var(--border-width) solid var(--color-table-col-divider);
+    /*
+      ⭐ **Il divisore dell'INTESTAZIONE è più marcato di quello delle celle** —
+      proprietario, 01/09/2026: «la riga di divisione nell'intestazione è poco
+      evidente, bisognerebbe renderla leggermente più evidente».
+
+      ⛔ Era `--color-table-col-divider`, cioè `--color-border-cell`: la stessa
+      tinta chiara delle righe. Su una banda tinta come l'intestazione quel filo
+      quasi scompare, e da quando i titoli si tagliano a colonna (30/08) è
+      proprio lì che serve — è la linea su cui il taglio avviene.
+
+      ⚠️ **La stessa tinta del filo SOTTO l'intestazione**: i due fili chiudono
+      la stessa banda, e darle due grigi diversi la farebbe sembrare storta.
+    */
+    border-inline-end: var(--border-width) solid var(--color-table-header-rule);
     overflow: hidden;
     text-transform: uppercase;
     letter-spacing: var(--tracking-caps);

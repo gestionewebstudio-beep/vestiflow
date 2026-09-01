@@ -65,7 +65,8 @@ function forma({ filter, numeric, display }) {
   if (filter === 'false') return null;
   if (filter) return filter;
   if (numeric) return 'range';
-  if (display) return 'text';
+  // ⚠️  NON decide più la forma (01/09/2026): il controllo è uno solo,
+  //    e la presentazione non sceglie come si filtra.
   return 'values';
 }
 
@@ -113,6 +114,36 @@ function colonneDegliElenchi(cat) {
 }
 
 /** Il corpo di una chiave dell'oggetto passato a `createColumnFilters`. */
+/**
+ * ⭐ **L'estrattore può essere un METODO, e la guardia lo segue** — aggiunto il
+ * 01/09/2026, quando `numeroDi` è diventato una funzione condivisa fra il filtro
+ * e l'ordinamento delle colonne.
+ *
+ * ⛔ **Senza, la guardia gridava al lupo su codice giusto**: `numeroDi: (row,
+ * columnId) => this.numeroDiColonna(row, columnId)` non contiene nessun `case`,
+ * quindi cinque colonne di Giacenze risultavano scoperte mentre l'estrattore
+ * c'era, venti righe più sotto. Una guardia che accusa il refactoring corretto
+ * è una guardia che si impara ad aggirare.
+ */
+function seguiRimando(sorgente, corpo) {
+  const rimando = /this\.(\w+)\s*\(/.exec(corpo);
+  if (!rimando) return corpo;
+  const metodo = sorgente.indexOf(`${rimando[1]}(`, sorgente.indexOf('class '));
+  if (metodo < 0) return corpo;
+  // Dal nome del metodo alla sua chiusura: basta il testo, non serve un parser.
+  const apertura = sorgente.indexOf('{', metodo);
+  if (apertura < 0) return corpo;
+  let profondita = 0;
+  for (let i = apertura; i < sorgente.length; i += 1) {
+    if (sorgente[i] === '{') profondita += 1;
+    else if (sorgente[i] === '}') {
+      profondita -= 1;
+      if (profondita === 0) return corpo + sorgente.slice(apertura, i);
+    }
+  }
+  return corpo;
+}
+
 function corpoChiave(sorgente, chiave) {
   const inizio = sorgente.indexOf(`${chiave}:`);
   if (inizio < 0) return '';
@@ -144,8 +175,8 @@ for (const ts of file('src/app', (n) => n.endsWith('.component.ts'))) {
   controllati += 1;
   const blocco = sorgente.slice(chiamata);
   const coperte = {
-    range: corpoChiave(blocco, 'numeroDi'),
-    date: corpoChiave(blocco, 'dataDi'),
+    range: seguiRimando(sorgente, corpoChiave(blocco, 'numeroDi')),
+    date: seguiRimando(sorgente, corpoChiave(blocco, 'dataDi')),
   };
 
   for (const [id, kind] of richieste) {

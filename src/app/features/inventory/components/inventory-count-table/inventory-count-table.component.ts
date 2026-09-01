@@ -1,5 +1,5 @@
 import { formatDate } from '@core/utils/date.util';
-import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 
 import {
   InventoryCountStatus,
@@ -14,11 +14,13 @@ import { DataTableRowCardDirective } from '@shared/components/data-table/data-ta
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';
 import type {
   DataTableSection,
+  DataTableSort,
   DataTableTotals,
 } from '@shared/components/data-table/data-table.model';
 import { sezioniDiElenco } from '@shared/models/list-grouping.util';
 import { totaliDiElenco } from '@shared/models/list-totals.util';
 import { createColumnFilters } from '@shared/table-columns/column-filters';
+import { ordinaPerColonne } from '@shared/table-columns/column-sort.util';
 import type { ResolvedTableColumn, TableViewId } from '@shared/table-columns/table-column.model';
 
 import {
@@ -101,12 +103,39 @@ export class InventoryCountTableComponent {
   });
 
   /**
+   * ⭐ **L'ordinamento delle colonne**, chiesto il 01/09/2026: «nemmeno in
+   * giacenze, situazione e inventario è possibile l'ordinamento interno delle
+   * colonne».
+   *
+   * ⛔ **Col raggruppamento acceso non esiste**, ed è la scelta già presa sui
+   * Movimenti (`10` §20): raggruppare per giornata È una forma di ordinamento,
+   * e pretendere anche quello per colonna richiederebbe un «prima il giorno,
+   * poi la colonna» che spezza i gruppi e i loro subtotali.
+   */
+  readonly sortState = signal<readonly DataTableSort[]>([]);
+
+  private readonly ordinate = computed(() =>
+    this.groupByDay()
+      ? this.righe()
+      : ordinaPerColonne(this.righe(), this.sortState(), {
+          cellText: (riga, columnId) => this.cellText(riga, columnId),
+          numeroDi: (s, columnId) => (columnId === 'deltas' ? s.linesWithDelta : null),
+          dataDi: (s, columnId) => {
+            if (columnId === 'createdAt') {
+              return s.createdAt;
+            }
+            return columnId === 'completedAt' ? (s.completedAt ?? null) : null;
+          },
+        }),
+  );
+
+  /**
    * ⚠️ **Il subtotale conta le righe con scostamento**, che è la domanda della
    * giornata su un inventario: quante differenze ha prodotto. ⛔ Non si somma la
    * percentuale di avanzamento — la somma di due rapporti non è un rapporto.
    */
   protected readonly sections = computed<readonly DataTableSection<InventoryCountSession>[]>(() =>
-    sezioniDiElenco(this.righe(), this.groupByDay(), {
+    sezioniDiElenco(this.ordinate(), this.groupByDay(), {
       idPiatto: 'sessioni',
       giornoDi: (session) => session.createdAt,
       columns: this.columns(),

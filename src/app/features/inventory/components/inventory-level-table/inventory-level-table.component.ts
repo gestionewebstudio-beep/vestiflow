@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 
 import { colonnaVisibile, valoreCard } from '@shared/models/list-card-fields.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
@@ -7,9 +7,11 @@ import { DataTableRowCardDirective } from '@shared/components/data-table/data-ta
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';
 import type {
   DataTableSection,
+  DataTableSort,
   DataTableTotals,
 } from '@shared/components/data-table/data-table.model';
 import { createColumnFilters } from '@shared/table-columns/column-filters';
+import { ordinaPerColonne } from '@shared/table-columns/column-sort.util';
 import { totaliDiElenco } from '@shared/models/list-totals.util';
 import type { ResolvedTableColumn, TableViewId } from '@shared/table-columns/table-column.model';
 
@@ -57,8 +59,45 @@ export class InventoryLevelTableComponent {
   protected readonly statusTone = stockStatusTone;
 
   /** Lista piatta: una sezione senza intestazione né piede. */
+  /**
+   * ⭐ **L'ordinamento delle colonne**, chiesto il 01/09/2026: «nemmeno in
+   * giacenze, situazione e inventario è possibile l'ordinamento interno delle
+   * colonne». In memoria, perché l'elenco è caricato tutto.
+   */
+  readonly sortState = signal<readonly DataTableSort[]>([]);
+
+  private readonly ordinate = computed(() =>
+    ordinaPerColonne(this.righe(), this.sortState(), {
+      cellText: (riga, columnId) => this.cellText(riga, columnId),
+      numeroDi: (riga, columnId) => this.numeroDiColonna(riga, columnId),
+    }),
+  );
+
+  /**
+   * Il numero di una colonna, per il filtro a intervallo e per l'ordinamento.
+   *
+   * ⚠️ **Una funzione sola per i due**: erano lo stesso elenco di colonne, e
+   * tenerne due copie è il modo in cui una colonna si filtra e non si ordina.
+   */
+  private numeroDiColonna(row: InventoryLevelRow, columnId: string): number | null {
+    switch (columnId) {
+      case 'available':
+        return row.available;
+      case 'onHand':
+        return row.onHand;
+      case 'committed':
+        return row.committed;
+      case 'incoming':
+        return row.incoming;
+      case 'minThreshold':
+        return row.minThreshold ?? null;
+      default:
+        return null;
+    }
+  }
+
   protected readonly sections = computed<readonly DataTableSection<InventoryLevelRow>[]>(() => [
-    { id: 'giacenze', rows: this.righe() },
+    { id: 'giacenze', rows: this.ordinate() },
   ]);
   /*
     ⚠️ **Le colonne spente non si controllano a mano.** La card legge quelle che
@@ -90,22 +129,7 @@ export class InventoryLevelTableComponent {
     viewId: this.viewId,
     righe: this.rows,
     cellText: (row, columnId) => this.cellText(row, columnId),
-    numeroDi: (row, columnId) => {
-      switch (columnId) {
-        case 'available':
-          return row.available;
-        case 'onHand':
-          return row.onHand;
-        case 'committed':
-          return row.committed;
-        case 'incoming':
-          return row.incoming;
-        case 'minThreshold':
-          return row.minThreshold ?? null;
-        default:
-          return null;
-      }
-    },
+    numeroDi: (row, columnId) => this.numeroDiColonna(row, columnId),
   });
 
   /*
