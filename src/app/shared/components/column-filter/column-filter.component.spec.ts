@@ -199,3 +199,150 @@ describe('filtro a valori', () => {
     expect(screen.getByLabelText('Filtra per Totale')).toBeTruthy();
   });
 });
+
+/**
+ * ⭐ **IL VERSO DEL FILTRO A VALORI** — «Includi» / «Escludi», più «Tutti».
+ *
+ * ⚠️ **Il pannello si apre premendo il pulsante**: i comandi del verso stanno
+ * dentro (`panelLead`), non in barra, perché agiscono sulle opzioni di questo
+ * menu (`regole-stile-ui` §5).
+ */
+describe('filtro a valori — il verso e il «Tutti»', () => {
+  async function apriPannello(scelti: readonly string[], escludi = false) {
+    const reso = await render(OspiteComponent);
+    const o = reso.fixture.componentInstance;
+    o.kind.set('values');
+    o.options.set(['Bozza', 'Confermato', 'Annullato']);
+    o.value.set(
+      scelti.length === 0
+        ? null
+        : { kind: 'values', values: [...scelti], ...(escludi ? { exclude: true } : {}) },
+    );
+    reso.fixture.detectChanges();
+    fireEvent.click(screen.getByRole('button', { name: /Filtra per Totale/ }));
+    reso.fixture.detectChanges();
+    return { reso, o };
+  }
+
+  it('⭐ il pannello offre i due versi, e di serie include', async () => {
+    await apriPannello(['Bozza']);
+
+    expect(screen.getByRole('button', { name: 'Includi' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Escludi' })).toBeTruthy();
+  });
+
+  /*
+    ⭐ **Cambiare verso NON azzera la scelta**: si sceglie «Bozza» e poi si
+    decide se vederla o escluderla. Rifare la selezione a ogni cambio di verso
+    toglierebbe il senso al confronto fra i due risultati.
+  */
+  it('⭐ passare a «Escludi» conserva i valori scelti', async () => {
+    const { o } = await apriPannello(['Bozza']);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Escludi' }));
+
+    expect(emesso(o)).toEqual({ kind: 'values', values: ['Bozza'], exclude: true });
+  });
+
+  it('⭐ tornare a «Includi» toglie il verso, non la scelta', async () => {
+    const { o } = await apriPannello(['Bozza'], true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Includi' }));
+
+    expect(emesso(o)).toEqual({ kind: 'values', values: ['Bozza'] });
+  });
+
+  /*
+    ⛔ **«Tutti» TOGLIE il filtro.** In questo modello «nessun valore scelto» è
+    già «nessuna restrizione»: spuntarli tutti a uno a uno darebbe lo stesso
+    risultato con venti clic e un filtro che sembra acceso.
+  */
+  it('⛔ «Tutti» emette null: il filtro sparisce, non si riempie', async () => {
+    const { o } = await apriPannello(['Bozza', 'Confermato'], true);
+
+    fireEvent.click(screen.getByRole('button', { name: /Mostra tutti i valori/ }));
+
+    expect(emesso(o)).toBeNull();
+  });
+
+  it('⚠️ senza selezione «Tutti» è spento: non c’è niente da togliere', async () => {
+    await apriPannello([]);
+
+    // ⚠️ L'attributo, non la proprietà: `getByRole` restituisce un `HTMLElement`
+    //    generico, e il cast a `HTMLButtonElement` il lint lo rifiuta.
+    expect(
+      screen.getByRole('button', { name: /Mostra tutti i valori/ }).hasAttribute('disabled'),
+    ).toBe(true);
+  });
+
+  /*
+    ⚠️ **Il nome accessibile dice il verso.** Il pulsante mostra solo il nome
+    della colonna più un'icona: chi non vede l'icona non saprebbe che quel
+    filtro esclude invece di includere, e i due danno risultati opposti.
+  */
+  it('⚠️ escludendo, il nome accessibile del controllo lo dichiara', async () => {
+    const reso = await render(OspiteComponent);
+    const o = reso.fixture.componentInstance;
+    o.kind.set('values');
+    o.options.set(['Bozza']);
+    o.value.set({ kind: 'values', values: ['Bozza'], exclude: true });
+    reso.fixture.detectChanges();
+
+    expect(screen.getByLabelText(/escludendo i valori scelti/)).toBeTruthy();
+  });
+});
+
+/**
+ * ⛔ **L'ORDINE IN CUI SI LAVORA, NON QUELLO COMODO PER IL TEST.**
+ *
+ * Trovato in un browser vero il 01/09/2026: le prove qui sopra sceglievano i
+ * valori PRIMA del verso, e passavano tutte mentre l'operatore — che preme
+ * «Escludi» e POI spunta — otteneva l'esatto contrario di quello che chiedeva.
+ *
+ * ⚠️ **La causa non era il componente ma dove stava il verso**: a mani vuote si
+ * emette `null` (nessuna restrizione), quindi il verso non aveva dove
+ * sopravvivere fino alla prima spunta.
+ */
+describe('filtro a valori — il verso scelto PRIMA dei valori', () => {
+  async function apriVuoto() {
+    const reso = await render(OspiteComponent);
+    const o = reso.fixture.componentInstance;
+    o.kind.set('values');
+    o.options.set(['Napoli', 'Milano']);
+    o.value.set(null);
+    reso.fixture.detectChanges();
+    fireEvent.click(screen.getByRole('button', { name: /Filtra per Totale/ }));
+    reso.fixture.detectChanges();
+    return { reso, o };
+  }
+
+  it('⛔ «Escludi» a mani vuote non emette un filtro: non c’è niente da restringere', async () => {
+    const { o } = await apriVuoto();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Escludi' }));
+
+    expect(emesso(o)).toBeNull();
+  });
+
+  it('⭐ ma il verso resta, e la PRIMA voce spuntata esclude', async () => {
+    const { reso, o } = await apriVuoto();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Escludi' }));
+    reso.fixture.detectChanges();
+    fireEvent.click(screen.getByRole('option', { name: 'Napoli' }));
+
+    expect(emesso(o)).toEqual({ kind: 'values', values: ['Napoli'], exclude: true });
+  });
+
+  it('⚠️ «Tutti» riporta a «Includi»: chi vuole vedere tutto non sta escludendo', async () => {
+    const { reso, o } = await apriVuoto();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Escludi' }));
+    reso.fixture.detectChanges();
+    fireEvent.click(screen.getByRole('button', { name: /Mostra tutti i valori/ }));
+    reso.fixture.detectChanges();
+    fireEvent.click(screen.getByRole('option', { name: 'Napoli' }));
+
+    expect(emesso(o)).toEqual({ kind: 'values', values: ['Napoli'] });
+  });
+});

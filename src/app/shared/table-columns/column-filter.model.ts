@@ -23,6 +23,21 @@ export interface ColumnFilterValue {
   readonly kind: TableColumnFilterKind;
   /** `values`: gli elementi scelti. Vuoto = nessuna restrizione. */
   readonly values?: readonly string[];
+  /**
+   * ⭐ **`values`: la scelta è un'ESCLUSIONE** — «tutte le righe tranne queste».
+   * Chiesto dal proprietario col modello Danea: «fare in modo di riuscire a fare
+   * qualche filtro dove posso selezionare più cose, escludere ecc.».
+   *
+   * ⚠️ **Non è un quinto tipo di filtro, è un verso.** Un `kind` a parte
+   * avrebbe raddoppiato ogni ramo — la raccolta dei valori distinti, il
+   * conteggio del badge, la resa del controllo — per una differenza che è un
+   * `!` nel confronto.
+   *
+   * ⛔ **Con l'insieme VUOTO non restringe, in nessuno dei due versi**: «escludi
+   * niente» è l'elenco intero, non l'elenco vuoto. È la stessa regola del vuoto
+   * qui sopra, ed è ciò che rende sempre possibile togliere il filtro.
+   */
+  readonly exclude?: boolean;
   /** `text`: il pezzo da cercare. Vuoto = nessuna restrizione. */
   readonly text?: string;
   /** `range`: gli estremi, entrambi facoltativi. */
@@ -120,8 +135,12 @@ export function applicaFiltriDiColonna<T>(
   return righe.filter((riga) =>
     attivi.every(([columnId, filtro]) => {
       switch (filtro.kind) {
-        case 'values':
-          return (filtro.values ?? []).includes(opzioni.cellText(riga, columnId));
+        case 'values': {
+          // ⭐ Il verso è l'unica differenza fra «solo questi» e «tutti tranne
+          //    questi»: stesso confronto, negato.
+          const scelto = (filtro.values ?? []).includes(opzioni.cellText(riga, columnId));
+          return filtro.exclude ? !scelto : scelto;
+        }
         case 'text':
           return opzioni
             .cellText(riga, columnId)

@@ -1146,6 +1146,48 @@
   `vertical-align` ereditato, colonne con e senza filtro metterebbero il titolo
   a due altezze diverse.
 */
+/*
+  ⛔ **E DEVE LASCIAR USCIRE IL PANNELLO DEL FILTRO** — misurato in un browser
+  vero il 01/09/2026, ed è il difetto per cui i filtri a valori (Città, Origine,
+  Ns. banca) **non si potevano usare affatto**:
+
+  ```text
+  th.data-table__head-cell   overflow: hidden   ← ritaglia
+    app-select-menu            z-index 1000
+      ul.select-menu__panel    absolute, 216×110 — e invisibile
+  ```
+
+  Il pannello aveva un riquadro pieno, dimensioni giuste e posizione dentro la
+  finestra: **ritagliato dalla propria cella**. `elementFromPoint` al suo centro
+  rispondeva `td`, cioè la riga sotto.
+
+  ⚠️ **La prova di resa non lo prendeva**, e questa è la parte da ricordare:
+  `filtri-colonna.spec.ts` misura il RIQUADRO del pannello — «esiste, è alto, è
+  nella finestra» — e un pannello ritagliato ha un riquadro perfetto. Il suo
+  stesso commento diceva che ritaglio e sovrapposizione «esistono solo dove c'è
+  un motore di layout»: la prova c'era, l'asserzione no.
+
+  ⭐ **Il ritaglio si sposta sul TITOLO**, che è ciò che va tagliato dalla
+  colonna successiva (`regole-stile-ui` §6). La cella smette di ritagliare solo
+  quando ospita un filtro, cioè solo a filtri accesi: le altre intestazioni
+  continuano a tagliare come prima.
+*/
 .data-table__head th:has(.data-table__filter) {
   vertical-align: top;
+  overflow: visible;
+}
+
+/*
+  Il taglio a colonna del TITOLO — quello che la cella non fa più quando ospita
+  un filtro. Vale in entrambi i casi: un'intestazione lunga si taglia sempre.
+*/
+.data-table__head-label,
+.data-table__sort {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: clip;
+}
+
+.data-table__head-label {
+  display: block;
 }

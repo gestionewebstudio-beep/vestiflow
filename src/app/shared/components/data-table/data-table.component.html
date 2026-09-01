@@ -53,7 +53,14 @@
                 }
               </button>
             } @else {
-              {{ col.label }}
+              <!--
+                ⚠️ **L'etichetta ha un contenitore proprio**, e non è cosmetica:
+                a ritagliare il titolo troppo lungo dev'essere QUESTO span, non
+                la cella. La cella ospita anche il pannello di un filtro, che
+                deve poterne uscire — vedi `th:has(.data-table__filter)` nel
+                foglio.
+              -->
+              <span class="data-table__head-label">{{ col.label }}</span>
             }
 
             <!--

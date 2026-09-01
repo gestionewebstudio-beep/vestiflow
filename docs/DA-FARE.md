@@ -33,7 +33,7 @@ ha chiesto («poi passiamo ai filtri che abbiamo lasciato in sospeso»)._
 | B   | **Colonne del riepilogo fornitore** = i campi dell'anagrafica, principali attive di serie, **larghezza per tipo di dato**        | ✅ fatto                                           |
 | C   | **Dettaglio fornitore**: togliere gli articoli collegati · vestirlo meglio · **decidere se le pagine di dettaglio si unificano** | ✅ fatto (l'unificazione: risposta col censimento) |
 | D   | **I bottoni delle pagine fornitore sono più grandi degli altri**                                                                 | ✅ fatto                                           |
-| E   | **I filtri**, ripresi da dove erano rimasti (modello Danea: selezione multipla, esclusione)                                      | ⏸ per ultimo, per sua indicazione                  |
+| E   | **I filtri**, ripresi da dove erano rimasti (modello Danea: selezione multipla, esclusione)                                      | ✅ fatto                                           |
 
 ### ✅ A — L'anagrafica cliente _(chiusa il 01/09/2026)_
 
@@ -170,13 +170,22 @@ sempre «Attivo». Le strade sono due, ed è una decisione:
 ⚠️ **La stessa asimmetria vale al contrario sul cliente** (`customers.service.ts:298`): lì la
 spunta c'è, ed è per questo che il difetto si vede solo da questa parte.
 
-### E — I filtri (per ultimi)
+### ✅ E — I filtri _(chiusi il 01/09/2026)_
 
-Ripresa del lavoro lasciato in sospeso: adattare i filtri di colonna al modello Danea —
-**selezione multipla**, **esclusione**, `(Tutto)`, un avanzato semplice in AND. Il
-proprietario ha già detto: «non dobbiamo replicarli, però dobbiamo fare in modo di
-riuscire a fare qualche filtro dove posso selezionare più cose, escludere ecc.» e «sì,
-esatto, ma possiamo non fare cose complicate».
+Adattati al modello Danea, e senza «cose complicate» com'era stato chiesto:
+
+| Chiesto                | Dove sta                                                  |
+| ---------------------- | --------------------------------------------------------- |
+| **selezione multipla** | c'era già: `values` è un menu multiplo                    |
+| **esclusione**         | ⭐ nuovo: verso «Includi / Escludi» nel pannello del menu |
+| `(Tutto)`              | ⭐ nuovo: «Tutti», che svuota la selezione                |
+| **AND fra colonne**    | c'era già, ed è l'unica combinazione (`14` §0.2)          |
+
+⛔ **E strada facendo si è scoperto che i filtri a valori non si potevano usare
+AFFATTO**: la tendina si apriva **invisibile**, ritagliata dall'`overflow: hidden` che
+l'intestazione porta dal taglio a colonna del 30/08. Riquadro pieno, posizione giusta,
+zero pixel dipinti — e la prova di resa che li guarda misurava proprio il riquadro.
+Diagnosi e correzione in `14` §0.2.
 
 **Le aree, in ordine di comparsa:** **righe documento e varianti (in corso)** · prima sincronizzazione Shopify · sedi · anagrafica
 articolo · difetti aperti · Corrispettivo manuale · **tabulazione da tastiera** (punto 7,

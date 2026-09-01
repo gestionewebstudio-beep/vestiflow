@@ -112,6 +112,57 @@ test.describe('Filtri di colonna — resa nel browser', () => {
     expect(box!.width, dove).toBeGreaterThan(40);
     expect(box!.y, dove).toBeGreaterThanOrEqual(0);
     expect(box!.y, dove).toBeLessThan(vista!.height);
+
+    /*
+      ⛔ **E QUI SOTTO C'ERA IL BUCO DELLA PROVA.** Le quattro asserzioni qui
+      sopra misurano il RIQUADRO, e un pannello ritagliato dalla propria cella
+      ha un riquadro perfetto: dimensioni giuste, posizione giusta, invisibile.
+
+      Misurato il 01/09/2026: `th` porta `overflow: hidden` dal taglio a colonna
+      del 30/08, e ritagliava il pannello del filtro. `elementFromPoint` al suo
+      centro rispondeva `td` — la riga sotto — e a schermo non si vedeva niente.
+      **Le quattro asserzioni erano tutte verdi.**
+
+      ⭐ **Chi risponde al centro dice la verità**: se lì c'è il pannello (o
+      qualcosa dentro di lui) è dipinto davvero; se c'è una cella della tabella,
+      è ritagliato o coperto.
+    */
+    const alCentro = await page.evaluate(() => {
+      const p = document.querySelector('ul.select-menu__panel');
+      if (!p) return 'nessun pannello';
+      const r = p.getBoundingClientRect();
+      const sopra = document.elementFromPoint(
+        Math.round(r.left + r.width / 2),
+        Math.round(r.top + r.height / 2),
+      );
+      return sopra?.closest('ul.select-menu__panel') ? 'pannello' : `coperto da ${sopra?.tagName}`;
+    });
+    expect(alCentro, `al centro del pannello: ${alCentro} · ${dove}`).toBe('pannello');
+  });
+
+  /**
+   * ⭐ **L'ESCLUSIONE, guardata da un browser** — «tutte tranne queste».
+   *
+   * ⚠️ Le prove di componente coprono il verso emesso e il modello copre il
+   * confronto; qui si verifica l'unica cosa che nessuna delle due vede: che i
+   * due comandi nel pannello siano **raggiungibili col dito e col mouse** dopo
+   * che il pannello si è aperto sopra la tabella.
+   */
+  test('⭐ «Escludi» toglie dall’elenco i valori scelti, e «Tutti» li rimette', async ({
+    page,
+  }) => {
+    await apriElencoConFiltri(page);
+
+    await page.getByRole('button', { name: /^Filtra per Città/ }).click();
+    await page.getByRole('button', { name: 'Escludi' }).click();
+    // ⚠️ `exact`: fra le scelte c'è anche «Casalnuovo di Napoli».
+    await page.getByRole('option', { name: 'Napoli', exact: true }).click();
+
+    // Due righe su tre sono di Napoli: escludendola resta solo la terza.
+    await expect(page.locator('tbody tr.data-table__row')).toHaveCount(1);
+
+    await page.getByRole('button', { name: /Mostra tutti i valori/ }).click();
+    await expect(page.locator('tbody tr.data-table__row')).toHaveCount(3);
   });
 
   /**

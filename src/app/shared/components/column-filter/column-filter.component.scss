@@ -67,3 +67,57 @@
   font-variant-numeric: tabular-nums;
   text-align: end;
 }
+
+/*
+  ⭐ **La testa del pannello a valori**: il verso a sinistra, «Tutti» a destra.
+
+  ⚠️ **Il filo sotto la separa dalle opzioni**, e non è decorazione: sono
+  comandi che agiscono SULLE opzioni, e senza stacco si leggerebbero come le
+  prime due voci dell'elenco.
+*/
+.column-filter__mode {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-block-end: var(--space-1);
+  border-block-end: var(--border-width) solid var(--color-border);
+}
+
+/*
+  ⚠️ **Non è `app-button`**: qui dentro la taglia è quella della barra densa
+  (`--control-h-cell`), e un pulsante condiviso porterebbe la propria altezza
+  minima dentro un pannello alto quanto una riga di menu.
+*/
+.column-filter__all {
+  flex: none;
+  padding: 0 var(--space-2);
+  block-size: var(--control-h-button);
+  font-family: inherit;
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-link);
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.column-filter__all:hover:not(:disabled) {
+  background-color: var(--color-primary-subtle);
+}
+
+/*
+  ⚠️ **Spento quando non c'è niente da togliere**: senza selezione «Tutti» è già
+  lo stato corrente, e un comando che non fa niente insegna a non fidarsi degli
+  altri.
+*/
+.column-filter__all:disabled {
+  color: var(--color-text-subtle);
+  cursor: default;
+}
+
+.column-filter__all:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus);
+  outline-offset: var(--space-05);
+}

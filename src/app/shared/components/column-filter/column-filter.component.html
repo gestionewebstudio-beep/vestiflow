@@ -11,8 +11,9 @@
       [options]="menuOptions()"
       [multiple]="true"
       [values]="selezionati()"
-      [ariaLabel]="'Filtra per ' + columnLabel()"
+      [ariaLabel]="etichettaValori()"
       [chipLabel]="columnLabel()"
+      [triggerIcon]="escludendo() ? 'pi-ban' : undefined"
       placeholder="Tutti"
       [compact]="true"
       [labelOnly]="true"
@@ -22,7 +23,38 @@
       [searchPlaceholder]="'Cerca fra i valori…'"
       [searchAriaLabel]="'Cerca fra i valori di ' + columnLabel()"
       (valuesChange)="onValues($event)"
-    />
+    >
+      <!--
+        ⭐ **IL VERSO E IL «TUTTI» STANNO NEL PANNELLO**, non in barra: agiscono
+        sulle opzioni di QUESTO menu, e fuori tornerebbero a sembrare una
+        seconda dimensione di filtro — che è il difetto per cui «Ambito» è stato
+        ritirato dai Corrispettivi (`regole-stile-ui` §5, slot `panelLead`).
+      -->
+      <span panelLead class="column-filter__mode">
+        <app-segmented
+          [flat]="true"
+          [options]="MODI"
+          [value]="escludendo() ? 'escludi' : 'includi'"
+          [ariaLabel]="'Verso del filtro ' + columnLabel()"
+          (valueChange)="onModo($event)"
+        />
+        <!--
+          ⚠️ **«Tutti» è il `(Tutto)` di Danea, e qui SVUOTA la selezione**: in
+          questo modello «nessun valore scelto» è già «nessuna restrizione», cioè
+          tutte le righe. Spuntarli tutti a uno a uno darebbe lo stesso
+          risultato con venti clic e un filtro che sembra attivo.
+        -->
+        <button
+          type="button"
+          class="column-filter__all"
+          [disabled]="selezionati().length === 0"
+          [attr.aria-label]="'Mostra tutti i valori di ' + columnLabel()"
+          (click)="onTutti()"
+        >
+          Tutti
+        </button>
+      </span>
+    </app-select-menu>
   }
 
   @case ('text') {

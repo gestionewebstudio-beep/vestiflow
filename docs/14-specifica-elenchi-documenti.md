@@ -343,6 +343,32 @@ deve rimediare con la striscia «Clicca qui per impostare un filtro».
 ⚠️ **Periodo e Ricerca non seguono il pulsante**: sono esterni, restano sempre visibili e
 non si azzerano spegnendo la modalità.
 
+### ⛔ L'intestazione deve lasciar USCIRE il pannello del filtro — 01/09/2026
+
+> **Una cella di intestazione che ospita un filtro non ritaglia i propri figli.** A
+> ritagliare il titolo troppo lungo è il titolo stesso, non la cella.
+
+⛔ **Misurato in un browser vero, ed è il difetto per cui i filtri a valori non si
+potevano usare affatto**: `th` porta `overflow: hidden` dal taglio a colonna del
+30/08/2026, e ritagliava la tendina del filtro.
+
+```text
+th.data-table__head-cell   overflow: hidden   ← ritaglia
+  ul.select-menu__panel    216×110, z-index 1000 — e invisibile
+```
+
+Il pannello aveva riquadro pieno, dimensioni giuste e posizione dentro la finestra:
+`elementFromPoint` al suo centro rispondeva `td`, cioè la riga sotto.
+
+⛔ **La prova di resa non lo prendeva**, ed è la parte da ricordare:
+`e2e/filtri-colonna.spec.ts` misurava il RIQUADRO del pannello — «esiste, è alto, è nella
+finestra» — e **un pannello ritagliato ha un riquadro perfetto**. Il suo stesso commento
+diceva che ritaglio e sovrapposizione «esistono solo dove c'è un motore di layout»: la
+prova c'era, l'asserzione no. Ora chiede chi risponde al **centro** del pannello.
+
+⚠️ **La cella smette di ritagliare solo quando ospita un filtro** (`th:has(.data-table__filter)`),
+cioè solo a filtri accesi: le altre intestazioni tagliano come prima.
+
 ### ⭐ Il PANNELLO filtri sotto `lg` è del telaio — deciso il 29/08/2026
 
 _Su richiesta del proprietario: «il pannello filtri da mobile devi gestirlo bene in base
@@ -2012,6 +2038,43 @@ TableColumnDef {
 | `values` | insieme chiuso o ricorrente (Stato, Pagamento, Sede, Cliente) | elenco a **selezione multipla** dei valori presenti |
 | `text`   | testo libero (Commento, riferimenti)                          | contiene / non contiene                             |
 | `range`  | numerico e denaro (Totale, Netto, Righe)                      | da–a                                                |
+
+#### ⭐ Il filtro a valori ha un VERSO: includi o escludi — 01/09/2026
+
+_Chiesto dal proprietario col modello Danea: «fare in modo di riuscire a fare qualche
+filtro dove posso selezionare più cose, escludere ecc.», «ma possiamo non fare cose
+complicate»._
+
+```text
+Includi   restano SOLO le righe con quei valori
+Escludi   restano TUTTE LE ALTRE
+Tutti     toglie il filtro
+```
+
+⛔ **Non è un quinto tipo di filtro, è un verso** (`exclude?: boolean` su `values`). Un
+`kind` a parte avrebbe raddoppiato ogni ramo — raccolta dei valori distinti, conteggio del
+badge, resa del controllo — per una differenza che è un `!` nel confronto.
+
+⭐ **I due comandi stanno nel PANNELLO del menu**, non in barra: agiscono sulle opzioni di
+quella colonna, e fuori tornerebbero a sembrare una seconda dimensione di filtro — che è
+il difetto per cui «Ambito» è stato ritirato dai Corrispettivi.
+
+⚠️ **«Tutti» è il `(Tutto)` di Danea e SVUOTA la selezione**: qui «nessun valore scelto»
+è già «nessuna restrizione». Spuntarli tutti a uno a uno darebbe lo stesso risultato con
+venti clic e un filtro che sembra acceso.
+
+⚠️ **Cambiare verso non azzera la scelta**: si scelgono «Milano, Roma» e poi si decide se
+vederle o escluderle. È il motivo per cui si cambia verso.
+
+⛔ **Il verso scelto PRIMA dei valori è il caso che rompe l'implementazione ingenua**, e
+l'ha trovato un browser: a mani vuote il controllo emette `null` — nessuna restrizione — e
+il negozio dei filtri cancella per contratto ogni valore che non restringe. Il verso non
+aveva dove sopravvivere fino alla prima spunta, e la sequenza naturale («Escludi», poi
+scelgo) dava **l'esatto contrario** di quanto chiesto. Vive quindi nel controllo, non nello
+stato: spegnendo i filtri sparisce con lui, che è ciò che deve fare (spegnere azzera).
+
+⚠️ **Fra colonne resta l'AND**, e con l'esclusione va detto: «Sede diversa da Napoli» E
+«Nome contiene maglia» è un'intersezione, non un'unione.
 
 ⚠️ **`values` legge i valori dall'insieme caricato**, non da un endpoint per colonna. È
 corretto perché l'insieme caricato **è** il risultato del filtro (§11.4): senza quella

@@ -277,3 +277,71 @@ describe('valoriDistinti', () => {
     expect(valoriDistinti(conVuoti, 'stato', cellText)).toHaveLength(3);
   });
 });
+
+/**
+ * ⭐ **L'ESCLUSIONE** — «tutte le righe tranne queste» — chiesta dal
+ * proprietario col modello Danea: «riuscire a fare qualche filtro dove posso
+ * selezionare più cose, escludere ecc.».
+ */
+describe('il filtro a valori ha un VERSO', () => {
+  it('⭐ senza verso include: restano solo i valori scelti', () => {
+    const filtri: ColumnFilterState = { stato: { kind: 'values', values: ['Confermato'] } };
+
+    expect(ids(applicaFiltriDiColonna(RIGHE, filtri, { cellText }))).toEqual(['a', 'c']);
+  });
+
+  it('⭐ escludendo restano TUTTE LE ALTRE, ed è l’esatto complemento', () => {
+    const filtri: ColumnFilterState = {
+      stato: { kind: 'values', values: ['Confermato'], exclude: true },
+    };
+
+    expect(ids(applicaFiltriDiColonna(RIGHE, filtri, { cellText }))).toEqual(['b', 'd']);
+  });
+
+  it('⭐ escludendo PIÙ valori li toglie tutti: è la selezione multipla, al contrario', () => {
+    const filtri: ColumnFilterState = {
+      stato: { kind: 'values', values: ['Confermato', 'Bozza'], exclude: true },
+    };
+
+    expect(ids(applicaFiltriDiColonna(RIGHE, filtri, { cellText }))).toEqual(['d']);
+  });
+
+  /*
+    ⛔ **«Escludi niente» è l'elenco intero, non l'elenco vuoto.** Se l'insieme
+    vuoto restringesse anche solo in un verso, il badge «Filtri (n)» conterebbe
+    una restrizione che non c'è — e togliere il filtro diventerebbe impossibile
+    proprio quando serve.
+  */
+  it('⛔ con l’insieme vuoto non restringe in NESSUNO dei due versi', () => {
+    const vuoto = { kind: 'values', values: [], exclude: true } as const;
+
+    expect(isColumnFilterActive(vuoto)).toBe(false);
+    expect(ids(applicaFiltriDiColonna(RIGHE, { stato: vuoto }, { cellText }))).toEqual([
+      'a',
+      'b',
+      'c',
+      'd',
+    ]);
+  });
+
+  it('⚠️ il verso non cambia il conteggio del badge: resta UNA restrizione', () => {
+    const filtri: ColumnFilterState = {
+      stato: { kind: 'values', values: ['Bozza'], exclude: true },
+    };
+
+    expect(countActiveColumnFilters(filtri)).toBe(1);
+  });
+
+  /*
+    ⚠️ **Fra colonne resta l'AND**, e con l'esclusione va detto: «stato diverso
+    da Bozza» E «nome contiene maglia» è un'intersezione, non un'unione.
+  */
+  it('⚠️ si combina in AND con gli altri filtri, come tutti', () => {
+    const filtri: ColumnFilterState = {
+      stato: { kind: 'values', values: ['Bozza'], exclude: true },
+      nome: { kind: 'text', text: 'maglia' },
+    };
+
+    expect(ids(applicaFiltriDiColonna(RIGHE, filtri, { cellText, numeroDi }))).toEqual(['a', 'd']);
+  });
+});
