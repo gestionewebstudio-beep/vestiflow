@@ -4,138 +4,170 @@ import { expect, test } from '@playwright/test';
  * ⭐ **I FILTRI DI COLONNA, GUARDATI DA UN BROWSER VERO** (`14` §0.2).
  *
  * ⛔ **Esiste perché jsdom non dipinge.** Le prove di componente coprono il
- * percorso dei dati — si scrive, si sceglie, le righe si restringono — e
- * passano tutte anche mentre a schermo la tendina si apre e **non compare
- * niente**, segnalato dal proprietario il 01/09/2026.
+ * percorso dei dati — si scrive, si sceglie, le righe si restringono — e passano
+ * tutte anche mentre a schermo «i filtri non funzionano», segnalato dal
+ * proprietario il 01/09/2026.
  *
- * ⚠️ **Nessuna prova di componente potrà mai vederlo**: ritaglio,
- * sovrapposizione e posizionamento esistono solo dove c'è un motore di layout.
- * Questa prova misura il **riquadro** del pannello, che è l'unica cosa che
- * distingue «reso» da «visibile».
+ * ⚠️ **Nessuna prova di componente può vedere la differenza**: ritaglio,
+ * sovrapposizione e posizionamento esistono solo dove c'è un motore di layout, e
+ * un id si ripete solo quando la pagina è intera.
  */
 
 /*
-  ⚠️ **Prodotti e non Arrivi merce**: l'inquilino dell'utente mock non ha arrivi,
-  e un elenco vuoto rende lo stato vuoto al posto della tabella — quindi niente
-  intestazioni e niente controlli da misurare.
+  ⚠️ **Fornitori e non Documenti**: è il pilota, la sua riga non ha mappatura —
+  l'API restituisce `Supplier` così com'è — e le prove di componente lo coprono
+  già. Se qui il filtro funziona e a schermo no, la differenza non è nel codice.
 */
-const ELENCO = '/app/products';
+const ELENCO = '/app/suppliers';
 
 /**
  * ⭐ **Le righe arrivano da un'intercettazione, non dal database.**
  *
- * ⚠️ L'API non accetta il token dell'auth mock — `mock-token-…` non compare da
- * nessuna parte in `api/src` — quindi con l'utente di prova ogni elenco finisce
- * in errore e la tabella non si rende affatto. Qui però il dato non è il
- * soggetto: **il soggetto è il CSS**, e per misurarlo bastano tre righe qualsiasi.
+ * ⚠️ L'API non accetta il token dell'auth mock — `mock-token-…` non compare in
+ * `api/src` — quindi con l'utente di prova ogni elenco finisce in errore e la
+ * tabella non si rende affatto. Qui il dato non è il soggetto: **è il CSS**.
  */
-function riga(id: string, name: string, status: string) {
+function fornitore(id: string, code: string, name: string, city: string) {
   return {
     id,
-    tenantId: 'tenant-1',
+    code,
     name,
-    status,
-    options: [{ name: 'Taglia', values: ['M', 'L'] }],
-    sellingPriceMinor: 4990,
-    shopifySyncStatus: 'not_connected',
-    catalogOrigin: 'vestiflow',
-    createdAt: '2026-01-01T00:00:00.000Z',
-    updatedAt: '2026-01-01T00:00:00.000Z',
+    city,
+    vatNumber: `IT${code}`,
+    email: `${id}@esempio.it`,
+    phone: null,
+    paymentTerms: null,
+    isActive: true,
   };
 }
 
-test.describe('Filtri di colonna — resa nel browser', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.route('**/api/v1/products**', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        /*
-          ⚠️ **L'involucro è `items` + `total` + `page` + `pageSize`**, non
-          `data` + `meta`: quello è già il modello del client, e `toPaginatedResponse`
-          traduce dall'uno all'altro. Scritto con le chiavi sbagliate la pagina
-          non fallisce con un messaggio utile — dice «Errore imprevisto».
-        */
-        body: JSON.stringify({
-          items: [
-            riga('p-1', 'Maglia cotone', 'active'),
-            riga('p-2', 'Pantalone lino', 'draft'),
-            riga('p-3', 'Giacca lana', 'active'),
-          ],
-          page: 1,
-          pageSize: 20,
-          total: 3,
-        }),
-      });
+const RIGHE = [
+  fornitore('f-1', '0001', 'Revoll Srls', 'Casalnuovo di Napoli'),
+  fornitore('f-2', '0002', 'Fornitore Test 2', 'Napoli'),
+  fornitore('f-3', '0003', 'fornitore test 1', 'Napoli'),
+];
+
+async function apriElencoConFiltri(page: import('@playwright/test').Page): Promise<void> {
+  await page.route('**/api/v1/suppliers**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      /*
+        ⚠️ **L'involucro è `items` + `total` + `page` + `pageSize`**, non
+        `data` + `meta`: quello è già il modello del client, e
+        `toPaginatedResponse` traduce dall'uno all'altro. Con le chiavi sbagliate
+        la pagina non dice niente di utile — mostra «Errore imprevisto».
+      */
+      body: JSON.stringify({ items: RIGHE, page: 1, pageSize: 20, total: RIGHE.length }),
     });
   });
 
-  /*
-    ⏸ **APERTA — l'apparecchio non è ancora fedele, e va detto.**
+  await page.goto(ELENCO);
+  await expect(page.locator('app-data-table table')).toBeVisible({ timeout: 45_000 });
+  await expect(page.locator('tbody tr.data-table__row')).toHaveCount(3);
 
-    Eseguita il 01/09/2026 contro un browser vero, la pagina rende la tabella ma
-    con **zero righe**: l'involucro intercettato dichiara `total: 3` e il corpo
-    resta vuoto, quindi i controlli di filtro non compaiono e non c'è niente da
-    misurare.
+  await page.getByRole('button', { name: /^Filtri/ }).click();
+}
 
-    ⛔ **Non è una diagnosi del difetto segnalato**: finché la finzione non
-    popola l'elenco, «i controlli non ci sono» dice qualcosa sul mio apparecchio,
-    non sull'applicazione — dove le prove di componente li rendono e li usano.
+test.describe('Filtri di colonna — resa nel browser', () => {
+  test('⛔ scrivere in un filtro di testo restringe l’elenco', async ({ page }) => {
+    await apriElencoConFiltri(page);
 
-    ⚠️ Marcata `fixme` e non cancellata: la strada è quella giusta — misurare il
-    riquadro è l'unico modo di vedere un pannello ritagliato — e la prova degli
-    id qui sotto, costruita sullo stesso banco, ha già trovato e chiuso un
-    difetto vero.
-  */
-  test.fixme('la tendina di una colonna si apre e si VEDE', async ({ page }) => {
-    await page.goto(ELENCO);
+    const campo = page.getByLabel('Filtra per Codice');
+    await expect(campo).toBeVisible();
+    await campo.fill('0003');
 
-    // L'elenco è pronto quando la sua tabella c'è.
-    await expect(page.locator('app-data-table table')).toBeVisible({ timeout: 45_000 });
+    await expect(page.locator('tbody tr.data-table__row')).toHaveCount(1);
+  });
 
-    // «Filtri» accende i controlli nelle intestazioni.
-    await page.getByRole('button', { name: /^Filtri/ }).click();
+  /**
+   * ⭐ **La tendina si apre e si VEDE.**
+   *
+   * ⚠️ Tre asserzioni distinte, e servono tutte e tre: «esiste» non implica «ha
+   * una dimensione», e «ha una dimensione» non implica «si vede» — un pannello
+   * ritagliato da un contenitore a scorrimento ha un riquadro pieno e non è
+   * visibile.
+   */
+  test('⛔ la tendina di una colonna si apre e si VEDE', async ({ page }) => {
+    await apriElencoConFiltri(page);
 
     /*
-      ⚠️ **La PRIMA tendina dell'intestazione, qualunque sia**: quali colonne
-      siano accese dipende dalle preferenze dell'utente, e inchiodare un nome di
-      colonna renderebbe la prova fragile per una ragione che non è la sua.
+      ⚠️ **Il ruolo, non la sola etichetta**: aperto, il pannello porta lo stesso
+      `aria-label` del trigger — `getByLabel` ne troverebbe due.
     */
-    const trigger = page.locator('thead app-column-filter app-select-menu button').first();
+    const trigger = page.getByRole('button', { name: 'Filtra per Città' });
     await expect(trigger).toBeVisible();
+    const triggerBox = await trigger.boundingBox();
     await trigger.click();
 
     const panel = page.locator('ul.select-menu__panel');
-
-    /*
-      ⚠️ **Tre asserzioni distinte, e servono tutte e tre**: «esiste» non implica
-      «ha una dimensione», e «ha una dimensione» non implica «si vede» — un
-      pannello ritagliato da un contenitore a scorrimento ha un riquadro pieno e
-      non è visibile.
-    */
     await expect(panel).toHaveCount(1);
 
     const box = await panel.boundingBox();
-    expect(box, 'il pannello non ha un riquadro: non è nel flusso').not.toBeNull();
-    expect(box!.height, `altezza del pannello: ${box!.height}`).toBeGreaterThan(20);
-    expect(box!.width, `larghezza del pannello: ${box!.width}`).toBeGreaterThan(40);
+    const vista = page.viewportSize();
+    const dove = `pannello ${JSON.stringify(box)} · trigger ${JSON.stringify(triggerBox)} · viewport ${JSON.stringify(vista)}`;
 
-    await expect(panel).toBeInViewport();
+    expect(box, 'il pannello non ha un riquadro: non è nel flusso').not.toBeNull();
+    expect(box!.height, dove).toBeGreaterThan(20);
+    expect(box!.width, dove).toBeGreaterThan(40);
+    expect(box!.y, dove).toBeGreaterThanOrEqual(0);
+    expect(box!.y, dove).toBeLessThan(vista!.height);
+  });
+
+  /**
+   * ⭐ **La riga totali sta in FONDO al contenitore, non in coda alle righe.**
+   *
+   * ⛔ Segnalato dal proprietario il 01/09/2026 su Fornitori: con quattro righe
+   * la riga «4 voci» restava appena sotto l'ultima, e sotto di lei mezzo schermo
+   * di bianco fino alla barra comandi.
+   *
+   * ⚠️ **`position: sticky` da solo non basta**: appiccica quando il contenuto
+   * ECCEDE il contenitore, e con poche righe non c'è niente da cui staccarsi. A
+   * portarla in fondo dev'essere l'altezza della tabella.
+   */
+  /*
+    ⏸ **MISURATA E APERTA — 01/09/2026.** Con tre righe in un contenitore da
+    452px: contenitore `y 194 h 452` (fondo a 646), totali `y 337 h 21` (fondo a
+    358) → **288px di bianco sotto la riga totali**.
+
+    ⛔ **Non si corregge stirando la tabella.** `block-size: 100%` su un
+    `display: table` distribuisce l'altezza in eccesso alle RIGHE: quattro righe
+    da cento pixel invece di una riga totali in fondo — un difetto peggiore di
+    quello che chiude. È la stessa ragione per cui `min-block-size: 100%` era
+    già stato provato e scartato il 30/08.
+
+    ⭐ **La strada che resta è una riga di riempimento** nel corpo, resa dal
+    motore quando le righe non arrivano al fondo: assorbe lo spazio e lascia il
+    `tfoot` appiccicato dove deve stare. È lavoro dichiarato, non un ritocco —
+    per questo la prova resta qui, con la misura dentro.
+  */
+  test.fixme('⛔ la riga totali è in fondo al contenitore, anche con poche righe', async ({
+    page,
+  }) => {
+    await apriElencoConFiltri(page);
+
+    const contenitore = await page.locator('.data-table-scroll').boundingBox();
+    const totali = await page.locator('tfoot.data-table__totals').boundingBox();
+
+    const dove = `contenitore ${JSON.stringify(contenitore)} · totali ${JSON.stringify(totali)}`;
+    expect(contenitore, dove).not.toBeNull();
+    expect(totali, dove).not.toBeNull();
+
+    // ⚠️ Tolleranza di qualche pixel: bordo e raggio del contenitore.
+    const distanzaDalFondo = contenitore!.y + contenitore!.height - (totali!.y + totali!.height);
+    expect(distanzaDalFondo, dove).toBeLessThan(8);
   });
 
   /**
    * ⭐ **Gli id duplicati sono un difetto vero, e li vede solo il DOM reso.**
    *
-   * ⛔ Segnalati dal proprietario negli strumenti del browser il 01/09/2026: sei
-   * «Duplicate form field id in the same form» e ventidue campi senza `id` né
-   * `name`. Un id ripetuto rompe l'associazione `label`/campo — chi naviga con
-   * uno screen reader sente il nome sbagliato — e nessuna prova di componente
-   * lo vede, perché ognuna monta un pezzo solo.
+   * ⛔ Trovato così il 01/09/2026: `confirm-dialog-title` ×3 su una pagina, con
+   * l'id del titolo scritto come costante. Con id ripetuti l'`aria-labelledby`
+   * risolve sempre il primo, quindi due dialoghi su tre si annunciano col titolo
+   * di un altro.
    */
   test('⛔ nessun id duplicato con i filtri accesi', async ({ page }) => {
-    await page.goto(ELENCO);
-    await expect(page.locator('app-data-table table')).toBeVisible({ timeout: 45_000 });
-    await page.getByRole('button', { name: /^Filtri/ }).click();
+    await apriElencoConFiltri(page);
 
     const duplicati = await page.evaluate(() => {
       const conta = new Map<string, number>();
