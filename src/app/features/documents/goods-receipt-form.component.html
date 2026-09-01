@@ -452,7 +452,7 @@
                 </p>
               </div>
               <div class="doc-form__lines-tools">
-                <app-table-column-picker [viewId]="lineColumnsView" [reorderable]="false" />
+                <app-table-column-picker [viewId]="lineColumnsView" />
                 @if (canIncludeSupplierOrder()) {
                   <app-button type="button" variant="secondary" (click)="openIncludeOrderPanel()">
                     <i class="pi pi-link" aria-hidden="true"></i>

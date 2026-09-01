@@ -27,13 +27,13 @@ _Dettate dal proprietario dopo il rifacimento dell'anagrafica fornitore, in un m
 solo. Sono elencate nell'ordine in cui le ha dette; **i filtri restano per ultimi**, come
 ha chiesto («poi passiamo ai filtri che abbiamo lasciato in sospeso»)._
 
-| #   | Cosa                                                                                                                             | Stato                                          |
-| --- | -------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| A   | **Anagrafica CLIENTE come quella fornitore**                                                                                     | ⛔ da fare                                     |
-| B   | **Colonne del riepilogo fornitore** = i campi dell'anagrafica, principali attive di serie, **larghezza per tipo di dato**        | ⛔ da fare                                     |
-| C   | **Dettaglio fornitore**: togliere gli articoli collegati · vestirlo meglio · **decidere se le pagine di dettaglio si unificano** | ⛔ da fare, con una domanda di progetto aperta |
-| D   | **I bottoni delle pagine fornitore sono più grandi degli altri**                                                                 | ⛔ da fare                                     |
-| E   | **I filtri**, ripresi da dove erano rimasti (modello Danea: selezione multipla, esclusione)                                      | ⏸ per ultimo, per sua indicazione              |
+| #   | Cosa                                                                                                                             | Stato                                              |
+| --- | -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| A   | **Anagrafica CLIENTE come quella fornitore**                                                                                     | ⛔ da fare                                         |
+| B   | **Colonne del riepilogo fornitore** = i campi dell'anagrafica, principali attive di serie, **larghezza per tipo di dato**        | ✅ fatto                                           |
+| C   | **Dettaglio fornitore**: togliere gli articoli collegati · vestirlo meglio · **decidere se le pagine di dettaglio si unificano** | ✅ fatto (l'unificazione: risposta col censimento) |
+| D   | **I bottoni delle pagine fornitore sono più grandi degli altri**                                                                 | ✅ fatto                                           |
+| E   | **I filtri**, ripresi da dove erano rimasti (modello Danea: selezione multipla, esclusione)                                      | ⏸ per ultimo, per sua indicazione                  |
 
 ### A — L'anagrafica cliente
 
@@ -44,6 +44,23 @@ giro del Tab verificato in un browser vero.
 ⭐ **Costa poco adesso**: `domain/fiscal/` (P. IVA, codice fiscale, IBAN, CAP, provincia),
 `app-form-section` e i token esistono già. E **IBAN e cellulare sono già nel database sul
 soggetto**, quindi il cliente li eredita **senza migration**.
+
+⭐ **E le COLONNE dell'elenco vanno rese comuni ai due** — indicato dal proprietario il
+01/09/2026 spiegando perché Danea mette «Tipo» per primo: _«saranno colonne condivise che si
+ripartiscono le schermate. Questa sarà condivisa con clienti»_.
+
+Oggi `SUPPLIER_LIST_COLUMN_DEFS` sta in `features/suppliers/models/` ed è dei soli
+fornitori, ma **i campi sono gli stessi perché è lo stesso soggetto**: codice, denominazione,
+codici fiscali, indirizzo, contatti, note. Restano di ruolo solo sconto, pagamenti, IVA
+predefinita, trasporto, IBAN/banca (fornitore) e SDI, listino, Shopify (cliente).
+
+⚠️ **L'estrazione si fa QUANDO esistono i due consumatori**, non prima: con un elenco solo
+in mano si indovina quale parte è comune. Il posto sarà `domain/` — `features → features` è
+vietato dal lint.
+
+⚠️ Nel catalogo fornitore «Anche cliente» è già in prima posizione, che è la posizione del
+«Tipo» di Danea: quando i due elenchi condivideranno le definizioni, sarà il discriminante
+che dice di quale dei due parla la riga.
 
 ⚠️ Il cliente ha in più il **codice SDI**, che il fornitore non ha: il controllo di forma
 sta già scritto in `docs/06b` §B.4, con la contraddizione dichiarata sui 6 caratteri della

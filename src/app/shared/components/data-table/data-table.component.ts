@@ -77,6 +77,15 @@ export interface DataTableResizeEvent {
 const LARGHEZZA_NUMERICA = 92;
 const LARGHEZZA_CODICE = 128;
 
+/**
+ * ⭐ **Anche il testo libero ha una quota**, da quando le larghezze sono
+ * proporzioni: senza, la sua percentuale sarebbe zero e la colonna sparirebbe.
+ *
+ * ⚠️ È più larga delle altre due apposta — è il ripiego di nomi e descrizioni,
+ * che sono la colonna che si legge.
+ */
+const LARGHEZZA_TESTO = 200;
+
 @Component({
   selector: 'app-data-table',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -385,11 +394,13 @@ export class DataTableComponent<T> {
     numerica, codice, testo — e da lì si deduce quanto le serve.
 
     ⚠️ **Il ripiego è un MINIMO ragionevole, non una misura giusta**: chi ha una
-    larghezza dichiarata la usa, e l'operatore la cambia trascinando. Il testo
-    libero resta senza, apposta: sono le colonne che devono respirare quando
-    avanza spazio.
+    larghezza dichiarata la usa, e l'operatore la cambia trascinando.
+
+    ⚠️ **Ora ogni colonna ne ha una**, testo libero compreso: da quando le
+    larghezze sono proporzioni (`percentualeDi`), una colonna senza misura
+    varrebbe zero per cento e sparirebbe.
   */
-  protected widthOf(column: ResolvedTableColumn): number | null {
+  protected widthOf(column: ResolvedTableColumn): number {
     const richiesta = this.widths().get(column.id) ?? column.defaultWidthPx;
     if (richiesta !== undefined) {
       return richiesta;
@@ -400,7 +411,37 @@ export class DataTableComponent<T> {
     if (column.display === 'code') {
       return LARGHEZZA_CODICE;
     }
-    return null;
+    return LARGHEZZA_TESTO;
+  }
+
+  /*
+    ⭐ **LE COLONNE SI ADATTANO AL CONTENITORE, NON LO SFONDANO** — proprietario,
+    01/09/2026: «il contenitore non doveva permettere di scorrere con barra di
+    scorrimento ma il contenuto, quindi larghezza colonne, adattarsi in base
+    alla grandezza del contenitore».
+
+    ⛔ **In px non si può.** Misurato in un browser vero, con le venticinque
+    colonne dell'anagrafica fornitore (3.586px dichiarati) in un contenitore da
+    1.200:
+
+    ```text
+    fixed + width 100% + px         3.587px   ⛔ scorre: le px sono un ordine
+    fixed SENZA width               1.198px   ⛔ sta dentro, ma le proporzioni
+                                                si perdono — «Nome» a 32px
+    fixed + width 100% + PERCENTO   1.198px   ✅ sta dentro E le conserva
+    ```
+
+    ⭐ **Quindi la larghezza dichiarata diventa un PESO**, non una misura: la
+    quota di ognuna è la sua parte sulla somma delle colonne visibili. Accendere
+    una colonna stringe le altre in proporzione, spegnerla le allarga.
+
+    ⚠️ **Il trascinamento continua a funzionare** e resta prioritario: `widths`
+    tiene i px scelti dall'operatore, e da lì si ricalcola la quota. Cambia il
+    significato del numero, non chi comanda.
+  */
+  protected percentualeDi(column: ResolvedTableColumn): number {
+    const totale = this.columns().reduce((somma, col) => somma + this.widthOf(col), 0);
+    return totale > 0 ? (this.widthOf(column) / totale) * 100 : 0;
   }
 
   protected ariaSort(columnId: string): 'ascending' | 'descending' | 'none' {

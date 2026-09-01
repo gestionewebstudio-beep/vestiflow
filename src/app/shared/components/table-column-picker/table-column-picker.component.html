@@ -52,24 +52,6 @@
                   <i class="pi pi-thumbtack" aria-hidden="true"></i>
                 </button>
               }
-              @if (reorderable()) {
-                <button
-                  type="button"
-                  class="table-column-picker__icon-btn"
-                  aria-label="Sposta su"
-                  (click)="moveUp(row.id)"
-                >
-                  <i class="pi pi-chevron-up" aria-hidden="true"></i>
-                </button>
-                <button
-                  type="button"
-                  class="table-column-picker__icon-btn"
-                  aria-label="Sposta giù"
-                  (click)="moveDown(row.id)"
-                >
-                  <i class="pi pi-chevron-down" aria-hidden="true"></i>
-                </button>
-              }
             </div>
           </li>
         }

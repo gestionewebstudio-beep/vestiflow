@@ -20,7 +20,6 @@ import {
   resolveVisibleColumns,
   toggleColumnPin,
   toggleColumnVisibility,
-  moveColumn,
   applyPresetToState,
 } from './table-column.util';
 import { parseTableViewStateJson } from './table-view-state.util';
@@ -89,11 +88,6 @@ export class TableColumnPreferenceService {
   toggleColumn(viewId: TableViewId, columnId: string): void {
     const current = this.readState(viewId);
     this.commit(viewId, toggleColumnVisibility(current, columnId));
-  }
-
-  moveColumn(viewId: TableViewId, columnId: string, direction: -1 | 1): void {
-    const current = this.readState(viewId);
-    this.commit(viewId, moveColumn(current, columnId, direction));
   }
 
   togglePin(viewId: TableViewId, columnId: string): void {

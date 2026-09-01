@@ -240,8 +240,12 @@ export class ListPageComponent {
   readonly searchValue = input<string>('');
   readonly searchAriaLabel = input<string>();
   readonly columnsViewId = input<TableViewId>();
-  /** Il Registro Corrispettivi non riordina le colonne: le sue hanno un ordine di lettura. */
-  readonly columnsReorderable = input(true);
+  /*
+    ⛔ **Qui c'era `columnsReorderable`**, che il Registro Corrispettivi
+    spegneva «perché le sue colonne hanno un ordine di lettura». Da oggi ce
+    l'hanno TUTTE: l'ordine è quello dichiarato nel catalogo, e non esiste più
+    un riordino da consentire o vietare.
+  */
 
   /**
    * ⭐ **Se la riga strumenti si rende.** Accesa di default: ogni elenco ha

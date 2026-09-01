@@ -350,7 +350,7 @@
           <div class="doc-form__lines-head">
             <h2 id="sd-lines-title" class="doc-form__subtitle">Righe</h2>
             <div class="doc-form__lines-tools">
-              <app-table-column-picker [viewId]="lineColumnsView" [reorderable]="false" />
+              <app-table-column-picker [viewId]="lineColumnsView" />
               @if (includeSourceKinds().length > 0) {
                 <app-button type="button" variant="ghost" (click)="openIncludePanel()">
                   <i class="pi pi-file-import" aria-hidden="true"></i>

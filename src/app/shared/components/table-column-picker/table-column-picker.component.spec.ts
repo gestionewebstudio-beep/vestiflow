@@ -49,27 +49,27 @@ async function apri(inputs: Record<string, unknown>) {
   return preferences;
 }
 
-describe('TableColumnPickerComponent — interruttore del riordino', () => {
-  it('di default le frecce ci sono: gli elenchi leggono l’ordine salvato', async () => {
+/**
+ * ⛔ **QUI C'ERANO TRE PROVE SULL'INTERRUTTORE DEL RIORDINO**, tolte insieme
+ * alle frecce il 01/09/2026 — decisione del proprietario: «lasciamo solo
+ * default e personalizzata, e queste incidono solo su quali sono attive».
+ *
+ * ⚠️ **Le prove passavano e la funzione era rotta lo stesso**, ed è la ragione
+ * per cui vale la pena ricordarlo: verificavano che il bottone ci fosse o non
+ * ci fosse, non che premerlo spostasse qualcosa di visibile. Le righe di questo
+ * pannello sono sempre in ordine di DEFINIZIONE, mentre la freccia agiva su
+ * `columnOrder`, cioè sulla tabella dietro al pannello.
+ */
+describe('TableColumnPickerComponent — il riordino non esiste più', () => {
+  it('⛔ nessuna freccia: l’ordine delle colonne è quello dichiarato', async () => {
     await apri({});
-
-    expect(screen.getAllByRole('button', { name: 'Sposta su' }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole('button', { name: 'Sposta giù' }).length).toBeGreaterThan(0);
-  });
-
-  // Sulle maschere documento le colonne sono rese in sequenza fissa nel
-  // template: la freccia si premeva e non accadeva niente. Un comando che finge
-  // di funzionare è peggio di un comando che manca — chi lo preme non conclude
-  // «non si può», conclude «non ha funzionato», e ci riprova.
-  it('spento, le frecce non ci sono', async () => {
-    await apri({ reorderable: false });
 
     expect(screen.queryByRole('button', { name: 'Sposta su' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Sposta giù' })).toBeNull();
   });
 
-  it('spento, le spunte mostra/nascondi restano', async () => {
-    await apri({ reorderable: false });
+  it('⭐ restano le spunte, che sono ciò che il pannello serve a fare', async () => {
+    await apri({});
 
     expect(screen.getByLabelText('SKU')).toBeVisible();
     expect(screen.getByLabelText('Nome prodotto')).toBeVisible();

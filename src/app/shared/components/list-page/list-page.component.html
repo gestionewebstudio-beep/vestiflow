@@ -206,11 +206,7 @@
         legge con uno screen reader.
       -->
       @if (columnsViewId(); as vista) {
-        <app-table-column-picker
-          [viewId]="vista"
-          [reorderable]="columnsReorderable()"
-          [iconOnly]="compatto()"
-        />
+        <app-table-column-picker [viewId]="vista" [iconOnly]="compatto()" />
       }
       <app-button
         variant="secondary"

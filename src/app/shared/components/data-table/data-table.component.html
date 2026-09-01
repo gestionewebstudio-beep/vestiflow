@@ -18,7 +18,7 @@
             class="data-table__head-cell"
             [class.data-table__cell--numeric]="col.numeric"
             [class.data-table__cell--pinned]="col.pinned"
-            [style.inline-size.px]="widthOf(col)"
+            [style.inline-size.%]="percentualeDi(col)"
             [attr.title]="col.headerTooltip || null"
             [attr.aria-sort]="canSort(col) ? ariaSort(col.id) : null"
           >

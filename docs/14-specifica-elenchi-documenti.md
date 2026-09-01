@@ -2919,6 +2919,38 @@ NON
 
 Se in futuro si vorrà rendere l'ordine personalizzabile, la funzione dovrà nascere insieme alla **persistenza dell'ordine per utente × tenant × vista**. Il drag senza persistenza non è un obiettivo.
 
+### ⛔ Il riordino era rientrato dalla finestra — tolto il 01/09/2026
+
+⚠️ **Questa decisione c'era e il codice l'aveva disattesa.** Nel selettore Colonne erano
+comparse due frecce ↑↓ per riga, con un `input` (`reorderable`) che le spegneva sulle
+maschere documento «perché lì sono inerti».
+
+⛔ **Ma erano inerti a metà anche dove "funzionavano"**, e questo il commento che le
+difendeva non lo diceva:
+
+- le righe del pannello si costruiscono da `defs`, cioè in **ordine di definizione**: la
+  freccia spostava la colonna in `columnOrder`, quindi **nel pannello non si muoveva
+  niente**;
+- `columnOrder` contiene anche le colonne **nascoste**: con diciannove spente su
+  venticinque, una pressione su due scambiava con una colonna invisibile e non accadeva
+  nulla nemmeno nella tabella.
+
+⭐ **E producevano il difetto che il proprietario ha visto**: due sequenze per la stessa
+schermata — l'ordine del preset finché si stava su un preset, quello delle definizioni al
+primo tocco su una spunta. _«Nel momento in cui spunto o deseleziono una colonna si passa
+alla vista personalizzata e cambia tutto, anche l'ordinamento.»_
+
+> **Ora l'ordine è quello dichiarato nel catalogo, sempre e ovunque. Le viste ricordano
+> solo QUALI colonne sono accese.**
+
+_Proprietario, 01/09/2026: «non complichiamoci la vita con l'ordinamento, mettiamo il nostro
+di default; le viste presenti nel tasto colonne sono solo quelle che decidiamo di spuntare o
+no. Per esempio scelgo Vista 1 e attivo tutte le caselle, così resta quella schermata ogni
+volta che la apro»._
+
+⚠️ **Il blocco a sinistra resta l'unica eccezione**, ed è diversa: è un ordine che
+l'operatore vede mentre lo decide, non una preferenza nascosta in un pannello.
+
 ## 22.3 Resize
 
 Il resize già esistente resta consentito dove oggi previsto:

@@ -96,27 +96,86 @@ export class SupplierTableComponent {
   );
 
   /*
-    ⭐ **Otto colonne su otto sono testo**, e stanno tutte qui: dare a ognuna un
-    `ng-template` sarebbe stato ripetere otto volte la stessa riga.
+    ⭐ **Tutte le colonne sono testo**, e stanno tutte qui: dare a ognuna un
+    `ng-template` sarebbe ripetere venticinque volte la stessa riga.
+
+    ⚠️ **Ogni colonna dichiarata nel catalogo DEVE avere il suo ramo**, o cade
+    nel `default` e resta una colonna vuota che si accende e non mostra niente:
+    è il difetto che `check:colonne-rese` esiste per prendere, e che nessun
+    test trova da solo.
   */
   protected readonly cellText = (supplier: Supplier, columnId: string): string => {
     switch (columnId) {
+      // ── Identità ────────────────────────────────────────────────────────
       case 'code':
         return this.displayCode(supplier);
       case 'name':
         return supplier.name;
       case 'vatNumber':
         return this.displayVat(supplier);
-      case 'email':
-        return supplier.email ?? '—';
+      case 'taxCode':
+        return supplier.taxCode?.trim() || '—';
+
+      // ── Dove ────────────────────────────────────────────────────────────
+      case 'addressLine1':
+        return supplier.addressLine1?.trim() || '—';
+      case 'postalCode':
+        return supplier.postalCode?.trim() || '—';
       case 'city':
         return this.displayCity(supplier);
+      case 'province':
+        return supplier.province?.trim() || '—';
+      case 'countryCode':
+        return supplier.countryCode?.trim() || '—';
+
+      // ── Contatti ────────────────────────────────────────────────────────
+      case 'email':
+        return supplier.email ?? '—';
+      case 'pec':
+        return supplier.pec?.trim() || '—';
       case 'phone':
         return supplier.phone?.trim() || '—';
+      case 'mobilePhone':
+        return supplier.mobilePhone?.trim() || '—';
+      case 'contactName':
+        return supplier.contactName?.trim() || '—';
+      case 'website':
+        return supplier.website?.trim() || '—';
+
+      // ── Condizioni commerciali ──────────────────────────────────────────
+      case 'paymentMethod':
+        return supplier.paymentMethod?.trim() || '—';
       case 'paymentTerms':
         return supplier.paymentTerms?.trim() || '—';
+      case 'supplierDiscount':
+        return supplier.supplierDiscount?.trim() || '—';
+      case 'transportResponsible':
+        return supplier.transportResponsible?.trim() || '—';
+      case 'freightTerms':
+        return supplier.freightTerms?.trim() || '—';
+      case 'iban':
+        return supplier.iban?.trim() || '—';
+      case 'ourBankName':
+        return supplier.ourBankName?.trim() || '—';
+
+      // ── Stato e ruoli ───────────────────────────────────────────────────
       case 'roleStatus':
         return supplier.isActive ? 'Attivo' : 'Disattivato';
+      /*
+        ⚠️ **Tre risposte, non due.** «No» e «sì ma disattivato» sono cose
+        diverse: la seconda dice che il ruolo cliente c'è ed è stato ritirato,
+        e appiattirle su «No» nasconderebbe uno storico che esiste.
+      */
+      case 'alsoCustomer':
+        return supplier.linkedCustomerId
+          ? supplier.linkedCustomerActive
+            ? 'Sì'
+            : 'Disattivato'
+          : 'No';
+
+      case 'supplierNotes':
+        return supplier.notes?.trim() || '—';
+
       default:
         return '';
     }

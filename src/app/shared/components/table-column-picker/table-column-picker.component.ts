@@ -31,26 +31,24 @@ export class TableColumnPickerComponent {
 
   readonly viewId = input.required<TableViewId>();
 
-  /**
-   * Le frecce ↑↓ che spostano una colonna compaiono solo dove **fanno
-   * qualcosa** (specifica §6.1).
-   *
-   * Il pannello è condiviso da undici schermate. Sui sei elenchi che leggono
-   * l'ordine delle colonne — registro documenti, giacenze, movimenti,
-   * situazione, ordini cliente, fornitori — le frecce funzionano. Su Prodotti,
-   * Clienti e su **tutte le maschere documento** sono **inerti**: quelle tabelle
-   * hanno un ordine fisso, e la freccia si preme senza che accada niente.
-   *
-   * Un comando che finge di funzionare è peggio di un comando che manca: chi lo
-   * preme non conclude «non si può», conclude «non ha funzionato», e ci riprova.
-   * Dove l'ordine non si sposta, le frecce non ci sono; le spunte mostra/nascondi
-   * restano.
-   *
-   * Acceso di default: chi lo spegne è la minoranza, e un valore predefinito
-   * che rompe undici schermate se qualcuno se ne dimentica non è un buon
-   * valore predefinito.
-   */
-  readonly reorderable = input(true);
+  /*
+    ⛔ **QUI C'ERA `reorderable`, e con lui le frecce ↑↓** — tolte il
+    01/09/2026 su decisione del proprietario: «lasciamo solo default e
+    personalizzata, e queste incidono solo su quali sono attive e quali no».
+
+    Il commento che stava qui difendeva una distinzione — «sui sei elenchi che
+    leggono l'ordine funzionano, altrove sono inerti» — e il principio era
+    giusto: «un comando che finge di funzionare è peggio di un comando che
+    manca». ⚠️ **Ma anche dove "funzionavano" fingevano a metà**: le righe di
+    questo pannello sono sempre in ordine di DEFINIZIONE, mentre la freccia
+    spostava la colonna in `columnOrder`, cioè nella tabella dietro il
+    pannello. Si premeva e nel pannello non si muoveva niente. E poiché
+    `columnOrder` contiene anche le colonne nascoste, una pressione su due
+    scambiava con una colonna invisibile: nessun effetto nemmeno nella tabella.
+
+    ⭐ Ora l'ordine è quello dichiarato ovunque, e non c'è più niente da
+    spegnere: le spunte mostra/nascondi e il blocco a sinistra restano.
+  */
 
   /*
     ⭐ **A sola icona**, per le barre strette. Il nome resta nell'`aria-label`:
@@ -100,14 +98,6 @@ export class TableColumnPickerComponent {
 
   protected toggleColumn(columnId: string): void {
     this.preferences.toggleColumn(this.viewId(), columnId);
-  }
-
-  protected moveUp(columnId: string): void {
-    this.preferences.moveColumn(this.viewId(), columnId, -1);
-  }
-
-  protected moveDown(columnId: string): void {
-    this.preferences.moveColumn(this.viewId(), columnId, 1);
   }
 
   protected togglePin(columnId: string): void {
