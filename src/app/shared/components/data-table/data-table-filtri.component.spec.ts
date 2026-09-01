@@ -112,8 +112,7 @@ describe('i controlli compaiono solo a filtri ACCESI', () => {
     await apriConFiltriAccesi(true);
     expect(screen.getByLabelText('Filtra per Stato')).toBeTruthy();
     expect(screen.getByLabelText('Filtra per Codice')).toBeTruthy();
-    expect(screen.getByLabelText('Totale da')).toBeTruthy();
-    expect(screen.getByLabelText('Totale a')).toBeTruthy();
+    expect(screen.getByLabelText('Filtra per Totale')).toBeTruthy();
   });
 
   /*
@@ -127,16 +126,31 @@ describe('i controlli compaiono solo a filtri ACCESI', () => {
   });
 });
 
-describe('la forma del controllo si DEDUCE dalla colonna', () => {
+describe('il controllo è UNO, e il tipo dice solo cosa offre in più', () => {
   /*
-    ⭐ La deduzione è già scritta e provata in `table-column-filter.util`: qui si
-    verifica che il motore la **usi**, non che sia giusta.
+    ⛔ **Qui si verificava che le forme fossero DIVERSE** — «values → un menu,
+    text → una ricerca, range → due estremi» — cioè esattamente il difetto che
+    il proprietario ha visto il 01/09/2026: «alcuni funzionano in un modo ed
+    altri in un altro, e non ha senso».
+
+    ⭐ Ora ogni colonna ha lo stesso trigger; a cambiare è cosa c'è nel pannello.
   */
-  it('⭐ values → un menu, text → una ricerca, range → due estremi', async () => {
+  it('⭐ ogni colonna filtrabile ha lo stesso trigger, un pulsante', async () => {
     await apriConFiltriAccesi(true);
 
-    expect(screen.getByLabelText('Filtra per Stato').tagName).not.toBe('INPUT');
-    expect(screen.getByLabelText<HTMLInputElement>('Filtra per Codice').type).toBe('search');
+    for (const nome of ['Filtra per Stato', 'Filtra per Codice', 'Filtra per Totale']) {
+      expect(screen.getByLabelText(nome).tagName).toBe('BUTTON');
+    }
+  });
+
+  it('⚠️ gli estremi di una colonna numerica stanno DENTRO il suo pannello', async () => {
+    const { reso } = await apriConFiltriAccesi(true);
+
+    expect(screen.queryByLabelText('Totale da')).toBeNull();
+
+    screen.getByLabelText('Filtra per Totale').click();
+    reso.fixture.detectChanges();
+
     expect(screen.getByLabelText('Totale da')).toBeTruthy();
     expect(screen.getByLabelText('Totale a')).toBeTruthy();
   });
@@ -191,12 +205,16 @@ describe('il motore SCRIVE, non filtra', () => {
   it('un valore scelto finisce nello store della vista', async () => {
     const { reso, store } = await apriConFiltriAccesi(true);
 
-    const cerca = screen.getByLabelText<HTMLInputElement>('Filtra per Codice');
+    // ⚠️ Il testo si scrive nella ricerca del PANNELLO, che va aperto.
+    screen.getByLabelText('Filtra per Codice').click();
+    reso.fixture.detectChanges();
+
+    const cerca = screen.getByLabelText<HTMLInputElement>('Cerca fra i valori di Codice');
     cerca.value = 'FT-2';
     cerca.dispatchEvent(new Event('input'));
     reso.fixture.detectChanges();
 
-    expect(store.stato(VISTA)()['codice']).toEqual({ kind: 'text', text: 'FT-2' });
+    expect(store.stato(VISTA)()['codice']).toMatchObject({ text: 'FT-2' });
   });
 
   /*

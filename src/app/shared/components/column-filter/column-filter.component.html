@@ -1,132 +1,142 @@
-@switch (kind()) {
-  @case ('values') {
-    <!--
-      ⭐ **Le scelte sono i valori PRESENTI nelle righe**, non un elenco
-      dichiarato: così non c'è una voce che non dà risultati.
+<!--
+  ⭐ **UN SOLO CONTROLLO PER OGNI COLONNA** — proprietario, 01/09/2026:
+  «andrebbe creato un unico pezzo da applicare sulle colonne. Per esempio città
+  contiene il sistema per selezionare o filtrare, ma altri campi no, solo
+  filtrare scrivendo, e non ha senso».
 
-      ⚠️ `labelOnly` tiene la larghezza stabile: in un'intestazione di colonna il
-      controllo non deve allargarsi col valore scelto, o la tabella balla.
+  ⛔ **Qui c'era uno `@switch (kind())` con QUATTRO controlli diversi**: un menu
+  per i valori, un campo di ricerca per il testo, due caselle numeriche per gli
+  intervalli, due campi data. La forma la decideva la PRESENTAZIONE della
+  colonna — `display: 'code'` o `'truncate'` mandavano a «testo» — quindi la
+  stessa colonna filtrava in un modo o nell'altro per una decisione che con il
+  filtro non c'entra niente.
+
+  ⭐ **La forma è quella di Danea**, che il proprietario ha mandato: una tendina
+  sola, con dentro l'elenco dei valori spuntabili e — quando la colonna è una
+  data o un numero — le scorciatoie e gli estremi. «Selezionare o filtrare»
+  ovunque, non l'uno o l'altro a seconda della colonna.
+-->
+<app-select-menu
+  [options]="menuOptions()"
+  [multiple]="true"
+  [values]="selezionati()"
+  [ariaLabel]="etichettaControllo()"
+  [chipLabel]="columnLabel()"
+  [triggerIcon]="escludendo() ? 'pi-ban' : undefined"
+  placeholder="Tutti"
+  [compact]="true"
+  [iconOnly]="true"
+  [highlighted]="qualcosaDaTogliere()"
+  [includeEmptyOption]="false"
+  [searchable]="true"
+  searchPlaceholder="Cerca o scrivi per filtrare…"
+  [searchAriaLabel]="'Cerca fra i valori di ' + columnLabel()"
+  [searchValue]="testo()"
+  (valuesChange)="onValues($event)"
+  (searchChange)="onRicerca($event)"
+>
+  <div panelLead class="column-filter__testa">
+    <!--
+      ⭐ **Il verso e il «Tutti» stanno nel pannello**, non in barra: agiscono
+      sulle opzioni di QUESTO menu (`regole-stile-ui` §5, slot `panelLead`).
     -->
-    <app-select-menu
-      [options]="menuOptions()"
-      [multiple]="true"
-      [values]="selezionati()"
-      [ariaLabel]="etichettaValori()"
-      [chipLabel]="columnLabel()"
-      [triggerIcon]="escludendo() ? 'pi-ban' : undefined"
-      placeholder="Tutti"
-      [compact]="true"
-      [labelOnly]="true"
-      [fullWidth]="true"
-      [includeEmptyOption]="false"
-      [searchable]="true"
-      [searchPlaceholder]="'Cerca fra i valori…'"
-      [searchAriaLabel]="'Cerca fra i valori di ' + columnLabel()"
-      (valuesChange)="onValues($event)"
-    >
+    <span class="column-filter__mode">
+      <app-segmented
+        [flat]="true"
+        [options]="MODI"
+        [value]="escludendo() ? 'escludi' : 'includi'"
+        [ariaLabel]="'Verso del filtro ' + columnLabel()"
+        (valueChange)="onModo($event)"
+      />
       <!--
-        ⭐ **IL VERSO E IL «TUTTI» STANNO NEL PANNELLO**, non in barra: agiscono
-        sulle opzioni di QUESTO menu, e fuori tornerebbero a sembrare una
-        seconda dimensione di filtro — che è il difetto per cui «Ambito» è stato
-        ritirato dai Corrispettivi (`regole-stile-ui` §5, slot `panelLead`).
+        ⚠️ **«Tutti» è il `(Tutto)` di Danea, e qui SVUOTA**: in questo modello
+        «nessuna restrizione» è già «tutte le righe». Spuntarle a una a una
+        darebbe lo stesso risultato con venti clic e un filtro che sembra acceso.
       -->
-      <span panelLead class="column-filter__mode">
-        <app-segmented
-          [flat]="true"
-          [options]="MODI"
-          [value]="escludendo() ? 'escludi' : 'includi'"
-          [ariaLabel]="'Verso del filtro ' + columnLabel()"
-          (valueChange)="onModo($event)"
+      <button
+        type="button"
+        class="column-filter__all"
+        [disabled]="!qualcosaDaTogliere()"
+        [attr.aria-label]="'Mostra tutti i valori di ' + columnLabel()"
+        (click)="onTutti()"
+      >
+        Tutti
+      </button>
+    </span>
+
+    <!--
+      ⛔ **QUI C'ERANO LE SCORCIATOIE DI PERIODO** — «Anno corrente», «Mese
+      corrente», «Mese scorso», come in Danea. Tolte il 01/09/2026 dal
+      proprietario, che le ha viste a schermo: «avere nei filtri gli stessi
+      filtri presenti nel periodo mi sembra ripetitivo».
+
+      Ha ragione, e la ragione è che VestiFlow ha già un filtro **Periodo** in
+      barra, sempre visibile, che fa esattamente quello. In Danea quel filtro
+      non c'è, e le scorciatoie nel menu ne prendevano il posto.
+
+      ⏸ Resta una sua proposta, non ancora decisa: portare «Oggi» e «Ieri» nel
+      Periodo della barra (`DA-FARE`).
+    -->
+    <!--
+      ⭐ **Gli estremi stanno DENTRO il pannello**, ed è la correzione che il
+      proprietario ha visto per primo: nell'intestazione i due campi data
+      mostravano «12/06/:» — la data tagliata a metà — e il calendario, largo
+      quanto un campo da 43px, era una griglia di numeri sovrapposti.
+
+      ⚠️ Qui la larghezza è quella del pannello, non della colonna.
+    -->
+    @if (kind() === 'date') {
+      <span class="column-filter__estremi">
+        <app-date-input
+          [inputId]="campoDalId"
+          [value]="dal()"
+          [ariaLabel]="columnLabel() + ' dal'"
+          placeholder="GG/MM/AAAA"
+          [compact]="true"
+          [fullWidth]="true"
+          (valueChange)="onDal($event)"
         />
-        <!--
-          ⚠️ **«Tutti» è il `(Tutto)` di Danea, e qui SVUOTA la selezione**: in
-          questo modello «nessun valore scelto» è già «nessuna restrizione», cioè
-          tutte le righe. Spuntarli tutti a uno a uno darebbe lo stesso
-          risultato con venti clic e un filtro che sembra attivo.
-        -->
-        <button
-          type="button"
-          class="column-filter__all"
-          [disabled]="selezionati().length === 0"
-          [attr.aria-label]="'Mostra tutti i valori di ' + columnLabel()"
-          (click)="onTutti()"
-        >
-          Tutti
-        </button>
+        <span class="column-filter__a" aria-hidden="true">→</span>
+        <app-date-input
+          [inputId]="campoAlId"
+          [value]="al()"
+          [ariaLabel]="columnLabel() + ' al'"
+          placeholder="GG/MM/AAAA"
+          [compact]="true"
+          [fullWidth]="true"
+          (valueChange)="onAl($event)"
+        />
       </span>
-    </app-select-menu>
-  }
+    }
 
-  @case ('text') {
-    <input
-      type="search"
-      class="column-filter__text"
-      [id]="campoTestoId"
-      [value]="testo()"
-      [attr.aria-label]="'Filtra per ' + columnLabel()"
-      placeholder="Contiene…"
-      (input)="onText($event)"
-    />
-  }
-
-  @case ('range') {
-    <!--
-      ⚠️ **Due campi e non uno**: un intervallo ha due estremi indipendenti, e
-      ognuno può restare vuoto. Il tastierino decimale si apre da sé
-      sul telefono senza rifiutare il segno meno, che serve su resi e rettifiche.
-    -->
-    <span class="column-filter__range">
-      <input
-        type="text"
-        inputmode="decimal"
-        class="column-filter__number"
-        [id]="campoDaId"
-        [value]="minimo() ?? ''"
-        [attr.aria-label]="columnLabel() + ' da'"
-        placeholder="da"
-        (input)="onMin($event)"
-      />
-      <input
-        type="text"
-        inputmode="decimal"
-        class="column-filter__number"
-        [id]="campoAId"
-        [value]="massimo() ?? ''"
-        [attr.aria-label]="columnLabel() + ' a'"
-        placeholder="a"
-        (input)="onMax($event)"
-      />
-    </span>
-  }
-
-  @case ('date') {
-    <!--
-      ⛔ **Due campi DATA, non due caselle numeriche.** Una colonna data
-      dichiarata `range` mostrava due caselle in cui non c'è niente da scrivere:
-      su una data si sceglie un giorno, non si digita un numero.
-
-      ⚠️ Il valore viaggia in ISO — è quello che `app-date-input` emette, ed è
-      l'unico formato in cui il confronto fra stringhe è già quello giusto.
-    -->
-    <span class="column-filter__range">
-      <app-date-input
-        [inputId]="campoDalId"
-        [value]="dal()"
-        [ariaLabel]="columnLabel() + ' dal'"
-        placeholder="dal"
-        [compact]="true"
-        [fullWidth]="true"
-        (valueChange)="onDal($event)"
-      />
-      <app-date-input
-        [inputId]="campoAlId"
-        [value]="al()"
-        [ariaLabel]="columnLabel() + ' al'"
-        placeholder="al"
-        [compact]="true"
-        [fullWidth]="true"
-        (valueChange)="onAl($event)"
-      />
-    </span>
-  }
-}
+    @if (kind() === 'range') {
+      <span class="column-filter__estremi">
+        <!--
+          ⚠️ **Il tastierino decimale, ma non `type="number"`**: il segno meno
+          serve su resi e rettifiche, e la virgola è il separatore italiano.
+        -->
+        <input
+          type="text"
+          inputmode="decimal"
+          class="column-filter__number"
+          [id]="campoDaId"
+          [value]="minimo() ?? ''"
+          [attr.aria-label]="columnLabel() + ' da'"
+          placeholder="da"
+          (input)="onMin($event)"
+        />
+        <span class="column-filter__a" aria-hidden="true">→</span>
+        <input
+          type="text"
+          inputmode="decimal"
+          class="column-filter__number"
+          [id]="campoAId"
+          [value]="massimo() ?? ''"
+          [attr.aria-label]="columnLabel() + ' a'"
+          placeholder="a"
+          (input)="onMax($event)"
+        />
+      </span>
+    }
+  </div>
+</app-select-menu>

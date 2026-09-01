@@ -1,13 +1,20 @@
 /*
-  ⭐ **Il controllo di filtro di una colonna.**
+  ⭐ **Il controllo di filtro di una colonna — uno solo.**
 
   ⚠️ **Non dichiara una larghezza propria**: la prende dalla colonna che lo
   ospita. Un controllo più largo della sua intestazione allargherebbe la colonna,
   cioè userebbe il filtro per decidere il layout della tabella.
 */
+/*
+  ⛔ **QUI C'ERA `display: block; inline-size: 100%`**, ed era giusto finché il
+  controllo era una casella sotto il titolo. Da quando è una freccia accanto al
+  titolo è il difetto che schiaccia l'intestazione: misurato in un browser il
+  01/09/2026 — il filtro largo 144px su 144 disponibili, e «P. IVA» a larghezza
+  ZERO, presente nel DOM e invisibile a schermo.
+*/
 :host {
-  display: block;
-  inline-size: 100%;
+  display: inline-flex;
+  inline-size: auto;
   min-inline-size: 0;
 
   /*
@@ -19,84 +26,139 @@
   --field-height: var(--control-h-cell);
   --field-font-size: var(--text-3xs);
   --field-pad-inline: var(--space-1);
-}
 
-.column-filter__text,
-.column-filter__number {
-  inline-size: 100%;
-  min-inline-size: 0;
-  block-size: var(--control-h-cell);
-  padding-inline: var(--space-1);
-  font-family: inherit;
-  font-size: var(--text-3xs);
-  color: var(--color-text);
-  background-color: var(--color-surface);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-sm);
-}
+  /*
+    ⭐ **IL PANNELLO È LARGO QUANTO SERVE A LUI, NON QUANTO LA COLONNA.**
 
-.column-filter__text::placeholder,
-.column-filter__number::placeholder {
-  color: var(--color-text-subtle);
-}
+    ⛔ È il difetto che il proprietario ha fotografato per primo: dentro
+    l'intestazione i due campi data mostravano «12/06/:» — la data tagliata a
+    metà — e il calendario, forzato alla larghezza del campo, era una griglia di
+    numeri sovrapposti («lumagivesado», «789101123»).
 
-.column-filter__text:focus-visible,
-.column-filter__number:focus-visible {
-  border-color: var(--color-focus);
-  outline: none;
-  box-shadow: 0 0 0 var(--border-width-strong) var(--color-focus-ring-alpha);
-}
+    ⚠️ **`--select-menu-width` non basta**: quella è la larghezza del TRIGGER.
+    Il pannello ha le sue, e il default è `100%` del trigger.
+  */
+  /*
+    ⚠️ **Stretto e ALTO** — proprietario, 01/09/2026: «le tabelle dei filtri
+    sono larghe inutilmente e poco alte, tagliano molto i risultati in
+    verticale».
 
-/* Due estremi affiancati, ognuno metà dello spazio. */
-.column-filter__range {
-  display: flex;
-  gap: var(--space-1);
-  min-inline-size: 0;
-}
+    ⛔ Erano 15rem di minimo con 16rem di altezza: un riquadro quasi quadrato
+    che di un elenco di date ne mostrava quattro. Un elenco di valori si legge
+    in colonna — largo quanto il valore, lungo quanto serve.
+  */
+  --select-menu-panel-min-width: 12rem;
+  --select-menu-panel-max-width: 20rem;
+  --select-menu-panel-max-height: 26rem;
 
-.column-filter__range > * {
-  flex: 1 1 0;
-  min-inline-size: 0;
+  /*
+    ⭐ **La ricerca alla scala del pannello** — proprietario, 01/09/2026: «la
+    scritta "cerca" è troppo marcata e sproporzionata a tutto vestiflow».
+
+    Il default del menu è 13px su fondo grigio pagina: giusto dove la ricerca è
+    il comando principale, fuori scala dentro una tendina in cui le voci stanno
+    a 11px e l'intestazione a 10. Qui scende di un gradino e perde il fondo
+    pieno — resta un campo, non un blocco.
+  */
+  --select-menu-search-font-size: var(--text-xs);
+  --select-menu-search-font-weight: var(--font-weight-regular);
+  --select-menu-search-bg: var(--color-surface);
+  /*
+    ⚠️ **Il segnaposto non è un grigio da sfondo**: a 12px su bianco
+    `--color-text-subtle` sparisce, ed è il campo che spiega come si filtra.
+  */
+  --select-menu-search-placeholder: var(--color-text-muted);
+
+  /*
+    ⭐ **TUTTO IL PANNELLO SU UNA COLONNA SOLA** — proprietario, 01/09/2026,
+    indicando l'elenco dei valori rientrato rispetto alla ricerca.
+
+    Il testo di una voce comincia dopo TRE cose: il padding del pulsante
+    (`--space-2`), il segnaposto della spunta (`--space-4`) e il `gap`
+    (`--space-2`) — 32px, misurati in un browser. La ricerca e la testa
+    prendono lo stesso rientro, e le quattro cose — comandi, periodi, date,
+    valori — partono dallo stesso punto.
+
+    ⚠️ **Ventiquattro non bastavano**: il padding del pulsante l'avevo
+    dimenticato, e a schermo restavano otto pixel di scarto.
+  */
+  --select-menu-search-inset: calc(var(--space-2) + var(--space-4) + var(--space-2));
+  --select-menu-lead-inset: calc(var(--space-2) + var(--space-4) + var(--space-2));
+
+  /*
+    ⭐ **E il calendario prende la larghezza del PANNELLO**, non quella del suo
+    campo: dentro sta una griglia di sette giorni più due frecce, che sotto i
+    ~14rem non si compone.
+
+    ⚠️ `--date-input-panel-*` sono i punti di regolazione che `date-input` già
+    espone — li usa anche la testata documento sul telefono, per lo stesso
+    motivo: campo stretto, calendario largo.
+  */
+  --date-input-panel-w: 14rem;
+  --date-input-panel-min-w: 14rem;
+  --date-input-panel-max-w: none;
 }
 
 /*
-  ⚠️ **I numeri si leggono incolonnati** anche qui: sono gli estremi di un
-  intervallo, e chi li confronta guarda le cifre.
-*/
-.column-filter__number {
-  font-variant-numeric: tabular-nums;
-  text-align: end;
-}
-
-/*
-  ⭐ **La testa del pannello a valori**: il verso a sinistra, «Tutti» a destra.
+  La testa del pannello: verso e «Tutti», poi — se la colonna è una data o un
+  numero — le scorciatoie e gli estremi.
 
   ⚠️ **Il filo sotto la separa dalle opzioni**, e non è decorazione: sono
   comandi che agiscono SULLE opzioni, e senza stacco si leggerebbero come le
-  prime due voci dell'elenco.
+  prime voci dell'elenco.
 */
+.column-filter__testa {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-block-end: var(--space-2);
+  border-block-end: var(--border-width) solid var(--color-border);
+
+  /*
+    ⚠️ **Qui dentro i controlli tornano a taglia NORMALE.** L'host li stringe
+    alla misura di una cella di intestazione (24px), che è giusta per il trigger
+    e sbagliata per un campo dove si scrive una data: nel pannello lo spazio c'è.
+  */
+  --field-height: var(--control-h-button);
+  /*
+    ⭐ **Le date del pannello alla taglia delle date in COLONNA** —
+    proprietario, 01/09/2026: «le date sembrano un font diverso e più grande
+    rispetto alle date in colonna». Il corpo della tabella è `--text-xs`, e una
+    data che si confronta con quella della riga sotto deve avere la stessa
+    misura.
+  */
+  --field-font-size: var(--text-xs);
+  --field-pad-inline: var(--space-2);
+}
+
 .column-filter__mode {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  padding-block-end: var(--space-1);
-  border-block-end: var(--border-width) solid var(--color-border);
+  /* ⚠️ Il verso è un comando, non un titolo: peso normale come il resto. */
+  --segmented-font-weight: var(--font-weight-regular);
 }
 
 /*
-  ⚠️ **Non è `app-button`**: qui dentro la taglia è quella della barra densa
-  (`--control-h-cell`), e un pulsante condiviso porterebbe la propria altezza
-  minima dentro un pannello alto quanto una riga di menu.
+  ⚠️ **Non è `app-button`**: qui la taglia è quella della barra densa, e un
+  pulsante condiviso porterebbe la propria altezza minima dentro un pannello
+  alto quanto una riga di menu.
+*/
+/*
+  ⚠️ **Contrasto pieno, non il colore del link** — proprietario, 01/09/2026: «i
+  font sopra sono poco leggibili, poco contrasto». Su fondo bianco
+  `--color-link` è un azzurro smorzato a 11px: si legge male proprio nella riga
+  di comandi che si guarda per prima.
 */
 .column-filter__all {
   flex: none;
   padding: 0 var(--space-2);
   block-size: var(--control-h-button);
   font-family: inherit;
-  font-size: var(--text-2xs);
+  font-size: var(--text-xs);
   font-weight: var(--font-weight-medium);
-  color: var(--color-link);
+  color: var(--color-text);
   background: none;
   border: 0;
   border-radius: var(--radius-sm);
@@ -108,16 +170,114 @@
 }
 
 /*
-  ⚠️ **Spento quando non c'è niente da togliere**: senza selezione «Tutti» è già
-  lo stato corrente, e un comando che non fa niente insegna a non fidarsi degli
-  altri.
+  ⚠️ **Spento quando non c'è niente da togliere**: senza restrizioni «Tutti» è
+  già lo stato corrente, e un comando che non fa niente insegna a non fidarsi
+  degli altri.
 */
 .column-filter__all:disabled {
   color: var(--color-text-subtle);
   cursor: default;
 }
 
-.column-filter__all:focus-visible {
+.column-filter__all:focus-visible,
+.column-filter__scorciatoia:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-focus);
   outline-offset: var(--space-05);
+}
+
+/*
+  ⭐ **Le scorciatoie di periodo**, nella forma di Danea: «Anno corrente»,
+  «Mese corrente», «Mese scorso». Vanno a capo insieme, perché tre etichette
+  intere non stanno in una riga da 15rem.
+*/
+.column-filter__scorciatoie {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+/*
+  ⛔ **QUI LE SCORCIATOIE ERANO PASTIGLIE, E SONO STATE RESPINTE** —
+  proprietario, 01/09/2026: «togliere le card e aumentargli il font che sono
+  piccoli».
+
+  Erano tre riquadri da 10px con fondo, bordo e raggio: in un pannello che ha
+  già il proprio riquadro, tre scatole dentro una scatola. Ora sono **testo**,
+  alla taglia del corpo tabella.
+*/
+.column-filter__scorciatoia {
+  padding: 0 var(--space-1);
+  block-size: var(--control-h-button);
+  font-family: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-link);
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.column-filter__scorciatoia:hover {
+  background-color: var(--color-primary-subtle);
+}
+
+/*
+  ⚠️ **Senza pastiglia lo stato acceso lo dicono COLORE E PESO**: era il fondo
+  pieno, che con le card è sparito. Il testo da solo, se non cambiasse, non
+  direbbe quale delle tre è attiva.
+*/
+.column-filter__scorciatoia--attiva {
+  color: var(--color-primary);
+  font-weight: var(--font-weight-semibold);
+  background-color: var(--color-primary-subtle);
+}
+
+/* Due estremi affiancati, ognuno metà dello spazio, con la freccia in mezzo. */
+.column-filter__estremi {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.column-filter__estremi > app-date-input,
+.column-filter__estremi > .column-filter__number {
+  flex: 1 1 0;
+  min-inline-size: 0;
+}
+
+.column-filter__a {
+  flex: none;
+  font-size: var(--text-3xs);
+  color: var(--color-text-subtle);
+}
+
+.column-filter__number {
+  inline-size: 100%;
+  min-inline-size: 0;
+  block-size: var(--control-h-button);
+  padding-inline: var(--space-2);
+  font-family: inherit;
+  font-size: var(--text-2xs);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  /*
+    ⚠️ **I numeri si leggono incolonnati** anche qui: sono gli estremi di un
+    intervallo, e chi li confronta guarda le cifre.
+  */
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.column-filter__number::placeholder {
+  color: var(--color-text-subtle);
+}
+
+.column-filter__number:focus-visible {
+  border-color: var(--color-focus);
+  outline: none;
+  box-shadow: 0 0 0 var(--border-width-strong) var(--color-focus-ring-alpha);
 }

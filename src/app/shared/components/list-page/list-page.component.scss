@@ -487,6 +487,16 @@
   position: relative;
   flex: 1 1 auto;
   min-inline-size: 0;
+  /*
+    ⭐ **La ricerca è larga quanto una ricerca** — proprietario, 01/09/2026: «è
+    inutile averla enorme, deve essere più corta e meno alta».
+
+    ⚠️ **Va ridichiarato QUI**: il mixin `list-page` porta già il tetto, ma
+    questo blocco ridichiara `.list-page__search` con la stessa specificità e
+    viene dopo — quindi vince. Misurato: tetto nel mixin, `max-inline-size:
+    none` calcolato, casella larga 1030px su una finestra da 1440.
+  */
+  max-inline-size: var(--field-w-xl);
 
   /*
     ⭐ **Sul telefono la ricerca prende la riga intera**: è un campo di testo, e

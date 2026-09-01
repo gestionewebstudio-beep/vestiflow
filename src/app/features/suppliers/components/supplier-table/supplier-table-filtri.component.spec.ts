@@ -241,11 +241,19 @@ describe('Fornitori — i filtri di colonna, come li usa l’operatore', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /Filtri/ }));
     reso.fixture.detectChanges();
-    await userEvent.type(screen.getByLabelText('Filtra per Ragione sociale'), 'zzz');
+
+    // ⚠️ Il testo si scrive nella ricerca del PANNELLO, che va aperto.
+    await userEvent.click(screen.getByRole('button', { name: 'Filtra per Ragione sociale' }));
+    reso.fixture.detectChanges();
+    await userEvent.type(screen.getByLabelText('Cerca fra i valori di Ragione sociale'), 'zzz');
     reso.fixture.detectChanges();
 
     expect(righeVisibili()).toBe(0);
     expect(screen.getByText(/Nessuna riga corrisponde ai filtri/)).toBeTruthy();
-    expect(screen.getByLabelText('Filtra per Ragione sociale')).toBeTruthy();
+    /*
+      ⚠️ **`getByRole`, non `getByLabelText`**: aperto, il pannello porta lo
+      stesso `aria-label` del trigger — l'etichetta ne troverebbe due.
+    */
+    expect(screen.getByRole('button', { name: 'Filtra per Ragione sociale' })).toBeTruthy();
   });
 });

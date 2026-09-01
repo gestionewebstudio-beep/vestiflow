@@ -14,17 +14,27 @@
     display: block;
   }
 
+  /*
+    ⭐ **OGNI PIXEL TOLTO QUI LO PRENDE L'ELENCO** — proprietario, 01/09/2026:
+    «diminuire margini inutili per avere il contenitore delle righe più grande
+    possibile».
+
+    ⛔ Qui il passo fra le zone era `--space-5` (20px), e le zone sono tre o
+    quattro: testata, barra strumenti, elenco, piede. Sessanta pixel di vuoto
+    prima della prima riga, su una pagina che «cede solo l'elenco»
+    (`regole-stile-ui` §6) — cioè sessanta pixel presi alle righe.
+  */
   .#{$block} {
     display: flex;
     flex-direction: column;
-    gap: var(--space-5);
+    gap: var(--space-2);
   }
 
   .#{$block}__header {
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    gap: var(--space-3);
+    gap: var(--space-2);
   }
 
   @include bp.media-up('md') {
@@ -88,27 +98,42 @@
     gap: var(--space-2);
   }
 
+  /*
+    ⭐ **La ricerca è larga quanto una ricerca, non quanto la pagina** —
+    proprietario, 01/09/2026: «è inutile averla enorme, deve essere più corta e
+    meno alta».
+
+    ⛔ Il tetto era `--content-narrow` (640px): su una finestra da 1440 la
+    casella arrivava a metà schermo per ospitare «Cerca per nome, codice o
+    P. IVA…». Ventidue rem bastano al segnaposto più lungo, e il resto della
+    riga torna ai comandi.
+  */
   .#{$block}__search {
     position: relative;
     flex: 1 1 auto;
-    max-inline-size: var(--content-narrow);
+    max-inline-size: var(--field-w-xl);
   }
 
   .#{$block}__search-icon {
     position: absolute;
     inset-block-start: 50%;
-    inset-inline-start: var(--space-3);
+    inset-inline-start: var(--space-2);
     transform: translateY(-50%);
-    font-size: var(--text-sm);
+    font-size: var(--text-xs);
     color: var(--color-text-subtle);
     pointer-events: none;
   }
 
+  /*
+    ⚠️ **Alla taglia dei comandi che le stanno accanto**: «Colonne» e «Filtri»
+    sono alti `--control-h-button`, e una casella più alta di loro fa alzare
+    tutta la barra — cioè toglie una fascia all'elenco.
+  */
   .#{$block}__input {
     inline-size: 100%;
-    block-size: var(--field-height);
-    padding-inline: var(--space-8) var(--space-3);
-    font-size: var(--text-base);
+    block-size: var(--control-h-button);
+    padding-inline: var(--space-6) var(--space-2);
+    font-size: var(--text-xs);
     color: var(--color-text);
     background-color: var(--color-surface);
     border: var(--border-width) solid var(--color-border-strong);

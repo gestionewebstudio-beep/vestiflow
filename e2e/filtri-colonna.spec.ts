@@ -73,7 +73,9 @@ test.describe('Filtri di colonna — resa nel browser', () => {
   test('⛔ scrivere in un filtro di testo restringe l’elenco', async ({ page }) => {
     await apriElencoConFiltri(page);
 
-    const campo = page.getByLabel('Filtra per Codice');
+    // ⚠️ Il testo si scrive nella ricerca del PANNELLO, che va aperto.
+    await page.getByRole('button', { name: 'Filtra per Codice' }).click();
+    const campo = page.getByLabel('Cerca fra i valori di Codice');
     await expect(campo).toBeVisible();
     await campo.fill('0003');
 

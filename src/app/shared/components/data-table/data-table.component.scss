@@ -132,7 +132,17 @@
   elenchi — la densità di un elenco non è una decisione che li riguarda.
 */
 .data-table thead th {
-  font-size: var(--text-3xs);
+  /*
+    ⭐ **11px** — proprietario, 01/09/2026: «proviamo a mettere le intestazioni
+    delle colonne a 11px, attualmente è 10».
+
+    ⛔ Qui c'erano 10 (`--text-3xs`), scesi il 30/08 insieme al resto della
+    densità. Con la riga filtri sotto ogni titolo quella misura reggeva; da
+    quando il filtro è una freccia accanto al titolo, l'intestazione è tornata
+    a essere una riga sola — e a 10px si leggeva più piccola di quanto la sua
+    importanza meriti.
+  */
+  font-size: var(--text-2xs);
 
   /*
     ⭐ **Intestazione più stretta in verticale** — «la riga delle intestazioni
@@ -1128,9 +1138,21 @@
   telaio li mostra e li nasconde: spenti, la riga torna alta quanto prima e la
   tabella recupera le due righe di contenuto.
 */
+/*
+  ⭐ **IL FILTRO STA ACCANTO AL TITOLO, NON SOTTO** — proprietario, 01/09/2026:
+  «con questo sistema di ricerca nei filtri, ha senso che compare un'altra
+  casellina sotto all'intestazione della colonna?».
+
+  ⛔ **No: era una casella a tutta larghezza per OGNI colonna**, che apriva una
+  tendina in cui il nome del filtro è già scritto. Costava una fascia di
+  intestazione su tutta la tabella, cioè righe di dati in meno.
+
+  ⭐ È la forma del riferimento Danea: una piccola freccia nella cella del
+  titolo, e tutto il resto dentro la tendina.
+*/
 .data-table__filter {
-  display: block;
-  margin-block-start: var(--space-1);
+  flex: none;
+  margin-inline-start: auto;
   /*
     ⚠️ **`normal`, non il `nowrap` ereditato**: la grammatica degli elenchi
     dichiara il taglio a colonna su ogni cella, e un controllo tagliato a metà
@@ -1172,9 +1194,40 @@
   quando ospita un filtro, cioè solo a filtri accesi: le altre intestazioni
   continuano a tagliare come prima.
 */
+/*
+  ⚠️ **La cella diventa una FILA**: titolo a sinistra, freccia del filtro a
+  destra. Prima il filtro era un blocco sotto il titolo e la cella si allineava
+  in alto; ora stanno sulla stessa riga e si allineano al centro.
+*/
 .data-table__head th:has(.data-table__filter) {
-  vertical-align: top;
   overflow: visible;
+}
+
+/*
+  ⭐ **La fila sta DENTRO la cella**: titolo a sinistra, freccia del filtro a
+  destra.
+
+  ⛔ **Non si fa sul `<th>`**, ed è stato provato: un `th` con `display: flex`
+  esce dal modello tabellare — smette di essere una cella — e le colonne
+  collassano. Misurato a schermo il 01/09/2026: intestazioni sparite, frecce a
+  gradini, e `tsc` pulito.
+*/
+.data-table__head-riga {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+
+/*
+  ⚠️ **Il titolo cede, la freccia no**: con un'intestazione lunga a stringersi
+  dev'essere il testo — che si taglia — non il bersaglio da premere.
+*/
+.data-table__head-riga > .data-table__head-label,
+.data-table__head-riga > .data-table__sort {
+  flex: 1 1 auto;
+  min-inline-size: 0;
 }
 
 /*

@@ -23,47 +23,58 @@
             [attr.aria-sort]="canSort(col) ? ariaSort(col.id) : null"
           >
             <!--
+              ⭐ **UNA FILA DENTRO LA CELLA: titolo e freccia del filtro.**
+
+              ⛔ **La fila NON si fa sul `<th>`.** Provato il 01/09/2026 e visto
+              a schermo: un `th` con `display: flex` esce dal modello
+              tabellare — smette di essere una cella — e le colonne collassano.
+              Le intestazioni sparivano e restavano le sole frecce, a gradini.
+
+              ⚠️ **E `tsc` non lo prende**: era pulito. Lo prende il browser.
+            -->
+            <span class="data-table__head-riga">
+              <!--
               L'intestazione diventa un pulsante SOLO dove si può ordinare: un
               `<th>` cliccabile senza esserlo davvero è una promessa mancata, e
               da tastiera non si raggiungerebbe.
             -->
-            @if (canSort(col)) {
-              <button
-                type="button"
-                class="data-table__sort"
-                [attr.aria-label]="sortLabel(col)"
-                (click)="onSort(col)"
-              >
-                <span>{{ col.label }}</span>
-                @if (isSorted(col.id)) {
-                  <i
-                    class="pi data-table__sort-icon"
-                    [class.pi-sort-amount-up-alt]="sortDirection(col.id) === 'asc'"
-                    [class.pi-sort-amount-down]="sortDirection(col.id) === 'desc'"
-                    aria-hidden="true"
-                  ></i>
-                  <!--
+              @if (canSort(col)) {
+                <button
+                  type="button"
+                  class="data-table__sort"
+                  [attr.aria-label]="sortLabel(col)"
+                  (click)="onSort(col)"
+                >
+                  <span>{{ col.label }}</span>
+                  @if (isSorted(col.id)) {
+                    <i
+                      class="pi data-table__sort-icon"
+                      [class.pi-sort-amount-up-alt]="sortDirection(col.id) === 'asc'"
+                      [class.pi-sort-amount-down]="sortDirection(col.id) === 'desc'"
+                      aria-hidden="true"
+                    ></i>
+                    <!--
                     ⭐ Il numero compare SOLO con più chiavi attive: con una sola la
                     freccia basta, e un «1» perenne sarebbe rumore. Con due o tre,
                     è l’unica cosa che dice quale comanda.
                   -->
-                  @if (sortRank(col.id); as posizione) {
-                    <span class="data-table__sort-rank" aria-hidden="true">{{ posizione }}</span>
+                    @if (sortRank(col.id); as posizione) {
+                      <span class="data-table__sort-rank" aria-hidden="true">{{ posizione }}</span>
+                    }
                   }
-                }
-              </button>
-            } @else {
-              <!--
+                </button>
+              } @else {
+                <!--
                 ⚠️ **L'etichetta ha un contenitore proprio**, e non è cosmetica:
                 a ritagliare il titolo troppo lungo dev'essere QUESTO span, non
                 la cella. La cella ospita anche il pannello di un filtro, che
                 deve poterne uscire — vedi `th:has(.data-table__filter)` nel
                 foglio.
               -->
-              <span class="data-table__head-label">{{ col.label }}</span>
-            }
+                <span class="data-table__head-label">{{ col.label }}</span>
+              }
 
-            <!--
+              <!--
               ⭐ **Il filtro della colonna vive nella sua intestazione** (`14`
               §0.2): è la colonna a essere filtrabile, non l'elenco ad avere dei
               filtri.
@@ -73,16 +84,17 @@
               attivo il cui controllo non si vede è il difetto che quella regola
               evita.
             -->
-            @if (filtersVisible() && filterKindOf(col); as forma) {
-              <app-column-filter
-                class="data-table__filter"
-                [kind]="forma"
-                [columnLabel]="col.label"
-                [options]="filterOptionsOf(col.id)"
-                [value]="columnFilters()[col.id] ?? null"
-                (changed)="onColumnFilter(col.id, $event)"
-              />
-            }
+              @if (filtersVisible() && filterKindOf(col); as forma) {
+                <app-column-filter
+                  class="data-table__filter"
+                  [kind]="forma"
+                  [columnLabel]="col.label"
+                  [options]="filterOptionsOf(col.id)"
+                  [value]="columnFilters()[col.id] ?? null"
+                  (changed)="onColumnFilter(col.id, $event)"
+                />
+              }
+            </span>
 
             @if (col.resizable !== false) {
               <span

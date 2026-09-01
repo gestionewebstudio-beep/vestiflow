@@ -9,28 +9,39 @@ import type { ColumnFilterValue } from '@shared/table-columns/column-filter.mode
 import type { TableColumnFilterKind } from '@shared/table-columns/table-column.model';
 
 /**
- * ⭐ **IL CONTROLLO DI FILTRO DI UNA COLONNA** (`14` §0.2, §70).
+ * ⭐ **IL CONTROLLO DI FILTRO DI UNA COLONNA — UNO SOLO** (`14` §0.2).
  *
- * I filtri di un elenco sono le sue colonne: questo è il comando che vive
- * nell'intestazione su scrivania, e nel pannello del telaio sotto `lg`.
+ * ⛔ **Erano quattro controlli diversi**, scelti da uno `@switch (kind)`: menu
+ * per i valori, campo di ricerca per il testo, due caselle per gli intervalli,
+ * due campi data. E la forma la decideva la PRESENTAZIONE della colonna —
+ * `display: 'code'` o `'truncate'` mandavano a «testo» — cioè una decisione che
+ * col filtro non c'entra niente.
+ *
+ * Il proprietario l'ha detto guardandolo, il 01/09/2026: _«alcuni funzionano in
+ * un modo ed altri hanno un altro funzionamento e non ha senso, andrebbe creato
+ * un unico pezzo da applicare sulle colonne»_.
+ *
+ * ⭐ **Ora è una tendina sola**, nella forma di Danea che ha mandato: l'elenco
+ * dei valori spuntabili, la ricerca che restringe anche le righe, il verso
+ * Includi/Escludi, «Tutti», e — se la colonna è una data o un numero — gli
+ * estremi, **dentro il pannello**.
+ *
+ * ## Che cosa resta del `kind`
  *
  * ```text
- * values   app-select-menu multiplo, con i valori PRESENTI nelle righe
- * text     un campo di ricerca sulla sola colonna
- * range    due campi numerici, minimo e massimo
+ * PRIMA   decideva COME si restringe   → quattro filtri incompatibili
+ * ORA     decide CHE COSA offre il pannello: gli estremi su una data o su un
+ *         numero, i soli valori su tutto il resto
  * ```
  *
- * ## ⚠️ Non decide niente
- *
- * Riceve la forma, i valori possibili e lo stato; emette il cambiamento. **A
- * filtrare è chi possiede le righe**, con `applicaFiltriDiColonna` — la stessa
- * separazione del motore tabella, che non ordina e non impagina.
+ * A restringere sono le restrizioni presenti nel valore, e possono convivere
+ * (`applicaFiltriDiColonna`).
  *
  * ## ⛔ Il vuoto TOGLIE il filtro
  *
- * Svuotare il controllo emette `null`, non un valore vuoto: è l'unico modo per
- * togliere una restrizione, e confonderlo con «filtra per niente» farebbe
- * tornare zero righe senza spiegazione.
+ * Svuotare emette `null`, non un valore vuoto: è l'unico modo per togliere una
+ * restrizione, e confonderlo con «filtra per niente» farebbe tornare zero righe
+ * senza spiegazione.
  */
 @Component({
   selector: 'app-column-filter',
@@ -43,30 +54,30 @@ export class ColumnFilterComponent {
   private static nextInstanceId = 0;
 
   /**
-   * ⭐ **Ogni campo ha un `id` proprio**, e serve a due cose diverse.
+   * ⭐ **Ogni campo ha un `id` proprio.**
    *
    * ⚠️ Il browser segnala «a form field element should have an id or name
    * attribute» su ogni controllo che ne è privo — ventidue su una sola pagina,
    * misurati il 01/09/2026 — e la segnalazione è giusta: senza id un campo non
-   * si può associare a un'etichetta né raggiungere da un test o da un'estensione.
+   * si può associare a un'etichetta né raggiungere da un test.
    *
    * ⛔ **E toglie un id CONDIVISO**: `app-date-input` senza `inputId` ripiega su
    * `date-input-parse-error` per il proprio messaggio d'errore, quindi due campi
    * data nella stessa riga filtri lo userebbero entrambi.
    */
   private readonly istanza = ++ColumnFilterComponent.nextInstanceId;
-  protected readonly campoTestoId = `column-filter-text-${this.istanza}`;
   protected readonly campoDaId = `column-filter-min-${this.istanza}`;
   protected readonly campoAId = `column-filter-max-${this.istanza}`;
   protected readonly campoDalId = `column-filter-from-${this.istanza}`;
   protected readonly campoAlId = `column-filter-to-${this.istanza}`;
 
+  /** Che cosa il pannello OFFRE: gli estremi, o i soli valori. */
   readonly kind = input.required<TableColumnFilterKind>();
 
   /** Il nome della colonna: serve al nome accessibile del controllo. */
   readonly columnLabel = input.required<string>();
 
-  /** Solo per `values`: i valori distinti presenti nelle righe caricate. */
+  /** I valori distinti presenti nelle righe caricate. */
   readonly options = input<readonly string[]>([]);
 
   readonly value = input<ColumnFilterValue | null>(null);
@@ -74,21 +85,21 @@ export class ColumnFilterComponent {
   /** `null` toglie il filtro da questa colonna. */
   readonly changed = output<ColumnFilterValue | null>();
 
-  protected readonly menuOptions = computed<readonly SelectMenuOption[]>(() =>
-    this.options().map((v) => ({ value: v, label: v })),
-  );
-
-  /**
-   * ⭐ **Il verso del filtro a valori**: «solo questi» oppure «tutti tranne
-   * questi». Due voci e sempre visibili: è il caso del segmented (`flat`,
-   * perché sta dentro un pannello e non è un controllo a sé).
-   */
   protected readonly MODI: readonly SegmentedOption[] = [
     { value: 'includi', label: 'Includi' },
     { value: 'escludi', label: 'Escludi' },
   ];
 
+  protected readonly menuOptions = computed<readonly SelectMenuOption[]>(() =>
+    this.options().map((v) => ({ value: v, label: v })),
+  );
+
   protected readonly selezionati = computed<readonly string[]>(() => this.value()?.values ?? []);
+  protected readonly testo = computed(() => this.value()?.text ?? '');
+  protected readonly minimo = computed(() => this.value()?.min ?? null);
+  protected readonly massimo = computed(() => this.value()?.max ?? null);
+  protected readonly dal = computed(() => this.value()?.dateFrom);
+  protected readonly al = computed(() => this.value()?.dateTo);
 
   /**
    * ⭐ **IL VERSO SCELTO PRIMA DEI VALORI** — trovato in un browser vero il
@@ -99,125 +110,143 @@ export class ColumnFilterComponent {
    * scelgo «Napoli»  → verso = includi → mostrava Napoli invece di escluderla
    * ```
    *
-   * ⛔ **Le prove di componente non lo prendevano**, e la ragione va ricordata:
-   * sceglievano i valori PRIMA del verso, cioè nell'ordine comodo per scrivere
-   * il test. Il difetto stava nell'ordine opposto — quello di chi lavora.
-   *
    * ⚠️ **Non può stare nello stato dei filtri**: il negozio cancella per
    * contratto ogni valore che non restringe, e «escludi niente» non restringe.
-   * È un'intenzione del controllo, e vive quanto il controllo: spegnendo i
-   * filtri il componente sparisce, e con lui il verso in attesa — che è
-   * esattamente il comportamento giusto, perché spegnere azzera (`14` §0.2).
+   * È un'intenzione del controllo, e vive quanto il controllo — spegnendo i
+   * filtri sparisce con lui, che è il comportamento giusto (spegnere azzera).
    */
   private readonly versoInAttesa = signal(false);
 
   protected readonly escludendo = computed(() => this.value()?.exclude ?? this.versoInAttesa());
 
+  /** «Tutti» è spento quando non c'è niente da togliere. */
+  protected readonly qualcosaDaTogliere = computed(() => {
+    const v = this.value();
+    return (
+      (v?.values?.length ?? 0) > 0 ||
+      (v?.text?.trim().length ?? 0) > 0 ||
+      v?.min !== undefined ||
+      v?.max !== undefined ||
+      v?.dateFrom !== undefined ||
+      v?.dateTo !== undefined
+    );
+  });
+
   /**
    * ⚠️ **Il nome accessibile DICE il verso.** Il pulsante mostra solo il nome
    * della colonna (`labelOnly`, per non far ballare la tabella) più un'icona:
-   * chi non vede l'icona non avrebbe modo di sapere che quel filtro esclude
-   * invece di includere — e i due danno risultati opposti.
+   * chi non vede l'icona non saprebbe che quel filtro esclude invece di
+   * includere, e i due danno risultati opposti.
    */
-  protected readonly etichettaValori = computed(() =>
+  protected readonly etichettaControllo = computed(() =>
     this.escludendo()
       ? `Filtra per ${this.columnLabel()}, escludendo i valori scelti`
       : `Filtra per ${this.columnLabel()}`,
   );
-  protected readonly testo = computed(() => this.value()?.text ?? '');
-  protected readonly minimo = computed(() => this.value()?.min ?? null);
-  protected readonly massimo = computed(() => this.value()?.max ?? null);
-  protected readonly dal = computed(() => this.value()?.dateFrom);
-  protected readonly al = computed(() => this.value()?.dateTo);
 
   protected onValues(scelti: readonly string[]): void {
-    this.emettiValori(scelti, this.escludendo());
+    this.emetti({ values: [...scelti] });
   }
 
   /**
-   * ⚠️ **Cambiare verso NON cambia la selezione**, e non deve: si sceglie
-   * «Milano, Roma» e poi si decide se vederle o escluderle. Azzerare a ogni
-   * cambio di verso costringerebbe a rifare la scelta per confrontare i due
-   * risultati, che è il motivo per cui si cambia verso.
+   * ⭐ **La ricerca del pannello RESTRINGE anche le righe**, ed è ciò che il
+   * proprietario chiedeva: «città contiene il sistema per selezionare o
+   * filtrare, ma altri campi no, solo filtrare scrivendo».
+   *
+   * Scrivere «ros» restringe subito, senza dover spuntare niente; spuntare
+   * restringe ai valori esatti. Le due cose convivono nello stesso valore.
+   */
+  protected onRicerca(testo: string): void {
+    this.emetti({ text: testo });
+  }
+
+  /**
+   * ⚠️ **Cambiare verso NON cambia la selezione**: si sceglie «Milano, Roma» e
+   * poi si decide se vederle o escluderle. È il motivo per cui si cambia verso.
    */
   protected onModo(modo: string): void {
     const escludi = modo === 'escludi';
-    // ⚠️ Prima si ricorda, poi si emette: a mani vuote l'emissione è `null` e
-    //    l'unica traccia del verso resta questa.
+    // Prima si ricorda, poi si emette: a mani vuote l'emissione è `null` e
+    // l'unica traccia del verso resta questa.
     this.versoInAttesa.set(escludi);
-    this.emettiValori(this.selezionati(), escludi);
+    this.emetti({ exclude: escludi });
   }
 
   /**
-   * ⭐ **«Tutti» toglie il filtro**, in entrambi i versi: in questo modello
-   * «nessun valore scelto» significa già «nessuna restrizione».
+   * ⭐ **«Tutti» toglie il filtro**, come il `(Tutto)` di Danea: qui «nessuna
+   * restrizione» è già «tutte le righe».
    *
-   * ⚠️ **E riporta il verso a «Includi»**: «Tutti» dice «voglio vedere tutto»,
-   * e lasciare acceso un «Escludi» in attesa farebbe cambiare significato alla
-   * prima voce spuntata dopo.
+   * ⚠️ **E riporta il verso a «Includi»**: chi vuole vedere tutto non sta
+   * escludendo, e lasciarlo acceso cambierebbe significato alla prima voce
+   * spuntata dopo.
    */
   protected onTutti(): void {
     this.versoInAttesa.set(false);
     this.changed.emit(null);
   }
 
-  private emettiValori(scelti: readonly string[], escludi: boolean): void {
-    /*
-      ⚠️ **A mani vuote si emette `null`, e il verso NON va nello stato.** Il
-      negozio dei filtri cancella per contratto ogni valore che non restringe
-      («un controllo svuotato non lascia una chiave inerte»), quindi un
-      `{values: [], exclude: true}` sparirebbe comunque — e il verso in attesa
-      non è un filtro: è un'intenzione del controllo, e vive lì (`versoInAttesa`).
-    */
-    if (scelti.length === 0) {
-      this.changed.emit(null);
-      return;
-    }
-    this.changed.emit({
-      kind: 'values',
-      values: [...scelti],
-      ...(escludi ? { exclude: true } : {}),
-    });
-  }
-
-  protected onText(evento: Event): void {
-    const testo = (evento.target as HTMLInputElement).value;
-    this.changed.emit(testo.trim().length === 0 ? null : { kind: 'text', text: testo });
-  }
-
   protected onMin(evento: Event): void {
-    this.emettiIntervallo(this.numero(evento), this.massimo());
+    this.emetti({ min: this.numero(evento) ?? undefined });
   }
 
   protected onMax(evento: Event): void {
-    this.emettiIntervallo(this.minimo(), this.numero(evento));
-  }
-
-  protected onDal(iso: string): void {
-    this.emettiPeriodo(iso, this.al());
-  }
-
-  protected onAl(iso: string): void {
-    this.emettiPeriodo(this.dal(), iso);
+    this.emetti({ max: this.numero(evento) ?? undefined });
   }
 
   /**
    * ⚠️ **`app-date-input` emette la stringa vuota per «nessuna data»**, non
-   * `undefined`: senza questa normalizzazione il filtro resterebbe attivo su un
-   * estremo vuoto, e l'elenco non tornerebbe più intero.
+   * `undefined`: senza normalizzarla il filtro resterebbe attivo su un estremo
+   * vuoto, e l'elenco non tornerebbe più intero.
    */
-  private emettiPeriodo(dal: string | undefined, al: string | undefined): void {
-    const da = dal?.trim() ? dal : undefined;
-    const a = al?.trim() ? al : undefined;
-    if (da === undefined && a === undefined) {
-      this.changed.emit(null);
-      return;
-    }
-    this.changed.emit({
-      kind: 'date',
-      ...(da !== undefined ? { dateFrom: da } : {}),
-      ...(a !== undefined ? { dateTo: a } : {}),
-    });
+  protected onDal(testo: string): void {
+    this.emetti({ dateFrom: testo.trim() ? testo : undefined });
+  }
+
+  protected onAl(testo: string): void {
+    this.emetti({ dateTo: testo.trim() ? testo : undefined });
+  }
+  /**
+   * ⭐ **Una sola porta d'uscita**: si parte dal valore corrente e si cambia
+   * solo ciò che l'operatore ha toccato. Le restrizioni convivono, quindi
+   * scrivere un testo non deve cancellare le spunte né gli estremi.
+   *
+   * ⛔ **Il vuoto emette `null`**, ed è l'unico modo di togliere il filtro.
+   */
+  private emetti(cambio: Partial<Omit<ColumnFilterValue, 'kind'>>): void {
+    const attuale = this.value();
+    const prossimo: ColumnFilterValue = {
+      kind: this.kind(),
+      values: cambio.values ?? attuale?.values,
+      text: cambio.text ?? attuale?.text,
+      /*
+        ⛔ **Il verso si legge da `escludendo()`, non dal valore corrente.**
+        Leggendolo da `attuale?.exclude` si perdeva il verso scelto A MANI
+        VUOTE: lì `attuale` è `null` — perché senza restrizioni si emette
+        `null` — e la prima voce spuntata sarebbe tornata a «includi», cioè
+        l'opposto di quanto chiesto.
+      */
+      exclude: cambio.exclude ?? this.escludendo(),
+      /*
+        ⚠️ **Gli estremi si sovrascrivono anche con `undefined`**, e i valori
+        no: svuotare un campo data DEVE togliere quell'estremo, mentre
+        `values`/`text` arrivano solo quando cambiano davvero. Con `??` su tutto,
+        svuotare «dal» avrebbe rimesso il valore di prima.
+      */
+      min: 'min' in cambio ? cambio.min : attuale?.min,
+      max: 'max' in cambio ? cambio.max : attuale?.max,
+      dateFrom: 'dateFrom' in cambio ? cambio.dateFrom : attuale?.dateFrom,
+      dateTo: 'dateTo' in cambio ? cambio.dateTo : attuale?.dateTo,
+    };
+
+    const restringe =
+      (prossimo.values?.length ?? 0) > 0 ||
+      (prossimo.text?.trim().length ?? 0) > 0 ||
+      prossimo.min !== undefined ||
+      prossimo.max !== undefined ||
+      prossimo.dateFrom !== undefined ||
+      prossimo.dateTo !== undefined;
+
+    this.changed.emit(restringe ? prossimo : null);
   }
 
   /**
@@ -232,19 +261,8 @@ export class ColumnFilterComponent {
     if (grezzo.length === 0) {
       return null;
     }
-    const n = Number(grezzo.replace(',', '.'));
-    return Number.isFinite(n) ? n : null;
-  }
-
-  private emettiIntervallo(min: number | null, max: number | null): void {
-    if (min === null && max === null) {
-      this.changed.emit(null);
-      return;
-    }
-    this.changed.emit({
-      kind: 'range',
-      ...(min !== null ? { min } : {}),
-      ...(max !== null ? { max } : {}),
-    });
+    // ⚠️ La virgola è il separatore decimale italiano: `Number('12,50')` è NaN.
+    const valore = Number(grezzo.replace(',', '.'));
+    return Number.isFinite(valore) ? valore : null;
   }
 }

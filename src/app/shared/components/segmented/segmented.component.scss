@@ -55,14 +55,14 @@
 }
 
 /*
-  ⚠️ **Variante piatta: un solo livello visivo.**
+  â ï¸ **Variante piatta: un solo livello visivo.**
 
   La traccia ha fondo e bordo per staccarsi da una superficie piana. Dentro un
-  contenitore che il bordo ce l'ha già — il pannello di un menu, una card — quel
-  riquadro non separa niente: è una scatola dentro una scatola, e il segmento
+  contenitore che il bordo ce l'ha giÃ  â il pannello di un menu, una card â quel
+  riquadro non separa niente: Ã¨ una scatola dentro una scatola, e il segmento
   attivo con il suo bordo ne aggiunge una terza.
 
-  Qui resta solo ciò che dice quale voce è scelta.
+  Qui resta solo ciÃ² che dice quale voce Ã¨ scelta.
 */
 .segmented--flat {
   padding: 0;
@@ -70,9 +70,23 @@
   border-color: transparent;
 }
 
+/*
+  ⚠️ **Nella variante piatta il peso Ã¨ REGOLABILE** â proprietario,
+  01/09/2026: Â«diminuire il peso del font di cerca e dei periodi preimpostatiÂ».
+  Dentro il pannello di un filtro il verso Ã¨ un comando fra gli altri, non un
+  titolo, e il semibold del default lo faceva pesare piÃ¹ delle voci.
+*/
 .segmented--flat .segmented__item {
   min-block-size: var(--control-h-button);
   font-size: var(--text-xs);
+  font-weight: var(--segmented-font-weight, var(--font-weight-medium));
+  /*
+    ⚠️ **La voce non scelta resta LEGGIBILE** — proprietario, 01/09/2026: «i
+    font sopra sono poco leggibili, poco contrasto». Il `muted` del default va
+    bene su una pista tinta; sul piatto, dentro un pannello bianco, «Escludi»
+    diventava un grigio che si fatica a leggere — ed è metà del comando.
+  */
+  color: var(--segmented-color, var(--color-text));
 }
 
 .segmented--flat .segmented__item--active {

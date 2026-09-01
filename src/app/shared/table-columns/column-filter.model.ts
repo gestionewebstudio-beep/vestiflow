@@ -73,18 +73,20 @@ export function isColumnFilterActive(value: ColumnFilterValue | undefined): bool
   if (!value) {
     return false;
   }
-  switch (value.kind) {
-    case 'values':
-      return (value.values?.length ?? 0) > 0;
-    case 'text':
-      return (value.text?.trim().length ?? 0) > 0;
-    case 'range':
-      return value.min !== undefined || value.max !== undefined;
-    case 'date':
-      return value.dateFrom !== undefined || value.dateTo !== undefined;
-    default:
-      return false;
-  }
+  /*
+    ⛔ **Qui c'era uno `switch (kind)`, e con le restrizioni che convivono era
+    diventato cieco a metà**: su una colonna `date` avrebbe ignorato le spunte,
+    su una `values` gli estremi — cioè il badge «Filtri (n)» non avrebbe contato
+    proprio i filtri nuovi.
+  */
+  return (
+    (value.values?.length ?? 0) > 0 ||
+    (value.text?.trim().length ?? 0) > 0 ||
+    value.min !== undefined ||
+    value.max !== undefined ||
+    value.dateFrom !== undefined ||
+    value.dateTo !== undefined
+  );
 }
 
 /** Quanti filtri di colonna restringono: è il numero del badge. */
@@ -133,49 +135,74 @@ export function applicaFiltriDiColonna<T>(
   }
 
   return righe.filter((riga) =>
-    attivi.every(([columnId, filtro]) => {
-      switch (filtro.kind) {
-        case 'values': {
-          // ⭐ Il verso è l'unica differenza fra «solo questi» e «tutti tranne
-          //    questi»: stesso confronto, negato.
-          const scelto = (filtro.values ?? []).includes(opzioni.cellText(riga, columnId));
-          return filtro.exclude ? !scelto : scelto;
-        }
-        case 'text':
-          return opzioni
-            .cellText(riga, columnId)
-            .toLocaleLowerCase('it')
-            .includes((filtro.text ?? '').trim().toLocaleLowerCase('it'));
-        case 'range': {
-          const numero = opzioni.numeroDi?.(riga, columnId) ?? null;
-          if (numero === null) {
-            // ⚠️ Senza estrattore la colonna non filtra: meglio non restringere
-            //    che restringere per un confronto che non sappiamo fare.
-            return true;
-          }
-          if (filtro.min !== undefined && numero < filtro.min) {
-            return false;
-          }
-          return !(filtro.max !== undefined && numero > filtro.max);
-        }
-        case 'date': {
-          const iso = opzioni.dataDi?.(riga, columnId) ?? null;
-          if (iso === null) {
-            return true;
-          }
-          // ⚠️ Al GIORNO: un istante completo confrontato con «fino al 31/08»
-          //    risulterebbe maggiore, e la riga di oggi sparirebbe.
-          const giorno = iso.slice(0, 10);
-          if (filtro.dateFrom !== undefined && giorno < filtro.dateFrom) {
-            return false;
-          }
-          return !(filtro.dateTo !== undefined && giorno > filtro.dateTo);
-        }
-        default:
-          return true;
-      }
-    }),
+    attivi.every(([columnId, filtro]) => passa(riga, columnId, filtro)),
   );
+
+  /**
+   * ⭐ **IL TIPO DICE COME SI COMPILA, IL VALORE DICE COME RESTRINGE** — deciso
+   * il 01/09/2026 col riferimento Danea alla mano.
+   *
+   * ⛔ **Qui c'era uno `switch (filtro.kind)`**, cioè: una colonna «data» sa
+   * restringere SOLO per intervallo, una colonna «testo» SOLO per contenuto. È
+   * la ragione per cui in Danea si può spuntare `02/01/2026` fra le date e da
+   * noi no — e per cui l'operatore trovava «alcuni filtri che funzionano in un
+   * modo ed altri in un altro, e non ha senso».
+   *
+   * ⭐ **Ora le restrizioni convivono nello stesso valore**, e si applicano
+   * tutte quelle presenti: le spunte, il contenuto scritto, gli estremi.
+   * Il `kind` resta, ma dice soltanto **che cosa il pannello offre** — le
+   * scorciatoie di periodo su una data, gli estremi su un numero.
+   */
+  function passa(riga: T, columnId: string, filtro: ColumnFilterValue): boolean {
+    // ⭐ Le spunte: stesso confronto in entrambi i versi, negato se si esclude.
+    const scelti = filtro.values ?? [];
+    if (scelti.length > 0) {
+      const dentro = scelti.includes(opzioni.cellText(riga, columnId));
+      if (filtro.exclude ? dentro : !dentro) {
+        return false;
+      }
+    }
+
+    // ⭐ Il testo scritto: restringe da solo, senza dover spuntare niente.
+    const cercato = (filtro.text ?? '').trim().toLocaleLowerCase('it');
+    if (cercato.length > 0) {
+      const testo = opzioni.cellText(riga, columnId).toLocaleLowerCase('it');
+      if (!testo.includes(cercato)) {
+        return false;
+      }
+    }
+
+    if (filtro.min !== undefined || filtro.max !== undefined) {
+      const numero = opzioni.numeroDi?.(riga, columnId) ?? null;
+      // ⚠️ Senza estrattore la colonna non filtra: meglio non restringere che
+      //    restringere per un confronto che non sappiamo fare.
+      if (numero !== null) {
+        if (filtro.min !== undefined && numero < filtro.min) {
+          return false;
+        }
+        if (filtro.max !== undefined && numero > filtro.max) {
+          return false;
+        }
+      }
+    }
+
+    if (filtro.dateFrom !== undefined || filtro.dateTo !== undefined) {
+      const iso = opzioni.dataDi?.(riga, columnId) ?? null;
+      if (iso !== null) {
+        // ⚠️ Al GIORNO: un istante completo confrontato con «fino al 31/08»
+        //    risulterebbe maggiore, e la riga di oggi sparirebbe.
+        const giorno = iso.slice(0, 10);
+        if (filtro.dateFrom !== undefined && giorno < filtro.dateFrom) {
+          return false;
+        }
+        if (filtro.dateTo !== undefined && giorno > filtro.dateTo) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }
 }
 
 /**
@@ -200,5 +227,38 @@ export function valoriDistinti<T>(
       visti.add(testo);
     }
   }
-  return [...visti].sort((a, b) => a.localeCompare(b, 'it'));
+  const valori = [...visti];
+
+  /*
+    ⭐ **LE DATE SI ORDINANO COME DATE, E DALLA PIÙ RECENTE** — proprietario,
+    01/09/2026: «le date sono in ordine decrescente», guardando un elenco che
+    le mostra decrescenti e un filtro che le offriva crescenti.
+
+    ⛔ **E l'ordine alfabetico su `GG/MM/AAAA` è proprio sbagliato**, non solo
+    invertito: «29/08/2026» e «07/09/2026» si confrontano dal primo carattere,
+    quindi settembre finisce prima di agosto. Con `localeCompare` l'elenco delle
+    date era mescolato, e nessuno se ne accorgeva finché i mesi erano uno solo.
+
+    ⚠️ **Si riconosce dalla FORMA, non dal tipo di colonna**: `valoriDistinti`
+    riceve testo, non sa che colonna sia. Se ogni valore è una data italiana
+    completa, allora è un elenco di date.
+  */
+  if (valori.length > 0 && valori.every((v) => DATA_ITALIANA.test(v))) {
+    return valori.sort((a, b) => aIso(b).localeCompare(aIso(a)));
+  }
+
+  /*
+    ⚠️ **Ordinati come li legge un italiano** (`localeCompare` con `it`):
+    «Àncona» viene prima di «Bari», e non dopo «Zurigo» come farebbe un
+    confronto binario.
+  */
+  return valori.sort((a, b) => a.localeCompare(b, 'it'));
+}
+
+const DATA_ITALIANA = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+
+/** `GG/MM/AAAA` → `AAAA-MM-GG`, l'unica forma in cui il confronto fra stringhe è giusto. */
+function aIso(valore: string): string {
+  const m = DATA_ITALIANA.exec(valore);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : valore;
 }

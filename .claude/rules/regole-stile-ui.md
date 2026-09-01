@@ -360,6 +360,65 @@ taglia vecchia mentre il resto della riga è già sceso: misurato su
 `--field-font-size` impostata), restava a 13px da solo mentre i `select-menu`
 accanto erano già a 12px.
 
+### ⭐ IL CONTROLLO DI FILTRO È UNO SOLO — deciso il 01/09/2026
+
+> **Ogni colonna ha la stessa tendina: l'elenco dei valori con le spunte, la ricerca
+> che restringe anche le righe, il verso Includi/Escludi e «Tutti».**
+
+_Proprietario, col riferimento Danea alla mano: «alcuni funzionano in un modo ed altri
+hanno un altro funzionamento e non ha senso, andrebbe creato un unico pezzo da applicare
+sulle colonne. Per esempio città contiene il sistema per selezionare o filtrare, ma altri
+campi no, solo filtrare scrivendo»._
+
+⛔ **Erano QUATTRO controlli diversi, e a sceglierli era la PRESENTAZIONE**: `display:
+'code'` o `'truncate'` mandavano la colonna a «si filtra scrivendo», `numeric` a «due
+caselle», il resto a «elenco». Undici colonne finivano nel primo gruppo per una decisione
+che col filtro non c'entra niente.
+
+| PRIMA il `kind` decideva                             | ORA decide                                                                                                           |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **come** si restringe → quattro filtri incompatibili | **che cosa il pannello offre in più**: le scorciatoie di periodo e gli estremi su una data, gli estremi su un numero |
+
+⭐ **A restringere sono le restrizioni presenti nel valore, e convivono**: le spunte, il
+testo scritto, gli estremi. Si spunta «Milano» _e_ si scrive «via» _e_ si dà un intervallo,
+e valgono tutte insieme.
+
+#### La forma, che è quella di Danea
+
+```text
+[ Includi | Escludi ]                    Tutti
+Anno corrente · Mese corrente · Mese scorso      (solo colonne data)
+[ GG/MM/AAAA ] → [ GG/MM/AAAA ]                  (data)   oppure  [da] → [a]  (numero)
+Cerca o scrivi per filtrare…
+☐ 02/01/2026
+☐ 04/01/2026
+```
+
+⭐ **«Tutti» è il `(Tutto)` di Danea e SVUOTA**: qui «nessuna restrizione» è già «tutte le
+righe». Spuntarle a una a una darebbe lo stesso risultato con venti clic e un filtro che
+sembra acceso.
+
+#### ⛔ Il trigger è una FRECCIA nel titolo, non una casella sotto
+
+_Proprietario: «con questo sistema di ricerca nei filtri, ha senso che compare un'altra
+casellina sotto all'intestazione della colonna?»._
+
+No: era una casella a tutta larghezza per ogni colonna, che apriva una tendina in cui il
+nome del filtro è già scritto. Costava **una fascia di intestazione su tutta la tabella**,
+cioè righe di dati in meno.
+
+⚠️ **Tolta la casella, il filtro attivo lo dice la freccia** — tinta piena. Senza, l'unico
+segnale sarebbe l'elenco più corto, cioè nessun segnale.
+
+⛔ **La fila titolo+freccia NON si fa sul `<th>`.** Provato e visto a schermo il
+01/09/2026: un `th` con `display: flex` esce dal modello tabellare, e le colonne
+collassano — intestazioni sparite, frecce a gradini. La fila è uno `<span>` **dentro** la
+cella. E `tsc` era pulito.
+
+⚠️ **Il pannello ha una larghezza SUA** (`--select-menu-panel-min-width`), non quella
+della colonna: dentro un'intestazione da 90px il calendario diventa una griglia di numeri
+sovrapposti, e una data si legge «12/06/:».
+
 ### I filtri di un elenco stanno nelle sue COLONNE _(29/08/2026)_
 
 ⭐ **I filtri di un elenco non si disegnano: sono le sue colonne** (`14` §0.2).
@@ -1253,9 +1312,18 @@ Le tabelle sono l'elemento centrale del gestionale.
 ### Tabella desktop
 
 - `table-layout: fixed`, `width: 100%`, colonne in `%`
-- **Header**: h32 (`--table-head-h`), padding `0 --space-3`, font `--text-2xs` uppercase weight
-  bold, tracking `--tracking-caps`, testo **`--color-table-header-fg`**, bg
+- **Header**: h28 (`--table-head-h`), padding `0 --space-3`, font **`--text-2xs` (11px)**
+  uppercase weight bold, tracking `--tracking-caps`, testo **`--color-table-header-fg`**, bg
   `--color-table-header-bg`, filo inferiore **`--color-table-header-rule`**
+
+⭐ **Undici pixel, confermati a schermo il 01/09/2026** — proprietario: «proviamo a mettere
+le intestazioni delle colonne a 11px, attualmente è 10», poi «confermato 11px, metti
+ovunque e registra il dato».
+
+⚠️ **Erano già 11 nel mixin condiviso**: a scendere a 10 il 30/08 era stato il solo motore
+tabella, insieme al resto della densità. Reggeva finché sotto ogni titolo c'era una riga di
+filtri; da quando il filtro è **una freccia accanto al titolo**, l'intestazione è tornata a
+essere una riga sola e i 10px si leggevano più piccoli di quanto quella riga meriti.
 
 > ⛔ **Qui c'era «muted» per il testo e `--color-border-strong` per il filo, e §2 diceva
 > un'altra cosa** — i due token dedicati. Erano due frasi dello stesso documento che non

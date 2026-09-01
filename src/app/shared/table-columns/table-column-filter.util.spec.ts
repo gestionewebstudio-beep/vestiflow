@@ -42,11 +42,21 @@ describe('resolveColumnFilterKind — la deduzione', () => {
     expect(resolveColumnFilterKind(colonna({ numeric: true }))).toBe('range');
   });
 
-  it.each(['code', 'truncate'] as const)('⭐ display %s → text (alta cardinalità)', (display) => {
-    expect(resolveColumnFilterKind(colonna({ display }))).toBe('text');
+  /*
+    ⛔ **QUI `display` DECIDEVA COME SI FILTRA**, e le due prove lo tenevano
+    fermo: `code` e `truncate` mandavano a «testo», cioè si poteva solo
+    scrivere. La presentazione della colonna sceglieva il modo di filtrarla —
+    ed è il difetto che il proprietario ha visto il 01/09/2026: «alcuni
+    funzionano in un modo ed altri hanno un altro funzionamento».
+
+    ⭐ Ora il controllo è uno solo e sa fare entrambe le cose, quindi la
+    presentazione non decide più niente.
+  */
+  it.each(['code', 'truncate'] as const)('⛔ display %s NON decide più il filtro', (display) => {
+    expect(resolveColumnFilterKind(colonna({ display }))).toBe('values');
   });
 
-  it('⚠️ numeric batte display: un importo incolonnato resta un intervallo', () => {
+  it('⚠️ numeric resta l’unica deduzione: un importo vuole gli estremi', () => {
     expect(resolveColumnFilterKind(colonna({ numeric: true, display: 'code' }))).toBe('range');
   });
 

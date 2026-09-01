@@ -41,7 +41,12 @@
   margin: 0 0 var(--form-section-title-gap, var(--space-3));
   font-size: var(--form-section-title-size, var(--text-lg));
   font-weight: var(--font-weight-bold);
-  color: var(--color-text);
+  /*
+    ⚠️ **La tinta è un punto di regolazione, non una scelta di questo
+    componente**: le anagrafiche la portano al brand per distinguere le sezioni
+    senza barrette (`_anagrafica.scss`), le altre pagine restano al testo.
+  */
+  color: var(--form-section-title-color, var(--color-text));
 }
 
 /*
@@ -58,25 +63,21 @@
 }
 
 /*
-  ⭐ **L'ACCENTO DI SEZIONE** — proprietario, 01/09/2026: «bisognerebbe dare un
-  tocco di bellezza, distinzione visiva e magari utilizzare qualche riga col
-  verde per rendere la pagina elegante e intuitiva».
+  ⭐ **Il filo sotto il titolo**, con la tinta regolabile dal contenitore —
+  proprietario, 01/09/2026: «magari utilizzare qualche riga col verde per
+  rendere la pagina elegante e intuitiva».
 
-  ⚠️ **La tinta è `--color-primary`, il BRAND, non i token della sidebar.**
-  `regole-stile-ui` §2 riserva `--color-nav-*` alla navigazione — «non è un
-  secondo brand, è la palette della navigazione» — e usarli qui li
-  trasformerebbe in un colore d'accento generico, che è la porta da cui rientra
-  il disordine cromatico. Il brand è della stessa famiglia scura e fa lo stesso
-  lavoro: distinguere senza gridare.
+  ⛔ **Qui c'era anche una BARRETTA VERTICALE, respinta lo stesso giorno**:
+  «questi blocchetti neri poco eleganti, non è stata una buona idea».
+  `--color-primary` è `#25343b`, e in un filo da quattro pixel quel grigio-blu
+  legge nero: una tinta si riconosce su una superficie, non su una tacca.
 
-  ⚠️ **Larghezza 0 di serie**: chi non la chiede non vede niente cambiare. La
-  scheda anagrafica la accende con `--form-section-accent-w`.
+  ⚠️ **La tinta è il BRAND, non i token della sidebar.** `regole-stile-ui` §2
+  riserva `--color-nav-*` alla navigazione — «non è un secondo brand» — e usarli
+  qui li trasformerebbe in un colore d'accento generico.
 */
 .form-section--flat .form-section__title {
   inline-size: 100%;
   padding-block-end: var(--space-1);
-  padding-inline-start: var(--form-section-accent-gap, 0);
   border-block-end: var(--border-width) solid var(--form-section-rule, var(--color-border));
-  border-inline-start: var(--form-section-accent-w, 0) solid
-    var(--form-section-accent, var(--color-primary));
 }

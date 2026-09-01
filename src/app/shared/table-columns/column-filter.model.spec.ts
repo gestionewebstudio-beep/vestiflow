@@ -345,3 +345,64 @@ describe('il filtro a valori ha un VERSO', () => {
     expect(ids(applicaFiltriDiColonna(RIGHE, filtri, { cellText, numeroDi }))).toEqual(['a', 'd']);
   });
 });
+
+/**
+ * ⭐ **L'ORDINE DEI VALORI DI UNA COLONNA DATA** — proprietario, 01/09/2026:
+ * «le date sono in ordine decrescente», guardando un elenco che le mostra così
+ * e un filtro che le offriva al contrario.
+ */
+describe('valoriDistinti — le date non sono testo', () => {
+  interface Riga {
+    readonly data: string;
+  }
+  const testoData = (r: Riga): string => r.data;
+
+  /*
+    ⛔ **L'ordine alfabetico su `GG/MM/AAAA` è SBAGLIATO, non solo invertito**:
+    «29/08» e «07/09» si confrontano dal primo carattere, quindi settembre
+    finisce prima di agosto.
+  */
+  it('⛔ agosto non finisce dopo settembre per via del primo carattere', () => {
+    const righe: readonly Riga[] = [
+      { data: '29/08/2026' },
+      { data: '07/09/2026' },
+      { data: '13/08/2026' },
+    ];
+
+    expect(valoriDistinti(righe, 'data', testoData)).toEqual([
+      '07/09/2026',
+      '29/08/2026',
+      '13/08/2026',
+    ]);
+  });
+
+  it('⭐ la più recente in cima, come nella colonna', () => {
+    const righe: readonly Riga[] = [
+      { data: '07/08/2026' },
+      { data: '29/08/2026' },
+      { data: '11/08/2026' },
+    ];
+
+    expect(valoriDistinti(righe, 'data', testoData)).toEqual([
+      '29/08/2026',
+      '11/08/2026',
+      '07/08/2026',
+    ]);
+  });
+
+  it('⚠️ anche fra anni diversi, che è dove il testo sbaglia di più', () => {
+    const righe: readonly Riga[] = [{ data: '31/12/2025' }, { data: '01/01/2026' }];
+
+    expect(valoriDistinti(righe, 'data', testoData)).toEqual(['01/01/2026', '31/12/2025']);
+  });
+
+  /*
+    ⚠️ **Si riconosce dalla FORMA**: se anche un solo valore non è una data
+    completa, l'elenco non è di date e torna l'ordine alfabetico italiano.
+  */
+  it('⚠️ un solo valore non-data e l’elenco torna alfabetico', () => {
+    const righe: readonly Riga[] = [{ data: '29/08/2026' }, { data: '—' }, { data: '07/09/2026' }];
+
+    expect(valoriDistinti(righe, 'data', testoData)).toEqual(['—', '07/09/2026', '29/08/2026']);
+  });
+});

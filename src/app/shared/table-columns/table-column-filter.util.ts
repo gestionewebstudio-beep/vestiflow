@@ -14,22 +14,32 @@ import type { TableColumnDef, TableColumnFilterKind } from './table-column.model
  * ```text
  * filter dichiarato   →  quello, e la deduzione non si applica
  * filter: false       →  nessun filtro
- * numeric             →  range     totali, quantità, importi
- * display code/trunc  →  text      alta cardinalità: SKU, riferimenti, commenti
- * altrimenti          →  values    insieme di valori distinti, a scelta multipla
+ * numeric             →  range     totali, quantità, importi: in più, gli estremi
+ * altrimenti          →  values    l'elenco dei valori, con la ricerca dentro
  * ```
  *
- * ⛔ **La deduzione è un default sensato, non un oracolo.** Una colonna DATA
- * porta spesso `display: 'code'` — cifre incolonnate — e finirebbe `text`
- * mentre vuole `range`: lì il `filter` si dichiara. La regola è pensata per
- * sbagliare **verso il filtro sbagliato, mai verso il filtro assente**, perché
- * il primo si vede subito e il secondo no.
+ * ⛔ **QUI C'ERA `display code/trunc → text`, E LO SCEGLIEVA LA
+ * PRESENTAZIONE.** Una colonna diventava «si filtra scrivendo» perché qualcuno
+ * aveva deciso di incolonnarne le cifre o di troncarne il testo — due decisioni
+ * che col filtro non c'entrano niente. Undici colonne finivano lì per quella
+ * strada, e il proprietario l'ha visto a schermo il 01/09/2026: «alcuni
+ * funzionano in un modo ed altri hanno un altro funzionamento e non ha senso».
+ *
+ * ⭐ **Il controllo ora è UNO** (`column-filter`), e sa fare entrambe le cose:
+ * si spunta dall'elenco **oppure** si scrive per restringere. Quindi il `kind`
+ * non decide più *come* si filtra — decide **che cosa il pannello offre in
+ * più**: gli estremi su un numero, le scorciatoie di periodo e gli estremi su
+ * una data.
+ *
+ * ⚠️ **`filter: 'text'` resta un valore legittimo** e non è più una privazione:
+ * dichiara «questa colonna si filtra scrivendo», e il pannello continua a
+ * offrire anche l'elenco. Le 59 colonne che lo dichiarano non perdono niente e
+ * guadagnano le spunte.
  */
 export function resolveColumnFilterKind(column: TableColumnDef): TableColumnFilterKind | null {
   if (column.filter === false) return null;
   if (column.filter != null) return column.filter;
   if (column.numeric === true) return 'range';
-  if (column.display != null) return 'text';
   return 'values';
 }
 

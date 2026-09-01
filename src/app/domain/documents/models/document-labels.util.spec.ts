@@ -29,9 +29,11 @@ const NON_EMESSA = { externallyIssuedAt: undefined } as const;
  * UTC sia nel fuso locale, così l'attesa non dipende dalla macchina che gira.
  */
 const IL_17_AGOSTO = '2025-08-17T09:00:00.000Z';
-const IL_17_AGOSTO_TESTO = '17 ago 2025';
+// ⚠️ Numerico da 01/09/2026: le date si scrivono `GG/MM/AAAA` ovunque, come
+//    nei documenti e come i filtri le accettano in digitazione.
+const IL_17_AGOSTO_TESTO = '17/08/2025';
 const IL_5_GIUGNO = '2026-06-05T09:00:00.000Z';
-const IL_5_GIUGNO_TESTO = '5 giu 2026';
+const IL_5_GIUGNO_TESTO = '05/06/2026';
 
 function fatturaCollegata(
   overrides: Partial<LinkedPurchaseInvoiceInfo> = {},

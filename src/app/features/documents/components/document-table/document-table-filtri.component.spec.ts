@@ -127,6 +127,15 @@ function righeVisibili(): number {
   return document.querySelectorAll('tbody tr.data-table__row').length;
 }
 
+/**
+ * ⚠️ **I comandi stanno DENTRO il pannello**, da quando il controllo di filtro
+ * è uno solo (01/09/2026): la prova lo apre, come fa l'operatore.
+ */
+async function apriPannello(nomeColonna: string, reso: { fixture: { detectChanges(): void } }) {
+  await userEvent.click(screen.getByLabelText(`Filtra per ${nomeColonna}`));
+  reso.fixture.detectChanges();
+}
+
 describe('Arrivi merce — i filtri di colonna', () => {
   beforeEach(() => {
     TestBed.resetTestingModule();
@@ -135,7 +144,8 @@ describe('Arrivi merce — i filtri di colonna', () => {
   it('il numero documento si filtra scrivendone un pezzo', async () => {
     const reso = await apriConFiltri();
 
-    await userEvent.type(screen.getByLabelText('Filtra per N.'), '0009');
+    await apriPannello('N.', reso);
+    await userEvent.type(screen.getByLabelText('Cerca fra i valori di N.'), '0009');
     reso.fixture.detectChanges();
 
     expect(righeVisibili()).toBe(1);
@@ -144,7 +154,8 @@ describe('Arrivi merce — i filtri di colonna', () => {
   it('il soggetto si filtra scrivendone un pezzo', async () => {
     const reso = await apriConFiltri();
 
-    await userEvent.type(screen.getByLabelText('Filtra per Soggetto'), 'test 1');
+    await apriPannello('Soggetto', reso);
+    await userEvent.type(screen.getByLabelText('Cerca fra i valori di Soggetto'), 'test 1');
     reso.fixture.detectChanges();
 
     expect(righeVisibili()).toBe(2);
@@ -158,6 +169,7 @@ describe('Arrivi merce — i filtri di colonna', () => {
   it('⛔ il conteggio righe si filtra per intervallo', async () => {
     const reso = await apriConFiltri();
 
+    await apriPannello('Righe', reso);
     await userEvent.type(screen.getByLabelText('Righe da'), '3');
     reso.fixture.detectChanges();
 
@@ -172,6 +184,7 @@ describe('Arrivi merce — i filtri di colonna', () => {
       13,32 €. Scrivendo la prova avevo messo 2000 aspettandomi una riga sola —
       ma 18,30 € e 13,32 € ci stanno entrambe sotto. Il codice aveva ragione.
     */
+    await apriPannello('Tot. documento', reso);
     await userEvent.type(screen.getByLabelText('Tot. documento a'), '1500');
     reso.fixture.detectChanges();
 
@@ -204,6 +217,7 @@ describe('Arrivi merce — i filtri di colonna', () => {
   it('⚠️ la data del documento si filtra per intervallo', async () => {
     const reso = await apriConFiltri();
 
+    await apriPannello('Data', reso);
     const dal = screen.getByLabelText('Data dal');
     await userEvent.type(dal, '11/08/2026');
     dal.dispatchEvent(new Event('blur'));

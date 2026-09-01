@@ -62,12 +62,25 @@
     --form-section-pad: var(--space-2);
     --form-section-title-size: var(--text-sm);
     --form-section-title-gap: var(--space-2);
-    --form-section-accent-w: var(--border-width-accent);
-    --form-section-accent-gap: var(--space-2);
+    /*
+      ⛔ **QUI C'ERA UNA BARRETTA VERTICALE, ED È STATA RESPINTA** —
+      proprietario, 01/09/2026: «ci sono questi blocchetti neri poco eleganti,
+      non è stata una buona idea, il resto va leggermente meglio».
+
+      Aveva ragione, e la ragione è misurabile: `--color-primary` è `#25343b`,
+      cioè un grigio-blu talmente scuro che in una barra da 4×14px **legge
+      nero**. Una tinta si riconosce su una superficie, non su un filo — e
+      cinque filetti neri in colonna sono cinque tacche, non un accento.
+
+      ⭐ **Il colore va sul TESTO del titolo**, dove ha spazio per essere un
+      colore: la parola «Indirizzo» in brand si legge come un'intestazione, e
+      il filo sotto la accompagna. Stesso verde, zero blocchetti.
+    */
+    --form-section-title-color: var(--color-primary);
     /*
       ⚠️ **Il filo sotto il titolo è TINTO, non verde pieno**: a piena tinta
       sarebbero cinque righe verdi in una schermata, e l'accento smetterebbe di
-      accentare. La barretta a sinistra porta il colore, il filo lo accompagna.
+      accentare.
     */
     --form-section-rule: color-mix(in srgb, var(--color-primary) 22%, var(--color-border));
 

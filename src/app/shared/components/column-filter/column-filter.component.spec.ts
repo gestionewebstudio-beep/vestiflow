@@ -7,6 +7,15 @@ import type { TableColumnFilterKind } from '@shared/table-columns/table-column.m
 
 import { ColumnFilterComponent } from './column-filter.component';
 
+/**
+ * ⭐ **UN SOLO CONTROLLO PER OGNI COLONNA** — proprietario, 01/09/2026:
+ * «andrebbe creato un unico pezzo da applicare sulle colonne».
+ *
+ * ⛔ **Queste prove erano scritte sui QUATTRO controlli di prima** — un campo di
+ * ricerca nudo per il testo, due caselle per gli intervalli, due campi data —
+ * e cercavano quei controlli **nell'intestazione**. Ora tutto vive dentro il
+ * pannello, che si apre: le prove aprono il pannello, come fa l'operatore.
+ */
 @Component({
   imports: [ColumnFilterComponent],
   template: `
@@ -20,150 +29,189 @@ import { ColumnFilterComponent } from './column-filter.component';
   `,
 })
 class OspiteComponent {
-  readonly kind = signal<TableColumnFilterKind>('range');
+  readonly kind = signal<TableColumnFilterKind>('values');
   readonly options = signal<readonly string[]>([]);
   readonly value = signal<ColumnFilterValue | null>(null);
   readonly changed = vi.fn();
 }
 
-async function apri(kind: TableColumnFilterKind): Promise<OspiteComponent> {
-  const reso = await render(OspiteComponent);
-  reso.fixture.componentInstance.kind.set(kind);
-  reso.fixture.detectChanges();
-  return reso.fixture.componentInstance;
-}
-
 /**
  * L'ultimo valore emesso.
  *
- * ⛔ **Niente `?? undefined` in coda**, ed è l'errore che questa prova ha
- * trovato in se stessa: `??` scatta anche su `null`, cioè proprio sul valore
- * che i test verificano — «svuotare TOGLIE il filtro». Tre prove fallivano per
- * un difetto dell'helper, non del componente.
+ * ⛔ **Niente `?? undefined` in coda**: `??` scatta anche su `null`, cioè
+ * proprio sul valore che queste prove verificano — «svuotare TOGLIE il filtro».
  */
 function emesso(o: OspiteComponent): ColumnFilterValue | null | undefined {
   const chiamata = o.changed.mock.calls.at(-1);
   return chiamata === undefined ? undefined : (chiamata[0] as ColumnFilterValue | null);
 }
 
-describe('filtro di testo', () => {
-  it('emette il testo scritto', async () => {
-    const o = await apri('text');
-    fireEvent.input(screen.getByRole('searchbox'), { target: { value: 'maglia' } });
-    expect(emesso(o)).toEqual({ kind: 'text', text: 'maglia' });
+/** Apre il pannello del filtro: è lì che stanno tutti i comandi. */
+async function apri(
+  kind: TableColumnFilterKind,
+  opzioni: { readonly valori?: readonly string[]; readonly valore?: ColumnFilterValue } = {},
+) {
+  const reso = await render(OspiteComponent);
+  const o = reso.fixture.componentInstance;
+  o.kind.set(kind);
+  o.options.set(opzioni.valori ?? []);
+  o.value.set(opzioni.valore ?? null);
+  reso.fixture.detectChanges();
+  fireEvent.click(screen.getByRole('button', { name: /Filtra per Totale/ }));
+  reso.fixture.detectChanges();
+  return { reso, o };
+}
+
+describe('il controllo è UNO, e non dipende dal tipo di colonna', () => {
+  /*
+    ⛔ **La forma la decideva la PRESENTAZIONE**: `display: 'code'` o
+    `'truncate'` mandavano la colonna a «testo», quindi si poteva solo scrivere;
+    senza `display` si poteva solo spuntare. «Alcuni funzionano in un modo ed
+    altri in un altro, e non ha senso.»
+  */
+  /*
+    ⚠️ **Un `render` per prova, e non uno per tipo dentro un ciclo**: il TestBed
+    si configura una volta sola, e un secondo `render` nello stesso `it` risponde
+    «Cannot configure the test module when it has already been instantiated».
+  */
+  for (const kind of ['values', 'text', 'range', 'date'] as const) {
+    it(`⭐ la colonna «${kind}» offre l'elenco dei valori, il verso e il «Tutti»`, async () => {
+      await apri(kind, { valori: ['Alfa', 'Beta'] });
+
+      expect(screen.getByRole('option', { name: 'Alfa' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Escludi' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: /Mostra tutti i valori/ })).toBeTruthy();
+    });
+  }
+
+  /*
+    ⚠️ **Il `kind` non è sparito: dice CHE COSA il pannello offre in più.** Oggi
+    sono gli estremi, su una data o su un numero.
+
+    ⛔ **Le scorciatoie di periodo sono state tolte** il 01/09/2026: duplicavano
+    il filtro «Periodo» che la barra ha già — «avere nei filtri gli stessi filtri
+    presenti nel periodo mi sembra ripetitivo».
+  */
+  it('⚠️ gli estremi numerici stanno sulla colonna a intervallo', async () => {
+    await apri('range');
+    expect(screen.getByLabelText('Totale da')).toBeTruthy();
+  });
+
+  it('⚠️ e non su una colonna a valori', async () => {
+    await apri('values');
+    expect(screen.queryByLabelText('Totale da')).toBeNull();
+  });
+});
+
+describe('le restrizioni convivono nello stesso valore', () => {
+  it('⭐ spuntare un valore restringe per uguaglianza', async () => {
+    const { o } = await apri('values', { valori: ['Bozza', 'Confermato'] });
+
+    fireEvent.click(screen.getByRole('option', { name: 'Bozza' }));
+
+    expect(emesso(o)).toMatchObject({ values: ['Bozza'] });
   });
 
   /*
-    ⛔ **Svuotare TOGLIE il filtro**, e deve emettere `null`: un valore vuoto
-    lascerebbe il filtro attivo su una stringa vuota, e l'elenco non tornerebbe
-    più completo senza che nulla lo spieghi.
+    ⭐ **Scrivere restringe SENZA dover spuntare**, ed è la metà che mancava:
+    «città contiene il sistema per selezionare o filtrare, ma altri campi no».
   */
-  it('⛔ svuotare emette null, non un testo vuoto', async () => {
-    const o = await apri('text');
-    fireEvent.input(screen.getByRole('searchbox'), { target: { value: 'x' } });
-    fireEvent.input(screen.getByRole('searchbox'), { target: { value: '   ' } });
+  it('⭐ scrivere nella ricerca restringe le righe, non solo l’elenco', async () => {
+    const { o } = await apri('text', { valori: ['Rossi', 'Bianchi'] });
+
+    fireEvent.input(screen.getByRole('searchbox'), { target: { value: 'ros' } });
+
+    expect(emesso(o)).toMatchObject({ text: 'ros' });
+  });
+
+  it('⭐ testo e spunte insieme restano insieme: scrivere non cancella la scelta', async () => {
+    const { o } = await apri('values', {
+      valori: ['Rossi', 'Bianchi'],
+      valore: { kind: 'values', values: ['Rossi'] },
+    });
+
+    fireEvent.input(screen.getByRole('searchbox'), { target: { value: 'ro' } });
+
+    expect(emesso(o)).toMatchObject({ values: ['Rossi'], text: 'ro' });
+  });
+
+  it('⛔ svuotare la ricerca senza altre restrizioni toglie il filtro', async () => {
+    const { reso, o } = await apri('text', { valori: ['Rossi'] });
+
+    fireEvent.input(screen.getByRole('searchbox'), { target: { value: 'ros' } });
+    reso.fixture.detectChanges();
+    fireEvent.input(screen.getByRole('searchbox'), { target: { value: '  ' } });
+
     expect(emesso(o)).toBeNull();
   });
 });
 
-describe('filtro a intervallo', () => {
-  /*
-    ⚠️ **Due funzioni nominate, non un array indicizzato**:
-    `noUncheckedIndexedAccess` rende `daCampo()` possibilmente `undefined`, e
-    un `!` per zittirlo toglierebbe proprio la garanzia che quel flag dà.
-  */
+describe('gli estremi numerici', () => {
   const daCampo = (): HTMLElement => screen.getByLabelText('Totale da');
   const aCampo = (): HTMLElement => screen.getByLabelText('Totale a');
 
   it('emette il solo estremo compilato', async () => {
-    const o = await apri('range');
+    const { o } = await apri('range');
     fireEvent.input(daCampo(), { target: { value: '100' } });
-    expect(emesso(o)).toEqual({ kind: 'range', min: 100 });
+    expect(emesso(o)).toMatchObject({ min: 100 });
   });
 
   /*
-    ⛔ **`Number('')` vale ZERO**, ed è la trappola di questo controllo: letto
-    così, svuotare il campo «da» imporrebbe un minimo di zero — un filtro che
-    nessuno ha chiesto, e che nasconde ogni riga negativa.
+    ⛔ **`Number('')` vale ZERO**: letto così, svuotare il campo «da» imporrebbe
+    un minimo di zero — un filtro che nessuno ha chiesto, e che nasconde ogni
+    riga negativa.
   */
   it('⛔ un campo svuotato non diventa un estremo a zero', async () => {
-    const o = await apri('range');
+    const { reso, o } = await apri('range');
     fireEvent.input(daCampo(), { target: { value: '100' } });
+    reso.fixture.detectChanges();
     fireEvent.input(daCampo(), { target: { value: '' } });
     expect(emesso(o)).toBeNull();
   });
 
-  /*
-    ⚠️ **Lo zero DIGITATO invece è un estremo**: «fino a 0» è il filtro con cui
-    si cercano resi e note di credito.
-  */
   it('⚠️ uno zero digitato è un estremo, non un vuoto', async () => {
-    const o = await apri('range');
+    const { o } = await apri('range');
     fireEvent.input(aCampo(), { target: { value: '0' } });
-    expect(emesso(o)).toEqual({ kind: 'range', max: 0 });
+    expect(emesso(o)).toMatchObject({ max: 0 });
   });
 
   it('⛔ accetta il segno meno: resi e rettifiche sono righe come le altre', async () => {
-    const o = await apri('range');
+    const { o } = await apri('range');
     fireEvent.input(daCampo(), { target: { value: '-500' } });
-    expect(emesso(o)).toEqual({ kind: 'range', min: -500 });
+    expect(emesso(o)).toMatchObject({ min: -500 });
   });
 
-  /*
-    ⚠️ **La virgola è il separatore decimale italiano.** Chi digita «12,50» in un
-    campo importi non sta sbagliando: `Number('12,50')` darebbe `NaN`.
-  */
   it('⚠️ la virgola decimale si legge come un italiano la scrive', async () => {
-    const o = await apri('range');
+    const { o } = await apri('range');
     fireEvent.input(daCampo(), { target: { value: '12,50' } });
-    expect(emesso(o)).toEqual({ kind: 'range', min: 12.5 });
+    expect(emesso(o)).toMatchObject({ min: 12.5 });
   });
 
-  it("tiene l'estremo già impostato quando si compila l'altro", async () => {
-    const reso = await render(OspiteComponent);
-    const o = reso.fixture.componentInstance;
-    o.kind.set('range');
-    o.value.set({ kind: 'range', min: 10 });
-    reso.fixture.detectChanges();
-
-    fireEvent.input(screen.getByLabelText('Totale a'), { target: { value: '90' } });
-    expect(emesso(o)).toEqual({ kind: 'range', min: 10, max: 90 });
-  });
-
-  it('un valore non numerico non diventa un estremo', async () => {
-    const o = await apri('range');
-    fireEvent.input(daCampo(), { target: { value: 'abc' } });
-    expect(emesso(o)).toBeNull();
+  it('tiene l’estremo già impostato quando si compila l’altro', async () => {
+    const { o } = await apri('range', { valore: { kind: 'range', min: 10 } });
+    fireEvent.input(aCampo(), { target: { value: '90' } });
+    expect(emesso(o)).toMatchObject({ min: 10, max: 90 });
   });
 });
 
-describe('filtro a DATE', () => {
-  /*
-    ⛔ **Due campi data veri, non due caselle numeriche.** Una colonna data
-    dichiarata `range` mostrava gli estremi numerici, e su una data non c'è
-    numero da scrivere: era il caso di sei colonne «Data» dichiarate così.
-  */
-  it('⛔ emette gli estremi in ISO, come li scrive un italiano', async () => {
-    const o = await apri('date');
+describe('gli estremi data', () => {
+  it('⛔ si digitano in GG/MM/AAAA e viaggiano in ISO', async () => {
+    const { o } = await apri('date');
 
     const dal = screen.getByLabelText('Totale dal');
     fireEvent.input(dal, { target: { value: '31/01/2026' } });
     fireEvent.blur(dal);
 
-    expect(emesso(o)).toEqual({ kind: 'date', dateFrom: '2026-01-31' });
+    expect(emesso(o)).toMatchObject({ dateFrom: '2026-01-31' });
   });
 
   /*
-    ⛔ **Svuotare TOGLIE il filtro.** `app-date-input` emette la stringa vuota,
-    non `undefined`: senza normalizzarla il filtro resterebbe attivo su un
-    estremo vuoto e l'elenco non tornerebbe più intero.
+    ⛔ **Svuotare TOGLIE l'estremo**: `app-date-input` emette la stringa vuota,
+    non `undefined`, e senza normalizzarla il filtro resterebbe attivo su un
+    estremo vuoto.
   */
-  it('⛔ svuotare un estremo già impostato emette null', async () => {
-    const reso = await render(OspiteComponent);
-    const o = reso.fixture.componentInstance;
-    o.kind.set('date');
-    o.value.set({ kind: 'date', dateFrom: '2026-01-31' });
-    reso.fixture.detectChanges();
+  it('⛔ svuotare un estremo già impostato lo toglie davvero', async () => {
+    const { o } = await apri('date', { valore: { kind: 'date', dateFrom: '2026-01-31' } });
 
     const dal = screen.getByLabelText('Totale dal');
     fireEvent.input(dal, { target: { value: '' } });
@@ -173,113 +221,75 @@ describe('filtro a DATE', () => {
   });
 
   it('tiene l’estremo già impostato quando si compila l’altro', async () => {
-    const reso = await render(OspiteComponent);
-    const o = reso.fixture.componentInstance;
-    o.kind.set('date');
-    o.value.set({ kind: 'date', dateFrom: '2026-01-01' });
-    reso.fixture.detectChanges();
+    const { o } = await apri('date', { valore: { kind: 'date', dateFrom: '2026-01-01' } });
 
     const al = screen.getByLabelText('Totale al');
     fireEvent.input(al, { target: { value: '31/01/2026' } });
     fireEvent.blur(al);
 
-    expect(emesso(o)).toEqual({ kind: 'date', dateFrom: '2026-01-01', dateTo: '2026-01-31' });
+    expect(emesso(o)).toMatchObject({ dateFrom: '2026-01-01', dateTo: '2026-01-31' });
   });
 });
 
-describe('filtro a valori', () => {
-  it('offre i valori presenti nelle righe', async () => {
-    const reso = await render(OspiteComponent);
-    const o = reso.fixture.componentInstance;
-    o.kind.set('values');
-    o.options.set(['Bozza', 'Confermato']);
-    reso.fixture.detectChanges();
-
-    // Il menu è chiuso: si verifica che il controllo esista e sia nominato.
-    expect(screen.getByLabelText('Filtra per Totale')).toBeTruthy();
-  });
-});
-
-/**
- * ⭐ **IL VERSO DEL FILTRO A VALORI** — «Includi» / «Escludi», più «Tutti».
- *
- * ⚠️ **Il pannello si apre premendo il pulsante**: i comandi del verso stanno
- * dentro (`panelLead`), non in barra, perché agiscono sulle opzioni di questo
- * menu (`regole-stile-ui` §5).
- */
-describe('filtro a valori — il verso e il «Tutti»', () => {
-  async function apriPannello(scelti: readonly string[], escludi = false) {
-    const reso = await render(OspiteComponent);
-    const o = reso.fixture.componentInstance;
-    o.kind.set('values');
-    o.options.set(['Bozza', 'Confermato', 'Annullato']);
-    o.value.set(
-      scelti.length === 0
-        ? null
-        : { kind: 'values', values: [...scelti], ...(escludi ? { exclude: true } : {}) },
-    );
-    reso.fixture.detectChanges();
-    fireEvent.click(screen.getByRole('button', { name: /Filtra per Totale/ }));
-    reso.fixture.detectChanges();
-    return { reso, o };
-  }
-
-  it('⭐ il pannello offre i due versi, e di serie include', async () => {
-    await apriPannello(['Bozza']);
-
-    expect(screen.getByRole('button', { name: 'Includi' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Escludi' })).toBeTruthy();
-  });
-
-  /*
-    ⭐ **Cambiare verso NON azzera la scelta**: si sceglie «Bozza» e poi si
-    decide se vederla o escluderla. Rifare la selezione a ogni cambio di verso
-    toglierebbe il senso al confronto fra i due risultati.
-  */
+describe('il verso e il «Tutti»', () => {
   it('⭐ passare a «Escludi» conserva i valori scelti', async () => {
-    const { o } = await apriPannello(['Bozza']);
+    const { o } = await apri('values', {
+      valori: ['Bozza'],
+      valore: { kind: 'values', values: ['Bozza'] },
+    });
 
     fireEvent.click(screen.getByRole('button', { name: 'Escludi' }));
 
-    expect(emesso(o)).toEqual({ kind: 'values', values: ['Bozza'], exclude: true });
+    expect(emesso(o)).toMatchObject({ values: ['Bozza'], exclude: true });
   });
 
   it('⭐ tornare a «Includi» toglie il verso, non la scelta', async () => {
-    const { o } = await apriPannello(['Bozza'], true);
+    const { o } = await apri('values', {
+      valori: ['Bozza'],
+      valore: { kind: 'values', values: ['Bozza'], exclude: true },
+    });
 
     fireEvent.click(screen.getByRole('button', { name: 'Includi' }));
 
-    expect(emesso(o)).toEqual({ kind: 'values', values: ['Bozza'] });
+    expect(emesso(o)).toMatchObject({ values: ['Bozza'], exclude: false });
   });
 
   /*
-    ⛔ **«Tutti» TOGLIE il filtro.** In questo modello «nessun valore scelto» è
-    già «nessuna restrizione»: spuntarli tutti a uno a uno darebbe lo stesso
-    risultato con venti clic e un filtro che sembra acceso.
+    ⛔ **Il verso scelto PRIMA dei valori** — trovato in un browser il
+    01/09/2026: a mani vuote si emette `null`, quindi il verso non aveva dove
+    sopravvivere fino alla prima spunta e la sequenza naturale dava l'opposto.
   */
+  it('⭐ «Escludi» a mani vuote non filtra, ma la prima voce spuntata esclude', async () => {
+    const { reso, o } = await apri('values', { valori: ['Napoli', 'Milano'] });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Escludi' }));
+    expect(emesso(o)).toBeNull();
+
+    reso.fixture.detectChanges();
+    fireEvent.click(screen.getByRole('option', { name: 'Napoli' }));
+
+    expect(emesso(o)).toMatchObject({ values: ['Napoli'], exclude: true });
+  });
+
   it('⛔ «Tutti» emette null: il filtro sparisce, non si riempie', async () => {
-    const { o } = await apriPannello(['Bozza', 'Confermato'], true);
+    const { o } = await apri('values', {
+      valori: ['Bozza'],
+      valore: { kind: 'values', values: ['Bozza'], exclude: true },
+    });
 
     fireEvent.click(screen.getByRole('button', { name: /Mostra tutti i valori/ }));
 
     expect(emesso(o)).toBeNull();
   });
 
-  it('⚠️ senza selezione «Tutti» è spento: non c’è niente da togliere', async () => {
-    await apriPannello([]);
+  it('⚠️ senza restrizioni «Tutti» è spento: non c’è niente da togliere', async () => {
+    await apri('values', { valori: ['Bozza'] });
 
-    // ⚠️ L'attributo, non la proprietà: `getByRole` restituisce un `HTMLElement`
-    //    generico, e il cast a `HTMLButtonElement` il lint lo rifiuta.
     expect(
       screen.getByRole('button', { name: /Mostra tutti i valori/ }).hasAttribute('disabled'),
     ).toBe(true);
   });
 
-  /*
-    ⚠️ **Il nome accessibile dice il verso.** Il pulsante mostra solo il nome
-    della colonna più un'icona: chi non vede l'icona non saprebbe che quel
-    filtro esclude invece di includere, e i due danno risultati opposti.
-  */
   it('⚠️ escludendo, il nome accessibile del controllo lo dichiara', async () => {
     const reso = await render(OspiteComponent);
     const o = reso.fixture.componentInstance;
@@ -289,60 +299,5 @@ describe('filtro a valori — il verso e il «Tutti»', () => {
     reso.fixture.detectChanges();
 
     expect(screen.getByLabelText(/escludendo i valori scelti/)).toBeTruthy();
-  });
-});
-
-/**
- * ⛔ **L'ORDINE IN CUI SI LAVORA, NON QUELLO COMODO PER IL TEST.**
- *
- * Trovato in un browser vero il 01/09/2026: le prove qui sopra sceglievano i
- * valori PRIMA del verso, e passavano tutte mentre l'operatore — che preme
- * «Escludi» e POI spunta — otteneva l'esatto contrario di quello che chiedeva.
- *
- * ⚠️ **La causa non era il componente ma dove stava il verso**: a mani vuote si
- * emette `null` (nessuna restrizione), quindi il verso non aveva dove
- * sopravvivere fino alla prima spunta.
- */
-describe('filtro a valori — il verso scelto PRIMA dei valori', () => {
-  async function apriVuoto() {
-    const reso = await render(OspiteComponent);
-    const o = reso.fixture.componentInstance;
-    o.kind.set('values');
-    o.options.set(['Napoli', 'Milano']);
-    o.value.set(null);
-    reso.fixture.detectChanges();
-    fireEvent.click(screen.getByRole('button', { name: /Filtra per Totale/ }));
-    reso.fixture.detectChanges();
-    return { reso, o };
-  }
-
-  it('⛔ «Escludi» a mani vuote non emette un filtro: non c’è niente da restringere', async () => {
-    const { o } = await apriVuoto();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Escludi' }));
-
-    expect(emesso(o)).toBeNull();
-  });
-
-  it('⭐ ma il verso resta, e la PRIMA voce spuntata esclude', async () => {
-    const { reso, o } = await apriVuoto();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Escludi' }));
-    reso.fixture.detectChanges();
-    fireEvent.click(screen.getByRole('option', { name: 'Napoli' }));
-
-    expect(emesso(o)).toEqual({ kind: 'values', values: ['Napoli'], exclude: true });
-  });
-
-  it('⚠️ «Tutti» riporta a «Includi»: chi vuole vedere tutto non sta escludendo', async () => {
-    const { reso, o } = await apriVuoto();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Escludi' }));
-    reso.fixture.detectChanges();
-    fireEvent.click(screen.getByRole('button', { name: /Mostra tutti i valori/ }));
-    reso.fixture.detectChanges();
-    fireEvent.click(screen.getByRole('option', { name: 'Napoli' }));
-
-    expect(emesso(o)).toEqual({ kind: 'values', values: ['Napoli'] });
   });
 });

@@ -323,10 +323,47 @@ aliquota segue la stessa regola»).
 
 _«Segnati queste cose da fare e oggi vanno fatte, non perderle.»_
 
-## 1. ⭐ La nuova VENDITA AL BANCO non si salva — causa TROVATA il 01/09/2026
+## 1. ⛔ La nuova VENDITA AL BANCO non si salva — ANCORA APERTA
 
-> **`crypto.randomUUID()` non esiste fuori dal contesto sicuro, e «Concludi
-> vendita» la chiama PRIMA di partire.**
+> **Il proprietario apre da `localhost`, e il 01/09/2026 ha confermato: «ancora
+> non funziona».**
+
+⛔ **Quindi la causa trovata quel giorno NON è la sua**, ed è scritto qui perché
+è l'errore da non ripetere: un difetto reale, misurato e sullo stesso percorso
+**non è per questo il difetto segnalato**. Da `localhost` il contesto è sicuro e
+`crypto.randomUUID` c'è.
+
+⭐ **Quel che si è imparato resta e vale**, ed è elencato sotto: il server è a
+posto (prove di integrazione), e una seconda causa possibile è stata chiusa.
+
+### ⭐ La domanda del proprietario, che è la pista buona
+
+> _«Dovrebbe essere un documento come tutti gli altri e con componenti condivisi.
+> Cambia solo la contabilità.»_
+
+⚠️ **E oggi non lo è**: la Vendita al banco ha un endpoint proprio
+(`POST /store-sales`), un servizio proprio e una maschera propria — è la
+**quarta strada** che persiste un `Document` senza passare da
+`confirmDocumentTx`, e lo dice già un commento nel suo DTO. Ogni difetto
+trovato lì è un difetto che le altre maschere non hanno perché non passano di
+lì.
+
+**Da fare quando si riprende**, in quest'ordine:
+
+1. riprodurre il rifiuto **con l'utente vero** (non l'auth mock, che l'API non
+   accetta) e leggere stato e corpo della risposta;
+2. solo allora decidere se si corregge il caso o si **rientra nel percorso
+   comune**, che è la domanda che il proprietario ha posto.
+
+### ✅ Quel che è già stato chiuso il 01/09/2026
+
+**Il server è a posto, e non è una deduzione**: tre prove di integrazione HTTP su
+PostgreSQL vero (`vendita-al-banco.integration-spec.ts`) creano una vendita con
+riga, una senza righe e verificano l'idempotenza dell'intento. Verdi al primo
+colpo, col payload esatto della maschera.
+
+**Una seconda causa, reale ma non la sua:** `crypto.randomUUID()` non esiste
+fuori dal contesto sicuro.
 
 Misurato in Chrome, sulla build di questa applicazione:
 
@@ -364,9 +401,9 @@ nessuna suite.
 stessa API. Da un'origine di rete **ogni notifica** lanciava — cioè l'errore che
 nasconde l'errore.
 
-⏸ **Da confermare da lei**: se apre VestiFlow da `http://localhost` il difetto
-non si manifestava, e la causa del suo caso sarebbe un'altra. Il difetto qui
-descritto è comunque reale e misurato.
+⚠️ **Confermato il 01/09/2026: apre da `localhost`**, quindi questo non era il
+suo caso. Resta corretto perché chiunque apra il gestionale dal telefono in
+magazzino lo incontrerebbe — e perché rompeva **ogni toast** su quell'origine.
 
 ## 2. ⛔ ELIMINA e DUPLICA — la semantica è quella dell'U.M. e del Codice IVA
 
