@@ -12,7 +12,7 @@
   padding-block: var(--badge-pad-block, var(--space-1));
   padding-inline: var(--badge-pad-inline, var(--space-2));
   font-size: var(--badge-font-size, var(--text-2xs));
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--badge-font-weight, var(--font-weight-semibold));
   line-height: var(--leading-tight);
   border-radius: var(--radius-full);
   border: var(--border-width) solid transparent;
@@ -67,8 +67,38 @@
   solo: ogni tono li imposta tutti e due, e lasciarne uno acceso darebbe un
   contorno colorato intorno a un testo senza fondo.
 */
+/*
+  ⭐ **SENZA PASTIGLIA, LA TIPOGRAFIA È QUELLA DI DOVE STA** — proprietario,
+  01/09/2026, guardando la colonna «Stato» delle Giacenze: «risulta 1px più
+  piccolo e un peso di 600, diverso dal resto che è 400», e poi «non solo
+  quella, in tutti i riepiloghi va sistemato».
+
+  ⛔ **Era una causa sola in dodici riepiloghi.** Il badge nasce pill —
+  `--text-2xs` (11px) e semibold sono la ricetta di `regole-stile-ui` §5, e su
+  una pastiglia colorata sono giusti: quel testo è un'etichetta dentro una
+  forma, non una parola in una riga. Tolta la pastiglia resta **testo in una
+  cella**, e lì una taglia e un peso propri si leggono come un errore di
+  composizione: la riga ha due grammature.
+
+  ⭐ **La TAGLIA si eredita, il PESO resta un gradino sopra** — proprietario:
+  «cambiamo il peso a 500», «solo dei colorati». Cioè: la parola sta nella riga
+  come le altre (12px in tabella), ma un mezzo gradino di peso la stacca da
+  quelle accanto senza gridare come il 600 della pill.
+
+  ⚠️ **500 e non 400**, e la ragione è che questi non sono dati qualunque: sono
+  gli stati — Esaurito, Disponibile, Confermato — cioè la colonna che si
+  scorre con l'occhio per trovare le righe che chiedono attenzione. Il colore
+  fa il grosso del lavoro; il peso lo accompagna per chi i colori non li
+  distingue.
+
+  ⚠️ **La pill vera non cambia di un pixel**: `--flat` è l'unica variante
+  toccata, e i suoi 11px/600 su fondo colorato restano quelli di
+  `regole-stile-ui` §5.
+*/
 .app-badge--flat {
   padding: 0;
   background-color: transparent;
   border-color: transparent;
+  font-size: var(--badge-font-size, inherit);
+  font-weight: var(--badge-font-weight, var(--font-weight-medium));
 }

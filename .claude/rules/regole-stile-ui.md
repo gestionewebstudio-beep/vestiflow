@@ -314,6 +314,7 @@ dal più corretto al più invasivo:
    | campi (`--field-*`) | `--field-h`, `--field-gap`, `--field-font-size`, `--field-pad-inline`, `--field-radius`, `--field-fg`, `--field-bg`, `--field-bg-hover`, `--field-border-color`       |
    | `back-button`       | `--back-button-h`, `--back-button-gap`, `--back-button-pad-inline`, `--back-button-radius`, `--back-button-font-size`, `--back-button-font-weight`                    |
    | `action-menu`       | `--action-menu-pad-inline`, `--action-menu-inline-size` (solo sul trigger nominato); l'altezza segue `--field-height`                                                 |
+   | `app-badge`         | `--badge-h`, `--badge-inline-size`, `--badge-pad-block`, `--badge-pad-inline`, `--badge-font-size`, `--badge-font-weight`                                             |
    | `attachments-panel` | `--attachments-gap`, `--attachments-title-size`, `--attachments-item-pad`                                                                                             |
    | `barcode-scanner`   | `--barcode-scanner-w`                                                                                                                                                 |
    | `hover-tooltip`     | `--hover-tooltip-inset`                                                                                                                                               |
@@ -1067,6 +1068,30 @@ Regola: **una sola primary CTA per vista**. Le azioni secondarie sono secondary 
 
 - Formato: `fg pieno + bg 12% alpha + bordo 25% alpha` dello stesso colore
 - Padding `3px 8px`, radius `--radius-pill`, weight 700, size 11px
+
+#### ⭐ La variante PIATTA non è una pill senza fondo — 01/09/2026
+
+> **Tolta la pastiglia, la taglia si EREDITA dal contesto e il peso resta a 500.**
+
+_Proprietario, guardando la colonna «Stato» delle Giacenze: «risulta 1px più piccolo e un
+peso di 600, diverso dal resto che è 400», poi «non solo quella, in tutti i riepiloghi va
+sistemato», infine «cambiamo il peso a 500 — solo dei colorati»._
+
+⛔ **Era una causa sola in dodici riepiloghi.** `app-badge` nasce pill, e su una pastiglia
+colorata 11px e semibold sono giusti: quel testo è un'etichetta dentro una forma. Con
+`[flat]` la forma sparisce e resta **testo in una cella** — dove una taglia e un peso propri
+si leggono come un errore di composizione, perché la riga finisce per avere due grammature.
+
+```text
+prima   11px / 600     in una riga di corpo 12px / 400
+dopo    12px / 500     misurato su Ordini fornitore
+```
+
+⭐ **500 e non 400**, ed è la parte deliberata: questi non sono dati qualunque, sono **gli
+stati** — la colonna che si scorre per trovare le righe che chiedono attenzione. Il colore
+fa il grosso; il mezzo gradino di peso lo accompagna per chi i colori non li distingue.
+
+⚠️ **La pill vera non cambia**: `--flat` è l'unica variante toccata.
 
 ### Azioni documento (per device)
 
