@@ -87,7 +87,6 @@ export const CATALOGO_COLONNE = {
 
   // ── Quanto ────────────────────────────────────────────────────────────────
   total: { label: 'Totale', numeric: true },
-  lineCount: { label: 'Righe', numeric: true, fisso: true },
   onHand: { label: 'Giacenza', numeric: true, fisso: true },
   available: { label: 'Disponibile', numeric: true, fisso: true },
   committed: { label: 'Impegnata', numeric: true, fisso: true },

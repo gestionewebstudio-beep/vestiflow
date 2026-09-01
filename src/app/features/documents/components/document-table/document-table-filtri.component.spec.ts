@@ -162,20 +162,12 @@ describe('Arrivi merce — i filtri di colonna', () => {
   });
 
   /*
-    ⛔ **La colonna RIGHE è `lineCount`, e il primo estrattore non la copriva**:
-    due campi da–a che non restringevano niente. È il difetto segnalato a
-    schermo, e la ragione per cui questa prova elenca le colonne VERE.
+    ⛔ **Qui c'era la prova sulla colonna «Righe»**, tolta col 01/09/2026 insieme
+    alla colonna — «non serve a nulla, può essere rimossa ovunque». Diceva una
+    cosa che resta vera e che la prova qui sotto continua a dire: un filtro a
+    intervallo su una colonna numerica deve restringere davvero, e senza il suo
+    estrattore mostra due campi che non fanno niente.
   */
-  it('⛔ il conteggio righe si filtra per intervallo', async () => {
-    const reso = await apriConFiltri();
-
-    await apriPannello('Righe', reso);
-    await userEvent.type(screen.getByLabelText('Righe da'), '3');
-    reso.fixture.detectChanges();
-
-    expect(righeVisibili()).toBe(2);
-  });
-
   it('il totale documento si filtra per intervallo, in unità minori', async () => {
     const reso = await apriConFiltri();
 

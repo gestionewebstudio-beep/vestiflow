@@ -21,11 +21,13 @@ import {
 import {
   documentEconomicSign,
   hasDeclaredEconomicSign,
-  signedDocumentMoney,
 } from '@domain/documents/models/document-economic-sign.util';
 import { isStoreFlowDocumentType } from '@domain/documents/models/document-operational.util';
 
-import { righeDi, totaliDocumenti } from '../../models/document-list-totals.util';
+import {
+  campiSommabiliDocumenti,
+  totaliDocumenti,
+} from '../../models/document-list-totals.util';
 import { testoColonnaCondivisa } from '../../models/document-shared-columns';
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
 import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
@@ -154,10 +156,6 @@ export class DocumentTableComponent {
 
   protected dateLabel(doc: DocumentRecord): string {
     return formatDate(doc.documentDate);
-  }
-
-  protected lineCount(doc: DocumentRecord): number {
-    return righeDi(doc);
   }
 
   protected notesLabel(doc: DocumentRecord): string {
@@ -298,8 +296,6 @@ export class DocumentTableComponent {
     cellText: (doc, columnId) => this.cellText(doc, columnId),
     numeroDi: (doc, columnId) => {
       switch (columnId) {
-        case 'lineCount':
-          return this.lineCount(doc);
         case 'subtotal':
           return doc.subtotal?.amountMinor ?? null;
         case 'tax':
@@ -326,27 +322,22 @@ export class DocumentTableComponent {
     },
   });
 
-  protected readonly sections = computed<readonly DataTableSection<DocumentRecord>[]>(() => {
-    const valuta = this.documents()[0]?.currency ?? DEFAULT_CURRENCY;
-    const soldi = (n: number): string => formatMoney({ amountMinor: n, currencyCode: valuta });
-    return sezioniDiElenco(this.righe(), this.groupByDay(), {
+  /*
+    ⚠️ **Le colonne sommate sono quelle di `campiSommabiliDocumenti`**, le stesse
+    della riga totali qui sotto: il subtotale di giornata e il totale in fondo
+    non possono dichiarare due elenchi diversi — è il difetto misurato il
+    01/09/2026, IVA ed Esposizione presenti in fondo e vuote sulla riga di
+    giornata.
+  */
+  protected readonly sections = computed<readonly DataTableSection<DocumentRecord>[]>(() =>
+    sezioniDiElenco(this.righe(), this.groupByDay(), {
       idPiatto: 'documenti',
       giornoDi: (doc) => doc.documentDate,
       columns: this.columns(),
       emphasis: 'total',
-      campi: {
-        subtotal: {
-          valore: (doc) => signedDocumentMoney(doc.type, doc.subtotal).amountMinor,
-          formato: soldi,
-        },
-        total: {
-          valore: (doc) => signedDocumentMoney(doc.type, doc.total).amountMinor,
-          formato: soldi,
-        },
-        lineCount: { valore: (doc) => this.lineCount(doc), formato: (n) => String(n) },
-      },
-    });
-  });
+      campi: campiSommabiliDocumenti(this.documents()[0]?.currency ?? DEFAULT_CURRENCY),
+    }),
+  );
 
   /**
    * ⭐ **La riga totali, dentro la tabella** — dove ogni valore cade sotto la
@@ -478,8 +469,6 @@ export class DocumentTableComponent {
         return this.invoiceNumberLabel(doc);
       case 'paymentMethod':
         return this.paymentMethodLabel(doc);
-      case 'lineCount':
-        return String(this.lineCount(doc));
       /*
         ⛔ **Qui c'erano `subtotal` e `total` grezzi, senza verso economico.**
 

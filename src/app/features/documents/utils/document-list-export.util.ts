@@ -84,11 +84,6 @@ export function buildDocumentListPrintHtml(
   return buildListPrintHtml(docs, conTitolo(config));
 }
 
-/** Righe del documento: il conteggio se il server lo manda, o quelle caricate. */
-function lineCountOf(doc: DocumentRecord): number {
-  return doc.lineCount ?? doc.lines?.length ?? 0;
-}
-
 // ── Configurazioni per tipo documento ──────────────────────────────────────
 
 /** Export elenco Arrivi merce (colonne fornitore/causale/collegamento fattura). */
@@ -102,12 +97,6 @@ export const GOODS_RECEIPT_LIST_EXPORT: DocumentListExportConfig = {
     { header: 'Doc. fornitore', cell: (doc) => goodsReceiptExternalDocLabel(doc) },
     { header: 'Causale carico', cell: (doc) => doc.causalText?.trim() ?? '' },
     { header: 'Magazzino', cell: (doc) => doc.locationName ?? '' },
-    {
-      header: 'Righe',
-      numeric: true,
-      cell: (doc) => String(lineCountOf(doc)),
-      footer: { kind: 'sumInt', value: lineCountOf },
-    },
     {
       header: 'Imponibile',
       numeric: true,
@@ -140,12 +129,6 @@ export const QUOTE_LIST_EXPORT: DocumentListExportConfig = {
     { header: 'Cliente', cell: (doc) => doc.customerName ?? '' },
     { header: 'Cod. cliente', cell: (doc) => doc.customerCode?.trim() ?? '' },
     { header: 'Pagamento', cell: (doc) => doc.paymentTerms?.trim() ?? '' },
-    {
-      header: 'Righe',
-      numeric: true,
-      cell: (doc) => String(lineCountOf(doc)),
-      footer: { kind: 'sumInt', value: lineCountOf },
-    },
     {
       header: 'Imponibile',
       numeric: true,

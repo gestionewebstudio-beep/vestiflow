@@ -37,13 +37,6 @@ describe('parseDocumentListSort', () => {
     ]);
   });
 
-  it('le righe si contano dalla relazione, non da un campo denormalizzato', () => {
-    expect(parseDocumentListSort('lineCount:asc')).toEqual([
-      { lines: { _count: 'asc' } },
-      { id: 'asc' },
-    ]);
-  });
-
   it('la direzione può mancare: si intende crescente', () => {
     expect(parseDocumentListSort('total')).toEqual([{ totalMinor: 'asc' }, { id: 'asc' }]);
   });
@@ -79,7 +72,7 @@ describe('parseDocumentListSort', () => {
   });
 
   it('⭐ l’ordine finisce SEMPRE con il tie-break, o la paginazione perde righe', () => {
-    for (const chiave of ['documentDate:desc', 'reference:asc', 'lineCount:desc', 'total:asc']) {
+    for (const chiave of ['documentDate:desc', 'reference:asc', 'type:asc', 'total:asc']) {
       const ordine = parseDocumentListSort(chiave);
       expect(ordine.at(-1)).toEqual({ id: 'asc' });
     }

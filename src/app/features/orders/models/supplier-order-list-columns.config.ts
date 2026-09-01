@@ -14,9 +14,12 @@ import {
  * colonne (`14` §0.2), un elenco senza selettore è un elenco in cui non si
  * scelgono né i dati né i totali.
  *
- * ⚠️ **`summable` è un opt-out**: `total` è numerica e si somma senza dirlo;
- * `lines` pure — «quante righe in tutto» è una domanda vera in magazzino, ed è
- * il comportamento del riferimento Danea.
+ * ⚠️ **`summable` è un opt-out**: `total` è numerica e si somma senza dirlo.
+ *
+ * ⛔ **La colonna «Righe» è stata TOLTA** — proprietario, 01/09/2026: «non serve
+ * a nulla, può essere rimossa ovunque». Contava le righe di un ordine, che è un
+ * dato della maschera e non dell'elenco: chi scorre gli ordini cerca chi, quando
+ * e quanto, non quante voci ci sono dentro.
  */
 export const SUPPLIER_ORDER_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   colonna('reference', { pinnable: true, defaultVisible: true, cardTitle: true }),
@@ -38,7 +41,6 @@ export const SUPPLIER_ORDER_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   colonna('documentDate', { defaultVisible: true }),
   colonna('supplier', { defaultVisible: true }),
   colonna('status', { defaultVisible: true }),
-  { id: 'lines', label: 'Righe', numeric: true, defaultVisible: true },
   { id: 'expected', label: 'Attesa il', filter: 'date', defaultVisible: true },
   colonna('total', { defaultVisible: true }),
   /*
@@ -60,7 +62,6 @@ export const SUPPLIER_ORDER_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'documentDate',
     'supplier',
     'status',
-    'lines',
     'expected',
     'total',
   ],
@@ -69,11 +70,10 @@ export const SUPPLIER_ORDER_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'documentDate',
     'supplier',
     'status',
-    'lines',
     'expected',
   ],
   [TableViewPresetId.Accountant]: ['reference', 'documentDate', 'supplier', 'status', 'total'],
-  [TableViewPresetId.Supplier]: ['reference', 'documentDate', 'supplier', 'expected', 'lines'],
+  [TableViewPresetId.Supplier]: ['reference', 'documentDate', 'supplier', 'expected'],
   [TableViewPresetId.Analysis]: ['reference', 'documentDate', 'supplier', 'status', 'total'],
   [TableViewPresetId.Operational]: ['reference', 'documentDate', 'supplier', 'status', 'expected'],
 };

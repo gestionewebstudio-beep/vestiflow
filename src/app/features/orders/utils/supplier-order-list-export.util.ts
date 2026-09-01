@@ -20,7 +20,7 @@ import { supplierOrderStatusLabel } from '../models/supplier-order-labels.util';
  * conta davvero.
  *
  * ⚠️ **Le colonne sono quelle della pagina** — Riferimento, Fornitore, Stato,
- * Righe, Attesa il, Totale — con **Data ordine** aggiunta: l'elenco ordina per
+ * Attesa il, Totale — con **Data ordine** aggiunta: l'elenco ordina per
  * data ma non la mostra, e un foglio senza la data è inutilizzabile proprio
  * nello strumento per cui è fatto. Imponibile e IVA seguono il totale perché in
  * un export contabile la scomposizione serve.
@@ -34,12 +34,6 @@ export const SUPPLIER_ORDER_LIST_EXPORT: ListExportConfig<SupplierOrder> = {
     { header: 'Riferimento', cell: (order) => order.reference },
     { header: 'Fornitore', cell: (order) => order.supplierName },
     { header: 'Stato', cell: (order) => supplierOrderStatusLabel(order.status) },
-    {
-      header: 'Righe',
-      numeric: true,
-      cell: (order) => String(lineCountOf(order)),
-      footer: { kind: 'sumInt', value: lineCountOf },
-    },
     {
       header: 'Attesa il',
       cell: (order) => (order.expectedAt ? formatDate(order.expectedAt) : ''),
@@ -65,7 +59,3 @@ export const SUPPLIER_ORDER_LIST_EXPORT: ListExportConfig<SupplierOrder> = {
   ],
 };
 
-/** Righe dell'ordine: il conteggio se il server lo manda, o quelle caricate. */
-function lineCountOf(order: SupplierOrder): number {
-  return order.lineCount ?? order.lines?.length ?? 0;
-}

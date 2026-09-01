@@ -32,7 +32,6 @@ import {
 export const DOCUMENT_LIST_SORTABLE_COLUMNS: ReadonlySet<string> = new Set([
   'documentDate',
   'reference',
-  'lineCount',
   'total',
   'type',
   'status',
@@ -64,7 +63,6 @@ export const DOCUMENT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = conColonneCo
   colonna('reference', { label: 'Numero', defaultVisible: true, display: 'code', cardTitle: true }),
   colonna('counterparty', { defaultVisible: true, display: 'truncate' }),
   colonna('status', { defaultVisible: true }),
-  colonna('lineCount', { defaultVisible: true }),
   colonna('total', { defaultVisible: true }),
 ]);
 
@@ -75,10 +73,9 @@ export const DOCUMENT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'reference',
     'counterparty',
     'status',
-    'lineCount',
     'total',
   ],
-  [TableViewPresetId.Warehouse]: ['documentDate', 'type', 'reference', 'counterparty', 'lineCount'],
+  [TableViewPresetId.Warehouse]: ['documentDate', 'type', 'reference', 'counterparty'],
   [TableViewPresetId.Accountant]: [
     'documentDate',
     'type',
@@ -93,7 +90,6 @@ export const DOCUMENT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'reference',
     'type',
     'status',
-    'lineCount',
     'total',
   ],
   [TableViewPresetId.Operational]: ['documentDate', 'type', 'reference', 'status', 'counterparty'],
@@ -114,7 +110,6 @@ export const SALES_DOCUMENT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = conCol
   colonna('reference', { label: 'Numero', defaultVisible: true, display: 'code', cardTitle: true }),
   colonna('counterparty', { label: 'Cliente', defaultVisible: true, display: 'truncate' }),
   colonna('status', { defaultVisible: true }),
-  colonna('lineCount', { defaultVisible: true }),
   { id: 'subtotal', label: 'Imponibile', numeric: true, defaultVisible: true },
   { id: 'tax', label: 'IVA', numeric: true, defaultVisible: true },
   colonna('total', { defaultVisible: true }),
@@ -126,12 +121,11 @@ export const SALES_DOCUMENT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'reference',
     'counterparty',
     'status',
-    'lineCount',
     'subtotal',
     'tax',
     'total',
   ],
-  [TableViewPresetId.Warehouse]: ['documentDate', 'reference', 'counterparty', 'lineCount'],
+  [TableViewPresetId.Warehouse]: ['documentDate', 'reference', 'counterparty'],
   [TableViewPresetId.Accountant]: [
     'documentDate',
     'reference',
@@ -142,7 +136,7 @@ export const SALES_DOCUMENT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'total',
   ],
   [TableViewPresetId.Supplier]: ['documentDate', 'reference', 'counterparty', 'total'],
-  [TableViewPresetId.Analysis]: ['documentDate', 'reference', 'status', 'lineCount', 'total'],
+  [TableViewPresetId.Analysis]: ['documentDate', 'reference', 'status', 'total'],
   [TableViewPresetId.Operational]: ['documentDate', 'reference', 'status', 'counterparty'],
 };
 
@@ -161,7 +155,6 @@ export const INVOICE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = conColonneCon
   colonna('type', { defaultVisible: true }),
   colonna('counterparty', { label: 'Cliente', defaultVisible: true, display: 'truncate' }),
   colonna('status', { defaultVisible: true }),
-  colonna('lineCount', { defaultVisible: true }),
   { id: 'subtotal', label: 'Imponibile', numeric: true, defaultVisible: true },
   { id: 'tax', label: 'IVA', numeric: true, defaultVisible: true },
   colonna('total', { defaultVisible: true }),
@@ -174,12 +167,11 @@ export const INVOICE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'type',
     'counterparty',
     'status',
-    'lineCount',
     'subtotal',
     'tax',
     'total',
   ],
-  [TableViewPresetId.Warehouse]: ['documentDate', 'reference', 'type', 'counterparty', 'lineCount'],
+  [TableViewPresetId.Warehouse]: ['documentDate', 'reference', 'type', 'counterparty'],
   [TableViewPresetId.Accountant]: [
     'documentDate',
     'reference',
@@ -196,7 +188,6 @@ export const INVOICE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'reference',
     'type',
     'status',
-    'lineCount',
     'total',
   ],
   [TableViewPresetId.Operational]: ['documentDate', 'reference', 'type', 'status', 'counterparty'],
@@ -332,7 +323,6 @@ export const STORE_SALE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = conColonne
   colonna('counterparty', { label: 'Cliente', defaultVisible: true, display: 'truncate' }),
   colonna('total', { defaultVisible: true }),
   colonna('paymentMethod', { label: 'Metodo pagamento', defaultVisible: true }),
-  colonna('lineCount', { defaultVisible: true }),
   colonna('location', { defaultVisible: false }),
 ]);
 
@@ -344,14 +334,12 @@ export const STORE_SALE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'counterparty',
     'total',
     'paymentMethod',
-    'lineCount',
   ],
   [TableViewPresetId.Warehouse]: [
     'documentDate',
     'reference',
     'type',
     'counterparty',
-    'lineCount',
     'location',
   ],
   [TableViewPresetId.Accountant]: [
@@ -369,7 +357,6 @@ export const STORE_SALE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'type',
     'total',
     'paymentMethod',
-    'lineCount',
   ],
   [TableViewPresetId.Operational]: [
     'documentDate',
@@ -395,7 +382,6 @@ export const GOODS_RECEIPT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = conColo
     cardTitle: true,
   }),
   colonna('counterparty', { label: 'Soggetto', defaultVisible: true, display: 'truncate' }),
-  colonna('lineCount', { defaultVisible: true }),
   colonna('total', { label: 'Tot. documento', defaultVisible: true }),
   { id: 'linkStatus', label: 'Stato', defaultVisible: true },
   colonna('location', { defaultVisible: true }),
@@ -419,7 +405,6 @@ export const GOODS_RECEIPT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'documentDate',
     'reference',
     'counterparty',
-    'lineCount',
     'total',
     'linkStatus',
     'location',
@@ -429,7 +414,6 @@ export const GOODS_RECEIPT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'documentDate',
     'reference',
     'counterparty',
-    'lineCount',
     'location',
   ],
   [TableViewPresetId.Accountant]: [
@@ -450,13 +434,12 @@ export const GOODS_RECEIPT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'paymentMethod',
     'total',
   ],
-  [TableViewPresetId.Analysis]: ['documentDate', 'reference', 'lineCount', 'subtotal', 'total'],
+  [TableViewPresetId.Analysis]: ['documentDate', 'reference', 'subtotal', 'total'],
   [TableViewPresetId.Operational]: [
     'documentDate',
     'reference',
     'counterparty',
     'causal',
-    'lineCount',
     'location',
   ],
 };

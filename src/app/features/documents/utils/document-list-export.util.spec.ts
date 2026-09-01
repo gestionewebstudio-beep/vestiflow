@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   DocumentStatus,
   DocumentType,
-  type DocumentLine,
   type DocumentRecord,
 } from '@core/models/document.model';
 import type { Money } from '@core/models/money.model';
@@ -89,19 +88,6 @@ function makeDoc(overrides: Partial<DocumentRecord> = {}): DocumentRecord {
     pricesIncludeVat: false,
     createdByName: 'Mario Rossi',
     ...overrides,
-  };
-}
-
-function makeLine(id: string): DocumentLine {
-  return {
-    id,
-    lineNumber: 1,
-    description: 'Maglia cotone',
-    quantity: 1,
-    unitPrice: money(1000),
-    discountPercent: 0,
-    lineTotal: money(1000),
-    loadsStock: true,
   };
 }
 
@@ -259,7 +245,7 @@ describe('buildDocumentListCsv', () => {
     );
   });
 
-  it('esporta l’elenco arrivi merce con le sue undici colonne', () => {
+  it('esporta l’elenco arrivi merce con le sue dieci colonne', () => {
     const doc = makeDoc({
       reference: 'AM-2026-0009',
       supplierName: 'ACME Forniture',
@@ -272,7 +258,7 @@ describe('buildDocumentListCsv', () => {
     });
     const rows = buildDocumentListCsv([doc], GOODS_RECEIPT_LIST_EXPORT).split('\r\n');
     expect(rows[0]).toBe(
-      '\ufeffData;Numero;Fornitore;Doc. fornitore;Causale carico;Magazzino;Righe;Imponibile;IVA;Totale;Fattura collegata',
+      '\ufeffData;Numero;Fornitore;Doc. fornitore;Causale carico;Magazzino;Imponibile;IVA;Totale;Fattura collegata',
     );
     expect(rows[1]).toBe(
       [
@@ -282,7 +268,6 @@ describe('buildDocumentListCsv', () => {
         `DDT 145 del ${DATE_LABEL}`,
         'Carico da fornitore',
         'Magazzino test 3',
-        '4',
         formatMoney(money(10000)),
         formatMoney(money(2200)),
         formatMoney(money(12200)),
@@ -302,7 +287,7 @@ describe('buildDocumentListCsv', () => {
     });
     const rows = buildDocumentListCsv([doc], QUOTE_LIST_EXPORT).split('\r\n');
     expect(rows[0]).toBe(
-      '\ufeffData;Numero;Cliente;Cod. cliente;Pagamento;Righe;Imponibile;IVA;Totale',
+      '\ufeffData;Numero;Cliente;Cod. cliente;Pagamento;Imponibile;IVA;Totale',
     );
     expect(rows[0]).not.toContain('Magazzino');
     expect(rows[1]).toBe(
@@ -312,7 +297,6 @@ describe('buildDocumentListCsv', () => {
         'Boutique Sole',
         'C-012',
         'Bonifico 30gg',
-        '2',
         formatMoney(money(10000)),
         formatMoney(money(2200)),
         formatMoney(money(12200)),
@@ -329,25 +313,10 @@ describe('buildDocumentListCsv', () => {
         '',
         '',
         '',
-        '0',
         formatMoney(money(10000)),
         formatMoney(money(2200)),
         formatMoney(money(12200)),
       ].join(';'),
-    );
-  });
-
-  it('conta le righe dal payload completo quando il conteggio di lista manca', () => {
-    const doc = makeDoc({ lines: [makeLine('l1'), makeLine('l2'), makeLine('l3')] });
-    const rows = buildDocumentListCsv([doc], QUOTE_LIST_EXPORT).split('\r\n');
-    expect(rows[1]?.split(';')[5]).toBe('3');
-    expect(rows.at(-1)?.split(';')[5]).toBe('3');
-  });
-
-  it('preferisce il conteggio di lista alle righe caricate', () => {
-    const doc = makeDoc({ lineCount: 7, lines: [makeLine('l1')] });
-    expect(buildDocumentListCsv([doc], QUOTE_LIST_EXPORT).split('\r\n')[1]?.split(';')[5]).toBe(
-      '7',
     );
   });
 });
@@ -468,7 +437,7 @@ describe('buildDocumentListPrintHtml', () => {
     expect(html).toContain('<td>—</td>');
   });
 
-  it('somma righe e importi dell’elenco arrivi merce nel piè di stampa', () => {
+  it('somma gli importi dell’elenco arrivi merce nel piè di stampa', () => {
     const docs = [
       makeDoc({
         id: 'a',
@@ -486,7 +455,6 @@ describe('buildDocumentListPrintHtml', () => {
       }),
     ];
     const html = buildDocumentListPrintHtml(docs, GOODS_RECEIPT_LIST_EXPORT);
-    expect(html).toContain('<td class="num">5</td>');
     expect(html).toContain(`<td class="num">${formatMoney(money(15000))}</td>`);
     expect(html).toContain(`<td class="num">${formatMoney(money(3300))}</td>`);
     expect(html).toContain(`<td class="num">${formatMoney(money(18300))}</td>`);

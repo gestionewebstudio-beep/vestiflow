@@ -18,7 +18,7 @@ describe('catalogo colonne', () => {
 
   it('la colonna del catalogo che è numerica lo resta senza doverlo ripetere', () => {
     expect(colonna('total')).toEqual({ id: 'total', label: 'Totale', numeric: true });
-    expect(colonna('lineCount')).toEqual({ id: 'lineCount', label: 'Righe', numeric: true });
+    expect(colonna('onHand')).toEqual({ id: 'onHand', label: 'Giacenza', numeric: true });
   });
 
   it("un'etichetta di elenco sovrascrive quella di serie, dove è permesso", () => {

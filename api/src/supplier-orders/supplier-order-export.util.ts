@@ -8,9 +8,20 @@ import { SupplierOrderStatus } from '@prisma/client';
  * formattate e non sa nulla di ordini: ogni documento ha le proprie colonne, e
  * l'unica cosa condivisa è il modo di scrivere il foglio.
  *
- * Le sei che seguono sono **quelle dell'elenco** — Riferimento, Fornitore,
- * Stato, Righe, Attesa il, Totale — perché l'Excel è della famiglia «esporta
- * ciò che sto guardando».
+ * Le cinque che seguono sono **quelle dell'elenco** — Riferimento, Fornitore,
+ * Stato, Attesa il, Totale — perché l'Excel è della famiglia «esporta ciò che
+ * sto guardando».
+ *
+ * ⛔ **«Righe» è stata tolta il 01/09/2026**, insieme alla colonna omonima
+ * dell'elenco: un foglio che porta una colonna che l'elenco non ha più smentisce
+ * la famiglia a cui l'export dichiara di appartenere. Era rimasta indietro
+ * perché la rimozione era stata fatta tutta lato client, e nessun controllo
+ * confronta le colonne dell'elenco con quelle dell'export.
+ *
+ * ⚠️ **Il conteggio `lineCount` resta**, e non è una svista: lo legge la
+ * maschera di Arrivo merce per dire «N righe ordine» accanto a ogni ordine
+ * ricevibile. Nel payload di elenco `lines` è vuoto — il server manda
+ * `lines: []` — quindi lì il conteggio è l'unica via.
  *
  * ⚠️ **«Data ordine» è l'unica aggiunta**, e va detto: l'elenco non la mostra
  * come colonna (ordina per data e basta), ma un foglio si filtra e si ordina
@@ -22,7 +33,6 @@ export const SUPPLIER_ORDER_EXPORT_HEADERS = [
   'Riferimento',
   'Fornitore',
   'Stato',
-  'Righe',
   'Attesa il',
   'Imponibile',
   'IVA',
@@ -71,7 +81,6 @@ export interface SupplierOrderExportSource {
   readonly reference: string;
   readonly supplierName: string;
   readonly status: SupplierOrderStatus;
-  readonly lineCount: number;
   readonly orderDate: Date;
   readonly expectedAt: Date | null;
   readonly subtotalMinor: number;
@@ -88,7 +97,6 @@ export function buildSupplierOrderExportRows(
     Riferimento: order.reference,
     Fornitore: order.supplierName,
     Stato: STATUS_LABELS[order.status],
-    Righe: String(order.lineCount),
     'Attesa il': date(order.expectedAt),
     Imponibile: amount(order.subtotalMinor),
     IVA: amount(order.taxMinor),

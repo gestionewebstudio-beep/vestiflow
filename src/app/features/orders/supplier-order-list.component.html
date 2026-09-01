@@ -119,10 +119,6 @@
       <span class="po-list__riferimento">{{ cellText(order, 'reference') }}</span>
     </ng-template>
 
-    <ng-template appCell="lines" let-order>
-      <span class="po-list__righe">{{ cellText(order, 'lines') }}</span>
-    </ng-template>
-
     <ng-template appCell="expected" let-order>
       <span class="po-list__attesa">{{ cellText(order, 'expected') }}</span>
     </ng-template>
@@ -155,9 +151,6 @@
 
       <div class="list-card__words">
         <span>{{ statusLabel(order.status) }}</span>
-        @if (visibile('lines')) {
-          <span>{{ cellText(order, 'lines') }} righe</span>
-        }
       </div>
 
       @if (visibile('total')) {

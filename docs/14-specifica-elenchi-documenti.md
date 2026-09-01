@@ -1488,6 +1488,35 @@ Rientrano, quando dotati di elenco operativo:
 - Ordine fornitore;
 - altri documenti locali equivalenti approvati.
 
+### ⛔ La colonna «Righe» è stata TOLTA — 01/09/2026
+
+_Proprietario, guardando l'elenco Ordini fornitori: «la colonna righe non serve a nulla,
+può essere rimossa e ovunque, anche dal codice»._
+
+Contava le voci dentro il documento. Compariva **accesa di serie** su tutti gli elenchi
+documentali e sugli ordini fornitore, in **ventidue** voci di preset e in due export.
+
+⚠️ **Il conteggio è ventidue, e va detto come si arriva a sbagliarlo.** Le voci scritte a
+mano sono **diciannove** — tre per Documenti, Vendita, Fatture, Vendite al banco e Ordini
+fornitore, quattro per Arrivo merce. Le altre tre sono di `QUOTE_LIST_COLUMN_PRESETS`, che
+non è una mappa scritta: è **derivata** da quella di Vendita con
+`presetsWithoutColumn(…, 'status')`, e togliendo un'altra colonna si porta dietro «Righe».
+Un conteggio che cerchi i soli blocchi letterali non la vede.
+
+⭐ **È un dato della maschera, non dell'elenco.** Chi scorre un elenco cerca **chi, quando
+e quanto**: quante righe ci siano dentro lo si scopre aprendo il documento, ed è lì che
+serve. Occupava una colonna in ogni vista senza rispondere a nessuna domanda.
+
+| Tolta da                                          |                                                                    |
+| ------------------------------------------------- | ------------------------------------------------------------------ |
+| catalogo colonne, modelli colonne e preset        | Documenti, Vendite, Acquisti, Magazzino, Ordini fornitore          |
+| celle, filtro a intervallo, ordinamento, totali   | e la classe di stile che le restava orfana                         |
+| export Excel/CSV                                  | di documenti e di ordini fornitore                                 |
+
+⚠️ **Il CAMPO `lineCount` resta sui modelli**, e non è un residuo: lo legge il controllo
+che impedisce di stampare le etichette di un arrivo merce **senza righe**. Quello risponde
+a una domanda vera, e non è una colonna.
+
 ## 2.2 Stati funzionali negli elenchi
 
 Non esiste una colonna `Stato` generica per tutti i documenti.
@@ -2037,7 +2066,7 @@ TableColumnDef {
 | -------- | ------------------------------------------------------------- | --------------------------------------------------- |
 | `values` | insieme chiuso o ricorrente (Stato, Pagamento, Sede, Cliente) | elenco a **selezione multipla** dei valori presenti |
 | `text`   | testo libero (Commento, riferimenti)                          | contiene / non contiene                             |
-| `range`  | numerico e denaro (Totale, Netto, Righe)                      | da–a                                                |
+| `range`  | numerico e denaro (Totale, Netto, Imponibile)                      | da–a                                                |
 
 #### ⭐ Il filtro a valori ha un VERSO: includi o escludi — 01/09/2026
 

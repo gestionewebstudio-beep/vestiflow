@@ -567,7 +567,6 @@ export class SupplierOrderListComponent {
   private static readonly SORTABLE = new Set([
     'reference',
     'supplier',
-    'lines',
     'expected',
     'total',
     'status',
@@ -648,34 +647,31 @@ export class SupplierOrderListComponent {
       giornoDi: (order) => order.orderDate,
       columns: this.tableColumns(),
       emphasis: 'total',
-      campi: {
-        /*
-          ⭐ **Le tre colonne aggiunte oggi hanno anche il loro totale.**
-
-          Erano state dichiarate come colonne senza somma: accendendole si
-          vedevano i valori riga per riga e la riga totali restava muta proprio
-          sulle voci che su un ordine d'acquisto si confrontano con la fattura
-          quando arriva.
-        */
-        lines: {
-          valore: (order) => order.lineCount ?? order.lines.length,
-          formato: (n) => String(n),
-        },
-        subtotal: {
-          valore: (order) => order.subtotal.amountMinor,
-          formato: (n) => formatMoney({ amountMinor: n, currencyCode: valuta }),
-        },
-        tax: {
-          valore: (order) => order.tax.amountMinor,
-          formato: (n) => formatMoney({ amountMinor: n, currencyCode: valuta }),
-        },
-        total: {
-          valore: (order) => order.totalAmount.amountMinor,
-          formato: (n) => formatMoney({ amountMinor: n, currencyCode: valuta }),
-        },
-      },
+      campi: this.campiSommabili(valuta),
     });
   });
+
+  /**
+   * ⭐ **Le colonne che si sommano, dichiarate UNA volta.**
+   *
+   * ⛔ Le dichiaravano in due: il subtotale di giornata qui sopra e la riga
+   * totali qui sotto, con lo stesso elenco copiato. Il difetto che ne è nato è
+   * stato misurato il 01/09/2026 — **il subtotale di gruppo aveva imponibile e
+   * IVA, la riga totali no**: due somme della stessa colonna, una presente e una
+   * muta, nella stessa tabella.
+   *
+   * ⚠️ **Sommano insiemi diversi, non campi diversi**: il gruppo somma la sua
+   * giornata, la riga totali il risultato filtrato o la selezione. È l'insieme a
+   * cambiare, e quello lo passa il chiamante.
+   */
+  private campiSommabili(valuta: string) {
+    const denaro = (n: number) => formatMoney({ amountMinor: n, currencyCode: valuta });
+    return {
+      subtotal: { valore: (o: SupplierOrder) => o.subtotal.amountMinor, formato: denaro },
+      tax: { valore: (o: SupplierOrder) => o.tax.amountMinor, formato: denaro },
+      total: { valore: (o: SupplierOrder) => o.totalAmount.amountMinor, formato: denaro },
+    };
+  }
 
   /*
     ⭐ **La riga totali** (`regole-stile-ui`, «La riga TOTALI di un elenco»): somma
@@ -684,20 +680,22 @@ export class SupplierOrderListComponent {
     ⚠️ **Si somma `amountMinor` e si formatta UNA volta sola**: è la regola del
     denaro — «si arrotonda solo all'uscita, mai nei passaggi intermedi».
   */
-  protected readonly totals = computed<DataTableTotals>(() => {
-    const valuta = this.orders()[0]?.totalAmount.currencyCode ?? DEFAULT_CURRENCY;
-    return totaliDiElenco(this.righeFiltrate(), {
+  protected readonly totals = computed<DataTableTotals>(() =>
+    totaliDiElenco(this.righeFiltrate(), {
       rowId: this.rowId,
       selectedIds: this.selectedIds(),
       columns: this.tableColumns(),
-      campi: {
-        total: {
-          valore: (o) => o.totalAmount.amountMinor,
-          formato: (n) => formatMoney({ amountMinor: n, currencyCode: valuta }),
-        },
-      },
-    });
-  });
+      /*
+        ⚠️ **Tutte e tre le colonne di denaro, non solo il totale** — segnalato
+        dal proprietario il 01/09/2026: «qui mancano anche i totali». Imponibile
+        e IVA sono colonne accendibili dal selettore Colonne, e una colonna di
+        importi accesa senza il suo totale è una colonna che non si può
+        verificare: la riga totali somma **le colonne visibili**, e queste due
+        erano visibili senza essere sommate.
+      */
+      campi: this.campiSommabili(this.orders()[0]?.totalAmount.currencyCode ?? DEFAULT_CURRENCY),
+    }),
+  );
   /*
     ⚠️ **Le colonne spente non si controllano a mano.** La card legge quelle che
     il motore ha già ricevuto: una fonte sola invece di due che possono divergere.
@@ -720,8 +718,6 @@ export class SupplierOrderListComponent {
         return order.reference;
       case 'supplier':
         return order.supplierName;
-      case 'lines':
-        return String(order.lineCount ?? order.lines.length);
       case 'documentDate':
         return formatDate(order.orderDate);
       case 'expected':
@@ -743,9 +739,9 @@ export class SupplierOrderListComponent {
     ⭐ **I filtri di colonna** (`14` §0.2), con i due estrattori che servono qui.
 
     ⚠️ **Le colonne numeriche senza `numeroDi` non filtrano**: mostrerebbero due
-    caselle che non restringono niente. Qui sono quattro — Righe, Imponibile, IVA
-    e Totale — e il denaro si confronta in **unità minori**, non sul testo
-    formattato: «1.250,00 €» come stringa sta dopo «9,00 €».
+    caselle che non restringono niente. Qui sono tre — Imponibile, IVA e Totale —
+    e il denaro si confronta in **unità minori**, non sul testo formattato:
+    «1.250,00 €» come stringa sta dopo «9,00 €».
 
     ⚠️ Lo stesso per le date, in ISO: `formatDate` produce `31/01/2026`, e
     confrontarlo come stringa metterebbe gennaio dopo dicembre.
@@ -756,8 +752,6 @@ export class SupplierOrderListComponent {
     cellText: (order, columnId) => this.cellText(order, columnId),
     numeroDi: (order, columnId) => {
       switch (columnId) {
-        case 'lines':
-          return order.lineCount ?? order.lines.length;
         case 'subtotal':
           return order.subtotal.amountMinor;
         case 'tax':

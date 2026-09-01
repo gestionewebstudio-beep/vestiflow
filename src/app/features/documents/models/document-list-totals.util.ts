@@ -28,14 +28,44 @@ export function totaliDocumenti(
     readonly selectedIds: ReadonlySet<string>;
   },
 ): DataTableTotals {
-  const valuta = documenti[0]?.currency ?? DEFAULT_CURRENCY;
-  const soldi = (n: number): string => formatMoney({ amountMinor: n, currencyCode: valuta });
-
   return totaliDiElenco(documenti, {
     rowId: (doc) => doc.id,
     selectedIds: opzioni.selectedIds,
     columns: opzioni.columns,
-    campi: {
+    campi: campiSommabiliDocumenti(documenti[0]?.currency ?? DEFAULT_CURRENCY),
+  });
+}
+
+/**
+ * ⭐ **QUALI COLONNE SI SOMMANO — dichiarato UNA volta.**
+ *
+ * Le somme di questo elenco sono due: il **subtotale di giornata**, quando
+ * «Raggruppa per giorno» è acceso, e la **riga totali** in fondo.
+ *
+ * ⛔ **Le dichiaravano in due, con lo stesso elenco copiato — e divergevano.**
+ * Misurato il 01/09/2026: la riga totali sommava imponibile, IVA, totale e
+ * «Ancora da saldare»; il subtotale di giornata solo imponibile e totale. Con il
+ * raggruppamento acceso, sotto le colonne IVA ed Esposizione la riga di giornata
+ * restava **vuota** mentre quella in fondo portava un numero.
+ *
+ * ⚠️ È lo stesso difetto trovato lo stesso giorno sugli **Ordini fornitore** e
+ * corretto allo stesso modo (`supplier-order-list.component.ts`,
+ * `campiSommabili`): là il gruppo aveva imponibile e IVA e la riga totali no —
+ * lo scarto era girato al contrario, e la causa era la stessa duplicazione.
+ *
+ * ⚠️ **Sommano insiemi diversi, non campi diversi**: il gruppo somma la sua
+ * giornata, la riga totali il risultato filtrato o la selezione. È l'insieme a
+ * cambiare, mai l'elenco delle colonne.
+ */
+export function campiSommabiliDocumenti(valuta: string): Readonly<
+  Record<
+    string,
+    { readonly valore: (doc: DocumentRecord) => number; readonly formato: (n: number) => string }
+  >
+> {
+  const soldi = (n: number): string => formatMoney({ amountMinor: n, currencyCode: valuta });
+
+  return {
       subtotal: {
         valore: (doc) => signedDocumentMoney(doc.type, doc.subtotal).amountMinor,
         formato: soldi,
@@ -53,7 +83,6 @@ export function totaliDocumenti(
         valore: (doc) => signedDocumentMoney(doc.type, doc.total).amountMinor,
         formato: soldi,
       },
-      lineCount: { valore: (doc) => righeDi(doc), formato: (n) => String(n) },
       /*
         ⭐ **«Ancora da saldare» sommato è l'ESPOSIZIONE**, ed è il numero che
         interessa di più su un elenco di Registrazioni fattura: non «quanto ho
@@ -67,15 +96,10 @@ export function totaliDocumenti(
         ⚠️ **Assente vale zero**: un documento saldato non ha residuo, e non
         toglie niente alla somma.
       */
-      outstanding: {
-        valore: (doc) => doc.outstanding?.amountMinor ?? 0,
-        formato: soldi,
-      },
+    outstanding: {
+      valore: (doc: DocumentRecord) => doc.outstanding?.amountMinor ?? 0,
+      formato: soldi,
     },
-  });
+  };
 }
 
-/** ⚠️ `lineCount` può non esserci: l'elenco leggero non porta le righe. */
-export function righeDi(doc: DocumentRecord): number {
-  return doc.lineCount ?? doc.lines?.length ?? 0;
-}

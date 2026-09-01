@@ -58,8 +58,7 @@ import { Prisma } from '@prisma/client';
  * che è derivata dal database stesso e resta allineata per costruzione. Richiede
  * una migration, quindi è lavoro dichiarato e non una scorciatoia.
  */
-export type DocumentListSortField =
-  'documentDate' | 'reference' | 'lineCount' | 'total' | 'type' | 'status';
+export type DocumentListSortField = 'documentDate' | 'reference' | 'total' | 'type' | 'status';
 
 export type SortDirection = 'asc' | 'desc';
 
@@ -103,7 +102,16 @@ const ORDER_BY: Record<
 > = {
   documentDate: (direction) => [{ documentDate: direction }],
   reference: (direction) => [{ year: direction }, { number: direction }],
-  lineCount: (direction) => [{ lines: { _count: direction } }],
+  /*
+    ⛔ **Qui c'era `lineCount`**, tolto il 01/09/2026 insieme alla colonna
+    «Righe» — «non serve a nulla, può essere rimossa ovunque». Ordinava con
+    `{ lines: { _count: direction } }`, cioè un conteggio della relazione: la
+    query più cara delle sei, per una colonna che nessuno guardava.
+
+    ⚠️ **Le due liste devono restare identiche** (`check:sort-columns`): il
+    client è lo specchio di questa mappa, e una capacità che l'API offre e il
+    client non usa è codice che nessuno esercita.
+  */
   total: (direction) => [{ totalMinor: direction }],
   // ⭐ Ordine dell'ENUM, cioè quello dichiarato nello schema: per il tipo è la
   // famiglia (acquisto → magazzino → vendita → fiscali), per lo stato il ciclo

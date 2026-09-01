@@ -22,8 +22,7 @@ import { Prisma } from '@prisma/client';
  * ⚠️ Che l'ordine giusto sia il ciclo di vita o l'alfabetico dell'etichetta è
  * una scelta funzionale, dichiarata e rivedibile (`14` §H15).
  */
-export type SupplierOrderSortField =
-  'reference' | 'supplier' | 'lines' | 'expected' | 'total' | 'status';
+export type SupplierOrderSortField = 'reference' | 'supplier' | 'expected' | 'total' | 'status';
 
 export type SortDirection = 'asc' | 'desc';
 
@@ -48,7 +47,11 @@ const ORDER_BY: Record<
 > = {
   reference: (direction) => [{ reference: direction }],
   supplier: (direction) => [{ supplierName: direction }],
-  lines: (direction) => [{ lines: { _count: direction } }],
+  /*
+    ⛔ **Qui c'era `lines`**, tolto il 01/09/2026 con la colonna «Righe».
+    Ordinava per conteggio della relazione — la query più cara della mappa —
+    per una colonna che l'elenco non mostra più.
+  */
   expected: (direction) => [{ expectedAt: direction }],
   total: (direction) => [{ totalMinor: direction }],
   status: (direction) => [{ status: direction }],
