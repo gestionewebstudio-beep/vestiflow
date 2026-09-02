@@ -1,5 +1,116 @@
 # Cosa resta da fare — VestiFlow
 
+## ⏸ IN SOSPESO DAL 02/09/2026 — la colonna prezzo, e cosa è saltato fuori indagandola
+
+_Il proprietario: «salva il lavoro che stavamo facendo e che ha fatto uscire fuori questi
+problemi, così lo riprendiamo dopo senza perderlo»._
+
+> ⚠️ **VINCOLO DA TENERE PRESENTE, dichiarato dal proprietario**: _«VestiFlow deve poter
+> vivere anche senza implementazione Shopify»_. I difetti qui sotto **non sono difetti di
+> sync**: la transizione perde giacenze e collegamenti fornitore, che sono magazzino puro.
+> Shopify aggrava, non causa.
+
+### 1 · La colonna prezzo unica — ⭐ DECISA, fatta a metà
+
+La decisione è in `03b` §«La colonna prezzo è una sola, in ogni documento». ✅ **Fatto**:
+l'Arrivo merce (il selettore agganciato al ruolo, verificato a schermo). ⏸ **Resta**:
+
+| Dove                 | Cosa                                               | Editabile       |
+| -------------------- | -------------------------------------------------- | --------------- |
+| **Ordine fornitore** | colonna «Prezzo netto/ivato» col selettore         | ⛔ sola lettura |
+| **Trasferimento**    | colonna attivabile                                 | ⛔ sola lettura |
+| **Rettifica**        | colonna attivabile                                 | ⛔ sola lettura |
+| **Inventario**       | colonna per il **controllo prezzi dei cartellini** | ⛔ sola lettura |
+
+⭐ **Nessuna migration**: dove è in sola lettura il prezzo si legge dall'anagrafica, non è un
+dato del documento. Il Trasferimento è un `Document`, e `DocumentLine.unitPriceMinor` esiste
+già — ma il suo DTO non ha campi monetari e il servizio scrive `0` cablato, quindi la colonna
+arriverebbe a schermo e si salverebbe a zero. Per la sola lettura non serve toccarli.
+
+### 2 · La catena dei prezzi verso l'anagrafica — quattro difetti misurati
+
+⭐ **Cosa FUNZIONA** (verificato tracciando la catena fino al database): l'articolo **nuovo**
+porta il prezzo su `Product` **e** su `ProductVariant`, a prescindere dalla spunta — come
+deciso. ⚠️ Ma «sopravvive per caso»: nessun commento lo dichiara, tre lo contraddicono, e
+nessun test lo copre.
+
+| #   | Difetto                                                                                                                                                                                                                                                                                                                                                                             | Gravità  |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| a   | ⛔ **Il prezzo del carico torna indietro.** Su articolo SEMPLICE l'Arrivo merce scrive solo la variante, l'anagrafica legge e riscrive da `Product`: al primo salvataggio della scheda — **anche solo un cambio di nome** — `mirrorSimpleProductPrice` riporta il valore vecchio, che poi va su Shopify. Serve un SECONDO carico perché accada: alla creazione i due nascono uguali | **alta** |
+| b   | Il **prezzo Shopify** digitato su un articolo NUOVO è scartato in silenzio: il campo non esiste nel DTO, e la variante nasce con `shopifyPriceMinor = sellingPriceMinor`. ⭐ Il proprietario ha deciso: **eredita se non compilato** (già così), ma **va rispettato se compilato**                                                                                                  | media    |
+| c   | Il **prezzo barrato** su articolo ESISTENTE è digitabile ma non ha destinazione: `compareAt` non compare in `applyArticlePriceUpdates`. ⭐ Deciso: **resta vuoto se non editato** (già così), ma va salvato se editato                                                                                                                                                              | media    |
+| d   | `articlePricesReadOnly` è **codice morto** (una sola occorrenza: la propria dichiarazione) e tre commenti affermano che a spunta spenta i campi sono in sola lettura. Non lo sono. ⚠️ Chi lo «riparasse» collegandolo **romperebbe** il comportamento del punto ⭐ qui sopra                                                                                                        | media    |
+
+#### Le due strade sul difetto (a), e perché conta la scelta
+
+**Nessuno ha mai deciso chi comanda** fra `Product.sellingPriceMinor` e
+`ProductVariant.sellingPriceMinor` su un articolo semplice: l'Arrivo merce tratta come verità
+la variante, l'anagrafica l'articolo. Entrambi hanno le loro ragioni.
+
+- **(a) l'Arrivo merce scrive anche `Product`** — i due restano allineati, e la scheda mostra
+  il prezzo giusto. ⭐ Il caso «più varianti a prezzi diversi» **non si presenta**: la
+  correzione userebbe la stessa guardia di `mirrorSimpleProductPrice`, che esce subito se
+  l'articolo ha opzioni. Il codice oggi dichiara «se servirà, è una decisione a sé»: sarebbe
+  quella decisione.
+- **(b) l'anagrafica non riallinea se il prezzo non cambia** — salva il dato ma **lascia il
+  numero sbagliato a schermo**: il difetto si sposta da «perdo il prezzo» a «vedo un prezzo
+  che non è quello vero».
+
+⏸ **Non decisa.**
+
+### 3 · ⛔ Un articolo semplice che riceve varianti PERDE la variante anonima
+
+_Domanda del proprietario: «posso avere l'articolo semplice e poi gli creo le varianti?
+Questo farebbe saltare il sync con Shopify? È sbagliato come metodo generale?»._
+
+⭐ **Il metodo NON è sbagliato**: «semplice, poi le varianti» è il modello Shopify ed è il
+modello VestiFlow. **È l'implementazione della transizione che manca.**
+
+La scheda «Varianti» in anagrafica permette di aggiungere opzioni a un articolo esistente.
+Ma la variante anonima non viene convertita: **viene cancellata e ne nascono di nuove** — la
+sua chiave sugli assi è vuota, le nuove sono «M», «L», nessuna corrispondenza.
+
+| L'articolo           | Cosa succede                                                                                                                                                                                         |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **ha movimenti**     | ⛔ salvataggio **fallisce con 409** «varianti da rimuovere hanno movimenti». L'operatore non ha chiesto di rimuovere niente: il messaggio non gli dice cosa ha sbagliato, e non ha modo di procedere |
+| **non ha movimenti** | ⚠️ passa **in silenzio**: con la variante se ne vanno giacenze (`InventoryLevel`, `onDelete: Cascade`), collegamenti fornitore (`Cascade`) e id Shopify                                              |
+
+⭐ **E il sync si spezza da entrambi i lati**: le varianti nuove nascono **senza SKU** («mai
+generato in automatico»), e il riaggancio degli id Shopify avviene **solo per SKU** — quindi
+le salta. Restano con `shopifyVariantId = null`, e il push delle giacenze si ferma sul
+nascere.
+
+⚠️ **Nessun avviso, in nessun punto**: i template della scheda non contengono le parole
+«giacenza», «movimenti» o «attenzione».
+
+⏸ **Da decidere**: se questo caso sia frequente nel lavoro reale. Se lo è, viene prima del
+prezzo; se è raro, va messo in coda **con un avviso** che almeno impedisca il danno
+silenzioso.
+
+### 4 · Tre cose trovate strada facendo
+
+- ⛔ **Un articolo importato da Shopify senza opzioni non è «semplice» per l'anagrafica.** Il
+  pull gli dà `optionValues: [{ Title: 'Default Title' }]`, l'anagrafica ne ricava un asse
+  «Title», e **al primo salvataggio** scrive `Product.options = [{ Title: [...] }]`. Da quel
+  momento quell'articolo smette di essere semplice e il prezzo non si specchia più.
+- ⚠️ **Le due guardie «articolo semplice» non coincidono**: il backend guarda
+  `options.length === 0`, il client «nessun asse **e** varianti ≤ 1». Un articolo con
+  `options: []` e 2+ varianti verrebbe **appiattito** sul prezzo dell'articolo. Non
+  producibile dall'interfaccia; **dall'import di catalogo sì**.
+- ⚠️ **`shopify_inventory_sync_states` non ha la chiave esterna**: lo schema dichiara la
+  relazione, la migration non emette il `FOREIGN KEY`. Cancellata una variante, restano righe
+  di stato sync orfane.
+
+### 5 · I test che mancano
+
+Nessuno copre: che il prezzo dell'articolo **nuovo** arrivi a `Product` e `ProductVariant`
+(`quick-product-create.util.ts` **non ha un `.spec`**); che parta anche a **spunta spenta**
+(la decisione del 02/09, oggi tenuta in piedi solo da dove passa il codice);
+`mirrorSimpleProductPrice` (zero occorrenze nei test); e lo **scenario di sequenza** — carico
+che cambia il prezzo, poi salvataggio dell'anagrafica — che è quello che perde il dato.
+
+---
+
 **Aggiornato:** 29/08/2026
 **A che serve:** riprendere il lavoro in un'altra sessione **senza ricostruire niente**.
 Ogni voce dice cosa è già misurato, cosa è deciso e cosa no.
@@ -34,29 +145,98 @@ d'occhi, e **si cancella la voce quando è stata guardata** — non prima.
 ⚠️ **Ogni voce dice cosa deve VEDERSI**, non cosa è stato scritto: chi verifica non deve
 rileggere il codice per sapere se è giusto.
 
-| #   | Dove                                                                                    | Cosa deve vedersi                                                                                                                                                                                                                                                                            |
-| --- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | **qualunque elenco**, trascinando il bordo di una colonna                               | La colonna arriva dove la si rilascia e **ci resta**; le altre cedono spazio senza che compaia una barra orizzontale. ⛔ Prima rimbalzava indietro e al secondo trascinamento **non si muoveva più**                                                                                         |
-| 2   | **qualunque elenco**, dopo aver regolato una colonna → **F5**                           | La larghezza è ancora quella. ⛔ Prima spariva a ogni ricaricamento                                                                                                                                                                                                                          |
-| 3   | Magazzino → **Inventario** (`/app/inventory/counts`)                                    | Il contenitore delle righe prende **tutta l'altezza** disponibile, e «N voci» sta **in fondo al contenitore** — non appoggiata sotto l'ultima riga col vuoto sotto                                                                                                                           |
-| 4   | Magazzino → **Inventario**                                                              | La colonna «Azioni» col cestino **non c'è più**. Selezionando una sessione **annullata**, «Elimina» in barra è attivo; selezionandone una **completata**, è spento e dice perché                                                                                                             |
-| 5   | **Dettaglio inventario** (`/app/inventory/counts/:id`)                                  | Ci sono selettore **Colonne** e pulsante **Filtri**; «Contato» è ancora un **campo dove si batte**; il Delta ha segno e colore; le righe con differenza si distinguono                                                                                                                       |
-| 6   | **Dettaglio inventario**, scansionando un articolo                                      | La sua riga **si accende per un momento** e la pagina ci scorre sopra se non è già in vista                                                                                                                                                                                                  |
-| 7   | **Ordini cliente** (`/app/sales`), scrivania **e** telefono                             | Il menu «···» **non c'è più** in nessuna delle due vesti. Con una riga selezionata, «Duplica» in barra è attivo e apre il duplicato                                                                                                                                                          |
-| 8   | **Ordini cliente**, card su telefono                                                    | Il piede della card mostra la sede senza lasciare un vuoto a destra dove stava il menu                                                                                                                                                                                                       |
-| 9   | **Ricerca giacenza** (`/app/inventory/lookup`), **da telefono**                         | Scrivendo «mag» non succede niente; alla **terza lettera** compaiono gli articoli da soli, senza premere nulla. Ogni riga ha miniatura, nome, n° taglie, disponibile e prezzo                                                                                                                |
-| 10  | **Ricerca giacenza**, toccando un articolo                                              | Si apre la griglia **taglie × sedi** al posto dei risultati, con «Torna ai risultati» in cima. Toccando un numero si aprono gli ordini che lo impegnano                                                                                                                                      |
-| 11  | **Ricerca giacenza**, scansionando un codice                                            | Se il codice porta a un solo articolo, la sua scheda si apre **da sé** senza passare dall'elenco                                                                                                                                                                                             |
-| 12  | **Ricerca giacenza**, articolo senza immagine                                           | Al posto della foto c'è l'icona segnaposto, e la riga resta **alta uguale** alle altre — l'elenco non deve ballare mentre si scorre                                                                                                                                                          |
-| 13  | **Fattura, Fatt. accompagnatoria, Nota di credito, Proforma** — documento **nuovo**     | Al posto della tabella righe c'è uno **stato vuoto** che dice «Scegli il cliente e la sede». Scelto uno solo dei due, il testo nomina **quello che manca ancora**. Scelti entrambi, compare la tabella                                                                                       |
-| 14  | Gli stessi quattro tipi, **da telefono**                                                | Lo stato vuoto compare **al posto delle card**, non insieme a esse. ⛔ Prima la vista compatta era un `@if` separato: si vedevano tutte e due                                                                                                                                                |
-| 15  | Gli stessi quattro tipi, aprendo una **fattura già salvata** priva di sede              | Le righe **ci sono**. Il blocco vale sui documenti nuovi: nasconderle su uno storico renderebbe illeggibile ciò che è già stato emesso                                                                                                                                                       |
-| 16  | **Arrivo merce** — testata                                                              | «Aggiorna costo in anagrafica» e «Aggiorna prezzi in anagrafica» stanno nella fascia **«Dati del documento ricevuto»**, accanto a «Seguirà registrazione fattura», ognuna su **una riga sola**. ⛔ Prima erano in fondo alla pagina, in una colonnina, col testo a capo su **quattro** righe |
-| 17  | **Arrivo merce** — piede                                                                | Sotto le righe restano **solo** «Note documento» e «Commento interno». La banda finale è **più bassa** di prima, e il vuoto a destra della testata si è ridotto                                                                                                                              |
-| 18  | **Tutte e sei le maschere documento** — piede                                           | Le due caselle di testo sono alte **64px** invece di 96: il piede scende di 32px e li prende il contenitore righe. Le caselle restano **gemelle** (stessa altezza, fondi allineati) e si allargano ancora trascinando l'angolo                                                               |
-| 19  | **Arrivo merce, Fatture, Movimento, Trasferimento, Ordine cliente e fornitore** — righe | Il **Tab** gira fra le celle come prima, ←/→ escono ai bordi, ↑/↓ cambiano riga e in fondo ne creano una nuova. ⚠️ È la verifica dei ponti rimossi: 340 righe tolte da sei maschere, il comportamento deve essere identico                                                                   |
-| 20  | Le stesse sei, **premendo Tab su una colonna nascosta** dal selettore Colonne           | La colonna spenta viene **scavalcata**, non riceve il fuoco. ⚠️ Era il lavoro del filtro che è sceso dentro lo store                                                                                                                                                                         |
-| 21  | **Arrivo merce** — le tre spunte in fascia                                              | Ognuna sta su **una riga di testo**, non a capo. Cliccando l'etichetta si accende la spunta (l'associazione `for`/`id` è stata rifatta a mano dopo un errore di sostituzione)                                                                                                                |
+| #      | Dove                                                                                    | Cosa deve vedersi                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------ | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1      | **qualunque elenco**, trascinando il bordo di una colonna                               | La colonna arriva dove la si rilascia e **ci resta**; le altre cedono spazio senza che compaia una barra orizzontale. ⛔ Prima rimbalzava indietro e al secondo trascinamento **non si muoveva più**                                                                                                                                                                                                                                          |
+| 2      | **qualunque elenco**, dopo aver regolato una colonna → **F5**                           | La larghezza è ancora quella. ⛔ Prima spariva a ogni ricaricamento                                                                                                                                                                                                                                                                                                                                                                           |
+| 3      | Magazzino → **Inventario** (`/app/inventory/counts`)                                    | Il contenitore delle righe prende **tutta l'altezza** disponibile, e «N voci» sta **in fondo al contenitore** — non appoggiata sotto l'ultima riga col vuoto sotto                                                                                                                                                                                                                                                                            |
+| 4      | Magazzino → **Inventario**                                                              | La colonna «Azioni» col cestino **non c'è più**. Selezionando una sessione **annullata**, «Elimina» in barra è attivo; selezionandone una **completata**, è spento e dice perché                                                                                                                                                                                                                                                              |
+| 5      | **Dettaglio inventario** (`/app/inventory/counts/:id`)                                  | Ci sono selettore **Colonne** e pulsante **Filtri**; «Contato» è ancora un **campo dove si batte**; il Delta ha segno e colore; le righe con differenza si distinguono                                                                                                                                                                                                                                                                        |
+| 6      | **Dettaglio inventario**, scansionando un articolo                                      | La sua riga **si accende per un momento** e la pagina ci scorre sopra se non è già in vista                                                                                                                                                                                                                                                                                                                                                   |
+| 7      | **Ordini cliente** (`/app/sales`), scrivania **e** telefono                             | Il menu «···» **non c'è più** in nessuna delle due vesti. Con una riga selezionata, «Duplica» in barra è attivo e apre il duplicato                                                                                                                                                                                                                                                                                                           |
+| 8      | **Ordini cliente**, card su telefono                                                    | Il piede della card mostra la sede senza lasciare un vuoto a destra dove stava il menu                                                                                                                                                                                                                                                                                                                                                        |
+| 9      | **Ricerca giacenza** (`/app/inventory/lookup`), **da telefono**                         | Scrivendo «mag» non succede niente; alla **terza lettera** compaiono gli articoli da soli, senza premere nulla. Ogni riga ha miniatura, nome, n° taglie, disponibile e prezzo                                                                                                                                                                                                                                                                 |
+| 10     | **Ricerca giacenza**, toccando un articolo                                              | Si apre la griglia **taglie × sedi** al posto dei risultati, con «Torna ai risultati» in cima. Toccando un numero si aprono gli ordini che lo impegnano                                                                                                                                                                                                                                                                                       |
+| 11     | **Ricerca giacenza**, scansionando un codice                                            | Se il codice porta a un solo articolo, la sua scheda si apre **da sé** senza passare dall'elenco                                                                                                                                                                                                                                                                                                                                              |
+| 12     | **Ricerca giacenza**, articolo senza immagine                                           | Al posto della foto c'è l'icona segnaposto, e la riga resta **alta uguale** alle altre — l'elenco non deve ballare mentre si scorre                                                                                                                                                                                                                                                                                                           |
+| 13     | **Fattura, Fatt. accompagnatoria, Nota di credito, Proforma** — documento **nuovo**     | Al posto della tabella righe c'è uno **stato vuoto** che dice «Scegli il cliente e la sede». Scelto uno solo dei due, il testo nomina **quello che manca ancora**. Scelti entrambi, compare la tabella                                                                                                                                                                                                                                        |
+| 14     | Gli stessi quattro tipi, **da telefono**                                                | Lo stato vuoto compare **al posto delle card**, non insieme a esse. ⛔ Prima la vista compatta era un `@if` separato: si vedevano tutte e due                                                                                                                                                                                                                                                                                                 |
+| 15     | Gli stessi quattro tipi, aprendo una **fattura già salvata** priva di sede              | Le righe **ci sono**. Il blocco vale sui documenti nuovi: nasconderle su uno storico renderebbe illeggibile ciò che è già stato emesso                                                                                                                                                                                                                                                                                                        |
+| 16     | **Arrivo merce** — testata                                                              | «Aggiorna costo in anagrafica» e «Aggiorna prezzi in anagrafica» stanno nella fascia **«Dati del documento ricevuto»**, accanto a «Seguirà registrazione fattura», ognuna su **una riga sola**. ⛔ Prima erano in fondo alla pagina, in una colonnina, col testo a capo su **quattro** righe                                                                                                                                                  |
+| 17     | **Arrivo merce** — piede                                                                | Sotto le righe restano **solo** «Note documento» e «Commento interno». La banda finale è **più bassa** di prima, e il vuoto a destra della testata si è ridotto                                                                                                                                                                                                                                                                               |
+| 18     | **Tutte e sei le maschere documento** — piede                                           | Le due caselle di testo sono alte **64px** invece di 96: il piede scende di 32px e li prende il contenitore righe. Le caselle restano **gemelle** (stessa altezza, fondi allineati) e si allargano ancora trascinando l'angolo                                                                                                                                                                                                                |
+| 19     | **Arrivo merce, Fatture, Movimento, Trasferimento, Ordine cliente e fornitore** — righe | Il **Tab** gira fra le celle come prima, ←/→ escono ai bordi, ↑/↓ cambiano riga e in fondo ne creano una nuova. ⚠️ È la verifica dei ponti rimossi: 340 righe tolte da sei maschere, il comportamento deve essere identico                                                                                                                                                                                                                    |
+| 20     | Le stesse sei, **premendo Tab su una colonna nascosta** dal selettore Colonne           | La colonna spenta viene **scavalcata**, non riceve il fuoco. ⚠️ Era il lavoro del filtro che è sceso dentro lo store                                                                                                                                                                                                                                                                                                                          |
+| 21     | **Arrivo merce** — le tre spunte in fascia                                              |
+| ~~26~~ | ✅ **Arrivo merce** — la colonna prezzo                                                 | **VERIFICATA dal proprietario il 02/09/2026**: `COSTO NETTO ⌄ · PREZZO IVATO ⌄ · PREZZO SHOPIFY · PREZZO BARRATO`. Una sola colonna prezzo, col chevron, nessun doppione. ⛔ Il selettore era **cablato e morto** dal 24/08 (la testata cercava `unitPrice`, che questa maschera non dichiara), e il primo tentativo di correzione aveva **aggiunto** una colonna invece di sostituirla — visto a schermo dal proprietario prima che dai test |
+| 22     | **Ordine fornitore** — riga documento                                                   | Il Tab arriva su **«Cod. fornitore»**. ⛔ Prima si fermava lì e non faceva più niente: lo store cercava l'id `po-suppcode-N` mentre la riga comune rende `po-supplier-code-N`                                                                                                                                                                                                                                                                 |
+| 23     | **Fattura, Proforma, Fatt. accompagnatoria, Nota di credito** — cella **U.m.**          | Ci si arriva col Tab da «Q.tà», e si esce col Tab verso «Prezzo». ⛔ Prima era una **trappola**: ci si entrava solo col mouse e non se ne usciva più con la tastiera — Tab, Shift+Tab e le quattro frecce non facevano niente                                                                                                                                                                                                                 |
+| 24     | **Fatture, Rettifica, Trasferimento** — con un preset che spegne una colonna            | Aprire «Colonne» → preset **Magazzino** (toglie Prezzo). Il Tab da «Q.tà» **salta alla colonna successiva accesa**. ⛔ Prima si fermava, perché il giro cercava una cella non più nel DOM                                                                                                                                                                                                                                                     |
+| 25     | **Arrivo merce** — accendendo la colonna **Descrizione**                                | Il Tab ci passa, fra «Nome prodotto» e «Q.tà». ⛔ Prima la scavalcava in entrambi i versi pur essendo un campo editabile                                                                                                                                                                                                                                                                                                                      |     | Ognuna sta su **una riga di testo**, non a capo. Cliccando l'etichetta si accende la spunta (l'associazione `for`/`id` è stata rifatta a mano dopo un errore di sostituzione) |
+
+---
+
+## ⛔ IL GIRO DEL TAB — quattro difetti, e perché un motore condiviso non basta
+
+_Il proprietario: «il tab ha qualche problema». E poi, alla spiegazione: «ma se è un motore
+condiviso, perché può dare problemi altrove?»._
+
+> **Il motore è condiviso. La sua CONFIGURAZIONE no — ed è lì che sono i difetti.**
+
+```text
+DocumentLineFocusStore     condiviso ✅   la logica del giro
+document-line-row          condivisa ✅   rende le celle e COMPONE gli id
+elencoCampi + elementId    ⛔ per maschera, riscritti a mano, sei volte
+catalogo colonne           ⛔ un terzo elenco, in un altro file ancora
+```
+
+⭐ **Tre elenchi che devono coincidere per convenzione, non per costruzione.** Il contratto
+dello store dice «chiede l'id a chi lo conosce», ma **due posti diversi lo conoscono**: la
+riga comune lo compone come `${idPrefix}-${alias}-${indice}`, e ogni maschera lo ridichiara.
+
+⚠️ **È lo stesso schema del filtro dei campi corretto lo stesso giorno**: lo store possedeva
+già l'elenco, ma la domanda «è mio?» stava fuori, ricopiata sei volte. Qui il dato che sta in
+due posti è l'**identificativo DOM**.
+
+### I quattro difetti, tutti PREESISTENTI (verificato con `git`)
+
+| #   | Dove                                            | Cosa succedeva                                                                                                                                                  |
+| --- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Ordine fornitore**, campo «Cod. fornitore»    | Lo store cercava `po-suppcode-N`, la riga comune rende `po-supplier-code-N`. Il Tab **si fermava**: `focusField` tornava `false` e `next()` non guarda l'esito  |
+| 2   | **Le quattro maschere Fattura**, cella **U.m.** | **Trappola del fuoco**: colonna accesa di serie, cella editabile, ma `unitOfMeasure` fuori dal giro. Ci si entrava col mouse e non se ne usciva con la tastiera |
+| 3   | **Fatture, Rettifica, Trasferimento**           | `isFieldEnabled` non controllava la **visibilità di colonna** — le altre tre lo facevano. Con un preset che spegne una colonna del giro, il Tab si bloccava     |
+| 4   | **Arrivo merce**, colonna **Descrizione**       | Campo editabile fuori dal giro: scavalcato in entrambi i versi                                                                                                  |
+
+⚠️ **Nessuno faceva fallire niente**: `getElementById` di un id assente non lancia, e
+`focusField` torna `false` a chi non lo legge. Nessun test copriva il giro del fuoco su
+quelle maschere.
+
+### Perché la U.m. era una TRAPPOLA e non solo un campo saltato
+
+⭐ La discriminante non è «la cella è editabile»: è **chi annulla l'evento**.
+
+| Cella                                                         | Cosa fa col tasto                        | Fuori dal giro                                                            |
+| ------------------------------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------- |
+| `select-cell` (Codice IVA) e `unit-cell` (U.m.), che la monta | `preventDefault()` **da sé**, poi emette | ⛔ **trappola**: il Tab nativo è già annullato e lo store scarta l'evento |
+| `<input>` semplice (Costo, Prezzo, Prezzo barrato)            | emette e basta                           | ✅ nessun danno: resta il Tab del browser                                 |
+
+⚠️ È il motivo per cui `sellingPrice` e `compareAtPrice` dell'**Ordine fornitore**, pur
+essendo fuori dal giro, **non sono un difetto** — e per cui la guardia è stata ristretta:
+una che segnala falsi positivi viene spenta.
+
+### Le due guardie
+
+- **`check:id-fuoco`** — confronta gli id che lo store CERCA con quelli che la riga comune
+  RENDE. 58 campi su sei maschere.
+- **`check:colonne-nel-giro`** — una colonna resa da una cella che annulla l'evento deve
+  stare nel giro della maschera che la dichiara. Vale anche per le colonne **spente di
+  serie**: si accendono dal selettore, e lì la trappola compare.
+
+Entrambe falsificate reintroducendo il guasto vero.
+
+⏸ **La correzione alla radice resta da valutare**: far DERIVARE l'elenco dei campi e la mappa
+id dal catalogo colonne, invece di riscriverli. Toglierebbe la classe intera di difetti, ma
+tocca il contratto condiviso di sei maschere.
 
 ---
 

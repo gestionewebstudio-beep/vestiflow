@@ -1593,30 +1593,116 @@ Dalla più volatile alla più stabile:
 
 ## 16. Le colonne di prezzo: quale maschera ne ha quale, e chi può scriverci
 
-_Misurato il 16/08/2026, chiarendo con Luigi la semantica. Nessuna modifica._
+## ⭐ LA COLONNA PREZZO È UNA SOLA, IN OGNI DOCUMENTO — deciso dal proprietario il 02/09/2026
 
-Le maschere documento hanno **due colonne di prezzo diverse**, e non è la stessa cosa scritta in due modi:
+> **La colonna «Prezzo netto / Prezzo ivato» — quella della Fattura, col selettore — è LA
+> colonna prezzo del progetto, e va in tutti i documenti: vendita, ordini, arrivo merce.**
 
-| Colonna                              | Cos'è                                                   | Dove                                    | Editabile               |
-| ------------------------------------ | ------------------------------------------------------- | --------------------------------------- | ----------------------- |
-| `unitPrice` — «Prezzo»               | il **prezzo del documento**, quello che il cliente paga | Ordine cliente · DDT · maschera vendita | **sì**                  |
-| `sellingPrice` — «Prezzo di vendita» | il prezzo **di catalogo** dell'articolo                 | Ordine fornitore · Arrivo merce         | **dipende, vedi sotto** |
+⛔ **Qui c'era il contrario**, e il proprietario l'ha respinto: _«va cambiato quello che c'è
+scritto nel documento, che è stato frainteso e scritto male»_. Il testo diceva:
 
-### La stessa colonna, due mestieri diversi
+> «Le maschere documento hanno **due colonne di prezzo diverse**, e non è la stessa cosa
+> scritta in due modi. […] Non è un'incoerenza: sono due momenti diversi.»
 
-`sellingPrice` è **in sola lettura sull'Ordine fornitore** (`doc-form__cell--readonly doc-form__cell--computed`) ed **editabile sull'Arrivo merce** (`<input formControlName="sellingPrice">`).
+⚠️ **Registrava una conclusione sbagliata di una conversazione del 16/08**, e per due
+settimane ha impedito di vedere il difetto: `unitPrice` («Prezzo netto/ivato») e
+`sellingPrice` («Prezzo di vendita») **sono la stessa casella con due nomi**. Il proprietario
+lo chiama _«un quasi duplicato»_, e la prova è a schermo — l'Arrivo merce ha una colonna
+prezzo che non dice se è netta o ivata, mentre ogni altro documento ce l'ha col selettore.
 
-⚠️ **Aggiornato il 16/08/2026.** Sull'Arrivo merce l'editabilità è ora **condizionata**: la
-spunta di documento **«Aggiorna prezzi in anagrafica»**, accesa di default, decide se i prezzi
-aggiornano l'anagrafica — e spenta li rende **in sola lettura**, perché il prezzo non è un
-dato della riga e un campo scrivibile senza destinazione sarebbe una bugia. Fino a quel
-giorno il valore digitato per un articolo **esistente** non partiva affatto.
+### Cosa resta separato, e non si tocca
+
+⛔ **Prezzo articolo, Prezzo Shopify e Prezzo barrato NON si unificano.** Sono tre campi
+diversi dell'anagrafica, e restano tre colonne: _«resta tutto così»_. Con la spunta accesa,
+l'operatore inserisce i nuovi prezzi e **in anagrafica si aggiorna ognuno col suo valore**.
+
+### La spunta vale solo per gli articoli GIÀ ESISTENTI
+
+⭐ **Articolo NUOVO: i prezzi vanno in anagrafica a prescindere dalla spunta.** L'articolo
+nasce con i dati inseriti — è la sua creazione, non un aggiornamento. Verificato nel codice:
+`buildNewProductBody` manda `sellingPriceMinor` e `compareAtPriceMinor` senza consultare
+`updateArticlePrices`.
+
+⛔ **E qui c'era «spenta li rende in sola lettura»: è FALSO.** Verificato il 02/09/2026:
+`syncLineFieldAccess` blocca solo i campi che identificano il prodotto — codice, SKU, EAN,
+nome, lotto, seriali. I prezzi restano digitabili sempre. La spunta decide **dove va** il
+valore, non se si può scriverlo.
+
+| Caso                       | La spunta                                         |
+| -------------------------- | ------------------------------------------------- |
+| articolo **nuovo**         | ⛔ non conta: i prezzi vanno in anagrafica sempre |
+| articolo **già esistente** | ✅ decide se l'anagrafica si aggiorna             |
+
+### Dove va la colonna, maschera per maschera
+
+> **Va sostituita OVUNQUE si usi qualcosa di diverso** — e il proprietario ha chiesto
+> esplicitamente che si controlli prima: _«va controllato prima»_.
+
+| Dove                                           | Cosa succede                                                        | Editabile       |
+| ---------------------------------------------- | ------------------------------------------------------------------- | --------------- |
+| **Arrivo merce**                               | «Prezzo di vendita» **diventa** «Prezzo netto/ivato», col selettore | ✅ sì           |
+| **Ordine fornitore**                           | diventa «Prezzo netto/ivato» col selettore                          | ⛔ sola lettura |
+| **Trasferimenti**                              | la colonna ci va, **attivabile**                                    | ⛔ sola lettura |
+| **Inventario**                                 | ⭐ la colonna ci va, per il **controllo prezzi dei cartellini**     | ⛔ sola lettura |
+| Fatture, Ordine cliente, DDT, Vendita al banco | ce l'hanno già: nessun lavoro                                       | ✅              |
+
+⭐ **Dove è in sola lettura, il selettore è un CAMBIO DI VISTA**: su un valore che non si
+digita cambia come lo si legge, non come lo si salva. Coerente con `regole-gestionale`, «la
+convenzione vale anche per le viste: anagrafica e listini».
+
+⭐⭐ **E quindi NESSUNA MIGRATION.** Il prezzo di Trasferimento e Inventario si legge
+dall'anagrafica al momento della visualizzazione: non è un dato del documento, non si
+congela, non ha dove essere salvato — e non serve. Deciso dal proprietario il 02/09/2026:
+_«in trasferimento basta la lettura»_.
+
+⭐ **L'inventario serve al controllo dei cartellini**: chi conta in negozio verifica che il
+prezzo esposto sullo scaffale sia quello dell'anagrafica. È una lettura, per definizione.
+
+### ⛔ Costo e prezzo NON si fondono — chiuso il 02/09/2026
+
+> Il proprietario, alla domanda se `unitCost` dovesse diventare anch'esso «Prezzo
+> netto/ivato»: _«mi spaventa. Sono due campi completamente diversi e con ruoli diversi»_.
+
+⚠️ **La domanda era stata posta per CHIUDERLA**, non come proposta: il censimento la
+sollevava, e lasciarla implicita avrebbe permesso a un lavoro futuro di fonderli «per
+uniformità». `regole-gestionale` argomenta già la separazione — i costi non hanno né
+convenzione né memoria, i prezzi di vendita hanno tre livelli — e ora c'è anche la decisione
+esplicita.
+
+Restano quindi **due menu distinti** in testata: uno per il costo, uno per il prezzo. È il
+motivo per cui l'Arrivo merce, che mostra entrambe le colonne, ne ha bisogno di due.
+
+⭐ **Il selettore in sola lettura non è una contraddizione.** Su un valore che non si digita
+cambia **come lo si legge**, non come lo si salva — ed è coerente con `regole-gestionale`,
+che dice «la convenzione vale anche per le viste: anagrafica e listini».
+
+Questo chiude anche la voce «registrato e non fatto» del 16/08 (il netto/ivato su quella
+colonna) e il difetto misurato il 02/09: il selettore è **cablato e morto** perché la testata
+lo lega al nome `unitPrice`, che l'Arrivo merce non dichiara. ⭐ La correzione è agganciarlo
+al **ruolo** — «questa colonna è un prezzo» — invece che al nome.
 
 Col modulo Shopify attivo compare anche **«Prezzo Shopify»**, colonna nascondibile e spenta
 di default, che riusa la politica dell'anagrafica prodotti. I due prezzi restano distinti.
 Dettaglio in `DA-FARE-FAMIGLIA-FATTURA` voce 11, fetta 2.
 
-Non è un'incoerenza: sono due momenti diversi. Quando ordini guardi il prezzo di vendita per decidere quanto comprare; quando la merce arriva, quello è il momento in cui il prezzo di vendita si stabilisce o si aggiorna. **Va però saputo prima di toccarla**, perché rende la stessa richiesta due cose diverse nelle due maschere.
+⛔ **Qui restava il paragrafo della versione RESPINTA** — «Non è un'incoerenza: sono due
+momenti diversi. Quando ordini guardi il prezzo di vendita per decidere quanto comprare…» —
+lasciato in coda alla sezione che lo smentisce. È esattamente l'argomento che il proprietario
+ha respinto il 02/09, e trovarlo sotto la decisione nuova fa credere che valga ancora.
+
+### ⭐ Quante colonne restano, e come si chiamano
+
+Perché la decisione non si legga in due modi:
+
+| Colonna sull'Arrivo merce | Diventa                                    | Aggiorna in anagrafica  |
+| ------------------------- | ------------------------------------------ | ----------------------- |
+| «Prezzo di vendita»       | ⭐ **«Prezzo netto/ivato»**, col selettore | il prezzo dell'articolo |
+| «Prezzo Shopify»          | resta com'è, spenta di serie               | il prezzo Shopify       |
+| «Prezzo barrato»          | resta com'è, spenta di serie               | il prezzo barrato       |
+
+⭐ **Le colonne restano TRE**: cambia il nome e il comportamento della prima, che prende
+quelli della colonna canonica. Le altre due la affiancano e seguono la stessa modalità
+netto/ivato, come già fanno oggi (`SALES_PRICE_FIELDS`).
 
 ### La regola di dominio sul prezzo, dichiarata da Luigi
 
