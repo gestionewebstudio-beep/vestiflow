@@ -139,6 +139,64 @@ export class DocumentLineFocusStore<F extends string> {
     return this.contract.fields.filter((field) => this.contract.isFieldEnabled(lineIndex, field));
   }
 
+  // ── Le porte TOLLERANTI ───────────────────────────────────────────────────
+  //
+  // ⭐ **Accettano un campo di QUALUNQUE documento e ignorano quello che non è
+  // loro.** La riga comune (`document-line-row`) è una sola e conosce tutti i
+  // campi possibili; ogni maschera ne usa un sottoinsieme.
+  //
+  // ⛔ Prima il filtro stava FUORI, ricopiato in cinque maschere: ognuna aveva
+  // un `campoDiQuestoDocumento` che confrontava l'evento col proprio elenco di
+  // campi — cioè con `contract.fields`, che questa classe **già possiede**.
+  // Cinque copie di una domanda a cui lo store sapeva rispondere da sé, più
+  // otto metodi-ponte per maschera cuciti sopra, cinque volte identici parola
+  // per parola: ~250 righe che non facevano altro che rigirare l'evento qui.
+  //
+  // ⚠️ Non è «un metodo in più per comodità»: è dove il filtro APPARTIENE. Chi
+  // possiede l'elenco dei campi è l'unico che può dire se un campo è suo, e
+  // tenerlo fuori significava rispondere alla stessa domanda in cinque posti —
+  // con cinque occasioni di divergere in silenzio.
+
+  /** Il campo, se appartiene a questo documento; `null` se è di un altro. */
+  private proprio(field: string): F | null {
+    return (this.contract.fields as readonly string[]).includes(field) ? (field as F) : null;
+  }
+
+  nextIfMine(lineIndex: number, field: string): void {
+    const proprio = this.proprio(field);
+    if (proprio) {
+      this.next(lineIndex, proprio);
+    }
+  }
+
+  previousIfMine(lineIndex: number, field: string): void {
+    const proprio = this.proprio(field);
+    if (proprio) {
+      this.previous(lineIndex, proprio);
+    }
+  }
+
+  rowDownIfMine(lineIndex: number, field: string): void {
+    const proprio = this.proprio(field);
+    if (proprio) {
+      this.rowDown(lineIndex, proprio);
+    }
+  }
+
+  rowUpIfMine(lineIndex: number, field: string): void {
+    const proprio = this.proprio(field);
+    if (proprio) {
+      this.rowUp(lineIndex, proprio);
+    }
+  }
+
+  handleKeydownIfMine(lineIndex: number, field: string, event: KeyboardEvent): void {
+    const proprio = this.proprio(field);
+    if (proprio) {
+      this.handleKeydown(lineIndex, proprio, event);
+    }
+  }
+
   /**
    * Porta il fuoco sul campo **e ne seleziona il valore**, pronto da
    * sovrascrivere (specifica §4.1).

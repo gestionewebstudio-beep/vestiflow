@@ -369,11 +369,13 @@
                         (unitManageRequested)="openUnitManager(i)"
                         (vatSelected)="onLineVatSelect(i, $event)"
                         (costChanged)="onUnitCostInput(i, $event)"
-                        (fieldKeydown)="onRowFieldKeydown(i, $event)"
-                        (fieldAdvance)="onRowFieldAdvance(i, $event)"
-                        (fieldRetreat)="onRowFieldRetreat(i, $event)"
-                        (rowAdvance)="onRowLineAdvance(i, $event)"
-                        (rowRetreat)="onRowLineRetreat(i, $event)"
+                        (fieldKeydown)="
+                          lineFocus.handleKeydownIfMine(i, $event.field, $event.value)
+                        "
+                        (fieldAdvance)="lineFocus.nextIfMine(i, $event)"
+                        (fieldRetreat)="lineFocus.previousIfMine(i, $event)"
+                        (rowAdvance)="lineFocus.rowDownIfMine(i, $event)"
+                        (rowRetreat)="lineFocus.rowUpIfMine(i, $event)"
                         (removeRequested)="removeLine(i)"
                       ></tr>
                     }

@@ -111,7 +111,6 @@ import { DOCUMENT_LINE_ROW_VIEW_VUOTA } from '@domain/documents/components/docum
 import type {
   DocumentLineColumnId,
   DocumentLineFieldEvent,
-  DocumentLineFocusField,
   DocumentLineRowView,
   DocumentLineSuggestionDirection,
   DocumentLineSuggestionPick,
@@ -1791,16 +1790,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
   // ── Il giro del fuoco fra i campi riga ────────────────────────────────────
 
   protected readonly lineFocus = new DocumentLineFocusStore<SalesDocumentLineFocusField>({
-    fields: [
-      'articleCode',
-      'sku',
-      'barcode',
-      'product',
-      'quantity',
-      'unitPrice',
-      'discount',
-      'vat',
-    ],
+    fields: SALES_DOCUMENT_LINE_FOCUS_FIELDS,
     elementId: (index, field) =>
       ({
         articleCode: `sd-code-` + index,
@@ -2302,53 +2292,6 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       return;
     }
     this.codeLookup.navigate(event.value);
-  }
-
-  /**
-   * Il giro del fuoco: la riga comune parla di dieci campi, questo documento ne
-   * ha meno. Il restringimento è esplicito, non un cast.
-   */
-  private campoDiQuestoDocumento(
-    field: DocumentLineFocusField,
-  ): SalesDocumentLineFocusField | null {
-    return (SALES_DOCUMENT_LINE_FOCUS_FIELDS as readonly string[]).includes(field)
-      ? (field as SalesDocumentLineFocusField)
-      : null;
-  }
-
-  protected onRowFieldKeydown(index: number, event: DocumentLineFieldEvent<KeyboardEvent>): void {
-    const field = this.campoDiQuestoDocumento(event.field);
-    if (field) {
-      this.lineFocus.handleKeydown(index, field, event.value);
-    }
-  }
-
-  protected onRowFieldAdvance(index: number, field: DocumentLineFocusField): void {
-    const proprio = this.campoDiQuestoDocumento(field);
-    if (proprio) {
-      this.lineFocus.next(index, proprio);
-    }
-  }
-
-  protected onRowFieldRetreat(index: number, field: DocumentLineFocusField): void {
-    const proprio = this.campoDiQuestoDocumento(field);
-    if (proprio) {
-      this.lineFocus.previous(index, proprio);
-    }
-  }
-
-  protected onRowLineAdvance(index: number, field: DocumentLineFocusField): void {
-    const proprio = this.campoDiQuestoDocumento(field);
-    if (proprio) {
-      this.lineFocus.rowDown(index, proprio);
-    }
-  }
-
-  protected onRowLineRetreat(index: number, field: DocumentLineFocusField): void {
-    const proprio = this.campoDiQuestoDocumento(field);
-    if (proprio) {
-      this.lineFocus.rowUp(index, proprio);
-    }
   }
 
   /**

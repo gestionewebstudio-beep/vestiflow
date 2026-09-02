@@ -124,7 +124,6 @@ import { DOCUMENT_LINE_ROW_VIEW_VUOTA } from '@domain/documents/components/docum
 import type {
   DocumentLineColumnId,
   DocumentLineFieldEvent,
-  DocumentLineFocusField,
   DocumentLineRowView,
   DocumentLineSuggestionDirection,
   DocumentLineSuggestionPick,
@@ -2014,53 +2013,6 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     this.codeLookup.navigate(event.value);
   }
 
-  /**
-   * Il giro del fuoco: la riga comune parla di più campi di quanti ne abbia
-   * questo documento. Il restringimento è esplicito, non un cast.
-   */
-  private campoDiQuestoDocumento(
-    field: DocumentLineFocusField,
-  ): SupplierOrderLineFocusField | null {
-    return (SUPPLIER_ORDER_LINE_FOCUS_FIELDS as readonly string[]).includes(field)
-      ? (field as SupplierOrderLineFocusField)
-      : null;
-  }
-
-  protected onRowFieldKeydown(index: number, event: DocumentLineFieldEvent<KeyboardEvent>): void {
-    const field = this.campoDiQuestoDocumento(event.field);
-    if (field) {
-      this.lineFocus.handleKeydown(index, field, event.value);
-    }
-  }
-
-  protected onRowFieldAdvance(index: number, field: DocumentLineFocusField): void {
-    const proprio = this.campoDiQuestoDocumento(field);
-    if (proprio) {
-      this.lineFocus.next(index, proprio);
-    }
-  }
-
-  protected onRowFieldRetreat(index: number, field: DocumentLineFocusField): void {
-    const proprio = this.campoDiQuestoDocumento(field);
-    if (proprio) {
-      this.lineFocus.previous(index, proprio);
-    }
-  }
-
-  protected onRowLineAdvance(index: number, field: DocumentLineFocusField): void {
-    const proprio = this.campoDiQuestoDocumento(field);
-    if (proprio) {
-      this.lineFocus.rowDown(index, proprio);
-    }
-  }
-
-  protected onRowLineRetreat(index: number, field: DocumentLineFocusField): void {
-    const proprio = this.campoDiQuestoDocumento(field);
-    if (proprio) {
-      this.lineFocus.rowUp(index, proprio);
-    }
-  }
-
   protected addLine(): void {
     this.lines.push(this.createLine());
   }
@@ -2084,24 +2036,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
    * solo far morire il fuoco.
    */
   protected readonly lineFocus = new DocumentLineFocusStore<LineFocusField>({
-    fields: [
-      'articleCode',
-      'sku',
-      'barcode',
-      'supplierCode',
-      // Rientrata nel giro: `po-product-{i}` era uscito perché la cella nome
-      // era una tendina, che non ha un campo con quell'identificativo. Ora è la
-      // cella condivisa, con un input vero.
-      'product',
-      'quantity',
-      'unitOfMeasure',
-      'unitCost',
-      'discount',
-      // Rientrata nel giro: era fuori perché la cella IVA era un
-      // `app-select-menu`, che non ha un campo con quell'identificativo. Ora è
-      // la cella a ricerca-e-selezione, con un input vero.
-      'vat',
-    ],
+    fields: SUPPLIER_ORDER_LINE_FOCUS_FIELDS,
     elementId: (index, field) =>
       ({
         articleCode: `po-code-${index}`,

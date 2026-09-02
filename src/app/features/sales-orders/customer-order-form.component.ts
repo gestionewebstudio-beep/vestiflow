@@ -149,7 +149,6 @@ import { DocumentLineRowComponent } from '@domain/documents/components/document-
 import { NESSUN_SUGGERIMENTO } from '@domain/documents/components/document-line-row/document-line-row.model';
 import type {
   DocumentLineColumnId,
-  DocumentLineFocusField,
   DocumentLineFieldEvent,
   DocumentLineRowView,
   DocumentLineSuggestionDirection,
@@ -2329,58 +2328,6 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   }
 
   /**
-   * Il giro del fuoco: la riga comune parla di più campi di quanti ne abbia
-   * questo documento — da quando rende anche il codice fornitore e il costo
-   * digitato, che su una vendita non esistono.
-   *
-   * ⚠️ Il restringimento è esplicito e non un cast: un campo che qui non c'è
-   * arriverebbe allo store del fuoco, che lo cercherebbe nel DOM e si
-   * fermerebbe a metà riga in silenzio.
-   */
-  private campoDiQuestoDocumento(
-    field: DocumentLineFocusField,
-  ): CustomerOrderLineFocusField | null {
-    return (CUSTOMER_ORDER_LINE_FOCUS_FIELDS as readonly string[]).includes(field)
-      ? (field as CustomerOrderLineFocusField)
-      : null;
-  }
-
-  protected onRowFieldKeydown(index: number, event: DocumentLineFieldEvent<KeyboardEvent>): void {
-    const field = this.campoDiQuestoDocumento(event.field);
-    if (field) {
-      this.lineFocus.handleKeydown(index, field, event.value);
-    }
-  }
-
-  protected onRowFieldAdvance(index: number, field: DocumentLineFocusField): void {
-    const proprio = this.campoDiQuestoDocumento(field);
-    if (proprio) {
-      this.lineFocus.next(index, proprio);
-    }
-  }
-
-  protected onRowFieldRetreat(index: number, field: DocumentLineFocusField): void {
-    const proprio = this.campoDiQuestoDocumento(field);
-    if (proprio) {
-      this.lineFocus.previous(index, proprio);
-    }
-  }
-
-  protected onRowLineAdvance(index: number, field: DocumentLineFocusField): void {
-    const proprio = this.campoDiQuestoDocumento(field);
-    if (proprio) {
-      this.lineFocus.rowDown(index, proprio);
-    }
-  }
-
-  protected onRowLineRetreat(index: number, field: DocumentLineFocusField): void {
-    const proprio = this.campoDiQuestoDocumento(field);
-    if (proprio) {
-      this.lineFocus.rowUp(index, proprio);
-    }
-  }
-
-  /**
    * **La primitiva: aggiunge una riga, sempre.**
    *
    * ⛔ Non è il gesto dell'operatore — quello è `requestNewLine()`. La
@@ -4062,23 +4009,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
    * su `display:none` è un no-op silenzioso. Vedi `ViewportService`.
    */
   protected readonly lineFocus = new DocumentLineFocusStore<CustomerOrderLineFocusField>({
-    fields: [
-      'articleCode',
-      'sku',
-      'barcode',
-      'product',
-      'quantity',
-      // Rientrata nel giro: la cella era di sola lettura, quindi non c'era
-      // niente su cui atterrare. Ora l'unità si scrive sulla riga.
-      'unitOfMeasure',
-      'unitPrice',
-      'discount',
-      // Rientrata nel giro: era fuori perché la cella IVA era un
-      // `app-select-menu`, che non ha un campo con quell'identificativo. Ora è
-      // la cella a ricerca-e-selezione, con un input vero.
-      'vat',
-      'serials',
-    ],
+    fields: CUSTOMER_ORDER_LINE_FOCUS_FIELDS,
     elementId: (index, field) =>
       ({
         articleCode: `co-code-${index}`,

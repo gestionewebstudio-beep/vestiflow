@@ -75,7 +75,6 @@ import { DOCUMENT_LINE_ROW_VIEW_VUOTA } from '@domain/documents/components/docum
 import type {
   DocumentLineColumnId,
   DocumentLineFieldEvent,
-  DocumentLineFocusField,
   DocumentLineRowView,
   DocumentLineSuggestionDirection,
   DocumentLineSuggestionPick,
@@ -1102,7 +1101,7 @@ export class TransferFormComponent implements CanComponentDeactivate {
    * `display:none` è un no-op silenzioso. Vedi `ViewportService`.
    */
   protected readonly lineFocus = new DocumentLineFocusStore<MovementLineFocusField>({
-    fields: ['articleCode', 'sku', 'barcode', 'product', 'quantity', 'serials'],
+    fields: MOVEMENT_LINE_FOCUS_FIELDS,
     elementId: (index, field) =>
       ({
         articleCode: `tr-code-` + index,
@@ -1307,57 +1306,6 @@ export class TransferFormComponent implements CanComponentDeactivate {
       !raw.barcode.trim() &&
       !raw.productName.trim();
     return vuota || (Boolean(raw.variantId.trim()) && Number(raw.quantity) > 0);
-  }
-
-  /**
-   * Il giro del fuoco: la riga comune parla di DIECI campi, questo documento
-   * ne ha SEI.
-   *
-   * ⚠️ Il restringimento è esplicito e non un cast: la riga comune emette
-   * anche `unitPrice`, `discount`, `vat` e `unitOfMeasure`, che qui non
-   * esistono perché le colonne non ci sono. Forzare il tipo li farebbe
-   * arrivare allo store del fuoco, che cercherebbe un campo inesistente e si
-   * fermerebbe in silenzio a metà riga.
-   */
-  private campoDiQuestoDocumento(field: DocumentLineFocusField): MovementLineFocusField | null {
-    return (MOVEMENT_LINE_FOCUS_FIELDS as readonly string[]).includes(field)
-      ? (field as MovementLineFocusField)
-      : null;
-  }
-
-  protected onRowFieldKeydown(index: number, event: DocumentLineFieldEvent<KeyboardEvent>): void {
-    const field = this.campoDiQuestoDocumento(event.field);
-    if (field) {
-      this.lineFocus.handleKeydown(index, field, event.value);
-    }
-  }
-
-  protected onRowFieldAdvance(index: number, field: DocumentLineFocusField): void {
-    const proprio = this.campoDiQuestoDocumento(field);
-    if (proprio) {
-      this.lineFocus.next(index, proprio);
-    }
-  }
-
-  protected onRowFieldRetreat(index: number, field: DocumentLineFocusField): void {
-    const proprio = this.campoDiQuestoDocumento(field);
-    if (proprio) {
-      this.lineFocus.previous(index, proprio);
-    }
-  }
-
-  protected onRowLineAdvance(index: number, field: DocumentLineFocusField): void {
-    const proprio = this.campoDiQuestoDocumento(field);
-    if (proprio) {
-      this.lineFocus.rowDown(index, proprio);
-    }
-  }
-
-  protected onRowLineRetreat(index: number, field: DocumentLineFocusField): void {
-    const proprio = this.campoDiQuestoDocumento(field);
-    if (proprio) {
-      this.lineFocus.rowUp(index, proprio);
-    }
   }
 
   // ── Il ponte verso la RIGA COMUNE ────────────────────────────────────────

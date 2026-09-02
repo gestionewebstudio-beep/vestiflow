@@ -112,7 +112,6 @@ import { DOCUMENT_LINE_ROW_VIEW_VUOTA } from '@domain/documents/components/docum
 import type {
   DocumentLineColumnId,
   DocumentLineFieldEvent,
-  DocumentLineFocusField,
   DocumentLineRowView,
   DocumentLineSuggestionDirection,
   DocumentLineSuggestionPick,
@@ -4497,51 +4496,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       return;
     }
     this.codeLookup.navigate(event.value);
-  }
-
-  /**
-   * Il giro del fuoco: la riga comune parla di più campi di quanti ne abbia
-   * questo documento. Il restringimento è esplicito, non un cast.
-   */
-  private campoDiQuestoDocumento(field: DocumentLineFocusField): GoodsReceiptLineFocusField | null {
-    return (GOODS_RECEIPT_LINE_FOCUS_FIELDS as readonly string[]).includes(field)
-      ? (field as GoodsReceiptLineFocusField)
-      : null;
-  }
-
-  protected onRowFieldKeydown(index: number, event: DocumentLineFieldEvent<KeyboardEvent>): void {
-    const field = this.campoDiQuestoDocumento(event.field);
-    if (field) {
-      this.lineFocus.handleKeydown(index, field, event.value);
-    }
-  }
-
-  protected onRowFieldAdvance(index: number, field: DocumentLineFocusField): void {
-    const proprio = this.campoDiQuestoDocumento(field);
-    if (proprio) {
-      this.lineFocus.next(index, proprio);
-    }
-  }
-
-  protected onRowFieldRetreat(index: number, field: DocumentLineFocusField): void {
-    const proprio = this.campoDiQuestoDocumento(field);
-    if (proprio) {
-      this.lineFocus.previous(index, proprio);
-    }
-  }
-
-  protected onRowLineAdvance(index: number, field: DocumentLineFocusField): void {
-    const proprio = this.campoDiQuestoDocumento(field);
-    if (proprio) {
-      this.lineFocus.rowDown(index, proprio);
-    }
-  }
-
-  protected onRowLineRetreat(index: number, field: DocumentLineFocusField): void {
-    const proprio = this.campoDiQuestoDocumento(field);
-    if (proprio) {
-      this.lineFocus.rowUp(index, proprio);
-    }
   }
 
   protected openFullProductCreate(lineIndex: number): void {
