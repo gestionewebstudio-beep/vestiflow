@@ -1,7 +1,7 @@
 <app-list-page
   class="stock-lookup"
   pageTitle="Cerca"
-  pageDescription="Cerca per SKU o barcode e consulta le giacenze."
+  pageDescription="Cerca per nome, SKU o EAN e consulta la situazione dell'articolo."
   [showBack]="true"
   [loading]="false"
   [skeletonColumns]="3"
@@ -11,17 +11,15 @@
 
   <!--
     ⚠️ **Il corpo resta suo, e la ragione va detta.** Questa non è una pagina
-    elenco: è una RICERCA a invio — un codice, un pulsante, un risultato che
-    può essere «non trovato». Il telaio le dà la testata, che era l'unica cosa
-    diversa dalle altre schermate: la sua era una colonna, quindi il titolo
-    finiva SOTTO il pulsante Indietro invece che accanto.
+    elenco: è la RICERCA del commesso col palmare in mano — scrivo, e mentre
+    scrivo compaiono gli articoli. Il telaio le dà la testata, che era l'unica
+    cosa diversa dalle altre schermate.
 
-    ⛔ E `showTools` è spento: ricerca, periodo, filtri e colonne qui non
-    esistono, e una fascia vuota con dentro un «Filtri» che non filtra niente
-    sarebbe peggio di non averla.
+    ⛔ E `showTools` è spento: periodo, filtri e colonne qui non esistono, e una
+    fascia vuota con dentro un «Filtri» che non filtra niente sarebbe peggio di
+    non averla.
   -->
   <div data>
-  
     @if (canInstallPwa()) {
       <div class="stock-lookup__install" role="status">
         <p class="stock-lookup__install-text">
@@ -30,156 +28,249 @@
         <app-button variant="secondary" (click)="installApp()">Installa app</app-button>
       </div>
     }
-  
+
+    <!--
+      ⭐ **IL CAMPO DI RICERCA È IL PALMARE DEL COMMESSO** — requisiti del
+      proprietario, 02/09/2026: si cerca per EAN, SKU o NOME, e col nome i
+      risultati compaiono man mano dalla terza lettera.
+
+      ⛔ **Niente pulsante «Cerca»**: la ricerca parte da sé. Un pulsante accanto
+      a un campo che cerca già mentre si scrive è un comando che non comanda — e
+      sul telefono ruba metà riga.
+
+      ⚠️ **`type="search"` e `enterkeyhint`**: sul telefono la tastiera mostra
+      «cerca» invece di «invio», e il campo porta la × per svuotarlo.
+    -->
     <div class="stock-lookup__search">
-      <form class="stock-lookup__form" [formGroup]="searchForm" (ngSubmit)="lookup()">
-        <label class="stock-lookup__field" for="stock-code">
-          <span class="stock-lookup__field-label">SKU o barcode</span>
-          <input
-            id="stock-code"
-            class="stock-lookup__input"
-            type="search"
-            formControlName="code"
-            autocomplete="off"
-            spellcheck="false"
-            enterkeyhint="search"
-            placeholder="Es. TSB-M-WHT"
-            [attr.aria-invalid]="showError('code')"
-          />
-          @if (showError('code')) {
-            <span class="stock-lookup__field-error">
-              @if (searchForm.controls.code.hasError('required')) {
-                Inserisci uno SKU o un barcode da cercare.
-              } @else {
-                Il codice può avere al massimo 100 caratteri.
-              }
-            </span>
-          }
-        </label>
-  
-        <div class="stock-lookup__actions">
-          @if (barcodeScannerEnabled()) {
-            <app-barcode-scanner label="Scansiona barcode" (scanned)="onScanned($event)" />
-          }
-          <app-button type="submit">Cerca giacenza</app-button>
-        </div>
-      </form>
-    </div>
-  
-    @switch (lookupState().status) {
-      @case ('loading') {
-        <app-table-skeleton [columns]="3" [rows]="4" />
-      }
-      @case ('not-found') {
-        <app-empty-state
-          title="Nessuna variante trovata"
-          description="Verifica SKU o barcode e riprova."
-          icon="pi-search"
+      <label class="stock-lookup__field" for="stock-code">
+        <span class="stock-lookup__field-label">Nome, SKU o EAN</span>
+        <input
+          id="stock-code"
+          class="stock-lookup__input"
+          type="search"
+          autocomplete="off"
+          spellcheck="false"
+          enterkeyhint="search"
+          placeholder="Es. maglie, TSB-M-WHT, 800012…"
+          [value]="testoCercato()"
+          (input)="onSearchInput($any($event.target).value)"
         />
+      </label>
+
+      @if (barcodeScannerEnabled()) {
+        <app-barcode-scanner label="Scansiona" (scanned)="onScanned($event)" />
       }
-      @case ('error') {
-        @if (lookupState(); as state) {
-          @if (state.status === 'error') {
-            <app-error-state
-              [description]="state.error.message"
-              retryLabel="Riprova"
-              (retry)="lookup()"
-            />
-          }
-        }
-      }
-      @case ('success') {
-        @let result = lookupState();
-        @if (result.status === 'success') {
-          <section class="stock-lookup__result" aria-labelledby="lookup-result-title">
-            <div class="stock-lookup__result-header">
-              <h2 id="lookup-result-title" class="stock-lookup__result-title">
-                {{ result.variant.productName }}
-              </h2>
-              <p class="stock-lookup__meta tabular-nums">
-                SKU <strong>{{ result.variant.sku }}</strong>
-                @if (result.variant.barcode) {
-                  · Barcode <strong>{{ result.variant.barcode }}</strong>
-                }
-              </p>
-            </div>
-  
-            <div class="stock-lookup__actions">
-              <a
-                class="stock-lookup__link"
-                [routerLink]="['/app/products', result.variant.productId]"
-              >
-                Dettaglio prodotto
-              </a>
-              @if (canManageInventory()) {
-                <a
-                  class="stock-lookup__link"
-                  [routerLink]="['/app/inventory/movements/new']"
-                  [queryParams]="movementQueryParams(result.variant.variantId)"
-                >
-                  Registra movimento
-                </a>
+    </div>
+
+    @if (ricercaErrore(); as errore) {
+      <app-inline-banner tone="error">{{ errore }}</app-inline-banner>
+    }
+
+    <!--
+      ⭐ **La scheda di un articolo prende il posto dei risultati**, non ci si
+      affianca: sul telefono due elenchi impilati vogliono dire scorrere per
+      tornare a quello che si è appena toccato.
+    -->
+    @if (articoloAperto(); as articolo) {
+      <section class="ricerca__scheda" aria-labelledby="ricerca-scheda-titolo">
+        <div class="ricerca__scheda-testa">
+          <app-button variant="ghost" (click)="chiudiArticolo()">Torna ai risultati</app-button>
+        </div>
+
+        <div class="ricerca__articolo">
+          <span class="ricerca__thumb ricerca__thumb--grande">
+            @if (articolo.imageUrl) {
+              <img
+                [src]="articolo.imageUrl"
+                [alt]="articolo.productName"
+                width="64"
+                height="64"
+                loading="lazy"
+                decoding="async"
+              />
+            } @else {
+              <i class="pi pi-image" aria-hidden="true"></i>
+            }
+          </span>
+          <span class="ricerca__articolo-info">
+            <h2 id="ricerca-scheda-titolo" class="ricerca__nome">{{ articolo.productName }}</h2>
+            @if (articolo.articleCode) {
+              <span class="ricerca__codice">{{ articolo.articleCode }}</span>
+            }
+            <span class="ricerca__prezzo">
+              @if (!articolo.prezzoUnico) {
+                <span class="ricerca__prezzo-da">da</span>
               }
-            </div>
-  
-            @if (result.levels.length > 0) {
-              <div class="stock-lookup__table-wrap">
-                <table class="stock-lookup__table">
-                  <thead>
+              {{ prezzoLeggibile(articolo.prezzo) }}
+            </span>
+          </span>
+        </div>
+
+        <div class="ricerca__scheda-azioni">
+          <a class="stock-lookup__link" [routerLink]="['/app/products', articolo.productId]">
+            Dettaglio prodotto
+          </a>
+        </div>
+
+        @if (situazioneInCorso()) {
+          <app-table-skeleton [columns]="3" [rows]="4" />
+        } @else if (situazione(); as sit) {
+          @if (sit.sedi.length === 0) {
+            <app-empty-state
+              icon="pi-map-marker"
+              title="Nessuna sede operativa"
+              description="Senza sedi abilitate non c'è una giacenza da mostrare."
+            />
+          } @else {
+            <!--
+              ⚠️ **Le colonne sono le SEDI, le righe le taglie**: le sedi
+              operative sono due o tre e stanno in larghezza anche sul telefono;
+              le taglie sono tante e scorrono in verticale, che è il verso in cui
+              si scorre col pollice.
+            -->
+            <div class="ricerca__griglia-scroll">
+              <table class="ricerca__griglia">
+                <caption class="sr-only">
+                  Disponibilità per taglia e sede
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Taglia</th>
+                    @for (sede of sit.sedi; track sede.locationId) {
+                      <th scope="col" class="ricerca__num">{{ sede.locationName }}</th>
+                    }
+                    <th scope="col" class="ricerca__num">Totale</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (riga of sit.righe; track riga.variantId) {
                     <tr>
-                      <th scope="col">Location</th>
-                      <th scope="col" class="stock-lookup__num">Giacenza</th>
-                      <th scope="col" class="stock-lookup__num">Impegnata</th>
-                      <th scope="col" class="stock-lookup__num">Disponibile</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    @for (level of result.levels; track level.id) {
-                      <tr [class.stock-lookup__row--active]="isActiveLocation(level.locationId)">
-                        <td>{{ locationName(level.locationId, result.locations) }}</td>
-                        <td
-                          class="stock-lookup__num tabular-nums"
-                          [class.stock-lookup__num--negative]="level.onHand < 0"
-                        >
-                          {{ level.onHand }}
-                        </td>
-                        <td class="stock-lookup__num tabular-nums">
-                          @if (level.committed > 0) {
+                      <!--
+                        ⛔ **QUI AVEVO MESSO «Registra movimento», e non ci va** —
+                        proprietario, 02/09/2026: «sulla taglia non ha senso, è
+                        una funzione che va gestita o rimossa».
+
+                        Aveva ragione: quindici taglie fanno quindici link nella
+                        stessa colonna, e portano tutti a una maschera che non
+                        sa in quale SEDE — mentre la sede è proprio ciò che la
+                        griglia sta mostrando.
+
+                        ⚠️ **La funzione non è persa: è da DECIDERE**
+                        (`docs/DA-FARE.md`). La domanda vera è se da una
+                        schermata di consultazione debba partire un'azione che
+                        modifica il magazzino, e con quale contesto.
+                      -->
+                      <th scope="row" class="ricerca__taglia">
+                        {{ riga.etichetta }}
+                        <span class="ricerca__sku">{{ riga.sku }}</span>
+                      </th>
+                      <!--
+                        ⭐ **Il numero è cliccabile e apre il «perché»**: gli
+                        ordini che stanno impegnando quella taglia in quella
+                        sede. È la domanda che il commesso fa quando la
+                        disponibilità non torna — «ce ne sono cinque, ne posso
+                        vendere due: perché?».
+                      -->
+                      @for (valore of riga.perSede; track $index) {
+                        <td class="ricerca__num tabular-nums">
+                          @if (sit.sedi[$index]; as sede) {
                             <button
                               type="button"
-                              class="stock-lookup__committed-link tabular-nums"
-                              title="Vedi gli ordini che compongono la quantità impegnata"
-                              (click)="openReservations(result.variant, level, result.locations)"
+                              class="ricerca__num-btn tabular-nums"
+                              [attr.aria-label]="
+                                'Impegni di ' + riga.etichetta + ' in ' + sede.locationName
+                              "
+                              (click)="apriPrenotazioni(riga, sede)"
                             >
-                              {{ level.committed }}
+                              {{ quantita(valore) }}
                             </button>
-                          } @else {
-                            {{ level.committed }}
                           }
                         </td>
-                        <td
-                          class="stock-lookup__num tabular-nums"
-                          [class.stock-lookup__num--negative]="level.available < 0"
-                        >
-                          {{ level.available }}
-                        </td>
-                      </tr>
-                    }
-                  </tbody>
-                </table>
-              </div>
-            } @else {
-              <app-empty-state
-                title="Nessuna giacenza"
-                description="Questa variante non ha livelli inventario registrati."
-                icon="pi-box"
-              />
-            }
-          </section>
+                      }
+                      <td class="ricerca__num ricerca__num--totale tabular-nums">
+                        {{ quantita(riga.totale) }}
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
         }
+      </section>
+    } @else if (lettereMancanti() > 0) {
+      <app-empty-state icon="pi-search" title="Cerca un articolo" [description]="invitoRicerca()" />
+    } @else if (ricercaInCorso()) {
+      <app-table-skeleton [columns]="3" [rows]="4" />
+    } @else if (articoli().length === 0) {
+      <app-empty-state
+        icon="pi-search"
+        title="Nessun articolo trovato"
+        description="Prova con meno lettere, o con il codice."
+      />
+    } @else {
+      @if (risultatiTroncati()) {
+        <!--
+          ⚠️ **Il tetto si DICHIARA**: un elenco troncato che si spaccia per
+          completo è la risposta sbagliata alla domanda «ce l'ho?».
+        -->
+        <app-inline-banner tone="warning">
+          Sono i primi risultati: restringi la ricerca per vederli tutti.
+        </app-inline-banner>
       }
+
+      <ul class="ricerca__lista">
+        @for (articolo of articoli(); track articolo.productId) {
+          <li>
+            <button type="button" class="ricerca__riga" (click)="apriArticolo(articolo)">
+              <span class="ricerca__thumb">
+                @if (articolo.imageUrl) {
+                  <img
+                    [src]="articolo.imageUrl"
+                    [alt]="articolo.productName"
+                    width="48"
+                    height="48"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                } @else {
+                  <i class="pi pi-image" aria-hidden="true"></i>
+                }
+              </span>
+
+              <span class="ricerca__info">
+                <span class="ricerca__nome">{{ articolo.productName }}</span>
+                <span class="ricerca__meta">
+                  @if (articolo.articleCode) {
+                    <span class="ricerca__codice">{{ articolo.articleCode }}</span>
+                  }
+                  <span class="ricerca__taglie">{{ quanteTaglie(articolo) }}</span>
+                </span>
+              </span>
+
+              <span class="ricerca__numeri">
+                <span
+                  class="ricerca__disp"
+                  [class.ricerca__disp--zero]="articolo.disponibile === 0"
+                  [class.ricerca__disp--nulla]="articolo.disponibile === null"
+                >
+                  {{ quantita(articolo.disponibile) }}
+                </span>
+                <span class="ricerca__prezzo">
+                  @if (!articolo.prezzoUnico) {
+                    <span class="ricerca__prezzo-da">da</span>
+                  }
+                  {{ prezzoLeggibile(articolo.prezzo) }}
+                </span>
+              </span>
+
+              <i class="pi pi-chevron-right ricerca__chevron" aria-hidden="true"></i>
+            </button>
+          </li>
+        }
+      </ul>
     }
-  
+
     <app-slide-panel
       [open]="reservationsPanelOpen()"
       title="Quantità impegnata"
@@ -194,7 +285,7 @@
           impegnati
         </p>
       }
-  
+
       @if (reservationsLoading()) {
         <app-table-skeleton [columns]="3" [rows]="3" />
       } @else if (reservationsError(); as message) {
