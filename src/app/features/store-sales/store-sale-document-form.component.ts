@@ -119,6 +119,7 @@ import type {
   ContestoRichiamoArticolo,
   PolicyRichiamoArticolo,
 } from '@domain/documents/models/document-line-article.model';
+import { availabilityHintText } from '@domain/products/utils/variant-availability.util';
 import { createQuickAddProduct } from '@domain/products/utils/quick-add-product.util';
 import {
   storeSaleLineFromDocumentLine,
@@ -1828,11 +1829,23 @@ export class StoreSaleDocumentFormComponent implements CanComponentDeactivate {
     () => this.righeCompilate().filter((line) => this.lineExceedsAvailability(line)).length,
   );
 
+  /**
+   * ⛔ **Qui c'era una TERZA copia del messaggio**, lunga sei volte l'originale:
+   * «Quantità superiore alla disponibilità. Giacenza X, impegnata Y, disponibile
+   * Z. Si può concludere comunque.» — centosette caratteri, dentro lo stesso
+   * `<span>` di una colonna da ottanta pixel.
+   *
+   * ⚠️ **E contraddiceva la funzione che il progetto ha scritto apposta**, il cui
+   * commento dice testualmente «il messaggio, in un posto solo: due copie
+   * divergono, e si vede tardi». Erano già divergenti: qui centosette caratteri,
+   * altrove diciotto.
+   *
+   * ⭐ Ora passa da `availabilityHintText`, come le altre maschere. Il dettaglio
+   * che questa frase aggiungeva — giacenza e impegnata — non si perde: sono due
+   * colonne della riga, e al banco stanno nella card.
+   */
   protected availabilityHint(line: StoreSaleDocumentLine): string {
-    return (
-      `Quantità superiore alla disponibilità. Giacenza ${line.onHand}, ` +
-      `impegnata ${line.committed}, disponibile ${line.available}. Si può concludere comunque.`
-    );
+    return availabilityHintText(line.available);
   }
 
   // ── Il piede: totali, note, causale, azioni ─────────────────────────────

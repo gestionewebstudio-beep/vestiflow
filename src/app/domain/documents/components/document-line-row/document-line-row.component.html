@@ -261,8 +261,29 @@
             (view().quantityInvalid ? 'Inserisci una quantità maggiore di zero.' : null)
           "
         />
+        <!--
+          ⭐ **L'AVVISO SI LEGGE DAL COLORE, non da un testo nella cella** —
+          proprietario, 02/09/2026: «potremmo toglierlo, il testo intendo, e
+          segnalare la casella col colore dell'avviso, così ad occhio capiscono
+          della disponibilità».
+
+          ⛔ **Qui c'era `<span class="doc-form__exceeds-hint">`**, e nella
+          colonna più stretta della riga andava a capo occupando una seconda
+          riga di testo — su una tabella densa, per ogni riga in eccesso.
+
+          ⭐ **Il colore c'era già e diceva la stessa cosa**: la cella prende il
+          fondo ambra, l'input bordo e testo ambra. Il testo era la terza copia
+          dello stesso segnale.
+
+          ⚠️ **E il dato non si perde**, che è ciò che la regola chiede — «mai
+          un valore leggibile solo dal colore»:
+          · **col mouse**, il `title` sull'input qui sopra dice «disponibili solo N»;
+          · **con un lettore di schermo**, lo dice lo `sr-only` qui sotto;
+          · **su MOBILE resta scritto per esteso** (`document-line-card-body`),
+            dove non c'è passaggio del mouse e la card ha spazio in verticale.
+        -->
         @if (view().availabilityHint; as hint) {
-          <span class="doc-form__exceeds-hint">{{ hint }}</span>
+          <span class="sr-only">{{ hint }}</span>
         }
       }
     </td>
@@ -302,7 +323,7 @@
           (lineRowAdvance)="rowAdvance.emit('unitOfMeasure')"
           (lineRowRetreat)="rowRetreat.emit('unitOfMeasure')"
           (manageRequested)="unitManageRequested.emit()"
-        (triggerBlur)="fieldBlur.emit('unitOfMeasure')"
+          (triggerBlur)="fieldBlur.emit('unitOfMeasure')"
         />
       }
     </td>

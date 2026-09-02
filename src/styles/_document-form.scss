@@ -2288,8 +2288,7 @@ app-customer-order-form {
 }
 
 // ── §CONTROLLI: quantità oltre la disponibile ──────────────────────────────
-// Bordo/sfondo ambra sulla cella, testo discreto «disponibili solo N».
-// Mai un blocco.
+// Bordo/sfondo ambra sulla cella: è il segnale, e da solo. Mai un blocco.
 .doc-form .doc-form__cell--exceeds {
   position: relative;
   background: var(--color-warning-subtle);
@@ -2307,16 +2306,20 @@ app-customer-order-form {
   background-color: var(--color-warning-subtle);
 }
 
-// L'avviso va a capo dentro la cella: su colonne strette restava su una riga
-// sola e sbordava sulle colonne vicine.
-.doc-form .doc-form__exceeds-hint {
-  display: block;
-  font-size: var(--text-label);
-  line-height: var(--leading-tight);
-  color: var(--color-warning);
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
+// ⛔ **Qui c'era `.doc-form__exceeds-hint`**, il testo «disponibili solo N»
+// dentro la cella della quantità. Tolto il 02/09/2026: il colore della cella
+// diceva già la stessa cosa, e il testo occupava una seconda riga nella colonna
+// più stretta — per ogni riga in eccesso, su una tabella densa.
+//
+// ⚠️ **E con lui cade la ragione dei 72px.** Il commento del catalogo colonne
+// dell'Ordine cliente dice «Q.tà ospita l'avviso: qualche pixel in più a lei»:
+// quel bisogno non esiste più. (Non esisteva già: il ritorno a capo qui sopra e
+// l'allargamento furono due rimedi allo stesso sintomo, scritti nello stesso
+// commit del 23/07 — e con `table-layout: fixed` il contenuto di una cella non
+// influenza mai la larghezza della colonna.)
+//
+// ⭐ **Su MOBILE il testo resta**, in `document-line-card`: lì non c'è
+// passaggio del mouse per il tooltip, e la card ha spazio in verticale.
 
 // Riga «documento collegato» e riordino delle righe per trascinamento —
 // terzo foglio del componente (customer-order-form.component.ts, styleUrls).
