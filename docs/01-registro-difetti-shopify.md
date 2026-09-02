@@ -24,6 +24,59 @@ I difetti sono ordinati per gravità, non per area. La gravità tiene conto di t
 
 ## Livello 1 — Distruggono dati o sono già rotti in produzione
 
+### 1.0 — ⛔ Il pull NON cancella mai le varianti sparite da Shopify — RIPRODOTTO il 02/09/2026
+
+**Cosa succede.** Quando su Shopify un prodotto **semplice** riceve delle opzioni, la sua
+variante «Default Title» viene sostituita dalle nuove combinazioni. VestiFlow importa le
+nuove ma **non rimuove la vecchia**: resta accanto, orfana, con lo `shopifyVariantId` di una
+variante che su Shopify **non esiste più**.
+
+**Come lo sappiamo.** Riprodotto in laboratorio dal proprietario, non dedotto:
+
+```text
+1. su Shopify: prodotto semplice «TEST SEMPLICE 02-09», prezzo 19,90, nessuna opzione
+2. VestiFlow, Importa catalogo  →  1 variante, opt=[{Title: "Default Title"}], 19,90
+                                   Product.sellingPriceMinor = 19,90   ✅ tutto corretto
+3. su Shopify: aggiunte le taglie S 19,90 · M 22,00 · L 25,00
+4. VestiFlow, Importa catalogo  →  QUATTRO varianti:
+
+   SHOPIFY-51980936020263  opt=[{Title: "Default Title"}]  19,90  ← ORFANA, sopravvissuta
+   SHOPIFY-51981020201255  opt=[{Dimensione: "S"}]         19,90
+   SHOPIFY-51981020234023  opt=[{Dimensione: "M"}]         22,00
+   SHOPIFY-51981020266791  opt=[{Dimensione: "L"}]         25,00
+```
+
+**La causa, verificata.** `api/src/shopify/shopify-product-pull.service.ts` non contiene un
+solo `delete` o `deleteMany` sulle varianti: il ciclo scorre `remote.variants` e fa solo
+create/update. Gli unici tre `delete` di varianti in tutto il progetto stanno nell'anagrafica,
+nella cancellazione tenant e nel ripristino da backup.
+
+**Cosa produce, a valle:**
+
+- ⛔ **La variante orfana resta agganciata a un id Shopify morto**: ogni push su di lei
+  fallisce, in silenzio.
+- ⚠️ **L'elenco Prodotti e il Dettaglio dicono numeri diversi.** L'elenco non conta le
+  varianti — non le carica affatto — e calcola il **prodotto cartesiano delle opzioni**:
+  qui dirà **3**, il dettaglio **4**. La differenza è esattamente il numero di orfane, ed è
+  il sintomo con cui il difetto si è manifestato («maglietta», cod. 00038: elenco 3,
+  dettaglio 5, con una riga a Dimensione «—» e XXL due volte).
+- ⚠️ **L'articolo smette di essere «semplice»**: acquisisce `options`, e da quel momento
+  `mirrorSimpleProductPrice` esce subito. `Product.sellingPriceMinor` resta al valore del
+  primo import — 19,90 nell'esempio — e non si allinea più a niente.
+
+⭐ **Il sospetto di duplicazione SKU è INFONDATO**: gli SKU sono `SHOPIFY-<idVariante>`, tutti
+diversi, e c'è `@@unique([tenantId, sku])`. Sono varianti distinte con la stessa taglia, non
+un doppione dello stesso record.
+
+⚠️ **Non è un difetto solo di Shopify**, e va detto perché il proprietario ha dichiarato che
+**VestiFlow deve poter vivere senza Shopify**: la stessa transizione fatta dall'anagrafica
+**cancella** la variante anonima, e con lei giacenze (`onDelete: Cascade`) e collegamenti
+fornitore. Da un lato l'orfana resta, dall'altro sparisce troppo: nessuna delle due strade
+converte la variante.
+
+⏸ **Non corretto.** La correzione richiede di decidere cosa fare dell'orfana: rimuoverla (ma
+può avere movimenti), riabbinarla a una delle nuove, o segnalarla all'operatore.
+
 ### 1.1 — Migration disallineata sugli ordini fornitore
 
 **Cosa succede.** Nel database condiviso tre colonne di `supplier_order_lines` sono già `numeric(16,6)` e `numeric(7,4)`, per effetto di una migration del 07/08 alle 20:55. Il codice in produzione (`main@c4044d9`) dichiara quelle stesse colonne come `Int`. Chi tocca gli ordini fornitore in produzione prende un errore, e la causa non ha niente a che vedere con Shopify.
@@ -1095,12 +1148,12 @@ Questi non rompono niente, ma sono il motivo per cui un operatore non può saper
 quando i comandi degli elenchi sono azioni dichiarate, i quattro pulsanti sono **quattro
 `ListAction` con lo stesso id — `shopify-sync`** — e quattro etichette diverse:
 
-| Dove | Etichetta | Che cosa fa |
-| --- | --- | --- |
-| Prodotti | «Importa catalogo» | PULL: porta dentro i prodotti |
-| Giacenze | «Riallinea su Shopify» | PUSH: manda fuori le giacenze |
-| Clienti | «Sincronizza da Shopify» | PULL |
-| Ordini cliente | «Sincronizza» | PULL |
+| Dove           | Etichetta                | Che cosa fa                   |
+| -------------- | ------------------------ | ----------------------------- |
+| Prodotti       | «Importa catalogo»       | PULL: porta dentro i prodotti |
+| Giacenze       | «Riallinea su Shopify»   | PUSH: manda fuori le giacenze |
+| Clienti        | «Sincronizza da Shopify» | PULL                          |
+| Ordini cliente | «Sincronizza»            | PULL                          |
 
 ⛔ **Non sono lo stesso comando e non vanno unificati**: due tirano dentro, uno spinge fuori.
 Vanno **distinti gli id** — un id che non distingue è peggio di un'etichetta che non spiega,

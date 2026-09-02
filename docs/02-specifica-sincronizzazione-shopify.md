@@ -693,6 +693,32 @@ Le **operazioni ricorrenti nelle rispettive schermate**, con un vocabolario unic
 
 ---
 
+## 7-bis. ⭐ «IMPORTA CATALOGO» È UN'IMPORTAZIONE DI ANAGRAFICA — deciso il 02/09/2026
+
+_Il proprietario: «dovremmo distinguere "importa catalogo" come solo **importa anagrafica**,
+perché serve quando l'operatore completa l'anagrafica di un articolo che VestiFlow ha inviato
+su Shopify. **Il percorso dovrebbe essere circolare e partire dal gestionale.»**_
+
+> **Il verso normale è VestiFlow → Shopify. L'importazione serve a RECUPERARE quello che
+> l'operatore ha completato là, non a fare di Shopify la fonte del catalogo.**
+
+⚠️ **Il nome «Importa catalogo» racconta il verso sbagliato**: suggerisce che il catalogo
+venga da Shopify e che VestiFlow lo riceva. È il contrario di come il prodotto è pensato —
+l'articolo nasce nel gestionale, viene pubblicato, e se qualcuno ne completa i dati
+nell'admin Shopify quel completamento torna indietro.
+
+⏸ **Da fare**: rinominare il comando in **«Importa anagrafica»** e riscrivere il testo che lo
+accompagna, che oggi dice «Importa i dati iniziali da Shopify» — cioè descrive un
+popolamento, non un recupero.
+
+⚠️ **Tensione da risolvere con §2**: le regole di proprietà dichiarano oggi «Prodotti e
+varianti ecommerce → owner **Shopify** (di norma)». Se il percorso è circolare e parte dal
+gestionale, quella riga va riletta: non è che Shopify comandi il catalogo, è che **su alcuni
+campi l'ultimo che scrive vince**. Le due formulazioni convivono male, e chi legge §2 oggi
+conclude il contrario di questa decisione.
+
+---
+
 ## 8. Cosa resta aperto
 
 **Le configurazioni multi-sede** (più sedi Shopify verso un magazzino, o viceversa) richiedono una regola di aggregazione o ripartizione dichiarata. Fuori dal flusso standard finché non serve a un cliente vero.
