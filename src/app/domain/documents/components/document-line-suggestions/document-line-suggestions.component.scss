@@ -76,7 +76,14 @@
 .doc-suggestions__item {
   display: flex;
   flex-direction: row;
-  align-items: baseline;
+  /*
+    ⚠️ **Era `baseline`, ed era giusto finché la voce era UNA riga.** Con tre
+    zone di altezze diverse — miniatura, due righe di testo, due numeri — la
+    linea di base allinea la prima riga di ognuna e lascia il resto sfalsato.
+    È la trappola di `regole-stile-ui` §5: una proprietà scritta per una forma
+    sopravvive al cambio di forma e smette di fare quel che diceva.
+  */
+  align-items: center;
   gap: var(--space-2);
   // Default touch fisso (non --btn-min-height): le card view che ospitano il
   // pannello restano attive fino a lg, dove il token responsive tornerebbe
@@ -100,13 +107,12 @@
   }
 }
 
-/* Il valore che si sta scegliendo: non si accorcia MAI. */
-.doc-suggestions__title {
-  flex: 0 0 auto;
-  font-size: var(--doc-suggestions-title-size, var(--text-sm));
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text);
-}
+/*
+  ⛔ **`__title` è uscito dal markup il 02/09/2026**: il nome sta ora in
+  `__name`, dentro la zona delle parole, insieme alla variante. Lo stile se n'è
+  andato con lui — un foglio che veste una classe che nessuno scrive non
+  fallisce e non arrossa un test.
+*/
 
 /*
   La descrizione: è lei a cedere. Prende lo spazio che resta e, quando non
@@ -130,10 +136,12 @@
   color: var(--color-text-muted);
 }
 
-.doc-suggestions__detail::before {
-  content: '— ';
-  color: var(--color-text-subtle);
-}
+/*
+  ⛔ **Qui c'era `content: '— '`**, e separava titolo e dettaglio quando
+  stavano sulla stessa riga. Ora il dettaglio va a capo sotto il nome: un
+  trattino a inizio riga non separa niente, indica un elenco puntato che non
+  c'è.
+*/
 
 // La coda si stacca dalle voci con un filo: è un comando, non un valore, e a
 // occhio la differenza deve vedersi prima di leggerla.
@@ -183,4 +191,116 @@
   .doc-suggestions__item {
     min-block-size: var(--doc-suggestions-item-min-h, var(--control-h-button));
   }
+}
+
+/*
+  ⭐ **LE TRE ZONE DELLA VOCE** — rifatte il 02/09/2026: «poco intuitivo»,
+  proprietario, guardando i suggerimenti della cella «Nome prodotto».
+
+  ⛔ Prima era una riga sola con tutto allo stesso peso, e il prezzo — che sta in
+  fondo — veniva tagliato dai puntini proprio perché stava in fondo.
+
+  ```text
+  [img]  nome + variante          Disp. 4
+         codici, smorzati          25,00 €
+  ```
+
+  ⚠️ **Le zone facoltative non esistono se il dato non c'è**: la cella a scelta
+  (Codice IVA, U.M.) passa solo titolo e dettaglio, e la sua voce resta quella
+  di prima. Nessun flag: campi che mancano.
+*/
+
+/* La miniatura ha misura fissa anche quando manca, o l'elenco balla. */
+.doc-suggestions__thumb {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--space-8);
+  block-size: var(--space-8);
+  overflow: hidden;
+  font-size: var(--text-2xs);
+  color: var(--color-text-subtle);
+  background-color: var(--color-surface-soft);
+  border-radius: var(--radius-sm);
+
+  img {
+    inline-size: 100%;
+    block-size: 100%;
+    object-fit: cover;
+  }
+}
+
+/* La zona delle parole: cede lei quando lo spazio manca. */
+.doc-suggestions__info {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-05);
+  min-inline-size: 0;
+}
+
+.doc-suggestions__name {
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+  overflow: hidden;
+  font-size: var(--doc-suggestions-title-size, var(--text-sm));
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+  ⭐ **La variante è una pastiglia, non una coda del nome.** Scorrendo dieci
+  suggerimenti dello stesso articolo, la taglia è l'unica cosa che cambia: era
+  sepolta in fondo a «maglietta — XXL — SHOPIFY-517…».
+*/
+.doc-suggestions__variante {
+  flex: 0 0 auto;
+  padding: 0 var(--space-1);
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  background-color: var(--color-surface-soft);
+  border-radius: var(--radius-sm);
+}
+
+/*
+  ⚠️ **I numeri stanno a destra e incolonnati**: scorrendo l'elenco l'occhio
+  cerca sempre nello stesso punto «quanti ne ho» e «quanto costa».
+*/
+.doc-suggestions__numeri {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-05);
+  font-variant-numeric: var(--numeric-tabular);
+}
+
+.doc-suggestions__disp {
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-ok);
+}
+
+/* Zero è «finito» e si vede; sotto zero è un'anomalia e si vede di più. */
+.doc-suggestions__disp--zero {
+  color: var(--color-text-muted);
+}
+
+.doc-suggestions__disp--negativa {
+  color: var(--color-danger);
+}
+
+.doc-suggestions__prezzo {
+  font-size: var(--text-2xs);
+  color: var(--color-text);
+}
+
+.doc-suggestions__costo {
+  font-size: var(--text-3xs);
+  color: var(--color-text-muted);
 }

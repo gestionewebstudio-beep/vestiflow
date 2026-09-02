@@ -4,10 +4,10 @@ import { FormsModule } from '@angular/forms';
 import { classifyLineCellKey } from '@domain/documents/utils/document-line-cell-keys.util';
 
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
-import { formatMoney } from '@core/utils/money.util';
 
 import { DocumentLineSuggestionsComponent } from '../document-line-suggestions/document-line-suggestions.component';
 import type { DocumentLineSuggestionItem } from '../document-line-suggestions/document-line-suggestions.model';
+import { voceSuggerimento } from '../document-line-suggestions/voce-suggerimento.util';
 import { FirstClickSelectsDirective } from '@shared/directives/first-click-selects.directive';
 
 @Component({
@@ -78,10 +78,7 @@ export class DocumentLineProductCellComponent {
    * compone qui titolo e dettaglio e tiene per sé l'identità della variante.
    */
   protected readonly suggestionItems = computed<readonly DocumentLineSuggestionItem[]>(() =>
-    this.suggestions().map((variant) => ({
-      title: variant.title,
-      detail: this.suggestionDetail(variant),
-    })),
+    this.suggestions().map((variant) => voceSuggerimento(variant)),
   );
 
   private pickSuggestion(variantId: string): void {
@@ -148,28 +145,5 @@ export class DocumentLineProductCellComponent {
         }
         return;
     }
-  }
-
-  protected suggestionDetail(variant: VariantSummary): string {
-    const parts: string[] = [];
-    if (variant.sku) {
-      parts.push(variant.sku);
-    }
-    if (variant.barcode) {
-      parts.push(`EAN ${variant.barcode}`);
-    }
-    if (variant.category) {
-      parts.push(variant.category);
-    }
-    if (variant.stockOnHand != null) {
-      parts.push(`Disp. ${variant.stockOnHand}`);
-    }
-    if (variant.sellingPrice.amountMinor > 0) {
-      parts.push(formatMoney(variant.sellingPrice));
-    }
-    if (variant.purchasePrice && variant.purchasePrice.amountMinor > 0) {
-      parts.push(`Acq. ${formatMoney(variant.purchasePrice)}`);
-    }
-    return parts.join(' · ');
   }
 }
