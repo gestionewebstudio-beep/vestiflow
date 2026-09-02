@@ -187,7 +187,11 @@
   </th>
 }
 @if (isColumnVisible()('poOrdered')) {
-  <th scope="col" class="doc-form__num doc-form__col--stock" [style.width]="columnWidth()('poOrdered')">
+  <th
+    scope="col"
+    class="doc-form__num doc-form__col--stock"
+    [style.width]="columnWidth()('poOrdered')"
+  >
     <span class="doc-form__th-label" title="Ord.">Ord.</span>
     <span
       appTableColumnResize
@@ -199,7 +203,11 @@
   </th>
 }
 @if (isColumnVisible()('poReceived')) {
-  <th scope="col" class="doc-form__num doc-form__col--stock" [style.width]="columnWidth()('poReceived')">
+  <th
+    scope="col"
+    class="doc-form__num doc-form__col--stock"
+    [style.width]="columnWidth()('poReceived')"
+  >
     <span class="doc-form__th-label" title="Ric.">Ric.</span>
     <span
       appTableColumnResize
@@ -211,7 +219,11 @@
   </th>
 }
 @if (isColumnVisible()('poRemaining')) {
-  <th scope="col" class="doc-form__num doc-form__col--stock" [style.width]="columnWidth()('poRemaining')">
+  <th
+    scope="col"
+    class="doc-form__num doc-form__col--stock"
+    [style.width]="columnWidth()('poRemaining')"
+  >
     <span class="doc-form__th-label" title="Residuo">Residuo</span>
     <span
       appTableColumnResize
@@ -355,10 +367,28 @@
 @if (isColumnVisible()('sellingPrice')) {
   <th
     scope="col"
-    class="doc-form__num doc-form__col--sale"
+    class="doc-form__num doc-form__col--sale doc-form__th--menu"
     [style.width]="columnWidth()('sellingPrice')"
   >
-    <span class="doc-form__th-label" title="Prezzo di vendita">Prezzo di vendita</span>
+    <!-- ⭐ Il menu netto/ivato compare sulla colonna che QUESTO documento usa come
+         prezzo: sull'Arrivo merce e' `sellingPrice`, altrove `unitPrice`. Ogni
+         colonna resta al suo posto nella fila — spostare il menu in un <th> a se
+         sfalserebbe le intestazioni dalle celle. -->
+    @if (priceColumn() === 'sellingPrice') {
+      <span class="doc-form__th-menu-wrap">
+        <span class="doc-form__th-label" [title]="priceLabel()">{{ priceLabel() }}</span>
+        <app-price-mode-menu
+          [pricesIncludeVat]="pricesIncludeVat()"
+          netLabel="Usa prezzi netti"
+          grossLabel="Usa prezzi ivati"
+          ariaLabel="Scegli la modalità prezzo"
+          [disabled]="readOnly()"
+          (modeChange)="priceModeChanged.emit($event)"
+        />
+      </span>
+    } @else {
+      <span class="doc-form__th-label" title="Prezzo di vendita">Prezzo di vendita</span>
+    }
     <span
       appTableColumnResize
       [minWidthPx]="columnMinWidth()('sellingPrice')"

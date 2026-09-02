@@ -83,6 +83,28 @@ export class DocumentLineHeadComponent {
   readonly priceMenuOpen = input(false);
   readonly readOnly = input(false);
 
+  /**
+   * ⭐ **QUALE colonna ospita il selettore del prezzo**, non il suo nome cablato.
+   *
+   * ⛔ Fino al 02/09/2026 il menu si rendeva solo dentro
+   * `@if (isColumnVisible()('unitPrice'))`, col nome scritto a mano. L'Arrivo
+   * merce non dichiara `unitPrice` — dichiara `sellingPrice` — quindi le tre
+   * righe che passava alla testata (`priceLabel`, `pricesIncludeVat`,
+   * `priceModeChanged`) **non arrivavano da nessuna parte**: il selettore era
+   * cablato e morto, e i tre prezzi d'anagrafica restavano inchiodati alla
+   * convenzione aziendale senza che l'operatore potesse vedere in che base
+   * stava digitando.
+   *
+   * ⚠️ **Nessun errore, nessun test rosso**: un `@if` che non scatta non
+   * fallisce. Il difetto è vissuto dal 24/08 — quando l'Arrivo merce è passato
+   * alla testata comune e il suo menu, che funzionava, è stato perso.
+   *
+   * ⭐ È lo stesso principio di `stripPriceColumn` (`document-line-row.model`):
+   * «dove si vende è il prezzo, dove si compra è il costo». Il comportamento
+   * appartiene al RUOLO della colonna, non al nome che quel documento le dà.
+   */
+  readonly priceColumn = input<DocumentLineColumnId>('unitPrice');
+
   readonly sortToggled = output<DocumentLineColumnId>();
   readonly columnResizing = output<{ column: DocumentLineColumnId; widthPx: number }>();
   readonly columnResized = output<{ column: DocumentLineColumnId; widthPx: number }>();
