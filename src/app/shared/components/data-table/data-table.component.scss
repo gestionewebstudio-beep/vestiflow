@@ -239,6 +239,29 @@
 }
 
 /*
+  ⭐ **LA RIGA APPENA TROVATA** — la scansione col lettore ottico la accende per
+  un momento, e la pagina ci scorre sopra (`highlightedRowId`).
+
+  ⛔ **Non è un tono**: i tre qui sopra dicono cosa la riga È, e restano finché
+  resta il dato. Questo dice cosa è appena SUCCESSO, e si spegne da sé — per
+  questo prende il colore del fuoco e non uno del vocabolario di stato: è la
+  stessa cosa che dice «l'attenzione adesso è qui».
+
+  ⚠️ **Vince sugli altri fondi**, tono compreso: una riga che toglie e che è
+  stata appena scansionata deve leggersi come scansionata — quello è il
+  riscontro del gesto, e dura due secondi.
+
+  ⚠️ **La transizione è sull'USCITA**, e va lasciata: il lampo deve arrivare
+  netto — se sfumasse anche in entrata, chi guarda il telefono mentre conta non
+  vedrebbe accadere niente — e sfumare invece quando si spegne, o la riga
+  «salterebbe» al colore normale come se fosse cambiato il dato.
+*/
+.data-table tbody tr.data-table__row--highlighted > td {
+  background: var(--color-focus-ring-alpha);
+  transition: background var(--transition-base);
+}
+
+/*
   ⭐ **L'ACCENTO LATERALE DELLA CARD** — sotto `lg`, dove la riga è una card.
 
   Il tipo si legge dall'accento, non da un pallino: è il vocabolario già in uso

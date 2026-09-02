@@ -90,6 +90,28 @@ class OspiteConTemplateComponent {
     columnId === 'sku' ? row.sku : row.qta;
 }
 
+/** Ospite per il riscontro della scansione: l'unica cosa che cambia è quale riga è accesa. */
+@Component({
+  imports: [DataTableComponent],
+  template: `
+    <app-data-table
+      [columns]="colonne"
+      [sections]="sezioni"
+      [rowId]="rowId"
+      [cellText]="cellText"
+      [highlightedRowId]="accesa()"
+    />
+  `,
+})
+class OspiteConEvidenziazioneComponent {
+  readonly colonne = COLONNE;
+  readonly sezioni: readonly DataTableSection<Riga>[] = [{ id: 'unica', rows: RIGHE }];
+  readonly accesa = signal<string | null>(null);
+  readonly rowId = (row: Riga): string => row.id;
+  readonly cellText = (row: Riga, columnId: string): string =>
+    columnId === 'sku' ? row.sku : row.qta;
+}
+
 async function apri(): Promise<OspiteComponent> {
   const reso = await render(OspiteComponent);
   return reso.fixture.componentInstance;
@@ -537,5 +559,61 @@ describe('DataTableComponent — le larghezze sono quote, non pixel', () => {
     for (const quota of quote(reso.container)) {
       expect(quota).toBeGreaterThan(0);
     }
+  });
+});
+
+/**
+ * ⭐ **IL RISCONTRO DELLA SCANSIONE** — aggiunto il 02/09/2026 per il dettaglio
+ * inventario, dove si spara col lettore ottico e la riga letta deve dirlo.
+ *
+ * ⚠️ **Il motore fa solo la sua metà**: scrive l'identità sulla riga e accende
+ * quella indicata. Trovare l'articolo, far scorrere la pagina e spegnere il
+ * lampo dopo due secondi resta di chi ha scansionato.
+ */
+describe('DataTableComponent — la riga appena trovata', () => {
+  function righe(container: HTMLElement): HTMLElement[] {
+    return Array.from(container.querySelectorAll('tbody tr.data-table__row'));
+  }
+
+  it('⭐ ogni riga porta la propria identità nel DOM: è l\u2019aggancio della pistola', async () => {
+    const reso = await render(OspiteConEvidenziazioneComponent);
+
+    expect(righe(reso.container).map((tr) => tr.getAttribute('data-row-id'))).toEqual(['r1', 'r2']);
+  });
+
+  it('⛔ senza una riga indicata non ne è accesa nessuna', async () => {
+    const reso = await render(OspiteConEvidenziazioneComponent);
+
+    expect(reso.container.querySelectorAll('.data-table__row--highlighted')).toHaveLength(0);
+  });
+
+  it('⭐ accende SOLO la riga indicata, e la segue quando cambia', async () => {
+    const reso = await render(OspiteConEvidenziazioneComponent);
+    const ospite = reso.fixture.componentInstance;
+
+    ospite.accesa.set('r2');
+    await reso.fixture.whenStable();
+    expect(
+      righe(reso.container).map((tr) => tr.classList.contains('data-table__row--highlighted')),
+    ).toEqual([false, true]);
+
+    // La scansione successiva: si accende l'altra, e la prima si spegne.
+    ospite.accesa.set('r1');
+    await reso.fixture.whenStable();
+    expect(
+      righe(reso.container).map((tr) => tr.classList.contains('data-table__row--highlighted')),
+    ).toEqual([true, false]);
+  });
+
+  it('⚠️ spento il lampo, non resta accesa nessuna riga', async () => {
+    const reso = await render(OspiteConEvidenziazioneComponent);
+    const ospite = reso.fixture.componentInstance;
+
+    ospite.accesa.set('r1');
+    await reso.fixture.whenStable();
+    ospite.accesa.set(null);
+    await reso.fixture.whenStable();
+
+    expect(reso.container.querySelectorAll('.data-table__row--highlighted')).toHaveLength(0);
   });
 });

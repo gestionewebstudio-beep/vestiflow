@@ -193,6 +193,28 @@ export class DataTableComponent<T> {
    */
   readonly rowTone = input<(row: T) => DataTableRowTone | null>(() => null);
 
+  /**
+   * La riga da mettere in evidenza **adesso**: l'id di quella appena trovata,
+   * o `null` — che è il caso normale.
+   *
+   * ⭐ **Nata per la pistola** (01/09/2026, dettaglio inventario): si scansiona
+   * un articolo, la sua riga si accende per un momento e la pagina ci scorre
+   * sopra. Chi conta in magazzino guarda il telefono con una mano sola, e senza
+   * quel lampo non sa se ha letto la riga giusta.
+   *
+   * ⛔ **Non è un `rowTone`, e la distinzione è quella dichiarata lì sopra**: il
+   * tono è una proprietà del DATO — questa riga è un reso, questa è annullata —
+   * e resta finché resta il dato. Questo è uno stato **momentaneo
+   * dell'interazione**, che nasce da un gesto e si spegne da sé. Confonderli
+   * farebbe sembrare permanente un lampo, e viceversa.
+   *
+   * ⚠️ **Il motore non sa cos'è una pistola**: espone «questa riga adesso è
+   * quella giusta». Trovare l'articolo, decidere quanto dura il lampo e far
+   * scorrere la pagina resta di chi ha scansionato, che si aggancia alla riga
+   * con `[data-row-id]` — l'identità che il motore scrive su ogni riga.
+   */
+  readonly highlightedRowId = input<string | null>(null);
+
   // ── Filtri di colonna (`14` §0.2) ─────────────────────────────────────────
 
   /**

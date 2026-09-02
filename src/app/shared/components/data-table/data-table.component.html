@@ -133,7 +133,9 @@
         @for (row of section.rows; track rowId()(row)) {
           <tr
             class="data-table__row"
+            [attr.data-row-id]="rowId()(row)"
             [class.data-table__row--clickable]="canClickRow(row)"
+            [class.data-table__row--highlighted]="rowId()(row) === highlightedRowId()"
             [class.data-table__row--positive]="rowTone()(row) === 'positive'"
             [class.data-table__row--negative]="rowTone()(row) === 'negative'"
             [class.data-table__row--muted]="rowTone()(row) === 'muted'"
