@@ -2127,8 +2127,6 @@ restituiscono. Misurato a 1440 su venticinque campi — **955px prima, 945 dopo*
 
 - ⭐ **Indietro e titolo sulla stessa riga**: impilati costano una fascia prima del primo
   campo.
-- ⭐ **Indietro e titolo sulla stessa riga**: impilati costano una fascia prima del primo
-  campo.
 
 ### L'ordine dei campi è quello in cui si BATTE il dato
 

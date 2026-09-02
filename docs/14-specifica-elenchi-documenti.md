@@ -14,6 +14,48 @@
 > Questa versione consolida il documento nuovo con i contratti già decisi nel precedente `docs/14`.
 > Non introduce nuove funzioni per analogia.
 > Dove una regola di modulo più recente è incompatibile con una regola generale precedente, prevale la regola di modulo più recente.
+
+---
+
+## ⛔ CONTRADDIZIONI APERTE — censite il 02/09/2026
+
+⚠️ **Questo documento in dieci punti dice due cose diverse sulla stessa questione**, e chi lo
+legge in ordine trova per prima la versione vecchia dichiarata «verificata e CHIUSA».
+Censite leggendolo per intero e verificando ognuna nel codice.
+
+⛔ **Nessuna è risolta qui**: sono decisioni del proprietario, e inventarne l'esito sarebbe
+peggio della contraddizione. Fino ad allora **vale la colonna «cosa dice il codice»**, dove
+è stata verificata.
+
+| #   | La questione                                            | Le due versioni                                                                                                                                                                                            | Cosa dice il CODICE                                                                                                                                                           |
+| --- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Ordine delle zone**                                   | §24 r3410: «funzioni dopo le righe, prima dei totali» — §0 r206, §21.1, §49, §52, §63: «dati → totali → funzioni»                                                                                          | cinque sezioni contro una                                                                                                                                                     |
+| 2   | **Quante forme ha un filtro di colonna**                | §0.2 r542: **quattro** (`date` ha forma propria, 31/08) — §11.1, §11.2, §43, §70.3: **tre**, e §11.2 r2284 _vieta_ la quarta                                                                               | `table-column.model.ts:96` → `'values' \| 'text' \| 'range' \| 'date'`, **quattro**, e dodici colonne usano `date`                                                            |
+| 3   | **«DDT da fatturare» è un'eccezione?**                  | §11.2 r2210: «**non lo è**, si filtra dalla colonna Collegamento» — §11.5 D1 r2375: «eccezione già prevista in §11.2»                                                                                      | le due sezioni si citano a vicenda affermando il contrario                                                                                                                    |
+| 4   | **I totali si allineano alle colonne?**                 | §22.4 r3279 e §63 r4999: «fascia ESTERNA, **nessun** allineamento» (dichiarate CHIUSE) — §69 r5367 (31/08 sera): riga nel `<tfoot>`, **incolonnata** — §42-bis.1, §52, §61: «allineabile quando possibile» | tre versioni diverse; §22.4 e §63 non rimandano a §69                                                                                                                         |
+| 5   | **Le larghezze si conservano?**                         | §22.3 r3131 (01/09, decisione del proprietario): «**LA LARGHEZZA SI CONSERVA**, per utente e per vista» — §61 r4951: «resize **temporaneo**» — §63 r4996: «resize esistente preservato»                    | il codice le persiste (`TableColumnPreferenceService`)                                                                                                                        |
+| 6   | **Clienti, Fornitori e Inventario hanno filtri?**       | §3.5 r1826: «⛔ **nessun filtro** oggi, nessuno domani per analogia» — §0.2 r517 e r570: li elenca fra gli undici migrati, con otto filtri sui Fornitori                                                   | `customer-table-columns.config.ts` e `supplier-table-columns.config.ts` **dichiarano** `filter`                                                                               |
+| 7   | **Fornitori è nel motore tabella?**                     | `DA-FARE.md` r1451: «**fuori** dal motore, ha una tabella propria»                                                                                                                                         | `supplier-table.component.html:10` monta `<app-data-table>` — la riga è **falsa**                                                                                             |
+| 8   | **Quanti preset ha il Periodo**                         | §12 r2512: **dodici** — §42-bis.1 r4185: **quindici** (con settimane e trimestri) — §12.2 r2612: **otto** implementate, e dichiara la divergenza ignorando la terza lista                                  | tre elenchi diversi                                                                                                                                                           |
+| 9   | **La ricerca conta nel badge? «Azzera filtri» esiste?** | §19 r2818: la ricerca «resta separata **salvo futura decisione trasversale**», e «Azzera filtri» è vigente — r402 (31/08) _prende_ quella decisione, e §0.7 r1266: «⛔ **«Azzera filtri» sparisce**»       | §19 è la sezione che si apre cercando la regola del badge                                                                                                                     |
+| 10  | **Altezza testata e divisori**                          | §24 r3403: «**32px**» e «divisori verticali **assenti**»                                                                                                                                                   | `--table-head-h` vale **26px** (`_design-tokens.scss:685`, «da 28, 01/09») e i divisori esistono **dal taglio a colonna del 30/08** — che questo stesso documento cita a r352 |
+| 11  | **Corrispettivi usa due bande?**                        | §27.0 r3540 lo dice al presente e prescrive di compattarle; §27.2 r3559 le mostra come **esempio normativo**                                                                                               | `corrispettivi-summary.component.html:18`: «⭐ **UNA fascia sola**», dal 29/08                                                                                                |
+
+### Cosa va fatto, e in quest'ordine
+
+1. ⏸ **Il proprietario decide** le undici voci qui sopra — o conferma «vale il codice» dove
+   la colonna è compilata.
+2. ⏸ **Poi** si scrive la **tabella delle decisioni vigenti** in cima (una riga per decisione,
+   il puntatore alla sezione che la argomenta, e «in caso di contrasto vince questa tabella»),
+   come prescrive `regole-qualita` §«se un documento ha smesso di rispondere».
+3. ⏸ **Solo dopo** si potano le sezioni superate: **236 righe** già individuate e verificate
+   una per una. Farlo prima significherebbe cancellare il testo di una decisione ancora
+   contesa.
+
+⚠️ **E l'intestazione è indietro**: dichiara «Data 29/08/2026 · candidata consolidata
+definitiva», mentre il documento porta decisioni fino al **02/09/2026** (r833, r3182). La
+data è il primo dato che legge chi apre.
+
 > Se durante l'implementazione emerge una decisione funzionale non coperta da questa specifica o dalle specifiche di modulo, l'implementazione si ferma e la decisione torna all'owner.
 
 ---
@@ -175,8 +217,6 @@ COMPORTAMENTO · STATO · INTERAZIONE   →  COMPONENTE
 
 ⛔ **I sottocontratti restano normativi**: togliere l'obbligo dello shell **non** li indebolisce.
 Stessa grammatica e stessi contratti ≠ stesso componente involucro.
-
-Il contenitore è il telaio della pagina. Offre sempre le stesse **zone funzionali** e la stessa grammatica d'interazione; ogni modulo dichiara invece quali filtri, colonne, metriche, azioni, query e differenze di dominio utilizzare.
 
 Il contenitore è il telaio della pagina. Offre sempre le stesse **zone funzionali** e la stessa grammatica d'interazione; ogni modulo dichiara invece quali filtri, colonne, metriche, azioni, query e differenze di dominio utilizzare.
 
@@ -829,6 +869,38 @@ scelta, e con quale motivo (§5.1). Le regole sono le stesse, una per una.
 quelle della barra **non concordavano**. Su una fattura confermata la barra offriva Elimina
 e l'API rispondeva 409, dopo aver fatto premere l'operatore. Due strade per lo stesso
 comando, con due regole diverse.
+
+#### ✅ Applicata anche agli ultimi due — 02/09/2026
+
+_Proprietario, guardando l'elenco Inventario: «c'è la colonna azioni ma non deve esserci
+più, le funzioni azioni nelle righe dei riepiloghi sono state tolte», e poi «per gli altri
+documenti le abbiamo rimosse dalla riga e ora si trovano sotto a fine pagina e con
+componente condivisa, non duplicare»._
+
+⛔ **Due elenchi non l'avevano seguita**, e il secondo portava ancora nel proprio template
+la nota «resta finché la matrice azioni non le ha ricollocate» — mentre la matrice qui
+sopra le aveva ricollocate due giorni prima.
+
+| Elenco             | Cosa aveva                                    | Cosa è servito                                 |
+| ------------------ | --------------------------------------------- | ---------------------------------------------- |
+| **Inventario**     | un cestino di riga, per le sole annullate     | **Elimina** in barra: non c'era                |
+| **Ordini cliente** | il menu «···» pieno, in tabella **e in card** | **Duplica** in barra: le altre tre c'erano già |
+
+⚠️ **Non era «togliere», era spostare.** Su Inventario la barra aveva solo «Nuova
+sessione»: levare il cestino senza aggiungere Elimina avrebbe fatto sparire la funzione.
+
+⭐ **E la regola di dominio ha cambiato FORMA, non contenuto** — è esattamente ciò che
+questa sezione prescrive: «si elimina solo una sessione annullata» faceva **sparire il
+cestino** dalla riga; in barra è un'azione **spenta col motivo scritto**, che l'operatore
+può leggere invece di cercare un comando che non c'è.
+
+⚠️ **La card mobile aveva il suo menu gemello**, e andava tolto con l'altro: erano due
+vesti dello stesso comando. Toglierne una sola avrebbe lasciato le funzioni di riga vive
+sotto `lg` — cioè proprio dove la decisione conta di più.
+
+⭐ **Niente comandi nuovi**: Duplica ed Elimina vengono dal catalogo (`comando('duplicate')`,
+`comando('delete')`), come chiesto — «non duplicare». Gli handler esistevano già, sono
+quelli che il menu chiamava.
 
 ### ⭐ La FORMA dei comandi sta in un catalogo — deciso il 30/08/2026
 
@@ -1507,11 +1579,11 @@ Un conteggio che cerchi i soli blocchi letterali non la vede.
 e quanto**: quante righe ci siano dentro lo si scopre aprendo il documento, ed è lì che
 serve. Occupava una colonna in ogni vista senza rispondere a nessuna domanda.
 
-| Tolta da                                          |                                                                    |
-| ------------------------------------------------- | ------------------------------------------------------------------ |
-| catalogo colonne, modelli colonne e preset        | Documenti, Vendite, Acquisti, Magazzino, Ordini fornitore          |
-| celle, filtro a intervallo, ordinamento, totali   | e la classe di stile che le restava orfana                         |
-| export Excel/CSV                                  | di documenti e di ordini fornitore                                 |
+| Tolta da                                        |                                                           |
+| ----------------------------------------------- | --------------------------------------------------------- |
+| catalogo colonne, modelli colonne e preset      | Documenti, Vendite, Acquisti, Magazzino, Ordini fornitore |
+| celle, filtro a intervallo, ordinamento, totali | e la classe di stile che le restava orfana                |
+| export Excel/CSV                                | di documenti e di ordini fornitore                        |
 
 ⚠️ **Il CAMPO `lineCount` resta sul modello DOCUMENTO**, e non è un residuo: lo legge il
 controllo che impedisce di stampare le etichette di un arrivo merce **senza righe**. Quello
@@ -2083,7 +2155,7 @@ TableColumnDef {
 | -------- | ------------------------------------------------------------- | --------------------------------------------------- |
 | `values` | insieme chiuso o ricorrente (Stato, Pagamento, Sede, Cliente) | elenco a **selezione multipla** dei valori presenti |
 | `text`   | testo libero (Commento, riferimenti)                          | contiene / non contiene                             |
-| `range`  | numerico e denaro (Totale, Netto, Imponibile)                      | da–a                                                |
+| `range`  | numerico e denaro (Totale, Netto, Imponibile)                 | da–a                                                |
 
 #### ⭐ Il filtro a valori ha un VERSO: includi o escludi — 01/09/2026
 
@@ -3093,13 +3165,108 @@ se quel soggetto è anche l'altra cosa. Ha **tre** risposte, non due — «No»,
 
 ## 22.3 Resize
 
-Il resize già esistente resta consentito dove oggi previsto:
-
-- usa la direttiva comune;
-- non introduce un secondo meccanismo locale;
-- resta temporaneo nella sessione della pagina salvo futura decisione diversa.
-
+Il resize usa la **direttiva comune** e non introduce un secondo meccanismo locale.
 La decisione «ordine colonne fisso» non elimina il resize delle larghezze.
+
+### ⭐ LA LARGHEZZA SI CONSERVA — deciso dal proprietario il 01/09/2026
+
+> **La larghezza regolata a mano si salva per utente e per vista, sulla stessa
+> strada di visibilità e aggancio.**
+
+⛔ **Qui c'era «resta temporanea nella sessione della pagina salvo futura decisione
+diversa», e la §57 elencava «persistenza larghezze colonne» fra le cose fuori
+perimetro.** La decisione diversa è arrivata: nasce dal fatto che il trascinamento
+era rotto (sotto), e una volta che funziona non c'è ragione di buttarlo via a ogni F5.
+
+⭐ **E chiude «larghezze iniziali» di §22.5** — proprietario: «basta dare una
+larghezza ipotizzata minima ad una colonna in base al tipo di contenuto e poi
+l'operatore se la gestisce». Le larghezze di ripiego per tipo (numerica 92, codice
+128, testo 200) restano **un punto di partenza, non una misura da tarare**: nessuno
+deve andare a misurare colonna per colonna in undici modelli, perché la prima
+regolazione dell'operatore resta.
+
+⚠️ **Il valore di partenza non si può però TOGLIERE, e non si fonde col minimo.**
+Con `table-layout: fixed` e le quote, una colonna senza peso vale zero per cento e
+sparisce. E `minWidthPx` è un'altra grandezza: il peso è un **rapporto**, il minimo è
+una misura in **pixel resi** che vale solo durante il trascinamento. Fonderli è il
+difetto misurato il 24/08/2026 su Arrivo merce — «Nome prodotto» trascinato a 886px
+saltava a 803px al rilascio (`line-column-widths.store`).
+
+| Dove si salva          | `TableColumnPreferenceService`, campo `columnWidths`                                                 |
+| ---------------------- | ---------------------------------------------------------------------------------------------------- |
+| Come                   | `localStorage` più sincronizzazione col server, per utente e tenant                                  |
+| Come si torna indietro | «Ripristina colonne» nel selettore Colonne: azzera anche le larghezze                                |
+| Chi resta fuori        | le tabelle senza `viewId` — oggi il solo Registro Corrispettivi: lì la regolazione resta del momento |
+
+### ⛔ Il trascinamento non arrivava mai alla misura chiesta
+
+Misurato il 01/09/2026. Il motore elenchi montava la maniglia **senza `[live]`**,
+mentre dal 01/09 le larghezze sono diventate quote percentuali: la direttiva scriveva
+`width` in px sulla cella durante il trascinamento, e al rilascio quel numero entrava
+come **peso** — che si ridivide per un totale nel frattempo cresciuto.
+
+```text
+otto colonne in un contenitore da 1200px
+partenza                      A = 150px
+trascino a 300px        →     A = 212px    chiedo +150, ottengo +62
+trascino ancora a 300   →     A = 212px    stesso peso, stesso esito: stallo
+```
+
+⚠️ **In un browser vero la cascata lo confermava**: durante il trascinamento vinceva
+il `width` in px (402px), al rilascio tornava a vincere la percentuale (341px).
+
+⭐ **La cura esisteva già in casa**, per le righe documento dal 24/08: maniglia in
+`[live]` più `redistributeColumnWidths`, che fa cedere spazio alle altre colonne — nei
+limiti dei loro minimi — invece di allargare la tabella.
+
+### ⭐ Anche una pagina di DETTAGLIO può usare il motore — 02/09/2026
+
+Il motore è «dei riepiloghi», ma niente in lui lo lega a un elenco: rende colonne e
+sezioni. Il **dettaglio di un inventario fisico** — la schermata dove si conta — ci è
+entrato per primo, e ne è uscita la regola per chi seguirà.
+
+⚠️ **Chi non passa da `app-list-page` deve portarsi i comandi da sé.** Selettore Colonne e
+pulsante «Filtri» li porta il telaio, e una pagina di dettaglio non lo usa: senza, la vista
+resta registrata e nessuno può spegnere una colonna né vedere un controllo di filtro.
+Vanno messi nella barra della schermata, con lo stesso significato di sempre — spegnere
+«Filtri» azzera.
+
+⛔ **E passare `[viewId]` significa dichiararsi filtrabile.** Il motore accende le tendine
+nelle intestazioni; se il componente non chiama `createColumnFilters`, quei controlli non
+restringono niente — comandi che sembrano funzionare e non fanno nulla. Lo prende
+`npm run check:filtri-colonna`.
+
+⚠️ **La guardia era cieca ai generici espliciti**, e l'ha mostrato proprio questo caso:
+cercava `createColumnFilters(` e non trovava `createColumnFilters<Riga>({`. Segnalava un
+difetto inesistente mentre non avrebbe visto quello vero. Corretta lo stesso giorno.
+
+⭐ **Una cella si compila anche dentro il motore**: la colonna «Contato» è un `<input>`, e
+la disegna un `ng-template appCell`. Il motore dà la griglia, la schermata dice cosa c'è
+dentro una cella — è il contratto che già esisteva, e regge anche quando la cella non è
+testo da leggere ma un campo da riempire.
+
+⚠️ **I filtri di dominio restano fuori dalle colonne.** «Da contare» e «Con differenza»
+sono domande sullo stato del lavoro, non sul valore di una colonna: convivono con i filtri
+di colonna nella stessa barra, come la ricerca e il periodo su un elenco.
+
+### ⛔ E la larghezza spariva al ricaricamento
+
+Visto a schermo dal proprietario un minuto dopo che la persistenza era accesa: «la
+larghezza rimane ma se ricarico la pagina con f5, sparisce». **Due cause distinte,
+entrambe mute:**
+
+1. **`hydrateFromServer` azzerava il locale.** Il ripiego per le larghezze erano quelle
+   **di serie** — cioè `{}` — invece di quelle già caricate: e `{}` non è nullish,
+   quindi uno stato remoto senza larghezze vinceva. Ce l'ha sul server ogni utente che
+   abbia mai toccato il selettore Colonne.
+2. **Il parser scartava i pesi sotto 48.** I limiti erano `48..640`, cioè misure in
+   **pixel**, applicate a valori che sono **pesi**: una colonna al proprio minimo reso
+   vale meno di 48 su una tabella larga. ⚠️ **Riguardava anche le righe documento**,
+   che salvano dalla stessa porta.
+
+⭐ **Le larghezze remote continuano a vincere quando ci sono**: è l'ultima parola del
+server, e arriva dagli altri dispositivi dello stesso utente. A non cancellare più
+niente è il caso in cui il server di larghezze non sa ancora nulla.
 
 ## 22.4 Allineamento riepilogo ↔ colonne
 
@@ -3173,8 +3340,11 @@ Non è consolidata una regola globale unica fra:
 - `table-layout: fixed`;
 - clipping;
 - ellissi;
-- larghezze iniziali;
 - dimensionamento sul contenuto.
+
+⭐ **«Larghezze iniziali» è uscita da questo elenco il 01/09/2026**: la risposta è
+§22.3 — un ripiego per tipo e la larghezza che si conserva. Non serve una regola
+globale per una misura che l'operatore regola una volta.
 
 Finché non si decide:
 
@@ -4698,7 +4868,6 @@ Restano fuori e non autorizzano deduzioni:
 - specifica Inventario fisico semplice;
 - semantica unica UTC/ora locale del Periodo se non già definita;
 - comportamento globale colonna stretta;
-- persistenza larghezze colonne;
 - eventuale riordino manuale colonne futuro, soltanto insieme alla persistenza dell'ordine per utente/tenant/vista;
 - ulteriori metriche non già approvate.
 

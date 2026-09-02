@@ -1443,11 +1443,11 @@ davvero quelli comuni, non solo simili.
 
 **Undici elenchi su undici** usano lo stesso motore. Nessuno impagina più.
 
-|                      |                                                                                            |
-| -------------------- | ------------------------------------------------------------------------------------------ |
-| **entrati oggi**     | Prodotti · Clienti · Giacenze · Situazione magazzino                                       |
-| **c'erano già**      | Documenti · Ordini cliente · Ordini fornitore · Vendite online · Movimenti · Corrispettivi |
-| **fuori dal motore** | Fornitori — ha ancora una tabella propria, ma non impagina più                             |
+|                  |                                                                                                                                                                                                                                                                                                              |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **entrati oggi** | Prodotti · Clienti · Giacenze · Situazione magazzino                                                                                                                                                                                                                                                         |
+| **c'erano già**  | Documenti · Ordini cliente · Ordini fornitore · Vendite online · Movimenti · Corrispettivi                                                                                                                                                                                                                   |
+| **entrati dopo** | **Fornitori** e **Inventario** — ⛔ qui c'era «fuori dal motore, ha ancora una tabella propria»: **falso**, verificato il 02/09/2026 in `supplier-table.component.html` e `inventory-count-table.component.html`, che montano entrambi `<app-data-table>`. Chi leggeva credeva di avere un elenco da migrare |     |
 
 ## Che cosa ha preso ognuno
 
@@ -4075,9 +4075,15 @@ esisteva.
 3. virtualizzare                 alla fine, con il costo finalmente visibile e misurabile
 ```
 
-⏸ **Restano cinque elenchi che impaginano ancora**: Clienti, Fornitori, Giacenze, Situazione
-magazzino, Vendite online. Vanno fatti con lo stesso schema — `all=1` lato API
-(`pageWindow`), `<app-pagination>` via, il conteggio che passa alla riga totali.
+✅ **Finito, e questa riga era testo morto.** Diceva «restano cinque elenchi che impaginano
+ancora: Clienti, Fornitori, Giacenze, Situazione magazzino, Vendite online». **Non è più vero
+dal 30/08**: nessun elenco impagina, e il 02/09/2026 il componente `app-pagination` è stato
+rimosso perché non lo montava più nessuno.
+
+⚠️ **L'ha trovato il censimento del codice morto, non una rilettura**: cercando i componenti
+mai usati è emerso che il paginatore era orfano, e leggendo _perché_ si è scoperto che questa
+riga lo dava ancora per vivo. È lo scarto che `regole-qualita` §«Testo morto nelle specifiche»
+descrive — un documento che afferma un arretrato già chiuso.
 
 ⭐ **Il meccanismo lato API esisteva già** e non è stato inventato per l'occasione:
 `UnpagedQueryDto` + `pageWindow` li usano documenti, ordini cliente, ordini fornitore e
