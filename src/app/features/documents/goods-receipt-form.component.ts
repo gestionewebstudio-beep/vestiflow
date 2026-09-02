@@ -271,6 +271,13 @@ const GOODS_RECEIPT_LINE_FOCUS_FIELDS = [
   'barcode',
   'supplierCode',
   'product',
+  // ⛔ Mancava, ed è un input EDITABILE: il giro la scavalcava in entrambi i
+  // versi, e da dentro la cella lo store scartava l'evento. È l'unico catalogo
+  // che dichiara questa colonna, quindi il difetto era solo qui.
+  //
+  // ⚠️ Nasce spenta (`defaultVisible: false`): con `isFieldEnabled` che ora
+  // controlla la visibilità, entra nel giro solo quando l'operatore l'accende.
+  'description',
   'quantity',
   // Rientrata nel giro: la cella era una tendina di sola creazione articolo e
   // testo calcolato altrove. Ora l'unità si scrive sulla riga.
@@ -2034,6 +2041,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       barcode: `gr-barcode-${index}`,
       supplierCode: `gr-supplier-code-${index}`,
       product: `gr-product-${index}`,
+      // La riga comune la rende con `cellId('description')`.
+      description: `gr-description-${index}`,
       quantity: `gr-qty-${index}`,
       unitOfMeasure: `gr-uom-${index}`,
       unitCost: `gr-cost-${index}`,

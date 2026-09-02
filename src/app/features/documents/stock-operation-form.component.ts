@@ -976,7 +976,15 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
     // come negli altri documenti.
     isFieldEnabled: (index, field) => {
       const identita = field === 'articleCode' || field === 'sku' || field === 'barcode';
-      return !(identita && !!this.lines.at(index)?.controls.variantId.value);
+      if (identita && !!this.lines.at(index)?.controls.variantId.value) {
+        return false;
+      }
+      // ⛔ Qui il controllo di VISIBILITÀ mancava: col selettore Colonne che
+      // spegne una colonna del giro, `focusField` cercava una cella fuori dal
+      // DOM, tornava `false`, e `next()` non guarda l'esito — il Tab si fermava.
+      // Tre maschere su sei non lo facevano; è la voce 3 del contratto dello
+      // store, che la dichiara per prima.
+      return this.isLineColumnVisible(field);
     },
     isReadOnly: () => this.formReadOnly(),
     lineCount: () => this.lines.length,

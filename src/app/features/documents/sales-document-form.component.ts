@@ -246,6 +246,18 @@ const SALES_DOCUMENT_LINE_FOCUS_FIELDS = [
   'barcode',
   'product',
   'quantity',
+  // ⛔ `unitOfMeasure` MANCAVA, e la colonna U.m. è accesa di serie: la cella era
+  // una TRAPPOLA DEL FUOCO. Ci si entrava col mouse e non se ne usciva più con la
+  // tastiera — la cella fa `preventDefault()` su ogni tasto di navigazione e poi
+  // emette l'esito, che lo store scartava perché il campo «non era suo». Tab,
+  // Shift+Tab e le quattro frecce: niente. Si usciva solo cliccando altrove.
+  //
+  // ⚠️ E non ci si arrivava mai da tastiera: il giro la scavalcava in entrambi i
+  // versi, pur stando fra Q.tà e Prezzo nel DOM. L'ordine qui SOTTO è quello del
+  // DOM, ed è ciò che rende il Tab prevedibile.
+  //
+  // Ordine fornitore e Ordine cliente l'avevano già (`po-uom-`, `co-uom-`).
+  'unitOfMeasure',
   'unitPrice',
   'discount',
   'vat',
@@ -1873,6 +1885,9 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
         barcode: `sd-barcode-` + index,
         product: `sd-product-` + index,
         quantity: `sd-qty-` + index,
+        // La riga comune rende questa cella con `cellId('uom')`: l'alias deve
+        // essere lo stesso, o il fuoco non arriva e nessuno se ne accorge.
+        unitOfMeasure: `sd-uom-` + index,
         unitPrice: `sd-price-` + index,
         discount: `sd-discount-` + index,
         vat: `sd-vat-` + index,
@@ -1880,7 +1895,19 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     // Su riga agganciata i tre codici diventano testo: il Tab li salta.
     isFieldEnabled: (index, field) => {
       const identita = field === 'articleCode' || field === 'sku' || field === 'barcode';
-      return !(identita && !!this.lines.at(index)?.controls.variantId.value);
+      if (identita && !!this.lines.at(index)?.controls.variantId.value) {
+        return false;
+      }
+      // ⛔ Qui il controllo di VISIBILITÀ mancava, e il giro si fermava su una
+      // colonna spenta dal selettore Colonne: `fieldsOf` la includeva ancora,
+      // `focusField` cercava una cella che il DOM non ha, tornava `false` — e
+      // `next()` non guarda l'esito. Col preset «Magazzino» (che toglie Prezzo)
+      // il Tab da Q.tà non faceva più niente.
+      //
+      // ⚠️ Tre maschere su sei non lo facevano; le altre tre sì. È la voce 3 del
+      // contratto dello store, che la dichiara per prima: «assorbe la colonna
+      // nascosta dal selettore».
+      return this.isLineColumnVisible(field);
     },
     isReadOnly: () => this.formReadOnly(),
     lineCount: () => this.lines.length,

@@ -2042,7 +2042,16 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
         articleCode: `po-code-${index}`,
         sku: `po-sku-${index}`,
         barcode: `po-barcode-${index}`,
-        supplierCode: `po-suppcode-${index}`,
+        // ⛔ Qui c'era `po-suppcode-${index}`, e il Tab su «Cod. fornitore» NON
+        // ARRIVAVA: la riga comune rende quella cella con `cellId('supplier-code')`,
+        // cioè `po-supplier-code-N`. `focusField` non trovava l'elemento, tornava
+        // `false` — e `next()` non guarda l'esito, quindi il fuoco restava dov'era.
+        // Il Tab sembrava morto su quel campo.
+        //
+        // ⚠️ Nessun errore, nessun test rosso: `getElementById` di un id che non
+        // c'è non fallisce. L'Arrivo merce usava già la forma giusta, e il suo
+        // commento avvertiva del rischio — che qui si era avverato.
+        supplierCode: `po-supplier-code-${index}`,
         product: `po-product-${index}`,
         quantity: `po-qty-${index}`,
         unitOfMeasure: `po-uom-${index}`,
