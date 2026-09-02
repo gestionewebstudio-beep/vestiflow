@@ -4,8 +4,10 @@ import {
   computed,
   DestroyRef,
   effect,
+  ElementRef,
   inject,
   signal,
+  type Signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -30,6 +32,23 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
+import { DataTableComponent } from '@shared/components/data-table/data-table.component';
+import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
+import type {
+  DataTableRowTone,
+  DataTableSection,
+} from '@shared/components/data-table/data-table.model';
+import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
+import { createColumnFilters } from '@shared/table-columns/column-filters';
+import { ColumnFilterStore } from '@shared/table-columns/column-filter.store';
+import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
+import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
+
+import {
+  INVENTORY_COUNT_LINE_COLUMN_DEFS,
+  INVENTORY_COUNT_LINE_COLUMN_PRESETS,
+  INVENTORY_COUNT_LINES_VIEW,
+} from './models/inventory-count-lines-table-columns.config';
 
 import { inventoryCountLineDelta } from '@domain/inventory/models/inventory-count.mapper';
 import {
@@ -65,6 +84,9 @@ interface ScanFeedback {
     TableSkeletonComponent,
     RouterLink,
     InlineBannerComponent,
+    DataTableComponent,
+    DataTableCellDirective,
+    TableColumnPickerComponent,
   ],
   templateUrl: './inventory-count-detail.component.html',
   styleUrl: './inventory-count-detail.component.scss',
@@ -77,6 +99,24 @@ export class InventoryCountDetailComponent {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly destroyRef = inject(DestroyRef);
   private readonly authService = inject(AuthService);
+  private readonly columnPreferences = inject(TableColumnPreferenceService);
+  private readonly filterStore = inject(ColumnFilterStore);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+
+  /**
+   * ⭐ **«Filtri» accende i controlli nelle intestazioni**, ed è lo stesso
+   * comando che su ogni elenco porta il telaio `app-list-page` — che questa
+   * pagina non usa, perché è un dettaglio e non un elenco.
+   *
+   * ⚠️ **Spegnere AZZERA** (`regole-stile-ui`, «I filtri di un elenco stanno
+   * nelle sue colonne»): lo fa lo store, non questo componente. Un filtro attivo
+   * il cui controllo non si vede è il difetto che quella regola evita.
+   */
+  protected readonly filtriAccesi = this.filterStore.acceso(INVENTORY_COUNT_LINES_VIEW);
+
+  protected commutaFiltri(): void {
+    this.filterStore.commuta(INVENTORY_COUNT_LINES_VIEW);
+  }
 
   protected readonly closeHint = computed(() =>
     inventoryCountCloseHint(this.authService.currentUser()?.tenantChannelProfile),
@@ -154,6 +194,13 @@ export class InventoryCountDetailComponent {
   );
 
   constructor() {
+    this.columnPreferences.registerView(
+      INVENTORY_COUNT_LINES_VIEW,
+      INVENTORY_COUNT_LINE_COLUMN_DEFS,
+      INVENTORY_COUNT_LINE_COLUMN_PRESETS,
+    );
+    this.tableColumns = this.columnPreferences.visibleColumns(INVENTORY_COUNT_LINES_VIEW);
+
     effect(() => {
       const state = this.detailState();
       if (state.status === 'success') {
@@ -169,6 +216,53 @@ export class InventoryCountDetailComponent {
       }
     });
   }
+
+  /**
+   * Le colonne accese adesso, dalle preferenze dell'operatore.
+   *
+   * ⚠️ **Assegnata nel costruttore, dopo `registerView`**: il servizio pretende
+   * che la vista esista prima di consegnarne lo stato.
+   */
+  protected readonly tableColumns: Signal<readonly ResolvedTableColumn[]>;
+
+  protected readonly lineColumnsView = INVENTORY_COUNT_LINES_VIEW;
+
+  /** L'identità di riga per il motore: è quella su cui si aggancia la pistola. */
+  protected readonly lineId = (line: InventoryCountLine): string => line.id;
+
+  /**
+   * Il testo di una cella — serve al motore per la ricerca, i filtri di colonna
+   * e l'esportazione, non per disegnare: a disegnare sono i template `appCell`.
+   */
+  protected readonly lineCellText = (line: InventoryCountLine, columnId: string): string => {
+    switch (columnId) {
+      case 'productName':
+        return line.productName;
+      case 'sku':
+        return line.sku;
+      case 'systemQuantity':
+        return String(line.systemQuantity);
+      case 'countedQuantity':
+        return line.countedQuantity === null ? '' : String(line.countedQuantity);
+      case 'delta': {
+        const delta = inventoryCountLineDelta(line);
+        return delta === null ? '' : String(delta);
+      }
+      default:
+        return '';
+    }
+  };
+
+  /**
+   * ⛔ **Il tono dice cosa la riga È, non cosa è appena successo.** Qui una riga
+   * con differenza si segna perché quella differenza **resta** finché non la si
+   * corregge: è una proprietà del conteggio. Il lampo della scansione è un'altra
+   * cosa e passa da `highlightedRowId`.
+   */
+  protected readonly lineTone = (line: InventoryCountLine): DataTableRowTone | null => {
+    const delta = inventoryCountLineDelta(line);
+    return delta !== null && delta !== 0 ? 'negative' : null;
+  };
 
   protected readonly loading = computed(
     () => this.detailState().status === 'loading' && this.session() === null,
@@ -201,6 +295,49 @@ export class InventoryCountDetailComponent {
       );
     });
   });
+
+  /**
+   * I filtri di COLONNA, sopra quelli della schermata.
+   *
+   * ⚠️ **Convivono con la ricerca e con i tre pulsanti** («Tutte», «Da contare»,
+   * «Con differenza»), e non è una duplicazione: quelli sono domande sul
+   * conteggio — uno stato del lavoro —, questi restringono per il valore di una
+   * colonna. Si compongono, come la ricerca e il periodo su un elenco.
+   *
+   * ⛔ **Senza, i controlli di filtro sarebbero comandi finti**: passare il
+   * `viewId` al motore accende le tendine nelle intestazioni, e se nessuno le
+   * applica l'elenco non si restringe. Lo dice `npm run check:filtri-colonna`,
+   * che ha preso esattamente questo caso il 02/09/2026.
+   */
+  private readonly righeFiltratePerColonna = createColumnFilters<InventoryCountLine>({
+    viewId: () => INVENTORY_COUNT_LINES_VIEW,
+    righe: () => this.filteredLines(),
+    cellText: this.lineCellText,
+    // ⚠️ Le tre colonne numeriche si filtrano per intervallo, e sul testo il
+    // confronto metterebbe «−5» dopo «10».
+    numeroDi: (line, columnId) => {
+      switch (columnId) {
+        case 'systemQuantity':
+          return line.systemQuantity;
+        case 'countedQuantity':
+          return line.countedQuantity;
+        case 'delta':
+          return inventoryCountLineDelta(line);
+        default:
+          return null;
+      }
+    },
+  });
+
+  /**
+   * Le righe per il motore: **una sezione sola**, senza intestazione né piede.
+   * Qui non si raggruppa niente — è la forma piatta che il motore dichiara.
+   */
+  protected readonly lineSections = computed(
+    (): readonly DataTableSection<InventoryCountLine>[] => [
+      { id: 'lines', rows: this.righeFiltratePerColonna() },
+    ],
+  );
 
   protected readonly progressLabel = computed(() => {
     const session = this.session();
@@ -349,16 +486,31 @@ export class InventoryCountDetailComponent {
     return this.lines().find((line) => line.sku.toLowerCase() === normalized);
   }
 
+  /**
+   * La riga appena scansionata si accende e si porta in vista.
+   *
+   * ⚠️ **`block: 'nearest'` e non `'start'`**: `nearest` non fa niente se la riga
+   * è già visibile, mentre `start` sposta sempre la vista. Qui la differenza si
+   * sente poco — si conta e basta —, ma è la forma che va portata anche nelle
+   * maschere documento (`docs/DA-FARE.md`), dove chi sta compilando una riga non
+   * deve ritrovarsi altrove per una scansione.
+   *
+   * ⚠️ **Si aggancia a `[data-row-id]`, che scrive il motore tabella**: era un
+   * `id` HTML messo a mano sulla riga, e con il motore quella riga non la disegna
+   * più questa schermata.
+   */
   private highlightLine(lineId: string): void {
     if (this.highlightTimeout) {
       clearTimeout(this.highlightTimeout);
     }
     this.highlightedLineId.set(lineId);
     queueMicrotask(() => {
-      document.getElementById(`count-line-${lineId}`)?.scrollIntoView({
-        block: 'nearest',
-        behavior: 'smooth',
-      });
+      this.host.nativeElement
+        .querySelector(`[data-row-id="${CSS.escape(lineId)}"]`)
+        ?.scrollIntoView({
+          block: 'nearest',
+          behavior: 'smooth',
+        });
     });
     this.highlightTimeout = setTimeout(() => {
       if (this.highlightedLineId() === lineId) {

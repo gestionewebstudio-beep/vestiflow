@@ -4,6 +4,11 @@ export const TableViewId = {
   InventoryLevels: 'inventory_levels',
   InventorySituation: 'inventory_situation',
   InventoryCounts: 'inventory_counts',
+  // Le RIGHE di una sessione, che è un'altra schermata dall'elenco delle
+  // sessioni: chi allarga «Prodotto» mentre conta non tocca l'elenco da cui è
+  // entrato. È la stessa ragione per cui Trasferimento e Rettifica hanno due
+  // viste pur avendo la stessa riga (sotto).
+  InventoryCountLines: 'inventory_count_lines',
   DocumentsList: 'documents_list',
   GoodsReceiptDocumentsList: 'goods_receipt_documents_list',
   QuoteDocumentsList: 'quote_documents_list',

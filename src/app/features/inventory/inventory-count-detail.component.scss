@@ -1,6 +1,5 @@
 @use 'breakpoints' as bp;
 @use 'detail-page' as dp;
-@use 'responsive-table' as rt;
 
 :host {
   display: block;
@@ -148,10 +147,12 @@
   color: var(--status-error-fg);
 }
 
-.count-detail__row--highlight {
-  outline: var(--border-width-strong) solid var(--color-interactive);
-  outline-offset: calc(-1 * var(--border-width-strong));
-}
+/*
+  ⚠️ **L'evidenziazione della riga scansionata sta nel MOTORE** dal 02/09/2026
+  (`highlightedRowId`): qui c'era un contorno disegnato a mano, e il
+  comportamento serve ovunque si inseriscano articoli in continuo — non solo qui
+  (`docs/DA-FARE.md`).
+*/
 
 .count-detail__toolbar {
   display: flex;
@@ -221,22 +222,21 @@
   background-color: var(--color-interactive-subtle);
 }
 
-.count-detail__table-scroll {
-  overflow-x: auto;
-}
+/*
+  ⭐ **Lo scheletro della tabella se n'è andato col motore comune** (02/09/2026):
+  contenitore di scorrimento, griglia da scrivania, vista a card sotto `lg`,
+  allineamento delle colonne numeriche e riga con differenza li porta ora
+  `app-data-table`, che li rende identici a ogni altro elenco.
 
-@include rt.list-card-table-host();
-@include rt.data-table-desktop('count-detail__table');
-@include rt.data-table-mobile-cards('count-detail__table');
+  ⛔ **Tolto insieme al markup, non dopo**: un foglio che veste classi che nessun
+  template scrive più non fallisce e non arrossa un test — resta lì finché
+  qualcuno riusa quel nome per un'altra cosa e si ritrova stili che non ha
+  chiesto.
 
-.count-detail__col--numeric,
-.count-detail__numeric {
-  text-align: end;
-}
-
-.count-detail__row--delta {
-  background-color: var(--status-warning-bg);
-}
+  ⚠️ **La riga con differenza era `--status-warning-bg` e ora è il tono
+  `negative` del motore**: una differenza di inventario è una riga che si stacca
+  dalle altre, e nel vocabolario comune quello è il tono, non una tinta locale.
+*/
 
 .count-detail__qty-input {
   inline-size: 100%;

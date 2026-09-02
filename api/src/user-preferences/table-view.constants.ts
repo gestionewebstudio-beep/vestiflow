@@ -42,6 +42,11 @@ export const TABLE_VIEW_IDS = [
   // colonne scelte non venivano mai memorizzate. L'ha trovata
   // `npm run check:table-views`, che esiste per questo.
   'inventory_counts',
+  // Aggiunta il 02/09/2026 con la migrazione del dettaglio inventario al motore
+  // tabella: sono le RIGHE di una sessione, la schermata dove si conta. Vista
+  // propria e non quella dell'elenco — chi allarga «Prodotto» mentre conta non
+  // deve toccare l'elenco da cui è entrato.
+  'inventory_count_lines',
 ] as const;
 
 export type TableViewId = (typeof TABLE_VIEW_IDS)[number];

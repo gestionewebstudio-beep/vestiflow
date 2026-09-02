@@ -52,7 +52,13 @@ for (const html of file('src', '.html')) {
   const dichiaraVista = [...markup.matchAll(APERTURA_MOTORE)].some((m) =>
     /\[viewId\]/.test(m[0]),
   );
-  const filtra = /\bcreateColumnFilters\s*\(/.test(sorgente);
+  // ⚠️ **Il generico esplicito va ammesso**, o la guardia diventa cieca: cercare
+  // solo `createColumnFilters(` non trova `createColumnFilters<Riga>({`, che è
+  // la forma che si scrive quando il tipo non si inferisce dal solo argomento.
+  // Misurato il 02/09/2026 sul dettaglio inventario: la chiamata c'era, e la
+  // guardia la dichiarava assente — cioè segnalava un difetto inesistente
+  // proprio mentre non avrebbe visto quello vero.
+  const filtra = /\bcreateColumnFilters\s*(?:<[^>]*>)?\s*\(/.test(sorgente);
 
   if (dichiaraVista && !filtra) {
     console.error(
