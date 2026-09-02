@@ -1323,6 +1323,28 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
   }
 
   /**
+   * Il campo obbligatorio ANCORA VUOTO che tiene ferme le righe: si segna con la
+   * tinta d'attesa (`regole-stile-ui` §5, «Campo in attesa»).
+   *
+   * ⚠️ **Distinto da `fieldInvalid`**, e la distinzione è il punto: il rosso dice
+   * «hai provato a salvare e questo è sbagliato», questo dice «non l'hai ancora
+   * compilato». Aprire un documento nuovo non è un errore dell'operatore, ed è la
+   * ragione per cui la tinta è `--color-field-waiting` e non `--color-danger`.
+   *
+   * ⛔ Mancava, e il proprietario l'ha visto: «per la fattura ancora non sono
+   * obbligatori cliente e location». Il cancello c'era e funzionava — le righe non
+   * comparivano — ma i due campi non si distinguevano da quelli facoltativi.
+   * Arrivo merce, Rettifica, Trasferimento e Ordine fornitore lo facevano già.
+   */
+  protected fieldWaiting(name: 'customerId' | 'locationId'): boolean {
+    this.formValue();
+    if (!this.headerGateActive()) {
+      return false;
+    }
+    return !this.form.controls[name].value;
+  }
+
+  /**
    * Un campo di riga si accende in rosso solo dopo che l'utente l'ha toccato
    * (o dopo il `markAllAsTouched()` del salvataggio): prima sarebbe un
    * rimprovero a chi non ha ancora scritto niente.

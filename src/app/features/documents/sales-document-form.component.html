@@ -92,6 +92,7 @@
             <app-document-header-field
               label="Cliente"
               [span2]="true"
+              [waiting]="fieldWaiting('customerId')"
               [invalid]="fieldInvalid('customerId')"
               errorId="sd-customer-error"
             >
@@ -125,6 +126,7 @@
                  predefinita assegnata. -->
             <app-document-header-field
               label="Sede"
+              [waiting]="fieldWaiting('locationId')"
               [invalid]="fieldInvalid('locationId')"
               errorId="sd-location-error"
             >

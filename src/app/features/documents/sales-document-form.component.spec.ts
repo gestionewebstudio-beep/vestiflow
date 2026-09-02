@@ -303,6 +303,31 @@ describe('SalesDocumentFormComponent', () => {
   //
   // Vale su tutti e quattro i tipi di questa maschera (Proforma, Fattura,
   // Fattura accompagnatoria, Nota di credito), che condividono la testata.
+  // ⛔ Il cancello funzionava — le righe non comparivano — ma i due campi non si
+  // distinguevano da quelli facoltativi, e il proprietario l'ha visto: «per la
+  // fattura ancora non sono obbligatori cliente e location».
+  //
+  // ⚠️ La tinta d'attesa NON è il rosso di errore: `--color-field-waiting` dice
+  // «non l'hai ancora compilato», `--color-danger` dice «hai provato a salvare e
+  // questo è sbagliato». Aprire un documento nuovo non è un errore.
+  it('⭐ segna cliente e sede come campi in attesa finché sono vuoti', async () => {
+    const user = userEvent.setup();
+    await setup();
+
+    const inAttesa = (): number =>
+      globalThis.document.querySelectorAll('.doc-form__field--waiting').length;
+
+    expect(inAttesa()).toBe(2);
+
+    await user.click(screen.getByRole('button', { name: 'Cliente' }));
+    await user.click(screen.getByRole('option', { name: 'Mario Rossi' }));
+    expect(inAttesa()).toBe(1);
+
+    await user.click(screen.getByRole('button', { name: 'Sede' }));
+    await user.click(screen.getByRole('option', { name: 'Milano' }));
+    expect(inAttesa()).toBe(0);
+  });
+
   it('nasconde le righe finché cliente e sede non sono scelti', async () => {
     const user = userEvent.setup();
     await setup();
