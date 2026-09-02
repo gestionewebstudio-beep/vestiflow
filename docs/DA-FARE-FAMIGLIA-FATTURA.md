@@ -838,7 +838,7 @@ deciso come si comporta quando i due divergono.
 
 Resta valida la distinzione registrata: sull'Ordine fornitore sarebbe un **cambio di vista**
 su un valore in sola lettura, sull'Arrivo merce un **modo di inserimento** — e lì, dal 16/08,
-la colonna si scrive solo con la spunta «Aggiorna prezzi articolo» (fetta 2).
+la colonna si scrive solo con la spunta «Aggiorna prezzi in anagrafica» (fetta 2).
 
 ### Il testo originale, per storia
 
@@ -1063,7 +1063,7 @@ acquisito, e non lo è.
 
 #### La regola decisa
 
-> **Spunta di documento «Aggiorna prezzi articolo», accesa di default. Accesa: i prezzi si
+> **Spunta di documento «Aggiorna prezzi in anagrafica», accesa di default. Accesa: i prezzi si
 > modificano e aggiornano l'anagrafica. Spenta: restano visibili ma NON modificabili.**
 
 ⚠️ **Non è la gemella della spunta del costo, e la differenza è la ragione della sola

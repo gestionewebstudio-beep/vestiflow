@@ -362,7 +362,11 @@
                 (docDateChange)="form.controls.externalDocDate.setValue($event)"
                 (typesChanged)="onExternalDocTypesChanged()"
               >
-                <div [class]="cella">
+                <!-- ⭐ Le celle proiettate dichiarano la misura del proprio dato
+                     (`regole-stile-ui` §7-bis) col canale `--doc-field-min`, come fa
+                     l'Ordine cliente. Senza, la fascia le fa tutte larghe uguale
+                     (176px di ripiego) e va a capo lasciando il vuoto a destra. -->
+                <div [class]="cella" style="--doc-field-min: var(--field-w-lg)">
                   <span [class]="etichetta">Pagamento</span>
                   <app-select-menu
                     [options]="paymentMethodOptions()"
@@ -381,7 +385,7 @@
                 <!-- Punto E: la Causale di carico non è più esposta nel form.
                      Viene generata sempre in automatico e in silenzio dal modello
                      del tipo documento fornitore (tipo + numero + data). -->
-                <div [class]="cella">
+                <div [class]="cella" style="--doc-field-min: var(--field-w-lg)">
                   <label class="doc-form__check doc-form__check--block" for="gr-invoice-pending">
                     <input
                       id="gr-invoice-pending"
@@ -389,6 +393,57 @@
                       formControlName="invoicePending"
                     />
                     <span>Seguirà registrazione fattura</span>
+                  </label>
+                </div>
+
+                <!-- ⭐ **Le due spunte dell'anagrafica stanno in TESTATA** — spostate
+                     dal piede il 02/09/2026, e non è solo spazio recuperato:
+                     «Aggiorna prezzi» ABILITA i campi prezzo delle righe, e in fondo
+                     al documento si decideva dopo aver compilato le righe che essa
+                     stessa governa. Un interruttore sta prima di ciò che comanda.
+
+                     ⛔ Nel piede erano anche rese male: `.doc-form__footer-notes >
+                     .doc-form__check { grid-column: 1 / -1 }` non le raggiungeva —
+                     sono proiettate DENTRO `app-document-notes`, quindi non figlie
+                     dirette — e finivano in una colonnina, col testo a capo su
+                     quattro righe.
+
+                     ⛔ Riscritta il 19/08/2026 (03b): prima il costo della variante
+                     si scriveva SEMPRE e la spunta governava un costo sul Product.
+                     Chi la toglieva credeva di registrare un costo solo
+                     documentale, e stava riscrivendo il costo effettivo di ogni
+                     variante caricata. Ora comanda quello che dice, riga per riga:
+                     spuntata, il costo digitato diventa il costo dell'articolo;
+                     spenta, resta un costo del DOCUMENTO per report e contabilità.
+                     L'ultimo prezzo pagato al fornitore si aggiorna comunque: è un
+                     fatto del rapporto col fornitore, non dell'anagrafica. -->
+                <div [class]="cella" style="--doc-field-min: var(--field-w-lg)">
+                  <label class="doc-form__check doc-form__check--block" for="gr-update-cost">
+                    <input
+                      id="gr-update-cost"
+                      type="checkbox"
+                      [checked]="updateArticleCost()"
+                      [disabled]="formReadOnly()"
+                      (change)="setUpdateArticleCost($any($event.target).checked)"
+                    />
+                    <span>Aggiorna costo in anagrafica</span>
+                  </label>
+                </div>
+
+                <!-- A differenza del costo, qui non c'è un effetto «sempre»: il
+                     prezzo non è un dato del documento. Spenta la spunta, i campi
+                     prezzo tornano in sola lettura invece di accettare un valore
+                     che non avrebbe dove andare. -->
+                <div [class]="cella" style="--doc-field-min: var(--field-w-lg)">
+                  <label class="doc-form__check doc-form__check--block" for="gr-update-prices">
+                    <input
+                      id="gr-update-prices"
+                      type="checkbox"
+                      [checked]="updateArticlePrices()"
+                      [disabled]="formReadOnly()"
+                      (change)="setUpdateArticlePrices($any($event.target).checked)"
+                    />
+                    <span>Aggiorna prezzi in anagrafica</span>
                   </label>
                 </div>
               </app-document-counterparty-ref>
@@ -767,48 +822,17 @@
             </aside>
 
             <div class="doc-form__footer-notes">
-              <!-- ⭐ **L'area note comune**, con le due spunte proiettate: sono
-                   dominio dell'arrivo merce — aggiornare costo e prezzi in
-                   anagrafica — e il componente le ospita senza sapere che siano. -->
+              <!-- ⭐ **L'area note comune, e basta.** Le due spunte dell'anagrafica
+                   (costo e prezzi) stavano proiettate qui: sono salite in testata il
+                   02/09/2026, perché «Aggiorna prezzi» abilita i campi prezzo delle
+                   RIGHE e va decisa prima di compilarle. Il piede ci guadagna
+                   l'altezza che occupavano. -->
               <app-document-notes
                 [group]="form"
                 notesId="gr-notes"
                 internalId="gr-internal-comment"
                 [readOnly]="formReadOnly()"
-              >
-                <!-- ⛔ Riscritta il 19/08/2026 (03b): prima il costo della variante
-                   si scriveva SEMPRE e la spunta governava un costo sul Product.
-                   Chi la toglieva credeva di registrare un costo solo
-                   documentale, e stava riscrivendo il costo effettivo di ogni
-                   variante caricata. Ora comanda quello che dice, riga per riga:
-                   spuntata, il costo digitato diventa il costo dell'articolo;
-                   spenta, resta un costo del DOCUMENTO per report e contabilità.
-                   L'ultimo prezzo pagato al fornitore si aggiorna comunque: è un
-                   fatto del rapporto col fornitore, non dell'anagrafica. -->
-                <label class="doc-form__check">
-                  <input
-                    type="checkbox"
-                    [checked]="updateArticleCost()"
-                    [disabled]="formReadOnly()"
-                    (change)="setUpdateArticleCost($any($event.target).checked)"
-                  />
-                  Aggiorna il costo in anagrafica con quello inserito
-                </label>
-
-                <!-- A differenza del costo, qui non c’è un effetto «sempre»: il
-                   prezzo non è un dato del documento. Spenta la spunta, i campi
-                   prezzo tornano in sola lettura invece di accettare un valore
-                   che non avrebbe dove andare. -->
-                <label class="doc-form__check">
-                  <input
-                    type="checkbox"
-                    [checked]="updateArticlePrices()"
-                    [disabled]="formReadOnly()"
-                    (change)="setUpdateArticlePrices($any($event.target).checked)"
-                  />
-                  Aggiorna prezzi articolo
-                </label>
-              </app-document-notes>
+              />
             </div>
           </div>
 

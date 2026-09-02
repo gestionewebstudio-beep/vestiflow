@@ -329,6 +329,23 @@ dal più corretto al più invasivo:
    | `table-skeleton`    | `--table-skeleton-cols`                                                                                                                                               |
    | celle di riga       | `--doc-code-cell-fg`, `--doc-product-cell-weight`, `--doc-select-cell-toggle-w`                                                                                       |
    | pannello riga       | `--doc-suggestions-z`, `--doc-suggestions-offset`, `--doc-suggestions-inset`, `--doc-suggestions-max-h`, `--doc-suggestions-item-min-h`                               |
+   | cella di testata    | `--doc-field-min` — la misura del DATO che la cella ospita (vedi sotto)                                                                                               |
+
+   ⭐ **`--doc-field-min` non era dichiarato qui, e la sua assenza costava** _(02/09/2026)_.
+   Lo legge `.doc-form__header-row > .doc-form__field` come `flex: 1 1 var(--doc-field-min,
+var(--field-w-md))`: **la cella che non lo imposta vale 176px come tutte le altre**, e la
+   fascia va a capo prima del necessario invece di dare a ogni campo la misura del suo dato
+   (§7-bis, «mai una griglia a colonne uguali»).
+
+   ⛔ **Misurato: lo impostava UNA maschera su otto** — l'Ordine cliente, con tre `style`
+   inline. Le altre sette avevano tutte le celle di testata alla stessa larghezza. Il
+   meccanismo esisteva dal giorno in cui la fascia è passata a flex; non l'aveva esteso
+   nessuno, e non essendo in questa tabella non c'era dove scoprirlo.
+
+   ⚠️ **Lo dichiara chi conosce il dato**: un componente che rende celle proprie
+   (`document-counterparty-ref` — tipo, numero, data) le dimensiona nel proprio foglio; una
+   cella che la maschera proietta la dimensiona la maschera. I valori vengono dai token
+   `--field-w-*`, che dicono già a cosa servono («date, codici» · «select standard»).
 
    **`app-button` ha l'host `display: contents`**: e' il `<button>` interno a
    stare nel flusso del contenitore. `flex` e `grid-column` vanno quindi
@@ -384,8 +401,8 @@ campi no, solo filtrare scrivendo»._
 caselle», il resto a «elenco». Undici colonne finivano nel primo gruppo per una decisione
 che col filtro non c'entra niente.
 
-| PRIMA il `kind` decideva                             | ORA decide                                                                                                           |
-| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| PRIMA il `kind` decideva                             | ORA decide                                                                                              |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | **come** si restringe → quattro filtri incompatibili | **che cosa il pannello offre in più**: i due campi data su una colonna data, i due estremi su un numero |
 
 ⭐ **A restringere sono le restrizioni presenti nel valore, e convivono**: le spunte, il
@@ -1507,10 +1524,10 @@ metterei a destra per gli importi»._
 ⛔ **Due difetti diversi, e nessuno dei due falliva.** Erano entrambi
 `text-align` che non arrivava a destinazione:
 
-| Dove              | Perché non arrivava                                                                                                              |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| **riga totali**   | il selettore copriva `th`, `tbody td` e le righe — **non `tfoot td`**: la somma restava a sinistra sotto una colonna di importi   |
-| **intestazione**  | il titolo sta in un contenitore **flex** (per ospitare il filtro accanto): `text-align` non muove i figli, e serve `margin-inline-start: auto` — vedi sotto perché non `justify-content` |
+| Dove             | Perché non arrivava                                                                                                                                                                      |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **riga totali**  | il selettore copriva `th`, `tbody td` e le righe — **non `tfoot td`**: la somma restava a sinistra sotto una colonna di importi                                                          |
+| **intestazione** | il titolo sta in un contenitore **flex** (per ospitare il filtro accanto): `text-align` non muove i figli, e serve `margin-inline-start: auto` — vedi sotto perché non `justify-content` |
 
 ⭐ **L'incolonnamento è la funzione**, non l'estetica: una colonna di importi si
 verifica confrontando le cifre incolonnate, e un totale o un titolo dall'altra
@@ -1556,6 +1573,7 @@ somma — cioè non verificabili.
 **prezzo unitario** o una **percentuale di sconto** sommati fra articoli diversi
 non producono un numero che significhi qualcosa. Si sommano le **grandezze
 additive** — importi, imposte, quantità, conteggi.
+
 - SKU / EAN: `--font-mono`, size 12px, colore `--color-focus` se cliccabile
 - Sticky header sul bg dell'header (non su surface)
 

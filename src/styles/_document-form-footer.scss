@@ -68,11 +68,18 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  // Una spunta in coda alle note occupa la riga intera, non una colonnina.
-  .doc-form__footer-notes > .doc-form__check {
-    grid-column: 1 / -1;
-    align-items: center;
-  }
+  // ⛔ Qui c'era `.doc-form__footer-notes > .doc-form__check { grid-column: 1 / -1 }`
+  // — «una spunta in coda alle note occupa la riga intera». **Non agganciava
+  // niente**, ed è il difetto muto che questo progetto combatte: le uniche due
+  // spunte del piede (Arrivo merce, costo e prezzi in anagrafica) erano proiettate
+  // DENTRO `app-document-notes`, quindi non figlie dirette. `display: contents`
+  // le faceva partecipare alla GRIGLIA ma non le rendeva raggiungibili dal `>`:
+  // finivano in una colonnina, col testo a capo su quattro righe.
+  //
+  // Il 02/09/2026 sono salite in testata e nessun `.doc-form__check` è più figlio
+  // di questa griglia — misurato su tutte e sei le maschere documentali. Se una
+  // spunta dovesse tornare qui, va rimessa la regola E va verificata a schermo:
+  // se è proiettata, non basta.
 
   // Le caselle riempiono la riga della griglia: con label di altezza diversa
   // (la coda del «commento interno») i fondi restano comunque allineati.

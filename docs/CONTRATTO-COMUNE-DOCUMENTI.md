@@ -311,7 +311,7 @@ Precompilare non significa mantenere sincronizzato.
 Regola consolidata:
 
 - `SupplierVariantLink.lastPurchasePriceMinor` → si aggiorna sempre quando esiste il fornitore;
-- `ProductVariant.purchasePriceMinor` → si aggiorna **solo** se è attiva la spunta **“Aggiorna il costo in anagrafica con quello inserito”**, riga per riga;
+- `ProductVariant.purchasePriceMinor` → si aggiorna **solo** se è attiva la spunta **“Aggiorna costo in anagrafica”**, riga per riga;
 - `Product.purchasePriceMinor` → **non viene aggiornato dai carichi**: è il seed di nascita delle varianti future;
 - articolo creato nuovo direttamente dall’Arrivo merce → nasce con i dati inseriti in quel momento; la spunta non governa la nascita.
 

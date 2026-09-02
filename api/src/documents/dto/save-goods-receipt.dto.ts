@@ -329,7 +329,7 @@ export class SaveGoodsReceiptDto {
   updateArticleCost?: boolean;
 
   /**
-   * Spunta di documento «Aggiorna prezzi articolo», accesa di default.
+   * Spunta di documento «Aggiorna prezzi in anagrafica», accesa di default.
    *
    * Decide se i prezzi digitati sulle righe aggiornano l'anagrafica. A
    * differenza del costo **non c'è un effetto “sempre”**: il prezzo non è un

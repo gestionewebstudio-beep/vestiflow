@@ -356,8 +356,10 @@ costo solo documentale, e stava riscrivendo il **costo effettivo di ogni variant
 — quello che alimenta valorizzazione e margini.
 
 **Etichetta e nome del flag sono stati corretti insieme al comportamento**, perché erano
-parte del difetto e non un contorno: l'etichetta dice ora «**Aggiorna il costo in anagrafica
-con quello inserito**», e il flag di richiesta si chiama `updateArticleCost` —
+parte del difetto e non un contorno: l'etichetta dice «**Aggiorna costo in anagrafica**»
+(accorciata il 02/09/2026 salendo in testata, dove sta su una riga sola: prima diceva «…con
+quello inserito» e andava a capo quattro volte), e il flag di richiesta si chiama
+`updateArticleCost` —
 `…ReferenceCost` nominava il `Product`, cioè l'unica cosa che questa spunta non tocca più.
 Non è una colonna: è un flag per-richiesta, quindi rinominarlo non ha richiesto migration.
 
@@ -1605,7 +1607,7 @@ Le maschere documento hanno **due colonne di prezzo diverse**, e non è la stess
 `sellingPrice` è **in sola lettura sull'Ordine fornitore** (`doc-form__cell--readonly doc-form__cell--computed`) ed **editabile sull'Arrivo merce** (`<input formControlName="sellingPrice">`).
 
 ⚠️ **Aggiornato il 16/08/2026.** Sull'Arrivo merce l'editabilità è ora **condizionata**: la
-spunta di documento **«Aggiorna prezzi articolo»**, accesa di default, decide se i prezzi
+spunta di documento **«Aggiorna prezzi in anagrafica»**, accesa di default, decide se i prezzi
 aggiornano l'anagrafica — e spenta li rende **in sola lettura**, perché il prezzo non è un
 dato della riga e un campo scrivibile senza destinazione sarebbe una bugia. Fino a quel
 giorno il valore digitato per un articolo **esistente** non partiva affatto.

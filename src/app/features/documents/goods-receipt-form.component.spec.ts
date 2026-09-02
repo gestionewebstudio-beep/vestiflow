@@ -574,21 +574,39 @@ describe('GoodsReceiptFormComponent', () => {
    * Comandi che l'API nega: non devono nemmeno comparire. Un pulsante che
    * risponde 403 al primo clic è peggio di un pulsante assente.
    */
-  // ── L'area note comune, con le due spunte proiettate ──────────────────────
+  // ── L'area note comune, e le due spunte dell'anagrafica ───────────────────
   //
-  // ⭐ E' la FALSIFICAZIONE del contratto: il Trasferimento prova i due campi,
-  // questa maschera prova che il componente ospiti quello che il documento ci
-  // aggiunge — due spunte di dominio suo, «aggiorna il costo in anagrafica» e
-  // «aggiorna i prezzi» — senza saperne niente.
+  // ⛔ Qui il test provava che le spunte PROIETTATE dentro `app-document-notes`
+  // convivessero coi due campi comuni. Dal 02/09/2026 non sono più proiettate:
+  // stanno in testata, perché «Aggiorna prezzi» abilita i campi prezzo delle
+  // righe e va decisa PRIMA di compilarle.
+  //
+  // ⚠️ Le due asserzioni restano separate perché provano cose diverse: i campi
+  // note sono il contratto del componente comune, le spunte sono dominio di
+  // questa maschera. Confonderle era ciò che rendeva il test fragile.
   describe('area note', () => {
-    it('⭐ i due campi comuni e le DUE SPUNTE convivono', async () => {
+    it('i due campi comuni della nota ci sono', async () => {
       await setup();
 
       expect(screen.getByLabelText('Note documento', { selector: 'textarea' })).toBeTruthy();
       expect(screen.getByLabelText('Commento interno', { selector: 'textarea' })).toBeTruthy();
-      // ⚠️ Se la proiezione si rompesse, i due campi ci sarebbero lo stesso e le
-      // spunte sparirebbero in silenzio: sono l'unica cosa che le vede.
-      expect(screen.getByText(/Aggiorna il costo in anagrafica/)).toBeTruthy();
+    });
+
+    // ⭐ Le spunte esistono UNA volta sola: se la testata tornasse a scriversi
+    // due volte (desktop + mobile nel DOM), `getByLabelText` singolare fallisce.
+    it('⭐ le due spunte dell’anagrafica stanno in testata, non nel piede', async () => {
+      await setup();
+
+      const costo = screen.getByLabelText('Aggiorna costo in anagrafica');
+      const prezzi = screen.getByLabelText('Aggiorna prezzi in anagrafica');
+      expect(costo).toBeVisible();
+      expect(prezzi).toBeVisible();
+
+      // La prova della POSIZIONE: stanno dentro la testata, non nella banda
+      // finale. Senza questa riga il test resterebbe verde se tornassero giù.
+      expect(costo.closest('.doc-form__header')).not.toBeNull();
+      expect(costo.closest('.doc-form__footer-notes')).toBeNull();
+      expect(prezzi.closest('.doc-form__header')).not.toBeNull();
     });
   });
 

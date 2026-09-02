@@ -204,6 +204,34 @@ app-customer-order-form {
   gap: var(--space-1);
 }
 
+// ⭐ **Una fascia di testata è larga quanto la card che la contiene** _(02/09/2026)_.
+//
+// ⚠️ `display: block` non è pleonastico: un componente Angular senza `display`
+// dichiarato ha l'host **inline**, e un elemento inline ignora `inline-size`.
+// `app-document-header` non ha foglio proprio — è tutto template inline — quindi
+// il suo host non l'ha mai avuto. Sono **29 su 77** i componenti condivisi nella
+// stessa condizione (censiti il 02/09/2026): per quelli che rendono struttura è
+// una mina che esplode solo in certe combinazioni.
+//
+// ⛔ **Queste due regole NON sono la correzione della fascia stretta**, e va
+// detto perché il commento che stava qui lo affermava — sbagliando. Il difetto
+// dell'Arrivo merce («Dati del documento ricevuto» largo 336px su 1041) non era
+// un mancato stiramento: era che `.doc-form__grid` da `md` in su ha **tre
+// colonne** (`repeat(3, minmax(0, 1fr))`, riga ~427) e la fascia ne occupava
+// **una**. Su un grid item `inline-size: 100%` vale il 100% *della sua colonna*:
+// è il motivo per cui tre tentativi di fila hanno mancato il bersaglio.
+//
+// ⭐ La correzione vera è `grid-column: 1 / -1`, e sta nel componente che rende
+// la fascia (`document-counterparty-ref`), dove c'è la misura completa.
+.doc-form__header > app-document-header {
+  display: block;
+  inline-size: 100%;
+}
+
+.doc-form__header .doc-form__grid--header {
+  inline-size: 100%;
+}
+
 // Testata a CELLE UNITE (v4, dal riferimento): griglia con bordi interni,
 // label piccola sopra, input nudo dentro la cella; il focus tinge la cella
 // e accende una linea accento sul bordo inferiore.
