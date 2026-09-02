@@ -889,10 +889,15 @@ Alla **conferma** dell'arrivo merce (o carico manuale/iniziale) VestiFlow regist
 In fondo alla testata trovi **due spunte**, tutte e due accese di default. Fanno cose diverse,
 e vale la pena saperlo:
 
-| Spunta                                                  | Cosa decide                                                |
-| ------------------------------------------------------- | ---------------------------------------------------------- |
-| **Aggiorna il costo in anagrafica con quello inserito** | se il costo che digiti diventa il costo dell'**articolo**  |
-| **Aggiorna prezzi articolo**                            | se i prezzi che scrivi sulle righe aggiornano l'anagrafica |
+| Spunta                            | Cosa decide                                                |
+| --------------------------------- | ---------------------------------------------------------- |
+| **Aggiorna costo in anagrafica**  | se il costo che digiti diventa il costo dell'**articolo**  |
+| **Aggiorna prezzi in anagrafica** | se i prezzi che scrivi sulle righe aggiornano l'anagrafica |
+
+⭐ **Le trovi accanto a «Seguirà registrazione fattura»**, nella fascia dei dati del
+documento ricevuto — spostate lì il 2 settembre 2026. Prima stavano in fondo alla pagina,
+sotto le note: e «Aggiorna prezzi» è proprio la spunta che **rende scrivibili i campi
+prezzo delle righe**, quindi si decideva dopo aver compilato le righe che comanda.
 
 Il **costo** funziona **riga per riga**: se richiami tre taglie dello stesso articolo hai
 tre righe, e ognuna porta in anagrafica il proprio costo. Nessuna «vince» sulle altre.
