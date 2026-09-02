@@ -257,14 +257,28 @@ describe('SalesDocumentFormComponent', () => {
     return { createDocument, updateDocument, toast, component: view.fixture.componentInstance };
   }
 
-  /** Cliente + una riga valida: il minimo che il salvataggio pretende. */
+  /**
+   * Cliente e sede: la testata che le righe pretendono per mostrarsi.
+   *
+   * Dal 02/09/2026 le righe non esistono finché la testata è incompleta (§7,
+   * «A testata incompleta le righe non si mostrano»): al loro posto c'è uno
+   * stato vuoto. Un test che cerca un campo di riga senza passare di qui non
+   * trova niente — ed è il comportamento voluto, non un guasto del test.
+   */
+  async function apriRighe(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+    await user.click(screen.getByRole('button', { name: 'Cliente' }));
+    await user.click(screen.getByRole('option', { name: 'Mario Rossi' }));
+    await user.click(screen.getByRole('button', { name: 'Sede' }));
+    await user.click(screen.getByRole('option', { name: 'Milano' }));
+  }
+
+  /** Cliente + sede + una riga valida: il minimo che il salvataggio pretende. */
   async function fillMinimumDocument(user: ReturnType<typeof userEvent.setup>): Promise<void> {
     // ⛔ Qui si prendeva «la prima» delle due copie, perché «testata desktop e
     // pannello mobile convivono nel DOM». La testata ora si dichiara una volta
     // e le due vesti sono esclusive: la copia è una, e `getByRole` fallisce se
     // la doppia scrittura torna.
-    await user.click(screen.getByRole('button', { name: 'Cliente' }));
-    await user.click(screen.getByRole('option', { name: 'Mario Rossi' }));
+    await apriRighe(user);
     // Da 12/08/2026 la riga ha la cella nome CONDIVISA («Nome prodotto») al
     // posto della vecchia coppia tendina + colonna Descrizione.
     await user.type(screen.getAllByLabelText('Nome prodotto')[0]!, 'Maglietta');
@@ -281,12 +295,44 @@ describe('SalesDocumentFormComponent', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Salva' }));
   }
 
+  // ── Testata incompleta: le righe non ci sono ──────────────────────────────
+  //
+  // §7, «A testata incompleta le righe non si mostrano»: finché mancano i campi
+  // che le governano — qui cliente e sede — al posto della tabella c'è uno stato
+  // vuoto che dice COSA manca. Non si spegne e non si sbiadisce: non c'è.
+  //
+  // Vale su tutti e quattro i tipi di questa maschera (Proforma, Fattura,
+  // Fattura accompagnatoria, Nota di credito), che condividono la testata.
+  it('nasconde le righe finché cliente e sede non sono scelti', async () => {
+    const user = userEvent.setup();
+    await setup();
+
+    // Lo stato vuoto NOMINA i due campi che tengono ferme le righe: un titolo
+    // generico costringerebbe a cercarli a occhio nella testata.
+    expect(screen.getByText('Scegli il cliente e la sede')).toBeVisible();
+    expect(screen.queryByLabelText('Prezzo riga 1')).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Cliente' }));
+    await user.click(screen.getByRole('option', { name: 'Mario Rossi' }));
+
+    // Un campo solo non basta: lo stato vuoto resta e nomina quello che manca.
+    expect(screen.queryByLabelText('Prezzo riga 1')).toBeNull();
+    expect(screen.getByText('Scegli la sede')).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Sede' }));
+    await user.click(screen.getByRole('option', { name: 'Milano' }));
+
+    expect(screen.getByLabelText('Prezzo riga 1')).toBeVisible();
+    expect(screen.queryByText(/Scegli il cliente|Scegli la sede/)).toBeNull();
+  });
+
   // Regressione: i totali stimati sono un computed che legge valori dai
   // FormControl (non signal). Devono aggiornarsi digitando il prezzo di riga,
   // non restare congelati sul valore iniziale (€ 0,00).
   it('aggiorna il totale stimato quando cambia il prezzo di riga', async () => {
     const user = userEvent.setup();
     await setup();
+    await apriRighe(user);
 
     expect(screen.queryByText(/12,20/)).toBeNull();
 
@@ -308,6 +354,7 @@ describe('SalesDocumentFormComponent', () => {
   it('il totale torna al prezzo ivato digitato, coda decimale compresa', async () => {
     const user = userEvent.setup();
     await setup({ pricesIncludeVat: true });
+    await apriRighe(user);
 
     const priceInput = screen.getByLabelText('Prezzo riga 1');
     await user.clear(priceInput);
@@ -326,6 +373,7 @@ describe('SalesDocumentFormComponent', () => {
   it('in modalità ivata i totali si calcolano dal netto scorporato', async () => {
     const user = userEvent.setup();
     await setup({ pricesIncludeVat: true });
+    await apriRighe(user);
 
     const priceInput = screen.getByLabelText('Prezzo riga 1');
     await user.clear(priceInput);

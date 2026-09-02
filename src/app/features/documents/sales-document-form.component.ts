@@ -502,7 +502,23 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
 
   protected readonly form = this.fb.group({
     customerId: this.fb.control('', { validators: [Validators.required] }),
-    locationId: this.fb.control(''),
+    /*
+      ⭐ **OBBLIGATORIA come il cliente** — proprietario, 02/09/2026: «anche
+      fattura, fattura accompagnatoria e nota di credito devono avere i campi
+      obbligatori di clienti e location». Vale per tutti e QUATTRO i tipi che
+      questa maschera ospita, Proforma compresa: una regola sola, nessuna
+      eccezione da ricordare.
+
+      ⚠️ **Non intralcia il caso normale**: `prefillDefaultLocation` (più sotto)
+      riempie la sede predefinita da sé su un documento nuovo. Il campo si fa
+      sentire solo dove quella sede non c'è — ed è proprio il caso in cui
+      salvare senza sarebbe un documento senza sede.
+
+      ⚠️ **Nel database resta facoltativa** (`Document.locationId String?`): il
+      vincolo è della maschera, come sull'Ordine cliente — «la testata è il
+      minimo salvabile».
+    */
+    locationId: this.fb.control('', { validators: [Validators.required] }),
     documentDate: this.fb.control(new Date().toISOString().slice(0, 10), {
       validators: [Validators.required],
     }),
@@ -555,6 +571,65 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
   private readonly formValue = toSignal(this.form.valueChanges, {
     initialValue: this.form.getRawValue(),
   });
+
+  /**
+   * ⭐ **A TESTATA INCOMPLETA LE RIGHE NON SI MOSTRANO** — deciso dal
+   * proprietario il 02/09/2026, allineando questa maschera alle altre.
+   *
+   * `regole-stile-ui` lo prescrive da tempo — «finché mancano i campi
+   * obbligatori che le governano, al posto della tabella c'è uno stato vuoto
+   * che dice **cosa manca**» — e Ordine cliente e Arrivo merce lo fanno già.
+   * Questi quattro tipi erano gli unici a non seguirlo.
+   *
+   * ⛔ **Non si spegne e non si sbiadisce**: una tabella intera a metà tinta
+   * occupa mezzo schermo per non poter essere usata. Se una cosa non è
+   * utilizzabile non si veste di grigio — non c'è.
+   *
+   * ⚠️ **Non vale in sola lettura**: su un documento confermato la testata è
+   * quella che è, e nascondere le righe toglierebbe proprio ciò che si è venuti
+   * a leggere.
+   */
+  protected readonly headerGateActive = computed(() => {
+    if (this.formReadOnly()) {
+      return false;
+    }
+    /*
+      ⛔ **Il cancello vale solo sui documenti NUOVI**, e non è un dettaglio.
+
+      Fino a oggi la sede era facoltativa qui: **esistono fatture salvate senza**.
+      Senza questa riga, aprirne una in modifica farebbe sparire le sue righe —
+      un documento che si è sempre potuto modificare diventerebbe illeggibile per
+      una regola introdotta dopo che era stato scritto.
+
+      ⚠️ Il campo resta obbligatorio per SALVARE: chi riapre quella fattura deve
+      scegliere una sede prima di risalvarla, ma vede cosa sta modificando.
+    */
+    if (this.isEditMode()) {
+      return false;
+    }
+    this.formValue();
+    return !this.form.controls.customerId.value || !this.form.controls.locationId.value;
+  });
+
+  /** Dice **cosa** manca, non che manca qualcosa. */
+  protected readonly linesEmptyTitle = computed(() => {
+    this.formValue();
+    if (!this.headerGateActive()) {
+      return 'Nessuna riga inserita';
+    }
+    const senzaCliente = !this.form.controls.customerId.value;
+    const senzaSede = !this.form.controls.locationId.value;
+    if (senzaCliente && senzaSede) {
+      return 'Scegli il cliente e la sede';
+    }
+    return senzaCliente ? 'Scegli il cliente' : 'Scegli la sede';
+  });
+
+  protected readonly linesEmptyDescription = computed(() =>
+    this.headerGateActive()
+      ? 'Le righe si aggiungono dopo: da qui potrai cercare un articolo o includere un altro documento.'
+      : 'Cerca un articolo o includi un altro documento.',
+  );
 
   /**
    * «L'operatore ha toccato il numero?» in forma reattiva. Lo stato vero resta

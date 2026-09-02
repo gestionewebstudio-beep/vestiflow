@@ -371,8 +371,25 @@
             <p class="doc-form__submit-error" role="alert">{{ blockingIssue }}</p>
           }
 
-          <!-- Desktop: righe in tabella, come le altre maschere. -->
-          @if (!compactView()) {
+          <!--
+            ⭐ **A TESTATA INCOMPLETA LE RIGHE NON CI SONO** — deciso dal
+            proprietario il 02/09/2026: cliente e sede obbligatori su tutti e
+            quattro i tipi di questa maschera.
+
+            `regole-stile-ui` lo prescriveva già — «al posto della tabella c'è
+            uno stato vuoto che dice **cosa manca**» — e Ordine cliente e Arrivo
+            merce lo fanno da tempo: questi quattro erano gli unici fuori.
+
+            ⛔ **Non si spegne e non si sbiadisce**: una tabella intera a metà
+            tinta occupa mezzo schermo per non poter essere usata.
+          -->
+          @if (headerGateActive()) {
+            <app-empty-state
+              icon="pi-user-edit"
+              [title]="linesEmptyTitle()"
+              [description]="linesEmptyDescription()"
+            />
+          } @else if (!compactView()) {
             <div class="doc-form__table-wrap">
               <table class="doc-form__table">
                 <thead>
@@ -459,7 +476,16 @@
             esisterebbe due volte e il giro del fuoco punterebbe a campi
             nascosti.
           -->
-          @if (compactView()) {
+          <!--
+            ⚠️ **`&& !headerGateActive()`, e serve.** Questo è un `@if` a sé, non
+            l'`@else` della tabella qui sopra: senza la seconda condizione, su
+            schermo compatto lo stato vuoto e le card comparirebbero **insieme**
+            — «Scegli il cliente e la sede» sopra una griglia di righe.
+
+            ⛔ È la stessa trappola che il commento qui sopra descrive per la
+            coppia tabella/card: due rami che sembrano alternativi e non lo sono.
+          -->
+          @if (compactView() && !headerGateActive()) {
             <div class="doc-form__cards" formArrayName="lines">
               @for (line of lines.controls; track line; let i = $index) {
                 @if (lineIsReference(i)) {
