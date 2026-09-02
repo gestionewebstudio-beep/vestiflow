@@ -43,7 +43,6 @@ const PERIMETRO = [
   'src/app/domain/documents/components/document-line-head',
   'src/app/domain/documents/components/document-line-quick-row',
   'src/app/domain/documents/components/document-line-code-cell',
-  'src/app/domain/documents/components/document-line-money-cell',
   'src/app/domain/documents/components/document-line-product-cell',
   'src/app/domain/documents/components/document-line-select-cell',
   'src/app/domain/documents/components/document-line-unit-cell',
