@@ -2,6 +2,56 @@
 
 @include lp.list-page('inventory-count-list');
 
+/*
+  ⭐ **L'ANELLO CHE PASSA L'ALTEZZA AL TELAIO** — segnalato dal proprietario il
+  02/09/2026 guardando questa pagina: «ha il contenitore delle righe che si
+  visualizza in modo diverso dagli altri e dovrebbe essere unito se puo».
+
+  ⛔ **`lp.list-page()` emette `:host { display: block }`**, e su un host che non
+  è flessibile la catena di altezze si ferma: il telaio dentro non ha da chi
+  ricevere l'altezza, la zona dati resta alta quanto le righe, e la riga totali
+  si posa sotto l'ultima invece di stare in fondo al contenitore.
+
+  Misurato in un browser vero, sulla stessa catena shell → pagina → telaio →
+  zona dati:
+
+  ```text
+  :host display: block    zona dati   92px    ⛔ alta quanto il contenuto
+  :host display: flex     zona dati  360px    ✅ prende lo spazio disponibile
+  ```
+
+  ⚠️ **Era l'UNICA pagina elenco senza**, misurato lo stesso giorno: delle dodici
+  che usano il telaio, otto passano da `lp.list-page-fills-viewport` e tre lo
+  scrivono a mano. Questa non aveva né l'uno né l'altro.
+
+  ⛔ **Non si usa il mixin, si scrive l'anello** — è la forma di `supplier-list`,
+  e la ragione è nel suo commento: col telaio, `list-page-fills-viewport`
+  aggiunge regole su `.blocco > *` che ora colpiscono le zone del telaio invece
+  del contenuto. Serve solo l'anello.
+
+  ⚠️ **Il pavimento è DUE, uno per asse**: senza `min-inline-size: 0` un
+  elemento flessibile non si stringe sotto la larghezza del proprio contenuto, e
+  una tabella larga spinge la pagina oltre il bordo.
+*/
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+
+/*
+  ⚠️ **La tabella proiettata deve riempire l'area dati, e lo dice QUESTA pagina.**
+  Il telaio non può stilarla: le sue regole portano il proprio attributo di
+  incapsulamento, che il contenuto proiettato non ha.
+*/
+app-inventory-count-table {
+  flex: 1;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+
 // L'introduzione resta entro la larghezza di lettura dei contenuti ampi.
 .inventory-count-list__subtitle {
   max-inline-size: var(--content-wide);
