@@ -50,10 +50,37 @@ describe('coerenza delle colonne riga documento', () => {
    * aggiunge solo registrando una divergenza che esisteva già, con la data.
    */
   const DIVERGENZE_NOTE: Readonly<Record<string, readonly string[]>> = {
-    // «Articolo» al banco, «Nome prodotto» negli altri quattro.
+    /*
+      ⛔ **`product` · label — e la divergenza NON è dove sembrava.**
+
+      «Articolo» al banco, «Nome prodotto» negli altri cinque. Il 02/09/2026 si
+      stava per allineare a «Articolo», sulla premessa che la testata condivisa
+      avesse già la forma canonica. **La premessa è falsa, e va scritta perché
+      il prossimo non ci ricaschi**: `document-line-head` dà a questa colonna
+      DUE etichette diverse, nella stessa testata —
+
+      ```text
+      colonna ordinabile      <button>  «Nome prodotto»   (riga 140)
+      colonna non ordinabile  <span>    «Articolo»        (riga 151)
+      ```
+
+      ⚠️ Quindi la forma canonica **non esiste ancora**: la testata diverge da
+      sé, e allineare i cataloghi all'una o all'altra sceglierebbe per il
+      proprietario invece di chiedergli. Prima si decide che parola porta quella
+      colonna, poi si allineano sei cataloghi e due rami della testata.
+
+      ⭐ **`quantity` invece è stata DECISA e allineata** lo stesso giorno: lì la
+      testata ha una forma sola — `<span title="Quantità">Q.tà</span>` — e i
+      cataloghi che dicevano «Qtà» e «Quantità» sono passati a «Q.tà». Il
+      difetto era visibile: si accendeva «Quantità» nel selettore Colonne e sulla
+      colonna si trovava «Q.tà».
+
+      Le larghezze restano dichiarate qui, e non è una resa: `product` va da 240
+      a 300px perché sul Movimento — senza prezzo, sconto e IVA — quella riga ha
+      spazio da dare al nome. Non è divergenza, è adattamento.
+    */
     product: ['label', 'defaultWidthPx'],
-    // «Qtà» sul documento di vendita, «Quantità» sui movimenti, «Q.tà» altrove.
-    quantity: ['label', 'defaultWidthPx', 'minWidthPx'],
+    quantity: ['defaultWidthPx', 'minWidthPx'],
     // ⭐ `label` e `numeric` sono usciti da qui il 22/08/2026, DECISI dal
     // proprietario: etichetta canonica «IVA», e `numeric: false` ovunque —
     // il Codice IVA è alfanumerico (`22`, `22r`, `10sp`), e digitare cifre per

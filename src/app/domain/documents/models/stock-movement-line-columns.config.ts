@@ -28,7 +28,7 @@ export const STOCK_MOVEMENT_LINE_COLUMNS: readonly TableColumnDef[] = [
   // Larga meno del nome perché contiene i soli VALORI delle opzioni, non i
   // loro nomi: «M / Rosso», non «Taglia: M / Colore: Rosso».
   { id: 'variantLabel', label: 'Variante', defaultWidthPx: 130, minWidthPx: 80 },
-  { id: 'quantity', label: 'Quantità', numeric: true, defaultWidthPx: 80, minWidthPx: 56 },
+  { id: 'quantity', label: 'Q.tà', numeric: true, defaultWidthPx: 80, minWidthPx: 56 },
   // I seriali sono l'eccezione, non la regola: la colonna c'è per chi tratta
   // merce serializzata, ma non deve mangiarsi la riga di chi non la tratta.
   { id: 'serials', label: 'Seriali', defaultWidthPx: 150, minWidthPx: 90 },

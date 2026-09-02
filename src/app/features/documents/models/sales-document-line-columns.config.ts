@@ -37,7 +37,7 @@ export const SALES_DOCUMENT_LINE_COLUMNS: readonly TableColumnDef[] = [
   // questa maschera non aveva né il controllo né la colonna. Era l'unica
   // delle quattro senza.
   { id: 'unitOfMeasure', label: 'U.m.', defaultWidthPx: 60, minWidthPx: 48 },
-  { id: 'quantity', label: 'Qtà', numeric: true, defaultWidthPx: 72, minWidthPx: 52 },
+  { id: 'quantity', label: 'Q.tà', numeric: true, defaultWidthPx: 72, minWidthPx: 52 },
   { id: 'unitPrice', label: 'Prezzo', numeric: true, defaultWidthPx: 104, minWidthPx: 72 },
   { id: 'discount', label: 'Sconto', numeric: true, defaultWidthPx: 84, minWidthPx: 60 },
   { id: 'vat', label: 'IVA', defaultWidthPx: 120, minWidthPx: 84 },
