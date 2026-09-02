@@ -52,8 +52,13 @@
     flex: 0.55 1 15rem;
     min-inline-size: 0;
     align-content: start;
-    // Nella banda sticky i campi note si affiancano per contenere l'altezza
-    // (Arrivo merce ne ha due: note + commento interno; l'ordine cliente uno).
+    // Nella banda sticky i campi note si affiancano per contenere l'altezza.
+    //
+    // ⛔ Qui c'era «Arrivo merce ne ha due: note + commento interno; l'ordine
+    // cliente uno». **Misurato il 02/09/2026: le hanno tutte e sei** — arrivo
+    // merce, registrazione fattura, fatture, movimento, trasferimento e ordine
+    // cliente passano tutte `internalId`. Il ramo a un campo solo non lo
+    // percorre più nessuno.
     grid-template-columns: repeat(auto-fit, minmax(var(--space-24), 1fr));
     gap: var(--space-2) var(--space-3);
   }
@@ -87,14 +92,24 @@
     flex: 1 1 auto;
   }
 
-  // Con più campi le caselle sono GEMELLE: stessa altezza (più generosa del
-  // tetto standard) e ancorate al fondo della riga — con label di altezza
-  // diversa si allineano sia i bordi superiori che quelli inferiori, e il
-  // pannello cresce quanto serve.
+  // Le caselle sono GEMELLE: stessa altezza e ancorate al fondo della riga —
+  // con label di altezza diversa si allineano sia i bordi superiori che quelli
+  // inferiori.
+  //
+  // ⛔ **Erano 96px (`--space-24`), «più generose del tetto standard».** Due
+  // difetti in una riga, corretti il 02/09/2026:
+  //
+  // 1. `regole-stile-ui` §7 dichiara «textarea min-height ~44px, **max ~90px**»:
+  //    96 sforava il tetto della regola, e nessun controllo lo vedeva.
+  // 2. La stessa textarea ha già `min-height: calc(var(--space-8) * 2)` (64px)
+  //    in `_document-form.scss`: due altezze per lo stesso elemento, e quella
+  //    che vinceva era la più alta. Ora è una sola.
+  //
+  // ⭐ Il piede scende di 32px e li prende il contenitore righe, che è dove
+  //    l'operatore lavora — richiesta del proprietario, 02/09/2026.
   .doc-form__footer-notes:has(> .doc-form__field:nth-of-type(2)) .doc-form__textarea {
     flex: 0 0 auto;
     margin-block-start: auto;
-    min-block-size: var(--space-24);
     max-block-size: none;
   }
 
