@@ -82,6 +82,10 @@ function preferenzeFinte() {
     togglePin: vi.fn(),
     applyPreset: vi.fn(),
     resetToDefault: vi.fn(),
+    // Le larghezze si conservano (`14` §22.3): il motore le chiede al servizio.
+    // Qui non si salva niente, e ogni colonna resta al proprio ripiego.
+    columnWidth: vi.fn((_vista: unknown, _colonna: string, ripiego: number) => ripiego),
+    setColumnWidths: vi.fn(),
   };
 }
 

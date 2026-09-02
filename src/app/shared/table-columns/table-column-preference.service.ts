@@ -203,13 +203,35 @@ export class TableColumnPreferenceService {
       return;
     }
     const fallback = createDefaultViewState(defs, presets);
+    /*
+      ⛔ **QUI LE LARGHEZZE SPARIVANO AL RICARICAMENTO.** Visto a schermo il
+      01/09/2026, un minuto dopo aver acceso la persistenza: «la larghezza
+      rimane ma se ricarico la pagina con f5, sparisce».
+
+      A cancellarle non era la scrittura — `localStorage` aveva i valori giusti
+      — ma questa riga: il ripiego erano le larghezze **di serie**, cioè `{}`,
+      invece di quelle già caricate dal locale. E `{}` non è nullish, quindi
+      uno stato remoto vuoto vinceva e azzerava.
+
+      ⚠️ **Basta uno stato salvato sul server PRIMA che le larghezze
+      esistessero**, e ce l'ha ogni utente che abbia mai toccato il selettore
+      Colonne: quello stato non porta `columnWidths`, il parser risponde `{}`,
+      e il locale viene buttato via a ogni F5.
+
+      ⭐ **Larghezze remote vuote non sono una scelta di azzerare**: sono un
+      server che di larghezze non sa ancora niente. Quelle che il server porta
+      davvero continuano a vincere — è la sua ultima parola, e arriva dagli
+      altri dispositivi dello stesso utente.
+    */
+    const larghezzeRemote = remote.columnWidths ?? {};
+    const correnti = this.states.get(viewId)?.().columnWidths ?? fallback.columnWidths;
     const merged: TableViewState = reconcileStateWithDefs(
       {
         presetId: remote.presetId ?? PresetId.Default,
         columnOrder: remote.columnOrder?.length ? remote.columnOrder : fallback.columnOrder,
         hiddenColumnIds: remote.hiddenColumnIds ?? [],
         pinnedColumnIds: remote.pinnedColumnIds ?? [],
-        columnWidths: remote.columnWidths ?? fallback.columnWidths,
+        columnWidths: Object.keys(larghezzeRemote).length > 0 ? larghezzeRemote : correnti,
       },
       defs,
     );

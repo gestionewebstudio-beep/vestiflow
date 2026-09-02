@@ -4,6 +4,7 @@ import { render, screen } from '@testing-library/angular';
 import { describe, expect, it } from 'vitest';
 
 import { ColumnFilterStore } from '@shared/table-columns/column-filter.store';
+import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { TableViewId } from '@shared/table-columns/table-column.model';
 import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
 
@@ -54,6 +55,25 @@ const SEZIONI: readonly DataTableSection<Riga>[] = [
   },
 ];
 
+/**
+ * ⚠️ **Il motore risolve le preferenze colonne solo se ha un `viewId`**, e
+ * queste prove ce l'hanno. Il servizio vero tira dietro `AuthService` e il
+ * client HTTP — `AUTH_GATEWAY`, `APP_CONFIG` —, che con i filtri non c'entrano
+ * niente: qui basta un doppio che dica le larghezze di ripiego e non salvi
+ * nulla.
+ */
+const PROVIDER_MINIMI = {
+  providers: [
+    {
+      provide: TableColumnPreferenceService,
+      useValue: {
+        columnWidth: (_vista: TableViewId, _colonna: string, ripiego: number) => ripiego,
+        setColumnWidths: () => undefined,
+      },
+    },
+  ],
+};
+
 @Component({
   imports: [DataTableComponent],
   template: `
@@ -82,7 +102,7 @@ class OspiteComponent {
  * deciderebbe l'esito — il difetto più difficile da leggere in un test rosso.
  */
 async function apriConFiltriAccesi(accesi: boolean) {
-  const reso = await render(OspiteComponent);
+  const reso = await render(OspiteComponent, PROVIDER_MINIMI);
   const store = TestBed.inject(ColumnFilterStore);
   store.azzera(VISTA);
   store.registraOpzioni(VISTA, (columnId) =>
@@ -262,7 +282,7 @@ describe('zero righe per i filtri', () => {
     vicolo cieco.
   */
   it('⛔ con un filtro attivo la tabella spiega perché è vuota', async () => {
-    const reso = await render(VuotaComponent);
+    const reso = await render(VuotaComponent, PROVIDER_MINIMI);
     const store = TestBed.inject(ColumnFilterStore);
     store.imposta(VISTA, { columnId: 'stato', value: { kind: 'values', values: ['Bozza'] } });
     reso.fixture.detectChanges();
@@ -278,7 +298,7 @@ describe('zero righe per i filtri', () => {
     annuncerebbe altrimenti una causa che non è la sua.
   */
   it('⚠️ senza filtri attivi non dichiara una causa che non c’è', async () => {
-    const reso = await render(VuotaComponent);
+    const reso = await render(VuotaComponent, PROVIDER_MINIMI);
     TestBed.inject(ColumnFilterStore).azzera(VISTA);
     reso.fixture.detectChanges();
 

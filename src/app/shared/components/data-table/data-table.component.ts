@@ -5,7 +5,9 @@ import {
   contentChild,
   contentChildren,
   effect,
+  ElementRef,
   inject,
+  Injector,
   input,
   output,
   signal,
@@ -16,7 +18,9 @@ import { ColumnFilterComponent } from '@shared/components/column-filter/column-f
 import { SelectionCheckComponent } from '@shared/components/selection-check/selection-check.component';
 import { TableColumnResizeDirective } from '@shared/directives/table-column-resize.directive';
 import type { SelectionMode } from '@shared/models/list-selection.model';
+import { redistributeColumnWidths } from '@shared/table-columns/column-width-distribution.util';
 import { resolveColumnFilterKind } from '@shared/table-columns/table-column-filter.util';
+import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { ColumnFilterStore } from '@shared/table-columns/column-filter.store';
 import { countActiveColumnFilters } from '@shared/table-columns/column-filter.model';
 import type { ColumnFilterValue } from '@shared/table-columns/column-filter.model';
@@ -66,13 +70,32 @@ export interface DataTableResizeEvent {
  * sembra giusto e non lo è. Il motore emette `sortChange`; la pagina lo applica
  * alla query.
  *
- * ⚠️ **Ordinamento e larghezze non si conservano** (`14` §G1): alla riapertura
- * si torna al predefinito. Il motore non tocca nessuna preferenza.
+ * ⚠️ **L'ordinamento non si conserva** (`14` §G1): alla riapertura si torna al
+ * predefinito.
+ *
+ * ⭐ **Le larghezze invece SÌ, dal 01/09/2026** — deciso dal proprietario. Vanno
+ * per utente e per vista sulla stessa strada di visibilità e aggancio
+ * (`TableColumnPreferenceService`: localStorage più sincronizzazione col
+ * server), e il motore le legge col proprio `viewId` — lo stesso pattern con
+ * cui legge già i filtri di colonna. Senza `viewId` restano in memoria, come
+ * prima.
  */
 /**
  * Le larghezze di ripiego quando la colonna non ne dichiara una: vedi
  * `widthOf`. Sono in px come `defaultWidthPx`, che è il campo che
  * sostituiscono quando manca.
+ *
+ * ⭐ **Sono un punto di partenza, non una misura da tarare** — proprietario,
+ * 01/09/2026: «basta dare una larghezza ipotizzata minima in base al tipo di
+ * contenuto e poi l'operatore se la gestisce». Da quando la larghezza si
+ * conserva, nessuno deve andare a misurare colonna per colonna in undici
+ * modelli: la prima regolazione dell'operatore resta.
+ *
+ * ⛔ **Non si fondono con `minWidthPx`, che è un'altra cosa.** Questi sono
+ * PESI (contano i rapporti fra colonne); il minimo è una misura in PIXEL RESI,
+ * e vale solo durante il trascinamento. Confonderle è il difetto misurato il
+ * 24/08/2026 su Arrivo merce — «Nome prodotto» trascinato a 886px saltava a
+ * 803px al rilascio, vedi `line-column-widths.store`.
  */
 const LARGHEZZA_NUMERICA = 92;
 const LARGHEZZA_CODICE = 128;
@@ -85,6 +108,14 @@ const LARGHEZZA_CODICE = 128;
  * che sono la colonna che si legge.
  */
 const LARGHEZZA_TESTO = 200;
+
+/**
+ * Il minimo di una colonna che non ne dichiara uno.
+ *
+ * ⚠️ È in **pixel resi**, non un peso: vale durante il trascinamento, ed è la
+ * misura sotto cui una colonna non scende a schermo.
+ */
+const LARGHEZZA_MINIMA = 48;
 
 @Component({
   selector: 'app-data-table',
@@ -347,13 +378,57 @@ export class DataTableComponent<T> {
   protected readonly hasRowCard = computed(() => this.rowCardTemplate() !== undefined);
 
   /**
-   * Larghezze richieste a mano, **solo per questa vista**.
+   * Le larghezze **durante** un trascinamento, in pixel resi.
    *
-   * ⛔ In memoria e basta: `14` §G1 dice che la larghezza non si conserva —
-   * allargare una colonna per leggere una descrizione è un aggiustamento del
-   * momento, e ritrovarla allargata la settimana dopo è rumore.
+   * ⭐ Vivono qui e non nelle preferenze finché il mouse non si alza:
+   * altrimenti ogni pixel di movimento scriverebbe su `localStorage` **e sul
+   * server**.
    */
-  private readonly widths = signal<ReadonlyMap<string, number>>(new Map());
+  private readonly bozza = signal<ReadonlyMap<string, number> | null>(null);
+
+  /**
+   * La conversione pesi → pixel resi, fissata all'INIZIO del trascinamento.
+   *
+   * ⚠️ Si fissa **una volta sola**: riconvertire a ogni movimento accumula
+   * deriva. Al rilascio serve per tornare nella scala dei pesi, così il totale
+   * salvato è quello di partenza e cambiano solo i rapporti.
+   */
+  private readonly scalaBozza = signal(1);
+
+  /**
+   * Larghezze richieste a mano quando la tabella non ha un `viewId`: il solo
+   * Registro Corrispettivi. Lì non c'è una vista registrata su cui salvare, e
+   * la regolazione resta del momento.
+   */
+  private readonly larghezzeInMemoria = signal<ReadonlyMap<string, number>>(new Map());
+
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+
+  private readonly injector = inject(Injector);
+
+  /**
+   * Le preferenze colonne, risolte **solo se questa tabella ha un `viewId`**.
+   *
+   * ⛔ **Non con `inject()` in campo, e la ragione è misurata.**
+   * `TableColumnPreferenceService` dipende da `AuthService` — gli serve
+   * l'utente e il tenant per la chiave di salvataggio — quindi iniettarlo qui
+   * farebbe esplodere con `NG0201 AUTH_GATEWAY` **ogni prova che monta una
+   * tabella**, comprese le quarantanove che con le larghezze non c'entrano
+   * niente. Un motore di presentazione condiviso non deve trascinare
+   * l'autenticazione dentro chi lo monta.
+   *
+   * ⚠️ Le tabelle senza `viewId` — oggi il solo Registro Corrispettivi — non lo
+   * risolvono mai: per loro la larghezza resta in memoria, come prima.
+   */
+  private preferenze: TableColumnPreferenceService | null = null;
+
+  private preferences(): TableColumnPreferenceService | null {
+    if (!this.viewId()) {
+      return null;
+    }
+    this.preferenze ??= this.injector.get(TableColumnPreferenceService);
+    return this.preferenze;
+  }
 
   protected readonly selectable = computed(() => this.selectionMode() !== 'none');
 
@@ -423,10 +498,29 @@ export class DataTableComponent<T> {
     varrebbe zero per cento e sparirebbe.
   */
   protected widthOf(column: ResolvedTableColumn): number {
-    const richiesta = this.widths().get(column.id) ?? column.defaultWidthPx;
-    if (richiesta !== undefined) {
-      return richiesta;
+    /*
+      La catena, dal più forte al più debole:
+
+      ```text
+      bozza di trascinamento   pixel resi, solo mentre il mouse è giù
+      preferenza salvata       il peso scelto dall'operatore, per utente e vista
+      defaultWidthPx           il peso dichiarato dal modello colonne
+      ripiego per tipo         l'ipotesi, quando il modello non dice niente
+      ```
+    */
+    const inCorso = this.bozza()?.get(column.id);
+    if (inCorso !== undefined) {
+      return inCorso;
     }
+    const ripiego = column.defaultWidthPx ?? this.ripiegoPerTipo(column);
+    const vista = this.viewId();
+    if (!vista) {
+      return this.larghezzeInMemoria().get(column.id) ?? ripiego;
+    }
+    return this.preferences()?.columnWidth(vista, column.id, ripiego) ?? ripiego;
+  }
+
+  private ripiegoPerTipo(column: ResolvedTableColumn): number {
     if (column.numeric) {
       return LARGHEZZA_NUMERICA;
     }
@@ -434,6 +528,11 @@ export class DataTableComponent<T> {
       return LARGHEZZA_CODICE;
     }
     return LARGHEZZA_TESTO;
+  }
+
+  /** Sotto questa misura la colonna non scende, nemmeno trascinando. */
+  protected minimoDi(column: ResolvedTableColumn): number {
+    return column.minWidthPx ?? LARGHEZZA_MINIMA;
   }
 
   /*
@@ -517,9 +616,116 @@ export class DataTableComponent<T> {
     this.sortChange.emit(nextSort(this.sort(), column.id));
   }
 
+  /*
+    ⛔ **QUI LA COLONNA RIMBALZAVA, e non si arrivava mai alla misura chiesta.**
+    Misurato il 01/09/2026. La maniglia era montata senza `[live]`: la direttiva
+    scriveva `width` in px sulla cella durante il trascinamento, e al rilascio
+    quel numero entrava fra le larghezze come **peso** — che `percentualeDi`
+    ridivide per un totale nel frattempo cresciuto.
+
+    ```text
+    otto colonne in un contenitore da 1200px
+    partenza                      A = 150px
+    trascino a 300px        →     A = 212px    ⛔ chiedo +150, ottengo +62
+    trascino ancora a 300   →     A = 212px    ⛔ stesso peso, stesso esito: stallo
+    ```
+
+    ⚠️ E la cascata lo confermava in un browser vero: durante il trascinamento
+    vinceva il `width` in px reso dalla direttiva (402px), al rilascio tornava a
+    vincere la percentuale (341px). Non falliva niente: si vedeva solo tirando.
+
+    ⭐ **La cura esisteva già in casa**, per le righe documento dal 24/08: la
+    maniglia in `[live]` non disegna niente da sola, e la ridistribuzione a somma
+    costante di `redistributeColumnWidths` fa cedere spazio alle altre colonne —
+    nei limiti dei loro minimi — invece di allargare la tabella.
+  */
+  protected onResizing(column: ResolvedTableColumn, widthPx: number): void {
+    const prossime = this.ridistribuisci(column, widthPx);
+    if (prossime) {
+      this.bozza.set(prossime);
+    }
+  }
+
+  /** Mouse rilasciato: la bozza diventa preferenza, in una scrittura sola. */
   protected onResize(column: ResolvedTableColumn, widthPx: number): void {
-    this.widths.update((current) => new Map(current).set(column.id, widthPx));
+    const bozza = this.bozza();
+    if (!bozza) {
+      // Solo un clic sulla maniglia, senza trascinare: niente da salvare.
+      return;
+    }
+    const finali = this.ridistribuisci(column, widthPx) ?? bozza;
+    // ⭐ Si torna nella scala dei PESI: il totale salvato resta quello di
+    // partenza e cambiano solo i rapporti, che è l'unica cosa che è cambiata.
+    const scala = this.scalaBozza();
+    this.bozza.set(null);
+    this.scalaBozza.set(1);
+    const larghezze: Record<string, number> = {};
+    for (const [id, px] of finali) {
+      larghezze[id] = Math.round(px / scala);
+    }
+    const vista = this.viewId();
+    const preferenze = this.preferences();
+    if (vista && preferenze) {
+      preferenze.setColumnWidths(vista, larghezze);
+    } else {
+      this.larghezzeInMemoria.set(new Map(Object.entries(larghezze)));
+    }
     this.columnResize.emit({ columnId: column.id, widthPx });
+  }
+
+  /**
+   * Le nuove larghezze di tutte le colonne, con `column` portata a `widthPx`.
+   *
+   * ⚠️ Il conto si fa in **pixel resi**, non nei pesi: è l'unica scala in cui
+   * il minimo per colonna significa qualcosa a schermo.
+   *
+   * ⚠️ **La scala si misura sulle celle rese, non sul contenitore.** Le colonne
+   * di servizio — casella di selezione e azioni di riga — hanno una larghezza
+   * in px propria e stanno fuori dalle quote: misurato in Chromium, con le
+   * quote a 100% il browser stringe le colonne dati per far posto a loro (600px
+   * di contenitore, tre colonne da 186 invece di 200). Prendere la larghezza del
+   * contenitore sbaglierebbe di quei pixel, e la colonna partirebbe con uno
+   * scatto.
+   *
+   * `null` quando non c'è niente da ridistribuire: tabella non ancora resa, o
+   * una colonna sola — non ha con chi scambiare spazio.
+   */
+  private ridistribuisci(
+    column: ResolvedTableColumn,
+    widthPx: number,
+  ): ReadonlyMap<string, number> | null {
+    const colonne = this.columns();
+    if (colonne.length < 2) {
+      return null;
+    }
+    const avviata = this.bozza() !== null;
+    if (!avviata) {
+      const resa = this.larghezzaResaDelleColonne();
+      const pesi = colonne.reduce((somma, col) => somma + this.widthOf(col), 0);
+      if (resa <= 0 || pesi <= 0) {
+        return null;
+      }
+      this.scalaBozza.set(resa / pesi);
+    }
+    // A bozza avviata le larghezze sono già pixel resi: riconvertirle a ogni
+    // movimento accumulerebbe deriva.
+    const scala = avviata ? 1 : this.scalaBozza();
+    const base = colonne.map((col) => ({
+      id: col.id,
+      px: this.widthOf(col) * scala,
+      minPx: this.minimoDi(col),
+    }));
+    return redistributeColumnWidths(base, column.id, widthPx);
+  }
+
+  /** Lo spazio che le colonne dati occupano davvero adesso, in pixel. */
+  private larghezzaResaDelleColonne(): number {
+    const celle = this.host.nativeElement.querySelectorAll('th.data-table__head-cell');
+    let totale = 0;
+    for (const cella of Array.from(celle)) {
+      totale += cella.getBoundingClientRect().width;
+    }
+    return totale;
   }
 
   protected canClickRow(row: T): boolean {

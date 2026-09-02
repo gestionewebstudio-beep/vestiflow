@@ -100,7 +100,9 @@
               <span
                 class="data-table__resize"
                 appTableColumnResize
-                [minWidthPx]="col.minWidthPx ?? 48"
+                [minWidthPx]="minimoDi(col)"
+                [live]="true"
+                (resizing)="onResizing(col, $event)"
                 (resized)="onResize(col, $event)"
               ></span>
             }

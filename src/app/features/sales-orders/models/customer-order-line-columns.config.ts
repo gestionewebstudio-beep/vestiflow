@@ -19,8 +19,31 @@ export const CUSTOMER_ORDER_LINE_COLUMNS: readonly TableColumnDef[] = [
   // La VARIANTE accanto al nome, non dentro: «M / Rosso». La rende la riga
   // COMUNE (`document-line-row`), quindi la vede anche la Vendita al banco.
   { id: 'variantLabel', label: 'Variante', defaultWidthPx: 120, minWidthPx: 80 },
-  // Q.tà è il campo che si digita e ospita l'avviso «disponibili solo N»:
-  // qualche pixel in più a lei, tolto alla disponibilità che mostra un numero.
+  /*
+    ⛔ **QUI C'ERA LA RAGIONE DI QUESTI 72px, ED È FALSA.** Diceva: «Q.tà è il
+    campo che si digita e ospita l'avviso "disponibili solo N": qualche pixel in
+    più a lei, tolto alla disponibilità che mostra un numero».
+
+    Descrive uno scambio di pixel realmente avvenuto — commit `5425e46c` del
+    23/07/2026, che nella stessa hunk porta Q.tà da 56 a 72 e la disponibilità da
+    76 a 62. Ma attribuisce all'avviso un bisogno di larghezza che **non è mai
+    esistito**, e tre fatti lo dimostrano:
+
+    ```text
+    lo STESSO commit fa andare a capo l'avviso   white-space: normal, overflow-wrap: anywhere
+    la tabella è table-layout: fixed             il contenuto non decide mai la larghezza
+    dal 02/09/2026 nella riga il testo NON C'È   resta il colore della cella
+    ```
+
+    ⚠️ **E la misura si è propagata per ereditarietà**: DDT vendita e Vendita
+    manuale derivano per filtro da questo catalogo, e il **Preventivo** eredita i
+    72px pur essendo l'unico documento che quell'avviso non lo mostra mai — «non
+    impegna e non blocca la disponibilità», deciso per iscritto.
+
+    ⏸ **La larghezza canonica di `quantity` resta DA DECIDERE** (sei valori su
+    sei cataloghi, vedi `document-line-columns.consistency.spec.ts`). Il punto è
+    che non va decisa guardando l'avviso: quello non chiede spazio.
+  */
   { id: 'quantity', label: 'Q.tà', numeric: true, defaultWidthPx: 72, minWidthPx: 52 },
   {
     id: 'stockAvailable',
