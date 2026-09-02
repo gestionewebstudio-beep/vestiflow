@@ -21,6 +21,714 @@ aperto adesso. Il resto del file e' arretrato di aree diverse.
 
 ---
 
+## 👁 CONTROLLI VISIVI IN SOSPESO
+
+_Aperta il 02/09/2026 su richiesta del proprietario: «ora non ho la possibilità di
+verificare, dobbiamo segnare i controlli visivi sui lavori svolti»._
+
+⛔ **Build verde, lint pulito e test verdi non dicono come una cosa si VEDE.** Le
+regressioni di layout non falliscono niente: una riga che non si ancora, una classe rimasta
+orfana, un comando che sparisce invece di spegnersi. Qui si accumula ciò che aspetta un paio
+d'occhi, e **si cancella la voce quando è stata guardata** — non prima.
+
+⚠️ **Ogni voce dice cosa deve VEDERSI**, non cosa è stato scritto: chi verifica non deve
+rileggere il codice per sapere se è giusto.
+
+| #   | Dove                                                                                    | Cosa deve vedersi                                                                                                                                                                                                                                                                            |
+| --- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **qualunque elenco**, trascinando il bordo di una colonna                               | La colonna arriva dove la si rilascia e **ci resta**; le altre cedono spazio senza che compaia una barra orizzontale. ⛔ Prima rimbalzava indietro e al secondo trascinamento **non si muoveva più**                                                                                         |
+| 2   | **qualunque elenco**, dopo aver regolato una colonna → **F5**                           | La larghezza è ancora quella. ⛔ Prima spariva a ogni ricaricamento                                                                                                                                                                                                                          |
+| 3   | Magazzino → **Inventario** (`/app/inventory/counts`)                                    | Il contenitore delle righe prende **tutta l'altezza** disponibile, e «N voci» sta **in fondo al contenitore** — non appoggiata sotto l'ultima riga col vuoto sotto                                                                                                                           |
+| 4   | Magazzino → **Inventario**                                                              | La colonna «Azioni» col cestino **non c'è più**. Selezionando una sessione **annullata**, «Elimina» in barra è attivo; selezionandone una **completata**, è spento e dice perché                                                                                                             |
+| 5   | **Dettaglio inventario** (`/app/inventory/counts/:id`)                                  | Ci sono selettore **Colonne** e pulsante **Filtri**; «Contato» è ancora un **campo dove si batte**; il Delta ha segno e colore; le righe con differenza si distinguono                                                                                                                       |
+| 6   | **Dettaglio inventario**, scansionando un articolo                                      | La sua riga **si accende per un momento** e la pagina ci scorre sopra se non è già in vista                                                                                                                                                                                                  |
+| 7   | **Ordini cliente** (`/app/sales`), scrivania **e** telefono                             | Il menu «···» **non c'è più** in nessuna delle due vesti. Con una riga selezionata, «Duplica» in barra è attivo e apre il duplicato                                                                                                                                                          |
+| 8   | **Ordini cliente**, card su telefono                                                    | Il piede della card mostra la sede senza lasciare un vuoto a destra dove stava il menu                                                                                                                                                                                                       |
+| 9   | **Ricerca giacenza** (`/app/inventory/lookup`), **da telefono**                         | Scrivendo «mag» non succede niente; alla **terza lettera** compaiono gli articoli da soli, senza premere nulla. Ogni riga ha miniatura, nome, n° taglie, disponibile e prezzo                                                                                                                |
+| 10  | **Ricerca giacenza**, toccando un articolo                                              | Si apre la griglia **taglie × sedi** al posto dei risultati, con «Torna ai risultati» in cima. Toccando un numero si aprono gli ordini che lo impegnano                                                                                                                                      |
+| 11  | **Ricerca giacenza**, scansionando un codice                                            | Se il codice porta a un solo articolo, la sua scheda si apre **da sé** senza passare dall'elenco                                                                                                                                                                                             |
+| 12  | **Ricerca giacenza**, articolo senza immagine                                           | Al posto della foto c'è l'icona segnaposto, e la riga resta **alta uguale** alle altre — l'elenco non deve ballare mentre si scorre                                                                                                                                                          |
+| 13  | **Fattura, Fatt. accompagnatoria, Nota di credito, Proforma** — documento **nuovo**     | Al posto della tabella righe c'è uno **stato vuoto** che dice «Scegli il cliente e la sede». Scelto uno solo dei due, il testo nomina **quello che manca ancora**. Scelti entrambi, compare la tabella                                                                                       |
+| 14  | Gli stessi quattro tipi, **da telefono**                                                | Lo stato vuoto compare **al posto delle card**, non insieme a esse. ⛔ Prima la vista compatta era un `@if` separato: si vedevano tutte e due                                                                                                                                                |
+| 15  | Gli stessi quattro tipi, aprendo una **fattura già salvata** priva di sede              | Le righe **ci sono**. Il blocco vale sui documenti nuovi: nasconderle su uno storico renderebbe illeggibile ciò che è già stato emesso                                                                                                                                                       |
+| 16  | **Arrivo merce** — testata                                                              | «Aggiorna costo in anagrafica» e «Aggiorna prezzi in anagrafica» stanno nella fascia **«Dati del documento ricevuto»**, accanto a «Seguirà registrazione fattura», ognuna su **una riga sola**. ⛔ Prima erano in fondo alla pagina, in una colonnina, col testo a capo su **quattro** righe |
+| 17  | **Arrivo merce** — piede                                                                | Sotto le righe restano **solo** «Note documento» e «Commento interno». La banda finale è **più bassa** di prima, e il vuoto a destra della testata si è ridotto                                                                                                                              |
+| 18  | **Tutte e sei le maschere documento** — piede                                           | Le due caselle di testo sono alte **64px** invece di 96: il piede scende di 32px e li prende il contenitore righe. Le caselle restano **gemelle** (stessa altezza, fondi allineati) e si allargano ancora trascinando l'angolo                                                               |
+| 19  | **Arrivo merce, Fatture, Movimento, Trasferimento, Ordine cliente e fornitore** — righe | Il **Tab** gira fra le celle come prima, ←/→ escono ai bordi, ↑/↓ cambiano riga e in fondo ne creano una nuova. ⚠️ È la verifica dei ponti rimossi: 340 righe tolte da sei maschere, il comportamento deve essere identico                                                                   |
+| 20  | Le stesse sei, **premendo Tab su una colonna nascosta** dal selettore Colonne           | La colonna spenta viene **scavalcata**, non riceve il fuoco. ⚠️ Era il lavoro del filtro che è sceso dentro lo store                                                                                                                                                                         |
+| 21  | **Arrivo merce** — le tre spunte in fascia                                              | Ognuna sta su **una riga di testo**, non a capo. Cliccando l'etichetta si accende la spunta (l'associazione `for`/`id` è stata rifatta a mano dopo un errore di sostituzione)                                                                                                                |
+
+---
+
+## 🔎 LE DISCREPANZE FRA LE OTTO MASCHERE — censite il 02/09/2026
+
+_Il proprietario: «a breve faremo un lavoro di ristrutturazione visiva comune, per questo
+motivo voglio che tu completi queste discrepanze che esistono nei nuovi documenti quando
+non sono giustificate da logiche che portano per forza a diversificare»._
+
+⭐ **L'Arrivo merce usa tutti e tredici i pezzi condivisi.** È il riferimento, e non per
+caso: `_document-form.scss` nasce come suo foglio, poi promosso al livello globale.
+
+```text
+                    1  2  3  4  5  6  7  8  9 10 11 12 13   scss  righe TS
+Arrivo merce        X  X  X  X  X  X  X  X  X  X  X  X  X   NO     5.641
+Registr. fattura    X  X  .  X  X  X  X  .  X  .  .  .  X   sì     1.840
+Fatture (4 tipi)    X  X  X  X  X  .  X  X  X  .  X  .  .   sì     3.597
+Movimento           X  X  X  X  X  .  X  X  X  .  X  .  X   sì     1.982
+Trasferimento       X  X  X  X  X  .  X  X  X  .  X  .  .   sì     1.991
+Ordine cliente      X  X  X  X  X  .  X  X  X  X  X  .  .   sì     5.709
+Ordine fornitore    X  .  X  X  .  .  X  X  X  .  X  .  .   sì     2.981
+Vendita al banco    X  .  X  X  .  .  X  .  X  .  .  .  .   sì     2.295
+
+1 testata · 2 note · 3 riga comune · 4 stati di pagina · 5 avviso precompilazione
+6 controparte · 7 cella testata · 8 giro del fuoco · 9 numerazione · 10 pannello prodotti
+11 ricerca per codice · 12 allegati · 13 stampa
+```
+
+### Le assenze, e quali sono giustificate
+
+| Assenza                                   | Verdetto                                                                                                                                                                                                  |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **riga comune** — Registrazione fattura   | ✅ **giustificata**: le sue righe sono CONTABILI (Importo · IVA · Descrizione), non articoli                                                                                                              |
+| **giro del fuoco** — Vendita al banco     | ✅ **giustificata**: al banco si scansiona, non si tabula fra colonne (`commitScan` su Invio)                                                                                                             |
+| **ricerca per codice** — Registr. fattura | ✅ **giustificata**: stesso motivo della riga comune                                                                                                                                                      |
+| ⏸ **area note** — Ordine fornitore        | **da decidere**: il modello `SupplierOrder` non ha le colonne. Non è un buco della maschera — è che il dominio non le prevede. Aggiungerle è una decisione di prodotto con migration, non un allineamento |
+| ⏸ **allegati** — sei maschere su otto     | li hanno solo Arrivo merce e Registrazione fattura. Da capire se è una scelta o un arretrato                                                                                                              |
+| ⏸ **stampa** — cinque su otto             | idem                                                                                                                                                                                                      |
+
+### Discrepanze già chiuse il 02/09/2026
+
+- ⭐ **Il filtro dei campi di riga** (`campoDiQuestoDocumento`) era ricopiato in **sei**
+  maschere insieme a otto metodi-ponte identici: **340 righe** che rigiravano l'evento allo
+  store del fuoco. Il filtro è sceso dentro `DocumentLineFocusStore`, che possiede già
+  l'elenco dei campi, e i template chiamano lo store direttamente.
+- ⭐ **L'elenco dei campi era scritto DUE volte per maschera** — la costante che definisce il
+  tipo, e i `fields` passati allo store. Dovevano coincidere a mano: se divergevano, il
+  filtro lasciava passare un campo che il giro non conosce, **in silenzio**. Ora la costante
+  alimenta i `fields`. L'Arrivo merce lo faceva già: la forma esisteva, non l'aveva estesa
+  nessuno.
+- ⭐ **L'altezza delle caselle note era dichiarata due volte** (64px nella base, 96px nel
+  piede) e la seconda sforava il tetto di `regole-stile-ui` §7 («max ~90px»). Ora una sola.
+
+### 🗺 QUALI SONO LE OTTO MASCHERE, e cosa apre ognuna — 02/09/2026
+
+_Il proprietario: «dimmi anche quali sono queste 8 e vediamo se devono rientrarci altri
+documenti»._
+
+> **Le otto coprono tutti i 17 tipi che hanno una maschera. Nessuno resta fuori.**
+
+Elenco autorevole: `DOCUMENT_ROW_OPENS` in `document-routing.util.ts`, che è un `Record`
+esaustivo per tipo — aggiungerne uno senza dichiararlo non compila.
+
+| Maschera                   | Tipi che apre                                                                      | N   |
+| -------------------------- | ---------------------------------------------------------------------------------- | --- |
+| `customer-order-form`      | Ordine cliente · Preventivo · DDT vendita · **Vendita manuale**                    | 4   |
+| `sales-document-form`      | Proforma · Fattura · Fatt. accompagnatoria · Nota di credito                       | 4   |
+| `goods-receipt-form`       | Arrivo merce · Carico manuale · Carico iniziale                                    | 3   |
+| `store-sale-document-form` | Vendita al banco · Reso al banco                                                   | 2   |
+| `purchase-invoice-form`    | Registrazione fattura fornitore                                                    | 1   |
+| `stock-operation-form`     | Rettifica                                                                          | 1   |
+| `transfer-form`            | Trasferimento                                                                      | 1   |
+| `supplier-order-form`      | Ordine fornitore                                                                   | 1   |
+| —                          | **Inventario fisico**: nessuna maschera, flusso proprio in `/app/inventory/counts` | 1   |
+
+⭐ **La mappa spiega le dimensioni.** `customer-order-form` ha 5.709 righe e sei fogli SCSS
+perché fa **quattro mestieri diversi**: un ordine che impegna, un preventivo che non impegna,
+un DDT che scarica, e una Vendita manuale che scavalca il motore dei movimenti. Non è
+disordine gratuito.
+
+⏸ **`stock-operation-form` (1.982 righe) e `transfer-form` (1.991) portano UN tipo ciascuna**,
+e sono due operazioni di magazzino quasi gemelle. È la discrepanza di dimensione meno
+giustificata delle otto: da guardare quando si affronta l'unificazione vera.
+
+### 🔎 CONTENITORE PAGINA e TESTATE — censiti il 02/09/2026
+
+_Il proprietario: «questo mi fa capire che probabilmente il contenitore pagina e testate
+documenti non siano condivisi o in comune; tecnicamente non so come debbano essere, ma molti
+differiscono tra loro e senza motivo»._
+
+#### ✅ Il contenitore pagina È comune — e non era questo il problema
+
+Tutte e otto aprono con `<section class="doc-form doc-form--m-ref">`. L'unica che aggiunge
+qualcosa è l'**Ordine cliente**, con `co-form`.
+
+#### ⛔ Ma il CSS proprio è distribuito in modo molto disuguale
+
+```text
+globale condiviso                        3.356 righe   _document-form (2.473)
+                                                       _document-form-mobile (620)
+                                                       _document-form-footer (263)
+
+proprio, SETTE maschere insieme            381 righe
+proprio, SOLO l'Ordine cliente           1.097 righe   ← quasi il TRIPLO delle altre sette
+```
+
+| Maschera           | Fogli | Righe     |
+| ------------------ | ----- | --------- |
+| **Ordine cliente** | **6** | **1.097** |
+| Registr. fattura   | 1     | 138       |
+| Vendita al banco   | 1     | 95        |
+| Ordine fornitore   | 1     | 65        |
+| Fatture            | 1     | 52        |
+| Movimento          | 1     | 21        |
+| Trasferimento      | 1     | 10        |
+| **Arrivo merce**   | **0** | **0**     |
+
+⚠️ **I due estremi raccontano due storie opposte.** L'Arrivo merce non ha foglio perché il
+suo è stato **promosso** a `_document-form.scss`: è il riferimento. L'Ordine cliente ne ha
+sei, e i nomi dicono che sono strati sovrapposti nel tempo — `mobile.scss`,
+`mobile-cards.scss`, `mobile-polish.scss`, `reference-mobile.scss`: **quattro fogli per la
+sola vista mobile**, di una maschera sola.
+
+⏸ **Da decidere prima della ristrutturazione**: quanto di quelle 1.097 righe è dominio
+dell'Ordine cliente e quanto è aspetto che dovrebbe stare nel livello comune. È il singolo
+blocco che più può divergere dalla ristrutturazione visiva, perché è quello che il livello
+comune non governa.
+
+#### ⛔ La testata comune è configurata in tre modi diversi
+
+`app-document-header` lo usano **tutte e otto** ✅. Ma:
+
+```text
+con [flowRow]="true"   Arrivo merce (fascia 1) · Registr. fattura · Fatture (fascia 1 e 2)
+senza                  ARRIVO MERCE (FASCIA 2) · Movimento · Trasferimento
+                       Ordine fornitore (×2) · Vendita al banco
+```
+
+⚠️ **`flowRow` decide se la fascia si distende** (flex a quote proporzionali) **o resta una
+griglia a una colonna**. Non esiste una regola che dica quando si usa: cinque maschere su
+otto non lo passano, e non è dichiarato se sia una scelta o un'omissione.
+
+⛔ **La fascia 2 dell'Arrivo merce è l'unica combinazione del suo genere in tutto il
+progetto**: un `document-counterparty-ref` in modalità fascia, dentro un `app-document-header`
+**senza** `flowRow`. Le Fatture, che pure hanno due fasce, passano `flowRow` a entrambe e non
+usano il counterparty-ref. È la combinazione che si vede rotta a schermo (fascia larga ~560px
+su 1744, celle impilate a due per riga).
+
+#### ✅ LA CAUSA, misurata in un browser vero e CORRETTA — 02/09/2026
+
+> **La fascia non era «stretta»: era un grid item in UNA colonna su TRE.**
+
+```text
+div .doc-form__grid--header   1041px   grid → 336.328px 336.328px 336.344px   ← tre colonne
+  ├ fieldset (contents)          0
+  ├ counterparty-ref (contents)  0
+  └ div .doc-form__header-row--secondary   336px   ← occupava UNA colonna
+```
+
+La causa è in `_document-form.scss` riga ~427:
+
+```scss
+@include bp.media-up('md') {
+  .doc-form__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+```
+
+⭐ **I numeri combaciano al decimale**: `(1041 − 2 × 16 di gap) / 3 = 336,3px`.
+
+⛔ **Tre tentativi di fila hanno mancato il bersaglio**, e la ragione è una sola: su un grid
+item `inline-size: 100%` vale il 100% **della sua colonna**, non del contenitore. Solo
+`grid-column` cambia quante colonne occupa. Nessuna delle tre correzioni poteva funzionare,
+e nessuna faceva fallire build, lint o i 3.212 test.
+
+⭐ **La fascia 1 non ha mai avuto il problema** perché riceve `[flowRow]`, che porta il
+contenitore a `display: flex` e rende le colonne irrilevanti.
+
+✅ **Correzione**: `grid-column: 1 / -1` nel foglio di `document-counterparty-ref`, cioè nel
+componente che rende la fascia. Vale anche per la **Registrazione fattura**, che usa lo
+stesso componente nella stessa forma. **Verificata a schermo dal proprietario.**
+
+⚠️ **La lezione, e vale oltre questo caso**: quattro letture del CSS non hanno trovato una
+causa che una misura in un browser ha dato in dieci secondi. Per un difetto di layout la
+prima mossa è misurare la catena reale, non dedurla — le regole possono essere tutte giuste
+e il risultato sbagliato lo stesso.
+
+#### ⏸ E resta il censimento: 29 componenti condivisi su 77 senza `display`
+
+`app-document-header` non dichiara il proprio `display`, quindi il suo host è `inline`. Non
+era **questa** la causa della fascia, ed è stato dichiarato comunque (`display: block`)
+perché un componente che rende struttura deve essere un blocco.
+
+Censito il 02/09/2026 su `domain/documents/components` e `shared/components`:
+
+```text
+48 dichiarano il display sull host
+29 NO   — fra cui document-header, document-header-field, document-header-group,
+          document-line-row, document-line-head, document-totals
+```
+
+⚠️ **Non tutti ne hanno bisogno**: un dialogo o un toast sono `position: fixed` e l'host
+inline non conta. Ma i sei nominati qui sopra rendono **struttura** — fasce, celle di
+testata, righe — e per loro l'host inline è una mina che esplode solo in certe combinazioni,
+come è appena successo.
+
+⏸ **Da fare prima della ristrutturazione visiva**: passarli uno a uno e dichiarare il
+display che ognuno deve avere (`block`, `contents`, o `flex`). È lavoro piccolo e a rischio
+basso, ma va fatto **guardando a schermo**: cambiare il display di un componente condiviso
+cambia come si dispone in ogni maschera che lo usa.
+
+### ⛔ LE TESTATE: sette maschere su otto non dimensionano i campi
+
+_Il proprietario: «le discrepanze che più mi preoccupano sono sul contenitore delle righe,
+sulle colonne e sulle testate»._
+
+> **`--doc-field-min` dà a una cella di testata la misura del suo dato. Lo impostava
+> l'Ordine cliente, e nessun altro.**
+
+```text
+customer-order-form    3 celle dimensionate sul dato
+le altre SETTE         0
+```
+
+La fascia legge `flex: 1 1 var(--doc-field-min, var(--field-w-md))`: senza il canale, ogni
+cella vale **176px** — una data larga quanto una ragione sociale — e la fascia **va a capo**
+prima del necessario, lasciando il vuoto a destra che il proprietario ha cerchiato
+sull'Arrivo merce.
+
+⛔ **Il meccanismo esiste dal giorno in cui la fascia è passata a flex**, e il commento nel
+foglio lo dava per risolto: «ora il minimo di un campo è la misura del suo dato, dichiarata
+dal campo stesso». Dichiarata da **una** maschera.
+
+✅ **Chiuso per l'Arrivo merce il 02/09/2026**: le tre celle di
+`document-counterparty-ref` (tipo, numero, data) si dimensionano nel proprio foglio — è il
+componente a sapere cosa contengono — e le quattro celle proiettate dalla maschera
+(Pagamento e le tre spunte) con `style`, come fa l'Ordine cliente. Il knob è ora dichiarato
+nella tabella dei punti di regolazione di `regole-stile-ui`.
+
+⏸ **Restano sei maschere**: Registrazione fattura, Fatture, Movimento, Trasferimento,
+Ordine fornitore, Vendita al banco. Ognuna va guardata a schermo dopo l'intervento — è una
+taratura visiva, non una sostituzione meccanica.
+
+### ⏸ Resta duplicato, e non è ovvio dove appartenga
+
+Tre ponti dei **suggerimenti**, ancora identici in cinque maschere:
+`onRowSuggestionNavigated`, `onProductSuggestionNavigate`, `onRowSuggestionPicked`
+(~23 righe × 4 copie). ⚠️ Non passano dallo store del fuoco: parlano al pannello
+suggerimenti, che ha uno store proprio. Vanno guardati con lo stesso criterio — «chi
+possiede il dato risponde alla domanda» — ma la risposta non è la stessa e va verificata.
+
+---
+
+## 📏 LE SETTE MASCHERE DOCUMENTO: quanto è già unificato — misurato il 02/09/2026
+
+_Il proprietario, guardando le righe di una fattura: «anche l'intera pagina di contenitore
+dei nuovi documenti potrebbe essere condivisa senza duplicati? sarebbe meglio?». E poi,
+guardando l'Arrivo merce: «ci sono documenti che sono ancora diversi e quindi sembra strano
+che sia tutto condiviso»._
+
+> **È già condivisa al 91%. Quello che resta nelle maschere non è duplicazione: è la
+> configurazione del singolo documento.**
+
+```text
+23.324 righe di TS in sette maschere
+   658 import su 721  (91%)  vengono da @domain / @shared / @core
+```
+
+| Maschera           | Righe | Import da livelli condivisi |
+| ------------------ | ----- | --------------------------- |
+| `customer-order`   | 5.777 | 124 / 133                   |
+| `goods-receipt`    | 5.686 | 119 / 135                   |
+| `sales-document`   | 3.653 | 103 / 112                   |
+| `store-sale`       | 2.294 | 80 / 86                     |
+| `transfer`         | 2.042 | 83 / 90                     |
+| `stock-operation`  | 2.033 | 82 / 90                     |
+| `purchase-invoice` | 1.839 | 67 / 75                     |
+
+### Che cosa resta duplicato, diviso per quanto costa deciderlo
+
+Misurati i membri di classe presenti in **almeno tre** maschere:
+
+```text
+157 membri condivisi da 3+ maschere
+ 51 IDENTICI parola per parola   →  ~615 righe    unificabili senza decisioni
+106 DIVERGENTI                   →  ~4.201 righe  ma quasi tutti sono CONFIGURAZIONE
+```
+
+⛔ **Il numero grosso inganna, e va letto prima di usarlo.** I «divergenti» più costosi non
+sono logica ricopiata: sono la dichiarazione di _questo_ documento, che per forza differisce.
+
+| Membro                  | ×   | Forme | ~Righe | Che cos'è davvero                                          |
+| ----------------------- | --- | ----- | ------ | ---------------------------------------------------------- |
+| `lineFocus`             | 5   | 5     | 51     | **configurazione**: campi e id di `DocumentLineFocusStore` |
+| `form`                  | 4   | 4     | 61     | **configurazione**: i campi del documento                  |
+| `numbering`             | 4   | 4     | 32     | **configurazione** di `DocumentNumberingStore`             |
+| `persist`               | 3   | 3     | 99     | logica vera, ma solo ×3                                    |
+| `constructor`           | 4   | 4     | 82     | avvio: in parte logica, in parte cablaggio                 |
+| `patchFormFromDocument` | 5   | 5     | 25     | logica vera, cinque forme distinte                         |
+
+⭐ **`DocumentLineFocusStore` è già in `domain/documents/state/`**: le cinque «forme
+divergenti» di `lineFocus` sono cinque elenchi di campi, non cinque copie di un motore. È il
+motivo per cui la misura grezza va classificata prima di essere usata come arretrato.
+
+### L'unico blocco sicuro da unificare, e perché non è stato fatto
+
+Otto metodi, **identici parola per parola in cinque maschere** — il giro del fuoco fra le
+celle di riga e la scelta dai suggerimenti:
+
+```text
+onRowSuggestionNavigated  ×5      onRowFieldKeydown   ×5      onRowLineAdvance  ×5
+onProductSuggestionNavigate ×5    onRowFieldAdvance   ×5      onRowLineRetreat  ×5
+onRowSuggestionPicked     ×5      onRowFieldRetreat   ×5
+```
+
+⚠️ **Sono PONTI, non logica**: tre-nove righe che passano dal template allo store condiviso.
+Unificarli vale **~212 righe su 23.324 (0,9%)** e richiede di toccare **cinque template**,
+perché è il template a chiamarli per nome.
+
+⏸ **Non fatto: il rapporto fra rischio e guadagno va deciso dal proprietario**, non dedotto.
+Le tre strade, se si decidesse di farlo: classe base astratta (tocca il meno possibile ma
+introduce ereditarietà dove oggi c'è composizione), un helper esposto come proprietà (il
+template chiama `righe.avanza(i, campo)`), o una direttiva sulla tabella.
+
+---
+
+## ⭐ L'AVVISO DI DISPONIBILITÀ — deciso il 02/09/2026
+
+_Il proprietario, guardando la cella Q.tà: «potremmo anche toglierlo, il testo intendo, e
+segnalare la casella col colore dell'avviso, così ad occhio capiscono della disponibilità.
+Diversamente da mobile che bisogna valutare»._
+
+> **Su SCRIVANIA l'avviso si legge dal COLORE della cella. Su MOBILE resta scritto.**
+
+⭐ **Il colore c'era già e diceva la stessa cosa**: cella con fondo ambra, input con bordo e
+testo ambra. Il testo dentro la cella era la **terza copia** dello stesso segnale, e nella
+colonna più stretta della riga andava a capo — una seconda riga di testo per ogni riga in
+eccesso, su una tabella densa.
+
+⚠️ **Il dato non si perde**, che è ciò che `regole-gestionale` chiede — «mai un valore
+leggibile solo dal colore»:
+
+|                               |                                                                                                                       |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| **col mouse**                 | il `title` sull'input dice «disponibili solo N» — c'era già                                                           |
+| **con un lettore di schermo** | uno `sr-only` nella cella                                                                                             |
+| **su mobile**                 | il testo **per esteso** nella card (`document-line-card`), dove non c'è passaggio del mouse e lo spazio verticale c'è |
+
+### ⛔ E con lui cade la ragione dei 72px
+
+Il catalogo dell'Ordine cliente diceva: «Q.tà ospita l'avviso: qualche pixel in più a lei».
+**Falso**, e per tre ragioni indipendenti:
+
+```text
+lo STESSO commit (23/07) fa andare a capo l'avviso   white-space: normal · overflow-wrap: anywhere
+la tabella è table-layout: fixed                     il contenuto non decide MAI la larghezza
+dal 02/09 nella riga il testo non c'è più            resta il colore
+```
+
+⚠️ **La misura si era propagata per ereditarietà**: DDT vendita e Vendita manuale derivano da
+quel catalogo, e il **Preventivo** eredita i 72px pur essendo l'unico documento che quell'avviso
+non lo mostra mai. Il commento è stato corretto sul posto, lasciando scritto cosa diceva di
+sbagliato.
+
+⏸ **La larghezza canonica di `quantity` resta da decidere** — sei valori su sei cataloghi,
+dichiarati in `DIVERGENZE_NOTE`. Il punto acquisito è che **non si decide guardando l'avviso**.
+
+### ✅ Il testo, unificato
+
+⛔ La Vendita al banco aveva una **terza copia** del messaggio, lunga sei volte l'originale —
+«Quantità superiore alla disponibilità. Giacenza X, impegnata Y, disponibile Z. Si può
+concludere comunque.», centosette caratteri dentro una colonna da ottanta pixel — e
+contraddiceva il commento della funzione comune: «il messaggio, in un posto solo: due copie
+divergono, e si vede tardi». Erano già divergenti. Ora passa da `availabilityHintText`.
+
+### 🔴 Da fare: la colonna disponibilità dove serve
+
+_Il proprietario: «la colonna disponibilità va prevista ovunque serva. Lo scarico e la
+rettifica agisce direttamente sulle giacenze. Anche trasferimento, ma qui bisogna trattarlo
+quasi come un documento come info contenute, l'operatore deve sapere cosa sta trasferendo»._
+
+⛔ **Oggi Scarico, Rettifica e Trasferimento documentali tolgono merce e non avvisano
+affatto**: né avviso né colonna disponibilità (`stock-operation-form`, `transfer-form`: zero
+occorrenze di `availabilityHint`). È la stessa famiglia di difetti della Fattura
+accompagnatoria, corretta il 26/08.
+
+|                             |                                                                                                                                                      |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Scarico** · **Rettifica** | agiscono **direttamente** sulle giacenze: la disponibilità è il dato che governa il gesto                                                            |
+| **Trasferimento**           | ⭐ **va trattato «quasi come un documento»**: l'operatore deve sapere **cosa sta trasferendo**, non solo quanto — quindi più di una colonna numerica |
+
+⚠️ **Un difetto vicino, da correggere insieme**: l'Arrivo merce **dichiara** `stockAvailable`
+e nessuno lo popola — accendendo quella colonna si ottengono celle vuote.
+
+---
+
+## 🔴 COMPLETARE LE COLONNE — riepiloghi e nuovi documenti
+
+_Chiesto dal proprietario il 02/09/2026: «completiamo le colonne sia nei riepiloghi che nei
+nuovi documenti»._
+
+**Lo stato è misurato** dal censimento del 02/09/2026 (42 schermate, ogni area verificata da
+un secondo agente incaricato di smentire il primo).
+
+### Già a posto — 18 schermate
+
+Undici elenchi sul motore comune più sette maschere documento: selettore Colonne, filtri di
+colonna e **larghezze che si conservano** (`14` §22.3).
+
+### ⏸ I riepiloghi che restano fuori
+
+| Schermata                                                                     | Cosa manca   | Nota                                                                                                                                                                                                                                                              |
+| ----------------------------------------------------------------------------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Registro Corrispettivi**                                                    | le larghezze | ⚠️ La vista è **già registrata** e la visibilità colonne già si salva: manca solo che `corrispettivi-orders-table` passi `[viewId]` al motore. Una riga — ma accende anche i **filtri di colonna**, che lì oggi non ci sono: è una decisione, non un allineamento |
+| **Utenti · Codici IVA · Sedi** (Impostazioni)                                 | tutto        | tabelle proprie. `regole-stile-ui` le dichiarava già come «non ancora nel motore»                                                                                                                                                                                 |
+| **Scorte basse · Vendite recenti** (Dashboard)                                | tutto        | idem                                                                                                                                                                                                                                                              |
+| **Riepilogo per sede** · **Dettaglio ordine online** · **Pannello analytics** | tutto        | tabelle proprie                                                                                                                                                                                                                                                   |
+| **Varianti prodotto** · **Fornitori collegati** (scheda articolo)             | tutto        | dentro l'anagrafica, non elenchi autonomi                                                                                                                                                                                                                         |
+| **Importazione prodotti** · **Importazione inventario**                       | —            | ⛔ **decise fuori** il 02/09: sono flussi di passaggio, le preferenze lì non tornano indietro a nessuno                                                                                                                                                           |
+
+### ⏸ I nuovi documenti
+
+| Maschera                                                                                                      | Stato                                                        |
+| ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Arrivo merce · DDT/Fatture · Movimento · Trasferimento · Ordine fornitore · Ordine cliente · Vendita al banco | ✅ colonne e larghezze (`createLineColumnWidths`, dal 24/08) |
+| **Registrazione fattura**                                                                                     | ⏸ **non è lo stesso caso** — vedi sotto                      |
+
+### ⭐ I sei cataloghi colonne: cosa vale unire — analisi del 02/09/2026
+
+_Il proprietario: «massima attenzione a quelle nei documenti, devi vedere se sono condivise e
+se e quali vale la pena unire, **forse nessuno perché hanno logiche diverse le righe**»._
+
+**Confrontati tutti e sei colonna per colonna**, col comportamento di ognuna letto nella
+maschera che la usa, e la proposta passata a tre lenti incaricate di demolirla (cosa si
+perde, quanto costa, quali divergenze sono difetti).
+
+> **L'ipotesi regge, e il fatto è più forte di come è stata formulata: non è che i cataloghi
+> abbiano logiche diverse — è che NON CONTENGONO LOGICA.**
+
+I sei file dichiarano **91 voci** per **31 concetti**, e il vocabolario **è già unico**:
+`DOCUMENT_LINE_COLUMNS` con il tipo `DocumentLineColumnId`, che impedisce di inventare un id.
+Quello che i cataloghi contengono è id, etichetta e larghezza. La logica sta già tutta nel
+motore condiviso.
+
+```text
+11 concetti su 31  (35%)  appartengono a UN SOLO documento
+17 su 31           (55%)  stanno in al massimo due
+```
+
+⛔ **E il comportamento editabile / sola-lettura non è nel catalogo**: lo decide
+`haControllo(name)` in `document-line-row` — cioè se il form di quel documento ha quel
+controllo. `sellingPrice` e `compareAtPrice` hanno id, etichetta e larghezza quasi identici
+fra Arrivo merce e Ordine fornitore, e sono **editabili nel primo, in sola lettura nel
+secondo**. Unire i cataloghi non toccherebbe questo di un millimetro.
+
+#### ⛔ Perché la SELEZIONE non si unisce — e c'è un precedente misurato
+
+Quali colonne ogni documento dichiara è il **90% del contenuto** dei sei file. Unirla
+sposterebbe soltanto il punto in cui si sceglie il sottoinsieme, da un file di configurazione
+a un elenco di id dentro un componente.
+
+⚠️ **E il costo non è ipotetico**: il 24/08/2026 l'aggiunta di `loadsStock` a un catalogo
+comune ha prodotto **due colonne «Imp.»** sull'Ordine cliente — la sua `commitsStock` più una
+`loadsStock` che non dichiara. Da lì viene la prima riga di `isLineColumnVisible` in tre
+maschere: «una colonna è visibile solo se QUESTO documento la dichiara». La selezione
+separata non è un residuo storico: è la guardia contro un difetto già accaduto.
+
+#### ⭐ Le tre cose che invece vale unire, e la scoperta che le motiva
+
+⛔ **La `label` del catalogo NON è mai l'intestazione che l'operatore legge.**
+`document-line-head` cabla le proprie stringhe (SKU, EAN, Articolo, Variante, Q.tà, U.M.,
+Seriali, Azioni), e `{{ row.label }}` è letto **in un solo punto di tutta l'app**: il
+selettore Colonne.
+
+⚠️ **Il che produce un difetto visibile oggi**: l'operatore accende «Quantità» nel selettore
+Colonne, e sulla colonna trova «Q.tà». Accende «U.m.» e trova «U.M.».
+
+| Da unire                                             | Perché                                                                                                                                                                                                                                                                                      |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **le etichette**, col modello di `column-catalog.ts` | ⭐ La forma canonica **non va scelta**: è già scritta nella testata condivisa. Non si mettono d'accordo sei file fra loro — se ne allineano sei a un settimo che ha già ragione. Con `fisso: true` la divergenza diventa **impossibile da scrivere**, invece che segnalata da una guardia   |
+| **`numeric` e `filter`**                             | `numeric` è proprietà del **dato**, non del documento — dichiararla sei volte è sei occasioni di sbagliarla e zero di deciderla. `filter` va con lei per la ragione opposta: nella riga documento è **inerte** (nessun controllo di filtro reso), eppure una guardia lo confronta fra i sei |
+| **le larghezze delle colonne d'identità**            | `articleCode`, `sku`, `barcode`, `unitOfMeasure` sono **già identiche** ovunque. ⚠️ Ma come default **sovrascrivibile**: `product` va da 240 a 300px, e la ragione è scritta — senza prezzo, sconto e IVA quella riga ha spazio da dare al nome. Non è divergenza, è adattamento            |
+
+#### ⏸ Da fare: la mappa «quale colonna è condivisa CON CHI»
+
+_Chiesto dal proprietario il 02/09/2026: «altro controllo da fare dopo è se le colonne sono
+condivise e se possono esserlo e con chi»._
+
+⭐ **Metà della risposta c'è già** dall'analisi qui sopra: il vocabolario **è** condiviso —
+`DOCUMENT_LINE_COLUMNS` con il tipo `DocumentLineColumnId`, 31 concetti, e nessun documento
+può inventarne uno. E la distribuzione è misurata:
+
+```text
+6 id in tutti e sei     sku · barcode · product · variantLabel · quantity · actions
+3 in cinque             articleCode · discount · vat
+2 in quattro            unitOfMeasure · lineTotal
+3 in tre                serials · unitPrice · stockAvailable
+6 in due                supplierCode · unitCost · sellingPrice · compareAtPrice · loadsStock · commitsStock
+11 in UNO SOLO          description · poOrdered · poReceived · poRemaining · shopifyPrice ·
+                        lot · expiry · stockOnHand · discountedCost · purchaseCost · discountedPrice
+```
+
+⏸ **Quello che manca è la mappa nominale**: per ciascuno dei 31, quali documenti la
+dichiarano e con quale comportamento — così si vede a colpo d'occhio chi condivide cosa con
+chi, invece di leggere sei file.
+
+⚠️ E la domanda «**possono** esserlo» ha già un vincolo noto: il comportamento
+editabile/sola-lettura **non sta nel catalogo** ma in `haControllo(name)`, quindi due
+documenti possono dichiarare la stessa colonna e renderla in modi diversi. La mappa deve
+dirlo, o suggerirebbe unificazioni che non stanno in piedi.
+
+#### Le quattro divergenti, guardate una per una — 02/09/2026
+
+⛔ **Delle quattro segnalate dall'analisi, solo UNA era un difetto.** Le altre tre sono
+decisioni, o un caso più profondo. È il motivo per cui vanno aperte una per una invece di
+allinearle in blocco.
+
+| Colonna                               | Esito                                                                                                                                                                                                                                               |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`quantity`**                        | ✅ **allineata a «Q.tà»** — la testata ha una forma sola (`<span title="Quantità">Q.tà</span>`), e i cataloghi che dicevano «Qtà» e «Quantità» sono passati a lei. Due righe di diff                                                                |
+| **`commitsStock`** · **`loadsStock`** | ⛔ **non sono difetti: sono decisioni, e sono scritte nel codice.** La testata non cabla quelle etichette, le **riceve** (`stockToggleLabel`), e il commento dice perché: «lo stesso campo dice _Carica giacenze_ su un reso e _Scarica_ su un DDT» |
+| **`product`**                         | ⏸ **resta aperta, e la ragione è un'altra da quella che sembrava**                                                                                                                                                                                  |
+
+##### ⛔ `product`: la testata diverge DA SÉ
+
+Stavo per allineare i cinque cataloghi a «Articolo», sulla premessa che la testata condivisa
+avesse già la forma canonica. **La premessa è falsa**, e va scritta perché è il genere di
+errore che si ripete:
+
+```text
+document-line-head, colonna «product»
+  ordinabile        <button>  «Nome prodotto»     riga 140
+  non ordinabile    <span>    «Articolo»          riga 151
+```
+
+La stessa colonna, nella stessa testata, con due parole diverse a seconda che sia ordinabile.
+
+⭐ **Quindi la forma canonica non esiste ancora**: allineare i cataloghi all'una o all'altra
+sceglierebbe per il proprietario invece di chiedergli. Prima si decide **che parola porta
+quella colonna**, poi si allineano sei cataloghi **e due rami della testata**.
+
+⚠️ Il ripristino è stato chirurgico: la Vendita al banco è tornata a «Articolo» — l'unica che
+lo diceva — invece di restare uniformata per sbaglio.
+
+⭐ **La lezione di metodo**: «la testata ha già ragione» era un'ottima ipotesi e reggeva per
+`quantity`. Per `product` no, e a smentirla è bastato leggere le dodici righe intorno
+all'etichetta invece della sola etichetta.
+
+---
+
+### ⛔ Registrazione fattura: NON è «l'ottava rimasta indietro»
+
+⚠️ **Qui c'era scritto il contrario** — «sette maschere su otto hanno lo stesso sistema e la
+ottava no, non c'è una decisione da prendere, solo da allinearla». **Sbagliato**, e corretto
+il 02/09/2026 aprendo il template invece di fidarsi del censimento.
+
+> **Quella maschera non ha righe ARTICOLO: ha righe CONTABILI.**
+
+```text
+righe articolo (le altre sette)   codice · articolo · quantità · prezzo · sconto · IVA · totale…
+Registrazione fattura             Importo · IVA · Importo IVA · Descrizione
+```
+
+Registra gli **importi di una fattura fornitore ricevuta**, non la merce: non c'è un
+articolo, non c'è una quantità, non c'è un magazzino da muovere. Ha anche una seconda
+tabella — le **rate** (Data scadenza · Importo · Saldato · Data saldo) — che nelle altre
+maschere non esiste affatto.
+
+⭐ **Con quattro colonne tutte necessarie, un selettore Colonne non ha niente da offrire**:
+quale si spegnerebbe, l'IVA? La descrizione? E le larghezze si conservano per chi trascina,
+ma su quattro colonne che stanno già tutte in riga nessuno trascina.
+
+⏸ **Resta da decidere**, e la domanda giusta è un'altra: se convenga dare **alle rate** o
+alla riga contabile qualcosa del motore comune — non se «allinearla alle altre sette».
+
+---
+
+## 🧹 CODICE MORTO — `product-review-step`, e la lezione che porta con sé
+
+_Trovato dal censimento del 02/09/2026, mentre si misurava lo stato delle tabelle. Il
+proprietario ha chiesto di «analizzare bene, vedere cos'era e decidere se pulire in modo
+controllato»._
+
+### Cos'era, e da quando non serve
+
+|                 |                                                                                                                                                                                      |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Cos'era**     | il passo **«Riepilogo»** del wizard di creazione prodotto: mostrava in sola lettura dati generali, opzioni e varianti generate **prima di salvare**. Presentazionale, nessuna logica |
+| **Nato**        | 08/06/2026 — `b7512885`, «add review step with full product summary»                                                                                                                 |
+| **Orfano da**   | **19/07/2026** — `c3abd6db`, «anagrafica prodotto a 4 tab»: il wizard a passi è stato sostituito, e con lui il passo di revisione                                                    |
+| **Quanto pesa** | quattro file (ts, html, scss, spec)                                                                                                                                                  |
+
+⭐ **La funzione non è stata persa: è stata sostituita.** Con le quattro schede si vede tutto
+mentre si compila, quindi un riepilogo prima del salvataggio non ha più un momento in cui
+servire. Togliere il componente non toglie niente all'operatore.
+
+⭐ **E non produce cascata**: le cinque util che importa — `selectedOptionValue`,
+`variantOptionNames`, `productStatusLabel`, `productStatusTone`, `moneyFromMajor` — sono
+usate da tre a cinque altri file ciascuna. Si porta via solo se stesso.
+
+### ⛔ Perché nessuno se n'era accorto per 45 giorni
+
+> **Ha un proprio `.spec.ts`, e quei test passano.**
+
+⚠️ **È il caso più insidioso del codice morto**, e vale la pena scriverlo perché si
+ripeterà: un file provato sembra un file vivo. La suite è verde, la copertura lo conta, e
+nessun controllo distingue «provato» da «usato». Gli altri tre passi del wizard —
+`product-general-step`, `product-options-step`, `product-variants-step` — sono invece
+ancora montati dall'anagrafica: la differenza non si vedeva da nessuna parte.
+
+⚠️ **Le regole di progetto danno 30 giorni** («Codice non toccato»: rimuovi entro 30 giorni
+dall'identificazione, con `ts-prune` o equivalente). Nessuno strumento del genere gira in
+CI, ed è per questo che la scadenza non è mai scattata.
+
+### Non era solo, ed erano quattro — censimento del 02/09/2026
+
+Cercato in tutto il repository (componenti, servizi, util, API, stili), con un verificatore
+per famiglia incaricato di **smentire** i ritrovamenti. Esito: **63 elementi**, di cui
+**5 smentiti** dai verificatori.
+
+#### I quattro componenti — 1.651 righe
+
+| Componente                       | Righe | Cos'era, e perché è morto                                                                                                                                                                                                             |
+| -------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ProductReviewStepComponent`     | 341   | il passo «Riepilogo» del wizard — sostituito dalle 4 schede il 19/07                                                                                                                                                                  |
+| `ListFiltersComponent`           | 527   | il contenitore comune dei filtri — superato dalla decisione del **29/08**: «i filtri di un elenco stanno nelle sue COLONNE», e il pannello è passato al telaio                                                                        |
+| `PaginationComponent`            | 447   | il paginatore condiviso — **migrazione completata**: nessun elenco impagina più                                                                                                                                                       |
+| `DocumentLineMoneyCellComponent` | 336   | la cella d'importo di riga documento: ⛔ **non è stata superata, non è mai stata cablata**. Nata gemella di `document-line-unit-cell` e `document-line-code-cell`, che sono entrambe usate — `document-line-row` non l'ha mai montata |
+
+⭐ **Tutti e quattro hanno un proprio `.spec.ts`**, ed è la ragione per cui sono sopravvissuti:
+i test passano, la copertura li conta, e nessun controllo distingue «provato» da «usato».
+
+#### Le funzioni — 59 fra `src/` e `api/`
+
+Predicati di permesso, wrapper già marcati `@deprecated`, util di calcolo, tre endpoint API
+mai chiamati dal client (`/customers/preview-code`, `/suppliers/preview-code`,
+`/online-sales/by-order/:id`). Sono piccole — dalle 3 alle 50 righe.
+
+⚠️ **Verificato un sospetto grave, e smentito**: i predicati di permesso morti
+(`canViewSupplierOrders`, `canViewInventoryAllLocations`, `isTenantAdmin`…) potevano essere
+**controlli dimenticati** invece che codice morto — cioè porte senza guardia. Non lo sono:
+il permesso di **vista** è imposto dalla rotta (`tenantPermissionGuard` coi gruppi), quello
+di **gestione** dal componente con un predicato diverso e vivo. La funzione c'è, il predicato
+inutilizzato è un doppione.
+
+#### ⛔ Cinque smentiti dai verificatori
+
+Il più istruttivo è `DataTableRowActionsDirective`, dichiarata morta e invece **viva**: la usa
+il motore tabella (`contentChild` + `ngTemplateOutlet`) e la sorveglia una guardia dentro
+`npm run lint`. Anche `view-mode.model.ts` è stato smentito.
+
+⚠️ **Un falso positivo di metodo, riportato dall'agente stesso**: cercare `<app-customer-form`
+aggancia anche `<app-customer-form-fields`. Chi rifà questa analisi deve usare il confine
+`<selettore([[:space:]/>]|$)`, o conta usi che non esistono.
+
+### ⏸ Da decidere
+
+- **Cosa togliere e in quanti passi.** I quattro componenti sono il caso netto; le funzioni
+  sono molte e piccole.
+- ⚠️ **Le guardie e le allowlist che puntano al codice morto vanno potate insieme**, o
+  restano a validare il vuoto — lo segnala il censimento stesso.
+- **Se serve una guardia nuova**: un controllo sui componenti mai istanziati impedirebbe al
+  prossimo di restare 45 giorni. ⚠️ Va pesato: il progetto ha già oltre cinquanta guardie in
+  `npm run lint`, e ognuna costa a ogni commit.
+
+⚠️ **E questo documento ha una voce superata da correggere**: dice ancora «restano cinque
+elenchi che impaginano ancora… `<app-pagination>` via». Non è più vero — è esattamente il
+testo morto che `regole-qualita` vieta.
+
+---
+
 ## 🔴 APERTO ORA — le cinque cose chieste il 01/09/2026
 
 _Dettate dal proprietario dopo il rifacimento dell'anagrafica fornitore, in un messaggio
@@ -246,6 +954,217 @@ Le decisioni argomentate stanno in **`docs/CONTRATTO-COMUNE-DOCUMENTI.md`** (§3
 e variante, §4 richiamo articolo, §5.5 sconto, §5.7 listino, §6.2 spunte magazzino).
 Qui c'è **cosa resta da fare**, non perché.
 
+## ✅ RICERCA GIACENZA — rifatta il 02/09/2026
+
+> **Fatta.** Cosa è cambiato, e cosa resta aperto, sotto la specifica dei requisiti.
+
+⛔ **Il difetto era di una riga**: la schermata chiamava `findVariantByCode`, che risolve un
+codice **esatto** e restituisce **una** variante (404 se ambiguo). Ecco perché «maglie» non
+trovava niente — non mancavano i dati, era la domanda sbagliata.
+
+⭐ **Quasi tutto esisteva già**, e non è stato scritto nulla di nuovo lato server:
+
+| Pezzo                                                     | Cosa dà                                                                                                                                  |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `searchVariantSummaries` (`/products/variants/summaries`) | cerca per testo → N risultati con **immagine, prezzi, giacenza, disponibilità**; una sola query Prisma, nessun N+1                       |
+| `buildInventoryVariantSearchWhere`                        | il filtro copre **nome, SKU, barcode, codice articolo, SKU fornitore**, ed è multi-parola. `contains`, quindi «maglie» trova «magliette» |
+| `VARIANT_SEARCH_DEBOUNCE_MS`                              | il debounce già condiviso con la ricerca articolo dei documenti                                                                          |
+
+**Cosa è stato scritto:** il raggruppamento per articolo (`articolo-trovato.model`, 10 prove)
+e la composizione della griglia taglia × sede (`ricerca-giacenza.model`).
+
+### Le decisioni prese dal proprietario
+
+| Domanda                              | Risposta                                                                                                  |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| varianti o articoli fra i risultati? | **articoli**, poi le taglie toccando — tre modelli con quindici taglie sono tre righe, non quarantacinque |
+| toccando un risultato?               | **la situazione per sede** — la domanda del commesso è «ce l'ho, e dove?»                                 |
+
+### Come funziona adesso
+
+```text
+scrivi (dalla 3ª lettera, debounce, switchMap)
+  → ARTICOLI: miniatura · nome · codice · n° taglie · disponibile · prezzo
+      → tocco
+          → griglia TAGLIA × SEDE, col totale
+              → tocco su un numero: gli ordini che lo impegnano
+```
+
+⭐ **Chi scansiona salta un passaggio**: se il codice letto porta a un articolo solo, la sua
+scheda si apre da sé. Vale solo per la scansione — digitando «mag» si possono avere per un
+attimo pochi risultati, e aprirne uno porterebbe via dalla ricerca in corso.
+
+### ⏸ Cosa resta aperto
+
+#### ⛔ «Registra movimento» dalla Ricerca: **da gestire o rimuovere**
+
+_Proprietario, 02/09/2026: «Registra movimento sulla taglia non ha senso, è una funzione che
+va gestita o rimossa, da fare»._
+
+⛔ **Tolto dalla schermata il 02/09/2026**, insieme al predicato di permesso che lo
+governava: era rimasto attivo solo per lui, e un predicato che nessuno legge è debito.
+
+**Perché sulla taglia non stava**: quindici taglie fanno quindici link nella stessa colonna,
+e portano tutti a una maschera che **non sa in quale sede** — mentre la sede è esattamente
+ciò che la griglia sta mostrando. Prima il link stava in testa alla scheda, e reggeva solo
+perché la vecchia schermata mostrava **una variante sola**.
+
+⚠️ **La domanda vera non è dove metterlo, è se ci vada.** Questa schermata è di
+consultazione: si cerca per sapere «ce l'ho?». Un'azione che **modifica il magazzino**
+dentro una vista di sola lettura è una decisione di prodotto, non una collocazione.
+
+| Se si decide di gestirla       | Cosa servirebbe                                                                                                                        |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| dalla **cella** taglia × sede  | il contesto sarebbe completo (variante **e** sede), ma ogni cella avrebbe due gesti — il numero apre gli impegni, e il movimento cosa? |
+| dalla **scheda** dell'articolo | serve prima scegliere taglia e sede: è una maschera, non un link                                                                       |
+| **da nessuna parte**           | la Ricerca resta di sola consultazione, e il movimento si registra da Magazzino → Movimenti, dov'è già                                 |
+
+⭐ **La terza è la più coerente con quello che la schermata è** — ma è una scelta, e va
+fatta, non dedotta.
+
+#### Il resto
+
+- **Il tetto di 100 varianti per ricerca**, dichiarato a schermo con un avviso. Toglierlo
+  richiede un aggregato di stock **per articolo** lato API, che oggi non esiste: `/products`
+  non porta giacenze e `variants/summaries` pagina sulle varianti.
+- **La catena di altezze**: l'esenzione in `stock-lookup.component.scss` resta finché non si
+  guarda a schermo se la pagina debba stirarsi. Ora che i risultati sono un elenco, la
+  risposta probabilmente cambia.
+- **Nessuna vista registrata**: niente selettore Colonne né larghezze. Qui però non è una
+  mancanza: l'elenco non è una tabella a colonne, è una lista di card per il pollice.
+
+---
+
+## 🔴 I REQUISITI, come sono stati dettati — 02/09/2026
+
+_Dettati dal proprietario: «è nata senza un criterio e immagino la sua utilità per un
+operatore che cerca un articolo tramite ean, sku o nome […] Un po' come i commessi di
+Footlocker»._
+
+> **È il palmare del commesso in negozio**: cerco, e vedo subito la situazione di ogni
+> articolo che risponde — con l'immagine, la giacenza, la disponibilità e i prezzi.
+
+### Cosa deve fare
+
+|                  |                                                                                   |
+| ---------------- | --------------------------------------------------------------------------------- |
+| **Si cerca per** | EAN · SKU · **nome**                                                              |
+| **Col nome**     | i risultati compaiono **man mano, dalla terza lettera** — non serve premere Invio |
+| **Quanti**       | **tutti** quelli che corrispondono: «maglie» trova maglie, maglietta, magliette…  |
+| **Per ognuno**   | immagine **piccola**, giacenza, disponibilità, prezzi, e i dati essenziali        |
+
+⭐ **La ricerca per nome è a PREFISSO PARZIALE, non esatta**, ed è il punto: il commesso
+non sa come è registrato l'articolo, sa come lo chiama il cliente. «maglie» deve trovare
+tutta la famiglia.
+
+⚠️ **Dalla TERZA lettera**, non dalla prima: con una o due lettere il risultato è mezzo
+catalogo, e la richiesta parte a ogni tasto. È anche la soglia che rende utile il debounce
+già prescritto per le liste grandi (`regole-gestionale`, «Performance»).
+
+⚠️ **L'immagine è piccola e in elenco**, quindi valgono le regole già scritte per le
+miniature di tabella (`regole-architettura`, «Immagini»): `width`/`height` sempre — o la
+riga si assesta dopo il caricamento e la lista balla sotto il dito — più `loading="lazy"`
+e `decoding="async"`.
+
+### Cosa c'è oggi, e perché non basta
+
+La schermata esiste (`features/inventory/stock-lookup`) e cerca **un articolo alla volta**,
+mostrandone la scheda con una tabella di giacenze per location. ⛔ Non è un elenco di
+risultati: è il dettaglio di una cosa sola, quindi la domanda «quali maglie ho?» non ha
+risposta.
+
+⚠️ **Ha anche il lettore ottico** (`app-barcode-scanner`), che va conservato: è la strada
+veloce quando il capo ce l'hai in mano.
+
+### Due cose tecniche già misurate, da tenere presenti quando si farà
+
+⏸ **La catena di altezze è esentata, non risolta.** `stock-lookup` è l'unica pagina che
+monta `app-list-page` senza passare l'altezza al telaio: oggi ha un'esenzione dichiarata
+nel proprio foglio, perché nella sua zona dati c'è la scheda di un risultato e non un
+elenco. **Con l'elenco di risultati la domanda cambia** e l'esenzione va tolta — la
+guardia è `npm run check:catena-altezze`.
+
+⏸ **Nessuna vista registrata**: niente selettore Colonne, niente larghezze che si
+conservano. Diventando un elenco vero, entra nel giro come gli altri (`14` §22.3).
+
+---
+
+## ⏸ IL RISCONTRO DELLA SCANSIONE non c'è dove si inseriscono articoli in continuo — 02/09/2026
+
+_Trovato dal proprietario provando l'**Arrivo merce**, che ha una cella per l'EAN: «non ha
+già lo stesso comportamento? mi sa di no, ho verificato e non lo fa». Verificato: è così._
+
+> **Dove si inseriscono articoli uno dopo l'altro — con la pistola o battendo l'EAN — la
+> riga toccata deve dirlo: si accende per un momento, e la pagina ci scorre sopra se non
+> è già in vista.**
+
+⛔ **Oggi lo fa solo il dettaglio inventario.** Al banco, dopo una scansione
+(`afterAcquire` in `store-sale-document-form`), succede questo:
+
+```text
+campo svuotato · beep (solo su mobile) · fuoco che torna alla ricerca
+```
+
+⚠️ **E il caso che lo giustifica è l'EAN RIPETUTO.** Il banco ha la regola «stesso EAN due
+volte → la riga esistente cresce» (`11` A14, `stepQuantity`): se quella riga è fuori vista
+perché il documento ne ha venti, **non si vede cambiare niente**. Il commento nel codice
+dice «su desktop la riga che compare è già la conferma» — vero per una riga **nuova** e
+**visibile**, falso per un incremento lontano. Su desktop il beep non suona nemmeno.
+
+### Il parere dato al proprietario, che ha chiesto se vale ovunque
+
+| Caso                                                         | Serve                                  |
+| ------------------------------------------------------------ | -------------------------------------- |
+| EAN ripetuto che **incrementa una riga lontana**             | ⭐ **sì, è il caso che lo giustifica** |
+| riga nuova inserita **non in fondo** (banco, Ordine cliente) | ✅ sì                                  |
+| riga nuova già visibile in un documento corto                | ➖ indifferente: il lampo non disturba |
+
+⭐ **I due pezzi NON si adottano allo stesso modo.** L'**evidenziazione** vale ovunque: non
+sposta niente e risponde all'unica domanda che ci si fa — _ha letto la riga giusta?_ Lo
+**scorrimento** solo con `block: 'nearest'`, che **non fa nulla se la riga è già in vista**.
+
+⛔ **Mai `block: 'start'`** — la forma usata altrove nell'app per Allegati e banner d'errore:
+quella salta **sempre**, e in una maschera documento vuol dire che chi sta compilando la riga
+3 si ritrova alla 18 e perde il posto. Nell'inventario il rischio non c'è perché si conta e
+basta; in un documento sì.
+
+### ⚠️ Le due famiglie sono separate, e l'aggancio è di una sola
+
+|                                                              |                                                           |
+| ------------------------------------------------------------ | --------------------------------------------------------- |
+| **motore tabella** (`data-table`)                            | ✅ ha `highlightedRowId` e `[data-row-id]` dal 02/09/2026 |
+| **griglia di riga documento** (`document-line-head` + righe) | ⛔ non usa il motore: serve il gemello                    |
+
+⭐ **Al secondo consumatore l'estrazione diventa obbligatoria** (`regole-architettura`,
+regola «1 + 1»): la sequenza — trova l'articolo, accendi, scorri se serve, spegni dopo 2,5s
+— oggi vive solo in `inventory-count-detail`. Quando si fa il gemello, quella va estratta
+invece di copiata.
+
+### Dove si applica — misurato il 02/09/2026 su 42 schermate
+
+Censimento di tutte le schermate con tabella, ogni area verificata da un secondo agente
+incaricato di smentire il primo. **Sette schermate inseriscono o cercano articoli in
+continuo; sei non hanno il riscontro:**
+
+| Schermata                  | Riscontro                                                                                 |
+| -------------------------- | ----------------------------------------------------------------------------------------- |
+| Dettaglio inventario       | ✅ ce l'ha (è quella da cui è nato)                                                       |
+| **Arrivo merce**           | ⛔ — la cella EAN da cui è partita la segnalazione                                        |
+| **Vendita al banco**       | ⛔ — ed è il caso peggiore: l'EAN ripetuto incrementa una riga che può essere fuori vista |
+| **Ordine cliente**         | ⛔                                                                                        |
+| **Movimento di magazzino** | ⛔                                                                                        |
+| **Ricerca giacenza**       | ⛔ — ma va rifatta comunque (sezione sopra)                                               |
+| **Giacenze**               | ⛔ — da verificare se lì lo scanner filtra invece di inserire                             |
+
+⚠️ **Prodotti ha lo scanner ma NON è questo caso**, e l'ha corretto il verificatore: la
+scansione trova l'articolo e **naviga alla sua scheda** — si esce dall'elenco, non si
+aggiunge una riga. Nessun riscontro da dare.
+
+⭐ **Le due famiglie restano separate**: il motore tabella ha già l'aggancio, la griglia
+di riga documento no — e cinque delle sei schermate qui sopra sono maschere documento.
+
+---
+
 ## ⛔ PRODOTTI: cinque colonne dichiarate ordinabili, e l'ordinamento non arriva — 01/09/2026
 
 _Trovato dalla revisione del 01/09/2026, e **non è lavoro di quella giornata**: è
@@ -257,11 +1176,11 @@ l'API e va decisa._
 
 La catena è interrotta in **tre punti**, e ognuno da solo basta:
 
-| Dove                                                          | Cosa manca                                                            |
-| ------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `product-table.component.ts:44`                               | `PRODUCT_SORTABLE_COLUMNS` marca ordinabili name, brand, category, season, status |
+| Dove                                                          | Cosa manca                                                                                                               |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `product-table.component.ts:44`                               | `PRODUCT_SORTABLE_COLUMNS` marca ordinabili name, brand, category, season, status                                        |
 | `domain/products/services/product.service.ts` (`getProducts`) | costruisce gli `HttpParams` con page, pageSize, all, search, status, category, brand, season — **mai `sort` né `order`** |
-| `api/src/products/dto/list-products.query.dto.ts`             | non ha nessun campo `sort` o `order`: anche mandandoli, verrebbero scartati |
+| `api/src/products/dto/list-products.query.dto.ts`             | non ha nessun campo `sort` o `order`: anche mandandoli, verrebbero scartati                                              |
 
 ⚠️ **Il commento del componente dichiara la strada scelta** — «L'ordinamento è del SERVER:
 `sortChange` risale fino alla query» — quindi non è un ripiego dimenticato: è una strada
