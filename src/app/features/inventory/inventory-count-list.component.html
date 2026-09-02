@@ -38,7 +38,6 @@
     [groupByDay]="raggruppaPerGiornata()"
     [selectedIds]="selectedSessionIds()"
     (rowClick)="openSession($event)"
-    (deleteClick)="requestDelete($event)"
     (selectionToggle)="toggleSessionSelection($event.sessionId, $event.selected)"
     (selectAllToggle)="toggleSelectAllSessions($event)"
   />

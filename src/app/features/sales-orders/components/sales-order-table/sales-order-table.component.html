@@ -7,6 +7,16 @@
   intatta — «mobile ci pensiamo singolarmente», e le due viste restano separate
   dalle stesse media query di prima: il motore è spento sotto `lg`, le card
   sopra. La stessa riga non esiste mai due volte.
+
+  ⛔ **E qui c'era `[rowActionsLabel]="'Azioni'"`**, che teneva in piedi una
+  colonna VUOTA: il menu «···» che la riempiva è stato tolto il 02/09/2026, la
+  colonna no. L'ha vista il proprietario nell'elenco — «la colonna a destra non
+  occorre più».
+
+  ⚠️ **La colonna esiste finché qualcuno le dà un'etichetta**: il motore la
+  rende quando `rowActionsLabel` non è vuoto, e toglierla è l'unico modo di
+  spegnerla. Togliere il contenuto non basta — ed è il genere di residuo che
+  nessun test vede, perché una colonna vuota non fallisce.
 -->
 <app-data-table
   [rowClickSelects]="rowClickSelects()"
@@ -25,7 +35,6 @@
   [selectedIds]="selectedIds()"
   [selectionLabel]="selectionLabel"
   selectAllLabel="Seleziona tutti gli ordini"
-  [rowActionsLabel]="'Azioni'"
   (rowClick)="rowClick.emit($event)"
   (sortChange)="sortChange.emit($event)"
   (selectionChange)="onToggleSelect($event.row, $event.selected)"
@@ -118,16 +127,22 @@
   </ng-template>
 
   <!--
-    ⏸ Il menu per riga. `14` §C0.1 ha deciso che ne escano le funzioni per
-    singolo documento: resta finché la matrice azioni non le ha ricollocate.
+    ⛔ **QUI C'ERA IL MENU TRE-PUNTINI DI RIGA**, e la sua nota diceva «resta
+    finché la matrice azioni non le ha ricollocate». Le ha ricollocate: `14`
+    §«Il menu tre-puntini di riga SPARISCE» (30/08/2026). Tolto il 02/09/2026,
+    su indicazione del proprietario — «per gli altri documenti le abbiamo
+    rimosse dalla riga e ora si trovano sotto a fine pagina e con componente
+    condivisa, non duplicare».
+
+    Le quattro voci, e dove sono andate:
+
+    ```text
+    Apri / Modifica   il CLIC DI RIGA, che già la apriva
+    Duplica           barra, comando('duplicate') — requires: 'one'
+    Stampa PDF        barra, «Esporta ▾ → PDF»: stesso exportOrderPdf, sui selezionati
+    Elimina           barra, c'era già
+    ```
   -->
-  <ng-template appRowActions let-order>
-    <app-action-menu
-      [items]="rowActions(order)"
-      [ariaLabel]="'Azioni su ordine ' + order.orderNumber"
-      (actionSelected)="onAction($event, order)"
-    />
-  </ng-template>
   <!--
     ⭐ **La card di un ELENCO si progetta, non si impila** (`regole-stile-ui`):
     tre fasce, «a sinistra le parole, a destra i numeri». La grammatica è comune
@@ -207,15 +222,15 @@
             {{ fulfillmentLabel(order.fulfillmentStatus) }}
           </app-badge>
         </div>
+        <!--
+          ⛔ **Anche la card aveva il menu «···»**, ed è andato via con quello
+          della riga (02/09/2026): erano due vesti dello stesso comando, e la
+          decisione vale per entrambe — `14` §«Il menu tre-puntini di riga
+          SPARISCE». Su schermo stretto le funzioni restano dove sono per tutti,
+          nella barra in fondo alla pagina.
+        -->
         <div class="sales-cards__footer">
           <span class="sales-cards__location">{{ order.locationName ?? '—' }}</span>
-          <span class="sales-cards__actions">
-            <app-action-menu
-              [items]="rowActions(order)"
-              [ariaLabel]="'Azioni su ordine ' + order.orderNumber"
-              (actionSelected)="onAction($event, order)"
-            />
-          </span>
         </div>
       </article>
     </li>

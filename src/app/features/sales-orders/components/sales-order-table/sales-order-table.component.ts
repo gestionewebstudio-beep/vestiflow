@@ -2,7 +2,6 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
 
 import { colonnaVisibile } from '@shared/models/list-card-fields.util';
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
-import { DataTableRowActionsDirective } from '@shared/components/data-table/data-table-row-actions.directive';
 import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';
 import type {
@@ -23,8 +22,6 @@ import {
 } from '@core/models/sales-order.model';
 import { formatDate } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
-import { ActionMenuComponent } from '@shared/components/action-menu/action-menu.component';
-import type { ActionMenuItem } from '@shared/components/action-menu/action-menu.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
 import { createColumnFilters } from '@shared/table-columns/column-filters';
@@ -44,13 +41,12 @@ import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 /** Vista lista ordini: registro generale o canale Shopify (fase 3 §2-§3). */
 export type SalesOrderTableProfile = 'customer-orders' | 'shopify-orders';
 
-/** Azioni dal menu «···» di riga (senza Etichette per i documenti di vendita). */
-export type SalesOrderTableActionId = 'open' | 'duplicate' | 'print' | 'delete';
-
-export interface SalesOrderTableActionEvent {
-  readonly action: SalesOrderTableActionId;
-  readonly order: SalesOrder;
-}
+/*
+  ⛔ **Qui c'erano il tipo e l'evento del menu «···» di riga**, tolti il
+  02/09/2026 col menu stesso (`14` §«Il menu tre-puntini di riga SPARISCE»).
+  Le funzioni per singolo documento stanno nella barra in basso, e l'apertura
+  è il clic di riga — che ha il suo `rowClick`.
+*/
 
 export interface SalesOrderTableSelectionEvent {
   readonly order: SalesOrder;
@@ -66,13 +62,11 @@ export interface SalesOrderTableSelectionEvent {
   selector: 'app-sales-order-table',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    ActionMenuComponent,
     BadgeComponent,
     RouterLink,
     DataTableComponent,
     DataTableCellDirective,
     DataTableRowCardDirective,
-    DataTableRowActionsDirective,
   ],
   templateUrl: './sales-order-table.component.html',
   styleUrl: './sales-order-table.component.scss',
@@ -115,7 +109,6 @@ export class SalesOrderTableComponent {
 
   /** Il motore propone il prossimo ordine; ad applicarlo è la pagina. */
   readonly sortChange = output<readonly DataTableSort[]>();
-  readonly action = output<SalesOrderTableActionEvent>();
   readonly selectionChange = output<SalesOrderTableSelectionEvent>();
   readonly selectAllChange = output<boolean>();
 
@@ -265,37 +258,6 @@ export class SalesOrderTableComponent {
   protected rowLabel(order: SalesOrder): string {
     const items = salesOrderLinesSummary(order.lines);
     return `Apri ordine ${order.orderNumber} di ${order.customerName}, articoli: ${items}`;
-  }
-
-  /**
-   * Voci del menu Azioni di riga: solo quelle disponibili (mai voci
-   * disabilitate). Duplica / Stampa PDF / Allegati arrivano nelle fasi
-   * successive; Etichette non serve per i documenti di vendita.
-   */
-  protected rowActions(order: SalesOrder): readonly ActionMenuItem[] {
-    const isManual = order.source === SalesOrderSource.Manual;
-    const items: ActionMenuItem[] = [
-      { id: 'open', label: isManual ? 'Apri / Modifica' : 'Apri', icon: 'pi-pencil' },
-    ];
-    if (this.canManage()) {
-      // Duplica: crea un NUOVO ordine manuale, quindi vale anche per i non
-      // manuali (l'originale non si tocca).
-      items.push({ id: 'duplicate', label: 'Duplica', icon: 'pi-copy' });
-    }
-    // Stampa PDF: azione di sola lettura, disponibile per qualunque ordine.
-    items.push({ id: 'print', label: 'Stampa PDF', icon: 'pi-print' });
-    // Gli ordini di canale non si eliminano — appartengono a Shopify, e il
-    // prossimo scarico li riporterebbe. Tranne quelli che su Shopify non
-    // risultano più: lì non c'è più niente da cui tornare, ed è l'unica azione
-    // prevista dopo la segnalazione.
-    if (this.canManage() && (isManual || order.channelMissingSince)) {
-      items.push({ id: 'delete', label: 'Elimina', icon: 'pi-trash', danger: true });
-    }
-    return items;
-  }
-
-  protected onAction(actionId: string, order: SalesOrder): void {
-    this.action.emit({ action: actionId as SalesOrderTableActionId, order });
   }
 
   protected onToggleSelect(order: SalesOrder, selected: boolean): void {

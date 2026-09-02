@@ -1,15 +1,11 @@
 import { formatDate } from '@core/utils/date.util';
 import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 
-import {
-  InventoryCountStatus,
-  type InventoryCountSession,
-} from '@core/models/inventory-count.model';
+import type { InventoryCountSession } from '@core/models/inventory-count.model';
 import { formatDateTime } from '@core/utils/date.util';
 import { colonnaVisibile } from '@shared/models/list-card-fields.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
-import { DataTableRowActionsDirective } from '@shared/components/data-table/data-table-row-actions.directive';
 import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';
 import type {
@@ -37,13 +33,7 @@ import {
 @Component({
   selector: 'app-inventory-count-table',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    BadgeComponent,
-    DataTableComponent,
-    DataTableCellDirective,
-    DataTableRowCardDirective,
-    DataTableRowActionsDirective,
-  ],
+  imports: [BadgeComponent, DataTableComponent, DataTableCellDirective, DataTableRowCardDirective],
   templateUrl: './inventory-count-table.component.html',
   styleUrl: './inventory-count-table.component.scss',
 })
@@ -74,11 +64,9 @@ export class InventoryCountTableComponent {
   readonly selectedIds = input<ReadonlySet<string>>(new Set<string>());
 
   readonly rowClick = output<InventoryCountSession>();
-  readonly deleteClick = output<InventoryCountSession>();
   readonly selectionToggle = output<{ readonly sessionId: string; readonly selected: boolean }>();
   readonly selectAllToggle = output<boolean>();
 
-  protected readonly InventoryCountStatus = InventoryCountStatus;
   protected readonly statusLabel = inventoryCountStatusLabel;
   protected readonly statusTone = inventoryCountStatusTone;
 
@@ -208,10 +196,5 @@ export class InventoryCountTableComponent {
       return '0 / 0';
     }
     return `${session.linesCounted} / ${session.lineCount}`;
-  }
-
-  protected onDeleteClick(event: Event, session: InventoryCountSession): void {
-    event.stopPropagation();
-    this.deleteClick.emit(session);
   }
 }

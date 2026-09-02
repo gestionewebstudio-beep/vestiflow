@@ -2,26 +2,13 @@
 
 /*
   ⭐ Qui c'erano 64 righe: contenitore, layout, ripiego a card e allineamenti.
-  **Le rende il motore comune.** Resta il solo comando di riga.
+  **Le rende il motore comune.** 
 */
 @include rt.ponte-tabella();
 
-/* Il cestino della sessione annullata: quadrato, col nome nell'`aria-label`. */
-.count-table__action-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  inline-size: var(--control-h-button);
-  block-size: var(--control-h-button);
-  padding: 0;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  background: none;
-  border: 0;
-  border-radius: var(--radius-sm);
-
-  &:hover {
-    color: var(--color-danger);
-    background-color: var(--color-danger-subtle);
-  }
-}
+/*
+  ⛔ **Qui c'era il cestino di riga**, tolto il 02/09/2026: le funzioni di un
+  elenco stanno tutte nella barra in basso (`14` §«Tutte le funzioni stanno
+  nella barra in basso»). Lo stile se n'è andato col markup — un foglio che veste
+  classi che nessun template scrive più non fallisce e non arrossa un test.
+*/

@@ -8,10 +8,11 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
-import { catchError, map, of, startWith, switchMap } from 'rxjs';
+import { catchError, forkJoin, map, of, startWith, switchMap } from 'rxjs';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
+import { InventoryCountStatus } from '@core/models/inventory-count.model';
 import type { InventoryCountSession } from '@core/models/inventory-count.model';
 import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
 import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
@@ -80,14 +81,21 @@ export class InventoryCountListComponent {
 
   protected readonly deleteDialogOpen = signal(false);
   protected readonly deleteLoading = signal(false);
-  private readonly sessionToDelete = signal<InventoryCountSession | null>(null);
+  private readonly sessionsToDelete = signal<readonly InventoryCountSession[]>([]);
 
   protected readonly deleteConfirmMessage = computed(() => {
-    const session = this.sessionToDelete();
-    if (!session) {
+    const scelte = this.sessionsToDelete();
+    if (scelte.length === 0) {
       return '';
     }
-    return `La sessione "${session.name}" verrà eliminata definitivamente dall'elenco. Operazione non reversibile.`;
+    // ⚠️ Una sola si nomina: chi la elimina deve poter riconoscere QUALE prima
+    //    di confermare. Da due in su il nome diventa un elenco lungo dentro un
+    //    dialogo, e il numero dice abbastanza.
+    const sola = scelte.length === 1 ? scelte[0] : undefined;
+    if (sola) {
+      return `La sessione "${sola.name}" verrà eliminata definitivamente dall'elenco. Operazione non reversibile.`;
+    }
+    return `${scelte.length} sessioni annullate verranno eliminate definitivamente dall'elenco. Operazione non reversibile.`;
   });
 
   private readonly listState = toSignal(
@@ -182,16 +190,62 @@ export class InventoryCountListComponent {
     this.raggruppa.set(value);
   }
 
-  protected readonly listActions = computed<readonly ListAction[]>(() => [
-    // ⚠️ L'etichetta differisce dal catalogo, ed è voluto: «Nuovo» sotto
-    //    «Inventario» direbbe cosa si crea solo a chi lo sa già — una sessione
-    //    di conteggio non è un documento.
-    comando('new', {
-      label: 'Nuova sessione',
-      ariaLabel: 'Avvia una nuova sessione di inventario',
-      run: () => this.newSession(),
-    }),
-  ]);
+  /** Fra le selezionate, quelle che la regola di dominio lascia eliminare. */
+  private readonly selezionateEliminabili = computed(() => {
+    const scelte = this.selectedSessionIds();
+    return this.sessions().filter(
+      (s) => scelte.has(s.id) && s.status === InventoryCountStatus.Cancelled,
+    );
+  });
+
+  protected readonly listActions = computed<readonly ListAction[]>(() => {
+    const scelte = this.selectedSessionIds().size;
+    const eliminabili = this.selezionateEliminabili().length;
+    return [
+      // ⚠️ L'etichetta differisce dal catalogo, ed è voluto: «Nuovo» sotto
+      //    «Inventario» direbbe cosa si crea solo a chi lo sa già — una sessione
+      //    di conteggio non è un documento.
+      comando('new', {
+        label: 'Nuova sessione',
+        ariaLabel: 'Avvia una nuova sessione di inventario',
+        run: () => this.newSession(),
+      }),
+      /*
+        ⭐ **Elimina è passata dalla RIGA alla barra** — `14` §«Tutte le funzioni
+        stanno nella barra in basso» (29/08/2026) e §«Il menu tre-puntini di riga
+        SPARISCE» (30/08/2026). Qui era rimasto un cestino dentro la riga: uno
+        dei due elenchi che non avevano seguito la decisione.
+
+        ⚠️ **La regola di dominio non cambia**: si elimina solo una sessione
+        ANNULLATA — una completata è la traccia di un conteggio avvenuto. Da
+        pulsante di riga quella regola faceva sparire il cestino; nella barra
+        diventa un'azione **spenta con il motivo**, che è la forma prescritta:
+        l'operatore legge perché non si può, invece di non trovare il comando.
+      */
+      comando('delete', {
+        label: eliminabili === scelte ? 'Elimina' : `Elimina ${eliminabili} di ${scelte}`,
+        disabled: scelte > 0 && eliminabili === 0,
+        disabledReason:
+          'Si eliminano solo le sessioni annullate: una completata è la traccia di un conteggio avvenuto.',
+        busy: this.deleteLoading(),
+        run: () => this.requestDeleteSelection(),
+      }),
+    ];
+  });
+
+  /**
+   * ⚠️ **Il dialogo di conferma resta uno**, e chiede su un elenco di sessioni
+   * invece che su una sola: il contratto della barra è che l'azione lavora sulla
+   * SELEZIONE, e una selezione può contenerne più d'una.
+   */
+  protected requestDeleteSelection(): void {
+    const eliminabili = this.selezionateEliminabili();
+    if (eliminabili.length === 0) {
+      return;
+    }
+    this.sessionsToDelete.set(eliminabili);
+    this.deleteDialogOpen.set(true);
+  }
 
   protected newSession(): void {
     void this.router.navigate(['/app/inventory/counts/new']);
@@ -205,26 +259,24 @@ export class InventoryCountListComponent {
     this.refreshTick.update((value) => value + 1);
   }
 
-  protected requestDelete(session: InventoryCountSession): void {
-    this.sessionToDelete.set(session);
-    this.deleteDialogOpen.set(true);
-  }
-
   protected confirmDelete(): void {
-    const session = this.sessionToDelete();
-    if (!session || this.deleteLoading()) {
+    const scelte = this.sessionsToDelete();
+    if (scelte.length === 0 || this.deleteLoading()) {
       return;
     }
 
     this.deleteLoading.set(true);
-    this.inventoryService
-      .deleteInventoryCount(session.id)
+    // ⚠️ `forkJoin` e non una catena: le eliminazioni sono indipendenti fra
+    //    loro, e una per volta farebbe attendere N round-trip in fila.
+    forkJoin(scelte.map((session) => this.inventoryService.deleteInventoryCount(session.id)))
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
           this.deleteLoading.set(false);
           this.deleteDialogOpen.set(false);
-          this.sessionToDelete.set(null);
+          this.sessionsToDelete.set([]);
+          // ⚠️ La selezione si azzera: punterebbe a righe che non esistono più.
+          this.clearSelection();
           this.reload();
         },
         error: () => {

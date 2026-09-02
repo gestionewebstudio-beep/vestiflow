@@ -23,7 +23,6 @@
   [selectedIds]="selectedIds()"
   [selectionLabel]="selectionLabel"
   selectAllLabel="Seleziona tutte le sessioni"
-  rowActionsLabel="Azioni"
   (rowClick)="rowClick.emit($event)"
   (selectionChange)="selectionToggle.emit({ sessionId: $event.row.id, selected: $event.selected })"
   (selectAllChange)="selectAllToggle.emit($event)"
@@ -35,23 +34,18 @@
   </ng-template>
 
   <!--
-    ⚠️ **Si elimina SOLO una sessione annullata**, ed è una regola di dominio: una
-    sessione in corso o chiusa è un fatto di magazzino, e cancellarla toglierebbe
-    la traccia di un conteggio avvenuto.
+    ⛔ **QUI C'ERA IL CESTINO DI RIGA**, e non doveva esserci: `14` §«Tutte le
+    funzioni stanno nella barra in basso» (29/08/2026) e §«Il menu tre-puntini di
+    riga SPARISCE» (30/08/2026). Questo elenco era uno dei due rimasti indietro,
+    e l'ha visto il proprietario il 02/09/2026 — «le funzioni azioni nelle righe
+    dei riepiloghi sono state tolte».
+
+    ⭐ **La regola di dominio è rimasta, ha cambiato forma**: si elimina solo una
+    sessione ANNULLATA — una in corso o chiusa è la traccia di un conteggio
+    avvenuto. Da qui faceva SPARIRE il cestino; nella barra è un'azione **spenta
+    col motivo scritto**, che l'operatore può leggere invece di non trovare il
+    comando.
   -->
-  <ng-template appRowActions let-session>
-    @if (session.status === InventoryCountStatus.Cancelled) {
-      <button
-        type="button"
-        class="count-table__action-btn"
-        [attr.aria-label]="'Elimina sessione ' + session.name"
-        title="Elimina sessione"
-        (click)="onDeleteClick($event, session)"
-      >
-        <i class="pi pi-trash" aria-hidden="true"></i>
-      </button>
-    }
-  </ng-template>
   <!--
     ⭐ **La card di un ELENCO si progetta, non si impila** (`regole-stile-ui`):
     tre fasce, «a sinistra le parole, a destra i numeri». La grammatica è comune

@@ -87,7 +87,6 @@ import {
 } from '@domain/reports/models/report-list-query.model';
 import {
   SalesOrderTableComponent,
-  type SalesOrderTableActionEvent,
   type SalesOrderTableProfile,
   type SalesOrderTableSelectionEvent,
 } from './components/sales-order-table/sales-order-table.component';
@@ -568,6 +567,36 @@ export class SalesOrderListComponent {
     }
     const azioni: ListAction[] = [
       ...diPagina,
+      /*
+        ⭐ **Duplica è scesa dal menu di riga alla barra** — `14` §«Il menu
+        tre-puntini di riga SPARISCE» (30/08/2026), applicata qui il 02/09/2026:
+        era l'ultimo elenco col menu. La tabella di quella sezione la dava già
+        come `ListAction, requires: 'one'`, ed è esattamente questa forma.
+
+        ⚠️ **`requires: 'one'` e non `'oneOrMore'`**: duplicare tre ordini in un
+        colpo aprirebbe tre maschere, o ne creerebbe tre senza che nessuno le
+        veda. Il contratto comune spegne l'azione e ne scrive il motivo.
+
+        ⚠️ **Il permesso OMETTE, la selezione SPEGNE**, ed è la stessa distinzione
+        già in uso per «Nuovo» qui sopra: chi non può gestire gli ordini non deve
+        leggere un comando spento che non gli servirà mai; chi può, lo trova
+        spento finché non sceglie una riga.
+      */
+      ...(this.canManage()
+        ? [
+            comando('duplicate', {
+              run: (target) => {
+                const scelto =
+                  target.scope === 'selection' && target.ids.length === 1
+                    ? this.selectedOrders().find((order) => order.id === target.ids[0])
+                    : undefined;
+                if (scelto) {
+                  this.startDuplicate(scelto);
+                }
+              },
+            }),
+          ]
+        : []),
       comando('print', {
         disabled: this.selectionCount() === 0,
         disabledReason: FILTERED_SCOPE_NOT_AVAILABLE,
@@ -586,20 +615,39 @@ export class SalesOrderListComponent {
     ];
     const eliminabili = this.deletableSelectedOrders().length;
     const selezionati = this.selectedOrders().length;
-    if (eliminabili > 0) {
-      azioni.push(
-        comando('delete', {
-          // ⚠️ L'etichetta differisce dal catalogo, ed è voluto: dice QUANTI
-          //    dei selezionati si eliminano davvero. Non più «manuali» — fra
-          //    gli eliminabili ci sono anche gli ordini di canale che su
-          //    Shopify non risultano più.
-          label:
-            eliminabili === selezionati ? 'Elimina' : `Elimina ${eliminabili} di ${selezionati}`,
-          disabled: this.deleteBusy(),
-          run: () => this.requestDeleteSelection(),
-        }),
-      );
-    }
+    /*
+      ⛔ **QUI «ELIMINA» COMPARIVA E SPARIVA**, e non doveva: era dentro un
+      `if (eliminabili > 0)`. Segnalato dal proprietario il 02/09/2026 guardando
+      la barra — «nei comandi in basso va inserito elimina del motore comune»:
+      senza selezione il pulsante non c'era proprio.
+
+      ⭐ **`14` §«Tutte le funzioni stanno nella barra in basso» lo dice già**, e
+      il contratto pure: `ListActionRequirement` «ha cambiato mestiere: prima
+      decideva se l'azione COMPARIVA; da quando le azioni sono sempre visibili
+      decide se è **abilitata**, e con quale motivo».
+
+      ⚠️ **Una barra che cambia lunghezza sposta gli altri comandi**: si va a
+      premere «Esporta» e sotto il dito è arrivato «Elimina». È la stessa ragione
+      per cui la riga totali non sparisce mai.
+    */
+    azioni.push(
+      comando('delete', {
+        // ⚠️ L'etichetta differisce dal catalogo, ed è voluto: dice QUANTI
+        //    dei selezionati si eliminano davvero. Non più «manuali» — fra
+        //    gli eliminabili ci sono anche gli ordini di canale che su
+        //    Shopify non risultano più.
+        label:
+          selezionati === 0 || eliminabili === selezionati
+            ? 'Elimina'
+            : `Elimina ${eliminabili} di ${selezionati}`,
+        // ⚠️ Il motivo di «nessuna riga scelta» lo produce il contratto comune
+        //    (`requires: 'oneOrMore'`): qui sta solo il vincolo di DOMINIO.
+        disabled: this.deleteBusy() || (selezionati > 0 && eliminabili === 0),
+        disabledReason:
+          'Gli ordini di canale non si eliminano: appartengono a Shopify, e il prossimo scarico li riporterebbe.',
+        run: () => this.requestDeleteSelection(),
+      }),
+    );
     return azioni;
   });
 
@@ -904,47 +952,15 @@ export class SalesOrderListComponent {
     void this.router.navigate(['/app/sales/new']);
   }
 
-  // ── Azioni di riga + selezione multipla ──────────────────────────────────
+  // ── Azioni sulla selezione ────────────────────────────────────────────────
 
-  protected onTableAction(event: SalesOrderTableActionEvent): void {
-    this.actionError.set(null);
-    if (event.action === 'open') {
-      this.openOrder(event.order);
-      return;
-    }
-    if (event.action === 'duplicate') {
-      this.startDuplicate(event.order);
-      return;
-    }
-    if (event.action === 'print') {
-      this.printOrder(event.order);
-      return;
-    }
-    if (event.action === 'delete') {
-      this.requestDeleteOrder(event.order);
-    }
-  }
-
-  /** Scarica il PDF dell'ordine (azione di riga «Stampa PDF»). */
-  protected printOrder(order: SalesOrder): void {
-    if (this.printingId()) {
-      return;
-    }
-    this.printingId.set(order.id);
-    this.service
-      .exportOrderPdf(order.id)
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (blob) => {
-          this.printingId.set(null);
-          this.downloadBlob(blob, `ordine-cliente-${order.orderNumber}.pdf`);
-        },
-        error: (err: unknown) => {
-          this.printingId.set(null);
-          this.actionError.set(this.toAppError(err));
-        },
-      });
-  }
+  /*
+    ⛔ **Qui c'era il dispatcher del menu «···» di riga**, tolto col menu il
+    02/09/2026. Con lui se ne sono andati `printOrder` — il PDF del singolo
+    ordine, che «Esporta ▾ → PDF» fa già sui selezionati con la stessa
+    `exportOrderPdf` — e `requestDeleteOrder`, identico a
+    `requestDeleteSelection` con un ordine solo in coda.
+  */
 
   private downloadBlob(blob: Blob, filename: string): void {
     const url = URL.createObjectURL(blob);
@@ -1111,12 +1127,6 @@ export class SalesOrderListComponent {
           this.actionError.set(this.toAppError(err));
         },
       });
-  }
-
-  protected requestDeleteOrder(order: SalesOrder): void {
-    this.actionError.set(null);
-    this.pendingDeleteOrders.set([order]);
-    this.deleteWarnOpen.set(true);
   }
 
   protected requestDeleteSelection(): void {
