@@ -42,6 +42,15 @@ enum ProductStatus {
   archived
 }
 
+/// Stato LOCALE della variante, indipendente da Shopify (docs/24 §3.3):
+/// «Attiva» / «Non attiva». Non si deduce dal canale, dalla quantità né da
+/// `inventoryPolicy`. È un asse diverso dal cestino (`deletedAt`) e dalla
+/// pubblicazione Shopify: una variante attiva può essere non pubblicata.
+enum VariantLifecycleStatus {
+  active
+  inactive
+}
+
 /// Tipo prodotto (§Ordine cliente manuale): proprietà interna VestiFlow,
 /// MAI mappata su campi Shopify (né in lettura né in scrittura). Un
 /// prodotto di tipo `service` non richiede SKU/EAN, non genera movimenti
@@ -703,6 +712,17 @@ model Product {
   /// Attributi categoria Shopify [{ attributeId, key, namespace, values: [{ id, name }] }].
   shopifyCategoryMetafields       Json                    @default("[]") @map("shopify_category_metafields")
   status                          ProductStatus           @default(draft)
+  // ── Cestino (docs/24 §4.1): cancellazione LOGICA, reversibile ──────────────
+  /// `deletedAt != null` = NEL CESTINO. Non significa «eliminato definitivamente»:
+  /// quella è la rimozione FISICA del record (§4.2) e non ha una colonna. Per la
+  /// stessa ragione l'enum `status` NON ha un valore `deleted`: sarebbero due
+  /// fonti per lo stesso fatto (§3.2). `archived` resta «Non attivo», che è un
+  /// altro asse (§1.4) e non c'entra col cestino.
+  deletedAt                       DateTime?               @map("deleted_at")
+  /// Chi ha spostato nel cestino: id utente come snapshot d'audit, senza FK —
+  /// stessa forma di `StockMovement.createdById`.
+  deletedById                     String?                 @map("deleted_by_id") @db.Uuid
+  deletionReason                  String?                 @map("deletion_reason")
   /// Interruttore di sincronizzazione Shopify per QUESTO prodotto: se false,
   /// il prodotto non si tocca in NESSUNA delle due direzioni — create/update e
   /// sync manuale non propagano verso Shopify, e un webhook o un pull non ne
@@ -751,7 +771,7 @@ model Product {
   compareAtPriceMinor             Decimal?                @map("compare_at_price_minor") @db.Decimal(16, 6)
   /// Costo d'acquisto di RIFERIMENTO: seeda le nuove varianti. Il costo effettivo
   /// per taglia vive sulla variante (aggiornato dai carichi).
-  purchasePriceMinor              Decimal                     @default(0) @map("purchase_price_minor") @db.Decimal(16, 6)
+  purchasePriceMinor              Decimal                 @default(0) @map("purchase_price_minor") @db.Decimal(16, 6)
   /// Prezzo di vendita per il canale Shopify (listino), INDIPENDENTE dal prezzo
   /// articolo. La pubblicazione legge sempre e solo questo. Precompilato dal
   /// prezzo articolo alla creazione; con Shopify DISATTIVO segue il prezzo
@@ -785,6 +805,8 @@ model Product {
 
   @@unique([tenantId, articleCode])
   @@index([tenantId, status])
+  // Cestino per tenant: l'anagrafica ordinaria filtrerà `deletedAt IS NULL`.
+  @@index([tenantId, deletedAt])
   @@index([tenantId, name])
   @@index([tenantId, importHandle])
   @@index([tenantId, shopifyProductId])
@@ -836,9 +858,9 @@ model ProductImage {
 }
 
 model ProductVariant {
-  id                     String   @id @default(uuid()) @db.Uuid
-  tenantId               String   @map("tenant_id") @db.Uuid
-  productId              String   @map("product_id") @db.Uuid
+  id                     String                 @id @default(uuid()) @db.Uuid
+  tenantId               String                 @map("tenant_id") @db.Uuid
+  productId              String                 @map("product_id") @db.Uuid
   /// Univoco per tenant quando valorizzato (regola interna del gestionale).
   /// Facoltativo alla creazione (specifica cliente §SKU): puo' restare NULL
   /// finche' non viene inserito a mano o generato (Genera SKU). In import da
@@ -846,25 +868,34 @@ model ProductVariant {
   /// anomalie PRIMA dell'insert (regole-gestionale, clausola di realtà).
   sku                    String?
   /// Valori opzione (forma Shopify selectedOptions): [{ name, value }]
-  optionValues           Json     @default("[]") @map("option_values")
+  optionValues           Json                   @default("[]") @map("option_values")
   barcode                String?
   // Denaro in unità minori intere (mai float).
-  currency               String   @default("EUR")
-  sellingPriceMinor      Decimal  @map("selling_price_minor") @db.Decimal(16, 6)
+  currency               String                 @default("EUR")
+  sellingPriceMinor      Decimal                @map("selling_price_minor") @db.Decimal(16, 6)
   /// Prezzo Shopify per-taglia, INDIPENDENTE dal prezzo articolo. Precompilato
   /// dall'articolo alla creazione; la pubblicazione legge solo questo. Ha sempre
   /// un valore proprio.
-  shopifyPriceMinor      Decimal  @default(0) @map("shopify_price_minor") @db.Decimal(16, 6)
+  shopifyPriceMinor      Decimal                @default(0) @map("shopify_price_minor") @db.Decimal(16, 6)
   /// Costo effettivo di questa taglia (aggiornato dai carichi; alimenta
   /// valorizzazione e margini). Il barrato NON vive sulla variante: è dell'articolo.
-  purchasePriceMinor     Decimal      @default(0) @map("purchase_price_minor") @db.Decimal(16, 6)
+  purchasePriceMinor     Decimal                @default(0) @map("purchase_price_minor") @db.Decimal(16, 6)
   // Collegamento Shopify: variante e inventory item.
-  shopifyVariantId       String?  @map("shopify_variant_id")
-  shopifyInventoryItemId String?  @map("shopify_inventory_item_id")
+  shopifyVariantId       String?                @map("shopify_variant_id")
+  shopifyInventoryItemId String?                @map("shopify_inventory_item_id")
   /// SKU id TikTok Shop (Partner API) per sync giacenze.
-  tiktokSkuId            String?  @map("tiktok_sku_id")
-  createdAt              DateTime @default(now()) @map("created_at")
-  updatedAt              DateTime @updatedAt @map("updated_at")
+  tiktokSkuId            String?                @map("tiktok_sku_id")
+  /// Stato locale PROPRIO della variante (docs/24 §3.3), distinto da quello del
+  /// prodotto e da Shopify. Default `active`: ogni variante esistente è in uso.
+  lifecycleStatus        VariantLifecycleStatus @default(active) @map("lifecycle_status")
+  // ── Cestino (docs/24 §4.1): stesso contratto del prodotto ───────────────────
+  /// `deletedAt != null` = nel cestino; l'eliminazione definitiva è la rimozione
+  /// fisica (§4.2). Anche una variante da sola può stare nel cestino (§1.8).
+  deletedAt              DateTime?              @map("deleted_at")
+  deletedById            String?                @map("deleted_by_id") @db.Uuid
+  deletionReason         String?                @map("deletion_reason")
+  createdAt              DateTime               @default(now()) @map("created_at")
+  updatedAt              DateTime               @updatedAt @map("updated_at")
 
   tenant                     Tenant                      @relation(fields: [tenantId], references: [id])
   product                    Product                     @relation(fields: [productId], references: [id], onDelete: Cascade)
@@ -887,6 +918,9 @@ model ProductVariant {
   @@index([tenantId, shopifyInventoryItemId])
   @@index([tenantId, shopifyVariantId])
   @@index([tenantId, tiktokSkuId])
+  // Stato locale e cestino per tenant (docs/24 §3.4: selezionabilità).
+  @@index([tenantId, lifecycleStatus])
+  @@index([tenantId, deletedAt])
   @@map("product_variants")
 }
 
@@ -993,7 +1027,7 @@ model StockMovement {
   /// Costo unitario effettivo in unità minori: costo di riga netto sconto sui
   /// carichi documentali; costo della variante CONGELATO su vendite e resi
   /// (§Punto A: il costo di record è la variante, congelato alla vendita).
-  unitCostMinor      Decimal                  @default(0) @map("unit_cost_minor") @db.Decimal(16, 6)
+  unitCostMinor      Decimal              @default(0) @map("unit_cost_minor") @db.Decimal(16, 6)
   /// Costo totale del movimento in unità minori (unitario × quantità congelato).
   totalCostMinor     Int                  @default(0) @map("total_cost_minor")
   /// Controparte facoltativa del movimento manuale (provenienza/destinatario merce).
@@ -1129,7 +1163,7 @@ model SupplierVariantLink {
   /// Codice articolo presso il fornitore (distinto dallo SKU interno).
   supplierSku            String?  @map("supplier_sku")
   isPreferred            Boolean  @default(false) @map("is_preferred")
-  lastPurchasePriceMinor Decimal      @default(0) @map("last_purchase_price_minor") @db.Decimal(16, 6)
+  lastPurchasePriceMinor Decimal  @default(0) @map("last_purchase_price_minor") @db.Decimal(16, 6)
   minOrderQuantity       Int?     @map("min_order_quantity")
   currency               String   @default("EUR")
   createdAt              DateTime @default(now()) @map("created_at")

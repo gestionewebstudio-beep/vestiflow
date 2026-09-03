@@ -101,6 +101,12 @@ const PRODUCT_LIST_SELECT = {
   shopifyCollections: true,
   shopifyMetafields: true,
   status: true,
+  // Cestino (docs/24 §4.1): la riga d'elenco si spalma in ProductWithVariants,
+  // quindi ogni scalare del modello va selezionato. Non è un filtro: chi è nel
+  // cestino qui si vede ancora — è la Tranche 1B a escluderlo.
+  deletedAt: true,
+  deletedById: true,
+  deletionReason: true,
   shopifySyncEnabled: true,
   catalogOrigin: true,
   shopifyCatalogLinkKind: true,
