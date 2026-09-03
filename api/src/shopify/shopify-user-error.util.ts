@@ -11,7 +11,7 @@
  *    che conta.
  */
 export const SYNC_DISABLE_FAILED_MESSAGE =
-  'Il prodotto potrebbe essere ancora in vendita su Shopify';
+  'La sincronizzazione non è stata disattivata. Il prodotto potrebbe essere ancora in vendita su Shopify';
 
 const CODE_MESSAGES: Readonly<Record<string, string>> = {
   webhook_partial_registration:

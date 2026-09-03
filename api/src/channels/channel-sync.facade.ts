@@ -92,17 +92,6 @@ export class ChannelSyncFacade {
     });
   }
 
-  /**
-   * Post-commit: «Sincronizza con Shopify» appena SPENTO su un prodotto
-   * collegato → il prodotto Shopify va in ARCHIVED (docs/24 §1.8). Non passa
-   * dal push ordinario, che a flag spento non fa nulla per costruzione.
-   */
-  enqueueProductSyncDisabled(tenantId: string, productId: string): void {
-    void this.archiveProductOnSyncDisabled(tenantId, productId).catch((error: unknown) => {
-      this.warn('canali', tenantId, error, 'Archiviazione prodotto');
-    });
-  }
-
   /** Post-commit: pubblica inventario senza bloccare la transazione locale. */
   enqueueInventoryPush(
     tenantId: string,
@@ -112,13 +101,6 @@ export class ChannelSyncFacade {
     void this.pushInventoryLevels(tenantId, variantId, locationIds).catch((error: unknown) => {
       this.warn('canali', tenantId, error, 'Push inventario');
     });
-  }
-
-  private async archiveProductOnSyncDisabled(tenantId: string, productId: string): Promise<void> {
-    if (!(await this.isShopifyTenant(tenantId))) {
-      return;
-    }
-    await this.shopifyProductPush.archiveOnSyncDisabled(tenantId, productId);
   }
 
   private async pushProductToChannels(tenantId: string, productId: string): Promise<void> {
@@ -174,6 +156,32 @@ export class ChannelSyncFacade {
       return { pushed: false, reason: 'not_connected' };
     }
     return this.shopifyProductPush.enqueuePush(tenantId, productId);
+  }
+
+  /**
+   * «Sincronizza con Shopify» appena SPENTO su un prodotto collegato → il
+   * prodotto Shopify va in ARCHIVED (docs/24 §1.10). Non passa dal push
+   * ordinario, che a flag spento non fa nulla per costruzione.
+   *
+   * ⛔ **Attesa, non accodata.** Era un `enqueue*` fire-and-forget: la risposta
+   *    al salvataggio partiva prima che Shopify avesse confermato, quindi la
+   *    scheda mostrava «sincronizzazione spenta» mentre l'annullamento arrivava
+   *    dopo — e chi aveva appena salvato non lo sapeva. Lo spegnimento è una
+   *    delle due operazioni il cui esito l'operatore deve leggere subito, come
+   *    l'eliminazione qui sotto.
+   *
+   * ⚠️ Tenant senza Shopify: `not_linked`, non `not_connected`. Il chiamante
+   *    deve distinguere «non c'era niente da archiviare» — che lascia lo
+   *    spegnimento valido — da «Shopify ha rifiutato», che lo annulla.
+   */
+  async archiveProductOnSyncDisabled(
+    tenantId: string,
+    productId: string,
+  ): Promise<ShopifyProductPushResult> {
+    if (!(await this.isShopifyTenant(tenantId))) {
+      return { pushed: false, reason: 'not_linked' };
+    }
+    return this.shopifyProductPush.archiveOnSyncDisabled(tenantId, productId);
   }
 
   /**

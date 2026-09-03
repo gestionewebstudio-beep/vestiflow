@@ -53,6 +53,7 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
+import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 import { ProductGeneralStepComponent } from './components/product-general-step/product-general-step.component';
@@ -105,6 +106,19 @@ const EMPTY_FILTER_OPTIONS: ProductFilterOptions = { categories: [], brands: [],
 
 const PRODUCTS_LIST_PATH = '/app/products';
 
+/**
+ * Ripiego per l'avviso di spegnimento non riuscito (docs/24 §1.10). Il testo che
+ * l'operatore legge di norma arriva dal server dentro `shopify.lastError`, con
+ * il motivo tecnico in coda: questo copre il caso in cui il campo sia stato nel
+ * frattempo sovrascritto da un webhook.
+ *
+ * ⚠️ Gemello di `SYNC_DISABLE_FAILED_MESSAGE` dell'API — stesso pattern di
+ *    `ARTICLE_CODE_REQUIRED_MESSAGE`, che vive già nei due alberi: non c'è un
+ *    pacchetto condiviso fra client e server.
+ */
+export const SYNC_DISABLE_FAILED_MESSAGE =
+  'La sincronizzazione non è stata disattivata. Il prodotto potrebbe essere ancora in vendita su Shopify';
+
 type ProductFormMode = 'create' | 'edit';
 
 /** Tab dell'anagrafica prodotto: navigazione libera, un'unica schermata. */
@@ -141,6 +155,7 @@ type FormLoadState =
     ButtonComponent,
     EmptyStateComponent,
     ErrorStateComponent,
+    InlineBannerComponent,
     TableSkeletonComponent,
     ProductGeneralStepComponent,
     ProductImagesFieldComponent,
@@ -231,6 +246,16 @@ export class ProductFormComponent implements CanComponentDeactivate {
   // Stato submit (dichiarati prima del pipe di load, che usa resetDraft in init).
   private readonly _submitState = signal<'idle' | 'submitting' | 'error'>('idle');
   protected readonly submitError = signal<AppError | null>(null);
+  /**
+   * Spegnere «Sincronizza con Shopify» non è arrivato fino a Shopify, quindi la
+   * disattivazione si è annullata da sé (docs/24 §1.10): il prodotto può essere
+   * ancora in vendita.
+   *
+   * ⛔ **Non è `submitError`**, ed è la distinzione che conta: la scheda È stata
+   *    salvata, nome e prezzi compresi. Dire «salvataggio fallito» manderebbe
+   *    l'operatore a rifare un lavoro che c'è già.
+   */
+  protected readonly syncDisableFailed = signal<string | null>(null);
   private readonly embeddedAttachAfterSave = signal(true);
 
   private readonly loadTick = signal(0);
@@ -802,11 +827,16 @@ export class ProductFormComponent implements CanComponentDeactivate {
     const draft = this.draft();
     const id = this.productId();
     const pendingFiles = [...this.pendingImageFiles()];
-    const baseRequest$ = id
-      ? this.service.updateProduct(id, toUpdateProductDto(draft))
-      : // Alla creazione viaggia anche la modalità con cui l'operatore ha
-        // compilato i listini: serve al backend solo per ricordargliela.
-        this.service.createProduct(toCreateProductDto(draft));
+    const updateDto = id ? toUpdateProductDto(draft) : null;
+    // Lo spegnimento della sync è l'unica modifica il cui esito si legge nella
+    // RISPOSTA e non nel codice HTTP: il salvataggio riesce comunque.
+    const spegnimentoRichiesto = updateDto?.shopifySyncEnabled === false;
+    const baseRequest$ =
+      id && updateDto
+        ? this.service.updateProduct(id, updateDto)
+        : // Alla creazione viaggia anche la modalità con cui l'operatore ha
+          // compilato i listini: serve al backend solo per ricordargliela.
+          this.service.createProduct(toCreateProductDto(draft));
 
     const supplierId = draft.general.supplierId.trim();
     const request$ = baseRequest$.pipe(
@@ -823,10 +853,23 @@ export class ProductFormComponent implements CanComponentDeactivate {
 
     this._submitState.set('submitting');
     this.submitError.set(null);
+    this.syncDisableFailed.set(null);
 
     this.submitSub = request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (product) => {
         this.saved.set(true);
+        // ⛔ Chiesto spento, tornato acceso: Shopify non ha archiviato e la
+        //    disattivazione si è annullata. Qui NON si naviga e NON si emette
+        //    niente al pannello: qualunque destinazione butterebbe l'avviso, e
+        //    l'operatore resterebbe convinto di aver tolto il prodotto dalla
+        //    vendita. Il ricarico rimette l'interruttore su ACCESO, che è lo
+        //    stato vero — riprovare è allora una scelta esplicita.
+        if (spegnimentoRichiesto && product.shopifySyncEnabled) {
+          this.syncDisableFailed.set(product.shopify?.lastError ?? SYNC_DISABLE_FAILED_MESSAGE);
+          this._submitState.set('idle');
+          this.reload();
+          return;
+        }
         // Carica/Scarica/Rettifica: priorità sul flusso post-salvataggio
         // (anche in embedded si va al movimento, non al dettaglio/documento).
         if (this.postSaveMovement) {

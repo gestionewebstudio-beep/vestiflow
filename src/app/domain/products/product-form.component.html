@@ -192,6 +192,21 @@
         }
       }
 
+      <!--
+        Spegnimento della sync non riuscito: la scheda È salvata, quindi non è
+        un errore di salvataggio ma un avviso su ciò che resta in vendita
+        (docs/24 §1.10). Tono «warning»: `app-inline-banner` gli dà da solo il
+        `role="alert"` che serve.
+      -->
+      @if (syncDisableFailed(); as avviso) {
+        <app-inline-banner
+          tone="warning"
+          [message]="avviso"
+          dismissLabel="Ho capito"
+          (dismissed)="syncDisableFailed.set(null)"
+        />
+      }
+
       @if (submitError(); as err) {
         <p class="product-form__submit-error" role="alert">
           <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>

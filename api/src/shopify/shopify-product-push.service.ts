@@ -378,6 +378,16 @@ export class ShopifyProductPushService {
    *    riallineato), ma da solo non direbbe la conseguenza: quella sta nel
    *    messaggio, che è ciò che l'operatore legge.
    *
+   * ⛔ **La lettura del prodotto sta DENTRO il `try`**, e non è pignoleria: se
+   *    fallisce lei, il flag è già spento e l'archiviazione non è mai partita —
+   *    cioè esattamente la metà pericolosa. Qualunque cosa vada storta da qui
+   *    in poi annulla la disattivazione; l'unica uscita che non annulla è il
+   *    prodotto mai collegato, dove non c'è niente da annullare.
+   *
+   * ⚠️ **Non lancia mai**: chi la chiama attende il suo esito dentro un
+   *    salvataggio, e un'eccezione qui diventerebbe «salvataggio fallito» su
+   *    una scheda che invece è stata salvata per intero.
+   *
    * Mapping e id restano com'erano: riaccendendo, il push ordinario ritrova
    * il prodotto e lo riallinea per intero, stato locale compreso.
    */
@@ -385,14 +395,16 @@ export class ShopifyProductPushService {
     tenantId: string,
     productId: string,
   ): Promise<ShopifyProductPushResult> {
-    const product = await this.prisma.product.findFirst({
-      where: { id: productId, tenantId },
-      select: { id: true, name: true, shopifyProductId: true },
-    });
-    if (!product?.shopifyProductId) {
-      return { pushed: false, reason: 'not_linked' };
-    }
     try {
+      const product = await this.prisma.product.findFirst({
+        where: { id: productId, tenantId },
+        select: { id: true, name: true, shopifyProductId: true },
+      });
+      // ⭐ Mai collegato: non c'è niente da archiviare, e lo spegnimento vale
+      //    da solo. Nessuna chiamata a Shopify, e nessun annullamento.
+      if (!product?.shopifyProductId) {
+        return { pushed: false, reason: 'not_linked' };
+      }
       const { shopDomain, accessToken } = await this.shopifyOAuth.getAccessToken(tenantId);
       await this.shopifyGraphql.setProductStatus(
         shopDomain,

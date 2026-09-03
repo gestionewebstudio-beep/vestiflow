@@ -348,6 +348,46 @@ nasconderebbe la conseguenza: quella sta nel messaggio, che è ciò che l'operat
 ⭐ **Ripetere non duplica effetti**: l'annullamento filtra su `shopifySyncEnabled: false`, quindi
 chi ha già il flag acceso non viene toccato e una decisione più recente non viene sovrascritta.
 
+#### ⭐ E l'esito si ATTENDE: la risposta al salvataggio dice cosa è successo — 03/09/2026
+
+> **Il salvataggio di un prodotto già collegato non risponde finché Shopify non ha confermato
+> l'archiviazione. La risposta porta il prodotto nello stato EFFETTIVO.**
+
+⛔ **Qui l'archiviazione partiva accodata** — `enqueueProductSyncDisabled`, un `void` con
+`catch` — e la regola qui sopra restava vera **solo dal lato del database**: il flag si
+riaccendeva davvero, ma la risposta era già partita dicendo «spenta». L'operatore chiudeva la
+scheda convinto di aver tolto il prodotto dalla vendita, e l'unico posto dove la verità
+compariva era una riga minuta nel Dettaglio, che non aveva motivo di aprire.
+
+⚠️ **Non era un difetto della reversibilità: era un difetto di CHI LO VIENE A SAPERE.** È la
+stessa forma del guasto muto che questo progetto combatte ovunque — niente fallisce, e nessuno
+lo scopre.
+
+| Esito                        | La risposta contiene                                                      |
+| ---------------------------- | ------------------------------------------------------------------------- |
+| **archiviazione confermata** | flag **spento**, catalogo e inventario fermi                              |
+| **archiviazione fallita**    | flag **acceso**, `out_of_sync`, e il messaggio in `shopifyLastError`      |
+| **prodotto mai collegato**   | flag **spento** senza aver chiamato Shopify: non c'è niente da archiviare |
+
+⛔ **E non solleva.** Le altre modifiche della scheda — nome, prezzi, listini — sono già in
+database: un errore HTTP direbbe «salvataggio fallito» di un salvataggio riuscito, e manderebbe
+a rifare un lavoro che c'è. L'esito viaggia **dentro il prodotto restituito**, non nel codice
+di stato.
+
+⭐ **La maschera lo riconosce da un confronto, non da una stringa**: ha chiesto `false` e si è
+vista tornare `true`. Allora **non naviga** — qualunque destinazione butterebbe l'avviso — mostra
+il banner e **ricarica**, così l'interruttore torna su ACCESO, che è lo stato vero. Riprovare
+diventa una scelta esplicita, non un secondo tentativo alla cieca.
+
+⚠️ **La lettura del prodotto sta DENTRO il `try`** di `archiveOnSyncDisabled`: se fallisce lei,
+il flag è già spento e l'archiviazione non è mai partita — cioè la metà pericolosa. L'unica
+uscita che **non** annulla è il prodotto mai collegato, dove non c'è niente da annullare.
+
+⭐ **Il messaggio dice prima cosa NON è successo**: «La sincronizzazione non è stata disattivata.
+Il prodotto potrebbe essere ancora in vendita su Shopify», e il motivo tecnico in coda. La prima
+frase è stata aggiunta lo stesso giorno: senza, l'avviso descriveva un rischio senza dire che
+il comando appena dato non aveva avuto effetto.
+
 #### ⛔ E lo spegnimento deve restare REVERSIBILE — misurato il 03/09/2026
 
 > **A sincronizzazione spenta il prodotto si IGNORA INTEGRALMENTE**: un webhook o un pull non

@@ -878,11 +878,22 @@ export class ProductsService {
     });
 
     // ⭐ Spegnere «Sincronizza con Shopify» su un prodotto collegato lo porta in
-    //    ARCHIVED su Shopify (docs/24 §1.8): è l'unica transizione che il push
+    //    ARCHIVED su Shopify (docs/24 §1.10): è l'unica transizione che il push
     //    ordinario non può fare, perché a flag spento non parte per costruzione.
     //    Riaccenderlo passa invece dal push ordinario, che riallinea tutto.
+    //
+    // ⛔ **Si ATTENDE**, a differenza di ogni altro push di questo metodo: se la
+    //    risposta parte prima della conferma di Shopify, la scheda dichiara
+    //    «spenta» una sincronizzazione che un istante dopo si riaccende da sé, e
+    //    chi ha appena salvato non lo sa. `getById` qui sotto rilegge lo stato
+    //    EFFETTIVO — flag e messaggio compresi — quindi la risposta dice quello
+    //    che è successo davvero, senza bisogno di un secondo giro.
+    //
+    // ⚠️ **E non solleva**: le altre modifiche della scheda sono già in database,
+    //    quindi un'eccezione qui direbbe «salvataggio fallito» di un salvataggio
+    //    riuscito. L'esito viaggia nel prodotto restituito.
     if (existing.shopifySyncEnabled && dto.shopifySyncEnabled === false) {
-      this.channelSync.enqueueProductSyncDisabled(tenantId, id);
+      await this.channelSync.archiveProductOnSyncDisabled(tenantId, id);
     } else {
       await this.pushProductToShopifySafe(tenantId, id);
     }

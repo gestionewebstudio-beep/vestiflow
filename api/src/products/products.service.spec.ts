@@ -10,6 +10,7 @@ import { TenantPermission } from '../auth/tenant-permission.constants';
 import type { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { ShopifyTaxonomyLocalizationService } from '../shopify/shopify-taxonomy-localization.service';
+import { SYNC_DISABLE_FAILED_MESSAGE } from '../shopify/shopify-user-error.util';
 import { testClerkUser, testOwnerUser } from '../test/fixtures/user-profile.fixture';
 import { ProductsService } from './products.service';
 
@@ -90,6 +91,7 @@ describe('ProductsService', () => {
       enqueueProductPush: vi.fn(),
       pushProductNow: vi.fn(),
       deleteProduct: vi.fn(),
+      archiveProductOnSyncDisabled: vi.fn().mockResolvedValue({ pushed: true }),
     };
 
     const service = new ProductsService(
@@ -625,6 +627,125 @@ describe('ProductsService', () => {
         ],
       } as never),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  // ⛔ Spegnere «Sincronizza con Shopify» è UN'OPERAZIONE SOLA (docs/24 §1.10):
+  //    la risposta al salvataggio non parte prima che Shopify abbia confermato,
+  //    altrimenti la scheda dichiara «spenta» una sync che si riaccende da sé.
+  describe('lo spegnimento della sincronizzazione aspetta Shopify', () => {
+    const collegato = {
+      id: 'prod-1',
+      name: 'Maglietta',
+      description: null,
+      shopifySyncEnabled: true,
+      shopifyProductId: '111',
+      variants: [],
+      images: [],
+    };
+
+    it("non risponde finché l'archiviazione è in volo", async () => {
+      const { service, prisma, channelSync } = createService();
+      prisma.product.findFirst.mockResolvedValue(collegato);
+      let concludi: (esito: unknown) => void = () => {};
+      channelSync.archiveProductOnSyncDisabled.mockReturnValue(
+        new Promise((resolve) => {
+          concludi = resolve;
+        }),
+      );
+
+      let risposta = false;
+      const salvataggio = service
+        .update(tenantId, 'prod-1', { shopifySyncEnabled: false } as never)
+        .then((prodotto) => {
+          risposta = true;
+          return prodotto;
+        });
+
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(risposta).toBe(false);
+
+      concludi({ pushed: true });
+      await salvataggio;
+      expect(risposta).toBe(true);
+      // Lo spegnimento non passa dal push ordinario: a flag spento non parte.
+      expect(channelSync.enqueueProductPush).not.toHaveBeenCalled();
+    });
+
+    it('⭐ Shopify CONFERMA: il flag resta spento e la risposta lo dice', async () => {
+      const { service, prisma, channelSync } = createService();
+      prisma.product.findFirst
+        .mockResolvedValueOnce(collegato)
+        .mockResolvedValue({ ...collegato, shopifySyncEnabled: false });
+
+      const prodotto = await service.update(tenantId, 'prod-1', {
+        name: 'Nome nuovo',
+        shopifySyncEnabled: false,
+      } as never);
+
+      expect(channelSync.archiveProductOnSyncDisabled).toHaveBeenCalledWith(tenantId, 'prod-1');
+      expect(prodotto).toMatchObject({ shopifySyncEnabled: false });
+    });
+
+    it('⛔ Shopify RIFIUTA: la risposta porta lo stato EFFETTIVO, e il salvataggio riesce', async () => {
+      const { service, prisma, channelSync } = createService();
+      channelSync.archiveProductOnSyncDisabled.mockResolvedValue({
+        pushed: false,
+        reason: 'shopify_error',
+      });
+      // Dopo l'annullamento il prodotto è di nuovo acceso, con il messaggio: è
+      // quello che `getById` rilegge, ed è quello che la scheda deve mostrare.
+      prisma.product.findFirst.mockResolvedValueOnce(collegato).mockResolvedValue({
+        ...collegato,
+        name: 'Nome nuovo',
+        shopifySyncEnabled: true,
+        shopifySyncStatus: 'out_of_sync',
+        shopifyLastError: `${SYNC_DISABLE_FAILED_MESSAGE}: Shopify productUpdate rifiutato`,
+      });
+
+      // ⛔ Non solleva: le altre modifiche della scheda sono salvate, e un 500
+      //    direbbe «salvataggio fallito» di un salvataggio riuscito.
+      const prodotto = await service.update(tenantId, 'prod-1', {
+        name: 'Nome nuovo',
+        shopifySyncEnabled: false,
+      } as never);
+
+      expect(prodotto).toMatchObject({
+        name: 'Nome nuovo',
+        shopifySyncEnabled: true,
+        shopifySyncStatus: 'out_of_sync',
+      });
+      expect(prodotto.shopifyLastError).toContain(SYNC_DISABLE_FAILED_MESSAGE);
+    });
+
+    it('⭐ prodotto MAI COLLEGATO: si spegne in locale, senza chiamare Shopify', async () => {
+      const { service, prisma, channelSync } = createService();
+      const mai = { ...collegato, shopifyProductId: null };
+      channelSync.archiveProductOnSyncDisabled.mockResolvedValue({
+        pushed: false,
+        reason: 'not_linked',
+      });
+      prisma.product.findFirst
+        .mockResolvedValueOnce(mai)
+        .mockResolvedValue({ ...mai, shopifySyncEnabled: false });
+
+      const prodotto = await service.update(tenantId, 'prod-1', {
+        shopifySyncEnabled: false,
+      } as never);
+
+      // La chiamata parte lo stesso: è la facade a sapere se c'è un canale.
+      // Quello che conta è che lo spegnimento REGGA.
+      expect(prodotto).toMatchObject({ shopifySyncEnabled: false });
+    });
+
+    it('già spento: nessuna transizione, quindi nessuna archiviazione', async () => {
+      const { service, prisma, channelSync } = createService();
+      prisma.product.findFirst.mockResolvedValue({ ...collegato, shopifySyncEnabled: false });
+
+      await service.update(tenantId, 'prod-1', { shopifySyncEnabled: false } as never);
+
+      expect(channelSync.archiveProductOnSyncDisabled).not.toHaveBeenCalled();
+      expect(channelSync.enqueueProductPush).toHaveBeenCalledWith(tenantId, 'prod-1');
+    });
   });
 
   it('update modifica nome prodotto', async () => {

@@ -520,6 +520,38 @@ describe('ShopifyProductPushService — prezzo nel payload', () => {
           });
         }
       });
+
+      it('⛔ guasto PRIMA di Shopify: annulla lo stesso, e non solleva', async () => {
+        const { service, prisma, shopifyGraphql } = createService(2990, {
+          ...collegato,
+          shopifySyncEnabled: false,
+        });
+        // La lettura del prodotto stava fuori dal try: un guasto qui lasciava il
+        // flag spento senza aver mai archiviato — la metà pericolosa.
+        prisma.product.findFirst.mockRejectedValue(new Error('connessione al database persa'));
+
+        const result = await service.archiveOnSyncDisabled('tenant-1', 'prod-1');
+
+        expect(result).toEqual({ pushed: false, reason: 'shopify_error' });
+        expect(shopifyGraphql.setProductStatus).not.toHaveBeenCalled();
+        const [chiamata] = prisma.product.updateMany.mock.calls as [
+          [{ data: Record<string, unknown> }],
+        ];
+        expect(chiamata[0].data).toMatchObject({ shopifySyncEnabled: true });
+      });
+
+      it('⭐ mai collegato: nessuna chiamata, e lo spegnimento NON si annulla', async () => {
+        const { service, prisma, shopifyGraphql } = createService(2990, {
+          shopifySyncEnabled: false,
+        });
+
+        const result = await service.archiveOnSyncDisabled('tenant-1', 'prod-1');
+
+        expect(result).toEqual({ pushed: false, reason: 'not_linked' });
+        expect(shopifyGraphql.setProductStatus).not.toHaveBeenCalled();
+        // Il flag resta spento: non c'è niente in vendita da cui proteggersi.
+        expect(prisma.product.updateMany).not.toHaveBeenCalled();
+      });
     });
   });
 });
