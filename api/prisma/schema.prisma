@@ -704,9 +704,11 @@ model Product {
   shopifyCategoryMetafields       Json                    @default("[]") @map("shopify_category_metafields")
   status                          ProductStatus           @default(draft)
   /// Interruttore di sincronizzazione Shopify per QUESTO prodotto: se false,
-  /// create/update e sync manuale NON propagano verso Shopify (il prodotto già
-  /// presente su Shopify resta invariato, nessun cleanup). Indipendente da
-  /// `status` e da `catalogOrigin`. Default true = comportamento invariato.
+  /// il prodotto non si tocca in NESSUNA delle due direzioni — create/update e
+  /// sync manuale non propagano verso Shopify, e un webhook o un pull non ne
+  /// cambiano nome, descrizione, stato, opzioni, varianti o immagini
+  /// (docs/24 §1.10, dal 03/09/2026: prima fermava il solo push).
+  /// Indipendente da `status` e da `catalogOrigin`. Default true.
   shopifySyncEnabled              Boolean                 @default(true) @map("shopify_sync_enabled")
   /// Chi possiede il catalogo ecommerce: vestiflow (creato in gestionale) o shopify (import).
   catalogOrigin                   CatalogOrigin           @default(vestiflow) @map("catalog_origin")

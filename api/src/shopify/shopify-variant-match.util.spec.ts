@@ -116,6 +116,113 @@ describe('matchOrphanVariants', () => {
   });
 });
 
+// ⭐ La variante BASE: un prodotto semplice in VestiFlow ha UNA variante senza
+//    opzioni, e su Shopify la stessa cosa si chiama «Default Title».
+//    Senza questo criterio 12 prodotti su 18 del negozio di prova non si
+//    sincronizzavano più: nessuno dei tre criteri aveva una chiave da confrontare.
+describe('matchOrphanVariants — la variante base', () => {
+  const nudaLocale = {
+    id: 'var-1',
+    sku: null,
+    barcode: null,
+    optionValues: [],
+    shopifyVariantId: null,
+  };
+  const nudaRemota = {
+    id: 'gid://shopify/ProductVariant/1',
+    sku: null,
+    barcode: null,
+    inventoryItemId: 'gid://shopify/InventoryItem/9',
+    selectedOptions: [{ name: 'Title', value: 'Default Title' }],
+  };
+
+  it('⭐ una locale nuda e una remota «Default Title» si collegano', () => {
+    const esito = matchOrphanVariants([nudaLocale], [nudaRemota]);
+
+    expect(esito.nonAbbinate).toHaveLength(0);
+    expect(esito.abbinate).toEqual([
+      { localId: 'var-1', remote: nudaRemota, criterio: 'base' },
+    ]);
+  });
+
+  it('vale anche se la remota non ha proprio opzioni', () => {
+    const esito = matchOrphanVariants([nudaLocale], [{ ...nudaRemota, selectedOptions: [] }]);
+
+    expect(esito.abbinate).toHaveLength(1);
+    expect(esito.abbinate[0]?.criterio).toBe('base');
+  });
+
+  it('⛔ due locali libere: non si applica, e il push si ferma', () => {
+    const esito = matchOrphanVariants(
+      [nudaLocale, { ...nudaLocale, id: 'var-2' }],
+      [nudaRemota],
+    );
+
+    expect(esito.abbinate).toHaveLength(0);
+    expect(esito.nonAbbinate).toHaveLength(2);
+  });
+
+  it('⛔ due remote libere: non si applica', () => {
+    const esito = matchOrphanVariants(
+      [nudaLocale],
+      [nudaRemota, { ...nudaRemota, id: 'gid://shopify/ProductVariant/2' }],
+    );
+
+    expect(esito.abbinate).toHaveLength(0);
+    expect(esito.nonAbbinate[0]?.esito).toBe('nessuna');
+  });
+
+  it('⛔ un identificativo presente da una parte sola: sono varianti diverse, non si indovina', () => {
+    const conSku = matchOrphanVariants([{ ...nudaLocale, sku: 'SKU-1' }], [nudaRemota]);
+    const remotaConBarcode = matchOrphanVariants(
+      [nudaLocale],
+      [{ ...nudaRemota, barcode: '8001' }],
+    );
+
+    expect(conSku.abbinate).toHaveLength(0);
+    expect(remotaConBarcode.abbinate).toHaveLength(0);
+  });
+
+  it('⛔ SKU presenti ma DISCORDANTI: non si applica nemmeno con una per lato', () => {
+    const esito = matchOrphanVariants(
+      [{ ...nudaLocale, sku: 'SKU-1' }],
+      [{ ...nudaRemota, sku: 'SKU-2' }],
+    );
+
+    expect(esito.abbinate).toHaveLength(0);
+    expect(esito.nonAbbinate[0]?.esito).toBe('nessuna');
+  });
+
+  it('⛔ un\'opzione commerciale VERA non è «Default Title»: non si applica', () => {
+    const esito = matchOrphanVariants(
+      [{ ...nudaLocale, optionValues: [{ name: 'Taglia', value: 'M' }] }],
+      [{ ...nudaRemota, selectedOptions: [{ name: 'Taglia', value: 'L' }] }],
+    );
+
+    expect(esito.abbinate).toHaveLength(0);
+  });
+
+  it('⛔ la REMOTA con un’opzione commerciale vera: la locale è nuda, ma non è la stessa variante', () => {
+    const esito = matchOrphanVariants(
+      [nudaLocale],
+      [{ ...nudaRemota, selectedOptions: [{ name: 'Taglia', value: 'M' }] }],
+    );
+
+    expect(esito.abbinate).toHaveLength(0);
+    expect(esito.nonAbbinate[0]?.esito).toBe('nessuna');
+  });
+
+  it('⛔ e una remota già collegata a un\'altra locale non è libera', () => {
+    const esito = matchOrphanVariants(
+      [nudaLocale, { ...nudaLocale, id: 'var-2', shopifyVariantId: '1' }],
+      [nudaRemota],
+    );
+
+    expect(esito.abbinate).toHaveLength(0);
+    expect(esito.nonAbbinate[0]?.localId).toBe('var-1');
+  });
+});
+
 describe('describeUnmatchedVariants', () => {
   it('nomina la variante per SKU e dice se è ambigua o senza corrispondenza', () => {
     const testo = describeUnmatchedVariants([

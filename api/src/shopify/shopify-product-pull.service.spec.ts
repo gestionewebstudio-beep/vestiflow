@@ -38,10 +38,20 @@ function creaService(existing: Record<string, unknown> | null) {
   };
 
   const prisma = {
-    product: { findFirst: vi.fn().mockResolvedValue(existing) },
+    product: {
+      findFirst: vi.fn().mockResolvedValue(existing),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
     productVariant: { findMany: vi.fn().mockResolvedValue([]) },
+    shopifyConnection: {
+      findUnique: vi.fn().mockResolvedValue({ status: 'connected', scopes: ['read_products'] }),
+    },
+    shopifyCredential: { findUnique: vi.fn().mockResolvedValue({ scopes: ['read_products'] }) },
     $transaction: vi.fn(async (fn: (client: unknown) => Promise<unknown>) => fn(tx)),
   };
+
+  // L'arricchimento è predisposto a FALLIRE: se qualcuno lo chiama, si vede.
+  const enrichProduct = vi.fn().mockRejectedValue(new Error('Shopify non risponde'));
 
   const service = new ShopifyProductPullService(
     prisma as unknown as PrismaService,
@@ -50,17 +60,19 @@ function creaService(existing: Record<string, unknown> | null) {
         .fn()
         .mockResolvedValue({ shopDomain: 'shop.myshopify.com', accessToken: 'shpat_test' }),
     } as unknown as ShopifyOAuthService,
-    {} as unknown as ShopifyConfigService,
-    {} as unknown as ShopifyAdminClient,
-    {} as unknown as ShopifyConnectionService,
+    { requestedScopes: ['read_products'] } as unknown as ShopifyConfigService,
     {
-      enrichProduct: vi.fn().mockResolvedValue({
-        variantPurchasePriceMinor: new Map<number, number>(),
-      }),
-    } as unknown as ShopifyProductEnrichmentService,
+      listAllProducts: vi.fn().mockResolvedValue([PAYLOAD]),
+    } as unknown as ShopifyAdminClient,
+    {
+      healStaleErrorStatus: vi.fn(),
+      touchSync: vi.fn(),
+      recordApiFailure: vi.fn(),
+    } as unknown as ShopifyConnectionService,
+    { enrichProduct } as unknown as ShopifyProductEnrichmentService,
   );
 
-  return { service, prisma, tx };
+  return { service, prisma, tx, enrichProduct };
 }
 
 const PAYLOAD = {
@@ -97,13 +109,14 @@ describe('ShopifyProductPullService — il titolo remoto è il «Nome Shopify»'
     expect(chiamata.data['shopifyTitle']).toBe('Maglia in cotone blu — collezione estate 2026');
   });
 
-  it("⛔ a sincronizzazione SPENTA lo stato remoto non si importa: era l'eco della nostra archiviazione", async () => {
-    // Spegnere la sync archivia il prodotto su Shopify (docs/24 §1.10). Il webhook
-    // riporta quell'ARCHIVED, e importarlo rendeva lo spegnimento irreversibile:
-    // il prodotto locale diventava `archived` e il push si rifiutava di lavorarci.
-    const { service, tx } = creaService({
+  it('⛔ a sincronizzazione SPENTA il prodotto si ignora INTEGRALMENTE: nessuna scrittura', async () => {
+    // Spegnere l'interruttore significa «questo prodotto non si tocca da Shopify».
+    // Prima passava tutto tranne lo stato: nome, descrizione, opzioni, varianti,
+    // immagini. Una guardia che ne lascia passare metà è peggio di nessuna.
+    const { service, prisma, tx } = creaService({
       id: 'prod-1',
       name: 'MAGL-COT-BLU',
+      shopifyTitle: 'Titolo vecchio',
       catalogOrigin: 'shopify',
       shopifySyncEnabled: false,
       shopifyLastError: null,
@@ -111,18 +124,110 @@ describe('ShopifyProductPullService — il titolo remoto è il «Nome Shopify»'
       shopifyTaxonomyCategoryFullName: null,
       season: null,
       shopifyMetafields: [],
+      images: [],
       variants: [],
     });
 
-    await service.importProductFromWebhook('tenant-1', { ...PAYLOAD, status: 'archived' });
+    const esito = await service.importProductFromWebhook('tenant-1', {
+      ...PAYLOAD,
+      status: 'archived',
+    });
 
-    const [[chiamata]] = tx.product.update.mock.calls as [[{ data: Record<string, unknown> }]];
-    expect(chiamata.data).not.toHaveProperty('status');
-    // Il resto continua ad arrivare: è solo lo stato a essere nostro.
-    expect(chiamata.data['shopifyTitle']).toBe('Maglia in cotone blu — collezione estate 2026');
+    expect(esito).toBe('skipped');
+    // Nessuna scrittura, di nessun genere: né il titolo, né la transazione.
+    expect(prisma.product.updateMany).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(tx.product.update).not.toHaveBeenCalled();
+    expect(tx.product.create).not.toHaveBeenCalled();
+    expect(tx.productVariant.update).not.toHaveBeenCalled();
+    expect(tx.productVariant.create).not.toHaveBeenCalled();
   });
 
-  it('a sincronizzazione ACCESA lo stato remoto si importa come sempre', async () => {
+  it('⛔ e nemmeno un payload SENZA TITOLO la fa scrivere: la guardia viene prima di tutto', async () => {
+    // `normalizeWebhookProduct` non valida il payload: `remote.title` può essere
+    // `undefined`. Se il titolo si leggesse prima della guardia, il `.trim()`
+    // lancerebbe e il catch scriverebbe `shopifySyncStatus: error` — sul prodotto
+    // che la guardia esiste per proteggere.
+    const { service, prisma } = creaService({
+      id: 'prod-1',
+      name: 'MAGL-COT-BLU',
+      shopifyTitle: 'Titolo vecchio',
+      catalogOrigin: 'shopify',
+      shopifySyncEnabled: false,
+      shopifyLastError: null,
+      shopifyTaxonomyCategoryId: null,
+      shopifyTaxonomyCategoryFullName: null,
+      season: null,
+      shopifyMetafields: [],
+      images: [],
+      variants: [],
+    });
+
+    const senzaTitolo: Record<string, unknown> = { ...PAYLOAD };
+    delete senzaTitolo['title'];
+
+    await expect(service.importProductFromWebhook('tenant-1', senzaTitolo)).resolves.toBe(
+      'skipped',
+    );
+    expect(prisma.product.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('⭐ prodotto NATO in VestiFlow: arriva solo il Nome Shopify, il resto del catalogo no', async () => {
+    // Il catalogo resta di VestiFlow, ma la vetrina è di Shopify: il titolo è
+    // bidirezionale per contratto (docs/24 §1.9), tutto il resto no.
+    const { service, prisma, tx } = creaService({
+      id: 'prod-1',
+      name: 'MAGL-COT-BLU',
+      shopifyTitle: 'Titolo vecchio',
+      catalogOrigin: 'vestiflow',
+      shopifyCatalogLinkKind: 'pushed',
+      shopifyProductId: '111',
+      shopifySyncEnabled: true,
+      shopifyLastError: null,
+      shopifyTaxonomyCategoryId: null,
+      shopifyTaxonomyCategoryFullName: null,
+      season: null,
+      shopifyMetafields: [],
+      images: [],
+      variants: [],
+    });
+
+    const esito = await service.importProductFromWebhook('tenant-1', PAYLOAD);
+
+    expect(esito).toBe('skipped');
+    expect(prisma.product.updateMany).toHaveBeenCalledWith({
+      where: { id: 'prod-1', tenantId: 'tenant-1' },
+      data: { shopifyTitle: 'Maglia in cotone blu — collezione estate 2026' },
+    });
+    // ⛔ Il resto del catalogo non si sblocca: nessun import, nessun `name`.
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(tx.product.update).not.toHaveBeenCalled();
+  });
+
+  it('e se il titolo remoto è già quello salvato, non si scrive affatto', async () => {
+    const { service, prisma } = creaService({
+      id: 'prod-1',
+      name: 'MAGL-COT-BLU',
+      shopifyTitle: 'Maglia in cotone blu — collezione estate 2026',
+      catalogOrigin: 'vestiflow',
+      shopifyCatalogLinkKind: 'pushed',
+      shopifyProductId: '111',
+      shopifySyncEnabled: true,
+      shopifyLastError: null,
+      shopifyTaxonomyCategoryId: null,
+      shopifyTaxonomyCategoryFullName: null,
+      season: null,
+      shopifyMetafields: [],
+      images: [],
+      variants: [],
+    });
+
+    await service.importProductFromWebhook('tenant-1', PAYLOAD);
+
+    expect(prisma.product.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('a sincronizzazione ACCESA un prodotto IMPORTATO si aggiorna come sempre, stato compreso', async () => {
     const { service, tx } = creaService({
       id: 'prod-1',
       name: 'MAGL-COT-BLU',
@@ -140,6 +245,61 @@ describe('ShopifyProductPullService — il titolo remoto è il «Nome Shopify»'
 
     const [[chiamata]] = tx.product.update.mock.calls as [[{ data: Record<string, unknown> }]];
     expect(chiamata.data['status']).toBe('archived');
+  });
+
+  // ⛔ I due PUNTI D'INGRESSO arricchiscono PRIMA di chiamare `importProduct`:
+  //    la guardia che sta lì dentro non li protegge. Nel pull massivo il
+  //    fallimento dell'arricchimento finisce nel catch, che scrive l'errore
+  //    addosso al prodotto spento.
+  describe("i punti d'ingresso riconoscono lo spento prima di interrogare Shopify", () => {
+    const spento = {
+      id: 'prod-1',
+      name: 'MAGL-COT-BLU',
+      shopifyTitle: 'Titolo vecchio',
+      catalogOrigin: 'shopify',
+      shopifySyncEnabled: false,
+      shopifyLastError: null,
+      shopifyTaxonomyCategoryId: null,
+      shopifyTaxonomyCategoryFullName: null,
+      season: null,
+      shopifyMetafields: [],
+      images: [],
+      variants: [],
+    };
+
+    it('⛔ PULL MASSIVO: l\'arricchimento non viene chiamato, e nessun errore viene registrato', async () => {
+      const { service, prisma, enrichProduct, tx } = creaService(spento);
+
+      const esito = await service.pullCatalog('tenant-1');
+
+      expect(enrichProduct).not.toHaveBeenCalled();
+      expect(esito.skipped).toBe(1);
+      expect(esito.failed).toEqual([]);
+      // `recordProductImportError` passa di qui: se fosse stato chiamato si vedrebbe.
+      expect(prisma.product.updateMany).not.toHaveBeenCalled();
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(tx.product.update).not.toHaveBeenCalled();
+    });
+
+    it('⛔ WEBHOOK: stessa cosa — nemmeno una chiamata a Shopify per un prodotto spento', async () => {
+      const { service, prisma, enrichProduct, tx } = creaService(spento);
+
+      const esito = await service.importProductFromWebhook('tenant-1', PAYLOAD);
+
+      expect(enrichProduct).not.toHaveBeenCalled();
+      expect(esito).toBe('skipped');
+      expect(prisma.product.updateMany).not.toHaveBeenCalled();
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(tx.product.update).not.toHaveBeenCalled();
+    });
+
+    it('⭐ e con la sincronizzazione ACCESA il pull massivo arricchisce come sempre', async () => {
+      const { service, enrichProduct } = creaService({ ...spento, shopifySyncEnabled: true });
+
+      await service.pullCatalog('tenant-1');
+
+      expect(enrichProduct).toHaveBeenCalledOnce();
+    });
   });
 
   it('primo import: i due nomi nascono UGUALI, e da lì vivono separati', async () => {

@@ -350,7 +350,8 @@ chi ha già il flag acceso non viene toccato e una decisione più recente non vi
 
 #### ⛔ E lo spegnimento deve restare REVERSIBILE — misurato il 03/09/2026
 
-> **A sincronizzazione spenta, il pull NON importa lo stato remoto.**
+> **A sincronizzazione spenta il prodotto si IGNORA INTEGRALMENTE**: un webhook o un pull non
+> ne cambiano nome, descrizione, brand, categoria, stato, opzioni, varianti o immagini.
 
 L'archiviazione su Shopify la facciamo noi, spegnendo l'interruttore. Shopify manda allora un
 `products/update` con `status: archived`, e importarlo significa **credere a un'eco della
@@ -358,7 +359,15 @@ propria voce**: il prodotto locale diventava `archived`, e da lì `executePushWo
 di lavorarci (`reason: 'archived'`). Misurato sullo shop di sviluppo: riaccendere la
 sincronizzazione **non riallineava più niente**, e il prodotto restava archiviato sulla vetrina.
 
-⚠️ Il resto del pull continua ad arrivare: è **solo lo stato** a essere nostro.
+⛔ **Qui c'era «il pull non importa lo stato remoto — il resto continua ad arrivare»**, che era
+la prima correzione, del mattino. Non bastava: reggeva solo per lo stato, mentre nome,
+descrizione, opzioni, varianti e immagini passavano lo stesso. Spegnere l'interruttore significa
+«questo prodotto non si tocca da Shopify», e **una guardia che ne lascia passare metà è peggio
+di nessuna**, perché fa credere che il prodotto sia protetto.
+
+⚠️ **La guardia è la PRIMA cosa che succede**, prima ancora di leggere il titolo dal payload:
+`normalizeWebhookProduct` non lo valida, e un titolo assente farebbe lanciare la lettura →
+il catch scriverebbe `shopifySyncStatus: error` sul prodotto che la guardia doveva proteggere.
 
 ## 2. Situazione osservata nel codice al 2 settembre 2026
 
