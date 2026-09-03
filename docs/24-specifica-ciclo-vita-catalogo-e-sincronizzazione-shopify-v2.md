@@ -2665,25 +2665,95 @@ sorgente del client e fallisce se una di quelle chiamate compare; una seconda sc
 metodi del prototipo e fallisce se ne spunta uno distruttivo.
 
 ⭐ **`setInventoryQuantities`**: quantità assoluta, `referenceDocumentUri` obbligatorio,
-`ignoreCompareQuantity: false` — il confronto concorrenziale non è un'opzione — e
-`@idempotent(key:)` come richiede `2026-07`. La chiave la decide il chiamante, che è
-l'unico a sapere quale operazione sta ripetendo.
+il confronto concorrenziale sempre dichiarato — non è un'opzione — e `@idempotent(key:)`
+come richiede `2026-07`. La chiave la decide il chiamante, che è l'unico a sapere quale
+operazione sta ripetendo.
 
 ⚠️ **Ambiti nuovi: `read_publications` e `write_publications`**, aggiunti al default del
-server e a `.env.example`. Un negozio **già collegato** ha un token che non li contiene:
-la diagnostica lo classifica `not_granted` e l'interfaccia dice **«riautorizza»**, invece
-di lasciarlo fallire alla prima pubblicazione. In UI compaiono come capacità «Canali di
-vendita».
+server e a `.env.example`. Un negozio **già collegato** ha un token che non li contiene: la
+diagnostica lo dice, e l'interfaccia spiega che cosa fare invece di lasciarlo fallire alla
+prima pubblicazione. In UI compaiono come capacità «Canali di vendita».
 
 ⛔ **Nessun chiamante produttivo è stato cambiato**, ed è il perimetro della 2A: le
 primitive esistono e sono provate, il collegamento dei percorsi REST è della 2B.
 
-⚠️ **Le prove sono unitarie, con `fetch` simulato: dimostrano che cosa VestiFlow manda,
-non che Shopify lo accetti.** Nomi di mutation, tipi di input (`OptionCreateInput`,
-`OptionUpdateInput`, `OptionReorderInput`), la forma di `quantities(names:)` e la
-direttiva `@idempotent` vanno verificati sullo shop di sviluppo prima di collegare i
-chiamanti — è il lavoro 8 di questa tranche («test contract contro shop di sviluppo»),
-e resta **da fare**.
+#### ✅ 2A · lavoro 8 — il gate di contratto è stato eseguito (03/09/2026)
+
+> **`npm run test:shopify:contract`** — dodici prove contro Shopify vero, su uno shop di
+> sviluppo (`plan.partnerDevelopment: true`), su **un solo** prodotto `DRAFT` marcato
+> `vestiflow-contract-test`, riusato a ogni esecuzione. Non gira in nessuna suite
+> ordinaria e non salta mai in silenzio: senza dominio, senza credenziali o senza rete
+> **fallisce**.
+
+⭐ **Ha trovato QUATTRO difformità che nessun test con `fetch` simulato poteva vedere**, e
+sono la ragione per cui questo gate esiste. Tre facevano rifiutare la chiamata al primo
+tentativo reale:
+
+| Difformità                                                       | Che cosa diceva Shopify                                               |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `@idempotent` messa sull'**operazione** invece che sul **campo** | «'@idempotent' can't be applied to mutations (allowed: fields)»       |
+| `ignoreCompareQuantity: false` mandato nell'input                | in `2026-07` **il campo non esiste** in `InventorySetQuantitiesInput` |
+| `compareQuantity` come nome del confronto                        | si chiama **`changeFromQuantity`**                                    |
+| `OptionReorderInput` con `id` **e** `name` insieme               | «OptionReorderInput requires exactly one of id, name»                 |
+
+Le prime tre stavano tutte in `setInventoryQuantities`: la primitiva più delicata della
+tranche era **interamente inservibile**, e i test con mock erano verdi — anzi, uno di essi
+_asseriva_ la forma sbagliata. La quarta era una firma troppo permissiva: ora il tipo è
+un'unione, e passarli entrambi non compila.
+
+⭐ **E il confronto concorrenziale funziona davvero**: con un `changeFromQuantity` diverso
+dal persistito Shopify risponde «The changeFromQuantity argument no longer matches the
+persisted quantity» e **non scrive**. Verificato leggendo la quantità dopo il rifiuto.
+
+**Verificato davvero, contro il negozio:**
+
+| Operazione                                                           | Esito                                                                      |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `productSet` in sola creazione (prodotto + opzione + variante + SKU) | ✅                                                                         |
+| `productOptionsCreate` con `LEAVE_AS_IS`                             | ✅ nessuna variante creata né persa; le esistenti prendono il primo valore |
+| `productOptionUpdate` (rinomina opzione, aggiunge valore)            | ✅                                                                         |
+| `productOptionsReorder`                                              | ✅ dopo la correzione                                                      |
+| `productVariantsBulkCreate` (con `inventoryItem.tracked`)            | ✅                                                                         |
+| `productVariantsBulkUpdate` con `inventoryPolicy`                    | ✅ andata e ritorno                                                        |
+| lettura della quantità remota                                        | ✅                                                                         |
+| `inventorySetQuantities` con idempotenza e confronto                 | ✅ dopo le correzioni                                                      |
+
+⚠️ **Due operazioni NON sono state eseguite, e il motivo è preciso:**
+
+**1 · Pubblicazione per canale.** Nessuno dei due shop collegati ha
+`read_publications`/`write_publications`, e neanche `api/.env` li richiede: la diagnostica
+risponde quindi **`not_requested`**, non `not_granted`. Shopify rifiuta con «Access denied
+for publishablePublish field. Required access: `write_publications` access scope».
+
+⛔ **La distinzione non è formale: cambia l'azione.** Con `not_requested` **riconnettere
+non serve** — il consenso viene chiesto per gli ambiti che il server dichiara, quindi si
+tornerebbe con lo stesso token. Vanno prima aggiunti a `SHOPIFY_SCOPES` (locale **e**
+Railway) e ridistribuita l'API; solo dopo la riconnessione ha effetto. Il gate copre
+entrambi i rami: se un giorno gli ambiti ci sono, pubblica e **ritira**, lasciando la
+variante non pubblicata.
+
+**2 · Collezioni manuali.** Sul negozio non esiste una collezione **dedicata alla prova**, e
+agire su una vera modificherebbe dati che il gate non ha creato. Restano verificate contro
+lo schema: `collectionAddProducts` e `collectionRemoveProducts` esistono con esattamente
+gli argomenti `id` e `productIds` che il client manda.
+
+⚠️ **E sono DEPRECATE, ma si usano lo stesso.** Shopify rimanda a `collectionUpdate` con
+`inclusion.selectionsToAdd`: in `2026-07` quel campo **non esiste** in `CollectionInput`, e
+`products` è valido «only with `collectionCreate`». In questa versione non c'è altra via
+per cambiare l'appartenenza a una collezione manuale. Il gate porta una **sveglia**: la
+prova diventa rossa il giorno in cui le inclusioni compaiono, ed è quello il momento di
+migrare.
+
+⭐ **Una scoperta che ha risparmiato un ampliamento inutile.** Una variante creata da
+`productSet` nasce con `inventoryItem.tracked = false`, e sembrava servisse esporre
+`tracked` anche nell'input di `productSet`. Misurato: `inventorySetQuantities` **funziona
+lo stesso** su quella variante, perché il livello di inventario esiste comunque. Il campo
+non è stato aggiunto — la misura ha evitato di allargare la superficie per un problema che
+non c'era.
+
+⚠️ **Che cosa il gate NON dimostra.** Che i percorsi produttivi siano corretti: nessuno di
+essi chiama ancora queste primitive. Dimostra che il **contratto** regge, cioè il
+presupposto della 2B.
 
 ### Tranche 3 — Migrazione completa del push
 

@@ -10,8 +10,16 @@ import type { ShopifyRateLimiterService } from './shopify-rate-limiter.service';
  *
  * ⭐ Si verifica la SUPERFICIE: che cosa parte verso Shopify e che cosa torna al
  *    chiamante. Le mutation vengono lette dal corpo della richiesta, perché è
- *    l'unico modo di provare che `LEAVE_AS_IS`, `ignoreCompareQuantity: false` e
- *    l'assenza delle mutation distruttive siano davvero quello che viaggia.
+ *    l'unico modo di provare che `LEAVE_AS_IS` e l'assenza delle mutation
+ *    distruttive siano davvero quello che viaggia.
+ *
+ * ⭐ **Le forme qui asserite sono state VERIFICATE contro Shopify** il
+ *    03/09/2026, su uno shop di sviluppo, con il gate
+ *    `npm run test:shopify:contract`. Questi test con mock non provano che
+ *    Shopify accetti: provano che non si torni indietro su ciò che il gate ha
+ *    misurato. Le tre difformità che aveva trovato — `@idempotent` sul campo,
+ *    `ignoreCompareQuantity` inesistente, `changeFromQuantity` al posto di
+ *    `compareQuantity` — hanno qui la loro asserzione.
  */
 describe('ShopifyGraphqlClient — primitive del catalogo', () => {
   const SHOP = 'shop.myshopify.com';
@@ -66,7 +74,10 @@ describe('ShopifyGraphqlClient — primitive del catalogo', () => {
     it('crea e restituisce id e stato', async () => {
       const fetchMock = mockFetch(
         rispondi({
-          productSet: { product: { id: 'gid://shopify/Product/1', status: 'ACTIVE' }, userErrors: [] },
+          productSet: {
+            product: { id: 'gid://shopify/Product/1', status: 'ACTIVE' },
+            userErrors: [],
+          },
         }),
       );
 
@@ -86,7 +97,10 @@ describe('ShopifyGraphqlClient — primitive del catalogo', () => {
     it('userErrors di productSet diventano un errore col nome della mutation', async () => {
       mockFetch(
         rispondi({
-          productSet: { product: null, userErrors: [{ field: null, message: 'Title is required' }] },
+          productSet: {
+            product: null,
+            userErrors: [{ field: null, message: 'Title is required' }],
+          },
         }),
       );
 
@@ -209,11 +223,34 @@ describe('ShopifyGraphqlClient — primitive del catalogo', () => {
 
       expect(corpo(fetchMock).query).toContain('productOptionsReorder');
     });
+
+    it('⛔ reorderProductOptions manda UNO SOLO fra id e name', async () => {
+      const fetchMock = mockFetch(rispondi({ productOptionsReorder: { userErrors: [] } }));
+
+      await client.reorderProductOptions(SHOP, TOKEN, 'gid://shopify/Product/1', [
+        { id: 'gid://shopify/ProductOption/7' },
+        { name: 'Colore' },
+      ]);
+
+      // `OptionReorderInput requires exactly one of id, name` — è il rifiuto
+      // vero di Shopify, misurato il 03/09/2026 quando la firma li ammetteva
+      // insieme. Ora l'unione del tipo lo rende impossibile; qui si prova che
+      // nemmeno una chiave `undefined` finisca nel payload.
+      const opzioni = corpo(fetchMock).variables['options'] as Record<string, unknown>[];
+      for (const opzione of opzioni) {
+        expect(Object.keys(opzione)).toHaveLength(1);
+      }
+      expect(opzioni).toEqual([{ id: 'gid://shopify/ProductOption/7' }, { name: 'Colore' }]);
+    });
   });
 
   describe('publication e pubblicazione per canale', () => {
     it('listPublications restituisce i canali; assenza = elenco vuoto', async () => {
-      mockFetch(rispondi({ publications: { nodes: [{ id: 'gid://shopify/Publication/1', name: 'Online Store' }] } }));
+      mockFetch(
+        rispondi({
+          publications: { nodes: [{ id: 'gid://shopify/Publication/1', name: 'Online Store' }] },
+        }),
+      );
       await expect(client.listPublications(SHOP, TOKEN)).resolves.toEqual([
         { id: 'gid://shopify/Publication/1', name: 'Online Store' },
       ]);
@@ -289,7 +326,9 @@ describe('ShopifyGraphqlClient — primitive del catalogo', () => {
       mockFetch(
         rispondi({
           collectionAddProducts: {
-            userErrors: [{ field: null, message: "Can't manually add products to a smart collection" }],
+            userErrors: [
+              { field: null, message: "Can't manually add products to a smart collection" },
+            ],
           },
         }),
       );
@@ -346,25 +385,33 @@ describe('ShopifyGraphqlClient — primitive del catalogo', () => {
             inventoryItemId: 'gid://shopify/InventoryItem/5',
             locationId: 'gid://shopify/Location/2',
             quantity: 9,
-            compareQuantity: 7,
+            changeFromQuantity: 7,
           },
         ],
       });
 
       const { query, variables } = corpo(fetchMock);
-      expect(query).toContain('@idempotent');
+      // ⛔ `@idempotent` è valida solo in posizione FIELD: sull'operazione
+      //    Shopify risponde «'@idempotent' can't be applied to mutations
+      //    (allowed: fields)». Misurato sullo shop di sviluppo il 03/09/2026.
+      const campo = 'inventorySetQuantities(input: $input)';
+      const dopoIlCampo = query.slice(query.indexOf(campo) + campo.length).trimStart();
+      expect(dopoIlCampo.startsWith('@idempotent(key: $idempotencyKey)')).toBe(true);
+      // ...e NON fra le variabili dell'operazione, dov'era prima.
+      expect(query.indexOf('@idempotent')).toBeGreaterThan(query.indexOf(campo));
       expect(variables['idempotencyKey']).toBe('chiave-1');
       const input = variables['input'] as Record<string, unknown>;
-      // ⛔ Il confronto concorrenziale non è un'opzione: senza, due scritture
-      //    si sovrascrivono in silenzio.
-      expect(input['ignoreCompareQuantity']).toBe(false);
+      // ⛔ In 2026-07 `InventorySetQuantitiesInput` NON dichiara
+      //    `ignoreCompareQuantity`: mandarlo fa rifiutare l'intera mutation.
+      //    Il confronto non si disattiva con una bandiera — si omette il campo.
+      expect(input).not.toHaveProperty('ignoreCompareQuantity');
       expect(input['referenceDocumentUri']).toBe('vestiflow://push/var-1');
       expect(input['quantities']).toEqual([
         {
           inventoryItemId: 'gid://shopify/InventoryItem/5',
           locationId: 'gid://shopify/Location/2',
           quantity: 9,
-          compareQuantity: 7,
+          changeFromQuantity: 7,
         },
       ]);
     });
@@ -383,7 +430,7 @@ describe('ShopifyGraphqlClient — primitive del catalogo', () => {
             inventoryItemId: 'gid://shopify/InventoryItem/5',
             locationId: 'gid://shopify/Location/2',
             quantity: 9,
-            compareQuantity: 7,
+            changeFromQuantity: 7,
           },
         ],
       };
@@ -400,7 +447,15 @@ describe('ShopifyGraphqlClient — primitive del catalogo', () => {
       mockFetch(
         rispondi({
           inventorySetQuantities: {
-            userErrors: [{ field: null, message: 'Compare quantity is not the current quantity' }],
+            // Il messaggio è quello vero di Shopify 2026-07, letto sullo shop
+            // di sviluppo forzando un `changeFromQuantity` sbagliato.
+            userErrors: [
+              {
+                field: null,
+                message:
+                  'The changeFromQuantity argument no longer matches the persisted quantity.',
+              },
+            ],
           },
         }),
       );
@@ -415,11 +470,11 @@ describe('ShopifyGraphqlClient — primitive del catalogo', () => {
               inventoryItemId: 'gid://i',
               locationId: 'gid://l',
               quantity: 1,
-              compareQuantity: 0,
+              changeFromQuantity: 0,
             },
           ],
         }),
-      ).rejects.toThrow(/Compare quantity is not the current quantity/);
+      ).rejects.toThrow(/no longer matches the persisted quantity/);
     });
   });
 
@@ -460,14 +515,18 @@ describe('ShopifyGraphqlClient — primitive del catalogo', () => {
         headers: new Headers(),
       } as unknown as Response);
 
-      await expect(client.listPublications(SHOP, TOKEN)).rejects.toThrow(/Shopify GraphQL: Throttled/);
+      await expect(client.listPublications(SHOP, TOKEN)).rejects.toThrow(
+        /Shopify GraphQL: Throttled/,
+      );
     });
   });
 
   describe('⛔ nessuna primitiva distruttiva è esposta', () => {
     it('il client non ha metodi di cancellazione remota', () => {
       const metodi = Object.getOwnPropertyNames(ShopifyGraphqlClient.prototype);
-      const distruttivi = metodi.filter((nome) => /delete|destroy|remove(Product|Variant)\b/i.test(nome));
+      const distruttivi = metodi.filter((nome) =>
+        /delete|destroy|remove(Product|Variant)\b/i.test(nome),
+      );
       // `removeProductFromCollection` è un RITIRO dalla collezione, non una
       // cancellazione: non deve comparire, e infatti il filtro non lo prende.
       expect(distruttivi).toEqual([]);

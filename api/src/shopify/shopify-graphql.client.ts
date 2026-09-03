@@ -171,8 +171,15 @@ export interface ShopifyInventoryQuantityInput {
   /**
    * Quantità che VestiFlow crede ci sia adesso. Shopify rifiuta la scrittura se
    * nel frattempo è cambiata: è il confronto concorrenziale, non un'opzione.
+   *
+   * ⛔ **Si chiama `changeFromQuantity`, e il nome è quello di Shopify**: in
+   *    `2026-07` `compareQuantity` non esiste più e `ignoreCompareQuantity` è
+   *    stato tolto da `InventorySetQuantitiesInput` — chi vuole scrivere senza
+   *    confronto OMETTE il campo, non alza una bandiera. Tenere qui un nome
+   *    diverso avrebbe richiesto un mapper fra due vocabolari per la stessa
+   *    cosa. Misurato per introspezione sullo shop di sviluppo il 03/09/2026.
    */
-  readonly compareQuantity: number;
+  readonly changeFromQuantity: number;
 }
 
 /** Un media del prodotto. Solo l'id: è l'unica cosa stabile che Shopify espone. */
@@ -1094,12 +1101,20 @@ export class ShopifyGraphqlClient {
     this.throwOnUserErrors('productOptionUpdate', data.productOptionUpdate?.userErrors);
   }
 
-  /** Riordina le opzioni. Nessuna variante viene toccata: cambia solo la posizione. */
+  /**
+   * Riordina le opzioni. Nessuna variante viene toccata: cambia solo la posizione.
+   *
+   * ⛔ **`OptionReorderInput` vuole ESATTAMENTE UNO fra `id` e `name`**, e il
+   *    tipo lo impone: l'unione rende impossibile passarli insieme. La firma
+   *    precedente li ammetteva entrambi e Shopify rifiutava — misurato sullo
+   *    shop di sviluppo il 03/09/2026:
+   *    «OptionReorderInput requires exactly one of id, name».
+   */
   async reorderProductOptions(
     shopDomain: string,
     accessToken: string,
     productGid: string,
-    options: readonly { readonly id: string; readonly name?: string }[],
+    options: readonly ({ readonly id: string } | { readonly name: string })[],
   ): Promise<void> {
     const mutation = `
       mutation ProductOptionsReorder($productId: ID!, $options: [OptionReorderInput!]!) {
@@ -1202,6 +1217,14 @@ export class ShopifyGraphqlClient {
    * ⚠️ Su una collezione AUTOMATICA Shopify rifiuta, ed è giusto così: là
    *    l'appartenenza la calcolano le regole del negozio, e VestiFlow la mostra
    *    soltanto. L'errore arriva come `userErrors`, con il suo messaggio.
+   *
+   * ⚠️ **Entrambe sono DEPRECATE in `2026-07`, e si usano lo stesso.** Shopify
+   *    rimanda a `collectionUpdate` con `inclusion.selectionsToAdd`, ma in
+   *    questa versione quel campo NON esiste in `CollectionInput` — e
+   *    `products` è valido «only with `collectionCreate`». Non c'è altra via
+   *    per cambiare l'appartenenza a una collezione manuale. Il gate di
+   *    contratto porta la sveglia: la sua prova diventa rossa il giorno in cui
+   *    le inclusioni compaiono nello schema (docs/24 §16, 2A lavoro 8).
    */
   async addProductToCollection(
     shopDomain: string,
@@ -1297,10 +1320,16 @@ export class ShopifyGraphqlClient {
   /**
    * Scrive le giacenze come quantità ASSOLUTE (docs/24 §10.5).
    *
-   * ⛔ **`ignoreCompareQuantity` resta false**, sempre: il confronto è il modo in
+   * ⛔ **Il confronto si dichiara SEMPRE** (`changeFromQuantity`): è il modo in
    *    cui due scritture concorrenti non si sovrascrivono in silenzio. Se la
    *    quantità remota è cambiata dopo la lettura, Shopify rifiuta e l'errore
    *    arriva come `userErrors` — che è ciò che si vuole sapere.
+   *
+   * ⚠️ **Qui c'era `ignoreCompareQuantity: false`, e in `2026-07` quel campo NON
+   *    ESISTE**: `InventorySetQuantitiesInput` non lo dichiara, quindi mandarlo
+   *    fa rifiutare l'intera mutation. Il contratto è cambiato di forma — non si
+   *    alza più una bandiera per saltare il confronto: si OMETTE il campo. Il
+   *    tipo lo rende obbligatorio proprio perché ometterlo sia una decisione.
    *
    * ⚠️ **`referenceDocumentUri` è obbligatorio** e deve essere riconducibile a
    *    VestiFlow: è ciò che rende la scrittura auditabile nell'admin Shopify.
@@ -1308,6 +1337,12 @@ export class ShopifyGraphqlClient {
    * ⭐ **L'idempotency key la richiede `2026-07`**: la stessa chiave sulla stessa
    *    richiesta non applica l'effetto due volte. La decide il chiamante, che è
    *    l'unico a sapere quale operazione sta ripetendo.
+   *
+   * ⛔ **`@idempotent` sta sul CAMPO, non sull'operazione.** Lo schema la dichiara
+   *    valida solo in posizione `FIELD`: scritta dopo le variabili della
+   *    `mutation` viene rifiutata con «'@idempotent' can't be applied to
+   *    mutations (allowed: fields)». Misurato sullo shop di sviluppo il
+   *    03/09/2026 — nessun test con mock poteva accorgersene.
    */
   async setInventoryQuantities(
     shopDomain: string,
@@ -1320,9 +1355,8 @@ export class ShopifyGraphqlClient {
     },
   ): Promise<void> {
     const mutation = `
-      mutation InventorySetQuantities($input: InventorySetQuantitiesInput!, $idempotencyKey: String!)
-      @idempotent(key: $idempotencyKey) {
-        inventorySetQuantities(input: $input) {
+      mutation InventorySetQuantities($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
+        inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
           userErrors { field message }
         }
       }
@@ -1337,12 +1371,11 @@ export class ShopifyGraphqlClient {
         name: 'available',
         reason: input.reason,
         referenceDocumentUri: input.referenceDocumentUri,
-        ignoreCompareQuantity: false,
         quantities: input.quantities.map((entry) => ({
           inventoryItemId: entry.inventoryItemId,
           locationId: entry.locationId,
           quantity: entry.quantity,
-          compareQuantity: entry.compareQuantity,
+          changeFromQuantity: entry.changeFromQuantity,
         })),
       },
     });
