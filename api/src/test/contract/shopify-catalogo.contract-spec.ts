@@ -494,12 +494,14 @@ describe('Contratto GraphQL del catalogo Shopify — shop di sviluppo', () => {
     // ── da qui: gli ambiti ci sono, e si eseguono le cinque operazioni ──────
     expect(diagnostica.publicationsBlockedReason).toBe('none');
 
+    // 1 · elenco dei canali
     const canali = await client.listPublications(cred.shopDomain, cred.accessToken);
     expect(canali.length).toBeGreaterThan(0);
     const canale = canali[0]!.id;
 
     const corrente = await stato();
     const variante = corrente.variants.nodes[0]!;
+    const pubblicabili = [idProdotto, ...corrente.variants.nodes.map((v) => v.id)];
 
     const pubblicato = async (gid: string): Promise<boolean> => {
       const dati = await leggi<{ nodo: { publishedOnPublication: boolean } | null }>(
@@ -509,23 +511,59 @@ describe('Contratto GraphQL del catalogo Shopify — shop di sviluppo', () => {
       return dati.nodo?.publishedOnPublication === true;
     };
 
-    // 2 · prodotto: pubblica
-    await client.publishablePublish(cred.shopDomain, cred.accessToken, idProdotto, [canale]);
-    expect(await pubblicato(idProdotto)).toBe(true);
+    // ⛔ **Il prodotto passa temporaneamente ad ACTIVE, e non è un dettaglio.**
+    //    Su un prodotto in bozza `publishablePublish` RIESCE — le varianti
+    //    risultano pubblicate — ma `publishedOnPublication` del PRODOTTO resta
+    //    `false`: un draft non è disponibile su nessun canale, per definizione.
+    //    Misurato sullo shop di sviluppo il 03/09/2026, ed è il motivo per cui
+    //    la prima stesura di questa prova falliva pur avendo pubblicato davvero.
+    //
+    // ⚠️ Lo stato si ripristina nel `finally`: il gate non lascia mai un
+    //    prodotto ACTIVE, nemmeno quando un'asserzione fallisce a metà.
+    await client.setProductStatus(cred.shopDomain, cred.accessToken, idProdotto, 'ACTIVE');
 
-    // 3 · prodotto: ritira
-    await client.publishableUnpublish(cred.shopDomain, cred.accessToken, idProdotto, [canale]);
-    expect(await pubblicato(idProdotto)).toBe(false);
+    try {
+      // 2 · prodotto: pubblica
+      await client.publishablePublish(cred.shopDomain, cred.accessToken, idProdotto, [canale]);
+      expect(await pubblicato(idProdotto)).toBe(true);
 
-    // 4 · variante: pubblica — è ciò che permette di ritirare UNA taglia
-    await client.publishablePublish(cred.shopDomain, cred.accessToken, variante.id, [canale]);
-    expect(await pubblicato(variante.id)).toBe(true);
+      // 3 · prodotto: ritira
+      await client.publishableUnpublish(cred.shopDomain, cred.accessToken, idProdotto, [canale]);
+      expect(await pubblicato(idProdotto)).toBe(false);
 
-    // 5 · variante: ritira. ⛔ Si esce SEMPRE non pubblicati.
-    await client.publishableUnpublish(cred.shopDomain, cred.accessToken, variante.id, [canale]);
-    expect(await pubblicato(variante.id)).toBe(false);
+      // 4 · variante: pubblica — è ciò che permette di ritirare UNA taglia
+      //     senza toccare quantità né `inventoryPolicy` (docs/24 §10.1).
+      await client.publishablePublish(cred.shopDomain, cred.accessToken, variante.id, [canale]);
+      expect(await pubblicato(variante.id)).toBe(true);
+
+      // 5 · variante: ritira
+      await client.publishableUnpublish(cred.shopDomain, cred.accessToken, variante.id, [canale]);
+      expect(await pubblicato(variante.id)).toBe(false);
+    } finally {
+      // ⛔ **Il ritiro di sicurezza vale ANCHE quando la prova fallisce.**
+      //    Senza, un rosso a metà lascia una risorsa pubblicata sul negozio —
+      //    è successo davvero il 03/09/2026: l'asserzione sul prodotto in bozza
+      //    ha interrotto la prova e la variante è rimasta in vendita.
+      //
+      // ⚠️ Su TUTTI i canali, non solo quello usato: pubblicare il prodotto
+      //    propaga alle sue varianti, quindi il ritiro deve coprire tutto
+      //    ciò che potrebbe essere rimasto pubblicato. L'errore si ignora:
+      //    ritirare ciò che non è pubblicato non è un problema, e un rosso
+      //    qui maschererebbe il rosso vero.
+      for (const pubblicazione of canali) {
+        for (const gid of pubblicabili) {
+          try {
+            await client.publishableUnpublish(cred.shopDomain, cred.accessToken, gid, [
+              pubblicazione.id,
+            ]);
+          } catch {
+            // già ritirato, o mai pubblicato: va bene così
+          }
+        }
+      }
+      await client.setProductStatus(cred.shopDomain, cred.accessToken, idProdotto, 'DRAFT');
+    }
   });
-
   it('⭐ collezioni manuali: creazione, aggiunta, appartenenza, rimozione, eliminazione', async () => {
     interface Collezione {
       readonly id: string;
@@ -703,13 +741,29 @@ describe('Contratto GraphQL del catalogo Shopify — shop di sviluppo', () => {
       }
     }
 
-    const finale = await leggi<{
-      product: { status: string; publishedAt: string | null; totalInventory: number };
-    }>('query($id: ID!) { product(id: $id) { status publishedAt totalInventory } }', {
-      id: idProdotto,
-    });
-    expect(finale.product.status).toBe('DRAFT');
-    expect(finale.product.publishedAt).toBeNull();
-    expect(finale.product.totalInventory).toBe(0);
+    // ⛔ **Si verifica sui LIVELLI per location, non su `totalInventory`.**
+    //    Quel totale è aggregato ed EVENTUALMENTE CONSISTENTE: misurato il
+    //    03/09/2026 diceva ancora `3` mentre i livelli erano già a zero, e
+    //    pochi minuti dopo diceva `0` senza che nessuno avesse scritto niente.
+    //    I livelli invece rispondono subito, e sono il dato autorevole.
+    for (const variante of corrente.variants.nodes) {
+      if (!variante.inventoryItem) {
+        continue;
+      }
+      const livelli = await client.getRemoteQuantities(
+        cred.shopDomain,
+        cred.accessToken,
+        variante.inventoryItem.id,
+      );
+      for (const livello of livelli) {
+        expect(livello.available ?? 0).toBe(0);
+      }
+    }
+
+    const stampa = await leggi<{
+      product: { status: string; publishedAt: string | null };
+    }>('query($id: ID!) { product(id: $id) { status publishedAt } }', { id: idProdotto });
+    expect(stampa.product.status).toBe('DRAFT');
+    expect(stampa.product.publishedAt).toBeNull();
   });
 });

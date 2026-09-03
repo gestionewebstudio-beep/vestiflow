@@ -2772,38 +2772,76 @@ l'appartenenza si può scrivere.
 `inventoryPolicy`. L'introspezione non è ristretta dagli ambiti, quindi questa verifica non
 dipende dalla riautorizzazione ed è stata fatta.
 
-#### ⛔ L'unica cosa ancora bloccata: la riautorizzazione
+#### ✅ Pubblicazione per canale: eseguita davvero (03/09/2026, sera)
 
-Le cinque operazioni di pubblicazione — elenco canali, pubblica prodotto, ritira prodotto,
-pubblica variante, ritira variante — **non sono eseguibili**, e la causa è una sola: il
-token del negozio non ha `read_publications` / `write_publications`.
+Gli ambiti `read_publications` e `write_publications` sono stati concessi, e **tutte e
+cinque le operazioni sono state eseguite contro il negozio**:
 
-⭐ **Verificato all'origine**, non dedotto dalla colonna del database:
-`currentAppInstallation { accessScopes }` conferma dieci ambiti concessi, e quei due non ci
-sono.
+| Operazione                                | Esito                                             |
+| ----------------------------------------- | ------------------------------------------------- |
+| `publications` — elenco dei canali        | ✅ tre canali (Online Store, Shop, Point of Sale) |
+| `publishablePublish` sul **prodotto**     | ✅                                                |
+| `publishableUnpublish` sul **prodotto**   | ✅                                                |
+| `publishablePublish` sulla **variante**   | ✅ — è §10.1: ritirare UNA taglia                 |
+| `publishableUnpublish` sulla **variante** | ✅, e si esce non pubblicati                      |
 
-⛔ **E lo stato è `not_requested`, non `not_granted`: riconnettere NON basta.** Il consenso
-viene chiesto per gli ambiti che il server dichiara. Il default canonico del codice li
-contiene già dalla 2A, ma **`SHOPIFY_SCOPES` nell'ambiente vince sul default**: dove quella
-variabile è dichiarata senza i due ambiti, si torna con lo stesso token.
+⭐ **`ProductVariant` è `Publishable` e lo si è verificato scrivendo**, non solo per
+introspezione: la variante è stata pubblicata e ritirata da sola, senza toccare quantità né
+`inventoryPolicy`. Il presupposto di §10.1 regge.
 
-I passaggi, nell'ordine — gli unici manuali rimasti della 2A:
+#### ⛔ Sesta e settima difformità: due indicatori che mentono
 
-1. `SHOPIFY_SCOPES` deve contenere `read_publications,write_publications` — in `api/.env`
-   **e** nella variabile d'ambiente di Railway;
-2. ridistribuire l'API, perché il valore si legge all'avvio;
-3. in Shopify Partners → app → versione attiva, includere i due ambiti e **rilasciare** una
-   nuova versione;
-4. da VestiFlow → Impostazioni, **disconnettere e riconnettere** il negozio.
+**1 · Su un prodotto in BOZZA, `publishedOnPublication` del prodotto resta `false` anche
+quando la pubblicazione è riuscita.**
 
-⚠️ **Il gate copre già entrambi i rami**: finché gli ambiti mancano verifica che ognuna
-delle tre chiamate fallisca **nominando lo scope**, e che la diagnostica lo classifichi;
-quando ci saranno, esegue le cinque operazioni per davvero e lascia tutto **non
-pubblicato**. Non va riscritto — va rieseguito.
+```text
+prodotto DRAFT, dopo publishablePublish   publishedOnPublication = false
+la sua variante, stesso momento           publishedOnPublication = true
+```
 
-⭐ **Due prove nuove sul default degli scope**, perché la perdita non farebbe rumore: una
-verifica che il default canonico contenga i due ambiti, l'altra che `SHOPIFY_SCOPES`
-dell'ambiente vince — cioè che aggiungerli al default **non basta**.
+⚠️ La mutation **aveva funzionato**: le varianti risultavano pubblicate. È il campo a non
+riportarlo, perché un prodotto in bozza non è disponibile su nessun canale per definizione.
+⛔ Chi verificasse una pubblicazione leggendo quel campo su un draft concluderebbe che non
+è avvenuta, e la rifarebbe. Il gate mette quindi il prodotto ad `ACTIVE` per la durata
+della prova, e lo riporta a `DRAFT` nel `finally`.
+
+**2 · `Product.totalInventory` è EVENTUALMENTE CONSISTENTE.**
+
+Misurato: subito dopo l'azzeramento diceva ancora `3` mentre i livelli per location erano
+già `0`; qualche minuto dopo diceva `0` senza che nessuno avesse scritto nulla. ⭐ **Il
+dato autorevole sono i livelli** (`inventoryLevels.quantities`), che rispondono subito. Un
+controllo di riconciliazione costruito su `totalInventory` segnalerebbe differenze che non
+esistono.
+
+#### ⭐ E una lezione sul gate stesso: il ritiro va nel `finally`
+
+La prima esecuzione con gli ambiti concessi è fallita a metà — sull'indicatore del punto 1 —
+e si è fermata **prima del ritiro**, lasciando una variante **pubblicata** sul negozio. Il
+negozio è stato ripulito a mano.
+
+> **Un gate che scrive deve rimettere a posto anche quando fallisce.** Se il ripristino sta
+> in coda al percorso felice, il primo rosso lo salta — e proprio il rosso è il momento in
+> cui serve di più.
+
+Il ritiro copre ora **tutti** i canali e sia il prodotto sia le varianti, perché pubblicare
+un prodotto propaga alle sue varianti; e ignora l'errore, perché ritirare ciò che non è
+pubblicato non è un problema, mentre un rosso lì maschererebbe il rosso vero.
+
+#### Che cosa ha richiesto, fuori dal codice
+
+Nulla di questo era un difetto da correggere: erano quattro passaggi di configurazione, e
+vanno ricordati perché si ripresenteranno a ogni ambiente nuovo.
+
+1. `SHOPIFY_SCOPES` con i due ambiti sulla variabile d'ambiente del server, **e la
+   ridistribuzione** — il valore si legge all'avvio;
+2. i due ambiti dichiarati nella **versione dell'app** e la versione **rilasciata**: Shopify
+   concede solo il sottoinsieme dichiarato, **senza segnalare** che sta concedendo meno di
+   quanto richiesto;
+3. la **riautorizzazione** del negozio, perché gli ambiti si fissano al consenso;
+4. `SHOPIFY_API_VERSION=2026-07` sull'ambiente, altrimenti vale il default del ramo servito.
+
+⚠️ **Il punto 2 è quello che inganna**: la connessione riesce, l'interfaccia dice «collegato»,
+e solo contando gli ambiti concessi ci si accorge che ne mancano due.
 
 ⚠️ **Che cosa il gate NON dimostra.** Che i percorsi produttivi siano corretti: nessuno di
 essi chiama ancora queste primitive. Dimostra che il **contratto** regge, cioè il
