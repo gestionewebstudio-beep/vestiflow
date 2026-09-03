@@ -619,6 +619,64 @@ describe('DocumentListComponent — niente pagine, ultimi 30 giorni', () => {
     expect(apiQuery(view).dateFrom).toBe('2026-01-01');
     expect(apiQuery(view).dateTo).toBe('2026-01-31');
   });
+
+  /**
+   * ⛔ **Il costruttore CANCELLAVA le date che l'URL portava.**
+   *
+   * Con `dateFrom` o `dateTo` presenti il preset nasce `Custom`; il costruttore
+   * chiamava allora `resolveMovementPeriodRange(Custom, '', '')`, che a
+   * `Custom` risponde con gli estremi che le si passano — due stringhe vuote,
+   * cioè `{ from: undefined, to: undefined }` — e riscriveva entrambe a
+   * `null`. Un link condiviso con un periodo dentro si apriva sull'elenco
+   * intero (`14` §H14-bis).
+   *
+   * ⚠️ **La prova qui sopra non lo prendeva**, ed è la ragione per cui questa
+   * esiste: `apiQuery` legge lo stub di rotta, che non riflette la
+   * navigazione. Il difetto vive nell'URL, quindi si misura sulla navigazione.
+   *
+   * ⭐ E il terzo caso è il predefinito: se questo blocco provasse solo che
+   * «non si scrive niente», si soddisferebbe togliendo la scrittura anche
+   * quando serve.
+   */
+  describe('le date esplicite nell’URL non si cancellano', () => {
+    /** I `queryParams` di ogni navigazione che tocca il periodo. */
+    async function periodiScritti(
+      query: Readonly<Record<string, string>>,
+    ): Promise<readonly Record<string, unknown>[]> {
+      const scritture: Record<string, unknown>[] = [];
+      const spia = vi.spyOn(Router.prototype, 'navigate').mockImplementation((_comandi, extras) => {
+        const params = (extras?.queryParams ?? {}) as Record<string, unknown>;
+        if ('dateFrom' in params || 'dateTo' in params) scritture.push(params);
+        return Promise.resolve(true);
+      });
+      try {
+        await renderList('generic', titolare, undefined, [], undefined, query);
+      } finally {
+        spia.mockRestore();
+      }
+      return scritture;
+    }
+
+    it('⛔ con entrambe le date nell’URL non riscrive il periodo', async () => {
+      expect(await periodiScritti({ dateFrom: '2026-01-01', dateTo: '2026-01-31' })).toEqual([]);
+    });
+
+    it('⛔ vale con la sola data iniziale', async () => {
+      expect(await periodiScritti({ dateFrom: '2026-01-01' })).toEqual([]);
+    });
+
+    it('⛔ vale con la sola data finale', async () => {
+      expect(await periodiScritti({ dateTo: '2026-01-31' })).toEqual([]);
+    });
+
+    it('⭐ senza date l’URL riceve comunque il predefinito di 30 giorni', async () => {
+      const scritture = await periodiScritti({});
+
+      expect(scritture).toHaveLength(1);
+      expect(scritture[0]?.['dateFrom']).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(scritture[0]?.['dateTo']).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    });
+  });
 });
 
 /**

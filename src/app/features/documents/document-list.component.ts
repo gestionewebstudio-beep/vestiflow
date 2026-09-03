@@ -958,13 +958,18 @@ export class DocumentListComponent {
   /**
    * Il periodo con cui la lista interroga l'API.
    *
-   * ⭐ **Il predefinito non passa dall'URL**: all'apertura non c'è nessun
-   * `dateFrom`, e il riepilogo deve comunque partire dagli ultimi 30 giorni
-   * (`14` §H14-bis). Scriverlo nell'URL a ogni apertura sporcherebbe la
-   * cronologia del browser con un parametro che nessuno ha scelto.
+   * ⭐ **Il predefinito passa dall'URL come ogni altro periodo** (`14`
+   * §H14-bis): lo scrive il costruttore alla creazione, perché anche i 30
+   * giorni sono un filtro applicato — l'elenco mostra solo quelle righe — e un
+   * riepilogo filtrato si condivide con il proprio periodo dentro.
    *
-   * Quando l'operatore sceglie un periodo, quello **sì** finisce nell'URL: è
-   * una sua decisione, e la pagina si condivide con quella dentro.
+   * ⚠️ Qui c'era **«il predefinito non passa dall'URL»**, con la motivazione
+   * che scriverlo «sporcherebbe la cronologia del browser». Descriveva il
+   * comportamento di prima del 20/08/2026: da quella decisione il costruttore
+   * lo scrive, con `replaceUrl`, che nella cronologia non lascia una voce.
+   *
+   * Il ripiego sul preset resta per il giro di rendering che precede quella
+   * scrittura, e per «Tutti», che di estremi non ne ha.
    */
   private readonly periodoEffettivo = computed(() => {
     const q = this.query();
@@ -1451,7 +1456,25 @@ export class DocumentListComponent {
     //
     // ⛔ Una volta sola, alla creazione: riscriverlo a ogni giro cancellerebbe
     // la scelta «Tutti», che è l'unico caso in cui nessun periodo è applicato.
-    if (this.periodPreset() !== MovementPeriodPreset.All) {
+    //
+    // ⛔ **E solo se l'URL non porta già delle date: quel ramo le CANCELLAVA.**
+    // Con `dateFrom` o `dateTo` presenti il preset vale `Custom` proprio
+    // perché ci sono (vedi `periodPreset`), e `resolveMovementPeriodRange`
+    // risponde a `Custom` con gli estremi che le si passano — qui due stringhe
+    // vuote, cioè `{ from: undefined, to: undefined }`. Le due date finivano
+    // riscritte a `null`, e `updateParams` le toglieva dall'indirizzo: un link
+    // condiviso con un periodo dentro si apriva sull'elenco intero.
+    //
+    // ⚠️ **Un periodo `Custom` non si ricalcola**: è per definizione quello che
+    // l'URL dichiara, e non esiste da nessun'altra parte da cui rileggerlo.
+    // Misurato dalla prova e2e `filtri-colonna` il 03/09/2026; `tsc` e i test
+    // erano verdi, perché cancellare un parametro non fallisce.
+    const periodoNellUrl = this.route.snapshot.queryParamMap;
+    if (
+      this.periodPreset() !== MovementPeriodPreset.All &&
+      !periodoNellUrl.get('dateFrom') &&
+      !periodoNellUrl.get('dateTo')
+    ) {
       const iniziale = resolveMovementPeriodRange(this.periodPreset(), '', '');
       this.updateParams({ dateFrom: iniziale.from ?? null, dateTo: iniziale.to ?? null }, true);
     }
