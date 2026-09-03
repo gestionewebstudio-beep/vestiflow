@@ -206,10 +206,24 @@ compone il server, non l'interfaccia» — che altrimenti si escluderebbero a vi
 ⚠️ **Il riferimento non si persiste**: serve solo a comporre la riga. Dal salvataggio dopo,
 quella riga ha un `id` proprio ed è una riga esistente come tutte le altre.
 
-⚠️ **Il tenant si verifica sempre.** La query che risolve la riga sorgente filtra per
-`tenantId`: un id di un'altra azienda non torna, la riga ricade sul caso «nuova» e prende
-l'anagrafica propria. ⭐ Non è un errore che si segnala — sarebbe un modo per scoprire che
-quella riga esiste — è il comportamento più prudente.
+⛔ **Un riferimento presente ma NON VALIDO rifiuta il salvataggio.** Il contratto è a tre
+stati, non a due:
+
+| Riferimento                      | Esito                                           |
+| -------------------------------- | ----------------------------------------------- |
+| **assente**                      | riga nuova: fotografia dall'anagrafica corrente |
+| **presente e valido nel tenant** | copia integrale della sorgente                  |
+| **presente ma non valido**       | ⛔ salvataggio **rifiutato**                    |
+
+⚠️ **Qui c'era il ripiego su «riga nuova»**, difeso come «il comportamento più prudente».
+Non lo era: la riga veniva rifotografata dall'anagrafica **corrente** e il documento si
+salvava lo stesso — plausibile, e sbagliato. ⭐ È il difetto che questa regola chiude,
+rientrato dalla porta di servizio: e un documento che sembra giusto non lo va a controllare
+nessuno.
+
+⚠️ **Il messaggio d'errore non dice PERCHÉ.** «Non esiste» e «esiste, ma in un'altra
+azienda» devono essere indistinguibili: distinguerli trasformerebbe il campo in un modo per
+scoprire se un id di riga esiste altrove.
 
 ⭐ **Cambiare articolo SCOLLEGA.** Se dopo il precompilato l'operatore sceglie un'altra
 variante, la riga non deriva più da niente: il riferimento si azzera e gli snapshot si

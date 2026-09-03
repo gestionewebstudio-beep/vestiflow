@@ -525,25 +525,50 @@ describe('Snapshot identità di riga — su PostgreSQL TEST', () => {
   });
 
   /*
-    ⛔ **5 — ISOLAMENTO TENANT.** Un id di riga di un'altra azienda non copia
-    niente: la query filtra per `tenantId`, la riga non entra nella mappa e si
-    ricade sul caso «nuova».
+    ⛔ **5 — UN RIFERIMENTO NON VALIDO RIFIUTA IL SALVATAGGIO.**
 
-    ⭐ Il comportamento è il più prudente possibile — l'anagrafica del PROPRIO
-    tenant — non un errore che rivelerebbe l'esistenza di quella riga.
+    ⚠️ Qui la prova si aspettava il RIPIEGO su «riga nuova», e la difendeva
+    come «il comportamento più prudente». Non lo era: la riga veniva
+    rifotografata dall'anagrafica CORRENTE e il documento si salvava lo
+    stesso — plausibile, e sbagliato. Un documento che sembra giusto non lo
+    va a controllare nessuno.
+
+    ⭐ I due casi — id inesistente, id di un'altra azienda — devono fallire
+    **allo stesso modo**: se il messaggio li distinguesse, questo campo
+    diventerebbe un modo per scoprire se un id di riga esiste altrove.
   */
-  it('⛔ un riferimento di un ALTRO tenant non copia nulla', async () => {
-    // Una riga che esiste, ma nel tenant B.
+  /** Quanti documenti ha il tenant adesso: serve a dire che non se ne crea uno. */
+  async function quantiDocumenti(): Promise<number> {
+    return prisma.document.count({ where: { tenantId: IDS.tenantA } });
+  }
+
+  /** Il corpo di un documento che dichiara un riferimento sorgente. */
+  function corpoConSorgente(sourceDocumentLineId: string) {
+    return corpoDocumento([{ ...rigaSuVariante, sourceDocumentLineId }]);
+  }
+
+  it('⛔ riferimento INESISTENTE: il salvataggio è rifiutato', async () => {
+    const prima = await quantiDocumenti();
+
+    const esito = await chiama(app, 'POST', '/documents', {
+      token,
+      corpo: corpoConSorgente('7a900000-0000-4000-8000-00000000ffff'),
+    });
+
+    expect(esito.stato).toBe(422);
+    // ⛔ E NON si crea niente: un documento a metà sarebbe peggio del rifiuto.
+    expect(await quantiDocumenti()).toBe(prima);
+  });
+
+  it('⛔ riferimento di un ALTRO TENANT: rifiutato allo stesso modo', async () => {
+    // Una riga che esiste davvero, ma nel tenant B. Con la STESSA variante:
+    // senza, a scartarla sarebbe il controllo sulla variante e non il tenant.
     const rigaAltrui = await prisma.documentLine.create({
       data: {
         tenantId: IDS.tenantB,
         documentId: IDS.docB1,
         lineNumber: 99,
         description: 'Riga di un altro tenant',
-        // ⚠️ **La STESSA variante**, ed è il punto: senza, a scartare la riga
-        //    sarebbe il controllo sulla variante e non il filtro sul tenant —
-        //    la prova passerebbe anche con il filtro tolto. Misurato il
-        //    03/09/2026: falsificazione fallita a 13 verdi.
         variantId: VARIANTE,
         variantLabel: '',
         quantity: 1,
@@ -557,16 +582,26 @@ describe('Snapshot identità di riga — su PostgreSQL TEST', () => {
       },
       select: { id: true },
     });
+    const prima = await quantiDocumenti();
 
-    const doc = await creaDocumento([
-      { ...rigaSuVariante, sourceDocumentLineId: rigaAltrui.id },
-    ]);
+    const esito = await chiama(app, 'POST', '/documents', {
+      token,
+      corpo: corpoConSorgente(rigaAltrui.id),
+    });
 
-    const riga = (await righeDi(doc))[0];
-    // NON l'identità altrui: quella corrente del proprio tenant.
-    expect(riga?.articleCode).toBe(ORIGINE.articleCode);
-    expect(riga?.productName).not.toBe('Prodotto di un altro tenant');
-    expect(riga?.barcode).not.toBe('9999999999999');
+    expect(esito.stato).toBe(422);
+    expect(await quantiDocumenti()).toBe(prima);
+
+    // ⭐ **Il messaggio non dice che la riga esiste altrove.** Deve essere
+    //    indistinguibile da quello del riferimento inesistente, o basterebbe
+    //    provare id a caso per scoprire quali esistono in altre aziende.
+    const inesistente = await chiama(app, 'POST', '/documents', {
+      token,
+      corpo: corpoConSorgente('7a900000-0000-4000-8000-00000000fffe'),
+    });
+    expect((esito.corpo as { message?: string }).message).toBe(
+      (inesistente.corpo as { message?: string }).message,
+    );
   });
 
   /*

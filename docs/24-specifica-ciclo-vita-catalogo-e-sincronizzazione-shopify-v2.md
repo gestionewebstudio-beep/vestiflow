@@ -1801,10 +1801,21 @@ ci risale, **verifica il tenant** e ne copia gli snapshot **dal database**. Il c
 il server compone.
 
 ```text
-sourceDocumentLineId presente → copia dalla riga sorgente (null inclusi)
-sourceDocumentLineId assente  → riga nuova → anagrafica corrente
-variante diversa dalla sorgente → si rifotografa: è un altro articolo
+assente                → riga nuova → anagrafica corrente
+presente e valido      → copia dalla riga sorgente (null inclusi)
+presente e NON valido  → salvataggio RIFIUTATO
+variante diversa       → si rifotografa: è un altro articolo
 ```
+
+⛔ **Il terzo stato è stato aggiunto dopo**, e la prima stesura aveva il difetto che la
+tranche chiude. Un riferimento non risolto ricadeva su «riga nuova»: sembrava prudente —
+nessun dato altrui copiato — ma la riga veniva rifotografata dall'anagrafica **corrente** e
+il documento si salvava. ⭐ Un risultato plausibile e sbagliato, che nessuno va a
+controllare. Corretto su indicazione del proprietario prima di considerare chiusa la tranche.
+
+⚠️ **I due casi non validi — id inesistente, id di un'altra azienda — falliscono allo stesso
+modo, con lo stesso messaggio.** Distinguerli trasformerebbe il campo in un modo per scoprire
+se un id di riga esiste altrove.
 
 ⭐ **Contratto binario, come per il Codice IVA**: nel payload una riga duplicata da una riga
 senza codice e una riga appena creata sono **identiche** — entrambe senza `id` e senza
@@ -1849,7 +1860,8 @@ snapshot — prima non li mostravano, quindi perderli non si vedeva.
 
 **Test**: 6 prove di integrazione — duplicazione dopo rinomina, conversione dopo rinomina (dal
 **precompilato vero**, non da un corpo scritto a mano), cambio variante, `null` conservati,
-isolamento tenant, sorgente non modificata — **9 prove dirette sulla funzione condivisa**, e 4
+riferimento inesistente e riferimento di altro tenant (entrambi rifiutati, senza creare il
+documento), sorgente non modificata — **9 prove dirette sulla funzione condivisa**, e 4
 di componente sul trasporto lato client: una per ciascuna delle tre maschere che duplicano, più
 una sull'azzeramento al cambio articolo.
 

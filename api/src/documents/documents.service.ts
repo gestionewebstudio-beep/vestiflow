@@ -4065,6 +4065,27 @@ export class DocumentsService {
         : Promise.resolve([]),
     ]);
 
+    // ⛔ **Un riferimento che non si risolve RIFIUTA il salvataggio.**
+    //
+    //    Qui si ricadeva sul caso «riga nuova», e sembrava la scelta
+    //    prudente: nessun dato altrui copiato, nessun errore in faccia
+    //    all'operatore. Non lo era. La riga veniva rifotografata
+    //    dall'anagrafica CORRENTE e salvata — un documento plausibile, con
+    //    dentro il nome che l'articolo ha oggi invece di quello che aveva.
+    //    È il difetto che questa tranche chiude, ricomparso dalla porta di
+    //    servizio: e siccome il risultato sembra giusto, nessuno lo va a
+    //    controllare.
+    //
+    // ⚠️ **Il messaggio non dice PERCHÉ.** «Non esiste» e «esiste, ma in
+    //    un'altra azienda» devono essere indistinguibili: distinguerli
+    //    trasformerebbe questo campo in un modo per scoprire se un id di
+    //    riga esiste altrove.
+    if (sourceLines.length !== sourceLineIds.length) {
+      throw new UnprocessableEntityException(
+        'Una o più righe di origine non sono valide.',
+      );
+    }
+
     const sourceLineById = new Map<string, LineSourceSnapshot>(
       sourceLines.map((riga) => [
         riga.id,
