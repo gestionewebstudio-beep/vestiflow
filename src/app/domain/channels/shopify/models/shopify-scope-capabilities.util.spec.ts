@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
+// ⛔ Il caso che conta è il negozio GIÀ COLLEGATO (Tranche 2A): il suo token non
+//    contiene gli ambiti dei canali, e la UI deve dire «riautorizza» invece di
+//    lasciare fallire la prima pubblicazione.
+
 import type { ShopifyScopeDiagnostics } from '@core/models/shopify-connection.model';
 
 import {
   shopifyProductReadScopeWarning,
+  shopifyPublicationsScopeWarning,
   shopifyScopeDiagnosticsDetail,
 } from './shopify-scope-capabilities.util';
 
@@ -18,6 +23,8 @@ describe('shopify-scope-capabilities.util', () => {
           missingFromGrant: [],
           missingForCatalogImport: [],
           catalogImportBlockedReason: 'none',
+          missingForPublications: [],
+          publicationsBlockedReason: 'none',
         }),
       ).toBeNull();
     });
@@ -29,6 +36,8 @@ describe('shopify-scope-capabilities.util', () => {
         missingFromGrant: ['read_products'],
         missingForCatalogImport: ['read_products'],
         catalogImportBlockedReason: 'not_requested',
+        missingForPublications: ['read_publications', 'write_publications'],
+        publicationsBlockedReason: 'not_requested',
       });
       expect(msg).toContain('SHOPIFY_SCOPES');
     });
@@ -40,6 +49,8 @@ describe('shopify-scope-capabilities.util', () => {
         missingFromGrant: ['read_products'],
         missingForCatalogImport: ['read_products'],
         catalogImportBlockedReason: 'not_granted',
+        missingForPublications: ['read_publications', 'write_publications'],
+        publicationsBlockedReason: 'not_granted',
       });
       expect(msg).toContain('mancano: read_products');
     });
@@ -57,11 +68,62 @@ describe('shopify-scope-capabilities.util', () => {
         missingFromGrant: ['read_products'],
         missingForCatalogImport: ['read_products'],
         catalogImportBlockedReason: 'not_granted',
+        missingForPublications: ['read_publications', 'write_publications'],
+        publicationsBlockedReason: 'not_granted',
       };
       const detail = shopifyScopeDiagnosticsDetail(diagnostics);
       expect(detail).toContain('Ambiti richiesti dal server');
       expect(detail).toContain('read_products');
       expect(detail).toContain('read_inventory');
     });
+  });
+});
+
+describe('shopifyPublicationsScopeWarning', () => {
+  it('token vecchio: dice di riautorizzare, e nomina gli ambiti mancanti', () => {
+    const avviso = shopifyPublicationsScopeWarning({
+      requested: ['read_publications', 'write_publications'],
+      granted: [],
+      missingFromGrant: ['read_publications', 'write_publications'],
+      missingForCatalogImport: [],
+      catalogImportBlockedReason: 'none',
+      missingForPublications: ['read_publications', 'write_publications'],
+      publicationsBlockedReason: 'not_granted',
+    });
+
+    expect(avviso).toContain('read_publications, write_publications');
+    expect(avviso).toContain('riconnetti');
+  });
+
+  it('server che non li richiede: la correzione è sulla configurazione', () => {
+    const avviso = shopifyPublicationsScopeWarning({
+      requested: [],
+      granted: [],
+      missingFromGrant: [],
+      missingForCatalogImport: [],
+      catalogImportBlockedReason: 'none',
+      missingForPublications: ['read_publications', 'write_publications'],
+      publicationsBlockedReason: 'not_requested',
+    });
+
+    expect(avviso).toContain('SHOPIFY_SCOPES');
+  });
+
+  it('tutto a posto: nessun avviso', () => {
+    expect(
+      shopifyPublicationsScopeWarning({
+        requested: [],
+        granted: [],
+        missingFromGrant: [],
+        missingForCatalogImport: [],
+        catalogImportBlockedReason: 'none',
+        missingForPublications: [],
+        publicationsBlockedReason: 'none',
+      }),
+    ).toBeNull();
+  });
+
+  it('diagnostica assente: nessun avviso', () => {
+    expect(shopifyPublicationsScopeWarning(undefined)).toBeNull();
   });
 });

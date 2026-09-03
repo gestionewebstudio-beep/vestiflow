@@ -2314,24 +2314,25 @@ La Tranche 0 si esegue a fette, una alla volta, con verifica prima di passare al
 0B.1 sono chiuse. Restano il contratto autonomo dei movimenti e la lacuna dichiarata del
 percorso «Concludi ordine».
 
-|           |                                                                                            |                                                                                                     |
-| --------- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
-| **0A.1**  | **totali economici di riga sul percorso generico**                                         | ✅ **completata e verificata**, con i test eseguiti                                                 |
-| **0B.1**  | **filtro Sede del Registro canonico**                                                      | ✅ **completata e verificata**, con i test eseguiti                                                 |
-| **0A.2a** | **snapshot identificativi di riga sul percorso generico**                                  | ✅ **completata e verificata**, con i test eseguiti                                                 |
-| **0A.2b** | **consumo degli snapshot: riapertura, interfaccia, stampa**                                | ✅ **completata e verificata**, con i test eseguiti                                                 |
-| **0A.2c** | **duplicazioni e conversioni: gli snapshot seguono la riga sorgente**                      | ✅ **completata e verificata**, con i test eseguiti                                                 |
-| —         | «Concludi ordine» (ordine cliente → documento)                                             | ⏸ **lacuna dichiarata**: `SalesOrderLine` non ha `articleCode` né `productName`                     |
-| —         | **convergenza Corrispettivi**                                                              | ✅ **fatta il 03/09/2026**: il vecchio export è stato rimosso, il Registro canonico è l'unica fonte |
-| —         | contratto autonomo dei movimenti (§5.3)                                                    | ⏸ da fare                                                                                           |
-| **1A**    | **modello locale del ciclo di vita**: `lifecycleStatus`, cestino, indici, migration        | ✅ **completata e verificata il 03/09/2026**, commit `8bf85363` — build, 2345 unit, 72 integrazione |
-| **1B**    | **esposizione e visibilità**: predicati, elenco/Cestino/selezioni, etichette, guardia §6.2 | ✅ **completata il 03/09/2026** — vedi commit `feat(catalogo): applica visibilità e stati`          |
-| —         | cestino e ripristino come COMANDI, eliminazione definitiva                                 | ⏸ da fare (Tranche 1C)                                                                              |
-| —         | interruttore Shopify: ferma anche le giacenze, `ARCHIVED` (§1.8)                           | ✅ **fatto il 03/09/2026** · ⏸ resta l'unpublish per variante (`publishablePublish`, Tranche 3)     |
-| —         | nome interno separato dal «Nome Shopify» (§1.9)                                            | ✅ **fatto e provato sullo shop il 03/09/2026** · ⏸ resta l'azione massiva «Copia nome VestiFlow»   |
-| —         | spegnere la sync non lascia il prodotto in vendita, ed è reversibile (§1.10)               | ✅ **fatto e provato sullo shop il 03/09/2026**                                                     |
-| —         | prodotti importati modificabili (§1.8) — **primo pezzo della Tranche 2**                   | ✅ **completata e verificata il 03/09/2026**, comprese le prove d'integrazione                      |
-| —         | **migrazione push Shopify a GraphQL** (Tranche 2 e 3)                                      | ⏸ **da eseguire**, decisa in §1.6                                                                   |
+|           |                                                                                                               |                                                                                                     |
+| --------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| **0A.1**  | **totali economici di riga sul percorso generico**                                                            | ✅ **completata e verificata**, con i test eseguiti                                                 |
+| **0B.1**  | **filtro Sede del Registro canonico**                                                                         | ✅ **completata e verificata**, con i test eseguiti                                                 |
+| **0A.2a** | **snapshot identificativi di riga sul percorso generico**                                                     | ✅ **completata e verificata**, con i test eseguiti                                                 |
+| **0A.2b** | **consumo degli snapshot: riapertura, interfaccia, stampa**                                                   | ✅ **completata e verificata**, con i test eseguiti                                                 |
+| **0A.2c** | **duplicazioni e conversioni: gli snapshot seguono la riga sorgente**                                         | ✅ **completata e verificata**, con i test eseguiti                                                 |
+| —         | «Concludi ordine» (ordine cliente → documento)                                                                | ⏸ **lacuna dichiarata**: `SalesOrderLine` non ha `articleCode` né `productName`                     |
+| —         | **convergenza Corrispettivi**                                                                                 | ✅ **fatta il 03/09/2026**: il vecchio export è stato rimosso, il Registro canonico è l'unica fonte |
+| —         | contratto autonomo dei movimenti (§5.3)                                                                       | ⏸ da fare                                                                                           |
+| **1A**    | **modello locale del ciclo di vita**: `lifecycleStatus`, cestino, indici, migration                           | ✅ **completata e verificata il 03/09/2026**, commit `8bf85363` — build, 2345 unit, 72 integrazione |
+| **1B**    | **esposizione e visibilità**: predicati, elenco/Cestino/selezioni, etichette, guardia §6.2                    | ✅ **completata il 03/09/2026** — vedi commit `feat(catalogo): applica visibilità e stati`          |
+| —         | cestino e ripristino come COMANDI, eliminazione definitiva                                                    | ⏸ da fare (Tranche 1C)                                                                              |
+| —         | interruttore Shopify: ferma anche le giacenze, `ARCHIVED` (§1.8)                                              | ✅ **fatto il 03/09/2026** · ⏸ resta l'unpublish per variante (`publishablePublish`, Tranche 3)     |
+| —         | nome interno separato dal «Nome Shopify» (§1.9)                                                               | ✅ **fatto e provato sullo shop il 03/09/2026** · ⏸ resta l'azione massiva «Copia nome VestiFlow»   |
+| —         | spegnere la sync non lascia il prodotto in vendita, ed è reversibile (§1.10)                                  | ✅ **fatto e provato sullo shop il 03/09/2026**                                                     |
+| —         | prodotti importati modificabili (§1.8) — **primo pezzo della Tranche 2**                                      | ✅ **completata e verificata il 03/09/2026**, comprese le prove d'integrazione                      |
+| **2A**    | **primitive GraphQL del catalogo** (§8.6): productSet, varianti, opzioni, publication, collezioni, inventario | ✅ **completata il 03/09/2026** · ⚠️ prove unitarie: il contratto va verificato sullo shop          |
+| —         | **migrazione push Shopify a GraphQL** (Tranche 2B e 3)                                                        | ⏸ **da eseguire**, decisa in §1.6                                                                   |
 
 ⛔ **Non c'è più una voce «correzione del vecchio export dai movimenti».** Quel percorso **non si ripara**: si dismette. Ripararlo — e a maggior ragione alimentarlo con nuovi snapshot economici — significherebbe investire lavoro in un motore che deve sparire, e ritardarne la fine.
 
@@ -2631,6 +2632,58 @@ Lavori:
 **Gate:** ogni primitiva ha test su successo, `userErrors`, rete, timeout, retry, e dimostra che **una richiesta ripetuta non produce un effetto doppio**.
 
 ⚠️ Il gate diceva «idempotenza», che è il nome di una soluzione. Il requisito è l'effetto: comunque lo si ottenga.
+
+#### ✅ 2A — la superficie GraphQL è completa (03/09/2026)
+
+Dodici primitive nuove in `ShopifyGraphqlClient`, tutte sopra il `graphql()` e il
+`throwOnUserErrors()` che già c'erano: autenticazione, throttle, retry sul 429 e
+traduzione degli `userErrors` restano in **un posto solo**, e nessun client parallelo è
+stato creato.
+
+| Intenzione                              | Primitiva                                                                |
+| --------------------------------------- | ------------------------------------------------------------------------ |
+| creare un prodotto                      | `createProduct` (`productSet`)                                           |
+| creare varianti                         | `bulkCreateVariants`                                                     |
+| aggiornare varianti                     | `bulkUpdateVariants`, ora con `inventoryPolicy`                          |
+| opzioni: creare, aggiornare, riordinare | `createProductOptions` · `updateProductOption` · `reorderProductOptions` |
+| leggere i canali                        | `listPublications`                                                       |
+| pubblicare e ritirare                   | `publishablePublish` · `publishableUnpublish` (prodotto E variante)      |
+| collezioni manuali                      | `addProductToCollection` · `removeProductFromCollection`                 |
+| leggere la quantità remota              | `getRemoteQuantities`                                                    |
+| scrivere le giacenze                    | `setInventoryQuantities`                                                 |
+
+⛔ **`productSet` NON può aggiornare, e lo impone la FIRMA**: `ShopifyProductSetInput` non
+ha `id`. Non è una raccomandazione nel commento — è il tipo che rende impossibile il ramo
+«aggiorna», dove una lista parziale farebbe **eliminare** a Shopify ciò che si è omesso.
+
+⛔ **Le opzioni si toccano solo con `variantStrategy: LEAVE_AS_IS`**, sia alla creazione sia
+all'aggiornamento. Il default di Shopify è `CREATE` (genera combinazioni che nessuno ha
+chiesto) e `MANAGE` **cancella** le varianti che usano un valore rimosso.
+
+⛔ **Nessun `productDelete`, nessun `productVariantsBulkDelete`.** Una prova legge il
+sorgente del client e fallisce se una di quelle chiamate compare; una seconda scorre i
+metodi del prototipo e fallisce se ne spunta uno distruttivo.
+
+⭐ **`setInventoryQuantities`**: quantità assoluta, `referenceDocumentUri` obbligatorio,
+`ignoreCompareQuantity: false` — il confronto concorrenziale non è un'opzione — e
+`@idempotent(key:)` come richiede `2026-07`. La chiave la decide il chiamante, che è
+l'unico a sapere quale operazione sta ripetendo.
+
+⚠️ **Ambiti nuovi: `read_publications` e `write_publications`**, aggiunti al default del
+server e a `.env.example`. Un negozio **già collegato** ha un token che non li contiene:
+la diagnostica lo classifica `not_granted` e l'interfaccia dice **«riautorizza»**, invece
+di lasciarlo fallire alla prima pubblicazione. In UI compaiono come capacità «Canali di
+vendita».
+
+⛔ **Nessun chiamante produttivo è stato cambiato**, ed è il perimetro della 2A: le
+primitive esistono e sono provate, il collegamento dei percorsi REST è della 2B.
+
+⚠️ **Le prove sono unitarie, con `fetch` simulato: dimostrano che cosa VestiFlow manda,
+non che Shopify lo accetti.** Nomi di mutation, tipi di input (`OptionCreateInput`,
+`OptionUpdateInput`, `OptionReorderInput`), la forma di `quantities(names:)` e la
+direttiva `@idempotent` vanno verificati sullo shop di sviluppo prima di collegare i
+chiamanti — è il lavoro 8 di questa tranche («test contract contro shop di sviluppo»),
+e resta **da fare**.
 
 ### Tranche 3 — Migrazione completa del push
 

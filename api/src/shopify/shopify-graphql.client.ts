@@ -91,13 +91,88 @@ export interface ShopifyRemoteVariant {
   readonly selectedOptions: readonly { readonly name: string; readonly value: string }[];
 }
 
+/**
+ * Politica di vendita oltre disponibilità (docs/24 §10.4): `DENY` non vende a
+ * zero, `CONTINUE` ammette l'overselling. È un dato di canale, distinto dallo
+ * stato locale e dalla pubblicazione — non si usa per «nascondere» una variante.
+ */
+export type ShopifyInventoryPolicy = 'DENY' | 'CONTINUE';
+
 /** Riga di `productVariantsBulkUpdate`. Un campo assente non tocca il valore remoto. */
 export interface ShopifyVariantBulkInput {
   readonly id: string;
   readonly price?: string;
   readonly compareAtPrice?: string;
   readonly barcode?: string;
+  readonly inventoryPolicy?: ShopifyInventoryPolicy;
   readonly inventoryItem?: { readonly sku?: string };
+}
+
+/**
+ * Riga di `productVariantsBulkCreate`. Niente `id`: qui la variante non esiste
+ * ancora, e `optionValues` è ciò che la distingue dalle sorelle.
+ */
+export interface ShopifyVariantCreateInput {
+  readonly optionValues: readonly { readonly optionName: string; readonly name: string }[];
+  readonly price?: string;
+  readonly compareAtPrice?: string;
+  readonly barcode?: string;
+  readonly inventoryPolicy?: ShopifyInventoryPolicy;
+  readonly inventoryItem?: { readonly sku?: string; readonly tracked?: boolean };
+}
+
+/** Prodotto da CREARE con `productSet`. ⛔ Nessun `id`: vedi `createProduct`. */
+export interface ShopifyProductSetInput {
+  readonly title: string;
+  readonly descriptionHtml?: string;
+  readonly vendor?: string;
+  readonly productType?: string;
+  readonly tags?: readonly string[];
+  readonly status: ShopifyProductStatus;
+  readonly productOptions?: readonly ShopifyProductOptionInput[];
+  readonly variants?: readonly ShopifyVariantSetInput[];
+}
+
+export interface ShopifyProductOptionInput {
+  readonly name: string;
+  readonly position?: number;
+  readonly values: readonly { readonly name: string }[];
+}
+
+/** Variante dentro `productSet`: stessa forma della creazione bulk. */
+export interface ShopifyVariantSetInput {
+  readonly optionValues: readonly { readonly optionName: string; readonly name: string }[];
+  readonly price?: string;
+  readonly compareAtPrice?: string;
+  readonly barcode?: string;
+  readonly inventoryPolicy?: ShopifyInventoryPolicy;
+  readonly sku?: string;
+}
+
+/** Una publication del negozio (canale di vendita). */
+export interface ShopifyPublication {
+  readonly id: string;
+  readonly name: string;
+}
+
+/** Quantità remota di un inventory item in una location, per il confronto. */
+export interface ShopifyRemoteQuantity {
+  readonly inventoryItemId: string;
+  readonly locationId: string;
+  /** `available` secondo Shopify. `null` se la location non traccia quell'item. */
+  readonly available: number | null;
+}
+
+/** Una riga di `inventorySetQuantities`: quantità ASSOLUTA per item e location. */
+export interface ShopifyInventoryQuantityInput {
+  readonly inventoryItemId: string;
+  readonly locationId: string;
+  readonly quantity: number;
+  /**
+   * Quantità che VestiFlow crede ci sia adesso. Shopify rifiuta la scrittura se
+   * nel frattempo è cambiata: è il confronto concorrenziale, non un'opzione.
+   */
+  readonly compareQuantity: number;
 }
 
 /** Un media del prodotto. Solo l'id: è l'unica cosa stabile che Shopify espone. */
@@ -854,6 +929,424 @@ export class ShopifyGraphqlClient {
       media.map((entry) => ({ ...entry, mediaContentType: 'IMAGE' })),
     );
     return mapMedia(product?.media);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  Tranche 2A — primitive del catalogo (docs/24 §8.6)
+  //
+  //  Tutte passano da `graphql()` e `throwOnUserErrors()`: autenticazione,
+  //  throttle, retry sul 429 e traduzione degli `userErrors` restano in un
+  //  posto solo. ⛔ Nessun client parallelo, nessun `fetch` scritto qui.
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * CREA un prodotto con `productSet`.
+   *
+   * ⛔ **Solo creazione, e la firma lo impone**: `ShopifyProductSetInput` non ha
+   *    `id`, quindi questo metodo non può aggiornare nemmeno per sbaglio.
+   *    `productSet` ha semantica SOSTITUTIVA sulle liste — opzioni, varianti,
+   *    media: usato su un prodotto esistente con una lista parziale, Shopify
+   *    **elimina** ciò che si è omesso (docs/24 §8.6). L'aggiornamento passa da
+   *    `productUpdate` e dalle mutation per intenzione.
+   */
+  async createProduct(
+    shopDomain: string,
+    accessToken: string,
+    input: ShopifyProductSetInput,
+  ): Promise<{ id: string; status: ShopifyProductStatus }> {
+    const mutation = `
+      mutation ProductCreateWithSet($input: ProductSetInput!) {
+        productSet(input: $input, synchronous: true) {
+          product { id status }
+          userErrors { field message }
+        }
+      }
+    `;
+    const data = await this.graphql<{
+      productSet: {
+        product: { id: string; status: ShopifyProductStatus } | null;
+        userErrors: readonly { field: string[] | null; message: string }[];
+      } | null;
+    }>(shopDomain, accessToken, mutation, { input });
+    this.throwOnUserErrors('productSet', data.productSet?.userErrors);
+    const product = data.productSet?.product;
+    if (!product) {
+      throw new InternalServerErrorException('Shopify productSet: nessun prodotto restituito');
+    }
+    return product;
+  }
+
+  /** Crea varianti su un prodotto esistente. Non tocca quelle già presenti. */
+  async bulkCreateVariants(
+    shopDomain: string,
+    accessToken: string,
+    productGid: string,
+    variants: readonly ShopifyVariantCreateInput[],
+  ): Promise<readonly ShopifyRemoteVariant[]> {
+    const mutation = `
+      mutation ProductVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+        productVariantsBulkCreate(productId: $productId, variants: $variants) {
+          productVariants {
+            id
+            sku
+            barcode
+            inventoryItem { id }
+            selectedOptions { name value }
+          }
+          userErrors { field message }
+        }
+      }
+    `;
+    const data = await this.graphql<{
+      productVariantsBulkCreate: {
+        productVariants: readonly {
+          id: string;
+          sku: string | null;
+          barcode: string | null;
+          inventoryItem: { id: string } | null;
+          selectedOptions: readonly { name: string; value: string }[];
+        }[];
+        userErrors: readonly { field: string[] | null; message: string }[];
+      } | null;
+    }>(shopDomain, accessToken, mutation, { productId: productGid, variants });
+    this.throwOnUserErrors('productVariantsBulkCreate', data.productVariantsBulkCreate?.userErrors);
+    return (data.productVariantsBulkCreate?.productVariants ?? []).map((node) => ({
+      id: node.id,
+      sku: node.sku,
+      barcode: node.barcode,
+      inventoryItemId: node.inventoryItem?.id ?? null,
+      selectedOptions: node.selectedOptions,
+    }));
+  }
+
+  /**
+   * Aggiunge opzioni al prodotto. `variantStrategy: LEAVE_AS_IS` — le varianti
+   * remote NON vengono ricreate né cancellate: è il vincolo di §8.6, e il
+   * default di Shopify (`CREATE`) genererebbe combinazioni che nessuno ha chiesto.
+   */
+  async createProductOptions(
+    shopDomain: string,
+    accessToken: string,
+    productGid: string,
+    options: readonly ShopifyProductOptionInput[],
+  ): Promise<void> {
+    const mutation = `
+      mutation ProductOptionsCreate($productId: ID!, $options: [OptionCreateInput!]!) {
+        productOptionsCreate(productId: $productId, options: $options, variantStrategy: LEAVE_AS_IS) {
+          userErrors { field message }
+        }
+      }
+    `;
+    const data = await this.graphql<{
+      productOptionsCreate: {
+        userErrors: readonly { field: string[] | null; message: string }[];
+      } | null;
+    }>(shopDomain, accessToken, mutation, { productId: productGid, options });
+    this.throwOnUserErrors('productOptionsCreate', data.productOptionsCreate?.userErrors);
+  }
+
+  /**
+   * Rinomina un'opzione e/o ne aggiorna i valori.
+   *
+   * ⛔ `variantStrategy: LEAVE_AS_IS` anche qui: `MANAGE` cancellerebbe le
+   *    varianti che usano un valore rimosso. Questa tranche non elimina niente
+   *    di remoto, per nessuna via.
+   */
+  async updateProductOption(
+    shopDomain: string,
+    accessToken: string,
+    productGid: string,
+    option: {
+      readonly id: string;
+      readonly name?: string;
+      readonly optionValuesToAdd?: readonly { readonly name: string }[];
+      readonly optionValuesToUpdate?: readonly { readonly id: string; readonly name: string }[];
+    },
+  ): Promise<void> {
+    const mutation = `
+      mutation ProductOptionUpdate(
+        $productId: ID!
+        $option: OptionUpdateInput!
+        $optionValuesToAdd: [OptionValueCreateInput!]
+        $optionValuesToUpdate: [OptionValueUpdateInput!]
+      ) {
+        productOptionUpdate(
+          productId: $productId
+          option: $option
+          optionValuesToAdd: $optionValuesToAdd
+          optionValuesToUpdate: $optionValuesToUpdate
+          variantStrategy: LEAVE_AS_IS
+        ) {
+          userErrors { field message }
+        }
+      }
+    `;
+    const data = await this.graphql<{
+      productOptionUpdate: {
+        userErrors: readonly { field: string[] | null; message: string }[];
+      } | null;
+    }>(shopDomain, accessToken, mutation, {
+      productId: productGid,
+      option: { id: option.id, ...(option.name ? { name: option.name } : {}) },
+      optionValuesToAdd: option.optionValuesToAdd,
+      optionValuesToUpdate: option.optionValuesToUpdate,
+    });
+    this.throwOnUserErrors('productOptionUpdate', data.productOptionUpdate?.userErrors);
+  }
+
+  /** Riordina le opzioni. Nessuna variante viene toccata: cambia solo la posizione. */
+  async reorderProductOptions(
+    shopDomain: string,
+    accessToken: string,
+    productGid: string,
+    options: readonly { readonly id: string; readonly name?: string }[],
+  ): Promise<void> {
+    const mutation = `
+      mutation ProductOptionsReorder($productId: ID!, $options: [OptionReorderInput!]!) {
+        productOptionsReorder(productId: $productId, options: $options) {
+          userErrors { field message }
+        }
+      }
+    `;
+    const data = await this.graphql<{
+      productOptionsReorder: {
+        userErrors: readonly { field: string[] | null; message: string }[];
+      } | null;
+    }>(shopDomain, accessToken, mutation, { productId: productGid, options });
+    this.throwOnUserErrors('productOptionsReorder', data.productOptionsReorder?.userErrors);
+  }
+
+  /** Le publication del negozio: i canali su cui si può pubblicare. */
+  async listPublications(
+    shopDomain: string,
+    accessToken: string,
+  ): Promise<readonly ShopifyPublication[]> {
+    const query = `
+      query Publications {
+        publications(first: 50) {
+          nodes { id name }
+        }
+      }
+    `;
+    const data = await this.graphql<{
+      publications: { nodes: readonly { id: string; name: string }[] } | null;
+    }>(shopDomain, accessToken, query);
+    return data.publications?.nodes ?? [];
+  }
+
+  /**
+   * Pubblica una risorsa su una o più publication.
+   *
+   * ⭐ Il GID può essere di un PRODOTTO o di una VARIANTE: da `2026-07` anche
+   *    `ProductVariant` implementa `Publishable`, ed è ciò che permette di
+   *    ritirare una singola taglia **senza** toccare quantità o
+   *    `inventoryPolicy` (docs/24 §10.1, §3.1).
+   */
+  async publishablePublish(
+    shopDomain: string,
+    accessToken: string,
+    publishableGid: string,
+    publicationIds: readonly string[],
+  ): Promise<void> {
+    const mutation = `
+      mutation PublishablePublish($id: ID!, $input: [PublicationInput!]!) {
+        publishablePublish(id: $id, input: $input) {
+          userErrors { field message }
+        }
+      }
+    `;
+    const data = await this.graphql<{
+      publishablePublish: {
+        userErrors: readonly { field: string[] | null; message: string }[];
+      } | null;
+    }>(shopDomain, accessToken, mutation, {
+      id: publishableGid,
+      input: publicationIds.map((publicationId) => ({ publicationId })),
+    });
+    this.throwOnUserErrors('publishablePublish', data.publishablePublish?.userErrors);
+  }
+
+  /**
+   * Ritira una risorsa da una o più publication: è l'atto COMMERCIALE con cui
+   * una variante smette di essere acquistabile (docs/24 §10.2). ⛔ Non è una
+   * cancellazione: la variante resta, e il suo GID resta risolvibile (§11.1).
+   */
+  async publishableUnpublish(
+    shopDomain: string,
+    accessToken: string,
+    publishableGid: string,
+    publicationIds: readonly string[],
+  ): Promise<void> {
+    const mutation = `
+      mutation PublishableUnpublish($id: ID!, $input: [PublicationInput!]!) {
+        publishableUnpublish(id: $id, input: $input) {
+          userErrors { field message }
+        }
+      }
+    `;
+    const data = await this.graphql<{
+      publishableUnpublish: {
+        userErrors: readonly { field: string[] | null; message: string }[];
+      } | null;
+    }>(shopDomain, accessToken, mutation, {
+      id: publishableGid,
+      input: publicationIds.map((publicationId) => ({ publicationId })),
+    });
+    this.throwOnUserErrors('publishableUnpublish', data.publishableUnpublish?.userErrors);
+  }
+
+  /**
+   * Appartenenza alle collezioni MANUALI (docs/24 §9.6): si aggiunge o si toglie
+   * il prodotto, non si crea né si rinomina la collezione.
+   *
+   * ⚠️ Su una collezione AUTOMATICA Shopify rifiuta, ed è giusto così: là
+   *    l'appartenenza la calcolano le regole del negozio, e VestiFlow la mostra
+   *    soltanto. L'errore arriva come `userErrors`, con il suo messaggio.
+   */
+  async addProductToCollection(
+    shopDomain: string,
+    accessToken: string,
+    collectionGid: string,
+    productGids: readonly string[],
+  ): Promise<void> {
+    const mutation = `
+      mutation CollectionAddProducts($id: ID!, $productIds: [ID!]!) {
+        collectionAddProducts(id: $id, productIds: $productIds) {
+          userErrors { field message }
+        }
+      }
+    `;
+    const data = await this.graphql<{
+      collectionAddProducts: {
+        userErrors: readonly { field: string[] | null; message: string }[];
+      } | null;
+    }>(shopDomain, accessToken, mutation, { id: collectionGid, productIds: productGids });
+    this.throwOnUserErrors('collectionAddProducts', data.collectionAddProducts?.userErrors);
+  }
+
+  /** Toglie il prodotto da una collezione manuale. Il prodotto non viene toccato. */
+  async removeProductFromCollection(
+    shopDomain: string,
+    accessToken: string,
+    collectionGid: string,
+    productGids: readonly string[],
+  ): Promise<void> {
+    const mutation = `
+      mutation CollectionRemoveProducts($id: ID!, $productIds: [ID!]!) {
+        collectionRemoveProducts(id: $id, productIds: $productIds) {
+          userErrors { field message }
+        }
+      }
+    `;
+    const data = await this.graphql<{
+      collectionRemoveProducts: {
+        userErrors: readonly { field: string[] | null; message: string }[];
+      } | null;
+    }>(shopDomain, accessToken, mutation, { id: collectionGid, productIds: productGids });
+    this.throwOnUserErrors('collectionRemoveProducts', data.collectionRemoveProducts?.userErrors);
+  }
+
+  /**
+   * La quantità che Shopify ha ADESSO, per il confronto prima di scrivere.
+   *
+   * ⭐ Serve a `inventorySetQuantities`, che rifiuta la scrittura se il valore è
+   *    cambiato: senza questa lettura non si avrebbe un `compareQuantity` da
+   *    passare, e si tornerebbe a sovrascrivere alla cieca.
+   */
+  async getRemoteQuantities(
+    shopDomain: string,
+    accessToken: string,
+    inventoryItemGid: string,
+  ): Promise<readonly ShopifyRemoteQuantity[]> {
+    const query = `
+      query InventoryItemQuantities($id: ID!) {
+        inventoryItem(id: $id) {
+          id
+          inventoryLevels(first: 250) {
+            nodes {
+              location { id }
+              quantities(names: ["available"]) { name quantity }
+            }
+          }
+        }
+      }
+    `;
+    const data = await this.graphql<{
+      inventoryItem: {
+        id: string;
+        inventoryLevels: {
+          nodes: readonly {
+            location: { id: string };
+            quantities: readonly { name: string; quantity: number }[];
+          }[];
+        };
+      } | null;
+    }>(shopDomain, accessToken, query, { id: inventoryItemGid });
+
+    const item = data.inventoryItem;
+    if (!item) {
+      return [];
+    }
+    return item.inventoryLevels.nodes.map((node) => ({
+      inventoryItemId: item.id,
+      locationId: node.location.id,
+      available: node.quantities.find((q) => q.name === 'available')?.quantity ?? null,
+    }));
+  }
+
+  /**
+   * Scrive le giacenze come quantità ASSOLUTE (docs/24 §10.5).
+   *
+   * ⛔ **`ignoreCompareQuantity` resta false**, sempre: il confronto è il modo in
+   *    cui due scritture concorrenti non si sovrascrivono in silenzio. Se la
+   *    quantità remota è cambiata dopo la lettura, Shopify rifiuta e l'errore
+   *    arriva come `userErrors` — che è ciò che si vuole sapere.
+   *
+   * ⚠️ **`referenceDocumentUri` è obbligatorio** e deve essere riconducibile a
+   *    VestiFlow: è ciò che rende la scrittura auditabile nell'admin Shopify.
+   *
+   * ⭐ **L'idempotency key la richiede `2026-07`**: la stessa chiave sulla stessa
+   *    richiesta non applica l'effetto due volte. La decide il chiamante, che è
+   *    l'unico a sapere quale operazione sta ripetendo.
+   */
+  async setInventoryQuantities(
+    shopDomain: string,
+    accessToken: string,
+    input: {
+      readonly reason: string;
+      readonly referenceDocumentUri: string;
+      readonly idempotencyKey: string;
+      readonly quantities: readonly ShopifyInventoryQuantityInput[];
+    },
+  ): Promise<void> {
+    const mutation = `
+      mutation InventorySetQuantities($input: InventorySetQuantitiesInput!, $idempotencyKey: String!)
+      @idempotent(key: $idempotencyKey) {
+        inventorySetQuantities(input: $input) {
+          userErrors { field message }
+        }
+      }
+    `;
+    const data = await this.graphql<{
+      inventorySetQuantities: {
+        userErrors: readonly { field: string[] | null; message: string }[];
+      } | null;
+    }>(shopDomain, accessToken, mutation, {
+      idempotencyKey: input.idempotencyKey,
+      input: {
+        name: 'available',
+        reason: input.reason,
+        referenceDocumentUri: input.referenceDocumentUri,
+        ignoreCompareQuantity: false,
+        quantities: input.quantities.map((entry) => ({
+          inventoryItemId: entry.inventoryItemId,
+          locationId: entry.locationId,
+          quantity: entry.quantity,
+          compareQuantity: entry.compareQuantity,
+        })),
+      },
+    });
+    this.throwOnUserErrors('inventorySetQuantities', data.inventorySetQuantities?.userErrors);
   }
 
   /**

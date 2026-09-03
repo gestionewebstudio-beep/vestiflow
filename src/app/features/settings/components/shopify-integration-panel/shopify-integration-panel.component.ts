@@ -30,6 +30,7 @@ import {
 import { normalizeShopDomainInput } from '@domain/channels/shopify/models/normalize-shop-domain.util';
 import {
   shopifyProductReadScopeWarning,
+  shopifyPublicationsScopeWarning,
   shopifyScopeDiagnosticsDetail,
 } from '@domain/channels/shopify/models/shopify-scope-capabilities.util';
 import {
@@ -396,6 +397,11 @@ export class ShopifyIntegrationPanelComponent {
 
   protected readonly catalogScopeDiagnosticsDetail = computed(() =>
     shopifyScopeDiagnosticsDetail(this.connection()?.scopeDiagnostics),
+  );
+
+  /** Canali di vendita: un token vecchio va riautorizzato, e lo si dice prima. */
+  protected readonly publicationsScopeWarning = computed(() =>
+    shopifyPublicationsScopeWarning(this.connection()?.scopeDiagnostics),
   );
 
   constructor() {
