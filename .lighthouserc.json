@@ -1,7 +1,7 @@
 {
   "ci": {
     "collect": {
-      "startServerCommand": "npm run build -- --configuration=e2e && npx http-server dist/vestiflow/browser -p 4210 -c-1",
+      "startServerCommand": "npm run build -- --configuration=e2e && npx http-server dist/vestiflow/browser -p 4210 -c-1 --proxy 'http://127.0.0.1:4210?'",
       "startServerReadyPattern": "Available on",
       "url": [
         "http://127.0.0.1:4210/login",
