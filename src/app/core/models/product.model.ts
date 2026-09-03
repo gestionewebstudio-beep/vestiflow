@@ -60,6 +60,12 @@ export interface Product extends TenantScoped, Timestamped {
    */
   readonly articleCode: string;
   readonly name: string;
+  /**
+   * «Nome online»: il titolo con cui il prodotto si vende su Shopify, distinto
+   * dal nome interno. Assente = mai inizializzato: si riempie da solo alla
+   * prima sincronizzazione (docs/24 §1.9).
+   */
+  readonly shopifyTitle?: string;
   readonly description?: string;
   readonly brand?: string;
   readonly category?: string;

@@ -1,5 +1,18 @@
 /** Messaggi Shopify comprensibili per l'utente (it-IT). Il raw resta in DB/log. */
 
+/**
+ * Spegnere «Sincronizza con Shopify» non è arrivato fino a Shopify: il prodotto
+ * può essere ancora in vendita, e VestiFlow ha rimesso in moto le giacenze
+ * apposta (docs/24 §1.8).
+ *
+ * ⛔ Sta QUI e non nel servizio di push perché è un messaggio per l'operatore, e
+ *    perché `toShopifyUserMessage` deve poterlo riconoscere: senza, un timeout
+ *    lo sostituirebbe con «ha impiegato troppo tempo» — vero, e senza la parte
+ *    che conta.
+ */
+export const SYNC_DISABLE_FAILED_MESSAGE =
+  'Il prodotto potrebbe essere ancora in vendita su Shopify';
+
 const CODE_MESSAGES: Readonly<Record<string, string>> = {
   webhook_partial_registration:
     'Gli aggiornamenti automatici sono attivi solo in parte. Premi «Attiva aggiornamenti automatici» per completare la configurazione.',
@@ -37,6 +50,11 @@ export function toShopifyUserMessage(code: string | undefined, rawMessage: strin
   const raw = rawMessage.trim();
   if (!raw) {
     return 'Si è verificato un problema con Shopify. Riprova tra qualche istante.';
+  }
+
+  // Già scritto per chi legge: passa intatto, causa tecnica in coda compresa.
+  if (raw.startsWith(SYNC_DISABLE_FAILED_MESSAGE)) {
+    return raw.length > 500 ? `${raw.slice(0, 497)}…` : raw;
   }
 
   if (raw.startsWith('Shopify ') || includesAny(raw, ['shopify graphql'])) {

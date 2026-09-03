@@ -15,7 +15,7 @@ describe('ShopifyConfigService', () => {
       SHOPIFY_API_SECRET: 'secret',
       SHOPIFY_OAUTH_CALLBACK_URL: 'https://api.test/callback',
       SHOPIFY_TOKEN_ENCRYPTION_KEY: 'enc-key',
-      SHOPIFY_API_VERSION: '2025-01',
+      SHOPIFY_API_VERSION: '2026-07',
     });
     const incomplete = createService({ SHOPIFY_API_KEY: 'key' });
 
@@ -29,7 +29,7 @@ describe('ShopifyConfigService', () => {
       FRONTEND_URL: 'https://app.test',
     });
 
-    expect(service.apiVersion).toBe('2025-01');
+    expect(service.apiVersion).toBe('2026-07');
     expect(service.callbackUrl).toBe('https://api.test/api/v1/shopify/auth/callback');
     expect(service.webhookUrl).toBe('https://api.test/api/v1/shopify/webhooks');
     expect(service.frontendUrl).toBe('https://app.test');

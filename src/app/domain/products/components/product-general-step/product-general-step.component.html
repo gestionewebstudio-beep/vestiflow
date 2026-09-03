@@ -18,7 +18,7 @@
               </app-hover-tooltip>
             }
           </label>
-          <div class="general-step__code-row">
+          <div class="general-step__control-row">
             <input
               id="product-article-code"
               class="general-step__control general-step__control--code"
@@ -97,18 +97,16 @@
                 ></i>
               </app-hover-tooltip>
             </span>
-            @if (!catalogReadOnly()) {
-              <button
-                type="button"
-                class="general-step__manage-btn"
-                aria-label="Gestisci categorie"
-                title="Gestisci categorie"
-                [attr.aria-expanded]="categoryManagerOpen()"
-                (click)="toggleCategoryManager()"
-              >
-                <i class="pi pi-cog" aria-hidden="true"></i>
-              </button>
-            }
+            <button
+              type="button"
+              class="general-step__manage-btn"
+              aria-label="Gestisci categorie"
+              title="Gestisci categorie"
+              [attr.aria-expanded]="categoryManagerOpen()"
+              (click)="toggleCategoryManager()"
+            >
+              <i class="pi pi-cog" aria-hidden="true"></i>
+            </button>
           </div>
           @if (useCategorySelect()) {
             <app-select-menu
@@ -149,19 +147,17 @@
                 ></i>
               </app-hover-tooltip>
             </span>
-            @if (!catalogReadOnly()) {
-              <button
-                type="button"
-                class="general-step__manage-btn"
-                aria-label="Gestisci sottocategorie"
-                [disabled]="!hasCategory() || ensuringCategory()"
-                [attr.aria-expanded]="subcategoryManagerOpen()"
-                title="Gestisci le sottocategorie della categoria selezionata"
-                (click)="toggleSubcategoryManager()"
-              >
-                <i class="pi pi-cog" aria-hidden="true"></i>
-              </button>
-            }
+            <button
+              type="button"
+              class="general-step__manage-btn"
+              aria-label="Gestisci sottocategorie"
+              [disabled]="!hasCategory() || ensuringCategory()"
+              [attr.aria-expanded]="subcategoryManagerOpen()"
+              title="Gestisci le sottocategorie della categoria selezionata"
+              (click)="toggleSubcategoryManager()"
+            >
+              <i class="pi pi-cog" aria-hidden="true"></i>
+            </button>
           </div>
           @if (useSubcategorySelect()) {
             <app-select-menu
@@ -202,13 +198,52 @@
         </div>
 
         <!-- Indipendente dallo stato: se off, le modifiche NON vanno su Shopify
-             (posizione temporanea vicino allo Stato; in futuro nel blocco Shopify). -->
-        <div class="general-step__field general-step__field--checkbox">
-          <label class="general-step__checkbox">
-            <input type="checkbox" formControlName="shopifySyncEnabled" />
-            Sincronizza con Shopify
-          </label>
-        </div>
+             (posizione temporanea vicino allo Stato; in futuro nel blocco Shopify).
+             Solo dove il canale esiste: un tenant senza Shopify non deve vedere
+             alcuna logica del canale (docs/24 §1.8). -->
+        @if (shopifyActive()) {
+          <div class="general-step__field general-step__field--checkbox">
+            <label class="general-step__checkbox">
+              <input type="checkbox" formControlName="shopifySyncEnabled" />
+              Sincronizza con Shopify
+            </label>
+          </div>
+        }
+
+        <!-- ⭐ «Nome online»: il titolo con cui il prodotto si vende, separato dal
+             nome interno con cui lo si cerca in magazzino (docs/24 §1.9). Solo
+             dove il canale esiste: senza Shopify non significherebbe niente. -->
+        @if (shopifyActive()) {
+          <div class="general-step__field general-step__field--grow">
+            <label class="general-step__label" for="product-shopify-title">
+              Nome online
+              <app-hover-tooltip
+                [inline]="true"
+                text="Titolo con cui il prodotto si vende su Shopify. Se lo lasci vuoto viene copiato dal nome prodotto alla prima sincronizzazione; da quel momento i due restano indipendenti, così puoi tenere un nome breve per il magazzino."
+              >
+                <i class="pi pi-info-circle general-step__info" aria-hidden="true"></i>
+              </app-hover-tooltip>
+            </label>
+            <div class="general-step__control-row">
+              <input
+                id="product-shopify-title"
+                class="general-step__control"
+                type="text"
+                formControlName="shopifyTitle"
+                autocomplete="off"
+                placeholder="Come il nome prodotto"
+              />
+              <app-button
+                variant="secondary"
+                [disabled]="!canCopyNameToOnline()"
+                type="button"
+                (click)="copyNameToOnlineTitle()"
+              >
+                Copia nome VestiFlow
+              </app-button>
+            </div>
+          </div>
+        }
 
         <div class="general-step__field">
           <span class="general-step__label" id="product-uom-label">U.M.</span>

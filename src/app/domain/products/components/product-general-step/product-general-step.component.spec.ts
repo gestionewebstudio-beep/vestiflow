@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ProductKind, ProductStatus } from '@core/models/product.model';
 import { InventoryTrackingMode } from '@core/models/product-catalog.model';
 import type { VatCode } from '@core/models/vat-code.model';
+import { ButtonComponent } from '@shared/components/button/button.component';
 import { HoverTooltipComponent } from '@shared/components/hover-tooltip/hover-tooltip.component';
 import { SegmentedComponent } from '@shared/components/segmented/segmented.component';
 import { DocumentLineSelectCellComponent } from '@domain/documents/components/document-line-select-cell/document-line-select-cell.component';
@@ -57,6 +58,7 @@ const LISTINO_SLOTS: readonly ProductListinoSlot[] = [
 const EMPTY_GENERAL: ProductGeneralDraft = {
   articleCode: '',
   name: '',
+  shopifyTitle: '',
   description: '',
   brand: '',
   category: '',
@@ -116,6 +118,7 @@ function renderStep(componentInputs: Record<string, unknown>) {
             SelectMenuComponent,
             DocumentLineSelectCellComponent,
             SegmentedComponent,
+            ButtonComponent,
             HoverTooltipComponent,
             UnitOfMeasureSelectComponent,
           ],
@@ -387,6 +390,64 @@ describe('ProductGeneralStepComponent', () => {
       });
 
       expect(screen.queryByLabelText('Modalità dei prezzi in questa sezione')).toBeNull();
+    });
+  });
+  /*
+    ⛔ Un tenant senza Shopify non vede alcuna logica del canale (docs/24 §1.8).
+    Prima la checkbox compariva a tutti: prometteva un canale che non c'era.
+  */
+  describe('«Sincronizza con Shopify» esiste solo dove esiste il canale', () => {
+    it("senza Shopify la checkbox non c'è", async () => {
+      await renderStep({
+        value: EMPTY_GENERAL,
+        categories: [],
+        shopifyConnected: false,
+        shopifyActive: false,
+      });
+
+      expect(screen.queryByLabelText('Sincronizza con Shopify')).toBeNull();
+    });
+
+    it("con Shopify attivo la checkbox c'è", async () => {
+      await renderStep({
+        value: EMPTY_GENERAL,
+        categories: [],
+        shopifyConnected: true,
+        shopifyActive: true,
+      });
+
+      expect(screen.getByLabelText('Sincronizza con Shopify')).toBeTruthy();
+    });
+
+    // ⭐ «Nome online»: due campi perché servono due nomi — quello breve per il
+    //    magazzino e quello con cui il prodotto si vende (docs/24 §1.9).
+    it('senza Shopify il «Nome online» non esiste: sarebbe un campo senza destinazione', async () => {
+      await renderStep({
+        value: EMPTY_GENERAL,
+        categories: [],
+        shopifyConnected: false,
+        shopifyActive: false,
+      });
+
+      expect(screen.queryByLabelText(/Nome online/)).toBeNull();
+    });
+
+    it('⭐ «Copia nome VestiFlow» riallinea i due nomi su richiesta, non da solo', async () => {
+      const user = userEvent.setup();
+      const { fixture } = await renderStep({
+        value: { ...EMPTY_GENERAL, name: 'MAGL-COT-BLU' },
+        categories: [],
+        shopifyConnected: true,
+        shopifyActive: true,
+      });
+
+      // Nasce vuoto e nessuno lo riempie: lo decide la prima sincronizzazione.
+      expect(screen.getByLabelText<HTMLInputElement>(/Nome online/).value).toBe('');
+
+      await user.click(screen.getByRole('button', { name: 'Copia nome VestiFlow' }));
+      fixture.detectChanges();
+
+      expect(screen.getByLabelText<HTMLInputElement>(/Nome online/).value).toBe('MAGL-COT-BLU');
     });
   });
 });

@@ -672,6 +672,14 @@ model Product {
   /// l'operatore non lo fornisce.
   articleCode                     String                  @map("article_code")
   name                            String
+  /// Titolo con cui il prodotto si vende ONLINE («Nome online»), distinto dal
+  /// nome interno `name` che si usa in magazzino, nelle ricerche e nei documenti.
+  /// Si inizializza UNA volta — dal nome interno alla creazione, dal titolo
+  /// remoto sui prodotti già collegati — e da lì i due vivono separati:
+  /// rinominare online non tocca il gestionale, e viceversa (docs/24 §1.9).
+  /// null = mai inizializzato: chi spinge deve procurarselo, MAI dedurlo dal
+  /// nome interno su un prodotto collegato, o sovrascriverebbe il titolo online.
+  shopifyTitle                    String?                 @map("shopify_title")
   description                     String?
   brand                           String?
   /// Tipo prodotto Shopify (REST product_type) — organizzazione interna negozio.

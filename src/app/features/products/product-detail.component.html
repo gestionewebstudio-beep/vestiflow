@@ -55,7 +55,7 @@
               >
                 <app-button variant="secondary" (click)="goToEdit(p.id)">
                   <i class="pi pi-pencil" aria-hidden="true"></i>
-                  {{ isShopifyCatalogProduct(p) ? shopifyCatalogEditTitle : 'Modifica' }}
+                  Modifica
                 </app-button>
               </div>
             }
@@ -74,12 +74,6 @@
         }
       </div>
     </header>
-
-    @if (isShopifyCatalogProduct(p)) {
-      <p class="product-detail__catalog-banner" role="note">
-        {{ shopifyCatalogBanner }}
-      </p>
-    }
 
     @if (deleteError(); as message) {
       <p class="product-detail__delete-error" role="alert">

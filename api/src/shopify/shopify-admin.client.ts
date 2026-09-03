@@ -1,4 +1,8 @@
-import { Injectable, InternalServerErrorException, ServiceUnavailableException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 
 import { ShopifyAdminHttpClient } from './shopify-admin-http.client';
 import { ShopifyConfigService } from './shopify-config.service';
@@ -268,24 +272,6 @@ export class ShopifyAdminClient {
       '/products.json',
       {
         method: 'POST',
-        body: JSON.stringify({ product }),
-      },
-    );
-    return response.product;
-  }
-
-  async updateProduct(
-    shopDomain: string,
-    accessToken: string,
-    shopifyProductId: string,
-    product: Record<string, unknown>,
-  ): Promise<ShopifyProductPayload> {
-    const response = await this.request<{ product: ShopifyProductPayload }>(
-      shopDomain,
-      accessToken,
-      `/products/${shopifyProductId}.json`,
-      {
-        method: 'PUT',
         body: JSON.stringify({ product }),
       },
     );

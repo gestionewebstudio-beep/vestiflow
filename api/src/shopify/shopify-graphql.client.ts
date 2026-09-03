@@ -16,6 +16,8 @@ import {
   parseGraphQlCostExtensions,
   parseShopifyRetryAfterHeader,
 } from './shopify-rate-limiter.util';
+import { toShopifyGid } from './shopify-money.util';
+import type { ShopifyProductStatus } from './shopify-product-payload.util';
 
 export interface ShopifyTaxonomyCategory {
   readonly id: string;
@@ -65,6 +67,46 @@ interface GraphQlResponse<T> {
   readonly errors?: readonly { message: string }[];
   readonly extensions?: unknown;
 }
+
+/** I campi prodotto che il push catalogo aggiorna con `productUpdate`. */
+export interface ShopifyProductCatalogInput {
+  /** GID del prodotto. */
+  readonly id: string;
+  readonly title: string;
+  readonly descriptionHtml: string;
+  readonly vendor?: string;
+  readonly productType?: string;
+  readonly tags?: readonly string[];
+  readonly status: ShopifyProductStatus;
+}
+
+export type { ShopifyProductStatus } from './shopify-product-payload.util';
+
+/** Una variante come Shopify la restituisce, nella forma che serve all'abbinamento. */
+export interface ShopifyRemoteVariant {
+  readonly id: string;
+  readonly sku: string | null;
+  readonly barcode: string | null;
+  readonly inventoryItemId: string | null;
+  readonly selectedOptions: readonly { readonly name: string; readonly value: string }[];
+}
+
+/** Riga di `productVariantsBulkUpdate`. Un campo assente non tocca il valore remoto. */
+export interface ShopifyVariantBulkInput {
+  readonly id: string;
+  readonly price?: string;
+  readonly compareAtPrice?: string;
+  readonly barcode?: string;
+  readonly inventoryItem?: { readonly sku?: string };
+}
+
+/** Un media immagine del prodotto, con l'URL d'origine per riconoscerlo. */
+export interface ShopifyRemoteMedia {
+  readonly id: string;
+  readonly originalSourceUrl: string | null;
+}
+
+const MEDIA_SELECTION = `media(first: 250) { nodes { id ... on MediaImage { originalSource { url } } } }`;
 
 @Injectable()
 export class ShopifyGraphqlClient {
@@ -118,7 +160,7 @@ export class ShopifyGraphqlClient {
     accessToken: string,
     shopifyProductId: string,
   ): Promise<ShopifyTaxonomyCategory | null> {
-    const productGid = toProductGid(shopifyProductId);
+    const productGid = toShopifyGid('Product', shopifyProductId);
     const query = `
       query ProductTaxonomyCategory($id: ID!) {
         product(id: $id) {
@@ -145,45 +187,17 @@ export class ShopifyGraphqlClient {
     shopifyProductId: string,
     categoryGid: string | null,
   ): Promise<ShopifyTaxonomyCategory | null> {
-    const productGid = toProductGid(shopifyProductId);
-    const mutation = `
-      mutation ProductUpdateTaxonomyCategory($product: ProductUpdateInput!) {
-        productUpdate(product: $product) {
-          product {
-            category {
-              id
-              name
-              fullName
-              isLeaf
-            }
-          }
-          userErrors {
-            field
-            message
-          }
-        }
-      }
-    `;
-
-    const product: Record<string, unknown> = { id: productGid };
+    const product: Record<string, unknown> = { id: toShopifyGid('Product', shopifyProductId) };
     if (categoryGid) {
       product['category'] = categoryGid;
     }
-
-    const data = await this.graphql<{
-      productUpdate: {
-        product: { category: ShopifyTaxonomyCategory | null } | null;
-        userErrors: readonly { field: string[] | null; message: string }[];
-      };
-    }>(shopDomain, accessToken, mutation, { product });
-
-    const userErrors = data.productUpdate?.userErrors ?? [];
-    if (userErrors.length > 0) {
-      const message = userErrors.map((entry) => entry.message).join('; ');
-      throw new InternalServerErrorException(`Shopify productUpdate: ${message}`);
-    }
-
-    return data.productUpdate?.product?.category ?? null;
+    const result = await this.runProductUpdate<{ category: ShopifyTaxonomyCategory | null }>(
+      shopDomain,
+      accessToken,
+      product,
+      'category { id name fullName isLeaf }',
+    );
+    return result?.category ?? null;
   }
 
   async getCategoryAttributes(
@@ -618,11 +632,7 @@ export class ShopifyGraphqlClient {
       metaobject: { fields: [...fields] },
     });
 
-    const userErrors = data.metaobjectUpsert?.userErrors ?? [];
-    if (userErrors.length > 0) {
-      const message = userErrors.map((entry) => entry.message).join('; ');
-      throw new InternalServerErrorException(`Shopify metaobjectUpsert: ${message}`);
-    }
+    this.throwOnUserErrors('metaobjectUpsert', data.metaobjectUpsert?.userErrors);
 
     return data.metaobjectUpsert?.metaobject?.id ?? null;
   }
@@ -676,10 +686,214 @@ export class ShopifyGraphqlClient {
       };
     }>(shopDomain, accessToken, mutation, { metafields: [...metafields] });
 
-    const userErrors = data.metafieldsSet?.userErrors ?? [];
-    if (userErrors.length > 0) {
+    this.throwOnUserErrors('metafieldsSet', data.metafieldsSet?.userErrors);
+  }
+
+  // ── Push catalogo (docs/24 §1.6, primo pezzo della Tranche 2) ─────────────
+
+  /** Campi prodotto e stato di un prodotto già collegato. */
+  async updateProductCatalog(
+    shopDomain: string,
+    accessToken: string,
+    input: ShopifyProductCatalogInput,
+  ): Promise<{ id: string; status: ShopifyProductStatus }> {
+    const product = await this.runProductUpdate<{ id: string; status: ShopifyProductStatus }>(
+      shopDomain,
+      accessToken,
+      { ...input },
+      'id status',
+    );
+    if (!product) {
+      throw new InternalServerErrorException('Shopify productUpdate: nessun prodotto restituito');
+    }
+    return product;
+  }
+
+  /** Solo lo stato: è ciò che «Sincronizza con Shopify» spento porta in ARCHIVED. */
+  async setProductStatus(
+    shopDomain: string,
+    accessToken: string,
+    productGid: string,
+    status: ShopifyProductStatus,
+  ): Promise<void> {
+    await this.runProductUpdate(shopDomain, accessToken, { id: productGid, status }, 'id status');
+  }
+
+  /** Le varianti del prodotto: servono ad abbinare quelle locali senza id. */
+  async listProductVariants(
+    shopDomain: string,
+    accessToken: string,
+    productGid: string,
+  ): Promise<readonly ShopifyRemoteVariant[]> {
+    const query = `
+      query ProductVariantsForLink($id: ID!) {
+        product(id: $id) {
+          variants(first: 250) {
+            nodes {
+              id
+              sku
+              barcode
+              inventoryItem { id }
+              selectedOptions { name value }
+            }
+          }
+        }
+      }
+    `;
+    const data = await this.graphql<{
+      product: {
+        variants: {
+          nodes: readonly {
+            id: string;
+            sku: string | null;
+            barcode: string | null;
+            inventoryItem: { id: string } | null;
+            selectedOptions: readonly { name: string; value: string }[];
+          }[];
+        };
+      } | null;
+    }>(shopDomain, accessToken, query, { id: productGid });
+    return (data.product?.variants.nodes ?? []).map((node) => ({
+      id: node.id,
+      sku: node.sku,
+      barcode: node.barcode,
+      inventoryItemId: node.inventoryItem?.id ?? null,
+      selectedOptions: node.selectedOptions,
+    }));
+  }
+
+  /**
+   * Aggiorna varianti esistenti. `allowPartialUpdates: false`: o tutte o
+   * nessuna — un aggiornamento a metà lascerebbe il prodotto in uno stato che
+   * nessuno ha chiesto (docs/24 §8.6).
+   */
+  async bulkUpdateVariants(
+    shopDomain: string,
+    accessToken: string,
+    productGid: string,
+    variants: readonly ShopifyVariantBulkInput[],
+  ): Promise<void> {
+    const mutation = `
+      mutation ProductVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+        productVariantsBulkUpdate(productId: $productId, variants: $variants, allowPartialUpdates: false) {
+          productVariants { id }
+          userErrors { field message }
+        }
+      }
+    `;
+    const data = await this.graphql<{
+      productVariantsBulkUpdate: {
+        userErrors: readonly { field: string[] | null; message: string }[];
+      } | null;
+    }>(shopDomain, accessToken, mutation, { productId: productGid, variants });
+    this.throwOnUserErrors('productVariantsBulkUpdate', data.productVariantsBulkUpdate?.userErrors);
+  }
+
+  /** I media del prodotto: per riconoscere un'immagine già caricata dal suo URL d'origine. */
+  /**
+   * Il titolo attuale su Shopify. Serve a inizializzare il «Nome online» dei
+   * prodotti già collegati senza toccarlo: si legge, non si deduce.
+   */
+  async getProductTitle(
+    shopDomain: string,
+    accessToken: string,
+    productGid: string,
+  ): Promise<string | null> {
+    const query = `
+      query ProductOnlineTitle($id: ID!) {
+        product(id: $id) { title }
+      }
+    `;
+    const data = await this.graphql<{ product: { title: string } | null }>(
+      shopDomain,
+      accessToken,
+      query,
+      { id: productGid },
+    );
+    return data.product?.title ?? null;
+  }
+
+  async listProductMedia(
+    shopDomain: string,
+    accessToken: string,
+    productGid: string,
+  ): Promise<readonly ShopifyRemoteMedia[]> {
+    const query = `
+      query ProductMediaForLink($id: ID!) {
+        product(id: $id) { ${MEDIA_SELECTION} }
+      }
+    `;
+    const data = await this.graphql<{ product: { media: MediaNodes } | null }>(
+      shopDomain,
+      accessToken,
+      query,
+      { id: productGid },
+    );
+    return mapMedia(data.product?.media);
+  }
+
+  /**
+   * Aggiunge immagini da URL con `productUpdate(media:)` — la via non
+   * deprecata (`productCreateMedia` lo è). Restituisce i media del prodotto
+   * DOPO l'aggiunta, per abbinare ogni immagine al suo id remoto.
+   */
+  async addProductMedia(
+    shopDomain: string,
+    accessToken: string,
+    productGid: string,
+    media: readonly { readonly originalSource: string; readonly alt?: string }[],
+  ): Promise<readonly ShopifyRemoteMedia[]> {
+    const product = await this.runProductUpdate<{ media: MediaNodes }>(
+      shopDomain,
+      accessToken,
+      { id: productGid },
+      MEDIA_SELECTION,
+      media.map((entry) => ({ ...entry, mediaContentType: 'IMAGE' })),
+    );
+    return mapMedia(product?.media);
+  }
+
+  /**
+   * `productUpdate` con controllo degli `userErrors`, in un posto solo.
+   *
+   * Era scritto dentro la mutation della tassonomia; il push catalogo ne
+   * aveva bisogno una seconda volta, e una terza per le immagini. La
+   * selezione cambia, la gestione dell'errore no.
+   */
+  private async runProductUpdate<T>(
+    shopDomain: string,
+    accessToken: string,
+    product: Record<string, unknown>,
+    selection: string,
+    media?: readonly Record<string, unknown>[],
+  ): Promise<T | null> {
+    const withMedia = media !== undefined && media.length > 0;
+    const mutation = `
+      mutation ProductUpdate($product: ProductUpdateInput!${withMedia ? ', $media: [CreateMediaInput!]' : ''}) {
+        productUpdate(product: $product${withMedia ? ', media: $media' : ''}) {
+          product { ${selection} }
+          userErrors { field message }
+        }
+      }
+    `;
+    const data = await this.graphql<{
+      productUpdate: {
+        product: T | null;
+        userErrors: readonly { field: string[] | null; message: string }[];
+      } | null;
+    }>(shopDomain, accessToken, mutation, withMedia ? { product, media } : { product });
+    this.throwOnUserErrors('productUpdate', data.productUpdate?.userErrors);
+    return data.productUpdate?.product ?? null;
+  }
+
+  /** `userErrors` di una mutation → eccezione con il nome della mutation. Una volta sola. */
+  private throwOnUserErrors(
+    mutation: string,
+    userErrors: readonly { readonly message: string }[] | undefined,
+  ): void {
+    if (userErrors && userErrors.length > 0) {
       const message = userErrors.map((entry) => entry.message).join('; ');
-      throw new InternalServerErrorException(`Shopify metafieldsSet: ${message}`);
+      throw new InternalServerErrorException(`Shopify ${mutation}: ${message}`);
     }
   }
 
@@ -741,12 +955,6 @@ export class ShopifyGraphqlClient {
   }
 }
 
-function toProductGid(shopifyProductId: string): string {
-  return shopifyProductId.startsWith('gid://')
-    ? shopifyProductId
-    : `gid://shopify/Product/${shopifyProductId}`;
-}
-
 function isIgnorableStandardMetafieldDefinitionEnableError(message: string): boolean {
   const normalized = message.trim().toLowerCase();
   return (
@@ -755,4 +963,13 @@ function isIgnorableStandardMetafieldDefinitionEnableError(message: string): boo
     normalized.includes('exists') ||
     normalized.includes('has been taken')
   );
+}
+
+type MediaNodes = { nodes: readonly { id: string; originalSource?: { url: string } | null }[] };
+
+function mapMedia(media: MediaNodes | undefined): readonly ShopifyRemoteMedia[] {
+  return (media?.nodes ?? []).map((node) => ({
+    id: node.id,
+    originalSourceUrl: node.originalSource?.url ?? null,
+  }));
 }

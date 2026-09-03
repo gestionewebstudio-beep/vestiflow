@@ -53,18 +53,16 @@
                       "
                       [attr.aria-label]="'SKU per ' + rowTitle(i)"
                     />
-                    @if (!catalogReadOnly()) {
-                      <app-button
-                        type="button"
-                        variant="secondary"
-                        [loading]="isGeneratingSku(i)"
-                        [disabled]="!productName().trim()"
-                        [attr.aria-label]="'Genera SKU (' + rowTitle(i) + ')'"
-                        (click)="generateSku(i)"
-                      >
-                        Genera SKU
-                      </app-button>
-                    }
+                    <app-button
+                      type="button"
+                      variant="secondary"
+                      [loading]="isGeneratingSku(i)"
+                      [disabled]="!productName().trim()"
+                      [attr.aria-label]="'Genera SKU (' + rowTitle(i) + ')'"
+                      (click)="generateSku(i)"
+                    >
+                      Genera SKU
+                    </app-button>
                   </div>
                   @if (isInvalid(group, 'sku')) {
                     <p class="variants-step__error" role="alert">
@@ -162,16 +160,14 @@
                       [attr.aria-invalid]="isBarcodeInvalid(group) ? true : null"
                       [attr.aria-label]="'Barcode per ' + rowTitle(i)"
                     />
-                    @if (!catalogReadOnly()) {
-                      <app-button
-                        type="button"
-                        variant="secondary"
-                        [attr.aria-label]="'Genera barcode EAN-13 per ' + rowTitle(i)"
-                        (click)="generateBarcode(i)"
-                      >
-                        Genera
-                      </app-button>
-                    }
+                    <app-button
+                      type="button"
+                      variant="secondary"
+                      [attr.aria-label]="'Genera barcode EAN-13 per ' + rowTitle(i)"
+                      (click)="generateBarcode(i)"
+                    >
+                      Genera
+                    </app-button>
                   </div>
                   @if (isBarcodeSameAsSku(group)) {
                     <p class="variants-step__error" role="alert">

@@ -20,12 +20,6 @@
   } @else if (error(); as appError) {
     <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
   } @else if (ready()) {
-    @if (shopifyCatalogLocked()) {
-      <p class="product-form__catalog-banner" role="note">
-        {{ shopifyCatalogBanner }}
-      </p>
-    }
-
     <ol class="product-form__steps" role="tablist" aria-label="Sezioni anagrafica prodotto">
       @for (tab of tabs; track tab.id) {
         <li class="product-form__step">
@@ -55,7 +49,6 @@
             [vatCodes]="vatCodes()"
             [shopifyConnected]="shopifyConnected()"
             [shopifyActive]="showShopifyIntegration()"
-            [catalogReadOnly]="shopifyCatalogLocked()"
             [editMode]="mode() === 'edit'"
             [canSeeCosts]="canViewPurchaseCosts()"
             [articleCodeTakenBy]="articleCodeTakenBy()"
@@ -83,15 +76,13 @@
               Prodotto con varianti: SKU, EAN e prezzo per variante si gestiscono nel tab Varianti.
             </p>
           }
-          @if (!shopifyCatalogLocked()) {
-            <app-product-images-field
-              [existingImages]="existingImages()"
-              [selectedFiles]="pendingImageFiles()"
-              [disabled]="submitting()"
-              (filesChange)="onPendingImagesChange($event)"
-              (removeExisting)="onRemoveExistingImage($event)"
-            />
-          }
+          <app-product-images-field
+            [existingImages]="existingImages()"
+            [selectedFiles]="pendingImageFiles()"
+            [disabled]="submitting()"
+            (filesChange)="onPendingImagesChange($event)"
+            (removeExisting)="onRemoveExistingImage($event)"
+          />
         }
         @case ('catalog') {
           <app-product-general-step
@@ -102,7 +93,6 @@
             [supplierOptions]="supplierOptions()"
             [vatCodes]="vatCodes()"
             [shopifyConnected]="shopifyConnected()"
-            [catalogReadOnly]="shopifyCatalogLocked()"
             [editMode]="mode() === 'edit'"
             [canSeeCosts]="canViewPurchaseCosts()"
             [articleCodeTakenBy]="articleCodeTakenBy()"
@@ -116,7 +106,6 @@
             [variants]="draft().variants"
             [shopifyConnected]="shopifyConnected()"
             [showShopifyIntegration]="showShopifyIntegration()"
-            [catalogReadOnly]="shopifyCatalogLocked()"
             (optionsChange)="onOptionsChange($event)"
           />
           <app-product-variants-step
@@ -125,7 +114,6 @@
             [category]="draft().general.category"
             [takenSkus]="takenSkus()"
             [takenBarcodes]="takenBarcodes()"
-            [catalogReadOnly]="shopifyCatalogLocked()"
             [shopifyActive]="showShopifyIntegration()"
             (variantsChange)="onVariantsChange($event)"
             (stepValidChange)="onVariantsValidChange($event)"

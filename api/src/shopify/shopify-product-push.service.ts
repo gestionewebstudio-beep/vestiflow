@@ -11,9 +11,17 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ShopifyAdminClient } from './shopify-admin.client';
+import { ShopifyGraphqlClient } from './shopify-graphql.client';
+import { productChannelFields } from './shopify-product-payload.util';
+import { SYNC_DISABLE_FAILED_MESSAGE } from './shopify-user-error.util';
+import { describeUnmatchedVariants, matchOrphanVariants } from './shopify-variant-match.util';
 import { ShopifyConnectionService } from './shopify-connection.service';
-import { minorToShopifyDecimal } from './shopify-money.util';
-import { buildVariantsPayload } from './shopify-variant-payload.util';
+import { minorToShopifyDecimal, legacyIdFromGid, toShopifyGid } from './shopify-money.util';
+import {
+  buildVariantsPayload,
+  variantChannelFields,
+  variantBulkInput,
+} from './shopify-variant-payload.util';
 import { ShopifyOAuthService } from './shopify-oauth.service';
 import { ShopifyTaxonomyService } from './shopify-taxonomy.service';
 import { ShopifyCategoryMetafieldsService } from './shopify-category-metafields.service';
@@ -35,14 +43,13 @@ import {
   VESTIFLOW_SEASON_METAFIELD_KEY,
 } from './shopify-product-metadata.types';
 import { formatShopifyTags } from './shopify-product-metadata.util';
-import { plainTextToShopifyBodyHtml, normalizeProductDescription } from './shopify-html.util';
 
 type ProductWithVariants = Product & { variants: ProductVariant[] };
 
 type ProductOptionRow = { readonly name: string; readonly values: readonly string[] };
 
 export type ShopifyProductPushSkipReason =
-  'not_connected' | 'missing_write_products_scope' | 'archived' | 'sync_disabled';
+  'not_connected' | 'missing_write_products_scope' | 'archived' | 'sync_disabled' | 'not_linked';
 
 export interface ShopifyProductPushResult {
   readonly pushed: boolean;
@@ -76,6 +83,7 @@ export class ShopifyProductPushService {
     private readonly shopifyConnection: ShopifyConnectionService,
     private readonly shopifyTaxonomy: ShopifyTaxonomyService,
     private readonly shopifyCategoryMetafields: ShopifyCategoryMetafieldsService,
+    private readonly shopifyGraphql: ShopifyGraphqlClient,
   ) {}
 
   async pushProduct(tenantId: string, productId: string): Promise<ShopifyProductPushResult> {
@@ -161,9 +169,10 @@ export class ShopifyProductPushService {
       return { ok: false, reason: 'archived' };
     }
 
-    // Gate per-prodotto: in AND col gating per origine (assertShopifyCatalog*).
-    // Un false→true su update accoda comunque il push, che qui trova il flag
-    // aggiornato e procede con l'allineamento iniziale.
+    // Gate per-prodotto. Un false→true su update accoda comunque il push, che
+    // qui trova il flag aggiornato e riallinea per intero (docs/24 §1.8).
+    // ⚠️ Non esiste più un gating per ORIGINE: un prodotto importato da Shopify
+    //    si modifica in VestiFlow come gli altri, e il push lo porta di là.
     if (!product.shopifySyncEnabled) {
       return { ok: false, reason: 'sync_disabled' };
     }
@@ -210,47 +219,61 @@ export class ShopifyProductPushService {
       }
 
       const { shopDomain, accessToken } = await this.shopifyOAuth.getAccessToken(tenantId);
-      const payload = this.buildShopifyProductPayload(product);
-
-      const shopifyProduct = product.shopifyProductId
-        ? await this.shopifyAdmin.updateProduct(
-            shopDomain,
-            accessToken,
-            product.shopifyProductId,
-            payload,
-          )
-        : await this.shopifyAdmin.createProduct(shopDomain, accessToken, payload);
-
-      await this.persistShopifyIds(product, shopifyProduct);
-      await this.pushProductImages(
-        tenantId,
-        product.id,
-        shopDomain,
-        accessToken,
-        shopifyProduct.id,
-      );
+      // ⭐ Prodotto GIÀ COLLEGATO: la modifica passa da GraphQL (docs/24 §1.6,
+      //    primo pezzo della Tranche 2). ⛔ Nessun fallback REST: se GraphQL
+      //    fallisce, l'errore arriva al catch e resta visibile sul prodotto.
+      // ⚠️ La CREAZIONE resta sul REST finché la Tranche 2 non porta productSet:
+      //    non è una funzione nuova su quel percorso, è quella di sempre.
+      let shopifyProductLegacyId: string;
+      if (product.shopifyProductId) {
+        shopifyProductLegacyId = await this.updateLinkedProductViaGraphql(
+          tenantId,
+          product,
+          shopDomain,
+          accessToken,
+        );
+      } else {
+        const payload = this.buildShopifyProductPayload(product);
+        const shopifyProduct = await this.shopifyAdmin.createProduct(
+          shopDomain,
+          accessToken,
+          payload,
+        );
+        await this.persistShopifyIds(product, shopifyProduct);
+        // Creato ORA con il nome interno: da adesso quel titolo è il «Nome
+        // online», e i due si possono separare senza che nessuno li riallinei.
+        await this.initOnlineTitle(product.id, productChannelFields(product).title);
+        await this.pushProductImages(
+          tenantId,
+          product.id,
+          shopDomain,
+          accessToken,
+          shopifyProduct.id,
+        );
+        shopifyProductLegacyId = String(shopifyProduct.id);
+      }
       await this.pushSeasonMetafield(
         shopDomain,
         accessToken,
-        String(shopifyProduct.id),
+        shopifyProductLegacyId,
         product.season,
         product.shopifyMetafields,
       );
       const taxonomyWarning = await this.pushTaxonomyCategory(
         tenantId,
-        String(shopifyProduct.id),
+        shopifyProductLegacyId,
         product,
       );
       const categoryMetafieldsWarning = await this.pushCategoryMetafields(
         tenantId,
-        String(shopifyProduct.id),
+        shopifyProductLegacyId,
         product,
       );
       await this.refreshLocalShopifyMetadata(
         product.id,
         shopDomain,
         accessToken,
-        String(shopifyProduct.id),
+        shopifyProductLegacyId,
         product.shopifyTaxonomyCategoryId,
         product.shopifyCategoryMetafields,
         product.shopifyMetafields,
@@ -258,7 +281,7 @@ export class ShopifyProductPushService {
       const verifyWarning = await this.verifyRemoteCategoryMetafields(
         shopDomain,
         accessToken,
-        String(shopifyProduct.id),
+        shopifyProductLegacyId,
         product.shopifyTaxonomyCategoryId,
         product.shopifyCategoryMetafields,
       );
@@ -278,39 +301,17 @@ export class ShopifyProductPushService {
           },
         });
       } else {
-        await this.prisma.product.update({
-          where: { id: productId },
-          data: {
-            shopifySyncStatus: ShopifySyncStatus.synced,
-            shopifyLastError: null,
-            shopifyLastSyncAt: new Date(),
-          },
-        });
+        await this.markPushSucceeded(productId);
       }
 
       await this.shopifyConnection.touchSync(tenantId);
       this.logger.log(
-        `Prodotto Shopify sincronizzato (${tenantId}): ${product.name} → ${shopifyProduct.id}`,
+        `Prodotto Shopify sincronizzato (${tenantId}): ${product.name} → ${shopifyProductLegacyId}`,
       );
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Errore push prodotto Shopify';
       this.logger.warn(`Push prodotto Shopify fallito (${tenantId}/${productId}): ${message}`);
-      // Se il prodotto è già collegato a Shopify, un fallimento (es. rate limit durante un
-      // update) non è un errore di creazione: il prodotto esiste su Shopify, serve solo
-      // ri-sincronizzare. Marchiarlo "out_of_sync" evita falsi "Errore sync".
-      const linked = await this.prisma.product.findUnique({
-        where: { id: productId },
-        select: { shopifyProductId: true },
-      });
-      await this.prisma.product.update({
-        where: { id: productId },
-        data: {
-          shopifySyncStatus: linked?.shopifyProductId
-            ? ShopifySyncStatus.out_of_sync
-            : ShopifySyncStatus.error,
-          shopifyLastError: message.slice(0, 500),
-        },
-      });
+      await this.markPushFailed(productId, message);
     } finally {
       this.pushInFlight.delete(lockKey);
     }
@@ -358,6 +359,330 @@ export class ShopifyProductPushService {
     }
   }
 
+  /**
+   * «Sincronizza con Shopify» appena SPENTO su un prodotto collegato: il
+   * prodotto Shopify va in ARCHIVED (docs/24 §1.8). Non passa dal push
+   * ordinario, che a flag spento non fa nulla per costruzione — e non deve:
+   * questa è l'unica scrittura remota ammessa a interruttore spento.
+   *
+   * ⛔ **Spegnere è UN'OPERAZIONE SOLA, e le sue due metà non si separano**: il
+   *    flag locale ferma ogni push — giacenze comprese — e l'archiviazione
+   *    toglie il prodotto dalla vendita. Se la seconda fallisce e la prima
+   *    resta, il prodotto è **ancora in vendita su Shopify con lo stock
+   *    congelato**: si vende merce che non c'è. È il danno peggiore dei due,
+   *    quindi a fallimento la disattivazione **si annulla** — il flag torna
+   *    acceso, le giacenze riprendono a sincronizzarsi, e l'errore dice
+   *    all'operatore che cosa può essere successo.
+   *
+   * ⚠️ `out_of_sync` resta come stato tecnico perché è vero (il prodotto va
+   *    riallineato), ma da solo non direbbe la conseguenza: quella sta nel
+   *    messaggio, che è ciò che l'operatore legge.
+   *
+   * Mapping e id restano com'erano: riaccendendo, il push ordinario ritrova
+   * il prodotto e lo riallinea per intero, stato locale compreso.
+   */
+  async archiveOnSyncDisabled(
+    tenantId: string,
+    productId: string,
+  ): Promise<ShopifyProductPushResult> {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, tenantId },
+      select: { id: true, name: true, shopifyProductId: true },
+    });
+    if (!product?.shopifyProductId) {
+      return { pushed: false, reason: 'not_linked' };
+    }
+    try {
+      const { shopDomain, accessToken } = await this.shopifyOAuth.getAccessToken(tenantId);
+      await this.shopifyGraphql.setProductStatus(
+        shopDomain,
+        accessToken,
+        toShopifyGid('Product', product.shopifyProductId),
+        'ARCHIVED',
+      );
+      await this.markPushSucceeded(productId);
+      this.logger.log(`Prodotto Shopify archiviato a sync spento (${tenantId}): ${product.name}`);
+      return { pushed: true };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Archiviazione Shopify fallita';
+      this.logger.warn(`Archiviazione Shopify fallita (${tenantId}/${productId}): ${message}`);
+      await this.undoSyncDisable(tenantId, productId, message);
+      return { pushed: false, reason: 'shopify_error' };
+    }
+  }
+
+  /**
+   * La modifica di un prodotto già collegato, via GraphQL, in quattro passi:
+   * varianti orfane, campi prodotto e stato, varianti, immagini.
+   * Restituisce l'id numerico salvato, che il resto del push usa com'era.
+   */
+  private async updateLinkedProductViaGraphql(
+    tenantId: string,
+    product: ProductWithVariants,
+    shopDomain: string,
+    accessToken: string,
+  ): Promise<string> {
+    const legacyId = product.shopifyProductId as string;
+    const productGid = toShopifyGid('Product', legacyId);
+
+    const abbinate = await this.linkOrphanVariants(product, productGid, shopDomain, accessToken);
+    const shopifyTitle = await this.ensureOnlineTitle(product, productGid, shopDomain, accessToken);
+
+    // I campi vengono dalla funzione comune col REST: qui si aggiunge solo l'id.
+    await this.shopifyGraphql.updateProductCatalog(shopDomain, accessToken, {
+      id: productGid,
+      ...productChannelFields({ ...product, shopifyTitle }),
+    });
+
+    const compareAt =
+      product.compareAtPriceMinor == null ? null : Number(product.compareAtPriceMinor);
+    const inputs = product.variants.flatMap((variant) => {
+      const remoteId = variant.shopifyVariantId ?? abbinate.get(variant.id) ?? null;
+      if (!remoteId) {
+        return [];
+      }
+      return [
+        variantBulkInput(
+          toShopifyGid('ProductVariant', remoteId),
+          variantChannelFields(variant, compareAt),
+        ),
+      ];
+    });
+    if (inputs.length > 0) {
+      await this.shopifyGraphql.bulkUpdateVariants(shopDomain, accessToken, productGid, inputs);
+    }
+
+    await this.syncProductMediaViaGraphql(
+      tenantId,
+      product.id,
+      productGid,
+      shopDomain,
+      accessToken,
+    );
+    return legacyId;
+  }
+
+  /**
+   * Varianti locali senza id Shopify, cercate SOLO dentro il prodotto
+   * collegato e collegate SOLO se la corrispondenza è univoca. Zero o più
+   * corrispondenze fermano il push con un errore che le nomina: niente
+   * salti silenziosi, niente varianti create per conto dell'operatore (§1.8).
+   */
+  private async linkOrphanVariants(
+    product: ProductWithVariants,
+    productGid: string,
+    shopDomain: string,
+    accessToken: string,
+  ): Promise<ReadonlyMap<string, string>> {
+    if (!product.variants.some((variant) => !variant.shopifyVariantId)) {
+      return new Map();
+    }
+    const remote = await this.shopifyGraphql.listProductVariants(
+      shopDomain,
+      accessToken,
+      productGid,
+    );
+    const esito = matchOrphanVariants(product.variants, remote);
+    if (esito.nonAbbinate.length > 0) {
+      throw new Error(
+        `Varianti non abbinabili su Shopify — ${describeUnmatchedVariants(esito.nonAbbinate)}`,
+      );
+    }
+    // Gli id si salvano NUMERICI, come quelli già presenti: webhook e push
+    // inventario li leggono in quella forma. La conversione a GID avviene
+    // sempre all'uscita, con `toShopifyGid`.
+    const abbinate = new Map<string, string>();
+    await this.prisma.$transaction(
+      esito.abbinate.map((match) => {
+        const variantLegacyId = legacyIdFromGid(match.remote.id);
+        abbinate.set(match.localId, variantLegacyId);
+        return this.prisma.productVariant.update({
+          where: { id: match.localId },
+          data: {
+            shopifyVariantId: variantLegacyId,
+            shopifyInventoryItemId: match.remote.inventoryItemId
+              ? legacyIdFromGid(match.remote.inventoryItemId)
+              : null,
+          },
+        });
+      }),
+    );
+    return abbinate;
+  }
+
+  /**
+   * Immagini via GraphQL, SENZA duplicarle ai salvataggi ripetuti: prima si
+   * cercano fra i media remoti per URL d'origine, e si carica solo ciò che
+   * manca davvero. L'id salvato è il GID del media; quelli numerici del
+   * vecchio REST restano validi come opachi.
+   *
+   * ⚠️ Qui NON si riscrive `url` con quello del CDN (il REST lo fa): il
+   *    riconoscimento del giro dopo è per `originalSource.url`, che è l'URL
+   *    locale. Riscriverlo farebbe ricaricare la stessa immagine al salvataggio
+   *    successivo.
+   */
+  private async syncProductMediaViaGraphql(
+    tenantId: string,
+    productId: string,
+    productGid: string,
+    shopDomain: string,
+    accessToken: string,
+  ): Promise<void> {
+    const pending = await this.findPendingImages(tenantId, productId);
+    if (pending.length === 0) {
+      return;
+    }
+    const remote = await this.shopifyGraphql.listProductMedia(shopDomain, accessToken, productGid);
+    const remoteByUrl = mediaByUrl(remote);
+    const daCaricare: typeof pending = [];
+    for (const image of pending) {
+      const known = remoteByUrl.get(image.url);
+      if (known) {
+        await this.prisma.productImage.update({
+          where: { id: image.id },
+          data: { shopifyImageId: known },
+        });
+      } else {
+        daCaricare.push(image);
+      }
+    }
+    if (daCaricare.length === 0) {
+      return;
+    }
+    const dopo = await this.shopifyGraphql.addProductMedia(
+      shopDomain,
+      accessToken,
+      productGid,
+      daCaricare.map((image) => ({ originalSource: image.url, alt: image.altText ?? undefined })),
+    );
+    const dopoByUrl = mediaByUrl(dopo);
+    for (const image of daCaricare) {
+      const id = dopoByUrl.get(image.url);
+      if (id) {
+        await this.prisma.productImage.update({
+          where: { id: image.id },
+          data: { shopifyImageId: id },
+        });
+      } else {
+        this.logger.warn(
+          `Immagine Shopify non riconosciuta dopo il caricamento (${productId}/${image.id})`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Annulla una disattivazione che non è riuscita ad arrivare su Shopify: il
+   * flag torna acceso e le giacenze ricominciano a viaggiare.
+   *
+   * ⭐ `updateMany` con `shopifySyncEnabled: false` nel filtro è ciò che rende
+   *    l'operazione RIPETIBILE: se qualcuno l'ha già riacceso — un secondo
+   *    tentativo, o l'operatore stesso — non si scrive niente e non si sovrascrive
+   *    una decisione più recente con una vecchia.
+   *
+   * ⚠️ Il messaggio nomina la CONSEGUENZA prima della causa: «rate limit» dice
+   *    all'operatore che cosa è andato storto, non che cosa rischia adesso.
+   */
+  private async undoSyncDisable(
+    tenantId: string,
+    productId: string,
+    message: string,
+  ): Promise<void> {
+    await this.prisma.product.updateMany({
+      where: { id: productId, tenantId, shopifySyncEnabled: false },
+      data: {
+        shopifySyncEnabled: true,
+        shopifySyncStatus: ShopifySyncStatus.out_of_sync,
+        shopifyLastError: `${SYNC_DISABLE_FAILED_MESSAGE}: ${message}`.slice(0, 500),
+      },
+    });
+  }
+
+  /**
+   * Il «Nome online» di un prodotto GIÀ COLLEGATO, quando non è mai stato
+   * inizializzato.
+   *
+   * ⛔ Si LEGGE da Shopify, non si deduce da `name`: i prodotti importati hanno
+   *    il nome interno allineato al titolo remoto solo finché qualcuno non lo
+   *    accorcia — e dedurlo significherebbe rimandare su Shopify il nome di
+   *    magazzino, cioè fare esattamente il danno che questo campo evita.
+   */
+  private async ensureOnlineTitle(
+    product: ProductWithVariants,
+    productGid: string,
+    shopDomain: string,
+    accessToken: string,
+  ): Promise<string> {
+    if (product.shopifyTitle) {
+      return product.shopifyTitle;
+    }
+    const remoto = await this.shopifyGraphql.getProductTitle(shopDomain, accessToken, productGid);
+    const titolo = remoto?.trim() || product.name;
+    await this.initOnlineTitle(product.id, titolo);
+    return titolo;
+  }
+
+  /**
+   * Scrive il «Nome online» UNA volta sola: il filtro `shopifyTitle: null` è la
+   * garanzia: chi ce l'ha già non viene toccato, nemmeno da un push ripetuto.
+   */
+  private async initOnlineTitle(productId: string, titolo: string): Promise<void> {
+    await this.prisma.product.updateMany({
+      where: { id: productId, shopifyTitle: null },
+      data: { shopifyTitle: titolo },
+    });
+  }
+
+  /** Esito di una scrittura remota andata a buon fine: UNA politica per tutti i percorsi. */
+  private async markPushSucceeded(productId: string): Promise<void> {
+    await this.prisma.product.update({
+      where: { id: productId },
+      data: {
+        shopifySyncStatus: ShopifySyncStatus.synced,
+        shopifyLastError: null,
+        shopifyLastSyncAt: new Date(),
+      },
+    });
+  }
+
+  /**
+   * Esito di una scrittura remota fallita. Su un prodotto GIÀ COLLEGATO un
+   * fallimento (rate limit, campo rifiutato) non è un errore di creazione: il
+   * prodotto esiste, va solo riallineato — `out_of_sync`, non `error`. Chi
+   * chiama può dire che è collegato; altrimenti si legge.
+   */
+  private async markPushFailed(
+    productId: string,
+    message: string,
+    linked?: boolean,
+  ): Promise<void> {
+    const isLinked =
+      linked ??
+      Boolean(
+        (
+          await this.prisma.product.findUnique({
+            where: { id: productId },
+            select: { shopifyProductId: true },
+          })
+        )?.shopifyProductId,
+      );
+    await this.prisma.product.update({
+      where: { id: productId },
+      data: {
+        shopifySyncStatus: isLinked ? ShopifySyncStatus.out_of_sync : ShopifySyncStatus.error,
+        shopifyLastError: message.slice(0, 500),
+      },
+    });
+  }
+
+  /** Le immagini locali non ancora su Shopify, in ordine: le cercano entrambi i percorsi. */
+  private findPendingImages(tenantId: string, productId: string) {
+    return this.prisma.productImage.findMany({
+      where: { tenantId, productId, shopifyImageId: null },
+      orderBy: { sortOrder: 'asc' },
+    });
+  }
+
   private buildShopifyProductPayload(product: ProductWithVariants): Record<string, unknown> {
     const options = this.normalizeOptions(product.options);
     const { shopifyOptions, variantRows } = buildVariantsPayload(
@@ -368,13 +693,15 @@ export class ShopifyProductPushService {
       product.compareAtPriceMinor == null ? null : Number(product.compareAtPriceMinor),
     );
 
+    // Stessi campi del GraphQL, rinominati nella grafia del vecchio percorso.
+    const fields = productChannelFields(product);
     return {
-      title: product.name,
-      body_html: plainTextToShopifyBodyHtml(normalizeProductDescription(product.description)),
-      vendor: product.brand ?? undefined,
-      product_type: product.category ?? undefined,
-      tags: product.tags.length > 0 ? formatShopifyTags(product.tags) : undefined,
-      status: this.mapProductStatus(product.status),
+      title: fields.title,
+      body_html: fields.descriptionHtml,
+      vendor: fields.vendor,
+      product_type: fields.productType,
+      tags: fields.tags ? formatShopifyTags([...fields.tags]) : undefined,
+      status: fields.status.toLowerCase(),
       options: shopifyOptions,
       variants: variantRows,
     };
@@ -619,17 +946,6 @@ export class ShopifyProductPushService {
       }));
   }
 
-  private mapProductStatus(status: ProductStatus): 'draft' | 'active' | 'archived' {
-    switch (status) {
-      case ProductStatus.active:
-        return 'active';
-      case ProductStatus.archived:
-        return 'archived';
-      default:
-        return 'draft';
-    }
-  }
-
   private async pushProductImages(
     tenantId: string,
     productId: string,
@@ -637,10 +953,7 @@ export class ShopifyProductPushService {
     accessToken: string,
     shopifyProductId: number,
   ): Promise<void> {
-    const images = await this.prisma.productImage.findMany({
-      where: { tenantId, productId, shopifyImageId: null },
-      orderBy: { sortOrder: 'asc' },
-    });
+    const images = await this.findPendingImages(tenantId, productId);
 
     for (const image of images) {
       try {
@@ -665,6 +978,15 @@ export class ShopifyProductPushService {
     }
   }
 
+  /**
+   * Abbinamento delle varianti DOPO una creazione REST: per solo SKU, e chi non
+   * corrisponde resta scollegato senza errore.
+   *
+   * ⚠️ È una politica DIVERSA da `matchOrphanVariants` (SKU → barcode →
+   *    opzioni, errore se non univoco), e lo si dichiara: la CREAZIONE è fuori
+   *    dalla tranche che ha introdotto l'altra, e resta sul REST finché la
+   *    Tranche 2 non porta `productSet` — a quel punto le due si unificano.
+   */
   private async persistShopifyIds(
     product: ProductWithVariants,
     shopifyProduct: {
@@ -712,4 +1034,15 @@ export class ShopifyProductPushService {
       ...variantUpdates,
     ]);
   }
+}
+
+/** I media remoti indicizzati per URL d'origine: è così che un'immagine si riconosce. */
+function mediaByUrl(
+  media: readonly { readonly id: string; readonly originalSourceUrl: string | null }[],
+): ReadonlyMap<string, string> {
+  return new Map(
+    media.flatMap((entry) =>
+      entry.originalSourceUrl ? [[entry.originalSourceUrl, entry.id]] : [],
+    ),
+  );
 }

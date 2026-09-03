@@ -244,6 +244,7 @@ export function emptyProductFormDraft(): ProductFormDraft {
       tags: '',
       status: ProductStatus.Draft,
       shopifySyncEnabled: true,
+      shopifyTitle: '',
       // ⚠️ VUOTA, non `pz`: se nascesse compilata la predefinita del tenant non
       //   avrebbe niente da seminare. Il ripiego tecnico resta al salvataggio
       //   (`unitOfMeasure.trim() || 'pz'`), dove è sempre stato.
@@ -369,6 +370,8 @@ function generalToDto(
     tags: parseTagsInput(general.tags),
     status: general.status,
     shopifySyncEnabled: general.shopifySyncEnabled,
+    // Svuotato = azzerato apposta: il server lo re-inizializza al push dopo.
+    shopifyTitle: general.shopifyTitle.trim() || null,
     unitOfMeasure: general.unitOfMeasure.trim() || 'pz',
     defaultVatCodeId: general.defaultVatCodeId || null,
     inventoryTracking: general.inventoryTracking,
@@ -514,6 +517,7 @@ export function productToFormDraft(
     tags: formatTagsInput(product.tags),
     status: product.status,
     shopifySyncEnabled: product.shopifySyncEnabled ?? true,
+    shopifyTitle: product.shopifyTitle ?? '',
     unitOfMeasure: product.unitOfMeasure ?? 'pz',
     defaultVatCodeId: product.defaultVatCodeId ?? '',
     inventoryTracking: product.inventoryTracking ?? InventoryTrackingMode.Standard,

@@ -31,6 +31,8 @@ export interface ProductGeneralDraft {
    * salvataggio crea i collegamenti fornitore-variante, non è un campo Product.
    */
   readonly supplierId: string;
+  /** «Nome online» ('' = non ancora inizializzato, o svuotato apposta). */
+  readonly shopifyTitle: string;
   readonly shopifyTaxonomyCategoryId: string;
   readonly shopifyTaxonomyCategoryFullName: string;
   readonly shopifyCategoryMetafields: readonly ShopifyCategoryMetafieldValue[];

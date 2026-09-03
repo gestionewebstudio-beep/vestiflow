@@ -104,6 +104,15 @@ export class CreateProductDto {
   @MaxLength(200)
   name!: string;
 
+  /**
+   * «Nome online»: il titolo con cui il prodotto si vende su Shopify. Vuoto =
+   * si inizializza dal nome interno alla prima sincronizzazione (docs/24 §1.9).
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  shopifyTitle?: string;
+
   // ── Prezzi/costo a livello articolo ──
   /** Prezzo di vendita dell'articolo (dato vero, seed delle nuove varianti). */
   @ValidateNested()

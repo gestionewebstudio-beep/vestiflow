@@ -92,6 +92,17 @@ export class ChannelSyncFacade {
     });
   }
 
+  /**
+   * Post-commit: «Sincronizza con Shopify» appena SPENTO su un prodotto
+   * collegato → il prodotto Shopify va in ARCHIVED (docs/24 §1.8). Non passa
+   * dal push ordinario, che a flag spento non fa nulla per costruzione.
+   */
+  enqueueProductSyncDisabled(tenantId: string, productId: string): void {
+    void this.archiveProductOnSyncDisabled(tenantId, productId).catch((error: unknown) => {
+      this.warn('canali', tenantId, error, 'Archiviazione prodotto');
+    });
+  }
+
   /** Post-commit: pubblica inventario senza bloccare la transazione locale. */
   enqueueInventoryPush(
     tenantId: string,
@@ -101,6 +112,13 @@ export class ChannelSyncFacade {
     void this.pushInventoryLevels(tenantId, variantId, locationIds).catch((error: unknown) => {
       this.warn('canali', tenantId, error, 'Push inventario');
     });
+  }
+
+  private async archiveProductOnSyncDisabled(tenantId: string, productId: string): Promise<void> {
+    if (!(await this.isShopifyTenant(tenantId))) {
+      return;
+    }
+    await this.shopifyProductPush.archiveOnSyncDisabled(tenantId, productId);
   }
 
   private async pushProductToChannels(tenantId: string, productId: string): Promise<void> {

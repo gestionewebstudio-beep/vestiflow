@@ -97,8 +97,9 @@
   border-color: var(--status-error-border);
 }
 
-// Codice articolo: input + eventuale "Ripristina" sulla stessa riga.
-.general-step__code-row {
+// Un campo e il suo comando sulla stessa riga: il «Ripristina» del codice
+// articolo e il «Copia nome VestiFlow» del nome online.
+.general-step__control-row {
   display: flex;
   align-items: center;
   gap: var(--space-2);

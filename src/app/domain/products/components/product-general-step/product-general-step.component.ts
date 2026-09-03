@@ -26,6 +26,7 @@ import {
   moneyToMajor,
   roundToMinor,
 } from '@core/utils/money.util';
+import { ButtonComponent } from '@shared/components/button/button.component';
 import { HoverTooltipComponent } from '@shared/components/hover-tooltip/hover-tooltip.component';
 import { SegmentedComponent } from '@shared/components/segmented/segmented.component';
 import type { SegmentedOption } from '@shared/components/segmented/segmented.component';
@@ -141,6 +142,7 @@ function minorToMajor(minor: number): number {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ReactiveFormsModule,
+    ButtonComponent,
     HoverTooltipComponent,
     SegmentedComponent,
     DocumentLineSelectCellComponent,
@@ -179,7 +181,6 @@ export class ProductGeneralStepComponent implements OnInit {
    * anche la connessione attiva, usato per la tassonomia).
    */
   readonly shopifyActive = input(false);
-  readonly catalogReadOnly = input(false);
   /**
    * Mostra il campo Costo di riferimento (prezzo d'acquisto dell'articolo).
    * Permesso catalog.view_purchase_costs: senza, il campo resta nascosto e il
@@ -393,12 +394,38 @@ export class ProductGeneralStepComponent implements OnInit {
   private readonly subcategoryValue = signal('');
   private readonly seasonValue = signal('');
 
+  /**
+   * ⭐ Riallinea il «Nome online» al nome interno, su richiesta esplicita.
+   *
+   * ⚠️ È un COMANDO, non un automatismo: i due campi sono indipendenti apposta,
+   *    e riallinearli da soli a ogni modifica del nome interno rimetterebbe il
+   *    nome di magazzino sulla vetrina — cioè il difetto da cui nascono due
+   *    campi invece di uno (docs/24 §1.9).
+   */
+  protected copyNameToOnlineTitle(): void {
+    const nome = this.form.controls.name.value.trim();
+    if (!nome) {
+      return;
+    }
+    this.form.controls.shopifyTitle.setValue(nome);
+    this.form.controls.shopifyTitle.markAsDirty();
+  }
+
+  /** Spento quando non c'è niente da copiare, o quando i due già coincidono. */
+  protected canCopyNameToOnline(): boolean {
+    const nome = this.form.controls.name.value.trim();
+    return nome !== '' && nome !== this.form.controls.shopifyTitle.value.trim();
+  }
+
   protected readonly form = this.fb.group({
     // Primo campo dell'anagrafica (§POSIZIONE): identificatore principale.
     // `required` viene aggiunto in ngOnInit solo in modifica (in creazione
     // vuoto = progressivo generato dal backend).
     articleCode: this.fb.control('', [Validators.pattern(ARTICLE_CODE_PATTERN)]),
     name: this.fb.control('', [Validators.required]),
+    // ⚠️ Nessun `required`: vuoto è uno stato legittimo — significa «lo decide
+    //    la prima sincronizzazione», non «l'operatore ha dimenticato qualcosa».
+    shopifyTitle: this.fb.control(''),
     brand: this.fb.control(''),
     category: this.fb.control(''),
     subcategory: this.fb.control(''),
@@ -507,37 +534,6 @@ export class ProductGeneralStepComponent implements OnInit {
   private initialArticleCode = '';
 
   constructor() {
-    effect(() => {
-      if (this.catalogReadOnly()) {
-        this.form.disable({ emitEvent: false });
-        this.form.controls.season.enable({ emitEvent: false });
-        // Il codice articolo e' una proprieta' SOLO VestiFlow: resta
-        // modificabile anche quando il catalogo e' gestito da Shopify.
-        this.form.controls.articleCode.enable({ emitEvent: false });
-        // Anche sottocategoria, note interne e fornitore sono proprietà solo
-        // VestiFlow: mai gestite da Shopify, sempre modificabili.
-        this.form.controls.subcategory.enable({ emitEvent: false });
-        this.form.controls.internalNotes.enable({ emitEvent: false });
-        this.form.controls.supplierId.enable({ emitEvent: false });
-        // Il PREZZO DI VENDITA è del gestionale, ed è la ragione per cui questa
-        // riga esiste (17/08/2026). Al canale va `shopifyPrice`, un'altra
-        // colonna: il prezzo articolo non arriva a Shopify nemmeno volendo, e
-        // il ri-sync non lo tocca proprio perché — dice la specifica — è
-        // dell'operatore. Bloccarlo qui significava che Shopify non te lo
-        // cambiava ma nemmeno tu potevi: l’unico campo dichiarato tuo era
-        // l’unico intoccabile.
-        this.form.controls.sellingPrice.enable({ emitEvent: false });
-        // Stessa ragione per i listini aggiuntivi: sono prezzi del gestionale,
-        // nessun canale li conosce. Un catalogo gestito da Shopify non è un
-        // motivo per non poter dare a un articolo il suo prezzo all'ingrosso.
-        this.form.controls.listino1Price.enable({ emitEvent: false });
-        this.form.controls.listino2Price.enable({ emitEvent: false });
-        this.form.controls.listino3Price.enable({ emitEvent: false });
-      } else {
-        this.form.enable({ emitEvent: false });
-      }
-    });
-
     // La vista dei prezzi segue modalità e aliquota. Anche il primo passaggio è
     // qui: preferenza operatore e codici IVA arrivano dal server, quindi dopo
     // `ngOnInit`. Nessun `emit`: il draft non cambia, cambia solo come lo si legge.

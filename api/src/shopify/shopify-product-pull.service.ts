@@ -238,8 +238,13 @@ export class ShopifyProductPullService {
       countCategoryMetafieldsWithValues(importedCategoryMetafields),
       existing?.shopifyLastError,
     );
+    // ⭐ Il titolo remoto è il NOME ONLINE, e da qui in poi solo quello: il nome
+    //    interno appartiene a chi lavora in magazzino, e un ri-sync non glielo
+    //    riscrive più (docs/24 §1.9). `name` sta fuori dall'allowlist apposta —
+    //    stesso pattern del codice articolo — e lo aggiunge la sola creazione.
+    const titoloOnline = remote.title.trim() || 'Prodotto Shopify';
     const productData = {
-      name: remote.title.trim() || 'Prodotto Shopify',
+      shopifyTitle: titoloOnline,
       description: shopifyBodyHtmlToPlainText(remote.body_html),
       brand: remote.vendor?.trim() || null,
       category: remote.product_type?.trim() || null,
@@ -293,6 +298,8 @@ export class ShopifyProductPullService {
           data: {
             tenantId,
             articleCode,
+            // Primo import: i due nomi nascono uguali, e da qui vivono separati.
+            name: titoloOnline,
             ...productData,
             sellingPriceMinor: firstPriceMinor,
             shopifyPriceMinor: firstPriceMinor,

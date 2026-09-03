@@ -39,8 +39,6 @@ import {
 } from './article-code.util';
 import {
   assertShopifyCatalogDeleteAllowed,
-  assertShopifyCatalogManualSyncAllowed,
-  assertShopifyCatalogUpdateAllowed,
 } from './catalog-origin.util';
 import type { CreateProductDto, CreateVariantDto } from './dto/create-product.dto';
 import {
@@ -81,6 +79,7 @@ const PRODUCT_LIST_SELECT = {
   tenantId: true,
   articleCode: true,
   name: true,
+  shopifyTitle: true,
   description: true,
   brand: true,
   category: true,
@@ -543,6 +542,8 @@ export class ProductsService {
             catalogOrigin: CatalogOrigin.vestiflow,
             shopifyCatalogLinkKind: ShopifyCatalogLinkKind.pushed,
             name: dto.name,
+            // Vuoto = si inizializza da solo alla prima sincronizzazione.
+            shopifyTitle: dto.shopifyTitle?.trim() || null,
             description: normalizeProductDescription(dto.description),
             brand: dto.brand,
             category: dto.category,
@@ -647,6 +648,10 @@ export class ProductsService {
           catalogOrigin: CatalogOrigin.vestiflow,
           shopifyCatalogLinkKind: ShopifyCatalogLinkKind.pushed,
           name: `${original.name} (copia)`,
+          // ⛔ Il «Nome online» non si duplica: due prodotti con lo stesso titolo
+          //    sulla vetrina sono indistinguibili per chi compra. La copia se lo
+          //    ricostruisce alla prima sincronizzazione, dal proprio nome.
+          shopifyTitle: null,
           description: original.description,
           brand: original.brand,
           category: original.category,
@@ -738,7 +743,6 @@ export class ProductsService {
     const canWriteCosts = canViewPurchaseCosts(user);
     // Confronto interno: serve il costo VERO, non quello mascherato.
     const existing = await this.loadProductOrThrow(tenantId, id);
-    assertShopifyCatalogUpdateAllowed(existing, dto);
 
     // Shopify ATTIVO: prezzo articolo e prezzo Shopify sono indipendenti (il form
     // invia entrambi, B3). Shopify DISATTIVO: l'operatore non vede il prezzo
@@ -775,6 +779,12 @@ export class ProductsService {
         data: {
           ...(articleCode !== undefined ? { articleCode } : {}),
           name: dto.name,
+          // ⭐ Svuotarlo NON è un errore: azzerato, il «Nome online» torna a
+          //    inizializzarsi da solo al push successivo (docs/24 §1.9). Assente
+          //    dal payload, invece, non si tocca.
+          ...(dto.shopifyTitle !== undefined
+            ? { shopifyTitle: dto.shopifyTitle?.trim() || null }
+            : {}),
           description: normalizeProductDescription(dto.description),
           brand: dto.brand,
           category: dto.category,
@@ -867,7 +877,15 @@ export class ProductsService {
       await this.mirrorSimpleProductPrice(tx, tenantId, id);
     });
 
-    await this.pushProductToShopifySafe(tenantId, id);
+    // ⭐ Spegnere «Sincronizza con Shopify» su un prodotto collegato lo porta in
+    //    ARCHIVED su Shopify (docs/24 §1.8): è l'unica transizione che il push
+    //    ordinario non può fare, perché a flag spento non parte per costruzione.
+    //    Riaccenderlo passa invece dal push ordinario, che riallinea tutto.
+    if (existing.shopifySyncEnabled && dto.shopifySyncEnabled === false) {
+      this.channelSync.enqueueProductSyncDisabled(tenantId, id);
+    } else {
+      await this.pushProductToShopifySafe(tenantId, id);
+    }
     return this.getById(tenantId, id, user);
   }
 
@@ -1484,10 +1502,10 @@ export class ProductsService {
   }
 
   async syncToShopify(tenantId: string, id: string): Promise<ShopifyProductPushResult> {
-    // Lettura interna per il solo controllo sull'origine catalogo: senza
-    // mascheramento, così non dipende dai permessi di chi ha premuto il tasto.
-    const product = await this.loadProductOrThrow(tenantId, id);
-    assertShopifyCatalogManualSyncAllowed(product.catalogOrigin);
+    // Resta il 404 su prodotto inesistente o di un altro tenant. La guardia
+    // sull'origine Shopify non c'è più: l'origine è provenienza, non un vincolo
+    // (docs/24 §1.8), e il sync manuale di un importato è proprio il push GraphQL.
+    await this.loadProductOrThrow(tenantId, id);
     return this.channelSync.pushProductNow(tenantId, id);
   }
 }

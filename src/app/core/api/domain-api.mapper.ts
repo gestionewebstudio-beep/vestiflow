@@ -31,6 +31,7 @@ export interface ProductApiRow {
   readonly shopifyCategoryMetafields?: unknown;
   readonly status: Product['status'];
   readonly shopifySyncEnabled?: boolean;
+  readonly shopifyTitle?: string | null;
   readonly catalogOrigin: CatalogOrigin;
   readonly unitOfMeasure?: string;
   readonly defaultVatCodeId?: string | null;
@@ -254,6 +255,7 @@ export function mapProductApiRow(row: ProductApiRow): Product {
     ),
     status: row.status,
     shopifySyncEnabled: row.shopifySyncEnabled ?? true,
+    shopifyTitle: row.shopifyTitle ?? undefined,
     catalogOrigin: row.catalogOrigin ?? CatalogOrigin.VestiFlow,
     unitOfMeasure: row.unitOfMeasure ?? 'pz',
     defaultVatCodeId: row.defaultVatCodeId ?? null,

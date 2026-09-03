@@ -90,7 +90,6 @@ export class ProductVariantsStepComponent {
   readonly takenSkus = input<readonly string[]>([]);
   /** Barcode gia' in uso (normalizzati) dal controllo di disponibilita' del wizard. */
   readonly takenBarcodes = input<readonly string[]>([]);
-  readonly catalogReadOnly = input(false);
   /** Shopify attivo (profilo canale): mostra la colonna Prezzo Shopify per variante. */
   readonly shopifyActive = input(false);
   readonly variantsChange = output<readonly VariantDraft[]>();
@@ -126,7 +125,6 @@ export class ProductVariantsStepComponent {
         this.seed(variants);
         this.seededKeys = keys;
       }
-      this.applyCatalogReadOnly(this.catalogReadOnly());
     });
 
     this.valueChangesSub = this.variantsArray.valueChanges
@@ -196,21 +194,6 @@ export class ProductVariantsStepComponent {
       purchasePrice: this.fb.control<number | null>(variant.purchasePrice, [Validators.min(0)]),
       barcode: this.fb.control(variant.barcode),
     });
-  }
-
-  private applyCatalogReadOnly(readOnly: boolean): void {
-    for (const group of this.variantsArray.controls) {
-      if (readOnly) {
-        group.controls.sku.disable({ emitEvent: false });
-        group.controls.sellingPrice.disable({ emitEvent: false });
-        // Catalogo Shopify: anche il prezzo Shopify è di proprietà del canale.
-        group.controls.shopifyPrice.disable({ emitEvent: false });
-        group.controls.barcode.disable({ emitEvent: false });
-        group.controls.purchasePrice.enable({ emitEvent: false });
-      } else {
-        group.enable({ emitEvent: false });
-      }
-    }
   }
 
   /** Errore di formato del controllo, mostrato solo dopo interazione (touched). */

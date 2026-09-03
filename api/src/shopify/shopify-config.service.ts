@@ -98,8 +98,13 @@ export class ShopifyConfigService {
     return this.config.get<string>('SHOPIFY_API_SECRET');
   }
 
+  /**
+   * Versione Admin API fissata: `2026-07` (docs/24 §1.6). ⛔ Mai `latest`,
+   * `unstable` o implicita. `2025-01` è fuori supporto: chi la lascia in `.env`
+   * sta puntando a un'API che non risponde più come si aspetta.
+   */
   get apiVersion(): string {
-    return this.config.get<string>('SHOPIFY_API_VERSION') ?? '2025-01';
+    return this.config.get<string>('SHOPIFY_API_VERSION') ?? '2026-07';
   }
 
   get scopes(): string {

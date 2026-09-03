@@ -29,8 +29,6 @@ import type { Observable, Subscription } from 'rxjs';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
-import { CatalogOrigin } from '@core/models/catalog-origin.model';
-import type { CatalogOrigin as CatalogOriginType } from '@core/models/catalog-origin.model';
 import { AuthService } from '@core/auth';
 import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import {
@@ -95,7 +93,6 @@ import {
 } from './models/product-form.validators';
 import type { ProductFilterOptions } from './models/product-list-query.model';
 import type { VariantSummary } from './models/variant-summary.model';
-import { SHOPIFY_CATALOG_READONLY_BANNER } from './models/catalog-origin.util';
 import { ProductService } from './services/product.service';
 import type { CatalogCategory } from './services/catalog-category.service';
 import { CatalogCategoryService } from './services/catalog-category.service';
@@ -228,11 +225,6 @@ export class ProductFormComponent implements CanComponentDeactivate {
 
   protected readonly pendingImageFiles = signal<readonly File[]>([]);
   protected readonly existingImages = signal<readonly ProductImage[]>([]);
-  protected readonly catalogOrigin = signal<CatalogOriginType>(CatalogOrigin.VestiFlow);
-  protected readonly shopifyCatalogLocked = computed(
-    () => this.mode() === 'edit' && this.catalogOrigin() === CatalogOrigin.Shopify,
-  );
-  protected readonly shopifyCatalogBanner = SHOPIFY_CATALOG_READONLY_BANNER;
   /** Titolo unico ovunque il form sia usato: mai "Nuovo/Modifica prodotto". */
   protected readonly formTitle = 'Anagrafica prodotto';
 
@@ -248,7 +240,6 @@ export class ProductFormComponent implements CanComponentDeactivate {
     toObservable(this.loadRequest).pipe(
       switchMap(({ id }) => {
         if (!id) {
-          this.catalogOrigin.set(CatalogOrigin.VestiFlow);
           this.activeTab.set('article');
           const prefill = this.embeddedPrefill();
           const initialDraft = prefill
@@ -265,7 +256,6 @@ export class ProductFormComponent implements CanComponentDeactivate {
             .pipe(catchError(() => of([]))),
         }).pipe(
           tap(({ product, variants, supplierLinks }) => {
-            this.catalogOrigin.set(product.catalogOrigin ?? CatalogOrigin.VestiFlow);
             const draft = productToFormDraft(product, variants);
             // Prefill del campo Fornitore: solo se l'articolo è collegato a un
             // unico fornitore (più fornitori restano gestiti dalla scheda).
@@ -616,9 +606,6 @@ export class ProductFormComponent implements CanComponentDeactivate {
     if (this.articleCodeTakenBy() !== null) {
       return false;
     }
-    if (this.shopifyCatalogLocked()) {
-      return true;
-    }
     // Prezzo/costo a livello articolo: prezzo di vendita obbligatorio e non
     // negativo, barrato e costo di riferimento (se valorizzati) non negativi.
     const { sellingPrice, compareAtPrice, purchasePrice } = this.draft().general;
@@ -645,9 +632,6 @@ export class ProductFormComponent implements CanComponentDeactivate {
     if (this.isSingleVariant()) {
       return true;
     }
-    if (this.shopifyCatalogLocked()) {
-      return true;
-    }
     if (this.draft().variants.length === 0) {
       return false;
     }
@@ -669,12 +653,6 @@ export class ProductFormComponent implements CanComponentDeactivate {
   // intra-form + nessuno SKU gia' in uso lato "server".
   private readonly variantsValid = computed(() => {
     const variants = this.draft().variants;
-    if (this.shopifyCatalogLocked()) {
-      return (
-        variants.length > 0 &&
-        variants.every((variant) => variant.purchasePrice == null || variant.purchasePrice >= 0)
-      );
-    }
     if (variants.length === 0) {
       return false;
     }
@@ -824,9 +802,6 @@ export class ProductFormComponent implements CanComponentDeactivate {
     const draft = this.draft();
     const id = this.productId();
     const pendingFiles = [...this.pendingImageFiles()];
-    if (this.shopifyCatalogLocked() && pendingFiles.length > 0) {
-      return;
-    }
     const baseRequest$ = id
       ? this.service.updateProduct(id, toUpdateProductDto(draft))
       : // Alla creazione viaggia anche la modalità con cui l'operatore ha
