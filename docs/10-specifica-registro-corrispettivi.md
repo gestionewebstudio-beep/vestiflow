@@ -1567,3 +1567,106 @@ esiste e non si vede tornerebbe fuori al cambio successivo senza che nessuno l'a
 
 ⭐ E resta vero che **ordinare nel client qui è ordinare tutto**: il Registro non impagina, e
 l'insieme caricato è il risultato del filtro.
+
+---
+
+## §21 · Il Registro non si restringe per sede — 02/09/2026
+
+> **Il Registro raggruppa TUTTI i corrispettivi dell'azienda.** Al commercialista va
+> inviato tutto: non può vedere dati parziali, soprattutto a sua insaputa.
+
+L'accesso è **binario**: lo si vede intero, oppure non lo si vede. Lo governa un **permesso**,
+non un insieme di sedi.
+
+### ⚠️ Il permesso tecnico NON è ancora allineato
+
+⛔ Qui c'era scritto che lo governa «`reports.fiscal_register` per la scrittura, la vista del
+Registro per la lettura», come se il quadro tecnico fosse a posto. **Non lo è**: la regola
+funzionale è decisa, la sua traduzione tecnica no.
+
+👁 **Comportamento osservato nel codice, al 02/09/2026:**
+
+| Cosa                              | Permesso richiesto oggi                            |
+| --------------------------------- | -------------------------------------------------- |
+| pagina e API dell'elenco          | `ONLINE_SALES_VIEW_GROUPS`                         |
+| i tre export                      | `ONLINE_SALES_VIEW_GROUPS` **più** `ReportsExport` |
+| scrivere un Corrispettivo manuale | `ReportsFiscalRegister`                            |
+
+⚠️ **È un possibile disallineamento**: il permesso che governa la _lettura_ del Registro è
+quello delle vendite online, non uno del Registro. Se un giorno i due insiemi divergessero, la
+regola «chi vede il Registro lo vede intero» resterebbe vera e diventerebbe irrilevante —
+perché a decidere chi lo vede sarebbe un permesso che parla d'altro.
+
+**La regola definitiva del permesso di sola visualizzazione va ancora tradotta tecnicamente e
+verificata su tutti e sei i punti d'ingresso**: menu · rotta frontend · API elenco · riepilogo ·
+stampa · tutti gli export. Finché quella verifica non esiste, il quadro tecnico resta aperto.
+
+### La regola, per intero
+
+|                                             |                                                                               |
+| ------------------------------------------- | ----------------------------------------------------------------------------- |
+| il Registro rappresenta l'**intero tenant** | non un sottoinsieme, mai                                                      |
+| chi ha il permesso                          | vede **tutti** i corrispettivi dell'azienda                                   |
+| chi non ha il permesso                      | non vede **né menu, né pagina, né API, né export** — non una versione ridotta |
+| le sedi assegnate all'utente                | **non** limitano automaticamente i dati                                       |
+| il filtro Sede                              | si applica **soltanto** quando l'operatore lo sceglie                         |
+| senza filtro                                | entrano tutte le sedi **e** le righe con sede non determinata                 |
+| con filtro attivo                           | la visualizzazione parziale dev'essere **evidente** (il banner di §12)        |
+| vendite Shopify senza sede                  | **nessuna sede viene inventata**: restano «Non determinata»                   |
+
+⭐ **Non esiste una via di mezzo, e non deve esistere**: un registro fiscale parziale è peggio di
+un registro negato. Il permesso di vedere il Registro va quindi concesso a chi può vedere
+l'azienda intera.
+
+### ⛔ Un errore commesso e disfatto lo stesso giorno
+
+Il 02/09/2026 era stato introdotto un filtro per le **sedi autorizzate all'utente**, esteso a
+elenco, totali, subtotali di giornata e tutti e tre gli export. Era **inventato**: dedotto dal
+fatto che il vecchio export dai movimenti lo applicava, e mai deciso da nessuno. §14 punto 6
+parla di sedi autorizzate **soltanto per la tendina** — «di quali sedi posso consultare?» — cioè
+per il menu del filtro, non per le righe.
+
+**L'effetto sarebbe stato**: un manager assegnato a una sede apre il Registro e legge un
+corrispettivo totale **più basso del vero**, senza nessun segnale. Il banner di §12 conta le
+righe «Non determinata», non quelle delle altre sedi: sarebbero sparite in silenzio. È
+esattamente ciò che §12 chiama _«il difetto peggiore possibile»_ in un registro fiscale, reso
+permanente invece che occasionale.
+
+⚠️ **Ed era già successo, con le stesse parole.** §14 punto 6 racconta di una regola nata
+costruendo — «il Registro è storico, quindi il suo elenco non filtra per sede attiva» — e la
+liquida così: _«Ragionevole a leggersi, e **inventata**: viveva solo in questo file»_. La stessa
+trappola, sullo stesso oggetto, a distanza di due settimane.
+
+⭐ **La distinzione che la previene**: un **filtro** è una scelta dell'operatore,
+un'**autorizzazione** è una regola d'accesso. Sono due cose diverse anche quando agiscono sulla
+stessa colonna.
+
+### La guardia
+
+`corrispettivi-filtro-sedi.spec.ts` verifica che **senza filtro dell'operatore nessuna sorgente
+riceva una restrizione di sede** — su elenco, riepilogo ed export. Falsificata: reintroducendo
+una restrizione non chiesta diventano rosse quattro prove, fra cui quella dell'export.
+
+### Che cosa invece è stato corretto davvero
+
+Due difetti veri, con la stessa causa: `locationId` e `sedi[]` erano **due contratti concorrenti**
+per la stessa domanda, e a valle ogni builder poteva sceglierne uno.
+
+|                                                           |                                                                                                                                                                                                                                      |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| ⛔ **il filtro Sede non toccava i Corrispettivi manuali** | `buildCorrispettiviManualWhere` leggeva il singolare mentre la schermata manda solo il plurale: scegliendo una sede entravano nel Registro, nei totali e in tutti e tre gli export **tutti i manuali del tenant**, di qualunque sede |
+| ⛔ **il banner delle righe escluse non compariva mai**    | `countUndeterminedLocationRows` usciva con `0` appena mancava `locationId`, che con l'interfaccia attuale non arriva mai. Il numero previsto da §12 era irraggiungibile                                                              |
+
+`normalizzaFiltroSedi` li collassa in **un solo campo**, `sediEffettive`, all'ingresso dei tre
+metodi pubblici. È **idempotente**: `listOrders` chiama `buildRegisterRows`, che normalizza a sua
+volta, e senza quella guardia la seconda passata perderebbe il filtro scelto.
+
+⭐ `null` significa «nessun filtro» — dentro anche le righe senza sede. Un insieme di id
+significa «solo quelle sedi», ed è sempre una scelta dell'operatore.
+
+### Un difetto adiacente, dichiarato e non corretto
+
+⚠️ `undatedFulfilmentCount` — gli ordini evasi senza data — è l'unica query del riepilogo scritta
+a mano fuori dai builder: non porta né il filtro Sede né quello di **periodo**. Il numero si
+riferisce quindi a tutto lo storico del tenant, non all'intervallo mostrato. Va deciso a parte a
+quale dei due debba riferirsi; il test lo esclude **nominandolo**, invece di ignorarlo.

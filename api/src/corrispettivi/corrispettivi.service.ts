@@ -26,6 +26,10 @@ import {
   type CorrispettivoOrigin,
 } from './corrispettivi-classification.util';
 import { isRefundFinancialStatus } from './corrispettivi-fiscal.enum-mapper';
+import {
+  normalizzaFiltroSedi,
+  type FiltriConSediRisolte,
+} from './corrispettivi-location-filter.util';
 import { compareCorrispettiviRowsDesc } from './corrispettivi-sort.util';
 import {
   buildCorrispettiviManualWhere,
@@ -297,8 +301,22 @@ export class CorrispettiviService {
    */
   async buildRegisterRows(
     tenantId: string,
-    query: ListCorrispettiviQueryDto,
+    queryInput: ListCorrispettiviQueryDto,
   ): Promise<CorrispettiviRegisterRow[]> {
+    /*
+      Il filtro sede si normalizza QUI, prima di qualunque query: righe, totali,
+      subtotali di giornata ed export partono tutti dallo stesso insieme.
+
+      ⛔ È il FILTRO scelto dall'operatore, non un'autorizzazione: il Registro
+      raggruppa tutti i corrispettivi dell'azienda, e chi ha il permesso lo vede
+      intero (`10` §21).
+
+      Il parametro si chiama `queryInput` e la costante `query` perché il resto
+      del metodo legge il valore NORMALIZZATO senza sapere che lo sia: se i due
+      nomi coincidessero, un `query` letto per distrazione userebbe i contratti
+      grezzi — che è esattamente il difetto dei Corrispettivi manuali.
+    */
+    const query = normalizzaFiltroSedi(queryInput);
     const where = buildCorrispettiviWhere(tenantId, query);
     const refundWhere = buildCorrispettiviRefundWhere(tenantId, query);
 
@@ -606,8 +624,11 @@ export class CorrispettiviService {
 
   async getSummary(
     tenantId: string,
-    query: ListCorrispettiviQueryDto,
+    queryInput: ListCorrispettiviQueryDto,
   ): Promise<CorrispettiviSummaryDto> {
+    // Stesso filtro dell'elenco, normalizzato prima del calcolo: il riepilogo
+    // somma esattamente le righe che la schermata mostra.
+    const query = normalizzaFiltroSedi(queryInput);
     const where = buildCorrispettiviWhere(tenantId, query);
     /*
       ⚠️ **Il riepilogo SEGUE il filtro Tipo** (`docs/10` §16, passo 4 del
@@ -736,6 +757,15 @@ export class CorrispettiviService {
           tenantId,
           fulfilledAt: null,
           fulfillmentStatus: PrismaFulfillment.fulfilled,
+          /*
+            ⚠️ Questa query è l'unica del riepilogo scritta a mano, fuori dai
+            builder: non ha né il filtro Sede né quello di PERIODO. Il numero si
+            riferisce quindi a tutto lo storico del tenant, non all'intervallo
+            mostrato — è un difetto adiacente, registrato e non corretto qui.
+
+            ⛔ Nessun filtro per sede autorizzata: il Registro raggruppa TUTTI i
+            corrispettivi dell'azienda, e chi lo vede lo vede intero.
+          */
         },
       }),
     ]);
@@ -829,15 +859,34 @@ export class CorrispettiviService {
    */
   private async countUndeterminedLocationRows(
     tenantId: string,
-    query: ListCorrispettiviQueryDto,
+    // ⭐ Il tipo pretende un filtro GIÀ normalizzato: chi passasse la query
+    // grezza non compila, e il conteggio non può più basarsi su un campo che
+    // l'interfaccia non manda mai.
+    query: FiltriConSediRisolte<ListCorrispettiviQueryDto>,
   ): Promise<number> {
-    if (!query.locationId) {
+    /*
+      ⛔ Qui si guardava `query.locationId`, che con l'interfaccia attuale non
+      arriva MAI: la schermata manda solo `sedi[]`. Il banner previsto da
+      `docs/10` non poteva quindi comparire in nessun caso.
+
+      La domanda giusta è se una restrizione di sede ESISTA, comunque sia nata:
+      chiesta dall'operatore o imposta dallo scope. `sediEffettive` risponde a
+      entrambe — `null` significa «nessuna restrizione», e allora non c'è nulla
+      da escludere perché le righe senza sede sono già dentro il Registro.
+    */
+    if (query.sediEffettive == null) {
       return 0;
     }
     // Le sole righe SENZA sede, dagli STESSI builder dell'elenco: una seconda
     // catena di filtri scritta a mano conterebbe righe diverse da quelle che
     // spariscono, ed è proprio ciò che questo numero deve smentire.
-    const senzaSede = { ...query, locationId: undefined, undeterminedLocationOnly: true };
+    const senzaSede = {
+      ...query,
+      locationId: undefined,
+      sedi: undefined,
+      sediEffettive: undefined,
+      undeterminedLocationOnly: true,
+    };
     const vuoleVendite = wantsSales(query);
     const vuoleRettifiche = wantsRefunds(query);
 

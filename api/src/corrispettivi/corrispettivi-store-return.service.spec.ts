@@ -129,8 +129,7 @@ describe('il Reso al banco entra nel Registro come rettifica', () => {
   it('elenco: la Vendita è +100,00 e il Reso è −30,00', async () => {
     const righe = await new CorrispettiviService(prismaConBanco()).buildRegisterRows(
       TENANT,
-      query(),
-    );
+      query());
 
     expect(righe).toHaveLength(2);
     const vendita = righe.find((r) => r.documentId === 'doc-vendita');
@@ -151,8 +150,7 @@ describe('il Reso al banco entra nel Registro come rettifica', () => {
   it('usa il vocabolario che esiste già: Tipo = Reso', async () => {
     const righe = await new CorrispettiviService(prismaConBanco()).buildRegisterRows(
       TENANT,
-      query(),
-    );
+      query());
     const reso = righe.find((r) => r.documentId === 'doc-reso');
 
     expect(reso?.refundKind).toBe('return_with_restock');
@@ -168,8 +166,7 @@ describe('il Reso al banco entra nel Registro come rettifica', () => {
     const righe = await corrispettivi.buildRegisterRows(TENANT, query());
     const csv = await new CorrispettiviExportService(prisma, corrispettivi).exportAccountantCsv(
       TENANT,
-      query(),
-    );
+      query());
 
     // Il file va al commercialista: un campo che si chiama «interno» non ci va.
     expect(JSON.stringify(righe)).not.toContain('Causale reso');
@@ -180,8 +177,7 @@ describe('il Reso al banco entra nel Registro come rettifica', () => {
   it('resta nell’origine della Vendita al banco: non ne nasce una nuova', async () => {
     const righe = await new CorrispettiviService(prismaConBanco()).buildRegisterRows(
       TENANT,
-      query(),
-    );
+      query());
 
     // ⚠️ Se il Reso avesse un'origine propria, chi filtra «Vendita al banco»
     // vedrebbe le vendite al LORDO delle rettifiche che le abbattono.
@@ -191,8 +187,7 @@ describe('il Reso al banco entra nel Registro come rettifica', () => {
   it('entra UNA volta sola', async () => {
     const righe = await new CorrispettiviService(prismaConBanco()).buildRegisterRows(
       TENANT,
-      query(),
-    );
+      query());
 
     expect(righe.filter((r) => r.documentId === 'doc-reso')).toHaveLength(1);
     expect(new Set(righe.map((r) => r.rowId)).size).toBe(righe.length);
@@ -231,8 +226,7 @@ describe('il Reso al banco rispetta i filtri', () => {
   it('Tutti: ci sono entrambe', async () => {
     const righe = await new CorrispettiviService(prismaConBanco()).buildRegisterRows(
       TENANT,
-      query({ tipi: ['all'] }),
-    );
+      query({ tipi: ['all'] }));
     expect(righe).toHaveLength(2);
   });
 
@@ -284,16 +278,14 @@ describe('il Reso al banco rispetta i filtri', () => {
   it('Solo resi: c’è, ed è l’altra metà della stessa distinzione', async () => {
     const righe = await new CorrispettiviService(prismaConBanco()).buildRegisterRows(
       TENANT,
-      query({ tipi: ['returns'] }),
-    );
+      query({ tipi: ['returns'] }));
     expect(righe.map((r) => r.documentId)).toEqual(['doc-reso']);
   });
 
   it('resi + rimborsi insieme: c’è', async () => {
     const righe = await new CorrispettiviService(prismaConBanco()).buildRegisterRows(
       TENANT,
-      query({ tipi: ['returns', 'refunds'] }),
-    );
+      query({ tipi: ['returns', 'refunds'] }));
     expect(righe.map((r) => r.documentId)).toEqual(['doc-reso']);
   });
 
@@ -312,16 +304,14 @@ describe('il Reso al banco rispetta i filtri', () => {
   it('Origine Vendita al banco: il Reso è dentro', async () => {
     const righe = await new CorrispettiviService(prismaConBanco()).buildRegisterRows(
       TENANT,
-      query({ origini: ['store'] }),
-    );
+      query({ origini: ['store'] }));
     expect(righe.map((r) => r.documentId).sort()).toEqual(['doc-reso', 'doc-vendita']);
   });
 
   it('Origine diversa: sparisce insieme alla vendita che lo genera', async () => {
     const righe = await new CorrispettiviService(prismaConBanco()).buildRegisterRows(
       TENANT,
-      query({ origini: ['shopify_online'] }),
-    );
+      query({ origini: ['shopify_online'] }));
     expect(righe).toHaveLength(0);
   });
 
@@ -462,8 +452,7 @@ describe('l’export quadra con il riepilogo', () => {
     const corrispettivi = new CorrispettiviService(prisma);
     const csv = await new CorrispettiviExportService(prisma, corrispettivi).exportAccountantCsv(
       TENANT,
-      query(),
-    );
+      query());
 
     expect(csv).toContain('VN-0001');
     expect(csv).toContain('RN-0001');

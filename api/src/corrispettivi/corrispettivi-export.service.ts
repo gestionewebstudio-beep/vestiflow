@@ -212,7 +212,10 @@ export class CorrispettiviExportService {
     private readonly corrispettivi: CorrispettiviService,
   ) {}
 
-  async exportAccountantCsv(tenantId: string, query: ListCorrispettiviQueryDto): Promise<string> {
+  async exportAccountantCsv(
+    tenantId: string,
+    query: ListCorrispettiviQueryDto,
+  ): Promise<string> {
     const rows = await this.buildAccountantRows(tenantId, query);
     return serializeItalianExcelCsv(CORRISPETTIVI_ACCOUNTANT_HEADERS, rows);
   }

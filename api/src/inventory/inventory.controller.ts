@@ -31,7 +31,6 @@ import {
   TenantPermission,
 } from '../auth/tenant-permission.constants';
 import {
-  RequireAllPermissionGroups,
   RequireAnyPermissions,
   RequirePermissions,
 } from '../common/auth/tenant-permissions.decorator';
@@ -41,7 +40,6 @@ import { RolesGuard } from '../common/auth/roles.guard';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import type { Paginated } from '../common/dto/pagination.dto';
 import { CreateInventoryCountDto } from './dto/create-inventory-count.dto';
-import { ExportCorrispettiviQueryDto } from './dto/export-corrispettivi.query.dto';
 import { ExportInventoryLevelsQueryDto } from './dto/export-inventory-levels.query.dto';
 import { ImportInventoryBodyDto } from './dto/import-inventory-body.dto';
 import { ListInventoryCountsQueryDto } from './dto/list-inventory-counts.query.dto';
@@ -126,22 +124,6 @@ export class InventoryController {
     return new StreamableFile(Buffer.from(csv, 'utf-8'), {
       type: 'text/csv; charset=utf-8',
       disposition: `attachment; filename="giacenze-vestiflow-${stamp}.csv"`,
-    });
-  }
-
-  @Get('movements/export/corrispettivi')
-  @RequireAllPermissionGroups([INVENTORY_SECTION_PERMISSIONS, [TenantPermission.ReportsExport]])
-  @Header('Content-Type', 'text/csv; charset=utf-8')
-  async exportCorrispettiviCsv(
-    @CurrentTenant() tenantId: string,
-    @CurrentUser() user: UserProfileDto,
-    @Query() query: ExportCorrispettiviQueryDto,
-  ): Promise<StreamableFile> {
-    const csv = await this.inventoryExport.exportCorrispettiviCsv(tenantId, query, user);
-    const stamp = new Date().toISOString().slice(0, 10);
-    return new StreamableFile(Buffer.from(csv, 'utf-8'), {
-      type: 'text/csv; charset=utf-8',
-      disposition: `attachment; filename="corrispettivi-vestiflow-${stamp}.csv"`,
     });
   }
 

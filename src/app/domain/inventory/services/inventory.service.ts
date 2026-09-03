@@ -38,7 +38,6 @@ import type { Location } from '@core/models/location.model';
 import type { StockMovement } from '@core/models/stock-movement.model';
 
 import type {
-  CorrispettiviExportQuery,
   InventoryExportQuery,
   InventoryImportPreview,
   InventoryImportResult,
@@ -461,30 +460,6 @@ export class InventoryService {
 
     return this.http
       .get(this.url('/inventory/levels/export/csv'), { params, responseType: 'blob' })
-      .pipe(timeout(EXPORT_HTTP_TIMEOUT_MS));
-  }
-
-  /** Export CSV corrispettivi: vendite/storni in un periodo, per canale e location. */
-  exportCorrispettiviCsv(query: CorrispettiviExportQuery): Observable<Blob> {
-    let params = new HttpParams();
-    if (query.locationId) {
-      params = params.set('locationId', query.locationId);
-    }
-    if (query.origin) {
-      params = params.set('origin', query.origin);
-    }
-    if (query.from) {
-      params = params.set('from', query.from);
-    }
-    if (query.to) {
-      params = params.set('to', query.to);
-    }
-
-    return this.http
-      .get(this.url('/inventory/movements/export/corrispettivi'), {
-        params,
-        responseType: 'blob',
-      })
       .pipe(timeout(EXPORT_HTTP_TIMEOUT_MS));
   }
 

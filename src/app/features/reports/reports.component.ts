@@ -1,26 +1,12 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  effect,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
 import { AuthService } from '@core/auth';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
-import {
-  canAccessSalesSection,
-  canExportOperationalData,
-  canViewDocFamily,
-} from '@core/permissions/tenant-permissions.util';
-import { REPORTS_CORRISPETTIVI_CSV_EXPORT_ID } from '@core/export/background-blob-export.constants';
-import { vestiflowExportFilename } from '@core/export/background-blob-export-filename.util';
-import { BackgroundBlobExportService } from '@core/services/background-blob-export.service';
+import { canAccessSalesSection, canViewDocFamily } from '@core/permissions/tenant-permissions.util';
 import { reportPageSubtitle } from '@core/models/tenant-channel-profile.model';
 import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
@@ -31,22 +17,8 @@ import {
   InventoryService,
   type LocationInventoryReportRow,
 } from '@domain/inventory/services/inventory.service';
-import { SalesOrderService } from '@domain/sales-orders/services/sales-order.service';
 
-import { ReportCorrispettiviExportComponent } from '@domain/reports/components/report-corrispettivi-export/report-corrispettivi-export.component';
 import { ReportLocationTableComponent } from './components/report-location-table/report-location-table.component';
-import {
-  corrispettiviChannelHint,
-  corrispettiviChannelOptions,
-  parseCorrispettiviChannel,
-  resolveCorrispettiviExport,
-} from './models/corrispettivi-channel.model';
-import {
-  formatReportPeriodLabel,
-  parseReportListQuery,
-  ReportPeriodPreset,
-  resolveReportDateRange,
-} from '@domain/reports/models/report-list-query.model';
 import type { LocationReportRow } from './models/report-view.model';
 
 interface ReportData {
@@ -59,8 +31,19 @@ type ReportState =
   | { readonly status: 'error'; readonly error: AppError };
 
 /**
- * Report operativi: export corrispettivi manuali e snapshot magazzino.
- * Le vendite Shopify vivono in Vendite Shopify; i corrispettivi Shopify lì.
+ * Report operativi: snapshot di magazzino e pannello analitico.
+ *
+ * ⛔ **Il vecchio «Export Corrispettivi» è stato rimosso il 03/09/2026.**
+ * Costruiva il file dai movimenti moltiplicati per il prezzo di LISTINO
+ * CORRENTE, quindi lo stesso periodo valeva importi diversi a ogni cambio di
+ * listino — su un file che va al commercialista. Il Registro canonico
+ * (Vendite → Corrispettivi) è l'unica fonte, e il link in cima ci porta.
+ *
+ * ⚠️ Con quel blocco è sparito anche **tutto l'apparato del periodo** di questa
+ * pagina — selettore, date personalizzate, sincronizzazione con l'URL: serviva
+ * soltanto a lui. Le giacenze sono uno snapshot corrente e non lo usano, e il
+ * pannello analitico ha il proprio, che qui era spento (`hidePeriodFilter`)
+ * perché glielo forniva la card.
  */
 @Component({
   selector: 'app-reports',
@@ -69,7 +52,6 @@ type ReportState =
     RouterLink,
     ErrorStateComponent,
     BusinessAnalyticsPanelComponent,
-    ReportCorrispettiviExportComponent,
     TableSkeletonComponent,
     ReportLocationTableComponent,
   ],
@@ -78,55 +60,15 @@ type ReportState =
 })
 export class ReportsComponent {
   private readonly inventoryService = inject(InventoryService);
-  private readonly salesOrderService = inject(SalesOrderService);
   private readonly authService = inject(AuthService);
-  private readonly route = inject(ActivatedRoute);
-  private readonly router = inject(Router);
-  private readonly blobExport = inject(BackgroundBlobExportService);
 
   private readonly refreshTick = signal(0);
-  private readonly queryParams = toSignal(this.route.queryParamMap, { requireSync: true });
-  /** Aggiornamento immediato del periodo in UI prima del sync URL. */
-  private readonly uiPeriod = signal<ReportPeriodPreset | null>(null);
-
-  constructor() {
-    effect(() => {
-      this.query();
-      this.uiPeriod.set(null);
-    });
-  }
-
-  protected readonly query = computed(() => parseReportListQuery(this.queryParams()));
-  protected readonly displayPeriod = computed(() => this.uiPeriod() ?? this.query().period);
-  protected readonly periodLabel = computed(() =>
-    formatReportPeriodLabel({ ...this.query(), period: this.displayPeriod() }),
-  );
-
-  protected readonly corrispettiviChannel = computed(() =>
-    parseCorrispettiviChannel(this.queryParams()),
-  );
 
   private readonly tenantProfile = computed(
     () => this.authService.currentUser()?.tenantChannelProfile,
   );
 
   protected readonly pageSubtitle = computed(() => reportPageSubtitle(this.tenantProfile()));
-
-  protected readonly corrispettiviChannelOptions = computed(() =>
-    corrispettiviChannelOptions(this.tenantProfile()),
-  );
-
-  protected readonly corrispettiviChannelHint = computed(() =>
-    corrispettiviChannelHint(this.corrispettiviChannel(), this.tenantProfile()),
-  );
-
-  protected readonly exporting = computed(() =>
-    this.blobExport.isActive(REPORTS_CORRISPETTIVI_CSV_EXPORT_ID),
-  );
-
-  protected readonly canExportCorrispettivi = computed(() =>
-    canExportOperationalData(this.authService.currentUser()),
-  );
 
   /**
    * ⛔ **Il link al Registro non si mostra a chi può ESPORTARE: a chi può
@@ -140,24 +82,6 @@ export class ReportsComponent {
   protected readonly canOpenCorrispettiviRegister = computed(() => {
     const user = this.authService.currentUser();
     return canAccessSalesSection(user) && canViewDocFamily(user, 'online_sale');
-  });
-
-  private readonly exportRange = computed(() =>
-    resolveReportDateRange({ ...this.query(), period: this.displayPeriod() }),
-  );
-
-  protected readonly dateFromDraft = computed(() => {
-    if (this.displayPeriod() !== ReportPeriodPreset.Custom) {
-      return '';
-    }
-    return this.query().dateFrom ?? todayIsoDate();
-  });
-
-  protected readonly dateToDraft = computed(() => {
-    if (this.displayPeriod() !== ReportPeriodPreset.Custom) {
-      return '';
-    }
-    return this.query().dateTo ?? todayIsoDate();
   });
 
   private readonly request = computed(() => ({
@@ -212,67 +136,8 @@ export class ReportsComponent {
     }));
   });
 
-  protected onPeriodChange(period: ReportPeriodPreset): void {
-    this.uiPeriod.set(period);
-    if (period === ReportPeriodPreset.Custom) {
-      const today = todayIsoDate();
-      this.updateParams({ period, from: today, to: today });
-      return;
-    }
-    this.updateParams({ period, from: null, to: null });
-  }
-
-  protected onDateFromChange(value: string): void {
-    this.updateParams({ from: value || null, period: ReportPeriodPreset.Custom });
-  }
-
-  protected onDateToChange(value: string): void {
-    this.updateParams({ to: value || null, period: ReportPeriodPreset.Custom });
-  }
-
-  protected onCorrispettiviChannelChange(value: string): void {
-    this.updateParams({ corrChannel: value || null });
-  }
-
   protected reload(): void {
     this.refreshTick.update((tick) => tick + 1);
-  }
-
-  protected exportCorrispettivi(): void {
-    if (this.exporting()) {
-      return;
-    }
-
-    const config = resolveCorrispettiviExport(this.corrispettiviChannel());
-    const range = this.exportRange();
-    const request =
-      config.kind === 'shopify'
-        ? this.salesOrderService.exportSalesOrdersCsv({
-            placedFrom: range.placedFrom,
-            placedTo: range.placedTo,
-          })
-        : this.inventoryService.exportCorrispettiviCsv({
-            origin: config.origin,
-            from: `${range.placedFrom}T00:00:00`,
-            to: `${range.placedTo}T23:59:59.999`,
-          });
-
-    this.blobExport.start({
-      exportId: REPORTS_CORRISPETTIVI_CSV_EXPORT_ID,
-      request,
-      filename: vestiflowExportFilename(config.filePrefix, 'csv'),
-      inProgressMessage: 'Export corrispettivi in corso. Puoi continuare a navigare.',
-      successMessage: 'Export corrispettivi completato: download avviato.',
-      errorMessage: 'Export corrispettivi non riuscito. Riprova tra qualche istante.',
-    });
-  }
-
-  private updateParams(params: Record<string, string | null>): void {
-    void this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: params,
-      queryParamsHandling: 'merge',
-    });
   }
 
   private toAppError(err: unknown): AppError {
@@ -281,8 +146,4 @@ export class ReportsComponent {
     }
     return { kind: AppErrorKind.Unknown, message: 'Errore imprevisto. Riprova.' };
   }
-}
-
-function todayIsoDate(): string {
-  return new Date().toISOString().slice(0, 10);
 }

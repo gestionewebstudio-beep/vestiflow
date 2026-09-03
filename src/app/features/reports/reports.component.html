@@ -13,31 +13,19 @@
     </div>
   }
 
-  @if (canExportCorrispettivi()) {
-    <app-report-corrispettivi-export
-      [period]="displayPeriod()"
-      [dateFrom]="dateFromDraft()"
-      [dateTo]="dateToDraft()"
-      [channel]="corrispettiviChannel()"
-      [channelOptions]="corrispettiviChannelOptions()"
-      [channelHint]="corrispettiviChannelHint()"
-      [periodLabel]="periodLabel()"
-      [exporting]="exporting()"
-      (periodChange)="onPeriodChange($event)"
-      (dateFromChange)="onDateFromChange($event)"
-      (dateToChange)="onDateToChange($event)"
-      (channelChange)="onCorrispettiviChannelChange($event)"
-      (exportClick)="exportCorrispettivi()"
-    />
-  }
+  <!--
+    ⛔ Qui c'era il vecchio blocco «Export Corrispettivi», rimosso il 03/09/2026:
+    produceva un file moltiplicando i movimenti per il prezzo di LISTINO CORRENTE,
+    quindi lo stesso periodo valeva importi diversi a ogni cambio di listino. Il
+    Registro canonico (Vendite → Corrispettivi) è l'unica fonte, e il link sopra
+    ci porta.
 
-  <app-business-analytics-panel
-    layout="reports"
-    [hidePeriodFilter]="true"
-    [period]="displayPeriod()"
-    [dateFrom]="dateFromDraft()"
-    [dateTo]="dateToDraft()"
-  />
+    ⚠️ Il pannello analitico torna a gestire il periodo DA SÉ, come nella
+    dashboard: `hidePeriodFilter` era acceso perché il selettore glielo forniva
+    la card appena rimossa. Senza questa riga la pagina sarebbe rimasta senza
+    alcun modo di cambiare periodo.
+  -->
+  <app-business-analytics-panel layout="reports" />
 
   @if (loading()) {
     <app-table-skeleton [columns]="4" [rows]="6" />
