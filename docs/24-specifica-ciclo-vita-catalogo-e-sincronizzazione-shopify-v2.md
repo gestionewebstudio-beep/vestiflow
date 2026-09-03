@@ -2685,9 +2685,10 @@ primitive esistono e sono provate, il collegamento dei percorsi REST è della 2B
 > ordinaria e non salta mai in silenzio: senza dominio, senza credenziali o senza rete
 > **fallisce**.
 
-⭐ **Ha trovato QUATTRO difformità che nessun test con `fetch` simulato poteva vedere**, e
-sono la ragione per cui questo gate esiste. Tre facevano rifiutare la chiamata al primo
-tentativo reale:
+⭐ **Ha trovato CINQUE difformità che nessun test con `fetch` simulato poteva vedere**, e
+sono la ragione per cui questo gate esiste. Le prime tre facevano rifiutare la chiamata al
+primo tentativo reale; la quinta — la rimozione da collezione, asincrona — è più sotto,
+nella chiusura della tranche:
 
 | Difformità                                                       | Che cosa diceva Shopify                                               |
 | ---------------------------------------------------------------- | --------------------------------------------------------------------- |
@@ -2717,39 +2718,92 @@ persisted quantity» e **non scrive**. Verificato leggendo la quantità dopo il 
 | `productVariantsBulkUpdate` con `inventoryPolicy`                    | ✅ andata e ritorno                                                        |
 | lettura della quantità remota                                        | ✅                                                                         |
 | `inventorySetQuantities` con idempotenza e confronto                 | ✅ dopo le correzioni                                                      |
+| collezione manuale: crea → aggiungi → verifica → rimuovi → elimina   | ✅ ciclo completo, su una collezione creata e distrutta dal gate           |
+| `ProductVariant` implementa `Publishable`                            | ✅ per introspezione, quindi senza dipendere dagli ambiti                  |
 
-⚠️ **Due operazioni NON sono state eseguite, e il motivo è preciso:**
+#### ✅ Chiusura della 2A (03/09/2026) — protezione, collezioni, publication
 
-**1 · Pubblicazione per canale.** Nessuno dei due shop collegati ha
-`read_publications`/`write_publications`, e neanche `api/.env` li richiede: la diagnostica
-risponde quindi **`not_requested`**, non `not_granted`. Shopify rifiuta con «Access denied
-for publishablePublish field. Required access: `write_publications` access scope».
+**La protezione dell'ambiente ha DUE condizioni, e nessuna basta da sola.**
 
-⛔ **La distinzione non è formale: cambia l'azione.** Con `not_requested` **riconnettere
-non serve** — il consenso viene chiesto per gli ambiti che il server dichiara, quindi si
-tornerebbe con lo stesso token. Vanno prima aggiunti a `SHOPIFY_SCOPES` (locale **e**
-Railway) e ridistribuita l'API; solo dopo la riconnessione ha effetto. Il gate copre
-entrambi i rami: se un giorno gli ambiti ci sono, pubblica e **ritira**, lasciando la
-variante non pubblicata.
+| Condizione                      | Da chi arriva | Da che cosa protegge                               |
+| ------------------------------- | ------------- | -------------------------------------------------- |
+| `SHOPIFY_CONTRACT_TEST=1`       | da chi lancia | dal comando eseguito senza sapere che **scrive**   |
+| `plan.partnerDevelopment: true` | dal negozio   | dal bersaglio sbagliato, cioè un negozio **reale** |
 
-**2 · Collezioni manuali.** Sul negozio non esiste una collezione **dedicata alla prova**, e
-agire su una vera modificherebbe dati che il gate non ha creato. Restano verificate contro
-lo schema: `collectionAddProducts` e `collectionRemoveProducts` esistono con esattamente
-gli argomenti `id` e `productIds` che il client manda.
+⛔ **La prima sta sul TOKEN**, non davanti alle singole mutation: senza consenso non si
+ottengono le credenziali, quindi non parte nemmeno una lettura e non esiste un percorso che
+arrivi a una scrittura aggirando il controllo. La seconda si verifica in `beforeAll` prima
+della prima scrittura, e abilita anche le mutation di **fixture**.
 
-⚠️ **E sono DEPRECATE, ma si usano lo stesso.** Shopify rimanda a `collectionUpdate` con
-`inclusion.selectionsToAdd`: in `2026-07` quel campo **non esiste** in `CollectionInput`, e
-`products` è valido «only with `collectionCreate`». In questa versione non c'è altra via
-per cambiare l'appartenenza a una collezione manuale. Il gate porta una **sveglia**: la
-prova diventa rossa il giorno in cui le inclusioni compaiono, ed è quello il momento di
-migrare.
+⚠️ **Perché un flag, se lo script è già dedicato.** Lo script protegge da chi non sa; il
+flag protegge da chi sa e sbaglia negozio — un domani il comando può finire in un file di
+automazione o essere lanciato con un `.env` aperto per un'altra ragione. Verificato: senza
+la variabile il gate si ferma con l'errore che spiega, e **nessuna prova viene eseguita**.
 
-⭐ **Una scoperta che ha risparmiato un ampliamento inutile.** Una variante creata da
-`productSet` nasce con `inventoryItem.tracked = false`, e sembrava servisse esporre
-`tracked` anche nell'input di `productSet`. Misurato: `inventorySetQuantities` **funziona
-lo stesso** su quella variante, perché il livello di inventario esiste comunque. Il campo
-non è stato aggiunto — la misura ha evitato di allargare la superficie per un problema che
-non c'era.
+**✅ Collezioni manuali: eseguite davvero, non più solo contro lo schema.**
+
+Il ciclo completo su una collezione **creata e distrutta dal gate stesso**: creazione →
+aggiunta del prodotto → lettura dell'appartenenza → rimozione → verifica → eliminazione.
+
+⛔ **`collectionCreate` e `collectionDelete` NON sono primitive della 2A e non entrano nel
+client**: VestiFlow non crea né elimina collezioni (§9.6), quindi sarebbero superficie che
+nessun percorso userà mai. Vivono nel gate come **fixture**, e ciò che è sotto prova —
+`addProductToCollection`, `removeProductFromCollection` — passa dal client compilato.
+
+⭐ **Quinta difformità trovata: la RIMOZIONE è asincrona.** Il payload di
+`collectionRemoveProducts` è un **`job`**, non la collezione aggiornata — mentre
+l'aggiunta restituisce la collezione ed è sincrona. Il client scartava il job e dichiarava
+compiuta un'operazione ancora in corso: ora lo restituisce, ed è l'unico modo che ha il
+chiamante di sapere quando la rimozione è finita.
+
+⚠️ **Con un solo prodotto è risultata già applicata al ritorno** — appartenenza a zero
+immediatamente — ma è il caso più piccolo, non una garanzia: su una rimozione in blocco il
+job va atteso. Il gate concede infatti qualche tentativo invece di dare per scontato un
+tempo che Shopify non promette.
+
+⚠️ **`collectionCreate` prende `CollectionCreateInput`**, non `CollectionInput`, e vuole
+`title`. Senza `ruleSet` la collezione nasce **manuale**, che è l'unico tipo su cui
+l'appartenenza si può scrivere.
+
+**✅ La variante è `Publishable`, e ora è verificato.**
+
+`ProductVariant` implementa `Publishable` ed espone `publishedOnPublication`: è il
+**presupposto** di §10.1 — ritirare una singola taglia senza toccare quantità o
+`inventoryPolicy`. L'introspezione non è ristretta dagli ambiti, quindi questa verifica non
+dipende dalla riautorizzazione ed è stata fatta.
+
+#### ⛔ L'unica cosa ancora bloccata: la riautorizzazione
+
+Le cinque operazioni di pubblicazione — elenco canali, pubblica prodotto, ritira prodotto,
+pubblica variante, ritira variante — **non sono eseguibili**, e la causa è una sola: il
+token del negozio non ha `read_publications` / `write_publications`.
+
+⭐ **Verificato all'origine**, non dedotto dalla colonna del database:
+`currentAppInstallation { accessScopes }` conferma dieci ambiti concessi, e quei due non ci
+sono.
+
+⛔ **E lo stato è `not_requested`, non `not_granted`: riconnettere NON basta.** Il consenso
+viene chiesto per gli ambiti che il server dichiara. Il default canonico del codice li
+contiene già dalla 2A, ma **`SHOPIFY_SCOPES` nell'ambiente vince sul default**: dove quella
+variabile è dichiarata senza i due ambiti, si torna con lo stesso token.
+
+I passaggi, nell'ordine — gli unici manuali rimasti della 2A:
+
+1. `SHOPIFY_SCOPES` deve contenere `read_publications,write_publications` — in `api/.env`
+   **e** nella variabile d'ambiente di Railway;
+2. ridistribuire l'API, perché il valore si legge all'avvio;
+3. in Shopify Partners → app → versione attiva, includere i due ambiti e **rilasciare** una
+   nuova versione;
+4. da VestiFlow → Impostazioni, **disconnettere e riconnettere** il negozio.
+
+⚠️ **Il gate copre già entrambi i rami**: finché gli ambiti mancano verifica che ognuna
+delle tre chiamate fallisca **nominando lo scope**, e che la diagnostica lo classifichi;
+quando ci saranno, esegue le cinque operazioni per davvero e lascia tutto **non
+pubblicato**. Non va riscritto — va rieseguito.
+
+⭐ **Due prove nuove sul default degli scope**, perché la perdita non farebbe rumore: una
+verifica che il default canonico contenga i due ambiti, l'altra che `SHOPIFY_SCOPES`
+dell'ambiente vince — cioè che aggiungerli al default **non basta**.
 
 ⚠️ **Che cosa il gate NON dimostra.** Che i percorsi produttivi siano corretti: nessuno di
 essi chiama ancora queste primitive. Dimostra che il **contratto** regge, cioè il

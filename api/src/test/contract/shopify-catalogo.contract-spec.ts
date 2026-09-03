@@ -8,14 +8,21 @@ import {
   parseShopifyScopesCsv,
   shopifyHasPublicationsScopes,
 } from '../../shopify/shopify-scopes.util';
-import { caricaEnvApi, configDaAmbiente, credenzialiShop } from './shopify-credenziali';
+import {
+  assertGateAbilitato,
+  caricaEnvApi,
+  configDaAmbiente,
+  credenzialiShop,
+  VARIABILE_CONSENSO,
+} from './shopify-credenziali';
 import type { CredenzialiShop } from './shopify-credenziali';
 
 /**
  * ⭐ **IL GATE DI CONTRATTO: le primitive della Tranche 2A contro Shopify VERO.**
  *
  * ```
- * VESTIFLOW_SHOPIFY_CONTRACT_SHOP=xxx.myshopify.com  npm run test:shopify:contract
+ * SHOPIFY_CONTRACT_TEST=1 VESTIFLOW_SHOPIFY_CONTRACT_SHOP=xxx.myshopify.com \
+ *   npm run test:shopify:contract
  * ```
  *
  * ⛔ **Non gira in nessuna suite ordinaria, e non può.** Il suffisso
@@ -48,6 +55,8 @@ import type { CredenzialiShop } from './shopify-credenziali';
 const TAG = 'vestiflow-contract-test';
 const TITOLO = 'VestiFlow - prova contratto 2A (non vendere)';
 const RIFERIMENTO = 'vestiflow://collaudo/contratto-2a';
+/** Collezione creata E distrutta dal gate: non sopravvive alla corsa. */
+const COLLEZIONE = 'VestiFlow - collaudo contratto 2A';
 
 interface Opzione {
   readonly id: string;
@@ -76,6 +85,8 @@ let cred: CredenzialiShop;
 let client: ShopifyGraphqlClient;
 let config: ShopifyConfigService;
 let idProdotto: string;
+/** Vero solo dopo che ENTRAMBE le condizioni di scrittura sono verificate. */
+let scritturaConsentita = false;
 
 /**
  * Lettura grezza per ciò che il client NON espone: l'identità del negozio, lo
@@ -107,6 +118,40 @@ async function leggi<T>(query: string, variables: Record<string, unknown> = {}):
   return corpo.data;
 }
 
+/**
+ * Mutation di FIXTURE: quello che il gate deve **preparare**, non quello che
+ * deve **provare**.
+ *
+ * ⛔ **La distinzione non è formale.** VestiFlow non crea né elimina collezioni
+ *    — `docs/24` §9.6 dice «si aggiunge o si toglie il prodotto, non si crea né
+ *    si rinomina la collezione» — quindi `collectionCreate` e
+ *    `collectionDelete` NON sono primitive della 2A e non devono entrare nel
+ *    client: sarebbero superficie che nessun percorso userà mai. Servono qui, e
+ *    solo qui, per avere una collezione **di prova** su cui esercitare le due
+ *    primitive vere.
+ *
+ * ⚠️ Ciò che è **sotto prova** passa sempre dal client compilato. Se una
+ *    primitiva della 2A venisse esercitata da qui, il gate proverebbe sé stesso.
+ */
+async function fixture<T>(mutation: string, variables: Record<string, unknown> = {}): Promise<T> {
+  assertScritturaConsentita();
+  return leggi<T>(mutation, variables);
+}
+
+/**
+ * ⛔ **LA SECONDA CONDIZIONE.** La prima (`SHOPIFY_CONTRACT_TEST=1`) sta sul
+ *    token; questa la può dare solo il negozio, e vale per ogni scrittura —
+ *    fixture comprese.
+ */
+function assertScritturaConsentita(): void {
+  if (!scritturaConsentita) {
+    throw new Error(
+      'Scrittura non consentita: lo shop non ha confermato «partnerDevelopment: true», ' +
+        `oppure ${VARIABILE_CONSENSO} non vale «1».`,
+    );
+  }
+}
+
 async function stato(): Promise<StatoProdotto> {
   const dati = await leggi<{ product: StatoProdotto | null }>(
     `query($id: ID!) {
@@ -136,11 +181,20 @@ function chiaveIdempotenza(): string {
 
 beforeAll(async () => {
   caricaEnvApi();
+
+  // ── CONDIZIONE 1 · il consenso esplicito di chi lancia ───────────────────
+  assertGateAbilitato();
+
   cred = await credenzialiShop();
   config = new ShopifyConfigService(configDaAmbiente());
   client = new ShopifyGraphqlClient(config, new ShopifyRateLimiterService(config));
 
-  // ── LA BARRIERA, prima di qualunque scrittura ────────────────────────────
+  // ── CONDIZIONE 2 · la conferma del negozio, prima di qualunque scrittura ──
+  //
+  // ⚠️ Le due condizioni proteggono da errori DIVERSI: la variabile dice «so
+  //    che questo scrive», il piano dice «e il bersaglio non è un negozio
+  //    vero». Nessuna delle due basta da sola — un negozio reale raggiunto con
+  //    la variabile impostata sarebbe esattamente l'incidente da evitare.
   const negozio = await leggi<{
     shop: { myshopifyDomain: string; plan: { displayName: string; partnerDevelopment: boolean } };
   }>('{ shop { myshopifyDomain plan { displayName partnerDevelopment } } }');
@@ -151,6 +205,8 @@ beforeAll(async () => {
         `(piano: ${negozio.shop.plan.displayName}). Il gate scrive: si ferma qui.`,
     );
   }
+
+  scritturaConsentita = true;
 
   // ── il prodotto di prova: si riusa, non si duplica ───────────────────────
   const trovati = await leggi<{ products: { nodes: readonly { id: string }[] } }>(
@@ -388,7 +444,25 @@ describe('Contratto GraphQL del catalogo Shopify — shop di sviluppo', () => {
     });
   });
 
-  it('publication: o si pubblica davvero, o si dice PERCHÉ non si può', async () => {
+  it('la VARIANTE è Publishable in 2026-07: è il presupposto di tutto §10.1', async () => {
+    // ⭐ Verificabile SENZA gli ambiti publication, perché l'introspezione non
+    //    è ristretta. Ed è la cosa da verificare per prima: se la variante non
+    //    fosse pubblicabile, ritirare una singola taglia senza toccare le
+    //    quantità — che è la decisione di docs/24 §10.1 — non sarebbe possibile.
+    const dati = await leggi<{
+      variante: { interfaces: readonly { name: string }[]; fields: readonly { name: string }[] };
+    }>(`{
+      variante: __type(name: "ProductVariant") {
+        interfaces { name }
+        fields(includeDeprecated: true) { name }
+      }
+    }`);
+
+    expect(dati.variante.interfaces.map((i) => i.name)).toContain('Publishable');
+    expect(dati.variante.fields.map((f) => f.name)).toContain('publishedOnPublication');
+  });
+
+  it('publication: o si eseguono tutte e cinque, o si dice PERCHÉ non si può', async () => {
     const diagnostica = buildShopifyScopeDiagnostics(
       parseShopifyScopesCsv(process.env['SHOPIFY_SCOPES'] ?? ''),
       cred.scopes,
@@ -396,35 +470,170 @@ describe('Contratto GraphQL del catalogo Shopify — shop di sviluppo', () => {
 
     if (!shopifyHasPublicationsScopes(cred.scopes)) {
       // ⛔ Il negozio collegato non ha gli ambiti: la diagnostica DEVE dirlo, e
-      //    la chiamata deve fallire nominando lo scope mancante — non con un
-      //    errore generico che chi legge non sa a cosa attribuire.
+      //    ognuna delle tre chiamate deve fallire NOMINANDO lo scope mancante —
+      //    non con un errore generico che chi legge non sa a cosa attribuire.
       expect(diagnostica.publicationsBlockedReason).not.toBe('none');
       expect(diagnostica.missingForPublications.length).toBeGreaterThan(0);
+
+      const corrente = await stato();
+      const variante = corrente.variants.nodes[0]!;
+      const canaleFinto = 'gid://shopify/Publication/1';
 
       await expect(client.listPublications(cred.shopDomain, cred.accessToken)).rejects.toThrow(
         /read_publications/,
       );
+      await expect(
+        client.publishablePublish(cred.shopDomain, cred.accessToken, variante.id, [canaleFinto]),
+      ).rejects.toThrow(/write_publications/);
+      await expect(
+        client.publishableUnpublish(cred.shopDomain, cred.accessToken, variante.id, [canaleFinto]),
+      ).rejects.toThrow(/write_publications/);
       return;
     }
 
+    // ── da qui: gli ambiti ci sono, e si eseguono le cinque operazioni ──────
     expect(diagnostica.publicationsBlockedReason).toBe('none');
+
     const canali = await client.listPublications(cred.shopDomain, cred.accessToken);
     expect(canali.length).toBeGreaterThan(0);
+    const canale = canali[0]!.id;
 
     const corrente = await stato();
     const variante = corrente.variants.nodes[0]!;
-    const canale = canali[0]!.id;
 
+    const pubblicato = async (gid: string): Promise<boolean> => {
+      const dati = await leggi<{ nodo: { publishedOnPublication: boolean } | null }>(
+        'query($id: ID!, $pub: ID!) { nodo: node(id: $id) { ... on Publishable { publishedOnPublication(publicationId: $pub) } } }',
+        { id: gid, pub: canale },
+      );
+      return dati.nodo?.publishedOnPublication === true;
+    };
+
+    // 2 · prodotto: pubblica
+    await client.publishablePublish(cred.shopDomain, cred.accessToken, idProdotto, [canale]);
+    expect(await pubblicato(idProdotto)).toBe(true);
+
+    // 3 · prodotto: ritira
+    await client.publishableUnpublish(cred.shopDomain, cred.accessToken, idProdotto, [canale]);
+    expect(await pubblicato(idProdotto)).toBe(false);
+
+    // 4 · variante: pubblica — è ciò che permette di ritirare UNA taglia
     await client.publishablePublish(cred.shopDomain, cred.accessToken, variante.id, [canale]);
-    // ⛔ Si esce SEMPRE non pubblicati: il gate non lascia in vendita niente.
+    expect(await pubblicato(variante.id)).toBe(true);
+
+    // 5 · variante: ritira. ⛔ Si esce SEMPRE non pubblicati.
     await client.publishableUnpublish(cred.shopDomain, cred.accessToken, variante.id, [canale]);
+    expect(await pubblicato(variante.id)).toBe(false);
   });
 
-  it('collezioni manuali: deprecate in 2026-07, e la sostituta NON esiste ancora', async () => {
-    // ⚠️ Non eseguite per davvero: sul negozio non esiste una collezione
-    //    DEDICATA alla prova, e agire su una collezione vera modificherebbe
-    //    dati che questo gate non ha creato. Resta la verifica più forte
-    //    disponibile senza toccarli: lo schema vero.
+  it('⭐ collezioni manuali: creazione, aggiunta, appartenenza, rimozione, eliminazione', async () => {
+    interface Collezione {
+      readonly id: string;
+      readonly title: string;
+    }
+    interface Appartenenza {
+      readonly collection: {
+        readonly productsCount: { readonly count: number };
+        readonly products: { readonly nodes: readonly { readonly id: string }[] };
+      } | null;
+    }
+
+    const QUERY_APPARTENENZA = `query($id: ID!) {
+      collection(id: $id) {
+        productsCount { count }
+        products(first: 50) { nodes { id } }
+      }
+    }`;
+
+    const appartenenza = async (idCollezione: string) =>
+      (await leggi<Appartenenza>(QUERY_APPARTENENZA, { id: idCollezione })).collection;
+
+    const elimina = async (idCollezione: string) => {
+      const esito = await fixture<{
+        collectionDelete: {
+          deletedCollectionId: string | null;
+          userErrors: readonly { message: string }[];
+        };
+      }>(
+        `mutation($input: CollectionDeleteInput!) {
+          collectionDelete(input: $input) { deletedCollectionId userErrors { field message } }
+        }`,
+        { input: { id: idCollezione } },
+      );
+      expect(esito.collectionDelete.userErrors).toEqual([]);
+      return esito.collectionDelete.deletedCollectionId;
+    };
+
+    // ── 0 · una corsa precedente interrotta può aver lasciato la collezione ──
+    const residue = await leggi<{ collections: { nodes: readonly Collezione[] } }>(
+      'query($q: String!) { collections(first: 10, query: $q) { nodes { id title } } }',
+      { q: `title:'${COLLEZIONE}'` },
+    );
+    for (const vecchia of residue.collections.nodes.filter((c) => c.title === COLLEZIONE)) {
+      await elimina(vecchia.id);
+    }
+
+    // ── 1 · creazione ───────────────────────────────────────────────────────
+    //
+    // ⚠️ `collectionCreate` prende `CollectionCreateInput` (non `CollectionInput`)
+    //    e vuole `title`. Senza `ruleSet` la collezione nasce MANUALE, che è
+    //    l'unico tipo su cui l'appartenenza si può scrivere.
+    const creata = await fixture<{
+      collectionCreate: {
+        collection: { id: string; ruleSet: unknown | null } | null;
+        userErrors: readonly { message: string }[];
+      };
+    }>(
+      `mutation($collection: CollectionCreateInput!) {
+        collectionCreate(collection: $collection) {
+          collection { id ruleSet { appliedDisjunctively } }
+          userErrors { field message }
+        }
+      }`,
+      { collection: { title: COLLEZIONE } },
+    );
+    expect(creata.collectionCreate.userErrors).toEqual([]);
+    const idCollezione = creata.collectionCreate.collection!.id;
+    expect(creata.collectionCreate.collection!.ruleSet).toBeNull();
+    expect((await appartenenza(idCollezione))!.productsCount.count).toBe(0);
+
+    try {
+      // ── 2 · aggiunta, con la PRIMITIVA della 2A ──────────────────────────
+      await client.addProductToCollection(cred.shopDomain, cred.accessToken, idCollezione, [
+        idProdotto,
+      ]);
+
+      // ── 3 · appartenenza verificata leggendo la collezione ───────────────
+      const dopoAggiunta = (await appartenenza(idCollezione))!;
+      expect(dopoAggiunta.productsCount.count).toBe(1);
+      expect(dopoAggiunta.products.nodes.map((n) => n.id)).toEqual([idProdotto]);
+
+      // ── 4 · rimozione. ⛔ Restituisce un JOB: è asincrona ─────────────────
+      const job = await client.removeProductFromCollection(
+        cred.shopDomain,
+        cred.accessToken,
+        idCollezione,
+        [idProdotto],
+      );
+      expect(typeof job === 'string' || job === null).toBe(true);
+
+      // ⚠️ Con un solo prodotto è risultata già applicata al ritorno, ma il
+      //    payload è un job: si concede qualche tentativo invece di dare per
+      //    scontato un tempo che Shopify non promette.
+      let rimasti = (await appartenenza(idCollezione))!.productsCount.count;
+      for (let tentativo = 0; tentativo < 5 && rimasti > 0; tentativo += 1) {
+        await new Promise((risolvi) => setTimeout(risolvi, 1_000));
+        rimasti = (await appartenenza(idCollezione))!.productsCount.count;
+      }
+      expect(rimasti).toBe(0);
+    } finally {
+      // ── 5 · eliminazione: la collezione di prova non sopravvive al gate ───
+      expect(await elimina(idCollezione)).toBe(idCollezione);
+      expect(await appartenenza(idCollezione)).toBeNull();
+    }
+  });
+
+  it('collezioni: le due primitive sono DEPRECATE, e la sostituta non esiste ancora', async () => {
     const dati = await leggi<{
       mutazioni: {
         fields: readonly {
@@ -447,17 +656,16 @@ describe('Contratto GraphQL del catalogo Shopify — shop di sviluppo', () => {
       expect(mutazione, `la mutation ${nome} non esiste in questa versione API`).toBeDefined();
       expect(mutazione!.args.map((a) => a.name).sort()).toEqual(['id', 'productIds']);
 
-      // ⛔ **Sono DEPRECATE, e si usano lo stesso.** Shopify rimanda a
-      //    `collectionUpdate` con `inclusion.selectionsToAdd`, ma in `2026-07`
-      //    quel campo NON esiste in `CollectionInput` — e `products` è
-      //    valido «only with collectionCreate». In questa versione non c'è
-      //    altra via per cambiare l'appartenenza a una collezione manuale.
+      // ⛔ **Sono DEPRECATE, e si usano lo stesso** — la prova qui sopra le
+      //    esegue davvero. Shopify rimanda a `collectionUpdate` con
+      //    `inclusion.selectionsToAdd`, ma in `2026-07` quel campo NON esiste
+      //    in `CollectionInput`, e `products` è valido «only with
+      //    collectionCreate». Non c'è altra via, e non se ne inventa una.
       expect(mutazione!.isDeprecated).toBe(true);
     }
 
-    // ⭐ **Questa è la sveglia**: quando diventerà rossa, la sostituta sarà
-    //    arrivata nella versione fissata e le due primitive andranno migrate
-    //    a `collectionUpdate`. Finché è verde, migrare non si può.
+    // ⭐ **La sveglia**: quando diventerà rossa, la sostituta sarà arrivata
+    //    nella versione fissata e le due primitive andranno migrate.
     const campi = dati.collectionInput.inputFields.map((f) => f.name);
     expect(
       campi.some((n) => n.startsWith('inclusion')),

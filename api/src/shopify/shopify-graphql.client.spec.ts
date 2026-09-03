@@ -308,18 +308,41 @@ describe('ShopifyGraphqlClient — primitive del catalogo', () => {
     it('aggiunge e toglie il prodotto', async () => {
       const fetchMock = mockFetch(
         rispondi({ collectionAddProducts: { userErrors: [] } }),
-        rispondi({ collectionRemoveProducts: { userErrors: [] } }),
+        rispondi({
+          collectionRemoveProducts: {
+            job: { id: 'gid://shopify/Job/9', done: false },
+            userErrors: [],
+          },
+        }),
       );
 
       await client.addProductToCollection(SHOP, TOKEN, 'gid://shopify/Collection/3', [
         'gid://shopify/Product/1',
       ]);
-      await client.removeProductFromCollection(SHOP, TOKEN, 'gid://shopify/Collection/3', [
-        'gid://shopify/Product/1',
-      ]);
+      const job = await client.removeProductFromCollection(
+        SHOP,
+        TOKEN,
+        'gid://shopify/Collection/3',
+        ['gid://shopify/Product/1'],
+      );
 
       expect(corpo(fetchMock, 0).query).toContain('collectionAddProducts');
       expect(corpo(fetchMock, 1).query).toContain('collectionRemoveProducts');
+      // ⛔ La RIMOZIONE è asincrona: il payload è un `job`, e chiederlo è
+      //    l'unico modo che ha il chiamante di sapere quando è finita.
+      //    Verificato contro Shopify il 03/09/2026.
+      expect(corpo(fetchMock, 1).query).toContain('job { id done }');
+      expect(job).toBe('gid://shopify/Job/9');
+    });
+
+    it('rimozione senza job nel payload: null, non un errore', async () => {
+      mockFetch(rispondi({ collectionRemoveProducts: { job: null, userErrors: [] } }));
+
+      await expect(
+        client.removeProductFromCollection(SHOP, TOKEN, 'gid://shopify/Collection/3', [
+          'gid://shopify/Product/1',
+        ]),
+      ).resolves.toBeNull();
     });
 
     it('collezione AUTOMATICA: Shopify rifiuta, e il rifiuto arriva intatto', async () => {

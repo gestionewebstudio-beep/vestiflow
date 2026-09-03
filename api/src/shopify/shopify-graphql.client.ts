@@ -1247,26 +1247,42 @@ export class ShopifyGraphqlClient {
     this.throwOnUserErrors('collectionAddProducts', data.collectionAddProducts?.userErrors);
   }
 
-  /** Toglie il prodotto da una collezione manuale. Il prodotto non viene toccato. */
+  /**
+   * Toglie il prodotto da una collezione manuale. Il prodotto non viene toccato.
+   *
+   * ⛔ **A differenza dell'aggiunta, questa è ASINCRONA**: il payload di
+   *    `collectionRemoveProducts` è un `job`, non la collezione aggiornata.
+   *    Restituirlo non è una comodità — è l'unico modo che ha il chiamante di
+   *    sapere QUANDO la rimozione è finita. Ignorarlo, come faceva questo
+   *    metodo, significa dichiarare compiuta un'operazione ancora in corso.
+   *
+   * ⚠️ **Con un solo prodotto è risultata già applicata al ritorno**, misurato
+   *    sullo shop di sviluppo il 03/09/2026: l'appartenenza era zero
+   *    immediatamente. Non è una garanzia — è il caso più piccolo. Su una
+   *    rimozione in blocco il job va atteso (`job(id:) { done }`).
+   */
   async removeProductFromCollection(
     shopDomain: string,
     accessToken: string,
     collectionGid: string,
     productGids: readonly string[],
-  ): Promise<void> {
+  ): Promise<string | null> {
     const mutation = `
       mutation CollectionRemoveProducts($id: ID!, $productIds: [ID!]!) {
         collectionRemoveProducts(id: $id, productIds: $productIds) {
+          job { id done }
           userErrors { field message }
         }
       }
     `;
     const data = await this.graphql<{
       collectionRemoveProducts: {
+        job: { id: string; done: boolean } | null;
         userErrors: readonly { field: string[] | null; message: string }[];
       } | null;
     }>(shopDomain, accessToken, mutation, { id: collectionGid, productIds: productGids });
     this.throwOnUserErrors('collectionRemoveProducts', data.collectionRemoveProducts?.userErrors);
+    return data.collectionRemoveProducts?.job?.id ?? null;
   }
 
   /**

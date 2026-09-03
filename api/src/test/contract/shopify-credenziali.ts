@@ -58,6 +58,38 @@ export function caricaEnvApi(): void {
   }
 }
 
+/**
+ * ⛔ **LA PRIMA DELLE DUE CONDIZIONI PER SCRIVERE.** L'altra — `partnerDevelopment`
+ *    confermato da Shopify — la verifica il file di prova, che è l'unico a poter
+ *    interrogare il negozio.
+ *
+ * ⭐ **Sta sul TOKEN, non sulla singola scrittura**, ed è deliberato: senza
+ *    credenziali non parte nemmeno una lettura, quindi non esiste un percorso
+ *    che arrivi a una mutation aggirando il consenso. Metterla davanti a ogni
+ *    `client.qualcosa(...)` avrebbe lasciato la porta aperta alla prossima
+ *    chiamata che qualcuno dimentica di avvolgere.
+ *
+ * ⚠️ **Perché un flag, se lo script è già dedicato.** Lo script protegge da chi
+ *    non sa; il flag protegge da chi sa e sbaglia negozio. Un domani questo
+ *    comando potrebbe finire in un file di automazione, in un alias, o essere
+ *    lanciato con un `.env` di produzione aperto per un'altra ragione: lì la
+ *    variabile è l'unica cosa che resta a dire «sì, so che questo SCRIVE».
+ */
+export const VARIABILE_CONSENSO = 'SHOPIFY_CONTRACT_TEST';
+
+export function assertGateAbilitato(): void {
+  if (process.env[VARIABILE_CONSENSO] !== '1') {
+    throw new Error(
+      `${VARIABILE_CONSENSO} non vale «1»: il gate di contratto non parte.\n` +
+        '  ⛔ Questo comando SCRIVE sul negozio Shopify collegato: crea un\n' +
+        '     prodotto, tocca opzioni, varianti, giacenze e collezioni.\n' +
+        `  Per eseguirlo:  ${VARIABILE_CONSENSO}=1 npm run test:shopify:contract\n` +
+        '  La seconda condizione la verifica il negozio stesso: senza\n' +
+        '  «partnerDevelopment: true» il gate si ferma prima di scrivere.',
+    );
+  }
+}
+
 export interface CredenzialiShop {
   readonly shopDomain: string;
   readonly accessToken: string;
@@ -82,6 +114,9 @@ export function configDaAmbiente(): ConfigService {
  *    che si crede. Il dominio si dichiara, o il gate non parte.
  */
 export async function credenzialiShop(): Promise<CredenzialiShop> {
+  // ⛔ Prima di tutto: senza consenso esplicito non si ottiene nemmeno il token.
+  assertGateAbilitato();
+
   const shopDomain = process.env['VESTIFLOW_SHOPIFY_CONTRACT_SHOP'];
   if (!shopDomain) {
     throw new Error(

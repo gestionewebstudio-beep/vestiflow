@@ -6,7 +6,8 @@ import { defineConfig } from 'vitest/config';
  * di integrazione — non un secondo strumento: stesso framework, perimetro suo.
  *
  * ```
- * VESTIFLOW_SHOPIFY_CONTRACT_SHOP=xxx.myshopify.com  npm run test:shopify:contract
+ * SHOPIFY_CONTRACT_TEST=1 VESTIFLOW_SHOPIFY_CONTRACT_SHOP=xxx.myshopify.com \
+ *   npm run test:shopify:contract
  * ```
  *
  * ⛔ **Il suffisso `.contract-spec.ts` sta FUORI da entrambe le suite ordinarie:**
