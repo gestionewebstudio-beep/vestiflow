@@ -71,22 +71,30 @@ Il codice esistente è un dato da censire, non una prova della regola corretta.
 
 ⛔ **Questi punti erano scritti come requisiti approvati e non lo sono.** Finché non vengono decisi, restano proposte o domande: **non si implementano**, e nessuna tranche può passarci sopra dichiarandoli acquisiti.
 
-| Punto                                                                                | Dove           | Perché è aperto                                                                                                                                                 |
-| ------------------------------------------------------------------------------------ | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| comportamento del **prodotto quando tutte le varianti sono non attive**              | §3.4           | il prodotto sparisce, resta guscio, o si deriva? Nessuna delle tre è stata scelta                                                                               |
-| **conseguenza remota dell'eliminazione dell'ultima variante** Shopify                | §11.3          | Shopify non ammette un prodotto a zero varianti: cosa si fa non è deciso                                                                                        |
-| **proprietà di nome, descrizione, brand e prezzo Shopify**                           | §9.2           | la matrice esiste ma è una proposta, non una decisione                                                                                                          |
-| **esatto contratto degli snapshot** e necessità delle **chiavi storiche** aggiuntive | §5.2, §5.3     | quali colonne servano davvero, e se le chiavi storiche siano necessarie, non è stabilito                                                                        |
-| **contenuto tecnico del preflight**                                                  | §14.1          | i quattro requisiti funzionali sono decisi; hash, token, scadenze e idempotenza no                                                                              |
-| struttura dell'**outbox**, lock e worker                                             | §8.4           | forma tecnica ipotizzata                                                                                                                                        |
-| **wizard di prima sincronizzazione**                                                 | §12            | i nove passi sono una proposta, non un flusso approvato                                                                                                         |
-| **politica delle publication per canale**                                            | §10.1          | quali canali, con quale regola                                                                                                                                  |
-| casi di **conversione semplice ⇄ varianti**                                          | §8.6.2, §8.6.3 | il comportamento remoto non è deciso                                                                                                                            |
-| comportamento in caso di **errore durante la cancellazione remota**                  | §11.5          | cosa resta locale, cosa si ritenta, cosa si dichiara                                                                                                            |
-| **etichetta dello stato variante**                                                   | §3.3, §10.2    | nessuna scelta, e nessuna scartata. §3.3 porta una proposta consigliata — «Attiva/Non attiva» in locale, «Pubblicata/Non pubblicata» su Shopify — da confermare |
-| variante **già salvata o sincronizzata ma priva di dipendenze**                      | §4.3, §7.4     | se i suoi identificativi si liberino, e chi possa eliminarla                                                                                                    |
+| Punto                                                                                | Dove       | Perché è aperto                                                                          |
+| ------------------------------------------------------------------------------------ | ---------- | ---------------------------------------------------------------------------------------- |
+| **esatto contratto degli snapshot** e necessità delle **chiavi storiche** aggiuntive | §5.2, §5.3 | quali colonne servano davvero, e se le chiavi storiche siano necessarie, non è stabilito |
+| **contenuto tecnico del preflight**                                                  | §14.1      | i quattro requisiti funzionali sono decisi; hash, token, scadenze e idempotenza no       |
+| struttura dell'**outbox**, lock e worker                                             | §8.4       | forma tecnica ipotizzata                                                                 |
+| **wizard di prima sincronizzazione**                                                 | §12        | i nove passi sono una proposta, non un flusso approvato                                  |
+| **politica delle publication per canale**                                            | §10.1      | quali canali, con quale regola                                                           |
 
 ⭐ **Un punto aperto non diventa chiuso perché una tranche lo attraversa.** Se un lavoro incontra una di queste voci, si ferma e la si decide.
+
+### ✅ Voci CHIUSE il 03/09/2026
+
+Tolte dalla tabella perché **decise**, non perché attraversate. Restano elencate qui: chi le cercava deve trovare dove sono finite, non il silenzio.
+
+| Voce che era aperta                                           | Dove è decisa ora | Che cosa dice                                                                                       |
+| ------------------------------------------------------------- | ----------------- | --------------------------------------------------------------------------------------------------- |
+| proprietà di **nome, descrizione, brand e prezzo Shopify**    | **§9.2**          | la matrice non è più «iniziale»: è la matrice **canonica**, e vale per ogni campo                   |
+| conseguenza remota dell'eliminazione dell'**ultima variante** | §11.1, §11.3      | la domanda si **dissolve**: VestiFlow non cancella su Shopify, quindi non si arriva a zero varianti |
+| errore durante il **ritiro remoto**                           | §11.5             | l'eliminazione locale non si completa, l'elemento resta nel cestino, l'operatore è avvisato         |
+| **etichetta dello stato variante**                            | §3.3, §3.7        | «Attiva / Non attiva» in locale, «Pubblicata / Non pubblicata» su Shopify; «Fuori uso» scartata     |
+| prodotto con **tutte le varianti non attive**                 | §3.4              | resta locale e sincronizzato; Shopify passa in bozza, senza ripubblicazione automatica              |
+| identificativi di un elemento **senza storia**                | §4.3, §7.4        | restano riservati nel cestino e si liberano solo con l'eliminazione definitiva                      |
+| conversione **semplice ⇄ varianti**                           | §8.6.2, §8.6.3    | nessuna fusione: l'operatore sceglie la variante che conserva identità, giacenza e mapping          |
+| politica di vendita oltre disponibilità                       | §10.4             | dato Shopify bidirezionale, indipendente da stato, pubblicazione e quantità                         |
 
 ---
 
@@ -94,28 +102,39 @@ Il codice esistente è un dato da censire, non una prova della regola corretta.
 
 ⛔ Il capitolo si intitolava **«Decisioni non negoziabili»**, e non tutte lo erano: due delle sette sottosezioni sono proposte tecniche di chi ha scritto il documento. Il titolo dava a tutte lo stesso peso.
 
-### 1.1 Eliminare l'anagrafica non elimina la storia
+### 1.1 Cestino ed eliminazione definitiva sono due operazioni diverse
 
 > ✅ **Decisione confermata**
 
-> Eliminare un prodotto o una variante significa rimuoverlo dall'anagrafica operativa e, se collegato, dal catalogo Shopify. Non significa eliminare o modificare la storia aziendale.
+> **Spostare nel cestino** è reversibile e conserva tutto. **Eliminare definitivamente** è
+> irreversibile e rimuove l'anagrafica e le sue dipendenze operative, dopo un doppio avviso.
 
-Dopo l'eliminazione:
+Nel **cestino**:
 
-- documenti e righe documento restano presenti e leggibili;
-- movimenti restano presenti e invariati;
-- prezzi, sconti, IVA, costi, quantità e totali storici non vengono ricalcolati;
-- giacenze, impegni, lotti e matricole non vengono cancellati né rettificati automaticamente;
+- prodotto o variante spariscono dall'anagrafica ordinaria e dalle nuove selezioni;
+- documenti, movimenti, giacenze, impegni, lotti, matricole e collegamenti restano invariati;
 - non viene creato alcun movimento automatico;
-- report e analisi continuano a includere gli stessi fatti;
-- il record eliminato non compare nelle normali ricerche per nuove operazioni;
-- le viste che rappresentano una realtà ancora esistente lo mostrano con l'etichetta `Eliminato`.
+- il record può essere ripristinato.
 
-### 1.2 Nessuna dipendenza blocca l'eliminazione
+Con **Elimina definitivamente**:
+
+- vengono rimossi il record anagrafico e le dipendenze operative collegate: livelli di
+  inventario, movimenti, impegni, lotti, matricole, collegamenti fornitore e dati di canale;
+- eliminando un prodotto vengono eliminate definitivamente anche le sue varianti;
+- le righe dei documenti restano presenti e leggibili attraverso i propri snapshot, ma non
+  conservano un collegamento vivo all'anagrafica eliminata;
+- i documenti non vengono riscritti e i loro importi non vengono ricalcolati;
+- analisi o ricostruzioni fondate sui movimenti eliminati possono cambiare o non essere più
+  disponibili: il secondo avviso deve dichiararlo esplicitamente;
+- l'operazione non genera rettifiche, scarichi o altri movimenti automatici.
+
+### 1.2 Le dipendenze avvisano, non bloccano
 
 > ✅ **Decisione confermata**
 
-Documenti, movimenti, giacenze, impegni, lotti, matricole e collegamenti a canali producono avvisi, non divieti.
+Documenti, movimenti, giacenze, impegni, lotti, matricole e collegamenti a canali producono
+avvisi, non divieti. Nel cestino vengono conservati; nell'eliminazione definitiva vengono
+eliminati secondo §1.1, salvo le righe documento che restano come fotografie autonome.
 
 L'operatore autorizzato può confermare l'eliminazione anche con:
 
@@ -127,13 +146,15 @@ L'operatore autorizzato può confermare l'eliminazione anche con:
 - pubblicazioni attive su Shopify;
 - errori di sincronizzazione già presenti.
 
-Il sistema deve mostrare quantità e conseguenze reali prima della conferma. Un messaggio generico come «ci sono dipendenze» non è sufficiente.
+Il sistema deve mostrare quantità e conseguenze reali prima della conferma. Un messaggio
+generico come «ci sono dipendenze» non è sufficiente. La presenza di conseguenze attiva il
+doppio avviso, ma non disabilita il comando amministrativo.
 
 ### 1.3 Nessun effetto inventariale nascosto
 
 > ✅ **Decisione confermata**
 
-L'eliminazione non può:
+Lo stato Non attivo e lo spostamento nel cestino non possono:
 
 - azzerare una `InventoryLevel`;
 - cancellare una `InventoryLevel` tramite `CASCADE`;
@@ -142,15 +163,20 @@ L'eliminazione non può:
 - creare una rettifica, uno scarico, un trasferimento o uno storno;
 - riscrivere un movimento esistente.
 
-Ogni variazione fisica continua a richiedere un'azione inventariale esplicita che produca il proprio movimento.
+L'eliminazione definitiva può cancellare i dati inventariali elencati nel preflight, ma non
+deve fingere che sia avvenuto un evento fisico: non crea movimenti compensativi e non rettifica
+le quantità prima di rimuoverle. Ogni variazione fisica ordinaria continua a richiedere
+un'azione inventariale esplicita che produca il proprio movimento.
 
 ### 1.4 Stato locale non attivo ed eliminato sono diversi
 
 > ✅ **Decisione confermata**
 
-- **Lo stato locale non attivo** è reversibile e mantiene l'anagrafica completa.
-- **Eliminato** sparisce dall'uso ordinario, ma mantiene una rappresentazione storica interna sufficiente a preservare collegamenti e analisi.
-- **Eliminazione dello storico** non fa parte dell'eliminazione ordinaria e non viene progettata in questo lavoro.
+- **Lo stato locale Non attivo** è reversibile e mantiene l'anagrafica completa.
+- **Nel cestino** è reversibile, sparisce dall'uso ordinario e conserva anagrafica e dipendenze.
+- **Eliminato definitivamente** non è ripristinabile: elimina anagrafica e dipendenze
+  operative; restano soltanto le fotografie già persistite nelle righe documento e il minimo
+  registro tecnico necessario a impedire una reimportazione Shopify involontaria.
 
 ### 1.5 Shopify non definisce il significato dello stato locale
 
@@ -206,8 +232,8 @@ VestiFlow. Spento: il prodotto Shopify va in `ARCHIVED`, la singola variante vie
 publication, nessuna quantità fittizia a zero; **si fermano tutti i flussi, inventario compreso**.
 Riacceso: riallineamento completo. Mapping e ID Shopify restano sempre conservati.
 
-⛔ Oggi spegnerlo lascia il prodotto in vendita e **le giacenze continuano a partire**
-(`shopify-inventory-push.service` non legge il flag): da correggere **prima** del cestino.
+✅ Lo spegnimento viene atteso: se Shopify non conferma l'archiviazione, il flag torna acceso,
+l'inventario continua a sincronizzarsi e l'operatore riceve immediatamente lo stato effettivo.
 
 **Cestino**: separato da `ProductStatus` — `archived` resta «non attivo», non «eliminato».
 Ripristinabile. Spostare nel cestino toglie dalla vendita Shopify ma non cancella;
@@ -222,7 +248,11 @@ ripristino le varianti conservano lo stato precedente.
 offline in **Bozza**; la variante torna Non attiva e Non pubblicata; mapping e ID conservati;
 **nessun elemento torna automaticamente in vendita**.
 
-**Elimina definitivamente**: doppio avviso; cancella anche su Shopify se esiste il collegamento.
+**Elimina definitivamente**: doppio avviso. ⛔ Qui c'era «cancella anche su Shopify se esiste
+il collegamento», ed è **superato da §11.1**: su Shopify il prodotto viene **archiviato**, non
+cancellato, e l'eliminazione locale si completa solo dopo la conferma che non sia più
+acquistabile (§11.5). In locale vengono poi eliminate anagrafica e dipendenze operative come
+stabilito in §1.1 e §4.2.
 
 **Tenant senza Shopify**: checkbox, banner e blocchi del canale sono assenti.
 
@@ -232,10 +262,15 @@ stato Shopify (Bozza / Attivo / Archiviato), varianti Shopify (Pubblica / Non pu
 Solo azioni decise: nessun «altro».
 
 **Prodotti importati da Shopify** (decisione dell'08/08 riconfermata): sono modificabili —
-l'origine è provenienza, non sola lettura. Anagrafica, immagini, SKU e barcode sono
-bidirezionali e vince l'ultima modifica; le quantità sono solo VestiFlow → Shopify; il
-salvataggio avvia subito la sincronizzazione; un errore Shopify non annulla il salvataggio
-locale ma lascia uno stato visibile. Il push passa da GraphQL (§1.6), non dal REST.
+l'origine è provenienza, non sola lettura. Il salvataggio avvia subito la sincronizzazione; un
+errore Shopify non annulla il salvataggio locale ma lascia uno stato visibile. Il push passa
+da GraphQL (§1.6), non dal REST.
+
+⛔ **Qui c'era la direzione dei campi** — «anagrafica, immagini, SKU e barcode sono
+bidirezionali e vince l'ultima modifica; le quantità sono solo VestiFlow → Shopify». Era una
+seconda scrittura della stessa regola, e **divergeva**: la descrizione è solo VestiFlow →
+Shopify, di immagini se ne sincronizza **una sola**, e §1.9 ha dovuto correggere il nome per
+conto proprio. ⭐ **La direzione di ogni campo sta in §9.2, e in nessun altro posto.**
 
 ### 1.9 Il nome interno e il «Nome Shopify» sono DUE campi — deciso il 03/09/2026
 
@@ -307,8 +342,11 @@ due campi invece di uno.
 ⏸ **Come azione massiva** («Copia nome VestiFlow» su una selezione) è **registrata, non
 implementata**: entra col menu delle azioni massive di §1.8.
 
-⚠️ **Questa decisione corregge la bidirezionalità di §1.8 SOLO per il nome.** Descrizione,
-immagini, SKU, barcode e prezzi restano come sono.
+⭐ **La direzione di ogni altro campo sta nella matrice canonica di §9.2**, che ha assorbito
+anche la riga di §1.8 da cui questa decisione doveva difendersi. ⛔ Qui c'era «corregge la
+bidirezionalità di §1.8 SOLO per il nome: descrizione, immagini, SKU, barcode e prezzi restano
+come sono» — una frase che rimandava a una regola nel frattempo rivista, e che avrebbe
+continuato a dire il contrario di §9.2.
 
 #### ⛔ Finché il ramo non è in produzione, l'eco riscrive il nome interno
 
@@ -463,7 +501,9 @@ Il movimento conserva oggi lo SKU e i costi, ma dipende ancora dalla relazione o
 
 ⚠️ **Il difetto del prezzo corrente appartiene al VECCHIO export dai movimenti, non al Registro.** `inventory-export.service.ts` legge `variant.sellingPriceMinor`; il modulo canonico `api/src/corrispettivi` non lo fa e non ha mai letto le righe prodotto — somma i **totali finali persistiti** dalle sue cinque fonti. Confonderli porterebbe a «correggere» un modulo che è già conforme (§2.6).
 
-Conseguenza: una cancellazione fisica o un semplice scollegamento renderebbero parte dello storico non identificabile o economicamente variabile.
+Conseguenza: il cestino o un semplice scollegamento non devono cambiare lo storico. Una
+cancellazione definitiva può invece rimuovere movimenti e analisi collegate, ma le righe dei
+documenti devono restare identificabili ed economicamente stabili attraverso i propri snapshot.
 
 ### 2.4 Filtri per stato
 
@@ -550,12 +590,12 @@ Il vecchio percorso **non esiste più**. Sono spariti:
 
 > ✅ **Decisione confermata**
 
-| Asse                  | Esempi                               | Domanda a cui risponde                                  |
-| --------------------- | ------------------------------------ | ------------------------------------------------------- |
-| Ciclo di vita locale  | in uso, non attivo, eliminato        | l'anagrafica è utilizzabile in VestiFlow?               |
-| Pubblicazione Shopify | pubblicato/non pubblicato per canale | il cliente può vederla in quel canale?                  |
-| Inventario            | giacenza, impegnata, disponibile     | quanta merce fisica o assegnata esiste?                 |
-| Sincronizzazione      | allineato, in attesa, errore         | l'ultima intenzione locale è stata applicata al canale? |
+| Asse                  | Esempi                                                     | Domanda a cui risponde                                          |
+| --------------------- | ---------------------------------------------------------- | --------------------------------------------------------------- |
+| Ciclo di vita locale  | attivo, non attivo, nel cestino, eliminato definitivamente | l'anagrafica è utilizzabile o ancora recuperabile in VestiFlow? |
+| Pubblicazione Shopify | pubblicato/non pubblicato per canale                       | il cliente può vederla in quel canale?                          |
+| Inventario            | giacenza, impegnata, disponibile                           | quanta merce fisica o assegnata esiste?                         |
+| Sincronizzazione      | allineato, in attesa, errore                               | l'ultima intenzione locale è stata applicata al canale?         |
 
 È vietato usare:
 
@@ -575,7 +615,7 @@ La colonna esistente `Product.status` mantiene i significati:
 - `active`: prodotto in uso;
 - `archived`: prodotto non attivo.
 
-Si aggiungono almeno:
+🔧 Una possibile forma tecnica, ancora da verificare, aggiunge:
 
 - `deletedAt` nullabile;
 - `deletedById` nullabile;
@@ -583,34 +623,37 @@ Si aggiungono almeno:
 - `deletionOperationId` nullabile;
 - dati di audit della conferma.
 
-`deletedAt != null` significa eliminato. Non aggiungere contemporaneamente un valore `deleted` all'enum: due fonti per lo stesso fatto produrrebbero stati impossibili.
+Se questa forma tecnica verrà adottata, `deletedAt != null` significa **nel cestino**, non
+«eliminato definitivamente»: dopo la purga il record non esiste più. Non aggiungere
+contemporaneamente un valore `deleted` all'enum, perché creerebbe due fonti per lo stesso fatto.
 
 ### 3.3 Stato variante
 
-> ❓ **Decisione da prendere**
+> ✅ **Decisione confermata** (03/09/2026)
 
-✅ **Confermato**: la variante ha uno **stato locale proprio, indipendente da Shopify**. Non lo si deduce dal canale, e non lo si rappresenta con la quantità o con `inventoryPolicy`.
+La variante ha uno **stato locale proprio, indipendente da Shopify**. Non lo si deduce dal canale, e non lo si rappresenta con la quantità o con `inventoryPolicy`.
 
-❓ **Da decidere: come si chiama.** Il documento proponeva l'enum `active` / `out_of_use`, e con esso l'etichetta «Fuori uso» in tutta l'interfaccia. **Nessuna terminologia è stata scelta**: la differenza non è cosmetica — è la parola che l'operatore leggerà ovunque e cercherà nella guida.
+#### Le etichette
 
-#### 🔧 Proposta consigliata, da confermare
-
-| Asse              | Etichetta proposta              |
+| Asse              | Etichetta                       |
 | ----------------- | ------------------------------- |
 | **stato locale**  | «Attiva» / «Non attiva»         |
 | **stato Shopify** | «Pubblicata» / «Non pubblicata» |
 
 **Perché questa coppia.** Un tenant che non usa Shopify deve comunque capire lo stato locale, e «pubblicare» lì non significa niente. E una variante **localmente attiva può essere non pubblicata** sul canale: sono due assi indipendenti (§1.5), quindi due parole diverse.
 
-⚠️ **È una proposta di chi scrive, non una decisione del proprietario**, e nemmeno un'esclusione: nessuna delle candidate è stata scartata. Vale finché lui non conferma.
+⛔ **Qui la coppia era una «proposta consigliata, da confermare»**, e l'enum alternativo era `active` / `out_of_use` con l'etichetta «Fuori uso». La proposta è stata **confermata** dal proprietario il 03/09/2026 insieme all'elenco completo degli stati (§3.7); «Fuori uso» è scartata.
 
-⚠️ Nel testo funzionale di questo documento si usa intanto la forma neutra **«stato locale non attivo»**: è una descrizione, non un'etichetta UI.
+⭐ **L'elenco completo, e quali stati non vanno confusi fra loro, sta in §3.7.**
 
-🔧 **Proposta tecnica, da verificare**: colonne `deletedAt`, `deletedById`, `deletionReason`, `deletionOperationId`, tutte nullabili, con `deletedAt != null` come unica fonte della cancellazione. La forma è ipotizzata; la regola «una sola fonte per la cancellazione» è invece confermata (§4.1).
+🔧 **Proposta tecnica, da verificare**: colonne `deletedAt`, `deletedById`, `deletionReason`,
+`deletionOperationId`, tutte nullabili, con `deletedAt != null` come unica fonte dello stato
+**nel cestino**. La forma è ipotizzata; la separazione fra stato locale, cestino e purga
+definitiva è invece confermata (§4.1).
 
 ### 3.4 Stato effettivo derivato
 
-> ❓ **Decisione da prendere**
+> ✅ **Decisione confermata**
 
 Una variante è selezionabile in un nuovo documento commerciale solo se:
 
@@ -621,7 +664,15 @@ AND product.status = active
 AND variant.lifecycleStatus = active
 ```
 
-Il prodotto con tutte le varianti non attive o eliminate mostra lo stato derivato `Nessuna variante attiva`. Non deve essere trasformato automaticamente in `archived`: l'automatismo riscriverebbe una decisione dell'operatore. L'interfaccia propone `(etichetta da decidere)` — portare il prodotto allo stato non attivo, ma non la esegue da sola.
+Quando tutte le varianti sono Non attive o nel cestino:
+
+- il prodotto VestiFlow resta esistente e il suo stato locale non viene riscritto;
+- l'interruttore «Sincronizza con Shopify» resta acceso;
+- l'interfaccia mostra lo stato derivato **«Nessuna variante attiva»**;
+- il prodotto Shopify passa in **Bozza** e non è acquistabile;
+- non viene eliminato né archiviato definitivamente;
+- riattivare una variante non ripubblica automaticamente il prodotto: la pubblicazione resta
+  un'azione esplicita.
 
 ### 3.5 Articolo semplice e variante base
 
@@ -646,36 +697,73 @@ Quando il modulo Shopify è attivo:
 
 Per un tenant senza Shopify non cambia nulla: usa lo stesso prodotto e la stessa variante base, senza creare righe di mapping o stati di canale.
 
-La cancellazione dell'unica variante base segue la regola dell'ultima variante: l'operatore sceglie se eliminare il prodotto oppure portarlo allo stato locale non attivo. Se vuole mantenere il prodotto come articolo semplice, deve esistere una variante base reale a cui collegare dati e giacenze.
+Lo spostamento nel cestino o l'eliminazione definitiva dell'unica variante base **non elimina e
+non cambia automaticamente lo stato del prodotto**. Il prodotto resta esistente e mostra lo
+stato derivato «Nessuna variante attiva» (§3.4). Per tornare a usarlo come articolo semplice
+l'operatore deve ripristinare la variante base oppure crearne e scegliere esplicitamente una
+nuova. L'eventuale eliminazione del prodotto è un comando amministrativo distinto.
 
-### 3.6 Stato tecnico della cancellazione Shopify
+### 3.6 Stato tecnico del ritiro da Shopify
 
 > 🔧 **Proposta tecnica da verificare**
 
-La cancellazione remota è un processo, non un booleano. L'operazione conserva almeno:
+Il ritiro remoto — spubblicazione della variante o archiviazione del prodotto — è un processo,
+non un booleano. L'operazione conserva almeno:
 
 - `queued`;
 - `unpublishing`;
-- `deleting_remote`;
+- `archiving_remote`;
 - `verifying`;
 - `completed`;
 - `retryable_error`;
 - `permanent_error`;
 - `cancelled`.
 
+⛔ **Il passo si chiamava `deleting_remote`**, ed era il nome di un'operazione che VestiFlow non esegue: verso Shopify si **archivia** e si **spubblica**, mai si cancella (§11.1). Un nome di stato che afferma una cancellazione remota insegna a scriverla.
+
 Lo stato vive nella tabella delle operazioni/outbox, non nell'enum di ciclo di vita.
+
+### 3.7 Stati da NON confondere
+
+> ✅ **Decisione confermata** (03/09/2026)
+
+Questi otto stati appartengono ad **assi differenti** e **non sono sinonimi**. Usarne uno al
+posto di un altro è il modo in cui un'interfaccia mente senza sbagliare un dato.
+
+| Stato                                      | Asse (§3.1)          | Che cosa afferma                                                                                         |
+| ------------------------------------------ | -------------------- | -------------------------------------------------------------------------------------------------------- |
+| **Attiva in VestiFlow**                    | ciclo di vita locale | si può selezionare in un nuovo documento                                                                 |
+| **Non attiva in VestiFlow**                | ciclo di vita locale | non selezionabile, ma esistente e reversibile                                                            |
+| **Pubblicata su Shopify**                  | pubblicazione        | il cliente la vede sul canale                                                                            |
+| **Non pubblicata su Shopify**              | pubblicazione        | esiste su Shopify, ma non è acquistabile                                                                 |
+| **Non presente su Shopify**                | pubblicazione        | su Shopify non esiste più: eliminata di là (§11.7)                                                       |
+| **Nel cestino VestiFlow**                  | ciclo di vita locale | ritirata, ripristinabile, storia intatta                                                                 |
+| **Eliminata definitivamente da VestiFlow** | ciclo di vita locale | non ripristinabile; dipendenze operative eliminate, righe documento leggibili dai propri snapshot (§1.1) |
+| **Prodotto Shopify archiviato**            | pubblicazione        | il prodotto esiste su Shopify e non è acquistabile                                                       |
+
+⚠️ **Le tre confusioni che costano di più:**
+
+- **«Non pubblicata» ≠ «Non presente»**: la prima si annulla ripubblicando, la seconda no —
+  la variante remota non c'è più, e va ricreata o lasciata locale (§11.7);
+- **«Nel cestino» ≠ «Eliminata definitivamente»**: dal cestino si torna indietro, e §11.5
+  dice che finché Shopify non conferma l'elemento **resta** nel cestino;
+- **«Prodotto Shopify archiviato» ≠ «Eliminato da Shopify»**: archiviato significa presente
+  e non acquistabile, ed è **l'unico esito** che un'azione di VestiFlow produce (§11.1). È
+  anche il motivo per cui serve §11.8: archiviato, il prodotto è ancora là da ripescare.
 
 ---
 
-## 4. Strategia di persistenza: eliminazione logica con identità storica
+## 4. Strategia di persistenza: cestino reversibile ed eliminazione definitiva
 
-### 4.1 Scelta
+### 4.1 Cestino
 
 > ✅ **Decisione confermata**
 
-L'eliminazione ordinaria è una cancellazione logica.
+Il primo livello di eliminazione è il **cestino**, realizzato come cancellazione logica.
 
-Dal punto di vista dell'operatore il prodotto o la variante è eliminato: sparisce dall'anagrafica ordinaria e dalle nuove selezioni. Nel database resta una riga minima, marcata con `deletedAt`, per mantenere:
+Dal punto di vista dell'operatore il prodotto o la variante sparisce dall'anagrafica ordinaria
+e dalle nuove selezioni. Nel database resta il record completo, marcato come nel cestino, per
+mantenere:
 
 - relazioni ai documenti;
 - relazioni ai movimenti;
@@ -684,45 +772,60 @@ Dal punto di vista dell'operatore il prodotto o la variante è eliminato: sparis
 - raggruppamenti storici;
 - audit e possibilità di ripristino.
 
-Questa non è una semplice archiviazione: il record eliminato è escluso dall'uso ordinario e segue il flusso di cancellazione remota. La permanenza tecnica serve soltanto a rispettare la storia.
+Il cestino è ripristinabile. Non modifica né elimina le dipendenze e non è sinonimo dello stato
+locale Non attivo.
 
-### 4.2 Divieti di database
+### 4.2 Eliminazione definitiva
 
 > ✅ **Decisione confermata**
 
-La migration deve impedire che l'eliminazione ordinaria invochi `DELETE` sulle righe `products` o `product_variants`.
+Dal cestino, un amministratore autorizzato può scegliere **Elimina definitivamente**. È una
+purga fisica, irreversibile e distinta dal cestino.
 
-Non devono essere attivati per questa funzione:
+L'operazione:
 
-- `CASCADE` da prodotto a varianti;
-- `CASCADE` da variante a livelli inventariali;
-- `SET NULL` generalizzato come sostituto degli snapshot;
-- cancellazioni manuali di dipendenze prima della marcatura.
+- richiede un primo avviso riepilogativo e un secondo avviso esplicito di irreversibilità;
+- ricalcola sul server le conseguenze immediatamente prima dell'esecuzione;
+- elimina prodotto o variante e le dipendenze operative indicate in §1.1;
+- se elimina il prodotto, comprende tutte le sue varianti;
+- lascia le righe documento come snapshot testuali e scollega il riferimento vivo quando
+  necessario;
+- non crea movimenti di rettifica o compensazione;
+- conserva soltanto l'audit minimo dell'operazione e gli identificativi storici che non possono
+  essere riutilizzati.
 
-Una futura funzione di purga fisica, se mai verrà richiesta, avrà specifica, permesso e backup separati.
+La forma tecnica — cancellazioni esplicite o vincoli referenziali mirati — deve essere provata
+sullo schema reale. Non è ammesso affidarsi a un `CASCADE` generico senza aver enumerato e
+mostrato nel preflight tutte le righe che verranno rimosse.
 
 ### 4.3 Unicità dopo la cancellazione
 
 #### ✅ Decisione confermata
 
-|                                           |                                                                      |
-| ----------------------------------------- | -------------------------------------------------------------------- |
-| identificativo presente nello **storico** | ⛔ **non è riutilizzabile**. Vale per codice articolo, SKU e barcode |
-| forzatura amministrativa                  | ⛔ **non esiste**, e nessun permesso può concederla                  |
-| se l'operatore prova a riusarlo           | il sistema mostra il record eliminato e **propone il ripristino**    |
-| variante **mai salvata**                  | ✅ non riserva nulla: quegli identificativi restano liberi           |
+|                                                                |                                                                      |
+| -------------------------------------------------------------- | -------------------------------------------------------------------- |
+| identificativo presente nello **storico**                      | ⛔ **non è riutilizzabile**. Vale per codice articolo, SKU e barcode |
+| forzatura amministrativa                                       | ⛔ **non esiste**, e nessun permesso può concederla                  |
+| se appartiene a un record **nel cestino**                      | il sistema mostra il record e **propone il ripristino**              |
+| se appartiene a un record definitivamente eliminato con storia | il sistema spiega perché non può essere riutilizzato                 |
+| variante **mai salvata**                                       | ✅ non riserva nulla: quegli identificativi restano liberi           |
+| elemento **nel cestino**                                       | ⛔ continua a riservare gli identificativi: può essere ripristinato  |
+| elemento eliminato definitivamente **senza storia**            | ✅ gli identificativi tornano disponibili                            |
 
 ⛔ **Qui c'era un residuo del riuso forzato**, sopravvissuto alla prima correzione: _«un permesso amministrativo potrà forzare il riuso solo dopo conferma, mantenendo identità storiche distinte»_. È eliminato. La clausola «dopo conferma» non lo rendeva accettabile: una regola d'integrità che un permesso può scavalcare non è una regola, e «identità storiche distinte» descriveva il modo di aggirarla, non una garanzia.
 
 ⭐ E il «non **automaticamente**» delle vecchie righe era la stessa apertura, scritta più piano: lasciava intendere che esistesse una via non automatica. Non esiste.
 
-#### ❓ Decisione ancora aperta
-
-Il trattamento degli identificativi di una variante **salvata o sincronizzata, ma mai entrata nello storico** — nessun documento, nessun movimento, nessuna dipendenza. Se si liberino o restino riservati non è deciso: vedi §0-bis.
+Una variante salvata o sincronizzata ma mai entrata in documenti, movimenti o altro storico
+segue la stessa regola: nel cestino conserva gli identificativi; dopo l'eliminazione definitiva
+li libera. La cancellazione resta un comando amministrativo.
 
 #### 🔧 Proposta tecnica da verificare
 
-Gli indici unici esistenti non vanno semplicemente rimossi. Se si introduce unicità parziale sui non eliminati, serve comunque un controllo applicativo che intercetti il record storico e impedisca ambiguità silenziose.
+Gli indici unici esistenti non vanno semplicemente rimossi. Se si introduce unicità parziale
+sui non eliminati, serve comunque un controllo applicativo che distingua il record nel cestino,
+l'identificativo storico non riutilizzabile e quello realmente liberato dall'eliminazione
+definitiva.
 
 ---
 
@@ -736,11 +839,17 @@ Gli indici unici esistenti non vanno semplicemente rimossi. Se si introduce unic
 
 La disponibilità mostrata accanto a una riga può restare live. Nome, codice, variante, prezzo, IVA, costo e totali del fatto storico non lo sono.
 
-### 5.2 Snapshot minimo della riga documento
+### 5.2 Snapshot della riga documento
 
-> ❓ **Decisione da prendere**
+> ✅ **Decisione funzionale confermata** · 🔧 **contratto tecnico residuo da verificare**
 
-Ogni riga articolo deve persistere almeno:
+È confermato che la riga documento conserva la propria identità, i valori economici e fiscali
+e resta leggibile anche dopo l'eliminazione definitiva dell'anagrafica. Lo snapshot viene
+composto dal server; duplicazioni e conversioni lo ereditano dalla riga sorgente tramite un
+riferimento verificato, non tramite valori affidati al client. Un valore storico `null` resta
+`null` e non viene ricostruito dall'anagrafica corrente.
+
+Il contratto completo deve comprendere almeno:
 
 - `productId` e `variantId` quando disponibili, come collegamenti tecnici;
 - `productHistoricalKey` e `variantHistoricalKey` immutabili;
@@ -758,7 +867,14 @@ Ogni riga articolo deve persistere almeno:
 - costo unitario e modalità costo quando richiesti;
 - totali determinati.
 
-DTO, mapper, salvataggi, caricamenti, duplicazioni, conversioni, inclusioni e stampe devono trasportare lo stesso contratto. Non basta aggiungere colonne se un percorso non invia il valore al server.
+DTO, mapper, salvataggi, caricamenti, duplicazioni, conversioni, inclusioni e stampe devono
+trasportare lo stesso contratto. Non basta aggiungere colonne se un percorso non invia il valore
+al server.
+
+🔧 Resta da verificare se servano davvero chiavi storiche dedicate
+(`productHistoricalKey`/`variantHistoricalKey`) oltre agli snapshot già persistiti, e come
+coprire i percorsi ancora dichiarati incompleti. Questa scelta tecnica non rimette in discussione
+la regola funzionale sopra.
 
 ### 5.3 Snapshot minimo del movimento
 
@@ -842,20 +958,21 @@ La scomposizione per aliquota o natura esiste in un solo punto: la colonna «Det
 
 ## 6. Matrice di visibilità e selezionabilità
 
-| Contesto                                                  | In uso |              Non attiva |                                                      Eliminato |
-| --------------------------------------------------------- | -----: | ----------------------: | -------------------------------------------------------------: |
-| Nuovo preventivo/ordine/vendita/DDT/fattura               |     sì |                      no |                                                             no |
-| Ricerca commerciale per codice o scanner                  |     sì |                      no |                                                             no |
-| Nuovo ordine fornitore/arrivo destinato a riassortimento  |     sì | no, salvo riattivazione |                                                             no |
-| Trasferimento, rettifica, inventario, esaurimento residui |     sì |       sì, con etichetta |                 solo tramite vista residui o previo ripristino |
-| Documento storico salvato                                 |     sì |                      sì |                                                             sì |
-| Documento aperto già contenente la riga                   |     sì |                      sì |                                  sì; la riga non viene rimossa |
-| Situazione magazzino                                      |     sì |                      sì | sì quando esistono quantità o attività; etichetta obbligatoria |
-| Lotti, matricole, impegni                                 |     sì |                      sì |                                                             sì |
-| Movimenti                                                 |     sì |                      sì |                                                             sì |
-| Analisi e report storici                                  |     sì |                      sì |                                                             sì |
-| Stampa etichette storiche                                 |     sì |                      sì |                                                             sì |
-| Anagrafica ordinaria                                      |     sì |        filtro opzionale |                            no; visibile con `Mostra eliminati` |
+| Contesto                                                  | Attiva |              Non attiva |                                                  Nel cestino |                                Eliminata definitivamente |
+| --------------------------------------------------------- | -----: | ----------------------: | -----------------------------------------------------------: | -------------------------------------------------------: |
+| Nuovo preventivo/ordine/vendita/DDT/fattura               |     sì |                      no |                                                           no |                                                       no |
+| Ricerca commerciale per codice o scanner                  |     sì |                      no |                                                           no |                                                       no |
+| Nuovo ordine fornitore/arrivo destinato a riassortimento  |     sì | no, salvo riattivazione |                                                           no |                                                       no |
+| Trasferimento, rettifica, inventario, esaurimento residui |     sì |       sì, con etichetta | sì, solo nei contesti amministrativi o inventariali previsti |                                                       no |
+| Documento storico salvato                                 |     sì |                      sì |                                                           sì |                          sì, tramite snapshot della riga |
+| Documento aperto già contenente la riga                   |     sì |                      sì |                                                           sì |          sì, tramite snapshot; la riga non viene rimossa |
+| Situazione magazzino                                      |     sì |                      sì |                               sì, con badge e quantità reali |             no: i dati inventariali sono stati eliminati |
+| Lotti, matricole, impegni                                 |     sì |                      sì |                                                           sì |        no: sono stati eliminati col preflight definitivo |
+| Movimenti                                                 |     sì |                      sì |                                                           sì |        no: sono stati eliminati col preflight definitivo |
+| Analisi basate sui documenti e sui loro totali            |     sì |                      sì |                                                           sì |                  sì, se leggono gli snapshot documentali |
+| Analisi basate sui movimenti                              |     sì |                      sì |                                                           sì | possono cambiare: i movimenti eliminati non esistono più |
+| Stampa documenti storici                                  |     sì |                      sì |                                                           sì |                          sì, tramite snapshot della riga |
+| Anagrafica ordinaria                                      |     sì |        filtro opzionale |                                     no; visibile nel Cestino |                                                       no |
 
 ### 6.1 Regola per le query
 
@@ -899,19 +1016,17 @@ Esistono, come **capacità distinte**:
 
 |                                                          |                                                                                                                                              |
 | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| **eliminazione**                                         | di un prodotto o di una variante esistente. Comando amministrativo                                                                           |
-| **ripristino**                                           | di un record eliminato. Amministrativo                                                                                                       |
+| **spostamento nel cestino**                              | reversibile; di un prodotto o di una variante esistente. Comando amministrativo                                                              |
+| **ripristino**                                           | di un record nel cestino. Amministrativo                                                                                                     |
+| **eliminazione definitiva**                              | irreversibile; disponibile dal cestino con doppio avviso. Amministrativo                                                                     |
 | **stato locale reversibile**, distinto dall'eliminazione | portare una variante a non attiva, e riportarla in uso                                                                                       |
 | **rimozione di una riga non ancora salvata**             | durante la compilazione del form, da chi sta modificando l'articolo. ⭐ **Non è un'eliminazione anagrafica**: quella riga non è mai esistita |
 
 ⭐ Togliere una riga dal form o cambiare le opzioni **non equivale a eliminarla**. È la distinzione che regge tutto il capitolo.
 
-#### ❓ Non ancora confermati
-
-- le **etichette esatte** dei comandi — vedi §3.3 e §0-bis;
-- il comando UI **«Riprova sincronizzazione»**, che il documento elencava fra i comandi confermati: nessuno l'ha chiesto, e presuppone il modello di sospensione remota che è ancora aperto (§11.5);
-- il **flusso dettagliato per le combinazioni generate dalle opzioni**. Il documento prescriveva: «se una modifica delle opzioni rende alcune combinazioni obsolete, il sistema mostra un confronto e chiede quale azione applicare a ciascuna variante». È una proposta ragionevole, **non una decisione**;
-- **chi può eliminare** una variante già salvata o sincronizzata ma senza dipendenze.
+Le etichette funzionali sono **«Sposta nel cestino»**, **«Ripristina»** ed **«Elimina
+definitivamente»**. Il comando «Riprova sincronizzazione» e la forma dettagliata del confronto
+fra combinazioni restano proposte tecniche/UI, non prerequisiti per applicare le regole sopra.
 
 ### 7.2 Preflight di eliminazione
 
@@ -935,29 +1050,34 @@ Prima della conferma, il server calcola nello stesso tenant:
 
 La risposta contiene numeri, etichette e identificativi utili. Non esegue alcuna modifica.
 
-### 7.3 Conferma rafforzata ma non bloccante
+### 7.3 Conferme proporzionate e non bloccanti
 
 > ✅ **Decisione confermata**
 
-Se non esistono conseguenze, basta una conferma ordinaria.
+Per **Sposta nel cestino** basta una conferma ordinaria che spiega che l'elemento sparirà dalle
+nuove operazioni ma resterà ripristinabile.
 
-Se esistono conseguenze, la finestra mostra ad esempio:
+Per **Elimina definitivamente** sono sempre richiesti due passaggi. Il primo mostra le
+conseguenze calcolate dal server, ad esempio:
 
 ```text
-Stai eliminando: Maglia Aurora — XL / Rosso
+Stai eliminando definitivamente: Maglia Aurora — XL / Rosso
 
-Resteranno invariati:
-- 36 movimenti storici
-- 8 righe documento
-- giacenza: 12 pezzi in 2 sedi
+Verranno eliminati:
+- 36 movimenti
+- giacenze in 2 sedi: 12 pezzi complessivi
 - 3 impegni aperti
 - 2 lotti e 4 matricole
 
-La variante non sarà più selezionabile nelle nuove operazioni.
-Su Shopify verrà rimossa dai canali e poi eliminata.
+Resteranno leggibili come testo:
+- 8 righe documento
+
+Le analisi basate sui movimenti eliminati potranno cambiare.
+Su Shopify la variante resterà esistente ma non pubblicata.
 ```
 
-L'operatore deve spuntare una presa visione e confermare. Gli avvisi non disabilitano il pulsante.
+Il secondo passaggio dichiara che l'operazione è irreversibile e richiede una nuova conferma
+esplicita. Gli avvisi non disabilitano il pulsante all'amministratore autorizzato.
 
 ### 7.4 Permessi e audit
 
@@ -977,7 +1097,7 @@ Non codificare il ruolo direttamente nel servizio. Introdurre o riusare un perme
 | ----------------------------------------------------- | ---------------------------------------------------------- |
 | identificativo presente nello **storico**             | ⛔ **non riutilizzabile**, da nessuno, in nessun modo      |
 | variante **mai salvata**, tolta dal form              | ✅ non riserva nulla: quegli identificativi restano liberi |
-| variante **salvata o sincronizzata, ma senza storia** | ❓ **da decidere** — vedi §0-bis                           |
+| variante **salvata o sincronizzata, ma senza storia** | nel cestino riserva; dopo eliminazione definitiva libera   |
 
 Default per l'eliminazione: titolare/amministratore, configurabile col sistema permessi esistente.
 
@@ -997,17 +1117,19 @@ L'audit conserva:
 
 > ✅ **Decisione confermata**
 
-Il ripristino locale:
+Il ripristino locale è disponibile soltanto dal cestino e:
 
 - rimuove `deletedAt` e i metadati di cancellazione;
 - non crea, elimina o modifica movimenti;
 - non modifica documenti;
-- ripristina l'anagrafica nello stato `out_of_use` per evitare ripubblicazioni involontarie;
+- ripristina l'anagrafica nello stato **Non attiva** per evitare ripubblicazioni involontarie;
 - richiede un comando separato per rimettere in uso.
 
-Se Shopify non aveva ancora completato la cancellazione, l'operazione pendente viene annullata in modo idempotente.
+Se il ritiro da Shopify non era ancora completato, l'operazione pendente viene annullata senza
+duplicare effetti.
 
-Se Shopify aveva già eliminato la risorsa, il ripristino non può recuperare lo stesso ID remoto:
+Se la risorsa era stata eliminata direttamente su Shopify, il ripristino locale non può
+recuperare lo stesso ID remoto:
 
 - crea una nuova risorsa Shopify solo su comando esplicito;
 - salva il nuovo GID;
@@ -1028,7 +1150,7 @@ Motivi:
 
 - la pubblicazione indipendente delle varianti è disponibile da `2026-07`;
 - `ProductVariant` implementa `Publishable`;
-- `productVariantsBulkCreate`, `productVariantsBulkUpdate` e `productVariantsBulkDelete` sono le mutation dedicate;
+- `productVariantsBulkCreate` e `productVariantsBulkUpdate` sono le mutation dedicate (esiste anche `productVariantsBulkDelete`, che però VestiFlow **non usa** — §11.1);
 - `productSet` è previsto per sincronizzare cataloghi da una fonte esterna;
 - `inventorySetQuantities` in `2026-07` richiede protezioni di concorrenza e direttiva `@idempotent`;
 - le versioni stabili Shopify hanno supporto limitato e `2025-01` non deve restare dichiarata.
@@ -1155,10 +1277,15 @@ La tabella di mapping del connettore deve inoltre distinguere almeno:
 | Aggiornamento soli campi prodotto          | `productUpdate`                                                |
 | Creazione nuove varianti                   | `productVariantsBulkCreate`                                    |
 | Aggiornamento varianti esistenti           | `productVariantsBulkUpdate` con `allowPartialUpdates: false`   |
-| Eliminazione varianti                      | `productVariantsBulkDelete`                                    |
-| Eliminazione prodotto                      | `productDelete`                                                |
+| Ritiro di una variante                     | `publishableUnpublish` sul GID variante                        |
+| Ritiro di un prodotto                      | `productUpdate` con `status: ARCHIVED`                         |
 | Pubblicazione/spubblicazione per variante  | `publishablePublish` / `publishableUnpublish` sul GID variante |
 | Quantità assoluta autorevole               | `inventorySetQuantities` con `@idempotent`                     |
+
+⛔ **`productVariantsBulkDelete` e `productDelete` NON sono operazioni ammesse**, e le due
+righe che le elencavano sono state tolte: VestiFlow non cancella definitivamente su Shopify
+(§11.1). Restano nell'elenco delle fonti ufficiali sotto perché esistono nell'API, non perché
+le si usi.
 
 `productSet` ha semantica sostitutiva sui campi lista. Perciò:
 
@@ -1182,33 +1309,45 @@ Non si crea una seconda variante locale, non si ignora la standalone e non si us
 
 ### 8.6.2 Conversione da semplice a prodotto con varianti
 
-> ❓ **Decisione da prendere**
+> ✅ **Decisione confermata**
 
 La conversione è un comando strutturale esplicito, non l'effetto collaterale del salvataggio delle opzioni.
 
-Sono ammessi due casi:
+1. L'operatore sceglie esplicitamente quale nuova combinazione eredita la variante base.
+2. La variante base conserva identità locale, GID Shopify, giacenza e storico.
+3. La standalone Shopify esistente viene aggiornata per rappresentare la combinazione scelta:
+   non viene eliminata e non viene sostituita da una riga nuova.
+4. Le altre combinazioni vengono create come nuove varianti locali e Shopify.
+5. Nessuna combinazione viene scelta automaticamente per posizione, titolo o ordine di
+   generazione.
 
-**La variante base diventa una combinazione reale.** Il connettore conserva il GID esistente, aggiunge le opzioni con una strategia che mantiene la standalone, aggiorna quella variante con la prima combinazione confermata e crea le altre con `productVariantsBulkCreate`.
-
-**La variante base non corrisponde a nessuna nuova combinazione.** Il connettore crea l'intera matrice e usa la strategia Shopify `REMOVE_STANDALONE_VARIANT`. Prima di rimuovere la standalone deve aver acquisito e persistito i GID delle nuove varianti. Il mapping precedente diventa `retired`; la variante locale storica resta disponibile ai documenti e movimenti secondo il ciclo di vita deciso.
-
-La scelta fra i due casi viene mostrata nell'anteprima. Non si deduce dalla posizione o dal titolo.
+La conversione non prosegue finché l'operatore non ha indicato quale combinazione eredita la
+base. Non esiste il caso in cui la standalone venga rimossa automaticamente.
 
 ### 8.6.3 Conversione da varianti ad articolo semplice
 
-> ❓ **Decisione da prendere**
+> ✅ **Decisione confermata**
 
-Eliminare tutte le righe visibili non è una conversione valida. Il comando dedicato `Converti in articolo semplice` deve:
+Eliminare tutte le righe visibili non è una conversione valida. Il comando dedicato `Converti
+in articolo semplice` deve:
 
-1. scegliere o creare una variante base locale reale;
-2. mostrare cosa accade alle varianti precedenti;
-3. applicare stato non attivo o eliminazione locale secondo le conferme ricevute;
-4. inviare a Shopify una configurazione completa e intenzionale con una sola variante;
-5. acquisire il GID della variante risultante;
-6. mapparla alla variante base locale;
-7. verificare `hasOnlyDefaultVariant` e l'assenza di varianti remote orfane.
+1. richiedere che resti una sola variante locale attiva;
+2. far scegliere esplicitamente all'operatore quale variante diventa la variante base;
+3. conservare su quella variante identità, GID Shopify, giacenza e storico;
+4. non sommare o trasferire quantità, movimenti o identità delle altre varianti;
+5. portare le altre varianti allo stato Non attiva o nel cestino secondo la scelta esplicita
+   dell'operatore;
+6. lasciare le corrispondenti varianti Shopify esistenti ma non pubblicate;
+7. mantenere il mapping della variante scelta e renderla l'unica variante acquistabile;
+8. verificare che nessuna altra variante remota sia acquistabile.
 
-La sequenza GraphQL esatta deve essere provata contro uno shop di sviluppo sulla versione stabile `2026-07`. È vietato basarla su un esempio disponibile soltanto nello schema `unstable`.
+Poiché VestiFlow non cancella varianti su Shopify, la conversione locale a semplice **non
+promette** che Shopify esponga tecnicamente `hasOnlyDefaultVariant = true`: le vecchie varianti
+possono restare presenti ma non pubblicate. VestiFlow tratta l'articolo come semplice perché
+una sola variante locale e remota è operativa, non perché abbia distrutto le altre sul canale.
+
+La sequenza GraphQL esatta deve essere provata contro uno shop di sviluppo sulla versione
+stabile scelta. È vietato basarla su un esempio disponibile soltanto nello schema `unstable`.
 
 Se la verifica fallisce, il prodotto viene messo in stato di riconciliazione e non viene dichiarato allineato.
 
@@ -1220,8 +1359,8 @@ La migrazione comprende, senza rinvio:
 
 - creazione prodotto REST → GraphQL;
 - aggiornamento prodotto REST con varianti annidate → mutation GraphQL per intenzione;
-- eliminazione prodotto REST → `productDelete`;
-- creazione/aggiornamento/eliminazione variante → mutation bulk dedicate;
+- ritiro prodotto REST → `productUpdate` con `status: ARCHIVED` (⛔ **non** `productDelete`, §11.1);
+- creazione/aggiornamento variante → mutation bulk dedicate; il ritiro passa da `publishableUnpublish`;
 - push inventario `/inventory_levels/set.json` → `inventorySetQuantities`;
 - letture di verifica necessarie al push → query GraphQL;
 - parsing ID e persistenza GID;
@@ -1245,38 +1384,181 @@ Le eventuali letture REST residue devono essere in allowlist nominata con ticket
 
 ---
 
-## 9. Proprietà dei dati in regime ordinario
+## 9. Proprietà e direzione dei campi — MATRICE CANONICA
 
-### 9.1 Regola
+> ✅ **Decisione confermata** (03/09/2026)
 
-> ✅ **Decisione confermata**
+⭐ **Questo capitolo è l'UNICO posto in cui la direzione di un campo è decisa.** Ogni altro
+punto di questo documento, e ogni altro documento del progetto, vi **rimanda** invece di
+ripetere la regola.
 
-Per ogni campo esiste una politica dichiarata. Un webhook o un comando manuale non può scrivere campi fuori dalla propria allowlist.
+⛔ **Non è pedanteria: è già successo.** §1.8 dichiarava «anagrafica, immagini, SKU e barcode
+bidirezionali», §1.9 ha dovuto correggerla per il solo nome, e nessuna delle due si accorgeva
+dell'altra. Una direzione scritta in due punti diverge al primo cambiamento, e il lettore non
+ha modo di sapere quale delle due vale.
 
-### 9.2 Matrice iniziale
+### 9.1 Le tre regole che valgono per ogni campo
 
-> ❓ **Decisione da prendere**
+Per ogni campo esiste una politica dichiarata. Un webhook o un comando manuale non può
+scrivere campi fuori dalla propria allowlist. Da qui discendono tre vincoli, validi su ogni
+percorso di sincronizzazione:
 
-| Dato                                   | Fonte primaria                            | Comportamento dall'altra parte                                                         |
-| -------------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------- |
-| Codice articolo VestiFlow              | VestiFlow                                 | mai inviato come identità Shopify pubblica; può essere metafield tecnico               |
-| UUID/identità di collegamento          | VestiFlow                                 | metafield tecnico/app-owned e tabella mapping                                          |
-| Opzioni e struttura varianti           | VestiFlow dopo cutover                    | modifiche Shopify entrano come divergenza da riconciliare, non cancellano localmente   |
-| SKU/barcode                            | bidirezionale controllato                 | ultimo aggiornamento ammesso con audit; conflitti/duplicati richiedono riconciliazione |
-| Nome, descrizione, brand               | bidirezionale                             | ultimo valore ammesso con traccia di provenienza e data                                |
-| Immagini e arricchimenti Shopify       | bidirezionale per allowlist               | merge per ID, mai sostituzione cieca su errore parziale                                |
-| Categorie/collezioni/metafield Shopify | Shopify o configurazione esplicita        | non sovrascrivono categorie interne fuori allowlist                                    |
-| Prezzo interno                         | VestiFlow                                 | Shopify non lo scrive                                                                  |
-| Prezzo Shopify                         | bidirezionale del canale                  | usa campo dedicato, non cambia il prezzo interno                                       |
-| Costo effettivo variante               | VestiFlow                                 | Shopify lo alimenta solo durante la prima sincronizzazione se deciso                   |
-| IVA/codice fiscale interno             | VestiFlow                                 | Shopify non lo deduce                                                                  |
-| Giacenza pubblicabile                  | VestiFlow                                 | Shopify viene riallineato                                                              |
-| Pubblicazione per canale               | VestiFlow quando gestione canali è attiva | modifiche remote diventano evento con audit, secondo configurazione                    |
-| Stato locale non attivo o eliminato    | VestiFlow                                 | Shopify non può riattivarlo tramite webhook                                            |
+1. **Ogni sincronizzazione modifica soltanto i campi di propria competenza.** ⛔ Non si
+   reinvia il prodotto intero sovrascrivendo dati che appartengono all'altra piattaforma:
+   è il modo in cui un push di prezzo cancella una descrizione scritta su Shopify.
+2. **Per i campi bidirezionali prevale l'ultima modifica valida salvata.**
+3. **La sincronizzazione di ritorno non crea cicli**: ricevere l'eco di una modifica appena
+   inviata non deve produrre una nuova modifica identica.
 
-### 9.3 Ultimo scrittore non significa sovrascrittura cieca
+### 9.2 La matrice
 
-> 🔧 **Proposta tecnica da verificare**
+⛔ **Qui c'era la «matrice iniziale», marcata «❓ Decisione da prendere»**, e dichiarava cose
+oggi superate: «Nome, descrizione, brand → bidirezionale», «Immagini e arricchimenti Shopify
+→ bidirezionale per allowlist», «Categorie/collezioni/metafield → Shopify o configurazione
+esplicita». È sostituita per intero, e la direzione di ogni campo è ora **decisa**.
+
+| Dato                                            | Direzione                                                              |
+| ----------------------------------------------- | ---------------------------------------------------------------------- |
+| Nome VestiFlow (`Product.name`)                 | **solo VestiFlow**                                                     |
+| Nome Shopify (`shopifyTitle`)                   | **bidirezionale**                                                      |
+| Descrizione                                     | **VestiFlow → Shopify**                                                |
+| Categoria VestiFlow                             | **solo VestiFlow**                                                     |
+| Tipo prodotto Shopify (`productType`)           | **bidirezionale**                                                      |
+| Categoria standard Shopify                      | **bidirezionale**                                                      |
+| Brand VestiFlow / vendor Shopify                | **bidirezionale**                                                      |
+| Tag                                             | **bidirezionali**                                                      |
+| Collezioni manuali                              | **bidirezionali** per l'appartenenza del prodotto                      |
+| Collezioni automatiche                          | **Shopify → VestiFlow**, per la sola visualizzazione dell'appartenenza |
+| Immagine principale                             | **bidirezionale**                                                      |
+| Immagini Shopify aggiuntive                     | **solo Shopify**, non gestite da VestiFlow                             |
+| SEO                                             | **solo Shopify**, non gestita da VestiFlow                             |
+| Metafield configurati in VestiFlow              | **bidirezionali**                                                      |
+| Metafield non configurati                       | **solo Shopify**, mai modificati da VestiFlow                          |
+| SKU e barcode                                   | **bidirezionali**                                                      |
+| Prezzi di vendita                               | **VestiFlow → Shopify**                                                |
+| Quantità                                        | **VestiFlow → Shopify**                                                |
+| Vendita oltre disponibilità (`inventoryPolicy`) | **bidirezionale**                                                      |
+| Opzioni e varianti                              | **bidirezionali**, con le regole sulla cancellazione di §11.1 e §11.7  |
+
+### 9.3 Nome VestiFlow e Nome Shopify
+
+Sono **due campi**, e il contratto completo — inizializzazione, indipendenza, duplicazione,
+etichetta nella scheda — sta in **§1.9**. Qui resta il minimo che la matrice richiede:
+
+- il **Nome VestiFlow** è il nome interno usato nel gestionale, e **Shopify non può
+  modificarlo**, in nessun percorso;
+- il **Nome Shopify** è il titolo della vetrina e si sincronizza in **entrambe** le direzioni;
+- alla **prima** sincronizzazione, se vuoto, viene inizializzato dal Nome VestiFlow;
+- da lì in poi i due nomi restano **indipendenti**;
+- **duplicare un prodotto non copia il Nome Shopify**: il duplicato parte vuoto e alla propria
+  prima sincronizzazione lo inizializza dal proprio Nome VestiFlow.
+
+### 9.4 Descrizione
+
+- la descrizione viene inviata **esclusivamente da VestiFlow a Shopify**;
+- una modifica eseguita direttamente **su Shopify non aggiorna VestiFlow**;
+- un invio successivo da VestiFlow può quindi **sostituire** la descrizione presente su
+  Shopify.
+
+⚠️ **Questo comportamento va dichiarato nell'interfaccia** (§9.9). Chi scrive la descrizione
+nell'admin Shopify non ha modo di sapere che il prossimo salvataggio dal gestionale la
+sovrascriverà, e lo scoprirebbe solo dopo averla persa.
+
+### 9.5 Categorie: quattro concetti distinti, non sinonimi
+
+| #   | Concetto                                    | Direzione      |
+| --- | ------------------------------------------- | -------------- |
+| 1   | **Categoria VestiFlow**                     | solo VestiFlow |
+| 2   | **Tipo prodotto Shopify** (`productType`)   | bidirezionale  |
+| 3   | **Categoria standard Shopify** (tassonomia) | bidirezionale  |
+| 4   | **Collezioni Shopify**                      | vedi §9.6      |
+
+La **Categoria VestiFlow** è una classificazione esclusivamente gestionale: non viene inviata
+a Shopify e non viene sovrascritta da Shopify.
+
+Il **Tipo prodotto Shopify** è un campo Shopify separato, memorizzato in VestiFlow e
+sincronizzato in entrambe le direzioni.
+
+La **Categoria standard Shopify** è un nodo della tassonomia ufficiale Shopify:
+
+- si conserva tramite il proprio **identificativo Shopify**, non tramite l'etichetta;
+- si sincronizza in entrambe le direzioni;
+- **non sostituisce** la Categoria VestiFlow;
+- può concorrere al trattamento fiscale previsto da Shopify.
+
+⛔ **Le collezioni usate per aliquote o override fiscali restano distinte dalla tassonomia
+standard.** Un override fiscale associato a una collezione Shopify **non** modifica
+automaticamente la categoria o l'aliquota IVA interna di VestiFlow: l'IVA di un documento
+italiano non si deduce da un raggruppamento di vetrina.
+
+### 9.6 Collezioni
+
+- VestiFlow **importa e mostra** le collezioni associate al prodotto;
+- l'operatore può **aggiungere o rimuovere il prodotto** dalle collezioni **manuali**, e
+  queste modifiche si sincronizzano in entrambe le direzioni;
+- per le collezioni **automatiche** l'appartenenza è calcolata dalle regole Shopify: VestiFlow
+  la **mostra** ma non consente di modificarla direttamente;
+- **creazione, rinomina, regole ed eliminazione** delle collezioni non fanno parte della
+  scheda prodotto e non sono gestite da questa sincronizzazione.
+
+### 9.7 Immagine principale
+
+- VestiFlow gestisce **una sola immagine**: l'immagine principale;
+- se cambia su Shopify, viene aggiornata in VestiFlow; se cambia in VestiFlow, viene
+  aggiornata su Shopify;
+- se viene **rimossa**, la rimozione si propaga nell'altra direzione;
+- le altre immagini presenti su Shopify **non** vengono importate, riordinate, modificate o
+  eliminate da VestiFlow;
+- ⛔ **sostituire l'immagine principale non cancella le altre immagini Shopify.**
+
+### 9.8 Metafield
+
+- si sincronizzano in entrambe le direzioni **soltanto i namespace e le chiavi esplicitamente
+  configurati in VestiFlow**;
+- i metafield **sconosciuti** — del tema, di Shopify, di altre applicazioni — restano
+  **intatti**;
+- ⛔ **non esiste una sincronizzazione indiscriminata di tutti i metafield**;
+- per ogni metafield configurato devono essere noti il **tipo** e il **campo VestiFlow
+  corrispondente**.
+
+### 9.9 Come la matrice si vede nella scheda prodotto
+
+I **tenant senza Shopify** non devono vedere sezioni, campi, indicatori, tooltip, errori o
+stati Shopify: senza il canale sarebbero promesse senza destinazione.
+
+Per i tenant **con** Shopify:
+
+- i campi del canale si raggruppano in una sezione **«Dati Shopify»**;
+- ogni campo porta un indicatore sintetico:
+
+| Indicatore       | Significato                                  |
+| ---------------- | -------------------------------------------- |
+| `↔ Shopify`      | bidirezionale                                |
+| `→ Shopify`      | VestiFlow scrive, Shopify non torna indietro |
+| `Solo VestiFlow` | il canale non lo vede e non lo tocca         |
+
+- le spiegazioni si aggiungono **solo dove la direzione o l'effetto non sono evidenti**;
+- ⛔ **tooltip e spiegazioni devono essere utilizzabili anche con tastiera e da dispositivo
+  touch**, e **nessuna conseguenza importante può dipendere dal solo passaggio del mouse**:
+  in magazzino il mouse non c'è.
+
+Testi funzionali minimi:
+
+| Campo                                      | Testo                                                                                          |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| **Categoria VestiFlow**                    | «Usata solo nel gestionale. Non modifica Shopify.»                                             |
+| **Tipo prodotto Shopify**                  | «Si sincronizza in entrambe le direzioni con Shopify.»                                         |
+| **Categoria standard Shopify**             | «Categoria della tassonomia ufficiale Shopify. Si sincronizza in entrambe le direzioni.»       |
+| **Collezioni**                             | «Le appartenenze manuali si sincronizzano. Quelle automatiche dipendono dalle regole Shopify.» |
+| **Descrizione**                            | «Viene inviata da VestiFlow a Shopify. Le modifiche fatte su Shopify non vengono importate.»   |
+| **Immagine**                               | «VestiFlow sincronizza soltanto l'immagine principale.»                                        |
+| **Metafield**                              | «Si sincronizzano soltanto i campi Shopify configurati in VestiFlow.»                          |
+| **Continua a vendere senza disponibilità** | «Impostazione Shopify sincronizzata in entrambe le direzioni. Non modifica la giacenza.»       |
+
+### 9.10 Ultimo scrittore non significa sovrascrittura cieca
+
+> 🔧 **Proposta tecnica da verificare** — il MECCANISMO, non la regola. Che prevalga l'ultima
+> modifica valida salvata, e che l'eco non generi una nuova modifica, è **deciso** in §9.1.
 
 Per i campi bidirezionali conservare:
 
@@ -1343,14 +1625,22 @@ Rimettere in uso:
 
 ### 10.4 Inventory policy
 
-> ❓ **Decisione da prendere**
+> ✅ **Decisione confermata**
 
 `inventoryPolicy` governa la vendita oltre disponibilità:
 
 - `DENY`: non vendere quando la quantità vendibile è esaurita;
 - `CONTINUE`: ammette overselling secondo decisione commerciale.
 
-È un'impostazione distinta dal ciclo di vita e dalla pubblicazione. La specifica non impone `DENY` a tutte le varianti: la politica va modellata come dato di canale.
+È un'impostazione Shopify per variante, esposta in VestiFlow come **«Continua a vendere senza
+disponibilità»** e sincronizzata in entrambe le direzioni.
+
+- non rappresenta lo stato locale della variante;
+- non pubblica e non spubblica la variante;
+- non modifica giacenza, impegnata o disponibile;
+- non viene usata per sospendere un prodotto o una variante;
+- per una nuova variante usa la preferenza configurata per il negozio Shopify;
+- se il negozio non ha ancora una preferenza configurata, il valore iniziale è `DENY`.
 
 ### 10.5 Quantità pubblicabile
 
@@ -1373,11 +1663,53 @@ Se la variante è non attiva o eliminata, la quantità **non** è il modo di nas
 
 ---
 
-## 11. Flusso di eliminazione Shopify
+## 11. Ritiro da Shopify, eliminazioni remote e reimportazione
 
-### 11.1 Principio transazionale distribuito
+### 11.1 VestiFlow non elimina MAI definitivamente da Shopify
 
-> 🔧 **Proposta tecnica da verificare**
+> ✅ **Decisione confermata** (03/09/2026)
+
+> **VestiFlow è non distruttivo verso Shopify. Non usa operazioni Shopify di cancellazione
+> definitiva di prodotti o varianti.**
+
+⛔ **Qui c'era il contrario**, in tre punti di questo stesso capitolo: `productVariantsBulkDelete`
+fra i passi di §11.2, `productDelete` fra quelli di §11.4, e in §11.3 «eliminare il solo
+prodotto remoto» fra le strade praticabili. Sono state **tolte**: una cancellazione definitiva
+su Shopify non è annullabile da VestiFlow, e non è un effetto che un comando del gestionale
+possa produrre sul negozio di qualcun altro.
+
+Quando l'azione nasce da VestiFlow:
+
+| Azione locale                                     | Effetto su Shopify                                         |
+| ------------------------------------------------- | ---------------------------------------------------------- |
+| prodotto **non attivo** o **nel cestino**         | prodotto reso **non acquistabile** e **archiviato**        |
+| variante **non attiva** o **nel cestino**         | variante **rimossa dalle pubblicazioni**                   |
+| **eliminazione definitiva** locale del prodotto   | il prodotto Shopify **resta archiviato**                   |
+| **eliminazione definitiva** locale della variante | la variante Shopify **resta esistente, ma non pubblicata** |
+
+⛔ **Non si usa la quantità zero per rappresentare la sospensione** (§3.1, §10.5): la quantità
+governa l'inventario, la rimozione dalle pubblicazioni è l'atto commerciale.
+
+⭐ **La cancellazione definitiva su Shopify si fa soltanto dall'amministrazione Shopify.** È
+una scelta di chi possiede il negozio, non una conseguenza di un comando nel gestionale.
+
+#### La conferma precede il completamento
+
+Prima di completare l'eliminazione locale definitiva, VestiFlow **attende la conferma che
+l'elemento non sia più acquistabile su Shopify**.
+
+| Esito                                   | Conseguenza                                                                                                                                           |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Shopify **conferma**                    | l'eliminazione locale definitiva si completa                                                                                                          |
+| Shopify **non conferma**                | l'eliminazione **non** si completa · l'elemento **resta nel cestino** · l'operatore viene **avvisato** che potrebbe essere ancora acquistabile online |
+| l'elemento è **già assente** da Shopify | l'eliminazione locale può proseguire                                                                                                                  |
+
+⚠️ È la stessa disciplina di §1.10 per lo spegnimento della sincronizzazione: l'operazione si
+**attende** e, se il canale non conferma, **non si finge** che sia riuscita.
+
+#### Quello che questa sezione non decide
+
+> 🔧 **Proposta tecnica da verificare** — il come.
 
 Shopify e PostgreSQL non condividono una transazione. La sicurezza deriva da:
 
@@ -1386,66 +1718,57 @@ Shopify e PostgreSQL non condividono una transazione. La sicurezza deriva da:
 - idempotenza;
 - retry;
 - verifica finale;
-- nessuna cancellazione fisica locale.
+- cancellazione fisica locale soltanto dopo la conferma remota, se il comando richiesto è
+  «Elimina definitivamente».
 
-### 11.2 Eliminazione di una variante con altre varianti remote
+### 11.2 Ritiro di una variante quando il prodotto ne ha altre
 
-> 🔧 **Proposta tecnica da verificare**
+> 🔧 **Proposta tecnica da verificare** — la sequenza. Ciò che è **deciso** è §11.1: nessuna
+> cancellazione definitiva su Shopify, e conferma di non acquistabilità prima di completare.
 
 1. Eseguire il preflight locale e remoto.
 2. Registrare conferma, snapshot e operazione in una transazione locale.
 3. Impostare `deletedAt` localmente: da quel momento non è selezionabile.
 4. Accodare la spubblicazione da tutte le publication gestite.
-5. Accodare `productVariantsBulkDelete` con `productId` e `variantsIds`.
-6. Trattare ogni `userError` come fallimento.
-7. Verificare che il GID variante non sia più risolvibile o non appartenga più al prodotto.
-8. Marcare l'operazione `completed` e conservare il vecchio GID nell'audit.
+5. Trattare ogni `userError` come fallimento.
+6. Verificare che la variante non sia più **acquistabile** su Shopify.
+7. Se il comando è «Sposta nel cestino», marcare l'operazione completata senza cancellare
+   dipendenze locali.
+8. Se il comando è «Elimina definitivamente», eseguire la purga locale descritta in §4.2 e
+   conservare il solo audit minimo previsto.
 
-Nessuno dei passaggi modifica storia o inventario locale.
+⛔ **Qui c'erano due passi in più**: «accodare `productVariantsBulkDelete`» e «verificare che
+il GID variante non sia più risolvibile». Entrambi presupponevano una cancellazione remota
+definitiva, che §11.1 esclude. La variante Shopify **resta esistente e non pubblicata**, e il
+suo GID **resta risolvibile**: verificare il contrario fallirebbe sempre.
+
+Il ritiro dal canale e lo spostamento nel cestino non modificano storia o inventario locale.
+La successiva eliminazione definitiva rimuove invece le dipendenze operative dichiarate nel
+secondo avviso (§1.1, §4.2).
 
 ### 11.3 Ultima variante
 
-> ❓ **Decisione da prendere**
+> ✅ **Decisione confermata** — il vincolo locale E la conseguenza remota (03/09/2026)
 
-> ✅ **Decisione confermata — il vincolo locale**
->
-> **L'eliminazione di una variante Shopify, compresa l'ultima variante remota, non elimina mai automaticamente il prodotto locale né le altre varianti locali.**
+> **Il ritiro o l'eliminazione locale di una variante, compresa l'ultima variante attiva, non
+> elimina mai automaticamente il prodotto locale né le altre varianti locali.**
 
 ⛔ Qui era scritto il contrario: _«se l'operatore conferma, si usa `productDelete` e il prodotto locale viene eliminato logicamente con tutte le varianti»_. È stato **espressamente rifiutato**. Un'azione su una variante non può propagarsi al prodotto e ai suoi fratelli: sarebbe una cancellazione a cascata innescata da un vincolo del canale, cioè la cosa che tutto questo documento vieta.
 
 ⭐ **L'eliminazione del prodotto locale resta un comando distinto, esplicito e amministrativo.** Mai una conseguenza.
 
-❓ **Resta aperta solo la conseguenza REMOTA.** Shopify mantiene almeno una variante per prodotto: quando quella richiesta è l'ultima remota, le strade sono quattro e **nessuna è stata scelta**.
+⭐ **La conseguenza remota non è più aperta.** VestiFlow non cancella la variante su Shopify:
+la rimuove dalle pubblicazioni e la lascia esistere. Se non resta alcuna variante locale attiva,
+si applica §3.4: il prodotto Shopify passa in Bozza e non torna online automaticamente.
 
-|                                                |                                                |
-| ---------------------------------------------- | ---------------------------------------------- |
-| bloccare l'eliminazione della variante         | il prodotto remoto resta com'è                 |
-| lasciare il prodotto remoto **non pubblicato** | resta su Shopify, non acquistabile             |
-| trasformarlo in **bozza**                      | idem, con uno stato che l'admin Shopify mostra |
-| eliminare il **solo prodotto remoto**          | il locale resta intatto in ogni caso           |
+Una variante `Default Title` o standalone trovata su Shopify non viene mai considerata una
+scorta tecnica sacrificabile. Deve essere mappata alla variante base locale oppure segnalata
+come anomalia. Finché il mapping non è risolto, nessun push può renderla acquistabile o
+assegnarle automaticamente quantità e identità di un'altra variante.
 
-⚠️ Il resto di questa sezione descrive la classificazione delle varianti remote e la gestione di `CANNOT_DELETE_LAST_VARIANT`: è **proposta tecnica**, e presuppone una scelta fra le quattro qui sopra che non è stata fatta.
-
-Il conteggio deve essere verificato sul remoto al momento dell'esecuzione, non dedotto soltanto dal database locale.
-
-Per `ultima variante` si intende **ultima variante effettiva e mappata**, non semplicemente l'ultimo GID contato nella risposta. Prima dell'operazione il connettore classifica tutte le varianti remote come:
-
-- mappata alla variante base semplice;
-- mappata a una variante esplicita;
-- mapping ritirato;
-- anomalia/orfana.
-
-Una vecchia standalone riapparsa e priva di mapping non rende sicura la cancellazione delle varianti reali. Se l'operazione lascerebbe soltanto quella riga, VestiFlow deve:
-
-- proporre `Converti in articolo semplice`, collegandola a una variante base reale;
-- oppure eseguire il percorso di eliminazione prodotto;
-- oppure portare il prodotto allo stato locale non attivo.
-
-Non deve lasciarla pubblicata, attribuirle una giacenza per posizione o mapparla automaticamente a una variante cancellata.
-
-Il codice Shopify `CANNOT_DELETE_LAST_VARIANT` viene gestito come esito funzionale deterministico: aggiorna l'anteprima e conduce ai tre percorsi sopra, non diventa un errore tecnico generico.
-
-Se una standalone/orfana viene scoperta durante una riconciliazione, il prodotto viene segnalato come divergente. Finché non è risolto, nessun push completo deve poterla rendere acquistabile accidentalmente.
+Il codice Shopify `CANNOT_DELETE_LAST_VARIANT` non deve originare da VestiFlow, perché il
+connettore non usa operazioni di cancellazione remota (§11.1). Se compare per un percorso non
+previsto, è un errore da correggere: non introduce un nuovo flusso funzionale.
 
 ### 11.4 Eliminazione prodotto
 
@@ -1456,24 +1779,43 @@ Se una standalone/orfana viene scoperta durante una riconciliazione, il prodotto
 3. Marcatura logica del prodotto e delle varianti nella stessa transazione locale.
 4. Sospensione di nuovi push ordinari per quell'aggregate.
 5. Spubblicazione tecnica quando utile a chiudere una finestra di vendita.
-6. `productDelete` GraphQL.
-7. Verifica dell'assenza remota.
-8. Completamento dell'operazione.
+6. **Archiviazione** del prodotto Shopify, che lo rende non acquistabile.
+7. Verifica che il prodotto non sia più **acquistabile** su Shopify.
+8. Se il comando è «Sposta nel cestino», completamento della sola marcatura logica.
+9. Se il comando è «Elimina definitivamente», purga fisica locale del prodotto, delle varianti
+   e delle dipendenze operative dichiarate nel doppio avviso (§4.2).
+
+Senza conferma del punto 7 l'eliminazione definitiva non si completa e il prodotto resta nel
+cestino.
+
+⛔ **Ai passi 6 e 7 c'erano `productDelete` GraphQL e «verifica dell'assenza remota»**. Il
+prodotto Shopify **non viene eliminato**: resta archiviato, quindi è ancora presente e
+verificarne l'assenza fallirebbe sempre (§11.1).
 
 ### 11.5 Errori e disconnessione
 
-> ❓ **Decisione da prendere**
+> ✅ **Decisione confermata** (03/09/2026)
 
 Una dipendenza locale non blocca. Un problema tecnico remoto produce invece un'operazione pendente:
 
-- localmente il record resta eliminato e non selezionabile;
+- ⛔ **l'eliminazione locale definitiva NON si completa**: l'elemento **resta nel cestino**,
+  ripristinabile, e la sua storia resta dov'è (§11.1);
+- l'operatore è **avvisato che l'elemento potrebbe essere ancora acquistabile online**;
 - la UI non dichiara «eliminato anche da Shopify»;
-- mostra `Eliminato in VestiFlow — rimozione Shopify in attesa`;
 - il worker riprova;
 - l'operatore può riconnettere Shopify o riprovare;
 - gli errori permanenti richiedono un'azione esplicita.
 
-Non ripristinare automaticamente il record locale per un errore di rete. Non fingere che il remoto sia stato eliminato.
+⛔ **Qui c'era «localmente il record resta eliminato e non selezionabile»**, con l'etichetta
+`Eliminato in VestiFlow — rimozione Shopify in attesa`. Era il contrario di quanto §11.1
+decide: si dichiarava concluso in casa ciò che sul canale non era ancora avvenuto, e
+l'elemento usciva dal cestino — cioè dall'unico posto da cui si può ancora recuperare.
+
+⭐ **Il cestino è lo stato d'attesa**, e non ne serve uno nuovo: l'elemento è già fuori dalle
+selezioni commerciali, e il ripristino esiste. Un'eliminazione definitiva a metà avrebbe
+invece richiesto uno stato parallelo che nessuno ha chiesto.
+
+Non ripristinare automaticamente il record locale per un errore di rete. Non fingere che il remoto sia stato ritirato.
 
 ### 11.6 Concorrenza
 
@@ -1485,6 +1827,57 @@ Durante una cancellazione pendente:
 - un webhook remoto non riattiva il record;
 - un ripristino crea un comando compensativo ordinato dopo la cancellazione o annulla l'operazione se non partita;
 - due click ripetuti producono **un solo effetto**, comunque sia realizzato.
+
+### 11.7 Eliminazioni eseguite direttamente su Shopify
+
+> ✅ **Decisione confermata** (03/09/2026)
+
+> **La cancellazione eseguita su Shopify non cancella mai automaticamente il prodotto o la
+> variante da VestiFlow.**
+
+⭐ È il verso opposto di §11.1, e la simmetria è voluta: nessuna delle due piattaforme
+distrugge dati nell'altra. Un negozio online non decide che cosa esiste in magazzino.
+
+Quando una **variante collegata** viene eliminata su Shopify:
+
+- variante, storico, giacenza, impegni e movimenti VestiFlow **restano invariati**;
+- lo stato del canale diventa **«Non presente su Shopify»** (§3.7);
+- il collegamento remoto **non viene riutilizzato** come se fosse ancora valido;
+- la variante **non viene ricreata automaticamente** dal normale push;
+- l'operatore **riceve un avviso**;
+- l'operatore sceglie fra: **ricreare** la variante su Shopify · lasciarla **soltanto locale**
+  · renderla **non attiva** · spostarla nel **cestino**.
+
+La stessa regola vale per un **prodotto** eliminato direttamente su Shopify: il prodotto
+VestiFlow non viene eliminato e non viene ricreato automaticamente.
+
+⛔ **Un webhook di modifica prodotto NON basta a dichiarare eliminata una variante.** Prima
+della decisione VestiFlow deve **verificare lo stato remoto completo** interrogando Shopify:
+un payload parziale che non nomina una variante non è la prova che non esista più — è la
+regola già scritta in §13.1 («non considerare il payload parziale come fotografia completa»),
+qui applicata al caso in cui sbagliarsi costa una riga di magazzino.
+
+### 11.8 Prevenzione della reimportazione
+
+> ✅ **Decisione confermata** (03/09/2026)
+
+Dopo l'eliminazione definitiva locale, VestiFlow conserva **esclusivamente il riferimento
+tecnico minimo** necessario a riconoscere l'ID Shopify **escluso**.
+
+Questo riferimento:
+
+- **non** conserva l'anagrafica dell'articolo;
+- **non** conserva giacenze, impegni, movimenti o documenti;
+- **impedisce** che il normale pull Shopify ricrei automaticamente l'elemento;
+- può essere superato **soltanto da un comando amministrativo esplicito** di nuova
+  importazione.
+
+⚠️ **Senza di esso l'eliminazione definitiva non è definitiva**: il prodotto resta su Shopify
+— archiviato, ma presente (§11.1) — e il primo pull lo riporterebbe dentro come articolo
+nuovo, senza storia e senza giacenza. L'operatore lo eliminerebbe di nuovo, e di nuovo.
+
+⛔ **La struttura tecnica non si decide qui.** Tabella, forma e collocazione del riferimento
+appartengono a chi implementa: questa sezione dichiara il **risultato**, non il come.
 
 ---
 
@@ -1726,7 +2119,9 @@ Ogni modifica locale significativa crea un'intenzione deduplicabile:
 - riattivazione;
 - eliminazione.
 
-Operazioni più recenti possono sostituire quelle obsolete sullo stesso aggregate, salvo le operazioni distruttive già inviate.
+Operazioni più recenti possono sostituire quelle obsolete sullo stesso aggregate, salvo quelle già inviate al canale.
+
+⚠️ Qui c'era «salvo le operazioni **distruttive** già inviate». Verso Shopify VestiFlow non ne esegue (§11.1): l'eccezione vale per qualunque operazione già partita, il cui esito non si può più annullare accodandone un'altra.
 
 ### 13.3 Riconciliazione periodica
 
@@ -1912,24 +2307,26 @@ Lavori:
 
 La Tranche 0 si esegue a fette, una alla volta, con verifica prima di passare alla successiva.
 
-⛔ **La Tranche 0 NON è completata.** Una sola delle sue fette lo è.
+⚠️ **La Tranche 0 non è ancora completata**, ma le fette 0A.1, 0A.2a, 0A.2b, 0A.2c e
+0B.1 sono chiuse. Restano il contratto autonomo dei movimenti e la lacuna dichiarata del
+percorso «Concludi ordine».
 
-|           |                                                                              |                                                                                                                               |
-| --------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| **0A.1**  | **totali economici di riga sul percorso generico**                           | ✅ **completata e verificata**, con i test eseguiti                                                                           |
-| **0B.1**  | **filtro Sede del Registro canonico**                                        | ✅ **completata e verificata**, con i test eseguiti                                                                           |
-| **0A.2a** | **snapshot identificativi di riga sul percorso generico**                    | ✅ **completata e verificata**, con i test eseguiti                                                                           |
-| **0A.2b** | **consumo degli snapshot: riapertura, interfaccia, stampa**                  | ✅ **completata e verificata**, con i test eseguiti                                                                           |
-| **0A.2c** | **duplicazioni e conversioni: gli snapshot seguono la riga sorgente**        | ✅ **completata e verificata**, con i test eseguiti                                                                           |
-| —         | «Concludi ordine» (ordine cliente → documento)                               | ⏸ **lacuna dichiarata**: `SalesOrderLine` non ha `articleCode` né `productName`                                               |
-| —         | **convergenza Corrispettivi**                                                | ✅ **fatta il 03/09/2026**: il vecchio export è stato rimosso, il Registro canonico è l'unica fonte                           |
-| —         | contratto autonomo dei movimenti (§5.3)                                      | ⏸ da fare                                                                                                                     |
-| —         | eliminazione locale                                                          | ⏸ da fare                                                                                                                     |
-| —         | interruttore Shopify: ferma anche le giacenze, `ARCHIVED` (§1.8)             | ✅ **fatto il 03/09/2026** · ⏸ resta l'unpublish per variante (`publishablePublish`, Tranche 3)                               |
-| —         | nome interno separato dal «Nome Shopify» (§1.9)                              | ✅ **fatto e provato sullo shop il 03/09/2026** · ⏸ resta l'azione massiva «Copia nome VestiFlow»                             |
-| —         | spegnere la sync non lascia il prodotto in vendita, ed è reversibile (§1.10) | ✅ **fatto e provato sullo shop il 03/09/2026**                                                                               |
-| —         | prodotti importati modificabili (§1.8) — **primo pezzo della Tranche 2**     | ✅ **completata il 03/09/2026**; le 2 prove d'integrazione sono scritte ma ⚠️ **non eseguite** (Docker spento sulla macchina) |
-| —         | **migrazione push Shopify a GraphQL** (Tranche 2 e 3)                        | ⏸ **da eseguire**, decisa in §1.6                                                                                             |
+|           |                                                                              |                                                                                                     |
+| --------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| **0A.1**  | **totali economici di riga sul percorso generico**                           | ✅ **completata e verificata**, con i test eseguiti                                                 |
+| **0B.1**  | **filtro Sede del Registro canonico**                                        | ✅ **completata e verificata**, con i test eseguiti                                                 |
+| **0A.2a** | **snapshot identificativi di riga sul percorso generico**                    | ✅ **completata e verificata**, con i test eseguiti                                                 |
+| **0A.2b** | **consumo degli snapshot: riapertura, interfaccia, stampa**                  | ✅ **completata e verificata**, con i test eseguiti                                                 |
+| **0A.2c** | **duplicazioni e conversioni: gli snapshot seguono la riga sorgente**        | ✅ **completata e verificata**, con i test eseguiti                                                 |
+| —         | «Concludi ordine» (ordine cliente → documento)                               | ⏸ **lacuna dichiarata**: `SalesOrderLine` non ha `articleCode` né `productName`                     |
+| —         | **convergenza Corrispettivi**                                                | ✅ **fatta il 03/09/2026**: il vecchio export è stato rimosso, il Registro canonico è l'unica fonte |
+| —         | contratto autonomo dei movimenti (§5.3)                                      | ⏸ da fare                                                                                           |
+| —         | eliminazione locale                                                          | ⏸ da fare                                                                                           |
+| —         | interruttore Shopify: ferma anche le giacenze, `ARCHIVED` (§1.8)             | ✅ **fatto il 03/09/2026** · ⏸ resta l'unpublish per variante (`publishablePublish`, Tranche 3)     |
+| —         | nome interno separato dal «Nome Shopify» (§1.9)                              | ✅ **fatto e provato sullo shop il 03/09/2026** · ⏸ resta l'azione massiva «Copia nome VestiFlow»   |
+| —         | spegnere la sync non lascia il prodotto in vendita, ed è reversibile (§1.10) | ✅ **fatto e provato sullo shop il 03/09/2026**                                                     |
+| —         | prodotti importati modificabili (§1.8) — **primo pezzo della Tranche 2**     | ✅ **completata e verificata il 03/09/2026**, comprese le prove d'integrazione                      |
+| —         | **migrazione push Shopify a GraphQL** (Tranche 2 e 3)                        | ⏸ **da eseguire**, decisa in §1.6                                                                   |
 
 ⛔ **Non c'è più una voce «correzione del vecchio export dai movimenti».** Quel percorso **non si ripara**: si dismette. Ripararlo — e a maggior ragione alimentarlo con nuovi snapshot economici — significherebbe investire lavoro in un motore che deve sparire, e ritardarne la fine.
 
@@ -1965,7 +2362,9 @@ Il comportamento è a tre casi, gli stessi di `variantLabelSnapshot`, e non uno 
 
 **Suite**: 623 prove sui documenti · **2292** nella suite API · **61** di integrazione (erano 56) · type-check, lint, build API e build frontend puliti.
 
-⚠️ **Resta la 0A.2b**: duplicazione, conversione e stampe non sono state toccate, e gli altri percorsi di scrittura — Arrivo merce, Vendita al banco, movimenti — restano fuori come da perimetro dichiarato.
+⚠️ **A quel punto restava la 0A.2b**: duplicazione, conversione e stampe non erano ancora
+state toccate. Le sezioni successive registrano la chiusura di 0A.2b e 0A.2c; Arrivo merce,
+Vendita al banco e il contratto autonomo dei movimenti restano fuori dal loro perimetro.
 
 **0A.2b — che cosa ha chiuso, e dov'era davvero il difetto.** Il censimento ha rovesciato l'attesa: il **backend era già pulito**. PDF, XML e `getById` leggono tutti dalla riga persistita, senza una sola join sull'anagrafica — la cella «Articolo» della stampa passa da `printArticleCellLines`, che è una funzione pura e non può leggere il catalogo nemmeno volendo.
 
@@ -2186,7 +2585,8 @@ riporta il prodotto ad `ACTIVE` senza duplicarlo.
 
 ### Tranche 1 — Modello locale e visibilità
 
-**Obiettivo:** introdurre lo stato locale non attivo, l'eliminazione logica, ripristino e contesti di ricerca.
+**Obiettivo:** introdurre stato locale Non attivo, cestino, ripristino, eliminazione definitiva
+e contesti di ricerca.
 
 Lavori:
 
@@ -2200,7 +2600,9 @@ Lavori:
 8. guardia report storici;
 9. test multi-tenant e permessi.
 
-**Gate:** si elimina con qualsiasi dipendenza dopo avviso; nessuna riga storica o inventariale viene cancellata o modificata.
+**Gate:** il cestino non modifica alcuna dipendenza; l'eliminazione definitiva è disponibile
+all'amministratore dopo doppio avviso, rimuove le dipendenze operative dichiarate e lascia
+leggibili le righe documento attraverso gli snapshot.
 
 ### Tranche 2 — Fondazione GraphQL
 
@@ -2236,7 +2638,7 @@ Lavori:
 1. nuovo builder per intenzione;
 2. creazione prodotto GraphQL;
 3. aggiornamento prodotto senza lista varianti implicita;
-4. create/update/delete varianti espliciti;
+4. create/update e ritiro delle varianti espliciti, senza cancellazioni definitive su Shopify;
 5. media/metafield/tassonomia senza perdita;
 6. inventory GraphQL, con la garanzia che una ripetizione non duplichi l'effetto;
 7. persistenza e verifica GID;
@@ -2246,27 +2648,10 @@ Lavori:
 
 **Gate:** ⭐ **nessuna scrittura di catalogo o inventario passa da REST** (§1.6, confermato); una modifica non strutturale non crea, elimina o riassegna varianti.
 
-### Tranche 4 — Ciclo di vita sincronizzato
+### Tranche 4 — Prima sincronizzazione
 
-**Obiettivo:** collegare stato non attivo, riattivazione, eliminazione e ripristino al nuovo motore.
-
-Lavori:
-
-1. 🔧 la rappresentazione locale delle publication — la **matrice persistita** è una forma proposta (§10.1), non un requisito;
-2. la variante non attiva smette di essere acquistabile sul canale;
-3. riattivazione controllata;
-4. eliminazione variante;
-5. ❓ caso **ultima variante** — le quattro strade remote sono aperte (§11.3): questo lavoro non parte finché non si sceglie;
-6. eliminazione prodotto;
-7. errori pendenti e recupero;
-8. concorrenza con webhook e push;
-9. audit end-to-end.
-
-**Gate:** ogni combinazione locale/remota termina in uno stato **verificabile**, non altera storia né inventario, e **non produce effetti duplicati**.
-
-### Tranche 5 — Prima sincronizzazione
-
-> ⏸ **SOSPESA in attesa delle decisioni di §0-bis.** Non autorizza alcuna implementazione: il wizard (§12) è una proposta da esaminare.
+> ✅ **DA PREPARARE DOPO LE TRANCHE 2 E 3.** Il tema non è più sospeso; il flusso funzionale
+> del wizard (§12) deve essere riesaminato e approvato prima dell'implementazione.
 
 **Obiettivo:** realizzare wizard, riconciliazione, baseline e cutover.
 
@@ -2274,13 +2659,35 @@ Lavori: §§12.1–12.13 completi, non un semplice pulsante `Importa catalogo`.
 
 **Gate:** i tre scenari (Shopify pieno, VestiFlow pieno, entrambi pieni) producono anteprima ripetibile, nessun duplicato silenzioso e attivazione idempotente.
 
-### Tranche 6 — Regime continuativo
+### Tranche 5 — Regime continuativo
 
-> ⏸ **SOSPESA in attesa delle decisioni di §0-bis.** Outbox, lock e worker sono proposte tecniche (§8.4), non requisiti approvati.
+> ✅ **DA PREPARARE DOPO LA PRIMA SINCRONIZZAZIONE.** Outbox, lock e worker restano possibili
+> soluzioni tecniche (§8.4), non requisiti funzionali già approvati.
 
 **Obiettivo:** webhook, outbox, ownership, riconciliazione e monitoraggio.
 
 **Gate:** perdita o duplicazione di webhook, riavvio del worker e modifiche concorrenti non duplicano entità e non cambiano campi fuori allowlist.
+
+### Tranche 6 — Ciclo di vita sincronizzato
+
+**Obiettivo:** collegare stato non attivo, riattivazione, cestino, eliminazione definitiva e
+ripristino al percorso GraphQL e al regime continuativo.
+
+Lavori:
+
+1. 🔧 la rappresentazione locale delle publication — la **matrice persistita** è una forma proposta (§10.1), non un requisito;
+2. la variante non attiva smette di essere acquistabile sul canale;
+3. riattivazione controllata;
+4. cestino ed eliminazione definitiva della variante;
+5. ✅ caso **ultima variante** — non è più un bivio: VestiFlow non cancella la variante remota, la spubblica (§11.1), quindi il prodotto Shopify non arriva mai a zero varianti (§11.3);
+6. cestino ed eliminazione definitiva del prodotto;
+7. errori pendenti e recupero;
+8. concorrenza con webhook e push;
+9. audit end-to-end.
+
+**Gate:** ogni combinazione locale/remota termina in uno stato verificabile; il cestino non
+altera storia o inventario; l'eliminazione definitiva rimuove soltanto ciò che il doppio avviso
+ha dichiarato; nessuna operazione produce effetti duplicati.
 
 ### Tranche 7 — Pulizia e consolidamento
 
@@ -2302,21 +2709,28 @@ Lavori:
 ### 17.1 Storia
 
 - Un documento con variante poi rinominata, non attiva o eliminata mantiene ogni valore e stampa.
-- Un movimento continua a mostrare identità, costo e ricavo senza join obbligatorio all'anagrafica attiva.
+- Finché esiste, un movimento continua a mostrare identità, costo e ricavo senza join
+  obbligatorio all'anagrafica attiva.
 - **Il Registro canonico e i suoi export**, prima e dopo un cambio di listino, sono byte-identici salvo metadati non economici dichiarati — e lo restano dopo la convergenza del consumatore del vecchio percorso.
 
   ⛔ Il criterio riguardava «l'export Corrispettivi» senza dire quale, e finiva per pretendere l'**invarianza del vecchio export**: cioè di ripararlo. Quel percorso si dismette, quindi non ha criteri di accettazione — ne ha solo il Registro.
 
-- I report dello stesso periodo mantengono conteggi e totali dopo il passaggio a non attiva o l'eliminazione.
+- I report dello stesso periodo mantengono conteggi e totali dopo il passaggio a Non attiva o
+  nel Cestino. Dopo l'eliminazione definitiva restano invariati i report fondati sui documenti
+  e sui loro snapshot; quelli fondati sui movimenti eliminati possono cambiare, come dichiarato
+  nel secondo avviso.
 - Il pregresso non ricostruibile è esplicitamente mancante, non valorizzato col dato corrente.
 
 ### 17.2 Eliminazione locale
 
-- Variante con movimenti: eliminabile dopo avviso.
-- Variante con giacenza: eliminabile dopo avviso; giacenza resta visibile.
-- Variante con impegni/lotti/matricole: eliminabile dopo avviso; record collegati invariati.
-- Prodotto con tutte le condizioni insieme: eliminabile dopo avviso aggregato.
-- Due richieste identiche: **nessun effetto duplicato** — una sola eliminazione logica, e nessuna operazione remota ripetuta.
+- Variante con movimenti, giacenza, impegni, lotti o matricole: spostabile nel cestino dopo
+  avviso; record collegati invariati e ancora visibili nei contesti previsti.
+- Dal cestino, la stessa variante è eliminabile definitivamente dopo doppio avviso: le
+  dipendenze operative dichiarate vengono rimosse, le righe documento restano leggibili.
+- Prodotto con tutte le condizioni insieme: stesso comportamento, con riepilogo aggregato di
+  tutte le varianti.
+- Due richieste identiche: **nessun effetto duplicato** — una sola marcatura nel cestino oppure
+  una sola purga definitiva, e nessuna operazione remota ripetuta.
 
   ⚠️ Il criterio diceva «una sola operazione outbox», cioè imponeva l'outbox come soluzione dentro un criterio di accettazione. Outbox, lock, worker, hash e token restano **possibili** soluzioni tecniche: il requisito è che l'effetto non si duplichi, comunque lo si ottenga.
 
@@ -2325,9 +2739,10 @@ Lavori:
 
 ### 17.3 Ricerca e UI
 
-- Una variante non attiva o eliminata non appare nelle nuove selezioni commerciali.
+- Una variante Non attiva o nel cestino non appare nelle nuove selezioni commerciali.
 - Una variante non attiva appare nelle operazioni di magazzino consentite.
-- Eliminato con quantità appare nella Situazione magazzino con badge.
+- Una variante nel cestino con quantità appare nella Situazione magazzino con badge; dopo
+  l'eliminazione definitiva non esistono più quantità locali da mostrare.
 - Riaprire un documento storico non perde nome, codice o barcode.
 - Scanner e ricerca per codice rispettano il contesto.
 - Nessun contatore varianti viene calcolato dalle sole combinazioni teoriche delle opzioni.
@@ -2340,10 +2755,13 @@ Lavori:
 - `userErrors` impedisce lo stato `synced`.
 - Cambio nome prodotto non modifica il numero o gli ID delle varianti.
 - Cambio prezzo di una variante aggiorna soltanto quella variante.
-- Eliminazione esplicita di una variante usa `productVariantsBulkDelete`.
-- Ultima variante conduce al percorso prodotto o allo stato non attivo, mai a uno stato impossibile.
+- L'eliminazione esplicita di una variante la rende **non pubblicata** su Shopify e la **lascia esistere** (§11.1). ⛔ Il criterio diceva «usa `productVariantsBulkDelete`»: prescriveva la cancellazione remota che ora è vietata.
+- L'ultima variante ritirata resta esistente ma non pubblicata su Shopify e non elimina il prodotto locale.
 - Articolo semplice: la standalone Shopify è mappata alla variante base locale e non rimane fantasma.
-- 🔧 Le **conversioni semplice ⇄ varianti** non hanno ancora criteri approvati: il loro comportamento remoto è aperto (§0-bis). Resta fermo il solo risultato: **nessuna variante orfana e nessun fantasma acquistabile**.
+- Nella conversione **semplice → varianti**, l'operatore sceglie quale combinazione eredita
+  variante base, identità, giacenza e mapping; nessuna scelta avviene per posizione.
+- Nella conversione **varianti → semplice**, una sola variante resta attiva e acquistabile;
+  nessuna quantità o storia viene fusa e le altre varianti Shopify restano non pubblicate.
 - Eliminando tutte le varianti visibili non può riapparire online una vecchia standalone non mappata.
 - La variante smette di essere acquistabile **senza** che quantità, giacenza, impegni o `inventoryPolicy` vengano alterati per ottenerlo. 🔧 La matrice persistita variante × publication è una forma proposta (§10.1), non un requisito.
 - L'inventario si spinge via GraphQL, con un **riferimento auditabile** e la garanzia che **una ripetizione non duplichi l'effetto**. 🔧 L'idempotency key persistente è una forma possibile di quella garanzia, non un requisito approvato.
@@ -2456,29 +2874,29 @@ Per ogni tranche:
 
 La mappa serve per iniziare l'ispezione; non limita il perimetro reale.
 
-| Area                                | Punti noti                                                                                                                                                           |
-| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Eliminazione prodotto/varianti      | `api/src/products/products.service.ts`                                                                                                                               |
-| Schema e relazioni                  | `api/prisma/schema.prisma`, migration applicate                                                                                                                      |
-| Push catalogo                       | `api/src/shopify/shopify-product-push.service.ts`                                                                                                                    |
-| Client REST                         | `api/src/shopify/shopify-admin.client.ts`                                                                                                                            |
-| Client GraphQL                      | `api/src/shopify/shopify-graphql.client.ts`                                                                                                                          |
-| Facade/inneschi                     | `api/src/channels/channel-sync.facade.ts`                                                                                                                            |
-| Push inventario                     | `api/src/shopify/shopify-inventory-push.service.ts`                                                                                                                  |
-| Reconciliation inventario           | `api/src/shopify/shopify-inventory-reconciliation.service.ts`                                                                                                        |
-| Pull catalogo                       | `api/src/shopify/shopify-product-pull.service.ts`                                                                                                                    |
-| OAuth/scope                         | `api/src/shopify/shopify-oauth.service.ts`, configurazione Shopify                                                                                                   |
-| Form prodotto                       | `src/app/domain/products/product-form.component.*`, mapper e step varianti                                                                                           |
-| Ricerca condivisa                   | `searchVariantSummaries`, `document-product-search-panel`, `DocumentCodeLookupService`, scanner e lookup fornitore                                                   |
-| Situazione magazzino                | `api/src/inventory/inventory-situation.service.ts`                                                                                                                   |
-| **Corrispettivi — modulo canonico** | `api/src/corrispettivi/*` (servizio, export, query, classificazione, totali) e `src/app/features/reports/pages/corrispettivi-report` — ⭐ la fonte di verità         |
-| **Corrispettivi — filtro Sede**     | `api/src/corrispettivi/corrispettivi-location-filter.util.ts` — normalizzazione del filtro, NON un’autorizzazione                                                    |
-| **Corrispettivi — vecchio export**  | `api/src/inventory/inventory-export.service.ts` (`exportCorrispettiviCsv`) — ⛔ **da dismettere**, unico consumatore `src/app/features/reports/reports.component.ts` |
-| Export Ordini Shopify               | `/sales-orders/export/csv` — percorso a sé, non è un Corrispettivo                                                                                                   |
-| **Totali economici di riga**        | `api/src/documents/document-line-economic-totals.util.ts` e `computeLines`/`toLineCreateData` in `documents.service.ts`                                              |
-| Snapshot righe                      | DTO e workflow sotto `api/src/documents`, `src/app/features/documents` e moduli collegati                                                                            |
-| Movimenti                           | `StockMovement`, servizi documentali/inventariali e analytics                                                                                                        |
-| Guardie                             | `scripts/check-*.mjs`, script `lint` del `package.json`                                                                                                              |
+| Area                                | Punti noti                                                                                                                                                   |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Eliminazione prodotto/varianti      | `api/src/products/products.service.ts`                                                                                                                       |
+| Schema e relazioni                  | `api/prisma/schema.prisma`, migration applicate                                                                                                              |
+| Push catalogo                       | `api/src/shopify/shopify-product-push.service.ts`                                                                                                            |
+| Client REST                         | `api/src/shopify/shopify-admin.client.ts`                                                                                                                    |
+| Client GraphQL                      | `api/src/shopify/shopify-graphql.client.ts`                                                                                                                  |
+| Facade/inneschi                     | `api/src/channels/channel-sync.facade.ts`                                                                                                                    |
+| Push inventario                     | `api/src/shopify/shopify-inventory-push.service.ts`                                                                                                          |
+| Reconciliation inventario           | `api/src/shopify/shopify-inventory-reconciliation.service.ts`                                                                                                |
+| Pull catalogo                       | `api/src/shopify/shopify-product-pull.service.ts`                                                                                                            |
+| OAuth/scope                         | `api/src/shopify/shopify-oauth.service.ts`, configurazione Shopify                                                                                           |
+| Form prodotto                       | `src/app/domain/products/product-form.component.*`, mapper e step varianti                                                                                   |
+| Ricerca condivisa                   | `searchVariantSummaries`, `document-product-search-panel`, `DocumentCodeLookupService`, scanner e lookup fornitore                                           |
+| Situazione magazzino                | `api/src/inventory/inventory-situation.service.ts`                                                                                                           |
+| **Corrispettivi — modulo canonico** | `api/src/corrispettivi/*` (servizio, export, query, classificazione, totali) e `src/app/features/reports/pages/corrispettivi-report` — ⭐ la fonte di verità |
+| **Corrispettivi — filtro Sede**     | `api/src/corrispettivi/corrispettivi-location-filter.util.ts` — normalizzazione del filtro, NON un’autorizzazione                                            |
+| **Corrispettivi — vecchio export**  | ✅ **rimosso il 03/09/2026**; la pagina Report conserva il collegamento al Registro canonico, unica fonte per visualizzazione, stampa ed export              |
+| Export Ordini Shopify               | `/sales-orders/export/csv` — percorso a sé, non è un Corrispettivo                                                                                           |
+| **Totali economici di riga**        | `api/src/documents/document-line-economic-totals.util.ts` e `computeLines`/`toLineCreateData` in `documents.service.ts`                                      |
+| Snapshot righe                      | DTO e workflow sotto `api/src/documents`, `src/app/features/documents` e moduli collegati                                                                    |
+| Movimenti                           | `StockMovement`, servizi documentali/inventariali e analytics                                                                                                |
+| Guardie                             | `scripts/check-*.mjs`, script `lint` del `package.json`                                                                                                      |
 
 ---
 
@@ -2488,7 +2906,10 @@ La mappa serve per iniziare l'ispezione; non limita il perimetro reale.
 
 Il lavoro è completo soltanto quando:
 
-- eliminare non altera storia, inventario o analisi;
+- spostare nel cestino non altera storia, inventario o analisi;
+- eliminare definitivamente conserva documenti e totali attraverso gli snapshot, ma rimuove
+  le dipendenze operative dichiarate nel doppio avviso e può quindi cambiare le analisi basate
+  sui movimenti;
 - ogni dipendenza produce un avviso concreto ma non un blocco;
 - stato locale, eliminazione, pubblicazione e giacenza sono assi indipendenti;
 - i report non dipendono dallo stato anagrafico corrente;
@@ -2497,7 +2918,9 @@ Il lavoro è completo soltanto quando:
 - la sincronizzazione continuativa **non produce effetti duplicati**, è osservabile e recuperabile;
 - ⭐ **il push di catalogo, varianti e inventario NON usa più REST**: dopo il cutover nessuna scrittura passa dal vecchio percorso (§1.6, decisione confermata);
 - un tenant senza Shopify non percepisce l'esistenza del modulo;
-- vecchi documenti e movimenti conservano la stessa lettura e gli stessi numeri prima e dopo tutte queste operazioni.
+- i vecchi documenti conservano la stessa lettura e gli stessi numeri dopo qualunque operazione;
+  i movimenti restano invariati con Non attiva e Cestino, mentre non esistono più dopo
+  l'eliminazione definitiva che li ha inclusi esplicitamente nel preflight.
 
 ⚠️ **La cessazione delle scritture REST è un risultato, non una soluzione**, ed è per questo che sta qui: dice cosa dev'essere vero alla fine, non con quale client, quale versione o quale meccanismo di cutover — che restano aperti (§1.6).
 

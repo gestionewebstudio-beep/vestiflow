@@ -89,7 +89,11 @@ L'interfaccia deve privilegiare:
 - `createdAt`
 - `createdBy` + snapshot `createdByName`
 - È VIETATO aggiornare quantità stock senza lasciare traccia del movimento, salvo migrazioni documentate.
-- **Eccezione sync**: i delta di giacenza che arrivano da Shopify (vendite online, rettifiche fatte nell'admin Shopify) generano movimenti con origine `shopify` (`type: sale` o `adjustment`). Non sono "modifiche silenziose" ma nemmeno azioni utente: l'origine deve essere distinguibile nello storico.
+- **Shopify non è fonte della quantità**: gli aggiornamenti di inventory level ricevuti dal
+  canale non sovrascrivono la giacenza VestiFlow e una rettifica fatta nell'admin Shopify non
+  crea da sola un movimento locale. Ordini e resi Shopify vengono prima acquisiti come eventi
+  commerciali; sono i documenti e le regole VestiFlow conseguenti a produrre gli eventuali
+  movimenti. La quantità autorevole viene poi inviata da VestiFlow a Shopify.
 - **DEROGA Vendita manuale (prompt Vendita manuale, 2026-07 — scelta esplicita del cliente)**: il SOLO tipo documento `manual_unload` aggiorna la giacenza direttamente al salvataggio SENZA creare `StockMovement` (implementazione: `api/src/documents/document-stock-manual-unload.util.ts`). Il documento è l'unica evidenza dello scarico; la sua eliminazione NON ripristina le giacenze. Il push inventario verso i canali (Shopify/TikTok) resta obbligatorio post-commit: la sync legge la giacenza, non i movimenti. Questa deroga NON è un precedente per altri tipi documento.
 
 ### ⭐ E la deroga ha un interruttore — deciso il 26/08/2026
@@ -533,14 +537,16 @@ sovrappongono: il primo tipo buono per entrambe l’avrebbe rotta in silenzio.
 
 Con Shopify connesso, **ogni entità ha un owner di sync** dichiarato. È la decisione che condiziona tutto: quali form esistono, cosa è editabile, come si risolvono i conflitti.
 
-| Entità                                      | Owner                          | Conseguenza UI                                                                                                                                                       |
-| ------------------------------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Prodotti / varianti ecommerce               | **condiviso** (dal 03/09/2026) | gli importati SI MODIFICANO: write-through, vince l'ultima modifica. Eccetto `Product.name`, che è solo VestiFlow — il titolo della vetrina è `shopifyTitle` (sotto) |
-| Clienti ecommerce                           | Shopify                        | anagrafica read-only nel gestionale                                                                                                                                  |
-| Ordini di vendita online                    | Shopify                        | sempre read-only nel gestionale                                                                                                                                      |
-| Giacenze                                    | condiviso (per quantity state) | il gestionale scrive carichi/rettifiche/trasferimenti; Shopify scrive vendite/reso online                                                                            |
-| Ordini fornitori, trasferimenti, rettifiche | gestionale                     | pieno CRUD locale                                                                                                                                                    |
-| Location                                    | Shopify (mappate)              | gestionale mappa le proprie location su quelle Shopify                                                                                                               |
+⭐ **La direzione PER CAMPO è la matrice canonica di `docs/24` §9.2, e vive solo lì.** La tabella qui sotto è a livello di **entità**: dice chi possiede un'entità, non la direzione di ogni suo campo. Dove le due sembrano divergere — un prodotto è «condiviso», ma la sua descrizione va solo VestiFlow→Shopify, di immagini se ne sincronizza una sola, SEO e metafield non configurati sono solo Shopify — **vince §9.2**. Qui non si ricopia la matrice: si rimanda.
+
+| Entità                                      | Owner                          | Conseguenza UI                                                                                                                                                                            |
+| ------------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Prodotti / varianti ecommerce               | **condiviso** (dal 03/09/2026) | gli importati SI MODIFICANO; la direzione **dipende dal campo** (`docs/24` §9.2), non è «tutto bidirezionale». Es.: `Product.name` è solo VestiFlow, `shopifyTitle` bidirezionale (sotto) |
+| Clienti ecommerce                           | Shopify                        | anagrafica read-only nel gestionale                                                                                                                                                       |
+| Ordini di vendita online                    | Shopify                        | sempre read-only nel gestionale                                                                                                                                                           |
+| Giacenze                                    | VestiFlow                      | Shopify invia ordini e resi come eventi; soltanto documenti e movimenti VestiFlow determinano la quantità autorevole, poi pubblicata al canale                                            |
+| Ordini fornitori, trasferimenti, rettifiche | gestionale                     | pieno CRUD locale                                                                                                                                                                         |
+| Location                                    | Shopify (mappate)              | gestionale mappa le proprie location su quelle Shopify                                                                                                                                    |
 
 ### ⭐ Il NOME del prodotto ha due campi, e uno non è condiviso — 03/09/2026
 
@@ -551,7 +557,15 @@ una casella di tabella non può contenere.
 
 `Product.name` («Nome prodotto») è **esclusivamente VestiFlow** — Shopify non lo sovrascrive
 mai, in nessun percorso — mentre `shopifyTitle` («Nome Shopify») è il titolo della vetrina ed
-è bidirezionale come il resto.
+è bidirezionale. Gli altri campi seguono ciascuno la propria direzione in `docs/24` §9.2.
+
+### Ciclo di vita del catalogo
+
+La regola completa vive in `docs/24` §§1, 4, 7 e 11. In sintesi: Non attiva, cestino ed
+eliminazione definitiva sono azioni diverse; il cestino conserva tutto ed è ripristinabile;
+l'eliminazione definitiva locale rimuove le dipendenze operative dopo doppio avviso, lasciando
+leggibili le righe documento dai propri snapshot; VestiFlow rende non acquistabile il remoto ma
+non cancella mai definitivamente prodotti o varianti da Shopify.
 
 ⚠️ **Un campo solo non poteva servire due mestieri opposti**: un nome si cerca digitando poche
 lettere in magazzino, l'altro si legge in una pagina prodotto. Finché erano lo stesso, chi
