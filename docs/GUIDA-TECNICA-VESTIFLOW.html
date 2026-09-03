@@ -851,14 +851,14 @@ npm run serve:pwa
 <ul>
 <li><code>isVestiflowCatalogOwner()</code> — esclude import Shopify e legacy con link alla creazione; include push e prodotti con media locale Supabase</li>
 <li><code>shouldSkipShopifyCatalogImport()</code> — pull/webhook <strong>non sovrascrivono</strong> catalogo VF-owned</li>
-<li><code>assertShopifyCatalogUpdateAllowed()</code> — su <code>shopify</code>: blocca mutazioni catalogo; consente <code>season</code> + <code>purchasePriceMinor</code></li>
-<li><code>assertShopifyCatalogDeleteAllowed()</code> / <code>assertShopifyCatalogManualSyncAllowed()</code> / <code>assertShopifyCatalogMediaMutationAllowed()</code></li>
+<li><code>assertShopifyCatalogDeleteAllowed()</code> — su <code>shopify</code>: l&#39;<strong>eliminazione</strong> resta bloccata (si scollega o si archivia)</li>
+<li>⚠️ Fino al 03/09/2026 esistevano anche le guardie di <em>update</em>, <em>sync manuale</em> e <em>media</em>: <strong>rimosse</strong> — l&#39;origine è provenienza, non un vincolo di sola lettura (docs/24 §1.8)</li>
 </ul>
 <p><strong>Backfill tenant esistenti</strong> (dopo deploy migration):</p>
 <pre><code class="language-bash">cd api &amp;&amp; npm run backfill:catalog-origin        # dry-run
 cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </code></pre>
-<p><strong>UI tenant:</strong> colonna <strong>Fonte</strong> in lista prodotti; badge <code>Fonte: VestiFlow</code> / <code>Fonte: Shopify</code> in dettaglio; form in modalità <strong>Modifica dati operativi</strong> se <code>catalogOrigin=shopify</code> (<code>catalog-origin.util.ts</code> FE + <code>product-form</code> / <code>product-detail</code>).</p>
+<p><strong>UI tenant:</strong> colonna <strong>Fonte</strong> in lista prodotti; badge <code>Fonte: VestiFlow</code> / <code>Fonte: Shopify</code> in dettaglio; i prodotti importati si <strong>modificano come gli altri</strong> (dal 03/09/2026): il salvataggio di un prodotto collegato va a Shopify via GraphQL, e un errore remoto resta visibile sul prodotto.</p>
 <h3 id="form-creazione-prodotto-product-form">Form creazione prodotto (<code>product-form</code>)</h3>
 <table>
 <thead>
@@ -1061,6 +1061,48 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 <li>Token cifrati at rest (<code>SHOPIFY_TOKEN_ENCRYPTION_KEY</code>)</li>
 <li>Diagnostica scope in Impostazioni: richiesti vs concessi</li>
 </ul>
+<p><strong>Gli ambiti dei canali di vendita sono a parte, e oggi non sono concessi.</strong> <code>read_publications</code> e <code>write_publications</code> servono a pubblicare e ritirare una risorsa da un canale (<code>publishablePublish</code> / <code>publishableUnpublish</code>) e a leggere l&#39;elenco dei canali (<code>publications</code>). Sono in <code>.env.example</code>, <strong>non</strong> in <code>api/.env</code> e <strong>non</strong> nei token dei negozi collegati — misurato il 03/09/2026 su entrambi gli shop di sviluppo.</p>
+<p>La diagnostica distingue due situazioni, e l&#39;azione da fare è diversa:</p>
+<table>
+<thead>
+<tr>
+<th>Stato</th>
+<th>Che cosa significa</th>
+<th>Che cosa si fa</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>not_requested</code></td>
+<td>il server non li chiede nemmeno (<code>SHOPIFY_SCOPES</code>)</td>
+<td>aggiungerli in <code>SHOPIFY_SCOPES</code> (locale <strong>e</strong> Railway), ridistribuire, <strong>poi</strong> riconnettere</td>
+</tr>
+<tr>
+<td><code>not_granted</code></td>
+<td>il server li chiede, il token è più vecchio</td>
+<td>disconnettere e riconnettere lo store da Impostazioni</td>
+</tr>
+</tbody></table>
+<p>⛔ <strong>Riconnettere non basta se lo stato è <code>not_requested</code></strong>: il consenso viene chiesto per gli ambiti che il server dichiara, quindi si tornerebbe con lo stesso token. È la ragione per cui i due casi hanno messaggi diversi invece di uno solo.</p>
+<p>L&#39;errore vero di Shopify, se si prova lo stesso: <code>Access denied for publishablePublish field. Required access: write_publications access scope.</code></p>
+<h3 id="contratto-graphql-admin-api--verificato-su-2026-07">Contratto GraphQL Admin API — verificato su <code>2026-07</code></h3>
+<p>La versione è <strong>fissata</strong> a <code>2026-07</code> (<code>SHOPIFY_API_VERSION</code>; mai <code>latest</code> né <code>unstable</code>). Le note qui sotto sono <strong>misurate</strong> contro uno shop di sviluppo il 03/09/2026 dal gate <code>npm run test:shopify:contract</code>, non dedotte dalla documentazione: sono i punti in cui <code>2026-07</code> si comporta diversamente da quanto ci si aspetterebbe, e ognuno era già costato un errore.</p>
+<p><strong><code>inventorySetQuantities</code> — tre trappole nella stessa mutation</strong></p>
+<ol>
+<li><code>InventorySetQuantitiesInput</code> <strong>non ha <code>ignoreCompareQuantity</code></strong>. Mandarlo fa rifiutare l&#39;intera mutation. Chi vuole scrivere senza confronto <strong>omette</strong> il campo di confronto, non alza una bandiera.</li>
+<li>Il confronto concorrenziale si chiama <strong><code>changeFromQuantity</code></strong>, non <code>compareQuantity</code>. Se non corrisponde alla quantità persistita, Shopify risponde con un <code>userErrors</code> — «The changeFromQuantity argument no longer matches the persisted quantity» — e <strong>non scrive</strong>. È la protezione contro due scritture che si sovrascrivono in silenzio: va tenuta.</li>
+<li>La direttiva <strong><code>@idempotent(key:)</code> sta sul CAMPO, non sull&#39;operazione</strong>. Scritta dopo le variabili della <code>mutation</code> viene rifiutata: «&#39;@idempotent&#39; can&#39;t be applied to mutations (allowed: fields)». Forma corretta:</li>
+</ol>
+<pre><code class="language-graphql">mutation InventorySetQuantities($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
+  inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+    userErrors { field message }
+  }
+}
+</code></pre>
+<p><strong><code>productOptionsReorder</code></strong> — <code>OptionReorderInput</code> vuole <strong>esattamente uno</strong> fra <code>id</code> e <code>name</code>. Passandoli entrambi: «OptionReorderInput requires exactly one of id, name».</p>
+<p><strong><code>productSet</code></strong> ha semantica <strong>sostitutiva</strong> sulle liste (opzioni, varianti, media): usato su un prodotto esistente con una lista parziale, Shopify <strong>elimina</strong> ciò che è stato omesso. In VestiFlow è quindi usato <strong>solo per creare</strong>, e il tipo dell&#39;input non ha <code>id</code> — l&#39;uso in aggiornamento non è possibile nemmeno per sbaglio. L&#39;aggiornamento passa da <code>productUpdate</code> e dalle mutation per intenzione.</p>
+<p><strong><code>variantStrategy: LEAVE_AS_IS</code></strong> su <code>productOptionsCreate</code> e <code>productOptionUpdate</code>: il default di Shopify (<code>CREATE</code> / <code>MANAGE</code>) creerebbe o <strong>cancellerebbe</strong> varianti che nessuno ha chiesto. Aggiungendo un&#39;opzione con <code>LEAVE_AS_IS</code> le varianti esistenti ricevono il primo valore della nuova opzione, e nessuna sparisce.</p>
+<p><strong><code>collectionAddProducts</code> e <code>collectionRemoveProducts</code> sono DEPRECATE, e si usano lo stesso.</strong> Shopify rimanda a <code>collectionUpdate</code> con <code>inclusion.selectionsToAdd</code>, ma in <code>2026-07</code> quel campo <strong>non esiste</strong> in <code>CollectionInput</code>, e <code>products</code> è valido «only with <code>collectionCreate</code>». In questa versione non c&#39;è altra via per cambiare l&#39;appartenenza a una collezione manuale. Il gate porta una sveglia: la sua prova diventa rossa il giorno in cui le inclusioni compaiono.</p>
+<p><strong>Le giacenze si scrivono anche su una variante non tracciata.</strong> Una variante creata da <code>productSet</code> nasce con <code>inventoryItem.tracked = false</code>, ma il livello di inventario esiste comunque e <code>inventorySetQuantities</code> funziona: verificato, non supposto.</p>
 <h3 id="webhook">Webhook</h3>
 <p>Registrati con <strong>Attiva aggiornamenti automatici</strong>. Idempotenza lato backend per eventi duplicati/out-of-order.</p>
 <p><strong>La registrazione punta all&#39;indirizzo dell&#39;ambiente da cui parte la chiamata</strong> (<code>SHOPIFY_APP_URL</code>), non a quello del negozio. Da un ambiente locale l&#39;operazione è <strong>rifiutata</strong>: creerebbe sottoscrizioni verso <code>localhost</code> sul negozio reale, e la deduplica di Shopify confronta gli indirizzi per uguaglianza esatta, quindi si sommerebbero a quelle buone invece di sostituirle. Chi sviluppa con un tunnel pubblico in HTTPS (ngrok, cloudflared) passa: il criterio esclude ciò che non è un riferimento raggiungibile, non ciò che è insolito.</p>

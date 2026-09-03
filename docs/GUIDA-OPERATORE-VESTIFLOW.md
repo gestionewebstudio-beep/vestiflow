@@ -410,8 +410,8 @@ Logica centralizzata in `api/src/products/catalog-origin.util.ts`:
 
 - `isVestiflowCatalogOwner()` — esclude import Shopify e legacy con link alla creazione; include push e prodotti con media locale Supabase
 - `shouldSkipShopifyCatalogImport()` — pull/webhook **non sovrascrivono** catalogo VF-owned
-- `assertShopifyCatalogUpdateAllowed()` — su `shopify`: blocca mutazioni catalogo; consente `season` + `purchasePriceMinor`
-- `assertShopifyCatalogDeleteAllowed()` / `assertShopifyCatalogManualSyncAllowed()` / `assertShopifyCatalogMediaMutationAllowed()`
+- `assertShopifyCatalogDeleteAllowed()` — su `shopify`: l'**eliminazione** resta bloccata (si scollega o si archivia)
+- ⚠️ Fino al 03/09/2026 esistevano anche le guardie di _update_, _sync manuale_ e _media_: **rimosse** — l'origine è provenienza, non un vincolo di sola lettura (docs/24 §1.8)
 
 **Backfill tenant esistenti** (dopo deploy migration):
 
@@ -420,7 +420,7 @@ cd api && npm run backfill:catalog-origin        # dry-run
 cd api && npm run backfill:catalog-origin:apply  # scrive su DB
 ```
 
-**UI tenant:** colonna **Fonte** in lista prodotti; badge `Fonte: VestiFlow` / `Fonte: Shopify` in dettaglio; form in modalità **Modifica dati operativi** se `catalogOrigin=shopify` (`catalog-origin.util.ts` FE + `product-form` / `product-detail`).
+**UI tenant:** colonna **Fonte** in lista prodotti; badge `Fonte: VestiFlow` / `Fonte: Shopify` in dettaglio; i prodotti importati si **modificano come gli altri** (dal 03/09/2026): il salvataggio di un prodotto collegato va a Shopify via GraphQL, e un errore remoto resta visibile sul prodotto.
 
 ### Form creazione prodotto (`product-form`)
 
@@ -540,6 +540,50 @@ Popolati al provisioning admin (`create-client`). UI: `tenant-client-card` in Im
 - Scope default in `SHOPIFY_SCOPES` (`.env.example`)
 - Token cifrati at rest (`SHOPIFY_TOKEN_ENCRYPTION_KEY`)
 - Diagnostica scope in Impostazioni: richiesti vs concessi
+
+**Gli ambiti dei canali di vendita sono a parte, e oggi non sono concessi.** `read_publications` e `write_publications` servono a pubblicare e ritirare una risorsa da un canale (`publishablePublish` / `publishableUnpublish`) e a leggere l'elenco dei canali (`publications`). Sono in `.env.example`, **non** in `api/.env` e **non** nei token dei negozi collegati — misurato il 03/09/2026 su entrambi gli shop di sviluppo.
+
+La diagnostica distingue due situazioni, e l'azione da fare è diversa:
+
+| Stato           | Che cosa significa                                 | Che cosa si fa                                                                              |
+| --------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `not_requested` | il server non li chiede nemmeno (`SHOPIFY_SCOPES`) | aggiungerli in `SHOPIFY_SCOPES` (locale **e** Railway), ridistribuire, **poi** riconnettere |
+| `not_granted`   | il server li chiede, il token è più vecchio        | disconnettere e riconnettere lo store da Impostazioni                                       |
+
+⛔ **Riconnettere non basta se lo stato è `not_requested`**: il consenso viene chiesto per gli ambiti che il server dichiara, quindi si tornerebbe con lo stesso token. È la ragione per cui i due casi hanno messaggi diversi invece di uno solo.
+
+L'errore vero di Shopify, se si prova lo stesso: `Access denied for publishablePublish field. Required access: write_publications access scope.`
+
+### Contratto GraphQL Admin API — verificato su `2026-07`
+
+La versione è **fissata** a `2026-07` (`SHOPIFY_API_VERSION`; mai `latest` né `unstable`). Le note qui sotto sono **misurate** contro uno shop di sviluppo il 03/09/2026 dal gate `npm run test:shopify:contract`, non dedotte dalla documentazione: sono i punti in cui `2026-07` si comporta diversamente da quanto ci si aspetterebbe, e ognuno era già costato un errore.
+
+**`inventorySetQuantities` — tre trappole nella stessa mutation**
+
+1. `InventorySetQuantitiesInput` **non ha `ignoreCompareQuantity`**. Mandarlo fa rifiutare l'intera mutation. Chi vuole scrivere senza confronto **omette** il campo di confronto, non alza una bandiera.
+2. Il confronto concorrenziale si chiama **`changeFromQuantity`**, non `compareQuantity`. Se non corrisponde alla quantità persistita, Shopify risponde con un `userErrors` — «The changeFromQuantity argument no longer matches the persisted quantity» — e **non scrive**. È la protezione contro due scritture che si sovrascrivono in silenzio: va tenuta.
+3. La direttiva **`@idempotent(key:)` sta sul CAMPO, non sull'operazione**. Scritta dopo le variabili della `mutation` viene rifiutata: «'@idempotent' can't be applied to mutations (allowed: fields)». Forma corretta:
+
+```graphql
+mutation InventorySetQuantities($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
+  inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+    userErrors {
+      field
+      message
+    }
+  }
+}
+```
+
+**`productOptionsReorder`** — `OptionReorderInput` vuole **esattamente uno** fra `id` e `name`. Passandoli entrambi: «OptionReorderInput requires exactly one of id, name».
+
+**`productSet`** ha semantica **sostitutiva** sulle liste (opzioni, varianti, media): usato su un prodotto esistente con una lista parziale, Shopify **elimina** ciò che è stato omesso. In VestiFlow è quindi usato **solo per creare**, e il tipo dell'input non ha `id` — l'uso in aggiornamento non è possibile nemmeno per sbaglio. L'aggiornamento passa da `productUpdate` e dalle mutation per intenzione.
+
+**`variantStrategy: LEAVE_AS_IS`** su `productOptionsCreate` e `productOptionUpdate`: il default di Shopify (`CREATE` / `MANAGE`) creerebbe o **cancellerebbe** varianti che nessuno ha chiesto. Aggiungendo un'opzione con `LEAVE_AS_IS` le varianti esistenti ricevono il primo valore della nuova opzione, e nessuna sparisce.
+
+**`collectionAddProducts` e `collectionRemoveProducts` sono DEPRECATE, e si usano lo stesso.** Shopify rimanda a `collectionUpdate` con `inclusion.selectionsToAdd`, ma in `2026-07` quel campo **non esiste** in `CollectionInput`, e `products` è valido «only with `collectionCreate`». In questa versione non c'è altra via per cambiare l'appartenenza a una collezione manuale. Il gate porta una sveglia: la sua prova diventa rossa il giorno in cui le inclusioni compaiono.
+
+**Le giacenze si scrivono anche su una variante non tracciata.** Una variante creata da `productSet` nasce con `inventoryItem.tracked = false`, ma il livello di inventario esiste comunque e `inventorySetQuantities` funziona: verificato, non supposto.
 
 ### Webhook
 

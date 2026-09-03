@@ -903,8 +903,8 @@ cliente paga.</p>
 </tr>
 <tr>
 <td><strong>Prodotti importati da Shopify</strong> (<code>Fonte: Shopify</code>)</td>
-<td>Solo dati operativi</td>
-<td>Titolo, prezzi vendita, varianti e immagini in <strong>Shopify Admin</strong>; in VestiFlow: <strong>stagione</strong> e <strong>prezzo di acquisto</strong></td>
+<td>Sì — catalogo completo</td>
+<td>Si modificano come gli altri; restano <strong>non eliminabili</strong> da VestiFlow</td>
 </tr>
 <tr>
 <td><strong>Giacenze</strong></td>
@@ -955,12 +955,15 @@ cliente paga.</p>
 <tr>
 <td><strong>Shopify</strong></td>
 <td>Prodotto importato dal negozio online</td>
-<td>Catalogo in sola lettura; modifica solo <strong>stagione</strong> e <strong>prezzo di acquisto</strong>; elimina da <strong>Shopify Admin</strong></td>
+<td><strong>Modifica completa</strong>, come un prodotto nato nel gestionale; l’eliminazione resta su <strong>Shopify Admin</strong></td>
 </tr>
 </tbody></table>
-<p>L’etichetta <strong>Fonte</strong> è distinta dallo <strong>stato sync Shopify</strong> (colonna <strong>Shopify</strong> in lista, se visibile): la Fonte dice <em>chi possiede il catalogo</em>; lo stato sync dice se l’ultimo invio verso Shopify è riuscito (solo per prodotti <strong>Fonte: VestiFlow</strong> collegati).</p>
+<p>L’etichetta <strong>Fonte</strong> è distinta dallo <strong>stato sync Shopify</strong> (colonna <strong>Shopify</strong> in lista, se visibile): la Fonte dice <em>da dove viene</em> il prodotto; lo stato sync dice se l’ultimo invio verso Shopify è riuscito.</p>
+<blockquote>
+<p><strong>La Fonte è una provenienza, non un lucchetto.</strong> Fino a settembre 2026 i prodotti importati si potevano modificare solo in due campi; ora si modificano per intero. La Fonte serve a sapere chi li ha creati, e su quali resta il vincolo di eliminazione.</p>
+</blockquote>
 <h3 id="badge-sync-sul-prodotto">Badge sync sul prodotto</h3>
-<p>Nel dettaglio prodotto (solo prodotti <strong>Fonte: VestiFlow</strong> collegati a Shopify):</p>
+<p>Nel dettaglio prodotto, con Shopify connesso:</p>
 <table>
 <thead>
 <tr>
@@ -989,7 +992,12 @@ cliente paga.</p>
 <td>Shopify non connesso o prodotto mai sync</td>
 </tr>
 </tbody></table>
-<p>I prodotti <strong>Fonte: Shopify</strong> si allineano automaticamente da Shopify Admin: non compare il pulsante <strong>Sincronizza con Shopify</strong>.</p>
+<h3 id="la-casella-sincronizza-con-shopify">La casella «Sincronizza con Shopify»</h3>
+<p>Nella scheda prodotto, con Shopify connesso, ogni prodotto ha una casella <strong>Sincronizza con Shopify</strong>. Spuntata, le modifiche che salvi vengono inviate al negozio online. Togliendo la spunta il prodotto smette di essere aggiornato: VestiFlow lo <strong>archivia su Shopify</strong>, così non resta in vendita, e le sue giacenze non vengono più pubblicate.</p>
+<blockquote>
+<p><strong>Se lo spegnimento non riesce, te lo dice subito.</strong> Può capitare che Shopify non risponda o rifiuti. In quel caso VestiFlow <strong>riaccende</strong> la sincronizzazione — perché il prodotto è ancora online — e mostra l’avviso <em>«La sincronizzazione non è stata disattivata. Il prodotto potrebbe essere ancora in vendita su Shopify»</em>, seguito dal motivo tecnico. <strong>Le altre modifiche che avevi fatto restano salvate</strong>: non è il salvataggio ad essere fallito, è solo lo spegnimento. Riprova, oppure controlla il prodotto su Shopify Admin.</p>
+</blockquote>
+<p>Rimettendo la spunta e salvando, il prodotto torna disponibile online.</p>
 <hr>
 <h2 id="9-prodotti-e-catalogo">9. Prodotti e catalogo</h2>
 <h3 id="concetti-base">Concetti base</h3>
@@ -1084,11 +1092,29 @@ cliente paga.</p>
 <p>Per chiudere un menu a più valori, clicca fuori dal pannello. I valori scelti compaiono nel trigger (nomi o «N selezionati») e nel <strong>Riepilogo</strong> prima del salvataggio.</p>
 <p>Al <strong>salvataggio</strong>, VestiFlow invia categoria e attributi a Shopify insieme al resto del catalogo (prodotti <strong>Fonte: VestiFlow</strong>). In <strong>dettaglio prodotto</strong> e nel riepilogo del form gli attributi sono elencati per nome con i valori separati da virgola.</p>
 <p><strong>Nota:</strong> <strong>Tipo prodotto</strong> (campo testuale locale) e <strong>Categoria Shopify</strong> sono distinti: la categoria taxonomy è quella usata per sync e metafield di categoria.</p>
+<h3 id="i-due-nomi-nome-prodotto-e-nome-shopify">I due nomi: «Nome prodotto» e «Nome Shopify»</h3>
+<p>Con Shopify connesso la scheda prodotto mostra <strong>due</strong> campi per il nome, e servono a due cose diverse:</p>
+<table>
+<thead>
+<tr>
+<th>Campo</th>
+<th>A cosa serve</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Nome prodotto</strong></td>
+<td>il nome con cui <strong>cerchi e riconosci</strong> l’articolo in magazzino. Può essere breve, e Shopify non lo cambia mai</td>
+</tr>
+<tr>
+<td><strong>Nome Shopify</strong></td>
+<td>il titolo con cui il prodotto <strong>si vende online</strong>, di solito più lungo e descrittivo</td>
+</tr>
+</tbody></table>
+<p>Se lasci <strong>Nome Shopify</strong> vuoto, alla prima sincronizzazione viene copiato dal nome prodotto. Da quel momento i due restano <strong>indipendenti</strong>: puoi accorciare il nome interno senza toccare la vetrina, e un cambio di titolo fatto su Shopify Admin aggiorna solo il Nome Shopify.</p>
+<p>Il pulsante <strong>Copia nome VestiFlow</strong> riallinea i due nomi quando lo decidi tu — non succede da solo.</p>
 <h3 id="modificare-o-eliminare">Modificare o eliminare</h3>
-<ul>
-<li><strong>Fonte: VestiFlow</strong> — modifica completa dalla lista o dal dettaglio. Con Shopify connesso, al salvataggio i dati catalogo vengono inviati a Shopify.</li>
-<li><strong>Fonte: Shopify</strong> — il pulsante diventa <strong>Modifica dati operativi</strong>: puoi aggiornare solo <strong>stagione</strong> e <strong>prezzo di acquisto</strong> delle varianti. Nome, descrizione, prezzi di vendita, opzioni, SKU, barcode e immagini vanno modificati in <strong>Shopify Admin</strong>; VestiFlow si allinea con import catalogo o aggiornamenti automatici.</li>
-</ul>
+<p>Tutti i prodotti si modificano dalla lista o dal dettaglio, <strong>compresi quelli importati da Shopify</strong>. Con Shopify connesso, al salvataggio i dati catalogo vengono inviati al negozio online, se la casella <strong>Sincronizza con Shopify</strong> è spuntata.</p>
+<p>L’unica differenza rimasta fra le due Fonti riguarda l’<strong>eliminazione</strong>, qui sotto.</p>
 <h4 id="eliminazione-prodotto">Eliminazione prodotto</h4>
 <table>
 <thead>
@@ -2105,7 +2131,8 @@ serie chiamata come l&#39;anno.</p>
 <li><strong>Fonte: VestiFlow</strong>, Shopify <strong>disconnesso</strong> — VestiFlow <strong>non</strong> elimina sul negozio online finché non riconnetti.</li>
 </ul>
 <h3 id="non-riesco-a-modificare-nome-o-prezzo-di-un-prodotto">Non riesco a modificare nome o prezzo di un prodotto</h3>
-<p>Controlla l’etichetta <strong>Fonte</strong> nel dettaglio. Se è <strong>Shopify</strong>, modifica titolo, varianti e prezzi di vendita in <strong>Shopify Admin</strong>; in VestiFlow restano editabili solo <strong>stagione</strong> e <strong>prezzo di acquisto</strong> (pulsante <strong>Modifica dati operativi</strong>).</p>
+<p>Nome e prezzi si modificano in VestiFlow <strong>anche sui prodotti importati da Shopify</strong>: l’etichetta <strong>Fonte</strong> dice da dove viene il prodotto, non cosa puoi farci.</p>
+<p>Se un campo risulta bloccato, controlla i <strong>permessi</strong> del tuo ruolo (§4) e che il prodotto non sia in sola consultazione perché aperto dal <strong>Dettaglio</strong> invece che dalla modifica.</p>
 <h3 id="non-vedo-gli-attributi-categoria-nel-form-prodotto">Non vedo gli attributi categoria nel form prodotto</h3>
 <p>Gli <strong>Attributi categoria</strong> compaiono solo dopo aver selezionato una <strong>Categoria prodotto Shopify</strong> nello step Dati generali. Verifica che Shopify sia <strong>connesso</strong> e che il profilo canale preveda l’integrazione. Se la categoria non ha metafield associati, la sezione può restare vuota («Nessun attributo per questa categoria»).</p>
 <h3 id="non-vedo-integrazione-shopify-o-tiktok-in-impostazioni">Non vedo Integrazione Shopify (o TikTok) in Impostazioni</h3>

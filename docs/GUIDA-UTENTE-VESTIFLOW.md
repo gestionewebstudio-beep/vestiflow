@@ -478,31 +478,33 @@ Solo il **Titolare** può collegare o scollegare TikTok Shop.
 
 ## 8. Cosa si sincronizza e dove
 
-| Dato                                                  | Dove si modifica in VestiFlow             | Note                                                                                                                  |
-| ----------------------------------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| **Prodotti creati in VestiFlow** (`Fonte: VestiFlow`) | Sì — catalogo completo                    | Push al salvataggio verso Shopify/TikTok se connessi                                                                  |
-| **Prodotti importati da Shopify** (`Fonte: Shopify`)  | Solo dati operativi                       | Titolo, prezzi vendita, varianti e immagini in **Shopify Admin**; in VestiFlow: **stagione** e **prezzo di acquisto** |
-| **Giacenze**                                          | Sì (carichi, rettifiche…)                 | Vendite Shopify via webhook; vendite negozio via **Registra vendita** (tutti i profili); push canale dopo scansione   |
-| **Ordini fornitori**                                  | Sì, solo in VestiFlow                     | Non passano da Shopify/TikTok                                                                                         |
-| **Vendite al banco**                                  | Sì — **Registra vendita**                 | Tutti i profili; movimento magazzino (origine **Vendita al banco**), non ordine di vendita                            |
-| **Vendite (lista ordini)**                            | Sola lettura                              | Da Shopify Online e POS (**solo profilo Shopify**)                                                                    |
-| **Clienti**                                           | Sola lettura                              | Da Shopify (profilo Shopify)                                                                                          |
-| **Sedi (location)**                                   | Sync + **selezione attiva** (entro piano) | Solo sedi attive in magazzino, movimenti e topbar; blocco dopo primo salvataggio                                      |
+| Dato                                                  | Dove si modifica in VestiFlow             | Note                                                                                                                |
+| ----------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| **Prodotti creati in VestiFlow** (`Fonte: VestiFlow`) | Sì — catalogo completo                    | Push al salvataggio verso Shopify/TikTok se connessi                                                                |
+| **Prodotti importati da Shopify** (`Fonte: Shopify`)  | Sì — catalogo completo                    | Si modificano come gli altri; restano **non eliminabili** da VestiFlow                                              |
+| **Giacenze**                                          | Sì (carichi, rettifiche…)                 | Vendite Shopify via webhook; vendite negozio via **Registra vendita** (tutti i profili); push canale dopo scansione |
+| **Ordini fornitori**                                  | Sì, solo in VestiFlow                     | Non passano da Shopify/TikTok                                                                                       |
+| **Vendite al banco**                                  | Sì — **Registra vendita**                 | Tutti i profili; movimento magazzino (origine **Vendita al banco**), non ordine di vendita                          |
+| **Vendite (lista ordini)**                            | Sola lettura                              | Da Shopify Online e POS (**solo profilo Shopify**)                                                                  |
+| **Clienti**                                           | Sola lettura                              | Da Shopify (profilo Shopify)                                                                                        |
+| **Sedi (location)**                                   | Sync + **selezione attiva** (entro piano) | Solo sedi attive in magazzino, movimenti e topbar; blocco dopo primo salvataggio                                    |
 
 ### Etichetta «Fonte» (catalogo)
 
 Nella **lista prodotti** (colonna **Fonte**) e nel **dettaglio prodotto** compare un’etichetta che indica **chi gestisce il catalogo ecommerce**:
 
-| Etichetta     | Significato                                                                                | Cosa puoi fare in VestiFlow                                                                                 |
-| ------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| **VestiFlow** | Prodotto nato nel gestionale (creato o importato CSV, poi eventualmente inviato al canale) | Modifica completa; eliminazione (se consentita) anche su Shopify se collegato                               |
-| **Shopify**   | Prodotto importato dal negozio online                                                      | Catalogo in sola lettura; modifica solo **stagione** e **prezzo di acquisto**; elimina da **Shopify Admin** |
+| Etichetta     | Significato                                                                                | Cosa puoi fare in VestiFlow                                                                            |
+| ------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| **VestiFlow** | Prodotto nato nel gestionale (creato o importato CSV, poi eventualmente inviato al canale) | Modifica completa; eliminazione (se consentita) anche su Shopify se collegato                          |
+| **Shopify**   | Prodotto importato dal negozio online                                                      | **Modifica completa**, come un prodotto nato nel gestionale; l’eliminazione resta su **Shopify Admin** |
 
-L’etichetta **Fonte** è distinta dallo **stato sync Shopify** (colonna **Shopify** in lista, se visibile): la Fonte dice _chi possiede il catalogo_; lo stato sync dice se l’ultimo invio verso Shopify è riuscito (solo per prodotti **Fonte: VestiFlow** collegati).
+L’etichetta **Fonte** è distinta dallo **stato sync Shopify** (colonna **Shopify** in lista, se visibile): la Fonte dice _da dove viene_ il prodotto; lo stato sync dice se l’ultimo invio verso Shopify è riuscito.
+
+> **La Fonte è una provenienza, non un lucchetto.** Fino a settembre 2026 i prodotti importati si potevano modificare solo in due campi; ora si modificano per intero. La Fonte serve a sapere chi li ha creati, e su quali resta il vincolo di eliminazione.
 
 ### Badge sync sul prodotto
 
-Nel dettaglio prodotto (solo prodotti **Fonte: VestiFlow** collegati a Shopify):
+Nel dettaglio prodotto, con Shopify connesso:
 
 | Badge                | Significato                                             |
 | -------------------- | ------------------------------------------------------- |
@@ -512,7 +514,13 @@ Nel dettaglio prodotto (solo prodotti **Fonte: VestiFlow** collegati a Shopify):
 | **Errore sync**      | Ultimo invio fallito — usa sync manuale                 |
 | **Non collegato**    | Shopify non connesso o prodotto mai sync                |
 
-I prodotti **Fonte: Shopify** si allineano automaticamente da Shopify Admin: non compare il pulsante **Sincronizza con Shopify**.
+### La casella «Sincronizza con Shopify»
+
+Nella scheda prodotto, con Shopify connesso, ogni prodotto ha una casella **Sincronizza con Shopify**. Spuntata, le modifiche che salvi vengono inviate al negozio online. Togliendo la spunta il prodotto smette di essere aggiornato: VestiFlow lo **archivia su Shopify**, così non resta in vendita, e le sue giacenze non vengono più pubblicate.
+
+> **Se lo spegnimento non riesce, te lo dice subito.** Può capitare che Shopify non risponda o rifiuti. In quel caso VestiFlow **riaccende** la sincronizzazione — perché il prodotto è ancora online — e mostra l’avviso _«La sincronizzazione non è stata disattivata. Il prodotto potrebbe essere ancora in vendita su Shopify»_, seguito dal motivo tecnico. **Le altre modifiche che avevi fatto restano salvate**: non è il salvataggio ad essere fallito, è solo lo spegnimento. Riprova, oppure controlla il prodotto su Shopify Admin.
+
+Rimettendo la spunta e salvando, il prodotto torna disponibile online.
 
 ---
 
@@ -576,10 +584,24 @@ Al **salvataggio**, VestiFlow invia categoria e attributi a Shopify insieme al r
 
 **Nota:** **Tipo prodotto** (campo testuale locale) e **Categoria Shopify** sono distinti: la categoria taxonomy è quella usata per sync e metafield di categoria.
 
+### I due nomi: «Nome prodotto» e «Nome Shopify»
+
+Con Shopify connesso la scheda prodotto mostra **due** campi per il nome, e servono a due cose diverse:
+
+| Campo             | A cosa serve                                                                                                  |
+| ----------------- | ------------------------------------------------------------------------------------------------------------- |
+| **Nome prodotto** | il nome con cui **cerchi e riconosci** l’articolo in magazzino. Può essere breve, e Shopify non lo cambia mai |
+| **Nome Shopify**  | il titolo con cui il prodotto **si vende online**, di solito più lungo e descrittivo                          |
+
+Se lasci **Nome Shopify** vuoto, alla prima sincronizzazione viene copiato dal nome prodotto. Da quel momento i due restano **indipendenti**: puoi accorciare il nome interno senza toccare la vetrina, e un cambio di titolo fatto su Shopify Admin aggiorna solo il Nome Shopify.
+
+Il pulsante **Copia nome VestiFlow** riallinea i due nomi quando lo decidi tu — non succede da solo.
+
 ### Modificare o eliminare
 
-- **Fonte: VestiFlow** — modifica completa dalla lista o dal dettaglio. Con Shopify connesso, al salvataggio i dati catalogo vengono inviati a Shopify.
-- **Fonte: Shopify** — il pulsante diventa **Modifica dati operativi**: puoi aggiornare solo **stagione** e **prezzo di acquisto** delle varianti. Nome, descrizione, prezzi di vendita, opzioni, SKU, barcode e immagini vanno modificati in **Shopify Admin**; VestiFlow si allinea con import catalogo o aggiornamenti automatici.
+Tutti i prodotti si modificano dalla lista o dal dettaglio, **compresi quelli importati da Shopify**. Con Shopify connesso, al salvataggio i dati catalogo vengono inviati al negozio online, se la casella **Sincronizza con Shopify** è spuntata.
+
+L’unica differenza rimasta fra le due Fonti riguarda l’**eliminazione**, qui sotto.
 
 #### Eliminazione prodotto
 
@@ -1432,7 +1454,9 @@ Usa **Cambia negozio** in Impostazioni, non il semplice **Disconnetti Shopify**.
 
 ### Non riesco a modificare nome o prezzo di un prodotto
 
-Controlla l’etichetta **Fonte** nel dettaglio. Se è **Shopify**, modifica titolo, varianti e prezzi di vendita in **Shopify Admin**; in VestiFlow restano editabili solo **stagione** e **prezzo di acquisto** (pulsante **Modifica dati operativi**).
+Nome e prezzi si modificano in VestiFlow **anche sui prodotti importati da Shopify**: l’etichetta **Fonte** dice da dove viene il prodotto, non cosa puoi farci.
+
+Se un campo risulta bloccato, controlla i **permessi** del tuo ruolo (§4) e che il prodotto non sia in sola consultazione perché aperto dal **Dettaglio** invece che dalla modifica.
 
 ### Non vedo gli attributi categoria nel form prodotto
 
