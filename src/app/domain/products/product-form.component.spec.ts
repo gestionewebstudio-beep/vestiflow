@@ -61,9 +61,16 @@ describe('ProductFormComponent — spegnimento della sincronizzazione', () => {
       getProductVariants: vi.fn().mockReturnValue(of([VARIANTE])),
       getFilterOptions: vi.fn().mockReturnValue(of({ categories: [], brands: [], seasons: [] })),
       searchVariantSummaries: vi.fn().mockReturnValue(of([])),
-      checkArticleCodeAvailability: vi.fn().mockReturnValue(of({ available: true })),
-      checkSkuAvailability: vi.fn().mockReturnValue(of([])),
-      checkBarcodeAvailability: vi.fn().mockReturnValue(of([])),
+      // ⛔ Le tre verifiche di unicità restituiscono un RISULTATO, non un elenco.
+      //    Rese come array, `takenSkus()` diventa `undefined` e il template
+      //    esplode su `.includes` — ma solo dopo i 400ms di debounce, quindi in
+      //    isolamento il test finisce prima e resta verde. L'ha preso il
+      //    pre-push, con la suite intera.
+      checkArticleCodeAvailability: vi
+        .fn()
+        .mockReturnValue(of({ articleCode: '00001', available: true, takenBy: null })),
+      checkSkuAvailability: vi.fn().mockReturnValue(of({ available: true, taken: [] })),
+      checkBarcodeAvailability: vi.fn().mockReturnValue(of({ available: true, taken: [] })),
       getPriceModePreference: vi.fn().mockReturnValue(of(false)),
       updateProduct,
       createProduct: vi.fn(),
