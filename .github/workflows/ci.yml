@@ -54,6 +54,26 @@ jobs:
       - name: Install API dependencies
         run: npm ci --prefix api
 
+      # ⛔ Senza questo passo il type-check dell'API NON PUO' passare.
+      #    `nest build` compila contro i tipi GENERATI da Prisma —
+      #    `DocumentType`, `Prisma.Sql`, `Prisma.raw`, `Prisma.InputJsonObject` —
+      #    che non esistono finche' il client non e' stato generato.
+      #    Misurato il 03/09/2026: 1107 errori TS2305 / TS2694 / TS2339, tutti
+      #    della stessa causa.
+      #
+      # ⚠️ `npm ci` NON lo genera: nel log dell'esecuzione compare soltanto
+      #    «added 588 packages», nessuna riga di Prisma. In locale il client
+      #    c'e' gia' da un `prisma:generate` precedente, quindi il difetto si
+      #    vede solo su una macchina pulita — cioe' solo in CI.
+      #
+      # ⭐ `generate` legge lo schema e NON si connette al database: la
+      #    variabile serve unicamente a risolvere `env("DATABASE_URL")` nel
+      #    blocco datasource, e il suo valore non viene mai usato.
+      - name: Genera il client Prisma
+        run: npm run prisma:generate --prefix api
+        env:
+          DATABASE_URL: postgresql://vestiflow:vestiflow@localhost:5432/vestiflow
+
       - name: Lint API
         run: npm run lint --prefix api
 
@@ -97,6 +117,14 @@ jobs:
 
       - name: Install API dependencies
         run: npm ci --prefix api
+
+      # Stessa ragione del job `lint-and-test`: senza il client generato il
+      # `build` dell'API non compila. Qui l'`.env` copiato sopra dichiara
+      # `DATABASE_URL` vuota, che non basta a risolvere il blocco datasource.
+      - name: Genera il client Prisma
+        run: npm run prisma:generate --prefix api
+        env:
+          DATABASE_URL: postgresql://vestiflow:vestiflow@localhost:5432/vestiflow
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
