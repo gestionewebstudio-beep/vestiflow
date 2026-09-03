@@ -11,15 +11,33 @@
       "numberOfRuns": 1,
       "puppeteerScript": "./scripts/lhci-mock-auth.cjs",
       "settings": {
-        "preset": "desktop",
-        "chromeFlags": "--no-sandbox --disable-dev-shm-usage"
-      }
+        "preset": "desktop"
+      },
+      "puppeteerLaunchOptions": {
+        "args": ["--no-sandbox", "--disable-dev-shm-usage"]
+      },
+      "startServerReadyTimeout": 300000
     },
     "assert": {
       "assertions": {
-        "categories:performance": ["warn", { "minScore": 0.75 }],
-        "categories:accessibility": ["error", { "minScore": 0.9 }],
-        "categories:best-practices": ["warn", { "minScore": 0.9 }],
+        "categories:performance": [
+          "warn",
+          {
+            "minScore": 0.75
+          }
+        ],
+        "categories:accessibility": [
+          "error",
+          {
+            "minScore": 0.9
+          }
+        ],
+        "categories:best-practices": [
+          "warn",
+          {
+            "minScore": 0.9
+          }
+        ],
         "categories:seo": "off"
       }
     },

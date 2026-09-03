@@ -34,6 +34,16 @@ export async function assertNoSeriousA11yViolations(
 ): Promise<void> {
   let builder = new AxeBuilder({ page });
   if (options.include) {
+    // ⛔ **axe valida l'`include` PRIMA di analizzare**, e `page.goto()`
+    //    ritorna al `load`: il bootstrap di Angular avviene dopo. Se
+    //    l'elemento non c'e' ancora, il messaggio non parla di attesa —
+    //    dice «No elements found for include in page Context», che si legge
+    //    come un selettore sbagliato.
+    //
+    // ⚠️ Misurato il 03/09/2026: in CI questa prova falliva cosi', mentre in
+    //    locale passava in 689 ms. Il selettore era corretto: mancava
+    //    l'attesa. L'assunto verificato non cambia — cambia solo QUANDO.
+    await page.locator(options.include).first().waitFor({ state: 'visible' });
     builder = builder.include(options.include);
   }
 
