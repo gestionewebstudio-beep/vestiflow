@@ -269,6 +269,39 @@ di risolvere e passare oltre.
 
 ---
 
+# DUPLICAZIONE E PERIMETRO
+
+Nasce da una regola scritta tre volte, in due grafie diverse, che nessun test aveva colto.
+Non è una guardia automatica: nessuno script la applica, la CI non la verifica.
+
+## Mentre si lavora
+
+- Al **secondo** punto che applica la stessa decisione: fermarsi e verificare se
+  centralizzarla in una funzione, un servizio o un mapper.
+- **Sintassi diversa non significa regola diversa.** Due scritture che decidono la stessa
+  cosa sono una duplicazione.
+- Differenze reali possono restare separate, ma vanno **motivate** nel codice.
+- Un percorso fuori dal perimetro concordato si **segnala** e non si modifica.
+
+## Prima del commit
+
+- Revisione **separata** del diff: duplicazioni, ampliamenti del perimetro, codice morto.
+  Serve quando la modifica applica una regola in **più punti** — non per una correzione
+  circoscritta a un file solo.
+- Cercare con `rg` **tutte** le scritture dei simboli nuovi, non a memoria.
+- Centralizzare prima di committare, o motivare perché no.
+
+## Due avvertenze
+
+I **test verdi dimostrano il comportamento, non l'assenza di duplicazione**: tre copie della
+stessa regola passano tutte e tre.
+
+Per una modifica distribuita su più punti la forma è **un implementatore e un revisore
+strutturale**, non un censimento esteso: più esplorazione allarga il perimetro invece di
+restringere la soluzione.
+
+---
+
 # COMMIT CONVENTION — Conventional Commits
 
 - USA il formato [Conventional Commits](https://www.conventionalcommits.org/):
@@ -424,7 +457,7 @@ Error: expect(page).toHaveURL(/\/app\/dashboard/) failed
 
 ⛔ **E con un `ng serve` già in ascolto sulla 4200 la variabile non serve a niente**:
 `reuseExistingServer: true` riusa quel server — che è la build normale — e il sintomo è
-identico. È il caso peggiore, perché il comando *sembra* giusto.
+identico. È il caso peggiore, perché il comando _sembra_ giusto.
 
 ⭐ **Il sintomo non nomina la causa**: si vede «Email o password non corretti» nella schermata
 di fallimento, e sembra un problema di credenziali. Non lo è.
@@ -601,10 +634,10 @@ l'app intera, initial          155.150 byte   trasferiti  (635 kB raw su 800 di 
 
 ### Perché 20 e 40, e non 16 e 26
 
-|                        |                                                                                                                                                                                    |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **warning 20 kB**      | il motore crescerà ancora: gli elenchi ci sono già tutti e dodici, ma non le tabelle di **configurazione** (Utenti, Codici IVA, Sedi) né quelle della dashboard — e ogni funzione nuova gli costa, come sono costati i filtri di colonna e la riga totali. A 16 risuonerebbe in poche settimane. Resta **5× il default Angular** (4 kB) |
-| **errore 40 kB**       | a 26 il motore ci arriva con la crescita normale, e `npm run build` gira nell'hook `pre-push`: bloccherebbe il push per una crescita fisiologica, costringendo ad alzarlo di corsa    |
+|                   |                                                                                                                                                                                                                                                                                                                                         |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **warning 20 kB** | il motore crescerà ancora: gli elenchi ci sono già tutti e dodici, ma non le tabelle di **configurazione** (Utenti, Codici IVA, Sedi) né quelle della dashboard — e ogni funzione nuova gli costa, come sono costati i filtri di colonna e la riga totali. A 16 risuonerebbe in poche settimane. Resta **5× il default Angular** (4 kB) |
+| **errore 40 kB**  | a 26 il motore ci arriva con la crescita normale, e `npm run build` gira nell'hook `pre-push`: bloccherebbe il push per una crescita fisiologica, costringendo ad alzarlo di corsa                                                                                                                                                      |
 
 ⛔ **Qui c'era «Fornitori e Inventario devono entrarci», e non era vero già mentre lo
 scrivevo**: la tabella tre righe sopra li elenca fra i fogli **già** crollati —
