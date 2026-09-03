@@ -238,7 +238,7 @@ export class ShopifyProductPullService {
       countCategoryMetafieldsWithValues(importedCategoryMetafields),
       existing?.shopifyLastError,
     );
-    // ⭐ Il titolo remoto è il NOME ONLINE, e da qui in poi solo quello: il nome
+    // ⭐ Il titolo remoto è il NOME SHOPIFY, e da qui in poi solo quello: il nome
     //    interno appartiene a chi lavora in magazzino, e un ri-sync non glielo
     //    riscrive più (docs/24 §1.9). `name` sta fuori dall'allowlist apposta —
     //    stesso pattern del codice articolo — e lo aggiunge la sola creazione.
@@ -262,7 +262,13 @@ export class ShopifyProductPullService {
         existing?.shopifyMetafields,
       ) as unknown as Prisma.InputJsonValue,
       shopifyCategoryMetafields: importedCategoryMetafields as unknown as Prisma.InputJsonValue,
-      status,
+      // ⛔ A sincronizzazione SPENTA lo stato remoto non si importa, ed è la
+      //    condizione che rende reversibile lo spegnimento: è VestiFlow ad aver
+      //    archiviato il prodotto su Shopify (docs/24 §1.10), quindi rileggere
+      //    quell'ARCHIVED e scriverlo in locale significa credere a un'eco della
+      //    propria voce. Il prodotto locale diventava `archived`, e da lì il push
+      //    si rifiutava di lavorarci: riaccendere non riallineava più niente.
+      ...(existing && existing.shopifySyncEnabled === false ? {} : { status }),
       options: options as unknown as Prisma.InputJsonValue,
       shopifyProductId,
       shopifySyncStatus: categorySyncError

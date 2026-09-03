@@ -419,9 +419,9 @@ describe('ProductGeneralStepComponent', () => {
       expect(screen.getByLabelText('Sincronizza con Shopify')).toBeTruthy();
     });
 
-    // ⭐ «Nome online»: due campi perché servono due nomi — quello breve per il
+    // ⭐ «Nome Shopify»: due campi perché servono due nomi — quello breve per il
     //    magazzino e quello con cui il prodotto si vende (docs/24 §1.9).
-    it('senza Shopify il «Nome online» non esiste: sarebbe un campo senza destinazione', async () => {
+    it('senza Shopify il «Nome Shopify» non esiste: sarebbe un campo senza destinazione', async () => {
       await renderStep({
         value: EMPTY_GENERAL,
         categories: [],
@@ -429,7 +429,7 @@ describe('ProductGeneralStepComponent', () => {
         shopifyActive: false,
       });
 
-      expect(screen.queryByLabelText(/Nome online/)).toBeNull();
+      expect(screen.queryByLabelText(/Nome Shopify/)).toBeNull();
     });
 
     it('⭐ «Copia nome VestiFlow» riallinea i due nomi su richiesta, non da solo', async () => {
@@ -442,12 +442,12 @@ describe('ProductGeneralStepComponent', () => {
       });
 
       // Nasce vuoto e nessuno lo riempie: lo decide la prima sincronizzazione.
-      expect(screen.getByLabelText<HTMLInputElement>(/Nome online/).value).toBe('');
+      expect(screen.getByLabelText<HTMLInputElement>(/Nome Shopify/).value).toBe('');
 
       await user.click(screen.getByRole('button', { name: 'Copia nome VestiFlow' }));
       fixture.detectChanges();
 
-      expect(screen.getByLabelText<HTMLInputElement>(/Nome online/).value).toBe('MAGL-COT-BLU');
+      expect(screen.getByLabelText<HTMLInputElement>(/Nome Shopify/).value).toBe('MAGL-COT-BLU');
     });
   });
 });

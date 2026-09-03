@@ -210,13 +210,13 @@
           </div>
         }
 
-        <!-- ⭐ «Nome online»: il titolo con cui il prodotto si vende, separato dal
+        <!-- ⭐ «Nome Shopify»: il titolo con cui il prodotto si vende, separato dal
              nome interno con cui lo si cerca in magazzino (docs/24 §1.9). Solo
              dove il canale esiste: senza Shopify non significherebbe niente. -->
         @if (shopifyActive()) {
           <div class="general-step__field general-step__field--grow">
             <label class="general-step__label" for="product-shopify-title">
-              Nome online
+              Nome Shopify
               <app-hover-tooltip
                 [inline]="true"
                 text="Titolo con cui il prodotto si vende su Shopify. Se lo lasci vuoto viene copiato dal nome prodotto alla prima sincronizzazione; da quel momento i due restano indipendenti, così puoi tenere un nome breve per il magazzino."

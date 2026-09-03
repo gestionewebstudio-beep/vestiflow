@@ -672,7 +672,7 @@ model Product {
   /// l'operatore non lo fornisce.
   articleCode                     String                  @map("article_code")
   name                            String
-  /// Titolo con cui il prodotto si vende ONLINE («Nome online»), distinto dal
+  /// Titolo con cui il prodotto si vende ONLINE («Nome Shopify»), distinto dal
   /// nome interno `name` che si usa in magazzino, nelle ricerche e nei documenti.
   /// Si inizializza UNA volta — dal nome interno alla creazione, dal titolo
   /// remoto sui prodotti già collegati — e da lì i due vivono separati:

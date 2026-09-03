@@ -1,5 +1,45 @@
 # Cosa resta da fare — VestiFlow
 
+## ⏸ SHOPIFY — quello che questa tranche lascia aperto (03/09/2026)
+
+Chiuse in `docs/24`: prodotti importati modificabili (§1.8), push GraphQL dei collegati
+(§1.6), «Nome Shopify» (§1.9), spegnimento reversibile (§1.10). Restano:
+
+| Cosa                                                           | Perché è aperto                                                                                                                                                                         |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ⛔ **12 prodotti su 18 non si sincronizzano più**              | le loro varianti orfane non hanno SKU, barcode né opzioni, e la remota è la variante di default: nessun criterio ha una chiave, quindi il push si ferma. **Serve una decisione**, sotto |
+| ⏸ un media Shopify in stato `FAILED` prende comunque il suo id | non viene ricaricato e nessuno se ne accorge: l'immagine non arriva sulla vetrina in silenzio. Va deciso se leggere `status` e segnalarlo                                               |
+| ⏸ azione massiva «Copia nome VestiFlow»                        | decisa in §1.9, entra col menu delle azioni massive (§1.8)                                                                                                                              |
+| ⏸ creazione prodotto ancora su REST                            | passa a `productSet` con la Tranche 2; con lei si unifica anche l'abbinamento varianti, oggi a solo SKU (`persistShopifyIds`)                                                           |
+| ⏸ metafield stagione e costo variante ancora su REST           | stesso cutover                                                                                                                                                                          |
+| ⚠️ `SHOPIFY_API_VERSION=2026-07` negli **altri ambienti**      | committata in `.env.example` e messa in locale; Railway e gli altri vanno aggiornati a mano                                                                                             |
+
+### ⛔ La decisione che serve: la variante unica non si abbina, e il push si ferma
+
+Misurato il 03/09/2026 leggendo lo shop di sviluppo, prodotto per prodotto:
+
+```text
+si abbinano       6   (4 per barcode, 2 per opzioni)
+il push FALLISCE 12   «nessuna variante Shopify corrisponde»
+```
+
+Il contratto di §1.8 chiede una corrispondenza **univoca e deterministica**, e quei 12 casi
+sono: **una** variante locale senza SKU né barcode né opzioni, **una** variante remota
+`Default Title` altrettanto nuda. Nessuno dei tre criteri ha una chiave da confrontare,
+quindi l'esito è «nessuna corrispondenza» e il push si ferma con l'errore.
+
+⚠️ **Il contratto si comporta come richiesto**: non è un difetto di implementazione. Ma prima
+della tranche quei prodotti si sincronizzavano — male, senza abbinare le varianti — e ora non
+si sincronizzano affatto.
+
+| La domanda aperta                                                                                  |
+| -------------------------------------------------------------------------------------------------- |
+| un quarto criterio «**una** locale ↔ **una** remota libera» è univoco e deterministico abbastanza? |
+| oppure quei 12 restano fermi finché qualcuno non dà loro uno SKU?                                  |
+
+⛔ **Non è stata presa**: la scelta è del proprietario, e cambia il comportamento di 12
+prodotti veri.
+
 ## ⏸ IN SOSPESO DAL 02/09/2026 — la colonna prezzo, e cosa è saltato fuori indagandola
 
 _Il proprietario: «salva il lavoro che stavamo facendo e che ha fatto uscire fuori questi

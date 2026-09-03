@@ -648,7 +648,7 @@ export class ProductsService {
           catalogOrigin: CatalogOrigin.vestiflow,
           shopifyCatalogLinkKind: ShopifyCatalogLinkKind.pushed,
           name: `${original.name} (copia)`,
-          // ⛔ Il «Nome online» non si duplica: due prodotti con lo stesso titolo
+          // ⛔ Il «Nome Shopify» non si duplica: due prodotti con lo stesso titolo
           //    sulla vetrina sono indistinguibili per chi compra. La copia se lo
           //    ricostruisce alla prima sincronizzazione, dal proprio nome.
           shopifyTitle: null,
@@ -779,7 +779,7 @@ export class ProductsService {
         data: {
           ...(articleCode !== undefined ? { articleCode } : {}),
           name: dto.name,
-          // ⭐ Svuotarlo NON è un errore: azzerato, il «Nome online» torna a
+          // ⭐ Svuotarlo NON è un errore: azzerato, il «Nome Shopify» torna a
           //    inizializzarsi da solo al push successivo (docs/24 §1.9). Assente
           //    dal payload, invece, non si tocca.
           ...(dto.shopifyTitle !== undefined

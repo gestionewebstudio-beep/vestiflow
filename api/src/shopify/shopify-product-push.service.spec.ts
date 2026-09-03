@@ -151,7 +151,7 @@ describe('ShopifyProductPushService — prezzo nel payload', () => {
     const collegato = {
       shopifyProductId: '111',
       name: 'Maglia cotone',
-      // Il caso normale: il «Nome online» è già stato inizializzato, e coincide
+      // Il caso normale: il «Nome Shopify» è già stato inizializzato, e coincide
       // col nome interno finché nessuno dei due viene cambiato.
       shopifyTitle: 'Maglia cotone',
       description: 'Descrizione',
@@ -313,27 +313,51 @@ describe('ShopifyProductPushService — prezzo nel payload', () => {
       );
     });
 
-    it("⭐ un'immagine già presente su Shopify (stesso URL d'origine) si collega e NON si ricarica", async () => {
+    // ⛔ Qui c'era una prova che diceva «un'immagine già su Shopify si riconosce
+    //    dallo stesso URL d'origine e non si ricarica». Sullo shop di sviluppo
+    //    quel caso NON SI VERIFICA MAI: `originalSource.url` è un URL firmato che
+    //    Shopify genera da sé e che cambia a ogni lettura (misurato il 03/09/2026).
+    //    La prova era verde con un mock che nessuna risposta reale produce.
+    it("⭐ l'immagine caricata prende l'id del media NUOVO, riconosciuto per differenza", async () => {
       const { service, shopifyGraphql, prisma } = createService(2990, collegato, {
-        listProductMedia: vi
+        // Il prodotto ha già un media suo; la mutation li restituisce TUTTI.
+        listProductMedia: vi.fn().mockResolvedValue([{ id: 'gid://shopify/MediaImage/1' }]),
+        addProductMedia: vi
           .fn()
           .mockResolvedValue([
-            { id: 'gid://shopify/MediaImage/9', originalSourceUrl: 'https://cdn/x.jpg' },
+            { id: 'gid://shopify/MediaImage/1' },
+            { id: 'gid://shopify/MediaImage/9' },
           ]),
       });
       prisma.productImage.findMany.mockResolvedValue([
-        { id: 'img-1', url: 'https://cdn/x.jpg', altText: null, sortOrder: 0 },
+        { id: 'img-1', url: 'https://locale/x.jpg', altText: null, sortOrder: 0 },
       ]);
 
       await service.pushProduct('tenant-1', 'prod-1');
 
-      expect(shopifyGraphql.addProductMedia).not.toHaveBeenCalled();
+      expect(shopifyGraphql.addProductMedia).toHaveBeenCalledOnce();
+      // Il legame che impedisce il duplicato al salvataggio dopo.
       expect(prisma.productImage.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'img-1' },
           data: { shopifyImageId: 'gid://shopify/MediaImage/9' },
         }),
       );
+    });
+
+    it('⛔ si cercano SOLO le immagini senza legame, e se non ce ne sono non si carica niente', async () => {
+      const { service, shopifyGraphql, prisma } = createService(2990, collegato);
+
+      await service.pushProduct('tenant-1', 'prod-1');
+
+      // Il filtro È la protezione dal duplicato: senza, un'immagine già caricata
+      // tornerebbe pendente a ogni salvataggio.
+      expect(prisma.productImage.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ productId: 'prod-1', shopifyImageId: null }),
+        }),
+      );
+      expect(shopifyGraphql.addProductMedia).not.toHaveBeenCalled();
     });
 
     it('⛔ «Sincronizza con Shopify» spento su un collegato → ARCHIVED, senza toccare il mapping', async () => {
@@ -368,10 +392,10 @@ describe('ShopifyProductPushService — prezzo nel payload', () => {
       expect(shopifyGraphql.setProductStatus).not.toHaveBeenCalled();
     });
 
-    // ⭐ «Nome online»: il titolo con cui il prodotto si vende, separato dal nome
+    // ⭐ «Nome Shopify»: il titolo con cui il prodotto si vende, separato dal nome
     //    interno con cui lo si cerca in magazzino (docs/24 §1.9).
     describe('il nome interno non parte per Shopify', () => {
-      it('⛔ collegato SENZA nome online: si LEGGE quello remoto — il nome di magazzino non parte', async () => {
+      it('⛔ collegato SENZA nome Shopify: si LEGGE quello remoto — il nome di magazzino non parte', async () => {
         const { service, shopifyGraphql, prisma } = createService(2990, {
           ...collegato,
           name: 'MAGL-COT-BLU',
@@ -394,7 +418,7 @@ describe('ShopifyProductPushService — prezzo nel payload', () => {
         });
       });
 
-      it('⭐ collegato CON nome online: parte quello, e Shopify non viene interrogato', async () => {
+      it('⭐ collegato CON nome Shopify: parte quello, e Shopify non viene interrogato', async () => {
         const { service, shopifyGraphql } = createService(2990, {
           ...collegato,
           name: 'MAGL-COT-BLU',

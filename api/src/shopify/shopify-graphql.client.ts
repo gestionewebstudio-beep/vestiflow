@@ -100,13 +100,16 @@ export interface ShopifyVariantBulkInput {
   readonly inventoryItem?: { readonly sku?: string };
 }
 
-/** Un media immagine del prodotto, con l'URL d'origine per riconoscerlo. */
+/** Un media del prodotto. Solo l'id: è l'unica cosa stabile che Shopify espone. */
 export interface ShopifyRemoteMedia {
   readonly id: string;
-  readonly originalSourceUrl: string | null;
 }
 
-const MEDIA_SELECTION = `media(first: 250) { nodes { id ... on MediaImage { originalSource { url } } } }`;
+// ⛔ NIENTE `originalSource { url }`: Shopify ri-ospita il file e restituisce un
+//    URL firmato che CAMBIA A OGNI LETTURA (misurato il 03/09/2026 sullo shop di
+//    sviluppo: due letture consecutive, due firme diverse, scadenza 5 minuti) — e
+//    subito dopo il caricamento è `null`. Non è un identificatore: l'unico è l'id.
+const MEDIA_SELECTION = `media(first: 250) { nodes { id } }`;
 
 @Injectable()
 export class ShopifyGraphqlClient {
@@ -789,9 +792,8 @@ export class ShopifyGraphqlClient {
     this.throwOnUserErrors('productVariantsBulkUpdate', data.productVariantsBulkUpdate?.userErrors);
   }
 
-  /** I media del prodotto: per riconoscere un'immagine già caricata dal suo URL d'origine. */
   /**
-   * Il titolo attuale su Shopify. Serve a inizializzare il «Nome online» dei
+   * Il titolo attuale su Shopify. Serve a inizializzare il «Nome Shopify» dei
    * prodotti già collegati senza toccarlo: si legge, non si deduce.
    */
   async getProductTitle(
@@ -813,6 +815,7 @@ export class ShopifyGraphqlClient {
     return data.product?.title ?? null;
   }
 
+  /** I media già presenti: è l'insieme «prima», da cui si ricavano i nuovi per differenza. */
   async listProductMedia(
     shopDomain: string,
     accessToken: string,
@@ -965,11 +968,10 @@ function isIgnorableStandardMetafieldDefinitionEnableError(message: string): boo
   );
 }
 
-type MediaNodes = { nodes: readonly { id: string; originalSource?: { url: string } | null }[] };
+type MediaNodes = { nodes: readonly { id: string }[] };
 
 function mapMedia(media: MediaNodes | undefined): readonly ShopifyRemoteMedia[] {
-  return (media?.nodes ?? []).map((node) => ({
-    id: node.id,
-    originalSourceUrl: node.originalSource?.url ?? null,
-  }));
+  // Da quando il media porta il solo id, qui non c'è più niente da tradurre: resta
+  // la normalizzazione dell'assenza, che i due chiamanti si aspettano.
+  return media?.nodes ?? [];
 }

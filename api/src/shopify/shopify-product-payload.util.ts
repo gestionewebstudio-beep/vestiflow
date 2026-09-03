@@ -17,7 +17,7 @@ export interface ProductChannelFields {
 
 export interface ProductForChannel {
   readonly name: string;
-  /** Il «Nome online». `null` = mai inizializzato: vedi `productChannelFields`. */
+  /** Il «Nome Shopify». `null` = mai inizializzato: vedi `productChannelFields`. */
   readonly shopifyTitle: string | null;
   readonly description: string | null;
   readonly brand: string | null;
@@ -44,7 +44,7 @@ export function shopifyProductStatus(status: ProductStatus): ShopifyProductStatu
  * decisione elencata due volte diverge al primo campo aggiunto.
  */
 /**
- * ⛔ Il titolo che va al canale è il **Nome online**, non il nome interno. Il
+ * ⛔ Il titolo che va al canale è il **Nome Shopify**, non il nome interno. Il
  *    ripiego su `name` vale SOLO per un prodotto che su Shopify non c'è ancora:
  *    su uno già collegato, chi chiama deve aver inizializzato `shopifyTitle`
  *    LEGGENDOLO da Shopify — altrimenti questo ripiego sovrascriverebbe il

@@ -105,7 +105,7 @@ export class CreateProductDto {
   name!: string;
 
   /**
-   * «Nome online»: il titolo con cui il prodotto si vende su Shopify. Vuoto =
+   * «Nome Shopify»: il titolo con cui il prodotto si vende su Shopify. Vuoto =
    * si inizializza dal nome interno alla prima sincronizzazione (docs/24 §1.9).
    */
   @IsOptional()

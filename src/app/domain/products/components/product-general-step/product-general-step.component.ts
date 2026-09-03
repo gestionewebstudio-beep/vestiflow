@@ -395,7 +395,7 @@ export class ProductGeneralStepComponent implements OnInit {
   private readonly seasonValue = signal('');
 
   /**
-   * ⭐ Riallinea il «Nome online» al nome interno, su richiesta esplicita.
+   * ⭐ Riallinea il «Nome Shopify» al nome interno, su richiesta esplicita.
    *
    * ⚠️ È un COMANDO, non un automatismo: i due campi sono indipendenti apposta,
    *    e riallinearli da soli a ogni modifica del nome interno rimetterebbe il

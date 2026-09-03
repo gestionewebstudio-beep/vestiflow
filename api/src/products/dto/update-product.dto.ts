@@ -38,7 +38,7 @@ export class UpdateProductDto {
   name?: string;
 
   /**
-   * «Nome online»: il titolo con cui il prodotto si vende su Shopify. Vuoto alla
+   * «Nome Shopify»: il titolo con cui il prodotto si vende su Shopify. Vuoto alla
    * creazione = si inizializza da solo alla prima sincronizzazione.
    */
   @IsOptional()

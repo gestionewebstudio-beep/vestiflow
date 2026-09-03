@@ -241,7 +241,7 @@ export class ShopifyProductPushService {
         );
         await this.persistShopifyIds(product, shopifyProduct);
         // Creato ORA con il nome interno: da adesso quel titolo è il «Nome
-        // online», e i due si possono separare senza che nessuno li riallinei.
+        // Shopify», e i due si possono separare senza che nessuno li riallinei.
         await this.initOnlineTitle(product.id, productChannelFields(product).title);
         await this.pushProductImages(
           tenantId,
@@ -511,15 +511,20 @@ export class ShopifyProductPushService {
   }
 
   /**
-   * Immagini via GraphQL, SENZA duplicarle ai salvataggi ripetuti: prima si
-   * cercano fra i media remoti per URL d'origine, e si carica solo ciò che
-   * manca davvero. L'id salvato è il GID del media; quelli numerici del
-   * vecchio REST restano validi come opachi.
+   * Immagini via GraphQL, SENZA duplicarle ai salvataggi ripetuti.
    *
-   * ⚠️ Qui NON si riscrive `url` con quello del CDN (il REST lo fa): il
-   *    riconoscimento del giro dopo è per `originalSource.url`, che è l'URL
-   *    locale. Riscriverlo farebbe ricaricare la stessa immagine al salvataggio
-   *    successivo.
+   * ⛔ A tenerle uniche è il `shopifyImageId` SALVATO, non un confronto di URL:
+   *    `originalSource.url` non è confrontabile — Shopify ri-ospita il file e
+   *    restituisce un URL firmato che cambia a ogni lettura (misurato il
+   *    03/09/2026). La prima stesura confrontava quello, non trovava mai nulla,
+   *    e ricaricava la stessa immagine a ogni salvataggio.
+   *
+   * ⭐ I media nuovi si riconoscono per DIFFERENZA: la mutation restituisce
+   *    tutti i media del prodotto, e quelli che prima non c'erano sono i nostri,
+   *    nell'ordine in cui li abbiamo mandati.
+   *
+   * ⚠️ Qui NON si riscrive `url` con quello del CDN (il REST lo fa): l'immagine
+   *    locale resta la sorgente, e il legame lo tiene l'id.
    */
   private async syncProductMediaViaGraphql(
     tenantId: string,
@@ -532,36 +537,25 @@ export class ShopifyProductPushService {
     if (pending.length === 0) {
       return;
     }
-    const remote = await this.shopifyGraphql.listProductMedia(shopDomain, accessToken, productGid);
-    const remoteByUrl = mediaByUrl(remote);
-    const daCaricare: typeof pending = [];
-    for (const image of pending) {
-      const known = remoteByUrl.get(image.url);
-      if (known) {
-        await this.prisma.productImage.update({
-          where: { id: image.id },
-          data: { shopifyImageId: known },
-        });
-      } else {
-        daCaricare.push(image);
-      }
-    }
-    if (daCaricare.length === 0) {
-      return;
-    }
+    const prima = new Set(
+      (await this.shopifyGraphql.listProductMedia(shopDomain, accessToken, productGid)).map(
+        (media) => media.id,
+      ),
+    );
     const dopo = await this.shopifyGraphql.addProductMedia(
       shopDomain,
       accessToken,
       productGid,
-      daCaricare.map((image) => ({ originalSource: image.url, alt: image.altText ?? undefined })),
+      pending.map((image) => ({ originalSource: image.url, alt: image.altText ?? undefined })),
     );
-    const dopoByUrl = mediaByUrl(dopo);
-    for (const image of daCaricare) {
-      const id = dopoByUrl.get(image.url);
-      if (id) {
+    // I nuovi sono quelli che prima non c'erano, nell'ordine in cui sono partiti.
+    const nuovi = dopo.filter((media) => !prima.has(media.id));
+    for (const [posizione, image] of pending.entries()) {
+      const creato = nuovi[posizione];
+      if (creato) {
         await this.prisma.productImage.update({
           where: { id: image.id },
-          data: { shopifyImageId: id },
+          data: { shopifyImageId: creato.id },
         });
       } else {
         this.logger.warn(
@@ -599,7 +593,7 @@ export class ShopifyProductPushService {
   }
 
   /**
-   * Il «Nome online» di un prodotto GIÀ COLLEGATO, quando non è mai stato
+   * Il «Nome Shopify» di un prodotto GIÀ COLLEGATO, quando non è mai stato
    * inizializzato.
    *
    * ⛔ Si LEGGE da Shopify, non si deduce da `name`: i prodotti importati hanno
@@ -623,7 +617,7 @@ export class ShopifyProductPushService {
   }
 
   /**
-   * Scrive il «Nome online» UNA volta sola: il filtro `shopifyTitle: null` è la
+   * Scrive il «Nome Shopify» UNA volta sola: il filtro `shopifyTitle: null` è la
    * garanzia: chi ce l'ha già non viene toccato, nemmeno da un push ripetuto.
    */
   private async initOnlineTitle(productId: string, titolo: string): Promise<void> {
@@ -1036,13 +1030,3 @@ export class ShopifyProductPushService {
   }
 }
 
-/** I media remoti indicizzati per URL d'origine: è così che un'immagine si riconosce. */
-function mediaByUrl(
-  media: readonly { readonly id: string; readonly originalSourceUrl: string | null }[],
-): ReadonlyMap<string, string> {
-  return new Map(
-    media.flatMap((entry) =>
-      entry.originalSourceUrl ? [[entry.originalSourceUrl, entry.id]] : [],
-    ),
-  );
-}

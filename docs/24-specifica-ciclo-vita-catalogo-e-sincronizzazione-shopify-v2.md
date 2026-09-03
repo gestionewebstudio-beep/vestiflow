@@ -237,7 +237,7 @@ bidirezionali e vince l'ultima modifica; le quantità sono solo VestiFlow → Sh
 salvataggio avvia subito la sincronizzazione; un errore Shopify non annulla il salvataggio
 locale ma lascia uno stato visibile. Il push passa da GraphQL (§1.6), non dal REST.
 
-### 1.9 Il nome interno e il «Nome online» sono DUE campi — deciso il 03/09/2026
+### 1.9 Il nome interno e il «Nome Shopify» sono DUE campi — deciso il 03/09/2026
 
 > **`Product.name` è il nome con cui si lavora; `shopifyTitle` è il titolo con cui il
 > prodotto si vende. Dopo l'inizializzazione, vivono indipendenti.**
@@ -252,18 +252,30 @@ lo rimandava su Shopify, accorciando anche la vetrina. Un campo solo non poteva 
 mestieri opposti: uno si cerca digitando poche lettere, l'altro si legge in una pagina
 prodotto.
 
-| Il campo                         | Chi lo usa                                               |
-| -------------------------------- | -------------------------------------------------------- |
-| **Nome prodotto** (`name`)       | magazzino, ricerche, documenti, stampe, snapshot di riga |
-| **Nome online** (`shopifyTitle`) | **solo** il `title` su Shopify                           |
+#### Il contratto
+
+- **`Product.name` / «Nome prodotto» è esclusivamente interno** — magazzino, ricerche,
+  documenti, stampe, snapshot di riga: Shopify non lo sovrascrive mai, in nessun percorso;
+- **`shopifyTitle` / «Nome Shopify» è il `title` su Shopify, e basta**, sincronizzato in
+  ENTRAMBE le direzioni: una modifica su Shopify lo aggiorna, una modifica in VestiFlow
+  aggiorna il titolo Shopify;
+- **prevale l'ultima modifica valida**, e non si formano circuiti: il push manda ciò che ha
+  in `shopifyTitle`, il pull scrive ciò che trova — valori uguali, nessun effetto; valori
+  diversi, vince chi ha scritto per ultimo;
+- **duplicando un prodotto**, `shopifyTitle` NON viene copiato e resta vuoto: il duplicato lo
+  inizializza dal proprio nome alla sua prima sincronizzazione. Due prodotti con lo stesso
+  titolo sulla vetrina sono indistinguibili per chi compra;
+- spegnere la sincronizzazione o usare il cestino **non** cancella `shopifyTitle`.
 
 #### L'inizializzazione avviene UNA volta, e il lato da cui si legge non è indifferente
 
-| Prodotto                        | Valore iniziale del «Nome online»                       |
+| Prodotto                        | Valore iniziale del «Nome Shopify»                      |
 | ------------------------------- | ------------------------------------------------------- |
 | **creato in VestiFlow**         | il nome interno, alla **prima sincronizzazione**        |
 | **importato da Shopify**        | il titolo ricevuto — e i due nomi nascono uguali        |
 | **già collegato** (177 sul dev) | ⛔ si **LEGGE da Shopify**, mai dedotto dal nome locale |
+
+Salvo che l'operatore l'abbia già compilato: in quel caso vale il suo.
 
 ⛔ **Dedurlo dal nome interno su un prodotto già collegato è il danno che questa decisione
 esiste per evitare**: rimanderebbe su Shopify il nome di magazzino, sovrascrivendo il titolo
@@ -271,22 +283,20 @@ con cui il prodotto si vende. Il push lo procura con una lettura (`getProductTit
 di comporre l'aggiornamento, e lo salva con un filtro `shopifyTitle: null` — quindi una
 volta sola, anche a push ripetuti.
 
-#### Dopo l'inizializzazione
+⚠️ **L'etichetta nel gestionale è «Nome Shopify»**, non «Nome online»: il campo riguarda solo
+quel canale, e un nome generico prometterebbe una sincronizzazione che non esiste altrove.
 
-- una modifica **su Shopify** aggiorna **solo** `shopifyTitle` — il nome interno non si tocca;
-- una modifica di **`shopifyTitle`** in VestiFlow parte verso Shopify col push ordinario;
-- una modifica di **`name`** non arriva più su Shopify;
-- **documenti e snapshot** continuano a usare esclusivamente `name`;
-- spegnere la sincronizzazione o usare il cestino **non** cancella `shopifyTitle`;
-- ⭐ la **duplicazione** di un prodotto NON copia il nome online: due prodotti con lo stesso
-  titolo sulla vetrina sono indistinguibili per chi compra. La copia se lo ricostruisce.
+⚠️ **La migration si chiama ancora `prodotto_nome_online`**, e il suo commento pure: era il
+nome del primo giro, e un file di migration **già applicato non si tocca** — Prisma ne
+confronta il checksum e `migrate deploy` fallirebbe. La colonna è `shopify_title`, che è ciò
+che conta.
 
 ⚠️ **Svuotare il campo non è un errore**: significa «torna a decidertelo da solo», e al push
 successivo si re-inizializza. Per questo non ha `required`.
 
 #### Nella scheda prodotto
 
-Etichetta **«Nome online»**, sotto il nome prodotto, **solo con Shopify attivo** — senza il
+Etichetta **«Nome Shopify»**, sotto il nome prodotto, **solo con Shopify attivo** — senza il
 canale sarebbe un campo senza destinazione. Segnaposto «Come il nome prodotto», e un comando
 **«Copia nome VestiFlow»** che riallinea i due su richiesta.
 
@@ -299,6 +309,18 @@ implementata**: entra col menu delle azioni massive di §1.8.
 
 ⚠️ **Questa decisione corregge la bidirezionalità di §1.8 SOLO per il nome.** Descrizione,
 immagini, SKU, barcode e prezzi restano come sono.
+
+#### ⛔ Finché il ramo non è in produzione, l'eco riscrive il nome interno
+
+I webhook Shopify sono registrati verso **Railway**, che gira `main` e scrive sullo **stesso
+database**. Misurato il 03/09/2026 sullo shop di sviluppo: dopo un push, il nome interno torna
+al titolo remoto **0,7 secondi dopo la fine dell'operazione** — non è il ramo, è la produzione
+che elabora il webhook col codice precedente, quello che scriveva il titolo in `Product.name`.
+
+⚠️ **Non è un difetto da correggere qui, ed è la ragione per cui una prova reale può fallire
+mentre la prova unitaria è verde**: chi verifica a mano deve saperlo, o cercherà a lungo un
+difetto che nel ramo non c'è. Sparisce da sé quando il ramo va in produzione. ⭐ L'eco è
+**intermittente**: in una prova successiva non è arrivata entro 20 secondi.
 
 ### 1.10 Spegnere la sincronizzazione è un'operazione SOLA — deciso il 03/09/2026
 
@@ -325,6 +347,18 @@ nasconderebbe la conseguenza: quella sta nel messaggio, che è ciò che l'operat
 
 ⭐ **Ripetere non duplica effetti**: l'annullamento filtra su `shopifySyncEnabled: false`, quindi
 chi ha già il flag acceso non viene toccato e una decisione più recente non viene sovrascritta.
+
+#### ⛔ E lo spegnimento deve restare REVERSIBILE — misurato il 03/09/2026
+
+> **A sincronizzazione spenta, il pull NON importa lo stato remoto.**
+
+L'archiviazione su Shopify la facciamo noi, spegnendo l'interruttore. Shopify manda allora un
+`products/update` con `status: archived`, e importarlo significa **credere a un'eco della
+propria voce**: il prodotto locale diventava `archived`, e da lì `executePushWork` si rifiutava
+di lavorarci (`reason: 'archived'`). Misurato sullo shop di sviluppo: riaccendere la
+sincronizzazione **non riallineava più niente**, e il prodotto restava archiviato sulla vetrina.
+
+⚠️ Il resto del pull continua ad arrivare: è **solo lo stato** a essere nostro.
 
 ## 2. Situazione osservata nel codice al 2 settembre 2026
 
@@ -1831,22 +1865,22 @@ La Tranche 0 si esegue a fette, una alla volta, con verifica prima di passare al
 
 ⛔ **La Tranche 0 NON è completata.** Una sola delle sue fette lo è.
 
-|           |                                                                          |                                                                                                                               |
-| --------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| **0A.1**  | **totali economici di riga sul percorso generico**                       | ✅ **completata e verificata**, con i test eseguiti                                                                           |
-| **0B.1**  | **filtro Sede del Registro canonico**                                    | ✅ **completata e verificata**, con i test eseguiti                                                                           |
-| **0A.2a** | **snapshot identificativi di riga sul percorso generico**                | ✅ **completata e verificata**, con i test eseguiti                                                                           |
-| **0A.2b** | **consumo degli snapshot: riapertura, interfaccia, stampa**              | ✅ **completata e verificata**, con i test eseguiti                                                                           |
-| **0A.2c** | **duplicazioni e conversioni: gli snapshot seguono la riga sorgente**    | ✅ **completata e verificata**, con i test eseguiti                                                                           |
-| —         | «Concludi ordine» (ordine cliente → documento)                           | ⏸ **lacuna dichiarata**: `SalesOrderLine` non ha `articleCode` né `productName`                                               |
-| —         | **convergenza Corrispettivi**                                            | ✅ **fatta il 03/09/2026**: il vecchio export è stato rimosso, il Registro canonico è l'unica fonte                           |
-| —         | contratto autonomo dei movimenti (§5.3)                                  | ⏸ da fare                                                                                                                     |
-| —         | eliminazione locale                                                      | ⏸ da fare                                                                                                                     |
-| —         | interruttore Shopify: ferma anche le giacenze, `ARCHIVED` (§1.8)         | ✅ **fatto il 03/09/2026** · ⏸ resta l'unpublish per variante (`publishablePublish`, Tranche 3)                               |
-| —         | nome interno separato dal «Nome online» (§1.9)                           | ✅ **fatto il 03/09/2026** · ⏸ resta l'azione massiva «Copia nome VestiFlow»                                                  |
-| —         | spegnere la sync non lascia il prodotto in vendita (§1.10)               | ✅ **fatto il 03/09/2026**                                                                                                    |
-| —         | prodotti importati modificabili (§1.8) — **primo pezzo della Tranche 2** | ✅ **completata il 03/09/2026**; le 2 prove d'integrazione sono scritte ma ⚠️ **non eseguite** (Docker spento sulla macchina) |
-| —         | **migrazione push Shopify a GraphQL** (Tranche 2 e 3)                    | ⏸ **da eseguire**, decisa in §1.6                                                                                             |
+|           |                                                                              |                                                                                                                               |
+| --------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| **0A.1**  | **totali economici di riga sul percorso generico**                           | ✅ **completata e verificata**, con i test eseguiti                                                                           |
+| **0B.1**  | **filtro Sede del Registro canonico**                                        | ✅ **completata e verificata**, con i test eseguiti                                                                           |
+| **0A.2a** | **snapshot identificativi di riga sul percorso generico**                    | ✅ **completata e verificata**, con i test eseguiti                                                                           |
+| **0A.2b** | **consumo degli snapshot: riapertura, interfaccia, stampa**                  | ✅ **completata e verificata**, con i test eseguiti                                                                           |
+| **0A.2c** | **duplicazioni e conversioni: gli snapshot seguono la riga sorgente**        | ✅ **completata e verificata**, con i test eseguiti                                                                           |
+| —         | «Concludi ordine» (ordine cliente → documento)                               | ⏸ **lacuna dichiarata**: `SalesOrderLine` non ha `articleCode` né `productName`                                               |
+| —         | **convergenza Corrispettivi**                                                | ✅ **fatta il 03/09/2026**: il vecchio export è stato rimosso, il Registro canonico è l'unica fonte                           |
+| —         | contratto autonomo dei movimenti (§5.3)                                      | ⏸ da fare                                                                                                                     |
+| —         | eliminazione locale                                                          | ⏸ da fare                                                                                                                     |
+| —         | interruttore Shopify: ferma anche le giacenze, `ARCHIVED` (§1.8)             | ✅ **fatto il 03/09/2026** · ⏸ resta l'unpublish per variante (`publishablePublish`, Tranche 3)                               |
+| —         | nome interno separato dal «Nome Shopify» (§1.9)                              | ✅ **fatto e provato sullo shop il 03/09/2026** · ⏸ resta l'azione massiva «Copia nome VestiFlow»                             |
+| —         | spegnere la sync non lascia il prodotto in vendita, ed è reversibile (§1.10) | ✅ **fatto e provato sullo shop il 03/09/2026**                                                                               |
+| —         | prodotti importati modificabili (§1.8) — **primo pezzo della Tranche 2**     | ✅ **completata il 03/09/2026**; le 2 prove d'integrazione sono scritte ma ⚠️ **non eseguite** (Docker spento sulla macchina) |
+| —         | **migrazione push Shopify a GraphQL** (Tranche 2 e 3)                        | ⏸ **da eseguire**, decisa in §1.6                                                                                             |
 
 ⛔ **Non c'è più una voce «correzione del vecchio export dai movimenti».** Quel percorso **non si ripara**: si dismette. Ripararlo — e a maggior ragione alimentarlo con nuovi snapshot economici — significherebbe investire lavoro in un motore che deve sparire, e ritardarne la fine.
 
@@ -2019,9 +2053,7 @@ Ordine cliente.
 
 **Prodotti importati modificabili — primo pezzo della Tranche 2 (03/09/2026).** Il push di un
 prodotto **già collegato** passa da GraphQL: `productUpdate` per campi e stato, `productVariantsBulkUpdate`
-(`allowPartialUpdates: false`) per SKU, barcode e prezzo, `productUpdate(media:)` per le immagini —
-che prima si cercano fra i media remoti per URL d'origine, così i salvataggi ripetuti non le
-duplicano. Versione API fissata a **`2026-07`** (⚠️ va aggiornata in ogni `.env`: `2025-01` è
+(`allowPartialUpdates: false`) per SKU, barcode e prezzo, `productUpdate(media:)` per le immagini. Versione API fissata a **`2026-07`** (⚠️ va aggiornata in ogni `.env`: `2025-01` è
 fuori supporto). Gli id restano numerici in tabella; il GID si compone in un punto solo
 (`toShopifyGid`), che ha assorbito due copie preesistenti.
 
@@ -2057,9 +2089,28 @@ push ordinario. ⚠️ Resta dichiarata, non unificata, la politica di abbinamen
 REST (`persistShopifyIds`: solo SKU, chi non corrisponde resta scollegato senza errore): si unifica
 con `productSet`.
 
-⚠️ **Le mutation GraphQL vanno provate sullo shop di sviluppo** (§1.6): i test le mockano.
-In particolare `productUpdate(media:)` in `2026-07` e l'abbinamento dei media per
-`originalSource.url`.
+#### ⛔ Le immagini NON si riconoscono per URL d'origine — misurato il 03/09/2026
+
+La prima stesura cercava i media remoti per `originalSource.url` e caricava solo ciò che
+mancava. **Non poteva funzionare**: Shopify ri-ospita il file e restituisce un URL firmato
+proprio, che è `null` subito dopo il caricamento e **cambia a ogni lettura** (due letture
+consecutive, due firme diverse, scadenza 5 minuti). Il confronto non trovava mai nulla, e a
+ogni salvataggio la stessa immagine veniva ricaricata: **due media dopo il secondo push**.
+
+⭐ A tenerle uniche è il `shopifyImageId` **salvato**. I media nuovi si riconoscono per
+**differenza**: la mutation restituisce _tutti_ i media del prodotto, e quelli che prima non
+c'erano sono i nostri, nell'ordine in cui li abbiamo mandati.
+
+⚠️ **Resta aperto**: un media che Shopify rifiuta resta in stato `FAILED` e prende comunque il
+suo id, quindi non viene ricaricato e nessuno se ne accorge. Va deciso se leggere `status` e
+segnalarlo — fuori dal perimetro di questa tranche.
+
+✅ **Provato sullo shop di sviluppo il 03/09/2026** (§1.6), con un prodotto creato apposta e
+rimosso alla fine: lettura del titolo su `2026-07`, Nome prodotto che non tocca il titolo
+Shopify, Nome Shopify che lo aggiorna, webhook che aggiorna solo `shopifyTitle`, SKU/barcode/
+prezzo via `productVariantsBulkUpdate`, immagine via `productUpdate(media:)` senza duplicato al
+secondo salvataggio, archiviazione allo spegnimento con inventario fermo, e riattivazione che
+riporta il prodotto ad `ACTIVE` senza duplicarlo.
 **0B.1 — che cosa è successo, in ordine.**
 
 1. ⛔ È stato introdotto **per errore** uno scope automatico per le sedi autorizzate all'utente: dedotto dal fatto che il vecchio export dai movimenti lo applicava, e mai deciso da nessuno. L'effetto sarebbe stato un corrispettivo totale più basso del vero, senza segnale.

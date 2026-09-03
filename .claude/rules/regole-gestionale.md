@@ -533,14 +533,30 @@ sovrappongono: il primo tipo buono per entrambe l’avrebbe rotta in silenzio.
 
 Con Shopify connesso, **ogni entità ha un owner di sync** dichiarato. È la decisione che condiziona tutto: quali form esistono, cosa è editabile, come si risolvono i conflitti.
 
-| Entità                                      | Owner                          | Conseguenza UI                                                                            |
-| ------------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------- |
-| Prodotti / varianti ecommerce               | Shopify (di norma)             | editing locale = write-through verso Shopify o read-only; mai fork silenzioso             |
-| Clienti ecommerce                           | Shopify                        | anagrafica read-only nel gestionale                                                       |
-| Ordini di vendita online                    | Shopify                        | sempre read-only nel gestionale                                                           |
-| Giacenze                                    | condiviso (per quantity state) | il gestionale scrive carichi/rettifiche/trasferimenti; Shopify scrive vendite/reso online |
-| Ordini fornitori, trasferimenti, rettifiche | gestionale                     | pieno CRUD locale                                                                         |
-| Location                                    | Shopify (mappate)              | gestionale mappa le proprie location su quelle Shopify                                    |
+| Entità                                      | Owner                          | Conseguenza UI                                                                                                                                                       |
+| ------------------------------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Prodotti / varianti ecommerce               | **condiviso** (dal 03/09/2026) | gli importati SI MODIFICANO: write-through, vince l'ultima modifica. Eccetto `Product.name`, che è solo VestiFlow — il titolo della vetrina è `shopifyTitle` (sotto) |
+| Clienti ecommerce                           | Shopify                        | anagrafica read-only nel gestionale                                                                                                                                  |
+| Ordini di vendita online                    | Shopify                        | sempre read-only nel gestionale                                                                                                                                      |
+| Giacenze                                    | condiviso (per quantity state) | il gestionale scrive carichi/rettifiche/trasferimenti; Shopify scrive vendite/reso online                                                                            |
+| Ordini fornitori, trasferimenti, rettifiche | gestionale                     | pieno CRUD locale                                                                                                                                                    |
+| Location                                    | Shopify (mappate)              | gestionale mappa le proprie location su quelle Shopify                                                                                                               |
+
+### ⭐ Il NOME del prodotto ha due campi, e uno non è condiviso — 03/09/2026
+
+⛔ Qui la riga di tabella diceva _«Shopify (di norma) · editing locale = write-through o
+**read-only**»_: i prodotti importati **non sono in sola lettura**, l'origine è provenienza e
+non un vincolo (`docs/24` §1.8). La riga è stata corretta; questa sezione resta per ciò che
+una casella di tabella non può contenere.
+
+`Product.name` («Nome prodotto») è **esclusivamente VestiFlow** — Shopify non lo sovrascrive
+mai, in nessun percorso — mentre `shopifyTitle` («Nome Shopify») è il titolo della vetrina ed
+è bidirezionale come il resto.
+
+⚠️ **Un campo solo non poteva servire due mestieri opposti**: un nome si cerca digitando poche
+lettere in magazzino, l'altro si legge in una pagina prodotto. Finché erano lo stesso, chi
+accorciava il nome per il magazzino se lo vedeva tornare lungo al primo webhook — e chi lo
+accorciava lo accorciava anche sulla vetrina. Contratto in `docs/24` §1.9.
 
 Regole:
 

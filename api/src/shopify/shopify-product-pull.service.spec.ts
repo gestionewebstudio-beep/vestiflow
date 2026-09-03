@@ -10,11 +10,11 @@ import type { ShopifyOAuthService } from './shopify-oauth.service';
 import type { ShopifyProductEnrichmentService } from './shopify-product-enrichment.service';
 
 /**
- * ⭐ **«Nome online» — il lato che ARRIVA da Shopify** (docs/24 §1.9).
+ * ⭐ **«Nome Shopify» — il lato che ARRIVA da Shopify** (docs/24 §1.9).
  *
  * ⛔ Fino al 03/09/2026 il titolo remoto finiva in `Product.name`, e ci finiva a
  *    OGNI giro: chi accorciava il nome per il magazzino se lo vedeva tornare
- *    lungo al primo webhook. Ora il titolo remoto è il **nome online**, e il
+ *    lungo al primo webhook. Ora il titolo remoto è il **nome Shopify**, e il
  *    nome interno appartiene a chi lavora in VestiFlow.
  *
  * ⚠️ Il ramo che conta è l'AGGIORNAMENTO: alla creazione i due nomi nascono
@@ -73,8 +73,8 @@ const PAYLOAD = {
   options: [],
 };
 
-describe('ShopifyProductPullService — il titolo remoto è il «Nome online»', () => {
-  it('⛔ ri-sync: il nome INTERNO non si tocca, si aggiorna solo il nome online', async () => {
+describe('ShopifyProductPullService — il titolo remoto è il «Nome Shopify»', () => {
+  it('⛔ ri-sync: il nome INTERNO non si tocca, si aggiorna solo il nome Shopify', async () => {
     // Il prodotto in VestiFlow ha già un nome corto, scelto da chi sta in magazzino.
     const { service, tx } = creaService({
       id: 'prod-1',
@@ -95,6 +95,51 @@ describe('ShopifyProductPullService — il titolo remoto è il «Nome online»',
     // Questo è il difetto che la separazione chiude: il nome corto resta corto.
     expect(chiamata.data).not.toHaveProperty('name');
     expect(chiamata.data['shopifyTitle']).toBe('Maglia in cotone blu — collezione estate 2026');
+  });
+
+  it("⛔ a sincronizzazione SPENTA lo stato remoto non si importa: era l'eco della nostra archiviazione", async () => {
+    // Spegnere la sync archivia il prodotto su Shopify (docs/24 §1.10). Il webhook
+    // riporta quell'ARCHIVED, e importarlo rendeva lo spegnimento irreversibile:
+    // il prodotto locale diventava `archived` e il push si rifiutava di lavorarci.
+    const { service, tx } = creaService({
+      id: 'prod-1',
+      name: 'MAGL-COT-BLU',
+      catalogOrigin: 'shopify',
+      shopifySyncEnabled: false,
+      shopifyLastError: null,
+      shopifyTaxonomyCategoryId: null,
+      shopifyTaxonomyCategoryFullName: null,
+      season: null,
+      shopifyMetafields: [],
+      variants: [],
+    });
+
+    await service.importProductFromWebhook('tenant-1', { ...PAYLOAD, status: 'archived' });
+
+    const [[chiamata]] = tx.product.update.mock.calls as [[{ data: Record<string, unknown> }]];
+    expect(chiamata.data).not.toHaveProperty('status');
+    // Il resto continua ad arrivare: è solo lo stato a essere nostro.
+    expect(chiamata.data['shopifyTitle']).toBe('Maglia in cotone blu — collezione estate 2026');
+  });
+
+  it('a sincronizzazione ACCESA lo stato remoto si importa come sempre', async () => {
+    const { service, tx } = creaService({
+      id: 'prod-1',
+      name: 'MAGL-COT-BLU',
+      catalogOrigin: 'shopify',
+      shopifySyncEnabled: true,
+      shopifyLastError: null,
+      shopifyTaxonomyCategoryId: null,
+      shopifyTaxonomyCategoryFullName: null,
+      season: null,
+      shopifyMetafields: [],
+      variants: [],
+    });
+
+    await service.importProductFromWebhook('tenant-1', { ...PAYLOAD, status: 'archived' });
+
+    const [[chiamata]] = tx.product.update.mock.calls as [[{ data: Record<string, unknown> }]];
+    expect(chiamata.data['status']).toBe('archived');
   });
 
   it('primo import: i due nomi nascono UGUALI, e da lì vivono separati', async () => {
