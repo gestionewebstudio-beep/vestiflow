@@ -1,5 +1,95 @@
 # Cosa resta da fare — VestiFlow
 
+## 🔴 PRODUZIONE — tre cose da controllare (03/09/2026, sera)
+
+Emerse tutte e tre mentre si cambiava l'app Shopify. Nessuna è stata toccata: sono
+**da controllare**, e la prima blocca le altre due.
+
+### 1 · 🔴 La produzione è ferma da 28 giorni: la CI è rossa e Railway salta ogni deploy
+
+Misurato nella scheda **Deployments** del servizio `vestiflow` su Railway:
+
+```text
+ACTIVE      "feat(registri): le pagine-elenco documenti adottano la toolbar-card…"   28 giorni fa
+SKIPPED     stesso commit, 35 minuti fa
+SKIPPED     stesso commit,  8 minuti fa   →  «CI check suite failed»
+```
+
+Railway è configurato per attendere l'esito della CI di GitHub. La CI è **rossa**, quindi
+ogni distribuzione automatica viene **saltata** e la produzione resta ferma alla versione di
+28 giorni fa. È anche il motivo per cui le modifiche alle variabili d'ambiente non facevano
+effetto: innescavano un deploy che veniva subito scartato, **senza che nulla lo dicesse in
+modo evidente**.
+
+⛔ **Finché resta così, nessuna correzione arriva mai in produzione** — né un merge, né una
+riga di rattoppo. È il primo nodo da sciogliere, prima di qualunque decisione sui due punti
+successivi.
+
+⚠️ **Il rimedio usato stasera non è una soluzione**: il **Redeploy manuale** scavalca il
+cancello della CI e riavvia il servizio con le variabili correnti, ma ricostruisce **lo
+stesso commit di 28 giorni fa**. Serve a far leggere l'ambiente, non a portare codice nuovo.
+
+**Da controllare:** perché la CI è rossa sul commit servito; se l'attesa della CI sia una
+scelta voluta; e da quanto tempo esattamente nessun deploy automatico passa.
+
+### 2 · 🔴 Dieci disallineamenti fra il database condiviso e il codice in produzione
+
+Il database è **condiviso** fra i rami, e le migration di `feature/pagamenti-tesoriera` sono
+**già applicate**. La produzione gira un codice che non le conosce e scrive sullo stesso
+database.
+
+Verificate 29 migration: **9 violate**, più `purchase_price_minor` già accertata a parte.
+**Sei rompono:**
+
+| Migration                                          | Che cosa succede a chi non la conosce                                                                                  |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `20260826003840_rinomina_invoice_draft_in_invoice` | il valore enum `invoice_draft` **non esiste più** nel database, e il codice vecchio lo usa                             |
+| `20260816150000_ritira_consegna_commercialista`    | `DROP` di due colonne di `sales_orders` e della tabella `corrispettivi_deliveries`, ancora lette                       |
+| `20260817000000_ritira_default_prezzo_per_tipo`    | `DROP` di una colonna e di una tabella, ancora lette **e scritte**                                                     |
+| `20260817140000_ritira_corrispettivo_legacy`       | `DROP` di due tabelle e di un enum ancora **scritti**                                                                  |
+| `20260816170000_rimuove_stato_fiscale_ordine`      | `DROP COLUMN` + `DROP TYPE`                                                                                            |
+| `20260815210000_credit_note_numerazione_condivisa` | l'indice unico si allarga: il numero fattura proposto è già occupato, e **viene riproposto identico a ogni tentativo** |
+
+Più tre che **degradano** (allargamenti `INTEGER → NUMERIC(16,6)` su prezzi e costi: si legge
+e si scrive senza saperlo, perdendo precisione in silenzio).
+
+⛔ **Sintomo già visibile**: `purchase_price_minor` è `NOT NULL` dal 23/08 alle 10:55, e il
+codice in produzione passa `null` esplicito — un default Prisma **non** copre un null
+esplicito, copre solo il campo assente. Ogni creazione prodotto da webhook Shopify fallisce
+con «Null constraint violation». Da undici giorni.
+
+⚠️ **Dieci è un limite inferiore**: il confronto è stato fatto con `main` di **oggi**, ma la
+produzione è ferma a 28 giorni fa (punto 1), quindi è ancora più indietro.
+
+**Da controllare:** se il merge sia la strada — chiude tutti e dieci in un colpo — e come
+coordinarlo con gli altri rami. Rattoppare una riga alla volta significa reimplementare tre
+settimane di lavoro, e **ogni migration nuova allarga il divario**.
+
+### 3 · 🟡 La connessione dice «attiva» mentre la sincronizzazione non funziona
+
+Vissuto stasera in due forme diverse:
+
+| Forma                                                                      | Che cosa vede l'operatore                                                |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| credenziali dell'app cambiate → HMAC che non torna → webhook **rifiutati** | **niente**: la connessione continua a dire «Connesso»                    |
+| webhook accettati ma **falliti dentro** (il caso `purchase_price_minor`)   | un avviso: «Un prodotto non è stato aggiornato correttamente da Shopify» |
+
+⭐ Quindi **non è del tutto silenziosa**, e la seconda forma un segnale ce l'ha. Manca però
+la prima, che è la peggiore: lì Shopify manda e VestiFlow scarta, e **niente lo dice**.
+
+⭐ **È anche la più facile da prendere**, ed è la differenza rispetto agli altri difetti
+silenziosi di `docs/02` §1.2: qui l'evento **arriva**. Un rifiuto HMAC è un fatto che l'API
+riceve — contarli e mostrarli coprirebbe ogni caso di credenziali divergenti (cambio app,
+segreto ruotato, deploy a metà).
+
+⚠️ **Ma dipende da `lastWebhookEventAt`**, che secondo `docs/02` (riga 430) **non esiste in
+`main`**: misurato stasera, resta `null` anche su una connessione con otto webhook attivi.
+Finché la produzione non ha quel campo, non c'è su cosa appoggiare l'indicatore — il che
+riporta al punto 1.
+
+**Da controllare:** se il pannello debba distinguere «collegato» da «sta ricevendo eventi»,
+e se il conteggio dei rifiuti HMAC valga la pena come primo indicatore.
+
 ## ⏸ SHOPIFY — quello che questa tranche lascia aperto (03/09/2026)
 
 Chiuse in `docs/24`: prodotti importati modificabili (§1.8), push GraphQL dei collegati
@@ -12,7 +102,7 @@ Chiuse in `docs/24`: prodotti importati modificabili (§1.8), push GraphQL dei c
 | ⏸ azione massiva «Copia nome VestiFlow»                        | decisa in §1.9, entra col menu delle azioni massive (§1.8)                                                                                                                              |
 | ⏸ creazione prodotto ancora su REST                            | passa a `productSet` con la Tranche 2; con lei si unifica anche l'abbinamento varianti, oggi a solo SKU (`persistShopifyIds`)                                                           |
 | ⏸ metafield stagione e costo variante ancora su REST           | stesso cutover                                                                                                                                                                          |
-| ⚠️ `SHOPIFY_API_VERSION=2026-07` negli **altri ambienti**      | committata in `.env.example` e messa in locale; Railway e gli altri vanno aggiornati a mano                                                                                             |
+| ✅ `SHOPIFY_API_VERSION=2026-07` negli **altri ambienti**      | fatto su Railway il 03/09/2026 sera. La variabile **non esisteva affatto**: valeva il default `2025-01` di `main`, che Shopify non serve più e faceva cadere in avanti le chiamate      |
 
 ### ⛔ La decisione che serve: la variante unica non si abbina, e il push si ferma
 
