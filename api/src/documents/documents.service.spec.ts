@@ -3728,3 +3728,275 @@ describe('DocumentsService — l’interruttore della Vendita manuale', () => {
     expect(String(esito)).not.toMatch(/non è attiva per questa azienda/i);
   });
 });
+
+/**
+ * TOTALI DETERMINATI DI RIGA — §5.2 di `docs/24`, Tranche 0A.1.
+ *
+ * ⛔ Ogni prova asserisce il VALORE ESATTO. Un test che si accontentasse di
+ * «non è nullo» tornerebbe verde anche sul difetto che stiamo chiudendo: le
+ * colonne hanno `@default(0)`, quindi «definito» e «mai scritto» sono la stessa
+ * cosa. Per la stessa ragione qui non si usa `toMatchObject`, che non vede un
+ * campo assente — è ciò che ha lasciato passare il difetto per 112 prove.
+ *
+ * Il difetto chiuso: `ComputedLine` non dichiarava le due colonne e la
+ * persistenza era uno spread, quindi ogni documento del percorso generico
+ * nasceva con imposta e lordo di riga a zero.
+ */
+describe('totali determinati di riga (Tranche 0A.1)', () => {
+  let prisma: ReturnType<typeof createPrismaMock>;
+
+  beforeEach(() => {
+    prisma = createPrismaMock();
+    prisma.document.create.mockResolvedValue({
+      id: 'doc-1',
+      status: DocumentStatus.draft,
+      lines: [{ lineNumber: 1 }],
+    });
+    prisma.document.update.mockResolvedValue({ id: 'doc-1', lines: [] });
+  });
+
+  /** Le righe passate a `document.create`, con i totali economici scritti. */
+  function righeCreate(): {
+    lineTotalMinor: number;
+    lineVatTotalMinor: number;
+    lineGrossTotalMinor: number;
+  }[] {
+    const data = prisma.document.create.mock.calls[0]![0]!.data as {
+      lines: { create: { lineTotalMinor: number; lineVatTotalMinor: number; lineGrossTotalMinor: number }[] };
+    };
+    return data.lines.create;
+  }
+
+  function testata(): { subtotalMinor: number; taxMinor: number; totalMinor: number } {
+    return prisma.document.create.mock.calls[0]![0]!.data as {
+      subtotalMinor: number;
+      taxMinor: number;
+      totalMinor: number;
+    };
+  }
+
+  async function creaCon(lines: unknown[], type: DocumentType = DocumentType.proforma) {
+    const { service } = createService(prisma, resolvedSetting({ type }));
+    await service.create(tenantId, { type, documentDate: '2026-03-01', lines } as never);
+  }
+
+  it('IVA ordinaria: 2 × 10,00 € al 22% persiste 4,40 € di imposta e 24,40 € di lordo', async () => {
+    await creaCon([{ description: 'Maglia', quantity: 2, unitPriceMinor: 1000, vatRatePercent: 22 }]);
+
+    const [riga] = righeCreate();
+    expect(riga!.lineTotalMinor).toBe(2000);
+    expect(riga!.lineVatTotalMinor).toBe(440);
+    expect(riga!.lineGrossTotalMinor).toBe(2440);
+  });
+
+  it('la TESTATA somma i valori finali delle righe: imponibile, IVA e lordo', async () => {
+    await creaCon([
+      { description: 'A', quantity: 2, unitPriceMinor: 1000, vatRatePercent: 22 },
+      { description: 'B', quantity: 1, unitPriceMinor: 10000, vatRatePercent: 10 },
+    ]);
+
+    const righe = righeCreate();
+    const somme = righe.reduce(
+      (acc, r) => ({
+        imponibile: acc.imponibile + r.lineTotalMinor,
+        iva: acc.iva + r.lineVatTotalMinor,
+        lordo: acc.lordo + r.lineGrossTotalMinor,
+      }),
+      { imponibile: 0, iva: 0, lordo: 0 },
+    );
+
+    // ⭐ È l'uguaglianza che prima non si poteva nemmeno scrivere: il valore di
+    // riga non veniva persistito, quindi non c'era niente da sommare.
+    expect(testata().subtotalMinor).toBe(somme.imponibile);
+    expect(testata().taxMinor).toBe(somme.iva);
+    expect(testata().totalMinor).toBe(somme.lordo);
+    // E i numeri, per esteso: 2000 + 10000 di imponibile, 440 + 1000 di imposta.
+    expect(somme.imponibile).toBe(12000);
+    expect(somme.iva).toBe(1440);
+    expect(somme.lordo).toBe(13440);
+  });
+
+  it('due aliquote diverse: ogni riga porta la PROPRIA imposta, non una media', async () => {
+    await creaCon([
+      { description: 'Al 22%', quantity: 1, unitPriceMinor: 10000, vatRatePercent: 22 },
+      { description: 'Al 10%', quantity: 1, unitPriceMinor: 10000, vatRatePercent: 10 },
+    ]);
+
+    const [a, b] = righeCreate();
+    expect(a!.lineVatTotalMinor).toBe(2200);
+    expect(a!.lineGrossTotalMinor).toBe(12200);
+    expect(b!.lineVatTotalMinor).toBe(1000);
+    expect(b!.lineGrossTotalMinor).toBe(11000);
+  });
+
+  it('IVA 0% valida: imposta zero PRODOTTA dal calcolo, e lordo pari all’imponibile', async () => {
+    await creaCon([{ description: 'Esente', quantity: 1, unitPriceMinor: 5000, vatRatePercent: 0 }]);
+
+    const [riga] = righeCreate();
+    expect(riga!.lineVatTotalMinor).toBe(0);
+    // ⭐ Ciò che distingue lo zero vero dal campo non compilato: se la colonna
+    // fosse rimasta al default, il LORDO sarebbe zero anche lui.
+    expect(riga!.lineGrossTotalMinor).toBe(5000);
+  });
+
+  it('sconto di riga: l’imposta segue l’imponibile scontato, non il prezzo pieno', async () => {
+    await creaCon([
+      { description: 'Scontata', quantity: 1, unitPriceMinor: 10000, discountPercent: 10, vatRatePercent: 22 },
+    ]);
+
+    const [riga] = righeCreate();
+    expect(riga!.lineTotalMinor).toBe(9000);
+    expect(riga!.lineVatTotalMinor).toBe(1980);
+    expect(riga!.lineGrossTotalMinor).toBe(10980);
+  });
+
+  it('quantità e sconto con coda decimale: l’imposta nasce dall’imponibile ESATTO', async () => {
+    // 3 × 33,33 € scontati del 7% = 92,9907 € esatti → imponibile persistito 9299.
+    // Lordo  = round(9299,07 × 1,22) = 11345.  Imposta = 11345 − 9299 = 2046.
+    await creaCon([
+      { description: 'Coda', quantity: 3, unitPriceMinor: 3333, discountPercent: 7, vatRatePercent: 22 },
+    ]);
+
+    const [riga] = righeCreate();
+    expect(riga!.lineTotalMinor).toBe(9299);
+    expect(riga!.lineVatTotalMinor).toBe(2046);
+    expect(riga!.lineGrossTotalMinor).toBe(11345);
+    expect(riga!.lineGrossTotalMinor).toBe(riga!.lineTotalMinor + riga!.lineVatTotalMinor);
+  });
+
+  it('nota di credito: i totali si determinano come su ogni altro documento', async () => {
+    await creaCon(
+      [{ description: 'Reso', quantity: 1, unitPriceMinor: 5000, vatRatePercent: 22 }],
+      DocumentType.credit_note,
+    );
+
+    const [riga] = righeCreate();
+    expect(riga!.lineVatTotalMinor).toBe(1100);
+    expect(riga!.lineGrossTotalMinor).toBe(6100);
+  });
+
+  it('ogni tipo del percorso generico persiste i totali, non solo la proforma', async () => {
+    for (const type of [
+      DocumentType.quote,
+      DocumentType.proforma,
+      DocumentType.sales_ddt,
+      DocumentType.invoice,
+      DocumentType.credit_note,
+    ]) {
+      prisma = createPrismaMock();
+      prisma.document.create.mockResolvedValue({
+        id: 'doc-1',
+        status: DocumentStatus.draft,
+        lines: [{ lineNumber: 1 }],
+      });
+      prisma.document.update.mockResolvedValue({ id: 'doc-1', lines: [] });
+
+      await creaCon([{ description: 'Riga', quantity: 1, unitPriceMinor: 10000, vatRatePercent: 22 }], type);
+
+      const [riga] = righeCreate();
+      expect(riga!.lineVatTotalMinor, `tipo ${type}`).toBe(2200);
+      expect(riga!.lineGrossTotalMinor, `tipo ${type}`).toBe(12200);
+    }
+  });
+
+  describe('modifica di un documento esistente', () => {
+    /** Dati scritti dall'ultimo `updateMany` sulla riga. */
+    function rigaAggiornata(): {
+      lineTotalMinor: number;
+      lineVatTotalMinor: number;
+      lineGrossTotalMinor: number;
+    } {
+      const calls = prisma.documentLine.updateMany.mock.calls;
+      return (calls[calls.length - 1]![0] as { data: never }).data;
+    }
+
+    function preparaDocumentoConUnaRiga() {
+      const doc = {
+        ...draftDocumentForNumberUpdate(7),
+        lines: [
+          {
+            id: 'line-1',
+            documentId: 'doc-q',
+            tenantId,
+            lineNumber: 1,
+            variantId: null,
+            sku: null,
+            description: 'Riga',
+            quantity: 1,
+            unitPriceMinor: new Prisma.Decimal(1000),
+            discountPercent: new Prisma.Decimal(0),
+            vatRatePercent: 22,
+            lineTotalMinor: 1000,
+            lineVatTotalMinor: 220,
+            lineGrossTotalMinor: 1220,
+            loadsStock: false,
+            unitOfMeasure: null,
+            isReference: false,
+            supplierOrderLineId: null,
+            lotCode: null,
+            lotExpiryDate: null,
+            serialNumbers: [],
+            vatCodeId: null,
+            vatSnapshot: null,
+          },
+        ],
+      };
+      const { service } = createService(
+        prisma,
+        resolvedSetting({ type: DocumentType.quote, numberPrefix: 'PRE' }),
+      );
+      prisma.document.findFirst.mockResolvedValueOnce(doc).mockResolvedValueOnce({ ...doc });
+      prisma.document.update.mockResolvedValue({ ...doc, lines: [] });
+      return service;
+    }
+
+    it('cambiando la quantità, imposta e lordo si riscrivono sulla riga esistente', async () => {
+      const service = preparaDocumentoConUnaRiga();
+
+      await service.update(tenantId, 'doc-q', {
+        lines: [{ id: 'line-1', description: 'Riga', quantity: 5, unitPriceMinor: 1000, vatRatePercent: 22 }],
+      } as never);
+
+      // 5 × 1000 = 5000 → imposta 1100, lordo 6100.
+      expect(rigaAggiornata().lineTotalMinor).toBe(5000);
+      expect(rigaAggiornata().lineVatTotalMinor).toBe(1100);
+      expect(rigaAggiornata().lineGrossTotalMinor).toBe(6100);
+    });
+
+    it('cambiando lo sconto, l’imposta lo segue', async () => {
+      const service = preparaDocumentoConUnaRiga();
+
+      await service.update(tenantId, 'doc-q', {
+        lines: [
+          {
+            id: 'line-1',
+            description: 'Riga',
+            quantity: 1,
+            unitPriceMinor: 1000,
+            discountPercent: 50,
+            vatRatePercent: 22,
+          },
+        ],
+      } as never);
+
+      expect(rigaAggiornata().lineTotalMinor).toBe(500);
+      expect(rigaAggiornata().lineVatTotalMinor).toBe(110);
+      expect(rigaAggiornata().lineGrossTotalMinor).toBe(610);
+    });
+
+    it('secondo salvataggio senza modifiche: i valori restano identici, non si azzerano', async () => {
+      const service = preparaDocumentoConUnaRiga();
+
+      await service.update(tenantId, 'doc-q', {
+        lines: [{ id: 'line-1', description: 'Riga', quantity: 1, unitPriceMinor: 1000, vatRatePercent: 22 }],
+      } as never);
+
+      // ⭐ È il caso che il difetto rendeva invisibile: prima l'update non
+      // nominava mai le due colonne, quindi un risalvataggio non le riparava
+      // né le peggiorava — restavano a zero per sempre.
+      expect(rigaAggiornata().lineTotalMinor).toBe(1000);
+      expect(rigaAggiornata().lineVatTotalMinor).toBe(220);
+      expect(rigaAggiornata().lineGrossTotalMinor).toBe(1220);
+    });
+  });
+});

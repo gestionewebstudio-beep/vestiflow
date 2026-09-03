@@ -771,4 +771,142 @@ describe('il richiamo articolo passa dal risolutore comune', () => {
     expect(riga['sku']!.value).toBe('MAG-M');
     expect(riga['variantLabel']!.value).toBe('M / Rosso');
   });
+
+  /**
+   * ⭐ **LA RIGA RIAPERTA DICE QUELLO CHE DICEVA** — tranche 0A.2b.
+   *
+   * ⛔ Il difetto che queste prove chiudono: `lineArticleCode` leggeva
+   * `lineVariantSummary(index)?.articleCode` — cioè il riepilogo della
+   * variante caricato da `searchVariantSummaries`, l'ANAGRAFICA DI OGGI — e il
+   * controllo del form era solo un ripiego. Su un documento riaperto quel
+   * controllo era vuoto, quindi vinceva sempre l'anagrafica: ricodificare un
+   * articolo cambiava ciò che un documento di marzo diceva.
+   *
+   * ⚠️ **Il catalogo qui dice una cosa DIVERSA dal documento**, ed è la sola
+   * forma in cui la prova ha valore: con gli stessi valori nelle due fonti
+   * passerebbe anche il codice difettoso.
+   */
+  describe("riapertura: l'identità è quella fotografata, non quella di oggi", () => {
+    /** Com'è l'articolo OGGI in anagrafica: tutto diverso dal documento. */
+    const OGGI: VariantSummary = {
+      variantId: 'var-foto-1',
+      productId: 'prod-foto-1',
+      sku: 'MAG-M',
+      articleCode: 'ART-DI-OGGI',
+      productName: 'Maglia cotone — rinominata',
+      title: 'Maglia cotone — rinominata — M / Rosso',
+      variantLabel: 'M / Rosso',
+      barcode: '8009999999999',
+      sellingPrice: { amountMinor: 2500, currencyCode: 'EUR' },
+    };
+
+    interface FormaRiapertura {
+      patchFormFromDocument(doc: unknown): void;
+      applyDuplicatePrefill(doc: unknown): void;
+      lineArticleCode(index: number): string;
+      lineBarcode(index: number): string;
+    }
+
+    /** Il documento SALVATO, con l'identità fotografata sulle righe. */
+    function documentoSalvato(riga: Record<string, unknown> = {}) {
+      return {
+        id: 'doc-foto-1',
+        locationId: 'loc-1',
+        targetLocationId: 'loc-2',
+        documentDate: '2026-03-15T00:00:00.000Z',
+        number: 7,
+        series: 'A',
+        notes: '',
+        internalComment: '',
+        lines: [
+          {
+            id: 'line-1',
+            variantId: 'var-foto-1',
+            sku: 'MAG-M',
+            description: 'Maglia cotone — nome di allora',
+            variantLabel: 'M / Rosso',
+            articleCode: 'ART-DI-ALLORA',
+            barcode: '8001111111111',
+            quantity: 2,
+            loadsStock: true,
+            serialNumbers: [],
+            ...riga,
+          },
+        ],
+      };
+    }
+
+    it("⛔ il codice articolo è quello del DOCUMENTO, non dell'anagrafica di oggi", async () => {
+      const form = (await setupCatalogo([OGGI])) as unknown as FormaRiapertura;
+
+      form.patchFormFromDocument(documentoSalvato());
+
+      expect(form.lineArticleCode(0)).toBe('ART-DI-ALLORA');
+      // ⭐ E il catalogo dice un'altra cosa: è la prova che le due fonti sono
+      //    distinguibili, e che vince quella giusta.
+      expect(form.lineArticleCode(0)).not.toBe(OGGI.articleCode);
+    });
+
+    it('⛔ e lo stesso vale per il barcode', async () => {
+      const form = (await setupCatalogo([OGGI])) as unknown as FormaRiapertura;
+
+      form.patchFormFromDocument(documentoSalvato());
+
+      expect(form.lineBarcode(0)).toBe('8001111111111');
+      expect(form.lineBarcode(0)).not.toBe(OGGI.barcode);
+    });
+
+    /*
+      ⛔ **Assente NON riapre la porta all'anagrafica.** Una riga salvata prima
+      che la colonna esistesse non ha lo snapshot: la cella resta vuota. È la
+      regola esplicita della tranche — ricostruirlo mostrerebbe il dato di oggi
+      su un documento storico, cioè il difetto stesso.
+    */
+    /*
+      ⚠️ **Gli effect devono girare, o questa prova non prova niente.**
+      `pinnedVariants` è un `toSignal` alimentato da un effect: senza farlo
+      girare, il catalogo resta vuoto e la prova passerebbe anche col ripiego
+      reintrodotto — misurato il 03/09/2026, falsificazione fallita a 40 verdi.
+      Con gli effect girati l'anagrafica RISPONDE, e il vuoto della cella
+      diventa una scelta invece che un'assenza.
+    */
+    it("⛔ snapshot assente: la cella resta VUOTA, non ripiega sull'anagrafica", async () => {
+      const form = (await setupCatalogo([OGGI])) as unknown as FormaRiapertura;
+
+      form.patchFormFromDocument(documentoSalvato({ articleCode: undefined, barcode: undefined }));
+
+      // L'anagrafica ha di che rispondere: la variante è nel catalogo e il
+      // form la porta. Se il lettore ripiegasse, troverebbe 'ART-DI-OGGI'.
+      TestBed.flushEffects();
+      await Promise.resolve();
+      TestBed.flushEffects();
+
+      expect(form.lineArticleCode(0)).toBe('');
+      expect(form.lineBarcode(0)).toBe('');
+    });
+    /*
+      ⭐ **DUPLICARE: l'id diventa RIFERIMENTO** — tranche 0A.2c.
+
+      Due cose in una riga sola, nessuna facoltativa: la riga nuova non porta
+      l'id dell'originale (o il salvataggio MODIFICHEREBBE l'originale), e
+      porta il riferimento (o il server rifotograferebbe l'anagrafica di oggi).
+    */
+    it("⭐ duplicando, l'id della riga originale diventa il riferimento sorgente", async () => {
+      const form = (await setupCatalogo([OGGI])) as unknown as FormaRiapertura;
+
+      form.applyDuplicatePrefill(documentoSalvato());
+
+      const riga = (
+        form as unknown as {
+          lines: { at(i: number): { controls: Record<string, { value: unknown }> } };
+        }
+      ).lines.at(0).controls;
+      expect(riga['sourceDocumentLineId']!.value).toBe('line-1');
+      // ⛔ E l'id proprio NON c'è: è un documento nuovo, non una modifica.
+      //    Vuoto e non `null`: la funzione condivisa azzera con la stringa
+      //    vuota, che ogni forma di controllo accetta e che il payload tratta
+      //    come «riga nuova» (`id || undefined`).
+      expect(riga['id']!.value).toBe('');
+    });
+  });
 });

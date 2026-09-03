@@ -132,6 +132,10 @@ import { isPrintableDocumentType } from './models/document-print.util';
 import { DocumentPrintActionsComponent } from '@domain/documents/components/document-print-actions/document-print-actions.component';
 import { DocumentService } from '@domain/documents/services/document.service';
 import { DocumentNumberingStore } from '@domain/documents/state/document-numbering.store';
+import {
+  collegaRigheDuplicateAllaSorgente,
+  scollegaRigaDallaSorgente,
+} from '@domain/documents/models/document-line-source-link.util';
 import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
 import { parseSerialNumbersText } from '@domain/documents/utils/serial-numbers-input.util';
 import { trailingEmptyLineIndices } from '@domain/documents/utils/trailing-empty-lines.util';
@@ -331,9 +335,12 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
       });
       // Righe copiate come nuove: nessun id riga dell'originale, così il
       // salvataggio non aggancia i movimenti del documento di partenza.
-      for (const line of this.lines.controls) {
-        line.get('id')?.setValue(null);
-      }
+      //
+      // ⭐ **L'id diventa il RIFERIMENTO alla sorgente** (§5.2-bis di
+      //    `docs/24`): senza, il server rifotograferebbe l'anagrafica di oggi
+      //    e il duplicato di un documento di marzo direbbe il codice di
+      //    settembre. Sono due cose in una riga, e nessuna è facoltativa.
+      collegaRigheDuplicateAllaSorgente(this.lines.controls);
     } finally {
       this.suppressDirtyMarking = false;
     }
@@ -873,32 +880,31 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
   }
 
   /**
-   * Cod. articolo ed EAN di una riga agganciata. **Il documento non li salva**
-   * — sono chiavi di ricerca, non dati della riga — quindi su un documento
-   * riaperto i controlli sono vuoti e a saperli è il riepilogo della variante.
+   * Cod. articolo ed EAN di una riga agganciata.
    *
-   * Lo SKU no: quello il documento lo memorizza, e il controllo basta.
+   * ⛔ **Qui il riepilogo della variante aveva la PRECEDENZA**, e la ragione
+   * era scritta: «il documento non li salva — sono chiavi di ricerca, non dati
+   * della riga». Dalla tranche 0A.2a il documento li salva, quindi la premessa
+   * è caduta e con lei il ripiego: su un documento riaperto il codice mostrato
+   * era quello dell'ANAGRAFICA DI OGGI, e ricodificare un articolo cambiava
+   * ciò che un documento di marzo diceva.
+   *
+   * ⭐ È la stessa disciplina di `variantLabelOf` qui sotto, e la stessa
+   * fonte: il controllo, riempito dal risolutore quando l'articolo entra e dal
+   * DOCUMENTO quando la riga si ricarica.
+   *
+   * ⚠️ **Vuoto resta vuoto.** Una riga salvata prima che la colonna esistesse
+   * non ha lo snapshot, e la cella mostra «—»: ricostruirlo dall'anagrafica
+   * sarebbe esattamente il difetto che questa correzione chiude.
+   *
+   * Lo SKU no: quello il documento lo memorizzava già, e il controllo basta.
    */
   protected lineArticleCode(index: number): string {
-    return (
-      this.lineVariantSummary(index)?.articleCode ||
-      this.lines.at(index)?.controls.articleCode.value ||
-      ''
-    );
+    return this.lines.at(index)?.controls.articleCode.value ?? '';
   }
 
   protected lineBarcode(index: number): string {
-    return (
-      this.lineVariantSummary(index)?.barcode || this.lines.at(index)?.controls.barcode.value || ''
-    );
-  }
-
-  private lineVariantSummary(index: number): VariantSummary | null {
-    const variantId = this.lines.at(index)?.controls.variantId.value;
-    if (!variantId) {
-      return null;
-    }
-    return findVariantSummaryById(variantId, this.pinnedVariants(), this.searchedVariants());
+    return this.lines.at(index)?.controls.barcode.value ?? '';
   }
 
   // ── I codici sulla card mobile ────────────────────────────────────────────
@@ -1328,6 +1334,7 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
         line.controls.sku.setValue(String(valori['sku'] ?? ''));
         line.controls.articleCode.setValue(String(valori['articleCode'] ?? ''));
         line.controls.barcode.setValue(String(valori['barcode'] ?? ''));
+        scollegaRigaDallaSorgente(line);
       }
     }
   }
@@ -1849,6 +1856,9 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
           // Come nel salvataggio dedicato: l'id della riga già salvata torna
           // indietro, così il PATCH la aggiorna invece di ricrearla.
           id: line.id || undefined,
+          // ⭐ Da quale riga deriva, quando deriva: il server ne copia gli
+          //    snapshot dal database. Assente su una riga nuova.
+          sourceDocumentLineId: line.sourceDocumentLineId || undefined,
           variantId: line.variantId || undefined,
           sku: line.sku.trim() || undefined,
           description:
@@ -1886,9 +1896,10 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
         // seconda copia dei controlli, che al primo campo aggiunto è rimasta
         // indietro. Si costruisce quella e le si mettono dentro i valori.
         //
-        // I tre codici non arrivano dal documento — non sono salvati, sono
-        // campi di ricerca — e restano vuoti nel controllo: a mostrarli su una
-        // riga già agganciata è il riepilogo della variante.
+        // ⭐ I codici arrivano dal DOCUMENTO (0A.2a): sono fotografati sulla
+        // riga, e la maschera li rilegge da lì. Qui c'era il contrario — «non
+        // sono salvati, a mostrarli è il riepilogo della variante» — ed era
+        // vero finché la colonna non esisteva.
         const group = this.createLine();
         group.patchValue({
           // Id riga esistente: preservato (mai esposto in UI) per consentire al
@@ -1903,6 +1914,11 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
           // L'etichetta FOTOGRAFATA sul documento, non quella dell'anagrafica
           // di oggi: una riga di marzo continua a dire quello che diceva.
           variantLabel: line.variantLabel ?? '',
+          // ⛔ Stessa disciplina, e `?? ''` NON è un ripiego: è il valore
+          // vuoto di un controllo di testo. Se il documento non porta il
+          // codice, la riga non lo mostra — non lo si va a cercare altrove.
+          articleCode: line.articleCode ?? '',
+          barcode: line.barcode ?? '',
           quantity: line.quantity,
           serialNumbersText: (line.serialNumbers ?? []).join(', '),
         });
@@ -1926,8 +1942,21 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
       id: this.fb.control<string | null>(null),
       variantId: this.fb.control('', { validators: [Validators.required] }),
       // Le tre chiavi d'identità. Non sono campi da compilare: si digitano per
-      // TROVARE l'articolo, e restano scritte se non corrisponde niente. Non
-      // vengono salvate — il documento memorizza la variante e lo SKU.
+      // TROVARE l'articolo, e restano scritte se non corrisponde niente.
+      //
+      // ⚠️ Qui c'era «non vengono salvate — il documento memorizza la variante
+      // e lo SKU», e dalla tranche 0A.2a non è più vero: il documento
+      // fotografa anche codice articolo e barcode, e la maschera li rilegge da
+      // lì quando la riga si ricarica. Restano campi di RICERCA mentre si
+      // compila, e diventano il valore FOTOGRAFATO quando si salva.
+      /**
+       * La riga sorgente da cui questa deriva (duplicazione).
+       *
+       * ⚠️ Non è un campo che si compila: è il riferimento che il
+       * salvataggio manda al server perché ne copi gli snapshot. Si azzera
+       * appena l'articolo cambia.
+       */
+      sourceDocumentLineId: this.fb.control<string | null>(null),
       articleCode: this.fb.control(''),
       sku: this.fb.control(''),
       barcode: this.fb.control(''),

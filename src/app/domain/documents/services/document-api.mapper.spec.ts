@@ -72,3 +72,76 @@ describe('mapDocumentApiRow — coda decimale del costo digitato', () => {
     expect(zero?.enteredUnitCostMinor).toBe(0);
   });
 });
+
+/**
+ * ⭐ **IL TRASPORTO DEGLI SNAPSHOT DI IDENTITÀ** — tranche 0A.2b.
+ *
+ * ⛔ È l'anello che può rompersi senza far rumore: le prove di componente
+ * partono da un `DocumentRecord` già mappato, quindi un campo che il mapper
+ * smette di copiare le lascerebbe tutte verdi — e la maschera tornerebbe a
+ * mostrare la cella vuota, cioè metà del difetto che la tranche chiude.
+ */
+describe('mapDocumentApiRow — identità fotografata sulla riga', () => {
+  function documentoConIdentita(riga: Record<string, unknown>): DocumentApiRow {
+    return {
+      id: 'doc-1',
+      tenantId: 'tenant-1',
+      type: 'sales_ddt',
+      status: 'draft',
+      series: 'DDT',
+      year: 2026,
+      documentDate: '2026-03-15',
+      currency: 'EUR',
+      subtotalMinor: 0,
+      taxMinor: 0,
+      totalMinor: 0,
+      pricesIncludeVat: false,
+      createdByName: 'Prova',
+      createdAt: '2026-03-15T00:00:00.000Z',
+      updatedAt: '2026-03-15T00:00:00.000Z',
+      lines: [
+        {
+          id: 'riga-1',
+          lineNumber: 1,
+          description: 'Articolo di prova',
+          quantity: 1,
+          unitPriceMinor: 1000,
+          discountPercent: 0,
+          lineTotalMinor: 1000,
+          loadsStock: true,
+          ...riga,
+        },
+      ],
+    };
+  }
+
+  it('⭐ porta codice articolo, nome prodotto e barcode fino al modello', () => {
+    const doc = mapDocumentApiRow(
+      documentoConIdentita({
+        articleCode: 'ART-DI-ALLORA',
+        productName: 'Maglia cotone — nome di allora',
+        barcode: '8001111111111',
+      }),
+    );
+
+    expect(doc.lines?.[0]).toMatchObject({
+      articleCode: 'ART-DI-ALLORA',
+      productName: 'Maglia cotone — nome di allora',
+      barcode: '8001111111111',
+    });
+  });
+
+  /*
+    ⛔ **Assente resta assente.** Una riga salvata prima che le colonne
+    esistessero non ha l'identità: il mapper non deve inventarla, e chi la
+    legge deve poter distinguere «non c'è» da «è una stringa vuota».
+  */
+  it('⛔ riga senza identità: i tre campi restano assenti, non stringhe vuote', () => {
+    const doc = mapDocumentApiRow(documentoConIdentita({}));
+
+    const riga = doc.lines?.[0];
+    expect(riga?.articleCode).toBeUndefined();
+    expect(riga?.productName).toBeUndefined();
+    expect(riga?.barcode).toBeUndefined();
+  });
+});

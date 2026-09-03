@@ -177,6 +177,53 @@ dice cosa succede ai **valori della riga**, ed è la stessa disciplina un piano 
 > Una **riga nuova** acquisisce i valori correnti previsti dal contratto del documento, e da
 > quel momento li congela.
 
+### ⭐ Le righe nuove sono DUE cose diverse — deciso dal proprietario il 03/09/2026
+
+⛔ **Qui la regola si fermava a due casi**, esistente e nuova, e una riga **duplicata o
+convertita** cadeva nel secondo: tecnicamente è nuova, quindi prendeva l'anagrafica di oggi.
+Il risultato era che duplicare un DDT di marzo a settembre ne cambiava il nome articolo, e la
+fattura generata da quel DDT non diceva più quello che il DDT diceva.
+
+> **Una riga nuova DA CATALOGO acquisisce i valori correnti. Una riga nuova DERIVATA da un
+> documento sorgente eredita i valori di QUELLA riga, `null` compresi.**
+
+| Riga                                     | Da dove prende gli snapshot         |
+| ---------------------------------------- | ----------------------------------- |
+| **esistente** (ha un `id` proprio)       | il valore **persistito su di sé**   |
+| **derivata** (duplicazione, conversione) | la **riga sorgente**, copiata com'è |
+| **nuova da catalogo**                    | l'**anagrafica corrente**           |
+
+⭐ **La discriminante è un riferimento esplicito**, `sourceDocumentLineId`, e non un'euristica:
+nel payload una riga duplicata da una riga senza codice e una riga appena creata sono
+altrimenti **identiche** — entrambe senza `id` e senza snapshot. È un contratto binario, come
+quello del Codice IVA: la presenza della chiave È l'informazione.
+
+⛔ **Il client manda un id, non dei valori.** Il server risale alla riga sorgente e ne copia
+gli snapshot **dal database**, ignorando qualunque valore storico gli arrivi per altra via. È
+la forma che tiene insieme questa regola e quella che le sta di fronte — «la fotografia la
+compone il server, non l'interfaccia» — che altrimenti si escluderebbero a vicenda.
+
+⚠️ **Il riferimento non si persiste**: serve solo a comporre la riga. Dal salvataggio dopo,
+quella riga ha un `id` proprio ed è una riga esistente come tutte le altre.
+
+⚠️ **Il tenant si verifica sempre.** La query che risolve la riga sorgente filtra per
+`tenantId`: un id di un'altra azienda non torna, la riga ricade sul caso «nuova» e prende
+l'anagrafica propria. ⭐ Non è un errore che si segnala — sarebbe un modo per scoprire che
+quella riga esiste — è il comportamento più prudente.
+
+⭐ **Cambiare articolo SCOLLEGA.** Se dopo il precompilato l'operatore sceglie un'altra
+variante, la riga non deriva più da niente: il riferimento si azzera e gli snapshot si
+riacquisiscono dalla nuova scelta. Il controllo sta **anche sul server**, che confronta la
+variante della sorgente con quella della riga — un client che si dimenticasse di azzerarlo
+copierebbe altrimenti l'identità del prodotto di prima sopra quello appena scelto.
+
+⚠️ **Lacuna dichiarata: «Concludi ordine» resta fuori.** Un documento di scarico generato da
+un ordine cliente continua a fotografare l'anagrafica corrente, e non per dimenticanza:
+`SalesOrderLine` **non possiede** `articleCode` né `productName`, quindi la conservazione
+sarebbe parziale per costruzione. ⛔ E i due campi mancanti **non si recuperano**
+dall'anagrafica di oggi per far tornare i conti: sarebbe il difetto stesso, con un'altra
+faccia. Si chiude quando si lavora sull'Ordine cliente.
+
 **Il criterio è cosa il documento è.** Un documento registra un'operazione avvenuta: rinominare
 un prodotto in anagrafica non cambia cosa c'era scritto sul DDT di marzo, e cambiare l'aliquota
 di un Codice IVA non ri-prezza le fatture già emesse.

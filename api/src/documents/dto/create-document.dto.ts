@@ -38,6 +38,34 @@ export class DocumentLineInputDto {
   @IsUUID()
   id?: string;
 
+  /**
+   * La riga di documento da cui QUESTA riga deriva: duplicazione o conversione.
+   *
+   * ⭐ **È un riferimento, non dei valori.** Il server risale a quella riga e
+   * ne copia gli snapshot — codice articolo, nome, barcode, etichetta variante,
+   * unità di misura — **dal database**, ignorando qualunque valore storico il
+   * client mandasse per conto proprio. È la forma che rispetta insieme le due
+   * regole: «duplicare conserva l'identità dell'origine» e «la fotografia la
+   * compone il server, non l'interfaccia».
+   *
+   * ⛔ **Assente = riga davvero nuova**, inserita dal catalogo: lì valgono i
+   * valori correnti dell'anagrafica. È un contratto binario, come per il
+   * Codice IVA: la presenza della chiave È l'informazione, e senza di essa
+   * non si potrebbe distinguere «duplicata da una riga che non aveva codice»
+   * da «appena creata».
+   *
+   * ⚠️ **Non si persiste**: serve solo a comporre la riga nuova. Dal
+   * salvataggio successivo la riga ha un `id` proprio, e a vincere è il
+   * valore persistito su di lei.
+   *
+   * ⚠️ Se l'operatore cambia articolo o variante dopo il prefill, la riga non
+   * deriva più dalla sorgente: il client smette di mandare il riferimento e
+   * gli snapshot si riacquisiscono dalla nuova scelta.
+   */
+  @IsOptional()
+  @IsUUID()
+  sourceDocumentLineId?: string;
+
   @IsOptional()
   @IsUUID()
   variantId?: string;

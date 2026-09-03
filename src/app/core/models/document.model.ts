@@ -205,6 +205,19 @@ export interface DocumentLine {
    * continuare a dire quello che diceva.
    */
   readonly variantLabel?: string;
+  /**
+   * Codice articolo FOTOGRAFATO sulla riga.
+   *
+   * ⛔ Stessa disciplina di `variantLabel` qui sopra: non si ricostruisce
+   * dall'anagrafica corrente. Assente su una riga salvata significa «questo
+   * documento non lo dice», e la cella resta vuota — ricostruirlo mostrerebbe
+   * il codice di oggi su un documento di marzo.
+   */
+  readonly articleCode?: string;
+  /** Nome del prodotto fotografato sulla riga. Stessa disciplina. */
+  readonly productName?: string;
+  /** Barcode fotografato sulla riga. Stessa disciplina. */
+  readonly barcode?: string;
   /** Flag "carica magazzino": righe spese/servizi non movimentano stock. */
   readonly loadsStock: boolean;
   /** Riga «documento collegato»: separatore informativo, fuori dai totali. */

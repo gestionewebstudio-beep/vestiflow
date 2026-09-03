@@ -212,6 +212,10 @@ import { SalesOrderService } from '@domain/sales-orders/services/sales-order.ser
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { prefillDefaultLocation } from '@domain/inventory/utils/default-location-prefill.util';
 import { DocumentNumberingStore } from '@domain/documents/state/document-numbering.store';
+import {
+  collegaRigheDuplicateAllaSorgente,
+  scollegaRigaDallaSorgente,
+} from '@domain/documents/models/document-line-source-link.util';
 import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
 // `pickVatCodeId` non si importa più: la scelta del Codice IVA dall'articolo la
 // fa il risolutore comune. Qui resta il solo anello legacy (`ensureLineVatCode`),
@@ -2075,6 +2079,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     scrivi(line.controls.sku, valori.sku);
     scrivi(line.controls.articleCode, valori.articleCode);
     scrivi(line.controls.barcode, valori.barcode);
+    scollegaRigaDallaSorgente(line);
     scrivi(line.controls.unitOfMeasure, valori.unitaDiMisura);
     scrivi(line.controls.discount, valori.sconto);
 
@@ -2876,6 +2881,9 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
           return {
             // Vuoto = riga nuova. Presente = aggiorna quella riga, non ricrearla.
             id: line.id || undefined,
+            // ⭐ Da quale riga deriva, quando deriva: il server ne copia gli
+            //    snapshot dal database (§5.2-bis). Assente su una riga nuova.
+            sourceDocumentLineId: line.sourceDocumentLineId || undefined,
             variantId: line.variantId || undefined,
             // Fotografia dello SKU sulla riga, come su ogni altro documento: il
             // documento riaperto dice quello che diceva quando fu compilato.
@@ -3227,6 +3235,12 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     // Prefill programmatico: la maschera parte «pulita» come un documento nuovo.
     this.withoutDirtyMarking(() => {
       this.patchFormFromDocument(doc);
+      // ⭐ **L'id della riga originale diventa il RIFERIMENTO**, e la riga
+      //    nuova non ne ha uno proprio: senza questo scambio il salvataggio
+      //    aggiornerebbe il documento originale invece di crearne un altro,
+      //    e senza il riferimento il server rifotograferebbe l'anagrafica di
+      //    oggi (§5.2-bis di `docs/24`).
+      collegaRigheDuplicateAllaSorgente(this.lines.controls);
       // Documento indipendente: si azzerano identità e collegamenti dell'originale
       // (numero, serie, riferimenti, DDT agganciati); la data è quella odierna.
       this.form.patchValue({
@@ -3319,7 +3333,14 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       // errore, divergono con un campo aggiunto da una parte sola.
       const group = this.createLine();
       group.patchValue({
+        // ⭐ Il riferimento alla riga d'origine, che il server ha messo nel
+        //    precompilato: da lì copierà gli snapshot.
+        sourceDocumentLineId: line.sourceDocumentLineId ?? null,
         variantId: line.variantId ?? '',
+        // Fotografati sull'origine e trasportati: senza, il documento
+        // convertito li perderebbe per strada.
+        sku: line.sku ?? '',
+        unitOfMeasure: line.unitOfMeasure ?? '',
         productName: line.description,
         quantity: line.quantity,
         // Prezzo memorizzato netto: mostrato nella modalità di questo documento.
@@ -3473,6 +3494,10 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
         // L'identità della riga sopravvive al salvataggio: si rimanda indietro
         // così com'è arrivata.
         id: line.id,
+        // ⛔ Una riga RIAPERTA non deriva da niente: ha i propri valori
+        //    persistiti, e sono quelli a vincere. Il riferimento lo mette
+        //    solo la duplicazione, subito dopo.
+        sourceDocumentLineId: null,
         variantId: line.variantId ?? '',
         sku: line.sku ?? '',
         productName: line.description,
@@ -3540,6 +3565,14 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       // Le tre chiavi d'identità e lo SKU fotografato. I primi tre non si
       // salvano — si digitano per TROVARE l'articolo e restano scritti se non
       // corrisponde niente; lo SKU invece viaggia, come su ogni altro documento.
+      /**
+       * La riga sorgente da cui questa deriva (duplicazione, conversione).
+       *
+       * ⚠️ Non è un dato che l'operatore vede o compila: è il riferimento
+       * che il salvataggio manda al server perché ne copi gli snapshot. Si
+       * azzera appena l'articolo cambia.
+       */
+      sourceDocumentLineId: this.fb.control<string | null>(null),
       articleCode: this.fb.control(''),
       sku: this.fb.control(''),
       barcode: this.fb.control(''),

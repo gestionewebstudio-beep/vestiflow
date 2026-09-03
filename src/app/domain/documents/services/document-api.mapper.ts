@@ -39,6 +39,16 @@ export interface DocumentLineApiRow {
   readonly lineTotalMinor: number;
   readonly unitOfMeasure?: string | null;
   readonly variantLabel?: string | null;
+  /**
+   * Identità dell'articolo FOTOGRAFATA sulla riga (0A.2a).
+   *
+   * ⛔ `null` è un valore, non un dato mancante: significa «questa riga non
+   * aveva un articolo, o è stata salvata prima che la colonna esistesse», e in
+   * nessuno dei due casi si ricostruisce dall'anagrafica di oggi.
+   */
+  readonly articleCode?: string | null;
+  readonly productName?: string | null;
+  readonly barcode?: string | null;
   readonly loadsStock: boolean;
   readonly isReference?: boolean;
   readonly supplierOrderLineId?: EntityId | null;
@@ -228,6 +238,9 @@ function mapLine(row: DocumentLineApiRow, currency: CurrencyCode): DocumentLine 
     lineTotal: { amountMinor: row.lineTotalMinor, currencyCode: currency },
     unitOfMeasure: row.unitOfMeasure ?? undefined,
     variantLabel: row.variantLabel ?? undefined,
+    articleCode: row.articleCode ?? undefined,
+    productName: row.productName ?? undefined,
+    barcode: row.barcode ?? undefined,
     loadsStock: row.loadsStock,
     isReference: row.isReference === true,
     supplierOrderLineId: row.supplierOrderLineId ?? undefined,
@@ -412,6 +425,18 @@ export interface DocumentLineInputBody {
    * il movimento di magazzino e i seriali — `docs/09-specifica-movimenti-per-riga.md`.
    */
   readonly id?: EntityId;
+  /**
+   * La riga di documento da cui questa DERIVA: duplicazione o conversione.
+   *
+   * ⭐ È un riferimento, non dei valori: il server risale a quella riga e ne
+   * copia gli snapshot dal database. Il client non compone l'identità, la
+   * INDICA — ed è così che un duplicato conserva quella dell'originale senza
+   * che l'interfaccia possa inventarla.
+   *
+   * ⛔ Assente = riga nuova dal catalogo, e valgono i valori correnti. Se
+   * l'operatore cambia articolo dopo il prefill, il riferimento si azzera.
+   */
+  readonly sourceDocumentLineId?: EntityId;
   readonly variantId?: EntityId;
   readonly sku?: string;
   readonly description: string;

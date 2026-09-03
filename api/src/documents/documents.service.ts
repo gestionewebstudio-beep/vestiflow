@@ -56,13 +56,22 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import type { VatCodeWithNature } from '../vat/vat-codes.service';
 import { lineVatFromNetExact } from '../vat/vat-line-calculation.util';
+import {
+  documentLineEconomicTotals,
+  type DocumentLineWriteData,
+} from './document-line-economic-totals.util';
 import { buildVatCodeSnapshot, vatSnapshotRatePercent } from '../vat/vat-snapshot.util';
 
 import { persistDocumentLinesByIdTx } from './document-line-upsert.util';
 import { preservedLineVat, type PersistedLineVat } from './document-line-vat-snapshot.util';
 import {
+  lineIdentitySnapshot,
+  type LineSourceSnapshot,
+  persistedLineIdentities,
   persistedLineVariants,
   variantLabelSnapshot,
+  type LineIdentitySnapshot,
+  type PersistedLineIdentity,
   type PersistedLineVariant,
 } from './document-line-variant-snapshot.util';
 import { ExternalDocumentTypesService } from './external-document-types.service';
@@ -265,6 +274,26 @@ const EMPTY_LINE_VAT_FIELDS = {
   nonDeductibleVatMinor: 0,
 } as const;
 
+/**
+ * L'identità dell'articolo su una riga SINTETICA — quella costruita in memoria
+ * per la riconciliazione dello stock, che non viene mai persistita.
+ *
+ * ⛔ Costante separata da `EMPTY_LINE_VAT_FIELDS` di proposito: quella dichiara
+ * i campi economici assenti, questa i campi di identità. Fonderle darebbe un
+ * nome che mente su metà del proprio contenuto, e il giorno in cui una delle due
+ * famiglie cambia non si saprebbe quali punti rileggere.
+ *
+ * ⚠️ `null` qui è la risposta GIUSTA, non un ripiego: una riga che non esiste
+ * nel documento non ha un codice articolo da fotografare. Il tipo la pretende
+ * esplicita (`DocumentLineWriteData`) proprio perché non se ne scriva una vera
+ * per sbaglio — la stessa ragione per cui `variantLabel` vale `''`.
+ */
+const EMPTY_LINE_IDENTITY_FIELDS = {
+  articleCode: null,
+  productName: null,
+  barcode: null,
+} as const;
+
 interface ComputedLine {
   /**
    * Id della riga già salvata, dichiarato dal client in modifica. `null` = riga
@@ -285,6 +314,16 @@ interface ComputedLine {
    * ricreerebbe il difetto che la colonna elimina.
    */
   variantLabel: string;
+  /**
+   * L'identità dell'ARTICOLO, fotografata (§5.2 di `docs/24`).
+   *
+   * ⛔ Non esistevano: la maschera li rileggeva dall'anagrafica corrente a
+   * ogni apertura, quindi rinominare un articolo riscriveva i documenti già
+   * emessi. `null` = riga senza articolo (spesa, servizio).
+   */
+  articleCode: string | null;
+  productName: string | null;
+  barcode: string | null;
   quantity: number;
   unitPriceMinor: number;
   discountPercent: number;
@@ -298,6 +337,18 @@ interface ComputedLine {
    * quello che si memorizza e' `lineTotalMinor`.
    */
   lineNetExactMinor: number;
+  /**
+   * Imposta della riga, PERSISTITA (§5.2 di `docs/24`: «totali determinati»).
+   *
+   * ⛔ Non c'era, ed è la causa radice misurata il 02/09/2026: l'imposta di
+   * riga veniva calcolata in `computeTotals`, sommata in testata e buttata.
+   * Siccome la persistenza è uno spread di questo tipo, ciò che non è
+   * dichiarato qui non arriva mai al database — e la colonna restava al
+   * proprio `@default(0)`.
+   */
+  lineVatTotalMinor: number;
+  /** Imponibile arrotondato + imposta: il valore che un riepilogo somma. */
+  lineGrossTotalMinor: number;
   vatCodeId: string | null;
   vatSnapshot: Prisma.InputJsonObject | null;
   /**
@@ -332,6 +383,19 @@ interface LineVatContext {
    * leggere un altro campo, sarebbe un costo senza ragione.
    */
   readonly optionValuesByVariantId: ReadonlyMap<string, unknown>;
+  /** L'identità dell'articolo da fotografare sulla riga (§5.2 di `docs/24`). */
+  readonly identityByVariantId: ReadonlyMap<string, LineIdentitySnapshot>;
+  /**
+   * Le righe SORGENTE dichiarate dal client, risolte per id — duplicazione
+   * e conversione (§5.2-bis di `docs/24`).
+   *
+   * ⛔ La chiave è l'id della riga sorgente, e la query filtra per
+   * `tenantId`: un id di un altro tenant non entra nella mappa, quindi la
+   * riga ricade sul caso «nuova» e prende l'anagrafica corrente. Non è un
+   * errore silenzioso da nascondere: è il rifiuto, e produce il
+   * comportamento più prudente invece di copiare dati altrui.
+   */
+  readonly sourceLineById: ReadonlyMap<string, LineSourceSnapshot>;
 }
 
 interface DocumentTotals {
@@ -1078,6 +1142,12 @@ export class DocumentsService {
         opzioniPerVariante: vatContext?.optionValuesByVariantId ?? new Map(),
         // Creazione: nessuna riga persistita, l'etichetta si calcola sempre.
         persistitePerRiga: new Map(),
+        identitaPerVariante: vatContext?.identityByVariantId ?? new Map(),
+        // Nessuna riga persistita: in creazione l'identità si fotografa…
+        identitaPerRiga: new Map(),
+        // …a meno che la riga DERIVI da una duplicazione o da una conversione,
+        // e allora la sorgente vince sull'anagrafica corrente (§5.2-bis).
+        sorgentePerRiga: vatContext?.sourceLineById ?? new Map(),
       },
       vatContext,
     );
@@ -1616,6 +1686,17 @@ export class DocumentsService {
                 // documento ne riscriverebbe le varianti con l'anagrafica di
                 // oggi.
                 persistitePerRiga: persistedLineVariants(doc.lines),
+                identitaPerVariante: vatContext.identityByVariantId,
+                // ⛔ Stessa disciplina per codice articolo, nome e barcode: una
+                // riga che non ha cambiato variante conserva l'identità di
+                // allora. Senza questa mappa, rinominare un prodotto in
+                // anagrafica riscriverebbe il nome sul DDT di marzo al primo
+                // risalvataggio — «la riga di un documento è una fotografia»
+                // (`regole-gestionale`).
+                identitaPerRiga: persistedLineIdentities(doc.lines),
+                // In modifica una riga nuova può comunque derivare: si aggiunge
+                // una riga a un documento duplicando quella di un altro.
+                sorgentePerRiga: vatContext.sourceLineById,
               },
               vatContext,
               new Map(
@@ -1904,9 +1985,12 @@ export class DocumentsService {
           doc.type,
           {
             // Solo ricalcolo dei TOTALI a fronte di uno sconto di testata:
-            // nessuna riga viene riscritta, quindi non c'è etichetta da
-            // fotografare. Mappe vuote, e lo dice.
+            // nessuna riga viene riscritta, quindi non c'è etichetta né
+            // identità da fotografare. Mappe vuote, e lo dice.
             opzioniPerVariante: new Map(),
+            identitaPerVariante: new Map(),
+            identitaPerRiga: new Map(),
+            sorgentePerRiga: new Map(),
             persistitePerRiga: new Map(),
           },
         ),
@@ -2036,6 +2120,7 @@ export class DocumentsService {
             serialNumbers: line.serialNumbers,
             linkedGoodsReceiptId: null,
             ...EMPTY_LINE_VAT_FIELDS,
+            ...EMPTY_LINE_IDENTITY_FIELDS,
             createdAt: doc.createdAt,
             updatedAt: doc.updatedAt,
           })),
@@ -2125,6 +2210,7 @@ export class DocumentsService {
             serialNumbers: line.serialNumbers,
             linkedGoodsReceiptId: null,
             ...EMPTY_LINE_VAT_FIELDS,
+            ...EMPTY_LINE_IDENTITY_FIELDS,
             createdAt: doc.createdAt,
             updatedAt: doc.updatedAt,
           })),
@@ -2216,6 +2302,7 @@ export class DocumentsService {
             serialNumbers: line.serialNumbers,
             linkedGoodsReceiptId: null,
             ...EMPTY_LINE_VAT_FIELDS,
+            ...EMPTY_LINE_IDENTITY_FIELDS,
             createdAt: doc.createdAt,
             updatedAt: doc.updatedAt,
           })),
@@ -2746,9 +2833,19 @@ export class DocumentsService {
       recipientAddress: (source.recipientAddress as DocumentAddressDto | null) ?? undefined,
       destinationAddress: (source.destinationAddress as DocumentAddressDto | null) ?? undefined,
       lines: source.lines.map((line) => ({
+        // ⭐ **Da quale riga nasce**, e non i suoi valori: il server risalirà a
+        //    questa riga e ne copierà gli snapshot dal database (§5.2-bis di
+        //    `docs/24`). Prima il documento convertito rifotografava
+        //    l'anagrafica di OGGI, quindi una fattura emessa a settembre da un
+        //    DDT di marzo portava il nome che l'articolo ha adesso.
+        sourceDocumentLineId: line.id,
         variantId: line.variantId ?? undefined,
         sku: line.sku ?? undefined,
         description: line.description,
+        // L'unità di misura è uno snapshot come gli altri, e va nel prefill
+        // perché la maschera la mostri: se non ci fosse, il client la
+        // rimanderebbe vuota e sarebbe uno svuotamento esplicito.
+        unitOfMeasure: line.unitOfMeasure ?? undefined,
         quantity: line.quantity,
         unitPriceMinor: Number(line.unitPriceMinor),
         discountPercent: Number(line.discountPercent),
@@ -3732,6 +3829,18 @@ export class DocumentsService {
     varianti: {
       readonly opzioniPerVariante: ReadonlyMap<string, unknown>;
       readonly persistitePerRiga: ReadonlyMap<string, PersistedLineVariant>;
+      /** L'identità corrente delle varianti, letta dal server. */
+      readonly identitaPerVariante: ReadonlyMap<string, LineIdentitySnapshot>;
+      /**
+       * Le righe SORGENTE risolte dal server, per id (§5.2-bis).
+       *
+       * ⚠️ Vuota su ogni percorso che non duplica né converte: il caso
+       * «derivata» non scatta, e la riga nuova prende l'anagrafica corrente
+       * come ha sempre fatto.
+       */
+      readonly sorgentePerRiga: ReadonlyMap<string, LineSourceSnapshot>;
+      /** L'identità già persistita sulle righe esistenti. */
+      readonly identitaPerRiga: ReadonlyMap<string, PersistedLineIdentity>;
     },
     vatContext?: LineVatContext,
     /**
@@ -3752,6 +3861,13 @@ export class DocumentsService {
       // Resta una riga a tutti gli effetti: conserva id, posizione e viene
       // contata fra le voci. Cambia solo che non partecipa ai conti e non
       // muove magazzino.
+      // ⭐ La riga da cui QUESTA deriva, già risolta dal server per id e con
+      //    tenant verificato. `undefined` = riga non derivata, o riferimento
+      //    che non ha trovato nulla — e in quel caso la riga è nuova, che è la
+      //    risposta prudente.
+      const sorgenteDiRiga = line.sourceDocumentLineId
+        ? varianti.sorgentePerRiga.get(line.sourceDocumentLineId)
+        : undefined;
       const isReference = line.isReference === true;
       const quantity = isReference ? 0 : line.quantity;
       const unitPriceMinor = isReference ? 0 : (line.unitPriceMinor ?? 0);
@@ -3813,6 +3929,15 @@ export class DocumentsService {
         vatRatePercent,
         lineTotalMinor,
         lineNetExactMinor,
+        // I TOTALI DETERMINATI della riga (§5.2). Si calcolano qui, dove la
+        // riga si compone e l'aliquota è appena stata risolta, e da qui si
+        // persistono: `computeTotals` li SOMMA invece di rifare il calcolo,
+        // come prescrive «il riepilogo SOMMA, non ricalcola».
+        ...documentLineEconomicTotals({
+          netExactMinor: lineNetExactMinor,
+          totalMinor: lineTotalMinor,
+          ratePercent: vatRatePercent,
+        }),
         vatCodeId,
         vatSnapshot,
         // ⛔ SNAPSHOT: su una riga esistente che porta ancora la stessa
@@ -3827,11 +3952,35 @@ export class DocumentsService {
             ? varianti.opzioniPerVariante.get(line.variantId)
             : null,
           persisted: varianti.persistitePerRiga,
+          sorgente: sorgenteDiRiga,
+        }),
+        // ⭐ SNAPSHOT IDENTITÀ (§5.2): stessa disciplina dell'etichetta, e per
+        // la stessa ragione — un articolo rinominato non riscrive i documenti
+        // già emessi. Composto dal SERVER, mai dal payload del client.
+        ...lineIdentitySnapshot({
+          lineId: line.id,
+          variantId: line.variantId ?? null,
+          corrente: line.variantId
+            ? varianti.identitaPerVariante.get(line.variantId)
+            : undefined,
+          persisted: varianti.identitaPerRiga,
+          sorgente: sorgenteDiRiga,
         }),
         // `undefined` resta `undefined`: chi non manda il campo non lo tocca.
         // Una stringa vuota resta uno svuotamento esplicito.
+        //
+        // ⭐ Su una riga DERIVATA, il campo non dichiarato prende quello della
+        //    sorgente invece dell'anagrafica: è uno snapshot come gli altri, e
+        //    un duplicato che perde l'unità di misura è un duplicato diverso
+        //    dall'originale.
+        //
+        // ⚠️ Se il client LO dichiara, vince il client: quel campo è
+        //    editabile nella maschera, e sovrascriverlo sempre impedirebbe di
+        //    cambiarlo su un duplicato.
         unitOfMeasure:
-          line.unitOfMeasure === undefined ? undefined : line.unitOfMeasure.trim() || null,
+          line.unitOfMeasure === undefined
+            ? (sorgenteDiRiga?.unitOfMeasure ?? undefined)
+            : line.unitOfMeasure.trim() || null,
         // Una reference non muove merce, qualunque cosa arrivi dal client e
         // qualunque sia il default del tipo. Finora reggeva solo perché una
         // riga senza variante non entra in `isStockLine`: coincidenza, non regola.
@@ -3859,15 +4008,27 @@ export class DocumentsService {
     const variantIds = [
       ...new Set(lines.map((line) => line.variantId).filter((id): id is string => !!id)),
     ];
+    // Le righe da cui il client dichiara di derivare: duplicazione, conversione.
+    const sourceLineIds = [
+      ...new Set(
+        lines
+          .map((line) => line.sourceDocumentLineId)
+          .filter((id): id is string => !!id),
+      ),
+    ];
 
-    const [variants, supplier, tenantSettings] = await Promise.all([
+    const [variants, supplier, tenantSettings, sourceLines] = await Promise.all([
       variantIds.length > 0
         ? this.prisma.productVariant.findMany({
             where: { tenantId, id: { in: variantIds } },
             select: {
               id: true,
               optionValues: true,
-              product: { select: { defaultVatCodeId: true } },
+              // ⭐ L'identità da fotografare sulla riga (§5.2 di `docs/24`): la
+              // legge il SERVER dalla variante scelta, non il client dal
+              // proprio payload — così non dipende da dati parziali o alterati.
+              barcode: true,
+              product: { select: { defaultVatCodeId: true, articleCode: true, name: true } },
             },
           })
         : Promise.resolve([]),
@@ -3881,7 +4042,42 @@ export class DocumentsService {
         where: { tenantId },
         select: { defaultVatCodeId: true },
       }),
+      // ⭐ Le righe SORGENTE, lette dal DATABASE e non dal payload: è così
+      //    che una duplicazione conserva l'identità dell'originale senza che
+      //    il client possa comporla (decisione del 03/09/2026).
+      //
+      // ⛔ `tenantId` nella `where`: un id di un altro tenant non torna, e
+      //    la riga ricade sul caso «nuova». Senza questo filtro un id
+      //    indovinato copierebbe il nome di un articolo di un'altra azienda.
+      sourceLineIds.length > 0
+        ? this.prisma.documentLine.findMany({
+            where: { tenantId, id: { in: sourceLineIds } },
+            select: {
+              id: true,
+              variantId: true,
+              articleCode: true,
+              productName: true,
+              barcode: true,
+              variantLabel: true,
+              unitOfMeasure: true,
+            },
+          })
+        : Promise.resolve([]),
     ]);
+
+    const sourceLineById = new Map<string, LineSourceSnapshot>(
+      sourceLines.map((riga) => [
+        riga.id,
+        {
+          variantId: riga.variantId,
+          articleCode: riga.articleCode,
+          productName: riga.productName,
+          barcode: riga.barcode,
+          variantLabel: riga.variantLabel,
+          unitOfMeasure: riga.unitOfMeasure,
+        },
+      ]),
+    );
 
     const productDefaultByVariantId = new Map<string, string | null>(
       variants.map((variant) => [variant.id, variant.product.defaultVatCodeId]),
@@ -3924,6 +4120,17 @@ export class DocumentsService {
       optionValuesByVariantId: new Map(
         variants.map((variante) => [variante.id, variante.optionValues]),
       ),
+      identityByVariantId: new Map(
+        variants.map((variante) => [
+          variante.id,
+          {
+            articleCode: variante.product.articleCode,
+            productName: variante.product.name,
+            barcode: variante.barcode,
+          },
+        ]),
+      ),
+      sourceLineById,
     };
   }
 
@@ -3973,20 +4180,55 @@ export class DocumentsService {
     });
   }
 
-  private toLineCreateData(
-    line: ComputedLine,
-    tenantId: string,
-  ): Prisma.DocumentLineUncheckedCreateWithoutDocumentInput {
-    const {
-      // L'id dichiarato dal client NON diventa mai la chiave di una riga nuova:
-      // una creazione riceve sempre un id generato dal database. L'id in
-      // ingresso serve solo a ritrovare una riga esistente (§persistDocumentLinesTx).
-      id: _id,
-      vatRatePercent: _vatRatePercent,
-      lineNetExactMinor: _lineNetExactMinor,
-      ...rest
-    } = line;
-    return { ...rest, tenantId, vatSnapshot: line.vatSnapshot ?? Prisma.DbNull };
+  /**
+   * Le colonne che una riga documento porta al database, DICHIARATE UNA PER UNA.
+   *
+   * ⛔ Prima era uno spread di `ComputedLine` (`...rest`), e da lì nasceva il
+   * difetto misurato il 02/09/2026: ciò che non era dichiarato nel tipo non
+   * arrivava mai al database, e `lineVatTotalMinor`/`lineGrossTotalMinor`
+   * restavano al proprio `@default(0)` su ogni documento del percorso generico.
+   * Uno spread scrive quello che c'è; un elenco dice quello che ci deve essere.
+   *
+   * Il tipo di ritorno `DocumentLineWriteData` rende OBBLIGATORIE le colonne
+   * economiche: dimenticarne una non compila. È la guardia, e sta nel
+   * compilatore — non in uno script che cerca un nome nel testo del file.
+   *
+   * ⚠️ Tre campi di `ComputedLine` non sono colonne e non si scrivono:
+   * `id` (una creazione riceve sempre un id nuovo dal database; quello in
+   * ingresso serve solo a ritrovare una riga esistente), `vatRatePercent` e
+   * `lineNetExactMinor`, che sono valori di sola elaborazione — verificato:
+   * `DocumentLine` non ha una colonna per nessuno dei due.
+   */
+  private toLineCreateData(line: ComputedLine, tenantId: string): DocumentLineWriteData {
+    return {
+      tenantId,
+      lineNumber: line.lineNumber,
+      variantId: line.variantId,
+      sku: line.sku,
+      description: line.description,
+      variantLabel: line.variantLabel,
+      // L'identità fotografata: `null` su una riga senza articolo.
+      articleCode: line.articleCode,
+      productName: line.productName,
+      barcode: line.barcode,
+      quantity: line.quantity,
+      unitPriceMinor: line.unitPriceMinor,
+      discountPercent: line.discountPercent,
+      lineTotalMinor: line.lineTotalMinor,
+      lineVatTotalMinor: line.lineVatTotalMinor,
+      lineGrossTotalMinor: line.lineGrossTotalMinor,
+      vatCodeId: line.vatCodeId,
+      vatSnapshot: line.vatSnapshot ?? Prisma.DbNull,
+      // `undefined` resta `undefined`: chi non manda il campo non lo tocca
+      // (§tre stati dell'unità di misura, dichiarati su `ComputedLine`).
+      unitOfMeasure: line.unitOfMeasure,
+      loadsStock: line.loadsStock,
+      isReference: line.isReference,
+      supplierOrderLineId: line.supplierOrderLineId,
+      lotCode: line.lotCode,
+      lotExpiryDate: line.lotExpiryDate,
+      serialNumbers: line.serialNumbers,
+    };
   }
 
   /**
@@ -4021,14 +4263,18 @@ export class DocumentsService {
     const discountedLineSum = lineSum - docDiscountAmount;
 
     const taxMinor = lines.reduce((sum, line) => {
+      // ⭐ Senza sconto documento la testata SOMMA il valore già determinato
+      // sulla riga, invece di rifare il calcolo: è lo stesso numero di prima —
+      // `documentLineEconomicTotals` usa la stessa `lineVatFromNetExact` — ma
+      // letto anziché ricostruito, come prescrive «il riepilogo SOMMA, non
+      // ricalcola». Ed è ciò che rende vera l'uguaglianza «testata IVA = somma
+      // delle IVA di riga», che prima non si poteva nemmeno verificare perché
+      // il valore di riga non veniva persistito.
+      if (docDiscount === 0) {
+        return sum + line.lineVatTotalMinor;
+      }
       if (line.vatRatePercent == null || line.vatRatePercent === 0 || lineSum === 0) {
         return sum;
-      }
-      // Senza sconto documento l'imponibile di riga e' quello esatto: l'imposta
-      // nasce da li', ed e' cosi' che il totale torna al prezzo ivato digitato
-      // (§sei decimali). Su un imponibile intero il risultato non cambia.
-      if (docDiscount === 0) {
-        return sum + lineVatFromNetExact(line.lineNetExactMinor, line.vatRatePercent);
       }
       // Lo sconto extra documento si spalma sulle righe in proporzione, così la
       // somma delle imposte di riga coincide con l'imposta del documento. Qui

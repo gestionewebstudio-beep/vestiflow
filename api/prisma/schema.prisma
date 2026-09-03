@@ -2346,6 +2346,24 @@ model DocumentLine {
   variantId                String?                @map("variant_id") @db.Uuid
   sku                      String?
   description              String
+  /// Codice articolo del PRODOTTO, fotografato quando l'articolo entra nella
+  /// riga — come sku, description e variantLabel.
+  ///
+  /// ⛔ Fino al 03/09/2026 non esisteva: la maschera lo RILEGGEVA
+  /// dall'anagrafica corrente a ogni apertura del documento, e il commento in
+  /// `goods-receipt-form.component.ts` lo dichiarava — «non hanno una colonna
+  /// da cui ricaricarsi». Un articolo rinominato riscriveva quindi i documenti
+  /// già emessi, e una variante eliminata li lasciava senza.
+  ///
+  /// Nullable: la riga di spesa o servizio non ha articolo, e le righe scritte
+  /// prima di questa colonna restano null — non si inventa un passato
+  /// (`docs/24` §5.4).
+  articleCode              String?                @map("article_code")
+  /// Nome del PRODOTTO al momento del documento. Stessa storia e stessa regola
+  /// di `articleCode`: non si ricalcola, non si rilegge.
+  productName              String?                @map("product_name")
+  /// Barcode della VARIANTE al momento del documento. Idem.
+  barcode                  String?
   /// Etichetta della VARIANTE, i soli valori: «M / Rosso». Fotografata quando
   /// l'articolo entra nella riga, come sku e description.
   ///

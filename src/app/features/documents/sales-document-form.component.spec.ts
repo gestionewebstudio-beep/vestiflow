@@ -990,7 +990,11 @@ describe('SalesDocumentFormComponent', () => {
 
     interface AccessoRiga {
       onVariantSelect: (index: number, variantId: string, known?: unknown) => void;
-      lines: { at: (i: number) => { controls: Record<string, { value: unknown }> } };
+      lines: {
+        at: (i: number) => { controls: Record<string, { value: unknown }> };
+        readonly length: number;
+      };
+      applyDuplicatePrefill: (doc: unknown) => void;
     }
 
     async function conCatalogo() {
@@ -1047,6 +1051,82 @@ describe('SalesDocumentFormComponent', () => {
       form.onVariantSelect(0, 'var-M', CATALOGO.maglia);
 
       expect(form.lines.at(0).controls['unitOfMeasure']!.value).toBe('pz');
+    });
+    /*
+      ⭐ **DUPLICARE: l'id diventa RIFERIMENTO** — tranche 0A.2c.
+
+      Sono due cose in una riga sola, e nessuna delle due è facoltativa:
+      la riga nuova non porta l'id dell'originale (o il salvataggio
+      MODIFICHEREBBE l'originale invece di duplicarlo), e porta il riferimento
+      (o il server rifotograferebbe l'anagrafica di oggi).
+    */
+    it("⭐ duplicando, l'id della riga originale diventa il riferimento sorgente", async () => {
+      const form = await conCatalogo();
+
+      form.applyDuplicatePrefill({
+        id: 'doc-originale',
+        documentDate: '2026-03-15T00:00:00.000Z',
+        lines: [
+          {
+            id: 'riga-originale-1',
+            variantId: 'var-M',
+            sku: 'MAG-M',
+            description: 'Maglia cotone',
+            variantLabel: 'M / Rosso',
+            articleCode: 'ART-DI-ALLORA',
+            barcode: '8001111111111',
+            quantity: 2,
+            unitPrice: { amountMinor: 2500, currencyCode: 'EUR' },
+            lineTotal: { amountMinor: 5000, currencyCode: 'EUR' },
+            discountPercent: 0,
+            loadsStock: true,
+            lineNumber: 1,
+          },
+        ],
+      });
+
+      const riga = form.lines.at(0).controls;
+      expect(riga['sourceDocumentLineId']!.value).toBe('riga-originale-1');
+      // ⛔ E l'id proprio NON c'è: è un documento nuovo, non una modifica.
+      //    Vuoto, non `null`: il controllo è `fb.control('')` e il payload
+      //    manda `line.id || undefined` — le due forme dicono la stessa cosa.
+      expect(riga['id']!.value).toBe('');
+    });
+
+    /*
+      ⛔ **CAMBIARE ARTICOLO SCOLLEGA dalla sorgente.**
+
+      Senza questo azzeramento il server copierebbe l'identità del prodotto di
+      PRIMA sopra quello appena scelto — e il difetto sarebbe peggiore di
+      quello che la tranche chiude, perché la riga direbbe il nome di un altro
+      articolo.
+    */
+    it('⛔ cambiando articolo, il riferimento alla sorgente si AZZERA', async () => {
+      const form = await conCatalogo();
+
+      form.applyDuplicatePrefill({
+        id: 'doc-originale',
+        documentDate: '2026-03-15T00:00:00.000Z',
+        lines: [
+          {
+            id: 'riga-originale-1',
+            variantId: 'var-M',
+            sku: 'MAG-M',
+            description: 'Maglia cotone',
+            quantity: 1,
+            unitPrice: { amountMinor: 2500, currencyCode: 'EUR' },
+            lineTotal: { amountMinor: 2500, currencyCode: 'EUR' },
+            discountPercent: 0,
+            loadsStock: true,
+            lineNumber: 1,
+          },
+        ],
+      });
+      expect(form.lines.at(0).controls['sourceDocumentLineId']!.value).toBe('riga-originale-1');
+
+      form.onVariantSelect(0, 'var-M', CATALOGO.maglia);
+
+      expect(form.lines.at(0).controls['sourceDocumentLineId']!.value).toBeNull();
     });
   });
 
