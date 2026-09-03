@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { CatalogOrigin } from '@core/models/catalog-origin.model';
+import { VariantLifecycleStatus } from '@core/models/product-variant.model';
 import { ProductStatus } from '@core/models/product.model';
 import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 
@@ -247,6 +248,7 @@ describe('product-form.mapper', () => {
           optionValues: [{ name: 'Taglia', value: 'M' }],
           sellingPrice: { amountMinor: 5990, currencyCode: DEFAULT_CURRENCY },
           purchasePrice: { amountMinor: 2500, currencyCode: DEFAULT_CURRENCY },
+          lifecycleStatus: VariantLifecycleStatus.Active,
         },
       ];
 

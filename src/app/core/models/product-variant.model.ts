@@ -42,11 +42,17 @@ export interface ProductVariant {
   readonly shopifyVariantId?: string;
   readonly shopifyInventoryItemId?: string;
   /**
-   * Stato locale proprio (§3.3). Il mapper lo valorizza sempre; è opzionale
-   * perché il client costruisce varianti anche fuori dall'API (form, fixture),
-   * e lì «assente» vale `active` — la stessa verità del default sul server.
+   * Stato locale proprio della variante (§3.3), **obbligatorio**: chi costruisce
+   * una `ProductVariant` dichiara in che stato è.
+   *
+   * ⛔ Era opzionale, «così le fixture non vanno aggiornate». Indebolire il
+   *    modello per non toccare i costruttori è il modo in cui uno stato nuovo
+   *    resta invisibile: `undefined` si legge come «attiva» in ogni confronto
+   *    scritto distrattamente, e una variante Non attiva passa per attiva senza
+   *    che niente fallisca. L'opzionalità vive SOLO in `ProductVariantApiRow`,
+   *    che è il tipo della risposta HTTP e deve reggere un server più vecchio.
    */
-  readonly lifecycleStatus?: VariantLifecycleStatus;
+  readonly lifecycleStatus: VariantLifecycleStatus;
   /** Cestino (§4.1): valorizzato = «Nel cestino». Non è «eliminata definitivamente». */
   readonly deletedAt?: string | null;
   readonly deletedById?: string | null;

@@ -1,15 +1,16 @@
 #!/usr/bin/env node
 /**
- * ⛔ **I CONTESTI STORICI NON FILTRANO SULLO STATO CORRENTE DI PRODOTTO E VARIANTE**
- * (docs/24 §6.1, guardia prevista da §6.2).
+ * ⛔ **I CONTESTI STORICI E INVENTARIALI NON FILTRANO SULLO STATO CORRENTE DI
+ * PRODOTTO E VARIANTE** (docs/24 §6.1, guardia prevista da §6.2).
  *
- * Un documento di marzo, un movimento di aprile, un report di agosto parlano di
- * ciò che È SUCCESSO: se il prodotto oggi è Non attivo o nel cestino, ieri era
- * in vendita, e quelle righe restano. Un `where` che escludesse `archived`,
- * `inactive` o `deletedAt` da un modulo storico farebbe sparire fatturato,
- * giacenze movimentate e totali già chiusi — senza errore e senza test rosso.
+ * Un documento di marzo, un movimento di aprile, una giacenza di oggi parlano
+ * di ciò che C'È e di ciò che È SUCCESSO: se il prodotto adesso è Non attivo o
+ * nel cestino, la sua merce sta ancora in magazzino e le sue righe restano. Un
+ * `where` che escludesse `archived`, `inactive` o `deletedAt` da questi moduli
+ * farebbe sparire fatturato, giacenze e totali già chiusi — senza errore,
+ * senza test rosso, e senza che nulla lo dica a chi guarda.
  *
- * Che cosa cerca, riga per riga, nei soli moduli storici (`MODULI`):
+ * Che cosa cerca, riga per riga, nei moduli di `MODULI`:
  *
  *   - `lifecycleStatus`            esiste solo sulla variante: sempre sospetto
  *   - `ProductStatus.`             l'enum dello stato prodotto in un filtro
@@ -20,16 +21,22 @@
  *    Misurato prima di scrivere la regex — una guardia più larga sarebbe stata
  *    zittita il giorno stesso.
  *
- * ⭐ **Le eccezioni si NOMINANO sulla riga**, col marcatore
- *    `// stato-corrente: <motivo>`. Non c'è un elenco separato: chi legge il
- *    filtro deve leggere anche perché è ammesso.
- *
- * ⚠️ Questo file si scrive con uno strumento che non passa dalla shell: gli
- *    heredoc di Git Bash mangiano le barre rovesciate e le regex nascono cieche.
+ * ⛔ **NON esiste un marcatore di eccezione, ed è una decisione.** La prima
+ *    stesura (Tranche 1B) ammetteva `// stato-corrente: <motivo>` sulla riga.
+ *    L'unica eccezione mai scritta con quel marcatore era il filtro della
+ *    Situazione magazzino che escludeva i prodotti Non attivi: un comportamento
+ *    **contrario** a §6.1, che il marcatore ha reso legittimo invece di farlo
+ *    correggere. Una valvola che nobilita il difetto che la guardia esiste per
+ *    trovare non è una valvola: è la disattivazione della guardia, scritta più
+ *    piano. Se un caso genuino comparirà, si decide allora — e la decisione si
+ *    scrive in docs/24, non in un commento di riga.
  */
 import { readFileSync, globSync } from 'node:fs';
 
-/** Moduli che parlano del passato o di ciò che è già stato registrato. */
+/**
+ * Moduli che parlano del passato o della realtà inventariale corrente: gli uni
+ * e gli altri esistono indipendentemente dallo stato del catalogo di oggi.
+ */
 const MODULI = [
   'documents',
   'inventory',
@@ -43,8 +50,6 @@ const MODULI = [
   'manual-receipts',
   'order-reservations',
 ];
-
-const MARCATORE = /\/\/\s*stato-corrente:\s*\S/;
 
 const SOSPETTI = [
   { cerca: /\blifecycleStatus\b/, nome: 'lifecycleStatus (stato locale della variante)' },
@@ -66,7 +71,6 @@ if (file.length === 0) {
 }
 
 const problemi = [];
-let eccezioni = 0;
 
 for (const percorso of file) {
   const righe = readFileSync(percorso, 'utf8').split(/\r?\n/);
@@ -81,14 +85,10 @@ for (const percorso of file) {
     if (/^\s*import\b/.test(riga)) return;
     for (const s of SOSPETTI) {
       if (!s.cerca.test(riga)) continue;
-      if (MARCATORE.test(riga)) {
-        eccezioni += 1;
-        return;
-      }
       problemi.push(
-        `⛔ ${percorso.replace(/\\/g, '/')}:${i + 1} · ${s.nome} in un modulo storico.\n` +
-          `   Un contesto storico non filtra sullo stato di OGGI (docs/24 §6.1).\n` +
-          `   Se è davvero una vista operativa, nominalo: // stato-corrente: <motivo>`,
+        `⛔ ${percorso.replace(/\\/g, '/')}:${i + 1} · ${s.nome} in un modulo storico/inventariale.\n` +
+          `   Questi contesti non filtrano sullo stato di OGGI (docs/24 §6.1):\n` +
+          `   lo stato si MOSTRA con un badge, non fa sparire la riga.`,
       );
     }
   });
@@ -101,5 +101,5 @@ if (problemi.length > 0) {
 
 console.log(
   `✅ stato catalogo storico: ${file.length} sorgenti in ${MODULI.length} moduli, ` +
-    `nessun filtro sullo stato corrente (${eccezioni} eccezione/i nominate).`,
+    `nessun filtro sullo stato corrente (e nessuna eccezione ammessa).`,
 );

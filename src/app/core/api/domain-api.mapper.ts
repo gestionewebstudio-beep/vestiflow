@@ -84,7 +84,11 @@ export interface ProductVariantApiRow {
   readonly purchasePriceMinor?: number | null;
   readonly shopifyVariantId?: string | null;
   readonly shopifyInventoryItemId?: string | null;
-  /** Assente sulle risposte precedenti alla Tranche 1A: il mapper ripiega su `active`. */
+  /**
+   * ⭐ **Opzionale QUI e solo qui**: è la forma grezza della risposta HTTP, e un
+   * server precedente alla Tranche 1A non manda il campo. Il mapper applica
+   * `active` e il modello applicativo lo riceve sempre valorizzato.
+   */
   readonly lifecycleStatus?: VariantLifecycleStatus;
   readonly deletedAt?: string | null;
   readonly deletedById?: string | null;

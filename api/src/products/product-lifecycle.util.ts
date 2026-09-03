@@ -44,9 +44,15 @@ export const VARIANT_COMMERCIALLY_SELECTABLE = {
   product: PRODUCT_COMMERCIALLY_SELECTABLE,
 } as const satisfies Prisma.ProductVariantWhereInput;
 
-/** `deletedAt` valorizzato = «Nel cestino». Stessa colonna su prodotto e variante. */
-export function isInTrash(row: { readonly deletedAt: Date | null }): boolean {
-  return row.deletedAt !== null;
+/**
+ * `deletedAt` valorizzato = «Nel cestino». Stessa colonna su prodotto e variante.
+ *
+ * ⚠️ Confronto `!= null`, non `!== null`: copre anche il campo **assente**. Con
+ *    `!== null` una `select` che dimentica la colonna — o una fixture che non la
+ *    dichiara — leggerebbe `undefined !== null` e direbbe «nel cestino» di tutto.
+ */
+export function isInTrash(row: { readonly deletedAt?: Date | null }): boolean {
+  return row.deletedAt != null;
 }
 
 /** «Non attivo» per il prodotto: `archived`. `draft` non è «non attivo», è «bozza». */

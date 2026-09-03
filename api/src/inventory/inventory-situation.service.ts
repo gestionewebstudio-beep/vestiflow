@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AdjustmentDirection, ProductStatus, StockMovementType } from '@prisma/client';
+import { AdjustmentDirection, StockMovementType } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
@@ -80,12 +80,22 @@ export class InventorySituationService {
     // non solo nella UI — la colonna resterebbe leggibile nel traffico di rete.
     const showPurchaseCosts = canViewPurchaseCosts(user);
 
-    // Fotografia operativa: fuori i prodotti Non attivi — decisione precedente
-    // alla Tranche 1B, lasciata com'era. Il CESTINO invece resta dentro, con
-    // badge (docs/24 §6): chi ha giacenza deve vedersi, anche se ritirato.
-    const filters: Prisma.ProductVariantWhereInput[] = [
-      { product: { status: { not: ProductStatus.archived } } }, // stato-corrente: vista operativa di oggi, non un report storico (docs/24 §6.1)
-    ];
+    /*
+      ⛔ **La Situazione magazzino NON filtra sullo stato del catalogo** (docs/24
+         §6.1): mostra prodotti Attivi, Non attivi e nel Cestino, e le loro
+         varianti in qualunque stato, quando hanno realtà inventariale.
+
+      ⛔ Qui c'era `{ product: { status: { not: ProductStatus.archived } } }`,
+         ereditato da prima della Tranche 1B e battezzato «fotografia
+         operativa». Faceva sparire dalla Situazione la merce di ogni prodotto
+         Non attivo: giacenza, impegni e valore uscivano dal totale senza che
+         nulla lo dicesse — ed è esattamente il danno che §6.1 descrive. Uno
+         stato del catalogo non cancella la merce che sta in magazzino.
+
+      ⭐ Lo stato si LEGGE, non si filtra: le colonne portano i badge «Non
+         attivo» e «Nel cestino», e chi guarda decide.
+    */
+    const filters: Prisma.ProductVariantWhereInput[] = [];
     if (query.search) {
       filters.push(buildInventoryVariantSearchWhere(query.search));
     }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { CatalogOrigin } from '@core/models/catalog-origin.model';
+import { VariantLifecycleStatus } from '@core/models/product-variant.model';
 import { ProductStatus } from '@core/models/product.model';
 
 import { toProductLabelViewModels } from './product-label.mapper';
@@ -30,6 +31,7 @@ const variants = [
     optionValues: [{ name: 'Taglia', value: 'M' }],
     sellingPrice: { amountMinor: 2990, currencyCode: 'EUR' },
     barcode: '8001234567890',
+    lifecycleStatus: VariantLifecycleStatus.Active,
   },
   {
     // Prezzo di vendita superiore al barrato di articolo: il barrato non è
@@ -40,6 +42,7 @@ const variants = [
     optionValues: [{ name: 'Taglia', value: 'L' }],
     sellingPrice: { amountMinor: 4990, currencyCode: 'EUR' },
     barcode: '',
+    lifecycleStatus: VariantLifecycleStatus.Active,
   },
 ];
 
