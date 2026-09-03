@@ -76,7 +76,8 @@
     "vitest": "^4.0.8"
   },
   "overrides": {
-    "multer": "2.2.0"
+    "multer": "2.2.0",
+    "deepmerge-ts": "^8.0.2"
   },
   "volta": {
     "node": "22.13.1"
