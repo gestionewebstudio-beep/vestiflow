@@ -551,7 +551,7 @@ la pagina di redirect al login. Il file reale lo risolve così, e chi tocca ques
 configurazione deve saperlo:
 
 ```json
-"startServerCommand": "npm run build -- --configuration=e2e && npx http-server dist/vestiflow/browser -p 4210 -c-1",
+"startServerCommand": "npm run build -- --configuration=e2e && npx http-server dist/vestiflow/browser -p 4210 -c-1 --proxy 'http://127.0.0.1:4210?'",
 "puppeteerScript": "./scripts/lhci-mock-auth.cjs",
 "url": ["…/login", "…/app/dashboard", "…/app/products"],
 "numberOfRuns": 1
@@ -560,6 +560,32 @@ configurazione deve saperlo:
 Il `puppeteerScript` autentica con l'auth mock prima della misura; la build `e2e` è
 quella che quell'auth mock la contiene. **Senza uno dei due, i numeri sono di un'altra
 pagina** — e sarebbero pure buoni, il che è il difetto peggiore.
+
+⭐ **E `--proxy 'http://127.0.0.1:4210?'` non è un dettaglio**: senza, `http-server`
+risponde **404** a `/login` e a ogni altra rotta Angular, e Lighthouse misura la pagina
+d'errore. Misurato il 03/09/2026, prima di scriverlo.
+
+### ⛔ Lo script è invocato UNA VOLTA PER URL, sullo STESSO browser _(03/09/2026)_
+
+> **Le tre invocazioni non sono indipendenti: quello che la prima lascia nel browser, la
+> seconda se lo trova davanti.**
+
+`@lhci/cli/src/collect/puppeteer-manager.js` tiene **una sola** istanza (`_getBrowser()`),
+e Lighthouse fra una misura e l'altra **non azzera `localStorage`** — `clearStorageTypes`
+vale `['file_systems', 'shader_cache', 'service_workers', 'cache_storage']`
+(`lighthouse/core/config/constants.js`). `mock-auth.gateway` la sessione la scrive anche
+lì, quindi sopravvive.
+
+Ne discendono due obblighi per `lhci-mock-auth.cjs`, e sono l'uno il rovescio dell'altro:
+
+| Obbligo                                                  | Perché                                                                                                 |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **non autenticarsi** quando l'URL da misurare è `/login` | autenticati, `guestGuard` rimanda alla dashboard: si misurerebbe la dashboard chiamandola `/login`     |
+| **tollerare** un browser già autenticato                 | dalla seconda invocazione in poi il modulo non c'è più, e attenderlo faceva uscire `lhci` con codice 1 |
+
+⚠️ **Il secondo non è teorico**: è il fallimento della PR #1 — «TimeoutError: Waiting for
+selector `#login-email` failed», che si legge come un selettore sbagliato mentre è una
+sessione ancora viva.
 
 ## Le soglie
 
