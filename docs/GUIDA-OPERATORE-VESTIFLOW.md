@@ -871,7 +871,7 @@ Modulo `api/src/documents/` + feature Angular `src/app/features/documents/`.
 
 **Query lista** (`ListDocumentsQueryDto`): `search`, `type`, `status`, `dateFrom`, `dateTo`, `supplierOrderId`, `customerId`, `accountant` (solo tipi registro commercialista), `pendingInvoice` (DDT vendita attivi senza bozza fattura figlia).
 
-**Tipi** (`DocumentType` in Prisma): `goods_receipt`, `manual_load`, `initial_load`, `sales_ddt`, `invoice_draft`, `transfer`, `manual_unload`, `adjustment`, `supplier_ddt`, `supplier_invoice`, … — vedi enum in `schema.prisma`.
+**Tipi** (`DocumentType` in Prisma): `goods_receipt`, `manual_load`, `initial_load`, `sales_ddt`, `invoice`, `transfer`, `manual_unload`, `adjustment`, `supplier_ddt`, `supplier_invoice`, … — vedi enum in `schema.prisma`.
 
 **Seriali/lotti:** in conferma `goods_receipt`, `inventory-serial.util.ts` e righe `DocumentLine` con `lotCode` / `serialNumbers`.
 

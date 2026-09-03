@@ -949,7 +949,10 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </ol>
 <pre><code class="language-graphql">mutation InventorySetQuantities($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
   inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
-    userErrors { field message }
+    userErrors {
+      field
+      message
+    }
   }
 }
 </code></pre>
@@ -1551,7 +1554,7 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </tr>
 </tbody></table>
 <p><strong>Query lista</strong> (<code>ListDocumentsQueryDto</code>): <code>search</code>, <code>type</code>, <code>status</code>, <code>dateFrom</code>, <code>dateTo</code>, <code>supplierOrderId</code>, <code>customerId</code>, <code>accountant</code> (solo tipi registro commercialista), <code>pendingInvoice</code> (DDT vendita attivi senza bozza fattura figlia).</p>
-<p><strong>Tipi</strong> (<code>DocumentType</code> in Prisma): <code>goods_receipt</code>, <code>manual_load</code>, <code>initial_load</code>, <code>sales_ddt</code>, <code>invoice_draft</code>, <code>transfer</code>, <code>manual_unload</code>, <code>adjustment</code>, <code>supplier_ddt</code>, <code>supplier_invoice</code>, … — vedi enum in <code>schema.prisma</code>.</p>
+<p><strong>Tipi</strong> (<code>DocumentType</code> in Prisma): <code>goods_receipt</code>, <code>manual_load</code>, <code>initial_load</code>, <code>sales_ddt</code>, <code>invoice</code>, <code>transfer</code>, <code>manual_unload</code>, <code>adjustment</code>, <code>supplier_ddt</code>, <code>supplier_invoice</code>, … — vedi enum in <code>schema.prisma</code>.</p>
 <p><strong>Seriali/lotti:</strong> in conferma <code>goods_receipt</code>, <code>inventory-serial.util.ts</code> e righe <code>DocumentLine</code> con <code>lotCode</code> / <code>serialNumbers</code>.</p>
 <p><strong>Frontend route:</strong> <code>/app/documents</code> (+ form dedicati <code>goods-receipt</code>, <code>transfer</code>, <code>ddt-vendita</code>, …). Liste e form con <code>TableColumnPickerComponent</code> + sync preferenze: documenti, giacenze, movimenti, fornitori, prodotti, clienti, righe ordine fornitore (<code>supplier-order-form</code>), righe arrivo merce.</p>
 <h3 id="impostazioni-operative-tenant">Impostazioni operative tenant</h3>
