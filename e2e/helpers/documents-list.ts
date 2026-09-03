@@ -2,7 +2,11 @@ import { expect, type Page } from '@playwright/test';
 
 /** Attende la lista documenti (titolo visibile; tabella opzionale se API assente). */
 export async function waitForDocumentsListReady(page: Page): Promise<void> {
-  await expect(page).toHaveURL(/\/app\/documents/, { timeout: 30_000 });
+  // ⛔ **`registro` nel motivo, non solo `documents`.** `/app/documents` e'
+  //    ora una pagina-INDICE che fa scegliere il tipo di documento, e la
+  //    vecchia espressione combaciava con entrambe: il test passava questa
+  //    riga stando sulla pagina sbagliata, e falliva dopo sul titolo.
+  await expect(page).toHaveURL(/\/app\/documents\/registro/, { timeout: 30_000 });
   // Due derive in una sola riga, entrambe verificate su `src/`:
   //  - la classe: il titolo lo rende ora il telaio `app-list-page`, e
   //    `doc-list__title` non esiste piu';
@@ -38,5 +42,9 @@ export function buildPendingInvoiceDocumentsPath(dateFrom: string, dateTo: strin
     type: 'sales_ddt',
     pendingInvoice: '1',
   });
-  return `/app/documents?${params.toString()}`;
+  // ⛔ Il registro vive sotto `/registro` da quando `/app/documents` e'
+  //    diventata la pagina-indice (documents.routes.ts: `path: ''` ->
+  //    `documents-hub`, `path: 'registro'` -> `document-list`). Con il
+  //    percorso vecchio i filtri finivano sull'indice, che li ignora.
+  return `/app/documents/registro?${params.toString()}`;
 }
