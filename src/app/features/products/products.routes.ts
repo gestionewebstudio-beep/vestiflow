@@ -34,6 +34,16 @@ export const productsRoutes: Routes = [
     data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.CatalogImportExport },
   },
   {
+    // Vista amministrativa Cestino (docs/24 §6): SOLO ciò che è nel cestino, in
+    // sola lettura — i comandi Ripristina/Elimina definitivamente sono di 1C.
+    // Rotta statica: DEVE precedere `:id`, altrimenti `:id` la cattura.
+    path: 'trash',
+    title: 'Cestino prodotti',
+    loadComponent: () => import('./product-trash.component').then((m) => m.ProductTrashComponent),
+    canActivate: [tenantPermissionGuard],
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.CatalogDelete },
+  },
+  {
     path: ':id/print-label',
     title: 'Stampa etichetta',
     loadComponent: () =>

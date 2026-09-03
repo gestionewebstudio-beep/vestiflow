@@ -37,6 +37,16 @@ export class ListProductsQueryDto extends PaginationQueryDto {
   includeVariants?: boolean;
 
   /**
+   * `trash=true` — SOLO gli elementi nel cestino (vista amministrativa Cestino,
+   * docs/24 §6). Assente o false: l'elenco ordinario, che il cestino lo ESCLUDE.
+   * Non esiste un «tutti insieme»: le due viste rispondono a domande diverse.
+   */
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true' || value === '1')
+  @IsBoolean()
+  trash?: boolean;
+
+  /**
    * `all=1` — tutto il risultato del filtro invece di una pagina.
    *
    * ⭐ **L'elenco prodotti non impagina più** (deciso il 30/08/2026): «se non

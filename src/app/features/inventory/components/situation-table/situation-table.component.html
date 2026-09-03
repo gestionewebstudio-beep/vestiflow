@@ -51,6 +51,13 @@
     <app-badge [flat]="true" [tone]="statusTone(row.status)">{{
       statusLabel(row.status)
     }}</app-badge>
+    <!--
+      La Situazione NON nasconde il cestino: chi ha giacenza si vede, con
+      il badge (docs/24 §6). La decisione «è nel cestino» arriva dal server.
+    -->
+    @if (row.inTrash) {
+      <app-badge [flat]="true" [tone]="trashTone">{{ trashLabel }}</app-badge>
+    }
   </ng-template>
   <!--
     ⭐ **La card di un ELENCO si progetta, non si impila** (`regole-stile-ui`):

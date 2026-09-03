@@ -156,6 +156,7 @@ export class ProductService {
     if (query.category) params = params.set('category', query.category);
     if (query.brand) params = params.set('brand', query.brand);
     if (query.season) params = params.set('season', query.season);
+    if (query.trash) params = params.set('trash', '1');
 
     return this.http.get<ApiPaginated<ProductApiRow>>(this.url('/products'), { params }).pipe(
       timeout(HTTP_TIMEOUT_MS),

@@ -615,17 +615,20 @@ La colonna esistente `Product.status` mantiene i significati:
 - `active`: prodotto in uso;
 - `archived`: prodotto non attivo.
 
-🔧 Una possibile forma tecnica, ancora da verificare, aggiunge:
+✅ **Adottato con la Tranche 1A** (commit `8bf85363`, 03/09/2026). Colonne su `Product`:
 
 - `deletedAt` nullabile;
-- `deletedById` nullabile;
-- `deletionReason` nullabile;
-- `deletionOperationId` nullabile;
-- dati di audit della conferma.
+- `deletedById` nullabile — snapshot d'audit senza vincolo referenziale, come
+  `StockMovement.createdById`;
+- `deletionReason` nullabile.
 
-Se questa forma tecnica verrà adottata, `deletedAt != null` significa **nel cestino**, non
-«eliminato definitivamente»: dopo la purga il record non esiste più. Non aggiungere
-contemporaneamente un valore `deleted` all'enum, perché creerebbe due fonti per lo stesso fatto.
+`deletedAt != null` significa **nel cestino**, non «eliminato definitivamente»: dopo la purga il
+record non esiste più. L'enum non ha un valore `deleted`, che creerebbe due fonti per lo stesso
+fatto.
+
+⛔ **`deletionOperationId` NON si aggiunge**, né a prodotto né a variante — deciso il
+03/09/2026. Qui era elencato fra le colonne proposte: l'eventuale correlazione con un'operazione
+remota appartiene alla tabella delle operazioni (§8.4), non all'anagrafica.
 
 ### 3.3 Stato variante
 
@@ -646,10 +649,10 @@ La variante ha uno **stato locale proprio, indipendente da Shopify**. Non lo si 
 
 ⭐ **L'elenco completo, e quali stati non vanno confusi fra loro, sta in §3.7.**
 
-🔧 **Proposta tecnica, da verificare**: colonne `deletedAt`, `deletedById`, `deletionReason`,
-`deletionOperationId`, tutte nullabili, con `deletedAt != null` come unica fonte dello stato
-**nel cestino**. La forma è ipotizzata; la separazione fra stato locale, cestino e purga
-definitiva è invece confermata (§4.1).
+✅ **Adottato con la Tranche 1A** (commit `8bf85363`): `ProductVariant.lifecycleStatus`
+(`active` / `inactive`, default `active`) e le tre colonne del cestino `deletedAt`,
+`deletedById`, `deletionReason`, con `deletedAt != null` come unica fonte dello stato **nel
+cestino**. ⛔ `deletionOperationId` non c'è, per la stessa decisione di §3.2.
 
 ### 3.4 Stato effettivo derivato
 
@@ -2250,8 +2253,8 @@ Ordine:
 
 Da validare sullo schema reale prima della migration:
 
-- metadati cancellazione su `Product` e `ProductVariant`;
-- lifecycle variante;
+- ✅ metadati cestino su `Product` e `ProductVariant` — **fatto**, Tranche 1A (§3.2, §3.3);
+- ✅ lifecycle variante — **fatto**, Tranche 1A (§3.3);
 - snapshot identità su `DocumentLine`;
 - snapshot identità e ricavo su `StockMovement`;
 - tabella publication variante × canale;
@@ -2311,22 +2314,24 @@ La Tranche 0 si esegue a fette, una alla volta, con verifica prima di passare al
 0B.1 sono chiuse. Restano il contratto autonomo dei movimenti e la lacuna dichiarata del
 percorso «Concludi ordine».
 
-|           |                                                                              |                                                                                                     |
-| --------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| **0A.1**  | **totali economici di riga sul percorso generico**                           | ✅ **completata e verificata**, con i test eseguiti                                                 |
-| **0B.1**  | **filtro Sede del Registro canonico**                                        | ✅ **completata e verificata**, con i test eseguiti                                                 |
-| **0A.2a** | **snapshot identificativi di riga sul percorso generico**                    | ✅ **completata e verificata**, con i test eseguiti                                                 |
-| **0A.2b** | **consumo degli snapshot: riapertura, interfaccia, stampa**                  | ✅ **completata e verificata**, con i test eseguiti                                                 |
-| **0A.2c** | **duplicazioni e conversioni: gli snapshot seguono la riga sorgente**        | ✅ **completata e verificata**, con i test eseguiti                                                 |
-| —         | «Concludi ordine» (ordine cliente → documento)                               | ⏸ **lacuna dichiarata**: `SalesOrderLine` non ha `articleCode` né `productName`                     |
-| —         | **convergenza Corrispettivi**                                                | ✅ **fatta il 03/09/2026**: il vecchio export è stato rimosso, il Registro canonico è l'unica fonte |
-| —         | contratto autonomo dei movimenti (§5.3)                                      | ⏸ da fare                                                                                           |
-| —         | eliminazione locale                                                          | ⏸ da fare                                                                                           |
-| —         | interruttore Shopify: ferma anche le giacenze, `ARCHIVED` (§1.8)             | ✅ **fatto il 03/09/2026** · ⏸ resta l'unpublish per variante (`publishablePublish`, Tranche 3)     |
-| —         | nome interno separato dal «Nome Shopify» (§1.9)                              | ✅ **fatto e provato sullo shop il 03/09/2026** · ⏸ resta l'azione massiva «Copia nome VestiFlow»   |
-| —         | spegnere la sync non lascia il prodotto in vendita, ed è reversibile (§1.10) | ✅ **fatto e provato sullo shop il 03/09/2026**                                                     |
-| —         | prodotti importati modificabili (§1.8) — **primo pezzo della Tranche 2**     | ✅ **completata e verificata il 03/09/2026**, comprese le prove d'integrazione                      |
-| —         | **migrazione push Shopify a GraphQL** (Tranche 2 e 3)                        | ⏸ **da eseguire**, decisa in §1.6                                                                   |
+|           |                                                                                            |                                                                                                     |
+| --------- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| **0A.1**  | **totali economici di riga sul percorso generico**                                         | ✅ **completata e verificata**, con i test eseguiti                                                 |
+| **0B.1**  | **filtro Sede del Registro canonico**                                                      | ✅ **completata e verificata**, con i test eseguiti                                                 |
+| **0A.2a** | **snapshot identificativi di riga sul percorso generico**                                  | ✅ **completata e verificata**, con i test eseguiti                                                 |
+| **0A.2b** | **consumo degli snapshot: riapertura, interfaccia, stampa**                                | ✅ **completata e verificata**, con i test eseguiti                                                 |
+| **0A.2c** | **duplicazioni e conversioni: gli snapshot seguono la riga sorgente**                      | ✅ **completata e verificata**, con i test eseguiti                                                 |
+| —         | «Concludi ordine» (ordine cliente → documento)                                             | ⏸ **lacuna dichiarata**: `SalesOrderLine` non ha `articleCode` né `productName`                     |
+| —         | **convergenza Corrispettivi**                                                              | ✅ **fatta il 03/09/2026**: il vecchio export è stato rimosso, il Registro canonico è l'unica fonte |
+| —         | contratto autonomo dei movimenti (§5.3)                                                    | ⏸ da fare                                                                                           |
+| **1A**    | **modello locale del ciclo di vita**: `lifecycleStatus`, cestino, indici, migration        | ✅ **completata e verificata il 03/09/2026**, commit `8bf85363` — build, 2345 unit, 72 integrazione |
+| **1B**    | **esposizione e visibilità**: predicati, elenco/Cestino/selezioni, etichette, guardia §6.2 | ✅ **completata il 03/09/2026** — vedi commit `feat(catalogo): applica visibilità e stati`          |
+| —         | cestino e ripristino come COMANDI, eliminazione definitiva                                 | ⏸ da fare (Tranche 1C)                                                                              |
+| —         | interruttore Shopify: ferma anche le giacenze, `ARCHIVED` (§1.8)                           | ✅ **fatto il 03/09/2026** · ⏸ resta l'unpublish per variante (`publishablePublish`, Tranche 3)     |
+| —         | nome interno separato dal «Nome Shopify» (§1.9)                                            | ✅ **fatto e provato sullo shop il 03/09/2026** · ⏸ resta l'azione massiva «Copia nome VestiFlow»   |
+| —         | spegnere la sync non lascia il prodotto in vendita, ed è reversibile (§1.10)               | ✅ **fatto e provato sullo shop il 03/09/2026**                                                     |
+| —         | prodotti importati modificabili (§1.8) — **primo pezzo della Tranche 2**                   | ✅ **completata e verificata il 03/09/2026**, comprese le prove d'integrazione                      |
+| —         | **migrazione push Shopify a GraphQL** (Tranche 2 e 3)                                      | ⏸ **da eseguire**, decisa in §1.6                                                                   |
 
 ⛔ **Non c'è più una voce «correzione del vecchio export dai movimenti».** Quel percorso **non si ripara**: si dismette. Ripararlo — e a maggior ragione alimentarlo con nuovi snapshot economici — significherebbe investire lavoro in un motore che deve sparire, e ritardarne la fine.
 

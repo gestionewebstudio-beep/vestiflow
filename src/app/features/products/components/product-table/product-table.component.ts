@@ -25,6 +25,7 @@ import {
   catalogOriginTone,
 } from '@domain/products/models/catalog-origin.util';
 import { productDisplayCategoryShort } from '../../models/product-display.util';
+import { TRASH_LABEL, TRASH_TONE, isInTrash } from '@domain/products/models/product-lifecycle.util';
 import { productStatusLabel, productStatusTone } from '@domain/products/models/product-status.util';
 import type { ProductSortField } from '@domain/products/models/product-list-query.model';
 
@@ -301,6 +302,13 @@ export class ProductTableComponent {
 
   protected statusLabel(status: ProductStatus): string {
     return productStatusLabel(status);
+  }
+
+  // «Nel cestino»: la decisione sta in product-lifecycle.util, qui si mostra.
+  protected readonly trashLabel = TRASH_LABEL;
+  protected readonly trashTone = TRASH_TONE;
+  protected inTrash(product: Product): boolean {
+    return isInTrash(product);
   }
 
   protected statusTone(status: ProductStatus): BadgeTone {

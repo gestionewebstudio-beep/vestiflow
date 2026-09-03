@@ -2,7 +2,7 @@ import type { EntityId, IsoDateString } from '@core/models/common.model';
 import { CatalogOrigin } from '@core/models/catalog-origin.model';
 import type { InventoryLevel } from '@core/models/inventory-level.model';
 import type { Location } from '@core/models/location.model';
-import type { ProductVariant } from '@core/models/product-variant.model';
+import { VariantLifecycleStatus, type ProductVariant } from '@core/models/product-variant.model';
 import type { Product, ProductOption } from '@core/models/product.model';
 import { ShopifySyncStatus } from '@core/models/shopify.model';
 import type { ShopifyLink } from '@core/models/shopify.model';
@@ -30,6 +30,9 @@ export interface ProductApiRow {
   readonly shopifyMetafields?: unknown;
   readonly shopifyCategoryMetafields?: unknown;
   readonly status: Product['status'];
+  readonly deletedAt?: string | null;
+  readonly deletedById?: string | null;
+  readonly deletionReason?: string | null;
   readonly shopifySyncEnabled?: boolean;
   readonly shopifyTitle?: string | null;
   readonly catalogOrigin: CatalogOrigin;
@@ -81,6 +84,11 @@ export interface ProductVariantApiRow {
   readonly purchasePriceMinor?: number | null;
   readonly shopifyVariantId?: string | null;
   readonly shopifyInventoryItemId?: string | null;
+  /** Assente sulle risposte precedenti alla Tranche 1A: il mapper ripiega su `active`. */
+  readonly lifecycleStatus?: VariantLifecycleStatus;
+  readonly deletedAt?: string | null;
+  readonly deletedById?: string | null;
+  readonly deletionReason?: string | null;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -254,6 +262,9 @@ export function mapProductApiRow(row: ProductApiRow): Product {
       isShopifyCategoryMetafieldValue,
     ),
     status: row.status,
+    deletedAt: row.deletedAt ?? null,
+    deletedById: row.deletedById ?? null,
+    deletionReason: row.deletionReason ?? null,
     shopifySyncEnabled: row.shopifySyncEnabled ?? true,
     shopifyTitle: row.shopifyTitle ?? undefined,
     catalogOrigin: row.catalogOrigin ?? CatalogOrigin.VestiFlow,
@@ -335,6 +346,10 @@ export function mapProductVariantApiRow(row: ProductVariantApiRow): ProductVaria
         : undefined,
     shopifyVariantId: row.shopifyVariantId ?? undefined,
     shopifyInventoryItemId: row.shopifyInventoryItemId ?? undefined,
+    lifecycleStatus: row.lifecycleStatus ?? VariantLifecycleStatus.Active,
+    deletedAt: row.deletedAt ?? null,
+    deletedById: row.deletedById ?? null,
+    deletionReason: row.deletionReason ?? null,
   };
 }
 

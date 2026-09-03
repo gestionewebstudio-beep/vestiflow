@@ -83,6 +83,14 @@ export interface Product extends TenantScoped, Timestamped {
   readonly shopifyMetafields?: readonly ShopifyMetafieldRef[];
   readonly shopifyCategoryMetafields?: readonly ShopifyCategoryMetafieldValue[];
   readonly status: ProductStatus;
+  /**
+   * Cestino (docs/24 §4.1): valorizzato = «Nel cestino». È un asse DIVERSO da
+   * `status`: `archived` è «Non attivo» e non c'entra col cestino. L'eliminazione
+   * definitiva è la rimozione fisica del record, quindi non ha un campo.
+   */
+  readonly deletedAt?: string | null;
+  readonly deletedById?: string | null;
+  readonly deletionReason?: string | null;
   /** Se false, le modifiche a questo prodotto NON si propagano a Shopify. */
   readonly shopifySyncEnabled: boolean;
   /** Provenienza catalogo: determina quali campi sono editabili in gestionale. */

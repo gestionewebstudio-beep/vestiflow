@@ -22,6 +22,8 @@ export interface InventorySituationApiRow {
   readonly totalIn: number;
   readonly totalOut: number;
   readonly stockStatus: StockStatus;
+  /** «Nel cestino» (prodotto o variante): resta in elenco con badge (docs/24 §6). */
+  readonly inTrash?: boolean;
 }
 
 /** Riga tabella Situazione (display già formattato per le colonne denaro). */
@@ -46,6 +48,7 @@ export interface InventorySituationRow {
   readonly totalIn: number;
   readonly totalOut: number;
   readonly status: StockStatus;
+  readonly inTrash: boolean;
 }
 
 export function mapInventorySituationApiRow(row: InventorySituationApiRow): InventorySituationRow {
@@ -69,6 +72,7 @@ export function mapInventorySituationApiRow(row: InventorySituationApiRow): Inve
     totalIn: row.totalIn,
     totalOut: row.totalOut,
     status: row.stockStatus,
+    inTrash: row.inTrash ?? false,
   };
 }
 

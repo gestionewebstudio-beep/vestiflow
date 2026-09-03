@@ -16,6 +16,7 @@ import { ordinaPerColonne } from '@shared/table-columns/column-sort.util';
 import { totaliDiElenco } from '@shared/models/list-totals.util';
 import type { ResolvedTableColumn, TableViewId } from '@shared/table-columns/table-column.model';
 
+import { TRASH_LABEL, TRASH_TONE } from '@domain/products/models/product-lifecycle.util';
 import { stockStatusLabel, stockStatusTone } from '../../models/inventory-labels.util';
 import type { InventorySituationRow } from '@domain/inventory/models/inventory-situation.model';
 
@@ -55,6 +56,8 @@ export class SituationTableComponent {
 
   protected readonly statusLabel = stockStatusLabel;
   protected readonly statusTone = stockStatusTone;
+  protected readonly trashLabel = TRASH_LABEL;
+  protected readonly trashTone = TRASH_TONE;
 
   /*
     ⛔ **`select` non è una colonna di dati**: la casella la disegna il motore

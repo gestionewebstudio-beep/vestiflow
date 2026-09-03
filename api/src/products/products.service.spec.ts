@@ -116,6 +116,81 @@ describe('ProductsService', () => {
     expect(result.total).toBe(1);
   });
 
+  // Ciclo di vita locale (docs/24 §3.4, §6): la decisione vive in
+  // product-lifecycle.util, e qui si verifica che i consumatori la applichino.
+  describe('visibilità del ciclo di vita', () => {
+    it("l'elenco ordinario ESCLUDE il cestino", async () => {
+      const { service, prisma } = createService();
+      prisma.product.findMany.mockResolvedValue([]);
+      prisma.product.count.mockResolvedValue(0);
+
+      await service.list(tenantId, { page: 1, pageSize: 10 });
+
+      const [[chiamata]] = prisma.product.findMany.mock.calls as [[{ where: Record<string, unknown> }]];
+      expect(chiamata.where).toMatchObject({ tenantId, deletedAt: null });
+    });
+
+    it('la vista Cestino mostra SOLO il cestino', async () => {
+      const { service, prisma } = createService();
+      prisma.product.findMany.mockResolvedValue([]);
+      prisma.product.count.mockResolvedValue(0);
+
+      // Il titolare passa: la vista è amministrativa (CatalogDelete o accesso pieno).
+      await service.list(tenantId, { page: 1, pageSize: 10, trash: true } as never, testOwnerUser());
+
+      const [[chiamata]] = prisma.product.findMany.mock.calls as [[{ where: Record<string, unknown> }]];
+      expect(chiamata.where).toMatchObject({ tenantId, deletedAt: { not: null } });
+    });
+
+    it('la vista Cestino è NEGATA a chi non ha il permesso di eliminare', async () => {
+      const { service } = createService();
+
+      await expect(
+        service.list(tenantId, { page: 1, pageSize: 10, trash: true } as never, testClerkUser()),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('i riepiloghi varianti sono una selezione COMMERCIALE: fuori Non attivi e cestino', async () => {
+      const { service, prisma } = createService();
+      prisma.productVariant.findMany.mockResolvedValue([]);
+      prisma.productVariant.count.mockResolvedValue(0);
+
+      await service.listVariantSummaries(tenantId, { page: 1, pageSize: 10 } as never, testOwnerUser());
+
+      const [[chiamata]] = prisma.productVariant.findMany.mock.calls as [
+        [{ where: Record<string, unknown> }],
+      ];
+      expect(chiamata.where).toMatchObject({
+        tenantId,
+        deletedAt: null,
+        lifecycleStatus: 'active',
+        product: { deletedAt: null, status: 'active' },
+      });
+    });
+
+    it('anche lo scanner (by-code) non pesca dal cestino né dai Non attivi', async () => {
+      const { service, prisma } = createService();
+      prisma.productVariant.findFirst.mockResolvedValue({
+        id: 'var-1',
+        productId: 'prod-1',
+        sku: 'SKU-1',
+        barcode: null,
+        product: { id: 'prod-1', name: 'Maglietta', managesStock: true },
+      });
+
+      await service.findVariantByCode(tenantId, 'SKU-1');
+
+      const [[chiamata]] = prisma.productVariant.findFirst.mock.calls as [
+        [{ where: Record<string, unknown> }],
+      ];
+      expect(chiamata.where).toMatchObject({
+        deletedAt: null,
+        lifecycleStatus: 'active',
+        product: { deletedAt: null, status: 'active' },
+      });
+    });
+  });
+
   it('list espone il costo d’acquisto solo a chi ha il permesso', async () => {
     const { service, prisma } = createService();
     const rows = [

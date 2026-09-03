@@ -8,7 +8,8 @@ describe('product-status.util', () => {
   it('fornisce label per ogni stato prodotto', () => {
     expect(productStatusLabel(ProductStatus.Active)).toBe('Attivo');
     expect(productStatusLabel(ProductStatus.Draft)).toBe('Bozza');
-    expect(productStatusLabel(ProductStatus.Archived)).toBe('Archiviato');
+    // «Non attivo», non «Archiviato»: quella è la parola di Shopify (docs/24 §3.7).
+    expect(productStatusLabel(ProductStatus.Archived)).toBe('Non attivo');
   });
 
   it('fornisce tono badge per ogni stato prodotto', () => {

@@ -12,6 +12,7 @@ import type {
   ListInventorySituationQueryDto,
 } from './dto/list-inventory-situation.query.dto';
 import { variantTitle } from '../common/variant-label.util';
+import { isInTrash } from '../products/product-lifecycle.util';
 import { buildInventoryVariantSearchWhere } from './inventory-variant-search.util';
 import {
   INVENTORY_VIEW_SCOPE_MODE,
@@ -43,6 +44,8 @@ export interface InventorySituationRowDto {
   /** Totale quantità movimentate in uscita (scarichi, vendite, rettifiche −). */
   readonly totalOut: number;
   readonly stockStatus: InventoryStockStatus;
+  /** «Nel cestino» (prodotto o variante): si mostra col badge, non si nasconde (docs/24 §6). */
+  readonly inTrash: boolean;
 }
 
 /**
@@ -77,9 +80,11 @@ export class InventorySituationService {
     // non solo nella UI — la colonna resterebbe leggibile nel traffico di rete.
     const showPurchaseCosts = canViewPurchaseCosts(user);
 
-    // Fotografia operativa: fuori i prodotti archiviati.
+    // Fotografia operativa: fuori i prodotti Non attivi — decisione precedente
+    // alla Tranche 1B, lasciata com'era. Il CESTINO invece resta dentro, con
+    // badge (docs/24 §6): chi ha giacenza deve vedersi, anche se ritirato.
     const filters: Prisma.ProductVariantWhereInput[] = [
-      { product: { status: { not: ProductStatus.archived } } },
+      { product: { status: { not: ProductStatus.archived } } }, // stato-corrente: vista operativa di oggi, non un report storico (docs/24 §6.1)
     ];
     if (query.search) {
       filters.push(buildInventoryVariantSearchWhere(query.search));
@@ -101,7 +106,10 @@ export class InventorySituationService {
         currency: true,
         sellingPriceMinor: true,
         purchasePriceMinor: true,
-        product: { select: { name: true, articleCode: true, category: true } },
+        deletedAt: true,
+        product: {
+          select: { name: true, articleCode: true, category: true, deletedAt: true },
+        },
         supplierLinks: {
           select: {
             supplierId: true,
@@ -169,6 +177,7 @@ export class InventorySituationService {
           totalIn: 0,
           totalOut: 0,
           stockStatus: this.stockStatusOf(totals),
+          inTrash: isInTrash(variant) || isInTrash(variant.product),
         };
       })
       .filter((row) => !query.stockStatus || row.stockStatus === query.stockStatus);

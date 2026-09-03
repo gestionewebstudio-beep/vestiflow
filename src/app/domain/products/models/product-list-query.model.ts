@@ -12,6 +12,8 @@ export interface ProductFilters {
   readonly brand?: string;
   readonly season?: string;
   readonly status?: ProductStatus;
+  /** Vista amministrativa Cestino: SOLO gli elementi nel cestino (docs/24 §6). */
+  readonly trash?: boolean;
 }
 
 /** Filtri per export CSV (stessi filtri lista, senza paginazione). */

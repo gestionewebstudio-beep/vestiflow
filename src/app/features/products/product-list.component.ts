@@ -72,6 +72,7 @@ import {
   parseProductListQuery,
 } from '@domain/products/models/product-list-query.model';
 import type { ProductSortField } from '@domain/products/models/product-list-query.model';
+import { productStatusLabel } from '@domain/products/models/product-status.util';
 import { ProductService } from '@domain/products/services/product.service';
 import {
   PRODUCT_LIST_COLUMN_DEFS,
@@ -82,11 +83,13 @@ import {
 const SEARCH_DEBOUNCE_MS = 300;
 const SHOPIFY_FEEDBACK_DISMISS_MS = 8000;
 
+// Le etichette vengono dall'unico dizionario di stato (product-status.util):
+// qui erano ripetute a mano, e «Archiviato» è sopravvissuto alla sua correzione.
 const STATUS_OPTIONS: readonly ProductStatusOption[] = [
-  { value: ProductStatus.Active, label: 'Attivo' },
-  { value: ProductStatus.Draft, label: 'Bozza' },
-  { value: ProductStatus.Archived, label: 'Archiviato' },
-];
+  ProductStatus.Active,
+  ProductStatus.Draft,
+  ProductStatus.Archived,
+].map((value) => ({ value, label: productStatusLabel(value) }));
 
 const EMPTY_META: PageMeta = {
   page: 1,

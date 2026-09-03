@@ -48,6 +48,10 @@
     <app-badge [flat]="true" [tone]="statusTone(product.status)">{{
       statusLabel(product.status)
     }}</app-badge>
+    <!-- Cestino: asse diverso dallo stato (docs/24 §3.7). Compare solo nella vista Cestino. -->
+    @if (inTrash(product)) {
+      <app-badge [flat]="true" [tone]="trashTone">{{ trashLabel }}</app-badge>
+    }
   </ng-template>
 
   <ng-template appCell="source" let-product>
@@ -93,6 +97,9 @@
         <app-badge [flat]="true" [tone]="statusTone(product.status)">{{
           statusLabel(product.status)
         }}</app-badge>
+        @if (inTrash(product)) {
+          <app-badge [flat]="true" [tone]="trashTone">{{ trashLabel }}</app-badge>
+        }
       }
       @if (visibile('source')) {
         <app-badge [flat]="true" [tone]="sourceTone(product)">{{ sourceLabel(product) }}</app-badge>

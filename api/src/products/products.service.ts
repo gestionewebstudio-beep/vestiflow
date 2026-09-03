@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -17,10 +18,20 @@ import {
 
 import { PrismaService } from '../prisma/prisma.service';
 import { sameUnitAmountAtContract } from '../common/money.util';
-import { canViewPurchaseCosts } from '../auth/user-permissions.util';
+import { TenantPermission } from '../auth/tenant-permission.constants';
+import {
+  canViewPurchaseCosts,
+  hasFullTenantAccess,
+  hasTenantPermission,
+} from '../auth/user-permissions.util';
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import { buildInventoryVariantSearchWhere } from '../inventory/inventory-variant-search.util';
+import {
+  NOT_IN_TRASH,
+  ONLY_IN_TRASH,
+  VARIANT_COMMERCIALLY_SELECTABLE,
+} from './product-lifecycle.util';
 import { assertLocationReadableInUserScope } from '../inventory/user-location-scope.util';
 import { variantLabel, variantTitle } from '../common/variant-label.util';
 import { toShopifyUserMessage } from '../shopify/shopify-user-error.util';
@@ -149,8 +160,21 @@ export class ProductsService {
     user?: UserProfileDto,
   ): Promise<Paginated<ProductWithVariants>> {
     const showPurchaseCosts = canViewPurchaseCosts(user);
+    // Il Cestino è una vista AMMINISTRATIVA (docs/24 §6): lo stesso permesso
+    // che governa l'eliminazione, verificato qui e non solo nella rotta del
+    // client — il parametro arriva in querystring da chiunque.
+    if (
+      query.trash &&
+      !hasFullTenantAccess(user) &&
+      !hasTenantPermission(user, TenantPermission.CatalogDelete)
+    ) {
+      throw new ForbiddenException('Non sei autorizzato a consultare il cestino dei prodotti.');
+    }
     const where: Prisma.ProductWhereInput = {
       tenantId,
+      // L'elenco ordinario ESCLUDE il cestino; `trash=true` è la vista Cestino e
+      // mostra SOLO quello (docs/24 §6). Il predicato è uno, in product-lifecycle.util.
+      ...(query.trash ? ONLY_IN_TRASH : NOT_IN_TRASH),
       ...(query.status ? { status: query.status } : {}),
       ...(query.category ? { category: { equals: query.category, mode: 'insensitive' } } : {}),
       ...(query.brand ? { brand: { equals: query.brand, mode: 'insensitive' } } : {}),
@@ -304,6 +328,10 @@ export class ProductsService {
     const search = query.search?.trim();
     const where: Prisma.ProductVariantWhereInput = {
       tenantId,
+      // Selezione COMMERCIALE (docs/24 §3.4): fuori prodotto Non attivo o nel
+      // cestino, variante Non attiva o nel cestino. Giacenze e movimenti NON
+      // passano di qui: sono contesti storici e vedono tutto (§6.1).
+      ...VARIANT_COMMERCIALLY_SELECTABLE,
       ...(query.variantId ? { id: query.variantId } : {}),
       ...(query.productId ? { productId: query.productId } : {}),
       ...(search ? buildInventoryVariantSearchWhere(search) : {}),
@@ -1038,9 +1066,12 @@ export class ProductsService {
       throw new NotFoundException('Variante non trovata');
     }
 
+    // Anche lo scanner è una selezione commerciale (docs/24 §3.4): un codice di
+    // un articolo nel cestino o Non attivo non entra in un documento nuovo.
     let variant = await this.prisma.productVariant.findFirst({
       where: {
         tenantId,
+        ...VARIANT_COMMERCIALLY_SELECTABLE,
         OR: [
           { sku: { equals: trimmed, mode: 'insensitive' } },
           { barcode: { equals: trimmed, mode: 'insensitive' } },
@@ -1063,7 +1094,11 @@ export class ProductsService {
       const byArticleCode = await this.prisma.productVariant.findMany({
         where: {
           tenantId,
-          product: { articleCode: { equals: trimmed, mode: 'insensitive' } },
+          ...VARIANT_COMMERCIALLY_SELECTABLE,
+          product: {
+            ...VARIANT_COMMERCIALLY_SELECTABLE.product,
+            articleCode: { equals: trimmed, mode: 'insensitive' },
+          },
         },
         include: { product: { select: { id: true, name: true, managesStock: true } } },
         take: 2,
@@ -1090,6 +1125,7 @@ export class ProductsService {
       const bySupplierSku = await this.prisma.productVariant.findMany({
         where: {
           tenantId,
+          ...VARIANT_COMMERCIALLY_SELECTABLE,
           supplierLinks: { some: { supplierSku: { equals: trimmed, mode: 'insensitive' } } },
         },
         include: { product: { select: { id: true, name: true, managesStock: true } } },
