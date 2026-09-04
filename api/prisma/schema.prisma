@@ -3268,22 +3268,52 @@ model FiscalDevice {
   /// l'altra strada, ma qui non serve: non c'e' nulla da condividere fra
   /// tenant, e `VatNature` esiste perche' porta dati normativi.
   ///
+  /// ⛔ **Si risolve SOLO contro un registro statico di adapter compilati
+  /// nell'applicazione.** Mai import dinamici, percorsi di file, URL o
+  /// esecuzione di codice: e' testo che arriva da una scrittura del tenant, e
+  /// usarlo per caricare qualcosa sarebbe esecuzione di codice arbitrario. Un
+  /// valore sintatticamente valido ma non nel registro si RIFIUTA.
+  ///
+  /// ⭐ E' la garanzia che `brand` forniva implicitamente quando era l'unico
+  /// selettore: l'enum faceva da whitelist. Aperta la chiave, la whitelist
+  /// deve tornare esplicita — nel codice, non nel database.
+  ///
   /// NULL finche' non e' stato scelto: il dispositivo si censisce prima di
   /// saper parlare con lui.
   adapterKey    String? @map("adapter_key")
   /// Configurazione dell'adapter (parametri, non credenziali).
   ///
   /// ⛔ Nessun segreto qui dentro: chiavi e password stanno dove stanno gli
-  /// altri segreti (`regole-sicurezza`), mai in una colonna del tenant.
+  /// altri segreti (`regole-sicurezza`), mai in una colonna del tenant. Un
+  /// segreto che vi comparisse si RIFIUTA o si reda.
+  ///
+  /// ⚠️ Ogni adapter valida la propria configurazione con uno schema
+  /// ESPLICITO: campi sconosciuti e configurazione incompleta si rifiutano.
+  /// Un `Json` senza schema e' il modo di non modellare i dati.
   adapterConfig Json?   @map("adapter_config")
 
-  /// Indirizzo di collegamento, **opzionale**: un adapter cloud o un agente
-  /// locale possono non averne uno, e la forma di trasporto non e' decisa
-  /// (`docs/25` §10).
+  /// Indirizzo di collegamento, **opzionale nello schema**: un adapter cloud
+  /// o un agente locale possono non averne uno, e la forma di trasporto non
+  /// e' decisa (`docs/25` §10).
+  ///
+  /// ⚠️ Opzionale non vuol dire facoltativo: lo richiede **l'adapter** il cui
+  /// trasporto ne ha bisogno, nella validazione della propria configurazione.
+  /// Il NOT NULL di prima impediva configurazioni incomplete per TUTTI, e
+  /// quella garanzia si ricostruisce li', non qui.
   endpoint       String?
   /// Matricola fiscale: finisce sul documento commerciale.
   serialNumber   String?   @map("serial_number")
-  enabled        Boolean   @default(true)
+  /// ⛔ Nasce SPENTO, al contrario di prima.
+  ///
+  /// ⭐ Quando la sede aveva un solo dispositivo e l'indirizzo era
+  /// obbligatorio, salvare la configurazione la rendeva subito operativa e
+  /// non poteva essere incompleta. Tolti quei due vincoli, `@default(true)`
+  /// significherebbe «attivo appena censito, anche senza saperci parlare».
+  ///
+  /// ⛔ Non si abilita senza `adapterKey`: e' un CHECK nella migration
+  /// `20260904150000`, perche' la guardia vera non deve poter essere
+  /// aggirata da un'altra strada.
+  enabled        Boolean   @default(false)
   /// Mappa aliquota -> reparto: molte RT italiane associano l'IVA ai reparti
   /// configurati a bordo invece che alla riga. Resta opzionale perche' non
   /// ogni dispositivo lavora cosi'.

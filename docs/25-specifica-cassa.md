@@ -563,6 +563,116 @@ La rimozione dell'unicità per sede apre la domanda, e la risposta non può esse
 ⛔ **Nessuna è esclusa dal modello.** L'indirizzo di collegamento è **opzionale** proprio
 perché un adapter cloud o un agente locale possono non averne uno.
 
+### ⭐ Perché il vecchio ramo passava dal BROWSER, e perché resta una strada valida
+
+⚠️ **Non è una stranezza da correggere.** Il flusso storico è stato riletto file per file su
+`origin/feature/cassa` (`6e4f9e79`) il 04/09/2026, e i quattro passi sono confermati **dai
+commenti originari**:
+
+```text
+1  il backend COMPONE il payload      «composto dal SERVER: il driver in negozio
+   fiscal-print-payload.util.ts        (browser → stampante in LAN) si limita a
+                                       renderizzarlo nel protocollo della marca»
+
+2  il browser CHIAMA il dispositivo   «parla con la stampante RT nella LAN del negozio
+   epson-fiscal-printer.service.ts     DAL BROWSER — il server non la raggiunge»
+
+3  il browser RIPORTA l'esito         «è il browser in negozio a parlare con la
+   report-fiscal-outcome.dto.ts        stampante, il server ne registra il risultato»
+
+4  il backend REGISTRA lo stato       `pending` alla vendita, poi `emitted` o `failed`
+   fiscal-receipts.service.ts          su ciò che il browser dichiara
+```
+
+⭐ **La ragione è scritta**: «il server non la raggiunge». ⚠️ **Ciò che invece NON è scritto**
+è il perché: l'ipotesi — che il backend su Railway non possa raggiungere un indirizzo privato
+del negozio, mentre il browser della postazione è nella stessa rete — è **coerente e non
+confermata**. Nel vecchio ramo Railway compare solo per variabili d'ambiente, healthcheck e
+proxy, **mai** in relazione alla stampante.
+
+#### Cosa questa forma risolve davvero
+
+- ⭐ **nessuna porta del negozio esposta su Internet**: il dispositivo resta in rete locale;
+- ⭐ **nessuna VPN, nessun agente da installare** su ogni postazione;
+- ⭐ **nessuna credenziale nel frontend**: il vecchio ramo usava `fetch` puro «non
+  HttpClient: verso la stampante non devono viaggiare né l'`Authorization` dell'app né gli
+  interceptor d'errore del backend» — la separazione era deliberata;
+- ⭐ funziona **anche senza Internet**, finché la rete del negozio è viva.
+
+#### E cosa costa
+
+- ⚠️ **HTTPS, certificati e contesto sicuro**: il commento storico avvisava che serve HTTPS
+  sulla stampante e il certificato accettato dalla postazione, «altrimenti il browser blocca
+  la chiamata come mixed content». Ed è lo stesso terreno del difetto già registrato in
+  `regole-qualita`: su `http://192.168.…` il contesto non è sicuro;
+- ⚠️ **CORS e Private Network Access**: una pagina pubblica che chiama un indirizzo privato è
+  proprio ciò che i browser stanno restringendo. Va verificato sul campo, non dato per dato;
+- ⛔ **il browser non è fidato.** È il punto più grave: nel vecchio ramo `emitted` era una
+  **dichiarazione del client**, e il server la registrava. Un client può sbagliare, essere
+  manomesso, o riferire un successo che non c'è stato;
+- ⛔ **la risposta si può perdere**: il documento esce dalla stampante e la conferma non
+  torna. Senza un'identità idempotente, il ritentativo **emette due volte**;
+- ⛔ **il vecchio DTO ammetteva due soli esiti** — `['emitted', 'failed']` — e **non aveva
+  l'incerto**, che è precisamente lo stato in cui questa architettura finisce più spesso.
+
+#### Ne discendono tre obblighi, per qualunque trasporto
+
+1. **identità idempotente** del tentativo, che il dispositivo o l'adapter possa riconoscere;
+2. **cronologia append-only** dei tentativi (§ più sotto): con una risposta persa, l'unica
+   difesa è sapere cosa si era già provato;
+3. ⛔ **`emitted` non si scrive su dichiarazione**: serve un riscontro — identificativo
+   fiscale restituito, o una riconciliazione successiva contro il dispositivo.
+
+⭐ **La chiamata dal browser resta quindi una strategia supportata**, non la strategia. Ogni
+adapter **dichiara quale trasporto usa e quale configurazione richiede**; il contratto
+fiscale generale non lo sa e non deve saperlo.
+
+### ⭐ I vecchi vincoli erano GARANZIE, e vanno ricostruite
+
+⛔ **Toglierli e basta lascia dei buchi.** Verificato su `origin/feature/cassa` (`6e4f9e79`)
+il 04/09/2026, riga per riga, cosa ciascuno reggeva davvero:
+
+| Vincolo tolto               | Che cosa garantiva                                              | Dove si vede                                                                                                                                                                                    |
+| --------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **unicità per sede**        | la selezione era **automatica e deterministica**                | `store-sales.service.ts:193` — `findFirst({ locationId, enabled: true })`; `upsert({ where: { locationId } })`; e nell'API `PUT /fiscal-devices/{locationId}`: la sede **era** l'identificativo |
+| **`endpoint` obbligatorio** | nessuna configurazione incompleta                               | `NOT NULL` sulla colonna                                                                                                                                                                        |
+| **`brand` come selettore**  | **whitelist implicita** dei driver: l'enum era chiuso           | il `brand` decideva il codice                                                                                                                                                                   |
+| **salvare = attivare**      | il dispositivo era subito operativo, e non poteva essere a metà | `@default(true)` su `enabled`, più i due vincoli sopra                                                                                                                                          |
+
+⚠️ Il commento storico è esplicito anche sull'attivazione: «la vendita nasce **da
+fiscalizzare** e la cassa emette subito dopo la conferma».
+
+#### Le dodici garanzie della forma nuova
+
+**Nel database, da ora** (migration `20260904150000`):
+
+1. ⭐ `enabled` nasce **`false`**: senza unicità e senza indirizzo obbligatorio, «attivo
+   appena censito» significherebbe attivo senza sapergli parlare;
+2. ⭐ **non si abilita senza `adapterKey`** — `CHECK`, non solo controllo di servizio.
+
+**Nel codice, quando esisterà** (C3/C5) — e sono contratto, non suggerimenti:
+
+3. ⛔ `adapterKey` si risolve **solo** contro un **registro statico** di adapter compilati
+   nell'applicazione;
+4. ⛔ **mai** import dinamici, percorsi di file, URL o esecuzione di codice a partire da
+   `adapterKey`: è testo che arriva da una scrittura del tenant;
+5. ⛔ un valore **sintatticamente valido ma non nel registro** si **rifiuta**;
+6. ogni adapter valida la propria configurazione con uno **schema esplicito**;
+7. campi sconosciuti, configurazione incompleta e **segreti** in `adapterConfig` si rifiutano
+   o si redigono;
+8. l'**endpoint lo richiede l'adapter** il cui trasporto ne ha bisogno — lì torna la garanzia
+   del vecchio `NOT NULL`, ma solo per chi serve;
+9. con più dispositivi sulla stessa sede la scelta è **esplicita**;
+10. ⛔ **nessun `findFirst` come selezione del dispositivo**: era deterministico solo grazie
+    all'unicità, e senza diventa «uno a caso»;
+11. va **deciso** se il dispositivo si assegna alla sessione, alla postazione o tramite un
+    predefinito di sede — ⏸ decisione aperta, da chiudere prima di C3;
+12. un **ritentativo conserva dispositivo, adapter e versione** originari.
+
+⭐ **Il punto 3 è di sicurezza, non di ordine.** Finché `brand` era un enum, la whitelist dei
+driver era il database a farla. Aperta la chiave, la whitelist deve tornare **esplicita nel
+codice** — o un valore scritto da un tenant diventerebbe il nome di qualcosa da caricare.
+
 ### ⚠️ La cronologia dei ritentativi oggi si perde
 
 `FiscalReceipt` ha `documentId @unique` e campi scalari singoli — `status`, `rawResponse`,

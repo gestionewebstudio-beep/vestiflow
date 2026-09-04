@@ -56,6 +56,54 @@ describe('dispositivo fiscale provider-neutral — C1B su PostgreSQL TEST', () =
     expect(await prisma.fiscalDevice.count({ where: { locationId: sedeA } })).toBe(2);
   });
 
+  // ── Le garanzie che i vecchi vincoli fornivano ──────────────────────────
+  //
+  // ⛔ La flessibilità da sola non basta: l'unicità per sede rendeva la
+  //    selezione deterministica, l'endpoint obbligatorio impediva le
+  //    configurazioni incomplete, e salvare rendeva il dispositivo operativo.
+  //    Questi test provano che quelle garanzie sono tornate in altra forma.
+
+  it('un dispositivo nasce SPENTO, non attivo appena censito', async () => {
+    const device = await prisma.fiscalDevice.create({
+      data: { tenantId: tenantA, locationId: sedeA, brand: 'other' },
+    });
+
+    expect(device.enabled).toBe(false);
+  });
+
+  it('il database RIFIUTA di abilitare un dispositivo senza adapter', async () => {
+    await expect(
+      prisma.fiscalDevice.create({
+        data: {
+          tenantId: tenantA,
+          locationId: sedeA,
+          brand: 'other',
+          enabled: true,
+          // adapterKey assente: non si sa con chi si parlerebbe
+        },
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('e rifiuta anche di abilitarlo DOPO, togliendo l_adapter', async () => {
+    const device = await prisma.fiscalDevice.create({
+      data: {
+        tenantId: tenantA,
+        locationId: sedeA,
+        brand: 'other',
+        adapterKey: 'fornitore.protocollo.v1',
+        enabled: true,
+      },
+    });
+    expect(device.enabled).toBe(true);
+
+    // Il vincolo regge anche sull'aggiornamento: è un CHECK, non una
+    // validazione di servizio che si aggira passando da un'altra strada.
+    await expect(
+      prisma.fiscalDevice.update({ where: { id: device.id }, data: { adapterKey: null } }),
+    ).rejects.toThrow();
+  });
+
   it('accetta un dispositivo SENZA indirizzo: il trasporto non è deciso', async () => {
     const cloud = await prisma.fiscalDevice.create({
       data: {
@@ -132,7 +180,15 @@ describe('dispositivo fiscale provider-neutral — C1B su PostgreSQL TEST', () =
 
   it('disabilitare un dispositivo NON tocca le ricevute già emesse', async () => {
     const device = await prisma.fiscalDevice.create({
-      data: { tenantId: tenantA, locationId: sedeA, brand: 'other', enabled: true },
+      data: {
+        tenantId: tenantA,
+        locationId: sedeA,
+        brand: 'other',
+        // ⚠️ L'adapter serve per poterlo abilitare: e' il CHECK
+        //    `fiscal_devices_enabled_requires_adapter`.
+        adapterKey: 'fornitore.protocollo.v1',
+        enabled: true,
+      },
     });
     const documento = await creaDocumento(prisma, tenantA, sedeA);
     const ricevuta = await prisma.fiscalReceipt.create({
