@@ -291,7 +291,13 @@ jobs:
   audit:
     name: Audit dipendenze
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # 15 e non 10: a 10 il tetto scattava con la pipeline sana. Misurato sullo
+    # stesso commit 54c14d47, tre esecuzioni: 7,2 min (verde) e due volte 10,3
+    # (annullate dal tetto). Il lavoro ne chiede circa sette, e la varianza del
+    # runner si mangiava i tre di margine troncando il passo informativo a
+    # verifica bloccante gia' passata. Un controllo che cade due volte su tre
+    # senza una causa nel codice insegna solo a ignorare il rosso.
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
