@@ -209,9 +209,15 @@ export class ReturnLineDto {
 }
 
 export class ReturnRefundDto {
-  /** ⛔ Solo Tipi presenti nell'incasso originale: il servizio lo verifica. */
+  /**
+   * La QUOTA dell'incasso originale che si sta restituendo.
+   *
+   * ⛔ Non il Tipo pagamento: due quote possono avere lo stesso Tipo, e il
+   * Tipo può non esistere più. Il servizio verifica che appartenga alla
+   * vendita richiamata (`docs/25` §12).
+   */
   @IsUUID()
-  paymentOptionId!: string;
+  originalPaymentId!: string;
 
   /** ⭐ POSITIVO: la direzione la dà il tipo documento `store_return`. */
   @IsInt()

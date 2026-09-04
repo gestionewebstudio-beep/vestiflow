@@ -3237,18 +3237,35 @@ model StoreSalePayment {
   /// riclassificare un Tipo a settembre cambierebbe la quadratura di una
   /// sessione chiusa a marzo.
   tenderKindSnapshot PaymentTenderKind? @map("tender_kind_snapshot")
+
+  /// ⭐ La QUOTA dell'incasso originale che questo rimborso restituisce.
+  ///
+  /// ⛔ L'identita' di una quota non e' il suo TIPO: e' la quota. Prima il
+  /// cumulativo del rimborso si contava per `paymentOptionId`, e bastava
+  /// eliminare un Tipo pagamento — cosa che C4A permette — perche' quel
+  /// denaro non si potesse piu' rimborsare E perche' i rimborsi gia' fatti
+  /// sparissero dal conteggio, rendendone possibile un secondo.
+  ///
+  /// ⚠️ `NULL` sulle quote di VENDITA, che non rimborsano niente, e sulle
+  /// quote legacy: nessun backfill dedotto.
+  refundedFromPaymentId String?  @map("refunded_from_payment_id") @db.Uuid
   /// Quota del totale documento coperta da questo metodo (lordo).
-  amountMinor        Int                @map("amount_minor")
+  amountMinor           Int      @map("amount_minor")
   /// Solo contanti: denaro CONSEGNATO dal cliente. Il resto e' derivato
   /// (`tendered - amount`) e non si memorizza; a pagare la vendita e'
   /// `amountMinor`, ed e' quello che va anche all'RT (`docs/25` §9).
-  tenderedMinor      Int?               @map("tendered_minor")
-  createdAt          DateTime           @default(now()) @map("created_at")
-  updatedAt          DateTime           @updatedAt @map("updated_at")
+  tenderedMinor         Int?     @map("tendered_minor")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
 
-  tenant        Tenant         @relation(fields: [tenantId], references: [id])
-  document      Document       @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  paymentOption PaymentOption? @relation(fields: [paymentOptionId], references: [id], onDelete: SetNull)
+  tenant              Tenant             @relation(fields: [tenantId], references: [id])
+  document            Document           @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  paymentOption       PaymentOption?     @relation(fields: [paymentOptionId], references: [id], onDelete: SetNull)
+  /// ⛔ `Restrict`: azzerare il riferimento perderebbe l'origine del rimborso
+  /// in silenzio, e con lei il cumulativo — il difetto che questo campo
+  /// esiste per chiudere.
+  refundedFromPayment StoreSalePayment?  @relation("StoreSalePaymentRefund", fields: [refundedFromPaymentId], references: [id], onDelete: Restrict)
+  refunds             StoreSalePayment[] @relation("StoreSalePaymentRefund")
 
   /// ⛔ Due `CHECK` nella migration `20260904210000`, che Prisma non sa
   /// esprimere: `amount_minor >= 0` (e non `> 0`: la riga legacy a importo
@@ -3256,8 +3273,10 @@ model StoreSalePayment {
   /// `tendered_minor IS NULL OR tendered_minor >= amount_minor` — il denaro
   /// consegnato non puo' essere inferiore alla quota che paga.
   @@unique([documentId, position])
+  @@unique([documentId, refundedFromPaymentId])
   @@index([documentId])
   @@index([paymentOptionId])
+  @@index([refundedFromPaymentId])
   @@index([tenantId])
   @@map("store_sale_payments")
 }

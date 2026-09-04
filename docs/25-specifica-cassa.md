@@ -30,7 +30,8 @@ banco**. Scritta il 04/09/2026 come tranche **C0** del recupero da
 | 14  | Tre permessi: `retail.register` vede, `retail.cash_session` apre, `retail.cash_drawer` movimenta | §13               |
 | 15  | La Cassa vive su `/app/cassa` con **tre sole aree**: Vendita · Operazioni · Sessioni             | §3                |
 | 16  | Reso e chiusura sono **subordinati**, non voci di menu                                           | §3                |
-| 17  | ⛔ **C4R è BLOCCATA**: manca il collegamento riga→riga per il cumulativo dei resi                | §12-bis           |
+| 17  | Il reso dichiara **quale riga** rettifica: il cumulativo si ricostruisce, non si contabilizza    | §12-bis           |
+| 18  | Il rimborso è agganciato alla **quota di incasso**, non al Tipo pagamento                        | §13-quater        |
 
 In caso di contrasto fra questo elenco e il corpo del documento, **vale l'elenco**.
 
@@ -1133,67 +1134,61 @@ separato da quello che introduce la Cassa.
 
 ---
 
-## 12-bis. ⛔ C4R — BLOCCATA: la struttura non regge il cumulativo dei resi
+## 12-bis. C4R — il reso dichiara quale riga rettifica
 
-⚠️ **Fermata prima della migration, come il mandato prevedeva.** Ecco la struttura reale,
-misurata il 04/09/2026.
+⭐ **Realizzata il 04/09/2026** (migration `20260904200000_reso_collegato_alla_riga`).
 
-### Che cosa ESISTE, e basta
+⛔ **Qui c’era «C4R è BLOCCATA», con tre alternative e nessuna scelta.** La scelta è
+stata fatta dal proprietario — **alternativa A**, il campo sulla riga — e il testo che
+confrontava le tre non serve più a nessuno. Resta quello che, sbagliato, tornerebbe.
 
-|                                                              |                                    |
-| ------------------------------------------------------------ | ---------------------------------- |
-| `DocumentType.store_return`                                  | ✅ il tipo c’è                     |
-| `Document.sourceDocumentId` + relazione `DocumentConversion` | ✅ documento → documento           |
-| `FiscalReceipt.originalReceiptId`                            | ✅ ricevuta → ricevuta             |
-| `FiscalReceipt.serialNumber` · `fiscalNumber` · `issuedAt`   | ✅ matricola, numero, data fiscale |
-
-### ⛔ Che cosa MANCA, e perché blocca
-
-**1. Nessun collegamento RIGA → RIGA.** `DocumentLine` non ha un campo verso la riga
-originale: i `sourceDocumentId` / `sourceLineId` che si trovano cercando appartengono a
-**`StockMovement`**, non alle righe documento.
-
-Senza quel campo, tre vincoli del mandato non sono calcolabili:
+### La struttura
 
 ```text
-«non si può restituire cumulativamente più della quantità venduta»
-«non si possono rendere righe già integralmente rese»
-«due resi parziali concorrenti non generano due resi sulla stessa quantità»
+DocumentLine.returnedFromLineId   self-FK RESTRICT   la riga di vendita che questa rettifica
+  UNIQUE(document_id, returned_from_line_id)         la stessa riga non entra due volte in un reso
+FiscalReceipt.closureNumber       TEXT               il numero di azzeramento, provider-neutral
+FiscalReceipt.originalReceiptId   SET NULL → RESTRICT
 ```
 
-⛔ **E aggregare per VARIANTE non è un ripiego accettabile**: due righe dello stesso
-articolo con prezzi diversi — una scontata, una no — non sono intercambiabili. Il rimborso
-che ne deriverebbe sarebbe di un importo che il cliente non ha pagato, e il limite «per
-opzione di pagamento» non tornerebbe.
+⭐ **Il cumulativo si RICOSTRUISCE dalle righe di reso**, e non esiste un contatore
+`returnedQuantity` sulla riga originale: un contatore modificabile sarebbe un terzo valore
+capace di contraddire le righe da cui deriva — la stessa disciplina della differenza di
+cassa (§9) e dei movimenti per riga (`regole-gestionale`).
 
-**2. Manca il numero di chiusura/azzeramento.** Il mandato lo elenca fra i riferimenti da
-conservare; `FiscalReceipt` non ha una colonna per contenerlo.
+⚠️ **I documenti annullati non contano**, in entrambe le direzioni: un reso annullato
+libera la quantità, e una vendita annullata non si rende.
 
-**3. `Document.sourceDocumentId` è `ON DELETE SET NULL`.** Cancellare l’originale
-scollegherebbe il reso **in silenzio** — è la stessa correzione già fatta da C1C su
-`fiscal_receipts.device_id`.
+### ⛔ Le tre cose che, rifatte diversamente, romperebbero di nuovo
 
-**4. `createReturn` oggi NON collega**: il reso al banco nasce autonomo per contratto
-(`11` A11), perché la vendita reale può essere stata battuta su una cassa esterna.
+**1. Aggregare per VARIANTE invece che per riga.** Due righe dello stesso articolo con
+prezzi diversi — una scontata, una no — non sono intercambiabili: il rimborso che ne
+deriverebbe sarebbe di un importo che il cliente non ha pagato.
 
-### Le alternative, senza sceglierne una
+**2. `SET NULL` sui collegamenti del reso.** Cancellare l’originale scollegherebbe il reso
+**in silenzio**, e con lui il cumulativo — è la stessa correzione già fatta da C1C su
+`fiscal_receipts.device_id`. Per questo la self-FK delle righe e `originalReceiptId` sono
+`RESTRICT`.
 
-|                                                                                                                | Costo                  | Rischio                                                            |
-| -------------------------------------------------------------------------------------------------------------- | ---------------------- | ------------------------------------------------------------------ |
-| **A · `DocumentLine.sourceDocumentLineId`** nullable + FK `Restrict`, più `returnedQuantity` derivata da query | una migration additiva | ⚠️ tocca `document_lines`, che ha righe vere in produzione         |
-| **B · tabella di collegamento** `store_return_lines(returnLineId, originalLineId, quantity)`                   | una tabella nuova      | ⭐ non tocca le righe esistenti; ⚠️ un secondo posto dove guardare |
-| **C · rinviare C4R** dopo C4A/C4B                                                                              | zero                   | ⚠️ la Cassa vende e non rende                                      |
+**3. Riusare `sourceDocumentLineId`.** Quel nome esiste già su `DocumentLine` e significa
+un’altra cosa: è il riferimento **transitorio** che compone una riga derivata
+(`regole-gestionale`, «le righe nuove sono DUE cose diverse»), non si persiste, e non ha
+niente a che vedere con un reso. Due significati sullo stesso nome sarebbero indistinguibili
+a chi legge il payload.
 
-⚠️ **In tutte e tre serve comunque**: `FiscalReceipt.closureNumber` per il numero di
-azzeramento, e `Document.sourceDocumentId` portato a `Restrict` per i soli resi — o un
-campo dedicato che non si azzeri.
+⚠️ **`Document.sourceDocumentId` è rimasto `SET NULL`**, ed è deliberato: è il collegamento
+documento→documento di **tutte** le conversioni, e portarlo a `RESTRICT` cambierebbe il
+comportamento di percorsi che con la Cassa non c’entrano. Il legame che regge il cumulativo
+è quello sulle **righe**, che è nuovo e nasce `RESTRICT`.
 
-⭐ **Il vincolo di concorrenza va deciso insieme alla struttura**: «due resi parziali
-concorrenti» si chiude con un `UNIQUE` o con un aggiornamento condizionale, e le due
-strade non sono equivalenti — la prima vieta, la seconda serializza.
+### ⚠️ Il reso al banco resta autonomo
+
+`createReturn` della Vendita al banco **non** collega, e non è una dimenticanza: il reso al
+banco nasce autonomo per contratto (`11` A11), perché la vendita reale può essere stata
+battuta su una cassa esterna. Il reso **di Cassa** è un percorso diverso
+(`cash-return.service.ts`) e parte sempre dal richiamo dello scontrino.
 
 ---
-
 ## 13. Sicurezza e permessi
 
 ⚠️ **Oggi esiste un solo permesso retail: `retail.register`**, e governa la **Vendita al
@@ -1337,6 +1332,179 @@ Misurato provando a falsificarle:
 
 ---
 
+## 13-ter. C4A — il checkout, con le quote
+
+⭐ **Realizzata il 04/09/2026** (migration `20260904210000_quote_di_incasso`,
+`cash-checkout.service.ts`).
+
+### La quota di incasso
+
+```text
+store_sale_payments.payment_option_id      FK SET NULL   il Tipo, finche` esiste
+                    option_name_snapshot                 il nome di ALLORA
+                    tender_kind_snapshot                 la classe di ALLORA
+                    method                 → nullable    il legacy della Vendita al banco
+  CHECK amount_minor >= 0
+  CHECK tendered_minor IS NULL OR tendered_minor >= amount_minor
+  UNIQUE(document_id, position)
+```
+
+⭐ **Gli snapshot non sono ridondanza: sono la fotografia** (`regole-gestionale`). Il Tipo
+si rinomina e si elimina; la quota deve continuare a dire con che cosa si è incassato quel
+giorno. È anche ciò che rende rimborsabile una quota il cui Tipo non esiste più (§13-quater).
+
+⚠️ **`SET NULL` sul Tipo, e non `RESTRICT`**: il titolare deve poter dismettere un Tipo che
+non usa più senza che il database glielo impedisca per una vendita di due anni fa. Ciò che
+non si perde è **come si è incassato**, e quello sta negli snapshot.
+
+⛔ **`amount_minor >= 0`, non `> 0`.** Nel database condiviso esiste **una** riga legacy con
+importo 0: un vincolo stretto avrebbe rifiutato la migration. Il minimo `1` lo impone il DTO,
+dove riguarda solo le quote nuove.
+
+### Il replay ha TRE esiti, non due
+
+```text
+stesso intento, stesso payload      → restituisce la vendita GIA` CREATA
+stesso intento, payload diverso     → conflitto
+due richieste concorrenti           → una crea, l_altra recupera lo stesso risultato
+```
+
+⛔ **«Il retry si ferma sul vincolo unico» non è un esito accettabile**: chi ripete perché
+la rete è caduta riceverebbe un errore su un_operazione riuscita, e riproverebbe ancora.
+`replayIfAlreadyDone` sta nel `catch` e chiede a `CreationIntentService.resolveConflict` di
+quale dei tre casi si tratti.
+
+### L_ordine dentro la transazione, e perché è quello
+
+```text
+1  intento          PRIMA di tutto: e` cio` che rende ripetibile il resto
+2  contesto         sede, sessione aperta, permessi (assertCashContext, C3)
+3  varianti, IVA    le primitive estratte da store-sales (commit a parte)
+4  ricalcolo        i totali si rifanno sul SERVER: il client propone, non decide
+5  quote            somma == totale, resto solo sul contante
+6  numerazione      lockDocumentCounter + resolveDocumentNumber
+7  documento        confermato, con cash_session_id
+8  righe            e le quote con i loro snapshot
+9  movimenti        syncUnloadLineMovements, DENTRO la transazione
+10 esito            recordResultTx
+```
+
+⚠️ **Il push ai canali sta FUORI**: non è un movimento, è una notifica a Shopify e TikTok, e
+una loro lentezza non deve tenere aperta una transazione che blocca righe e numeratori.
+
+---
+
+## 13-quater. C4R — il reso, e il rimborso agganciato alla QUOTA
+
+⭐ **Realizzata il 04/09/2026**, con una correzione lo stesso giorno
+(`20260904220000_rimborso_collegato_alla_quota`).
+
+### ⛔ Il difetto: contare i rimborsi per TIPO PAGAMENTO
+
+La prima stesura calcolava il residuo rimborsabile per `paymentOptionId`. Il Tipo però non è
+l’identità di un incasso: **la quota lo è**. Tre casi lo rompevano, e il secondo è il più
+grave perché fa uscire denaro due volte:
+
+| Caso                                                  | Effetto                                                                   |
+| ----------------------------------------------------- | ------------------------------------------------------------------------- |
+| Tipo **eliminato** (C4A lo permette)                  | la quota spariva dalla mappa: quel denaro non era più rimborsabile        |
+| Tipo eliminato **dopo un rimborso parziale**          | ⛔ quel rimborso usciva dal cumulativo: **lo stesso incasso si restituiva due volte** |
+| Due quote della **stessa classe** (due carte diverse) | si sommavano in una sola, e il residuo dell’una copriva l’altra           |
+| Due resi **concorrenti su righe prodotto diverse**    | non competevano su nessuna riga: il lock stava solo sulle righe           |
+
+⚠️ **Il Tipo RINOMINATO non era un caso a sé**, ed è la parte che già funzionava: gli
+snapshot di C4A conservano il nome di allora, e il rimborso li copia dalla quota — non
+rilegge l’anagrafica.
+
+### La struttura
+
+```text
+store_sale_payments.refunded_from_payment_id   self-FK RESTRICT
+  UNIQUE(document_id, refunded_from_payment_id)
+  INDEX(refunded_from_payment_id)
+```
+
+⭐ **La quota di rimborso COPIA dalla quota originale**: `paymentOptionId` se il Tipo esiste
+ancora, `optionNameSnapshot` e `tenderKindSnapshot` sempre. Con il Tipo eliminato il rimborso
+resta possibile e la quota nasce con `paymentOptionId = NULL`.
+
+⛔ **`RESTRICT` e non `SET NULL`**, per la stessa ragione del legame fra righe: azzerare il
+riferimento perderebbe l’origine **in silenzio**, e con lei il cumulativo — cioè il difetto
+che questo collegamento chiude.
+
+⚠️ **L’unico è per DOCUMENTO, non globale.** La stessa quota si rimborsa più volte in resi
+distinti — un reso oggi, un altro domani; quello che non può è comparire due volte **nello
+stesso** reso, dove il cumulativo diventerebbe ambiguo da leggere. A limitare il totale sono
+il lock e la transazione, non un vincolo.
+
+### Dentro la transazione del reso
+
+```text
+1  intento
+2  contesto        sede corrente, sessione aperta
+3  lock RIGHE      SELECT … WHERE id = ANY(...) ORDER BY id FOR UPDATE
+3b lock QUOTE      lo stesso, sulle quote originali indicate dal rimborso
+4  la vendita      e la verifica che ogni riga le appartenga
+5  cumulativo QTA  ricostruito dalle righe di reso non annullate
+6  importi         proporzionali sulla RIGA ORIGINALE, mai dal listino di oggi
+7  cumulativo EUR  per QUOTA, dai rimborsi precedenti non annullati
+8  documento, righe, quote, movimenti di rientro
+```
+
+⭐ **L’ordine dei lock è deterministico** (`ORDER BY id`): due resi che bloccassero le stesse
+righe in ordine diverso si aspetterebbero a vicenda. Ordinati, il secondo aspetta e basta.
+
+⛔ **Il lock sulle QUOTE non è ridondante rispetto a quello sulle righe.** Due resi che
+riguardano righe prodotto **diverse** non competono su nessuna riga — e passerebbero entrambi
+— ma possono attingere all’ultimo importo disponibile della **stessa** quota di incasso. È la
+prova `due resi CONCORRENTI su righe DIVERSE, stessa quota`.
+
+### Il rimborso: solo le quote di QUESTA vendita
+
+⛔ Nessuna modalità **nuova**: si restituisce come si è incassato. Un buono al posto del
+contante è una decisione che non è stata presa.
+
+⚠️ E nemmeno la quota di **un altro scontrino**, anche se dello stesso Tipo: col conteggio
+per Tipo sarebbe passata.
+
+⚠️ Una quota **storica senza classificazione** (precedente a C2B) non si rimborsa dalla
+Cassa: non si sa come restituirla, e indovinarlo sarebbe peggio che fermarsi.
+
+### La merce rientra nella sede CORRENTE
+
+⭐ Non in quella della vendita: il cliente può tornare in un altro negozio, e la merce sta
+dove viene fisicamente riportata. Il documento di reso porta quindi la sede della sessione
+aperta, non quella dello scontrino richiamato.
+
+### Le prove, e cosa falsifica cosa
+
+| Guasto introdotto                                     | Prova che diventa rossa                                    |
+| ----------------------------------------------------- | ---------------------------------------------------------- |
+| lock sulle quote disattivato                          | `due resi CONCORRENTI su righe DIVERSE, stessa quota`      |
+| cumulativo contato per Tipo (difetto originale)       | `il cumulativo regge anche dopo l_eliminazione del Tipo`   |
+| quote senza Tipo saltate                              | `un Tipo ELIMINATO non impedisce il rimborso`              |
+| controllo della quota ripetuta rimosso                | `la stessa quota non compare due volte nello stesso rimborso` |
+| indice unico `(document_id, refunded_from_payment_id)` rimosso | `la stessa quota di incasso NON si rimborsa due volte nello stesso reso` |
+| self-FK portata a `SET NULL`                          | `la quota di incasso non si cancella finche` un rimborso la restituisce` |
+
+⚠️ **Due prove sono state riscritte perché NON isolavano**, e la seconda passava per il
+motivo sbagliato:
+
+- «non si rende più della quantità venduta» era fermata dal limite del **rimborso**, non da
+  quello della quantità. Isolata con due righe da un pezzo, rendendone due dalla prima.
+- «il cumulativo regge dopo l’eliminazione del Tipo» chiedeva 200,00 € per un reso da
+  100,00: a fermarla era «il rimborso copre il reso». Isolata con **due quote da 100,00**,
+  esaurendo la prima e richiedendola di nuovo — così la somma torna e a fermarlo può essere
+  solo il residuo.
+
+⭐ **Ed è la ragione per cui si falsifica**: entrambe erano verdi, e verdi restavano
+riproducendo il difetto che dicevano di escludere.
+
+⚠️ **Una prova che elimina un Tipo CONDIVISO lega le successive alla propria riuscita**: se
+fallisce prima di ricrearlo, cadono anche quelle dopo. Misurato — un guasto solo, quattro
+prove rosse. Le due prove usano ora un Tipo **usa-e-getta**.
+
+---
 ## 14. Riuso: cosa si condivide e cosa resta distinto
 
 ⛔ **Non si copia la maschera Vendita al banco per costruire la Cassa**, e non si copia il

@@ -99,6 +99,8 @@ export class CashReturnService {
           lineGrossTotalMinor: l.lineGrossTotalMinor,
         })),
         payments: originale.storeSalePayments.map((p) => ({
+          // ⭐ È QUESTO che il rimborso indica, non il Tipo pagamento.
+          paymentId: p.id,
           paymentOptionId: p.paymentOptionId,
           optionName: p.optionNameSnapshot,
           tenderKind: p.tenderKindSnapshot,
@@ -162,6 +164,22 @@ export class CashReturnService {
             ORDER BY "id"
             FOR UPDATE`,
           idOriginali,
+          tenantId,
+        );
+
+        // ── 3-bis. E le QUOTE originali, sempre in ordine ────────────────
+        //
+        // ⛔ Due resi su righe prodotto DIVERSE non competono su nessuna riga,
+        //    ma attingono alla STESSA quota di incasso. Senza questo lock
+        //    leggerebbero entrambi lo stesso residuo, e la stessa somma
+        //    verrebbe restituita due volte.
+        const idQuote = [...new Set(input.refunds.map((q) => q.originalPaymentId))].sort();
+        await tx.$queryRawUnsafe(
+          `SELECT "id" FROM "store_sale_payments"
+            WHERE "id" = ANY($1::uuid[]) AND "tenant_id" = $2::uuid
+            ORDER BY "id"
+            FOR UPDATE`,
+          idQuote,
           tenantId,
         );
 
@@ -236,13 +254,12 @@ export class CashReturnService {
         const imponibileMinor = righeReso.reduce((s, r) => s + r.lineTotalMinor, 0);
         const ivaMinor = righeReso.reduce((s, r) => s + r.lineVatTotalMinor, 0);
 
-        // ── 7. Il rimborso: SOLO le modalità dell'incasso originale ───────
+        // ── 7. Il rimborso: SOLO le quote dell'incasso originale ─────────
         const rimborsi = await this.risolviRimborsi(
           tx,
           tenantId,
           input.refunds,
           totaleMinor,
-          originale.id,
           originale.storeSalePayments,
         );
 
@@ -327,6 +344,8 @@ export class CashReturnService {
             documentId: documento.id,
             position: i + 1,
             method: null,
+            // ⭐ IL LEGAME: questa quota restituisce QUELLA quota di incasso.
+            refundedFromPaymentId: r.originalPaymentId,
             paymentOptionId: r.optionId,
             optionNameSnapshot: r.nome,
             tenderKindSnapshot: r.classe,
@@ -421,16 +440,29 @@ export class CashReturnService {
   }
 
   /**
-   * Il rimborso: **solo** con i Tipi pagamento dell'incasso originale, e per
-   * ognuno mai più di quanto era stato incassato con quello.
+   * Il rimborso: **quota per quota**, non Tipo per Tipo.
+   *
+   * ⭐ **L'identità di un incasso è la QUOTA**, non il Tipo con cui è stato
+   * preso. Contare per `paymentOptionId` lasciava scoperti tre casi, e il
+   * secondo è il più grave:
+   *
+   * 1. **Tipo eliminato** (C4A lo permette, con `SET NULL`): quella quota
+   *    spariva dalla mappa e il denaro non era più rimborsabile.
+   * 2. E un rimborso **già fatto** su quella quota non entrava nel
+   *    cumulativo: lo stesso incasso si poteva restituire due volte.
+   * 3. Due quote **della stessa classe** — due carte diverse — si
+   *    confondevano in una sola.
+   *
+   * ⚠️ Gli snapshot si copiano dalla quota originale, e `paymentOptionId`
+   * solo se il Tipo esiste ancora: eliminarlo non deve impedire di rendere.
    */
   private async risolviRimborsi(
     tx: Prisma.TransactionClient,
     tenantId: string,
     refunds: readonly ReturnRefundInput[],
     totaleMinor: number,
-    originalDocumentId: string,
     quoteOriginali: readonly {
+      id: string;
       paymentOptionId: string | null;
       optionNameSnapshot: string | null;
       tenderKindSnapshot: PaymentTenderKind | null;
@@ -441,82 +473,90 @@ export class CashReturnService {
       throw new UnprocessableEntityException('Manca la composizione del rimborso.');
     }
 
-    // Quanto era stato incassato con ciascun Tipo.
-    const incassato = new Map<string, { nome: string; classe: PaymentTenderKind; minor: number }>();
-    for (const q of quoteOriginali) {
-      if (!q.paymentOptionId || !q.tenderKindSnapshot) continue;
-      const corrente = incassato.get(q.paymentOptionId);
-      incassato.set(q.paymentOptionId, {
-        nome: q.optionNameSnapshot ?? '',
-        classe: q.tenderKindSnapshot,
-        minor: (corrente?.minor ?? 0) + q.amountMinor,
-      });
-    }
+    // ⭐ Nessuna quota viene saltata: una quota il cui Tipo è stato
+    //    eliminato resta rimborsabile dai propri snapshot.
+    const perQuota = new Map(quoteOriginali.map((q) => [q.id, q]));
 
-    // Quanto è già stato rimborsato con ciascun Tipo, sui resi precedenti.
+    // Quanto è già stato reso di CIASCUNA quota, sui resi precedenti.
+    //
+    // ⛔ Il legame è `refundedFromPaymentId`, non il documento di origine:
+    //    è quello che rende il conto esatto anche quando due quote hanno lo
+    //    stesso Tipo, o non ne hanno più nessuno.
     const resiPrecedenti = await tx.storeSalePayment.findMany({
       where: {
         tenantId,
-        document: {
-          sourceDocumentId: originalDocumentId,
-          type: DocumentType.store_return,
-          status: { not: 'cancelled' },
-        },
+        refundedFromPaymentId: { in: [...perQuota.keys()] },
+        document: { status: { not: 'cancelled' } },
       },
-      select: { paymentOptionId: true, amountMinor: true },
+      select: { refundedFromPaymentId: true, amountMinor: true },
     });
-    const giaRimborsato = new Map<string, number>();
-    for (const r of resiPrecedenti) {
-      if (!r.paymentOptionId) continue;
-      giaRimborsato.set(
-        r.paymentOptionId,
-        (giaRimborsato.get(r.paymentOptionId) ?? 0) + r.amountMinor,
+    const giaReso = new Map<string, number>();
+    for (const q of resiPrecedenti) {
+      if (!q.refundedFromPaymentId) continue;
+      giaReso.set(
+        q.refundedFromPaymentId,
+        (giaReso.get(q.refundedFromPaymentId) ?? 0) + q.amountMinor,
       );
     }
 
     const visti = new Set<string>();
     const risolti: RimborsoRisolto[] = [];
-    for (const r of refunds) {
-      if (visti.has(r.paymentOptionId)) {
+    for (const rimborso of refunds) {
+      if (visti.has(rimborso.originalPaymentId)) {
+        // ⛔ La stessa quota due volte nello stesso reso: il vincolo unico
+        //    del database la rifiuterebbe comunque, ma con un errore che
+        //    all'operatore non direbbe niente.
         throw new UnprocessableEntityException(
-          'Lo stesso tipo di pagamento compare due volte nel rimborso.',
+          'La stessa quota dell’incasso compare due volte nel rimborso.',
         );
       }
-      visti.add(r.paymentOptionId);
+      visti.add(rimborso.originalPaymentId);
 
-      const origine = incassato.get(r.paymentOptionId);
+      const origine = perQuota.get(rimborso.originalPaymentId);
       if (!origine) {
         // ⛔ Nessuna modalità NUOVA: si restituisce come si è incassato, e un
         //    buono al posto del contante è una decisione che non è stata presa.
         throw new UnprocessableEntityException(
-          'Si può rimborsare solo con i tipi di pagamento usati nella vendita originale.',
+          'Si può rimborsare solo sulle quote incassate con la vendita originale.',
         );
       }
-      if (!Number.isInteger(r.amountMinor) || r.amountMinor <= 0) {
+      if (!origine.tenderKindSnapshot) {
+        // ⚠️ Una quota storica senza classificazione (C2B): non si sa come
+        //    restituirla, e indovinarlo sarebbe peggio che fermarsi.
+        throw new UnprocessableEntityException(
+          'Questa quota dell’incasso non è classificata: non si può rimborsare dalla Cassa.',
+        );
+      }
+      if (!Number.isInteger(rimborso.amountMinor) || rimborso.amountMinor <= 0) {
         throw new UnprocessableEntityException('Ogni rimborso deve essere maggiore di zero.');
       }
-      const cumulativo = (giaRimborsato.get(r.paymentOptionId) ?? 0) + r.amountMinor;
-      if (cumulativo > origine.minor) {
-        const residuo = origine.minor - (giaRimborsato.get(r.paymentOptionId) ?? 0);
+
+      const gia = giaReso.get(origine.id) ?? 0;
+      if (gia + rimborso.amountMinor > origine.amountMinor) {
+        const residuo = origine.amountMinor - gia;
+        const nome = origine.optionNameSnapshot ?? 'questa quota';
         throw new UnprocessableEntityException(
-          `Con «${origine.nome}» si possono rimborsare ancora ${(residuo / 100).toFixed(2)} €.`,
+          residuo <= 0
+            ? `Su «${nome}» è già stato rimborsato tutto.`
+            : `Su «${nome}» si possono rimborsare ancora ${(residuo / 100).toFixed(2)} €.`,
         );
       }
-      if (origine.classe === 'electronic' && r.confirmed !== true) {
+      if (origine.tenderKindSnapshot === 'electronic' && rimborso.confirmed !== true) {
         throw new UnprocessableEntityException(
-          `Conferma il rimborso «${origine.nome}» sul terminale prima di concludere.`,
+          `Conferma il rimborso «${origine.optionNameSnapshot ?? ''}» sul terminale prima di concludere.`,
         );
       }
 
       risolti.push({
-        optionId: r.paymentOptionId,
-        nome: origine.nome,
-        classe: origine.classe,
-        amountMinor: r.amountMinor,
+        originalPaymentId: origine.id,
+        optionId: origine.paymentOptionId,
+        nome: origine.optionNameSnapshot ?? '',
+        classe: origine.tenderKindSnapshot,
+        amountMinor: rimborso.amountMinor,
       });
     }
 
-    const somma = risolti.reduce((s, r) => s + r.amountMinor, 0);
+    const somma = risolti.reduce((tot, q) => tot + q.amountMinor, 0);
     if (somma !== totaleMinor) {
       throw new UnprocessableEntityException(
         `Il rimborso non copre il reso: ${(somma / 100).toFixed(2)} € contro ${(totaleMinor / 100).toFixed(2)} €.`,
@@ -524,7 +564,6 @@ export class CashReturnService {
     }
     return risolti;
   }
-
   /** Gli stessi tre esiti del checkout: replay, conflitto, intento sparito. */
   private async replayIfAlreadyDone(
     error: unknown,
@@ -584,7 +623,8 @@ export interface ReturnLineInput {
 }
 
 export interface ReturnRefundInput {
-  readonly paymentOptionId: string;
+  /** La QUOTA dell'incasso originale che si sta restituendo. */
+  readonly originalPaymentId: string;
   readonly amountMinor: number;
   readonly confirmed?: boolean;
 }
@@ -623,6 +663,8 @@ export interface ReturnLookupResult {
     readonly lineGrossTotalMinor: number;
   }[];
   readonly payments: readonly {
+    /** ⭐ La quota su cui si aggancia il rimborso. */
+    readonly paymentId: string;
     readonly paymentOptionId: string | null;
     readonly optionName: string | null;
     readonly tenderKind: PaymentTenderKind | null;
@@ -631,7 +673,9 @@ export interface ReturnLookupResult {
 }
 
 interface RimborsoRisolto {
-  readonly optionId: string;
+  readonly originalPaymentId: string;
+  /** ⚠️ `null` se il Tipo pagamento è stato eliminato: bastano gli snapshot. */
+  readonly optionId: string | null;
   readonly nome: string;
   readonly classe: PaymentTenderKind;
   readonly amountMinor: number;
@@ -643,6 +687,6 @@ function impronta(input: ReturnInput): string {
     s: input.sessionId,
     o: input.originalDocumentId,
     r: input.lines.map((x) => [x.originalLineId, x.quantity]),
-    p: input.refunds.map((x) => [x.paymentOptionId, x.amountMinor]),
+    p: input.refunds.map((x) => [x.originalPaymentId, x.amountMinor]),
   });
 }

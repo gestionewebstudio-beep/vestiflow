@@ -42,6 +42,7 @@ describe('reso di cassa — C4R su PostgreSQL TEST', () => {
   let variante = '';
   let contanti = '';
   let carta = '';
+  let carta2 = '';
 
   const utente = (tenantId: string, sedi?: string[]): UserProfileDto =>
     ({
@@ -80,6 +81,7 @@ describe('reso di cassa — C4R su PostgreSQL TEST', () => {
     variante = await creaVariante(prisma, tenant);
     contanti = await creaTipo(prisma, tenant, 'Contanti', 'cash', 1);
     carta = await creaTipo(prisma, tenant, 'Carta', 'electronic', 2);
+    carta2 = await creaTipo(prisma, tenant, 'Carta 2', 'electronic', 3);
   }, 120_000);
 
   afterEach(async () => {
@@ -107,7 +109,13 @@ describe('reso di cassa — C4R su PostgreSQL TEST', () => {
     sessionId: string,
     quantita = 3,
     misto = false,
-  ): Promise<{ documentId: string; lineId: string; totale: number }> {
+  ): Promise<{
+    documentId: string;
+    lineId: string;
+    totale: number;
+    quotaContanti: string;
+    quotaCarta: string;
+  }> {
     const totale = quantita * 10_000;
     const esito = await checkout.checkout(tenant, utente(tenant), {
       locationId: sede,
@@ -128,7 +136,51 @@ describe('reso di cassa — C4R su PostgreSQL TEST', () => {
     const riga = await prisma.documentLine.findFirstOrThrow({
       where: { documentId: esito.documentId },
     });
-    return { documentId: esito.documentId, lineId: riga.id, totale };
+    // ⭐ Le QUOTE dell’incasso: è a queste che si aggancia il rimborso, non
+    //    ai Tipi pagamento (C4R, correzione del 04/09/2026).
+    const quote = await prisma.storeSalePayment.findMany({
+      where: { documentId: esito.documentId },
+      orderBy: { position: 'asc' },
+    });
+    return {
+      documentId: esito.documentId,
+      lineId: riga.id,
+      totale,
+      quotaContanti: quote.find((q) => q.paymentOptionId === contanti)!.id,
+      quotaCarta: quote.find((q) => q.paymentOptionId === carta)?.id ?? '',
+    };
+  }
+
+  /**
+   * Una vendita pagata con un Tipo INDICATO, che il chiamante puo` poi
+   * eliminare senza toccare quelli condivisi.
+   */
+  async function vendiCon(
+    sessionId: string,
+    optionId: string,
+    quantita: number,
+    intento: string,
+  ): Promise<{ documentId: string; lineId: string; quotaId: string }> {
+    const esito = await checkout.checkout(tenant, utente(tenant), {
+      locationId: sede,
+      sessionId,
+      creationIntentId: `${PREFISSO}-${intento}`,
+      lines: [{ variantId: variante, quantity: quantita, unitPriceMinor: 10_000 }],
+      payments: [
+        {
+          paymentOptionId: optionId,
+          amountMinor: quantita * 10_000,
+          tenderedMinor: quantita * 10_000,
+        },
+      ],
+    });
+    const riga = await prisma.documentLine.findFirstOrThrow({
+      where: { documentId: esito.documentId },
+    });
+    const quota = await prisma.storeSalePayment.findFirstOrThrow({
+      where: { documentId: esito.documentId },
+    });
+    return { documentId: esito.documentId, lineId: riga.id, quotaId: quota.id };
   }
 
   // ── Il richiamo ───────────────────────────────────────────────────────────
@@ -150,7 +202,7 @@ describe('reso di cassa — C4R su PostgreSQL TEST', () => {
       creationIntentId: `${PREFISSO}-r1`,
       reason: 'taglia sbagliata',
       lines: [{ originalLineId: v.lineId, quantity: 1 }],
-      refunds: [{ paymentOptionId: contanti, amountMinor: 10_000 }],
+      refunds: [{ originalPaymentId: v.quotaContanti, amountMinor: 10_000 }],
     });
 
     const dopo = await resi.lookup(tenant, utente(tenant), sede, v.documentId);
@@ -182,7 +234,7 @@ describe('reso di cassa — C4R su PostgreSQL TEST', () => {
       creationIntentId: `${PREFISSO}-listino`,
       reason: 'difetto',
       lines: [{ originalLineId: v.lineId, quantity: 1 }],
-      refunds: [{ paymentOptionId: contanti, amountMinor: 10_000 }],
+      refunds: [{ originalPaymentId: v.quotaContanti, amountMinor: 10_000 }],
     });
 
     // ⭐ 100,00 €, non 200,00 €.
@@ -209,7 +261,7 @@ describe('reso di cassa — C4R su PostgreSQL TEST', () => {
         creationIntentId: `${PREFISSO}-troppo`,
         reason: 'troppi',
         lines: [{ originalLineId: v.lineId, quantity: 3 }],
-        refunds: [{ paymentOptionId: contanti, amountMinor: 30_000 }],
+        refunds: [{ originalPaymentId: v.quotaContanti, amountMinor: 30_000 }],
       }),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
@@ -241,6 +293,9 @@ describe('reso di cassa — C4R su PostgreSQL TEST', () => {
       where: { documentId: esito.documentId },
       orderBy: { lineNumber: 'asc' },
     });
+    const quota = await prisma.storeSalePayment.findFirstOrThrow({
+      where: { documentId: esito.documentId },
+    });
 
     await expect(
       resi.createReturn(tenant, utente(tenant), {
@@ -252,7 +307,7 @@ describe('reso di cassa — C4R su PostgreSQL TEST', () => {
         // ⛔ 2 pezzi da una riga che ne ha venduto 1.
         lines: [{ originalLineId: righe[0]!.id, quantity: 2 }],
         // ⭐ …ma 200,00 € su 200,00 € incassati: il rimborso NON sfonda.
-        refunds: [{ paymentOptionId: contanti, amountMinor: 20_000 }],
+        refunds: [{ originalPaymentId: quota.id, amountMinor: 20_000 }],
       }),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
@@ -271,13 +326,13 @@ describe('reso di cassa — C4R su PostgreSQL TEST', () => {
       ...base,
       creationIntentId: `${PREFISSO}-p1`,
       lines: [{ originalLineId: v.lineId, quantity: 2 }],
-      refunds: [{ paymentOptionId: contanti, amountMinor: 20_000 }],
+      refunds: [{ originalPaymentId: v.quotaContanti, amountMinor: 20_000 }],
     });
     await resi.createReturn(tenant, utente(tenant), {
       ...base,
       creationIntentId: `${PREFISSO}-p2`,
       lines: [{ originalLineId: v.lineId, quantity: 1 }],
-      refunds: [{ paymentOptionId: contanti, amountMinor: 10_000 }],
+      refunds: [{ originalPaymentId: v.quotaContanti, amountMinor: 10_000 }],
     });
 
     // Il terzo non ha piu` niente da rendere.
@@ -286,7 +341,7 @@ describe('reso di cassa — C4R su PostgreSQL TEST', () => {
         ...base,
         creationIntentId: `${PREFISSO}-p3`,
         lines: [{ originalLineId: v.lineId, quantity: 1 }],
-        refunds: [{ paymentOptionId: contanti, amountMinor: 10_000 }],
+        refunds: [{ originalPaymentId: v.quotaContanti, amountMinor: 10_000 }],
       }),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
@@ -304,7 +359,7 @@ describe('reso di cassa — C4R su PostgreSQL TEST', () => {
       originalDocumentId: v.documentId,
       reason: 'concorrenza',
       lines: [{ originalLineId: v.lineId, quantity: 1 }],
-      refunds: [{ paymentOptionId: contanti, amountMinor: 10_000 }],
+      refunds: [{ originalPaymentId: v.quotaContanti, amountMinor: 10_000 }],
     };
 
     const esiti = await Promise.allSettled([
@@ -323,20 +378,27 @@ describe('reso di cassa — C4R su PostgreSQL TEST', () => {
 
   // ── Il rimborso ───────────────────────────────────────────────────────────
 
-  it('si rimborsa SOLO con i Tipi dell_incasso originale', async () => {
+  /**
+   * ⭐ Il vincolo non e' piu' «solo i Tipi dell'incasso»: e' «solo le QUOTE
+   * di QUESTA vendita». Una quota di un ALTRO scontrino, pagata con lo
+   * STESSO Tipo, non e' rimborsabile qui — e col conteggio per Tipo lo
+   * sarebbe stata.
+   */
+  it('si rimborsa SOLO sulle quote di QUESTA vendita', async () => {
     const s = await apri();
-    // Venduta in contanti: la carta non c'entra.
     const v = await vendi(s, 1);
+    const altra = await vendi(s, 2);
 
     await expect(
       resi.createReturn(tenant, utente(tenant), {
         locationId: sede,
         sessionId: s,
         originalDocumentId: v.documentId,
-        creationIntentId: `${PREFISSO}-altromodo`,
-        reason: 'modalita` nuova',
+        creationIntentId: `${PREFISSO}-altraquota`,
+        reason: 'quota di un altro scontrino',
         lines: [{ originalLineId: v.lineId, quantity: 1 }],
-        refunds: [{ paymentOptionId: carta, amountMinor: 10_000, confirmed: true }],
+        // ⛔ Stesso Tipo (contanti), ma la quota e` di un_altra vendita.
+        refunds: [{ originalPaymentId: altra.quotaContanti, amountMinor: 10_000 }],
       }),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
@@ -354,8 +416,8 @@ describe('reso di cassa — C4R su PostgreSQL TEST', () => {
       reason: 'reso misto',
       lines: [{ originalLineId: v.lineId, quantity: 1 }],
       refunds: [
-        { paymentOptionId: contanti, amountMinor: 6_000 },
-        { paymentOptionId: carta, amountMinor: 4_000, confirmed: true },
+        { originalPaymentId: v.quotaContanti, amountMinor: 6_000 },
+        { originalPaymentId: v.quotaCarta, amountMinor: 4_000, confirmed: true },
       ],
     });
 
@@ -381,7 +443,7 @@ describe('reso di cassa — C4R su PostgreSQL TEST', () => {
         reason: 'oltre il carta',
         lines: [{ originalLineId: v.lineId, quantity: 1 }],
         // 100,00 € tutti su carta, ma con carta erano entrati solo 40,00.
-        refunds: [{ paymentOptionId: carta, amountMinor: 10_000, confirmed: true }],
+        refunds: [{ originalPaymentId: v.quotaCarta, amountMinor: 10_000, confirmed: true }],
       }),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
@@ -398,7 +460,7 @@ describe('reso di cassa — C4R su PostgreSQL TEST', () => {
         creationIntentId: `${PREFISSO}-somma`,
         reason: 'somma sbagliata',
         lines: [{ originalLineId: v.lineId, quantity: 1 }],
-        refunds: [{ paymentOptionId: contanti, amountMinor: 9_999 }],
+        refunds: [{ originalPaymentId: v.quotaContanti, amountMinor: 9_999 }],
       }),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
@@ -426,7 +488,7 @@ describe('reso di cassa — C4R su PostgreSQL TEST', () => {
       creationIntentId: `${PREFISSO}-altrasede`,
       reason: 'reso in altro negozio',
       lines: [{ originalLineId: v.lineId, quantity: 1 }],
-      refunds: [{ paymentOptionId: contanti, amountMinor: 10_000 }],
+      refunds: [{ originalPaymentId: v.quotaContanti, amountMinor: 10_000 }],
     });
 
     const doc = await prisma.document.findUniqueOrThrow({ where: { id: esito.documentId } });
@@ -452,7 +514,7 @@ describe('reso di cassa — C4R su PostgreSQL TEST', () => {
         creationIntentId: `${PREFISSO}-sedenegata`,
         reason: 'sede altrui',
         lines: [{ originalLineId: v.lineId, quantity: 1 }],
-        refunds: [{ paymentOptionId: contanti, amountMinor: 10_000 }],
+        refunds: [{ originalPaymentId: v.quotaContanti, amountMinor: 10_000 }],
       }),
     ).rejects.toThrow();
   });
@@ -473,7 +535,7 @@ describe('reso di cassa — C4R su PostgreSQL TEST', () => {
         creationIntentId: `${PREFISSO}-rollback`,
         reason: 'rollback',
         lines: [{ originalLineId: v.lineId, quantity: 1 }],
-        refunds: [{ paymentOptionId: contanti, amountMinor: 1 }],
+        refunds: [{ originalPaymentId: v.quotaContanti, amountMinor: 1 }],
       }),
     ).rejects.toThrow();
 
@@ -496,7 +558,7 @@ describe('reso di cassa — C4R su PostgreSQL TEST', () => {
       creationIntentId: `${PREFISSO}-retry`,
       reason: 'retry',
       lines: [{ originalLineId: v.lineId, quantity: 1 }],
-      refunds: [{ paymentOptionId: contanti, amountMinor: 10_000 }],
+      refunds: [{ originalPaymentId: v.quotaContanti, amountMinor: 10_000 }],
     };
 
     const primo = await resi.createReturn(tenant, utente(tenant), richiesta);
@@ -526,14 +588,14 @@ describe('reso di cassa — C4R su PostgreSQL TEST', () => {
     await resi.createReturn(tenant, utente(tenant), {
       ...base,
       lines: [{ originalLineId: v.lineId, quantity: 1 }],
-      refunds: [{ paymentOptionId: contanti, amountMinor: 10_000 }],
+      refunds: [{ originalPaymentId: v.quotaContanti, amountMinor: 10_000 }],
     });
 
     await expect(
       resi.createReturn(tenant, utente(tenant), {
         ...base,
         lines: [{ originalLineId: v.lineId, quantity: 2 }],
-        refunds: [{ paymentOptionId: contanti, amountMinor: 20_000 }],
+        refunds: [{ originalPaymentId: v.quotaContanti, amountMinor: 20_000 }],
       }),
     ).rejects.toBeInstanceOf(ConflictException);
   });
@@ -554,9 +616,236 @@ describe('reso di cassa — C4R su PostgreSQL TEST', () => {
         creationIntentId: `${PREFISSO}-crosstenant`,
         reason: 'altrui',
         lines: [{ originalLineId: suoDoc, quantity: 1 }],
-        refunds: [{ paymentOptionId: contanti, amountMinor: 10_000 }],
+        // ⚠️ Una quota qualsiasi: si deve fermare PRIMA, sul documento altrui.
+        refunds: [{ originalPaymentId: '00000000-0000-4000-8000-0000000000c7', amountMinor: 10_000 }],
       }),
     ).rejects.toThrow();
+  });
+
+  // ── Il rimborso e` agganciato alla QUOTA (correzione C4R) ─────────────────
+
+  /**
+   * ⭐ C4A permette di ELIMINARE un Tipo pagamento (`SET NULL` sulla quota).
+   * Col conteggio per Tipo, quella quota spariva dalla mappa e il denaro non
+   * era piu' rimborsabile senza RICREARE il Tipo.
+   */
+  it('un Tipo ELIMINATO non impedisce il rimborso: bastano gli snapshot', async () => {
+    const s = await apri();
+    // ⚠️ Un Tipo USA-E-GETTA: eliminare quello condiviso legherebbe le prove
+    //    successive alla riuscita di questa.
+    const usaEGetta = await creaTipo(prisma, tenant, 'Buono usa-e-getta', 'cash', 9);
+    const v = await vendiCon(s, usaEGetta, 1, 'tipoeliminato-v');
+
+    // Il titolare elimina il Tipo DOPO la vendita.
+    await prisma.paymentOption.delete({ where: { id: usaEGetta } });
+    const dopoDelete = await prisma.storeSalePayment.findUniqueOrThrow({
+      where: { id: v.quotaId },
+    });
+    expect(dopoDelete.paymentOptionId).toBeNull();
+    expect(dopoDelete.optionNameSnapshot).toContain('usa-e-getta');
+
+    const esito = await resi.createReturn(tenant, utente(tenant), {
+      locationId: sede,
+      sessionId: s,
+      originalDocumentId: v.documentId,
+      creationIntentId: `${PREFISSO}-tipoeliminato`,
+      reason: 'tipo eliminato',
+      lines: [{ originalLineId: v.lineId, quantity: 1 }],
+      refunds: [{ originalPaymentId: v.quotaId, amountMinor: 10_000 }],
+    });
+
+    const quota = await prisma.storeSalePayment.findFirstOrThrow({
+      where: { documentId: esito.documentId },
+    });
+    // ⭐ Il rimborso esiste, sa da dove viene, e conserva il nome di allora.
+    expect(quota.refundedFromPaymentId).toBe(v.quotaId);
+    expect(quota.paymentOptionId).toBeNull();
+    expect(quota.optionNameSnapshot).toContain('usa-e-getta');
+    expect(quota.tenderKindSnapshot).toBe('cash');
+  });
+  /**
+   * ⛔ **Il difetto piu' grave del conteggio per Tipo**: eliminato il Tipo, i
+   * rimborsi gia' fatti su quella quota sparivano dal cumulativo, e lo stesso
+   * incasso si poteva restituire una seconda volta.
+   */
+  it('il cumulativo regge anche dopo l_eliminazione del Tipo', async () => {
+    const s = await apri();
+    const usaEGetta = await creaTipo(prisma, tenant, 'Buono cumulativo', 'cash', 9);
+    // Due pezzi da 100,00 €, pagati con DUE quote da 100,00 ciascuna.
+    const esito = await checkout.checkout(tenant, utente(tenant), {
+      locationId: sede,
+      sessionId: s,
+      creationIntentId: `${PREFISSO}-cum-v`,
+      lines: [{ variantId: variante, quantity: 2, unitPriceMinor: 10_000 }],
+      payments: [
+        { paymentOptionId: usaEGetta, amountMinor: 10_000, tenderedMinor: 10_000 },
+        { paymentOptionId: contanti, amountMinor: 10_000, tenderedMinor: 10_000 },
+      ],
+    });
+    const riga = await prisma.documentLine.findFirstOrThrow({
+      where: { documentId: esito.documentId },
+    });
+    const quotaUsaEGetta = await prisma.storeSalePayment.findFirstOrThrow({
+      where: { documentId: esito.documentId, paymentOptionId: usaEGetta },
+    });
+
+    // Il primo reso ESAURISCE quella quota: 100,00 su 100,00.
+    await resi.createReturn(tenant, utente(tenant), {
+      locationId: sede,
+      sessionId: s,
+      originalDocumentId: esito.documentId,
+      creationIntentId: `${PREFISSO}-cum1`,
+      reason: 'primo pezzo',
+      lines: [{ originalLineId: riga.id, quantity: 1 }],
+      refunds: [{ originalPaymentId: quotaUsaEGetta.id, amountMinor: 10_000 }],
+    });
+
+    // ⛔ Eliminando il Tipo, ANCHE la quota di rimborso perde il riferimento:
+    //    contata per Tipo, quel rimborso spariva dal cumulativo e i 100,00
+    //    uscivano una seconda volta.
+    await prisma.paymentOption.delete({ where: { id: usaEGetta } });
+
+    // ⭐ La somma TORNA (100,00 € per un reso da 100,00 €): a fermarlo puo`
+    //    essere solo il residuo della quota, che e` zero.
+    await expect(
+      resi.createReturn(tenant, utente(tenant), {
+        locationId: sede,
+        sessionId: s,
+        originalDocumentId: esito.documentId,
+        creationIntentId: `${PREFISSO}-cum2`,
+        reason: 'la quota e` gia` esaurita',
+        lines: [{ originalLineId: riga.id, quantity: 1 }],
+        refunds: [{ originalPaymentId: quotaUsaEGetta.id, amountMinor: 10_000 }],
+      }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+    // ⭐ E dalla quota e` uscito 100,00 €, non 200,00.
+    const uscito = await prisma.storeSalePayment.aggregate({
+      where: { refundedFromPaymentId: quotaUsaEGetta.id },
+      _sum: { amountMinor: true },
+    });
+    expect(uscito._sum.amountMinor).toBe(10_000);
+  });
+  /**
+   * ⭐ Due quote della STESSA classe — due carte diverse — non si sommano in
+   * una sola: il residuo e' di ciascuna quota.
+   */
+  it('due quote della stessa CLASSE non si confondono', async () => {
+    const s = await apri();
+    const esito = await checkout.checkout(tenant, utente(tenant), {
+      locationId: sede,
+      sessionId: s,
+      creationIntentId: `${PREFISSO}-duecarte`,
+      lines: [{ variantId: variante, quantity: 2, unitPriceMinor: 10_000 }],
+      payments: [
+        { paymentOptionId: carta, amountMinor: 10_000, confirmed: true },
+        { paymentOptionId: carta2, amountMinor: 10_000, confirmed: true },
+      ],
+    });
+    const riga = await prisma.documentLine.findFirstOrThrow({
+      where: { documentId: esito.documentId },
+    });
+    const quote = await prisma.storeSalePayment.findMany({
+      where: { documentId: esito.documentId },
+      orderBy: { position: 'asc' },
+    });
+    const primaCarta = quote.find((q) => q.paymentOptionId === carta)!;
+
+    // ⛔ 200,00 € tutti sulla PRIMA carta: con quella ne erano entrati 100,00.
+    await expect(
+      resi.createReturn(tenant, utente(tenant), {
+        locationId: sede,
+        sessionId: s,
+        originalDocumentId: esito.documentId,
+        creationIntentId: `${PREFISSO}-duecarte-r`,
+        reason: 'tutto su una carta',
+        lines: [{ originalLineId: riga.id, quantity: 2 }],
+        refunds: [{ originalPaymentId: primaCarta.id, amountMinor: 20_000, confirmed: true }],
+      }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
+
+  it('la stessa quota non compare due volte nello stesso rimborso', async () => {
+    const s = await apri();
+    const v = await vendi(s, 2);
+
+    await expect(
+      resi.createReturn(tenant, utente(tenant), {
+        locationId: sede,
+        sessionId: s,
+        originalDocumentId: v.documentId,
+        creationIntentId: `${PREFISSO}-duevolte`,
+        reason: 'due volte la stessa quota',
+        lines: [{ originalLineId: v.lineId, quantity: 1 }],
+        refunds: [
+          { originalPaymentId: v.quotaContanti, amountMinor: 5_000 },
+          { originalPaymentId: v.quotaContanti, amountMinor: 5_000 },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
+
+  /**
+   * ⭐ **La prova che il lock sulle QUOTE serve.** I due resi riguardano righe
+   * prodotto DIVERSE — non competono su nessuna riga, e il lock sulle righe
+   * originali li lascia passare entrambi — ma attingono all'ULTIMO importo
+   * disponibile della STESSA quota di incasso.
+   *
+   * ⛔ Uno solo deve riuscire: 100,00 € erano entrati in contanti, e 100,00 €
+   * devono poter uscire. In totale, non a testa.
+   */
+  it('due resi CONCORRENTI su righe DIVERSE, stessa quota: uno solo riesce', async () => {
+    const s = await apri();
+    const esito = await checkout.checkout(tenant, utente(tenant), {
+      locationId: sede,
+      sessionId: s,
+      creationIntentId: `${PREFISSO}-conc-quota`,
+      lines: [
+        { variantId: variante, quantity: 1, unitPriceMinor: 10_000 },
+        { variantId: variante, quantity: 1, unitPriceMinor: 10_000 },
+      ],
+      // 100,00 in contanti + 100,00 con carta: la quota contanti basta per UN
+      // reso da 100,00, non per due.
+      payments: [
+        { paymentOptionId: contanti, amountMinor: 10_000, tenderedMinor: 10_000 },
+        { paymentOptionId: carta, amountMinor: 10_000, confirmed: true },
+      ],
+    });
+    const righe = await prisma.documentLine.findMany({
+      where: { documentId: esito.documentId },
+      orderBy: { lineNumber: 'asc' },
+    });
+    const quotaContanti = await prisma.storeSalePayment.findFirstOrThrow({
+      where: { documentId: esito.documentId, paymentOptionId: contanti },
+    });
+    const base = {
+      locationId: sede,
+      sessionId: s,
+      originalDocumentId: esito.documentId,
+      reason: 'concorrenza sulla quota',
+      refunds: [{ originalPaymentId: quotaContanti.id, amountMinor: 10_000 }],
+    };
+
+    const esiti = await Promise.allSettled([
+      resi.createReturn(tenant, utente(tenant), {
+        ...base,
+        creationIntentId: `${PREFISSO}-cq1`,
+        lines: [{ originalLineId: righe[0]!.id, quantity: 1 }],
+      }),
+      resi.createReturn(tenant, utente(tenant), {
+        ...base,
+        creationIntentId: `${PREFISSO}-cq2`,
+        lines: [{ originalLineId: righe[1]!.id, quantity: 1 }],
+      }),
+    ]);
+
+    expect(esiti.filter((e) => e.status === 'fulfilled')).toHaveLength(1);
+    // ⭐ E il database lo conferma: dalla quota e` uscito 100,00 €, non 200,00.
+    const uscito = await prisma.storeSalePayment.aggregate({
+      where: { refundedFromPaymentId: quotaContanti.id },
+      _sum: { amountMinor: true },
+    });
+    expect(uscito._sum.amountMinor).toBe(10_000);
   });
 });
 
@@ -642,6 +931,12 @@ async function svuota(prisma: PrismaClient): Promise<void> {
   const like = `${PREFISSO}%`;
   const dentro = `"tenant_id" IN (SELECT "id" FROM "tenants" WHERE "name" LIKE $1)`;
   await prisma.$executeRawUnsafe(`DELETE FROM "stock_movements" WHERE ${dentro}`, like);
+  // ⚠️ Prima le quote di RIMBORSO: la self-FK e` RESTRICT, e un DELETE solo
+  //    che togliesse origine e rimborso insieme verrebbe rifiutato.
+  await prisma.$executeRawUnsafe(
+    `DELETE FROM "store_sale_payments" WHERE ${dentro} AND "refunded_from_payment_id" IS NOT NULL`,
+    like,
+  );
   await prisma.$executeRawUnsafe(`DELETE FROM "store_sale_payments" WHERE ${dentro}`, like);
   // ⚠️ Prima le righe di RESO: la self-FK e` RESTRICT.
   await prisma.$executeRawUnsafe(

@@ -235,6 +235,90 @@ describe('reso collegato alla riga — C4R su PostgreSQL TEST', () => {
     const documento = await prisma.document.findUnique({ where: { id: reso } });
     expect(documento?.sourceDocumentId).toBeNull();
   });
+
+  // ── Il rimborso collegato alla QUOTA ──────────────────────────────────────
+
+  /**
+   * ⭐ L'identita' di un incasso e' la QUOTA, non il Tipo con cui e' stato
+   * preso: il Tipo puo` essere eliminato, e due quote possono averlo uguale.
+   */
+  it('una quota di rimborso dichiara la quota di incasso che restituisce', async () => {
+    const vendita = await creaDocumento(prisma, tenant, sede, 'store_sale');
+    const reso = await creaDocumento(prisma, tenant, sede, 'store_return');
+    const incasso = await creaQuota(prisma, tenant, vendita, 1, 10_000);
+    const rimborso = await creaQuota(prisma, tenant, reso, 1, 4_000, incasso.id);
+
+    expect(rimborso.refundedFromPaymentId).toBe(incasso.id);
+    // ⭐ E dalla quota di incasso si risale a tutti i rimborsi che la toccano.
+    const conRimborsi = await prisma.storeSalePayment.findUniqueOrThrow({
+      where: { id: incasso.id },
+      include: { refunds: true },
+    });
+    expect(conRimborsi.refunds.map((q) => q.id)).toEqual([rimborso.id]);
+  });
+
+  /**
+   * ⛔ Due rimborsi della stessa quota nello STESSO documento renderebbero il
+   * cumulativo ambiguo da leggere: e` una riga sola, o due?
+   */
+  it('la stessa quota di incasso NON si rimborsa due volte nello stesso reso', async () => {
+    const vendita = await creaDocumento(prisma, tenant, sede, 'store_sale');
+    const reso = await creaDocumento(prisma, tenant, sede, 'store_return');
+    const incasso = await creaQuota(prisma, tenant, vendita, 1, 10_000);
+    await creaQuota(prisma, tenant, reso, 1, 3_000, incasso.id);
+
+    await expect(creaQuota(prisma, tenant, reso, 2, 2_000, incasso.id)).rejects.toThrow();
+  });
+
+  /**
+   * ⭐ Ma in resi DISTINTI la stessa quota si rimborsa piu` volte: un reso
+   * oggi, un altro domani, ciascuno parziale. Il
+   * limite lo fa la transazione col suo lock, non un vincolo del database.
+   */
+  it('in resi DISTINTI la stessa quota si rimborsa piu` volte', async () => {
+    const vendita = await creaDocumento(prisma, tenant, sede, 'store_sale');
+    const primo = await creaDocumento(prisma, tenant, sede, 'store_return');
+    const secondo = await creaDocumento(prisma, tenant, sede, 'store_return');
+    const incasso = await creaQuota(prisma, tenant, vendita, 1, 10_000);
+
+    await creaQuota(prisma, tenant, primo, 1, 3_000, incasso.id);
+    await creaQuota(prisma, tenant, secondo, 1, 2_000, incasso.id);
+
+    const uscito = await prisma.storeSalePayment.aggregate({
+      where: { refundedFromPaymentId: incasso.id },
+      _sum: { amountMinor: true },
+    });
+    expect(uscito._sum.amountMinor).toBe(5_000);
+  });
+
+  /**
+   * ⛔ `RESTRICT`, non `SET NULL`: azzerare il riferimento perderebbe in
+   * silenzio l_origine del rimborso, e con lei il cumulativo — cioe` proprio
+   * il difetto che il collegamento chiude.
+   */
+  it('la quota di incasso non si cancella finche` un rimborso la restituisce', async () => {
+    const vendita = await creaDocumento(prisma, tenant, sede, 'store_sale');
+    const reso = await creaDocumento(prisma, tenant, sede, 'store_return');
+    const incasso = await creaQuota(prisma, tenant, vendita, 1, 10_000);
+    const rimborso = await creaQuota(prisma, tenant, reso, 1, 10_000, incasso.id);
+
+    await expect(
+      prisma.$executeRawUnsafe(`DELETE FROM "store_sale_payments" WHERE "id" = $1::uuid`, incasso.id),
+    ).rejects.toThrow();
+
+    // Tolto il rimborso, la quota torna cancellabile.
+    await prisma.$executeRawUnsafe(
+      `DELETE FROM "store_sale_payments" WHERE "id" = $1::uuid`,
+      rimborso.id,
+    );
+    await prisma.$executeRawUnsafe(
+      `DELETE FROM "store_sale_payments" WHERE "id" = $1::uuid`,
+      incasso.id,
+    );
+    expect(
+      await prisma.storeSalePayment.count({ where: { id: incasso.id } }),
+    ).toBe(0);
+  });
 });
 
 // ── Aiutanti ───────────────────────────────────────────────────────────────
@@ -303,10 +387,36 @@ async function creaRiga(
   });
 }
 
+async function creaQuota(
+  prisma: PrismaClient,
+  tenantId: string,
+  documentId: string,
+  position: number,
+  amountMinor: number,
+  refundedFromPaymentId: string | null = null,
+) {
+  return prisma.storeSalePayment.create({
+    data: {
+      tenantId,
+      documentId,
+      position,
+      amountMinor,
+      optionNameSnapshot: `${PREFISSO} quota`,
+      refundedFromPaymentId,
+    },
+  });
+}
+
 async function pulisci(prisma: PrismaClient): Promise<void> {
   const like = `${PREFISSO}%`;
   const dentro = `"tenant_id" IN (SELECT "id" FROM "tenants" WHERE "name" LIKE $1)`;
   await prisma.$executeRawUnsafe(`DELETE FROM "fiscal_receipts" WHERE ${dentro}`, like);
+  // ⚠️ Prima le quote di RIMBORSO: anche la loro self-FK e` RESTRICT.
+  await prisma.$executeRawUnsafe(
+    `DELETE FROM "store_sale_payments" WHERE ${dentro} AND "refunded_from_payment_id" IS NOT NULL`,
+    like,
+  );
+  await prisma.$executeRawUnsafe(`DELETE FROM "store_sale_payments" WHERE ${dentro}`, like);
   // ⚠️ Prima le righe di RESO, poi le altre: la self-FK e' RESTRICT, e
   //    cancellarle in ordine inverso fallirebbe.
   await prisma.$executeRawUnsafe(
