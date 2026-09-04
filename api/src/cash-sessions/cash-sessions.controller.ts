@@ -18,8 +18,10 @@ import { RequirePermissions } from '../common/auth/tenant-permissions.decorator'
 import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 
+import { CashCheckoutService, type CheckoutResult } from './cash-checkout.service';
 import { CashSessionsService } from './cash-sessions.service';
 import {
+  CashCheckoutDto,
   CashSessionLocationQueryDto,
   CashSessionMovementDto,
   ChangeCashSessionDeviceDto,
@@ -45,7 +47,30 @@ import {
 @Controller('cash-sessions')
 @UseGuards(JwtAuthGuard, TenantPermissionsGuard)
 export class CashSessionsController {
-  constructor(private readonly cashSessions: CashSessionsService) {}
+  constructor(
+    private readonly cashSessions: CashSessionsService,
+    private readonly checkoutService: CashCheckoutService,
+  ) {}
+
+  /**
+   * Conclude una vendita di cassa (tranche C4A).
+   *
+   * ⭐ `retail.register`: e' una VENDITA, e la fa chi sta al banco. Aprire la
+   * cassa e' un'altra responsabilita', e ha il permesso suo.
+   *
+   * ⛔ Il documento nasce CONFERMATO e immutabile: non esiste una rotta che
+   * lo riapra, e la modifica documentale della Vendita al banco passa da un
+   * altro servizio e da un'altra rotta.
+   */
+  @Post('checkout')
+  @RequirePermissions(TenantPermission.RetailRegister)
+  checkout(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Body() dto: CashCheckoutDto,
+  ): Promise<CheckoutResult> {
+    return this.checkoutService.checkout(tenantId, user, dto);
+  }
 
   /** La sessione aperta di una sede, con i totali del cassetto. */
   @Get('current')

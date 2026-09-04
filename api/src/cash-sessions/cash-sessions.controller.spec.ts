@@ -35,7 +35,9 @@ function rotte(controller: object): { nome: Metodo; verbo: number; percorso: str
 function permessiDi(controller: object, metodo: string): string[] {
   const proto = Object.getPrototypeOf(controller) as object;
   const handler = (proto as Record<string, unknown>)[metodo];
-  return (Reflect.getMetadata(TENANT_PERMISSIONS_KEY, handler as object) as string[] | undefined) ?? [];
+  return (
+    (Reflect.getMetadata(TENANT_PERMISSIONS_KEY, handler as object) as string[] | undefined) ?? []
+  );
 }
 
 describe('CashSessionsController — la superficie esposta', () => {
@@ -76,9 +78,7 @@ describe('CashSessionsController — la superficie esposta', () => {
    */
   it('versamenti e prelievi chiedono `retail.cash_drawer`, non quello della sessione', () => {
     expect(permessiDi(controller, 'addMovement')).toEqual([TenantPermission.RetailCashDrawer]);
-    expect(permessiDi(controller, 'addMovement')).not.toContain(
-      TenantPermission.RetailCashSession,
-    );
+    expect(permessiDi(controller, 'addMovement')).not.toContain(TenantPermission.RetailCashSession);
   });
 
   it('le sole letture chiedono `retail.register`', () => {

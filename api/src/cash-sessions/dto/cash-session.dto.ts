@@ -1,5 +1,12 @@
+import { Type } from 'class-transformer';
 import {
+  ArrayMinSize,
+  IsArray,
+  IsBoolean,
   IsIn,
+  IsNumber,
+  Max,
+  ValidateNested,
   IsInt,
   IsOptional,
   IsString,
@@ -87,4 +94,99 @@ export class ChangeCashSessionDeviceDto {
 export class CashSessionLocationQueryDto {
   @IsUUID()
   locationId!: string;
+}
+
+// ── Checkout (tranche C4A) ─────────────────────────────────────────────────
+
+export class CheckoutLineDto {
+  @IsUUID()
+  variantId!: string;
+
+  @IsInt()
+  @Min(1)
+  quantity!: number;
+
+  /**
+   * Prezzo unitario NETTO in unità minori. ⚠️ Il server ricalcola comunque.
+   *
+   * ⭐ DECIMALE e non intero: la colonna è `Decimal(16,6)`, e la coda è ciò che
+   * fa tornare identico un prezzo digitato ivato («unitari decimali, totali
+   * interi», `regole-gestionale`).
+   */
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
+  @Min(0)
+  unitPriceMinor!: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  discountPercent?: number;
+
+  @ValidateIf((_, value) => value !== null)
+  @IsOptional()
+  @IsUUID()
+  vatCodeId?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  description?: string;
+}
+
+export class CheckoutPaymentDto {
+  @IsUUID()
+  paymentOptionId!: string;
+
+  /** ⛔ Strettamente positiva: il verso lo dice il tipo documento. */
+  @IsInt()
+  @Min(1)
+  amountMinor!: number;
+
+  /** Solo contanti: il denaro consegnato. Il resto è derivato, non si manda. */
+  @ValidateIf((_, value) => value !== null)
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  tenderedMinor?: number | null;
+
+  /**
+   * Solo elettronico: l'operatore conferma l'esito letto sul terminale.
+   *
+   * ⛔ VestiFlow non parla col POS e non finge di averlo fatto.
+   */
+  @IsOptional()
+  @IsBoolean()
+  confirmed?: boolean;
+}
+
+export class CashCheckoutDto {
+  @IsUUID()
+  locationId!: string;
+
+  @IsUUID()
+  sessionId!: string;
+
+  /**
+   * L'identità dell'operazione, generata dal client una volta per compilazione.
+   *
+   * ⛔ Obbligatoria: senza, una vendita non è deduplicabile e un reinvio
+   * creerebbe un secondo documento con i suoi movimenti.
+   */
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  creationIntentId!: string;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => CheckoutLineDto)
+  lines!: CheckoutLineDto[];
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => CheckoutPaymentDto)
+  payments!: CheckoutPaymentDto[];
 }

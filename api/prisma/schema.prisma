@@ -1447,8 +1447,11 @@ model PaymentOption {
   createdAt    DateTime           @default(now()) @map("created_at")
   updatedAt    DateTime           @updatedAt @map("updated_at")
 
-  tenant     Tenant             @relation(fields: [tenantId], references: [id])
-  methodCode PaymentMethodCode? @relation(fields: [methodCodeId], references: [id], onDelete: Restrict)
+  tenant            Tenant             @relation(fields: [tenantId], references: [id])
+  methodCode        PaymentMethodCode? @relation(fields: [methodCodeId], references: [id], onDelete: Restrict)
+  /// Le quote di incasso che lo hanno usato. ⚠️ `SetNull`: eliminare il Tipo
+  /// non cancella le quote, che restano leggibili dai propri snapshot.
+  storeSalePayments StoreSalePayment[]
 
   @@unique([tenantId, kind, name])
   @@index([tenantId, kind, sortOrder])
@@ -3203,27 +3206,58 @@ enum FiscalReceiptStatus {
 /// condivise, quando C2 avra' implementato i due livelli decisi dalla
 /// specifica Pagamenti/Tesoreria §2.1-2.3.
 model StoreSalePayment {
-  id            String   @id @default(uuid()) @db.Uuid
-  tenantId      String   @map("tenant_id") @db.Uuid
-  documentId    String   @map("document_id") @db.Uuid
+  id         String  @id @default(uuid()) @db.Uuid
+  tenantId   String  @map("tenant_id") @db.Uuid
+  documentId String  @map("document_id") @db.Uuid
   /// Ordine di visualizzazione (1-based).
-  position      Int      @default(1)
-  method        String
-  /// Descrizione libera quando `method` = 'other' (es. «Assegno»).
-  methodNote    String?  @map("method_note")
+  position   Int     @default(1)
+  /// ⛔ **LEGACY, e solo per la Vendita al banco**: e' il vocabolario
+  /// `cash | card | other` di quel documento. La CASSA non lo scrive mai —
+  /// usa `paymentOptionId` e i due snapshot (tranche C4A, `docs/25` §5-bis).
+  ///
+  /// ⚠️ Nullable da C4A: una quota della Cassa non ha nulla da metterci, e
+  /// lasciarlo obbligatorio avrebbe costretto a inventare un valore di quel
+  /// vocabolario — cio' che C2B ha smesso di fare.
+  method     String?
+  /// Descrizione libera quando `method` = 'other' (es. «Assegno»). Legacy.
+  methodNote String? @map("method_note")
+
+  /// Il Tipo pagamento del tenant con cui si e' incassato (C2A).
+  ///
+  /// ⚠️ `SetNull` e non `Restrict`, ed e' l'opposto della scelta fatta per il
+  /// reso: qui il riferimento e' una comodita' di navigazione, non l'identita'
+  /// del dato. Il titolare deve poter eliminare un Tipo che non usa piu', e la
+  /// quota storica resta leggibile dai propri snapshot.
+  paymentOptionId    String?            @map("payment_option_id") @db.Uuid
+  /// Il NOME come si leggeva al momento dell'incasso.
+  optionNameSnapshot String?            @map("option_name_snapshot")
+  /// La CLASSE come si leggeva al momento dell'incasso (C2B).
+  ///
+  /// ⭐ E' il dato da cui **C4B** calcola gli attesi di chiusura: senza,
+  /// riclassificare un Tipo a settembre cambierebbe la quadratura di una
+  /// sessione chiusa a marzo.
+  tenderKindSnapshot PaymentTenderKind? @map("tender_kind_snapshot")
   /// Quota del totale documento coperta da questo metodo (lordo).
-  amountMinor   Int      @map("amount_minor")
+  amountMinor        Int                @map("amount_minor")
   /// Solo contanti: denaro CONSEGNATO dal cliente. Il resto e' derivato
   /// (`tendered - amount`) e non si memorizza; a pagare la vendita e'
   /// `amountMinor`, ed e' quello che va anche all'RT (`docs/25` §9).
-  tenderedMinor Int?     @map("tendered_minor")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  tenderedMinor      Int?               @map("tendered_minor")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
 
-  tenant   Tenant   @relation(fields: [tenantId], references: [id])
-  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  document      Document       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  paymentOption PaymentOption? @relation(fields: [paymentOptionId], references: [id], onDelete: SetNull)
 
+  /// ⛔ Due `CHECK` nella migration `20260904210000`, che Prisma non sa
+  /// esprimere: `amount_minor >= 0` (e non `> 0`: la riga legacy a importo
+  /// zero esiste, e a pretendere quote positive e' il SERVIZIO), e
+  /// `tendered_minor IS NULL OR tendered_minor >= amount_minor` — il denaro
+  /// consegnato non puo' essere inferiore alla quota che paga.
+  @@unique([documentId, position])
   @@index([documentId])
+  @@index([paymentOptionId])
   @@index([tenantId])
   @@map("store_sale_payments")
 }

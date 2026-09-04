@@ -1,5 +1,10 @@
 import { Module } from '@nestjs/common';
 
+import { ChannelsModule } from '../channels/channels.module';
+import { CreationIntentService } from '../common/idempotency/creation-intent.util';
+import { DocumentsModule } from '../documents/documents.module';
+
+import { CashCheckoutService } from './cash-checkout.service';
 import { CashSessionsController } from './cash-sessions.controller';
 import { CashSessionsService } from './cash-sessions.service';
 
@@ -14,8 +19,9 @@ import { CashSessionsService } from './cash-sessions.service';
  * chiusura, e C3/C4/C4B non si rilasciano separatamente.
  */
 @Module({
+  imports: [ChannelsModule, DocumentsModule],
   controllers: [CashSessionsController],
-  providers: [CashSessionsService],
-  exports: [CashSessionsService],
+  providers: [CashSessionsService, CashCheckoutService, CreationIntentService],
+  exports: [CashSessionsService, CashCheckoutService],
 })
 export class CashSessionsModule {}
