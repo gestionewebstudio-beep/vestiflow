@@ -426,6 +426,12 @@ model Tenant {
   tenantUserAuditLogs                      TenantUserAuditLog[]
   manualReceipts                           ManualReceipt[]
   creationIntents                          CreationIntent[]
+  storeSalePayments                        StoreSalePayment[]
+  cashSessions                             CashSession[]
+  cashSessionMovements                     CashSessionMovement[]
+  fiscalDevices                            FiscalDevice[]
+  fiscalReceipts                           FiscalReceipt[]
+  posTerminals                             PosTerminal[]
 
   @@map("tenants")
 }
@@ -662,6 +668,10 @@ model Location {
   shopifyInventorySyncStates ShopifyInventorySyncState[]
   documentCounters           DocumentCounter[]
   manualReceipts             ManualReceipt[]
+  /// Al piu' UN dispositivo fiscale per sede: l'unicita' e' sulla colonna.
+  fiscalDevice               FiscalDevice?
+  cashSessions               CashSession[]
+  posTerminals               PosTerminal[]
 
   @@index([tenantId])
   // Lookup sync Shopify Location per tenant (mapping giacenze).
@@ -2299,6 +2309,10 @@ model Document {
   /// Descrizione libera quando paymentMethod = 'other' (Vendita in negozio):
   /// es. «Assegno», «Bonifico». Mostrata accanto ad «Altro» in elenco/dettaglio.
   paymentMethodNote            String?               @map("payment_method_note")
+  /// Sessione di cassa che ha concluso la vendita (`docs/25` §4). NULL su
+  /// ogni Vendita al banco ordinaria: e' cio' che distingue i due flussi,
+  /// senza bisogno di un flag di origine.
+  cashSessionId                String?               @map("cash_session_id") @db.Uuid
   /// Condizioni di pagamento in testata (Preventivo: campo «Pagamento»,
   /// stesso snapshot testo dell'Ordine cliente manuale).
   paymentTerms                 String?               @map("payment_terms")
@@ -2363,6 +2377,13 @@ model Document {
   ddtLinks               InvoiceSalesDdtLink[]             @relation("InvoiceLinkInvoice")
   /// Link DDT vendita → fatture che lo agganciano (questo doc è il DDT).
   invoiceLinks           InvoiceSalesDdtLink[]             @relation("InvoiceLinkDdt")
+  /// Quote incassate dal checkout Cassa (`docs/25` §6): FONTE CANONICA del
+  /// pagamento. Il riepilogo «Misto» si calcola da qui e non si persiste.
+  storeSalePayments      StoreSalePayment[]
+  /// Documento commerciale emesso dall'RT: al piu' uno per documento.
+  fiscalReceipt          FiscalReceipt?
+  /// Sessione che ha concluso la vendita in Cassa; NULL sul banco ordinario.
+  cashSession            CashSession?                      @relation(fields: [cashSessionId], references: [id], onDelete: SetNull)
 
   // Numero univoco per (tenant, tipo, serie): l'unicità reale è un indice
   // parziale `WHERE number IS NOT NULL` con NULLS NOT DISTINCT (serie nulla)
@@ -2376,6 +2397,7 @@ model Document {
   @@index([sourceDocumentId, type, status])
   @@index([tenantId, supplierOrderId])
   @@index([tenantId, onlineSaleId])
+  @@index([tenantId, cashSessionId])
   @@map("documents")
 }
 
@@ -3010,4 +3032,250 @@ model ManualReceiptLine {
 
   @@index([receiptId, lineNumber], map: "manual_receipt_lines_receipt_idx")
   @@map("manual_receipt_lines")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// CASSA — schema DORMIENTE, portato in Prisma dalla tranche C1 (`docs/25`).
+//
+// ⛔ Le sei tabelle ESISTONO GIA' nel database condiviso: le hanno create le
+//    migration del 06-07/08/2026, applicate e mai annullate. Qui non si crea
+//    niente e non si genera nessuna migration: si dichiara a Prisma cio' che
+//    il database e' gia', perche' il client possa leggerlo.
+//
+// ⚠️ Nessun servizio, nessuna rotta e nessuna UI le usa ancora: la Cassa
+//    arriva da C3. Misurate il 04/09/2026: tutte vuote tranne
+//    `store_sale_payments`, che ha UNA riga del 22/07 (`docs/25` §8).
+// ─────────────────────────────────────────────────────────────────────────
+
+enum CashSessionStatus {
+  open
+  closed
+}
+
+/// Movimento di cassetto durante la sessione: versamento (entra contante) o
+/// prelievo (esce contante). Entrambi con causale obbligatoria.
+enum CashSessionMovementType {
+  deposit
+  withdrawal
+}
+
+enum FiscalDeviceBrand {
+  epson
+  custom
+  rch
+  olivetti
+  other
+}
+
+/// Stato del documento commerciale: `pending` = da fiscalizzare (dispositivo
+/// non raggiungibile alla conferma), `emitted` = emesso, `failed` = ultimo
+/// tentativo fallito, `cancelled` = annullato con documento di annullo.
+///
+/// ⛔ Mai `emitted` prima della conferma effettiva dell'RT (`docs/25` §10).
+enum FiscalReceiptStatus {
+  pending
+  emitted
+  failed
+  cancelled
+}
+
+/// Quota incassata dal checkout Cassa: una riga per metodo usato.
+///
+/// ⭐ E' la FONTE CANONICA del pagamento di una vendita Cassa (`docs/25` §6).
+/// «Misto» si calcola contando queste righe e non si persiste mai: un
+/// riepilogo salvato puo' divergere dalle righe che riassume.
+///
+/// ⚠️ `method` porta oggi il vocabolario legacy della Vendita al banco
+/// (`cash`/`card`/`other`). Il nuovo codice Cassa usera' invece le modalita'
+/// condivise, quando C2 avra' implementato i due livelli decisi dalla
+/// specifica Pagamenti/Tesoreria §2.1-2.3.
+model StoreSalePayment {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  documentId    String   @map("document_id") @db.Uuid
+  /// Ordine di visualizzazione (1-based).
+  position      Int      @default(1)
+  method        String
+  /// Descrizione libera quando `method` = 'other' (es. «Assegno»).
+  methodNote    String?  @map("method_note")
+  /// Quota del totale documento coperta da questo metodo (lordo).
+  amountMinor   Int      @map("amount_minor")
+  /// Solo contanti: denaro CONSEGNATO dal cliente. Il resto e' derivato
+  /// (`tendered - amount`) e non si memorizza; a pagare la vendita e'
+  /// `amountMinor`, ed e' quello che va anche all'RT (`docs/25` §9).
+  tenderedMinor Int?     @map("tendered_minor")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@index([tenantId])
+  @@map("store_sale_payments")
+}
+
+/// Sessione di cassa di una sede: apertura con fondo dichiarato, vendite e
+/// resi agganciati man mano, chiusura con conteggio per metodo.
+///
+/// ⛔ **Al piu' una sessione APERTA per sede**, e il vincolo e' un indice
+/// unico PARZIALE — `UNIQUE(location_id) WHERE status = 'open'` — che vive
+/// nella migration `20260806220000_sessioni_di_cassa`. Prisma non lo sa
+/// esprimere: qui NON si dichiara `@@unique([locationId])`, o il vincolo
+/// diventerebbe totale e una sede potrebbe avere una sola sessione PER
+/// SEMPRE invece che una sola aperta. Stessa disciplina di
+/// `ExternalDocumentType`.
+model CashSession {
+  id                 String            @id @default(uuid()) @db.Uuid
+  tenantId           String            @map("tenant_id") @db.Uuid
+  locationId         String            @map("location_id") @db.Uuid
+  status             CashSessionStatus @default(open)
+  openedAt           DateTime          @default(now()) @map("opened_at")
+  openedById         String?           @map("opened_by_id") @db.Uuid
+  /// Snapshot operatore: l'audit regge anche se l'utente cambia nome.
+  openedByName       String            @map("opened_by_name")
+  /// Fondo cassa dichiarato all'apertura (contanti nel cassetto).
+  openingFloatMinor  Int               @default(0) @map("opening_float_minor")
+  closedAt           DateTime?         @map("closed_at")
+  closedById         String?           @map("closed_by_id") @db.Uuid
+  closedByName       String?           @map("closed_by_name")
+  notes              String?
+  /// Conteggio dichiarato alla chiusura, per metodo (null finche' aperta).
+  countedCashMinor   Int?              @map("counted_cash_minor")
+  countedCardMinor   Int?              @map("counted_card_minor")
+  countedOtherMinor  Int?              @map("counted_other_minor")
+  /// Attesi CONGELATI alla chiusura: la differenza di cassa e' un fatto
+  /// storico, non un ricalcolo.
+  expectedCashMinor  Int?              @map("expected_cash_minor")
+  expectedCardMinor  Int?              @map("expected_card_minor")
+  expectedOtherMinor Int?              @map("expected_other_minor")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+
+  tenant    Tenant                @relation(fields: [tenantId], references: [id])
+  location  Location              @relation(fields: [locationId], references: [id])
+  movements CashSessionMovement[]
+  documents Document[]
+
+  @@index([tenantId, locationId, status])
+  @@index([tenantId, openedAt(sort: Desc)])
+  @@map("cash_sessions")
+}
+
+/// Versamento o prelievo dal cassetto durante la sessione.
+///
+/// ⚠️ Non ha `updatedAt`: un movimento di cassetto e' un fatto avvenuto, e
+/// non si corregge in posto. La colonna nel database non esiste.
+model CashSessionMovement {
+  id            String                  @id @default(uuid()) @db.Uuid
+  tenantId      String                  @map("tenant_id") @db.Uuid
+  sessionId     String                  @map("session_id") @db.Uuid
+  type          CashSessionMovementType
+  amountMinor   Int                     @map("amount_minor")
+  reason        String
+  createdById   String?                 @map("created_by_id") @db.Uuid
+  createdByName String                  @map("created_by_name")
+  createdAt     DateTime                @default(now()) @map("created_at")
+
+  tenant  Tenant      @relation(fields: [tenantId], references: [id])
+  session CashSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([tenantId])
+  @@map("cash_session_movements")
+}
+
+/// Registratore telematico configurato su una sede: al piu' UNO per sede
+/// (unicita' sulla colonna, non indice parziale).
+///
+/// ⚠️ `endpoint` e `serialNumber` sono CONFIGURAZIONE, non credenziali: la
+/// stampante sta nella LAN del negozio e la chiama il browser, non il server.
+model FiscalDevice {
+  id             String            @id @default(uuid()) @db.Uuid
+  tenantId       String            @map("tenant_id") @db.Uuid
+  locationId     String            @unique @map("location_id") @db.Uuid
+  brand          FiscalDeviceBrand
+  model          String?
+  /// Endpoint LAN della stampante (es. `https://192.168.1.50`).
+  endpoint       String
+  /// Matricola fiscale: finisce sul documento commerciale.
+  serialNumber   String?           @map("serial_number")
+  enabled        Boolean           @default(true)
+  /// Mappa aliquota -> reparto della stampante: le RT associano l'IVA ai
+  /// reparti configurati a bordo, non alla riga.
+  vatDepartments Json?             @map("vat_departments")
+  notes          String?
+  /// Diagnostica riportata dalla cassa.
+  lastSeenAt     DateTime?         @map("last_seen_at")
+  lastError      String?           @map("last_error")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id])
+  location Location        @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  receipts FiscalReceipt[]
+
+  @@index([tenantId])
+  @@map("fiscal_devices")
+}
+
+/// Documento commerciale emesso dall'RT per una vendita o un reso di Cassa:
+/// al piu' uno per documento.
+///
+/// ⚠️ Se il pagamento riesce e l'RT non risponde, la riga resta `pending` o
+/// `failed` e si ritenta la SOLA emissione fiscale: non si ripetono carta,
+/// contanti ne' scarico di magazzino (`docs/25` §10).
+model FiscalReceipt {
+  id                String              @id @default(uuid()) @db.Uuid
+  tenantId          String              @map("tenant_id") @db.Uuid
+  documentId        String              @unique @map("document_id") @db.Uuid
+  deviceId          String?             @map("device_id") @db.Uuid
+  status            FiscalReceiptStatus @default(pending)
+  serialNumber      String?             @map("serial_number")
+  fiscalNumber      String?             @map("fiscal_number")
+  issuedAt          DateTime?           @map("issued_at")
+  /// Ricevuta annullata da questa (annullo/reso): auto-relazione.
+  originalReceiptId String?             @map("original_receipt_id") @db.Uuid
+  errorMessage      String?             @map("error_message")
+  /// Risposta tecnica dell'RT, conservata per la riconciliazione.
+  rawResponse       Json?               @map("raw_response")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id])
+  document Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  device   FiscalDevice?   @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  original FiscalReceipt?  @relation("FiscalReceiptOriginal", fields: [originalReceiptId], references: [id], onDelete: SetNull)
+  derived  FiscalReceipt[] @relation("FiscalReceiptOriginal")
+
+  @@index([tenantId, status])
+  @@map("fiscal_receipts")
+}
+
+/// Terminale POS di una sede: anagrafica per l'adempimento del collegamento
+/// logico POS <-> strumento di certificazione.
+///
+/// ⛔ E' un DISPOSITIVO, non una Risorsa finanziaria e non un conto con
+/// saldo (specifica Pagamenti/Tesoreria, Appendice E). L'associazione vera
+/// si fa sul portale dall'esercente: qui se ne tiene traccia.
+model PosTerminal {
+  id             String    @id @default(uuid()) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  locationId     String    @map("location_id") @db.Uuid
+  terminalId     String    @map("terminal_id")
+  acquirerName   String    @map("acquirer_name")
+  description    String?
+  /// Solo giorno: sono date di adempimento, non istanti.
+  activatedAt    DateTime  @map("activated_at") @db.Date
+  portalLinkedAt DateTime? @map("portal_linked_at") @db.Date
+  notes          String?
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, terminalId])
+  @@index([tenantId])
+  @@map("pos_terminals")
 }

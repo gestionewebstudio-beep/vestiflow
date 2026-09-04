@@ -479,6 +479,30 @@ mai esposti inutilmente al frontend; nessuna credenziale nei log.
 ⛔ **La Vendita al banco continua a funzionare per chi ha i suoi permessi anche senza alcun
 permesso Cassa.**
 
+### ⛔ Limite ereditato: il database NON garantisce l'isolamento tenant
+
+Misurato sul database di prova il 04/09/2026, durante C1. Le chiavi esterne collegano gli
+identificativi **uno per uno**, e il `tenant_id` viaggia in un vincolo **separato**:
+
+```text
+FK verso entita' di business che vincolano ANCHE il tenant:   0 su 12
+UNIQUE/PK composti (tenant_id, id) sulle tabelle bersaglio:   nessuno
+```
+
+Senza un `UNIQUE(tenant_id, id)` sulle tabelle bersaglio, una chiave esterna composta non
+sarebbe **nemmeno dichiarabile**. Ne discende che il database, da solo, non impedisce di
+collegare una quota del tenant A a un documento del tenant B, un documento a una sessione di
+un altro tenant, o una sessione a una sede altrui.
+
+⚠️ **Non è un difetto della Cassa e C1 non lo ha introdotto**: vale allo stesso modo per
+`documents(location_id)` e `documents(source_document_id)`, che esistono da molto prima. È un
+limite dell'intero schema.
+
+⭐ **Va affrontato prima dei servizi applicativi della Cassa** (C3): finché l'isolamento vive
+solo nel codice, ogni percorso di scrittura deve verificare il tenant da sé, e ogni percorso
+nuovo è un'occasione di dimenticarlo. Se e come chiuderlo — vincoli compositi, RLS, o
+verifica applicativa centralizzata — è una decisione da prendere, non da dedurre.
+
 ---
 
 ## 14. Riuso: cosa si condivide e cosa resta distinto
