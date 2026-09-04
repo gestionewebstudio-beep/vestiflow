@@ -20,12 +20,19 @@ interface MockDelegate {
  * sono MEMOIZZATI: `tx.user` deve restituire sempre lo stesso oggetto, o le
  * asserzioni guarderebbero una mock diversa da quella invocata dal service.
  */
-function createAutoMockTx(): Record<string, MockDelegate> & {
+// ⚠️ I delegate usati dai test si dichiarano QUI: il Proxy ne restituisce
+//    sempre uno, ma senza la dichiarazione l'accesso cade sull'index
+//    signature e `noUncheckedIndexedAccess` lo tipizza `| undefined`.
+type MockTx = Record<string, MockDelegate> & {
   user: MockDelegate;
   tenant: MockDelegate;
-} {
+  paymentOption: MockDelegate;
+  paymentMethodCode: MockDelegate;
+};
+
+function createAutoMockTx(): MockTx {
   const delegates = new Map<string, MockDelegate>();
-  return new Proxy({} as Record<string, MockDelegate> & { user: MockDelegate; tenant: MockDelegate }, {
+  return new Proxy({} as MockTx, {
     get(_target, prop) {
       if (typeof prop !== 'string') {
         return undefined;
@@ -57,9 +64,7 @@ describe('TenantBackupImportService', () => {
 
   const PLATFORM_ADMIN_EMAIL = 'admin@vestiflow.it';
   const platformAdmin = {
-    isPlatformAdmin: vi.fn(
-      (email: string) => email.trim().toLowerCase() === PLATFORM_ADMIN_EMAIL,
-    ),
+    isPlatformAdmin: vi.fn((email: string) => email.trim().toLowerCase() === PLATFORM_ADMIN_EMAIL),
   };
 
   const tx = createAutoMockTx();
@@ -99,7 +104,7 @@ describe('TenantBackupImportService', () => {
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
-/**
+  /**
    * ⭐ **Un archivio più VECCHIO dell'app non è «aggiorna VestiFlow».**
    *
    * ⛔ Il cancello confrontava la versione e rifiutava con un messaggio solo —
@@ -302,18 +307,13 @@ describe('TenantBackupImportService', () => {
       manifest: { tenantId, tenantName: 'Negozio Demo' },
       entities: {
         // Come lo scriveva un backup di ieri: `methodCodeId` non esiste.
-        paymentOptions: [
-          { id: 'po-1', tenantId, kind: 'method', name: 'Contanti', sortOrder: 1 },
-        ],
+        paymentOptions: [{ id: 'po-1', tenantId, kind: 'method', name: 'Contanti', sortOrder: 1 }],
       },
     });
 
     await service.importFromZipBuffer(tenantId, currentUserId, zip);
 
-    const righe = tx.paymentOption.createMany.mock.calls[0]?.[0]?.data as Record<
-      string,
-      unknown
-    >[];
+    const righe = tx.paymentOption.createMany.mock.calls[0]?.[0]?.data as Record<string, unknown>[];
     expect(righe).toHaveLength(1);
     expect(righe[0]).not.toHaveProperty('methodCodeId');
   });
@@ -337,10 +337,7 @@ describe('TenantBackupImportService', () => {
 
     await service.importFromZipBuffer(tenantId, currentUserId, zip);
 
-    const righe = tx.paymentOption.createMany.mock.calls[0]?.[0]?.data as Record<
-      string,
-      unknown
-    >[];
+    const righe = tx.paymentOption.createMany.mock.calls[0]?.[0]?.data as Record<string, unknown>[];
     expect(righe[0]).toMatchObject({ methodCodeId: 'mc-05' });
   });
 
@@ -348,9 +345,7 @@ describe('TenantBackupImportService', () => {
     const zip = await buildTenantBackupZip({
       manifest: { tenantId, tenantName: 'Negozio Demo' },
       entities: {
-        paymentOptions: [
-          { id: 'po-1', tenantId, kind: 'method', name: 'Contanti', sortOrder: 1 },
-        ],
+        paymentOptions: [{ id: 'po-1', tenantId, kind: 'method', name: 'Contanti', sortOrder: 1 }],
       },
     });
 

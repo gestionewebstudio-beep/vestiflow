@@ -79,6 +79,16 @@ const PREFISSO_TENANT = 'COLLAUDO C2A';
 describe('migration modalità pagamento normative — C2A su PostgreSQL TEST', () => {
   let prisma: PrismaClient;
   let tenants: string[] = [];
+  /**
+   * ⚠️ Con `noUncheckedIndexedAccess` l'accesso per indice dà
+   * `string | undefined`, e `tenantId` di Prisma vuole `string`. Un tenant
+   * di prova mancante è un guasto del `beforeAll`, non un caso da propagare.
+   */
+  const tenantDiProva = (i: number): string => {
+    const id = tenants[i];
+    if (!id) throw new Error(`tenant di prova ${i} non creato`);
+    return id;
+  };
 
   beforeAll(async () => {
     prisma = creaClientIntegrazione();
@@ -86,7 +96,8 @@ describe('migration modalità pagamento normative — C2A su PostgreSQL TEST', (
 
     tenants = [];
     for (let i = 1; i <= 4; i++) {
-      const [riga] = await prisma.$queryRawUnsafe<{ id: string }[]>(
+      const riga = await unaRiga<{ id: string }>(
+        prisma,
         `INSERT INTO "tenants" ("id","name","updated_at")
          VALUES (gen_random_uuid(), $1, CURRENT_TIMESTAMP) RETURNING "id"`,
         `${PREFISSO_TENANT} ${i}`,
@@ -133,19 +144,22 @@ describe('migration modalità pagamento normative — C2A su PostgreSQL TEST', (
   });
 
   it('il catalogo globale porta i 23 codici normativi', async () => {
-    const [riga] = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
+    const riga = await unaRiga<{ n: bigint }>(
+      prisma,
       `SELECT count(*) AS n FROM "payment_method_codes"`,
     );
     expect(Number(riga.n)).toBe(23);
 
-    const [mp05] = await prisma.$queryRawUnsafe<{ label: string }[]>(
+    const mp05 = await unaRiga<{ label: string }>(
+      prisma,
       `SELECT "label" FROM "payment_method_codes" WHERE "code" = 'MP05'`,
     );
     expect(mp05.label).toBe('Bonifico');
   });
 
   it('collega le 92 voci moderne e le 20 legacy: 112 su 148', async () => {
-    const [riga] = await prisma.$queryRawUnsafe<{ totale: bigint; collegate: bigint }[]>(
+    const riga = await unaRiga<{ totale: bigint; collegate: bigint }>(
+      prisma,
       `SELECT count(*) AS totale, count("method_code_id") AS collegate
        FROM "payment_options"
        WHERE "tenant_id" = ANY($1::uuid[])
@@ -179,7 +193,8 @@ describe('migration modalità pagamento normative — C2A su PostgreSQL TEST', (
       ['RiBa', 'MP12'],
     ];
     for (const [nome, codice] of attese) {
-      const [riga] = await prisma.$queryRawUnsafe<{ code: string | null }[]>(
+      const riga = await unaRiga<{ code: string | null }>(
+        prisma,
         `SELECT pmc."code"
          FROM "payment_options" po
          LEFT JOIN "payment_method_codes" pmc ON pmc."id" = po."method_code_id"
@@ -192,7 +207,8 @@ describe('migration modalità pagamento normative — C2A su PostgreSQL TEST', (
   });
 
   it('lascia Contrassegno e PayPal scollegate: è una decisione, non un buco', async () => {
-    const [riga] = await prisma.$queryRawUnsafe<{ collegate: bigint }[]>(
+    const riga = await unaRiga<{ collegate: bigint }>(
+      prisma,
       `SELECT count("method_code_id") AS collegate FROM "payment_options"
        WHERE "tenant_id" = ANY($1::uuid[]) AND "name" IN ('Contrassegno','PayPal')`,
       tenants,
@@ -201,7 +217,8 @@ describe('migration modalità pagamento normative — C2A su PostgreSQL TEST', (
   });
 
   it('non tocca le condizioni di pagamento', async () => {
-    const [riga] = await prisma.$queryRawUnsafe<{ collegate: bigint }[]>(
+    const riga = await unaRiga<{ collegate: bigint }>(
+      prisma,
       `SELECT count("method_code_id") AS collegate FROM "payment_options"
        WHERE "tenant_id" = ANY($1::uuid[]) AND "kind" = 'terms'`,
       tenants,
@@ -210,7 +227,8 @@ describe('migration modalità pagamento normative — C2A su PostgreSQL TEST', (
   });
 
   it('NON deduce il codice dall_etichetta: una voce rinominata resta scollegata', async () => {
-    const [riga] = await prisma.$queryRawUnsafe<{ method_code_id: string | null }[]>(
+    const riga = await unaRiga<{ method_code_id: string | null }>(
+      prisma,
       `SELECT "method_code_id" FROM "payment_options"
        WHERE "tenant_id" = $1::uuid AND "name" = 'Bonifico (MP05) - ns. banca'`,
       tenants[0],
@@ -219,7 +237,8 @@ describe('migration modalità pagamento normative — C2A su PostgreSQL TEST', (
   });
 
   it('non tocca le voci create dall_utente, anche se il nome coincide', async () => {
-    const [riga] = await prisma.$queryRawUnsafe<{ method_code_id: string | null }[]>(
+    const riga = await unaRiga<{ method_code_id: string | null }>(
+      prisma,
       `SELECT "method_code_id" FROM "payment_options"
        WHERE "tenant_id" = $1::uuid AND "is_system" = false`,
       tenants[0],
@@ -228,7 +247,8 @@ describe('migration modalità pagamento normative — C2A su PostgreSQL TEST', (
   });
 
   it('il database RIFIUTA di collegare una condizione di pagamento', async () => {
-    const [codice] = await prisma.$queryRawUnsafe<{ id: string }[]>(
+    const codice = await unaRiga<{ id: string }>(
+      prisma,
       `SELECT "id" FROM "payment_method_codes" WHERE "code" = 'MP01'`,
     );
     await expect(
@@ -253,7 +273,7 @@ describe('migration modalità pagamento normative — C2A su PostgreSQL TEST', (
     await prisma.paymentOption.createMany({
       data: [
         {
-          tenantId: tenants[1],
+          tenantId: tenantDiProva(1),
           kind: 'method',
           name: 'Voce da backup vecchio',
           sortOrder: 900,
@@ -262,7 +282,7 @@ describe('migration modalità pagamento normative — C2A su PostgreSQL TEST', (
       ],
     });
     const riga = await prisma.paymentOption.findFirst({
-      where: { tenantId: tenants[1], name: 'Voce da backup vecchio' },
+      where: { tenantId: tenantDiProva(1), name: 'Voce da backup vecchio' },
     });
     expect(riga?.methodCodeId).toBeNull();
   });
@@ -272,7 +292,7 @@ describe('migration modalità pagamento normative — C2A su PostgreSQL TEST', (
     await prisma.paymentOption.createMany({
       data: [
         {
-          tenantId: tenants[1],
+          tenantId: tenantDiProva(1),
           kind: 'method',
           name: 'Voce da backup nuovo',
           sortOrder: 901,
@@ -282,7 +302,7 @@ describe('migration modalità pagamento normative — C2A su PostgreSQL TEST', (
       ],
     });
     const riga = await prisma.paymentOption.findFirst({
-      where: { tenantId: tenants[1], name: 'Voce da backup nuovo' },
+      where: { tenantId: tenantDiProva(1), name: 'Voce da backup nuovo' },
     });
     expect(riga?.methodCodeId).toBe(codice?.id);
   });
@@ -294,7 +314,8 @@ describe('migration modalità pagamento normative — C2A su PostgreSQL TEST', (
   });
 
   it('non riscrive nomi né snapshot: le 148 forme sono ancora quelle', async () => {
-    const [riga] = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
+    const riga = await unaRiga<{ n: bigint }>(
+      prisma,
       `SELECT count(*) AS n FROM "payment_options"
        WHERE "tenant_id" = $1::uuid AND "name" = ANY($2::text[])`,
       tenants[0],
@@ -312,9 +333,10 @@ describe('migration modalità pagamento normative — C2A su PostgreSQL TEST', (
  */
 async function leggiUpdateDellaMigration(): Promise<string[]> {
   const { readFile } = await import('node:fs/promises');
-  const { fileURLToPath } = await import('node:url');
-  const { dirname, join } = await import('node:path');
-  const qui = dirname(fileURLToPath(import.meta.url));
+  const { join } = await import('node:path');
+  // ⚠️ `__dirname` e non `import.meta.url`: il modulo è compilato in
+  //    CommonJS, dove `import.meta` non esiste — e il tipo lo rifiuta.
+  const qui = __dirname;
   const percorso = join(
     qui,
     '../../../prisma/migrations/20260904120000_modalita_pagamento_normative/migration.sql',
@@ -340,4 +362,17 @@ async function pulisci(prisma: PrismaClient): Promise<void> {
     `DELETE FROM "tenants" WHERE "name" LIKE $1`,
     `${PREFISSO_TENANT}%`,
   );
+}
+
+/**
+ * Prima riga di una query che ne deve tornare esattamente una.
+ *
+ * ⚠️ Con `noUncheckedIndexedAccess` la destrutturazione di un array dà
+ * `T | undefined`: una query di collaudo che non torna nulla è un guasto,
+ * e va detto qui invece di propagarsi come `undefined` in un `expect`.
+ */
+async function unaRiga<T>(prisma: PrismaClient, sql: string, ...valori: unknown[]): Promise<T> {
+  const [riga] = await prisma.$queryRawUnsafe<T[]>(sql, ...valori);
+  if (!riga) throw new Error(`la query non ha restituito righe: ${sql.slice(0, 60)}`);
+  return riga;
 }

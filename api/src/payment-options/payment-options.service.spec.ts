@@ -166,8 +166,9 @@ describe('PaymentOptionsService — modalità normative (C2A)', () => {
         methodCodeId: string | null;
       }[];
       expect(creati).toHaveLength(1);
-      expect(creati[0].name).toBe('PagoPA (MP23)');
-      expect(creati[0].methodCodeId).toBe('id-MP23');
+      const [prima] = creati;
+      expect(prima?.name).toBe('PagoPA (MP23)');
+      expect(prima?.methodCodeId).toBe('id-MP23');
     });
 
     it('COLLEGA una voce di sistema già presente ma scollegata', async () => {

@@ -248,6 +248,7 @@ async function creaTenant(prisma: PrismaClient, n: number): Promise<string> {
      VALUES (gen_random_uuid(), $1, CURRENT_TIMESTAMP) RETURNING "id"`,
     `${PREFISSO} ${n}`,
   );
+  if (!riga) throw new Error('INSERT senza RETURNING');
   return riga.id;
 }
 
@@ -258,6 +259,7 @@ async function creaSede(prisma: PrismaClient, tenantId: string, nome: string): P
     tenantId,
     `${PREFISSO} ${nome}`,
   );
+  if (!riga) throw new Error('INSERT senza RETURNING');
   return riga.id;
 }
 
@@ -277,6 +279,7 @@ async function creaDocumento(
     tenantId,
     locationId,
   );
+  if (!riga) throw new Error('INSERT senza RETURNING');
   return riga.id;
 }
 
