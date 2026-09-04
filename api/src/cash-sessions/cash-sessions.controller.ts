@@ -19,9 +19,15 @@ import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard'
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 
 import { CashCheckoutService, type CheckoutResult } from './cash-checkout.service';
+import {
+  CashReturnService,
+  type ReturnLookupResult,
+  type ReturnResult,
+} from './cash-return.service';
 import { CashSessionsService } from './cash-sessions.service';
 import {
   CashCheckoutDto,
+  CashReturnDto,
   CashSessionLocationQueryDto,
   CashSessionMovementDto,
   ChangeCashSessionDeviceDto,
@@ -50,6 +56,7 @@ export class CashSessionsController {
   constructor(
     private readonly cashSessions: CashSessionsService,
     private readonly checkoutService: CashCheckoutService,
+    private readonly returnService: CashReturnService,
   ) {}
 
   /**
@@ -70,6 +77,38 @@ export class CashSessionsController {
     @Body() dto: CashCheckoutDto,
   ): Promise<CheckoutResult> {
     return this.checkoutService.checkout(tenantId, user, dto);
+  }
+
+  /**
+   * Il richiamo dello scontrino: la vendita originale, con quanto e` gia`
+   * stato reso riga per riga.
+   */
+  @Get('returns/lookup/:documentId')
+  @RequirePermissions(TenantPermission.RetailCashReturn)
+  lookupReturn(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Param('documentId', ParseUUIDPipe) documentId: string,
+    @Query() query: CashSessionLocationQueryDto,
+  ): Promise<ReturnLookupResult> {
+    return this.returnService.lookup(tenantId, user, query.locationId, documentId);
+  }
+
+  /**
+   * Il reso collegato allo scontrino.
+   *
+   * ⭐ `retail.cash_return`, distinto da `retail.register`: restituire denaro
+   * non e` vendere, ed e` la prima operazione della Cassa che fa USCIRE
+   * valore.
+   */
+  @Post('returns')
+  @RequirePermissions(TenantPermission.RetailCashReturn)
+  createReturn(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Body() dto: CashReturnDto,
+  ): Promise<ReturnResult> {
+    return this.returnService.createReturn(tenantId, user, dto);
   }
 
   /** La sessione aperta di una sede, con i totali del cassetto. */

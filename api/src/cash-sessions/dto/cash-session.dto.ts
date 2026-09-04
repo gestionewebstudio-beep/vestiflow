@@ -190,3 +190,70 @@ export class CashCheckoutDto {
   @Type(() => CheckoutPaymentDto)
   payments!: CheckoutPaymentDto[];
 }
+
+// ── Reso collegato allo scontrino (tranche C4R) ────────────────────────────
+
+export class ReturnLineDto {
+  /**
+   * La riga della vendita originale che si sta rettificando.
+   *
+   * ⛔ Obbligatoria: un reso non collegato non è previsto, e senza il legame il
+   * limite cumulativo non sarebbe calcolabile (`docs/25` §12).
+   */
+  @IsUUID()
+  originalLineId!: string;
+
+  @IsInt()
+  @Min(1)
+  quantity!: number;
+}
+
+export class ReturnRefundDto {
+  /** ⛔ Solo Tipi presenti nell'incasso originale: il servizio lo verifica. */
+  @IsUUID()
+  paymentOptionId!: string;
+
+  /** ⭐ POSITIVO: la direzione la dà il tipo documento `store_return`. */
+  @IsInt()
+  @Min(1)
+  amountMinor!: number;
+
+  @IsOptional()
+  @IsBoolean()
+  confirmed?: boolean;
+}
+
+export class CashReturnDto {
+  @IsUUID()
+  locationId!: string;
+
+  @IsUUID()
+  sessionId!: string;
+
+  /** La vendita richiamata. */
+  @IsUUID()
+  originalDocumentId!: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  creationIntentId!: string;
+
+  /** Il motivo del reso, obbligatorio. */
+  @IsString()
+  @MinLength(1)
+  @MaxLength(300)
+  reason!: string;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => ReturnLineDto)
+  lines!: ReturnLineDto[];
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => ReturnRefundDto)
+  refunds!: ReturnRefundDto[];
+}

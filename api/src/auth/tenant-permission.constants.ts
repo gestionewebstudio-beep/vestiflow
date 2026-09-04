@@ -54,6 +54,14 @@ export const TenantPermission = {
    * di aprire e chiudere senza poter prelevare.
    */
   RetailCashDrawer: 'retail.cash_drawer',
+  /**
+   * Reso di cassa collegato a uno scontrino.
+   *
+   * ⭐ Distinto da `retail.register`: restituire denaro non e' vendere, ed e'
+   * la prima operazione della Cassa che fa USCIRE valore. Chi sta al banco
+   * puo` vendere tutto il giorno senza poter rimborsare.
+   */
+  RetailCashReturn: 'retail.cash_return',
   ReportsExport: 'reports.export',
   SettingsCompany: 'settings.company',
   /**
@@ -244,6 +252,13 @@ export const TENANT_PERMISSION_DEFINITIONS: readonly TenantPermissionDefinition[
     group: 'sales',
   },
   {
+    key: TenantPermission.RetailCashReturn,
+    label: 'Resi di cassa',
+    hint:
+      'Richiama uno scontrino e rimborsa articoli restituiti. Il rimborso non puo` superare quanto incassato, e solo con i tipi di pagamento della vendita originale.',
+    group: 'sales',
+  },
+  {
     key: TenantPermission.RetailCashDrawer,
     label: 'Versamenti e prelievi di cassa',
     hint:
@@ -351,6 +366,7 @@ const MANAGER_DEFAULTS: readonly TenantPermissionKey[] = [
   TenantPermission.RetailRegister,
   TenantPermission.RetailCashSession,
   TenantPermission.RetailCashDrawer,
+  TenantPermission.RetailCashReturn,
   TenantPermission.ReportsExport,
   TenantPermission.DocumentsConfigure,
   TenantPermission.ReportsFiscalRegister,

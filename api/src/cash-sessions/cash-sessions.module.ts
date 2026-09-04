@@ -5,6 +5,7 @@ import { CreationIntentService } from '../common/idempotency/creation-intent.uti
 import { DocumentsModule } from '../documents/documents.module';
 
 import { CashCheckoutService } from './cash-checkout.service';
+import { CashReturnService } from './cash-return.service';
 import { CashSessionsController } from './cash-sessions.controller';
 import { CashSessionsService } from './cash-sessions.service';
 
@@ -21,7 +22,7 @@ import { CashSessionsService } from './cash-sessions.service';
 @Module({
   imports: [ChannelsModule, DocumentsModule],
   controllers: [CashSessionsController],
-  providers: [CashSessionsService, CashCheckoutService, CreationIntentService],
-  exports: [CashSessionsService, CashCheckoutService],
+  providers: [CashSessionsService, CashCheckoutService, CashReturnService, CreationIntentService],
+  exports: [CashSessionsService, CashCheckoutService, CashReturnService],
 })
 export class CashSessionsModule {}
