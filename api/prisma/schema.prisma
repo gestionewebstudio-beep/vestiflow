@@ -3486,9 +3486,7 @@ model FiscalDevice {
   /// Modello dichiarato dal dispositivo (testo: i cataloghi dei produttori
   /// non sono enumerabili a priori).
   model           String?
-  /// Versione di firmware, dato strutturato perche' il comportamento fiscale
-  /// puo' cambiare fra due firmware dello stesso modello.
-  firmwareVersion String?           @map("firmware_version")
+
 
   /// ⭐ Chiave dell'adapter che parla con questo dispositivo, APERTA e
   /// VERSIONABILE: `<fornitore>.<protocollo>.<versione>`.

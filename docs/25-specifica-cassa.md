@@ -32,10 +32,10 @@ banco**. Scritta il 04/09/2026 come tranche **C0** del recupero da
 | 16  | Reso e chiusura sono **subordinati**, non voci di menu                                           | §3                |
 | 17  | Il reso dichiara **quale riga** rettifica: il cumulativo si ricostruisce, non si contabilizza    | §12-bis           |
 | 18  | Il rimborso è agganciato alla **quota di incasso**, non al Tipo pagamento                        | §13-quater        |
-| 19  | La chiusura è **cieca** e **congela** gli attesi: la differenza resta derivata                    | §9, §13-quinquies |
-| 20  | Il **validatore** blocca la riga di sessione: è l’unico punto di serializzazione della Cassa      | §13-sexies        |
-| 21  | «Operazione di Cassa» = documento con **sessione**: la contabilità resta quella dei documenti     | §13-septies       |
-| 22  | Nessun dato di **stato fiscale** finché C5 non esiste: si dice a parole, non si simula            | §13-septies       |
+| 19  | La chiusura è **cieca** e **congela** gli attesi: la differenza resta derivata                   | §9, §13-quinquies |
+| 20  | Il **validatore** blocca la riga di sessione: è l’unico punto di serializzazione della Cassa     | §13-sexies        |
+| 21  | «Operazione di Cassa» = documento con **sessione**: la contabilità resta quella dei documenti    | §13-septies       |
+| 22  | Nessun dato di **stato fiscale** finché C5 non esiste: si dice a parole, non si simula           | §13-septies       |
 
 In caso di contrasto fra questo elenco e il corpo del documento, **vale l'elenco**.
 
@@ -1045,6 +1045,37 @@ fiscalizzare** e la cassa emette subito dopo la conferma».
 driver era il database a farla. Aperta la chiave, la whitelist deve tornare **esplicita nel
 codice** — o un valore scritto da un tenant diventerebbe il nome di qualcosa da caricare.
 
+### ⭐ Le colonne che C5 riempirà, e una che non serviva a nessuno _(04/09/2026)_
+
+> **Una colonna del contratto si tiene anche se oggi è vuota. Una colonna che nessun
+> requisito nomina e nessun consumatore legge, no.**
+
+Misurate le dieci migration di questo ramo, colonna per colonna, contro «chi la usa nel
+codice»:
+
+| Colonna                           | Consumatori oggi                | Sorte                                                       |
+| --------------------------------- | ------------------------------- | ----------------------------------------------------------- |
+| `fiscal_devices.adapter_config`   | nessuno                         | ✅ **resta**: la valida il punto 7 qui sopra, la riempie C5 |
+| `fiscal_receipts.closure_number`  | nessuno                         | ✅ **resta**: è nel contratto di C4R, poco più sotto        |
+| `fiscal_devices.firmware_version` | nessuno, **e nessun requisito** | ⛔ **rimossa**                                              |
+
+⛔ **Il firmware non era una decisione: era un'aggiunta per somiglianza** — «un registratore
+ce l'ha». La motivazione scritta nella migration («il comportamento fiscale può cambiare fra
+due firmware dello stesso modello») è vera e non era di nessuno: non la chiedeva nessuna
+sezione di questo documento, e a leggerla ci arrivava solo una prova scritta insieme alla
+colonna.
+
+⚠️ **La finestra per toglierla era ADESSO**, ed è la sola ragione per cui la si è tolta
+invece di annotarla: le dieci migration del ramo erano applicate **al solo database
+usa-e-getta** — verificato in sola lettura su `_prisma_migrations`, 0 su 10 nel condiviso e
+10 su 10 nell'usa-e-getta. Non c'era nessuno stato da preservare, quindi il file di
+migration si è corretto in posto.
+
+⭐ **Dopo l'applicazione al condiviso la stessa correzione sarebbe una migration nuova**, su
+un database che porta anche il lavoro di un altro ramo — cioè la cosa che `regole-qualita`
+vieta di fare alla leggera. La differenza fra le due situazioni è tutta qui, e vale la pena
+farsi la domanda «serve a qualcuno?» **prima** di applicare, non dopo.
+
 ### ⚠️ La cronologia dei ritentativi oggi si perde
 
 `FiscalReceipt` ha `documentId @unique` e campi scalari singoli — `status`, `rawResponse`,
@@ -1193,6 +1224,7 @@ battuta su una cassa esterna. Il reso **di Cassa** è un percorso diverso
 (`cash-return.service.ts`) e parte sempre dal richiamo dello scontrino.
 
 ---
+
 ## 13. Sicurezza e permessi
 
 ⚠️ **Oggi esiste un solo permesso retail: `retail.register`**, e governa la **Vendita al
@@ -1441,12 +1473,12 @@ La prima stesura calcolava il residuo rimborsabile per `paymentOptionId`. Il Tip
 l’identità di un incasso: **la quota lo è**. Tre casi lo rompevano, e il secondo è il più
 grave perché fa uscire denaro due volte:
 
-| Caso                                                  | Effetto                                                                   |
-| ----------------------------------------------------- | ------------------------------------------------------------------------- |
-| Tipo **eliminato** (C4A lo permette)                  | la quota spariva dalla mappa: quel denaro non era più rimborsabile        |
+| Caso                                                  | Effetto                                                                               |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Tipo **eliminato** (C4A lo permette)                  | la quota spariva dalla mappa: quel denaro non era più rimborsabile                    |
 | Tipo eliminato **dopo un rimborso parziale**          | ⛔ quel rimborso usciva dal cumulativo: **lo stesso incasso si restituiva due volte** |
-| Due quote della **stessa classe** (due carte diverse) | si sommavano in una sola, e il residuo dell’una copriva l’altra           |
-| Due resi **concorrenti su righe prodotto diverse**    | non competevano su nessuna riga: il lock stava solo sulle righe           |
+| Due quote della **stessa classe** (due carte diverse) | si sommavano in una sola, e il residuo dell’una copriva l’altra                       |
+| Due resi **concorrenti su righe prodotto diverse**    | non competevano su nessuna riga: il lock stava solo sulle righe                       |
 
 ⚠️ **Il Tipo RINOMINATO non era un caso a sé**, ed è la parte che già funzionava: gli
 snapshot di C4A conservano il nome di allora, e il rimborso li copia dalla quota — non
@@ -1514,14 +1546,14 @@ aperta, non quella dello scontrino richiamato.
 
 ### Le prove, e cosa falsifica cosa
 
-| Guasto introdotto                                     | Prova che diventa rossa                                    |
-| ----------------------------------------------------- | ---------------------------------------------------------- |
-| lock sulle quote disattivato                          | `due resi CONCORRENTI su righe DIVERSE, stessa quota`      |
-| cumulativo contato per Tipo (difetto originale)       | `il cumulativo regge anche dopo l_eliminazione del Tipo`   |
-| quote senza Tipo saltate                              | `un Tipo ELIMINATO non impedisce il rimborso`              |
-| controllo della quota ripetuta rimosso                | `la stessa quota non compare due volte nello stesso rimborso` |
+| Guasto introdotto                                              | Prova che diventa rossa                                                  |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| lock sulle quote disattivato                                   | `due resi CONCORRENTI su righe DIVERSE, stessa quota`                    |
+| cumulativo contato per Tipo (difetto originale)                | `il cumulativo regge anche dopo l_eliminazione del Tipo`                 |
+| quote senza Tipo saltate                                       | `un Tipo ELIMINATO non impedisce il rimborso`                            |
+| controllo della quota ripetuta rimosso                         | `la stessa quota non compare due volte nello stesso rimborso`            |
 | indice unico `(document_id, refunded_from_payment_id)` rimosso | `la stessa quota di incasso NON si rimborsa due volte nello stesso reso` |
-| self-FK portata a `SET NULL`                          | `la quota di incasso non si cancella finche` un rimborso la restituisce` |
+| self-FK portata a `SET NULL`                                   | `la quota di incasso non si cancella finche` un rimborso la restituisce` |
 
 ⚠️ **Due prove sono state riscritte perché NON isolavano**, e la seconda passava per il
 motivo sbagliato:
@@ -1541,6 +1573,7 @@ fallisce prima di ricrearlo, cadono anche quelle dopo. Misurato — un guasto so
 prove rosse. Le due prove usano ora un Tipo **usa-e-getta**.
 
 ---
+
 ## 13-quinquies. C4B — la chiusura, e la quadratura congelata
 
 ⭐ **Realizzata il 04/09/2026** (`cash-closing.service.ts`), **senza migration**: le
@@ -1622,19 +1655,20 @@ fatto.
 
 ### Le prove, e cosa falsifica cosa
 
-| Guasto introdotto                                | Prova che diventa rossa                            |
-| ------------------------------------------------ | -------------------------------------------------- |
-| condizione `status = open` tolta dall’update     | `due chiusure SIMULTANEE`                          |
-| filtro sui documenti annullati tolto             | `i documenti ANNULLATI non contribuiscono`         |
+| Guasto introdotto                                     | Prova che diventa rossa                           |
+| ----------------------------------------------------- | ------------------------------------------------- |
+| condizione `status = open` tolta dall’update          | `due chiusure SIMULTANEE`                         |
+| filtro sui documenti annullati tolto                  | `i documenti ANNULLATI non contribuiscono`        |
 | classe letta dal Tipo corrente invece che dalla quota | `riclassificare il Tipo NON sposta la quadratura` |
-| ramo di ripiego aggiunto allo `switch`           | `una quota VOUCHER ferma la quadratura`            |
-| il fondo aggiunto anche all’elettronico          | `la quadratura: fondo, vendite, resi…`             |
+| ramo di ripiego aggiunto allo `switch`                | `una quota VOUCHER ferma la quadratura`           |
+| il fondo aggiunto anche all’elettronico               | `la quadratura: fondo, vendite, resi…`            |
 
 ⚠️ **Una prova che riclassifica il Tipo CONDIVISO lega le successive alla propria
 riuscita**: se fallisce prima di rimetterlo a posto, cadono anche quelle dopo. Usa un Tipo
 usa-e-getta — è la stessa lezione di §13-quater, arrivata da una falsificazione.
 
 ---
+
 ## 13-sexies. Il punto di serializzazione della sessione
 
 ⭐ **Deciso e realizzato il 04/09/2026**, chiudendo C4B: `assertCashContext` prende un
@@ -1680,20 +1714,20 @@ in corsa la chiusura con un’altra operazione.
 
 ### Il risultato, nei due versi
 
-| Chi prende il lock per primo | Che cosa succede                                                          |
-| ---------------------------- | ------------------------------------------------------------------------- |
-| **l’operazione**             | conclude, e la chiusura — che ha aspettato — la **include** negli attesi  |
-| **la chiusura**              | l’operazione attende, poi trova la sessione chiusa ed è **rifiutata**     |
+| Chi prende il lock per primo | Che cosa succede                                                         |
+| ---------------------------- | ------------------------------------------------------------------------ |
+| **l’operazione**             | conclude, e la chiusura — che ha aspettato — la **include** negli attesi |
+| **la chiusura**              | l’operazione attende, poi trova la sessione chiusa ed è **rifiutata**    |
 
 ⛔ **Non esiste il terzo caso**: una vendita, un reso o un movimento confermato dopo il
 calcolo e assente dagli attesi congelati.
 
-| Prova (`chiusura-cassa.integration-spec.ts`)                      | Che cosa mette in corsa                 |
-| ------------------------------------------------------------------ | --------------------------------------- |
-| `una vendita IN VOLO non resta fuori dagli attesi congelati`       | checkout fermo sul numeratore, poi chiusura |
-| `un RESO in volo non resta fuori dagli attesi congelati`           | reso fermo sul suo numeratore           |
-| `chiusura prima: il movimento attende e poi viene rifiutato`       | chiusura in testa, versamento in coda   |
-| `movimento prima: la chiusura lo aspetta e lo conta`               | versamento in testa, chiusura in coda   |
+| Prova (`chiusura-cassa.integration-spec.ts`)                 | Che cosa mette in corsa                     |
+| ------------------------------------------------------------ | ------------------------------------------- |
+| `una vendita IN VOLO non resta fuori dagli attesi congelati` | checkout fermo sul numeratore, poi chiusura |
+| `un RESO in volo non resta fuori dagli attesi congelati`     | reso fermo sul suo numeratore               |
+| `chiusura prima: il movimento attende e poi viene rifiutato` | chiusura in testa, versamento in coda       |
+| `movimento prima: la chiusura lo aspetta e lo conta`         | versamento in testa, chiusura in coda       |
 
 ⚠️ **Tolto il `FOR UPDATE`, arrossano tutte e quattro.** Le sei prove-barriera invece
 restano verdi: è la ragione per cui non bastano.
@@ -1728,6 +1762,7 @@ richiamo dello scontrino passano dal validatore **senza** `sessionId`, quindi no
 il lock. Consultare la cassa non deve mettersi in fila dietro a chi vende.
 
 ---
+
 ## 13-septies. La consultazione e le schermate
 
 ⭐ **Realizzate il 04/09/2026.** Le API di proiezione e le sette schermate che le
@@ -1735,12 +1770,12 @@ usano, su tre aree: Vendita · Operazioni · Sessioni.
 
 ### Il registro operativo NON è il Registro corrispettivi
 
-| | **Registro corrispettivi** | **Operazioni di Cassa** |
-| --- | --- | --- |
-| che cos’è | **contabile** | **operativo** |
-| che cosa aggrega | valori economici di **tutte** le origini | vendite e resi **di Cassa**, riga per riga |
-| che cosa mostra | imponibile, IVA, totale, per periodo | chi, quando, con quali quote, con quale resto |
-| chi lo alimenta | i documenti, per **tipo** | gli stessi documenti, per **sessione** |
+|                  | **Registro corrispettivi**               | **Operazioni di Cassa**                       |
+| ---------------- | ---------------------------------------- | --------------------------------------------- |
+| che cos’è        | **contabile**                            | **operativo**                                 |
+| che cosa aggrega | valori economici di **tutte** le origini | vendite e resi **di Cassa**, riga per riga    |
+| che cosa mostra  | imponibile, IVA, totale, per periodo     | chi, quando, con quali quote, con quale resto |
+| chi lo alimenta  | i documenti, per **tipo**                | gli stessi documenti, per **sessione**        |
 
 ⛔ **Le operazioni di Cassa alimentano il Registro contabile senza che nessuno lo
 abbia scritto**, e va detto perché quella catena non è visibile da nessuna parte: il
@@ -1778,10 +1813,10 @@ scritto qui invece di lasciare un filtro che perde silenziosamente un caso.
 
 La prima stesura del registro portava un campo che valeva sempre «non disponibile».
 
-| Perché è stato tolto | |
-| --- | --- |
-| **non informa** | un campo con un valore solo non distingue niente |
-| **invita a mostrarlo** | e da «non disponibile» a «emesso» il passo è corto |
+| Perché è stato tolto       |                                                                        |
+| -------------------------- | ---------------------------------------------------------------------- |
+| **non informa**            | un campo con un valore solo non distingue niente                       |
+| **invita a mostrarlo**     | e da «non disponibile» a «emesso» il passo è corto                     |
 | **è vocabolario ritirato** | `check:registro-legacy` lo rifiuta: il Registro classifica per ORIGINE |
 
 ⭐ **A dirlo è la SCHERMATA, a parole**: «Vendita registrata — fiscalizzazione non
@@ -1831,6 +1866,7 @@ categoria vera (`mixin`: lo scrollport ce l’hanno), e la migrazione è segnata
 `docs/DA-FARE.md`.
 
 ---
+
 ## 14. Riuso: cosa si condivide e cosa resta distinto
 
 ⛔ **Non si copia la maschera Vendita al banco per costruire la Cassa**, e non si copia il

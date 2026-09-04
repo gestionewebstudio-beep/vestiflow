@@ -65,8 +65,3 @@ ALTER TABLE "fiscal_devices" ADD COLUMN "adapter_key" TEXT;
 --    (`regole-sicurezza`), mai in una colonna leggibile del tenant.
 ALTER TABLE "fiscal_devices" ADD COLUMN "adapter_config" JSONB;
 
--- ── 4. Il firmware e' un dato, non una nota ────────────────────────────────
---
--- Il comportamento fiscale puo' cambiare fra due firmware dello STESSO
--- modello: tenerlo in `notes` significa non poterlo confrontare.
-ALTER TABLE "fiscal_devices" ADD COLUMN "firmware_version" TEXT;

@@ -127,7 +127,6 @@ describe('dispositivo fiscale provider-neutral — C1B su PostgreSQL TEST', () =
         locationId: sedeA,
         brand: 'epson',
         adapterKey: 'fornitore.protocollo-a.v1',
-        firmwareVersion: '1.2.3',
       },
     });
     const b = await prisma.fiscalDevice.create({
@@ -136,13 +135,11 @@ describe('dispositivo fiscale provider-neutral — C1B su PostgreSQL TEST', () =
         locationId: sedeA,
         brand: 'epson',
         adapterKey: 'fornitore.protocollo-b.v2',
-        firmwareVersion: '4.5.6',
       },
     });
 
     expect(a.brand).toBe(b.brand);
     expect(a.adapterKey).not.toBe(b.adapterKey);
-    expect(a.firmwareVersion).not.toBe(b.firmwareVersion);
   });
 
   it('la configurazione dell_adapter è un dato strutturato, senza segreti', async () => {
