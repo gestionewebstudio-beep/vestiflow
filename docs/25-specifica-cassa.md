@@ -24,6 +24,8 @@ banco**. Scritta il 04/09/2026 come tranche **C0** del recupero da
 | 8   | Ogni RT ha **numerazione e chiusura proprie**: si conserva sempre **chi ha emesso**           | §10               |
 | 9   | La Cassa classifica i Tipi pagamento con `PaymentTenderKind`: **operativa**, non fiscale      | §7                |
 | 10  | La rappresentazione fiscale AdE e il protocollo del dispositivo stanno in **C5**              | §10, §15          |
+| 11  | Il contante si **conta**, l'elettronico si **riconcilia**: sono due gesti diversi             | §9                |
+| 12  | I cambi di dispositivo hanno uno **storico append-only**, non una colonna riscritta           | §10               |
 
 In caso di contrasto fra questo elenco e il corpo del documento, **vale l'elenco**.
 
@@ -207,6 +209,26 @@ creerebbe un terzo vocabolario travestito da secondo.
 
 ⛔ **«Misto» si calcola dalle quote e non si persiste** — §6, ed è una decisione già
 vigente (§0.4).
+
+### ⚠️ Una riga legacy esiste già, e vincola la forma della migration C4
+
+Misurato sul condiviso in sola lettura e **provato** sul database usa-e-getta il 04/09/2026:
+`store_sale_payments` contiene **una riga**, `{ method: "cash", amount_minor: 0,
+tendered_minor: null }`.
+
+```text
+FK nullable a payment_options            ✅ passa
+snapshot nome e tenderKind, nullable     ✅ passa
+CHECK  amount_minor >= 0                 ✅ passa
+
+CHECK  amount_minor > 0                  ⛔ BLOCCATA da quella riga
+tender_kind  SET NOT NULL                ⛔ BLOCCATA da quella riga
+```
+
+⭐ **Non è un ostacolo, è un vincolo di forma**: la migration C4 deve essere **additiva e
+nullable**, come C2A e C2B. Se servisse davvero un importo strettamente positivo o uno
+snapshot obbligatorio, quella riga va prima **decisa** — corretta, o dichiarata legittima e
+il vincolo allentato. ⛔ Non si scopre applicando la migration.
 
 ### Che cosa la PRIMA versione non fa
 
@@ -563,6 +585,64 @@ La vendita non è conclusa, il documento non risulta pagato, **il documento comm
 si emette**, i movimenti di magazzino non si duplicano, e il checkout **resta recuperabile**
 per un nuovo tentativo o per l'annullamento.
 
+### ⭐ La chiusura: il contante si CONTA, l'elettronico si RICONCILIA
+
+> **Sono due gesti diversi, e avevano lo stesso nome.** `countedCardMinor` presupponeva
+> che la carta si contasse, che fisicamente non accade.
+
+| Grandezza                 | Che cos'è                                                                |
+| ------------------------- | ------------------------------------------------------------------------ |
+| `countedCashMinor`        | il contante **contato** aprendo il cassetto                              |
+| `declaredElectronicMinor` | il totale che l'operatore **legge sul POS** e dichiara — **facoltativo** |
+| `expectedCashMinor`       | atteso **calcolato** dalle quote e congelato                             |
+| `expectedElectronicMinor` | idem, per l'elettronico                                                  |
+
+⛔ **`declaredElectronicMinor` NON è una risposta tecnica del terminale.** VestiFlow non
+parla col POS e non finge di averlo fatto: è una dichiarazione dell'operatore, e `NULL`
+significa «non riconciliato» — una chiusura legittima.
+
+⛔ **La differenza di cassa non è una colonna**: è `countedCash − expectedCash`, entrambi
+congelati. Persisterla creerebbe un terzo valore capace di contraddire i due da cui deriva.
+
+⚠️ **Nessuna colonna voucher, e non è una dimenticanza**: C2B li modella ma non li abilita.
+Le vecchie `*_other_minor` sono state **rimosse** invece che rinominate — `other` era la
+discarica dei metodi sconosciuti, non i buoni, e tradurla in `voucher` sarebbe stato
+scrivere una cosa per un'altra.
+
+### Le formule — si calcolano e si congelano in C4B, non prima
+
+⛔ **Nessuna è calcolabile finché le quote non esistono** (C4). Fino ad allora gli attesi
+restano `NULL`, e questo è il contratto che C4B eseguirà:
+
+```text
+fondo             openingFloatMinor                                   (all'apertura, ≥ 0)
+venditeCash       Σ quote  tenderKind=cash        su documenti store_sale
+resiCash          Σ quote  tenderKind=cash        su documenti store_return
+venditeElettr.    Σ quote  tenderKind=electronic  su documenti store_sale
+resiElettr.       Σ quote  tenderKind=electronic  su documenti store_return
+versamenti        Σ movements type=deposit
+prelievi          Σ movements type=withdrawal
+
+expectedCashMinor        = fondo + venditeCash − resiCash + versamenti − prelievi
+expectedElectronicMinor  = venditeElettr. − resiElettr.      ⭐ né fondo né cassetto
+differenza               = countedCashMinor − expectedCashMinor      (derivata)
+
+sessione senza vendite:  expectedCash = fondo + versamenti − prelievi
+                         expectedElectronic = 0
+```
+
+⛔ **I documenti ANNULLATI non contribuiscono**, e va detto perché è l'errore che il ramo
+storico faceva: la sua query era `where: { tenantId, document: { cashSessionId: {...} } }`
+— **nessun filtro su `status`**. Un `store_sale` annullato entrava negli attesi.
+
+⛔ **E la classe la porta la QUOTA, non il Tipo corrente**: è lo snapshot di `tenderKind`
+del contratto §5-bis. Senza, riclassificare un Tipo domani cambierebbe la quadratura di una
+sessione chiusa a marzo.
+
+⚠️ **L'aggregazione è ESAUSTIVA sull'enum**, mai con un ramo di ripiego. Il `bucket()` del
+ramo storico mandava «ogni metodo sconosciuto» in `other`: con `tenderKind` quella riga
+farebbe sparire una classe nuova **in silenzio**.
+
 ### Idempotenza
 
 ⭐ **L'identità d'intento esiste già** e va usata: `CreationIntent` (`intentId` generato dal
@@ -714,6 +794,53 @@ Dichiarato ora perché la strada resti aperta, **non da fare**:
 - la quadratura diventa **per postazione**: fondo, movimenti, conteggio, chiusura;
 - ⭐ il legame dispositivo↔sessione di C1C **resta valido**: la sessione appartiene alla
   postazione, e continua a dichiarare il proprio dispositivo.
+
+### ⭐ Il cambio di dispositivo lascia una traccia — C2C
+
+⚠️ C1C ha reso `cash_sessions.fiscal_device_id` il dispositivo **operativo corrente**.
+Riscriverlo perde il **momento** e la **ragione** del passaggio al muletto — che è proprio
+ciò che serve quando si riconcilia una chiusura con due serie fiscali.
+
+```text
+cash_session_device_changes     append-only, NESSUN updated_at
+  tenant · location · session
+  previousDeviceId?   ⭐ NULL al primo assegnamento: non è un dato mancante, è l'inizio
+  newDeviceId?        ⭐ NULL quando si toglie: la sessione smette di fiscalizzare
+  reason              obbligatoria, come sui movimenti di cassetto
+  changedById? · changedByName · createdAt
+```
+
+⛔ **Non è un `CashSessionMovement`**: un cambio dispositivo non è un movimento di denaro, e
+rappresentarlo lì richiederebbe di inventare un importo e di aggiungere un terzo valore a
+`deposit | withdrawal`.
+
+⛔ **Nessuna API di modifica o cancellazione**, e la garanzia è **strutturale**: la tabella
+non ha `updated_at`. Una riga sbagliata si corregge con una riga nuova che lo dice.
+
+#### Gli `onDelete`, e perché
+
+| FK                                 |              |                                                                                                                                                                   |
+| ---------------------------------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `previousDeviceId` · `newDeviceId` | **RESTRICT** | ⛔ mai `SET NULL`: azzererebbe l'identità che lo storico esiste per conservare, e in silenzio. È la stessa correzione fatta da C1C su `fiscal_receipts.device_id` |
+| `sessionId`                        | **CASCADE**  | come per i movimenti: senza la sessione, lo storico non ha più un soggetto                                                                                        |
+| `tenantId` · `locationId`          | RESTRICT     | come ovunque                                                                                                                                                      |
+
+⚠️ **Ne discende che un dispositivo nominato in uno storico non si cancella più.** È voluto:
+un dispositivo si **disabilita**, e disabilitarlo non tocca lo storico — C1B lo ha reso la
+strada prevista.
+
+#### ⛔ Che cosa il database NON garantisce, e resta a C3
+
+Le chiavi esterne legano gli identificativi **uno per uno** (§13, limite ereditato). Restano
+al **validatore transazionale**:
+
+- che la sessione appartenga al tenant e alla sede indicati;
+- che i due dispositivi appartengano allo stesso tenant e alla stessa sede della sessione;
+- che `previousDeviceId` sia davvero il dispositivo corrente al momento del cambio;
+- che la sessione sia **aperta**.
+
+⚠️ **Dentro la transazione che scrive**: fra un controllo fuori transazione e la scrittura,
+la sessione può chiudersi.
 
 ### Il trasporto non è deciso, e il modello non deve deciderlo
 
@@ -1010,6 +1137,35 @@ l'orchestratore del documento, e la Cassa è l'altro orchestratore.
 
 ---
 
+## 14-bis. Il contratto dei componenti di pagamento
+
+⛔ **Scritto ora perché non venga deciso mentre lo si scrive.** Nessun componente si
+implementa in C2C.
+
+| Livello                                             |                    |                                                                   |
+| --------------------------------------------------- | ------------------ | ----------------------------------------------------------------- |
+| **anagrafica `PaymentOption`, servizio, selettore** | ✅ **condivisi**   | esistono, e la Cassa li usa come sono                             |
+| **componente finanziaria dei documenti**            | resta **distinta** | scadenze, condizioni, esposizione: un documento si paga nel tempo |
+| **componente Cassa per le quote immediate**         | **specializzato**  | si incassa adesso, in una o più quote, e si chiude                |
+
+⭐ **Il componente Cassa è PRESENTAZIONALE**: riceve i Tipi ammessi, il totale e le quote,
+e restituisce **un valore validato**. Nient'altro.
+
+⛔ **Restano al backend**, e non si spostano nel componente per comodità: persistenza,
+idempotenza, tenant, sessione, movimenti.
+
+⛔ **Nessuna copia locale del catalogo Pagamenti.** Un secondo elenco diverge dal primo, e
+diverge in silenzio: è la stessa ragione per cui il catalogo normativo di C2A è **globale**
+e non per tenant.
+
+⛔ **Nessuna dipendenza dalla UI della Vendita al banco.** Sono due flussi distinti (§1), e
+un componente condiviso fra i due li legherebbe di nuovo — proprio ciò che C0 ha separato.
+
+⚠️ **«Tipi ammessi» significa `tenderKind IS NOT NULL` e `isActive`**, deciso dal backend:
+il componente non filtra il catalogo, lo riceve già filtrato.
+
+---
+
 ## 15. La sequenza
 
 | Tranche | Contenuto                                                                                                                                     | Migration               |
@@ -1020,6 +1176,7 @@ l'orchestratore del documento, e la Cassa è l'altro orchestratore.
 | **C1C** | il dispositivo fiscale si lega alla **sessione**; `fiscal_receipts.device_id` smette di perdere chi ha emesso                                 | ✅ additiva + FK        |
 | **C2A** | catalogo globale delle Modalità normative, codice FatturaPA strutturato, FK nullable da `PaymentOption`, backfill esplicito, Impostazioni     | ✅ additiva, nullable   |
 | **C2B** | classificazione **operativa** dei Tipi pagamento per il checkout (`PaymentTenderKind`), backfill dichiarato, Impostazioni, backup             | ✅ additiva, nullable   |
+| **C2C** | consolidamento dello schema dormiente: vocabolario della chiusura secondo C2B, storico append-only dei cambi dispositivo                      | ✅ rinomina + tabella   |
 | **C3**  | **isolamento tenant/location** e **ciclo della sessione**: apertura, chiusura, fondo, movimenti di cassetto, conteggio, differenze            | —                       |
 | **C4**  | **checkout**: quote, pagamento misto, resto, carta rifiutata, creazione idempotente, `store_sale_payments` (contratto in §5-bis)              | ✅ prevista             |
 | **C5**  | **fiscalizzazione provider-neutral**: rappresentazione fiscale AdE, adapter, trasporto, dispositivo reale. Nessun produttore è predeterminato | —                       |

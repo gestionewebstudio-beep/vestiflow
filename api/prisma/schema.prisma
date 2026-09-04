@@ -449,6 +449,7 @@ model Tenant {
   storeSalePayments                        StoreSalePayment[]
   cashSessions                             CashSession[]
   cashSessionMovements                     CashSessionMovement[]
+  cashSessionDeviceChanges                 CashSessionDeviceChange[]
   fiscalDevices                            FiscalDevice[]
   fiscalReceipts                           FiscalReceipt[]
   posTerminals                             PosTerminal[]
@@ -692,6 +693,7 @@ model Location {
   /// casse affiancate, o un muletto durante un guasto.
   fiscalDevices              FiscalDevice[]
   cashSessions               CashSession[]
+  cashSessionDeviceChanges   CashSessionDeviceChange[]
   posTerminals               PosTerminal[]
 
   @@index([tenantId])
@@ -3203,9 +3205,9 @@ model StoreSalePayment {
 /// SEMPRE invece che una sola aperta. Stessa disciplina di
 /// `ExternalDocumentType`.
 model CashSession {
-  id                 String            @id @default(uuid()) @db.Uuid
-  tenantId           String            @map("tenant_id") @db.Uuid
-  locationId         String            @map("location_id") @db.Uuid
+  id                String            @id @default(uuid()) @db.Uuid
+  tenantId          String            @map("tenant_id") @db.Uuid
+  locationId        String            @map("location_id") @db.Uuid
   /// ⭐ Il dispositivo fiscale di QUESTA sessione, scelto all'apertura
   /// (tranche C1C, `docs/25` §10). Tolta l'unicita' per sede, una sede puo'
   /// avere piu' dispositivi: la sessione dichiara quale usa, cosi' la
@@ -3219,37 +3221,61 @@ model CashSession {
   /// e va tracciata: le ricevute gia' emesse continuano a riferire il
   /// dispositivo che le ha prodotte (`FiscalReceipt.deviceId`), che e' un
   /// dato diverso da questo.
-  fiscalDeviceId     String?           @map("fiscal_device_id") @db.Uuid
-  status             CashSessionStatus @default(open)
-  openedAt           DateTime          @default(now()) @map("opened_at")
-  openedById         String?           @map("opened_by_id") @db.Uuid
+  fiscalDeviceId    String?           @map("fiscal_device_id") @db.Uuid
+  status            CashSessionStatus @default(open)
+  openedAt          DateTime          @default(now()) @map("opened_at")
+  openedById        String?           @map("opened_by_id") @db.Uuid
   /// Snapshot operatore: l'audit regge anche se l'utente cambia nome.
-  openedByName       String            @map("opened_by_name")
+  openedByName      String            @map("opened_by_name")
   /// Fondo cassa dichiarato all'apertura (contanti nel cassetto).
-  openingFloatMinor  Int               @default(0) @map("opening_float_minor")
-  closedAt           DateTime?         @map("closed_at")
-  closedById         String?           @map("closed_by_id") @db.Uuid
-  closedByName       String?           @map("closed_by_name")
-  notes              String?
-  /// Conteggio dichiarato alla chiusura, per metodo (null finche' aperta).
-  countedCashMinor   Int?              @map("counted_cash_minor")
-  countedCardMinor   Int?              @map("counted_card_minor")
-  countedOtherMinor  Int?              @map("counted_other_minor")
-  /// Attesi CONGELATI alla chiusura: la differenza di cassa e' un fatto
-  /// storico, non un ricalcolo.
-  expectedCashMinor  Int?              @map("expected_cash_minor")
-  expectedCardMinor  Int?              @map("expected_card_minor")
-  expectedOtherMinor Int?              @map("expected_other_minor")
-  createdAt          DateTime          @default(now()) @map("created_at")
-  updatedAt          DateTime          @updatedAt @map("updated_at")
+  openingFloatMinor Int               @default(0) @map("opening_float_minor")
+  closedAt          DateTime?         @map("closed_at")
+  closedById        String?           @map("closed_by_id") @db.Uuid
+  closedByName      String?           @map("closed_by_name")
+  notes             String?
+  /// ⭐ Il CONTANTE si CONTA: l'operatore apre il cassetto e conta. `NULL`
+  /// finche' la sessione e' aperta (tranche C2C, `docs/25` §9).
+  countedCashMinor  Int?              @map("counted_cash_minor")
 
-  tenant    Tenant                @relation(fields: [tenantId], references: [id])
-  location  Location              @relation(fields: [locationId], references: [id])
+  /// ⭐ L'ELETTRONICO si RICONCILIA, non si conta: e' il totale che
+  /// l'operatore LEGGE sul terminale di pagamento e dichiara.
+  ///
+  /// ⛔ NON e' una risposta tecnica del POS: VestiFlow non parla col
+  /// terminale e non finge di averlo fatto. Facoltativo — `NULL` significa
+  /// «non riconciliato», che e' una chiusura legittima.
+  ///
+  /// ⚠️ Era `countedCardMinor`, e il nome presupponeva che la carta si
+  /// contasse: cambia il nome E il significato.
+  declaredElectronicMinor Int? @map("declared_electronic_minor")
+
+  /// Attesi CALCOLATI dalle quote e CONGELATI alla chiusura: la differenza
+  /// di cassa e' un fatto storico, non un ricalcolo.
+  ///
+  /// ⚠️ Restano `NULL` finche' non esistono le quote da cui derivano: il
+  /// calcolo e il congelamento sono di **C4B**, non di C3.
+  ///
+  /// ⛔ La DIFFERENZA non e' una colonna: e' `countedCash - expectedCash`,
+  /// entrambi congelati. Persisterla creerebbe un terzo valore capace di
+  /// contraddire i due da cui deriva.
+  expectedCashMinor       Int? @map("expected_cash_minor")
+  expectedElectronicMinor Int? @map("expected_electronic_minor")
+
+  /// ⛔ Non esiste una colonna VOUCHER, e non e' una dimenticanza: C2B li
+  /// modella ma non li abilita. Le vecchie `*_other_minor` sono state
+  /// RIMOSSE invece che rinominate — `other` era la discarica dei metodi
+  /// sconosciuti, non i buoni, e tradurla in `voucher` sarebbe stato
+  /// scrivere una cosa per un'altra.
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant        Tenant                    @relation(fields: [tenantId], references: [id])
+  location      Location                  @relation(fields: [locationId], references: [id])
   /// ⛔ `Restrict`: una sessione che ha incassato non puo' perdere CON QUALE
   /// dispositivo lo ha fatto. Un dispositivo si disabilita, non si cancella.
-  device    FiscalDevice?         @relation(fields: [fiscalDeviceId], references: [id], onDelete: Restrict)
-  movements CashSessionMovement[]
-  documents Document[]
+  device        FiscalDevice?             @relation(fields: [fiscalDeviceId], references: [id], onDelete: Restrict)
+  movements     CashSessionMovement[]
+  deviceChanges CashSessionDeviceChange[]
+  documents     Document[]
 
   @@index([fiscalDeviceId])
   @@index([tenantId, locationId, status])
@@ -3278,6 +3304,71 @@ model CashSessionMovement {
   @@index([sessionId])
   @@index([tenantId])
   @@map("cash_session_movements")
+}
+
+/// Storico APPEND-ONLY dei cambi di dispositivo di una sessione di cassa
+/// (tranche C2C, `docs/25` §10).
+///
+/// ⭐ C1C ha reso `CashSession.fiscalDeviceId` il dispositivo OPERATIVO
+/// corrente. Riscriverlo perde il momento e la ragione del passaggio al
+/// muletto — che e' proprio cio' che serve quando si riconcilia una chiusura
+/// con due serie fiscali, perche' ogni RT ha numerazione e chiusura proprie.
+///
+/// ⛔ NON e' un `CashSessionMovement`: un cambio dispositivo non e' un
+/// movimento di denaro, e rappresentarlo la' richiederebbe di inventare un
+/// importo e di aggiungere un terzo valore a `deposit | withdrawal`.
+///
+/// ⛔ Nessun `updatedAt`, ed e' la garanzia strutturale dell'append-only:
+/// una riga di storico non si corregge in posto. Se e' sbagliata, il rimedio
+/// e' una riga nuova che lo dice. Nessuna API di modifica o cancellazione.
+model CashSessionDeviceChange {
+  id         String @id @default(uuid()) @db.Uuid
+  tenantId   String @map("tenant_id") @db.Uuid
+  /// ⚠️ Ridondante rispetto alla sessione, e tenuto lo stesso: stessa scelta
+  /// di `CashSessionMovement.tenantId`, e serve a interrogare lo storico
+  /// senza passare da una join.
+  locationId String @map("location_id") @db.Uuid
+  sessionId  String @map("session_id") @db.Uuid
+
+  /// ⭐ `NULL` al PRIMO assegnamento: non e' un dato mancante, e' l'inizio.
+  previousDeviceId String? @map("previous_device_id") @db.Uuid
+  /// ⭐ `NULL` quando il dispositivo si TOGLIE: la sessione smette di
+  /// fiscalizzare.
+  newDeviceId      String? @map("new_device_id") @db.Uuid
+
+  /// ⛔ Due `CHECK` nella migration `20260904180000`, che Prisma non sa
+  /// esprimere: i due dispositivi devono essere DIVERSI
+  /// (`IS DISTINCT FROM`, non `<>`: con `<>` due NULL passerebbero), e
+  /// almeno uno dei due deve essere presente.
+  ///
+  /// ⚠️ Il secondo e' RIDONDANTE, e va detto: `NULL IS DISTINCT FROM NULL`
+  /// vale `false`, quindi il primo CHECK rifiuta gia' le righe con entrambi
+  /// i dispositivi nulli. Resta per dichiarare l'intenzione (misurato il
+  /// 04/09/2026 provando a falsificarlo).
+  ///
+  /// Causale obbligatoria, come su `CashSessionMovement`: un passaggio al
+  /// muletto senza motivo non e' ricostruibile a distanza di mesi.
+  reason        String
+  changedById   String?  @map("changed_by_id") @db.Uuid
+  /// Snapshot operatore: lo storico regge anche se l'utente cambia nome.
+  changedByName String   @map("changed_by_name")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  tenant   Tenant      @relation(fields: [tenantId], references: [id])
+  location Location    @relation(fields: [locationId], references: [id])
+  /// `Cascade`, come per i movimenti: se la sessione non esiste piu', il suo
+  /// storico non ha piu' un soggetto.
+  session  CashSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  /// ⛔ `Restrict`, mai `SetNull`: azzerare il riferimento cancellerebbe
+  /// proprio l'identita' che questo storico esiste per conservare, e lo
+  /// farebbe in silenzio. Un dispositivo si DISABILITA, non si cancella.
+  previousDevice FiscalDevice? @relation("DeviceChangePrevious", fields: [previousDeviceId], references: [id], onDelete: Restrict)
+  newDevice      FiscalDevice? @relation("DeviceChangeNew", fields: [newDeviceId], references: [id], onDelete: Restrict)
+
+  @@index([sessionId, createdAt])
+  @@index([tenantId])
+  @@map("cash_session_device_changes")
 }
 
 /// Dispositivo fiscale configurato su una sede.
@@ -3376,10 +3467,15 @@ model FiscalDevice {
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  tenant   Tenant          @relation(fields: [tenantId], references: [id])
-  location Location        @relation(fields: [locationId], references: [id], onDelete: Cascade)
-  receipts FiscalReceipt[]
-  sessions CashSession[]
+  tenant            Tenant                    @relation(fields: [tenantId], references: [id])
+  location          Location                  @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  receipts          FiscalReceipt[]
+  sessions          CashSession[]
+  /// Storico dei cambi in cui questo dispositivo compare, da una parte o
+  /// dall'altra. Entrambe `Restrict`: finche' e' nominato qui, non si
+  /// cancella.
+  changesAsPrevious CashSessionDeviceChange[] @relation("DeviceChangePrevious")
+  changesAsNew      CashSessionDeviceChange[] @relation("DeviceChangeNew")
 
   @@index([tenantId])
   @@index([locationId])
