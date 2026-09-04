@@ -90,6 +90,55 @@ riporta al punto 1.
 **Da controllare:** se il pannello debba distinguere «collegato» da «sta ricevendo eventi»,
 e se il conteggio dei rifiuti HMAC valga la pena come primo indicatore.
 
+## ⛔ CASSA — due condizioni OBBLIGATORIE prima di dichiararla completa (04/09/2026)
+
+Decise dal proprietario il 04/09/2026, chiudendo C1C. **Non sono note di analisi**: sono
+condizioni di chiusura, e stanno qui perché le prove che le dimostrano sono **verdi** —
+un test verde si legge come comportamento atteso anche quando il suo nome dice il
+contrario.
+
+Contratto completo in `docs/25-specifica-cassa.md` §13.
+
+### 1 · ⛔ Protezione cross-tenant — prima di esporre servizi e API
+
+Il database **accetta** una sessione del tenant A che punta a un dispositivo censito sulla
+sede del tenant B. Le chiavi esterne legano gli identificativi uno per uno e il `tenant_id`
+viaggia in un vincolo separato: **0 FK su 12** vincolano anche il tenant.
+
+```text
+api/src/test/integration/dispositivo-di-sessione.integration-spec.ts
+  «il database NON verifica tenant e sede: la guardia dovrà essere applicativa»
+api/src/test/integration/dispositivo-fiscale-neutrale.integration-spec.ts
+  «il database NON protegge dal cross-tenant»
+```
+
+⚠️ **Non è un difetto introdotto dalla Cassa**: vale per `documents(location_id)` e
+`documents(source_document_id)`, che esistono da molto prima. Ma ogni percorso di scrittura
+nuovo è un'occasione di dimenticare il tenant, e i servizi Cassa sono percorsi nuovi.
+
+⭐ **Come chiuderla è una decisione da prendere**, non da dedurre: vincoli compositi
+`UNIQUE(tenant_id, id)` sulle tabelle bersaglio, RLS, o verifica applicativa centralizzata.
+
+### 2 · ⛔ Cronologia dei tentativi append-only — prima della fiscalizzazione reale
+
+`fiscal_receipts.document_id` è **unico** e i campi di esito sono scalari singoli: un secondo
+tentativo **sovrascrive** la risposta del primo, e del fallimento precedente non resta nulla.
+
+```text
+api/src/test/integration/dispositivo-fiscale-neutrale.integration-spec.ts
+  «la cronologia dei tentativi OGGI si perde: il secondo sovrascrive il primo»
+```
+
+⛔ **Serve proprio quando l'esito è INCERTO** — pagamento riuscito, RT che non risponde —
+cioè nell'unico caso in cui la sua assenza costa una doppia emissione. E con due dispositivi
+nella stessa sede (principale + riserva) le memorie fiscali sono due: senza traccia di quale
+tentativo è andato dove, la riconciliazione con la chiusura giornaliera non si può fare.
+
+⚠️ **Restano fuori dalle migration attuali solo perché oggi non esistono né API né utilizzo
+reale**: `fiscal_receipts` e `cash_sessions` hanno zero righe. Non è una deroga permanente.
+
+---
+
 ## ⏸ SHOPIFY — quello che questa tranche lascia aperto (03/09/2026)
 
 Chiuse in `docs/24`: prodotti importati modificabili (§1.8), push GraphQL dei collegati

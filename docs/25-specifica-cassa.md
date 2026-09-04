@@ -12,14 +12,16 @@ banco**. Scritta il 04/09/2026 come tranche **C0** del recupero da
 
 ## 0. Le decisioni vigenti
 
-| #   | Decisione                                                                              | Dove si argomenta |
-| --- | -------------------------------------------------------------------------------------- | ----------------- |
-| 1   | Vendita al banco e Cassa sono **due flussi distinti**, su **rotte separate**           | §1, §3            |
-| 2   | La Cassa produce una **normale `store_sale`**: nessun secondo documento economico      | §4                |
-| 3   | La Vendita al banco conserva `cash \| card \| other`; la **Cassa usa `PaymentOption`** | §5                |
-| 4   | «Misto» è **calcolato a lettura dalle quote**, mai persistito                          | §6                |
-| 5   | `PaymentOption` va esteso: la migration è di **C2A**. La classe RT è **C2B**, sospesa  | §7                |
-| 6   | Le sei tabelle esistono già nel database: **non si ricreano**                          | §8                |
+| #   | Decisione                                                                                     | Dove si argomenta |
+| --- | --------------------------------------------------------------------------------------------- | ----------------- |
+| 1   | Vendita al banco e Cassa sono **due flussi distinti**, su **rotte separate**                  | §1, §3            |
+| 2   | La Cassa produce una **normale `store_sale`**: nessun secondo documento economico             | §4                |
+| 3   | La Vendita al banco conserva `cash \| card \| other`; la **Cassa usa `PaymentOption`**        | §5                |
+| 4   | «Misto» è **calcolato a lettura dalle quote**, mai persistito                                 | §6                |
+| 5   | `PaymentOption` va esteso: la migration è di **C2A**. La classe RT è **C2B**, sospesa         | §7                |
+| 6   | Le sei tabelle esistono già nel database: **non si ricreano**                                 | §8                |
+| 7   | Una sede ha **principale + riserva**, non due postazioni. Il dispositivo è **della sessione** | §10               |
+| 8   | Ogni RT ha **numerazione e chiusura proprie**: si conserva sempre **chi ha emesso**           | §10               |
 
 In caso di contrasto fra questo elenco e il corpo del documento, **vale l'elenco**.
 
@@ -538,18 +540,93 @@ IP, reparti codificati secondo un firmware.
 
 ⛔ **Nessun adapter concreto si scrive in C1B.**
 
-### Come si sceglie il dispositivo
+### ⭐ Come si sceglie il dispositivo — deciso dal proprietario il 04/09/2026
 
-La rimozione dell'unicità per sede apre la domanda, e la risposta non può essere «il primo».
+> **Principale + riserva, non due postazioni operative. Il dispositivo appartiene alla**
+> **SESSIONE** (tranche **C1C**).
 
-- una sede può avere **più dispositivi**;
-- la scelta è **esplicita**: dispositivo predefinito della sede, oppure legato alla sessione
-  o alla postazione;
-- un dispositivo **disabilitato** non è selezionabile per operazioni nuove, ma le ricevute
-  già emesse continuano a riferirlo;
-- ⛔ **un ritentativo non cambia dispositivo in silenzio**: si riemette sullo stesso, o si
-  dichiara un'operazione nuova;
-- tenant e sede si verificano su ogni scrittura.
+C1B ha tolto l'unicità per sede e ha aperto la domanda; la vecchia risposta
+(`findFirst({ locationId, enabled: true })`) era deterministica **solo** grazie a quel
+vincolo, e senza diventa «uno a caso».
+
+⭐ **Il vincolo che rende la scelta «principale + riserva» e non «due postazioni» esiste
+già**, ed è su un'altra tabella — misurato sul condiviso il 04/09/2026:
+
+```text
+cash_sessions   UNIQUE (location_id) WHERE status = 'open'      ← ancora attivo
+fiscal_devices  UNIQUE (location_id)                             ← rimosso da C1B
+```
+
+Più dispositivi, **una sola sessione aperta per sede**: quindi un operatore alla volta, e il
+secondo dispositivo serve al guasto e al ricambio.
+
+⭐ **Non è una scorciatoia da disfare.** Il legame dispositivo↔sessione serve identico anche
+nello scenario a due postazioni: quello che cambia lì è la **quadratura** — fondo cassa,
+movimenti, chiusura — che nessun negozio reale ci ha ancora dettato.
+
+#### ⛔ Ma «due dispositivi, una serie fiscale» era SBAGLIATO
+
+⚠️ Corretto dal proprietario il 04/09/2026, con la Guida dell'Agenzia delle Entrate alla
+mano: è **il singolo RT** a memorizzare l'operazione, emettere il documento commerciale e
+predisporre alla chiusura i dati giornalieri da trasmettere.
+
+> **Due dispositivi sono due serie fiscali, anche quando non lavorano insieme.** Entrando in
+> funzione la riserva si usa un altro RT, con identità e riferimenti fiscali propri.
+
+⭐ **Ne discende che i campi sono DUE, e non è ridondanza:**
+
+| Campo                            | Che cosa dice                                          |
+| -------------------------------- | ------------------------------------------------------ |
+| `cash_sessions.fiscal_device_id` | il dispositivo **operativo corrente** della sessione   |
+| `fiscal_receipts.device_id`      | il dispositivo che ha **realmente emesso** quella riga |
+
+⚠️ **Il passaggio al muletto riscrive il primo e non tocca il secondo**: le ricevute già
+emesse restano riconciliabili con la chiusura giornaliera del registratore che le ha
+prodotte. Con un campo solo, quell'informazione non esisterebbe.
+
+⛔ **E `fiscal_receipts.device_id` era `ON DELETE SET NULL`**: cancellare un dispositivo
+azzerava il riferimento su **tutte** le ricevute che aveva emesso, in silenzio. Corretto in
+`RESTRICT` da C1C — un dispositivo si **disabilita**, non si cancella, e disabilitarlo non
+tocca lo storico (prova in `dispositivo-di-sessione.integration-spec.ts`).
+
+#### Il contratto della selezione
+
+1. ⛔ **`NULL` non significa «prendi il predefinito»**: significa che la sessione non ha un
+   dispositivo, e allora non si emette. La selezione implicita è ciò che C1C elimina.
+2. **Il passaggio alla riserva è un'azione esplicita e tracciata**, non un ripiego
+   automatico su un guasto.
+3. ⛔ **Un ritentativo non va MAI a un dispositivo diverso**: dopo un esito **incerto**
+   produrrebbe una doppia emissione su due memorie fiscali distinte. Si riemette sullo
+   stesso, o si dichiara un'operazione nuova.
+4. **Dispositivo e sessione appartengono allo stesso tenant e alla stessa sede.** ⚠️ Il
+   database non lo verifica (§13): è una guardia **applicativa**, e va scritta prima che
+   un'API scriva quel campo.
+5. Il dispositivo dev'essere **abilitato** e avere un `adapterKey` **presente nel registro
+   statico**: una chiave sintatticamente valida ma non registrata si rifiuta.
+6. ⛔ **Nessun `findFirst` come selezione.** Chi legge un dispositivo lo legge per
+   identificativo, e l'identificativo viene dalla sessione.
+7. ⛔ **Nessuna API identificata dalla sola sede.** Il vecchio ramo aveva
+   `PUT /fiscal-devices/{locationId}`, che con più dispositivi non sa quale modificare o
+   disattivare: la chiave è **l'id del dispositivo**.
+
+⚠️ **Nel ramo corrente quell'API non esiste** — nessun servizio `fiscal-devices` è stato
+recuperato. Non c'è un contratto da correggere: c'è da scriverlo con la chiave giusta alla
+prima riga, perché riscriverlo com'era è l'errore facile.
+
+#### ⏸ Se un giorno servissero due casse contemporanee
+
+Dichiarato ora perché la strada resti aperta, **non da fare**:
+
+- serve un'entità propria — per esempio `checkout_stations`;
+- ⛔ **non `pos_terminals`**, che è il **terminale di pagamento elettronico** anagrafato per
+  il collegamento logico POS↔strumento di certificazione (`acquirer_name` è la banca,
+  `portal_linked_at` il portale AdE). Il nome inganna: chi cercasse «la postazione» la
+  troverebbe e modellerebbe la Cassa sulla tabella sbagliata;
+- il vincolo di sessione passa da `UNIQUE(location_id) WHERE open` a `UNIQUE(station_id)`,
+  cioè una **migration su un vincolo esistente**, non additiva;
+- la quadratura diventa **per postazione**: fondo, movimenti, conteggio, chiusura;
+- ⭐ il legame dispositivo↔sessione di C1C **resta valido**: la sessione appartiene alla
+  postazione, e continua a dichiarare il proprio dispositivo.
 
 ### Il trasporto non è deciso, e il modello non deve deciderlo
 
@@ -780,6 +857,25 @@ solo nel codice, ogni percorso di scrittura deve verificare il tenant da sé, e 
 nuovo è un'occasione di dimenticarlo. Se e come chiuderlo — vincoli compositi, RLS, o
 verifica applicativa centralizzata — è una decisione da prendere, non da dedurre.
 
+### ⛔ DUE CONDIZIONI OBBLIGATORIE prima di dichiarare completa la Cassa
+
+⚠️ Deciso dal proprietario il 04/09/2026. Le prove di integrazione **dimostrano** questi due
+difetti e sono verdi: un test verde si legge come comportamento atteso anche quando il suo
+nome dice il contrario, quindi vanno dichiarati **qui** e non solo nei commenti dei test.
+
+> **Restano fuori dalle migration attuali soltanto perché oggi non esistono né API né
+> utilizzo reale. Non sono il comportamento atteso della Cassa completa.**
+
+| #   | Condizione                                                       | Entro quando                      | Prova che lo dimostra                                      |
+| --- | ---------------------------------------------------------------- | --------------------------------- | ---------------------------------------------------------- |
+| 1   | **Protezione cross-tenant**: tenant e sede verificati insieme    | prima di esporre servizi e API    | `dispositivo-di-sessione` · `dispositivo-fiscale-neutrale` |
+| 2   | **Cronologia dei tentativi append-only**: nessuna sovrascrittura | prima della fiscalizzazione reale | `dispositivo-fiscale-neutrale`, ultimo caso                |
+
+⛔ **Nessuna delle due si può rimandare oltre quel punto**: la prima perché ogni percorso di
+scrittura nuovo è un'occasione di dimenticare il tenant, e la seconda perché la traccia del
+primo tentativo serve **proprio** quando l'esito è incerto — cioè nel caso in cui la sua
+assenza costa una doppia emissione.
+
 ---
 
 ## 14. Riuso: cosa si condivide e cosa resta distinto
@@ -833,6 +929,7 @@ l'orchestratore del documento, e la Cassa è l'altro orchestratore.
 | **C0**  | questa specifica, separazione delle rotte, contratto transitorio dei pagamenti, censimento `PaymentOption`                                                      | ⛔ nessuna              |
 | **C1**  | modelli Prisma delle tabelle Cassa **già esistenti**, relazioni, prove di schema e isolamento                                                                   | ⛔ nessuna              |
 | **C1B** | neutralizzazione dell'infrastruttura fiscale: nessuna assunzione su produttore, LAN, browser o «un solo dispositivo per sede»                                   | ✅ additiva/compatibile |
+| **C1C** | il dispositivo fiscale si lega alla **sessione**; `fiscal_receipts.device_id` smette di perdere chi ha emesso                                                   | ✅ additiva + FK        |
 | **C2A** | catalogo globale delle Modalità normative, codice FatturaPA strutturato, FK nullable da `PaymentOption`, backfill esplicito, Impostazioni                       | ✅ additiva, nullable   |
 | **C2B** | ⏸ classificazione RT — **non autorizzata**: prima va verificata (§7)                                                                                            | ⏸ da decidere           |
 | **C3**  | checkout Cassa, sessione aperta, pagamento unico e misto, quadratura, resto, carta fallita, creazione idempotente                                               | —                       |
