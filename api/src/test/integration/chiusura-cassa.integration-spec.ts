@@ -606,6 +606,65 @@ describe('chiusura di cassa — C4B su PostgreSQL TEST', () => {
   });
 
   /**
+   * ⭐ Il terzo nome dell’invariante: **un reso**. Stessa costruzione della
+   * vendita in volo — il reso si ferma sul proprio numeratore — e stesso
+   * esito: la chiusura aspetta, e il rimborso entra negli attesi con il
+   * segno giusto.
+   */
+  it('un RESO in volo non resta fuori dagli attesi congelati', async () => {
+    const s = await apri(0);
+    const v = await vendi(s, 2, 'contanti', 'reso-involo-v'); // +200,00
+    const serie = (await impostazioni.getResolved(tenant, DocumentType.store_return))
+      .defaultSeries;
+
+    const cancello = apriCancello();
+    const tenuta = prisma.$transaction(
+      async (tx) => {
+        await lockDocumentCounter(tx as never, {
+          tenantId: tenant,
+          type: DocumentType.store_return,
+          series: serie,
+        });
+        await cancello.attesa;
+      },
+      { timeout: 30_000, maxWait: 30_000 },
+    );
+    await attendi(150);
+
+    const reso = sorvegliata(
+      resi.createReturn(tenant, utente(tenant), {
+        locationId: sede,
+        sessionId: s,
+        originalDocumentId: v.documentId,
+        creationIntentId: `${PREFISSO}-reso-involo`,
+        reason: 'reso in volo',
+        lines: [{ originalLineId: v.lineId, quantity: 1 }],
+        refunds: [{ originalPaymentId: v.quotaId, amountMinor: 10_000 }],
+      }),
+    );
+    await attendi(250);
+    expect(reso.conclusa()).toBe(false); // fermo sul numeratore
+
+    const chiude = sorvegliata(
+      chiusura.close(tenant, utente(tenant), sede, s, { countedCashMinor: 10_000 }),
+    );
+    await attendi(250);
+    expect(chiude.conclusa()).toBe(false);
+
+    cancello.apri();
+    await tenuta;
+
+    await reso.promessa;
+    const chiusa = await chiude.promessa;
+
+    // ⭐ 200,00 venduti − 100,00 resi.
+    expect(chiusa.salesCashMinor).toBe(20_000);
+    expect(chiusa.returnsCashMinor).toBe(10_000);
+    expect(chiusa.expectedCashMinor).toBe(10_000);
+    expect(chiusa.cashDifferenceMinor).toBe(0);
+  });
+
+  /**
    * ⭐ L’altro verso: **la chiusura arriva prima**. L’operazione attende, poi
    * trova la sessione chiusa e viene RIFIUTATA — non si infila dopo il
    * congelamento.
