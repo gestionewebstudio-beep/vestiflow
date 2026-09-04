@@ -27,6 +27,9 @@ const CONTANTI: PaymentOption = {
   sortOrder: 1,
   isSystem: true,
   isActive: true,
+  // Nessuna Modalità normativa: e' lo stato di partenza di ogni voce
+  // finche' il titolare non ne assegna una (`docs/25` §7).
+  methodCodeId: null,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 };
@@ -61,7 +64,10 @@ async function apri(permissions: readonly TenantPermissionKey[]): Promise<void> 
     providers: [
       provideRouter([]),
       { provide: AuthService, useValue: { currentUser: () => utente(permissions) } },
-      { provide: PaymentOptionsService, useValue: { list: () => of([CONTANTI]) } },
+      {
+        provide: PaymentOptionsService,
+        useValue: { list: () => of([CONTANTI]), listMethodCodes: () => of([]) },
+      },
     ],
   });
 }
@@ -94,7 +100,10 @@ describe('PaymentOptionsPageComponent — comandi riservati a «Impostazioni azi
           provide: AuthService,
           useValue: { currentUser: () => ({ ...utente([]), role: UserRole.Owner }) },
         },
-        { provide: PaymentOptionsService, useValue: { list: () => of([CONTANTI]) } },
+        {
+          provide: PaymentOptionsService,
+          useValue: { list: () => of([CONTANTI]), listMethodCodes: () => of([]) },
+        },
       ],
     });
 
@@ -109,7 +118,10 @@ describe('PaymentOptionsPageComponent — comandi riservati a «Impostazioni azi
           provide: AuthService,
           useValue: { currentUser: () => utente([TenantPermission.SectionSettings]) },
         },
-        { provide: PaymentOptionsService, useValue: { list: () => of([]) } },
+        {
+          provide: PaymentOptionsService,
+          useValue: { list: () => of([]), listMethodCodes: () => of([]) },
+        },
       ],
     });
 

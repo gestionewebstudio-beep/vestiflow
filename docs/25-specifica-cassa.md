@@ -386,6 +386,29 @@ dispositivo e protocollo** — che è una forma diversa e va scelta, non dedotta
 ⛔ Finché non è verificato, **C2 non è completata** e la Cassa non introduce pagamenti reali
 né fiscalizzazione.
 
+### ⛔ Il ramo NON gira contro il database condiviso finché C2A non vi è applicata
+
+`regole-qualita` lo dice senza sfumature: _«`prisma generate` da solo rompe l'applicazione.
+Il client rigenerato seleziona le colonne dello schema, e se una di quelle nel database non
+c'è ancora, **ogni lettura di quella tabella va in 500**»_. Con C2A `payment_options`
+acquisisce `method_code_id`: sul database condiviso quella colonna **non esiste**, quindi
+andrebbero in errore le dodici chiamate di `payment-options.service`, del backup di tenant
+e dell'eliminazione tenant — e `list()` la invocano clienti, fornitori, documenti, ordini e
+Impostazioni.
+
+⭐ **Deciso il 04/09/2026: il ramo resta isolato.** La migration si applica e si collauda
+**solo** sul PostgreSQL usa-e-getta (`docker-compose.test.yml`, porta 5433). Su
+`feature/recupero-cassa` non si eseguono `start`, `start:dev`, E2E né integrazioni puntate
+al condiviso.
+
+⚠️ **Non si aggirano l'assenza della colonna** con query manuali o compatibilità dinamiche:
+sarebbe codice scritto per nascondere uno stato, e resterebbe lì dopo.
+
+**Prima del merge in `develop`**, con procedura distinta e autorizzata: verificare lo stato
+del database condiviso, creare un punto di sicurezza dei dati coinvolti, applicare la
+migration additiva, verificare che il codice **precedente** continui a funzionare, e solo
+allora unire.
+
 ### Il rollback, che non è un `DROP`
 
 ⛔ **Non si descrive questa migration come «reversibile facendo `DROP`».** Il database è

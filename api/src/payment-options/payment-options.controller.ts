@@ -12,7 +12,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import type { PaymentOption, PaymentOptionKind } from '@prisma/client';
+import type { PaymentMethodCode, PaymentOption, PaymentOptionKind } from '@prisma/client';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import {
@@ -50,6 +50,22 @@ export class PaymentOptionsController {
   ): Promise<PaymentOption[]> {
     const filter = kind === 'method' || kind === 'terms' ? kind : undefined;
     return this.paymentOptions.list(tenantId, filter);
+  }
+
+  /**
+   * Il catalogo normativo FatturaPA (MP01-MP23), globale e di sola lettura.
+   *
+   * ⚠️ Sta sotto `payment-options` e non su una radice propria perche' e' la
+   * sua tendina: chi apre le Impostazioni dei pagamenti lo chiede insieme
+   * all'elenco, e un secondo controller per ventitre' righe immutabili
+   * sarebbe una rotta in piu' da proteggere per nessun guadagno.
+   *
+   * ⛔ Prima di `:id`, o `ParseUUIDPipe` rifiuterebbe «method-codes».
+   */
+  @Get('method-codes')
+  @RequireAnyPermissions(PAYMENT_OPTIONS_READ_PERMISSIONS)
+  listMethodCodes(): Promise<PaymentMethodCode[]> {
+    return this.paymentOptions.listMethodCodes();
   }
 
   @Post()

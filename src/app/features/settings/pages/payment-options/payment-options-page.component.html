@@ -91,6 +91,26 @@
                       <span class="payment-options__badge">Disattivata</span>
                     }
                   </span>
+                  <!-- La Modalità normativa FatturaPA (MP01-MP23) riguarda solo i
+                       Tipi di pagamento: «30 gg f.m.» non è un modo di pagare, e
+                       l'API la rifiuta sulle condizioni. La tendina compare solo
+                       se il catalogo si è caricato: a metà farebbe scegliere fra
+                       codici che sembrano tutti quelli disponibili. -->
+                  @if (group.kind === 'method' && modalitaNormative().length) {
+                    <label class="payment-options__item-code">
+                      <span class="sr-only">Modalità normativa di {{ option.name }}</span>
+                      <select
+                        [value]="option.methodCodeId ?? ''"
+                        [disabled]="saving() || !puoGestireImpostazioniAzienda()"
+                        (change)="cambiaModalita(option, $any($event.target).value)"
+                      >
+                        <option value="">— nessuna —</option>
+                        @for (code of modalitaNormative(); track code.id) {
+                          <option [value]="code.id">{{ etichettaModalita(code) }}</option>
+                        }
+                      </select>
+                    </label>
+                  }
                   <!-- Le tre azioni scrivono sulla voce: restano solo a chi
                        ha «Impostazioni azienda». -->
                   @if (puoGestireImpostazioniAzienda()) {

@@ -112,6 +112,30 @@
   gap: var(--space-1);
 }
 
+// La Modalità normativa FatturaPA del Tipo pagamento. Sta fra il nome e le
+// azioni, e non le spinge a capo: il campo ha una misura sua, quella del dato
+// che ospita — «MP15 — Giroconto su conti di contabilità speciale».
+.payment-options__item-code {
+  display: inline-flex;
+  align-items: center;
+
+  select {
+    min-block-size: var(--control-h-entry);
+    max-inline-size: var(--field-w-lg);
+    padding-inline: var(--space-2);
+    font-size: var(--text-xs);
+    color: var(--color-text);
+    background-color: var(--color-surface);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius-sm);
+
+    &:disabled {
+      color: var(--color-text-subtle);
+      background-color: var(--color-surface-soft);
+    }
+  }
+}
+
 .payment-options__empty {
   padding: var(--space-3);
   font-size: var(--text-sm);

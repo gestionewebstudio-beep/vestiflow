@@ -1359,6 +1359,41 @@ model Customer {
 /// sono due elenchi separati, preimpostati e ampliabili dalle Impostazioni.
 /// I ruoli salvano il nome come stringa: rinominare una voce non riscrive
 /// le anagrafiche già salvate (snapshot, come per i documenti).
+/// Catalogo GLOBALE delle Modalita' di pagamento normative FatturaPA
+/// (MP01-MP23). Di sistema: nessun `tenantId`, non modificabile dall'utente.
+///
+/// ⭐ UNA sola colonna codice, non `key` + `officialCode` come `VatNature`.
+/// Li' sono distinte per due ragioni misurate — il formato differisce (`N2_1`
+/// contro `N2.1`) e quattro voci non hanno codice normativo — che nel
+/// perimetro MP01-MP23 non esistono: sarebbero identiche su tutte e 23 le
+/// righe (`docs/25` §7).
+///
+/// ⛔ Non ospita modalita' NON normative. `PayPal` e `Contrassegno` restano
+/// `PaymentOption` aziendali con `methodCodeId` nullo: righe finte accanto
+/// agli MP renderebbero il catalogo qualcos'altro da cio' che dichiara.
+model PaymentMethodCode {
+  id        String   @id @default(uuid()) @db.Uuid
+  /// Codice normativo FatturaPA: `MP01`…`MP23`. Unico.
+  code      String   @unique
+  /// Descrizione ufficiale (es. «Bonifico» per MP05).
+  label     String
+  sortOrder Int      @default(0) @map("sort_order")
+  /// Si DISATTIVA, non si cancella: la FK e' `RESTRICT` apposta.
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  paymentOptions PaymentOption[]
+
+  @@index([sortOrder])
+  @@map("payment_method_codes")
+}
+
+/// Tipo pagamento AZIENDALE: il preset che l'operatore vede nei documenti.
+///
+/// ⭐ Un tenant puo' avere piu' Tipi sulla stessa Modalita' — «Bonifico 30 gg»
+/// e «Bonifico 60 gg» sono entrambi MP05 — quindi NESSUN vincolo unico su
+/// `(tenantId, methodCodeId)`. Resta l'unicita' del nome nel proprio `kind`.
 model PaymentOption {
   id        String            @id @default(uuid()) @db.Uuid
   tenantId  String            @map("tenant_id") @db.Uuid
@@ -1367,13 +1402,23 @@ model PaymentOption {
   sortOrder Int               @default(0) @map("sort_order")
   isSystem  Boolean           @default(false) @map("is_system")
   isActive  Boolean           @default(true) @map("is_active")
+  /// Modalita' normativa referenziata. NULL e' uno stato valido e previsto:
+  /// le condizioni (`kind = terms`) non ne hanno mai una, e un Tipo puo'
+  /// restare scollegato finche' l'utente non ne assegna una esplicitamente.
+  ///
+  /// ⛔ Valorizzabile SOLO per `kind = method`. Il vincolo e' un `CHECK`
+  /// nella migration — `kind = 'method' OR method_code_id IS NULL` — che
+  /// Prisma non sa esprimere: qui lo dichiara solo questo commento.
+  methodCodeId String?        @map("method_code_id") @db.Uuid
   createdAt DateTime          @default(now()) @map("created_at")
   updatedAt DateTime          @updatedAt @map("updated_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  tenant     Tenant             @relation(fields: [tenantId], references: [id])
+  methodCode PaymentMethodCode? @relation(fields: [methodCodeId], references: [id])
 
   @@unique([tenantId, kind, name])
   @@index([tenantId, kind, sortOrder])
+  @@index([methodCodeId])
   @@map("payment_options")
 }
 

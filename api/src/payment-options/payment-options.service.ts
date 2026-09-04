@@ -4,7 +4,7 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import type { PaymentOption, PaymentOptionKind } from '@prisma/client';
+import type { PaymentMethodCode, PaymentOption, PaymentOptionKind } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { PAYMENT_OPTION_SEED, SDI_PAYMENT_METHOD_NAMES } from './payment-option-seed.data';
@@ -27,11 +27,7 @@ export class PaymentOptionsService {
     });
   }
 
-  async create(
-    tenantId: string,
-    kind: PaymentOptionKind,
-    name: string,
-  ): Promise<PaymentOption> {
+  async create(tenantId: string, kind: PaymentOptionKind, name: string): Promise<PaymentOption> {
     const trimmed = name.trim();
     if (!trimmed) {
       throw new UnprocessableEntityException('Il nome della voce è obbligatorio.');
@@ -53,10 +49,29 @@ export class PaymentOptionsService {
     });
   }
 
+  /**
+   * Il catalogo GLOBALE delle Modalità normative FatturaPA (MP01–MP23).
+   *
+   * ⚠️ Non è tenant-scoped e non si filtra per tenant: è uno standard, uguale
+   * per tutti. Le voci disattivate restano fuori dall'elenco proposto, ma i
+   * Tipi che le referenziano continuano a puntarci (FK `RESTRICT`).
+   */
+  listMethodCodes(): Promise<PaymentMethodCode[]> {
+    return this.prisma.paymentMethodCode.findMany({
+      where: { isActive: true },
+      orderBy: { sortOrder: 'asc' },
+    });
+  }
+
   async update(
     tenantId: string,
     id: string,
-    input: { name?: string; isActive?: boolean; sortOrder?: number },
+    input: {
+      name?: string;
+      isActive?: boolean;
+      sortOrder?: number;
+      methodCodeId?: string | null;
+    },
   ): Promise<PaymentOption> {
     const current = await this.getById(tenantId, id);
 
@@ -71,14 +86,48 @@ export class PaymentOptionsService {
       }
     }
 
+    if (input.methodCodeId !== undefined) {
+      await this.assertMethodCodeAssignable(current, input.methodCodeId);
+    }
+
     return this.prisma.paymentOption.update({
       where: { id: current.id },
       data: {
         ...(name !== undefined ? { name } : {}),
         ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
         ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
+        ...(input.methodCodeId !== undefined ? { methodCodeId: input.methodCodeId } : {}),
       },
     });
+  }
+
+  /**
+   * Una Modalità normativa si assegna solo a un Tipo di pagamento, mai a una
+   * condizione: «30 gg f.m.» non è un modo di pagare.
+   *
+   * ⚠️ Il controllo esiste ANCHE nel database (`CHECK` nella migration del
+   * 04/09/2026). Qui serve a dare un messaggio invece di un errore di
+   * vincolo, non a sostituirlo: la guardia vera è quella che non si può
+   * aggirare passando da un'altra strada.
+   */
+  private async assertMethodCodeAssignable(
+    option: PaymentOption,
+    methodCodeId: string | null,
+  ): Promise<void> {
+    if (methodCodeId === null) {
+      return;
+    }
+    if (option.kind !== 'method') {
+      throw new UnprocessableEntityException(
+        'Le condizioni di pagamento non hanno una modalità normativa.',
+      );
+    }
+    const code = await this.prisma.paymentMethodCode.findUnique({
+      where: { id: methodCodeId },
+    });
+    if (!code) {
+      throw new NotFoundException('Modalità di pagamento non trovata');
+    }
   }
 
   /**

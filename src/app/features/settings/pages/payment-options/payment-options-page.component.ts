@@ -6,7 +6,12 @@ import { catchError, map, of, startWith, switchMap, take } from 'rxjs';
 
 import { AuthService } from '@core/auth';
 import { isAppError } from '@core/models/app-error.model';
-import type { PaymentOption, PaymentOptionKind } from '@core/models/payment-option.model';
+import {
+  paymentMethodCodeLabel,
+  type PaymentMethodCode,
+  type PaymentOption,
+  type PaymentOptionKind,
+} from '@core/models/payment-option.model';
 import { canManageSettingsCompany } from '@core/permissions/tenant-permissions.util';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { ToastService } from '@core/services/toast.service';
@@ -88,6 +93,23 @@ export class PaymentOptionsPageComponent {
   protected readonly loading = computed(() => this.loadState().status === 'loading');
   protected readonly loadError = computed(() => this.loadState().status === 'error');
 
+  /**
+   * Il catalogo normativo FatturaPA (MP01-MP23): globale e immutabile, si
+   * carica una volta sola e non segue il `reload` delle voci del tenant.
+   *
+   * ⚠️ In errore resta vuoto e le tendine non compaiono: un elenco a metà
+   * farebbe scegliere fra codici che sembrano tutti quelli disponibili.
+   */
+  protected readonly modalitaNormative = toSignal(
+    this.service.listMethodCodes().pipe(catchError(() => of([] as readonly PaymentMethodCode[]))),
+    { initialValue: [] as readonly PaymentMethodCode[] },
+  );
+
+  /** «MP05 — Bonifico» per la tendina. */
+  protected etichettaModalita(code: PaymentMethodCode): string {
+    return paymentMethodCodeLabel(code);
+  }
+
   protected readonly saving = signal(false);
   /** Bozze dei campi "nuova voce", per kind. */
   protected readonly drafts: Record<PaymentOptionKind, string> = { method: '', terms: '' };
@@ -97,6 +119,30 @@ export class PaymentOptionsPageComponent {
 
   protected optionsOf(kind: PaymentOptionKind): readonly PaymentOption[] {
     return this.loadState().options.filter((option) => option.kind === kind);
+  }
+
+  /**
+   * Associa una Modalità normativa al Tipo, o la scollega con la voce vuota.
+   *
+   * ⚠️ La stringa vuota della tendina diventa `null`, non `undefined`: sono
+   * due intenzioni diverse per l'API — `null` scollega, assente non tocca.
+   */
+  protected cambiaModalita(option: PaymentOption, value: string): void {
+    const methodCodeId = value === '' ? null : value;
+    if (methodCodeId === option.methodCodeId || this.saving()) {
+      return;
+    }
+    this.saving.set(true);
+    this.service
+      .update(option.id, { methodCodeId })
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () =>
+          this.finishMutation(
+            methodCodeId ? 'Modalità normativa associata.' : 'Modalità normativa rimossa.',
+          ),
+        error: (err: unknown) => this.failMutation(err),
+      });
   }
 
   protected add(kind: PaymentOptionKind): void {
