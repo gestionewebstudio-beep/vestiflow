@@ -67,8 +67,8 @@ export class PaymentOptionsPageComponent {
   }[] = [
     {
       kind: 'method',
-      title: 'Modalità di pagamento',
-      hint: 'Es. Contanti, Bonifico bancario, Carta di pagamento.',
+      title: 'Tipi pagamento',
+      hint: 'I preset aziendali che l’operatore sceglie nei documenti: ognuno può puntare a una modalità normativa FatturaPA.',
     },
     {
       kind: 'terms',

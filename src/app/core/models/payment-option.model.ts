@@ -48,6 +48,13 @@ export function paymentMethodCodeLabel(code: PaymentMethodCode): string {
   return `${code.code} — ${code.label}`;
 }
 
+/**
+ * ⚠️ `method` si mostra come «Tipi pagamento», non «Modalità di pagamento»:
+ * dopo C2A i due livelli sono distinti — il Tipo è il preset aziendale, la
+ * Modalità è il codice normativo del catalogo globale (`docs/25` §7). Il
+ * valore interno resta `method` per compatibilità: a cambiare è la parola
+ * che l'operatore legge, non l'enum.
+ */
 export function paymentOptionKindLabel(kind: PaymentOptionKind): string {
-  return kind === 'method' ? 'Modalità di pagamento' : 'Condizioni di pagamento';
+  return kind === 'method' ? 'Tipi pagamento' : 'Condizioni di pagamento';
 }

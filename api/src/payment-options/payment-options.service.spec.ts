@@ -1,4 +1,8 @@
-import { NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import {
+  NotFoundException,
+  ServiceUnavailableException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { PrismaService } from '../prisma/prisma.service';
@@ -83,16 +87,62 @@ describe('PaymentOptionsService — modalità normative (C2A)', () => {
       expect(terms.every((v) => v.methodCodeId === null)).toBe(true);
     });
 
-    it('non collega nulla se il catalogo non c_è ancora, e non fallisce', async () => {
+    /**
+     * ⛔ Il catalogo è una DIPENDENZA, non un di più.
+     *
+     * Prima il seed proseguiva creando voci scollegate: corrette in
+     * apparenza, mute per il mapper fiscale, e il disallineamento fra
+     * migration e applicazione restava invisibile finché qualcuno non
+     * provava a emettere un documento commerciale.
+     */
+    it('con catalogo VUOTO fallisce e non scrive nulla', async () => {
       prisma.paymentOption.count.mockResolvedValue(0);
       prisma.paymentMethodCode.findMany.mockResolvedValue([]);
+
+      await expect(service.list(tenantId)).rejects.toBeInstanceOf(ServiceUnavailableException);
+      expect(prisma.paymentOption.createMany).not.toHaveBeenCalled();
+    });
+
+    it('con catalogo PARZIALE fallisce e non scrive nulla', async () => {
+      prisma.paymentOption.count.mockResolvedValue(0);
+      // Manca MP23: uno solo basta a fermare tutto.
+      prisma.paymentMethodCode.findMany.mockResolvedValue(
+        CATALOGO.filter((c) => c.code !== 'MP23'),
+      );
+
+      await expect(service.list(tenantId)).rejects.toBeInstanceOf(ServiceUnavailableException);
+      expect(prisma.paymentOption.createMany).not.toHaveBeenCalled();
+    });
+
+    it('l_errore nomina i codici mancanti, non dice solo «errore»', async () => {
+      prisma.paymentOption.count.mockResolvedValue(0);
+      prisma.paymentMethodCode.findMany.mockResolvedValue(
+        CATALOGO.filter((c) => c.code !== 'MP05' && c.code !== 'MP12'),
+      );
+
+      await expect(service.list(tenantId)).rejects.toThrow(/MP05, MP12/);
+    });
+
+    it('con catalogo COMPLETO crea 23 method collegati e 7 terms nulli', async () => {
+      prisma.paymentOption.count.mockResolvedValue(0);
 
       await service.list(tenantId);
 
       const creati = prisma.paymentOption.createMany.mock.calls[0]?.[0]?.data as {
+        kind: string;
         methodCodeId: string | null;
       }[];
-      expect(creati.every((v) => v.methodCodeId === null)).toBe(true);
+      expect(creati.filter((v) => v.kind === 'method' && v.methodCodeId !== null)).toHaveLength(23);
+      expect(creati.filter((v) => v.kind === 'terms' && v.methodCodeId === null)).toHaveLength(7);
+    });
+
+    it('anche il top-up si ferma se il catalogo è incompleto', async () => {
+      prisma.paymentOption.count.mockResolvedValue(30);
+      prisma.paymentMethodCode.findMany.mockResolvedValue([]);
+
+      await expect(service.list(tenantId)).rejects.toBeInstanceOf(ServiceUnavailableException);
+      expect(prisma.paymentOption.createMany).not.toHaveBeenCalled();
+      expect(prisma.paymentOption.update).not.toHaveBeenCalled();
     });
   });
 

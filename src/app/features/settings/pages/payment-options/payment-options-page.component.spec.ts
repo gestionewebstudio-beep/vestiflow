@@ -245,6 +245,22 @@ describe('PaymentOptionsPageComponent — modalità normativa', () => {
     expect(tendina.disabled).toBe(true);
   });
 
+  /**
+   * ⭐ I DUE LIVELLI devono leggersi come due cose diverse.
+   *
+   * Le righe del tenant sono TIPI pagamento — i preset aziendali — e la
+   * MODALITÀ è il codice normativo del catalogo globale a cui puntano.
+   * Chiamarli entrambi «modalità» rimetterebbe insieme ciò che C2A separa.
+   */
+  it('distingue «Tipi pagamento» dalla «Modalità normativa»', async () => {
+    await apriConCatalogo(serviceMock());
+
+    expect(screen.getByText('Tipi pagamento')).toBeTruthy();
+    expect(screen.getByText('Condizioni di pagamento')).toBeTruthy();
+    expect(screen.queryByText('Modalità di pagamento')).toBeNull();
+    expect(screen.getAllByLabelText(/^Modalità normativa di/).length).toBeGreaterThan(0);
+  });
+
   it('se il catalogo FALLISCE la pagina lo dice, non sparisce in silenzio', async () => {
     await apriConCatalogo(
       serviceMock({ listMethodCodes: () => throwError(() => new Error('rete')) }),

@@ -290,4 +290,104 @@ describe('TenantBackupImportService', () => {
     expect(data).not.toHaveProperty('locationSelectionLocked');
     expect(data).not.toHaveProperty('locationSelectionChangeGranted');
   });
+  // ── Modalità normative FatturaPA (C2A, `docs/25` §7) ──────────────────
+  //
+  // ⛔ Il contratto è «ripristino nello STESSO tenant»: il catalogo globale
+  //    `payment_method_codes` non entra nel backup e non ne esce. Questi test
+  //    provano il percorso vero — archivio, lettura, importatore, ordine di
+  //    purge — non una `createMany` chiamata a mano.
+
+  it('importa una riga PRECEDENTE a C2A, senza la proprietà: nessun errore', async () => {
+    const zip = await buildTenantBackupZip({
+      manifest: { tenantId, tenantName: 'Negozio Demo' },
+      entities: {
+        // Come lo scriveva un backup di ieri: `methodCodeId` non esiste.
+        paymentOptions: [
+          { id: 'po-1', tenantId, kind: 'method', name: 'Contanti', sortOrder: 1 },
+        ],
+      },
+    });
+
+    await service.importFromZipBuffer(tenantId, currentUserId, zip);
+
+    const righe = tx.paymentOption.createMany.mock.calls[0]?.[0]?.data as Record<
+      string,
+      unknown
+    >[];
+    expect(righe).toHaveLength(1);
+    expect(righe[0]).not.toHaveProperty('methodCodeId');
+  });
+
+  it('un backup SUCCESSIVO conserva il collegamento alla modalità', async () => {
+    const zip = await buildTenantBackupZip({
+      manifest: { tenantId, tenantName: 'Negozio Demo' },
+      entities: {
+        paymentOptions: [
+          {
+            id: 'po-1',
+            tenantId,
+            kind: 'method',
+            name: 'Bonifico (MP05)',
+            sortOrder: 5,
+            methodCodeId: 'mc-05',
+          },
+        ],
+      },
+    });
+
+    await service.importFromZipBuffer(tenantId, currentUserId, zip);
+
+    const righe = tx.paymentOption.createMany.mock.calls[0]?.[0]?.data as Record<
+      string,
+      unknown
+    >[];
+    expect(righe[0]).toMatchObject({ methodCodeId: 'mc-05' });
+  });
+
+  it('il purge NON tocca il catalogo globale, e l_import non lo ricrea', async () => {
+    const zip = await buildTenantBackupZip({
+      manifest: { tenantId, tenantName: 'Negozio Demo' },
+      entities: {
+        paymentOptions: [
+          { id: 'po-1', tenantId, kind: 'method', name: 'Contanti', sortOrder: 1 },
+        ],
+      },
+    });
+
+    await service.importFromZipBuffer(tenantId, currentUserId, zip);
+
+    // Il catalogo è di sistema e globale: né cancellato dal purge del tenant,
+    // né duplicato dal ripristino.
+    expect(tx.paymentMethodCode.deleteMany).not.toHaveBeenCalled();
+    expect(tx.paymentMethodCode.createMany).not.toHaveBeenCalled();
+    expect(tx.paymentOption.deleteMany).toHaveBeenCalled();
+  });
+
+  it('una modalità inesistente fa fallire TUTTO il ripristino, non una parte', async () => {
+    const zip = await buildTenantBackupZip({
+      manifest: { tenantId, tenantName: 'Negozio Demo' },
+      entities: {
+        paymentOptions: [
+          {
+            id: 'po-1',
+            tenantId,
+            kind: 'method',
+            name: 'Bonifico (MP05)',
+            sortOrder: 5,
+            methodCodeId: 'mc-che-non-esiste',
+          },
+        ],
+      },
+    });
+
+    // La FK del database rifiuta: il service non la intercetta, e l'errore
+    // esce dalla transazione — che è ciò che produce il rollback.
+    tx.paymentOption.createMany.mockRejectedValueOnce(
+      new Error('violates foreign key constraint "payment_options_method_code_id_fkey"'),
+    );
+
+    await expect(service.importFromZipBuffer(tenantId, currentUserId, zip)).rejects.toThrow(
+      /foreign key/i,
+    );
+  });
 });

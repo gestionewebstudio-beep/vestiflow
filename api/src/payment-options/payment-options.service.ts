@@ -2,6 +2,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import type { PaymentMethodCode, PaymentOption, PaymentOptionKind } from '@prisma/client';
@@ -197,25 +198,47 @@ export class PaymentOptionsService {
         //    collegato le righe che esistevano quando è stata applicata: un
         //    tenant nato dopo non passa di lì, e senza questa riga nascerebbe
         //    con ventitré voci normative scollegate.
-        methodCodeId: entry.methodCode ? (codici.get(entry.methodCode) ?? null) : null,
+        //
+        // ⚠️ Nessun ripiego su `null`: `mappaCodiciNormativi` ha già
+        //    verificato che ogni codice dichiarato esista, e senza quella
+        //    certezza non si sarebbe arrivati qui. Un `?? null` qui
+        //    riaprirebbe la porta alle voci mute che la validazione chiude.
+        methodCodeId: entry.methodCode ? codici.get(entry.methodCode)! : null,
       })),
       skipDuplicates: true,
     });
   }
 
   /**
-   * Il catalogo globale come mappa `codice → id`.
+   * Il catalogo globale come mappa `codice → id`, VALIDATA.
    *
-   * ⚠️ Se il catalogo è vuoto — un database su cui la migration C2A non è
-   * ancora passata — la mappa è vuota e le voci nascono scollegate: il seed
-   * non fallisce, perché il collegamento è un di più e non la ragione per cui
-   * un tenant deve avere le proprie voci pagamento.
+   * ⛔ Un catalogo vuoto o parziale FERMA il seed, e non è prudenza mancata:
+   * dopo C2A il catalogo è una dipendenza obbligatoria, e se manca anche un
+   * solo codice significa che migration e applicazione sono disallineate.
+   * Proseguire creerebbe voci scollegate — corrette in apparenza, mute per il
+   * mapper fiscale — e il disallineamento resterebbe invisibile finché
+   * qualcuno non provasse a emettere un documento commerciale.
+   *
+   * ⚠️ L'errore arriva PRIMA di qualunque scrittura: nessuna voce del tenant
+   * si crea o si completa a metà.
    */
   private async mappaCodiciNormativi(): Promise<Map<string, string>> {
     const codici = await this.prisma.paymentMethodCode.findMany({
+      where: { isActive: true },
       select: { id: true, code: true },
     });
-    return new Map(codici.map((c) => [c.code, c.id]));
+    const mappa = new Map(codici.map((c) => [c.code, c.id]));
+
+    const mancanti = SDI_PAYMENT_METHODS.filter((entry) => !mappa.has(entry.code)).map(
+      (entry) => entry.code,
+    );
+    if (mancanti.length > 0) {
+      throw new ServiceUnavailableException(
+        `Catalogo delle modalità di pagamento incompleto: mancano ${mancanti.join(', ')}. ` +
+          'La migration delle modalità normative non è stata applicata a questo database.',
+      );
+    }
+    return mappa;
   }
 
   private async ensureSdiPaymentMethods(
@@ -243,7 +266,7 @@ export class PaymentOptionsService {
           name: entry.name,
           sortOrder: base + index + 1,
           isSystem: true,
-          methodCodeId: codici.get(entry.code) ?? null,
+          methodCodeId: codici.get(entry.code)!,
         })),
         skipDuplicates: true,
       });

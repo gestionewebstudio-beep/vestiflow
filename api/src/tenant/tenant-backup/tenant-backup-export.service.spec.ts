@@ -171,4 +171,70 @@ describe('backup: l’etichetta della variante attraversa il round-trip', () => 
       | undefined;
     expect(chiamata?.['select']).toBeUndefined();
   });
+  it('le voci pagamento escono col collegamento alla modalità normativa', async () => {
+    const prisma = createExportPrismaMock(tenant);
+    prisma.paymentOption.findMany = vi.fn().mockResolvedValue([
+      {
+        id: 'po-1',
+        tenantId,
+        kind: 'method',
+        name: 'Bonifico (MP05)',
+        sortOrder: 5,
+        isSystem: true,
+        isActive: true,
+        methodCodeId: 'mc-05',
+      },
+      // Una condizione: la modalità non ce l'ha, e `null` deve restare `null`.
+      {
+        id: 'po-2',
+        tenantId,
+        kind: 'terms',
+        name: '60 gg f.m.',
+        sortOrder: 5,
+        isSystem: true,
+        isActive: true,
+        methodCodeId: null,
+      },
+    ]);
+
+    const service = new TenantBackupExportService(
+      prisma as unknown as PrismaService,
+      { getStorageClient: vi.fn().mockReturnValue(null) } as unknown as SupabaseService,
+      { get: vi.fn().mockReturnValue(undefined) } as unknown as ConfigService,
+    );
+
+    const { stream } = await service.createExportStream(tenantId);
+    const zipBuffer = await readStreamToBuffer(stream);
+    const json = await readZipEntry(zipBuffer, `${TENANT_BACKUP_DATA_DIR}/paymentOptions.json`);
+    const righe = JSON.parse(json) as Array<Record<string, unknown>>;
+
+    expect(righe[0]!['methodCodeId']).toBe('mc-05');
+    expect(righe[1]!['methodCodeId']).toBeNull();
+
+    // ⛔ Nessun `select`: con uno, la colonna nuova uscirebbe dal backup e
+    //    nessun test diventerebbe rosso — è il difetto che questo controllo
+    //    intercetta, lo stesso già visto su `variantLabel`.
+    const chiamata = prisma.paymentOption.findMany.mock.calls[0]?.[0] as
+      | Record<string, unknown>
+      | undefined;
+    expect(chiamata?.['select']).toBeUndefined();
+  });
+
+  it('il catalogo globale NON entra nel backup del tenant', async () => {
+    const prisma = createExportPrismaMock(tenant);
+    const service = new TenantBackupExportService(
+      prisma as unknown as PrismaService,
+      { getStorageClient: vi.fn().mockReturnValue(null) } as unknown as SupabaseService,
+      { get: vi.fn().mockReturnValue(undefined) } as unknown as ConfigService,
+    );
+
+    const { stream } = await service.createExportStream(tenantId);
+    const zipBuffer = await readStreamToBuffer(stream);
+
+    // È di sistema e uguale per tutti: esportarlo lo renderebbe un dato del
+    // tenant, e un ripristino potrebbe riscriverlo.
+    await expect(
+      readZipEntry(zipBuffer, `${TENANT_BACKUP_DATA_DIR}/paymentMethodCodes.json`),
+    ).rejects.toThrow();
+  });
 });
