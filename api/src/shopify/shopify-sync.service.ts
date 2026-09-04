@@ -8,6 +8,7 @@ import {
 } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 
+import { variantLabelFromChannel } from '../common/variant-label.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { OnlineOrderLifecycleService } from '../order-reservations/online-order-lifecycle.service';
 import type { ReservationLineInput } from '../order-reservations/stock-reservation.service';
@@ -234,6 +235,12 @@ export class ShopifySyncService {
             variantId,
             sku: String(line.sku ?? '—'),
             title: String(line.title ?? line.name ?? 'Riga ordine'),
+            // ⭐ L'etichetta della variante arriva GIA' COMPOSTA dal canale, ed
+            // era il dato che si buttava: `variant_title` è «M / Rosso», e per
+            // un prodotto senza opzioni è `Default Title` — filtrato a vuoto.
+            // Si fotografa qui perché la variante può uscire dal catalogo
+            // mentre l'ordine resta.
+            variantLabel: variantLabelFromChannel(line.variant_title),
             quantity: qty,
             // Prezzo PIENO e totale EFFETTIVO, entrambi veri: la loro differenza
             // è lo sconto allocato dal canale, esatta al centesimo. Prima si
@@ -273,6 +280,10 @@ export class ShopifySyncService {
           },
           create: { orderId: saved.id, ...row },
           update: {
+            // ⛔ `variantLabel` NON si riscrive: la riga esiste già e la sua
+            // etichetta è la fotografia di quando è stata creata. Un line item
+            // Shopify non cambia variante — si cancella e se ne crea un altro
+            // con un id nuovo, e quello passa dal ramo `create`.
             variantId: row.variantId,
             sku: row.sku,
             title: row.title,

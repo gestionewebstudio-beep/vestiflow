@@ -7,10 +7,16 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { BarcodeDetectionService } from '@core/services/barcode-detection.service';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { Router, ActivatedRoute } from '@angular/router';
 import { catchError, debounceTime, distinctUntilChanged, forkJoin, map, of, switchMap } from 'rxjs';
 
+import {
+  VARIANT_SEARCH_DEBOUNCE_MS,
+  VARIANT_SEARCH_MIN_CHARS,
+  VARIANT_SEARCH_PAGE_SIZE,
+} from '@domain/documents/utils/document-variant-search.config';
 import { NavigationHistoryService } from '@core/services/navigation-history.service';
 import { APP_CONFIG } from '@core/config/app-config.token';
 import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
@@ -30,6 +36,7 @@ import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
 import { CustomerService } from '@domain/customers/services/customer.service';
+import { DocumentActionsComponent } from '@domain/documents/components/document-actions/document-actions.component';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
@@ -66,9 +73,6 @@ const UNLOAD_REASON_PRESETS = [
 
 const ADJUSTMENT_DEFAULT_REASON = 'Rettifica giacenza';
 
-const VARIANT_SEARCH_DEBOUNCE_MS = 300;
-const VARIANT_SEARCH_MIN_CHARS = 2;
-const VARIANT_SEARCH_PAGE_SIZE = 8;
 /** Deep-link productId: massimo consentito dall'API (Max(100) su pageSize). */
 const PRODUCT_DEEP_LINK_PAGE_SIZE = 100;
 
@@ -113,6 +117,7 @@ type SubmitState =
     DateInputComponent,
     DocumentMobilePanelComponent,
     SelectMenuComponent,
+    DocumentActionsComponent,
   ],
   templateUrl: './movement-form.component.html',
   styleUrl: './movement-form.component.scss',
@@ -130,7 +135,9 @@ export class MovementFormComponent implements CanComponentDeactivate {
   private readonly destroyRef = inject(DestroyRef);
   private readonly config = inject(APP_CONFIG);
 
-  protected readonly barcodeScannerEnabled = this.config.features.barcodeScanner;
+  // La stessa risposta di tutti gli altri: bandiera d'ambiente, fotocamera
+  // presente, e schermo compatto. Su scrivania resta il lettore HID.
+  protected readonly barcodeScannerEnabled = inject(BarcodeDetectionService).cameraScanOffered;
   protected readonly scanFeedback = signal<string | null>(null);
 
   // ── Testata ────────────────────────────────────────────────────────────────
@@ -315,6 +322,24 @@ export class MovementFormComponent implements CanComponentDeactivate {
   protected readonly typeLabel = computed(
     () => MANUAL_TYPES.find((option) => option.value === this.type())?.label ?? '',
   );
+
+  /**
+   * L'etichetta del salvataggio: **«Salva carico», «Salva scarico», «Salva
+   * rettifica», «Salva trasferimento»** — quello che si sta facendo.
+   *
+   * ⛔ Ha avuto due nomi sbagliati prima di questo. «Salva» sulla scrivania e
+   * «Salva movimento» sul telefono, cioe' due parole per lo stesso comando a
+   * seconda dello schermo. Allineate a «Salva movimento» il 25/08/2026, e
+   * corrette di nuovo lo stesso giorno dal proprietario: «altrimenti confonde».
+   *
+   * ⭐ **Non e' un'eccezione alla regola, e' la regola applicata meglio.**
+   * `regole-stile-ui` §5 dice «Salva documento» per cio' che sta in
+   * `documents`, e chi non ci sta nomina la propria entita' — il Corrispettivo
+   * manuale dice «Salva corrispettivo». Un movimento non e' un `Document`, e la
+   * sua entita' non e' «il movimento»: e' il CARICO, lo scarico, la rettifica.
+   * Il titolo lo dice gia' — «Registra carico» — e il pulsante ora concorda.
+   */
+  protected readonly saveLabel = computed(() => `Salva ${this.typeLabel().toLowerCase()}`);
 
   // ── Pannello testata mobile (--m-ref) — SOLO display: concatenazioni di
   // valori già presenti nel form, nessuna logica nuova. ─────────────────────

@@ -21,6 +21,7 @@ function userWithFlag(mustChangePassword: boolean | undefined): User {
     isActive: true,
     isPlatformAdmin: false,
     tenantChannelProfile: TenantChannelProfile.Gestionale,
+    manualUnloadEnabled: true,
     tenantName: 'Cliente test',
     hasAllLocationsAccess: true,
     assignedLocationIds: [],

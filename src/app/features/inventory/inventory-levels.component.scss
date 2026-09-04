@@ -58,3 +58,60 @@
   color: var(--color-text-muted);
   font-size: var(--text-xs);
 }
+
+/*
+  ⭐ **Le mancavano esattamente DUE contratti**, non un wrapper.
+
+  Misurato il 29/08/2026: questa pagina prendeva già tutta la grammatica
+  visiva comune (`data-table-desktop`, `data-table-mobile-cards`,
+  `data-table-mobile-title`). Mancavano la catena di altezze e la regione di
+  scorrimento — e sono quelle che tengono il paginatore in fondo invece di
+  spingerlo fuori dal viewport.
+
+  ⛔ **Non le è stato aggiunto un contenitore per somiglianza** (`14` §0): la
+  sua intestazione `sticky` funzionava già ancorandosi a `.shell__content`, e
+  deformarla per farla assomigliare alle altre sarebbe stato il difetto
+  peggiore. Cambia solo chi le dà l’altezza.
+*/
+@include lp.list-page-fills-viewport('inventory-levels', 'app-inventory-level-table');
+
+
+/* ── telaio ─────────────────────────────────────────────────────────────
+  ⭐ Passata a `app-list-page`: testata, zona controlli e stati sono suoi.
+
+  ⚠️ La tabella proiettata deve riempire l'area dati, e lo dice QUESTA pagina:
+  le regole del telaio portano il proprio attributo di incapsulamento e non
+  raggiungono il contenuto proiettato. Una regola come `.list-page__data > *`
+  non lo tocca — e non fallisce: non fa niente.
+  ──────────────────────────────────────────────────────────────────────── */
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-block-size: 0;
+}
+
+app-inventory-level-table {
+  flex: 1;
+  min-block-size: 0;
+}
+
+
+/*
+  ⚠️ **I gruppi proiettati non sono scatole: sono contenuto.**
+
+  ⛔ Un `<div filters>` che avvolge due campi è una scatola IN PIÙ dentro la
+  zona del telaio: il telaio stila la propria (`display: flex`), non questa —
+  le sue regole portano l'attributo di incapsulamento del telaio e non
+  raggiungono il contenuto proiettato. Dentro un blocco, i campi si impilano.
+
+  ⭐ `display: contents` toglie la scatola e lascia i figli partecipare alla
+  riga del telaio. Misurato su Ordini fornitore il 29/08/2026: «Stato» e
+  «Periodo» impilati, e i comandi della barra azioni uno per riga.
+*/
+[pageActions],
+[filters],
+[warnings],
+[listActions] {
+  display: contents;
+}

@@ -196,8 +196,13 @@ ivato → netto → ivato rimette lo stesso costo, e il salvataggio manda il val
   (`app-document-line-code-cell`, `app-document-line-product-cell`, già in `domain/`),
   l'autocomplete sul nome, il lookup alla conferma, la navigazione da tastiera. Oggi
   l'articolo si sceglie ancora dalla tendina.
-- **La card mobile** (`supplier-order-line-card`), gemella di quelle di arrivo merce e
-  ordine cliente — che restano tre componenti separati di proposito.
+- ✅ **La card mobile** — fatta il 24/08/2026, ma **non** come diceva questa voce.
+  ⛔ Qui c'era «gemella di quelle di arrivo merce e ordine cliente — che restano tre
+  componenti separati di proposito»: tre involucri di feature erano al mobile quello che
+  le `<td>` scritte a mano erano al desktop. `supplier-order-line-card` è cancellato, e
+  la maschera monta guscio, striscia e corpo COMUNI
+  (`app-document-line-card` + `-strip` + `-body`), guidati dal catalogo colonne come la
+  riga di scrivania.
 - **`prisma generate` + typecheck backend**: non eseguiti perché il watcher dell'API
   teneva bloccato il query engine.
 
@@ -269,7 +274,7 @@ sua copia con `SESSION_UNLOCKED_ORDER_IDS`, ed è per questo che funzionava ment
 no. Ora la copia non c'è più.
 
 1. **Adotta il servizio** e **si riblocca al salvataggio**, come le altre cinque maschere.
-2. **DDT vendita e Scarico manuale si aprono protetti.** Quella maschera ospita quattro
+2. **DDT vendita e Vendita manuale si aprono protetti.** Quella maschera ospita quattro
    tipi documento e il blocco era stato scritto per uno solo: gli altri due avevano preso
    `editUnlocked = true` come ripiego. Era un residuo, non una scelta, e la decisione
    dell'08/2026 non fa eccezioni per tipo documento.

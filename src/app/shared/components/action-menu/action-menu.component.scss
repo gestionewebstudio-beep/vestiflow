@@ -1,10 +1,28 @@
+/*
+  ⚠️ **IL VINCOLO DI LARGHEZZA DEVE SCENDERE LUNGO TUTTA LA CATENA**, e questo è
+  il pezzo che mancava: fra l'host e il `<button>` c'è il `<div>.action-menu`.
+
+  Un `max-inline-size: 100%` sul solo bottone si misura sul **wrapper**, non
+  sull'host: se il wrapper è largo quanto il proprio contenuto, il 100% è già la
+  larghezza sfondata e il vincolo non vincola niente. ⛔ Applicato lì da solo,
+  non è fallito — semplicemente non ha fatto nulla, e la misura è tornata
+  identica.
+
+  ⭐ Host e wrapper prendono quindi `min-inline-size: 0` — che toglie il
+  pavimento implicito dato dal contenuto — e il wrapper si stira sull'host.
+*/
 :host {
   display: inline-flex;
   position: relative;
+  min-inline-size: 0;
+  max-inline-size: 100%;
 }
 
 .action-menu {
   position: relative;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  inline-size: 100%;
 }
 
 .action-menu__trigger {
@@ -47,10 +65,42 @@
   si distingue da loro. `inline-size: auto` toglie il quadrato; l'altezza resta
   quella del sistema (`--field-height`), che su mobile sale già a 44px da sola.
 */
+/*
+  ⛔ **IL TRIGGER USCIVA DAL PROPRIO HOST** — segnalato dal proprietario a
+  schermo il 30/08/2026, e misurato sulla barra comandi del Registro:
+
+  ```text
+  320px   traccia 71px · bottone 110px   ⛔ +39px oltre il bordo
+  430px   traccia 99px · bottone 110px   ⛔ +11px
+  480px                                  ⛔  +1px
+  ```
+
+  ⚠️ **La causa è la differenza con `app-button`**, che è `display: contents`:
+  là il `<button>` **è** la traccia della griglia e la riempie per costruzione.
+  Qui l'host è `inline-flex`, quindi la traccia è l'host — dimensionato
+  correttamente — e il bottone dentro restava alla larghezza del proprio
+  contenuto, sfondandolo.
+
+  ⭐ **Si corregge nel componente, non in chi lo ospita.** Un trigger più largo
+  dell'host è sbagliato in QUALUNQUE contenitore stretto, non solo in questa
+  barra: era il default a essere sbagliato (`regole-stile-ui` §5, punto 3).
+
+  ⚠️ **`max-inline-size` e non `inline-size: 100%`**: quest'ultimo lo
+  stirerebbe anche dove l'host è largo quanto il contenuto — cioè in tutte le
+  barre non a griglia, dove oggi la larghezza a contenuto è quella giusta. Il
+  massimo vincola senza imporre.
+*/
 .action-menu__trigger--labelled {
   inline-size: var(--action-menu-inline-size, auto);
-  gap: var(--space-2);
+  max-inline-size: 100%;
+  min-inline-size: 0;
+  /*
+    Punto di regolazione: in una barra densa i due gap interni (icona↔testo,
+    testo↔chevron) sono 16px che vanno via prima dell'etichetta.
+  */
+  gap: var(--action-menu-gap, var(--space-2));
   padding-inline: var(--action-menu-pad-inline, var(--space-3));
+  overflow: hidden;
   color: var(--color-text);
   font-size: var(--button-font-size, var(--text-sm));
   font-weight: var(--font-weight-semibold);
@@ -63,7 +113,10 @@
 }
 
 .action-menu__trigger-label {
+  min-inline-size: 0;
+  overflow: hidden;
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 /* Il chevron dice «qui sotto si apre altro», come sui campi a tendina. */
@@ -72,11 +125,27 @@
   color: var(--color-text-muted);
 }
 
+/*
+  ⭐ **La DIREZIONE di apertura è un punto di regolazione** (`regole-stile-ui` §5).
+
+  Il pannello si apre verso il basso, che è giusto ovunque tranne dove il trigger
+  è già in fondo alla pagina. Non lo può sapere da sé — lo sa chi lo ospita.
+*/
 .action-menu__panel {
   position: absolute;
-  inset-block-start: calc(100% + var(--space-1));
-  inset-inline-end: 0;
-  inset-inline-start: auto;
+  inset-block-start: var(--action-menu-panel-top, calc(100% + var(--space-1)));
+  inset-block-end: var(--action-menu-panel-bottom, auto);
+  /*
+    ⭐ **Anche l'allineamento orizzontale è un punto di regolazione**, per la
+    stessa ragione della direzione verticale: il menu non sa dove sta.
+
+    Di serie si allinea al bordo DESTRO del trigger — giusto per un menu «···» in
+    fondo a una riga di tabella, dove a destra non c'è più niente. Sbagliato per
+    un trigger che sta all'inizio di una barra: il pannello si apre verso sinistra
+    e finisce sotto la barra laterale.
+  */
+  inset-inline-end: var(--action-menu-panel-end, 0);
+  inset-inline-start: var(--action-menu-panel-start, auto);
   z-index: var(--z-dropdown);
   min-inline-size: calc(var(--space-10) * 4.5);
   margin: 0;
@@ -127,4 +196,13 @@
 
 .action-menu__item-btn--danger i {
   color: var(--status-error-fg);
+}
+
+/*
+  Trigger spento: stessa resa del disabilitato nativo, ma **focusabile**, perché
+  deve poter annunciare la ragione anche a chi non ha un mouse (`14` §11).
+*/
+.action-menu__trigger--disabled {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
 }

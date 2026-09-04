@@ -97,6 +97,37 @@ describe('ProductService (HTTP)', () => {
     expect(result.meta.total).toBe(1);
   });
 
+  /**
+   * ⭐ **La distinzione fra «tutto» e «una pagina» va inchiodata**, perché è
+   * appena costata un difetto: reso `all=1` incondizionato il 30/08/2026,
+   * il contatore «Articoli da completare» — che chiede `pageSize: 1` per leggere
+   * solo `meta.total` — avrebbe scaricato l'intero catalogo delle bozze a ogni
+   * ricarica dell'elenco.
+   *
+   * ⚠️ **Nessun test lo vedeva**: la richiesta resta valida, la risposta resta
+   * corretta, e l'unica differenza è quanti byte attraversano la rete.
+   */
+  it('⭐ `tutto` accende `all=1`; senza, la richiesta resta paginata', async () => {
+    const conTutto = firstValueFrom(
+      service.getProducts({ page: 1, pageSize: 10, sort: 'name', order: 'asc' }, { tutto: true }),
+    );
+    const primo = httpMock.expectOne((r) => r.url.startsWith(`${API_BASE}/products`));
+    expect(primo.request.params.get('all')).toBe('1');
+    primo.flush({ items: [], total: 0, page: 1, pageSize: 10 });
+    await conTutto;
+
+    const senzaTutto = firstValueFrom(
+      service.getProducts({ page: 1, pageSize: 1, sort: 'name', order: 'asc' }),
+    );
+    const secondo = httpMock.expectOne((r) => r.url.startsWith(`${API_BASE}/products`));
+    expect(secondo.request.params.get('all')).toBeNull();
+    expect(secondo.request.params.get('pageSize')).toBe('1');
+    secondo.flush({ items: [], total: 42, page: 1, pageSize: 1 });
+
+    // ⚠️ Il conteggio arriva comunque intero: è il motivo per cui `pageSize: 1` basta.
+    await expect(senzaTutto).resolves.toMatchObject({ meta: { total: 42 } });
+  });
+
   it('getProducts inoltra ricerca, stato e filtri di catalogo come query param', async () => {
     const promise = firstValueFrom(
       service.getProducts({

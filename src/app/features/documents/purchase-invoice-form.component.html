@@ -1,16 +1,11 @@
 <!-- doc-form--m-ref: vista mobile di riferimento (styles/_document-form-mobile.scss). -->
 <section class="doc-form doc-form--m-ref">
-  @if (prefillError.message(); as prefillFailed) {
-    <!-- Il precompilato non è arrivato. Senza questo avviso resterebbe una
-         maschera vuota, indistinguibile da un documento nuovo legittimo: chi
-         salvasse creerebbe la cosa sbagliata credendo di aver fatto l'altra. -->
-    <app-inline-banner
-      tone="error"
-      [message]="prefillFailed"
-      dismissLabel="Ho capito"
-      (dismissed)="prefillError.dismiss()"
-    />
-  }
+  <!-- ⭐ **L'avviso comune.** Otto righe byte-identiche vivevano in sei
+       maschere: stesso tono, stesso messaggio, stessa etichetta di congedo.
+  
+       ⚠️ Serve, e il perche' e' nel componente: senza, resta una maschera
+       VUOTA, indistinguibile da un documento nuovo legittimo. -->
+  <app-document-prefill-error [store]="prefillError" />
   <!-- Riga del titolo come nell'Ordine cliente: back in linea, titolo, meta. -->
   <div class="doc-form__head-row">
     <app-back-button />
@@ -23,24 +18,27 @@
     }
   </div>
 
-  @if (loading()) {
-    <app-table-skeleton [columns]="2" [rows]="6" />
-  } @else if (loadError()) {
-    <app-error-state
-      description="Impossibile caricare la registrazione fattura."
-      retryLabel="Riprova"
-      (retry)="reload()"
-    />
-  } @else if (notFound()) {
-    <app-empty-state
-      icon="pi-lock"
-      title="Documento non modificabile"
-      description="Questa pagina gestisce solo le registrazioni fattura fornitore."
-      ctaLabel="Torna all'elenco"
-      (ctaClick)="cancel()"
-    />
+  @if (loadState() !== 'ready') {
+    <!-- ⭐ **La macchina degli stati di pagina, comune.**
+
+         ⛔ Qui la descrizione dell'errore diceva «Impossibile caricare la
+         REGISTRAZIONE FATTURA»: la stessa cosa con la parola del tipo, che e'
+         la deriva chiusa il 25/08/2026. Ora e' una sola per tutte le maschere.
+
+         ⭐ Il MOTIVO per cui non si puo' modificare resta qui, ed e' suo:
+         «questa pagina gestisce solo le registrazioni fattura fornitore». -->
+    <app-document-page-state [state]="loadState()" (retry)="reload()">
+      <app-empty-state
+        documentPageStateBlocked
+        icon="pi-lock"
+        title="Documento non modificabile"
+        description="Questa pagina gestisce solo le registrazioni fattura fornitore."
+        ctaLabel="Torna all'elenco"
+        (ctaClick)="cancel()"
+      />
+    </app-document-page-state>
   } @else {
-    <form class="doc-form__form" [formGroup]="form" (ngSubmit)="save()">
+    <form appNoImplicitSubmit class="doc-form__form" [formGroup]="form" (ngSubmit)="save()">
       @if (supplierDocumentAlert(); as supplierAlert) {
         <p class="doc-form__supplier-note-banner" role="status">
           <i class="pi pi-info-circle" aria-hidden="true"></i>
@@ -65,188 +63,90 @@
       <!-- Testata a celle unite, due blocchi (categoria B): il numero contabile
            è quello del fornitore, il numero è nostro — separarli evita di
            confonderli. -->
-      <div class="doc-form__header">
-        <!-- Vista mobile (m-ref): testata a due pannelli apribili, come la
-             reference. Convive nel DOM con la griglia desktop (che sotto lg
-             esce via CSS): stessi FormControl e stessi handler, due viste. -->
-        <div class="doc-panels">
-          <!-- Il fornitore è il dato che sblocca gli arrivi: aperto all'ingresso. -->
-          <app-document-mobile-panel
-            [title]="supplierPanelTitle()"
-            [summaryParts]="supplierPanelSummaryParts()"
-            icon="pi-truck"
-            [statusText]="supplierPanelStatus()"
-            [statusReady]="supplierPanelReady()"
-            [initiallyOpen]="true"
-          >
-            <div class="doc-panel__fields">
-              <div class="doc-panel__field">
-                <span class="doc-panel__label" id="pi-m-supplier-label">Fornitore</span>
-                <app-select-menu
-                  [options]="supplierOptions()"
-                  [value]="form.controls.supplierId.value"
-                  ariaLabel="Fornitore del documento"
-                  placeholder="Seleziona fornitore…"
-                  [fullWidth]="true"
-                  [searchable]="true"
-                  searchPlaceholder="Cerca fornitore…"
-                  searchAriaLabel="Cerca fornitore"
-                  [invalid]="fieldInvalid('supplierId')"
-                  describedBy="pi-m-supplier-error"
-                  (valueChange)="onSupplierSelect($event)"
-                />
-                @if (fieldInvalid('supplierId')) {
-                  <p id="pi-m-supplier-error" class="doc-form__error">Campo obbligatorio.</p>
-                }
-              </div>
-            </div>
-
-            <!-- Stesse tre celle della testata desktop, in colonna. Titolo di
-                 sezione e contenitore dei campi li disegna il componente
-                 condiviso: la maschera passa solo le proprie parole
-                 («Documento fornitore»). L'`idPrefix` cambia perché le due
-                 viste convivono nel DOM e gli id devono restare univoci. -->
-            <app-document-counterparty-ref
-              idPrefix="pi-m"
-              layout="stack"
-              sectionTitle="Documento fornitore"
-              [docNumber]="form.controls.externalDocNumber.value"
-              [docDate]="form.controls.documentDate.value"
-              [showType]="false"
-              [showType]="false"
-              numberLabel="N. fattura"
-              dateLabel="Data fattura"
-              numberPlaceholder="Es. 58/2026"
-              (docNumberChange)="onCounterpartyNumberChange($event)"
-              (docDateChange)="onCounterpartyDateChange($event)"
-            />
-          </app-document-mobile-panel>
-
-          <!-- I dati interni hanno già default validi: chiuso, si apre per cambiarli. -->
-          <app-document-mobile-panel
-            title="Registrazione VestiFlow"
-            [summaryParts]="registrationPanelSummaryParts()"
-            icon="pi-calendar"
-          >
-            <p class="doc-panel__section">Dati interni</p>
-
-            <div class="doc-panel__fields">
-              <div class="doc-panel__fields doc-panel__fields--two">
-                <div class="doc-panel__field">
-                  <label class="doc-panel__label" for="pi-m-reg-date">Data registrazione</label>
-                  <app-date-input
-                    inputId="pi-m-reg-date"
-                    formControlName="registrationDate"
-                    ariaLabel="Data registrazione"
-                    [fullWidth]="true"
-                  />
-                </div>
-              </div>
-
-              <app-document-number-field
-                numberInputId="pi-m-number"
-                hint="Numero interno di catalogazione, non quello del fornitore."
-                [number]="form.controls.documentNumber.value"
-                [isProposal]="documentNumberIsProposal()"
-                [series]="form.controls.series.value"
-                [seriesOptions]="numbering.seriesOptions()"
-                [canManageSeries]="puoConfigurareDocumenti()"
-                (numberChange)="numbering.onNumberChange($event)"
-                (seriesChange)="numbering.onSeriesChange($event)"
-                (manageSeries)="seriesDialogOpen.set(true)"
-              />
-
-              <div class="doc-panel__field">
-                <label class="doc-panel__label" for="pi-m-comment">Commento interno</label>
-                <input
-                  id="pi-m-comment"
-                  class="doc-panel__control"
-                  type="text"
-                  formControlName="internalComment"
-                  placeholder="Nota interna, mai in stampa"
-                />
-              </div>
-            </div>
-
-            <p class="doc-panel__helper">
-              Numero e serie si propongono da soli, restano modificabili.
-            </p>
-          </app-document-mobile-panel>
-        </div>
-
-        <!-- Testata a due fasce (riferimento OC): la prima porta la
-             registrazione VestiFlow (fornitore, data, numero, commento), la
-             seconda (fondo soft) il documento del fornitore. Le vecchie
-             etichette di blocco non servono più: la separazione la danno le
-             fasce stesse. -->
-        <div
-          class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row"
+      <!-- ⭐ **I campi della testata si dichiarano UNA VOLTA.** Qui c'erano due
+           scritture complete: il pannello mobile con gli identificativi `pi-m-*`
+           e la griglia desktop con `pi-*`, stessi controlli, stesse opzioni,
+           stessi gestori. Non erano due viste: era la stessa vista scritta due
+           volte, e ogni correzione ne raggiungeva una sola. Ora i campi stanno
+           nei `<ng-template>` qui sotto e la veste la sceglie
+           `app-document-header` — pannello apribile su schermo compatto,
+           griglia a celle unite su scrivania.
+           ⚠️ Questa maschera ha DUE pannelli su mobile (fornitore · dati
+           interni) e UNA griglia più la fascia della controparte su scrivania:
+           la testata comune rende UN pannello, quindi il secondo pannello resta
+           della maschera. Monta però gli stessi template, non una seconda
+           scrittura — i campi restano dichiarati una volta sola. -->
+      <ng-template #campoFornitore>
+        <app-document-header-field
+          label="Fornitore"
+          [span2]="true"
+          [invalid]="fieldInvalid('supplierId')"
+          errorId="pi-supplier-error"
         >
-          <div class="doc-form__field doc-form__field--span2">
-            <span class="doc-form__label" id="pi-supplier-label">Fornitore</span>
-            <app-select-menu
-              [options]="supplierOptions()"
-              [value]="form.controls.supplierId.value"
-              ariaLabel="Fornitore"
-              placeholder="Seleziona fornitore…"
-              [compact]="true"
-              [fullWidth]="true"
-              [searchable]="true"
-              searchPlaceholder="Cerca fornitore…"
-              searchAriaLabel="Cerca fornitore"
-              [invalid]="fieldInvalid('supplierId')"
-              describedBy="pi-supplier-error"
-              (valueChange)="onSupplierSelect($event)"
-            />
-            @if (fieldInvalid('supplierId')) {
-              <p id="pi-supplier-error" class="doc-form__error">Campo obbligatorio.</p>
-            }
-          </div>
-
-          <div class="doc-form__field">
-            <label class="doc-form__label" for="pi-reg-date">Data registrazione</label>
-            <app-date-input
-              inputId="pi-reg-date"
-              formControlName="registrationDate"
-              ariaLabel="Data registrazione"
-              [compact]="true"
-              [fullWidth]="true"
-            />
-          </div>
-
-          <app-document-number-field
-            numberInputId="pi-number"
-            hint="Numero interno di catalogazione, non quello del fornitore."
-            [number]="form.controls.documentNumber.value"
-            [isProposal]="documentNumberIsProposal()"
-            [series]="form.controls.series.value"
-            [seriesOptions]="numbering.seriesOptions()"
-            [canManageSeries]="puoConfigurareDocumenti()"
-            (numberChange)="numbering.onNumberChange($event)"
-            (seriesChange)="numbering.onSeriesChange($event)"
-            (manageSeries)="seriesDialogOpen.set(true)"
+          <app-select-menu
+            [options]="supplierOptions()"
+            [value]="form.controls.supplierId.value"
+            ariaLabel="Fornitore"
+            placeholder="Seleziona fornitore…"
+            [compact]="true"
+            [fullWidth]="true"
+            [searchable]="true"
+            searchPlaceholder="Cerca fornitore…"
+            searchAriaLabel="Cerca fornitore"
+            [invalid]="fieldInvalid('supplierId')"
+            describedBy="pi-supplier-error"
+            (valueChange)="onSupplierSelect($event)"
           />
+        </app-document-header-field>
+      </ng-template>
 
-          <div class="doc-form__field doc-form__field--span2">
-            <label class="doc-form__label" for="pi-comment">Commento interno</label>
-            <input
-              id="pi-comment"
-              class="doc-form__input"
-              type="text"
-              formControlName="internalComment"
-              placeholder="Nota interna, mai in stampa"
-            />
-          </div>
-        </div>
+      <!-- I dati NOSTRI: data di registrazione, numerazione interna, commento.
+           Su mobile stanno nel secondo pannello, su scrivania nella stessa
+           fascia del fornitore — stessi campi, montati dove la vista li vuole. -->
+      <ng-template #datiInterni>
+        <app-document-header-field label="Data registrazione">
+          <app-date-input
+            inputId="pi-reg-date"
+            formControlName="registrationDate"
+            ariaLabel="Data registrazione"
+            [compact]="true"
+            [fullWidth]="true"
+          />
+        </app-document-header-field>
 
-        <!-- Documento della controparte: la fascia secondaria in fondo alla
-             testata la disegna il componente condiviso, non la maschera — è la
-             stessa in tutte e sette. Le parole restano quelle che l'operatore
-             legge da sempre — «N. fattura» e «Data fattura» — e la data e'
-             `documentDate`: qui la data del documento del fornitore E' la data
-             del documento. -->
+        <app-document-number-field
+          numberInputId="pi-number"
+          hint="Numero interno di catalogazione, non quello del fornitore."
+          [number]="form.controls.documentNumber.value"
+          [isProposal]="documentNumberIsProposal()"
+          [series]="form.controls.series.value"
+          [seriesOptions]="numbering.seriesOptions()"
+          [canManageSeries]="puoConfigurareDocumenti()"
+          (numberChange)="numbering.onNumberChange($event)"
+          (seriesChange)="numbering.onSeriesChange($event)"
+          (manageSeries)="seriesDialogOpen.set(true)"
+        />
+
+        <!-- ⛔ Qui c'era il «Commento interno», in TESTATA. Spostato nell'area
+             note comune il 25/08/2026, decisione del proprietario: non è un dato
+             identificativo come Fornitore, Data registrazione, Serie, Numero o
+             N. fattura — è una nota, e le note stanno nel piede.
+
+             ⭐ Stesso controllo, stesso `formControlName`: cambia solo dove si
+             vede. Nessuna modifica ai dati. -->
+      </ng-template>
+
+      <!-- Documento della controparte: la fascia secondaria (scrivania) e la
+           sezione del pannello (mobile) le disegna il componente condiviso, e
+           `layout` dice quale delle due — è l'unica cosa che cambia fra le
+           vesti. Le parole restano quelle che l'operatore legge da sempre —
+           «N. fattura» e «Data fattura» — e la data è `documentDate`: qui la
+           data del documento del fornitore È la data del documento. -->
+      <ng-template #documentoFornitore>
         <app-document-counterparty-ref
           idPrefix="pi"
+          [layout]="compactView() ? 'stack' : 'band'"
+          sectionTitle="Documento fornitore"
           [docNumber]="form.controls.externalDocNumber.value"
           [docDate]="form.controls.documentDate.value"
           [showType]="false"
@@ -256,172 +156,169 @@
           (docNumberChange)="onCounterpartyNumberChange($event)"
           (docDateChange)="onCounterpartyDateChange($event)"
         />
+      </ng-template>
+
+      <div class="doc-form__header">
+        <!-- Il fornitore è il dato che sblocca gli arrivi: pannello aperto
+             all'ingresso (è il default della testata comune). -->
+        <app-document-header
+          [flowRow]="true"
+          [title]="supplierPanelTitle()"
+          [summaryParts]="supplierPanelSummaryParts()"
+          icon="pi-truck"
+          [statusText]="supplierPanelStatus()"
+          [statusReady]="supplierPanelReady()"
+          [dense]="true"
+        >
+          <ng-container [ngTemplateOutlet]="campoFornitore" />
+          @if (compactView()) {
+            <!-- Su mobile il documento del fornitore sta nel pannello del
+                 fornitore: è il documento che quel fornitore ha emesso. -->
+            <ng-container [ngTemplateOutlet]="documentoFornitore" />
+          } @else {
+            <ng-container [ngTemplateOutlet]="datiInterni" />
+          }
+        </app-document-header>
+
+        @if (compactView()) {
+          <!-- I dati interni hanno già default validi: il pannello nasce
+               chiuso, si apre per cambiarli. -->
+          <div class="doc-panels">
+            <app-document-mobile-panel
+              title="Registrazione VestiFlow"
+              [summaryParts]="registrationPanelSummaryParts()"
+              icon="pi-calendar"
+            >
+              <p class="doc-panel__section">Dati interni</p>
+
+              <div class="doc-panel__fields">
+                <ng-container [ngTemplateOutlet]="datiInterni" />
+              </div>
+
+              <p class="doc-panel__helper">
+                Numero e serie si propongono da soli, restano modificabili.
+              </p>
+            </app-document-mobile-panel>
+          </div>
+        } @else {
+          <!-- Su scrivania la controparte è la fascia secondaria in fondo alla
+               testata: sta FUORI dalla griglia, che è la sua forma. -->
+          <ng-container [ngTemplateOutlet]="documentoFornitore" />
+        }
       </div>
 
-      <!-- ── Arrivi merce inclusi ─────────────────────────────────────────── -->
-      <section class="doc-form__lines" aria-labelledby="pi-receipts-title">
-        <div class="doc-form__lines-head">
-          <div class="doc-form__lines-heading">
-            <h2 id="pi-receipts-title" class="doc-form__subtitle">Arrivi merce inclusi</h2>
-          </div>
-          <div class="doc-form__lines-tools">
-            <app-button type="button" variant="secondary" (click)="openIncludePanel()">
-              <i class="pi pi-link" aria-hidden="true"></i>
-              Includi arrivo merce
-            </app-button>
-          </div>
-        </div>
-
-        @if (includedReceipts().length === 0) {
-          <app-empty-state
-            icon="pi-inbox"
-            title="Nessun arrivo merce incluso"
-            description="Usa “Includi arrivo merce” per collegare gli arrivi di questo fornitore non ancora agganciati a una fattura. Il collegamento è solo documentale: le giacenze non vengono toccate."
-          />
-        } @else {
-          <div class="pi-form__table-wrap">
-            <table class="pi-form__table">
-              <thead>
-                <tr>
-                  <th scope="col">Documento incluso</th>
-                  <th scope="col" class="doc-form__num">Imponibile</th>
-                  <th scope="col" class="doc-form__num">IVA</th>
-                  <th scope="col" class="doc-form__num">Totale</th>
-                  <th scope="col">
-                    <span class="sr-only">Azioni</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (row of includedReceipts(); track row.id) {
-                  <tr>
-                    <td [attr.data-label]="'Documento'">{{ receiptSummaryLabel(row) }}</td>
-                    <td class="doc-form__num tabular-nums" [attr.data-label]="'Imponibile'">
-                      {{ formatMoney(row.subtotal) }}
-                    </td>
-                    <td class="doc-form__num tabular-nums" [attr.data-label]="'IVA'">
-                      {{ formatMoney(row.tax) }}
-                    </td>
-                    <td class="doc-form__num tabular-nums" [attr.data-label]="'Totale'">
-                      {{ formatMoney(row.total) }}
-                    </td>
-                    <td class="doc-form__cell--actions">
-                      <button
-                        type="button"
-                        class="doc-form__line-remove"
-                        [attr.aria-label]="'Rimuovi ' + receiptSummaryLabel(row)"
-                        (click)="removeReceipt(row.id)"
-                      >
-                        <i class="pi pi-times" aria-hidden="true"></i>
-                      </button>
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-        }
-      </section>
-
-      <!-- ── Righe registrazione (auto per aliquota + manuali) ───────────── -->
+      <!-- ── Righe economiche: UNA lista, tutte modificabili ──────────────── -->
       <section class="doc-form__lines" aria-labelledby="pi-lines-title">
         <div class="doc-form__lines-head">
           <div class="doc-form__lines-heading">
             <h2 id="pi-lines-title" class="doc-form__subtitle">Righe registrazione</h2>
           </div>
           <div class="doc-form__lines-tools">
-            <app-button type="button" variant="secondary" (click)="addManualLine()">
+            <app-button type="button" variant="secondary" (click)="openIncludePanel()">
+              <i class="pi pi-link" aria-hidden="true"></i>
+              Includi arrivo merce
+            </app-button>
+            <app-button type="button" variant="secondary" (click)="addLine()">
               <i class="pi pi-plus" aria-hidden="true"></i>
-              Aggiungi riga manuale
+              Aggiungi riga
             </app-button>
           </div>
         </div>
 
-        @if (autoRows().length === 0 && manualLines.length === 0) {
+        @if (lines.length === 0) {
           <app-empty-state
             icon="pi-list"
             title="Nessuna riga"
-            description="Le righe si generano automaticamente dagli arrivi merce inclusi, raggruppate per aliquota IVA. Puoi aggiungere righe manuali per voci non legate ad arrivi."
+            description="Usa “Aggiungi riga” per una voce libera, oppure “Includi arrivo merce” per portare qui gli importi di un arrivo di questo fornitore. Il collegamento è solo documentale: le giacenze non vengono toccate."
           />
         } @else {
           <div class="pi-form__table-wrap">
-            <table class="pi-form__table" formArrayName="manualLines">
+            <table class="pi-form__table" formArrayName="lines">
               <thead>
                 <tr>
-                  <th scope="col">Descrizione</th>
-                  <th scope="col" class="doc-form__num">Importo netto</th>
-                  <th scope="col" class="doc-form__num">IVA %</th>
+                  <!--
+                    ⭐ Il selettore netto/ivato vive QUI, nell'intestazione della
+                    colonna che governa — come su Arrivo merce, Ordine fornitore,
+                    DDT, Ordine cliente e Vendita al banco.
+                  -->
+                  <th scope="col" class="doc-form__num doc-form__th--menu">
+                    <span class="doc-form__th-menu-wrap">
+                      <span class="doc-form__th-label">{{ amountColumnLabel() }}</span>
+                      <app-price-mode-menu
+                        [pricesIncludeVat]="amountsIncludeVat()"
+                        netLabel="Usa importi netti"
+                        grossLabel="Usa importi ivati"
+                        ariaLabel="Modalità importi della registrazione"
+                        (modeChange)="onAmountModeChange($event)"
+                      />
+                    </span>
+                  </th>
+                  <th scope="col" class="doc-form__col--tax">IVA</th>
                   <th scope="col" class="doc-form__num">Importo IVA</th>
+                  <th scope="col">Descrizione</th>
                   <th scope="col">
                     <span class="sr-only">Azioni</span>
                   </th>
                 </tr>
               </thead>
               <tbody>
-                @for (row of autoRows(); track row.ratePercent) {
-                  <tr>
-                    <td [attr.data-label]="'Descrizione'">{{ row.description }}</td>
-                    <td class="doc-form__num tabular-nums" [attr.data-label]="'Importo netto'">
-                      {{ formatMoney(row.net) }}
-                    </td>
-                    <td class="doc-form__num tabular-nums" [attr.data-label]="'IVA %'">
-                      {{ row.ratePercent }}%
-                    </td>
-                    <td class="doc-form__num tabular-nums" [attr.data-label]="'Importo IVA'">
-                      {{ formatMoney(row.vat) }}
-                    </td>
-                    <td class="doc-form__cell--actions"></td>
-                  </tr>
-                }
-                @for (group of manualLines.controls; track group; let i = $index) {
+                @for (group of lines.controls; track group; let i = $index) {
                   <tr [formGroupName]="i">
+                    <td class="doc-form__num" [attr.data-label]="'Importo netto'">
+                      <!--
+                        Etichetta NEUTRA: il campo mostra il netto o l'ivato
+                        secondo la modalità, e dire «netto» qui sarebbe una bugia
+                        per chi legge con uno screen reader. La modalità sta
+                        nell'intestazione della colonna, dove si sceglie.
+                      -->
+                      <app-money-input
+                        inputClass="doc-form__input doc-form__input--num"
+                        [value]="lineAmountValue(i)"
+                        [ariaLabel]="'Importo riga ' + (i + 1)"
+                        (valueChange)="onLineAmountChange(i, $event)"
+                      />
+                    </td>
+                    <!--
+                      ⛔ Qui c'era un <input> con la percentuale digitata a mano:
+                      questa era l'UNICA maschera dell'app a farlo, dal 19/07/2026.
+                      La cella condivisa la usano gia' otto form, e senza il Codice
+                      IVA i quattro codici in inversione contabile d'acquisto —
+                      che esistono SOLO per questa maschera — erano irraggiungibili.
+                    -->
+                    <td class="doc-form__cell doc-form__col--tax" [attr.data-label]="'IVA'">
+                      <app-document-line-select-cell
+                        [lineIndex]="i"
+                        [inputId]="'pi-vat-' + i"
+                        [ariaLabel]="'Codice IVA riga ' + (i + 1)"
+                        [options]="lineVatOptions(i)"
+                        [value]="group.controls.vatCodeId.value"
+                        [inColumnCycle]="false"
+                        (valueChange)="onLineVatSelect(i, $event)"
+                      />
+                    </td>
+                    <td class="doc-form__num" [attr.data-label]="'Importo IVA'">
+                      <app-money-input
+                        inputClass="doc-form__input doc-form__input--num"
+                        [value]="group.controls.vatMinor.value"
+                        [ariaLabel]="'Importo IVA riga ' + (i + 1)"
+                        (valueChange)="onLineVatChange(i, $event)"
+                      />
+                    </td>
                     <td [attr.data-label]="'Descrizione'">
                       <input
                         class="doc-form__input pi-form__table-input"
                         type="text"
                         formControlName="description"
                         placeholder="Es. spese di trasporto"
-                        [attr.aria-label]="'Descrizione riga manuale ' + (i + 1)"
-                      />
-                    </td>
-                    <td class="doc-form__num" [attr.data-label]="'Importo netto'">
-                      <input
-                        class="doc-form__input doc-form__input--num pi-form__table-input"
-                        type="text"
-                        inputmode="decimal"
-                        formControlName="netText"
-                        placeholder="0,00"
-                        [attr.aria-label]="'Importo netto riga manuale ' + (i + 1)"
-                        (input)="recalcManualLineVat(i)"
-                      />
-                    </td>
-                    <td class="doc-form__num" [attr.data-label]="'IVA %'">
-                      <input
-                        class="doc-form__input doc-form__input--num pi-form__table-input pi-form__table-input--rate"
-                        type="text"
-                        inputmode="decimal"
-                        formControlName="rateText"
-                        placeholder="22"
-                        [attr.aria-label]="'Aliquota IVA riga manuale ' + (i + 1)"
-                        (input)="recalcManualLineVat(i)"
-                      />
-                    </td>
-                    <td class="doc-form__num" [attr.data-label]="'Importo IVA'">
-                      <input
-                        class="doc-form__input doc-form__input--num pi-form__table-input"
-                        type="text"
-                        inputmode="decimal"
-                        formControlName="vatText"
-                        placeholder="0,00"
-                        [attr.aria-label]="'Importo IVA riga manuale ' + (i + 1)"
+                        [attr.aria-label]="'Descrizione riga ' + (i + 1)"
                       />
                     </td>
                     <td class="doc-form__cell--actions">
                       <button
                         type="button"
                         class="doc-form__line-remove"
-                        [attr.aria-label]="'Rimuovi riga manuale ' + (i + 1)"
-                        (click)="removeManualLine(i)"
+                        [attr.aria-label]="'Rimuovi riga ' + (i + 1)"
+                        (click)="removeLine(i)"
                       >
                         <i class="pi pi-times" aria-hidden="true"></i>
                       </button>
@@ -491,13 +388,11 @@
                       />
                     </td>
                     <td class="doc-form__num" [attr.data-label]="'Importo'">
-                      <input
-                        class="doc-form__input doc-form__input--num pi-form__table-input"
-                        type="text"
-                        inputmode="decimal"
-                        formControlName="amountText"
-                        placeholder="0,00"
-                        [attr.aria-label]="'Importo scadenza ' + (i + 1)"
+                      <app-money-input
+                        inputClass="doc-form__input doc-form__input--num"
+                        [value]="group.controls.amountMinor.value"
+                        [ariaLabel]="'Importo scadenza ' + (i + 1)"
+                        (valueChange)="onInstallmentAmountChange(i, $event)"
                       />
                     </td>
                     <td [attr.data-label]="'Saldato'">
@@ -629,34 +524,15 @@
       <!-- ── Banda finale: note a sinistra, totali a destra (sticky a lg+) ── -->
       <div class="doc-form__footer-grid">
         <aside class="doc-form__totals-bar" aria-label="Totali registrazione">
-          <dl class="doc-form__totals">
-            <div class="doc-form__totals-row">
-              <dt>Tot. netto</dt>
-              <dd class="tabular-nums">{{ formatMoney(totalNet()) }}</dd>
-            </div>
-            <div class="doc-form__totals-row">
-              <dt>IVA</dt>
-              <dd class="tabular-nums">{{ formatMoney(totalVat()) }}</dd>
-            </div>
-            <div class="doc-form__totals-row doc-form__totals-row--total">
-              <dt>Totale documento</dt>
-              <dd class="tabular-nums">
-                <strong>{{ formatMoney(totalGross()) }}</strong>
-              </dd>
-            </div>
-          </dl>
+          <!-- ⭐ La griglia totali comune. Questa maschera ha righe ECONOMICHE e la
+               usa lo stesso: la griglia non sa che documento sta mostrando. -->
+          <app-document-totals [rows]="totalsRows()" />
         </aside>
 
         <div class="doc-form__footer-notes">
-          <div class="doc-form__field">
-            <label class="doc-form__label" for="pi-notes">Note</label>
-            <textarea
-              id="pi-notes"
-              class="doc-form__textarea"
-              rows="2"
-              formControlName="notes"
-            ></textarea>
-          </div>
+          <!-- ⭐ **L'area note comune.** Il «Commento interno» arriva qui dalla
+               testata: stesso controllo, collocazione giusta. -->
+          <app-document-notes [group]="form" notesId="pi-notes" internalId="pi-comment" />
         </div>
       </div>
 
@@ -665,25 +541,12 @@
       }
 
       <!-- ── Barra azioni (i totali vivono nella banda qui sopra) ─────────── -->
-      <div class="doc-form__actions">
-        <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancel()">
-          Chiudi
-        </app-button>
-        <app-button type="submit" [loading]="saving()" [disabled]="saving()">
-          Salva documento
-        </app-button>
-      </div>
-
-      <!-- Azioni su mobile/tablet (regole-stile-ui §5): coppia in fondo al
-           documento, scorre col contenuto. Su desktop resta la barra sopra. -->
-      <div class="doc-form__mobile-actions">
-        <app-button type="button" variant="secondary" [disabled]="saving()" (click)="cancel()">
-          Annulla
-        </app-button>
-        <app-button type="submit" [loading]="saving()" [disabled]="saving()">
-          Salva documento
-        </app-button>
-      </div>
+      <!-- ⭐ **La barra azioni comune** — una dichiarazione, due vesti.
+           ⛔ Qui c'erano DUE blocchi che commutavano alla soglia `lg`. -->
+      <!-- ⚠️ Niente `readOnly`: questa maschera non ha un concetto di sola
+           lettura, e la sua barra aveva solo `saving()`. L'ingresso vale
+           `false` per default, che e' esattamente il comportamento di prima. -->
+      <app-document-actions [saving]="saving()" (closeRequested)="cancel()" />
     </form>
   }
 </section>
@@ -782,44 +645,34 @@
 
 <!-- Uscita con modifiche non salvate (pattern Ordine fornitore): il guard
      canDeactivate apre il dialogo e attende la scelta dell'operatore. -->
-@if (exitDialogOpen()) {
-  <div class="doc-form__exit-backdrop" aria-hidden="true" (click)="cancelExitDialog()"></div>
-  <div
-    class="doc-form__exit-dialog"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="pinv-exit-title"
-  >
-    <h2 id="pinv-exit-title" class="doc-form__exit-title">Modifiche non salvate</h2>
-    <p class="doc-form__exit-message">
-      Ci sono modifiche non salvate. Vuoi salvarle prima di chiudere?
-    </p>
-    @if (submitError(); as appError) {
-      <p class="doc-form__exit-error" role="alert">{{ appError.message }}</p>
-    }
-    <div class="doc-form__exit-actions">
-      <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancelExitDialog()">
-        Annulla
-      </app-button>
-      <app-button
-        type="button"
-        variant="secondary"
-        [disabled]="saving()"
-        (click)="confirmExitWithoutSaving()"
-      >
-        Chiudi senza salvare
-      </app-button>
-      <app-button
-        type="button"
-        [loading]="saving()"
-        [disabled]="saving()"
-        (click)="confirmExitSaveInvoice()"
-      >
-        Salva e chiudi
-      </app-button>
-    </div>
-  </div>
-}
+<!-- ⭐ **Il dialogo comune, non un guscio scritto a mano.**
+
+     ⛔ Qui c'erano venti righe con un `<div role="dialog">` e uno sfondo
+     proprio: NON un `<dialog>` nativo, quindi senza trappola del fuoco, senza
+     Esc e senza sfondo inerte — contro `regole-architettura`, che li chiede
+     esplicitamente per ogni modale. Lo stesso guscio viveva in undici file.
+
+     ⛔ **E aveva TRE azioni.** La terza, «Salva e chiudi», e' stata tolta per
+     decisione del proprietario (24/08/2026): il dialogo d'uscita ne ha DUE, e
+     il salvataggio resta il pulsante Salva della barra.
+
+     ⚠️ Anche il MESSAGGIO e' cambiato, e non e' un ritocco: diceva «Vuoi
+     salvarle prima di chiudere?», cioe' faceva una domanda a cui nessuno dei
+     due pulsanti rimasti risponde piu'.
+
+     ⚠️ `emphasis="cancel"` non e' un vezzo: senza, «Esci senza salvare»
+     sarebbe il pulsante primario, cioe' quello che il pollice cerca. La
+     scelta che perde lavoro non si veste da scelta consigliata. -->
+<app-confirm-dialog
+  [(open)]="exitDialogOpen"
+  title="Modifiche non salvate"
+  message="Ci sono modifiche non salvate: uscendo dalla pagina andranno perse."
+  cancelLabel="Annulla"
+  confirmLabel="Esci senza salvare"
+  emphasis="cancel"
+  (confirmed)="confirmExitWithoutSaving()"
+  (dismissed)="cancelExitDialog()"
+/>
 
 <!-- Avviso cronologico (§4): la serie contiene documenti fuori posto. Non
      blocca — «Sì, salva comunque» prosegue col salvataggio. -->

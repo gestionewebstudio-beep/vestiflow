@@ -252,7 +252,9 @@ export class OnlineSaleFulfillmentService {
 
       // 3. Movimento collegato a vendita, riga e ordine. UNIQUE
       //    (sourceDocumentType, sourceLineId) ⇒ al massimo UN movimento per riga.
-      const unitCostMinor = costByVariant.get(line.variantId) ?? null;
+      // Costo corrente della variante, sempre un numero: una variante senza
+      // costo vale zero, e zero è un costo (`regole-gestionale`).
+      const unitCostMinor = costByVariant.get(line.variantId) ?? 0;
       await tx.stockMovement.create({
         data: {
           tenantId: event.tenantId,
@@ -411,14 +413,15 @@ export class OnlineSaleFulfillmentService {
       await applyInventoryDelta(tx, event.tenantId, line.variantId, locationId, line.quantity);
 
       // Il reso inverte la vendita: costo congelato sulla vendita online
-      // originale (§③), fallback al costo variante corrente.
+      // originale (§③). Il fallback vale solo se quella vendita non esiste —
+      // se esiste ed è costata zero, il reso rientra a zero.
       const unitCostMinor = await originalSaleUnitCostMinor(
         tx,
         event.tenantId,
         sale?.id ?? null,
         line.variantId,
         [StockMovementType.online_sale],
-        costByVariant.get(line.variantId) ?? null,
+        costByVariant.get(line.variantId) ?? 0,
       );
       await tx.stockMovement.create({
         data: {

@@ -540,11 +540,15 @@ describe('InventoryService (HTTP)', () => {
     expect(movements.meta.total).toBe(1);
   });
 
-  it('getMovements passa filtri server-side', async () => {
+  /**
+   * ⛔ **`page` e `pageSize` NON si mandano più.** Il registro movimenti non
+   * pagina: l'API risponde con l'intero risultato del filtro, e a delimitarlo è
+   * il periodo. Mandarli sarebbe il «parametro accettato e ignorato» — quello
+   * che il codice dei Corrispettivi avverte di non reintrodurre.
+   */
+  it('⛔ getMovements passa i filtri e NON manda page/pageSize', async () => {
     const promise = firstValueFrom(
       service.getMovements({
-        page: 2,
-        pageSize: 10,
         locationId: 'loc-1',
         type: StockMovementType.Sale,
       }),
@@ -553,8 +557,8 @@ describe('InventoryService (HTTP)', () => {
     const req = httpMock.expectOne((request) =>
       request.url.startsWith(`${API_BASE}/inventory/movements`),
     );
-    expect(req.request.params.get('page')).toBe('2');
-    expect(req.request.params.get('pageSize')).toBe('10');
+    expect(req.request.params.has('page')).toBe(false);
+    expect(req.request.params.has('pageSize')).toBe(false);
     expect(req.request.params.get('locationId')).toBe('loc-1');
     expect(req.request.params.get('type')).toBe(StockMovementType.Sale);
     req.flush({ items: [], total: 0, page: 2, pageSize: 10 });
@@ -887,42 +891,6 @@ describe('InventoryService (HTTP)', () => {
 
     const req = httpMock.expectOne((request) =>
       request.url.startsWith(`${API_BASE}/inventory/levels/export/csv`),
-    );
-    expect(req.request.params.keys()).toEqual([]);
-    req.flush(new Blob([''], { type: 'text/csv' }));
-
-    await promise;
-  });
-
-  it('exportCorrispettiviCsv passa canale, location e periodo', async () => {
-    const promise = firstValueFrom(
-      service.exportCorrispettiviCsv({
-        locationId: 'loc-1',
-        origin: MovementOrigin.VestiflowPos,
-        from: '2026-07-01',
-        to: '2026-07-31',
-      }),
-    );
-
-    const req = httpMock.expectOne((request) =>
-      request.url.startsWith(`${API_BASE}/inventory/movements/export/corrispettivi`),
-    );
-    expect(req.request.responseType).toBe('blob');
-    expect(req.request.params.get('locationId')).toBe('loc-1');
-    expect(req.request.params.get('origin')).toBe(MovementOrigin.VestiflowPos);
-    expect(req.request.params.get('from')).toBe('2026-07-01');
-    expect(req.request.params.get('to')).toBe('2026-07-31');
-    req.flush(new Blob(['data;totale'], { type: 'text/csv' }));
-
-    const blob = await promise;
-    expect(blob.type).toContain('text/csv');
-  });
-
-  it('exportCorrispettiviCsv senza filtri non aggiunge parametri', async () => {
-    const promise = firstValueFrom(service.exportCorrispettiviCsv({}));
-
-    const req = httpMock.expectOne((request) =>
-      request.url.startsWith(`${API_BASE}/inventory/movements/export/corrispettivi`),
     );
     expect(req.request.params.keys()).toEqual([]);
     req.flush(new Blob([''], { type: 'text/csv' }));

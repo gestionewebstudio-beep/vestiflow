@@ -4,9 +4,12 @@ import {
   DestroyRef,
   afterNextRender,
   computed,
+  effect,
   inject,
   signal,
+  untracked,
 } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import {
   FormArray,
@@ -19,7 +22,9 @@ import {
 import { ActivatedRoute, Router } from '@angular/router';
 import { catchError, distinctUntilChanged, map, of, startWith, switchMap, take } from 'rxjs';
 
+import { NoImplicitSubmitDirective } from '@shared/directives/no-implicit-submit.directive';
 import { NavigationHistoryService } from '@core/services/navigation-history.service';
+import { ViewportService } from '@core/services/viewport.service';
 import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import { AuthService } from '@core/auth';
 import { hasTenantPermission } from '@core/permissions/user-permissions.util';
@@ -29,9 +34,14 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import { documentNumberConflictOf } from '@core/models/document-number-conflict.util';
 import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
 import { DocumentChronologyGuard } from '@domain/documents/state/document-chronology-guard';
+import { DocumentActionsComponent } from '@domain/documents/components/document-actions/document-actions.component';
+import { DocumentPageStateComponent } from '@domain/documents/components/document-page-state/document-page-state.component';
+import { DocumentTotalsComponent } from '@domain/documents/components/document-totals/document-totals.component';
+import type { DocumentTotalRow } from '@domain/documents/components/document-totals/document-totals.model';
+import { DocumentPrefillErrorComponent } from '@domain/documents/components/document-prefill-error/document-prefill-error.component';
+import { DocumentNotesComponent } from '@domain/documents/components/document-notes/document-notes.component';
 import { DocumentChronologyWarningDialogComponent } from '@domain/documents/components/document-chronology-warning-dialog/document-chronology-warning-dialog.component';
 import { DocumentPrefillErrorStore } from '@domain/documents/state/document-prefill-error.store';
-import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { mapHttpErrorToAppError } from '@core/interceptors/http-error.mapper';
 import type { Money } from '@core/models/common.model';
 import { DocumentType } from '@core/models/document.model';
@@ -41,12 +51,10 @@ import type { PaymentOption } from '@core/models/payment-option.model';
 import type { Supplier } from '@core/models/supplier.model';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { ToastService } from '@core/services/toast.service';
-import {
-  DEFAULT_CURRENCY,
-  formatMoney,
-  moneyToDecimalString,
-  parseMoneyInput,
-} from '@core/utils/money.util';
+import type { VatCode, VatSnapshot } from '@core/models/vat-code.model';
+import { isPurchaseVatCode } from '@core/models/vat-code.model';
+import { VatCodeService } from '@core/services/vat-code.service';
+import { DEFAULT_CURRENCY, formatMoney, toStorableMinor } from '@core/utils/money.util';
 import { formatDate } from '@core/utils/date.util';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
 import { bindBreadcrumbEntityLabel } from '@core/services/breadcrumb-label.service';
@@ -59,8 +67,28 @@ import { ErrorStateComponent } from '@shared/components/error-state/error-state.
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
 import { DocumentCounterpartyRefComponent } from '@domain/documents/components/document-counterparty-ref/document-counterparty-ref.component';
+import { DocumentHeaderComponent } from '@domain/documents/components/document-header/document-header.component';
+import { DocumentHeaderFieldComponent } from '@domain/documents/components/document-header/document-header-field.component';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import { DocumentSeriesManagerDialogComponent } from '@domain/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
+import { MoneyInputComponent } from '@shared/components/money-input/money-input.component';
+import { DocumentLineSelectCellComponent } from '@domain/documents/components/document-line-select-cell/document-line-select-cell.component';
+import {
+  vatCodeSelectOption,
+  vatOptionsIncludingSelected,
+} from '@domain/documents/utils/document-vat-options.util';
+import { vatCodeIdForLinePayload } from '@domain/documents/utils/document-line-vat-payload.util';
+import type { VatComputationInput } from '@domain/documents/utils/document-vat.util';
+import {
+  computeVatLineAmounts,
+  entryIncludesVat,
+  grossFromNetMinor,
+  netFromGrossExact,
+  vatInputFromLegacyRate,
+  vatInputFromSnapshot,
+  vatInputFromVatCode,
+} from '@domain/documents/utils/document-vat.util';
+import { PriceModeMenuComponent } from '@domain/documents/components/price-mode-menu/price-mode-menu.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
@@ -76,7 +104,7 @@ import { isPrintableDocumentType } from './models/document-print.util';
 import { DocumentPrintActionsComponent } from '@domain/documents/components/document-print-actions/document-print-actions.component';
 import type {
   PurchaseInvoiceInstallmentBody,
-  PurchaseInvoiceManualLineBody,
+  PurchaseInvoiceLineBody,
 } from '@domain/documents/services/document-api.mapper';
 
 type SubmitState =
@@ -84,38 +112,58 @@ type SubmitState =
   | { readonly status: 'saving' }
   | { readonly status: 'error'; readonly error: AppError };
 
-/** Arrivo merce incluso nella registrazione (riga riepilogativa in maschera). */
-interface IncludedReceiptRow {
-  readonly id: string;
-  readonly number?: number;
-  readonly reference?: string;
-  readonly documentDate: string;
-  readonly causalText?: string;
-  readonly subtotal: Money;
-  readonly tax: Money;
-  readonly total: Money;
-  /** Quote IVA dell'arrivo: alimentano le righe per aliquota. */
-  readonly vatBreakdown: readonly GoodsReceiptVatBreakdownEntry[];
-}
+// ⛔ Qui c'era `IncludedReceiptRow`: la forma dell'arrivo incluso, che serviva
+// alla tabella «Arrivi merce inclusi». Quella tabella non c'è più — gli arrivi
+// si vedono dalle righe che hanno generato, e si scollegano cancellandole.
 
-/** Riga registrazione generata automaticamente (gruppo per aliquota IVA). */
-interface AutoVatRow {
-  readonly ratePercent: number;
-  readonly net: Money;
-  readonly vat: Money;
-  readonly description: string;
-}
-
-type ManualLineForm = FormGroup<{
+/**
+ * ⭐ **Riga economica della registrazione: UNA lista, tutte modificabili.**
+ *
+ * ⛔ **Fino al 25/08/2026 erano DUE.** Sopra, le righe generate dagli arrivi
+ * inclusi — raggruppate per aliquota, in sola lettura, ricalcolate dal server a
+ * ogni salvataggio. Sotto, le «righe manuali», le uniche scrivibili.
+ *
+ * ⚠️ **Il difetto non era estetico.** Una fattura fornitore quasi mai coincide
+ * al centesimo con la somma degli arrivi — arrotondamenti, spese, un abbuono —
+ * e la parte non correggibile era proprio quella. Chi doveva registrare
+ * l'importo vero non aveva dove scriverlo.
+ *
+ * ⭐ Ora includere un arrivo **MATERIALIZZA** le sue righe una volta sola: da lì
+ * sono righe del documento come tutte le altre, e `linkedGoodsReceiptId` è
+ * l'unico segno di dove sono nate.
+ */
+type EconomicLineForm = FormGroup<{
+  /** L'id della riga già salvata. Stringa vuota = riga nuova. */
+  id: FormControl<string>;
   description: FormControl<string>;
-  netText: FormControl<string>;
-  rateText: FormControl<string>;
-  vatText: FormControl<string>;
+  /**
+   * Importo canonico in unità minori, coda decimale inclusa. `null` = non
+   * scritto.
+   *
+   * ⛔ Era `FormControl<string>` (`netText`), col denaro tenuto come TESTO e
+   * convertito a mano in due direzioni. Costava un difetto misurabile: una riga
+   * salvata a 0,00 si rileggeva come stringa VUOTA — `moneyToInputText`
+   * restituiva `''` per lo zero — e al salvataggio la maschera la rifiutava
+   * come «importo netto non valido». Una registrazione con un abbuono a zero
+   * **non si poteva più risalvare**.
+   */
+  netMinor: FormControl<number | null>;
+  /** Il Codice IVA scelto. Stringa vuota = nessuno (righe storiche). */
+  vatCodeId: FormControl<string>;
+  /**
+   * L'aliquota della riga, non più digitata: la porta il Codice IVA scelto, e
+   * su una riga storica senza codice resta quella dello snapshot persistito.
+   */
+  ratePercent: FormControl<number | null>;
+  vatMinor: FormControl<number | null>;
+  /** L'arrivo merce da cui la riga è nata. Vuoto = voce libera. */
+  linkedGoodsReceiptId: FormControl<string>;
 }>;
 
 type InstallmentForm = FormGroup<{
   dueDate: FormControl<string>;
-  amountText: FormControl<string>;
+  /** Importo canonico in unità minori. `null` = non scritto. */
+  amountMinor: FormControl<number | null>;
   settled: FormControl<boolean>;
   settledAt: FormControl<string>;
 }>;
@@ -135,20 +183,15 @@ function formatShortDate(iso: string): string {
   return SHORT_DATE_FORMAT.format(new Date(iso));
 }
 
-/** Aliquota IVA da testo utente ("22", "10,5", "4%"): null se non valida. */
-function parseRatePercent(value: string): number | null {
-  const trimmed = value.trim().replace('%', '').replace(',', '.');
-  if (!trimmed) {
-    return null;
-  }
-  const parsed = Number(trimmed);
-  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 100 ? parsed : null;
-}
+// ⛔ Qui c'era `parseRatePercent`: l'aliquota letta da testo utente. Tolta il
+// 25/08/2026 — l'aliquota non si digita piu', la porta il Codice IVA scelto
+// dall'elenco. Era l'ultimo pezzo di grammatica fiscale scritto a mano in
+// questa maschera.
 
 /**
  * Registrazione fattura fornitore (prompt §5-7): documento contabile che
- * collega uno o più Arrivi merce alla fattura ricevuta. Le righe si generano
- * raggruppando gli imponibili per aliquota IVA (più eventuali righe manuali);
+ * collega uno o più Arrivi merce alla fattura ricevuta. Le righe sono UNA lista
+ * sola e tutte modificabili: includere un arrivo le materializza una volta;
  * il pagamento è gestito a scadenze con stato saldato. NON movimenta mai il
  * magazzino: le giacenze restano quelle caricate dagli Arrivi merce.
  */
@@ -156,7 +199,8 @@ function parseRatePercent(value: string): number | null {
   selector: 'app-purchase-invoice-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    InlineBannerComponent,
+    NoImplicitSubmitDirective,
+    NgTemplateOutlet,
     ReactiveFormsModule,
     BackButtonComponent,
     BadgeComponent,
@@ -164,6 +208,8 @@ function parseRatePercent(value: string): number | null {
     ConfirmDialogComponent,
     DateInputComponent,
     DocumentCounterpartyRefComponent,
+    DocumentHeaderComponent,
+    DocumentHeaderFieldComponent,
     DocumentMobilePanelComponent,
     DocumentNumberFieldComponent,
     DocumentPrintActionsComponent,
@@ -174,6 +220,14 @@ function parseRatePercent(value: string): number | null {
     SelectMenuComponent,
     SlidePanelComponent,
     TableSkeletonComponent,
+    DocumentActionsComponent,
+    DocumentNotesComponent,
+    DocumentPrefillErrorComponent,
+    DocumentTotalsComponent,
+    DocumentPageStateComponent,
+    MoneyInputComponent,
+    DocumentLineSelectCellComponent,
+    PriceModeMenuComponent,
   ],
   templateUrl: './purchase-invoice-form.component.html',
   styleUrl: './purchase-invoice-form.component.scss',
@@ -192,6 +246,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
   private readonly navHistory = inject(NavigationHistoryService);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly viewport = inject(ViewportService);
 
   constructor() {
     // Nuova registrazione: il numero proposto è il primo libero della
@@ -200,6 +255,21 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       this.refreshDocumentNumberProposal();
       this.prefillFromDuplicateIfRequested();
     });
+
+    // ⭐ **Una riga pronta all'apertura**, come su ogni altra maschera
+    // documentale: chi apre un documento nuovo trova dove scrivere, senza
+    // dover prima premere «Aggiungi riga».
+    //
+    // ⚠️ In modifica no: le righe le porta il documento, e una riga vuota in
+    // più al caricamento marcherebbe il form come «da salvare» appena aperto.
+    if (!this.isEditMode()) {
+      this.suppressDirtyMarking = true;
+      try {
+        this.lines.push(this.buildLine());
+      } finally {
+        this.suppressDirtyMarking = false;
+      }
+    }
 
     // Breadcrumb: numero del documento al posto del generico «Dettaglio».
     bindBreadcrumbEntityLabel(() => ({
@@ -216,13 +286,49 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       .pipe(distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.refreshDocumentNumberProposal());
 
+    /**
+     * Il Codice IVA predefinito d'acquisto sulle righe NUOVE che non ne hanno.
+     *
+     * Serve un effetto e non basta `buildLine`: la prima riga nasce nel
+     * costruttore, quando l'elenco dei codici non è ancora arrivato dalla rete.
+     * Scatta una volta sola, quando il predefinito diventa noto.
+     *
+     * ⛔ **Solo le righe NUOVE**, e la distinzione è la più delicata di questo
+     * passo: le righe già salvate hanno tutte `vat_code_id = NULL` — sono nate
+     * prima che questa maschera sapesse cosa fosse un Codice IVA. Assegnargliene
+     * uno che nessuno ha scelto riscriverebbe l'aliquota storica di una fattura
+     * di marzo al primo Salva.
+     *
+     * ⚠️ `emitEvent: false` perché una proposta non è una modifica: senza, un
+     * documento appena aperto risulterebbe «da salvare».
+     */
+    effect(() => {
+      const predefinito = this.defaultVatCodeId();
+      if (!predefinito) {
+        return;
+      }
+      untracked(() => {
+        for (const line of this.lines.controls) {
+          if (line.controls.id.value === '' && !line.controls.vatCodeId.value) {
+            line.controls.vatCodeId.setValue(predefinito, { emitEvent: false });
+            const vatCode = this.vatCodesById().get(predefinito);
+            if (vatCode) {
+              line.controls.ratePercent.setValue(vatCode.ratePercent, { emitEvent: false });
+            }
+          }
+        }
+      });
+    });
+
     // Ogni modifica utente al form marca la registrazione come «da salvare».
     this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.markFormDirty();
     });
   }
 
-  protected readonly listPath = '/app/documents/registrazione-fattura';
+  private readonly vatCodeService = inject(VatCodeService);
+
+  protected readonly listPath = '/app/documents/registrazioni-fatture-fornitori';
   protected readonly currency = DEFAULT_CURRENCY;
   protected readonly formatMoney = formatMoney;
   protected readonly formatDate = formatDate;
@@ -266,15 +372,15 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       fiscalCode: this.fb.control(''),
       vatNumber: this.fb.control(''),
     }),
-    manualLines: this.fb.array<ManualLineForm>([]),
+    lines: this.fb.array<EconomicLineForm>([]),
     installments: this.fb.array<InstallmentForm>([]),
   });
 
   /** Tick reattivo su ogni modifica del form (totali e opzioni derivate). */
   private readonly formChanges = toSignal(this.form.valueChanges, { initialValue: null });
 
-  protected get manualLines(): FormArray<ManualLineForm> {
-    return this.form.controls.manualLines;
+  protected get lines(): FormArray<EconomicLineForm> {
+    return this.form.controls.lines;
   }
 
   protected get installments(): FormArray<InstallmentForm> {
@@ -372,6 +478,18 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     numberIsDirty: () => !this.documentNumberPristine(),
     markNumberDirty: () => this.form.controls.documentNumber.markAsDirty(),
     markNumberPristine: () => this.form.controls.documentNumber.markAsPristine(),
+    // I contatori: il giro — chiamata, `take(1)`, chiusura col ciclo di vita,
+    // «riproponi» contro «ricarica l'elenco» — vive nello store comune (E-6).
+    // Qui restano le tre letture che cambiano da una maschera all'altra.
+    countersSource: {
+      service: this.countersService,
+      destroyRef: this.destroyRef,
+      documentType: () => DocumentType.SupplierInvoice,
+      // La Fattura acquisto non ha sede in testata: valgono i contatori
+      // senza sede.
+      locationId: () => null,
+      documentDate: () => this.form.controls.documentDate.value,
+    },
     asProgrammatic: (write) => {
       // La proposta iniziale non è una modifica dell'operatore: scriverla non
       // deve accendere il guard di uscita.
@@ -398,13 +516,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
    */
   protected onSeriesManagerClosed(): void {
     this.seriesDialogOpen.set(false);
-    this.countersService
-      .available(DocumentType.SupplierInvoice, null, this.form.controls.documentDate.value)
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: ({ counters }) => this.numbering.setCounters(counters),
-        error: () => undefined,
-      });
+    this.numbering.reloadCounters();
   }
 
   /**
@@ -426,9 +538,6 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
   protected readonly prefillError = new DocumentPrefillErrorStore();
   protected readonly conflictDialogOpen = this.numberConflictDialog.isOpen;
   protected readonly conflictMessage = this.numberConflictDialog.message;
-
-  /** Arrivi merce inclusi (righe riepilogative, prompt §5.2). */
-  protected readonly includedReceipts = signal<readonly IncludedReceiptRow[]>([]);
 
   protected readonly includePanelOpen = signal(false);
   protected readonly linkableReceipts = signal<readonly LinkableGoodsReceipt[]>([]);
@@ -493,6 +602,16 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
   /** Ultima nota anagrafica inserita in automatico nelle note documento. */
   private lastAutoInsertedNote = '';
 
+  // ── Testata: quale veste è viva ────────────────────────────────────────────
+  //
+  // La griglia e i pannelli non convivono più nel DOM: li sceglie il viewport,
+  // e la testata comune (`app-document-header`) legge lo STESSO segnale — la
+  // soglia resta una sola. Qui serve perché due cose restano della maschera: il
+  // secondo pannello (la testata comune ne rende uno) e la veste del documento
+  // della controparte, che su scrivania è la fascia secondaria e su mobile una
+  // sezione del pannello.
+  protected readonly compactView = this.viewport.compact;
+
   // ── Testata mobile (m-ref): riepiloghi display-only dei pannelli ────────────
   // Solo concatenazioni di valori già nel form: nessuna logica né validazione.
 
@@ -535,64 +654,34 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     ];
   });
 
-  // ── Righe registrazione (auto per aliquota + manuali) ───────────────────────
+  // ── Righe economiche: totali e legame con gli arrivi ────────────────────────
 
   /**
-   * Righe generate dagli arrivi inclusi: imponibili raggruppati per aliquota
-   * IVA con riferimento automatico ("Rif. Arrivo merce 6 del 15/07/2026, …").
-   * Stessa logica del backend, che resta autoritativo al salvataggio.
+   * ⭐ **Gli arrivi collegati si leggono DALLE RIGHE.**
+   *
+   * ⛔ Qui c'era un signal `includedReceipts` tenuto a parte: una seconda verità
+   * sullo stesso fatto. Si potevano cancellare tutte le righe di un arrivo
+   * lasciandolo agganciato, e il documento diceva due cose diverse.
    */
-  protected readonly autoRows = computed<readonly AutoVatRow[]>(() => {
-    const receipts = [...this.includedReceipts()].sort(
-      (a, b) => a.documentDate.localeCompare(b.documentDate) || (a.number ?? 0) - (b.number ?? 0),
-    );
-    const byRate = new Map<number, { net: number; vat: number; refs: string[] }>();
-    for (const receipt of receipts) {
-      const label = receipt.number != null ? String(receipt.number) : (receipt.reference ?? '—');
-      const ref = `${label} del ${formatShortDate(receipt.documentDate)}`;
-      const quotas: readonly GoodsReceiptVatBreakdownEntry[] =
-        receipt.vatBreakdown.length > 0
-          ? receipt.vatBreakdown
-          : receipt.subtotal.amountMinor !== 0 || receipt.tax.amountMinor !== 0
-            ? [
-                {
-                  ratePercent:
-                    receipt.subtotal.amountMinor > 0 && receipt.tax.amountMinor > 0
-                      ? Math.round((receipt.tax.amountMinor / receipt.subtotal.amountMinor) * 100)
-                      : 0,
-                  net: receipt.subtotal,
-                  vat: receipt.tax,
-                },
-              ]
-            : [];
-      for (const quota of quotas) {
-        const entry = byRate.get(quota.ratePercent) ?? { net: 0, vat: 0, refs: [] };
-        entry.net += quota.net.amountMinor;
-        entry.vat += quota.vat.amountMinor;
-        if (!entry.refs.includes(ref)) {
-          entry.refs.push(ref);
-        }
-        byRate.set(quota.ratePercent, entry);
+  protected readonly linkedReceiptIds = computed<ReadonlySet<string>>(() => {
+    this.formChanges();
+    const ids = new Set<string>();
+    for (const line of this.form.getRawValue().lines) {
+      if (line.linkedGoodsReceiptId) {
+        ids.add(line.linkedGoodsReceiptId);
       }
     }
-    return [...byRate.entries()]
-      .map(([ratePercent, entry]): AutoVatRow => ({
-        ratePercent,
-        net: { amountMinor: entry.net, currencyCode: this.currency },
-        vat: { amountMinor: entry.vat, currencyCode: this.currency },
-        description: `Rif. Arrivo merce ${entry.refs.join(', ')}`,
-      }))
-      .sort((a, b) => a.ratePercent - b.ratePercent);
+    return ids;
   });
 
-  /** Importi netti/IVA delle righe manuali (reattivi sul form). */
-  private readonly manualTotals = computed(() => {
+  /** Importi netti/IVA delle righe (reattivi sul form). */
+  private readonly linesTotals = computed(() => {
     this.formChanges();
     let net = 0;
     let vat = 0;
-    for (const line of this.form.getRawValue().manualLines) {
-      net += parseMoneyInput(line.netText, this.currency)?.amountMinor ?? 0;
-      vat += parseMoneyInput(line.vatText, this.currency)?.amountMinor ?? 0;
+    for (const line of this.form.getRawValue().lines) {
+      net += line.netMinor ?? 0;
+      vat += line.vatMinor ?? 0;
     }
     return { net, vat };
   });
@@ -600,14 +689,12 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
   // ── Totali (sempre visibili in fondo): Tot. netto, IVA, Totale ─────────────
 
   protected readonly totalNet = computed<Money>(() => ({
-    amountMinor:
-      this.autoRows().reduce((sum, row) => sum + row.net.amountMinor, 0) + this.manualTotals().net,
+    amountMinor: this.linesTotals().net,
     currencyCode: this.currency,
   }));
 
   protected readonly totalVat = computed<Money>(() => ({
-    amountMinor:
-      this.autoRows().reduce((sum, row) => sum + row.vat.amountMinor, 0) + this.manualTotals().vat,
+    amountMinor: this.linesTotals().vat,
     currencyCode: this.currency,
   }));
 
@@ -616,17 +703,27 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     currencyCode: this.currency,
   }));
 
+  /**
+   * Le righe della banda totali, per la griglia comune.
+   *
+   * ⭐ Questa maschera ha righe ECONOMICHE — nessun articolo, nessuna variante,
+   * nessun magazzino — e i suoi totali sono comunque tre righe piane. E' la
+   * prova che la griglia comune non e' «la griglia dei documenti con articoli»:
+   * non sa che documento sta mostrando, e non deve saperlo.
+   */
+  protected readonly totalsRows = computed<readonly DocumentTotalRow[]>(() => [
+    { key: 'net', label: 'Tot. netto', value: this.totalNet() },
+    { key: 'vat', label: 'IVA', value: this.totalVat() },
+    { key: 'total', label: 'Totale documento', value: this.totalGross(), kind: 'total' as const },
+  ]);
+
   /** Totale scadenze saldate ("Saldato"). */
   protected readonly settledTotal = computed<Money>(() => {
     this.formChanges();
     const amountMinor = this.form
       .getRawValue()
       .installments.filter((installment) => installment.settled)
-      .reduce(
-        (sum, installment) =>
-          sum + (parseMoneyInput(installment.amountText, this.currency)?.amountMinor ?? 0),
-        0,
-      );
+      .reduce((sum, installment) => sum + (installment.amountMinor ?? 0), 0);
     return { amountMinor, currencyCode: this.currency };
   });
 
@@ -637,7 +734,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
   }));
 
   private readonly loadTick = signal(0);
-  private readonly loadState = toSignal(
+  protected readonly loadState = toSignal(
     toObservable(computed(() => ({ id: this.editDocumentId(), tick: this.loadTick() }))).pipe(
       switchMap(({ id }) => {
         if (!id) {
@@ -699,16 +796,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
   }
 
   protected acknowledgeConflictNumber(): void {
-    // Il numero nuovo si scrive in testata (specifica numerazione §3): il
-    // digitato è perso comunque, e ridigitarlo a mano è l'occasione per un
-    // errore di battitura e un secondo conflitto. Passa dallo store perché da
-    // qui in poi quel numero è una SCELTA e deve viaggiare al salvataggio
-    // invece di essere scambiato per una proposta e omesso: marcarlo è parte
-    // dello scriverlo, e non è una cosa che ogni maschera debba ricordarsi.
-    const nuovo = this.numberConflictDialog.acknowledge();
-    if (nuovo != null) {
-      this.numbering.onNumberChange(nuovo);
-    }
+    this.numbering.acknowledgeConflict(this.numberConflictDialog);
   }
 
   protected reload(): void {
@@ -729,9 +817,19 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     this.applySupplierDocumentNote(supplier);
     this.applySupplierPaymentDefault(supplier);
     this.applySupplierAddress(supplier);
-    if (previous && previous !== value && this.includedReceipts().length > 0) {
-      // Gli arrivi inclusi appartengono al fornitore precedente: non più validi.
-      this.includedReceipts.set([]);
+    if (previous && previous !== value && this.linkedReceiptIds().size > 0) {
+      // ⭐ **Le righe RESTANO, il legame cade.** Deciso dal proprietario il
+      // 25/08/2026: «in danea le righe non vengono toccate, cambia solo il
+      // fornitore». Gli importi che l'operatore ha davanti sono quelli della
+      // fattura che sta registrando, e non c'entrano col fornitore.
+      //
+      // ⚠️ Ma il LEGAME sì: un arrivo del fornitore precedente non può stare
+      // agganciato alla fattura di un altro — il server lo rifiuterebbe, e
+      // avrebbe ragione. Cade quello, e le righe diventano voci libere.
+      for (const line of this.lines.controls) {
+        line.controls.linkedGoodsReceiptId.setValue('');
+      }
+      this.lines.markAsDirty();
     }
   }
 
@@ -790,60 +888,363 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     });
   }
 
-  // ── Righe manuali ───────────────────────────────────────────────────────────
+  // ── Modalità importi: netta o ivata ─────────────────────────────────────
+  //
+  // ⭐ Deciso dal proprietario il 25/08/2026: il selettore vive
+  // nell'INTESTAZIONE DELLA COLONNA, come su ogni altro documento, «per
+  // migliorare l'esperienza utente alla abitudine che prende con gli altri
+  // documenti». E un documento nuovo PARTE NETTO.
+  //
+  // ⚠️ Non serve una colonna nuova: `Document.purchaseCostEntryMode` esiste, ha
+  // default `vat_excluded` ed è la stessa dell'Arrivo merce. È coerente con
+  // `regole-gestionale`: «i costi partono sempre netti, e l'inserimento ivato
+  // resta una comodità del singolo documento».
 
-  private buildManualLine(init?: {
-    description?: string;
-    netText?: string;
-    rateText?: string;
-    vatText?: string;
-  }): ManualLineForm {
-    return this.fb.group({
-      description: this.fb.control(init?.description ?? ''),
-      netText: this.fb.control(init?.netText ?? ''),
-      rateText: this.fb.control(init?.rateText ?? ''),
-      vatText: this.fb.control(init?.vatText ?? ''),
-    });
+  protected readonly costEntryMode = signal<'vat_excluded' | 'vat_included'>('vat_excluded');
+
+  protected readonly amountsIncludeVat = computed(() => this.costEntryMode() === 'vat_included');
+
+  protected readonly amountColumnLabel = computed(() =>
+    this.amountsIncludeVat() ? 'Importo ivato' : 'Importo netto',
+  );
+
+  // ⛔ Qui stavo per aggiungere una seconda veste del selettore, per la vista
+  // compatta — ricalcando l'Arrivo merce, che ne ha due. **Sarebbe stato un
+  // difetto**: quella maschera commuta in card su schermo stretto e perde
+  // l'intestazione di colonna, questa NO — la tabella si rende sempre, anche
+  // sul telefono. Il menu di colonna e' quindi gia' raggiungibile, e un
+  // secondo comando sarebbe visibile INSIEME al primo (`regole-stile-ui` §9,
+  // «la stessa riga non esiste due volte»).
+  //
+  // ⚠️ Se un domani queste righe avranno una vista a card, la seconda veste
+  // servira' davvero: e' il momento in cui questo commento va riletto.
+
+  /**
+   * Il valore da MOSTRARE nel campo importo.
+   *
+   * ⭐ **Il campo è una vista, non il dato.** Memorizzato c'è sempre il netto
+   * canonico con la sua coda: in modalità ivata si ricompone il lordo per
+   * mostrarlo, e il netto non si tocca. Senza questa distinzione la coda
+   * morirebbe al primo cambio di modalità, e 25,00 ivati non tornerebbero più
+   * 25,00.
+   */
+  protected lineAmountValue(index: number): number | null {
+    const group = this.lines.at(index);
+    const net = group?.controls.netMinor.value ?? null;
+    if (net === null) {
+      return null;
+    }
+    const vat = this.lineVatInput(index);
+    // ⭐ La modalita' del documento dice come si DIGITA, il Codice IVA dice se
+    // l'IVA e' davvero contenuta in quel numero. In inversione contabile il
+    // fornitore non la espone, e il valore da mostrare resta l'imponibile.
+    if (!entryIncludesVat(this.costEntryMode(), vat)) {
+      return net;
+    }
+    return grossFromNetMinor(net, vat.ratePercent);
   }
 
-  protected addManualLine(): void {
-    this.manualLines.push(this.buildManualLine());
-    this.manualLines.markAsDirty();
-  }
-
-  protected removeManualLine(index: number): void {
-    this.manualLines.removeAt(index);
-    this.manualLines.markAsDirty();
-  }
-
-  /** IVA riga ricalcolata da netto × aliquota (resta comunque modificabile). */
-  protected recalcManualLineVat(index: number): void {
-    const group = this.manualLines.at(index);
+  /**
+   * L'operatore scrive nel campo importo: si converte in netto canonico e si
+   * ripropone l'imposta.
+   *
+   * ⚠️ **`netFromGrossExact`, e la coda resta.** Il 26/08/2026 questa riga è
+   * stata cambiata in `netFromGrossMinor` per far passare il salvataggio, e
+   * era il posto sbagliato: un test l’ha colto subito — «digitando un ivato,
+   * tornando in netto il valore NON balla» — perché è proprio la coda a farlo
+   * tornare identico.
+   *
+   * ⭐ Il salvataggio andava in 400 per un motivo vero, ma il rimedio sta
+   * **all’uscita**, non qui: `netMinor` finisce in tre colonne diverse —
+   * `unit_price_minor` è `numeric(16,6)` e la coda la tiene, mentre
+   * `line_total_minor` e `line_gross_total_minor` sono `integer`. È il
+   * SERVIZIO che arrotonda quelle due, con `roundToMinor`.
+   *
+   * ⚠️ **E la coda si taglia a QUATTRO cifre di centesimo prima di partire**,
+   * con `toStorableMinor`: oltre lì non c’è precisione, c’è il rumore del
+   * float. Il DTO dichiara `maxDecimalPlaces: 4` e rifiuterebbe le sei cifre
+   * grezze di `netFromGrossExact`.
+   *
+   * ⭐ Questa maschera era l’UNICA delle sei che mandano denaro a non
+   * chiamarlo — misurato il 26/08/2026. Non è una scelta: è la ragione del
+   * 400.
+   *
+   * ⛔ È la regola di `regole-gestionale` presa alla lettera: «si arrotonda
+   * solo all’uscita, mai nei passaggi intermedi», e «l’arrotondamento sta sul
+   * totale di riga, mai sul prezzo unitario».
+   */
+  protected onLineAmountChange(index: number, value: number | null): void {
+    const group = this.lines.at(index);
     if (!group) {
       return;
     }
-    const net = parseMoneyInput(group.controls.netText.value, this.currency);
-    const rate = parseRatePercent(group.controls.rateText.value);
-    if (net === null || rate === null) {
+    const vat = this.lineVatInput(index);
+    if (value === null || !entryIncludesVat(this.costEntryMode(), vat)) {
+      // ⛔ Nessuno scorporo: o non c'e' valore, o l'IVA non e' contenuta in
+      // quello che l'operatore ha scritto. Scorporare in inversione contabile
+      // abbatterebbe l'imponibile del 22% — misurato da una prova.
+      group.controls.netMinor.setValue(value);
+    } else {
+      group.controls.netMinor.setValue(toStorableMinor(netFromGrossExact(value, vat.ratePercent)));
+    }
+    this.lines.markAsDirty();
+    this.recalcLineVat(index);
+  }
+
+  /**
+   * Cambio di modalità: **il netto canonico non si tocca mai.**
+   *
+   * ⛔ Ricostruirlo da quello che si vede a schermo è il difetto che questa
+   * separazione esiste per impedire: il valore mostrato è arrotondato a due
+   * decimali, e riscriverci sopra il canonico perderebbe la coda a ogni giro.
+   */
+  protected onAmountModeChange(includeVat: boolean): void {
+    this.costEntryMode.set(includeVat ? 'vat_included' : 'vat_excluded');
+    this.markFormDirty();
+  }
+
+  // ── Codici IVA ──────────────────────────────────────────────────────────
+  //
+  // ⛔ Questa maschera era l'UNICA dell'app a digitare l'aliquota a mano, dal
+  // 19/07/2026 — cinque giorni dopo che il dominio Codice IVA era già in
+  // codice. Otto form tengono `vatCodeId`; questo no.
+  //
+  // ⚠️ E i quattro codici in inversione contabile d'acquisto (22R, 10R, 5R, 4R)
+  // sono gli unici con `usageScope: 'purchase'`: esistono SOLO per questa
+  // maschera, che non poteva sceglierli.
+
+  private readonly vatCodes = toSignal(
+    this.vatCodeService.list().pipe(catchError(() => of([] as readonly VatCode[]))),
+    { initialValue: [] as readonly VatCode[] },
+  );
+
+  private readonly purchaseVatCodes = computed(() =>
+    this.vatCodes().filter((vatCode) => vatCode.isActive && isPurchaseVatCode(vatCode)),
+  );
+
+  private readonly vatCodesById = computed(
+    () => new Map(this.vatCodes().map((vatCode) => [vatCode.id, vatCode])),
+  );
+
+  private readonly defaultVatCodeId = computed(
+    () => this.purchaseVatCodes().find((vatCode) => vatCode.isDefault)?.id ?? '',
+  );
+
+  private readonly vatCodeOptionsBase = computed<readonly SelectMenuOption[]>(() =>
+    this.purchaseVatCodes().map(vatCodeSelectOption),
+  );
+
+  /**
+   * Il Codice IVA di ogni riga **com'era quando il documento è stato aperto**.
+   *
+   * ⭐ È il riferimento del contratto binario, e si fissa al caricamento: non si
+   * aggiorna durante le modifiche locali, o due modifiche di fila si
+   * annullerebbero a vicenda e la seconda non partirebbe.
+   */
+  private readonly persistedVatCodeIds = signal<ReadonlyMap<string, string | null>>(new Map());
+
+  /**
+   * I dati di calcolo IVA della riga, **riconosciuti dal CODICE e non dal
+   * numero dell'aliquota**.
+   *
+   * ⛔ **È l'errore che il proprietario ha contestato il 25/08/2026, ed era di
+   * logica di base.** La maschera faceva `netto × aliquota ÷ 100` a mano e
+   * scorporava con la sola aliquota: due operazioni che ignorano
+   * `calculationMode`, `nonDeductiblePercent` e `vatAffectsSupplierTotal` —
+   * cioè tutto ciò che distingue un Codice IVA dal suo numero.
+   *
+   * ⚠️ **In inversione contabile il fornitore NON espone l'IVA**: l'importo
+   * scritto in fattura è già l'imponibile. Scorporarlo lo abbatteva del 22%.
+   * Misurato da una prova: 100,00 diventavano 81,97 di imponibile.
+   *
+   * ⭐ Tre fonti, in ordine, e nessuna è l'aliquota nuda:
+   *   1. il Codice IVA scelto — l'autorità, quando c'è;
+   *   2. lo snapshot congelato sulla riga — per i documenti già salvati, che
+   *      conservano il fatto fiscale del giorno in cui sono stati compilati;
+   *   3. l'aliquota storica — solo per le righe nate prima che il Codice IVA
+   *      esistesse, e con `calculationMode: 'standard'` dichiarato.
+   */
+  private lineVatInput(index: number): VatComputationInput {
+    const group = this.lines.at(index);
+    const codeId = group?.controls.vatCodeId.value;
+    const vatCode = codeId ? this.vatCodesById().get(codeId) : undefined;
+    if (vatCode) {
+      return vatInputFromVatCode(vatCode);
+    }
+    const lineId = group?.controls.id.value;
+    const snapshot = lineId ? this.persistedVatSnapshots().get(lineId) : undefined;
+    // ⛔ **Uno snapshot di UN CAMPO non e' un Codice IVA.** Le righe salvate
+    // prima del 25/08/2026 portano `{ ratePercent }` e nient'altro — e' quanto
+    // scriveva il vecchio percorso. Passarlo a `vatInputFromSnapshot` darebbe
+    // `calculationMode: undefined`, e da li' in poi ogni decisione fiscale
+    // sarebbe presa su un dato che non esiste.
+    //
+    // ⭐ `calculationMode` e' il discriminante giusto: e' il campo che dice
+    // COME si calcola, ed e' quello che uno snapshot vero ha sempre.
+    if (snapshot?.calculationMode) {
+      return vatInputFromSnapshot(snapshot);
+    }
+    return vatInputFromLegacyRate(
+      snapshot?.ratePercent ?? group?.controls.ratePercent.value ?? null,
+    );
+  }
+
+  /** Lo snapshot IVA congelato su ogni riga già salvata, letto all'apertura. */
+  private readonly persistedVatSnapshots = signal<ReadonlyMap<string, VatSnapshot>>(new Map());
+
+  protected lineVatOptions(index: number): readonly SelectMenuOption[] {
+    return vatOptionsIncludingSelected(
+      this.vatCodeOptionsBase(),
+      this.lines.at(index)?.controls.vatCodeId.value,
+      this.vatCodesById(),
+    );
+  }
+
+  /**
+   * L'operatore sceglie un Codice IVA: la riga prende la sua aliquota e
+   * ripropone l'imposta.
+   *
+   * ⚠️ L'imposta resta comunque modificabile. Una fattura ricevuta si REGISTRA,
+   * non si produce: l'imposta stampata dal fornitore può differire di un
+   * centesimo dall'arrotondamento, e un campo derivato costringerebbe a falsare
+   * il netto per farla tornare.
+   */
+  protected onLineVatSelect(index: number, value: string | null): void {
+    const group = this.lines.at(index);
+    if (!group) {
       return;
     }
-    const vatMinor = Math.round((net.amountMinor * rate) / 100);
-    group.controls.vatText.setValue(
-      this.moneyToInputText({ amountMinor: vatMinor, currencyCode: this.currency }),
+    group.controls.vatCodeId.setValue(value ?? '');
+    const vatCode = value ? this.vatCodesById().get(value) : undefined;
+    if (vatCode) {
+      group.controls.ratePercent.setValue(vatCode.ratePercent);
+    }
+    this.lines.markAsDirty();
+    this.recalcLineVat(index);
+  }
+
+  // ── Righe economiche ────────────────────────────────────────────────────────
+
+  private buildLine(init?: {
+    id?: string;
+    description?: string;
+    netMinor?: number | null;
+    vatCodeId?: string;
+    ratePercent?: number | null;
+    vatMinor?: number | null;
+    linkedGoodsReceiptId?: string;
+  }): EconomicLineForm {
+    return this.fb.group({
+      id: this.fb.control(init?.id ?? ''),
+      description: this.fb.control(init?.description ?? ''),
+      netMinor: this.fb.control<number | null>(init?.netMinor ?? null),
+      vatCodeId: this.fb.control(init?.vatCodeId ?? ''),
+      ratePercent: this.fb.control<number | null>(init?.ratePercent ?? null),
+      vatMinor: this.fb.control<number | null>(init?.vatMinor ?? null),
+      linkedGoodsReceiptId: this.fb.control(init?.linkedGoodsReceiptId ?? ''),
+    });
+  }
+
+  /** L'importo di una riga cambia: lo scrive e ripropone l'imposta. */
+  protected onLineNetChange(index: number, value: number | null): void {
+    const group = this.lines.at(index);
+    if (!group) {
+      return;
+    }
+    group.controls.netMinor.setValue(value);
+    this.lines.markAsDirty();
+    this.recalcLineVat(index);
+  }
+
+  protected onLineVatChange(index: number, value: number | null): void {
+    const group = this.lines.at(index);
+    if (!group) {
+      return;
+    }
+    group.controls.vatMinor.setValue(value);
+    this.lines.markAsDirty();
+  }
+
+  protected onInstallmentAmountChange(index: number, value: number | null): void {
+    const group = this.installments.at(index);
+    if (!group) {
+      return;
+    }
+    group.controls.amountMinor.setValue(value);
+    this.installments.markAsDirty();
+  }
+
+  protected addLine(): void {
+    const predefinito = this.defaultVatCodeId();
+    this.lines.push(
+      this.buildLine({
+        vatCodeId: predefinito || undefined,
+        ratePercent: predefinito
+          ? (this.vatCodesById().get(predefinito)?.ratePercent ?? null)
+          : null,
+      }),
     );
+    this.lines.markAsDirty();
+  }
+
+  /**
+   * ⭐ **Togliere le righe di un arrivo lo SCOLLEGA**, e non serve altro.
+   *
+   * Deciso dal proprietario il 25/08/2026 sul modello Danea: «non si toglie
+   * l'incluso, si eliminano le righe ed, in automatico, non risulterà più
+   * l'arrivo merci agganciato a quella fattura».
+   */
+  protected removeLine(index: number): void {
+    this.lines.removeAt(index);
+    this.lines.markAsDirty();
+  }
+
+  /**
+   * IVA riga riproposta da netto × aliquota. Resta comunque modificabile: una
+   * fattura ricevuta si REGISTRA, e l'imposta stampata dal fornitore può
+   * differire di un centesimo dall'arrotondamento.
+   *
+   * ⚠️ **Si ricalcola allo sfocamento, non a ogni tasto** — è la conseguenza
+   * dichiarata del passaggio alla primitiva monetaria, che emette al blur per
+   * non distruggere la coda decimale del canonico.
+   */
+  protected recalcLineVat(index: number): void {
+    const group = this.lines.at(index);
+    if (!group) {
+      return;
+    }
+    const net = group.controls.netMinor.value;
+    if (net === null) {
+      return;
+    }
+    // ⭐ Il MOTORE CONDIVISO, lo stesso di ogni altro documento. Qui c'era
+    // net x aliquota / 100, che e' giusto solo per il Codice IVA ordinario:
+    // ignora l'inversione contabile, la percentuale indetraibile e il fatto
+    // che l'imposta sia dovuta o meno al fornitore.
+    //
+    // Una riga economica non ha quantita' ne' sconto — sono 1 e 0 perche' NON
+    // ESISTONO, non per semplificare il calcolo.
+    const amounts = computeVatLineAmounts({
+      enteredUnitCostMinor: net,
+      costEntryMode: 'vat_excluded',
+      quantity: 1,
+      discountPercent: 0,
+      vat: this.lineVatInput(index),
+    });
+    group.controls.vatMinor.setValue(amounts.lineVatMinor);
   }
 
   // ── Scadenze di pagamento ───────────────────────────────────────────────────
 
   private buildInstallment(init?: {
     dueDate?: string;
-    amountText?: string;
+    amountMinor?: number | null;
     settled?: boolean;
     settledAt?: string;
   }): InstallmentForm {
     return this.fb.group({
       dueDate: this.fb.control(init?.dueDate ?? ''),
-      amountText: this.fb.control(init?.amountText ?? ''),
+      amountMinor: this.fb.control<number | null>(init?.amountMinor ?? null),
       settled: this.fb.control(init?.settled ?? false),
       settledAt: this.fb.control(init?.settledAt ?? ''),
     });
@@ -853,19 +1254,10 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     // Comodo default: il residuo non ancora coperto dalle scadenze esistenti.
     const covered = this.form
       .getRawValue()
-      .installments.reduce(
-        (sum, installment) =>
-          sum + (parseMoneyInput(installment.amountText, this.currency)?.amountMinor ?? 0),
-        0,
-      );
+      .installments.reduce((sum, installment) => sum + (installment.amountMinor ?? 0), 0);
     const residualMinor = Math.max(0, this.totalGross().amountMinor - covered);
     this.installments.push(
-      this.buildInstallment({
-        amountText:
-          residualMinor > 0
-            ? this.moneyToInputText({ amountMinor: residualMinor, currencyCode: this.currency })
-            : '',
-      }),
+      this.buildInstallment({ amountMinor: residualMinor > 0 ? residualMinor : null }),
     );
     this.installments.markAsDirty();
   }
@@ -920,8 +1312,8 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (rows) => {
-          const includedIds = new Set(this.includedReceipts().map((row) => row.id));
-          this.linkableReceipts.set(rows.filter((row) => !includedIds.has(row.id)));
+          const collegati = this.linkedReceiptIds();
+          this.linkableReceipts.set(rows.filter((row) => !collegati.has(row.id)));
           this.linkableLoading.set(false);
         },
         error: (err: unknown) => {
@@ -943,41 +1335,91 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     });
   }
 
+  /**
+   * ⭐ **Includere un arrivo MATERIALIZZA le sue righe, una volta sola.**
+   *
+   * ⛔ Prima l'arrivo entrava in un elenco a parte e le righe se le ricalcolava
+   * il server a ogni salvataggio: in sola lettura, e mai correggibili. Ora
+   * nascono qui, come righe del documento, e da lì si modificano come le altre.
+   *
+   * ⚠️ **Una riga per aliquota, per arrivo** — non per aliquota e basta: la riga
+   * porta il legame con UN arrivo, e sommare due arrivi nella stessa riga
+   * perderebbe il legame di uno dei due.
+   */
   protected includeSelectedReceipts(): void {
     const selection = this.linkableSelection();
-    const toInclude = this.linkableReceipts().filter((row) => selection.has(row.id));
+    const toInclude = this.linkableReceipts()
+      .filter((row) => selection.has(row.id))
+      .sort(
+        (a, b) => a.documentDate.localeCompare(b.documentDate) || (a.number ?? 0) - (b.number ?? 0),
+      );
     if (toInclude.length === 0) {
       return;
     }
-    this.includedReceipts.update((current) => [
-      ...current,
-      ...toInclude.map((row): IncludedReceiptRow => ({
-        id: row.id,
-        number: row.number,
-        reference: row.reference,
-        documentDate: row.documentDate,
-        causalText: row.causalText,
-        subtotal: row.subtotal,
-        tax: row.tax,
-        total: row.total,
-        vatBreakdown: row.vatBreakdown ?? [],
-      })),
-    ]);
-    // Gli arrivi inclusi vivono fuori dal FormGroup: dirty marcato a mano.
+    for (const receipt of toInclude) {
+      const descrizione = this.receiptLineDescription(receipt);
+      for (const quota of this.vatQuotasOf(receipt)) {
+        this.lines.push(
+          this.buildLine({
+            description: descrizione,
+            netMinor: quota.net.amountMinor,
+            // ⭐ Il Codice IVA dell'arrivo arriva fin qui: senza, la riga
+            // materializzata nascerebbe SENZA codice mentre tutto il resto
+            // della maschera lo usa, e il reverse charge d'acquisto si
+            // perderebbe proprio nel percorso che lo produce.
+            vatCodeId: quota.vatCodeId ?? '',
+            ratePercent: quota.ratePercent,
+            vatMinor: quota.vat.amountMinor,
+            linkedGoodsReceiptId: receipt.id,
+          }),
+        );
+      }
+    }
+    this.lines.markAsDirty();
     this.markFormDirty();
+    this.linkableSelection.set(new Set());
     this.includePanelOpen.set(false);
   }
 
-  protected removeReceipt(id: string): void {
-    this.includedReceipts.update((current) => current.filter((row) => row.id !== id));
-    this.markFormDirty();
+  /** «Rif. Arrivo merce 6 del 15/07/2026»: la descrizione della riga generata. */
+  private receiptLineDescription(receipt: {
+    readonly number?: number | null;
+    readonly reference?: string | null;
+    readonly documentDate: string;
+  }): string {
+    const label = receipt.number != null ? String(receipt.number) : (receipt.reference ?? '—');
+    return `Rif. Arrivo merce ${label} del ${formatShortDate(receipt.documentDate)}`;
   }
 
-  /** Riga riepilogativa (§5.2): "Arrivo merce n. 3 del 30/05/2026 - DDT 145…". */
-  protected receiptSummaryLabel(row: IncludedReceiptRow): string {
-    const number = row.number != null ? `n. ${row.number}` : (row.reference ?? '');
-    const base = `Arrivo merce ${number} del ${formatDate(row.documentDate)}`.trim();
-    return row.causalText?.trim() ? `${base} - ${row.causalText.trim()}` : base;
+  /**
+   * Le quote IVA dell'arrivo. Se l'arrivo non le porta, se ne ricava una sola
+   * dall'imponibile e dall'imposta complessivi: meglio una riga con l'aliquota
+   * dedotta che nessuna riga.
+   */
+  private vatQuotasOf(receipt: {
+    readonly subtotal: Money;
+    readonly tax: Money;
+    readonly vatBreakdown?: readonly GoodsReceiptVatBreakdownEntry[] | null;
+  }): readonly GoodsReceiptVatBreakdownEntry[] {
+    const quote = receipt.vatBreakdown ?? [];
+    if (quote.length > 0) {
+      return quote;
+    }
+    if (receipt.subtotal.amountMinor === 0 && receipt.tax.amountMinor === 0) {
+      return [];
+    }
+    return [
+      {
+        // Arrivo storico senza quote dettagliate: nessun codice da portare.
+        vatCodeId: null,
+        ratePercent:
+          receipt.subtotal.amountMinor > 0 && receipt.tax.amountMinor > 0
+            ? Math.round((receipt.tax.amountMinor / receipt.subtotal.amountMinor) * 100)
+            : 0,
+        net: receipt.subtotal,
+        vat: receipt.tax,
+      },
+    ];
   }
 
   // ── Salvataggio ─────────────────────────────────────────────────────────────
@@ -986,11 +1428,16 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
    * Controllo cronologico (§4) davanti a ogni salvataggio: il pulsante e il
    * dialogo di uscita passano entrambi da `save`.
    */
-  protected save(onSaved?: () => void): void {
-    this.chronology.run(() => this.saveNow(onSaved));
+  /**
+   * ⛔ Qui c'era un parametro `onSaved`, e lo passava UN solo chiamante:
+   * «Salva e chiudi» del dialogo d'uscita. Tolto quel pulsante il 25/08/2026,
+   * il parametro non ha piu' chiamanti e i suoi rami erano irraggiungibili.
+   */
+  protected save(): void {
+    this.chronology.run(() => this.saveNow());
   }
 
-  private saveNow(onSaved?: () => void): void {
+  private saveNow(): void {
     if (this.saving()) {
       return;
     }
@@ -1012,42 +1459,71 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
 
     const raw = this.form.getRawValue();
 
-    const manualLines: PurchaseInvoiceManualLineBody[] = [];
-    for (const [index, line] of raw.manualLines.entries()) {
+    const lines: PurchaseInvoiceLineBody[] = [];
+    for (const [index, line] of raw.lines.entries()) {
       const description = line.description.trim();
-      const hasContent =
-        description || line.netText.trim() || line.rateText.trim() || line.vatText.trim();
+      // ⛔ **`!== null`, mai la verità del valore.** Con `line.netMinor` nudo,
+      // una riga da 0,00 sarebbe FALSA e verrebbe saltata — e siccome il server
+      // fa `deleteMany` prima di riscrivere, saltata significa **cancellata**.
+      // «Non l'ho scritto» e «vale zero» sono due cose diverse.
+      // ⛔ **Il Codice IVA NON conta come contenuto**, ed è una distinzione che
+      // costa un difetto se si sbaglia: il predefinito lo mette la maschera, non
+      // l'operatore. Contandolo, la riga pronta all'apertura risulterebbe
+      // «scritta», il salvataggio la rifiuterebbe come incompleta, e **un
+      // documento vuoto non si potrebbe più salvare** — che è una regola di
+      // progetto, non una preferenza.
+      const hasContent = description !== '' || line.netMinor !== null || line.vatMinor !== null;
       if (!hasContent) {
+        // ⭐ Riga vuota: si salta, non è un errore. È la riga che ogni maschera
+        // documentale tiene pronta in fondo — e un documento vuoto si salva.
         continue;
       }
-      const net = parseMoneyInput(line.netText, this.currency);
+      const net = line.netMinor;
       if (!description || net === null) {
         this._submitState.set({
           status: 'error',
           error: {
             kind: AppErrorKind.Validation,
-            message: `Riga manuale ${index + 1}: inserisci descrizione e importo netto validi.`,
+            message: `Riga ${index + 1}: inserisci descrizione e importo netto validi.`,
           },
         });
         return;
       }
-      manualLines.push({
+      lines.push({
+        // ⭐ Vuoto = riga NUOVA, e il campo non entra proprio nel corpo: una
+        // stringa vuota verrebbe rifiutata dalla validazione UUID del DTO.
+        id: line.id || undefined,
         description,
-        netMinor: net.amountMinor,
-        vatRatePercent: parseRatePercent(line.rateText) ?? 0,
-        vatMinor: parseMoneyInput(line.vatText, this.currency)?.amountMinor ?? 0,
+        netMinor: net,
+        vatRatePercent: line.ratePercent ?? 0,
+        vatMinor: line.vatMinor ?? 0,
+        // ⭐ **Contratto binario.** Su una riga esistente si dichiara il codice
+        // SOLO se è cambiato rispetto a quello letto all'apertura: rimandare
+        // sempre quello persistito farebbe rifotografare lo snapshot al server,
+        // e una fattura di marzo cambierebbe aliquota il giorno in cui qualcuno
+        // modifica quel Codice IVA. La regola sta in un posto solo.
+        vatCodeId: vatCodeIdForLinePayload({
+          currentVatCodeId: line.vatCodeId,
+          persistedVatCodeId: line.id ? (this.persistedVatCodeIds().get(line.id) ?? null) : null,
+          isExistingLine: line.id !== '',
+        }),
+        // ⭐ Il legame all'arrivo viaggia sulla riga: è l'unica fonte, e il
+        // server ci ricava sia i collegamenti sia il controllo dei permessi.
+        linkedGoodsReceiptId: line.linkedGoodsReceiptId || undefined,
       });
     }
 
     const installments: PurchaseInvoiceInstallmentBody[] = [];
     for (const [index, installment] of raw.installments.entries()) {
       const hasContent =
-        installment.dueDate.trim() || installment.amountText.trim() || installment.settled;
+        installment.dueDate.trim() !== '' ||
+        installment.amountMinor !== null ||
+        installment.settled;
       if (!hasContent) {
         continue;
       }
-      const amount = parseMoneyInput(installment.amountText, this.currency);
-      if (!installment.dueDate || amount === null || amount.amountMinor < 0) {
+      const amount = installment.amountMinor;
+      if (!installment.dueDate || amount === null || amount < 0) {
         this._submitState.set({
           status: 'error',
           error: {
@@ -1059,7 +1535,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       }
       installments.push({
         dueDate: new Date(installment.dueDate).toISOString(),
-        amountMinor: amount.amountMinor,
+        amountMinor: amount,
         settled: installment.settled,
         settledAt: installment.settledAt
           ? new Date(installment.settledAt).toISOString()
@@ -1105,12 +1581,12 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
           vatNumber: raw.recipient.vatNumber.trim() || undefined,
         },
         currency: this.currency,
+        purchaseCostEntryMode: this.costEntryMode(),
         // Numero imposto a mano: non sposta il progressivo della serie.
         // Non imposto: campo assente, così il server lo assegna lui.
         number: this.numbering.imposedNumber(),
         series: this.numbering.chosenSeries(),
-        goodsReceiptIds: this.includedReceipts().map((row) => row.id),
-        manualLines,
+        lines,
         installments,
       })
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
@@ -1124,10 +1600,6 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
           );
           // Registrazione salvata: il guard di uscita non deve più fermarla.
           this.dirtySinceLastSave.set(false);
-          if (onSaved) {
-            onSaved();
-            return;
-          }
           void this.router.navigateByUrl(this.listPath);
         },
         error: (err: unknown) => {
@@ -1202,14 +1674,10 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     this.pendingDeactivate = null;
   }
 
-  /** «Salva e chiudi» dal dialogo: salva la registrazione e prosegue l'uscita. */
-  protected confirmExitSaveInvoice(): void {
-    this.save(() => {
-      this.exitDialogOpen.set(false);
-      this.pendingDeactivate?.(true);
-      this.pendingDeactivate = null;
-    });
-  }
+  // ⛔ Qui c'era il gestore di «Salva e chiudi» del dialogo d'uscita, tolto il
+  // 25/08/2026 con quel pulsante: il dialogo ha DUE azioni — Annulla · Esci
+  // senza salvare — e il salvataggio resta il pulsante Salva della barra.
+  // (decisione del proprietario, 24/08/2026)
 
   private patchFormFromDocument(doc: DocumentRecord): void {
     // Patch programmatico (caricamento/duplica): non è una modifica dell'utente.
@@ -1245,49 +1713,67 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       },
     });
 
-    this.manualLines.clear();
+    // ⛔ **Qui c'era `if (line.lineSource !== 'manual') continue;`.**
+    //
+    // Scartava ogni riga che non fosse una voce libera, perche' quelle da arrivo
+    // il client se le ri-derivava da solo. Con le righe materializzate quel
+    // filtro sarebbe stato distruttivo, in tre tempi: le righe da arrivo non
+    // entravano nel form, quindi non entravano nel payload, quindi il
+    // `deleteMany` del server le cancellava per sempre. **Il documento si
+    // sarebbe svuotato in silenzio**, e nessun test lo avrebbe visto.
+    this.lines.clear();
     for (const line of doc.lines ?? []) {
-      if (line.lineSource !== 'manual') {
-        continue;
-      }
-      this.manualLines.push(
-        this.buildManualLine({
+      this.lines.push(
+        this.buildLine({
+          id: line.id,
           description: line.description,
-          netText: this.moneyToInputText(line.lineTotal),
-          rateText:
-            line.vatSnapshot?.ratePercent != null
-              ? String(line.vatSnapshot.ratePercent).replace('.', ',')
-              : '',
-          vatText: line.lineVatTotal ? this.moneyToInputText(line.lineVatTotal) : '',
+          // ⭐ `?? null`, mai `?? 0`: una riga senza imposta non è una riga con
+          // imposta zero, e la differenza decide se il campo mostra il
+          // segnaposto o un valore che nessuno ha scritto.
+          netMinor: line.lineTotal.amountMinor,
+          vatCodeId: line.vatCodeId ?? '',
+          ratePercent: line.vatSnapshot?.ratePercent ?? null,
+          vatMinor: line.lineVatTotal?.amountMinor ?? null,
+          linkedGoodsReceiptId: line.linkedGoodsReceiptId ?? '',
         }),
       );
     }
+
+    // La modalità con cui il documento è stato compilato: un documento è un
+    // fatto, e la conserva finché l'operatore non la cambia.
+    this.costEntryMode.set(doc.purchaseCostEntryMode ?? 'vat_excluded');
+
+    // ⭐ Il riferimento del contratto binario si fissa QUI, al caricamento, e
+    // non si aggiorna durante le modifiche locali: altrimenti due modifiche di
+    // fila si annullerebbero a vicenda e la seconda non partirebbe.
+    this.persistedVatCodeIds.set(
+      new Map((doc.lines ?? []).map((line) => [line.id, line.vatCodeId ?? null])),
+    );
+    // ⭐ Lo snapshot congelato: su una riga gia' salvata e' LUI il fatto
+    // fiscale, non l'anagrafica di oggi. Serve al calcolo quanto il codice.
+    this.persistedVatSnapshots.set(
+      new Map(
+        (doc.lines ?? [])
+          .filter((line): line is typeof line & { vatSnapshot: VatSnapshot } => !!line.vatSnapshot)
+          .map((line) => [line.id, line.vatSnapshot]),
+      ),
+    );
 
     this.installments.clear();
     for (const installment of doc.paymentInstallments ?? []) {
       this.installments.push(
         this.buildInstallment({
           dueDate: installment.dueDate.slice(0, 10),
-          amountText: this.moneyToInputText(installment.amount),
+          amountMinor: installment.amount.amountMinor,
           settled: installment.settled,
           settledAt: installment.settledAt ? installment.settledAt.slice(0, 10) : '',
         }),
       );
     }
 
-    this.includedReceipts.set(
-      (doc.linkedGoodsReceipts ?? []).map((receipt): IncludedReceiptRow => ({
-        id: receipt.id,
-        number: receipt.number,
-        reference: receipt.reference,
-        documentDate: receipt.documentDate,
-        causalText: receipt.causalText,
-        subtotal: receipt.subtotal,
-        tax: receipt.tax,
-        total: receipt.total,
-        vatBreakdown: receipt.vatBreakdown ?? [],
-      })),
-    );
+    // ⭐ Gli arrivi collegati NON si rileggono da `doc.linkedGoodsReceipts`: le
+    // righe portano già il legame, e rileggerlo da un'altra parte rifarebbe la
+    // seconda verità che questa unificazione ha tolto.
   }
 
   /**
@@ -1326,19 +1812,26 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
         registrationDate: todayIsoDate(),
       });
       this.installments.clear();
+      // ⚠️ **I legami agli arrivi NON si duplicano.** Gli arrivi della fattura
+      // di partenza sono già fatturati da quella: riportarli qui li aggancerebbe
+      // due volte, e il server rifiuterebbe il salvataggio. Le righe restano —
+      // sono gli importi che si vogliono ricopiare — ma diventano voci libere.
+      for (const line of this.lines.controls) {
+        line.controls.linkedGoodsReceiptId.setValue('');
+      }
     } finally {
       this.suppressDirtyMarking = false;
     }
-    this.includedReceipts.set([]);
     this.refreshDocumentNumberProposal();
   }
 
-  private moneyToInputText(money: Money): string {
-    if (money.amountMinor === 0) {
-      return '';
-    }
-    return moneyToDecimalString(money).replace('.', ',');
-  }
+  // ⛔ Qui c'era `moneyToInputText`: la conversione denaro→testo scritta a mano
+  // in questa maschera. Tolta il 25/08/2026 col passaggio ad `app-money-input`,
+  // che quella grammatica ce l'ha già — e la aveva **due giorni prima**.
+  //
+  // ⚠️ Portava anche un difetto: restituiva stringa VUOTA per lo zero, quindi
+  // una riga salvata a 0,00 si rileggeva vuota e al salvataggio veniva rifiutata
+  // come «importo netto non valido». Un abbuono a zero non si poteva risalvare.
 
   private toAppError(err: unknown): AppError {
     return isAppError(err) ? err : mapHttpErrorToAppError(err);

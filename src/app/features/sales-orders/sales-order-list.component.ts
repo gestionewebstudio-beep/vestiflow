@@ -26,6 +26,7 @@ import type { Subscription } from 'rxjs';
 
 import type { PageMeta } from '@core/models/api.model';
 import { AuthService } from '@core/auth';
+import { salesOrderRowPath } from '@domain/sales-orders/models/sales-order-routing.util';
 import {
   canExportOperationalData,
   canManageDocFamily,
@@ -40,25 +41,30 @@ import { SalesOrderSource, type SalesOrder } from '@core/models/sales-order.mode
 import { customerDisplayName } from '@core/models/customer.model';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { CustomerService } from '@domain/customers/services/customer.service';
-import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
-import { PaginationComponent } from '@shared/components/pagination/pagination.component';
+import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
+import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
-import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
 import { formatMoney } from '@core/utils/money.util';
-import type { Money } from '@core/models/money.model';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
-import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 import {
+  DEFAULT_MOVEMENT_PERIOD,
   MovementPeriodPreset,
   resolveMovementPeriodRange,
 } from '@domain/inventory/models/movement-period.util';
-import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
+import { comando, voceEsporta } from '@shared/models/list-action-catalog';
+import { FILTERED_SCOPE_NOT_AVAILABLE, type ListAction } from '@shared/models/list-selection.model';
+import {
+  serializeDataTableSort,
+  type DataTableSort,
+} from '@shared/components/data-table/data-table.model';
+import { createListSelection } from '@shared/utils/list-selection';
+import { createSelectionMode } from '@shared/utils/selection-mode';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { TableViewId } from '@shared/table-columns/table-column.model';
 import { ShopifySyncFeedbackComponent } from '@domain/channels/shopify/components/shopify-sync-feedback/shopify-sync-feedback.component';
@@ -81,12 +87,12 @@ import {
 } from '@domain/reports/models/report-list-query.model';
 import {
   SalesOrderTableComponent,
-  type SalesOrderTableActionEvent,
   type SalesOrderTableProfile,
   type SalesOrderTableSelectionEvent,
 } from './components/sales-order-table/sales-order-table.component';
 import {
   SALES_ORDER_LIST_COLUMN_DEFS,
+  SALES_ORDER_LIST_SORTABLE_COLUMNS,
   SALES_ORDER_LIST_COLUMN_PRESETS,
   SHOPIFY_ORDER_LIST_COLUMN_DEFS,
   SHOPIFY_ORDER_LIST_COLUMN_PRESETS,
@@ -98,11 +104,14 @@ import {
 } from './utils/sales-order-list-export.util';
 import {
   DEFAULT_SALES_PAGE_SIZE,
-  SALES_PAGE_SIZE_OPTIONS,
   parseSalesOrderListQuery,
   withShopifySourceScope,
 } from '@domain/sales-orders/models/sales-order-list-query.model';
 import { SalesOrderService } from '@domain/sales-orders/services/sales-order.service';
+import { GroupByMenuComponent } from '@shared/components/group-by-menu/group-by-menu.component';
+import type { DataTableTotals } from '@shared/components/data-table/data-table.model';
+import { DEFAULT_CURRENCY } from '@core/utils/money.util';
+import { totaliDiElenco } from '@shared/models/list-totals.util';
 
 const SEARCH_DEBOUNCE_MS = 300;
 const SHOPIFY_FEEDBACK_DISMISS_MS = 8000;
@@ -128,19 +137,17 @@ type SalesListState =
   selector: 'app-sales-order-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    BackButtonComponent,
+    GroupByMenuComponent,
+    ListPageComponent,
     ButtonComponent,
     ConfirmDialogComponent,
+    DeleteConfirmComponent,
     DateInputComponent,
-    EmptyStateComponent,
     ErrorStateComponent,
-    PaginationComponent,
+    ListActionsBarComponent,
     SelectMenuComponent,
-    SlidePanelComponent,
-    TableSkeletonComponent,
     ReportCorrispettiviExportComponent,
     SalesOrderTableComponent,
-    TableColumnPickerComponent,
     ShopifySyncFeedbackComponent,
   ],
   templateUrl: './sales-order-list.component.html',
@@ -162,7 +169,6 @@ export class SalesOrderListComponent {
   private shopifyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
   protected readonly skeletonColumns = 9;
-  protected readonly pageSizeOptions = SALES_PAGE_SIZE_OPTIONS;
 
   private readonly routeData = toSignal(this.route.data, {
     initialValue: this.route.snapshot.data,
@@ -327,10 +333,91 @@ export class SalesOrderListComponent {
     this.isShopifyView() ? withShopifySourceScope(this.query()) : this.query(),
   );
 
-  private readonly request = computed(() => ({
-    query: this.effectiveQuery(),
-    tick: this.refreshTick(),
-  }));
+  /**
+   * Le chiavi che il server sa ordinare.
+   *
+   * ⚠️ Il filtro non è ridondante: la stringa arriva dall'**URL**, e un link
+   * con `sort=state:asc` prenderebbe un `400` invece di aprire l'elenco.
+   */
+  private readonly sortRichiesto = computed<readonly DataTableSort[]>(() =>
+    (this.query().sort ?? []).filter((chiave) =>
+      SALES_ORDER_LIST_SORTABLE_COLUMNS.has(chiave.columnId),
+    ),
+  );
+
+  /**
+   * ⛔ **Confronto per CONTENUTO**: un `computed` che costruisce un oggetto ne
+   * produce uno nuovo a ogni ricalcolo, e `toObservable` lo confronta con
+   * `Object.is` — due richieste identiche risultano diverse e l'elenco
+   * ricarica dati che ha già. Qui l'ordinamento è server-side, quindi una
+   * richiesta nuova ci vuole davvero: questo evita solo quelle **identiche**
+   * (misurato il 21/08/2026 sul Registro, dove era il grosso della lentezza).
+   */
+  private readonly request = computed(
+    () => ({
+      // ⛔ I riepiloghi non impaginano (`14` §H14-bis): si chiede tutto il
+      // risultato del filtro, contenuto dal periodo.
+      query: { ...this.effectiveQuery(), sort: this.sortRichiesto(), all: true },
+      tick: this.refreshTick(),
+    }),
+    { equal: (a, b) => JSON.stringify(a) === JSON.stringify(b) },
+  );
+
+  /**
+   * Nuovo ordine dalle intestazioni: il motore ha già calcolato il ciclo e la
+   * priorità delle chiavi. ⛔ Si torna alla **prima pagina**: restare alla
+   * quinta di un ordine appena cambiato mostra righe che non c'entrano.
+   */
+  protected onSortChange(chiavi: readonly DataTableSort[]): void {
+    this.updateParams({ sort: serializeDataTableSort(chiavi) || null, page: null }, true);
+  }
+
+  /**
+   * ⭐ **I totali della FASCIA riepilogo**, che dal 31/08/2026 ha preso il posto
+   * della riga totali dentro la tabella.
+   *
+   * ⚠️ **Si somma `amountMinor` e si formatta UNA volta sola**: è la regola del
+   * denaro — «si arrotonda solo all'uscita, mai nei passaggi intermedi».
+   */
+  protected readonly totals = computed<DataTableTotals>(() => {
+    const valuta = this.orders()[0]?.total.currencyCode ?? DEFAULT_CURRENCY;
+    const soldi = (n: number): string => formatMoney({ amountMinor: n, currencyCode: valuta });
+    return totaliDiElenco(this.orders(), {
+      rowId: (order) => order.id,
+      selectedIds: this.selectedIds(),
+      columns: this.visibleColumns(),
+      campi: {
+        total: { valore: (o) => o.total.amountMinor, formato: soldi },
+        netTotal: { valore: (o) => o.subtotal.amountMinor, formato: soldi },
+      },
+    });
+  });
+
+  // ── Raggruppa ─────────────────────────────────────────────────────────────
+
+  /**
+   * ⚠️ **Raggruppa è PRESENTAZIONE, non un filtro**: non entra in nessuna query,
+   * non conta nel badge «Filtri (n)» e «Azzera filtri» non lo tocca. Le righe
+   * restano le stesse — cambia come si leggono.
+   */
+  protected readonly raggruppa = signal<string>('none');
+  protected readonly raggruppaPerGiornata = computed(() => this.raggruppa() === 'day');
+
+  protected onRaggruppaChange(value: string): void {
+    /*
+      ⛔ Passando a «Giorno» l'ordinamento manuale si AZZERA, non si mette in
+      pausa: uno stato che esiste e non si vede tornerebbe fuori al cambio
+      successivo senza che nessuno l'abbia chiesto.
+
+      ⚠️ È la stessa scelta del Registro Corrispettivi (`10` §20): il
+      raggruppamento **è già** una forma di ordinamento strutturato, e un «prima
+      il giorno, poi la colonna» spezzerebbe i gruppi e i loro subtotali.
+    */
+    if (value === 'day') {
+      this.updateParams({ sort: null }, true);
+    }
+    this.raggruppa.set(value);
+  }
 
   private readonly state = toSignal(
     toObservable(this.request).pipe(
@@ -373,30 +460,32 @@ export class SalesOrderListComponent {
     return current.status === 'success' && current.meta.total === 0;
   });
 
+  /*
+    ⭐ **Dice se «Azzera» ha qualcosa da azzerare**, e deve quindi rispecchiare
+    esattamente ciò che `resetFilters()` tocca: senza, il pulsante comparirebbe
+    con la sola ricerca scritta e premendolo non succederebbe niente.
+  */
   protected readonly hasActiveFilters = computed(() => {
     const q = this.query();
     return Boolean(
-      q.search ??
       q.financialStatus ??
       q.fulfillmentStatus ??
       q.source ??
       q.state ??
       q.customerId ??
-      q.locationId ??
-      q.placedFrom ??
-      q.placedTo,
+      q.locationId,
     );
   });
 
   protected readonly formatMoney = formatMoney;
 
-  /** Pannello filtri mobile (mockup restyling): un solo pulsante «Filtri (n)». */
-  protected readonly mobileFiltersOpen = signal(false);
-
   /**
-   * Quanti filtri sono attivi, per il badge del pulsante «Filtri». La ricerca
-   * non conta: ha il suo campo sempre visibile. Dal/Al fanno parte del periodo,
-   * quindi si contano insieme una sola volta.
+   * Quanti filtri sono attivi, per il badge del pulsante «Filtri».
+   *
+   * ⚠️ **Ricerca e Periodo non contano**: hanno il proprio controllo sempre
+   * visibile in barra, a ogni larghezza. Il badge dice che qualcosa restringe
+   * l'elenco **senza che si veda** — è il segnale che serve sotto `lg`, dove i
+   * filtri stanno chiusi nel pannello.
    */
   protected readonly activeFilterCount = computed(() => {
     const q = this.query();
@@ -407,26 +496,28 @@ export class SalesOrderListComponent {
     if (q.fulfillmentStatus) count++;
     if (q.customerId) count++;
     if (q.locationId) count++;
-    if (q.placedFrom ?? q.placedTo) count++;
     return count;
-  });
-
-  /**
-   * Somma dei totali degli ordini selezionati, mostrata nella barra massiva.
-   * Solo aritmetica sui dati già caricati (nessun ricalcolo di sconti/IVA).
-   */
-  protected readonly selectionTotal = computed<Money>(() => {
-    const orders = this.selectedOrders();
-    const amountMinor = orders.reduce((sum, order) => sum + order.total.amountMinor, 0);
-    const currencyCode = orders[0]?.total.currencyCode ?? 'EUR';
-    return { amountMinor, currencyCode };
   });
 
   // ── Selezione multipla + eliminazione a due conferme (come Arrivi merce) ──
   protected readonly canManage = computed(() =>
     canManageDocFamily(this.authService.currentUser(), 'sales_order'),
   );
-  protected readonly selectedIds = signal<ReadonlySet<string>>(new Set<string>());
+  // Lo STATO viene dalla primitiva comune (`14` parte D): era duplicato
+  // identico qui e in `document-list`, e sarebbe stato copiato in altri cinque.
+  private readonly selection = createListSelection('multiple');
+
+  /**
+   * ⭐ **La modalità «Seleziona» della vista a card**, dal telaio.
+   *
+   * ⛔ Non è scritta qui: `createSelectionMode` porta con sé la regola che
+   * spegnerla AZZERA la selezione — a modalità spenta il tocco torna ad aprire
+   * la riga, e non resta nessun gesto per deselezionare.
+   */
+  protected readonly modoSelezione = createSelectionMode(this.selection);
+
+  protected readonly selectedIds = this.selection.ids;
+  protected readonly selectionCount = this.selection.count;
   protected readonly selectedOrders = computed(() =>
     this.orders().filter((order) => this.selectedIds().has(order.id)),
   );
@@ -441,13 +532,131 @@ export class SalesOrderListComponent {
     ),
   );
 
+  /**
+   * Le azioni della barra contestuale, **dichiarate da questa pagina** (`14`
+   * parte D) — le stesse due sicure dell'elenco documenti, più l'eliminazione
+   * che qui esisteva già.
+   *
+   * ⭐ È la prova che l'astrazione è davvero trasversale: due elenchi di feature
+   * diverse, con azioni diverse, sulla stessa primitiva. L'etichetta variabile
+   * dell'eliminazione — «Elimina 3 di 5» quando non tutti sono eliminabili — la
+   * calcola la pagina, e la barra non sa nemmeno che esista un caso simile.
+   */
+  protected readonly selectionActions = computed<readonly ListAction[]>(() => {
+    // ⭐ **I comandi di pagina stanno QUI, non in testata** — decisione del
+    //    proprietario, 30/08/2026: tutti in una riga in basso, totali sopra.
+    const diPagina: ListAction[] = [];
+    if (this.canCreateManualOrder()) {
+      diPagina.push(
+        comando('new', {
+          ariaLabel: 'Nuovo ordine manuale',
+          run: () => this.createManualOrder(),
+        }),
+      );
+    }
+    if (this.showShopifyOrdersSync()) {
+      diPagina.push({
+        id: 'shopify-sync',
+        label: 'Sincronizza',
+        icon: 'pi-sync',
+        requires: 'none',
+        busy: this.shopifyOrdersLoading(),
+        ariaLabel: 'Sincronizza le vendite da Shopify',
+        run: () => this.syncOrdersFromShopify(),
+      });
+    }
+    const azioni: ListAction[] = [
+      ...diPagina,
+      /*
+        ⭐ **Duplica è scesa dal menu di riga alla barra** — `14` §«Il menu
+        tre-puntini di riga SPARISCE» (30/08/2026), applicata qui il 02/09/2026:
+        era l'ultimo elenco col menu. La tabella di quella sezione la dava già
+        come `ListAction, requires: 'one'`, ed è esattamente questa forma.
+
+        ⚠️ **`requires: 'one'` e non `'oneOrMore'`**: duplicare tre ordini in un
+        colpo aprirebbe tre maschere, o ne creerebbe tre senza che nessuno le
+        veda. Il contratto comune spegne l'azione e ne scrive il motivo.
+
+        ⚠️ **Il permesso OMETTE, la selezione SPEGNE**, ed è la stessa distinzione
+        già in uso per «Nuovo» qui sopra: chi non può gestire gli ordini non deve
+        leggere un comando spento che non gli servirà mai; chi può, lo trova
+        spento finché non sceglie una riga.
+      */
+      ...(this.canManage()
+        ? [
+            comando('duplicate', {
+              run: (target) => {
+                const scelto =
+                  target.scope === 'selection' && target.ids.length === 1
+                    ? this.selectedOrders().find((order) => order.id === target.ids[0])
+                    : undefined;
+                if (scelto) {
+                  this.startDuplicate(scelto);
+                }
+              },
+            }),
+          ]
+        : []),
+      comando('print', {
+        disabled: this.selectionCount() === 0,
+        disabledReason: FILTERED_SCOPE_NOT_AVAILABLE,
+        ariaLabel: "Stampa l'elenco degli ordini selezionati",
+        run: () => this.printSelectionList(),
+      }),
+      comando('export', {
+        disabled: this.selectionCount() === 0,
+        disabledReason: FILTERED_SCOPE_NOT_AVAILABLE,
+        busy: this.bulkPdfBusy(),
+        items: [
+          voceEsporta('csv', () => this.exportSelectionCsv()),
+          voceEsporta('pdf', () => this.downloadSelectionPdfs()),
+        ],
+      }),
+    ];
+    const eliminabili = this.deletableSelectedOrders().length;
+    const selezionati = this.selectedOrders().length;
+    /*
+      ⛔ **QUI «ELIMINA» COMPARIVA E SPARIVA**, e non doveva: era dentro un
+      `if (eliminabili > 0)`. Segnalato dal proprietario il 02/09/2026 guardando
+      la barra — «nei comandi in basso va inserito elimina del motore comune»:
+      senza selezione il pulsante non c'era proprio.
+
+      ⭐ **`14` §«Tutte le funzioni stanno nella barra in basso» lo dice già**, e
+      il contratto pure: `ListActionRequirement` «ha cambiato mestiere: prima
+      decideva se l'azione COMPARIVA; da quando le azioni sono sempre visibili
+      decide se è **abilitata**, e con quale motivo».
+
+      ⚠️ **Una barra che cambia lunghezza sposta gli altri comandi**: si va a
+      premere «Esporta» e sotto il dito è arrivato «Elimina». È la stessa ragione
+      per cui la riga totali non sparisce mai.
+    */
+    azioni.push(
+      comando('delete', {
+        // ⚠️ L'etichetta differisce dal catalogo, ed è voluto: dice QUANTI
+        //    dei selezionati si eliminano davvero. Non più «manuali» — fra
+        //    gli eliminabili ci sono anche gli ordini di canale che su
+        //    Shopify non risultano più.
+        label:
+          selezionati === 0 || eliminabili === selezionati
+            ? 'Elimina'
+            : `Elimina ${eliminabili} di ${selezionati}`,
+        // ⚠️ Il motivo di «nessuna riga scelta» lo produce il contratto comune
+        //    (`requires: 'oneOrMore'`): qui sta solo il vincolo di DOMINIO.
+        disabled: this.deleteBusy() || (selezionati > 0 && eliminabili === 0),
+        disabledReason:
+          'Gli ordini di canale non si eliminano: appartengono a Shopify, e il prossimo scarico li riporterebbe.',
+        run: () => this.requestDeleteSelection(),
+      }),
+    );
+    return azioni;
+  });
+
   /** Fra quelli in coda di eliminazione, gli ordini spariti dal canale. */
   private readonly pendingMissingOnChannel = computed(
     () => this.pendingDeleteOrders().filter((order) => order.channelMissingSince).length,
   );
   protected readonly pendingDeleteOrders = signal<readonly SalesOrder[]>([]);
   protected readonly deleteWarnOpen = signal(false);
-  protected readonly deleteConfirmOpen = signal(false);
   protected readonly deleteBusy = signal(false);
   protected readonly actionError = signal<AppError | null>(null);
   /** Ordine in stampa PDF (blocca doppio click sull'azione di riga). */
@@ -500,6 +709,18 @@ export class SalesOrderListComponent {
   private readonly searchSubscription: Subscription;
 
   constructor() {
+    // ⭐ **URL completo quando un periodo è applicato** (`14` §H14-bis, deciso
+    // il 20/08/2026). Il predefinito di 30 giorni È un filtro applicato —
+    // l'elenco mostra solo quelle righe — quindi finisce nell'indirizzo: un
+    // riepilogo filtrato si capisce, si condivide e si riproduce.
+    //
+    // ⛔ Una volta sola, alla creazione: riscriverlo a ogni giro cancellerebbe
+    // la scelta «Tutti», che è l'unico caso in cui nessun periodo è applicato.
+    if (this.periodPreset() !== MovementPeriodPreset.All) {
+      const iniziale = resolveMovementPeriodRange(this.periodPreset(), '', '');
+      this.updateParams({ placedFrom: iniziale.from ?? null, placedTo: iniziale.to ?? null }, true);
+    }
+
     this.columnPreferences.registerView(
       TableViewId.SalesOrdersList,
       SALES_ORDER_LIST_COLUMN_DEFS,
@@ -510,17 +731,6 @@ export class SalesOrderListComponent {
       SHOPIFY_ORDER_LIST_COLUMN_DEFS,
       SHOPIFY_ORDER_LIST_COLUMN_PRESETS,
     );
-
-    // Default «Mese corrente» all'apertura: l'URL è la fonte di verità dei
-    // filtri, quindi il periodo va scritto lì — una volta sola alla creazione,
-    // altrimenti scegliere «Tutto» verrebbe riscritto subito dopo.
-    if (this.periodPreset() === MovementPeriodPreset.ThisMonth) {
-      const initialRange = resolveMovementPeriodRange(MovementPeriodPreset.ThisMonth, '', '');
-      this.updateParams(
-        { placedFrom: initialRange.from ?? null, placedTo: initialRange.to ?? null },
-        true,
-      );
-    }
 
     effect(() => {
       this.corrispettiviPeriodQuery();
@@ -543,17 +753,7 @@ export class SalesOrderListComponent {
     // Al cambio pagina/filtri la selezione si restringe alle righe visibili.
     toObservable(this.orders)
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((orders) => {
-        const visible = new Set(orders.map((order) => order.id));
-        this.selectedIds.update((current) => {
-          const next = new Set([...current].filter((id) => visible.has(id)));
-          return next.size === current.size ? current : next;
-        });
-      });
-  }
-
-  protected onSearchInput(event: Event): void {
-    this.searchDraft.set((event.target as HTMLInputElement).value);
+      .subscribe((orders) => this.selection.prune(orders.map((order) => order.id)));
   }
 
   protected onFinancialFilterChange(value: string | null): void {
@@ -614,6 +814,10 @@ export class SalesOrderListComponent {
 
   /** Preset rapidi del periodo Dal/Al (stessi dell'Arrivo merce). */
   protected readonly periodOptions: readonly SelectMenuOption[] = [
+    // «Tutti» resta scegliibile, non è più il predefinito (`14` §H14-bis).
+    { value: MovementPeriodPreset.All, label: 'Tutti' },
+    { value: MovementPeriodPreset.Last7Days, label: 'Ultimi 7 giorni' },
+    { value: MovementPeriodPreset.Last30Days, label: 'Ultimi 30 giorni' },
     { value: MovementPeriodPreset.ThisMonth, label: 'Mese corrente' },
     { value: MovementPeriodPreset.LastMonth, label: 'Mese scorso' },
     { value: MovementPeriodPreset.ThisYear, label: 'Anno corrente' },
@@ -630,7 +834,7 @@ export class SalesOrderListComponent {
     this.route.snapshot.queryParamMap.get('placedFrom') ||
       this.route.snapshot.queryParamMap.get('placedTo')
       ? MovementPeriodPreset.Custom
-      : MovementPeriodPreset.ThisMonth,
+      : DEFAULT_MOVEMENT_PERIOD,
   );
 
   protected readonly isCustomPeriod = computed(
@@ -651,34 +855,27 @@ export class SalesOrderListComponent {
     );
   }
 
+  /*
+    ⚠️ **Ricerca e Periodo restano fuori** (`14` §0.2, ribadito dal proprietario
+    il 31/08/2026): hanno il proprio controllo sempre a vista in barra — la
+    ricerca il suo campo, il periodo il suo slot — e non seguono «Filtri».
+
+    ⛔ Qui il periodo tornava al «Mese corrente», quindi spegnere «Filtri»
+    spostava le date senza che nessuno lo chiedesse.
+  */
   protected resetFilters(): void {
-    this.searchDraft.set('');
-    // Il periodo torna al default dell'elenco («Mese corrente»), non a «Tutto».
-    this.periodPreset.set(MovementPeriodPreset.ThisMonth);
-    const range = resolveMovementPeriodRange(MovementPeriodPreset.ThisMonth, '', '');
     this.updateParams(
       {
-        search: null,
         financialStatus: null,
         fulfillmentStatus: null,
         source: null,
         state: null,
         customerId: null,
         locationId: null,
-        placedFrom: range.from ?? null,
-        placedTo: range.to ?? null,
         page: null,
       },
       true,
     );
-  }
-
-  protected goToPage(page: number): void {
-    this.updateParams({ page: page <= 1 ? null : page });
-  }
-
-  protected onPageSizeChange(size: number): void {
-    this.updateParams({ pageSize: size === DEFAULT_SALES_PAGE_SIZE ? null : size, page: null });
   }
 
   protected reload(): void {
@@ -738,54 +935,32 @@ export class SalesOrderListComponent {
   }
 
   protected openOrder(order: SalesOrder): void {
-    void this.router.navigate(['/app/sales', order.id]);
+    // ⛔ Qui c’era `router.navigate(['/app/sales', order.id])`, cablata. Non era
+    //   SBAGLIATA — `:id` e `:id/edit` montano lo stesso componente con lo stesso
+    //   guard — ma dava un URL diverso da quello della ricerca globale per lo
+    //   stesso ordine: stessa pagina, due indirizzi.
+    //
+    // ⭐ Ora elenco e ricerca globale passano dallo STESSO risolutore, quindi la
+    //   destinazione è identica alla lettera e non solo nell’esito.
+    // ⚠️ **Vale per entrambi i profili**, `customer-orders` e `shopify-orders`:
+    //    `openOrder` e’ condiviso, e la riga Shopify passa di qui. Il risolutore
+    //    guarda l’ORIGINE, perché un ordine di canale non è un `CustomerOrder`.
+    void this.router.navigateByUrl(salesOrderRowPath(order, this.authService.currentUser()));
   }
 
   protected createManualOrder(): void {
     void this.router.navigate(['/app/sales/new']);
   }
 
-  // ── Azioni di riga + selezione multipla ──────────────────────────────────
+  // ── Azioni sulla selezione ────────────────────────────────────────────────
 
-  protected onTableAction(event: SalesOrderTableActionEvent): void {
-    this.actionError.set(null);
-    if (event.action === 'open') {
-      this.openOrder(event.order);
-      return;
-    }
-    if (event.action === 'duplicate') {
-      this.startDuplicate(event.order);
-      return;
-    }
-    if (event.action === 'print') {
-      this.printOrder(event.order);
-      return;
-    }
-    if (event.action === 'delete') {
-      this.requestDeleteOrder(event.order);
-    }
-  }
-
-  /** Scarica il PDF dell'ordine (azione di riga «Stampa PDF»). */
-  protected printOrder(order: SalesOrder): void {
-    if (this.printingId()) {
-      return;
-    }
-    this.printingId.set(order.id);
-    this.service
-      .exportOrderPdf(order.id)
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (blob) => {
-          this.printingId.set(null);
-          this.downloadBlob(blob, `ordine-cliente-${order.orderNumber}.pdf`);
-        },
-        error: (err: unknown) => {
-          this.printingId.set(null);
-          this.actionError.set(this.toAppError(err));
-        },
-      });
-  }
+  /*
+    ⛔ **Qui c'era il dispatcher del menu «···» di riga**, tolto col menu il
+    02/09/2026. Con lui se ne sono andati `printOrder` — il PDF del singolo
+    ordine, che «Esporta ▾ → PDF» fa già sui selezionati con la stessa
+    `exportOrderPdf` — e `requestDeleteOrder`, identico a
+    `requestDeleteSelection` con un ordine solo in coda.
+  */
 
   private downloadBlob(blob: Blob, filename: string): void {
     const url = URL.createObjectURL(blob);
@@ -868,23 +1043,19 @@ export class SalesOrderListComponent {
   }
 
   protected onToggleSelection(event: SalesOrderTableSelectionEvent): void {
-    this.selectedIds.update((current) => {
-      const next = new Set(current);
-      if (event.selected) {
-        next.add(event.order.id);
-      } else {
-        next.delete(event.order.id);
-      }
-      return next;
-    });
+    this.selection.toggle(event.order.id, event.selected);
   }
 
+  /** La checkbox di testata agisce sulle righe CARICATE (`14` §4.1). */
   protected onToggleSelectAll(checked: boolean): void {
-    this.selectedIds.set(checked ? new Set(this.orders().map((order) => order.id)) : new Set());
+    this.selection.setAll(
+      this.orders().map((order) => order.id),
+      checked,
+    );
   }
 
   protected clearSelection(): void {
-    this.selectedIds.set(new Set());
+    this.selection.clear();
   }
 
   // ── Operazioni massive: elenco (CSV/stampa) e PDF documenti ──────────────
@@ -958,12 +1129,6 @@ export class SalesOrderListComponent {
       });
   }
 
-  protected requestDeleteOrder(order: SalesOrder): void {
-    this.actionError.set(null);
-    this.pendingDeleteOrders.set([order]);
-    this.deleteWarnOpen.set(true);
-  }
-
   protected requestDeleteSelection(): void {
     const orders = this.deletableSelectedOrders();
     if (orders.length === 0) {
@@ -972,12 +1137,6 @@ export class SalesOrderListComponent {
     this.actionError.set(null);
     this.pendingDeleteOrders.set([...orders]);
     this.deleteWarnOpen.set(true);
-  }
-
-  /** 1° modale (avviso) confermato → apre il 2° modale (conferma finale). */
-  protected onDeleteWarnConfirm(): void {
-    this.deleteWarnOpen.set(false);
-    this.deleteConfirmOpen.set(true);
   }
 
   /** Annulla/ESC su uno dei due modali: azzera la coda di eliminazione. */
@@ -996,7 +1155,7 @@ export class SalesOrderListComponent {
   protected onDeleteConfirm(): void {
     const orders = this.pendingDeleteOrders();
     if (orders.length === 0 || this.deleteBusy()) {
-      this.deleteConfirmOpen.set(false);
+      this.deleteWarnOpen.set(false);
       return;
     }
     this.deleteBusy.set(true);
@@ -1016,11 +1175,11 @@ export class SalesOrderListComponent {
       )
       .subscribe((results) => {
         this.deleteBusy.set(false);
-        this.deleteConfirmOpen.set(false);
+        this.deleteWarnOpen.set(false);
         this.pendingDeleteOrders.set([]);
         const deletedIds = new Set(results.filter((r) => r.ok).map((r) => r.order.id));
         if (deletedIds.size > 0) {
-          this.selectedIds.update((cur) => new Set([...cur].filter((id) => !deletedIds.has(id))));
+          this.selection.prune([...this.selectedIds()].filter((id) => !deletedIds.has(id)));
         }
         const failure = results.find((r) => !r.ok);
         const failedCount = results.length - deletedIds.size;

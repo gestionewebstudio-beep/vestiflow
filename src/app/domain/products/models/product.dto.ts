@@ -80,6 +80,8 @@ export interface CreateProductDto {
   readonly status: ProductStatus;
   /** Sincronizzazione Shopify: default true lato backend se omesso. */
   readonly shopifySyncEnabled?: boolean;
+  /** «Nome Shopify»: vuoto = si inizializza alla prima sincronizzazione. */
+  readonly shopifyTitle?: string | null;
   readonly unitOfMeasure?: string;
   readonly defaultVatCodeId?: string | null;
   readonly inventoryTracking?: InventoryTrackingMode;
@@ -126,6 +128,8 @@ export interface UpdateProductDto {
   readonly status?: ProductStatus;
   /** false→true: push iniziale; true→false: stop propagazione, nessun cleanup. */
   readonly shopifySyncEnabled?: boolean;
+  /** «Nome Shopify»: vuoto = si inizializza alla prima sincronizzazione. */
+  readonly shopifyTitle?: string | null;
   readonly unitOfMeasure?: string;
   readonly defaultVatCodeId?: string | null;
   readonly inventoryTracking?: InventoryTrackingMode;

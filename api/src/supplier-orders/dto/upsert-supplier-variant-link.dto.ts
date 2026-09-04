@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   IsBoolean,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -28,7 +29,10 @@ export class UpsertSupplierVariantLinkDto {
 
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
+  // ⚠️ NON `@IsInt()`: è un prezzo UNITARIO di acquisto, e la colonna è
+  //   `Decimal(16,6)` — verificato sullo schema. Trovato il 26/08/2026 dalla
+  //   guardia `check:dto-decimali`, al suo primo giro.
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
   lastPurchasePriceMinor?: number;
 

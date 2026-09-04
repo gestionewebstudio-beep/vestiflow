@@ -46,7 +46,7 @@ import { BackButtonComponent } from '@shared/components/back-button/back-button.
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
-import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
@@ -60,8 +60,6 @@ import {
   catalogOriginLabel,
   catalogOriginTone,
   isShopifyCatalogProduct,
-  SHOPIFY_CATALOG_EDIT_TITLE,
-  SHOPIFY_CATALOG_READONLY_BANNER,
 } from '@domain/products/models/catalog-origin.util';
 import { ProductService } from '@domain/products/services/product.service';
 import { activeListinoSlots } from '@domain/products/models/product-listino.model';
@@ -137,7 +135,7 @@ function shopifyCustomMetafieldLabel(namespace: string, key: string): string {
     BackButtonComponent,
     BadgeComponent,
     ButtonComponent,
-    ConfirmDialogComponent,
+    DeleteConfirmComponent,
     EmptyStateComponent,
     ErrorStateComponent,
     TableSkeletonComponent,
@@ -180,15 +178,10 @@ export class ProductDetailComponent {
     if (!this.showShopifyIntegration()) {
       return false;
     }
-    const product = this.product();
-    if (product && isShopifyCatalogProduct(product)) {
-      return false;
-    }
+    // Vale anche per i prodotti importati da Shopify: l'origine è provenienza,
+    // non un vincolo (docs/24 §1.8), e il sync manuale è il push GraphQL.
     return canSyncProductToShopify(this.authService.currentUser());
   });
-  protected readonly shopifyCatalogBanner = SHOPIFY_CATALOG_READONLY_BANNER;
-  protected readonly shopifyCatalogEditTitle = SHOPIFY_CATALOG_EDIT_TITLE;
-  protected readonly isShopifyCatalogProduct = isShopifyCatalogProduct;
   protected readonly catalogOriginLabel = catalogOriginLabel;
   protected readonly catalogOriginTone = catalogOriginTone;
 

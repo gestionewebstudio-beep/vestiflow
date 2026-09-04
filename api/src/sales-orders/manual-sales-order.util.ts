@@ -2,6 +2,10 @@ import type { Prisma } from '@prisma/client';
 
 import { toStorableMinor } from '../common/money.util';
 
+import {
+  preservedLineVat,
+  type PersistedLineVat,
+} from '../documents/document-line-vat-snapshot.util';
 import type { VatCodeWithNature } from '../vat/vat-codes.service';
 import { buildVatCodeSnapshot } from '../vat/vat-snapshot.util';
 
@@ -64,6 +68,8 @@ export interface ManualOrderLineInput {
   readonly vatCodeId?: string | null;
   readonly commitsStock?: boolean;
   readonly unitOfMeasure?: string | null;
+  /** Etichetta variante dichiarata (solo duplicazione): vedi il DTO. */
+  readonly variantLabel?: string;
   /** Riga «documento collegato»: separatore informativo, fuori dai totali. */
   readonly isReference?: boolean;
 }
@@ -99,6 +105,26 @@ export interface ManualOrderTotals {
 }
 
 /**
+ * Aliquota di uno snapshot CONSERVATO, con la stessa regola del percorso
+ * normale: contribuisce al totale solo in modalità `standard`.
+ *
+ * Uno snapshot senza `calculationMode` si tratta come standard: è ciò che era
+ * quando è stato scritto, e degradarlo a zero cambierebbe l'imposta di righe
+ * già emesse.
+ */
+function preservedSnapshotRate(snapshot: Prisma.InputJsonObject | null): number {
+  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
+    return 0;
+  }
+  const letto = snapshot as { ratePercent?: unknown; calculationMode?: unknown };
+  const mode = typeof letto.calculationMode === 'string' ? letto.calculationMode : 'standard';
+  if (mode !== 'standard') {
+    return 0;
+  }
+  return Number(letto.ratePercent ?? 0) || 0;
+}
+
+/**
  * Calcola le righe dell'Ordine cliente manuale: sconto a cascata ESATTO,
  * totale riga senza IVA, IVA riga da snapshot Codice IVA (contribuisce al
  * totale solo in modalità `standard`, come per le righe documento vendita).
@@ -108,6 +134,7 @@ export interface ManualOrderTotals {
 export function computeManualOrderLines(
   lines: readonly ManualOrderLineInput[],
   vatCodesById: ReadonlyMap<string, VatCodeWithNature>,
+  persistedVatById?: ReadonlyMap<string, PersistedLineVat>,
 ): ComputedManualOrderLine[] {
   return lines.map((line, index) => {
     const quantity = Math.max(0, Math.trunc(line.quantity));
@@ -120,9 +147,26 @@ export function computeManualOrderLines(
     // `quantity × prezzo × (100 − sconto) / 100` esatto e arrotonda in fondo.)
     const totalMinor = Math.round(quantity * unitDiscounted);
 
-    const vatCode = line.vatCodeId ? (vatCodesById.get(line.vatCodeId) ?? null) : null;
-    const vatSnapshot = vatCode ? buildVatCodeSnapshot(vatCode) : null;
-    const rate = vatCode?.calculationMode === 'standard' ? Number(vatCode.ratePercent) : 0;
+    // ⛔ Riga GIÀ ESISTENTE senza `vatCodeId` nel payload: lo snapshot NON si
+    // rifotografa. È il contratto binario del dominio documenti, e QUI MANCAVA:
+    // il client lo rispetta da sempre (`vatCodeIdForLinePayload`), il server no.
+    // Risalvare un ordine senza toccare l'IVA scriveva `vatCodeId: null`,
+    // snapshot nullo e imposta di riga 0 — su TUTTE le righe. Misurato il
+    // 23/08/2026; `documents.service` e `store-sales.service` lo onoravano già.
+    const preservato = preservedLineVat(line.id, line.vatCodeId, persistedVatById);
+    const vatCode =
+      !preservato && line.vatCodeId ? (vatCodesById.get(line.vatCodeId) ?? null) : null;
+    const vatCodeId = preservato ? preservato.vatCodeId : (vatCode?.id ?? null);
+    const vatSnapshot = preservato
+      ? preservato.vatSnapshot
+      : vatCode
+        ? buildVatCodeSnapshot(vatCode)
+        : null;
+    const rate = preservato
+      ? preservedSnapshotRate(preservato.vatSnapshot)
+      : vatCode?.calculationMode === 'standard'
+        ? Number(vatCode.ratePercent)
+        : 0;
     const lineVatTotalMinor = rate > 0 ? Math.round((totalMinor * rate) / 100) : 0;
 
     return {
@@ -136,7 +180,7 @@ export function computeManualOrderLines(
       unitPriceMinor,
       discount,
       totalMinor,
-      vatCodeId: vatCode?.id ?? null,
+      vatCodeId,
       vatSnapshot,
       lineVatTotalMinor,
       vatRatePercent: rate,

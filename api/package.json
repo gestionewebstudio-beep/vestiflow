@@ -13,6 +13,13 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "node scripts/prisma-migrate-guard.mjs",
     "prisma:deploy": "prisma migrate deploy",
+    "db:test:up": "docker compose -f ../docker-compose.test.yml up -d --wait",
+    "db:test:down": "docker compose -f ../docker-compose.test.yml down",
+    "db:test:reset": "docker compose -f ../docker-compose.test.yml down -v && npm run db:test:up && npm run prisma:deploy:test",
+    "prisma:deploy:test": "node scripts/prisma-deploy-test.mjs",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:shopify:contract": "vitest run --config vitest.contract.config.ts",
+    "test:migration": "vitest run --config vitest.integration.config.ts --exclude '**/node_modules/**' src/test/integration/stati-ordini-backfill.integration-spec.ts",
     "prisma:studio": "prisma studio",
     "prisma:seed": "prisma db seed",
     "backfill:catalog-origin": "node scripts/backfill-catalog-origin.mjs",
@@ -69,7 +76,8 @@
     "vitest": "^4.0.8"
   },
   "overrides": {
-    "multer": "2.2.0"
+    "multer": "2.2.0",
+    "deepmerge-ts": "^8.0.2"
   },
   "volta": {
     "node": "22.13.1"

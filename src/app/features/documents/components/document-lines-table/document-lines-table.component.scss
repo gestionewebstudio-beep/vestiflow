@@ -20,6 +20,15 @@
   font-weight: var(--font-weight-medium);
 }
 
+// La variante e' testo di prodotto, non un codice: font di UI, non monospazio.
+// Sta fra il nome e lo SKU, e pesa come lo SKU — e' un dettaglio del nome, non
+// un secondo nome.
+.doc-lines__variant {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
 .doc-lines__sku {
   font-family: var(--font-mono);
   font-size: var(--text-xs);

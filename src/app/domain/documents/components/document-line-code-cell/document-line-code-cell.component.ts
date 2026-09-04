@@ -4,10 +4,10 @@ import { FormsModule } from '@angular/forms';
 import { classifyLineCellKey } from '@domain/documents/utils/document-line-cell-keys.util';
 
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
-import { formatMoney } from '@core/utils/money.util';
 
 import { DocumentLineSuggestionsComponent } from '../document-line-suggestions/document-line-suggestions.component';
 import type { DocumentLineSuggestionItem } from '../document-line-suggestions/document-line-suggestions.model';
+import { voceSuggerimento } from '../document-line-suggestions/voce-suggerimento.util';
 import { FirstClickSelectsDirective } from '@shared/directives/first-click-selects.directive';
 
 /** Conferma di un codice, col gesto che l'ha prodotta. */
@@ -94,10 +94,9 @@ export class DocumentLineCodeCellComponent {
    * compone qui titolo e dettaglio e tiene per sé l'identità della variante.
    */
   protected readonly suggestionItems = computed<readonly DocumentLineSuggestionItem[]>(() =>
-    this.suggestions().map((variant) => ({
-      title: variant.title,
-      detail: this.suggestionDetail(variant),
-    })),
+    // ⭐ Il costo si mostra QUI e non nella cella «Nome prodotto»: questa serve
+    //    ai documenti di acquisto, dove il costo è il numero che si guarda.
+    this.suggestions().map((variant) => voceSuggerimento(variant, { conCosto: true })),
   );
 
   private pickSuggestion(variantId: string): void {
@@ -154,16 +153,5 @@ export class DocumentLineCodeCellComponent {
         this.commit.emit({ lineIndex: this.lineIndex(), advance: esito.advance });
         return;
     }
-  }
-
-  protected suggestionDetail(variant: VariantSummary): string {
-    const parts: string[] = [variant.productName];
-    if (variant.barcode) {
-      parts.push(`EAN ${variant.barcode}`);
-    }
-    if (variant.purchasePrice && variant.purchasePrice.amountMinor > 0) {
-      parts.push(formatMoney(variant.purchasePrice));
-    }
-    return parts.join(' · ');
   }
 }

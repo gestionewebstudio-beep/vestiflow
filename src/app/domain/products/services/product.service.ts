@@ -63,6 +63,8 @@ interface VariantSummaryApiRow {
   readonly articleCode?: string | null;
   readonly productName: string;
   readonly title: string;
+  /** L'etichetta della sola variante, composta dal server. */
+  readonly variantLabel?: string | null;
   readonly barcode?: string | null;
   readonly sellingPrice: { readonly amountMinor: number; readonly currencyCode: string };
   readonly shopifyPrice?: { readonly amountMinor: number; readonly currencyCode: string } | null;
@@ -117,16 +119,44 @@ export class ProductService {
 
   private filterOptionsCache: TimedCache<ProductFilterOptions> | null = null;
 
-  getProducts(query: ProductListQuery): Observable<PaginatedResponse<Product>> {
+  /**
+   * ⭐ **L'elenco prodotti non impagina più** — deciso il 30/08/2026: «se non
+   * togli l'impaginazione non possiamo ottimizzarla».
+   *
+   * ⚠️ **`tutto` non è «una pagina grande»**: lato API fa sparire la finestra
+   * (`pageWindow`), quindi arriva l'intero risultato del filtro. È ciò che rende
+   * onesti l'ordinamento, la selezione «tutti» e la riga totali — che altrimenti
+   * riguarderebbero la pagina e sembrerebbero riguardare tutto.
+   *
+   * ⛔ **Il default resta PAGINATO, e non è timidezza.** Chi chiama questo metodo
+   * non è sempre l'elenco: la ricerca globale ne vuole i primi risultati, e il
+   * contatore «Articoli da completare» chiede `pageSize: 1` per leggere solo
+   * `meta.total`. Con `all` acceso per tutti, quel contatore **scaricherebbe
+   * l'intero catalogo delle bozze per contarlo** — difetto misurato e corretto lo
+   * stesso giorno, un'ora dopo averlo introdotto.
+   *
+   * ⚠️ **`page` e `pageSize` restano sempre nella richiesta**: il DTO li pretende
+   * (estende `PaginationQueryDto`) e con `all=1` vengono ignorati. Toglierli
+   * farebbe fallire la validazione, non la paginazione.
+   */
+  getProducts(
+    query: ProductListQuery,
+    opzioni: { readonly tutto?: boolean } = {},
+  ): Observable<PaginatedResponse<Product>> {
     let params = new HttpParams()
       .set('page', String(query.page))
       .set('pageSize', String(query.pageSize));
+
+    if (opzioni.tutto) {
+      params = params.set('all', '1');
+    }
 
     if (query.search) params = params.set('search', query.search);
     if (query.status) params = params.set('status', query.status);
     if (query.category) params = params.set('category', query.category);
     if (query.brand) params = params.set('brand', query.brand);
     if (query.season) params = params.set('season', query.season);
+    if (query.trash) params = params.set('trash', '1');
 
     return this.http.get<ApiPaginated<ProductApiRow>>(this.url('/products'), { params }).pipe(
       timeout(HTTP_TIMEOUT_MS),
@@ -447,6 +477,7 @@ export class ProductService {
       articleCode: row.articleCode ?? '',
       productName: row.productName,
       title: row.title,
+      variantLabel: row.variantLabel ?? '',
       barcode: row.barcode ?? undefined,
       sellingPrice: {
         amountMinor: row.sellingPrice.amountMinor,

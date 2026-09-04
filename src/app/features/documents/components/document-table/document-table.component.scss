@@ -1,115 +1,44 @@
-@use 'breakpoints' as bp;
 @use 'responsive-table' as rt;
 
-@include rt.list-card-table-host();
-@include rt.data-table-desktop('doc-table');
-@include rt.data-table-mobile-cards('doc-table');
-@include rt.data-table-mobile-title('doc-table__reference');
+/*
+  ⭐ Qui c'erano 105 righe: contenitore a scorrimento, intestazione appiccicata,
+  riga, hover, fuoco, selezione, allineamenti per colonna, ripiego a card e i tre
+  `@include` della grammatica condivisa.
 
-// Molte colonne opzionali (Cod. soggetto, Tot. netto, IVA, Pagamento…):
-// scroll orizzontale controllato su desktop, card impilate su mobile.
-.doc-table-scroll {
-  inline-size: 100%;
-  max-inline-size: 100%;
+  **Le rende tutte il motore comune** (`14` parte H), che le include una volta
+  invece di una per tabella. Resta solo ciò che veste il contenuto PROIETTATO —
+  gli unici elementi che questo componente disegna ancora di suo.
+*/
 
-  @include bp.media-up('lg') {
-    overflow-x: auto;
-  }
+/* Il contenitore delle celle ricche: pill e link stanno in riga, con respiro. */
+.doc-table__cell-value {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-inline-size: 0;
 }
 
-.doc-table__head th {
-  position: sticky;
-  inset-block-start: 0;
-  z-index: var(--z-raised);
-  padding: var(--space-3) var(--space-4);
-  background-color: var(--color-table-header-bg);
-}
-
-.doc-table__row {
-  cursor: pointer;
-  transition: background-color var(--transition-fast) var(--ease-standard);
-}
-
-.doc-table__row:hover {
-  background-color: var(--color-surface-hover);
-}
-
-.doc-table__row:focus-visible {
-  outline: var(--focus-ring-width) solid var(--color-focus-ring);
-  outline-offset: var(--focus-ring-offset);
-}
-
-.doc-table__row td {
-  padding: var(--space-3) var(--space-4);
-}
-
-.doc-table__reference {
-  font-weight: var(--font-weight-semibold);
-}
-
-// Colonna selezione per operazioni massive: stretta, checkbox centrata.
-.doc-table__cell--select {
-  inline-size: var(--space-10);
-  text-align: center;
-}
-
-.doc-table__select-check {
-  inline-size: var(--space-4);
-  block-size: var(--space-4);
-  accent-color: var(--color-primary);
-  cursor: pointer;
-}
-
-.doc-table__row--selected td {
-  background-color: var(--color-primary-subtle);
-}
-
-// Link alla registrazione fattura collegata (colonna "Stato").
+/*
+  Il link alla fattura collegata. È l'unico link dentro una riga cliccabile:
+  si distingue dal testo perché porta altrove, e il suo `stopPropagation` nel
+  template è ciò che impedisce di aprire anche la riga.
+*/
 .doc-table__invoice-link {
-  color: var(--color-primary);
-  font-weight: var(--font-weight-medium);
-  text-decoration: none;
-  white-space: nowrap;
+  color: var(--color-link);
+  text-decoration: underline;
+  text-underline-offset: var(--space-1);
 
   &:hover {
-    text-decoration: underline;
+    color: var(--color-primary);
   }
 }
 
-// Layout automatico (v4): colonne dimensionate dal contenuto; controparte in
-// ellipsis oltre il limite, date e numeri mai a capo.
-@include bp.media-up('lg') {
-  .doc-table__date {
-    white-space: nowrap;
-  }
+/*
+  ⚠️ **Il ponte dell'altezza.**
 
-  .doc-table__counterparty {
-    max-inline-size: var(--table-cell-max);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .doc-table tbody td.doc-table__cell--lines,
-  .doc-table__head th.doc-table__cell--lines {
-    text-align: center;
-  }
-
-  .doc-table tbody td.doc-table__cell--total,
-  .doc-table__head th.doc-table__cell--total {
-    text-align: end;
-    white-space: nowrap;
-  }
-
-  .doc-table tbody td.doc-table__cell--actions,
-  .doc-table__head th.doc-table__cell--actions {
-    text-align: end;
-    white-space: nowrap;
-  }
-}
-
-@include bp.media-down('lg') {
-  .doc-table__row {
-    border-radius: var(--radius-lg);
-  }
-}
+  Questo componente sta fra la pagina e il motore. La pagina gli dà `flex: 1`;
+  se non lo gira al proprio figlio, l'altezza si ferma qui e il contenitore di
+  scorrimento del motore non scorre — l'intestazione `sticky` smette di
+  appiccicare, **senza errori e senza test rossi**.
+*/
+@include rt.ponte-tabella();

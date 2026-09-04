@@ -1,14 +1,15 @@
 # 12 · Collegamenti fra documenti — «Includi» e «Genera»
 
-**Stato:** specifica corrente · **18/08/2026**
+**Stato:** specifica corrente · **bonificata il 28/08/2026**
 **Perimetro:** tutti i tipi documento, non una famiglia sola.
 
 > **Come i documenti si agganciano fra loro, e che cosa succede al magazzino quando lo fanno.**
 
-⚠️ **Il documento ha due parti, e vanno tenute distinte.** Sopra sta la SPECIFICA — la matrice e
-le regole, cioè cosa VestiFlow deve fare. In fondo sta **«B · Come ragiona il codice OGGI»**, che
-è la MISURA di cosa il codice fa: il divario fra le due è il lavoro, e un comportamento osservato
-non diventa una regola perché esiste.
+⚠️ **Il documento ha TRE parti, e vanno tenute distinte.** In testa la **Parte 0**: il
+contratto, cioè cosa vale oggi — se il seguito dice altro, vince lei. Poi la **Parte A**, che
+argomenta le decisioni e porta la matrice della famiglia vendita. In fondo la **Parte B**, che
+è la MISURA di cosa il codice fa: il divario fra contratto e misura è il lavoro, e un
+comportamento osservato non diventa una regola perché esiste.
 
 ⚠️ **Questo contenuto stava dentro `07-specifica-famiglia-fattura.md` come §11.** Ci stava
 perché è nato lì, il 15/08, quando la matrice copriva quattro documenti della famiglia
@@ -18,6 +19,293 @@ specifica delle fatture era un problema di navigazione: chi cerca «come si agga
 Preventivo a un Ordine» non lo cercherebbe mai lì.
 
 **In `07` non ne resta una copia**, solo il rimando: la tabella ha una casa sola.
+
+---
+
+# Parte 0 · Il contratto, in un posto solo — _bonifica del 28/08/2026_
+
+> **Questa parte vale su tutto il resto del documento.** Dove il seguito dice altro, vince
+> questa. Le parti A e B restano perché argomentano e misurano; qui c'è **cosa vale oggi**.
+
+⭐ **Che cosa è cambiato con la bonifica.** Gli stati degli ordini hanno finalmente
+un'**autorità comune** (`api/src/common/order-state.util.ts`, passo 3), quindi questo documento
+smette di inventare condizioni per cliente e per fornitore e si limita a **chiamarla**.
+
+---
+
+## 0.1 Le due operazioni
+
+|             |                                                                                | Predecessore persistito |
+| ----------- | ------------------------------------------------------------------------------ | ----------------------- |
+| **Includi** | tiro dentro righe da documenti che **esistono già**, anche da **più** sorgenti | ⛔ no                   |
+| **Genera**  | da un documento aperto **ne creo un altro**                                    | ✅ sì                   |
+
+Non sono due parole per la stessa cosa, e il comando si chiama **«Genera documento»** ovunque.
+
+---
+
+## 0.2 ⭐ Eleggibilità — una funzione, non una condizione per tipo
+
+> **Un Ordine è eleggibile come sorgente se e solo se `isEligibleAsSource(state)` risponde di
+> sì.** Nessun consumatore riscrive quella condizione.
+
+```ts
+import {
+  isEligibleAsSource,
+  supplierOrderState,
+  manualSalesOrderState,
+} from 'common/order-state.util';
+```
+
+| Stato dell'ordine | Eleggibile                      |
+| ----------------- | ------------------------------- |
+| **Da confermare** | ⛔ no — non è ancora un impegno |
+| **Confermato**    | ✅ **sì**, ed è l'unico         |
+| **Concluso**      | ⛔ no — è già stato consumato   |
+| **Annullato**     | ⛔ no — non si farà             |
+
+⛔ **Non si scrivono più condizioni gemelle.** Prima l'Ordine fornitore confrontava
+`status !== confirmed` in tre punti diversi e l'Ordine cliente filtrava su tutt'altro
+(`documentId: null`): due meccanismi, quattro punti di applicazione, nessuno che sapesse
+dell'altro.
+
+⚠️ **Per le sorgenti che NON sono ordini** — Preventivo, DDT, Arrivo merce — l'eleggibilità
+resta quella del **terzo filtro**: «non ancora consumato», cioè nessun legame attivo. Gli ordini
+hanno in più il ciclo commerciale; gli altri documenti hanno solo il consumo.
+
+⚠️ **STATO TECNICO:** oggi `isEligibleAsSource` è collegata al solo `cancel` dell'Ordine
+fornitore. L'eleggibilità dell'Ordine cliente continua a guardare il **collegamento** invece
+dello stato (`sales-order-query.util.ts`, difetto misurato in `19` §3.2). La migrazione dei due
+ordini a consumatori è il **passo 7** del piano.
+
+---
+
+## 0.3 Quando nasce il collegamento
+
+> **Al COMMIT del documento di destinazione. Mai prima.**
+
+```text
+apro la destinazione          →  niente
+premo «Includi» e scelgo      →  niente:  le righe si copiano in maschera
+compilo, cambio idea, chiudo  →  niente:  nessun legame, nessun effetto
+S A L V O                     →  qui nasce il legame, e qui scattano gli effetti
+```
+
+⛔ **Il solo prefill non consuma la sorgente, non conclude l'ordine, non muove magazzino.** Se
+l'operatore chiude senza salvare, la sorgente resta includibile come se non l'avesse mai aperta.
+
+⭐ **Il caso «bozza mai salvata» non è da normare**, e ora si capisce perché: un documento
+**nasce Confermato** al salvataggio (indice `00`). Una maschera compilata e mai salvata non
+esiste sul server — non c'è niente che possa aver consumato qualcosa.
+
+---
+
+## 0.4 Quando l'Ordine diventa Concluso, e cosa succede allo stato
+
+⛔ **Qui c'era una `⏸️ PROPOSTA` mai confermata** (parte A, «Conclusivo e non conclusivo»). È
+decisa, e discende dalle decisioni del 27-28/08 (`17` §2.5, `18` §7.2).
+
+> **«Concluso» non si sceglie: si CALCOLA.** È il nome che l'ordine assume quando ha almeno un
+> documento di destinazione **conclusivo e attivo** collegato.
+
+|                            |                                                                        |
+| -------------------------- | ---------------------------------------------------------------------- |
+| **Chi lo scrive**          | il ricalcolo, dentro la transazione del salvataggio della destinazione |
+| **Chi NON lo scrive**      | l'operatore. Nessun selettore lo offre, nessun comando lo forza        |
+| **Come si torna indietro** | ⭐ **§0.4-bis** — deciso il 28/08/2026                                 |
+
+### ⭐ 0.4-bis · La riapertura è un'OPERAZIONE, non un'assenza — deciso il 28/08/2026
+
+⚠️ **Qui c'era «la policy di riapertura non è ancora scritta».** Lo era deliberatamente: un
+comportamento osservato non diventa norma perché esiste. Ora è decisa, e la distinzione che la
+regge è una sola:
+
+```text
+⛔ NON è la regola        manca un collegamento  →  riapri
+⭐ È la regola            l'operatore ANNULLA o ELIMINA il documento conclusivo
+                          →  quella operazione documentale ricalcola lo stato dell'Ordine
+                          →  se non resta alcun collegamento conclusivo attivo → Confermato
+```
+
+**Perché la differenza conta.** «Manca il link, quindi riapri» renderebbe la semplice assenza
+un comando: un dato perso, una FK azzerata da un `ON DELETE SET NULL`, una migrazione fatta
+male riaprirebbero ordini che nessuno ha riaperto. «L'operatore ha annullato il documento,
+quindi ricalcolo» lega il cambio di stato a un **atto**, e lascia l'assenza inspiegata dov'è —
+cioè come **anomalia**, che è quello che è.
+
+⭐ **È compatibile col lock**: Concluso non si toglie dal selettore, e continua a non togliersi.
+Ci si esce solo per conseguenza di un'operazione documentale esplicita.
+
+#### La matrice, per l'Ordine cliente
+
+| stato       | collegamento | lettura                                         |
+| ----------- | ------------ | ----------------------------------------------- |
+| `confirmed` | assente      | ✅ **includibile**                              |
+| `confirmed` | attivo       | ⛔ incoerenza (`state-stale`) → non includibile |
+| `concluded` | attivo       | ✅ corretto, non includibile                    |
+| `concluded` | assente      | ⛔ incoerenza (`link-stale`) → non includibile  |
+
+> **Filtro includibili (Cliente):** `commercialState = confirmed AND documentId IS NULL`.
+
+⛔ **Nessun ramo «documento collegato annullato»**, e la ragione è misurata: `cancel()` azzera
+`documentId` su TUTTI gli ordini agganciati, incondizionatamente. Sul Cliente un collegamento a
+documento annullato **non è uno stato normale** — ammetterlo nel filtro legittimerebbe una
+condizione che il codice non produce.
+
+#### Per l'Ordine fornitore la regola è la stessa, la forma no
+
+La chiave sta sul **documento** (`Document.supplierOrderId`), non sull'ordine: un ordine ha N
+arrivi merce.
+
+> **Filtro includibili (Fornitore):** `status = confirmed AND documents.none(status ≠ cancelled)`.
+
+Annullando o eliminando **uno** di più arrivi, se ne resta almeno uno attivo l'ordine **resta
+Concluso**; quando non ne resta nessuno torna Confermato. ⛔ E qui il collegamento a un documento
+annullato **è** normale: `cancel()` non azzera `supplierOrderId`, è `status = cancelled` a
+renderlo non conclusivo.
+
+⚠️ **Zero effetti quantitativi.** Il cambio di stato dell'Ordine fornitore non tocca Giacenza,
+Impegnata, reservation né movimenti, e non introduce «In arrivo».
+
+#### ⛔ Un difetto misurato che questa policy rende visibile
+
+Sul Cliente, `cancel` e `delete` **non convergono**:
+
+```text
+cancel   azzera documentId (sempre) + riapre lo stato (se il documento scaricava)
+delete   azzera documentId dal DATABASE (ON DELETE SET NULL) e basta
+         → l'ordine resta «Concluso» senza collegamento
+```
+
+Oggi non si vede, perché il filtro guarda solo `documentId IS NULL` e quell'ordine ricompare
+fra gli includibili. Con l'eleggibilità sullo stato **sparirebbe**, ed è il verso opposto.
+
+> **`delete` deve usare la STESSA primitive di riapertura di `cancel`** — quella che riporta lo
+> stato a Confermato e ripristina gli impegni nella stessa transazione. Non una funzione nuova:
+> le due strade devono convergere, o divergeranno di nuovo.
+
+#### La guardia di coerenza, e cosa se ne fa
+
+Corretti `cancel` e `delete`, le due combinazioni incoerenti diventano **anomalie**, non
+flusso ordinario. Restano sorvegliate:
+
+| dove                 | comportamento                                                                 |
+| -------------------- | ----------------------------------------------------------------------------- |
+| **elenco**           | fail closed: l'ordine non compare, e un `warn` porta id, stato e collegamento |
+| **richiesta per ID** | rifiuto **esplicito**, mai un «non trovato»                                   |
+
+⭐ Il messaggio all'operatore è **funzionale, non diagnostico**:
+
+> «L'ordine non è più disponibile per l'inclusione. Aggiorna l'elenco e riprova.»
+
+⚠️ `state-stale` / `link-stale` restano **nei log**: nominano una condizione che l'operatore non
+può risolvere da solo, e metterla a schermo trasformerebbe un'anomalia tecnica in un compito suo.
+
+### Il lock, che è nuovo
+
+> **Finché l'ordine è Concluso, il suo STATO è bloccato**: nessuna transizione manuale,
+> annullamento compreso.
+
+⚠️ **Il blocco è sullo stato, non sul documento.** L'ordine Concluso si apre, si modifica riga
+per riga, si salva, si stampa e si elimina secondo i permessi comuni. Ciò che non si può fare è
+**dichiararlo diverso da com'è**: lo stato descrive un collegamento che esiste.
+
+Lo dice `isStateLocked(state)`, e lo applica `assertManualTransition(da, a)`. Nessun servizio
+riscrive quella condizione.
+
+---
+
+## 0.5 ⛔ Nessuna evasione parziale, in nessuna forma
+
+> **Una destinazione che copre solo parte delle quantità CONCLUDE comunque l'ordine.**
+
+Non esiste uno stato «Parzialmente concluso», non esistono residui, non esiste una quantità
+evasa da riportare, non esiste un secondo documento che chiuda il resto.
+
+⛔ **`force-conclude` serve un workflow abolito** ed è destinato a sparire con esso: se la
+copertura ridotta conclude già, non c'è niente da forzare.
+
+⚠️ **Questo NON è un limite tecnico da superare.** Parte B misura che «la chiusura parziale non
+è rappresentabile oggi» e osserva che la forma del dato per un residuo esisterebbe. Sono misure
+corrette e restano: **non sono una direzione**, perché la direzione è stata chiusa.
+
+---
+
+## 0.6 Cardinalità: N origini → 1 destinazione
+
+> **Una destinazione può includere più sorgenti. Una sorgente si consuma una volta sola.**
+
+```text
+N Preventivi     →  1 Ordine cliente        ✅
+N DDT            →  1 Fattura               ✅
+N Ordini forn.   →  1 Arrivo merce          ✅
+1 Preventivo     →  2 destinazioni          ⛔ il secondo non lo trova più
+```
+
+⚠️ **Tutte le sorgenti devono essere dello STESSO soggetto** — stesso cliente per la vendita,
+stesso fornitore per l'acquisto. È il primo dei tre filtri.
+
+⚠️ **STATO TECNICO, due difetti misurati e non chiusi:** il filtro soggetto **non esiste**
+(parte B1) e includere il documento di un altro cliente **cambia il cliente in testata**; e il
+controllo di duplicato copre **una sola combinazione**, quindi lo stesso Preventivo si può
+includere due volte nello stesso documento.
+
+---
+
+## 0.7 Idempotenza
+
+> **Salvare due volte la stessa destinazione non collega due volte, non conclude due volte, non
+> movimenta due volte.**
+
+| Cosa                 | Cosa la garantisce                                                                    |
+| -------------------- | ------------------------------------------------------------------------------------- |
+| il legame            | scritto **in transazione** col documento; un secondo salvataggio aggiorna, non accoda |
+| lo stato dell'ordine | il ricalcolo scrive **solo se** il valore cambia                                      |
+| i movimenti          | **un movimento per riga**, aggiornato in posto (`09`), mai accodato                   |
+| gli impegni          | una `reservation` per riga, chiave `salesOrderLineId`                                 |
+
+⛔ **Una richiesta ripetuta non è un evento fisico nuovo.** Correggere un documento e risalvarlo
+non significa che la merce sia uscita due volte: significa che il documento era compilato male.
+
+---
+
+## 0.8 Tenant e Location
+
+> **Ogni collegamento si verifica lato API, sempre: stesso tenant, e sede leggibile
+> dall'utente.**
+
+⛔ **Il filtro dell'elenco non è un controllo.** Un elenco filtrato è comodità; il controllo è
+il rifiuto della richiesta diretta. Chi chiede di includere per `id` una sorgente di un altro
+tenant, o di una sede fuori dal proprio ambito, riceve un rifiuto — non un elenco più corto.
+
+⚠️ **STATO TECNICO:** `19` §3.9 misura sette rotte dell'Ordine cliente che accedono per `id`
+**senza verificare la sede** — sei allegati più gli impegni. `assertLocationReadableInUserScope`
+esiste ed è il predicato giusto.
+
+---
+
+## 0.9 La matrice — e ciò che di essa NON è ancora deciso
+
+La matrice della famiglia **vendita** sta nella parte A, ed è chiusa.
+
+⛔ **La famiglia ACQUISTO non ce l'ha**, ed è la lacuna più grossa di questo documento: fino al
+28/08/2026 comparivano solo in parte B, cioè fra le misure del codice, non fra le regole.
+
+**Le due coppie che esistono, misurate:**
+
+| Documento corrente    | Includi              | Genera            |
+| --------------------- | -------------------- | ----------------- |
+| **Ordine fornitore**  | —                    | Arrivo merce      |
+| **Arrivo merce**      | **Ordine fornitore** | Fattura fornitore |
+| **Fattura fornitore** | **Arrivo merce**     | —                 |
+
+⏸️ **Il resto della famiglia acquisto NON è deciso**, e non lo si deduce qui. Le domande aperte:
+esistono un Reso a fornitore e una Nota di credito ricevuta? l'Arrivo merce può includerne più
+d'uno? la Fattura fornitore può includere direttamente l'Ordine?
+
+⛔ **Non si aggiungono righe per simmetria con la vendita.** È la stessa disciplina che ha fatto
+ritirare due righe dalla matrice di vendita il 18/08: una coppia esiste se qualcuno l'ha decisa,
+non se sta bene nella tabella.
 
 ---
 
@@ -157,7 +445,7 @@ documento, che cosa posso tirarci dentro e che cosa posso farne nascere.
 | **Fattura**                 | Preventivo · Ordine cliente · DDT vendita · **Vendita al banco** | Nota di credito                                                                                                                                                                                                                                    |
 | **Fattura accompagnatoria** | Preventivo · Ordine cliente · **Vendita al banco** — **mai DDT** | Nota di credito                                                                                                                                                                                                                                    |
 | **Nota di credito**         | **non usa** «Includi documento»                                  | —                                                                                                                                                                                                                                                  |
-| **Proforma**                | ⏸️ da censire nella matrice definitiva                           | ⏸️ da censire — oggi genera già verso DDT vendita e Fattura                                                                                                                                                                                        |
+| **Proforma**                | **niente**: non ha sorgenti includibili                          | **DDT vendita · Fattura**                                                                                                                                                                                                                          |
 
 ### ⛔ Due righe che NON vanno aggiunte — ritirate il 18/08/2026
 
@@ -183,7 +471,7 @@ Serve o fra sei mesi la differenza non si vede più.
 | **Fattura → Nota di credito** e **Accompagnatoria → Nota di credito**                        | **deciso 16/08**, con la tabella per tipo in `07` §6                                |
 | la **Vendita al banco** in entrambe le colonne                                               | **deciso 18/08**                                                                    |
 | tutto il resto della colonna **Genera**                                                      | **nuovo, deciso il 18/08** — non era mai stato scritto                              |
-| **Proforma**                                                                                 | **non deciso**: da censire — ma quello che genera oggi è misurato, e sta nella riga |
+| **Proforma**                                                                                 | ✅ **censita il 21/08/2026**: non include nulla, genera verso DDT vendita e Fattura |
 
 ### ⚠️ «Bozza fattura» non è un tipo documentale
 
@@ -302,11 +590,10 @@ Ordine cliente → Vendita al banco         →  «idem: se la destinazione è c
 Ordine cliente → Fattura accompagnatoria  →  «idem, secondo il contratto della destinazione»
 ```
 
-⏸️ **E resta fuori una domanda che era nascosta dentro una di queste righe: la CHIUSURA
-PARZIALE.** Il materiale di discussione diceva «conclude **per le quantità evase**», cioè che
-un ordine evaso a metà **resta aperto per il residuo**. Non è un dettaglio di questa tabella:
-è un pezzo di dominio a sé — quanto impegno si consuma, che stato prende l'ordine, se il
-residuo si evade con un secondo documento, cosa mostra l'elenco. **Non decisa.**
+✅ **La CHIUSURA PARZIALE era la domanda nascosta qui dentro, ed è chiusa — 28/08/2026.**
+Il materiale di discussione diceva «conclude **per le quantità evase**», cioè che un ordine
+evaso a metà restasse aperto per il residuo. ⛔ **Non è così**: una destinazione che copre
+parte delle quantità **conclude comunque** l’ordine, e non nasce nessun residuo (Parte 0 §0.5).
 
 ⚠️ **E «idem» non è una regola.** Le due righe non confermate rimandano a un contratto che per
 quelle destinazioni non è ancora scritto.
@@ -321,22 +608,16 @@ lo decide la coppia origine → destinazione, non il nome del pulsante.
 È lo stesso principio della regola fisica qui sotto: **il comando è uno, gli effetti li deriva
 il dominio dalla coppia di documenti.**
 
-### ⏸️ Conclusivo e non conclusivo — PROPOSTA
+### ✅ Conclusivo e non conclusivo — chiuso il 28/08/2026
 
-⏸️ **Non confermata.** Che alcune destinazioni chiudano l'ordine e altre no è **plausibile e
-probabilmente vero**, ma quali e con che effetto discende dalle coppie qui sopra, che sono
-anch'esse una proposta.
+⛔ **Qui c’era una `⏸️ PROPOSTA` mai confermata**, che elencava quali destinazioni chiudono
+l’ordine dandolo per «plausibile e probabilmente vero». **Vedi Parte 0 §0.4**: Concluso non si
+sceglie, si calcola dal collegamento, e lo stato si blocca finché il legame dura.
 
-```text
-Ordine cliente → Proforma                   →  l'ordine resta APERTO
-Ordine cliente → DDT vendita                →  l'ordine si CHIUDE, l'impegno si consuma
-Ordine cliente → Vendita al banco           →  idem
-Ordine cliente → Fattura accompagnatoria    →  idem
-```
-
-**Quello che invece è un fatto**, e non dipende da come si decide: con un comando solo
-l'operatore **non ha più il nome del pulsante** a dirgli se sta chiudendo l'ordine. Se la
-distinzione esiste, in qualche modo deve vedersi. Come, è la sezione qui sotto.
+⭐ **Resta valida una sola osservazione di quella proposta**, e non dipende da come si decide:
+con un comando solo, l’operatore **non ha più il nome del pulsante** a dirgli se sta chiudendo
+l’ordine. Se la distinzione esiste, in qualche modo deve vedersi — ed è la sezione qui sotto,
+che resta aperta.
 
 ### ⏸️ Come si mostra all'operatore — PROPOSTA
 
@@ -727,6 +1008,12 @@ consuma **prima** di calcolare la copertura: — _letto_
 `remainingQuantity` come due colonne distinte, e `StockReservationEvent` porta `quantityDelta` e
 `remainingAfter`. È il comportamento a non usarle, non la struttura a mancare. — _letto_
 
+⛔ **Ma la chiusura parziale NON si deve implementare** — deciso il 27-28/08/2026 (`17` §2.7,
+`18` §2.3/§7.4). Niente stato parziale, niente residui, niente evasione parziale in v1: un
+documento che copre parte delle quantità **conclude comunque** l’ordine. Le due righe qui sopra
+restano perché misurano un limite reale del modello, non perché indichino una direzione da
+prendere: la direzione è stata chiusa.
+
 ## B7. Un comando che oggi non funziona: DDT → Proforma
 
 Il menu del DDT offre la voce **Proforma** e la mappa su una rotta, ma il percorso **è rifiutato
@@ -763,3 +1050,18 @@ rifiuta». — _letto_
 E `SALES_FORM_ROUTE_SEGMENT` (`document-routing.util.ts:28`) è un `Record<...>` **esaustivo**: un
 tipo senza segmento **non compila**. È la forma di punto unico che il progetto usa già, e che i
 tre `switch` di rotta non usano. — _letto_
+
+---
+
+## ✅ La Proforma non è più «da censire» — 21/08/2026
+
+_Il proprietario ha ritirato la cautela: «la mappatura è già stata definita completamente, non
+va riaperta»._ La riga mancante è stata **censita nel codice**, non decisa a tavolino:
+
+|             |                                                                                                                                                                                                         |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Includi** | ⛔ **niente**. `IncludeSourceKind` non comprende la Proforma, e il commento del codice dice perché: «aggiungerci Proforma e DDT li renderebbe sorgenti includibili — un effetto che nessuno ha chiesto» |
+| **Genera**  | ✅ **DDT vendita · Fattura**. `CONVERSION_SOURCE_LABELS` la porta come origine di conversione                                                                                                           |
+
+⚠️ **Non è una decisione nuova**: è la lettura di ciò che il codice fa, che è esattamente quello
+che «da censire» chiedeva. Le voci residue in `11` A7, `00` e `DA-FARE` sono state tolte.

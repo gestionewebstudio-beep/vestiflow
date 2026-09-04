@@ -1,5 +1,22 @@
 @use 'breakpoints' as bp;
 
+/*
+  ⏸ catena-altezze: non applicabile — DA DECIDERE, non una scelta chiusa.
+
+  Questa pagina monta `app-list-page`, quindi la guardia
+  `npm run check:catena-altezze` la guarda; ma nella sua zona dati non c'è un
+  elenco che debba riempire lo spazio: c'è la **scheda di un risultato** di
+  ricerca, con una tabella di giacenze per location per ogni variante trovata.
+  Un host elastico stirerebbe una scheda, che non è la stessa cosa che stirare
+  un elenco.
+
+  ⚠️ **Va guardata a schermo prima di decidere**, ed è la seconda schermata
+  della migrazione dell'area Magazzino (`docs/DA-FARE.md`): l'esenzione vale
+  finché quel lavoro non si fa, non oltre.
+
+  ⛔ **Non è un'esenzione silenziosa**: la guardia la conta e la dichiara nel
+  proprio esito, così non sparisce dal conto di nessuno.
+*/
 :host {
   display: block;
 }
@@ -10,30 +27,11 @@
   gap: var(--space-5);
 }
 
-.stock-lookup__header {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-// L'header è una colonna flex: senza align-self il pulsante si stira. Col gap
-// del blocco lo stacco dal titolo arriva a --space-2, come nelle altre liste.
-.stock-lookup__header app-back-button {
-  align-self: flex-start;
-  margin-block-end: var(--space-1);
-}
-
-.stock-lookup__title {
-  margin: 0;
-  font-size: var(--text-2xl);
-  font-weight: var(--font-weight-bold);
-}
-
-.stock-lookup__subtitle {
-  margin: 0;
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-}
+/*
+  ⛔ **Testata, titolo e sottotitolo li rende il telaio** `app-list-page`: queste
+  classi erano di quando la pagina se li disegnava da sé, e nessun template le
+  scrive più.
+*/
 
 .stock-lookup__install {
   display: flex;
@@ -52,51 +50,30 @@
   font-size: var(--text-sm);
 }
 
+/*
+  ⛔ **Qui c'erano il form a invio e la tabella per sede della vecchia ricerca**,
+  tolti il 02/09/2026 col markup che vestivano: campo obbligatorio con errore
+  sotto, riga della sede attiva, numero impegnato cliccabile, titolo e
+  sottotitolo di pagina che ora porta il telaio.
+
+  ⚠️ **Si tolgono NELLO STESSO passo del markup.** Un foglio che veste classi che
+  nessun template scrive più non fallisce e non arrossa un test: resta lì finché
+  qualcuno riusa quel nome per un'altra cosa e si ritrova stili che non ha
+  chiesto. Le quindici classi rimaste orfane le ha contate un confronto fra
+  foglio e template, non l'occhio.
+*/
+
+/* La riga di ricerca: il campo prende lo spazio, lo scanner sta accanto. */
 .stock-lookup__search {
   display: flex;
-  justify-content: center;
-  inline-size: 100%;
-}
-
-.stock-lookup__form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  inline-size: 100%;
-  max-inline-size: var(--content-narrow);
-}
-
-.stock-lookup__actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: stretch;
+  align-items: flex-end;
   gap: var(--space-3);
-
-  app-barcode-scanner {
-    display: flex;
-    align-self: stretch;
-  }
-
-  --button-h: var(--btn-min-height);
+  inline-size: 100%;
 }
 
-@include bp.media-up('md') {
-  .stock-lookup__form {
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    max-inline-size: none;
-  }
-
-  .stock-lookup__field {
-    flex: 1 1 12rem;
-    min-inline-size: 12rem;
-    max-inline-size: var(--content-narrow);
-  }
-
-  .stock-lookup__actions {
-    flex: 0 0 auto;
-  }
+.stock-lookup__search .stock-lookup__field {
+  flex: 1;
+  min-inline-size: 0;
 }
 
 .stock-lookup__field {
@@ -110,6 +87,10 @@
   font-weight: var(--font-weight-medium);
 }
 
+/*
+  ⚠️ **Il corpo del campo resta a 16px sul telefono**: sotto, iOS ingrandisce la
+  pagina da solo a ogni fuoco — e qui il fuoco ci va a ogni ricerca.
+*/
 .stock-lookup__input {
   block-size: var(--btn-min-height);
   min-block-size: var(--btn-min-height);
@@ -125,80 +106,10 @@
   outline-offset: var(--focus-ring-offset);
 }
 
-// Il campo invalido si vede prima di leggerlo: bordo rosso sull'input,
-// messaggio sotto. Senza, premere «Cerca giacenza» sembra non fare nulla.
-.stock-lookup__input[aria-invalid='true'] {
-  border-color: var(--status-error-border);
-}
-
-.stock-lookup__field-error {
-  font-size: var(--text-xs);
-  color: var(--status-error-fg);
-}
-
-.stock-lookup__result {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.stock-lookup__result-title {
-  margin: 0;
-  font-size: var(--text-lg);
-  font-weight: var(--font-weight-semibold);
-}
-
-.stock-lookup__meta {
-  margin: var(--space-1) 0 0;
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-}
-
 .stock-lookup__link {
   font-size: var(--text-sm);
   font-weight: var(--font-weight-medium);
   color: var(--color-interactive);
-}
-
-.stock-lookup__table-wrap {
-  overflow-x: auto;
-}
-
-.stock-lookup__table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--text-sm);
-}
-
-.stock-lookup__table th,
-.stock-lookup__table td {
-  padding: var(--space-3);
-  border-bottom: var(--border-width) solid var(--color-border);
-  text-align: left;
-}
-
-.stock-lookup__num {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-.stock-lookup__num--negative {
-  color: var(--status-warning-fg);
-  font-weight: var(--font-weight-medium);
-}
-
-.stock-lookup__row--active {
-  background-color: var(--color-interactive-subtle);
-}
-
-.stock-lookup__committed-link {
-  padding: 0;
-  font: inherit;
-  color: var(--color-primary);
-  background: none;
-  border: none;
-  text-decoration: underline;
-  cursor: pointer;
 }
 
 .stock-lookup__reservations-context {
@@ -236,4 +147,277 @@
   grid-column: 1 / -1;
   color: var(--color-text-muted);
   font-size: var(--text-xs);
+}
+
+/* Il gruppo proiettato non è una scatola: è contenuto (vedi telaio elenco). */
+[data] {
+  display: contents;
+}
+
+/*
+  ⚠️ **Il numero della griglia è un pulsante**, e deve continuare a leggersi
+  come un numero: nessuna cornice, nessun colore da comando — solo il cursore e
+  la sottolineatura al passaggio dicono che si può premere.
+*/
+.ricerca__num-btn {
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  background: none;
+  border: 0;
+
+  &:hover {
+    text-decoration: underline;
+  }
+
+  &:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-focus);
+    outline-offset: var(--focus-ring-offset);
+  }
+}
+
+/*
+  ⭐ **LA RICERCA DEL COMMESSO** — rifatta il 02/09/2026 sui requisiti del
+  proprietario: si cerca per nome, SKU o EAN e gli articoli compaiono man mano.
+
+  ⚠️ **Mobile-first per davvero**: questa schermata si usa col telefono in mano
+  in mezzo al negozio, quindi la forma di base è quella stretta e la scrivania
+  è l'adattamento — non il contrario.
+*/
+
+.stock-lookup__search {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  inline-size: 100%;
+}
+
+.stock-lookup__search .stock-lookup__field {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+/* La riga dei risultati è un bersaglio da pollice, non una riga di tabella. */
+.ricerca__lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.ricerca__riga {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  inline-size: 100%;
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+
+  &:hover {
+    background-color: var(--color-surface-hover);
+  }
+
+  &:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-focus);
+    outline-offset: var(--focus-ring-offset);
+  }
+}
+
+/*
+  ⚠️ **La miniatura ha una misura FISSA, e l'ha anche quando manca.** Senza, la
+  riga si assesta al caricamento e l'elenco balla sotto il dito mentre si
+  scorre — è la regola delle miniature in elenco (`regole-architettura`).
+*/
+.ricerca__thumb {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--space-12);
+  block-size: var(--space-12);
+  overflow: hidden;
+  color: var(--color-text-subtle);
+  background-color: var(--color-surface-soft);
+  border-radius: var(--radius-md);
+
+  img {
+    inline-size: 100%;
+    block-size: 100%;
+    object-fit: cover;
+  }
+}
+
+.ricerca__thumb--grande {
+  inline-size: var(--space-16);
+  block-size: var(--space-16);
+}
+
+.ricerca__info {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-05);
+  min-inline-size: 0;
+}
+
+/* Il nome può essere lungo: si taglia, e l'elenco resta a righe pari. */
+.ricerca__nome {
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ricerca__meta {
+  display: flex;
+  gap: var(--space-2);
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+}
+
+.ricerca__codice {
+  font-family: var(--font-mono);
+}
+
+/*
+  ⚠️ **I numeri stanno a destra e incolonnati**: scorrendo l'elenco l'occhio
+  cerca sempre nello stesso punto «quanti ne ho».
+*/
+.ricerca__numeri {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-05);
+}
+
+.ricerca__disp {
+  font-size: var(--text-md);
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ok);
+}
+
+/* Zero è «finito» e si vede; «—» è «non si conta» e resta smorzato. */
+.ricerca__disp--zero {
+  color: var(--color-danger);
+}
+
+.ricerca__disp--nulla {
+  color: var(--color-text-subtle);
+}
+
+.ricerca__prezzo {
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+.ricerca__prezzo-da {
+  font-style: italic;
+}
+
+.ricerca__chevron {
+  flex: 0 0 auto;
+  color: var(--color-text-subtle);
+}
+
+/* ── La scheda dell'articolo ─────────────────────────────────────────────── */
+
+.ricerca__scheda {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.ricerca__articolo {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.ricerca__articolo-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-05);
+  min-inline-size: 0;
+}
+
+.ricerca__scheda-testa {
+  --button-pad-inline: 0;
+}
+
+.ricerca__scheda-azioni {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+/*
+  ⚠️ **La griglia scorre in orizzontale se le sedi sono molte**, dentro il
+  proprio contenitore: la pagina non deve mai scorrere di lato
+  (`regole-gestionale`, «Responsive tables»).
+*/
+.ricerca__griglia-scroll {
+  overflow-x: auto;
+}
+
+.ricerca__griglia {
+  inline-size: 100%;
+  border-collapse: collapse;
+
+  th,
+  td {
+    padding: var(--space-2) var(--space-3);
+    border-block-end: var(--border-width) solid var(--color-border-cell);
+  }
+
+  thead th {
+    font-size: var(--text-2xs);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-table-header-fg);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-caps);
+    background-color: var(--color-table-header-bg);
+  }
+}
+
+/* La taglia porta lo SKU sotto: due informazioni, una riga sola. */
+.ricerca__taglia {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-05);
+  font-weight: var(--font-weight-semibold);
+  text-align: start;
+}
+
+.ricerca__sku {
+  font-family: var(--font-mono);
+  font-size: var(--text-3xs);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-muted);
+}
+
+.ricerca__num {
+  text-align: end;
+}
+
+.ricerca__num--totale {
+  font-weight: var(--font-weight-bold);
+}
+
+/* «6 taglie»: dice quanto c'è sotto l'articolo prima di aprirlo. */
+.ricerca__taglie {
+  white-space: nowrap;
 }

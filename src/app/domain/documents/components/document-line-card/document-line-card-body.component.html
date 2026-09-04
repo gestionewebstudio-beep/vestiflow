@@ -1,0 +1,424 @@
+@let v = view();
+@let l = group();
+
+<!-- ⛔ **Il corpo della card è guidato dal CATALOGO**, come la riga di
+     scrivania. Qui c'erano sei involucri locali, uno per feature: al mobile
+     erano quello che le `<td>` scritte a mano erano al desktop.
+
+     ⚠️ L'ordine dei campi segue quello del catalogo canonico, non quello in cui
+     ogni maschera li aveva messi: è la stessa griglia vista da vicino. -->
+<ng-container [formGroup]="l">
+  @for (gruppo of gruppi(); track gruppo.id) {
+    <app-document-line-card-group [label]="gruppo.label" [first]="gruppo.first" />
+
+    @if (gruppo.id === 'articolo') {
+      <!-- ⚠️ `controlId` solo su riga NON agganciata: la cella codice comune
+           rende un `<input>` finche' l'articolo non e' collegato, e un `<p>`
+           dopo. Passandolo sempre, l'etichetta diventava una `<label for>` che
+           punta a un identificativo inesistente — un difetto che non si vede a
+           schermo e che un lettore di schermo annuncia come campo senza nome.
+
+           ⭐ **Le stesse celle della riga di scrivania**, non gemelle scritte a
+           mano: la scelta fra più corrispondenze esatte, il comportamento del
+           campo agganciato, la mappatura dei suggerimenti — è tutto lì dentro,
+           e una correzione vale per le due viste insieme.
+
+           ⚠️ Su card le colonne non esistono, quindi il giro del Tab resta al
+           browser: la card non lega le uscite di navigazione. -->
+      @if (mostra('articleCode')) {
+        <app-document-line-card-field
+          label="Cod. articolo"
+          [controlId]="view().linked ? '' : fieldId('articleCode')"
+          [anchor]="true"
+        >
+          <app-document-line-code-cell
+            [lineIndex]="lineIndex()"
+            [inputId]="fieldId('articleCode')"
+            ariaLabel="Codice articolo"
+            placeholder="—"
+            [value]="controlValue('articleCode')"
+            [linked]="view().linked"
+            [disabled]="readOnly()"
+            [suggestions]="view().articleCodeSuggest.items"
+            [suggestionsOpen]="view().articleCodeSuggest.open"
+            [activeSuggestionIndex]="view().articleCodeSuggest.activeIndex"
+            (valueChange)="codeChanged.emit({ field: 'articleCode', value: $event })"
+            (focused)="codeFocused.emit('articleCode')"
+            (blurred)="codeBlurred.emit('articleCode')"
+            (commit)="codeCommitted.emit('articleCode')"
+            (suggestionPick)="
+              suggestionPicked.emit({ field: 'articleCode', variantId: $event.variantId })
+            "
+          />
+        </app-document-line-card-field>
+      }
+      @if (mostra('sku')) {
+        <app-document-line-card-field
+          label="SKU"
+          [controlId]="view().linked ? '' : fieldId('sku')"
+          [anchor]="true"
+        >
+          <app-document-line-code-cell
+            [lineIndex]="lineIndex()"
+            [inputId]="fieldId('sku')"
+            ariaLabel="SKU"
+            placeholder="—"
+            [value]="controlValue('sku')"
+            [linked]="view().linked"
+            [disabled]="readOnly()"
+            [suggestions]="view().skuSuggest.items"
+            [suggestionsOpen]="view().skuSuggest.open"
+            [activeSuggestionIndex]="view().skuSuggest.activeIndex"
+            (valueChange)="codeChanged.emit({ field: 'sku', value: $event })"
+            (focused)="codeFocused.emit('sku')"
+            (blurred)="codeBlurred.emit('sku')"
+            (commit)="codeCommitted.emit('sku')"
+            (suggestionPick)="
+              suggestionPicked.emit({ field: 'sku', variantId: $event.variantId })
+            "
+          />
+        </app-document-line-card-field>
+      }
+      @if (mostra('barcode')) {
+        <app-document-line-card-field
+          label="EAN"
+          [controlId]="view().linked ? '' : fieldId('barcode')"
+          [full]="true"
+          [anchor]="true"
+        >
+          <app-document-line-code-cell
+            [lineIndex]="lineIndex()"
+            [inputId]="fieldId('barcode')"
+            ariaLabel="Codice a barre"
+            placeholder="—"
+            [value]="controlValue('barcode')"
+            [linked]="view().linked"
+            [disabled]="readOnly()"
+            [suggestions]="view().barcodeSuggest.items"
+            [suggestionsOpen]="view().barcodeSuggest.open"
+            [activeSuggestionIndex]="view().barcodeSuggest.activeIndex"
+            (valueChange)="codeChanged.emit({ field: 'barcode', value: $event })"
+            (focused)="codeFocused.emit('barcode')"
+            (blurred)="codeBlurred.emit('barcode')"
+            (commit)="codeCommitted.emit('barcode')"
+            (suggestionPick)="
+              suggestionPicked.emit({ field: 'barcode', variantId: $event.variantId })
+            "
+          />
+        </app-document-line-card-field>
+      }
+      @if (mostra('supplierCode')) {
+        <app-document-line-card-field
+          label="Cod. fornitore"
+          [controlId]="view().linked ? '' : fieldId('supplierCode')"
+          [anchor]="true"
+        >
+          <app-document-line-code-cell
+            [lineIndex]="lineIndex()"
+            [inputId]="fieldId('supplierCode')"
+            ariaLabel="Codice fornitore"
+            placeholder="—"
+            [value]="controlValue('supplierSku')"
+            [linked]="view().linked"
+            [disabled]="readOnly()"
+            [suggestions]="view().supplierCodeSuggest.items"
+            [suggestionsOpen]="view().supplierCodeSuggest.open"
+            [activeSuggestionIndex]="view().supplierCodeSuggest.activeIndex"
+            (valueChange)="codeChanged.emit({ field: 'supplierCode', value: $event })"
+            (focused)="codeFocused.emit('supplierCode')"
+            (blurred)="codeBlurred.emit('supplierCode')"
+            (commit)="codeCommitted.emit('supplierCode')"
+            (suggestionPick)="
+              suggestionPicked.emit({ field: 'supplierCode', variantId: $event.variantId })
+            "
+          />
+        </app-document-line-card-field>
+      }
+
+      @if (mostra('product')) {
+        <app-document-line-card-field
+          label="Nome prodotto"
+          [controlId]="view().linked ? '' : fieldId('product')"
+          [full]="true"
+          [anchor]="true"
+        >
+          <app-document-line-product-cell
+            [lineIndex]="lineIndex()"
+            [inputId]="fieldId('product')"
+            [value]="controlValue('productName')"
+            [linked]="view().linked"
+            [disabled]="readOnly()"
+            [invalid]="view().productInvalid"
+            [suggestions]="view().productSuggest.items"
+            [suggestionsOpen]="view().productSuggest.open"
+            [activeSuggestionIndex]="view().productSuggest.activeIndex"
+            (valueChange)="productNameChanged.emit($event)"
+            (focused)="productFocused.emit()"
+            (blurred)="productBlurred.emit()"
+            (searchOpen)="productSearchOpened.emit()"
+            (suggestionPick)="
+              suggestionPicked.emit({ field: 'product', variantId: $event.variantId })
+            "
+          />
+        </app-document-line-card-field>
+      }
+
+      @if (mostra('description')) {
+        <app-document-line-card-field
+          label="Descrizione"
+          [controlId]="fieldId('description')"
+          [full]="true"
+        >
+          <input
+            [id]="fieldId('description')"
+            class="doc-form__input"
+            type="text"
+            formControlName="description"
+          />
+        </app-document-line-card-field>
+      }
+    }
+
+    @if (gruppo.id === 'magazzino') {
+      <!-- Le tre dell'ordine collegato: dicono quanta merce era attesa e quanta
+           ne è già arrivata. In sola lettura per definizione. -->
+      @if (mostra('poOrdered')) {
+        <app-document-line-card-field label="Ordinata" [readonly]="true">
+          <p class="tabular-nums">{{ v.poOrdered || '—' }}</p>
+        </app-document-line-card-field>
+      }
+      @if (mostra('poReceived')) {
+        <app-document-line-card-field label="Ricevuta" [readonly]="true">
+          <p class="tabular-nums">{{ v.poReceived || '—' }}</p>
+        </app-document-line-card-field>
+      }
+      @if (mostra('poRemaining')) {
+        <app-document-line-card-field label="Residuo" [readonly]="true">
+          <p class="tabular-nums">{{ v.poRemaining || '—' }}</p>
+        </app-document-line-card-field>
+      }
+      @if (mostra('stockOnHand')) {
+        <app-document-line-card-field label="Giacenza" [readonly]="true">
+          <p class="tabular-nums">{{ v.stockOnHand || '—' }}</p>
+        </app-document-line-card-field>
+      }
+      @if (mostra('stockAvailable')) {
+        <app-document-line-card-field label="Disponibile" [readonly]="true">
+          <p class="tabular-nums">{{ v.stockAvailable }} {{ v.unitValue }}</p>
+        </app-document-line-card-field>
+      }
+      @if (mostra('unitOfMeasure')) {
+        <app-document-line-card-field label="U.m.">
+          <!-- Fuori dal giro delle colonne: su card le colonne non ci sono,
+               quindi il Tab resta al browser. -->
+          <app-document-line-unit-cell
+            [lineIndex]="lineIndex()"
+            [value]="v.unitValue"
+            [options]="unitOptions()"
+            [disabled]="readOnly()"
+            [inColumnCycle]="false"
+            (valueChange)="unitChanged.emit($event)"
+            (manageRequested)="unitManageRequested.emit()"
+          />
+        </app-document-line-card-field>
+      }
+      @if (mostra('lot')) {
+        <app-document-line-card-field label="Lotto" [controlId]="fieldId('lot')">
+          <input [id]="fieldId('lot')" class="doc-form__input" type="text" formControlName="lotCode" />
+        </app-document-line-card-field>
+      }
+      @if (mostra('expiry')) {
+        <app-document-line-card-field label="Scadenza" [controlId]="fieldId('expiry')">
+          <input
+            [id]="fieldId('expiry')"
+            class="doc-form__input"
+            type="text"
+            formControlName="lotExpiryDate"
+          />
+        </app-document-line-card-field>
+      }
+      @if (mostra('serials')) {
+        <app-document-line-card-field
+          label="Seriali"
+          [controlId]="fieldId('serials')"
+          [full]="true"
+        >
+          <input
+            [id]="fieldId('serials')"
+            class="doc-form__input"
+            type="text"
+            formControlName="serialNumbersText"
+            placeholder="SN001, SN002"
+            autocomplete="off"
+          />
+        </app-document-line-card-field>
+      }
+      <!-- ⚠️ Due spunte DISTINTE, stessa grammatica: «impegna» prenota,
+           «carica/scarica» muove. Un documento può mostrarle entrambe. -->
+      @if (mostra('commitsStock')) {
+        <app-document-line-card-field
+          [label]="stockToggleLabel()"
+          [controlId]="fieldId('commits')"
+        >
+          <select
+            [id]="fieldId('commits')"
+            class="doc-form__input doc-line-card-field__select"
+            [value]="controlValue('commitsStock') === 'true' ? 'yes' : 'no'"
+            [disabled]="readOnly()"
+            (change)="onStockToggle('commitsStock', $event)"
+          >
+            <option value="yes">Sì</option>
+            <option value="no">No</option>
+          </select>
+        </app-document-line-card-field>
+      }
+      @if (mostra('loadsStock')) {
+        <app-document-line-card-field [label]="loadToggleLabel()" [controlId]="fieldId('loads')">
+          <select
+            [id]="fieldId('loads')"
+            class="doc-form__input doc-line-card-field__select"
+            [value]="controlValue('loadsStock') === 'true' ? 'yes' : 'no'"
+            [disabled]="readOnly()"
+            (change)="onStockToggle('loadsStock', $event)"
+          >
+            <option value="yes">Sì</option>
+            <option value="no">No</option>
+          </select>
+        </app-document-line-card-field>
+      }
+    }
+
+    @if (gruppo.id === 'costi') {
+      @if (mostra('purchaseCost')) {
+        <app-document-line-card-field label="Costo di riferimento" [readonly]="true">
+          <p class="tabular-nums">{{ v.purchaseCost || '—' }}</p>
+        </app-document-line-card-field>
+      }
+      @if (mostra('unitCost')) {
+        <app-document-line-card-field [label]="costLabel()" [controlId]="fieldId('cost')">
+          <input
+            [id]="fieldId('cost')"
+            class="doc-form__input"
+            type="text"
+            inputmode="decimal"
+            formControlName="unitCost"
+            placeholder="0,00"
+            (input)="costChanged.emit($any($event.target).value)"
+          />
+        </app-document-line-card-field>
+      }
+      @if (mostra('discountedCost')) {
+        <app-document-line-card-field label="Costo scontato" [readonly]="true">
+          <p class="tabular-nums">{{ v.discountedCost || '—' }}</p>
+        </app-document-line-card-field>
+      }
+    }
+
+    @if (gruppo.id === 'vendita') {
+      <!-- ⛔ I tre prezzi d'ANAGRAFICA, non il prezzo di questa riga: vengono
+           dal catalogo, e solo dove il gruppo ha il controllo si scrivono. -->
+      @if (mostra('sellingPrice')) {
+        <app-document-line-card-field
+          label="Prezzo di vendita"
+          [controlId]="haControllo('sellingPrice') ? fieldId('sellingPrice') : ''"
+          [readonly]="!haControllo('sellingPrice')"
+        >
+          @if (haControllo('sellingPrice')) {
+            <input
+              [id]="fieldId('sellingPrice')"
+              class="doc-form__input"
+              type="text"
+              inputmode="decimal"
+              formControlName="sellingPrice"
+              placeholder="0,00"
+            />
+          } @else {
+            <p class="tabular-nums">{{ v.sellingPrice || '—' }}</p>
+          }
+        </app-document-line-card-field>
+      }
+      @if (mostra('shopifyPrice')) {
+        <app-document-line-card-field
+          label="Prezzo Shopify"
+          [controlId]="haControllo('shopifyPrice') ? fieldId('shopifyPrice') : ''"
+          [readonly]="!haControllo('shopifyPrice')"
+        >
+          @if (haControllo('shopifyPrice')) {
+            <input
+              [id]="fieldId('shopifyPrice')"
+              class="doc-form__input"
+              type="text"
+              inputmode="decimal"
+              formControlName="shopifyPrice"
+              placeholder="0,00"
+            />
+          } @else {
+            <p class="tabular-nums">{{ v.shopifyPrice || '—' }}</p>
+          }
+        </app-document-line-card-field>
+      }
+      @if (mostra('compareAtPrice')) {
+        <app-document-line-card-field
+          label="Prezzo barrato"
+          [controlId]="haControllo('compareAtPrice') ? fieldId('compareAtPrice') : ''"
+          [readonly]="!haControllo('compareAtPrice')"
+        >
+          @if (haControllo('compareAtPrice')) {
+            <input
+              [id]="fieldId('compareAtPrice')"
+              class="doc-form__input"
+              type="text"
+              inputmode="decimal"
+              formControlName="compareAtPrice"
+              placeholder="0,00"
+            />
+          } @else {
+            <p class="tabular-nums">{{ v.compareAtPrice || '—' }}</p>
+          }
+        </app-document-line-card-field>
+      }
+      @if (mostra('unitPrice')) {
+        <app-document-line-card-field [label]="priceLabel()" [controlId]="fieldId('price')">
+          <input
+            [id]="fieldId('price')"
+            class="doc-form__input"
+            type="text"
+            inputmode="decimal"
+            formControlName="unitPrice"
+            placeholder="0,00"
+          />
+        </app-document-line-card-field>
+      }
+      @if (mostra('discount')) {
+        <app-document-line-card-field label="Sconto" [controlId]="fieldId('discount')">
+          <input
+            [id]="fieldId('discount')"
+            class="doc-form__input"
+            type="text"
+            formControlName="discount"
+            placeholder="0%"
+            title="Percentuale singola o cascata: «10%», «4+10%»"
+          />
+        </app-document-line-card-field>
+      }
+      @if (mostra('discountedPrice')) {
+        <app-document-line-card-field label="Prezzo scontato" [readonly]="true">
+          <p class="tabular-nums">{{ v.discountedPrice || '—' }}</p>
+        </app-document-line-card-field>
+      }
+      @if (mostra('vat')) {
+        <app-document-line-card-field label="IVA">
+          <app-document-line-select-cell
+            [lineIndex]="lineIndex()"
+            ariaLabel="Codice IVA riga"
+            [options]="v.vatOptions"
+            [value]="v.vatValue"
+            [disabled]="readOnly()"
+            [inColumnCycle]="false"
+            (valueChange)="vatSelected.emit($event)"
+          />
+        </app-document-line-card-field>
+      }
+    }
+  }
+</ng-container>

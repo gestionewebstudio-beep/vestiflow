@@ -1,0 +1,8 @@
+// ⚠️ `display: contents`: il piede dispone i propri figli con la sua griglia
+// (`.doc-form__footer-notes` in `styles/_document-form-footer.scss`), e un
+// contenitore in mezzo li toglierebbe da quel flusso. E' lo stesso motivo per
+// cui `document-line-card-body` ne ha bisogno — e la sua assenza li' aveva
+// prodotto una regressione visiva che nessun test vedeva.
+:host {
+  display: contents;
+}

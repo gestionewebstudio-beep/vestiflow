@@ -1,6 +1,3 @@
-@use 'breakpoints' as bp;
-@use 'responsive-table' as rt;
-
 // Solo il delta rispetto all'anatomia condivisa (styles/_document-form.scss).
 // Fase 1 (skin Ordine cliente): rimossi gli override che duplicavano o
 // contraddicevano il globale promosso — testata, input, tabella, bottone
@@ -11,36 +8,22 @@
   max-inline-size: none;
 }
 
-// Selettore modalità costo mobile: solo dove la tabella si impila in card
-// (sotto lg). Su desktop il controllo vive nell'intestazione di colonna.
-.doc-form__mode-mobile {
-  display: none;
-}
+// ⛔ Qui c'erano tre regole di vista mobile, sparite col loro motivo:
+// `.doc-form__mode-mobile` (il selettore modalità costo sopra le righe, ora
+// campo del pannello di testata mobile), la ri-mostra di
+// `.doc-form__table-wrap` e l'impilamento `data-table-mobile-cards` della
+// tabella — la card mobile dei poveri, etichetta accanto al valore e tutte le
+// celle dello stesso peso. Sotto lg la tabella non è nascosta: NON È NEL DOM
+// (`@if (!compactView())`), e al suo posto c'è la card comune.
 
 // La fascia del documento della controparte non ha più regole qui: forma,
 // fondo tenue, filo superiore e sparizione sotto lg li porta con sé il
 // componente condiviso (app-document-counterparty-ref, layout `band`).
 
-@include bp.media-down('lg') {
-  .doc-form__mode-mobile {
-    display: flex;
-    margin-block-end: var(--space-3);
-  }
-
-  // Il foglio condiviso nasconde .doc-form__table-wrap sotto lg in favore di
-  // una card view (.doc-form__cards) che questa maschera non ha: le righe si
-  // impilano già in card via stack-table. Senza questa ri-mostra sparivano
-  // (stesso rimedio di sales-document-form e movement-form).
-  .doc-form__table-wrap {
-    display: block;
-  }
-
-  // Adozione m-ref: sotto lg la testata è il pannello condiviso (doc-panels);
-  // la griglia classica esce dal flusso — convivono nel DOM come tabella/card.
-  .doc-form__header .doc-form__grid--header {
-    display: none;
-  }
-}
+// ⛔ Qui c'era la regola che sotto lg spegneva la griglia desktop della
+// testata: le due vesti convivevano nel DOM e una si nascondeva col CSS. Ora
+// sono ESCLUSIVE — app-document-header monta il pannello o la griglia, mai
+// tutti e due — quindi non c'è più niente da nascondere.
 
 // Campo non valido: il template marca aria-invalid (pattern dell'app);
 // il foglio condiviso copre solo la classe __input--invalid.
@@ -57,20 +40,6 @@
 .doc-form__cell--variant {
   min-inline-size: calc(var(--space-16) * 2);
 }
-
-// Fallback a card sotto lg (delta funzionale, non coperto dal globale).
-//
-// ⚠️ SOLO la metà mobile del mixin, e la ragione è misurata. `stack-table`
-// include anche `data-table-desktop`, che rimette `table-layout: auto` sulla
-// classe CONDIVISA `.doc-form__table` — scavalcando il `fixed` del foglio
-// globale, e solo per questa maschera.
-//
-// Con `auto` le larghezze dichiarate diventano suggerimenti che il browser
-// ignora: misurato dal vivo, SKU chiedeva 104px e ne otteneva 58 (una lettera
-// sola a schermo) mentre l'IVA ne chiedeva 96 e se ne prendeva 257, perché
-// ospita una tendina. La somma sfondava di 349px e la colonna Totale finiva
-// fuori dallo schermo. Serviva l'impilamento a card, non lo stile desktop.
-@include rt.data-table-mobile-cards('doc-form__table');
 
 // ── Menu intestazione colonna Costo (switch netto/ivato come Arrivo merce) ──
 .doc-form__th-menu-wrap {

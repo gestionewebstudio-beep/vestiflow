@@ -16,12 +16,14 @@ interface UnitOfMeasureOptionApiRow {
   readonly sortOrder: number;
   readonly isSystem: boolean;
   readonly isActive: boolean;
+  readonly isDefault?: boolean;
 }
 
 export interface UpsertUnitOfMeasureOptionBody {
   readonly name?: string;
   readonly isActive?: boolean;
   readonly sortOrder?: number;
+  readonly isDefault?: boolean;
 }
 
 function mapOption(row: UnitOfMeasureOptionApiRow): UnitOfMeasureOption {
@@ -31,6 +33,9 @@ function mapOption(row: UnitOfMeasureOptionApiRow): UnitOfMeasureOption {
     sortOrder: row.sortOrder,
     isSystem: row.isSystem,
     isActive: row.isActive,
+    // ⚠️ `=== true`: una risposta che non porta il campo (API più vecchia) deve
+    //   dire «non predefinita», non «forse».
+    isDefault: row.isDefault === true,
   };
 }
 
@@ -64,6 +69,23 @@ export class UnitOfMeasureOptionService {
   options(): typeof this.cached {
     this.ensureLoaded();
     return this.cached;
+  }
+
+  /**
+   * **Il codice dell’unità predefinita del tenant, o `null`.**
+   *
+   * ⚠️ Serve a UNA cosa sola: precompilare un articolo NUOVO. Non sostituisce il
+   * default della riga documento, che continua a venire dall’articolo, e non
+   * riscrive niente di esistente — deciso dal proprietario il 26/08/2026.
+   *
+   * ⛔ `null` è un valore legittimo, non un guasto: chi ha articoli misti non
+   * vuole una predefinita, e la spunta si può togliere.
+   */
+  defaultCode(): string | null {
+    // ⚠️ `isActive` ANCHE qui, benché il server ormai non lasci più esistere una
+    //   predefinita spenta: le righe scritte prima del 26/08/2026 potrebbero,
+    //   e una predefinita che non compare nella tendina non deve seminare niente.
+    return this.options()().find((o) => o.isDefault && o.isActive)?.name ?? null;
   }
 
   /** Carica l'elenco se non c'è ancora. Chiamarla più volte non costa niente. */

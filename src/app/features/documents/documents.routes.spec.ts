@@ -10,7 +10,7 @@ import {
 } from '@domain/documents/models/document-sales.util';
 
 import { documentsRoutes } from './documents.routes';
-import { SALES_FORM_ROUTE_SEGMENT } from './models/document-routing.util';
+import { SALES_FORM_ROUTE_SEGMENT } from '@domain/documents/utils/document-routing.util';
 
 /**
  * Le rotte della maschera vendita — regressione di `07-…§18`.
@@ -80,7 +80,7 @@ describe('documentsRoutes — il tipo è noto prima della lettura', () => {
   it('i tre tipi della famiglia Fattura chiedono il permesso della loro famiglia', async () => {
     const routes = await salesFormRoutes();
     const family = [
-      DocumentType.InvoiceDraft,
+      DocumentType.Invoice,
       DocumentType.InvoiceAccompanying,
       DocumentType.CreditNote,
     ];

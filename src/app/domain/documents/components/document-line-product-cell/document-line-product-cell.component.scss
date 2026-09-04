@@ -34,7 +34,7 @@
   flex: 1;
   min-inline-size: 0;
   padding: var(--space-1) var(--space-2);
-  font-size: var(--text-sm);
+  font-size: var(--doc-line-cell-font, var(--text-sm));
   font-weight: var(--doc-product-cell-weight, inherit);
   line-height: var(--leading-normal);
   border: none;

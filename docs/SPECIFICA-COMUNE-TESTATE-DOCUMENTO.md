@@ -1,0 +1,2714 @@
+# Specifica comune — Testate documento, controparti, Location, date, serie e numerazione
+
+**Stato:** specifica normativa consolidata  
+**Data:** 24/08/2026  
+**Perimetro:** testate dei documenti e delle registrazioni VestiFlow  
+**Scopo:** definire una sola volta struttura, semantica e comportamento dei campi comuni di testata, lasciando ai singoli documenti soltanto le eccezioni reali.
+
+> Le decisioni più recenti confermate prevalgono sul codice osservato, sugli audit e sulle specifiche precedenti incompatibili.
+>
+> Il codice corrente va usato per individuare gap e cause radice, non come fonte automatica del requisito.
+
+---
+
+# 1. Principio generale
+
+I documenti VestiFlow devono usare un **contratto comune di testata** per i concetti condivisi:
+
+- Cliente / Fornitore;
+- Location;
+- Data documento;
+- Serie;
+- Numero;
+- eventuali riferimenti a documenti esterni;
+- campi specifici realmente necessari al singolo documento.
+
+Non devono esistere implementazioni locali diverse dello stesso concetto senza una ragione funzionale.
+
+La testata comune deve essere componibile:
+
+```text
+campi/componenti comuni
+        ↓
+configurazione del tipo documento
+        ↓
+testata del documento
+```
+
+Il singolo documento stabilisce:
+
+- quali campi sono presenti;
+- quali sono obbligatori;
+- quali etichette specifiche usa quando il significato lo richiede;
+- quali eccezioni funzionali applica.
+
+---
+
+# 2. Data funzionale e timestamp tecnico
+
+## 2.1 Data documento
+
+Per i normali documenti VestiFlow esiste una **Data documento**:
+
+- proposta con la data corrente in creazione;
+- visibile all'operatore;
+- modificabile;
+- persistita;
+- caricata dal documento alla riapertura;
+- distinta dal timestamp tecnico di creazione.
+
+La Data documento è il riferimento funzionale del documento.
+
+## 2.2 `createdAt`
+
+`createdAt` è:
+
+- generato automaticamente da VestiFlow;
+- tecnico;
+- non scelto dall'utente;
+- normalmente non esposto come campo operativo;
+- distinto dalla Data documento;
+- non deve essere riscritto per farlo coincidere con la Data documento.
+
+La modifica della Data documento di un documento già salvato non deve rinumerarlo automaticamente.
+
+## 2.3 Eccezione terminologica: Registrazione fattura fornitore
+
+Nella **Registrazione fattura fornitore**, la data interna VestiFlow si chiama:
+
+> **Data registrazione**
+
+Il nome è volutamente diverso da "Data documento" perché nella stessa testata esiste anche:
+
+> **Data fattura**
+
+che è la data riportata sul documento ricevuto dal fornitore.
+
+L'infrastruttura di numerazione interna resta comunque quella comune VestiFlow.
+
+---
+
+# 3. Numerazione comune
+
+## 3.1 Struttura
+
+Dove il documento è numerato, il blocco comune è:
+
+```text
+Data
+Serie
+Numero
+```
+
+con le etichette specifiche previste dal documento.
+
+## 3.2 Progressivo
+
+Regola definitiva:
+
+> **Il progressivo dipende dalla Serie. La Location non crea mai un progressivo separato.**
+
+L'identità funzionale del numeratore è quindi:
+
+```text
+tenant + tipo di numerazione + serie
+```
+
+La Location può soltanto influire sulla **disponibilità della Serie** nella testata.
+
+Non esistono progressivi distinti:
+
+```text
+Serie A / Napoli
+Serie A / Milano
+```
+
+Se è la stessa Serie A, il progressivo è uno solo.
+
+## 3.3 Serie globali e Serie legate a una Location
+
+Una Serie può essere:
+
+- **globale** → disponibile in tutte le Location consentite;
+- **associata a una Location** → disponibile soltanto quando quella Location è il contesto della testata.
+
+Il collegamento Location ↔ Serie è quindi:
+
+> **filtro di disponibilità, non partizione del progressivo.**
+
+## 3.4 Cambio Location
+
+Su documento nuovo, cambiando Location:
+
+1. si ricaricano le Serie disponibili;
+2. una Serie non più compatibile non deve restare selezionata come se fosse valida;
+3. viene proposta una Serie compatibile secondo il sistema comune;
+4. il Numero mostrato viene aggiornato come proposta coerente.
+
+Su documento già salvato, Serie e Numero sono dati del documento e non devono essere riscritti automaticamente solo perché la configurazione corrente delle Serie è cambiata.
+
+## 3.5 Numero proposto e numero assegnato
+
+VestiFlow propone il Numero secondo il motore comune.
+
+La proposta non deve creare conflitti fra operatori: l'assegnazione definitiva deve essere protetta lato server.
+
+L'eventuale possibilità di imporre manualmente un numero segue la specifica comune di numerazione e non viene ridefinita nelle singole testate.
+
+---
+
+# 4. Location — modello generale
+
+## 4.1 Location = entità reale
+
+Una Location VestiFlow è un luogo fisico/logico reale su cui vive l'inventario.
+
+Non creare una Location fittizia chiamata:
+
+> `Tutte le location`
+
+per risolvere esigenze di consultazione.
+
+## 4.2 `null` significa nessuna scelta
+
+Regola definitiva:
+
+> **`locationId = null` / campo vuoto significa esclusivamente "nessuna Location selezionata".**
+
+Non significa mai automaticamente:
+
+- tutte le Location;
+- la prima Location disponibile;
+- l'unica Location disponibile;
+- la Location del negozio corrente;
+- un fallback implicito.
+
+Questa distinzione è intenzionale.
+
+## 4.3 Motivazione operativa
+
+Un responsabile può lavorare su più Location.
+
+In questo caso può essere corretto **non assegnargli alcuna Location predefinita**.
+
+VestiFlow deve quindi lasciare il campo vuoto e obbligarlo a scegliere consapevolmente la sede per l'operazione corrente.
+
+Obiettivo:
+
+> **ridurre il rischio di registrare documenti o movimenti sulla Location sbagliata.**
+
+Questa logica non è un difetto UX: è una protezione operativa deliberata.
+
+## 4.4 Location predefinita
+
+La Location predefinita:
+
+- è opzionale;
+- deve essere assegnata esplicitamente all'utente;
+- può precompilare i documenti nuovi;
+- deve essere tra le Location su cui l'utente può operare;
+- non rende il campo non modificabile;
+- non deve sporcare il form come modifica dell'utente.
+
+Non dedurre mai automaticamente la predefinita dal fatto che l'utente abbia una sola Location visibile.
+
+## 4.5 Permessi: consultazione vs operatività
+
+Mantenere la distinzione già correttamente presente nell'architettura VestiFlow:
+
+- Location **consultabili**;
+- Location **operative/scrivibili**;
+- Location di destinazione del Trasferimento.
+
+Un utente può avere il permesso di consultare più Location senza avere il diritto di eseguire operazioni fisiche su tutte.
+
+Frontend e backend devono applicare la stessa regola.
+
+## 4.6 Location obbligatoria
+
+Quando la matrice del documento richiede una Location reale:
+
+- il campo vuoto deve produrre un alert/errore chiaro;
+- il salvataggio o l'azione che richiede la Location deve essere bloccata;
+- il backend deve rifiutare una richiesta senza Location valida;
+- il backend deve rifiutare una Location fuori dallo scope operativo dell'utente.
+
+---
+
+# 5. "Tutte le location" — capacità opzionale, non regola generale
+
+## 5.1 Principio
+
+La voce **Tutte le location** ha senso solo in contesti nei quali la Location rappresenta anche un **ambito di consultazione**.
+
+Non va aggiunta automaticamente al selettore Location di tutti i documenti.
+
+In particolare non ha senso nei documenti che richiedono un effetto fisico su una sede precisa, come:
+
+- Arrivo merce;
+- Vendita al banco;
+- Reso al banco;
+- DDT;
+- Fattura / Accompagnatoria quando il documento usa una Location reale;
+- Trasferimento;
+- altri movimenti fisici.
+
+## 5.2 Contesti possibili
+
+La capacità può essere prevista, se funzionalmente utile, in:
+
+- Ordine fornitore;
+- consultazione giacenze;
+- alcune viste di magazzino;
+- report;
+- strumenti gestionali non fisici;
+- altri moduli solo dopo decisione specifica.
+
+Non estenderla automaticamente a Inventario o altri documenti fisici: va deciso caso per caso.
+
+---
+
+# 6. Ordine fornitore — Location e ambito giacenze
+
+## 6.1 Semantica
+
+Nell'Ordine fornitore la Location **non rappresenta ancora la destinazione fisica definitiva della merce**.
+
+Se è selezionata una Location, significa:
+
+> l'ordine viene preparato nel contesto di quella Location e le giacenze mostrate sono quelle della sede selezionata.
+
+La destinazione fisica effettiva della merce viene determinata quando avviene il carico reale, ad esempio nell'Arrivo merce.
+
+## 6.2 Stati ammessi
+
+L'Ordine fornitore deve distinguere tre stati funzionali:
+
+```text
+1. nessuna scelta
+2. Location specifica
+3. Tutte le location
+```
+
+Questi stati non devono essere confusi.
+
+### Nessuna scelta
+
+- `locationId = null`;
+- nessun ambito esplicitamente scelto;
+- mantiene alert/validazione secondo la UI;
+- non deve essere interpretato come "Tutte".
+
+### Location specifica
+
+- `locationId = id reale`;
+- giacenze riferite alla Location scelta;
+- Serie disponibili = globali + quelle associate a quella Location.
+
+### Tutte le location
+
+- è uno **scope esplicito di consultazione**, non una Location;
+- mostra le giacenze aggregate/complessive delle Location che l'utente è autorizzato a consultare;
+- `locationId` non viene valorizzato con una sede fittizia;
+- lo stato "Tutte" deve essere distinto esplicitamente dallo stato "nessuna scelta".
+
+## 6.3 Serie con "Tutte le location"
+
+Con scope **Tutte le location** non esiste una Location reale da usare come filtro.
+
+Per coerenza col modello attuale:
+
+> **sono proponibili soltanto le Serie globali, cioè non vincolate a una Location specifica.**
+
+Il progressivo resta comunque quello della Serie scelta.
+
+## 6.4 Permessi
+
+"Tutte le location" significa:
+
+> tutte le Location che l'utente è autorizzato a consultare.
+
+Non amplia i permessi.
+
+---
+
+# 7. Controparti: Cliente e Fornitore
+
+Cliente e Fornitore usano i componenti/anagrafiche comuni.
+
+Regole:
+
+- il documento dichiara se la controparte è obbligatoria o facoltativa;
+- i valori dell'anagrafica possono precompilare il documento;
+- un valore predefinito non diventa automaticamente non modificabile;
+- il documento salvato mantiene il proprio snapshot;
+- una modifica successiva dell'anagrafica non deve riscrivere automaticamente il documento.
+
+La matrice seguente è la fonte normativa sull'obbligatorietà.
+
+---
+
+# 8. Matrice definitiva delle testate
+
+| Documento                           | Controparte                  | Location                                                                       | Data interna           | Serie  | Numero     | Campi specifici                                                                     |
+| ----------------------------------- | ---------------------------- | ------------------------------------------------------------------------------ | ---------------------- | ------ | ---------- | ----------------------------------------------------------------------------------- |
+| **Arrivo merce**                    | **Fornitore obbligatorio**   | **Obbligatoria, reale**                                                        | **Data documento**     | Sì     | Sì         | Tipo documento fornitore, Numero documento fornitore, Data documento fornitore      |
+| **Ordine fornitore**                | **Fornitore obbligatorio**   | Location specifica oppure **Tutte le location**; nessuna scelta resta distinta | **Data documento**     | Sì     | Sì         | Nessun riferimento/conferma/consegna prevista                                       |
+| **Preventivo**                      | **Cliente obbligatorio**     | **Obbligatoria, reale**                                                        | **Data documento**     | Sì     | Sì         | —                                                                                   |
+| **Ordine cliente**                  | **Cliente obbligatorio**     | **Obbligatoria, reale**                                                        | **Data documento**     | Sì     | Sì         | —                                                                                   |
+| **DDT**                             | **Cliente obbligatorio**     | **Obbligatoria, reale**                                                        | **Data documento**     | Sì     | Sì         | sezioni trasporto/destinazione secondo specifica DDT                                |
+| **Proforma**                        | **Cliente obbligatorio**     | **Obbligatoria, reale**                                                        | **Data documento**     | Sì     | Sì         | —                                                                                   |
+| **Fattura**                         | **Cliente obbligatorio**     | **Obbligatoria, reale**                                                        | **Data documento**     | Sì     | Sì         | sezioni fiscali/pagamenti secondo relative specifiche                               |
+| **Fattura accompagnatoria**         | **Cliente obbligatorio**     | **Obbligatoria, reale**                                                        | **Data documento**     | Sì     | Sì         | trasporto/destinazione; condivide il progressivo della Fattura                      |
+| **Nota di credito**                 | **Cliente obbligatorio**     | **Obbligatoria, reale**                                                        | **Data documento**     | Sì     | Sì         | riferimento alla Fattura/Accompagnatoria origine secondo specifica                  |
+| **Vendita al banco**                | Cliente facoltativo          | **Obbligatoria, reale**                                                        | **Data documento**     | Sì     | Sì         | —                                                                                   |
+| **Reso al banco**                   | Cliente facoltativo          | **Obbligatoria, reale**                                                        | **Data documento**     | Sì     | Sì         | nessun collegamento obbligatorio alla vendita originaria                            |
+| **Trasferimento**                   | Nessuna                      | **Origine obbligatoria + Destinazione obbligatoria**                           | **Data documento**     | Sì     | Sì         | due Location reali e distinte                                                       |
+| **Registrazione fattura fornitore** | **Fornitore obbligatorio**   | **Assente**                                                                    | **Data registrazione** | Sì     | Sì         | N. fattura, Data fattura                                                            |
+| **Corrispettivo manuale**           | Nessuna controparte standard | **Obbligatoria**                                                               | **Data**               | **No** | automatico | registrazione economica minimale; Netto/Ivato e Pagamenti secondo propria specifica |
+
+---
+
+# 9. Arrivo merce — testata definitiva
+
+La testata dell'Arrivo merce deve distinguere chiaramente il documento VestiFlow dal documento ricevuto dal fornitore.
+
+## 9.1 Documento VestiFlow
+
+```text
+Fornitore        obbligatorio
+Location         obbligatoria
+Data documento
+Serie
+Numero
+```
+
+## 9.2 Documento del fornitore
+
+```text
+Tipo documento fornitore
+Numero documento fornitore
+Data documento fornitore
+```
+
+Sono due identità separate.
+
+## 9.3 Causale
+
+> **La Causale va rimossa dalla testata Arrivo merce.**
+
+Non deve essere mantenuta come requisito corrente solo perché presente in versioni precedenti.
+
+Prima della rimozione tecnica definitiva, censire eventuali consumer; non conservarla funzionalmente per compatibilità con dati fittizi di sviluppo.
+
+---
+
+# 10. Ordine fornitore — semplificazione definitiva
+
+La testata corrente deve essere semplificata a:
+
+```text
+Fornitore        obbligatorio
+Location / ambito giacenze
+Data documento
+Serie
+Numero
+```
+
+## 10.1 Campi da ritirare
+
+Non fanno più parte del requisito:
+
+- **Rif. ordine fornitore**
+- **Consegna prevista**
+- **Tipo documento esterno / conferma d'ordine**
+- **Numero conferma/documento fornitore**
+- **Data conferma/documento fornitore**
+
+Non serve mantenere compatibilità con dati storici reali: l'ambiente attuale contiene solo dati di sviluppo.
+
+## 10.2 `destinationLocationId`
+
+Il vecchio significato "destinazione merce" è superato.
+
+La nuova Location dell'Ordine fornitore è un **contesto operativo/di consultazione**, non la destinazione fisica definitiva.
+
+Prima di riutilizzare, rinominare o eliminare il campo backend:
+
+1. censire API, mapper, permessi e query;
+2. individuare la causa radice delle dipendenze;
+3. evitare di attribuire silenziosamente un nuovo significato a un campo legacy;
+4. rimuovere il residuo se non serve alla nuova semantica.
+
+---
+
+# 11. Preventivo
+
+Testata:
+
+```text
+Cliente          obbligatorio
+Location         obbligatoria
+Data documento
+Serie
+Numero
+```
+
+"Tutte le location" non è prevista.
+
+---
+
+# 12. Ordine cliente
+
+Testata:
+
+```text
+Cliente          obbligatorio
+Location         obbligatoria
+Data documento
+Serie
+Numero
+```
+
+"Tutte le location" non è prevista.
+
+Motivo:
+
+> l'Ordine cliente può impegnare magazzino; l'impegno deve riferirsi a una Location reale.
+
+---
+
+# 13. DDT
+
+Testata base:
+
+```text
+Cliente          obbligatorio
+Location         obbligatoria
+Data documento
+Serie
+Numero
+```
+
+Le sezioni di destinazione e trasporto restano governate dalla specifica DDT.
+
+"Tutte le location" non è prevista.
+
+---
+
+# 14. Proforma
+
+Testata:
+
+```text
+Cliente          obbligatorio
+Location         obbligatoria
+Data documento
+Serie
+Numero
+```
+
+La Proforma usa la propria numerazione secondo il motore comune.
+
+---
+
+# 15. Famiglia Fattura
+
+## 15.1 Fattura
+
+```text
+Cliente          obbligatorio
+Location         obbligatoria
+Data documento
+Serie
+Numero
+```
+
+## 15.2 Fattura accompagnatoria
+
+```text
+Cliente          obbligatorio
+Location         obbligatoria
+Data documento
+Serie
+Numero
+```
+
+Condivide il progressivo della Fattura secondo la specifica numerazione.
+
+Le sezioni trasporto/destinazione sono specifiche dell'Accompagnatoria.
+
+## 15.3 Nota di credito
+
+```text
+Cliente          obbligatorio
+Location         obbligatoria
+Data documento
+Serie
+Numero
+```
+
+Condivide il progressivo della Fattura.
+
+Il collegamento alla Fattura/Accompagnatoria origine è disciplinato dalla specifica della famiglia Fattura e non viene duplicato qui.
+
+---
+
+# 16. Vendita al banco e Reso al banco
+
+## Vendita al banco
+
+```text
+Cliente          facoltativo
+Location         obbligatoria
+Data documento
+Serie
+Numero
+```
+
+## Reso al banco
+
+```text
+Cliente          facoltativo
+Location         obbligatoria
+Data documento
+Serie
+Numero
+```
+
+Nessuna voce "Tutte le location".
+
+---
+
+# 17. Trasferimento
+
+Testata:
+
+```text
+Location origine         obbligatoria
+Location destinazione    obbligatoria
+Data documento
+Serie
+Numero
+```
+
+Regole:
+
+- entrambe sono Location reali;
+- Origine e Destinazione devono essere distinte;
+- l'Origine segue lo scope operativo dell'utente;
+- la Destinazione segue il contratto specifico già previsto per i trasferimenti;
+- nessuna voce "Tutte".
+
+Il Trasferimento usa la numerazione comune VestiFlow.
+
+---
+
+# 18. Registrazione fattura fornitore
+
+La Registrazione fattura fornitore usa la numerazione interna comune, ma con etichette proprie per distinguere il documento VestiFlow dalla fattura ricevuta.
+
+Testata:
+
+```text
+Fornitore          obbligatorio
+
+Data registrazione
+Serie
+Numero
+
+N. fattura
+Data fattura
+```
+
+Non ha Location.
+
+`Data registrazione + Serie + Numero` identificano la registrazione interna VestiFlow.
+
+`N. fattura + Data fattura` identificano il documento ricevuto dal fornitore.
+
+L'azione **Includi Arrivo merce** appartiene al sistema comune Includi/Genera, non alla semantica della testata.
+
+---
+
+# 19. Corrispettivo manuale
+
+Il Corrispettivo manuale è una **registrazione economica semplice**, non un normale documento a righe articolo.
+
+Non deve essere forzato dentro la testata standard completa.
+
+Testata minimale:
+
+```text
+Location          obbligatoria
+Data
+Numero            automatico al salvataggio
+```
+
+Inoltre usa:
+
+- modalità Netto/Ivato prevista dalla propria registrazione;
+- righe economiche;
+- Pagamenti/Tesoreria secondo la specifica comune.
+
+Non aggiungere solo per uniformità:
+
+- Cliente;
+- Fornitore;
+- Serie;
+- blocchi documento esterno;
+- campi della normale testata articolo.
+
+---
+
+# 20. Componenti comuni di testata
+
+Dove il concetto è lo stesso, usare lo stesso componente/comportamento per:
+
+- Cliente;
+- Fornitore;
+- Location;
+- Data;
+- Serie;
+- Numero;
+- eventuale gestione Serie;
+- warning numerazione/cronologia;
+- blocco editabilità dopo salvataggio.
+
+Le eccezioni devono essere espresse come configurazione del documento.
+
+> **Le §20.1–20.6 sono state assorbite il 24/08/2026** da un secondo documento
+> (`SPECIFICA-COMUNE-TESTATE-DOCUMENTI.md`, con la I finale) nato in parallelo a questo.
+> Due file con nomi che differivano per una lettera erano una trappola: chi cercava ne
+> trovava uno a caso. Quel file non esiste più — **questo è l'unico**.
+
+## 20.1 La decisione, in una riga
+
+> **La testata di un documento si dichiara UNA VOLTA. Le due vesti — griglia su
+> scrivania, pannello apribile su schermo compatto — le sceglie il componente comune,
+> non la maschera.**
+
+## 20.2 Il difetto che chiude, misurato
+
+⛔ **Ogni maschera scriveva i propri campi due volte**: una nella griglia desktop, una nel
+pannello mobile. Misurato il 24/08/2026 su otto maschere:
+
+```text
+template delle maschere documento     7.240 righe
+di cui TESTATA                        2.152 righe   → il 30%
+di cui seconda copia della prima      ~1.076 righe  → meta' della testata
+```
+
+Sul **Trasferimento**, la più piccola: 74 righe nel pannello contro 78 nella griglia.
+Stessi quattro campi, stesse opzioni, stessi gestori. Cambiavano solo:
+
+| Cosa           | Mobile              | Desktop               |
+| -------------- | ------------------- | --------------------- |
+| identificativo | `tr-m-origin-error` | `tr-origin-error`     |
+| `aria-label`   | «Location origine»  | «Location di origine» |
+| classi         | `doc-panel__*`      | `doc-form__*`         |
+
+⚠️ **Non erano due viste: era la stessa vista scritta due volte**, nello stesso file, e ogni
+correzione ne raggiungeva una sola.
+
+⭐ **Il test la sorvegliava invece di segnalarla.** Lo spec del Trasferimento asseriva
+`toHaveLength(2)` sull'avviso di numero proposto, col commento «Due copie: testata desktop e
+pannello mobile convivono nel DOM». La doppia scrittura era diventata un requisito.
+
+## 20.3 I pezzi, e come proiettano una volta sola in due posti
+
+| Componente                      | Che cosa fa                                                    |
+| ------------------------------- | -------------------------------------------------------------- |
+| `app-document-header`           | la FORMA: griglia o pannello, e il riepilogo a pannello chiuso |
+| `app-document-header-field`     | UN campo: etichetta, controllo proiettato, messaggio d'errore  |
+| `app-document-mobile-panel`     | il pannello apribile                                           |
+| `app-document-number-field`     | numero + serie                                                 |
+| `app-document-counterparty-ref` | il documento della controparte                                 |
+
+`<ng-content>` si riempie **una volta sola**: due `<ng-content>` nei due rami di un `@if`
+lascerebbero il secondo vuoto. I campi entrano quindi in un `<ng-template>`, e i due rami ne
+montano un'istanza ciascuno.
+
+⚠️ **Le due vesti restano ESCLUSIVE**, non nascoste col foglio di stile — la regola della
+«vista sola viva» (`03` §4.11). Sulla testata vale doppio: con due viste vive gli
+identificativi dei campi non sono univoci, e ogni pannello condiviso può aprirsi in quella che
+non si vede. È la forma tecnica del divieto già scritto al §21 («campi salvati solo da una
+delle due viste»).
+
+**Che cosa resta della maschera**: quali campi ci sono, le opzioni, i gestori, le validazioni,
+il testo delle etichette. Che l'Arrivo merce abbia il fornitore e l'Ordine cliente il cliente
+non è una copia — è un campo diverso, e lo dichiara la maschera.
+
+## 20.4 Quattro regole di campo
+
+**Un campo, un identificativo.** ⛔ Vietati gli identificativi doppi per lo stesso campo: non
+esistono più `tr-*` e `tr-m-*`. Chi scrive `describedBy` cita quello.
+
+**Un campo, un'etichetta.** ⛔ Vietate due `aria-label` per lo stesso campo: «Location
+origine» e «Location di origine» erano lo stesso controllo con due nomi, e un lettore di
+schermo lo annunciava diversamente a seconda della larghezza della finestra.
+
+**Il campo in attesa non è un errore.** Un campo obbligatorio, ancora vuoto, che tiene ferme
+le righe porta `[waiting]` → `--color-field-waiting`. **Non** il rosso dell'errore: aprire un
+documento nuovo non è uno sbaglio dell'operatore (`regole-stile-ui` §5).
+
+**Il messaggio d'errore non ripete il segnaposto.** Il default è «Campo obbligatorio.». Un
+campo che dice «Seleziona un fornitore…» e sotto «Seleziona un fornitore.» è la stessa frase
+due volte a quaranta pixel di distanza. E non si toglie del tutto: al rifiuto il segnaposto
+cambia **solo tinta**, e chi non distingue i colori non vedrebbe accadere nulla.
+
+## 20.5 Stato dell'adozione — 24/08/2026
+
+| Maschera               | Testata comune | Righe prima → dopo |
+| ---------------------- | -------------- | ------------------ |
+| Trasferimento          | ✅             | 162 → 81           |
+| Rettifica / Inventario | ✅             | 164 → 99           |
+| Arrivo merce           | ✅ (2 fasce)   | 414 → 285          |
+| Ordine fornitore       | ✅             | 320 → 212          |
+| Documenti vendita      | ✅ (2 fasce)   | 445 → 285          |
+| Vendita al banco       | ✅             | 150 → 91           |
+| Registrazione fattura  | ✅             | 218 → 177          |
+| **Ordine cliente**     | ⏳ **ultima**  | 598 → —            |
+
+**Sette su otto: 1.711 → 1.149 righe (−33%).**
+
+⚠️ **L'Ordine cliente non è rimasto indietro per caso**: serve quattro tipi documento ed è la
+più grande. Ma è anche quella da cui dipende un difetto funzionale aperto — il campo
+**«Listino» esiste solo nella vista mobile**, quindi da scrivania non si può scegliere il
+listino su un ordine, un preventivo o un DDT. La migrazione lo porta su entrambe le viste.
+
+⚠️ **Manca una NONA maschera**: il Movimento di magazzino
+(`features/inventory/movement-form`) ha la stessa anatomia e la stessa doppia scrittura,
+camuffata con `ariaLabel="Location (testata mobile)"` invece di un identificativo gemello —
+quindi il controllo automatico non la vede. Non è mai entrata nel perimetro.
+
+## 20.6 Come si rigenera la misura
+
+```bash
+# righe di testata per maschera
+grep -c '' src/app/features/**/[a-z-]*form.component.html
+
+# chi ha ancora due scritture: cerca gli identificativi gemelli
+grep -rnE '"[a-z]{2}-m-[a-z-]+"' src/app/features --include=*.html
+```
+
+Il secondo comando è la prova che conta: **un identificativo con `-m-` è una testata ancora
+scritta due volte**.
+
+---
+
+# 21. Mobile
+
+La testata mobile deve usare lo stesso contratto dati della desktop.
+
+Non creare una seconda semantica dei campi.
+
+Sono ammessi:
+
+- pannelli comprimibili;
+- ordine visivo adattato;
+- layout compatto.
+
+Non sono ammessi:
+
+- default diversi;
+- Location diversa;
+- Serie diversa;
+- obbligatorietà diversa;
+- campi salvati solo da una delle due viste.
+
+## 21.1 ⏸ Due decisioni aperte — NON colmarle per verosimiglianza
+
+Dichiarate **non decise** dal proprietario il 24/08/2026. Riguardano l'Ordine cliente, cioè il
+riferimento visivo. Finché non sono decise, la testata comune le rende **come sono oggi**: non
+è un'approvazione, è il non aver deciso al posto suo.
+
+**a) Dove vanno numerazione e serie su mobile.** Oggi `app-document-number-field` sta in fondo
+al pannello, dopo la data. Non è stato deciso se sia il suo posto. Il §21 ammette «ordine
+visivo adattato», quindi la collocazione è legittima in astratto — ma quale sia quella giusta
+resta da scegliere.
+
+**b) Il selettore delle giacenze.** Sull'Ordine cliente **impegna** le giacenze; su altri
+documenti lo stesso posto **scarica** o **carica**. Sono tre effetti fisici distinti — e
+infatti sono due colonne distinte nel catalogo (`commitsStock`, `loadsStock`) con etichette
+dal documento — ma **dove il comando vada in testata, e se debba starci**, non è stato deciso.
+
+⛔ **Non sono la stessa domanda**, e confonderle è l'errore da evitare: la prima è di
+collocazione, la seconda è di che cosa il comando fa.
+
+---
+
+# 22. Salvataggio e blocco
+
+I campi di testata seguono il contratto comune dei documenti:
+
+- nessun autosalvataggio implicito;
+- Salva esplicito;
+- dopo il salvataggio riuscito si resta nel documento e il documento si blocca;
+- per modificare si entra nel normale flusso di modifica;
+- i default programmatici non devono sporcare il form;
+- modifiche non salvate devono attivare il guard comune.
+
+---
+
+# 23. Backend e sicurezza
+
+Per ogni campo di testata significativo il backend deve verificare:
+
+- tenant;
+- esistenza dell'id;
+- appartenenza al tenant;
+- permessi dell'utente;
+- obbligatorietà;
+- coerenza Location/Serie;
+- unicità/concorrenza della numerazione.
+
+Non affidarsi al fatto che la UI nasconda opzioni non consentite.
+
+---
+
+# 24. Guide operative da aggiornare
+
+Le guide VestiFlow devono spiegare chiaramente la logica Location.
+
+Testo concettuale da riportare:
+
+> Se lavori su più Location e non hai una sede predefinita, VestiFlow lascia intenzionalmente il campo Location vuoto. Devi scegliere la sede per l'operazione corrente. Questo riduce il rischio di registrare documenti o movimenti sul magazzino sbagliato.
+
+Inoltre:
+
+> La Location predefinita è una comodità opzionale. Per un responsabile che gestisce più sedi può essere preferibile non impostarla.
+
+E:
+
+> La Location può determinare quali Serie sono disponibili, ma non crea un progressivo separato. Il progressivo appartiene alla Serie.
+
+Per l'Ordine fornitore:
+
+> "Tutte le location" è un ambito di consultazione delle giacenze, non una sede fisica.
+
+---
+
+# 25. Criteri di accettazione principali
+
+## HDR-001 — default Location
+
+Utente con `defaultLocationId` valida.
+
+Atteso:
+
+- documento nuovo precompilato;
+- campo modificabile;
+- form non dirty per la sola precompilazione.
+
+## HDR-002 — nessun default
+
+Utente multi-Location senza predefinita.
+
+Atteso:
+
+- campo vuoto;
+- nessun fallback;
+- salvataggio bloccato nei documenti che richiedono Location reale.
+
+## HDR-003 — permessi
+
+Invio diretto API di Location non autorizzata.
+
+Atteso:
+
+- rifiuto backend.
+
+## HDR-004 — Serie per Location
+
+Location A selezionata.
+
+Atteso:
+
+- Serie globali + Serie A;
+- nessuna Serie riservata a Location B.
+
+## HDR-005 — progressivo
+
+Stessa Serie usata in due Location.
+
+Atteso:
+
+- un solo progressivo della Serie;
+- nessun contatore separato per Location.
+
+## HDR-006 — cambio Location
+
+Documento nuovo, cambio Location.
+
+Atteso:
+
+- elenco Serie ricaricato;
+- Serie incompatibile non resta selezionata;
+- proposta Numero aggiornata.
+
+## HDR-007 — Arrivo merce
+
+Atteso:
+
+- Fornitore obbligatorio;
+- Location obbligatoria;
+- Data documento / Serie / Numero;
+- blocco documento fornitore separato;
+- nessuna Causale.
+
+## HDR-008 — Ordine fornitore Location specifica
+
+Atteso:
+
+- giacenze della sede scelta;
+- nessun significato "destinazione fisica definitiva".
+
+## HDR-009 — Ordine fornitore Tutte
+
+Atteso:
+
+- scope esplicito;
+- nessuna Location fittizia;
+- stato distinto da "nessuna scelta";
+- solo Location autorizzate nel calcolo;
+- Serie globali disponibili.
+
+## HDR-010 — Preventivo/Ordine cliente/DDT/Proforma/Fattura
+
+Atteso:
+
+- Cliente obbligatorio;
+- Location obbligatoria;
+- salvataggio respinto se manca uno dei due.
+
+## HDR-011 — Banco
+
+Atteso:
+
+- Location obbligatoria;
+- Cliente facoltativo.
+
+## HDR-012 — Trasferimento
+
+Atteso:
+
+- origine + destinazione obbligatorie e distinte;
+- numerazione comune.
+
+## HDR-013 — Registrazione fattura fornitore
+
+Atteso:
+
+- Fornitore obbligatorio;
+- nessuna Location;
+- Data registrazione / Serie / Numero;
+- N. fattura / Data fattura separati.
+
+## HDR-014 — Corrispettivo manuale
+
+Atteso:
+
+- testata minimale;
+- Location obbligatoria;
+- Data;
+- Numero automatico;
+- nessuna Serie.
+
+---
+
+# 26. Campi legacy / da ritirare
+
+Queste decisioni sono funzionali; la rimozione tecnica va preceduta da un censimento dei consumer, ma non esiste un requisito di compatibilità con dati reali storici.
+
+## Arrivo merce
+
+Ritirare:
+
+- Causale.
+
+## Ordine fornitore
+
+Ritirare:
+
+- Rif. ordine fornitore;
+- Consegna prevista;
+- conferma/documento esterno del fornitore;
+- vecchia semantica di `destinationLocationId`.
+
+Non mantenere questi campi in UI per il solo fatto che esistono nel database.
+
+---
+
+# 27. Regole da non reintrodurre
+
+Non:
+
+- usare `null` come sinonimo di "Tutte";
+- creare una Location fittizia "Tutte";
+- selezionare automaticamente la prima Location;
+- selezionare automaticamente l'unica Location;
+- partizionare il progressivo per Location;
+- duplicare il blocco Serie/Numero per documento;
+- chiamare "destinazione merce" la Location dell'Ordine fornitore;
+- mantenere campi legacy dell'Ordine fornitore senza requisito;
+- reintrodurre Causale nell'Arrivo merce;
+- imporre la testata standard completa al Corrispettivo manuale;
+- confondere Data registrazione e Data fattura nella Registrazione fattura fornitore.
+
+---
+
+# 28. Verifica tecnica prima dell'implementazione
+
+Prima di modificare le testate:
+
+1. censire componenti comuni già esistenti;
+2. censire ogni consumer Location/Serie/Numero;
+3. verificare API e backend permission gate sulle Location;
+4. verificare il legame Location ↔ Serie;
+5. verificare i campi legacy dell'Ordine fornitore;
+6. verificare la Causale Arrivo merce;
+7. verificare desktop/mobile;
+8. aggiungere test HDR-*;
+9. distinguere sempre requisito, comportamento osservato e causa tecnica;
+10. non fare refactor massivi senza checkpoint per documento.
+
+---
+
+# 29. Fonti correlate
+
+Da usare insieme a questa specifica:
+
+- `VestiFlow_Contesto_Master_Progetto.docx`
+- `CONTRATTO-COMUNE-DOCUMENTI.md`
+- `03-specifica-unificazione-righe-documento.md`
+- `04-specifica-numerazione-documenti.md`
+- specifiche dei singoli documenti
+- `12-specifica-collegamenti-documentali.md`
+- specifica Pagamenti/Tesoreria
+
+Questa specifica governa la **testata**; non duplica le regole di riga, movimenti, Includi/Genera o Pagamenti.
+
+---
+
+# 30. I GRUPPI: dove finisce tutto ciò che non è testata — deciso il 24/08/2026
+
+## 30.1 La decisione, in una riga
+
+> **La testata è ciò che IDENTIFICA il documento. Tutto il resto è un GRUPPO. Un concetto = UNA
+> costruzione, usata dai documenti che ne hanno bisogno.**
+
+## 30.2 Perché nasce ora, e non dopo
+
+Il proprietario ha dichiarato ciò che arriva: **Pagamento arricchito** (scadenze, saldi,
+risorsa), **Trasporto** (causale, porto, colli, peso, aspetto beni, incaricato, tracking),
+**Indirizzi**, **Spedizione**, e altro sui documenti di trasporto e sulla Fattura
+accompagnatoria.
+
+⛔ **Senza una decisione strutturale, quei dati finiscono in testata**, come è già successo:
+la testata delle Fatture porta oggi `Causale`, `Riferimento DDT`, `Condizioni di pagamento`,
+`Scadenza pagamento`, `IBAN` — che sono materiale da gruppo Pagamento, messo lì perché non
+c'era altro posto. Finché resta lì, **ogni maschera allarga la testata a modo suo**, e
+«testata comune» diventa una promessa che non si può mantenere.
+
+⭐ **È questo che rende condivisibili testata e righe**: non il fatto di estrarle, ma il fatto
+di smettere di usarle come deposito di tutto il resto.
+
+## 30.3 ⛔ UN concetto, UNA costruzione — la regola che vale più di tutte
+
+> **Pagamento è UNO. Non uno per documento.**
+
+⚠️ **È il modo in cui questo lavoro fallirebbe**, e va detto per nome: i documenti hanno già
+dati di pagamento sparsi, nati **prima** di questo schema e ognuno a modo suo. Sono la cosa da
+**sostituire**, non il modello da cui ricavare N varianti.
+
+⛔ **Non si creano dieci gruppi Pagamento, dieci Indirizzi, dieci Trasporti** perché le
+implementazioni esistenti si somigliano solo in parte. Le differenze fra loro sono, per
+costruzione, **storia** — nessuna di quelle maschere le ha decise guardando le altre.
+
+### Il criterio, e non è il gusto
+
+**Due gruppi sono lo stesso gruppo se rispondono alla stessa domanda dell'operatore.**
+
+| Domanda                                      | Gruppo        |
+| -------------------------------------------- | ------------- |
+| «come e quando viene pagato?»                | **Pagamento** |
+| «chi porta la merce, dove, con quali colli?» | **Trasporto** |
+| «a quale indirizzo?»                         | **Indirizzi** |
+
+L'Ordine cliente ha «Tipo pagamento» e un acconto; la Fattura accompagnatoria ha una tabella
+di scadenze con quattro comandi. **Rispondono alla stessa domanda: è un gruppo solo**, con un
+campo in più dichiarato — non due gruppi che si somigliano.
+
+## 30.4 Il meccanismo esiste già, ed è collaudato
+
+Non si inventa niente: è **esattamente** ciò che le righe fanno da settimane, un piano più su.
+
+```text
+RIGHE (già fatto)        DOCUMENT_LINE_COLUMNS  →  la maschera sceglie quali colonne
+                         haControllo(nome)      →  il campo è editabile se il controllo c'è
+                         nessun if (documentType)
+
+GRUPPI (da fare)         un CATALOGO di campi per concetto
+                         haControllo(nome)      →  il gruppo rende i campi che esistono
+                         nessun if (documentType)
+```
+
+Il documento dichiara **quali campi ha nel proprio FormGroup**. Il gruppo rende quelli che
+trova. Un documento senza scadenze non le mostra perché non ha il controllo, non perché il
+gruppo sappia che documento è.
+
+## 30.5 Il gruppo è cieco al proprio contenuto
+
+```html
+<app-document-group name="Trasporto">…i campi che quel documento ha…</app-document-group>
+```
+
+⛔ **Contenuto proiettato, non una voce di configurazione con un campo `type`** che il motore
+smista. La differenza: nel primo caso un gruppo nuovo **non tocca il motore**; nel secondo sì,
+e fra sei mesi il motore conosce sette tipi di gruppo — cioè è tornato a conoscere i documenti.
+
+Lo sorveglia già `scripts/check-document-grammar.mjs`, e il suo perimetro va esteso al guscio
+quando esisterà.
+
+## 30.6 La presentazione è del GUSCIO, non del documento
+
+> **Stessa dichiarazione → schede su scrivania, fisarmonica su schermo compatto.**
+
+Il documento non sa quale delle due sta vivendo. È la regola dei due renderer (§21) applicata
+un piano più su, e metà del meccanismo c'è già: `app-document-mobile-panel` è una fisarmonica.
+
+⛔ **Le righe NON sono un gruppo come gli altri.** Sarebbe elegante e sarebbe sbagliato: hanno
+barra strumenti, conteggio, colonne configurabili, scanner, riga di inserimento. Restano la
+**banda principale**, sempre prima e sempre aperta. I gruppi sono il resto.
+
+## 30.7 ⚠️ Il rischio da progettare SUBITO: un gruppo chiuso non nasconde un problema
+
+Se un campo obbligatorio del Trasporto è invalido e la scheda è chiusa, l'operatore preme
+Salva, il salvataggio fallisce e **non vede perché**.
+
+> **La scheda dichiara il proprio stato — ha errori · è incompleta · è a posto — e lo mostra
+> sulla linguetta.**
+
+Sono i `[waiting]` e `[invalid]` che `app-document-header-field` ha già (§20.4), portati un
+livello più su. **Va nel contratto dal primo giorno**: aggiungerlo dopo significa ripassare
+ogni gruppo, ed è l'unico difetto di questo disegno che diventa costoso col tempo.
+
+## 30.8 Come si procede, per non moltiplicare
+
+1. **Prima il concetto, poi il campo.** Prima di creare un gruppo si verifica se il concetto
+   esiste già: se sì **si estende**, non si duplica.
+2. **Si legge l'esistente per conservare il COMPORTAMENTO**, non per ricavarne varianti. Ogni
+   differenza fra due implementazioni attuali va classificata: **dominio** (si dichiara) o
+   **storia** (sparisce). In dubbio è storia — nessuna di quelle maschere ha deciso guardando
+   le altre.
+3. **Un gruppo entra in un documento solo se quel documento ne ha bisogno.** Un Trasferimento
+   non ha Pagamento, e non deve dichiararlo vuoto.
+
+---
+
+# 31. Schermata FISSA, e il confine del piede — deciso il 24/08/2026
+
+## 31.1 L'obiettivo
+
+> **Le schermate documento sono FISSE: non scorrono all'infinito.** Il riferimento è il
+> Registro Corrispettivi — testata ferma, elenco che scorre dentro il suo riquadro, banda di
+> riepilogo ancorata in fondo.
+
+## 31.2 Da qui discende la struttura, non da un gusto
+
+Una schermata fissa ha **una sola area che scorre**. La domanda diventa una sola:
+
+> **Che cosa devo poter guardare MENTRE lavoro, e cosa invece compilo e lascio?**
+
+| Sempre visibile                  | Una cosa per volta                       |
+| -------------------------------- | ---------------------------------------- |
+| chi è il documento (**testata**) | **righe**                                |
+| il risultato (**totali**)        | pagamento · trasporto · indirizzi · note |
+| le uscite (**barra azioni**)     |                                          |
+
+```text
+┌────────────────────────────────────────────┐
+│ TESTATA                                    │  fissa
+├────────────────────────────────────────────┤
+│ [Righe] [Pagamento] [Trasporto] …          │  linguette fisse
+│ ┌────────────────────────────────────────┐ │
+│ │   contenuto della scheda attiva        │ │  ← l'UNICA area che scorre
+│ └────────────────────────────────────────┘ │
+├────────────────────────────────────────────┤
+│ RIEPILOGO  +  BARRA AZIONI                 │  fissi
+└────────────────────────────────────────────┘
+```
+
+⛔ **Le schede non cambiano finestra**: cambia solo il riquadro centrale.
+
+## 31.3 ⛔ Le RIGHE sono una scheda — e questa è una decisione rovesciata
+
+⚠️ Il 24/08, prima che l'obiettivo «schermata fissa» fosse dichiarato, era stato scritto il
+contrario: _«le righe non sono un gruppo, restano la banda principale sempre aperta; Danea le
+mette fra le schede perché ha una finestra ad altezza fissa, noi scorriamo»_.
+
+**Cadeva la premessa, cade la conclusione.** Con una schermata fissa righe e gruppi
+competerebbero per la stessa unica area di scorrimento, e nessuno dei due avrebbe spazio.
+
+⭐ **L'obiezione di allora resta valida e si risolve altrove**: non era «le righe devono
+restare visibili», era **«non posso perdere i TOTALI mentre inserisco un pagamento»** — il
+totale è il numero contro cui si verifica un acconto. Si risolve tenendo il riepilogo **fuori
+dalle schede**, che è ciò che la struttura sopra fa.
+
+## 31.4 Il confine del piede
+
+> **Il piede comincia DOPO la banda delle schede.** Non la contiene e non ci finisce dentro.
+
+E la distinzione che senza scriverla si sbaglia estraendo:
+
+| Voce                | Dove va    | Perché                                       |
+| ------------------- | ---------- | -------------------------------------------- |
+| **Sconto extra**    | **piede**  | è un TOTALE: entra nel calcolo del documento |
+| **Note**            | **gruppo** | è un dato del documento, non un totale       |
+| **Causale**, Motivo | **gruppo** | idem                                         |
+
+⚠️ Oggi le note stanno **dentro** il piede in cinque maschere su sette, ed è la ragione per
+cui questo confine va dichiarato **prima** dell'estrazione: un piede estratto com'è si porta
+dentro le note, e le note diventerebbero un totale per sempre.
+
+**Nel frattempo lo slot resta**: il piede comune espone `[footerNotes]` come slot **libero**, e
+le maschere continuano a proiettarci ciò che ci proiettano oggi. Quando i gruppi esisteranno,
+quel contenuto migra nel gruppo Note e lo slot si svuota da sé.
+
+## 31.5 Su mobile resta a scorrimento, ed è voluto
+
+Una schermata fissa con un riquadro interno che scorre, su 390px **con la tastiera aperta**,
+lascia all'area utile una striscia di poche righe. E cinque linguette non ci stanno senza
+scendere sotto il minimo tappabile (44px).
+
+> **Schede su scrivania, fisarmonica su schermo compatto.** Stessa dichiarazione, due rese —
+> `app-document-mobile-panel` è già la fisarmonica, e la testata la usa da oggi.
+
+---
+
+# 32. IL DOCUMENTO VUOTO SI SALVA — deciso il 25/08/2026
+
+## 32.1 La decisione, nelle parole con cui è stata data
+
+> «Se non ho fatto nulla nel documento e lo salvo, devo avere la possibilità di crearlo
+> vuoto e avrò un documento vuoto con numero, eventuale serie e data. Ovviamente dopo aver
+> selezionato i campi obbligatori previsti per quel documento. **Ovunque deve essere così**,
+> e non voglio tornare sull'argomento e vedere che ogni documento ha differenze.»
+
+Chiesta esplicitamente per **tutti** i tipi, magazzino compreso.
+
+## 32.2 ⚠️ Il muro non era dove lo annunciavano
+
+È la parte che conta, perché è l'errore che si rifarebbe: **cinque maschere su sette
+avevano un proprio «aggiungi almeno una riga»**, con cinque frasi diverse, e nessuna delle
+cinque era il divieto.
+
+Il divieto stava in **due posti**, entrambi condivisi e entrambi muti:
+
+| Dove                                         | Che cosa faceva                                                     |
+| -------------------------------------------- | ------------------------------------------------------------------- |
+| `confirmDocumentTx` (API)                    | `'Impossibile confermare un documento senza righe.'`                |
+| `trailingEmptyLineIndices` (`keepAtLeast=1`) | teneva **almeno una** riga in coda, quindi la riga seminata restava |
+
+⛔ **Togliere solo i messaggi non avrebbe fatto niente.** La riga seminata all'apertura
+sarebbe rimasta, l'array delle righe non sarebbe mai stato valido, e il documento vuoto non
+sarebbe partito lo stesso — con l'aggravante di aver tolto le frasi che almeno spiegavano
+perché.
+
+⚠️ Il rifiuto dell'API **non era più il controllo che sembrava**. Nato quando la conferma era
+un passaggio esplicito su una bozza, con la **nascita-confermato** è finito sul percorso di
+_creazione_ di ogni tipo: un controllo che si legge come «non confermare una bozza vuota» e
+che in realtà diceva «non creare».
+
+## 32.3 La distinzione che regge tutto
+
+```text
+nessuna riga             → il documento e' VUOTO.        Si salva.
+righe che non producono  → l'operatore ha scritto        NON si salva.
+l'effetto promesso         qualcosa e si aspetta un
+                           effetto: il silenzio sarebbe
+                           peggio del rifiuto
+```
+
+Vive in **una** funzione, `documentHasLinesWithoutEffect`
+(`domain/documents/utils/document-line-effect.util.ts`), che è il posto dove sta scritta la
+ragione. Le maschere la chiamano; nessuna la riscrive.
+
+⚠️ **Va chiamata DOPO `dropTrailingEmptyLines`**, o la riga seminata conta come «riga
+presente» e un documento mai toccato risulta «senza effetto».
+
+## 32.4 Chi l'ha adottata, e le due eccezioni deliberate
+
+| Maschera               | Prima                                     | Ora                             |
+| ---------------------- | ----------------------------------------- | ------------------------------- |
+| Trasferimento          | «aggiungi almeno una riga con variante…»  | `documentHasLinesWithoutEffect` |
+| Rettifica / Scarico    | «Aggiungi almeno una riga da rettificare» | `documentHasLinesWithoutEffect` |
+| Fatture / DDT          | «almeno una riga con descrizione e qtà»   | `documentHasLinesWithoutEffect` |
+| Ordine cliente         | «Aggiungi almeno una riga valida…»        | `documentHasLinesWithoutEffect` |
+| **Vendita/Reso banco** | pulsante «Concludi» **spento**            | solo la **sede**, e basta       |
+| Ordine fornitore       | _non lo pretendeva_                       | invariata                       |
+| Arrivo merce           | _non lo pretendeva_                       | invariata                       |
+
+⚠️ **Il Banco non ha adottato la rete, ed è deliberato.** Lì è stato tolto **solo** il
+requisito delle righe: al banco una riga nasce da uno scan o da una ricerca e porta già la
+variante, quindi aggiungere quella rete sarebbe stata una **restrizione nuova** introdotta di
+straforo insieme a una decisione che ne toglieva una.
+
+⚠️ **Nell'Ordine cliente la riga di RIFERIMENTO non conta come riga.** Non l'ha scritta
+l'operatore: è il puntatore al documento di origine. Contarla rimetterebbe il rifiuto proprio
+sul documento nato da una conversione.
+
+## 32.5 ⛔ Che cosa NON è cambiato
+
+- **I campi obbligatori restano obbligatori.** «Vuoto» vale _dopo_ averli compilati: il
+  Trasferimento vuole origine e destinazione, il Banco la sede, l'Ordine cliente cliente e
+  location. La decisione toglie un requisito sulle **righe**, non sulla testata.
+- **Le righe iniziate a metà si fermano ancora.** Una riga con un nome ma senza articolo non è
+  vuota: si segnala, non si butta.
+- **Gli `assertStock*` dell'API restano** per i documenti che hanno righe. Solo il documento a
+  righe zero li attraversa.
+- **`keepAtLeast` è ancora un parametro** di `trailingEmptyLineIndices`: chi ha bisogno di non
+  svuotare un elenco lo **dichiara**, invece di ereditarlo. Il default è passato da 1 a 0.
+
+## 32.6 Le guardie
+
+Non è una regola che si ricorda: è una che si incontra.
+
+| Guardia                                                        | Che cosa inchioda                                               |
+| -------------------------------------------------------------- | --------------------------------------------------------------- |
+| `documents.service.spec` — «un documento SENZA RIGHE si salva» | l'API assegna numero, serie e data a righe zero                 |
+| `trailing-empty-lines.util.spec` — tre prove                   | vuote tutte → si scartano tutte; e chi ne vuole una lo dichiara |
+| `document-line-effect.util.spec` — quattro prove               | la distinzione fra vuoto e senza-effetto                        |
+| `transfer-form.component.spec` — **coppia**                    | vuoto passa · riga incompleta si ferma                          |
+| `store-sale-document-form.component.spec` — **coppia**         | senza righe si conclude · **senza sede no**                     |
+
+⚠️ **Le coppie vanno tenute in coppia.** La prima metà, da sola, si soddisfa togliendo ogni
+controllo; la seconda inchioda che cosa il controllo continua a fermare. Toglierne una lascia
+l'altra a difendere metà decisione — ed è esattamente come il divieto vecchio è sopravvissuto
+tanto a lungo: le prove che lo difendevano c'erano, quelle che ne misuravano il costo no.
+
+---
+
+# 33. IL DIALOGO D'USCITA È UNO — applicato il 25/08/2026
+
+`regole-stile-ui` dichiarava già il contratto: **Annulla · Esci senza salvare**. Questa
+sezione registra la **misura** di quanto ci si era discostati, che è la parte che serve.
+
+## 33.1 Le due misure
+
+```text
+guscio scritto a mano, in UNDICI file:  <div role="dialog"> con sfondo proprio
+                                        → non un <dialog> nativo, quindi senza
+                                          trappola del fuoco, senza Esc, senza
+                                          sfondo inerte
+tre azioni invece di due, in OTTO:      il terzo pulsante «Salva e chiudi»
+```
+
+⚠️ **E le tre maschere già sul componente condiviso non concordavano fra loro:**
+
+|                |                                                    |
+| -------------- | -------------------------------------------------- |
+| `cancelLabel`  | «Resta nella pagina» · «Resta qui» · «Annulla»     |
+| `confirmLabel` | «Esci senza salvare» · «Esci senza concludere»     |
+| `title`        | «Modifiche non salvate» · «Documento non concluso» |
+
+## 33.2 Il contratto, per esteso
+
+```html
+<app-confirm-dialog
+  [(open)]="exitDialogOpen"
+  title="Modifiche non salvate"
+  message="Ci sono modifiche non salvate: uscendo dalla pagina andranno perse."
+  cancelLabel="Annulla"
+  confirmLabel="Esci senza salvare"
+  emphasis="cancel"
+  (confirmed)="confirmExitWithoutSaving()"
+  (dismissed)="cancelExitDialog()"
+/>
+```
+
+⚠️ **`emphasis="cancel"` non è estetica.** Senza, «Esci senza salvare» è il pulsante
+primario, cioè quello che il pollice cerca: la scelta che perde lavoro si vestirebbe da
+scelta consigliata. Per la stessa ragione `[danger]` è **sbagliato** qui — tinge di rosso
+la _conferma_, rendendo vistosa proprio quella.
+
+⭐ `message` può essere legato: l'Ordine cliente ne calcola uno che avverte quando
+l'ordine è già collegato a un documento di trasporto. È informazione, non fronzolo.
+
+## 33.3 ⛔ Le due deroghe che non sono deroghe
+
+**Il Banco diceva «Documento non concluso» / «Esci senza concludere»**, perché lì l'azione
+si chiama «Concludi vendita». Allineato:
+
+> **Il pulsante di SALVATAGGIO può chiamare l'operazione col suo nome. Il dialogo d'uscita
+> nomina il RISCHIO, e il rischio è identico su tredici maschere.**
+
+**Il messaggio diceva «Vuoi salvarle prima di chiudere?»** in otto maschere. Non è un
+ritocco averlo cambiato: è una domanda a cui nessuno dei due pulsanti rimasti risponde, e
+manda l'operatore a cercare un pulsante che non c'è.
+
+## 33.4 Il codice morto che ne è venuto fuori
+
+Sette gestori «Salva e chiudi» e quattro parametri `onSaved` irraggiungibili — verificato
+che ogni chiamata rimasta ha le parentesi vuote, template compresi. Quello dell'Arrivo
+merce era **una seconda copia dell'intero salvataggio**, 35 righe.
+
+⭐ `saveDocument(onSaved)` dell'Ordine cliente **non** è stato toccato: quella callback la
+usa «Ordine non evaso del tutto», che è un uso vero e distinto.
+
+## 33.5 ⭐ Il criterio per contare gli esiti: il GESTORE, non i pulsanti
+
+Serve ogni volta che si guarda un dialogo, e non è ovvio:
+
+> **Due bottoni che chiamano lo stesso metodo non sono due esiti: sono un esito e un
+> pulsante di troppo.**
+
+È il difetto già misurato su «Dati incompleti» («Annulla» e «No» sullo stesso gestore). Il
+caso opposto esiste: «Ordine non evaso del tutto» ha **tre** gestori davvero distinti, ed è
+il consumer legittimo di `extraLabel`.
+
+⛔ **`extraLabel` non appartiene al dialogo d'uscita**, e la spec del componente condiviso
+lo usava proprio come esempio — cioè insegnava a rimettere il pulsante appena tolto da
+tredici maschere. La spec di un componente condiviso è dove si impara a usarlo.
+
+## 33.6 La guardia
+
+`scripts/check-exit-dialog.mjs`, dentro `npm run lint`. Riconosce il dialogo dal **gestore**
+(`confirmExitWithoutSaving()` / `confirmLeave()`), non dal titolo né dalla posizione, e
+fallisce su: guscio a mano, «Salva e chiudi», `extraLabel`, ogni etichetta fuori contratto.
+
+**16 violazioni all'inizio, 0 adesso.** Verificato che sa fallire: rimesso «Salva e
+chiudi» → rossa; tolto → verde.
+
+⚠️ **La prima stesura della guardia aveva due difetti suoi**, e vale la pena saperlo perché
+sono di una specie che si ripete:
+
+1. leggeva «Salva e chiudi» **anche nei commenti** che dicevano di non averlo — l'ambito
+   della ricerca era il file invece del blocco;
+2. un confine di parola dentro un template literal aveva **perso la barra rovesciata**,
+   diventando la sequenza di backspace: nessun attributo veniva mai trovato, e tutte e
+   tredici le maschere risultavano fuori contratto, **comprese le tre giuste**.
+
+⭐ Il secondo è il più insidioso: una guardia che segnala tutti sembra rigorosa, e invece
+non sta misurando niente. Riscritta senza espressioni regolari.
+
+---
+
+# 34. BARRA AZIONI — caratterizzazione prima dell'estrazione (25/08/2026)
+
+⚠️ **Questa sezione NON decide il componente.** Registra che cosa contengono oggi le
+quattordici dichiarazioni, divise fra ciò che è **decisione** e ciò che è **deriva**. La
+divisione va fatta prima, o l'estrazione consolida la deriva invece di toglierla.
+
+## 34.1 La misura di partenza
+
+> **Ogni maschera dichiara la barra DUE volte**: `doc-form__actions` (scrivania) e
+> `doc-form__mobile-actions`. Sette barre, quattordici dichiarazioni.
+
+⭐ **Ma le due vesti coincidono in cinque maschere su sette.** La duplicazione è nella
+_dichiarazione_, non nel comportamento: è la condizione migliore possibile per estrarre.
+
+## 34.2 Le differenze che sono DECISIONI
+
+| Maschera                      | Azione                                                  | Perché                                          |
+| ----------------------------- | ------------------------------------------------------- | ----------------------------------------------- |
+| Arrivo merce                  | «Stampa etichette»                                      | dominio                                         |
+| Ordine cliente                | «Concludi ordine» · «Genera documento» (due menu)       | dominio                                         |
+| Banco                         | `confirmLabel()` → «Concludi vendita» / «Concludi reso» | il pulsante nomina l'operazione                 |
+| Arrivo merce · Ordine cliente | su mobile le azioni specifiche **non compaiono**        | §5: su mobile si riduce il _numero_ dei comandi |
+
+## 34.3 Le differenze che sono DERIVA
+
+**Due `@if` che non decidono niente.** Trasferimento, veste mobile: `@if (isConfirmedEdit())`
+con **rami identici**. Rettifica/Scarico: stesso schema, con un ramo che scrive
+`{{ submitConfirmLabel() }}` — e quel computed è `computed(() => 'Salva documento')`, una
+costante travestita da segnale.
+
+⚠️ Sulla veste **desktop** i rami differiscono davvero (`formReadOnly() || saving()` contro
+`saving()`). Il blocco è stato copiato, e la differenza è stata persa da una copia sola. È
+la dimostrazione di cosa costa la doppia dichiarazione, dentro il pezzo che stiamo per
+estrarre.
+
+**`[disabled]` incoerente fra le due vesti** della stessa maschera.
+
+**⛔ «Salva documento» sta in due posti diversi a seconda della maschera.** Quattro maschere
+ce l'hanno nella coppia in fondo al documento; l'**Arrivo merce ce l'ha nel dock fisso**.
+
+⚠️ `regole-stile-ui` §5 è esplicita: la barra sticky mobile riguarda **inserire prodotti**
+(Scansiona · Aggiungi prodotto), mentre «Chiudi e Salva restano in fondo al documento e
+scorrono col contenuto». Il dock dell'Arrivo merce contiene Totale + scanner + Salva: tre
+scarti in un blocco solo.
+
+> **Il dock va deciso PRIMA dell'estrazione.** Finché «Salva» sta nel dock su una maschera e
+> in fondo al documento sulle altre, un componente comune consoliderebbe la divergenza.
+
+**CSS morto.** Le regole sotto `md` che nascondono `app-button[type='submit']` nella barra
+desktop non possono più applicarsi: da quando `--m-ref` nasconde **tutta** la barra desktop
+sotto `lg` (`_document-form-mobile.scss:407`), quel blocco è irraggiungibile.
+
+## 34.4 ⛔ Un falso allarme, e come è nato
+
+La prima misura diceva che l'Ordine fornitore non ha «Salva» su mobile, e che nella fascia
+769–1024px convivono due barre. **Sono entrambe false.**
+
+L'estrattore non gestiva gli a-capo di Prettier — `>Salva documento</app-button` su righe
+separate — e perdeva pulsanti; la seconda ipotesi veniva da due soglie lette separatamente
+(`down-lg` per la barra mobile, `down-md` per i submit) senza vedere la riga che nasconde
+l'intera barra desktop sotto `lg`.
+
+⭐ **Vale la pena registrarlo**: una misura fatta con un estrattore che salta silenziosamente
+dei casi produce difetti inventati con l'aria di essere misurati, ed è più costosa del non
+misurare — perché ci si crede.
+
+## 34.5 Il vincolo che il contratto deve portare
+
+Il criterio di accettazione è quello proposto: _per aggiungere un'azione specifica non devo
+toccare il componente; per cambiare Chiudi o Salva devo toccare un punto solo._ La misura ne
+aggiunge due:
+
+1. **La barra è UNA dichiarazione.** Se dopo l'estrazione un template la nomina due volte,
+   l'estrazione non è finita — e serve una guardia che lo conti.
+2. **La veste mobile non è la stessa barra più stretta: è la stessa barra con meno comandi.**
+   Quali azioni specifiche sopravvivano su mobile è una decisione del **documento**, non del
+   componente: la zona di composizione deve poter dichiarare «solo da scrivania» senza che la
+   barra sappia perché.
+
+## 34.6 ⭐ La grammatica c'è già, ed è uniforme 7 su 7
+
+Misurato il 25/08/2026 sull'ordine sinistra→destra della barra di scrivania:
+
+```text
+[nota di stato]  ·  Chiudi (ghost)  ·  [azioni specifiche (secondary)…]  ·  Salva (primary)
+```
+
+**Tutte e sette le maschere.** Il contratto del componente non va inventato: va
+**riconosciuto**. Ne discendono gli slot, senza margine di scelta —
+
+| Slot         | Contenuto                                 | Chi decide    |
+| ------------ | ----------------------------------------- | ------------- |
+| nota         | stato sintetico («Modifiche non salvate») | il documento  |
+| **Chiudi**   | fisso, `ghost`                            | il componente |
+| composizione | azioni specifiche, `secondary`            | il documento  |
+| **Salva**    | fisso, `primary`, etichetta configurabile | il componente |
+
+⚠️ L'etichetta di Salva **è configurabile ma non libera**: «Salva documento» ovunque, tranne
+dove il tipo nomina la propria operazione (Banco: «Concludi vendita» / «Concludi reso»). Vale
+`check-exit-label` per l'uscita; per il salvataggio la regola è §5.
+
+### 34.7 ⭐ E la barra porta anche Ctrl/Cmd + S _(proprietario, 25/08/2026)_
+
+La scorciatoia di salvataggio esisteva sul **solo Arrivo merce**. Ora vale su **tutte e
+nove** le maschere che montano la barra azioni comune.
+
+⭐ **È implementata come «premi il pulsante Salva», non come «chiama il salvataggio»**, e
+la differenza è tutta qui: così serve sia le maschere a `submit` sia quelle a gestore di
+clic, ed eredita da sola gli stati «in salvataggio» e «sola lettura» senza riderivarli.
+
+⚠️ **Prima toglie il fuoco al campo attivo.** La cella a ricerca-e-selezione conferma sul
+`blur` quello che si è digitato: senza quel passaggio, Ctrl+S salverebbe il valore
+precedente **in silenzio**, che è il modo peggiore di perdere una battitura.
+
+## 34.7 Il confronto con Danea, e le due cose che ha fatto vedere
+
+Il proprietario ha portato la maschera «Ordine cliente» di Danea come riferimento di
+anatomia. Conferma §30 (i tab) e §31 (schermata fissa), e aggiunge due distinzioni:
+
+**1. La barra strumenti delle RIGHE non è la barra azioni del DOCUMENTO.** In Danea sono
+adiacenti e si distinguono per _su cosa agiscono_: «Aggiungi riga · Elimina · Colonne» tocca
+la griglia; «Stampa · Includi doc. · Concludi ordine · Chiudi» tocca il documento.
+
+> ⛔ Chi estrae la barra azioni **non deve inghiottire** `doc-form__lines-tools`. Sono due
+> componenti, non uno.
+
+⚠️ In VestiFlow la barra strumenti righe sta **sopra** la griglia, in Danea sotto. È una
+scelta di layout aperta, non una deriva.
+
+**2. In Danea non esiste «Salva»: «Chiudi» salva e chiude.** Noi abbiamo deciso Chiudi +
+Salva documento. È la prima cosa che verrebbe da imitare guardando quella schermata, ed è
+scritto qui perché non succeda.
+
+## 34.8 ⚠️ Una contraddizione dentro `regole-stile-ui` §5, da chiudere prima
+
+La stessa sezione dice due cose incompatibili sull'ordine dei pulsanti:
+
+```text
+«a destra i pulsanti azione (primary a destra estrema)»
+«Sequenza pulsanti (destra a sinistra): Chiudi (ghost) · Salva bozza (secondary) · Salva/Concludi (primary)»
+```
+
+La seconda, letta da destra, mette **Chiudi** all'estrema destra — il contrario della prima.
+
+⭐ **Il codice ha già scelto, sette volte su sette**: Chiudi a sinistra, Salva primary a
+destra. La seconda metà della frase è quella sbagliata, e va corretta **prima** che il
+componente la fissi per tutti.
+
+## 34.9 Deriva minore ancora aperta
+
+`sales-document-form` è l'unica delle sette **senza la nota di stato** a sinistra.
+
+---
+
+# 35. IL PIEDE — caratterizzazione, e perché NON va estratto (25/08/2026)
+
+⚠️ **Questa sezione contraddice il piano**, che dopo la barra azioni prevedeva «piede/totali
+comune». La misura dice che il piede **non ha il problema che aveva la barra**.
+
+## 35.1 Le tre misure
+
+**Il piede è dichiarato UNA volta sola, in tutte e sette.** Nessuna doppia dichiarazione: la
+veste compatta la fa il CSS (`_document-form-mobile.scss`), non un secondo blocco di markup.
+È esattamente il contrario della barra azioni, che ne aveva due per maschera.
+
+**L'ordine delle due aree è già uniforme:** TOTALI → note, in tutte e cinque quelle che hanno
+entrambe. Ed entrambe sono già facoltative — Trasferimento e Rettifica hanno solo note,
+Ordine fornitore solo totali.
+
+**La griglia dei totali è già condivisa** (`app-document-totals`), adottata da 5 su 6. L'unica
+fuori è la Registrazione fattura — e il motivo è nel §36 qui sotto, non un'esclusione.
+
+```text
+doc-form__footer-grid                      ← una dichiarazione per maschera, CSS globale
+├── aside.doc-form__totals-bar             ← facoltativa
+│     └── <app-document-totals [rows] />   ← già condivisa
+└── div.doc-form__footer-notes             ← facoltativa
+```
+
+> **Estrarre un componente per quel guscio significherebbe togliere quattro righe di markup a
+> sette maschere.** È l'astrazione prematura che `regole-architettura` vieta esplicitamente:
+> «il pattern compare una sola volta e non è in catalogo».
+
+## 35.2 ⭐ Dove sta la duplicazione vera: l'AREA NOTE
+
+Gli **stessi due campi** — `notes` e `internalComment` — in cinque maschere:
+
+| Maschera            | Righe  | Etichetta delle note             | Ha `internalComment`? |
+| ------------------- | ------ | -------------------------------- | --------------------- |
+| Trasferimento       | 20     | «Note»                           | sì                    |
+| Rettifica / Scarico | 30     | «Note»                           | sì                    |
+| **Arrivo merce**    | **59** | «Note documento»                 | sì                    |
+| Fatture / DDT       | 21     | «Note (visibili in stampa)»      | sì                    |
+| Ordine cliente      | 11     | «Note documento»                 | **no**                |
+| Banco               | 30     | «Causale (facoltativa)» · «Note» | no                    |
+
+**Da 11 a 59 righe per la stessa coppia di campi**, e **cinque etichette diverse** per la
+stessa cosa. ⭐ Una di esse porta un'informazione che le altre non hanno — «(visibili in
+stampa)» — e quella distinzione è vera per tutte.
+
+## 35.3 ⚠️ Qui «struttura» e «contenuto» non si separano
+
+Il piano prescrive di estrarre la struttura e rimandare il contenuto. Su questo pezzo la
+linea non taglia netta, e va detto invece di fingere:
+
+> **Estrarre l'area note PORTA CON SÉ la «Nota interna» ovunque.** Un componente condiviso
+> che omettesse `internalComment` sarebbe il componente sbagliato — e le due maschere che oggi
+> non ce l'hanno resterebbero fuori proprio dalla cosa che l'estrazione esiste per dare.
+
+La decisione del proprietario sulla Nota interna (25/08) non è quindi un tema separato da
+rinviare: è **il contenuto naturale** di questa estrazione.
+
+## 35.4 ⚠️ Due cose da guardare prima di progettare l'API
+
+- **Il Banco non usa `formControlName`**: tiene la testata in un segnale `preserved()` e lega
+  i campi con `[value]` + `(input)`, perché conserva i dati fra una vendita e la successiva.
+  Un componente che accettasse solo un `FormControl` lo lascerebbe fuori; uno che accettasse
+  entrambi porterebbe un flag di comportamento. La domanda va sciolta prima, non durante.
+- **L'Arrivo merce sta a 59 righe** contro le 11 dell'Ordine cliente per gli stessi campi: va
+  guardato che cosa contengono quelle righe in più prima di dichiararle duplicazione.
+
+## 35.5 Che cosa NON è stato deciso qui
+
+`lines.length` contro `validLinesCount()` nella nota di stato della barra: registrato in §34.9
+e **non toccato**. Sono due grandezze diverse, e prima di scegliere quale mostrare bisogna
+sapere che cosa ogni nota vuole comunicare. ⛔ Il rischio da evitare è trasformare una
+divergenza semantica in una proprietà tipo `[countMode]="valid"`.
+
+---
+
+# 36. IL PERIMETRO DELLA REGISTRAZIONE FATTURA — precisato il 25/08/2026
+
+⛔ **Qui e in §34 avevo scritto «esclusa dal perimetro».** È una lettura sbagliata di una
+decisione del 24/08, e il proprietario l'ha corretta:
+
+> «registra fattura fornitore ha righe economiche ma il resto è in comune»
+
+La linea non passa fra le maschere: passa **dentro** questa maschera.
+
+## 36.1 Dove passa davvero
+
+```text
+FUORI dal perimetro   il motore delle RIGHE
+DENTRO                tutto il resto del guscio
+```
+
+Le sue righe sono un altro mestiere, e la misura lo conferma — **nessun articolo, nessuna
+variante, nessun magazzino**:
+
+|               |                                                                                                                         |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `autoRows()`  | derivate dai documenti inclusi, raggruppate per aliquota: «Documento incluso · Imponibile · IVA · Totale». Sola lettura |
+| `manualLines` | righe economiche: «Descrizione · Importo netto · IVA % · Importo IVA»                                                   |
+| terza tabella | scadenze di pagamento: «Data scadenza · Importo»                                                                        |
+
+Non usa nessuno dei pezzi comuni di riga — né `app-document-line`, né le card, né le celle.
+Rifare quel motore non vale la pena, ed è la decisione del 24/08 letta bene.
+
+## 36.2 ⭐ E questo la rende il bersaglio di FALSIFICAZIONE migliore
+
+Il resto lo condivide già: testata, piede, area note, commento interno, e da oggi il dialogo
+d'uscita comune. ⚠️ E ha ancora la **doppia dichiarazione della barra azioni**.
+
+> **Proprio perché le sue righe sono estranee, è la prova più severa del guscio comune:** se
+> lo ospita senza sapere che sono righe economiche, il contratto regge. Una maschera che
+> assomiglia alle altre non falsifica niente.
+
+⛔ Il criterio di accettazione resta quello della barra: per ospitarla il guscio comune non
+deve guadagnare un solo ingresso che nomini «fattura», «riga economica» o «scadenza».
+`check-document-grammar` lo verifica da sé.
+
+---
+
+# 37. TRE TEMI APERTI, REGISTRATI PER NON PERDERLI (25/08/2026)
+
+Emersi durante l'estrazione della barra azioni e **deliberatamente non toccati**: sono
+contenuto e semantica, e l'estrazione riguardava la struttura.
+
+## 37.1 «Concludi ordine» e «Genera documento» — un lavoro a sé
+
+Decisione del proprietario: i due menu dell'Ordine cliente **vanno estratti e unificati in
+una cosa sola**, leggendo la specifica già presente nei documenti. Oggi la barra comune li
+ospita come contenuto proiettato, e va benissimo così finché quel lavoro non si fa.
+
+## 37.2 ⛔ «Imponibile righe» compare DUE volte nell'Ordine cliente
+
+Notato dal proprietario guardando la schermata. Verificato: **non è una regressione della
+barra** — il blocco è del 15/08 (`3280e559`), e i commit del montaggio non l'hanno toccato.
+
+| Maschera           | Striscia sotto la tabella          |
+| ------------------ | ---------------------------------- |
+| Arrivo merce       | solo conteggio righe e pezzi       |
+| **Ordine cliente** | conteggio **+ «Imponibile righe»** |
+| le altre sette     | non ce l'hanno                     |
+
+⚠️ È **lo stesso valore con la stessa etichetta** (`documentTotals().linesTotal`, «Imponibile
+righe») che compare nella banda totali duecento pixel più sotto. E l'Ordine cliente è l'unica
+maschera che mette un importo in quella striscia.
+
+> Prima di toglierlo va deciso **quale delle due posizioni serve all'operatore**. Il rischio
+> da evitare è togliere quella che qualcuno usa.
+
+## 37.3 `lines.length` contro `validLinesCount()` nella nota di stato
+
+Registrato in §34.9 e ancora aperto: quattro maschere contano tutte le righe, due contano
+solo quelle valide, e le etichette dicono «righe» contro «righe valide». Sono due grandezze
+diverse.
+
+⛔ **Il rischio da evitare è trasformare una divergenza semantica in una proprietà**
+`[countMode]="valid"`. Prima si decide che cosa ogni nota vuole comunicare.
+
+---
+
+# 38. LA SCHERMATA DI CARICO/SCARICO NON È GENERICA — misurato il 25/08/2026
+
+⛔ **Qui c'era «Niente più "nuovo movimento" generico»**, con la decisione di ritirare
+`features/inventory/movement-form` e mandare le scorciatoie ai documenti. **La premessa era
+sbagliata, ed era mia**: avevo descritto quella maschera come «un quinto modo generico di
+fare quattro cose». Non lo è.
+
+## 38.1 La misura che smentisce la premessa
+
+Il commento del componente lo dichiara (`movement-form.component.ts:265`):
+
+> «Tipo scelto **A MONTE** (bottoni del tab Movimenti, query param `type`): il form nasce già
+> impostato, **senza selettore interno**.»
+
+Il titolo a schermo è «Registra **carico**» — non «Registra movimento». Un componente serve
+quattro tipi, ma **l'operatore non vede mai una scelta**: il tipo lo decide il pulsante che ha
+premuto.
+
+⭐ **È già il modello di Danea**, a pagina intera invece che a modale: schermata tipizzata,
+raggiunta da pulsanti tipizzati, presente nell'anagrafica dell'articolo per quel singolo
+articolo, e vuota quando la si apre dal registro Movimenti.
+
+## 38.2 Che cosa resta davvero fuori posto
+
+Due cose, entrambe piccole, e **nessuna delle due è la maschera**:
+
+|                                                              |                                                                                                                                                                                                |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| la voce ⌘K «Registra movimento»                              | l'unico ingresso che chiede «un movimento» senza dire quale: non passa il tipo, quindi apre sul Carico per difetto                                                                             |
+| i tre pulsanti nel pannello prodotto **dentro un documento** | lì non servono — se stai compilando un Arrivo merce il carico lo stai già facendo — e oggi portano VIA dal documento in corso (`product-form.component.ts:812-820`, e il commento lo dichiara) |
+
+⚠️ **Rimandate dal proprietario** il 25/08 insieme al resto delle schermate interne. Il codice
+non è stato toccato.
+
+## 38.3 ⭐ Che cosa questo episodio insegna
+
+La decisione di ritirare era corretta **data la descrizione che avevo dato**. La descrizione
+era sbagliata perché avevo guardato il componente — quattro tipi, un salvataggio generico — e
+non la **schermata**, che tipizzata lo è sempre stata.
+
+> **Un componente che serve quattro casi non è una funzione generica.** Lo è solo se
+> l'operatore, aprendola, deve scegliere fra quattro cose.
+
+---
+
+# 39. L'AREA NOTE È UNA — estratta il 25/08/2026
+
+⭐ È il pezzo che §35 aveva indicato al posto del piede: **la duplicazione non era nel guscio,
+era dentro l'area note.**
+
+## 39.1 La misura
+
+Gli stessi due controlli — `notes` e `internalComment` — in cinque maschere, con **cinque
+etichette diverse** e una lunghezza da **11 a 59 righe**:
+
+| Maschera              | Etichetta delle note        |
+| --------------------- | --------------------------- |
+| Trasferimento         | «Note»                      |
+| Rettifica / Scarico   | «Note»                      |
+| Arrivo merce          | «Note documento»            |
+| Fatture / DDT         | «Note (visibili in stampa)» |
+| Registrazione fattura | «Note»                      |
+
+⭐ **Una sola delle cinque diceva la cosa utile** — «(visibili in stampa)» — ed è l'unica
+differenza che conta fra i due campi: uno esce sulla stampa, l'altro no. Ora la dicono
+entrambi, ognuno la sua, nel segnaposto.
+
+|          | Etichetta            | Segnaposto                    |
+| -------- | -------------------- | ----------------------------- |
+| pubblico | **Note documento**   | «Visibili in stampa»          |
+| interno  | **Commento interno** | «Nota interna, mai in stampa» |
+
+Il secondo testo non è inventato: era già il segnaposto della Registrazione fattura, ed era
+il migliore dei cinque.
+
+## 39.2 ⚠️ Il `FormGroup` in ingresso non è cerimonia
+
+`formControlName` si risolve sull'albero delle **dichiarazioni**, non su quello del DOM: un
+`[formGroup]` sul contenitore che ospita il componente **non arriva** al suo template. Senza
+il gruppo esplicito il componente esploderebbe con NG01050 — ed è già successo su
+`document-line-card-reference`.
+
+## 39.3 Chi resta fuori, e perché non è pigrizia
+
+|           |                                                                                                                                                                                                       |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Banco** | i suoi campi non stanno in un `FormGroup`: li tiene in un segnale `preserved()`, perché la testata sopravvive fra una vendita e la successiva. E la sua «Causale» è un campo di dominio, non una nota |
+
+⭐ **Ordine cliente e Registrazione fattura non sono più fuori — chiusi il 25/08/2026**
+con `bb80a886`: la migration `20260825160000_nota_interna_sull_ordine_cliente` ha aggiunto
+`sales_orders.internal_comment` (additiva e nullable), e il «Commento interno» della
+Registrazione fattura è sceso dalla testata al piede. Resta fuori il solo **Banco**.
+
+⚠️ **La ragione per cui l’Ordine cliente era fuori si conserva**, perché è il tipo di
+ostacolo che ritorna: mancava una COLONNA, non un montaggio — e su un database condiviso
+una colonna in meno è una migration da concordare, non un `input` da collegare.
+
+⛔ Il testo qui sopra è stato corretto il 26/08/2026: dichiarava la decisione ancora
+**aperta**, cinquanta minuti dopo che era stata chiusa. Chi lo leggeva progettava una
+migration già applicata.
+
+## 39.4 ⛔ Nessuna prova toccava quei campi. In nessuna delle cinque
+
+Le etichette sono cambiate su quattro maschere e la suite è rimasta **verde**: 2589 prove che
+non guardavano lì.
+
+> **È il difetto che si ripete in tutta questa estrazione**, e vale la pena nominarlo: le
+> prove coprivano i comportamenti, non ciò che l'operatore legge. Un'etichetta sbagliata non
+> fa arrossare niente.
+
+Le tre guardie aggiunte, e cosa ciascuna vede:
+
+- **Trasferimento** — i due campi ci sono, **e scrivono sul documento**. La seconda metà è
+  quella che un collegamento sbagliato romperebbe in silenzio: i campi comparirebbero lo
+  stesso e non scriverebbero niente.
+- **Arrivo merce** — i due campi e le **due spunte proiettate** convivono. È la falsificazione
+  del contratto: «aggiorna il costo in anagrafica» e «aggiorna i prezzi» sono dominio suo, e
+  il componente le ospita senza saperne niente. Verificata rompendo la proiezione.
+
+---
+
+# 40. DUE QUESTIONI APERTE, CON IL CRITERIO CHE LE DECIDE (25/08/2026)
+
+## 40.1 ⚠️ `not-found` non è approvato: è solo il più diffuso
+
+Lo stato che precede il documento si chiama `'not-found'` in tutte e otto le maschere — sette
+lo dicevano già, l'ottava (Ordine cliente) diceva `'not-editable'` ed è stata allineata al
+montaggio della macchina comune.
+
+> ⛔ **Sette usi non sono un'approvazione semantica.** Il criterio, dato dal proprietario:
+> **se quello stato comprende documenti che ESISTONO ma non sono lavorabili, il nome è
+> tecnicamente fuorviante.**
+
+E gli indizi dicono che li comprende. I motivi che le maschere proiettano in quel ramo:
+
+| Maschera                                        | Motivo mostrato                                                                       |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Trasferimento, Rettifica, Arrivo merce, Fatture | «Documento non modificabile» — il documento c'è, non si può toccare **da qui**        |
+| Vendita al banco                                | «Documento non disponibile — questo indirizzo non corrisponde al documento richiesto» |
+| Registrazione fattura                           | «Questa pagina gestisce solo le registrazioni fattura fornitore»                      |
+| Ordine cliente                                  | tre motivi calcolati: preventivo, vendita manuale, ordine                             |
+
+⭐ **Nessuno dei sette dice «non trovato».** Dicono tutti «esiste, ma non è roba di questa
+maschera» — che è esattamente la condizione che rende il nome sbagliato.
+
+⚠️ **Non si rinomina adesso.** Prima si verificano le condizioni reali che portano a quello
+stato — cioè che cosa fa scattare `'not-found'` in ognuna delle otto — e solo se confermano
+l'indizio si sceglie una parola nuova. Rinominare su un'ipotesi costerebbe otto file per
+nulla.
+
+## 40.2 Il guscio della tabella righe: il contratto misurato, non ancora estratto
+
+Le otto associazioni della riga di intestazione **non sono otto cose**: sono due oggetti che
+esistono già.
+
+| Oggetto                                          | Copre                                                                                                                                              |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`LineColumnWidths`** (`shared/table-columns/`) | `indexColumnWidth` · `columnWidth` · `columnMinWidth` · `onColumnResizing` · `onColumnResized` — e riceve già `isVisible` nella sua configurazione |
+| **`DocumentLineSortStore`**                      | `sortColumn` · `sortDirection` · `sortToggled`                                                                                                     |
+
+Resta `sortable`, che è una costante.
+
+⭐ Nessuno dei due sa di salvataggio, magazzino, form completo o tipo documento: conoscono
+solo **colonne → visibilità → larghezze → ordinamento → eventi**.
+
+⚠️ **Da verificare prima di estrarre**, e il proprietario l'ha chiesto esplicitamente: che i
+due bastino davvero, **senza trascinare stato del form o logica di dominio**. Se per montare
+il blocco servisse un terzo ingresso che sa del documento, il contratto è sbagliato e ci si
+ferma.
+
+⛔ La Registrazione fattura resta fuori da questo pezzo: non usa la griglia articoli.
+
+---
+
+# §41 — Registrazione fattura: le righe economiche sono UNA lista _(25/08/2026)_
+
+Deciso dal proprietario: _«sistema tutto. è errato avere due liste e anche in sola lettura.
+anche per le righe manuali abbiamo un sistema errato»_.
+
+## 41.1 Che cos'era, e perché non era un difetto estetico
+
+La maschera mostrava **due tabelle**:
+
+| Tabella                | Origine                                                  | Modificabile |
+| ---------------------- | -------------------------------------------------------- | ------------ |
+| «Arrivi merce inclusi» | un elenco di arrivi tenuto a parte (`goodsReceiptIds`)   | no           |
+| righe generate         | ricalcolate dal server ad ogni salvataggio, per aliquota | **no**       |
+| «righe manuali»        | le uniche che l'operatore poteva scrivere                | sì           |
+
+⛔ **Il difetto vero**: una fattura fornitore quasi mai coincide al centesimo con la somma
+degli arrivi — arrotondamenti, spese di trasporto, un abbuono. **La parte non correggibile era
+proprio quella.** Chi doveva registrare l'importo che il fornitore ha davvero fatturato non
+aveva dove scriverlo.
+
+⚠️ E il raggruppamento per aliquota **sommava arrivi diversi nella stessa riga**: due arrivi al
+22% diventavano una riga sola.
+
+## 41.2 Che cos'è adesso
+
+> **Una lista sola, tutte le righe modificabili.** Includere un arrivo **materializza** le sue
+> righe una volta: da lì sono righe del documento come tutte le altre.
+
+- **Una riga per aliquota, per arrivo** — mai sommate fra arrivi: la riga porta il legame con
+  UN arrivo, e sommarne due perderebbe il legame di uno dei due.
+- **Ordine colonne**: `Importo netto · IVA % · Importo IVA · Descrizione`, come Danea.
+  ⏸ Il **Conto acquisto** è rinviato per scelta del proprietario: _«non lo prevederemo ora»_.
+- **Una riga pronta all'apertura**, come su ogni altra maschera documentale.
+
+## 41.3 ⭐ Il legame all'arrivo è una CONSEGUENZA delle righe
+
+Deciso sul comportamento di Danea, parole del proprietario: _«in danea non si toglie l'incluso,
+si eliminano le righe ed, in automatico, non risulterà più l'arrivo merci agganciato a quella
+fattura che stavamo registrando»_.
+
+> **Un arrivo è agganciato finché almeno una riga dice di venire da lui**
+> (`DocumentLine.linkedGoodsReceiptId`). Cancellate quelle righe, il legame cade da sé.
+
+Ne discende che:
+
+- **`goodsReceiptIds` non esiste più** — né nel DTO dell'API, né nel corpo lato client. Due
+  campi che dicono la stessa cosa sono due campi che prima o poi dicono il contrario, e qui il
+  contrario era già possibile: si potevano cancellare tutte le righe di un arrivo lasciandolo
+  agganciato.
+- **Non serve un comando «rimuovi arrivo»**, e con lui sparisce la domanda a cui nessuno aveva
+  una buona risposta: _che fine fanno le sue righe?_
+- ⭐ **La colonna `linked_goods_receipt_id` esisteva da luglio**, con chiave esterna e indice, e
+  **nessun percorso dell'API la scriveva**: era sempre `null`. Non è servita una migration.
+
+## 41.4 ⛔ I tre difetti che questa unificazione ha dovuto disinnescare
+
+| Dove                                 | Che cosa                                                                                                                                         |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **caricamento in modifica** (client) | `if (line.lineSource !== 'manual') continue;` — scartava le righe da arrivo                                                                      |
+| **controllo permessi** (server)      | `assertLinkedReceiptsManageable(dto.goodsReceiptIds, …)` — col legame passato alle righe avrebbe controllato una lista vuota, **restando verde** |
+| **duplica documento** (client)       | i legami venivano ricopiati su arrivi **già fatturati** dall'originale                                                                           |
+
+⚠️ **Il primo era distruttivo in tre tempi**: la riga da arrivo non entrava nel form, quindi non
+entrava nel payload, quindi il `deleteMany` del server la cancellava per sempre. **Il documento
+si sarebbe svuotato in silenzio** — e nessun test lo vedeva, perché nessun test riapriva una
+registrazione con righe da arrivo. Ora ce ne sono due, entrambe falsificate rimettendo il filtro.
+
+⚠️ **Il secondo è il più insidioso della serie**: un controllo di sicurezza che smette di
+controllare non fallisce — passa. Ora legge la **stessa fonte** che poi collega davvero.
+
+## 41.5 Cambio fornitore: le righe restano, il legame cade
+
+Deciso dal proprietario: _«in danea, le righe, non vengono toccate, cambia solo il fornitore»_.
+
+- **Le righe restano**: gli importi che l'operatore ha davanti sono quelli della fattura che sta
+  registrando, e non c'entrano col fornitore.
+- ⚠️ **Il legame no**: un arrivo del fornitore precedente non può stare agganciato alla fattura
+  di un altro — il server lo rifiuterebbe, e avrebbe ragione. Cade quello, e le righe diventano
+  voci libere.
+
+## 41.6 Che cosa NON è stato toccato
+
+- **Conto acquisto** (la colonna Danea): rinviato per scelta esplicita.
+- **`lineSource`**: la colonna resta, ma ha cambiato mestiere — da «origine ricalcolabile» a
+  **provenienza storica**. Non decide più niente nel frontend, e i commenti di schema e modello
+  lo dicono.
+
+---
+
+# §42 — La riga economica: una sola, e non l'ho scritta io _(25/08/2026)_
+
+⛔ **Questa sezione nasce da una contestazione del proprietario**, e la riporta perché è la
+diagnosi che serve a non ripetere l'errore:
+
+> _«registrazione fattura fornitore esistevano gia le righe, non lo so se le hai ricreate ma
+> vedo che continui a fare gli stessi errori. non riutilizzi le componeti esistenti e duplichi
+> sempre. per esempio l'iva»_
+
+## 42.1 Che cosa esisteva già, e chi lo usava
+
+| Il pezzo                                              | Dove                                                        | Chi lo usava                                                          |
+| ----------------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------- |
+| **Menu netto/ivato nella testata di COLONNA**         | `domain/documents/components/price-mode-menu`               | Arrivo merce, Ordine fornitore, DDT, Ordine cliente, Vendita al banco |
+| **Coppia digitato + netto canonico, `Decimal(16,6)`** | `ManualReceiptLine.enteredAmountMinor/netAmountMinor`       | Corrispettivo manuale                                                 |
+| **Cella Codice IVA** con snapshot congelato           | `document-line-select-cell` + `vatCodeId`/`vatSnapshot`     | sei consumatori, Corrispettivo manuale compreso                       |
+| **Conversione netto↔ivato dei costi**                 | `domain/documents/utils/document-vat.util.ts`               | famiglia acquisto                                                     |
+| **Primitiva monetaria** e la sua cella di riga        | `shared/components/money-input`, `document-line-money-cell` | ⛔ **NESSUNO** — vedi 42.2                                            |
+
+⚠️ **La Registrazione fattura non ne usava nemmeno uno**, e dopo l'unificazione delle righe
+(§41) continuava a non usarne nessuno: quattro `<input inputmode="decimal">` scritti a mano,
+la percentuale IVA digitata libera invece del Codice IVA, e `recalcLineVat` riscritta in
+locale mentre `document-vat.util` fa già quel conto.
+
+⭐ **Il difetto non è stato "creare" qualcosa di nuovo: è averlo PORTATO AVANTI.** Le caselle
+grezze c'erano già nelle vecchie «righe manuali», e l'unificazione le ha ereditate senza
+chiedersi che cosa il progetto avesse. È la forma in cui la regola DRY si viola più spesso —
+non copiando, ma non guardando.
+
+## 42.2 ⛔ La primitiva monetaria è orfana, e ha due giorni
+
+Il commit `f795763a` del **23/08/2026** — «il campo di denaro e' uno solo, e la rete che
+serviva a estenderlo» — ha creato `money-input` e `document-line-money-cell` perché fossero
+adottati. Misurato il 25/08:
+
+```text
+chi importa DocumentLineMoneyCellComponent   nessuno
+chi importa MoneyInputComponent              solo la cella qui sopra
+document-line-row (la riga di OGNI maschera) 5 input decimali grezzi
+purchase-invoice-form                        4 input decimali grezzi
+```
+
+Non è quindi un difetto di una maschera: è una primitiva costruita e mai adottata, su cui si
+è continuato a scrivere caselle a mano.
+
+## 42.3 Le decisioni del proprietario — 25/08/2026
+
+> **1 · Il selettore netto/ivato sta nell'INTESTAZIONE DELLA COLONNA, ovunque.**
+
+_«in altri documenti questa scelta si fa nell'intestazione della colonna, come per prezzo e
+costo. potrebbe essere buona norma utilizzare lo stesso metodo per migliorare l'esperienza
+utente alla abitudine che prende con gli altri documenti.»_
+
+⚠️ Vale **anche per il Corrispettivo manuale**, che oggi lo mette in testata con un
+`app-select-menu`: era l'unico diverso, e la posizione si allinea a `price-mode-menu`.
+
+> **2 · Un documento NUOVO parte NETTO. Entrambi.**
+
+_«di default deve essere netta, poi l'operatore può cambiare il calcolo nella schermata, ma il
+nuovo documento parte netto.»_
+
+⚠️ Per il Corrispettivo manuale cambia il comportamento, ma **non supera una decisione: colma
+un vuoto.** Oggi è cablato `pricesIncludeVat = signal(true)` col commento «Parte IVATA: è il
+verso in cui arrivano i valori di una chiusura di cassa» — e quel commento sembra una scelta
+deliberata. Il proprietario ha chiarito il 25/08 che non lo era: **«non era stato affrontato
+ancora il documento»**.
+
+⛔ **È una distinzione che vale la pena tenere.** Un commento affermativo su un default
+provvisorio si legge, sei mesi dopo, come una ragione ponderata — e chi lo trova esita a
+cambiarlo. Il default provvisorio va scritto come tale, o diventa una regola che nessuno ha
+mai deciso.
+
+⭐ Per la Registrazione fattura non è una novità ma un allineamento: è un documento di
+**costo**, e `regole-gestionale` dice già «Arrivo merce e Ordine fornitore partono sempre
+netti».
+
+> **3 · La riga economica della Registrazione fattura è la STESSA del Corrispettivo manuale.**
+
+_«pre registrazioni fatture fornitore dobbiamo avere l'importo netto/ivato, stesso sistema per
+i prezzi, stessa struttura 16,6»_
+
+Cioè il modello già in `ManualReceiptLine`:
+
+```text
+enteredAmountMinor  Decimal(16,6)   l'importo COME DIGITATO, nella modalità corrente
+netAmountMinor      Decimal(16,6)   il netto CANONICO con la coda
+vatCodeId + vatSnapshot             il Codice IVA congelato
+netMinor/vatMinor/grossMinor  Int   i tre esiti, arrotondati una volta sola
+```
+
+⭐ **La differenza vera fra le due righe è UNA**: quella della fattura può portare
+`linkedGoodsReceiptId` (§41.3). Tutto il resto è lo stesso mestiere.
+
+⛔ **Non è quindi «aggiungere il netto/ivato alla Registrazione fattura»**: è farle usare la
+riga che il gestionale ha già.
+
+---
+
+# §43 — Netto/ivato: dove sta il comando, e da dove parte _(25-26/08/2026)_
+
+## 43.1 Il selettore sta nell'INTESTAZIONE DELLA COLONNA
+
+Deciso dal proprietario: _«in altri documenti questa scelta si fa nell'intestazione della
+colonna, come per prezzo e costo. Potrebbe essere buona norma utilizzare lo stesso metodo per
+migliorare l'esperienza utente alla abitudine che prende con gli altri documenti»_.
+
+⭐ È `app-price-mode-menu`, che esiste dal lavoro sulle tre maschere che se lo erano scritto a
+mano — «quarantacinque righe l'una». Ora lo montano **sette** schermate.
+
+## 43.2 ⚠️ La seconda veste serve solo a chi COMMUTA in card
+
+| Maschera                                                                                         | Sotto `lg`                                                            | Serve la veste compatta?                          |
+| ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- | ------------------------------------------------- |
+| Arrivo merce, Ordine fornitore, DDT, Ordine cliente, Vendita al banco, **Corrispettivo manuale** | la tabella si spegne (`.doc-form__table-wrap` globale) e diventa card | **sì** — l'intestazione di colonna non esiste più |
+| **Registrazione fattura**                                                                        | la tabella resta e scorre (classe propria, `overflow-x: auto`)        | **no** — sarebbero due comandi visibili insieme   |
+
+⛔ **Ci sono cascato**: avevo aggiunto la veste compatta anche alla Registrazione fattura,
+ricalcando l'Arrivo merce. Il criterio non è «quale maschera copio», è **se quella tabella
+sopravvive allo schermo stretto**.
+
+## 43.3 Un documento nuovo parte NETTO. Entrambi.
+
+_«di default deve essere netta, poi l'operatore può cambiare il calcolo nella schermata, ma il
+nuovo documento parte netto.»_
+
+⚠️ Per il Corrispettivo manuale è un cambio di comportamento, ma **non supera una decisione:
+colma un vuoto.** Era cablato `signal(true)` col commento «Parte IVATA: è il verso in cui
+arrivano i valori di una chiusura di cassa» — che sembra deliberato e non lo era: _«non era
+stato affrontato ancora il documento»_.
+
+⛔ **Un default provvisorio scritto in forma affermativa** si legge, sei mesi dopo, come una
+ragione ponderata, e chi lo trova esita a cambiarlo. Va scritto come provvisorio, o diventa una
+regola che nessuno ha mai deciso.
+
+## 43.4 ⛔ L'IVA si riconosce dal CODICE, mai dal numero dell'aliquota
+
+_«devi prendere la stessa tabella IVA utilizzata per tutti i documenti e devi riconoscere
+un'IVA non dal numero, ma in base all'ID. L'IVA deve essere perfetta, soprattutto in
+contabilità.»_
+
+Il calcolo passa da `computeVatLineAmounts` ed `entryIncludesVat` — il motore condiviso — e i
+dati arrivano da **tre fonti in ordine**, nessuna delle quali è l'aliquota nuda:
+
+```text
+1. il Codice IVA scelto      l'autorità, quando c'è
+2. lo snapshot congelato     il fatto fiscale del giorno in cui il documento è stato compilato
+3. l'aliquota storica        solo per le righe nate prima che il Codice IVA esistesse
+```
+
+⚠️ **Misurato**: calcolando `netto × aliquota ÷ 100` a mano, una fattura in **inversione
+contabile** perdeva il 22% di imponibile — 100,00 diventavano 81,97. In reverse charge il
+fornitore non espone l'IVA, e l'importo scritto in fattura è già l'imponibile.
+
+⛔ **E uno snapshot di UN CAMPO non è un Codice IVA.** Le righe salvate prima del 25/08/2026
+portano `{ ratePercent }` e nient'altro: passarlo a `vatInputFromSnapshot` darebbe
+`calculationMode: undefined`, e da lì ogni decisione fiscale sarebbe presa su un dato che non
+esiste. Il discriminante è `calculationMode`, che uno snapshot vero ha sempre.
+
+## 43.5 ⏸ Il riferimento per il MOBILE è l'Ordine cliente
+
+Indicato dal proprietario il 26/08/2026: _«la grafica mobile di nuovo ordine cliente è quella
+più esatta al momento, ma non viene mai presa, nonostante dobbiamo unire»_.
+
+⚠️ **Vale come riferimento visivo per la vista compatta**, allo stesso titolo con cui il
+Registro Corrispettivi e la Nota di credito valgono per i riepiloghi e per l'estetica corrente.
+Non è ancora stato applicato: le maschere che commutano in card vanno confrontate con quella,
+ed è lavoro dichiarato, non fatto.
+
+---
+
+# §44 — La testata dell'Ordine cliente è l'ultima scritta due volte _(26/08/2026)_
+
+Indicato dal proprietario: _«la grafica mobile di nuovo ordine cliente è quella più esatta al
+momento, ma non viene mai presa, nonostante dobbiamo unire»_ — e la misura spiega perché.
+
+## 44.1 Il componente comune esiste, e otto maschere su nove lo usano
+
+`app-document-header` dichiara la testata **una volta** e la rende in due vesti: griglia su
+scrivania, pannello apribile su mobile. Monta lui `app-document-mobile-panel` quando la vista è
+compatta, e le due viste sono **esclusive** — non compresenti nel DOM.
+
+⛔ **L'Ordine cliente è l'unico fuori.** Il commento nel suo template lo ammette: _«Vive nel DOM
+accanto alla griglia desktop e si accende sotto lg»_.
+
+```text
+copia mobile   righe 233–541   308 righe
+copia desktop  righe 542–850   309 righe
+template       2083 righe      (Arrivo merce, migrato: 1176)
+```
+
+⭐ **Ed è la ragione della frase del proprietario**: quella grafica è la più curata **perché è
+scritta a mano**, e per la stessa ragione non arriva a nessun altro. Ogni miglioria fatta lì
+resta lì.
+
+## 44.2 ⚠️ Due errori di misura, e valgono più della misura
+
+Ci sono voluti tre tentativi per contare le divergenze, e i due sbagli sono istruttivi:
+
+| Sbaglio                                                     | Che cosa insegnava                                                                                            |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| «sette maschere su dieci non hanno la testata comprimibile» | falso: `app-document-header` monta il pannello **per conto suo**. Avevo cercato il pannello, non chi lo monta |
+| «cinque divergenze fra le due copie»                        | falso: erano **due**. Avevo confrontato il pannello mobile con **uno solo** dei tre blocchi desktop           |
+
+⛔ In entrambi i casi la misura sembrava solida e non lo era. La regola che ne esce: **contare
+l'uso di un componente non basta se quel componente ne monta un altro**, e **confrontare due
+viste richiede di delimitarle entrambe per intero**.
+
+## 44.3 Le divergenze vere: due, e una è esplicita
+
+Criterio deciso dal proprietario: _«le schermate mobile dei documenti saranno modificate ed
+avranno tutte le stesse viste e funzioni, tranne casi espliciti»_. Un caso è esplicito solo se
+**qualcuno l'ha dichiarato**, e si verifica leggendo.
+
+| Divergenza                             | Esplicita?                                                                   | Esito                              |
+| -------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------- |
+| **Modalità prezzo** solo su mobile     | ✅ sì — _«Su desktop lo stesso controllo vive nell'intestazione di colonna»_ | resta: è la coppia di vesti di §43 |
+| **Listino** solo su mobile             | ⛔ no                                                                        | da portare anche sulla scrivania   |
+| **«Data»** contro **«Data documento»** | ⛔ no                                                                        | ✅ **chiuso il 26/08**             |
+
+⚠️ La terza era la peggiore, e non per il nome: nel pannello mobile l'`ariaLabel` diceva già
+«Data documento» mentre l'etichetta visibile diceva «Data». **Sulla stessa riga, l'occhio e lo
+screen reader leggevano due cose diverse.** È la stessa famiglia del difetto che è costato la
+guardia su «Chiudi» contro «Annulla».
+
+## 44.4 Che cosa resta
+
+1. **Listino anche sulla scrivania** — piccolo, e chiude l'ultima deriva non dichiarata.
+2. **La migrazione su `app-document-header`** — ~300 righe in meno, e soprattutto: da lì in poi
+   una miglioria alla testata mobile dell'Ordine cliente arriva a tutte.
+
+⚠️ **Non è un lavoro cieco**: le due copie sono ora allineate su tutto tranne un campo
+dichiarato, quindi la migrazione è meccanica. Ma va guardata a schermo prima di dirla fatta —
+la maschera è il riferimento visivo, e romperla costa il riferimento.
+
+## 44.5 «Includi documento»: due dichiarazioni, non tre — e la guardia citata non esisteva
+
+Il proprietario ha chiesto conto di un commento nel template che diceva: _«senza il gate sul
+viewport questo sarebbe un **terzo** "Includi documento" nell'albero, e **la guardia sui comandi
+doppi** lo direbbe»_.
+
+⛔ **Due affermazioni, entrambe sbagliate**, misurate il 26/08/2026:
+
+| L'affermazione                 | La misura                                                                                                                                                                   |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| «un terzo nell'albero»         | le dichiarazioni sono **due** — riga 541 nel pannello con `@if (compactView())`, riga 891 nella barra con `@if (!compactView())`. Si escludono: **ne vive sempre una sola** |
+| «la guardia sui comandi doppi» | **non esiste**. Nessuno dei 22 script di `npm run lint` fa quel controllo                                                                                                   |
+
+⚠️ **Un commento che cita una rete inesistente è peggio di nessun commento**: fa abbassare la
+guardia proprio dove serve tenerla.
+
+### Perché una guardia di script sarebbe la risposta sbagliata
+
+Misurati **26 comandi dichiarati più volte in 89 template**. Quasi tutti sono legittimi: un
+dialogo ha «Annulla» sul pulsante e sullo sfondo, un filtro si azzera dalla barra e dallo stato
+vuoto, un menu si chiude dal trigger e dal fondale. Uno script che li segnalasse sarebbe
+rumoroso e per lo più in torto — cioè un gate spento.
+
+⭐ **La distribuzione dice però un'altra cosa**: l'Ordine cliente ne ha **12**, più di ogni
+altra maschera. È la conferma numerica di §44.1 — quella testata è scritta due volte.
+
+### La rete che c'è ora
+
+Due prove di componente sull'Ordine cliente: «Includi documento» compare **esattamente una
+volta** in ciascuna vista. Falsificate togliendo il gate sul viewport — lo scenario che il
+commento temeva — e la prova dice `expected length 1 but got 2`.
+
+## 44.6 ⭐ Lo scanner barcode è una funzione da NON regredire
+
+Indicato dal proprietario il 26/08/2026: _«attenzione al funzionamento del barcode che nuovo
+ordine cliente possiede, è ben funzionale e così richiesto»_.
+
+`app-document-scan-overlay` — overlay fotocamera a schermo intero, con quattro esiti: riga
+aggiunta, aggiunta rapida, creazione articolo completa, chiusura. Lo montano **due maschere**:
+Ordine cliente e Vendita al banco.
+
+⭐ Sta a **riga 1799**, fuori dal blocco testata (233–850): la migrazione di §44.4 **non lo
+tocca**. Ma quando il mobile si propagherà alle altre maschere, lo scanner è un pezzo da
+**portare**, non da reinventare.
+
+---
+
+# §45 — Il Listino: un comportamento solo, e non fa aritmetica _(26/08/2026)_
+
+## 45.1 ⛔ L'errore di analisi, e il suo motivo
+
+Misurando le due maschere che hanno il Listino si era trovato che una recupera i dati della
+variante col servizio (`forkJoin`) e l'altra li ha già in memoria. Da lì era stato concluso:
+_«l'effetto non è condiviso perché sono due logiche di dominio diverse»_.
+
+⛔ **È sbagliato.** Il proprietario l'ha corretto: _«Sono due implementazioni tecniche diverse
+dello stesso comportamento funzionale… non costituisce una differenza funzionale»_.
+
+⚠️ **Il motivo dell'errore è ripetibile, e per questo va nominato.** La regola «una divergenza è
+spesso una decisione» ha una **precondizione**: verificare se qualcuno l'ha dichiarata. Per i
+campi della testata mobile quel controllo era stato fatto, ed è per questo che «Modalità prezzo»
+è rimasta e «Listino» no. Per il riprezzamento **non è stato fatto**: trovate due
+implementazioni, sono state chiamate due domini senza cercare una sola riga che lo dicesse.
+
+> **Prendere lo stato dell'implementazione e promuoverlo a regola di dominio è esattamente il
+> contrario di quello che questo progetto fa.**
+
+## 45.2 Che cosa fa il Listino
+
+> **Il Listino di testata stabilisce quale prezzo dell'anagrafica diventa il prezzo proposto
+> delle righe. Vale per le righe nuove E per quelle già inserite.**
+
+```text
+Articolo:  Prezzo vendita 25,00 · Listino 1 22,00 · Listino 2 20,00
+
+seleziono Listino 2   →  la riga vale 20,00
+cambio a Listino 1    →  le righe GIÀ PRESENTI diventano 22,00
+```
+
+⛔ **Non calcola uno sconto, non applica una percentuale, non divide niente.** Sceglie il campo
+sorgente. Il 22,00 sta in anagrafica: non si ricava dal 25,00.
+
+Il documento conserva poi il prezzo come **snapshot**: se l'anagrafica cambia dopo, il documento
+salvato non si muove (regola «la riga di un documento è una fotografia»).
+
+## 45.3 ⭐ Listino e netto/ivato sono DUE meccanismi indipendenti
+
+È la confusione che ha generato l'equivoco, e va tenuta separata a parole prima che nel codice:
+
+|                 | Che cosa decide                             | Aritmetica                      |
+| --------------- | ------------------------------------------- | ------------------------------- |
+| **Listino**     | la **sorgente** del prezzo                  | ⛔ nessuna                      |
+| **Netto/ivato** | la **rappresentazione** dello stesso prezzo | ⭐ qui, e solo qui, lo scorporo |
+
+```text
+25,00 ivati al 22%  →  netto = 25,00 × 100 / 122 = 20,491803…
+```
+
+⚠️ E la divisione **non arrotonda**: è quella coda a far tornare 25,00 al giro successivo.
+Falsificato con **1,03** — troncando il netto a 84 centesimi, l'ivato torna 1,02.
+
+## 45.4 Dove vive, adesso
+
+| Pezzo                                                                  | Dove                                                        |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------- |
+| il controllo (opzioni, valore, «nascondi se ce n'è uno solo»)          | `document-listino-select` — **un componente**, due maschere |
+| il dominio (quale prezzo, chi resta senza, come si chiama nell'avviso) | `listinoRepricing` · `listinoMissingWarning`                |
+| **come si procura il riepilogo**                                       | la maschera — servizio o memoria, indifferente              |
+| **come scrive il campo**                                               | la maschera — dipende dalla sua modalità netto/ivato        |
+
+⚠️ **Le due copie dell'avviso divergevano su un APOSTROFO**: `l'articolo` dritto in una,
+`l’articolo` tipografico nell'altra. Lo stesso testo con due glifi a seconda della maschera, e
+nessun test lo vedeva. Ora c'è una prova che lo inchioda.
+
+⭐ **E il Listino è arrivato anche sulla testata desktop dell'Ordine cliente**, dove mancava
+senza una ragione scritta — la parità di §44.3.
+
+---
+
+# §46 — «Vendita manuale» è una **Vendita manuale** _(26/08/2026)_
+
+## 46.1 ⛔ Il nome sbagliato ha già prodotto difetti, ed è misurabile
+
+Deciso dal proprietario: _«quella è una vendita creata per non lasciare movimentazione e viene
+sempre confusa perché si chiama vendita manuale»_.
+
+⚠️ **La confusione non è teorica: è nel codice.** Chi legge «Vendita manuale» ragiona
+correttamente **per quel nome** — «non è vendita, perché dovrebbe avere il Listino?» — e infatti:
+
+```text
+customer-order-form.component.ts:1732
+  showListinoSelect = computed(() => !this.isManualUnload && …)
+```
+
+Il Listino era **spento** su questo documento. Non per una decisione commerciale: per il nome.
+
+⛔ **E i documenti si contraddicevano fra loro.** Le specifiche più vecchie lo descrivono come
+un'operazione di magazzino (danneggiato, uso interno, campioni); il contratto recente registra
+invece l'eccezione tecnica vera — riduce la giacenza e **non crea `StockMovement`**. Nel codice,
+intanto, usa la **stessa maschera dei documenti cliente**, con righe, prezzi, totali e cliente
+facoltativo.
+
+## 46.2 L'identità, fissata
+
+> **Vendita manuale = una vendita inserita manualmente che riduce direttamente la giacenza senza
+> generare movimenti di magazzino.**
+
+|                               |                                                                             |
+| ----------------------------- | --------------------------------------------------------------------------- |
+| **È** un documento di vendita | righe con prezzo, **Listino**, IVA, sconto, totali                          |
+| Cliente                       | **facoltativo**                                                             |
+| Effetto                       | **riduce la giacenza**                                                      |
+| ⚠️ Eccezione tecnica          | **non crea `StockMovement`**: aggiorna la giacenza per differenza           |
+| Corrispettivi                 | ⛔ **no** — non entra nel Registro                                          |
+| Tracce                        | ⛔ **nessuna**: solo il proprio riepilogo documenti                         |
+| Componenti e funzionamento    | **gli stessi della Vendita al banco**; cambia solo l'effetto sulla giacenza |
+
+⭐ **Il fatto che non produca `StockMovement` è la sua ECCEZIONE, non la sua identità.** È la
+distinzione che il nome vecchio rendeva impossibile, e con lei cade la conclusione «lo Scarico
+manuale non è vendita, quindi niente Listino».
+
+## 46.3 Perché «Vendita manuale» e non altro
+
+| Nome                                                        | Verdetto                                                                                         |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| **Vendita manuale**                                         | ✅ dice subito perché ha prezzi, IVA, sconto, Listino, cliente facoltativo, totali               |
+| «Vendita manuale», «Scarico magazzino», «Movimento manuale» | ⛔ spingono verso Trasferimenti / Rettifiche / Inventario, e fanno perdere la natura commerciale |
+
+La famiglia diventa leggibile:
+
+```text
+Vendita al banco    vendita operativa da banco/cassa, flusso normale
+Vendita manuale     vendita inserita a mano, scarica la giacenza senza movimenti
+DDT vendita         consegna/trasporto, con eventuale effetto fisico
+```
+
+## 46.4 ⚠️ Prima la semantica, poi i nomi tecnici
+
+Deciso: **non si cambiano subito enum, rotta, database e nomi interni.** Si fissa prima
+l'identità; il resto è un lavoro suo, con la stessa disciplina della rinomina di `invoice_draft`
+(§ del commit del 26/08: migration di catalogo, guardia, nessun `sed`).
+
+## 46.5 L'impostazione che la disattiva
+
+Toggle in **Impostazioni generali**, con la frase che la spiega:
+
+> **Vendita manuale** — «Consente di registrare una vendita e ridurre la giacenza senza creare
+> movimenti di magazzino.»
+
+| Regola              |                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------ |
+| attiva              | disponibile normalmente                                                                    |
+| disattiva           | ⛔ nessuna voce, nessun menu, nessuna azione per crearne di nuove                          |
+| ⚠️ backend          | **deve impedire la creazione via API**: nascondere la UI non basta                         |
+| documenti esistenti | **non** si cancellano né si modificano                                                     |
+| ambito              | **aziendale (tenant)**, non personale dell'operatore                                       |
+| default             | **attiva** per i tenant esistenti — il cambio non deve far sparire una funzione già in uso |
+
+## 46.6 ⏸ Aperto, e non dedotto
+
+- **Termini di pagamento**: oggi spenti su questo documento (`else if (!this.isManualUnload)`).
+  Il Listino era una decisione esplicita del proprietario; questo **no**. Va chiesto prima di
+  toccarlo.
+- **I riepiloghi da unire**, prendendo come riferimento **quello dei Corrispettivi**, che è il
+  più completo (`regole-stile-ui` §5, «Riepilogo di fondo pagina»).
+
+---
+
+# §47 — Come si rettificano le specifiche senza peggiorarle _(26/08/2026)_
+
+Domanda del proprietario: _«anche le specifiche andrebbero man mano rettificate… però se
+commettiamo errori e le cambiamo in peggio, allora meglio di no, non saprei»_.
+
+⚠️ **Il dubbio è fondato da entrambi i lati, e la giornata lo dimostra due volte.**
+
+|                            |                                                                                                                                                                                                                                                                                                |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Non rettificare costa**  | la specifica diceva «lo Scarico manuale non è vendita» _(nome vecchio, citato com'era)_, e quella frase ha fatto **spegnere il Listino** su quel documento. Un difetto vero, nato da un testo                                                                                                  |
+| **Rettificare male costa** | nella stessa giornata ho scritto **tre misure sbagliate** — «sette maschere senza testata comprimibile», «cinque divergenze fra le copie», «due logiche di dominio». Se fossero entrate nei documenti come fatti, oggi le specifiche porterebbero tre falsità con l'autorità del testo scritto |
+
+## 47.1 Il criterio: si scrive ciò che è MISURATO o DECISO, mai ciò che è dedotto
+
+```text
+MISURATO   un conteggio, un file:riga, una prova falsificata     → si scrive
+DECISO     una scelta del proprietario                           → si scrive
+DEDOTTO    «leggendo il codice mi pare che…»                     → ⛔ NON si scrive
+```
+
+⭐ **Tutti e tre i miei errori erano deduzioni**, e una sola cosa li accomuna: nascevano dal
+leggere lo stato dell'implementazione e trattarlo come regola. La misura vera li ha smentiti
+ogni volta.
+
+## 47.2 Le tre regole che rendono la rettifica reversibile
+
+1. **Datare e nominare il metodo.** «Misurato il 26/08 confrontando i tre blocchi desktop» invita
+   a rimisurare; «le maschere sono sette» no. Due dei miei tre errori li ho trovati proprio
+   rifacendo la misura che avevo dichiarato.
+2. **Cancellare il testo superato, lasciando UNA riga** che dica cosa è cambiato — è già la
+   regola di `regole-qualita` («TESTO MORTO NELLE SPECIFICHE»). Una specifica che accumula
+   versioni costringe a leggere la cronaca per sapere cosa vale oggi.
+3. **Marcare l'incerto invece di ometterlo.** Il vocabolario c'è già: ⏸ per una decisione aperta,
+   ⚠️ per un rischio, ⛔ per un divieto. Una domanda aperta scritta come tale non fa danno; una
+   deduzione scritta come fatto sì.
+
+## 47.3 ⛔ E quando si sbaglia, la correzione vale più della misura
+
+Le tre misure sbagliate **restano scritte** in §44.2 e §45.1, con accanto quella giusta. Non per
+scrupolo: perché il motivo di ciascuna è ripetibile, e chi lo legge non lo rifà. La regola «una
+divergenza è spesso una decisione» ha una **precondizione** — verificare se qualcuno l'ha
+dichiarata — e saltarla è il modo in cui si è sbagliato tre volte su tre.
+
+---
+
+# §48 · L'Ordine cliente entra nella testata comune — 26/08/2026
+
+L'ottava e ultima maschera documentale. Era **l'unica a scriversi la testata da sé**, e se
+la scriveva **due volte**.
+
+```text
+app-document-header montati                0 → 2
+app-document-mobile-panel scritti a mano   2 → 0
+griglie di testata scritte a mano          3 → 0
+identificativi co-m-*                      8 → 0
+righe della testata                      620 → 308
+maschere documentali sul componente      7/8 → 8/8
+```
+
+## 48.1 ⛔ Non erano due viste: era la stessa vista scritta due volte
+
+Le due vesti **convivevano nel DOM** e la commutazione la faceva il foglio di stile
+(`.doc-panels { display: none }` sopra `lg`, `.co-form__header-details` collassata a
+`max-block-size: 0` sotto). Da lì discendeva tutto il resto: due insiemi di identificativi
+(`co-m-*` contro `co-*`), **due `formControlName` legati allo stesso controllo**, e ogni
+correzione che ne raggiungeva una sola.
+
+⚠️ **Il difetto misurato è la prova del costo.** Il commit `e85027d6` del 26/08 ha portato la
+scelta dei campi per tipo nella tabella `CUSTOMER_HEADER_FIELDS` e ha riscritto una catena
+`@if … @else if` che aveva smesso di essere esclusiva: sulla scrivania il Preventivo ha
+**perso «Consegna prevista»**. Sul telefono si vedeva lo stesso, perché lì il campo aveva un
+`@if` suo. Il difetto è vissuto su **una vesta sola** — ed è esattamente il modo in cui una
+testata scritta in due copie nasconde i propri difetti. Corretto in `0280ab4b`.
+
+## 48.2 ⭐ Una sola ripartizione, e viene dal mobile
+
+**Deciso dal proprietario il 26/08/2026.** Non esistono una ripartizione «desktop» e una
+«mobile»: sarebbero due verità, solo nascoste dentro `app-document-header`.
+
+```text
+TESTATA DOCUMENTO
+├─ DATI PRINCIPALI          ciò che sblocca le righe
+│  ├─ Cliente / controparte
+│  └─ Location
+└─ DETTAGLI DOCUMENTO
+   ├─ Data
+   ├─ Stato
+   ├─ Consegna, se prevista
+   ├─ Numero / Serie
+   ├─ Listino, se previsto
+   ├─ Rif., se previsto
+   └─ Pagamento, se previsto
+```
+
+A cambiare fra i dispositivi è **l'aspetto**, non quali campi esistono né dove appartengono.
+Sul telefono la struttura si veste come due pannelli apribili; su scrivania come fasce — e
+come le si affianchi è una scelta grafica, non strutturale.
+
+⛔ **Vietata la forma che questo lavoro esiste per togliere**, cioè lo stesso campo scritto
+due volte con due gate opposti:
+
+```text
+@if (compactView())  { cliente · location }
+@if (!compactView()) { cliente · location · data · numero · … }
+```
+
+⛔ **E vietata anche la sua versione in configurazione** — `mobileFields: [...]` accanto a
+`desktopFields: [...]` con gli stessi campi riordinati: sarebbero di nuovo due contratti da
+tenere allineati.
+
+## 48.3 ⚠️ `compactView()` decide la COLLOCAZIONE, non la logica
+
+Due comandi restano dietro un gate sul viewport, e **non sono duplicazione**: hanno un'altra
+**casa** su scrivania, quindi il gate sceglie dove vive l'**unica** istanza.
+
+| Comando               | Casa su scrivania                           | Casa sul telefono                            |
+| --------------------- | ------------------------------------------- | -------------------------------------------- |
+| **Modalità prezzo**   | intestazione della colonna Prezzo (`11` A4) | pannello Dettagli: le card non hanno colonne |
+| **Includi documento** | barra strumenti delle righe                 | pannello Dettagli (decisione del 24/08/2026) |
+
+```text
+⛔ NON è   desktop → copia A          ⭐ ma è   desktop → UNA istanza, fuori dalla testata
+           mobile  → copia B                    mobile  → UNA istanza, dentro la testata
+```
+
+**La discriminante, e vale per chi verrà:**
+
+> Se scrivania e telefono mostrano lo **stesso dato nello stesso ruolo funzionale**, ci deve
+> essere **un solo controllo condiviso** e non due markup alternativi. Se invece la scrivania
+> possiede già una **collocazione funzionale che sul telefono non esiste** — come
+> l'intestazione di colonna — è legittimo collocare l'unica istanza in posti diversi.
+
+Tre vincoli posti dal proprietario, e vanno letti insieme:
+
+1. `compactView()` può decidere la **collocazione**, mai la logica o il comportamento;
+2. a ogni viewport deve esistere **una sola istanza effettiva**, non due con una nascosta dal CSS;
+3. l'eccezione resta **limitata ai controlli che hanno davvero un'altra casa**: non è un
+   precedente per riscrivere Cliente, Location, Data, Listino o Stato due volte.
+
+⚠️ Senza il gate, su scrivania se ne vedrebbero **due a schermo**. Con il gate applicato a un
+campo che non ha un'altra casa, si sarebbe reintrodotta la duplicazione sotto un altro nome.
+
+## 48.4 Tre capacità portate nel COMPONENTE COMUNE, non aggirate
+
+Vincolo del proprietario: _«se emerge una capacità mancante nel componente comune, si porta nel
+componente comune, non si lascia un'eccezione locale»_. Nessun `::ng-deep`, nessun foglio che
+scavalchi il confine.
+
+| Capacità                        | Perché serviva                                                                                                                                                                     |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| slot **`panelFooter`**          | il pannello ha due cose **dopo** i campi — la nota «I valori predefiniti restano modificabili.» e il blocco «Origine delle righe» — che non avevano dove atterrare                 |
+| input **`controlId`**           | cinque campi avevano un `<label for>` **vero**; il campo condiviso sapeva rendere solo uno `<span>`, e migrarli avrebbe perso l'associazione **in silenzio**                       |
+| **`app-document-header-group`** | `twoColumns` è tutto-o-niente: la testata affianca solo Data, Stato e Consegna e impila gli altri cinque. Accenderlo sull'intero pannello avrebbe cambiato la vista di riferimento |
+
+⚠️ **`controlId` è la più importante**, e la ragione va ricordata: sarebbe stata una **perdita
+di accessibilità introdotta da una deduplica** — invisibile, e dentro un lavoro che si presenta
+come «nessun cambiamento di comportamento». È il tipo di regressione che nessun test di layout
+trova e che nessuno collega alla migrazione sei mesi dopo.
+
+## 48.5 ⏸ FASE 2 — la vestizione di scrivania, dichiarata e non dimenticata
+
+La disposizione di scrivania **è cambiata**: la fascia unica è diventata due fasce, e le quote
+di larghezza (`flex-grow` 1.55 / 0.9 / 0.78 / 0.75) sono cadute con la classe locale
+`.co-form__header-row` a cui erano agganciate — il componente comune emette
+`doc-form__header-row`, e una classe messa sull'host non raggiunge le celle.
+
+Era **messo in conto**: prima una sola architettura vera, poi la si veste. Il passo successivo
+tocca **solo layout e CSS**, con la stessa struttura e gli stessi componenti: nessun markup
+funzionale nuovo, nessuna condizione di dominio nuova.
+
+Il canale previsto per le larghezze è `--doc-field-min` per cella (`_document-form.scss`) —
+oggi **non dichiarato da nessuna maschera in tutta l'app**, il che significa che le sette
+migrate hanno accettato il ripiego uguale per tutti. In alternativa, le quote riscritte sulla
+classe che il componente emette davvero: le celle sono contenuto proiettato **dalla maschera**,
+quindi portano il suo attributo di incapsulamento e da lì si raggiungono.
+
+## 48.6 ⭐ Due cambiamenti visibili, dichiarati invece che scoperti a schermo
+
+- **La tinta «campo in attesa» ora compare anche sul telefono**, su Cliente e Location. Non è
+  una novità inventata qui: **cinque maschere su sette** la mostrano già in entrambe le vesti
+  (`[waiting]` senza gate sul viewport) — l'Ordine cliente era l'eccezione, e allinearlo è
+  unificazione.
+- **Il comando dice «Crea nuovo cliente» anche su scrivania**, dove diceva «Nuovo cliente».
+  Erano due parole per lo stesso comando a seconda dello schermo, e il telefono è il
+  riferimento.
+
+## 48.7 Le prove del criterio 4, e perché ognuna dichiara la vesta
+
+Il quarto criterio chiedeva di **dimostrare** invariati campi visibili, valori e default,
+modificabilità, stato/lock, Listino, netto/ivato, «Includi», scanner, comportamento nelle due
+vesti e cambio di soglia.
+
+⚠️ **Prima della migrazione una prova non doveva dichiarare la vesta**, perché le due vivevano
+insieme nel DOM e una query le vedeva entrambe. Ora sono esclusive: **un test che non la
+dichiara guarda solo la scrivania**, e resta verde mentre smette di coprire metà di quello che
+copriva. È il modo peggiore di perdere copertura, e per questo ogni prova nuova la dichiara.
+
+⭐ Le quattro prove che contavano `2` — cioè proprio la coesistenza — ora contano **`1` per
+vesta, verificato in tutte e due**: è una prova più forte di prima, non più debole.

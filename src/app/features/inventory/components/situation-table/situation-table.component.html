@@ -1,196 +1,98 @@
-<table class="situation-table">
-  <thead class="situation-table__head">
-    <tr>
-      @for (col of columns(); track col.id) {
-        @switch (col.id) {
-          @case ('select') {
-            <th scope="col" class="situation-table__cell--select">
-              <label class="situation-table__select-all">
-                <input
-                  type="checkbox"
-                  class="situation-table__checkbox"
-                  [checked]="allOnPageSelected()"
-                  [attr.aria-label]="
-                    allOnPageSelected()
-                      ? 'Deseleziona tutti gli articoli in pagina'
-                      : 'Seleziona tutti gli articoli in pagina'
-                  "
-                  (change)="onSelectAllClick($event)"
-                />
-                <span class="sr-only">Seleziona tutti</span>
-              </label>
-            </th>
-          }
-          @default {
-            <th
-              scope="col"
-              [class.situation-table__cell--pinned]="col.pinned"
-              [class.situation-table__cell--numeric]="col.numeric"
-              [class.situation-table__cell--status]="col.id === 'status'"
-            >
-              {{ col.label }}
-            </th>
-          }
-        }
-      }
-    </tr>
-  </thead>
+<!--
+  ⭐ **Lo scheletro è del motore comune** (`14` parte H): ultimo elenco a
+  entrarci, il 30/08/2026.
 
-  <tbody>
-    @for (row of rows(); track row.variantId) {
-      <tr class="situation-table__row" [class.situation-table__row--selected]="isSelected(row)">
-        @for (col of columns(); track col.id) {
-          @switch (col.id) {
-            @case ('select') {
-              <td class="situation-table__cell--select" [attr.data-label]="col.label">
-                <input
-                  type="checkbox"
-                  class="situation-table__checkbox"
-                  [checked]="isSelected(row)"
-                  [attr.aria-label]="'Seleziona ' + row.title"
-                  (change)="rowToggle.emit(row)"
-                />
-              </td>
-            }
-            @case ('title') {
-              <td
-                class="situation-table__title"
-                [class.situation-table__cell--pinned]="col.pinned"
-                [attr.data-label]="col.label"
-              >
-                {{ row.title }}
-              </td>
-            }
-            @case ('code') {
-              <td
-                class="situation-table__code tabular-nums"
-                [class.situation-table__cell--pinned]="col.pinned"
-                [attr.data-label]="col.label"
-              >
-                {{ row.code || '—' }}
-              </td>
-            }
-            @case ('sku') {
-              <td
-                class="situation-table__code tabular-nums"
-                [class.situation-table__cell--pinned]="col.pinned"
-                [attr.data-label]="col.label"
-              >
-                {{ row.sku || '—' }}
-              </td>
-            }
-            @case ('category') {
-              <td [class.situation-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
-                {{ row.category || '—' }}
-              </td>
-            }
-            @case ('supplier') {
-              <td [class.situation-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
-                {{ row.supplierName || '—' }}
-              </td>
-            }
-            @case ('available') {
-              <td
-                class="situation-table__cell--numeric tabular-nums"
-                [class.situation-table__cell--negative]="row.available < 0"
-                [class.situation-table__cell--empty]="row.available <= 0"
-                [class.situation-table__cell--low]="
-                  row.available > 0 && row.minThreshold > 0 && row.available <= row.minThreshold
-                "
-                [class.situation-table__cell--pinned]="col.pinned"
-                [attr.data-label]="col.label"
-              >
-                {{ row.available }}
-              </td>
-            }
-            @case ('onHand') {
-              <td
-                class="situation-table__cell--numeric tabular-nums"
-                [class.situation-table__cell--pinned]="col.pinned"
-                [attr.data-label]="col.label"
-              >
-                {{ row.onHand }}
-              </td>
-            }
-            @case ('committed') {
-              <td
-                class="situation-table__cell--numeric tabular-nums"
-                [class.situation-table__cell--pinned]="col.pinned"
-                [attr.data-label]="col.label"
-              >
-                {{ row.committed }}
-              </td>
-            }
-            @case ('incoming') {
-              <td
-                class="situation-table__cell--numeric tabular-nums"
-                [class.situation-table__cell--pinned]="col.pinned"
-                [attr.data-label]="col.label"
-              >
-                {{ row.incoming }}
-              </td>
-            }
-            @case ('minThreshold') {
-              <td
-                class="situation-table__cell--numeric tabular-nums"
-                [class.situation-table__cell--pinned]="col.pinned"
-                [attr.data-label]="col.label"
-              >
-                {{ row.minThreshold }}
-              </td>
-            }
-            @case ('purchasePrice') {
-              <td
-                class="situation-table__cell--numeric tabular-nums"
-                [class.situation-table__cell--pinned]="col.pinned"
-                [attr.data-label]="col.label"
-              >
-                {{ money(row.purchasePriceMinor, row.currency) }}
-              </td>
-            }
-            @case ('sellingPrice') {
-              <td
-                class="situation-table__cell--numeric tabular-nums"
-                [class.situation-table__cell--pinned]="col.pinned"
-                [attr.data-label]="col.label"
-              >
-                {{ money(row.sellingPriceMinor, row.currency) }}
-              </td>
-            }
-            @case ('totalIn') {
-              <td
-                class="situation-table__cell--numeric tabular-nums"
-                [class.situation-table__cell--pinned]="col.pinned"
-                [attr.data-label]="col.label"
-              >
-                {{ row.totalIn }}
-              </td>
-            }
-            @case ('totalOut') {
-              <td
-                class="situation-table__cell--numeric tabular-nums"
-                [class.situation-table__cell--pinned]="col.pinned"
-                [attr.data-label]="col.label"
-              >
-                {{ row.totalOut }}
-              </td>
-            }
-            @case ('status') {
-              <td
-                class="situation-table__cell--status"
-                [class.situation-table__cell--pinned]="col.pinned"
-                [attr.data-label]="col.label"
-              >
-                <span class="situation-table__status-value">
-                  <app-badge [tone]="statusTone(row.status)">{{
-                    statusLabel(row.status)
-                  }}</app-badge>
-                </span>
-              </td>
-            }
-          }
-        }
-      </tr>
+  ⛔ **Qui c'erano 196 righe**: un `@switch (col.id)` con quindici rami, ognuno un
+  `<td>` con le stesse tre dichiarazioni. Su quindici colonne di cui **dodici sono
+  testo o numeri**, quel markup non diceva niente che `cellText` non dica meglio —
+  e la casella di selezione era scritta a mano una volta in testata e una per riga.
+
+  Restano le due celle che non sono testo: la disponibilità, che porta il proprio
+  stato, e lo stato di scorta.
+-->
+<app-data-table
+  [rowClickSelects]="rowClickSelects()"
+  caption="Situazione di magazzino"
+  [columns]="engineColumns()"
+  [viewId]="viewId()"
+  [sections]="sections()"
+  [rowId]="rowId"
+  [cellText]="cellText"
+  [totals]="totals()"
+  selectionMode="multiple"
+  [selectedIds]="selectedIds()"
+  [selectionLabel]="selectionLabel"
+  selectAllLabel="Seleziona tutte le varianti"
+  (selectionChange)="rowToggle.emit($event.row)"
+  (selectAllChange)="pageToggle.emit($event)"
+>
+  <!--
+    ⭐ **La disponibilità porta il proprio stato**, ed è l'unica cella che lo fa:
+    sotto zero, a zero, o sotto la soglia minima. È il numero per cui si apre
+    questa schermata — quella per cui si decide se riordinare.
+
+    ⚠️ **Il colore non è l'unico segnale**: il numero resta leggibile e il segno
+    meno c'è comunque, come `regole-gestionale` prescrive («vietato usare valori
+    di stock solo come colore»).
+  -->
+  <ng-template appCell="available" let-row>
+    <span
+      class="situation-table__available"
+      [class.situation-table__cell--negative]="row.available < 0"
+      [class.situation-table__cell--empty]="row.available <= 0"
+      [class.situation-table__cell--low]="
+        row.available > 0 && row.minThreshold > 0 && row.available <= row.minThreshold
+      "
+      >{{ row.available }}</span
+    >
+  </ng-template>
+
+  <ng-template appCell="status" let-row>
+    <app-badge [flat]="true" [tone]="statusTone(row.status)">{{
+      statusLabel(row.status)
+    }}</app-badge>
+    <!--
+      La Situazione NON nasconde il cestino: chi ha giacenza si vede, con
+      il badge (docs/24 §6). La decisione «è nel cestino» arriva dal server.
+    -->
+    @if (row.inTrash) {
+      <app-badge [flat]="true" [tone]="trashTone">{{ trashLabel }}</app-badge>
     }
-  </tbody>
-</table>
+  </ng-template>
+  <!--
+    ⭐ **La card di un ELENCO si progetta, non si impila** (`regole-stile-ui`):
+    tre fasce, «a sinistra le parole, a destra i numeri». La grammatica è comune
+    (`styles/_list-card.scss`), il contenuto è di questo elenco.
+  -->
+  <ng-template appRowCard let-row>
+    <div class="list-card__head">
+      <span class="list-card__ident">
+        <span class="list-card__what">{{ row.title }}</span>
+      </span>
+      @if (valoreCard(cellText(row, 'code')); as ancora) {
+        <span class="list-card__anchor">{{ ancora }}</span>
+      }
+    </div>
+
+    <div class="list-card__words">
+      @if (visibile('category')) {
+        <span>{{ cellText(row, 'category') }}</span>
+      }
+      @if (visibile('supplier')) {
+        <span>{{ cellText(row, 'supplier') }}</span>
+      }
+      @if (visibile('status')) {
+        <span>{{ statusLabel(row.status) }}</span>
+      }
+    </div>
+
+    <div class="list-card__figures">
+      @if (visibile('onHand')) {
+        <span class="tabular-nums">Giac. {{ row.onHand }}</span>
+      }
+      @if (visibile('available')) {
+        <span class="list-card__total">Disp. {{ row.available }}</span>
+      }
+    </div>
+  </ng-template>
+</app-data-table>

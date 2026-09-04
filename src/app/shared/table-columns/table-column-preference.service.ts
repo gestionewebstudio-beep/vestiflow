@@ -20,9 +20,9 @@ import {
   resolveVisibleColumns,
   toggleColumnPin,
   toggleColumnVisibility,
-  moveColumn,
   applyPresetToState,
 } from './table-column.util';
+import { ColumnFilterStore } from './column-filter.store';
 import { parseTableViewStateJson } from './table-view-state.util';
 import { TableViewPreferenceApiService } from './table-view-preference-api.service';
 
@@ -39,6 +39,7 @@ export class TableColumnPreferenceService {
   private readonly authService = inject(AuthService);
   private readonly document = inject(DOCUMENT);
   private readonly api = inject(TableViewPreferenceApiService);
+  private readonly filtri = inject(ColumnFilterStore);
 
   private readonly registry = new Map<TableViewId, ViewRegistryEntry>();
   private readonly states = new Map<TableViewId, WritableSignal<TableViewState>>();
@@ -89,11 +90,6 @@ export class TableColumnPreferenceService {
   toggleColumn(viewId: TableViewId, columnId: string): void {
     const current = this.readState(viewId);
     this.commit(viewId, toggleColumnVisibility(current, columnId));
-  }
-
-  moveColumn(viewId: TableViewId, columnId: string, direction: -1 | 1): void {
-    const current = this.readState(viewId);
-    this.commit(viewId, moveColumn(current, columnId, direction));
   }
 
   togglePin(viewId: TableViewId, columnId: string): void {
@@ -154,9 +150,44 @@ export class TableColumnPreferenceService {
   }
 
   private commit(viewId: TableViewId, state: TableViewState): void {
+    const prima = this.states.get(viewId)!();
     this.states.get(viewId)!.set(state);
+    this.spegniFiltriDiColonneNascoste(viewId, prima, state);
     this.persistLocal(viewId, state);
     void this.persistRemote(viewId, state);
+  }
+
+  /**
+   * ⭐ **COLONNA SPENTA DAL SELETTORE COLONNE, FILTRO SPENTO** (`regole-stile-ui`
+   * §5, `14` §0.2).
+   *
+   * ⛔ **La metà che mancava.** Spegnendo una colonna il suo CONTROLLO spariva già
+   * — dall'intestazione, che non c'è più, e dal pannello compatto, che elenca le
+   * sole colonne visibili — ma la RESTRIZIONE restava applicata: l'elenco
+   * continuava a mostrare meno righe per un criterio che non si vedeva più da
+   * nessuna parte, e non c'era modo di toglierlo se non riaccendendo la colonna.
+   *
+   * ⚠️ **Sta in `commit` e non in `toggleColumn`**, perché a nascondere una
+   * colonna ci si arriva da più di una parte: il selettore, un preset che ne
+   * spegne dieci in un colpo, e domani qualunque altra via. Il posto giusto è
+   * dove lo stato cambia, non dove uno dei chiamanti lo cambia.
+   *
+   * ⚠️ **Solo le colonne che diventano nascoste ADESSO**: ripetere la pulizia su
+   * quelle già nascoste riscriverebbe lo stato dei filtri a ogni commit — un
+   * ordinamento di colonne, un fissaggio — e ogni `computed` a valle
+   * ricalcolerebbe per niente.
+   */
+  private spegniFiltriDiColonneNascoste(
+    viewId: TableViewId,
+    prima: TableViewState,
+    dopo: TableViewState,
+  ): void {
+    const giaNascoste = new Set(prima.hiddenColumnIds);
+    for (const columnId of dopo.hiddenColumnIds) {
+      if (!giaNascoste.has(columnId)) {
+        this.filtri.imposta(viewId, { columnId, value: null });
+      }
+    }
   }
 
   private async hydrateFromServer(
@@ -172,13 +203,35 @@ export class TableColumnPreferenceService {
       return;
     }
     const fallback = createDefaultViewState(defs, presets);
+    /*
+      ⛔ **QUI LE LARGHEZZE SPARIVANO AL RICARICAMENTO.** Visto a schermo il
+      01/09/2026, un minuto dopo aver acceso la persistenza: «la larghezza
+      rimane ma se ricarico la pagina con f5, sparisce».
+
+      A cancellarle non era la scrittura — `localStorage` aveva i valori giusti
+      — ma questa riga: il ripiego erano le larghezze **di serie**, cioè `{}`,
+      invece di quelle già caricate dal locale. E `{}` non è nullish, quindi
+      uno stato remoto vuoto vinceva e azzerava.
+
+      ⚠️ **Basta uno stato salvato sul server PRIMA che le larghezze
+      esistessero**, e ce l'ha ogni utente che abbia mai toccato il selettore
+      Colonne: quello stato non porta `columnWidths`, il parser risponde `{}`,
+      e il locale viene buttato via a ogni F5.
+
+      ⭐ **Larghezze remote vuote non sono una scelta di azzerare**: sono un
+      server che di larghezze non sa ancora niente. Quelle che il server porta
+      davvero continuano a vincere — è la sua ultima parola, e arriva dagli
+      altri dispositivi dello stesso utente.
+    */
+    const larghezzeRemote = remote.columnWidths ?? {};
+    const correnti = this.states.get(viewId)?.().columnWidths ?? fallback.columnWidths;
     const merged: TableViewState = reconcileStateWithDefs(
       {
         presetId: remote.presetId ?? PresetId.Default,
         columnOrder: remote.columnOrder?.length ? remote.columnOrder : fallback.columnOrder,
         hiddenColumnIds: remote.hiddenColumnIds ?? [],
         pinnedColumnIds: remote.pinnedColumnIds ?? [],
-        columnWidths: remote.columnWidths ?? fallback.columnWidths,
+        columnWidths: Object.keys(larghezzeRemote).length > 0 ? larghezzeRemote : correnti,
       },
       defs,
     );

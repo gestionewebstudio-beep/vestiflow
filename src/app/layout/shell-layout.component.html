@@ -3,23 +3,37 @@
   [class.shell--drawer-open]="drawerOpen()"
   [class.shell--support-banner]="showSupportSessionBanner()"
 >
-  <app-pwa-update-banner />
-  @if (showShopifyErrorBanner()) {
-    <div class="shell__shopify-banner" role="status">
-      <p class="shell__shopify-banner-text">
-        <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
-        Sync Shopify: {{ shopifyErrorBannerMessage() }}
-        <a class="shell__shopify-banner-link" routerLink="/app/settings">Apri impostazioni</a>
-      </p>
-      <button
-        type="button"
-        class="shell__shopify-banner-dismiss"
-        (click)="dismissShopifyErrorBanner()"
-      >
-        Chiudi
-      </button>
-    </div>
-  }
+  <!--
+    ⛔ **Questi due avvisi finivano IN FONDO alla pagina**, sotto il riepilogo,
+    su ogni schermata. Erano i primi figli nel DOM ma senza `grid-area`: la
+    griglia della shell ha aree nominate — `topbar`, `content`, `sidebar` — e
+    chi non ne dichiara una finisce in una riga IMPLICITA, creata dopo quelle
+    nominate. Cioè in coda.
+
+    ⚠️ È la stessa malattia della griglia posizionale già trovata altrove: il
+    posto assegnato dalla struttura invece che dall'identità. Qui il rimedio è
+    l'identità — una riga `banners` con il suo nome, e i due avvisi dentro.
+  -->
+  <div class="shell__banners">
+    <app-pwa-update-banner />
+    @if (showShopifyErrorBanner()) {
+      <div class="shell__shopify-banner" role="status">
+        <p class="shell__shopify-banner-text">
+          <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+          Sync Shopify: {{ shopifyErrorBannerMessage() }}
+          <a class="shell__shopify-banner-link" routerLink="/app/settings">Apri impostazioni</a>
+        </p>
+        <button
+          type="button"
+          class="shell__shopify-banner-dismiss"
+          (click)="dismissShopifyErrorBanner()"
+        >
+          Chiudi
+        </button>
+      </div>
+    }
+  </div>
+
   <!-- Topbar persistente: dumb, parla allo shell via output(). -->
   <header class="shell__topbar">
     <app-topbar

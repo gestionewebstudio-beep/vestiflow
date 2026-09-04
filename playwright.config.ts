@@ -81,7 +81,12 @@ export default defineConfig({
         storageState: mockAuthFile,
       },
       dependencies: ['mock-setup'],
-      testMatch: /ci-smoke\.spec\.ts$/,
+      /*
+        ⭐ **`filtri-colonna` sta qui perché è una prova di RESA**: misura il
+        riquadro di una tendina aperta dentro una tabella, cioè l'unica cosa che
+        nessuna prova di componente può vedere — jsdom non dipinge.
+      */
+      testMatch: /(ci-smoke|filtri-colonna)\.spec\.ts$/,
     },
     ...authenticatedProjects,
   ],

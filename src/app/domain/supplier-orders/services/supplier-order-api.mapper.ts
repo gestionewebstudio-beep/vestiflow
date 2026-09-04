@@ -13,6 +13,7 @@ export interface SupplierOrderLineApiRow {
   readonly variantId: EntityId;
   readonly sku: string;
   readonly description?: string | null;
+  readonly variantLabel?: string | null;
   readonly orderedQuantity: number;
   readonly receivedQuantity: number;
   /**
@@ -20,9 +21,9 @@ export interface SupplierOrderLineApiRow {
    * numeri. Il tipo lo dichiara invece di nasconderlo, così chi le legge non
    * può dimenticare la conversione (vedi `mapLine`).
    */
-  readonly unitCostMinor: number | string;
-  readonly enteredUnitCostMinor?: number | string | null;
-  readonly discountPercent?: number | string;
+  readonly unitCostMinor: number;
+  readonly enteredUnitCostMinor?: number | null;
+  readonly discountPercent?: number;
   readonly vatCodeId?: string | null;
   readonly vatSnapshot?: Partial<VatSnapshot> | null;
   readonly lineTotalMinor?: number;
@@ -66,7 +67,6 @@ export interface SupplierOrderApiRow {
   readonly createdAt: IsoDateString;
   readonly updatedAt: IsoDateString;
   readonly lines: readonly SupplierOrderLineApiRow[];
-  readonly lineCount?: number;
   readonly linkedDocuments?: readonly SupplierOrderLinkedDocumentApiRow[];
 }
 
@@ -75,7 +75,16 @@ function mapLine(row: SupplierOrderLineApiRow, currency: CurrencyCode): Supplier
     id: row.id,
     variantId: row.variantId,
     sku: row.sku,
+    // ⚠️ Il ripiego sullo SKU resta, ed è per le righe SALVATE PRIMA che la
+    // colonna avesse un valore: una riga senza descrizione mostrerebbe una
+    // cella vuota dove l'articolo dovrebbe esserci. Non è un ripiego sul
+    // titolo del catalogo — quello portava dentro la variante ed è stato tolto.
     description: row.description ?? row.sku,
+    // L'etichetta della variante fotografata sulla riga. Vuota sulle righe
+    // salvate prima della colonna: è corretto, non un dato mancante — quelle
+    // righe la variante ce l'hanno impastata nella descrizione, e riscriverle
+    // significherebbe riscrivere documenti emessi.
+    variantLabel: row.variantLabel ?? '',
     orderedQuantity: row.orderedQuantity,
     receivedQuantity: row.receivedQuantity,
     // Colonne NUMERIC: Prisma le serializza come STRINGHE ("411.4754"), quindi
@@ -118,6 +127,14 @@ function mapLinkedDocument(row: SupplierOrderLinkedDocumentApiRow): SupplierOrde
  * già risolta dalla cascata («4+10%» → 13,6).
  */
 export interface CreateSupplierOrderLineBody {
+  /**
+   * Identità della riga già salvata. **Assente = riga NUOVA.**
+   *
+   * ⭐ Il server aggiorna la riga invece di ricrearla, e conserva quello che
+   * ci si aggancia: il Ricevuto e il legame con l’Arrivo merce. Senza questo
+   * campo il salvataggio ricreava tutte le righe con id nuovi.
+   */
+  readonly id?: EntityId;
   readonly variantId: EntityId;
   readonly description?: string;
   readonly orderedQuantity: number;
@@ -130,6 +147,18 @@ export interface CreateSupplierOrderLineBody {
 /** Body POST /supplier-orders. */
 export interface CreateSupplierOrderBody {
   readonly supplierId: EntityId;
+  /**
+   * Stato del ciclo commerciale scelto dall’operatore (`17` §2.1).
+   *
+   * ⛔ **`concluded` non è ammesso**: è derivato dal collegamento a un
+   * Arrivo merce e lo ricalcola il server. L’API lo rifiuta con 409.
+   *
+   * ⚠️ **Assente = non modificato.** Su un ordine Concluso il campo è
+   * bloccato e la maschera non manda niente: mandare lo stato che il
+   * controllo porta — che l’operatore non ha scelto — farebbe rifiutare
+   * il salvataggio e renderebbe l’ordine non modificabile in nulla.
+   */
+  readonly status?: 'to_confirm' | 'confirmed' | 'cancelled';
   readonly orderDate?: string;
   readonly expectedAt?: string;
   readonly supplierReference?: string;
@@ -182,7 +211,6 @@ export function mapSupplierOrderApiRow(row: SupplierOrderApiRow): SupplierOrder 
     externalDocumentTypeSnapshot: row.externalDocumentTypeSnapshot ?? undefined,
     documentDiscountPercent: row.documentDiscountPercent ?? undefined,
     lines: row.lines.map((line) => mapLine(line, row.currency)),
-    lineCount: row.lineCount,
     subtotal: { amountMinor: row.subtotalMinor ?? row.totalMinor, currencyCode: row.currency },
     tax: { amountMinor: row.taxMinor ?? 0, currencyCode: row.currency },
     totalAmount: { amountMinor: row.totalMinor, currencyCode: row.currency },

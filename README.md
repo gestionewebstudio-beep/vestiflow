@@ -23,11 +23,19 @@
 > | vedere cosa manca               | `npx prisma migrate status`             |
 > | scrivere una migration nuova    | vedi sotto                              |
 >
-> **Scrivere una migration senza toccare il database**: modifica `prisma/schema.prisma`,
-> poi genera l'SQL con
-> `npx prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --script`,
-> mettilo in `prisma/migrations/<AAAAMMGGhhmmss>_<nome>/migration.sql` **con un commento
+> ⛔ **Qui c'era `npx prisma migrate diff --from-schema-datasource …`, e va NON usato.**
+> Su questo database CONDIVISO quel comando fa una domanda dichiarativa — «quale SQL rende
+> il database identico a questo file?» — e tutto ciò che sta nel database senza stare nello
+> schema, per definizione dello strumento, è roba da togliere. Chiesto di aggiungere una
+> colonna, l'11/08/2026 ha risposto con oltre quaranta istruzioni, `DROP` di `cash_sessions`,
+> `fiscal_receipts` e `pos_terminals` comprese: le tabelle del ramo del collega.
+>
+> **Una migration nuova si scrive a mano**, davvero a mano: modifica `prisma/schema.prisma`,
+> scrivi l’SQL in `prisma/migrations/<AAAAMMGGhhmmss>_<nome>/migration.sql` **con un commento
 > che dica perché**, e applicalo con `npm run prisma:deploy`.
+>
+> ⚠️ Il dettaglio completo, con la ragione per cui `prisma migrate status` **non** se ne
+> accorge, sta in `.claude/rules/regole-qualita.md` §«Un quarto comando vietato».
 >
 > Due protezioni sono già in piedi, ma **nessuna delle due ferma un terminale**:
 > `.claude/settings.json` blocca quei comandi nelle sessioni Claude Code, e

@@ -8,6 +8,7 @@ import {
   resolveDocumentIssuer,
 } from '../common/company/document-issuer.util';
 import { serializeItalianExcelCsv } from '../common/csv.util';
+import { serializeExcel2003Xml } from '../common/spreadsheet.util';
 import { formatMinorAmount } from '../common/pdf/money-format.util';
 import { renderPdfToBuffer, sanitizePdfFilename } from '../common/pdf/pdf-buffer.util';
 import {
@@ -211,7 +212,10 @@ export class CorrispettiviExportService {
     private readonly corrispettivi: CorrispettiviService,
   ) {}
 
-  async exportAccountantCsv(tenantId: string, query: ListCorrispettiviQueryDto): Promise<string> {
+  async exportAccountantCsv(
+    tenantId: string,
+    query: ListCorrispettiviQueryDto,
+  ): Promise<string> {
     const rows = await this.buildAccountantRows(tenantId, query);
     return serializeItalianExcelCsv(CORRISPETTIVI_ACCOUNTANT_HEADERS, rows);
   }
@@ -225,7 +229,7 @@ export class CorrispettiviExportService {
     // configurate e raggruppamento compresi. Il CSV, subito sopra, no — è
     // l'export DATI, e le sue dodici colonne storiche non si spostano.
     const { headers, righe } = await this.buildViewRows(tenantId, query);
-    return serializeExcel2003Xml(headers, righe);
+    return serializeExcel2003Xml('Corrispettivi', headers, righe);
   }
 
   async exportAccountantPdf(
@@ -534,49 +538,4 @@ function formatCorrispettiviPeriodLabel(query: ListCorrispettiviQueryDto): strin
     return `Al ${ROME_DATE_FORMAT.format(new Date(query.placedTo))}`;
   }
   return 'Tutto il periodo';
-}
-
-function escapeXml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
-
-function serializeExcel2003Xml(
-  headers: readonly string[],
-  rows: readonly Record<string, string>[],
-): string {
-  const headerCells = headers
-    .map((header) => `<Cell><Data ss:Type="String">${escapeXml(header)}</Data></Cell>`)
-    .join('');
-  const dataRows = rows
-    .map((row) => {
-      const cells = headers
-        .map((header) => {
-          const value = row[header] ?? '';
-          return `<Cell><Data ss:Type="String">${escapeXml(value)}</Data></Cell>`;
-        })
-        .join('');
-      return `<Row>${cells}</Row>`;
-    })
-    .join('');
-
-  return (
-    '<?xml version="1.0"?>\n' +
-    '<?mso-application progid="Excel.Sheet"?>\n' +
-    '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"\n' +
-    ' xmlns:o="urn:schemas-microsoft-com:office:office"\n' +
-    ' xmlns:x="urn:schemas-microsoft-com:office:excel"\n' +
-    ' xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">\n' +
-    '<Worksheet ss:Name="Corrispettivi">\n' +
-    '<Table>\n' +
-    `<Row>${headerCells}</Row>\n` +
-    `${dataRows}\n` +
-    '</Table>\n' +
-    '</Worksheet>\n' +
-    '</Workbook>'
-  );
 }

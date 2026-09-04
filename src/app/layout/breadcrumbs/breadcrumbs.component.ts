@@ -42,17 +42,17 @@ const SEGMENT_LABELS: Readonly<Record<string, string>> = {
   registro: 'Registro documenti',
   'arrivi-merce': 'Arrivi merce',
   'goods-receipt': 'Arrivo merce',
-  'registrazione-fattura': 'Registrazioni fattura',
+  'registrazioni-fatture-fornitori': 'Reg. fatture fornitori',
   transfer: 'Trasferimento',
   adjustment: 'Rettifica',
-  'manual-unload': 'Scarico manuale giacenze',
+  'vendita-manuale': 'Vendite manuali',
   proforma: 'Proforma',
   fattura: 'Fatture',
   'fattura-accompagnatoria': 'Fattura accompagnatoria',
   // Senza questa voce il segmento usciva grezzo — «nota-di-credito», trattini
   // compresi: un segmento sconosciuto ricade su `decodeURIComponent`.
   'nota-di-credito': 'Nota di credito',
-  'sales-ddt': 'DDT vendita',
+  'ddt-vendita': 'DDT vendita',
   quote: 'Preventivi',
   'codici-iva': 'Codici IVA',
   pagamenti: 'Modalità di pagamento',
@@ -78,9 +78,9 @@ const LINKABLE_PATHS: ReadonlySet<string> = new Set([
   '/app/documents/arrivi-merce',
   '/app/documents/quote',
   '/app/documents/proforma',
-  '/app/documents/sales-ddt',
-  '/app/documents/manual-unload',
-  '/app/documents/registrazione-fattura',
+  '/app/documents/ddt-vendita',
+  '/app/documents/vendita-manuale',
+  '/app/documents/registrazioni-fatture-fornitori',
   '/app/documents/fattura',
   '/app/sales',
   '/app/vendita-al-banco',
@@ -241,7 +241,7 @@ export class BreadcrumbsComponent {
     }
 
     // Registro filtrato per tipologia: l'etichetta finale e' quella della
-    // card hub (es. «Registro vendite negozio»), piu' parlante del generico.
+    // card hub (es. «Registro vendite al banco»), piu' parlante del generico.
     const type = params.get('type');
     const registroLabel = type ? REGISTRO_TYPE_LABELS[type] : undefined;
     if (registroLabel && segments.at(-1) === 'registro') {

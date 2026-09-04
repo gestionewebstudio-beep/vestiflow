@@ -17,7 +17,7 @@ export const DOCUMENT_TYPES: readonly DocumentType[] = [
   DocumentType.inventory,
   DocumentType.quote,
   DocumentType.proforma,
-  DocumentType.invoice_draft,
+  DocumentType.invoice,
   DocumentType.invoice_accompanying,
   DocumentType.credit_note,
   DocumentType.store_sale,
@@ -48,7 +48,7 @@ export function isInternalOnlyDocumentType(type: DocumentType): boolean {
 }
 
 /**
- * Tipi documento creati SOLO dal flusso dedicato (fase 3: cassa negozio).
+ * Tipi documento creati SOLO dal flusso dedicato (fase 3: vendita al banco).
  * Sono documenti reali con righe, ma non passano da POST /documents: la
  * creazione avviene in StoreSalesService con movimenti nella stessa
  * transazione. Modifica/annullamento generici bloccati per coerenza stock.
@@ -86,7 +86,7 @@ export function isDedicatedWorkflowDocumentType(type: DocumentType): boolean {
  * (Ordine cliente) e `supplier_orders` (Ordine fornitore).
  *
  * Esclusi:
- * - `invoice_accompanying`: condivide il numeratore con `invoice_draft`
+ * - `invoice_accompanying`: condivide il numeratore con `invoice`
  *   (vedi documentNumberingType), quindi un solo contatore la copre.
  * - il tipo interno `online_sale`: già fuori da DOCUMENT_TYPES.
  * - gli ordini di canale (Shopify/POS) non hanno contatore: il numero è del
@@ -128,8 +128,8 @@ export const DEFAULT_NUMBER_PREFIX: Readonly<Record<DocumentType, string>> = {
   [DocumentType.adjustment]: 'RET',
   [DocumentType.inventory]: 'INV',
   [DocumentType.proforma]: 'PRO',
-  [DocumentType.invoice_draft]: 'FT',
-  // Numeratore condiviso con `invoice_draft`: il prefisso qui è solo il
+  [DocumentType.invoice]: 'FT',
+  // Numeratore condiviso con `invoice`: il prefisso qui è solo il
   // fallback usato se il numeratore della Fattura non è personalizzato.
   [DocumentType.invoice_accompanying]: 'FT',
   // Stesso numeratore, stesso fallback: il progressivo è uno solo per i tre
@@ -168,13 +168,13 @@ export const DEFAULT_PRINT_TITLE: Readonly<Record<DocumentType, string>> = {
   [DocumentType.adjustment]: 'Rettifica inventario',
   [DocumentType.inventory]: 'Inventario fisico',
   [DocumentType.proforma]: 'Proforma - documento non fiscale',
-  [DocumentType.invoice_draft]: 'Fattura',
+  [DocumentType.invoice]: 'Fattura',
   [DocumentType.invoice_accompanying]: 'Fattura accompagnatoria',
   [DocumentType.credit_note]: 'Nota di credito',
   [DocumentType.online_sale]: 'Vendita online',
   [DocumentType.customer_order]: 'Ordine cliente',
-  [DocumentType.store_sale]: 'Vendita in negozio',
-  [DocumentType.store_return]: 'Reso vendita al banco',
+  [DocumentType.store_sale]: 'Vendita al banco',
+  [DocumentType.store_return]: 'Reso al banco',
   [DocumentType.quote]: 'Preventivo',
 };
 

@@ -18,6 +18,9 @@ export interface ShopifyScopeDiagnosticsDto {
   readonly missingFromGrant: readonly string[];
   readonly missingForCatalogImport: readonly string[];
   readonly catalogImportBlockedReason: 'none' | 'not_requested' | 'not_granted';
+  /** Ambiti publication mancanti (canali di vendita, Tranche 2A). */
+  readonly missingForPublications: readonly string[];
+  readonly publicationsBlockedReason: 'none' | 'not_requested' | 'not_granted';
 }
 
 export interface ShopifyConnectionDto {

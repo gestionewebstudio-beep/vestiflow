@@ -12,6 +12,8 @@ export interface ProductFilters {
   readonly brand?: string;
   readonly season?: string;
   readonly status?: ProductStatus;
+  /** Vista amministrativa Cestino: SOLO gli elementi nel cestino (docs/24 §6). */
+  readonly trash?: boolean;
 }
 
 /** Filtri per export CSV (stessi filtri lista, senza paginazione). */
@@ -34,8 +36,14 @@ export interface ProductFilterOptions {
 /** Dimensione pagina di default per la lista prodotti. */
 export const DEFAULT_PRODUCT_PAGE_SIZE = 10;
 
-/** Dimensioni pagina selezionabili dall'utente. */
-export const PRODUCT_PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
+/*
+  ⚠️ **Non è più esportata**: dal 30/08/2026 l'elenco prodotti non impagina, e
+  nessuna schermata offre più di scegliere quante righe per pagina. Le tre
+  opzioni restano perché `parsePageSize` deve continuare a rifiutare i valori
+  arbitrari che arrivano dalla query string — un indirizzo salvato nei preferiti
+  con `?pageSize=99999` non deve diventare una richiesta valida.
+*/
+const PRODUCT_PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
 
 /** Default applicati quando un parametro manca o non e' valido. */
 export const DEFAULT_PRODUCT_SORT: ProductSortField = 'name';

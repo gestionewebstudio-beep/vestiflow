@@ -26,6 +26,9 @@ import {
   resolveOperationalLocationScope,
 } from './licensed-location-scope.util';
 import { assertUserCanAccessLocation } from './user-location-scope.util';
+import { frozenTotalCostMinor } from './movement-cost.util';
+import { pageWindow } from '../common/dto/unpaged.util';
+
 import type { Paginated } from '../common/dto/pagination.dto';
 import type {
   ListInventoryLevelsQueryDto,
@@ -38,6 +41,19 @@ import {
   collectOnlineSaleLookupIds,
   resolveMovementDocumentReference,
 } from './movement-document-reference.util';
+
+/**
+ * Il movimento come ESCE dall'API: i due costi sono `null` per chi non ha
+ * «Visualizza costi d'acquisto».
+ *
+ * ⚠️ Quel `null` non è un costo assente — un costo canonico vale zero e non è
+ * mai NULL in colonna (`regole-gestionale`). Significa **non visibile**, ed è
+ * per questo che vive nel tipo di RISPOSTA e non nel modello dati.
+ */
+export type StockMovementResponse = Omit<StockMovement, 'unitCostMinor' | 'totalCostMinor'> & {
+  unitCostMinor: StockMovement['unitCostMinor'] | null;
+  totalCostMinor: StockMovement['totalCostMinor'] | null;
+};
 
 export type InventoryLevelWithRefs = InventoryLevel & {
   variant: {
@@ -132,8 +148,8 @@ export class InventoryService {
           location: { select: LEVEL_LOCATION_INCLUDE },
         },
         orderBy: { updatedAt: 'desc' },
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
+        // ⚠️ Con `all=1` la finestra deve SPARIRE, non diventare grande.
+        ...pageWindow(query),
       }),
       this.prisma.inventoryLevel.count({ where }),
     ]);
@@ -220,10 +236,7 @@ export class InventoryService {
       for (const location of locations) {
         const key = `${variant.id}|${location.id}`;
         const existing = levelByKey.get(key);
-        rows.push(
-          existing ??
-            this.buildVirtualInventoryLevel(tenantId, variant, location),
-        );
+        rows.push(existing ?? this.buildVirtualInventoryLevel(tenantId, variant, location));
       }
     }
 
@@ -280,7 +293,7 @@ export class InventoryService {
     tenantId: string,
     query: ListMovementsQueryDto,
     user?: UserProfileDto,
-  ): Promise<Paginated<StockMovement>> {
+  ): Promise<Paginated<StockMovementResponse>> {
     const scope = await resolveOperationalLocationScope(
       this.prisma,
       tenantId,
@@ -331,9 +344,11 @@ export class InventoryService {
     const [rawItems, total] = await this.prisma.$transaction([
       this.prisma.stockMovement.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
+        // ⚠️ `id` è lo SPAREGGIO, non decorazione: nel registro esistono movimenti
+        // che condividono l'istante esatto (una riga per riga di documento, salvate
+        // insieme). Senza, l'ordine fra pari è quello che capita, e due letture
+        // dello stesso periodo possono restituirli in ordine diverso.
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         include: {
           variant: { select: { product: { select: { name: true, articleCode: true } } } },
         },
@@ -368,6 +383,12 @@ export class InventoryService {
       ...movement,
       ...(showPurchaseCosts ? {} : { unitCostMinor: null, totalCostMinor: null }),
       productTitle: variant?.product?.name ?? null,
+      // ⚠️ `articleCode` vive sul PRODOTTO, non sul movimento: la destrutturazione
+      // `{ variant, ...movement }` lo lasciava fuori, e la colonna «Codice» del
+      // registro mostrava «—» su ogni riga — con l'export che ne esportava una
+      // vuota. Era invisibile perché un trattino sembra un dato mancante, non un
+      // campo perso per strada.
+      articleCode: variant?.product?.articleCode ?? null,
       documentReference: resolveMovementDocumentReference(
         movement,
         documentRefById,
@@ -375,7 +396,11 @@ export class InventoryService {
       ),
     }));
 
-    return { items, total, page: query.page, pageSize: query.pageSize };
+    // ⛔ Il registro NON pagina: `items` è l'intero risultato del filtro, e a
+    // delimitarlo è il PERIODO — la maschera entra sugli ultimi trenta giorni.
+    // La forma `Paginated` resta per il contratto condiviso; `page` e `pageSize`
+    // descrivono ciò che è stato restituito, non un comando che qualcuno ha dato.
+    return { items, total, page: 1, pageSize: items.length };
   }
 
   /** Operatori distinti (snapshot createdByName) per il filtro Operatore. */
@@ -420,7 +445,7 @@ export class InventoryService {
     const movement = await this.prisma.$transaction(async (tx) => {
       const variant = await tx.productVariant.findFirst({
         where: { id: dto.variantId, tenantId },
-        select: { id: true, sku: true },
+        select: { id: true, sku: true, purchasePriceMinor: true },
       });
       if (!variant) {
         throw new NotFoundException('Variante non trovata');
@@ -430,6 +455,7 @@ export class InventoryService {
         await this.assertLocationExists(tx, tenantId, dto.targetLocationId);
       }
 
+      const costoCorrente = Number(variant.purchasePriceMinor);
       const delta = this.sourceDelta(dto);
       await this.applyDelta(tx, tenantId, dto.variantId, dto.locationId, delta);
       if (dto.type === StockMovementType.transfer && dto.targetLocationId) {
@@ -448,6 +474,13 @@ export class InventoryService {
           quantity: dto.quantity,
           direction: dto.type === StockMovementType.adjustment ? dto.direction : null,
           reason: dto.reason,
+          // Costo congelato = costo corrente della variante, la stessa regola
+          // dei movimenti di vendita («il costo effettivo della variante ORA»).
+          // Qui il DTO non porta un costo proprio, e la fotografia utile è
+          // quella dell'anagrafica al momento del movimento — zero se l'articolo
+          // non ha costo, che è un costo, non un'assenza.
+          unitCostMinor: costoCorrente,
+          totalCostMinor: frozenTotalCostMinor(costoCorrente, dto.quantity),
           createdById: actorUserId ?? null,
           createdByName: actorDisplayName.trim() || 'Utente',
         },
@@ -555,16 +588,11 @@ export class InventoryService {
           const delta = dto.type === StockMovementType.load ? quantity : -quantity;
           await applyInventoryDelta(tx, tenantId, line.variantId, dto.locationId, delta);
           if (dto.type === StockMovementType.transfer && dto.targetLocationId) {
-            await applyInventoryDelta(
-              tx,
-              tenantId,
-              line.variantId,
-              dto.targetLocationId,
-              quantity,
-            );
+            await applyInventoryDelta(tx, tenantId, line.variantId, dto.targetLocationId, quantity);
           }
         }
 
+        const costoRigaMinor = line.unitAmountMinor ?? 0;
         await tx.stockMovement.create({
           data: {
             tenantId,
@@ -573,14 +601,16 @@ export class InventoryService {
             variantId: line.variantId,
             sku: variant.sku ?? '',
             locationId: dto.locationId,
-            targetLocationId:
-              dto.type === StockMovementType.transfer ? dto.targetLocationId : null,
+            targetLocationId: dto.type === StockMovementType.transfer ? dto.targetLocationId : null,
             quantity,
             direction,
             reason,
             partyId: dto.partyId ?? null,
             partyName: dto.partyName?.trim() || null,
-            unitCostMinor: line.unitAmountMinor ?? null,
+            // Il CSV può portare il costo della riga; se non c'è, il costo è
+            // zero — non «sconosciuto» (`regole-gestionale`).
+            unitCostMinor: costoRigaMinor,
+            totalCostMinor: frozenTotalCostMinor(costoRigaMinor, quantity),
             ...(createdAt ? { createdAt } : {}),
             ...actor,
           },
@@ -669,7 +699,7 @@ export class InventoryService {
     tenantId: string,
     id: string,
     minThreshold: number,
-    user?: UserProfileDto,
+    user: UserProfileDto,
   ): Promise<InventoryLevelWithRefs> {
     const level = await this.prisma.inventoryLevel.findFirst({
       where: { id, tenantId },

@@ -52,8 +52,13 @@
     flex: 0.55 1 15rem;
     min-inline-size: 0;
     align-content: start;
-    // Nella banda sticky i campi note si affiancano per contenere l'altezza
-    // (Arrivo merce ne ha due: note + commento interno; l'ordine cliente uno).
+    // Nella banda sticky i campi note si affiancano per contenere l'altezza.
+    //
+    // ⛔ Qui c'era «Arrivo merce ne ha due: note + commento interno; l'ordine
+    // cliente uno». **Misurato il 02/09/2026: le hanno tutte e sei** — arrivo
+    // merce, registrazione fattura, fatture, movimento, trasferimento e ordine
+    // cliente passano tutte `internalId`. Il ramo a un campo solo non lo
+    // percorre più nessuno.
     grid-template-columns: repeat(auto-fit, minmax(var(--space-24), 1fr));
     gap: var(--space-2) var(--space-3);
   }
@@ -68,11 +73,18 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  // Una spunta in coda alle note occupa la riga intera, non una colonnina.
-  .doc-form__footer-notes > .doc-form__check {
-    grid-column: 1 / -1;
-    align-items: center;
-  }
+  // ⛔ Qui c'era `.doc-form__footer-notes > .doc-form__check { grid-column: 1 / -1 }`
+  // — «una spunta in coda alle note occupa la riga intera». **Non agganciava
+  // niente**, ed è il difetto muto che questo progetto combatte: le uniche due
+  // spunte del piede (Arrivo merce, costo e prezzi in anagrafica) erano proiettate
+  // DENTRO `app-document-notes`, quindi non figlie dirette. `display: contents`
+  // le faceva partecipare alla GRIGLIA ma non le rendeva raggiungibili dal `>`:
+  // finivano in una colonnina, col testo a capo su quattro righe.
+  //
+  // Il 02/09/2026 sono salite in testata e nessun `.doc-form__check` è più figlio
+  // di questa griglia — misurato su tutte e sei le maschere documentali. Se una
+  // spunta dovesse tornare qui, va rimessa la regola E va verificata a schermo:
+  // se è proiettata, non basta.
 
   // Le caselle riempiono la riga della griglia: con label di altezza diversa
   // (la coda del «commento interno») i fondi restano comunque allineati.
@@ -80,14 +92,24 @@
     flex: 1 1 auto;
   }
 
-  // Con più campi le caselle sono GEMELLE: stessa altezza (più generosa del
-  // tetto standard) e ancorate al fondo della riga — con label di altezza
-  // diversa si allineano sia i bordi superiori che quelli inferiori, e il
-  // pannello cresce quanto serve.
+  // Le caselle sono GEMELLE: stessa altezza e ancorate al fondo della riga —
+  // con label di altezza diversa si allineano sia i bordi superiori che quelli
+  // inferiori.
+  //
+  // ⛔ **Erano 96px (`--space-24`), «più generose del tetto standard».** Due
+  // difetti in una riga, corretti il 02/09/2026:
+  //
+  // 1. `regole-stile-ui` §7 dichiara «textarea min-height ~44px, **max ~90px**»:
+  //    96 sforava il tetto della regola, e nessun controllo lo vedeva.
+  // 2. La stessa textarea ha già `min-height: calc(var(--space-8) * 2)` (64px)
+  //    in `_document-form.scss`: due altezze per lo stesso elemento, e quella
+  //    che vinceva era la più alta. Ora è una sola.
+  //
+  // ⭐ Il piede scende di 32px e li prende il contenitore righe, che è dove
+  //    l'operatore lavora — richiesta del proprietario, 02/09/2026.
   .doc-form__footer-notes:has(> .doc-form__field:nth-of-type(2)) .doc-form__textarea {
     flex: 0 0 auto;
     margin-block-start: auto;
-    min-block-size: var(--space-24);
     max-block-size: none;
   }
 

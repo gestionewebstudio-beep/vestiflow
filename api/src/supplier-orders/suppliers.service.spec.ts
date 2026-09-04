@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
@@ -72,8 +72,8 @@ describe('SuppliersService', () => {
       delete: vi.fn(),
     },
     vatCode: { findFirst: vi.fn() },
-    supplierOrder: { count: vi.fn() },
-    document: { count: vi.fn() },
+    supplierOrder: { count: vi.fn(), updateMany: vi.fn() },
+    document: { count: vi.fn(), updateMany: vi.fn() },
     productVariant: { findFirst: vi.fn() },
     supplierVariantLink: {
       findMany: vi.fn(),
@@ -152,17 +152,47 @@ describe('SuppliersService', () => {
     );
   });
 
-  it('delete blocca se ci sono ordini collegati', async () => {
+  /**
+   * ⭐ **Eliminare un fornitore non tocca la sua storia** — decisione del
+   * proprietario, 30/08/2026, la stessa già applicata ai clienti.
+   *
+   * ⛔ **Qui si verificava il contrario**: «delete blocca se ci sono ordini
+   * collegati». Quel blocco significava non poter mai togliere un fornitore con
+   * cui si avesse lavorato — cioè proprio quelli che si vuole togliere.
+   *
+   * ⚠️ Il test non è stato cancellato: presidiava un comportamento, e il
+   * comportamento è cambiato per decisione. Ora presidia quello nuovo, che è più
+   * difficile da tenere: **si scrive solo `supplierId: null`, mai il nome**.
+   */
+  it('⭐ ordini e documenti perdono il COLLEGAMENTO, non il nome', async () => {
     prisma.supplier.findFirst.mockResolvedValue(supplierRow());
-    prisma.supplierOrder.count.mockResolvedValue(1);
-    prisma.document.count.mockResolvedValue(0);
-    await expect(service.delete(tenantId, 'sup-1')).rejects.toBeInstanceOf(ConflictException);
+
+    await service.delete(tenantId, 'sup-1');
+
+    /*
+      ⛔ Se un giorno qualcuno aggiungesse `supplierName: null` allo stesso
+      `data`, ordini e documenti storici perderebbero il nome del fornitore — ed è
+      esattamente ciò che la decisione vieta.
+    */
+    for (const modello of [prisma.document, prisma.supplierOrder]) {
+      expect(modello.updateMany).toHaveBeenCalledWith({
+        where: { tenantId, supplierId: 'sup-1' },
+        data: { supplierId: null },
+      });
+    }
+    expect(prisma.supplier.delete).toHaveBeenCalledWith({ where: { id: 'sup-1' } });
+  });
+
+  it('⭐ si elimina ANCHE con ordini collegati: lo storico non lo impedisce', async () => {
+    prisma.supplier.findFirst.mockResolvedValue(supplierRow());
+    prisma.supplierOrder.count.mockResolvedValue(7);
+
+    await expect(service.delete(tenantId, 'sup-1')).resolves.toBeUndefined();
+    expect(prisma.supplier.delete).toHaveBeenCalled();
   });
 
   it('delete di un ruolo senza ruolo cliente elimina anche il soggetto', async () => {
     prisma.supplier.findFirst.mockResolvedValue(supplierRow());
-    prisma.supplierOrder.count.mockResolvedValue(0);
-    prisma.document.count.mockResolvedValue(0);
     await service.delete(tenantId, 'sup-1');
     expect(prisma.supplier.delete).toHaveBeenCalledWith({ where: { id: 'sup-1' } });
     expect(prisma.party.delete).toHaveBeenCalledWith({ where: { id: 'party-1' } });
@@ -174,8 +204,6 @@ describe('SuppliersService', () => {
         party: { ...supplierRow().party, customerRole: { id: 'cust-3', isActive: true } },
       }),
     );
-    prisma.supplierOrder.count.mockResolvedValue(0);
-    prisma.document.count.mockResolvedValue(0);
     await service.delete(tenantId, 'sup-1');
     expect(prisma.supplier.delete).toHaveBeenCalledWith({ where: { id: 'sup-1' } });
     expect(prisma.party.delete).not.toHaveBeenCalled();
@@ -244,7 +272,7 @@ describe('SuppliersService', () => {
       expect(customers.setCustomerRoleForSupplier).toHaveBeenCalledWith(tenantId, 'sup-1', true);
     });
 
-    it('crea: il titolare passa anche con l\'elenco permessi vuoto', async () => {
+    it("crea: il titolare passa anche con l'elenco permessi vuoto", async () => {
       arrangeCreazione();
       await service.create(tenantId, { name: 'Fornitore', alsoCustomer: true }, titolare);
       expect(titolare.permissions).toEqual([]);
@@ -375,7 +403,7 @@ describe('SuppliersService', () => {
       ]);
     }
 
-    function costi(rows: readonly { lastPurchasePriceMinor: number | null }[]): (number | null)[] {
+    function costi(rows: readonly { lastPurchasePriceMinor: unknown }[]): unknown[] {
       return rows.map((row) => row.lastPurchasePriceMinor);
     }
 
@@ -478,5 +506,71 @@ describe('SuppliersService', () => {
      *   expect(link.lastPurchasePriceMinor).toBe(PREZZO_ACQUISTO_LINK_1);
      * });
      */
+  });
+
+  /**
+   * ⭐ **Duplicare crea un SOGGETTO NUOVO, non un gemello.**
+   *
+   * ⛔ La regola che questi test tengono è una sola, e il difetto che
+   * previene è grave: **partita IVA e codice fiscale non si copiano**. Due
+   * anagrafiche con la stessa partita IVA non sono una copia, sono un errore —
+   * e chi duplica sta creando una sede, una società collegata, comunque un
+   * soggetto diverso.
+   */
+  describe('duplicazione della scheda', () => {
+    beforeEach(() => {
+      prisma.party.create.mockImplementation(async ({ data }: { data: unknown }) => ({
+        id: 'party-copia',
+        ...(data as Record<string, unknown>),
+      }));
+      prisma.supplier.create.mockResolvedValue({ id: 'sup-copia' });
+    });
+
+    it('⛔ partita IVA e codice fiscale NON si copiano', async () => {
+      prisma.supplier.findFirst.mockResolvedValue(
+        supplierRow({
+          party: { ...supplierRow().party, vatNumber: 'IT01234567890', taxCode: 'RSSMRA80A01H501U' },
+        }),
+      );
+
+      await service.duplicate(tenantId, 'sup-1');
+
+      const dati = prisma.party.create.mock.calls[0]?.[0]?.data ?? {};
+      expect(dati, 'la partita IVA è stata copiata').not.toHaveProperty('vatNumber');
+      expect(dati, 'il codice fiscale è stato copiato').not.toHaveProperty('taxCode');
+    });
+
+    it('⭐ il nome prende «(Copia)», così le due schede si distinguono', async () => {
+      prisma.supplier.findFirst.mockResolvedValue(
+        supplierRow({ party: { ...supplierRow().party, companyName: 'Acme S.r.l.' } }),
+      );
+
+      await service.duplicate(tenantId, 'sup-1');
+
+      expect(prisma.party.create.mock.calls[0]?.[0]?.data?.companyName).toBe('Acme S.r.l. (Copia)');
+    });
+
+    it('i contatti e l’indirizzo SI copiano: sono il motivo per cui si duplica', async () => {
+      prisma.supplier.findFirst.mockResolvedValue(
+        supplierRow({
+          party: { ...supplierRow().party, email: 'info@acme.it', city: 'Napoli' },
+        }),
+      );
+
+      await service.duplicate(tenantId, 'sup-1');
+
+      const dati = prisma.party.create.mock.calls[0]?.[0]?.data ?? {};
+      expect(dati.email).toBe('info@acme.it');
+      expect(dati.city).toBe('Napoli');
+    });
+
+    it('⛔ un id di un altro tenant non duplica niente', async () => {
+      prisma.supplier.findFirst.mockResolvedValue(null);
+
+      await expect(service.duplicate(tenantId, 'sup-altrui')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(prisma.party.create).not.toHaveBeenCalled();
+    });
   });
 });

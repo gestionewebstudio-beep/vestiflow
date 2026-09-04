@@ -3,10 +3,11 @@ import { AdjustmentDirection, StockMovementType } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
+import { assertLocationReadableInUserScope } from './user-location-scope.util';
+import { variantTitle } from '../common/variant-label.util';
 import { InventoryService } from './inventory.service';
 import {
   InventoryCsvParseError,
-  buildVariantTitle,
   inventoryImportKey,
   parseInventoryImportCsv,
   type InventoryCsvImportRow,
@@ -78,9 +79,29 @@ export class InventoryImportService {
     private readonly inventory: InventoryService,
   ) {}
 
-  async previewCsv(tenantId: string, csvText: string): Promise<InventoryImportPreviewResult> {
+  /**
+   * Anteprima dell'import giacenze: righe, disponibile corrente e delta.
+   *
+   * ⛔ **`user` NON è opzionale.** L’anteprima restituisce `currentAvailable`
+   * per ogni riga del CSV, e la sede si nomina **nel file**: senza questo
+   * controllo bastava scrivere il nome di un magazzino altrui per leggerne la
+   * Disponibile, riga per riga. Il permesso della rotta
+   * (`inventory.import_export`) non dice nulla su QUALE sede.
+   *
+   * ⚠️ Politica di **LETTURA**, ed è il pavimento documentato, non una scelta
+   * presa qui: `T15` §12 chiama questo endpoint «sola lettura» e il flusso è
+   * «anteprima → conferma». ⏸ **Se debba invece usare la politica di
+   * SCRITTURA dell'import vero — `assertUserCanAccessLocation(..., 'write')`,
+   * che NON onora `view_all_locations` — è una decisione di prodotto aperta:
+   * renderebbe l'anteprima più stretta della lettura che dichiara di essere.
+   */
+  async previewCsv(
+    tenantId: string,
+    csvText: string,
+    user: UserProfileDto,
+  ): Promise<InventoryImportPreviewResult> {
     const parsedRows = this.parseCsvOrThrow(csvText);
-    const items = await this.buildPreviewItems(tenantId, parsedRows);
+    const items = await this.buildPreviewItems(tenantId, parsedRows, user);
     return {
       rows: items,
       summary: {
@@ -100,7 +121,7 @@ export class InventoryImportService {
   ): Promise<InventoryImportResult> {
     const parsedRows = this.parseCsvOrThrow(csvText);
     const parsedByRowNumber = new Map(parsedRows.map((row) => [row.rowNumber, row]));
-    const previewItems = await this.buildPreviewItems(tenantId, parsedRows);
+    const previewItems = await this.buildPreviewItems(tenantId, parsedRows, user);
     const keyFilter = options.keys?.length
       ? new Set(options.keys.map((key) => key.trim().toLowerCase()))
       : null;
@@ -231,10 +252,55 @@ export class InventoryImportService {
     }
   }
 
+  /**
+   * Le sedi che il CSV nomina sono nell’ambito di chi chiede?
+   *
+   * ⚠️ Il CSV nomina le sedi **per nome**, non per id: la risoluzione passa da
+   * qui, e un nome che non corrisponde a nessuna sede non è un problema di
+   * autorizzazione — è un errore di riga, che l'anteprima segnala come sempre.
+   */
+  private async assertCsvLocationsInScope(
+    tenantId: string,
+    parsedRows: readonly InventoryCsvImportRow[],
+    user: UserProfileDto,
+  ): Promise<void> {
+    const nomi = [
+      ...new Set(
+        parsedRows
+          .map((row) => row.locationName?.trim().toLowerCase())
+          .filter((nome): nome is string => Boolean(nome)),
+      ),
+    ];
+    if (nomi.length === 0) {
+      return;
+    }
+    const locations = await this.prisma.location.findMany({
+      where: { tenantId },
+      select: { id: true, name: true },
+    });
+    for (const location of locations) {
+      if (!nomi.includes(location.name.trim().toLowerCase())) {
+        continue;
+      }
+      assertLocationReadableInUserScope(
+        user,
+        location.id,
+        'Non sei autorizzato a consultare la disponibilità di questo magazzino.',
+      );
+    }
+  }
+
   private async buildPreviewItems(
     tenantId: string,
     parsedRows: readonly InventoryCsvImportRow[],
+    user: UserProfileDto,
   ): Promise<InventoryImportPreviewItem[]> {
+    // ⛔ **Le sedi nominate dal CSV si autorizzano PRIMA di leggere i livelli.**
+    // Non basta filtrare il risultato: la query dei livelli è essa stessa la
+    // lettura da impedire. Qui si risolvono i nomi, si verifica l'ambito, e solo
+    // dopo si tocca `inventoryLevel`.
+    await this.assertCsvLocationsInScope(tenantId, parsedRows, user);
+
     const [variants, locations, levels] = await Promise.all([
       this.prisma.productVariant.findMany({
         where: { tenantId },
@@ -366,7 +432,7 @@ export class InventoryImportService {
       const currentAvailable = levelByKey.get(`${variant.id}|${location.id}`) ?? 0;
       const delta = parsedAvailable - currentAvailable;
       const title =
-        row.variantTitle.trim() || buildVariantTitle(variant.product.name, variant.optionValues);
+        row.variantTitle.trim() || variantTitle(variant.product.name, variant.optionValues);
 
       items.push({
         key,

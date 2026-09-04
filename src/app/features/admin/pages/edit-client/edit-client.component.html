@@ -327,12 +327,16 @@
       </div>
     </section>
 
-    <app-confirm-dialog
+    <!--
+      ⭐ **Due conferme anche qui.** Aveva la conferma singola, e di tutte le
+      eliminazioni dell'app è la più grave: porta via un intero cliente con
+      prodotti, giacenze, ordini, utenti e credenziali. Era l'unica pagina con
+      quella portata e un solo passaggio.
+    -->
+    <app-delete-confirm
       [(open)]="deleteDialogOpen"
       title="Eliminare il cliente?"
-      [message]="deleteConfirmMessage()"
-      confirmLabel="Elimina definitivamente"
-      [danger]="true"
+      [consequence]="deleteConfirmMessage()"
       [busy]="deleteLoading()"
       (confirmed)="confirmDelete()"
     />

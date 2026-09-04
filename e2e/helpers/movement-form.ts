@@ -99,7 +99,7 @@ export async function expectMovementInHistory(
   typeLabel: string,
   reason?: string,
 ): Promise<void> {
-  const row = page.locator('.movement-table__row').filter({ hasText: sku }).first();
+  const row = page.locator('.data-table__row').filter({ hasText: sku }).first();
   await expect(row).toBeVisible({ timeout: 30_000 });
   await expect(row.getByText(typeLabel, { exact: true })).toBeVisible();
   if (reason) {

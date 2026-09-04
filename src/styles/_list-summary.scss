@@ -1,0 +1,55 @@
+@use 'breakpoints' as bp;
+
+/// ⭐ **La tipografia di un'etichetta di riepilogo**, in un posto solo.
+///
+/// ⛔ **Era scritta due volte** — qui e in `corrispettivi-summary` — e il
+/// proprietario l'ha chiamata il 31/08/2026: «non duplicare se non serve».
+/// Cambiarne una lasciava l'altra indietro, e le due fasce sono affiancate nella
+/// stessa applicazione: la differenza si sarebbe vista.
+///
+/// Riusa la ricetta dell'intestazione di tabella, un gradino sotto: un'etichetta
+/// che riassume una colonna e l'intestazione di quella colonna sono lo stesso
+/// ruolo.
+///
+/// ⚠️ **Non va a capo**: spezzata, la voce diventerebbe alta due righe e
+/// alzerebbe l'intera fascia — cioè annullerebbe la ragione per cui è impilata.
+@mixin etichetta-riepilogo() {
+  margin: 0;
+  font-size: var(--text-3xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-table-header-fg);
+  text-transform: uppercase;
+  letter-spacing: 0.045em;
+  line-height: var(--leading-tight);
+  white-space: nowrap;
+}
+
+/// ⭐ **La tipografia di un valore di riepilogo.**
+///
+/// ⚠️ **Semibold, non regular**: a 11px il regular è sottile e su fondo bianco
+/// perde contrasto percepito, ma ingrandire il testo rialzerebbe la fascia. Il
+/// peso non costa un pixel di altezza — deciso il 30/08/2026 guardando lo
+/// schermo, e vale per ogni riepilogo, non solo per quello del Registro.
+@mixin valore-riepilogo() {
+  margin: 0;
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  line-height: var(--leading-tight);
+  white-space: nowrap;
+}
+
+/*
+  ⛔ **Qui c'era il mixin `list-summary()`**, la veste della fascia riepilogo
+  che per poche ore i quattro elenchi documentali hanno usato al posto della
+  riga totali.
+
+  ⭐ **Il proprietario l'ha rivista il 31/08/2026 guardando i Prodotti**: su un
+  elenco documentale tutte le voci sono colonne, quindi ognuna deve cadere sotto
+  la propria intestazione — cosa che una fascia esterna non può fare. La riga è
+  tornata dentro il `<tfoot>`, e con lei il componente è sparito.
+
+  ⚠️ **I due MIXIN qui sopra restano**, e non sono un residuo: li usa il
+  Registro Corrispettivi, che la fascia ce l'ha ancora perché metà delle sue
+  voci colonne non sono («Annullamenti 2», «Rettifiche (4)»).
+*/

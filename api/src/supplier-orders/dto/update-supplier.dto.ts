@@ -44,6 +44,33 @@ export class UpdateSupplierDto {
   @MaxLength(50)
   phone?: string;
 
+  /**
+   * Stato del RUOLO fornitore. Spento, il fornitore esce dalle tendine dei
+   * documenti nuovi (`listAll` filtra `isActive: true`) e non si perde niente:
+   * ordini, documenti e collegamenti restano — `ANAGRAFICA-CANONICA-SPEC`.
+   */
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
+  /** Cellulare: secondo recapito del soggetto (Danea: «Cell.»). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  mobilePhone?: string;
+
+  /** IBAN del fornitore: il conto su cui SI PAGA lui (vedi il DTO di creazione). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(34)
+  iban?: string;
+
+  /** «Ns. banca»: la NOSTRA banca con cui si paga questo fornitore. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  ourBankName?: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(200)

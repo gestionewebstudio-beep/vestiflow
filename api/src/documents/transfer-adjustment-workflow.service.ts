@@ -13,6 +13,14 @@ import {
   type DocumentLine,
 } from '@prisma/client';
 
+import {
+  lineIdentitySnapshot,
+  persistedLineIdentities,
+  persistedLineVariants,
+  variantLabelSnapshot,
+} from './document-line-variant-snapshot.util';
+import type { LineIdentitySnapshot } from './document-line-variant-snapshot.util';
+
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import {
@@ -54,6 +62,19 @@ const CONFIRMED_EDITABLE_STATUSES: readonly DocumentStatus[] = [
   DocumentStatus.printed,
   DocumentStatus.sent,
 ] as const;
+
+/**
+ * Ciò che si legge dall'anagrafica per UNA variante, in una lettura sola.
+ *
+ * ⚠️ Due mappe e non due query: le opzioni servono all'etichetta variante,
+ * l'identità a codice/nome/barcode, e sono gli stessi record. Separarle
+ * significherebbe interrogare due volte le stesse righe dentro la stessa
+ * transazione.
+ */
+interface DatiVarianteCorrente {
+  readonly opzioni: ReadonlyMap<string, Prisma.JsonValue>;
+  readonly identita: ReadonlyMap<string, LineIdentitySnapshot>;
+}
 
 interface ComputedSimpleLine {
   readonly lineNumber: number;
@@ -211,7 +232,7 @@ export class TransferAdjustmentWorkflowService {
   async saveTransfer(
     tenantId: string,
     dto: SaveTransferDto,
-    user?: UserProfileDto,
+    user: UserProfileDto,
   ): Promise<DocumentWithLines> {
     if (dto.locationId === dto.targetLocationId) {
       throw new UnprocessableEntityException(
@@ -288,7 +309,14 @@ export class TransferAdjustmentWorkflowService {
         throw new ConflictException('Trasferimento privo di location di origine/destinazione.');
       }
 
-      await this.assertVariantsExist(tx, tenantId, stockLines);
+      const variantOptions = await this.loadVariantOptions(
+        tx,
+        tenantId,
+        computedLines,
+        stockLines,
+      );
+      const persistedVariants = persistedLineVariants(existing.lines);
+      const persistedIdentities = persistedLineIdentities(existing.lines);
 
       const oldLocationId = existing.locationId;
       const oldTargetLocationId = existing.targetLocationId;
@@ -330,6 +358,28 @@ export class TransferAdjustmentWorkflowService {
           variantId: line.variantId,
           sku: line.sku,
           description: line.description,
+          // ⛔ SNAPSHOT, non un ricalcolo: su una riga che porta ancora la
+          // stessa variante si conserva quella persistita. La regola sta in un
+          // punto solo — se la duplicassimo qui e negli altri tre compositori,
+          // rinominare un valore d'opzione in anagrafica riscriverebbe i
+          // documenti gia' emessi.
+          variantLabel: variantLabelSnapshot({
+            lineId,
+            variantId: line.variantId,
+            optionValues: line.variantId ? variantOptions.opzioni.get(line.variantId) : null,
+            persisted: persistedVariants,
+          }),
+          // ⭐ Codice articolo, nome e barcode: stessa disciplina dell'etichetta
+          //    qui sopra, e stessa funzione unica. Senza questa riga le sole
+          //    righe NUOVE aggiunte da questo percorso resterebbero senza
+          //    identita', e la maschera — che dallo snapshot legge — mostrerebbe
+          //    una cella vuota invece del codice.
+          ...lineIdentitySnapshot({
+            lineId,
+            variantId: line.variantId,
+            corrente: line.variantId ? variantOptions.identita.get(line.variantId) : undefined,
+            persisted: persistedIdentities,
+          }),
           quantity: line.quantity,
           unitPriceMinor: 0,
           discountPercent: 0,
@@ -432,7 +482,7 @@ export class TransferAdjustmentWorkflowService {
   async saveAdjustment(
     tenantId: string,
     dto: SaveAdjustmentDto,
-    user?: UserProfileDto,
+    user: UserProfileDto,
   ): Promise<DocumentWithLines> {
     await this.assertLocation(tenantId, dto.locationId);
     if (user) {
@@ -498,7 +548,14 @@ export class TransferAdjustmentWorkflowService {
         assertLocationInUserScope(user, existing.locationId, 'write');
       }
 
-      await this.assertVariantsExist(tx, tenantId, stockLines);
+      const variantOptions = await this.loadVariantOptions(
+        tx,
+        tenantId,
+        computedLines,
+        stockLines,
+      );
+      const persistedVariants = persistedLineVariants(existing.lines);
+      const persistedIdentities = persistedLineIdentities(existing.lines);
 
       const oldDirection = existing.adjustmentDirection;
       const oldLineIds = existing.lines.map((line) => line.id);
@@ -530,6 +587,28 @@ export class TransferAdjustmentWorkflowService {
           variantId: line.variantId,
           sku: line.sku,
           description: line.description,
+          // ⛔ SNAPSHOT, non un ricalcolo: su una riga che porta ancora la
+          // stessa variante si conserva quella persistita. La regola sta in un
+          // punto solo — se la duplicassimo qui e negli altri tre compositori,
+          // rinominare un valore d'opzione in anagrafica riscriverebbe i
+          // documenti gia' emessi.
+          variantLabel: variantLabelSnapshot({
+            lineId,
+            variantId: line.variantId,
+            optionValues: line.variantId ? variantOptions.opzioni.get(line.variantId) : null,
+            persisted: persistedVariants,
+          }),
+          // ⭐ Codice articolo, nome e barcode: stessa disciplina dell'etichetta
+          //    qui sopra, e stessa funzione unica. Senza questa riga le sole
+          //    righe NUOVE aggiunte da questo percorso resterebbero senza
+          //    identita', e la maschera — che dallo snapshot legge — mostrerebbe
+          //    una cella vuota invece del codice.
+          ...lineIdentitySnapshot({
+            lineId,
+            variantId: line.variantId,
+            corrente: line.variantId ? variantOptions.identita.get(line.variantId) : undefined,
+            persisted: persistedIdentities,
+          }),
           quantity: line.quantity,
           unitPriceMinor: 0,
           discountPercent: 0,
@@ -627,27 +706,67 @@ export class TransferAdjustmentWorkflowService {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  /** Le righe che movimentano stock devono referenziare varianti esistenti. */
-  private async assertVariantsExist(
+  /**
+   * Le varianti collegate devono esistere — **e** le loro opzioni servono a
+   * fotografare l'etichetta della variante sulla riga.
+   *
+   * ⚠️ Una query sola per due cose che avvengono nello stesso momento: prima
+   * questa validazione leggeva il solo `id`, e per l'etichetta ne sarebbe
+   * servita una seconda sugli stessi record.
+   *
+   * ⛔ Si guardano TUTTE le righe con una variante, non solo quelle che
+   * movimentano: anche una riga che non muove magazzino ha una variante da
+   * mostrare.
+   */
+  private async loadVariantOptions(
     tx: Prisma.TransactionClient,
     tenantId: string,
+    lines: readonly ComputedSimpleLine[],
     stockLines: readonly ComputedSimpleLine[],
-  ): Promise<void> {
+  ): Promise<DatiVarianteCorrente> {
     const variantIds = [
-      ...new Set(stockLines.map((line) => line.variantId).filter((id): id is string => id != null)),
+      ...new Set(lines.map((line) => line.variantId).filter((id): id is string => id != null)),
     ];
     if (variantIds.length === 0) {
-      return;
+      return { opzioni: new Map(), identita: new Map() };
     }
     const found = await tx.productVariant.findMany({
       where: { tenantId, id: { in: variantIds } },
-      select: { id: true },
+      select: {
+        id: true,
+        optionValues: true,
+        // ⭐ L'IDENTITA' dell'articolo, per la stessa lettura: codice, nome e
+        //    barcode si fotografano come l'etichetta variante (0A.2a).
+        barcode: true,
+        product: { select: { articleCode: true, name: true } },
+      },
     });
-    if (found.length !== variantIds.length) {
+    // La validazione resta sulle sole righe che movimentano: una riga senza
+    // effetto fisico può riferirsi a una variante uscita dal catalogo.
+    const trovati = new Set(found.map((variante) => variante.id));
+    const daValidare = [
+      ...new Set(
+        stockLines.map((line) => line.variantId).filter((id): id is string => id != null),
+      ),
+    ];
+    if (daValidare.some((id) => !trovati.has(id))) {
       throw new UnprocessableEntityException(
         'Una o più varianti collegate alle righe non esistono più.',
       );
     }
+    return {
+      opzioni: new Map(found.map((variante) => [variante.id, variante.optionValues])),
+      identita: new Map(
+        found.map((variante) => [
+          variante.id,
+          {
+            articleCode: variante.product?.articleCode ?? null,
+            productName: variante.product?.name ?? null,
+            barcode: variante.barcode ?? null,
+          },
+        ]),
+      ),
+    };
   }
 
   private async assertLocation(tenantId: string, locationId: string): Promise<void> {

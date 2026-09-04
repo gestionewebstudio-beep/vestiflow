@@ -1,7 +1,6 @@
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
-  ArrayMinSize,
   IsArray,
   IsBoolean,
   IsInt,
@@ -14,10 +13,11 @@ import {
   Length,
   MaxLength,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 
-/** Riga Reso vendita negozio (fase 3 §9). */
+/** Riga Reso al banco (fase 3 §9). */
 export class StoreReturnLineInputDto {
   /**
    * Id della riga quando si RISALVA un reso esistente. Assente = riga nuova.
@@ -58,7 +58,9 @@ export class StoreReturnLineInputDto {
    * Stesso contratto della Vendita, alla lettera: facoltativo, intero, 0-100.
    */
   @IsOptional()
-  @IsInt()
+  // ⚠️ NON `@IsInt()`: lo sconto del banco è una percentuale EFFETTIVA con
+  //   decimali, e la colonna è `numeric(7,4)` — verificato sul database.
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
   @Max(100)
   discountPercent?: number;
@@ -84,11 +86,46 @@ export class StoreReturnLineInputDto {
    * ⛔ Non viene MAI da una vendita precedente (`11` A11): quel riferimento non
    * esiste nel contratto. Alla selezione dell'articolo la fonte è l'anagrafica,
    * secondo il contratto prezzi comune; poi resta modificabile.
+   *
+   * ⛔ **OBBLIGATORIO, come sulla Vendita** (T4). Era facoltativo e il servizio
+   * faceva `?? 0`: un prezzo mancante diventava **zero in silenzio**, e un reso
+   * senza importo si registrava come se la merce fosse stata regalata.
+   *
+   * ⚠️ **Zero esplicito resta validissimo** — `@Min(0)`, non `@Min(1)`: c'è chi
+   * rende un omaggio. È «assente» a non essere più rappresentabile, e con essa
+   * l'ambiguità fra «non lo so» e «vale zero»: senza il campo la richiesta viene
+   * **rifiutata**, rumorosamente, invece di produrre un documento sbagliato.
+   *
+   * ⛔ **Nessun ripiego sul prezzo corrente dell'articolo**, né qui né sul
+   * server: sarebbe la rifotografia dall'anagrafica che `regole-gestionale`
+   * vieta. Il prezzo appartiene al gruppo dei campi che **il client manda
+   * sempre** — quello che manda è già il valore del DOCUMENTO, letto
+   * all'apertura — quindi non serve nemmeno il contratto binario dello
+   * snapshot: per un campo di quel gruppo sarebbe inutile.
    */
-  @IsOptional()
   @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
-  unitPriceMinor?: number;
+  unitPriceMinor!: number;
+
+  /**
+   * Codice IVA della riga. Se assente, risolto da articolo/predefinito
+   * aziendale — **identico alla Vendita** (`StoreSaleLineInputDto.vatCodeId`).
+   *
+   * ⚠️ **Contratto binario, e su una riga ESISTENTE l'assenza ha un secondo
+   * significato**: «non modificata», e il servizio conserva `vatCodeId` e
+   * `vatSnapshot` persistiti invece di rifotografarli. Se domani cambia
+   * l'aliquota di un Codice IVA, risalvare un reso di marzo non lo ri-prezza.
+   *
+   * ⛔ Qui il campo non c'era affatto, e il servizio passava `undefined`
+   * cablato: lo snapshot si conservava — per caso, non per contratto — ma
+   * l'operatore non poteva **mai** cambiare l'IVA di una riga di reso.
+   *
+   * ⚠️ La vecchia maschera pos non ha una colonna IVA e non manda questo campo:
+   * il contratto è completo per la maschera nuova, non per quella (T3).
+   */
+  @IsOptional()
+  @IsUUID()
+  vatCodeId?: string;
 }
 
 /**
@@ -103,8 +140,55 @@ export class CreateStoreReturnDto {
   @IsUUID()
   id?: string;
 
+  /**
+   * Identità dell'**intento di creazione** (T15B), identica alla Vendita —
+   * vedi `CreateStoreSaleDto.creationIntentId`. **Obbligatoria in creazione**,
+   * non richiesta in modifica.
+   */
+  @ValidateIf((o: CreateStoreReturnDto) => !o.id)
+  @IsString()
+  @Length(8, 128)
+  creationIntentId?: string;
+
   @IsUUID()
   locationId!: string;
+
+  /**
+   * Cliente, **facoltativo come sulla Vendita**.
+   *
+   * ⛔ Qui non c'era, e la sua assenza non era una decisione: `11` A13 mette
+   * «Cliente (facoltativo)» nella testata **senza distinguere Vendita e Reso**.
+   * Era un gap tecnico del contratto, e leggerlo come «il Reso non ha cliente»
+   * avrebbe promosso un buco a regola.
+   *
+   * ⚠️ Non riapre il documento origine (`11` A11): il Reso resta autonomo — chi
+   * rende la merce può essere noto, la vendita di partenza no.
+   */
+  @IsOptional()
+  @IsUUID()
+  customerId?: string;
+
+  /**
+   * Serie del contatore, **identica alla Vendita e a ogni altro documento**
+   * (T8A): assente = «decidi tu»; stringa vuota = «Senza serie», che è una
+   * scelta e scavalca il predefinito; valore = quella serie.
+   *
+   * ⚠️ Il Reso ha un contatore PROPRIO (`store_return` non condivide il
+   * numeratore con nessuno), ma le regole di scelta della serie sono le stesse.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  series?: string;
+
+  /**
+   * Numero imposto dalla testata: assente = primo libero della serie. Stessa
+   * semantica della Vendita — vedi `CreateStoreSaleDto.number`.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  number?: number;
 
   /** Causale del reso (obbligatoria: nessun carico silenzioso). */
   /**
@@ -155,6 +239,20 @@ export class CreateStoreReturnDto {
   @IsOptional()
   @IsISO8601()
   documentDate?: string;
+  /**
+   * Modalità di rappresentazione dei prezzi del documento: `true` = i valori si
+   * leggono e si digitano IVA inclusa (`11` A4, contratto comune).
+   *
+   * ⛔ Non entra in nessun calcolo — `unitPriceMinor` è **sempre il netto**,
+   * in ogni modalità. Qui si dichiara solo come quel netto va mostrato.
+   *
+   * ⚠️ Assente su un documento ESISTENTE = non modificata, e resta quella
+   * persistita. Assente su uno NUOVO = la decide il contratto comune: memoria
+   * dell'operatore, poi convenzione aziendale.
+   */
+  @IsOptional()
+  @IsBoolean()
+  pricesIncludeVat?: boolean;
 
   @IsOptional()
   @IsString()
@@ -162,7 +260,13 @@ export class CreateStoreReturnDto {
   notes?: string;
 
   @IsArray()
-  @ArrayMinSize(1)
+  // ⛔ Qui c’era `@ArrayMinSize(1)`, tolto il 26/08/2026.
+  //   La decisione «un documento vuoto si salva» (25/08) era stata applicata al
+  //   SOLO frontend: «Concludi vendita» si abilitava con zero righe e il server
+  //   rispondeva 400 col messaggio generico, senza dire quale campo.
+  //   È lo stesso difetto già corretto sull’Ordine fornitore: quella verifica
+  //   enumerava tre famiglie di DTO, e il banco è la QUARTA strada — persiste un
+  //   Document ma non passa da `confirmDocumentTx`, quindi non fu guardata.
   @ArrayMaxSize(200)
   @ValidateNested({ each: true })
   @Type(() => StoreReturnLineInputDto)

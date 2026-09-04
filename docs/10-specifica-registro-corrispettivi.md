@@ -131,8 +131,12 @@ Quindi **nessuno** stato «da inviare», «inviato», «consegnato», «registra
 nessuno storico consegne; stampa ed export **non modificano stati né classificazioni**; lo
 stesso periodo si esporta quante volte serve.
 
-Il Registro è un **registro economico interno derivato**, non un documento gestionale
-modificabile.
+Il Registro è un **registro economico interno**, non un documento gestionale modificabile.
+
+⚠️ _Corretto il 21/08/2026._ Qui c'era «registro economico interno **derivato**», e §1 quel
+assoluto l'aveva già ritirato il 17/08: con il Corrispettivo manuale una riga può nascere
+**digitata**, e nessuna derivazione la produce. Ciò che non cambia è il divieto vero — il
+Registro non si corregge riga per riga, e non esiste un tipo documento «Corrispettivo».
 
 _Attuato il 16/08: rimossi `markDelivered`, lo storico consegne, il pannello, il filtro «solo da
 consegnare», e le colonne «Stato fiscale» e «Data consegna commercialista» dall'export._
@@ -223,7 +227,8 @@ di VestiFlow.
 
 ## §9 · Regola sintetica
 
-> **Corrispettivi = quadro economico generale derivato.**
+> **Corrispettivi = quadro economico generale**, per lo più derivato dalle sorgenti vive — con
+> l'eccezione dichiarata del Corrispettivo manuale (§1, §12).
 >
 > Ogni vendita o rettifica che VestiFlow conosce resta consultabile **una sola volta**,
 > classificata per origine. I sottoinsiemi si ottengono con filtri e riepiloghi.
@@ -1027,11 +1032,17 @@ suo (`groupBy`), separato dai filtri: chi costruisce le query Prisma non lo rice
 prova che lo inchioda: **a parità di filtri, `groupBy = none` e `groupBy = day` restituiscono le
 stesse righe e lo stesso riepilogo complessivo** — cambia solo la disposizione.
 
-**3. ⚠️ I subtotali giornalieri si calcolano sull'API, non sulle righe caricate.** Il Registro
-carica cento righe per volta: un subtotale calcolato a schermo è giusto **finché la giornata sta
-tutta in una pagina**, e sbaglia in silenzio appena un giorno si spezza fra due pagine. Sbaglia
-per difetto e in modo plausibile, che su un registro contabile è la forma peggiore. L'aggregato
-per giornata è quindi fratello del riepilogo complessivo, calcolato sull'intero insieme filtrato.
+**3. ⚠️ I subtotali giornalieri si calcolano sull'API, non sulle righe caricate.**
+
+⚠️ _La premessa di questo punto è cambiata, la conclusione no._ Qui c'era «il Registro carica
+cento righe per volta», e il rischio era che una giornata si spezzasse fra due pagine. **Il
+Registro non pagina più** (§14): l'insieme caricato è il risultato del filtro.
+
+⛔ **Ma la regola vale ancora, e per una ragione più forte**: l'elenco può essere **troncato dal
+tetto** (5.000 righe) e su schermo compatto è **troncato per scelta** (§17, «Mostra le altre N»).
+Un subtotale calcolato su ciò che è a schermo sbaglierebbe per difetto e in modo plausibile —
+che su un registro contabile è la forma peggiore. L'aggregato per giornata resta quindi fratello
+del riepilogo complessivo, calcolato sull'intero insieme filtrato.
 
 ### Stampa: esplicitamente NON agganciata al PDF
 
@@ -1441,3 +1452,221 @@ zero movimenti di magazzino creati dal Registro
 ```
 
 Più il caso della spunta spenta, con giacenze invariate prima e dopo tutte le letture.
+
+---
+
+## §19 · Il Registro è diventato la grammatica di tutti — 20/08/2026
+
+Il proprietario ha indicato questo Registro come **riferimento grafico di partenza** dei
+riepiloghi (`14` §F5). Le sette divergenze fra la sua tabella e il motore comune sono state
+misurate, messe a confronto sui dati veri, e **decise tutte nella forma del Registro**:
+
+```text
+font 12px · padding 4×12 · intestazione 32px MAIUSCOLA
+niente divisori di colonna · larghezze sul contenuto · token dedicati §2
+```
+
+⭐ **Non è più «la grafica dei Corrispettivi»: è la grammatica dei riepiloghi**, e vive nel
+mixin `summary-grammar()`. Le quattro schermate già sul motore la ereditano; gli altri elenchi
+la adottano con una riga.
+
+⚠️ **Con una modifica che tocca anche questa schermata**: `--color-table-header-fg` è stato
+scurito da #3f4c51 a **#2f3d43** — contrasto da 7,5:1 a 9,5:1 — su richiesta esplicita. Il
+Registro usa quel token, quindi la sua intestazione cambia con tutte le altre.
+
+### Che cosa resta suo, e non si promuove
+
+- l'**accento laterale per tipo** e il fondo della rettifica;
+- la **giornata come raggruppamento**, col suo piede;
+- la **card mobile progettata** (§17), che è il riferimento mobile dei riepiloghi ma **non**
+  entra nel motore finché i Corrispettivi non ci entrano.
+
+### ⛔ Due misure che riguardano questo documento
+
+1. **Le righe espandibili non esistono**, né desktop né mobile: i due `colspan` sono
+   l'intestazione di giornata e l'etichetta del subtotale, e il chevron della card **naviga**.
+   Era stato censito come «capacità che manca al motore»: non manca, non c'è.
+2. **`documentId` c'è già lato API** (`corrispettivi.service.ts`, valorizzato sulle righe di
+   banco) e **si perde nel DTO del client**. È il campo che servirebbe per dare a quelle righe
+   un pulsante «Dettaglio»: manca un mapping, non un dato.
+
+⏸ **Il gap vero del Dettaglio qui è il Corrispettivo manuale**, che ha una maschera di
+modifica e nessuna vista di consultazione. È una decisione di prodotto, non un lavoro tecnico.
+
+---
+
+## §20 · ⏸ Perché il Registro non ordina dalle intestazioni — misurato il 20/08/2026
+
+Domanda del proprietario. Non è una dimenticanza, e non è nemmeno una decisione presa: è una
+capacità **mai collegata**, per tre ragioni che si sommano.
+
+### 1. Non è sul motore
+
+L'ordinamento da intestazione è una capacità di `app-data-table` (`sortable` · `sort` ·
+`sortChange`). Il Registro ha la **sua** tabella: l'assorbimento è stato tentato due volte e
+ripristinato (`14` §H14).
+
+### 2. Non l'ha mai avuto — come nessun'altra
+
+Misurato: **zero** occorrenze di `sort` nel suo template, e lo stesso valeva per le altre
+quattro tabelle prima dell'assorbimento (`14` §H15). I Movimenti l'ordinamento non l'hanno
+conservato entrando nel motore: **l'hanno guadagnato**.
+
+### 3. ⭐ E il suo ordine è CANONICO, con una ragione di prodotto
+
+`corrispettivi-sort.util.ts` (API) ordina in tre livelli: **giorno economico** desc → **istante
+reale** desc → `rowId` asc. E il primo livello è il giorno **per scelta dichiarata**: le righe
+della stessa giornata devono restare **contigue**, perché un registro di corrispettivi si legge
+per giornata — ed è ciò che rende possibili i subtotali giornalieri.
+
+### ✅ DECISO il 20/08/2026 — e la semplificazione è la decisione
+
+> **Con «Raggruppa: Giorno» l'ordinamento manuale delle colonne non è disponibile: resta
+> l'ordine canonico del Registro. Con «Raggruppa: Nessuno» si abilita il sorting comune, con
+> lo stesso `DataTableSort[]` degli altri riepiloghi.**
+
+⭐ **Il raggruppamento per giorno È già una forma di ordinamento strutturato**, e questa è la
+ragione della scelta: pretendere anche quello manuale avrebbe richiesto una logica «prima il
+giorno, poi la colonna scelta» — codice in più, e il rischio di rompere subtotali e piedi di
+giornata per una capacità che nessuno aveva chiesto.
+
+⛔ **Non si implementa l'ordinamento interno alla giornata.**
+
+### ⚠️ I filtri restano attivi, sempre
+
+|                        |                                                           |
+| ---------------------- | --------------------------------------------------------- |
+| **filtri**             | sempre, e si applicano **prima** del raggruppamento       |
+| **Raggruppa: Giorno**  | raggruppamento e subtotali per giornata                   |
+| **sorting manuale**    | disabilitato finché il raggruppamento per giorno è attivo |
+| **Raggruppa: Nessuno** | filtri e sorting funzionano entrambi                      |
+
+Quindi si filtra per periodo, origine, tipo o sede e si vedono **le righe filtrate**, comunque
+raggruppate per giorno.
+
+### Com'è stato costruito
+
+| Pezzo                     | Dove                                                                     |
+| ------------------------- | ------------------------------------------------------------------------ |
+| ciclo e stato dell'ordine | `DataTableSort[]` + `nextSort` — le primitive comuni, non una copia      |
+| confronto dei valori      | `sortByKeys` di `shared/utils/sort-values.util`, la stessa dei Movimenti |
+| regole e valori canonici  | `features/reports/models/corrispettivi-sort.util`                        |
+| stato                     | nell'**URL**, come gli altri filtri                                      |
+
+⭐ **Si ordina per l'ETICHETTA** — Tipo, Origine, Sede, Pagamento — cioè per quello che
+l'operatore legge (`14` §H13). Qui si può, e negli elenchi paginati no, per una ragione sola:
+l'ordinamento è nel client, dove l'etichetta esiste. Gli importi invece si confrontano in
+**unità minori**: «1.234,50 €» ordinato come testo metterebbe il 9 dopo il 10.
+
+⚠️ **Le etichette dell'origine sono uscite dal componente tabella** (`corrispettivi-labels.util`):
+a ordinare è la pagina, e due copie della stessa mappa avrebbero significato un ordine che, il
+giorno in cui divergono, non corrisponde più ai nomi in colonna.
+
+⛔ **Passando a «Giorno» l'ordinamento manuale si AZZERA**, non si mette in pausa: uno stato che
+esiste e non si vede tornerebbe fuori al cambio successivo senza che nessuno l'abbia chiesto.
+
+⭐ E resta vero che **ordinare nel client qui è ordinare tutto**: il Registro non impagina, e
+l'insieme caricato è il risultato del filtro.
+
+---
+
+## §21 · Il Registro non si restringe per sede — 02/09/2026
+
+> **Il Registro raggruppa TUTTI i corrispettivi dell'azienda.** Al commercialista va
+> inviato tutto: non può vedere dati parziali, soprattutto a sua insaputa.
+
+L'accesso è **binario**: lo si vede intero, oppure non lo si vede. Lo governa un **permesso**,
+non un insieme di sedi.
+
+### ⚠️ Il permesso tecnico NON è ancora allineato
+
+⛔ Qui c'era scritto che lo governa «`reports.fiscal_register` per la scrittura, la vista del
+Registro per la lettura», come se il quadro tecnico fosse a posto. **Non lo è**: la regola
+funzionale è decisa, la sua traduzione tecnica no.
+
+👁 **Comportamento osservato nel codice, al 02/09/2026:**
+
+| Cosa                              | Permesso richiesto oggi                            |
+| --------------------------------- | -------------------------------------------------- |
+| pagina e API dell'elenco          | `ONLINE_SALES_VIEW_GROUPS`                         |
+| i tre export                      | `ONLINE_SALES_VIEW_GROUPS` **più** `ReportsExport` |
+| scrivere un Corrispettivo manuale | `ReportsFiscalRegister`                            |
+
+⚠️ **È un possibile disallineamento**: il permesso che governa la _lettura_ del Registro è
+quello delle vendite online, non uno del Registro. Se un giorno i due insiemi divergessero, la
+regola «chi vede il Registro lo vede intero» resterebbe vera e diventerebbe irrilevante —
+perché a decidere chi lo vede sarebbe un permesso che parla d'altro.
+
+**La regola definitiva del permesso di sola visualizzazione va ancora tradotta tecnicamente e
+verificata su tutti e sei i punti d'ingresso**: menu · rotta frontend · API elenco · riepilogo ·
+stampa · tutti gli export. Finché quella verifica non esiste, il quadro tecnico resta aperto.
+
+### La regola, per intero
+
+|                                             |                                                                               |
+| ------------------------------------------- | ----------------------------------------------------------------------------- |
+| il Registro rappresenta l'**intero tenant** | non un sottoinsieme, mai                                                      |
+| chi ha il permesso                          | vede **tutti** i corrispettivi dell'azienda                                   |
+| chi non ha il permesso                      | non vede **né menu, né pagina, né API, né export** — non una versione ridotta |
+| le sedi assegnate all'utente                | **non** limitano automaticamente i dati                                       |
+| il filtro Sede                              | si applica **soltanto** quando l'operatore lo sceglie                         |
+| senza filtro                                | entrano tutte le sedi **e** le righe con sede non determinata                 |
+| con filtro attivo                           | la visualizzazione parziale dev'essere **evidente** (il banner di §12)        |
+| vendite Shopify senza sede                  | **nessuna sede viene inventata**: restano «Non determinata»                   |
+
+⭐ **Non esiste una via di mezzo, e non deve esistere**: un registro fiscale parziale è peggio di
+un registro negato. Il permesso di vedere il Registro va quindi concesso a chi può vedere
+l'azienda intera.
+
+### ⛔ Un errore commesso e disfatto lo stesso giorno
+
+Il 02/09/2026 era stato introdotto un filtro per le **sedi autorizzate all'utente**, esteso a
+elenco, totali, subtotali di giornata e tutti e tre gli export. Era **inventato**: dedotto dal
+fatto che il vecchio export dai movimenti lo applicava, e mai deciso da nessuno. §14 punto 6
+parla di sedi autorizzate **soltanto per la tendina** — «di quali sedi posso consultare?» — cioè
+per il menu del filtro, non per le righe.
+
+**L'effetto sarebbe stato**: un manager assegnato a una sede apre il Registro e legge un
+corrispettivo totale **più basso del vero**, senza nessun segnale. Il banner di §12 conta le
+righe «Non determinata», non quelle delle altre sedi: sarebbero sparite in silenzio. È
+esattamente ciò che §12 chiama _«il difetto peggiore possibile»_ in un registro fiscale, reso
+permanente invece che occasionale.
+
+⚠️ **Ed era già successo, con le stesse parole.** §14 punto 6 racconta di una regola nata
+costruendo — «il Registro è storico, quindi il suo elenco non filtra per sede attiva» — e la
+liquida così: _«Ragionevole a leggersi, e **inventata**: viveva solo in questo file»_. La stessa
+trappola, sullo stesso oggetto, a distanza di due settimane.
+
+⭐ **La distinzione che la previene**: un **filtro** è una scelta dell'operatore,
+un'**autorizzazione** è una regola d'accesso. Sono due cose diverse anche quando agiscono sulla
+stessa colonna.
+
+### La guardia
+
+`corrispettivi-filtro-sedi.spec.ts` verifica che **senza filtro dell'operatore nessuna sorgente
+riceva una restrizione di sede** — su elenco, riepilogo ed export. Falsificata: reintroducendo
+una restrizione non chiesta diventano rosse quattro prove, fra cui quella dell'export.
+
+### Che cosa invece è stato corretto davvero
+
+Due difetti veri, con la stessa causa: `locationId` e `sedi[]` erano **due contratti concorrenti**
+per la stessa domanda, e a valle ogni builder poteva sceglierne uno.
+
+|                                                           |                                                                                                                                                                                                                                      |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| ⛔ **il filtro Sede non toccava i Corrispettivi manuali** | `buildCorrispettiviManualWhere` leggeva il singolare mentre la schermata manda solo il plurale: scegliendo una sede entravano nel Registro, nei totali e in tutti e tre gli export **tutti i manuali del tenant**, di qualunque sede |
+| ⛔ **il banner delle righe escluse non compariva mai**    | `countUndeterminedLocationRows` usciva con `0` appena mancava `locationId`, che con l'interfaccia attuale non arriva mai. Il numero previsto da §12 era irraggiungibile                                                              |
+
+`normalizzaFiltroSedi` li collassa in **un solo campo**, `sediEffettive`, all'ingresso dei tre
+metodi pubblici. È **idempotente**: `listOrders` chiama `buildRegisterRows`, che normalizza a sua
+volta, e senza quella guardia la seconda passata perderebbe il filtro scelto.
+
+⭐ `null` significa «nessun filtro» — dentro anche le righe senza sede. Un insieme di id
+significa «solo quelle sedi», ed è sempre una scelta dell'operatore.
+
+### Un difetto adiacente, dichiarato e non corretto
+
+⚠️ `undatedFulfilmentCount` — gli ordini evasi senza data — è l'unica query del riepilogo scritta
+a mano fuori dai builder: non porta né il filtro Sede né quello di **periodo**. Il numero si
+riferisce quindi a tutto lo storico del tenant, non all'intervallo mostrato. Va deciso a parte a
+quale dei due debba riferirsi; il test lo esclude **nominandolo**, invece di ignorarlo.

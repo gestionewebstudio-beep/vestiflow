@@ -1,102 +1,88 @@
-<section class="customer-list">
-  <header class="customer-list__header">
-    <div class="customer-list__heading">
-      <h1 class="customer-list__title">Clienti</h1>
-      <p class="customer-list__subtitle">
-        Anagrafica clienti del gestionale. Con Shopify attivo i clienti ecommerce vengono importati
-        automaticamente; puoi anche crearne di nuovi manualmente.
-      </p>
-    </div>
-    @if (canManage()) {
-      <app-button variant="primary" routerLink="/app/customers/new">
-        <i class="pi pi-plus" aria-hidden="true"></i>
-        Nuovo cliente
-      </app-button>
+<app-list-page
+  [selectionToggleable]="true"
+  [selectionMode]="modoSelezione.acceso()"
+  (selectionModeChange)="modoSelezione.commuta($event)"
+  class="customer-list"
+  pageTitle="Clienti"
+  [loading]="loading()"
+  [error]="error()?.message ?? null"
+  [isEmpty]="isEmpty()"
+  [skeletonColumns]="skeletonColumns"
+  [columnsViewId]="customerListView"
+  searchPlaceholder="Cerca per nome o email…"
+  searchAriaLabel="Cerca clienti"
+  [searchValue]="searchDraft()"
+  emptyTitle="Nessun cliente"
+  emptyDescription="Nessun cliente corrisponde alla ricerca attuale."
+  emptyIcon="pi-users"
+  (searchChange)="searchDraft.set($event)"
+  (retry)="reload()"
+>
+  <div warnings>
+    @if (shopifySyncError(); as message) {
+      <p class="customer-list__shopify-error" role="alert">{{ message }}</p>
     }
-  </header>
 
-  @if (shopifySyncError(); as message) {
-    <p class="customer-list__shopify-error" role="alert">{{ message }}</p>
-  }
-
-  @if (shopifyFeedback(); as feedback) {
-    <app-shopify-sync-feedback
-      [message]="feedback.message"
-      [tone]="feedback.tone"
-      (dismissed)="dismissShopifyFeedback()"
-    />
-  }
-
-  <div class="customer-list__toolbar">
-    <div class="customer-list__search">
-      <i class="pi pi-search customer-list__search-icon" aria-hidden="true"></i>
-      <input
-        id="customer-search"
-        class="customer-list__input"
-        type="search"
-        [value]="searchDraft()"
-        placeholder="Cerca per nome o email…"
-        aria-label="Cerca clienti"
-        (input)="onSearchInput($event)"
+    @if (shopifyFeedback(); as feedback) {
+      <app-shopify-sync-feedback
+        [message]="feedback.message"
+        [tone]="feedback.tone"
+        (dismissed)="dismissShopifyFeedback()"
       />
-    </div>
-
-    <div class="customer-list__toolbar-actions">
-      <app-table-column-picker [viewId]="customerListView" />
-
-      <app-button variant="secondary" [disabled]="!hasActiveFilters()" (click)="resetFilters()">
-        <i class="pi pi-filter-slash" aria-hidden="true"></i>
-        Azzera filtri
-      </app-button>
-
-      @if (canExportData()) {
-        <app-button variant="secondary" [disabled]="exporting()" (click)="exportCustomers()">
-          <i class="pi pi-download" aria-hidden="true"></i>
-          @if (exporting()) {
-            Export in corso…
-          } @else {
-            Esporta CSV
-          }
-        </app-button>
-      }
-
-      @if (showShopifyCustomersSync()) {
-        <app-button
-          variant="secondary"
-          loadingIndicator="icon"
-          [loading]="shopifyCustomersLoading()"
-          [disabled]="shopifyCustomersLoading()"
-          (click)="syncCustomersFromShopify()"
-        >
-          <i class="pi pi-sync" aria-hidden="true"></i>
-          Sincronizza da Shopify
-        </app-button>
-      }
-    </div>
+    }
   </div>
 
-  @if (loading()) {
-    <app-table-skeleton [columns]="skeletonColumns" [rows]="8" />
-  } @else if (error(); as appError) {
-    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
-  } @else if (isEmpty()) {
-    <app-empty-state
-      title="Nessun cliente"
-      description="Nessun cliente corrisponde alla ricerca attuale."
-      icon="pi-users"
+  <app-customer-table
+    [rowClickSelects]="modoSelezione.perTocco()"
+    data
+    [customers]="customers()"
+    [columns]="tableColumns()"
+    [viewId]="customerListView"
+    [selectedIds]="selectedCustomerIds()"
+    (rowClick)="openCustomer($event)"
+    (selectionToggle)="toggleCustomerSelection($event.customerId, $event.selected)"
+    (selectAllToggle)="toggleSelectAll($event)"
+  />
+
+  <!--
+    ⛔ **Qui c'era l'impaginazione**, tolta il 30/08/2026: un elenco mostra tutte
+    le righe del filtro attivo (`regole-stile-ui`, «NESSUN TETTO DI RIGHE»).
+
+    ⚠️ **Il conteggio non si è perso**: lo dice la riga totali del motore, «N
+    voci», che ora conta il risultato intero invece della pagina.
+  -->
+  <!--
+    ⭐ **Tutti i comandi in UNA riga in basso**, totali subito sopra —
+    decisione del proprietario, 30/08/2026, sul riferimento Danea.
+
+    ⛔ Stavano in testata. Non sono duplicati: si sono SPOSTATI. Due posti
+    per i comandi erano una divisione storica — creare sopra, agire sotto —
+    non un criterio.
+  -->
+  <div listActions>
+    <app-list-actions-bar
+      [count]="selectedCustomerIds().size"
+      [ids]="[...selectedCustomerIds()]"
+      [actions]="listActions()"
+      labelSingular="cliente selezionato"
+      labelPlural="clienti selezionati"
+      clearLabel="Deseleziona"
+      (cleared)="clearSelection()"
     />
-  } @else {
-    <app-customer-table
-      [customers]="customers()"
-      [columns]="tableColumns()"
-      (rowClick)="openCustomer($event)"
-    />
-    <app-pagination
-      label="Paginazione clienti"
-      [meta]="meta()"
-      [pageSizeOptions]="pageSizeOptions"
-      (pageChange)="goToPage($event)"
-      (pageSizeChange)="onPageSizeChange($event)"
-    />
-  }
-</section>
+  </div>
+
+  <!--
+    ⚠️ Nello slot `overlays`: le cose `position: fixed` hanno una casella loro nel
+    telaio, e il contenuto proiettato che non trova uno slot Angular lo **elimina
+    dal DOM**, senza errori.
+  -->
+  <app-delete-confirm
+    overlays
+    [(open)]="deleteWarnOpen"
+    [title]="deleteWarnTitle()"
+    [consequence]="deleteWarnMessage()"
+    [busy]="deleteBusy()"
+    (confirmed)="onDeleteConfirm()"
+    (dismissed)="onDeleteCancel()"
+  />
+</app-list-page>

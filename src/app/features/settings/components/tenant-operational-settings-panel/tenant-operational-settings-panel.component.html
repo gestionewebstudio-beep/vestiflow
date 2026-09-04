@@ -47,15 +47,34 @@
 
     <fieldset class="tenant-ops__group">
       <legend class="tenant-ops__legend">Default articoli</legend>
-      <label class="tenant-ops__field" for="tenant-ops-uom">
-        Unità di misura predefinita
-        <input
-          id="tenant-ops-uom"
-          type="text"
-          formControlName="defaultUnitOfMeasure"
-          maxlength="16"
-        />
-      </label>
+      <!--
+        ⛔ **Qui c’era un campo di TESTO LIBERO** su
+           `tenant_feature_settings.default_unit_of_measure`, che nessuno leggeva.
+           Scollegato dall’elenco — si cancellava «m» dalle voci e il campo
+           continuava a dire «m» — e incapace di dire «nessuna», perché il suo
+           default era `pz`.
+
+        ⭐ La predefinita è ora una proprietà DELL’ELENCO (`isDefault` sulla
+           voce), zero o una per tenant, garantita da indice parziale. Qui si
+           legge e si apre il gestore, come la finestrella dell’U.M. dei
+           gestionali che l’operatore già conosce.
+      -->
+      <div class="tenant-ops__field">
+        <span id="tenant-ops-uom-label">Unità di misura predefinita</span>
+        <div class="tenant-ops__inline">
+          <output class="tenant-ops__value" aria-labelledby="tenant-ops-uom-label">
+            {{ unitaPredefinita() ?? 'Nessuna' }}
+          </output>
+          <app-button
+            type="button"
+            variant="secondary"
+            ariaLabel="Gestisci le unità di misura e scegli la predefinita"
+            (click)="unitManagerOpen.set(true)"
+          >
+            Gestisci…
+          </app-button>
+        </div>
+      </div>
       <label class="tenant-ops__field" for="tenant-ops-vat-code">
         Codice IVA predefinito
         <select id="tenant-ops-vat-code" formControlName="defaultVatCodeId">
@@ -95,15 +114,52 @@
       }
     </fieldset>
 
+    <!--
+      ⛔ **Qui c’era il gruppo «Giacenze negative», con due caselle che non
+         comandavano niente** — «Avvisa su giacenza negativa» e «Blocca scarichi
+         oltre disponibile». Tolte il 26/08/2026.
+
+      La più grave era la seconda: prometteva una PROTEZIONE, non una comodità.
+      Il titolare la spuntava, credeva di aver messo in sicurezza il magazzino, e
+      lo scarico oltre disponibile passava identico. Misurato nel collaudo del
+      17/08: disponibile 8, quantità 12, salvataggio riuscito, giacenza a −4.
+
+      ⛔ **E non erano da collegare: erano da togliere.** VestiFlow ha deciso che
+         l’insufficienza di stock NON blocca mai e che Giacenza e Disponibile
+         possono essere negative (`regole-gestionale` «Controlli e validazioni»,
+         `CONTRATTO-COMUNE-DOCUMENTI` §stock, `11` BANK-016). Il warning non
+         bloccante è la regola generale, non un’opzione: escluso il blocco, è
+         l’unico presidio rimasto e spegnerlo per azienda lo azzererebbe.
+
+      ⚠️ **I flag precedono la decisione che li ha svuotati**: la migration che li
+         crea è del 02/07/2026, il commit che fissa la policy del 14/07 — dodici
+         giorni dopo. Non erano un lavoro lasciato a metà: erano un’ipotesi
+         superata.
+
+      Le colonne restano in tabella per ora: gli archivi di backup già prodotti
+      le contengono, e toglierle senza prima filtrare le chiavi ignote in
+      importazione farebbe fallire l’INTERO ripristino.
+    -->
+
+    <!--
+      ⛔ Sezione a sé, e non una spunta fra le altre: è un interruttore di
+      SICUREZZA. La Vendita manuale è l’unico documento che riduce la giacenza
+      senza generare un movimento di magazzino, e il documento resta l’unica
+      evidenza dello scarico.
+
+      ⚠️ La spunta la gira solo il titolare. Qui non c’è un gate: il pannello
+      intero è già visibile al solo titolare, e la protezione vera è lato API —
+      nascondere un comando non è proteggerlo.
+    -->
     <fieldset class="tenant-ops__group">
-      <legend class="tenant-ops__legend">Giacenze negative</legend>
+      <legend>Vendita manuale</legend>
+      <p class="tenant-ops__hint">
+        Consente di registrare una vendita e ridurre la giacenza senza creare movimenti di
+        magazzino.
+      </p>
       <label class="tenant-ops__check">
-        <input type="checkbox" formControlName="warnNegativeInventory" />
-        Avvisa su giacenza negativa
-      </label>
-      <label class="tenant-ops__check">
-        <input type="checkbox" formControlName="blockNegativeInventory" />
-        Blocca scarichi oltre disponibile
+        <input type="checkbox" formControlName="manualUnloadEnabled" />
+        Attiva la Vendita manuale
       </label>
     </fieldset>
 
@@ -121,3 +177,10 @@
     </div>
   </form>
 }
+
+<!-- Uno per pannello: il campo chiede, il pannello ospita. -->
+<app-unit-of-measure-manager-dialog
+  [open]="unitManagerOpen()"
+  (closed)="unitManagerOpen.set(false)"
+  (changed)="unitOptions.reload()"
+/>

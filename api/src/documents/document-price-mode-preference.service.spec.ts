@@ -59,7 +59,7 @@ describe('DocumentPriceModePreferenceService', () => {
       convenzione(true);
 
       await expect(
-        service.resolvePricesIncludeVat(tenantId, userId, DocumentType.invoice_draft),
+        service.resolvePricesIncludeVat(tenantId, userId, DocumentType.invoice),
       ).resolves.toBe(true);
     });
 
@@ -68,7 +68,7 @@ describe('DocumentPriceModePreferenceService', () => {
       convenzione(false);
 
       await expect(
-        service.resolvePricesIncludeVat(tenantId, userId, DocumentType.invoice_draft),
+        service.resolvePricesIncludeVat(tenantId, userId, DocumentType.invoice),
       ).resolves.toBe(false);
     });
 
@@ -88,7 +88,7 @@ describe('DocumentPriceModePreferenceService', () => {
       convenzione(true);
 
       await expect(
-        service.resolvePricesIncludeVat(tenantId, userId, DocumentType.invoice_draft),
+        service.resolvePricesIncludeVat(tenantId, userId, DocumentType.invoice),
       ).resolves.toBe(false);
     });
 
@@ -97,7 +97,7 @@ describe('DocumentPriceModePreferenceService', () => {
       convenzione(false);
 
       await expect(
-        service.resolvePricesIncludeVat(tenantId, userId, DocumentType.invoice_draft),
+        service.resolvePricesIncludeVat(tenantId, userId, DocumentType.invoice),
       ).resolves.toBe(true);
     });
 
@@ -105,7 +105,7 @@ describe('DocumentPriceModePreferenceService', () => {
       memoria(false);
       convenzione(true);
 
-      await service.resolvePricesIncludeVat(tenantId, userId, DocumentType.invoice_draft);
+      await service.resolvePricesIncludeVat(tenantId, userId, DocumentType.invoice);
 
       expect(prisma.tenantFeatureSettings.findUnique).not.toHaveBeenCalled();
     });
@@ -121,17 +121,17 @@ describe('DocumentPriceModePreferenceService', () => {
     memoria(null);
     convenzione(true);
     await expect(
-      service.resolvePricesIncludeVat(tenantId, userId, DocumentType.invoice_draft),
+      service.resolvePricesIncludeVat(tenantId, userId, DocumentType.invoice),
     ).resolves.toBe(true);
 
     // 2 · l'operatore compila quella Fattura in NETTO: la scelta si ricorda
-    await service.remember(tenantId, userId, DocumentType.invoice_draft, false);
+    await service.remember(tenantId, userId, DocumentType.invoice, false);
     expect(prisma.userDocumentPriceModePreference.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         create: expect.objectContaining({
           tenantId,
           userId,
-          documentType: DocumentType.invoice_draft,
+          documentType: DocumentType.invoice,
           pricesIncludeVat: false,
         }),
       }),
@@ -140,7 +140,7 @@ describe('DocumentPriceModePreferenceService', () => {
     // 3 · la Fattura successiva riparte da lì, non dalla convenzione
     memoria(false);
     await expect(
-      service.resolvePricesIncludeVat(tenantId, userId, DocumentType.invoice_draft),
+      service.resolvePricesIncludeVat(tenantId, userId, DocumentType.invoice),
     ).resolves.toBe(false);
   });
 
@@ -155,12 +155,25 @@ describe('DocumentPriceModePreferenceService', () => {
       expect(prisma.tenantFeatureSettings.findUnique).not.toHaveBeenCalled();
     });
 
-    it('cassa negozio: la sua modalità la decide lo store, non questa catena', async () => {
+    it('⭐ vendita al banco: RISPONDE alla convenzione, come ogni altra vendita', async () => {
+      // ⛔ Qui si provava il contrario — «la sua modalità la decide lo store» —
+      // e quella era l'eccezione «al banco sempre ivato» cablata nel servizio
+      // del banco. Tolta il 21/08/2026 (`11` A4): Vendita e Reso al banco
+      // usano il contratto comune, convenzione aziendale compresa.
       memoria(null);
       convenzione(true);
 
       await expect(
         service.resolvePricesIncludeVat(tenantId, userId, DocumentType.store_sale),
+      ).resolves.toBe(true);
+    });
+
+    it('⭐ e il Reso al banco si comporta come la Vendita', async () => {
+      memoria(null);
+      convenzione(false);
+
+      await expect(
+        service.resolvePricesIncludeVat(tenantId, userId, DocumentType.store_return),
       ).resolves.toBe(false);
     });
 

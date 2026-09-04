@@ -80,6 +80,10 @@ export interface OnlineSaleListQuery {
   readonly pageSize?: number;
   readonly search?: string;
   readonly channel?: string;
+  /** ⭐ Il PERIODO dell'elenco: data d'ordine (01/09/2026). */
+  readonly placedFrom?: string;
+  readonly placedTo?: string;
+  /** ⚠️ Non è più il periodo: resta per il filtro della colonna «Data evasione». */
   readonly fulfilledFrom?: string;
   readonly fulfilledTo?: string;
 }

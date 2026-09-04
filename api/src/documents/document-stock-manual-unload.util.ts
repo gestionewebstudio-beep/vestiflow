@@ -5,7 +5,7 @@ import { applyInventoryDelta } from '../inventory/inventory-level-delta.util';
 import { aggregateStockLines, type StockReconcileResult } from './document-stock-reconcile.util';
 
 /**
- * Scarico manuale DIRETTO (prompt Scarico manuale, 2026-07).
+ * Vendita manuale DIRETTO (prompt Vendita manuale, 2026-07).
  *
  * DEROGA DOCUMENTATA alla regola "ogni modifica inventariale produce un
  * movimento tracciabile" (regole-gestionale §Movimenti): per il SOLO tipo
@@ -46,7 +46,7 @@ export async function applyDocumentStockManualUnloads(
 }
 
 /**
- * Riconcilia a delta la modifica di uno scarico manuale già salvato, sempre
+ * Riconcilia a delta la modifica di uno vendita manuale già salvato, sempre
  * senza movimenti: evita la doppia sottrazione (es. quantità 3 → 5 scarica
  * solo +2; 5 → 3 ricarica 2). Su cambio location ripristina la vecchia e
  * scarica sulla nuova.

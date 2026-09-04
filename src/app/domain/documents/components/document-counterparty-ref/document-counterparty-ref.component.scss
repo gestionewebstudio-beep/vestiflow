@@ -6,6 +6,35 @@
   display: contents;
 }
 
+// ⭐ **La fascia occupa TUTTE le colonne del contenitore** — misurato in un
+// browser vero il 02/09/2026, dopo che tre deduzioni dal CSS avevano sbagliato.
+//
+// ⛔ Su scrivania questo componente rende una fascia già completa, e la ospita
+// un `app-document-header` che le mette attorno un `.doc-form__grid`. Quella
+// griglia da `md` in su ha **tre colonne**:
+//
+//     .doc-form__grid { grid-template-columns: repeat(3, minmax(0, 1fr)) }
+//
+// e la fascia, essendo il suo unico figlio, ne occupava **una su tre**. La
+// misura combacia al decimale: (1041 − 2 × 16 di gap) / 3 = 336,3px, che è
+// esattamente la larghezza che si vedeva a schermo su una finestra da 1712.
+//
+// ⚠️ **Non era «la fascia non si stira»**, ed è il motivo per cui tre tentativi
+// precedenti hanno mancato: `inline-size: 100%` su un grid item vale il 100%
+// *della sua colonna*, non del contenitore. Solo `grid-column` cambia quante
+// colonne occupa.
+//
+// ⭐ La fascia 1 dell'Arrivo merce non ha mai avuto il problema perché riceve
+// `[flowRow]`, che porta il contenitore a `display: flex` e rende le colonne
+// irrilevanti. Questa correzione vale anche per la **Registrazione fattura**,
+// che usa lo stesso componente nella stessa forma.
+//
+// ⚠️ Inerte se il contenitore diventasse flex: `grid-column` su un flex item non
+// fa niente e non rompe niente.
+.doc-form__header-row--secondary {
+  grid-column: 1 / -1;
+}
+
 // Le celle portano `doc-form__field` (desktop) o `doc-panel__field` (mobile) e
 // prendono da `styles/_document-form.scss` tutto quello che una cella di
 // testata ha: padding compatto, fili di separazione, `:focus-within`, misura
@@ -14,6 +43,31 @@
 // cella, e la seconda invecchierebbe in silenzio.
 .cp-ref__cell {
   min-inline-size: 0;
+}
+
+// ⭐ **La misura di un campo è quella del suo dato** (`regole-stile-ui` §7-bis),
+// e chi la conosce è questo componente: sa che la prima cella ospita una
+// tendina, la seconda un codice e la terza una data.
+//
+// ⛔ Senza, la fascia di testata dà a ogni cella la stessa quota minima
+// (`--field-w-md`, 176px, ripiego di `.doc-form__header-row`): una data e una
+// ragione sociale larghe uguale, e la fascia che **va a capo** prima del
+// necessario lasciando il vuoto a destra.
+//
+// ⚠️ Misurato il 02/09/2026: il canale `--doc-field-min` esiste dal giorno in
+// cui la fascia è passata a flex, ma lo impostava **una maschera su otto** —
+// solo l'Ordine cliente, con tre `style` inline. Le altre sette, questa
+// compresa, avevano tutte le celle alla stessa misura.
+//
+// I valori vengono dai token e non sono una scelta di gusto: `--field-w-md` è
+// dichiarato «date, codici» e `--field-w-lg` «select standard».
+.cp-ref__cell--type {
+  --doc-field-min: var(--field-w-lg);
+}
+
+.cp-ref__cell--number,
+.cp-ref__cell--date {
+  --doc-field-min: var(--field-w-md);
 }
 
 // Il numero e' un input nativo e prende `doc-form__input` / `doc-panel__control`

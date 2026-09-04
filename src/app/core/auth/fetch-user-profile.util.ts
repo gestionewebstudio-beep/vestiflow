@@ -36,6 +36,7 @@ export interface UserProfileApi {
   readonly isPlatformAdmin: boolean;
   readonly supportSession?: SupportSessionApi;
   readonly tenantChannelProfile?: TenantChannelProfileType;
+  readonly manualUnloadEnabled?: boolean;
   readonly tenantName?: string;
   readonly createdAt: string;
   readonly updatedAt: string;
@@ -61,6 +62,9 @@ export function mapUserProfileFromApi(row: UserProfileApi): User {
     isPlatformAdmin: row.isPlatformAdmin,
     supportSession: row.supportSession,
     tenantChannelProfile: row.tenantChannelProfile ?? TenantChannelProfile.Shopify,
+    // ⛔ `=== true`: il default è SPENTA, e un profilo che non porta il campo
+    //   (API più vecchia, risposta parziale) deve dire spenta come la colonna.
+    manualUnloadEnabled: row.manualUnloadEnabled === true,
     tenantName: row.tenantName?.trim() || 'Cliente',
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

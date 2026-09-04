@@ -1,0 +1,12 @@
+-- «Nome online»: il titolo con cui il prodotto si vende su Shopify, separato dal
+-- nome interno con cui lo si cerca in magazzino e lo si scrive nei documenti.
+--
+-- Fino a oggi erano lo STESSO campo: il pull riscriveva `name` col titolo remoto
+-- a ogni giro, quindi chi voleva un nome interno breve se lo vedeva tornare
+-- lungo. E la modifica locale del nome ripartiva verso Shopify.
+--
+-- Nasce NULL, e non è un dettaglio: null significa «mai inizializzato», e per un
+-- prodotto GIÀ COLLEGATO il valore va letto da Shopify, mai dedotto dal nome
+-- interno — dedurlo sovrascriverebbe il titolo online con quello di magazzino,
+-- che è il danno che questa colonna esiste per evitare.
+ALTER TABLE "products" ADD COLUMN "shopify_title" TEXT;

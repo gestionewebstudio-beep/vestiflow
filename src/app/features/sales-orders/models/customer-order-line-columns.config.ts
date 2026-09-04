@@ -15,9 +15,35 @@ export const CUSTOMER_ORDER_LINE_COLUMNS: readonly TableColumnDef[] = [
   { id: 'articleCode', label: 'Cod. articolo', defaultWidthPx: 96, minWidthPx: 64 },
   { id: 'sku', label: 'SKU', defaultWidthPx: 104, minWidthPx: 64 },
   { id: 'barcode', label: 'EAN', defaultWidthPx: 124, minWidthPx: 72 },
-  { id: 'product', label: 'Nome prodotto', defaultWidthPx: 300, minWidthPx: 160 },
-  // Q.tà è il campo che si digita e ospita l'avviso «disponibili solo N»:
-  // qualche pixel in più a lei, tolto alla disponibilità che mostra un numero.
+  { id: 'product', label: 'Nome prodotto', defaultWidthPx: 260, minWidthPx: 160 },
+  // La VARIANTE accanto al nome, non dentro: «M / Rosso». La rende la riga
+  // COMUNE (`document-line-row`), quindi la vede anche la Vendita al banco.
+  { id: 'variantLabel', label: 'Variante', defaultWidthPx: 120, minWidthPx: 80 },
+  /*
+    ⛔ **QUI C'ERA LA RAGIONE DI QUESTI 72px, ED È FALSA.** Diceva: «Q.tà è il
+    campo che si digita e ospita l'avviso "disponibili solo N": qualche pixel in
+    più a lei, tolto alla disponibilità che mostra un numero».
+
+    Descrive uno scambio di pixel realmente avvenuto — commit `5425e46c` del
+    23/07/2026, che nella stessa hunk porta Q.tà da 56 a 72 e la disponibilità da
+    76 a 62. Ma attribuisce all'avviso un bisogno di larghezza che **non è mai
+    esistito**, e tre fatti lo dimostrano:
+
+    ```text
+    lo STESSO commit fa andare a capo l'avviso   white-space: normal, overflow-wrap: anywhere
+    la tabella è table-layout: fixed             il contenuto non decide mai la larghezza
+    dal 02/09/2026 nella riga il testo NON C'È   resta il colore della cella
+    ```
+
+    ⚠️ **E la misura si è propagata per ereditarietà**: DDT vendita e Vendita
+    manuale derivano per filtro da questo catalogo, e il **Preventivo** eredita i
+    72px pur essendo l'unico documento che quell'avviso non lo mostra mai — «non
+    impegna e non blocca la disponibilità», deciso per iscritto.
+
+    ⏸ **La larghezza canonica di `quantity` resta DA DECIDERE** (sei valori su
+    sei cataloghi, vedi `document-line-columns.consistency.spec.ts`). Il punto è
+    che non va decisa guardando l'avviso: quello non chiede spazio.
+  */
   { id: 'quantity', label: 'Q.tà', numeric: true, defaultWidthPx: 72, minWidthPx: 52 },
   {
     id: 'stockAvailable',
@@ -52,12 +78,12 @@ export const CUSTOMER_ORDER_LINE_COLUMNS: readonly TableColumnDef[] = [
   },
   // IVA: la cella ospita una tendina (codice + freccia), non solo un numero —
   // stretta, il codice veniva troncato («2…» al posto di «22»).
-  { id: 'vat', label: 'IVA', numeric: true, defaultWidthPx: 96, minWidthPx: 76 },
+  { id: 'vat', label: 'IVA', defaultWidthPx: 96, minWidthPx: 76 },
   { id: 'commitsStock', label: 'Imp.', defaultWidthPx: 48, minWidthPx: 40 },
   { id: 'lineTotal', label: 'Totale', numeric: true, defaultWidthPx: 88, minWidthPx: 56 },
-  // Due pulsanti da 30px (duplica + elimina) più gap e rientri: sotto gli 84
-  // il cestino finisce contro il bordo della card.
-  { id: 'actions', label: 'Azioni', defaultWidthPx: 84, minWidthPx: 76 },
+  // Un solo pulsante (elimina): le frecce di riordino vivono nella colonna
+  // indice. Stessa misura di `stock-movement-line-columns`.
+  { id: 'actions', label: 'Azioni', defaultWidthPx: 44, minWidthPx: 44, filter: false },
 ];
 
 // I preset partono dalle colonne visibili di default: quelle opzionali
@@ -73,6 +99,7 @@ export const CUSTOMER_ORDER_LINE_PRESETS: TableViewPresetMap = {
     'sku',
     'barcode',
     'product',
+    'variantLabel',
     'quantity',
     'stockAvailable',
     'unitOfMeasure',
@@ -82,6 +109,7 @@ export const CUSTOMER_ORDER_LINE_PRESETS: TableViewPresetMap = {
   [PresetId.Accountant]: [
     'sku',
     'product',
+    'variantLabel',
     'quantity',
     'unitPrice',
     'discount',
@@ -128,6 +156,7 @@ export const SALES_DDT_LINE_PRESETS: TableViewPresetMap = {
     'sku',
     'barcode',
     'product',
+    'variantLabel',
     'quantity',
     'stockAvailable',
     'unitOfMeasure',
@@ -138,6 +167,7 @@ export const SALES_DDT_LINE_PRESETS: TableViewPresetMap = {
   [PresetId.Accountant]: [
     'sku',
     'product',
+    'variantLabel',
     'quantity',
     'unitPrice',
     'discount',
@@ -149,7 +179,7 @@ export const SALES_DDT_LINE_PRESETS: TableViewPresetMap = {
   [PresetId.Operational]: SALES_DDT_ALL_COLUMN_IDS,
 };
 
-// ── Scarico manuale (stessa maschera del DDT vendita, prompt Scarico manuale) ─
+// ── Vendita manuale (stessa maschera del DDT vendita, prompt Vendita manuale) ─
 // Stesse colonne del DDT («Scarica mag.», prezzi, totali); niente «Seriali»:
 // lo scarico diretto non gestisce i numeri di serie (nessun movimento).
 export const MANUAL_UNLOAD_LINES_VIEW = TableViewId.ManualUnloadLines;
@@ -169,6 +199,7 @@ export const MANUAL_UNLOAD_LINE_PRESETS: TableViewPresetMap = {
     'sku',
     'barcode',
     'product',
+    'variantLabel',
     'quantity',
     'stockAvailable',
     'unitOfMeasure',
@@ -178,6 +209,7 @@ export const MANUAL_UNLOAD_LINE_PRESETS: TableViewPresetMap = {
   [PresetId.Accountant]: [
     'sku',
     'product',
+    'variantLabel',
     'quantity',
     'unitPrice',
     'discount',
@@ -211,6 +243,7 @@ export const QUOTE_LINE_PRESETS: TableViewPresetMap = {
     'sku',
     'barcode',
     'product',
+    'variantLabel',
     'quantity',
     'unitOfMeasure',
     'actions',
@@ -218,6 +251,7 @@ export const QUOTE_LINE_PRESETS: TableViewPresetMap = {
   [PresetId.Accountant]: [
     'sku',
     'product',
+    'variantLabel',
     'quantity',
     'unitPrice',
     'discount',

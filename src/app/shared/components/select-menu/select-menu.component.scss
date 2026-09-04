@@ -117,7 +117,25 @@
   font-weight: var(--font-weight-semibold);
 }
 
+/*
+  ⭐ **Il prefisso si può spegnere dal CONTENITORE** — aggiunto il 30/08/2026.
+
+  `--select-menu-chip-label-display: none` toglie il «Periodo:» davanti al
+  valore. Non è una preferenza estetica: su una barra strumenti stretta il
+  prefisso è ciò che manda il controllo a capo, e il valore da solo dice già
+  tutto — «Ultimi 30 giorni» non ha bisogno di essere presentato.
+
+  ⛔ **Non si spegne mai globalmente sotto `lg`.** Dentro il pannello filtri il
+  prefisso è l'unica cosa che dice DI QUALE filtro si tratta: lì «Shopify
+  online» da solo non si capisce. Lo decide chi ospita il controllo, ed è la
+  ragione per cui è una custom property e non un input.
+
+  ⚠️ È lo stesso canale di `--date-input-icon-display`: un contenitore che
+  spegne un pezzo del figlio senza scavalcarne l'incapsulamento
+  (`regole-stile-ui` §5, punto 2).
+*/
 .select-menu__chip-label {
+  display: var(--select-menu-chip-label-display, inline);
   flex-shrink: 0;
   color: var(--color-text-muted);
 }
@@ -252,11 +270,31 @@
   // ancorato a sinistra uscirebbe dal bordo. Il contenitore dichiara
   // `--select-menu-panel-inset: auto 0` e lo ribalta.
   inset-inline: var(--select-menu-panel-inset, 0 auto);
+
+  /*
+    ⭐ **Ribaltato quando sborda**, deciso misurando all'apertura: la classe la
+    mette il componente, non il contenitore. Sostituisce la regola che ribaltava
+    «le ultime due colonne» — un criterio che sbagliava appena il pannello era
+    più largo di due colonne, come sulla colonna Totale (terzultima).
+  */
+  :host(.select-menu-host--ribaltato) & {
+    inset-inline: auto 0;
+  }
   // Largo quanto serve alle opzioni (v4): mai meno del trigger, mai oltre il
   // tetto — un trigger stretto (es. IVA 72px) apre comunque una tendina
   // leggibile su una riga.
   inline-size: max-content;
-  min-inline-size: 100%;
+  /*
+    ⚠️ **Il minimo è regolabile, e il default resta il trigger.**
+
+    ⛔ Con `100%` fisso, un trigger da 90px — l'intestazione di una colonna —
+    apre un pannello da 90px: dentro non ci sta né un calendario né una data
+    intera, ed è il difetto fotografato dal proprietario il 01/09/2026 («12/06/:»
+    nel campo, numeri sovrapposti nel calendario). Il contenuto larghissimo si
+    allarga da sé con `max-content`; quello che ha bisogno di una misura MINIMA
+    — una griglia di sette giorni — no.
+  */
+  min-inline-size: var(--select-menu-panel-min-width, 100%);
   max-inline-size: var(--select-menu-panel-max-width);
   z-index: var(--z-dropdown);
   margin: 0;
@@ -277,19 +315,53 @@
   z-index: 1;
   margin: 0;
   padding-block-end: var(--space-1);
+  /*
+    ⭐ **Rientro regolabile, per incolonnare la ricerca col TESTO delle voci.**
+
+    ⛔ Le voci portano il segnaposto della spunta (`--space-4` + `gap`), quindi
+    il loro testo comincia 24px dopo il bordo mentre la ricerca comincia a 0: a
+    schermo si legge come due colonne diverse, ed è ciò che il proprietario ha
+    segnalato il 01/09/2026 indicando l'elenco rientrato.
+  */
+  padding-inline-start: var(--select-menu-search-inset, 0);
   background-color: var(--color-surface);
 }
 
 .select-menu__search {
   display: block;
   inline-size: 100%;
+  /*
+    ⚠️ **La ricerca NON segue la densità delle voci**, ed è deliberato: è un
+    campo di testo, e `regole-stile-ui` §4 tiene i campi al minimo tappabile
+    anche dove i comandi scendono. Ci era finita per errore il 30/08/2026, con
+    una sostituzione troppo larga.
+  */
   min-block-size: var(--field-height);
   padding-inline: var(--space-2);
   color: var(--color-text);
-  font-size: var(--text-sm);
-  background-color: var(--color-bg);
+  /*
+    ⭐ **Taglia e fondo sono regolabili dal contenitore** — proprietario,
+    01/09/2026 guardando la tendina di un filtro: «la scritta "cerca" è troppo
+    marcata e sproporzionata a tutto vestiflow».
+
+    ⚠️ **Il default non cambia** per le tendine dove la ricerca è il comando
+    principale (varianti, articoli): lì 13px su fondo grigio è giusto. Dove
+    tutto intorno sta a 10px — l'intestazione di una colonna — il contenitore
+    la porta alla propria scala.
+  */
+  font-size: var(--select-menu-search-font-size, var(--text-sm));
+  /*
+    ⚠️ **Il peso è regolabile** — proprietario, 01/09/2026: «diminuire il peso
+    del font di cerca». Il segnaposto di un campo non è un titolo.
+  */
+  font-weight: var(--select-menu-search-font-weight, inherit);
+  background-color: var(--select-menu-search-bg, var(--color-bg));
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-sm);
+}
+
+.select-menu__search::placeholder {
+  color: var(--select-menu-search-placeholder, var(--color-text-subtle));
 }
 
 .select-menu__search:focus-visible {
@@ -319,7 +391,18 @@
   align-items: center;
   gap: var(--space-2);
   inline-size: 100%;
-  min-block-size: var(--field-height);
+  /*
+    ⭐ **Punto di regolazione dell'altezza di voce** (`regole-stile-ui` §5): una
+    tendina di dodici voci in una barra filtri densa non ha la stessa altezza di
+    riga di un campo isolato in mezzo alla pagina. Misurato il 30/08/2026 sulla
+    tendina del Periodo: 34px per voce, font 13px, **zero** padding — l'altezza
+    la dava tutta `--field-height`.
+
+    ⚠️ **Il ripiego resta `--field-height`**, quindi chi non dichiara nulla non
+    vede alcuna differenza — e sotto `md` continua a salire da sé al minimo
+    tappabile, che per un elenco di scelte da toccare col dito è quello che serve.
+  */
+  min-block-size: var(--select-menu-option-h, var(--field-height));
   padding-inline: var(--space-2);
   color: var(--color-text);
   font-size: var(--text-sm);
@@ -398,12 +481,24 @@
   background-size: var(--space-1) var(--space-1);
 }
 
+/*
+  ⭐ **Punto di regolazione dell'allineamento di voce** (`regole-stile-ui` §5).
+
+  Serve a chi elenca **valori incolonnabili**: le date e i numeri di un filtro di
+  colonna. Segnalato dal proprietario il 01/09/2026 — «nei filtri, le date non
+  hanno allineamento a destra»: la colonna DATA mostra le sue date a destra, e il
+  pannello che elenca quelle stesse date le metteva a sinistra.
+
+  ⚠️ **Il ripiego è `start`**, quindi ogni altro menu resta com'è: un elenco di
+  nomi si legge da sinistra, e allinearlo a destra sarebbe un peggioramento.
+*/
 .select-menu__option-label {
   flex: 1 1 auto;
   min-inline-size: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: var(--select-menu-option-align, start);
 }
 
 .select-menu__option-btn--detailed .select-menu__option-label {
@@ -464,9 +559,82 @@
 .select-menu__lead {
   display: block;
   padding: var(--space-1) var(--space-1) var(--space-2);
+  /*
+    ⚠️ **DOPO lo shorthand, non prima.** Scritto sopra, `padding` lo azzerava —
+    misurato in un browser: rientro dichiarato 24px, calcolato 4px, e la testa
+    del pannello restava disallineata dalle voci.
+  */
+  padding-inline-start: var(--select-menu-lead-inset, var(--space-1));
   border-block-end: var(--border-width) solid var(--color-border);
 }
 
 .select-menu__lead:empty {
   display: none;
+}
+
+/*
+  ⭐ **SOLO LA FRECCIA** — la forma del filtro di colonna in Danea, chiesta dal
+  proprietario il 01/09/2026: «con questo sistema di ricerca nei filtri, ha
+  senso che compare un'altra casellina sotto all'intestazione della colonna?».
+
+  ⛔ **No: quella casella costava una fascia su OGNI colonna**, a tutta
+  larghezza, per aprire una tendina che contiene già tutto — nome del filtro
+  compreso. Qui il trigger diventa un bersaglio quadrato che sta accanto al
+  titolo.
+
+  ⚠️ **Il bersaglio resta un quadrato pieno, non la sola icona**: `aspect-ratio`
+  con l'altezza della cella dà ~24×24, che è il minimo WCAG 2.2 AA. Stringerlo
+  alla larghezza del glifo lo porterebbe sotto.
+*/
+.select-menu--icon-only .select-menu__trigger {
+  inline-size: auto;
+  aspect-ratio: 1;
+  justify-content: center;
+  padding-inline: 0;
+  gap: 0;
+  background: none;
+  border-color: transparent;
+}
+
+.select-menu--icon-only .select-menu__trigger:hover {
+  background-color: var(--color-surface-hover);
+  border-color: var(--color-border);
+}
+
+/*
+  ⭐ **Il filtro attivo si vede dalla FRECCIA**, ed è la sola cosa che lo dice
+  una volta tolta la casella: senza, l'unico segnale sarebbe l'elenco più
+  corto — cioè nessun segnale.
+
+  ⚠️ **Tinta piena, non un accenno**: la freccia è alta 10px, e un grigio più
+  scuro non si distingue. È lo stesso principio della pastiglia di scorciatoia
+  attiva nel pannello.
+*/
+.select-menu--icon-only.select-menu--filtro-attivo .select-menu__trigger {
+  color: var(--color-text-inverse);
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.select-menu--icon-only .select-menu__trigger-label {
+  display: none;
+}
+
+/*
+  ⭐ **L'host di un trigger a sola icona è largo QUANTO L'ICONA.**
+
+  ⛔ Senza, resta `--select-menu-width` (224px): dentro l'intestazione di una
+  colonna da 169px il trigger si prende tutto e **schiaccia il titolo a larghezza
+  zero**. Misurato in un browser il 01/09/2026 — «P. IVA» presente nel DOM,
+  `getBoundingClientRect().width` uguale a 0, e a schermo l'intestazione vuota
+  con la sola freccia.
+*/
+:host(.select-menu-host--icon) {
+  inline-size: auto;
+  max-inline-size: none;
+  flex: none;
+}
+
+:host(.select-menu-host--icon) .select-menu {
+  inline-size: auto;
 }

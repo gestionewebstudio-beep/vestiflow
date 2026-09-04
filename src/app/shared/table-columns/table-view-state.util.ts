@@ -69,13 +69,41 @@ export function parseTableViewState(raw: unknown): TableViewState | null {
   };
 }
 
+/**
+ * Le larghezze salvate sono **PESI**, non pixel: conta il rapporto fra colonne,
+ * e la quota di ognuna è la sua parte sulla somma delle visibili.
+ *
+ * ⛔ **I limiti erano `48..640`, cioè misure in pixel, e tagliavano pesi
+ * legittimi in silenzio.** Un peso vale meno dei pixel resi ogni volta che la
+ * tabella è più larga della somma delle larghezze dichiarate: una colonna
+ * ferma al proprio minimo di 48px reso vale, su una tabella larga, un peso di
+ * 40 — e il parser lo buttava via. Al ricaricamento quella colonna tornava
+ * alla misura di serie mentre le altre restavano dove l'operatore le aveva
+ * messe, cioè con l'assetto scomposto.
+ *
+ * ⚠️ **Riguardava anche le righe documento**, che salvano dalla stessa porta:
+ * `line-column-widths.store` ha una prova che si aspetta un peso salvato di
+ * **40**, e quel valore non sopravviveva a un F5.
+ *
+ * ⭐ I limiti restano, perché questo è un parse difensivo di dati che arrivano
+ * dal server e da `localStorage`: cambia il metro. Un peso è positivo, e oltre
+ * qualche migliaio non è più una colonna — è un dato corrotto.
+ */
+const PESO_MINIMO = 1;
+const PESO_MASSIMO = 4000;
+
 function parseColumnWidths(value: unknown): Readonly<Record<string, number>> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return {};
   }
   const result: Record<string, number> = {};
   for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
-    if (typeof raw === 'number' && Number.isFinite(raw) && raw >= 48 && raw <= 640) {
+    if (
+      typeof raw === 'number' &&
+      Number.isFinite(raw) &&
+      raw >= PESO_MINIMO &&
+      raw <= PESO_MASSIMO
+    ) {
       result[key] = Math.round(raw);
     }
   }

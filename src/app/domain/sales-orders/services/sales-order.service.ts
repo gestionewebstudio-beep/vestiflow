@@ -1,3 +1,4 @@
+import { serializeDataTableSort } from '@shared/components/data-table/data-table.model';
 import { HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { EMPTY, expand, map, reduce, type Observable, timeout } from 'rxjs';
@@ -59,8 +60,21 @@ export interface SaveManualOrderInput {
    */
   readonly number?: number;
   readonly expectedDeliveryDate?: string;
-  readonly status?: 'confirmed' | 'cancelled';
+  /**
+   * Stato del ciclo commerciale scelto dall’operatore (`18` §2.1).
+   *
+   * ⛔ **`concluded` non è ammesso**: è derivato dal collegamento a un
+   * documento conclusivo, e lo ricalcola il server.
+   */
+  readonly status?: 'to_confirm' | 'confirmed' | 'cancelled';
   readonly notes?: string;
+  /**
+   * Nota interna, mai in stampa.
+   *
+   * ⭐ Aggiunta il 25/08/2026: l'ordine cliente ne era privo solo perche' la
+   * colonna non esisteva su `sales_orders`, non per una ragione funzionale.
+   */
+  readonly internalComment?: string;
   readonly paymentTerms?: string;
   /** Sconto extra % documento (0-100), dopo gli sconti riga. */
   readonly documentDiscountPercent?: number;
@@ -220,13 +234,6 @@ export class SalesOrderService {
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
-  /** Forza a Concluso un ordine Parzialmente concluso (prompt DDT). */
-  forceConcludeManualOrder(id: EntityId): Observable<{ ok: true }> {
-    return this.http
-      .post<{ ok: true }>(this.url(`/sales-orders/manual/${id}/force-conclude`), {})
-      .pipe(timeout(HTTP_TIMEOUT_MS));
-  }
-
   exportSalesOrdersCsv(query: SalesOrderExportQuery): Observable<Blob> {
     const params = this.appendSalesOrderFilters(new HttpParams(), query);
 
@@ -270,6 +277,13 @@ export class SalesOrderService {
     }
     if (query.includable) {
       next = next.set('includable', 'true');
+    }
+    const sort = serializeDataTableSort(query.sort ?? []);
+    if (sort) {
+      next = next.set('sort', sort);
+    }
+    if (query.all) {
+      next = next.set('all', '1');
     }
     return next;
   }

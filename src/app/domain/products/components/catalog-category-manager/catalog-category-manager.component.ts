@@ -11,7 +11,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import type { EntityId } from '@core/models/common.model';
 import { ButtonComponent } from '@shared/components/button/button.component';
-import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
 
 import type { CatalogCategory } from '../../services/catalog-category.service';
 import { CatalogCategoryService } from '../../services/catalog-category.service';
@@ -25,7 +25,7 @@ import { CatalogCategoryService } from '../../services/catalog-category.service'
 @Component({
   selector: 'app-catalog-category-manager',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ButtonComponent, ConfirmDialogComponent],
+  imports: [ButtonComponent, DeleteConfirmComponent],
   templateUrl: './catalog-category-manager.component.html',
   styleUrl: './catalog-category-manager.component.scss',
 })

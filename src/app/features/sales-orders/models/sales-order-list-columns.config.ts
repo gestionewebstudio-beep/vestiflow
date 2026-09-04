@@ -1,3 +1,4 @@
+import { colonna } from '@shared/table-columns/column-catalog';
 import {
   TableViewPresetId,
   type TableColumnDef,
@@ -10,19 +11,46 @@ import {
  * disponibili nel selettore ma nascoste di serie, per non allargare la tabella
  * a chi non le usa.
  */
+/**
+ * ⭐ **Le colonne che il SERVER sa ordinare** (`14` §H15), specchio della
+ * whitelist di `api/src/sales-orders/sales-orders-sort.util.ts`.
+ *
+ * ⛔ È una lista di ciò che SI PUÒ: una colonna nuova nasce non ordinabile e lo
+ * resta finché non la impara anche il server, invece di promettere un ordine
+ * che risponde `400`.
+ *
+ * ⭐ **Origine, Pagamento ed Evasione ci sono**: sono enum, e Postgres li ordina
+ * per ordine di DICHIARAZIONE — che qui è una progressione (da saldare →
+ * autorizzato → pagato; non evaso → parziale → evaso), non un alfabeto.
+ *
+ * ⚠️ **«Stato» resta fuori per una ragione tecnica, non funzionale**: non è un
+ * campo del database, lo compone il client da più dati dell'ordine. Ordinarlo
+ * lato server significherebbe riscrivere quella logica nell'API — due fonti di
+ * verità per la stessa risposta.
+ */
+export const SALES_ORDER_LIST_SORTABLE_COLUMNS: ReadonlySet<string> = new Set([
+  'orderNumber',
+  'placedAt',
+  'customerName',
+  'total',
+  'source',
+  'financialStatus',
+  'fulfillmentStatus',
+]);
+
 export const SALES_ORDER_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
-  { id: 'orderNumber', label: 'Ordine', pinnable: true, defaultVisible: true },
-  { id: 'source', label: 'Origine', defaultVisible: true },
-  { id: 'placedAt', label: 'Data', defaultVisible: true },
+  { id: 'orderNumber', label: 'Ordine', pinnable: true, defaultVisible: true, cardTitle: true },
+  colonna('source', { defaultVisible: true }),
+  { id: 'placedAt', label: 'Data', defaultVisible: true, filter: 'date' },
   { id: 'customerCode', label: 'Cod. cliente', defaultVisible: false },
-  { id: 'customerName', label: 'Cliente', defaultVisible: true },
-  { id: 'total', label: 'Totale', numeric: true, defaultVisible: true },
+  colonna('customerName', { defaultVisible: true }),
+  colonna('total', { defaultVisible: true }),
   { id: 'netTotal', label: 'Tot. netto', numeric: true, defaultVisible: false },
   { id: 'state', label: 'Stato', defaultVisible: true },
   { id: 'financialStatus', label: 'Pagamento', defaultVisible: true },
   { id: 'fulfillmentStatus', label: 'Evasione', defaultVisible: true },
-  { id: 'location', label: 'Location', defaultVisible: true },
-  { id: 'notes', label: 'Commento', defaultVisible: false },
+  colonna('location', { defaultVisible: true }),
+  colonna('notes', { defaultVisible: false }),
   // Nascosta di serie (mockup restyling): l'info è marginale, attivabile dal
   // selettore Colonne quando serve.
   { id: 'onlineSale', label: 'Vendita online', defaultVisible: false },
@@ -51,7 +79,14 @@ export const SALES_ORDER_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'financialStatus',
   ],
   [TableViewPresetId.Supplier]: DEFAULT_IDS,
-  [TableViewPresetId.Analysis]: ['placedAt', 'customerName', 'netTotal', 'total', 'state'],
+  [TableViewPresetId.Analysis]: [
+    'placedAt',
+    'orderNumber',
+    'customerName',
+    'netTotal',
+    'total',
+    'state',
+  ],
   [TableViewPresetId.Operational]: [
     'orderNumber',
     'placedAt',
@@ -72,8 +107,8 @@ export const SALES_ORDER_LIST_COLUMN_PRESETS: TableViewPresetMap = {
 // un documento con un identificativo. Vedi specifica 08 §10.
 export const SHOPIFY_ORDER_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   ...SALES_ORDER_LIST_COLUMN_DEFS.filter((column) => column.id !== 'source'),
-  { id: 'ddt', label: 'DDT', defaultVisible: true },
-  { id: 'updatedAt', label: 'Aggiornato', defaultVisible: true },
+  colonna('ddt', { defaultVisible: true }),
+  { id: 'updatedAt', label: 'Aggiornato', defaultVisible: true, filter: 'date' },
   { id: 'syncState', label: 'Sync', defaultVisible: true },
 ] as const;
 
@@ -92,6 +127,13 @@ export const SHOPIFY_ORDER_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'financialStatus',
   ],
   [TableViewPresetId.Supplier]: SHOPIFY_DEFAULT_IDS,
-  [TableViewPresetId.Analysis]: ['placedAt', 'customerName', 'netTotal', 'total', 'state'],
+  [TableViewPresetId.Analysis]: [
+    'placedAt',
+    'orderNumber',
+    'customerName',
+    'netTotal',
+    'total',
+    'state',
+  ],
   [TableViewPresetId.Operational]: SHOPIFY_DEFAULT_IDS,
 };

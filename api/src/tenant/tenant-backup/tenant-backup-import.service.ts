@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  Logger,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { mkdir, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -25,10 +20,52 @@ import {
   TENANT_BACKUP_MANIFEST_FILE,
   type TenantBackupEntityFile,
 } from './tenant-backup.constants';
-import type { TenantBackupImportResult, TenantBackupManifest } from './tenant-backup-manifest.model';
+import type {
+  TenantBackupImportResult,
+  TenantBackupManifest,
+} from './tenant-backup-manifest.model';
 import { parseBackupRows } from './tenant-backup-serialize.util';
 
 type PrismaTx = Parameters<Parameters<PrismaService['$transaction']>[0]>[0];
+
+/**
+ * Costi CANONICI: quelli che dal 22/08/2026 sono `NOT NULL DEFAULT 0`.
+ *
+ * ⚠️ L'elenco è per NOME di campo ed è deliberatamente stretto. I costi
+ * opzionali della riga documento — `enteredUnitCost`, `unitCostNet`,
+ * `unitCostGross`, `unitVatAmount` — non sono qui: restano nullable, perché su
+ * una struttura condivisa da documenti che il costo non lo gestiscono affatto
+ * l'assenza della proprietà ha un significato tecnico proprio.
+ */
+const COSTI_CANONICI = [
+  'purchasePriceMinor',
+  'lastPurchasePriceMinor',
+  'unitCostMinor',
+  'totalCostMinor',
+] as const;
+
+/**
+ * Un backup **prodotto prima** della migration dei costi canonici porta `null`
+ * dove oggi la colonna è `NOT NULL`: reinserirlo così com'è farebbe fallire il
+ * ripristino con violazione di vincolo, e il cliente perderebbe l'unica strada
+ * per rimettere in piedi i propri dati.
+ *
+ * ⛔ Non è una conversione di comodo: è la stessa regola di dominio applicata al
+ * passato — un costo non valorizzato **vale zero** (`regole-gestionale`).
+ *
+ * Una chiave assente resta assente: la colonna ha il proprio `DEFAULT 0` e non
+ * c'è ragione di inventarla nella riga.
+ */
+export function normalizzaCostiCanonici(row: Record<string, unknown>): Record<string, unknown> {
+  let normalizzata: Record<string, unknown> | null = null;
+  for (const campo of COSTI_CANONICI) {
+    if (campo in row && row[campo] === null) {
+      normalizzata ??= { ...row };
+      normalizzata[campo] = 0;
+    }
+  }
+  return normalizzata ?? row;
+}
 
 @Injectable()
 export class TenantBackupImportService {
@@ -110,7 +147,21 @@ export class TenantBackupImportService {
   }
 
   private assertManifestCompatible(manifest: TenantBackupManifest, tenantId: string): void {
-    if (manifest.formatVersion !== TENANT_BACKUP_FORMAT_VERSION) {
+    if (manifest.formatVersion < TENANT_BACKUP_FORMAT_VERSION) {
+      // ⭐ **Un archivio piu' VECCHIO dell'app non e' «aggiorna VestiFlow».**
+      // Il messaggio unico diceva il contrario del vero nel caso piu'
+      // frequente: l'app e' nuova, e' l'archivio a essere vecchio, e
+      // aggiornare non serve a niente. Chi sta ripristinando ha gia' un
+      // problema; mandarlo nella direzione sbagliata gli costa il tempo che
+      // non ha.
+      throw new BadRequestException(
+        `Questo backup e' stato prodotto da una versione precedente di VestiFlow ` +
+          `(formato ${manifest.formatVersion}, oggi ${TENANT_BACKUP_FORMAT_VERSION}) e non puo' ` +
+          `essere ripristinato: nel frattempo sono cambiati dati che il pacchetto non porta ` +
+          `nella forma attuale.`,
+      );
+    }
+    if (manifest.formatVersion > TENANT_BACKUP_FORMAT_VERSION) {
       throw new BadRequestException(
         `Versione backup non supportata (${manifest.formatVersion}). Aggiorna VestiFlow.`,
       );
@@ -140,7 +191,11 @@ export class TenantBackupImportService {
     return result;
   }
 
-  private async purgeTenantData(tx: PrismaTx, tenantId: string, preserveUserId: string): Promise<void> {
+  private async purgeTenantData(
+    tx: PrismaTx,
+    tenantId: string,
+    preserveUserId: string,
+  ): Promise<void> {
     await tx.shopifyOAuthState.deleteMany({ where: { tenantId } });
     await tx.tikTokOAuthState.deleteMany({ where: { tenantId } });
 
@@ -153,7 +208,11 @@ export class TenantBackupImportService {
     }
   }
 
-  private async deleteEntityRows(tx: PrismaTx, key: TenantBackupEntityFile, tenantId: string): Promise<void> {
+  private async deleteEntityRows(
+    tx: PrismaTx,
+    key: TenantBackupEntityFile,
+    tenantId: string,
+  ): Promise<void> {
     switch (key) {
       case 'userStores':
         await tx.userStore.deleteMany({ where: { user: { tenantId } } });
@@ -438,7 +497,7 @@ export class TenantBackupImportService {
     // Il file lo fornisce il cliente: se `tenantId` passasse così com'è, un
     // backup ritoccato scriverebbe righe dentro il negozio di un ALTRO cliente
     // (l'id altrui è visibile negli URL degli allegati). Si impone sempre.
-    const data = rows.map((row) => ({ ...row, tenantId })) as never[];
+    const data = rows.map((row) => ({ ...normalizzaCostiCanonici(row), tenantId })) as never[];
     switch (key) {
       case 'stores':
         await tx.store.createMany({ data });
@@ -583,7 +642,9 @@ export class TenantBackupImportService {
       try {
         uploaded += await this.uploadAttachmentTree(client, bucket, bucketDir, bucketDir, tenantId);
       } catch (error) {
-        this.logger.warn(`Restore storage ${bucket}: ${error instanceof Error ? error.message : error}`);
+        this.logger.warn(
+          `Restore storage ${bucket}: ${error instanceof Error ? error.message : error}`,
+        );
       }
     }
 

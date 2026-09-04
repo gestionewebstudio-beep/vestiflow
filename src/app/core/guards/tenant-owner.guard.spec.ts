@@ -21,6 +21,7 @@ function userWithRole(role: User['role']): User {
     isActive: true,
     isPlatformAdmin: false,
     tenantChannelProfile: TenantChannelProfile.Gestionale,
+    manualUnloadEnabled: true,
     tenantName: 'Cliente test',
     hasAllLocationsAccess: true,
     assignedLocationIds: [],

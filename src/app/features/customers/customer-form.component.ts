@@ -24,6 +24,7 @@ import {
   patchCustomerFormGroup,
   setCustomerAnagraficaReadOnly,
 } from '@domain/customers/utils/customer-form.util';
+import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
@@ -42,6 +43,7 @@ import { CustomerService } from '@domain/customers/services/customer.service';
     ErrorStateComponent,
     TableSkeletonComponent,
     CustomerFormFieldsComponent,
+    ConfirmDialogComponent,
   ],
   templateUrl: './customer-form.component.html',
   styleUrl: './customer-form.component.scss',
@@ -132,21 +134,18 @@ export class CustomerFormComponent implements CanComponentDeactivate {
     });
   }
 
-  protected submit(onSaved?: () => void): void {
+  /**
+   * ⛔ Qui c'era un parametro `onSaved`, e lo passava UN solo chiamante:
+   * «Salva e chiudi» del dialogo d'uscita. Tolto quel pulsante il 25/08/2026,
+   * il parametro non ha piu' chiamanti e i suoi rami erano irraggiungibili.
+   */
+  protected submit(): void {
     this.form.markAllAsTouched();
     if (this.form.hasError('identityRequired')) {
       this.saveError.set('Indica la ragione sociale oppure nome e cognome del cliente.');
-      if (onSaved) {
-        // «Salva e chiudi» con form non valido: il dialogo si chiude e
-        // l'operatore resta sul form a correggere gli errori.
-        this.cancelExitDialog();
-      }
       return;
     }
     if (this.form.invalid || this.saving()) {
-      if (onSaved) {
-        this.cancelExitDialog();
-      }
       return;
     }
     this.saving.set(true);
@@ -162,10 +161,6 @@ export class CustomerFormComponent implements CanComponentDeactivate {
         this.saving.set(false);
         // Cliente salvato: il guard di uscita non deve più fermare la navigazione.
         this.dirtySinceLastSave.set(false);
-        if (onSaved) {
-          onSaved();
-          return;
-        }
         void this.router.navigate(['/app/customers', customer.id]);
       },
       error: (err: unknown) => {
@@ -198,14 +193,10 @@ export class CustomerFormComponent implements CanComponentDeactivate {
     this.pendingDeactivate = null;
   }
 
-  /** «Salva e chiudi» dal dialogo: salva il cliente e prosegue l'uscita. */
-  protected confirmExitSave(): void {
-    this.submit(() => {
-      this.exitDialogOpen.set(false);
-      this.pendingDeactivate?.(true);
-      this.pendingDeactivate = null;
-    });
-  }
+  // ⛔ Qui c'era il gestore di «Salva e chiudi» del dialogo d'uscita, tolto il
+  // 25/08/2026 con quel pulsante: il dialogo ha DUE azioni — Annulla · Esci
+  // senza salvare — e il salvataggio resta il pulsante Salva della barra.
+  // (decisione del proprietario, 24/08/2026)
 
   private markFormDirty(): void {
     if (!this.suppressDirtyMarking) {

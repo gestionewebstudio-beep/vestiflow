@@ -8,6 +8,9 @@ import {
   signal,
 } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { comando, voceEsporta } from '@shared/models/list-action-catalog';
+import { listActionState } from '@shared/models/list-selection.model';
+import type { ListAction, ListActionState } from '@shared/models/list-selection.model';
 import { ActivatedRoute, Router } from '@angular/router';
 import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 
@@ -30,20 +33,13 @@ import {
   corrispettiviReportFilterSubtitle,
   corrispettiviReportSubtitle,
 } from '@core/models/tenant-channel-profile.model';
-import { ActionMenuComponent } from '@shared/components/action-menu/action-menu.component';
-import type { ActionMenuItem } from '@shared/components/action-menu/action-menu.component';
-import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
-import { ButtonComponent } from '@shared/components/button/button.component';
-import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
+import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
+import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import { SegmentedComponent } from '@shared/components/segmented/segmented.component';
 import type { SegmentedOption } from '@shared/components/segmented/segmented.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
-import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
-import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { TableViewId } from '@shared/table-columns/table-column.model';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
@@ -73,6 +69,21 @@ import {
   resolveReportDateRange,
 } from '@domain/reports/models/report-list-query.model';
 import { CorrispettiviService } from '../../services/corrispettivi.service';
+import {
+  parseDataTableSort,
+  serializeDataTableSort,
+  type DataTableSort,
+} from '@shared/components/data-table/data-table.model';
+import type { DataTableSelectionEvent } from '@shared/components/data-table/data-table.component';
+import type { Money } from '@core/models/money.model';
+import { ViewportService } from '@core/services/viewport.service';
+import { createListSelection } from '@shared/utils/list-selection';
+import { createSelectionMode } from '@shared/utils/selection-mode';
+import {
+  LOCATION_UNDETERMINED_LABEL,
+  corrispettivoSourceLabel,
+} from '../../models/corrispettivi-labels.util';
+import { ordinaCorrispettivi } from '../../models/corrispettivi-sort.util';
 
 // I valori ammessi dei filtri vivono in `corrispettivi-filters.util.ts`, che è
 // il punto unico da cui li leggono sia questa schermata sia l’anteprima di
@@ -93,20 +104,14 @@ type CorrispettiviState =
   selector: 'app-corrispettivi-report',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    ActionMenuComponent,
-    BackButtonComponent,
-    ButtonComponent,
+    ListPageComponent,
+    ListActionsBarComponent,
     CorrispettiviOrdersTableComponent,
     CorrispettiviSummaryComponent,
     DateInputComponent,
-    EmptyStateComponent,
-    ErrorStateComponent,
     InlineBannerComponent,
     SegmentedComponent,
     SelectMenuComponent,
-    SlidePanelComponent,
-    TableColumnPickerComponent,
-    TableSkeletonComponent,
   ],
   templateUrl: './corrispettivi-report.component.html',
   styleUrl: './corrispettivi-report.component.scss',
@@ -139,10 +144,27 @@ export class CorrispettiviReportComponent {
       CORRISPETTIVI_REGISTER_COLUMN_DEFS,
       CORRISPETTIVI_REGISTER_COLUMN_PRESETS,
     );
+    this.tableColumns = this.columnPreferences.visibleColumns(this.columnsView);
 
     effect(() => {
       this.query();
       this.uiPeriod.set(null);
+    });
+
+    /*
+      ⛔ **La selezione si pota a ogni cambio del risultato.**
+
+      Cambiando periodo, filtro o ordinamento le righe scelte possono uscire dal
+      risultato: senza `prune` resterebbero selezionate **invisibili**, e
+      un'azione contestuale agirebbe su registrazioni che l'operatore non vede
+      più. È lo stesso obbligo che il servizio dichiara nella propria API.
+
+      ⚠️ Qui è un `effect` e non una sottoscrizione come in `supplier-order-list`
+      perché il risultato di questa pagina è un `computed`, non un Observable:
+      cambia la forma, non la regola.
+    */
+    effect(() => {
+      this.selection.prune(this.orders().map((row) => row.rowId));
     });
   }
 
@@ -233,7 +255,11 @@ export class CorrispettiviReportComponent {
   protected readonly raggruppaPerGiorno = computed(() => this.raggruppa() === 'day');
 
   protected onRaggruppaChange(value: string | null): void {
-    this.updateParams({ raggruppa: value === 'day' ? 'day' : null });
+    // ⛔ Passando a «Giorno» l'ordinamento manuale si AZZERA, non si mette in
+    // pausa: uno stato che esiste e non si vede tornerebbe fuori al cambio
+    // successivo senza che nessuno l'abbia chiesto.
+    const raggruppa = value === 'day' ? 'day' : null;
+    this.updateParams({ raggruppa, ...(raggruppa ? { sort: null } : {}) });
   }
   protected readonly scorciatoieOrigine: readonly SegmentedOption[] = [
     { value: 'all', label: 'Tutte' },
@@ -312,10 +338,24 @@ export class CorrispettiviReportComponent {
    * alla tabella serve solo sapere quali mostrare — resta dumb, e non impara
    * cos'è una preferenza.
    */
+  /**
+   * Le colonne visibili, **risolte**, per il motore comune.
+   *
+   * ⛔ Qui c'era `.map((column) => column.id)`: la pagina buttava via larghezza,
+   * ancoraggio e ordine, e la tabella li riscriveva a mano. Da quando il
+   * Registro sta sul motore (30/08/2026) le colonne ci arrivano intere, ed è
+   * il motore a disegnarle.
+   *
+   * ⚠️ **Si assegna nel costruttore, non qui**, e la ragione è misurata: i campi
+   * si inizializzano PRIMA del corpo del costruttore, quindi `visibleColumns()`
+   * verrebbe chiamata prima di `registerView()` e il servizio rifiuterebbe con
+   * «Vista tabella non registrata». Sei test di pagina l'hanno detto subito.
+   */
+  protected readonly tableColumns: ReturnType<TableColumnPreferenceService['visibleColumns']>;
+
+  /** I soli id: serve all'export, che ragiona per colonna e non per larghezza. */
   protected readonly visibleColumns = computed(() =>
-    this.columnPreferences
-      .visibleColumns(this.columnsView)()
-      .map((column) => column.id),
+    this.tableColumns().map((column) => column.id),
   );
 
   // ── Periodo: un chip fra i filtri, non una card ───────────────────────────
@@ -499,16 +539,35 @@ export class CorrispettiviReportComponent {
     { value: 'refunds', label: 'Solo rimborsi' },
   ];
 
-  private readonly listQuery = computed(() => ({
-    tick: this.refreshTick(),
-    placedFrom: this.dateRange().placedFrom,
-    placedTo: this.dateRange().placedTo,
-    ...corrispettiviFiltersToQuery(this.filters()),
-    // ⚠️ **Nessun `pageSize`**: il Registro è delimitato dal periodo e dai
-    // filtri, non da un numero di righe. Qui c'erano `page: 1` fisso e cento
-    // righe, senza paginatore in pagina: su un periodo da 850 la schermata
-    // scriveva «850 righe nel periodo» e ne mostrava cento.
-  }));
+  /**
+   * ⛔ **Confronto per CONTENUTO, non per identità.**
+   *
+   * Un `computed` che costruisce un oggetto ne produce uno nuovo a ogni
+   * ricalcolo, e `toObservable` lo confronta con `Object.is`: due oggetti
+   * identici nel contenuto risultano diversi, il segnale emette e la richiesta
+   * riparte. Basta che cambi **un query param qualunque** — l'ordinamento, il
+   * raggruppamento, che sono presentazione — perché l'elenco vada a ricaricare
+   * dati che ha già.
+   *
+   * ⚠️ Misurato il 21/08/2026: era la causa principale della lentezza
+   * dell'ordinamento. Il `tick` del refresh manuale continua a funzionare,
+   * perché quello il contenuto lo cambia davvero.
+   */
+  private readonly listQuery = computed(
+    () => ({
+      tick: this.refreshTick(),
+      placedFrom: this.dateRange().placedFrom,
+      placedTo: this.dateRange().placedTo,
+      ...corrispettiviFiltersToQuery(this.filters()),
+      // ⚠️ **Nessun `pageSize`**: il Registro è delimitato dal periodo e dai
+      // filtri, non da un numero di righe. Qui c'erano `page: 1` fisso e cento
+      // righe, senza paginatore in pagina: su un periodo da 850 la schermata
+      // scriveva «850 righe nel periodo» e ne mostrava cento.
+    }),
+    {
+      equal: (a, b) => JSON.stringify(a) === JSON.stringify(b),
+    },
+  );
 
   private readonly state = toSignal(
     toObservable(this.listQuery).pipe(
@@ -546,9 +605,153 @@ export class CorrispettiviReportComponent {
     return current.status === 'success' ? current.data : null;
   });
 
-  protected readonly orders = computed(() => this.data()?.orders ?? []);
+  /**
+   * L'ordinamento manuale, nell'URL come gli altri filtri.
+   *
+   * ⛔ **Esiste solo con «Raggruppa: Nessuno»** (`10` §20): col raggruppamento
+   * acceso il Registro tiene il suo ordine canonico per giornata. Non si
+   * costruisce un «prima il giorno, poi la colonna»: il raggruppamento è già
+   * una forma di ordinamento strutturato.
+   */
+  protected readonly sortState = computed<readonly DataTableSort[]>(() =>
+    this.raggruppaPerGiorno() ? [] : parseDataTableSort(this.queryParams().get('sort')),
+  );
+
+  protected onSortChange(chiavi: readonly DataTableSort[]): void {
+    this.updateParams({ sort: serializeDataTableSort(chiavi) || null });
+  }
+
+  /**
+   * Le righe come vanno mostrate: filtrate dall'API, poi ordinate qui se
+   * l'operatore l'ha chiesto.
+   *
+   * ⭐ Ordinare nel client è ordinare **tutto il risultato**, non una pagina: il
+   * Registro non impagina (`14` §H15). E le etichette con cui si confrontano
+   * Tipo, Origine, Sede e Pagamento esistono solo qui — è la ragione per cui
+   * l'ordine «per quello che si legge» (§H13) qui si può davvero applicare.
+   */
+  protected readonly orders = computed(() =>
+    ordinaCorrispettivi(this.data()?.orders ?? [], this.sortState(), {
+      kind: (row) => (row.kind === 'refund' ? 'Rettifica' : 'Vendita'),
+      source: (row) => corrispettivoSourceLabel(row.source),
+      location: (row) => row.locationName ?? LOCATION_UNDETERMINED_LABEL,
+      financialStatus: (row) => row.financialStatus ?? '',
+    }),
+  );
   protected readonly summary = computed(() => this.data()?.summary ?? null);
   protected readonly totalOrders = computed(() => this.data()?.totalOrders ?? 0);
+
+  // ── Selezione di riga (`14` §5, parte D) ─────────────────────────────────
+
+  /*
+    ⭐ **Lo stato sta nella PAGINA**, non nella tabella: è lo schema già usato da
+    `supplier-order-list`, e usarne un secondo avrebbe reso i due elenchi diversi
+    proprio nel comportamento che questo lavoro esiste per unificare.
+  */
+  private readonly viewport = inject(ViewportService);
+
+  /*
+    ⭐ **La modalità selezione esiste solo nella vista a card.** Su scrivania la
+    tabella ha la sua colonna di caselle, che non toglie spazio a niente: due
+    affordance per la stessa funzione sarebbero una di troppo.
+
+    ⚠️ È il `ViewportService` a dire quale vista è viva — la stessa soglia che
+    decide se la tabella è tabella o card, non una seconda scritta a mano.
+  */
+  /** La vista viva: la modalita selezione esiste solo dove le righe sono card. */
+  protected readonly viewportCompatto = this.viewport.compact;
+
+  private readonly selection = createListSelection('multiple');
+  /**
+   * ⭐ **La modalità «Seleziona», dalla primitiva comune** — dal 31/08/2026 è del
+   * telaio e la usano tutti e dodici gli elenchi.
+   *
+   * ⛔ Era scritta qui, insieme alla regola che spegnerla azzera. Restava
+   * l'unico elenco ad averla, e copiarla altrove avrebbe copiato anche quella
+   * regola: undici occasioni di dimenticarla.
+   */
+  protected readonly modoSelezione = createSelectionMode(this.selection);
+  protected readonly selezionePerTocco = this.modoSelezione.perTocco;
+
+  protected readonly selectedIds = this.selection.ids;
+  protected readonly selectionCount = this.selection.count;
+
+  protected onToggleSelection(event: DataTableSelectionEvent<CorrispettiviRegisterRow>): void {
+    this.selection.toggle(event.row.rowId, event.selected);
+  }
+
+  /*
+    ⭐ **CON UNA SELEZIONE, IL RIEPILOGO È QUELLO DELLA SELEZIONE** — deciso dal
+    proprietario il 30/08/2026.
+
+    ⭐ **Sommare non è ricalcolare**, ed è la precisazione che rende questo
+    lecito: `docs/14` §0-bis. I valori di riga sono già finali e già persistiti —
+    qui si aggregano, non si riderivano. Non c'è **nessuna** moltiplicazione per
+    un'aliquota in questo blocco, ed è il controllo da rifare se un giorno lo si
+    tocca.
+
+    ⛔ **«Annullamenti» resta quello del PERIODO**, e non è una scorciatoia: gli
+    annullamenti **non sono righe del registro**. Sono ordini Shopify annullati
+    prima dell'evasione, quindi la loro vendita non è mai entrata nel registro —
+    sottrarli porterebbe il totale sotto zero (misurato dal backend: 110,00 € su
+    agosto 2026). Si contano per trasparenza e non si sommano mai: selezionare
+    righe non può cambiarne il numero, perché non c'è nessuna riga da
+    selezionare.
+
+    ⚠️ **Le rettifiche sono righe NEGATIVE.** `netTotal` è quindi la somma
+    diretta di tutte le righe scelte, mentre `refundTotal` — che il riepilogo
+    mostra come importo positivo preceduto dal segno — è l'opposto della somma
+    delle sole rettifiche. Confondere le due convenzioni fa comparire il totale
+    giusto col segno sbagliato.
+  */
+  protected readonly summaryMostrato = computed<CorrispettiviSummary | null>(() => {
+    const periodo = this.summary();
+    if (periodo == null) {
+      return null;
+    }
+
+    const scelte = this.orders().filter((row) => this.selectedIds().has(row.rowId));
+    if (scelte.length === 0) {
+      return periodo;
+    }
+
+    const somma = (
+      righe: readonly CorrispettiviRegisterRow[],
+      campo: 'taxable' | 'tax' | 'total',
+    ) => righe.reduce((acc, row) => acc + row[campo].amountMinor, 0);
+
+    const vendite = scelte.filter((row) => row.kind !== 'refund');
+    const rettifiche = scelte.filter((row) => row.kind === 'refund');
+    const valuta = periodo.total.currencyCode;
+    const money = (amountMinor: number): Money => ({ amountMinor, currencyCode: valuta });
+
+    return {
+      ...periodo,
+      orderCount: vendite.length,
+      refundCount: rettifiche.length,
+      refundsCount: rettifiche.length,
+      // Positivo per convenzione del riepilogo: le righe sono negative.
+      refundTotal: money(-somma(rettifiche, 'total')),
+      refundTax: money(-somma(rettifiche, 'tax')),
+      total: money(somma(vendite, 'total')),
+      taxable: money(somma(vendite, 'taxable')),
+      tax: money(somma(vendite, 'tax')),
+      netTotal: money(somma(scelte, 'total')),
+      netTax: money(somma(scelte, 'tax')),
+      netTaxable: money(somma(scelte, 'taxable')),
+    };
+  });
+
+  /** Vero quando il riepilogo sta descrivendo una selezione, non il periodo. */
+  protected readonly riepilogoDiSelezione = computed(() => this.selectionCount() > 0);
+
+  /** La casella di testata agisce sulle righe CARICATE (`14` §4.1). */
+  protected onToggleSelectAll(checked: boolean): void {
+    this.selection.setAll(
+      this.orders().map((row) => row.rowId),
+      checked,
+    );
+  }
 
   protected onPeriodChange(period: ReportPeriodPreset): void {
     this.uiPeriod.set(period);
@@ -752,28 +955,88 @@ export class CorrispettiviReportComponent {
    * l'operatore che consulta il registro dal telefono esporta di rado, e un
    * comando raccolto costa un tocco in più solo a chi lo usa davvero.
    */
-  protected readonly exportMenuItems: readonly ActionMenuItem[] = [
-    { id: 'print', label: 'Stampa', icon: 'pi-print' },
-    { id: 'pdf', label: 'PDF', icon: 'pi-file-pdf' },
-    { id: 'spreadsheet', label: 'Excel', icon: 'pi-file-excel' },
-    { id: 'csv', label: 'CSV', icon: 'pi-download' },
-  ];
+  /**
+   * ⭐ **Le quattro azioni, dichiarate una volta sola** sul contratto comune
+   * degli elenchi (`14` parte D).
+   *
+   * ⛔ **Refactor infrastrutturale, zero cambiamenti**: stesse azioni, stesse
+   * etichette, stesse icone, stesse varianti, stessi stati di caricamento e
+   * stessi handler. Cambia solo *dove sono dichiarate* — prima vivevano in tre
+   * posti: i quattro pulsanti del template, l'elenco delle voci del menu
+   * mobile e lo `switch` che le smistava. Tre elenchi da tenere allineati a
+   * mano, e il menu era già una copia dei pulsanti.
+   *
+   * ⚠️ **`requires: 'none'` è la verità, qui**: i tre export passano dal server
+   * con i filtri della pagina, e la stampa porta gli stessi filtri nell'URL.
+   * Sono azioni che lavorano sul risultato filtrato per costruzione — l'unico
+   * riepilogo dove lo erano già prima del contratto.
+   *
+   * ⛔ **La selezione NON entra in questo passaggio.** Le righe del Registro
+   * hanno id compositi (`sale:…`, `refund:…`, `store:…`) perché la vista
+   * unisce più sorgenti: filtrare un export per id scelti è un lavoro
+   * sull'aggregazione, e senza quello una checkbox esporterebbe tutto lo stesso
+   * — in silenzio.
+   */
+  /*
+    ⭐ **Spegnere la modalità AZZERA la selezione** — «pulsante spento tutto
+    ritorna normale».
+
+    ⚠️ Non è una scelta nuova: è la stessa regola che il progetto ha già per il
+    pulsante «Filtri» (`regole-stile-ui`, «lo spegnimento È l'azzeramento»).
+    Lasciare righe selezionate senza il modo di vederle o toglierle è il difetto
+    che quella regola evita — qui varrebbe doppio, perché a modalità spenta il
+    tocco torna ad aprire e non c'è più nessun gesto per deselezionare.
+  */
+
+  protected readonly listActions = computed<readonly ListAction[]>(() => [
+    // ⭐ **La forma dei comandi viene dal CATALOGO**, non riscritta qui: era
+    //    così che «Stampa» era diventata ghost solo su questa pagina, e «CSV»
+    //    aveva tre icone diverse in tre elenchi (misurato il 30/08/2026).
+    ...(this.canManageRegister()
+      ? [
+          comando('new', {
+            ariaLabel: 'Aggiungi corrispettivo',
+            run: () => this.addManualReceipt(),
+          }),
+        ]
+      : []),
+
+    // ⭐ **Stampa, Excel ed Esporta sono TRE comandi** (`14` §5.2), ed Esporta
+    //    è il menu dei tracciati — deciso dal proprietario il 30/08/2026.
+    //
+    // ⛔ Qui PDF e CSV erano due pulsanti a sé, in fila con gli altri: quattro
+    //    comandi per quattro formati. Sulle altre pagine erano già voci del
+    //    menu, e la stessa cosa aveva due forme.
+    ...(this.canExport()
+      ? [
+          comando('print', { run: () => this.printReport() }),
+          comando('excel', {
+            busy: this.exportingSpreadsheet(),
+            run: () => this.exportSpreadsheet(),
+          }),
+          comando('export', {
+            busy: this.exportingPdf() || this.exporting(),
+            items: [
+              voceEsporta('pdf', () => this.exportPdf()),
+              voceEsporta('csv', () => this.exportAccountantCsv()),
+            ],
+          }),
+        ]
+      : []),
+  ]);
+
+  /** Lo stato di un'azione: dal contratto comune, non da regole locali. */
+  protected actionState(action: ListAction): ListActionState {
+    return listActionState(action, 0);
+  }
 
   protected onExportAction(id: string): void {
-    switch (id) {
-      case 'print':
-        this.printReport();
-        return;
-      case 'pdf':
-        this.exportPdf();
-        return;
-      case 'spreadsheet':
-        this.exportSpreadsheet();
-        return;
-      case 'csv':
-        this.exportAccountantCsv();
-        return;
+    const azione = this.listActions().find((candidate) => candidate.id === id);
+    if (!azione || this.actionState(azione).disabled) {
+      return;
     }
+    // Ambito `filtered`: qui non esiste selezione, e non deve fingere di sì.
+    azione.run?.({ scope: 'filtered' });
   }
 
   protected printReport(): void {

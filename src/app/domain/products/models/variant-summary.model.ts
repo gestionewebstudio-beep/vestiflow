@@ -15,6 +15,12 @@ export interface VariantSummary {
   readonly productName: string;
   /** Display completo (es. 'T-shirt Basic — M / Bianco'). */
   readonly title: string;
+  /**
+   * L'etichetta della sola VARIANTE: «M / Rosso». Vuota se l'articolo non ha
+   * opzioni. La compone il server con la funzione unica: qui non si ricava
+   * per differenza dal titolo.
+   */
+  readonly variantLabel: string;
   readonly barcode?: string;
   readonly sellingPrice: Money;
   /**

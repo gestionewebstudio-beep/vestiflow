@@ -1,3 +1,4 @@
+import type { OrderState } from '@core/models/order-state.model';
 import type { CurrencyCode, EntityId, IsoDateString } from '@core/models/common.model';
 import {
   OnlineSaleInventoryStatus,
@@ -25,11 +26,12 @@ export interface SalesOrderLineApiRow {
    * arriverebbe come `'2049.180328'` e `?? 0` non se ne accorgerebbe.
    * Stessa forma già usata dalla mappatura delle righe documento.
    */
-  readonly unitPriceMinor?: number | string;
+  readonly unitPriceMinor?: number;
   readonly totalMinor?: number;
   // Righe Ordine cliente manuale.
   readonly barcode?: string | null;
   readonly unitOfMeasure?: string | null;
+  readonly variantLabel?: string | null;
   readonly discount?: string | null;
   readonly vatCodeId?: string | null;
   readonly lineVatTotalMinor?: number;
@@ -60,6 +62,8 @@ export interface SalesOrderApiRow {
   readonly discountMinor?: number;
   readonly placedAt: IsoDateString;
   readonly cancelledAt?: IsoDateString | null;
+  /** Stato commerciale persistito; `null` sugli ordini di canale. */
+  readonly commercialState?: OrderState | null;
   readonly fulfilledAt?: IsoDateString | null;
   readonly requiresReview?: boolean;
   readonly reviewReason?: string | null;
@@ -78,6 +82,7 @@ export interface SalesOrderApiRow {
   readonly externalDocDate?: IsoDateString | null;
   readonly expectedDeliveryDate?: IsoDateString | null;
   readonly notes?: string | null;
+  readonly internalComment?: string | null;
   readonly paymentTerms?: string | null;
   readonly documentDiscountPercent?: number;
   /** Modalità con cui i prezzi sono stati digitati su questo ordine. */
@@ -170,6 +175,7 @@ function mapLine(row: SalesOrderLineApiRow, currency: CurrencyCode): SalesOrderL
     lineTotal: { amountMinor: row.totalMinor ?? 0, currencyCode: currency },
     barcode: row.barcode ?? undefined,
     unitOfMeasure: row.unitOfMeasure ?? undefined,
+    variantLabel: row.variantLabel ?? undefined,
     discount: row.discount ?? undefined,
     vatCodeId: row.vatCodeId ?? undefined,
     lineVatTotal:
@@ -205,6 +211,10 @@ export function mapSalesOrderApiRow(row: SalesOrderApiRow): SalesOrder {
     discount: { amountMinor: row.discountMinor ?? 0, currencyCode: currency },
     placedAt: row.placedAt,
     cancelledAt: row.cancelledAt ?? undefined,
+    // ⭐ L’autorità dello stato manuale: si passa cos’è, `null` compreso.
+    //    Un `?? confirmed` qui rimetterebbe in piedi la derivazione che
+    //    questo lavoro toglie, e la renderebbe invisibile.
+    commercialState: row.commercialState ?? null,
     fulfilledAt: row.fulfilledAt ?? undefined,
     requiresReview: row.requiresReview ?? false,
     reviewReason: row.reviewReason ?? undefined,
@@ -222,6 +232,7 @@ export function mapSalesOrderApiRow(row: SalesOrderApiRow): SalesOrder {
     externalDocDate: row.externalDocDate ?? undefined,
     expectedDeliveryDate: row.expectedDeliveryDate ?? undefined,
     notes: row.notes ?? undefined,
+    internalComment: row.internalComment ?? undefined,
     paymentTerms: row.paymentTerms ?? undefined,
     documentDiscountPercent: row.documentDiscountPercent ?? 0,
     // Assente sugli ordini di canale (e sui vecchi): netto, come il default

@@ -21,8 +21,6 @@ export interface BusinessAnalyticsSalesDto {
 export interface BusinessAnalyticsMarginDto {
   readonly grossMinor: number | null;
   readonly grossPercent: number | null;
-  /** Quota del fatturato con costo d'acquisto noto (0–100). */
-  readonly costCoveragePercent: number;
 }
 
 export interface BusinessAnalyticsInventoryDto {

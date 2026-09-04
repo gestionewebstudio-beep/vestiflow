@@ -12,6 +12,7 @@ function variant(id: string): VariantSummary {
     articleCode: 'ART-1',
     productName: 'Maglietta',
     title: `Maglietta — ${id}`,
+    variantLabel: '',
     sellingPrice: { amountMinor: 1000, currencyCode: 'EUR' },
   };
 }

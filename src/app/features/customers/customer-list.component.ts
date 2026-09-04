@@ -7,17 +7,26 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import {
   catchError,
+  concatMap,
   debounceTime,
   distinctUntilChanged,
+  from,
   map,
   of,
   startWith,
   switchMap,
+  take,
+  toArray,
 } from 'rxjs';
 import type { Subscription } from 'rxjs';
+
+import { customerDisplayName } from '@core/models/customer.model';
+import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
+import { createListSelection } from '@shared/utils/list-selection';
+import { createSelectionMode } from '@shared/utils/selection-mode';
 
 import type { PageMeta } from '@core/models/api.model';
 import { AuthService } from '@core/auth';
@@ -32,12 +41,10 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { ShopifyConnection } from '@core/models/shopify-connection.model';
 import type { Customer } from '@core/models/customer.model';
-import { ButtonComponent } from '@shared/components/button/button.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
-import { PaginationComponent } from '@shared/components/pagination/pagination.component';
-import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
-import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
+import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
+import { ListPageComponent } from '@shared/components/list-page/list-page.component';
+import { comando, voceEsporta } from '@shared/models/list-action-catalog';
+import type { ListAction } from '@shared/models/list-selection.model';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
 import { ShopifySyncFeedbackComponent } from '@domain/channels/shopify/components/shopify-sync-feedback/shopify-sync-feedback.component';
@@ -53,7 +60,6 @@ import { ShopifyConnectionService } from '@domain/channels/shopify/services/shop
 import { ShopifySyncWatchService } from '@domain/channels/shopify/services/shopify-sync-watch.service';
 import { CustomerTableComponent } from './components/customer-table/customer-table.component';
 import {
-  CUSTOMER_PAGE_SIZE_OPTIONS,
   DEFAULT_CUSTOMER_PAGE_SIZE,
   parseCustomerListQuery,
 } from '@domain/customers/models/customer-list-query.model';
@@ -88,15 +94,11 @@ type CustomerListState =
   selector: 'app-customer-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    RouterLink,
-    ButtonComponent,
-    EmptyStateComponent,
-    ErrorStateComponent,
-    PaginationComponent,
-    TableSkeletonComponent,
+    ListActionsBarComponent,
+    ListPageComponent,
     CustomerTableComponent,
-    TableColumnPickerComponent,
     ShopifySyncFeedbackComponent,
+    DeleteConfirmComponent,
   ],
   templateUrl: './customer-list.component.html',
   styleUrl: './customer-list.component.scss',
@@ -118,7 +120,6 @@ export class CustomerListComponent {
   private shopifyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
   protected readonly skeletonColumns = 5;
-  protected readonly pageSizeOptions = CUSTOMER_PAGE_SIZE_OPTIONS;
 
   private readonly queryParams = toSignal(this.route.queryParamMap, { requireSync: true });
   protected readonly query = computed(() => parseCustomerListQuery(this.queryParams()));
@@ -153,14 +154,13 @@ export class CustomerListComponent {
   private readonly state = toSignal(
     toObservable(this.request).pipe(
       switchMap(({ query }) =>
-        this.service.getCustomers(query).pipe(
-          map(
-            (response): CustomerListState => ({
-              status: 'success',
-              customers: response.data,
-              meta: response.meta,
-            }),
-          ),
+        // ⭐ `tutto`: l'elenco mostra tutte le righe del filtro, non una pagina.
+        this.service.getCustomers(query, { tutto: true }).pipe(
+          map((response): CustomerListState => ({
+            status: 'success',
+            customers: response.data,
+            meta: response.meta,
+          })),
           startWith<CustomerListState>({ status: 'loading' }),
           catchError((err: unknown) =>
             of<CustomerListState>({ status: 'error', error: this.toAppError(err) }),
@@ -193,8 +193,6 @@ export class CustomerListComponent {
     return current.status === 'success' && current.meta.total === 0;
   });
 
-  protected readonly hasActiveFilters = computed(() => Boolean(this.query().search));
-
   // takeUntilDestroyed() gestisce l'unsubscribe; il campo evita subscription "ignorate".
   private readonly searchSubscription: Subscription;
 
@@ -220,22 +218,17 @@ export class CustomerListComponent {
       .subscribe(() => this.reload());
   }
 
-  protected onSearchInput(event: Event): void {
-    this.searchDraft.set((event.target as HTMLInputElement).value);
-  }
+  /*
+    ⛔ **Qui c'era `resetFilters()`, e azzerava la RICERCA** — tolto il
+    31/08/2026, decisione del proprietario: «ricerca e periodo possono restare
+    fuori».
 
-  protected resetFilters(): void {
-    this.searchDraft.set('');
-    this.updateParams({ search: null, page: null }, true);
-  }
-
-  protected goToPage(page: number): void {
-    this.updateParams({ page: page <= 1 ? null : page });
-  }
-
-  protected onPageSizeChange(size: number): void {
-    this.updateParams({ pageSize: size === DEFAULT_CUSTOMER_PAGE_SIZE ? null : size, page: null });
-  }
+    Era legato a `(filtersCleared)`, cioè allo spegnimento di «Filtri», e
+    `14` §0.2 dice il contrario: Ricerca e Periodo non seguono quel pulsante,
+    perché hanno il proprio controllo sempre a vista. Su questo elenco la
+    ricerca era **l'unica cosa** che quel metodo azzerava: tolta lei, non
+    restava niente da azzerare, e i filtri di colonna li pulisce lo store.
+  */
 
   protected reload(): void {
     this.refreshTick.update((tick) => tick + 1);
@@ -286,6 +279,243 @@ export class CustomerListComponent {
   protected dismissShopifyFeedback(): void {
     this.clearShopifyFeedback();
   }
+
+  /**
+   * ⭐ **I comandi dell'elenco, tutti nella barra in basso** (`14` §0.2).
+   *
+   * ⚠️ I permessi stanno QUI, non nel template: la condizione che decide se un
+   * comando esiste sta dove il comando si dichiara, non in un `@if` altrove.
+   */
+  /*
+    ⭐ **La selezione mancava, ed era la differenza che si vedeva** (30/08/2026):
+    senza la sua colonna, la prima colonna dei clienti partiva da un'altra
+    posizione e l'elenco «sembrava» un altro telaio. Era lo stesso telaio —
+    `list-page` e `list-page-fills-viewport`, come i prodotti — con una colonna in
+    meno.
+
+    ⚠️ **Oggi la selezione non ha ancora azioni proprie qui**: l'API clienti non
+    espone né eliminazione né duplicazione, quindi la barra resta quella che era.
+    Serve comunque, ed è utile da subito: il conteggio della riga totali la segue.
+  */
+  private readonly selection = createListSelection('multiple');
+
+  /**
+   * ⭐ **La modalità «Seleziona» della vista a card**, dal telaio.
+   *
+   * ⛔ Non è scritta qui: `createSelectionMode` porta con sé la regola che
+   * spegnerla AZZERA la selezione — a modalità spenta il tocco torna ad aprire
+   * la riga, e non resta nessun gesto per deselezionare.
+   */
+  protected readonly modoSelezione = createSelectionMode(this.selection);
+
+  protected readonly selectedCustomerIds = this.selection.ids;
+
+  /**
+   * ⛔ **Al cambio di filtro la selezione si restringe alle righe caricate.**
+   * Senza, la barra conterebbe schede che l'operatore non vede più e un'azione —
+   * eliminare, per esempio — agirebbe su clienti che credeva di aver lasciato
+   * indietro. È la «selezione invisibile o ingannevole» che `14` §15 vieta.
+   */
+  private readonly potaturaSelezione = toObservable(this.customers)
+    .pipe(takeUntilDestroyed(this.destroyRef))
+    .subscribe((righe) => this.selection.prune(righe.map((r) => r.id)));
+
+  // ── Eliminazione: la sequenza a due conferme sta nel componente condiviso ──
+  protected readonly deleteWarnOpen = signal(false);
+  protected readonly deleteBusy = signal(false);
+  private readonly pendingDeleteIds = signal<readonly string[]>([]);
+
+  /*
+    ⚠️ **Il titolo NOMINA chi sparisce**, non l'operazione: «Elimina Mario Rossi»
+    dice all'operatore che cosa sta per perdere.
+  */
+  protected readonly deleteWarnTitle = computed(() => {
+    const ids = this.pendingDeleteIds();
+    if (ids.length === 1) {
+      const cliente = this.customers().find((c) => c.id === ids[0]);
+      return cliente ? `Elimina ${customerDisplayName(cliente)}` : 'Elimina cliente';
+    }
+    return `Elimina ${ids.length} clienti`;
+  });
+
+  /*
+    ⭐ **La conseguenza dice che cosa NON sparisce**, ed è la parte che conta: chi
+    elimina un cliente teme di perdere le fatture. Non le perde — il nome resta
+    scritto su ogni documento, sparisce solo la scheda.
+
+    ⚠️ È la stessa promessa che l'unità di misura e il Codice IVA fanno già, e
+    va detta con le stesse parole: «il dato resta come testo».
+  */
+  protected readonly deleteWarnMessage = computed(() => {
+    const n = this.pendingDeleteIds().length;
+    const soggetto = n === 1 ? 'La scheda sparisce' : `Le ${n} schede spariscono`;
+    return `${soggetto} dall'anagrafica. Documenti, ordini e vendite restano invariati: il nome resta scritto su ognuno, e si continua a leggere.`;
+  });
+
+  private duplicaCliente(id: string): void {
+    this.service
+      .duplicateCustomer(id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (copia) => void this.router.navigate(['/app/customers', copia.id, 'edit']),
+      });
+  }
+
+  private requestDeleteSelection(ids: readonly string[]): void {
+    if (ids.length === 0 || this.deleteBusy()) {
+      return;
+    }
+    this.pendingDeleteIds.set(ids);
+    this.deleteWarnOpen.set(true);
+  }
+
+  protected onDeleteCancel(): void {
+    if (this.deleteBusy()) {
+      return;
+    }
+    this.pendingDeleteIds.set([]);
+  }
+
+  /*
+    ⚠️ **`concatMap`, non `forkJoin`**: una per una, così un fallimento a metà
+    lascia uno stato leggibile invece di un esito unico che non dice quali.
+  */
+  protected onDeleteConfirm(): void {
+    const ids = this.pendingDeleteIds();
+    if (ids.length === 0 || this.deleteBusy()) {
+      this.deleteWarnOpen.set(false);
+      return;
+    }
+    this.deleteBusy.set(true);
+    from(ids)
+      .pipe(
+        concatMap((id) =>
+          this.service.deleteCustomer(id).pipe(
+            map(() => ({ ok: true, id })),
+            catchError(() => of({ ok: false, id })),
+          ),
+        ),
+        toArray(),
+        take(1),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((esiti) => {
+        this.deleteBusy.set(false);
+        this.deleteWarnOpen.set(false);
+        this.pendingDeleteIds.set([]);
+        const eliminati = new Set(esiti.filter((e) => e.ok).map((e) => e.id));
+        if (eliminati.size > 0) {
+          // La potatura arriva col ricaricamento; questo toglie subito ciò che
+          // non c'è più, senza aspettare il giro di rete.
+          for (const id of eliminati) {
+            this.selection.toggle(id, false);
+          }
+        }
+        this.reload();
+      });
+  }
+
+  protected toggleCustomerSelection(customerId: string, selected: boolean): void {
+    this.selection.toggle(customerId, selected);
+  }
+
+  /*
+    ⚠️ **«Tutti» sono tutti quelli del FILTRO**, non della pagina: da quando
+    l'elenco non impagina più, le due cose coincidono — ed è una delle ragioni per
+    cui l'impaginazione è stata tolta prima e non dopo.
+  */
+  protected toggleSelectAll(selected: boolean): void {
+    this.selection.setAll(
+      this.customers().map((c) => c.id),
+      selected,
+    );
+  }
+
+  protected clearSelection(): void {
+    this.selection.clear();
+  }
+
+  protected readonly listActions = computed<readonly ListAction[]>(() => {
+    const azioni: ListAction[] = [];
+
+    if (this.canManage()) {
+      azioni.push(
+        comando('new', {
+          ariaLabel: 'Nuovo cliente',
+          run: () => void this.router.navigate(['/app/customers/new']),
+        }),
+      );
+    }
+
+    /*
+      ⭐ **Duplica**: `requires: 'one'` dal catalogo — si duplica una scheda per
+      volta, e a selezione multipla il comando è spento CON il motivo.
+
+      ⚠️ **Apre la copia**, non resta sull'elenco: si duplica per rifinire, e la
+      prima cosa da fare è cambiare ciò che deve essere diverso.
+    */
+    if (this.canManage()) {
+      azioni.push(
+        comando('duplicate', {
+          ariaLabel: 'Duplica il cliente selezionato',
+          run: (target) => {
+            if (target.scope === 'selection' && target.ids[0]) {
+              this.duplicaCliente(target.ids[0]);
+            }
+          },
+        }),
+      );
+    }
+
+    /*
+      ⭐ **Elimina, dal catalogo** (30/08/2026): `requires: 'oneOrMore'`, quindi a
+      selezione vuota c'è ed è spento CON il motivo.
+
+      ⚠️ **Stesso permesso della modifica**: chi può cambiare un'anagrafica può
+      toglierla. Un permesso a sé sarebbe una terza autorità su un'entità che ne
+      ha già una.
+    */
+    if (this.canManage()) {
+      azioni.push(
+        comando('delete', {
+          busy: this.deleteBusy(),
+          ariaLabel: 'Elimina i clienti selezionati',
+          run: (target) => {
+            if (target.scope === 'selection') {
+              this.requestDeleteSelection(target.ids);
+            }
+          },
+        }),
+      );
+    }
+
+    if (this.canExportData()) {
+      // ⭐ **Esporta è il MENU dei tracciati**, non un pulsante per formato
+      //    (`14` §5.2, deciso dal proprietario il 30/08/2026). Qui era
+      //    «Esporta CSV» diretto, e su altre pagine «Esporta» con le voci:
+      //    la stessa cosa aveva due forme.
+      azioni.push(
+        comando('export', {
+          busy: this.exporting(),
+          ariaLabel: "Esporta l'elenco clienti",
+          items: [voceEsporta('csv', () => this.exportCustomers())],
+        }),
+      );
+    }
+
+    if (this.showShopifyCustomersSync()) {
+      azioni.push({
+        id: 'shopify-sync',
+        label: 'Sincronizza da Shopify',
+        icon: 'pi-sync',
+        requires: 'none',
+        busy: this.shopifyCustomersLoading(),
+        run: () => this.syncCustomersFromShopify(),
+      });
+    }
+
+    return azioni;
+  });
 
   protected openCustomer(customer: Customer): void {
     void this.router.navigate(['/app/customers', customer.id]);

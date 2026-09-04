@@ -18,7 +18,7 @@ import type { EntityId } from '@core/models/common.model';
 import { ToastService } from '@core/services/toast.service';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
-import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 
 import type {
@@ -52,7 +52,7 @@ import { ExternalDocumentTypeService } from '../../services/external-document-ty
 @Component({
   selector: 'app-external-document-type-manager',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [BadgeComponent, ButtonComponent, ConfirmDialogComponent, InlineBannerComponent],
+  imports: [BadgeComponent, ButtonComponent, DeleteConfirmComponent, InlineBannerComponent],
   templateUrl: './external-document-type-manager.component.html',
   styleUrl: './external-document-type-manager.component.scss',
 })

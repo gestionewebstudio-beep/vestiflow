@@ -33,7 +33,20 @@ export const TABLE_VIEW_IDS = [
   'customers_list',
   'sales_orders_list',
   'shopify_orders_list',
+  // Aggiunte il 30/08/2026: erano i due soli elenchi senza selettore Colonne.
+  'supplier_orders_list',
+  'online_sales_list',
   'corrispettivi_register',
+  // Aggiunta il 31/08/2026: l'elenco Inventario dichiarava la vista lato
+  // frontend e l'API non la conosceva — 400 su lettura e salvataggio, e le
+  // colonne scelte non venivano mai memorizzate. L'ha trovata
+  // `npm run check:table-views`, che esiste per questo.
+  'inventory_counts',
+  // Aggiunta il 02/09/2026 con la migrazione del dettaglio inventario al motore
+  // tabella: sono le RIGHE di una sessione, la schermata dove si conta. Vista
+  // propria e non quella dell'elenco — chi allarga «Prodotto» mentre conta non
+  // deve toccare l'elenco da cui è entrato.
+  'inventory_count_lines',
 ] as const;
 
 export type TableViewId = (typeof TABLE_VIEW_IDS)[number];

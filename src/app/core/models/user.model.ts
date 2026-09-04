@@ -45,6 +45,16 @@ export interface User extends TenantScoped, Timestamped {
   readonly isPlatformAdmin: boolean;
   /** Sessione assistenza attiva (operatore nel gestionale cliente). */
   readonly supportSession?: SupportSession;
+  /**
+   * Se la **Vendita manuale** è operativa per questa azienda.
+   *
+   * ⚠️ Viaggia sul profilo e non su `/tenant/feature-settings`: quell’endpoint
+   * chiede `settings.company`, che manager e commesso non hanno, e i
+   * consumatori assorbono il 403 con `catchError(() => of(null))`. Un flag
+   * letto per quella strada resterebbe **acceso proprio per chi lo si vuole
+   * spegnere**.
+   */
+  readonly manualUnloadEnabled: boolean;
   /** Canale ecommerce abilitato per il tenant (scelto in «Nuovo cliente»). */
   readonly tenantChannelProfile: TenantChannelProfile;
   /** Nome commerciale del tenant (registrato in admin, non è una sede Shopify). */

@@ -50,13 +50,27 @@ export class OnlineSalesService {
   private readonly http = inject(ApiHttpClient);
   private readonly config = inject(APP_CONFIG);
 
-  getOnlineSales(query: OnlineSaleListQuery = {}): Observable<PaginatedResponse<OnlineSaleRow>> {
+  /**
+   * ⭐ **`tutto`: l'intero risultato del filtro**, non una pagina (30/08/2026).
+   *
+   * ⛔ Il default resta paginato, come per prodotti, clienti e fornitori.
+   */
+  getOnlineSales(
+    query: OnlineSaleListQuery = {},
+    opzioni: { readonly tutto?: boolean } = {},
+  ): Observable<PaginatedResponse<OnlineSaleRow>> {
     let params = new HttpParams()
       .set('page', String(query.page ?? 1))
       .set('pageSize', String(query.pageSize ?? 20));
+
+    if (opzioni.tutto) {
+      params = params.set('all', '1');
+    }
     params = appendIfPresent(params, {
       search: query.search,
       channel: query.channel,
+      placedFrom: query.placedFrom,
+      placedTo: query.placedTo,
       fulfilledFrom: query.fulfilledFrom,
       fulfilledTo: query.fulfilledTo,
     });

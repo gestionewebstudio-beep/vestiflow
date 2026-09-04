@@ -21,6 +21,15 @@
         <td class="doc-lines__cell--num tabular-nums" data-label="#">{{ line.lineNumber }}</td>
         <td data-label="Articolo">
           <span class="doc-lines__desc">{{ line.description }}</span>
+          <!--
+            La VARIANTE, sotto il nome. Va mostrata esplicitamente: la
+            descrizione fino a ieri la conteneva impastata, e ora porta il solo
+            nome — senza questa riga il Dettaglio, l'anteprima di stampa e il
+            Dettaglio vendite perderebbero taglia e colore tutti e tre insieme.
+          -->
+          @if (line.variantLabel) {
+            <span class="doc-lines__variant">{{ line.variantLabel }}</span>
+          }
           @if (line.sku) {
             <span class="doc-lines__sku">{{ line.sku }}</span>
           }

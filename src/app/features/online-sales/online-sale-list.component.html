@@ -1,179 +1,183 @@
-<section class="os-list">
-  <header class="os-list__header">
-    <div class="os-list__heading">
-      <app-back-button />
-      <div class="os-list__title-row">
-        <h1 class="os-list__title">Vendite online</h1>
-        @if (!loading()) {
-          <span class="os-list__count tabular-nums">
-            {{ meta().total }} {{ meta().total === 1 ? 'documento' : 'documenti' }}
-          </span>
-        }
-      </div>
-      <p class="os-list__subtitle">
-        Registro delle vendite generate dagli ordini online evasi: lo scarico di magazzino
-        collegati. Gli ordini restano consultabili in Ordini cliente.
-      </p>
-    </div>
-  </header>
+<app-list-page
+  class="os-list"
+  pageTitle="Vendite online"
+  [showBack]="true"
+  [count]="
+    loading() ? undefined : meta().total + (meta().total === 1 ? ' documento' : ' documenti')
+  "
+  [loading]="loading()"
+  [error]="error()?.message ?? null"
+  [isEmpty]="isEmpty()"
+  [skeletonColumns]="skeletonColumns"
+  [columnsViewId]="tableViewId"
+  [activeFilterCount]="activeFilterCount()"
+  searchPlaceholder="Cerca per numero, ordine, cliente…"
+  searchAriaLabel="Cerca vendite online"
+  [searchValue]="searchDraft()"
+  emptyTitle="Nessuna vendita online"
+  emptyDescription="Le Vendite online vengono create automaticamente quando un ordine online risulta completamente evaso."
+  emptyIcon="pi-send"
+  (searchChange)="searchDraft.set($event)"
+  (filtersCleared)="resetFilters()"
+  (retry)="reload()"
+>
+  <!--
+    ⭐ Il periodo resta in barra a ogni larghezza: è uno dei due che non entrano
+    nelle colonne (`14` §0.2). Gli altri filtri vanno nel pannello sotto `lg`, e
+    il pannello è del telaio.
+  -->
+  <!--
+    ⭐ **Il periodo è la DATA D'ORDINE** — deciso dal proprietario il
+    01/09/2026: «vendita online vale la data d'ordine».
 
-  <div class="os-list__toolbar os-list__toolbar--card">
-    <!-- Riga 1: ricerca (cresce) + azioni a destra. -->
-    <div class="os-list__toolbar-main">
-      <div class="os-list__search">
-        <i class="pi pi-search os-list__search-icon" aria-hidden="true"></i>
-        <input
-          id="online-sales-search"
-          class="os-list__input"
-          type="search"
-          [value]="searchDraft()"
-          placeholder="Cerca per numero, ordine, cliente…"
-          aria-label="Cerca vendite online"
-          (input)="onSearchInput($event)"
-        />
-      </div>
+    ⛔ **Qui c'erano due campi data nudi su «Evase dal / al»**, ed era l'unico
+    elenco con date senza un periodo predefinito: si apriva su tutto lo storico
+    mentre gli altri cinque partono dagli ultimi trenta giorni. Ora è lo stesso
+    controllo, con la stessa scala di preset.
 
-      <div class="os-list__toolbar-actions">
-        <button type="button" class="os-list__mobile-filters" (click)="mobileFiltersOpen.set(true)">
-          <i class="pi pi-sliders-h" aria-hidden="true"></i>
-          Filtri
-          @if (activeFilterCount() > 0) {
-            <span class="os-list__filter-badge tabular-nums">{{ activeFilterCount() }}</span>
-          }
-        </button>
-      </div>
-    </div>
-
-    <!-- Riga 2: chip filtro a piena larghezza; su mobile spariscono a favore
-         del pulsante «Filtri». -->
-    <div class="os-list__filters os-list__filters--inline">
-      <div class="os-list__field">
-        <app-select-menu
-          chipLabel="Canale"
-          [options]="channelOptions"
-          [value]="query().channel ?? ''"
-          ariaLabel="Filtra per canale"
-          placeholder="Tutti"
-          [compact]="true"
-          [fullWidth]="true"
-          (valueChange)="onChannelFilterChange($event)"
-          [filterChip]="true"
-        />
-      </div>
-
-      <div class="os-list__field os-list__field--date">
-        <label class="os-list__label" for="online-sales-from">Evase dal</label>
-        <app-date-input
-          inputId="online-sales-from"
-          [value]="query().fulfilledFrom ?? ''"
-          ariaLabel="Data evasione da"
-          placeholder="gg/mm/aaaa"
-          [compact]="true"
-          [fullWidth]="true"
-          [max]="query().fulfilledTo || undefined"
-          (valueChange)="onFulfilledFromChange($event)"
-        />
-      </div>
-
-      <div class="os-list__field os-list__field--date">
-        <label class="os-list__label" for="online-sales-to">al</label>
-        <app-date-input
-          inputId="online-sales-to"
-          [value]="query().fulfilledTo ?? ''"
-          ariaLabel="Data evasione a"
-          placeholder="gg/mm/aaaa"
-          [compact]="true"
-          [fullWidth]="true"
-          [min]="query().fulfilledFrom || undefined"
-          (valueChange)="onFulfilledToChange($event)"
-        />
-      </div>
-
-      @if (hasActiveFilters()) {
-        <button type="button" class="os-list__clear" (click)="resetFilters()">Azzera</button>
-      }
+    ⚠️ **La data di evasione non sparisce**: resta una colonna, col proprio
+    filtro. Sono due domande diverse — quando è stato comprato, quando è partito
+    — e su un canale online la distanza fra le due è il dato che si guarda.
+  -->
+  <div period>
+    <div class="os-list__field">
+      <app-select-menu
+        chipLabel="Periodo"
+        [options]="periodOptions"
+        [value]="periodPreset()"
+        ariaLabel="Filtra per periodo"
+        placeholder="Periodo"
+        [includeEmptyOption]="false"
+        [compact]="true"
+        [fullWidth]="true"
+        [labelOnly]="true"
+        (valueChange)="onPeriodPresetChange($event)"
+      />
     </div>
   </div>
 
-  @if (loading()) {
-    <app-table-skeleton [columns]="skeletonColumns" [rows]="8" />
-  } @else if (error(); as appError) {
-    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
-  } @else if (isEmpty()) {
-    <app-empty-state
-      title="Nessuna vendita online"
-      description="Le Vendite online vengono create automaticamente quando un ordine online risulta completamente evaso."
-      icon="pi-send"
-    />
-  } @else {
-    <app-online-sale-table [sales]="sales()" (rowClick)="openSale($event)" />
-    <app-pagination
-      label="Paginazione vendite online"
-      [meta]="meta()"
-      [pageSizeOptions]="pageSizeOptions"
-      (pageChange)="goToPage($event)"
-      (pageSizeChange)="onPageSizeChange($event)"
-    />
-  }
+  <div filters>
+    <div class="os-list__field">
+      <app-select-menu
+        chipLabel="Canale"
+        [options]="channelOptions"
+        [value]="query().channel ?? ''"
+        ariaLabel="Filtra per canale"
+        placeholder="Tutti"
+        [compact]="true"
+        [fullWidth]="true"
+        (valueChange)="onChannelFilterChange($event)"
+        [filterChip]="true"
+      />
+    </div>
 
-  <!-- Pannello filtri mobile: gli stessi filtri della toolbar, a tutta
-       larghezza. Scrivono su query() come le chip, quindi restano allineati. -->
-  <app-slide-panel
-    [open]="mobileFiltersOpen()"
-    title="Filtri"
-    size="narrow"
-    (closed)="mobileFiltersOpen.set(false)"
+    <!--
+      Il raggruppamento sta con i filtri perché è lì che l'occhio lo cerca, ma
+      NON è un filtro: non cambia quali righe si vedono, solo come si leggono.
+    -->
+    <div class="os-list__field">
+      <app-group-by-menu [value]="raggruppa()" (valueChange)="onRaggruppaChange($event)" />
+    </div>
+  </div>
+
+  <!--
+    ⭐ **Sul motore comune dal 30/08/2026.** Qui c'era `app-online-sale-table`,
+    dieci `<th>` scritti a mano: niente selettore Colonne, niente ordinamento,
+    niente selezione. Le tre cose vengono tutte da `app-data-table`, e
+    riscriverla ha chiuso i tre buchi insieme invece di rattopparne uno.
+
+    ⚠️ **L'ordinamento resta spento**, e non per dimenticanza: l'API delle
+    vendite online non ha un parametro `sort` — ordina sempre per data di
+    evasione. Accendere le intestazioni riordinerebbe la PAGINA CORRENTE di un
+    elenco paginato, cioè venti righe su centoventisette: sembrerebbe funzionare
+    ed è peggio di non ordinare. Si accende quando l'API lo sa fare.
+  -->
+  <app-data-table
+    data
+    caption="Vendite online"
+    [columns]="tableColumns()"
+    [viewId]="tableViewId"
+    [sections]="tableSections()"
+    [totals]="totals()"
+    [rowId]="rowId"
+    [cellText]="cellText"
+    [rowClickable]="true"
+    [rowLabel]="rowLabel"
+    (rowClick)="openSale($event)"
   >
-    @if (mobileFiltersOpen()) {
-      <div class="os-list__panel-filters">
-        <div class="os-list__field">
-          <span class="os-list__label">Canale</span>
-          <app-select-menu
-            [options]="channelOptions"
-            [value]="query().channel ?? ''"
-            ariaLabel="Filtra per canale"
-            placeholder="Tutti"
-            [compact]="true"
-            [fullWidth]="true"
-            (valueChange)="onChannelFilterChange($event)"
-          />
-        </div>
+    <!-- L'unica cella che non è testo: lo stato magazzino, con la sua pill. -->
+    <ng-template appCell="inventoryStatus" let-sale>
+      <app-badge [flat]="true" [tone]="inventoryTone(sale.inventoryStatus)">
+        {{ inventoryLabel(sale.inventoryStatus) }}
+      </app-badge>
+    </ng-template>
+    <!--
+    ⭐ **La card di un ELENCO si progetta, non si impila** (`regole-stile-ui`):
+    tre fasce, «a sinistra le parole, a destra i numeri». La grammatica è comune
+    (`styles/_list-card.scss`), il contenuto è di questo elenco.
 
-        <div class="os-list__field">
-          <span class="os-list__label">Evase dal</span>
-          <app-date-input
-            inputId="online-sales-panel-from"
-            [value]="query().fulfilledFrom ?? ''"
-            ariaLabel="Data evasione da"
-            placeholder="gg/mm/aaaa"
-            [compact]="true"
-            [fullWidth]="true"
-            [max]="query().fulfilledTo || undefined"
-            (valueChange)="onFulfilledFromChange($event)"
-          />
-        </div>
-
-        <div class="os-list__field">
-          <span class="os-list__label">al</span>
-          <app-date-input
-            inputId="online-sales-panel-to"
-            [value]="query().fulfilledTo ?? ''"
-            ariaLabel="Data evasione a"
-            placeholder="gg/mm/aaaa"
-            [compact]="true"
-            [fullWidth]="true"
-            [min]="query().fulfilledFrom || undefined"
-            (valueChange)="onFulfilledToChange($event)"
-          />
-        </div>
-
-        <div class="os-list__panel-actions">
-          @if (hasActiveFilters()) {
-            <app-button variant="ghost" (click)="resetFilters()">Azzera filtri</app-button>
-          }
-          <app-button (click)="mobileFiltersOpen.set(false)">Vedi risultati</app-button>
-        </div>
+    ⛔ Prima c'era il ripiego a `data-label` del motore: una riga «ETICHETTA:
+    valore» per colonna, tutte dello stesso peso, e niente di primario.
+  -->
+    <ng-template appRowCard let-sale>
+      <div class="list-card__head">
+        <span class="list-card__ident">
+          <span class="list-card__when tabular-nums">{{ cellText(sale, 'fulfilledAt') }}</span>
+          <span class="list-card__what">{{ cellText(sale, 'customer') }}</span>
+        </span>
+        <span class="list-card__anchor">{{ cellText(sale, 'reference') }}</span>
       </div>
-    }
-  </app-slide-panel>
-</section>
+
+      <div class="list-card__words">
+        @if (visibile('channel')) {
+          <span>{{ cellText(sale, 'channel') }}</span>
+        }
+        @if (visibile('location')) {
+          <span>{{ cellText(sale, 'location') }}</span>
+        }
+        @if (visibile('inventoryStatus')) {
+          <span>{{ inventoryLabel(sale.inventoryStatus) }}</span>
+        }
+      </div>
+
+      @if (visibile('total')) {
+        <div class="list-card__figures">
+          <span class="list-card__total">{{ cellText(sale, 'total') }}</span>
+        </div>
+      }
+    </ng-template>
+  </app-data-table>
+
+  <!--
+    ⭐ **Il riepilogo nella forma del Registro Corrispettivi** — proprietario,
+    31/08/2026: «per i riepiloghi dei documenti, quindi acquisti, ordini e
+    vendite, la struttura dei totali dovrebbe essere come quella dei
+    corrispettivi per avere coerenza di visualizzazione».
+
+    ⛔ **Sostituisce la riga totali del motore**, che su questo elenco è spenta:
+    insieme direbbero gli stessi numeri due volte nella stessa schermata.
+  -->
+  <!--
+    ⛔ **Qui c'era la fascia riepilogo alla Corrispettivi**, e il proprietario
+    l'ha rivista il 31/08/2026 guardando i Prodotti: «sotto alle righe hai creato
+    la riga dei totali e i totali si spostano in base alla colonna. Non sarebbe
+    meglio creare la riga sotto ai documenti come quella dei prodotti?».
+
+    ⭐ **Sì, ed è anche più corretta qui**: su un elenco documentale TUTTE le voci
+    sono colonne — Imponibile, IVA, Totale — quindi ognuna ha la propria
+    intestazione sopra. La fascia esiste per il Registro Corrispettivi, dove metà
+    delle voci colonne non sono («Annullamenti 2», «Rettifiche (4)»).
+
+    ⚠️ **E la riga in tabella scorre ORIZZONTALMENTE con le colonne**: il totale
+    resta sotto la sua intestazione anche su un elenco largo. Una fascia esterna
+    sta ferma, e con dieci colonne il numero non si sa più a cosa appartiene.
+  -->
+
+  <!--
+    ⛔ **Qui c'era l'impaginazione**, tolta il 30/08/2026: un elenco mostra tutte
+    le righe del filtro attivo (`regole-stile-ui`, «NESSUN TETTO DI RIGHE»).
+
+    ⚠️ Il conteggio lo dice il riepilogo qui sopra, «N voci», che conta il
+    risultato intero invece della pagina.
+  -->
+</app-list-page>

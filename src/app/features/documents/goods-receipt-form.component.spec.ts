@@ -14,6 +14,7 @@ import { OperationalLocationsService } from '@domain/inventory/services/operatio
 import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { ToastService } from '@core/services/toast.service';
 import { VatCodeService } from '@core/services/vat-code.service';
+import { ViewportService } from '@core/services/viewport.service';
 import { ProductService } from '@domain/products/services/product.service';
 import { ProductLabelPrintService } from '@domain/products/services/product-label-print.service';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
@@ -265,10 +266,16 @@ describe('GoodsReceiptFormComponent', () => {
     return Object.assign(result, { saveGoodsReceipt, showInfo });
   }
 
-  /** Il campo Numero vive in due viste (mobile + desktop): stesso controllo. */
+  /**
+   * ⛔ **Una guardia che tollera il difetto non e' una guardia.** Qui si
+    // prendeva il PRIMO di piu' risultati, e il commento diceva «il campo vive
+    // in due viste»: era vero finche' la testata si scriveva due volte. Da
+    // quando si dichiara una volta sola, quel plurale accetterebbe il ritorno
+    // della copia senza dire niente — e la copia e' proprio il difetto appena
+    // chiuso. La forma singolare fallisce, ed e' il punto.
+   */
   async function numberInput(): Promise<HTMLInputElement> {
-    const inputs = await screen.findAllByLabelText<HTMLInputElement>('Numero');
-    return inputs[0]!;
+    return screen.findByLabelText<HTMLInputElement>('Numero');
   }
 
   // ── Sede predefinita (§1-bis, 13/08/2026) ─────────────────────────────────
@@ -556,7 +563,7 @@ describe('GoodsReceiptFormComponent', () => {
 
     // Una riproposta dei contatori — la scatenano il cambio data e ogni
     // ricarica — non deve più toccarlo: il numero è assegnato, non proposto.
-    component['refreshNumberProposal']();
+    component['numbering'].refreshProposal();
     await fixture.whenStable();
 
     expect(component.form.controls.documentNumber.value).toBe(46);
@@ -567,6 +574,42 @@ describe('GoodsReceiptFormComponent', () => {
    * Comandi che l'API nega: non devono nemmeno comparire. Un pulsante che
    * risponde 403 al primo clic è peggio di un pulsante assente.
    */
+  // ── L'area note comune, e le due spunte dell'anagrafica ───────────────────
+  //
+  // ⛔ Qui il test provava che le spunte PROIETTATE dentro `app-document-notes`
+  // convivessero coi due campi comuni. Dal 02/09/2026 non sono più proiettate:
+  // stanno in testata, perché «Aggiorna prezzi» abilita i campi prezzo delle
+  // righe e va decisa PRIMA di compilarle.
+  //
+  // ⚠️ Le due asserzioni restano separate perché provano cose diverse: i campi
+  // note sono il contratto del componente comune, le spunte sono dominio di
+  // questa maschera. Confonderle era ciò che rendeva il test fragile.
+  describe('area note', () => {
+    it('i due campi comuni della nota ci sono', async () => {
+      await setup();
+
+      expect(screen.getByLabelText('Note documento', { selector: 'textarea' })).toBeTruthy();
+      expect(screen.getByLabelText('Commento interno', { selector: 'textarea' })).toBeTruthy();
+    });
+
+    // ⭐ Le spunte esistono UNA volta sola: se la testata tornasse a scriversi
+    // due volte (desktop + mobile nel DOM), `getByLabelText` singolare fallisce.
+    it('⭐ le due spunte dell’anagrafica stanno in testata, non nel piede', async () => {
+      await setup();
+
+      const costo = screen.getByLabelText('Aggiorna costo in anagrafica');
+      const prezzi = screen.getByLabelText('Aggiorna prezzi in anagrafica');
+      expect(costo).toBeVisible();
+      expect(prezzi).toBeVisible();
+
+      // La prova della POSIZIONE: stanno dentro la testata, non nella banda
+      // finale. Senza questa riga il test resterebbe verde se tornassero giù.
+      expect(costo.closest('.doc-form__header')).not.toBeNull();
+      expect(costo.closest('.doc-form__footer-notes')).toBeNull();
+      expect(prezzi.closest('.doc-form__header')).not.toBeNull();
+    });
+  });
+
   describe('permessi dell’operatore', () => {
     it('senza permessi: numerazioni, nuovo fornitore e nuovo prodotto spariscono', async () => {
       await setup({ currentUser: userWithPermissions([]) });
@@ -585,11 +628,14 @@ describe('GoodsReceiptFormComponent', () => {
         ]),
       });
 
-      // Testata mobile e desktop convivono in jsdom: entrambe li mostrano.
-      expect(
-        screen.getAllByRole('button', { name: 'Gestisci numerazioni' }).length,
-      ).toBeGreaterThan(0);
-      expect(screen.getAllByRole('button', { name: 'Nuovo fornitore' }).length).toBeGreaterThan(0);
+      // ⛔ Qui c'era `getAllByRole(...).length).toBeGreaterThan(0)`, col commento
+      // «Testata mobile e desktop convivono in jsdom: entrambe li mostrano»: la
+      // doppia scrittura della testata era diventata un requisito della prova.
+      // Dal 24/08/2026 la testata si dichiara una volta (`app-document-header`)
+      // e di ogni comando ne esiste UNO — `getByRole` singolare fallisce se la
+      // seconda copia torna.
+      expect(screen.getByRole('button', { name: 'Gestisci numerazioni' })).toBeVisible();
+      expect(screen.getByRole('button', { name: 'Nuovo fornitore' })).toBeVisible();
       expect(screen.getByRole('button', { name: 'Nuovo prodotto' })).toBeVisible();
     });
 
@@ -635,8 +681,21 @@ describe('GoodsReceiptFormComponent', () => {
       };
     }
 
-    const IVA_22 = vatCode({ id: 'vat-22', code: '22', ratePercent: 22 });
-    const IVA_10 = vatCode({ id: 'vat-10', code: '10', ratePercent: 10 });
+    const codiceIva = (id: string, ratePercent: number) => ({
+      id,
+      code: String(ratePercent),
+      natureId: 'nat-1',
+      nature: {},
+      ratePercent,
+      nonDeductiblePercent: 0,
+      description: '',
+      notes: null,
+      usageScope: 'both',
+      calculationMode: 'standard',
+      vatAffectsSupplierTotal: true,
+    });
+    const IVA_22 = codiceIva('vat-22', 22);
+    const IVA_10 = codiceIva('vat-10', 10);
     const REVERSE = vatCode({
       id: 'vat-rc',
       code: 'RC',
@@ -776,7 +835,17 @@ describe('GoodsReceiptFormComponent', () => {
       readonly lineFocus: { fieldsOf: (i: number) => readonly string[] };
       readonly onLineFieldKeydown: (i: number, field: string, e: KeyboardEvent) => void;
       readonly moveLineDown: (i: number) => void;
-      readonly lines: { length: number };
+      readonly moveLineUp: (i: number) => void;
+      readonly createLine: () => unknown;
+      readonly lines: {
+        readonly length: number;
+        push: (control: ReturnType<FocusForm['createLine']>) => void;
+      };
+      // Privati del componente: il test li raggiunge per provare la
+      // risoluzione dell'id, che è il punto dove il difetto viveva.
+      readonly activeLineFocusField: (i: number) => string | null;
+      readonly lineFieldElementId: (i: number, field: string) => string;
+      readonly focusLineField: (i: number, field: string) => void;
     }
 
     async function apriForm() {
@@ -832,6 +901,125 @@ describe('GoodsReceiptFormComponent', () => {
       expect(evento.defaultPrevented).toBe(true);
       expect(form.lines.length).toBe(righePrima);
     });
+
+    /**
+     * ⛔ **Il difetto che questi test inchiodano.** La risoluzione «id → campo»
+     * era una seconda lista scritta a mano, scorsa per PREFISSO e in ordine:
+     *
+     *     ['gr-lot-',      'lot'],      ← 'gr-lot-date-1' comincia così
+     *     ['gr-lot-date-', 'expiry'],   ← non ci si arrivava mai
+     *
+     * Spostando una riga col fuoco sulla Scadenza, il fuoco tornava sul Lotto.
+     * E l'unità di misura, rientrata nel giro con la cella a
+     * ricerca-e-selezione, in quella lista non era mai stata aggiunta: il fuoco
+     * si perdeva del tutto.
+     *
+     * Ora la risoluzione deriva dai campi del contratto con confronto ESATTO,
+     * quindi un campo nuovo è coperto il giorno in cui nasce.
+     */
+    describe('il campo che ha il fuoco si risolve dall’id', () => {
+      /** Dà il fuoco a un elemento con quell’id, come farebbe il browser. */
+      function conFuocoSu(id: string): HTMLInputElement {
+        const el = document.createElement('input');
+        el.id = id;
+        document.body.appendChild(el);
+        el.focus();
+        return el;
+      }
+
+      it('gli id sovrapposti Lotto/Scadenza non si confondono', async () => {
+        const form = await apriForm();
+
+        const lotto = conFuocoSu(form.lineFieldElementId(1, 'lot'));
+        expect(form.activeLineFocusField(1)).toBe('lot');
+        lotto.remove();
+
+        const scadenza = conFuocoSu(form.lineFieldElementId(1, 'expiry'));
+        // Prima tornava «lot»: `gr-lot-date-1` comincia per `gr-lot-`.
+        expect(form.activeLineFocusField(1)).toBe('expiry');
+        scadenza.remove();
+      });
+
+      it('l’unità di misura è riconosciuta', async () => {
+        const form = await apriForm();
+        const uom = conFuocoSu(form.lineFieldElementId(0, 'unitOfMeasure'));
+
+        // Prima tornava `null`: la lista parallela non la conteneva.
+        expect(form.activeLineFocusField(0)).toBe('unitOfMeasure');
+        uom.remove();
+      });
+
+      it('ogni campo del giro si risolve nel proprio, su ogni riga', async () => {
+        const form = await apriForm();
+
+        for (const field of form.lineFocus.fieldsOf(0)) {
+          const el = conFuocoSu(form.lineFieldElementId(2, field));
+          expect(form.activeLineFocusField(2)).toBe(field);
+          el.remove();
+        }
+      });
+
+      it('un id di un’altra riga non risolve nulla', async () => {
+        const form = await apriForm();
+        const altrove = conFuocoSu(form.lineFieldElementId(5, 'quantity'));
+
+        expect(form.activeLineFocusField(0)).toBeNull();
+        altrove.remove();
+      });
+    });
+
+    describe('spostare una riga conserva il campo che aveva il fuoco', () => {
+      function conFuocoSu(id: string): HTMLInputElement {
+        const el = document.createElement('input');
+        el.id = id;
+        document.body.appendChild(el);
+        el.focus();
+        return el;
+      }
+
+      /**
+       * Due righe: senza la seconda non c’è nulla da spostare.
+       *
+       * ⚠️ Si spinge sul FormArray invece di usare `addLine()`: quello passa da
+       * `linkLineCodesThen`, quindi la riga compare **dopo** — e un `while`
+       * sincrono non la vedrebbe mai. Qui serve solo che due righe esistano.
+       */
+      async function formConDueRighe(): Promise<FocusForm> {
+        const form = await apriForm();
+        while (form.lines.length < 2) {
+          form.lines.push(form.createLine());
+        }
+        return form;
+      }
+
+      it('Scadenza resta Scadenza', async () => {
+        const form = await formConDueRighe();
+        const dove = vi.spyOn(
+          form as unknown as { focusLineField: (i: number, f: string) => void },
+          'focusLineField',
+        );
+        const el = conFuocoSu(form.lineFieldElementId(1, 'expiry'));
+
+        form.moveLineUp(1);
+
+        expect(dove).toHaveBeenCalledWith(0, 'expiry');
+        el.remove();
+      });
+
+      it('U.M. resta U.M.', async () => {
+        const form = await formConDueRighe();
+        const dove = vi.spyOn(
+          form as unknown as { focusLineField: (i: number, f: string) => void },
+          'focusLineField',
+        );
+        const el = conFuocoSu(form.lineFieldElementId(1, 'unitOfMeasure'));
+
+        form.moveLineUp(1);
+
+        expect(dove).toHaveBeenCalledWith(0, 'unitOfMeasure');
+        el.remove();
+      });
+    });
   });
 
   /**
@@ -846,7 +1034,10 @@ describe('GoodsReceiptFormComponent', () => {
   describe('codice fornitore scritto nella riga', () => {
     interface CodeForm {
       readonly commitSkuLookup: (index: number) => void;
+      readonly lineUnitOfMeasure: (index: number) => string;
       readonly commitSupplierSkuLookup: (index: number) => void;
+      /** L'ingresso del richiamo articolo: il gesto che il contratto governa. */
+      readonly onVariantSelect: (index: number, variantId: string | null) => void;
       readonly form: { controls: Record<string, { setValue: (v: unknown) => void }> };
       readonly lines: {
         at: (i: number) => {
@@ -918,6 +1109,82 @@ describe('GoodsReceiptFormComponent', () => {
       sellingPrice: { amountMinor: 1000, currencyCode: 'EUR' },
     };
 
+    /**
+     * ⭐ **Sesto e ultimo consumer prima del banco** (`03c` §5).
+     *
+     * L'Arrivo merce era l'ultimo per una ragione precisa: e' l'unica maschera
+     * dove il risolutore poteva essere **scavalcato**. Tre copie della stessa
+     * scrittura, due costruttori di riga paralleli, e un effect che riscriveva
+     * i codici in modo asincrono e non ordinato.
+     */
+    describe('il richiamo articolo passa dal risolutore comune', () => {
+      it('⛔ il nome non porta la variante, che ha la sua colonna', async () => {
+        const { form } = await apri({
+          catalogo: [
+            {
+              ...ARTICOLO,
+              productName: 'Maglia',
+              title: 'Maglia — M / Rosso',
+              variantLabel: 'M / Rosso',
+            },
+          ],
+        });
+
+        form.onVariantSelect(0, 'var-1');
+
+        const riga = form.lines.at(0).controls;
+        expect(riga['productName']!.value).toBe('Maglia');
+        expect(riga['productName']!.value).not.toContain('—');
+        expect(riga['variantLabel']!.value).toBe('M / Rosso');
+      });
+
+      it('⛔ nome vuoto in anagrafica: la riga resta vuota, non prende il titolo', async () => {
+        const { form } = await apri({
+          catalogo: [
+            {
+              ...ARTICOLO,
+              variantId: 'var-senza-nome',
+              sku: 'FEL-L',
+              // L'unica forma di dato che esegue il ramo di ripiego: era
+              // scritto in DUE punti su tre, e nessun fixture lo percorreva.
+              productName: '',
+              title: 'Felpa / L / Blu',
+              variantLabel: 'L / Blu',
+            },
+          ],
+        });
+
+        form.onVariantSelect(0, 'var-senza-nome');
+
+        const riga = form.lines.at(0).controls;
+        expect(riga['productName']!.value).toBe('');
+        expect(riga['productName']!.value).not.toContain('Felpa');
+        expect(riga['variantLabel']!.value).toBe('L / Blu');
+      });
+
+      it('⛔ articolo senza unità: la cella resta vuota, non scrive «pz» nel documento', async () => {
+        const { form } = await apri({
+          catalogo: [{ ...ARTICOLO, variantId: 'var-metri', sku: 'TES-1' }],
+        });
+
+        form.onVariantSelect(0, 'var-metri');
+
+        // Il ripiego cablato stava nell'EFFECT e il campo si PERSISTE: un
+        // articolo venduto a metri arrivava a documento con «pz» dentro.
+        expect(form.lines.at(0).controls['unitOfMeasure']!.value).toBe('');
+      });
+
+      it("l'unità dell'articolo arriva sulla riga quando c'è", async () => {
+        const { form } = await apri({
+          catalogo: [{ ...ARTICOLO, variantId: 'var-kg', sku: 'KG-1', unitOfMeasure: 'kg' }],
+        });
+
+        form.onVariantSelect(0, 'var-kg');
+
+        expect(form.lines.at(0).controls['unitOfMeasure']!.value).toBe('kg');
+      });
+    });
+
     it('agganciando per SKU vale il codice del fornitore della testata, non quello del riepilogo', async () => {
       const { form, fixture } = await apri({
         catalogo: [{ ...ARTICOLO, supplierSku: 'F-999' }],
@@ -930,6 +1197,44 @@ describe('GoodsReceiptFormComponent', () => {
 
       expect(form.lines.at(0).controls['variantId']!.value).toBe('var-1');
       expect(form.lines.at(0).controls['supplierSku']!.value).toBe('F-777');
+    });
+
+    /**
+     * ⛔ **Guardia sull'unità di misura.** Qui c'era un ripiego
+     * `riga || anagrafica || 'pz'`, e faceva danno in silenzio: una riga senza
+     * unità mostrava comunque qualcosa, quindi il campo sembrava pieno mentre il
+     * documento non conteneva niente. È il meccanismo che ha nascosto il difetto
+     * per cui **zero righe su 99 avevano una U.M.**
+     *
+     * Il caso si misura sulla riga SENZA articolo: lì non c'è nessuna anagrafica
+     * da cui ripiegare, e la vecchia forma restituiva comunque `pz`. Su una riga
+     * con articolo non si misura, perché il riallineamento ricattura l'unità
+     * appena la si svuota — che è un'altra questione, e resta aperta.
+     *
+     * Il test fallisce se il ripiego rientra (23/08/2026).
+     */
+    it('riga senza articolo: nessuna unità inventata', async () => {
+      const { form, fixture } = await apri({ catalogo: [ARTICOLO] });
+      await lasciaGirareIlCiclo(fixture);
+
+      // Riga appena creata, nessun articolo agganciato.
+      expect(form.lines.at(0).controls['variantId']!.value).toBe('');
+      // Non `pz`: il documento non ha un'unità, e deve vedersi.
+      expect(form.lineUnitOfMeasure(0)).toBe('');
+    });
+
+    it('con l’articolo agganciato l’unità si cattura e si mostra', async () => {
+      const { form, fixture } = await apri({
+        catalogo: [{ ...ARTICOLO, unitOfMeasure: 'kg' }],
+        perVariante: [{ ...ARTICOLO, unitOfMeasure: 'kg' }],
+      });
+      form.lines.at(0).controls['sku']!.setValue('MAG-M');
+      form.commitSkuLookup(0);
+      await lasciaGirareIlCiclo(fixture);
+
+      // La riga se l'è presa: il valore è suo, non una lettura dell'anagrafica.
+      expect(form.lines.at(0).controls['unitOfMeasure']!.value).toBe('kg');
+      expect(form.lineUnitOfMeasure(0)).toBe('kg');
     });
 
     // Il controllo inverso: senza, la prova qui sopra passerebbe anche se il
@@ -1116,5 +1421,284 @@ describe('GoodsReceiptFormComponent', () => {
       component['selectSalesPriceMode'](false);
       expect(line.controls.compareAtPrice.value).toBe('');
     });
+  });
+
+  describe('precisione del costo al cambio Netto/Ivato', () => {
+    const codiceIva = (id: string, ratePercent: number) => ({
+      id,
+      code: String(ratePercent),
+      natureId: 'nat-1',
+      nature: {},
+      ratePercent,
+      nonDeductiblePercent: 0,
+      description: '',
+      notes: null,
+      usageScope: 'both',
+      calculationMode: 'standard',
+      vatAffectsSupplierTotal: true,
+    });
+    const IVA_22 = codiceIva('vat-22', 22);
+    const IVA_10 = codiceIva('vat-10', 10);
+
+    /**
+     * ⛔ Difetto corretto il 22/08/2026: passando a Netto il campo veniva
+     * riscritto col valore ARROTONDATO, e tornando a Ivato 1,03 € diventava
+     * 1,02 €. Il campo mostra due decimali — ed è giusto — ma il valore che va
+     * al salvataggio deve conservare la coda dello scorporo.
+     *
+     * ⚠️ Il difetto NON è universale: colpisce il 18,0% dei prezzi ivati al 22%.
+     * Un test sul solo 25,00 € non lo vedrebbe.
+     */
+    async function conRiga(costo: string, vatCodeId = IVA_22.id, ivato = true) {
+      const { fixture } = await setup({ vatCodes: [IVA_22, IVA_10] });
+      const component = fixture.componentInstance;
+      component.form.controls.supplierId.setValue('sup-1');
+      component.form.controls.locationId.setValue('loc-1');
+      fixture.detectChanges();
+      if (ivato) {
+        component['costEntryMode'].set('vat_included');
+      }
+      component['addLine']();
+      const line = component['lines'].at(0);
+      line.controls.productName.setValue('Articolo');
+      line.controls.quantity.setValue(1);
+      line.controls.vatCodeId.setValue(vatCodeId);
+      line.controls.unitCost.setValue(costo);
+      return { component, line, fixture };
+    }
+
+    /** Cambia modalità come fa il pulsante: pending + conferma. */
+    function commuta(component: GoodsReceiptFormComponent, mode: 'vat_included' | 'vat_excluded') {
+      component['pendingCostMode'].set(mode);
+      component['confirmCostModeConversion']();
+    }
+
+    it('⭐ 1,03 € @22% → Netto → Ivato torna 1,03 €', async () => {
+      const { component, line } = await conRiga('1,03');
+
+      commuta(component, 'vat_excluded');
+      expect(line.controls.unitCost.value).toBe('0,84'); // il campo mostra 2 decimali
+      expect(component['lineCostEnteredMinor'](line.controls.unitCost)).toBeCloseTo(84.4262, 4);
+
+      commuta(component, 'vat_included');
+      expect(line.controls.unitCost.value).toBe('1,03'); // ⛔ prima tornava 1,02
+    });
+
+    it('⭐ tre commutazioni consecutive non degradano il valore', async () => {
+      const { component, line } = await conRiga('1,03');
+
+      for (let giro = 0; giro < 3; giro++) {
+        commuta(component, 'vat_excluded');
+        commuta(component, 'vat_included');
+      }
+
+      expect(line.controls.unitCost.value).toBe('1,03');
+    });
+
+    it('⛔ una modifica manuale PREVALE sul canonico ricordato', async () => {
+      const { component, line } = await conRiga('1,03');
+      commuta(component, 'vat_excluded');
+
+      // L'operatore ridigita: da qui il valore vero è il suo.
+      line.controls.unitCost.setValue('0,90');
+
+      expect(component['lineCostEnteredMinor'](line.controls.unitCost)).toBe(90);
+      commuta(component, 'vat_included');
+      expect(line.controls.unitCost.value).toBe('1,10'); // 0,90 × 1,22 = 1,098 → 1,10
+    });
+
+    it('⛔ il cambio di aliquota INVALIDA il canonico: nasce con un’IVA, con un’altra non vale', async () => {
+      const { component, line } = await conRiga('1,03');
+      commuta(component, 'vat_excluded');
+      expect(component['lineCostEnteredMinor'](line.controls.unitCost)).toBeCloseTo(84.4262, 4);
+
+      component['onLineVatSelect'](0, IVA_10.id);
+
+      // Il valore DIGITATO resta invariato (§13) — ma il netto si ricostruisce
+      // con la nuova aliquota, non si riusa quello del 22%.
+      expect(component['lineCostEnteredMinor'](line.controls.unitCost)).toBe(84);
+    });
+
+    it('⛔ …e lo invalida anche in modalità Ivata', async () => {
+      const { component, line } = await conRiga('1,03');
+      component['onLineVatSelect'](0, IVA_10.id);
+
+      commuta(component, 'vat_excluded');
+      // 1,03 / 1,10 = 0,936363… → il canonico è quello del 10%.
+      expect(component['lineCostEnteredMinor'](line.controls.unitCost)).toBeCloseTo(93.6364, 4);
+    });
+
+    it('campo vuoto: nessun costo, non zero mascherato da valore', async () => {
+      const { component, line } = await conRiga('1,03');
+      line.controls.unitCost.setValue('');
+
+      expect(component['lineCostEnteredMinor'](line.controls.unitCost)).toBe(0);
+    });
+
+    it('una riga NUOVA non eredita il canonico di quella precedente', async () => {
+      const { component } = await conRiga('1,03');
+      commuta(component, 'vat_excluded');
+
+      component['addLine']();
+      const nuova = component['lines'].at(1);
+      nuova.controls.unitCost.setValue('0,84');
+
+      // Nessun ricordo su questo control: vale il digitato.
+      expect(component['lineCostEnteredMinor'](nuova.controls.unitCost)).toBe(84);
+    });
+
+    it('⭐ IVA 10%: il giro torna', async () => {
+      const { component, line } = await conRiga('1,03', IVA_10.id);
+
+      commuta(component, 'vat_excluded');
+      expect(component['lineCostEnteredMinor'](line.controls.unitCost)).toBeCloseTo(93.6364, 4);
+      commuta(component, 'vat_included');
+      expect(line.controls.unitCost.value).toBe('1,03');
+    });
+  });
+
+  /**
+   * ⛔ **Il contratto dell'uscita** — deciso dal proprietario il 24/08/2026.
+   *
+   * > «se non ho fatto nulla, posso chiudere tranquillamente il documento senza
+   * >  alert. Ovunque deve essere cosi'.»
+   *
+   * ⚠️ **Qui «toccato» voleva dire un'altra cosa.** `hasUnsavedWork()` esigeva
+   * il form sporco **E** un «contenuto significativo»: documento esistente,
+   * fornitore scelto, o almeno una riga con dati. Un arrivo nuovo con data,
+   * note e riferimento del documento esterno compilati usciva **in silenzio**, e
+   * quel lavoro spariva — mentre il commento del metodo prometteva l'opposto
+   * («anche sola testata, §9.2»).
+   *
+   * Il criterio ora e' uno solo, ed e' quello delle altre maschere: l'operatore
+   * ha cambiato qualcosa.
+   */
+  describe('GoodsReceiptFormComponent — il contratto dell’uscita', () => {
+    it('⭐ appena aperto, si chiude senza avviso', async () => {
+      const view = await setup();
+      const comp = view.fixture.componentInstance as unknown as {
+        canDeactivate: () => boolean | Promise<boolean>;
+      };
+      // I valori PROPOSTI dal sistema — numero, serie, data — non sporcano: se
+      // contassero, l'avviso scatterebbe sempre e smetterebbe di dire qualcosa.
+      expect(comp.canDeactivate()).toBe(true);
+    });
+    it('⛔ compilata la sola TESTATA, l’uscita chiede conferma', async () => {
+      const view = await setup();
+      const comp = view.fixture.componentInstance as unknown as {
+        canDeactivate: () => boolean | Promise<boolean>;
+        form: { controls: Record<string, { setValue: (v: unknown) => void }> };
+      };
+      // Nessun fornitore, nessuna riga: solo le note. E' comunque lavoro.
+      comp.form.controls['notes']!.setValue('Merce controllata al ricevimento');
+      view.fixture.detectChanges();
+      expect(comp.canDeactivate()).not.toBe(true);
+    });
+  });
+});
+
+/**
+ * Le due viste di riga sono ESCLUSIVE, e la card è quella COMUNE.
+ *
+ * ⛔ Fino al 24/08/2026 la card dell'Arrivo merce era un involucro locale
+ * (`goods-receipt-line-card`) che ridisegnava campo per campo ciò che il
+ * catalogo colonne già sa: Cod. articolo, SKU ed EAN non c'erano affatto, pur
+ * essendo colonne visibili di default sul desktop della stessa maschera.
+ *
+ * La prova guarda gli IDENTIFICATIVI perché sono ciò che distingue le due
+ * viste: `gr-sku-0` è la cella della tabella, `gr-m-sku-0` è quella della card.
+ * Se le due viste tornassero vive insieme, «l'id della riga i, campo x» non
+ * sarebbe più univoco e il fuoco atterrerebbe su quella che non si vede.
+ */
+describe('GoodsReceiptFormComponent — le due viste di riga', () => {
+  async function apri(compatta: boolean, apriLaCard = false) {
+    const view = await render(GoodsReceiptFormComponent, {
+      providers: [
+        ...goodsReceiptProviders({ defaultLocation: MILANO }),
+        { provide: ViewportService, useValue: { compact: () => compatta } },
+      ],
+    });
+    const comp = view.fixture.componentInstance as unknown as {
+      addLine: () => void;
+      toggleLineCard: (i: number) => void;
+      form: { controls: Record<string, { setValue: (v: unknown) => void }> };
+      lines: {
+        at: (i: number) => { controls: Record<string, { setValue: (v: unknown) => void }> };
+      };
+    };
+    // La testata va completata: finché mancano fornitore e location le righe
+    // non esistono in NESSUNA delle due viste — al loro posto lo stato vuoto.
+    comp.form.controls['supplierId']!.setValue('sup-1');
+    comp.form.controls['locationId']!.setValue(MILANO.id);
+    comp.addLine();
+    comp.lines.at(0).controls['productName']!.setValue('Articolo');
+    if (apriLaCard) {
+      comp.toggleLineCard(0);
+    }
+    view.fixture.detectChanges();
+    return view.container;
+  }
+
+  it('sopra la soglia vive la tabella, e le card non esistono', async () => {
+    const c = await apri(false);
+
+    expect(c.querySelector('.doc-form__table-wrap')).not.toBeNull();
+    expect(c.querySelector('app-document-line-card')).toBeNull();
+  });
+
+  it('sotto la soglia vivono le card, e la tabella non esiste', async () => {
+    const c = await apri(true);
+
+    expect(c.querySelector('app-document-line-card')).not.toBeNull();
+    // Non «nascosta»: assente. Se tornasse a esserci, tornerebbero i doppioni
+    // di identificativo su cui poggia il giro del fuoco.
+    expect(c.querySelector('.doc-form__table-wrap')).toBeNull();
+  });
+
+  it('sopra la soglia esiste solo l’identificativo della tabella', async () => {
+    const c = await apri(false);
+
+    expect(c.querySelectorAll('#gr-sku-0')).toHaveLength(1);
+    expect(c.querySelectorAll('#gr-m-sku-0')).toHaveLength(0);
+  });
+
+  /**
+   * La card tiene i codici nel corpo, che si apre: si espande prima di
+   * guardare, altrimenti la prova misurerebbe una card chiusa e passerebbe
+   * anche se i campi non ci fossero.
+   *
+   * ⭐ È la prova che il selettore Colonne arriva davvero al mobile: lo SKU è
+   * nel corpo perché è una colonna VISIBILE di questo documento, non perché
+   * qualcuno l'ha scritto a mano nella card.
+   */
+  it('sotto la soglia esiste solo l’identificativo della card', async () => {
+    const c = await apri(true, true);
+
+    expect(c.querySelectorAll('#gr-m-sku-0')).toHaveLength(1);
+    expect(c.querySelectorAll('#gr-sku-0')).toHaveLength(0);
+  });
+
+  /**
+   * Le specificità dell'Arrivo merce sopravvivono alla forma comune: il posto
+   * del prezzo nella striscia lo prende il COSTO — è un documento d'acquisto —
+   * e la spunta magazzino dice «Carica», non «Impegna».
+   */
+  it('il costo sta nella striscia, e la spunta dice «Carica magazzino»', async () => {
+    const c = await apri(true, true);
+
+    // ⭐ Il posto centrale della striscia sempre visibile lo prende il COSTO,
+    // perché è un documento d'acquisto: dove si vende lo prende il prezzo.
+    // L'etichetta la dà la modalità netto/ivato del documento.
+    expect(c.querySelector('[aria-label="Costo netto riga 1"]')).not.toBeNull();
+    // ⛔ E nel corpo NON torna: un campo non compare due volte nella stessa
+    // card. L'involucro locale ripeteva costo e totale in entrambi i posti,
+    // cioè due `<input>` sullo stesso controllo con due identificativi.
+    expect(c.querySelector('#gr-m-cost-0')).toBeNull();
+
+    // ⛔ `loadsStock` non è `commitsStock`: qui la merce si muove davvero, non
+    // si prenota. L'Arrivo merce non ha la seconda spunta a catalogo.
+    expect(c.querySelector('#gr-m-loads-0')).not.toBeNull();
+    expect(c.querySelector('#gr-m-commits-0')).toBeNull();
+    expect(c.textContent).toContain('Carica magazzino');
   });
 });

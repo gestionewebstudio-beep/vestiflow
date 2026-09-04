@@ -14,6 +14,8 @@ import type { PurchaseCostEntryMode } from './vat-code.model';
  * l'ordine viene incluso/agganciato a un Arrivo merce.
  */
 export const SupplierOrderStatus = {
+  /** Salvato ma non ancora un impegno: fuori da «Includi» (`17` §2.3). */
+  ToConfirm: 'to_confirm',
   Confirmed: 'confirmed',
   Concluded: 'concluded',
   Cancelled: 'cancelled',
@@ -26,8 +28,21 @@ export interface SupplierOrderLine {
   readonly variantId: EntityId;
   /** Snapshot dello SKU al momento dell'ordine. */
   readonly sku: string;
-  /** Snapshot della descrizione articolo (nome prodotto). */
+  /**
+   * Snapshot della descrizione articolo: il SOLO nome del prodotto.
+   *
+   * La variante sta in `variantLabel`. Prima ci finiva dentro ogni volta che
+   * la maschera ripiegava su `summary.title`, che il display completo lo
+   * contiene gia'.
+   */
   readonly description: string;
+  /**
+   * Etichetta della VARIANTE: «M / Rosso». Vuota se l'articolo non ha opzioni
+   * visibili, e vuota anche sulle righe salvate prima che la colonna
+   * esistesse — la' la variante e' impastata nella descrizione, e riscriverla
+   * significherebbe riscrivere un ordine gia' emesso.
+   */
+  readonly variantLabel: string;
   readonly orderedQuantity: number;
   readonly receivedQuantity: number;
   /** Costo unitario NETTO canonico. */
@@ -109,8 +124,6 @@ export interface SupplierOrder extends TenantScoped, Timestamped {
    */
   readonly documentDiscountPercent?: string | number;
   readonly lines: readonly SupplierOrderLine[];
-  /** Presente in lista: conteggio righe senza caricare il payload completo. */
-  readonly lineCount?: number;
   readonly subtotal: Money;
   readonly tax: Money;
   readonly totalAmount: Money;

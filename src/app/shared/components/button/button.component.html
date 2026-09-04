@@ -10,8 +10,13 @@
   [type]="type()"
   [attr.form]="formId() ?? null"
   [disabled]="disabled() || loading()"
+  [class.app-button--soft-disabled]="softDisabled()"
+  [attr.aria-disabled]="softDisabled() ? true : null"
   [attr.aria-busy]="loading() ? true : null"
   [attr.aria-label]="ariaLabel() ?? null"
+  [attr.aria-pressed]="ariaPressed() ?? null"
+  [attr.aria-describedby]="ariaDescribedBy() ?? null"
+  (click)="onClick($event)"
 >
   @if (loading()) {
     @if (loadingIndicator() === 'spinner') {

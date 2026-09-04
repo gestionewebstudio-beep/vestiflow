@@ -18,11 +18,15 @@ const TYPE_LABELS: Record<DocumentType, string> = {
   [DocumentType.InitialLoad]: 'Carico iniziale',
   [DocumentType.SalesDdt]: 'DDT vendita',
   [DocumentType.Transfer]: 'Trasferimento',
-  [DocumentType.ManualUnload]: 'Scarico manuale',
+  // ⭐ «Vendita manuale», non «Vendita manuale»: e' una vendita inserita a
+  // mano che riduce la giacenza SENZA generare movimenti di magazzino
+  // (proprietario, 26/08/2026). Il nome vecchio spingeva verso Trasferimenti e
+  // Rettifiche, e aveva gia' fatto spegnere il Listino su questo documento.
+  [DocumentType.ManualUnload]: 'Vendita manuale',
   [DocumentType.Adjustment]: 'Rettifica',
   [DocumentType.Inventory]: 'Inventario',
   [DocumentType.Proforma]: 'Proforma',
-  [DocumentType.InvoiceDraft]: 'Fattura',
+  [DocumentType.Invoice]: 'Fattura',
   [DocumentType.InvoiceAccompanying]: 'Fattura accompagnatoria',
   [DocumentType.CreditNote]: 'Nota di credito',
   [DocumentType.StoreSale]: 'Vendita al banco',
@@ -55,7 +59,7 @@ export function documentStatusLabel(status: DocumentStatus): string {
   return STATUS_LABELS[status];
 }
 
-/** Etichetta stato contestuale al tipo (es. bozza fattura / stati fiscali B6). */
+/** Etichetta stato contestuale al tipo (es. fattura / stati fiscali B6). */
 export function documentStatusLabelForType(
   type: DocumentType,
   status: DocumentStatus,

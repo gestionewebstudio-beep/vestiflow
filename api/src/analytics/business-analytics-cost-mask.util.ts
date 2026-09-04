@@ -12,7 +12,7 @@ export function maskCostSensitiveSummary(
 ): BusinessAnalyticsSummaryDto {
   return {
     ...summary,
-    margin: { grossMinor: null, grossPercent: null, costCoveragePercent: 0 },
+    margin: { grossMinor: null, grossPercent: null },
     inventory: {
       ...summary.inventory,
       stockCostMinor: null,

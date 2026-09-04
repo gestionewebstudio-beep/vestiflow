@@ -1,0 +1,190 @@
+@use 'breakpoints' as bp;
+
+/// ⭐ **LA CARD DI UN ELENCO — la grammatica, non il contenuto.**
+///
+/// `regole-stile-ui` («La card di un ELENCO si progetta, non si impila») dice che
+/// il ripiego a `data-label` — ogni cella una riga «ETICHETTA: valore» — non basta
+/// per un elenco: con otto colonne dà otto righe tutte dello stesso peso, dove
+/// niente è primario e la card è più alta dello schermo.
+///
+/// La forma decisa è a **tre fasce**, e il criterio è uno solo:
+/// **a sinistra le parole, a destra i numeri.**
+///
+/// ```text
+/// 17 ago 2026  Vendita                              N. 3     ← quando · cosa · quale
+/// Corrispettivo manuale · Magazzino test 3                   ← solo parole
+///                    Imp. 20,49 €  IVA 4,51 €  25,00 €  ›    ← solo numeri
+/// ```
+///
+/// ## ⛔ Perché sta in un foglio GLOBALE e non nel motore
+///
+/// La card è **contenuto proiettato** (`appRowCard`): le classi le scrive la
+/// schermata, non il motore. Una regola dentro il motore porta l'attributo di
+/// incapsulamento del motore e **non raggiunge** il contenuto proiettato — non
+/// fallisce, non fa niente. È la stessa ragione per cui `_shared-directives.scss`
+/// esiste.
+///
+/// ## Come si usa
+///
+/// ```html
+/// <ng-template appRowCard let-row>
+///   <div class="list-card__head">
+///     <span class="list-card__ident">
+///       <span class="list-card__when">…</span>
+///       <span class="list-card__what">…</span>
+///     </span>
+///     <span class="list-card__anchor">N. 12</span>
+///   </div>
+///   <div class="list-card__words"><span>…</span><span>…</span></div>
+///   <div class="list-card__figures">
+///     <span>Imp. …</span>
+///     <span class="list-card__total">…</span>
+///   </div>
+/// </ng-template>
+/// ```
+///
+/// ⚠️ **Ogni pezzo è facoltativo**: un elenco senza importi omette la terza fascia,
+/// e la card resta di due. Quello che NON si fa è metterli in un'altra fascia —
+/// un importo in mezzo alle parole toglie alla card il suo unico criterio.
+@mixin list-card() {
+  @include bp.media-down('lg') {
+    /* ── Fascia 1: identità ─────────────────────────────────────────────── */
+
+    /*
+      ⚠️ **`nowrap`, e non è una svista**: questa fascia porta due voci brevi.
+      Andando a capo, l'ancora a destra scenderebbe su una riga sua e alzerebbe
+      la card senza dire niente di più.
+    */
+    .list-card__head {
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: baseline;
+      gap: var(--space-2);
+      font-size: var(--text-sm);
+    }
+
+    /* Il gruppo che può stringersi: se il testo non ci sta, si tronca lui. */
+    .list-card__ident {
+      display: flex;
+      align-items: baseline;
+      gap: var(--space-2);
+      flex: 1;
+      min-inline-size: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    /* Il «quando»: apre la riga, e scorrendo l'elenco è la prima cosa che si cerca. */
+    .list-card__when {
+      flex-shrink: 0;
+      color: var(--color-text-muted);
+    }
+
+    /* Il «cosa»: il tipo, l'unica parola in evidenza della fascia. */
+    .list-card__what {
+      font-weight: var(--font-weight-semibold);
+    }
+
+    /*
+      ⭐ **Il tipo che TOGLIE si legge rosso**: un reso, una nota di credito, un
+      rimborso. È lo stesso vocabolario dei toni di riga in tabella — il colore
+      accompagna la parola, che resta leggibile da sola.
+    */
+    .list-card__what--negative {
+      color: var(--color-danger);
+    }
+
+    /*
+      ⭐ **L'ANCORA a destra, fuori dal gruppo che si stringe**: scorrendo l'elenco
+      sta sempre nello stesso punto, e l'occhio la trova senza cercarla. Dentro il
+      gruppo seguirebbe la lunghezza del tipo e ballerebbe da una card all'altra.
+    */
+    /*
+      ⚠️ **I numeri incolonnati li dà `.tabular-nums` del template**, non questa
+      classe: è la utility che ogni card usa già sui propri valori, e dichiararlo
+      due volte in due posti diversi lascerebbe chi scrive una card nuova senza
+      sapere quale vale.
+    */
+    .list-card__anchor {
+      flex-shrink: 0;
+      color: var(--color-text-muted);
+    }
+
+    /* ── Fascia 2: solo parole ──────────────────────────────────────────── */
+
+    /*
+      Da dove viene, dove, per chi, come è stata pagata.
+
+      ⛔ **Nessun importo qui dentro**: mescolare «Magazzino test 3» e
+      «Imp. 20,49 €» nello stesso rigo grigio è ciò che toglie alla card il suo
+      criterio.
+    */
+    .list-card__words {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-1) var(--space-2);
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+    }
+
+    /* Un valore che manca e vale la pena nominare: «Non determinata». */
+    .list-card__undetermined {
+      color: var(--color-text-subtle);
+      font-style: italic;
+    }
+
+    /* ── Fascia 3: solo numeri ──────────────────────────────────────────── */
+
+    /*
+      A destra come nella tabella: gli importi si incolonnano sotto il totale che
+      compongono, e leggerli in verticale è ciò che permette di verificarlo a
+      occhio.
+    */
+    .list-card__figures {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: var(--space-1) var(--space-3);
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+    }
+
+    /*
+      Il totale chiude la fascia: stessa riga degli altri, ma l'unico in grassetto
+      e a piena tinta. **Si distingue per peso, non per posizione**, e resta
+      l'ultimo numero che l'occhio incontra.
+    */
+    .list-card__total {
+      flex-shrink: 0;
+      font-size: var(--text-sm);
+      font-weight: var(--font-weight-bold);
+      color: var(--color-text);
+    }
+
+    /* Il verso negativo si legge dal colore, come le righe di reso in tabella. */
+    .list-card__total--negative {
+      color: var(--color-danger);
+    }
+
+    /*
+      ⚠️ **Centrata sulla RIGA DEGLI IMPORTI**, non sulla card: seguendo la linea
+      di base si appoggerebbe sotto, disallineata rispetto al numero che
+      accompagna.
+
+      ⭐ **Lo spazio c'è sempre, la freccia no.** Le righe che non si aprono non
+      hanno chevron; se sparisse anche il suo ingombro, i totali di quelle card
+      slitterebbero e la colonna degli importi non sarebbe più dritta.
+    */
+    .list-card__caret {
+      flex-shrink: 0;
+      align-self: center;
+      font-size: var(--text-xs);
+      color: var(--color-text-subtle);
+    }
+
+    .list-card__caret--empty {
+      visibility: hidden;
+    }
+  }
+}

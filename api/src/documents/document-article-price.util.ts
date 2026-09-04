@@ -1,6 +1,6 @@
 import { Prisma, TenantChannelProfile } from '@prisma/client';
 
-import { sameAmountAtCent } from '../common/money.util';
+import { sameUnitAmountAtContract } from '../common/money.util';
 
 /**
  * Aggiornamento dei **prezzi di anagrafica** da un Arrivo merce (fetta 2 del
@@ -108,7 +108,23 @@ export async function applyArticlePriceUpdates(
     current.set(variant.id, Number(variant.sellingPriceMinor));
   }
 
+  // ⭐ **Con più righe dello stesso articolo, vince l'ULTIMA** (deciso dal
+  // proprietario il 22/08/2026, stessa regola dei costi).
+  //
+  // ⚠️ Prima il ciclo scorreva tutte le righe emettendo una `updateMany`
+  // ciascuna: l'ultima vinceva comunque, ma **per ordine di iterazione**, non
+  // per una regola dichiarata. E ogni riga costava una query.
+  //
+  // ⛔ C'era anche un difetto più sottile: il confronto «è cambiato?» legge i
+  // prezzi correnti UNA VOLTA all'inizio, quindi la seconda riga della stessa
+  // variante si confrontava col valore di partenza invece che con quello appena
+  // scritto. Con una riga per variante il caso non esiste più.
+  const ultimaRigaPerVariante = new Map<string, (typeof eligible)[number]>();
   for (const line of eligible) {
+    ultimaRigaPerVariante.set(line.variantId, line);
+  }
+
+  for (const line of ultimaRigaPerVariante.values()) {
     const data: Prisma.ProductVariantUpdateManyMutationInput = {};
 
     if (line.sellingPriceMinor !== undefined) {
@@ -122,7 +138,15 @@ export async function applyArticlePriceUpdates(
       }
     } else if (
       line.sellingPriceMinor !== undefined &&
-      !sameAmountAtCent(line.sellingPriceMinor, current.get(line.variantId) ?? 0)
+      // ⭐ **Copia fra due valori unitari INTERNI**, quindi il confronto è alla
+      // precisione del contratto, non al centesimo: se il prezzo di vendita
+      // vale 2049,1803, il prezzo del canale deve valere 2049,1803 — non 2049
+      // solo perché entrambi verrebbero pubblicati come «20.49».
+      //
+      // ⛔ L'arrotondamento del canale avviene DOPO, al suo confine
+      // (`minorToShopifyDecimal(…, 2)`), e resta invariato. Qui due colonne
+      // `Decimal(16,6)` che devono avere lo stesso valore lo avrebbero diverso.
+      !sameUnitAmountAtContract(line.sellingPriceMinor, current.get(line.variantId) ?? 0)
     ) {
       // Shopify spento: il prezzo del canale segue quello di vendita, ma solo
       // se questo è davvero cambiato — al centesimo.

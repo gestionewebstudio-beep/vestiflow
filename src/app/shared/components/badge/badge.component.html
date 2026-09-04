@@ -1,5 +1,6 @@
 <span
   class="app-badge"
+  [class.app-badge--flat]="flat()"
   [class.app-badge--neutral]="tone() === 'neutral'"
   [class.app-badge--success]="tone() === 'success'"
   [class.app-badge--warning]="tone() === 'warning'"

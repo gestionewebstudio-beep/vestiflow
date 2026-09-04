@@ -1,3 +1,5 @@
+import { DocumentType } from '@core/models/document.model';
+import { canCreateDocumentType } from '@core/permissions/document-permission.util';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -29,7 +31,9 @@ import { SalesOrderService } from '@domain/sales-orders/services/sales-order.ser
 import { SupplierOrderService } from '@domain/supplier-orders/services/supplier-order.service';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
 import { DOCUMENT_HUB_GROUPS } from '@features/documents/models/documents-hub.model';
-import { documentOpenPath } from '@features/documents/models/document-routing.util';
+import { AuthService } from '@core/auth';
+import { documentOpenPath } from '@domain/documents/utils/document-routing.util';
+import { salesOrderRowPath } from '@domain/sales-orders/models/sales-order-routing.util';
 import {
   SALES_DOCUMENT_REGISTER_PROFILES,
   salesDocumentRegisterConfig,
@@ -89,6 +93,10 @@ function tokenMatches(haystack: string, token: string): boolean {
   styleUrl: './global-search.component.scss',
 })
 export class GlobalSearchComponent {
+  // Serve a `documentOpenPath`: dove porta un risultato dipende da che
+  // cosa questo utente puo' aprire, o la ricerca globale manderebbe chi
+  // consulta e basta contro il guard di una rotta di modifica (`14` §2.1).
+  private readonly authService = inject(AuthService);
   private readonly document = inject(DOCUMENT);
   private readonly router = inject(Router);
   private readonly productService = inject(ProductService);
@@ -207,14 +215,33 @@ export class GlobalSearchComponent {
                     .filter(Boolean)
                     .join(' · '),
                   icon: 'pi-shopping-bag',
-                  route: `/app/orders/${order.id}`,
+                  // ⛔ Qui c’era `/app/orders/${order.id}` CABLATA, cioè il Dettaglio,
+                  //   mentre il clic sulla riga dell’elenco apre la Modifica: lo stesso
+                  //   ordine aveva DUE aperture a seconda di dove lo si era trovato.
+                  //
+                  // ⚠️ Il commit 166e7cb dichiarava la parità già ottenuta — «vale anche
+                  //   per la ricerca globale, `documentOpenPath` delega alla stessa
+                  //   funzione». Vero per i documenti veri, FALSO per i due ordini, che
+                  //   non hanno mai una riga in `documents` (schema: «questo enum è le
+                  //   chiavi dei numeratori, non l’elenco dei documenti») e arrivano qui
+                  //   da una sorgente propria.
+                  route: documentOpenPath(
+                    { id: order.id, type: DocumentType.SupplierOrder },
+                    this.authService.currentUser(),
+                  ),
                 })),
                 ...salesOrders.map((order) => ({
                   group: 'Ordini cliente',
                   label: order.orderNumber,
                   sub: [order.customerName, formatDate(order.placedAt)].filter(Boolean).join(' · '),
                   icon: 'pi-shopping-cart',
-                  route: `/app/sales/${order.id}`,
+                  // ⛔ Qui c’era `/app/sales/${order.id}` CABLATA. Sostituirla con
+                  //   `documentOpenPath({ type: CustomerOrder })` sarebbe stato un
+                  //   errore diverso: la ricerca restituisce ordini di OGNI origine
+                  //   — `manual`, `online`, `pos` — e solo il primo è un Ordine
+                  //   cliente del gestionale. Gli altri due sono posseduti dal
+                  //   canale e sono read-only per regola.
+                  route: salesOrderRowPath(order, this.authService.currentUser()),
                 })),
                 ...documents.map((doc) => ({
                   group: 'Documenti',
@@ -229,7 +256,7 @@ export class GlobalSearchComponent {
                   icon: 'pi-file',
                   // Apertura per tipo: preventivi/fatture/DDT hanno dettagli
                   // dedicati, gli arrivi merce vivono nel form.
-                  route: documentOpenPath(doc),
+                  route: documentOpenPath(doc, this.authService.currentUser()),
                 })),
               ];
               return { term, items };
@@ -299,6 +326,12 @@ export class GlobalSearchComponent {
         if (!config || config.hideCreateAction) {
           continue;
         }
+        // ⛔ Vendita manuale spenta: qui sparisce solo «Nuova vendita manuale».
+        //   La voce «Pagine» qui sopra RESTA: porta all’elenco, che e’ la strada
+        //   allo storico e deve restare percorribile.
+        if (!canCreateDocumentType(this.authService.currentUser(), config.type)) {
+          continue;
+        }
         const variants: readonly { label: string; path: string }[] = config.createVariants ?? [
           { label: config.createLabel, path: config.createPath },
         ];
@@ -325,7 +358,7 @@ export class GlobalSearchComponent {
 
   /**
    * Pagine che corrispondono alla query: matching a token su label+sottotitolo
-   * («vendite registro» trova «Registro vendite negozio»). A query vuota
+   * («vendite registro» trova «Registro vendite al banco»). A query vuota
    * restano le sole voci nav, come indice rapido.
    */
   private readonly pageMatches = computed<readonly SearchResultItem[]>(() => {

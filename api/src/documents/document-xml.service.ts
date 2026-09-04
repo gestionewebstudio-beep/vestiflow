@@ -101,8 +101,15 @@ export class DocumentXmlService {
 
     return {
       xml: buildFatturaPaXml({
-        // VestiFlow non gestisce ancora le note di credito di vendita:
-        // ogni fattura esportata è TD01.
+        // ⏸️ **Gap registrato, non una scelta**: la Fattura elettronica della
+        // Nota di credito è PREVISTA, con tipo fiscale `TD04`, e sta nel blocco
+        // dedicato Famiglia Fattura / FE (`docs/DA-FARE.md` §Blocco C). Oggi
+        // ogni fattura esportata è TD01 perché quel lavoro non è ancora fatto.
+        //
+        // ⚠️ Quando arriverà, i riferimenti che l'XML richiede si prenderanno
+        // **attraverso la fattura di origine** (`sourceDocumentId`) — NON
+        // riaprendo l'aggancio DDT sulla NC, che è chiuso dal 22/08/2026
+        // (`docs/07` §5-bis): la NC non include DDT.
         documentTypeCode: 'TD01',
         number: document.reference ?? String(document.number ?? ''),
         documentDate: document.documentDate,

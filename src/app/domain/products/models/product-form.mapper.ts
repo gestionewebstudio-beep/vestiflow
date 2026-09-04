@@ -3,9 +3,16 @@ import { InventoryTrackingMode } from '@core/models/product-catalog.model';
 import type { Money } from '@core/models/common.model';
 import type { Product } from '@core/models/product.model';
 import type { ProductVariant } from '@core/models/product-variant.model';
-// Due ponti, non uno: `moneyFromMajorExact` per i prezzi (colonne a sei
-// decimali, dove la coda di uno scorporo IVA deve arrivare intera),
-// `moneyFromMajor` per costo e barrato, che restano interi in unità minori.
+// Due ponti, non uno: `moneyFromMajorExact` per i PREZZI DI VENDITA — prezzo,
+// barrato, Shopify e i tre listini — dove la colonna ha sei decimali e la coda
+// di uno scorporo IVA deve arrivarci intera; `moneyFromMajor` per il COSTO, che
+// oggi è ancora intero in unità minori.
+//
+// ⚠️ Il **barrato** stava col costo, e non doveva: la sua colonna è
+// `Decimal(16,6)` dal 03/08/2026, ed è un prezzo di vendita come gli altri —
+// `regole-gestionale` lo dice esplicitamente, «il selettore governa SEI campi».
+// Corretto il 22/08/2026: la coda si perdeva prima di arrivare a una colonna che
+// sapeva conservarla.
 import {
   DEFAULT_CURRENCY,
   moneyFromMajor,
@@ -237,7 +244,11 @@ export function emptyProductFormDraft(): ProductFormDraft {
       tags: '',
       status: ProductStatus.Draft,
       shopifySyncEnabled: true,
-      unitOfMeasure: 'pz',
+      shopifyTitle: '',
+      // ⚠️ VUOTA, non `pz`: se nascesse compilata la predefinita del tenant non
+      //   avrebbe niente da seminare. Il ripiego tecnico resta al salvataggio
+      //   (`unitOfMeasure.trim() || 'pz'`), dove è sempre stato.
+      unitOfMeasure: '',
       defaultVatCodeId: '',
       inventoryTracking: InventoryTrackingMode.Standard,
       managesStock: true,
@@ -330,7 +341,7 @@ function generalToDto(
     shopifyPrice: moneyFromMajorExact(general.shopifyPrice, DEFAULT_CURRENCY),
     compareAtPrice:
       general.compareAtPrice != null
-        ? moneyFromMajor(general.compareAtPrice, DEFAULT_CURRENCY)
+        ? moneyFromMajorExact(general.compareAtPrice, DEFAULT_CURRENCY)
         : undefined,
     purchasePrice:
       general.purchasePrice != null
@@ -359,6 +370,8 @@ function generalToDto(
     tags: parseTagsInput(general.tags),
     status: general.status,
     shopifySyncEnabled: general.shopifySyncEnabled,
+    // Svuotato = azzerato apposta: il server lo re-inizializza al push dopo.
+    shopifyTitle: general.shopifyTitle.trim() || null,
     unitOfMeasure: general.unitOfMeasure.trim() || 'pz',
     defaultVatCodeId: general.defaultVatCodeId || null,
     inventoryTracking: general.inventoryTracking,
@@ -504,6 +517,7 @@ export function productToFormDraft(
     tags: formatTagsInput(product.tags),
     status: product.status,
     shopifySyncEnabled: product.shopifySyncEnabled ?? true,
+    shopifyTitle: product.shopifyTitle ?? '',
     unitOfMeasure: product.unitOfMeasure ?? 'pz',
     defaultVatCodeId: product.defaultVatCodeId ?? '',
     inventoryTracking: product.inventoryTracking ?? InventoryTrackingMode.Standard,

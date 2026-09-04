@@ -2015,7 +2015,7 @@ cosa sbagliata.
 3. **Aggiungi riga**: variante, quantità ordinata, prezzo acquisto.
 4. Salva ordine.
 
-**Risultato atteso:** ordine in bozza o stato iniziale corretto. Dettaglio con righe e totali in EUR.
+**Risultato atteso:** ordine **Confermato**, lo stato con cui nasce (`17` §2.4). Dettaglio con righe e totali in EUR.
 
 | Esito           | Tester | Data | Note |
 | --------------- | ------ | ---- | ---- |
@@ -2023,7 +2023,7 @@ cosa sbagliata.
 
 ---
 
-### T-122 — Invia ordine
+### T-122 — Cambiare lo stato di un Ordine fornitore
 
 |              |          |
 | ------------ | -------- |
@@ -2031,11 +2031,22 @@ cosa sbagliata.
 | **Ruolo**    | Manager+ |
 | **Device**   | Desktop  |
 
+⛔ **Qui c’era «T-122 — Invia ordine»**, che partiva «dal dettaglio ordine in bozza» e premeva
+**Invia ordine**. Né lo stato «bozza» né quel pulsante sono mai esistiti: la prova non era
+eseguibile. Riscritta il 28/08/2026 sul modello deciso (`17` §2.1, §2.6).
+
 **Passaggi:**
 
-1. Dal dettaglio ordine in bozza clicca **Invia ordine**.
+1. Apri un Ordine fornitore e cambia lo stato dal selettore in testata.
+2. Prova **ogni** direzione fra Da confermare, Confermato e Annullato, in entrambi i versi.
+3. Verifica in elenco che lo stato mostrato sia quello scelto.
 
-**Risultato atteso:** stato aggiornato (inviato/in attesa). Pulsante non più disponibile se non applicabile.
+**Risultato atteso:** ogni transizione fra i tre stati liberi riesce, **Annullato compreso in
+uscita**. L’ordine resta apribile, modificabile e stampabile in ogni stato. Nessun effetto su
+giacenza, impegnata o quantità in arrivo.
+
+⚠️ **Non eseguibile finché il codice non è allineato:** oggi mancano lo stato «Da confermare»
+e il selettore, e l’annullamento è un comando a senso unico (`17` §2.6).
 
 | Esito           | Tester | Data | Note |
 | --------------- | ------ | ---- | ---- |
@@ -2051,14 +2062,14 @@ cosa sbagliata.
 | **Ruolo**    | Qualsiasi (anche Commesso) |
 | **Device**   | Desktop                    |
 
-**Prerequisiti:** ordine fornitore **Inviato** (T-122).
+**Prerequisiti:** ordine fornitore **Confermato** — l’unico eleggibile in «Includi» (`17` §4).
 
 **Passaggi:**
 
 1. Apri dettaglio ordine inviato/in arrivo.
 2. Clicca **Registra arrivo merce**.
 3. Verifica apertura form **Arrivo merce** con ordine collegato, righe precompilate e colonne **Ordinato / Già ricevuto / Residuo**.
-4. Inserisci quantità ricevute (parziale o totale) e **Conferma e carica magazzino**.
+4. Inserisci quantità ricevute (parziale o totale) e **Salva documento**: il carico si applica al salvataggio.
 
 **Risultato atteso:** documento **Confermato** con numero progressivo. Giacenze incrementate sulla sede destinazione. Movimenti **Carico** in storico. Colonna **In arrivo** aggiornata. Stato ordine **Parzialmente ricevuto** o **Completato**. Nessuna ricezione «silenziosa» senza documento.
 
@@ -2155,7 +2166,7 @@ cosa sbagliata.
 3. Aggiungi riga: cerca variante per **nome, SKU o barcode**, quantità 5, costo unitario.
 4. Apri menu **Colonne** sulle righe: cambia preset, ridimensiona colonna, poi **Ripristina colonne**.
 5. Se attivi in T-045: compila lotto/scadenza/seriali su una riga.
-6. Salva bozza (giacenza **non** cambia), poi **Conferma e carica magazzino**.
+6. Salva il documento e verifica l’effetto a magazzino dichiarato dal suo tipo.
 
 **Risultato atteso:** stato **Confermato**. Giacenza +5 sulla sede. Movimento **Carico** in storico. Numero progressivo assegnato alla conferma. Documento protetto da modifiche distruttive dopo conferma.
 
@@ -2173,7 +2184,7 @@ cosa sbagliata.
 | **Ruolo**    | Manager+ |
 | **Device**   | Desktop  |
 
-**Prerequisiti:** ordine fornitore **Inviato** (T-122).
+**Prerequisiti:** ordine fornitore **Confermato** — l’unico eleggibile in «Includi» (`17` §4).
 
 **Passaggi:**
 
@@ -2224,7 +2235,7 @@ cosa sbagliata.
 **Passaggi:**
 
 1. Crea **Arrivo merce** con costo unitario **diverso** dal prezzo fornitore salvato.
-2. **Conferma e carica magazzino**.
+2. **Salva documento** — il carico si applica qui, non in un secondo passo.
 3. Se compare dialog prezzi: verifica elenco differenze; prova **Applica** e ripeti con **Ignora** (secondo documento).
 
 **Risultato atteso:** dialog mostra SKU e prezzo vecchio/nuovo. Con «Applica», prezzo fornitore aggiornato in anagrafica. Con «Ignora», conferma documento senza aggiornare listino.
@@ -2281,7 +2292,7 @@ cosa sbagliata.
 
 ---
 
-### T-140 — Scarico manuale e rettifica con motivo
+### T-140 — Vendita manuale e rettifica con motivo
 
 |              |          |
 | ------------ | -------- |
@@ -2291,7 +2302,7 @@ cosa sbagliata.
 
 **Passaggi:**
 
-1. **Documenti → Scarico manuale**: scarica 1 pezzo con conferma.
+1. **Documenti → Vendita manuale**: scarica 1 pezzo con conferma.
 2. **Documenti → Rettifica inventario**: imposta quantità diversa da sistema; **motivo obbligatorio** (es. «Conteggio errato»).
 3. Conferma entrambi.
 
@@ -2313,11 +2324,11 @@ cosa sbagliata.
 
 **Passaggi:**
 
-1. **Documenti → Nuova proforma**: aggiungi righe, cliente, salva bozza.
+1. **Documenti → Nuova proforma**: aggiungi righe, cliente, salva.
 2. Verifica disclaimer fiscale in anteprima/stampa.
 3. **Documenti → Nuova bozza fattura**: compila e salva.
 
-**Risultato atteso:** documenti in stato **Bozza**. Nessun impatto giacenze.
+**Risultato atteso:** documenti **Confermati** — nascita-confermato. Proforma e Fattura non muovono giacenze per **tipo**, non per stato.
 
 | Esito           | Tester | Data | Note |
 | --------------- | ------ | ---- | ---- |
@@ -2381,7 +2392,7 @@ cosa sbagliata.
 
 **Passaggi:**
 
-1. Su documento in bozza, carica allegato PDF o immagine (≤ limite size).
+1. Su un documento salvato, carica allegato PDF o immagine (≤ limite size).
 2. Salva e ricarica dettaglio.
 3. Scarica/visualizza allegato.
 
@@ -3459,11 +3470,11 @@ cosa sbagliata.
 
 **Passaggi:**
 
-1. Da smartphone apri bozza **Arrivo merce** con almeno 2 righe.
+1. Da smartphone apri un **Arrivo merce** con almeno 2 righe.
 2. Verifica layout **card** per riga (etichette campo + valori).
-3. Modifica quantità su una riga e salva bozza.
+3. Modifica quantità su una riga e salva.
 
-**Risultato atteso:** nessun overflow orizzontale. Touch target sufficienti. Salvataggio bozza OK.
+**Risultato atteso:** nessun overflow orizzontale. Touch target sufficienti. Salvataggio OK.
 
 | Esito           | Tester | Data | Note |
 | --------------- | ------ | ---- | ---- |

@@ -19,7 +19,7 @@ import {
   type SalesFormDocumentType,
 } from '@domain/documents/models/document-sales.util';
 
-import { SALES_FORM_ROUTE_SEGMENT } from './models/document-routing.util';
+import { SALES_FORM_ROUTE_SEGMENT } from '@domain/documents/utils/document-routing.util';
 
 // Matrice permessi documenti: ogni rotta chiede la SEZIONE (porta) E la
 // FAMIGLIA del tipo — gli stessi due gruppi che l'API esige a livello di
@@ -64,7 +64,7 @@ const SALES_FORM_PERMISSION_FAMILY: Readonly<
   Record<SalesFormDocumentType, DocumentPermissionFamily>
 > = {
   [DocumentType.Proforma]: 'proforma',
-  [DocumentType.InvoiceDraft]: 'invoice',
+  [DocumentType.Invoice]: 'invoice',
   [DocumentType.InvoiceAccompanying]: 'invoice',
   [DocumentType.CreditNote]: 'invoice',
 };
@@ -125,13 +125,13 @@ export const documentsRoutes: Routes = [
     },
   },
   {
-    path: 'sales-ddt',
+    path: 'ddt-vendita',
     title: 'DDT vendita',
     loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
     canActivate: [tenantPermissionGuard],
     data: {
       [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyView('sales_ddt'),
-      documentListProfile: 'sales-ddt',
+      documentListProfile: 'ddt-vendita',
       reuse: true,
     },
   },
@@ -148,17 +148,20 @@ export const documentsRoutes: Routes = [
       reuse: true,
     },
   },
-  {
-    // Vecchio percorso «Bozze fattura»: preserva i link salvati dagli utenti.
-    path: 'invoice-draft',
-    redirectTo: 'fattura',
-    pathMatch: 'full',
-  },
+  // ⛔ Qui c'era il reindirizzamento dal vecchio percorso «Bozze fattura»
+  // (`invoice-draft`). Tolto il 25/08/2026: quella schermata non esiste più —
+  // il documento si chiama Fattura e sta su `fattura`.
+  //
+  // ⭐ E dal 26/08/2026 non sopravvive più nemmeno nell'enum: il valore
+  // `invoice_draft` di `DocumentType` è stato rinominato in `invoice`. Qui
+  // c'era scritto che rinominarlo «è una migration su un database condiviso più
+  // un'ottantina di punti di codice»: erano 153 occorrenze in 58 file, e la
+  // migration è una riga di catalogo senza un solo UPDATE sui dati.
   {
     // Elenco Registrazioni fattura fornitore (Documenti → Acquisti e
     // fornitori): colonne e filtri della spec, stato saldo incluso.
-    path: 'registrazione-fattura',
-    title: 'Registrazioni fattura fornitore',
+    path: 'registrazioni-fatture-fornitori',
+    title: 'Registrazioni fatture fornitori',
     loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
     canActivate: [tenantPermissionGuard],
     data: {
@@ -167,33 +170,22 @@ export const documentsRoutes: Routes = [
       reuse: true,
     },
   },
+  // ⛔ Qui c'erano due reindirizzamenti dal vecchio indirizzo delle Vendite al
+  // banco (`/app/documents/vendite-negozio`), uscito da /app/documents il
+  // 19/08/2026. Tolti il 25/08/2026 per decisione del proprietario: «per ora
+  // nessuno lo utilizza, è in fase di realizzazione, possiamo sistemare tutto e
+  // in modo pulito». Un indirizzo che sopravvive a se stesso è una seconda
+  // strada verso la stessa pagina, e prima o poi qualcuno la scrive nei link.
   {
-    // Vecchio indirizzo dell'elenco Vendite al banco, uscito da /app/documents
-    // il 19/08/2026 (`11` C3). Preserva i link salvati dagli operatori.
-    //
-    // ⚠️ Deve stare PRIMA del catch-all `:id` piu' sotto: senza, l'URL vecchio
-    // non darebbe 404 — aprirebbe «Dettaglio documento» con id «vendite-negozio».
-    path: 'vendite-negozio',
-    pathMatch: 'full',
-    redirectTo: '/app/vendita-al-banco',
-  },
-  {
-    // ⚠️ Riga propria per il dettaglio: un `redirectTo` senza `pathMatch: 'full'`
-    // NON trascina i segmenti successivi. E' la stessa ragione per cui i due
-    // redirect dei Corrispettivi sono due righe (`reports.routes.ts`).
-    path: 'vendite-negozio/:id',
-    redirectTo: '/app/vendita-al-banco/:id',
-  },
-  {
-    // Scarico manuale giacenze: pagina elenco dedicata (prompt Scarico
-    // manuale) — il documento resta qui finché l'operatore non lo elimina.
-    path: 'manual-unload',
-    title: 'Scarico manuale giacenze',
+    // Vendita manuale: pagina elenco dedicata — il documento resta qui
+    // finché l'operatore non lo elimina.
+    path: 'vendita-manuale',
+    title: 'Vendite manuali',
     loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
     canActivate: [tenantPermissionGuard],
     data: {
       [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyView('manual_unload'),
-      documentListProfile: 'manual-unload',
+      documentListProfile: 'vendita-manuale',
       reuse: true,
     },
   },
@@ -218,7 +210,7 @@ export const documentsRoutes: Routes = [
     canDeactivate: [unsavedChangesGuard],
     data: {
       [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('invoice'),
-      salesDocumentType: DocumentType.InvoiceDraft,
+      salesDocumentType: DocumentType.Invoice,
     },
   },
   {
@@ -250,10 +242,10 @@ export const documentsRoutes: Routes = [
     },
   },
   {
-    // DDT vendita: stessa maschera dell'Ordine cliente in modalità sales-ddt
+    // DDT vendita: stessa maschera dell'Ordine cliente in modalità ddt-vendita
     // (prompt DDT §BASE — righe identiche, testata con Pagamento e «Seguirà
     // doc. di vendita», sezioni Trasporto e Indirizzi, scarico al salvataggio).
-    path: 'sales-ddt/new',
+    path: 'ddt-vendita/new',
     title: 'Nuovo DDT vendita',
     loadComponent: () =>
       import('@features/sales-orders/customer-order-form.component').then(
@@ -263,11 +255,11 @@ export const documentsRoutes: Routes = [
     canDeactivate: [unsavedChangesGuard],
     data: {
       [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('sales_ddt'),
-      customerDocumentKind: 'sales-ddt',
+      customerDocumentKind: 'ddt-vendita',
     },
   },
   {
-    path: 'sales-ddt/:id/edit',
+    path: 'ddt-vendita/:id/edit',
     title: 'Modifica DDT vendita',
     loadComponent: () =>
       import('@features/sales-orders/customer-order-form.component').then(
@@ -277,7 +269,7 @@ export const documentsRoutes: Routes = [
     canDeactivate: [unsavedChangesGuard],
     data: {
       [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('sales_ddt'),
-      customerDocumentKind: 'sales-ddt',
+      customerDocumentKind: 'ddt-vendita',
     },
   },
   {
@@ -335,14 +327,14 @@ export const documentsRoutes: Routes = [
     },
   },
   {
-    path: 'sales-ddt/:id',
+    path: 'ddt-vendita/:id',
     title: 'Dettaglio DDT vendita',
     loadComponent: () =>
       import('./sales-document-detail.component').then((m) => m.SalesDocumentDetailComponent),
     canActivate: [tenantPermissionGuard],
     data: {
       [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyView('sales_ddt'),
-      documentListProfile: 'sales-ddt',
+      documentListProfile: 'ddt-vendita',
     },
   },
   {
@@ -388,7 +380,7 @@ export const documentsRoutes: Routes = [
     data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('goods_receipt') },
   },
   {
-    path: 'registrazione-fattura/new',
+    path: 'registrazioni-fatture-fornitori/new',
     title: 'Nuova registrazione fattura fornitore',
     loadComponent: () =>
       import('./purchase-invoice-form.component').then((m) => m.PurchaseInvoiceFormComponent),
@@ -397,7 +389,7 @@ export const documentsRoutes: Routes = [
     data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('purchase_invoice') },
   },
   {
-    path: 'registrazione-fattura/:id/edit',
+    path: 'registrazioni-fatture-fornitori/:id/edit',
     title: 'Modifica registrazione fattura fornitore',
     loadComponent: () =>
       import('./purchase-invoice-form.component').then((m) => m.PurchaseInvoiceFormComponent),
@@ -422,11 +414,11 @@ export const documentsRoutes: Routes = [
     data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('transfer') },
   },
   {
-    // Scarico manuale: stessa maschera del DDT vendita in modalità
-    // manual-unload (prompt Scarico manuale — righe con prezzi e totali,
+    // Vendita manuale: stessa maschera del DDT vendita in modalità
+    // vendita-manuale (prompt Vendita manuale — righe con prezzi e totali,
     // cliente facoltativo, scarico diretto giacenze al salvataggio).
-    path: 'manual-unload/new',
-    title: 'Nuovo scarico manuale',
+    path: 'vendita-manuale/new',
+    title: 'Nuova vendita manuale',
     loadComponent: () =>
       import('@features/sales-orders/customer-order-form.component').then(
         (m) => m.CustomerOrderFormComponent,
@@ -435,12 +427,12 @@ export const documentsRoutes: Routes = [
     canDeactivate: [unsavedChangesGuard],
     data: {
       [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('manual_unload'),
-      customerDocumentKind: 'manual-unload',
+      customerDocumentKind: 'vendita-manuale',
     },
   },
   {
-    path: 'manual-unload/:id/edit',
-    title: 'Modifica scarico manuale',
+    path: 'vendita-manuale/:id/edit',
+    title: 'Modifica vendita manuale',
     loadComponent: () =>
       import('@features/sales-orders/customer-order-form.component').then(
         (m) => m.CustomerOrderFormComponent,
@@ -449,20 +441,20 @@ export const documentsRoutes: Routes = [
     canDeactivate: [unsavedChangesGuard],
     data: {
       [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('manual_unload'),
-      customerDocumentKind: 'manual-unload',
+      customerDocumentKind: 'vendita-manuale',
     },
   },
   {
     // Anteprima dettaglio dedicata (layout Ordine cliente): registrata dopo
-    // `manual-unload/new` così «new» non viene interpretato come id.
-    path: 'manual-unload/:id',
-    title: 'Dettaglio scarico manuale',
+    // `vendita-manuale/new` così «new» non viene interpretato come id.
+    path: 'vendita-manuale/:id',
+    title: 'Dettaglio vendita manuale',
     loadComponent: () =>
       import('./sales-document-detail.component').then((m) => m.SalesDocumentDetailComponent),
     canActivate: [tenantPermissionGuard],
     data: {
       [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyView('manual_unload'),
-      documentListProfile: 'manual-unload',
+      documentListProfile: 'vendita-manuale',
     },
   },
   {

@@ -4,6 +4,8 @@ import {
   minorToShopifyDecimal,
   shopifyDecimalToMinor,
   shopifyGid,
+  toShopifyGid,
+  legacyIdFromGid,
 } from './shopify-money.util';
 
 describe('shopify-money.util', () => {
@@ -56,6 +58,20 @@ describe('shopify-money.util', () => {
     it('costruisce GID GraphQL Shopify', () => {
       expect(shopifyGid('Product', 123)).toBe('gid://shopify/Product/123');
       expect(shopifyGid('ProductVariant', '456')).toBe('gid://shopify/ProductVariant/456');
+    });
+
+    it("toShopifyGid accetta sia l'id numerico salvato sia un GID già composto", () => {
+      expect(toShopifyGid('Product', '123')).toBe('gid://shopify/Product/123');
+      expect(toShopifyGid('Product', 123)).toBe('gid://shopify/Product/123');
+      // Idempotente: un GID resta com'è, senza raddoppiare il prefisso.
+      expect(toShopifyGid('Product', 'gid://shopify/Product/123')).toBe(
+        'gid://shopify/Product/123',
+      );
+    });
+
+    it('legacyIdFromGid torna al numero, e lascia stare un id già numerico', () => {
+      expect(legacyIdFromGid('gid://shopify/ProductVariant/456')).toBe('456');
+      expect(legacyIdFromGid('456')).toBe('456');
     });
   });
 });

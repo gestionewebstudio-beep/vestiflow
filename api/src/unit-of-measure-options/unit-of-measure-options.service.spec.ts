@@ -91,3 +91,86 @@ describe('UnitOfMeasureOptionsService', () => {
     expect(prisma.unitOfMeasureOption.delete).toHaveBeenCalledWith({ where: { id: 'um-1' } });
   });
 });
+
+/**
+ * ⭐ **La predefinita: zero o una, e «nessuna» è uno stato valido.**
+ *
+ * ⛔ Il vincolo vero sta nel database — l'indice parziale
+ * `unit_of_measure_options_tenant_default_key`, la stessa forma dei Codici IVA.
+ * Queste prove guardano che il servizio non gli vada contro: sceglierne una
+ * DEVE spegnere l'altra nello stesso atto, o la scrittura viene rifiutata.
+ */
+describe('UnitOfMeasureOptionsService — la predefinita', () => {
+  const corrente = { id: 'um-1', tenantId, name: 'kg', isDefault: false };
+
+  function creaServizio() {
+    const tx = {
+      unitOfMeasureOption: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        update: vi.fn().mockResolvedValue({ ...corrente, isDefault: true }),
+      },
+    };
+    const prisma = {
+      unitOfMeasureOption: {
+        // ⚠️ Fedele: `getById` cerca per id, il controllo di omonimia cerca per
+        //   NOME. Un mock che risponde sempre farebbe credere a un duplicato a
+        //   ogni rinomina — ed e’ il modo in cui un test fallisce raccontando
+        //   la cosa sbagliata.
+        findFirst: vi.fn((args?: { where?: { id?: string } }) =>
+          Promise.resolve(args?.where?.id ? corrente : null),
+        ),
+        update: vi.fn().mockResolvedValue({ ...corrente, isDefault: false }),
+      },
+      $transaction: vi.fn((fn: (t: typeof tx) => unknown) => fn(tx)),
+    };
+    return {
+      tx,
+      prisma,
+      service: new UnitOfMeasureOptionsService(prisma as unknown as PrismaService),
+    };
+  }
+
+  it('⛔ sceglierne una SPEGNE l’altra, e nello stesso atto', async () => {
+    // ⚠️ Senza questo, l'indice parziale rifiuta la scrittura: non è una
+    //   cortesia verso l'interfaccia, è la condizione perché il salvataggio
+    //   riesca.
+    const { service, prisma, tx } = creaServizio();
+
+    await service.update(tenantId, 'um-1', { isDefault: true });
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(tx.unitOfMeasureOption.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ tenantId, isDefault: true }),
+        data: { isDefault: false },
+      }),
+    );
+    expect(tx.unitOfMeasureOption.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ isDefault: true }) }),
+    );
+  });
+
+  it('⭐ togliere la predefinita NON tocca nessun’altra voce', async () => {
+    // «Nessuna predefinita» è uno stato valido e voluto: chi ha articoli misti
+    // non deve cambiarla ogni volta.
+    const { service, prisma } = creaServizio();
+
+    await service.update(tenantId, 'um-1', { isDefault: false });
+
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.unitOfMeasureOption.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ isDefault: false }) }),
+    );
+  });
+
+  it('⭐ rinominare senza toccare la predefinita non apre nessuna transazione', async () => {
+    const { service, prisma } = creaServizio();
+
+    await service.update(tenantId, 'um-1', { name: 'chilogrammi' });
+
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.unitOfMeasureOption.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { name: 'chilogrammi' } }),
+    );
+  });
+});

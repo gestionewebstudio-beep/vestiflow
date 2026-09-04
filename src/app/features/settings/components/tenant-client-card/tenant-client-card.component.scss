@@ -62,7 +62,7 @@
 .tenant-client-card__details-icon {
   font-size: var(--text-base);
   color: var(--color-text-muted);
-  transition: transform var(--motion-fast, 120ms) ease;
+  transition: transform var(--transition-fast) ease;
 }
 
 .tenant-client-card__details[open]

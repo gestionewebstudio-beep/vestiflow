@@ -1,43 +1,13 @@
-@use 'breakpoints' as bp;
 @use 'responsive-table' as rt;
 
-@include rt.list-card-table-host();
-@include rt.data-table-desktop('customer-table');
-@include rt.data-table-mobile-cards('customer-table');
-@include rt.data-table-mobile-title('customer-table__name');
+/*
+  ⭐ Qui c'erano 58 righe: contenitore a scorrimento, layout desktop, ripiego a
+  card e i mixin della grammatica condivisa. **Le rende il motore comune**, che
+  le include una volta invece di una per tabella.
 
-.customer-table__head th {
-  position: sticky;
-  inset-block-start: 0;
-  z-index: var(--z-raised);
-  padding: var(--space-3) var(--space-4);
-  background-color: var(--color-table-header-bg);
-}
-
-.customer-table__row {
-  cursor: pointer;
-  transition: background-color var(--transition-fast) var(--ease-standard);
-}
-
-.customer-table__row:hover {
-  background-color: var(--color-surface-hover);
-}
-
-.customer-table__row:focus-visible {
-  outline: var(--focus-ring-width) solid var(--color-focus-ring);
-  outline-offset: var(--focus-ring-offset);
-}
-
-.customer-table__row td {
-  padding: var(--space-3) var(--space-4);
-}
-
-.customer-table__name {
-  font-weight: var(--font-weight-semibold);
-}
-
-@include bp.media-down('lg') {
-  .customer-table__row {
-    border-radius: var(--radius-lg);
-  }
-}
+  ⚠️ **Il ponte dell'altezza.** Questo componente sta fra la pagina e il motore:
+  la pagina gli dà `flex: 1` e lui deve girarlo al figlio, o l'altezza si ferma
+  qui, il contenitore non scorre e l'intestazione `sticky` smette di appiccicare —
+  **senza errori e senza test rossi** (`regole-stile-ui` §6).
+*/
+@include rt.ponte-tabella();

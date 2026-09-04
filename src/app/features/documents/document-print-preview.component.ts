@@ -147,7 +147,7 @@ export class DocumentPrintPreviewComponent {
     return doc ? counterpartyDocLabel(doc) : '';
   });
 
-  /** Avviso «non fiscale»: proforma e cassa negozio. Assente per gli altri. */
+  /** Avviso «non fiscale»: proforma e vendita al banco. Assente per gli altri. */
   protected readonly disclaimer = computed(() => {
     const doc = this.document();
     return doc ? documentPrintDisclaimer(doc.type) : null;
@@ -181,7 +181,7 @@ export class DocumentPrintPreviewComponent {
   });
 
   /**
-   * Sede sui documenti di vendita: scarico manuale e cassa negozio. Sulla
+   * Sede sui documenti di vendita: vendita manuale e vendita al banco. Sulla
    * vendita al banco è spesso l'unico contesto, perché il cliente può mancare.
    */
   protected readonly showsLocation = computed(() => {

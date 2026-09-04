@@ -11,12 +11,11 @@ import {
   buildPlacedAtFilter,
   type SalesOrderListFilters,
 } from '../sales-orders/sales-order-query.util';
-import { prismaFinancialFilter, toPrismaSource } from '../sales-orders/sales-order.enum-mapper';
+import { prismaFinancialFilter } from '../sales-orders/sales-order.enum-mapper';
 import {
   effectiveOrigins,
   MANUAL_RECEIPT_ORIGIN,
   salesOrderSourcesOf,
-  sourcesFor,
   type CorrispettiviAmbito,
   type CorrispettiviCanale,
 } from './corrispettivi-classification.util';
@@ -68,6 +67,19 @@ export interface CorrispettiviListFilters extends SalesOrderListFilters {
    * «tutti», e caricarlo del significato opposto lo renderebbe illeggibile.
    */
   readonly nessunRisultato?: boolean;
+  /**
+   * Le sedi leggibili DAVVERO: il filtro chiesto dall'interfaccia intersecato
+   * con le sedi autorizzate dell'utente, deciso una volta sola da
+   * `normalizzaFiltroSedi`.
+   *
+   * ⛔ Quando è presente vince su `locationId` e `sedi`, che a valle non si
+   * leggono più. Tre valori, tutti distinti:
+   *
+   *   assente → la normalizzazione non è passata (solo test di unità dei builder);
+   *   null    → nessuna restrizione: dentro anche le righe senza sede;
+   *   []      → nessuna riga: l'intersezione è vuota.
+   */
+  readonly sediEffettive?: readonly string[] | null;
 }
 
 /**
@@ -81,6 +93,34 @@ function locationFilter(query: CorrispettiviListFilters): {
 } {
   if (query.undeterminedLocationOnly) {
     return { locationId: null };
+  }
+  return sediFilter(query);
+}
+
+/**
+ * La sola restrizione POSITIVA di sede — mai `locationId: null`.
+ *
+ * Esiste separata perché il Corrispettivo manuale ha `location_id` NOT NULL:
+ * il suo `where` non accetta `null` nemmeno come tipo, e infatti quel caso
+ * esce prima (una registrazione manuale senza sede non può esistere, `10` §12).
+ * Separare le due responsabilità lo dice al compilatore invece che a un lettore
+ * attento.
+ */
+function sediFilter(query: CorrispettiviListFilters): {
+  locationId?: string | { in: string[] };
+} {
+  /*
+    ⭐ Il campo NORMALIZZATO vince, e porta con sé la distinzione che il resto
+    del Registro non sa esprimere: `null` è «nessuna restrizione», l'insieme
+    vuoto è «nessuna riga». Qui l'insieme vuoto si traduce in `{ in: [] }`, che
+    è l'unica forma che Prisma legge come «nessuna riga» — la stessa traduzione
+    che `effectiveOrigins` fa per le origini, all'ultimo passo prima del
+    database.
+  */
+  if (query.sediEffettive !== undefined) {
+    return query.sediEffettive === null
+      ? {}
+      : { locationId: { in: [...query.sediEffettive] } };
   }
   // ⚠️ Insieme vuoto = nessuna restrizione: il filtro si OMETTE, non si passa
   // vuoto. `{ in: [] }` in Prisma non è «tutte le sedi», è nessuna riga.
@@ -449,7 +489,17 @@ export function buildCorrispettiviManualWhere(
   return {
     tenantId,
     ...(documentDate ? { documentDate } : {}),
-    ...(query.locationId ? { locationId: query.locationId } : {}),
+    /*
+      ⛔ Qui c'era `query.locationId` letto a mano, mentre le altre quattro
+      sorgenti passavano da `locationFilter`. La schermata manda SOLO il plurale
+      (`sedi[]`), quindi il singolare era sempre vuoto e il filtro non scattava
+      mai: scegliendo una sede entravano nel Registro, nei totali e in tutti e
+      tre gli export TUTTI i corrispettivi manuali del tenant, di qualunque sede.
+
+      Il filtro comune è ora l'unico: una sorgente che se ne fa uno proprio è
+      una sorgente che prima o poi risponde a una domanda diversa dalle altre.
+    */
+    ...sediFilter(query),
     ...(query.search
       ? {
           OR: [

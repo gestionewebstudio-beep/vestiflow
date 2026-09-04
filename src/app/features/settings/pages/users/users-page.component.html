@@ -336,13 +336,10 @@
   }
 
   @if (userPendingDelete(); as pendingUser) {
-    <app-confirm-dialog
+    <app-delete-confirm
       [(open)]="deleteDialogOpen"
       title="Eliminare l'utente?"
-      [message]="deleteDialogMessage()"
-      confirmLabel="Elimina utente"
-      cancelLabel="Annulla"
-      [danger]="true"
+      [consequence]="deleteDialogMessage()"
       [busy]="rowDeletingId() === pendingUser.id"
       (confirmed)="confirmDeleteUser()"
       (dismissed)="cancelDeleteUser()"

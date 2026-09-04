@@ -15,7 +15,7 @@ import type { PrismaService } from '../prisma/prisma.service';
  *
  * Senza questi test la guardia sopravvive per abitudine: la risposta nomina
  * numeri, date e riferimenti dei documenti fuori posto, e chi consulta i soli
- * Preventivi leggerebbe il registro fatture chiedendo `?type=invoice_draft`.
+ * Preventivi leggerebbe il registro fatture chiedendo `?type=invoice`.
  */
 describe('DocumentChronologyService — matrice permessi documenti', () => {
   const tenantId = 'tenant-1';
@@ -37,7 +37,7 @@ describe('DocumentChronologyService — matrice permessi documenti', () => {
     service.check({
       tenantId,
       user,
-      type: DocumentType.invoice_draft,
+      type: DocumentType.invoice,
       series: null,
       number: 7,
       documentDate: new Date('2026-08-14'),
@@ -89,7 +89,7 @@ describe('DocumentChronologyService — matrice permessi documenti', () => {
   describe('dismiss: spegnere l’avviso è un’operazione sul tipo', () => {
     it('nega la famiglia non consultabile e non scrive la preferenza', async () => {
       await expect(
-        service.dismiss(tenantId, clerkWith('doc.quote.view'), DocumentType.invoice_draft),
+        service.dismiss(tenantId, clerkWith('doc.quote.view'), DocumentType.invoice),
       ).rejects.toBeInstanceOf(ForbiddenException);
 
       expect(prisma.userDocumentChronologyWarningPreference.upsert).not.toHaveBeenCalled();
@@ -97,11 +97,11 @@ describe('DocumentChronologyService — matrice permessi documenti', () => {
 
     it('consente la famiglia consultabile e scrive per (tenant, utente, tipo)', async () => {
       const user = clerkWith('doc.invoice.view');
-      await service.dismiss(tenantId, user, DocumentType.invoice_draft);
+      await service.dismiss(tenantId, user, DocumentType.invoice);
 
       expect(prisma.userDocumentChronologyWarningPreference.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
-          create: { tenantId, userId: user.id, documentType: DocumentType.invoice_draft },
+          create: { tenantId, userId: user.id, documentType: DocumentType.invoice },
         }),
       );
     });

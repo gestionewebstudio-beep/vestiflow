@@ -1,66 +1,73 @@
-<section class="supplier-list">
-  <header class="supplier-list__header">
-    <div class="supplier-list__heading">
-      <h1 class="supplier-list__title">Fornitori</h1>
-      <p class="supplier-list__subtitle">
-        Anagrafica fornitori, codici articolo e condizioni di acquisto.
-      </p>
-    </div>
-    @if (canManage()) {
-      <app-button variant="primary" [routerLink]="['/app/suppliers/new']">
-        <i class="pi pi-plus" aria-hidden="true"></i>
-        Nuovo fornitore
-      </app-button>
-    }
-  </header>
+<app-list-page
+  [selectionToggleable]="true"
+  [selectionMode]="modoSelezione.acceso()"
+  (selectionModeChange)="modoSelezione.commuta($event)"
+  class="supplier-list"
+  pageTitle="Fornitori"
+  [loading]="loading()"
+  [error]="error()?.message ?? null"
+  [isEmpty]="isEmpty()"
+  [skeletonColumns]="skeletonColumns"
+  emptyTitle="Nessun fornitore"
+  emptyDescription="Non ci sono fornitori che corrispondono ai criteri di ricerca."
+  emptyIcon="pi-truck"
+  searchPlaceholder="Cerca per nome, codice o P. IVA…"
+  searchAriaLabel="Cerca fornitori"
+  [searchValue]="searchDraft()"
+  [columnsViewId]="tableViewId"
+  (searchChange)="searchDraft.set($event)"
+  (retry)="reload()"
+>
+  <app-supplier-table
+    [rowClickSelects]="modoSelezione.perTocco()"
+    data
+    [suppliers]="suppliers()"
+    [columns]="tableColumns()"
+    [viewId]="tableViewId"
+    [selectedIds]="selectedSupplierIds()"
+    (selectionToggle)="toggleSupplierSelection($event.supplierId, $event.selected)"
+    (selectAllToggle)="toggleSelectAll($event)"
+    (rowClick)="openSupplier($event)"
+  />
 
-  <div class="supplier-list__toolbar">
-    <div class="supplier-list__search">
-      <i class="pi pi-search supplier-list__search-icon" aria-hidden="true"></i>
-      <input
-        id="supplier-search"
-        class="supplier-list__input"
-        type="search"
-        [value]="searchDraft()"
-        placeholder="Cerca per nome, codice o P. IVA…"
-        aria-label="Cerca fornitori"
-        (input)="onSearchInput($event)"
-      />
-    </div>
+  <!--
+    ⛔ **Qui c'era l'impaginazione**, tolta il 30/08/2026: un elenco mostra tutte
+    le righe del filtro attivo (`regole-stile-ui`, «NESSUN TETTO DI RIGHE»).
 
-    <div class="supplier-list__toolbar-actions">
-      <app-table-column-picker [viewId]="tableViewId" />
-      <app-button variant="secondary" [disabled]="!hasActiveFilters()" (click)="resetFilters()">
-        <i class="pi pi-filter-slash" aria-hidden="true"></i>
-        Azzera filtri
-      </app-button>
-    </div>
+    ⚠️ Il conteggio lo dice la riga totali del motore, «N voci», che ora conta il
+    risultato intero invece della pagina.
+  -->
+
+  <!--
+    ⭐ **Tutti i comandi in UNA riga in basso**, totali subito sopra — decisione
+    del proprietario, 30/08/2026, sul riferimento Danea.
+
+    ⛔ «Nuovo» stava in testata. Non è stato duplicato: si è SPOSTATO. Due posti
+    per i comandi erano una divisione storica — creare sopra, agire sotto — non
+    un criterio, e costavano all'operatore la domanda «dove sarà questo?».
+  -->
+  <div listActions>
+    <app-list-actions-bar
+      [count]="selectedSupplierIds().size"
+      [ids]="[...selectedSupplierIds()]"
+      [actions]="listActions()"
+      clearLabel="Deseleziona"
+      (cleared)="clearSelection()"
+    />
   </div>
 
-  @if (loading()) {
-    <app-table-skeleton [columns]="skeletonColumns" [rows]="8" />
-  } @else if (error(); as appError) {
-    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
-  } @else if (isEmpty()) {
-    <app-empty-state
-      title="Nessun fornitore"
-      description="Non ci sono fornitori che corrispondono ai criteri di ricerca."
-      icon="pi-truck"
-      [ctaLabel]="canManage() ? 'Nuovo fornitore' : undefined"
-      (ctaClick)="goToNew()"
-    />
-  } @else {
-    <app-supplier-table
-      [suppliers]="suppliers()"
-      [columns]="tableColumns()"
-      (rowClick)="openSupplier($event)"
-    />
-    <app-pagination
-      label="Paginazione fornitori"
-      [meta]="meta()"
-      [pageSizeOptions]="pageSizeOptions"
-      (pageChange)="goToPage($event)"
-      (pageSizeChange)="onPageSizeChange($event)"
-    />
-  }
-</section>
+  <!--
+    ⚠️ Nello slot `overlays`: le cose `position: fixed` hanno una casella loro nel
+    telaio, e il contenuto proiettato che non trova uno slot Angular lo elimina
+    dal DOM, senza errori.
+  -->
+  <app-delete-confirm
+    overlays
+    [(open)]="deleteWarnOpen"
+    [title]="deleteWarnTitle()"
+    [consequence]="deleteWarnMessage()"
+    [busy]="deleteBusy()"
+    (confirmed)="onDeleteConfirm()"
+    (dismissed)="onDeleteCancel()"
+  />
+</app-list-page>

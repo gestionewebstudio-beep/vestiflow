@@ -17,7 +17,7 @@ import { VatCodeService, type UpsertVatCodeBody } from '@core/services/vat-code.
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
-import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
@@ -74,7 +74,7 @@ const CALCULATION_MODE_OPTIONS: readonly {
     BackButtonComponent,
     BadgeComponent,
     ButtonComponent,
-    ConfirmDialogComponent,
+    DeleteConfirmComponent,
     EmptyStateComponent,
     ErrorStateComponent,
     SlidePanelComponent,

@@ -1,9 +1,9 @@
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
-  ArrayMinSize,
   IsArray,
   IsEnum,
+  IsIn,
   IsInt,
   IsISO8601,
   IsNumber,
@@ -19,6 +19,23 @@ import {
 import { PurchaseCostEntryMode } from '@prisma/client';
 
 export class CreateSupplierOrderLineDto {
+  /**
+   * Identità della riga già salvata. **Assente = riga NUOVA.**
+   *
+   * ⭐ È ciò che permette al salvataggio di AGGIORNARE la riga invece di
+   * ricrearla, e con lei di conservare tutto quello che a una riga si aggancia:
+   * `receivedQuantity` e il `DocumentLine.supplierOrderLineId` dell'Arrivo merce.
+   * Stessa forma di `SaveManualSalesOrderLineDto.id` sull'Ordine cliente.
+   *
+   * ⚠️ Sostituire l'articolo su una riga esistente NON la sostituisce: l'id
+   * resta, e i valori che il client non modifica restano quelli del documento.
+   * Una riga eliminata finisce; un articolo aggiunto dopo è una riga nuova, che
+   * non eredita niente da quella eliminata.
+   */
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
   @IsUUID()
   variantId!: string;
 
@@ -66,6 +83,26 @@ export class CreateSupplierOrderLineDto {
   @IsString()
   @MaxLength(20)
   unitOfMeasure?: string;
+
+  /**
+   * Etichetta della VARIANTE, i soli valori: «M / Rosso». Vuota se l'articolo
+   * non ha opzioni visibili.
+   *
+   * ⚠️ **Viaggia nel payload, e qui è una scelta obbligata.** Sulle altre due
+   * tabelle di riga il server conserva l'etichetta persistita confrontando
+   * l'id (`document-line-variant-snapshot.util`); qui non può, perché il
+   * salvataggio è `deleteMany` + `create` e le righe perdono l'id. La
+   * fotografa la maschera quando l'articolo entra nella riga — come
+   * `unitOfMeasure` qui sopra, e per la stessa ragione.
+   *
+   * ⛔ Temporaneo per decisione del proprietario (24/08/2026): non è la
+   * soluzione all'identità delle righe, è ciò che funziona finché quella
+   * identità non c'è.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  variantLabel?: string;
 }
 
 export class CreateSupplierOrderDto {
@@ -112,6 +149,21 @@ export class CreateSupplierOrderDto {
   @IsISO8601()
   expectedAt?: string;
 
+  /**
+   * Stato del ciclo commerciale, scelto dall'operatore.
+   *
+   * ⭐ **`confirmed` resta il default alla creazione** (`17` OF-001): chi crea
+   * normalmente un ordine non deve fare un passaggio in più perché è stato
+   * introdotto un quarto stato. «Da confermare» è una scelta esplicita.
+   *
+   * ⛔ **`concluded` NON è accettato**: è derivato dal collegamento a un Arrivo
+   * merce non annullato, e lo ricalcola `syncSupplierOrderConclusion`. Un
+   * valore scelto verrebbe sovrascritto, e nel frattempo mentirebbe.
+   */
+  @IsOptional()
+  @IsIn(['to_confirm', 'confirmed', 'cancelled'])
+  status?: 'to_confirm' | 'confirmed' | 'cancelled';
+
   /** "Rif. ordine fornitore": riferimento libero comunicato dal fornitore. */
   @IsOptional()
   @IsString()
@@ -140,7 +192,18 @@ export class CreateSupplierOrderDto {
   currency?: string;
 
   @IsArray()
-  @ArrayMinSize(1)
+  // ⛔ Qui c'era `@ArrayMinSize(1)`: l'ordine fornitore rifiutava un documento
+  // senza righe. Tolto il 25/08/2026, decisione del proprietario applicata a
+  // TUTTI i tipi — «devo avere la possibilita' di crearlo vuoto e avro' un
+  // documento vuoto con numero, eventuale serie e data».
+  //
+  // ⚠️ Era rimasto indietro, ed e' un buco del perimetro: il rifiuto generale
+  // era stato tolto da `confirmDocumentTx`, che copre i `Document`. L'ordine
+  // fornitore e' un `SupplierOrder`, con un DTO tutto suo — quindi la maschera
+  // mandava un documento vuoto e il server rispondeva «I dati inviati non sono
+  // validi», senza dire quale.
+  //
+  // ⭐ L'ha trovato il collaudo a schermo, non i test.
   @ArrayMaxSize(500)
   @ValidateNested({ each: true })
   @Type(() => CreateSupplierOrderLineDto)

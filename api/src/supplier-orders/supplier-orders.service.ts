@@ -16,8 +16,17 @@ import {
 } from '@prisma/client';
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
+import {
+  OrderState,
+  assertManualTransition,
+  supplierOrderState,
+  supplierOrderStatusDa,
+} from '../common/order-state.util';
 import { resolveReadableListLocationScope } from '../inventory/licensed-location-scope.util';
-import { assertLocationReadableInUserScope } from '../inventory/user-location-scope.util';
+import {
+  assertLocationInUserScope,
+  assertLocationReadableInUserScope,
+} from '../inventory/user-location-scope.util';
 import { partyDisplayName } from '../common/party/party.util';
 import { PrismaService } from '../prisma/prisma.service';
 import type { Paginated } from '../common/dto/pagination.dto';
@@ -48,8 +57,16 @@ import type { CreateSupplierDto } from './dto/create-supplier.dto';
 import type { ListSupplierOrdersQueryDto } from './dto/list-supplier-orders.query.dto';
 import type { UpdateSupplierOrderDto } from './dto/update-supplier-order.dto';
 import { SuppliersService } from './suppliers.service';
+import { parseSupplierOrderSort } from './supplier-orders-sort.util';
+import { pageWindow } from '../common/dto/unpaged.util';
 
-export type SupplierOrderListRow = SupplierOrder & { lineCount: number; lines: [] };
+/*
+  ⛔ **QUI C'ERA `lineCount`**, tolto il 01/09/2026 col conteggio «N righe
+  ordine» che era il suo unico lettore. Con lui è caduto il `_count` delle due
+  query di elenco: era una sottoquery per riga, chiesta al database per un numero
+  che nessuno mostrava più.
+*/
+export type SupplierOrderListRow = SupplierOrder & { lines: [] };
 
 /** Documento collegato (arrivo merce): il collegamento è visibile nell'ordine. */
 export interface SupplierOrderLinkedDocument {
@@ -67,9 +84,14 @@ export type SupplierOrderWithLines = SupplierOrder & {
 };
 
 interface ComputedOrderLine {
+  /** Identità della riga già salvata; `null` per una riga nuova. */
+  readonly id: string | null;
   readonly variantId: string;
   readonly sku: string;
+  /** Il SOLO nome del prodotto: la variante sta nel campo qui sotto. */
   readonly description: string;
+  /** Etichetta della variante, fotografata dalla maschera: «M / Rosso». */
+  readonly variantLabel: string;
   readonly orderedQuantity: number;
   readonly unitCostMinor: number;
   readonly enteredUnitCostMinor: number;
@@ -124,8 +146,34 @@ export class SupplierOrdersService {
   async create(
     tenantId: string,
     dto: CreateSupplierOrderDto,
-    user?: UserProfileDto,
+    // ⚠️ **RICEVUTO E NON USATO, ed è una lacuna dichiarata.** Il controller lo
+    // passa, ma `SupplierOrder` non ha `createdById`/`createdByName` — che
+    // `Document` invece ha. Quindi **l'Ordine fornitore non registra chi lo ha
+    // creato**, mentre `regole-gestionale` §AUDITABILITÀ chiede che per ogni
+    // azione sensibile si possa mostrare chi l'ha eseguita.
+    //
+    // ⛔ Chiuderla richiede due colonne nuove su un database condiviso: è un
+    // lavoro a sé, non un ritocco.
+    //
+    // ⭐ **Dal 28/08/2026 il parametro NON è più inutilizzato**: serve ad
+    // autorizzare la sede dell'ordine. Il vuoto sopra riguarda la tracciabilità
+    // (chi lo ha creato), che è un’altra cosa e resta aperta.
+    user: UserProfileDto,
   ): Promise<SupplierOrderWithLines> {
+    // ⛔ **La sede si autorizza PRIMA di creare.** Il campo arriva dal client
+    // validato come solo UUID: senza questo controllo un utente assegnato alla
+    // sola sede A creava ordini nel contesto della sede B.
+    //
+    // ⚠️ La colonna si chiama ancora `destinationLocationId`, ma qui si
+    // autorizza la **Location dell’ordine come contesto operativo**, che è il
+    // contratto corrente (`SPECIFICA-COMUNE-TESTATE-DOCUMENTO` §10.2). Il
+    // vecchio significato «destinazione fisica della merce» è superato, e
+    // questo controllo non lo riconsolida: la specifica chiede espressamente di
+    // non attribuire in silenzio un significato nuovo a un campo legacy.
+    if (user && dto.destinationLocationId) {
+      assertLocationInUserScope(user, dto.destinationLocationId, 'write');
+    }
+
     const supplier = await this.prisma.supplier.findFirst({
       where: { id: dto.supplierId, tenantId },
       include: { party: true },
@@ -190,7 +238,10 @@ export class SupplierOrdersService {
             number,
             supplierId: supplier.id,
             supplierName: partyDisplayName(supplier.party),
-            status: SupplierOrderStatus.confirmed,
+            // ⭐ `confirmed` resta il default alla creazione (`17` OF-001): il
+            //    quarto stato non cambia il gesto di chi crea un ordine normale.
+            //    «Da confermare» è una scelta esplicita dell’operatore.
+            status: supplierOrderStatusDa((dto.status ?? OrderState.Confirmed) as OrderState),
             currency: dto.currency ?? 'EUR',
             costEntryMode,
             orderDate,
@@ -205,7 +256,7 @@ export class SupplierOrdersService {
             totalMinor: totals.totalMinor,
             expectedAt: dto.expectedAt ? new Date(dto.expectedAt) : null,
             lines: {
-              create: computedLines.map((line, i) => this.toLineCreateData(line, i + 1)),
+              create: computedLines.map((line, i) => this.toLineData(line, i + 1)),
             },
           },
           include: { lines: { orderBy: { lineNumber: 'asc' } } },
@@ -237,17 +288,67 @@ export class SupplierOrdersService {
     tenantId: string,
     id: string,
     dto: UpdateSupplierOrderDto,
-    user?: UserProfileDto,
+    user: UserProfileDto,
   ): Promise<SupplierOrderWithLines> {
     const order = await this.getById(tenantId, id, user);
-    if (order.status !== SupplierOrderStatus.confirmed) {
-      throw new ConflictException(
-        'Solo gli ordini confermati (non conclusi né annullati) possono essere modificati.',
+
+    /**
+     * ⭐ **Lo stato NON governa la modificabilità — deciso il 28/08/2026.**
+     *
+     * Qui c'era un gate che ammetteva la modifica solo a `confirmed` (poi anche
+     * `to_confirm`). Era la divergenza misurata da `17` §2.2: «lo stato governa
+     * SOLO l'eleggibilità in Includi/Genera», non l'apertura, non il Salva, non
+     * l'Elimina. In tutti e quattro gli stati l'ordine resta modificabile negli
+     * altri campi.
+     *
+     * ⛔ **Restano tutte le guardie indipendenti dallo stato**: tenant, sede,
+     * permessi, validazioni del DTO. È solo il gate «stato → non modificabile»
+     * a cadere.
+     */
+
+    /**
+     * ⛔ **L'unica eccezione: il campo STATO è bloccato quando Concluso.**
+     *
+     * Non si torna a `confirmed`, `to_confirm` o `cancelled` col selettore: da
+     * Concluso si esce annullando o eliminando l’Arrivo merce collegato, che
+     * fa scattare il ricalcolo (`12` §0.4-bis). Lo dice la macchina comune, non
+     * un `if` scritto qui.
+     */
+    if (dto.status !== undefined) {
+      assertManualTransition(supplierOrderState(order), dto.status as OrderState);
+    }
+
+    // ⛔ **Si autorizza anche la sede RISULTANTE, non solo quella persistita.**
+    // `getById` sopra ha già autorizzato l'ordine com'era; il DTO però può
+    // cambiarne la sede, ed è quella nuova a valere da qui in poi. È la stessa
+    // forma corretta il 28/08 su `PATCH /documents/:id`.
+    const sedeRisultante =
+      dto.destinationLocationId !== undefined
+        ? dto.destinationLocationId
+        : order.destinationLocationId;
+    if (user && sedeRisultante) {
+      assertLocationInUserScope(user, sedeRisultante, 'write');
+    }
+
+    /*
+      ⚠️ **`order.supplierId` può essere vuoto** da quando un fornitore si può
+      eliminare (31/08/2026): l'ordine resta, col nome fotografato, e non punta
+      più a nessuno.
+
+      ⛔ **Modificare un ordine così richiede di sceglierne uno nuovo**, e il
+      rifiuto lo dice: senza fornitore non si può ricalcolare niente di ciò che
+      dipende da lui — condizioni, valuta, listino. Non è un impedimento
+      tecnico, è che l'ordine non saprebbe a chi è indirizzato.
+    */
+    const idFornitore = dto.supplierId ?? order.supplierId;
+    if (!idFornitore) {
+      throw new UnprocessableEntityException(
+        'Questo ordine non ha più un fornitore in anagrafica: scegline uno per modificarlo.',
       );
     }
 
     const supplier = await this.prisma.supplier.findFirst({
-      where: { id: dto.supplierId ?? order.supplierId, tenantId },
+      where: { id: idFornitore, tenantId },
       include: { party: true },
     });
     if (!supplier) {
@@ -281,13 +382,21 @@ export class SupplierOrdersService {
 
     return this.prisma
       .$transaction(async (tx) => {
-        await tx.supplierOrderLine.deleteMany({ where: { orderId: id } });
+        // ⭐ Le righe si salvano CONSERVANDO la loro identità: update per
+        //    quelle che restano, create per le nuove, delete per quelle
+        //    davvero tolte. Prima era deleteMany + ricrea tutto.
+        await this.persistLinesByIdTx(tx, id, order.lines, computedLines);
         const updated = await tx.supplierOrder.update({
           where: { id },
           data: {
             supplierId: supplier.id,
             supplierName: partyDisplayName(supplier.party),
             currency: dto.currency ?? order.currency,
+            // Lo stato si scrive solo se richiesto: la transizione è già stata
+            // validata dalla macchina comune qui sopra.
+            ...(dto.status !== undefined
+              ? { status: supplierOrderStatusDa(dto.status as OrderState) }
+              : {}),
             costEntryMode,
             // Il riferimento leggibile si ricompone da prefisso, serie e numero:
             // è derivato, non un dato a sé.
@@ -323,10 +432,9 @@ export class SupplierOrdersService {
                 : dto.expectedAt
                   ? new Date(dto.expectedAt)
                   : order.expectedAt,
-            lines: {
-              create: computedLines.map((line, i) => this.toLineCreateData(line, i + 1)),
-            },
           },
+          // Le righe le ha già scritte persistLinesByIdTx qui sopra, nella
+          // stessa transazione: qui si rileggono soltanto.
           include: { lines: { orderBy: { lineNumber: 'asc' } } },
         });
         return { ...updated, linkedDocuments: order.linkedDocuments ?? [] };
@@ -348,13 +456,24 @@ export class SupplierOrdersService {
   async cancel(
     tenantId: string,
     id: string,
-    user?: UserProfileDto,
+    user: UserProfileDto,
   ): Promise<SupplierOrderWithLines> {
     const order = await this.getById(tenantId, id, user);
-    if (order.status !== SupplierOrderStatus.confirmed) {
-      throw new ConflictException(
-        'Solo gli ordini confermati possono essere annullati. Un ordine concluso resta collegato al suo arrivo merce.',
-      );
+
+    // ⭐ La legalità della transizione la decide la macchina comune
+    // (`common/order-state.util`), non questo servizio: è la stessa che
+    // governa l’Ordine cliente, e tiene ferma la regola che da Concluso non
+    // si esce a mano — ci si esce togliendo il legame (`17` §2.5, §2.6).
+    const current = supplierOrderState(order);
+    assertManualTransition(current, OrderState.Cancelled);
+
+    // ⚠️ Comportamento PRESERVATO, non ereditato dalla macchina: per la
+    // macchina «annullato → annullato» è una transizione legale (un no-op),
+    // mentre qui è sempre stato un rifiuto. L’estrazione non cambia cosa fa
+    // l’API: se un giorno si vorrà renderlo idempotente, è questa riga da
+    // togliere, ed è una decisione a sé.
+    if (current === OrderState.Cancelled) {
+      throw new ConflictException("L'ordine è già annullato.");
     }
     const updated = await this.prisma.supplierOrder.update({
       where: { id },
@@ -365,22 +484,38 @@ export class SupplierOrdersService {
   }
 
   /** Elimina definitivamente un ordine annullato (righe in cascade). */
-  async delete(tenantId: string, id: string, user?: UserProfileDto): Promise<void> {
-    const order = await this.getById(tenantId, id, user);
-    if (order.status !== SupplierOrderStatus.cancelled) {
-      throw new ConflictException('Solo gli ordini annullati possono essere eliminati.');
-    }
+  async delete(tenantId: string, id: string, user: UserProfileDto): Promise<void> {
+    /**
+     * ⛔ **Qui c'era «solo gli ordini annullati possono essere eliminati».** È
+     * la seconda divergenza di `17` §2.2, gemella e opposta a quella di
+     * `update`: l'eliminazione segue i PERMESSI, mai lo stato.
+     *
+     * ⚠️ Eliminare un ordine Concluso lascia l'Arrivo merce senza origine, ed è
+     * una conseguenza accettata esplicitamente dal proprietario: il documento
+     * è uno snapshot autonomo e resta valido senza l'ordine che lo ha generato.
+     */
+    await this.getById(tenantId, id, user);
     await this.prisma.supplierOrder.delete({ where: { id } });
   }
 
-  async list(
+  /**
+   * Il filtro dell'elenco, in **un posto solo**.
+   *
+   * ⛔ Estratto il 20/08/2026 perché l'export ne ha bisogno identico: se
+   * l'elenco e l'export costruissero due `where`, l'operatore che esporta «il
+   * risultato filtrato» (`14` §5.3) potrebbe ricevere righe diverse da quelle
+   * che sta guardando — e non se ne accorgerebbe, perché il file lo apre dopo.
+   *
+   * `null` = nessuna sede leggibile: chi chiama restituisce l'insieme vuoto.
+   */
+  private async buildListWhere(
     tenantId: string,
     query: ListSupplierOrdersQueryDto,
     user?: UserProfileDto,
-  ): Promise<Paginated<SupplierOrderListRow>> {
+  ): Promise<Prisma.SupplierOrderWhereInput | null> {
     const locationScope = await resolveReadableListLocationScope(this.prisma, tenantId, user);
     if (locationScope === null) {
-      return { items: [], total: 0, page: query.page, pageSize: query.pageSize };
+      return null;
     }
 
     // Blocchi OR combinati in AND: scope sedi (gli ordini nuovi non hanno
@@ -405,37 +540,95 @@ export class SupplierOrdersService {
       });
     }
 
-    const where: Prisma.SupplierOrderWhereInput = {
+    // Il periodo si applica alla DATA ORDINE, che è quella che l'elenco
+    // mostra: filtrare su `createdAt` darebbe un intervallo che non
+    // corrisponde alla colonna letta. Estremi inclusivi: `dateTo` copre
+    // l'intera giornata.
+    const orderDate =
+      query.dateFrom || query.dateTo
+        ? {
+            ...(query.dateFrom ? { gte: new Date(`${query.dateFrom}T00:00:00.000Z`) } : {}),
+            ...(query.dateTo ? { lte: new Date(`${query.dateTo}T23:59:59.999Z`) } : {}),
+          }
+        : undefined;
+
+    return {
       tenantId,
       ...(query.status ? { status: query.status } : {}),
       ...(query.supplierId ? { supplierId: query.supplierId } : {}),
+      ...(orderDate ? { orderDate } : {}),
       ...(andBlocks.length > 0 ? { AND: andBlocks } : {}),
     };
+  }
+
+  /**
+   * Le righe che l'export deve produrre (`14` §5.3).
+   *
+   * ```text
+   * nessun id  → tutto il risultato dei filtri, senza pagina
+   * con id     → soltanto quelli
+   * ```
+   *
+   * ⛔ **Gli id NON scavalcano il filtro di sicurezza**: restano dentro lo
+   * stesso `where` di tenant e sedi leggibili. Un elenco di id arriva dal
+   * client, e un client può mandarne di qualunque tenant — accettarli così
+   * com'è renderebbe l'export una via d'uscita dai permessi.
+   *
+   * ⚠️ Nessuna paginazione, ed è il punto: il client ha in mano UNA pagina, non
+   * il risultato. Un export servito dalle righe caricate darebbe le prime venti
+   * di centoventisette senza dirlo.
+   */
+  async listAllForExport(
+    tenantId: string,
+    query: ListSupplierOrdersQueryDto,
+    user?: UserProfileDto,
+    ids?: readonly string[],
+  ): Promise<readonly SupplierOrderListRow[]> {
+    const base = await this.buildListWhere(tenantId, query, user);
+    if (base === null) {
+      return [];
+    }
+    const where: Prisma.SupplierOrderWhereInput =
+      ids && ids.length > 0 ? { AND: [base, { id: { in: [...ids] } }] } : base;
+
+    const rows = await this.prisma.supplierOrder.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+    });
+    return rows.map((order) => ({ ...order, lines: [] }));
+  }
+
+  async list(
+    tenantId: string,
+    query: ListSupplierOrdersQueryDto,
+    user?: UserProfileDto,
+  ): Promise<Paginated<SupplierOrderListRow>> {
+    const where = await this.buildListWhere(tenantId, query, user);
+    if (where === null) {
+      return { items: [], total: 0, page: query.page, pageSize: query.pageSize };
+    }
 
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.supplierOrder.findMany({
         where,
-        include: { _count: { select: { lines: true } } },
-        orderBy: { createdAt: 'desc' },
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
+        orderBy: parseSupplierOrderSort(query.sort),
+        ...pageWindow(query),
       }),
       this.prisma.supplierOrder.count({ where }),
     ]);
 
-    const items: SupplierOrderListRow[] = rows.map(({ _count, ...order }) => ({
-      ...order,
-      lineCount: _count.lines,
-      lines: [],
-    }));
+    const items: SupplierOrderListRow[] = rows.map((order) => ({ ...order, lines: [] }));
 
+    // ⛔ Nessun tetto sulle righe (deciso il 21/08/2026): con `all` si
+    // consegna tutto il risultato del filtro, e a contenerlo è il PERIODO —
+    // l'elenco si apre sugli ultimi 30 giorni.
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
   async getById(
     tenantId: string,
     id: string,
-    user?: UserProfileDto,
+    user: UserProfileDto,
   ): Promise<SupplierOrderWithLines> {
     const order = await this.prisma.supplierOrder.findFirst({
       where: { id, tenantId },
@@ -595,19 +788,38 @@ export class SupplierOrdersService {
         ? toStorableMinor(netFromGrossExact(line.enteredUnitCostMinor, vat.ratePercent))
         : toStorableMinor(line.enteredUnitCostMinor);
       return {
+        // L'identità arriva dal client e attraversa il calcolo intatta: è
+        // quella che decide update contro create al momento di scrivere.
+        id: line.id ?? null,
         variantId: line.variantId,
         sku: variant.sku ?? '',
         description: line.description?.trim() || variant.product.name,
+        // ⛔ Niente ripiego sull'anagrafica, per la stessa ragione di
+        // `unitOfMeasure` qui sotto: la fotografa la MASCHERA quando l'articolo
+        // entra nella riga, e da li' viaggia nel payload. Ricomporla qui dalle
+        // opzioni della variante rifotograferebbe l'anagrafica di OGGI a ogni
+        // salvataggio, e un ordine di marzo che diceva «Rosso / M» diventerebbe
+        // «Bordeaux / M» perche' qualcuno ha rinominato un valore d'opzione.
+        //
+        // ⚠️ Il valore viaggia sempre nel payload, e in modifica il client
+        // rimanda quello che ha letto: su una riga esistente resta quindi
+        // quello del documento. Dal 29/08/2026 la riga conserva anche l'id
+        // (`persistLinesByIdTx`), quindi il presupposto del vecchio
+        // «deleteMany + create» non c'e' piu'.
+        variantLabel: line.variantLabel?.trim() ?? '',
         orderedQuantity: line.orderedQuantity,
         unitCostMinor,
         enteredUnitCostMinor: toStorableMinor(line.enteredUnitCostMinor),
         discountPercent,
         vatCodeId: vatCode?.id ?? null,
         vatSnapshot: vatCode ? this.vatCodes.buildSnapshot(vatCode) : null,
-        // Se la riga non la porta vale quella dell'articolo: è il valore che la
-        // maschera propone come default, e fotografarlo qui evita che una riga
-        // salvata oggi cambi unità perché domani l'anagrafica cambia.
-        unitOfMeasure: line.unitOfMeasure?.trim() || variant.product.unitOfMeasure || null,
+        // ⛔ Niente ripiego sull'anagrafica: la fotografa la MASCHERA quando
+        // l'articolo entra nella riga (`applyVariantToLine`), e da lì il valore
+        // viaggia sempre nel payload. Ripescarlo qui rifotografava l'anagrafica
+        // di OGGI a ogni salvataggio — cioè esattamente ciò che il commento
+        // precedente diceva di voler evitare. Una riga senza unità resta senza:
+        // il documento non ne ha una, e deve vedersi (23/08/2026).
+        unitOfMeasure: line.unitOfMeasure?.trim() || null,
         lineTotalMinor: amounts.lineNetMinor,
         lineVatTotalMinor: amounts.lineVatMinor,
         vatAffectsSupplierTotal: vat.vatAffectsSupplierTotal,
@@ -617,20 +829,112 @@ export class SupplierOrdersService {
   }
 
   /**
+   * Righe in modifica, **conservandone l'identità**.
+   *
+   * ⭐ È lo stesso algoritmo che l'Ordine cliente applica a `salesOrderLine` e
+   * l'Arrivo merce a `documentLine`, e che `persistDocumentLinesByIdTx`
+   * documenta per i documenti. L'Ordine fornitore era l'ultimo rimasto a
+   * `deleteMany` + ricrea, ed è la causa radice già misurata in
+   * `docs/09-specifica-movimenti-per-riga.md` §3: le righe rinascevano con id
+   * nuovi, e con loro si staccava tutto ciò che a una riga si aggancia — qui
+   * `receivedQuantity`, che tornava a 0, e il `DocumentLine.supplierOrderLineId`
+   * dell'Arrivo merce, che andava a NULL per via del suo `onDelete: SetNull`.
+   *
+   * ⛔ **La funzione condivisa non si poteva riusare così com'è**: scrive su
+   * `tx.documentLine`, e questa è un'altra tabella. Si riusa l'algoritmo, nella
+   * forma che l'Ordine cliente ha già per lo stesso motivo.
+   *
+   * Nell'ordine, e deterministico:
+   * 1. riga con `id` noto   → **update**, stesso id, posizione aggiornata;
+   * 2. riga senza `id`      → **create**, id nuovo dal database;
+   * 3. riga non più inviata → **delete** della sola riga sparita;
+   * 4. `id` sconosciuto o ripetuto → **422**, mai una creazione silenziosa.
+   *
+   * ⚠️ Sostituire l'articolo su una riga esistente la lascia la STESSA riga:
+   * l'id non cambia, e i valori che il client non modifica restano quelli del
+   * documento. Eliminare una riga la fa finire; l'articolo aggiunto dopo è una
+   * riga nuova, che non eredita niente da quella eliminata.
+   *
+   * ⚠️ L'Arrivo merce già salvato non viene toccato da qui: resta autonomo, con
+   * le sue righe e i suoi movimenti (`17` §2.5).
+   */
+  private async persistLinesByIdTx(
+    tx: Prisma.TransactionClient,
+    orderId: string,
+    existingLines: readonly { readonly id: string }[],
+    computedLines: readonly ComputedOrderLine[],
+  ): Promise<void> {
+    const existing = new Set(existingLines.map((line) => line.id));
+    const claimed = new Set<string>();
+
+    // ── Appartenenza, PRIMA di scrivere qualunque cosa ──
+    // `existingLines` viene dall'ordine già letto per tenant e sede: un id che
+    // non sta lì è di un altro ordine, di un altro tenant, o è già stato
+    // eliminato da qualcun altro. In nessuno dei tre casi si tira a indovinare.
+    for (const line of computedLines) {
+      if (line.id == null) {
+        continue;
+      }
+      if (!existing.has(line.id)) {
+        throw new UnprocessableEntityException(
+          'Una riga fa riferimento a un identificativo che non appartiene a questo ordine. Ricarica l\u2019ordine e riprova.',
+        );
+      }
+      if (claimed.has(line.id)) {
+        throw new UnprocessableEntityException(
+          'La stessa riga è stata inviata due volte nello stesso salvataggio.',
+        );
+      }
+      claimed.add(line.id);
+    }
+
+    // ── 3. Le righe sparite dall'ordine ──
+    const removedIds = [...existing].filter((lineId) => !claimed.has(lineId));
+    if (removedIds.length > 0) {
+      await tx.supplierOrderLine.deleteMany({
+        where: { orderId, id: { in: removedIds } },
+      });
+    }
+
+    // ── 1 e 2. Aggiornamento in posto, oppure creazione ──
+    for (const [index, line] of computedLines.entries()) {
+      const data = this.toLineData(line, index + 1);
+      if (line.id == null) {
+        await tx.supplierOrderLine.create({ data: { ...data, orderId } });
+        continue;
+      }
+      // `updateMany` e non `update`: il `where` porta anche l'ordine, quindi
+      // l'appartenenza la impone il database e non solo il controllo qui sopra.
+      // Se la riga è sparita sotto i piedi il conteggio è zero e la transazione
+      // si ferma, invece di scrivere altrove.
+      const { count } = await tx.supplierOrderLine.updateMany({
+        where: { id: line.id, orderId },
+        data,
+      });
+      if (count === 0) {
+        throw new ConflictException(
+          'Una riga di questo ordine è stata modificata o eliminata da un altro salvataggio. Ricarica l\u2019ordine e riprova.',
+        );
+      }
+    }
+  }
+
+  /**
    * `position` e' l'indice della riga nel payload, 1-based: l'ordine in cui le
    * righe arrivano E' l'ordine del documento. Va scritto, perche' senza il
    * database le restituisce come gli pare — di norma per inserimento, ma senza
    * nessuna garanzia.
    */
-  private toLineCreateData(
+  private toLineData(
     line: ComputedOrderLine,
     position: number,
-  ): Prisma.SupplierOrderLineCreateWithoutOrderInput {
+  ): Prisma.SupplierOrderLineUncheckedCreateWithoutOrderInput {
     return {
       lineNumber: position,
       variantId: line.variantId,
       sku: line.sku,
       description: line.description,
+      variantLabel: line.variantLabel,
       orderedQuantity: line.orderedQuantity,
       // Colonne NUMERIC: passano da Prisma.Decimal, altrimenti il float arriva
       // al driver con la sua approssimazione binaria al posto del valore esatto.
@@ -640,7 +944,10 @@ export class SupplierOrdersService {
       lineTotalMinor: line.lineTotalMinor,
       unitOfMeasure: line.unitOfMeasure,
       vatSnapshot: line.vatSnapshot ?? Prisma.DbNull,
-      ...(line.vatCodeId ? { vatCode: { connect: { id: line.vatCodeId } } } : {}),
+      // Scalare invece di `connect`: la stessa forma vale per la creazione e
+      // per l'aggiornamento, e su un aggiornamento `null` toglie il legame —
+      // cosa che `connect` non saprebbe fare.
+      vatCodeId: line.vatCodeId,
     };
   }
 

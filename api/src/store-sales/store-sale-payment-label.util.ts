@@ -2,8 +2,8 @@
  * Etichette dei metodi di pagamento della cassa, lato API.
  *
  * Il documento salva il codice grezzo (`cash`/`card`/`other`), non lo snapshot
- * testuale che usano i DDT: senza questa mappa la stampa di una vendita in
- * negozio uscirebbe con scritto «cash».
+ * testuale che usano i DDT: senza questa mappa la stampa di una vendita al
+ * banco uscirebbe con scritto «cash».
  *
  * Gemella di `src/app/domain/store-sales/models/store-sale-payment.util.ts`:
  * stesse tre voci, stesso trattamento della nota libera di «Altro». L'insieme è

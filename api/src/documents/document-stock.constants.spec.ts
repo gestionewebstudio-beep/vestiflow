@@ -23,7 +23,7 @@ describe('document-stock.constants', () => {
     expect(documentTypeUnloadsStockOnConfirm(DocumentType.invoice_accompanying)).toBe(true);
     expect(documentTypeUnloadsStockOnConfirm(DocumentType.goods_receipt)).toBe(false);
     // La Fattura semplice non muove mai il magazzino.
-    expect(documentTypeUnloadsStockOnConfirm(DocumentType.invoice_draft)).toBe(false);
+    expect(documentTypeUnloadsStockOnConfirm(DocumentType.invoice)).toBe(false);
   });
 
   it('la Fattura accompagnatoria scarica solo senza DDT agganciato', () => {

@@ -13,6 +13,7 @@ function variant(variantId: string): VariantSummary {
     articleCode: `ART-${variantId}`,
     productName: 'Maglietta cotone',
     title: 'Maglietta cotone — M',
+    variantLabel: '',
     sellingPrice: { amountMinor: 1000, currencyCode: 'EUR' },
   };
 }

@@ -1,3 +1,4 @@
+import { colonna } from '@shared/table-columns/column-catalog';
 import {
   TableViewPresetId,
   type TableColumnDef,
@@ -24,19 +25,22 @@ import {
  * vuole le riaccende, senza che nessuno tocchi il codice.
  */
 export const CORRISPETTIVI_REGISTER_COLUMN_DEFS: readonly TableColumnDef[] = [
-  { id: 'occurredAt', label: 'Data', defaultVisible: true },
+  // `display: 'code'` è come il motore dice «non va a capo, e le cifre sono
+  // tabulari»: una data spezzata su due righe non è una data. Il Registro lo
+  // otteneva con una classe sua (`__cell--date`), persa nella migrazione.
+  { id: 'occurredAt', label: 'Data', defaultVisible: true, filter: 'date', display: 'code' },
   { id: 'kind', label: 'Tipo', defaultVisible: true },
   { id: 'orderNumber', label: 'Numero', pinnable: true, defaultVisible: true },
-  { id: 'source', label: 'Origine', defaultVisible: true },
-  { id: 'location', label: 'Sede', defaultVisible: true },
+  colonna('source', { defaultVisible: true }),
+  colonna('location', { defaultVisible: true }),
   { id: 'taxable', label: 'Imponibile', numeric: true, defaultVisible: true },
   { id: 'tax', label: 'IVA', numeric: true, defaultVisible: true },
-  { id: 'total', label: 'Totale', numeric: true, defaultVisible: true },
+  colonna('total', { defaultVisible: true }),
   // ── Disponibili nel selettore, spente di serie: vedi la nota in testa ────
   //
   // Sono ESATTAMENTE le due tolte dalla vista, e nessun'altra: il selettore non
   // è il posto dove far entrare colonne che nessuno ha chiesto.
-  { id: 'customerName', label: 'Cliente', defaultVisible: false },
+  colonna('customerName', { defaultVisible: false }),
   { id: 'financialStatus', label: 'Pagamento', defaultVisible: false },
 ] as const;
 

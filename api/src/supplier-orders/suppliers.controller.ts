@@ -37,7 +37,14 @@ import { ListSuppliersQueryDto } from './dto/list-suppliers.query.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { UpsertSupplierVariantLinkDto } from './dto/upsert-supplier-variant-link.dto';
 import { SupplierMediaService } from './supplier-media.service';
-import { SuppliersService, type SupplierVariantLinkRow } from './suppliers.service';
+import { normalizeDecimals } from '../common/interceptors/decimal-serialization.interceptor';
+import {
+  SuppliersService,
+  type SupplierVariantLinkResponse,
+  type SupplierVariantLinkRow,
+} from './suppliers.service';
+
+import type { Serialized } from '../common/serialized.type';
 
 @Controller('suppliers')
 @UseGuards(JwtAuthGuard, TenantPermissionsGuard)
@@ -124,6 +131,19 @@ export class SuppliersController {
     return this.suppliers.update(tenantId, id, dto);
   }
 
+  /**
+   * ⭐ **Duplica**: una scheda nuova che si apre per rifinirla. Partita IVA e
+   * codice fiscale non si copiano — vedi il servizio.
+   */
+  @Post(':id/duplicate')
+  @RequireAnyPermissions(SUPPLIER_ORDERS_MANAGE_PERMISSIONS)
+  duplicate(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ readonly id: string }> {
+    return this.suppliers.duplicate(tenantId, id);
+  }
+
   @Delete(':id')
   @RequireAnyPermissions(SUPPLIER_ORDERS_MANAGE_PERMISSIONS)
   async delete(
@@ -136,21 +156,21 @@ export class SuppliersController {
 
   @Get(':id/variant-links')
   @RequireAnyPermissions(SUPPLIERS_LOOKUP_PERMISSIONS)
-  listVariantLinks(
+  async listVariantLinks(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<SupplierVariantLinkRow[]> {
-    return this.suppliers.listVariantLinksBySupplier(tenantId, id, user);
+  ): Promise<Serialized<SupplierVariantLinkResponse[]>> {
+    return normalizeDecimals(await this.suppliers.listVariantLinksBySupplier(tenantId, id, user));
   }
 
   @Post('variant-links')
   @RequireAnyPermissions(SUPPLIER_ORDERS_MANAGE_PERMISSIONS)
-  upsertVariantLink(
+  async upsertVariantLink(
     @CurrentTenant() tenantId: string,
     @Body() dto: UpsertSupplierVariantLinkDto,
-  ): Promise<SupplierVariantLinkRow> {
-    return this.suppliers.upsertVariantLink(tenantId, dto);
+  ): Promise<Serialized<SupplierVariantLinkRow>> {
+    return normalizeDecimals(await this.suppliers.upsertVariantLink(tenantId, dto));
   }
 
   @Delete('variant-links/:linkId')

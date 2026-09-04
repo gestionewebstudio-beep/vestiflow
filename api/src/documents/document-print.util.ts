@@ -3,7 +3,7 @@ import { DocumentType } from '@prisma/client';
 import { PROFORMA_FISCAL_DISCLAIMER } from './document-type.util';
 
 /**
- * La cassa negozio si dichiara «interna non fiscale» all'operatore
+ * La vendita al banco si dichiara «interna non fiscale» all'operatore
  * (`store-sale-register.component.html`) e scrive la stessa cosa nel commento
  * interno del documento. Un A4 con numero, IVA e totale che NON lo ripete è
  * tipograficamente indistinguibile da un documento fiscale: l'avviso è la
@@ -54,7 +54,7 @@ const HAS_PRINTED_SHEET: Readonly<Record<DocumentType, boolean>> = {
   [DocumentType.adjustment]: true,
   [DocumentType.inventory]: true,
   [DocumentType.proforma]: true,
-  [DocumentType.invoice_draft]: true,
+  [DocumentType.invoice]: true,
   [DocumentType.invoice_accompanying]: true,
   // Si stampa e si consegna come le altre due: e' un documento fiscale.
   [DocumentType.credit_note]: true,
@@ -107,20 +107,20 @@ const PRINT_KIND: Readonly<Record<DocumentType, DocumentPrintKind>> = {
   [DocumentType.supplier_invoice]: 'purchase_invoice',
   [DocumentType.sales_ddt]: 'sales',
   [DocumentType.transfer]: 'transfer',
-  // Scarico manuale: layout vendita (Cliente + righe con prezzi/totali).
+  // Vendita manuale: layout vendita (Cliente + righe con prezzi/totali).
   [DocumentType.manual_unload]: 'sales',
   // Rettifica e inventario: la sede è tutto il contesto che hanno.
   [DocumentType.adjustment]: 'stock',
   [DocumentType.inventory]: 'stock',
   [DocumentType.proforma]: 'sales',
-  [DocumentType.invoice_draft]: 'sales',
+  [DocumentType.invoice]: 'sales',
   [DocumentType.invoice_accompanying]: 'sales',
   // Stesso impaginato della famiglia commerciale: cambiano titolo, verso e
   // contenuto, non la forma del foglio.
   [DocumentType.credit_note]: 'sales',
   [DocumentType.online_sale]: 'sales',
   [DocumentType.customer_order]: 'sales',
-  // Cassa negozio: il cliente può non esserci, la sede c'è sempre.
+  // Vendita al banco: il cliente può non esserci, la sede c'è sempre.
   [DocumentType.store_sale]: 'sales',
   [DocumentType.store_return]: 'sales',
   [DocumentType.quote]: 'sales',

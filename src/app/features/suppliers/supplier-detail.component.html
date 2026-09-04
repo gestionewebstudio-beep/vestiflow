@@ -30,10 +30,41 @@
       }
     </header>
 
+    <!--
+      ⭐ **Gli stessi cinque gruppi della maschera**, nello stesso ordine: chi
+      ha appena compilato la scheda ritrova i dati dove li ha scritti.
+    -->
     <section class="supplier-detail__panel" aria-labelledby="supplier-general">
-      <h2 id="supplier-general" class="supplier-detail__panel-title">Anagrafica</h2>
-      <app-detail-facts [facts]="facts()" />
+      <h2 id="supplier-general" class="supplier-detail__panel-title">Dati generali</h2>
+      <app-detail-facts [facts]="datiGeneraliFacts()" />
     </section>
+
+    <section class="supplier-detail__panel" aria-labelledby="supplier-address">
+      <h2 id="supplier-address" class="supplier-detail__panel-title">Indirizzo</h2>
+      <app-detail-facts [facts]="indirizzoFacts()" />
+    </section>
+
+    <section class="supplier-detail__panel" aria-labelledby="supplier-contacts">
+      <h2 id="supplier-contacts" class="supplier-detail__panel-title">Contatti</h2>
+      <app-detail-facts [facts]="contattiFacts()" />
+    </section>
+
+    <section class="supplier-detail__panel" aria-labelledby="supplier-terms">
+      <h2 id="supplier-terms" class="supplier-detail__panel-title">Condizioni commerciali</h2>
+      <app-detail-facts [facts]="condizioniFacts()" />
+    </section>
+
+    <!--
+      ⚠️ **Il pannello sparisce se non c'è niente dentro**: avviso, nota e note
+      sono facoltativi e quasi sempre vuoti — un riquadro con tre trattini
+      occupa una fascia per non dire nulla.
+    -->
+    @if (documentiFacts().length > 0) {
+      <section class="supplier-detail__panel" aria-labelledby="supplier-docs">
+        <h2 id="supplier-docs" class="supplier-detail__panel-title">Documenti e note</h2>
+        <app-detail-facts [facts]="documentiFacts()" />
+      </section>
+    }
 
     @if (customerLinkPath(); as customerPath) {
       <p class="supplier-detail__link">
@@ -44,38 +75,15 @@
 
     <app-supplier-attachments-panel [supplierId]="s.id" [canManage]="canManage()" />
 
-    <section class="supplier-detail__panel" aria-labelledby="supplier-articles">
-      <h2 id="supplier-articles" class="supplier-detail__panel-title">Articoli collegati</h2>
-      @if (links().length === 0) {
-        <p class="supplier-detail__empty-links">
-          Nessun articolo collegato. Associa codici fornitore dal dettaglio prodotto.
-        </p>
-      } @else {
-        <div class="supplier-detail__table-wrap">
-          <table class="supplier-detail__table">
-            <thead>
-              <tr>
-                <th scope="col">Prodotto</th>
-                <th scope="col">SKU</th>
-                <th scope="col">Codice fornitore</th>
-                <th scope="col">Preferenziale</th>
-                <th scope="col">Ultimo prezzo</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (link of links(); track link.id) {
-                <tr>
-                  <td>{{ link.variant.product.name }}</td>
-                  <td>{{ link.variant.sku }}</td>
-                  <td>{{ link.supplierSku ?? '—' }}</td>
-                  <td>{{ link.isPreferred ? 'Sì' : 'No' }}</td>
-                  <td class="supplier-detail__num">{{ formatPrice(link) }}</td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-      }
-    </section>
+    <!--
+      ⛔ **QUI C'ERANO GLI «ARTICOLI COLLEGATI», tolti il 01/09/2026** su
+      indicazione del proprietario.
+
+      Era una tabella scritta a mano — prodotto, SKU, codice fornitore,
+      preferenziale, ultimo prezzo — dentro la scheda del fornitore. Il legame
+      articolo↔fornitore si governa dal **dettaglio prodotto**, che ha già il
+      suo pannello «Fornitori articolo»: qui era una seconda vista dello stesso
+      dato, in sola lettura e senza modo di agirci.
+    -->
   }
 </section>

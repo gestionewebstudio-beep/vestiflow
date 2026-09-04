@@ -7,7 +7,10 @@
   `_list-page.scss` che serve anche a chi — come questo Registro — ha un layout
   proprio e non vuole l'intero impianto delle pagine-registro.
 */
-@include lp.list-page-mobile-filters('corrispettivi');
+// ⛔ Il pannello filtri mobile e' del TELAIO: qui c'era
+//    `list-page-mobile-filters('corrispettivi')`, che generava un secondo
+//    pulsante «Filtri (n)» e un secondo pannello — quello che duplicava a mano
+//    i controlli della barra.
 
 /*
   ⚠️ **`block-size: 100%` qui non poteva funzionare, e faceva il danno opposto.**
@@ -52,12 +55,53 @@
   La densità è da gestionale: il `gap` era `--space-5` fra tutti i blocchi, e su
   una schermata da consultare significava mezzo schermo di aria.
 */
+/*
+  ⛔ **Qui c'era `grid-template-rows: auto auto minmax(0, 1fr) auto`**, cioe' il
+  ruolo elastico assegnato per POSIZIONE: la terza traccia. Bastava un blocco
+  condizionale in piu' perche' tutto slittasse di uno — ed e' il difetto che
+  `regole-stile-ui` §6 vieta, misurato proprio su questa pagina.
+
+  Ora la catena la da' il telaio, per IDENTITA': `> *` non cede, l'area dati si'.
+  Resta la sola densita', che e' una scelta di questa schermata: il telaio usa
+  `--space-5`, qui `--space-3` — su una vista da consultare mezzo schermo d'aria
+  non si spende.
+*/
 .corrispettivi {
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
-  gap: var(--space-3);
-  flex: 1;
-  min-block-size: 0;
+  /*
+    ⭐ **8px fra le zone, a ogni larghezza** — il proprietario è tornato due volte
+    sul punto il 30/08/2026 («possiamo ancora togliere margine», «meno margine in
+    questi punti»), indicando i tre stacchi: filtri↔tabella, tabella↔riepilogo,
+    riepilogo↔comandi.
+
+    ⛔ Erano 12px per tre stacchi, cioè 36px di vuoto verticale in una schermata
+    che si consulta tutto il giorno. Ora sono 24, e i 12 recuperati vanno alle
+    righe.
+
+    ⚠️ **Stesso valore del telefono**, e ora la dichiarazione è una sola: prima la
+    scrivania diceva 12 e il telefono 8, con una media query in mezzo a tenerli
+    separati per nessuna ragione dichiarata.
+  */
+  gap: var(--space-15);
+
+  /*
+    ⛔ **QUESTO `gap` SCAVALCAVA IL PASSO MOBILE DEL TELAIO**, e in silenzio.
+
+    Il telaio dichiara `:host { gap: var(--space-2) }` sotto `md` — 8px, la
+    decisione del 30/08/2026 sul passo fra le zone. Ma `.corrispettivi` è una
+    CLASSE sull'host, scritta dal foglio della pagina: pesa (0,2,0) contro il
+    (0,1,0) del `:host` del telaio, quindi vinceva **a ogni larghezza** e il
+    passo restava 12px anche sul telefono.
+
+    ⚠️ **È la trappola di specificità di `regole-stile-ui`**: la regola mobile
+    del telaio non falliva e non spariva — semplicemente non si applicava, senza
+    che niente lo segnalasse.
+
+    ⭐ La densità più stretta di questa schermata resta una sua scelta **da
+    scrivania**; sul telefono segue il telaio come tutte le altre.
+  */
+  @include bp.media-down('md') {
+    gap: var(--space-2);
+  }
 }
 
 /*
@@ -211,14 +255,33 @@
   a `Corrispettivi`, vedi sopra — il pannello È la sola area di scroll, e basta
   un flex a colonna: niente più una riga `auto` vuota da mantenere allineata.
 */
+/*
+  ⛔ **DUE CARD IDENTICHE, UNA DENTRO L'ALTRA** — segnalato dal proprietario il
+  30/08/2026 («evitare il doppio contenitore delle righe») e misurato risalendo
+  la catena dalla tabella:
+
+  ```text
+  table.data-table               bordo 1 · radius 9 · bianco               1010px
+  section.corrispettivi__panel   bordo 1 · radius 9 · bianco · padding 12  1036px
+  ```
+
+  Stesso bordo, stesso raggio, stesso bianco: a schermo si vedevano due cornici
+  concentriche a 12px di distanza, e costavano **26px per lato** — 26 di altezza
+  sottratti alle righe, 26 di larghezza alle colonne.
+
+  ⭐ **La tabella È GIÀ una card**, e la dà il motore comune. Il pannello smette
+  quindi di esserlo e conserva il solo ruolo per cui serve: essere la colonna
+  flessibile che passa l'altezza alla regione di scorrimento (§6, «la pagina
+  elenco cede solo l'ELENCO»).
+
+  ⚠️ **È la stessa decisione già presa sotto `lg`** — «il pannello smette di
+  essere una card: le card sono le righe» — arrivata qui per una ragione diversa
+  ma con lo stesso esito. Ora le due larghezze concordano invece di divergere.
+*/
 .corrispettivi__panel {
   display: flex;
   flex-direction: column;
   min-block-size: 0;
-  padding: var(--space-3);
-  background-color: var(--color-surface);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-lg);
 }
 
 /* L'unica cosa che scorre. */
@@ -226,6 +289,30 @@
   flex: 1;
   overflow-y: auto;
   min-block-size: 0;
+
+  /*
+    ⭐ **IL CONTENITORE DELLE RIGHE ARRIVA IN FONDO, ANCHE SE LE RIGHE FINISCONO
+    PRIMA** — deciso dal proprietario il 30/08/2026: «questa parte la farei
+    diventare contenitore vuoto, il continuo».
+
+    ⛔ Con dodici righe in una finestra alta, la card bianca finiva subito sotto
+    l'ultima e lasciava una fascia di fondo pagina grigio fra sé e il riepilogo.
+    A schermo si leggeva come un buco, non come spazio disponibile.
+
+    ⚠️ **`min-block-size` sulla TABELLA, non `block-size`**: la tabella deve
+    poter CRESCERE oltre il contenitore quando le righe sono tante — è ciò che
+    fa scorrere questa regione. Un'altezza fissa la bloccherebbe alla finestra e
+    le righe in più sparirebbero.
+
+    ⚠️ Funziona perché il contenitore ha un'altezza definita (`flex: 1` più
+    `min-block-size: 0` lungo tutta la catena, §6): senza, il 100% non avrebbe
+    da cosa calcolarsi e la regola non farebbe nulla — in silenzio.
+  */
+  > * {
+    display: flex;
+    flex-direction: column;
+    min-block-size: 100%;
+  }
 }
 
 /*
@@ -390,14 +477,30 @@
   `regole-stile-ui` §7 prescrive per i totali su mobile.
 */
 @include bp.media-down('lg') {
-  :host {
-    display: block;
-    flex: none;
-  }
+  /*
+    ⛔ **QUI C'ERA `display: block; flex: none`, e rompeva il dock** — misurato
+    nel browser il 30/08/2026 risalendo la catena delle altezze:
 
-  .corrispettivi {
+    ```text
+    main.shell__content        flex   0 1 auto    784px   auto      1425/784 ⛔
+    app-corrispettivi-report   block  0 0 auto   1371px   visible   ← la rottura
+    app-list-page              flex   1 1 0%     1371px             ← senza tetto
+    ```
+
+    La pagina cresceva fino a contenere tutte le righe, quindi il `flex: 1` del
+    telaio non aveva niente contro cui comprimersi: a scorrere restava
+    `.shell__content`, e riepilogo e comandi finivano fuori schermo.
+
+    ⚠️ **La motivazione di allora era corretta, per allora**: senza dock, un
+    elenco chiuso in un'altezza fissa diventava «uno spioncino di poche card con
+    la sua barra dentro un'altra barra». È esattamente il difetto che il dock
+    risolve — la zona dati È la regione di scorrimento, e non ce n'è una seconda.
+  */
+  :host {
     display: flex;
     flex-direction: column;
+    flex: 1;
+    min-block-size: 0;
   }
 
   /*
@@ -420,18 +523,33 @@
     border-radius: 0;
   }
 
-  .corrispettivi__panel-scroll {
-    flex: none;
-    overflow-y: visible;
-  }
-}
+  /*
+    ⛔ **QUI C'ERA `flex: none; overflow-y: visible`, e col dock taglia le righe.**
 
-/* Conteggio in coda all'elenco: informazione di servizio, non un dato. */
-.corrispettivi__rowcount {
-  margin: var(--space-2) 0 0;
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
-  text-align: end;
+    Misurato nel browser il 30/08/2026 a 390px, dentro la zona dati:
+
+    ```text
+    .list-page__data          grid    hidden    436px   1068/436  ⛔ TAGLIA
+      .corrispettivi__panel   flex    visible   436px   1068/436  ⛔ TAGLIA
+        __panel-scroll        block   visible  1068px   1068/1068
+    ```
+
+    Il pannello cresceva fino a 1068px dentro una zona alta 436, e la zona —
+    `overflow: hidden` per non produrre una seconda barra — **tagliava**: nove
+    righe su dodici sparivano, senza modo di raggiungerle.
+
+    ⚠️ **La regola era corretta prima del dock**: a scorrere era `.shell__content`,
+    quindi il pannello doveva restare libero di crescere. Col dock la regione di
+    scorrimento è QUESTA, e deve tornare a comportarsi come su scrivania.
+
+    ⭐ **Una sola barra**: scorre `__panel-scroll` e nient'altro — la zona dati
+    resta `hidden`, e la pagina non produce una barra propria.
+  */
+  .corrispettivi__panel-scroll {
+    flex: 1;
+    min-block-size: 0;
+    overflow-y: auto;
+  }
 }
 
 /* Campo del pannello filtri: etichetta sopra, controllo a piena larghezza. */
@@ -454,5 +572,113 @@
     flex-direction: row;
     align-items: flex-start;
     justify-content: space-between;
+  }
+}
+
+/* I gruppi proiettati non sono scatole: sono contenuto (vedi telaio elenco). */
+[pageActions],
+[period],
+[filters],
+[warnings],
+[summary] {
+  display: contents;
+}
+
+/*
+  ⚠️ **La zona dati NON è `display: contents`, e qui la ragione è tecnica.**
+
+  Il telaio dà `flex: 1; min-block-size: 0` con `.list-page__data > *`, e i
+  selettori guardano il DOM: dissolvendo il gruppo, la regola continuerebbe a
+  puntare al `<div data>` — che non genera più una scatola — e la card non
+  riceverebbe l'altezza. Resta un contenitore vero che passa la catena al
+  pannello.
+
+  ⭐ È la catena che rende possibile l'unica regione di scorrimento della pagina:
+  `__panel-scroll` scorre solo se il pannello ha un'altezza definita sopra di sé.
+*/
+[data] {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
+}
+
+[data] > .corrispettivi__panel {
+  flex: 1;
+  min-block-size: 0;
+}
+
+/*
+  ⭐ **La fascia totali è ATTACCATA al riquadro dell'elenco** — deciso dal
+  proprietario il 30/08/2026.
+
+  Il telaio distanzia le proprie zone di `--space-5` (20px), ed è giusto per
+  zone che sono cose diverse: filtri, dati, comandi. Qui però le due zone sono
+  la stessa cosa — le righe e la loro somma — e il vuoto in mezzo le faceva
+  leggere come due blocchi indipendenti.
+
+  ⚠️ **Lo chiude la pagina, non il telaio**, e non è pigrizia: lo slot
+  `[summary]` oggi ospita anche il PAGINATORE delle sei anagrafiche, e
+  attaccarlo lì cambierebbe sei schermate che nessuno ha chiesto di cambiare.
+  Quando la riga totali comune arriverà su tutti gli elenchi (`14` §0.2), la
+  decisione tornerà al telaio e questa regola sparirà.
+*/
+[summary] {
+  margin-block-start: calc(var(--space-5) * -1);
+}
+
+/*
+  ⭐ **Sotto `lg` il Periodo perde il prefisso e sta in riga con Colonne e
+  Filtri** — deciso dal proprietario il 30/08/2026: «possiamo togliere la
+  scritta periodo tanto si capisce leggendo il filtro, stringere la casella e
+  far diventare unica linea con gli altri tasti».
+
+  Il controllo era **già** nella stessa zona degli altri: andava a capo perché
+  «Periodo: Ultimi 30 giorni» è largo. Tolto il prefisso, la casella si stringe
+  di ~60px e la riga si chiude da sé — nessuna riorganizzazione del telaio.
+
+  ⚠️ **Lo decide la PAGINA, non il telaio**, e non è pigrizia: il telaio
+  spegnerebbe il prefisso anche ai controlli dentro il pannello filtri, dove è
+  l'unica cosa che dice di quale filtro si tratti.
+*/
+/*
+  ⭐ **Il prefisso «Periodo:» via a OGNI larghezza** — deciso dal proprietario il
+  30/08/2026: «anche da desktop togliamo periodo».
+
+  ⛔ **Qui la regola stava dentro `media-down('lg')`**, quindi il prefisso c'era
+  sulla scrivania e spariva sul telefono: lo stesso controllo con due nomi a
+  seconda dello schermo.
+
+  ⚠️ **Non è una seconda dichiarazione: è la stessa, senza la media query.** Non
+  c'è duplicazione fra scrivania e telefono — c'è UNA regola che ora vale per
+  entrambi, ed è il motivo per cui il comportamento mobile resta identico a prima.
+
+  ⭐ **«Ultimi 30 giorni» si spiega da sé**, e questo è il criterio: il prefisso
+  serve dove il valore da solo non direbbe di che filtro si tratta. «Raggruppa:
+  Nessuno» lo tiene per quella ragione — «Nessuno» da solo non significa niente.
+
+  ⚠️ **Lo decide la PAGINA, non il telaio**: il telaio spegnerebbe il prefisso
+  anche ai controlli dentro il pannello filtri, dove è l'unica cosa che dice di
+  quale filtro si tratti.
+*/
+[period] {
+  --select-menu-chip-label-display: none;
+}
+
+/*
+  ⭐ **Le voci della tendina seguono la densità della barra** — «troppo spazio»,
+  segnalato dal proprietario il 30/08/2026 sulla tendina del Periodo.
+
+  Misurato: 34px per voce su scrivania, con font 13px e **zero** padding — cioè
+  l'altezza la dava tutta `--field-height`, la misura di un campo autonomo. Su
+  dodici voci sono 408px di tendina per 156px di testo.
+
+  ⚠️ **Sotto `md` non si tocca**: là `--field-height` sale a 44px da sé, e un
+  elenco di scelte da toccare col dito è esattamente il caso in cui quel minimo
+  serve. La densità è una scelta da scrivania.
+*/
+@include bp.media-up('md') {
+  .corrispettivi__filters,
+  [period] {
+    --select-menu-option-h: var(--control-h-button);
   }
 }

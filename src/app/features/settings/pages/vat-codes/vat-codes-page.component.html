@@ -329,11 +329,13 @@
   </form>
 </app-slide-panel>
 
-<app-confirm-dialog
+<!--
+  ⚠️ «Verrà eliminato definitivamente» non si ripete: lo dice il SECONDO
+  passaggio. Resta il VINCOLO, che è l'informazione utile prima di continuare.
+-->
+<app-delete-confirm
   title="Elimina Codice IVA"
-  message="Il Codice IVA verrà eliminato definitivamente. L'operazione è possibile solo se la voce non è mai stata utilizzata."
-  confirmLabel="Elimina"
-  [danger]="true"
+  consequence="L'eliminazione è possibile solo se il Codice IVA non è mai stato utilizzato."
   [busy]="deleting()"
   [open]="deleteDialogOpen()"
   (openChange)="deleteDialogOpen.set($event)"

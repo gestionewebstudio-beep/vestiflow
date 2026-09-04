@@ -84,8 +84,23 @@ export const reportsRoutes: Routes = [
     canActivate: [tenantPermissionGuard],
     data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.SectionReports, reuse: true },
   },
-  // Non devono esistere due indirizzi «Corrispettivi»: chi ha un segnalibro
-  // sul vecchio finisce sul canonico invece di vedere una pagina gemella.
-  { path: 'corrispettivi/print', redirectTo: '/app/sales/corrispettivi/print' },
-  { path: 'corrispettivi', redirectTo: '/app/sales/corrispettivi' },
+  // ⛔ Qui c'erano i due reindirizzamenti da `/app/reports/corrispettivi`
+  // (+ `/print`) verso `/app/sales/corrispettivi`. Tolti il 25/08/2026.
+  //
+  // ⚠️ **Non erano solo inutili: erano ROTTI.** Il collaudo del 17/08 li aveva
+  // già misurati (P2.13) — un `redirectTo` scarta TUTTI i parametri di query,
+  // quindi un segnalibro sulla stampa per il commercialista usciva con un altro
+  // periodo. Un 404 è una risposta migliore di una stampa sbagliata.
+  //
+  // ⛔ **Qui c’era «E nel codice non ci puntava più nessuno: solo i documenti».
+  //    Era FALSO**, e il 27/08 la pagina Report aveva ancora il suo link.
+  //
+  //    ⚠️ Non era distrazione: il link era `routerLink="corrispettivi"`,
+  //    RELATIVO, quindi cercare `reports/corrispettivi` non lo trovava — un
+  //    link relativo non contiene il percorso che apre. La misura era giusta
+  //    sulla domanda sbagliata.
+  //
+  //    ⭐ Ora il link è assoluto su `/app/sales/corrispettivi`, e
+  //    `check:router-links` (in `npm run lint`) impedisce che ne ricompaia uno
+  //    relativo: era l’unico dell’app.
 ];

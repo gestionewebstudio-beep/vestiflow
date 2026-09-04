@@ -1,4 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
+
+import type { UserProfileDto } from '../auth/dto/user-profile.dto';
+import { hasFullTenantAccess } from '../auth/user-permissions.util';
 import type { TenantFeatureSettings } from '@prisma/client';
 
 import { SALES_PRICE_MODE_TYPES } from '../documents/document-price-mode.util';
@@ -17,7 +20,12 @@ const DEFAULTS: Omit<TenantFeatureSettings, 'id' | 'tenantId' | 'createdAt' | 'u
   allowNegativeInventory: false,
   warnNegativeInventory: true,
   blockNegativeInventory: false,
-  defaultUnitOfMeasure: 'pz',
+  // ⛔ SPENTA di default, al contrario di tutte le altre. Non riproduce il
+  // comportamento precedente: e' una scelta del proprietario (26/08/2026). La
+  // Vendita manuale riduce la giacenza senza StockMovement, quindi e' un
+  // interruttore di sicurezza — e uno che nasce acceso protegge solo chi si
+  // ricorda di spegnerlo.
+  manualUnloadEnabled: false,
   defaultVatCodeId: null,
   // Ivato: è come partiva il sistema prima che l'impostazione esistesse.
   salesPricesIncludeVat: true,
@@ -47,7 +55,32 @@ export class TenantFeatureSettingsService {
   async update(
     tenantId: string,
     dto: UpdateTenantFeatureSettingsDto,
+    user?: UserProfileDto,
   ): Promise<TenantFeatureSettingsDto> {
+    // ⛔ **La Vendita manuale la accende e la spegne SOLO il titolare.**
+    //
+    //   Non e’ una preferenza fra le altre: quel documento riduce la giacenza
+    //   senza generare movimenti, e l’interruttore serve a proteggersene. Chi
+    //   amministra le impostazioni non deve poterselo riaccendere.
+    //
+    // ⚠️ Il rifiuto e’ MIRATO al solo campo sensibile, non a tutto il PATCH: le
+    //   altre impostazioni restano com’erano, e il pannello continua ad avere un
+    //   solo «Salva impostazioni» invece di due chiamate.
+    //
+    // ⚠️ E vale anche se il valore non cambia: e’ la richiesta a non essere sua.
+    //
+    // ⚠️ `hasFullTenantAccess` e’ il predicato canonico, e include anche la
+    //   SESSIONE ASSISTENZA: un amministratore di piattaforma che opera per
+    //   conto del cliente puo’ girare l’interruttore. E’ una conseguenza
+    //   dichiarata, non una svista — le sessioni di assistenza hanno gia’ pieno
+    //   accesso a tutto il resto, e inventare qui un secondo predicato
+    //   «proprio proprio il titolare» sarebbe il controllo parallelo che il
+    //   proprietario ha chiesto di non creare.
+    if (dto.manualUnloadEnabled !== undefined && !hasFullTenantAccess(user)) {
+      throw new ForbiddenException(
+        'Solo il titolare dell’account può attivare o disattivare la Vendita manuale.',
+      );
+    }
     const before = await this.getOrCreate(tenantId);
     const row = await this.prisma.tenantFeatureSettings.update({
       where: { tenantId },
@@ -89,7 +122,7 @@ export class TenantFeatureSettingsService {
       allowNegativeInventory: row.allowNegativeInventory,
       warnNegativeInventory: row.warnNegativeInventory,
       blockNegativeInventory: row.blockNegativeInventory,
-      defaultUnitOfMeasure: row.defaultUnitOfMeasure,
+      manualUnloadEnabled: row.manualUnloadEnabled,
       defaultVatCodeId: row.defaultVatCodeId,
       salesPricesIncludeVat: row.salesPricesIncludeVat,
       listino1Name: row.listino1Name,

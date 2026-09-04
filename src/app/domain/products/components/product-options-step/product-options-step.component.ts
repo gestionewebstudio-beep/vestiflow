@@ -42,7 +42,6 @@ export class ProductOptionsStepComponent {
   readonly variants = input<readonly VariantDraft[]>([]);
   readonly shopifyConnected = input(false);
   readonly showShopifyIntegration = input(false);
-  readonly catalogReadOnly = input(false);
   readonly optionsChange = output<ProductOptionsDraft>();
 
   protected readonly optionsStandardLabel = computed(() =>

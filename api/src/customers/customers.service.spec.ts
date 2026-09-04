@@ -63,7 +63,11 @@ describe('CustomersService', () => {
         findFirst: vi.fn(),
         create: vi.fn(),
         update: vi.fn(),
+        delete: vi.fn(),
       },
+      document: { updateMany: vi.fn() },
+      salesOrder: { updateMany: vi.fn() },
+      onlineSale: { updateMany: vi.fn() },
       supplier: {
         findUnique: vi.fn(),
         create: vi.fn(),
@@ -74,6 +78,7 @@ describe('CustomersService', () => {
       party: {
         create: vi.fn(),
         update: vi.fn(),
+        delete: vi.fn(),
       },
       $transaction: vi.fn(),
     };
@@ -450,6 +455,101 @@ describe('CustomersService', () => {
     expect(tx.customer.create).toHaveBeenCalledWith({
       data: { tenantId, partyId: 'party-7', code: '0001' },
       select: { id: true },
+    });
+  });
+
+  /**
+   * ⭐ **Eliminare un cliente non tocca la sua storia.**
+   *
+   * Decisione del proprietario, 30/08/2026: «il dato nei documenti diventa testo e
+   * non sparisce, sparisce solo la scheda cliente». È il criterio già in uso per
+   * l'unità di misura e il Codice IVA.
+   *
+   * ⚠️ **Questi test presidiano il CONTRATTO, non l'implementazione**: che i
+   * documenti perdano il collegamento e non il nome, e che l'anagrafica condivisa
+   * sopravviva a un fornitore che la usa ancora.
+   */
+  describe('eliminazione della scheda cliente', () => {
+    function prismaConTransazione() {
+      const prisma = createPrismaMock();
+      // La transazione esegue davvero il callback: è dentro che sta il contratto.
+      prisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) =>
+        fn(prisma),
+      );
+      prisma.customer.findFirst.mockResolvedValue({ id: 'cust-1', partyId: 'party-1' });
+      prisma.supplier.findFirst.mockResolvedValue(null);
+      return prisma;
+    }
+
+    it('⭐ i documenti perdono il COLLEGAMENTO, non il nome', async () => {
+      const prisma = prismaConTransazione();
+      const service = new CustomersService(prisma as unknown as PrismaService);
+
+      await service.remove(tenantId, 'cust-1');
+
+      /*
+        ⛔ La cosa che questo test inchioda: si scrive SOLO `customerId: null`.
+        Se un giorno qualcuno aggiungesse `customerName: null` allo stesso
+        `data`, i documenti storici perderebbero il nome del cliente — ed è
+        esattamente ciò che la decisione vieta.
+      */
+      for (const modello of [prisma.document, prisma.salesOrder, prisma.onlineSale]) {
+        expect(modello.updateMany).toHaveBeenCalledWith({
+          where: { tenantId, customerId: 'cust-1' },
+          data: { customerId: null },
+        });
+      }
+    });
+
+    it('la scheda sparisce davvero: non è una disattivazione', async () => {
+      const prisma = prismaConTransazione();
+      const service = new CustomersService(prisma as unknown as PrismaService);
+
+      await service.remove(tenantId, 'cust-1');
+
+      expect(prisma.customer.delete).toHaveBeenCalledWith({ where: { id: 'cust-1' } });
+      expect(prisma.customer.update).not.toHaveBeenCalled();
+    });
+
+    /**
+     * ⛔ **Il caso che romperebbe un fornitore attivo passando dalla porta di
+     * servizio**: cliente e fornitore possono essere la stessa azienda in due
+     * ruoli, e condividono la `Party`.
+     */
+    it('⭐ l’anagrafica RESTA se la usa anche un fornitore', async () => {
+      const prisma = prismaConTransazione();
+      prisma.supplier.findFirst.mockResolvedValue({ id: 'supp-1' });
+      const service = new CustomersService(prisma as unknown as PrismaService);
+
+      await service.remove(tenantId, 'cust-1');
+
+      expect(prisma.customer.delete).toHaveBeenCalled();
+      expect(prisma.party.delete).not.toHaveBeenCalled();
+    });
+
+    it('senza fornitore collegato sparisce anche l’anagrafica', async () => {
+      const prisma = prismaConTransazione();
+      const service = new CustomersService(prisma as unknown as PrismaService);
+
+      await service.remove(tenantId, 'cust-1');
+
+      expect(prisma.party.delete).toHaveBeenCalledWith({ where: { id: 'party-1' } });
+    });
+
+    /**
+     * ⚠️ **Un cliente di un altro tenant non esiste**, e la risposta è la stessa
+     * di uno inesistente: dire «esiste ma non è tuo» sarebbe già un'informazione.
+     */
+    it('⛔ un id di un altro tenant non elimina niente', async () => {
+      const prisma = prismaConTransazione();
+      prisma.customer.findFirst.mockResolvedValue(null);
+      const service = new CustomersService(prisma as unknown as PrismaService);
+
+      await expect(service.remove(tenantId, 'cust-altrui')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(prisma.customer.delete).not.toHaveBeenCalled();
+      expect(prisma.document.updateMany).not.toHaveBeenCalled();
     });
   });
 });

@@ -1,99 +1,29 @@
-@use 'breakpoints' as bp;
 @use 'responsive-table' as rt;
 
-@include rt.list-card-table-host();
-@include rt.data-table-desktop('level-table');
-@include rt.data-table-mobile-cards('level-table');
-@include rt.data-table-mobile-title('level-table__title');
+/*
+  ⭐ Qui c'erano 114 righe: contenitore a scorrimento, layout desktop, ripiego a
+  card, allineamenti e la grammatica condivisa. **Le rende il motore comune.**
 
-.level-table__head th {
-  position: sticky;
-  inset-block-start: 0;
-  z-index: var(--z-raised);
-  padding: var(--space-3) var(--space-4);
-  background-color: var(--color-table-header-bg);
-}
+  Resta il vestito del solo elemento che questo componente disegna ancora di suo:
+  il comando sulla quantità impegnata.
+*/
+@include rt.ponte-tabella();
 
-.level-table__row:hover {
-  background-color: var(--color-surface-hover);
-}
-
-.level-table__row td {
-  padding: var(--space-3) var(--space-4);
-  vertical-align: top;
-}
-
-.level-table__title {
-  font-weight: var(--font-weight-semibold);
-}
-
-// SKU in mono (restyle spec §Tabelle).
-.level-table__sku {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--color-link);
-}
-
-.level-table__cell--negative {
-  color: var(--status-error-fg);
-  font-weight: var(--font-weight-semibold);
-}
-
-// Giacenza colorata per soglia (restyle spec §Tabelle):
-// rosso a zero/sotto zero, ambra sotto la soglia minima.
-.level-table__cell--empty {
-  color: var(--status-empty-fg);
-  font-weight: var(--font-weight-semibold);
-}
-
-.level-table__cell--low {
-  color: var(--status-low-fg);
-  font-weight: var(--font-weight-semibold);
-}
-
+/*
+  La quantità impegnata cliccabile: si legge come un numero, si comporta come un
+  comando. Il sottolineato dice che porta altrove; il resto lo eredita dalla cella.
+*/
 .level-table__committed-link {
   padding: 0;
   font: inherit;
-  color: var(--color-primary);
-  background: none;
-  border: none;
+  color: var(--color-link);
   text-decoration: underline;
+  text-underline-offset: var(--space-1);
+  background: none;
+  border: 0;
   cursor: pointer;
-}
 
-// Layout automatico (v4): le colonne si dimensionano sul contenuto — niente
-// piu' otto colonne uguali con nomi spezzati a meta' parola. Nome e SKU in
-// ellipsis oltre il limite, il resto non va mai a capo.
-@include bp.media-up('lg') {
-  .level-table__title {
-    max-inline-size: var(--table-cell-max);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .level-table__sku {
-    max-inline-size: var(--table-cell-max);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .level-table tbody td.level-table__cell--status,
-  .level-table__head th.level-table__cell--status {
-    text-align: end;
-    white-space: nowrap;
-  }
-
-  .level-table__status-value {
-    display: flex;
-    justify-content: flex-end;
-    inline-size: 100%;
-  }
-}
-
-@include bp.media-down('lg') {
-  .level-table__row {
-    border-radius: var(--radius-lg);
+  &:hover {
+    color: var(--color-primary);
   }
 }

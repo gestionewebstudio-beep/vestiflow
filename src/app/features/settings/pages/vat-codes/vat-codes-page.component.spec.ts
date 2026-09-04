@@ -60,6 +60,7 @@ function utente(permissions: readonly TenantPermissionKey[]): User {
     isActive: true,
     isPlatformAdmin: false,
     tenantChannelProfile: TenantChannelProfile.Shopify,
+    manualUnloadEnabled: true,
     tenantName: 'Cliente test',
     hasAllLocationsAccess: true,
     assignedLocationIds: [],

@@ -18,15 +18,23 @@ import {
   type SupplierWithParty,
 } from '../common/party/party-views';
 import { CustomersService } from '../customers/customers.service';
+import { partyDuplicateData } from '../common/party-duplicate.util';
 import { PrismaService } from '../prisma/prisma.service';
 import type { CreateSupplierDto } from './dto/create-supplier.dto';
 import type { ListSuppliersQueryDto } from './dto/list-suppliers.query.dto';
 import type { UpdateSupplierDto } from './dto/update-supplier.dto';
 import type { UpsertSupplierVariantLinkDto } from './dto/upsert-supplier-variant-link.dto';
 import { nextNumericSupplierCode, SUPPLIER_NUMERIC_CODE_PAD } from './supplier-code.util';
+import { pageWindow } from '../common/dto/unpaged.util';
 
 const SUPPLIER_VARIANT_LINK_INCLUDE = {
-  supplier: { select: { id: true, code: true, party: { select: { companyName: true, firstName: true, lastName: true } } } },
+  supplier: {
+    select: {
+      id: true,
+      code: true,
+      party: { select: { companyName: true, firstName: true, lastName: true } },
+    },
+  },
   variant: {
     select: {
       id: true,
@@ -49,6 +57,19 @@ export type SupplierVariantLinkRow = SupplierVariantLink & {
   };
 };
 
+/**
+ * La stessa riga come ESCE dall'API: l'ultimo costo pagato è `null` per chi
+ * non ha «Visualizza costi d'acquisto».
+ *
+ * ⚠️ Questo `null` non è un costo assente — quello non esiste più, un costo
+ * canonico vale zero. Significa **non visibile**, e per questo vive nel tipo
+ * di RISPOSTA e non nella colonna (`regole-sicurezza`: nascondere in UI non
+ * è sicurezza, ma esporre un numero a chi non deve vederlo lo è eccome).
+ */
+export type SupplierVariantLinkResponse = Omit<SupplierVariantLinkRow, 'lastPurchasePriceMinor'> & {
+  lastPurchasePriceMinor: SupplierVariantLinkRow['lastPurchasePriceMinor'] | null;
+};
+
 type PartyWriteData = {
   companyName?: string | null;
   vatNumber?: string | null;
@@ -56,6 +77,8 @@ type PartyWriteData = {
   email?: string | null;
   pec?: string | null;
   phone?: string | null;
+  mobilePhone?: string | null;
+  iban?: string | null;
   contactName?: string | null;
   website?: string | null;
   addressLine1?: string | null;
@@ -69,12 +92,14 @@ type PartyWriteData = {
 
 type SupplierRoleWriteData = {
   code?: string | null;
+  isActive?: boolean;
   paymentMethod?: string | null;
   paymentTerms?: string | null;
   supplierDiscount?: string | null;
   defaultVatCodeId?: string | null;
   transportResponsible?: string | null;
   freightTerms?: string | null;
+  ourBankName?: string | null;
   documentCreationAlert?: string | null;
   documentCreationNote?: string | null;
 };
@@ -127,8 +152,8 @@ export class SuppliersService {
         where,
         include: SUPPLIER_PARTY_INCLUDE,
         orderBy: [{ party: { companyName: 'asc' } }, { party: { lastName: 'asc' } }],
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
+        // ⚠️ Con `all=1` la finestra deve SPARIRE, non diventare grande.
+        ...pageWindow(query),
       }),
       this.prisma.supplier.count({ where }),
     ]);
@@ -270,22 +295,50 @@ export class SuppliersService {
    * Il soggetto resta se ha ancora il ruolo cliente; i ruoli disattivati
    * si gestiscono invece con isActive=false (che non tocca lo storico).
    */
+  /**
+   * ⭐ **Elimina la SCHEDA fornitore, non la sua storia** — decisione del
+   * proprietario del 30/08/2026, la stessa già applicata ai clienti e, prima
+   * ancora, all'unità di misura e al Codice IVA:
+   *
+   * > _«tutto quello che è salvato nel gestionale resta, sparisce solo la scheda»_
+   *
+   * ⛔ **Qui si RIFIUTAVA l'eliminazione** — «il fornitore è collegato a ordini o
+   * documenti: non può essere eliminato» — che significava non poter mai togliere
+   * un fornitore con cui si avesse lavorato, cioè quelli che si vuole togliere.
+   *
+   * Il nome è **già fotografato** su tutto ciò che lo nomina (`supplierName` su
+   * documenti e ordini, scritto alla creazione): il riferimento serve ad aprire la
+   * scheda, non a leggere il nome.
+   *
+   * ## Che cosa succede a ciascuna cosa che lo nomina
+   *
+   * | | |
+   * | --- | --- |
+   * | **Documenti** e **ordini fornitore** | perdono il collegamento, conservano il nome |
+   * | **Legami prodotto-fornitore** | spariscono: erano SUOI, non del prodotto |
+   * | **Allegati** | spariscono: erano documenti della sua scheda |
+   *
+   * ⚠️ **I due `Cascade` non si scrivono qui**: li dichiara la relazione da
+   * sempre, perché legami e allegati non hanno significato senza il fornitore.
+   *
+   * ⛔ **Gli ordini invece sono costati una migration** (`20260831110000`):
+   * `supplier_id` era `NOT NULL`, quindi il database avrebbe rifiutato comunque.
+   */
   async delete(tenantId: string, id: string): Promise<void> {
     const supplier = await this.getRowById(tenantId, id);
 
-    const [orderCount, documentCount] = await this.prisma.$transaction([
-      this.prisma.supplierOrder.count({ where: { tenantId, supplierId: id } }),
-      this.prisma.document.count({ where: { tenantId, supplierId: id } }),
-    ]);
-
-    if (orderCount > 0 || documentCount > 0) {
-      throw new ConflictException(
-        'Il fornitore è collegato a ordini o documenti: non può essere eliminato.',
-      );
-    }
-
     await this.prisma.$transaction(async (tx) => {
+      // Lo storico resta: si toglie il collegamento, non il nome.
+      const riferimento = { where: { tenantId, supplierId: id }, data: { supplierId: null } };
+      await tx.document.updateMany(riferimento);
+      await tx.supplierOrder.updateMany(riferimento);
+
       await tx.supplier.delete({ where: { id } });
+
+      /*
+        ⚠️ **L'anagrafica resta se serve a un cliente**: fornitore e cliente
+        possono essere la stessa azienda in due ruoli, e condividono la `Party`.
+      */
       if (!supplier.party.customerRole) {
         await tx.party.delete({ where: { id: supplier.partyId } });
       }
@@ -301,7 +354,7 @@ export class SuppliersService {
     tenantId: string,
     supplierId: string,
     user?: UserProfileDto,
-  ): Promise<SupplierVariantLinkRow[]> {
+  ): Promise<SupplierVariantLinkResponse[]> {
     const showPurchaseCosts = canViewPurchaseCosts(user);
     return this.prisma.supplierVariantLink
       .findMany({
@@ -327,7 +380,7 @@ export class SuppliersService {
     tenantId: string,
     productId: string,
     user?: UserProfileDto,
-  ): Promise<SupplierVariantLinkRow[]> {
+  ): Promise<SupplierVariantLinkResponse[]> {
     const product = await this.prisma.product.findFirst({
       where: { id: productId, tenantId },
       select: { id: true },
@@ -386,7 +439,7 @@ export class SuppliersService {
           variantId: dto.variantId,
           supplierSku,
           isPreferred,
-          lastPurchasePriceMinor: dto.lastPurchasePriceMinor ?? null,
+          lastPurchasePriceMinor: dto.lastPurchasePriceMinor ?? 0,
           minOrderQuantity: dto.minOrderQuantity ?? null,
           currency: dto.currency?.trim().toUpperCase() || 'EUR',
         },
@@ -396,12 +449,8 @@ export class SuppliersService {
           ...(dto.lastPurchasePriceMinor !== undefined
             ? { lastPurchasePriceMinor: dto.lastPurchasePriceMinor }
             : {}),
-          ...(dto.minOrderQuantity !== undefined
-            ? { minOrderQuantity: dto.minOrderQuantity }
-            : {}),
-          ...(dto.currency !== undefined
-            ? { currency: dto.currency.trim().toUpperCase() }
-            : {}),
+          ...(dto.minOrderQuantity !== undefined ? { minOrderQuantity: dto.minOrderQuantity } : {}),
+          ...(dto.currency !== undefined ? { currency: dto.currency.trim().toUpperCase() } : {}),
         },
         include: SUPPLIER_VARIANT_LINK_INCLUDE,
       });
@@ -469,6 +518,8 @@ export class SuppliersService {
     assign('email', dto.email);
     assign('pec', dto.pec);
     assign('phone', dto.phone);
+    assign('mobilePhone', dto.mobilePhone);
+    assign('iban', dto.iban);
     assign('contactName', dto.contactName);
     assign('website', dto.website);
     assign('addressLine1', dto.addressLine1);
@@ -491,7 +542,16 @@ export class SuppliersService {
     };
 
     const result: SupplierRoleWriteData = {};
-    const assign = (key: Exclude<keyof SupplierRoleWriteData, 'defaultVatCodeId'>, value: string | undefined): void => {
+    const assign = (
+      /*
+        ⚠️ **`isActive` è escluso insieme a `defaultVatCodeId`**: questo aiuto
+        normalizza STRINGHE — taglia gli spazi e trasforma il vuoto in `null` —
+        e su un booleano non ha senso, perché `false` è un valore e non
+        un'assenza. Entrambi si assegnano da soli, più sotto.
+      */
+      key: Exclude<keyof SupplierRoleWriteData, 'defaultVatCodeId' | 'isActive'>,
+      value: string | undefined,
+    ): void => {
       const normalized = trim(value);
       if (normalized !== undefined) {
         result[key] = normalized;
@@ -504,8 +564,18 @@ export class SuppliersService {
     assign('supplierDiscount', dto.supplierDiscount);
     assign('transportResponsible', dto.transportResponsible);
     assign('freightTerms', dto.freightTerms);
+    assign('ourBankName', dto.ourBankName);
     assign('documentCreationAlert', dto.documentCreationAlert);
     assign('documentCreationNote', dto.documentCreationNote);
+
+    /*
+      ⚠️ **Non passa da `assign`**, che è scritto per le stringhe e le taglia:
+      qui il valore è un booleano, e `false` è un valore vero — non un vuoto
+      da normalizzare a `null`.
+    */
+    if (dto.isActive !== undefined) {
+      result.isActive = dto.isActive;
+    }
 
     if ('defaultVatCodeId' in dto && dto.defaultVatCodeId !== undefined) {
       result.defaultVatCodeId = dto.defaultVatCodeId;
@@ -526,7 +596,9 @@ export class SuppliersService {
       select: { id: true },
     });
     if (!found) {
-      throw new UnprocessableEntityException('Il Codice IVA selezionato non esiste o non è più disponibile.');
+      throw new UnprocessableEntityException(
+        'Il Codice IVA selezionato non esiste o non è più disponibile.',
+      );
     }
   }
 
@@ -557,9 +629,7 @@ export class SuppliersService {
       where: { tenantId, code: { not: null } },
       select: { code: true },
     });
-    let candidate = nextNumericSupplierCode(
-      rows.map((row) => row.code ?? '').filter(Boolean),
-    );
+    let candidate = nextNumericSupplierCode(rows.map((row) => row.code ?? '').filter(Boolean));
     for (let attempt = 0; attempt < 20; attempt++) {
       const taken = await this.prisma.supplier.findFirst({
         where: { tenantId, code: candidate },
@@ -583,5 +653,45 @@ export class SuppliersService {
       select: { code: true },
     });
     return nextNumericSupplierCode(rows.map((row) => row.code ?? '').filter(Boolean));
+  }
+
+
+  /**
+   * ⭐ **Duplica la scheda fornitore**, con la stessa forma dei clienti e dei
+   * prodotti: copia con codice proprio, che si apre per rifinirla.
+   *
+   * ⛔ **Partita IVA e codice fiscale non si copiano** (`partyDuplicateData`).
+   *
+   * ⚠️ **Non si copiano i legami prodotto-fornitore**: dicono «questo articolo lo
+   * compro da lui a questo prezzo», e sono un'affermazione sul fornitore
+   * originale — non su una scheda appena creata di cui non si è ancora comprato
+   * niente.
+   */
+  async duplicate(tenantId: string, id: string): Promise<{ readonly id: string }> {
+    const original = await this.prisma.supplier.findFirst({
+      where: { id, tenantId },
+      include: { party: true },
+    });
+    if (!original) {
+      throw new NotFoundException('Fornitore non trovato');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const party = await tx.party.create({
+        data: partyDuplicateData(original.party, tenantId),
+      });
+      const copia = await tx.supplier.create({
+        data: {
+          tenantId,
+          partyId: party.id,
+          isActive: original.isActive,
+          defaultVatCodeId: original.defaultVatCodeId,
+          paymentTerms: original.paymentTerms,
+          freightTerms: original.freightTerms,
+        },
+        select: { id: true },
+      });
+      return copia;
+    });
   }
 }

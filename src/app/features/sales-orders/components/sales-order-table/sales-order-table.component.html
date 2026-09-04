@@ -1,207 +1,184 @@
-<div class="sales-table-scroll">
-  <table class="sales-table">
-    <thead class="sales-table__head">
-      <tr>
-        @if (selectable()) {
-          <th scope="col" class="sales-table__cell--select">
-            <input
-              type="checkbox"
-              class="sales-table__select-check"
-              aria-label="Seleziona tutti gli ordini della pagina"
-              [checked]="allSelected()"
-              [indeterminate]="someSelected()"
-              (change)="selectAllChange.emit($any($event.target).checked)"
-            />
-          </th>
-        }
-        @for (col of columns(); track col.id) {
-          <th
-            scope="col"
-            [class.sales-table__cell--pinned]="col.pinned"
-            [class.sales-table__cell--total]="col.id === 'total' || col.id === 'netTotal'"
-          >
-            {{ col.label }}
-          </th>
-        }
-        <th scope="col" class="sales-table__cell--actions">Azioni</th>
-      </tr>
-    </thead>
+<!--
+  ⭐ Lo SCHELETRO della tabella non è più qui: lo rende il motore comune
+  (`14` parte H). Resta ciò che è DEGLI ORDINI: quali celle non sono testo.
 
-    <tbody>
-      @for (order of orders(); track order.id) {
-        <tr
-          class="sales-table__row"
-          tabindex="0"
-          [attr.aria-label]="rowLabel(order)"
-          [class.sales-table__row--selected]="selectable() && selectedIds().has(order.id)"
-          (click)="rowClick.emit(order)"
-          (keydown.enter)="rowClick.emit(order)"
-          (keydown.space)="$event.preventDefault(); rowClick.emit(order)"
-        >
-          @if (selectable()) {
-            <td
-              class="sales-table__cell--select"
-              data-label="Seleziona"
-              (click)="$event.stopPropagation()"
-            >
-              <input
-                type="checkbox"
-                class="sales-table__select-check"
-                [attr.aria-label]="'Seleziona ordine ' + order.orderNumber"
-                [checked]="selectedIds().has(order.id)"
-                (change)="onToggleSelect(order, $any($event.target).checked)"
-              />
-            </td>
-          }
-          @for (col of columns(); track col.id) {
-            @switch (col.id) {
-              @case ('orderNumber') {
-                <td
-                  class="sales-table__number tabular-nums"
-                  [class.sales-table__cell--pinned]="col.pinned"
-                  [attr.data-label]="col.label"
-                >
-                  {{ order.orderNumber }}
-                </td>
-              }
-              @case ('source') {
-                <td [attr.data-label]="col.label">
-                  <span class="sales-table__cell-value sales-table__origin">
-                    <span
-                      class="sales-table__origin-dot {{ originDotClass(order.source) }}"
-                      aria-hidden="true"
-                    ></span>
-                    {{ sourceLabel(order.source) }}
-                  </span>
-                </td>
-              }
-              @case ('placedAt') {
-                <td class="sales-table__date tabular-nums" [attr.data-label]="col.label">
-                  {{ compactDate(order.placedAt) }}
-                </td>
-              }
-              @case ('customerCode') {
-                <td class="tabular-nums" [attr.data-label]="col.label">
-                  {{ order.customerCode || '—' }}
-                </td>
-              }
-              @case ('customerName') {
-                <td [attr.data-label]="col.label">
-                  <span class="sales-table__customer">
-                    <span class="sales-table__customer-name">{{ order.customerName }}</span>
-                    @if (customerSecondary(order); as meta) {
-                      <span class="sales-table__customer-meta">{{ meta }}</span>
-                    }
-                  </span>
-                </td>
-              }
-              @case ('total') {
-                <td class="sales-table__cell--total tabular-nums" [attr.data-label]="col.label">
-                  {{ formatMoney(order.total) }}
-                </td>
-              }
-              @case ('netTotal') {
-                <td class="sales-table__cell--total tabular-nums" [attr.data-label]="col.label">
-                  {{ formatMoney(order.subtotal) }}
-                </td>
-              }
-              @case ('state') {
-                <td [attr.data-label]="col.label">
-                  <span class="sales-table__cell-value">
-                    <app-badge [tone]="orderStateTone(order)">
-                      {{ orderStateLabel(order) }}
-                    </app-badge>
-                  </span>
-                </td>
-              }
-              @case ('financialStatus') {
-                <td [attr.data-label]="col.label">
-                  <span class="sales-table__cell-value">
-                    <app-badge [tone]="financialTone(order.financialStatus)">
-                      {{ financialLabel(order.financialStatus) }}
-                    </app-badge>
-                  </span>
-                </td>
-              }
-              @case ('fulfillmentStatus') {
-                <td [attr.data-label]="col.label">
-                  <span class="sales-table__cell-value">
-                    <app-badge [tone]="fulfillmentTone(order.fulfillmentStatus)">
-                      {{ fulfillmentLabel(order.fulfillmentStatus) }}
-                    </app-badge>
-                  </span>
-                </td>
-              }
-              @case ('location') {
-                <td [attr.data-label]="col.label">{{ order.locationName ?? '—' }}</td>
-              }
-              @case ('notes') {
-                <td class="sales-table__cell--notes" [attr.data-label]="col.label">
-                  {{ order.notes || '—' }}
-                </td>
-              }
-              @case ('onlineSale') {
-                <td [attr.data-label]="col.label">
-                  @if (order.onlineSale; as sale) {
-                    <a
-                      class="sales-table__link"
-                      [routerLink]="['/app/sales/online', sale.id]"
-                      (click)="$event.stopPropagation()"
-                      (keydown.enter)="$event.stopPropagation()"
-                    >
-                      {{ sale.reference }}
-                    </a>
-                  } @else {
-                    <span aria-hidden="true">—</span>
-                  }
-                </td>
-              }
-              @case ('ddt') {
-                <td [attr.data-label]="col.label">
-                  @if (order.linkedDocument; as doc) {
-                    <a
-                      class="sales-table__link"
-                      [routerLink]="['/app/documents', doc.id]"
-                      (click)="$event.stopPropagation()"
-                      (keydown.enter)="$event.stopPropagation()"
-                    >
-                      {{ doc.reference ?? 'DDT' }}
-                    </a>
-                  } @else {
-                    <span aria-hidden="true">—</span>
-                  }
-                </td>
-              }
-              @case ('updatedAt') {
-                <td class="tabular-nums" [attr.data-label]="col.label">
-                  {{ formatDate(order.updatedAt) }}
-                </td>
-              }
-              @case ('syncState') {
-                <td [attr.data-label]="col.label">
-                  <span class="sales-table__cell-value" [attr.title]="syncStateHint(order)">
-                    <app-badge [tone]="syncStateTone(order)">{{ syncStateLabel(order) }}</app-badge>
-                  </span>
-                </td>
-              }
-            }
-          }
-          <td
-            class="sales-table__cell--actions"
-            data-label="Azioni"
-            (click)="$event.stopPropagation()"
-          >
-            <app-action-menu
-              [items]="rowActions(order)"
-              [ariaLabel]="'Azioni su ordine ' + order.orderNumber"
-              (actionSelected)="onAction($event, order)"
-            />
-          </td>
-        </tr>
+  ⚠️ **La vista mobile qui sotto NON è il ripiego a card del motore**: è una
+  rappresentazione propria, a layout fisso, scritta per il pollice. Resta
+  intatta — «mobile ci pensiamo singolarmente», e le due viste restano separate
+  dalle stesse media query di prima: il motore è spento sotto `lg`, le card
+  sopra. La stessa riga non esiste mai due volte.
+
+  ⛔ **E qui c'era `[rowActionsLabel]="'Azioni'"`**, che teneva in piedi una
+  colonna VUOTA: il menu «···» che la riempiva è stato tolto il 02/09/2026, la
+  colonna no. L'ha vista il proprietario nell'elenco — «la colonna a destra non
+  occorre più».
+
+  ⚠️ **La colonna esiste finché qualcuno le dà un'etichetta**: il motore la
+  rende quando `rowActionsLabel` non è vuoto, e toglierla è l'unico modo di
+  spegnerla. Togliere il contenuto non basta — ed è il genere di residuo che
+  nessun test vede, perché una colonna vuota non fallisce.
+-->
+<app-data-table
+  [rowClickSelects]="rowClickSelects()"
+  caption="Ordini cliente"
+  [columns]="engineColumns()"
+  [viewId]="viewId()"
+  [sections]="sections()"
+  [totals]="totals()"
+  [rowId]="rowId"
+  [cellText]="cellText"
+  [rowClickable]="true"
+  [sortable]="true"
+  [sort]="sort()"
+  [rowLabel]="rowLabelFor"
+  [selectionMode]="selectable() ? 'multiple' : 'none'"
+  [selectedIds]="selectedIds()"
+  [selectionLabel]="selectionLabel"
+  selectAllLabel="Seleziona tutti gli ordini"
+  (rowClick)="rowClick.emit($event)"
+  (sortChange)="sortChange.emit($event)"
+  (selectionChange)="onToggleSelect($event.row, $event.selected)"
+  (selectAllChange)="selectAllChange.emit($event)"
+>
+  <!-- Origine: un pallino che dice il canale, più la sua parola. -->
+  <ng-template appCell="source" let-order>
+    <span class="sales-table__cell-value sales-table__origin">
+      <span
+        class="sales-table__origin-dot {{ originDotClass(order.source) }}"
+        aria-hidden="true"
+      ></span>
+      {{ sourceLabel(order.source) }}
+    </span>
+  </ng-template>
+
+  <!-- Cliente: nome, e sotto il dato secondario quando c'è. -->
+  <ng-template appCell="customerName" let-order>
+    <span class="sales-table__customer">
+      <span class="sales-table__customer-name">{{ order.customerName }}</span>
+      @if (customerSecondary(order); as meta) {
+        <span class="sales-table__customer-meta">{{ meta }}</span>
       }
-    </tbody>
-  </table>
-</div>
+    </span>
+  </ng-template>
+
+  <ng-template appCell="state" let-order>
+    <span class="sales-table__cell-value">
+      <app-badge [flat]="true" [tone]="orderStateTone(order)">{{
+        orderStateLabel(order)
+      }}</app-badge>
+    </span>
+  </ng-template>
+
+  <ng-template appCell="financialStatus" let-order>
+    <span class="sales-table__cell-value">
+      <app-badge [flat]="true" [tone]="financialTone(order.financialStatus)">
+        {{ financialLabel(order.financialStatus) }}
+      </app-badge>
+    </span>
+  </ng-template>
+
+  <ng-template appCell="fulfillmentStatus" let-order>
+    <span class="sales-table__cell-value">
+      <app-badge [flat]="true" [tone]="fulfillmentTone(order.fulfillmentStatus)">
+        {{ fulfillmentLabel(order.fulfillmentStatus) }}
+      </app-badge>
+    </span>
+  </ng-template>
+
+  <!-- Lo stato di sync porta il motivo nel `title`: la pill da sola non basta. -->
+  <ng-template appCell="syncState" let-order>
+    <span class="sales-table__cell-value" [attr.title]="syncStateHint(order)">
+      <app-badge [flat]="true" [tone]="syncStateTone(order)">{{ syncStateLabel(order) }}</app-badge>
+    </span>
+  </ng-template>
+
+  <!--
+    I due collegamenti. Fermano la propagazione: portano altrove, e premerli non
+    deve aprire anche la riga.
+  -->
+  <ng-template appCell="onlineSale" let-order>
+    @if (order.onlineSale; as sale) {
+      <a
+        class="sales-table__link"
+        [routerLink]="['/app/sales/online', sale.id]"
+        (click)="$event.stopPropagation()"
+        (keydown.enter)="$event.stopPropagation()"
+      >
+        {{ sale.reference }}
+      </a>
+    } @else {
+      <span aria-hidden="true">—</span>
+    }
+  </ng-template>
+
+  <ng-template appCell="ddt" let-order>
+    @if (order.linkedDocument; as doc) {
+      <a
+        class="sales-table__link"
+        [routerLink]="['/app/documents', doc.id]"
+        (click)="$event.stopPropagation()"
+        (keydown.enter)="$event.stopPropagation()"
+      >
+        {{ doc.reference ?? 'DDT' }}
+      </a>
+    } @else {
+      <span aria-hidden="true">—</span>
+    }
+  </ng-template>
+
+  <!--
+    ⛔ **QUI C'ERA IL MENU TRE-PUNTINI DI RIGA**, e la sua nota diceva «resta
+    finché la matrice azioni non le ha ricollocate». Le ha ricollocate: `14`
+    §«Il menu tre-puntini di riga SPARISCE» (30/08/2026). Tolto il 02/09/2026,
+    su indicazione del proprietario — «per gli altri documenti le abbiamo
+    rimosse dalla riga e ora si trovano sotto a fine pagina e con componente
+    condivisa, non duplicare».
+
+    Le quattro voci, e dove sono andate:
+
+    ```text
+    Apri / Modifica   il CLIC DI RIGA, che già la apriva
+    Duplica           barra, comando('duplicate') — requires: 'one'
+    Stampa PDF        barra, «Esporta ▾ → PDF»: stesso exportOrderPdf, sui selezionati
+    Elimina           barra, c'era già
+    ```
+  -->
+  <!--
+    ⭐ **La card di un ELENCO si progetta, non si impila** (`regole-stile-ui`):
+    tre fasce, «a sinistra le parole, a destra i numeri». La grammatica è comune
+    (`styles/_list-card.scss`), il contenuto è di questo elenco.
+
+    ⛔ Prima c'era il ripiego a `data-label` del motore: una riga «ETICHETTA:
+    valore» per colonna, tutte dello stesso peso, e niente di primario.
+  -->
+  <ng-template appRowCard let-order>
+    <div class="list-card__head">
+      <span class="list-card__ident">
+        <span class="list-card__when tabular-nums">{{ cellText(order, 'placedAt') }}</span>
+        <span class="list-card__what">{{ order.customerName }}</span>
+      </span>
+      <span class="list-card__anchor">{{ order.orderNumber }}</span>
+    </div>
+
+    <div class="list-card__words">
+      @if (visibile('location')) {
+        <span>{{ cellText(order, 'location') }}</span>
+      }
+      <span>{{ orderStateLabel(order) }}</span>
+    </div>
+
+    @if (visibile('netTotal') || visibile('total')) {
+      <div class="list-card__figures">
+        @if (visibile('netTotal')) {
+          <span class="tabular-nums">Imp. {{ formatMoney(order.subtotal) }}</span>
+        }
+        @if (visibile('total')) {
+          <span class="list-card__total">{{ formatMoney(order.total) }}</span>
+        }
+      </div>
+    }
+  </ng-template>
+</app-data-table>
 
 <!-- Vista mobile (mockup restyling): card verticali a layout fisso, non la
      tabella per etichetta:valore. Le colonne configurabili valgono solo su
@@ -235,23 +212,25 @@
         </div>
         <div class="sales-cards__customer">{{ order.customerName }}</div>
         <div class="sales-cards__badges">
-          <app-badge [tone]="orderStateTone(order)">{{ orderStateLabel(order) }}</app-badge>
-          <app-badge [tone]="financialTone(order.financialStatus)">
+          <app-badge [flat]="true" [tone]="orderStateTone(order)">{{
+            orderStateLabel(order)
+          }}</app-badge>
+          <app-badge [flat]="true" [tone]="financialTone(order.financialStatus)">
             {{ financialLabel(order.financialStatus) }}
           </app-badge>
-          <app-badge [tone]="fulfillmentTone(order.fulfillmentStatus)">
+          <app-badge [flat]="true" [tone]="fulfillmentTone(order.fulfillmentStatus)">
             {{ fulfillmentLabel(order.fulfillmentStatus) }}
           </app-badge>
         </div>
+        <!--
+          ⛔ **Anche la card aveva il menu «···»**, ed è andato via con quello
+          della riga (02/09/2026): erano due vesti dello stesso comando, e la
+          decisione vale per entrambe — `14` §«Il menu tre-puntini di riga
+          SPARISCE». Su schermo stretto le funzioni restano dove sono per tutti,
+          nella barra in fondo alla pagina.
+        -->
         <div class="sales-cards__footer">
           <span class="sales-cards__location">{{ order.locationName ?? '—' }}</span>
-          <span class="sales-cards__actions">
-            <app-action-menu
-              [items]="rowActions(order)"
-              [ariaLabel]="'Azioni su ordine ' + order.orderNumber"
-              (actionSelected)="onAction($event, order)"
-            />
-          </span>
         </div>
       </article>
     </li>

@@ -1,12 +1,7 @@
 import {
-  Body,
   Controller,
   Get,
   Header,
-  Param,
-  ParseUUIDPipe,
-  Patch,
-  Post,
   Query,
   StreamableFile,
   UseGuards,
@@ -24,7 +19,6 @@ import { CorrispettiviExportService } from './corrispettivi-export.service';
 import {
   CorrispettiviService,
   type CorrispettiviLocationDto,
-  type CorrispettiviOrderRow,
   type CorrispettiviRegisterRow,
   type CorrispettiviSummaryDto,
 } from './corrispettivi.service';

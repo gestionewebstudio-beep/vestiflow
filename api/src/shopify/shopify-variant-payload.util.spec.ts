@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildVariantsPayload } from './shopify-variant-payload.util';
+import {
+  buildVariantsPayload,
+  variantBulkInput,
+  variantChannelFields,
+} from './shopify-variant-payload.util';
 import type { VariantForPayload } from './shopify-variant-payload.util';
 
 function variante(over: Partial<VariantForPayload> = {}): VariantForPayload {
@@ -113,5 +117,31 @@ describe('buildVariantsPayload', () => {
 
       expect(variantRows[0]).not.toHaveProperty('id');
     });
+  });
+});
+
+describe('variantBulkInput — il percorso GraphQL omette le chiavi assenti', () => {
+  const base = { sku: 'SKU-1', barcode: null, shopifyPriceMinor: 5000 };
+
+  it('barrato null: `compareAtPrice` NON compare, e nemmeno `barcode` — non sono zero', () => {
+    const input = variantBulkInput(
+      'gid://shopify/ProductVariant/1',
+      variantChannelFields(base, null),
+    );
+    expect(input).not.toHaveProperty('compareAtPrice');
+    expect(input).not.toHaveProperty('barcode');
+    expect(input).toMatchObject({
+      id: 'gid://shopify/ProductVariant/1',
+      price: '50.00',
+      inventoryItem: { sku: 'SKU-1' },
+    });
+  });
+
+  it('presenti, entrano con la grafia GraphQL', () => {
+    const input = variantBulkInput(
+      'gid://shopify/ProductVariant/1',
+      variantChannelFields({ ...base, barcode: '8001234567890' }, 6000),
+    );
+    expect(input).toMatchObject({ compareAtPrice: '60.00', barcode: '8001234567890' });
   });
 });

@@ -3,72 +3,19 @@
 
 @include lp.list-page('product-list');
 
-.product-list__columns {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-4);
-  // Riga di supporto della toolbar: resta agganciata ai filtri, non alla tabella.
-  margin-block-start: calc(-1 * var(--space-2));
-}
+/*
+  ⛔ Qui c'erano tre regole ORFANE, cioè classi che nessun template porta più:
+  `__columns` (la riga colonne è passata al telaio) e le due di «Copie per
+  etichetta», tolta il 30/08/2026.
 
-.product-list__label-copies {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-}
-
-.product-list__label-copies-input {
-  inline-size: 4.5rem;
-  block-size: var(--field-height);
-  padding-inline: var(--space-2);
-  font-size: var(--text-base);
-  font-family: inherit;
-  color: var(--color-text);
-  text-align: center;
-  background-color: var(--color-surface);
-  border: var(--border-width) solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-}
+  ⚠️ **Una classe orfana non fallisce**: resta nel bundle, e chi la legge crede
+  che l'elemento esista ancora. Le trova `npm run check:classi-orfane`.
+*/
 
 .product-list__scan-feedback {
   margin: 0;
   font-size: var(--text-sm);
   color: var(--status-error-fg);
-}
-
-.product-list__bulk-actions {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--card-pad-sm);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background-color: var(--color-surface);
-}
-
-@include bp.media-up('md') {
-  .product-list__bulk-actions {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-  }
-}
-
-.product-list__bulk-summary {
-  margin: 0;
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text);
-}
-
-.product-list__bulk-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
 }
 
 // F6d — chip «Articoli da completare»: prodotti in bozza da rifinire.
@@ -101,4 +48,62 @@
   color: var(--color-surface);
   background-color: var(--status-warning-fg);
   border-radius: var(--radius-full);
+}
+
+/*
+  ⭐ La pagina si adatta alla finestra (`regole-stile-ui` §6).
+
+  ⚠️ È la radice con più figli condizionali dell'app — banner Shopify, feedback
+  sync, chip bozze, riga colonne, feedback scansione, barra selezione, errore
+  duplicato. Con una griglia posizionale la fascia elastica sarebbe finita
+  quasi sempre sull'elemento sbagliato: qui il flex non è una preferenza.
+*/
+@include lp.list-page-fills-viewport('product-list', 'app-product-table');
+
+/* ── telaio ─────────────────────────────────────────────────────────────
+  ⭐ Passata a `app-list-page`: testata, zona controlli e stati sono suoi.
+
+  ⚠️ La tabella proiettata deve riempire l'area dati, e lo dice QUESTA pagina:
+  le regole del telaio portano il proprio attributo di incapsulamento e non
+  raggiungono il contenuto proiettato. Una regola come `.list-page__data > *`
+  non lo tocca — e non fallisce: non fa niente.
+  ──────────────────────────────────────────────────────────────────────── */
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-block-size: 0;
+}
+
+app-product-table {
+  flex: 1;
+  min-block-size: 0;
+}
+
+/* I gruppi proiettati non sono scatole: sono contenuto (vedi telaio elenco). */
+[pageActions],
+[filters],
+[warnings] {
+  display: contents;
+}
+
+/*
+  ⚠️ La riga funzioni qui è l'ECCEZIONE: NON `display: contents`.
+
+  Ospita due cose che devono stare sulla stessa riga — la barra azioni e «Copie
+  per etichetta», che è un parametro della stampa. Dissolvendo il gruppo
+  diventerebbero due figli del telaio, e il telaio è una colonna: si
+  impilerebbero, con il campo copie staccato dal comando che lo usa.
+*/
+[listActions] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* La barra prende lo spazio; il campo copie la seguerebbe a destra da solo. */
+[listActions] app-list-actions-bar {
+  flex: 1 1 auto;
+  min-inline-size: 0;
 }

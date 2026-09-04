@@ -269,6 +269,39 @@ di risolvere e passare oltre.
 
 ---
 
+# DUPLICAZIONE E PERIMETRO
+
+Nasce da una regola scritta tre volte, in due grafie diverse, che nessun test aveva colto.
+Non è una guardia automatica: nessuno script la applica, la CI non la verifica.
+
+## Mentre si lavora
+
+- Al **secondo** punto che applica la stessa decisione: fermarsi e verificare se
+  centralizzarla in una funzione, un servizio o un mapper.
+- **Sintassi diversa non significa regola diversa.** Due scritture che decidono la stessa
+  cosa sono una duplicazione.
+- Differenze reali possono restare separate, ma vanno **motivate** nel codice.
+- Un percorso fuori dal perimetro concordato si **segnala** e non si modifica.
+
+## Prima del commit
+
+- Revisione **separata** del diff: duplicazioni, ampliamenti del perimetro, codice morto.
+  Serve quando la modifica applica una regola in **più punti** — non per una correzione
+  circoscritta a un file solo.
+- Cercare con `rg` **tutte** le scritture dei simboli nuovi, non a memoria.
+- Centralizzare prima di committare, o motivare perché no.
+
+## Due avvertenze
+
+I **test verdi dimostrano il comportamento, non l'assenza di duplicazione**: tre copie della
+stessa regola passano tutte e tre.
+
+Per una modifica distribuita su più punti la forma è **un implementatore e un revisore
+strutturale**, non un censimento esteso: più esplorazione allarga il perimetro invece di
+restringere la soluzione.
+
+---
+
 # COMMIT CONVENTION — Conventional Commits
 
 - USA il formato [Conventional Commits](https://www.conventionalcommits.org/):
@@ -370,6 +403,71 @@ configurazione: rendere il controllo più esplicito (un `typecheck` che includa 
 template, o un passo di build in CI) è una scelta separata, da fare quando si
 decide — non un effetto collaterale di questa nota._
 
+### ⛔ I test girano tutti in CONTESTO SICURO. L'applicazione no _(01/09/2026)_
+
+> **Le API che il browser espone solo in contesto sicuro non esistono su
+> `http://192.168.…`, e VestiFlow ci si apre: è il gestionale in mano a chi sta
+> in magazzino.**
+
+Misurato in Chrome sulla build di questa applicazione:
+
+```text
+http://127.0.0.1:4212      isSecureContext true    crypto.randomUUID  function
+http://192.168.1.50:4212   isSecureContext FALSE   crypto.randomUUID  undefined
+                                                    crypto.getRandomValues  function
+```
+
+⛔ **Non restituiscono un valore sbagliato: LANCIANO.** E se la chiamata sta
+dentro un'azione sincrona, l'eccezione non la raccoglie nessun gestore d'errore:
+a chi preme sembra che non succeda niente. È la causa di «la nuova Vendita al
+banco non si salva» — `crypto.randomUUID()` chiamata da «Concludi vendita» per
+generare l'intento di creazione, **prima** che partisse la richiesta.
+
+⚠️ **Nessuna suite può prenderlo, ed è il punto**: jsdom e Chrome headless su
+`localhost` sono **entrambi contesti sicuri**. Il difetto esiste solo dove
+l'applicazione si usa davvero, e lì non gira nessun test.
+
+⭐ **Quindi la rete non è un test, è una guardia statica**:
+`npm run check:contesto-sicuro` rifiuta `crypto.randomUUID` e `crypto.subtle`
+nei sorgenti. L'alternativa per gli identificativi è `nuovoId()`
+(`@core/utils/uuid.util`), che ripiega su `getRandomValues` — che invece c'è.
+
+⚠️ **La stessa domanda va fatta a ogni API di piattaforma nuova**: fotocamera
+(lo scanner!), geolocalizzazione, notifiche, service worker, appunti. Se serve
+il contesto sicuro e la si usa in magazzino, o si serve l'app in HTTPS o si
+prevede il ripiego — e in entrambi i casi si decide, non si scopre.
+
+### ⛔ `npm run e2e` da solo NON basta, e fallisce dove non guardi _(01/09/2026)_
+
+> **Gli e2e vogliono due cose che nessuno script ricorda: la variabile
+> `E2E_USE_MOCK_AUTH=1` e la porta 4200 LIBERA.**
+
+```bash
+E2E_USE_MOCK_AUTH=1 npx playwright test e2e/filtri-colonna.spec.ts
+```
+
+⚠️ **Senza la variabile**, `playwright.config.ts` avvia il frontend **normale** invece della
+build `e2e` — che è l'unica a contenere l'auth finta. Il login va allora all'API vera con
+`owner@vestiflow.test`, che lì non esiste, e il **setup** fallisce prima di arrivare al test:
+
+```text
+Error: expect(page).toHaveURL(/\/app\/dashboard/) failed
+       unexpected value "http://localhost:4200/login"
+```
+
+⛔ **E con un `ng serve` già in ascolto sulla 4200 la variabile non serve a niente**:
+`reuseExistingServer: true` riusa quel server — che è la build normale — e il sintomo è
+identico. È il caso peggiore, perché il comando _sembra_ giusto.
+
+⭐ **Il sintomo non nomina la causa**: si vede «Email o password non corretti» nella schermata
+di fallimento, e sembra un problema di credenziali. Non lo è.
+
+⚠️ **Gli e2e NON girano in `npm run test:everything`** (che fa copertura, componenti e API), né
+al `pre-push`. Un test e2e aggiunto può quindi restare **non eseguito** con tutto verde — e
+succede: `e2e/filtri-colonna.spec.ts` è stato scritto il 01/09/2026 e lanciato per la prima
+volta lo stesso giorno, a lavoro finito. Era sano — 7 prove verdi in 35s — ma non lo sapeva
+nessuno.
+
 ## Coverage Reporting
 
 - Genera report `lcov` e mostralo nel CI (Codecov, Coveralls, GitHub Actions summary).
@@ -453,7 +551,7 @@ la pagina di redirect al login. Il file reale lo risolve così, e chi tocca ques
 configurazione deve saperlo:
 
 ```json
-"startServerCommand": "npm run build -- --configuration=e2e && npx http-server dist/vestiflow/browser -p 4210 -c-1",
+"startServerCommand": "npm run build -- --configuration=e2e && npx http-server dist/vestiflow/browser -p 4210 -c-1 --proxy 'http://127.0.0.1:4210?'",
 "puppeteerScript": "./scripts/lhci-mock-auth.cjs",
 "url": ["…/login", "…/app/dashboard", "…/app/products"],
 "numberOfRuns": 1
@@ -462,6 +560,32 @@ configurazione deve saperlo:
 Il `puppeteerScript` autentica con l'auth mock prima della misura; la build `e2e` è
 quella che quell'auth mock la contiene. **Senza uno dei due, i numeri sono di un'altra
 pagina** — e sarebbero pure buoni, il che è il difetto peggiore.
+
+⭐ **E `--proxy 'http://127.0.0.1:4210?'` non è un dettaglio**: senza, `http-server`
+risponde **404** a `/login` e a ogni altra rotta Angular, e Lighthouse misura la pagina
+d'errore. Misurato il 03/09/2026, prima di scriverlo.
+
+### ⛔ Lo script è invocato UNA VOLTA PER URL, sullo STESSO browser _(03/09/2026)_
+
+> **Le tre invocazioni non sono indipendenti: quello che la prima lascia nel browser, la
+> seconda se lo trova davanti.**
+
+`@lhci/cli/src/collect/puppeteer-manager.js` tiene **una sola** istanza (`_getBrowser()`),
+e Lighthouse fra una misura e l'altra **non azzera `localStorage`** — `clearStorageTypes`
+vale `['file_systems', 'shader_cache', 'service_workers', 'cache_storage']`
+(`lighthouse/core/config/constants.js`). `mock-auth.gateway` la sessione la scrive anche
+lì, quindi sopravvive.
+
+Ne discendono due obblighi per `lhci-mock-auth.cjs`, e sono l'uno il rovescio dell'altro:
+
+| Obbligo                                                  | Perché                                                                                                 |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **non autenticarsi** quando l'URL da misurare è `/login` | autenticati, `guestGuard` rimanda alla dashboard: si misurerebbe la dashboard chiamandola `/login`     |
+| **tollerare** un browser già autenticato                 | dalla seconda invocazione in poi il modulo non c'è più, e attenderlo faceva uscire `lhci` con codice 1 |
+
+⚠️ **Il secondo non è teorico**: è il fallimento della PR #1 — «TimeoutError: Waiting for
+selector `#login-email` failed», che si legge come un selettore sbagliato mentre è una
+sessione ancora viva.
 
 ## Le soglie
 
@@ -489,12 +613,74 @@ delle due.
 ```json
 [
   { "type": "initial", "maximumWarning": "800kB", "maximumError": "1.5MB" },
-  { "type": "anyComponentStyle", "maximumWarning": "12kB", "maximumError": "26kB" }
+  { "type": "anyComponentStyle", "maximumWarning": "20kB", "maximumError": "40kB" }
 ]
 ```
 
 - Sono i valori attualmente in `angular.json`: alzarli richiede una motivazione, non è la reazione di default a un budget sforato.
 - Ogni superamento del budget deve generare un'analisi: `npx source-map-explorer dist/.../main-*.js` per capire cosa pesa.
+
+## ⛔ `anyComponentStyle` PREMIA LA DUPLICAZIONE — misurato il 01/09/2026
+
+> **Il budget per-componente guarda un componente alla volta, quindi vede crescere il
+> contenitore e non vede crollare tutto il resto.** In un progetto che sta accorpando
+> motori, segnala come problema il risultato del lavoro.
+
+⚠️ **Non è un'opinione.** Presi i tredici fogli degli elenchi, prima e dopo il loro
+ingresso nel motore tabella comune:
+
+```text
+30/08, prima dell'unificazione    66.874 byte
+oggi                              40.436 byte      −26.438,  −40%
+```
+
+| foglio                     | prima  | dopo       |
+| -------------------------- | ------ | ---------- |
+| product-table              | 8.502  | **134**    |
+| situation-table            | 6.408  | **488**    |
+| inventory-level-table      | 5.925  | **375**    |
+| customer-table             | 5.338  | **134**    |
+| supplier-table             | 4.528  | **134**    |
+| **data-table** (il motore) | 10.690 | **14.303** |
+
+⭐ **Il motore è cresciuto di 3,6 kB e ne ha fatti sparire 30.** L'avviso a 12 kB ha
+cominciato a suonare **proprio perché l'accorpamento ha funzionato**: con tredici copie da
+5 kB non diceva niente, con una da 14 sì.
+
+### Che cosa misura, e che cosa costa davvero
+
+```text
+CSS del motore, non compresso   14.303 byte   ← quello che il budget conta
+in gzip                          2.464 byte   ← quello che viaggia
+l'app intera, initial          155.150 byte   trasferiti  (635 kB raw su 800 di soglia)
+```
+
+⚠️ **E il motore sta in un chunk _lazy_**: non è nel primo caricamento. Il costo reale è
+2,4 kB, una volta, sulla prima pagina di elenco.
+
+### Perché 20 e 40, e non 16 e 26
+
+|                   |                                                                                                                                                                                                                                                                                                                                         |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **warning 20 kB** | il motore crescerà ancora: gli elenchi ci sono già tutti e dodici, ma non le tabelle di **configurazione** (Utenti, Codici IVA, Sedi) né quelle della dashboard — e ogni funzione nuova gli costa, come sono costati i filtri di colonna e la riga totali. A 16 risuonerebbe in poche settimane. Resta **5× il default Angular** (4 kB) |
+| **errore 40 kB**  | a 26 il motore ci arriva con la crescita normale, e `npm run build` gira nell'hook `pre-push`: bloccherebbe il push per una crescita fisiologica, costringendo ad alzarlo di corsa                                                                                                                                                      |
+
+⛔ **Qui c'era «Fornitori e Inventario devono entrarci», e non era vero già mentre lo
+scrivevo**: la tabella tre righe sopra li elenca fra i fogli **già** crollati —
+`supplier-table` 4.528 → 134, `inventory-level-table` 5.925 → 375. Due righe della stessa
+sezione che si smentivano a vicenda, e la motivazione di un numero non può reggersi su una
+premessa che il proprio dato contraddice.
+
+⚠️ **Il costo dell'alzata, dichiarato**: un componente-schermata può ora quasi raddoppiare
+senza avvisare. È accettabile solo perché **il controllo vero è `initial`**, che misura il
+costo reale ed è a 635 kB su 800.
+
+⛔ **E la storia dice perché serviva scriverlo.** Il valore nasce **8/16 kB** nel commit di
+setup del 05/06/2026 — già il doppio del default Angular, messo con l'impalcatura — e da
+allora è stato alzato due volte **dentro commit di feature** (`ca15df3c` il 10/07,
+`450a5fbc` il 15/07), senza una riga che dicesse perché. La regola qui sopra è stata scritta
+dopo. Questa volta la motivazione c'è, con i numeri: chi la trova fra sei mesi non deve
+rialzarla al buio.
 
 ---
 
@@ -536,6 +722,51 @@ Ogni repository DEVE avere:
 - **CONTRIBUTING.md** se altri sviluppatori toccano il repo (regole branch, PR, code review).
 
 Per architetture non banali (> 1 service, decisioni di design discutibili): cartella `docs/adr/` con [Architecture Decision Records](https://adr.github.io/) numerati. Una decisione importante = un ADR. Mai più "boh, perché si è sempre fatto così".
+
+---
+
+# ⛔ TESTO MORTO NELLE SPECIFICHE — misurato il 20/08/2026
+
+Le regole qui sotto valgono per il codice. **Per i documenti non esisteva la regola
+corrispondente**, e si vede nella misura:
+
+```text
+ultimi 30 commit su docs/     4332 righe aggiunte · 263 tolte   → 1 tolta ogni 16
+una giornata di lavoro         593 righe aggiunte ·  13 tolte   → 1 tolta ogni 45
+```
+
+⛔ **Le specifiche crescono, non si potano.** Il risultato non è un archivio: è che chi apre un
+documento per sapere una cosa attraversa la cronaca di come si è arrivati a saperla, trova la
+stessa decisione in otto punti, e **richiede quello che è già scritto**. È successo, ed è il
+sintomo che ha fatto misurare.
+
+> **Quando una decisione ne sostituisce un'altra, il testo vecchio SI CANCELLA.** Resta al suo
+> posto **una riga** che dice che cosa è cambiato — e solo se serve a qualcuno che verrà.
+
+## Il criterio: valore preventivo, non archivistico
+
+| Si conserva                                                    | Si cancella                                                |
+| -------------------------------------------------------------- | ---------------------------------------------------------- |
+| l'errore **rischia di tornare** («qui c'era X, e portava a Y») | la versione precedente di una decisione, per intero        |
+| la **misura** che ha smentito un'ipotesi (numeri, date, file)  | il ragionamento che ha portato alla decisione vecchia      |
+| ciò che **non si deve rifare**, con la ragione                 | sezioni marcate «(testo originale)», «superato da», «-bis» |
+
+⭐ **Git è l'archivio**, e non serve un secondo archivio dentro il documento: la versione
+precedente si recupera con `git log -p`, mentre una sezione morta lasciata nel testo la legge
+chi cerca la risposta di oggi.
+
+⚠️ **Il primo taglio è stato fatto su `docs/14`**: due sezioni che il documento stesso
+dichiarava superate («§6-bis (testo originale, superato dalla sezione qui sopra)», «§7-bis»)
+sono state tolte e sostituite da una riga che dice **che cosa dicevano di sbagliato**. Il resto
+dei documenti non è stato toccato: la potatura si fa quando si lavora su un documento, non in
+un passaggio unico che nessuno rivedrebbe.
+
+## E se un documento ha smesso di rispondere: prima la testata
+
+⭐ Prima di riorganizzare duemila righe, **una tabella delle decisioni vigenti in cima** —
+una riga per decisione, il puntatore alla sezione che la argomenta, e la dichiarazione che in
+caso di contrasto vince la tabella. Costa poco, è additiva e reversibile, e toglie il sintomo
+peggiore: quello di dover rileggere tutto per sapere cosa vale oggi.
 
 ---
 

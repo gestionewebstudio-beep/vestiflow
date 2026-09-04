@@ -1,0 +1,6 @@
+// ⚠️ `display: contents`: gli stati stanno nel flusso della pagina, dove prima
+// stavano i tre rami scritti a mano. Un contenitore in mezzo cambierebbe la
+// geometria di tutte e sette le maschere.
+:host {
+  display: contents;
+}

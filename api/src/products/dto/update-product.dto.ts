@@ -37,6 +37,15 @@ export class UpdateProductDto {
   @MaxLength(200)
   name?: string;
 
+  /**
+   * «Nome Shopify»: il titolo con cui il prodotto si vende su Shopify. Vuoto alla
+   * creazione = si inizializza da solo alla prima sincronizzazione.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  shopifyTitle?: string | null;
+
   // ── Prezzi/costo a livello articolo (undefined = non toccare) ──
   @IsOptional()
   @ValidateNested()

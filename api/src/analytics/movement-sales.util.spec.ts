@@ -40,32 +40,68 @@ function mov(overrides: Partial<AggregatableMovement>): AggregatableMovement {
 
 const scenario: AggregatableMovement[] = [
   // Vendita POS: ricavo 3000 (riga doc), costo 1200.
-  mov({ sku: 'SKU-A', variantId: 'var-a', quantity: 2, totalCostMinor: 1200, sourceDocumentId: 'doc-1', sourceLineId: 'dl-1', productName: 'Prod A' }),
+  mov({
+    sku: 'SKU-A',
+    variantId: 'var-a',
+    quantity: 2,
+    totalCostMinor: 1200,
+    sourceDocumentId: 'doc-1',
+    sourceLineId: 'dl-1',
+    productName: 'Prod A',
+  }),
   // Vendita online Shopify: ricavo 5000 (riga online), costo 2500.
   mov({
     type: StockMovementType.online_sale,
     origin: MovementOrigin.shopify,
-    sku: 'SKU-B', variantId: 'var-b', quantity: 1, totalCostMinor: 2500,
-    sourceDocumentType: DocumentType.online_sale, sourceDocumentId: 'os-1', sourceLineId: 'ol-1', productName: 'Prod B',
+    sku: 'SKU-B',
+    variantId: 'var-b',
+    quantity: 1,
+    totalCostMinor: 2500,
+    sourceDocumentType: DocumentType.online_sale,
+    sourceDocumentId: 'os-1',
+    sourceLineId: 'ol-1',
+    productName: 'Prod B',
   }),
   // Reso POS: -1500 ricavo (riga reso), -1200 costo (congelato originale).
   mov({
-    type: StockMovementType.return, sku: 'SKU-A', variantId: 'var-a', quantity: 1, totalCostMinor: 1200,
-    sourceDocumentType: DocumentType.store_return, sourceDocumentId: 'doc-ret', sourceLineId: 'dl-ret',
-    createdAt: new Date('2026-07-11T09:00:00.000Z'), productName: 'Prod A',
+    type: StockMovementType.return,
+    sku: 'SKU-A',
+    variantId: 'var-a',
+    quantity: 1,
+    totalCostMinor: 1200,
+    sourceDocumentType: DocumentType.store_return,
+    sourceDocumentId: 'doc-ret',
+    sourceLineId: 'dl-ret',
+    createdAt: new Date('2026-07-11T09:00:00.000Z'),
+    productName: 'Prod A',
   }),
   // Reso online (nessuna riga): ricavo invertito al prezzo originale 2000.
   mov({
-    type: StockMovementType.return, origin: MovementOrigin.shopify,
-    sku: 'SKU-B', variantId: 'var-x', quantity: 1, totalCostMinor: 2000,
-    sourceDocumentType: DocumentType.online_sale, sourceDocumentId: 'sale-9', sourceLineId: null,
-    createdAt: new Date('2026-07-11T09:00:00.000Z'), productName: 'Prod B',
+    type: StockMovementType.return,
+    origin: MovementOrigin.shopify,
+    sku: 'SKU-B',
+    variantId: 'var-x',
+    quantity: 1,
+    totalCostMinor: 2000,
+    sourceDocumentType: DocumentType.online_sale,
+    sourceDocumentId: 'sale-9',
+    sourceLineId: null,
+    createdAt: new Date('2026-07-11T09:00:00.000Z'),
+    productName: 'Prod B',
   }),
-  // Vendita online manuale a costo IGNOTO: ricavo 4000 contato, costo fuori dal margine.
+  // Vendita online a costo ZERO: entra nel margine come ogni altra — un costo
+  // non valorizzato vale zero, non «ignoto» (`regole-gestionale`).
   mov({
-    type: StockMovementType.online_sale, origin: MovementOrigin.vestiflow_online,
-    sku: 'SKU-C', variantId: 'var-c', quantity: 1, totalCostMinor: null,
-    sourceDocumentType: DocumentType.online_sale, sourceDocumentId: 'os-2', sourceLineId: 'ol-2', productName: 'Prod C',
+    type: StockMovementType.online_sale,
+    origin: MovementOrigin.vestiflow_online,
+    sku: 'SKU-C',
+    variantId: 'var-c',
+    quantity: 1,
+    totalCostMinor: 0,
+    sourceDocumentType: DocumentType.online_sale,
+    sourceDocumentId: 'os-2',
+    sourceLineId: 'ol-2',
+    productName: 'Prod C',
   }),
 ];
 
@@ -78,13 +114,16 @@ describe('aggregateSalesMovements', () => {
   });
 
   it('costo netto dai costi congelati sui movimenti', () => {
-    // 1200 + 2500 − 1200 − 2000 + (null escluso)
+    // 1200 + 2500 − 1200 − 2000 + 0
     expect(agg.costMinor).toBe(500);
   });
 
-  it('ricavo a costo noto esclude i movimenti senza costo (denominatore margine)', () => {
-    // 3000 + 5000 − 1500 − 2000 (SKU-C escluso)
-    expect(agg.costKnownRevenueMinor).toBe(4500);
+  // ⛔ Qui c'era «ricavo a costo noto esclude i movimenti senza costo»: il
+  // ricavo a costo noto non esiste più, perché non esistono movimenti senza
+  // costo. Il ricavo li conta TUTTI, SKU-C compreso.
+  it('il ricavo conta ogni movimento, anche quelli a costo zero', () => {
+    // 3000 + 5000 − 1500 − 2000 + 4000 (SKU-C incluso)
+    expect(agg.revenueMinor).toBe(8500);
   });
 
   it('unità nette', () => {
@@ -128,17 +167,23 @@ describe('aggregateSalesMovements', () => {
 
   it('cross-check: vendita + reso completo azzera ricavo, costo e margine', () => {
     const sale = mov({
-      quantity: 1, totalCostMinor: 1200, sourceDocumentId: 'd1', sourceLineId: 'dl-1',
+      quantity: 1,
+      totalCostMinor: 1200,
+      sourceDocumentId: 'd1',
+      sourceLineId: 'dl-1',
     });
     // Reso completo: stessa riga di ricavo (3000) e stesso costo congelato (1200).
     const fullReturn = mov({
-      type: StockMovementType.return, quantity: 1, totalCostMinor: 1200,
-      sourceDocumentType: DocumentType.store_return, sourceDocumentId: 'd-ret', sourceLineId: 'dl-1',
+      type: StockMovementType.return,
+      quantity: 1,
+      totalCostMinor: 1200,
+      sourceDocumentType: DocumentType.store_return,
+      sourceDocumentId: 'd-ret',
+      sourceLineId: 'dl-1',
     });
     const zeroed = aggregateSalesMovements([sale, fullReturn], maps);
     expect(zeroed.revenueMinor).toBe(0);
     expect(zeroed.costMinor).toBe(0);
-    expect(zeroed.costKnownRevenueMinor).toBe(0);
   });
 });
 

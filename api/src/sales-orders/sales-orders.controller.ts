@@ -35,7 +35,6 @@ import type { Paginated } from '../common/dto/pagination.dto';
 import { attachmentDownloadFilename } from '../common/attachments/attachment-rules.util';
 import { documentAttachmentUploadMulterOptions } from '../common/upload/multer-upload.options';
 import { AttachmentsService } from '../attachments/attachments.service';
-import type { CreateDocumentDto } from '../documents/dto/create-document.dto';
 import { RenameAttachmentDto } from '../common/attachments/dto/rename-attachment.dto';
 import { ConcludeManualSalesOrderDto } from './dto/conclude-manual-sales-order.dto';
 import { DuplicateManualSalesOrderDto } from './dto/duplicate-manual-sales-order.dto';
@@ -88,9 +87,12 @@ export class SalesOrdersController {
   @Header('Content-Type', 'text/csv; charset=utf-8')
   async exportCsv(
     @CurrentTenant() tenantId: string,
+    // ⚠️ `@CurrentUser()` NON e decorativo: porta lo scope sede che `list`
+    //    applica agli ordini manuali. Senza, il CSV usciva dal perimetro.
+    @CurrentUser() user: UserProfileDto,
     @Query() query: ExportSalesOrdersQueryDto,
   ): Promise<StreamableFile> {
-    const csv = await this.salesOrdersExport.exportCsv(tenantId, query);
+    const csv = await this.salesOrdersExport.exportCsv(tenantId, query, user);
     const stamp = new Date().toISOString().slice(0, 10);
     return new StreamableFile(Buffer.from(csv, 'utf-8'), {
       type: 'text/csv; charset=utf-8',
@@ -126,9 +128,10 @@ export class SalesOrdersController {
   @RequireAnyPermissions(SALES_ORDERS_MANAGE_PERMISSIONS)
   listManualReservations(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<readonly ManualOrderReservationRow[]> {
-    return this.manualOrders.listActiveReservations(tenantId, id);
+    return this.manualOrders.listActiveReservationsForUser(tenantId, id, user);
   }
 
   /**
@@ -145,18 +148,6 @@ export class SalesOrdersController {
     @Body() dto: ConcludeManualSalesOrderDto,
   ): Promise<ConcludePrefillDto> {
     return this.manualOrders.concludePrefill(tenantId, id, dto.documentType, user);
-  }
-
-  /** Forza a Concluso un ordine Parzialmente concluso (prompt DDT). */
-  @Post('manual/:id/force-conclude')
-  @RequireAnyPermissions(SALES_ORDERS_MANAGE_PERMISSIONS)
-  async forceConcludeManual(
-    @CurrentTenant() tenantId: string,
-    @CurrentUser() user: UserProfileDto,
-    @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<{ ok: true }> {
-    await this.manualOrders.forceConclude(tenantId, id, user);
-    return { ok: true };
   }
 
   /** Elimina un ordine cliente manuale dall'elenco (rilascia gli impegni). */
@@ -187,8 +178,12 @@ export class SalesOrdersController {
 
   @Get(':id/attachments')
   @RequireAnyPermissions(SALES_ORDERS_VIEW_PERMISSIONS)
-  listAttachments(@CurrentTenant() tenantId: string, @Param('id', ParseUUIDPipe) id: string) {
-    return this.attachments.list(tenantId, 'sales_order', id);
+  listAttachments(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.attachments.list(tenantId, 'sales_order', id, user);
   }
 
   @Post(':id/attachments')
@@ -200,14 +195,25 @@ export class SalesOrdersController {
     @Param('id', ParseUUIDPipe) id: string,
     @UploadedFile() file: Express.Multer.File,
   ) {
-    return this.attachments.upload(tenantId, 'sales_order', id, file, user.displayName ?? 'API');
+    return this.attachments.upload(
+      tenantId,
+      'sales_order',
+      id,
+      file,
+      user.displayName ?? 'API',
+      user,
+    );
   }
 
   /** Spazio allegati dell'ordine (indicatore nella modale allegati). */
   @Get(':id/attachments/quota')
   @RequireAnyPermissions(SALES_ORDERS_VIEW_PERMISSIONS)
-  attachmentsQuota(@CurrentTenant() tenantId: string, @Param('id', ParseUUIDPipe) id: string) {
-    return this.attachments.quota(tenantId, 'sales_order', id);
+  attachmentsQuota(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.attachments.quota(tenantId, 'sales_order', id, user);
   }
 
   /** Download allegato: il bucket è privato, i byte passano dall'API. */
@@ -215,10 +221,11 @@ export class SalesOrdersController {
   @RequireAnyPermissions(SALES_ORDERS_VIEW_PERMISSIONS)
   async downloadAttachment(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
     @Param('attachmentId', ParseUUIDPipe) attachmentId: string,
   ): Promise<StreamableFile> {
-    const file = await this.attachments.download(tenantId, 'sales_order', id, attachmentId);
+    const file = await this.attachments.download(tenantId, 'sales_order', id, attachmentId, user);
     return new StreamableFile(file.buffer, {
       type: file.mimeType,
       disposition: `attachment; filename="${attachmentDownloadFilename(file.fileName)}"`,
@@ -230,11 +237,12 @@ export class SalesOrdersController {
   @RequireAnyPermissions(SALES_ORDERS_MANAGE_PERMISSIONS)
   renameAttachment(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
     @Param('attachmentId', ParseUUIDPipe) attachmentId: string,
     @Body() dto: RenameAttachmentDto,
   ) {
-    return this.attachments.rename(tenantId, 'sales_order', id, attachmentId, dto.fileName);
+    return this.attachments.rename(tenantId, 'sales_order', id, attachmentId, dto.fileName, user);
   }
 
   @Delete(':id/attachments/:attachmentId')
@@ -242,10 +250,11 @@ export class SalesOrdersController {
   @RequireAnyPermissions(SALES_ORDERS_MANAGE_PERMISSIONS)
   deleteAttachment(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
     @Param('attachmentId', ParseUUIDPipe) attachmentId: string,
   ): Promise<void> {
-    return this.attachments.delete(tenantId, 'sales_order', id, attachmentId);
+    return this.attachments.delete(tenantId, 'sales_order', id, attachmentId, user);
   }
 
   /** Stampa PDF dell'ordine cliente (qualunque origine). */

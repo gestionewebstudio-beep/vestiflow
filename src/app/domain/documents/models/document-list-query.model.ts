@@ -1,3 +1,8 @@
+import {
+  parseDataTableSort,
+  type DataTableSort,
+} from '@shared/components/data-table/data-table.model';
+
 import type { ParamMap } from '@angular/router';
 
 import { DocumentStatus, DocumentType, GoodsReceiptLinkStatus } from '@core/models/document.model';
@@ -11,12 +16,12 @@ export type DocumentListProfile =
   | 'goods-receipt'
   | 'quote'
   | 'proforma'
-  | 'sales-ddt'
-  | 'manual-unload'
+  | 'ddt-vendita'
+  | 'vendita-manuale'
   // Elenco condiviso Fattura / Fattura accompagnatoria (ex 'invoice-draft').
   | 'invoice'
   | 'purchase-invoice'
-  // Elenco condiviso Vendita / Reso in negozio (documenti creati dalla cassa).
+  // Elenco condiviso Vendita / Reso al banco (documenti creati dalla loro maschera).
   | 'store-sale';
 
 /** Query registro documenti (ordinamento fisso: data documento discendente). */
@@ -44,6 +49,22 @@ export interface DocumentListQuery {
   /** Operatore che ha creato il documento. */
   readonly createdById?: string;
   readonly pendingInvoice?: boolean;
+  /**
+   * Ordinamento richiesto, **nella grammatica del motore** (`14` §H15): le
+   * chiavi in ordine di priorità.
+   *
+   * ⛔ Non `sortBy` + `sortDir`: quella coppia sa esprimere una chiave sola, e
+   * l'ordinamento è a più chiavi da quando esiste il motore. Il parametro HTTP
+   * è la **serializzazione** di questo array, non un formato suo.
+   */
+  readonly sort?: readonly DataTableSort[];
+  /**
+   * Chiede **tutto il risultato del filtro** invece di una pagina
+   * (`14` §H14-bis: i riepiloghi non impaginano). L'API consegna tutto il filtrato,
+   * ⛔ **Nessun tetto sulle righe**: a contenere l'insieme è il PERIODO — la
+   * lista si apre sugli ultimi 30 giorni — non un numero di righe.
+   */
+  readonly all?: boolean;
 }
 
 const TYPE_VALUES = new Set<string>(Object.values(DocumentType));
@@ -68,6 +89,9 @@ export function parseDocumentListQuery(params: ParamMap): DocumentListQuery {
   const settlement = params.get('settlement') ?? '';
   const paymentMethod = params.get('paymentMethod')?.trim() ?? '';
   const createdById = params.get('createdById') ?? '';
+  // L'ordinamento viaggia nell'URL come gli altri filtri: la pagina si condivide
+  // e il «indietro» del browser ritrova l'ordine di prima.
+  const sort = parseDataTableSort(params.get('sort'));
 
   return {
     page: Number.isInteger(page) && page > 0 ? page : 1,
@@ -91,6 +115,7 @@ export function parseDocumentListQuery(params: ParamMap): DocumentListQuery {
     paymentMethod: paymentMethod || undefined,
     createdById: isUuid(createdById) ? createdById : undefined,
     pendingInvoice: params.get('pendingInvoice') === '1',
+    sort: sort.length > 0 ? sort : undefined,
   };
 }
 

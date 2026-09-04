@@ -9,7 +9,7 @@ propone allineamenti — dice cosa fa oggi ciascuna maschera, con `file:riga`, e
 sempre **ciò che è verificato** da ciò che è dedotto.
 
 Le maschere sono dodici e non dieci perché tre componenti ne servono più d'una:
-`customer-order-form` copre Ordine cliente, Preventivo, DDT vendita e Scarico manuale;
+`customer-order-form` copre Ordine cliente, Preventivo, DDT vendita e Vendita manuale;
 `sales-document-form` copre Proforma, Fattura e Fattura accompagnatoria;
 `stock-operation-form` copre la sola Rettifica (non esiste una maschera «Inventario»
 separata: la rotta si chiama `adjustment`, il titolo di rotta dice «rettifica
@@ -30,7 +30,7 @@ nell'elenco delle divergenze.
 | Ordine cliente          | ✅ `afterNextRender`  | ✅→ sì            | ✅→ modalità        | ✅ sì                | ✅ «Location di origine»          | ✅ rispettato               | ✅ sì                 | ✅ rotta               | ✅ oggetto      |
 | Preventivo              | ✅ `afterNextRender`  | ✅→ sì            | ✅ modalità         | ✅ sì                | ✅ «Location»                     | ✅ rispettato               | ✅ sì                 | ✅ rotta               | ✅ oggetto      |
 | DDT vendita             | ✅ `afterNextRender`  | ✅→ sì            | ✅ modalità         | ✅ sì                | ✅ obbligatoria anche lato server | ✅ rispettato               | ✅ sì                 | ✅ rotta               | ✅ oggetto      |
-| Scarico manuale         | ✅ `afterNextRender`  | ✅→ sì            | ✅ modalità         | ✅ sì                | ✅ unico campo obbligatorio       | ✅ rispettato               | ✅ sì                 | ✅ rotta               | ✅ oggetto      |
+| Vendita manuale         | ✅ `afterNextRender`  | ✅→ sì            | ✅ modalità         | ✅ sì                | ✅ unico campo obbligatorio       | ✅ rispettato               | ✅ sì                 | ✅ rotta               | ✅ oggetto      |
 | Ordine fornitore        | ⚠️ costruttore        | ✅→ sì            | ✅ costante         | ✅ sì                | ✅ «Sede»                         | ✅ rispettato               | ✅ sì                 | ✅ rotta               | ⚠️ **`$index`** |
 | Trasferimento           | ✅ `afterNextRender`  | ✅→ sì            | ✅ costante         | ✅ sì                | ✅ due sedi                       | ✅ rispettato               | ✅ sì                 | ✅ rotta               | ✅ oggetto      |
 | Rettifica               | ✅ `afterNextRender`  | ✅→ sì            | ✅ dati di rotta    | ✅ sì                | ✅ unico campo del gate           | ✅ rispettato               | ✅ sì                 | ✅ rotta               | ✅ oggetto      |

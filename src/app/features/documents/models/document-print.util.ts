@@ -27,7 +27,7 @@ const HAS_PRINTED_SHEET: Readonly<Record<DocumentTypeValue, boolean>> = {
   [DocumentType.Adjustment]: true,
   [DocumentType.Inventory]: true,
   [DocumentType.Proforma]: true,
-  [DocumentType.InvoiceDraft]: true,
+  [DocumentType.Invoice]: true,
   [DocumentType.InvoiceAccompanying]: true,
   // Si stampa come le altre due: e' un documento fiscale.
   [DocumentType.CreditNote]: true,
@@ -64,19 +64,19 @@ const PRINT_KIND: Readonly<Record<DocumentTypeValue, DocumentPrintKind>> = {
   [DocumentType.SupplierInvoice]: 'purchase_invoice',
   [DocumentType.SalesDdt]: 'sales',
   [DocumentType.Transfer]: 'transfer',
-  // Scarico manuale: layout vendita (Cliente + righe con prezzi/totali).
+  // Vendita manuale: layout vendita (Cliente + righe con prezzi/totali).
   [DocumentType.ManualUnload]: 'sales',
   // Rettifica e inventario: la sede è tutto il contesto che hanno.
   [DocumentType.Adjustment]: 'stock',
   [DocumentType.Inventory]: 'stock',
   [DocumentType.Proforma]: 'sales',
-  [DocumentType.InvoiceDraft]: 'sales',
+  [DocumentType.Invoice]: 'sales',
   [DocumentType.InvoiceAccompanying]: 'sales',
   // Stesso impaginato della famiglia commerciale: cambiano titolo, verso e
   // contenuto, non la forma del foglio.
   [DocumentType.CreditNote]: 'sales',
   [DocumentType.CustomerOrder]: 'sales',
-  // Cassa negozio: il cliente può non esserci, la sede c'è sempre.
+  // Vendita al banco: il cliente può non esserci, la sede c'è sempre.
   [DocumentType.StoreSale]: 'sales',
   [DocumentType.StoreReturn]: 'sales',
   [DocumentType.Quote]: 'sales',
@@ -92,7 +92,7 @@ const PRINT_KIND: Readonly<Record<DocumentTypeValue, DocumentPrintKind>> = {
 const VALUELESS_KINDS: readonly DocumentPrintKind[] = ['transfer', 'stock'] as const;
 
 /**
- * La cassa negozio si dichiara «interna non fiscale» all'operatore. Un foglio
+ * La vendita al banco si dichiara «interna non fiscale» all'operatore. Un foglio
  * con numero, IVA e totale che NON lo ripete è tipograficamente
  * indistinguibile da un documento fiscale: l'avviso è la condizione perché
  * quel foglio possa esistere.

@@ -21,7 +21,7 @@ const SETTINGS: TenantFeatureSettings = {
   allowNegativeInventory: false,
   warnNegativeInventory: true,
   blockNegativeInventory: false,
-  defaultUnitOfMeasure: 'pz',
+  manualUnloadEnabled: false,
   defaultVatCodeId: null,
   listino1Name: 'Ingrosso',
   listino1Active: true,

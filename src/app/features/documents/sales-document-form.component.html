@@ -1,17 +1,12 @@
 <!-- doc-form--m-ref: adotta la vista mobile di riferimento promossa in
      styles/_document-form-mobile.scss (pannelli, totali, azioni finali). -->
 <section class="doc-form doc-form--m-ref">
-  @if (prefillError.message(); as prefillFailed) {
-    <!-- Il precompilato non è arrivato. Senza questo avviso resterebbe una
-         maschera vuota, indistinguibile da un documento nuovo legittimo: chi
-         salvasse creerebbe la cosa sbagliata credendo di aver fatto l'altra. -->
-    <app-inline-banner
-      tone="error"
-      [message]="prefillFailed"
-      dismissLabel="Ho capito"
-      (dismissed)="prefillError.dismiss()"
-    />
-  }
+  <!-- ⭐ **L'avviso comune.** Otto righe byte-identiche vivevano in sei
+       maschere: stesso tono, stesso messaggio, stessa etichetta di congedo.
+  
+       ⚠️ Serve, e il perche' e' nel componente: senza, resta una maschera
+       VUOTA, indistinguibile da un documento nuovo legittimo. -->
+  <app-document-prefill-error [store]="prefillError" />
   <!-- Riga del titolo come sull'Ordine cliente: back in linea con l'H1. -->
   <div class="doc-form__head-row">
     <app-back-button />
@@ -30,24 +25,29 @@
     </div>
   }
 
-  @if (loading()) {
-    <app-table-skeleton [columns]="2" [rows]="6" />
-  } @else if (loadError()) {
-    <app-error-state
-      description="Impossibile caricare il documento."
-      retryLabel="Riprova"
-      (retry)="reload()"
-    />
-  } @else if (notEditable()) {
-    <app-empty-state
-      icon="pi-lock"
-      title="Documento non modificabile"
-      description="Solo bozze o documenti confermati (non bloccati) di proforma o bozza fattura sono editabili. Il DDT vendita si modifica dalla sua maschera dedicata."
-      ctaLabel="Torna al registro"
-      (ctaClick)="cancel()"
-    />
+  @if (loadState() !== 'ready') {
+    <!-- ⭐ **La macchina degli stati di pagina, comune.**
+  
+         ⛔ Qui c'erano tre rami scritti a mano — scheletro, errore,
+         non modificabile — identici nell'ORDINE in sette maschere su
+         sette, ma con tre descrizioni d'errore diverse e uno scheletro
+         da cinque righe invece di sei.
+  
+         ⭐ Il MOTIVO per cui non si puo' modificare resta qui: dipende
+         dal documento, e il livello comune non deve conoscerlo. -->
+    <app-document-page-state [state]="loadState()" (retry)="reload()">
+      <app-empty-state
+        documentPageStateBlocked
+        icon="pi-lock"
+        title="Documento non modificabile"
+        description="Solo bozze o documenti confermati (non bloccati) di proforma o fattura sono editabili. Il DDT vendita si modifica dalla sua maschera dedicata."
+        ctaLabel="Torna al registro"
+        (ctaClick)="cancel()"
+      />
+    </app-document-page-state>
   } @else {
     <form
+      appNoImplicitSubmit
       class="doc-form__form"
       [class.doc-form__form--readonly]="formReadOnly()"
       [formGroup]="form"
@@ -64,230 +64,38 @@
           </p>
         }
 
-        <!-- Testata a celle unite (forma Ordine cliente): prima fascia con i
-             dati del documento, fascia fiscale solo per le fatture e, in coda,
-             la fascia del documento del cliente disegnata dal blocco condiviso. -->
+        <!-- ⭐ **La testata è dichiarata UNA VOLTA.** Qui c'erano 437 righe: i
+             due pannelli mobili ripetevano campo per campo le due fasce
+             desktop, con le stesse opzioni e gli stessi gestori — cambiavano
+             l'identificativo (`sd-m-*` contro `sd-*`) e le classi. Non erano
+             due viste: era la stessa vista scritta due volte, e ogni correzione
+             ne raggiungeva una sola.
+
+             Ora le due vesti — griglia su scrivania, pannello apribile su
+             schermo compatto — le sceglie `app-document-header`, e sono
+             ESCLUSIVE nel DOM: con due viste vive gli identificativi non
+             sarebbero univoci.
+
+             Il contenitore resta perché le fasce sono DUE: la card è sua, e la
+             fascia fiscale è la sua seconda banda. -->
         <div class="doc-form__header">
-          <!-- Vista mobile: pannelli apribili come la reference «Ordine
-               cliente». Vivono nel DOM accanto alle fasce desktop e si
-               accendono sotto lg; gli stessi @if di oggi decidono se i
-               pannelli sono uno (proforma/bozza) o due (fatture). -->
-          <div class="doc-panels">
-            <app-document-mobile-panel
-              [title]="customerPanelTitle()"
-              [summaryParts]="customerPanelSummaryParts()"
-              icon="pi-user"
-              [statusText]="customerPanelStatus()"
-              [statusReady]="customerPanelReady()"
-              [initiallyOpen]="true"
-            >
-              <p class="doc-panel__section">Dati principali</p>
-
-              <div class="doc-panel__fields">
-                <div class="doc-panel__field">
-                  <span class="doc-panel__label" id="sd-m-customer-label">Cliente</span>
-                  <app-select-menu
-                    [options]="customerOptions()"
-                    [value]="form.controls.customerId.value"
-                    ariaLabel="Cliente"
-                    placeholder="Seleziona cliente…"
-                    [fullWidth]="true"
-                    [searchable]="true"
-                    searchPlaceholder="Cerca cliente…"
-                    searchAriaLabel="Cerca cliente"
-                    [invalid]="fieldInvalid('customerId')"
-                    describedBy="sd-m-customer-error"
-                    (valueChange)="onCustomerSelect($event)"
-                  />
-                  @if (fieldInvalid('customerId')) {
-                    <p id="sd-m-customer-error" class="doc-form__error">Campo obbligatorio.</p>
-                  }
-                  @if (customerCommercialHint(); as hint) {
-                    <p class="doc-panel__helper" role="note">{{ hint }}</p>
-                  }
-                </div>
-
-                <div class="doc-panel__field">
-                  <span class="doc-panel__label" id="sd-m-location-label">Sede</span>
-                  <app-select-menu
-                    [options]="locationOptions()"
-                    [value]="form.controls.locationId.value"
-                    ariaLabel="Sede"
-                    placeholder="Seleziona sede…"
-                    [fullWidth]="true"
-                    [searchable]="true"
-                    searchPlaceholder="Cerca sede…"
-                    searchAriaLabel="Cerca sede"
-                    [invalid]="fieldInvalid('locationId')"
-                    describedBy="sd-m-location-error"
-                    (valueChange)="onLocationSelect($event)"
-                  />
-                  @if (fieldInvalid('locationId')) {
-                    <p id="sd-m-location-error" class="doc-form__error">Campo obbligatorio.</p>
-                  }
-                </div>
-
-                <div class="doc-panel__fields doc-panel__fields--two">
-                  <div class="doc-panel__field">
-                    <label class="doc-panel__label" for="sd-m-date">Data</label>
-                    <app-date-input
-                      inputId="sd-m-date"
-                      formControlName="documentDate"
-                      ariaLabel="Data documento"
-                      [fullWidth]="true"
-                      [invalid]="fieldInvalid('documentDate')"
-                      describedBy="sd-m-date-error"
-                    />
-                    @if (fieldInvalid('documentDate')) {
-                      <p id="sd-m-date-error" class="doc-form__error">
-                        Inserisci la data del documento (GG/MM/AAAA).
-                      </p>
-                    }
-                  </div>
-
-                  <div class="doc-panel__field">
-                    <span class="doc-panel__label">Modalità prezzo</span>
-                    <app-select-menu
-                      [options]="priceModeOptions"
-                      [value]="pricesIncludeVat() ? 'gross' : 'net'"
-                      ariaLabel="Modalità prezzo netto o ivato"
-                      placeholder="Netto"
-                      [includeEmptyOption]="false"
-                      [compact]="true"
-                      [fullWidth]="true"
-                      (valueChange)="setPriceMode($event === 'gross')"
-                    />
-                  </div>
-                </div>
-
-                <app-document-number-field
-                  numberInputId="sd-m-number"
-                  [number]="form.controls.documentNumber.value"
-                  [isProposal]="numberIsProposal()"
-                  [series]="form.controls.series.value"
-                  [seriesOptions]="numbering.seriesOptions()"
-                  [canManageSeries]="puoConfigurareDocumenti()"
-                  (numberChange)="numbering.onNumberChange($event)"
-                  (seriesChange)="numbering.onSeriesChange($event)"
-                  (manageSeries)="seriesDialogOpen.set(true)"
-                />
-
-                @if (showListinoSelect() && !formReadOnly()) {
-                  <div class="doc-panel__field">
-                    <span class="doc-panel__label">Listino</span>
-                    <app-select-menu
-                      [options]="listinoOptions()"
-                      [value]="listinoValue()"
-                      ariaLabel="Listino applicato alle righe"
-                      placeholder="Prezzo di vendita"
-                      [compact]="true"
-                      [fullWidth]="true"
-                      (valueChange)="onListinoChange($event)"
-                    />
-                  </div>
-                }
-              </div>
-            </app-document-mobile-panel>
-
-            <!-- Solo fatture: la fascia fiscale diventa il secondo pannello,
-                 chiuso all'ingresso (i valori sono già validi o opzionali). -->
-            @if (isSalesInvoice()) {
-              <app-document-mobile-panel
-                title="Dettagli fattura"
-                [summaryParts]="invoicePanelSummaryParts()"
-                icon="pi-file"
-              >
-                <p class="doc-panel__section">Dati fiscali e pagamento</p>
-
-                <div class="doc-panel__fields">
-                  <div class="doc-panel__field">
-                    <label class="doc-panel__label" for="sd-m-cause">Causale</label>
-                    <input
-                      id="sd-m-cause"
-                      class="doc-panel__control"
-                      type="text"
-                      formControlName="billingCause"
-                    />
-                  </div>
-
-                  <div class="doc-panel__field">
-                    <span class="doc-panel__label">Riferimento DDT (opzionale)</span>
-                    <app-select-menu
-                      [options]="ddtOptions()"
-                      value=""
-                      ariaLabel="Aggancia un DDT vendita"
-                      placeholder="Aggancia un DDT…"
-                      [fullWidth]="true"
-                      [includeEmptyOption]="false"
-                      (valueChange)="onAddLinkedDdt($event)"
-                    />
-                    @if (linkedDdts().length > 0) {
-                      <ul class="doc-form__causal-manage-list">
-                        @for (ddt of linkedDdts(); track ddt.id) {
-                          <li class="doc-form__causal-manage-item">
-                            <span class="doc-form__causal-manage-label">{{ ddt.label }}</span>
-                            <button
-                              type="button"
-                              class="doc-form__causal-icon-btn"
-                              (click)="onRemoveLinkedDdt(ddt.id)"
-                              [attr.aria-label]="'Rimuovi ' + ddt.label"
-                            >
-                              <i class="pi pi-times" aria-hidden="true"></i>
-                            </button>
-                          </li>
-                        }
-                      </ul>
-                    }
-                  </div>
-
-                  <div class="doc-panel__field">
-                    <label class="doc-panel__label" for="sd-m-payment-terms">
-                      Condizioni di pagamento
-                    </label>
-                    <input
-                      id="sd-m-payment-terms"
-                      class="doc-panel__control"
-                      type="text"
-                      formControlName="paymentTerms"
-                      placeholder="Es. Bonifico 30 gg d.f."
-                    />
-                  </div>
-
-                  <div class="doc-panel__field">
-                    <label class="doc-panel__label" for="sd-m-payment-due">
-                      Scadenza pagamento
-                    </label>
-                    <app-date-input
-                      inputId="sd-m-payment-due"
-                      [value]="form.controls.paymentDueDate.value"
-                      ariaLabel="Scadenza pagamento"
-                      placeholder="gg/mm/aaaa"
-                      [fullWidth]="true"
-                      (valueChange)="form.controls.paymentDueDate.setValue($event)"
-                    />
-                  </div>
-
-                  <div class="doc-panel__field">
-                    <label class="doc-panel__label" for="sd-m-iban">IBAN</label>
-                    <input
-                      id="sd-m-iban"
-                      class="doc-panel__control"
-                      type="text"
-                      formControlName="iban"
-                      maxlength="34"
-                    />
-                    <p class="doc-panel__helper">Se lo lasci vuoto vale l'IBAN dei Dati azienda.</p>
-                  </div>
-                </div>
-              </app-document-mobile-panel>
-            }
-          </div>
-
-          <div
-            class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row"
+          <app-document-header
+            [flowRow]="true"
+            [title]="customerPanelTitle()"
+            [summaryParts]="customerPanelSummaryParts()"
+            icon="pi-user"
+            [statusText]="customerPanelStatus()"
+            [statusReady]="customerPanelReady()"
+            sectionTitle="Dati principali"
+            [dense]="true"
           >
-            <div class="doc-form__field doc-form__field--span2">
-              <span class="doc-form__label" id="sd-customer-label">Cliente</span>
+            <app-document-header-field
+              label="Cliente"
+              [span2]="true"
+              [waiting]="fieldWaiting('customerId')"
+              [invalid]="fieldInvalid('customerId')"
+              errorId="sd-customer-error"
+            >
               <app-select-menu
                 [options]="customerOptions()"
                 [value]="form.controls.customerId.value"
@@ -302,20 +110,26 @@
                 describedBy="sd-customer-error"
                 (valueChange)="onCustomerSelect($event)"
               />
-              @if (fieldInvalid('customerId')) {
-                <p id="sd-customer-error" class="doc-form__error">Campo obbligatorio.</p>
-              }
+              <!-- La classe segue la vesta viva, come fa il campo condiviso con
+                   etichetta ed errore: il testo resta dichiarato una volta e in
+                   ognuna delle due vesti si veste come prima. -->
               @if (customerCommercialHint(); as hint) {
-                <p class="doc-form__hint" role="note">{{ hint }}</p>
+                <p [class]="compactView() ? 'doc-panel__helper' : 'doc-form__hint'" role="note">
+                  {{ hint }}
+                </p>
               }
-            </div>
+            </app-document-header-field>
 
             <!-- Sede (§1-bis): c'è su ogni documento, proforma compresa — è il
                  primo anello di una catena che scarica, e la sede decisa qui si
                  propaga a valle. Esce già compilata se l'operatore ha una sede
                  predefinita assegnata. -->
-            <div class="doc-form__field">
-              <span class="doc-form__label" id="sd-location-label">Sede</span>
+            <app-document-header-field
+              label="Sede"
+              [waiting]="fieldWaiting('locationId')"
+              [invalid]="fieldInvalid('locationId')"
+              errorId="sd-location-error"
+            >
               <app-select-menu
                 [options]="locationOptions()"
                 [value]="form.controls.locationId.value"
@@ -330,13 +144,14 @@
                 describedBy="sd-location-error"
                 (valueChange)="onLocationSelect($event)"
               />
-              @if (fieldInvalid('locationId')) {
-                <p id="sd-location-error" class="doc-form__error">Campo obbligatorio.</p>
-              }
-            </div>
+            </app-document-header-field>
 
-            <div class="doc-form__field">
-              <label class="doc-form__label" for="sd-date">Data documento</label>
+            <app-document-header-field
+              label="Data documento"
+              [invalid]="fieldInvalid('documentDate')"
+              errorId="sd-date-error"
+              errorMessage="Inserisci la data del documento (GG/MM/AAAA)."
+            >
               <app-date-input
                 inputId="sd-date"
                 formControlName="documentDate"
@@ -346,16 +161,35 @@
                 [invalid]="fieldInvalid('documentDate')"
                 describedBy="sd-date-error"
               />
-              @if (fieldInvalid('documentDate')) {
-                <p id="sd-date-error" class="doc-form__error">
-                  Inserisci la data del documento (GG/MM/AAAA).
-                </p>
-              }
-            </div>
+            </app-document-header-field>
 
-            <!-- Identificativo del documento: Data + Numero + Serie. Finché non lo
-               si tocca il numero è solo il primo libero (isProposal): lo prende
-               chi salva per primo, e il campo lo dice. -->
+            <!-- ⚠️ **Campo di UNA sola delle due scritture, lasciato dov'era.**
+                 Su scrivania la modalità netto/ivato era stata TOLTA dalla
+                 testata apposta: vive sull'intestazione della colonna Prezzo,
+                 dove sta anche nelle altre maschere. Nel pannello mobile invece
+                 è rimasta, ed è l'unico posto da cui si cambia quando le righe
+                 sono card — la card non ha intestazione di colonna.
+                 ⛔ Unificarla sarebbe una DECISIONE, non una deduplica: o si
+                 toglie il comando al telefono, o si rimette in testata anche su
+                 scrivania. Qui resta come oggi, ed è riportata. -->
+            @if (compactView()) {
+              <app-document-header-field label="Modalità prezzo">
+                <app-select-menu
+                  [options]="priceModeOptions"
+                  [value]="pricesIncludeVat() ? 'gross' : 'net'"
+                  ariaLabel="Modalità prezzo netto o ivato"
+                  placeholder="Netto"
+                  [includeEmptyOption]="false"
+                  [compact]="true"
+                  [fullWidth]="true"
+                  (valueChange)="setPriceMode($event === 'gross')"
+                />
+              </app-document-header-field>
+            }
+
+            <!-- Identificativo del documento: Data + Numero + Serie. Finché non
+                 lo si tocca il numero è solo il primo libero (isProposal): lo
+                 prende chi salva per primo, e il campo lo dice. -->
             <app-document-number-field
               numberInputId="sd-number"
               [number]="form.controls.documentNumber.value"
@@ -368,11 +202,6 @@
               (manageSeries)="seriesDialogOpen.set(true)"
             />
 
-            <!-- La modalità prezzo NON sta più qui: vive sull'intestazione della
-                 colonna Prezzo, dove sta anche nelle altre tre maschere. Un
-                 campo di testata la teneva lontana dai numeri che governa, e
-                 rendeva questa maschera l'unica diversa (`07-…§24`). -->
-
             <!-- Listino (§B4): non è un dato del documento, è come lo si riempie.
                  Sceglierlo riscrive i prezzi delle righe, che restano
                  modificabili una per una.
@@ -384,91 +213,114 @@
                  Rinominarlo «Prezzo» — fatto per errore in `3d1afa37` e
                  annullato — confonde le due cose e usa la stessa parola della
                  colonna degli importi. -->
-            @if (showListinoSelect() && !formReadOnly()) {
-              <div class="doc-form__field">
-                <span class="doc-form__label">Listino</span>
-                <app-select-menu
-                  [options]="listinoOptions()"
-                  [value]="listinoValue()"
-                  ariaLabel="Listino applicato alle righe"
-                  placeholder="Prezzo di vendita"
-                  [compact]="true"
-                  [fullWidth]="true"
-                  (valueChange)="onListinoChange($event)"
+            <!-- ⭐ Il controllo e' UNO: `app-document-listino-select` porta con
+                 se' opzioni, valore, segnaposto e la regola «con un solo listino
+                 attivo non si mostra». Qui resta la sola condizione di dominio
+                 — se questo documento abbia i listini — e l'effetto sulle
+                 righe, che le due maschere fanno in modo diverso. -->
+            @if (showListinoSelect()) {
+              <app-document-header-field label="Listino">
+                <app-document-listino-select
+                  [settings]="tenantSettings()"
+                  [choice]="listinoChoice()"
+                  [readOnly]="formReadOnly()"
+                  (choiceChange)="onListinoChoice($event)"
                 />
-              </div>
+              </app-document-header-field>
             }
-          </div>
+          </app-document-header>
 
+          <!-- Solo fatture: la fascia fiscale è la SECONDA banda della card su
+               scrivania, e il secondo pannello — chiuso all'ingresso, i valori
+               sono già validi o opzionali — su schermo compatto.
+               `--secondary` (tinta tenue e filo di separazione) sta sull'host:
+               la griglia la monta il componente comune, e la classe non
+               arriverebbe altrimenti. Sotto lg il foglio locale la spegne, o
+               tingerebbe il pannello invece della banda. -->
           @if (isSalesInvoice()) {
-            <div
-              class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row doc-form__header-row--secondary"
+            <app-document-header
+              [flowRow]="true"
+              class="doc-form__header-row--secondary"
+              title="Dettagli fattura"
+              [summaryParts]="invoicePanelSummaryParts()"
+              icon="pi-file"
+              [initiallyOpen]="false"
+              sectionTitle="Dati fiscali e pagamento"
+              [dense]="true"
             >
-              <div class="doc-form__field">
-                <label class="doc-form__label" for="sd-cause">Causale</label>
+              <!-- L'etichetta del campo comune è uno `<span>`, non un `<label
+                   for>`: senza `aria-label` questi input di testo resterebbero
+                   senza nome per chi usa un lettore di schermo. Le select e le
+                   date lo portano già. -->
+              <app-document-header-field label="Causale">
                 <input
                   id="sd-cause"
-                  class="doc-form__input"
+                  [class]="compactView() ? 'doc-panel__control' : 'doc-form__input'"
                   type="text"
                   formControlName="billingCause"
+                  aria-label="Causale"
                 />
-              </div>
+              </app-document-header-field>
 
               <!--
-              Riferimento DDT: aggancio opzionale a uno o più DDT esistenti.
-              Sull'accompagnatoria comanda anche lo scarico — con un DDT
-              agganciato la colonna «Scarica mag.» sparisce dalle righe.
-            -->
-              <div class="doc-form__field">
-                <span class="doc-form__label">Riferimento DDT (opzionale)</span>
-                <app-select-menu
-                  [options]="ddtOptions()"
-                  value=""
-                  ariaLabel="Aggancia un DDT vendita"
-                  placeholder="Aggancia un DDT…"
-                  [compact]="true"
-                  [fullWidth]="true"
-                  [includeEmptyOption]="false"
-                  (valueChange)="onAddLinkedDdt($event)"
-                />
-                <!--
-                Riusa le classi della lista causali (stessa forma: voci con
-                etichetta e bottone di rimozione) invece di introdurne di nuove:
-                sono già nel foglio condiviso delle maschere documento.
-              -->
-                @if (linkedDdts().length > 0) {
-                  <ul class="doc-form__causal-manage-list">
-                    @for (ddt of linkedDdts(); track ddt.id) {
-                      <li class="doc-form__causal-manage-item">
-                        <span class="doc-form__causal-manage-label">{{ ddt.label }}</span>
-                        <button
-                          type="button"
-                          class="doc-form__causal-icon-btn"
-                          (click)="onRemoveLinkedDdt(ddt.id)"
-                          [attr.aria-label]="'Rimuovi ' + ddt.label"
-                        >
-                          <i class="pi pi-times" aria-hidden="true"></i>
-                        </button>
-                      </li>
-                    }
-                  </ul>
-                }
-              </div>
+                Riferimento DDT: la fattura DIFFERITA — DDT durante il periodo,
+                fattura che li riepiloga. Alimenta i riferimenti nell'XML
+                FatturaPA e la riga «Riferimento DDT» in stampa.
 
-              <div class="doc-form__field">
-                <label class="doc-form__label" for="sd-payment-terms">
-                  Condizioni di pagamento
-                </label>
+                ⛔ NON sull'accompagnatoria: «mai DDT» (12 §matrice), perché
+                sostituisce il DDT nella stessa uscita. Qui c'era scritto che
+                «sull'accompagnatoria comanda anche lo scarico»: era la dottrina
+                da cui nasceva il difetto.
+              -->
+              @if (supportsLinkedDdt()) {
+                <app-document-header-field label="Riferimento DDT (opzionale)">
+                  <app-select-menu
+                    [options]="ddtOptions()"
+                    value=""
+                    ariaLabel="Aggancia un DDT vendita"
+                    placeholder="Aggancia un DDT…"
+                    [compact]="true"
+                    [fullWidth]="true"
+                    [includeEmptyOption]="false"
+                    (valueChange)="onAddLinkedDdt($event)"
+                  />
+                  <!--
+                    Riusa le classi della lista causali (stessa forma: voci con
+                    etichetta e bottone di rimozione) invece di introdurne di
+                    nuove: sono già nel foglio condiviso delle maschere documento.
+                  -->
+                  @if (linkedDdts().length > 0) {
+                    <ul class="doc-form__causal-manage-list">
+                      @for (ddt of linkedDdts(); track ddt.id) {
+                        <li class="doc-form__causal-manage-item">
+                          <span class="doc-form__causal-manage-label">{{ ddt.label }}</span>
+                          <button
+                            type="button"
+                            class="doc-form__causal-icon-btn"
+                            (click)="onRemoveLinkedDdt(ddt.id)"
+                            [attr.aria-label]="'Rimuovi ' + ddt.label"
+                          >
+                            <i class="pi pi-times" aria-hidden="true"></i>
+                          </button>
+                        </li>
+                      }
+                    </ul>
+                  }
+                </app-document-header-field>
+              }
+
+              <app-document-header-field label="Condizioni di pagamento">
                 <input
                   id="sd-payment-terms"
-                  class="doc-form__input"
+                  [class]="compactView() ? 'doc-panel__control' : 'doc-form__input'"
                   type="text"
                   formControlName="paymentTerms"
                   placeholder="Es. Bonifico 30 gg d.f."
+                  aria-label="Condizioni di pagamento"
                 />
-              </div>
-              <div class="doc-form__field">
-                <label class="doc-form__label" for="sd-payment-due">Scadenza pagamento</label>
+              </app-document-header-field>
+
+              <app-document-header-field label="Scadenza pagamento">
                 <app-date-input
                   inputId="sd-payment-due"
                   [value]="form.controls.paymentDueDate.value"
@@ -477,19 +329,22 @@
                   [fullWidth]="true"
                   (valueChange)="form.controls.paymentDueDate.setValue($event)"
                 />
-              </div>
-              <div class="doc-form__field">
-                <label class="doc-form__label" for="sd-iban">IBAN</label>
+              </app-document-header-field>
+
+              <app-document-header-field label="IBAN">
                 <input
                   id="sd-iban"
-                  class="doc-form__input"
+                  [class]="compactView() ? 'doc-panel__control' : 'doc-form__input'"
                   type="text"
                   formControlName="iban"
                   maxlength="34"
+                  aria-label="IBAN"
                 />
-                <p class="doc-form__hint">Se lo lasci vuoto vale l'IBAN dei Dati azienda.</p>
-              </div>
-            </div>
+                <p [class]="compactView() ? 'doc-panel__helper' : 'doc-form__hint'">
+                  Se lo lasci vuoto vale l'IBAN dei Dati azienda.
+                </p>
+              </app-document-header-field>
+            </app-document-header>
           }
         </div>
 
@@ -497,7 +352,7 @@
           <div class="doc-form__lines-head">
             <h2 id="sd-lines-title" class="doc-form__subtitle">Righe</h2>
             <div class="doc-form__lines-tools">
-              <app-table-column-picker [viewId]="lineColumnsView" [reorderable]="false" />
+              <app-table-column-picker [viewId]="lineColumnsView" />
               @if (includeSourceKinds().length > 0) {
                 <app-button type="button" variant="ghost" (click)="openIncludePanel()">
                   <i class="pi pi-file-import" aria-hidden="true"></i>
@@ -518,249 +373,50 @@
             <p class="doc-form__submit-error" role="alert">{{ blockingIssue }}</p>
           }
 
-          <!-- Desktop: righe in tabella, come le altre maschere. -->
-          @if (!compactView()) {
+          <!--
+            ⭐ **A TESTATA INCOMPLETA LE RIGHE NON CI SONO** — deciso dal
+            proprietario il 02/09/2026: cliente e sede obbligatori su tutti e
+            quattro i tipi di questa maschera.
+
+            `regole-stile-ui` lo prescriveva già — «al posto della tabella c'è
+            uno stato vuoto che dice **cosa manca**» — e Ordine cliente e Arrivo
+            merce lo fanno da tempo: questi quattro erano gli unici fuori.
+
+            ⛔ **Non si spegne e non si sbiadisce**: una tabella intera a metà
+            tinta occupa mezzo schermo per non poter essere usata.
+          -->
+          @if (headerGateActive()) {
+            <app-empty-state
+              icon="pi-user-edit"
+              [title]="linesEmptyTitle()"
+              [description]="linesEmptyDescription()"
+            />
+          } @else if (!compactView()) {
             <div class="doc-form__table-wrap">
               <table class="doc-form__table">
                 <thead>
-                  <tr>
-                    <th scope="col" class="doc-form__cell--index" aria-label="Numero riga">#</th>
-                    @if (isLineColumnVisible('articleCode')) {
-                      <th scope="col" [style.width]="lineColumnWidth('articleCode')">
-                        <button
-                          type="button"
-                          class="doc-form__th-sort"
-                          [attr.aria-label]="lineSortAriaLabel('articleCode', 'Cod. articolo')"
-                          title="Cod. articolo"
-                          (click)="toggleLineSort('articleCode')"
-                        >
-                          Cod. articolo
-                          @if (lineSort.column() === 'articleCode') {
-                            <i
-                              class="pi"
-                              [class.pi-sort-up]="lineSort.direction() === 'asc'"
-                              [class.pi-sort-down]="lineSort.direction() === 'desc'"
-                              aria-hidden="true"
-                            ></i>
-                          }
-                        </button>
-                        <span
-                          appTableColumnResize
-                          (resized)="onLineColumnResize('articleCode', $event)"
-                        ></span>
-                      </th>
-                    }
-                    @if (isLineColumnVisible('sku')) {
-                      <th scope="col" [style.width]="lineColumnWidth('sku')">
-                        <button
-                          type="button"
-                          class="doc-form__th-sort"
-                          [attr.aria-label]="lineSortAriaLabel('sku', 'SKU')"
-                          title="SKU"
-                          (click)="toggleLineSort('sku')"
-                        >
-                          SKU
-                          @if (lineSort.column() === 'sku') {
-                            <i
-                              class="pi"
-                              [class.pi-sort-up]="lineSort.direction() === 'asc'"
-                              [class.pi-sort-down]="lineSort.direction() === 'desc'"
-                              aria-hidden="true"
-                            ></i>
-                          }
-                        </button>
-                        <span
-                          appTableColumnResize
-                          (resized)="onLineColumnResize('sku', $event)"
-                        ></span>
-                      </th>
-                    }
-                    @if (isLineColumnVisible('barcode')) {
-                      <th scope="col" [style.width]="lineColumnWidth('barcode')">
-                        <button
-                          type="button"
-                          class="doc-form__th-sort"
-                          [attr.aria-label]="lineSortAriaLabel('barcode', 'EAN')"
-                          title="EAN"
-                          (click)="toggleLineSort('barcode')"
-                        >
-                          EAN
-                          @if (lineSort.column() === 'barcode') {
-                            <i
-                              class="pi"
-                              [class.pi-sort-up]="lineSort.direction() === 'asc'"
-                              [class.pi-sort-down]="lineSort.direction() === 'desc'"
-                              aria-hidden="true"
-                            ></i>
-                          }
-                        </button>
-                        <span
-                          appTableColumnResize
-                          (resized)="onLineColumnResize('barcode', $event)"
-                        ></span>
-                      </th>
-                    }
-                    @if (isLineColumnVisible('product')) {
-                      <th
-                        scope="col"
-                        class="doc-form__th--product doc-form__col--sep"
-                        [style.width]="lineColumnWidth('product')"
-                      >
-                        <button
-                          type="button"
-                          class="doc-form__th-sort"
-                          [attr.aria-label]="lineSortAriaLabel('product', 'Nome prodotto')"
-                          title="Nome prodotto"
-                          (click)="toggleLineSort('product')"
-                        >
-                          Nome prodotto
-                          @if (lineSort.column() === 'product') {
-                            <i
-                              class="pi"
-                              [class.pi-sort-up]="lineSort.direction() === 'asc'"
-                              [class.pi-sort-down]="lineSort.direction() === 'desc'"
-                              aria-hidden="true"
-                            ></i>
-                          }
-                        </button>
-                        <span
-                          appTableColumnResize
-                          (resized)="onLineColumnResize('product', $event)"
-                        ></span>
-                      </th>
-                    }
-                    @if (isLineColumnVisible('quantity')) {
-                      <th
-                        scope="col"
-                        class="doc-form__num doc-form__col--stock"
-                        [style.width]="lineColumnWidth('quantity')"
-                      >
-                        <button
-                          type="button"
-                          class="doc-form__th-sort"
-                          [attr.aria-label]="lineSortAriaLabel('quantity', 'Qtà')"
-                          title="Qtà"
-                          (click)="toggleLineSort('quantity')"
-                        >
-                          Qtà
-                          @if (lineSort.column() === 'quantity') {
-                            <i
-                              class="pi"
-                              [class.pi-sort-up]="lineSort.direction() === 'asc'"
-                              [class.pi-sort-down]="lineSort.direction() === 'desc'"
-                              aria-hidden="true"
-                            ></i>
-                          }
-                        </button>
-                        <span
-                          appTableColumnResize
-                          (resized)="onLineColumnResize('quantity', $event)"
-                        ></span>
-                      </th>
-                    }
-                    @if (isLineColumnVisible('unitPrice')) {
-                      <th
-                        scope="col"
-                        class="doc-form__num doc-form__col--sale"
-                        [style.width]="lineColumnWidth('unitPrice')"
-                      >
-                        <!-- L'etichetta ordina, il chevron sceglie netto/ivato:
-                             due mestieri distinti sullo stesso titolo, come
-                             nelle altre maschere. Prima la scelta stava in un
-                             campo «Modalità prezzo» in testata — l'unica delle
-                             quattro maschere fuori standard, e proprio quella
-                             fiscale (`07-…§24`). -->
-                        <span class="doc-form__th-menu-wrap">
-                          <button
-                            type="button"
-                            class="doc-form__th-sort doc-form__th-sort--num"
-                            [attr.aria-label]="lineSortAriaLabel('unitPrice', 'Prezzo')"
-                            title="Prezzo"
-                            (click)="toggleLineSort('unitPrice')"
-                          >
-                            {{ priceRowLabel() }}
-                            @if (lineSort.column() === 'unitPrice') {
-                              <i
-                                class="pi"
-                                [class.pi-sort-up]="lineSort.direction() === 'asc'"
-                                [class.pi-sort-down]="lineSort.direction() === 'desc'"
-                                aria-hidden="true"
-                              ></i>
-                            }
-                          </button>
-                          <app-price-mode-menu
-                            [pricesIncludeVat]="pricesIncludeVat()"
-                            netLabel="Usa prezzi netti"
-                            grossLabel="Usa prezzi ivati"
-                            [disabled]="formReadOnly()"
-                            (modeChange)="setPriceMode($event)"
-                          />
-                        </span>
-                        <span
-                          appTableColumnResize
-                          (resized)="onLineColumnResize('unitPrice', $event)"
-                        ></span>
-                      </th>
-                    }
-                    @if (isLineColumnVisible('discount')) {
-                      <th
-                        scope="col"
-                        class="doc-form__num doc-form__col--sale"
-                        [style.width]="lineColumnWidth('discount')"
-                      >
-                        <button
-                          type="button"
-                          class="doc-form__th-sort"
-                          [attr.aria-label]="lineSortAriaLabel('discount', 'Sconto')"
-                          title="Sconto"
-                          (click)="toggleLineSort('discount')"
-                        >
-                          Sconto
-                          @if (lineSort.column() === 'discount') {
-                            <i
-                              class="pi"
-                              [class.pi-sort-up]="lineSort.direction() === 'asc'"
-                              [class.pi-sort-down]="lineSort.direction() === 'desc'"
-                              aria-hidden="true"
-                            ></i>
-                          }
-                        </button>
-                        <span
-                          appTableColumnResize
-                          (resized)="onLineColumnResize('discount', $event)"
-                        ></span>
-                      </th>
-                    }
-                    @if (isLineColumnVisible('vat')) {
-                      <th
-                        scope="col"
-                        class="doc-form__col--tax doc-form__col--sep"
-                        [style.width]="lineColumnWidth('vat')"
-                      >
-                        Codice IVA
-                        <span
-                          appTableColumnResize
-                          (resized)="onLineColumnResize('vat', $event)"
-                        ></span>
-                      </th>
-                    }
-                    @if (isLineColumnVisible('loadsStock')) {
-                      <th
-                        scope="col"
-                        class="doc-form__col--stock"
-                        [style.width]="lineColumnWidth('loadsStock')"
-                      >
-                        Scarica mag.
-                      </th>
-                    }
-                    <th
-                      scope="col"
-                      class="doc-form__cell--actions"
-                      [style.width]="lineColumnWidth('actions')"
-                    >
-                      <span class="sr-only">Azioni riga</span>
-                    </th>
-                  </tr>
+                  <!-- ⭐ **L'intestazione è la COMPONENTE COMUNE.** Qui c'erano
+                       14 `<th>` scritti a mano, che reimplementavano la stessa
+                       grammatica con classi e resize propri. -->
+                  <tr
+                    app-document-line-head
+                    [indexColumnWidth]="lineIndexColumnWidth()"
+                    [isColumnVisible]="isLineColumnVisibleFn"
+                    [columnWidth]="lineColumnWidthFn"
+                    [columnMinWidth]="lineColumnMinWidthFn"
+                    [sortable]="true"
+                    [sortColumn]="lineSort.column()"
+                    [sortDirection]="lineSort.direction()"
+                    [priceLabel]="priceRowLabel()"
+                    [pricesIncludeVat]="pricesIncludeVat()"
+                    [priceMenuOpen]="priceModeMenuOpen()"
+                    [loadToggleLabel]="stockToggleLabel()"
+                    (priceMenuToggled)="togglePriceModeMenu()"
+                    (priceModeChanged)="setPriceMode($event)"
+                    (sortToggled)="onRowSortToggled($event)"
+                    (columnResizing)="onLineColumnResizing($event.column, $event.widthPx)"
+                    (columnResized)="onLineColumnResize($event.column, $event.widthPx)"
+                  ></tr>
                 </thead>
                 <!-- Il trascinamento sta sul tbody, e il blocco del documento lo
                      spegne qui: il fieldset disabilitato ferma i controlli del
@@ -772,252 +428,44 @@
                   (cdkDropListDropped)="onLineDrop($event)"
                 >
                   @for (line of lines.controls; track line; let i = $index) {
-                    <tr cdkDrag [cdkDragStartDelay]="{ touch: 250, mouse: 0 }" [formGroupName]="i">
-                      <!-- La cella del numero è la maniglia: il resto della riga
-                           resta cliccabile per modificare le celle. -->
-                      <td class="doc-form__cell--index doc-form__drag-handle" cdkDragHandle>
-                        <span class="tabular-nums">{{ i + 1 }}</span>
-                      </td>
-                      <!--
-                        I tre codici e il nome, come negli altri documenti: il
-                        codice si conferma (Tab/Invio) e cerca a corrispondenza
-                        esatta, il nome suggerisce mentre si digita. Prima qui
-                        c'erano una tendina con la ricerca dentro e una colonna
-                        Descrizione a parte — il meccanismo di prima, rimasto qui
-                        mentre gli altri documenti andavano avanti.
-                      -->
-                      @if (isLineColumnVisible('articleCode')) {
-                        <td class="doc-form__cell doc-form__cell--editable doc-form__cell--code">
-                          <app-document-line-code-cell
-                            [lineIndex]="i"
-                            [inputId]="'sd-code-' + i"
-                            ariaLabel="Codice articolo"
-                            placeholder="Cerca codice"
-                            [value]="line.controls.articleCode.value"
-                            [linked]="!!line.controls.variantId.value"
-                            [linkedValue]="line.controls.articleCode.value"
-                            [disabled]="formReadOnly()"
-                            [suggestions]="codeLookup.matchesFor(i, 'articleCode')"
-                            [suggestionsOpen]="codeLookup.isOpenOn(i, 'articleCode')"
-                            [activeSuggestionIndex]="codeLookup.activeIndex()"
-                            (suggestionNavigate)="codeLookup.navigate($event)"
-                            (suggestionPick)="
-                              onCodeSuggestionPick($event.lineIndex, $event.variantId)
-                            "
-                            (valueChange)="onLineCodeChange(i, 'articleCode', $event)"
-                            (focused)="onLineCodeFocus(i, 'articleCode')"
-                            (blurred)="onLineCodeBlur(i)"
-                            (commit)="commitCodeLookup(i, 'articleCode', $event.advance)"
-                            (lineRetreat)="lineFocus.previous(i, 'articleCode')"
-                            (lineRowAdvance)="lineFocus.rowDown(i, 'articleCode')"
-                            (lineRowRetreat)="lineFocus.rowUp(i, 'articleCode')"
-                            (escapePressed)="onLineSearchEscape(i)"
-                          />
-                        </td>
-                      }
-                      @if (isLineColumnVisible('sku')) {
-                        <td class="doc-form__cell doc-form__cell--editable doc-form__cell--code">
-                          <app-document-line-code-cell
-                            [lineIndex]="i"
-                            [inputId]="'sd-sku-' + i"
-                            ariaLabel="SKU"
-                            placeholder="Cerca SKU"
-                            [value]="line.controls.sku.value"
-                            [linked]="!!line.controls.variantId.value"
-                            [linkedValue]="line.controls.sku.value"
-                            [disabled]="formReadOnly()"
-                            [suggestions]="codeLookup.matchesFor(i, 'sku')"
-                            [suggestionsOpen]="codeLookup.isOpenOn(i, 'sku')"
-                            [activeSuggestionIndex]="codeLookup.activeIndex()"
-                            (suggestionNavigate)="codeLookup.navigate($event)"
-                            (suggestionPick)="
-                              onCodeSuggestionPick($event.lineIndex, $event.variantId)
-                            "
-                            (valueChange)="onLineCodeChange(i, 'sku', $event)"
-                            (focused)="onLineCodeFocus(i, 'sku')"
-                            (blurred)="onLineCodeBlur(i)"
-                            (commit)="commitCodeLookup(i, 'sku', $event.advance)"
-                            (lineRetreat)="lineFocus.previous(i, 'sku')"
-                            (lineRowAdvance)="lineFocus.rowDown(i, 'sku')"
-                            (lineRowRetreat)="lineFocus.rowUp(i, 'sku')"
-                            (escapePressed)="onLineSearchEscape(i)"
-                          />
-                        </td>
-                      }
-                      @if (isLineColumnVisible('barcode')) {
-                        <td class="doc-form__cell doc-form__cell--editable doc-form__cell--code">
-                          <app-document-line-code-cell
-                            [lineIndex]="i"
-                            [inputId]="'sd-barcode-' + i"
-                            ariaLabel="EAN"
-                            placeholder="Scansiona EAN"
-                            [value]="line.controls.barcode.value"
-                            [linked]="!!line.controls.variantId.value"
-                            [linkedValue]="line.controls.barcode.value"
-                            [disabled]="formReadOnly()"
-                            [suggestions]="codeLookup.matchesFor(i, 'barcode')"
-                            [suggestionsOpen]="codeLookup.isOpenOn(i, 'barcode')"
-                            [activeSuggestionIndex]="codeLookup.activeIndex()"
-                            (suggestionNavigate)="codeLookup.navigate($event)"
-                            (suggestionPick)="
-                              onCodeSuggestionPick($event.lineIndex, $event.variantId)
-                            "
-                            (valueChange)="onLineCodeChange(i, 'barcode', $event)"
-                            (focused)="onLineCodeFocus(i, 'barcode')"
-                            (blurred)="onLineCodeBlur(i)"
-                            (commit)="commitCodeLookup(i, 'barcode', $event.advance)"
-                            (lineRetreat)="lineFocus.previous(i, 'barcode')"
-                            (lineRowAdvance)="lineFocus.rowDown(i, 'barcode')"
-                            (lineRowRetreat)="lineFocus.rowUp(i, 'barcode')"
-                            (escapePressed)="onLineSearchEscape(i)"
-                          />
-                        </td>
-                      }
-                      @if (isLineColumnVisible('product')) {
-                        <td class="doc-form__cell doc-form__cell--editable doc-form__col--sep">
-                          <app-document-line-product-cell
-                            [lineIndex]="i"
-                            [inputId]="'sd-product-' + i"
-                            [value]="line.controls.description.value"
-                            [linked]="!!line.controls.variantId.value"
-                            [disabled]="formReadOnly()"
-                            [invalid]="lineDescriptionInvalid(i)"
-                            [suggestions]="lineSuggestions(i)"
-                            [suggestionsOpen]="lineSuggestionsOpen(i)"
-                            [activeSuggestionIndex]="productSuggest.activeIndex()"
-                            (valueChange)="onLineProductNameChange(i, $event)"
-                            (focused)="onLineProductFocus($event)"
-                            (blurred)="onLineProductBlur($event)"
-                            (searchOpen)="openLineProductSearch($event)"
-                            (suggestionPick)="
-                              onProductSuggestionPick($event.lineIndex, $event.variantId)
-                            "
-                            (suggestionNavigate)="onProductSuggestionNavigate($event)"
-                            (lineAdvance)="lineFocus.next(i, 'product')"
-                            (lineRetreat)="lineFocus.previous(i, 'product')"
-                            (lineRowAdvance)="lineFocus.rowDown(i, 'product')"
-                            (lineRowRetreat)="lineFocus.rowUp(i, 'product')"
-                            (escapePressed)="onLineSearchEscape(i)"
-                          />
-                        </td>
-                      }
-                      @if (isLineColumnVisible('quantity')) {
-                        <td
-                          class="doc-form__cell doc-form__cell--editable doc-form__num doc-form__col--stock"
-                        >
-                          <!-- Riga di riferimento: la cella resta VUOTA. Il valore
-                               tecnico è 0 (`07` §12: «non hanno codice né quantità
-                               né importo»), ma mostrarlo direbbe «zero pezzi» invece
-                               di «non pertinente» — e un campo che si può scrivere
-                               invita a scriverci. -->
-                          @if (!line.controls.isReference.value) {
-                            <input
-                              [id]="'sd-qty-' + i"
-                              class="doc-form__input doc-form__input--table doc-form__input--num"
-                              type="number"
-                              min="1"
-                              formControlName="quantity"
-                              aria-label="Qtà"
-                            />
-                          }
-                        </td>
-                      }
-                      @if (isLineColumnVisible('unitPrice')) {
-                        <td
-                          class="doc-form__cell doc-form__cell--editable doc-form__num doc-form__col--sale"
-                        >
-                          <input
-                            [id]="'sd-price-' + i"
-                            class="doc-form__input doc-form__input--table doc-form__input--num"
-                            type="text"
-                            inputmode="decimal"
-                            formControlName="unitPrice"
-                            placeholder="0,00"
-                            [attr.aria-label]="priceRowLabel()"
-                          />
-                        </td>
-                      }
-                      @if (isLineColumnVisible('discount')) {
-                        <td
-                          class="doc-form__cell doc-form__cell--editable doc-form__num doc-form__col--sale"
-                        >
-                          <input
-                            [id]="'sd-discount-' + i"
-                            class="doc-form__input doc-form__input--table doc-form__input--num"
-                            type="text"
-                            formControlName="discountPercent"
-                            placeholder="es. 10%"
-                            autocomplete="off"
-                            aria-label="Sconto"
-                          />
-                        </td>
-                      }
-                      @if (isLineColumnVisible('vat')) {
-                        <td
-                          class="doc-form__cell doc-form__cell--editable doc-form__cell--vat doc-form__col--tax doc-form__col--sep"
-                          [title]="lineVatTooltip(i)"
-                        >
-                          <!--
-                            Cella a ricerca-e-selezione, come nelle altre
-                            maschere: è un <input> vero, quindi il giro del
-                            fuoco la raggiunge, si digita il codice e l'elenco
-                            filtra per prefisso. Prima qui c'era la tendina —
-                            l'ultima rimasta su una riga documento.
-
-                            In cella si legge il solo CODICE: aliquota e
-                            descrizione stanno nel menu e nel `title` della
-                            cella, come sulle altre tre maschere.
-                          -->
-                          <app-document-line-select-cell
-                            [lineIndex]="i"
-                            [inputId]="'sd-vat-' + i"
-                            ariaLabel="Codice IVA riga"
-                            placeholder="Predefinito…"
-                            [options]="lineVatOptions(i)"
-                            [value]="line.controls.vatCodeId.value"
-                            [disabled]="formReadOnly()"
-                            (valueChange)="onLineVatSelect(i, $event)"
-                            (lineAdvance)="lineFocus.next(i, 'vat')"
-                            (lineRetreat)="lineFocus.previous(i, 'vat')"
-                            (lineRowAdvance)="lineFocus.rowDown(i, 'vat')"
-                            (lineRowRetreat)="lineFocus.rowUp(i, 'vat')"
-                            (escapePressed)="onLineSearchEscape(i)"
-                          />
-                        </td>
-                      }
-                      <!--
-                        «Scarica mag.»: solo Fattura accompagnatoria e solo senza
-                        DDT agganciato — con un DDT le giacenze le ha già scaricate
-                        quello. La condizione sta dentro `isLineColumnVisible`, che
-                        la mette PRIMA della preferenza dell'operatore: una colonna
-                        che per questo tipo non esiste non si può accendere dal
-                        selettore.
-                      -->
-                      @if (isLineColumnVisible('loadsStock')) {
-                        <td class="doc-form__cell doc-form__cell--check doc-form__col--stock">
-                          <label class="doc-form__check" [for]="'sd-stock-' + i">
-                            <input
-                              [id]="'sd-stock-' + i"
-                              type="checkbox"
-                              formControlName="loadsStock"
-                            />
-                            <span class="sr-only">Scarica mag.</span>
-                          </label>
-                        </td>
-                      }
-                      <td class="doc-form__cell doc-form__cell--actions">
-                        @if (lines.length > 1) {
-                          <button
-                            type="button"
-                            class="doc-form__line-remove"
-                            aria-label="Rimuovi riga"
-                            (click)="removeLine(i)"
-                          >
-                            <i class="pi pi-trash" aria-hidden="true"></i>
-                          </button>
-                        }
-                      </td>
-                    </tr>
+                    <!-- ⭐ **La riga è la COMPONENTE COMUNE.** Qui c'erano 13
+                         `<td>` scritti a mano. -->
+                    <tr
+                      app-document-line-row
+                      class="doc-form__table-row"
+                      cdkDrag
+                      [cdkDragStartDelay]="{ touch: 250, mouse: 0 }"
+                      [formGroupName]="i"
+                      [group]="lineGroup(i)"
+                      [lineIndex]="i"
+                      [isColumnVisible]="isLineColumnVisibleFn"
+                      idPrefix="sd"
+                      [view]="lineRowView(i)"
+                      [readOnly]="formReadOnly()"
+                      [loadToggleLabel]="stockToggleLabel()"
+                      [identityColumnCount]="3"
+                      [dragHandle]="true"
+                      [quantityMin]="1"
+                      (codeChanged)="onRowCodeChanged(i, $event)"
+                      (codeFocused)="onRowCodeFocused(i, $event)"
+                      (codeBlurred)="onLineCodeBlur(i)"
+                      (codeCommitted)="onRowCodeCommitted(i, $event)"
+                      (productNameChanged)="onLineProductNameChange(i, $event)"
+                      (productFocused)="onLineProductFocus(i)"
+                      (productBlurred)="onLineProductBlur(i)"
+                      (productSearchOpened)="openLineProductSearch(i)"
+                      (suggestionPicked)="onRowSuggestionPicked(i, $event)"
+                      (suggestionNavigated)="onRowSuggestionNavigated($event)"
+                      (escapePressed)="onLineSearchEscape(i)"
+                      (unitChanged)="onLineUnitOfMeasureChange(i, $event)"
+                      (vatSelected)="onLineVatSelect(i, $event)"
+                      (fieldKeydown)="lineFocus.handleKeydownIfMine(i, $event.field, $event.value)"
+                      (fieldAdvance)="lineFocus.nextIfMine(i, $event)"
+                      (fieldRetreat)="lineFocus.previousIfMine(i, $event)"
+                      (rowAdvance)="lineFocus.rowDownIfMine(i, $event)"
+                      (rowRetreat)="lineFocus.rowUpIfMine(i, $event)"
+                      (removeRequested)="removeLine(i)"
+                    ></tr>
                   }
                 </tbody>
               </table>
@@ -1030,36 +478,87 @@
             esisterebbe due volte e il giro del fuoco punterebbe a campi
             nascosti.
           -->
-          @if (compactView()) {
-            <div class="doc-form__cards">
+          <!--
+            ⚠️ **`&& !headerGateActive()`, e serve.** Questo è un `@if` a sé, non
+            l'`@else` della tabella qui sopra: senza la seconda condizione, su
+            schermo compatto lo stato vuoto e le card comparirebbero **insieme**
+            — «Scegli il cliente e la sede» sopra una griglia di righe.
+
+            ⛔ È la stessa trappola che il commento qui sopra descrive per la
+            coppia tabella/card: due rami che sembrano alternativi e non lo sono.
+          -->
+          @if (compactView() && !headerGateActive()) {
+            <div class="doc-form__cards" formArrayName="lines">
               @for (line of lines.controls; track line; let i = $index) {
-                <app-sales-document-line-card
-                  [lineIndex]="i"
-                  [line]="line"
-                  idPrefix="sd"
-                  [suggestions]="lineSuggestions(i)"
-                  [suggestionsOpen]="lineSuggestionsOpen(i)"
-                  [codeChoice]="mobileCodeChoice(i)"
-                  [vatOptions]="lineVatOptions(i)"
-                  [priceLabel]="priceRowLabel()"
-                  [totalLabel]="lineTotalLabel(i)"
-                  [showLoadsStock]="showLoadsStockColumn()"
-                  [nameInvalid]="lineNameInvalid(i)"
-                  [disabled]="formReadOnly()"
-                  [canRemove]="lines.length > 1"
-                  (nameInput)="onLineProductNameChange(i, $event)"
-                  (nameFocus)="onLineProductFocus($event)"
-                  (nameBlur)="onLineProductBlur($event)"
-                  (searchProduct)="openLineProductSearch($event)"
-                  (suggestionPick)="onProductSuggestionPick($event.lineIndex, $event.variantId)"
-                  (codeFocused)="onLineCodeFocus(i, $event)"
-                  (codeBlurred)="onMobileCodeBlur(i, $event)"
-                  (codeCommitted)="commitCodeLookup(i, $event)"
-                  (codeSuggestionPicked)="onCodeSuggestionPick(i, $event)"
-                  (vatSelected)="onLineVatSelect(i, $event)"
-                  (duplicated)="duplicateLine($event)"
-                  (removed)="removeLine($event)"
-                />
+                @if (lineIsReference(i)) {
+                  <!-- Documento collegato: banda bassa che separa il gruppo, non
+                       una card prodotto. Era resa come una riga di merce, con
+                       codici, IVA e spunta magazzino modificabili — mentre il
+                       desktop la rende banda da sempre, perché la riga comune
+                       ha il ramo e la card locale no. -->
+                  <app-document-line-card-reference
+                    [group]="lineGroup(i)"
+                    [formGroupName]="i"
+                    [readOnly]="formReadOnly()"
+                    [canRemove]="lines.length > 1"
+                    (removeRequested)="removeLine(i)"
+                  />
+                } @else {
+                  <!-- ⭐ **La card è quella COMUNE**, guscio, striscia e corpo. Qui
+                       c'era `app-sales-document-line-card`, un involucro di dominio
+                       che scriveva a mano i campi: al mobile era quello che le
+                       `<td>` scritte a mano erano al desktop. Il corpo li deduce
+                       ora dal catalogo colonne, come la riga di scrivania —
+                       quindi il selettore Colonne arriva anche al telefono. -->
+                  <app-document-line-card
+                    [lineIndex]="i"
+                    [open]="isLineCardOpen(i)"
+                    [complete]="lineCardHead(i).complete"
+                    [readOnly]="formReadOnly()"
+                    [canRemove]="lines.length > 1"
+                    [title]="lineCardHead(i).title"
+                    [variantLabel]="lineCardHead(i).variantLabel"
+                    [meta]="lineCardHead(i).meta"
+                    [alert]="lineCardHead(i).alert"
+                    (toggled)="toggleLineCard(i)"
+                    (removeRequested)="removeLine(i)"
+                    (removed)="removeLine(i)"
+                  >
+                    <app-document-line-card-strip
+                      cardControls
+                      [group]="lineGroup(i)"
+                      [lineIndex]="i"
+                      [isColumnVisible]="isLineColumnVisibleFn"
+                      [view]="lineRowView(i)"
+                      [readOnly]="formReadOnly()"
+                      [priceLabel]="priceRowLabel()"
+                      [quantityMin]="1"
+                    />
+                    <app-document-line-card-body
+                      cardBody
+                      [group]="lineGroup(i)"
+                      [lineIndex]="i"
+                      [isColumnVisible]="isLineColumnVisibleFn"
+                      idPrefix="sd"
+                      [view]="lineRowView(i)"
+                      [readOnly]="formReadOnly()"
+                      [loadToggleLabel]="stockToggleLabel()"
+                      [priceLabel]="priceRowLabel()"
+                      (codeChanged)="onRowCodeChanged(i, $event)"
+                      (codeFocused)="onRowCodeFocused(i, $event)"
+                      (codeBlurred)="onMobileCodeBlur(i, $any($event))"
+                      (codeCommitted)="commitCodeLookup(i, $any($event))"
+                      (productNameChanged)="onLineProductNameChange(i, $event)"
+                      (productFocused)="onLineProductFocus(i)"
+                      (productBlurred)="onLineProductBlur(i)"
+                      (productSearchOpened)="openLineProductSearch(i)"
+                      (suggestionPicked)="onRowSuggestionPicked(i, $event)"
+                      (unitChanged)="onLineUnitOfMeasureChange(i, $event)"
+                      (vatSelected)="onLineVatSelect(i, $event)"
+                      (stockToggled)="onLineStockToggled(i, $event)"
+                    />
+                  </app-document-line-card>
+                }
               }
             </div>
           }
@@ -1095,11 +594,16 @@
               </div>
               <div class="doc-form__field">
                 <span class="doc-form__label">Porto</span>
+                <!-- `transportPortOptions` ha gia' la sua voce neutra («Non
+                     indicato», value ''): accendendo anche quella vuota il
+                     pannello mostrava due righe con la stessa etichetta E lo
+                     stesso valore, quindi con la spunta su entrambe. -->
                 <app-select-menu
                   [options]="transportPortOptions"
                   [value]="form.controls.transportPort.value"
                   ariaLabel="Porto del trasporto"
                   placeholder="Non indicato"
+                  [includeEmptyOption]="false"
                   [fullWidth]="true"
                   (valueChange)="form.controls.transportPort.setValue($event ?? '')"
                 />
@@ -1263,73 +767,22 @@
              non esiste. -->
         <div class="doc-form__footer-grid">
           <aside class="doc-form__totals-bar" aria-label="Totali documento">
-            <dl class="doc-form__totals">
-              <div class="doc-form__totals-row">
-                <dt>Imponibile righe</dt>
-                <dd class="tabular-nums">
-                  @if (lineTotals().hasDocumentDiscount) {
-                    <span class="doc-form__line-total-gross">{{
-                      formatMoney(lineTotals().grossSubtotal)
-                    }}</span>
-                  }
-                  {{ formatMoney(lineTotals().subtotal) }}
-                </dd>
-              </div>
-              <div class="doc-form__totals-row doc-form__totals-row--field">
-                <dt>
-                  <label for="sd-doc-discount">Sconto extra</label>
-                </dt>
-                <dd>
-                  <input
-                    id="sd-doc-discount"
-                    class="doc-form__input doc-form__input--num doc-form__totals-input"
-                    type="text"
-                    formControlName="documentDiscountPercent"
-                    placeholder="es. 5%"
-                    autocomplete="off"
-                  />
-                </dd>
-              </div>
-              <!-- Dettaglio per aliquota: solo con aliquote miste. -->
-              @if (isSalesInvoice() && hasMixedVatRates()) {
-                @for (entry of vatBreakdown(); track entry.ratePercent) {
-                  <div class="doc-form__totals-row">
-                    <dt>IVA {{ entry.ratePercent }}% su {{ formatMoney(entry.net) }}</dt>
-                    <dd class="tabular-nums">{{ formatMoney(entry.vat) }}</dd>
-                  </div>
-                }
-              }
-              <div class="doc-form__totals-row">
-                <dt>IVA</dt>
-                <dd class="tabular-nums">{{ formatMoney(lineTotals().tax) }}</dd>
-              </div>
-              <div class="doc-form__totals-row doc-form__totals-row--total">
-                <dt>Totale documento</dt>
-                <dd class="tabular-nums">{{ formatMoney(lineTotals().total) }}</dd>
-              </div>
-            </dl>
+            <app-document-totals [rows]="totalsRows()" />
           </aside>
 
           <div class="doc-form__footer-notes">
-            <div class="doc-form__field">
-              <label class="doc-form__label" for="sd-notes">Note (visibili in stampa)</label>
-              <textarea
-                id="sd-notes"
-                class="doc-form__textarea"
-                rows="3"
-                formControlName="notes"
-              ></textarea>
-            </div>
-
-            <div class="doc-form__field">
-              <label class="doc-form__label" for="sd-internal">Commento interno</label>
-              <textarea
-                id="sd-internal"
-                class="doc-form__textarea"
-                rows="2"
-                formControlName="internalComment"
-              ></textarea>
-            </div>
+            <!-- ⭐ **L'area note comune.**
+          
+                 ⛔ Qui c'erano gli stessi due campi che vivevano in cinque maschere
+                 con CINQUE etichette diverse — «Note», «Note documento», «Note
+                 (visibili in stampa)» — e una sola delle cinque diceva la cosa
+                 utile: quale dei due esce in stampa. Ora la dicono entrambi. -->
+            <app-document-notes
+              [group]="form"
+              notesId="sd-notes"
+              internalId="sd-internal"
+              [readOnly]="formReadOnly()"
+            />
           </div>
         </div>
       </fieldset>
@@ -1341,24 +794,15 @@
         <p class="doc-form__submit-error" aria-hidden="true">{{ blockingIssue }}</p>
       }
 
-      <div class="doc-form__actions">
-        <app-button type="button" variant="ghost" (click)="cancel()">Chiudi</app-button>
-        <app-button type="submit" [loading]="saving()" [disabled]="formReadOnly() || saving()">
-          Salva documento
-        </app-button>
-      </div>
+      <!-- ⭐ **La barra azioni comune** — una dichiarazione, due vesti.
+           ⛔ Qui c'erano DUE blocchi che commutavano alla soglia `lg`. -->
+      <app-document-actions
+        [saving]="saving()"
+        [readOnly]="formReadOnly()"
+        (closeRequested)="cancel()"
+      >
+      </app-document-actions>
 
-      <!-- Azioni su mobile/tablet (regole-stile-ui §5): coppia in fondo al
-           documento, scorre col contenuto. Corregge il submit nascosto ≤ md:
-           la barra desktop sotto lg esce di scena, il salvataggio resta qui. -->
-      <div class="doc-form__mobile-actions">
-        <app-button type="button" variant="secondary" [disabled]="saving()" (click)="cancel()">
-          Annulla
-        </app-button>
-        <app-button type="submit" [loading]="saving()" [disabled]="formReadOnly() || saving()">
-          Salva documento
-        </app-button>
-      </div>
       <!-- La ricerca articolo a tutta pagina, aperta dalla lente della riga. -->
       @if (productPanelOpen()) {
         <app-document-product-search-panel
@@ -1438,44 +882,34 @@
   (closed)="onSeriesManagerClosed()"
 />
 
-@if (exitDialogOpen()) {
-  <div class="doc-form__exit-backdrop" aria-hidden="true" (click)="cancelExitDialog()"></div>
-  <div
-    class="doc-form__exit-dialog"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="sdf-exit-title"
-  >
-    <h2 id="sdf-exit-title" class="doc-form__exit-title">Modifiche non salvate</h2>
-    <p class="doc-form__exit-message">
-      Ci sono modifiche non salvate. Vuoi salvarle prima di chiudere?
-    </p>
-    @if (submitError(); as appError) {
-      <p class="doc-form__exit-error" role="alert">{{ appError.message }}</p>
-    }
-    <div class="doc-form__exit-actions">
-      <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancelExitDialog()">
-        Annulla
-      </app-button>
-      <app-button
-        type="button"
-        variant="secondary"
-        [disabled]="saving()"
-        (click)="confirmExitWithoutSaving()"
-      >
-        Chiudi senza salvare
-      </app-button>
-      <app-button
-        type="button"
-        [loading]="saving()"
-        [disabled]="saving()"
-        (click)="confirmExitSaveDocument()"
-      >
-        Salva e chiudi
-      </app-button>
-    </div>
-  </div>
-}
+<!-- ⭐ **Il dialogo comune, non un guscio scritto a mano.**
+
+     ⛔ Qui c'erano venti righe con un `<div role="dialog">` e uno sfondo
+     proprio: NON un `<dialog>` nativo, quindi senza trappola del fuoco, senza
+     Esc e senza sfondo inerte — contro `regole-architettura`, che li chiede
+     esplicitamente per ogni modale. Lo stesso guscio viveva in undici file.
+
+     ⛔ **E aveva TRE azioni.** La terza, «Salva e chiudi», e' stata tolta per
+     decisione del proprietario (24/08/2026): il dialogo d'uscita ne ha DUE, e
+     il salvataggio resta il pulsante Salva della barra.
+
+     ⚠️ Anche il MESSAGGIO e' cambiato, e non e' un ritocco: diceva «Vuoi
+     salvarle prima di chiudere?», cioe' faceva una domanda a cui nessuno dei
+     due pulsanti rimasti risponde piu'.
+
+     ⚠️ `emphasis="cancel"` non e' un vezzo: senza, «Esci senza salvare»
+     sarebbe il pulsante primario, cioe' quello che il pollice cerca. La
+     scelta che perde lavoro non si veste da scelta consigliata. -->
+<app-confirm-dialog
+  [(open)]="exitDialogOpen"
+  title="Modifiche non salvate"
+  message="Ci sono modifiche non salvate: uscendo dalla pagina andranno perse."
+  cancelLabel="Annulla"
+  confirmLabel="Esci senza salvare"
+  emphasis="cancel"
+  (confirmed)="confirmExitWithoutSaving()"
+  (dismissed)="cancelExitDialog()"
+/>
 
 <!-- Avviso cronologico (§4): la serie contiene documenti fuori posto. Non
      blocca — «Sì, salva comunque» prosegue col salvataggio. -->

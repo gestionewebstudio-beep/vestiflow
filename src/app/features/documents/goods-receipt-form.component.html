@@ -1,17 +1,12 @@
 <!-- doc-form--m-ref: adotta la vista mobile di riferimento promossa in
      styles/_document-form-mobile.scss (pannelli testata, dock, totali impilati). -->
 <section class="doc-form doc-form--m-ref">
-  @if (prefillError.message(); as prefillFailed) {
-    <!-- Il precompilato non è arrivato. Senza questo avviso resterebbe una
-         maschera vuota, indistinguibile da un documento nuovo legittimo: chi
-         salvasse creerebbe la cosa sbagliata credendo di aver fatto l'altra. -->
-    <app-inline-banner
-      tone="error"
-      [message]="prefillFailed"
-      dismissLabel="Ho capito"
-      (dismissed)="prefillError.dismiss()"
-    />
-  }
+  <!-- ⭐ **L'avviso comune.** Otto righe byte-identiche vivevano in sei
+       maschere: stesso tono, stesso messaggio, stessa etichetta di congedo.
+  
+       ⚠️ Serve, e il perche' e' nel componente: senza, resta una maschera
+       VUOTA, indistinguibile da un documento nuovo legittimo. -->
+  <app-document-prefill-error [store]="prefillError" />
   <div class="doc-form__head-row">
     <!-- Ritorno in linea col titolo (riferimento Ordine cliente). Senza
          cronologia (refresh, link diretto) l'URL `documents/:id/edit`
@@ -70,22 +65,26 @@
     </p>
   }
 
-  @if (loading()) {
-    <app-table-skeleton [columns]="2" [rows]="6" />
-  } @else if (loadError()) {
-    <app-error-state
-      description="Impossibile caricare il documento."
-      retryLabel="Riprova"
-      (retry)="reload()"
-    />
-  } @else if (notEditable()) {
-    <app-empty-state
-      icon="pi-lock"
-      title="Documento non modificabile"
-      description="Solo le bozze o i documenti confermati (non bloccati) di arrivo merce possono essere modificati."
-      ctaLabel="Torna al registro"
-      (ctaClick)="cancel()"
-    />
+  @if (loadState() !== 'ready') {
+    <!-- ⭐ **La macchina degli stati di pagina, comune.**
+  
+         ⛔ Qui c'erano tre rami scritti a mano — scheletro, errore,
+         non modificabile — identici nell'ORDINE in sette maschere su
+         sette, ma con tre descrizioni d'errore diverse e uno scheletro
+         da cinque righe invece di sei.
+  
+         ⭐ Il MOTIVO per cui non si puo' modificare resta qui: dipende
+         dal documento, e il livello comune non deve conoscerlo. -->
+    <app-document-page-state [state]="loadState()" (retry)="reload()">
+      <app-empty-state
+        documentPageStateBlocked
+        icon="pi-lock"
+        title="Documento non modificabile"
+        description="Solo le bozze o i documenti confermati (non bloccati) di arrivo merce possono essere modificati."
+        ctaLabel="Torna al registro"
+        (ctaClick)="cancel()"
+      />
+    </app-document-page-state>
   } @else {
     <form
       class="doc-form__form"
@@ -134,213 +133,68 @@
       }
 
       <fieldset class="doc-form__fieldset" [disabled]="formReadOnly()">
+        <!-- ⭐ **La testata è dichiarata UNA VOLTA, in DUE fasce.** Qui c'erano
+             390 righe: 210 nei due pannelli mobile e 172 nelle due fasce
+             desktop, con gli stessi campi, le stesse opzioni e gli stessi
+             gestori — cambiavano l'identificativo (`gr-m-*` contro `gr-*`) e il
+             suffisso «(vista mobile)» negli aria-label. Non erano due viste: era
+             la stessa vista scritta due volte, e ogni correzione ne raggiungeva
+             una sola.
+
+             **DUE `app-document-header` in fila, uno per fascia.** Il componente
+             comune rende UN pannello mobile per istanza, e l'Arrivo merce ha due
+             identità separate da tenere distinte (specifica comune §9): il
+             documento VestiFlow e il documento ricevuto dal fornitore. La
+             divisione in due istanze è quindi la stessa che c'era prima, non una
+             concessione al componente.
+
+             ⚠️ La card resta della maschera — `<div class="doc-form__header">`:
+             è lei a tenere insieme le due fasce, e il Trasferimento può metterla
+             sull'host solo perché di fascia ne ha una. -->
         <div class="doc-form__header">
-          <!-- Vista mobile: due pannelli apribili, come la reference «Ordine
-               cliente». Vivono nel DOM accanto alle fasce desktop e si
-               accendono sotto lg (stesso schema tabella/card delle righe).
-               Le copie mobili dei controlli hanno aria-label distinti
-               («… (vista mobile)») e id gr-m-*: negli spec jsdom entrambe le
-               viste sono presenti e getByRole deve restare unico. -->
-          <div class="doc-panels">
-            <!-- I dati che sbloccano le righe: aperto all'ingresso. -->
-            <app-document-mobile-panel
-              [title]="supplierPanelTitle()"
-              [summaryParts]="[supplierPanelSubtitle()]"
-              icon="pi-truck"
-              [statusText]="supplierPanelStatus()"
-              [statusReady]="headerDataReady()"
-              [initiallyOpen]="true"
-            >
-              <p class="doc-panel__section">Dati principali</p>
+          <!-- Le due vesti di una cella scritta a mano: le stesse che
+               `app-document-header-field` sceglie da sé. Servono qui perché tre
+               celle non passano da quel componente — hanno una testa con comandi
+               (Fornitore) o una casella di spunta al posto dell'etichetta. -->
+          @let cella = compactView() ? 'doc-panel__field' : 'doc-form__field';
+          @let etichetta = compactView() ? 'doc-panel__label' : 'doc-form__label';
 
-              <div class="doc-panel__fields">
-                <div class="doc-panel__field">
-                  <div class="doc-panel__field-head">
-                    <span class="doc-panel__label">Fornitore</span>
-                    <span class="doc-panel__field-actions">
-                      <!-- Senza la gestione degli ordini fornitore l'anagrafica non
-                           si crea da qui: resta la scelta fra i fornitori già
-                           registrati. -->
-                      @if (puoGestireOrdiniFornitore()) {
-                        <button
-                          type="button"
-                          class="doc-panel__field-action"
-                          (click)="toggleSupplierForm()"
-                        >
-                          <i
-                            class="pi"
-                            [class.pi-plus]="!showSupplierForm()"
-                            [class.pi-minus]="showSupplierForm()"
-                            aria-hidden="true"
-                          ></i>
-                          {{ showSupplierForm() ? 'Annulla nuovo fornitore' : 'Nuovo fornitore' }}
-                        </button>
-                      }
-                      @if (hasSupplier()) {
-                        <button
-                          type="button"
-                          class="doc-panel__field-action"
-                          (click)="openSupplierDetail()"
-                        >
-                          <i class="pi pi-external-link" aria-hidden="true"></i>
-                          Scheda fornitore
-                        </button>
-                      }
-                    </span>
-                  </div>
-
-                  <app-select-menu
-                    [options]="supplierOptions()"
-                    [value]="form.controls.supplierId.value"
-                    ariaLabel="Fornitore (vista mobile)"
-                    placeholder="Seleziona fornitore…"
-                    [fullWidth]="true"
-                    [searchable]="true"
-                    searchPlaceholder="Cerca fornitore…"
-                    searchAriaLabel="Cerca fornitore (vista mobile)"
-                    [invalid]="fieldInvalid('supplierId')"
-                    describedBy="gr-m-supplier-error"
-                    (valueChange)="onSupplierSelect($event)"
-                  />
-                  @if (fieldInvalid('supplierId')) {
-                    <p id="gr-m-supplier-error" class="doc-form__error">Campo obbligatorio.</p>
-                  }
-                </div>
-
-                <div class="doc-panel__field">
-                  <span class="doc-panel__label">Location destinazione</span>
-                  @if (locationOptions().length > 0) {
-                    <app-select-menu
-                      [options]="locationOptions()"
-                      [value]="form.controls.locationId.value"
-                      ariaLabel="Location di destinazione (vista mobile)"
-                      placeholder="Seleziona location…"
-                      [fullWidth]="true"
-                      [searchable]="true"
-                      searchPlaceholder="Cerca location…"
-                      searchAriaLabel="Cerca location (vista mobile)"
-                      [invalid]="fieldInvalid('locationId')"
-                      describedBy="gr-m-location-error"
-                      (valueChange)="onLocationSelect($event)"
-                    />
-                  } @else {
-                    <p class="doc-form__error" role="alert">
-                      Non hai accesso ad alcun magazzino. Contatta il titolare o un amministratore
-                      dell'account.
-                    </p>
-                  }
-                  @if (fieldInvalid('locationId')) {
-                    <p id="gr-m-location-error" class="doc-form__error">Campo obbligatorio.</p>
-                  }
-                </div>
-
-                <fieldset class="doc-form__gate-fields" [disabled]="headerGateActive()">
-                  <div class="doc-panel__field">
-                    <label class="doc-panel__label" for="gr-m-date">Data registrazione</label>
-                    <app-date-input
-                      inputId="gr-m-date"
-                      formControlName="documentDate"
-                      ariaLabel="Data registrazione (vista mobile)"
-                      [fullWidth]="true"
-                    />
-                  </div>
-
-                  <app-document-number-field
-                    numberInputId="gr-m-number"
-                    hint="Numero interno di catalogazione."
-                    [number]="form.controls.documentNumber.value"
-                    [isProposal]="numberIsProposal()"
-                    [series]="form.controls.series.value"
-                    [seriesOptions]="numbering.seriesOptions()"
-                    [canManageSeries]="puoConfigurareDocumenti()"
-                    (numberChange)="numbering.onNumberChange($event)"
-                    (seriesChange)="numbering.onSeriesChange($event)"
-                    (manageSeries)="seriesDialogOpen.set(true)"
-                  />
-                </fieldset>
-              </div>
-            </app-document-mobile-panel>
-
-            <!-- I dati letti dal documento del fornitore: chiuso, si apre per
-                 compilarli. Interamente dietro il gate fornitore + magazzino. -->
-            <app-document-mobile-panel
-              title="Documento fornitore"
-              [summaryParts]="supplierDocPanelSummaryParts()"
-              icon="pi-file"
-            >
-              <fieldset class="doc-form__gate-fields" [disabled]="headerGateActive()">
-                <!-- Stesso componente della testata desktop, in colonna. Titolo
-                     di sezione e contenitore dei campi li disegna lui: qui
-                     restano solo le celle affini (pagamento, copertura
-                     fattura), proiettate nella stessa sezione invece di
-                     aprirne una seconda. Gli id degli input hanno prefisso
-                     proprio: le due viste stanno entrambe nel DOM. -->
-                <app-document-counterparty-ref
-                  idPrefix="gr-m"
-                  layout="stack"
-                  sectionTitle="Dati del documento ricevuto"
-                  typeLabel="Tipo di documento"
-                  numberLabel="N. documento fornitore"
-                  dateLabel="Data doc. fornitore"
-                  [typeId]="form.controls.externalDocumentTypeId.value"
-                  [docNumber]="form.controls.externalDocNumber.value"
-                  [docDate]="form.controls.externalDocDate.value"
-                  [snapshotLabel]="externalDocTypeSnapshot()"
-                  [disabled]="formReadOnly()"
-                  (typeIdChange)="onExternalDocTypeChange($event)"
-                  (docNumberChange)="form.controls.externalDocNumber.setValue($event)"
-                  (docDateChange)="form.controls.externalDocDate.setValue($event)"
-                  (typesChanged)="onExternalDocTypesChanged()"
-                >
-                  <div class="doc-panel__field">
-                    <span class="doc-panel__label">Pagamento</span>
-                    <app-select-menu
-                      [options]="paymentMethodOptions()"
-                      [value]="form.controls.paymentMethod.value"
-                      ariaLabel="Modalità di pagamento (vista mobile)"
-                      placeholder="Modalità…"
-                      [fullWidth]="true"
-                      [searchable]="true"
-                      searchPlaceholder="Cerca pagamento…"
-                      searchAriaLabel="Cerca modalità di pagamento (vista mobile)"
-                      (valueChange)="onPaymentMethodChange($event)"
-                    />
-                  </div>
-
-                  <label class="doc-form__check" for="gr-m-invoice-pending">
-                    <input
-                      id="gr-m-invoice-pending"
-                      type="checkbox"
-                      formControlName="invoicePending"
-                    />
-                    <span>Seguirà registrazione fattura</span>
-                  </label>
-                </app-document-counterparty-ref>
-              </fieldset>
-            </app-document-mobile-panel>
-          </div>
-
-          <!-- Testata a due fasce (riferimento OC): questa, la prima, porta i
-               dati di registrazione VestiFlow; la seconda (fondo soft) è quella
-               del documento del fornitore, e la disegna il componente condiviso
-               qui sotto. Le vecchie etichette di blocco non servono più: la
-               separazione la danno le fasce stesse. -->
-          <div
-            class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row"
+          <!-- Fascia 1 — il documento VestiFlow (specifica comune §9.1). Sono i
+               dati che sbloccano le righe: il pannello mobile parte aperto. -->
+          <app-document-header
+            [flowRow]="true"
+            [title]="supplierPanelTitle()"
+            [summaryParts]="[supplierPanelSubtitle()]"
+            icon="pi-truck"
+            [statusText]="supplierPanelStatus()"
+            [statusReady]="headerDataReady()"
+            [initiallyOpen]="true"
+            sectionTitle="Dati principali"
+            [dense]="true"
           >
+            <!-- ⛔ Non passa da `app-document-header-field`: quel componente rende
+                 l'etichetta e basta, e qui l'etichetta divide la riga con i
+                 comandi dell'anagrafica fornitore. La cella resta scritta a mano,
+                 ma UNA volta sola. -->
             <div
-              class="doc-form__field doc-form__field--span2"
+              [class]="cella"
+              [class.doc-form__field--span2]="!compactView()"
               [class.doc-form__field--waiting]="fieldWaiting('supplierId')"
             >
-              <div class="doc-form__field-head">
-                <span class="doc-form__label" id="gr-supplier-label">Fornitore</span>
-                <span class="doc-form__field-actions">
-                  <!-- Senza la gestione degli ordini fornitore l'anagrafica non si
-                       crea da qui: resta la scelta fra i fornitori già registrati. -->
+              <div [class]="compactView() ? 'doc-panel__field-head' : 'doc-form__field-head'">
+                <span [class]="etichetta">Fornitore</span>
+                <span
+                  [class]="compactView() ? 'doc-panel__field-actions' : 'doc-form__field-actions'"
+                >
+                  <!-- Senza la gestione degli ordini fornitore l'anagrafica non
+                       si crea da qui: resta la scelta fra i fornitori già
+                       registrati. -->
                   @if (puoGestireOrdiniFornitore()) {
                     <button
                       type="button"
-                      class="doc-form__inline-toggle"
+                      [class]="
+                        compactView() ? 'doc-panel__field-action' : 'doc-form__inline-toggle'
+                      "
                       (click)="toggleSupplierForm()"
                     >
                       <i
@@ -355,7 +209,9 @@
                   @if (hasSupplier()) {
                     <button
                       type="button"
-                      class="doc-form__inline-toggle"
+                      [class]="
+                        compactView() ? 'doc-panel__field-action' : 'doc-form__inline-toggle'
+                      "
                       (click)="openSupplierDetail()"
                     >
                       <i class="pi pi-external-link" aria-hidden="true"></i>
@@ -383,11 +239,12 @@
               }
             </div>
 
-            <div
-              class="doc-form__field"
-              [class.doc-form__field--waiting]="fieldWaiting('locationId')"
+            <app-document-header-field
+              label="Location destinazione"
+              [waiting]="fieldWaiting('locationId')"
+              [invalid]="fieldInvalid('locationId')"
+              errorId="gr-location-error"
             >
-              <span class="doc-form__label">Location destinazione</span>
               @if (locationOptions().length > 0) {
                 <app-select-menu
                   [options]="locationOptions()"
@@ -409,17 +266,16 @@
                   dell'account.
                 </p>
               }
-              @if (fieldInvalid('locationId')) {
-                <p id="gr-location-error" class="doc-form__error">Campo obbligatorio.</p>
-              }
-            </div>
+            </app-document-header-field>
 
             <!-- Gate compilazione: data e numero si sbloccano solo dopo
-                 fornitore + magazzino (display: contents per non rompere la
-                 fascia della testata). -->
+                 fornitore + magazzino (`display: contents` per non rompere né la
+                 fascia desktop né la colonna del pannello). -->
             <fieldset class="doc-form__gate-fields" [disabled]="headerGateActive()">
-              <div class="doc-form__field doc-form__field--end-md">
-                <label class="doc-form__label" for="gr-date">Data registrazione</label>
+              <!-- ⛔ Qui c'era un `<label for="gr-date">`. Il campo condiviso rende
+                   uno `<span>`, e il nome accessibile lo porta l'`ariaLabel` del
+                   date picker: era già così su entrambe le viste. -->
+              <app-document-header-field label="Data registrazione">
                 <app-date-input
                   inputId="gr-date"
                   formControlName="documentDate"
@@ -427,7 +283,7 @@
                   [compact]="true"
                   [fullWidth]="true"
                 />
-              </div>
+              </app-document-header-field>
 
               <!-- Il numero è il numero di catalogazione interno, non
                    quello del fornitore (che sta nella seconda fascia). -->
@@ -443,60 +299,156 @@
                 (seriesChange)="numbering.onSeriesChange($event)"
                 (manageSeries)="seriesDialogOpen.set(true)"
               />
+
+              <!-- ⚠️ **Campo della SOLA vista compatta, e non è una dimenticanza.**
+                   Su scrivania lo stesso comando vive nell'intestazione della
+                   colonna Costo, dove governa la colonna che legge: non è una
+                   copia mancante, è lo stesso controllo messo dove c'è posto per
+                   lui. Finché le due viste convivevano nel DOM bastava che
+                   stesse nel pannello; ora che ne vive una sola, l'esclusione va
+                   dichiarata. -->
+              @if (compactView()) {
+                <div class="doc-panel__field">
+                  <span class="doc-panel__label">Modalità costo</span>
+                  <app-select-menu
+                    [options]="costModeOptions"
+                    [value]="costEntryMode()"
+                    ariaLabel="Modalità costo netto o ivato"
+                    placeholder="Netto"
+                    [includeEmptyOption]="false"
+                    [compact]="true"
+                    [fullWidth]="true"
+                    (valueChange)="
+                      selectCostMode($event === 'vat_included' ? 'vat_included' : 'vat_excluded')
+                    "
+                  />
+                </div>
+              }
             </fieldset>
-          </div>
+          </app-document-header>
 
-          <!-- Seconda fascia: i dati letti dal documento cartaceo/PDF del
-               fornitore, più pagamento e copertura fattura. La fascia non la
-               disegna più la maschera — se la porta dietro il componente del
-               documento della controparte, che è la stessa forma in tutte le
-               maschere. Qui resta solo il gate fornitore + magazzino
-               (`display: contents`, non rompe la griglia). -->
-          <fieldset class="doc-form__gate-fields" [disabled]="headerGateActive()">
-            <app-document-counterparty-ref
-              idPrefix="gr"
-              typeLabel="Tipo di documento"
-              numberLabel="N. documento fornitore"
-              dateLabel="Data doc. fornitore"
-              [typeId]="form.controls.externalDocumentTypeId.value"
-              [docNumber]="form.controls.externalDocNumber.value"
-              [docDate]="form.controls.externalDocDate.value"
-              [snapshotLabel]="externalDocTypeSnapshot()"
-              [disabled]="formReadOnly()"
-              (typeIdChange)="onExternalDocTypeChange($event)"
-              (docNumberChange)="form.controls.externalDocNumber.setValue($event)"
-              (docDateChange)="form.controls.externalDocDate.setValue($event)"
-              (typesChanged)="onExternalDocTypesChanged()"
-            >
-              <!-- Celle affini: stanno nella stessa fascia del documento
-                   fornitore, proiettate dopo le tre del componente. -->
-              <div class="doc-form__field doc-form__field--end-md">
-                <span class="doc-form__label">Pagamento</span>
-                <app-select-menu
-                  [options]="paymentMethodOptions()"
-                  [value]="form.controls.paymentMethod.value"
-                  ariaLabel="Modalità di pagamento"
-                  placeholder="Modalità…"
-                  [compact]="true"
-                  [fullWidth]="true"
-                  [searchable]="true"
-                  searchPlaceholder="Cerca pagamento…"
-                  searchAriaLabel="Cerca modalità di pagamento"
-                  (valueChange)="onPaymentMethodChange($event)"
-                />
-              </div>
+          <!-- Fascia 2 — il documento ricevuto dal fornitore (specifica comune
+               §9.2). Identità separata, quindi pannello separato: chiuso
+               all'ingresso, e tutto dietro il gate fornitore + magazzino.
 
-              <!-- Punto E: la Causale di carico non è più esposta nel form.
-                   Viene generata sempre in automatico e in silenzio dal modello
-                   del tipo documento fornitore (tipo + numero + data). -->
-              <div class="doc-form__field">
-                <label class="doc-form__check doc-form__check--block" for="gr-invoice-pending">
-                  <input id="gr-invoice-pending" type="checkbox" formControlName="invoicePending" />
-                  <span>Seguirà registrazione fattura</span>
-                </label>
-              </div>
-            </app-document-counterparty-ref>
-          </fieldset>
+               ⚠️ **Niente `dense` qui.** Su scrivania la fascia se la disegna il
+               componente della controparte (fondo tenue, filo sopra, celle in
+               riga): a questa istanza serve solo lasciarla passare a larghezza
+               piena, e una griglia densa la stringerebbe a un campo. -->
+          <app-document-header
+            title="Documento fornitore"
+            [summaryParts]="supplierDocPanelSummaryParts()"
+            icon="pi-file"
+          >
+            <fieldset class="doc-form__gate-fields" [disabled]="headerGateActive()">
+              <!-- Il titolo di sezione e il contenitore dei campi li disegna il
+                   componente della controparte, in tutte e due le vesti: qui
+                   restano solo le celle affini (pagamento, copertura fattura),
+                   proiettate nella stessa fascia invece di aprirne una seconda. -->
+              <app-document-counterparty-ref
+                idPrefix="gr"
+                [layout]="compactView() ? 'stack' : 'band'"
+                sectionTitle="Dati del documento ricevuto"
+                typeLabel="Tipo di documento"
+                numberLabel="N. documento fornitore"
+                dateLabel="Data doc. fornitore"
+                [typeId]="form.controls.externalDocumentTypeId.value"
+                [docNumber]="form.controls.externalDocNumber.value"
+                [docDate]="form.controls.externalDocDate.value"
+                [snapshotLabel]="externalDocTypeSnapshot()"
+                [disabled]="formReadOnly()"
+                (typeIdChange)="onExternalDocTypeChange($event)"
+                (docNumberChange)="form.controls.externalDocNumber.setValue($event)"
+                (docDateChange)="form.controls.externalDocDate.setValue($event)"
+                (typesChanged)="onExternalDocTypesChanged()"
+              >
+                <!-- ⭐ Le celle proiettate dichiarano la misura del proprio dato
+                     (`regole-stile-ui` §7-bis) col canale `--doc-field-min`, come fa
+                     l'Ordine cliente. Senza, la fascia le fa tutte larghe uguale
+                     (176px di ripiego) e va a capo lasciando il vuoto a destra. -->
+                <div [class]="cella" style="--doc-field-min: var(--field-w-lg)">
+                  <span [class]="etichetta">Pagamento</span>
+                  <app-select-menu
+                    [options]="paymentMethodOptions()"
+                    [value]="form.controls.paymentMethod.value"
+                    ariaLabel="Modalità di pagamento"
+                    placeholder="Modalità…"
+                    [compact]="true"
+                    [fullWidth]="true"
+                    [searchable]="true"
+                    searchPlaceholder="Cerca pagamento…"
+                    searchAriaLabel="Cerca modalità di pagamento"
+                    (valueChange)="onPaymentMethodChange($event)"
+                  />
+                </div>
+
+                <!-- Punto E: la Causale di carico non è più esposta nel form.
+                     Viene generata sempre in automatico e in silenzio dal modello
+                     del tipo documento fornitore (tipo + numero + data). -->
+                <div [class]="cella" style="--doc-field-min: var(--field-w-lg)">
+                  <label class="doc-form__check doc-form__check--block" for="gr-invoice-pending">
+                    <input
+                      id="gr-invoice-pending"
+                      type="checkbox"
+                      formControlName="invoicePending"
+                    />
+                    <span>Seguirà registrazione fattura</span>
+                  </label>
+                </div>
+
+                <!-- ⭐ **Le due spunte dell'anagrafica stanno in TESTATA** — spostate
+                     dal piede il 02/09/2026, e non è solo spazio recuperato:
+                     «Aggiorna prezzi» ABILITA i campi prezzo delle righe, e in fondo
+                     al documento si decideva dopo aver compilato le righe che essa
+                     stessa governa. Un interruttore sta prima di ciò che comanda.
+
+                     ⛔ Nel piede erano anche rese male: `.doc-form__footer-notes >
+                     .doc-form__check { grid-column: 1 / -1 }` non le raggiungeva —
+                     sono proiettate DENTRO `app-document-notes`, quindi non figlie
+                     dirette — e finivano in una colonnina, col testo a capo su
+                     quattro righe.
+
+                     ⛔ Riscritta il 19/08/2026 (03b): prima il costo della variante
+                     si scriveva SEMPRE e la spunta governava un costo sul Product.
+                     Chi la toglieva credeva di registrare un costo solo
+                     documentale, e stava riscrivendo il costo effettivo di ogni
+                     variante caricata. Ora comanda quello che dice, riga per riga:
+                     spuntata, il costo digitato diventa il costo dell'articolo;
+                     spenta, resta un costo del DOCUMENTO per report e contabilità.
+                     L'ultimo prezzo pagato al fornitore si aggiorna comunque: è un
+                     fatto del rapporto col fornitore, non dell'anagrafica. -->
+                <div [class]="cella" style="--doc-field-min: var(--field-w-lg)">
+                  <label class="doc-form__check doc-form__check--block" for="gr-update-cost">
+                    <input
+                      id="gr-update-cost"
+                      type="checkbox"
+                      [checked]="updateArticleCost()"
+                      [disabled]="formReadOnly()"
+                      (change)="setUpdateArticleCost($any($event.target).checked)"
+                    />
+                    <span>Aggiorna costo in anagrafica</span>
+                  </label>
+                </div>
+
+                <!-- A differenza del costo, qui non c'è un effetto «sempre»: il
+                     prezzo non è un dato del documento. Spenta la spunta, i campi
+                     prezzo tornano in sola lettura invece di accettare un valore
+                     che non avrebbe dove andare. -->
+                <div [class]="cella" style="--doc-field-min: var(--field-w-lg)">
+                  <label class="doc-form__check doc-form__check--block" for="gr-update-prices">
+                    <input
+                      id="gr-update-prices"
+                      type="checkbox"
+                      [checked]="updateArticlePrices()"
+                      [disabled]="formReadOnly()"
+                      (change)="setUpdateArticlePrices($any($event.target).checked)"
+                    />
+                    <span>Aggiorna prezzi in anagrafica</span>
+                  </label>
+                </div>
+              </app-document-counterparty-ref>
+            </fieldset>
+          </app-document-header>
         </div>
 
         @if (showSupplierForm()) {
@@ -555,7 +507,7 @@
                 </p>
               </div>
               <div class="doc-form__lines-tools">
-                <app-table-column-picker [viewId]="lineColumnsView" [reorderable]="false" />
+                <app-table-column-picker [viewId]="lineColumnsView" />
                 @if (canIncludeSupplierOrder()) {
                   <app-button type="button" variant="secondary" (click)="openIncludeOrderPanel()">
                     <i class="pi pi-link" aria-hidden="true"></i>
@@ -615,518 +567,45 @@
               @if (!compactView()) {
                 <div class="doc-form__table-wrap">
                   <table class="doc-form__table">
-                    <colgroup>
-                      <col class="doc-form__col--index" />
-                      @if (isLineColumnVisible('articleCode')) {
-                        <col [style.width]="lineColumnWidth('articleCode')" />
-                      }
-                      @if (isLineColumnVisible('sku')) {
-                        <col [style.width]="lineColumnWidth('sku')" />
-                      }
-                      @if (isLineColumnVisible('barcode')) {
-                        <col [style.width]="lineColumnWidth('barcode')" />
-                      }
-                      @if (isLineColumnVisible('supplierCode')) {
-                        <col [style.width]="lineColumnWidth('supplierCode')" />
-                      }
-                      @if (isLineColumnVisible('product')) {
-                        <col [style.width]="lineColumnWidth('product')" />
-                      }
-                      @if (isLineColumnVisible('description')) {
-                        <col [style.width]="lineColumnWidth('description')" />
-                      }
-                      @if (isLineColumnVisible('poOrdered') && hasLinkedSupplierOrder()) {
-                        <col [style.width]="lineColumnWidth('poOrdered')" />
-                      }
-                      @if (isLineColumnVisible('poReceived') && hasLinkedSupplierOrder()) {
-                        <col [style.width]="lineColumnWidth('poReceived')" />
-                      }
-                      @if (isLineColumnVisible('poRemaining') && hasLinkedSupplierOrder()) {
-                        <col [style.width]="lineColumnWidth('poRemaining')" />
-                      }
-                      @if (isLineColumnVisible('quantity')) {
-                        <col [style.width]="lineColumnWidth('quantity')" />
-                      }
-                      @if (isLineColumnVisible('stockAvailable')) {
-                        <col [style.width]="lineColumnWidth('stockAvailable')" />
-                      }
-                      @if (isLineColumnVisible('unitOfMeasure')) {
-                        <col [style.width]="lineColumnWidth('unitOfMeasure')" />
-                      }
-                      @if (isLineColumnVisible('unitCost')) {
-                        <col [style.width]="lineColumnWidth('unitCost')" />
-                      }
-                      @if (isLineColumnVisible('discount')) {
-                        <col [style.width]="lineColumnWidth('discount')" />
-                      }
-                      @if (isLineColumnVisible('sellingPrice')) {
-                        <col [style.width]="lineColumnWidth('sellingPrice')" />
-                      }
-                      @if (isLineColumnVisible('compareAtPrice')) {
-                        <col [style.width]="lineColumnWidth('compareAtPrice')" />
-                      }
-                      @if (isLineColumnVisible('vat')) {
-                        <col [style.width]="lineColumnWidth('vat')" />
-                      }
-                      @if (isLineColumnVisible('lot')) {
-                        <col [style.width]="lineColumnWidth('lot')" />
-                      }
-                      @if (isLineColumnVisible('expiry')) {
-                        <col [style.width]="lineColumnWidth('expiry')" />
-                      }
-                      @if (isLineColumnVisible('serials')) {
-                        <col [style.width]="lineColumnWidth('serials')" />
-                      }
-                      @if (isLineColumnVisible('loadsStock')) {
-                        <col [style.width]="lineColumnWidth('loadsStock')" />
-                      }
-                      @if (isLineColumnVisible('lineTotal')) {
-                        <col [style.width]="lineColumnWidth('lineTotal')" />
-                      }
-                      @if (isLineColumnVisible('actions')) {
-                        <col [style.width]="lineColumnWidth('actions')" />
-                      }
-                    </colgroup>
+                    <!-- ⛔ **Qui c'era un `<colgroup>`, ed era un SECONDO catalogo colonne.**
+                         23 `<col>` che avevano gia' derivato da quello vero — nessuna Variante, nessuna Giacenza, e lo sconto prima dei prezzi invece che dopo
+                         — e i `<col>` mappano per POSIZIONE, quindi ogni scarto spostava una
+                         larghezza sulla colonna sbagliata, in silenzio.
+                         
+                         Le larghezze le porta l'INTESTAZIONE COMUNE, cella per cella, numero
+                         riga compreso: un secondo posto che dichiara le colonne e' un secondo
+                         posto che puo' divergerne. -->
                     <thead>
-                      <tr>
-                        <th scope="col" class="doc-form__cell--index" aria-label="Numero riga">
-                          <span class="doc-form__th-label" title="#">#</span>
-                        </th>
-                        @if (isLineColumnVisible('articleCode')) {
-                          <th scope="col" [style.width]="lineColumnWidth('articleCode')">
-                            Cod. articolo
-                            <span
-                              appTableColumnResize
-                              [minWidthPx]="lineColumnMinWidth('articleCode')"
-                              (resized)="onLineColumnResize('articleCode', $event)"
-                            ></span>
-                          </th>
-                        }
-                        @if (isLineColumnVisible('sku')) {
-                          <th scope="col" [style.width]="lineColumnWidth('sku')">
-                            <button
-                              type="button"
-                              class="doc-form__th-sort"
-                              [attr.aria-label]="lineSortAriaLabel('sku', 'SKU')"
-                              title="SKU"
-                              (click)="toggleLineSort('sku')"
-                            >
-                              SKU
-                              @if (lineSort.column() === 'sku') {
-                                <i
-                                  class="pi"
-                                  [class.pi-sort-up]="lineSort.direction() === 'asc'"
-                                  [class.pi-sort-down]="lineSort.direction() === 'desc'"
-                                  aria-hidden="true"
-                                ></i>
-                              }
-                            </button>
-                            <span
-                              appTableColumnResize
-                              [minWidthPx]="lineColumnMinWidth('sku')"
-                              (resized)="onLineColumnResize('sku', $event)"
-                            ></span>
-                          </th>
-                        }
-                        @if (isLineColumnVisible('barcode')) {
-                          <th scope="col" [style.width]="lineColumnWidth('barcode')">
-                            <button
-                              type="button"
-                              class="doc-form__th-sort"
-                              [attr.aria-label]="lineSortAriaLabel('barcode', 'EAN')"
-                              title="EAN"
-                              (click)="toggleLineSort('barcode')"
-                            >
-                              EAN
-                              @if (lineSort.column() === 'barcode') {
-                                <i
-                                  class="pi"
-                                  [class.pi-sort-up]="lineSort.direction() === 'asc'"
-                                  [class.pi-sort-down]="lineSort.direction() === 'desc'"
-                                  aria-hidden="true"
-                                ></i>
-                              }
-                            </button>
-                            <span
-                              appTableColumnResize
-                              [minWidthPx]="lineColumnMinWidth('barcode')"
-                              (resized)="onLineColumnResize('barcode', $event)"
-                            ></span>
-                          </th>
-                        }
-                        @if (isLineColumnVisible('supplierCode')) {
-                          <th scope="col" [style.width]="lineColumnWidth('supplierCode')">
-                            <button
-                              type="button"
-                              class="doc-form__th-sort"
-                              [attr.aria-label]="
-                                lineSortAriaLabel('supplierCode', 'Codice fornitore')
-                              "
-                              (click)="toggleLineSort('supplierCode')"
-                            >
-                              Cod. fornitore
-                              @if (lineSort.column() === 'supplierCode') {
-                                <i
-                                  class="pi"
-                                  [class.pi-sort-up]="lineSort.direction() === 'asc'"
-                                  [class.pi-sort-down]="lineSort.direction() === 'desc'"
-                                  aria-hidden="true"
-                                ></i>
-                              }
-                            </button>
-                            <span
-                              appTableColumnResize
-                              [minWidthPx]="lineColumnMinWidth('supplierCode')"
-                              (resized)="onLineColumnResize('supplierCode', $event)"
-                            ></span>
-                          </th>
-                        }
-                        @if (isLineColumnVisible('product')) {
-                          <th
-                            scope="col"
-                            class="doc-form__th--product"
-                            [style.width]="lineColumnWidth('product')"
-                          >
-                            <button
-                              type="button"
-                              class="doc-form__th-sort"
-                              [attr.aria-label]="lineSortAriaLabel('product', 'Nome prodotto')"
-                              title="Nome prodotto"
-                              (click)="toggleLineSort('product')"
-                            >
-                              Nome prodotto
-                              @if (lineSort.column() === 'product') {
-                                <i
-                                  class="pi"
-                                  [class.pi-sort-up]="lineSort.direction() === 'asc'"
-                                  [class.pi-sort-down]="lineSort.direction() === 'desc'"
-                                  aria-hidden="true"
-                                ></i>
-                              }
-                            </button>
-                            <span
-                              appTableColumnResize
-                              [minWidthPx]="lineColumnMinWidth('product')"
-                              (resized)="onLineColumnResize('product', $event)"
-                            ></span>
-                          </th>
-                        }
-                        @if (isLineColumnVisible('description')) {
-                          <th scope="col" [style.width]="lineColumnWidth('description')">
-                            Descrizione
-                            <span
-                              appTableColumnResize
-                              (resized)="onLineColumnResize('description', $event)"
-                            ></span>
-                          </th>
-                        }
-                        @if (isLineColumnVisible('poOrdered') && hasLinkedSupplierOrder()) {
-                          <th
-                            scope="col"
-                            class="doc-form__num"
-                            [style.width]="lineColumnWidth('poOrdered')"
-                          >
-                            Ord.
-                          </th>
-                        }
-                        @if (isLineColumnVisible('poReceived') && hasLinkedSupplierOrder()) {
-                          <th
-                            scope="col"
-                            class="doc-form__num"
-                            [style.width]="lineColumnWidth('poReceived')"
-                          >
-                            Ric.
-                          </th>
-                        }
-                        @if (isLineColumnVisible('poRemaining') && hasLinkedSupplierOrder()) {
-                          <th
-                            scope="col"
-                            class="doc-form__num"
-                            [style.width]="lineColumnWidth('poRemaining')"
-                          >
-                            Res.
-                          </th>
-                        }
-                        @if (isLineColumnVisible('quantity')) {
-                          <th
-                            scope="col"
-                            class="doc-form__num"
-                            [style.width]="lineColumnWidth('quantity')"
-                          >
-                            <button
-                              type="button"
-                              class="doc-form__th-sort doc-form__th-sort--num"
-                              [attr.aria-label]="lineSortAriaLabel('quantity', 'Quantità')"
-                              title="Quantità"
-                              (click)="toggleLineSort('quantity')"
-                            >
-                              Q.tà
-                              @if (lineSort.column() === 'quantity') {
-                                <i
-                                  class="pi"
-                                  [class.pi-sort-up]="lineSort.direction() === 'asc'"
-                                  [class.pi-sort-down]="lineSort.direction() === 'desc'"
-                                  aria-hidden="true"
-                                ></i>
-                              }
-                            </button>
-                            <span
-                              appTableColumnResize
-                              [minWidthPx]="lineColumnMinWidth('quantity')"
-                              (resized)="onLineColumnResize('quantity', $event)"
-                            ></span>
-                          </th>
-                        }
-                        @if (isLineColumnVisible('stockAvailable')) {
-                          <th
-                            scope="col"
-                            class="doc-form__num"
-                            [style.width]="lineColumnWidth('stockAvailable')"
-                          >
-                            Q.tà disp.
-                            <span
-                              appTableColumnResize
-                              [minWidthPx]="lineColumnMinWidth('stockAvailable')"
-                              (resized)="onLineColumnResize('stockAvailable', $event)"
-                            ></span>
-                          </th>
-                        }
-                        @if (isLineColumnVisible('unitOfMeasure')) {
-                          <th scope="col" [style.width]="lineColumnWidth('unitOfMeasure')">
-                            U.m.
-                            <span
-                              appTableColumnResize
-                              [minWidthPx]="lineColumnMinWidth('unitOfMeasure')"
-                              (resized)="onLineColumnResize('unitOfMeasure', $event)"
-                            ></span>
-                          </th>
-                        }
-                        @if (isLineColumnVisible('unitCost')) {
-                          <th
-                            scope="col"
-                            class="doc-form__num doc-form__th--menu"
-                            [style.width]="lineColumnWidth('unitCost')"
-                          >
-                            <span class="doc-form__th-menu-wrap">
-                              <button
-                                type="button"
-                                class="doc-form__th-sort doc-form__th-sort--num"
-                                [attr.aria-label]="lineSortAriaLabel('unitCost', costModeLabel())"
-                                (click)="toggleLineSort('unitCost')"
-                              >
-                                {{ costModeLabel() }}
-                                @if (lineSort.column() === 'unitCost') {
-                                  <i
-                                    class="pi"
-                                    [class.pi-sort-up]="lineSort.direction() === 'asc'"
-                                    [class.pi-sort-down]="lineSort.direction() === 'desc'"
-                                    aria-hidden="true"
-                                  ></i>
-                                }
-                              </button>
-                              <app-price-mode-menu
-                                [pricesIncludeVat]="costEntryMode() === 'vat_included'"
-                                netLabel="Usa costi netti"
-                                grossLabel="Usa costi ivati"
-                                ariaLabel="Modalità costi del documento"
-                                [disabled]="formReadOnly()"
-                                (modeChange)="
-                                  selectCostMode($event ? 'vat_included' : 'vat_excluded')
-                                "
-                              />
-                            </span>
-                            <span
-                              appTableColumnResize
-                              [minWidthPx]="lineColumnMinWidth('unitCost')"
-                              (resized)="onLineColumnResize('unitCost', $event)"
-                            ></span>
-                          </th>
-                        }
-                        @if (isLineColumnVisible('discount')) {
-                          <th
-                            scope="col"
-                            class="doc-form__num"
-                            [style.width]="lineColumnWidth('discount')"
-                          >
-                            Sconto
-                            <span
-                              appTableColumnResize
-                              [minWidthPx]="lineColumnMinWidth('discount')"
-                              (resized)="onLineColumnResize('discount', $event)"
-                            ></span>
-                          </th>
-                        }
-                        @if (isLineColumnVisible('sellingPrice')) {
-                          <th
-                            scope="col"
-                            class="doc-form__num"
-                            [style.width]="lineColumnWidth('sellingPrice')"
-                          >
-                            <!-- Modalità dei PREZZI DI VENDITA, distinta da quella dei
-                                 costi: governa insieme prezzo di vendita, barrato e
-                                 prezzo Shopify. Stato di sessione, seminato dalla
-                                 convenzione aziendale e mai persistito. -->
-                            <span class="doc-form__th-menu-wrap">
-                              <button
-                                type="button"
-                                class="doc-form__th-sort doc-form__th-sort--num"
-                                aria-haspopup="menu"
-                                aria-label="Modalità dei prezzi di vendita"
-                                (click)="salesPriceModeMenuOpen.set(!salesPriceModeMenuOpen())"
-                              >
-                                {{ salesPricesIncludeVat() ? 'Prezzo ivato' : 'Prezzo netto' }}
-                              </button>
-                              <app-price-mode-menu
-                                [pricesIncludeVat]="salesPricesIncludeVat()"
-                                netLabel="Usa prezzi netti"
-                                grossLabel="Usa prezzi ivati"
-                                ariaLabel="Modalità dei prezzi di vendita"
-                                [disabled]="formReadOnly()"
-                                (modeChange)="selectSalesPriceMode($event)"
-                              />
-                            </span>
-                            <span
-                              appTableColumnResize
-                              [minWidthPx]="lineColumnMinWidth('sellingPrice')"
-                              (resized)="onLineColumnResize('sellingPrice', $event)"
-                            ></span>
-                          </th>
-                        }
-                        @if (showShopifyPrice() && isLineColumnVisible('shopifyPrice')) {
-                          <th
-                            scope="col"
-                            class="doc-form__num"
-                            [style.width]="lineColumnWidth('shopifyPrice')"
-                          >
-                            Prezzo Shopify
-                            <span
-                              appTableColumnResize
-                              [minWidthPx]="lineColumnMinWidth('shopifyPrice')"
-                              (resized)="onLineColumnResize('shopifyPrice', $event)"
-                            ></span>
-                          </th>
-                        }
-                        @if (isLineColumnVisible('compareAtPrice')) {
-                          <th
-                            scope="col"
-                            class="doc-form__num"
-                            [style.width]="lineColumnWidth('compareAtPrice')"
-                          >
-                            Prezzo barrato
-                            <span
-                              appTableColumnResize
-                              [minWidthPx]="lineColumnMinWidth('compareAtPrice')"
-                              (resized)="onLineColumnResize('compareAtPrice', $event)"
-                            ></span>
-                          </th>
-                        }
-                        @if (isLineColumnVisible('vat')) {
-                          <th
-                            scope="col"
-                            class="doc-form__num doc-form__th--menu"
-                            [style.width]="lineColumnWidth('vat')"
-                          >
-                            <span class="doc-form__th-menu-wrap">
-                              <button
-                                type="button"
-                                class="doc-form__th-sort doc-form__th-sort--num"
-                                [attr.aria-label]="lineSortAriaLabel('vat', 'IVA')"
-                                title="IVA"
-                                (click)="toggleLineSort('vat')"
-                              >
-                                IVA
-                                @if (lineSort.column() === 'vat') {
-                                  <i
-                                    class="pi"
-                                    [class.pi-sort-up]="lineSort.direction() === 'asc'"
-                                    [class.pi-sort-down]="lineSort.direction() === 'desc'"
-                                    aria-hidden="true"
-                                  ></i>
-                                }
-                              </button>
-                              <button
-                                type="button"
-                                class="doc-form__th-menu-trigger"
-                                aria-haspopup="menu"
-                                [attr.aria-expanded]="vatHeaderMenuOpen()"
-                                aria-label="Azioni colonna IVA"
-                                (click)="toggleVatHeaderMenu()"
-                              >
-                                <i class="pi pi-chevron-down" aria-hidden="true"></i>
-                              </button>
-                              @if (vatHeaderMenuOpen()) {
-                                <div
-                                  class="doc-form__th-menu"
-                                  role="menu"
-                                  aria-label="Azioni colonna IVA"
-                                >
-                                  <button
-                                    type="button"
-                                    class="doc-form__th-menu-item"
-                                    role="menuitem"
-                                    (click)="openApplyVatDialog()"
-                                  >
-                                    <span class="doc-form__th-menu-check" aria-hidden="true"></span>
-                                    Imposta IVA a tutte le righe…
-                                  </button>
-                                </div>
-                              }
-                            </span>
-                            <span
-                              appTableColumnResize
-                              [minWidthPx]="lineColumnMinWidth('vat')"
-                              (resized)="onLineColumnResize('vat', $event)"
-                            ></span>
-                          </th>
-                        }
-                        @if (isLineColumnVisible('lot')) {
-                          <th scope="col" [style.width]="lineColumnWidth('lot')">
-                            <span class="doc-form__th-label" title="Lotto">Lotto</span>
-                          </th>
-                        }
-                        @if (isLineColumnVisible('expiry')) {
-                          <th scope="col" [style.width]="lineColumnWidth('expiry')">
-                            <span class="doc-form__th-label" title="Scadenza">Scadenza</span>
-                          </th>
-                        }
-                        @if (isLineColumnVisible('serials')) {
-                          <th scope="col" [style.width]="lineColumnWidth('serials')">
-                            <span class="doc-form__th-label" title="Seriali">Seriali</span>
-                          </th>
-                        }
-                        @if (isLineColumnVisible('loadsStock')) {
-                          <th scope="col" [style.width]="lineColumnWidth('loadsStock')">
-                            <span class="doc-form__th-label">
-                              Mag.
-                              <app-hover-tooltip [text]="loadsStockTooltip" position="bottom">
-                                <i
-                                  class="pi pi-info-circle doc-form__th-info"
-                                  aria-label="Info colonna Magazzino"
-                                ></i>
-                              </app-hover-tooltip>
-                            </span>
-                          </th>
-                        }
-                        @if (isLineColumnVisible('lineTotal')) {
-                          <th
-                            scope="col"
-                            class="doc-form__num"
-                            [style.width]="lineColumnWidth('lineTotal')"
-                          >
-                            Totale
-                            <span
-                              appTableColumnResize
-                              [minWidthPx]="lineColumnMinWidth('lineTotal')"
-                              (resized)="onLineColumnResize('lineTotal', $event)"
-                            ></span>
-                          </th>
-                        }
-                        @if (isLineColumnVisible('actions')) {
-                          <th scope="col" [style.width]="lineColumnWidth('actions')">
-                            <span class="sr-only">Azioni</span>
-                          </th>
-                        }
-                      </tr>
+                      <!-- ⭐ **L'intestazione è la COMPONENTE COMUNE.** Qui c'erano
+                           26 `<th>` scritti a mano, ed erano la causa diretta
+                           delle intestazioni spezzate: l'etichetta era un NODO
+                           NUDO dentro il `<th>`, quindi ereditava
+                           `overflow-wrap: break-word` e si rompeva dentro la
+                           parola. L'intestazione comune avvolge ogni etichetta
+                           in `.doc-form__th-label`, che ha un tetto di due righe
+                           e `overflow: hidden` — e il testo tagliato resta
+                           leggibile dal `title`. -->
+                      <tr
+                        app-document-line-head
+                        [indexColumnWidth]="lineIndexColumnWidth()"
+                        [isColumnVisible]="isLineColumnVisibleFn"
+                        [columnWidth]="lineColumnWidthFn"
+                        [columnMinWidth]="lineColumnMinWidthFn"
+                        [sortable]="true"
+                        [sortColumn]="lineSort.column()"
+                        [sortDirection]="lineSort.direction()"
+                        priceColumn="sellingPrice"
+                        [priceLabel]="salesPricesIncludeVat() ? 'Prezzo ivato' : 'Prezzo netto'"
+                        [pricesIncludeVat]="salesPricesIncludeVat()"
+                        [costLabel]="costModeLabel()"
+                        [costsIncludeVat]="costEntryMode() === 'vat_included'"
+                        loadToggleLabel="Carica magazzino"
+                        (priceModeChanged)="selectSalesPriceMode($event)"
+                        (costModeChanged)="selectCostMode($event ? 'vat_included' : 'vat_excluded')"
+                        (sortToggled)="onRowSortToggled($event)"
+                        (columnResizing)="onLineColumnResizing($event.column, $event.widthPx)"
+                        (columnResized)="onLineColumnResize($event.column, $event.widthPx)"
+                      ></tr>
                     </thead>
                     <!-- Il trascinamento sta sul tbody, e il blocco del documento
                        lo spegne qui: il fieldset disabilitato ferma i controlli
@@ -1138,480 +617,51 @@
                       (cdkDropListDropped)="onLineDrop($event)"
                     >
                       @for (line of lines.controls; track line; let i = $index) {
+                        <!-- ⭐ **La riga è la COMPONENTE COMUNE.** Qui c'erano 29
+                             `<td>` scritti a mano. Le celle FOGLIA erano già
+                             condivise — code-cell, product-cell, unit-cell —:
+                             quello che si duplicava era l'impalcatura. -->
                         <tr
+                          app-document-line-row
                           class="doc-form__table-row"
                           cdkDrag
                           [cdkDragStartDelay]="{ touch: 250, mouse: 0 }"
-                          [class.doc-form__table-row--active]="lineRowActive(i)"
-                          [class.doc-form__table-row--incomplete]="!lineRowComplete(i)"
                           [formGroupName]="i"
-                        >
-                          <!-- La cella del numero e' la maniglia: il resto della
-                             riga resta cliccabile per modificare le celle. -->
-                          <td class="doc-form__cell--index doc-form__drag-handle" cdkDragHandle>
-                            <div class="doc-form__index-cell">
-                              <span class="doc-form__line-move-stack">
-                                <button
-                                  type="button"
-                                  class="doc-form__line-move doc-form__line-move--compact"
-                                  tabindex="-1"
-                                  [disabled]="formReadOnly() || i === 0"
-                                  aria-label="Sposta riga su"
-                                  (click)="moveLineUp(i)"
-                                >
-                                  <i class="pi pi-chevron-up" aria-hidden="true"></i>
-                                </button>
-                                <button
-                                  type="button"
-                                  class="doc-form__line-move doc-form__line-move--compact"
-                                  tabindex="-1"
-                                  [disabled]="formReadOnly() || i >= lines.length - 1"
-                                  aria-label="Sposta riga giù"
-                                  (click)="moveLineDown(i)"
-                                >
-                                  <i class="pi pi-chevron-down" aria-hidden="true"></i>
-                                </button>
-                              </span>
-                              <span class="tabular-nums">{{ i + 1 }}</span>
-                            </div>
-                          </td>
-                          @if (isLineColumnVisible('articleCode')) {
-                            <td class="doc-form__cell doc-form__cell--code">
-                              <app-document-line-code-cell
-                                [lineIndex]="i"
-                                [inputId]="'gr-code-' + i"
-                                ariaLabel="Codice articolo"
-                                placeholder="Cerca codice"
-                                [value]="line.controls.articleCode.value"
-                                [linked]="lineHasLinkedProduct(i)"
-                                [linkedValue]="lineArticleCode(i)"
-                                [disabled]="formReadOnly()"
-                                [suggestions]="codeLookup.matchesFor(i, 'articleCode')"
-                                [suggestionsOpen]="codeLookup.isOpenOn(i, 'articleCode')"
-                                [activeSuggestionIndex]="codeLookup.activeIndex()"
-                                (suggestionNavigate)="codeLookup.navigate($event)"
-                                (valueChange)="onLineArticleCodeChange(i, $event)"
-                                (focused)="onLineCodeFocus(i, 'articleCode')"
-                                (blurred)="onLineCodeBlur(i)"
-                                (commit)="commitArticleCodeLookup(i, $event.advance)"
-                                (lineRetreat)="lineFocus.previous(i, 'articleCode')"
-                                (lineRowAdvance)="lineFocus.rowDown(i, 'articleCode')"
-                                (lineRowRetreat)="lineFocus.rowUp(i, 'articleCode')"
-                                (suggestionPick)="
-                                  onCodeSuggestionPick($event.lineIndex, $event.variantId)
-                                "
-                                (escapePressed)="onLineSearchEscape(i)"
-                              />
-                            </td>
-                          }
-                          @if (isLineColumnVisible('sku')) {
-                            <td class="doc-form__cell doc-form__cell--code">
-                              <app-document-line-code-cell
-                                [lineIndex]="i"
-                                [inputId]="'gr-sku-' + i"
-                                ariaLabel="SKU"
-                                placeholder="Cerca SKU"
-                                [value]="line.controls.sku.value"
-                                [linked]="lineHasLinkedProduct(i)"
-                                [linkedValue]="line.controls.sku.value"
-                                [disabled]="formReadOnly()"
-                                [suggestions]="codeLookup.matchesFor(i, 'sku')"
-                                [suggestionsOpen]="codeLookup.isOpenOn(i, 'sku')"
-                                [activeSuggestionIndex]="codeLookup.activeIndex()"
-                                (suggestionNavigate)="codeLookup.navigate($event)"
-                                (valueChange)="onLineSkuChange(i, $event)"
-                                (focused)="onLineCodeFocus(i, 'sku')"
-                                (blurred)="onLineCodeBlur(i)"
-                                (commit)="commitSkuLookup(i, $event.advance)"
-                                (lineRetreat)="lineFocus.previous(i, 'sku')"
-                                (lineRowAdvance)="lineFocus.rowDown(i, 'sku')"
-                                (lineRowRetreat)="lineFocus.rowUp(i, 'sku')"
-                                (suggestionPick)="
-                                  onCodeSuggestionPick($event.lineIndex, $event.variantId)
-                                "
-                                (escapePressed)="onLineSearchEscape(i)"
-                              />
-                            </td>
-                          }
-                          @if (isLineColumnVisible('barcode')) {
-                            <td class="doc-form__cell doc-form__cell--code">
-                              <app-document-line-code-cell
-                                [lineIndex]="i"
-                                [inputId]="'gr-barcode-' + i"
-                                ariaLabel="EAN"
-                                placeholder="Scansiona EAN"
-                                [value]="line.controls.barcode.value"
-                                [linked]="lineHasLinkedProduct(i)"
-                                [linkedValue]="line.controls.barcode.value"
-                                [disabled]="formReadOnly()"
-                                [suggestions]="codeLookup.matchesFor(i, 'barcode')"
-                                [suggestionsOpen]="codeLookup.isOpenOn(i, 'barcode')"
-                                [activeSuggestionIndex]="codeLookup.activeIndex()"
-                                (suggestionNavigate)="codeLookup.navigate($event)"
-                                (valueChange)="onLineBarcodeChange(i, $event)"
-                                (focused)="onLineCodeFocus(i, 'barcode')"
-                                (blurred)="onLineCodeBlur(i)"
-                                (commit)="commitBarcodeLookup(i, $event.advance)"
-                                (lineRetreat)="lineFocus.previous(i, 'barcode')"
-                                (lineRowAdvance)="lineFocus.rowDown(i, 'barcode')"
-                                (lineRowRetreat)="lineFocus.rowUp(i, 'barcode')"
-                                (suggestionPick)="
-                                  onCodeSuggestionPick($event.lineIndex, $event.variantId)
-                                "
-                                (escapePressed)="onLineSearchEscape(i)"
-                              />
-                            </td>
-                          }
-                          @if (isLineColumnVisible('supplierCode')) {
-                            <td class="doc-form__cell doc-form__cell--code">
-                              <app-document-line-code-cell
-                                [lineIndex]="i"
-                                [inputId]="'gr-supplier-code-' + i"
-                                ariaLabel="Codice fornitore"
-                                [value]="line.controls.supplierSku.value"
-                                [linked]="lineHasLinkedProduct(i)"
-                                [linkedValue]="line.controls.supplierSku.value"
-                                [disabled]="formReadOnly()"
-                                [suggestions]="codeLookup.matchesFor(i, 'supplierCode')"
-                                [suggestionsOpen]="codeLookup.isOpenOn(i, 'supplierCode')"
-                                [activeSuggestionIndex]="codeLookup.activeIndex()"
-                                (suggestionNavigate)="codeLookup.navigate($event)"
-                                (valueChange)="onLineSupplierSkuChange(i, $event)"
-                                (blurred)="onLineCodeBlur(i)"
-                                (commit)="commitSupplierSkuLookup(i, $event.advance)"
-                                (lineRetreat)="lineFocus.previous(i, 'supplierCode')"
-                                (lineRowAdvance)="lineFocus.rowDown(i, 'supplierCode')"
-                                (lineRowRetreat)="lineFocus.rowUp(i, 'supplierCode')"
-                                (suggestionPick)="
-                                  onCodeSuggestionPick($event.lineIndex, $event.variantId)
-                                "
-                                (escapePressed)="onLineSearchEscape(i)"
-                              />
-                            </td>
-                          }
-                          @if (isLineColumnVisible('product')) {
-                            <td class="doc-form__cell doc-form__cell--product">
-                              <app-document-line-product-cell
-                                [lineIndex]="i"
-                                [inputId]="'gr-product-' + i"
-                                [value]="line.controls.productName.value"
-                                [linked]="lineHasLinkedProduct(i)"
-                                [disabled]="formReadOnly()"
-                                [invalid]="lineFieldInvalid(i, 'productName')"
-                                [suggestions]="lineSuggestions(i)"
-                                [suggestionsOpen]="lineSuggestionsOpen(i)"
-                                [activeSuggestionIndex]="productSuggest.activeIndex()"
-                                (valueChange)="onLineProductNameChange(i, $event)"
-                                (focused)="onLineProductFocus(i)"
-                                (blurred)="onLineProductBlur(i)"
-                                (searchOpen)="openLineProductSearch(i)"
-                                (suggestionPick)="
-                                  onProductSuggestionPick($event.lineIndex, $event.variantId)
-                                "
-                                (suggestionNavigate)="onProductSuggestionNavigate($event)"
-                                (lineAdvance)="advanceFromProductField(i)"
-                                (lineRetreat)="lineFocus.previous(i, 'product')"
-                                (lineRowAdvance)="lineFocus.rowDown(i, 'product')"
-                                (lineRowRetreat)="lineFocus.rowUp(i, 'product')"
-                                (escapePressed)="onLineSearchEscape(i)"
-                              />
-                            </td>
-                          }
-                          @if (isLineColumnVisible('description')) {
-                            <td class="doc-form__cell">
-                              <input
-                                [id]="'gr-desc-' + i"
-                                class="doc-form__input doc-form__input--table"
-                                type="text"
-                                formControlName="description"
-                              />
-                            </td>
-                          }
-                          @if (isLineColumnVisible('poOrdered') && hasLinkedSupplierOrder()) {
-                            @if (poLineContext(i); as poCtx) {
-                              <td
-                                class="doc-form__cell doc-form__cell--readonly doc-form__num tabular-nums"
-                              >
-                                {{ poCtx.ordered }}
-                              </td>
-                            } @else {
-                              <td class="doc-form__cell doc-form__cell--readonly doc-form__num">
-                                —
-                              </td>
-                            }
-                          }
-                          @if (isLineColumnVisible('poReceived') && hasLinkedSupplierOrder()) {
-                            @if (poLineContext(i); as poCtx) {
-                              <td
-                                class="doc-form__cell doc-form__cell--readonly doc-form__num tabular-nums"
-                              >
-                                {{ poCtx.received }}
-                              </td>
-                            } @else {
-                              <td class="doc-form__cell doc-form__cell--readonly doc-form__num">
-                                —
-                              </td>
-                            }
-                          }
-                          @if (isLineColumnVisible('poRemaining') && hasLinkedSupplierOrder()) {
-                            @if (poLineContext(i); as poCtx) {
-                              <td
-                                class="doc-form__cell doc-form__cell--readonly doc-form__num tabular-nums"
-                              >
-                                {{ poCtx.remaining }}
-                              </td>
-                            } @else {
-                              <td class="doc-form__cell doc-form__cell--readonly doc-form__num">
-                                —
-                              </td>
-                            }
-                          }
-                          @if (isLineColumnVisible('quantity')) {
-                            <td class="doc-form__cell doc-form__cell--editable doc-form__num">
-                              <input
-                                [id]="'gr-qty-' + i"
-                                class="doc-form__input doc-form__input--table doc-form__input--num"
-                                [class.doc-form__input--invalid]="lineFieldInvalid(i, 'quantity')"
-                                type="number"
-                                min="0"
-                                step="1"
-                                formControlName="quantity"
-                                [attr.aria-invalid]="
-                                  lineFieldInvalid(i, 'quantity') ? 'true' : null
-                                "
-                                [title]="
-                                  lineFieldInvalid(i, 'quantity')
-                                    ? 'Inserisci una quantità maggiore di zero.'
-                                    : null
-                                "
-                                (blur)="onLineOperationalBlur(i)"
-                                (keydown)="onLineFieldKeydown(i, 'quantity', $event)"
-                              />
-                            </td>
-                          }
-                          @if (isLineColumnVisible('stockAvailable')) {
-                            <td
-                              class="doc-form__cell doc-form__cell--readonly doc-form__cell--computed doc-form__num tabular-nums"
-                              [title]="lineStockAvailableTitle(i)"
-                            >
-                              {{ lineStockAvailable(i) }}
-                            </td>
-                          }
-                          @if (isLineColumnVisible('unitOfMeasure')) {
-                            <!--
-                            Una cella sola, agganciata o no. Prima erano due: una
-                            tendina in creazione articolo e un testo calcolato
-                            altrove — cioè l'unità si poteva scegliere solo
-                            mentre si creava l'articolo, e su una riga normale
-                            non si toccava. Ora la riga porta la sua unità in
-                            entrambi i casi, come porta il suo prezzo.
-                          -->
-                            <td class="doc-form__cell doc-form__cell--editable">
-                              <app-document-line-unit-cell
-                                [lineIndex]="i"
-                                [inputId]="'gr-uom-' + i"
-                                [options]="unitOfMeasureOptions()"
-                                [ariaLabel]="'Unità di misura riga ' + (i + 1)"
-                                [value]="lineUnitOfMeasure(i)"
-                                [disabled]="formReadOnly()"
-                                (valueChange)="onLineUnitOfMeasureChange(i, $event)"
-                                (lineAdvance)="lineFocus.next(i, 'unitOfMeasure')"
-                                (lineRetreat)="lineFocus.previous(i, 'unitOfMeasure')"
-                                (lineRowAdvance)="lineFocus.rowDown(i, 'unitOfMeasure')"
-                                (lineRowRetreat)="lineFocus.rowUp(i, 'unitOfMeasure')"
-                                (manageRequested)="openUnitManager(i)"
-                              />
-                            </td>
-                          }
-                          @if (isLineColumnVisible('unitCost')) {
-                            <td class="doc-form__cell doc-form__cell--editable doc-form__num">
-                              <input
-                                [id]="'gr-cost-' + i"
-                                class="doc-form__input doc-form__input--table doc-form__input--num"
-                                [class.doc-form__input--invalid]="unitCostInvalid(i)"
-                                type="text"
-                                inputmode="decimal"
-                                formControlName="unitCost"
-                                placeholder="0,00"
-                                [attr.aria-invalid]="unitCostInvalid(i) ? 'true' : null"
-                                [title]="
-                                  unitCostInvalid(i) ? 'Il costo inserito non è valido.' : null
-                                "
-                                (blur)="onLineOperationalBlur(i)"
-                                (keydown)="onLineFieldKeydown(i, 'unitCost', $event)"
-                              />
-                            </td>
-                          }
-                          @if (isLineColumnVisible('discount')) {
-                            <td class="doc-form__cell doc-form__cell--editable doc-form__num">
-                              <input
-                                [id]="'gr-discount-' + i"
-                                class="doc-form__input doc-form__input--table doc-form__input--num"
-                                type="text"
-                                formControlName="discountPercent"
-                                placeholder="0%"
-                                (blur)="onLineOperationalBlur(i)"
-                                (keydown)="onLineFieldKeydown(i, 'discount', $event)"
-                              />
-                            </td>
-                          }
-                          @if (isLineColumnVisible('sellingPrice')) {
-                            <td class="doc-form__cell doc-form__num">
-                              <!-- Sola lettura senza la spunta «Aggiorna prezzi
-                                   articolo»: il prezzo non è un dato della riga, e un
-                                   campo scrivibile senza destinazione sarebbe una bugia. -->
-                              <input
-                                [id]="'gr-selling-' + i"
-                                class="doc-form__input doc-form__input--table doc-form__input--num"
-                                type="text"
-                                inputmode="decimal"
-                                formControlName="sellingPrice"
-                                placeholder="0,00"
-                                [readonly]="articlePricesReadOnly()"
-                                (blur)="onLineOperationalBlur(i)"
-                                (keydown)="onLineFieldKeydown(i, 'sellingPrice', $event)"
-                              />
-                            </td>
-                          }
-                          @if (showShopifyPrice() && isLineColumnVisible('shopifyPrice')) {
-                            <td class="doc-form__cell doc-form__num">
-                              <input
-                                [id]="'gr-shopify-' + i"
-                                class="doc-form__input doc-form__input--table doc-form__input--num"
-                                type="text"
-                                inputmode="decimal"
-                                formControlName="shopifyPrice"
-                                placeholder="0,00"
-                                [readonly]="articlePricesReadOnly()"
-                                (blur)="onLineOperationalBlur(i)"
-                                (keydown)="onLineFieldKeydown(i, 'shopifyPrice', $event)"
-                              />
-                            </td>
-                          }
-                          @if (isLineColumnVisible('compareAtPrice')) {
-                            <td class="doc-form__cell doc-form__num">
-                              <input
-                                [id]="'gr-compare-' + i"
-                                class="doc-form__input doc-form__input--table doc-form__input--num"
-                                type="text"
-                                inputmode="decimal"
-                                formControlName="compareAtPrice"
-                                placeholder="0,00"
-                                (blur)="onLineOperationalBlur(i)"
-                                (keydown)="onLineFieldKeydown(i, 'compareAtPrice', $event)"
-                              />
-                            </td>
-                          }
-                          @if (isLineColumnVisible('vat')) {
-                            <td
-                              class="doc-form__cell doc-form__cell--editable doc-form__cell--vat"
-                              [title]="lineVatTooltip(i)"
-                            >
-                              <app-document-line-select-cell
-                                [lineIndex]="i"
-                                [inputId]="'gr-vat-' + i"
-                                ariaLabel="Codice IVA riga"
-                                [options]="lineVatOptions(i)"
-                                [value]="lineVatValue(i)"
-                                [disabled]="formReadOnly()"
-                                (valueChange)="onLineVatSelect(i, $event)"
-                                (lineAdvance)="lineFocus.next(i, 'vat')"
-                                (lineRetreat)="lineFocus.previous(i, 'vat')"
-                                (lineRowAdvance)="lineFocus.rowDown(i, 'vat')"
-                                (lineRowRetreat)="lineFocus.rowUp(i, 'vat')"
-                              />
-                            </td>
-                          }
-                          @if (isLineColumnVisible('lot')) {
-                            <td class="doc-form__cell">
-                              <input
-                                [id]="'gr-lot-' + i"
-                                class="doc-form__input doc-form__input--table"
-                                type="text"
-                                formControlName="lotCode"
-                                autocomplete="off"
-                                (blur)="onLineOperationalBlur(i)"
-                                (keydown)="onLineFieldKeydown(i, 'lot', $event)"
-                              />
-                            </td>
-                          }
-                          @if (isLineColumnVisible('expiry')) {
-                            <td class="doc-form__cell">
-                              <app-date-input
-                                [inputId]="'gr-lot-date-' + i"
-                                formControlName="lotExpiryDate"
-                                ariaLabel="Scadenza lotto"
-                                [compact]="true"
-                                (triggerBlur)="onLineOperationalBlur(i)"
-                                (triggerKeydown)="onLineFieldKeydown(i, 'expiry', $event)"
-                              />
-                            </td>
-                          }
-                          @if (isLineColumnVisible('serials')) {
-                            <td class="doc-form__cell">
-                              <input
-                                [id]="'gr-serial-' + i"
-                                class="doc-form__input doc-form__input--table"
-                                type="text"
-                                formControlName="serialNumbersText"
-                                placeholder="SN001, SN002"
-                                autocomplete="off"
-                                (blur)="onLineOperationalBlur(i)"
-                                (keydown)="onLineFieldKeydown(i, 'serials', $event)"
-                              />
-                            </td>
-                          }
-                          @if (isLineColumnVisible('loadsStock')) {
-                            <td class="doc-form__cell doc-form__cell--check">
-                              <label class="doc-form__check">
-                                <input
-                                  type="checkbox"
-                                  formControlName="loadsStock"
-                                  (change)="onLoadsStockChange(i)"
-                                />
-                                <span class="sr-only">Carica magazzino</span>
-                              </label>
-                            </td>
-                          }
-                          @if (isLineColumnVisible('lineTotal')) {
-                            <td
-                              class="doc-form__cell doc-form__cell--readonly doc-form__cell--computed doc-form__num tabular-nums"
-                            >
-                              @if (lineHasDiscount(i)) {
-                                <span class="doc-form__line-total-gross">{{
-                                  formatMoney(lineGrossMoney(i))
-                                }}</span>
-                              }
-                              <span>{{ formatMoney(lineMoney(i)) }}</span>
-                            </td>
-                          }
-                          @if (isLineColumnVisible('actions')) {
-                            <td class="doc-form__cell doc-form__cell--actions">
-                              <div class="doc-form__line-actions">
-                                <button
-                                  type="button"
-                                  class="doc-form__line-move"
-                                  tabindex="-1"
-                                  [disabled]="formReadOnly()"
-                                  aria-label="Duplica riga"
-                                  (click)="duplicateLine(i)"
-                                >
-                                  <i class="pi pi-clone" aria-hidden="true"></i>
-                                </button>
-                                <button
-                                  type="button"
-                                  class="doc-form__line-remove"
-                                  tabindex="-1"
-                                  [disabled]="lines.length <= 1"
-                                  aria-label="Rimuovi riga"
-                                  (click)="removeLine(i)"
-                                >
-                                  <i class="pi pi-trash" aria-hidden="true"></i>
-                                </button>
-                              </div>
-                            </td>
-                          }
-                        </tr>
+                          [group]="lineGroup(i)"
+                          [lineIndex]="i"
+                          [isColumnVisible]="isLineColumnVisibleFn"
+                          idPrefix="gr"
+                          [view]="lineRowView(i)"
+                          [readOnly]="formReadOnly()"
+                          [unitOptions]="unitOfMeasureOptions()"
+                          loadToggleLabel="Carica magazzino"
+                          [identityColumnCount]="4"
+                          [dragHandle]="true"
+                          [quantityMin]="0"
+                          (codeChanged)="onRowCodeChanged(i, $event)"
+                          (codeFocused)="onRowCodeFocused(i, $event)"
+                          (codeBlurred)="onLineCodeBlur(i)"
+                          (codeCommitted)="onRowCodeCommitted(i, $event)"
+                          (productNameChanged)="onLineProductNameChange(i, $event)"
+                          (productFocused)="onLineProductFocus(i)"
+                          (productBlurred)="onLineProductBlur(i)"
+                          (productSearchOpened)="openLineProductSearch(i)"
+                          (suggestionPicked)="onRowSuggestionPicked(i, $event)"
+                          (suggestionNavigated)="onRowSuggestionNavigated($event)"
+                          (escapePressed)="onLineSearchEscape(i)"
+                          (unitChanged)="onLineUnitOfMeasureChange(i, $event)"
+                          (unitManageRequested)="openUnitManager(i)"
+                          (vatSelected)="onLineVatSelect(i, $event)"
+                          (fieldBlur)="onLineOperationalBlur(i)"
+                          (fieldKeydown)="
+                            lineFocus.handleKeydownIfMine(i, $event.field, $event.value)
+                          "
+                          (fieldAdvance)="lineFocus.nextIfMine(i, $event)"
+                          (fieldRetreat)="lineFocus.previousIfMine(i, $event)"
+                          (rowAdvance)="lineFocus.rowDownIfMine(i, $event)"
+                          (rowRetreat)="lineFocus.rowUpIfMine(i, $event)"
+                          (removeRequested)="removeLine(i)"
+                        ></tr>
                       }
                     </tbody>
                   </table>
@@ -1637,54 +687,84 @@
                    sotto la soglia esiste solo questa. -->
               @if (compactView()) {
                 <div class="doc-form__cards">
-                  <!-- Selettore modalità costo su mobile: su desktop vive
-                     nell'intestazione di colonna, qui (dove la tabella diventa
-                     card) vive sopra le righe. doc-form__cards è già mobile-only. -->
-                  <div class="doc-form__field doc-form__field--mode-mobile">
-                    <span class="doc-form__label">Modalità costo</span>
-                    <app-select-menu
-                      [options]="costModeOptions"
-                      [value]="costEntryMode()"
-                      ariaLabel="Modalità costo netto o ivato"
-                      placeholder="Netto"
-                      [includeEmptyOption]="false"
-                      [compact]="true"
-                      [fullWidth]="true"
-                      (valueChange)="
-                        selectCostMode($event === 'vat_included' ? 'vat_included' : 'vat_excluded')
-                      "
-                    />
-                  </div>
                   @for (line of lines.controls; track line; let i = $index) {
-                    <app-goods-receipt-line-card
+                    <!-- ⭐ **La card è la COMPONENTE COMUNE.** Qui c'era
+                         `app-goods-receipt-line-card`: al mobile era quello che
+                         le `<td>` scritte a mano erano al desktop — un involucro
+                         per feature che ridisegnava campo per campo ciò che il
+                         catalogo colonne già sa.
+
+                         Adottandola, tre cose che l'involucro non faceva: il
+                         selettore Colonne arriva anche qui (prima Cod. articolo,
+                         SKU ed EAN mancavano dalla card pur essendo colonne
+                         visibili di default sul desktop), i gruppi si deducono
+                         dalle colonne accese, e le celle codice/prodotto sono le
+                         STESSE della riga di scrivania — correzione unica per le
+                         due viste. -->
+                    <app-document-line-card
                       [lineIndex]="i"
-                      [line]="line"
-                      [linked]="lineHasLinkedProduct(i)"
-                      [productLabel]="linkedProductLabel(i)"
-                      [incomplete]="!lineRowComplete(i)"
-                      [costLabel]="costModeLabel()"
-                      [totalLabel]="formatMoney(lineMoney(i))"
-                      [grossLabel]="lineHasDiscount(i) ? formatMoney(lineGrossMoney(i)) : null"
-                      [vatOptions]="lineVatOptions(i)"
-                      [vatValue]="lineVatValue(i)"
-                      [unitOfMeasure]="lineUnitOfMeasure(i)"
-                      [unitOfMeasureOptions]="unitOfMeasureOptions()"
-                      [disabled]="formReadOnly()"
+                      [open]="isLineCardOpen(i)"
+                      [complete]="lineCardHead(i).complete"
+                      [readOnly]="formReadOnly()"
                       [canRemove]="lines.length > 1"
-                      [suggestions]="lineSuggestions(i)"
-                      [suggestionsOpen]="lineSuggestionsOpen(i)"
-                      (searchProduct)="openLineProductSearch($event)"
-                      (vatChange)="onLineVatSelect(i, $event)"
-                      (unitOfMeasureChanged)="onLineUnitOfMeasureChange(i, $event)"
-                      (unitManagerRequested)="openUnitManager(i)"
-                      (fieldBlur)="onLineOperationalBlur($event)"
-                      (nameInput)="onCardProductNameInput(i, $event)"
-                      (nameFocus)="onLineProductFocus($event)"
-                      (nameBlur)="onLineProductBlur($event)"
-                      (suggestionPick)="onProductSuggestionPick($event.lineIndex, $event.variantId)"
-                      (duplicated)="duplicateLine($event)"
-                      (removed)="removeLine($event)"
-                    />
+                      [title]="lineCardHead(i).title"
+                      [variantLabel]="lineCardHead(i).variantLabel"
+                      [meta]="lineCardHead(i).meta"
+                      [alert]="lineCardHead(i).alert"
+                      (toggled)="toggleLineCard(i)"
+                      (removeRequested)="removeLine(i)"
+                      (removed)="removeLine(i)"
+                    >
+                      <!-- La striscia sempre visibile: qui il posto del prezzo lo
+                           prende il COSTO, perché è un documento d'acquisto, e
+                           l'etichetta la dà la modalità netto/ivato del documento.
+                           `quantityStepped` non è legato: il passo lo applica la
+                           striscia sul controllo, e a segnare il documento sporco
+                           pensa già `setupDirtyTracking` su `form.valueChanges`. -->
+                      <app-document-line-card-strip
+                        cardControls
+                        [group]="lineGroup(i)"
+                        [lineIndex]="i"
+                        [isColumnVisible]="isLineColumnVisibleFn"
+                        [view]="lineRowView(i)"
+                        [readOnly]="formReadOnly()"
+                        [priceLabel]="costModeLabel()"
+                        [quantityMin]="0"
+                      />
+                      <!-- I gestori sono GLI STESSI della riga di scrivania: una
+                           riga non si comporta in due modi a seconda di che
+                           larghezza ha lo schermo.
+
+                           `codeCommitted` arriva col solo campo, e passa con
+                           `advance: false`: su card le colonne non esistono, il
+                           giro del Tab resta al browser e spostare il fuoco
+                           cercherebbe celle della tabella che qui non è resa. -->
+                      <app-document-line-card-body
+                        cardBody
+                        [group]="lineGroup(i)"
+                        [lineIndex]="i"
+                        [isColumnVisible]="isLineColumnVisibleFn"
+                        idPrefix="gr"
+                        [view]="lineRowView(i)"
+                        [readOnly]="formReadOnly()"
+                        [unitOptions]="unitOfMeasureOptions()"
+                        loadToggleLabel="Carica magazzino"
+                        [costLabel]="costModeLabel()"
+                        (codeChanged)="onRowCodeChanged(i, $event)"
+                        (codeFocused)="onRowCodeFocused(i, $event)"
+                        (codeBlurred)="onLineCodeBlur(i)"
+                        (codeCommitted)="onRowCodeCommitted(i, { field: $event, advance: false })"
+                        (productNameChanged)="onLineProductNameChange(i, $event)"
+                        (productFocused)="onLineProductFocus(i)"
+                        (productBlurred)="onLineProductBlur(i)"
+                        (productSearchOpened)="openLineProductSearch(i)"
+                        (suggestionPicked)="onRowSuggestionPicked(i, $event)"
+                        (unitChanged)="onLineUnitOfMeasureChange(i, $event)"
+                        (unitManageRequested)="openUnitManager(i)"
+                        (vatSelected)="onLineVatSelect(i, $event)"
+                        (stockToggled)="onLineLoadsStockSelect(i, $event.value)"
+                      />
+                    </app-document-line-card>
                   }
                 </div>
               }
@@ -1703,49 +783,7 @@
                interno a sinistra sulla stessa banda (meno scroll verticale). -->
           <div class="doc-form__footer-grid">
             <aside class="doc-form__totals-bar" aria-label="Totali documento">
-              <dl class="doc-form__totals">
-                <div class="doc-form__totals-row">
-                  <dt>Imponibile righe</dt>
-                  <dd class="tabular-nums">{{ formatMoney(documentTotals().linesTotal) }}</dd>
-                </div>
-                <div class="doc-form__totals-row doc-form__totals-row--field">
-                  <dt>
-                    <label for="gr-doc-discount">Sconto extra</label>
-                  </dt>
-                  <dd>
-                    <input
-                      id="gr-doc-discount"
-                      class="doc-form__input doc-form__input--num doc-form__totals-input"
-                      type="text"
-                      formControlName="documentDiscountPercent"
-                      placeholder="0%"
-                      aria-label="Sconto extra documento"
-                    />
-                  </dd>
-                </div>
-                @if (documentTotals().documentDiscount.amountMinor > 0) {
-                  <div class="doc-form__totals-row">
-                    <dt>Sconto documento</dt>
-                    <dd class="tabular-nums">
-                      −{{ formatMoney(documentTotals().documentDiscount) }}
-                    </dd>
-                  </div>
-                }
-                <div class="doc-form__totals-row">
-                  <dt>Imponibile</dt>
-                  <dd class="tabular-nums">{{ formatMoney(documentTotals().subtotal) }}</dd>
-                </div>
-                <div class="doc-form__totals-row">
-                  <dt>IVA</dt>
-                  <dd class="tabular-nums">{{ formatMoney(documentTotals().tax) }}</dd>
-                </div>
-                <div class="doc-form__totals-row doc-form__totals-row--total">
-                  <dt>Totale documento</dt>
-                  <dd class="tabular-nums">
-                    <strong>{{ formatMoney(documentTotals().total) }}</strong>
-                  </dd>
-                </div>
-              </dl>
+              <app-document-totals [rows]="totalsRows()" />
               @if (vatSummary().length > 0) {
                 <dl class="doc-form__totals doc-form__vat-summary" aria-label="Riepilogo IVA">
                   <div class="doc-form__totals-row doc-form__totals-row--info">
@@ -1785,63 +823,17 @@
             </aside>
 
             <div class="doc-form__footer-notes">
-              <div class="doc-form__field">
-                <label class="doc-form__label" for="gr-notes">Note documento</label>
-                <textarea
-                  id="gr-notes"
-                  class="doc-form__textarea"
-                  rows="2"
-                  formControlName="notes"
-                ></textarea>
-              </div>
-
-              <div class="doc-form__field">
-                <label class="doc-form__label" for="gr-internal-comment">
-                  Commento interno
-                  <span class="doc-form__label-hint">
-                    (non stampato: visibile nell'elenco Arrivi merce)
-                  </span>
-                </label>
-                <textarea
-                  id="gr-internal-comment"
-                  class="doc-form__textarea"
-                  rows="2"
-                  formControlName="internalComment"
-                ></textarea>
-              </div>
-
-              <!-- ⛔ Riscritta il 19/08/2026 (03b): prima il costo della variante
-                   si scriveva SEMPRE e la spunta governava un costo sul Product.
-                   Chi la toglieva credeva di registrare un costo solo
-                   documentale, e stava riscrivendo il costo effettivo di ogni
-                   variante caricata. Ora comanda quello che dice, riga per riga:
-                   spuntata, il costo digitato diventa il costo dell'articolo;
-                   spenta, resta un costo del DOCUMENTO per report e contabilità.
-                   L'ultimo prezzo pagato al fornitore si aggiorna comunque: è un
-                   fatto del rapporto col fornitore, non dell'anagrafica. -->
-              <label class="doc-form__check">
-                <input
-                  type="checkbox"
-                  [checked]="updateArticleCost()"
-                  [disabled]="formReadOnly()"
-                  (change)="setUpdateArticleCost($any($event.target).checked)"
-                />
-                Aggiorna il costo in anagrafica con quello inserito
-              </label>
-
-              <!-- A differenza del costo, qui non c’è un effetto «sempre»: il
-                   prezzo non è un dato del documento. Spenta la spunta, i campi
-                   prezzo tornano in sola lettura invece di accettare un valore
-                   che non avrebbe dove andare. -->
-              <label class="doc-form__check">
-                <input
-                  type="checkbox"
-                  [checked]="updateArticlePrices()"
-                  [disabled]="formReadOnly()"
-                  (change)="setUpdateArticlePrices($any($event.target).checked)"
-                />
-                Aggiorna prezzi articolo
-              </label>
+              <!-- ⭐ **L'area note comune, e basta.** Le due spunte dell'anagrafica
+                   (costo e prezzi) stavano proiettate qui: sono salite in testata il
+                   02/09/2026, perché «Aggiorna prezzi» abilita i campi prezzo delle
+                   RIGHE e va decisa prima di compilarle. Il piede ci guadagna
+                   l'altezza che occupavano. -->
+              <app-document-notes
+                [group]="form"
+                notesId="gr-notes"
+                internalId="gr-internal-comment"
+                [readOnly]="formReadOnly()"
+              />
             </div>
           </div>
 
@@ -1863,59 +855,54 @@
         <p class="doc-form__submit-error" role="alert">{{ appError.message }}</p>
       }
 
-      <div class="doc-form__actions">
-        <p class="doc-form__actions-note">
+      <!-- ⭐ **La barra azioni comune** — una dichiarazione, due vesti.
+
+           ⚠️ `saveType="button"`: questa maschera salva con un gestore di
+           clic, non con `(ngSubmit)`.
+
+           ⭐ `@if (canSaveDocument())` intorno al Salva NON serve piu': quel
+           computed e' `!formReadOnly()`, cioe' esattamente l'ingresso
+           `readOnly`. Il pulsante ora si SPEGNE invece di sparire, come su
+           ogni altra maschera. -->
+      <app-document-actions
+        saveType="button"
+        [saving]="saving()"
+        [readOnly]="formReadOnly()"
+        (closeRequested)="cancel()"
+        (saveRequested)="requestSaveDocument()"
+      >
+        <p class="doc-form__actions-note" documentActionsNote>
           <i class="pi pi-info-circle" aria-hidden="true"></i>
           <strong class="tabular-nums">{{ validLinesCount() }} righe valide</strong>
           <span class="doc-form__actions-note-sep">·</span>
           Le giacenze si aggiornano alla conferma
         </p>
-        <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancel()">
-          Chiudi
-        </app-button>
         <!-- L'eliminazione è un'azione sull'oggetto intero: si esegue solo
              dall'elenco Arrivi merce (menu riga o selezione multipla). -->
-        <app-button type="button" variant="secondary" [disabled]="saving()" (click)="printLabels()">
+        <app-button
+          documentActionsExtra
+          type="button"
+          variant="secondary"
+          [disabled]="saving()"
+          (click)="printLabels()"
+        >
           Stampa etichette
         </app-button>
         @if (canExportPdf()) {
           <app-document-print-actions
+            documentActionsExtra
             [documentId]="persistedDocumentId()!"
             [reference]="loadedDocument()?.reference ?? null"
             [documentDate]="loadedDocument()?.documentDate ?? null"
             (failed)="onPrintFailed($event)"
           />
         }
-        @if (canSaveDocument()) {
-          <app-button
-            type="button"
-            [loading]="saving()"
-            [disabled]="saving()"
-            (click)="requestSaveDocument()"
-          >
-            Salva documento
-          </app-button>
-        }
-      </div>
+      </app-document-actions>
 
       <!-- Azioni su mobile/tablet (riferimento OC): in fondo al documento,
            scorrono col contenuto. Salva vive nel dock fisso qui sotto;
            Anteprima/PDF restano nelle azioni del documento confermato in cima. -->
-      @if (!formReadOnly()) {
-        <div class="doc-form__mobile-actions">
-          <app-button type="button" variant="secondary" [disabled]="saving()" (click)="cancel()">
-            Chiudi
-          </app-button>
-          <app-button
-            type="button"
-            variant="secondary"
-            [disabled]="saving()"
-            (click)="printLabels()"
-          >
-            Stampa etichette
-          </app-button>
-        </div>
-      }
+      @if (!formReadOnly()) {}
 
       <!-- Dock in basso (classi promosse doc-form__sticky-bar / doc-dock, ≤lg):
            totale + scanner + salva sempre a portata di pollice. Stessi handler
@@ -1994,44 +981,34 @@
   (dismissed)="dismissAttachPendingVariant()"
 />
 
-@if (exitDialogOpen()) {
-  <div class="doc-form__exit-backdrop" aria-hidden="true" (click)="cancelExitDialog()"></div>
-  <div
-    class="doc-form__exit-dialog"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="gr-exit-title"
-  >
-    <h2 id="gr-exit-title" class="doc-form__exit-title">Modifiche non salvate</h2>
-    <p class="doc-form__exit-message">
-      Ci sono modifiche non salvate. Vuoi salvarle prima di chiudere?
-    </p>
-    @if (submitError(); as error) {
-      <p class="doc-form__exit-error" role="alert">{{ error.message }}</p>
-    }
-    <div class="doc-form__exit-actions">
-      <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancelExitDialog()">
-        Annulla
-      </app-button>
-      <app-button
-        type="button"
-        variant="secondary"
-        [disabled]="saving()"
-        (click)="confirmExitWithoutSaving()"
-      >
-        Chiudi senza salvare
-      </app-button>
-      <app-button
-        type="button"
-        [loading]="saving()"
-        [disabled]="saving()"
-        (click)="confirmExitSaveDocument()"
-      >
-        Salva e chiudi
-      </app-button>
-    </div>
-  </div>
-}
+<!-- ⭐ **Il dialogo comune, non un guscio scritto a mano.**
+
+     ⛔ Qui c'erano venti righe con un `<div role="dialog">` e uno sfondo
+     proprio: NON un `<dialog>` nativo, quindi senza trappola del fuoco, senza
+     Esc e senza sfondo inerte — contro `regole-architettura`, che li chiede
+     esplicitamente per ogni modale. Lo stesso guscio viveva in undici file.
+
+     ⛔ **E aveva TRE azioni.** La terza, «Salva e chiudi», e' stata tolta per
+     decisione del proprietario (24/08/2026): il dialogo d'uscita ne ha DUE, e
+     il salvataggio resta il pulsante Salva della barra.
+
+     ⚠️ Anche il MESSAGGIO e' cambiato, e non e' un ritocco: diceva «Vuoi
+     salvarle prima di chiudere?», cioe' faceva una domanda a cui nessuno dei
+     due pulsanti rimasti risponde piu'.
+
+     ⚠️ `emphasis="cancel"` non e' un vezzo: senza, «Esci senza salvare»
+     sarebbe il pulsante primario, cioe' quello che il pollice cerca. La
+     scelta che perde lavoro non si veste da scelta consigliata. -->
+<app-confirm-dialog
+  [(open)]="exitDialogOpen"
+  title="Modifiche non salvate"
+  message="Ci sono modifiche non salvate: uscendo dalla pagina andranno perse."
+  cancelLabel="Annulla"
+  confirmLabel="Esci senza salvare"
+  emphasis="cancel"
+  (confirmed)="confirmExitWithoutSaving()"
+  (dismissed)="cancelExitDialog()"
+/>
 
 <app-confirm-dialog
   [(open)]="costModeDialogOpen"
@@ -2125,7 +1102,6 @@
             <li class="doc-form__include-order-item">
               <div class="doc-form__include-order-meta">
                 <strong class="tabular-nums">{{ order.reference }}</strong>
-                <span>{{ order.lineCount ?? order.lines.length }} righe ordine</span>
               </div>
               <app-button
                 type="button"
@@ -2143,15 +1119,15 @@
 </app-slide-panel>
 
 <app-slide-panel
-  [open]="productSearchPanelOpen()"
+  [open]="lineSearchPanel.isOpen()"
   title="Cerca prodotto"
   size="narrow"
   (closed)="closeLineProductSearch()"
 >
-  @if (productSearchPanelOpen()) {
+  @if (lineSearchPanel.isOpen()) {
     <app-document-product-search-panel
-      [launchTerm]="productSearchLaunchTerm()"
-      [launchSeq]="productSearchLaunchSeq()"
+      [launchTerm]="lineSearchPanel.launchTerm()"
+      [launchSeq]="lineSearchPanel.launchSeq()"
       [locationId]="form.controls.locationId.value"
       (variantSelected)="onLineProductSearchPick($event.variantId)"
       [canCreate]="productSearchCanCreate()"
@@ -2180,9 +1156,19 @@
   }
 </app-slide-panel>
 
-<!-- Numero già assegnato: avviso di presa d'atto, non una scelta. La
-     testata resta com'era e il documento non è salvato; il messaggio nomina il
-     numero rifiutato e il primo libero, la correzione è dell'operatore. -->
+<!-- Numero già assegnato: avviso di presa d'atto, non una scelta. Il
+     documento non è salvato; il messaggio nomina il numero rifiutato e il
+     primo libero, e la pressione di Salva resta dell'operatore.
+
+     ⛔ Qui c'era scritto «la testata resta com'era». Non è vero, e non lo era:
+     `acknowledgeConflictNumber` passa da `DocumentNumberingStore.acknowledgeConflict`,
+     che chiama `onNumberChange(nuovo)` — il numero nuovo in testata ce lo SCRIVE.
+     È anche ciò che la specifica numerazione §3 prescrive: avviso a bottone
+     singolo, numero nuovo in testata, Salva all'operatore.
+
+     ⚠️ Un commento che descrive il comportamento opposto è peggio di nessun
+     commento: chi lo legge per capire se deve riscrivere il numero a mano
+     conclude di sì, e la maschera l'ha già fatto. -->
 <app-confirm-dialog
   [(open)]="conflictDialogOpen"
   title="Numero già usato"

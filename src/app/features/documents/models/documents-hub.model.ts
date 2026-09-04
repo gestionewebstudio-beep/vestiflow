@@ -14,12 +14,7 @@ export interface DocumentHubItem {
    * famiglia (es. «Tutti i documenti», che vive già dietro la sezione).
    */
   readonly family?: DocumentPermissionFamily;
-  /**
-   * Voce che non dipende da una famiglia documento ma da un'altra condizione.
-   * `retail-register` = la cassa, che vuole canale + sezione Vendite + permesso
-   * di battere: le stesse tre cose che chiedono la sidebar e il guard di rotta.
-   */
-  readonly gate?: 'retail-register';
+
   /**
    * Sezione che la rotta di destinazione esige OLTRE alla famiglia.
    *
@@ -68,11 +63,12 @@ export const DOCUMENT_HUB_GROUPS: readonly DocumentHubGroup[] = [
       {
         id: 'supplier-invoices',
         family: 'purchase_invoice',
-        // «fornitore» nel nome: quando accanto ci saranno le fatture di vendita,
-        // «Registrazione fattura» da solo non direbbe più di quale lato si parla.
-        label: 'Registrazione fattura fornitore',
+        // «fornitori» nel nome: accanto ci sono le fatture di VENDITA, e
+        // «Registrazione fattura» da solo non direbbe di quale lato si parla.
+        // Forma abbreviata perché è una scheda, non un titolo di pagina.
+        label: 'Reg. fatture fornitori',
         description: 'Collega gli arrivi merce alla fattura ricevuta dal fornitore.',
-        route: ['/app/documents/registrazione-fattura'],
+        route: ['/app/documents/registrazioni-fatture-fornitori'],
         icon: 'pi-book',
         available: true,
       },
@@ -102,13 +98,17 @@ export const DOCUMENT_HUB_GROUPS: readonly DocumentHubGroup[] = [
         available: true,
       },
       {
-        // Pagina dedicata (prompt Scarico manuale): elenco con «Nuovo scarico
-        // manuale», eliminazione senza ripristino giacenze e stampa.
-        id: 'manual-unload',
+        // Pagina dedicata: elenco con «Nuova vendita manuale», eliminazione
+        // senza ripristino giacenze e stampa.
+        id: 'vendita-manuale',
         family: 'manual_unload',
-        label: 'Scarico manuale giacenze',
-        description: 'Attenzione! Scarico diretto delle giacenze.',
-        route: ['/app/documents/manual-unload'],
+        label: 'Vendita manuale',
+        // ⭐ La stessa frase che spiega la funzione in Impostazioni: dice le
+        // tre cose essenziali — e' una vendita, agisce sulla giacenza, e la
+        // particolarita' e' che non lascia movimenti.
+        description:
+          'Registra una vendita e riduce la giacenza senza creare movimenti di magazzino.',
+        route: ['/app/documents/vendita-manuale'],
         icon: 'pi-minus-circle',
         available: true,
       },
@@ -127,16 +127,14 @@ export const DOCUMENT_HUB_GROUPS: readonly DocumentHubGroup[] = [
         icon: 'pi-shopping-cart',
         available: true,
       },
-      {
-        id: 'store-sale-register',
-        gate: 'retail-register',
-        label: 'Vendita al banco',
-        description: 'Cassa a carrello per vendite immediate in negozio.',
-        route: ['/app/vendita-al-banco/nuova-vendita-al-banco'],
-        icon: 'pi-shopping-bag',
-        available: true,
-      },
-      // Vendite e resi negozio condividono un'unica pagina elenco con filtro
+      // ⛔ UNA sola card per il banco, e porta al RIEPILOGO (`11` A2, deciso
+      // il 20/08/2026). Qui c'era anche «Vendita al banco — Cassa a carrello»,
+      // che apriva la creazione: due card per lo stesso modulo, con due nomi
+      // che differiscono per una lettera. La creazione diretta e' ora la
+      // scorciatoia di sidebar; da questo elenco i due pulsanti creano sia la
+      // vendita sia il reso.
+      //
+      // Vendite e resi al banco condividono un'unica pagina elenco con filtro
       // «Tipo»: stesso numeratore di provenienza (la cassa) e stesse colonne.
       {
         id: 'store-sales',
@@ -160,11 +158,11 @@ export const DOCUMENT_HUB_GROUPS: readonly DocumentHubGroup[] = [
         available: true,
       },
       {
-        id: 'sales-ddt',
+        id: 'ddt-vendita',
         family: 'sales_ddt',
         label: 'DDT vendita',
         description: 'Documenti di trasporto verso clienti.',
-        route: ['/app/documents/sales-ddt'],
+        route: ['/app/documents/ddt-vendita'],
         icon: 'pi-truck',
         available: true,
       },

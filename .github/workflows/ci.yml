@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
   workflow_dispatch:
 
 # Sola lettura per tutti i job: nessuno qui scrive sul repo. Senza questa riga
@@ -54,6 +54,26 @@ jobs:
       - name: Install API dependencies
         run: npm ci --prefix api
 
+      # ⛔ Senza questo passo il type-check dell'API NON PUO' passare.
+      #    `nest build` compila contro i tipi GENERATI da Prisma —
+      #    `DocumentType`, `Prisma.Sql`, `Prisma.raw`, `Prisma.InputJsonObject` —
+      #    che non esistono finche' il client non e' stato generato.
+      #    Misurato il 03/09/2026: 1107 errori TS2305 / TS2694 / TS2339, tutti
+      #    della stessa causa.
+      #
+      # ⚠️ `npm ci` NON lo genera: nel log dell'esecuzione compare soltanto
+      #    «added 588 packages», nessuna riga di Prisma. In locale il client
+      #    c'e' gia' da un `prisma:generate` precedente, quindi il difetto si
+      #    vede solo su una macchina pulita — cioe' solo in CI.
+      #
+      # ⭐ `generate` legge lo schema e NON si connette al database: la
+      #    variabile serve unicamente a risolvere `env("DATABASE_URL")` nel
+      #    blocco datasource, e il suo valore non viene mai usato.
+      - name: Genera il client Prisma
+        run: npm run prisma:generate --prefix api
+        env:
+          DATABASE_URL: postgresql://vestiflow:vestiflow@localhost:5432/vestiflow
+
       - name: Lint API
         run: npm run lint --prefix api
 
@@ -77,8 +97,43 @@ jobs:
     runs-on: ubuntu-latest
     needs: lint-and-test
     timeout-minutes: 30
+
+    # ⛔ **Un PostgreSQL usa-e-getta, e NESSUN segreto.** Il passo di avvio
+    #    dell'API fa `PrismaService.onModuleInit` -> `$connect()`: senza un
+    #    database vero non arriva in fondo. La strada scartata era dare alla CI
+    #    le credenziali del database condiviso: significherebbe collegare ogni
+    #    push ai dati veri, per un beneficio nullo.
+    #
+    # ⭐ **Stesse convenzioni di `docker-compose.test.yml`**, non un secondo
+    #    modello: immagine `postgres:17` (allineata alla major di DEV, con
+    #    pavimento 15 per `NULLS NOT DISTINCT`), stessi utente, password e nome
+    #    del database, e la porta **5433** — non la 5432, cosi' nessuno strumento
+    #    che assume il Postgres locale di default finisce qui.
+    #
+    # ⚠️ La password non e' un segreto e non deve diventarlo: il database nasce
+    #    vuoto, vive quanto il job e non contiene nulla.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: vestiflow
+          POSTGRES_PASSWORD: vestiflow_test_local
+          POSTGRES_DB: vestiflow_test
+        ports:
+          - 5433:5432
+        # Stesso healthcheck del compose. Il job non parte finche' non passa.
+        options: >-
+          --health-cmd "pg_isready -U vestiflow -d vestiflow_test"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+
     env:
       E2E_AUTH_CONFIGURED: ${{ secrets.E2E_USER_EMAIL != '' && secrets.E2E_USER_PASSWORD != '' }}
+      # Dichiarata a livello di JOB perche' la usano tre passi: l'avvio
+      # dell'API e le due esecuzioni Playwright, che riavviano l'API da sole
+      # (`webServer` in playwright.config.ts).
+      DATABASE_URL: postgresql://vestiflow:vestiflow_test_local@localhost:5433/vestiflow_test
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -98,11 +153,44 @@ jobs:
       - name: Install API dependencies
         run: npm ci --prefix api
 
+      # Stessa ragione del job `lint-and-test`: senza il client generato il
+      # `build` dell'API non compila. Qui l'`.env` copiato sopra dichiara
+      # `DATABASE_URL` vuota, che non basta a risolvere il blocco datasource.
+      - name: Genera il client Prisma
+        run: npm run prisma:generate --prefix api
+        env:
+          DATABASE_URL: postgresql://vestiflow:vestiflow@localhost:5432/vestiflow
+
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
       - name: Prepare API environment
         run: cp api/.env.example api/.env
+
+      # ⛔ **Senza questi due ruoli la prima migration che revoca fallisce.**
+      #    Sessanta istruzioni delle migration nominano `anon` e
+      #    `authenticated`, e sono TUTTE `REVOKE`: su Supabase esistono di
+      #    serie, su un PostgreSQL nudo no, e `REVOKE ... FROM anon` risponde
+      #    «role does not exist».
+      #
+      # ⭐ Si esegue lo STESSO file che `docker-compose.test.yml` monta come
+      #    script di inizializzazione, invece di riscriverne il contenuto: un
+      #    solo posto in cui quei ruoli sono definiti.
+      - name: Crea i ruoli attesi dalle migration
+        run: psql "$DATABASE_URL" -f docker/test-db-init/01-ruoli-supabase.sql
+
+      # `prisma:deploy:test` invece di `prisma:deploy`: porta con se' la
+      # barriera che rifiuta qualunque bersaglio diverso da
+      # localhost:5433/vestiflow_test, quindi non puo' scrivere altrove.
+      #
+      # ⚠️ `DATABASE_URL` va SVUOTATA per questo solo passo: lo script confronta
+      #    `DATABASE_URL_TEST` con `DATABASE_URL` e si ferma se coincidono —
+      #    «TEST e DEV non possono coincidere». Qui coincidono per costruzione,
+      #    perche' il database di prova e' l'unico che esiste.
+      - name: Applica le migration al database di prova
+        env:
+          DATABASE_URL: ''
+        run: npm run prisma:deploy:test --prefix api
 
       # Il gradino che mancava: niente, in tutta la catena, accendeva l'API.
       # `build` prova che i tipi tornano e `test:api` prova i moduli UNO PER UNO
@@ -120,7 +208,6 @@ jobs:
 
       - name: Smoke test avvio API
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_JWT_SECRET: ${{ secrets.SUPABASE_JWT_SECRET }}
@@ -130,7 +217,6 @@ jobs:
       - name: Run Playwright E2E (CI smoke — sempre)
         env:
           E2E_USE_MOCK_AUTH: '1'
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_JWT_SECRET: ${{ secrets.SUPABASE_JWT_SECRET }}
@@ -147,7 +233,6 @@ jobs:
           E2E_CLERK_EMAIL: ${{ secrets.E2E_CLERK_EMAIL }}
           E2E_CLERK_PASSWORD: ${{ secrets.E2E_CLERK_PASSWORD }}
           E2E_CLERK_MFA_CODE: ${{ secrets.E2E_CLERK_MFA_CODE }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_JWT_SECRET: ${{ secrets.SUPABASE_JWT_SECRET }}
@@ -180,8 +265,25 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      # ⛔ **`lhci` non trova alcun browser nell'immagine del runner**:
+      #    «Chrome installation not found — The "path" argument must be of type
+      #    string. Received undefined», e l'healthcheck si ferma li'.
+      #    Il job e2e installa gia' Chromium con Playwright; qui mancava.
+      #
+      # ⚠️ Il messaggio «GitHub token not set» nello stesso referto e' un
+      #    AVVISO, non la causa: senza token lhci non commenta la PR, ma gira.
+      - name: Installa Chromium (Playwright)
+        run: npx playwright install --with-deps chromium
+
+      # ⭐ Il percorso si RICAVA, non si scrive: dipende dalla versione di
+      #    Playwright e dall'immagine del runner, e un valore fisso si
+      #    romperebbe al primo aggiornamento di una delle due.
       - name: Run Lighthouse CI
-        run: npm run audit:lhci
+        run: |
+          CHROME_PATH="$(node -e "console.log(require('@playwright/test').chromium.executablePath())")"
+          export CHROME_PATH
+          echo "CHROME_PATH=$CHROME_PATH"
+          npm run audit:lhci
 
   # Job a se' stante, senza `needs`: gira in parallelo e non trattiene e2e ne'
   # lighthouse. Un advisory pubblicato stanotte su una dipendenza che nessuno ha
@@ -189,7 +291,13 @@ jobs:
   audit:
     name: Audit dipendenze
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # 15 e non 10: a 10 il tetto scattava con la pipeline sana. Misurato sullo
+    # stesso commit 54c14d47, tre esecuzioni: 7,2 min (verde) e due volte 10,3
+    # (annullate dal tetto). Il lavoro ne chiede circa sette, e la varianza del
+    # runner si mangiava i tre di margine troncando il passo informativo a
+    # verifica bloccante gia' passata. Un controllo che cade due volte su tre
+    # senza una causa nel codice insegna solo a ignorare il rosso.
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4

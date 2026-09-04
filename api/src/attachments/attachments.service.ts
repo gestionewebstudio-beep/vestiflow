@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
-import type { Attachment } from '@prisma/client';
+import { SalesOrderSource, type Attachment } from '@prisma/client';
 
 import { SupabaseService } from '../auth/supabase.service';
 import {
@@ -19,6 +19,11 @@ import {
   sanitizeAttachmentFileName,
 } from '../common/attachments/attachment-rules.util';
 import { ensureAttachmentBucket } from '../common/attachments/attachment-storage.util';
+import type { UserProfileDto } from '../auth/dto/user-profile.dto';
+import {
+  assertLocationInUserScope,
+  assertLocationReadableInUserScope,
+} from '../inventory/user-location-scope.util';
 import { PrismaService } from '../prisma/prisma.service';
 
 /** Tipi di entità a cui si possono agganciare allegati (estendibile). */
@@ -44,6 +49,17 @@ export interface AttachmentDownload {
 }
 
 /**
+ * Chi sta chiedendo. ⛔ NON è opzionale per comodità: è il contesto senza il
+ * quale `assertEntity` non può decidere niente. Un chiamante che non ce l'ha
+ * deve passare `undefined` **esplicitamente**, e sa che sta saltando il
+ * controllo di sede (lavori di sistema, non richieste utente).
+ */
+export type AttachmentRequester = UserProfileDto | undefined;
+
+/** Leggere e scrivere non hanno lo stesso ambito: `view_all_locations` legge ovunque, non scrive ovunque. */
+export type AttachmentAccessMode = 'read' | 'write';
+
+/**
  * Sottosistema Allegati generico (riusabile): metadati su `attachments`
  * (polimorfico via entityType + entityId), byte su Supabase Storage.
  * Sostituisce lo specifico DocumentAttachmentsService e serve documenti
@@ -66,8 +82,9 @@ export class AttachmentsService {
     tenantId: string,
     entityType: AttachmentEntityType,
     entityId: string,
+    user: AttachmentRequester,
   ): Promise<Attachment[]> {
-    await this.assertEntity(tenantId, entityType, entityId);
+    await this.assertEntity(tenantId, entityType, entityId, user, 'read');
     return this.prisma.attachment.findMany({
       where: { tenantId, entityType, entityId },
       orderBy: { createdAt: 'desc' },
@@ -79,8 +96,9 @@ export class AttachmentsService {
     tenantId: string,
     entityType: AttachmentEntityType,
     entityId: string,
+    user: AttachmentRequester,
   ): Promise<AttachmentQuotaInfo> {
-    await this.assertEntity(tenantId, entityType, entityId);
+    await this.assertEntity(tenantId, entityType, entityId, user, 'read');
     const usedBytes = await this.usedBytes(tenantId, entityType, entityId);
     return {
       usedBytes,
@@ -95,8 +113,9 @@ export class AttachmentsService {
     entityId: string,
     file: Express.Multer.File,
     createdByName: string,
+    user: AttachmentRequester,
   ): Promise<Attachment> {
-    await this.assertEntity(tenantId, entityType, entityId);
+    await this.assertEntity(tenantId, entityType, entityId, user, 'write');
     const mimeType = assertValidAttachmentFile(file);
     assertAttachmentQuota(await this.usedBytes(tenantId, entityType, entityId), file.size);
 
@@ -137,8 +156,16 @@ export class AttachmentsService {
     entityId: string,
     attachmentId: string,
     fileName: string,
+    user: AttachmentRequester,
   ): Promise<Attachment> {
-    const attachment = await this.findAttachment(tenantId, entityType, entityId, attachmentId);
+    const attachment = await this.findAttachment(
+      tenantId,
+      entityType,
+      entityId,
+      attachmentId,
+      user,
+      'write',
+    );
     const ext = attachmentExtensionForMime(attachment.mimeType);
     const nextName = sanitizeAttachmentFileName(fileName, ext);
     if (!nextName.trim()) {
@@ -156,8 +183,16 @@ export class AttachmentsService {
     entityType: AttachmentEntityType,
     entityId: string,
     attachmentId: string,
+    user: AttachmentRequester,
   ): Promise<AttachmentDownload> {
-    const attachment = await this.findAttachment(tenantId, entityType, entityId, attachmentId);
+    const attachment = await this.findAttachment(
+      tenantId,
+      entityType,
+      entityId,
+      attachmentId,
+      user,
+      'read',
+    );
     const client = this.requireStorageClient();
 
     const { data, error } = await client.storage.from(this.bucket).download(attachment.storagePath);
@@ -177,8 +212,16 @@ export class AttachmentsService {
     entityType: AttachmentEntityType,
     entityId: string,
     attachmentId: string,
+    user: AttachmentRequester,
   ): Promise<void> {
-    const attachment = await this.findAttachment(tenantId, entityType, entityId, attachmentId);
+    const attachment = await this.findAttachment(
+      tenantId,
+      entityType,
+      entityId,
+      attachmentId,
+      user,
+      'write',
+    );
 
     const client = this.supabase.getStorageClient();
     if (client && attachment.storagePath) {
@@ -205,8 +248,10 @@ export class AttachmentsService {
     entityType: AttachmentEntityType,
     entityId: string,
     attachmentId: string,
+    user: AttachmentRequester,
+    mode: AttachmentAccessMode,
   ): Promise<Attachment> {
-    await this.assertEntity(tenantId, entityType, entityId);
+    await this.assertEntity(tenantId, entityType, entityId, user, mode);
     const attachment = await this.prisma.attachment.findFirst({
       where: { id: attachmentId, entityType, entityId, tenantId },
     });
@@ -226,46 +271,100 @@ export class AttachmentsService {
     return client;
   }
 
-  /** Verifica che l'entità collegata esista nel tenant (integrità applicativa). */
+  /**
+   * L'entità esiste nel tenant **e** l'utente può operare sulla sua sede.
+   *
+   * ⭐ È il punto comune di TUTTE le rotte allegati: le sei pubbliche ci
+   * passano attraverso, tre direttamente e tre via `findAttachment`. Il
+   * controllo di sede vive qui perché qui — e solo qui — si hanno insieme
+   * `tenantId`, la sede del record e chi sta chiedendo.
+   *
+   * ⛔ **Conoscere un id non concede alcun diritto.** Filtrare un elenco è
+   * ergonomia; autorizzare è rifiutare la richiesta diretta per id (`12` §0.8).
+   * Prima del 28/08/2026 qui si verificava **solo il tenant**, e un commesso
+   * poteva leggere, scaricare, rinominare ed eliminare gli allegati di un
+   * ordine di una sede non sua conoscendone l’id.
+   */
   private async assertEntity(
     tenantId: string,
     entityType: AttachmentEntityType,
     entityId: string,
+    user: AttachmentRequester,
+    mode: AttachmentAccessMode,
   ): Promise<void> {
     if (entityType === 'document') {
       const found = await this.prisma.document.findFirst({
         where: { id: entityId, tenantId },
-        select: { id: true },
+        select: { id: true, locationId: true },
       });
       if (!found) {
         throw new NotFoundException('Documento non trovato');
       }
+      this.assertLocation(found.locationId, user, mode);
       return;
     }
     if (entityType === 'sales_order') {
       const found = await this.prisma.salesOrder.findFirst({
         where: { id: entityId, tenantId },
-        select: { id: true },
+        select: { id: true, locationId: true, source: true },
       });
       if (!found) {
         throw new NotFoundException('Ordine non trovato');
       }
+      // ⚠️ Solo gli ordini MANUALI sono legati alla sede di chi li ha scritti:
+      // è la stessa distinzione di `SalesOrdersService.getById`. Applicare lo
+      // scope agli ordini di canale li renderebbe irraggiungibili a chi non ha
+      // la sede che il canale ha assegnato loro.
+      if (found.source === SalesOrderSource.manual) {
+        this.assertLocation(found.locationId, user, mode);
+      }
       return;
     }
     // 11/08/2026: l'ordine fornitore era l'unico documento senza allegati, e
-    // non per scelta — la conferma d'ordine che il fornitore rimanda è
-    // esattamente il file che si tiene attaccato all'ordine. Il meccanismo era
+    // non per scelta — la conferma d’ordine che il fornitore rimanda è
+    // esattamente il file che si tiene attaccato all’ordine. Il meccanismo era
     // già dichiarato «estendibile»: qui si estende.
     if (entityType === 'supplier_order') {
       const found = await this.prisma.supplierOrder.findFirst({
         where: { id: entityId, tenantId },
-        select: { id: true },
+        select: { id: true, destinationLocationId: true },
       });
       if (!found) {
         throw new NotFoundException('Ordine fornitore non trovato');
       }
+      this.assertLocation(found.destinationLocationId, user, mode);
       return;
     }
     throw new BadRequestException('Tipo di entità non supportato per gli allegati');
+  }
+
+  /**
+   * La politica di sede, in un posto solo.
+   *
+   * ⚠️ **Leggere e scrivere non hanno lo stesso ambito.** Chi ha
+   * `inventory.view_all_locations` legge ovunque ma non scrive ovunque: la
+   * variante di scrittura richiede la sede fra quelle assegnate.
+   *
+   * ⭐ **Record senza sede: passa, ed è esplicito.** Una fattura o un
+   * corrispettivo non hanno una sede da confrontare — non è un ripiego, è il
+   * contratto dichiarato di `assertLocationReadableInUserScope`.
+   */
+  private assertLocation(
+    locationId: string | null,
+    user: AttachmentRequester,
+    mode: AttachmentAccessMode,
+  ): void {
+    if (!user || !locationId) {
+      return;
+    }
+    if (mode === 'write') {
+      assertLocationInUserScope(user, locationId);
+      return;
+    }
+    assertLocationReadableInUserScope(
+      user,
+      locationId,
+      'Non sei autorizzato ad accedere agli allegati di questo documento.',
+    );
   }
 }

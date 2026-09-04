@@ -32,7 +32,7 @@ const FAMILY_TO_TYPES: Readonly<Record<DocumentPermissionFamily, readonly Docume
   // Un permesso separato per la nota renderebbe possibile emettere fatture
   // senza poterle stornare — cioè metà di un mestiere.
   invoice: [
-    DocumentType.invoice_draft,
+    DocumentType.invoice,
     DocumentType.invoice_accompanying,
     DocumentType.credit_note,
   ],
@@ -109,7 +109,7 @@ export function canViewDocumentType(
  *
  * Su quelle rotte il gate di rotta («consulta almeno una famiglia») non basta:
  * il tipo lo sceglie il client, quindi chi può vedere i soli Preventivi
- * chiederebbe `?type=invoice_draft` e leggerebbe numeri, date e riferimenti del
+ * chiederebbe `?type=invoice` e leggerebbe numeri, date e riferimenti del
  * registro fatture — che è la stessa cosa che il filtro dell'elenco impedisce.
  *
  * `user` assente = chiamata interna al dominio: passa, come in

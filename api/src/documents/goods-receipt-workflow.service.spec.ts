@@ -10,6 +10,7 @@ import { GoodsReceiptWorkflowService } from './goods-receipt-workflow.service';
 
 import type { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { PrismaService } from '../prisma/prisma.service';
+import { TenantPermission } from '../auth/tenant-permission.constants';
 import { testClerkUser, testOwnerUser } from '../test/fixtures/user-profile.fixture';
 import type { DocumentSettingsService } from './document-settings.service';
 import type { DocumentPriceModePreferenceService } from './document-price-mode-preference.service';
@@ -92,18 +93,16 @@ function createPrismaMock() {
       updateMany: vi.fn(),
     },
     supplier: {
-      findFirst: vi
-        .fn()
-        .mockResolvedValue({
-          id: 'sup-1',
-          party: {
-            companyName: 'Fornitore A',
-            firstName: null,
-            lastName: null,
-            contactName: null,
-            email: null,
-          },
-        }),
+      findFirst: vi.fn().mockResolvedValue({
+        id: 'sup-1',
+        party: {
+          companyName: 'Fornitore A',
+          firstName: null,
+          lastName: null,
+          contactName: null,
+          email: null,
+        },
+      }),
     },
     location: {
       findFirst: vi
@@ -254,7 +253,7 @@ describe('GoodsReceiptWorkflowService.saveGoodsReceipt', () => {
       });
     }
 
-    it("consente «manual_load» a chi ha la famiglia rettifiche", async () => {
+    it('consente «manual_load» a chi ha la famiglia rettifiche', async () => {
       const { service } = createService(prisma);
       prisma.document.aggregate.mockResolvedValue({ _max: { number: 6 } });
       prisma.document.create.mockResolvedValue(savedDocument());
@@ -894,12 +893,15 @@ describe('GoodsReceiptWorkflowService.saveGoodsReceipt', () => {
         );
       };
 
+      // ⛔ Qui l'atteso era `null`. Il costo canonico non è più nullable: chi non
+      // ha il permesso non SCRIVE il costo, e l'articolo nasce a ZERO — che è un
+      // costo, non un'assenza (`regole-gestionale`).
       it('non viene scritto da chi non può vederlo (catalog.view_purchase_costs)', async () => {
         await conCosto(conCatalogo());
 
         const productData = prisma.product.create.mock.calls[0]?.[0].data;
-        expect(productData.purchasePriceMinor).toBeNull();
-        expect(productData.variants.create[0].purchasePriceMinor).toBeUndefined();
+        expect(productData.purchasePriceMinor).toBe(0);
+        expect(productData.variants.create[0].purchasePriceMinor).toBe(0);
       });
 
       it('viene scritto da chi ha il permesso sui costi', async () => {
@@ -1067,7 +1069,7 @@ describe('GoodsReceiptWorkflowService.saveGoodsReceipt', () => {
 
 /**
  * La rotta della registrazione fattura chiede «gestisci registrazione fattura»,
- * ma il corpo può portare `goodsReceiptIds`: collegarli agisce su documenti
+ * ma le righe possono collegare arrivi: farlo agisce su documenti
  * della famiglia arrivo merce — li marca fatturati, azzera il flag «Totali da
  * verificare» e toglierli dall'elenco li riporta Sospesi. Il permesso segue
  * l'oggetto toccato, non la rotta.
@@ -1107,6 +1109,9 @@ describe('GoodsReceiptWorkflowService.savePurchaseInvoice', () => {
   function linkableReceipt(overrides: Record<string, unknown> = {}) {
     return {
       id: '44444444-4444-4444-8444-444444444444',
+        // Senza questo campo la fixture era CIECA alla sede: nessun test
+        // poteva dimostrare isolamento, qualunque cosa facesse il codice.
+        locationId: 'loc-mia',
       type: DocumentType.goods_receipt,
       status: DocumentStatus.confirmed,
       supplierId: 'sup-1',
@@ -1135,7 +1140,17 @@ describe('GoodsReceiptWorkflowService.savePurchaseInvoice', () => {
     await expect(
       service.savePurchaseInvoice(
         tenantId,
-        invoiceDto({ goodsReceiptIds: [linkableReceipt().id] }),
+        invoiceDto({
+          lines: [
+            {
+              description: 'Rif. Arrivo merce 3',
+              netMinor: 10_000,
+              vatRatePercent: 22,
+              vatMinor: 2_200,
+              linkedGoodsReceiptId: linkableReceipt().id,
+            },
+          ],
+        }),
         soloFatture(),
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
@@ -1155,7 +1170,17 @@ describe('GoodsReceiptWorkflowService.savePurchaseInvoice', () => {
     await expect(
       service.savePurchaseInvoice(
         tenantId,
-        invoiceDto({ goodsReceiptIds: [linkableReceipt().id] }),
+        invoiceDto({
+          lines: [
+            {
+              description: 'Rif. Arrivo merce 3',
+              netMinor: 10_000,
+              vatRatePercent: 22,
+              vatMinor: 2_200,
+              linkedGoodsReceiptId: linkableReceipt().id,
+            },
+          ],
+        }),
         fattureEArrivi(),
       ),
     ).resolves.toMatchObject({ document: { id: 'inv-1' } });
@@ -1170,7 +1195,17 @@ describe('GoodsReceiptWorkflowService.savePurchaseInvoice', () => {
     await expect(
       service.savePurchaseInvoice(
         tenantId,
-        invoiceDto({ goodsReceiptIds: [linkableReceipt().id] }),
+        invoiceDto({
+          lines: [
+            {
+              description: 'Rif. Arrivo merce 3',
+              netMinor: 10_000,
+              vatRatePercent: 22,
+              vatMinor: 2_200,
+              linkedGoodsReceiptId: linkableReceipt().id,
+            },
+          ],
+        }),
         testOwnerUser({ permissions: [] }),
       ),
     ).resolves.toMatchObject({ document: { id: 'inv-1' } });
@@ -1183,9 +1218,626 @@ describe('GoodsReceiptWorkflowService.savePurchaseInvoice', () => {
     await expect(
       service.savePurchaseInvoice(
         tenantId,
-        invoiceDto({ manualLines: [], totalMinor: 12200 }),
+        invoiceDto({ lines: [], totalMinor: 12200 }),
         soloFatture(),
       ),
     ).resolves.toMatchObject({ document: { id: 'inv-1' } });
   });
+
+  /**
+   * ⭐ **Le righe economiche sono UNA lista, e il server le scrive come arrivano.**
+   *
+   * ⛔ **Fino al 25/08/2026 erano due, e una delle due il server se la
+   * inventava.** Il riepilogo IVA degli arrivi collegati veniva RICALCOLATO a
+   * ogni salvataggio da `buildPurchaseInvoiceVatSummary`, e le sole righe che
+   * l'operatore poteva scrivere erano quelle «manuali», in una seconda tabella.
+   *
+   * ⚠️ **Il difetto non era estetico.** Una fattura fornitore quasi mai coincide
+   * al centesimo con la somma degli arrivi — arrotondamenti, spese, un abbuono —
+   * e la parte ricalcolata era proprio quella che non si poteva correggere.
+   * Chi doveva registrare l'importo vero non aveva dove scriverlo.
+   */
+  it('⭐ scrive le righe economiche COME ARRIVANO, senza ricalcolarle dagli arrivi', async () => {
+    const { service } = createService(prisma);
+    mockSavedInvoice();
+
+    // L'arrivo vale 100,00 + 22,00. La fattura del fornitore dice 100,50 + 22,11.
+    // È il caso reale: vince quello che c'è scritto sulla fattura.
+    await service.savePurchaseInvoice(
+      tenantId,
+      invoiceDto({
+        lines: [
+          {
+            description: 'Rif. Arrivo merce 12',
+            netMinor: 10_050,
+            vatRatePercent: 22,
+            vatMinor: 2_211,
+          },
+        ],
+        totalMinor: 12_261,
+      }),
+      soloFatture(),
+    );
+
+    // ⭐ Una `create` per riga, non piu' un `createMany`: dal 25/08/2026 il
+    // salvataggio fa upsert per id, e le righe gia' note si `update`.
+    const righe = prisma.documentLine.create.mock.calls.map(
+      (chiamata) => (chiamata[0] as { data: Record<string, unknown> }).data,
+    );
+    expect(righe).toHaveLength(1);
+    expect(righe?.[0]).toMatchObject({
+      description: 'Rif. Arrivo merce 12',
+      lineTotalMinor: 10_050,
+      lineVatTotalMinor: 2_211,
+      lineGrossTotalMinor: 12_261,
+    });
+  });
+
+  /**
+   * ⭐ **Il collegamento all'arrivo è una CONSEGUENZA delle righe.**
+   *
+   * Deciso dal proprietario il 25/08/2026, sul comportamento di Danea: «in danea
+   * non si toglie l'incluso, si eliminano le righe ed, in automatico, non
+   * risulterà più l'arrivo merci agganciato a quella fattura».
+   *
+   * ⚠️ Quindi `goodsReceiptIds` **non esiste più**: il server ricava gli arrivi
+   * da `linkedGoodsReceiptId` delle righe. Togliere le righe di un arrivo lo
+   * scollega, senza un secondo comando che dica la stessa cosa.
+   */
+  it('⭐ ricava gli arrivi collegati DALLE RIGHE, non da un elenco a parte', async () => {
+    const { service } = createService(prisma);
+    mockSavedInvoice();
+    const arrivo = linkableReceipt();
+    prisma.document.findMany.mockResolvedValue([arrivo]);
+
+    await service.savePurchaseInvoice(
+      tenantId,
+      invoiceDto({
+        lines: [
+          {
+            description: 'Rif. Arrivo merce 12',
+            netMinor: 10_000,
+            vatRatePercent: 22,
+            vatMinor: 2_200,
+            linkedGoodsReceiptId: arrivo.id,
+          },
+        ],
+        totalMinor: 12_200,
+      }),
+      fattureEArrivi(),
+    );
+
+    // L'arrivo che il server è andato a validare è quello scritto sulla riga.
+    expect(prisma.document.findMany.mock.calls[0]?.[0]?.where?.id).toEqual({ in: [arrivo.id] });
+
+    // E la riga porta con sé il legame, che prima nessun percorso scriveva.
+    // ⭐ Una `create` per riga, non piu' un `createMany`: dal 25/08/2026 il
+    // salvataggio fa upsert per id, e le righe gia' note si `update`.
+    const righe = prisma.documentLine.create.mock.calls.map(
+      (chiamata) => (chiamata[0] as { data: Record<string, unknown> }).data,
+    );
+    expect(righe?.[0]).toMatchObject({
+      lineSource: 'vat_summary',
+      linkedGoodsReceiptId: arrivo.id,
+    });
+  });
+
+  it('⛔ una riga senza arrivo resta «manual», e non collega niente', async () => {
+    const { service } = createService(prisma);
+    mockSavedInvoice();
+
+    await service.savePurchaseInvoice(
+      tenantId,
+      invoiceDto({
+        lines: [{ description: 'Trasporto', netMinor: 1_500, vatRatePercent: 22, vatMinor: 330 }],
+        totalMinor: 1_830,
+      }),
+      soloFatture(),
+    );
+
+    // ⭐ Una `create` per riga, non piu' un `createMany`: dal 25/08/2026 il
+    // salvataggio fa upsert per id, e le righe gia' note si `update`.
+    const righe = prisma.documentLine.create.mock.calls.map(
+      (chiamata) => (chiamata[0] as { data: Record<string, unknown> }).data,
+    );
+    expect(righe?.[0]).toMatchObject({ lineSource: 'manual', linkedGoodsReceiptId: null });
+    expect(prisma.purchaseInvoiceGoodsReceiptLink.upsert).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⭐ **La riga di una registrazione ha un'IDENTITÀ che sopravvive al
+   * risalvataggio.**
+   *
+   * ⛔ Fino al 25/08/2026 il salvataggio faceva `deleteMany` di tutte le righe e
+   * le riscriveva da zero: **ogni riga cambiava id a ogni Salva**, anche quella
+   * che nessuno aveva toccato.
+   *
+   * ⚠️ **Non è una pignoleria: è il prerequisito del Codice IVA.** Il contratto
+   * binario che conserva lo snapshot IVA persistito («assente = non modificato»,
+   * `regole-gestionale`) è chiavato sull'id della riga: senza id, il server
+   * rifotograferebbe lo snapshot dall'anagrafica corrente a ogni salvataggio — e
+   * una fattura di marzo cambierebbe aliquota perché qualcuno ha modificato un
+   * Codice IVA oggi.
+   *
+   * ⭐ È lo stesso blocco che l'Arrivo merce ha già, 540 righe più su nello
+   * stesso servizio, e per la stessa ragione: là serve a non duplicare il
+   * movimento di magazzino collegato.
+   */
+  it('⭐ risalvando, la riga esistente si AGGIORNA: l’id non cambia', async () => {
+    const { service } = createService(prisma);
+    const esistente = {
+      id: 'inv-1',
+      tenantId,
+      type: DocumentType.supplier_invoice,
+      status: DocumentStatus.confirmed,
+      lines: [{ id: 'riga-1', lineNumber: 1 }],
+    };
+    prisma.document.findFirst.mockResolvedValue(esistente);
+    prisma.document.findFirstOrThrow.mockResolvedValue({ ...esistente, lines: [] });
+
+    await service.savePurchaseInvoice(
+      tenantId,
+      invoiceDto({
+        id: 'inv-1',
+        lines: [
+          { id: 'riga-1', description: 'Trasporto', netMinor: 1_500, vatRatePercent: 22, vatMinor: 330 },
+        ],
+      }),
+      soloFatture(),
+    );
+
+    // La riga arrivata con l'id noto si aggiorna, non si ricrea.
+    expect(prisma.documentLine.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'riga-1' } }),
+    );
+    expect(prisma.documentLine.createMany).not.toHaveBeenCalled();
+  });
+
+  it('⛔ e una riga TOLTA dal client sparisce, senza portarsi via le altre', async () => {
+    // ⚠️ La cancellazione mirata è l'altra metà: `deleteMany` senza filtro
+    // cancellava tutto e riscriveva; con gli id, si cancella solo ciò che il
+    // client non ha più mandato.
+    const { service } = createService(prisma);
+    const esistente = {
+      id: 'inv-1',
+      tenantId,
+      type: DocumentType.supplier_invoice,
+      status: DocumentStatus.confirmed,
+      lines: [
+        { id: 'riga-1', lineNumber: 1 },
+        { id: 'riga-2', lineNumber: 2 },
+      ],
+    };
+    prisma.document.findFirst.mockResolvedValue(esistente);
+    prisma.document.findFirstOrThrow.mockResolvedValue({ ...esistente, lines: [] });
+
+    await service.savePurchaseInvoice(
+      tenantId,
+      invoiceDto({
+        id: 'inv-1',
+        lines: [
+          { id: 'riga-2', description: 'Resta', netMinor: 1_000, vatRatePercent: 22, vatMinor: 220 },
+        ],
+      }),
+      soloFatture(),
+    );
+
+    expect(prisma.documentLine.deleteMany).toHaveBeenCalledWith({
+      where: { documentId: 'inv-1', id: { notIn: ['riga-2'] } },
+    });
+  });
+
+  it('⛔ un id di UN ALTRO documento non entra: la riga si crea nuova', async () => {
+    // Superficie chiusa insieme al resto: senza il filtro su `existingLineIds`,
+    // mandare l'id di una riga altrui la farebbe aggiornare — cioe' scrivere
+    // dentro il documento di qualcun altro.
+    const { service } = createService(prisma);
+    const esistente = {
+      id: 'inv-1',
+      tenantId,
+      type: DocumentType.supplier_invoice,
+      status: DocumentStatus.confirmed,
+      lines: [{ id: 'riga-1', lineNumber: 1 }],
+    };
+    prisma.document.findFirst.mockResolvedValue(esistente);
+    prisma.document.findFirstOrThrow.mockResolvedValue({ ...esistente, lines: [] });
+
+    await service.savePurchaseInvoice(
+      tenantId,
+      invoiceDto({
+        id: 'inv-1',
+        lines: [
+          {
+            id: '00000000-0000-4000-8000-00000000dead',
+            description: 'Intrusa',
+            netMinor: 100,
+            vatRatePercent: 22,
+            vatMinor: 22,
+          },
+        ],
+      }),
+      soloFatture(),
+    );
+
+    expect(prisma.documentLine.update).not.toHaveBeenCalled();
+    expect(prisma.documentLine.create).toHaveBeenCalled();
+  });
+
+
+  /**
+   * ⭐ **Il Codice IVA della riga economica, e perché non è un dettaglio.**
+   *
+   * ⛔ Fino al 25/08/2026 questa maschera scriveva `vatSnapshot: { ratePercent }`
+   * — **UN campo**, l'unico snapshot fabbricato a mano in tutta l'API —
+   * lasciando `vatCodeId` a `null`. `buildVatCodeSnapshot` ne scrive **dieci**,
+   * fra cui la Natura, il codice ufficiale, la percentuale indetraibile e la
+   * modalità di calcolo.
+   *
+   * ⚠️ **La conseguenza esce dal gestionale.** I quattro codici in inversione
+   * contabile d'acquisto (`22R`, `10R`, `5R`, `4R`) sono gli unici con
+   * `usageScope: 'purchase'` — esistono solo per questa maschera, che non poteva
+   * sceglierli. E con l'aliquota nuda `vatInputFromLegacyRate` forza
+   * `vatAffectsSupplierTotal = true`: il server **afferma che l'IVA in
+   * inversione contabile è dovuta al fornitore**, che è il contrario del vero.
+   */
+  const REVERSE_CHARGE = {
+    id: '77777777-7777-4777-8777-777777777777',
+    code: '22R',
+    isActive: true,
+    usageScope: 'purchase',
+    ratePercent: 22,
+    nonDeductiblePercent: 0,
+    calculationMode: 'reverse_charge',
+    vatAffectsSupplierTotal: false,
+    description: 'Reverse charge 22%',
+    notes: null,
+    nature: { key: 'n6', label: 'Inversione contabile', officialCode: 'N6' },
+  };
+
+  it('⭐ una riga col Codice IVA scrive il codice E lo snapshot pieno', async () => {
+    const { service } = createService(prisma);
+    mockSavedInvoice();
+    prisma.vatCode.findMany.mockResolvedValue([REVERSE_CHARGE]);
+
+    await service.savePurchaseInvoice(
+      tenantId,
+      invoiceDto({
+        lines: [
+          {
+            description: 'Prestazione in reverse charge',
+            netMinor: 10_000,
+            vatRatePercent: 22,
+            vatMinor: 2_200,
+            vatCodeId: REVERSE_CHARGE.id,
+          },
+        ],
+      }),
+      soloFatture(),
+    );
+
+    const riga = (prisma.documentLine.create.mock.calls[0]?.[0] as { data: Record<string, unknown> })
+      .data;
+    expect(riga.vatCodeId).toBe(REVERSE_CHARGE.id);
+    expect(riga.vatSnapshot).toMatchObject({
+      code: '22R',
+      ratePercent: 22,
+      calculationMode: 'reverse_charge',
+      vatAffectsSupplierTotal: false,
+      natureLabel: 'Inversione contabile',
+      officialCode: 'N6',
+    });
+  });
+
+  it('⛔ un Codice IVA riservato alle VENDITE è rifiutato, con la riga nel messaggio', async () => {
+    const { service } = createService(prisma);
+    mockSavedInvoice();
+    const soloVendite = { ...REVERSE_CHARGE, code: '22V', usageScope: 'sales' };
+    prisma.vatCode.findMany.mockResolvedValue([soloVendite]);
+
+    await expect(
+      service.savePurchaseInvoice(
+        tenantId,
+        invoiceDto({
+          lines: [
+            {
+              description: 'Riga',
+              netMinor: 100,
+              vatRatePercent: 22,
+              vatMinor: 22,
+              vatCodeId: soloVendite.id,
+            },
+          ],
+        }),
+        soloFatture(),
+      ),
+    ).rejects.toThrow(/riservato alle vendite/i);
+  });
+
+  /**
+   * ⭐ **Il contratto binario: assente = non modificato.**
+   *
+   * ⚠️ È la regola «la riga di un documento è una fotografia e non si riscatta
+   * da sola». Se il client rimandasse sempre il codice che ha letto aprendo il
+   * documento, il server lo rifotograferebbe a ogni salvataggio — e il giorno
+   * in cui l'aliquota di un Codice IVA cambia, riaprire una fattura vecchia per
+   * correggere una nota la **ri-prezza**.
+   */
+  it('⭐ su una riga esistente, Codice IVA assente = snapshot CONSERVATO', async () => {
+    const { service } = createService(prisma);
+    const snapshotDiIeri = { code: '22', ratePercent: 22, calculationMode: 'standard' };
+    const esistente = {
+      id: 'inv-1',
+      tenantId,
+      type: DocumentType.supplier_invoice,
+      status: DocumentStatus.confirmed,
+      lines: [{ id: 'riga-1', lineNumber: 1, vatCodeId: 'vat-vecchio', vatSnapshot: snapshotDiIeri }],
+    };
+    prisma.document.findFirst.mockResolvedValue(esistente);
+    prisma.document.findFirstOrThrow.mockResolvedValue({ ...esistente, lines: [] });
+
+    await service.savePurchaseInvoice(
+      tenantId,
+      invoiceDto({
+        id: 'inv-1',
+        // ⛔ Nessun `vatCodeId`: il client dichiara «non l'ho toccato».
+        lines: [
+          { id: 'riga-1', description: 'Trasporto', netMinor: 1_500, vatRatePercent: 22, vatMinor: 330 },
+        ],
+      }),
+      soloFatture(),
+    );
+
+    const aggiornata = (
+      prisma.documentLine.update.mock.calls[0]?.[0] as { data: Record<string, unknown> }
+    ).data;
+    expect(aggiornata.vatCodeId).toBe('vat-vecchio');
+    expect(aggiornata.vatSnapshot).toEqual(snapshotDiIeri);
+  });
+
+  it('⛔ ma una riga NUOVA senza Codice IVA conserva l’aliquota storica', async () => {
+    // ⚠️ `vatRatePercent` resta il veicolo dell'aliquota finché esiste una sola
+    // riga senza codice: tutte quelle salvate da luglio hanno `vat_code_id`
+    // NULL, e cancellarne l'aliquota cambierebbe il totale del documento.
+    const { service } = createService(prisma);
+    mockSavedInvoice();
+
+    await service.savePurchaseInvoice(
+      tenantId,
+      invoiceDto({
+        lines: [{ description: 'Storica', netMinor: 1_000, vatRatePercent: 10, vatMinor: 100 }],
+      }),
+      soloFatture(),
+    );
+
+    const riga = (prisma.documentLine.create.mock.calls[0]?.[0] as { data: Record<string, unknown> })
+      .data;
+    expect(riga.vatCodeId).toBeNull();
+    expect(riga.vatSnapshot).toEqual({ ratePercent: 10 });
+  });
+
+
+  /**
+   * ⭐ **La modalità importi della registrazione: netta o ivata, e si persiste.**
+   *
+   * Deciso dal proprietario il 25/08/2026: il selettore vive nell'INTESTAZIONE
+   * DELLA COLONNA come su ogni altro documento, e **un documento nuovo parte
+   * netto**.
+   *
+   * ⭐ Non serve una colonna nuova: `Document.purchaseCostEntryMode` esiste, ha
+   * default `vat_excluded` ed è la stessa che usa l'Arrivo merce. È coerente
+   * con `regole-gestionale`: «i costi partono sempre netti, e l'inserimento
+   * ivato resta una comodità del singolo documento».
+   */
+  it('⭐ persiste la modalità importi che riceve', async () => {
+    const { service } = createService(prisma);
+    mockSavedInvoice();
+
+    await service.savePurchaseInvoice(
+      tenantId,
+      invoiceDto({ purchaseCostEntryMode: 'vat_included' }),
+      soloFatture(),
+    );
+
+    expect(prisma.document.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ purchaseCostEntryMode: 'vat_included' }),
+      }),
+    );
+  });
+
+  it('⭐ e senza dichiararla parte NETTA', async () => {
+    // ⚠️ Non è un caso: è un documento di COSTO, e per un'azienda che detrae
+    // l'IVA il costo È il netto. L'ivato resta una comodità del singolo
+    // documento.
+    const { service } = createService(prisma);
+    mockSavedInvoice();
+
+    await service.savePurchaseInvoice(tenantId, invoiceDto(), soloFatture());
+
+    expect(prisma.document.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ purchaseCostEntryMode: 'vat_excluded' }),
+      }),
+    );
+  });
+
+  it('⛔ e su una registrazione esistente, assente = quella di prima', async () => {
+    // Un documento è un fatto: conserva la modalità con cui è stato compilato,
+    // e cambiarla è una scelta esplicita dell'operatore — non un effetto del
+    // risalvataggio.
+    const { service } = createService(prisma);
+    const esistente = {
+      id: 'inv-1',
+      tenantId,
+      type: DocumentType.supplier_invoice,
+      status: DocumentStatus.confirmed,
+      purchaseCostEntryMode: 'vat_included',
+      lines: [],
+    };
+    prisma.document.findFirst.mockResolvedValue(esistente);
+    prisma.document.findFirstOrThrow.mockResolvedValue(esistente);
+
+    await service.savePurchaseInvoice(tenantId, invoiceDto({ id: 'inv-1' }), soloFatture());
+
+    expect(prisma.document.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ purchaseCostEntryMode: 'vat_included' }),
+      }),
+    );
+  });
+
+
+    /**
+     * ⛔ **Un arrivo di sede altrui non si include, e non si fa nemmeno
+     * interrogare.**
+     *
+     * `linkedGoodsReceiptId` arriva dall'API validato come solo UUID. Prima del
+     * 28/08/2026 gli arrivi erano risolti con `where: { tenantId, id: { in } }`
+     * e l'unica guardia che vedeva l'utente controllava il **permesso di
+     * famiglia**, non la sede.
+     *
+     * ⚠️ **E la fixture era strutturalmente cieca:** `linkableReceipt` non
+     * aveva un campo `locationId`, ed entrambi gli utenti di prova hanno
+     * `hasAllLocationsAccess: true`. Un test così non può dimostrare isolamento
+     * per sede — qualunque cosa faccia il codice, resta verde.
+     */
+    describe('la sede dell’arrivo incluso', () => {
+      const SEDE_MIA = 'loc-mia';
+      const SEDE_ALTRUI = 'loc-altrui';
+
+      /** Utente davvero limitato a UNA sede: è il punto di tutto il blocco. */
+      const limitatoAllaMiaSede = () =>
+        testClerkUser({
+          assignedLocationIds: [SEDE_MIA],
+          permissions: [
+            'doc.purchase_invoice.view',
+            'doc.purchase_invoice.manage',
+            'doc.goods_receipt.view',
+            'doc.goods_receipt.manage',
+          ],
+        });
+
+      const dtoConArrivo = () =>
+        invoiceDto({
+          lines: [
+            {
+              description: 'Riga',
+              quantity: 1,
+              unitPriceMinor: 10000,
+              linkedGoodsReceiptId: linkableReceipt().id,
+            } as never,
+          ],
+        });
+
+      const esitoDi = (p: Promise<unknown>): Promise<unknown> =>
+        p.then(
+          () => null,
+          (errore: unknown) => errore,
+        );
+
+      it('✅ arrivo della propria sede: il gate di sede non rifiuta', async () => {
+        const { service } = createService(prisma);
+        prisma.document.findMany.mockResolvedValue([linkableReceipt({ locationId: SEDE_MIA })]);
+        mockSavedInvoice();
+
+        const esito = await esitoDi(
+          service.savePurchaseInvoice(tenantId, dtoConArrivo(), limitatoAllaMiaSede()),
+        );
+
+        expect(esito).not.toBeInstanceOf(ForbiddenException);
+      });
+
+      it('⛔ stesso tenant, arrivo di sede fuori ambito: RIFIUTATO', async () => {
+        const { service } = createService(prisma);
+        prisma.document.findMany.mockResolvedValue([linkableReceipt({ locationId: SEDE_ALTRUI })]);
+        mockSavedInvoice();
+
+        await expect(
+          service.savePurchaseInvoice(tenantId, dtoConArrivo(), limitatoAllaMiaSede()),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+      });
+
+      it('⛔ e la fattura non si crea: nessun effetto parziale', async () => {
+        const { service } = createService(prisma);
+        prisma.document.findMany.mockResolvedValue([linkableReceipt({ locationId: SEDE_ALTRUI })]);
+        mockSavedInvoice();
+
+        await expect(
+          service.savePurchaseInvoice(tenantId, dtoConArrivo(), limitatoAllaMiaSede()),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+
+        expect(prisma.document.create).not.toHaveBeenCalled();
+      });
+
+      it('✅ chi ha inventory.view_all_locations include qualunque sede', async () => {
+        const { service } = createService(prisma);
+        prisma.document.findMany.mockResolvedValue([linkableReceipt({ locationId: SEDE_ALTRUI })]);
+        mockSavedInvoice();
+        const supervisore = testClerkUser({
+          assignedLocationIds: [SEDE_MIA],
+          permissions: [
+            'doc.purchase_invoice.view',
+            'doc.purchase_invoice.manage',
+            'doc.goods_receipt.view',
+            'doc.goods_receipt.manage',
+            TenantPermission.InventoryViewAllLocations,
+          ],
+        });
+
+        const esito = await esitoDi(
+          service.savePurchaseInvoice(tenantId, dtoConArrivo(), supervisore),
+        );
+
+        expect(esito).not.toBeInstanceOf(ForbiddenException);
+      });
+
+
+      /**
+       * ⭐ **Ogni condizione che segue rivela qualcosa, non solo «già
+       * collegato».**
+       *
+       * Misurato falsificando: spostando la guardia dopo tipo, fornitore e
+       * annullamento, la sola prova sull'oracolo restava verde — perché il suo
+       * arrivo supera quei tre controlli. Servono tutti e quattro i casi, o la
+       * rete protegge un ordine solo su quattro.
+       *
+       * I messaggi che questi controlli producono dicono, nell'ordine: che il
+       * documento non è un arrivo merce; che appartiene a un altro fornitore;
+       * che è annullato. Tutte informazioni su un documento che il richiedente
+       * non può vedere.
+       */
+      it.each([
+        ['tipo sbagliato', { type: DocumentType.supplier_invoice }],
+        ['altro fornitore', { supplierId: 'sup-altro' }],
+        ['annullato', { status: DocumentStatus.cancelled }],
+        ['già collegato', { purchaseInvoiceLinks: [{ purchaseInvoiceId: 'altra' }] }],
+      ])(
+        '⛔ arrivo fuori ambito e %s: risponde 403, senza rivelare la condizione',
+        async (_caso, extra) => {
+          const { service } = createService(prisma);
+          prisma.document.findMany.mockResolvedValue([
+            linkableReceipt({ locationId: SEDE_ALTRUI, ...extra }),
+          ]);
+          mockSavedInvoice();
+
+          await expect(
+            service.savePurchaseInvoice(tenantId, dtoConArrivo(), limitatoAllaMiaSede()),
+          ).rejects.toBeInstanceOf(ForbiddenException);
+        },
+      );
+
+      // ⚠️ Comportamento PRESERVATO: un arrivo senza sede non ha nulla da
+      // confrontare. Non è una decisione presa qui.
+      it('arrivo senza sede: passa, policy preservata', async () => {
+        const { service } = createService(prisma);
+        prisma.document.findMany.mockResolvedValue([linkableReceipt({ locationId: null })]);
+        mockSavedInvoice();
+
+        const esito = await esitoDi(
+          service.savePurchaseInvoice(tenantId, dtoConArrivo(), limitatoAllaMiaSede()),
+        );
+
+        expect(esito).not.toBeInstanceOf(ForbiddenException);
+      });
+    });
 });

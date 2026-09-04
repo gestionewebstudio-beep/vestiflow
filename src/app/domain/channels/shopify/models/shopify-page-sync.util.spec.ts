@@ -23,6 +23,7 @@ const adminUser = {
   isActive: true,
   isPlatformAdmin: false,
   tenantChannelProfile: 'shopify' as const,
+  manualUnloadEnabled: true,
   tenantName: 'Cliente test',
   hasAllLocationsAccess: true,
   assignedLocationIds: [],

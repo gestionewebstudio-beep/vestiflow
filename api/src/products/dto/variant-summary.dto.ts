@@ -6,6 +6,16 @@ export interface VariantSummaryDto {
   readonly articleCode: string;
   readonly productName: string;
   readonly title: string;
+  /**
+   * L'etichetta della sola VARIANTE: «M / Rosso». Vuota se l'articolo non ha
+   * opzioni (compreso il «Default Title» che Shopify assegna ai prodotti
+   * semplici).
+   *
+   * ⛔ La compone il SERVER, con la funzione unica. Il client non la ricava
+   * sottraendo il nome prodotto dal titolo — lo faceva, ed era una sottrazione
+   * di stringhe che si rompeva appena il titolo non cominciava col nome.
+   */
+  readonly variantLabel: string;
   readonly barcode?: string | null;
   readonly sellingPrice: {
     readonly amountMinor: number;

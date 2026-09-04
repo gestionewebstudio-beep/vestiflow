@@ -1,0 +1,46 @@
+// ⚠️ Niente `display: contents` sull'host: la barra E' il contenitore, e deve
+// portare il proprio sfondo, il bordo e la posizione appiccicata.
+//
+// ⭐ I valori sono quelli di `.doc-form__actions` in `styles/_document-form.scss`,
+// copiati SENZA cambiarne uno: l'estrazione deve conservare la resa, non solo
+// il comportamento. Quando tutte le maschere saranno migrate, quel blocco
+// globale sparisce — finche' non lo e', i due convivono senza toccarsi perche'
+// le classi sono diverse.
+:host {
+  position: sticky;
+  inset-block-end: var(--space-2);
+  z-index: var(--z-sticky);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-block-start: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background-color: color-mix(in srgb, var(--color-surface) 95%, transparent);
+  backdrop-filter: blur(var(--blur-bar));
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+// ⭐ La veste compatta: la coppia in fondo al documento, che scorre col
+// contenuto (`regole-stile-ui` §5). Niente barra fissa in basso — quella e' il
+// dock, e ha un mestiere suo: inserire righe.
+:host(.doc-actions--compact) {
+  position: static;
+  z-index: auto;
+  gap: var(--space-2);
+  margin-block-start: var(--space-3);
+  padding: 0;
+  background-color: transparent;
+  backdrop-filter: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+// ⛔ Niente regola per la nota: e' contenuto PROIETTATO, e lo stila chi lo
+// proietta. La prima stesura aveva qui un `::ng-deep` per spingerla a sinistra
+// — nell'app ce n'erano 65 e sono zero, quindi aggiungerne uno e' sempre una
+// regressione. Il `margin-inline-end: auto` sta gia' su `.doc-form__actions-note`.

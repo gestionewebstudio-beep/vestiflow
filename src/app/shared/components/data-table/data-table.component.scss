@@ -1,0 +1,1368 @@
+@use 'breakpoints' as bp;
+@use 'responsive-table' as rt;
+@use 'a11y';
+
+/*
+  Il motore tabella dei riepiloghi (`14` parte H).
+
+  ⛔ **La grammatica non è nuova**: arriva dai mixin che le cinque tabelle già
+  usavano — contenitore a scorrimento, layout desktop, ripiego a card, colonna
+  di selezione. Il motore le include una volta invece di cinque, ed è la ragione
+  per cui questo foglio è corto: non c'era CSS da inventare, solo da smettere di
+  ripetere.
+*/
+@include rt.list-card-table-host();
+
+/*
+  ⚠️ **L'host deve GIRARE l'altezza al contenitore di scorrimento.**
+
+  `list-card-table-host()` lo mette a `display: block`: va bene finché la tabella
+  cresce col contenuto, ma nella pagina che si adatta alla finestra
+  (`regole-stile-ui` §6) l'host riceve `flex: 1` dalla pagina e deve passarlo al
+  figlio. Senza questo blocco l'altezza si ferma qui, il contenitore non scorre e
+  l'intestazione `sticky` non appiccica — **in silenzio**.
+
+  ⚠️ Dichiarato DOPO il mixin: stessa specificità, vince l'ultimo.
+*/
+:host {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
+  /*
+    ⚠️ **Il pavimento ORIZZONTALE, che mancava.** Senza, questo host si rifiuta di
+    stringersi sotto la larghezza della tabella che contiene, e una tabella larga
+    spinge la pagina oltre il bordo invece di scorrere dentro `.data-table-scroll`.
+    Misurato sui Clienti il 30/08/2026 — tredici colonne, barra di scorrimento
+    orizzontale sulla pagina.
+  */
+  min-inline-size: 0;
+}
+
+@include rt.data-table-desktop('data-table');
+@include rt.data-table-mobile-cards('data-table');
+@include rt.selection-column('data-table');
+/*
+  ⭐ **La grammatica dei riepiloghi** (`14` §F5, decisa il 20/08/2026): densità,
+  intestazione e fili nella forma del Registro Corrispettivi. Sta in un mixin e
+  non qui perché **serve anche altrove** — le anagrafiche sono elenchi come
+  questi, e uniformarle è una riga di `@include` più la loro verifica visiva.
+*/
+@include rt.summary-grammar('data-table');
+
+/*
+  L'intestazione ordinabile è un pulsante vero: si raggiunge col Tab e annuncia
+  il proprio stato via `aria-sort` sulla cella che lo contiene.
+*/
+.data-table__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.data-table__sort-icon {
+  font-size: var(--text-2xs);
+}
+
+/*
+  La maniglia di ridimensionamento: pochi pixel sul bordo destro
+  dell'intestazione. `regole-stile-ui` §9 ricorda che è un bersaglio da
+  puntatore fine — su dispositivo a dito la tabella diventa card e non c'è.
+
+  ⭐ **E si vede** — deciso dal proprietario il 30/08/2026:
+  «bisognerebbe rendere visibile la linea di regolazione della larghezza colonna».
+
+  ⛔ Prima era un bersaglio **trasparente** da 4px: lo si trovava solo passandoci
+  sopra per caso. Una funzione che non si annuncia non esiste per chi non sa già
+  che c'è.
+
+  ⚠️ **Il bersaglio resta largo, il filo è sottile**: si allarga a 8px per essere
+  colpibile col mouse, ma disegna un pelo di 1px — la linea deve indicare dove si
+  trascina, non diventare un secondo divisore più grosso di quelli veri.
+*/
+.data-table__resize {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  inline-size: var(--space-2);
+  cursor: col-resize;
+  user-select: none;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset-block: var(--space-1);
+    inset-inline-end: 0;
+    inline-size: var(--border-width);
+    background-color: var(--color-table-header-rule);
+  }
+
+  &:hover::after,
+  &:active::after {
+    inset-block: 0;
+    // ⚠️ 2px, non 4: `--border-width-accent` è la striscia di tipo su una card,
+    //    e qui farebbe una barra più grossa dei divisori che deve solo affiancare.
+    inline-size: var(--border-width-strong);
+    background-color: var(--color-focus);
+  }
+}
+
+.data-table__head-cell {
+  position: relative;
+}
+
+/*
+  ⭐ **INTESTAZIONI A 10px** — deciso dal proprietario il 30/08/2026: «anche la
+  testata delle intestazioni colonna possiamo portarla a 10px».
+
+  Erano 11px (`--text-2xs`). Dieci è il gradino sotto (`--text-3xs`) ed è la
+  taglia che `regole-stile-ui` §3 dà già alle etichette maiuscole: l'intestazione
+  di colonna diventa così coerente con le etichette del riepilogo che la riassume,
+  invece di stare mezzo gradino sopra.
+
+  ⚠️ **Sta nel MOTORE, non nel mixin `data-table-desktop`**: quel mixin veste
+  anche le griglie di riga dei documenti, che sono maschere di inserimento e non
+  elenchi — la densità di un elenco non è una decisione che li riguarda.
+*/
+.data-table thead th {
+  /*
+    ⭐ **11px** — proprietario, 01/09/2026: «proviamo a mettere le intestazioni
+    delle colonne a 11px, attualmente è 10».
+
+    ⛔ Qui c'erano 10 (`--text-3xs`), scesi il 30/08 insieme al resto della
+    densità. Con la riga filtri sotto ogni titolo quella misura reggeva; da
+    quando il filtro è una freccia accanto al titolo, l'intestazione è tornata
+    a essere una riga sola — e a 10px si leggeva più piccola di quanto la sua
+    importanza meriti.
+  */
+  font-size: var(--text-2xs);
+
+  /*
+    ⭐ **Intestazione più stretta in verticale** — «la riga delle intestazioni
+    colonne leggermente più piccola», 30/08/2026, e «la testata delle colonne la
+    porterei anche lei a 26px», 01/09/2026. Il padding verticale è sceso da 8 a
+    4px, il token di altezza da 32 a 28 e poi a **26**.
+
+    ⚠️ **L'altezza sta nel TOKEN, non qui**: `--table-head-h` la porta insieme
+    alla sua ragione e al suo limite, e `check:regole-token` tiene allineata la
+    tabella della regola. Riscriverla in questo foglio la scollegherebbe da
+    entrambi.
+
+    ⚠️ **Il padding ORIZZONTALE non si tocca**: è quello che tiene le
+    intestazioni staccate dai fili di colonna, e stringerlo non restituisce
+    altezza — restituisce larghezza a una tabella che non ne ha bisogno.
+  */
+  padding-block: var(--space-1);
+  block-size: var(--table-head-h);
+}
+
+/*
+  ⭐ **Due segnali distinti, e la distinzione è una decisione del proprietario
+  (20/08/2026)**:
+
+  | il cambio di sfondo | comune a QUALSIASI riga — è lo stato del puntatore e della selezione, e non deve divergere fra Movimenti e gli altri riepiloghi |
+  | la mano            | compare **solo dove il clic apre davvero la Modifica** |
+
+  ⛔ Qui l'hover era stato ristretto alle sole righe cliccabili, e i Movimenti —
+  che si selezionano ma non si aprono — l'avevano perso. Era una divergenza fra
+  riepiloghi, che è precisamente ciò che questo lavoro esiste per togliere:
+  l'hover resta quindi al mixin condiviso, su ogni riga.
+
+  Il cursore invece era andato perso nell'assorbimento: `.doc-table__row` aveva
+  `cursor: pointer`, il motore no, e `data-table__row--clickable` era una classe
+  che il template applicava e che nessuna regola leggeva.
+*/
+.data-table tbody tr.data-table__row--clickable {
+  cursor: pointer;
+}
+
+/*
+  ⛔ **L'anello di fuoco MANCAVA nel motore**, misurato il 30/08/2026.
+
+  Le righe cliccabili prendono `tabindex` e si raggiungono col Tab — il motore
+  gliela dà — ma nessuna regola le disegnava a fuoco: chi naviga da tastiera non
+  vedeva dove si trovava. Ce l'aveva il solo Registro Corrispettivi, sulla sua
+  tabella propria, e si sarebbe persa nella migrazione.
+
+  ⚠️ **Riguarda ogni elenco sul motore**, non il Registro: documenti, ordini
+  cliente, ordini fornitore, vendite online e movimenti ne erano privi da
+  sempre. È una lacuna di accessibilità, non un dettaglio di stile.
+*/
+.data-table tbody tr.data-table__row--clickable:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus);
+  outline-offset: calc(var(--focus-ring-width) * -1);
+}
+
+/*
+  ⭐ **I TONI DI RIGA** — portati nel motore il 30/08/2026.
+
+  Erano nel Registro Corrispettivi (`.corrispettivi-table__row--refund`), che è
+  l'unico elenco ad averli avuti finora. Non sono suoi: **ogni elenco che
+  contenga movimenti in due versi ne ha bisogno** — resi, note di credito,
+  rimborsi — e lasciarli lì significava che il secondo elenco a chiederli se li
+  sarebbe riscritti, con la sua tinta.
+
+  ⛔ **Il tono non è una pill.** Una pill segnala un'eccezione; qui ogni riga ha
+  un tipo, quindi un riquadro attorno non distingue niente e alza soltanto la
+  riga. Si legge dal fondo tenue e dal colore dei numeri.
+*/
+
+/*
+  `negative` — la riga TOGLIE. Fondo appena accennato e importi in rosso: sono
+  i due segnali già in uso nel Registro, e sono ridondanti apposta — chi non
+  distingue i colori vede comunque il segno meno nel numero.
+
+  ⚠️ Il colore va sulle CELLE NUMERICHE, non su tutta la riga: rosso sulla
+  descrizione la farebbe leggere come un errore invece che come un segno.
+*/
+.data-table tbody tr.data-table__row--negative > td {
+  background: var(--color-surface-soft);
+}
+
+.data-table tbody tr.data-table__row--negative > td.data-table__cell--numeric {
+  color: var(--color-danger);
+}
+
+/*
+  `muted` — la riga si legge ma non concorre: annullata, esclusa dal conteggio.
+  Nessun fondo, solo il testo smorzato: non è un'uscita, è un'assenza.
+*/
+.data-table tbody tr.data-table__row--muted > td {
+  color: var(--color-text-muted);
+}
+
+/*
+  ⭐ **LA RIGA APPENA TROVATA** — la scansione col lettore ottico la accende per
+  un momento, e la pagina ci scorre sopra (`highlightedRowId`).
+
+  ⛔ **Non è un tono**: i tre qui sopra dicono cosa la riga È, e restano finché
+  resta il dato. Questo dice cosa è appena SUCCESSO, e si spegne da sé — per
+  questo prende il colore del fuoco e non uno del vocabolario di stato: è la
+  stessa cosa che dice «l'attenzione adesso è qui».
+
+  ⚠️ **Vince sugli altri fondi**, tono compreso: una riga che toglie e che è
+  stata appena scansionata deve leggersi come scansionata — quello è il
+  riscontro del gesto, e dura due secondi.
+
+  ⚠️ **La transizione è sull'USCITA**, e va lasciata: il lampo deve arrivare
+  netto — se sfumasse anche in entrata, chi guarda il telefono mentre conta non
+  vedrebbe accadere niente — e sfumare invece quando si spegne, o la riga
+  «salterebbe» al colore normale come se fosse cambiato il dato.
+*/
+.data-table tbody tr.data-table__row--highlighted > td {
+  background: var(--color-focus-ring-alpha);
+  transition: background var(--transition-base);
+}
+
+/*
+  ⭐ **L'ACCENTO LATERALE DELLA CARD** — sotto `lg`, dove la riga è una card.
+
+  Il tipo si legge dall'accento, non da un pallino: è il vocabolario già in uso
+  per la riga «Documento collegato» e per la voce attiva in sidebar
+  (`regole-stile-ui` §6). **Tinta smorzata** perché qui ogni card ha un tipo —
+  il colore accompagna, non segnala un'eccezione.
+
+  ⛔ **Solo dove il tono è dichiarato.** Una card senza tono non prende nessun
+  accento: una striscia colorata su ogni card di ogni elenco sarebbe rumore.
+
+  ⚠️ **Era del Registro Corrispettivi** (`.corrispettivi-table__row` con
+  `--card-accent`), e nella migrazione al motore del 30/08/2026 è stata potata
+  con il resto dello scheletro — **perdendo l'accento a schermo**. Il difetto
+  l'ha visto il proprietario, non un test: le classi orfane non falliscono.
+  È salita qui perché non era del Registro, come il tono che la governa.
+*/
+@include bp.vista-compatta('lg') {
+  .data-table tbody tr.data-table__row--positive,
+  .data-table tbody tr.data-table__row--negative,
+  .data-table tbody tr.data-table__row--muted {
+    border-inline-start: var(--border-width-accent) solid
+      color-mix(in srgb, var(--data-table-row-accent) 55%, transparent);
+  }
+
+  .data-table tbody tr.data-table__row--positive {
+    --data-table-row-accent: var(--color-ok);
+  }
+
+  .data-table tbody tr.data-table__row--negative {
+    --data-table-row-accent: var(--color-danger);
+  }
+
+  .data-table tbody tr.data-table__row--muted {
+    --data-table-row-accent: var(--color-text-subtle);
+  }
+
+  /*
+    ⚠️ **Il fondo tenue della riga negativa NON serve sulla card**, e va tolto:
+    l'accento e gli importi rossi lo dicono già, e un terzo segnale disegna un
+    riquadro grigio dentro il riquadro bianco. È la stessa scelta di §6 —
+    «segnali ridondanti si tolgono».
+  */
+  .data-table tbody tr.data-table__row--negative > td {
+    background: transparent;
+  }
+}
+
+/*
+  La selezione vince sul passaggio: la riga scelta resta riconoscibile mentre il
+  puntatore ci corre sopra. Nel mixin le due regole hanno la stessa specificità
+  e l'hover viene dopo — senza questa riga, passare su una riga selezionata la
+  farebbe tornare al colore di tutte le altre.
+*/
+.data-table tbody tr.is-selected,
+.data-table tbody tr.is-selected:hover {
+  background-color: var(--color-table-row-selected);
+}
+
+/*
+  L'intestazione di sezione: una fascia di STRUTTURA, non una riga di dato.
+  Prende lo stesso fondo dell'intestazione tabella — `regole-stile-ui` §6 spiega
+  perché non `--color-surface-soft`: quel tono è già preso dalle righe di
+  transazione singola, e un raggruppamento che lo usasse si leggerebbe come un
+  altro evento invece che come struttura.
+*/
+.data-table__section-head-cell {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-table-header-fg);
+  text-align: start;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+  background-color: var(--color-table-header-bg);
+}
+
+/*
+  ⭐ **«Nessuna riga corrisponde ai filtri»**: una riga di SPIEGAZIONE, non un
+  dato e non una struttura.
+
+  ⚠️ Tinta di superficie tenue e testo muted, centrato: si distingue sia dalle
+  righe (che qui non ci sono) sia dalle fasce di struttura, che nella stessa
+  tabella hanno il fondo dell'intestazione.
+*/
+.data-table__no-match-cell {
+  padding: var(--space-6) var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  text-align: center;
+  background-color: var(--color-surface-soft);
+}
+
+/*
+  Il piede di sezione chiude il gruppo: più pesante del dettaglio, senza però
+  gridare quanto il totale generale.
+*/
+/*
+  ⭐ **TRE livelli di peso, non due** (`regole-stile-ui`, «Riga di subtotale»).
+
+  La riga intera parte da `semibold` — si distingue dal dettaglio sopra, che è a
+  peso normale — e il SOLO valore che risponde alla domanda del gruppo sale a
+  `bold` + `--color-primary`.
+
+  ⛔ **Il motore aveva solo i primi due**, e la terza la faceva il Registro con
+  una classe sua (`__day-total-final`). Pesare tutte le celle del subtotale allo
+  stesso modo confonde «chiude il gruppo» con «è la risposta del gruppo».
+
+  ⚠️ **Quale colonna sia la risposta lo dice la SEZIONE**, non il motore: su un
+  registro è il Totale, altrove potrebbe essere la quantità. Vedi `emphasis` in
+  `DataTableSectionFooter`.
+*/
+.data-table__section-total {
+  font-weight: var(--font-weight-semibold);
+  background-color: var(--color-table-header-bg);
+}
+
+.data-table__section-total-value--emphasis {
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary);
+}
+
+.data-table__section-total-label {
+  text-align: end;
+}
+
+@include bp.vista-compatta('lg') {
+  // Sulla card la maniglia non ha senso: non c'è colonna da allargare, e
+  // sarebbe un bersaglio invisibile sotto il dito.
+  .data-table__resize {
+    display: none;
+  }
+
+  // Sulla card la riga e' un riquadro a se': prende il raggio della card.
+  .data-table__row {
+    border-radius: var(--radius-lg);
+  }
+}
+
+/*
+  Il contenitore scorre in orizzontale: sotto una certa larghezza una tabella
+  densa non entra, e `regole-gestionale` vieta l'overflow incontrollato — non
+  lo scorrimento, che è una delle strategie ammesse.
+*/
+/*
+  ⛔ **`position: sticky` senza uno scrollport non appiccica: non fa NIENTE.**
+
+  Qui c'era il solo `overflow-x: auto`. Per spec l'altro asse computa comunque
+  `auto`, quindi questo div È il contenitore di scorrimento più vicino su
+  entrambi gli assi — ma senza un limite di altezza non scorre mai in verticale,
+  e l'intestazione `sticky` (sotto, `.data-table__head th`) si ancorava a uno
+  scrollport fermo. Misurato il 29/08/2026: non appiccicava, e con venti righe a
+  schermo non si vedeva.
+
+  ⭐ Ora è un requisito, non una correzione (`14` §11.5 D3): senza tetto di righe
+  (`14` §11.4) un elenco è lungo centinaia di schermate, e l'intestazione porta
+  con sé i controlli di FILTRO.
+
+  ⚠️ Solo sopra `lg`. Sotto, la tabella è fatta di card che scorrono con la
+  pagina: un contenitore che scorre dentro un altro che scorre, sotto il dito, è
+  la trappola classica del mobile.
+*/
+/*
+  ⭐ **`riempi`, non `tetto`** — 29/08/2026.
+
+  Il tetto in unità di viewport era un numero indovinato: faceva comparire la
+  barra anche quando lo schermo aveva ancora spazio, e lasciava bianco quando le
+  righe erano poche. È lo stesso difetto che il Registro Corrispettivi aveva già
+  incontrato e scartato prima di questo lavoro.
+
+  ⚠️ **Presuppone che la PAGINA dia l'altezza** (`lp.list-page-fills-viewport`):
+  tutte e quattro le pagine che rendono questo motore l'hanno. Una pagina nuova
+  che non la desse avrebbe una tabella che cresce col contenuto e un'intestazione
+  che scorre via — la guardia `check:sticky-scrollport` non lo vede, perché è una
+  proprietà della pagina, non del foglio della tabella.
+*/
+@include rt.table-scroll('.data-table-scroll', riempi);
+
+/*
+  ⭐ **E la regione di scorrimento PRENDE lo spazio, non solo lo consente.**
+
+  L'host è `flex` in colonna, ma questo figlio restava `flex: 0 1 auto`, cioè
+  alto quanto il contenuto: misurato il 30/08/2026, **357px dentro una zona dati
+  da 533**, e i 176 di differenza erano la fascia grigia che il proprietario
+  vedeva fra l'ultima riga e il riepilogo.
+
+  ⚠️ **Il `block-size: 100%` del mixin non bastava**: come elemento flessibile la
+  base di flex prevale, e il 100% si calcolava comunque su un'altezza che nessuno
+  aveva ancora determinato. Serve `flex: 1` — «prendi ciò che avanza» — più
+  `min-block-size: 0`, senza il quale un figlio flex non scende sotto il proprio
+  contenuto e la barra di scorrimento non comparirebbe mai.
+
+  ⚠️ **Dove la catena di altezze non c'è, questa regola non fa nulla**: in un
+  contenitore ad altezza automatica «ciò che avanza» è zero, e la tabella resta
+  alta quanto le sue righe. Le tabelle ancorate alla shell (§6) sono invariate.
+*/
+.data-table-scroll {
+  flex: 1;
+  min-block-size: 0;
+
+  /*
+    ⭐ **LA CARD È LA REGIONE, NON LA TABELLA** — è ciò che fa arrivare il bianco
+    fino alla riga dei totali anche con poche righe.
+
+    ⛔ **`min-block-size: 100%` sulla tabella non funziona**, ed è il tentativo
+    che ho fatto prima: su un elemento `display: table` l'altezza minima
+    percentuale non viene onorata: misurato, la tabella restava a 357px in una
+    regione da 533 già corretta. Non falliva — semplicemente non aveva effetto.
+
+    ⭐ Spostare bordo, raggio e fondo sul contenitore di scorrimento risolve per
+    costruzione: quel contenitore un'altezza ce l'ha, ed è esattamente quella che
+    il proprietario vuole veder riempita.
+
+    ⚠️ **Sta QUI e non nel mixin `data-table-desktop`**: quel mixin lo usano anche
+    le griglie di riga dei documenti, che non hanno un contenitore di scorrimento
+    e perderebbero la propria cornice. Il mixin continua a vestire la tabella; il
+    motore elenco gliela toglie e la mette un livello più fuori.
+
+    ⚠️ **`overflow` ritaglia sul raggio**, quindi l'intestazione appiccicata non
+    sborda dagli angoli arrotondati e non serve un secondo ritaglio.
+  */
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+/*
+  La tabella smette di essere la card: la cornice la porta il contenitore sopra.
+  Restano i raggi sulle celle d'angolo, che ora cadono dentro il ritaglio del
+  contenitore e non si vedono — innocui, e toglierli significherebbe toccare il
+  mixin condiviso per un effetto nullo.
+*/
+.data-table {
+  background-color: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+/*
+  ⛔ **QUI C'ERA `min-block-size: 100%`, ED È STATO TOLTO — 30/08/2026.**
+
+  Serviva a far arrivare la card bianca in fondo alla regione con poche righe. Il
+  commento su `.data-table-scroll` qui sopra racconta che **non funzionava**:
+  misurato, la tabella restava a 357px in una regione da 533. La cornice è quindi
+  passata al contenitore, e questa riga è rimasta lì, ritenuta inerte.
+
+  ⛔ **Inerte lo era solo finché il contenitore non aveva un'altezza.** Da quando
+  ce l'ha — `table-scroll(riempi)`, che gli dà `block-size: 100%` — la regola ha
+  ripreso effetto, e su una `<table>` un'altezza al 100% **si distribuisce fra le
+  righe**: cinque righe in una regione alta diventano cinque righe da 95px.
+
+  ⚠️ **E `--table-row-h` non lo impediva**: su un `tr` è un MINIMO, non un
+  massimo. Segnalato dal proprietario guardando le Vendite online — cinque
+  documenti, righe alte tre volte quelle dei Corrispettivi.
+
+  ⭐ **Il fondo bianco non si perde**: lo porta `.data-table-scroll`, che
+  un'altezza ce l'ha davvero. È già così dal 30/08.
+*/
+.data-table {
+  inline-size: 100%;
+  min-inline-size: 100%;
+}
+
+/*
+  ⭐ **LA RIGA TOTALI IN FONDO AL CONTENITORE** — proprietario, 01/09/2026:
+  «la barra non resta fissa sotto a piè di contenitore righe», poi «anche
+  fornitori va sistemata la barra sotto come per gli altri».
+
+  ⛔ **Non è lo `sticky` a essere rotto**: appiccica quando il contenuto ECCEDE
+  il contenitore, e con quattro righe non c'è niente da cui staccarsi. Misurato
+  su Fornitori: **288px di bianco** fra la riga totali e il fondo.
+
+  ⚠️ **E l'altezza da sola era già stata provata e scartata** — è il commento
+  qui sopra, 30/08/2026: su una `<table>` l'avanzo si distribuisce alle RIGHE, e
+  cinque documenti diventavano cinque righe da 95px. `--table-row-h` non lo
+  impedisce, perché su un `tr` è un MINIMO.
+
+  ⭐ **Quindi l'avanzo deve avere DOVE andare**: la riga di riempimento chiede
+  il 100%, cioè molto più di quanto avanzi, e se lo prende tutto lei. Le righe
+  di dati restano alla loro altezza.
+
+  ⚠️ **Solo da `lg` in su.** Sotto, la tabella è fatta di card (`display:
+  block`) e un'altezza dichiarata qui diventerebbe **fissa** invece che minima —
+  è il difetto misurato il 31/08/2026, con le fasce che uscivano dal riquadro.
+  La riga di riempimento, lì, sarebbe per giunta una card vuota.
+*/
+@include bp.media-up('lg') {
+  .data-table {
+    block-size: 100%;
+  }
+
+  /*
+    ⛔ **IL NOME DEL GENITORE NON È VERBOSITÀ: È IL PESO.**
+
+    `responsive-table` dichiara l'altezza di riga come `.data-table tbody tr`
+    — classe + due elementi, **peso 3**. Scritta `.data-table__filler`, questa
+    regola pesa **1** e perde: la riga di riempimento restava a 30px come le
+    altre, l'avanzo si spartiva fra tutte e quattro, e le righe di dati
+    salivano a **94,25px**. Misurato in un browser vero il 01/09/2026, e a
+    schermo dal proprietario.
+
+    ⚠️ **Non falliva**: la barra finiva comunque in fondo, quindi una prova che
+    guardasse solo il piede sarebbe stata verde. A tradirlo erano le righe.
+
+    ⭐ È la stessa trappola di `regole-stile-ui` §6 — «la specificità batte
+    l'ordine» — nella sua forma più costosa: la regola che perde è quella
+    scritta dopo, e sembra quella giusta.
+  */
+  .data-table tbody tr.data-table__filler {
+    block-size: 100%;
+  }
+
+  /*
+    Non è una riga: non porta filo, padding né tinta propria. Il fondo è quello
+    della card, che sotto di lei non c'è più.
+  */
+  .data-table tbody tr.data-table__filler td {
+    padding: 0;
+    border: 0;
+    background-color: var(--color-surface);
+  }
+}
+
+/*
+  Intestazione appiccicata e colonna bloccata.
+
+  ⭐ Stanno QUI e non nella pagina perché `pinned` è già nel modello colonne: se
+  ogni riepilogo se le riscrivesse, il selettore delle colonne comanderebbe una
+  cosa che poi solo alcune tabelle rispettano.
+
+  Dichiarata dopo `.data-table__head-cell`, quindi `sticky` prevale su
+  `relative` — e va bene: anche una cella appiccicata fa da riferimento alla
+  maniglia di ridimensionamento, che resta al suo posto.
+*/
+/*
+  ⚠️ **La scala è dichiarata sotto `.data-table__totals`**, che è l'unico punto
+  in cui i quattro strati si incontrano. Cambiarne uno qui senza rileggerla
+  rimette in piedi il difetto del 31/08/2026: una cella fissata che scorre SOPRA
+  il piede invece che sotto.
+*/
+.data-table__head th {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: calc(var(--z-raised) + 3);
+  background-color: var(--color-table-header-bg);
+}
+
+.data-table__cell--pinned {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: calc(var(--z-raised) + 1);
+  background-color: var(--color-surface);
+}
+
+.data-table__head .data-table__cell--pinned {
+  z-index: calc(var(--z-raised) + 4);
+  background-color: var(--color-table-header-bg);
+}
+
+/*
+  Il numero della chiave, accanto alla freccia.
+
+  Piccolo e smorzato: accompagna la freccia, non compete con l'etichetta della
+  colonna. Compare solo quando le chiavi attive sono più di una — con una sola
+  sarebbe un «1» perenne che non informa di nulla.
+*/
+.data-table__sort-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: var(--space-3);
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+/*
+  La colonna del comando di riga: stretta, centrata, e non partecipa al ritmo
+  delle colonne dati — non è un dato, è una fascia di comando.
+*/
+.data-table__cell--row-actions {
+  /*
+    ⚠️ **Fissa, e nessuno la configura.** Il 30/08/2026 era diventata
+    `var(--data-table-row-actions-w, …)` per far stare i due pulsanti di riga
+    dell'elenco prodotti; quei pulsanti sono poi passati alla barra in basso, e
+    il punto di regolazione è rimasto **senza un solo consumatore**.
+
+    ⛔ Un punto di regolazione che nessuno usa non è flessibilità: è una promessa
+    di configurabilità che nessuno ha verificato. Torna quando serve.
+  */
+  inline-size: var(--space-12);
+  text-align: center;
+  white-space: nowrap;
+}
+
+/*
+  Le due vestizioni di cella dichiarate dal modello colonne (`display`).
+
+  ⭐ Sono le ricette che `regole-stile-ui` §6 prescrive per tutta l'app —
+  codici incolonnati, descrizioni troncate — e stanno qui perché tre riepiloghi
+  le stavano riscrivendo ognuno per conto suo.
+*/
+.data-table__cell--code {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.data-table__cell--truncate {
+  max-inline-size: var(--table-cell-max);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+  ── La veste compatta PROGETTATA (`appRowCard`) ────────────────────────────
+
+  ⭐ Il motore fornisce il MECCANISMO; il contenuto della card lo disegna la
+  schermata. Qui c'è solo *quando* si vede e *come* si dividono i ruoli.
+
+  ⚠️ Vale per i **riepiloghi**, dove il ripiego a etichetta:valore non basta:
+  con otto colonne dà otto righe tutte dello stesso peso, in cui niente è
+  primario e la card è più alta dello schermo (`regole-stile-ui` §6). Non è il
+  pattern dei documenti, che hanno un'anatomia loro.
+*/
+/*
+  ⛔ **QUESTA REGOLA PERDEVA IL CONFRONTO, ed è invisibile finché non guardi.**
+
+  Misurato nel browser il 30/08/2026 con le regole calcolate del motore CSS: la
+  cella della card era `display: table-cell` e larga **295,6px** su scrivania —
+  una colonna in più che ripeteva la riga accanto alle celle vere.
+
+  ```text
+  .data-table__card                                  (0,1,0)  display: none
+  .data-table tbody td, .data-table__row td          (0,2,2)  display: table-cell  ← vince
+  ```
+
+  ⭐ **La correzione è la specificità, non una media query.** Aggiungere
+  `@media (min-width: lg) { .data-table__card { display: none } }` — la strada
+  ovvia — non serviva a niente: perdeva lo stesso confronto, in ogni fascia.
+
+  ⚠️ **Nessun test la coglie**: il markup è corretto, la cella porta il suo
+  `aria-hidden`, e jsdom non calcola la cascata. Si vede solo a schermo, ed è
+  stata trovata guardando una schermata.
+*/
+.data-table tbody td.data-table__card,
+.data-table__row td.data-table__card {
+  display: none;
+}
+
+:host(.data-table-host--row-card) {
+  @include bp.vista-compatta('lg') {
+    /*
+      ⚠️ **Le celle vere non spariscono: si nascondono all'OCCHIO.**
+
+      `display: none` le toglierebbe anche ai lettori di schermo. Con la ricetta
+      `.sr-only` restano nell'albero accessibile, così chi legge con uno screen
+      reader sente le colonne nell'ordine di sempre mentre chi guarda vede la
+      card — ed è per questo che la card porta `aria-hidden`.
+    */
+    .data-table__row td:not(.data-table__card) {
+      // ⭐ La ricetta e' UNA, e sta in `styles/_a11y.scss`: qui era la terza
+      // copia delle stesse nove dichiarazioni. La misura di 1px e non 0 e'
+      // voluta — a dimensione zero diversi screen reader saltano l'elemento.
+      @include a11y.visually-hidden;
+    }
+
+    /*
+      ⭐ **LA CASELLA DI SELEZIONE RESTA VISIBILE ANCHE NELLA VISTA A CARD** —
+      chiesto dal proprietario il 30/08/2026: sul telefono non c'era modo di
+      selezionare, perché la cella vera finiva sotto la ricetta `.sr-only`
+      insieme a tutte le altre.
+
+      ⛔ **La casella NON può stare DENTRO la card**, ed è la ragione per cui è
+      un'eccezione a quella regola e non un'aggiunta al template: la cella card
+      porta `aria-hidden="true"` — è una veste, non un dato — e un controllo
+      interattivo dentro un sottoalbero nascosto ai lettori di schermo è un
+      errore di accessibilità, non un dettaglio.
+
+      ⭐ Tenendo visibile la CELLA VERA si ottiene un controllo solo, quello che
+      c'è già anche sulla scrivania: stessa casella, stessa etichetta, stesso
+      evento. Nessuna seconda grammatica da tenere allineata.
+
+      ⛔ **E non è la pressione prolungata.** Sul web mobile è già presa dal
+      browser (selezione del testo, menu contestuale) e soprattutto non ha
+      nessun segno che ne dichiari l'esistenza: su un gestionale che si usa in
+      magazzino, una funzione invisibile è una funzione che non c'è.
+    */
+    /*
+      ⛔ **QUI AVEVO MESSO LA CASELLA VISIBILE NELLA CARD, ed è stata scartata.**
+
+      Funzionava, ma si prendeva ~22px di larghezza **su ogni card, sempre** —
+      anche quando nessuno sta selezionando. Misurato col caso peggiore (numero
+      lungo e sede lunga): a 320 e 360px l'identità della card finiva troncata.
+      Larghezza pagata tutti i giorni per una funzione usata ogni tanto.
+
+      ⭐ **Al suo posto la modalità selezione**, decisa dal proprietario: un
+      pulsante «Seleziona» nella barra, e a modalità accesa il tocco sulla riga
+      seleziona invece di aprire. Costo zero quando è spenta.
+    */
+
+    /*
+      ⚠️ **Il selettore porta `td` apposta: è una questione di specificità.**
+      La regola desktop è `.data-table__row td` — classe più elemento — e batte
+      una classe sola. Scritto come `.data-table__card` questo blocco perderebbe
+      il confronto, e la cella card prenderebbe padding e filo della cella
+      desktop: dentro la card si vedrebbero come un riquadro con una riga sotto.
+    */
+    .data-table__row td.data-table__card {
+      display: flex;
+      flex-direction: column;
+      /*
+        ⛔ **`stretch` NON è il default qui: va dichiarato**, e senza, la card si
+        legge CENTRATA. Misurato il 30/08/2026, secondo giro sullo stesso difetto.
+
+        Il ripiego a etichetta:valore del mixin dà a ogni `td`
+        `align-items: center` — corretto per una griglia a due colonne, dove
+        etichetta e valore si allineano in mezzo. Questa cella lo ereditava, e in
+        una colonna flessibile `center` allinea sull'asse ORIZZONTALE: le tre
+        fasce della card, larghe quanto il loro contenuto, finivano al centro
+        invece di occupare la riga.
+
+        ⚠️ **È la ragione per cui `flex: 1` sull'identità non bastava**: un figlio
+        centrato non riceve la larghezza da distribuire, quindi non c'era niente
+        da spingere a destra e il numero restava incollato al tipo.
+      */
+      align-items: stretch;
+      gap: var(--space-1);
+      padding: 0;
+      border: 0;
+      /*
+        ⛔ **`text-align: start` NON è decorazione: senza, la card si allinea a
+        destra.** Misurato il 30/08/2026 col proprietario, sul Registro
+        Corrispettivi — primo consumatore di `appRowCard`.
+
+        Il ripiego a etichetta:valore del mixin condiviso dà a OGNI `td`
+        `text-align: end`, perché lì il valore sta nella colonna destra. La cella
+        che ospita la card lo ereditava: l'identità («17 ago 2026 · Vendita»),
+        che è un elemento flessibile largo, finiva incollata a destra invece che
+        a sinistra, e la card sembrava centrata.
+
+        ⚠️ **Va dichiarato qui e non nella schermata**: la card è un meccanismo
+        del motore, e ogni elenco che ne userà una troverebbe lo stesso difetto.
+      */
+      text-align: start;
+    }
+
+    /*
+      ⛔ **La pseudo-etichetta del ripiego non deve comparire dentro la card.**
+
+      Il mixin mette `content: attr(data-label)` su ogni `td::before`. La cella
+      card non ha `data-label`, quindi il contenuto è vuoto — ma l'elemento
+      esiste lo stesso, diventa un figlio flessibile e si prende un `gap`: uno
+      spazio in cima alla card che nessuno ha chiesto.
+
+      ⚠️ La regola del mixin che spegne il `::before` guarda `[data-label='']`,
+      cioè l'attributo VUOTO — non quello **assente**, che è il caso qui.
+    */
+    .data-table__row td.data-table__card::before {
+      content: none;
+      display: none;
+    }
+  }
+}
+
+/*
+  ── La riga TOTALI ─────────────────────────────────────────────────────────
+
+  ⭐ **Appiccicata in fondo alla vista**, dentro lo stesso contenitore che scorre:
+  su un elenco lungo resta sempre leggibile, e resta incolonnata perché è una
+  riga della stessa tabella.
+
+  ⚠️ **Il fondo è OPACO, non velato**: sotto scorrono righe di numeri, e a tinta
+  trasparente i due testi si leggerebbero sovrapposti. È la stessa ragione per cui
+  il piede del riepilogo Corrispettivi è opaco.
+
+  ⚠️ **Peso di STRUTTURA, non di transazione**: prende il fondo
+  dell'intestazione, come la riga di subtotale di gruppo — un totale e una riga di
+  dati non condividono la tinta, o il primo si legge come un'altra riga.
+*/
+/*
+  ── ⛔ LA SCALA DEGLI STRATI, e perché ne mancava uno ───────────────────────
+
+  Segnalato dal proprietario il 31/08/2026 sui Prodotti, con la freccia sulla
+  schermata: **la colonna Nome finiva SOPRA la riga dei totali**. L'ultima riga
+  si leggeva attraverso il piede — ma solo nella prima colonna.
+
+  ⚠️ **Solo lì perché solo quella è FISSATA**: `name` è `pinnable`, e una cella
+  fissata è `position: sticky` con `z-index: --z-raised + 1`. La riga totali
+  stava a `--z-raised`, cioè **uno sotto**: la cella le scorreva sopra invece
+  che sotto, e il suo fondo bianco copriva il piede.
+
+  ⛔ **Il commento che stava qui diceva il contrario di ciò che il codice
+  faceva**: «sopra le righe, ma sotto l'intestazione appiccicata (+1 e +2 qui
+  sopra)». Aveva contato l'intestazione e dimenticato che il `+1` è anche di
+  **ogni cella fissata di ogni riga** — che scorre, e quindi passa di lì.
+
+  ```text
+  riga normale              auto
+  cella fissata di riga     +1
+  RIGA TOTALI               +2   ← deve coprire ciò che le scorre sotto
+  intestazione              +3
+  intestazione fissata      +4
+  ```
+
+  ⚠️ **Non si vede in nessun test**: jsdom non calcola gli strati. Si vede solo
+  a schermo, scorrendo un elenco con una colonna fissata.
+*/
+.data-table__totals {
+  position: sticky;
+  inset-block-end: 0;
+  z-index: calc(var(--z-raised) + 2);
+}
+
+/*
+  ⛔ **Il padding va dichiarato QUI**, e non è una ripetizione: le regole di cella
+  del mixin nominano `tbody td` e le righe, quindi il piede non le riceve.
+  Segnalato dal proprietario il 01/09/2026 — «nei totali, ai margini della riga
+  servirebbe un leggero margine»: «19 voci» toccava il bordo sinistro e l'ultimo
+  importo quello destro, mentre ogni riga sopra respirava.
+
+  ⚠️ È la stessa causa dell'allineamento a destra che mancava sulla stessa riga:
+  un `<tfoot>` non è un `<tbody>`, e ogni regola scritta per l'uno va nominata
+  anche per l'altro.
+*/
+.data-table__totals td {
+  padding: var(--space-1) var(--table-list-pad-inline);
+  background-color: var(--color-table-header-bg);
+  border-block-start: var(--border-width) solid var(--color-table-header-rule);
+  border-block-end: 0;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+/*
+  Il conteggio è la voce meno importante della riga: dice quante cose ci sono,
+  non quanto valgono. Resta a sinistra, in tono minore.
+*/
+.data-table__totals-count {
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.data-table__totals-value {
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+  ⛔ **Il taglio a colonna NON vale sulla card**, e va spento esplicitamente.
+
+  `summary-grammar` dichiara `nowrap` + `overflow: hidden` sulle celle **senza
+  media query**, perché sulla tabella è sempre giusto. Sotto `lg` però le celle
+  diventano blocchi impilati: lì non esiste una colonna successiva che tagli, e
+  quello che resta è un nome **troncato a metà larghezza schermo** senza alcun
+  modo di leggerlo — su una card il testo deve andare a capo.
+
+  ⚠️ **Difetto introdotto e trovato lo stesso giorno** (30/08/2026), cercandolo:
+  non fallisce niente, non c'è test che lo veda, e su scrivania non si manifesta.
+*/
+@include bp.vista-compatta('lg') {
+  .data-table tbody td,
+  .data-table__row td {
+    overflow: visible;
+    white-space: normal;
+  }
+}
+
+/*
+  ── Il TITOLO della card ────────────────────────────────────────────────────
+
+  ⭐ Sotto `lg` la cella dichiarata `cardTitle` smette di essere una riga
+  «ETICHETTA: valore» e diventa il titolo: più grande, senza etichetta, in cima.
+
+  ⛔ **Era `data-table-mobile-title`**, un mixin che prendeva una classe CSS —
+  quindi funzionava solo per le tabelle scritte a mano. Migrando prodotti e
+  clienti al motore il titolo si è perso, e gli altri cinque elenchi non
+  l'avevano mai avuto: il motore non sa quali celle siano quali, se non glielo
+  dice il modello colonne.
+
+  ⚠️ **La riga di prima è ancora nel mixin condiviso**, che serve alle tabelle
+  non ancora migrate. Sparirà con l'ultima di loro.
+*/
+@include bp.vista-compatta('lg') {
+  .data-table td.data-table__cell--card-title {
+    margin-block-end: var(--space-1);
+    font-size: var(--text-md);
+    font-weight: var(--font-weight-semibold);
+    text-align: start;
+  }
+
+  /* L'etichetta davanti al valore: su un titolo non ci va. */
+  .data-table td.data-table__cell--card-title::before {
+    content: none;
+    display: none;
+  }
+}
+
+/*
+  ── La riga TOTALI sotto `lg` ───────────────────────────────────────────────
+
+  ⛔ **Lo `sticky` del `<tfoot>` smetteva di funzionare**, e il piede scorreva via
+  insieme alle card. Sotto `lg` la tabella diventa `display: block`
+  (`data-table-mobile-cards`) e con lei il gruppo di piede: un
+  `table-footer-group` che non è più tale perde l'ancoraggio, senza fallire.
+
+  Segnalato dal proprietario sulle Giacenze il 31/08/2026: «non ha la parte sotto
+  fissa, dovrebbe essere fissa a tutti per avere sempre totali e funzioni a
+  portata di mano».
+
+  ⭐ **Ridichiarato come blocco**, l'ancoraggio torna: è lo stesso `sticky`, su un
+  elemento che ora ha una forma in cui vale.
+*/
+@include bp.vista-compatta('lg') {
+  .data-table__totals,
+  .data-table__totals tr {
+    display: block;
+  }
+
+  .data-table__totals {
+    position: sticky;
+    inset-block-end: 0;
+  }
+
+  /*
+    ⭐ **Su una card i numeri hanno bisogno del loro NOME.**
+
+    In tabella il nome è l'intestazione di colonna; sotto `lg` l'intestazione non
+    c'è, e la riga totali diventava una fila di numeri nudi — «59 voci 607 741
+    134», che non dice quale sia la giacenza e quale il disponibile.
+
+    ⚠️ L'etichetta la porta già `data-label`, che il motore mette su ogni cella:
+    qui si limita a mostrarla.
+  */
+  /*
+    ⚠️ **Fondo e filo passano dalla CELLA alla RIGA.**
+
+    In tabella ogni `td` porta il proprio fondo e il filo superiore, e insieme
+    formano una banda continua. In flex non è più così: fra una cella e l'altra
+    c'è il `gap`, che resterebbe **trasparente** — la banda si vedrebbe a strisce,
+    e sotto scorrerebbero le card.
+  */
+  .data-table__totals tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: var(--space-1) var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    background-color: var(--color-table-header-bg);
+    border-block-start: var(--border-width) solid var(--color-table-header-rule);
+  }
+
+  .data-table__totals td {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--space-1);
+    inline-size: auto;
+    padding: 0;
+    background-color: transparent;
+    border-block-start: 0;
+  }
+
+  .data-table__totals-count {
+    margin-inline-end: auto;
+  }
+
+  .data-table__totals-value::before {
+    content: attr(data-label);
+    font-size: var(--text-3xs);
+    font-weight: var(--font-weight-regular);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-caps);
+  }
+}
+
+/*
+  ── Le fasce di GRUPPO sotto `lg` ───────────────────────────────────────────
+
+  ⛔ **L'intestazione e il piede di giornata si vestivano da CARD.**
+
+  Sono due `<tr>` dentro `tbody`, quindi `data-table-mobile-cards` li prendeva
+  con tutti gli altri: fondo bianco, bordo, raggio, margine. Una giornata
+  diventava un riquadro identico a una registrazione, e il subtotale un secondo
+  riquadro con le sue celle impilate a «ETICHETTA: valore» — metà larghezza vuota
+  per ogni voce, perché il `::before` occupa comunque la prima colonna.
+
+  ⚠️ **Il difetto era già live sul Registro Corrispettivi**, unico elenco che
+  raggruppava, ed è emerso il 31/08/2026 estendendo «Raggruppa» ad altri sei.
+  Non falliva niente: è CSS, e nessun test di componente calcola il layout.
+
+  ⭐ **Il disegno giusto era già scritto**: `regole-stile-ui` §6 dice «la giornata
+  è un separatore, non una card», e il commento del Registro lo ripeteva. Qui il
+  codice divergeva dalla regola, non la regola dal codice.
+
+  ⭐ **E la forma del piede è quella della riga TOTALI**, non una terza: stessa
+  fascia, stesse etichette da `data-label`, stesso allineamento a destra. Sono la
+  stessa cosa a due livelli — il totale di un gruppo e il totale dell'elenco — e
+  inventargli due grammatiche costringerebbe a leggerle come due cose diverse.
+*/
+@include bp.vista-compatta('lg') {
+  .data-table tbody tr.data-table__section-head,
+  .data-table tbody tr.data-table__section-total {
+    /*
+      ⚠️ **`display: block`, non un ripristino a `table-row`.** La tabella intera
+      è a blocchi qui: una riga che tornasse `table-row` da sola cercherebbe un
+      contesto di tabella che non esiste più, e il browser gliene fabbricherebbe
+      uno anonimo — larghezze fuori sincrono con le card intorno.
+    */
+    display: block;
+    margin-block-end: 0;
+    padding: 0;
+    background-color: transparent;
+    border: 0;
+    border-radius: 0;
+  }
+
+  /* Il separatore di giornata: una fascia di struttura, a piena larghezza. */
+  .data-table tbody tr.data-table__section-head {
+    margin-block-start: var(--space-2);
+  }
+
+  .data-table .data-table__section-head-cell {
+    display: block;
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-sm);
+  }
+
+  /*
+    Il subtotale: la stessa fascia della riga totali, un tono più leggero perché
+    chiude un gruppo e non l'elenco.
+  */
+  .data-table tbody tr.data-table__section-total {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: var(--space-1) var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    margin-block-end: var(--space-1);
+    background-color: var(--color-table-header-bg);
+    border-radius: var(--radius-sm);
+  }
+
+  .data-table .data-table__section-total td {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--space-1);
+    inline-size: auto;
+    padding: 0;
+    text-align: end;
+  }
+
+  /* L'etichetta del gruppo spinge i numeri all'estremo opposto. */
+  .data-table .data-table__section-total-label {
+    margin-inline-end: auto;
+    text-align: start;
+  }
+
+  /*
+    ⚠️ **Il `::before` della griglia card qui non serve e va spento**: in fascia
+    l'etichetta sta accanto al numero, non in una colonna al 42%.
+  */
+  .data-table .data-table__section-total td::before {
+    display: inline;
+    grid-column: auto;
+    font-size: var(--text-3xs);
+    font-weight: var(--font-weight-regular);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-caps);
+  }
+
+  .data-table .data-table__section-total-label::before {
+    content: none;
+  }
+}
+
+/*
+  ── ⛔ Le celle di totale SENZA valore, sotto `lg` ──────────────────────────
+
+  In tabella una cella di piede vuota **serve**: tiene l'incolonnamento, perché il
+  numero deve cadere sotto la sua intestazione. `footerColumns` per questo
+  restituisce tutte le colonne dalla prima con un valore in poi, vuote comprese.
+
+  ⛔ **Sulla fascia mobile quella stessa cella diventa un'etichetta nuda.** Lì il
+  piede è flex e ogni cella stampa il proprio `data-label`: le colonne senza
+  numero producevano una fila di parole senza niente accanto —
+
+  ```text
+  50 voci   VARIANTI 29   STATO   ORIGINE   SHOPIFY   CODICE ARTICOLO
+  ```
+
+  Segnalato dal proprietario sui Prodotti il 31/08/2026, con la schermata alla
+  mano. ⚠️ **Non falliva niente**: le celle esistono, il valore è la stringa
+  vuota, e nessun test di componente calcola il layout.
+
+  ⭐ **Si spengono solo dove non servono.** Su scrivania restano, o l'allineamento
+  che le giustifica se ne va con loro.
+*/
+@include bp.vista-compatta('lg') {
+  .data-table .data-table__total-cell--vuota {
+    display: none;
+  }
+}
+
+/*
+  ── ⭐ IL FILTRO DENTRO L'INTESTAZIONE ─────────────────────────────────────
+
+  Il controllo sta **sotto** il titolo della colonna, non accanto: affiancato
+  dimezzerebbe lo spazio dell'etichetta proprio nelle colonne strette, che sono
+  quelle dove il titolo è già tagliato.
+
+  ⚠️ **L'intestazione cresce solo a filtri ACCESI.** Il pulsante «Filtri» del
+  telaio li mostra e li nasconde: spenti, la riga torna alta quanto prima e la
+  tabella recupera le due righe di contenuto.
+*/
+/*
+  ⭐ **IL FILTRO STA ACCANTO AL TITOLO, NON SOTTO** — proprietario, 01/09/2026:
+  «con questo sistema di ricerca nei filtri, ha senso che compare un'altra
+  casellina sotto all'intestazione della colonna?».
+
+  ⛔ **No: era una casella a tutta larghezza per OGNI colonna**, che apriva una
+  tendina in cui il nome del filtro è già scritto. Costava una fascia di
+  intestazione su tutta la tabella, cioè righe di dati in meno.
+
+  ⭐ È la forma del riferimento Danea: una piccola freccia nella cella del
+  titolo, e tutto il resto dentro la tendina.
+*/
+.data-table__filter {
+  flex: none;
+  margin-inline-start: auto;
+  /*
+    ⚠️ **`normal`, non il `nowrap` ereditato**: la grammatica degli elenchi
+    dichiara il taglio a colonna su ogni cella, e un controllo tagliato a metà
+    non si usa. Qui il testo non è un dato: è un comando.
+  */
+  white-space: normal;
+  /* ⛔ Il filtro non è cliccabile come l'intestazione: non ordina. */
+  cursor: auto;
+}
+
+/*
+  ⚠️ **L'intestazione con un filtro non si allinea più in fondo**: con
+  `vertical-align` ereditato, colonne con e senza filtro metterebbero il titolo
+  a due altezze diverse.
+*/
+/*
+  ⛔ **E DEVE LASCIAR USCIRE IL PANNELLO DEL FILTRO** — misurato in un browser
+  vero il 01/09/2026, ed è il difetto per cui i filtri a valori (Città, Origine,
+  Ns. banca) **non si potevano usare affatto**:
+
+  ```text
+  th.data-table__head-cell   overflow: hidden   ← ritaglia
+    app-select-menu            z-index 1000
+      ul.select-menu__panel    absolute, 216×110 — e invisibile
+  ```
+
+  Il pannello aveva un riquadro pieno, dimensioni giuste e posizione dentro la
+  finestra: **ritagliato dalla propria cella**. `elementFromPoint` al suo centro
+  rispondeva `td`, cioè la riga sotto.
+
+  ⚠️ **La prova di resa non lo prendeva**, e questa è la parte da ricordare:
+  `filtri-colonna.spec.ts` misura il RIQUADRO del pannello — «esiste, è alto, è
+  nella finestra» — e un pannello ritagliato ha un riquadro perfetto. Il suo
+  stesso commento diceva che ritaglio e sovrapposizione «esistono solo dove c'è
+  un motore di layout»: la prova c'era, l'asserzione no.
+
+  ⭐ **Il ritaglio si sposta sul TITOLO**, che è ciò che va tagliato dalla
+  colonna successiva (`regole-stile-ui` §6). La cella smette di ritagliare solo
+  quando ospita un filtro, cioè solo a filtri accesi: le altre intestazioni
+  continuano a tagliare come prima.
+*/
+/*
+  ⚠️ **La cella diventa una FILA**: titolo a sinistra, freccia del filtro a
+  destra. Prima il filtro era un blocco sotto il titolo e la cella si allineava
+  in alto; ora stanno sulla stessa riga e si allineano al centro.
+*/
+.data-table__head th:has(.data-table__filter) {
+  overflow: visible;
+}
+
+/*
+  ⭐ **La fila sta DENTRO la cella**: titolo a sinistra, freccia del filtro a
+  destra.
+
+  ⛔ **Non si fa sul `<th>`**, ed è stato provato: un `th` con `display: flex`
+  esce dal modello tabellare — smette di essere una cella — e le colonne
+  collassano. Misurato a schermo il 01/09/2026: intestazioni sparite, frecce a
+  gradini, e `tsc` pulito.
+*/
+.data-table__head-riga {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+
+/*
+  ⚠️ **Il titolo cede, la freccia no**: con un'intestazione lunga a stringersi
+  dev'essere il testo — che si taglia — non il bersaglio da premere.
+*/
+.data-table__head-riga > .data-table__head-label,
+.data-table__head-riga > .data-table__sort {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+/*
+  Il taglio a colonna del TITOLO — quello che la cella non fa più quando ospita
+  un filtro. Vale in entrambi i casi: un'intestazione lunga si taglia sempre.
+*/
+.data-table__head-label,
+.data-table__sort {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: clip;
+}
+
+.data-table__head-label {
+  display: block;
+}
+
+/*
+  ⭐ **IL TITOLO DI UNA COLONNA NUMERICA STA A DESTRA, SOPRA I SUOI NUMERI** —
+  proprietario, 01/09/2026: «anche l'allineamento interno lo metterei a destra
+  per gli importi».
+
+  ⭐ **L'incolonnamento È la funzione**: una colonna di importi si legge
+  confrontando le cifre incolonnate, e un'intestazione che sta dall'altra parte
+  costringe l'occhio ad attraversare la colonna per sapere che cosa sta
+  leggendo.
+
+  ⛔ **Il `text-align: end` del `th` non basta**, ed è la stessa trappola già
+  scritta in `regole-stile-ui` per `align-items`: da quando il contenuto
+  dell'intestazione sta in un contenitore **flex** — `.data-table__head-riga`,
+  introdotto per ospitare il filtro accanto al titolo — l'allineamento del testo
+  non muove più i figli.
+
+  ⛔ **E NON si rimedia con `justify-content`**, che è il rimedio ovvio: la
+  ragione è il punto in cui il titolo si TAGLIA.
+
+  Segnalato dal proprietario un minuto dopo la prima stesura: «c'è un errore di
+  battitura nella testata imponibile». Non c'era — l'etichetta è «Imponibile».
+  Spinto a destra da `justify-content`, il titolo troppo lungo per la sua colonna
+  esce dal lato **sinistro** e perde la testa: «IPONIBILE», che si legge come un
+  refuso invece che come un troncamento. Allineato a sinistra perdeva la coda —
+  «IMPONIB» — che almeno si capisce.
+
+  ⭐ **Il margine automatico fa entrambe le cose giuste**: il titolo che ci sta
+  viene spinto a destra sopra i suoi numeri; quello che non ci sta occupa tutta
+  la cella, parte da sinistra e si taglia in coda, come ovunque.
+
+  ⚠️ **Serve anche `flex: 0 1 auto`**: con `flex: 1 1 auto` — il default che
+  queste due classi hanno per cedere spazio alla freccia — il titolo occupa già
+  tutta la riga e non c'è nessun margine da distribuire.
+
+  ⚠️ **Su DUE selettori, per tre situazioni.** Il titolo può essere un `<button>`
+  (colonna ordinabile, a sua volta flex) o uno `<span>` semplice, e in entrambi i
+  casi può avere accanto il chevron del filtro: dichiarandone uno solo, la colonna
+  si allinea o no a seconda che sia ordinabile — imprevedibile per chi guarda.
+
+  ⛔ **E IL MARGINE VA TOLTO AL FILTRO**, o non se ne va nessuno dei due dove
+  deve. `.data-table__filter` porta già `margin-inline-start: auto` (è ciò che lo
+  spinge a destra nelle colonne normali) e sta nello stesso contenitore flex: con
+  **due** margini automatici sulla stessa riga, lo spazio libero si spartisce in
+  parti uguali fra loro — non va tutto al primo.
+
+  ⚠️ **Misurato in un browser**, su una riga da 300px con «Imponibile» e la freccia:
+
+  ```text
+  margine su entrambi   116px prima del titolo · 120px fra titolo e freccia   ⛔ galleggia in mezzo
+  margine solo al filtro  0px                   · 235px                       titolo a sinistra
+  margine solo al titolo 231px                  ·   4px                       ✅ accostati a destra
+  ```
+
+  ⭐ **E il titolo che NON ci sta continua a tagliarsi in CODA**: senza spazio
+  libero non c'è margine da distribuire, il titolo parte da sinistra e perde la
+  fine — verificato a 80px di colonna.
+*/
+.data-table th.data-table__cell--numeric .data-table__head-label,
+.data-table th.data-table__cell--numeric .data-table__sort {
+  flex: 0 1 auto;
+  margin-inline-start: auto;
+}
+
+.data-table th.data-table__cell--numeric .data-table__filter {
+  margin-inline-start: 0;
+}
+
+/*
+  ⛔ **QUI C'ERA IL RIBALTAMENTO DELLE ULTIME DUE COLONNE**, e contare le colonne
+  era il criterio sbagliato.
+
+  Nato il 01/09/2026 da «l'ultimo filtro esce fuori schermo», è durato mezz'ora:
+  il proprietario ha aperto il filtro della colonna **Totale** — la terzultima —
+  e il pannello usciva di nuovo. Il pannello è largo 12rem, cioè più di due
+  colonne numeriche: nessun numero fisso di colonne è quello giusto, perché
+  dipende da quanto sono larghe e da quanto è larga la finestra.
+
+  ⭐ **Ora lo decide `select-menu` misurando all'apertura**, e vale per ogni
+  colonna e ogni larghezza — dentro una tabella come fuori.
+*/

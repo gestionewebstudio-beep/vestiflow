@@ -1,11 +1,19 @@
 <section class="customer-form">
   <header class="customer-form__header">
-    <!-- Torna alla pagina precedente; senza cronologia interna ricade sulla
-         lista clienti dedotta dall'URL. -->
-    <app-back-button />
-    <h1 class="customer-form__title">
-      {{ isEdit() ? 'Modifica cliente' : 'Nuovo cliente' }}
-    </h1>
+    <!--
+      ⭐ **Indietro e titolo in UN contenitore solo**, come la scheda fornitore:
+      `list-page` mette il primo e l'ultimo figlio della testata agli estremi
+      opposti, quindi due figli separati spingerebbero il titolo a destra,
+      staccato dal pulsante che lo precede.
+    -->
+    <div class="customer-form__heading">
+      <!-- Torna alla pagina precedente; senza cronologia interna ricade sulla
+           lista clienti dedotta dall'URL. -->
+      <app-back-button />
+      <h1 class="customer-form__title">
+        {{ isEdit() ? 'Modifica cliente' : 'Nuovo cliente' }}
+      </h1>
+    </div>
   </header>
 
   @if (loading()) {
@@ -36,41 +44,31 @@
   }
 </section>
 
-@if (exitDialogOpen()) {
-  <div class="doc-form__exit-backdrop" aria-hidden="true" (click)="cancelExitDialog()"></div>
-  <div
-    class="doc-form__exit-dialog"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="cust-exit-title"
-  >
-    <h2 id="cust-exit-title" class="doc-form__exit-title">Modifiche non salvate</h2>
-    <p class="doc-form__exit-message">
-      Ci sono modifiche non salvate. Vuoi salvarle prima di chiudere?
-    </p>
-    @if (saveError(); as message) {
-      <p class="doc-form__exit-error" role="alert">{{ message }}</p>
-    }
-    <div class="doc-form__exit-actions">
-      <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancelExitDialog()">
-        Annulla
-      </app-button>
-      <app-button
-        type="button"
-        variant="secondary"
-        [disabled]="saving()"
-        (click)="confirmExitWithoutSaving()"
-      >
-        Chiudi senza salvare
-      </app-button>
-      <app-button
-        type="button"
-        [loading]="saving()"
-        [disabled]="saving()"
-        (click)="confirmExitSave()"
-      >
-        Salva e chiudi
-      </app-button>
-    </div>
-  </div>
-}
+<!-- ⭐ **Il dialogo comune, non un guscio scritto a mano.**
+
+     ⛔ Qui c'erano venti righe con un `<div role="dialog">` e uno sfondo
+     proprio: NON un `<dialog>` nativo, quindi senza trappola del fuoco, senza
+     Esc e senza sfondo inerte — contro `regole-architettura`, che li chiede
+     esplicitamente per ogni modale. Lo stesso guscio viveva in undici file.
+
+     ⛔ **E aveva TRE azioni.** La terza, «Salva e chiudi», e' stata tolta per
+     decisione del proprietario (24/08/2026): il dialogo d'uscita ne ha DUE, e
+     il salvataggio resta il pulsante Salva della barra.
+
+     ⚠️ Anche il MESSAGGIO e' cambiato, e non e' un ritocco: diceva «Vuoi
+     salvarle prima di chiudere?», cioe' faceva una domanda a cui nessuno dei
+     due pulsanti rimasti risponde piu'.
+
+     ⚠️ `emphasis="cancel"` non e' un vezzo: senza, «Esci senza salvare»
+     sarebbe il pulsante primario, cioe' quello che il pollice cerca. La
+     scelta che perde lavoro non si veste da scelta consigliata. -->
+<app-confirm-dialog
+  [(open)]="exitDialogOpen"
+  title="Modifiche non salvate"
+  message="Ci sono modifiche non salvate: uscendo dalla pagina andranno perse."
+  cancelLabel="Annulla"
+  confirmLabel="Esci senza salvare"
+  emphasis="cancel"
+  (confirmed)="confirmExitWithoutSaving()"
+  (dismissed)="cancelExitDialog()"
+/>

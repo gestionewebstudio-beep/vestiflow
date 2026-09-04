@@ -2,7 +2,7 @@ import type { EntityId, IsoDateString } from '@core/models/common.model';
 import { CatalogOrigin } from '@core/models/catalog-origin.model';
 import type { InventoryLevel } from '@core/models/inventory-level.model';
 import type { Location } from '@core/models/location.model';
-import type { ProductVariant } from '@core/models/product-variant.model';
+import { VariantLifecycleStatus, type ProductVariant } from '@core/models/product-variant.model';
 import type { Product, ProductOption } from '@core/models/product.model';
 import { ShopifySyncStatus } from '@core/models/shopify.model';
 import type { ShopifyLink } from '@core/models/shopify.model';
@@ -30,20 +30,24 @@ export interface ProductApiRow {
   readonly shopifyMetafields?: unknown;
   readonly shopifyCategoryMetafields?: unknown;
   readonly status: Product['status'];
+  readonly deletedAt?: string | null;
+  readonly deletedById?: string | null;
+  readonly deletionReason?: string | null;
   readonly shopifySyncEnabled?: boolean;
+  readonly shopifyTitle?: string | null;
   readonly catalogOrigin: CatalogOrigin;
   readonly unitOfMeasure?: string;
   readonly defaultVatCodeId?: string | null;
   /** Prezzo/costo a livello articolo (unità minori). Il barrato è solo qui. */
-  readonly sellingPriceMinor?: number | string;
+  readonly sellingPriceMinor?: number;
   /** Prezzo Shopify dell'articolo (§B, unità minori). Valore proprio. */
-  readonly shopifyPriceMinor?: number | string;
+  readonly shopifyPriceMinor?: number;
   readonly compareAtPriceMinor?: number | null;
   readonly purchasePriceMinor?: number | null;
   /** Listini aggiuntivi dell'articolo (§B, unità minori, sempre netti). */
-  readonly listino1PriceMinor?: number | string | null;
-  readonly listino2PriceMinor?: number | string | null;
-  readonly listino3PriceMinor?: number | string | null;
+  readonly listino1PriceMinor?: number | null;
+  readonly listino2PriceMinor?: number | null;
+  readonly listino3PriceMinor?: number | null;
   readonly inventoryTracking?: string;
   readonly managesStock?: boolean;
   readonly kind?: 'article' | 'service';
@@ -74,12 +78,21 @@ export interface ProductVariantApiRow {
   readonly optionValues: readonly { name: string; value: string }[];
   readonly barcode?: string | null;
   readonly currency: string;
-  readonly sellingPriceMinor: number | string;
+  readonly sellingPriceMinor: number;
   /** Prezzo Shopify della variante (§B, unità minori). Valore proprio. */
-  readonly shopifyPriceMinor?: number | string;
+  readonly shopifyPriceMinor?: number;
   readonly purchasePriceMinor?: number | null;
   readonly shopifyVariantId?: string | null;
   readonly shopifyInventoryItemId?: string | null;
+  /**
+   * ⭐ **Opzionale QUI e solo qui**: è la forma grezza della risposta HTTP, e un
+   * server precedente alla Tranche 1A non manda il campo. Il mapper applica
+   * `active` e il modello applicativo lo riceve sempre valorizzato.
+   */
+  readonly lifecycleStatus?: VariantLifecycleStatus;
+  readonly deletedAt?: string | null;
+  readonly deletedById?: string | null;
+  readonly deletionReason?: string | null;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -253,7 +266,11 @@ export function mapProductApiRow(row: ProductApiRow): Product {
       isShopifyCategoryMetafieldValue,
     ),
     status: row.status,
+    deletedAt: row.deletedAt ?? null,
+    deletedById: row.deletedById ?? null,
+    deletionReason: row.deletionReason ?? null,
     shopifySyncEnabled: row.shopifySyncEnabled ?? true,
+    shopifyTitle: row.shopifyTitle ?? undefined,
     catalogOrigin: row.catalogOrigin ?? CatalogOrigin.VestiFlow,
     unitOfMeasure: row.unitOfMeasure ?? 'pz',
     defaultVatCodeId: row.defaultVatCodeId ?? null,
@@ -333,6 +350,10 @@ export function mapProductVariantApiRow(row: ProductVariantApiRow): ProductVaria
         : undefined,
     shopifyVariantId: row.shopifyVariantId ?? undefined,
     shopifyInventoryItemId: row.shopifyInventoryItemId ?? undefined,
+    lifecycleStatus: row.lifecycleStatus ?? VariantLifecycleStatus.Active,
+    deletedAt: row.deletedAt ?? null,
+    deletedById: row.deletedById ?? null,
+    deletionReason: row.deletionReason ?? null,
   };
 }
 

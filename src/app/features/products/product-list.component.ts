@@ -11,17 +11,22 @@ import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-i
 import { ActivatedRoute, Router } from '@angular/router';
 import {
   catchError,
+  concatMap,
   debounceTime,
   distinctUntilChanged,
   finalize,
+  from,
   map,
   of,
   startWith,
   switchMap,
+  take,
+  toArray,
 } from 'rxjs';
-import type { Subscription } from 'rxjs';
+import type { Observable, Subscription } from 'rxjs';
 
 import type { PageMeta } from '@core/models/api.model';
+import { BarcodeDetectionService } from '@core/services/barcode-detection.service';
 import { AuthService } from '@core/auth';
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { PRODUCTS_CSV_EXPORT_ID } from '@core/export/background-blob-export.constants';
@@ -33,15 +38,17 @@ import {
   canManageCatalog,
 } from '@core/permissions/tenant-permissions.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
+import { createListSelection } from '@shared/utils/list-selection';
+import { createSelectionMode } from '@shared/utils/selection-mode';
+import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
 import type { AppError } from '@core/models/app-error.model';
 import { ProductStatus } from '@core/models/product.model';
 import type { Product } from '@core/models/product.model';
-import { ButtonComponent } from '@shared/components/button/button.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
+import { ListPageComponent } from '@shared/components/list-page/list-page.component';
+import { comando, voceEsporta } from '@shared/models/list-action-catalog';
+import type { ListAction } from '@shared/models/list-selection.model';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
-import { PaginationComponent } from '@shared/components/pagination/pagination.component';
-import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
-import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
 import { ProductTableComponent } from './components/product-table/product-table.component';
@@ -62,10 +69,10 @@ import {
   DEFAULT_PRODUCT_ORDER,
   DEFAULT_PRODUCT_PAGE_SIZE,
   DEFAULT_PRODUCT_SORT,
-  PRODUCT_PAGE_SIZE_OPTIONS,
   parseProductListQuery,
 } from '@domain/products/models/product-list-query.model';
 import type { ProductSortField } from '@domain/products/models/product-list-query.model';
+import { productStatusLabel } from '@domain/products/models/product-status.util';
 import { ProductService } from '@domain/products/services/product.service';
 import {
   PRODUCT_LIST_COLUMN_DEFS,
@@ -76,11 +83,13 @@ import {
 const SEARCH_DEBOUNCE_MS = 300;
 const SHOPIFY_FEEDBACK_DISMISS_MS = 8000;
 
+// Le etichette vengono dall'unico dizionario di stato (product-status.util):
+// qui erano ripetute a mano, e «Archiviato» è sopravvissuto alla sua correzione.
 const STATUS_OPTIONS: readonly ProductStatusOption[] = [
-  { value: ProductStatus.Active, label: 'Attivo' },
-  { value: ProductStatus.Draft, label: 'Bozza' },
-  { value: ProductStatus.Archived, label: 'Archiviato' },
-];
+  ProductStatus.Active,
+  ProductStatus.Draft,
+  ProductStatus.Archived,
+].map((value) => ({ value, label: productStatusLabel(value) }));
 
 const EMPTY_META: PageMeta = {
   page: 1,
@@ -103,15 +112,13 @@ type ProductListState =
   selector: 'app-product-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    ButtonComponent,
-    EmptyStateComponent,
+    ListPageComponent,
+    ListActionsBarComponent,
     ErrorStateComponent,
-    TableSkeletonComponent,
-    PaginationComponent,
     ProductToolbarComponent,
     ProductTableComponent,
-    TableColumnPickerComponent,
     ShopifySyncFeedbackComponent,
+    DeleteConfirmComponent,
   ],
   templateUrl: './product-list.component.html',
   styleUrl: './product-list.component.scss',
@@ -134,14 +141,15 @@ export class ProductListComponent {
 
   private shopifyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
-  protected readonly barcodeScannerEnabled = this.config.features.barcodeScanner;
+  // La stessa risposta di tutti gli altri: bandiera d'ambiente, fotocamera
+  // presente, e schermo compatto. Su scrivania resta il lettore HID.
+  protected readonly barcodeScannerEnabled = inject(BarcodeDetectionService).cameraScanOffered;
   protected readonly scanFeedback = signal<string | null>(null);
 
   private lastFetchQueryKey = '';
 
   protected readonly skeletonColumns = computed(() => (this.showShopifyColumn() ? 8 : 7));
   protected readonly statusOptions = STATUS_OPTIONS;
-  protected readonly pageSizeOptions = PRODUCT_PAGE_SIZE_OPTIONS;
 
   // URL come fonte di verita': la query deriva (pura) dai query param.
   private readonly queryParams = toSignal(this.route.queryParamMap, { requireSync: true });
@@ -159,29 +167,25 @@ export class ProductListComponent {
   protected readonly shopifyFeedback = signal<ShopifySyncFeedback | null>(null);
   protected readonly shopifySyncError = signal<string | null>(null);
   protected readonly bulkPrintLoading = signal(false);
-  protected readonly selectedProductIds = signal<ReadonlySet<string>>(new Set<string>());
+  private readonly selection = createListSelection('multiple');
+  protected readonly selectedProductIds = this.selection.ids;
+
+  /**
+   * ⭐ **La modalità «Seleziona» della vista a card**, dal telaio.
+   *
+   * ⛔ `createSelectionMode` porta con sé la regola che spegnerla AZZERA la
+   * selezione: a modalità spenta il tocco torna ad aprire la riga, e non resta
+   * nessun gesto per deselezionare.
+   */
+  protected readonly modoSelezione = createSelectionMode(this.selection);
   protected readonly duplicatingProductId = signal<string | null>(null);
   protected readonly duplicateError = signal<string | null>(null);
-  /** Copie per articolo alla stampa etichette: sia per la riga singola sia per la selezione multipla. */
-  protected readonly labelCopies = signal(1);
 
+  // ── Eliminazione: la sequenza a due conferme sta nel componente condiviso ──
+  protected readonly deleteWarnOpen = signal(false);
+  protected readonly deleteBusy = signal(false);
+  private readonly pendingDeleteIds = signal<readonly string[]>([]);
   protected readonly selectedCount = computed(() => this.selectedProductIds().size);
-
-  protected readonly allOnPageSelected = computed(() => {
-    const pageProducts = this.products();
-    if (pageProducts.length === 0) {
-      return false;
-    }
-    const selected = this.selectedProductIds();
-    return pageProducts.every((product) => selected.has(product.id));
-  });
-
-  protected readonly someOnPageSelected = computed(() => {
-    const pageProducts = this.products();
-    const selected = this.selectedProductIds();
-    const anySelected = pageProducts.some((product) => selected.has(product.id));
-    return anySelected && !this.allOnPageSelected();
-  });
 
   protected readonly showShopifyCatalogSync = computed(
     () =>
@@ -203,6 +207,10 @@ export class ProductListComponent {
   protected readonly draftCount = toSignal(
     toObservable(computed(() => this.refreshTick() + this.softRefreshTick())).pipe(
       switchMap(() =>
+        // ⚠️ **Senza `tutto`, e non è una dimenticanza**: qui serve solo
+        //    `meta.total`, e `pageSize: 1` è il modo di ottenerlo senza scaricare
+        //    niente. Con `all=1` questa riga scaricherebbe l'intero catalogo delle
+        //    bozze a ogni ricarica dell'elenco.
         this.service.getProducts({ page: 1, pageSize: 1, status: ProductStatus.Draft }).pipe(
           map((response) => response.meta.total),
           catchError(() => of(0)),
@@ -243,14 +251,13 @@ export class ProductListComponent {
         const silentRefresh = softTick > 0 && tick === 0 && queryKey === this.lastFetchQueryKey;
         this.lastFetchQueryKey = queryKey;
 
-        const fetch$ = this.service.getProducts(query).pipe(
-          map(
-            (response): ProductListState => ({
-              status: 'success',
-              products: response.data,
-              meta: response.meta,
-            }),
-          ),
+        // ⭐ `tutto`: l'elenco mostra tutte le righe del filtro, non una pagina.
+        const fetch$ = this.service.getProducts(query, { tutto: true }).pipe(
+          map((response): ProductListState => ({
+            status: 'success',
+            products: response.data,
+            meta: response.meta,
+          })),
           catchError((err: unknown) =>
             of<ProductListState>({ status: 'error', error: this.toAppError(err) }),
           ),
@@ -295,16 +302,32 @@ export class ProductListComponent {
   private readonly searchSubscription: Subscription;
 
   constructor() {
+    // ⛔ **Senza il canale Shopify la colonna non entra nel SELETTORE**, non
+    //    si limita a non rendersi. Qui c’era `PRODUCT_LIST_COLUMN_DEFS` intero:
+    //    la voce «Shopify» compariva nel tasto Colonne di ogni tenant, si
+    //    poteva accendere, e non succedeva niente — la resa aveva una seconda
+    //    condizione (`showShopifyColumn`) che il selettore non conosceva.
+    //    Un comando che non comanda (`docs/03` §22 · LINE-012).
+    //
+    // ⚠️ **Il gating sta alla DICHIARAZIONE, non nella cella**, ed è lo stesso
+    //    punto scelto dall’Arrivo merce: è l’unico posto in cui le colonne si
+    //    dichiarano, quindi selettore, preset e resa leggono la stessa verità.
+    //
+    // ⭐ I preset restano interi: `applyPresetToState` mette comunque l’id in
+    //    `columnOrder`, ma `resolveVisibleColumns` scarta ciò che non sta nelle
+    //    `defs`. Filtrarli anche qui sarebbe una seconda regola da tenere
+    //    allineata alla prima.
     this.columnPreferences.registerView(
       PRODUCT_LIST_VIEW,
-      PRODUCT_LIST_COLUMN_DEFS,
+      this.showShopifyColumn()
+        ? PRODUCT_LIST_COLUMN_DEFS
+        : PRODUCT_LIST_COLUMN_DEFS.filter((column) => column.id !== 'shopify'),
       PRODUCT_LIST_COLUMN_PRESETS,
     );
     this.tableColumns = this.columnPreferences.visibleColumns(PRODUCT_LIST_VIEW);
 
     effect(() => {
-      this.query();
-      this.selectedProductIds.set(new Set<string>());
+      this.selection.prune(this.products().map((p) => p.id));
     });
 
     // Debounce ricerca: il draft locale guida la navigazione (idempotente).
@@ -370,15 +393,6 @@ export class ProductListComponent {
     );
   }
 
-  protected goToPage(page: number): void {
-    // Paginazione: history normale, cosi' il back torna alla pagina precedente.
-    this.updateParams({ page: page <= 1 ? null : page });
-  }
-
-  protected onPageSizeChange(size: number): void {
-    this.updateParams({ pageSize: size === DEFAULT_PRODUCT_PAGE_SIZE ? null : size, page: null });
-  }
-
   protected reload(): void {
     this.refreshTick.update((tick) => tick + 1);
   }
@@ -387,26 +401,14 @@ export class ProductListComponent {
     void this.router.navigate(['/app/products', product.id]);
   }
 
-  protected printProductLabels(product: Product): void {
-    this.labelPrintService.triggerDirectPrint(product.id, undefined, this.labelCopies());
-  }
-
-  /** Copie per articolo scelte dall'utente prima di stampare (min 1, max 500). */
-  protected setLabelCopies(value: number): void {
-    if (!Number.isFinite(value)) {
-      return;
-    }
-    this.labelCopies.set(Math.min(Math.max(Math.floor(value), 1), 500));
-  }
-
   /** Duplica articolo (audit cliente §2b): naviga alla copia per rifinire SKU/campi. */
-  protected duplicateProduct(product: Product): void {
+  protected duplicateProduct(productId: string): void {
     if (this.duplicatingProductId()) {
       return;
     }
-    this.duplicatingProductId.set(product.id);
+    this.duplicatingProductId.set(productId);
     this.service
-      .duplicateProduct(product.id)
+      .duplicateProduct(productId)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (created) => {
@@ -421,34 +423,231 @@ export class ProductListComponent {
   }
 
   protected toggleProductSelection(productId: string, selected: boolean): void {
-    this.selectedProductIds.update((current) => {
-      const next = new Set(current);
-      if (selected) {
-        next.add(productId);
-      } else {
-        next.delete(productId);
-      }
-      return next;
-    });
+    this.selection.toggle(productId, selected);
   }
 
+  /*
+    ⚠️ **«Tutti» sono tutti quelli del FILTRO**, non della pagina: da quando
+    l'elenco non impagina più, le due cose coincidono.
+  */
   protected toggleSelectAllOnPage(selected: boolean): void {
-    const pageProducts = this.products();
-    this.selectedProductIds.update((current) => {
-      const next = new Set(current);
-      for (const product of pageProducts) {
-        if (selected) {
-          next.add(product.id);
-        } else {
-          next.delete(product.id);
-        }
-      }
-      return next;
-    });
+    this.selection.setAll(
+      this.products().map((p) => p.id),
+      selected,
+    );
   }
+
+  /**
+   * ⭐ **Le funzioni dell'elenco, sempre visibili** (`14` §5.1): a selezione
+   * vuota l'azione è **spenta col motivo**, non assente.
+   *
+   * ⛔ Prima compariva solo con righe spuntate, e chi non sapeva che si
+   * selezionano non vedeva nemmeno che le etichette si possono stampare.
+   * _Decisione del proprietario, 29/08/2026: tutte le funzioni nella barra in
+   * basso, sul riferimento Danea._
+   */
+  protected readonly selectionActions = computed<readonly ListAction[]>(() => [
+    // ⭐ **I comandi di pagina stanno QUI, non in testata** — decisione del
+    //    proprietario, 30/08/2026: tutti in una riga in basso, totali sopra.
+    //    Non sono duplicati: si sono spostati.
+    ...(this.canManageCatalog()
+      ? ([
+          comando('new', {
+            ariaLabel: 'Aggiungi prodotto',
+            run: () => this.createProduct(),
+          }),
+        ] as const)
+      : []),
+    ...(this.canImportExportCatalog()
+      ? ([
+          // ⭐ **Esporta è il MENU dei tracciati**, non un pulsante per formato
+          //    (`14` §5.2, deciso dal proprietario il 30/08/2026). Qui era
+          //    «Esporta CSV» diretto, e su altre pagine «Esporta» con le voci:
+          //    la stessa cosa aveva due forme.
+          comando('export', {
+            busy: this.exporting(),
+            ariaLabel: 'Esporta il catalogo',
+            items: [voceEsporta('csv', () => this.exportProducts())],
+          }),
+          {
+            id: 'import',
+            label: 'Importa CSV',
+            icon: 'pi-upload',
+            requires: 'none',
+            ariaLabel: 'Importa il catalogo da CSV',
+            run: () => this.importProducts(),
+          },
+        ] as const)
+      : []),
+    ...(this.showShopifyCatalogSync()
+      ? ([
+          {
+            id: 'shopify-sync',
+            label: 'Importa catalogo',
+            icon: 'pi-sync',
+            requires: 'none',
+            busy: this.shopifyCatalogLoading(),
+            ariaLabel: 'Sincronizza il catalogo da Shopify',
+            run: () => this.importCatalogFromShopify(),
+          },
+        ] as const)
+      : []),
+    /*
+      ⭐ **Duplica è sceso dalla riga alla barra** (30/08/2026), e il catalogo lo
+      aveva già: `requires: 'one'` — acceso con un articolo scelto, spento CON il
+      motivo quando ce ne sono zero o più d'uno.
+
+      ⚠️ **Non è una perdita di comodità**: sulla riga era un'icona senza nome,
+      visibile solo passandoci sopra col mouse. In barra ha l'etichetta.
+    */
+    ...(this.canManageCatalog()
+      ? ([
+          comando('duplicate', {
+            busy: this.duplicatingProductId() !== null,
+            ariaLabel: 'Duplica il prodotto selezionato',
+            run: (target) => {
+              if (target.scope !== 'selection') {
+                return;
+              }
+              const primo = target.ids[0];
+              if (primo) {
+                this.duplicateProduct(primo);
+              }
+            },
+          }),
+        ] as const)
+      : []),
+    /*
+      ⭐ **Elimina, e sta nel catalogo** (30/08/2026): «il tasto duplica ed elimina
+      vanno dappertutto». `requires: 'oneOrMore'` — si eliminano anche più
+      articoli insieme, e a selezione vuota il comando c'è ma è spento CON il
+      motivo.
+
+      ⚠️ **Solo a chi gestisce il catalogo**: è la stessa condizione di Duplica, e
+      non una in più. Chi può creare un articolo può toglierlo.
+
+      ⛔ **La doppia conferma non è scritta qui.** È del componente condiviso
+      `app-delete-confirm`, e la guardia `check:delete-confirm` fa fallire il lint
+      se qualcuno la riscrive a mano: «doppio avviso sempre per elimina» deve
+      essere vero per costruzione, non per disciplina.
+    */
+    ...(this.canManageCatalog()
+      ? ([
+          comando('delete', {
+            busy: this.deleteBusy(),
+            ariaLabel: 'Elimina i prodotti selezionati',
+            run: (target) => {
+              if (target.scope === 'selection') {
+                this.requestDeleteSelection(target.ids);
+              }
+            },
+          }),
+        ] as const)
+      : []),
+    {
+      id: 'print-labels',
+      label: 'Stampa etichette',
+      icon: 'pi-print',
+      requires: 'oneOrMore',
+      busy: this.bulkPrintLoading(),
+      ariaLabel: 'Stampa le etichette dei prodotti selezionati',
+      run: () => this.printSelectedLabels(),
+    },
+  ]);
 
   protected clearSelection(): void {
-    this.selectedProductIds.set(new Set<string>());
+    this.selection.clear();
+  }
+
+  /*
+    ⚠️ **Il titolo NOMINA quello che sparisce**, non l'operazione: «Elimina
+    maglietta» dice all'operatore che cosa sta per perdere, «Elimina prodotto» no.
+    Con più di uno il nome non ci sta e si dichiara il numero.
+  */
+  protected readonly deleteWarnTitle = computed(() => {
+    const ids = this.pendingDeleteIds();
+    if (ids.length === 1) {
+      const prodotto = this.products().find((p) => p.id === ids[0]);
+      return prodotto ? `Elimina ${prodotto.name}` : 'Elimina prodotto';
+    }
+    return `Elimina ${ids.length} prodotti`;
+  });
+
+  /*
+    ⭐ **La conseguenza dice cosa succede AL MAGAZZINO E AI CANALI**, non che
+    l'operazione è irreversibile — quello lo dice già il secondo passaggio.
+
+    ⚠️ Un articolo eliminato porta con sé le sue varianti e le loro giacenze: è
+    l'informazione che decide se procedere, e va detta prima e non dopo.
+  */
+  protected readonly deleteWarnMessage = computed(() => {
+    const n = this.pendingDeleteIds().length;
+    return n === 1
+      ? 'Spariscono anche le sue varianti e le relative giacenze. I documenti già emessi restano invariati.'
+      : `Spariscono anche le varianti dei ${n} articoli e le relative giacenze. I documenti già emessi restano invariati.`;
+  });
+
+  private requestDeleteSelection(ids: readonly string[]): void {
+    if (ids.length === 0 || this.deleteBusy()) {
+      return;
+    }
+    this.pendingDeleteIds.set(ids);
+    this.deleteWarnOpen.set(true);
+  }
+
+  protected onDeleteCancel(): void {
+    if (this.deleteBusy()) {
+      return;
+    }
+    this.pendingDeleteIds.set([]);
+  }
+
+  /*
+    ⚠️ **`concatMap`, non `forkJoin`**: le eliminazioni vanno una per una, così un
+    fallimento a metà lascia uno stato leggibile — «3 su 5 eliminati» — invece di
+    un esito unico che non dice quali.
+  */
+  protected onDeleteConfirm(): void {
+    const ids = this.pendingDeleteIds();
+    if (ids.length === 0 || this.deleteBusy()) {
+      this.deleteWarnOpen.set(false);
+      return;
+    }
+    this.deleteBusy.set(true);
+    from(ids)
+      .pipe(
+        concatMap((id) =>
+          this.service.deleteProduct(id).pipe(
+            map(() => ({ ok: true, id }) as const),
+            catchError(() => of({ ok: false, id }) as Observable<{ ok: boolean; id: string }>),
+          ),
+        ),
+        toArray(),
+        take(1),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((esiti) => {
+        this.deleteBusy.set(false);
+        this.deleteWarnOpen.set(false);
+        this.pendingDeleteIds.set([]);
+        const eliminati = new Set(esiti.filter((e) => e.ok).map((e) => e.id));
+        if (eliminati.size > 0) {
+          // La potatura arriva col ricaricamento; questo toglie subito ciò che
+          // non c'è più, senza aspettare il giro di rete.
+          for (const id of eliminati) {
+            this.selection.toggle(id, false);
+          }
+        }
+        const falliti = esiti.length - eliminati.size;
+        this.duplicateError.set(
+          falliti === 0
+            ? null
+            : falliti === 1
+              ? 'Un prodotto non è stato eliminato.'
+              : `${falliti} prodotti non sono stati eliminati.`,
+        );
+        this.reload();
+      });
   }
 
   protected printSelectedLabels(): void {
@@ -459,7 +658,7 @@ export class ProductListComponent {
 
     this.bulkPrintLoading.set(true);
     this.labelPrintService
-      .triggerDirectPrintMany(productIds, undefined, this.labelCopies())
+      .triggerDirectPrintMany(productIds)
       .pipe(
         finalize(() => this.bulkPrintLoading.set(false)),
         takeUntilDestroyed(this.destroyRef),

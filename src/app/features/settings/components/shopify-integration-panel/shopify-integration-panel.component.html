@@ -181,6 +181,19 @@
     </div>
   }
 
+  <!--
+    Canali di vendita (Tranche 2A): un negozio collegato prima di questi ambiti
+    non fallisce alla prima pubblicazione — lo dichiara qui, con che cosa fare.
+  -->
+  @if (publicationsScopeWarning(); as publicationsWarning) {
+    <div class="shopify-integration__shopify-error-block">
+      <p class="shopify-integration__shopify-error" role="alert">
+        <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+        {{ publicationsWarning }}
+      </p>
+    </div>
+  }
+
   @if (conn.lastError; as lastError) {
     <div class="shopify-integration__shopify-error-block">
       <p class="shopify-integration__shopify-error" role="alert">

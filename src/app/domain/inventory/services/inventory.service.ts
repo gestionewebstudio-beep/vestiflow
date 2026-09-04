@@ -38,7 +38,6 @@ import type { Location } from '@core/models/location.model';
 import type { StockMovement } from '@core/models/stock-movement.model';
 
 import type {
-  CorrispettiviExportQuery,
   InventoryExportQuery,
   InventoryImportPreview,
   InventoryImportResult,
@@ -192,12 +191,23 @@ export class InventoryService {
     );
   }
 
+  /**
+   * ⭐ **`tutto`: tutte le giacenze del filtro**, non una pagina (30/08/2026).
+   *
+   * ⛔ **Il default resta paginato**: `getVariantLevels` passa di qui per una
+   * variante sola, e la scheda prodotto non deve scaricare il magazzino intero.
+   */
   getLevels(
     query: InventoryLevelsListQuery = {},
+    opzioni: { readonly tutto?: boolean } = {},
   ): Observable<PaginatedResponse<InventoryLevelListItem>> {
     let params = new HttpParams()
       .set('page', String(query.page ?? 1))
       .set('pageSize', String(query.pageSize ?? DEFAULT_INVENTORY_PAGE_SIZE));
+
+    if (opzioni.tutto) {
+      params = params.set('all', '1');
+    }
 
     if (query.locationId) params = params.set('locationId', query.locationId);
     if (query.search) params = params.set('search', query.search);
@@ -239,12 +249,18 @@ export class InventoryService {
   }
 
   /** Situazione magazzino: riepilogo per variante (tab Situazione). */
+  /** ⭐ `tutto`: tutte le righe del filtro, non una pagina (30/08/2026). */
   getSituation(
     query: InventorySituationListQuery = {},
+    opzioni: { readonly tutto?: boolean } = {},
   ): Observable<PaginatedResponse<InventorySituationRow>> {
     let params = new HttpParams()
       .set('page', String(query.page ?? 1))
       .set('pageSize', String(query.pageSize ?? DEFAULT_INVENTORY_PAGE_SIZE));
+
+    if (opzioni.tutto) {
+      params = params.set('all', '1');
+    }
 
     if (query.locationId) params = params.set('locationId', query.locationId);
     if (query.supplierId) params = params.set('supplierId', query.supplierId);
@@ -266,10 +282,15 @@ export class InventoryService {
       );
   }
 
+  /**
+   * ⛔ **Non manda `page` né `pageSize`**: il registro movimenti non pagina più, e
+   * l'API risponde con l'intero risultato del filtro. Mandarli sarebbe il
+   * «parametro accettato e ignorato» — un comando che sembra comandare.
+   *
+   * ⚠️ È il periodo a delimitare, non la pagina: si entra su trenta giorni.
+   */
   getMovements(query: StockMovementsListQuery = {}): Observable<PaginatedResponse<StockMovement>> {
-    let params = new HttpParams()
-      .set('page', String(query.page ?? 1))
-      .set('pageSize', String(query.pageSize ?? DEFAULT_INVENTORY_PAGE_SIZE));
+    let params = new HttpParams();
 
     if (query.locationId) params = params.set('locationId', query.locationId);
     if (query.search) params = params.set('search', query.search);
@@ -439,30 +460,6 @@ export class InventoryService {
 
     return this.http
       .get(this.url('/inventory/levels/export/csv'), { params, responseType: 'blob' })
-      .pipe(timeout(EXPORT_HTTP_TIMEOUT_MS));
-  }
-
-  /** Export CSV corrispettivi: vendite/storni in un periodo, per canale e location. */
-  exportCorrispettiviCsv(query: CorrispettiviExportQuery): Observable<Blob> {
-    let params = new HttpParams();
-    if (query.locationId) {
-      params = params.set('locationId', query.locationId);
-    }
-    if (query.origin) {
-      params = params.set('origin', query.origin);
-    }
-    if (query.from) {
-      params = params.set('from', query.from);
-    }
-    if (query.to) {
-      params = params.set('to', query.to);
-    }
-
-    return this.http
-      .get(this.url('/inventory/movements/export/corrispettivi'), {
-        params,
-        responseType: 'blob',
-      })
       .pipe(timeout(EXPORT_HTTP_TIMEOUT_MS));
   }
 

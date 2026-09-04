@@ -106,14 +106,54 @@ Scelta la tendina e non tre pulsanti affiancati perché la barra non si allunga 
 >
 > **Il valore iniziale della casella lo decide l'ORIGINE**, non il tipo di documento.
 
-| Origine della fattura            | La casella nasce | Perché                                    |
-| -------------------------------- | ---------------- | ----------------------------------------- |
-| articoli inseriti a mano         | **spuntata**     | la merce non è ancora uscita              |
-| Ordine cliente interno           | **spuntata**     | scarica, e libera gli impegni dell'ordine |
-| DDT vendita che ha già scaricato | **non spuntata** | è uscita col DDT                          |
-| Ordine di canale già evaso       | **non spuntata** | è uscita col giro dell'ordine             |
+| Origine della RIGA                  | La casella nasce | Perché                                    |
+| ----------------------------------- | ---------------- | ----------------------------------------- |
+| creazione diretta (inserita a mano) | **spuntata**     | la merce non è ancora uscita              |
+| da/include **Preventivo**           | **spuntata**     | un preventivo non muove niente            |
+| da/include **Ordine cliente**       | **spuntata**     | scarica, e libera gli impegni dell'ordine |
+| da/include **DDT vendita**          | **non spuntata** | è uscita col DDT                          |
+| da/include **Ordine Shopify**       | **non spuntata** | è uscita col giro dell'ordine di canale   |
+| da/include **Vendita al banco**     | **non spuntata** | è uscita alla cassa                       |
 
-**«La merce esce una volta sola» non è una regola da far rispettare: è l'origine a saperlo**, e lo dice spuntando o no. Non serve una condizione a livello di documento, non serve enumerare i casi, e il caso che arriverà domani non rompe niente — porta con sé la propria origine.
+⭐ **Elenco completo, deciso dal proprietario il 22/08/2026.** Qui c'erano quattro righe:
+mancavano il Preventivo e la Vendita al banco, ed è il secondo che ha prodotto il difetto
+descritto sotto.
+
+> **Motivo unico, e non ce n'è un secondo: se la merce è già uscita fisicamente, la Fattura
+> non deve scaricarla una seconda volta.**
+
+⭐ **La casella è PER RIGA, quindi anche l'origine lo è.** Un documento può includere sorgenti
+diverse — un Preventivo e un DDT nella stessa Fattura — e allora alcune righe nascono spuntate
+e altre no. ⛔ Non esiste un «documento che scarica» o «che non scarica»: esistono righe.
+
+### ⛔ Vale su ENTRAMBI i percorsi, e la riga da sola non basta
+
+⚠️ **Qui c'era scritto:** _«"La merce esce una volta sola" non è una regola da far rispettare: è
+l'origine a saperlo… Non serve una condizione a livello di documento, non serve enumerare i
+casi, e il caso che arriverà domani non rompe niente — porta con sé la propria origine.»_
+
+**⛔ SUPERATO — NON USARE COME REQUISITO.** Il caso arrivato dopo — la Fattura accompagnatoria
+generata da una Vendita al banco — **ha rotto**, e per due ragioni misurate il 22/08/2026.
+
+**1. «Origine» copriva un percorso solo.** _Includere_ una riga tirandola dentro e _derivare_
+un intero documento sono operazioni diverse (`12`, matrice dei collegamenti). La tabella qui
+sopra vale per **tutte e due**: che la Fattura **includa** una Vendita al banco o ne **derivi**,
+quelle righe non riscaricano. Ogni formulazione che dice solo «documento agganciato» lascia
+fuori metà dei casi — ed è la formulazione da cui il codice è stato scritto.
+
+**2. ⛔ La riga NON porta con sé la propria origine.** È l'assunzione su cui poggiava l'intera
+frase ritirata, e non regge alla misura:
+
+| Cosa si sperava                | Cosa c'è davvero                                                                    |
+| ------------------------------ | ----------------------------------------------------------------------------------- |
+| la riga sa da dove viene       | `DocumentLine` **non ha nessun campo di provenienza**                               |
+| `lineSource` è quel campo      | è della Registrazione fattura acquisto (`vat_summary`/`manual`), «Null altrove»     |
+| il motore Includi la trasporta | `IncludedDocumentLine` trasporta solo `isReference`                                 |
+| `sourceDocumentId` basta       | sta su **`Document`**, non sulla riga: dice da dove viene il documento, non la riga |
+
+⚠️ **Una regola per riga senza un dato per riga non è applicabile.** Il campo va aggiunto, ed è
+un cambio di schema — quindi soggetto al vincolo del database condiviso: **prima la migration
+compatibile, poi il codice che lo scrive** (`regole-qualita`).
 
 ⚠️ **RITIRATO IL 15/08/2026.** Qui c'era scritto: _«La Nota di credito è fuori da questo meccanismo: non movimenta il magazzino (§6), quindi non ha la casella. La merce che rientra passa da un documento di carico separato.»_
 
@@ -143,6 +183,124 @@ documentTypeUnloadsStockOnConfirm(type) = DOCUMENT_STOCK_UNLOAD_TYPES.includes(t
 - il **secondo** va spostato dal tipo all'**origine**;
 - il **terzo** deve includere la famiglia fattura.
 
+#### ⛔ E c'è un QUARTO cancello, che nessuno aveva visto: la guardia è muta _(22/08/2026)_
+
+L'unica guardia della famiglia fattura presidia un percorso che **non può accadere**.
+
+```ts
+// document-stock.constants.ts:34
+export function invoiceAccompanyingUnloadsStock(linkedSalesDdtCount: number): boolean {
+  return linkedSalesDdtCount === 0;
+}
+```
+
+Conta i **DDT agganciati** all'accompagnatoria.
+
+⚠️ **QUI C'ERA UN'AFFERMAZIONE FALSA, scritta il 22/08 e corretta lo stesso giorno**: che
+quel contatore valesse «sempre 0» perché la matrice dice «mai DDT», e che quindi la guardia
+fosse muta. **Non è vero, ed è stato misurato:**
+
+| Misura                               | Esito                                                                                                       |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `SALES_INVOICE_DOCUMENT_TYPES`       | include `InvoiceAccompanying`                                                                               |
+| `sales-document-form.component.html` | mostra «Riferimento DDT (opzionale)» sotto `@if (isSalesInvoice())` — quindi **anche sull'accompagnatoria** |
+| il payload del client                | manda `linkedSalesDdtIds` per tutta la famiglia                                                             |
+| il server                            | li accetta **senza alcun controllo di tipo**                                                                |
+
+⛔ **Il difetto è l'OPPOSTO: il codice permette ciò che `12` §matrice dichiara impossibile.**
+La guardia funziona e ha casi reali; è l'aggancio DDT su un'accompagnatoria a non dover
+esistere — o la matrice a dover cambiare.
+
+### ✅ DECISO il 22/08/2026 — cede il CODICE, non la matrice
+
+> **La regola vigente resta: Fattura accompagnatoria, mai DDT.** L'accompagnatoria
+> **sostituisce** il DDT nella stessa uscita, e il percorso DDT → Accompagnatoria **non è
+> ammesso.**
+
+⛔ **La matrice non si riapre sulla base del codice.** Che il codice permetta una cosa non la
+rende un requisito: è la direzione sbagliata da cui guardare, e il proprietario l'ha escluta
+esplicitamente.
+
+**Che cosa è stato fatto**, e il censimento dei consumer che l'ha preceduto:
+
+| Consumer del collegamento DDT         | Che cosa fa                                      | Classificato                                 |
+| ------------------------------------- | ------------------------------------------------ | -------------------------------------------- |
+| `document-xml.service.ts`             | riferimenti DDT nell'XML FatturaPA               | ✅ **funzione legittima della Fattura**      |
+| `document-pdf.service.ts`             | riga «Riferimento DDT» in stampa                 | ✅ legittima                                 |
+| `syncLinkedSalesDdtsTx`               | persiste il legame                               | ✅ legittima, **ora con la guardia di tipo** |
+| `invoiceAccompanyingUnloadsStock`     | non riscaricare merce già uscita                 | ⚠️ **difesa in profondità** — resta          |
+| la maschera, sotto `isSalesInvoice()` | **offriva** l'aggancio anche all'accompagnatoria | ⛔ **difetto, corretto**                     |
+| i DTO                                 | **accettavano** senza controllo di tipo          | ⛔ **difetto, corretto**                     |
+
+⭐ **Non era legacy e non era una funzione diversa: era una funzione giusta con la porta
+d'ingresso sbagliata.** Il collegamento serve alla **fattura differita** — DDT durante il
+periodo, Fattura che li riepiloga — ed è ciò che alimenta l'XML e la stampa.
+
+**Le due correzioni**, entrambe in un punto solo:
+
+- **client**: la sezione «Riferimento DDT» segue `supportsLinkedSalesDdt`, non
+  `isSalesInvoiceDocumentType` — quella è la famiglia intera, giusta per XML, numeratore e
+  azioni fiscali, sbagliata per questo. E il payload non manda l'elenco nemmeno vuoto;
+- **server**: `syncLinkedSalesDdtsTx` rifiuta l'aggancio su un'accompagnatoria. La guardia sta
+  **nella funzione**, non nei due chiamanti: una regola scritta in due punti diverge al primo
+  che ne dimentica uno.
+
+⚠️ **La guardia di magazzino NON è stata rimossa**, ed è la distinzione che il proprietario ha
+posto: può restare come difesa contro un percorso invalido, ma **non si promuove a requisito**.
+Se un'accompagnatoria arrivasse con dei DDT collegati — dati storici, un percorso non previsto —
+impedirebbe il doppio scarico. Non dice «l'accompagnatoria può avere DDT»: dice «se ne avesse,
+non riscarica».
+
+### ⛔ E la Nota di credito nemmeno — deciso il 22/08/2026
+
+⚠️ **Qui c'era: «la Nota di credito resta com'era, nessuna regola scritta le vieta il
+collegamento».** Non basta, e il proprietario l'ha respinta: **l'assenza di un divieto testuale
+non è un motivo per mantenere un ingresso**. La matrice dice che la NC **non usa «Includi
+documento»** e che **nasce da Fattura o Accompagnatoria** — un DDT non è una sua sorgente, e
+non deve diventarlo perché il DTO e lo schema lo consentono.
+
+**Verificato a cosa servissero**, prima di togliere:
+
+|               |                                                                                                                                                                                                                                                                                                                        |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| XML FatturaPA | ⛔ la NC **non lo genera ANCORA**: il generatore emette `TD01` per ogni fattura e non conosce `TD04`. ⏸️ La FE della Nota di credito è **prevista** e sta nel blocco dedicato (`DA-FARE` §Blocco C) — quando arriverà, i riferimenti si prenderanno **attraverso la fattura di origine**, non riaprendo l'ingresso DDT |
+| stampa        | i DDT che la riguardano sono quelli della **fattura originaria**, non suoi                                                                                                                                                                                                                                             |
+
+⭐ **Se un giorno serviranno fiscalmente, si recuperano attraverso la relazione con la fattura
+di origine** (`Document.sourceDocumentId`), **non** aprendo un ingresso DDT → Nota di credito.
+La differenza non è formale: il primo conserva la catena documentale, il secondo inventa una
+sorgente che il modello non prevede — ed è esattamente il modo in cui la matrice si sfalda un
+tipo alla volta.
+
+**Quindi `supportsLinkedSalesDdt` è vero per la sola Fattura**, e la guardia del server rifiuta
+ogni altro tipo nominandolo.
+
+⭐ **Resta vero, e indipendente da quella decisione**, che il percorso «include o deriva da una
+**Vendita al banco**» non è interrogato da nessuna parte, e che la firma a un parametro non
+può esprimerlo. Quella parte appartiene al blocco Includi/Genera (`DA-FARE`).
+
+⚠️ **La stessa policy esiste in TRE copie** — `documents.service.ts:2335` (conferma),
+`:2105` (modifica) e il motore della Vendita al banco. Una guardia messa in un punto solo
+lascia gli altri due aperti: si estrae **una** decisione prima di toccare i chiamanti.
+
+⚠️ **Un'asimmetria da chiudere insieme, o si corregge metà difetto**: a `documents.service.ts:2343`
+il filtro `!doc.onlineSaleId` è legato al **solo** `sales_ddt`, quindi `accompanyingUnloads`
+lo scavalca — un'accompagnatoria collegata a una vendita online riscarica, con la colonna che
+lo impedirebbe già presente.
+
+⚠️ **E prima di appoggiarsi a `sourceDocumentId`, va verificato che sia popolato sui dati
+reali.** Un commento del 16/08/2026 nello stesso file sostiene che «non è mai stato scritto da
+nessuno» — è il motivo per cui il filtro «DDT da fatturare» fu riscritto su
+`InvoiceSalesDdtLink`. Una guardia costruita su un campo vuoto sarebbe muta come quella che
+sostituisce.
+
+⛔ **Il difetto è LATENTE, non attivo.** Verificato: `includeSourceKindsForDocumentType`
+restituisce sorgenti **solo** per il DDT vendita, quindi oggi Fattura e accompagnatoria non
+includono niente dalla maschera, e la rotta Vendita al banco → accompagnatoria non esiste. Si
+arma **esattamente** quando si apre quella catena — che è ciò che `11` §piano già imponeva:
+_«il 12 non si inizia prima dell'11: una catena che si apre prima che la regola del solo
+effetto fisico sia applicata è una catena che scarica due volte.»_
+
 **La conversione ha già l'idea giusta, letta dal capo sbagliato.** Oggi imposta `loadsStock: dto.targetType === DocumentType.sales_ddt` — decide dal **tipo di destinazione**. Va girata sull'**origine**: «la merce è già uscita?». È la stessa riga, letta dall'altro verso.
 
 ### Conversione ≠ conclusione
@@ -151,7 +309,7 @@ Sono due cose che oggi VestiFlow tiene in una lista sola, ed è la causa di tre 
 
 |                 | Cosa fa                                                       | Cosa offre oggi                                                                                                             |
 | --------------- | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| **Conclusione** | fa uscire la merce                                            | `DOCUMENT_STOCK_UNLOAD_TYPES` = DDT vendita · Scarico manuale · Fattura accompagnatoria                                     |
+| **Conclusione** | fa uscire la merce                                            | `DOCUMENT_STOCK_UNLOAD_TYPES` = DDT vendita · Vendita manuale · Fattura accompagnatoria                                     |
 | **Conversione** | genera un documento da un altro, **nessun effetto magazzino** | esiste per Proforma e DDT (`PROFORMA_CONVERT_TARGET_TYPES`, `SALES_DDT_CONVERT_TARGET_TYPES`), **non per l'Ordine cliente** |
 
 _Misurato 14/08:_ il menù «Concludi ordine» offre esattamente `DOCUMENT_STOCK_UNLOAD_TYPES`. **Non è un elenco di documenti: è l'elenco di ciò che scarica.** Per questo la Fattura non c'è — non perché sia stata dimenticata, ma perché non scaricava.
@@ -720,6 +878,16 @@ E c'è la coincidenza che lo rende fuorviante: **«Bozza» oggi è uno _stato_**
 
 **Quando rinominarlo.** Non durante questo lavoro. Il valore non è solo un'etichetta in tre punti che contano: è scritto **dentro l'indice unico** come espressione (`THEN 'invoice_draft'::"DocumentType"`), vive nel **database condiviso** dove il collega ha un ramo aperto sulla stessa famiglia, e compare negli **indirizzi** (`?type=invoice_draft`) e nelle preferenze colonne salvate dagli operatori. Superficie: 61 file di codice, 6 migration. Il momento giusto è **insieme al merge col ramo del collega**, quando il database smette di avere due storie.
 
+⛔ **Non è andata così, ed è la parte che conta.** La rinomina è stata fatta il **26/08/2026**
+— commit `d851e9b9`, migration `20260826003840` — **prima** del merge. Il database condiviso
+ha ora `invoice`, e tutti e quattro i rami remoti dichiarano ancora il valore vecchio.
+
+⚠️ **La superficie descritta qui sopra era stimata giusta**: il rischio non era teorico, si è
+materializzato. Gli endpoint concretamente incompatibili, le verifiche da fare prima di
+distribuire un ramo vecchio e lo stato reale del database stanno in **`00-DECISIONI`, in
+testa** — non qui, perché è un fatto operativo che deve leggere anche chi non apre questa
+specifica.
+
 ### «Inviata al commercialista» non serve: è una struttura in più
 
 **Decisione del proprietario del progetto, 16/08.** La marcatura di quale fattura è stata mandata al commercialista **non si tiene**.
@@ -775,7 +943,7 @@ Il 15/08 è stata **aggiunta una terza voce a quel meccanismo** invece di notare
 - `Nuovo` è **un menu a tre voci**, identico con qualsiasi filtro attivo, e ogni voce va alla propria rotta esplicita senza toccare il filtro.
 - Lo stato vuoto riceve **lo stesso menu** per proiezione — non una seconda decisione, e non una CTA che sceglierebbe un tipo al posto dell'operatore.
 
-Gli elenchi a **tipo singolo** (Preventivi, Proforma, DDT, Scarico manuale, Registrazioni fattura) restano col bottone diretto: non hanno niente da scegliere. La discriminante è la presenza di `createVariants`, non il nome del profilo.
+Gli elenchi a **tipo singolo** (Preventivi, Proforma, DDT, Vendita manuale, Registrazioni fattura) restano col bottone diretto: non hanno niente da scegliere. La discriminante è la presenza di `createVariants`, non il nome del profilo.
 
 ### L'hub: una sola porta
 

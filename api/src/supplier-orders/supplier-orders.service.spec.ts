@@ -7,6 +7,7 @@ import {
 import { PurchaseCostEntryMode, SupplierOrderStatus } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 
+import { TenantPermission } from '../auth/tenant-permission.constants';
 import { grossFromNetMinor } from '../vat/vat-line-calculation.util';
 
 import type { DocumentSettingsService } from '../documents/document-settings.service';
@@ -118,6 +119,8 @@ describe('SupplierOrdersService', () => {
       },
       supplierOrderLine: {
         update: vi.fn(),
+        updateMany: vi.fn(),
+        create: vi.fn(),
         findMany: vi.fn(),
         deleteMany: vi.fn(),
       },
@@ -178,7 +181,7 @@ describe('SupplierOrdersService', () => {
     const service = createService(prisma);
 
     await expect(
-      service.create(tenantId, { supplierId: 'missing', lines: [] }),
+      service.create(tenantId, { supplierId: 'missing', lines: [] }, testOwnerUser()),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
@@ -205,7 +208,7 @@ describe('SupplierOrdersService', () => {
         supplierId: 'sup-1',
         supplierReference: 'ORD-FORN-77',
         lines: [{ variantId: 'var-1', orderedQuantity: 5, enteredUnitCostMinor: 1000 }],
-      }),
+      }, testOwnerUser()),
     ).resolves.toMatchObject({
       id: 'po-new',
       reference: 'OF-0007',
@@ -261,7 +264,7 @@ describe('SupplierOrdersService', () => {
           vatCodeId: 'vat-22',
         },
       ],
-    });
+    }, testOwnerUser());
 
     expect(prisma.supplierOrder.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -272,6 +275,90 @@ describe('SupplierOrdersService', () => {
         }),
       }),
     );
+  });
+
+  // ── Unità di misura: la fotografa la maschera, non il server ───────────────
+  //
+  // ⛔ Il server ripescava `variant.product.unitOfMeasure` quando la riga non la
+  // portava, e il commento diceva di volere il contrario — «evita che una riga
+  // salvata oggi cambi unità perché domani l'anagrafica cambia». Ma le righe si
+  // cancellano e si riscrivono a ogni salvataggio, quindi quel ripiego
+  // rifotografava l'anagrafica di OGGI ogni volta.
+  //
+  // La cattura sta nella maschera (`applyVariantToLine`), e da lì il valore
+  // viaggia sempre nel payload. Qui il payload è l'unica fonte (23/08/2026).
+  describe('unità di misura', () => {
+    function ordineConVariante(prisma: ReturnType<typeof createPrismaMock>) {
+      prisma.supplier.findFirst.mockResolvedValue({ id: 'sup-1', party: supplierParty });
+      prisma.productVariant.findMany.mockResolvedValue([
+        // L'articolo in anagrafica è a chilogrammi.
+        { id: 'var-1', sku: 'SKU-1', product: { name: 'Felpa', unitOfMeasure: 'kg' } },
+      ]);
+      prisma.supplierOrder.create.mockImplementation((args: { data: unknown }) =>
+        Promise.resolve({ id: 'po-new', lines: [], ...(args.data as object) }),
+      );
+    }
+
+    function rigaSalvata(prisma: ReturnType<typeof createPrismaMock>): Record<string, unknown> {
+      const chiamata = prisma.supplierOrder.create.mock.calls[0]![0] as {
+        data: { lines: { create: Record<string, unknown>[] } };
+      };
+      return chiamata.data.lines.create[0]!;
+    }
+
+    it("l'unità di misura NON si ripesca dall'anagrafica quando la riga non la porta", async () => {
+      const prisma = createPrismaMock();
+      ordineConVariante(prisma);
+      const service = createService(prisma);
+
+      await service.create(tenantId, {
+        supplierId: 'sup-1',
+        lines: [{ variantId: 'var-1', orderedQuantity: 1, enteredUnitCostMinor: 1000 }],
+      }, testOwnerUser());
+
+      // Non 'kg': il documento non ha un'unità, e deve vedersi.
+      expect(rigaSalvata(prisma)['unitOfMeasure']).toBeNull();
+    });
+
+    it('quella che la riga porta si salva così com’è', async () => {
+      const prisma = createPrismaMock();
+      ordineConVariante(prisma);
+      const service = createService(prisma);
+
+      await service.create(tenantId, {
+        supplierId: 'sup-1',
+        lines: [
+          {
+            variantId: 'var-1',
+            orderedQuantity: 1,
+            enteredUnitCostMinor: 1000,
+            unitOfMeasure: 'conf',
+          },
+        ],
+      }, testOwnerUser());
+
+      expect(rigaSalvata(prisma)['unitOfMeasure']).toBe('conf');
+    });
+
+    it('una stringa di soli spazi vale come assente', async () => {
+      const prisma = createPrismaMock();
+      ordineConVariante(prisma);
+      const service = createService(prisma);
+
+      await service.create(tenantId, {
+        supplierId: 'sup-1',
+        lines: [
+          {
+            variantId: 'var-1',
+            orderedQuantity: 1,
+            enteredUnitCostMinor: 1000,
+            unitOfMeasure: '   ',
+          },
+        ],
+      }, testOwnerUser());
+
+      expect(rigaSalvata(prisma)['unitOfMeasure']).toBeNull();
+    });
   });
 
   // ── Il giro del costo ivato (docs/ORDINE-FORNITORE-RIGA.md) ────────────────
@@ -333,7 +420,7 @@ describe('SupplierOrdersService', () => {
             vatCodeId: 'vat-22',
           },
         ],
-      });
+      }, testOwnerUser());
 
       const created = prisma.supplierOrder.create.mock.calls[0]![0] as {
         data: { lines: { create: readonly { unitCostMinor: unknown }[] } };
@@ -356,7 +443,7 @@ describe('SupplierOrdersService', () => {
       service.create(tenantId, {
         supplierId: 'sup-1',
         lines: [{ variantId: 'var-x', orderedQuantity: 1, enteredUnitCostMinor: 100 }],
-      }),
+      }, testOwnerUser()),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 
@@ -392,7 +479,7 @@ describe('SupplierOrdersService', () => {
             vatCodeId: 'vat-sales',
           },
         ],
-      }),
+      }, testOwnerUser()),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 
@@ -416,7 +503,7 @@ describe('SupplierOrdersService', () => {
     });
     const service = createService(prisma);
 
-    await expect(service.getById(tenantId, 'po-1')).resolves.toMatchObject({
+    await expect(service.getById(tenantId, 'po-1', testOwnerUser())).resolves.toMatchObject({
       id: 'po-1',
       linkedDocuments: [expect.objectContaining({ reference: 'CAR-2026-0003' })],
     });
@@ -427,7 +514,7 @@ describe('SupplierOrdersService', () => {
     prisma.supplierOrder.findFirst.mockResolvedValue(null);
     const service = createService(prisma);
 
-    await expect(service.getById(tenantId, 'missing')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.getById(tenantId, 'missing', testOwnerUser())).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('update sostituisce righe su ordine Confermato', async () => {
@@ -450,6 +537,7 @@ describe('SupplierOrdersService', () => {
       { id: 'var-1', sku: 'SKU-1', product: { name: 'Felpa' } },
     ]);
     prisma.supplierOrderLine.deleteMany.mockResolvedValue({ count: 1 });
+    prisma.supplierOrderLine.create.mockResolvedValue({ id: 'line-nuova' });
     prisma.supplierOrder.update.mockResolvedValue({
       id: 'po-1',
       status: SupplierOrderStatus.confirmed,
@@ -460,14 +548,117 @@ describe('SupplierOrdersService', () => {
     await expect(
       service.update(tenantId, 'po-1', {
         lines: [{ variantId: 'var-1', orderedQuantity: 3, enteredUnitCostMinor: 500 }],
-      }),
+      }, testOwnerUser()),
     ).resolves.toMatchObject({ id: 'po-1' });
-    expect(prisma.supplierOrderLine.deleteMany).toHaveBeenCalledWith({
-      where: { orderId: 'po-1' },
-    });
+    // ⭐ Una riga SENZA `id` è una riga nuova: si crea. E siccome l'ordine non
+    //    aveva righe, non c'è niente da eliminare — prima si cancellava
+    //    comunque tutto, ed è la causa che questo cambio toglie.
+    expect(prisma.supplierOrderLine.create).toHaveBeenCalledTimes(1);
+    expect(prisma.supplierOrderLine.deleteMany).not.toHaveBeenCalled();
   });
 
-  it('update rifiuta ordine Concluso', async () => {
+  it('update AGGIORNA in posto la riga che porta il proprio id', async () => {
+    const prisma = createPrismaMock();
+    prisma.supplierOrder.findFirst.mockResolvedValue({
+      id: 'po-1',
+      status: SupplierOrderStatus.confirmed,
+      destinationLocationId: null,
+      currency: 'EUR',
+      costEntryMode: PurchaseCostEntryMode.vat_excluded,
+      documentDiscountPercent: 0,
+      orderDate: new Date('2026-08-01'),
+      number: 1,
+      series: null,
+      supplierId: 'sup-1',
+      supplierReference: null,
+      expectedAt: null,
+      lines: [{ id: 'line-1' }],
+      documents: [],
+    });
+    prisma.supplier.findFirst.mockResolvedValue({ id: 'sup-1', party: supplierParty });
+    prisma.productVariant.findMany.mockResolvedValue([
+      { id: 'var-1', sku: 'SKU-1', product: { name: 'Felpa' } },
+    ]);
+    prisma.supplierOrderLine.updateMany.mockResolvedValue({ count: 1 });
+    prisma.supplierOrder.update.mockResolvedValue({
+      id: 'po-1',
+      status: SupplierOrderStatus.confirmed,
+      lines: [{ id: 'line-1' }],
+    });
+    const service = createService(prisma);
+
+    await service.update(tenantId, 'po-1', {
+      lines: [
+        { id: 'line-1', variantId: 'var-1', orderedQuantity: 9, enteredUnitCostMinor: 500 },
+      ],
+    }, testOwnerUser());
+
+    // La riga resta la stessa: `updateMany` sul suo id, e nessuna creazione.
+    expect(prisma.supplierOrderLine.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'line-1', orderId: 'po-1' } }),
+    );
+    expect(prisma.supplierOrderLine.create).not.toHaveBeenCalled();
+    // ⛔ E nulla viene eliminato: la riga è ancora fra quelle inviate.
+    expect(prisma.supplierOrderLine.deleteMany).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⭐ **Lo stato NON governa la modificabilità** (`17` §2.2, §5.3).
+   *
+   * ⛔ Qui il test si chiamava «update rifiuta ordine Concluso» e aspettava un
+   * `ConflictException`: asseriva il gate rimosso il 28/08/2026 su decisione del
+   * proprietario. Un Ordine fornitore Concluso si modifica come gli altri —
+   * l'unica eccezione è il campo Stato, provata dal test subito sotto.
+   */
+  it('update AMMETTE un ordine Concluso, e lo stato non si muove', async () => {
+    const prisma = createPrismaMock();
+    prisma.supplierOrder.findFirst.mockResolvedValue({
+      id: 'po-1',
+      status: SupplierOrderStatus.concluded,
+      destinationLocationId: null,
+      currency: 'EUR',
+      costEntryMode: PurchaseCostEntryMode.vat_excluded,
+      documentDiscountPercent: 0,
+      orderDate: new Date('2026-08-01'),
+      number: 1,
+      series: null,
+      supplierId: 'sup-1',
+      supplierReference: null,
+      expectedAt: null,
+      lines: [{ id: 'line-1' }],
+      documents: [],
+    });
+    prisma.supplier.findFirst.mockResolvedValue({ id: 'sup-1', party: supplierParty });
+    prisma.productVariant.findMany.mockResolvedValue([
+      { id: 'var-1', sku: 'SKU-1', product: { name: 'Felpa' } },
+    ]);
+    prisma.supplierOrderLine.updateMany.mockResolvedValue({ count: 1 });
+    prisma.supplierOrder.update.mockResolvedValue({
+      id: 'po-1',
+      status: SupplierOrderStatus.concluded,
+      supplierReference: 'RIF-NUOVO',
+      lines: [{ id: 'line-1' }],
+    });
+    const service = createService(prisma);
+
+    // Campo ordinario + riga: entrambi passano, su un ordine Concluso.
+    await expect(
+      service.update(tenantId, 'po-1', {
+        supplierReference: 'RIF-NUOVO',
+        lines: [
+          { id: 'line-1', variantId: 'var-1', orderedQuantity: 9, enteredUnitCostMinor: 500 },
+        ],
+      }, testOwnerUser()),
+    ).resolves.toMatchObject({ id: 'po-1', status: SupplierOrderStatus.concluded });
+
+    // ⛔ E lo stato non viene riscritto: `status` non entra nemmeno nei dati.
+    //    Senza questa asserzione il test resterebbe verde anche se il
+    //    salvataggio riportasse l'ordine a Confermato.
+    const scritti = prisma.supplierOrder.update.mock.calls[0]![0].data as Record<string, unknown>;
+    expect(scritti).not.toHaveProperty('status');
+  });
+
+  it('update RIFIUTA il cambio manuale di stato da Concluso', async () => {
     const prisma = createPrismaMock();
     prisma.supplierOrder.findFirst.mockResolvedValue({
       id: 'po-1',
@@ -478,11 +669,17 @@ describe('SupplierOrdersService', () => {
     });
     const service = createService(prisma);
 
+    // ⭐ Il rifiuto arriva dalla macchina comune (`assertManualTransition`), non
+    //    da un gate di modificabilità: da Concluso si esce annullando o
+    //    eliminando l'Arrivo merce collegato (`17` §2.5).
     await expect(
       service.update(tenantId, 'po-1', {
+        status: 'confirmed',
         lines: [{ variantId: 'var-1', orderedQuantity: 3, enteredUnitCostMinor: 500 }],
-      }),
+      }, testOwnerUser()),
     ).rejects.toBeInstanceOf(ConflictException);
+    // Niente è stato scritto: il rifiuto precede la transazione.
+    expect(prisma.supplierOrder.update).not.toHaveBeenCalled();
   });
 
   it('cancel annulla solo ordini Confermati', async () => {
@@ -501,7 +698,7 @@ describe('SupplierOrdersService', () => {
     });
     const service = createService(prisma);
 
-    await expect(service.cancel(tenantId, 'po-1')).resolves.toMatchObject({
+    await expect(service.cancel(tenantId, 'po-1', testOwnerUser())).resolves.toMatchObject({
       status: SupplierOrderStatus.cancelled,
     });
   });
@@ -517,7 +714,7 @@ describe('SupplierOrdersService', () => {
     });
     const service = createService(prisma);
 
-    await expect(service.cancel(tenantId, 'po-1')).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.cancel(tenantId, 'po-1', testOwnerUser())).rejects.toBeInstanceOf(ConflictException);
     expect(prisma.supplierOrder.update).not.toHaveBeenCalled();
   });
 
@@ -533,11 +730,19 @@ describe('SupplierOrdersService', () => {
     prisma.supplierOrder.delete.mockResolvedValue({ id: 'po-1' });
     const service = createService(prisma);
 
-    await expect(service.delete(tenantId, 'po-1')).resolves.toBeUndefined();
+    await expect(service.delete(tenantId, 'po-1', testOwnerUser())).resolves.toBeUndefined();
     expect(prisma.supplierOrder.delete).toHaveBeenCalledWith({ where: { id: 'po-1' } });
   });
 
-  it('delete rifiuta ordini non annullati', async () => {
+  /**
+   * ⭐ **L'eliminazione segue i PERMESSI, non lo stato** (`17` §5.3).
+   *
+   * ⛔ Qui il test si chiamava «delete rifiuta ordini non annullati» e aspettava
+   * un `ConflictException`: asseriva il gate `status !== cancelled` rimosso il
+   * 28/08/2026. Era la gemella del gate di `update`, e le due si componevano in
+   * un vicolo cieco — un Concluso non si poteva né annullare né eliminare.
+   */
+  it('delete elimina un ordine Confermato: lo stato non lo impedisce', async () => {
     const prisma = createPrismaMock();
     prisma.supplierOrder.findFirst.mockResolvedValue({
       id: 'po-1',
@@ -548,7 +753,26 @@ describe('SupplierOrdersService', () => {
     });
     const service = createService(prisma);
 
-    await expect(service.delete(tenantId, 'po-1')).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.delete(tenantId, 'po-1', testOwnerUser())).resolves.toBeUndefined();
+    expect(prisma.supplierOrder.delete).toHaveBeenCalledWith({ where: { id: 'po-1' } });
+  });
+
+  it('delete elimina anche un ordine Concluso', async () => {
+    const prisma = createPrismaMock();
+    prisma.supplierOrder.findFirst.mockResolvedValue({
+      id: 'po-1',
+      status: SupplierOrderStatus.concluded,
+      destinationLocationId: null,
+      lines: [],
+      documents: [],
+    });
+    const service = createService(prisma);
+
+    // ⚠️ L'Arrivo merce collegato SOPRAVVIVE e resta senza origine: è la
+    //    conseguenza accettata esplicitamente, ed è lo schema a garantirla
+    //    (`Document.supplierOrder … onDelete: SetNull`).
+    await expect(service.delete(tenantId, 'po-1', testOwnerUser())).resolves.toBeUndefined();
+    expect(prisma.supplierOrder.delete).toHaveBeenCalledWith({ where: { id: 'po-1' } });
   });
 
   describe('scope location (solo ordini legacy con destinazione)', () => {
@@ -609,6 +833,139 @@ describe('SupplierOrdersService', () => {
       await expect(
         service.getById(tenantId, 'po-1', testClerkUser({ assignedLocationIds: ['loc-1'] })),
       ).resolves.toMatchObject({ id: 'po-1' });
+    });
+  });
+
+  /**
+   * ⛔ **La sede dell'ordine si autorizza, in creazione e in modifica.**
+   *
+   * `destinationLocationId` arriva dal client validato come solo UUID. Prima
+   * del 28/08/2026 nessuno lo confrontava con l'ambito dell'utente: un
+   * assegnato alla sola sede A creava ordini nel contesto della sede B, e con
+   * `PATCH` ci spostava quelli esistenti.
+   *
+   * ⚠️ Il campo porta ancora il nome vecchio, ma ciò che si autorizza è la
+   * **Location come contesto operativo** — il contratto corrente
+   * (`SPECIFICA-COMUNE-TESTATE-DOCUMENTO` §10.2). Il significato «destinazione
+   * fisica della merce» è superato e questi test non lo riconsolidano.
+   */
+  describe('la sede dell’ordine è dentro l’ambito dell’utente', () => {
+    const SEDE_MIA = 'loc-mia';
+    const SEDE_ALTRUI = 'loc-altrui';
+    const commesso = () =>
+      testClerkUser({
+        assignedLocationIds: [SEDE_MIA],
+        permissions: [TenantPermission.InventoryManage, 'doc.supplier_order.manage'],
+      });
+
+    const ordineEsistente = (destinationLocationId: string | null) => ({
+      id: 'po-1',
+      tenantId,
+      status: SupplierOrderStatus.confirmed,
+      supplierId: 'sup-1',
+      destinationLocationId,
+      lines: [],
+      linkedDocuments: [],
+    });
+
+    it('⛔ creare nel contesto di una sede non propria: RIFIUTATO', async () => {
+      const prisma = createPrismaMock();
+      const service = createService(prisma);
+
+      await expect(
+        service.create(
+          tenantId,
+          { supplierId: 'sup-1', destinationLocationId: SEDE_ALTRUI, lines: [] } as never,
+          commesso(),
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    // ⭐ Il rifiuto arriva prima di ogni scrittura: non basta rifiutare, deve
+    // rifiutare senza aver creato niente.
+    it('⛔ e non si crea nulla', async () => {
+      const prisma = createPrismaMock();
+      const service = createService(prisma);
+
+      await expect(
+        service.create(
+          tenantId,
+          { supplierId: 'sup-1', destinationLocationId: SEDE_ALTRUI, lines: [] } as never,
+          commesso(),
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(prisma.supplierOrder.create).not.toHaveBeenCalled();
+    });
+
+    it('✅ creare nella propria sede supera il gate', async () => {
+      const prisma = createPrismaMock();
+      const service = createService(prisma);
+
+      const esito = await service
+        .create(
+          tenantId,
+          { supplierId: 'sup-1', destinationLocationId: SEDE_MIA, lines: [] } as never,
+          commesso(),
+        )
+        .then(
+          () => null,
+          (e: unknown) => e,
+        );
+
+      expect(esito).not.toBeInstanceOf(ForbiddenException);
+    });
+
+    /**
+     * ⭐ Il caso che il fix su `PATCH /documents/:id` ha insegnato: `getById`
+     * autorizza l'ordine com'è, ma il DTO può spostarlo altrove.
+     */
+    it('⛔ SPOSTARE un ordine proprio in una sede altrui: RIFIUTATO', async () => {
+      const prisma = createPrismaMock();
+      prisma.supplierOrder.findFirst.mockResolvedValue(ordineEsistente(SEDE_MIA));
+      const service = createService(prisma);
+
+      await expect(
+        service.update(
+          tenantId,
+          'po-1',
+          { destinationLocationId: SEDE_ALTRUI } as never,
+          commesso(),
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(prisma.supplierOrder.update).not.toHaveBeenCalled();
+    });
+
+    it('✅ modificare senza toccare la sede supera il gate', async () => {
+      const prisma = createPrismaMock();
+      prisma.supplierOrder.findFirst.mockResolvedValue(ordineEsistente(SEDE_MIA));
+      const service = createService(prisma);
+
+      const esito = await service
+        .update(tenantId, 'po-1', { lines: [] } as never, commesso())
+        .then(
+          () => null,
+          (e: unknown) => e,
+        );
+
+      expect(esito).not.toBeInstanceOf(ForbiddenException);
+    });
+
+    // ⚠️ Comportamento PRESERVATO: un ordine senza sede non ha nulla da
+    // confrontare. Se debba essere ammesso è la domanda §4.8, non decisa qui.
+    it('ordine senza sede: nessun confronto, policy preservata', async () => {
+      const prisma = createPrismaMock();
+      const service = createService(prisma);
+
+      const esito = await service
+        .create(tenantId, { supplierId: 'sup-1', lines: [] } as never, commesso())
+        .then(
+          () => null,
+          (e: unknown) => e,
+        );
+
+      expect(esito).not.toBeInstanceOf(ForbiddenException);
     });
   });
 });

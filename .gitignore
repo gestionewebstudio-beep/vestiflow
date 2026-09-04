@@ -48,6 +48,10 @@ __screenshots__/
 .env.local
 .env.*.local
 .env.production
+# Ambiente TEST locale: contiene DATABASE_URL_TEST. Non e un segreto (il
+# database e in un container su localhost) ma un file .env non si committa.
+.env.test
+.env.test.local
 *.key
 *.pem
 *.p12

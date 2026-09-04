@@ -1,3 +1,14 @@
 @use 'list-page' as lp;
 
 @include lp.list-page('os-list');
+
+/*
+  ⭐ La pagina si adatta alla finestra (`regole-stile-ui` §6).
+*/
+@include lp.list-page-fills-viewport('os-list', 'app-data-table');
+
+/* I gruppi proiettati non sono scatole: sono contenuto (vedi telaio elenco). */
+[period],
+[filters] {
+  display: contents;
+}

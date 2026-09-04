@@ -61,6 +61,11 @@ function existingMovement(overrides: Record<string, unknown> = {}) {
     direction: null,
     reason,
     sourceLineId: 'line-1',
+    // Colonne NOT NULL dal 22/08/2026: un movimento letto dal database porta
+    // sempre i due costi, zero compreso. Un mock che li omette descrive una
+    // riga che non può esistere.
+    unitCostMinor: 0,
+    totalCostMinor: 0,
     createdAt: new Date('2026-08-06T10:00:00.000Z'),
     ...overrides,
   };
@@ -345,17 +350,20 @@ describe('syncUnloadLineMovements', () => {
   // Il tipo, la data, la causale e il filtro di riga c'erano gia'. Questi due no,
   // ed erano l'unica ragione per cui la cassa scriveva i movimenti per conto suo.
 
-  it('16 · senza parametri: origine manual e nessun costo — i chiamanti storici non cambiano', async () => {
+  // ⛔ Qui il movimento senza costo nasceva con `null`. Un costo canonico non è
+  // mai NULL: chi non sa dire il costo dice ZERO, e il movimento lo dichiara
+  // esplicitamente invece di lasciarlo scrivere al default della colonna.
+  it('16 · senza parametri: origine manual e costo ZERO dichiarato, mai null', async () => {
     const tx = createTxMock();
 
     await run(tx, [line()]);
 
     const created = tx.stockMovement.create.mock.calls[0]![0] as {
-      data: { origin: string; unitCostMinor: number | null; totalCostMinor: number | null };
+      data: { origin: string; unitCostMinor: number; totalCostMinor: number };
     };
     expect(created.data.origin).toBe(MovementOrigin.manual);
-    expect(created.data.unitCostMinor).toBeNull();
-    expect(created.data.totalCostMinor).toBeNull();
+    expect(created.data.unitCostMinor).toBe(0);
+    expect(created.data.totalCostMinor).toBe(0);
   });
 
   it('17 · con origin e costo: il movimento nuovo nasce vestiflow_pos col costo congelato', async () => {
@@ -384,7 +392,9 @@ describe('syncUnloadLineMovements', () => {
   it('18 · riga GIA presente: il costo unitario congelato non si rivaluta, il totale si rifa', async () => {
     // La distinzione decisa in `11` A2: rivalutare il costo di una riga vecchia
     // cambierebbe il margine di una vendita di marzo col costo di agosto.
-    const tx = createTxMock([existingMovement({ quantity: 3, unitCostMinor: 500, totalCostMinor: 1500 })]);
+    const tx = createTxMock([
+      existingMovement({ quantity: 3, unitCostMinor: 500, totalCostMinor: 1500 }),
+    ]);
 
     await syncUnloadLineMovements(tx as never, {
       tenantId,
@@ -406,5 +416,58 @@ describe('syncUnloadLineMovements', () => {
     expect(update.data.quantity).toBe(1);
     expect(update.data.totalCostMinor).toBe(500);
     expect(update.data).not.toHaveProperty('unitCostMinor');
+  });
+
+  // ── `createdAt` è il timestamp TECNICO, e non insegue la data documento ───
+  //
+  // Deciso il 21/08/2026: `documentDate` e `createdAt` sono due informazioni
+  // diverse. Un documento datato 19 e registrato il 21 è una situazione
+  // legittima — e ritoccare `createdAt` cancellerebbe proprio il dato che
+  // permette di riconoscere un inserimento retrodatato.
+  it('19 · data del documento corretta: il movimento aggiorna i suoi dati, NON createdAt', async () => {
+    const tx = createTxMock([existingMovement({ quantity: 3 })]);
+    const nuovaData = new Date('2026-08-01T00:00:00.000Z');
+
+    await syncUnloadLineMovements(tx as never, {
+      tenantId,
+      documentId,
+      documentType: DocumentType.store_sale,
+      locationId: 'loc-1',
+      reason,
+      movementDate: nuovaData,
+      lines: [line({ quantity: 2 })] as never,
+      actor,
+    });
+
+    const update = tx.stockMovement.update.mock.calls[0]![0] as {
+      where: { id: string };
+      data: Record<string, unknown>;
+    };
+    expect(update.where.id).toBe('mov-1');
+    expect(update.data.quantity).toBe(2);
+    // ⛔ La chiave non deve proprio esserci: scriverla con lo stesso valore
+    // sembrerebbe innocuo finché qualcuno non le passa una data diversa.
+    expect(update.data).not.toHaveProperty('createdAt');
+  });
+
+  it('20 · sola data diversa, nulla d’altro: nessuna scrittura', async () => {
+    const tx = createTxMock([existingMovement({ quantity: 3 })]);
+
+    await syncUnloadLineMovements(tx as never, {
+      tenantId,
+      documentId,
+      documentType: DocumentType.store_sale,
+      locationId: 'loc-1',
+      reason,
+      movementDate: new Date('2026-08-01T00:00:00.000Z'),
+      lines: [line({ quantity: 3 })] as never,
+      actor,
+    });
+
+    // Il movimento è identico: una data documento diversa non è, da sola, una
+    // ragione per riscriverlo.
+    expect(tx.stockMovement.update).not.toHaveBeenCalled();
+    expect(tx.stockMovement.create).not.toHaveBeenCalled();
+    expect(inventoryDeltas(tx)).toEqual([]);
   });
 });

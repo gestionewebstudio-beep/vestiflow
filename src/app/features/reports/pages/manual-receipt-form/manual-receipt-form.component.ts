@@ -27,6 +27,7 @@ import type { VatCode } from '@core/models/vat-code.model';
 import { formatVatRate, isSalesVatCode } from '@core/models/vat-code.model';
 import { NavigationHistoryService } from '@core/services/navigation-history.service';
 import { VatCodeService } from '@core/services/vat-code.service';
+import { ViewportService } from '@core/services/viewport.service';
 import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import {
   DEFAULT_CURRENCY,
@@ -37,6 +38,7 @@ import {
   toStorableMinor,
 } from '@core/utils/money.util';
 import { DocumentLineCardComponent } from '@domain/documents/components/document-line-card/document-line-card.component';
+import { PriceModeMenuComponent } from '@domain/documents/components/price-mode-menu/price-mode-menu.component';
 import { DocumentLineCardControlComponent } from '@domain/documents/components/document-line-card/document-line-card-control.component';
 import { DocumentLineCardFieldComponent } from '@domain/documents/components/document-line-card/document-line-card-field.component';
 import { DocumentLineCardGroupComponent } from '@domain/documents/components/document-line-card/document-line-card-group.component';
@@ -53,6 +55,7 @@ import {
 } from '@domain/documents/utils/document-vat-options.util';
 import { computeDocumentTotals } from '@domain/documents/utils/document-totals.util';
 import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
+import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
@@ -107,6 +110,7 @@ const LIST_PATH = '/app/sales/corrispettivi';
     ButtonComponent,
     DateInputComponent,
     DocumentLineCardComponent,
+    PriceModeMenuComponent,
     DocumentLineCardControlComponent,
     DocumentLineCardFieldComponent,
     DocumentLineCardGroupComponent,
@@ -116,6 +120,7 @@ const LIST_PATH = '/app/sales/corrispettivi';
     InlineBannerComponent,
     ReactiveFormsModule,
     SelectMenuComponent,
+    ConfirmDialogComponent,
   ],
   // Una maschera = un'istanza: ogni istanza traccia gli id che ha sbloccato e
   // li rilascia all'uscita, così alla riapertura tornano protetti.
@@ -170,8 +175,19 @@ export class ManualReceiptFormComponent implements CanComponentDeactivate {
     lines: this.fb.array<FormGroup<LineControls>>([]),
   });
 
-  /** Parte IVATA: è il verso in cui arrivano i valori di una chiusura di cassa. */
-  protected readonly pricesIncludeVat = signal(true);
+  /**
+   * Modalità importi della registrazione.
+   *
+   * ⛔ **Partiva IVATA**, col commento «è il verso in cui arrivano i valori di
+   * una chiusura di cassa». Sembrava una scelta deliberata, e non lo era: il
+   * proprietario ha chiarito il 25/08/2026 che «non era stato affrontato ancora
+   * il documento». Un default provvisorio scritto in forma affermativa si
+   * legge, sei mesi dopo, come una ragione ponderata — e chi lo trova esita a
+   * cambiarlo.
+   *
+   * ⭐ Ora parte NETTA, come ogni documento nuovo del gestionale.
+   */
+  protected readonly pricesIncludeVat = signal(false);
 
   protected readonly assignedNumber = signal<number | null>(null);
   protected readonly createdByName = signal<string | null>(null);
@@ -238,10 +254,22 @@ export class ManualReceiptFormComponent implements CanComponentDeactivate {
     this.salesVatCodes().map(vatCodeSelectOption),
   );
 
+  /**
+   * Le voci della veste COMPATTA.
+   *
+   * ⚠️ Su scrivania lo stesso comando vive nell'intestazione della colonna
+   * Importo, dove governa la colonna che legge. Sotto `lg` la tabella diventa
+   * card e quell'intestazione non esiste piu': il controllo va dove c'e' posto
+   * per lui. Non sono due comandi — sono due vesti dello stesso, e chiamano lo
+   * stesso metodo (`regole-stile-ui` §5).
+   */
   protected readonly priceModeOptions: readonly SelectMenuOption[] = [
-    { value: 'gross', label: 'Ivati' },
     { value: 'net', label: 'Netti' },
+    { value: 'gross', label: 'Ivati' },
   ];
+
+  /** Vista compatta: sotto `lg` la tabella e' card e non ha intestazioni. */
+  protected readonly compactView = inject(ViewportService).compact;
 
   constructor() {
     this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
@@ -338,24 +366,6 @@ export class ManualReceiptFormComponent implements CanComponentDeactivate {
       this.addLine();
     }
     this.openLine.set(null);
-  }
-
-  /** Duplica la riga: stessa descrizione, stessa aliquota, stesso importo. */
-  protected duplicateLine(index: number): void {
-    const sorgente = this.lines.at(index);
-    if (!sorgente) {
-      return;
-    }
-    this.addLine();
-    const copia = this.lines.at(this.lines.length - 1);
-    copia?.controls.description.setValue(sorgente.controls.description.value);
-    copia?.controls.vatCodeId.setValue(sorgente.controls.vatCodeId.value);
-    // Si copia il netto CANONICO, non il campo: il campo è una vista, e
-    // ricostruirlo da lì perderebbe la coda dello scorporo sulla copia.
-    copia?.controls.netAmountMinor.setValue(sorgente.controls.netAmountMinor.value, {
-      emitEvent: false,
-    });
-    this.redrawAmountFields();
   }
 
   // ── La vista card, sotto lg ────────────────────────────────────────────────
@@ -530,7 +540,11 @@ export class ManualReceiptFormComponent implements CanComponentDeactivate {
    * valgono. I campi si ridisegnano dal netto canonico, che non viene toccato.
    */
   protected setPriceMode(value: string | null): void {
-    const gross = value !== 'net';
+    this.setAmountsIncludeVat(value !== 'net');
+  }
+
+  /** Il gemello per il menu nell'intestazione di colonna, che parla booleano. */
+  protected setAmountsIncludeVat(gross: boolean): void {
     if (gross === this.pricesIncludeVat()) {
       return;
     }
@@ -681,7 +695,12 @@ export class ManualReceiptFormComponent implements CanComponentDeactivate {
 
   // ── Salvataggio ed eliminazione ───────────────────────────────────────────
 
-  protected save(onSaved?: () => void): void {
+  /**
+   * ⛔ Qui c'era un parametro `onSaved`, e lo passava UN solo chiamante:
+   * «Salva e chiudi» del dialogo d'uscita. Tolto quel pulsante il 25/08/2026,
+   * il parametro non ha piu' chiamanti.
+   */
+  protected save(): void {
     if (this.saving()) {
       return;
     }
@@ -747,7 +766,6 @@ export class ManualReceiptFormComponent implements CanComponentDeactivate {
         // Torna protetto SUBITO: lo sblocco valeva per la modifica che si è
         // appena conclusa, non per tutta la sessione.
         this.editLock.relock(saved.id);
-        onSaved?.();
       },
       error: (err: unknown) => {
         this._submitState.set({ status: 'error', error: this.toAppError(err) });
@@ -870,13 +888,10 @@ export class ManualReceiptFormComponent implements CanComponentDeactivate {
     this.pendingDeactivate = null;
   }
 
-  protected confirmExitSaving(): void {
-    this.save(() => {
-      this.exitDialogOpen.set(false);
-      this.pendingDeactivate?.(true);
-      this.pendingDeactivate = null;
-    });
-  }
+  // ⛔ Qui c'era il gestore di «Salva e chiudi» del dialogo d'uscita, tolto il
+  // 25/08/2026 con quel pulsante: il dialogo ha DUE azioni — Annulla · Esci
+  // senza salvare — e il salvataggio resta il pulsante Salva della barra.
+  // (decisione del proprietario, 24/08/2026)
 
   private toAppError(err: unknown): AppError {
     if (isAppError(err)) {

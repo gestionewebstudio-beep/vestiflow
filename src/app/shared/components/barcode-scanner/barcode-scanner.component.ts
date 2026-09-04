@@ -40,9 +40,16 @@ export class BarcodeScannerComponent {
 
   protected readonly scanning = signal(false);
   protected readonly errorMessage = signal<string | null>(null);
-  // Abilitato ovunque ci sia una fotocamera: dove manca l'API nativa subentra
-  // il ponyfill WASM del servizio, quindi non è più un gate sui soli Chrome/Android.
-  protected readonly detectorSupported = signal(this.detection.cameraSupported);
+  /**
+   * ⛔ **Qui c'era `cameraSupported`**, cioè «il dispositivo ha una
+   * fotocamera». Non basta più: dal 24/08/2026 il comando fotocamera si offre
+   * solo su schermo compatto, e la decisione vive nel servizio — un posto
+   * solo per dodici consumer.
+   *
+   * ⚠️ Il motore di scansione NON è stato toccato: su scrivania si legge col
+   * lettore HID, che scrive nel campo come una tastiera e non passa di qui.
+   */
+  protected readonly detectorSupported = this.detection.cameraScanOffered;
 
   private stream: MediaStream | null = null;
   private rafId: number | null = null;

@@ -25,6 +25,7 @@ import { formatMoney } from '@core/utils/money.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
 import { bindBreadcrumbEntityLabel } from '@core/services/breadcrumb-label.service';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { DetailFactsComponent } from '@shared/components/detail-facts/detail-facts.component';
@@ -42,18 +43,21 @@ import {
   documentStatusLabelForType,
   documentTypeLabel,
 } from '@domain/documents/models/document-labels.util';
-import { isGoodsReceiptDocumentType } from './models/document-goods-receipt.util';
+import { isGoodsReceiptDocumentType } from '@domain/documents/utils/document-goods-receipt.util';
 import { isPrintableDocumentType } from './models/document-print.util';
-import { documentDuplicateFormRoute, documentEditPath } from './models/document-routing.util';
-import { isTransferDocumentType } from './models/document-transfer.util';
+import {
+  documentDuplicateFormRoute,
+  documentEditPath,
+} from '@domain/documents/utils/document-routing.util';
+import { isTransferDocumentType } from '@domain/documents/utils/document-transfer.util';
 import {
   isAdjustmentDocumentType,
   isManualUnloadDocumentType,
   isStockOperationDocumentType,
-} from './models/document-stock-operation.util';
+} from '@domain/documents/utils/document-stock-operation.util';
 import { isStoreFlowDocumentType } from '@domain/documents/models/document-operational.util';
 import {
-  isInvoiceDraftDocumentType,
+  isInvoiceDocumentType,
   isProformaDocumentType,
   isQuoteDocumentType,
   isSalesDdtDocumentType,
@@ -93,6 +97,7 @@ type DetailState =
     BadgeComponent,
     ButtonComponent,
     ConfirmDialogComponent,
+    DeleteConfirmComponent,
     DetailFactsComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -212,7 +217,7 @@ export class DocumentDetailComponent {
     if (isStockOperationDocumentType(doc.type)) {
       const locationName = this.locationLabel(doc.locationId);
       if (locationName) {
-        facts.push({ label: 'Location', value: locationName });
+        facts.push({ label: 'Sede', value: locationName });
       }
       if (isAdjustmentDocumentType(doc.type) && doc.adjustmentDirection) {
         facts.push({
@@ -326,10 +331,12 @@ export class DocumentDetailComponent {
   protected readonly canCancel = computed(() => {
     const doc = this.document();
     if (!doc || isStoreFlowDocumentType(doc.type)) {
-      // Vendite/resi negozio: registro consultabile, gestione solo dalla cassa.
+      // ⛔ Vendita e Reso al banco: **si eliminano, non si annullano**
+      // (`11` A2). Il documento è l'unica evidenza dell'operazione, e un
+      // annullato che resta a storico occuperebbe un numero senza dire nulla.
       return false;
     }
-    // Scarico manuale (prompt Scarico manuale): niente annullamento — si
+    // Vendita manuale (prompt Vendita manuale): niente annullamento — si
     // elimina dall'elenco e le giacenze già scalate NON vengono ripristinate.
     if (isManualUnloadDocumentType(doc.type)) {
       return false;
@@ -338,11 +345,18 @@ export class DocumentDetailComponent {
   });
   protected readonly canDelete = computed(() => {
     const doc = this.document();
-    if (!doc || isStoreFlowDocumentType(doc.type)) {
+    if (!doc) {
       return false;
     }
-    // Scarico manuale: eliminabile in qualunque stato (definitiva solo sul
-    // documento, mai sulle giacenze — prompt Scarico manuale).
+    // ⭐ Vendita e Reso al banco: nascono confermati e si eliminano in
+    // qualunque stato (`11` A2, passo 14). L'API toglie i movimenti collegati
+    // alle righe e restituisce la merce; il Registro Corrispettivi, che li
+    // legge dai documenti, si aggiorna da sé.
+    if (isStoreFlowDocumentType(doc.type)) {
+      return this.canManage();
+    }
+    // Vendita manuale: eliminabile in qualunque stato (definitiva solo sul
+    // documento, mai sulle giacenze — prompt Vendita manuale).
     if (isManualUnloadDocumentType(doc.type)) {
       return this.canManage();
     }
@@ -352,19 +366,25 @@ export class DocumentDetailComponent {
     );
   });
 
-  /** Scarico manuale: l'eliminazione NON ripristina le giacenze già scalate. */
+  /** Vendita manuale: l'eliminazione NON ripristina le giacenze già scalate. */
   protected readonly deleteDialogMessage = computed(() => {
     const doc = this.document();
+    if (doc && isStoreFlowDocumentType(doc.type)) {
+      return (
+        'Il documento verrà eliminato definitivamente e le giacenze che aveva ' +
+        'movimentato torneranno com’erano. Procedere?'
+      );
+    }
     if (doc && isManualUnloadDocumentType(doc.type)) {
       return (
-        'Lo scarico manuale verrà eliminato definitivamente. Le giacenze già ' +
+        'La vendita manuale verrà eliminata definitivamente. Le giacenze già ' +
         'scalate NON verranno ripristinate. Procedere?'
       );
     }
     return 'Il documento verrà eliminato definitivamente. Procedere?';
   });
 
-  /** Duplica documento (§2a): disponibile per tutti i tipi tranne vendite/resi negozio. */
+  /** Duplica documento (§2a): disponibile per tutti i tipi tranne vendite/resi al banco. */
   protected readonly canDuplicate = computed(() => {
     const doc = this.document();
     return this.canManage() && doc != null && !isStoreFlowDocumentType(doc.type);
@@ -436,7 +456,7 @@ export class DocumentDetailComponent {
   protected readonly canConvert = computed(() => this.canManage() && this.convertSourceReady());
 
   /**
-   * «Converti in bozza fattura»: chi non gestisce le fatture non vede il
+   * «Converti in fattura»: chi non gestisce le fatture non vede il
    * comando, anche se la proforma da cui parte è sua.
    */
   protected readonly canConvertToInvoice = computed(
@@ -471,8 +491,8 @@ export class DocumentDetailComponent {
     if (isProformaDocumentType(doc.type)) {
       return 'Modifica proforma';
     }
-    if (isInvoiceDraftDocumentType(doc.type)) {
-      return 'Modifica bozza fattura';
+    if (isInvoiceDocumentType(doc.type)) {
+      return 'Modifica fattura';
     }
     if (doc.status === DocumentStatus.Draft) {
       return 'Modifica bozza';
@@ -639,8 +659,8 @@ export class DocumentDetailComponent {
     URL.revokeObjectURL(url);
   }
 
-  protected convertToInvoiceDraft(): void {
-    this.runConvert(DocumentType.InvoiceDraft);
+  protected convertToInvoice(): void {
+    this.runConvert(DocumentType.Invoice);
   }
 
   protected convertToSalesDdt(): void {
@@ -662,12 +682,12 @@ export class DocumentDetailComponent {
 
   private convertTargetRoute(targetType: DocumentType): string | null {
     switch (targetType) {
-      case DocumentType.InvoiceDraft:
+      case DocumentType.Invoice:
         return '/app/documents/fattura/new';
       case DocumentType.Proforma:
         return '/app/documents/proforma/new';
       case DocumentType.SalesDdt:
-        return '/app/documents/sales-ddt/new';
+        return '/app/documents/ddt-vendita/new';
       default:
         return null;
     }

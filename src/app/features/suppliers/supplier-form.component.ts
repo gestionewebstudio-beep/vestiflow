@@ -25,6 +25,7 @@ import {
   mapSupplierFormToInput,
   patchSupplierFormGroup,
 } from '@domain/suppliers/utils/supplier-form.util';
+import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
@@ -43,6 +44,7 @@ import { SupplierService } from '@domain/suppliers/services/supplier.service';
     ErrorStateComponent,
     TableSkeletonComponent,
     SupplierFormFieldsComponent,
+    ConfirmDialogComponent,
   ],
   templateUrl: './supplier-form.component.html',
   styleUrl: './supplier-form.component.scss',
@@ -194,14 +196,10 @@ export class SupplierFormComponent implements CanComponentDeactivate {
     this.pendingDeactivate = null;
   }
 
-  /** «Salva e chiudi» dal dialogo: salva il fornitore e prosegue l'uscita. */
-  protected confirmExitSave(): void {
-    this.submit(() => {
-      this.exitDialogOpen.set(false);
-      this.pendingDeactivate?.(true);
-      this.pendingDeactivate = null;
-    });
-  }
+  // ⛔ Qui c'era il gestore di «Salva e chiudi» del dialogo d'uscita, tolto il
+  // 25/08/2026 con quel pulsante: il dialogo ha DUE azioni — Annulla · Esci
+  // senza salvare — e il salvataggio resta il pulsante Salva della barra.
+  // (decisione del proprietario, 24/08/2026)
 
   private markFormDirty(): void {
     if (!this.suppressDirtyMarking) {

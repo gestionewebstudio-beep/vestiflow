@@ -29,29 +29,27 @@ import { canManageSupplierOrders } from '@core/permissions/tenant-permissions.ut
 import { LocationContextService } from '@core/services/location-context.service';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { canSwitchOperationalLocation } from '@core/utils/user-location-scope.util';
-import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
+import { createSelectionMode } from '@shared/utils/selection-mode';
+import { ListPageComponent } from '@shared/components/list-page/list-page.component';
+import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
+import type { ListAction } from '@shared/models/list-selection.model';
 import { ButtonComponent } from '@shared/components/button/button.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
-import { PaginationComponent } from '@shared/components/pagination/pagination.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
-import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
-import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableViewId } from '@shared/table-columns/table-column.model';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
-import { SupplierOrderService } from '@domain/supplier-orders/services/supplier-order.service';
 import { ProductService } from '@domain/products/services/product.service';
+import {
+  SUPPLIER_ORDER_PREFILL_STATE_KEY,
+  type SupplierOrderPrefill,
+} from '@domain/supplier-orders/models/supplier-order-prefill.model';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
 
 import { InventoryTabsComponent } from './components/inventory-tabs/inventory-tabs.component';
 import { SituationTableComponent } from './components/situation-table/situation-table.component';
-import {
-  DEFAULT_INVENTORY_PAGE_SIZE,
-  INVENTORY_PAGE_SIZE_OPTIONS,
-} from '@domain/inventory/models/inventory-list-query.model';
+import { DEFAULT_INVENTORY_PAGE_SIZE } from '@domain/inventory/models/inventory-list-query.model';
 import {
   INVENTORY_SITUATION_COLUMN_DEFS,
   INVENTORY_SITUATION_COLUMN_PRESETS,
@@ -83,25 +81,24 @@ const EMPTY_META: PageMeta = {
 
 /**
  * Tab Situazione (smart): fotografia del magazzino per variante con giacenze
- * aggregate, dati economici e stato scorte. Selezione checkbox → «Nuovo
- * ordine fornitore» con righe precompilate (quantità 1, costo = prezzo
- * acquisto variante) e redirect al documento creato.
+ * aggregate, dati economici e stato scorte.
+ *
+ * ⭐ Selezione checkbox → «Nuovo ordine fornitore», che **apre un ordine nuovo
+ * precompilato** — una riga per articolo, quantità 1 — e lascia salvare
+ * all'operatore. ⛔ Fino al 29/08/2026 l'ordine lo creava lei chiamando l'API,
+ * e si finiva a correggere le quantità su un documento già emesso.
  */
 @Component({
   selector: 'app-inventory-situation',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    BackButtonComponent,
+    ListActionsBarComponent,
+    ListPageComponent,
     ButtonComponent,
-    EmptyStateComponent,
-    ErrorStateComponent,
-    TableSkeletonComponent,
     SelectMenuComponent,
     SlidePanelComponent,
-    PaginationComponent,
     InventoryTabsComponent,
     SituationTableComponent,
-    TableColumnPickerComponent,
   ],
   templateUrl: './inventory-situation.component.html',
   styleUrl: './inventory-situation.component.scss',
@@ -110,7 +107,6 @@ export class InventorySituationComponent {
   private readonly inventoryService = inject(InventoryService);
   private readonly supplierService = inject(SupplierService);
   private readonly productService = inject(ProductService);
-  private readonly supplierOrderService = inject(SupplierOrderService);
   private readonly authService = inject(AuthService);
   private readonly locationContext = inject(LocationContextService);
   private readonly operationalLocations = inject(OperationalLocationsService);
@@ -122,7 +118,6 @@ export class InventorySituationComponent {
   protected readonly tableColumns: ReturnType<TableColumnPreferenceService['visibleColumns']>;
 
   protected readonly skeletonColumns = 8;
-  protected readonly pageSizeOptions = INVENTORY_PAGE_SIZE_OPTIONS;
 
   protected readonly stockStatusOptions: readonly SelectMenuOption[] = [
     { value: 'ok', label: 'Disponibile' },
@@ -149,6 +144,43 @@ export class InventorySituationComponent {
     () => new Set(this.selectedRows().keys()),
   );
   protected readonly selectedCount = computed(() => this.selectedRows().size);
+
+  protected readonly selectedRowIds = computed(() => [...this.selectedRows().keys()]);
+
+  /**
+   * ⭐ **La modalità «Seleziona» della vista a card**, dal telaio.
+   *
+   * ⚠️ **Qui la selezione NON si pota al cambio filtro**, ed è voluto: la `Map`
+   * qui sopra esiste perché le righe scelte sopravvivano ai filtri, per poi
+   * diventare le righe di un ordine fornitore. Spegnere la modalità le azzera
+   * comunque — quello vale ovunque.
+   */
+  protected readonly modoSelezione = createSelectionMode({
+    clear: () => this.selectedRows.set(new Map()),
+  });
+
+  /**
+   * ⭐ **Le funzioni dell'elenco, sempre visibili** (`14` §5.1): a selezione
+   * vuota l'azione è **spenta col motivo**, non assente.
+   *
+   * ⛔ Prima compariva solo con righe spuntate, e chi non sapeva che si
+   * selezionano non vedeva nemmeno che l'ordine si poteva creare.
+   * _Decisione del proprietario, 29/08/2026, sul riferimento Danea._
+   */
+  protected readonly selectionActions = computed<readonly ListAction[]>(() =>
+    this.canCreateSupplierOrder()
+      ? [
+          {
+            id: 'supplier-order',
+            label: 'Nuovo ordine fornitore',
+            icon: 'pi-shopping-bag',
+            requires: 'oneOrMore',
+            ariaLabel: 'Crea un ordine fornitore dagli articoli selezionati',
+            run: () => this.openOrderPanel(),
+          },
+        ]
+      : [],
+  );
 
   // Pannello «Nuovo ordine fornitore».
   protected readonly orderPanelOpen = signal(false);
@@ -246,7 +278,8 @@ export class InventorySituationComponent {
   private readonly state = toSignal(
     toObservable(this.request).pipe(
       switchMap(({ query }) =>
-        this.inventoryService.getSituation(query).pipe(
+        // ⭐ `tutto`: l'elenco mostra tutte le righe del filtro, non una pagina.
+        this.inventoryService.getSituation(query, { tutto: true }).pipe(
           map((response): SituationState => ({
             status: 'success',
             data: { rows: response.data, meta: response.meta },
@@ -282,16 +315,6 @@ export class InventorySituationComponent {
     () => this.state().status === 'success' && this.meta().total === 0,
   );
 
-  protected readonly hasActiveFilters = computed(() =>
-    Boolean(
-      this.statusFilter() ||
-      this.supplierFilter() ||
-      this.categoryFilter() ||
-      this.locationFilter() ||
-      this.search().trim(),
-    ),
-  );
-
   protected onSearchInput(event: Event): void {
     this.searchDraft.set((event.target as HTMLInputElement).value);
   }
@@ -312,22 +335,15 @@ export class InventorySituationComponent {
     this.locationFilter.set(value ?? '');
   }
 
+  /*
+    ⚠️ **La RICERCA non si azzera qui** (`14` §0.2, ribadito dal proprietario il
+    31/08/2026): ha il proprio campo sempre a vista e non segue «Filtri».
+  */
   protected resetFilters(): void {
     this.statusFilter.set('');
     this.supplierFilter.set('');
     this.categoryFilter.set('');
     this.locationFilter.set('');
-    this.searchDraft.set('');
-    this.search.set('');
-    this.page.set(1);
-  }
-
-  protected goToPage(page: number): void {
-    this.page.set(page);
-  }
-
-  protected onPageSizeChange(size: number): void {
-    this.pageSize.set(size);
     this.page.set(1);
   }
 
@@ -371,11 +387,12 @@ export class InventorySituationComponent {
   // ── Nuovo ordine fornitore dagli articoli selezionati ─────────────────────
 
   protected openOrderPanel(): void {
-    // Se tutti gli articoli selezionati hanno lo stesso fornitore associato,
-    // il selettore parte già su quello.
-    const rows = [...this.selectedRows().values()];
-    const supplierIds = new Set(rows.map((row) => row.supplierId).filter(Boolean));
-    this.orderSupplierId.set(supplierIds.size === 1 ? [...supplierIds][0]! : '');
+    // ⛔ Qui il fornitore si proponeva da solo quando gli articoli selezionati
+    //    ne avevano uno solo. Tolto il 29/08/2026 su indicazione del
+    //    proprietario: il pannello il fornitore lo CHIEDE comunque, quindi una
+    //    proposta automatica aggiunge un comportamento da spiegare senza
+    //    togliere un passo.
+    this.orderSupplierId.set('');
     this.newSupplierMode.set(false);
     this.newSupplierName.set('');
     this.orderError.set(null);
@@ -424,33 +441,33 @@ export class InventorySituationComponent {
           .pipe(map((supplier) => supplier.id))
       : of(this.orderSupplierId());
 
-    supplier$
-      .pipe(
-        switchMap((supplierId) =>
-          this.supplierOrderService.createOrder({
-            supplierId,
-            lines: [...this.selectedRows().values()].map((row) => ({
-              variantId: row.variantId,
-              description: row.title,
-              orderedQuantity: 1,
-              enteredUnitCostMinor: row.purchasePriceMinor ?? 0,
-            })),
-          }),
-        ),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe({
-        next: (order) => {
-          this.orderSubmitting.set(false);
-          this.orderPanelOpen.set(false);
-          this.clearSelection();
-          void this.router.navigateByUrl(`/app/orders/${order.id}`);
-        },
-        error: (err: unknown) => {
-          this.orderSubmitting.set(false);
-          this.orderError.set(this.extractErrorMessage(err));
-        },
-      });
+    supplier$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (supplierId) => {
+        // ⛔ **Qui l'ordine si CREAVA**, con una chiamata all'API, e poi si
+        //    apriva la sua modifica: esisteva nel database prima che
+        //    l'operatore avesse visto una riga. Le quantità nascono tutte a 1 e
+        //    vanno quasi sempre corrette — cioè si finiva per modificare un
+        //    documento emesso invece di compilarne uno.
+        //
+        // ⭐ Ora la Situazione **propone**: apre un ordine nuovo precompilato,
+        //    e a salvare è l'operatore (decisione del proprietario, 29/08/2026).
+        const prefill: SupplierOrderPrefill = {
+          supplierId,
+          variantIds: [...this.selectedRows().values()].map((row) => row.variantId),
+        };
+
+        this.orderSubmitting.set(false);
+        this.orderPanelOpen.set(false);
+        this.clearSelection();
+        void this.router.navigate(['/app/orders/new'], {
+          state: { [SUPPLIER_ORDER_PREFILL_STATE_KEY]: prefill },
+        });
+      },
+      error: (err: unknown) => {
+        this.orderSubmitting.set(false);
+        this.orderError.set(this.extractErrorMessage(err));
+      },
+    });
   }
 
   private toAppError(err: unknown): AppError {

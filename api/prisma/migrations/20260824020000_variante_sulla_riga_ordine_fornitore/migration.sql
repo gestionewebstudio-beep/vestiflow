@@ -1,0 +1,45 @@
+-- L'etichetta della VARIANTE sulla riga di un ordine fornitore.
+--
+-- Terza e ultima tabella di riga documento a riceverla:
+--   sales_order_lines      20260823220000
+--   document_lines         20260824010000
+--   supplier_order_lines   questa
+--
+-- PERCHE' SERVE. La maschera scriveva il nome cosi':
+--
+--     productName.setValue(summary.productName || summary.title)
+--
+-- e `title` e' il display completo, che CONTIENE la variante. Il ripiego
+-- scattava ogni volta che `productName` era vuoto, e in quel caso la riga si
+-- portava dentro il nome anche taglia e colore — proprio nel caso in cui
+-- nessuno se ne accorge, perche' a schermo «Maglia — M / Rosso» sembra giusto.
+--
+-- CONTENUTO: i soli valori delle opzioni, uniti da « / » (`M / Rosso`). E' la
+-- forma di `variant.title` di Shopify. Stringa vuota = nessuna opzione
+-- visibile, compresi il prodotto semplice e il sentinella `Default Title`.
+--
+-- ⚠️ QUI LO SNAPSHOT NON PUO' ESSERE PER ID, e va detto invece che scoperto.
+-- Le altre due tabelle conservano l'etichetta persistita confrontando l'id
+-- della riga (`document-line-variant-snapshot.util`). L'Ordine fornitore non
+-- puo': il suo salvataggio e' `deleteMany` + `create` nella stessa transazione
+-- (`supplier-orders.service`, update), quindi le righe **perdono l'id** a ogni
+-- salvataggio e non esiste un persistito da ritrovare.
+--
+-- L'etichetta viaggia percio' NEL PAYLOAD, fotografata dalla maschera quando
+-- l'articolo entra nella riga. Non e' una scelta di comodo: e' la stessa
+-- strada gia' presa il 23/08/2026 per `unit_of_measure` su questa identica
+-- tabella, e per la stessa ragione.
+--
+-- ⛔ E' una soluzione TEMPORANEA all'identita' delle righe, dichiarata tale dal
+-- proprietario il 24/08/2026. Il giorno in cui il salvataggio diventasse un
+-- upsert per id, questa riga di codice torna a essere uno snapshot per id come
+-- le altre due — e quel giorno va colto, non aspettato.
+--
+-- NOT NULL DEFAULT '': due stati, non tre. Il DEFAULT e' una sicurezza per le
+-- righe che esistevano prima, NON il comportamento ordinario di un writer.
+--
+-- Additiva: nessun backfill. Riempirla leggendo l'anagrafica di OGGI e
+-- scrivendola su ordini di marzo sarebbe il difetto che la colonna esiste per
+-- chiudere, eseguito in massa con un UPDATE.
+
+ALTER TABLE "supplier_order_lines" ADD COLUMN "variant_label" TEXT NOT NULL DEFAULT '';

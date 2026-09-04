@@ -209,7 +209,7 @@ test.describe('Permessi commesso (E2E_CLERK_*)', () => {
   });
 
   test.describe('Vendite al banco', () => {
-    test('registra vendita in sidebar se permesso retail.register', async ({ page }) => {
+    test('la sidebar apre la CREAZIONE se permesso retail.register', async ({ page }) => {
       await page.goto('/app/dashboard');
       await expect(page.locator('h1.dashboard__title')).toHaveText('Dashboard', {
         timeout: 30_000,
@@ -222,14 +222,26 @@ test.describe('Permessi commesso (E2E_CLERK_*)', () => {
       // `else`, scriveva un'annotazione e passava — e l'unica asserzione vera,
       // quella sull'URL, non veniva MAI eseguita.
       //
+      // ⛔ E l'asserzione, appena tornata viva, era comunque SBAGLIATA: attendeva
+      // `/app/sales/register`, un indirizzo che non esiste più (`11` A2), mentre
+      // la voce di sidebar portava all'ELENCO. Nessuno se n'era accorto perché
+      // `pre-push` esegue `test:everything` e `build`, non l'e2e.
+      //
+      // ⛔ Corretta il 20/08/2026 con la decisione che la **sidebar è la
+      // scorciatoia alla CREAZIONE** e l'elenco vive in Documenti (`11` A2).
+      // Questa prova è oggi l'unica guardia di quel contratto: se qualcuno
+      // riportasse la voce di menu sull'elenco, deve arrossare qui.
+      //
       // ⚠️ Il ramo `else` resta legittimo: il preset del commesso può non avere
       // `retail.register`. Ma ora ci si finisce solo quando è davvero così.
       const registerLink = page
         .locator('nav.app-sidebar')
-        .getByRole('link', { name: 'Vendita al banco', exact: true });
+        .getByRole('link', { name: 'Nuova vendita al banco', exact: true });
       if (await registerLink.isVisible()) {
         await registerLink.click();
-        await expect(page).toHaveURL(/\/app\/sales\/register/, { timeout: 15_000 });
+        await expect(page).toHaveURL(/\/app\/vendita-al-banco\/nuova-vendita-al-banco/, {
+          timeout: 15_000,
+        });
       } else {
         test.info().annotations.push({
           type: 'note',

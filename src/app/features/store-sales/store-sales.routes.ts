@@ -10,8 +10,14 @@ import {
 } from '@domain/store-sales/models/store-sale-routing.util';
 
 /**
- * Le due creazioni della Vendita al banco, montate dal composition root
+ * Le rotte della Vendita al banco, montate dal composition root
  * (`app.routes.ts`) sotto `/app/vendita-al-banco`.
+ *
+ * ⭐ **Dal 21/08/2026 portano alla maschera documentale nuova**
+ * (`StoreSaleDocumentFormComponent`): testata con sede, cliente, data, numero e
+ * serie, righe sulle celle comuni, netto/ivato, piede con totali e note. La
+ * vecchia `StoreSaleRegisterComponent` — il carrello — è stata eliminata con lo
+ * stesso commit: non aveva altri consumatori.
  *
  * ⛔ **Due voci di rotta distinte, un solo componente.** Il modo iniziale arriva
  * dai `data:` — è il pattern già usato dalla famiglia Fattura con
@@ -38,7 +44,7 @@ export const storeSalesRegisterRoutes: Routes = [
     canDeactivate: [unsavedChangesGuard],
     data: { [STORE_SALE_MODE_ROUTE_DATA_KEY]: 'sale' },
     loadComponent: () =>
-      import('./store-sale-register.component').then((m) => m.StoreSaleRegisterComponent),
+      import('./store-sale-document-form.component').then((m) => m.StoreSaleDocumentFormComponent),
   },
   {
     path: STORE_SALE_ROUTE_SEGMENT.return,
@@ -47,7 +53,7 @@ export const storeSalesRegisterRoutes: Routes = [
     canDeactivate: [unsavedChangesGuard],
     data: { [STORE_SALE_MODE_ROUTE_DATA_KEY]: 'return' },
     loadComponent: () =>
-      import('./store-sale-register.component').then((m) => m.StoreSaleRegisterComponent),
+      import('./store-sale-document-form.component').then((m) => m.StoreSaleDocumentFormComponent),
   },
   // ── Modifica di un documento esistente (`11` C 3b) ──────────────────────
   //
@@ -65,7 +71,7 @@ export const storeSalesRegisterRoutes: Routes = [
     canDeactivate: [unsavedChangesGuard],
     data: { [STORE_SALE_MODE_ROUTE_DATA_KEY]: 'sale' },
     loadComponent: () =>
-      import('./store-sale-register.component').then((m) => m.StoreSaleRegisterComponent),
+      import('./store-sale-document-form.component').then((m) => m.StoreSaleDocumentFormComponent),
   },
   {
     path: `${STORE_SALE_EDIT_SEGMENT.return}/:id/edit`,
@@ -74,6 +80,6 @@ export const storeSalesRegisterRoutes: Routes = [
     canDeactivate: [unsavedChangesGuard],
     data: { [STORE_SALE_MODE_ROUTE_DATA_KEY]: 'return' },
     loadComponent: () =>
-      import('./store-sale-register.component').then((m) => m.StoreSaleRegisterComponent),
+      import('./store-sale-document-form.component').then((m) => m.StoreSaleDocumentFormComponent),
   },
 ];

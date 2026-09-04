@@ -1,5 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 
+import { nuovoId } from '@core/utils/uuid.util';
+
 import type { ToastMessage, ToastTone } from '@shared/models/toast.model';
 
 const DEFAULT_DURATION_MS: Record<ToastTone, number> = {
@@ -42,7 +44,9 @@ export class ToastService {
     }
 
     const toast: ToastMessage = {
-      id: crypto.randomUUID(),
+      // ⚠️ Non `crypto.randomUUID`: da un'origine di rete non esiste e LANCIA —
+      //    e un toast che lancia è l'errore che nasconde l'errore.
+      id: nuovoId(),
       message: trimmed,
       tone,
       durationMs,

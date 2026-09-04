@@ -82,7 +82,7 @@ describe('DocumentsService — matrice permessi documenti', () => {
       expect(types).toEqual(
         expect.arrayContaining([DocumentType.sales_ddt, DocumentType.quote]),
       );
-      expect(types).not.toContain(DocumentType.invoice_draft);
+      expect(types).not.toContain(DocumentType.invoice);
       expect(types).not.toContain(DocumentType.supplier_invoice);
     });
 
@@ -96,7 +96,7 @@ describe('DocumentsService — matrice permessi documenti', () => {
       const types = typesInWhere();
       // La famiglia «invoice» copre fattura e fattura accompagnatoria.
       expect(types).toEqual(
-        expect.arrayContaining([DocumentType.invoice_draft, DocumentType.invoice_accompanying]),
+        expect.arrayContaining([DocumentType.invoice, DocumentType.invoice_accompanying]),
       );
     });
 
@@ -118,7 +118,7 @@ describe('DocumentsService — matrice permessi documenti', () => {
     const invoiceRow = {
       id: 'doc-1',
       tenantId,
-      type: DocumentType.invoice_draft,
+      type: DocumentType.invoice,
       status: DocumentStatus.confirmed,
       locationId: null,
       targetLocationId: null,
@@ -153,7 +153,7 @@ describe('DocumentsService — matrice permessi documenti', () => {
       await expect(
         service.create(
           tenantId,
-          { type: DocumentType.invoice_draft, lines: [] } as never,
+          { type: DocumentType.invoice, lines: [] } as never,
           clerkWith('doc.invoice.view', 'doc.goods_receipt.manage'),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
@@ -185,7 +185,7 @@ describe('DocumentsService — matrice permessi documenti', () => {
       prisma.document.findFirst.mockResolvedValue({
         id: 'doc-1',
         tenantId,
-        type: DocumentType.invoice_draft,
+        type: DocumentType.invoice,
         status: DocumentStatus.confirmed,
         locationId: null,
         targetLocationId: null,
@@ -235,7 +235,7 @@ describe('DocumentsService — matrice permessi documenti', () => {
       prisma.document.findFirst.mockResolvedValue({
         id: 'doc-3',
         tenantId,
-        type: DocumentType.invoice_draft,
+        type: DocumentType.invoice,
         status: DocumentStatus.confirmed,
         locationId: null,
         targetLocationId: null,
@@ -630,7 +630,7 @@ describe('DocumentsService — anteprima numero: il tipo arriva dal client', () 
     await expect(
       createService().previewNextReference(
         tenantId,
-        DocumentType.invoice_draft,
+        DocumentType.invoice,
         undefined,
         undefined,
         undefined,
@@ -643,7 +643,7 @@ describe('DocumentsService — anteprima numero: il tipo arriva dal client', () 
     // `settings` non è iniettato: se la guardia lasciasse passare, il
     // fallimento sarebbe un TypeError e non un ForbiddenException.
     await expect(
-      createService().previewNextReference(tenantId, DocumentType.invoice_draft),
+      createService().previewNextReference(tenantId, DocumentType.invoice),
     ).rejects.not.toBeInstanceOf(ForbiddenException);
   });
 });

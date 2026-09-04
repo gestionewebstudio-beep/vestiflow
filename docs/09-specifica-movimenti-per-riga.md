@@ -165,10 +165,15 @@ L'appartenenza non è affidata al solo controllo applicativo: il `where` dell'up
 
 ### Chi è passato dal nuovo salvataggio, e chi no
 
-Il PATCH generico serve **Preventivo, Ordine cliente (documenti collegati), DDT vendita, Scarico manuale, Rettifica, Trasferimento, Proforma e la famiglia Fattura**. Ne restano fuori per costruzione, e non sono stati toccati:
+Il PATCH generico serve **Preventivo, Ordine cliente (documenti collegati), DDT vendita, Vendita manuale, Rettifica, Trasferimento, Proforma e la famiglia Fattura**. Ne restano fuori per costruzione, e non sono stati toccati:
 
 - **Arrivo merce e famiglia carico** — hanno il percorso dedicato, che l'upsert per id ce l'aveva già (`isDedicatedWorkflowDocumentType` rifiuta il PATCH generico);
-- **Vendite e resi di negozio** — non modificabili (`isFlowOnlyDocumentType`);
+- **Vendita e Reso al banco** — hanno la **loro maschera**, che li salva con la propria
+  riconciliazione (`isFlowOnlyDocumentType` chiude il percorso generico, non la modifica).
+  ⚠️ _Corretto il 21/08/2026._ Qui c'era «non modificabili», ed è **falso**: un documento
+  concluso si riapre, si corregge, si risalva e si elimina, con gli effetti riallineati secondo
+  il proprio contratto (`11` A2). Il codice lo dichiara già — il messaggio dell'API dice
+  «si modificano dalla loro maschera», non «non si modificano»;
 - **Ordine fornitore** — tabella diversa (`SupplierOrderLine`), e lì il difetto gemello resta: vedi `03b` §8.2, dove `supplierOrderLineId` viene azzerato a ogni salvataggio.
 
 ### Cosa NON è cambiato, di proposito
@@ -338,14 +343,14 @@ Ognuno va scritto come test che **fallisce senza la correzione**.
 **I confini**
 
 13. DDT collegato a vendita online → nessun movimento, prima e dopo.
-14. Scarico manuale giacenze → **nessun movimento**, prima e dopo (§8).
+14. Vendita manuale → **nessun movimento**, prima e dopo (§8).
 15. Ordine cliente concluso in DDT → impegni consumati come oggi.
 
 ---
 
 ## §8 · Confini — cosa questo lavoro non tocca
 
-**Lo Scarico manuale giacenze resta fuori, sempre.** _Deciso, e già in vigore:_ `manual_unload` sottrae la giacenza direttamente al salvataggio **senza creare alcun movimento** (`document-stock-manual-unload.util.ts`, deroga documentata in `regole-gestionale`). Il documento è l'unica evidenza dello scarico. Il tipo compare in `DOCUMENT_STOCK_UNLOAD_TYPES` insieme a DDT e accompagnatoria, ma è instradato altrove (`documents.service.ts:2326`): il nuovo sync **non deve raccoglierlo**, e un test lo verifica (§7.14).
+**La Vendita manuale resta fuori, sempre.** _Deciso, e già in vigore:_ `manual_unload` sottrae la giacenza direttamente al salvataggio **senza creare alcun movimento** (`document-stock-manual-unload.util.ts`, deroga documentata in `regole-gestionale`). Il documento è l'unica evidenza dello scarico. Il tipo compare in `DOCUMENT_STOCK_UNLOAD_TYPES` insieme a DDT e accompagnatoria, ma è instradato altrove (`documents.service.ts:2326`): il nuovo sync **non deve raccoglierlo**, e un test lo verifica (§7.14).
 
 **Il DDT generato da vendita online resta senza movimenti**: la merce è già uscita col giro dell'ordine.
 
@@ -429,7 +434,7 @@ Ma la conseguenza va guardata in faccia prima di correggere: **il fatturato dei 
 | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | La regola «un movimento per riga, aggiornato in posto»                   | **decisa**, ed è nello schema dal giorno dell'Arrivo merce                                                                                                |
 | Allineare lo scarico di vendita **adesso**, prima della famiglia Fattura | **deciso 15/08**                                                                                                                                          |
-| Lo Scarico manuale giacenze resta **sempre** escluso: non crea movimenti | **deciso**, deroga già in vigore                                                                                                                          |
+| La Vendita manuale resta **sempre** esclusa: non crea movimenti          | **deciso**, deroga già in vigore                                                                                                                          |
 | Nessuna migration                                                        | **misurato**: colonne e vincolo esistono                                                                                                                  |
 | Nessuna FK verso `StockMovement`                                         | **misurato 15/08**: zero relazioni entranti, zero colonne `movementId`, nessun id di movimento salvato altrove. La conversione può cancellare fisicamente |
 | Rettifica e Trasferimento: la modifica è legacy anche per loro           | **superato**: il gate per-riga esiste già anche per loro (§2)                                                                                             |

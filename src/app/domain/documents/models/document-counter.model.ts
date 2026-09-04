@@ -56,7 +56,7 @@ export const COUNTER_CONFIGURABLE_TYPES: readonly DocumentType[] = [
   DocumentType.Adjustment,
   DocumentType.Inventory,
   DocumentType.Proforma,
-  DocumentType.InvoiceDraft,
+  DocumentType.Invoice,
   DocumentType.StoreSale,
   DocumentType.StoreReturn,
   DocumentType.Quote,

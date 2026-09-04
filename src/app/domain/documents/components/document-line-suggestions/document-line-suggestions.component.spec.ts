@@ -28,13 +28,22 @@ async function setup(
 }
 
 describe('DocumentLineSuggestionsComponent', () => {
+  /**
+   * ⚠️ **Qui si contavano gli `<span>` della voce** (`toHaveLength(1)`), ed è
+   * una misura della struttura interna: al primo cambio di markup fallisce anche
+   * se il comportamento è identico — ed è successo il 02/09/2026, quando la voce
+   * è passata a tre zone. `regole-qualita` lo dice: «VIETATO testare
+   * implementation detail. Testa il comportamento osservabile».
+   *
+   * Il comportamento è: chi ha un dettaglio lo mostra, chi non ce l'ha no.
+   */
   it('mostra titolo e dettaglio; il dettaglio manca quando non fornito', async () => {
     await setup();
 
     expect(screen.getByText('Maglietta cotone — M · Rosso')).toBeVisible();
     expect(screen.getByText('SKU-01 · Disp. 7')).toBeVisible();
-    const second = screen.getByText('Maglietta cotone — L · Blu').closest('li');
-    expect(second?.querySelectorAll('span')).toHaveLength(1);
+    expect(screen.getByText('Maglietta cotone — L · Blu')).toBeVisible();
+    expect(screen.queryByText(/SKU-02/)).toBeNull();
   });
 
   it('il click su una voce emette il suo indice', async () => {

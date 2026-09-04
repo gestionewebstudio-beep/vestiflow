@@ -152,9 +152,14 @@ Pannello visibile a **Titolare** e **Amministratore** (accesso completo al tenan
 - **Gestione numeri seriali** — colonna seriali in arrivo merce
 - **Policy aggiornamento prezzo fornitore** in carico: sempre / chiedi conferma / mai
 - **Unità di misura** e **IVA predefinita** per nuovi articoli
-- Avvisi e blocco su **giacenze negative**
 
 Le modifiche si applicano a tutti gli utenti del negozio.
+
+> **Le giacenze negative non si configurano, ed è una scelta.** Qui c’era «Avvisi e
+> blocco su giacenze negative»: due caselle che non facevano niente, tolte il
+> 26/08/2026. Il comportamento è uno solo e vale sempre: se scarichi più di quanto
+> hai, VestiFlow **ti avvisa e ti lascia proseguire** — Giacenza e Disponibile
+> possono diventare negative. Non esiste un blocco, e non è disattivabile.
 
 ##### Prezzi di vendita: Netti o Ivati _(dal 16 agosto 2026)_
 
@@ -473,31 +478,33 @@ Solo il **Titolare** può collegare o scollegare TikTok Shop.
 
 ## 8. Cosa si sincronizza e dove
 
-| Dato                                                  | Dove si modifica in VestiFlow             | Note                                                                                                                  |
-| ----------------------------------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| **Prodotti creati in VestiFlow** (`Fonte: VestiFlow`) | Sì — catalogo completo                    | Push al salvataggio verso Shopify/TikTok se connessi                                                                  |
-| **Prodotti importati da Shopify** (`Fonte: Shopify`)  | Solo dati operativi                       | Titolo, prezzi vendita, varianti e immagini in **Shopify Admin**; in VestiFlow: **stagione** e **prezzo di acquisto** |
-| **Giacenze**                                          | Sì (carichi, rettifiche…)                 | Vendite Shopify via webhook; vendite negozio via **Registra vendita** (tutti i profili); push canale dopo scansione   |
-| **Ordini fornitori**                                  | Sì, solo in VestiFlow                     | Non passano da Shopify/TikTok                                                                                         |
-| **Vendite al banco**                                  | Sì — **Registra vendita**                 | Tutti i profili; movimento magazzino (origine **Vendita al banco**), non ordine di vendita                            |
-| **Vendite (lista ordini)**                            | Sola lettura                              | Da Shopify Online e POS (**solo profilo Shopify**)                                                                    |
-| **Clienti**                                           | Sola lettura                              | Da Shopify (profilo Shopify)                                                                                          |
-| **Sedi (location)**                                   | Sync + **selezione attiva** (entro piano) | Solo sedi attive in magazzino, movimenti e topbar; blocco dopo primo salvataggio                                      |
+| Dato                                                  | Dove si modifica in VestiFlow             | Note                                                                                                                |
+| ----------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| **Prodotti creati in VestiFlow** (`Fonte: VestiFlow`) | Sì — catalogo completo                    | Push al salvataggio verso Shopify/TikTok se connessi                                                                |
+| **Prodotti importati da Shopify** (`Fonte: Shopify`)  | Sì — catalogo completo                    | Si modificano come gli altri; restano **non eliminabili** da VestiFlow                                              |
+| **Giacenze**                                          | Sì (carichi, rettifiche…)                 | Vendite Shopify via webhook; vendite negozio via **Registra vendita** (tutti i profili); push canale dopo scansione |
+| **Ordini fornitori**                                  | Sì, solo in VestiFlow                     | Non passano da Shopify/TikTok                                                                                       |
+| **Vendite al banco**                                  | Sì — **Registra vendita**                 | Tutti i profili; movimento magazzino (origine **Vendita al banco**), non ordine di vendita                          |
+| **Vendite (lista ordini)**                            | Sola lettura                              | Da Shopify Online e POS (**solo profilo Shopify**)                                                                  |
+| **Clienti**                                           | Sola lettura                              | Da Shopify (profilo Shopify)                                                                                        |
+| **Sedi (location)**                                   | Sync + **selezione attiva** (entro piano) | Solo sedi attive in magazzino, movimenti e topbar; blocco dopo primo salvataggio                                    |
 
 ### Etichetta «Fonte» (catalogo)
 
 Nella **lista prodotti** (colonna **Fonte**) e nel **dettaglio prodotto** compare un’etichetta che indica **chi gestisce il catalogo ecommerce**:
 
-| Etichetta     | Significato                                                                                | Cosa puoi fare in VestiFlow                                                                                 |
-| ------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| **VestiFlow** | Prodotto nato nel gestionale (creato o importato CSV, poi eventualmente inviato al canale) | Modifica completa; eliminazione (se consentita) anche su Shopify se collegato                               |
-| **Shopify**   | Prodotto importato dal negozio online                                                      | Catalogo in sola lettura; modifica solo **stagione** e **prezzo di acquisto**; elimina da **Shopify Admin** |
+| Etichetta     | Significato                                                                                | Cosa puoi fare in VestiFlow                                                                            |
+| ------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| **VestiFlow** | Prodotto nato nel gestionale (creato o importato CSV, poi eventualmente inviato al canale) | Modifica completa; eliminazione (se consentita) anche su Shopify se collegato                          |
+| **Shopify**   | Prodotto importato dal negozio online                                                      | **Modifica completa**, come un prodotto nato nel gestionale; l’eliminazione resta su **Shopify Admin** |
 
-L’etichetta **Fonte** è distinta dallo **stato sync Shopify** (colonna **Shopify** in lista, se visibile): la Fonte dice _chi possiede il catalogo_; lo stato sync dice se l’ultimo invio verso Shopify è riuscito (solo per prodotti **Fonte: VestiFlow** collegati).
+L’etichetta **Fonte** è distinta dallo **stato sync Shopify** (colonna **Shopify** in lista, se visibile): la Fonte dice _da dove viene_ il prodotto; lo stato sync dice se l’ultimo invio verso Shopify è riuscito.
+
+> **La Fonte è una provenienza, non un lucchetto.** Fino a settembre 2026 i prodotti importati si potevano modificare solo in due campi; ora si modificano per intero. La Fonte serve a sapere chi li ha creati, e su quali resta il vincolo di eliminazione.
 
 ### Badge sync sul prodotto
 
-Nel dettaglio prodotto (solo prodotti **Fonte: VestiFlow** collegati a Shopify):
+Nel dettaglio prodotto, con Shopify connesso:
 
 | Badge                | Significato                                             |
 | -------------------- | ------------------------------------------------------- |
@@ -507,7 +514,13 @@ Nel dettaglio prodotto (solo prodotti **Fonte: VestiFlow** collegati a Shopify):
 | **Errore sync**      | Ultimo invio fallito — usa sync manuale                 |
 | **Non collegato**    | Shopify non connesso o prodotto mai sync                |
 
-I prodotti **Fonte: Shopify** si allineano automaticamente da Shopify Admin: non compare il pulsante **Sincronizza con Shopify**.
+### La casella «Sincronizza con Shopify»
+
+Nella scheda prodotto, con Shopify connesso, ogni prodotto ha una casella **Sincronizza con Shopify**. Spuntata, le modifiche che salvi vengono inviate al negozio online. Togliendo la spunta il prodotto smette di essere aggiornato: VestiFlow lo **archivia su Shopify**, così non resta in vendita, e le sue giacenze non vengono più pubblicate.
+
+> **Se lo spegnimento non riesce, te lo dice subito.** Può capitare che Shopify non risponda o rifiuti. In quel caso VestiFlow **riaccende** la sincronizzazione — perché il prodotto è ancora online — e mostra l’avviso _«La sincronizzazione non è stata disattivata. Il prodotto potrebbe essere ancora in vendita su Shopify»_, seguito dal motivo tecnico. **Le altre modifiche che avevi fatto restano salvate**: non è il salvataggio ad essere fallito, è solo lo spegnimento. Riprova, oppure controlla il prodotto su Shopify Admin.
+
+Rimettendo la spunta e salvando, il prodotto torna disponibile online.
 
 ---
 
@@ -571,10 +584,24 @@ Al **salvataggio**, VestiFlow invia categoria e attributi a Shopify insieme al r
 
 **Nota:** **Tipo prodotto** (campo testuale locale) e **Categoria Shopify** sono distinti: la categoria taxonomy è quella usata per sync e metafield di categoria.
 
+### I due nomi: «Nome prodotto» e «Nome Shopify»
+
+Con Shopify connesso la scheda prodotto mostra **due** campi per il nome, e servono a due cose diverse:
+
+| Campo             | A cosa serve                                                                                                  |
+| ----------------- | ------------------------------------------------------------------------------------------------------------- |
+| **Nome prodotto** | il nome con cui **cerchi e riconosci** l’articolo in magazzino. Può essere breve, e Shopify non lo cambia mai |
+| **Nome Shopify**  | il titolo con cui il prodotto **si vende online**, di solito più lungo e descrittivo                          |
+
+Se lasci **Nome Shopify** vuoto, alla prima sincronizzazione viene copiato dal nome prodotto. Da quel momento i due restano **indipendenti**: puoi accorciare il nome interno senza toccare la vetrina, e un cambio di titolo fatto su Shopify Admin aggiorna solo il Nome Shopify.
+
+Il pulsante **Copia nome VestiFlow** riallinea i due nomi quando lo decidi tu — non succede da solo.
+
 ### Modificare o eliminare
 
-- **Fonte: VestiFlow** — modifica completa dalla lista o dal dettaglio. Con Shopify connesso, al salvataggio i dati catalogo vengono inviati a Shopify.
-- **Fonte: Shopify** — il pulsante diventa **Modifica dati operativi**: puoi aggiornare solo **stagione** e **prezzo di acquisto** delle varianti. Nome, descrizione, prezzi di vendita, opzioni, SKU, barcode e immagini vanno modificati in **Shopify Admin**; VestiFlow si allinea con import catalogo o aggiornamenti automatici.
+Tutti i prodotti si modificano dalla lista o dal dettaglio, **compresi quelli importati da Shopify**. Con Shopify connesso, al salvataggio i dati catalogo vengono inviati al negozio online, se la casella **Sincronizza con Shopify** è spuntata.
+
+L’unica differenza rimasta fra le due Fonti riguarda l’**eliminazione**, qui sotto.
 
 #### Eliminazione prodotto
 
@@ -713,8 +740,8 @@ Gestiti **solo in VestiFlow** (non su Shopify).
 ### Flusso tipico
 
 1. **Ordini Fornitori → Nuovo ordine** — fornitore, destinazione merce, righe (variante, quantità, costo unitario)
-2. **Invia ordine** — tracciamento interno; le quantità compaiono in **In arrivo** in Giacenze
-3. All'arrivo merce: dal dettaglio ordine **Registra arrivo merce** (crea bozza in Documenti collegata all'ordine) **oppure** **Documenti → Arrivo merce** manuale — incrementa giacenze, azzera _in arrivo_ e crea movimenti di carico tracciati
+2. **Confermato** — è lo stato con cui l’ordine nasce, ed è l’unico che lo rende includibile in un Arrivo merce. ⛔ L’Ordine fornitore **non muove nessuna quantità**: né giacenza, né impegnata, né «In arrivo»
+3. All'arrivo merce: dal dettaglio ordine **Registra arrivo merce** (crea in Documenti un Arrivo merce collegato all'ordine) **oppure** **Documenti → Arrivo merce** manuale — è **qui** che le giacenze si incrementano e nascono i movimenti di carico
 
 Il pulsante **Registra arrivo merce** sull'ordine apre il form **Documenti → Arrivo merce** con righe e quantità residue già precompilate; non esiste più una ricezione «silenziosa» senza documento.
 
@@ -728,14 +755,38 @@ Il pulsante **Registra arrivo merce** sull'ordine apre il form **Documenti → A
 
 ### Stati e azioni
 
-| Stato ordine         | Cosa puoi fare (Manager e superiori, salvo dove indicato)           |
-| -------------------- | ------------------------------------------------------------------- |
-| **Bozza**            | Modifica bozza, Invia ordine, Annulla ordine                        |
-| **Inviato**          | Annulla ordine, **Registra arrivo merce** (tutti i ruoli operativi) |
-| **Annullato**        | **Elimina ordine** — rimozione definitiva dall'elenco               |
-| **Ricevuto** / parz. | Solo consultazione                                                  |
+Un Ordine fornitore ha **quattro stati**. Servono a una cosa sola: decidere se
+l'ordine compare fra quelli **includibili** in un Arrivo merce.
 
-L'**Annulla ordine** segna l'ordine come annullato ma lo lascia in lista. **Elimina ordine** (solo su ordini già annullati) lo rimuove in modo irreversibile.
+| Stato             | Compare in «Includi» dell'Arrivo merce | Come ci si arriva                                  |
+| ----------------- | -------------------------------------- | -------------------------------------------------- |
+| **Da confermare** | No                                     | lo imposti tu                                      |
+| **Confermato**    | **Sì**                                 | è lo stato con cui l'ordine nasce                  |
+| **Concluso**      | No                                     | ci va da solo quando lo colleghi a un Arrivo merce |
+| **Annullato**     | No                                     | lo imposti tu, e puoi tornare indietro             |
+
+**Lo stato non ti impedisce di lavorare sull'ordine.** In qualunque stato l'ordine
+si apre, si modifica, si salva, si stampa e si elimina secondo i tuoi permessi: lo
+stato dice se l'ordine è pronto per l'arrivo merce, non se puoi toccarlo.
+
+- **Da confermare, Confermato e Annullato** li scegli tu, e li cambi quando vuoi in
+  qualsiasi direzione: annullare non è definitivo.
+- **Concluso non si sceglie.** L'ordine ci finisce quando lo colleghi a un Arrivo
+  merce, e finché quel collegamento esiste **lo stato resta fermo**. Per sbloccarlo
+  annulli o elimini l'Arrivo merce: l'ordine torna Confermato da solo.
+- **Eliminare** un ordine è una questione di permessi, non di stato. Se elimini un
+  ordine già collegato, **l'Arrivo merce resta**, con la sua merce e le sue
+  quantità: perde solo il riferimento all'ordine che l'ha originato.
+
+L'Ordine fornitore **non muove il magazzino in nessuno stato**: né giacenza, né
+impegnata, né quantità in arrivo. La merce entra con l'Arrivo merce, non con l'ordine.
+
+⚠️ **Quello che il programma non fa ancora.** Il modello qui sopra è la decisione del
+28/08/2026; l'applicazione oggi è indietro su due punti, e sono in lavorazione:
+
+- **«Da confermare» non c'è ancora**: gli stati disponibili sono tre, e un ordine
+  nuovo nasce Confermato.
+- **«Annullato» non è ancora reversibile**, e oggi si imposta solo da Confermato.
 
 - Creazione e modifica: **Manager** e superiori
 - Ricezione merce: tutti i ruoli operativi (verifica con il titolare le regole interne)
@@ -772,10 +823,10 @@ VestiFlow centralizza i documenti che impattano magazzino e contabilità. **Non 
 | **Carico manuale**          | Carico magazzino senza DDT fornitore (fornitore opzionale)            |
 | **Carico iniziale**         | Stock di partenza / primo inventario (fornitore opzionale)            |
 | **DDT vendita**             | Consegna merce al cliente; base per successiva fatturazione           |
-| **Bozza fattura**           | Dati per emissione fattura (anche da conversione DDT)                 |
+| **Fattura**                 | Dati per emissione fattura (anche da conversione DDT)                 |
 | **Proforma**                | Preventivo non fiscale                                                |
 | **Trasferimento**           | Spostamento stock tra sedi (origine → destinazione)                   |
-| **Scarico manuale**         | Uscita merce (campionario, deteriorata, …)                            |
+| **Vendita manuale**         | Vendita registrata a mano; riduce la giacenza senza movimenti         |
 | **Rettifica**               | Correzione quantità con motivo obbligatorio                           |
 | **DDT / fatture fornitore** | Registrazione documenti in ingresso (collegamento a carichi)          |
 
@@ -783,13 +834,38 @@ Alcuni tipi (es. inventario fisico) possono essere generati automaticamente da a
 
 ### Stati del documento
 
-| Stato                       | Significato                                                      |
-| --------------------------- | ---------------------------------------------------------------- |
-| **Bozza**                   | Modificabile; **nessun** movimento di magazzino                  |
-| **Confermato**              | Numero assegnato; movimenti applicati                            |
-| **Stampato** / **Inviato**  | Tracciamento operativo / invio al commercialista (bozze fattura) |
-| **Registrato esternamente** | Fattura o documento registrato fuori da VestiFlow                |
-| **Annullato**               | Documento invalidato (con regole di reversibilità stock)         |
+| Stato                       | Significato                                                                                                                                                                  |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Confermato**              | **Lo stato con cui il documento nasce**: salvato e numerato. ⛔ **Non** significa «movimenta magazzino»: gli effetti fisici li decide il **tipo** e il contratto delle righe |
+| **Stampato** / **Inviato**  | Tracciamento operativo / invio al commercialista (bozze fattura)                                                                                                             |
+| **Registrato esternamente** | Fattura o documento registrato fuori da VestiFlow                                                                                                                            |
+| **Annullato**               | Documento invalidato (con regole di reversibilità stock)                                                                                                                     |
+
+⛔ **«Bozza» non esiste — deciso il 28/08/2026.** Un documento **nasce Confermato**: non c’è
+uno stato intermedio in cui esiste ma non conta. È la stessa regola già in vigore per gli
+ordini (`17` §2.4, `18` §2.1) e il progetto la chiama **nascita-confermato**.
+
+⚠️ **Il codice è indietro**: `DocumentStatus.draft` esiste ancora nello schema e governa
+la modifica libera, l’anteprima del numero e l’eliminazione. La decisione vale; l’allineamento
+è lavoro (indice `00`).
+
+⛔ **«Confermato» NON vuol dire «movimenta magazzino».** Vuol dire **documento salvato**.
+Gli effetti fisici appartengono al **tipo** e alle sue righe, non al valore dello stato:
+
+```text
+Arrivo merce            Salva → Confermato + carichi delle righe abilitate
+DDT                     Salva → Confermato + scarichi pertinenti
+Proforma                Salva → Confermato,  nessun movimento: il tipo non movimenta
+Registrazione fattura   Salva → Confermato,  nessun movimento: il tipo non movimenta
+```
+
+⚠️ **La vecchia equazione «Bozza = niente movimenti / Confermato = movimenti» cade insieme
+alla Bozza.** Era quella a far sembrare necessario un doppio passaggio Salva → Conferma.
+
+⭐ **E «Confermato» non obbliga a mostrare nulla.** Lo stato può restare **tecnico e interno**
+quando il tipo non ha un ciclo di stato che riguardi l’operatore: un Preventivo è un documento
+salvato e operativo senza bisogno di un selettore o di un badge «Confermato». ⛔ Non si
+aggiunge interfaccia solo perché il record internamente è confermato.
 
 Le azioni disponibili nel **dettaglio documento** dipendono da tipo e stato (conferma, stampa, invio, registrazione esterna, conversione DDT → bozza fattura, annullamento).
 
@@ -810,17 +886,17 @@ I filtri restano nell'**URL** della pagina: puoi salvare o condividere il link c
 
 Da **Documenti**, pulsante **Nuovo documento** (se hai **Gestire documenti**):
 
-| Documento                      | Percorso tipico                                 |
-| ------------------------------ | ----------------------------------------------- |
-| Arrivo merce                   | **Documenti → Arrivo merce**                    |
-| Trasferimento                  | **Documenti → Trasferimento**                   |
-| Scarico / Rettifica            | **Documenti → Scarico manuale** / **Rettifica** |
-| DDT / Proforma / Bozza fattura | **Documenti → Nuovo** (tipo vendita)            |
+| Documento                   | Percorso tipico                                 |
+| --------------------------- | ----------------------------------------------- |
+| Arrivo merce                | **Documenti → Arrivo merce**                    |
+| Trasferimento               | **Documenti → Trasferimento**                   |
+| Vendita manuale / Rettifica | **Documenti → Vendita manuale** / **Rettifica** |
+| DDT / Proforma / Fattura    | **Documenti → Nuovo** (tipo vendita)            |
 
 **Arrivo merce — schermata e campi principali**
 
 - **Testata:** tipo documento (**Arrivo merce**, DDT fornitore, Fattura accompagnatoria, **Carico manuale**, **Carico iniziale**), fornitore (obbligatorio per arrivo/DDT/fattura accomp.; opzionale per carichi manuali), sede destinazione, data documento VestiFlow, numero/data **documento fornitore** (es. DDT 242/2026), **causale di carico**, flag **Seguirà fattura**, riferimento fattura fornitore, note.
-- **Numero interno VestiFlow:** in bozza vedi l'**anteprima** (es. `CAR-2026-0045`); il numero definitivo viene assegnato alla **conferma** (distinto dal documento del fornitore).
+- **Numero interno VestiFlow:** assegnato **al salvataggio**, insieme allo stato Confermato.
 - **Righe in griglia:** menu **Colonne** (preset, resize intestazioni, **Ripristina colonne**); cerca articolo per **nome, SKU o barcode/EAN**; **Crea articolo rapido** o **Crea anagrafica completa** (pannello laterale senza uscire dal documento). Colonne: descrizione, quantità, costo, IVA, lotto/scadenza/seriali (se attivi in Impostazioni), flag **Carica magazzino**, totale riga.
 - **Ordine fornitore collegato:** se apri l'arrivo da **Registra arrivo merce** sull'ordine, compaiono anche colonne **Ordinato / Già ricevuto / Residuo** per ogni riga.
 - **Conferma:** se il costo differisce dall'ultimo prezzo fornitore e la policy lo prevede, compare un dialog per **aggiornare i prezzi fornitore**.
@@ -835,10 +911,15 @@ Alla **conferma** dell'arrivo merce (o carico manuale/iniziale) VestiFlow regist
 In fondo alla testata trovi **due spunte**, tutte e due accese di default. Fanno cose diverse,
 e vale la pena saperlo:
 
-| Spunta                                                  | Cosa decide                                                |
-| ------------------------------------------------------- | ---------------------------------------------------------- |
-| **Aggiorna il costo in anagrafica con quello inserito** | se il costo che digiti diventa il costo dell'**articolo**  |
-| **Aggiorna prezzi articolo**                            | se i prezzi che scrivi sulle righe aggiornano l'anagrafica |
+| Spunta                            | Cosa decide                                                |
+| --------------------------------- | ---------------------------------------------------------- |
+| **Aggiorna costo in anagrafica**  | se il costo che digiti diventa il costo dell'**articolo**  |
+| **Aggiorna prezzi in anagrafica** | se i prezzi che scrivi sulle righe aggiornano l'anagrafica |
+
+⭐ **Le trovi accanto a «Seguirà registrazione fattura»**, nella fascia dei dati del
+documento ricevuto — spostate lì il 2 settembre 2026. Prima stavano in fondo alla pagina,
+sotto le note: e «Aggiorna prezzi» è proprio la spunta che **rende scrivibili i campi
+prezzo delle righe**, quindi si decideva dopo aver compilato le righe che comanda.
 
 Il **costo** funziona **riga per riga**: se richiami tre taglie dello stesso articolo hai
 tre righe, e ognuna porta in anagrafica il proprio costo. Nessuna «vince» sulle altre.
@@ -886,7 +967,7 @@ del canale segue quello di listino solo quando questo cambia davvero.
 
 ### Allegati
 
-Nel **form arrivo merce** (dopo il primo salvataggio bozza) e nel **dettaglio documento**, pannello **Allegati**: carica PDF o immagini (es. DDT cartaceo del fornitore, foto colli). Utile per audit e consegna al commercialista.
+Nel **form arrivo merce** (dopo il primo salvataggio) e nel **dettaglio documento**, pannello **Allegati**: carica PDF o immagini (es. DDT cartaceo del fornitore, foto colli). Utile per audit e consegna al commercialista.
 
 ### Colonne personalizzabili
 
@@ -1263,7 +1344,7 @@ Sono i **DDT vendita** su cui hai spuntato **«Seguirà doc. di vendita»** e ch
 
 ### Differenza tra Registra arrivo merce (ordine) e Arrivo merce manuale
 
-Entrambi usano lo **stesso form Documenti → Arrivo merce**. Da un ordine **Inviato**, **Registra arrivo merce** crea una **bozza collegata** con righe e quantità residue precompilate (colonne Ord./Ric./Res.). Da **Documenti → Nuovo arrivo merce** crei un carico anche **senza ordine** precedente. In entrambi i casi serve **Conferma e carica magazzino** per movimentare lo stock; in bozza il magazzino non cambia.
+Entrambi usano lo **stesso form Documenti → Arrivo merce**. Da un ordine **Confermato**, **Registra arrivo merce** apre il form **precompilato e collegato**, con righe e quantità residue (colonne Ord./Ric./Res.). Da **Documenti → Nuovo arrivo merce** crei un carico anche **senza ordine** precedente. In entrambi i casi è il **Salva** che crea il documento e applica i carichi: non c’è un secondo passo di conferma, e non esiste uno stato intermedio in cui il documento esiste senza aver movimentato.
 
 ### Il prodotto creato in VestiFlow non compare su Shopify
 
@@ -1373,7 +1454,9 @@ Usa **Cambia negozio** in Impostazioni, non il semplice **Disconnetti Shopify**.
 
 ### Non riesco a modificare nome o prezzo di un prodotto
 
-Controlla l’etichetta **Fonte** nel dettaglio. Se è **Shopify**, modifica titolo, varianti e prezzi di vendita in **Shopify Admin**; in VestiFlow restano editabili solo **stagione** e **prezzo di acquisto** (pulsante **Modifica dati operativi**).
+Nome e prezzi si modificano in VestiFlow **anche sui prodotti importati da Shopify**: l’etichetta **Fonte** dice da dove viene il prodotto, non cosa puoi farci.
+
+Se un campo risulta bloccato, controlla i **permessi** del tuo ruolo (§4) e che il prodotto non sia in sola consultazione perché aperto dal **Dettaglio** invece che dalla modifica.
 
 ### Non vedo gli attributi categoria nel form prodotto
 

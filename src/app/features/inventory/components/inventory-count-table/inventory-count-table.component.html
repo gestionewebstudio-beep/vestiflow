@@ -1,57 +1,78 @@
-<div class="count-table__scroll">
-  <table class="count-table">
-    <thead>
-      <tr>
-        <th scope="col">Sessione</th>
-        <th scope="col">Location</th>
-        <th scope="col">Stato</th>
-        <th scope="col" class="count-table__col--numeric">Progresso</th>
-        <th scope="col" class="count-table__col--numeric">Differenze</th>
-        <th scope="col">Creato</th>
-        <th scope="col" class="count-table__col--actions">
-          <span class="sr-only">Azioni</span>
-        </th>
-      </tr>
-    </thead>
-    <tbody>
-      @for (session of sessions(); track session.id) {
-        <tr
-          class="count-table__row"
-          tabindex="0"
-          (click)="rowClick.emit(session)"
-          (keydown.enter)="rowClick.emit(session)"
-        >
-          <td data-label="Sessione">
-            <span class="count-table__name">{{ session.name }}</span>
-          </td>
-          <td data-label="Location">{{ session.locationName }}</td>
-          <td data-label="Stato">
-            <app-badge [tone]="statusTone(session.status)">
-              {{ statusLabel(session.status) }}
-            </app-badge>
-          </td>
-          <td class="count-table__numeric tabular-nums" data-label="Progresso">
-            {{ progress(session) }}
-          </td>
-          <td class="count-table__numeric tabular-nums" data-label="Differenze">
-            {{ session.linesWithDelta }}
-          </td>
-          <td data-label="Creato">{{ formatDate(session.createdAt) }}</td>
-          <td class="count-table__col--actions" data-label="Azioni">
-            @if (session.status === InventoryCountStatus.Cancelled) {
-              <button
-                type="button"
-                class="count-table__action-btn"
-                [attr.aria-label]="'Elimina sessione ' + session.name"
-                [attr.title]="'Elimina sessione'"
-                (click)="onDeleteClick($event, session)"
-              >
-                <i class="pi pi-trash" aria-hidden="true"></i>
-              </button>
-            }
-          </td>
-        </tr>
+<!--
+  ⭐ **Lo scheletro è del motore comune** (`14` parte H) dal 30/08/2026 — ultimo
+  elenco a entrarci, segnalato dal proprietario.
+
+  ⛔ **Qui c'erano sette `<th>` scritti a mano** e un `<td>` per colonna: niente
+  selettore Colonne, niente larghezze, niente riga totali, niente selezione.
+-->
+<app-data-table
+  [rowClickSelects]="rowClickSelects()"
+  caption="Sessioni di inventario"
+  [columns]="columns()"
+  [sortable]="!groupByDay()"
+  [sort]="sortState()"
+  (sortChange)="sortState.set($event)"
+  [viewId]="viewId()"
+  [sections]="sections()"
+  [rowId]="rowId"
+  [cellText]="cellText"
+  [rowClickable]="true"
+  [rowLabel]="rowLabelFor"
+  [totals]="totals()"
+  selectionMode="multiple"
+  [selectedIds]="selectedIds()"
+  [selectionLabel]="selectionLabel"
+  selectAllLabel="Seleziona tutte le sessioni"
+  (rowClick)="rowClick.emit($event)"
+  (selectionChange)="selectionToggle.emit({ sessionId: $event.row.id, selected: $event.selected })"
+  (selectAllChange)="selectAllToggle.emit($event)"
+>
+  <ng-template appCell="status" let-session>
+    <app-badge [flat]="true" [tone]="statusTone(session.status)">
+      {{ statusLabel(session.status) }}
+    </app-badge>
+  </ng-template>
+
+  <!--
+    ⛔ **QUI C'ERA IL CESTINO DI RIGA**, e non doveva esserci: `14` §«Tutte le
+    funzioni stanno nella barra in basso» (29/08/2026) e §«Il menu tre-puntini di
+    riga SPARISCE» (30/08/2026). Questo elenco era uno dei due rimasti indietro,
+    e l'ha visto il proprietario il 02/09/2026 — «le funzioni azioni nelle righe
+    dei riepiloghi sono state tolte».
+
+    ⭐ **La regola di dominio è rimasta, ha cambiato forma**: si elimina solo una
+    sessione ANNULLATA — una in corso o chiusa è la traccia di un conteggio
+    avvenuto. Da qui faceva SPARIRE il cestino; nella barra è un'azione **spenta
+    col motivo scritto**, che l'operatore può leggere invece di non trovare il
+    comando.
+  -->
+  <!--
+    ⭐ **La card di un ELENCO si progetta, non si impila** (`regole-stile-ui`):
+    tre fasce, «a sinistra le parole, a destra i numeri». La grammatica è comune
+    (`styles/_list-card.scss`), il contenuto è di questo elenco.
+  -->
+  <ng-template appRowCard let-session>
+    <div class="list-card__head">
+      <span class="list-card__ident">
+        <span class="list-card__when tabular-nums">{{ cellText(session, 'createdAt') }}</span>
+        <span class="list-card__what">{{ session.name }}</span>
+      </span>
+      <span class="list-card__anchor">{{ cellText(session, 'progress') }}</span>
+    </div>
+
+    <div class="list-card__words">
+      @if (visibile('location')) {
+        <span>{{ session.locationName }}</span>
       }
-    </tbody>
-  </table>
-</div>
+      @if (visibile('status')) {
+        <span>{{ statusLabel(session.status) }}</span>
+      }
+    </div>
+
+    @if (visibile('deltas')) {
+      <div class="list-card__figures">
+        <span class="list-card__total">{{ session.linesWithDelta }} differenze</span>
+      </div>
+    }
+  </ng-template>
+</app-data-table>

@@ -1,0 +1,344 @@
+<div class="data-table-scroll">
+  <table class="data-table" [attr.aria-label]="caption() || null">
+    <thead class="data-table__head">
+      <tr>
+        @if (selectable()) {
+          <th scope="col" class="data-table__cell--select">
+            <app-selection-check
+              [ariaLabel]="selectAllLabel()"
+              [checked]="allSelected()"
+              [indeterminate]="someSelected()"
+              (changed)="selectAllChange.emit($event)"
+            />
+          </th>
+        }
+        @for (col of columns(); track col.id) {
+          <th
+            scope="col"
+            class="data-table__head-cell"
+            [class.data-table__cell--numeric]="col.numeric"
+            [class.data-table__cell--pinned]="col.pinned"
+            [style.inline-size.%]="percentualeDi(col)"
+            [attr.title]="col.headerTooltip || null"
+            [attr.aria-sort]="canSort(col) ? ariaSort(col.id) : null"
+          >
+            <!--
+              ⭐ **UNA FILA DENTRO LA CELLA: titolo e freccia del filtro.**
+
+              ⛔ **La fila NON si fa sul `<th>`.** Provato il 01/09/2026 e visto
+              a schermo: un `th` con `display: flex` esce dal modello
+              tabellare — smette di essere una cella — e le colonne collassano.
+              Le intestazioni sparivano e restavano le sole frecce, a gradini.
+
+              ⚠️ **E `tsc` non lo prende**: era pulito. Lo prende il browser.
+            -->
+            <span class="data-table__head-riga">
+              <!--
+              L'intestazione diventa un pulsante SOLO dove si può ordinare: un
+              `<th>` cliccabile senza esserlo davvero è una promessa mancata, e
+              da tastiera non si raggiungerebbe.
+            -->
+              @if (canSort(col)) {
+                <button
+                  type="button"
+                  class="data-table__sort"
+                  [attr.aria-label]="sortLabel(col)"
+                  (click)="onSort(col)"
+                >
+                  <span>{{ col.label }}</span>
+                  @if (isSorted(col.id)) {
+                    <i
+                      class="pi data-table__sort-icon"
+                      [class.pi-sort-amount-up-alt]="sortDirection(col.id) === 'asc'"
+                      [class.pi-sort-amount-down]="sortDirection(col.id) === 'desc'"
+                      aria-hidden="true"
+                    ></i>
+                    <!--
+                    ⭐ Il numero compare SOLO con più chiavi attive: con una sola la
+                    freccia basta, e un «1» perenne sarebbe rumore. Con due o tre,
+                    è l’unica cosa che dice quale comanda.
+                  -->
+                    @if (sortRank(col.id); as posizione) {
+                      <span class="data-table__sort-rank" aria-hidden="true">{{ posizione }}</span>
+                    }
+                  }
+                </button>
+              } @else {
+                <!--
+                ⚠️ **L'etichetta ha un contenitore proprio**, e non è cosmetica:
+                a ritagliare il titolo troppo lungo dev'essere QUESTO span, non
+                la cella. La cella ospita anche il pannello di un filtro, che
+                deve poterne uscire — vedi `th:has(.data-table__filter)` nel
+                foglio.
+              -->
+                <span class="data-table__head-label">{{ col.label }}</span>
+              }
+
+              <!--
+              ⭐ **Il filtro della colonna vive nella sua intestazione** (`14`
+              §0.2): è la colonna a essere filtrabile, non l'elenco ad avere dei
+              filtri.
+
+              ⚠️ **Compare solo a filtri ACCESI**: il pulsante «Filtri» del
+              telaio li mostra e li nasconde, e spegnerli AZZERA — un filtro
+              attivo il cui controllo non si vede è il difetto che quella regola
+              evita.
+            -->
+              @if (filtersVisible() && filterKindOf(col); as forma) {
+                <app-column-filter
+                  class="data-table__filter"
+                  [kind]="forma"
+                  [columnLabel]="col.label"
+                  [options]="filterOptionsOf(col.id)"
+                  [value]="columnFilters()[col.id] ?? null"
+                  (changed)="onColumnFilter(col.id, $event)"
+                />
+              }
+            </span>
+
+            @if (col.resizable !== false) {
+              <span
+                class="data-table__resize"
+                appTableColumnResize
+                [minWidthPx]="minimoDi(col)"
+                [live]="true"
+                (resizing)="onResizing(col, $event)"
+                (resized)="onResize(col, $event)"
+              ></span>
+            }
+          </th>
+        }
+        @if (hasRowActions()) {
+          <th scope="col" class="data-table__cell--row-actions">{{ rowActionsLabel() }}</th>
+        }
+      </tr>
+    </thead>
+
+    <tbody>
+      @for (section of sections(); track section.id) {
+        <!--
+          Intestazione di sezione: una riga a piena larghezza. Assente su una
+          tabella piatta, che è una sezione sola senza testa né piede.
+        -->
+        @if (section.header; as titolo) {
+          <tr class="data-table__section-head">
+            <th
+              class="data-table__section-head-cell"
+              [attr.colspan]="totalColumns()"
+              scope="colgroup"
+            >
+              {{ titolo }}
+            </th>
+          </tr>
+        }
+
+        @for (row of section.rows; track rowId()(row)) {
+          <tr
+            class="data-table__row"
+            [attr.data-row-id]="rowId()(row)"
+            [class.data-table__row--clickable]="canClickRow(row)"
+            [class.data-table__row--highlighted]="rowId()(row) === highlightedRowId()"
+            [class.data-table__row--positive]="rowTone()(row) === 'positive'"
+            [class.data-table__row--negative]="rowTone()(row) === 'negative'"
+            [class.data-table__row--muted]="rowTone()(row) === 'muted'"
+            [class.is-selected]="selectedIds().has(rowId()(row))"
+            [attr.tabindex]="canClickRow(row) ? 0 : null"
+            [attr.aria-label]="canClickRow(row) ? rowLabel()(row) : null"
+            (click)="onRowClick(row)"
+            (keydown.enter)="onRowClick(row)"
+            (keydown.space)="$event.preventDefault(); onRowClick(row)"
+          >
+            @if (selectable()) {
+              <!--
+                La cella ferma la propagazione: il clic sulla casella SELEZIONA e
+                basta, quello sulla riga apre (`14` §4). Due gesti distinti.
+              -->
+              <td class="data-table__cell--select" (click)="$event.stopPropagation()">
+                <!--
+                  ⚠️ **Dove non si può scegliere, la casella NON C'È.** Una casella
+                  spenta direbbe «forse più tardi»; qui la risposta è no e basta —
+                  quella riga non si elimina da questo elenco.
+
+                  La cella resta, così le colonne restano incolonnate.
+                -->
+                @if (rowSelectable()(row)) {
+                  <app-selection-check
+                    [ariaLabel]="selectionLabel()(row)"
+                    [checked]="selectedIds().has(rowId()(row))"
+                    (changed)="selectionChange.emit({ row, selected: $event })"
+                  />
+                }
+              </td>
+            }
+            <!--
+              ⛔ **Il tooltip sta su OGNI cella, non solo su `display: 'truncate'`.**
+
+              Dal 30/08/2026 il taglio a colonna vale per tutte le celle di tutti
+              gli elenchi. Legare il tooltip a una dichiarazione di colonna
+              significava tagliare il testo **senza lasciare un modo di leggerlo**
+              su ogni colonna che non se lo ricordava — e su quella promessa erano
+              già state scritte due regole.
+
+              ⚠️ **Su una cella con template proiettato non compare**: `cellText`
+              risponde stringa vuota, e `|| null` toglie l'attributo. Il tooltip
+              riguarda il testo, e una pill non è testo.
+            -->
+            @for (col of columns(); track col.id) {
+              <td
+                [class.data-table__cell--numeric]="col.numeric"
+                [class.data-table__cell--pinned]="col.pinned"
+                [class.data-table__cell--code]="col.display === 'code'"
+                [class.data-table__cell--truncate]="col.display === 'truncate'"
+                [class.data-table__cell--card-title]="col.id === cardTitleId()"
+                [attr.data-label]="col.label"
+                [attr.title]="cellText()(row, col.id) || null"
+              >
+                @if (templateFor(col.id); as cella) {
+                  <ng-container
+                    [ngTemplateOutlet]="cella.template"
+                    [ngTemplateOutletContext]="{ $implicit: row }"
+                  />
+                } @else {
+                  {{ cellText()(row, col.id) }}
+                }
+              </td>
+            }
+            @if (hasRowCard()) {
+              <!--
+                ⚠️ **Una VESTE, non un dato**: porta `aria-hidden`, e ogni valore che
+                mostra esiste già nelle celle vere qui sopra — che sotto `lg` restano
+                nell’albero accessibile, nascoste al solo occhio. Senza questa
+                divisione dei ruoli ogni riga verrebbe annunciata due volte.
+              -->
+              <td class="data-table__card" [attr.colspan]="totalColumns()" aria-hidden="true">
+                @if (rowCardTemplate(); as card) {
+                  <ng-container
+                    [ngTemplateOutlet]="card.template"
+                    [ngTemplateOutletContext]="{ $implicit: row }"
+                  />
+                }
+              </td>
+            }
+            @if (hasRowActions()) {
+              <!--
+                ⛔ Ferma la propagazione come la casella di selezione: premere un
+                comando di riga NON deve aprire anche la riga.
+              -->
+              <td
+                class="data-table__cell--row-actions"
+                [attr.data-label]="rowActionsLabel()"
+                (click)="$event.stopPropagation()"
+              >
+                @if (rowActionsTemplate(); as comando) {
+                  <ng-container
+                    [ngTemplateOutlet]="comando.template"
+                    [ngTemplateOutletContext]="{ $implicit: row }"
+                  />
+                }
+              </td>
+            }
+          </tr>
+        }
+
+        @if (section.footer; as piede) {
+          <tr class="data-table__section-total">
+            <td
+              class="data-table__section-total-label"
+              [attr.colspan]="footerLabelSpan(piede.values)"
+            >
+              {{ piede.label }}
+            </td>
+            @for (col of footerColumns(piede.values); track col.id) {
+              <td
+                [class.data-table__cell--numeric]="col.numeric"
+                [class.data-table__section-total-value--emphasis]="piede.emphasis === col.id"
+                [class.data-table__total-cell--vuota]="footerValue(piede.values, col) === null"
+                [attr.data-label]="col.label"
+              >
+                {{ footerValue(piede.values, col) }}
+              </td>
+            }
+          </tr>
+        }
+      }
+
+      <!--
+        ⭐ **Zero righe PER I FILTRI si dice qui dentro**, non con lo stato vuoto
+        della pagina.
+
+        ⛔ Lo stato vuoto sostituisce la tabella, quindi porterebbe via anche le
+        intestazioni — e con esse i controlli di filtro. L'operatore resterebbe
+        davanti a un elenco vuoto **senza il comando per tornare indietro**: è il
+        vicolo cieco che `14` §0.2 evita facendo azzerare i filtri allo
+        spegnimento.
+
+        ⚠️ **Solo con un filtro di colonna attivo.** Zero righe per altre ragioni
+        le racconta la pagina, che sa perché: nessun dato, ricerca senza esito,
+        periodo vuoto.
+      -->
+      @if (nessunRisultatoPerFiltri()) {
+        <tr class="data-table__no-match">
+          <td class="data-table__no-match-cell" [attr.colspan]="totalColumns()">
+            Nessuna riga corrisponde ai filtri di colonna.
+          </td>
+        </tr>
+      }
+      <!--
+      ⭐ **LA RIGA DI RIEMPIMENTO** — proprietario, 01/09/2026 su Fornitori:
+      «vedo che la barra non resta fissa sotto a piè di contenitore righe», e poi
+      «anche fornitori va sistemata la barra sotto come per gli altri».
+
+      ⛔ **`position: sticky` da solo non basta**, ed è la parte che sorprende:
+      appiccica quando il contenuto ECCEDE il contenitore. Con quattro righe non
+      c'è niente da cui staccarsi, quindi il piede si posa subito sotto l'ultima
+      riga — misurato: **288px di bianco** fra la riga totali e il fondo.
+
+      ⭐ **A portarla in fondo è l'altezza**, non un secondo ancoraggio: la
+      tabella riempie il contenitore e questa riga assorbe l'avanzo, così il
+      `tfoot` si trova davvero in fondo e lo `sticky` continua a fare il suo
+      mestiere quando invece le righe abbondano.
+
+      ⛔ **Non si stira la tabella e basta**: l'avanzo si distribuirebbe alle
+      RIGHE — quattro righe da cento pixel invece di una riga totali in fondo.
+      L'avanzo deve avere dove andare, ed è questa riga.
+
+      ⚠️ **`aria-hidden`**: non è una riga di dati, e annunciata falserebbe il
+      conteggio delle righe della tabella.
+
+      ⚠️ **Solo con i totali accesi**: senza `tfoot` non c'è niente da spingere
+      in fondo, e una riga vuota in coda sarebbe solo una riga vuota.
+    -->
+      @if (totals()) {
+        <tr class="data-table__filler" aria-hidden="true">
+          <td [attr.colspan]="totalColumns()"></td>
+        </tr>
+      }
+    </tbody>
+
+    <!--
+      ⭐ **La riga totali**: il conteggio occupa le colonne di testa, poi ogni
+      somma cade sotto la sua colonna. Riusa la stessa meccanica del piede di
+      sezione — `footerLabelSpan` / `footerColumns` / `footerValue` — invece di
+      inventarne una seconda che si incolonna allo stesso modo.
+    -->
+    @if (totals(); as tot) {
+      <tfoot class="data-table__totals">
+        <tr>
+          <td class="data-table__totals-count" [attr.colspan]="footerLabelSpan(tot.values)">
+            {{ totalsCountLabel() }}
+          </td>
+          @for (col of footerColumns(tot.values); track col.id) {
+            <td
+              class="data-table__totals-value"
+              [class.data-table__cell--numeric]="col.numeric"
+              [class.data-table__total-cell--vuota]="footerValue(tot.values, col) === null"
+              [attr.data-label]="col.label"
+            >
+              {{ footerValue(tot.values, col) }}
+            </td>
+          }
+        </tr>
+      </tfoot>
+    }
+  </table>
+</div>

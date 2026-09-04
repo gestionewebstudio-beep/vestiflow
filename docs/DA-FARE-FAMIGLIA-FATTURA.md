@@ -834,11 +834,29 @@ deciso come si comporta quando i due divergono.
 
 ---
 
-## 7 · Il netto/ivato sul «Prezzo di vendita» — ⏸️ **assorbita nella fetta 3**
+## 7 · Il netto/ivato sul «Prezzo di vendita» — ⭐ **DECISO il 02/09/2026**
 
-Resta valida la distinzione registrata: sull'Ordine fornitore sarebbe un **cambio di vista**
-su un valore in sola lettura, sull'Arrivo merce un **modo di inserimento** — e lì, dal 16/08,
-la colonna si scrive solo con la spunta «Aggiorna prezzi articolo» (fetta 2).
+> **Non è una colonna a sé: DIVENTA la colonna «Prezzo netto/ivato», quella della Fattura,
+> che va in tutti i documenti.** Decisione del proprietario, argomentata in
+> `03b` §«La colonna prezzo è una sola, in ogni documento».
+
+⛔ **Qui c'era «assorbita nella fetta 3», e prima ancora la distinzione «sono due colonne
+diverse»**: quella distinzione era la conclusione sbagliata di una conversazione del 16/08, e
+per due settimane ha impedito di vedere che `unitPrice` e `sellingPrice` sono la stessa
+casella con due nomi. Il proprietario: _«un quasi duplicato»_.
+
+⭐ **Anche sull'Ordine fornitore, e la domanda è chiusa**: _«diventa prezzo col selettore e
+in sola lettura»_. Lì il selettore è un **cambio di vista** — su un valore che non si digita
+cambia come lo si legge, non come lo si salva — ed è coerente con `regole-gestionale`, «la
+convenzione vale anche per le viste».
+
+⛔ Qui restava «non è ancora deciso», mentre `03b` riportava già la decisione presa: due
+documenti che dicevano cose diverse sulla stessa domanda.
+
+⭐ **E il resto non si tocca**: Prezzo articolo, Prezzo Shopify e Prezzo barrato restano tre
+colonne distinte dell'anagrafica — _«resta tutto così»_ — attivate dalla spunta, ognuna che
+aggiorna il proprio campo. La spunta vale **solo per gli articoli già esistenti**: un articolo
+nuovo nasce coi prezzi inseriti, a prescindere.
 
 ### Il testo originale, per storia
 
@@ -1063,7 +1081,7 @@ acquisito, e non lo è.
 
 #### La regola decisa
 
-> **Spunta di documento «Aggiorna prezzi articolo», accesa di default. Accesa: i prezzi si
+> **Spunta di documento «Aggiorna prezzi in anagrafica», accesa di default. Accesa: i prezzi si
 > modificano e aggiornano l'anagrafica. Spenta: restano visibili ma NON modificabili.**
 
 ⚠️ **Non è la gemella della spunta del costo, e la differenza è la ragione della sola

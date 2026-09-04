@@ -5,27 +5,56 @@
 .customer-form {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-4);
   max-inline-size: var(--content-default);
+
+  /*
+    ⭐ **I BOTTONI ALLA STESSA DENSITÀ DEI CAMPI**, come sulla scheda fornitore
+    (proprietario, 01/09/2026: «i tasti di tutte le pagine che riguardano
+    fornitore sono grandi rispetto agli altri»). Qui i campi stanno a 26px e i
+    comandi resterebbero a 34: la pagina parlerebbe due densità.
+
+    ⚠️ **La dichiarazione è del CONTENITORE**: `--button-h` sulla pagina, e ogni
+    `app-button` dentro lo legge — quello della testata compreso.
+  */
+  --button-h: var(--control-h-button);
+  --button-font-size: var(--text-xs);
+
+  /*
+    ⚠️ **`app-back-button` ha una catena SUA**: legge `--back-button-h` e
+    ripiega su `--field-height`, non su `--button-h`.
+  */
+  --back-button-h: var(--control-h-button);
+  --back-button-font-size: var(--text-xs);
 }
 
-.customer-form__header app-back-button {
-  margin-block-end: var(--space-2);
+/*
+  ⭐ **Indietro e titolo sulla STESSA riga**: impilati costano una fascia intera
+  prima del primo campo, su una maschera che si apre per scrivere.
+*/
+.customer-form__heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.customer-form__heading app-back-button {
+  margin-block-end: 0;
 }
 
 .customer-form__title {
   margin: 0;
-  font-size: var(--text-xl);
 }
 
 .customer-form__actions {
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: var(--space-2);
 }
 
 .customer-form__error {
   margin: 0;
-  color: var(--status-error-fg);
+  color: var(--color-danger);
   font-size: var(--text-sm);
 }

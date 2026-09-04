@@ -1,5 +1,10 @@
 /* To learn more about Typescript configuration file: https://www.typescriptlang.org/docs/handbook/tsconfig-json.html. */
 /* To learn more about Angular compiler options: https://angular.dev/reference/configs/angular-compiler-options. */
+/* ⛔ QUESTO FILE NON CONTROLLA NIENTE, ed è voluto: `"files": []` più
+   `references` è la forma dei progetti compositi. `tsc --noEmit -p tsconfig.json`
+   compila ZERO file e risponde «nessun errore» — misurato il 29/08/2026, dopo
+   che quel comando aveva dichiarato «tipi puliti» su un frontend che ne aveva
+   sette. Il controllo vero è  npm run check:types  (o `npm run build`). */
 {
   "compileOnSave": false,
   "compilerOptions": {

@@ -223,7 +223,23 @@ describe('InventoryService', () => {
       to: '2026-01-31T23:59:59.999Z',
     } as never);
 
-    expect(result.page).toBe(2);
+    // ⛔ Il registro non pagina: `page`/`pageSize` in ingresso non decidono più
+    // nulla, e la risposta descrive ciò che ha restituito — l'INTERO filtrato.
+    expect(result.page).toBe(1);
+    expect(result.pageSize).toBe(1);
+    expect(prisma.stockMovement.findMany).toHaveBeenCalledWith(
+      expect.not.objectContaining({ skip: expect.anything() }),
+    );
+    expect(prisma.stockMovement.findMany).toHaveBeenCalledWith(
+      expect.not.objectContaining({ take: expect.anything() }),
+    );
+    // Lo spareggio su `id`: senza, l'ordine fra movimenti dello stesso istante
+    // è quello che capita, e due letture possono differire.
+    expect(prisma.stockMovement.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      }),
+    );
     expect(result.items).toEqual([
       expect.objectContaining({
         id: 'mov-1',
@@ -945,6 +961,46 @@ describe('InventoryService', () => {
 
       expect(result.items[0]).toHaveProperty('unitCostMinor', null);
       expect(result.items[0]).toHaveProperty('totalCostMinor', null);
+    });
+  });
+
+  /**
+   * ⚠️ `articleCode` vive sul PRODOTTO. La destrutturazione `{ variant, ...movement }`
+   * lo lasciava fuori dalla risposta pur selezionandolo nella query: la colonna
+   * «Codice» del registro mostrava «—» su OGNI riga, e l'export una colonna vuota.
+   *
+   * ⛔ Nessun test lo copriva, ed è il genere di difetto che nessuno segnala: un
+   * trattino si legge come «questo movimento non ha codice», non come «il campo si
+   * è perso per strada».
+   */
+  it('⚠️ listMovements riporta articleCode dal prodotto, non lo perde nella destrutturazione', async () => {
+    const prisma = createPrismaMock();
+    prisma.stockMovement.findMany.mockResolvedValue([
+      {
+        id: 'mov-1',
+        tenantId,
+        type: StockMovementType.load,
+        quantity: 3,
+        sku: 'SKU-1',
+        createdAt: new Date('2026-08-17T10:00:00.000Z'),
+        variant: { product: { name: 'Maglia cotone', articleCode: 'ART-0042' } },
+      },
+    ]);
+    prisma.stockMovement.count.mockResolvedValue(1);
+    const service = new InventoryService(
+      prisma as unknown as PrismaService,
+      {} as ChannelSyncFacade,
+    );
+
+    const page = await service.listMovements(
+      tenantId,
+      { page: 1, pageSize: 20 } as never,
+      ownerUser,
+    );
+
+    expect(page.items[0]).toMatchObject({
+      articleCode: 'ART-0042',
+      productTitle: 'Maglia cotone',
     });
   });
 });

@@ -7,7 +7,7 @@ import {
   type StockMovement,
 } from '@prisma/client';
 
-import { sameNullableAmountAtCent } from '../common/money.util';
+import { sameAmountAtCent, sameUnitAmountAtContract, toStorableMinor } from '../common/money.util';
 import { applyInventoryDelta } from '../inventory/inventory-level-delta.util';
 import { frozenTotalCostMinor } from '../inventory/movement-cost.util';
 import type { StockMovementActor } from '../inventory/inventory-movement.util';
@@ -73,7 +73,7 @@ interface SyncParams {
    * riga NUOVA congela il costo di adesso, la riga GIA' ESISTENTE mantiene il
    * proprio costo unitario e si rifa' solo il TOTALE sulla quantita' nuova.
    */
-  readonly unitCostForNewLine?: (line: DocumentLine & { variantId: string }) => number | null;
+  readonly unitCostForNewLine?: (line: DocumentLine & { variantId: string }) => number;
   /** Righe documento SALVATE (id definitivi). Vuoto = rimuovi tutti i movimenti. */
   readonly lines: readonly DocumentLine[];
   readonly actor: StockMovementActor;
@@ -83,9 +83,36 @@ function isStockLine(line: DocumentLine): line is DocumentLine & { variantId: st
   return line.loadsStock && line.quantity > 0 && line.variantId != null;
 }
 
-/** Costo unitario effettivo riga (netto sconto), in unità minori. */
+/**
+ * Costo unitario effettivo della riga (al netto dello sconto), in unità minori.
+ *
+ * ⛔ **Qui c'era `Math.round(...)`, e la coda del costo moriva esattamente in
+ * questa riga.** Misurato su dati reali il 22/08/2026: la riga documento
+ * portava 84,4262 e il movimento riceveva **84**.
+ *
+ * Quell'arrotondamento esisteva per una ragione sola —
+ * `stock_movements.unit_cost_minor` era `Int` — e il compilatore non poteva
+ * segnalarlo: arrotondare un `number` resta legale anche dopo la migration.
+ * È la categoria di difetto che il dry-run dei tipi non vede.
+ *
+ * ⭐ **Il calcolo resta in `Decimal` fino alla fine.** Entrambi gli operandi lo
+ * sono già — `unitPriceMinor` è `Decimal(16,6)`, `discountPercent` è
+ * `Decimal(7,4)` — e passare per `Number()` prima di moltiplicare
+ * sostituirebbe un arrotondamento prematuro con un calcolo economico in
+ * virgola mobile: non un guadagno.
+ *
+ * `toStorableMinor` chiude riducendo alle 4 cifre di centesimo del contratto,
+ * perché uno sconto percentuale può produrre code più lunghe di quelle che la
+ * colonna memorizza:
+ *
+ *     84,4262 sconto 0%  →  84,4262
+ *     84,4262 sconto 7%  →  78,5164
+ */
 function effectiveUnitCostMinor(line: DocumentLine): number {
-  return Math.round((Number(line.unitPriceMinor) * (100 - Number(line.discountPercent))) / 100);
+  const scontato = new Prisma.Decimal(line.unitPriceMinor)
+    .times(new Prisma.Decimal(100).minus(line.discountPercent))
+    .dividedBy(100);
+  return toStorableMinor(scontato.toNumber());
 }
 
 /**
@@ -248,12 +275,13 @@ export async function syncGoodsReceiptLineMovements(
       quantityDelta !== 0 ||
       movement.sku !== sku ||
       movement.reason !== params.reason ||
-      // Costi al centesimo: una coda decimale diversa (§sei decimali) non è un
-      // costo nuovo e non deve far riscrivere il movimento.
+      // ⭐ **Due metri diversi, e la differenza è voluta**: il costo UNITARIO si
+      // confronta alla precisione del contratto (la coda ne fa parte), il
+      // TOTALE al centesimo (è un importo monetario finale).
       (costoEsterno
-        ? !sameNullableAmountAtCent(movement.totalCostMinor, totaleCostoAggiornato)
-        : !sameNullableAmountAtCent(movement.unitCostMinor, unitCostMinor) ||
-          !sameNullableAmountAtCent(movement.totalCostMinor, line.lineTotalMinor)) ||
+        ? !sameAmountAtCent(movement.totalCostMinor, totaleCostoAggiornato)
+        : !sameUnitAmountAtContract(Number(movement.unitCostMinor), unitCostMinor) ||
+          !sameAmountAtCent(movement.totalCostMinor, line.lineTotalMinor)) ||
       movementDateChanged;
 
     if (needsUpdate) {

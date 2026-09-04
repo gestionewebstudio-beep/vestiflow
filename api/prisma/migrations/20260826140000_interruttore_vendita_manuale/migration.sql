@@ -1,0 +1,36 @@
+-- Interruttore aziendale della VENDITA MANUALE.
+--
+-- PERCHÉ NASCE
+-- La Vendita manuale è l'unico documento che riduce la giacenza SENZA generare
+-- uno `StockMovement` (deroga dichiarata in `regole-gestionale`, implementata in
+-- `document-stock-manual-unload.util.ts`). Il documento è l'unica evidenza dello
+-- scarico, e la sua eliminazione non ripristina le giacenze.
+--
+-- È quindi una capacità operativa SENSIBILE, e finora era sempre disponibile per
+-- ogni azienda. Questa colonna la mette sotto il controllo del titolare.
+--
+-- PERCHÉ IL DEFAULT È `false`, al contrario delle altre colonne di questa tabella
+-- Non è la riproduzione del comportamento precedente — è una scelta esplicita del
+-- proprietario del progetto (26/08/2026): la funzione esiste operativamente solo
+-- dove qualcuno l'ha accesa di proposito. Un interruttore di sicurezza che nasce
+-- acceso protegge solo chi si ricorda di spegnerlo.
+--
+-- ⚠️ CONSEGUENZA VOLUTA, e va letta prima di «correggerla»: i tenant che usano
+-- oggi la Vendita manuale se la trovano SPENTA dopo questa migration, e il
+-- titolare deve riaccenderla. È il prezzo del default sicuro, ed è stato scelto
+-- sapendolo. Nessun documento esistente viene toccato: restano tutti, e restano
+-- consultabili dal Dettaglio anche a funzione spenta.
+--
+-- ⛔ NESSUN BACKFILL, ed è deliberato. La riga di `tenant_feature_settings` si
+-- materializza solo quando qualcuno apre il pannello Impostazioni: un tenant che
+-- non l'ha mai aperto non ha riga. Con il default `false` e le letture scritte
+-- `=== true`, «riga assente» e «colonna false» dicono la stessa cosa — spento —
+-- e non serve creare righe per nessuno.
+--
+-- COSA NON GOVERNA
+-- Solo creazione e modifica. L'eliminazione di un documento storico resta com'è,
+-- con i permessi di sempre: infilare il flag anche lì avrebbe trasformato una
+-- semplice abilitazione in un sistema di stati parallelo.
+
+ALTER TABLE "tenant_feature_settings"
+  ADD COLUMN "manual_unload_enabled" boolean NOT NULL DEFAULT false;

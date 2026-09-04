@@ -20,7 +20,7 @@ test.describe('Movimenti di magazzino', () => {
     });
 
     const skeleton = page.locator('app-table-skeleton');
-    const table = page.locator('app-movement-table');
+    const table = page.locator('app-data-table');
     const empty = page.getByText('Nessun movimento', { exact: true });
     const error = page.locator('app-error-state');
 

@@ -24,6 +24,7 @@ import {
 } from './shopify-category-metafields.util';
 import type { MetafieldsSetInput } from './shopify-graphql.client';
 import { ShopifyGraphqlClient } from './shopify-graphql.client';
+import { toShopifyGid } from './shopify-money.util';
 import { resolveGlobalColorTaxonomyGid } from './shopify-color-taxonomy-gids';
 import type { ShopifyMetafieldRef } from './shopify-product-metadata.types';
 import { ShopifyOAuthService } from './shopify-oauth.service';
@@ -159,9 +160,7 @@ export class ShopifyCategoryMetafieldsService {
       return { attempted: localAttempted, synced: 0, warning };
     }
 
-    const productGid = shopifyProductId.startsWith('gid://')
-      ? shopifyProductId
-      : `gid://shopify/Product/${shopifyProductId}`;
+    const productGid = toShopifyGid('Product', shopifyProductId);
 
     const categoryAttributes =
       categoryGid != null

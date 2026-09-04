@@ -2,6 +2,11 @@ import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
+import { FormControl, FormGroup } from '@angular/forms';
+
+import { DocumentLineCardBodyComponent } from './document-line-card-body.component';
+import { DocumentLineCardReferenceComponent } from './document-line-card-reference.component';
+import { DocumentLineCardStripComponent } from './document-line-card-strip.component';
 import { DocumentLineCardComponent } from './document-line-card.component';
 import type { DocumentLineCardMeta } from './document-line-card.model';
 
@@ -21,12 +26,11 @@ async function apri(
   const toggled = vi.fn();
   const removeRequested = vi.fn();
   const removed = vi.fn();
-  const duplicated = vi.fn();
   await render(DocumentLineCardComponent, {
     inputs: { lineIndex: 2, title: 'Maglietta cotone', ...inputs },
-    on: { toggled, removeRequested, removed, duplicated },
+    on: { toggled, removeRequested, removed },
   });
-  return { toggled, removeRequested, removed, duplicated };
+  return { toggled, removeRequested, removed };
 }
 
 describe('DocumentLineCardComponent', () => {
@@ -61,13 +65,23 @@ describe('DocumentLineCardComponent', () => {
   it('a card chiusa il corpo e le sue azioni non esistono', async () => {
     await apri({ open: false });
 
-    expect(screen.queryByRole('button', { name: /duplica/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^elimina$/i })).toBeNull();
   });
 
   it('a card aperta il corpo compare', async () => {
     await apri({ open: true });
 
-    expect(screen.getByRole('button', { name: /duplica/i })).toBeVisible();
+    expect(screen.getByRole('button', { name: /^elimina$/i })).toBeVisible();
+  });
+
+  /**
+   * ⛔ **Guardia**: «Duplica» è stata RIMOSSA dal piede della card
+   * (23/08/2026). Il test fallisce se rientra.
+   */
+  it('«Duplica» non esiste più nel piede', async () => {
+    await apri({ open: true });
+
+    expect(screen.queryByRole('button', { name: /duplica/i })).toBeNull();
   });
 
   // Due modi di eliminare, ed è voluto: dalla testata passa dalla conferma
@@ -85,11 +99,10 @@ describe('DocumentLineCardComponent', () => {
     expect(removed).toHaveBeenCalled();
   });
 
-  it('su documento bloccato non si elimina né si duplica', async () => {
+  it('su documento bloccato non si elimina', async () => {
     await apri({ open: true, readOnly: true });
 
     expect(screen.getByRole('button', { name: 'Elimina riga' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /duplica/i })).toBeDisabled();
   });
 
   it('la meta in coda si stacca dalle altre', async () => {
@@ -104,5 +117,112 @@ describe('DocumentLineCardComponent', () => {
     const coda = screen.getByText('Disp. 2');
     expect(coda).toHaveClass('doc-line-card__meta-item--trailing');
     expect(coda).toHaveClass('doc-line-card__meta-item--warning');
+  });
+});
+
+/**
+ * ⛔ **Il corpo della card non deve introdurre un box** — guardia del 24/08/2026.
+ *
+ * ## Che cosa protegge
+ *
+ * Il guscio dispone i campi con CSS Grid su due colonne
+ * (`.doc-line-card__grid`, `1fr 1fr`). Gruppi e campi devono essere **grid item
+ * di quella griglia**. Se l'host del componente che li proietta partecipa al
+ * layout, diventa lui l'unico grid item: il corpo si impila in una colonna
+ * sola, e i `grid-column: 1 / -1` dei figli diventano **inerti** — si
+ * riferiscono a una griglia di cui i loro host non fanno più parte.
+ *
+ * ⚠️ **È successo.** Il corpo era proiettato con `<ng-container cardBody>`, che
+ * non crea elemento; sostituirlo con `<app-document-line-card-body>` ha
+ * introdotto quel box, e nessuno ha dichiarato `display: contents`. La resa
+ * dell'Ordine cliente — il riferimento — è cambiata a schermo mentre 813 prove
+ * restavano verdi: la geometria di CSS Grid non rompe né la build né le prove
+ * di comportamento.
+ *
+ * ⚠️ **Una prova sulla STRUTTURA del DOM non lo vedrebbe.** `display: contents`
+ * non toglie l'host dall'albero: lo toglie dal **layout**. Padre e figli restano
+ * dove sono, e `querySelector` non nota alcuna differenza. L'unica cosa
+ * osservabile è la proprietà calcolata — per questo la guardia guarda quella.
+ */
+describe('DocumentLineCardBodyComponent — non partecipa al layout', () => {
+  it('⛔ il suo host calcola display:contents', async () => {
+    const view = await render(DocumentLineCardBodyComponent, {
+      inputs: {
+        group: new FormGroup({}),
+        lineIndex: 0,
+        isColumnVisible: () => false,
+      },
+    });
+
+    const host = view.fixture.nativeElement as HTMLElement;
+
+    // Se un giorno tornasse `block` — o se lo `styleUrl` venisse sganciato —
+    // il corpo tornerebbe a essere UN grid item e la card a una colonna.
+    expect(globalThis.getComputedStyle(host).display).toBe('contents');
+  });
+
+  it('⭐ e lo stesso vale per la striscia, che proietta nell’altra griglia', async () => {
+    const view = await render(DocumentLineCardStripComponent, {
+      inputs: {
+        group: new FormGroup({}),
+        lineIndex: 0,
+        isColumnVisible: () => false,
+      },
+    });
+
+    const host = view.fixture.nativeElement as HTMLElement;
+
+    // La striscia lo dichiarava già, col commento che spiega la ragione: qui
+    // la si tiene ferma, perché è lo stesso contratto e non due soluzioni.
+    expect(globalThis.getComputedStyle(host).display).toBe('contents');
+  });
+});
+
+/**
+ * ⛔ **La banda «Documento collegato» deve mostrare il suo riferimento** —
+ * guardia del 24/08/2026.
+ *
+ * Il titolo e' un `<input formControlName="productName">`: su un riferimento
+ * l'operatore puo' correggere la dicitura che finira' stampata, e la vista di
+ * scrivania glielo lascia fare.
+ *
+ * ⚠️ **Il componente non aveva alcuno scope di form.** `formControlName` si
+ * risolve nell'albero di **dichiarazione**, non in quello del DOM: il
+ * `formGroupName` che il consumer mette sull'host vale per il template del
+ * consumer, non per quello del componente. Il risultato, misurato nel browser
+ * e non solo in prova: `NG01050` in console e la banda disegnata **vuota** —
+ * icona e cestino, nessun testo.
+ *
+ * ⭐ I due gemelli lo facevano gia' entrambi: `document-line-row` e
+ * `document-line-card-body` avvolgono con `<ng-container [formGroup]>`. Questo
+ * era l'unico dei tre a non farlo, ed e' l'unico che si rompeva.
+ */
+describe('DocumentLineCardReferenceComponent — lo scope di form e’ suo', () => {
+  it('⛔ il titolo del riferimento e’ legato al controllo, e si vede', async () => {
+    const group = new FormGroup({
+      productName: new FormControl('Preventivo PR-2026-0001 del 01/08/2026'),
+    });
+
+    const view = await render(DocumentLineCardReferenceComponent, {
+      inputs: { group },
+    });
+
+    const titolo = view.container.querySelector<HTMLInputElement>('.doc-form__source-title');
+
+    expect(titolo).not.toBeNull();
+    expect(titolo!.value).toBe('Preventivo PR-2026-0001 del 01/08/2026');
+  });
+
+  it('⭐ e scrivendoci si scrive sul controllo: resta modificabile', async () => {
+    const group = new FormGroup({ productName: new FormControl('Preventivo') });
+
+    const view = await render(DocumentLineCardReferenceComponent, {
+      inputs: { group },
+    });
+    const titolo = view.container.querySelector<HTMLInputElement>('.doc-form__source-title')!;
+    await userEvent.clear(titolo);
+    await userEvent.type(titolo, 'Preventivo rivisto');
+
+    expect(group.controls.productName.value).toBe('Preventivo rivisto');
   });
 });

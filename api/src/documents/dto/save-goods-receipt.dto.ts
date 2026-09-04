@@ -43,17 +43,26 @@ export class SaveGoodsReceiptNewProductDto {
   barcode?: string;
 
   @IsOptional()
-  @IsInt()
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
   sellingPriceMinor?: number;
 
   @IsOptional()
-  @IsInt()
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
   compareAtPriceMinor?: number;
 
+  /**
+   * ⭐ Costo del nuovo articolo, con la coda dello scorporo.
+   *
+   * Fino al 22/08/2026 era `@IsInt()`, e non era una svista: la colonna
+   * `product_variants.purchase_price_minor` era `Int`, e rilassare il cancello
+   * prima di allargarla avrebbe fatto **troncare in silenzio** il valore
+   * scrivendo — nessun errore, nessun test rosso, un costo sbagliato in
+   * anagrafica. Migrata la colonna a `NUMERIC(16,6)`, il vincolo si scioglie.
+   */
   @IsOptional()
-  @IsInt()
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
   purchasePriceMinor?: number;
 
@@ -102,7 +111,7 @@ export class SaveGoodsReceiptLineDto {
   quantity!: number;
 
   @IsOptional()
-  @IsInt()
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
   unitPriceMinor?: number;
 
@@ -129,7 +138,7 @@ export class SaveGoodsReceiptLineDto {
    * modalità documento (§11.4). Se assente si usa unitPriceMinor come netto.
    */
   @IsOptional()
-  @IsInt()
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
   enteredUnitCostMinor?: number;
 
@@ -140,7 +149,7 @@ export class SaveGoodsReceiptLineDto {
    * quando la spunta di documento è accesa. `undefined` = non toccare.
    */
   @IsOptional()
-  @IsInt()
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
   sellingPriceMinor?: number;
 
@@ -150,7 +159,7 @@ export class SaveGoodsReceiptLineDto {
    * «la pubblicazione legge sempre e solo questo».
    */
   @IsOptional()
-  @IsInt()
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
   shopifyPriceMinor?: number;
 
@@ -320,7 +329,7 @@ export class SaveGoodsReceiptDto {
   updateArticleCost?: boolean;
 
   /**
-   * Spunta di documento «Aggiorna prezzi articolo», accesa di default.
+   * Spunta di documento «Aggiorna prezzi in anagrafica», accesa di default.
    *
    * Decide se i prezzi digitati sulle righe aggiornano l'anagrafica. A
    * differenza del costo **non c'è un effetto “sempre”**: il prezzo non è un

@@ -2,8 +2,24 @@ import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
+import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
+
+import { CORRISPETTIVI_REGISTER_COLUMN_DEFS } from '../../models/corrispettivi-columns.config';
 import type { CorrispettiviRegisterRow } from '../../models/corrispettivi.model';
 import { CorrispettiviOrdersTableComponent } from './corrispettivi-orders-table.component';
+
+/**
+ * ⚠️ **Le colonne ora si passano, e non è un dettaglio del test.**
+ *
+ * Prima il componente riceveva soli id e trattava l'elenco vuoto come «tutte
+ * visibili»; il motore comune invece disegna **solo** ciò che riceve, e un
+ * elenco vuoto è una tabella vuota. È la forma giusta — «tutte» non è un caso
+ * speciale, è l'elenco completo — ma va dichiarata qui.
+ */
+const COLONNE: readonly ResolvedTableColumn[] = CORRISPETTIVI_REGISTER_COLUMN_DEFS.map((col) => ({
+  ...col,
+  pinned: false,
+}));
 
 /**
  * Come si apre una riga del Registro (17/08/2026).
@@ -44,7 +60,7 @@ const rigaShopify = riga({
 async function montaTabella(rows: readonly CorrispettiviRegisterRow[], canEditManual = true) {
   const aperta = vi.fn();
   await render(CorrispettiviOrdersTableComponent, {
-    inputs: { rows, canEditManual },
+    inputs: { rows, canEditManual, columns: COLONNE },
     on: { manualReceiptOpened: aperta },
   });
   return aperta;
@@ -96,8 +112,37 @@ describe('riga cliccabile del Registro', () => {
     const tr = cella.closest('tr')!;
     expect(tr.getAttribute('tabindex')).toBeNull();
 
+    /*
+      ⭐ **E non ha nemmeno la casella**, per una ragione diversa da quella per
+      cui non si apre: nel Registro si sceglie solo ciò che da qui si può
+      eliminare, cioè il **Corrispettivo manuale**. Una vendita Shopify entra nel
+      registro perché l'ordine esiste, e si cancella cancellando l'ordine.
+
+      ⚠️ **Sono due permessi distinti** e questo test li presidia entrambi sulla
+      stessa riga: non si apre (`apribile`) e non si sceglie (`selezionabile`).
+      Una riga che non si apre potrebbe benissimo essere selezionabile — un
+      documento annullato lo è — quindi la coincidenza qui è del dato, non della
+      regola.
+    */
+    expect(tr.querySelector('input.selection-check')).toBeNull();
+
     await userEvent.click(cella);
     expect(aperta).not.toHaveBeenCalled();
+  });
+
+  /*
+    ⭐ **Il caso POSITIVO della stessa regola**, e senza di lui la coppia non
+    prova niente: un predicato che dicesse sempre «no» passerebbe il test qui
+    sopra e romperebbe la selezione senza che nessun test diventi rosso.
+
+    È il difetto che questo progetto ha già incontrato — «test che verificano
+    solo i rifiuti» — e la coppia rifiuto+accettazione è il rimedio.
+  */
+  it('la riga del Corrispettivo manuale si può scegliere', async () => {
+    await montaTabella([riga()]);
+
+    const tr = screen.getByText('2', { selector: 'td' }).closest('tr')!;
+    expect(tr.querySelector('input.selection-check')).not.toBeNull();
   });
 
   /**
@@ -114,12 +159,22 @@ describe('riga cliccabile del Registro', () => {
   });
 
   /**
-   * ⚠️ Il troncamento a 25 righe è una scelta di VISUALIZZAZIONE su schermo
-   * compatto. In un registro fiscale il rischio è che diventi un troncamento
-   * dei dati: questo test inchioda il confine — su schermo normale non si
-   * tronca niente, e le righe consegnate restano tutte a schermo.
+   * ⛔ **NESSUN TETTO DI RIGHE, a nessuna larghezza** — deciso dal proprietario
+   * il 30/08/2026:
+   *
+   * > «Non deve esserci nessun limite di visualizzazione. Se il cliente ha il
+   * > filtro di 30 giorni, deve sapere vedere il totale di quel periodo, anche
+   * > se si tratta di vedere mille ordini. **Questo vale ovunque.**»
+   *
+   * ⚠️ **Qui c'era un troncamento a 25 righe su schermo compatto**, e questo
+   * test presidiava il suo confine: che su schermo largo non tagliasse. Il
+   * confine non esiste più, e il test è diventato più forte — **nessuna riga
+   * consegnata resta fuori, mai.**
+   *
+   * ⭐ Il problema che il troncamento risolveva — arrivare ai totali senza
+   * scorrere centinaia di card — è risolto dal PIEDE ANCORATO del telaio.
    */
-  it("su schermo non compatto l'elenco non si tronca mai", async () => {
+  it('rende TUTTE le righe che riceve, senza tetto', async () => {
     const molte = Array.from({ length: 60 }, (_, i) => ({
       ...riga(),
       rowId: `r-${i}`,
@@ -127,10 +182,9 @@ describe('riga cliccabile del Registro', () => {
     }));
     await montaTabella(molte);
 
-    // Nessun invito ad aprire il resto: non c'è un resto.
+    // ⛔ Nessun invito ad aprire «il resto»: non esiste un resto.
     expect(screen.queryByText(/Mostra le altre/)).toBeNull();
-    // E le righe disegnate sono tutte quelle ricevute.
-    expect(document.querySelectorAll('.corrispettivi-table__row').length).toBe(60);
+    expect(document.querySelectorAll('.data-table__row').length).toBe(60);
   });
 
   /**
@@ -142,12 +196,64 @@ describe('riga cliccabile del Registro', () => {
   it('la veste a card non viene annunciata: i dati sono le colonne', async () => {
     await montaTabella([riga()]);
 
-    const card = document.querySelector('.corrispettivi-table__card');
+    // ⚠️ `data-table__card`: la cella che ospita la card è del motore, il suo
+    //    contenuto è del Registro (`appRowCard`). L'`aria-hidden` lo mette il
+    //    motore, ed è proprio quello che questo test presidia.
+    const card = document.querySelector('.data-table__card');
     expect(card).not.toBeNull();
     expect(card!.getAttribute('aria-hidden')).toBe('true');
 
     // La cella vera NON è aria-hidden: è lei a portare il dato.
     const cella = screen.getByText('2', { selector: 'td' });
     expect(cella.getAttribute('aria-hidden')).toBeNull();
+  });
+});
+
+/**
+ * ⛔ **L'ordinamento manuale esiste solo con «Raggruppa: Nessuno»** (`10` §20,
+ * deciso il 20/08/2026).
+ *
+ * Il raggruppamento per giorno è già una forma di ordinamento strutturato:
+ * sovrapporgliene un altro romperebbe subtotali e piedi di giornata. Qui si
+ * presidia il confine, che a occhio non si vede — un'intestazione che smette di
+ * essere premibile è una differenza di un pixel.
+ */
+describe('ordinamento del Registro', () => {
+  it('con «Raggruppa: Nessuno» le intestazioni si premono', async () => {
+    const chiavi = vi.fn();
+    await render(CorrispettiviOrdersTableComponent, {
+      inputs: { rows: [riga()], raggruppaPerGiorno: false, columns: COLONNE },
+      on: { sortChange: chiavi },
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: /Data/ }));
+
+    expect(chiavi).toHaveBeenCalledWith([{ columnId: 'occurredAt', direction: 'asc' }]);
+  });
+
+  it('⛔ con «Raggruppa: Giorno» nessuna intestazione è un pulsante', async () => {
+    await render(CorrispettiviOrdersTableComponent, {
+      inputs: { rows: [riga()], raggruppaPerGiorno: true, columns: COLONNE },
+    });
+
+    expect(screen.queryByRole('button', { name: /Data/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Totale/ })).toBeNull();
+  });
+
+  it('⭐ il ciclo è quello comune: seconda pressione, verso opposto', async () => {
+    const chiavi = vi.fn();
+    await render(CorrispettiviOrdersTableComponent, {
+      inputs: {
+        rows: [riga()],
+        raggruppaPerGiorno: false,
+        columns: COLONNE,
+        sort: [{ columnId: 'total', direction: 'asc' as const }],
+      },
+      on: { sortChange: chiavi },
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: /Totale/ }));
+
+    expect(chiavi).toHaveBeenCalledWith([{ columnId: 'total', direction: 'desc' }]);
   });
 });

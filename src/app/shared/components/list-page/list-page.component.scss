@@ -1,0 +1,722 @@
+@use 'breakpoints' as bp;
+
+/*
+  ⭐ **La catena di altezze, ereditata invece che riscritta.**
+
+  Le undici pagine elenco la dichiaravano una per una con
+  `lp.list-page-fills-viewport`. Chi usa questo telaio non la scrive: la riceve —
+  ed è la differenza fra una guardia che trova l'errore e una struttura che non
+  lo lascia esprimere.
+
+  ⛔ **Chi cresce è dichiarato per IDENTITÀ**, non per posizione: `> *` mette
+  tutto a `flex: none`, e l'unica eccezione è nominata. Qualunque banner
+  condizionale compaia, la regola non si sposta (`14` §0.2).
+*/
+/*
+  ⚠️ **`min-inline-size: 0` è il gemello orizzontale di `min-block-size: 0`**,
+  e si dimentica esattamente allo stesso modo.
+
+  ⛔ Senza, un elemento flessibile si rifiuta di stringersi sotto la larghezza
+  del proprio contenuto: una tabella larga spinge il contenitore oltre il bordo
+  della pagina invece di scorrere dentro di sé. Misurato su Clienti il
+  29/08/2026 — l'ultima colonna usciva dallo schermo e la barra dei filtri
+  finiva prima della tabella.
+*/
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  flex: 1;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+
+/*
+  ⭐ **Sul telefono il passo fra le zone è 8px, non 20** — deciso dal
+  proprietario il 30/08/2026: «altro spazio dovremmo recuperarlo dai pulsanti in
+  basso che occupano molto spazio verticale tra padding e margini esterni».
+
+  ⚠️ **Non erano i pulsanti: erano i VUOTI intorno.** Misurato — dalla fine del
+  riepilogo al bordo dello schermo c'erano 92px, di cui 44 di pulsante (il
+  minimo tappabile, intoccabile) e 48 di aria. Stringendo il passo del telaio e
+  il gap interno della barra si scende a 64px: **28px recuperati**, mezza card.
+
+  ⛔ **I 44px dei pulsanti non si toccano** — è il minimo tappabile di
+  `regole-stile-ui` §4, e stringerli è il modo sbagliato di fare spazio: «su
+  mobile si riduce il NUMERO dei comandi, non la loro taglia».
+
+  ⚠️ Vale per **tutte** le zone, non solo il piede: su uno schermo da 640px un
+  passo da 20px fra sei zone è un decimo dello schermo speso in vuoti.
+*/
+@include bp.media-down('md') {
+  :host {
+    gap: var(--space-2);
+  }
+
+  /*
+    ⚠️ Il passo del telaio non si applica DENTRO il dock: lì il piede è un
+    blocco solo, e il vuoto lo toglie `gap: 0` qui sopra.
+  */
+  :host(.list-page--docked) > .list-page__foot {
+    margin-block-start: 0;
+  }
+}
+
+/*
+  ⭐ **IL PIEDE — totali e comandi.**
+
+  Su scrivania non esiste: `display: contents` lo dissolve e le due zone tornano
+  figlie dirette del telaio, con il passo di sempre.
+*/
+.list-page__foot {
+  display: contents;
+}
+
+/*
+  ⭐ **IL DOCK È STRUTTURALE, non appiccicato** — e va acceso dalla pagina.
+
+  ⛔ **Qui c'era `position: sticky` per tutte e 13 le pagine.** Due difetti:
+  l'ultima card restava coperta (lo `sticky` non riserva spazio a sé, e
+  compensarlo vuole un `padding-block-end` pari all'altezza del dock — cioè una
+  misura da tenere allineata a mano, o un `ResizeObserver`), e cambiava il
+  comportamento di dodici pagine che un dock non l'hanno chiesto.
+
+  ⭐ **La struttura per farne a meno c'era già**, e l'ho verificata prima di
+  scrivere: la shell è `100dvh` con `overflow: hidden`, e `.shell__content` è
+  una colonna flessibile che scorre — **a ogni larghezza**. Basta quindi che il
+  telaio resti una colonna anche sotto `lg`, con la sola zona dati che cede:
+
+  ```text
+  :host            colonna flex, altezza piena
+    zona dati      flex: 1 · min-block-size: 0 · scorre
+    piede          flex: 0 0 auto            ← non scorre, non copre
+  ```
+
+  ⭐ **Nessuna compensazione, nessuna seconda barra di scorrimento, e l'ultima
+  card scorre fino in fondo** — perché il piede occupa spazio davvero, invece di
+  galleggiarci sopra.
+
+  ⚠️ **Si accende con `[dockedFoot]`**, non per tutti: dodici pagine su tredici
+  oggi mettono nel piede solo il paginatore, e un paginatore ancorato non è
+  qualcosa che qualcuno abbia chiesto. Chi lo vuole lo dichiara.
+*/
+:host(.list-page--docked) {
+  @include bp.media-down('lg') {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-block-size: 0;
+
+    /*
+      ⛔ **QUI C'ERA `overflow: hidden`, e il piede non si ancorava.**
+
+      Segnalato dal proprietario il 31/08/2026 sugli Ordini fornitore, con la
+      schermata alla mano: «vedi bene i totali, non sono fissati» — la fascia si
+      raggiungeva solo scorrendo fino in fondo.
+
+      ⚠️ **La causa non è nel piede: è che sotto `lg` la tabella non ha una
+      regione di scorrimento propria.** `table-scroll` dichiara lo scorrimento
+      verticale dentro `media-up('lg')`: sul telefono resta il solo
+      `overflow-x`, quindi le card crescono e a scorrere è `.shell__content` —
+      cioè l'intera pagina, piede compreso.
+
+      Con `hidden` la zona dati cedeva in altezza ma **tagliava** invece di far
+      scorrere; il contenuto usciva dal riquadro e la pagina si allungava lo
+      stesso. Le due cose insieme davano un piede che scorreva via.
+
+      ⭐ **`auto` la rende la regione che scorre**, che è esattamente ciò che il
+      dock presuppone: cede solo l'elenco, il piede resta fermo e occupa spazio
+      davvero (`regole-stile-ui`, «il piede è STRUTTURALE, non appiccicato»).
+
+      ⚠️ **`overscroll-behavior: contain`**: arrivati in fondo alle card, il
+      gesto non deve proseguire trascinando la pagina sotto — altrimenti il
+      piede si stacca comunque, per un pollice di troppo.
+    */
+    > .list-page__data {
+      display: grid;
+      grid-auto-rows: minmax(0, 1fr);
+      flex: 1;
+      min-block-size: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+      overscroll-behavior: contain;
+    }
+
+    .list-page__foot {
+      display: flex;
+      flex-direction: column;
+      flex: 0 0 auto;
+      /*
+        ⭐ **Un filo d'aria fra totali e comandi** — chiesto dal proprietario il
+        30/08/2026: «un po' di margine tra totali e pulsanti».
+
+        ⛔ Qui c'era `gap: 0`, con la motivazione che «il target è un dock unico,
+        e un vuoto in mezzo lo farebbe leggere come due blocchi». L'argomento
+        reggeva finché il riepilogo era una fascia sola e bassa; ora che è un
+        riquadro con bordo, incollarci sotto i pulsanti li faceva sembrare
+        attaccati alla sua cornice.
+
+        ⚠️ **Quattro pixel, non otto**: separano senza rifare due blocchi — che
+        è la ragione per cui il gap era zero, e resta valida.
+      */
+      gap: var(--space-1);
+      padding-block-end: env(safe-area-inset-bottom);
+      background-color: var(--color-bg);
+    }
+  }
+}
+
+:host > * {
+  flex: none;
+}
+
+/*
+  ⚠️ Il discendente diretto porta la specificità a (0,1,1) e batte il `> *` qui
+  sopra, che vale (0,1,0). Scritto come sola classe perderebbe il confronto e
+  l'area dati non crescerebbe — **in silenzio**.
+*/
+/*
+  ⛔ **L'area dati NON ha una cornice propria** — decisione del proprietario,
+  29/08/2026.
+
+  Provata nel verso opposto e scartata: avevo alzato qui la card del Registro
+  Corrispettivi — sfondo, bordo, raggio, padding — per darla a tutte. La forma
+  giusta è l'altra: **la scatola la disegna la tabella**, e le pagine si
+  allineano a lei.
+
+  ⚠️ Restano le sole proprietà di FLUSSO: chi sta qui dentro deve poter cedere
+  in altezza, ed è geometria, non aspetto.
+*/
+:host > .list-page__data {
+  flex: 1;
+  min-block-size: 0;
+  min-inline-size: 0;
+  /*
+    ⭐ **GRIGLIA, non colonna flessibile** — corretto il 30/08/2026, dopo aver
+    misurato che la strada flessibile non poteva funzionare.
+
+    In una griglia il figlio **si stira per default**, e lo stiramento viene dal
+    CONTENITORE. Con il flex invece serviva una regola sul figlio — `flex: 1` —
+    e quella regola non lo raggiunge mai: vedi il blocco qui sotto.
+
+    `minmax(0, 1fr)` invece di `1fr` perché una traccia `1fr` nuda ha per
+    pavimento il contenuto: una tabella lunga la spingerebbe oltre l'altezza
+    della zona invece di farla scorrere dentro.
+
+    ⚠️ **`grid-auto-rows`, non `grid-template-rows`**: le tracce non si
+    assegnano per POSIZIONE. Se una pagina proiettasse due elementi in `[data]`,
+    con un template la seconda finirebbe in una traccia implicita fuori misura;
+    così invece ogni figlio riceve la stessa regola, chiunque sia e quanti
+    siano. È la distinzione che `regole-stile-ui` §6 chiede di rispettare.
+  */
+  display: grid;
+  grid-auto-rows: minmax(0, 1fr);
+}
+
+/*
+  ⛔ **QUI C'ERA `.list-page__data > * { flex: 1; min-block-size: 0 }`, e non ha
+  mai funzionato.** Misurato il 30/08/2026 rendendo il telaio e leggendo gli
+  attributi di incapsulamento:
+
+  ```text
+  zona dati   _ngcontent-a-c1375802046   ← attributo del TELAIO
+  contenuto   _ngcontent-a-c1044159087   ← attributo della PAGINA
+  ```
+
+  Con l'incapsulamento emulato, `.list-page__data > *` compila in
+  `.list-page__data[_ngcontent-telaio] > *[_ngcontent-telaio]`, e il contenuto
+  proiettato porta l'attributo della pagina che lo scrive. **La regola non
+  aggancia nulla**, e il commento che le stava sopra dichiarava il contrario:
+  «ciò che sta nell'area dati la RIEMPIE».
+
+  ⚠️ **Non falliva, non faceva niente** — nessun errore, nessun test rosso. Si
+  vedeva solo a schermo, e solo sulle pagine che ci contavano davvero:
+
+  ```text
+  ✅ prodotti · fornitori · documenti · ordini · vendite online · movimenti
+     la loro tabella usa `block-size: 100%` e si riempie DA SÉ
+  ⛔ clienti · giacenze · situazione
+     usano `table-scroll(…, flessibile)`, che per progetto «riceve la propria
+     altezza da flex: 1 di chi lo ospita» — cioè da questa regola
+  ⛔ corrispettivi
+     il suo pannello aspettava lo stesso flex: 1
+  ```
+
+  ⛔ **`::ng-deep` non è la risposta** ed è vietato (`regole-stile-ui` §5): un
+  difetto di API di un componente condiviso si corregge nel componente, non
+  scavalcandolo. La griglia qui sopra lo corregge nel posto giusto, perché lo
+  stiramento è una proprietà del contenitore.
+*/
+
+/*
+  ⚠️ **Questi valori NON sono nuovi: sono quelli del mixin `list-page`**, copiati
+  esatti. Una pagina che passa al telaio smette di usare `.blocco__title` e
+  comincia a usare `.list-page__title`: se i due divergessero, il titolo
+  cambierebbe taglia alla migrazione — e non lo direbbe nessun errore.
+
+  ⛔ Misurato il 29/08/2026 scrivendo il pilota: mancavano `font-size` e
+  `font-weight`, e il titolo sarebbe rimpicciolito su undici pagine.
+*/
+.list-page__header {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-3);
+}
+
+/* Indietro e titolo sulla stessa riga, come nelle sette pagine che ce l'hanno. */
+/*
+  ⭐ **LA BARRA FILTRI HA LA DENSITÀ DELLA BARRA COMANDI** — deciso dal
+  proprietario il 30/08/2026, mettendo le due a confronto: «in generale li farei
+  più piccoli, come quelli in fondo alla pagina, e diminuirei i margini».
+
+  Misurato prima:
+
+  ```text
+  chip filtro       h34 · font 13px · gap interno 8px
+  comandi in fondo  h31 · font 12px
+  ```
+
+  ⛔ **Non era una scelta: era il default che filtrava.** `regole-stile-ui` §5
+  prescrive già la barra densa — `--control-h-*` e `--text-xs` — ma la
+  dichiarava ogni pagina per conto proprio, e chi non la dichiarava restava alla
+  taglia del campo autonomo. Qui la dichiara il TELAIO: chi lo usa la eredita, e
+  la prossima pagina non nasce disallineata.
+
+  ⚠️ **Il gap interno scende a 4px**: sono gli 8px fra l'etichetta e il chevron
+  che il proprietario ha segnato a schermo. A separarli basta la metà.
+
+  ⚠️ **Solo da `md` in su.** Sotto, i token salgono da sé al minimo tappabile, e
+  quella è la regola che vince (`regole-stile-ui` §4).
+*/
+/*
+  ⛔ **LA DENSITÀ VALEVA SOLO DA `md` IN SU**, e sul telefono i controlli in alto
+  restavano più alti di quelli in basso. Misurato il 30/08/2026, a 430px:
+
+  ```text
+  Seleziona · Colonne · Filtri      h38 · font 13
+  Nuovo · Stampa · Excel · Esporta  h32 · font 12
+  ```
+
+  Segnalato dal proprietario: «i filtri sopra sono troppo grandi rispetto ai
+  pulsanti che stanno sotto». Su scrivania erano già uniformi a 28 — il difetto
+  esisteva solo dove lo spazio è più scarso.
+
+  ⚠️ **Non contraddice il minimo tappabile di `regole-stile-ui` §4**, e la ragione
+  è quella che la regola stessa dà: il pavimento a 44px è dei **campi di form** —
+  «un campo si sbaglia mentre si scrive» — mentre questi sono **controlli di
+  barra**, etichettati e distanziati, per cui la deroga esiste già.
+
+  ⛔ **La zona `__filters` resta fuori**, ed è deliberato: sotto `lg` quei
+  controlli vivono nel PANNELLO laterale, che è una maschera da compilare col
+  dito e non una barra. Là il minimo tappabile va tenuto.
+*/
+.list-page__view,
+.list-page__tools,
+.list-page__filters {
+  --btn-min-height: var(--control-h-button);
+  --field-height: var(--control-h-button);
+  --field-h: var(--control-h-button);
+  --field-font-size: var(--text-xs);
+  --field-gap: var(--space-1);
+  --button-font-size: var(--text-xs);
+}
+
+.list-page__heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+
+  /*
+    ⛔ **«INDIETRO» ERA L'UNICO COMANDO FUORI TAGLIA** — segnalato dal
+    proprietario a schermo il 30/08/2026, e misurato a 390px:
+
+    ```text
+    Indietro                       h44   padX 16
+    Colonne · Filtri · Periodo     h38   padX 12
+    ```
+
+    ⚠️ **Non era una svista di una pagina: era il default.** `--back-button-h`
+    non lo dichiarava nessuno, quindi ripiegava su `--btn-min-height` — 44px,
+    il minimo tappabile dei CAMPI. Ma «Indietro» non è un campo: è un comando di
+    barra, e per quelli `regole-stile-ui` §4 dichiara la deroga a 38px.
+
+    ⚠️ **Ed è costato due tentativi**: la stessa dichiarazione messa in
+    `styles/_list-page.scss` non produceva nulla, perché quel mixin veste le
+    pagine che si costruiscono il layout da sé — `.list-page__heading` nasce
+    invece dal template di QUESTO componente. La regola non compariva affatto
+    nel CSS servito, e non lo segnalava niente.
+
+    ⭐ Dichiarato qui vale per ogni elenco che usa il telaio: la prossima pagina
+    non nasce disallineata.
+  */
+  /*
+    ⭐ **E vale a OGNI larghezza** — il proprietario è tornato sul punto il
+    30/08/2026 guardando la scrivania: «il pulsante indietro va adattato agli
+    altri, più piccolo».
+
+    ⛔ La prima stesura lo dichiarava solo sotto `md`, quindi su scrivania
+    «Indietro» restava a 34px accanto a filtri e comandi già scesi a 31.
+    Correggeva metà del difetto, e la metà che restava era quella che si guarda
+    tutto il giorno.
+  */
+  --back-button-h: var(--control-h-button);
+  --back-button-pad-inline: var(--space-3);
+  --back-button-font-size: var(--text-xs);
+}
+
+@include bp.media-up('md') {
+  .list-page__header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+/*
+    ⭐ **Solo `margin`.** `font-size`, `font-weight`, `color`, `font-family` e
+    `line-height` li dà già la regola globale degli heading
+    (`styles.scss:128-143`): il titolo è un `<h1>`.
+
+    ⛔ Qui c'erano anche `font-size: var(--text-2xl)` — identico al globale — e
+    `font-weight: var(--font-weight-bold)`, che lo **sovrascriveva**. Erano
+    quattro copie delle stesse quattro righe, in quattro file, libere di
+    divergere. Unificate il 29/08/2026: il peso dei titoli di pagina è quello
+    globale, `semibold`.
+  */
+.list-page__title {
+  margin: 0;
+}
+
+/*
+  ⚠️ Sotto `lg` la catena si smonta: le tabelle sono a card e scorrono con la
+  pagina. Uno scroll dentro uno scroll sotto il dito è la trappola classica del
+  mobile.
+*/
+@include bp.media-down('lg') {
+  :host {
+    display: block;
+    flex: none;
+  }
+
+  /*
+    Sotto `lg` la pagina scorre tutta: la zona dati torna un blocco normale e
+    non impone più un'altezza ai figli.
+
+    ⚠️ `display: block` spegne la griglia insieme al resto — `grid-auto-rows`
+    resta dichiarata ma non ha effetto senza `display: grid`.
+  */
+  :host > .list-page__data {
+    display: block;
+    flex: none;
+    min-block-size: auto;
+  }
+}
+
+/*
+  ⭐ **La zona controlli, forma unica.**
+
+  Ricerca a sinistra e flessibile, Periodo al centro, controlli di vista a
+  destra. La forma NUDA — senza card — è quella del Registro Corrispettivi, che
+  `regole-stile-ui` §5 dichiara riferimento visivo.
+
+  ⚠️ I valori sono quelli del mixin `list-page`, che le pagine usavano: la
+  migrazione non deve cambiare la taglia dei campi.
+*/
+/*
+  ⭐ **UNA riga anche sul telefono** — deciso dal proprietario il 30/08/2026:
+  «stringere la casella e far diventare unica linea con gli altri tasti».
+
+  ⛔ Qui c'era `flex-direction: column` sotto `md`: ogni controllo prendeva una
+  fascia intera, e su un elenco senza ricerca — il Registro — significava due
+  fasce da 44px per tre pulsanti che ci stavano in una.
+
+  ⚠️ **La RICERCA resta a piena larghezza**, e non è un'eccezione: è un campo di
+  testo, e stretto a un terzo di schermo non si scrive. Prende la riga sua e
+  manda gli altri a capo — è `flex-wrap` che lo fa, non una seconda regola.
+
+  ```text
+  [  Cerca…                                    ]   ← se c'è, riga sua
+  [ Ultimi 30 giorni ] ......... [Colonne] [Filtri]
+  ```
+*/
+.list-page__tools {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+@include bp.media-up('md') {
+  .list-page__tools {
+    gap: var(--space-3);
+  }
+}
+
+/*
+  ⭐ **Sul telefono la TESTATA ha la stessa altezza del PIEDE** — deciso dal
+  proprietario il 30/08/2026: «i pulsanti di sopra sono ancora più alti rispetto
+  a quelli sotto».
+
+  ⛔ **Misurato prima di correggere**: testata 44px, piede 38px. I due token
+  `--control-h-field` e `--control-h-button` erano già a 38, ma «Colonne» e
+  «Filtri» sono `app-button` — leggono `--btn-min-height`, che resta a 44 perché
+  governa i pulsanti veri delle maschere.
+
+  ⭐ **Si configura dal CONTENITORE**, come prescrive `regole-stile-ui` §5: la
+  barra dichiara l'altezza per tutti i controlli che ospita, e nessun componente
+  condiviso viene scavalcato dall'esterno.
+
+  ⚠️ Le due barre sono la stessa famiglia — comandi che si premono una volta e
+  portano una parola — e devono leggersi tali. A 44 contro 38 sembravano due
+  cose diverse.
+*/
+/*
+  ⛔ **QUI C'ERA UN SECONDO BLOCCO CHE RIMETTEVA `--control-h-field` (38px)**
+  sotto `md`, e vinceva perché veniva dopo: era lui a tenere alti i controlli in
+  testata mentre quelli in fondo erano a 32.
+
+  ⭐ Ora la densità è dichiarata **una volta sola**, sopra, senza media query.
+  Due dichiarazioni della stessa cosa a due soglie diverse sono il modo in cui
+  questo difetto è nato.
+*/
+
+.list-page__search {
+  position: relative;
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  /*
+    ⭐ **La ricerca è larga quanto una ricerca** — proprietario, 01/09/2026: «è
+    inutile averla enorme, deve essere più corta e meno alta».
+
+    ⚠️ **Va ridichiarato QUI**: il mixin `list-page` porta già il tetto, ma
+    questo blocco ridichiara `.list-page__search` con la stessa specificità e
+    viene dopo — quindi vince. Misurato: tetto nel mixin, `max-inline-size:
+    none` calcolato, casella larga 1030px su una finestra da 1440.
+  */
+  max-inline-size: var(--field-w-xl);
+
+  /*
+    ⭐ **Sul telefono la ricerca prende la riga intera**: è un campo di testo, e
+    stretto accanto al periodo si riduce a due parole di larghezza. `flex-wrap`
+    manda gli altri controlli a capo da sé.
+
+    ⛔ **Questa variante era scritta in un blocco `media-down('md')` più sopra, ed
+    era MORTA**: stessa specificità della regola base qui, che veniva dopo e
+    vinceva a ogni larghezza. Trovata da `check:media-scavalcate` un'ora dopo
+    averla scritta — a schermo sembrava solo che la barra andasse a capo male.
+  */
+  @include bp.media-down('md') {
+    flex: 1 1 100%;
+  }
+}
+
+.list-page__search-icon {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: var(--space-3);
+  transform: translateY(-50%);
+  color: var(--color-text-subtle);
+  pointer-events: none;
+}
+
+.list-page__input {
+  inline-size: 100%;
+  block-size: var(--field-height);
+
+  padding-inline: var(--space-8) var(--space-3);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface);
+  font: inherit;
+
+  font-size: var(--text-sm);
+  color: var(--color-text);
+
+  /*
+    ⛔ **La ricerca NON segue la densità della barra**, ed è l'unica eccezione.
+
+    È un campo di TESTO: `regole-stile-ui` §4 tiene i campi al minimo tappabile
+    perché «un campo si sbaglia mentre si scrive», e §3 chiede ≥16px sugli input
+    mobili — sotto quella misura iOS ingrandisce la pagina al fuoco.
+
+    ⚠️ **Sta in FONDO alla regola apposta**, ed è costato due tentativi: sopra
+    veniva azzerata prima da `font: inherit` — la scorciatoia reimposta anche
+    `font-size` — e poi da un secondo `font-size` più in basso. La deroga
+    esisteva e non aveva effetto, due volte. L'ha trovata
+    `check:media-scavalcate`, non l'occhio: una media query scavalcata non
+    fallisce, semplicemente non fa niente.
+  */
+  @include bp.media-down('md') {
+    block-size: var(--control-h-field);
+    // `--text-lg` e' 16px: e' IL valore che evita lo zoom iOS, non un'enfasi.
+    font-size: var(--text-lg);
+  }
+}
+
+.list-page__input:focus-visible {
+  outline: none;
+  border-color: var(--color-focus);
+  box-shadow: 0 0 0 3px var(--color-focus-ring-alpha);
+}
+
+/*
+  ⚠️ **`flex: none` sui filtri, o la ricerca se li mangia.**
+
+  ⛔ La ricerca è `flex: 1 1 auto`: senza un pavimento, i filtri accanto si
+  stringono fino ad andare a capo uno per riga. Misurato su Ordini fornitore
+  il 29/08/2026 — «Stato» e «Periodo» impilati invece che affiancati.
+
+  ⭐ È la stessa regola della catena verticale: **ciò che non deve cedere lo
+  dichiara**, perché il default di un elemento flessibile è cedere.
+*/
+.list-page__filters,
+.list-page__view {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+}
+
+/* I controlli di vista stanno a destra, sempre. */
+.list-page__view {
+  margin-inline-start: auto;
+}
+
+/* Il conteggio accanto al titolo: informazione di servizio, non un dato. */
+.list-page__count {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/*
+  ⭐ **Sotto `lg` la zona filtri diventa un PANNELLO**, e non è una seconda
+  copia dei controlli: è **lo stesso contenitore**, con un'altra veste.
+
+  ⛔ La strada ovvia — un `<ng-content select="[filters]">` in barra e un altro
+  dentro un pannello — **non funziona**, e non fallisce: misurato il 29/08/2026,
+  due slot con lo stesso selettore in rami esclusivi lasciano il contenuto in
+  nessuno dei due. Niente errore, niente test rosso, filtri spariti.
+
+  ⭐ Ed è anche la regola di `regole-stile-ui` §9: «la stessa riga non esiste due
+  volte». Le cinque pagine che avevano un pannello proprio ne duplicavano i
+  controlli a mano, legati agli stessi segnali; qui l'istanza è una sola.
+
+  ⚠️ Ricerca e Periodo **restano in barra** anche qui: sono i due che non entrano
+  nelle colonne (`14` §0.2).
+*/
+@include bp.media-down('lg') {
+  .list-page__scrim {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-modal);
+    padding: 0;
+    border: none;
+    background-color: var(--color-backdrop);
+    cursor: pointer;
+  }
+
+  /*
+    ⛔ **IL PANNELLO NON È UNA BARRA STRUMENTI** — corretto il 31/08/2026.
+
+    La regola densa qui sopra lo dichiarava già — «la zona `__filters` resta
+    fuori… là il minimo tappabile va tenuto» — ma il selettore la includeva, e
+    le custom property si ereditano comunque da `.list-page__tools`. Sotto `md`
+    i campi del pannello venivano quindi a **32px**, l'altezza dei pulsanti di
+    barra, invece dei 44 dei campi.
+
+    ⚠️ **Non si vedeva su scrivania**, dove il pannello non esiste, e nessun
+    controllo automatico distingue un campo da compilare da un pulsante da
+    premere: la distinzione è di significato, ed è quella su cui poggia tutta la
+    deroga dei 32px.
+  */
+  .list-page__filters--panel {
+    --btn-min-height: var(--control-h-tap);
+    --field-height: var(--control-h-tap);
+    --field-h: var(--control-h-tap);
+    --field-font-size: var(--text-sm);
+    --button-font-size: var(--text-sm);
+
+    position: fixed;
+    inset-block: 0;
+    inset-inline-end: 0;
+    z-index: calc(var(--z-modal) + 1);
+    display: none;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: var(--space-4);
+    inline-size: min(92vw, 22rem);
+    padding: var(--space-4);
+    overflow-y: auto;
+    background-color: var(--color-surface);
+    box-shadow: var(--shadow-menu);
+  }
+
+  /*
+    ⚠️ `display: none` e non una traslazione fuori schermo: un pannello chiuso ma
+    presente resta raggiungibile col Tab e leggibile dallo screen reader, e chi
+    naviga da tastiera finisce dentro controlli che non vede.
+  */
+  .list-page__filters--open {
+    display: flex;
+  }
+
+  .list-page__filters-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding-block-end: var(--space-3);
+    border-block-end: var(--border-width) solid var(--color-border);
+  }
+
+  .list-page__filters-title {
+    margin: 0;
+    font-size: var(--text-base);
+  }
+
+  /*
+    ⭐ **Una voce del pannello = una colonna filtrabile.**
+
+    Etichetta sopra, controllo sotto e a piena larghezza: sotto `lg` il nome
+    della colonna non c'è più in nessun'altra parte dello schermo, quindi il
+    controllo da solo non direbbe che cosa filtra.
+
+    ⚠️ **Case normale, non maiuscoletto** (`regole-stile-ui` §3): a questa
+    dimensione il maiuscoletto si legge peggio e stona col resto del pannello.
+  */
+  .list-page__filter-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .list-page__filter-label {
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-field-label);
+  }
+
+  /* ⚠️ Il contenuto di una voce occupa la riga: la colonna qui è una sola. */
+  .list-page__filter-field app-column-filter {
+    --select-menu-width: 100%;
+    --select-menu-max-width: 100%;
+
+    display: block;
+    inline-size: 100%;
+  }
+
+  /* In fondo al pannello, spinto in basso: si legge dopo i filtri, non prima. */
+  .list-page__filters-foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    margin-block-start: auto;
+    padding-block-start: var(--space-3);
+    border-block-start: var(--border-width) solid var(--color-border);
+  }
+}

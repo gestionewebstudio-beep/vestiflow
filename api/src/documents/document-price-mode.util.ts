@@ -14,14 +14,16 @@ import { DocumentType } from '@prisma/client';
  *   · la modalità proposta a un documento di vendita nuovo;
  *   · quali memorie degli operatori azzerare quando la convenzione cambia.
  *
+ * ⭐ **`store_sale` / `store_return` sono ENTRATI il 21/08/2026**, con la nuova
+ * maschera Vendita/Reso al banco (`11` A4). Prima erano esonerati — «sempre
+ * ivati», cablato in `store-sales.service.ts` — e la revisione era già
+ * dichiarata in sospeso qui: «Fisico/POS» e «netto/ivato» sono due assi
+ * diversi, e un grossista che vende al banco può volerla netta. Ora il banco
+ * usa il contratto comune: convenzione aziendale, memoria dell'operatore,
+ * modalità persistita sul documento e modificabile.
+ *
  * ESONERI — chi NON sta in questa lista, e perché:
  *
- *   · `store_sale` / `store_return` (cassa negozio): sempre ivati, deciso in
- *     `store-sales.service.ts`. Al banco il prezzo esposto è quello che il
- *     cliente paga, e non è una preferenza: è cosa mostra la cassa.
- *     ⚠️ Da rivedere col rifacimento della Vendita al banco — «Fisico/POS» e
- *     «netto/ivato» sono due assi diversi, e un grossista che vende al banco
- *     potrebbe volerla netta.
  *   · famiglia acquisto (`goods_receipt`, `supplier_order`, `supplier_invoice`,
  *     `manual_load`, `initial_load`): i costi partono **sempre netti** e non
  *     hanno né convenzione aziendale né memoria dell'operatore. Per un'azienda
@@ -32,7 +34,7 @@ import { DocumentType } from '@prisma/client';
  */
 export const SALES_PRICE_MODE_TYPES: readonly DocumentType[] = [
   DocumentType.proforma,
-  DocumentType.invoice_draft,
+  DocumentType.invoice,
   DocumentType.invoice_accompanying,
   // ⚠️ Vale per la nota di credito creata VUOTA. Una nota **generata da una
   // fattura** eredita il modello economico della fattura d'origine: se quella
@@ -45,6 +47,12 @@ export const SALES_PRICE_MODE_TYPES: readonly DocumentType[] = [
   // L'Ordine cliente non vive in `documents` ma ha un tipo suo per numerazione
   // e modalità prezzo (§Fetta 3): senza, erediterebbe quella del Preventivo.
   DocumentType.customer_order,
+  // Vendita e Reso al banco: nessuna eccezione, nessun forcing «sempre ivato»
+  // (`11` A4). Entrando qui prendono anche l'azzeramento delle memorie quando
+  // la convenzione aziendale cambia — che è la parte che rende l'impostazione
+  // credibile, non un dettaglio.
+  DocumentType.store_sale,
+  DocumentType.store_return,
 ];
 
 /** Il tipo risponde alla convenzione aziendale sui prezzi di vendita? */

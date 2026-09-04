@@ -33,6 +33,36 @@ export interface VariantForPayload {
  * stessa base canonica, che è il presupposto per convertirli insieme quando
  * quella convenzione esisterà.
  */
+/** I valori commerciali della variante nella forma canonica del canale. */
+export interface VariantChannelFields {
+  readonly sku?: string;
+  readonly barcode?: string;
+  readonly price: string;
+  readonly compareAtPrice?: string;
+}
+
+/**
+ * Ciò che di una variante finisce su Shopify — e UNA sola volta: la riga REST
+ * e l'input GraphQL si compongono da qui, non da due elenchi separati.
+ *
+ * Prezzo del canale Shopify: valore proprio, indipendente dal prezzo articolo,
+ * nessun ripiego (§B, modello definitivo). ⚠️ Il barrato assente resta assente:
+ * la chiave non entra proprio — mandare `0.00` significherebbe dichiarare uno
+ * sconto del 100%.
+ */
+export function variantChannelFields(
+  variant: Pick<VariantForPayload, 'sku' | 'barcode' | 'shopifyPriceMinor'>,
+  compareAtPriceMinor: number | null,
+): VariantChannelFields {
+  return {
+    sku: variant.sku ?? undefined,
+    barcode: variant.barcode ?? undefined,
+    price: minorToShopifyDecimal(Number(variant.shopifyPriceMinor)),
+    ...(compareAtPriceMinor != null
+      ? { compareAtPrice: minorToShopifyDecimal(compareAtPriceMinor) }
+      : {}),
+  };
+}
 export function buildVariantsPayload(
   options: ProductOptionRow[],
   variants: readonly VariantForPayload[],
@@ -57,19 +87,18 @@ export function buildVariantsPayload(
       : [];
     const byName = new Map(optionValues.map((entry) => [entry.name, entry.value]));
 
+    // I valori commerciali vengono dalla funzione comune: la riga REST li
+    // rinomina soltanto nella grafia snake_case del vecchio percorso.
+    const fields = variantChannelFields(variant, compareAtPriceMinor);
     const row: Record<string, unknown> = {
-      sku: variant.sku ?? undefined,
-      // Prezzo del canale Shopify: valore proprio, indipendente dal prezzo
-      // articolo. Nessun ripiego (§B, modello definitivo).
-      price: minorToShopifyDecimal(Number(variant.shopifyPriceMinor)),
-      barcode: variant.barcode ?? undefined,
+      sku: fields.sku,
+      price: fields.price,
+      barcode: fields.barcode,
       inventory_management: 'shopify',
     };
-
-    // Assente = assente. La chiave non entra proprio nella riga: mandare "0.00"
-    // significherebbe dichiarare un barrato a zero.
-    if (compareAtPriceMinor != null) {
-      row['compare_at_price'] = minorToShopifyDecimal(compareAtPriceMinor);
+    // Nessun barrato: la chiave NON entra nella riga (`null` non è zero, regole-gestionale).
+    if (fields.compareAtPrice !== undefined) {
+      row['compare_at_price'] = fields.compareAtPrice;
     }
 
     if (variant.shopifyVariantId) {
@@ -94,4 +123,31 @@ export function buildVariantsPayload(
   });
 
   return { shopifyOptions, variantRows };
+}
+
+/** Riga di `productVariantsBulkUpdate`: stessa forma canonica, chiavi GraphQL. */
+export interface VariantBulkInput {
+  readonly id: string;
+  readonly price: string;
+  readonly compareAtPrice?: string;
+  readonly barcode?: string;
+  readonly inventoryItem?: { readonly sku?: string };
+}
+
+/**
+ * Da campi canonici a input GraphQL. Un campo assente NON entra nell'input, e
+ * Shopify non tocca il valore remoto — come il REST con la chiave omessa, e per
+ * la stessa ragione: `null` non è zero. Deciso qui, non dai chiamanti.
+ */
+export function variantBulkInput(
+  remoteGid: string,
+  fields: VariantChannelFields,
+): VariantBulkInput {
+  return {
+    id: remoteGid,
+    price: fields.price,
+    ...(fields.compareAtPrice !== undefined ? { compareAtPrice: fields.compareAtPrice } : {}),
+    ...(fields.barcode !== undefined ? { barcode: fields.barcode } : {}),
+    ...(fields.sku !== undefined ? { inventoryItem: { sku: fields.sku } } : {}),
+  };
 }

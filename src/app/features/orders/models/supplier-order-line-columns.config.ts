@@ -34,7 +34,18 @@ export const SUPPLIER_ORDER_LINE_COLUMNS: readonly TableColumnDef[] = [
   { id: 'sku', label: 'SKU', defaultWidthPx: 104, minWidthPx: 64 },
   { id: 'barcode', label: 'EAN', defaultWidthPx: 124, minWidthPx: 72 },
   { id: 'supplierCode', label: 'Cod. fornitore', defaultWidthPx: 104, minWidthPx: 72 },
-  { id: 'product', label: 'Nome prodotto', defaultWidthPx: 280, minWidthPx: 160 },
+  { id: 'product', label: 'Nome prodotto', defaultWidthPx: 240, minWidthPx: 160 },
+  // La VARIANTE ha una colonna sua, accanto al nome e non dentro: «M / Rosso».
+  //
+  // ⛔ L'id e' `variantLabel`, NON `variant`: quello e' gia' preso da un alias
+  // legacy che `normalizeSupplierOrderColumnId` (in fondo a questo file) mappa
+  // su `product`. Una colonna nuova chiamata `variant` verrebbe dirottata sul
+  // nome prodotto a ogni lettura delle preferenze — e nessun errore lo direbbe.
+  //
+  // Stesso id in `stock-movement-line-columns`: la stessa colonna si chiama
+  // allo stesso modo in ogni maschera, o le preferenze di vista non si
+  // riconoscono fra loro.
+  { id: 'variantLabel', label: 'Variante', defaultWidthPx: 120, minWidthPx: 80 },
   { id: 'quantity', label: 'Q.tà', numeric: true, defaultWidthPx: 64, minWidthPx: 48 },
   // Larghezza cresciuta con la cella: era una colonna di sola lettura larga
   // quanto «pz», ora ospita un campo con il suo indizio di apertura.
@@ -91,10 +102,11 @@ export const SUPPLIER_ORDER_LINE_COLUMNS: readonly TableColumnDef[] = [
     minWidthPx: 56,
   },
   // La cella ospita una tendina (codice + freccia), non solo un numero.
-  { id: 'vat', label: 'IVA', numeric: true, defaultWidthPx: 96, minWidthPx: 76 },
+  { id: 'vat', label: 'IVA', defaultWidthPx: 96, minWidthPx: 76 },
   { id: 'lineTotal', label: 'Totale', numeric: true, defaultWidthPx: 88, minWidthPx: 56 },
-  // Due pulsanti da 30px (duplica + elimina) più gap e rientri.
-  { id: 'actions', label: 'Azioni', defaultWidthPx: 84, minWidthPx: 76 },
+  // Un solo pulsante (elimina): le frecce di riordino vivono nella colonna
+  // indice. Stessa misura di `stock-movement-line-columns`.
+  { id: 'actions', label: 'Azioni', defaultWidthPx: 44, minWidthPx: 44, filter: false },
 ];
 
 // I preset partono dalle colonne visibili di default: quelle opzionali
@@ -110,6 +122,7 @@ export const SUPPLIER_ORDER_LINE_PRESETS: TableViewPresetMap = {
     'sku',
     'barcode',
     'product',
+    'variantLabel',
     'quantity',
     'unitOfMeasure',
     'stockOnHand',
@@ -121,6 +134,7 @@ export const SUPPLIER_ORDER_LINE_PRESETS: TableViewPresetMap = {
     'barcode',
     'supplierCode',
     'product',
+    'variantLabel',
     'quantity',
     'unitCost',
     'discount',
@@ -129,8 +143,25 @@ export const SUPPLIER_ORDER_LINE_PRESETS: TableViewPresetMap = {
     'lineTotal',
     'actions',
   ],
-  [PresetId.Accountant]: ['sku', 'product', 'quantity', 'unitCost', 'discount', 'vat', 'lineTotal'],
-  [PresetId.Analysis]: ['sku', 'product', 'quantity', 'unitCost', 'discountedCost', 'lineTotal'],
+  [PresetId.Accountant]: [
+    'sku',
+    'product',
+    'variantLabel',
+    'quantity',
+    'unitCost',
+    'discount',
+    'vat',
+    'lineTotal',
+  ],
+  [PresetId.Analysis]: [
+    'sku',
+    'product',
+    'variantLabel',
+    'quantity',
+    'unitCost',
+    'discountedCost',
+    'lineTotal',
+  ],
   [PresetId.Operational]: ALL_COLUMN_IDS,
 };
 

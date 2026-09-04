@@ -27,7 +27,15 @@
   color-scheme: light;
 
   // Superfici — grigio-blu desaturato (regole-stile-ui §2)
-  --color-bg: #eef0f2;
+  /*
+    ⭐ Schiarito di poco il 30/08/2026 — «pensavo di ridurre leggermente il
+    background grigio e schiarirlo, ma poco». Era `#eef0f2`.
+
+    ⚠️ **Resta un grigio, e deve restarlo**: è ciò che stacca le card bianche
+    dalla pagina. Portato al bianco, i riquadri sparirebbero e la separazione
+    andrebbe cercata nei bordi, che sono tenui apposta.
+  */
+  --color-bg: #f2f4f5;
   --color-surface: #ffffff;
   --color-surface-soft: #f6f7f8;
   --color-surface-hover: #f8faf9;
@@ -125,7 +133,11 @@
   // sono varianti di --color-text-muted, sono ruoli diversi. Mappandoli su
   // «muted» l'intestazione della tabella e le label dei campi si erano
   // schiarite di un passo, ed e' la differenza che si vedeva a schermo.
-  --color-table-header-fg: #3f4c51;
+  /* Scurito il 20/08/2026 su richiesta del proprietario: «prediligo un alto
+     contrasto». Su --color-table-header-bg (#e9edee) passa da 7,5:1 a 9,5:1, e
+     resta un gradino sopra --color-text (12,7:1) — l'intestazione deve restare
+     riconoscibile come tale, non diventare testo. */
+  --color-table-header-fg: #2f3d43;
   --color-table-header-rule: #aebfb7;
   --color-field-label: #59665f;
   // ── Riga «Documento collegato» (regole-stile-ui §7) ───────────────────────
@@ -343,7 +355,8 @@
   // ── Ruoli emersi dall'Ordine cliente ──────────────────────────────────────
   // La pelle chiara non regge su fondo scuro: i ruoli tornano ai token del
   // tema, la gerarchia resta quella.
-  --color-table-header-fg: var(--color-text-muted);
+  /* Il simmetrico sul tema scuro: da --color-text-muted (6,2:1) a 9,8:1. */
+  --color-table-header-fg: #c6d2d7;
   --color-table-header-rule: var(--color-border-strong);
   --color-field-label: var(--color-text-subtle);
 
@@ -529,6 +542,10 @@
   // salto 0 → 4px e' tutto o niente.
   --space-05: 0.125rem; // 2px
   --space-1: 0.25rem; // 4px
+  // ⭐ 6px — il passo fra due card sul telefono (30/08/2026). La scala di
+  //    `regole-stile-ui` §4 lo elenca gia' («0 · 2 · 4 · 6 · 8 …»); mancava
+  //    soltanto il token. Il nome segue `--space-05`: il numero e' in quarti.
+  --space-15: 0.375rem; // 6px
   --space-1-5: 0.375rem; // 6px
   // Velo delle barre appoggiate al contenuto (topbar, piede documento): la
   // stessa sfocatura in quattro punti, cosi' le barre si somigliano davvero.
@@ -578,13 +595,139 @@
   // Scelte sull'Ordine cliente e promosse a globali: ogni tabella documentale
   // deve avere lo stesso passo verticale, non uno per maschera.
   --control-h-field: 2rem; // 32px — controlli di testata (rialzati dai 29 del mockup, un filo sotto i campi standard)
-  --control-h-button: 1.9375rem; // 31px — bottoni barra strumenti e azioni
+  /*
+    28px — bottoni barra strumenti e azioni, SU SCRIVANIA.
+
+    ⭐ Scesi da 31 il 30/08/2026 su richiesta del proprietario: «i pulsanti li
+    farei ancora più piccoli verticalmente, meno padding». È il terzo gradino
+    dello stesso lavoro — 34 → 31 → 28 — e ogni gradino restituisce la sua
+    altezza al contenitore delle righe.
+
+    ⚠️ **Il padding verticale è già ZERO**: l'altezza di questi pulsanti la dà
+    interamente questo token, quindi «meno padding» si traduce qui e non in una
+    dichiarazione di padding che non esiste.
+
+    ⛔ **Sotto i 28 non si scende senza rivedere il font.** WCAG 2.2 AA chiede
+    24×24 CSS px: a 28 il bersaglio è ancora sopra il minimo con un margine
+    onesto, e l'etichetta a 12px ci sta senza comprimersi. Più giù si tocca la
+    leggibilità prima dell'ergonomia.
+
+    ⚠️ **Vale solo da `md` in su**: sotto, il token sale a 38px e quella è la
+    deroga di `regole-stile-ui` §4, che non si tocca.
+  */
+  --control-h-button: 1.75rem;
   --control-h-cell: 1.5rem; // 24px — input dentro le righe
+
+  /*
+    ⭐ **28px — i campi di ANAGRAFICA**, deciso dal proprietario il 01/09/2026:
+    «credo che l'altezza non debba superare i 28 px, proviamo», dopo tre giri
+    su «le celle sono enormi… in un gestionale bisogna essere pratici e
+    tabulazione veloce».
+
+    ⚠️ **Perché un token nuovo e non `--control-h-button`**, che vale già 28px:
+    quello è l'altezza di un comando che si PREME, e sotto `md` scende a 38px
+    perché un pulsante etichettato regge un bersaglio più piccolo. Un campo
+    dove si SCRIVE no — sotto `md` questo torna al minimo tappabile, come
+    `--field-height`. Stessa misura su scrivania, due comportamenti diversi sul
+    telefono: due nomi.
+
+    ⛔ Non è `--control-h-cell` (24px): quello è l'input dentro una riga di
+    tabella, che vive in una griglia fitta e senza etichetta propria.
+  */
+  /*
+    ⭐ **26px, da 28 — proprietario, 01/09/2026**: «per recuperare spazio
+    potremmo scendere la cella a 26px se va bene».
+
+    ⚠️ **Va bene, e il margine sul minimo resta**: WCAG 2.2 AA chiede 24×24 CSS
+    px, e il bersaglio vero è più alto del campo — lo allarga lo spazio fra le
+    righe della griglia. Sotto i 26 si toccherebbe il minimo, e lì ci si ferma.
+  */
+  --control-h-entry: 1.625rem; // 26px — campi di anagrafica (inserimento rapido)
   --control-h-touch: 2.75rem; // 44px — minimo tappabile su mobile
-  --table-row-h: 1.875rem; // 30px — riga tabella
-  --table-head-h: 2rem; // 32px — intestazione tabella
+  /*
+    ⭐ **24px, da 30 — proprietario, 01/09/2026**: «riduci il padding interno
+    delle righe, devono essere piu piccole in altezza», e «a tutti e tutti
+    uguali».
+
+    ⚠️ **Il token e il padding della cella vanno mossi INSIEME.** L'altezza
+    utile di una riga è il maggiore fra i due: con 4px di padding sopra e sotto,
+    il contenuto (12px di testo, ~17px di riquadro) chiede già 25px, e abbassare
+    il solo token non avrebbe tolto un pixel. Il padding scende a 2px in
+    `_responsive-table.scss`, dove la cella è dichiarata.
+
+    ⭐ **25px, scelto dal proprietario** — «proviamo 25 px», dopo aver visto la
+    prima riduzione a schermo.
+
+    ⛔ **Sotto i 22 non si scende senza rivedere il font.** Misurato in un
+    browser vero il 01/09/2026: il contenuto della cella chiede **22px** — 18 di
+    interlinea più 2+2 di padding — quindi fino a 22 comanda il token e sotto
+    comanda il testo, che smette di obbedire e tocca il filo della cella. I 25
+    lasciano 3px di respiro, ed è la stessa logica con cui i pulsanti di barra
+    si sono fermati a 28.
+  */
+  --table-row-h: 1.5625rem; // 25px — riga tabella (da 30, 01/09/2026)
+
+  /*
+    26px — intestazione della tabella.
+
+    ⭐ **Scesa da 28 il 01/09/2026**, su richiesta del proprietario messa accanto
+    all'elenco Ordini fornitori: «la testata delle colonne la porterei anche lei
+    a 26px». I gradini sono stati 32 → 28 (30/08) → 26.
+
+    ⭐ **Un solo pixel sopra la riga di dati**, che vale 25: l'intestazione resta
+    distinguibile — la distinzione la portano il fondo, il peso e il filo — e
+    smette di rubare l'altezza di mezza riga a ogni elenco.
+
+    ⛔ **Sotto i 26 non si scende senza rivedere la MANIGLIA di larghezza.** Quel
+    bersaglio è alto quanto l'intestazione, e il minimo WCAG 2.2 AA è 24×24 CSS
+    px: a 26 restano due pixel di margine, a 24 nessuno.
+  */
+  --table-head-h: 1.625rem; // 26px — intestazione tabella (da 28, 01/09/2026)
+
+  /*
+    14px — lato della casella di selezione di riga.
+
+    ⭐ Dichiarata come token il 30/08/2026, quando il proprietario ha chiesto
+    caselle «ovunque più piccole»: prima era `--space-4` (16px), cioè un token di
+    SPAZIATURA usato come misura di un controllo. Sono due grandezze diverse, e
+    tenerle sullo stesso token significa che stringere le caselle stringe anche i
+    padding che per caso usavano lo stesso valore.
+
+    ⚠️ La casella è un bersaglio da toccare, ma il suo bersaglio REALE è la cella
+    che la contiene — molto più grande dei 14px del disegno. È la ragione per cui
+    scendere qui non tocca l'ergonomia.
+  */
+  --check-size: 0.875rem;
   --table-cell-pad-block: 0.125rem; // 2px
   --table-cell-pad-inline: 0.3125rem; // 5px
+
+  /*
+    8px — respiro orizzontale nelle celle di un ELENCO.
+
+    ⭐ **Sceso da 12px il 01/09/2026**, su richiesta del proprietario messa
+    accanto agli Ordini fornitori: «vedo troppo margine nelle celle dai bordi ai
+    testi, questo occupa ancor più spazio orizzontale».
+
+    ⭐ **Costa 8px per colonna, cioè 64px su otto colonne**: è larghezza che torna
+    ai dati, e da quando il testo si taglia a colonna (§6) ogni pixel in meno di
+    aria è un pixel in più di nome leggibile.
+
+    ⛔ **Non è `--table-cell-pad-inline` (5px)**, che è delle RIGHE DOCUMENTO: lì
+    la cella ospita un campo con un bordo proprio, e il respiro lo dà quello. In
+    un elenco il testo si appoggia direttamente al filo di colonna, e a 5px lo
+    toccherebbe.
+
+    ⚠️ **Sotto gli 8 il testo tocca il divisore**: con il taglio a colonna la
+    parola arriva davvero fino al bordo, e senza aria le due colonne si leggono
+    come una.
+  */
+  --table-list-pad-inline: 0.5rem; // 8px
+  // Altezza massima del contenitore di scorrimento di una tabella.
+  // ⭐ Serve a rendere VERO il sticky dell'intestazione: senza un limite, quel
+  //    contenitore non scorre mai in verticale e l'intestazione non si ancora a
+  //    niente (`14` §11.5 D3). Una pagina che ha bisogno di più o di meno lo
+  //    ridichiara su di sé — è il canale previsto da `regole-stile-ui` §5.
+  --table-scroll-max-h: 70dvh;
 
   // ── 4. Z-INDEX ─────────────────────────────────────────────────────────────
   --z-base: 0;
@@ -606,6 +749,10 @@
     'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas,
     monospace;
 
+  // ⭐ 10px — l'estremo basso della fascia «label uppercase 9,5–10px» di
+  //    `regole-stile-ui` §3. Aggiunto il 30/08/2026 per la fascia totali di un
+  //    elenco: a 9,5px l'etichetta si leggeva poco, a 11px la fascia si rialza.
+  --text-3xs: 0.625rem; // 10px
   --text-2xs: 0.6875rem; // 11px
   --text-xs: 0.75rem; // 12px
   --text-sm: 0.8125rem; // 13px — body compact
@@ -614,6 +761,22 @@
   --text-lg: 1rem; // 16px
   --text-xl: 1.25rem; // 20px — titoli sezione/panel
   --text-2xl: 1.5rem; // 24px — page title (polish v2)
+
+  /*
+    ⭐ **IL TITOLO DI PAGINA** — proprietario, 01/09/2026: «anche il titolo può
+    diminuire, sia desktop che mobile», e subito dopo «ovunque, non solo
+    fornitori».
+
+    ⛔ **Il codice era più grande della regola.** `regole-stile-ui` §3 dichiara
+    l'H1 a **20px su scrivania e 18 sul telefono** dal restyle; `styles.scss`
+    lo teneva a `--text-2xl` (24px) fisso, senza nessuna soglia. Qui non si
+    inventa una taglia nuova: si applica quella già scritta.
+
+    ⚠️ **Sta nei token e non in `styles.scss`** perché è una misura che cambia
+    con la larghezza, e le misure responsive di questo progetto vivono tutte
+    qui — accanto a `--field-height` e `--control-h-*`, non sparse nei fogli.
+  */
+  --text-page-title: 1.25rem; // 20px — H1 di pagina (regole-stile-ui §3)
   --text-kpi: 1.75rem; // 28px — valore KPI stat-card (polish v2)
   --text-3xl: 1.875rem; // 30px — brand lockup topbar
   --text-4xl: 2.25rem; // 36px — brand lockup pagina login
@@ -691,8 +854,38 @@
   // larga della densita' scelta, e costringeva le singole maschere a
   // rimpicciolire i componenti condivisi con override locali.
   // Sotto il breakpoint 'md' tornano a 44px: vedi il blocco @media in fondo.
+  /*
+    ⚠️ **PROVATO A PORTARLO A 28, E RIMESSO A 34 — 01/09/2026.**
+
+    Sembrava la leva per «i tasti sono grandi»: non lo è. Misurato subito dopo,
+    `app-button` legge `var(--button-h, var(--field-height))` — il token dei
+    CAMPI, non questo. Abbassando `--btn-min-height` è cambiato un solo bottone
+    in tutta l'app: «Esci» nella barra laterale.
+
+    ⛔ **E la catena non si può girare su questo token**: una ventina di
+    contenitori (barre documento, telaio elenchi, barra azioni) dichiarano la
+    propria densità impostando `--field-height`, e i loro bottoni la seguono.
+    Cambiando il fallback smetterebbero di funzionare tutti insieme — sul
+    telefono riporterebbe le barre documento da 38 a 44px, disfacendo la deroga
+    decisa il 30/08.
+
+    ⭐ La densità dei bottoni si dichiara quindi **dal contenitore**, com'è
+    sempre stato, e la correzione vera sta nelle pagine che non la dichiaravano.
+  */
   --btn-min-height: 2.125rem; // 34px — desktop
   --field-height: 2.125rem; // 34px — input desktop
+  /*
+    ⭐ **Il minimo tappabile, con un nome suo** — 44px (`regole-stile-ui` §4).
+
+    ⚠️ Serve a chi deve TORNARE al minimo dopo che un contenitore denso ha
+    riscritto `--btn-min-height` e `--field-height` su di sé: una custom property
+    ombreggiata non si può «rileggere dalla radice», e senza un nome l'unica
+    strada sarebbe riscrivere 44px a mano — il valore nudo che la regola vieta.
+
+    Il primo consumatore è il pannello filtri compatto, che è una maschera da
+    compilare col dito dentro una barra strumenti densa.
+  */
+  --control-h-tap: 2.75rem; // 44px
   --field-height-inline: 1.875rem; // 30px — input inline nelle righe documento (spec §Form)
   // Larghezza campi per tipo di contenuto (v3): un campo largo quanto il dato
   // che ospita, mai quanto la pagina.
@@ -725,7 +918,18 @@
   // padding orizzontale della voce (2 × --space-3 = 24px). A 5,5rem le colonne
   // erano tre anche su un telefono da 390px, e quell'etichetta si spezzava in
   // due righe alzando l'intera fascia.
-  --summary-item-min-w: 8.25rem; // 132px
+  /*
+    94px — larghezza minima di una voce di riepilogo impilata.
+
+    ⭐ Scesa da 132 il 30/08/2026: con le voci impilate una voce è larga quanto
+    la più larga fra etichetta e valore — «CORRISPETTIVO» a 10px maiuscolo, cioè
+    ~87px — non quanto le due affiancate. A 132 la fascia su un telefono da 390
+    scendeva a DUE colonne, con metà larghezza sprecata in vuoti.
+
+    ⚠️ È il minimo, non la larghezza: `auto-fit` con `1fr` fa crescere le colonne
+    a riempire, quindi su un tablet restano larghe.
+  */
+  --summary-item-min-w: 5.875rem;
 
   --border-width: 1px;
   --border-width-strong: 2px;
@@ -766,10 +970,84 @@
 // -----------------------------------------------------------------------------
 @include bp.media-down('md') {
   :root {
-    --btn-min-height: 2.75rem; // 44px
-    --field-height: 2.75rem; // 44px
-    --control-h-field: 2.75rem;
-    --control-h-button: 2.75rem;
+    --btn-min-height: var(--control-h-tap);
+    --field-height: var(--control-h-tap);
+
+    /*
+      ⭐ **28px anche sul telefono** — proprietario, 01/09/2026: «da mobile le
+      celle sono piu alte rispetto a desktop, sistemare».
+
+      ⛔ **Qui c'era `--control-h-tap` (44px)**, e la ragione scritta era che
+      «un campo si sbaglia mentre si scrive». La decisione la ribalta per
+      l'anagrafica: una scheda con venti campi a 44px diventa un rotolo, e si
+      compila peggio di una densa.
+
+      ⚠️ **Resta sopra il minimo WCAG 2.2 AA**, che chiede 24×24 CSS px — la
+      stessa misura con cui i pulsanti di barra si sono fermati a 38px. Il
+      bersaglio vero è più alto dei 28: lo allarga lo spazio fra le righe.
+
+      ⚠️ **E il corpo del testo NON scende sotto i 16px sul telefono**: sotto
+      quella soglia iOS ingrandisce la pagina da solo a ogni fuoco. È la parte
+      della regola che non si tocca, ed è dichiarata nel foglio del form.
+    */
+    --control-h-entry: 1.625rem; // 26px — deciso uguale alla scrivania
+
+    // 18px: il titolo di pagina sul telefono (`regole-stile-ui` §3).
+    --text-page-title: 1.125rem;
+
+    /*
+      ⚠️ **38px anche per i controlli di TESTATA** — deciso dal proprietario il
+      30/08/2026: «anche quelli in testata più piccoli».
+
+      Sono i chip di filtro e i pulsanti «Colonne» / «Filtri»: stanno in una
+      barra, si premono una volta, e portano una parola che dice cosa fanno —
+      esattamente come i comandi del piede, con cui ora condividono l'altezza.
+      A 44px la testata pesava 6px più del piede, e le due barre non si
+      leggevano come la stessa famiglia.
+
+      ⛔ **`--field-height` resta 44**: quello governa gli INPUT, dove si scrive
+      e si sbaglia mentre si digita. La distinzione è la stessa dei pulsanti di
+      barra — un controllo che si compila non è un controllo che si preme.
+    */
+    --control-h-field: 2.375rem; // 38px
+
+    /*
+      ⚠️ **38px, non 44: i pulsanti di BARRA fanno eccezione** — deciso dal
+      proprietario il 30/08/2026, in due passi lo stesso giorno: prima «i tasti
+      proverei leggermente a ridurre l'altezza» (44 → 40), poi «devi diminuire»
+      col riferimento HTML alla mano, dove i pulsanti del dock sono 38px.
+
+      ⭐ **Non è una deroga all'accessibilità, ed è la ragione per cui vale solo
+      qui.** WCAG 2.2 chiede 24×24 CSS px al livello AA; i 44 sono la
+      raccomandazione di Apple e il livello AAA. A 38px il bersaglio resta sopra
+      il minimo richiesto, e sono comunque **pulsanti etichettati e
+      distanziati**, non icone nude.
+
+      ⛔ **Gli altri controlli restano a 44**, e la distinzione è quella che
+      conta: un campo si sbaglia mentre si scrive, un pulsante di barra si preme
+      una volta e ha una parola sopra che dice cosa fa. Sotto i 38 non si scende.
+    */
+    /*
+      32px — bottoni di barra sul TELEFONO.
+
+      ⭐ Scesi da 38 il 30/08/2026, su richiesta del proprietario messa accanto
+      alla schermata da scrivania: «facciamo la stessa cosa, pulsanti più stretti
+      verticalmente», e poi ancora «facciamolo leggermente più piccolo». I gradini
+      qui sono stati 44 → 40 → 38 → 34 → 32.
+
+      ⛔ **Qui c'era scritto «sotto i 38 non si scende»**, deciso poche ore prima
+      con il riferimento HTML alla mano. Superato da chi l'aveva deciso: resta
+      valido il PERCHÉ — sono pulsanti **etichettati e distanziati**, non icone
+      nude, e il minimo WCAG 2.2 AA è 24×24 CSS px, che a 32 resta sopra con otto
+      pixel di margine. ⛔ **Sotto i 32 non si scende senza scendere anche di
+      font**, e il font qui è già a 12px.
+
+      ⚠️ **Non vale per i CAMPI**, che restano a 44: un campo si sbaglia mentre si
+      scrive, un pulsante di barra si preme una volta e ha una parola sopra che
+      dice cosa fa. È la distinzione che regge tutta questa deroga, e cade se si
+      applica anche a `--control-h-field`.
+    */
+    --control-h-button: 2rem;
   }
 }
 

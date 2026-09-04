@@ -321,29 +321,54 @@ L'annullo dell'arrivo merce collegato riporta l'ordine a Confermato. Filtri list
 Route `/app/documents`: scelta della tipologia, organizzata per flusso:
 
 - **Acquisti e fornitori:** Ordini fornitore (→ `/app/orders`) · Arrivi merce (`/app/documents/arrivi-merce`) · Registrazione fattura (registro filtrato `supplier_invoice`).
-- **Magazzino:** Trasferimenti · Rettifiche (registri filtrati) · Scarichi manuali (pagina dedicata `/app/documents/manual-unload`) · Inventario (registro filtrato).
+- **Magazzino:** Trasferimenti · Rettifiche (registri filtrati) · Vendite manuali (pagina dedicata `/app/documents/vendita-manuale`) · Inventario (registro filtrato).
 - **Vendite:** Vendite al banco (elenco dedicato `/app/vendita-al-banco`, condiviso `store_sale` + `store_return` con filtro «Tipo», e da lì le due creazioni) · Proforma · DDT vendita · Bozze fattura · Preventivi (registro filtrato `quote`).
 - **Registro:** Tutti i documenti (`/app/documents/registro`).
 
 ### 10.2 Tipi di documento
 
-`supplier_order` Ordine fornitore · `goods_receipt` Arrivo merce · `supplier_ddt` DDT fornitore · `supplier_invoice_accompanying` Fattura accompagnatoria · `supplier_invoice` Fattura fornitore (registrazione) · `manual_load` Carico manuale · `initial_load` Carico iniziale · `sales_ddt` DDT vendita · `transfer` Trasferimento · `manual_unload` Scarico manuale · `adjustment` Rettifica · `inventory` Inventario · `proforma` Proforma · `invoice_draft` Bozza fattura · `store_sale` Vendita negozio · `store_return` Reso vendita negozio.
+`supplier_order` Ordine fornitore · `goods_receipt` Arrivo merce · `supplier_ddt` DDT fornitore · `supplier_invoice_accompanying` Fattura accompagnatoria · `supplier_invoice` Fattura fornitore (registrazione) · `manual_load` Carico manuale · `initial_load` Carico iniziale · `sales_ddt` DDT vendita · `transfer` Trasferimento · `manual_unload` Vendita manuale · `adjustment` Rettifica · `inventory` Inventario · `proforma` Proforma · `invoice_draft` Bozza fattura · `store_sale` Vendita negozio · `store_return` Reso vendita negozio.
 
 ### 10.3 Stati e regole generali
 
-| Stato                       | Significato                                                           |
-| --------------------------- | --------------------------------------------------------------------- |
-| **Bozza**                   | Modificabile, **nessun movimento di magazzino**                       |
-| **Confermato**              | Numero progressivo assegnato; movimenti applicati                     |
-| **Stampato / Inviato**      | Tracciamento operativo (invio al commercialista per le bozze fattura) |
-| **Registrato esternamente** | Documento emesso/registrato fuori da VestiFlow                        |
-| **Annullato**               | Invalidato; gli effetti di magazzino vengono stornati secondo il tipo |
+| Stato                       | Significato                                                                                                                                                                  |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Confermato**              | **Lo stato con cui il documento nasce**: salvato e numerato. ⛔ **Non** significa «movimenta magazzino»: gli effetti fisici li decide il **tipo** e il contratto delle righe |
+| **Stampato / Inviato**      | Tracciamento operativo (invio al commercialista per le bozze fattura)                                                                                                        |
+| **Registrato esternamente** | Documento emesso/registrato fuori da VestiFlow                                                                                                                               |
+| **Annullato**               | Invalidato; gli effetti di magazzino vengono stornati secondo il tipo                                                                                                        |
 
-- **Numerazione:** in bozza si vede l'**anteprima** (es. `CAR-2026-0045`); il numero definitivo è assegnato **alla conferma**. Prefissi e serie per tipo in **Impostazioni documenti** (`/app/documents/settings`, permesso Gestire documenti).
+⛔ **«Bozza» non esiste — deciso il 28/08/2026.** Un documento **nasce Confermato**: non c’è
+uno stato intermedio in cui esiste ma non conta. È la stessa regola già in vigore per gli
+ordini (`17` §2.4, `18` §2.1) e il progetto la chiama **nascita-confermato**.
+
+⚠️ **Il codice è indietro**: `DocumentStatus.draft` esiste ancora nello schema e governa
+la modifica libera, l’anteprima del numero e l’eliminazione. La decisione vale; l’allineamento
+è lavoro (indice `00`).
+
+⛔ **«Confermato» NON vuol dire «movimenta magazzino».** Vuol dire **documento salvato**.
+Gli effetti fisici appartengono al **tipo** e alle sue righe, non al valore dello stato:
+
+```text
+Arrivo merce            Salva → Confermato + carichi delle righe abilitate
+DDT                     Salva → Confermato + scarichi pertinenti
+Proforma                Salva → Confermato,  nessun movimento: il tipo non movimenta
+Registrazione fattura   Salva → Confermato,  nessun movimento: il tipo non movimenta
+```
+
+⚠️ **La vecchia equazione «Bozza = niente movimenti / Confermato = movimenti» cade insieme
+alla Bozza.** Era quella a far sembrare necessario un doppio passaggio Salva → Conferma.
+
+⭐ **E «Confermato» non obbliga a mostrare nulla.** Lo stato può restare **tecnico e interno**
+quando il tipo non ha un ciclo di stato che riguardi l’operatore: un Preventivo è un documento
+salvato e operativo senza bisogno di un selettore o di un badge «Confermato». ⛔ Non si
+aggiunge interfaccia solo perché il record internamente è confermato.
+
+- **Numerazione:** il numero progressivo è assegnato **al salvataggio**, insieme allo stato Confermato.
 - **Modifica di un confermato:** pulsante **Sblocca modifica** con avviso; al salvataggio VestiFlow ricalcola movimenti/giacenze e conserva lo storico revisioni.
-- **Duplica documento:** crea una **bozza** scollegata (nessun riferimento a ordini/fatture di origine) che non genera movimenti finché non viene salvata/confermata.
+- **Duplica documento:** crea un documento **nuovo e scollegato** (nessun riferimento a ordini/fatture di origine) che non genera movimenti finché non viene salvata/confermata.
 - **Stampa:** anteprima di stampa da `/app/documents/:id/print`.
-- **Allegati:** nel form arrivo merce (dopo il primo salvataggio bozza) e nel dettaglio: upload PDF/immagini.
+- **Allegati:** nel form arrivo merce (dopo il primo salvataggio) e nel dettaglio: upload PDF/immagini.
 - **Registro** (`/app/documents/registro`): filtri Tipo, Stato, Periodo, Cliente, ricerca (numero/riferimento/note), **vista commercialista** e **DDT da fatturare**; i filtri restano nell'URL (link condivisibili). Colonne personalizzabili.
 
 ### 10.4 Arrivo merce
@@ -353,30 +378,74 @@ Form `/app/documents/goods-receipt/new` (permesso Gestire documenti):
 - **Testata:** tipo (Arrivo merce, DDT fornitore, Fattura accompagnatoria, Carico manuale, Carico iniziale), fornitore (obbligatorio per arrivo/DDT/fattura; opzionale per carichi), sede di destinazione, data, numero/data **documento fornitore**, **causale di carico**, flag **Seguirà fattura**, riferimento fattura, note.
 - **Righe in griglia:** ricerca articolo per nome/SKU/EAN, **Crea articolo rapido** o **Crea anagrafica completa** (pannello laterale), quantità, costo, IVA, **lotto/scadenza/seriali** (se attivi in Impostazioni), flag **Carica magazzino**, totale riga. Giro Tab/Invio deterministico tra le celle; scan `quantità*codice`.
 - Se aperto da un ordine: colonne **Ordinato / Già ricevuto / Residuo**.
-- **Conferma e carica magazzino:** genera i carichi, aggiorna giacenze, ordine collegato e «in arrivo». Se il costo differisce dall'ultimo prezzo fornitore e la policy lo prevede → dialog **aggiorna prezzi fornitore**.
+- **Salva:** il documento nasce Confermato e **applica già i carichi** delle righe abilitate, aggiorna giacenze, ordine collegato e «in arrivo». Se il costo differisce dall'ultimo prezzo fornitore e la policy lo prevede → dialog **aggiorna prezzi fornitore**.
 
 ### 10.5 Registrazione fattura fornitore
 
-Form `/app/documents/registrazione-fattura/new`: registra la fattura ricevuta e la **collega agli arrivi merce** (evidenza nel Registro commercialista tra i «documenti fornitore da registrare»).
+Form `/app/documents/registrazioni-fatture-fornitori/new`: registra la fattura ricevuta e la **collega agli arrivi merce** (evidenza nel Registro commercialista tra i «documenti fornitore da registrare»).
 
 ### 10.6 Trasferimenti e rettifiche
 
 Form dedicati (`transfer/new`, `adjustment/new`): documenti di magazzino con righe articolo; alla conferma generano i movimenti corrispondenti (trasferimento = uscita origine + ingresso destinazione; rettifica con motivo).
 
-### 10.6-bis Scarico manuale (maschera DDT, scarico diretto)
+### 10.6-bis Vendita manuale (maschera DDT, scarico diretto)
 
-Maschera tipo DDT vendita (`manual-unload/new`, stessa struttura righe: articolo, quantità, prezzo richiamato automaticamente ed editabile, totale; totali in fondo; stampa documento):
+Maschera tipo DDT vendita (`vendita-manuale/new`, stessa struttura righe: articolo, quantità, prezzo richiamato automaticamente ed editabile, totale; totali in fondo; stampa documento):
 
 - **Cliente facoltativo:** dall'anagrafica clienti oppure **digitato liberamente solo per la stampa** (in quel caso NON viene salvato in anagrafica).
 - **Logica giacenze (deroga documentata):** al **salvataggio** la giacenza si aggiorna **direttamente sottraendo le quantità** (es. 10 − 3 = 7), **senza creare movimenti** nel log magazzino; il push inventario verso i canali resta attivo. Nessuna gestione seriali.
 - **Avviso non bloccante:** se la quantità supera la disponibilità → «Stai scaricando più di quanto disponibile. Continuare?» (Sì / Annulla).
-- **Persistenza:** il documento resta nell'elenco Scarichi manuali (`/app/documents/manual-unload`) finché l'operatore non lo **elimina**; nessun annullamento.
+- **Persistenza:** il documento resta nell'elenco Vendite manuali (`/app/documents/vendita-manuale`) finché l'operatore non lo **elimina**; nessun annullamento.
 - **Eliminazione definitiva:** cancella SOLO il documento — le giacenze già scalate **non vengono ripristinate**.
 - **Modifica:** riconciliazione a delta (3 → 5 scarica solo 2 in più; cambio location ripristina la vecchia e scarica la nuova), sempre senza movimenti.
 
+#### ⭐ Si accende, e la accende il titolare — deciso il 26/08/2026
+
+> **La Vendita manuale è una funzione che l’azienda attiva. Nasce SPENTA, e solo il
+> titolare dell’account può accenderla** (Impostazioni → Magazzino e documenti).
+
+**Perché esiste l’interruttore.** È l’unico tipo documento che scarica la giacenza
+**senza lasciare un movimento**, e la sua eliminazione **non ripristina** ciò che ha
+scaricato (deroga qui sopra). Chi non vuole quella scorciatoia in casa deve poterla
+togliere di mezzo, non doverla solo evitare per disciplina.
+
+⚠️ **Nasce spenta, e non è prudenza generica:** una funzione che altera il magazzino
+senza traccia non si eredita per default. Chi la vuole la accende sapendo cosa fa.
+
+⛔ **Solo il titolare**, non «chi ha il permesso Impostazioni azienda»: quel permesso ce
+l’hanno anche ruoli che con la responsabilità di una deroga sul magazzino non c’entrano.
+Il rifiuto è **del server** — `ForbiddenException` sul solo campo sensibile — perché una
+tendina nascosta non è un controllo.
+
+**Che cosa governa, esattamente.** Due cose e non una terza:
+
+| Con l’interruttore spento         |                                                 |
+| --------------------------------- | ----------------------------------------------- |
+| **Creare** una Vendita manuale    | ⛔ rifiutato dal server (422)                   |
+| **Modificare** una esistente      | ⛔ rifiutato dal server (409), sblocco compreso |
+| **Eliminare** una esistente       | ✅ resta possibile                              |
+| **Leggere** quelle già registrate | ✅ restano nell’elenco e nel Dettaglio          |
+
+⭐ **L’eliminazione resta libera di proposito** _(deciso dal proprietario)_: spegnere una
+funzione non deve intrappolare i documenti già creati. Chi spegne vuole smettere di
+produrne, non perdere il controllo di quelli che ha.
+
+⚠️ **E il clic di riga si adegua da sé.** Con la funzione spenta il documento non è più
+modificabile, quindi la sua riga porta al **Dettaglio** invece che alla Modifica —
+attraverso `canOpenDocumentForm`, cioè lo stesso punto di decisione che serve anche la
+ricerca globale e i collegamenti trasversali (`14` §2.1). Non è un’eccezione scritta a
+parte: se lo fosse, lo stesso documento avrebbe due aperture diverse a seconda di dove
+lo si è trovato.
+
+⚠️ **Accendere e spegnere si vede SUBITO**, e ha richiesto una correzione: la capacità
+viaggia su `/auth/me` (non su `/tenant/feature-settings`, che manager e commesso non
+possono leggere), e il profilo è in cache per 60 secondi. Senza invalidarla, l’operatore
+girava l’interruttore e per un minuto non cambiava niente — cioè il difetto sembrava
+essere nel salvataggio, che invece funzionava.
+
 ### 10.7 Documenti di vendita (Proforma · DDT vendita · Bozza fattura)
 
-Form unico `sales-document-form` su route dedicate (`proforma/new`, `sales-ddt/new`, `invoice-draft/new`, modifica `sales/:id/edit`):
+Form unico `sales-document-form` su route dedicate (`proforma/new`, `ddt-vendita/new`, `invoice-draft/new`, modifica `sales/:id/edit`):
 
 - Testata con **cliente** (anagrafica di [§14](#14-clienti), con eventuale nota automatica/avviso configurati sul cliente), date, condizioni di pagamento, note; righe articolo con quantità, prezzi, sconti, IVA.
 - **Proforma:** documento non fiscale (preventivo), nessun effetto magazzino.
@@ -517,9 +586,15 @@ Sottotitolo profilo gestionale: _«Analytics commerciali, export corrispettivi e
 3. **Performance commerciale:** stesso pannello analytics della Dashboard ([§5](#5-dashboard)) filtrato sul periodo scelto.
 4. **Giacenze per location:** snapshot attuale per sede (non filtrato per periodo).
 
-### 15.2 Corrispettivi commercialista (`/app/reports/corrispettivi`)
+### 15.2 ⛔ Qui c’era «Corrispettivi commercialista» — la schermata non esiste più
 
-Riepilogo delle vendite online registrate nel gestionale con stati fiscali, **export** e **storico consegne** al commercialista (azione «segna consegnato»); vendite POS escluse (gestite dalla cassa fiscale). Pagina di **stampa** dedicata (`/app/reports/corrispettivi/print`).
+La maschera legacy è caduta il **17/08/2026** con la migration
+`20260817140000_ritira_corrispettivo_legacy`, e l’indirizzo `/app/reports/corrispettivi`
+il **25/08** (`a1dd40fd`): oggi cade nel catch-all e atterra sulla Dashboard senza dire
+niente.
+
+⭐ **Il registro vivo è §13.2**, su `/app/sales/corrispettivi`. Chi leggeva questa
+sezione cercava una pagina che non c’è, e non capiva perché.
 
 ### 15.3 Registro commercialista (`/app/reports/accountant-register`)
 
@@ -534,16 +609,63 @@ Riepilogo per **periodo** su due tab:
 
 Route `/app/settings`. Pannelli visibili nel profilo Solo gestionale (in quest'ordine):
 
-| Pannello                  | Visibilità                                      | Contenuto                                                                                                                                                                                                                                                              |
-| ------------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Profilo**               | Tutti                                           | Dati utente e **foto profilo**: upload JPEG/PNG/WebP max 2 MB, ritaglio circolare con zoom; Cambia/Rimuovi; senza foto → iniziali                                                                                                                                      |
-| **Sede fisica**           | Permesso Impostazioni azienda                   | Anagrafica commerciale del negozio registrata dall'operatore VestiFlow (ragione sociale, P.IVA, indirizzo, contatti) con riquadro espandibile **Dati fiscali e contatti**; indipendente dalle sedi operative                                                           |
-| **Magazzino e documenti** | Titolare/Admin (accesso completo)               | **Gestione lotti e scadenze** · **Gestione numeri seriali** · **Policy aggiornamento prezzo fornitore** (sempre / chiedi / mai) · **Unità di misura** e **IVA predefinita** per i nuovi articoli · avvisi/blocco su **giacenze negative**. Valida per tutto il negozio |
-| **Codici IVA**            | Titolare/Admin                                  | Gestione codici IVA (aliquota, natura, ambito vendite/acquisti, attivo) — pagina dedicata `/app/settings/codici-iva`                                                                                                                                                   |
-| **Pagamenti**             | Titolare/Admin                                  | Opzioni di pagamento/condizioni usate da clienti, ordini e documenti — pagina dedicata `/app/settings/pagamenti`                                                                                                                                                       |
-| **Backup negozio**        | Titolare/Admin (azioni riservate al titolare)   | **Esporta** o **ripristina** una copia completa dei dati del negozio                                                                                                                                                                                                   |
-| **Sicurezza account**     | Tutti (gestione MFA: titolare/admin per policy) | **Verifica in due passaggi (MFA)** con app authenticator; al login successivo password + codice a 6 cifre                                                                                                                                                              |
-| **Aspetto**               | Tutti                                           | Tema **Chiaro / Scuro / Sistema** (anche dalla topbar)                                                                                                                                                                                                                 |
+| Pannello                  | Visibilità                                      | Contenuto                                                                                                                                                                                                                                                                                                                                  |
+| ------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Profilo**               | Tutti                                           | Dati utente e **foto profilo**: upload JPEG/PNG/WebP max 2 MB, ritaglio circolare con zoom; Cambia/Rimuovi; senza foto → iniziali                                                                                                                                                                                                          |
+| **Sede fisica**           | Permesso Impostazioni azienda                   | Anagrafica commerciale del negozio registrata dall'operatore VestiFlow (ragione sociale, P.IVA, indirizzo, contatti) con riquadro espandibile **Dati fiscali e contatti**; indipendente dalle sedi operative                                                                                                                               |
+| **Magazzino e documenti** | Titolare/Admin (accesso completo)               | **Gestione lotti e scadenze** · **Gestione numeri seriali** · **Policy aggiornamento prezzo fornitore** (sempre / chiedi / mai) · **Unità di misura** (elenco gestibile + predefinita, vedi 16.1) · **IVA predefinita** per i nuovi articoli · **Vendita manuale** (interruttore del titolare, vedi 10.6-bis). Valida per tutto il negozio |
+| **Codici IVA**            | Titolare/Admin                                  | Gestione codici IVA (aliquota, natura, ambito vendite/acquisti, attivo) — pagina dedicata `/app/settings/codici-iva`                                                                                                                                                                                                                       |
+| **Pagamenti**             | Titolare/Admin                                  | Opzioni di pagamento/condizioni usate da clienti, ordini e documenti — pagina dedicata `/app/settings/pagamenti`                                                                                                                                                                                                                           |
+| **Backup negozio**        | Titolare/Admin (azioni riservate al titolare)   | **Esporta** o **ripristina** una copia completa dei dati del negozio                                                                                                                                                                                                                                                                       |
+| **Sicurezza account**     | Tutti (gestione MFA: titolare/admin per policy) | **Verifica in due passaggi (MFA)** con app authenticator; al login successivo password + codice a 6 cifre                                                                                                                                                                                                                                  |
+| **Aspetto**               | Tutti                                           | Tema **Chiaro / Scuro / Sistema** (anche dalla topbar)                                                                                                                                                                                                                                                                                     |
+
+### 16.1 Unità di misura — l’elenco è dell’azienda, la predefinita è un seme _(26/08/2026)_
+
+Dal pannello **Magazzino e documenti** si apre il gestore delle unità: **creare**,
+**rinominare**, **eliminare**, e **scegliere la predefinita**.
+
+⛔ **Qui c’era un campo di testo libero.** Si scriveva «pz» a mano, e non aveva niente a
+che vedere con l’elenco vero — quello che l’operatore compone e che le righe documento
+già usavano. Due elenchi diversi a seconda di dove si guardava: un’azienda che aggiungeva
+«m» dal gestore lo trovava sulle righe e **non** sull’articolo.
+
+**La predefinita fa UNA cosa: precompila un articolo NUOVO**, compresi quelli creati in
+linea da una riga documento. Le cinque condizioni poste dal proprietario, e come sono
+garantite:
+
+| Condizione                                          | Dove è garantita                                           |
+| --------------------------------------------------- | ---------------------------------------------------------- |
+| **Zero o una** per azienda                          | indice unico parziale sul database, come per i codici IVA  |
+| **Togliere la spunta** lascia senza predefinita     | è uno stato legittimo, non un guasto                       |
+| **Eliminare** la predefinita lascia l’azienda senza | nessun ripiego automatico su un’altra voce                 |
+| **Nessun articolo o documento** si riscrive         | l’U.M. è una stringa sulle righe, **senza chiave esterna** |
+| Serve alla **creazione**, non alla lettura          | non è retroattiva, e non tocca ciò che esiste              |
+
+⭐ **Vuota è una scelta, non una dimenticanza.** Chi tiene articoli misti non vuole una
+predefinita: dovrebbe cambiarla ogni volta, e — peggio — rischierebbe di non accorgersene.
+
+⛔ **La predefinita dell’azienda NON è il default della riga documento**, che continua a
+venire **dall’articolo**. Sono due sorgenti diverse: confonderle scriverebbe l’unità
+dell’azienda su una riga il cui articolo ne ha un’altra.
+
+⚠️ **Rinominare o eliminare una voce non riscrive lo storico.** È la stessa disciplina
+del Codice IVA — «la riga di un documento è una fotografia» — ma ottenuta in modo più
+semplice: l’unità è salvata come **testo** sulla riga, quindi non c’è un puntatore da
+azzerare né uno snapshot da congelare. Cancellare una voce toglie una scelta futura,
+non un dato passato.
+
+**Il seme e il ripiego non sono la stessa cosa**, e vanno tenuti distinti:
+
+```text
+articolo nuovo   →  nasce SENZA unità  →  seme: la predefinita dell’azienda, se c’è
+salvataggio      →  se ancora vuota    →  ripiego tecnico «pz», come è sempre stato
+```
+
+⚠️ Se l’articolo nuovo nascesse già a «pz», la predefinita non avrebbe niente da seminare
+— e non si distinguerebbe «pz scelto» da «pz per inerzia».
+
+---
 
 **Non presenti in questo profilo:** Integrazione Shopify, Integrazione TikTok Shop, pannello Location con sync/licensing sedi (le sedi operative sono gestite dall'operatore piattaforma).
 
@@ -591,8 +713,8 @@ Inoltre: la sezione `/app/admin` è riservata all'**operatore piattaforma** (un 
 Regole sempre vere, utili come oracoli nei test end-to-end:
 
 1. **Disponibile = Giacenza − Impegnata.** Le vendite al banco e i controlli di cassa usano la **Disponibile**, non la giacenza.
-2. **Un documento in Bozza non muove mai il magazzino.** I movimenti nascono solo alla **conferma** (o da Registra movimento / import CSV / chiusura inventario).
-3. **Il numero definitivo del documento è assegnato alla conferma**; in bozza si vede solo l'anteprima della numerazione.
+2. **I movimenti nascono col documento, che nasce Confermato.** I movimenti nascono solo alla **conferma** (o da Registra movimento / import CSV / chiusura inventario).
+3. **Il numero definitivo del documento è assegnato al salvataggio**; in bozza si vede solo l'anteprima della numerazione.
 4. **Ogni variazione di stock è un movimento tracciato** (data, operatore, origine) visibile in Magazzino → Movimenti.
 5. **Ordine cliente:** il salvataggio impegna (Impegnata ↑, Disponibile ↓, Giacenza invariata); l'annullo rilascia; la conclusione via documento di scarico consuma impegni e scarica la giacenza; l'annullo del documento di scarico riapre l'ordine e ricrea gli impegni.
 6. **L'ordine fornitore non incide mai su giacenze o disponibilità** (prompt 2026-07): nasce Confermato e diventa Concluso quando viene incluso/agganciato a un Arrivo merce; solo la conferma dell'arrivo merce carica la giacenza.
@@ -605,43 +727,43 @@ Regole sempre vere, utili come oracoli nei test end-to-end:
 
 ## 21. Appendice — Mappa route e permessi
 
-| Route                                                                                       | Pagina                              | Permesso richiesto (uno tra)                                                    |
-| ------------------------------------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------- |
-| `/login`, `/login/forgot-password`, `/login/reset-password`                                 | Autenticazione                      | — (guest)                                                                       |
-| `/app/dashboard`                                                                            | Dashboard                           | autenticato                                                                     |
-| `/app/products`                                                                             | Lista prodotti                      | sezione catalogo (catalogo/giacenze/ordini fornitore)                           |
-| `/app/products/new`, `/app/products/:id/edit`                                               | Form prodotto                       | Gestire catalogo                                                                |
-| `/app/products/import`                                                                      | Import CSV prodotti                 | Import/export prodotti                                                          |
-| `/app/products/:id`, `/app/products/:id/print-label`                                        | Dettaglio / etichetta               | sezione catalogo                                                                |
-| `/app/inventory`                                                                            | Giacenze                            | sezione magazzino                                                               |
-| `/app/inventory/lookup`                                                                     | Cerca giacenza                      | sezione magazzino                                                               |
-| `/app/inventory/movements`                                                                  | Movimenti                           | sezione magazzino                                                               |
-| `/app/inventory/movements/new`                                                              | Registra movimento                  | Gestire giacenze                                                                |
-| `/app/inventory/import`                                                                     | Import CSV giacenze                 | Import/export giacenze                                                          |
-| `/app/inventory/counts/new`, `/app/inventory/counts/:id`                                    | Inventario fisico                   | Gestire giacenze                                                                |
-| `/app/suppliers` (+`/new`, `/:id`, `/:id/edit`)                                             | Fornitori                           | vista: area ordini · gestione: Gestire ordini fornitore                         |
-| `/app/orders` (+`/new`, `/:id`, `/:id/edit`)                                                | Ordini fornitori                    | vista: Gestire o Ricevere ordini fornitore · gestione: Gestire ordini fornitore |
-| `/app/documents`                                                                            | Hub documenti                       | Consultare o Gestire documenti                                                  |
-| `/app/documents/registro`, `/app/documents/arrivi-merce`                                    | Registri                            | Consultare o Gestire documenti                                                  |
-| `/app/documents/goods-receipt/new`, `…/:id/edit`                                            | Arrivo merce                        | Gestire documenti                                                               |
-| `/app/documents/registrazione-fattura/new`                                                  | Registrazione fattura               | Gestire documenti                                                               |
-| `/app/documents/transfer/new`, `…/manual-unload/new`, `…/adjustment/new`                    | Trasferimento / Scarico / Rettifica | Gestire documenti                                                               |
-| `/app/documents/proforma/new`, `…/sales-ddt/new`, `…/invoice-draft/new`, `…/sales/:id/edit` | Documenti di vendita                | Gestire documenti                                                               |
-| `/app/documents/settings`                                                                   | Impostazioni numerazione            | Gestire documenti                                                               |
-| `/app/documents/:id`, `/app/documents/:id/print`                                            | Dettaglio / stampa                  | Consultare o Gestire documenti                                                  |
-| `/app/sales`                                                                                | Ordini cliente (lista)              | Consultare report                                                               |
-| `/app/sales/new`, `/app/sales/:id/edit`                                                     | Ordine cliente (form)               | Gestire documenti                                                               |
-| `/app/sales/:id`                                                                            | Dettaglio ordine                    | Consultare report                                                               |
-| `/app/vendita-al-banco/nuova-vendita-al-banco`                                              | Vendite al banco                    | Registrare vendite al banco                                                     |
-| `/app/sales/online`, `/app/sales/online/:id`                                                | Vendite online                      | Consultare report                                                               |
-| `/app/sales/corrispettivi`                                                                  | Corrispettivi                       | Consultare report                                                               |
-| `/app/customers` (+`/:id`)                                                                  | Clienti                             | Visualizzare o Gestire clienti                                                  |
-| `/app/customers/new`, `/app/customers/:id/edit`                                             | Form cliente                        | Gestire clienti                                                                 |
-| `/app/reports`                                                                              | Report                              | Consultare report                                                               |
-| `/app/reports/corrispettivi` (+`/print`)                                                    | Corrispettivi commercialista        | Consultare report                                                               |
-| `/app/reports/accountant-register`                                                          | Registro commercialista             | Consultare report                                                               |
-| `/app/settings` (+`/codici-iva`, `/pagamenti`)                                              | Impostazioni                        | autenticato (pannelli per permesso)                                             |
-| `/app/guide`                                                                                | Guida                               | autenticato                                                                     |
+| Route                                                                                         | Pagina                              | Permesso richiesto (uno tra)                                                    |
+| --------------------------------------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------- |
+| `/login`, `/login/forgot-password`, `/login/reset-password`                                   | Autenticazione                      | — (guest)                                                                       |
+| `/app/dashboard`                                                                              | Dashboard                           | autenticato                                                                     |
+| `/app/products`                                                                               | Lista prodotti                      | sezione catalogo (catalogo/giacenze/ordini fornitore)                           |
+| `/app/products/new`, `/app/products/:id/edit`                                                 | Form prodotto                       | Gestire catalogo                                                                |
+| `/app/products/import`                                                                        | Import CSV prodotti                 | Import/export prodotti                                                          |
+| `/app/products/:id`, `/app/products/:id/print-label`                                          | Dettaglio / etichetta               | sezione catalogo                                                                |
+| `/app/inventory`                                                                              | Giacenze                            | sezione magazzino                                                               |
+| `/app/inventory/lookup`                                                                       | Cerca giacenza                      | sezione magazzino                                                               |
+| `/app/inventory/movements`                                                                    | Movimenti                           | sezione magazzino                                                               |
+| `/app/inventory/movements/new`                                                                | Registra movimento                  | Gestire giacenze                                                                |
+| `/app/inventory/import`                                                                       | Import CSV giacenze                 | Import/export giacenze                                                          |
+| `/app/inventory/counts/new`, `/app/inventory/counts/:id`                                      | Inventario fisico                   | Gestire giacenze                                                                |
+| `/app/suppliers` (+`/new`, `/:id`, `/:id/edit`)                                               | Fornitori                           | vista: area ordini · gestione: Gestire ordini fornitore                         |
+| `/app/orders` (+`/new`, `/:id`, `/:id/edit`)                                                  | Ordini fornitori                    | vista: Gestire o Ricevere ordini fornitore · gestione: Gestire ordini fornitore |
+| `/app/documents`                                                                              | Hub documenti                       | Consultare o Gestire documenti                                                  |
+| `/app/documents/registro`, `/app/documents/arrivi-merce`                                      | Registri                            | Consultare o Gestire documenti                                                  |
+| `/app/documents/goods-receipt/new`, `…/:id/edit`                                              | Arrivo merce                        | Gestire documenti                                                               |
+| `/app/documents/registrazioni-fatture-fornitori/new`                                          | Registrazione fattura               | Gestire documenti                                                               |
+| `/app/documents/transfer/new`, `…/vendita-manuale/new`, `…/adjustment/new`                    | Trasferimento / Scarico / Rettifica | Gestire documenti                                                               |
+| `/app/documents/proforma/new`, `…/ddt-vendita/new`, `…/invoice-draft/new`, `…/sales/:id/edit` | Documenti di vendita                | Gestire documenti                                                               |
+| `/app/documents/settings`                                                                     | Impostazioni numerazione            | Gestire documenti                                                               |
+| `/app/documents/:id`, `/app/documents/:id/print`                                              | Dettaglio / stampa                  | Consultare o Gestire documenti                                                  |
+| `/app/sales`                                                                                  | Ordini cliente (lista)              | Consultare report                                                               |
+| `/app/sales/new`, `/app/sales/:id/edit`                                                       | Ordine cliente (form)               | Gestire documenti                                                               |
+| `/app/sales/:id`                                                                              | Dettaglio ordine                    | Consultare report                                                               |
+| `/app/vendita-al-banco/nuova-vendita-al-banco`                                                | Vendite al banco                    | Registrare vendite al banco                                                     |
+| `/app/sales/online`, `/app/sales/online/:id`                                                  | Vendite online                      | Consultare report                                                               |
+| `/app/sales/corrispettivi`                                                                    | Corrispettivi                       | Consultare report                                                               |
+| `/app/customers` (+`/:id`)                                                                    | Clienti                             | Visualizzare o Gestire clienti                                                  |
+| `/app/customers/new`, `/app/customers/:id/edit`                                               | Form cliente                        | Gestire clienti                                                                 |
+| `/app/reports`                                                                                | Report                              | Consultare report                                                               |
+| `/app/reports/corrispettivi` (+`/print`)                                                      | Corrispettivi commercialista        | Consultare report                                                               |
+| `/app/reports/accountant-register`                                                            | Registro commercialista             | Consultare report                                                               |
+| `/app/settings` (+`/codici-iva`, `/pagamenti`)                                                | Impostazioni                        | autenticato (pannelli per permesso)                                             |
+| `/app/guide`                                                                                  | Guida                               | autenticato                                                                     |
 
 ---
 

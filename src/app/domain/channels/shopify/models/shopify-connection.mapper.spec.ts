@@ -27,6 +27,8 @@ describe('shopifyConnectionFromDto', () => {
         missingFromGrant: [],
         missingForCatalogImport: [],
         catalogImportBlockedReason: 'none',
+        missingForPublications: [],
+        publicationsBlockedReason: 'none',
       },
       lastError: {
         message: 'Errore sync',

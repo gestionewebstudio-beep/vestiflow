@@ -38,9 +38,13 @@ export class StoreSalesController {
   @RequirePermissions(TenantPermission.RetailRegister)
   lookupItem(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Query() query: LookupStoreSaleItemQueryDto,
   ): Promise<StoreSaleItemLookupResult[]> {
-    return this.lookup.lookupItems(tenantId, query);
+    // ⛔ La sede arriva dalla QUERYSTRING: senza l’utente, chi ha «usa la
+    // cassa» in un negozio leggeva giacenza e disponibilita di qualunque
+    // altra sede del tenant.
+    return this.lookup.lookupItems(tenantId, query, user);
   }
 
   /** Concludi vendita: documento + movimenti negativi in una transazione. */
@@ -54,7 +58,7 @@ export class StoreSalesController {
     return this.storeSales.createSale(tenantId, dto, user);
   }
 
-  /** Reso vendita negozio: carico solo per la merce rientrata vendibile. */
+  /** Reso al banco: carico solo per la merce rientrata vendibile. */
   @Post('returns')
   @RequirePermissions(TenantPermission.RetailRegister)
   createReturn(

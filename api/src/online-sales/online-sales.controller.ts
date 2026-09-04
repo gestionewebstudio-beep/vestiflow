@@ -5,6 +5,8 @@ import { ONLINE_SALES_VIEW_GROUPS } from '../auth/tenant-permission.constants';
 import { RequireAllPermissionGroups } from '../common/auth/tenant-permissions.decorator';
 import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import type { Paginated } from '../common/dto/pagination.dto';
 import { ListOnlineSalesQueryDto } from './dto/list-online-sales.query.dto';
 import {
@@ -47,17 +49,19 @@ export class OnlineSalesController {
   @RequireAllPermissionGroups(ONLINE_SALES_VIEW_GROUPS)
   findByOrder(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('salesOrderId', ParseUUIDPipe) salesOrderId: string,
   ): Promise<OnlineSaleDetail | null> {
-    return this.onlineSales.findByOrder(tenantId, salesOrderId);
+    return this.onlineSales.findByOrder(tenantId, salesOrderId, user);
   }
 
   @Get(':id')
   @RequireAllPermissionGroups(ONLINE_SALES_VIEW_GROUPS)
   getDetail(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<OnlineSaleDetail> {
-    return this.onlineSales.getDetail(tenantId, id);
+    return this.onlineSales.getDetail(tenantId, id, user);
   }
 }

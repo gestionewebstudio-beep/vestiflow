@@ -12,6 +12,27 @@ import { assertLocationReadableInUserScope } from '../inventory/user-location-sc
 import { PrismaService } from '../prisma/prisma.service';
 import { applyCommittedDelta } from './committed-delta.util';
 
+/**
+ * Nota dell'evento di aggiornamento: dice CHE COSA è cambiato, perché su un
+ * cambio di combinazione il solo `quantityDelta` non basta a ricostruire dove
+ * l'Impegnata si è spostata.
+ */
+function describeReservationChange(
+  variantChanged: boolean,
+  locationChanged: boolean,
+): string | undefined {
+  if (variantChanged && locationChanged) {
+    return "Cambio articolo e location dell'ordine";
+  }
+  if (variantChanged) {
+    return 'Cambio articolo della riga';
+  }
+  if (locationChanged) {
+    return "Cambio location dell'ordine";
+  }
+  return undefined;
+}
+
 /** Riga ordine da impegnare (input canonico, indipendente dal canale). */
 export interface ReservationLineInput {
   readonly salesOrderLineId: string;
@@ -97,18 +118,20 @@ export class StockReservationService {
         continue;
       }
 
-      const currentRemaining =
-        current.status === ReservationStatus.active ? current.remainingQuantity : 0;
-      const delta = line.quantity - currentRemaining;
-      if (
-        delta === 0 &&
+      // Nulla da fare solo se l'impegno rappresenta GIA' esattamente la riga:
+      // stessa variante, stessa sede, stessa quantita', ancora attivo.
+      // ⛔ Senza il confronto sulla variante, «A x3 → B x3 stessa sede» passava
+      //    di qui come «nessuna modifica» e l'Impegnata restava sulla A.
+      const unchanged =
         current.status === ReservationStatus.active &&
-        current.locationId === params.locationId
-      ) {
+        current.variantId === line.variantId &&
+        current.locationId === params.locationId &&
+        current.remainingQuantity === line.quantity;
+      if (unchanged) {
         continue;
       }
 
-      await this.updateReservationTx(tx, params.tenantId, current, line, delta, params.locationId);
+      await this.updateReservationTx(tx, params.tenantId, current, line, params.locationId);
     }
 
     // Righe rimosse dal canale (o impegni orfani): rilascio, mai cancellazione.
@@ -245,7 +268,17 @@ export class StockReservationService {
     tenantId: string,
     variantId: string,
     locationId: string,
-    user?: UserProfileDto,
+    // ⛔ **`UserProfileDto`, non `UserProfileDto | undefined`.** Misurato il
+    // 28/08/2026: la rotta sta sotto `JwtAuthGuard` senza `@Public()`, il
+    // decoratore `@CurrentUser()` e tipizzato non-nullable e la guardia popola
+    // `request.appUser` su entrambi i rami che restituiscono `true` per una
+    // rotta protetta. L’identita non puo essere assente qui.
+    //
+    // ⚠️ `undefined` era convenzione ereditata dalle utility, non necessita
+    // tecnica: ed e esattamente la forma che ha prodotto lo stesso difetto in
+    // tre domini diversi. Se un giorno servisse una chiamata di sistema, avra
+    // una strada esplicita (`…ForSystem`), non questa scorciatoia.
+    user: UserProfileDto,
   ): Promise<ActiveReservationWithRefs[]> {
     // Il gate della rotta chiede la sola sezione Magazzino, ma la sede arriva
     // dalla query ed è validata solo come UUID: senza questo controllo chi ha
@@ -310,15 +343,39 @@ export class StockReservationService {
     );
   }
 
+  /**
+   * Riallinea un impegno esistente alla riga corrente.
+   *
+   * ⭐ L'impegno rappresenta sempre ESATTAMENTE la riga:
+   * `salesOrderLineId + variantId + locationId + quantità`. Da qui discende
+   * tutto il resto — se cambia la variante o la sede, l'Impegnata NON si
+   * aggiorna per differenza: si NEUTRALIZZA sulla combinazione vecchia e si
+   * applica intera sulla nuova. Sono due conti diversi, e un delta comune fra
+   * loro non significa niente.
+   *
+   * ⛔ Qui `variantId` non veniva scritto e i delta finivano tutti su
+   * `current.variantId`: la riga passava alla variante B mentre l'impegno e
+   * l'Impegnata restavano sulla A. Il difetto era del motore, non dell'Ordine
+   * cliente — `syncOrderReservationsTx` riceveva la variante giusta e la
+   * scartava, quindi ne erano toccati anche il ciclo online e la riapertura
+   * da annullamento.
+   */
   private async updateReservationTx(
     tx: Prisma.TransactionClient,
     tenantId: string,
     current: StockReservation,
     line: ReservationLineInput,
-    delta: number,
     locationId: string,
   ): Promise<void> {
+    const variantChanged = current.variantId !== line.variantId;
     const locationChanged = current.locationId !== locationId;
+    // La combinazione che porta l'Impegnata. Se cambia, cambia il conto su cui
+    // si scrive: non è più lo stesso saldo da correggere.
+    const keyChanged = variantChanged || locationChanged;
+
+    // Quanto risulta impegnato OGGI sulla combinazione vecchia. Zero se
+    // l'impegno non è attivo: un rilasciato che torna in riga non ha niente da
+    // restituire, ha solo da impegnare.
     const currentRemaining =
       current.status === ReservationStatus.active ? current.remainingQuantity : 0;
 
@@ -328,6 +385,7 @@ export class StockReservationService {
         quantity: line.quantity,
         remainingQuantity: line.quantity,
         status: ReservationStatus.active,
+        variantId: line.variantId,
         sku: line.sku,
         locationId,
       },
@@ -338,15 +396,18 @@ export class StockReservationService {
         tenantId,
         reservationId: current.id,
         type: ReservationEventType.updated,
-        quantityDelta: delta,
+        // Variazione della quantità DI QUESTO IMPEGNO, non dell'Impegnata: sono
+        // due assi diversi, e su un cambio di combinazione divergono.
+        quantityDelta: line.quantity - currentRemaining,
         remainingAfter: line.quantity,
-        note: locationChanged ? 'Cambio location dell\'ordine' : undefined,
+        note: describeReservationChange(variantChanged, locationChanged),
       },
     });
 
-    if (locationChanged) {
-      // L'impegno si sposta: Impegnata − residuo sulla vecchia sede,
-      // + quantità piena sulla nuova (ordini cliente manuali multi-sede).
+    if (keyChanged) {
+      // Si azzera il vecchio conto per intero e si apre il nuovo per intero.
+      // ⚠️ Il secondo delta è `line.quantity`, MAI `line.quantity - currentRemaining`:
+      //    sulla combinazione nuova non c'era niente da cui sottrarre.
       await applyCommittedDelta(
         tx,
         tenantId,
@@ -354,11 +415,19 @@ export class StockReservationService {
         current.locationId,
         -currentRemaining,
       );
-      await applyCommittedDelta(tx, tenantId, current.variantId, locationId, line.quantity);
+      await applyCommittedDelta(tx, tenantId, line.variantId, locationId, line.quantity);
       return;
     }
 
-    await applyCommittedDelta(tx, tenantId, current.variantId, current.locationId, delta);
+    // Stessa variante e stessa sede: il conto è uno solo, e si corregge per
+    // differenza.
+    await applyCommittedDelta(
+      tx,
+      tenantId,
+      line.variantId,
+      locationId,
+      line.quantity - currentRemaining,
+    );
   }
 
   private async releaseReservationTx(

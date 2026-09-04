@@ -1,5 +1,6 @@
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { render, screen } from '@testing-library/angular';
+import userEvent from '@testing-library/user-event';
 import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -41,6 +42,7 @@ function titolare(): User {
     isActive: true,
     isPlatformAdmin: false,
     tenantChannelProfile: TenantChannelProfile.Shopify,
+    manualUnloadEnabled: true,
     tenantName: 'Cliente test',
     hasAllLocationsAccess: true,
     assignedLocationIds: [],
@@ -121,16 +123,26 @@ describe('CorrispettiviReportComponent — una sola CTA di export', () => {
     expect(screen.queryByRole('button', { name: /esporta corrispettivi/i })).toBeNull();
   });
 
-  it('lascia in testata tutte le azioni che il pulsante spento copriva', async () => {
+  /**
+   * ⚠️ **La prova è cambiata il 30/08/2026, e la cosa che presidia no.**
+   *
+   * Le AZIONI restano le stesse quattro; cambia dove si trovano. PDF e CSV non
+   * sono più due pulsanti in fila: sono **voci del menu «Esporta»** — decisione
+   * del proprietario, «utilizziamo Esporta e lì mettiamo pdf, csv, xml se
+   * serve». Stampa ed Excel restano comandi propri, perché non sono formati di
+   * esportazione (`14` §5.2).
+   */
+  it('lascia raggiungibili tutte le azioni che il pulsante spento copriva', async () => {
+    const user = userEvent.setup();
     await apri();
 
-    // Le etichette sono state accorciate al nome del formato — quattro pulsanti
-    // larghi che ripetevano il verbo prendevano due file in cima alla pagina —
-    // ma le AZIONI sono le stesse quattro, ed è quello che il test presidia.
-    expect(screen.getByRole('button', { name: /^CSV$/i })).toBeTruthy();
-    expect(screen.getByRole('button', { name: /^Excel$/i })).toBeTruthy();
-    expect(screen.getByRole('button', { name: /^PDF$/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: /^Stampa$/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^Excel$/i })).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: /^Esporta$/i }));
+
+    expect(screen.getByRole('menuitem', { name: /CSV/i })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: /PDF/i })).toBeTruthy();
   });
 
   /**

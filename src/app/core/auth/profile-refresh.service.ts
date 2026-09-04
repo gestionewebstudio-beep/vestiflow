@@ -88,12 +88,28 @@ export class ProfileRefreshService {
    * sarebbe un danno peggiore del permesso stantio che stiamo correggendo.
    * Al prossimo giro riprova.
    */
-  private refresh(): void {
+  /**
+   * ⭐ **Rilettura immediata, su richiesta.**
+   *
+   * Il giro periodico esiste per i cambiamenti decisi ALTROVE — un permesso
+   * revocato da un collega — e ha una finestra minima apposta, per non
+   * martellare l’API. Questa e’ un’altra cosa: la conseguenza di un’azione
+   * appena compiuta da chi sta guardando lo schermo, e aspettare la finestra
+   * significherebbe che l’impostazione «non ha funzionato».
+   *
+   * ⚠️ Serve DOPO il salvataggio delle impostazioni aziendali, perche’ il
+   * profilo porta anche capacita’ del tenant e non solo dati della persona.
+   */
+  refreshNow(): void {
+    this.refresh(true);
+  }
+
+  private refresh(forzato = false): void {
     if (this.inFlight || !this.auth.isAuthenticated()) {
       return;
     }
     const now = Date.now();
-    if (now - this.lastRefreshAt < MIN_GAP_MS) {
+    if (!forzato && now - this.lastRefreshAt < MIN_GAP_MS) {
       return;
     }
     this.lastRefreshAt = now;

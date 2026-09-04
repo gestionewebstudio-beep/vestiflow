@@ -11,7 +11,7 @@ import type { DocumentLineCardMeta } from './document-line-card.model';
  *
  * Questa card dà la **forma**: la banda d'avviso, la riga titolo con elimina e
  * chevron, la variante, la riga meta, la striscia dei valori sempre visibili, il
- * corpo apribile a due colonne e il piede con Duplica/Elimina.
+ * corpo apribile a due colonne e il piede con Elimina.
  *
  * Quello che **cambia col documento** non entra qui come interruttore: entra
  * come contenuto proiettato. L'Arrivo merce mette nella striscia il costo con la
@@ -69,7 +69,6 @@ export class DocumentLineCardComponent {
   readonly removeRequested = output<void>();
   /** Elimina dal piede del corpo aperto: diretta, la card è già aperta. */
   readonly removed = output<void>();
-  readonly duplicated = output<void>();
 
   protected readonly displayTitle = () => this.title().trim() || 'Riga senza prodotto';
 }

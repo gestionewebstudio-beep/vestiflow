@@ -1,6 +1,7 @@
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { render, screen, waitFor } from '@testing-library/angular';
+import { render, screen, waitFor, within } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -62,7 +63,7 @@ function operationalLocationsMock() {
  * Ordine cliente nuovo e un DDT già salvato che si riapre.
  */
 interface FormOptions {
-  readonly kind?: 'quote' | 'sales-ddt' | 'manual-unload';
+  readonly kind?: 'quote' | 'ddt-vendita' | 'vendita-manuale';
   readonly id?: string;
   readonly user?: unknown;
   readonly document?: unknown;
@@ -228,6 +229,155 @@ describe('CustomerOrderFormComponent — le due viste di riga', () => {
     view.fixture.detectChanges();
     return view.container;
   }
+
+  // ── La barra azioni comune ────────────────────────────────────────────────
+  //
+  // ⭐ Il Trasferimento prova la modalita' `submit`; QUESTA maschera esercita
+  // per la prima volta l'altra — `saveType="button"`, il gestore di clic — che
+  // e' la sola ragione per cui quell'ingresso esiste.
+  //
+  // ⚠️ La zona di composizione (i due menu «Concludi ordine» e «Genera
+  // documento») e' provata nella spec del COMPONENTE, dove si puo' proiettare
+  // un'azione qualunque. Qui non si puo': quei menu compaiono solo su un ordine
+  // gia' salvato, e le prove che li riguardano vivono in un altro `describe`
+  // dove il DOM non viene reso affatto — misurano il segnale, non lo schermo.
+  // ── La nota interna ───────────────────────────────────────────────────────
+  //
+  // ⭐ L'ordine cliente ne era privo, e non per una ragione funzionale: la
+  // colonna non esisteva su `sales_orders`. Aggiunta il 25/08/2026 con la
+  // migration `20260825160000_nota_interna_sull_ordine_cliente`, e con lei
+  // l'area note comune.
+  it('⭐ i due campi note ci sono, e scrivono sul documento', async () => {
+    const user = userEvent.setup();
+    const view = await render(CustomerOrderFormComponent, { providers: formProviders() });
+    const comp = view.fixture.componentInstance as unknown as {
+      form: { controls: Record<string, { value: unknown; setValue: (v: unknown) => void }> };
+    };
+    comp.form.controls['customerId']!.setValue('cus-1');
+    comp.form.controls['locationId']!.setValue('loc-1');
+    view.fixture.detectChanges();
+
+    expect(screen.getByLabelText('Note documento', { selector: 'textarea' })).toBeTruthy();
+
+    // ⚠️ La meta' che conta: il campo puo' comparire ed essere scollegato dal
+    // controllo, e a occhio non si distingue.
+    await user.type(
+      screen.getByLabelText('Commento interno', { selector: 'textarea' }),
+      'da richiamare',
+    );
+
+    expect(comp.form.controls['internalComment']!.value).toBe('da richiamare');
+  });
+
+  it('⛔ «Imponibile righe» compare una VOLTA SOLA sulla schermata', async () => {
+    // ⛔ Comparirebbe due volte: nella striscia sotto la tabella e nella banda
+    // totali, con la stessa etichetta e lo stesso valore. L'ha visto il
+    // proprietario guardando lo schermo, due volte, e nessun test lo vedeva —
+    // due elementi diversi che mostrano lo stesso numero non fanno arrossare
+    // niente.
+    //
+    // ⚠️ Valeva anche sull'ordine di CANALE, dove le due etichette erano
+    // «Totale prodotti» e il valore `linesGross` in entrambi i posti.
+    const c = await apri(false);
+
+    const testo = c.textContent ?? '';
+    const quante = testo.split('Imponibile righe').length - 1;
+    expect(quante).toBe(1);
+  });
+
+  it('⭐ la barra c’e’ UNA volta sola, con Chiudi in testa e Salva in coda', async () => {
+    const c = await apri(false);
+
+    expect(c.querySelectorAll('app-document-actions')).toHaveLength(1);
+    const barra = c.querySelector('app-document-actions') as HTMLElement;
+    const etichette = within(barra)
+      .getAllByRole('button', { hidden: true })
+      .map((b) => b.textContent?.trim().replace(/s+/g, ' ') ?? '');
+
+    expect(etichette[0]).toBe('Chiudi');
+    expect(etichette[etichette.length - 1]).toBe('Salva documento');
+  });
+
+  /**
+   * ⭐ **Lo stesso campo si chiama allo stesso modo nelle due viste.**
+   *
+   * ⛔ La data del documento diceva **«Data documento»** sulla scrivania e
+   * **«Data»** sul telefono. Peggio: nel pannello mobile l'`ariaLabel` diceva
+   * già «Data documento», quindi sulla stessa riga **l'occhio e lo screen
+   * reader leggevano due cose diverse**.
+   *
+   * ⚠️ È la stessa famiglia del difetto che è costato la guardia su «Chiudi»
+   * contro «Annulla»: un comando che cambia nome con la larghezza dello schermo
+   * costringe l'operatore a ricordarsi quale, e nessun test lo vedeva.
+   */
+  function etichetteData(vista: HTMLElement): (string | undefined)[] {
+    return [...vista.querySelectorAll('label')]
+      .map((l) => l.textContent?.trim())
+      .filter((t) => t?.startsWith('Data'));
+  }
+
+  function comandiChiamati(vista: HTMLElement, etichetta: string): HTMLElement[] {
+    return [...vista.querySelectorAll('button')].filter((b) => b.textContent?.trim() === etichetta);
+  }
+
+  /**
+   * ⭐ **«Includi documento» è UNO in ogni vista, mai due insieme.**
+   *
+   * Il comando è dichiarato due volte — nel pannello di testata su schermo
+   * compatto, nella barra strumenti su scrivania — perché la sua etichetta
+   * lunga rompeva la riga dei comandi (proprietario, 24/08/2026).
+   *
+   * ⚠️ **Il gate sul viewport è l'unica cosa che li tiene separati**, e non è
+   * un dettaglio: il pannello di testata vive nel DOM anche su scrivania —
+   * commuta col foglio globale, non con un `@if`. Chi toccasse una delle due
+   * condizioni si troverebbe due comandi identici a schermo, o nessuno.
+   *
+   * ⛔ Il commento nel template citava «la guardia sui comandi doppi» come se
+   * esistesse. Non esiste: misurato il 26/08/2026, e nessuno dei 22 script di
+   * `npm run lint` fa quel controllo. Questa prova è la rete che mancava.
+   */
+  it('⭐ nessuna delle due viste chiama la data solo «Data»', async () => {
+    // ⭐ **Una prova sola basta, ed è per una ragione che vale la pena sapere:**
+    // in questa maschera il pannello mobile vive nel DOM ANCHE nella vista
+    // estesa — commuta col CSS, non con un `@if`. Il confronto le vede quindi
+    // entrambe in un colpo, e una seconda prova sulla vista compatta
+    // asserirebbe la stessa cosa due volte.
+    //
+    // ⚠️ Il giorno in cui questa testata passerà ad `app-document-header` — che
+    // le rende ESCLUSIVE — questa prova va sdoppiata, o smetterà di guardare
+    // metà di quello che guarda oggi.
+    const etichette = etichetteData(await apri(false));
+
+    expect(etichette).toContain('Data documento');
+    expect(etichette).not.toContain('Data');
+  });
+
+  it('⭐ «Includi documento» compare una sola volta, in ciascuna vista', async () => {
+    const esteso = await apri(false);
+
+    expect(comandiChiamati(esteso, 'Includi documento')).toHaveLength(1);
+  });
+
+  it('⭐ e una sola anche nella veste compatta', async () => {
+    const compatto = await apri(true);
+
+    expect(comandiChiamati(compatto, 'Includi documento')).toHaveLength(1);
+  });
+
+  it('⭐ e resta una sola anche nella veste compatta', async () => {
+    // ⛔ Prima erano DUE dichiarazioni che commutavano col CSS: sotto la soglia
+    // vivevano entrambe nel DOM, e una di esse aveva perso una differenza senza
+    // che nulla diventasse rosso.
+    const c = await apri(true);
+
+    expect(c.querySelectorAll('app-document-actions')).toHaveLength(1);
+    expect(
+      within(c.querySelector('app-document-actions') as HTMLElement).getAllByRole('button', {
+        name: 'Chiudi',
+        hidden: true,
+      }),
+    ).toHaveLength(1);
+  });
 
   it('sopra la soglia vive la tabella, e le card non esistono', async () => {
     const c = await apri(false);
@@ -819,13 +969,138 @@ describe('CustomerOrderFormComponent — caratterizzazione', () => {
       expect(view.component.numberConflictDialog.isOpen()).toBe(false);
     });
   });
+
+  /**
+   * ⭐ **Passo 6B — lo stato commerciale a schermo.**
+   *
+   * Il contratto è quello approvato dal proprietario il 29/08/2026: quattro
+   * stati, tre scegliibili, Concluso mostrato ma bloccato, e la colonna
+   * «Impegna magazzino» visibile solo a Confermato (`18` §2.2, §9.2).
+   */
+  describe('⭐ stato commerciale del documento (6B)', () => {
+    /** L'accesso ai membri che il montaggio non espone. */
+    interface Interno {
+      readonly loadedOrder: { set: (o: unknown) => void };
+      readonly isLineColumnVisible: (id: string) => boolean;
+      readonly orderState: () => string;
+      readonly isStateLocked: () => boolean;
+    }
+    const interno = (component: unknown): Interno => component as Interno;
+
+    /** Un ordine salvato con lo stato dichiarato, come lo manda l'API. */
+    const ordineConStato = (commercialState: string | null) => ({
+      id: 'so-1',
+      orderNumber: 'ORD-1',
+      source: 'manual',
+      commercialState,
+      lines: [],
+    });
+
+    it('✅ ordine NUOVO: il selettore parte da Confermato', async () => {
+      const { component } = await setup();
+
+      expect(component.form.controls['status']!.value).toBe('confirmed');
+      const stato = screen.getByRole('button', { name: 'Stato documento' });
+      expect(stato).toHaveTextContent('Confermato');
+    });
+
+    it.each([
+      ['to_confirm', 'Da confermare'],
+      ['confirmed', 'Confermato'],
+      ['cancelled', 'Annullato'],
+    ])('✅ scelta «%s»: viaggia nel payload di salvataggio', async (stato, _etichetta) => {
+      const { component } = await setup();
+
+      component.form.controls['status']!.setValue(stato);
+
+      expect(component.buildSavePayload()['status']).toBe(stato);
+    });
+
+    it('✅ ordine riaperto: lo stato si LEGGE dall’API, non si deduce', async () => {
+      const { component } = await setup();
+
+      // ⛔ `cancelledAt` e `fulfilledAt` non entrano più nella decisione: qui
+      //    non ce ne sono, e lo stato è comunque «Da confermare».
+      interno(component).loadedOrder.set(ordineConStato('to_confirm'));
+
+      expect(interno(component).orderState()).toBe('to_confirm');
+    });
+
+    it('⛔ Concluso: lo stato è MOSTRATO ma non modificabile', async () => {
+      const { component, detectChanges } = await setup();
+
+      interno(component).loadedOrder.set(ordineConStato('concluded'));
+      detectChanges();
+
+      // Mostrato: l'etichetta si legge.
+      expect(await screen.findByText('Concluso')).toBeInTheDocument();
+      // Non modificabile: il selettore non c'è più.
+      expect(screen.queryByRole('button', { name: 'Stato documento' })).toBeNull();
+      expect(interno(component).isStateLocked()).toBe(true);
+    });
+
+    it('✅ Concluso: gli ALTRI campi restano modificabili', async () => {
+      const { component, detectChanges } = await setup();
+
+      interno(component).loadedOrder.set(ordineConStato('concluded'));
+      detectChanges();
+
+      // ⭐ Il lucchetto è sul solo campo Stato: il documento no.
+      component.form.controls['notes']!.setValue('nota scritta a Concluso');
+      expect(component.form.controls['notes']!.value).toBe('nota scritta a Concluso');
+    });
+
+    it('⛔ Concluso: il salvataggio NON manda lo stato', async () => {
+      const { component } = await setup();
+
+      interno(component).loadedOrder.set(ordineConStato('concluded'));
+
+      // Mandarlo farebbe rifiutare il salvataggio dalla macchina comune, e
+      // l'ordine non sarebbe più modificabile in nulla.
+      expect(component.buildSavePayload()['status']).toBeUndefined();
+    });
+
+    describe('la colonna «Impegna magazzino» segue lo stato', () => {
+      it.each([
+        ['confirmed', true],
+        ['to_confirm', false],
+        ['cancelled', false],
+      ])('stato «%s» → colonna visibile: %s', async (stato, atteso) => {
+        const { component } = await setup();
+
+        component.form.controls['status']!.setValue(stato);
+
+        expect(interno(component).isLineColumnVisible('commitsStock')).toBe(atteso);
+      });
+
+      it('stato «concluded» → colonna nascosta', async () => {
+        const { component } = await setup();
+
+        interno(component).loadedOrder.set(ordineConStato('concluded'));
+
+        expect(interno(component).isLineColumnVisible('commitsStock')).toBe(false);
+      });
+
+      it('⚠️ nascondere la colonna NON cancella l’intento di riga', async () => {
+        const { component } = await setup();
+        fillLine(component, 0, { name: 'Maglia', qty: 2, price: '10,00' });
+        component.lines.at(0).controls['commitsStock']!.setValue(true);
+
+        component.form.controls['status']!.setValue('to_confirm');
+
+        // `18` §9.3: la colonna sparisce, il dato di riga resta.
+        expect(interno(component).isLineColumnVisible('commitsStock')).toBe(false);
+        expect(component.lines.at(0).controls['commitsStock']!.value).toBe(true);
+      });
+    });
+  });
 });
 
 /**
  * Il blocco alla riapertura.
  *
  * Questa maschera ospita QUATTRO tipi di documento, e fino al 08/2026 il blocco
- * ne copriva due: DDT vendita e Scarico manuale si aprivano scrivibili perché il
+ * ne copriva due: DDT vendita e Vendita manuale si aprivano scrivibili perché il
  * meccanismo era stato scritto per il solo Ordine cliente, e gli altri avevano
  * preso `editUnlocked = true` come ripiego. Questi test dicono che ora la regola
  * è una sola, e che dopo il salvataggio il documento torna protetto senza che si
@@ -917,7 +1192,7 @@ describe('CustomerOrderFormComponent — blocco alla riapertura', () => {
 
   it('un DDT vendita salvato si riapre protetto', async () => {
     const form = await apri({
-      kind: 'sales-ddt',
+      kind: 'ddt-vendita',
       id: 'doc-1',
       document: documentoConfermato('sales_ddt'),
     });
@@ -925,9 +1200,9 @@ describe('CustomerOrderFormComponent — blocco alla riapertura', () => {
     expect(form.formReadOnly()).toBe(true);
   });
 
-  it('uno scarico manuale salvato si riapre protetto', async () => {
+  it('uno vendita manuale salvato si riapre protetto', async () => {
     const form = await apri({
-      kind: 'manual-unload',
+      kind: 'vendita-manuale',
       id: 'doc-1',
       document: documentoConfermato('manual_unload'),
     });
@@ -961,7 +1236,7 @@ describe('CustomerOrderFormComponent — blocco alla riapertura', () => {
     const documento = documentoConfermato('sales_ddt');
     const updateDocument = vi.fn(() => of(documento));
     const form = await apri({
-      kind: 'sales-ddt',
+      kind: 'ddt-vendita',
       id: 'doc-1',
       document: documento,
       updateDocument,
@@ -982,7 +1257,7 @@ describe('CustomerOrderFormComponent — blocco alla riapertura', () => {
   // salvataggio.
   it('su un documento protetto il riordino delle righe non ha effetto', async () => {
     const form = await apri({
-      kind: 'sales-ddt',
+      kind: 'ddt-vendita',
       id: 'doc-1',
       document: documentoConfermato('sales_ddt'),
     });
@@ -1427,6 +1702,106 @@ describe('CustomerOrderFormComponent — conferma dei codici', () => {
    * articolo sulla riga, restava il prezzo del primo. La riga diceva un
    * articolo e costava un altro, e nessuno se ne accorgeva fino alla fattura.
    */
+  /**
+   * ⭐ **Quinto consumer del risolutore comune** (`03c` §5).
+   *
+   * ⚠️ Questi test esistono perché i due divieti che la migrazione chiude qui
+   * **non erano coperti da nessuna prova**: il fixture `variante()` ha
+   * `productName: 'Maglietta'` non vuoto, quindi il ramo `productName || title`
+   * non veniva mai eseguito; e nessun articolo di prova era privo di
+   * `unitOfMeasure`, quindi il ripiego cablato su `'pz'` non si vedeva.
+   */
+  describe('il richiamo articolo passa dal risolutore comune', () => {
+    it('⛔ nome vuoto in anagrafica: la riga resta vuota, non prende il titolo', async () => {
+      const form = await apri([
+        variante({
+          variantId: 'var-senza-nome',
+          sku: 'FEL-L-BLU',
+          // L'unica forma di dato che esegue il ramo di ripiego.
+          productName: '',
+          title: 'Felpa / L / Blu',
+          variantLabel: 'L / Blu',
+        }),
+      ]);
+
+      form.onVariantSelect(0, 'var-senza-nome');
+
+      const riga = form.lines.at(0).controls;
+      // Il titolo contiene la variante: ripiegarci sopra la rimetterebbe dentro
+      // il nome. Vuoto è corretto — dice che l'ANAGRAFICA è incompleta.
+      expect(riga['productName']!.value).toBe('');
+      expect(riga['productName']!.value).not.toContain('Felpa');
+      // …e la variante arriva comunque nella sua colonna.
+      expect(riga['variantLabel']!.value).toBe('L / Blu');
+    });
+
+    it('⛔ articolo senza unità: la cella resta vuota, non dice «pz»', async () => {
+      const form = await apri([
+        variante({
+          variantId: 'var-metri',
+          sku: 'TES-1',
+          productName: 'Tessuto al metro',
+          title: 'Tessuto al metro',
+          // Nessuna `unitOfMeasure`: prima qui scattava `?? 'pz'`, e un
+          // articolo venduto a metri diceva «pezzi».
+        }),
+      ]);
+
+      form.onVariantSelect(0, 'var-metri');
+
+      expect(form.lines.at(0).controls['unitOfMeasure']!.value).toBe('');
+    });
+
+    it("l'unità dell'articolo arriva sulla riga quando c'è", async () => {
+      const form = await apri([
+        variante({ variantId: 'var-m', sku: 'MAG-M', unitOfMeasure: 'mt' }),
+      ]);
+
+      form.onVariantSelect(0, 'var-m');
+
+      expect(form.lines.at(0).controls['unitOfMeasure']!.value).toBe('mt');
+    });
+
+    it('⛔ un SERVIZIO non fa scattare «Impegna magazzino»', async () => {
+      const form = await apri([
+        variante({
+          variantId: 'var-srv',
+          sku: 'SRV-1',
+          productName: 'Consulenza',
+          title: 'Consulenza',
+          // `managesStock` ASSENTE, non `false`: è la forma che una regola
+          // scritta come `managesStock !== false` lascerebbe passare.
+          kind: 'service',
+        }),
+      ]);
+
+      form.onVariantSelect(0, 'var-srv');
+
+      expect(form.lines.at(0).controls['commitsStock']!.value).toBe(false);
+    });
+
+    it('un articolo normale la fa scattare', async () => {
+      const form = await apri([variante({ variantId: 'var-art', sku: 'ART-1' })]);
+
+      form.onVariantSelect(0, 'var-art');
+
+      expect(form.lines.at(0).controls['commitsStock']!.value).toBe(true);
+    });
+
+    it('⛔ la quantità digitata sopravvive al richiamo dello stesso articolo', async () => {
+      const form = await apri([variante({ variantId: 'var-q', sku: 'QTA-1' })]);
+
+      form.onVariantSelect(0, 'var-q');
+      form.lines.at(0).controls['quantity']!.setValue(7);
+
+      // Lo stesso articolo, richiamato di nuovo: è ciò che fa il rientro dal
+      // pannello anagrafica.
+      form.onVariantSelect(0, 'var-q');
+
+      expect(form.lines.at(0).controls['quantity']!.value).toBe(7);
+    });
+  });
+
   it('sostituendo l’articolo sulla riga, il prezzo segue il nuovo', async () => {
     const form = await apri([
       variante({
@@ -1638,7 +2013,7 @@ describe('CustomerOrderFormComponent — conferma dei codici', () => {
  * cronologia (§4) su una serie che non è la sua.
  */
 describe('CustomerOrderFormComponent — quale numeratore chiede ogni modalità', () => {
-  async function apri(kind?: 'quote' | 'sales-ddt' | 'manual-unload') {
+  async function apri(kind?: 'quote' | 'ddt-vendita' | 'vendita-manuale') {
     const available = vi.fn((_type: DocumentType, _locationId?: string | null, _data?: string) =>
       of({ counters: [], proposedCounterId: null }),
     );
@@ -1716,7 +2091,7 @@ describe('CustomerOrderFormComponent — quale numeratore chiede ogni modalità'
   });
 
   it('il DDT di vendita resta sul proprio', async () => {
-    const { available } = await apri('sales-ddt');
+    const { available } = await apri('ddt-vendita');
 
     expect(available.mock.calls[0]![0]).toBe(DocumentType.SalesDdt);
   });
@@ -1783,5 +2158,738 @@ describe('CustomerOrderFormComponent — comandi fuori dai permessi', () => {
     expect(view.queryAllByRole('button', { name: 'Gestisci numerazioni' }).length).toBeGreaterThan(
       0,
     );
+  });
+});
+
+/**
+ * ⛔ **«Aggiungi riga» dà UNA riga operativa, non due** — 24/08/2026.
+ *
+ * Il proprietario ha visto su scrivania due righe vuote comparire premendo il
+ * pulsante una volta sola. Misurato prima di correggere: la `push` era **una**.
+ * La seconda riga era quella con cui il documento nasce — visibile su
+ * scrivania, e su schermo compatto nascosta finché il conteggio non la faceva
+ * ricomparire.
+ *
+ * ## Perché queste tre prove, e non altre
+ *
+ * Chi compila un documento non conta gli elementi del FormArray: conta **le
+ * righe in cui può scrivere**. Le prove guardano quindi il DOM oltre al
+ * modello, perché è lì che il difetto si vedeva.
+ *
+ * ⚠️ La terza prova sembra ovvia e non lo è: la correzione sbagliata di questo
+ * difetto — far decidere alla primitiva se aggiungere — ha mandato in crash il
+ * banco di prova. Due punti del codice costruiscono N righe con
+ * `while (lines.length < n) addLine()`, e con un `addLine` che a volte non
+ * aggiunge quel ciclo non finisce mai. Il worker è morto per memoria esaurita
+ * invece di fallire con un messaggio, ed è il modo peggiore in cui un difetto
+ * può presentarsi. La prova fissa il contratto della primitiva perché non
+ * succeda di nuovo.
+ */
+describe('CustomerOrderFormComponent — «Aggiungi riga» dà una riga sola', () => {
+  /** Le righe come le conta l'operatore: quelle in cui può scrivere. */
+  function righeAVideo(container: HTMLElement): number {
+    return container.querySelectorAll('tr[app-document-line-row]').length;
+  }
+
+  async function documentoNuovo() {
+    const view = await render(CustomerOrderFormComponent, { providers: formProviders() });
+    const componente = view.fixture.componentInstance as unknown as {
+      lines: {
+        length: number;
+        at: (i: number) => { controls: Record<string, { setValue: (v: unknown) => void }> };
+      };
+      form: { controls: Record<string, { setValue: (v: unknown) => void }> };
+      addLine: () => void;
+    };
+    // ⚠️ Senza cliente e sede il gate di testata disabilita la banda righe: il
+    // pulsante ci sarebbe ma non risponderebbe, e la prova non eserciterebbe
+    // niente.
+    componente.form.controls['customerId']!.setValue('cli-1');
+    componente.form.controls['locationId']!.setValue('loc-1');
+    view.fixture.detectChanges();
+    return { view, componente };
+  }
+
+  async function premiAggiungiRiga(view: { fixture: { detectChanges: () => void } }) {
+    await userEvent.click(screen.getByRole('button', { name: /Aggiungi riga/i }));
+    view.fixture.detectChanges();
+  }
+
+  it('⛔ su un documento nuovo NON compare una seconda riga vuota', async () => {
+    const { view, componente } = await documentoNuovo();
+
+    expect(componente.lines.length).toBe(1);
+    expect(righeAVideo(view.container)).toBe(1);
+
+    await premiAggiungiRiga(view);
+
+    // La riga che aspetta è quella dell'apertura: il gesto la riusa.
+    expect(componente.lines.length).toBe(1);
+    expect(righeAVideo(view.container)).toBe(1);
+  });
+
+  it('⭐ ma con la riga già compilata ne apre davvero una nuova', async () => {
+    const { view, componente } = await documentoNuovo();
+    componente.lines.at(0).controls['productName']!.setValue('Maglia cotone');
+    view.fixture.detectChanges();
+
+    await premiAggiungiRiga(view);
+
+    expect(componente.lines.length).toBe(2);
+    expect(righeAVideo(view.container)).toBe(2);
+  });
+
+  it('⛔ e la PRIMITIVA aggiunge sempre: ci si costruiscono N righe', async () => {
+    const { componente } = await documentoNuovo();
+
+    // È il contratto su cui si appoggiano conversione, import e i banchi di
+    // prova. Se un giorno smettesse di valere, un `while` da qualche parte non
+    // finirebbe più.
+    componente.addLine();
+    componente.addLine();
+
+    expect(componente.lines.length).toBe(3);
+  });
+});
+
+/**
+ * ⛔ **I difetti della vista mobile del riferimento** — 24/08/2026, segnalati
+ * dal proprietario guardando lo schermo.
+ *
+ * Il Nuovo Ordine cliente e' il riferimento operativo delle altre sette
+ * maschere: finche' la sua vista compatta non e' quella approvata, usarla come
+ * base propaga uno stato non verificato.
+ *
+ * ## ⚠️ Perche' queste prove passano `hidden: true`
+ *
+ * Le tre viste mobili esistono nel DOM ma il foglio le tiene spente su
+ * desktop (`.co-form__cards { display: none }`) e le accende dentro una media
+ * query. **jsdom non applica le media query**, quindi qui dentro quel
+ * `display: none` resta valido e l'intero sottoalbero mobile risulta **fuori
+ * dall'albero accessibile**: `getByRole` non trova nulla mentre
+ * `querySelector` trova tutto.
+ *
+ * Non e' un difetto di accessibilita' del prodotto — sul dispositivo vero la
+ * media query si applica e le card sono visibili. E' un limite del banco di
+ * prova, e senza `hidden: true` queste guardie direbbero «zero» sempre: verdi
+ * quando devono essere rosse.
+ */
+describe('CustomerOrderFormComponent — vista mobile, i difetti del 24/08', () => {
+  /** Operatore col permesso sul catalogo: vede i comandi che creano articoli. */
+  const CON_CATALOGO = {
+    id: 'usr-1',
+    role: 'clerk',
+    permissions: ['catalog.manage'],
+    tenantChannelProfile: 'gestionale',
+  };
+
+  async function mobileConTestataPiena(conProdotto = false, utente: unknown = CON_CATALOGO) {
+    const view = await render(CustomerOrderFormComponent, {
+      providers: [
+        ...formProviders({ user: utente as never }),
+        { provide: ViewportService, useValue: { compact: () => true } },
+      ],
+    });
+    const comp = view.fixture.componentInstance as unknown as {
+      form: { controls: Record<string, { setValue: (v: unknown) => void }> };
+      lines: {
+        length: number;
+        at: (i: number) => { controls: Record<string, { setValue: (v: unknown) => void }> };
+      };
+    };
+    comp.form.controls['customerId']!.setValue('cus-1');
+    comp.form.controls['locationId']!.setValue('loc-1');
+    if (conProdotto) {
+      // Una riga PRODOTTO vera: ha un nome, quindi non e' la riga tecnica.
+      comp.lines.at(0).controls['productName']!.setValue('Maglia cotone');
+    }
+    view.fixture.detectChanges();
+    return { view, comp };
+  }
+
+  /** Quanti comandi a video rispondono a questo scopo. */
+  function comandi(nome: RegExp): string[] {
+    return screen
+      .queryAllByRole('button', { name: nome, hidden: true })
+      .map((b) =>
+        (b.getAttribute('aria-label') ?? b.textContent ?? '').replace(/\s+/g, ' ').trim(),
+      );
+  }
+
+  /**
+   * ⛔ **Un solo ingresso per ciascuna operazione.**
+   *
+   * A schermo compatto convivevano DUE coppie di comandi equivalenti:
+   * «Aggiungi riga» con «Inserisci riga vuota», e «Nuovo prodotto» con «Crea
+   * nuovo prodotto» — a pochi centimetri gli uni dagli altri.
+   *
+   * ⚠️ **Nessuno dei quattro e' nuovo nel markup**: c'erano tutti anche nella
+   * versione approvata. A cambiare e' stata la VISIBILITA' — la barra strumenti
+   * era spenta sotto `lg` da `.co-form .co-form__lines-tools { display: none }`,
+   * e il commit 71448580 ha tolto quella classe con la sua regola per rendere la
+   * barra «adattata invece che nascosta». Adattata, pero', non vuol dire che
+   * porti anche i comandi che la vista compatta offre gia' altrove.
+   *
+   * ⚠️ **La correzione e' strutturale, non un `@media`**, per due ragioni: una
+   * regola CSS non sarebbe verificabile qui, e due pulsanti con lo stesso scopo
+   * restano due voci per un lettore di schermo anche quando una e' invisibile.
+   * Il comando di troppo non si nasconde — non si rende.
+   */
+  it('⛔ su schermo compatto c’e’ UN SOLO comando «riga vuota»', async () => {
+    await mobileConTestataPiena();
+
+    expect(comandi(/Aggiungi riga|Inserisci riga vuota/i)).toHaveLength(1);
+  });
+
+  it('⛔ e UN SOLO comando «nuovo prodotto»', async () => {
+    await mobileConTestataPiena();
+
+    expect(comandi(/Nuovo prodotto|Crea nuovo prodotto/i)).toHaveLength(1);
+  });
+
+  it('⭐ mentre gli altri comandi della barra restano: e’ adattata, non spenta', async () => {
+    const { view } = await mobileConTestataPiena();
+
+    // Colonne non ha un gemello: toglierlo sarebbe spegnere la barra, che non
+    // e' quello che si e' deciso.
+    expect(view.container.querySelector('app-table-column-picker')).toBeTruthy();
+
+    // ⭐ «Includi documento» c'e' UNA volta sola, e non e' piu' nella barra:
+    // dal 24/08 vive nel pannello «Dettagli documento». La sua etichetta lunga
+    // occupava da sola la seconda riga della griglia a due colonne, e il titolo
+    // «Righe documento» restava centrato contro una pila di due pulsanti.
+    expect(comandi(/Includi documento/i)).toHaveLength(1);
+    // ⚠️ Figli DIRETTI: `app-table-column-picker` rende un `app-button` suo,
+    // e un selettore discendente lo conterebbe come comando della barra.
+    expect(view.container.querySelector('.doc-form__lines-tools > app-button')).toBeNull();
+  });
+
+  /**
+   * ⛔ **Nessuna riga prodotto reale e' speciale perche' e' la prima.**
+   *
+   * La card riceveva `[canRemove]="lines.length > 1"`: con una sola riga nel
+   * FormArray il cestino era disabilitato, e la prima riga prodotto inserita
+   * restava nel documento senza modo di toglierla.
+   *
+   * ⚠️ **La regola «almeno una riga nell'array» e' un fatto tecnico**, e stava
+   * decidendo una cosa di dominio. Il meccanismo per gestirla c'era gia':
+   * `removeLine` risemina una riga tecnica quando l'array si svuota, quindi
+   * togliere il prodotto non lascia mai la maschera senza righe.
+   *
+   * ⛔ Sulla riga di SCRIVANIA il cestino funzionava: il difetto era della sola
+   * vista compatta, ed e' la forma tipica in cui la doppia veste diverge.
+   */
+  it('⛔ la PRIMA riga prodotto si puo’ eliminare come le altre', async () => {
+    const { view } = await mobileConTestataPiena(true);
+
+    const cestino = view.container.querySelector<HTMLButtonElement>('.doc-line-card__remove');
+
+    expect(cestino).not.toBeNull();
+    expect(cestino!.disabled).toBe(false);
+  });
+
+  it('⭐ ma la riga TECNICA vuota, da sola, non offre il cestino', async () => {
+    const { view } = await mobileConTestataPiena(false);
+
+    // Non c'e' niente da eliminare: `removeLine` la riseminerebbe subito, e il
+    // comando prometterebbe un effetto che non produce. Con la sola riga
+    // tecnica la lista non si mostra affatto (stato vuoto).
+    expect(view.container.querySelector('.doc-line-card__remove')).toBeNull();
+  });
+});
+
+/**
+ * ⛔ **Includendo un documento, le righe non comparivano** — 24/08/2026.
+ *
+ * ## Causa radice: un lotto silenzioso e un computed che non lo sente
+ *
+ * `onDocumentIncluded` inserisce le righe con `{ emitEvent: false }` — giusto,
+ * per non scatenare N `valueChanges` su un'inclusione da venti righe. Ma poi
+ * NON riemette: `mobileRowsVisible` ha come unica dipendenza reattiva
+ * `formValue()`, che e' `toSignal(form.valueChanges)`. Se nessun evento parte,
+ * il computed resta al valore di prima — falso — e le card non si disegnano
+ * benche' le righe ci siano.
+ *
+ * ⭐ **Il rimedio esisteva gia' nello stesso file.** Il riordino righe fa un
+ * `removeAt`/`insert` altrettanto silenzioso e chiude con
+ * `this.lines.updateValueAndValidity()`, col commento «un giro esplicito
+ * riallinea vista e totali». All'inclusione quel giro mancava: un evento solo
+ * alla fine, invece di venti durante.
+ *
+ * ⚠️ **E' la stessa forma del difetto delle due righe**: un computed che usa
+ * `formValue()` come innesco diventa cieco a ogni mutazione che sopprime gli
+ * eventi. Ogni lotto silenzioso deve chiudersi riemettendo, o il difetto
+ * ricompare altrove — e non si vede finche' qualcuno non guarda lo schermo.
+ */
+describe('CustomerOrderFormComponent — righe incluse a schermo compatto', () => {
+  it('⛔ dopo un’inclusione le card ci sono', async () => {
+    const view = await render(CustomerOrderFormComponent, {
+      providers: [
+        ...formProviders(),
+        { provide: ViewportService, useValue: { compact: () => true } },
+      ],
+    });
+    const comp = view.fixture.componentInstance as unknown as {
+      form: { controls: Record<string, { setValue: (v: unknown) => void }> };
+      lines: { length: number };
+      onDocumentIncluded: (payload: unknown) => void;
+      mobileRowsVisible: () => boolean;
+    };
+
+    comp.form.controls['customerId']!.setValue('cus-1');
+    comp.form.controls['locationId']!.setValue('loc-1');
+    view.fixture.detectChanges();
+
+    // ⚠️ La lettura PRIMA e' necessaria: un computed e' «stale» solo se era
+    // gia' stato valutato. Senza questo giro la prova non riprodurrebbe il
+    // difetto, perche' la prima valutazione arriverebbe dopo l'inserimento.
+    expect(comp.mobileRowsVisible()).toBe(false);
+
+    comp.onDocumentIncluded({
+      kind: 'quote',
+      sourceId: 'doc-1',
+      sourceReference: 'PR-2026-0001',
+      referenceLine: {
+        description: 'Preventivo PR-2026-0001 del 01/08/2026',
+        isReference: true,
+        quantity: 0,
+      },
+      lines: [
+        {
+          variantId: 'var-1',
+          sku: 'MAG-001',
+          description: 'Maglia cotone',
+          quantity: 2,
+          unitPriceMinor: 2000,
+        },
+      ],
+    });
+
+    // ⚠️ Niente `detectChanges()` qui: nel banco convivono nel DOM la tabella
+    // di scrivania e le card, e la RIGA DI RIFERIMENTO della tabella rende
+    // `formControlName="productName"` fuori da un contesto di form (NG01050).
+    // E' una condizione del banco — su un dispositivo vero le media query ne
+    // dispongono una sola — ed e' REGISTRATA come divergenza «due viste vive»,
+    // non corretta qui: il difetto di questa prova e' un altro.
+    expect(comp.lines.length).toBeGreaterThan(1);
+    // ⚠️ Si verifica lo STATO, non il DOM: renderizzare la riga di riferimento
+    // richiede impalcatura che questo banco non ha (NG01050 sul contesto di
+    // form). Il difetto e' comunque QUI — `mobileRowsVisible` che resta al
+    // valore di prima perche' nessun evento l'ha invalidato — e a schermo le
+    // card non compaiono proprio perche' questo e' falso.
+    expect(comp.mobileRowsVisible()).toBe(true);
+  });
+});
+
+/**
+ * ⛔ **Il contratto dell'uscita** — deciso dal proprietario il 24/08/2026.
+ *
+ * > «se non ho fatto nulla, posso chiudere tranquillamente il documento senza
+ * >  alert. Ovunque deve essere cosi'.»
+ *
+ * Due regole, e la seconda e' la precondizione della prima:
+ *
+ * 1. **Documento toccato → avviso.** «Toccato» vuol dire una cosa sola:
+ *    l'operatore ha cambiato qualcosa.
+ * 2. ⚠️ **I valori PROPOSTI dal sistema non sporcano.** Numero, serie, data
+ *    odierna, sede predefinita: se contassero, ogni documento nascerebbe
+ *    «modificato», l'avviso scatterebbe sempre e smetterebbe di voler dire
+ *    qualcosa — cioe' il difetto opposto, ottenuto correggendo il primo.
+ */
+describe('CustomerOrderFormComponent — il contratto dell’uscita', () => {
+  async function documentoAppenaAperto() {
+    const view = await render(CustomerOrderFormComponent, { providers: formProviders() });
+    return view.fixture.componentInstance as unknown as {
+      canDeactivate: () => boolean | Promise<boolean>;
+      form: { controls: Record<string, { setValue: (v: unknown) => void }> };
+    };
+  }
+
+  it('⭐ appena aperto, si chiude senza avviso', async () => {
+    const comp = await documentoAppenaAperto();
+
+    // `true` secco: la promessa significa «ho aperto il dialogo e aspetto».
+    expect(comp.canDeactivate()).toBe(true);
+  });
+
+  it('⛔ toccato un campo, l’uscita chiede conferma', async () => {
+    const comp = await documentoAppenaAperto();
+    comp.form.controls['customerId']!.setValue('cus-1');
+
+    // Non `true`: qui c'e' lavoro che si perderebbe.
+    expect(comp.canDeactivate()).not.toBe(true);
+  });
+});
+
+/**
+ * ⭐ **La Vendita manuale È una vendita**, e il Listino le appartiene.
+ *
+ * ⛔ Era spento — `!this.isManualUnload && …` — e non per una decisione
+ * commerciale: **per il nome**. Chi legge «Vendita manuale» ragiona
+ * correttamente per quel nome («non è vendita, perché dovrebbe avere il
+ * Listino?»), ma il requisito è l'opposto.
+ *
+ * Deciso dal proprietario il 26/08/2026: è una vendita inserita manualmente che
+ * riduce la giacenza **senza generare movimenti di magazzino**. Il fatto che non
+ * produca `StockMovement` è la sua ECCEZIONE tecnica, non la sua identità.
+ */
+describe('CustomerOrderFormComponent — la Vendita manuale è una vendita', () => {
+  /** Un tenant con un listino ACCESO: senza, non c'è niente da scegliere. */
+  const CON_LISTINI = {
+    listino1Active: true,
+    listino1Name: 'Ingrosso',
+    listino2Active: false,
+    listino2Name: null,
+    listino3Active: false,
+    listino3Name: null,
+  };
+
+  async function apriConListini(kind?: 'vendita-manuale', compatta = false) {
+    const view = await render(CustomerOrderFormComponent, {
+      providers: [
+        ...formProviders(kind ? { kind } : {}),
+        {
+          provide: TenantFeatureSettingsService,
+          useValue: { getSettings: () => of(CON_LISTINI) },
+        },
+        // ⚠️ La vesta si dichiara sempre. Dal 26/08/2026 le due sono ESCLUSIVE:
+        // senza dichiararla si guarderebbe solo la scrivania, e i test che
+        // credono di coprire entrambe smetterebbero di coprirne una — restando
+        // verdi. È il modo peggiore di perdere copertura.
+        { provide: ViewportService, useValue: { compact: () => compatta } },
+      ],
+    });
+    return view.container;
+  }
+
+  /**
+   * ⭐ **La tabella decide, e decide per ENTRAMBE le viste.**
+   *
+   * ⚠️ È il motivo per cui la dichiarazione esiste: la testata dell'Ordine
+   * cliente viveva in due copie — vista estesa e pannello mobile — e ogni
+   * biforcazione per tipo era scritta due volte. Cambiare idea su un campo
+   * voleva dire trovarne tutte le occorrenze, col rischio di correggerne una
+   * sola. È il difetto già misurato sulla data, dove le due copie divergevano
+   * su «Data» e «Data documento».
+   *
+   * ⛔ **Queste prove contavano `2`**, cioè proprio la coesistenza delle due
+   * vesti nel DOM. Dal 26/08/2026 la testata è `app-document-header` e le vesti
+   * sono esclusive: il numero giusto è **1 per vesta**, e va verificato in
+   * tutte e due — contare `1` senza dichiarare quale vesta si sta guardando
+   * sarebbe una prova più debole di prima, non più forte.
+   */
+  it('⭐ il «Rif.» c’è sulla Vendita manuale — su scrivania', async () => {
+    const vista = await apriConListini('vendita-manuale');
+
+    const etichette = [...vista.querySelectorAll('label')].map((l) => l.textContent?.trim());
+    expect(etichette.filter((t) => t === 'Rif.')).toHaveLength(1);
+  });
+
+  it('⭐ …e sul telefono, una volta sola anche lì', async () => {
+    const vista = await apriConListini('vendita-manuale', true);
+
+    const etichette = [...vista.querySelectorAll('label')].map((l) => l.textContent?.trim());
+    expect(etichette.filter((t) => t === 'Rif.')).toHaveLength(1);
+  });
+
+  it('⛔ e non c’è sull’Ordine cliente, su scrivania', async () => {
+    const vista = await apriConListini();
+
+    const etichette = [...vista.querySelectorAll('label')].map((l) => l.textContent?.trim());
+    expect(etichette.filter((t) => t === 'Rif.')).toHaveLength(0);
+  });
+
+  it('⛔ …né sul telefono', async () => {
+    const vista = await apriConListini(undefined, true);
+
+    const etichette = [...vista.querySelectorAll('label')].map((l) => l.textContent?.trim());
+    expect(etichette.filter((t) => t === 'Rif.')).toHaveLength(0);
+  });
+
+  it('⭐ ha il Listino, come ogni altro documento di vendita', async () => {
+    const vista = await apriConListini('vendita-manuale');
+
+    expect(vista.querySelectorAll('app-document-listino-select').length).toBeGreaterThan(0);
+  });
+
+  it('⭐ e ne monta UNA istanza sola: su scrivania', async () => {
+    // ⚠️ Il confronto con l'Ordine cliente è il punto: se la Vendita manuale
+    // ne montasse un numero diverso, il nome avrebbe ricominciato a decidere
+    // qualcosa che non gli compete.
+    const manuale = await apriConListini('vendita-manuale');
+
+    expect(manuale.querySelectorAll('app-document-listino-select')).toHaveLength(1);
+  });
+
+  it('⭐ …e una sola sul telefono', async () => {
+    const manuale = await apriConListini('vendita-manuale', true);
+
+    expect(manuale.querySelectorAll('app-document-listino-select')).toHaveLength(1);
+  });
+});
+
+/**
+ * ⛔ **La fascia secondaria di scrivania: una regressione del 26/08/2026.**
+ *
+ * Il commit `e85027d6` ha portato la scelta dei campi per tipo in una tabella
+ * (`CUSTOMER_HEADER_FIELDS`) e ha riscritto le condizioni del template di
+ * conseguenza. Sulla fascia secondaria di scrivania la sostituzione è stata
+ * sbagliata, e in un modo che nessun test vedeva:
+ *
+ * ```text
+ * prima   @if (isOrder) { Pagamento }  @else if (isQuote) { Consegna · Pagamento }
+ *         → mutuamente esclusivi PER TIPO: un documento è l'uno o l'altro
+ *
+ * dopo    @if (mostraCampo('paymentTerms')) { … } @else if (mostraCampo('expectedDelivery')) { … }
+ *         → NON mutuamente esclusivi: il Preventivo ha ENTRAMBI i campi in
+ *           tabella (quote: ['expectedDelivery','paymentTerms']), quindi vince
+ *           sempre il primo ramo e il secondo non si raggiunge mai
+ * ```
+ *
+ * ⚠️ **Effetto misurato**: su scrivania il Preventivo aveva perso «Consegna
+ * prevista». Sul telefono no — lì il campo ha un `@if` autonomo — quindi il
+ * difetto si vedeva su una vesta sola, che è il modo in cui la doppia testata
+ * nasconde i propri difetti.
+ *
+ * ⭐ La condizione giusta non è «l'uno o l'altro»: è **la fascia c'è se almeno
+ * un campo la abita**, e dentro ogni campo decide da sé.
+ */
+describe('CustomerOrderFormComponent — la fascia secondaria di scrivania', () => {
+  async function apri(kind?: 'quote' | 'ddt-vendita' | 'vendita-manuale', compatta = false) {
+    const view = await render(CustomerOrderFormComponent, {
+      providers: [
+        ...formProviders(kind ? { kind } : {}),
+        { provide: ViewportService, useValue: { compact: () => compatta } },
+      ],
+    });
+    return view.container;
+  }
+
+  it('⛔ il Preventivo mostra «Consegna prevista» su SCRIVANIA', async () => {
+    const vista = await apri('quote');
+
+    expect(vista.querySelector('#co-delivery')).not.toBeNull();
+  });
+
+  it('⭐ …e sul telefono, dove non era mai mancata', async () => {
+    // ⚠️ Dal 26/08/2026 le due vesti sono ESCLUSIVE e l’identificativo è uno
+    // solo: prima erano `co-delivery` e `co-m-delivery`, e la prova poteva
+    // guardarli insieme. Ora la vesta va dichiarata, o si guarda solo una.
+    const vista = await apri('quote', true);
+
+    expect(vista.querySelector('#co-delivery')).not.toBeNull();
+  });
+
+  it('⭐ e il Pagamento resta accanto alla consegna, come prima', async () => {
+    const vista = await apri('quote');
+
+    expect(vista.querySelector('#co-payment')).not.toBeNull();
+  });
+
+  it('⭐ l’Ordine cliente ha il Pagamento e NON la consegna', async () => {
+    const vista = await apri();
+
+    expect(vista.querySelector('#co-payment')).not.toBeNull();
+    expect(vista.querySelector('#co-delivery')).toBeNull();
+  });
+
+  it('⭐ il DDT vendita non ha fascia secondaria: il suo pagamento sta in prima', async () => {
+    const vista = await apri('ddt-vendita');
+
+    expect(vista.querySelector('#co-payment')).toBeNull();
+    expect(vista.querySelector('#co-delivery')).toBeNull();
+  });
+
+  it('⭐ la Vendita manuale non ha né consegna né pagamento', async () => {
+    const vista = await apri('vendita-manuale');
+
+    expect(vista.querySelector('#co-payment')).toBeNull();
+    expect(vista.querySelector('#co-delivery')).toBeNull();
+  });
+});
+
+/**
+ * ⭐ **La testata dopo la migrazione: cosa deve restare invariato.**
+ *
+ * Il proprietario ha posto quattro criteri non negoziabili (26/08/2026). Il
+ * quarto chiede di **dimostrare** invariati campi visibili, valori e default,
+ * modificabilità, stato/lock, Listino, Netto/Ivato, «Includi», scanner,
+ * comportamento nelle due vesti e cambio di soglia. Questo blocco è quella
+ * dimostrazione, per la parte che un test può reggere.
+ *
+ * ⚠️ **Ogni prova dichiara la vesta.** Prima della migrazione non serviva: le
+ * due vivevano insieme nel DOM e una query le vedeva entrambe. Ora sono
+ * esclusive, e un test che non dichiara la vesta guarda **solo la scrivania** —
+ * restando verde mentre smette di coprire metà di quello che copriva.
+ */
+describe('CustomerOrderFormComponent — la testata migrata: invarianti', () => {
+  const CON_LISTINI_ATTIVI = {
+    salesPricesIncludeVat: false,
+    listino1Active: true,
+    listino1Name: 'Ingrosso',
+    listino2Active: false,
+    listino2Name: null,
+    listino3Active: false,
+    listino3Name: null,
+  };
+
+  async function apri(compatta: boolean, kind?: 'quote' | 'ddt-vendita' | 'vendita-manuale') {
+    const view = await render(CustomerOrderFormComponent, {
+      providers: [
+        ...formProviders(kind ? { kind } : {}),
+        {
+          provide: TenantFeatureSettingsService,
+          useValue: { getSettings: () => of(CON_LISTINI_ATTIVI) },
+        },
+        { provide: ViewportService, useValue: { compact: () => compatta } },
+      ],
+    });
+    return view.container;
+  }
+
+  /** Tutte le etichette di campo della testata, nella vesta che si sta guardando. */
+  function etichette(vista: HTMLElement): readonly string[] {
+    return [...vista.querySelectorAll('.doc-form__label, .doc-panel__label')].map(
+      (n) => n.textContent?.trim() ?? '',
+    );
+  }
+
+  it('⭐ SCRIVANIA · l’Ordine cliente mostra i suoi campi, ognuno una volta sola', async () => {
+    const vista = await apri(false);
+    const viste = etichette(vista);
+
+    for (const campo of ['Cliente', 'Location di origine', 'Data documento', 'Stato', 'Listino']) {
+      expect(
+        viste.filter((e) => e === campo),
+        campo,
+      ).toHaveLength(1);
+    }
+  });
+
+  it('⭐ TELEFONO · gli stessi campi, e sempre uno per campo', async () => {
+    const vista = await apri(true);
+    const viste = etichette(vista);
+
+    for (const campo of ['Cliente', 'Location di origine', 'Data documento', 'Stato', 'Listino']) {
+      expect(
+        viste.filter((e) => e === campo),
+        campo,
+      ).toHaveLength(1);
+    }
+  });
+
+  it('⛔ Netto/ivato · sul TELEFONO sta in testata: le card non hanno intestazione di colonna', async () => {
+    const vista = await apri(true);
+
+    expect(etichette(vista).filter((e) => e === 'Modalità prezzo')).toHaveLength(1);
+  });
+
+  it('⛔ Netto/ivato · su SCRIVANIA non sta in testata: la sua casa è l’intestazione di colonna', async () => {
+    // ⚠️ È l'invariante che questa migrazione rischiava di rompere: mettendolo
+    // nella struttura unica senza gate, su scrivania se ne vedrebbero DUE.
+    const vista = await apri(false);
+
+    expect(etichette(vista).filter((e) => e === 'Modalità prezzo')).toHaveLength(0);
+    expect(vista.querySelector('app-document-header app-price-mode-menu')).toBeNull();
+
+    // ⚠️ Qui NON si asserisce che il comando esista altrove nel DOM: su un
+    //   documento nuovo la tabella righe non e’ renderizzata affatto — la
+    //   tiene ferma il gate di testata (cliente e location mancanti), che e’
+    //   coperto dalle sue prove. Asserirlo qui avrebbe legato questa prova a
+    //   una condizione che non c’entra, e l’avrebbe fatta fallire per il
+    //   motivo sbagliato — come e’ successo scrivendola.
+  });
+
+  it('⛔ «Includi documento» · una sola istanza sul TELEFONO', async () => {
+    const vista = await apri(true);
+    const comandi = [...vista.querySelectorAll('button')].filter((b) =>
+      b.textContent?.includes('Includi documento'),
+    );
+
+    expect(comandi).toHaveLength(1);
+  });
+
+  it('⛔ «Includi documento» · una sola istanza su SCRIVANIA, e sta fuori dalla testata', async () => {
+    const vista = await apri(false);
+    const comandi = [...vista.querySelectorAll('button')].filter((b) =>
+      b.textContent?.includes('Includi documento'),
+    );
+
+    expect(comandi).toHaveLength(1);
+    expect(comandi[0]!.closest('app-document-header')).toBeNull();
+  });
+
+  it('⭐ Listino · un componente solo per vesta, su SCRIVANIA', async () => {
+    const vista = await apri(false);
+
+    expect(vista.querySelectorAll('app-document-listino-select')).toHaveLength(1);
+  });
+
+  it('⭐ Listino · e uno solo anche sul TELEFONO', async () => {
+    const vista = await apri(true);
+
+    expect(vista.querySelectorAll('app-document-listino-select')).toHaveLength(1);
+  });
+
+  it('⭐ i campi che hanno un id portano un <label for> VERO, non uno span', async () => {
+    // ⚠️ Cinque campi ce l'avevano prima della migrazione. Migrarli su un
+    // componente che sapesse rendere solo uno <span> avrebbe perso
+    // l'associazione fra nome e campo, in silenzio.
+    const vista = await apri(false);
+    const associati = [...vista.querySelectorAll('label[for]')].map((l) => l.getAttribute('for'));
+
+    expect(associati).toContain('co-date');
+  });
+
+  it('⭐ e cliccare quell’etichetta porta il fuoco nel campo', async () => {
+    const vista = await apri(false);
+    const etichetta = vista.querySelector('label[for="co-date"]') as HTMLLabelElement;
+
+    await userEvent.setup().click(etichetta);
+
+    expect(document.activeElement?.id).toBe('co-date');
+  });
+
+  it('⭐ TELEFONO · il primo pannello nasce APERTO, il secondo chiuso', async () => {
+    // ⚠️ `app-document-header` ha `initiallyOpen` a `true` mentre il pannello
+    // sotto ce l'ha a `false`: il secondo pannello nasceva chiuso proprio
+    // perché non dichiarava niente. Migrando senza passarlo esplicitamente si
+    // sarebbe aperto da solo.
+    const vista = await apri(true);
+    const teste = [...vista.querySelectorAll('.doc-panel__toggle')];
+
+    expect(teste).toHaveLength(2);
+    expect(teste[0]!.getAttribute('aria-expanded')).toBe('true');
+    expect(teste[1]!.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('⭐ TELEFONO · i due pannelli sono quelli del riferimento: Cliente e magazzino, Dettagli documento', async () => {
+    const vista = await apri(true);
+    const titoli = [...vista.querySelectorAll('.doc-panel__copy strong')].map((n) =>
+      n.textContent?.trim(),
+    );
+
+    expect(titoli).toEqual(['Cliente e magazzino', 'Dettagli documento']);
+  });
+
+  it('⛔ attraversando la soglia nessun campo si duplica, in nessuno dei due versi', async () => {
+    const compatta = signal(false);
+    const view = await render(CustomerOrderFormComponent, {
+      providers: [
+        ...formProviders(),
+        { provide: ViewportService, useValue: { compact: compatta } },
+      ],
+    });
+    const conta = () => etichette(view.container).filter((e) => e === 'Data documento').length;
+
+    expect(conta()).toBe(1);
+
+    compatta.set(true);
+    view.detectChanges();
+    expect(conta()).toBe(1);
+
+    compatta.set(false);
+    view.detectChanges();
+    expect(conta()).toBe(1);
   });
 });

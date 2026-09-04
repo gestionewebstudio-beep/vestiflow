@@ -1,3 +1,5 @@
+import { toStorableMinor } from '@core/utils/money.util';
+
 import type { CurrencyCode, EntityId, IsoDateString } from '@core/models/common.model';
 import type { PurchaseCostEntryMode, VatSnapshot } from '@core/models/vat-code.model';
 import type {
@@ -27,15 +29,26 @@ export interface DocumentLineApiRow {
   readonly sku?: string | null;
   readonly description: string;
   readonly quantity: number;
-  readonly unitPriceMinor: number | string;
+  readonly unitPriceMinor: number;
   /** Sconto effettivo con decimali (Decimal serializzato come stringa). */
-  readonly discountPercent: number | string;
+  readonly discountPercent: number;
   readonly vatCodeId?: EntityId | null;
   readonly vatSnapshot?: VatSnapshot | null;
   /** Costo digitato (Decimal serializzato come stringa dal backend). */
   readonly enteredUnitCost?: string | number | null;
   readonly lineTotalMinor: number;
   readonly unitOfMeasure?: string | null;
+  readonly variantLabel?: string | null;
+  /**
+   * Identità dell'articolo FOTOGRAFATA sulla riga (0A.2a).
+   *
+   * ⛔ `null` è un valore, non un dato mancante: significa «questa riga non
+   * aveva un articolo, o è stata salvata prima che la colonna esistesse», e in
+   * nessuno dei due casi si ricostruisce dall'anagrafica di oggi.
+   */
+  readonly articleCode?: string | null;
+  readonly productName?: string | null;
+  readonly barcode?: string | null;
   readonly loadsStock: boolean;
   readonly isReference?: boolean;
   readonly supplierOrderLineId?: EntityId | null;
@@ -59,6 +72,7 @@ export interface LinkedPurchaseInvoiceApiRow {
 
 /** Quota IVA di un arrivo merce (payload API). */
 export interface VatBreakdownApiEntry {
+  readonly vatCodeId?: EntityId | null;
   readonly ratePercent: number;
   readonly netMinor: number;
   readonly vatMinor: number;
@@ -143,7 +157,7 @@ export interface DocumentApiRow {
   readonly taxMinor: number;
   readonly totalMinor: number;
   readonly outstandingMinor?: number | null;
-  readonly documentDiscountPercent?: number | string;
+  readonly documentDiscountPercent?: number;
   readonly pricesIncludeVat: boolean;
   readonly purchaseCostEntryMode?: PurchaseCostEntryMode | null;
   readonly createdByName: string;
@@ -213,10 +227,20 @@ function mapLine(row: DocumentLineApiRow, currency: CurrencyCode): DocumentLine 
     discountPercent: Number(row.discountPercent),
     vatCodeId: row.vatCodeId ?? undefined,
     vatSnapshot: row.vatSnapshot ?? undefined,
+    // ⛔ Qui c'era `Math.round(...)`, e la coda del costo moriva sull'ultimo
+    // metro. La colonna è `NUMERIC(16,6)` in EURO, quindi il ponte a unità
+    // minori è un ×100 che può lasciare una coda: 20,491803 EUR sono 2049,1803
+    // centesimi, e arrotondarli a 2049 rimostra 24,99 dove l'operatore aveva
+    // digitato 25,00 ivati. `toStorableMinor` riduce la coda a quello che il
+    // contratto conserva, senza buttarla via. (regole-gestionale)
     enteredUnitCostMinor:
-      row.enteredUnitCost != null ? Math.round(Number(row.enteredUnitCost) * 100) : undefined,
+      row.enteredUnitCost != null ? toStorableMinor(Number(row.enteredUnitCost) * 100) : undefined,
     lineTotal: { amountMinor: row.lineTotalMinor, currencyCode: currency },
     unitOfMeasure: row.unitOfMeasure ?? undefined,
+    variantLabel: row.variantLabel ?? undefined,
+    articleCode: row.articleCode ?? undefined,
+    productName: row.productName ?? undefined,
+    barcode: row.barcode ?? undefined,
     loadsStock: row.loadsStock,
     isReference: row.isReference === true,
     supplierOrderLineId: row.supplierOrderLineId ?? undefined,
@@ -248,6 +272,7 @@ export function mapVatBreakdown(
   currency: CurrencyCode,
 ): readonly GoodsReceiptVatBreakdownEntry[] | undefined {
   return entries?.map((entry) => ({
+    vatCodeId: entry.vatCodeId ?? null,
     ratePercent: entry.ratePercent,
     net: { amountMinor: entry.netMinor, currencyCode: currency },
     vat: { amountMinor: entry.vatMinor, currencyCode: currency },
@@ -400,11 +425,23 @@ export interface DocumentLineInputBody {
    * il movimento di magazzino e i seriali — `docs/09-specifica-movimenti-per-riga.md`.
    */
   readonly id?: EntityId;
+  /**
+   * La riga di documento da cui questa DERIVA: duplicazione o conversione.
+   *
+   * ⭐ È un riferimento, non dei valori: il server risale a quella riga e ne
+   * copia gli snapshot dal database. Il client non compone l'identità, la
+   * INDICA — ed è così che un duplicato conserva quella dell'originale senza
+   * che l'interfaccia possa inventarla.
+   *
+   * ⛔ Assente = riga nuova dal catalogo, e valgono i valori correnti. Se
+   * l'operatore cambia articolo dopo il prefill, il riferimento si azzera.
+   */
+  readonly sourceDocumentLineId?: EntityId;
   readonly variantId?: EntityId;
   readonly sku?: string;
   readonly description: string;
   readonly quantity: number;
-  readonly unitPriceMinor?: number | string;
+  readonly unitPriceMinor?: number;
   readonly discountPercent?: number;
   /** LEGACY: il backend lo deriva dal Codice IVA; accettato per compatibilità. */
   readonly vatRatePercent?: number;
@@ -412,6 +449,21 @@ export interface DocumentLineInputBody {
   /** Costo unitario digitato (unità minori) nella modalità costo del documento. */
   readonly enteredUnitCostMinor?: number;
   readonly unitOfMeasure?: string;
+  /**
+   * ⛔ **La variante NON viaggia in questo payload, ed è deliberato.**
+   *
+   * Su `document_lines` il salvataggio è un upsert per id, quindi il server
+   * la compone da sé: prende le opzioni della variante e conserva l'etichetta
+   * persistita se la riga porta ancora lo stesso articolo
+   * (`document-line-variant-snapshot.util`). Mandarla anche dal client
+   * creerebbe una **seconda fonte** per lo stesso dato — che è precisamente
+   * il difetto che questa colonna elimina.
+   *
+   * ⚠️ Sull'**Ordine fornitore** è l'opposto, e non è un'incoerenza: là il
+   * salvataggio è `deleteMany` + `create`, le righe perdono l'id e non esiste
+   * un persistito da ritrovare — quindi la fotografa la maschera e viaggia nel
+   * payload. La differenza sta nell'identità della riga, non nel gusto.
+   */
   readonly loadsStock?: boolean;
   readonly isReference?: boolean;
   readonly supplierOrderLineId?: EntityId;
@@ -449,7 +501,7 @@ export interface CreateDocumentBody {
   readonly supplierId?: EntityId;
   readonly customerId?: EntityId;
   /**
-   * Cliente a testo libero (Scarico manuale): usato solo senza customerId —
+   * Cliente a testo libero (Vendita manuale): usato solo senza customerId —
    * snapshot per la stampa, mai salvato in anagrafica.
    */
   readonly customerName?: string;
@@ -669,12 +721,48 @@ export interface SaveAdjustmentBody {
   readonly lines?: readonly SaveTransferOrAdjustmentLineBody[];
 }
 
-/** Riga manuale della registrazione (voci non legate ad arrivi merce). */
-export interface PurchaseInvoiceManualLineBody {
+/**
+ * Riga economica della Registrazione fattura fornitore.
+ *
+ * ⛔ Si chiamava `PurchaseInvoiceManualLineBody` e copriva le sole voci libere:
+ * le righe che venivano dagli arrivi non passavano di qui, perche' il server se
+ * le ricalcolava da solo a ogni salvataggio. Erano DUE liste, e una delle due
+ * non si poteva correggere — proprio quella che quasi mai coincide al centesimo
+ * con la fattura che il fornitore ha davvero mandato.
+ */
+export interface PurchaseInvoiceLineBody {
+  /**
+   * L'id della riga già salvata. Assente = riga nuova.
+   *
+   * ⭐ È ciò che fa sopravvivere l'identità al risalvataggio: senza, il server
+   * cancellava tutte le righe e le riscriveva, e l'id cambiava anche per la
+   * riga che nessuno aveva toccato. È il prerequisito del Codice IVA.
+   */
+  readonly id?: EntityId;
   readonly description: string;
   readonly netMinor: number;
+  /**
+   * L'aliquota. Resta il veicolo per le righe senza Codice IVA — e oggi lo sono
+   * TUTTE quelle salvate prima del 25/08/2026.
+   */
   readonly vatRatePercent: number;
   readonly vatMinor: number;
+  /**
+   * Il Codice IVA della riga, **solo se dichiarato**.
+   *
+   * ⭐ Contratto binario: su una riga esistente, assente significa «non l'ho
+   * modificato» e il server conserva codice e snapshot persistiti. Rimandare
+   * sempre quello letto all'apertura ri-prezzerebbe una fattura vecchia il
+   * giorno in cui quell'aliquota cambia.
+   */
+  readonly vatCodeId?: EntityId;
+  /**
+   * L'arrivo merce da cui la riga e' nata. Assente = voce libera.
+   *
+   * ⭐ E' l'UNICA fonte del collegamento: cancellate tutte le righe di un
+   * arrivo, l'arrivo si scollega da se'.
+   */
+  readonly linkedGoodsReceiptId?: EntityId;
 }
 
 /** Scadenza di pagamento in salvataggio. */
@@ -707,12 +795,20 @@ export interface SavePurchaseInvoiceBody {
   /** Indirizzi: snapshot anagrafica fornitore, modificabile per eccezioni. */
   readonly recipientAddress?: DocumentAddress;
   readonly currency?: CurrencyCode;
-  /** Totali legacy: ignorati se la registrazione ha righe (auto o manuali). */
+  /**
+   * Modalità importi della registrazione: netti o ivati.
+   *
+   * ⭐ Il selettore vive nell'intestazione della colonna, come su ogni altro
+   * documento. Un documento nuovo parte NETTO: è un documento di costo.
+   */
+  readonly purchaseCostEntryMode?: 'vat_excluded' | 'vat_included';
+  /** Totali legacy: ignorati se la registrazione ha righe. */
   readonly totalMinor?: number;
   readonly subtotalMinor?: number;
   readonly taxMinor?: number;
-  readonly goodsReceiptIds?: readonly EntityId[];
-  readonly manualLines?: readonly PurchaseInvoiceManualLineBody[];
+  // ⛔ Qui c'era `goodsReceiptIds`: l'elenco degli arrivi inclusi, tenuto a
+  // parte dalle righe. Tolto il 25/08/2026 — il legame vive sulle righe.
+  readonly lines?: readonly PurchaseInvoiceLineBody[];
   readonly installments?: readonly PurchaseInvoiceInstallmentBody[];
 }
 

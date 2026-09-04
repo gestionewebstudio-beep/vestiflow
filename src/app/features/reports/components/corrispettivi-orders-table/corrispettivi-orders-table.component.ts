@@ -1,19 +1,25 @@
-import { NgTemplateOutlet } from '@angular/common';
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-  input,
-  output,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
-import { ViewportService } from '@core/services/viewport.service';
 import { formatDate } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
+import { colonnaVisibile } from '@shared/models/list-card-fields.util';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
+import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
+import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
+import { DataTableComponent } from '@shared/components/data-table/data-table.component';
+import type { DataTableSelectionEvent } from '@shared/components/data-table/data-table.component';
+import { nextSort } from '@shared/components/data-table/data-table.model';
+import type {
+  DataTableRowTone,
+  DataTableSection,
+  DataTableSort,
+} from '@shared/components/data-table/data-table.model';
+import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
 
+import {
+  LOCATION_UNDETERMINED_LABEL,
+  corrispettivoSourceLabel,
+} from '../../models/corrispettivi-labels.util';
 import {
   type CorrispettiviRefundKind,
   type CorrispettiviRegisterRow,
@@ -39,27 +45,6 @@ const FINANCIAL_TONES: Record<string, BadgeTone> = {
 };
 
 /**
- * Come si chiama l'origine di una riga del registro.
- *
- * ⚠️ `shopify_pos` diceva «Negozio», che è il negozio di **Shopify**, non
- * quello di VestiFlow — e `store`, che è davvero la cassa di VestiFlow,
- * mancava del tutto perché la Vendita al banco nel registro non ci entrava.
- */
-const SOURCE_LABELS: Record<string, string> = {
-  shopify_online: 'Shopify online',
-  shopify_pos: 'Shopify POS',
-  store: 'Vendita al banco',
-  manual: 'Manuale',
-  // La quarta sorgente (`docs/10` §12). Condivide con la Vendita al banco la
-  // coppia Fisico/POS · VestiFlow, ma non l'origine: una registrazione digitata
-  // e una vendita battuta al banco non devono confondersi in colonna.
-  manual_receipt: 'Corrispettivo manuale',
-};
-
-/** La sede che manca non è una sede: si dice, non si lascia in bianco. */
-const LOCATION_UNDETERMINED_LABEL = 'Non determinata';
-
-/**
  * Cosa è stata la rettifica, detto con le parole dell'operatore.
  *
  * «Reso» e «Rimborso» sono cose diverse e vanno chiamate diversamente: nel
@@ -72,203 +57,302 @@ const REFUND_KIND_LABELS: Record<CorrispettiviRefundKind, string> = {
   cancellation: 'Annullamento',
 };
 
+/**
+ * ⭐ **Il Registro sul MOTORE COMUNE** — 30/08/2026.
+ *
+ * ⛔ Qui c'erano 483 righe di `<table>` scritto a mano: intestazioni
+ * ordinabili, `@for` sulle righe, `colspan` calcolati, e la card mobile. Con
+ * Clienti, Fornitori, Prodotti, Giacenze e Situazione era una delle **sei**
+ * tabelle fuori dal motore, e la conseguenza si vedeva: nessuna casella di
+ * selezione, quindi nessuna delle azioni contestuali che ogni altro elenco ha.
+ *
+ * Ora resta qui **solo ciò che è del REGISTRO**: quali celle non sono testo,
+ * come si vestono, come si raggruppa per giornata, e la card compatta. Lo
+ * scheletro — `thead`, `tbody`, selezione, ordinamento, ridimensionamento — lo
+ * rende il motore, come per Documenti e Ordini cliente.
+ *
+ * ⭐ **La card compatta NON cambia di un pixel**, ed è la ragione per cui la
+ * migrazione ha aspettato: il ripiego del motore trasforma ogni cella in una
+ * riga «etichetta … valore», e con dieci colonne dà dieci righe tutte dello
+ * stesso peso — il difetto che `regole-stile-ui` §6 vieta. La direttiva
+ * `appRowCard` esisteva già apposta, e il Registro è il suo **primo
+ * consumatore**, come la sua documentazione prevedeva.
+ */
 @Component({
   selector: 'app-corrispettivi-orders-table',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  // Nessuna pill: tipo e pagamento si leggono dal colore del testo. Il tono
-  // resta il vocabolario condiviso (`BadgeTone`), è il riquadro che se ne va.
-  imports: [NgTemplateOutlet],
+  imports: [DataTableComponent, DataTableCellDirective, DataTableRowCardDirective],
   templateUrl: './corrispettivi-orders-table.component.html',
   styleUrl: './corrispettivi-orders-table.component.scss',
 })
 export class CorrispettiviOrdersTableComponent {
   readonly rows = input.required<readonly CorrispettiviRegisterRow[]>();
-  /**
-   * L'operatore può correggere una registrazione manuale? Governa il solo
-   * pulsante: il permesso vero sta sull'API, e nasconderlo qui è ergonomia.
-   */
+
+  /** Se l'operatore può aprire un Corrispettivo manuale per modificarlo. */
   readonly canEditManual = input(false);
 
   /**
-   * Le colonne accese, dal selettore Colonne della pagina.
+   * Le colonne visibili, **risolte**.
    *
-   * Il componente resta **dumb**: non conosce le preferenze né il servizio che
-   * le tiene — riceve un elenco e lo rispetta. Vuoto significa «tutte», così la
-   * stampa, che un selettore non ce l'ha, non deve saperne niente.
+   * ⚠️ Era `readonly string[]` di soli id, e il componente le filtrava a mano
+   * con `isVisible()`. Il motore vuole le colonne intere — larghezza,
+   * ancoraggio, ordine — e le sa disegnare da sé: la tabella smette di
+   * riscriverle e la pagina smette di scartarle prima di passarle.
    */
-  readonly visibleColumns = input<readonly string[]>([]);
+  readonly columns = input<readonly ResolvedTableColumn[]>([]);
 
-  /** Apertura di una registrazione manuale in modifica. */
   readonly manualReceiptOpened = output<string>();
 
-  /**
-   * I subtotali per giornata, **quando il raggruppamento è acceso**.
-   *
-   * ⚠️ Arrivano dall'API e non si ricalcolano qui: sono addendi del totale del
-   * periodo, prodotti dallo stesso accumulatore. Sommare le righe a schermo per
-   * ottenerli sarebbe la seconda matematica che la specifica vieta — e
-   * basterebbe un arrotondamento diverso perché il piede della giornata non
-   * facesse più il totale in fondo alla pagina.
-   */
+  /** I subtotali di giornata, dall'API. Non si ricalcolano da ciò che si vede. */
   readonly perGiornata = input<readonly CorrispettiviTotaliGiornata[]>([]);
 
-  /** Vista raggruppata per giornata economica. */
   readonly raggruppaPerGiorno = input(false);
 
-  private readonly viewport = inject(ViewportService);
+  readonly sort = input<readonly DataTableSort[]>([]);
+  readonly sortChange = output<readonly DataTableSort[]>();
+
+  /*
+    ⭐ **La selezione ATTRAVERSA questo componente, non ci vive.**
+
+    La tabella è dumb (`regole-architettura`, Smart/Dumb): riceve quali righe sono
+    scelte e dice quando l'utente ne tocca una. Lo STATO sta nella pagina, che è
+    l'unica a sapere cosa farne — e ad avere il servizio che lo restringe quando
+    cambiano filtri o periodo.
+
+    ⚠️ È lo stesso schema di `supplier-order-list`, che la selezione ce l'ha da
+    prima: un secondo modo di farla avrebbe reso i due elenchi diversi proprio
+    nel comportamento che questo lavoro esiste per unificare.
+  */
+  readonly selectedIds = input<ReadonlySet<string>>(new Set<string>());
+
+  /** Modalità selezione: il tocco sulla riga sceglie invece di aprire. */
+  readonly rowClickSelects = input(false);
+
+  /*
+    ⭐ **Si sceglie solo ciò che da qui si può eliminare**, e nel Registro è il
+    solo **Corrispettivo manuale**. Deciso dal proprietario il 30/08/2026.
+
+    ⛔ **Le altre righe sono ordini**, non registrazioni: una vendita Shopify o
+    una vendita al banco entra nel registro perché l'ordine esiste. Eliminarla da
+    qui lascerebbe l'ordine vivo e il registro incoerente — e la regola è
+    l'opposto: «se elimino un ordine, si dovrebbe eliminare il corrispettivo».
+    La cancellazione va fatta sull'ordine, e il registro segue.
+
+    ⚠️ **La riga resta consultabile**: non è un permesso di lettura, è un
+    permesso di scelta. Chi guarda vede tutto; chi seleziona può prendere solo
+    ciò che questo elenco possiede.
+  */
+  protected readonly selezionabile = (row: CorrispettiviRegisterRow): boolean =>
+    Boolean(row.manualReceiptId);
+  readonly selectionChange = output<DataTableSelectionEvent<CorrispettiviRegisterRow>>();
+  readonly selectAllChange = output<boolean>();
+
+  /*
+    ⛔ **NON si costruisce da `rowLabel`**, ed è l'errore che ho fatto scrivendola:
+    quella è l'etichetta di un'AZIONE — «Apri il corrispettivo manuale n. #1009» —
+    e composta dava «Seleziona Apri il corrispettivo manuale n. #1009».
+
+    ⭐ Una casella di selezione nomina **la riga**, non cosa succede premendola.
+    Il difetto l'ha trovato un test che asserisce tutt'altro, leggendo l'attributo
+    nel messaggio di errore: senza quello sarebbe finito a schermo — anzi, in uno
+    screen reader, dove nessuno l'avrebbe visto.
+  */
+  protected readonly selectionLabel = (row: CorrispettiviRegisterRow): string =>
+    `Seleziona la registrazione n. ${row.orderNumber}`;
 
   /**
-   * Quante righe si mostrano su schermo compatto prima di fermarsi.
-   *
-   * ⚠️ **È un limite di VISUALIZZAZIONE, non di dati.** I totali — riepilogo
-   * del periodo, subtotali di giornata, conteggio righe — arrivano tutti
-   * dall'API e non si ricalcolano da ciò che è a schermo: troncare l'elenco
-   * non può spostarli di un centesimo. È la ragione per cui questo taglio è
-   * ammissibile in un registro fiscale, dove nascondere un dato dal conteggio
-   * sarebbe il difetto peggiore possibile.
-   *
-   * Il motivo del taglio è che il riepilogo sta in FONDO: con un mese di
-   * vendite su un telefono, arrivarci significa scorrere centinaia di card.
+   * ⛔ **A raggruppamento acceso non si ordina.** Le giornate sono una piegatura
+   * dell'elenco già ordinato: un secondo criterio spezzerebbe i gruppi, e una
+   * riga finirebbe sotto l'intestazione sbagliata.
    */
-  private static readonly RIGHE_INIZIALI_COMPATTO = 25;
+  protected readonly ordinabile = computed(() => !this.raggruppaPerGiorno());
 
-  private readonly _tutteLeRighe = signal(false);
-
-  /**
-   * L'elenco è troncato? Solo su schermo compatto, solo finché non lo si apre,
-   * e solo se le righe superano davvero la soglia.
-   */
-  protected readonly troncato = computed(
-    () =>
-      this.viewport.compact() &&
-      !this._tutteLeRighe() &&
-      this.rows().length > CorrispettiviOrdersTableComponent.RIGHE_INIZIALI_COMPATTO,
-  );
-
-  /** Quante righe restano fuori: il pulsante le dichiara invece di alludervi. */
-  protected readonly righeNascoste = computed(() =>
-    this.troncato()
-      ? this.rows().length - CorrispettiviOrdersTableComponent.RIGHE_INIZIALI_COMPATTO
-      : 0,
-  );
-
-  /**
-   * Le righe effettivamente disegnate. Su desktop è sempre l'elenco intero: lì
-   * la tabella è densa e scorrere trecento righe costa un gesto, non un
-   * minuto.
-   */
-  protected readonly righeVisibili = computed(() =>
-    this.troncato()
-      ? this.rows().slice(0, CorrispettiviOrdersTableComponent.RIGHE_INIZIALI_COMPATTO)
-      : this.rows(),
-  );
-
-  protected mostraTutte(): void {
-    this._tutteLeRighe.set(true);
-  }
-
-  /**
-   * Le righe divise per giornata, **senza riordinarle**.
-   *
-   * È una piegatura dell'elenco già ordinato: le righe arrivano in ordine
-   * canonico e quelle di una stessa giornata sono già contigue, quindi qui si
-   * taglia soltanto. Riordinare sarebbe un secondo criterio che potrebbe
-   * divergere dal primo — una riga sotto l'intestazione sbagliata.
-   */
-  protected readonly giornate = computed(() => {
-    const totaliPerGiorno = new Map(this.perGiornata().map((g) => [g.giorno, g]));
-    const gruppi: {
-      giorno: string;
-      righe: CorrispettiviRegisterRow[];
-      totali?: CorrispettiviTotaliGiornata;
-    }[] = [];
-
-    // Le righe già troncate: raggruppato o no, a schermo ne compaiono le
-    // stesse. I subtotali di giornata restano quelli dell'API — sono addendi
-    // del totale del periodo, non somme di ciò che si vede.
-    for (const riga of this.righeVisibili()) {
-      const giorno = riga.occurredAt.slice(0, 10);
-      const ultimo = gruppi.at(-1);
-      if (ultimo && ultimo.giorno === giorno) {
-        ultimo.righe.push(riga);
-      } else {
-        gruppi.push({ giorno, righe: [riga], totali: totaliPerGiorno.get(giorno) });
-      }
+  protected onSort(prossimo: readonly DataTableSort[]): void {
+    if (!this.ordinabile()) {
+      return;
     }
-    return gruppi;
-  });
-
-  /** Tutte le colonne accese: il `colspan` dell'intestazione di giornata. */
-  protected readonly colonneTotali = computed(
-    () =>
-      [
-        'occurredAt',
-        'kind',
-        'orderNumber',
-        'customerName',
-        'source',
-        'location',
-        'financialStatus',
-        'taxable',
-        'tax',
-        'total',
-      ].filter((id) => this.isVisible(id)).length,
-  );
-
-  /** Quante colonne stanno a sinistra di «Imponibile»: serve al `colspan`. */
-  protected readonly colonneDescrittive = computed(
-    () =>
-      [
-        'occurredAt',
-        'kind',
-        'orderNumber',
-        'customerName',
-        'source',
-        'location',
-        'financialStatus',
-      ].filter((id) => this.isVisible(id)).length,
-  );
-
-  protected giornoEsteso(giorno: string): string {
-    return formatDate(giorno);
+    this.sortChange.emit(prossimo);
   }
 
-  protected readonly formatMoney = formatMoney;
-  protected readonly formatDate = formatDate;
-  protected readonly locationUndeterminedLabel = LOCATION_UNDETERMINED_LABEL;
-
-  /** Elenco vuoto = nessuna preferenza: si mostrano tutte. */
-  protected isVisible(columnId: string): boolean {
-    const visible = this.visibleColumns();
-    return visible.length === 0 || visible.includes(columnId);
+  /** Il motore emette l'id della colonna premuta; il ciclo lo decide il modello. */
+  protected onSortColumn(columnId: string): void {
+    this.onSort(nextSort(this.sort(), columnId));
   }
+
+  /*
+    ⛔ **QUI C'ERA IL TRONCAMENTO A 25 RIGHE, ed è stato tolto** — deciso dal
+    proprietario il 30/08/2026:
+
+    > «Non deve esserci nessun limite di visualizzazione. Se il cliente ha il
+    > filtro di 30 giorni, deve sapere vedere il totale di quel periodo, anche
+    > se si tratta di vedere mille ordini. **Questo vale ovunque.**»
+
+    ⚠️ **Il motivo scritto qui era esatto ma non bastava.** Diceva — e restava
+    vero — che i totali arrivano dall'API e coprono l'intero periodo, quindi
+    troncare l'elenco non li spostava di un centesimo. Il difetto era un altro:
+    **chi guarda non può saperlo.** Un registro che mostra una parte delle righe
+    non è verificabile, e in un registro fiscale la verificabilità è la funzione,
+    non un di più.
+
+    ⭐ **Il problema che il troncamento risolveva resta**, ed è risolto meglio:
+    il riepilogo e i comandi sono ANCORATI in fondo allo schermo sotto `lg`
+    (`list-page.component.scss`). Non si scorre per vederli — sono sempre lì —
+    e le righe si scorrono tutte, quante sono.
+
+    ⚠️ **Con mille righe questo diventa mille card nel DOM**, ed è la ragione per
+    cui la virtualizzazione del motore tabella smette di essere un'ottimizzazione
+    e diventa un prerequisito (`docs/DA-FARE.md`).
+  */
+
+  // ── Le sezioni: il raggruppamento per giornata, nella forma del motore ────
 
   /**
-   * Questa riga si apre? Solo le registrazioni manuali hanno una maschera dove
-   * andare, e solo a chi può correggerle. Governa insieme mano, `tabindex` ed
-   * etichetta: un solo predicato, così non può esistere una riga che si apre
-   * col mouse ma non da tastiera.
+   * ⭐ **Il raggruppamento è una SEZIONE del motore**, non un markup nostro.
+   *
+   * `DataTableSection` porta già intestazione e piede: l'intestazione è il
+   * giorno per esteso, il piede il suo subtotale. Erano due `<tr>` speciali
+   * scritti a mano con i `colspan` calcolati a parte — e i `colspan` erano il
+   * pezzo più fragile, perché andavano rifatti a ogni colonna accesa o spenta.
+   *
+   * ⚠️ **Le giornate non riordinano**: sono una piegatura dell'elenco già
+   * ordinato, quindi qui si taglia soltanto. Righe della stessa giornata sono
+   * già contigue.
+   *
+   * ⚠️ **I subtotali restano quelli dell'API**: sono
+   * addendi del totale del periodo, non somme di ciò che si vede.
    */
-  protected isOpenable(row: CorrispettiviRegisterRow): boolean {
-    return Boolean(row.manualReceiptId) && this.canEditManual();
+  protected readonly sections = computed<readonly DataTableSection<CorrispettiviRegisterRow>[]>(
+    () => {
+      const righe = this.rows();
+      if (!this.raggruppaPerGiorno()) {
+        return [{ id: 'tutte', rows: righe }];
+      }
+
+      const totaliPerGiorno = new Map(this.perGiornata().map((g) => [g.giorno, g]));
+      const gruppi: DataTableSection<CorrispettiviRegisterRow>[] = [];
+
+      for (const riga of righe) {
+        const giorno = riga.occurredAt.slice(0, 10);
+        const ultimo = gruppi.at(-1);
+        if (ultimo && ultimo.id === giorno) {
+          (ultimo.rows as CorrispettiviRegisterRow[]).push(riga);
+          continue;
+        }
+        const totali = totaliPerGiorno.get(giorno);
+        gruppi.push({
+          id: giorno,
+          header: formatDate(giorno),
+          rows: [riga],
+          ...(totali
+            ? {
+                footer: {
+                  label: `Totale ${formatDate(giorno)}`,
+                  // Su un registro la domanda del gruppo è «quanto ha fatto
+                  // quella giornata»: la risposta è il Totale, non l'imponibile.
+                  emphasis: 'total',
+                  values: {
+                    taxable: formatMoney(totali.taxable),
+                    tax: formatMoney(totali.tax),
+                    total: formatMoney(totali.total),
+                  },
+                },
+              }
+            : {}),
+        });
+      }
+      return gruppi;
+    },
+  );
+
+  // ── Il contratto del motore ───────────────────────────────────────────────
+
+  /**
+   * La colonna è accesa?
+   *
+   * ⚠️ **Serve alla sola CARD.** Le celle della tabella non la usano più: le
+   * colonne spente non arrivano nemmeno, perché il motore disegna solo quelle
+   * che riceve. La card invece non è fatta di colonne — è un disegno suo — e
+   * deve sapere cosa il selettore Colonne ha spento, o mostrerebbe un dato che
+   * l'operatore ha tolto.
+   *
+   * ⛔ Era `isVisible()` e leggeva un input di soli id, che la pagina calcolava
+   * a parte: due fonti per la stessa verità. Ora legge le colonne che il motore
+   * ha già ricevuto.
+   */
+  protected visibile(columnId: string): boolean {
+    return colonnaVisibile(this.columns(), columnId);
   }
 
-  protected openRow(row: CorrispettiviRegisterRow): void {
+  protected readonly rowId = (row: CorrispettiviRegisterRow): string => row.rowId;
+
+  protected readonly rowLabel = (row: CorrispettiviRegisterRow): string =>
+    `Apri il corrispettivo manuale n. ${row.orderNumber}`;
+
+  /** Solo i Corrispettivi manuali si aprono, e solo con il permesso. */
+  protected readonly apribile = (row: CorrispettiviRegisterRow): boolean =>
+    Boolean(row.manualReceiptId) && this.canEditManual();
+
+  /**
+   * ⭐ **La rettifica si legge dal TONO della riga**, che ora è del motore.
+   *
+   * Era `.corrispettivi-table__row--refund` qui dentro: fondo tenue e importi
+   * in rosso. Non è del Registro — ogni elenco con movimenti in due versi ne ha
+   * bisogno — quindi è salito, e questa riga è ciò che resta.
+   */
+  protected readonly rowTone = (row: CorrispettiviRegisterRow): DataTableRowTone =>
+    row.kind === 'refund' ? 'negative' : 'positive';
+
+  /**
+   * ⚠️ **Anche le vendite dichiarano il verso**, e non è pignoleria: sulla card
+   * l'accento laterale verde dice «è entrata» prima che si legga la parola. Un
+   * elenco che non distingue i versi restituisce `null` e non prende accento —
+   * qui i versi ci sono entrambi, quindi si dichiarano entrambi.
+   */
+
+  protected onRowClick(row: CorrispettiviRegisterRow): void {
     if (row.manualReceiptId && this.canEditManual()) {
       this.manualReceiptOpened.emit(row.manualReceiptId);
     }
   }
 
-  /** Spazio apre come Invio, ma prima trattiene lo scorrimento della pagina. */
-  protected onRowSpace(row: CorrispettiviRegisterRow, event: Event): void {
-    if (!this.isOpenable(row)) return;
-    event.preventDefault();
-    this.openRow(row);
-  }
+  /**
+   * ⭐ **Il testo di una cella sta QUI, una volta sola**: il motore lo usa per la
+   * tabella, per il ripiego a card e per il titolo delle celle troncate. Un
+   * template che rendesse un testo diverso sarebbe una seconda verità.
+   */
+  protected readonly cellText = (row: CorrispettiviRegisterRow, columnId: string): string => {
+    switch (columnId) {
+      case 'occurredAt':
+        return formatDate(row.occurredAt);
+      case 'kind':
+        return row.kind === 'refund' ? this.refundLabel(row.refundKind) : 'Vendita';
+      case 'orderNumber':
+        return row.orderNumber;
+      case 'customerName':
+        return row.customerName || '—';
+      case 'source':
+        return corrispettivoSourceLabel(row.source);
+      case 'location':
+        return row.locationName ?? LOCATION_UNDETERMINED_LABEL;
+      case 'financialStatus':
+        return row.financialStatus ? this.financialLabel(row.financialStatus) : '—';
+      case 'taxable':
+        return formatMoney(row.taxable);
+      case 'tax':
+        return formatMoney(row.tax);
+      case 'total':
+        return formatMoney(row.total);
+      default:
+        return '';
+    }
+  };
 
-  protected sourceLabel(source: string): string {
-    return SOURCE_LABELS[source] ?? source;
-  }
+  // ── Etichette e vesti, che restano del Registro ───────────────────────────
+
+  protected readonly formatMoney = formatMoney;
+  protected readonly formatDate = formatDate;
+  protected readonly locationUndeterminedLabel = LOCATION_UNDETERMINED_LABEL;
+  protected readonly sourceLabel = corrispettivoSourceLabel;
 
   protected financialLabel(status: string): string {
     return FINANCIAL_LABELS[status] ?? status;

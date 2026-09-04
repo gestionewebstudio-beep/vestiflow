@@ -1,18 +1,19 @@
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { AuthService } from '@core/auth';
-import { render, screen } from '@testing-library/angular';
+import { render, screen, within } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 
 import type { UserEvent } from '@testing-library/user-event';
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import { of, throwError } from 'rxjs';
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AppErrorKind } from '@core/models/app-error.model';
 import { SupplierOrderStatus } from '@core/models/supplier-order.model';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { VatCodeService } from '@core/services/vat-code.service';
+import { ViewportService } from '@core/services/viewport.service';
 import { ProductService } from '@domain/products/services/product.service';
 
 import { SupplierOrderFormComponent } from './supplier-order-form.component';
@@ -38,11 +39,38 @@ const VARIANTS: readonly VariantSummary[] = [
     productId: 'prod-1',
     productName: 'Maglietta',
     title: 'Maglietta / M / Rosso',
+    // ⚠️ Era `''`, messo solo per soddisfare il tipo: nessun test lo leggeva, e
+    // il ripiego `productName || title` non e' MAI stato eseguito in nessuna
+    // prova, perche' `productName` non e' vuoto. Il difetto viveva scoperto.
+    variantLabel: 'M / Rosso',
     sku: 'MAG-M-ROSSO',
     articleCode: 'ART-MAG',
     // Obbligatorio nel modello: senza, il dettaglio del suggerimento esplode e
     // il pannello resta vuoto senza dire perché. Il dato di prova mentiva al tipo.
     sellingPrice: { amountMinor: 2990, currencyCode: 'EUR' },
+  },
+  /**
+   * ⚠️ **L'articolo che ARMA il divieto di ripiego.**
+   *
+   * `productName` vuoto e `title` pieno: e' l'unica forma di dato che esegue
+   * il ramo `productName || title`. Con il solo articolo qui sopra — nome non
+   * vuoto — togliere il ripiego o lasciarlo dava lo stesso risultato in ogni
+   * prova, e il difetto e' vissuto scoperto fino al 24/08/2026.
+   *
+   * Il contratto dice che qui il nome esce VUOTO: se `productName` manca e' la
+   * summary a essere sbagliata, e si corregge la summary. Ripiegare sul titolo
+   * rimetterebbe la variante dentro il nome proprio nel caso in cui nessuno
+   * se ne accorge.
+   */
+  {
+    variantId: 'var-senza-nome',
+    productId: 'prod-2',
+    productName: '',
+    title: 'Felpa / L / Blu',
+    variantLabel: 'L / Blu',
+    sku: 'FEL-L-BLU',
+    articleCode: 'ART-FEL',
+    sellingPrice: { amountMinor: 4990, currencyCode: 'EUR' },
   },
 ];
 
@@ -153,23 +181,58 @@ function salvaDocumento(): HTMLElement {
   return screen.getAllByRole('button', { name: 'Salva documento' })[0]!;
 }
 
+/**
+ * ⚠️ **Le etichette sono quelle della RIGA E DELL'INTESTAZIONE COMUNI**, non
+ * piu' quelle del markup locale:
+ *
+ *   «Quantità ordinata»       → «Quantità riga N»      dice QUALE riga
+ *   «Ordina per SKU»          → «SKU: ordina crescente» dice anche il VERSO
+ *
+ * Prevale l'Ordine cliente (decisione del 24/08/2026), e le due forme comuni
+ * dicono di piu': a voce, «Quantita' ordinata» ripetuto su venti righe non ne
+ * distingue nessuna.
+ */
 describe('SupplierOrderFormComponent', () => {
-  // jsdom non implementa <dialog>: senza questo, aprire il dialogo di sblocco
-  // esplode con «showModal is not a function». È un limite dell'ambiente di
-  // prova, non del componente.
-  beforeAll(() => {
-    const proto = globalThis.HTMLDialogElement?.prototype;
-    if (proto && !proto.showModal) {
-      proto.showModal = function showModal(this: HTMLDialogElement) {
-        this.open = true;
-      };
-      proto.close = function close(this: HTMLDialogElement) {
-        this.open = false;
-      };
-    }
-  });
+  // ⛔ Qui c'era il polyfill di `<dialog>` per jsdom, copiato in TRE spec.
+  // Portato in `src/test-setup.ts` il 25/08/2026: una copia mancante non si
+  // vede — la prova che apre il dialogo semplicemente non esiste ancora.
 
-  async function setup(options?: { createFails?: boolean; vatCodes?: readonly unknown[] }) {
+  async function setup(options?: {
+    createFails?: boolean;
+    vatCodes?: readonly unknown[];
+    // La vista viva: sotto la soglia la testata è il pannello, sopra la griglia.
+    // Le due sono ESCLUSIVE, quindi una prova che riguarda la testata deve dire
+    // quale sta guardando.
+    compatta?: boolean;
+    /**
+     * Lo stato di navigazione con cui la Situazione magazzino apre un ordine
+     * nuovo già compilato. Si finge sul PROTOTIPO del Router: `render` crea il
+     * componente subito, e `getCurrentNavigation` va sostituita prima.
+     */
+    prefill?: { readonly supplierId: string; readonly variantIds: readonly string[] };
+  }) {
+    if (options?.prefill) {
+      vi.spyOn(Router.prototype, 'getCurrentNavigation').mockReturnValue({
+        extras: { state: { supplierOrderPrefill: options.prefill } },
+      } as unknown as ReturnType<Router['getCurrentNavigation']>);
+    }
+
+    /**
+     * ⚠️ Risponde anche per `variantId`: è la chiave con cui il richiamo
+     * articolo risolve una riga già agganciata — quella su cui si appoggia il
+     * precompilato. Rispondendo solo a `search`, la riga precompilata sarebbe
+     * restata vuota **senza errori**.
+     *
+     * ⭐ È una spia contata: quante volte la maschera interroga il catalogo è
+     * una proprietà che si può provare, e la lentezza segnalata dal
+     * proprietario il 29/08/2026 sta lì.
+     */
+    const cercaVarianti = vi.fn((query?: { search?: string; variantId?: string }) => {
+      if (query?.variantId) {
+        return of(VARIANTS.filter((v) => v.variantId === query.variantId));
+      }
+      return query?.search && query.search.length >= 2 ? of(VARIANTS) : of([]);
+    });
     const createOrder = options?.createFails
       ? vi.fn(() =>
           throwError(() => ({
@@ -183,6 +246,9 @@ describe('SupplierOrderFormComponent', () => {
       providers: [
         // Nessun permesso costi: il selettore articolo non deve mostrare il costo.
         { provide: AuthService, useValue: { currentUser: () => null } },
+        // Senza il foglio globale la soglia non è leggibile e il servizio vero
+        // resta sulla vista estesa: la vista compatta si chiede.
+        { provide: ViewportService, useValue: { compact: () => options?.compatta === true } },
         // Catch-all: il test «ritorno alla lista» naviga davvero verso /app/orders.
         provideRouter([{ path: '**', children: [] }]),
         // Serve da quando l'ordine fornitore ha gli allegati: in modifica il
@@ -206,8 +272,7 @@ describe('SupplierOrderFormComponent', () => {
         {
           provide: ProductService,
           useValue: {
-            searchVariantSummaries: (query?: { search?: string }) =>
-              query?.search && query.search.length >= 2 ? of(VARIANTS) : of([]),
+            searchVariantSummaries: cercaVarianti,
           },
         },
         {
@@ -266,7 +331,7 @@ describe('SupplierOrderFormComponent', () => {
       ],
     });
 
-    return { fixture, createOrder };
+    return { fixture, createOrder, cercaVarianti };
   }
 
   /**
@@ -288,10 +353,44 @@ describe('SupplierOrderFormComponent', () => {
   // senza numero né serie in testata: il server lo numerava d'ufficio e
   // l'operatore non vedeva niente.
 
+  /**
+   * ⭐ **La testata esiste UNA volta sola.** Fino al 24/08/2026 era scritta due
+   * volte nello stesso file — griglia desktop e pannello mobile — ed entrambe
+   * stavano nel DOM: ogni campo aveva due identificativi (`po-m-*` e `po-*`),
+   * e le prove prendevano `[0]` per non inciampare nel gemello. Da qui in poi
+   * `findByLabelText` fallisce se qualcuno la riscrive due volte.
+   */
+  it('il campo Numero esiste una volta sola, non una per vista', async () => {
+    await setup();
+
+    expect(await screen.findAllByLabelText('Numero')).toHaveLength(1);
+  });
+
+  /**
+   * La modalità costo è un comando di DOCUMENTO — decide come si leggono tutti
+   * i costi, non uno — e per questo sta fra i dati di testata, non sopra le
+   * righe. Su scrivania lo stesso comando vive già nell'intestazione della
+   * colonna Costo: dichiararlo anche in testata lo metterebbe due volte nella
+   * stessa schermata.
+   */
+  it('modalità costo: campo di testata nella vista compatta', async () => {
+    await setup({ compatta: true });
+
+    expect(
+      await screen.findByRole('button', { name: 'Modalità costo netto o ivato' }),
+    ).toBeVisible();
+  });
+
+  it("modalità costo: non in testata sulla vista estesa, dov'è nella colonna Costo", async () => {
+    await setup();
+
+    expect(screen.queryByRole('button', { name: 'Modalità costo netto o ivato' })).toBeNull();
+  });
+
   it('propone in testata serie e primo numero libero', async () => {
     await setup();
 
-    const numero = (await screen.findAllByLabelText<HTMLInputElement>('Numero'))[0]!;
+    const numero = await screen.findByLabelText<HTMLInputElement>('Numero');
     expect(numero.value).toBe('42');
   });
 
@@ -323,7 +422,7 @@ describe('SupplierOrderFormComponent', () => {
     const user = userEvent.setup();
     const { createOrder } = await setup();
 
-    const numero = (await screen.findAllByLabelText<HTMLInputElement>('Numero'))[0]!;
+    const numero = await screen.findByLabelText<HTMLInputElement>('Numero');
     await user.clear(numero);
     await user.type(numero, '7');
     await scegliArticoloSullaRiga(user);
@@ -418,7 +517,7 @@ describe('SupplierOrderFormComponent', () => {
 
     // L'articolo di prova non ha costo: senza, il salvataggio si ferma prima e
     // il carico utile non parte nemmeno.
-    const costo = screen.getByPlaceholderText('0,00');
+    const costo = screen.getByLabelText('Costo riga 1');
     await user.clear(costo);
     await user.type(costo, '12,50');
 
@@ -440,7 +539,7 @@ describe('SupplierOrderFormComponent', () => {
     await setup();
     await scegliFornitore(user);
 
-    await user.click(screen.getByRole('button', { name: 'Ordina per Nome prodotto' }));
+    await user.click(screen.getByRole('button', { name: /^Nome prodotto: ordina/ }));
 
     expect(await screen.findByText('Riordino righe')).toBeVisible();
     expect(screen.getByText(/non sarà più ricostruibile/)).toBeVisible();
@@ -451,11 +550,11 @@ describe('SupplierOrderFormComponent', () => {
     await setup();
     await scegliFornitore(user);
 
-    await user.click(screen.getByRole('button', { name: 'Ordina per SKU' }));
+    await user.click(screen.getByRole('button', { name: /^SKU: ordina/ }));
     await user.click(screen.getByRole('button', { name: 'Annulla' }));
 
     // L'avviso non è stato consumato: il gesto successivo lo richiede.
-    await user.click(screen.getByRole('button', { name: 'Ordina per SKU' }));
+    await user.click(screen.getByRole('button', { name: /^SKU: ordina/ }));
     expect(await screen.findByText('Riordino righe')).toBeVisible();
   });
 
@@ -480,7 +579,7 @@ describe('SupplierOrderFormComponent', () => {
     const user = userEvent.setup();
     const { createOrder } = await setup({ vatCodes: [VAT_22] });
     await scegliArticoloSullaRiga(user);
-    const costo = screen.getByPlaceholderText('0,00');
+    const costo = screen.getByLabelText('Costo riga 1');
     await user.clear(costo);
     await user.type(costo, '12,50');
 
@@ -525,16 +624,49 @@ describe('SupplierOrderFormComponent', () => {
 
     await scegliFornitore(user);
 
-    const qtyInput = screen.getByLabelText('Quantità ordinata');
+    const qtyInput = screen.getByLabelText('Quantità riga 1');
     await user.clear(qtyInput);
     await user.type(qtyInput, '3');
 
     await user.click(screen.getByRole('button', { name: 'Indietro' }));
 
-    expect(await screen.findByRole('dialog')).toBeVisible();
-    expect(screen.getByText('Modifiche non salvate')).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Chiudi senza salvare' })).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Salva e chiudi' })).toBeVisible();
+    const dialogo = await screen.findByRole('dialog');
+    expect(dialogo).toBeVisible();
+    expect(within(dialogo).getByText('Modifiche non salvate')).toBeVisible();
+
+    // ⭐ DUE azioni, e NESSUNA salva. Decisione del proprietario, 24/08/2026:
+    // «il procedimento deve essere uguale in tutti i documenti».
+    //
+    // ⛔ Qui si asserivano «Chiudi senza salvare» e «Salva e chiudi»: tre
+    // pulsanti, e un terzo percorso che salvava dal dialogo di uscita. Il
+    // salvataggio resta il pulsante Salva della barra.
+    expect(
+      within(dialogo)
+        .getAllByRole('button')
+        .map((b) => b.textContent?.trim()),
+    ).toEqual(['Annulla', 'Esci senza salvare']);
+  });
+
+  it('⭐ salvataggio rifiutato: la riga TORNA, non resti senza dove scrivere', async () => {
+    // ⛔ Difetto visto a schermo dal proprietario il 25/08/2026: premuto Ctrl+S
+    // su un ordine appena aperto, la riga spariva e compariva un errore —
+    // lasciando la maschera spoglia.
+    //
+    // ⚠️ La causa non e' il salvataggio: `dropTrailingEmptyLines()` toglie le
+    // righe vuote PRIMA di validare, e deve farlo, altrimenti la riga seminata
+    // all'apertura impedirebbe di salvare un documento vuoto.
+    const user = userEvent.setup();
+    // ⚠️ NIENTE articolo sulla riga: e' proprio lo scenario visto — documento
+    // appena aperto, riga seminata e vuota, che `dropTrailingEmptyLines()`
+    // toglie. Riempirla farebbe passare la prova senza provare niente.
+    const rendered = await setup({ createFails: true });
+    await scegliFornitore(user);
+
+    await user.click(salvaDocumento());
+    rendered.fixture.detectChanges();
+
+    const righe = rendered.fixture.componentInstance['lines'];
+    expect(righe.length).toBeGreaterThan(0);
   });
 
   it('senza modifiche il ritorno alla lista non chiede conferma', async () => {
@@ -615,10 +747,10 @@ describe('SupplierOrderFormComponent', () => {
 
     await scegliArticoloSullaRiga(user);
 
-    const qtyInput = screen.getByLabelText('Quantità ordinata');
+    const qtyInput = screen.getByLabelText('Quantità riga 1');
     await user.clear(qtyInput);
     await user.type(qtyInput, '2');
-    const costInput = screen.getByPlaceholderText('0,00');
+    const costInput = screen.getByLabelText('Costo riga 1');
     await user.clear(costInput);
     await user.type(costInput, '12,50');
 
@@ -646,14 +778,14 @@ describe('SupplierOrderFormComponent', () => {
   // mai uscire dal documento. È il giro che a mano sembrava a posto due volte
   // mentre non lo era: la prima perché il blocco non si agganciava, la seconda
   // perché non si richiudeva mai dopo il primo sblocco.
-  async function setupEdit() {
+  async function setupEdit(status: SupplierOrderStatus = SupplierOrderStatus.Confirmed) {
     const updateOrder = vi.fn(() => of({ id: 'po-1', status: SupplierOrderStatus.Confirmed }));
     const ordine = {
       id: 'po-1',
       reference: 'OF-2026-0001',
       supplierId: 'sup-1',
       supplierName: 'Tessuti Italia',
-      status: SupplierOrderStatus.Confirmed,
+      status,
       currency: 'EUR',
       costEntryMode: 'vat_excluded' as const,
       orderDate: '2026-08-01T00:00:00.000Z',
@@ -741,7 +873,31 @@ describe('SupplierOrderFormComponent', () => {
 
     expect(await screen.findByRole('button', { name: /Sblocca/ })).toBeVisible();
     // Protetto = form disabilitato: non si digita a vuoto.
-    expect(screen.getByLabelText('Quantità ordinata')).toBeDisabled();
+    expect(screen.getByLabelText('Quantità riga 1')).toBeDisabled();
+  });
+
+  /**
+   * ⭐ **La maschera si apre in TUTTI E TRE gli stati** — decisione del
+   * proprietario del 27-28/08/2026.
+   *
+   * ⛔ Qui la maschera faceva `if (order.status !== Confirmed) return 'not-found'`
+   * e mostrava «Ordine non modificabile». Il clic di riga su un ordine CONCLUSO
+   * — che dal 20/08 punta alla maschera — finiva quindi in un vicolo cieco.
+   *
+   * ⚠️ **Lo stato dell'Ordine serve ai COLLEGAMENTI documentali**: Confermato è
+   * eleggibile in «Includi/Genera», Concluso e Annullato no. Non governa
+   * l'apertura, la modifica né il lucchetto — che resta, e vale per ogni stato.
+   */
+  it.each([
+    SupplierOrderStatus.Confirmed,
+    SupplierOrderStatus.Concluded,
+    SupplierOrderStatus.Cancelled,
+  ])('⭐ stato %s: la maschera carica, e nasce protetta', async (status) => {
+    await setupEdit(status);
+
+    // Caricata = c'è il documento, non lo stato vuoto «Ordine non modificabile».
+    expect(await screen.findByRole('button', { name: /Sblocca/ })).toBeVisible();
+    expect(screen.getByLabelText('Quantità riga 1')).toBeDisabled();
   });
 
   // TODO(blocco documenti): manca il resto del giro — sblocca, modifica, salva,
@@ -775,7 +931,7 @@ describe('SupplierOrderFormComponent', () => {
 
     await scegliArticoloSullaRiga(user);
 
-    const cost = screen.getByPlaceholderText('0,00');
+    const cost = screen.getByLabelText('Costo riga 1');
     await user.clear(cost);
     await user.type(cost, '12,50');
 
@@ -823,7 +979,7 @@ describe('SupplierOrderFormComponent', () => {
     await user.click(screen.getByRole('option', { name: 'Tessuti Italia' }));
     await scegliArticoloSullaRiga(user);
 
-    const costo = screen.getByPlaceholderText('0,00');
+    const costo = screen.getByLabelText('Costo riga 1');
     await user.clear(costo);
     await user.type(costo, '-5,00');
     await user.click(salvaDocumento());
@@ -852,6 +1008,11 @@ describe('SupplierOrderFormComponent', () => {
   // centesimo nel 18% dei costi al 22%. È tenere il netto canonico in memoria e
   // ridisegnare il campo: passando avanti e indietro il numero non si muove
   // perché non viene mai ricostruito da ciò che si vede.
+  /**
+   * ⚠️ Il campo costo si cerca per ETICHETTA, non per segnaposto: da quando la
+   * riga e' comune, «0,00» lo portano anche prezzo di vendita e barrato, e
+   * `getByPlaceholderText` prendeva il primo che capitava.
+   */
   async function switchCostMode(user: ReturnType<typeof userEvent.setup>, label: string) {
     await user.click(screen.getByRole('button', { name: 'Modalità costi del documento' }));
     await user.click(await screen.findByRole('menuitemradio', { name: label }));
@@ -867,7 +1028,7 @@ describe('SupplierOrderFormComponent', () => {
 
     await switchCostMode(user, 'Usa costi ivati');
 
-    const cost = screen.getByPlaceholderText('0,00');
+    const cost = screen.getByLabelText('Costo riga 1');
     await user.clear(cost);
     // 5,02 al 22% è uno dei costi che il giro arrotondato perdeva: il netto
     // vale 411,4754 centesimi, e chi lo arrotondava a 411 tornava a 5,01.
@@ -890,7 +1051,7 @@ describe('SupplierOrderFormComponent', () => {
     await scegliArticoloSullaRiga(user);
 
     await switchCostMode(user, 'Usa costi ivati');
-    const cost = screen.getByPlaceholderText('0,00');
+    const cost = screen.getByLabelText('Costo riga 1');
     await user.clear(cost);
     await user.type(cost, '5,02');
 
@@ -993,6 +1154,7 @@ describe('SupplierOrderFormComponent', () => {
         articleCode: 'ART-1',
         productName: 'Maglietta',
         title: 'Maglietta',
+        variantLabel: '',
         sku: 'MAG-M',
         sellingPrice: { amountMinor: 1000, currencyCode: 'EUR' },
         ...overrides,
@@ -1136,6 +1298,316 @@ describe('SupplierOrderFormComponent', () => {
 
       expect(form.lines.at(0).controls['variantId']!.value).toBe('var-1');
       expect(form.lines.at(0).controls['supplierCode']!.value).toBe('');
+    });
+  });
+
+  /**
+   * ⭐ **L'Ordine fornitore e' il terzo consumer del risolutore comune** (`03c` §5),
+   * dopo Trasferimento e Rettifica. E' il primo che porta **denaro** e la
+   * **famiglia acquisto**: qui si verifica che «IVA prima del costo» regga come
+   * vincolo di contratto e non come commento.
+   *
+   * ⚠️ **Nessuno di questi test sarebbe diventato rosso prima della migrazione**,
+   * ed e' la ragione per cui esistono. Il fixture aveva `productName` non vuoto,
+   * quindi il ripiego `productName || title` non veniva mai eseguito; la colonna
+   * `variantLabel` non esisteva; e la suite era verde con e senza il difetto.
+   */
+  describe('il richiamo articolo passa dal risolutore comune', () => {
+    it('⛔ il nome non porta la variante, che ha la sua colonna', async () => {
+      const user = userEvent.setup();
+      await setup();
+      await scegliArticoloSullaRiga(user);
+
+      const nome = screen.getAllByLabelText('Nome prodotto')[0] as HTMLInputElement;
+      // Il titolo del catalogo e' «Maglietta / M / Rosso»: se il ripiego tornasse,
+      // sarebbe QUI che si vedrebbe.
+      expect(nome.value).toBe('Maglietta');
+      expect(nome.value).not.toContain('/');
+    });
+
+    it('la variante arriva al salvataggio nel suo campo, non dentro il nome', async () => {
+      const user = userEvent.setup();
+      const { createOrder } = await setup();
+      await scegliArticoloSullaRiga(user);
+      await user.click(salvaDocumento());
+
+      expect(createOrder).toHaveBeenCalledWith(
+        expect.objectContaining({
+          lines: [
+            expect.objectContaining({
+              // Il nome, e SOLO il nome: il titolo del catalogo dice
+              // «Maglietta / M / Rosso», e questo e' il punto in cui il vecchio
+              // ripiego lo scriveva nel database.
+              description: 'Maglietta',
+              variantLabel: 'M / Rosso',
+            }),
+          ],
+        }),
+      );
+    });
+
+    /**
+     * ⚠️ **Il richiamo su riga GIA' AGGANCIATA passa da due soli percorsi**, e
+     * i suggerimenti del nome non sono fra questi: `suggestInputs` passa
+     * `hasLinked` e su riga agganciata l'elenco non si apre. I due percorsi
+     * veri sono la LENTE («Cerca un altro prodotto») e il rientro dal pannello
+     * anagrafica — ed e' quest'ultimo il caso in cui il vecchio codice perdeva
+     * dati, perche' richiama lo STESSO articolo.
+     *
+     * Il metodo si chiama direttamente, come gia' fanno i test del pannello
+     * qui sopra: il gesto completo misurerebbe il pannello, non il richiamo.
+     */
+    interface AccessoRichiamo {
+      readonly lines: {
+        at(i: number): { controls: Record<string, { value: unknown; setValue(v: unknown): void }> };
+      };
+      onVariantSelect(index: number, value: string | null, linkedWith?: string): void;
+    }
+
+    it('⛔ la quantita digitata sopravvive al richiamo dello stesso articolo', async () => {
+      const user = userEvent.setup();
+      const { fixture } = await setup();
+      await scegliArticoloSullaRiga(user);
+
+      const form = fixture.componentInstance as unknown as AccessoRichiamo;
+      const riga = form.lines.at(0).controls;
+      riga['quantity']!.setValue(7);
+
+      // Lo STESSO articolo, richiamato di nuovo: e' cio' che fa il rientro dal
+      // pannello anagrafica. Prima della migrazione la quantita' tornava a 1 e
+      // lo sconto si azzerava, su un articolo che non era cambiato.
+      form.onVariantSelect(0, 'var-1');
+      fixture.detectChanges();
+
+      expect(riga['quantity']!.value).toBe(7);
+    });
+
+    it('⛔ lo sconto digitato non viene sovrascritto dal richiamo', async () => {
+      const user = userEvent.setup();
+      const { fixture } = await setup();
+      await scegliArticoloSullaRiga(user);
+
+      const form = fixture.componentInstance as unknown as AccessoRichiamo;
+      const riga = form.lines.at(0).controls;
+      // A cascata, e la stringa va conservata INTATTA: «4+10» vale 13,6% e non
+      // 14, ed e' la stringa che l'operatore rilegge.
+      riga['discount']!.setValue('4+10');
+
+      form.onVariantSelect(0, 'var-1');
+      fixture.detectChanges();
+
+      expect(riga['discount']!.value).toBe('4+10');
+    });
+
+    it('⛔ nome vuoto in anagrafica: la riga resta vuota, non prende il titolo', async () => {
+      const user = userEvent.setup();
+      const { fixture } = await setup();
+      await scegliArticoloSullaRiga(user);
+
+      const form = fixture.componentInstance as unknown as AccessoRichiamo;
+      form.onVariantSelect(0, 'var-senza-nome');
+      fixture.detectChanges();
+
+      const riga = form.lines.at(0).controls;
+      // Il titolo del catalogo e' «Felpa / L / Blu»: ripiegarci sopra
+      // scriverebbe la variante dentro il nome. Vuoto e' corretto — dice che
+      // l'ANAGRAFICA e' incompleta, e si corregge li'.
+      expect(riga['productName']!.value).toBe('');
+      expect(riga['productName']!.value).not.toContain('Felpa');
+      // …e la variante arriva comunque nella sua colonna.
+      expect(riga['variantLabel']!.value).toBe('L / Blu');
+    });
+
+    it("la variante si aggiorna quando l'articolo CAMBIA davvero", async () => {
+      const user = userEvent.setup();
+      const { fixture } = await setup();
+      await scegliArticoloSullaRiga(user);
+
+      const form = fixture.componentInstance as unknown as AccessoRichiamo;
+      const riga = form.lines.at(0).controls;
+      expect(riga['variantLabel']!.value).toBe('M / Rosso');
+
+      // ⛔ Conservare non significa congelare: su un articolo diverso
+      // l'etichetta si RICALCOLA. Un `??` al posto del confronto scriverebbe
+      // «M» su una riga che ora e' una «L».
+      form.onVariantSelect(0, null);
+      fixture.detectChanges();
+
+      expect(riga['variantId']!.value).toBe('');
+    });
+  });
+
+  /**
+   * ⭐ **Passo 6B — il campo Stato dell'Ordine fornitore.**
+   *
+   * Prima di oggi questa maschera non mostrava lo stato affatto: era filtrabile
+   * nell'elenco e invisibile nel documento, quindi «Da confermare» sarebbe stato
+   * irraggiungibile. È lo STESSO selettore dell'Ordine cliente, dalle stesse
+   * `ORDER_STATE_OPTIONS` (`17` §2.1).
+   *
+   * ⚠️ **Qui si prova la RESA, non il giro completo.** In modifica la maschera
+   * nasce protetta e il dialogo di sblocco usa `<dialog>`, che jsdom non
+   * implementa (vedi il TODO più sopra): il round-trip salva/riapre dei tre
+   * stati è provato sull'API, in `stati-ordini.integration-spec.ts`.
+   */
+  describe('⭐ stato commerciale dell’Ordine fornitore (6B)', () => {
+    it('✅ ordine NUOVO: il selettore c’è e parte da Confermato', async () => {
+      await setup({ vatCodes: [VAT_22] });
+
+      const stato = await screen.findByRole('button', { name: 'Stato documento' });
+      expect(stato).toHaveTextContent('Confermato');
+    });
+
+    it.each([SupplierOrderStatus.Confirmed, SupplierOrderStatus.Cancelled])(
+      '✅ stato %s: il selettore resta disponibile',
+      async (status) => {
+        await setupEdit(status);
+
+        expect(await screen.findByRole('button', { name: 'Stato documento' })).toBeVisible();
+      },
+    );
+
+    it('⛔ Concluso: lo stato è MOSTRATO ma il selettore non c’è', async () => {
+      await setupEdit(SupplierOrderStatus.Concluded);
+
+      // Mostrato: l'etichetta si legge in testata.
+      expect(await screen.findByText('Concluso')).toBeVisible();
+      // Non modificabile: nessun selettore da cui uscirne.
+      expect(screen.queryByRole('button', { name: 'Stato documento' })).toBeNull();
+    });
+
+    it('✅ Concluso: il resto del documento resta raggiungibile', async () => {
+      await setupEdit(SupplierOrderStatus.Concluded);
+
+      // ⭐ Il lucchetto è sul solo campo Stato: la maschera carica e si sblocca
+      //    come per ogni altro stato — non è un vicolo cieco.
+      expect(await screen.findByRole('button', { name: /Sblocca/ })).toBeVisible();
+      expect(screen.getByLabelText('Quantità riga 1')).toBeInTheDocument();
+    });
+
+    /**
+     * ⛔ **L'Ordine fornitore non muove quantità, e non deve iniziare adesso.**
+     *
+     * Nessuna colonna «Impegnata», nessuna «In arrivo»: giacenza e impegni sono
+     * dell'Arrivo merce (`17` §1.1, OF-002). Il quarto stato non porta con sé
+     * nessun effetto quantitativo.
+     */
+    it('⛔ nessuna colonna di quantità di magazzino nella griglia righe', async () => {
+      await setup({ vatCodes: [VAT_22] });
+
+      expect(screen.queryByRole('columnheader', { name: /Impegnata/i })).toBeNull();
+      expect(screen.queryByRole('columnheader', { name: /In arrivo/i })).toBeNull();
+      expect(screen.queryByRole('columnheader', { name: /^Imp\.$/ })).toBeNull();
+    });
+  });
+
+  /**
+   * ⭐ **Un ordine nuovo può arrivare già compilato** dalla Situazione
+   * magazzino: fornitore scelto lì, una riga per articolo selezionato,
+   * quantità 1 (`14` §0.2).
+   *
+   * ⛔ Fino al 29/08/2026 la Situazione **creava l'ordine** chiamando l'API e
+   * apriva la sua modifica: il documento esisteva prima che l'operatore avesse
+   * visto una riga. Queste prove tengono ferma la direzione — la maschera si
+   * apre compilata, e a salvare è l'operatore.
+   */
+  describe('ordine nuovo precompilato', () => {
+    // ⚠️ Il progetto non ha `restoreMocks`: la finta su `Router.prototype` è
+    //    sul PROTOTIPO e sopravviverebbe alla prova, precompilando anche quella
+    //    che verifica il contrario.
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    /**
+     * ⚠️ Si legge il VALORE DEL FORM, non il DOM: SKU e nome prodotto non hanno
+     * una colonna visibile nel preset di default, quindi cercarli a schermo
+     * proverebbe la configurazione delle colonne invece del precompilato.
+     */
+    function righe(fixture: { componentInstance: unknown }) {
+      const form = (
+        fixture.componentInstance as {
+          form: { value: { lines?: readonly { variantId?: string; quantity?: number }[] } };
+        }
+      ).form;
+      return form.value.lines ?? [];
+    }
+
+    it('⭐ una riga per articolo, quantità 1, e NIENTE salvataggio', async () => {
+      const { fixture, createOrder } = await setup({
+        vatCodes: [VAT_22],
+        prefill: { supplierId: 'sup-1', variantIds: ['var-1'] },
+      });
+      await fixture.whenStable();
+
+      expect(righe(fixture)).toHaveLength(1);
+      expect(righe(fixture)[0]?.variantId).toBe('var-1');
+      // ⚠️ Quantità 1 è il default di riga: è l'operatore a decidere quanti
+      //    pezzi ordinare, ed è tutto il motivo per cui la maschera si apre.
+      expect(righe(fixture)[0]?.quantity).toBe(1);
+      // ⛔ Nessuna chiamata all'API: aprire non è emettere.
+      expect(createOrder).not.toHaveBeenCalled();
+    });
+
+    it('⭐ il fornitore arriva già scelto', async () => {
+      await setup({ vatCodes: [VAT_22], prefill: { supplierId: 'sup-1', variantIds: ['var-1'] } });
+
+      expect(await screen.findByText('Tessuti Italia')).toBeTruthy();
+    });
+
+    it('⭐ più articoli, più righe: una ciascuno, nell’ordine della selezione', async () => {
+      const { fixture } = await setup({
+        vatCodes: [VAT_22],
+        prefill: { supplierId: 'sup-1', variantIds: ['var-1', 'var-senza-nome'] },
+      });
+      await fixture.whenStable();
+
+      expect(righe(fixture).map((r) => r.variantId)).toEqual(['var-1', 'var-senza-nome']);
+    });
+
+    /**
+     * ⭐ **La misura, non l'impressione.** Il proprietario ha segnalato che la
+     * precompilazione «è lenta»: questa prova conta le interrogazioni per
+     * articolo, così la lentezza ha un numero e una regressione si vede.
+     */
+    it('⭐ non interroga il catalogo più di due volte per articolo', async () => {
+      const { fixture, cercaVarianti } = await setup({
+        vatCodes: [VAT_22],
+        prefill: { supplierId: 'sup-1', variantIds: ['var-1', 'var-senza-nome'] },
+      });
+      await fixture.whenStable();
+
+      // ⚠️ Il tetto è 2N, non N: il richiamo articolo di ogni riga fa la sua
+      //    lettura, e le varianti «appuntate» del selettore fanno la loro.
+      //    Quadratico invece — `pinnedVariants` rileggeva TUTTE le varianti a
+      //    ogni riga aggiunta — su venti articoli fa 230 chiamate.
+      expect(cercaVarianti.mock.calls.length).toBeLessThanOrEqual(4);
+    });
+
+    it('⛔ digitare una quantità NON rilegge il catalogo', async () => {
+      const user = userEvent.setup();
+      const { fixture, cercaVarianti } = await setup({
+        vatCodes: [VAT_22],
+        prefill: { supplierId: 'sup-1', variantIds: ['var-1'] },
+      });
+      await fixture.whenStable();
+      const prima = cercaVarianti.mock.calls.length;
+
+      await user.type(screen.getAllByLabelText(/Quantità/i)[0]!, '5');
+      await fixture.whenStable();
+
+      // ⛔ L'insieme degli articoli non è cambiato: non c'è niente da rileggere.
+      //    Senza questa guardia ogni carattere digitato rileggeva una variante
+      //    per riga del documento.
+      expect(cercaVarianti.mock.calls.length).toBe(prima);
+    });
+
+    it('⛔ senza precompilato la maschera si apre vuota, come sempre', async () => {
+      const { fixture } = await setup({ vatCodes: [VAT_22] });
+      await fixture.whenStable();
+
+      // Nessuna riga porta un articolo: la maschera nasce da compilare.
+      expect(righe(fixture).every((r) => !r.variantId)).toBe(true);
     });
   });
 });

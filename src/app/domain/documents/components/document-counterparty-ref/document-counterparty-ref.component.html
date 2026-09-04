@@ -1,6 +1,6 @@
 <ng-template #celle>
   @if (showType()) {
-    <div [class]="cellClass()">
+    <div [class]="cellClass() + ' cp-ref__cell--type'">
       <span [class]="labelClass()">{{ typeLabel() }}</span>
       <app-select-menu
         [options]="options()"
@@ -14,7 +14,7 @@
     </div>
   }
 
-  <div [class]="cellClass()">
+  <div [class]="cellClass() + ' cp-ref__cell--number'">
     <label [class]="labelClass()" [attr.for]="numberInputId()">{{ numberLabel() }}</label>
     <input
       [class]="inputClass()"
@@ -27,7 +27,7 @@
     />
   </div>
 
-  <div [class]="cellClass()">
+  <div [class]="cellClass() + ' cp-ref__cell--date'">
     <label [class]="labelClass()" [attr.for]="dateInputId()">{{ dateLabel() }}</label>
     <app-date-input
       [inputId]="dateInputId()"

@@ -1,0 +1,34 @@
+-- L'etichetta della VARIANTE sulla riga dell'Ordine cliente.
+--
+-- Il documento e' una fotografia: la riga cattura la variante quando l'articolo
+-- vi entra, e se la tiene — come gia' fa con `sku` e `title`, che su questa
+-- tabella sono snapshot dichiarati.
+--
+-- PERCHE' SERVE, misurato il 23/08/2026. La card di riga dell'Ordine cliente
+-- mostra gia' un'etichetta di variante, ma la calcola DAL VIVO: legge il titolo
+-- corrente della variante e ne sottrae il nome prodotto
+-- (`customer-order-form.component.ts`, `lineVariantLabel`). Due conseguenze,
+-- entrambe silenziose:
+--   1. rinominare un valore d'opzione fa mostrare a un ordine di ieri la
+--      variante di oggi;
+--   2. se la variante esce dal catalogo — caso che lo schema prevede
+--      esplicitamente su `variantId` — la card non mostra PIU' NIENTE.
+--
+-- CONTENUTO: i soli valori delle opzioni, uniti da « / » (`M / Rosso`). E' la
+-- forma di `variant.title` di Shopify. Stringa vuota = nessuna opzione
+-- visibile, compresi il prodotto semplice e il sentinella `Default Title` che
+-- Shopify assegna ai prodotti senza opzioni.
+--
+-- NOT NULL DEFAULT '': due stati, non tre. Un terzo stato (`NULL` = «mai
+-- fotografata») avrebbe valore solo con documenti veri di prima, che non ci
+-- sono; e costringerebbe ogni lettore a difendersi con `?? ''` — dimenticarlo
+-- una volta su venti stampa la parola `null` su un documento.
+--
+-- Additiva: nessun backfill. Riempirla leggendo l'anagrafica di OGGI e
+-- scrivendola su ordini di marzo sarebbe esattamente il difetto che la colonna
+-- esiste per chiudere, eseguito in massa con un UPDATE.
+--
+-- UNA SOLA TABELLA, per scelta: le altre righe documento avranno la colonna
+-- quando avranno il lettore che la mostra. Qui il lettore c'e' gia'.
+
+ALTER TABLE "sales_order_lines" ADD COLUMN "variant_label" TEXT NOT NULL DEFAULT '';

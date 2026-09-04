@@ -1,17 +1,12 @@
 <!-- doc-form--m-ref: adotta la vista mobile di riferimento (Ordine cliente)
      promossa in styles/_document-form-mobile.scss. -->
 <section class="doc-form doc-form--m-ref">
-  @if (prefillError.message(); as prefillFailed) {
-    <!-- Il precompilato non è arrivato. Senza questo avviso resterebbe una
-         maschera vuota, indistinguibile da un documento nuovo legittimo: chi
-         salvasse creerebbe la cosa sbagliata credendo di aver fatto l'altra. -->
-    <app-inline-banner
-      tone="error"
-      [message]="prefillFailed"
-      dismissLabel="Ho capito"
-      (dismissed)="prefillError.dismiss()"
-    />
-  }
+  <!-- ⭐ **L'avviso comune.** Otto righe byte-identiche vivevano in sei
+       maschere: stesso tono, stesso messaggio, stessa etichetta di congedo.
+  
+       ⚠️ Serve, e il perche' e' nel componente: senza, resta una maschera
+       VUOTA, indistinguibile da un documento nuovo legittimo. -->
+  <app-document-prefill-error [store]="prefillError" />
   <div class="doc-form__head-row">
     <app-back-button />
     <h1 class="doc-form__title">{{ pageTitle() }}</h1>
@@ -22,29 +17,34 @@
       Rettifica di magazzino documentale: alla conferma vengono generati movimenti di tipo
       adjustment con motivo obbligatorio.
     } @else {
-      Scarico manuale di magazzino: alla conferma vengono generate uscite di stock con motivo
+      Vendita manuale di magazzino: alla conferma vengono generate uscite di stock con motivo
       obbligatorio.
     }
   </p>
 
-  @if (loading()) {
-    <app-table-skeleton [columns]="2" [rows]="6" />
-  } @else if (loadError()) {
-    <app-error-state
-      description="Impossibile caricare il documento."
-      retryLabel="Riprova"
-      (retry)="reload()"
-    />
-  } @else if (notEditable()) {
-    <app-empty-state
-      icon="pi-lock"
-      title="Documento non modificabile"
-      description="Solo bozze o documenti confermati (non bloccati) possono essere modificati."
-      ctaLabel="Torna al registro"
-      (ctaClick)="cancel()"
-    />
+  @if (loadState() !== 'ready') {
+    <!-- ⭐ **La macchina degli stati di pagina, comune.**
+  
+         ⛔ Qui c'erano tre rami scritti a mano — scheletro, errore,
+         non modificabile — identici nell'ORDINE in sette maschere su
+         sette, ma con tre descrizioni d'errore diverse e uno scheletro
+         da cinque righe invece di sei.
+  
+         ⭐ Il MOTIVO per cui non si puo' modificare resta qui: dipende
+         dal documento, e il livello comune non deve conoscerlo. -->
+    <app-document-page-state [state]="loadState()" (retry)="reload()">
+      <app-empty-state
+        documentPageStateBlocked
+        icon="pi-lock"
+        title="Documento non modificabile"
+        description="Solo bozze o documenti confermati (non bloccati) possono essere modificati."
+        ctaLabel="Torna al registro"
+        (ctaClick)="cancel()"
+      />
+    </app-document-page-state>
   } @else {
     <form
+      appNoImplicitSubmit
       class="doc-form__form"
       [class.doc-form__form--readonly]="formReadOnly()"
       [formGroup]="form"
@@ -70,168 +70,103 @@
 
       <fieldset class="doc-form__fieldset" [disabled]="formReadOnly()">
         <!-- Testata a celle unite (FASE 1: la forma dell'Ordine cliente). -->
-        <div class="doc-form__header">
-          <!-- Vista mobile (M1): la testata è un solo pannello apribile. Vive
-               nel DOM accanto alla griglia desktop e si accende sotto lg —
-               stesso schema tabella/card delle righe. Aria-label distinti dai
-               gemelli desktop: le query (spec e screen reader) restano uniche. -->
-          <div class="doc-panels">
-            <app-document-mobile-panel
-              [title]="mobilePanelTitle()"
-              [summaryParts]="mobilePanelSummaryParts()"
-              [icon]="isAdjustment() ? 'pi-sliders-h' : 'pi-minus-circle'"
-              [statusText]="mobilePanelStatus()"
-              [statusReady]="mobileHeaderReady()"
-              [initiallyOpen]="true"
+        <!-- ⭐ **La testata è dichiarata UNA VOLTA.** Qui c'erano 163 righe: gli
+             stessi campi scritti due volte, una nel pannello mobile e una nella
+             griglia desktop, con le stesse opzioni e gli stessi gestori.
+             Cambiavano l'identificativo (`so-m-*` contro `so-*`) e la formula
+             dell'aria-label — «Location documento» contro «Location»,
+             «Direzione della rettifica» contro «Direzione rettifica». Non erano
+             due viste: era la stessa vista scritta due volte, e ogni correzione
+             ne raggiungeva una sola. Ora i campi si dichiarano una volta e il
+             componente comune li monta nella veste viva. -->
+        <app-document-header
+          class="doc-form__header"
+          [title]="mobilePanelTitle()"
+          [summaryParts]="mobilePanelSummaryParts()"
+          [icon]="isAdjustment() ? 'pi-sliders-h' : 'pi-minus-circle'"
+          [statusText]="mobilePanelStatus()"
+          [statusReady]="mobileHeaderReady()"
+          sectionTitle="Dati principali"
+          [dense]="true"
+        >
+          <!-- Location: è il campo che tiene ferme le righe, quindi porta il
+               colore del «campo in attesa» finché resta vuoto. Prima lo aveva
+               solo la griglia desktop: sul telefono l'operatore non vedeva
+               quale campo stesse bloccando la tabella. -->
+          <app-document-header-field
+            label="Location"
+            [waiting]="fieldWaiting()"
+            [invalid]="fieldInvalid('locationId')"
+            errorId="so-location-error"
+          >
+            <app-select-menu
+              [options]="locationOptions()"
+              [value]="form.controls.locationId.value"
+              ariaLabel="Location"
+              placeholder="Seleziona location…"
+              [compact]="true"
+              [fullWidth]="true"
+              [invalid]="fieldInvalid('locationId')"
+              describedBy="so-location-error"
+              (valueChange)="onLocationSelect($event)"
+            />
+          </app-document-header-field>
+
+          @if (isAdjustment()) {
+            <app-document-header-field
+              label="Direzione rettifica"
+              [invalid]="fieldInvalid('adjustmentDirection')"
+              errorId="so-direction-error"
             >
-              <p class="doc-panel__section">Dati principali</p>
-
-              <div class="doc-panel__fields">
-                <div class="doc-panel__field">
-                  <span class="doc-panel__label">Location</span>
-                  <app-select-menu
-                    [options]="locationOptions()"
-                    [value]="form.controls.locationId.value"
-                    ariaLabel="Location documento"
-                    placeholder="Seleziona location…"
-                    [fullWidth]="true"
-                    [invalid]="fieldInvalid('locationId')"
-                    describedBy="so-m-location-error"
-                    (valueChange)="onLocationSelect($event)"
-                  />
-                  @if (fieldInvalid('locationId')) {
-                    <p id="so-m-location-error" class="doc-form__error">Campo obbligatorio.</p>
-                  }
-                </div>
-
-                @if (isAdjustment()) {
-                  <div class="doc-panel__field">
-                    <span class="doc-panel__label">Direzione rettifica</span>
-                    <app-select-menu
-                      [options]="directionOptions"
-                      [value]="form.controls.adjustmentDirection.value"
-                      ariaLabel="Direzione della rettifica"
-                      placeholder="Seleziona direzione…"
-                      [fullWidth]="true"
-                      [invalid]="fieldInvalid('adjustmentDirection')"
-                      describedBy="so-m-direction-error"
-                      (valueChange)="onDirectionSelect($event)"
-                    />
-                    @if (fieldInvalid('adjustmentDirection')) {
-                      <p id="so-m-direction-error" class="doc-form__error">Campo obbligatorio.</p>
-                    }
-                  </div>
-                }
-
-                <div class="doc-panel__field">
-                  <label class="doc-panel__label" for="so-m-date">Data documento</label>
-                  <app-date-input
-                    inputId="so-m-date"
-                    formControlName="documentDate"
-                    ariaLabel="Data documento"
-                    [fullWidth]="true"
-                    [invalid]="fieldInvalid('documentDate')"
-                    describedBy="so-m-date-error"
-                  />
-                  @if (fieldInvalid('documentDate')) {
-                    <p id="so-m-date-error" class="doc-form__error">
-                      Inserisci la data del documento nel formato GG/MM/AAAA.
-                    </p>
-                  }
-                </div>
-
-                <app-document-number-field
-                  numberInputId="so-m-number"
-                  [number]="form.controls.documentNumber.value"
-                  [isProposal]="numberIsProposal()"
-                  [series]="form.controls.series.value"
-                  [seriesOptions]="numbering.seriesOptions()"
-                  [canManageSeries]="puoConfigurareDocumenti()"
-                  (numberChange)="numbering.onNumberChange($event)"
-                  (seriesChange)="numbering.onSeriesChange($event)"
-                  (manageSeries)="seriesDialogOpen.set(true)"
-                />
-              </div>
-            </app-document-mobile-panel>
-          </div>
-
-          <!-- Griglia classica: solo desktop. Sotto lg la nasconde il foglio
-               del componente (stesso meccanismo di #co-header-details). -->
-          <div class="stock-operation-form__header-desktop">
-            <div class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact">
-              <div class="doc-form__field" [class.doc-form__field--waiting]="fieldWaiting()">
-                <span class="doc-form__label">Location</span>
-                <app-select-menu
-                  [options]="locationOptions()"
-                  [value]="form.controls.locationId.value"
-                  ariaLabel="Location"
-                  placeholder="Seleziona location…"
-                  [compact]="true"
-                  [fullWidth]="true"
-                  [invalid]="fieldInvalid('locationId')"
-                  describedBy="so-location-error"
-                  (valueChange)="onLocationSelect($event)"
-                />
-                @if (fieldInvalid('locationId')) {
-                  <p id="so-location-error" class="doc-form__error">Campo obbligatorio.</p>
-                }
-              </div>
-
-              @if (isAdjustment()) {
-                <div class="doc-form__field">
-                  <span class="doc-form__label">Direzione rettifica</span>
-                  <app-select-menu
-                    [options]="directionOptions"
-                    [value]="form.controls.adjustmentDirection.value"
-                    ariaLabel="Direzione rettifica"
-                    placeholder="Seleziona direzione…"
-                    [compact]="true"
-                    [fullWidth]="true"
-                    [invalid]="fieldInvalid('adjustmentDirection')"
-                    describedBy="so-direction-error"
-                    (valueChange)="onDirectionSelect($event)"
-                  />
-                  @if (fieldInvalid('adjustmentDirection')) {
-                    <p id="so-direction-error" class="doc-form__error">Campo obbligatorio.</p>
-                  }
-                </div>
-              }
-
-              <div class="doc-form__field">
-                <label class="doc-form__label" for="so-date">Data documento</label>
-                <app-date-input
-                  inputId="so-date"
-                  formControlName="documentDate"
-                  ariaLabel="Data documento"
-                  [compact]="true"
-                  [fullWidth]="true"
-                  [invalid]="fieldInvalid('documentDate')"
-                  describedBy="so-date-error"
-                />
-                @if (fieldInvalid('documentDate')) {
-                  <p id="so-date-error" class="doc-form__error">
-                    Inserisci la data del documento nel formato GG/MM/AAAA.
-                  </p>
-                }
-              </div>
-
-              <!-- Identificativo del documento: Data + Numero + Serie. Sul
-                   documento nuovo il numero è dichiarato come proposta finché
-                   l'operatore non lo tocca: lo prende chi salva per primo. -->
-              <app-document-number-field
-                numberInputId="so-number"
-                [number]="form.controls.documentNumber.value"
-                [isProposal]="numberIsProposal()"
-                [series]="form.controls.series.value"
-                [seriesOptions]="numbering.seriesOptions()"
-                [canManageSeries]="puoConfigurareDocumenti()"
-                (numberChange)="numbering.onNumberChange($event)"
-                (seriesChange)="numbering.onSeriesChange($event)"
-                (manageSeries)="seriesDialogOpen.set(true)"
+              <app-select-menu
+                [options]="directionOptions"
+                [value]="form.controls.adjustmentDirection.value"
+                ariaLabel="Direzione rettifica"
+                placeholder="Seleziona direzione…"
+                [compact]="true"
+                [fullWidth]="true"
+                [invalid]="fieldInvalid('adjustmentDirection')"
+                describedBy="so-direction-error"
+                (valueChange)="onDirectionSelect($event)"
               />
-            </div>
-          </div>
-        </div>
+            </app-document-header-field>
+          }
+
+          <!-- Il messaggio dice il formato atteso e non ripete il segnaposto:
+               è la ragione per cui questo campo sovrascrive il testo d'errore
+               predefinito del componente («Campo obbligatorio.»). -->
+          <app-document-header-field
+            label="Data documento"
+            [invalid]="fieldInvalid('documentDate')"
+            errorId="so-date-error"
+            errorMessage="Inserisci la data del documento nel formato GG/MM/AAAA."
+          >
+            <app-date-input
+              inputId="so-date"
+              formControlName="documentDate"
+              ariaLabel="Data documento"
+              [compact]="true"
+              [fullWidth]="true"
+              [invalid]="fieldInvalid('documentDate')"
+              describedBy="so-date-error"
+            />
+          </app-document-header-field>
+
+          <!-- Identificativo del documento: Data + Numero + Serie. Sul
+               documento nuovo il numero è dichiarato come proposta finché
+               l'operatore non lo tocca: lo prende chi salva per primo. -->
+          <app-document-number-field
+            numberInputId="so-number"
+            [number]="form.controls.documentNumber.value"
+            [isProposal]="numberIsProposal()"
+            [series]="form.controls.series.value"
+            [seriesOptions]="numbering.seriesOptions()"
+            [canManageSeries]="puoConfigurareDocumenti()"
+            (numberChange)="numbering.onNumberChange($event)"
+            (seriesChange)="numbering.onSeriesChange($event)"
+            (manageSeries)="seriesDialogOpen.set(true)"
+          />
+        </app-document-header>
 
         <section class="doc-form__lines" aria-labelledby="so-lines-title">
           <div class="doc-form__lines-head">
@@ -243,7 +178,7 @@
               }
             </h2>
             <div class="doc-form__lines-tools">
-              <app-table-column-picker [viewId]="lineColumnsView" [reorderable]="false" />
+              <app-table-column-picker [viewId]="lineColumnsView" />
               <app-button type="button" [disabled]="headerGateActive()" (click)="addLine()">
                 <i class="pi pi-plus" aria-hidden="true"></i>
                 Aggiungi riga
@@ -256,158 +191,25 @@
             <div class="doc-form__table-wrap">
               <table class="doc-form__table">
                 <thead>
-                  <tr>
-                    <th scope="col" class="doc-form__cell--index" aria-label="Numero riga">#</th>
-                    @if (isLineColumnVisible('articleCode')) {
-                      <th scope="col" [style.width]="lineColumnWidth('articleCode')">
-                        <button
-                          type="button"
-                          class="doc-form__th-sort"
-                          [attr.aria-label]="lineSortAriaLabel('articleCode', 'Cod. articolo')"
-                          title="Cod. articolo"
-                          (click)="toggleLineSort('articleCode')"
-                        >
-                          Cod. articolo
-                          @if (lineSort.column() === 'articleCode') {
-                            <i
-                              class="pi"
-                              [class.pi-sort-up]="lineSort.direction() === 'asc'"
-                              [class.pi-sort-down]="lineSort.direction() === 'desc'"
-                              aria-hidden="true"
-                            ></i>
-                          }
-                        </button>
-                        <span
-                          appTableColumnResize
-                          (resized)="onLineColumnResize('articleCode', $event)"
-                        ></span>
-                      </th>
-                    }
-                    @if (isLineColumnVisible('sku')) {
-                      <th scope="col" [style.width]="lineColumnWidth('sku')">
-                        <button
-                          type="button"
-                          class="doc-form__th-sort"
-                          [attr.aria-label]="lineSortAriaLabel('sku', 'SKU')"
-                          title="SKU"
-                          (click)="toggleLineSort('sku')"
-                        >
-                          SKU
-                          @if (lineSort.column() === 'sku') {
-                            <i
-                              class="pi"
-                              [class.pi-sort-up]="lineSort.direction() === 'asc'"
-                              [class.pi-sort-down]="lineSort.direction() === 'desc'"
-                              aria-hidden="true"
-                            ></i>
-                          }
-                        </button>
-                        <span
-                          appTableColumnResize
-                          (resized)="onLineColumnResize('sku', $event)"
-                        ></span>
-                      </th>
-                    }
-                    @if (isLineColumnVisible('barcode')) {
-                      <th scope="col" [style.width]="lineColumnWidth('barcode')">
-                        <button
-                          type="button"
-                          class="doc-form__th-sort"
-                          [attr.aria-label]="lineSortAriaLabel('barcode', 'EAN')"
-                          title="EAN"
-                          (click)="toggleLineSort('barcode')"
-                        >
-                          EAN
-                          @if (lineSort.column() === 'barcode') {
-                            <i
-                              class="pi"
-                              [class.pi-sort-up]="lineSort.direction() === 'asc'"
-                              [class.pi-sort-down]="lineSort.direction() === 'desc'"
-                              aria-hidden="true"
-                            ></i>
-                          }
-                        </button>
-                        <span
-                          appTableColumnResize
-                          (resized)="onLineColumnResize('barcode', $event)"
-                        ></span>
-                      </th>
-                    }
-                    @if (isLineColumnVisible('product')) {
-                      <th
-                        scope="col"
-                        class="doc-form__th--product doc-form__col--sep"
-                        [style.width]="lineColumnWidth('product')"
-                      >
-                        <button
-                          type="button"
-                          class="doc-form__th-sort"
-                          [attr.aria-label]="lineSortAriaLabel('product', 'Nome prodotto')"
-                          title="Nome prodotto"
-                          (click)="toggleLineSort('product')"
-                        >
-                          Nome prodotto
-                          @if (lineSort.column() === 'product') {
-                            <i
-                              class="pi"
-                              [class.pi-sort-up]="lineSort.direction() === 'asc'"
-                              [class.pi-sort-down]="lineSort.direction() === 'desc'"
-                              aria-hidden="true"
-                            ></i>
-                          }
-                        </button>
-                        <span
-                          appTableColumnResize
-                          (resized)="onLineColumnResize('product', $event)"
-                        ></span>
-                      </th>
-                    }
-                    @if (isLineColumnVisible('quantity')) {
-                      <th
-                        scope="col"
-                        class="doc-form__num doc-form__col--stock doc-form__col--sep"
-                        [style.width]="lineColumnWidth('quantity')"
-                      >
-                        <button
-                          type="button"
-                          class="doc-form__th-sort"
-                          [attr.aria-label]="lineSortAriaLabel('quantity', 'Quantità')"
-                          title="Quantità"
-                          (click)="toggleLineSort('quantity')"
-                        >
-                          Quantità
-                          @if (lineSort.column() === 'quantity') {
-                            <i
-                              class="pi"
-                              [class.pi-sort-up]="lineSort.direction() === 'asc'"
-                              [class.pi-sort-down]="lineSort.direction() === 'desc'"
-                              aria-hidden="true"
-                            ></i>
-                          }
-                        </button>
-                        <span
-                          appTableColumnResize
-                          (resized)="onLineColumnResize('quantity', $event)"
-                        ></span>
-                      </th>
-                    }
-                    @if (isLineColumnVisible('serials')) {
-                      <th scope="col" [style.width]="lineColumnWidth('serials')">
-                        Seriali
-                        <span
-                          appTableColumnResize
-                          (resized)="onLineColumnResize('serials', $event)"
-                        ></span>
-                      </th>
-                    }
-                    <th
-                      scope="col"
-                      class="doc-form__cell--actions"
-                      [style.width]="lineColumnWidth('actions')"
-                    >
-                      <span class="sr-only">Azioni</span>
-                    </th>
-                  </tr>
+                  <!-- ⭐ **L'intestazione è la COMPONENTE COMUNE**, come nel
+                       Trasferimento: la Rettifica ha la stessa riga campo per
+                       campo, e per questo condivide anche il config colonne
+                       (`stock-movement-line-columns`).
+
+                       ⛔ Qui c'erano 10 `<th>` scritti a mano. -->
+                  <tr
+                    app-document-line-head
+                    [indexColumnWidth]="lineIndexColumnWidth()"
+                    [isColumnVisible]="isLineColumnVisibleFn"
+                    [columnWidth]="lineColumnWidthFn"
+                    [columnMinWidth]="lineColumnMinWidthFn"
+                    [sortable]="true"
+                    [sortColumn]="lineSort.column()"
+                    [sortDirection]="lineSort.direction()"
+                    (sortToggled)="onRowSortToggled($event)"
+                    (columnResizing)="onLineColumnResizing($event.column, $event.widthPx)"
+                    (columnResized)="onLineColumnResize($event.column, $event.widthPx)"
+                  ></tr>
                 </thead>
                 <!-- Il trascinamento sta sul tbody, e il blocco del documento lo
                    spegne qui: il fieldset disabilitato ferma i controlli del form,
@@ -419,174 +221,41 @@
                   (cdkDropListDropped)="onLineDrop($event)"
                 >
                   @for (line of lines.controls; track line; let i = $index) {
-                    <tr cdkDrag [cdkDragStartDelay]="{ touch: 250, mouse: 0 }" [formGroupName]="i">
-                      <!-- La cella del numero è la maniglia: il resto della riga
-                         resta cliccabile per modificare le celle. -->
-                      <td class="doc-form__cell--index doc-form__drag-handle" cdkDragHandle>
-                        <span class="tabular-nums">{{ i + 1 }}</span>
-                      </td>
-                      <!--
-                        I tre codici e il nome, come negli altri documenti: il
-                        codice si conferma (Tab/Invio) e cerca a corrispondenza
-                        esatta, il nome suggerisce mentre si digita e la lente
-                        apre la ricerca a tutta pagina.
-                      -->
-                      @if (isLineColumnVisible('articleCode')) {
-                        <td class="doc-form__cell doc-form__cell--editable doc-form__cell--code">
-                          <app-document-line-code-cell
-                            [lineIndex]="i"
-                            [inputId]="'so-code-' + i"
-                            ariaLabel="Codice articolo"
-                            placeholder="Cerca codice"
-                            [value]="line.controls.articleCode.value"
-                            [linked]="!!line.controls.variantId.value"
-                            [linkedValue]="lineArticleCode(i)"
-                            [disabled]="formReadOnly()"
-                            [suggestions]="codeLookup.matchesFor(i, 'articleCode')"
-                            [suggestionsOpen]="codeLookup.isOpenOn(i, 'articleCode')"
-                            [activeSuggestionIndex]="codeLookup.activeIndex()"
-                            (suggestionNavigate)="codeLookup.navigate($event)"
-                            (suggestionPick)="
-                              onCodeSuggestionPick($event.lineIndex, $event.variantId)
-                            "
-                            (valueChange)="onLineCodeChange(i, 'articleCode', $event)"
-                            (focused)="onLineCodeFocus(i, 'articleCode')"
-                            (blurred)="onLineCodeBlur(i)"
-                            (commit)="commitCodeLookup(i, 'articleCode', $event.advance)"
-                            (lineRetreat)="lineFocus.previous(i, 'articleCode')"
-                            (lineRowAdvance)="lineFocus.rowDown(i, 'articleCode')"
-                            (lineRowRetreat)="lineFocus.rowUp(i, 'articleCode')"
-                            (escapePressed)="onLineSearchEscape(i)"
-                          />
-                        </td>
-                      }
-                      @if (isLineColumnVisible('sku')) {
-                        <td class="doc-form__cell doc-form__cell--editable doc-form__cell--code">
-                          <app-document-line-code-cell
-                            [lineIndex]="i"
-                            [inputId]="'so-sku-' + i"
-                            ariaLabel="SKU"
-                            placeholder="Cerca SKU"
-                            [value]="line.controls.sku.value"
-                            [linked]="!!line.controls.variantId.value"
-                            [linkedValue]="line.controls.sku.value"
-                            [disabled]="formReadOnly()"
-                            [suggestions]="codeLookup.matchesFor(i, 'sku')"
-                            [suggestionsOpen]="codeLookup.isOpenOn(i, 'sku')"
-                            [activeSuggestionIndex]="codeLookup.activeIndex()"
-                            (suggestionNavigate)="codeLookup.navigate($event)"
-                            (suggestionPick)="
-                              onCodeSuggestionPick($event.lineIndex, $event.variantId)
-                            "
-                            (valueChange)="onLineCodeChange(i, 'sku', $event)"
-                            (focused)="onLineCodeFocus(i, 'sku')"
-                            (blurred)="onLineCodeBlur(i)"
-                            (commit)="commitCodeLookup(i, 'sku', $event.advance)"
-                            (lineRetreat)="lineFocus.previous(i, 'sku')"
-                            (lineRowAdvance)="lineFocus.rowDown(i, 'sku')"
-                            (lineRowRetreat)="lineFocus.rowUp(i, 'sku')"
-                            (escapePressed)="onLineSearchEscape(i)"
-                          />
-                        </td>
-                      }
-                      @if (isLineColumnVisible('barcode')) {
-                        <td class="doc-form__cell doc-form__cell--editable doc-form__cell--code">
-                          <app-document-line-code-cell
-                            [lineIndex]="i"
-                            [inputId]="'so-barcode-' + i"
-                            ariaLabel="EAN"
-                            placeholder="Scansiona EAN"
-                            [value]="line.controls.barcode.value"
-                            [linked]="!!line.controls.variantId.value"
-                            [linkedValue]="lineBarcode(i)"
-                            [disabled]="formReadOnly()"
-                            [suggestions]="codeLookup.matchesFor(i, 'barcode')"
-                            [suggestionsOpen]="codeLookup.isOpenOn(i, 'barcode')"
-                            [activeSuggestionIndex]="codeLookup.activeIndex()"
-                            (suggestionNavigate)="codeLookup.navigate($event)"
-                            (suggestionPick)="
-                              onCodeSuggestionPick($event.lineIndex, $event.variantId)
-                            "
-                            (valueChange)="onLineCodeChange(i, 'barcode', $event)"
-                            (focused)="onLineCodeFocus(i, 'barcode')"
-                            (blurred)="onLineCodeBlur(i)"
-                            (commit)="commitCodeLookup(i, 'barcode', $event.advance)"
-                            (lineRetreat)="lineFocus.previous(i, 'barcode')"
-                            (lineRowAdvance)="lineFocus.rowDown(i, 'barcode')"
-                            (lineRowRetreat)="lineFocus.rowUp(i, 'barcode')"
-                            (escapePressed)="onLineSearchEscape(i)"
-                          />
-                        </td>
-                      }
-                      @if (isLineColumnVisible('product')) {
-                        <td class="doc-form__cell doc-form__cell--editable">
-                          <app-document-line-product-cell
-                            [lineIndex]="i"
-                            [inputId]="'so-product-' + i"
-                            [value]="line.controls.description.value"
-                            [linked]="!!line.controls.variantId.value"
-                            [disabled]="formReadOnly()"
-                            [invalid]="lineFieldInvalid(i, 'variantId')"
-                            [suggestions]="lineSuggestions(i)"
-                            [suggestionsOpen]="lineSuggestionsOpen(i)"
-                            [activeSuggestionIndex]="productSuggest.activeIndex()"
-                            (valueChange)="onLineProductNameChange(i, $event)"
-                            (focused)="onLineProductFocus($event)"
-                            (blurred)="onLineProductBlur($event)"
-                            (searchOpen)="openLineProductSearch($event)"
-                            (suggestionPick)="
-                              onProductSuggestionPick($event.lineIndex, $event.variantId)
-                            "
-                            (suggestionNavigate)="onProductSuggestionNavigate($event)"
-                            (lineAdvance)="lineFocus.next(i, 'product')"
-                            (lineRetreat)="lineFocus.previous(i, 'product')"
-                            (lineRowAdvance)="lineFocus.rowDown(i, 'product')"
-                            (lineRowRetreat)="lineFocus.rowUp(i, 'product')"
-                            (escapePressed)="onLineSearchEscape(i)"
-                          />
-                          @if (lineFieldInvalid(i, 'variantId')) {
-                            <p class="doc-form__error">Campo obbligatorio.</p>
-                          }
-                        </td>
-                      }
-                      @if (isLineColumnVisible('quantity')) {
-                        <td class="doc-form__cell doc-form__cell--editable doc-form__num">
-                          <input
-                            [id]="'so-qty-' + i"
-                            class="doc-form__input doc-form__input--table doc-form__input--num"
-                            type="number"
-                            min="1"
-                            step="1"
-                            formControlName="quantity"
-                            aria-label="Quantità"
-                          />
-                        </td>
-                      }
-                      @if (isLineColumnVisible('serials')) {
-                        <td class="doc-form__cell doc-form__cell--editable">
-                          <input
-                            [id]="'so-serials-' + i"
-                            class="doc-form__input doc-form__input--table"
-                            type="text"
-                            formControlName="serialNumbersText"
-                            placeholder="SN001, SN002"
-                            autocomplete="off"
-                            aria-label="Seriali"
-                          />
-                        </td>
-                      }
-                      <td class="doc-form__cell doc-form__cell--actions">
-                        <button
-                          type="button"
-                          class="doc-form__line-remove"
-                          [disabled]="lines.length <= 1"
-                          aria-label="Rimuovi riga"
-                          (click)="removeLine(i)"
-                        >
-                          <i class="pi pi-trash" aria-hidden="true"></i>
-                        </button>
-                      </td>
-                    </tr>
+                    <!-- ⭐ **La riga è la COMPONENTE COMUNE.** Qui c'erano 9
+                         `<td>` scritti a mano. -->
+                    <tr
+                      app-document-line-row
+                      class="doc-form__table-row"
+                      cdkDrag
+                      [cdkDragStartDelay]="{ touch: 250, mouse: 0 }"
+                      [formGroupName]="i"
+                      [group]="lineGroup(i)"
+                      [lineIndex]="i"
+                      [isColumnVisible]="isLineColumnVisibleFn"
+                      idPrefix="so"
+                      [view]="lineRowView(i)"
+                      [readOnly]="formReadOnly()"
+                      [identityColumnCount]="3"
+                      [dragHandle]="true"
+                      [quantityMin]="1"
+                      (codeChanged)="onRowCodeChanged(i, $event)"
+                      (codeFocused)="onRowCodeFocused(i, $event)"
+                      (codeBlurred)="onLineCodeBlur(i)"
+                      (codeCommitted)="onRowCodeCommitted(i, $event)"
+                      (productNameChanged)="onLineProductNameChange(i, $event)"
+                      (productFocused)="onLineProductFocus(i)"
+                      (productBlurred)="onLineProductBlur(i)"
+                      (productSearchOpened)="openLineProductSearch(i)"
+                      (suggestionPicked)="onRowSuggestionPicked(i, $event)"
+                      (suggestionNavigated)="onRowSuggestionNavigated($event)"
+                      (escapePressed)="onLineSearchEscape(i)"
+                      (fieldKeydown)="lineFocus.handleKeydownIfMine(i, $event.field, $event.value)"
+                      (fieldAdvance)="lineFocus.nextIfMine(i, $event)"
+                      (fieldRetreat)="lineFocus.previousIfMine(i, $event)"
+                      (rowAdvance)="lineFocus.rowDownIfMine(i, $event)"
+                      (rowRetreat)="lineFocus.rowUpIfMine(i, $event)"
+                      (removeRequested)="removeLine(i)"
+                    ></tr>
                   }
                 </tbody>
               </table>
@@ -600,28 +269,56 @@
           @if (compactView() && !headerGateActive()) {
             <div class="doc-form__cards">
               @for (line of lines.controls; track line; let i = $index) {
-                <app-stock-movement-line-card
+                <!-- ⭐ **La card è la COMPONENTE COMUNE.** Qui c'era
+                     `app-stock-movement-line-card`, un involucro locale che
+                     riscriveva a mano i campi della riga: al mobile era quello
+                     che le `<td>` scritte a mano erano al desktop.
+
+                     ⚠️ Niente prezzo e niente totale: la striscia si adatta da
+                     sé e resta la sola quantità. Un movimento sposta o corregge
+                     una giacenza, non vende e non compra. -->
+                <app-document-line-card
                   [lineIndex]="i"
-                  [line]="line"
-                  idPrefix="so"
-                  [suggestions]="lineSuggestions(i)"
-                  [suggestionsOpen]="lineSuggestionsOpen(i)"
-                  [codeChoice]="mobileCodeChoice(i)"
-                  [variantInvalid]="lineFieldInvalid(i, 'variantId')"
-                  [disabled]="formReadOnly()"
+                  [open]="isLineCardOpen(i)"
+                  [complete]="lineCardHead(i).complete"
+                  [readOnly]="formReadOnly()"
                   [canRemove]="lines.length > 1"
-                  (nameInput)="onLineProductNameChange(i, $event)"
-                  (nameFocus)="onLineProductFocus($event)"
-                  (nameBlur)="onLineProductBlur($event)"
-                  (searchProduct)="openLineProductSearch($event)"
-                  (suggestionPick)="onProductSuggestionPick($event.lineIndex, $event.variantId)"
-                  (codeFocused)="onLineCodeFocus(i, $event)"
-                  (codeBlurred)="onMobileCodeBlur(i, $event)"
-                  (codeCommitted)="commitCodeLookup(i, $event)"
-                  (codeSuggestionPicked)="onCodeSuggestionPick(i, $event)"
-                  (duplicated)="duplicateLine($event)"
-                  (removed)="removeLine($event)"
-                />
+                  [title]="lineCardHead(i).title"
+                  [variantLabel]="lineCardHead(i).variantLabel"
+                  [meta]="lineCardHead(i).meta"
+                  [alert]="lineCardHead(i).alert"
+                  (toggled)="toggleLineCard(i)"
+                  (removeRequested)="removeLine(i)"
+                  (removed)="removeLine(i)"
+                >
+                  <app-document-line-card-strip
+                    cardControls
+                    [group]="lineGroup(i)"
+                    [lineIndex]="i"
+                    [isColumnVisible]="isLineColumnVisibleFn"
+                    [view]="lineRowView(i)"
+                    [readOnly]="formReadOnly()"
+                    [quantityMin]="1"
+                  />
+                  <app-document-line-card-body
+                    cardBody
+                    [group]="lineGroup(i)"
+                    [lineIndex]="i"
+                    [isColumnVisible]="isLineColumnVisibleFn"
+                    idPrefix="so"
+                    [view]="lineRowView(i)"
+                    [readOnly]="formReadOnly()"
+                    (codeChanged)="onRowCodeChanged(i, $event)"
+                    (codeFocused)="onRowCodeFocused(i, $event)"
+                    (codeBlurred)="onMobileCodeBlur(i, $any($event))"
+                    (codeCommitted)="commitCodeLookup(i, $any($event))"
+                    (productNameChanged)="onLineProductNameChange(i, $event)"
+                    (productFocused)="onLineProductFocus(i)"
+                    (productBlurred)="onLineProductBlur(i)"
+                    (productSearchOpened)="openLineProductSearch(i)"
+                    (suggestionPicked)="onRowSuggestionPicked(i, $event)"
+                  />
+                </app-document-line-card>
               }
             </div>
           }
@@ -644,34 +341,18 @@
         <!-- Banda finale: card note + motivo obbligatorio (nessun totale qui). -->
         <div class="doc-form__footer-grid">
           <div class="doc-form__footer-notes">
-            <div class="doc-form__field">
-              <label class="doc-form__label" for="so-notes">Note</label>
-              <textarea
-                id="so-notes"
-                class="doc-form__textarea"
-                rows="2"
-                formControlName="notes"
-              ></textarea>
-            </div>
-            <div class="doc-form__field">
-              <label class="doc-form__label" for="so-internal">
-                Motivo (commento interno)
-                <span class="doc-form__required" aria-hidden="true">*</span>
-              </label>
-              <textarea
-                id="so-internal"
-                class="doc-form__textarea"
-                rows="2"
-                formControlName="internalComment"
-                [attr.aria-invalid]="fieldInvalid('internalComment')"
-                aria-describedby="so-internal-error"
-              ></textarea>
-              @if (fieldInvalid('internalComment')) {
-                <p id="so-internal-error" class="doc-form__error">
-                  Il motivo è obbligatorio per tracciabilità operativa.
-                </p>
-              }
-            </div>
+            <!-- ⭐ **L'area note comune.**
+          
+                 ⛔ Qui c'erano gli stessi due campi che vivevano in cinque maschere
+                 con CINQUE etichette diverse — «Note», «Note documento», «Note
+                 (visibili in stampa)» — e una sola delle cinque diceva la cosa
+                 utile: quale dei due esce in stampa. Ora la dicono entrambi. -->
+            <app-document-notes
+              [group]="form"
+              notesId="so-notes"
+              internalId="so-internal"
+              [readOnly]="formReadOnly()"
+            />
           </div>
         </div>
 
@@ -684,8 +365,17 @@
         }
       </fieldset>
 
-      <div class="doc-form__actions">
-        <p class="doc-form__actions-note">
+      <!-- ⭐ **La barra azioni comune** — una dichiarazione, due vesti.
+
+           ⛔ Qui c'erano DUE blocchi, scrivania e telefono, che commutavano
+           alla soglia `lg`. Ora la dichiarazione e' una e la veste la sceglie
+           il componente. -->
+      <app-document-actions
+        [saving]="saving()"
+        [readOnly]="formReadOnly()"
+        (closeRequested)="cancel()"
+      >
+        <p class="doc-form__actions-note" documentActionsNote>
           <i class="pi pi-info-circle" aria-hidden="true"></i>
           <strong class="tabular-nums">
             {{ lines.length }} {{ lines.length === 1 ? 'riga' : 'righe' }}
@@ -693,33 +383,8 @@
           <span class="doc-form__actions-note-sep">·</span>
           Le giacenze si aggiornano alla conferma
         </p>
-        <app-button type="button" variant="ghost" (click)="cancel()">Annulla</app-button>
-        @if (isConfirmedEdit()) {
-          <app-button type="submit" [disabled]="formReadOnly() || saving()"
-            >Salva documento</app-button
-          >
-        } @else {
-          <app-button type="submit" [disabled]="saving()">{{ submitConfirmLabel() }}</app-button>
-        }
-      </div>
+      </app-document-actions>
 
-      <!-- Azioni documento su mobile/tablet (regole-stile-ui §5): coppia in
-           fondo al documento, scorre col contenuto. Il submit resta dentro il
-           form: ripristina il salvataggio che sotto md la barra desktop
-           nasconde. -->
-      @if (!formReadOnly()) {
-        <div class="doc-form__mobile-actions">
-          <!-- «Chiudi»: stesso handler di uscita di prima, cambia l'etichetta. -->
-          <app-button type="button" variant="secondary" [disabled]="saving()" (click)="cancel()">
-            Chiudi
-          </app-button>
-          @if (isConfirmedEdit()) {
-            <app-button type="submit" [disabled]="saving()">Salva documento</app-button>
-          } @else {
-            <app-button type="submit" [disabled]="saving()">{{ submitConfirmLabel() }}</app-button>
-          }
-        </div>
-      }
       <!-- La ricerca articolo a tutta pagina, aperta dalla lente della riga. -->
       @if (productPanelOpen()) {
         <app-document-product-search-panel
@@ -785,26 +450,29 @@
 <!-- Uscita con modifiche non salvate (pattern Ordine fornitore): due sole
      scelte, senza «Salva e chiudi» — il salvataggio passa già dal dialogo di
      conferma rettifica/scarico e un dialogo sopra l'altro confonde. -->
-@if (exitDialogOpen()) {
-  <div class="doc-form__exit-backdrop" aria-hidden="true" (click)="cancelExitDialog()"></div>
-  <div
-    class="doc-form__exit-dialog"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="so-exit-title"
-  >
-    <h2 id="so-exit-title" class="doc-form__exit-title">Modifiche non salvate</h2>
-    <p class="doc-form__exit-message">
-      Ci sono modifiche non salvate: uscendo dalla pagina andranno perse.
-    </p>
-    <div class="doc-form__exit-actions">
-      <app-button type="button" variant="ghost" (click)="cancelExitDialog()">Annulla</app-button>
-      <app-button type="button" variant="secondary" (click)="confirmExitWithoutSaving()">
-        Esci senza salvare
-      </app-button>
-    </div>
-  </div>
-}
+<!-- ⭐ **Il dialogo comune, non un guscio scritto a mano.**
+
+     ⛔ Qui c'erano venti righe con un `<div role="dialog">` e uno sfondo
+     proprio: NON un `<dialog>` nativo, quindi senza trappola del fuoco, senza
+     Esc e senza sfondo inerte — contro `regole-architettura`, che li chiede
+     esplicitamente per ogni modale. Lo stesso guscio viveva in undici file.
+
+     ⭐ Questa maschera aveva gia' le DUE azioni giuste: qui cambia il guscio,
+     non il contratto.
+
+     ⚠️ `emphasis="cancel"` non e' un vezzo: senza, «Esci senza salvare»
+     sarebbe il pulsante primario, cioe' quello che il pollice cerca. La
+     scelta che perde lavoro non si veste da scelta consigliata. -->
+<app-confirm-dialog
+  [(open)]="exitDialogOpen"
+  title="Modifiche non salvate"
+  message="Ci sono modifiche non salvate: uscendo dalla pagina andranno perse."
+  cancelLabel="Annulla"
+  confirmLabel="Esci senza salvare"
+  emphasis="cancel"
+  (confirmed)="confirmExitWithoutSaving()"
+  (dismissed)="cancelExitDialog()"
+/>
 
 <!-- Avviso cronologico (§4): la serie contiene documenti fuori posto. Non
      blocca — «Sì, salva comunque» prosegue col salvataggio. -->

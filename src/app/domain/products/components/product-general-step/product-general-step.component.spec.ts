@@ -1,3 +1,4 @@
+import { signal } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { ReactiveFormsModule } from '@angular/forms';
 import { render, screen } from '@testing-library/angular';
@@ -7,12 +8,15 @@ import { describe, expect, it, vi } from 'vitest';
 import { ProductKind, ProductStatus } from '@core/models/product.model';
 import { InventoryTrackingMode } from '@core/models/product-catalog.model';
 import type { VatCode } from '@core/models/vat-code.model';
+import { ButtonComponent } from '@shared/components/button/button.component';
 import { HoverTooltipComponent } from '@shared/components/hover-tooltip/hover-tooltip.component';
 import { SegmentedComponent } from '@shared/components/segmented/segmented.component';
 import { DocumentLineSelectCellComponent } from '@domain/documents/components/document-line-select-cell/document-line-select-cell.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 
 import { ProductGeneralStepComponent } from './product-general-step.component';
+import { UnitOfMeasureOptionService } from '../../services/unit-of-measure-option.service';
+import { UnitOfMeasureSelectComponent } from '../unit-of-measure-select/unit-of-measure-select.component';
 import type { ProductGeneralDraft } from '../../models/product-form.model';
 import type { ProductListinoSlot } from '../../models/product-listino.model';
 import { CatalogCategoryService } from '../../services/catalog-category.service';
@@ -54,6 +58,7 @@ const LISTINO_SLOTS: readonly ProductListinoSlot[] = [
 const EMPTY_GENERAL: ProductGeneralDraft = {
   articleCode: '',
   name: '',
+  shopifyTitle: '',
   description: '',
   brand: '',
   category: '',
@@ -81,13 +86,29 @@ const EMPTY_GENERAL: ProductGeneralDraft = {
   listino3Price: null,
 };
 
+/** L’elenco U.M. finto: due voci, nessuna rete. */
+const unitOptionsMock = {
+  options: () =>
+    signal([
+      { id: '1', name: 'pz', sortOrder: 0, isSystem: true, isActive: true, isDefault: true },
+      { id: '2', name: 'kg', sortOrder: 1, isSystem: false, isActive: true, isDefault: false },
+    ]).asReadonly(),
+  reload: () => undefined,
+};
+
 /**
  * Render dello step con le sole dipendenze reali che servono ai test (la
  * tassonomia Shopify e la gestione categorie restano fuori: parlano col server).
  */
 function renderStep(componentInputs: Record<string, unknown>) {
   return render(ProductGeneralStepComponent, {
-    providers: [{ provide: CatalogCategoryService, useValue: catalogCategoryServiceMock }],
+    providers: [
+      { provide: CatalogCategoryService, useValue: catalogCategoryServiceMock },
+      // ⚠️ Il selettore U.M. è AUTOSUFFICIENTE: si procura l’elenco da sé e ospita
+      //   il proprio gestore. È il suo pregio — chi lo usa non deve sapere niente
+      //   — ma in prova significa una chiamata al server, che qui non c’entra.
+      { provide: UnitOfMeasureOptionService, useValue: unitOptionsMock },
+    ],
     configureTestBed: (testBed) => {
       testBed.overrideComponent(ProductGeneralStepComponent, {
         set: {
@@ -97,7 +118,9 @@ function renderStep(componentInputs: Record<string, unknown>) {
             SelectMenuComponent,
             DocumentLineSelectCellComponent,
             SegmentedComponent,
+            ButtonComponent,
             HoverTooltipComponent,
+            UnitOfMeasureSelectComponent,
           ],
         },
       });
@@ -367,6 +390,64 @@ describe('ProductGeneralStepComponent', () => {
       });
 
       expect(screen.queryByLabelText('Modalità dei prezzi in questa sezione')).toBeNull();
+    });
+  });
+  /*
+    ⛔ Un tenant senza Shopify non vede alcuna logica del canale (docs/24 §1.8).
+    Prima la checkbox compariva a tutti: prometteva un canale che non c'era.
+  */
+  describe('«Sincronizza con Shopify» esiste solo dove esiste il canale', () => {
+    it("senza Shopify la checkbox non c'è", async () => {
+      await renderStep({
+        value: EMPTY_GENERAL,
+        categories: [],
+        shopifyConnected: false,
+        shopifyActive: false,
+      });
+
+      expect(screen.queryByLabelText('Sincronizza con Shopify')).toBeNull();
+    });
+
+    it("con Shopify attivo la checkbox c'è", async () => {
+      await renderStep({
+        value: EMPTY_GENERAL,
+        categories: [],
+        shopifyConnected: true,
+        shopifyActive: true,
+      });
+
+      expect(screen.getByLabelText('Sincronizza con Shopify')).toBeTruthy();
+    });
+
+    // ⭐ «Nome Shopify»: due campi perché servono due nomi — quello breve per il
+    //    magazzino e quello con cui il prodotto si vende (docs/24 §1.9).
+    it('senza Shopify il «Nome Shopify» non esiste: sarebbe un campo senza destinazione', async () => {
+      await renderStep({
+        value: EMPTY_GENERAL,
+        categories: [],
+        shopifyConnected: false,
+        shopifyActive: false,
+      });
+
+      expect(screen.queryByLabelText(/Nome Shopify/)).toBeNull();
+    });
+
+    it('⭐ «Copia nome VestiFlow» riallinea i due nomi su richiesta, non da solo', async () => {
+      const user = userEvent.setup();
+      const { fixture } = await renderStep({
+        value: { ...EMPTY_GENERAL, name: 'MAGL-COT-BLU' },
+        categories: [],
+        shopifyConnected: true,
+        shopifyActive: true,
+      });
+
+      // Nasce vuoto e nessuno lo riempie: lo decide la prima sincronizzazione.
+      expect(screen.getByLabelText<HTMLInputElement>(/Nome Shopify/).value).toBe('');
+
+      await user.click(screen.getByRole('button', { name: 'Copia nome VestiFlow' }));
+      fixture.detectChanges();
+
+      expect(screen.getByLabelText<HTMLInputElement>(/Nome Shopify/).value).toBe('MAGL-COT-BLU');
     });
   });
 });

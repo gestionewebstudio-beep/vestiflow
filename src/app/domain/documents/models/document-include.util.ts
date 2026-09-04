@@ -76,6 +76,16 @@ export interface IncludedDocumentLine {
   readonly sku?: string;
   readonly barcode?: string;
   readonly description: string;
+  /**
+   * Etichetta della VARIANTE: «M / Rosso».
+   *
+   * **Va trasportata** per la stessa ragione di `isReference` qui sotto: una
+   * riga inclusa deve dire quello che diceva nel documento di origine. Senza,
+   * includere un preventivo in una fattura perderebbe taglia e colore.
+   */
+  readonly variantLabel?: string;
+  /** Unità di misura fotografata all'origine. Stessa ragione della variante. */
+  readonly unitOfMeasure?: string;
   readonly quantity: number;
   readonly unitPriceMinor: number;
   /** Sconto riga nella notazione di origine (es. "10%", "4+10%") o vuoto. */
@@ -202,6 +212,8 @@ export function includedPayloadFromQuote(doc: DocumentRecord): IncludedDocumentP
       variantId: line.variantId,
       sku: line.sku,
       description: line.description,
+      variantLabel: line.variantLabel,
+      unitOfMeasure: line.unitOfMeasure,
       quantity: line.quantity,
       unitPriceMinor: line.unitPrice.amountMinor,
       // Le reference gia presenti nell'origine viaggiano come tutte le altre
@@ -231,7 +243,15 @@ export function includedPayloadFromSalesOrder(order: SalesOrder): IncludedDocume
       variantId: line.variantId,
       sku: line.sku || undefined,
       barcode: line.barcode,
+      // ⚠️ `title` dell'Ordine cliente e' ancora il display COMPLETO, che
+      // contiene la variante: lo diventera' il solo nome quando l'Ordine
+      // cliente adottera' il risolutore comune, subito dopo questa maschera
+      // (`03c` §5, ordine deciso il 24/08/2026). Fino ad allora una riga
+      // inclusa da un ordine VECCHIO puo' mostrare la variante due volte —
+      // nel nome e nella sua colonna — e sui documenti nuovi no.
       description: line.title,
+      variantLabel: line.variantLabel,
+      unitOfMeasure: line.unitOfMeasure,
       quantity: line.quantity,
       unitPriceMinor: line.unitPrice.amountMinor,
       isReference: line.isReference === true,

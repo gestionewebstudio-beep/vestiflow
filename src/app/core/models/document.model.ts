@@ -27,7 +27,7 @@ export const DocumentType = {
   Inventory: 'inventory',
   Proforma: 'proforma',
   /** Fattura fiscale da inviare al commercialista. */
-  InvoiceDraft: 'invoice_draft',
+  Invoice: 'invoice',
   /**
    * Fattura accompagnatoria: fattura fiscale con trasporto merce incluso.
    * Condivide elenco, numeratore e form base con InvoiceDraft.
@@ -134,8 +134,16 @@ export interface LinkedPurchaseInvoiceInfo {
   readonly totalsCheckPending?: boolean;
 }
 
-/** Quota IVA di un arrivo merce (righe per aliquota della Registrazione fattura). */
+/**
+ * Quota IVA di un arrivo merce: alimenta le righe economiche che «Includi
+ * arrivo merce» materializza sulla Registrazione fattura.
+ *
+ * ⭐ Una quota per **Codice IVA**, non per aliquota: al 22% possono convivere
+ * l'ordinario e l'inversione contabile, e sono due fatti fiscali diversi.
+ */
 export interface GoodsReceiptVatBreakdownEntry {
+  /** Il Codice IVA del gruppo. `null` sulle righe storiche che non ne hanno. */
+  readonly vatCodeId: EntityId | null;
   readonly ratePercent: number;
   readonly net: Money;
   readonly vat: Money;
@@ -187,6 +195,29 @@ export interface DocumentLine {
    * che la colonna esistesse: lì vale quella dell'anagrafica.
    */
   readonly unitOfMeasure?: string;
+  /**
+   * Etichetta della VARIANTE, fotografata sulla riga: «M / Rosso».
+   *
+   * Vuota = l'articolo non ha varianti visibili, compresi il prodotto semplice
+   * e il «Default Title» di Shopify.
+   *
+   * ⛔ Non si ricostruisce dalla variante corrente: un documento emesso deve
+   * continuare a dire quello che diceva.
+   */
+  readonly variantLabel?: string;
+  /**
+   * Codice articolo FOTOGRAFATO sulla riga.
+   *
+   * ⛔ Stessa disciplina di `variantLabel` qui sopra: non si ricostruisce
+   * dall'anagrafica corrente. Assente su una riga salvata significa «questo
+   * documento non lo dice», e la cella resta vuota — ricostruirlo mostrerebbe
+   * il codice di oggi su un documento di marzo.
+   */
+  readonly articleCode?: string;
+  /** Nome del prodotto fotografato sulla riga. Stessa disciplina. */
+  readonly productName?: string;
+  /** Barcode fotografato sulla riga. Stessa disciplina. */
+  readonly barcode?: string;
   /** Flag "carica magazzino": righe spese/servizi non movimentano stock. */
   readonly loadsStock: boolean;
   /** Riga «documento collegato»: separatore informativo, fuori dai totali. */
@@ -204,6 +235,15 @@ export interface DocumentLine {
   /** IVA totale della riga (righe Registrazione fattura). */
   readonly lineVatTotal?: Money;
   /** Origine riga Registrazione fattura: riepilogo per aliquota o voce manuale. */
+  /**
+   * Provenienza STORICA della riga di Registrazione fattura, scritta dal server:
+   * `vat_summary` se è nata includendo un arrivo, `manual` se è una voce libera.
+   *
+   * ⛔ **Non decide più niente nel frontend, e non deve tornare a farlo.** Fino
+   * al 25/08/2026 il caricamento scartava le righe non `manual`, perché quelle
+   * da arrivo se le ri-derivava. Ora tutte le righe sono righe del documento: a
+   * dire da dove vengono è `linkedGoodsReceiptId`, che è anche il legame vero.
+   */
   readonly lineSource?: 'vat_summary' | 'manual';
 }
 
@@ -246,7 +286,7 @@ export interface DocumentRecord extends TenantScoped, Timestamped {
   readonly adjustmentDirection?: AdjustmentDirection;
   readonly externalDocNumber?: string;
   readonly externalDocDate?: IsoDateString;
-  /** Data emissione fattura esterna su bozza fattura (B6). */
+  /** Data emissione fattura esterna su fattura (B6). */
   readonly externallyIssuedAt?: IsoDateString;
   readonly externalRef?: string;
   readonly sourceDocumentId?: EntityId;
@@ -255,7 +295,7 @@ export interface DocumentRecord extends TenantScoped, Timestamped {
   readonly paymentTerms?: string;
   /** Modalità di pagamento (DDT vendita: voce normativa MP01–MP23, snapshot nome). */
   readonly paymentMethod?: string;
-  /** Descrizione libera del metodo «Altro» (Vendita in negozio): es. «Assegno». */
+  /** Descrizione libera del metodo «Altro» (Vendita al banco): es. «Assegno». */
   readonly paymentMethodNote?: string;
   /** Data prevista consegna (Preventivo: campo «Consegna prevista»). */
   readonly expectedDeliveryDate?: IsoDateString;
@@ -317,7 +357,7 @@ export interface DocumentRecord extends TenantScoped, Timestamped {
   readonly lineCount?: number;
   /** Conversione: documento da cui nasce (proforma/DDT), se generato da una. */
   readonly sourceDocument?: ConvertedDocumentRef | null;
-  /** Conversione: documenti generati da questo (bozza fattura, fattura, DDT). */
+  /** Conversione: documenti generati da questo (fattura, fattura, DDT). */
   readonly derivedDocuments?: readonly ConvertedDocumentRef[];
   /** Ordine vendita Shopify collegato (documento auto-generato). */
   readonly linkedSalesOrder?: {

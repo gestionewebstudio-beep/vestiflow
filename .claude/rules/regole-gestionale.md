@@ -89,8 +89,61 @@ L'interfaccia deve privilegiare:
 - `createdAt`
 - `createdBy` + snapshot `createdByName`
 - È VIETATO aggiornare quantità stock senza lasciare traccia del movimento, salvo migrazioni documentate.
-- **Eccezione sync**: i delta di giacenza che arrivano da Shopify (vendite online, rettifiche fatte nell'admin Shopify) generano movimenti con origine `shopify` (`type: sale` o `adjustment`). Non sono "modifiche silenziose" ma nemmeno azioni utente: l'origine deve essere distinguibile nello storico.
-- **DEROGA Scarico manuale (prompt Scarico manuale, 2026-07 — scelta esplicita del cliente)**: il SOLO tipo documento `manual_unload` aggiorna la giacenza direttamente al salvataggio SENZA creare `StockMovement` (implementazione: `api/src/documents/document-stock-manual-unload.util.ts`). Il documento è l'unica evidenza dello scarico; la sua eliminazione NON ripristina le giacenze. Il push inventario verso i canali (Shopify/TikTok) resta obbligatorio post-commit: la sync legge la giacenza, non i movimenti. Questa deroga NON è un precedente per altri tipi documento.
+- **Shopify non è fonte della quantità**: gli aggiornamenti di inventory level ricevuti dal
+  canale non sovrascrivono la giacenza VestiFlow e una rettifica fatta nell'admin Shopify non
+  crea da sola un movimento locale. Ordini e resi Shopify vengono prima acquisiti come eventi
+  commerciali; sono i documenti e le regole VestiFlow conseguenti a produrre gli eventuali
+  movimenti. La quantità autorevole viene poi inviata da VestiFlow a Shopify.
+- **DEROGA Vendita manuale (prompt Vendita manuale, 2026-07 — scelta esplicita del cliente)**: il SOLO tipo documento `manual_unload` aggiorna la giacenza direttamente al salvataggio SENZA creare `StockMovement` (implementazione: `api/src/documents/document-stock-manual-unload.util.ts`). Il documento è l'unica evidenza dello scarico; la sua eliminazione NON ripristina le giacenze. Il push inventario verso i canali (Shopify/TikTok) resta obbligatorio post-commit: la sync legge la giacenza, non i movimenti. Questa deroga NON è un precedente per altri tipi documento.
+
+### ⭐ E la deroga ha un interruttore — deciso il 26/08/2026
+
+> **La Vendita manuale è operativa solo dove il titolare l’ha accesa, e nasce SPENTA.**
+
+Impostazione aziendale `TenantFeatureSettings.manualUnloadEnabled`, in Impostazioni →
+operative. Non è una preferenza fra le altre: è un **interruttore di sicurezza** su una
+capacità che scavalca il motore dei movimenti.
+
+⛔ **Il default è `false`, al contrario di ogni altra colonna di quella tabella.** Non
+riproduce il comportamento precedente — è una scelta esplicita: un interruttore di
+sicurezza che nasce acceso protegge solo chi si ricorda di spegnerlo. I tenant che oggi
+la usano se la trovano spenta e il titolare deve riaccenderla, e questo era messo in conto.
+
+| A funzione spenta    |                                                             |
+| -------------------- | ----------------------------------------------------------- |
+| creare               | ⛔ vietato, e il rifiuto è sull’**API** — non solo nella UI |
+| modificare           | ⛔ vietato, per la stessa ragione                           |
+| aprire la maschera   | ⛔ non ci si arriva: la riga porta al **Dettaglio**         |
+| consultare, stampare | ✅ sempre: lo storico resta                                 |
+| eliminare            | ✅ **nessuna regola nuova**, permessi di sempre             |
+| annullare            | — non esiste per questo tipo, e non si è inventato          |
+
+⚠️ **La modifica è vietata quanto la creazione, e non è pignoleria**: aprire una Vendita
+manuale storica, cambiarne le quantità e salvare produce la **stessa** variazione diretta
+di giacenza senza `StockMovement`. Lasciarla aperta avrebbe reso il blocco aggirabile in un
+clic — e lo sblocco della maschera è solo stato del client, quindi il blocco vero può stare
+soltanto sull’API.
+
+⭐ **La maschera NON si apre «in sola lettura».** Rendere editabile-ma-bloccato avrebbe
+significato nascondere Salva, nascondere Sblocca, disabilitare i campi e inventare uno
+stato parallelo. La destinazione per consultare un documento esiste già ed è il Dettaglio:
+`canOpenDocumentForm` dice no, e `documentRowPath` ci ripiega da solo — quindi clic di riga,
+ricerca globale e link trasversali seguono senza che nessuno li tocchi.
+
+⚠️ **Chi gira l’interruttore è il titolare**, e il rifiuto è mirato al solo campo sensibile:
+le altre impostazioni restano dell’amministratore. Il predicato è `hasFullTenantAccess`,
+quello canonico — quindi comprende anche la **sessione di assistenza**, che è una
+conseguenza dichiarata e non una svista.
+
+⛔ **Si legge sempre `=== true`.** Il default è spento e la riga di `tenant_feature_settings`
+si materializza solo quando qualcuno apre il pannello: «riga assente», «colonna false» e
+«profilo senza il campo» devono dire tutte la stessa cosa. Scritto `!== false`, sarebbe
+acceso per ogni azienda che non ha mai aperto le Impostazioni.
+
+⚠️ **Il flag viaggia sul profilo utente (`/auth/me`), non su `/tenant/feature-settings`**:
+quell’endpoint chiede `settings.company`, che manager e commesso non hanno, e i consumatori
+assorbono il 403 con `catchError(() => of(null))`. Letto per quella strada, sarebbe rimasto
+**acceso proprio per chi lo si vuole spegnere**.
 
 ### Un movimento per riga, aggiornato in posto — non uno per salvataggio _(15/08/2026)_
 
@@ -113,7 +166,7 @@ Non è una scelta nuova: è nello schema, con il vincolo che la fa rispettare �
 
 Ne discende anche che **due righe dello stesso articolo restano due movimenti distinti**: aggregare per variante perde il legame con la riga, ed è ciò che rende impossibile ritrovare il movimento al salvataggio dopo.
 
-_Stato al 15/08:_ la regola è rispettata da **tutti** i documenti che movimentano — Arrivo merce, Rettifica, Trasferimento e, da oggi, lo **scarico di vendita** (DDT vendita e Fattura accompagnatoria). Misure, cause e correzione in `docs/09-specifica-movimenti-per-riga.md`. La deroga dello Scarico manuale qui sopra resta fuori da tutto questo: non crea movimenti affatto.
+_Stato al 15/08:_ la regola è rispettata da **tutti** i documenti che movimentano — Arrivo merce, Rettifica, Trasferimento e, da oggi, lo **scarico di vendita** (DDT vendita e Fattura accompagnatoria). Misure, cause e correzione in `docs/09-specifica-movimenti-per-riga.md`. La deroga della Vendita manuale qui sopra resta fuori da tutto questo: non crea movimenti affatto.
 
 I documenti storici si convertono **da sé al primo salvataggio**: il sync somma l'effetto netto dei movimenti aggregati, lo annulla, li cancella e riscrive un movimento per riga. La giacenza non si muove di un pezzo. Non esiste uno script di conversione, e non deve esistere.
 
@@ -127,6 +180,67 @@ dice cosa succede ai **valori della riga**, ed è la stessa disciplina un piano 
 > Modificato esplicitamente, il nuovo valore si salva e da lì diventa il valore persistito.
 > Una **riga nuova** acquisisce i valori correnti previsti dal contratto del documento, e da
 > quel momento li congela.
+
+### ⭐ Le righe nuove sono DUE cose diverse — deciso dal proprietario il 03/09/2026
+
+⛔ **Qui la regola si fermava a due casi**, esistente e nuova, e una riga **duplicata o
+convertita** cadeva nel secondo: tecnicamente è nuova, quindi prendeva l'anagrafica di oggi.
+Il risultato era che duplicare un DDT di marzo a settembre ne cambiava il nome articolo, e la
+fattura generata da quel DDT non diceva più quello che il DDT diceva.
+
+> **Una riga nuova DA CATALOGO acquisisce i valori correnti. Una riga nuova DERIVATA da un
+> documento sorgente eredita i valori di QUELLA riga, `null` compresi.**
+
+| Riga                                     | Da dove prende gli snapshot         |
+| ---------------------------------------- | ----------------------------------- |
+| **esistente** (ha un `id` proprio)       | il valore **persistito su di sé**   |
+| **derivata** (duplicazione, conversione) | la **riga sorgente**, copiata com'è |
+| **nuova da catalogo**                    | l'**anagrafica corrente**           |
+
+⭐ **La discriminante è un riferimento esplicito**, `sourceDocumentLineId`, e non un'euristica:
+nel payload una riga duplicata da una riga senza codice e una riga appena creata sono
+altrimenti **identiche** — entrambe senza `id` e senza snapshot. È un contratto binario, come
+quello del Codice IVA: la presenza della chiave È l'informazione.
+
+⛔ **Il client manda un id, non dei valori.** Il server risale alla riga sorgente e ne copia
+gli snapshot **dal database**, ignorando qualunque valore storico gli arrivi per altra via. È
+la forma che tiene insieme questa regola e quella che le sta di fronte — «la fotografia la
+compone il server, non l'interfaccia» — che altrimenti si escluderebbero a vicenda.
+
+⚠️ **Il riferimento non si persiste**: serve solo a comporre la riga. Dal salvataggio dopo,
+quella riga ha un `id` proprio ed è una riga esistente come tutte le altre.
+
+⛔ **Un riferimento presente ma NON VALIDO rifiuta il salvataggio.** Il contratto è a tre
+stati, non a due:
+
+| Riferimento                      | Esito                                           |
+| -------------------------------- | ----------------------------------------------- |
+| **assente**                      | riga nuova: fotografia dall'anagrafica corrente |
+| **presente e valido nel tenant** | copia integrale della sorgente                  |
+| **presente ma non valido**       | ⛔ salvataggio **rifiutato**                    |
+
+⚠️ **Qui c'era il ripiego su «riga nuova»**, difeso come «il comportamento più prudente».
+Non lo era: la riga veniva rifotografata dall'anagrafica **corrente** e il documento si
+salvava lo stesso — plausibile, e sbagliato. ⭐ È il difetto che questa regola chiude,
+rientrato dalla porta di servizio: e un documento che sembra giusto non lo va a controllare
+nessuno.
+
+⚠️ **Il messaggio d'errore non dice PERCHÉ.** «Non esiste» e «esiste, ma in un'altra
+azienda» devono essere indistinguibili: distinguerli trasformerebbe il campo in un modo per
+scoprire se un id di riga esiste altrove.
+
+⭐ **Cambiare articolo SCOLLEGA.** Se dopo il precompilato l'operatore sceglie un'altra
+variante, la riga non deriva più da niente: il riferimento si azzera e gli snapshot si
+riacquisiscono dalla nuova scelta. Il controllo sta **anche sul server**, che confronta la
+variante della sorgente con quella della riga — un client che si dimenticasse di azzerarlo
+copierebbe altrimenti l'identità del prodotto di prima sopra quello appena scelto.
+
+⚠️ **Lacuna dichiarata: «Concludi ordine» resta fuori.** Un documento di scarico generato da
+un ordine cliente continua a fotografare l'anagrafica corrente, e non per dimenticanza:
+`SalesOrderLine` **non possiede** `articleCode` né `productName`, quindi la conservazione
+sarebbe parziale per costruzione. ⛔ E i due campi mancanti **non si recuperano**
+dall'anagrafica di oggi per far tornare i conti: sarebbe il difetto stesso, con un'altra
+faccia. Si chiude quando si lavora sull'Ordine cliente.
 
 **Il criterio è cosa il documento è.** Un documento registra un'operazione avvenuta: rinominare
 un prodotto in anagrafica non cambia cosa c'era scritto sul DDT di marzo, e cambiare l'aliquota
@@ -244,6 +358,82 @@ butterebbe via proprio la coda), e la coda oltre le quattro cifre di centesimo s
 `toStorableMinor`, perché oltre lì non c'è precisione — c'è il rumore del float, e la colonna
 rifiuterebbe la scala.
 
+### ⭐ Il riepilogo SOMMA, non ricalcola — deciso dal proprietario il 27/08/2026
+
+> **Il calcolo economico avviene nel DOCUMENTO, una volta sola, secondo il contratto
+> comune. Elenchi, report, selezioni, export e registri AGGREGANO i valori finali già
+> determinati e persistiti.**
+
+⛔ **Un riepilogo non è un secondo motore economico.** Se ogni consumatore ricostruisce
+l’IVA, cominciano le differenze dovute ai diversi punti di arrotondamento — e la stessa
+transazione finisce per valere numeri diversi a seconda di dove la si guarda:
+
+```text
+documento   100,00
+elenco      100,01     ⛔ questo non deve poter accadere
+CSV          99,99
+report      100,00
+```
+
+#### Le tre responsabilità, e non se ne scambia nessuna
+
+| Livello                | Responsabilità                                                  |
+| ---------------------- | --------------------------------------------------------------- |
+| **Riga documento**     | calcola imponibile, IVA e totale **finali**                     |
+| **Documento**          | **somma** i valori finali delle proprie righe                   |
+| **Riepilogo / report** | **somma** i valori dei documenti, applicando filtri e **verso** |
+
+⛔ **Nel report non ci sta un `calcolaTotaleFattura()`.** Concettualmente ha solo:
+
+```text
+aggregate(document.taxableTotal)
+aggregate(document.vatTotal)
+aggregate(document.grandTotal)
++ economicSign(document.type)      quando serve
+```
+
+⭐ **Il riepilogo applica la CLASSIFICAZIONE e il VERSO economico, non rifà il calcolo
+fiscale.** Una fattura da 100 e una nota di credito da 50 fanno 50 — e ci si arriva col
+segno del tipo, non ricalcolando l’IVA della fattura.
+
+#### ⚠️ L’IVA per aliquota segue la stessa regola
+
+`IVA 22% · IVA 10% · IVA 4%` si ottengono **sommando gli importi IVA finali delle righe**
+di quel codice. ⛔ **Mai** prendere l’imponibile totale e rifare `imponibile × aliquota`:
+è lo stesso errore di arrotondamento, un piano più in alto.
+
+#### Dove pesca un elenco
+
+Dai **valori di testata** del documento (`taxableTotal`, `vatTotal`, `total`): è la strada
+più semplice e più veloce. Le **righe** servono solo quando il riepilogo chiede una
+dimensione che la testata non contiene — l’IVA per aliquota, per esempio — e anche lì si
+aggregano **valori finali salvati**, non si rifanno le formule.
+
+⭐ **La velocità è un beneficio secondario**, e va detto perché non è la ragione: un
+`SUM()` su valori già determinati costa molto meno che rileggere migliaia di righe e
+ripetere quantità × prezzo × modalità × sconto × sconto documento × aliquota ×
+arrotondamento. Ma il vantaggio fondamentale è **un risultato economico solo** per una
+transazione.
+
+#### ⭐ E risolve lo storico, che è lo stesso principio della fotografia
+
+Se agosto ha registrato un totale di riga da 25,00 €, il report di agosto deve continuare
+a leggere 25,00 € anche dopo che a settembre si è cambiato il listino. Andare
+sull’articolo corrente e chiedersi «quanto costerebbe oggi?» **non è un riepilogo: è una
+rivalutazione.** Gli snapshot esistono esattamente per questo.
+
+#### Il bersaglio: un motore, N aggregatori
+
+⛔ Il target **non è scegliere uno dei motori esistenti così com’è**. È:
+
+```text
+1 motore canonico documentale   +   N aggregatori semplici
+```
+
+⚠️ **Il difetto trovato sull’Ordine cliente non è del riepilogo: è del motore.** Chi
+aggrega quei numeri li aggrega correttamente — aggrega numeri sbagliati. Correggere il
+motore, e i consumatori si sistemano da soli.
+
 ### Netto/ivato: chi decide, in che ordine _(deciso 16/08/2026)_
 
 > **La modalità netto/ivato ha DUE livelli per i prezzi di vendita e UNO per i costi. Non di
@@ -306,16 +496,24 @@ un’assenza, è **un barrato che vale zero**, cioè uno sconto inventato del 10
 Chi non risponde alla convenzione sta **fuori da `SALES_PRICE_MODE_TYPES`**, che è l’unico
 elenco: la modalità proposta e le memorie da azzerare leggono lo stesso.
 
-| Chi                                                          | Perché                                                                                                    |
-| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
-| **cassa negozio** (`store_sale`, `store_return`)             | sempre ivata, deciso in `store-sales.service.ts`. Al banco il prezzo esposto è quello che il cliente paga |
-| **famiglia acquisto**                                        | i costi partono sempre netti                                                                              |
-| **tipi senza prezzi** (trasferimento, rettifica, inventario) | non usano la modalità                                                                                     |
+| Chi                                                          | Perché                       |
+| ------------------------------------------------------------ | ---------------------------- |
+| **famiglia acquisto**                                        | i costi partono sempre netti |
+| **tipi senza prezzi** (trasferimento, rettifica, inventario) | non usano la modalità        |
 
-⚠️ **Sulla cassa c’è una revisione in sospeso.** «Fisico/POS» e «netto/ivato» sono **due assi
-diversi** — è la stessa distinzione già fatta sul canale `manual` nel Registro Corrispettivi —
-e un grossista che vende al banco potrebbe volerla netta. Da rivedere col rifacimento della
-Vendita al banco, non di straforo.
+⭐ **Vendita e Reso al banco NON sono più esonerati — 21/08/2026.** Qui c'era «cassa negozio
+(`store_sale`, `store_return`): sempre ivata», col forcing cablato in `store-sales.service.ts`,
+e questa stessa sezione dichiarava la revisione in sospeso: «Fisico/POS» e «netto/ivato» sono
+**due assi diversi**, e un grossista che vende al banco può volerla netta.
+
+La revisione è stata fatta col rifacimento della Vendita al banco, com'era previsto: i due tipi
+sono **dentro** `SALES_PRICE_MODE_TYPES` e usano il contratto comune — convenzione aziendale,
+memoria dell'operatore, modalità persistita sul documento e modificabile dal selettore nella
+testata della colonna Prezzo (`11` A4).
+
+⚠️ **Entrarci significa ereditarlo tutto**: cambiare la convenzione aziendale azzera anche le
+memorie del banco. Senza, il titolare imposterebbe «netto» e chi sta al banco continuerebbe a
+vedere ivato per una memoria che non sa di avere.
 
 #### Due meccanismi ritirati, e perché non torneranno
 
@@ -339,14 +537,40 @@ sovrappongono: il primo tipo buono per entrambe l’avrebbe rotta in silenzio.
 
 Con Shopify connesso, **ogni entità ha un owner di sync** dichiarato. È la decisione che condiziona tutto: quali form esistono, cosa è editabile, come si risolvono i conflitti.
 
-| Entità                                      | Owner                          | Conseguenza UI                                                                            |
-| ------------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------- |
-| Prodotti / varianti ecommerce               | Shopify (di norma)             | editing locale = write-through verso Shopify o read-only; mai fork silenzioso             |
-| Clienti ecommerce                           | Shopify                        | anagrafica read-only nel gestionale                                                       |
-| Ordini di vendita online                    | Shopify                        | sempre read-only nel gestionale                                                           |
-| Giacenze                                    | condiviso (per quantity state) | il gestionale scrive carichi/rettifiche/trasferimenti; Shopify scrive vendite/reso online |
-| Ordini fornitori, trasferimenti, rettifiche | gestionale                     | pieno CRUD locale                                                                         |
-| Location                                    | Shopify (mappate)              | gestionale mappa le proprie location su quelle Shopify                                    |
+⭐ **La direzione PER CAMPO è la matrice canonica di `docs/24` §9.2, e vive solo lì.** La tabella qui sotto è a livello di **entità**: dice chi possiede un'entità, non la direzione di ogni suo campo. Dove le due sembrano divergere — un prodotto è «condiviso», ma la sua descrizione va solo VestiFlow→Shopify, di immagini se ne sincronizza una sola, SEO e metafield non configurati sono solo Shopify — **vince §9.2**. Qui non si ricopia la matrice: si rimanda.
+
+| Entità                                      | Owner                          | Conseguenza UI                                                                                                                                                                            |
+| ------------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Prodotti / varianti ecommerce               | **condiviso** (dal 03/09/2026) | gli importati SI MODIFICANO; la direzione **dipende dal campo** (`docs/24` §9.2), non è «tutto bidirezionale». Es.: `Product.name` è solo VestiFlow, `shopifyTitle` bidirezionale (sotto) |
+| Clienti ecommerce                           | Shopify                        | anagrafica read-only nel gestionale                                                                                                                                                       |
+| Ordini di vendita online                    | Shopify                        | sempre read-only nel gestionale                                                                                                                                                           |
+| Giacenze                                    | VestiFlow                      | Shopify invia ordini e resi come eventi; soltanto documenti e movimenti VestiFlow determinano la quantità autorevole, poi pubblicata al canale                                            |
+| Ordini fornitori, trasferimenti, rettifiche | gestionale                     | pieno CRUD locale                                                                                                                                                                         |
+| Location                                    | Shopify (mappate)              | gestionale mappa le proprie location su quelle Shopify                                                                                                                                    |
+
+### ⭐ Il NOME del prodotto ha due campi, e uno non è condiviso — 03/09/2026
+
+⛔ Qui la riga di tabella diceva _«Shopify (di norma) · editing locale = write-through o
+**read-only**»_: i prodotti importati **non sono in sola lettura**, l'origine è provenienza e
+non un vincolo (`docs/24` §1.8). La riga è stata corretta; questa sezione resta per ciò che
+una casella di tabella non può contenere.
+
+`Product.name` («Nome prodotto») è **esclusivamente VestiFlow** — Shopify non lo sovrascrive
+mai, in nessun percorso — mentre `shopifyTitle` («Nome Shopify») è il titolo della vetrina ed
+è bidirezionale. Gli altri campi seguono ciascuno la propria direzione in `docs/24` §9.2.
+
+### Ciclo di vita del catalogo
+
+La regola completa vive in `docs/24` §§1, 4, 7 e 11. In sintesi: Non attiva, cestino ed
+eliminazione definitiva sono azioni diverse; il cestino conserva tutto ed è ripristinabile;
+l'eliminazione definitiva locale rimuove le dipendenze operative dopo doppio avviso, lasciando
+leggibili le righe documento dai propri snapshot; VestiFlow rende non acquistabile il remoto ma
+non cancella mai definitivamente prodotti o varianti da Shopify.
+
+⚠️ **Un campo solo non poteva servire due mestieri opposti**: un nome si cerca digitando poche
+lettere in magazzino, l'altro si legge in una pagina prodotto. Finché erano lo stesso, chi
+accorciava il nome per il magazzino se lo vedeva tornare lungo al primo webhook — e chi lo
+accorciava lo accorciava anche sulla vetrina. Contratto in `docs/24` §1.9.
 
 Regole:
 
@@ -460,9 +684,23 @@ Ogni tabella dati importante DEVE supportare:
 > **L'apertura primaria di un documento dal suo elenco va alla maschera di
 > modifica. Sempre, per ogni tipo.**
 
-Il `DetailComponent` **non è la destinazione della riga**: è un'**anteprima** del
-documento, una visualizzazione — e si raggiunge con un'**azione separata**, non
-cliccando la riga.
+Il `DetailComponent` **non è la destinazione della riga**: è il **Dettaglio** del
+documento — la vista di consultazione — e si raggiunge con un **pulsante apposito**,
+non cliccando la riga.
+
+⭐ **Sono TRE funzioni diverse** _(deciso 20/08/2026)_, e confonderle è l'errore che
+questa regola previene:
+
+|                |                                                                        |
+| -------------- | ---------------------------------------------------------------------- |
+| **Modifica**   | lavorare sul documento — è dove porta il clic di riga                  |
+| **Dettaglio**  | consultarlo rapidamente e in sicurezza, in sola lettura                |
+| **Stampa/PDF** | produrne una rappresentazione destinata alla stampa o all'esportazione |
+
+⛔ **Stampa e Dettaglio non c'entrano niente l'uno con l'altro.** Che un documento si
+stampi non dice nulla su come lo si consulta. E «anteprima» non è il nome di nessuna
+delle tre: **il nome VestiFlow della vista di consultazione è Dettaglio**, ed è quello
+che l'operatore legge già nei titoli di pagina.
 
 **Il criterio è cosa fa l'operatore.** Apre un documento per lavorarci: correggere una
 quantità, cambiare una data, aggiungere una riga. Portarlo su una vista in sola lettura
@@ -473,23 +711,65 @@ consulta tutto il giorno quel clic si paga a ogni riga.
 diversamente dagli altri, l'operatore deve ricordarsi quale: è la stessa ragione per cui
 le etichette dei pulsanti sono uguali su ogni maschera (`regole-stile-ui` §5).
 
-### ⚠️ Stato al 19/08/2026: la regola è rispettata solo in parte
+### ✅ Applicata a ogni tipo — 20/08/2026
 
-| Apre la **maschera** ✅                              | Apre l'**anteprima** ⛔ da correggere                                     |
-| ---------------------------------------------------- | ------------------------------------------------------------------------- |
-| Preventivo · Registrazione fattura · famiglia carico | Proforma · DDT vendita · Scarico manuale · Fatture · **Vendite al banco** |
+⚠️ **Qui c'era «la regola è rispettata solo in parte»**, con una tabella che divideva i
+tipi fra chi apriva la maschera (Preventivo, Registrazione fattura, famiglia carico) e chi
+apriva l'anteprima (Proforma, DDT vendita, Vendita manuale, Fatture, Vendite al banco). La
+divisione non esiste più.
 
-Il meccanismo esiste già ed è **una riga di configurazione**: `rowOpensForm: true` in
-`document-sales-register.config.ts`, oggi presente sul solo Preventivo. E
-`documentEditPath` ha già un indirizzo di modifica **per ogni tipo**.
+> **La decisione sta in un solo posto, dichiarata per tipo:** `DOCUMENT_ROW_OPENS` in
+> `document-routing.util.ts`, e la risposta la dà `documentRowPath`.
 
-⚠️ **Le Vendite al banco sono l'unico caso che non si chiude con quella riga**: la loro
-maschera non sa ancora caricare un documento per id. Vedi `11` — l'apertura in modifica
-è un requisito dichiarato e **non ancora completato**, legato a quella capacità.
+⛔ **Non è più «una riga di configurazione» sul profilo di elenco.** Il vecchio
+`rowOpensForm` è stato **rimosso**: era una preferenza per profilo, e ciò che vale per
+tutti non è una preferenza. È un `Record` **esaustivo** per tipo documento — aggiungerne
+uno senza dichiarare dove porta la sua riga **non compila**.
 
-⚠️ **Resta aperta una domanda di progetto**: da dove si raggiunge l'anteprima, una volta
-tolta dal clic di riga — un'azione di riga, un comando dentro la maschera, un pannello.
-Va decisa una volta per tutti i documenti, non tipo per tipo.
+⭐ **Vale anche per la ricerca globale e per i link trasversali**: `documentOpenPath` delega
+alla stessa funzione. Se le due rispondessero diversamente, lo stesso documento avrebbe due
+aperture a seconda di dove lo si è trovato.
+
+Due sole eccezioni, e sono quelle di `14` §2.1:
+
+### ⏸ DECISIONE APERTA — le eccezioni per stato non sono deliberate
+
+⛔ **Qui c'era una tabella che dichiarava due eccezioni come regola** — «documento annullato →
+apre il Dettaglio» e «tipo senza maschera documentale → apre il Dettaglio».
+
+**Non sono mai state decise.** Verificato il 20/08/2026: non esistono in nessun commit — la
+regola generale è del commit `956fb446` del 19/08 e non le contiene. Erano una **deduzione dal
+comportamento del codice**, e il codice le implementa già (`documentRowPath` manda un annullato
+a `documentPreviewPath`).
+
+> **La regola generale resta una sola: clic sulla riga → Modifica, Dettaglio dal suo pulsante.**
+> Un'eccezione per stato vale solo se **deliberata**, non se dedotta da come si comporta oggi
+> l'implementazione.
+
+⚠️ **Il codice e questa regola oggi divergono**, ed è dichiarato invece che nascosto: fino a
+decisione, `documentRowPath` continua a comportarsi come si comporta. Le due domande da chiudere:
+
+| Caso                                                    | La domanda                                                                                                                                      |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| documento **annullato**                                 | è ancora modificabile? Se non lo è, aprire la Modifica di una cosa non modificabile è un vicolo cieco — ma è una decisione, non una conseguenza |
+| tipo **senza maschera documentale** (inventario fisico) | non c'è una Modifica dove mandarlo: qui l'eccezione è **tecnicamente forzata**, non discrezionale. Va comunque dichiarata                       |
+
+### ✅ E il Dettaglio si raggiunge dalla SELEZIONE
+
+⚠️ **Qui c'era una domanda di progetto aperta** — «da dove si raggiunge, una volta tolto
+dal clic di riga». Ha una casa, ed è comune a tutti gli elenchi: la **barra azioni
+contestuale** (`14` §5).
+
+```text
+clic sulla riga      → modifica
+clic sulla checkbox  → selezione → azioni contestuali → Dettaglio
+```
+
+⚠️ **Il meccanismo è deciso; la riga della matrice per ogni elenco no.** «Dettaglio» è
+un'azione **decisa** — il concetto si mantiene e si apre col suo pulsante — ma su quali
+elenchi compaia, con quali permessi e in quali stati, si scrive elenco per elenco in
+`14` parte E. Le due azioni già attive sono Stampa ed Esporta, scelte perché di sola
+lettura.
 
 ## Colonne numeriche
 

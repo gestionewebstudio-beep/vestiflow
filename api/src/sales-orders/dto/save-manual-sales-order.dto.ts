@@ -52,7 +52,10 @@ export class SaveManualSalesOrderLineDto {
   quantity!: number;
 
   @IsOptional()
-  @IsInt()
+  // ⚠️ NON `@IsInt()`: in modalità ivata il client manda il netto SCORPORATO,
+  //   che ha la coda decimale per contratto («2049,180328»), e la colonna
+  //   `sales_order_lines.unit_price_minor` è `numeric(16,6)` — verificato.
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
   unitPriceMinor?: number;
 
@@ -81,6 +84,22 @@ export class SaveManualSalesOrderLineDto {
   @IsString()
   @MaxLength(20)
   unitOfMeasure?: string;
+
+  /**
+   * Etichetta della variante («M / Rosso») da fotografare sulla riga.
+   *
+   * ⚠️ Serve alla DUPLICAZIONE, che deve riportare quella dell'ordine origine
+   * invece di ricomporla: se la variante nel frattempo è uscita dal catalogo,
+   * ricomporla darebbe stringa vuota e il duplicato perderebbe l'informazione.
+   *
+   * ⛔ Vale SOLO sulle righe nuove. Su una riga già esistente che porta ancora
+   * la stessa variante il server conserva il valore persistito e ignora questo
+   * campo: la fotografia non la decide chi chiama.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  variantLabel?: string;
 }
 
 /**
@@ -147,15 +166,38 @@ export class SaveManualSalesOrderDto {
   @IsISO8601()
   expectedDeliveryDate?: string;
 
-  /** Stato documento: Confermato (default) o Annullato. Concluso solo via "Concludi ordine". */
+  /**
+   * Stato del ciclo commerciale, scelto dall'operatore.
+   *
+   * ⭐ **`confirmed` resta il default**: chi crea normalmente un ordine non deve
+   * fare un passaggio in più perché è stato introdotto un quarto stato
+   * (`18` §2.4-bis). «Da confermare» è una scelta esplicita.
+   *
+   * ⛔ **`concluded` NON è accettato**, e non per dimenticanza: è derivato dal
+   * collegamento a un documento conclusivo. Un valore scelto verrebbe
+   * sovrascritto al primo ricalcolo, e nel frattempo mentirebbe. Lo rifiuta
+   * anche `assertManualTransition`, che è l'autorità.
+   */
   @IsOptional()
-  @IsIn(['confirmed', 'cancelled'])
-  status?: 'confirmed' | 'cancelled';
+  @IsIn(['to_confirm', 'confirmed', 'cancelled'])
+  status?: 'to_confirm' | 'confirmed' | 'cancelled';
 
   @IsOptional()
   @IsString()
   @MaxLength(2000)
   notes?: string;
+
+  /**
+   * Nota interna, mai in stampa.
+   *
+   * ⭐ Aggiunta il 25/08/2026: l'ordine cliente ne era privo solo perche' la
+   * colonna non esisteva su `sales_orders`, non per una ragione funzionale.
+   * Stesso limite delle note pubbliche — sono lo stesso genere di testo.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  internalComment?: string;
 
   /** Condizioni di pagamento (proposta dall'anagrafica cliente, non vincolo). */
   @IsOptional()

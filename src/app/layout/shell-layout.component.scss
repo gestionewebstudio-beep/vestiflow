@@ -14,8 +14,11 @@
   min-inline-size: 0;
   overflow: hidden;
   grid-template-columns: 1fr;
-  grid-template-rows: var(--topbar-height) 1fr;
+  // ⚠️ La riga degli avvisi è `auto`: senza contenuto non occupa nulla, e la
+  //    schermata resta com'era.
+  grid-template-rows: auto var(--topbar-height) 1fr;
   grid-template-areas:
+    'banners'
     'topbar'
     'content';
   background-color: var(--color-bg);
@@ -23,6 +26,19 @@
 
 .shell--support-banner {
   padding-block-end: var(--shell-support-banner-height);
+}
+
+/*
+  ⛔ **Gli avvisi finivano in fondo alla pagina, su OGNI schermata.**
+
+  Erano i primi figli nel DOM ma senza `grid-area`: una griglia con aree
+  nominate mette chi non ne dichiara una in una riga IMPLICITA, creata dopo
+  quelle nominate — cioè in coda. Il DOM diceva «in cima», la griglia decideva
+  «in fondo», e vinceva la griglia.
+*/
+.shell__banners {
+  grid-area: banners;
+  min-inline-size: 0;
 }
 
 .shell__topbar {
@@ -209,14 +225,30 @@
 @include bp.media-up('lg') {
   .shell {
     grid-template-columns: var(--sidebar-width) 1fr;
+    // ⚠️ Gli avvisi stanno sopra TUTTO, sidebar compresa: riguardano
+    //    l'applicazione, non l'area di contenuto.
     grid-template-areas:
+      'banners banners'
       'sidebar topbar'
       'sidebar content';
   }
 
   // Piu' respiro sul desktop denso: 20px verticale, 24px orizzontale.
   .shell__content {
-    padding: var(--space-5) var(--space-6);
+    /*
+      ⭐ **MARGINI STRETTI: 8/12 invece di 20/24** — deciso dal proprietario il
+      30/08/2026, davanti alla schermata: «devi diminuire molto di più il
+      margine e recuperare spazio per il contenitore centrale».
+
+      Sono 24px di altezza e 24 di larghezza restituiti al contenuto su OGNI
+      schermata dell'applicazione — su un elenco, quasi una riga di tabella in
+      più e mezza colonna.
+
+      ⚠️ **È un gestionale, non una pagina di contenuto**: `regole-gestionale`
+      chiede densità informativa controllata e vieta «proporzioni da marketing
+      page». Venti pixel di cornice intorno a una tabella erano quella cosa lì.
+    */
+    padding: var(--space-15) var(--space-2);
   }
 
   .shell__sidebar {

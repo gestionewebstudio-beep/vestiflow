@@ -59,7 +59,15 @@ export function moneyFromMajor(
   return { amountMinor: Math.round(major * factor), currencyCode };
 }
 
-/** Cifre di centesimo che una colonna `NUMERIC(16,6)` sa memorizzare. */
+/**
+ * Cifre di centesimo che il CONTRATTO conserva: quattro, cioè **6 decimali di
+ * euro** (`1,234567 EUR = 123,4567 centesimi`).
+ *
+ * ⚠️ **Non è la capacità della colonna**: `NUMERIC(16,6)` di decimali ne
+ * memorizza sei — sei di centesimo, cioè otto di euro. Ne usiamo quattro.
+ * Gemella di `MINOR_TAIL_DECIMALS` del backend: le due sponde devono ridurre la
+ * coda allo stesso modo.
+ */
 const MINOR_TAIL_DECIMALS = 4;
 
 /**

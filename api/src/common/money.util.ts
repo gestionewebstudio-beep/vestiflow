@@ -17,7 +17,20 @@ export function roundToMinor(amountMinor: number): number {
   return Math.round(amountMinor);
 }
 
-/** Cifre di centesimo che una colonna `NUMERIC(16,6)` sa memorizzare. */
+/**
+ * Cifre di centesimo che il CONTRATTO conserva: quattro, cioè **6 decimali di
+ * euro**.
+ *
+ *     1,234567 EUR  =  123,4567 centesimi
+ *
+ * ⚠️ **Non è la capacità della colonna**, ed è la confusione che questo
+ * commento induceva: `NUMERIC(16,6)` di decimali ne memorizza **sei** — sei di
+ * centesimo, cioè otto di euro. Ne usiamo quattro, e le due cifre di margine
+ * restano libere.
+ *
+ * Oltre le quattro non c'è precisione: c'è il rumore del float (`25 / 1.22` in
+ * binario non finisce mai).
+ */
 const MINOR_TAIL_DECIMALS = 4;
 
 /**
@@ -50,6 +63,37 @@ export function sameNullableAmountAtCent(a: number | null, b: number | null): bo
     return a === b;
   }
   return sameAmountAtCent(a, b);
+}
+
+/**
+ * **«È cambiato?» per un valore UNITARIO canonico**: si chiede alla precisione
+ * del contratto — 4 cifre di centesimo, cioè 6 decimali di euro — non al
+ * centesimo.
+ *
+ * ⛔ **Non è un doppione di `sameAmountAtCent`, ed è la distinzione che conta.**
+ * Quella risponde «è lo stesso importo *per l'operatore*», e sui TOTALI è
+ * giusta: una coda diversa non è una modifica che qualcuno vede. Ma un costo
+ * unitario la coda la CONSERVA per contratto, e chiederglielo al centesimo
+ * significa non accorgersi di un cambio reale:
+ *
+ *     84,0000 → 84,4262     al centesimo: «uguali»  ⛔     al contratto: diversi ✅
+ *
+ * Misurato il 22/08/2026: con quel metro, un Arrivo merce a 1,03 € ivati al 22%
+ * avrebbe lasciato in anagrafica il vecchio 84 invece di scrivere 84,4262 —
+ * cioè avrebbe vanificato la migration che serviva a conservarlo.
+ *
+ * ⭐ **Normalizza entrambi i valori prima di confrontarli**, con la stessa
+ * funzione che li prepara alla persistenza: due valori grezzi diversi che
+ * diventano identici una volta memorizzabili SONO lo stesso valore, e non
+ * devono far scattare una riscrittura.
+ *
+ * `null` resta distinto da qualunque numero, zero compreso.
+ */
+export function sameUnitAmountAtContract(a: number | null, b: number | null): boolean {
+  if (a === null || b === null) {
+    return a === b;
+  }
+  return toStorableMinor(a) === toStorableMinor(b);
 }
 
 /**

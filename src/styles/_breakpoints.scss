@@ -51,3 +51,47 @@ $breakpoints: (
     @content;
   }
 }
+
+/// ⭐ **La vista a card: sotto la soglia, OPPURE perché l'operatore l'ha scelto.**
+///
+/// Impostazioni → Aspetto, «Sempre compatta» (30/08/2026). Serve al **monitor
+/// touch grande** e al tablet, dove la larghezza c'è ma il dito no: la tabella
+/// si regge su passaggio del mouse, puntatore fine e Tab, e chi tocca non ne ha
+/// nessuno dei tre.
+///
+/// ⛔ **Si usa SOLO dove la vista commuta davvero** — cinque blocchi fra il
+/// motore tabella e il mixin delle card — non al posto di `media-down`. Applicato
+/// a tutti i 95 blocchi mobili triplicherebbe il CSS per regole che con la vista
+/// non c'entrano.
+///
+/// ⚠️ **`:host-context` e non `:root`**, ed è la ragione per cui questo mixin
+/// esiste invece di due righe dentro `media-down`: con l'incapsulamento di
+/// Angular un `:root[data-vista]` scritto in un foglio di componente diventa
+/// `:root[_ngcontent-x]` e non aggancia mai niente. Il mixin delle card è incluso
+/// **solo** da fogli di componente — verificato — quindi la forma è una sola.
+///
+/// ⚠️ **`@if &`**: metà delle chiamate sta a livello di file, dove `&` è nullo e
+/// Sass rifiuta un selettore che lo contiene.
+/// ⏸ **Oggi il ramo dell'attributo non scatta mai**: `ViewportService` ha
+/// smesso di scrivere `data-vista` quando il selettore è stato ritirato
+/// (30/08/2026). Il mixin resta perché i tre blocchi del motore sono già
+/// convertiti, e il giorno in cui il selettore torna funzionano da soli —
+/// ⛔ ma finché quella riga non torna, qui si comporta come un `media-down`.
+@mixin vista-compatta($name: 'lg') {
+  @media (max-width: down-max($name)) {
+    @content;
+  }
+
+  /*
+    ⛔ **Qui il contenuto veniva emesso una SECONDA volta**, sotto
+    `:host-context([data-vista='compatta'])`, per il selettore di vista.
+
+    ⚠️ **Quel ramo non può scattare da quando il selettore è stato ritirato**
+    (30/08/2026): `ViewportService` ha smesso di scrivere l'attributo. Erano
+    regole duplicate nel bundle che nessun elemento poteva soddisfare — e sul
+    foglio del motore tabella pesavano abbastanza da sforare il budget di stile.
+
+    ⭐ **Il mixin resta**: i punti che lo includono sono già convertiti, e il
+    giorno in cui il selettore torna basta rimettere il ramo qui, in un posto solo.
+  */
+}

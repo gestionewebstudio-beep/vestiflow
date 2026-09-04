@@ -40,12 +40,12 @@ const SCOPE_DISPLAY: Record<string, ShopifyScopeDisplay> = {
     access: 'write',
   },
   read_locations: {
-    label: 'Location',
+    label: 'Sedi',
     description: 'Legge magazzini e punti vendita configurati su Shopify.',
     access: 'read',
   },
   write_locations: {
-    label: 'Location',
+    label: 'Sedi',
     description: 'Crea e modifica location su Shopify.',
     access: 'write',
   },
@@ -57,6 +57,18 @@ const SCOPE_DISPLAY: Record<string, ShopifyScopeDisplay> = {
   write_products: {
     label: 'Catalogo prodotti',
     description: 'Pubblica e aggiorna prodotti su Shopify.',
+    access: 'write',
+  },
+  // Canali di vendita (Tranche 2A): governano quali prodotti e quali singole
+  // varianti sono acquistabili, senza toccare quantità o giacenze.
+  read_publications: {
+    label: 'Canali di vendita',
+    description: 'Legge i canali su cui il negozio pubblica.',
+    access: 'read',
+  },
+  write_publications: {
+    label: 'Canali di vendita',
+    description: 'Pubblica e ritira prodotti e varianti dai canali.',
     access: 'write',
   },
 };
@@ -97,6 +109,7 @@ export interface GroupedShopifyScopeDisplay {
 
 const SCOPE_GROUP_ORDER = [
   'Catalogo prodotti',
+  'Canali di vendita',
   'Giacenze',
   'Ordini online',
   'Clienti ecommerce',
@@ -105,6 +118,7 @@ const SCOPE_GROUP_ORDER = [
 
 const GROUP_SUMMARY_DESCRIPTIONS: Record<string, string> = {
   'Catalogo prodotti': 'Importa, pubblica e aggiorna prodotti e varianti.',
+  'Canali di vendita': 'Decide su quali canali prodotti e varianti sono acquistabili.',
   Giacenze: 'Legge e aggiorna le quantità per location.',
   'Ordini online': 'Riceve vendite e aggiornamenti ordini.',
   'Clienti ecommerce': 'Importa l’anagrafica clienti dal negozio online.',

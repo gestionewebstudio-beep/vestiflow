@@ -66,6 +66,56 @@ gira lì** — ma il **numero di istruzioni** non cambia, ed è quello il difett
 
 ---
 
+## 1-bis. ⭐ IL NUMERO CHE VALE PER TUTTO — misurato il 21/08/2026
+
+```text
+round-trip a vuoto verso il database:  269 ms   (SELECT 1, mediana su 8)
+```
+
+⛔ **Non è il lavoro della query: è la distanza.** Il database è gestito e remoto, e ogni
+andata e ritorno costa un quarto di secondo **prima** che il server faccia qualcosa.
+
+⭐ **Da cui la regola che vale in tutto il progetto**, e che questo documento aveva già
+incontrato sotto un'altra forma (il moltiplicatore per riga della pipeline inventario):
+
+> **Quello che si paga è il NUMERO di query, non il loro peso.** Una query in più costa 269 ms
+> anche se non legge niente. Dieci query in serie sono due secondi e mezzo di sola attesa.
+
+### Come è saltato fuori
+
+_«Quando apro corrispettivi ci mette un po'.»_ La misura ha trovato **due difetti che si
+sommavano**, e nessuno dei due si vedeva leggendo il codice:
+
+|                                                                                   |                       |
+| --------------------------------------------------------------------------------- | --------------------- |
+| il riepilogo faceva **sette letture in fila**, ognuna in attesa della precedente  | ~1,9 s di sola attesa |
+| l'elenco faceva **cinque conteggi** solo per applicare un tetto, prima di leggere | +269 ms               |
+
+✅ Corretti: le sette letture in un `Promise.all` (non dipendevano l'una dall'altra), e i
+conteggi tolti — le letture partono con `take: TETTO + 1` e il tetto si verifica **dopo**. Nel
+caso normale si risparmia un giro intero; nel caso limite si è letto invano, ma quel caso
+finisce comunque in errore.
+
+⚠️ **Restano due letture della stessa cosa**: elenco e riepilogo interrogano le stesse cinque
+sorgenti, in due chiamate HTTP parallele. Il client aspetta il massimo dei due, ma il database
+fa il doppio del lavoro. Unirle è un cambio di contratto, ed è una decisione — non la si prende
+di straforo dentro una correzione di prestazioni.
+
+### ⚠️ Come rifare questa misura
+
+```js
+// dalla cartella api/, con --env-file=.env
+const t0 = process.hrtime.bigint();
+await prisma.$queryRaw`SELECT 1`;
+console.log(Number(process.hrtime.bigint() - t0) / 1e6, 'ms');
+```
+
+⛔ Va rifatta **da dove gira il codice**: da un portatile di sviluppo misura la distanza da
+casa, non quella di produzione. Il numero qui sopra è di sviluppo, ed è la ragione per cui
+serve a decidere _quante_ query fare, non a stimare il tempo che vedrà un cliente.
+
+---
+
 ## 2. I muri, in ordine di incontro
 
 ### ⛔ Muro 1 — il timeout del CLIENT, 15 secondi. È già armato oggi

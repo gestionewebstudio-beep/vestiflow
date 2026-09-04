@@ -1,0 +1,46 @@
+/*
+  ⭐ **IL MOTORE TABELLA RIEMPIE LA ZONA DATI, anche attraverso un wrapper.**
+
+  ⛔ **Segnalato dal proprietario il 01/09/2026**: «il contenitore delle righe si
+  adatta in base alle righe invece di prendere tutto lo spazio disponibile».
+
+  La zona dati del telaio è una griglia che **stira i propri figli**, e il motore
+  si riempie da sé (`table-scroll(…, riempi)`). Ma fra i due, su otto elenchi su
+  undici, c'è una **tabella dumb** — `app-supplier-table`, `app-document-table`…
+  — che si stira lei come figlia di griglia, mentre il motore dentro resta alto
+  quanto il contenuto.
+
+  ```text
+  motore DIRETTO in [data]   movimenti · vendite online · ordini fornitore   ✅
+  wrapper dumb in mezzo      gli altri otto                                  ⛔
+  ```
+
+  ⚠️ **È la differenza strutturale fra i riepiloghi** che si vede a schermo: non
+  la svista di una pagina, due forme diverse di comporre la stessa cosa.
+
+  ## ⛔ Perché sta QUI e non in un componente
+
+  Nessuno dei tre può risolverlo da solo, ed è il criterio che il livello globale
+  richiede — «ci sta soltanto ciò che non può stare in un componente»:
+
+  | | |
+  | --- | --- |
+  | il **telaio** | `.list-page__data > * > app-data-table` compilato porta il suo attributo di incapsulamento su ogni parte: **non raggiunge** il contenuto proiettato. È il difetto già misurato il 30/08 su `.list-page__data > *` |
+  | il **motore** | non può far stirare il proprio genitore |
+  | il **wrapper** | potrebbe, ma **uno alla volta**: un elenco nuovo nasce senza, e il difetto torna muto |
+
+  ⭐ Un foglio globale **non porta l'attributo di incapsulamento**, quindi
+  attraversa i confini per costruzione — la stessa ragione per cui qui vivono le
+  regole dell'anteprima di trascinamento della CDK.
+
+  ⛔ **Qui c'era un mixin incluso da otto componenti** (01/09/2026, poche ore).
+  Funzionava e non bastava: otto adesioni volontarie sono otto occasioni di
+  dimenticarsene, e il proprietario l'ha chiesto — «non c'era altra soluzione
+  efficace?». Una riga che vale per tutti, presenti e futuri, è quella soluzione.
+
+  ⚠️ **Non serve rendere il wrapper flessibile**: da figlio di griglia ha già
+  un'altezza definita, quindi al motore basta chiederne il 100%.
+*/
+.list-page__data app-data-table {
+  block-size: 100%;
+}

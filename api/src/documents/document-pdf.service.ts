@@ -36,6 +36,7 @@ import {
   documentReferenceLabel,
   isPrintableDocumentType,
 } from './document-print.util';
+import { printArticleCellLines } from './document-print-article-cell.util';
 import type { DocumentDetail } from './documents.service';
 
 /** Ora inizio trasporto in fuso Europa/Roma (stampa DDT). */
@@ -46,8 +47,8 @@ const ROME_TIME_FORMAT = new Intl.DateTimeFormat('it-IT', {
 });
 
 /**
- * Documenti di vendita in cui la sede va stampata: lo scarico manuale (dove la
- * location è il contesto dell'operazione) e la cassa negozio, dove il cliente
+ * Documenti di vendita in cui la sede va stampata: la vendita manuale (dove la
+ * location è il contesto dell'operazione) e la vendita al banco, dove il cliente
  * può non esserci affatto e la sede resta l'unico riferimento.
  */
 const SALES_TYPES_WITH_LOCATION: readonly DocumentType[] = [
@@ -527,12 +528,12 @@ export class DocumentPdfService {
         if (document.billingCause) {
           y = drawPdfMetaLine(doc, 'Causale', document.billingCause, y);
         }
-        // Scarico manuale e cassa negozio: la sede è il contesto operativo, e
+        // Vendita manuale e vendita al banco: la sede è il contesto operativo, e
         // sulla vendita al banco è spesso l'unico (il cliente può mancare).
         if (SALES_TYPES_WITH_LOCATION.includes(document.type) && document.locationId) {
           y = drawPdfMetaLine(doc, 'Location', locations.get(document.locationId) ?? '—', y);
         }
-        // Cassa negozio: il metodo è salvato come codice grezzo, non come
+        // Vendita al banco: il metodo è salvato come codice grezzo, non come
         // testo — va tradotto o sul foglio finisce «cash». Gli altri documenti
         // di vendita portano il pagamento nella sezione trasporto.
         if (document.type === DocumentType.store_sale && document.paymentMethod) {
@@ -628,14 +629,17 @@ export class DocumentPdfService {
         ];
 
     const rows = document.lines.map((line) => {
-      const articleParts = [line.description];
-      if (line.sku) {
-        articleParts.push(`SKU: ${line.sku}`);
-      }
-      const serials = parseSerialNumbers(line.serialNumbers);
-      if (serials.length > 0) {
-        articleParts.push(`Seriali: ${serials.join(', ')}`);
-      }
+      // La composizione della cella sta in `document-print-article-cell.util`,
+      // dove può essere PROVATA: qui dentro nessun test la raggiunge, perché
+      // pdfkit comprime i flussi e del buffer si può verificare solo che
+      // cominci per %PDF. È così che la variante avrebbe potuto sparire dalla
+      // stampa senza far arrossare niente.
+      const articleParts = printArticleCellLines({
+        description: line.description,
+        variantLabel: line.variantLabel,
+        sku: line.sku,
+        serialNumbers: parseSerialNumbers(line.serialNumbers),
+      });
       const head = [String(line.lineNumber), articleParts.join('\n'), String(line.quantity)];
       if (!showsValues) {
         return head;

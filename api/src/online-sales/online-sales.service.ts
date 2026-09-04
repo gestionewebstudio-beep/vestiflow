@@ -1,7 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { DocumentType, type Prisma } from '@prisma/client';
 
+import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import type { Paginated } from '../common/dto/pagination.dto';
+import { assertLocationReadableInUserScope } from '../inventory/user-location-scope.util';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   fromPrismaSource,
@@ -11,6 +13,7 @@ import {
 } from '../sales-orders/sales-order.enum-mapper';
 import { vatSnapshotDisplayLabel, vatSnapshotRatePercent } from '../vat/vat-snapshot.util';
 import type { ListOnlineSalesQueryDto } from './dto/list-online-sales.query.dto';
+import { pageWindow } from '../common/dto/unpaged.util';
 
 export interface OnlineSaleRow {
   readonly id: string;
@@ -99,8 +102,8 @@ export class OnlineSalesService {
           documents: { select: { type: true, reference: true } },
         },
         orderBy: { fulfilledAt: 'desc' },
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
+        // ⚠️ Con `all=1` la finestra deve SPARIRE, non diventare grande.
+        ...pageWindow(query),
       }),
     ]);
 
@@ -112,7 +115,22 @@ export class OnlineSalesService {
     };
   }
 
-  async getDetail(tenantId: string, id: string): Promise<OnlineSaleDetail> {
+  /**
+   * Dettaglio di una vendita online.
+   *
+   * ⛔ **La sede si verifica sul record, non sull'elenco.** `OnlineSale.locationId`
+   * è la sede di scarico: senza questo controllo, conoscere un id bastava a
+   * leggere righe, movimenti e perfino il NOME della sede di un magazzino non
+   * proprio. Filtrare un elenco è ergonomia; autorizzare è rifiutare la
+   * richiesta diretta per id (`12` §0.8).
+   *
+   * ⚠️ `user` NON è opzionale: un parametro saltabile è come non averlo.
+   */
+  async getDetail(
+    tenantId: string,
+    id: string,
+    user: UserProfileDto,
+  ): Promise<OnlineSaleDetail> {
     const sale = await this.prisma.onlineSale.findFirst({
       where: { id, tenantId },
       include: {
@@ -126,6 +144,11 @@ export class OnlineSalesService {
     if (!sale) {
       throw new NotFoundException('Vendita online non trovata');
     }
+    assertLocationReadableInUserScope(
+      user,
+      sale.locationId,
+      'Non sei autorizzato ad accedere a questa vendita.',
+    );
 
     const movements = await this.prisma.stockMovement.findMany({
       where: {
@@ -184,12 +207,13 @@ export class OnlineSalesService {
   async findByOrder(
     tenantId: string,
     salesOrderId: string,
+    user: UserProfileDto,
   ): Promise<OnlineSaleDetail | null> {
     const sale = await this.prisma.onlineSale.findFirst({
       where: { tenantId, salesOrderId },
       select: { id: true },
     });
-    return sale ? this.getDetail(tenantId, sale.id) : null;
+    return sale ? this.getDetail(tenantId, sale.id, user) : null;
   }
 
   private buildWhere(
@@ -201,6 +225,20 @@ export class OnlineSalesService {
     const channel = toPrismaSource(query.channel);
     if (channel) {
       where.channel = channel;
+    }
+    /*
+      ⭐ **Il periodo del registro è la data d'ORDINE** (01/09/2026): «vendita
+      online vale la data d'ordine».
+
+      ⚠️ **L'estremo superiore arriva a fine giornata**: con `T00:00:00Z` un
+      «fino al 31» escluderebbe tutto ciò che è stato ordinato il 31 dopo la
+      mezzanotte, cioè quasi tutto quel giorno.
+    */
+    if (query.placedFrom || query.placedTo) {
+      where.orderPlacedAt = {
+        ...(query.placedFrom ? { gte: new Date(`${query.placedFrom}T00:00:00Z`) } : {}),
+        ...(query.placedTo ? { lte: new Date(`${query.placedTo}T23:59:59.999Z`) } : {}),
+      };
     }
     if (query.fulfilledFrom || query.fulfilledTo) {
       where.fulfilledAt = {

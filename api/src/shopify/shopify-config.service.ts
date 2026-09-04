@@ -74,6 +74,9 @@ export interface ShopifyScopeDiagnosticsDto {
   readonly missingFromGrant: readonly string[];
   readonly missingForCatalogImport: readonly string[];
   readonly catalogImportBlockedReason: 'none' | 'not_requested' | 'not_granted';
+  /** Ambiti publication mancanti (canali di vendita, Tranche 2A). */
+  readonly missingForPublications: readonly string[];
+  readonly publicationsBlockedReason: 'none' | 'not_requested' | 'not_granted';
 }
 
 @Injectable()
@@ -98,14 +101,19 @@ export class ShopifyConfigService {
     return this.config.get<string>('SHOPIFY_API_SECRET');
   }
 
+  /**
+   * Versione Admin API fissata: `2026-07` (docs/24 §1.6). ⛔ Mai `latest`,
+   * `unstable` o implicita. `2025-01` è fuori supporto: chi la lascia in `.env`
+   * sta puntando a un'API che non risponde più come si aspetta.
+   */
   get apiVersion(): string {
-    return this.config.get<string>('SHOPIFY_API_VERSION') ?? '2025-01';
+    return this.config.get<string>('SHOPIFY_API_VERSION') ?? '2026-07';
   }
 
   get scopes(): string {
     return (
       this.config.get<string>('SHOPIFY_SCOPES') ??
-      'read_orders,read_customers,read_inventory,write_inventory,read_locations,read_products,write_products,read_metaobject_definitions,write_metaobjects'
+      'read_orders,read_customers,read_inventory,write_inventory,read_locations,read_products,write_products,read_metaobject_definitions,write_metaobjects,read_publications,write_publications'
     );
   }
 

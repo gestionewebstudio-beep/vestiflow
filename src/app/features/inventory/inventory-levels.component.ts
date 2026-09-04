@@ -26,6 +26,7 @@ import {
 import type { Subscription } from 'rxjs';
 
 import type { PageMeta } from '@core/models/api.model';
+import { BarcodeDetectionService } from '@core/services/barcode-detection.service';
 import { AuthService } from '@core/auth';
 import { APP_CONFIG } from '@core/config/app-config.token';
 import {
@@ -40,12 +41,11 @@ import type { InventoryLevel } from '@core/models/inventory-level.model';
 import { StockStatus } from '@core/models/inventory-level.model';
 import type { Location } from '@core/models/location.model';
 import { stockStatusOf } from '@core/utils/inventory.util';
+import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
+import { ListPageComponent } from '@shared/components/list-page/list-page.component';
+import { comando, voceEsporta } from '@shared/models/list-action-catalog';
+import type { ListAction } from '@shared/models/list-selection.model';
 import { BarcodeScannerComponent } from '@shared/components/barcode-scanner/barcode-scanner.component';
-import { ButtonComponent } from '@shared/components/button/button.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
-import { PaginationComponent } from '@shared/components/pagination/pagination.component';
-import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
@@ -60,11 +60,8 @@ import {
 import { ShopifyConnectionService } from '@domain/channels/shopify/services/shopify-connection.service';
 import { ShopifySyncWatchService } from '@domain/channels/shopify/services/shopify-sync-watch.service';
 
-import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableViewId } from '@shared/table-columns/table-column.model';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
-
-import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
 
 import { InventoryLevelTableComponent } from './components/inventory-level-table/inventory-level-table.component';
 import { InventoryTabsComponent } from './components/inventory-tabs/inventory-tabs.component';
@@ -78,10 +75,7 @@ import {
   INVENTORY_LEVEL_COLUMN_DEFS,
   INVENTORY_LEVEL_COLUMN_PRESETS,
 } from './models/inventory-levels-table-columns.config';
-import {
-  DEFAULT_INVENTORY_PAGE_SIZE,
-  INVENTORY_PAGE_SIZE_OPTIONS,
-} from '@domain/inventory/models/inventory-list-query.model';
+import { DEFAULT_INVENTORY_PAGE_SIZE } from '@domain/inventory/models/inventory-list-query.model';
 import type { InventoryLevelsListQuery } from '@domain/inventory/models/inventory-list-query.model';
 import { InventoryService } from '@domain/inventory/services/inventory.service';
 
@@ -110,21 +104,30 @@ const EMPTY_META: PageMeta = {
  * Giacenze per variante × location (smart). Filtri e paginazione server-side;
  * SKU/titolo dalla risposta API (ref variante inclusi).
  */
+import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
+
+import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
+
+import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
+
+import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+import { createListSelection } from '@shared/utils/list-selection';
+import { createSelectionMode } from '@shared/utils/selection-mode';
+
 @Component({
   selector: 'app-inventory-levels',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    BarcodeScannerComponent,
-    ButtonComponent,
+    ListActionsBarComponent,
     EmptyStateComponent,
     ErrorStateComponent,
     TableSkeletonComponent,
+    ListPageComponent,
+    BarcodeScannerComponent,
     SelectMenuComponent,
-    PaginationComponent,
     InventoryTabsComponent,
     InventoryLevelTableComponent,
     ShopifySyncFeedbackComponent,
-    TableColumnPickerComponent,
     SlidePanelComponent,
   ],
   templateUrl: './inventory-levels.component.html',
@@ -149,11 +152,12 @@ export class InventoryLevelsComponent {
 
   private shopifyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
-  protected readonly barcodeScannerEnabled = this.config.features.barcodeScanner;
+  // La stessa risposta di tutti gli altri: bandiera d'ambiente, fotocamera
+  // presente, e schermo compatto. Su scrivania resta il lettore HID.
+  protected readonly barcodeScannerEnabled = inject(BarcodeDetectionService).cameraScanOffered;
   protected readonly scanFeedback = signal<string | null>(null);
 
   protected readonly skeletonColumns = 6;
-  protected readonly pageSizeOptions = INVENTORY_PAGE_SIZE_OPTIONS;
 
   protected readonly stockStatusOptions: readonly SelectMenuOption[] = [
     { value: 'ok', label: 'Disponibile' },
@@ -227,19 +231,18 @@ export class InventoryLevelsComponent {
     toObservable(this.request).pipe(
       switchMap(({ query }) =>
         forkJoin({
-          levels: this.inventoryService.getLevels(query),
+          // ⭐ `tutto`: l'elenco mostra tutte le righe del filtro, non una pagina.
+          levels: this.inventoryService.getLevels(query, { tutto: true }),
           locations: this.inventoryService.getLocations(),
         }).pipe(
-          map(
-            ({ levels, locations }): LevelsState => ({
-              status: 'success',
-              data: {
-                levels: levels.data,
-                locations,
-                meta: levels.meta,
-              },
-            }),
-          ),
+          map(({ levels, locations }): LevelsState => ({
+            status: 'success',
+            data: {
+              levels: levels.data,
+              locations,
+              meta: levels.meta,
+            },
+          })),
           startWith<LevelsState>({ status: 'loading' }),
           catchError((err: unknown) =>
             of<LevelsState>({ status: 'error', error: this.toAppError(err) }),
@@ -324,24 +327,22 @@ export class InventoryLevelsComponent {
     const status = this.statusFilter();
 
     return levels
-      .map(
-        (level): InventoryLevelRow => ({
-          id: level.id,
-          variantId: level.variantId,
-          locationId: level.locationId,
-          sku: level.displaySku,
-          articleCode: level.articleCode,
-          title: level.displayTitle,
-          locationName:
-            level.locationName ?? locationById.get(level.locationId)?.name ?? level.locationId,
-          available: level.available,
-          onHand: level.onHand,
-          committed: level.committed,
-          incoming: level.incoming,
-          minThreshold: level.minThreshold,
-          status: this.statusOf(level),
-        }),
-      )
+      .map((level): InventoryLevelRow => ({
+        id: level.id,
+        variantId: level.variantId,
+        locationId: level.locationId,
+        sku: level.displaySku,
+        articleCode: level.articleCode,
+        title: level.displayTitle,
+        locationName:
+          level.locationName ?? locationById.get(level.locationId)?.name ?? level.locationId,
+        available: level.available,
+        onHand: level.onHand,
+        committed: level.committed,
+        incoming: level.incoming,
+        minThreshold: level.minThreshold,
+        status: this.statusOf(level),
+      }))
       .filter((row) => {
         if (status === StockStatus.Empty && row.status !== StockStatus.Empty) {
           return false;
@@ -358,15 +359,6 @@ export class InventoryLevelsComponent {
 
   protected readonly isEmpty = computed(
     () => this.state().status === 'success' && this.rows().length === 0,
-  );
-
-  protected readonly hasActiveFilters = computed(() =>
-    Boolean(
-      this.locationFilter() ||
-      this.statusFilter() ||
-      this.search().trim() ||
-      this.variantIdFilter(),
-    ),
   );
 
   protected onScanned(code: string): void {
@@ -386,11 +378,6 @@ export class InventoryLevelsComponent {
       });
   }
 
-  protected onSearchInput(event: Event): void {
-    this.variantIdFilter.set('');
-    this.searchDraft.set((event.target as HTMLInputElement).value);
-  }
-
   protected onLocationFilterChange(value: string | null): void {
     this.locationFilter.set(value ?? '');
   }
@@ -399,24 +386,105 @@ export class InventoryLevelsComponent {
     this.statusFilter.set(value ?? '');
   }
 
+  /*
+    ⚠️ **La RICERCA non si azzera qui** (`14` §0.2, ribadito dal proprietario il
+    31/08/2026): ha il proprio campo sempre a vista e non segue «Filtri».
+
+    ⭐ **Il filtro da scansione invece SÌ**, e non è la ricerca: nasce da un
+    codice letto col lettore, non ha un campo in barra che lo mostri, e senza un
+    comando che lo tolga l'elenco resterebbe su una variante sola.
+  */
   protected resetFilters(): void {
     this.locationFilter.set('');
     this.statusFilter.set('');
-    this.searchDraft.set('');
-    this.search.set('');
     this.variantIdFilter.set('');
     this.scanFeedback.set(null);
     this.page.set(1);
   }
 
-  protected goToPage(page: number): void {
-    this.page.set(page);
+  /**
+   * ⭐ **I comandi dell'elenco, tutti nella barra in basso** (`14` §0.2).
+   *
+   * ⚠️ I permessi stanno QUI, non nel template: la condizione che decide se un
+   * comando esiste sta dove il comando si dichiara.
+   */
+  // ── Selezione ─────────────────────────────────────────────────────────────
+  //
+  // ⚠️ **L'identità è la COPPIA variante-sede**: la stessa variante compare una
+  //    volta per ogni sede, e col solo `variantId` si selezionerebbero tutte le
+  //    sue righe insieme.
+  private readonly selection = createListSelection('multiple');
+
+  /**
+   * ⭐ **La modalità «Seleziona» della vista a card**, dal telaio.
+   *
+   * ⛔ Non è scritta qui: `createSelectionMode` porta con sé la regola che
+   * spegnerla AZZERA la selezione — a modalità spenta il tocco torna ad aprire
+   * la riga, e non resta nessun gesto per deselezionare.
+   */
+  protected readonly modoSelezione = createSelectionMode(this.selection);
+
+  protected readonly selectedRowIds = this.selection.ids;
+
+  /** ⛔ Al cambio di filtro la selezione si restringe alle righe caricate. */
+  private readonly potaturaSelezione = toObservable(this.rows)
+    .pipe(takeUntilDestroyed(this.destroyRef))
+    .subscribe((righe) => this.selection.prune(righe.map((r) => `${r.variantId}-${r.locationId}`)));
+
+  protected toggleRowSelection(rowId: string, selected: boolean): void {
+    this.selection.toggle(rowId, selected);
   }
 
-  protected onPageSizeChange(size: number): void {
-    this.pageSize.set(size);
-    this.page.set(1);
+  protected toggleSelectAllRows(selected: boolean): void {
+    this.selection.setAll(
+      this.rows().map((r) => `${r.variantId}-${r.locationId}`),
+      selected,
+    );
   }
+
+  protected clearSelection(): void {
+    this.selection.clear();
+  }
+
+  protected readonly listActions = computed<readonly ListAction[]>(() => {
+    const azioni: ListAction[] = [];
+
+    if (this.canImportExportInventory()) {
+      azioni.push(
+        // ⭐ **Esporta è il MENU dei tracciati**, non un pulsante per formato
+        //    (`14` §5.2, deciso dal proprietario il 30/08/2026). Qui era
+        //    «Esporta CSV» diretto, e su altre pagine «Esporta» con le voci:
+        //    la stessa cosa aveva due forme.
+        comando('export', {
+          busy: this.exporting(),
+          ariaLabel: 'Esporta le giacenze',
+          items: [voceEsporta('csv', () => this.exportInventory())],
+        }),
+        {
+          id: 'import',
+          label: 'Importa CSV',
+          icon: 'pi-upload',
+          requires: 'none',
+          ariaLabel: 'Importa le giacenze da CSV',
+          run: () => this.importInventory(),
+        },
+      );
+    }
+
+    if (this.showShopifyInventorySync()) {
+      azioni.push({
+        id: 'shopify-sync',
+        label: 'Riallinea su Shopify',
+        icon: 'pi-sync',
+        requires: 'none',
+        busy: this.shopifyInventoryLoading(),
+        ariaLabel: 'Riallinea le giacenze su Shopify',
+        run: () => this.syncInventoryFromShopify(),
+      });
+    }
+
+    return azioni;
+  });
 
   protected reload(): void {
     this.refreshTick.update((tick) => tick + 1);

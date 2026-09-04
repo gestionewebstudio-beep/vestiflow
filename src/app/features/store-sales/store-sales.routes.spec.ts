@@ -1,14 +1,18 @@
 import type { Route } from '@angular/router';
 import { describe, expect, it } from 'vitest';
 
+import { DocumentType } from '@core/models/document.model';
+import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
+import { UserRole, type User } from '@core/models/user.model';
 import { retailSalesRegisterGuard } from '@core/guards/retail-sales.guard';
 import { tenantWorkspaceGuard } from '@core/guards/tenant-workspace.guard';
 import { unsavedChangesGuard } from '@core/guards/unsaved-changes.guard';
 import { REQUIRED_TENANT_PERMISSION_GROUPS_KEY } from '@core/permissions/tenant-permissions.util';
 
 import { routes as appRoutes } from '../../app.routes';
-import { documentsRoutes, storeSaleDocumentRoutes } from '../documents/documents.routes';
+import { storeSaleDocumentRoutes } from '../documents/documents.routes';
 import { salesDocumentRegisterConfig } from '../documents/models/document-sales-register.config';
+import { DOCUMENT_ROW_OPENS, documentRowPath } from '@domain/documents/utils/document-routing.util';
 import { storeSalesRegisterRoutes } from './store-sales.routes';
 import {
   STORE_SALE_EDIT_SEGMENT,
@@ -17,6 +21,12 @@ import {
   requireStoreSaleMode,
   storeSaleEditPath,
 } from '@domain/store-sales/models/store-sale-routing.util';
+
+/** Titolare con la cassa aperta: il filtro permessi ha prove sue altrove. */
+const TITOLARE_BANCO = {
+  role: UserRole.Owner,
+  tenantChannelProfile: TenantChannelProfile.Shopify,
+} as unknown as User;
 
 /**
  * Le rotte del modulo **Vendite al banco** — presidio di `11` C 3.
@@ -120,6 +130,20 @@ describe('le due creazioni', () => {
     const sorgenti = storeSalesRegisterRoutes.map((r) => String(r.loadComponent));
     expect(new Set(sorgenti).size).toBe(1);
   });
+
+  /**
+   * ⭐ Il cutover del 21/08/2026, inchiodato. Le quattro rotte portano alla
+   * maschera DOCUMENTALE: la vecchia `StoreSaleRegisterComponent` — il
+   * carrello — è stata eliminata, e nessuna rotta deve tornarci.
+   */
+  it('⭐ portano alla maschera documentale, non al carrello', () => {
+    for (const rotta of storeSalesRegisterRoutes) {
+      // Il percorso del file lo riscrive il bundler; il NOME della classe no.
+      expect(String(rotta.loadComponent), `${rotta.path}`).toContain(
+        'StoreSaleDocumentFormComponent',
+      );
+    }
+  });
 });
 
 describe('elenco e dettaglio', () => {
@@ -183,38 +207,24 @@ describe('l’ordine, che è l’unica cosa che rende le rotte raggiungibili', (
   });
 });
 
-describe('i vecchi indirizzi non restano scoperti', () => {
-  const tutte = piatte(appRoutes);
-
-  it('⛔ /app/sales/register rimanda alla creazione vendita', () => {
-    const vecchia = tutte.find((r) => r.path === 'register' && r.redirectTo);
-    expect(vecchia?.redirectTo).toBe(`${STORE_SALE_ROOT_PATH}/${STORE_SALE_ROUTE_SEGMENT.sale}`);
-    // Senza `pathMatch: 'full'` intercetterebbe anche i figli.
-    expect(vecchia?.pathMatch).toBe('full');
-  });
-
-  it('⛔ vendite-negozio e il suo :id hanno DUE redirect distinti', () => {
-    const documenti = piatte(documentsRoutes);
-    const elenco = documenti.find((r) => r.path === 'vendite-negozio');
-    const dettaglio = documenti.find((r) => r.path === 'vendite-negozio/:id');
-
-    expect(elenco?.redirectTo).toBe(STORE_SALE_ROOT_PATH);
-    expect(elenco?.pathMatch).toBe('full');
-    // ⚠️ Riga propria: un `redirectTo` senza `pathMatch: 'full'` non trascina i
-    // segmenti successivi, quindi l'id andrebbe perso.
-    expect(dettaglio?.redirectTo).toBe(`${STORE_SALE_ROOT_PATH}/:id`);
-  });
-
-  it('⛔ i redirect stanno PRIMA dei catch-all che li catturerebbero', () => {
-    const documenti = piatte(documentsRoutes);
-    const iRedirect = documenti.findIndex((r) => r.path === 'vendite-negozio');
-    const iCatchAll = documenti.findIndex((r) => r.path === ':id');
-    expect(iRedirect).toBeGreaterThanOrEqual(0);
-    if (iCatchAll >= 0) {
-      expect(iRedirect).toBeLessThan(iCatchAll);
-    }
-  });
-});
+/**
+ * ⛔ **Qui c'era `describe('i vecchi indirizzi non restano scoperti')`**, con tre
+ * prove che inchiodavano i reindirizzamenti da `/app/sales/register` e da
+ * `/app/documents/vendite-negozio` (elenco e dettaglio, e il loro ordine
+ * rispetto ai catch-all).
+ *
+ * ⚠️ **I reindirizzamenti sono stati TOLTI il 25/08/2026**, non sono stati
+ * dimenticati: decisione del proprietario — «per ora nessuno lo utilizza, è in
+ * fase di realizzazione, possiamo sistemare tutto e in modo pulito». Un
+ * indirizzo che sopravvive a se stesso è una seconda strada verso la stessa
+ * pagina, e prima o poi qualcuno la scrive nei link.
+ *
+ * ⭐ **Il vincolo che resta vero** — un redirect senza `pathMatch: 'full'` non
+ * trascina i segmenti successivi, e va PRIMA del catch-all `:id` — non ha più
+ * un reindirizzamento su cui valere: nello stesso passaggio sono spariti anche
+ * quelli dei Corrispettivi e del vecchio percorso Fatture. È dove andrà provato
+ * se un domani ne servirà uno.
+ */
 
 describe('la config dell’elenco non può divergere dalla rotta', () => {
   /**
@@ -299,14 +309,25 @@ describe('FASE UI 1 — i due comandi di creazione sull’elenco', () => {
    * ⛔ Qui c'era il contrario, e inchiodava lo stato aperto: «la riga NON apre
    * ancora la modifica». C 3b è chiuso il 19/08/2026, e la guardia si capovolge
    * con lui — l'anteprima resta, come flusso separato.
+   *
+   * ⚠️ E qui si leggeva `config.rowOpensForm`, una configurazione di PROFILO:
+   * caduta il 20/08/2026 quando la regola è diventata comune a ogni elenco
+   * (`14` §2). La prova ora interroga la fonte comune, che è ciò che decide
+   * davvero — e vale anche per la ricerca globale.
    */
   it('⛔ la riga apre la MODIFICA, non l’anteprima', () => {
-    expect(config?.rowOpensForm).toBe(true);
+    for (const tipo of [DocumentType.StoreSale, DocumentType.StoreReturn]) {
+      expect(DOCUMENT_ROW_OPENS[tipo]).toBe('form');
+      expect(documentRowPath({ id: 'd1', type: tipo }, TITOLARE_BANCO)).toContain('/edit');
+    }
   });
 });
 
 describe('C 3b — la riga apre la modifica, e la maschera sa caricare', () => {
-  const config = salesDocumentRegisterConfig('store-sale');
+  // ⚠️ Qui c'era `const config = salesDocumentRegisterConfig('store-sale')`, che
+  // serviva a leggere `config.rowOpensForm`: quella configurazione di profilo è
+  // caduta il 20/08/2026 quando la regola è diventata comune (`14` §2), e la
+  // variabile è rimasta orfana.
 
   it('⭐ le due rotte di modifica esistono, una per tipo', () => {
     for (const modo of ['sale', 'return'] as const) {
@@ -372,7 +393,26 @@ describe('C 3b — la riga apre la modifica, e la maschera sa caricare', () => {
     expect(new Set(tutti).size).toBe(tutti.length);
   });
 
-  it('la riga dell’elenco apre la maschera', () => {
-    expect(config?.rowOpensForm).toBe(true);
+  it('la riga dell’elenco apre la maschera, per ENTRAMBI i tipi', () => {
+    expect(documentRowPath({ id: 'd1', type: DocumentType.StoreSale }, TITOLARE_BANCO)).toBe(
+      '/app/vendita-al-banco/vendita/d1/edit',
+    );
+    expect(documentRowPath({ id: 'd2', type: DocumentType.StoreReturn }, TITOLARE_BANCO)).toBe(
+      '/app/vendita-al-banco/reso/d2/edit',
+    );
   });
+
+  /**
+   * ⛔ **Qui c'era: «un documento ANNULLATO apre l'anteprima, non la maschera»**,
+   * con `documentRowPath({ …, status: Cancelled })` e l’attesa
+   * `'/app/vendita-al-banco/d3'`.
+   *
+   * ⭐ Rimosso il 28/08/2026, per decisione del proprietario: **Vendita e Reso
+   * al banco non hanno stati funzionali**. Ne hanno solo Ordine cliente e
+   * Ordine fornitore, e lì lo stato governa l’eleggibilità in
+   * «Includi/Genera» — non il routing.
+   *
+   * ⚠️ **Non è stato sostituito dall'asserzione opposta**: sarebbe la stessa
+   * policy generica alla rovescia. Il routing non riceve lo stato.
+   */
 });

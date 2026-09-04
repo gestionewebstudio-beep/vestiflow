@@ -1,7 +1,14 @@
 <div class="table-column-picker">
-  <app-button variant="secondary" type="button" (click)="togglePanel()">
+  <app-button
+    variant="secondary"
+    type="button"
+    [ariaLabel]="iconOnly() ? 'Colonne visibili' : undefined"
+    (click)="togglePanel()"
+  >
     <i class="pi pi-table" aria-hidden="true"></i>
-    Colonne
+    @if (!iconOnly()) {
+      Colonne
+    }
   </app-button>
 
   @if (open()) {
@@ -43,24 +50,6 @@
                   (click)="togglePin(row.id)"
                 >
                   <i class="pi pi-thumbtack" aria-hidden="true"></i>
-                </button>
-              }
-              @if (reorderable()) {
-                <button
-                  type="button"
-                  class="table-column-picker__icon-btn"
-                  aria-label="Sposta su"
-                  (click)="moveUp(row.id)"
-                >
-                  <i class="pi pi-chevron-up" aria-hidden="true"></i>
-                </button>
-                <button
-                  type="button"
-                  class="table-column-picker__icon-btn"
-                  aria-label="Sposta giù"
-                  (click)="moveDown(row.id)"
-                >
-                  <i class="pi pi-chevron-down" aria-hidden="true"></i>
                 </button>
               }
             </div>

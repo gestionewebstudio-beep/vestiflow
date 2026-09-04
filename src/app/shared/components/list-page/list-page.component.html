@@ -1,0 +1,301 @@
+<header class="list-page__header">
+  <div class="list-page__heading">
+    @if (showBack()) {
+      <app-back-button [fallbackLink]="backFallback() ?? null" />
+    }
+    <!--
+      ⛔ **Niente sottotitolo** — decisione del proprietario, 29/08/2026: «non
+      servono, recuperiamo spazio». Prendeva una riga intera per dire cosa la
+      schermata è, in una vista che serve a consultare.
+
+      ⭐ Il Registro Corrispettivi c'era già arrivato da solo, tenendolo per i
+      soli lettori di schermo. Ora vale per tutti gli elenchi.
+    -->
+    <h1 class="list-page__title">{{ pageTitle() }}</h1>
+    @if (pageDescription(); as descrizione) {
+      <span class="sr-only">{{ descrizione }}</span>
+    }
+    @if (count(); as conteggio) {
+      <span class="list-page__count tabular-nums">{{ conteggio }}</span>
+    }
+  </div>
+  <ng-content select="[pageActions]" />
+</header>
+
+<!--
+  ⭐ **Zona controlli: la geometria è del telaio.**
+
+  Ricerca a sinistra, Periodo e filtri al centro, controlli di vista a destra.
+  Una forma sola, quella di `14` §0 — e la pagina non può cambiarla, perché non
+  passa markup.
+
+  ⚠️ La forma NUDA, senza card, è quella del Registro Corrispettivi, che
+  `regole-stile-ui` §5 dichiara riferimento visivo. Quattro pagine avevano
+  invece una card: si allineano.
+-->
+<!--
+  ⭐ **Le schede**, fra testata e controlli.
+
+  Le usano le quattro pagine di Magazzino — Giacenze, Situazione, Movimenti,
+  Inventario — che sono viste della stessa cosa. Non sono filtri e non sono
+  azioni: sono navigazione, e stanno dove l'operatore le cerca.
+-->
+<ng-content select="[tabs]" />
+
+<!--
+  ⛔ La zona NON è condizionata: era dentro un @if su ricerca-o-colonne, e una
+  pagina con soli filtri di dominio li perdeva — senza errori. Trovato dalle
+  sue stesse prove il 29/08/2026.
+
+  ⭐ E non resta mai vuota: «Filtri» c'è su ogni elenco.
+-->
+@if (showTools()) {
+  <div class="list-page__tools">
+    @if (searchPlaceholder(); as segnaposto) {
+      <div class="list-page__search">
+        <i class="pi pi-search list-page__search-icon" aria-hidden="true"></i>
+        <input
+          class="list-page__input"
+          type="search"
+          [value]="searchValue()"
+          [placeholder]="segnaposto"
+          [attr.aria-label]="searchAriaLabel() || segnaposto"
+          (input)="onSearch($event)"
+        />
+      </div>
+    }
+
+    <!--
+      ⚠️ **Periodo resta proiettato, e in posizione fissa.**
+
+      È un controllo di dominio — preset più intervallo personalizzato — e il
+      telaio non deve conoscerlo. La sua POSIZIONE però non è negoziabile, ed è
+      questa: fra la ricerca e i filtri.
+
+      ⭐ Periodo e Ricerca sono i due che **non** entrano nelle colonne e restano
+      sempre in barra, anche sotto `lg` (`14` §0.2).
+    -->
+    <ng-content select="[period]" />
+
+    <!--
+      ⭐ **I filtri sono di dominio; la loro POSIZIONE no.**
+
+      Periodo, e finché i filtri di colonna non esistono anche quelli di dominio
+      — Origine, Tipo, Sede, Stato. Il telaio non sa cosa siano: sa dove stanno e
+      con che passo.
+    -->
+    @if (compatto() && pannelloAperto()) {
+      <button
+        type="button"
+        class="list-page__scrim"
+        aria-label="Chiudi i filtri"
+        (click)="pannelloAperto.set(false)"
+      ></button>
+    }
+
+    <div
+      class="list-page__filters"
+      [class.list-page__filters--panel]="compatto()"
+      [class.list-page__filters--open]="compatto() && pannelloAperto()"
+      [attr.role]="compatto() ? 'dialog' : null"
+      [attr.aria-modal]="compatto() ? 'true' : null"
+      [attr.aria-label]="compatto() ? 'Filtri' : null"
+      tabindex="-1"
+      #pannelloFiltri
+      (keydown)="onFiltriKeydown($event)"
+    >
+      @if (compatto()) {
+        <div class="list-page__filters-head">
+          <h2 class="list-page__filters-title">Filtri</h2>
+          <app-button
+            variant="ghost"
+            ariaLabel="Chiudi i filtri"
+            (click)="pannelloAperto.set(false)"
+          >
+            <i class="pi pi-times" aria-hidden="true"></i>
+          </app-button>
+        </div>
+      }
+
+      <ng-content select="[filters]" />
+
+      <!--
+        ⭐ **I filtri di COLONNA nel pannello compatto** (`14` §0.2).
+
+        Sotto `lg` le intestazioni non esistono, quindi il controllo che su
+        scrivania vive nella colonna diventa una voce di elenco. **È lo stesso
+        controllo con lo stesso stato**: la sorgente è una sola, lo store per
+        vista — se fossero due, l'uno mostrerebbe filtri che l'altro non ha.
+
+        ⚠️ **Sopra `lg` non si rende affatto**, e non è un `display: none`:
+        `colonneFiltrabili()` torna vuoto. Il contenuto proiettato si rende una
+        volta sola, e due vesti vive insieme sono il difetto che §9 chiama «la
+        stessa riga non esiste due volte».
+      -->
+      @for (colonna of colonneFiltrabili(); track colonna.id) {
+        <div class="list-page__filter-field">
+          <span class="list-page__filter-label">{{ colonna.label }}</span>
+          <app-column-filter
+            [kind]="formaFiltro(colonna)"
+            [columnLabel]="colonna.label"
+            [options]="opzioniFiltro(colonna.id)"
+            [value]="valoreFiltro(colonna.id)"
+            (changed)="onFiltroColonna(colonna.id, $event)"
+          />
+        </div>
+      }
+
+      @if (compatto()) {
+        <div class="list-page__filters-foot">
+          <app-button variant="ghost" (click)="azzeraFiltri()">Azzera filtri</app-button>
+          <app-button (click)="pannelloAperto.set(false)">Vedi risultati</app-button>
+        </div>
+      }
+    </div>
+
+    <div class="list-page__view">
+      <!--
+        ⭐ **I comandi che cambiano la VISTA stanno coi loro pari** — deciso dal
+        proprietario il 30/08/2026 per «Seleziona»: «spostarlo vicino ai filtri».
+
+        ⚠️ **Non è una preferenza di posizione: è una classificazione.** Colonne,
+        Filtri e Seleziona non fanno niente ai dati — cambiano *come si guarda*
+        l'elenco. Nuovo, Stampa, Excel ed Esporta agiscono sui dati e stanno
+        nella barra in fondo (`14` §5). Tenere «Seleziona» là in mezzo lo
+        faceva sembrare un'azione, e su un telefono portava i comandi di barra a
+        cinque, con «Esporta» troncato in «Es…».
+      -->
+      <!--
+        ⭐ **«Seleziona» è del TELAIO** — proprietario, 31/08/2026: «bisogna
+        inserire "Seleziona" in questi riepiloghi e credo in tutti».
+
+        ⛔ **Esisteva solo sul Registro Corrispettivi, scritto a mano.** Copiarlo
+        su altri undici elenchi avrebbe copiato anche la regola non ovvia che lo
+        governa — spegnere azzera — e sarebbe bastato dimenticarla una volta per
+        lasciare righe selezionate che nessuno può più vedere né togliere.
+
+        ⚠️ **Solo dove le righe sono card**: sulla tabella la selezione ce l'ha
+        già la sua colonna di caselle, e due affordance per la stessa funzione
+        sono una di troppo. Lo decide `selectionToggleable`, che la pagina
+        accende solo se l'elenco è davvero selezionabile.
+      -->
+      @if (selectionToggleable() && compatto()) {
+        <app-button
+          variant="secondary"
+          [ariaPressed]="selectionMode()"
+          (click)="onToggleSelectionMode()"
+        >
+          <i class="pi pi-check-square" aria-hidden="true"></i>
+          Seleziona
+        </app-button>
+      }
+
+      <ng-content select="[viewActions]" />
+
+      <!--
+        ⭐ **Sotto `md` restano le sole ICONE** — chiesto dal proprietario il
+        30/08/2026: «da mobile possiamo mettere solo il simbolo dei filtri e
+        recuperiamo spazio».
+
+        ⚠️ **Il conteggio dei filtri attivi NON sparisce**: è l'unica cosa che
+        dice che un filtro c'è, e nasconderla lascerebbe un elenco ristretto
+        senza nessun segno del perché — il difetto che `14` §0.2 evita facendo
+        azzerare i filtri allo spegnimento.
+
+        ⚠️ **Il nome resta nell'`aria-label`**: sparisce alla vista, non a chi
+        legge con uno screen reader.
+      -->
+      @if (columnsViewId(); as vista) {
+        <app-table-column-picker [viewId]="vista" [iconOnly]="compatto()" />
+      }
+      <app-button
+        variant="secondary"
+        [ariaPressed]="filtersOn()"
+        [ariaLabel]="compatto() ? 'Filtri' : undefined"
+        (click)="toggleFiltri()"
+      >
+        <i class="pi pi-filter" aria-hidden="true"></i>
+        @if (!compatto()) {
+          Filtri
+        }
+        @if (conteggioFiltri() > 0) {
+          <span>&nbsp;({{ conteggioFiltri() }})</span>
+        }
+      </app-button>
+    </div>
+  </div>
+}
+
+<!--
+  Gli avvisi non hanno un contenitore proprio: sono banner che si dispongono da
+  sé, e avvolgerli aggiungerebbe una scatola vuota quando non ce n'è nessuno.
+-->
+<ng-content select="[warnings]" />
+
+<!--
+  ⭐ **L'unica zona elastica.** Cede lei quando la finestra si accorcia; le altre
+  restano alla loro altezza (`regole-stile-ui` §6).
+-->
+<div class="list-page__data">
+  @if (loading()) {
+    <app-table-skeleton [columns]="skeletonColumns()" [rows]="skeletonRows()" />
+  } @else if (error(); as messaggio) {
+    <app-error-state [description]="messaggio" retryLabel="Riprova" (retry)="retry.emit()" />
+  } @else if (isEmpty()) {
+    @if (emptyTitle(); as titolo) {
+      <app-empty-state [title]="titolo" [description]="emptyDescription()" [icon]="emptyIcon()" />
+    } @else {
+      <ng-content select="[empty]" />
+    }
+  } @else {
+    <ng-content select="[data]" />
+  }
+</div>
+
+<!--
+  ⭐ **TOTALI / RIEPILOGO** — la zona che `14` §0 chiama così.
+
+  ⚠️ Oggi ospita anche il PAGINATORE delle sei anagrafiche. Non ha uno slot
+  proprio, e volutamente: misurato il 29/08/2026, nessuna pagina ha riepilogo e
+  paginatore INSIEME — sono famiglie disgiunte — e il paginatore è per decisione
+  un elemento transitorio (`14` §11.4). Dargli una regione strutturale
+  istituzionalizzerebbe qualcosa che deve sparire.
+-->
+<!--
+  ⭐ **IL PIEDE: totali e comandi, ANCORATI in fondo sotto `lg`** — deciso dal
+  proprietario il 30/08/2026, insieme alla rimozione del tetto di righe:
+
+  > «Non deve esserci nessun limite di visualizzazione… una soluzione è rendere
+  > il blocco sotto fisso.»
+
+  ⚠️ **Il contenitore serve perché le due zone si ancorano INSIEME.** Ancorate
+  una per una servirebbe dare alla seconda uno scostamento pari all'altezza
+  della prima — un numero da tenere allineato a mano, che si sfalsa appena il
+  riepilogo va a capo. In un blocco solo lo fa il flusso.
+
+  ⚠️ **Su scrivania il piede NON esiste**: `display: contents` lo dissolve, e le
+  due zone restano figlie dirette del telaio esattamente come prima. Nessuna
+  pagina cambia sopra `lg`.
+-->
+<div class="list-page__foot">
+  <ng-content select="[summary]" />
+
+  <!-- La RIGA FUNZIONI di `14` §0: ci va `app-list-actions-bar`. -->
+  <ng-content select="[listActions]" />
+</div>
+
+<!--
+  ⏸ **CASELLA PROVVISORIA — il posto giusto è da decidere** (proprietario,
+  29/08/2026: «se non trovi il posto giusto, mettili in overlay da decidere
+  dopo»).
+
+  Ci vanno le cose che non occupano nessuna zona del telaio perché sono
+  `position: fixed`: dialoghi di conferma, pannelli laterali di azione.
+
+  ⛔ **Esiste per non SCARTARLE.** Il telaio non ha una casella senza nome, e
+  Angular elimina dal DOM il contenuto proiettato che non trova uno slot: niente
+  errore, niente test rosso, il componente viene perfino costruito — solo, non
+  compare. Misurato il 29/08/2026: due pannelli persi in silenzio, il filtro
+  mobile di Ordini fornitore e il «Nuovo ordine fornitore» di Situazione.
+-->
+<ng-content select="[overlays]" />

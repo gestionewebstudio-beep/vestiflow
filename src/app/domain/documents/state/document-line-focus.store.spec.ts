@@ -599,4 +599,83 @@ describe('DocumentLineFocusStore', () => {
       expect(fuoco()).toBe('r0-price');
     });
   });
+
+  // ── Le porte tolleranti ─────────────────────────────────────────────────
+  //
+  // La riga comune emette un campo fra TUTTI quelli possibili; ogni documento
+  // ne usa un sottoinsieme. Il filtro stava fuori, ricopiato in sei maschere
+  // (`campoDiQuestoDocumento`): confrontava l'evento con lo stesso elenco che
+  // questa classe già possiede.
+  //
+  // ⚠️ Queste prove sono la RETE della rimozione: se le porte non fossero
+  // esattamente equivalenti ai metodi che i ponti chiamavano, il giro del Tab
+  // cambierebbe in sei maschere e nessun'altra prova se ne accorgerebbe.
+  describe('porte tolleranti: accettano un campo di qualunque documento', () => {
+    it('con un campo PROPRIO fanno esattamente quello che fa il metodo diretto', () => {
+      const { store } = crea();
+
+      store.nextIfMine(0, 'code');
+      expect(fuoco()).toBe('r0-name');
+
+      store.previousIfMine(0, 'name');
+      expect(fuoco()).toBe('r0-code');
+
+      store.rowDownIfMine(0, 'code');
+      expect(fuoco()).toBe('r1-code');
+
+      store.rowUpIfMine(1, 'code');
+      expect(fuoco()).toBe('r0-code');
+    });
+
+    // Il caso per cui esistono: `lot` e `expiry` sono dell'Arrivo merce,
+    // `serials` dei movimenti. La riga comune li emette a tutti.
+    it('con un campo ESTRANEO non fanno niente, e non lanciano', () => {
+      const { store } = crea();
+
+      store.focusField(0, 'qty');
+      expect(fuoco()).toBe('r0-qty');
+
+      // Nessuna di queste conosce «lot»: il fuoco non si muove di un campo.
+      expect(() => {
+        store.nextIfMine(0, 'lot');
+        store.previousIfMine(0, 'lot');
+        store.rowDownIfMine(0, 'lot');
+        store.rowUpIfMine(0, 'lot');
+      }).not.toThrow();
+
+      expect(fuoco()).toBe('r0-qty');
+    });
+
+    it('handleKeydownIfMine inoltra il tasto solo per un campo proprio', () => {
+      const { store } = crea();
+      const giu = (): KeyboardEvent =>
+        new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true });
+
+      const suo = giu();
+      store.handleKeydownIfMine(0, 'code', suo);
+      expect(fuoco()).toBe('r1-code');
+      // ⚠️ Il `preventDefault` è parte del contratto: dentro un <form> la
+      // freccia non gestita fa scorrere la pagina sotto le dita.
+      expect(suo.defaultPrevented).toBe(true);
+
+      const altrui = giu();
+      store.handleKeydownIfMine(1, 'expiry', altrui);
+      expect(fuoco()).toBe('r1-code');
+      expect(altrui.defaultPrevented).toBe(false);
+    });
+
+    // ⭐ Falsificazione: un campo proprio DEVE passare. Senza questa prova, una
+    // porta che rifiuta sempre resterebbe verde su tutte le altre.
+    it('non rifiuta tutto: un elenco campi diverso cambia chi passa', () => {
+      const { store } = crea({ campi: ['qty', 'price'] });
+
+      store.focusField(0, 'qty');
+      store.nextIfMine(0, 'qty');
+      expect(fuoco()).toBe('r0-price');
+
+      // «code» esiste nel DOM ma NON nell'elenco di questo documento.
+      store.nextIfMine(0, 'code');
+      expect(fuoco()).toBe('r0-price');
+    });
+  });
 });

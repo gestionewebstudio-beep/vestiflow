@@ -17,7 +17,7 @@ import type { AppError } from '@core/models/app-error.model';
 import type { EntityId } from '@core/models/common.model';
 import { ToastService } from '@core/services/toast.service';
 import { ButtonComponent } from '@shared/components/button/button.component';
-import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { DeleteConfirmComponent } from '@shared/components/delete-confirm/delete-confirm.component';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 
 import type { UnitOfMeasureOption } from '@domain/products/models/unit-of-measure-option.model';
@@ -45,7 +45,7 @@ import { UnitOfMeasureOptionService } from '@domain/products/services/unit-of-me
 @Component({
   selector: 'app-unit-of-measure-manager',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ButtonComponent, ConfirmDialogComponent, InlineBannerComponent],
+  imports: [ButtonComponent, DeleteConfirmComponent, InlineBannerComponent],
   templateUrl: './unit-of-measure-manager.component.html',
   styleUrl: './unit-of-measure-manager.component.scss',
 })
@@ -167,6 +167,22 @@ export class UnitOfMeasureManagerComponent {
       return;
     }
     this.run(this.service.delete(option.id), `«${option.name}» eliminata.`);
+  }
+
+  /**
+   * Sceglie la predefinita, o la toglie se lo era già.
+   *
+   * ⛔ Il vincolo «al più una per tenant» sta nel DATABASE (indice parziale),
+   * e il server spegne la precedente nella stessa transazione. Qui non si
+   * spegne niente a mano: due scritture separate lascerebbero una finestra in
+   * cui l’indice rifiuta.
+   */
+  protected toggleDefault(option: UnitOfMeasureOption): void {
+    const attiva = !option.isDefault;
+    this.run(
+      this.service.update(option.id, { isDefault: attiva }),
+      attiva ? `«${option.name}» è ora l’unità predefinita.` : 'Nessuna unità predefinita.',
+    );
   }
 
   protected onDismissDelete(): void {

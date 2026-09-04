@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AdjustmentDirection, ProductStatus, StockMovementType } from '@prisma/client';
+import { AdjustmentDirection, StockMovementType } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
@@ -11,7 +11,8 @@ import type {
   InventoryStockStatus,
   ListInventorySituationQueryDto,
 } from './dto/list-inventory-situation.query.dto';
-import { buildVariantTitle } from './import/inventory-csv.util';
+import { variantTitle } from '../common/variant-label.util';
+import { isInTrash } from '../products/product-lifecycle.util';
 import { buildInventoryVariantSearchWhere } from './inventory-variant-search.util';
 import {
   INVENTORY_VIEW_SCOPE_MODE,
@@ -43,6 +44,8 @@ export interface InventorySituationRowDto {
   /** Totale quantità movimentate in uscita (scarichi, vendite, rettifiche −). */
   readonly totalOut: number;
   readonly stockStatus: InventoryStockStatus;
+  /** «Nel cestino» (prodotto o variante): si mostra col badge, non si nasconde (docs/24 §6). */
+  readonly inTrash: boolean;
 }
 
 /**
@@ -77,10 +80,22 @@ export class InventorySituationService {
     // non solo nella UI — la colonna resterebbe leggibile nel traffico di rete.
     const showPurchaseCosts = canViewPurchaseCosts(user);
 
-    // Fotografia operativa: fuori i prodotti archiviati.
-    const filters: Prisma.ProductVariantWhereInput[] = [
-      { product: { status: { not: ProductStatus.archived } } },
-    ];
+    /*
+      ⛔ **La Situazione magazzino NON filtra sullo stato del catalogo** (docs/24
+         §6.1): mostra prodotti Attivi, Non attivi e nel Cestino, e le loro
+         varianti in qualunque stato, quando hanno realtà inventariale.
+
+      ⛔ Qui c'era `{ product: { status: { not: ProductStatus.archived } } }`,
+         ereditato da prima della Tranche 1B e battezzato «fotografia
+         operativa». Faceva sparire dalla Situazione la merce di ogni prodotto
+         Non attivo: giacenza, impegni e valore uscivano dal totale senza che
+         nulla lo dicesse — ed è esattamente il danno che §6.1 descrive. Uno
+         stato del catalogo non cancella la merce che sta in magazzino.
+
+      ⭐ Lo stato si LEGGE, non si filtra: le colonne portano i badge «Non
+         attivo» e «Nel cestino», e chi guarda decide.
+    */
+    const filters: Prisma.ProductVariantWhereInput[] = [];
     if (query.search) {
       filters.push(buildInventoryVariantSearchWhere(query.search));
     }
@@ -101,7 +116,10 @@ export class InventorySituationService {
         currency: true,
         sellingPriceMinor: true,
         purchasePriceMinor: true,
-        product: { select: { name: true, articleCode: true, category: true } },
+        deletedAt: true,
+        product: {
+          select: { name: true, articleCode: true, category: true, deletedAt: true },
+        },
         supplierLinks: {
           select: {
             supplierId: true,
@@ -153,7 +171,7 @@ export class InventorySituationService {
         return {
           variantId: variant.id,
           productId: variant.productId,
-          title: buildVariantTitle(variant.product.name, variant.optionValues),
+          title: variantTitle(variant.product.name, variant.optionValues),
           articleCode: variant.product.articleCode,
           sku: variant.sku,
           category: variant.product.category,
@@ -161,18 +179,31 @@ export class InventorySituationService {
           supplierName: link ? partyDisplayName(link.supplier.party) : null,
           currency: variant.currency,
           sellingPriceMinor: Number(variant.sellingPriceMinor),
-          purchasePriceMinor: showPurchaseCosts ? variant.purchasePriceMinor : null,
+          // `null` qui significa una cosa sola: costo non visibile con i
+          // permessi di chi guarda. Il costo assente non esiste più — una
+          // variante senza costo vale zero (`regole-gestionale`).
+          purchasePriceMinor: showPurchaseCosts ? Number(variant.purchasePriceMinor) : null,
           ...totals,
           totalIn: 0,
           totalOut: 0,
           stockStatus: this.stockStatusOf(totals),
+          inTrash: isInTrash(variant) || isInTrash(variant.product),
         };
       })
       .filter((row) => !query.stockStatus || row.stockStatus === query.stockStatus);
 
     const total = rows.length;
-    const start = (query.page - 1) * query.pageSize;
-    const pageRows = rows.slice(start, start + query.pageSize);
+    /*
+      ⭐ **Con `all=1` non si affetta**: l'elenco mostra tutte le righe del filtro
+      (30/08/2026).
+
+      ⚠️ **Qui la finestra è in MEMORIA, non in Prisma**: le righe sono già tutte
+      caricate e aggregate per variante — questa `slice` non risparmiava una
+      query, tagliava soltanto la risposta. È il caso in cui l'impaginazione
+      costava senza rendere.
+    */
+    const start = query.all ? 0 : (query.page - 1) * query.pageSize;
+    const pageRows = query.all ? rows : rows.slice(start, start + query.pageSize);
     const movementTotals = await this.movementTotals(
       tenantId,
       scope,

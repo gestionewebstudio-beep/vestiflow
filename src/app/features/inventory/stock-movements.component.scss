@@ -20,3 +20,90 @@
   border-radius: var(--radius-md);
   font-size: var(--text-sm);
 }
+
+/*
+  La tipografia delle celle dei movimenti.
+
+  ⭐ Vestono contenuto PROIETTATO nel motore tabella: gli elementi portano
+  l'incapsulamento di questa pagina, quindi questi selettori li raggiungono.
+  È il canale previsto da `regole-stile-ui` §5 — l'alternativa sarebbe
+  `::ng-deep`, che nell'app non esiste più in nessun punto.
+
+  ⚠️ Se un terzo riepilogo ripetesse «codice in mono» e «testo troncato», la
+  cosa smette di essere della pagina e va nel modello colonne: sono convenzioni
+  d'app (`regole-stile-ui` §6), non gusti dei movimenti.
+*/
+.stock-movements__data {
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.stock-movements__codice {
+  display: block;
+  max-inline-size: var(--table-cell-max);
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stock-movements__prodotto {
+  display: block;
+  max-inline-size: var(--table-cell-max);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+  ⭐ La pagina si adatta alla finestra (`regole-stile-ui` §6). Come Ordini
+  fornitore, rende il motore direttamente: l'elenco è `app-data-table`.
+*/
+@include lp.list-page-fills-viewport('stock-movements', 'app-data-table');
+
+/* ── telaio ─────────────────────────────────────────────────────────────
+  ⭐ Passata a `app-list-page`: testata, zona controlli e stati sono suoi.
+
+  ⚠️ La tabella proiettata deve riempire l'area dati, e lo dice QUESTA pagina:
+  le regole del telaio portano il proprio attributo di incapsulamento e non
+  raggiungono il contenuto proiettato. Una regola come `.list-page__data > *`
+  non lo tocca — e non fallisce: non fa niente.
+  ──────────────────────────────────────────────────────────────────────── */
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-block-size: 0;
+}
+
+app-data-table {
+  flex: 1;
+  min-block-size: 0;
+  /*
+    ⚠️ **Il pavimento ORIZZONTALE**: senza, un elemento flessibile si rifiuta di
+    stringersi sotto la larghezza del proprio contenuto, e una tabella larga
+    spinge la pagina oltre il bordo invece di scorrere dentro di sé. Misurato sui
+    Clienti il 30/08/2026, dove le colonne sono tredici.
+  */
+  min-inline-size: 0;
+}
+
+/*
+  ⚠️ **I gruppi proiettati non sono scatole: sono contenuto.**
+
+  ⛔ Un `<div filters>` che avvolge due campi è una scatola IN PIÙ dentro la
+  zona del telaio: il telaio stila la propria (`display: flex`), non questa —
+  le sue regole portano l'attributo di incapsulamento del telaio e non
+  raggiungono il contenuto proiettato. Dentro un blocco, i campi si impilano.
+
+  ⭐ `display: contents` toglie la scatola e lascia i figli partecipare alla
+  riga del telaio. Misurato su Ordini fornitore il 29/08/2026: «Stato» e
+  «Periodo» impilati, e i comandi della barra azioni uno per riga.
+*/
+[pageActions],
+[filters],
+[warnings],
+[listActions] {
+  display: contents;
+}

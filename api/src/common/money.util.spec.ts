@@ -5,6 +5,8 @@ import {
   roundToMinor,
   sameAmountAtCent,
   sameNullableAmountAtCent,
+  sameUnitAmountAtContract,
+  toStorableMinor,
 } from './money.util';
 
 describe('roundToMinor', () => {
@@ -66,5 +68,50 @@ describe('minorToDecimalString', () => {
       }
     }
     expect(divergenti).toBeGreaterThan(1000);
+  });
+});
+
+/**
+ * ⛔ **Il costo unitario non si confronta al centesimo**, e il difetto che
+ * questo comparatore chiude era già armato: dopo la migration delle colonne di
+ * costo a `NUMERIC(16,6)`, `sameAmountAtCent(84, 84.4262)` rispondeva «uguali»
+ * — e un Arrivo merce a 1,03 € ivati al 22% avrebbe lasciato in anagrafica il
+ * vecchio costo intero invece di scrivere quello preciso.
+ */
+describe('sameUnitAmountAtContract', () => {
+  it('⭐ 84,0000 → 84,4262 è CAMBIATO (al centesimo sarebbe «uguale»)', () => {
+    expect(sameUnitAmountAtContract(84, 84.4262)).toBe(false);
+    // Il metro vecchio, per mostrare la differenza che questo test difende.
+    expect(sameAmountAtCent(84, 84.4262)).toBe(true);
+  });
+
+  it('⭐ 2049,0000 → 2049,1803 è cambiato (25,00 € ivati al 22%)', () => {
+    expect(sameUnitAmountAtContract(2049, 2049.1803)).toBe(false);
+  });
+
+  it('lo stesso valore è invariato: nessuna riscrittura inutile', () => {
+    expect(sameUnitAmountAtContract(84.4262, 84.4262)).toBe(true);
+  });
+
+  it('⭐ valori grezzi diversi che il contratto rende identici sono invariati', () => {
+    // Oltre le 4 cifre di centesimo non c'è precisione, c'è il rumore del
+    // float: due valori che finiscono sulla stessa cifra memorizzabile SONO lo
+    // stesso valore, e non devono far scattare una scrittura.
+    expect(sameUnitAmountAtContract(84.42622950, 84.42621111)).toBe(true);
+    expect(toStorableMinor(84.42622950)).toBe(toStorableMinor(84.42621111));
+  });
+
+  it('⛔ ma una differenza DENTRO il contratto si vede', () => {
+    expect(sameUnitAmountAtContract(84.4262, 84.4263)).toBe(false);
+  });
+
+  it('null e null sono lo stesso: costo assente resta assente', () => {
+    expect(sameUnitAmountAtContract(null, null)).toBe(true);
+  });
+
+  it('⛔ null e un valore sono diversi — anche se il valore è zero', () => {
+    expect(sameUnitAmountAtContract(null, 84.4262)).toBe(false);
+    // «costo sconosciuto» e «costa zero» non sono la stessa cosa.
+    expect(sameUnitAmountAtContract(null, 0)).toBe(false);
   });
 });

@@ -58,7 +58,7 @@ describe('document-print.util', () => {
     expect(documentPrintKind(DocumentType.adjustment)).toBe('stock');
     expect(documentPrintKind(DocumentType.inventory)).toBe('stock');
     expect(documentPrintKind(DocumentType.sales_ddt)).toBe('sales');
-    // Scarico manuale: layout vendita (Cliente + prezzi/totali).
+    // Vendita manuale: layout vendita (Cliente + prezzi/totali).
     expect(documentPrintKind(DocumentType.manual_unload)).toBe('sales');
     expect(documentPrintKind(DocumentType.store_sale)).toBe('sales');
   });
@@ -75,20 +75,20 @@ describe('document-print.util', () => {
     expect(documentPrintShowsValues(DocumentType.goods_receipt)).toBe(true);
     expect(documentPrintShowsValues(DocumentType.manual_load)).toBe(true);
     expect(documentPrintShowsValues(DocumentType.supplier_invoice)).toBe(true);
-    expect(documentPrintShowsValues(DocumentType.invoice_draft)).toBe(true);
+    expect(documentPrintShowsValues(DocumentType.invoice)).toBe(true);
     expect(documentPrintShowsValues(DocumentType.store_sale)).toBe(true);
   });
 
   // L'avviso è la condizione perché il foglio della cassa possa esistere: senza,
   // un A4 con numero, IVA e totale è indistinguibile da un documento fiscale.
-  it('proforma e cassa negozio dichiarano di non essere fiscali', () => {
+  it('proforma e vendita al banco dichiarano di non essere fiscali', () => {
     expect(documentPrintDisclaimer(DocumentType.proforma)).toContain('non fiscale');
     expect(documentPrintDisclaimer(DocumentType.store_sale)).toContain('non fiscale');
     expect(documentPrintDisclaimer(DocumentType.store_return)).toContain('non fiscale');
   });
 
   it('i documenti fiscali non portano avvisi', () => {
-    expect(documentPrintDisclaimer(DocumentType.invoice_draft)).toBeNull();
+    expect(documentPrintDisclaimer(DocumentType.invoice)).toBeNull();
     expect(documentPrintDisclaimer(DocumentType.sales_ddt)).toBeNull();
   });
 });

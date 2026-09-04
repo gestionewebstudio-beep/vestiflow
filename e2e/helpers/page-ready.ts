@@ -60,7 +60,7 @@ export async function waitForSupplierOrdersReady(page: Page): Promise<'rows' | '
   const deadline = Date.now() + 45_000;
 
   while (Date.now() < deadline) {
-    if (await page.locator('.po-table__row').first().isVisible()) {
+    if (await page.locator('.data-table__row').first().isVisible()) {
       return 'rows';
     }
 

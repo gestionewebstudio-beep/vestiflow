@@ -34,6 +34,7 @@ function utente(permissions: readonly TenantPermissionKey[]): User {
     isActive: true,
     isPlatformAdmin: false,
     tenantChannelProfile: TenantChannelProfile.Shopify,
+    manualUnloadEnabled: true,
     tenantName: 'Cliente test',
     hasAllLocationsAccess: true,
     assignedLocationIds: [],
@@ -114,16 +115,34 @@ describe('DocumentsHubComponent — card filtrate per famiglia', () => {
     expect(screen.getByText('Tutti i documenti')).toBeTruthy();
   });
 
-  // La cassa non ha una famiglia documento: la governa `retail.register`, e le
-  // sue tre condizioni sono le stesse che chiedono sidebar e guard di rotta.
-  // Prima erano scritte in tre modi diversi e la card si vedeva comunque.
-  it('nasconde «Vendita al banco» a chi non ha il permesso di battere', async () => {
-    await apri(utente([TenantPermission.SectionDocuments, TenantPermission.SectionSales]));
+  // ⛔ UNA sola card per il banco, e porta al RIEPILOGO (`11` A2, deciso il
+  // 20/08/2026). Qui ce n'erano DUE: «Vendita al banco» verso la creazione e
+  // «Vendite al banco» verso l'elenco — due nomi che differiscono per una
+  // lettera e portano in due posti diversi. La creazione è ora la scorciatoia
+  // di sidebar, e questa prova impedisce alla seconda card di tornare.
+  it('ha una sola card per il banco, e porta al riepilogo', () => {
+    const voci = DOCUMENT_HUB_GROUPS.flatMap((gruppo) => gruppo.items).filter((voce) =>
+      voce.route.some((segmento) => segmento.startsWith('/app/vendita-al-banco')),
+    );
 
-    expect(screen.queryByText('Vendita al banco')).toBeNull();
+    expect(voci).toHaveLength(1);
+    expect(voci[0]!.route).toEqual(['/app/vendita-al-banco']);
+    expect(voci[0]!.family).toBe('store_sale');
   });
 
-  it('mostra «Vendita al banco» con sezione Vendite e permesso di cassa', async () => {
+  // La card è filtrata sulla STESSA cosa che chiede la rotta dell'elenco
+  // (`familyView('store_sale')`): mostrarla a chi il guard rimbalza sarebbe la
+  // porta finta che questo filtro esiste per evitare.
+  it('mostra «Vendite al banco» a chi può consultare la famiglia', async () => {
+    await apri(utente([TenantPermission.SectionDocuments, docViewPermission('store_sale')]));
+
+    expect(screen.getByText('Vendite al banco')).toBeTruthy();
+  });
+
+  // ⚠️ Il permesso di battere non apre più questa card: quello governa la
+  // scorciatoia di sidebar, che porta alla creazione. Consultare il registro e
+  // battere una vendita sono due cose diverse, e ora lo sono anche nei filtri.
+  it('nasconde «Vendite al banco» senza la famiglia, anche col permesso di battere', async () => {
     await apri(
       utente([
         TenantPermission.SectionDocuments,
@@ -132,13 +151,7 @@ describe('DocumentsHubComponent — card filtrate per famiglia', () => {
       ]),
     );
 
-    expect(screen.getByText('Vendita al banco')).toBeTruthy();
-  });
-
-  it('nasconde la cassa a chi ha il permesso ma non la sezione Vendite', async () => {
-    await apri(utente([TenantPermission.SectionDocuments, TenantPermission.RetailRegister]));
-
-    expect(screen.queryByText('Vendita al banco')).toBeNull();
+    expect(screen.queryByText('Vendite al banco')).toBeNull();
   });
 
   // «Ordini fornitore» e «Ordini cliente» sono le due sole card che portano

@@ -1,12 +1,5 @@
 @use 'breakpoints' as bp;
 
-// Tap target ≥44×44 sui pochi controlli icona ancora sotto soglia (il cestino
-// della riga «documento collegato» usa l'altezza densa da desktop).
-.co-form__mobile-source-row .doc-form__line-remove {
-  min-block-size: 2.75rem;
-  min-inline-size: 2.75rem;
-}
-
 // Rispetto di «riduci animazioni».
 @media (prefers-reduced-motion: reduce) {
   .co-form__header-summary,
@@ -148,23 +141,27 @@
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Ingresso prodotti su mobile: blocco «Nuovo prodotto» e «Aggiungi riga» in
-// fondo alla lista. Nascosti su desktop, dove restano la toolbar righe e la
-// ricerca inline per riga. La veste del dock (doc-form__sticky-bar) è
-// promossa in styles/_document-form-mobile.scss.
-// ═══════════════════════════════════════════════════════════════════════════
-.co-form__mobile-tools,
-.co-form__mobile-add-line,
-.co-form__header-include {
-  display: none;
-}
+// ⛔ **Qui c'era una SECONDA barra strumenti, solo mobile**
+// (`co-form__mobile-tools` con «Nuovo prodotto» e «Aggiungi riga»), spenta su
+// desktop e accesa sotto `lg`. Non esiste più in nessun template: i suoi
+// comandi vivono nella barra righe comune, che ora è responsive.
+//
+// ⚠️ Due barre con gli stessi comandi sono due stati da tenere allineati, e la
+// forma in cui divergono è sempre la stessa — una impara una condizione nuova
+// e l'altra no.
 
 @include bp.media-down('lg') {
-  // Toolbar desktop fuori: i suoi comandi sono ricollocati.
-  .co-form .co-form__lines-tools {
-    display: none;
-  }
+  // ⛔ **Qui c'era `display: none` sulla barra strumenti**, e la ragione era
+  // giusta allora: il selettore Colonne non raggiungeva le card, quindi era un
+  // comando che non comandava. Da quando il corpo della card è guidato dal
+  // catalogo, quel selettore governa anche la vista compatta — e la barra la
+  // adatta la regola COMUNE, in `_document-form.scss`, per tutte e sette le
+  // maschere insieme.
+  //
+  // ⚠️ Convivevano anche due regole locali in contraddizione: questa la
+  // nascondeva, e `mobile-cards.scss` la disegnava a due colonne. Stessa
+  // specificità, quindi decideva l'ordine dei file — un difetto che non si
+  // vede finché qualcuno non riordina gli import.
 
   // Azione rara, quindi ghost compatto a destra (non a piena larghezza).
   .co-form .co-form__mobile-tools {
@@ -193,3 +190,8 @@
     border-block-start: var(--border-width) solid var(--color-border);
   }
 }
+
+// ⛔ Qui c'erano le regole della banda «Documento collegato» su schermo
+// compatto. Erano scritte due volte, in due maschere, con due prefissi diversi
+// sullo stesso markup: ora sono un componente comune
+// (`app-document-line-card-reference`), che porta il suo foglio.

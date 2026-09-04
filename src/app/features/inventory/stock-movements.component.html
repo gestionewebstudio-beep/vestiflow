@@ -1,26 +1,28 @@
-<section class="stock-movements">
-  <header class="stock-movements__header">
-    <div class="stock-movements__heading">
-      <!-- Torna alla pagina precedente; senza cronologia interna ricade
-           sull'hub Magazzino dedotto dall'URL. -->
-      <app-back-button />
-      <h1 class="stock-movements__title">Movimenti di magazzino</h1>
-    </div>
-    @if (canManageInventory()) {
-      <div class="stock-movements__actions">
-        @for (action of movementActions; track action.type) {
-          <app-button variant="secondary" (click)="newMovement(action.type)">
-            <i class="pi {{ action.icon }}" aria-hidden="true"></i>
-            {{ action.label }}
-          </app-button>
-        }
-      </div>
-    }
-  </header>
+<app-list-page
+  [selectionToggleable]="true"
+  [selectionMode]="modoSelezione.acceso()"
+  (selectionModeChange)="modoSelezione.commuta($event)"
+  class="stock-movements"
+  pageTitle="Movimenti di magazzino"
+  [showBack]="true"
+  [loading]="loading()"
+  [error]="error()?.message ?? null"
+  [isEmpty]="isEmpty()"
+  [skeletonColumns]="skeletonColumns"
+  [columnsViewId]="tableViewId"
+  emptyTitle="Nessun movimento"
+  emptyDescription="Nessun movimento corrisponde ai filtri attuali. Registra un carico, uno scarico o un trasferimento."
+  emptyIcon="pi-arrow-right-arrow-left"
+  (filtersCleared)="resetFilters()"
+  (retry)="reload()"
+>
+  <app-inventory-tabs tabs />
 
-  <app-inventory-tabs />
-
-  <div class="stock-movements__filters">
+  <!--
+    ⚠️ Il selettore Colonne non è più qui: lo rende il telaio. Restano i filtri
+    di dominio, che il telaio non conosce.
+  -->
+  <div filters>
     <div class="stock-movements__field stock-movements__field--select">
       <app-select-menu
         chipLabel="Tipo movimento"
@@ -69,11 +71,11 @@
         [options]="periodOptions"
         [value]="periodFilter()"
         ariaLabel="Filtra per periodo"
-        placeholder="Tutti"
+        placeholder="Periodo"
         [compact]="true"
-        [fullWidth]="true"
+        [fitContent]="true"
+        [includeEmptyOption]="false"
         (valueChange)="onPeriodFilterChange($event)"
-        [filterChip]="true"
       />
     </div>
 
@@ -153,35 +155,110 @@
       />
     </div>
 
-    <div class="stock-movements__filters-action">
-      <app-table-column-picker [viewId]="tableViewId" />
-      <app-button variant="secondary" [disabled]="!hasActiveFilters()" (click)="resetFilters()">
-        <i class="pi pi-filter-slash" aria-hidden="true"></i>
-        Azzera filtri
-      </app-button>
+    <!--
+      Il raggruppamento sta con i filtri perché è lì che l'occhio lo cerca, ma
+      NON è un filtro: non cambia quali righe si vedono, solo come si leggono.
+    -->
+    <div class="stock-movements__field stock-movements__field--select">
+      <app-group-by-menu [value]="raggruppa()" (valueChange)="onRaggruppaChange($event)" />
     </div>
   </div>
 
-  @if (loading()) {
-    <app-table-skeleton [columns]="skeletonColumns" [rows]="8" />
-  } @else if (error(); as appError) {
-    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
-  } @else if (isEmpty()) {
-    <app-empty-state
-      title="Nessun movimento"
-      description="Nessun movimento corrisponde ai filtri attuali. Registra un carico, uno scarico o un trasferimento."
-      icon="pi-arrow-right-arrow-left"
-      [ctaLabel]="emptyStateCtaLabel()"
-      (ctaClick)="onEmptyStateAction()"
+  <app-data-table
+    [rowClickSelects]="modoSelezione.perTocco()"
+    data
+    caption="Movimenti di magazzino"
+    [columns]="tableColumns()"
+    [sections]="sezioni()"
+    [viewId]="tableViewId"
+    [rowId]="rowId"
+    [totals]="totals()"
+    [cellText]="cellText"
+    selectionMode="multiple"
+    [selectedIds]="selectedIds()"
+    [selectionLabel]="selectionLabel"
+    selectAllLabel="Seleziona tutti i movimenti"
+    [sortable]="true"
+    [sort]="sortState()"
+    (sortChange)="sortState.set($event)"
+    (selectionChange)="onToggleSelection($event)"
+    (selectAllChange)="onToggleSelectAll($event)"
+  >
+    <!-- L'unica cella che non è testo: il tipo, con la sua pill. -->
+    <ng-template appCell="type" let-row>
+      <app-badge [flat]="true" [tone]="typeTone(row.type)">{{ typeLabel(row.type) }}</app-badge>
+    </ng-template>
+
+    <!--
+      Le altre quattro celle non portano un componente: portano TIPOGRAFIA —
+      codice in mono, data smorzata, descrizione troncata.
+
+      ⭐ Il testo resta uno solo (`cellText`): il template aggiunge il
+      vestito, non una seconda verità.
+
+      ⚠️ Stanno qui e non nel motore perché il contenuto proiettato porta
+      l'incapsulamento di QUESTA pagina: è il solo modo di dare stile a una
+      cella senza `::ng-deep`, che `regole-stile-ui` §5 vieta.
+    -->
+    <ng-template appCell="createdAt" let-row>
+      <span class="stock-movements__data">{{ cellText(row, 'createdAt') }}</span>
+    </ng-template>
+
+    <ng-template appCell="articleCode" let-row>
+      <span class="stock-movements__codice">{{ cellText(row, 'articleCode') }}</span>
+    </ng-template>
+
+    <ng-template appCell="sku" let-row>
+      <span class="stock-movements__codice">{{ cellText(row, 'sku') }}</span>
+    </ng-template>
+
+    <ng-template appCell="product" let-row>
+      <span class="stock-movements__prodotto">{{ cellText(row, 'product') }}</span>
+    </ng-template>
+    <!--
+    ⭐ **La card di un ELENCO si progetta, non si impila** (`regole-stile-ui`):
+    tre fasce, «a sinistra le parole, a destra i numeri». La grammatica è comune
+    (`styles/_list-card.scss`), il contenuto è di questo elenco.
+
+    ⛔ Prima c'era il ripiego a `data-label` del motore: una riga «ETICHETTA:
+    valore» per colonna, tutte dello stesso peso, e niente di primario.
+  -->
+    <ng-template appRowCard let-row>
+      <div class="list-card__head">
+        <span class="list-card__ident">
+          <span class="list-card__when tabular-nums">{{ cellText(row, 'createdAt') }}</span>
+          <span class="list-card__what">{{ cellText(row, 'type') }}</span>
+        </span>
+        <!--
+        ⚠️ **L'ancora dei movimenti è la QUANTITÀ, non un numero di documento**:
+        è il dato per cui si scorre il registro, e porta il segno.
+      -->
+        <span class="list-card__anchor">{{ row.signedQuantity }}</span>
+      </div>
+
+      <div class="list-card__words">
+        @if (visibile('product')) {
+          <span>{{ cellText(row, 'product') }}</span>
+        }
+        @if (visibile('locationLabel')) {
+          <span>{{ cellText(row, 'locationLabel') }}</span>
+        }
+        @if (visibile('documentRef')) {
+          <span>{{ cellText(row, 'documentRef') }}</span>
+        }
+      </div>
+    </ng-template>
+  </app-data-table>
+
+  <!-- `14` §21.1: dati → totali → funzioni. -->
+  <div listActions>
+    <app-list-actions-bar
+      [count]="selectionCount()"
+      [ids]="[...selectedIds()]"
+      [actions]="listActions()"
+      labelSingular="movimento selezionato"
+      labelPlural="movimenti selezionati"
+      (cleared)="clearSelection()"
     />
-  } @else {
-    <app-movement-table [rows]="rows()" [columns]="tableColumns()" />
-    <app-pagination
-      label="Paginazione movimenti di magazzino"
-      [meta]="meta()"
-      [pageSizeOptions]="pageSizeOptions"
-      (pageChange)="goToPage($event)"
-      (pageSizeChange)="onPageSizeChange($event)"
-    />
-  }
-</section>
+  </div>
+</app-list-page>

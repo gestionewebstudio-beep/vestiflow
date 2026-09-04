@@ -69,19 +69,19 @@ describe('document-print.util (frontend)', () => {
   it('i documenti con importi veri portano le colonne di valore', () => {
     expect(documentPrintShowsValues(DocumentType.GoodsReceipt)).toBe(true);
     expect(documentPrintShowsValues(DocumentType.SupplierInvoice)).toBe(true);
-    expect(documentPrintShowsValues(DocumentType.InvoiceDraft)).toBe(true);
+    expect(documentPrintShowsValues(DocumentType.Invoice)).toBe(true);
     expect(documentPrintShowsValues(DocumentType.StoreSale)).toBe(true);
     expect(documentPrintShowsValues(DocumentType.ManualUnload)).toBe(true);
   });
 
-  it('proforma e cassa negozio dichiarano di non essere fiscali', () => {
+  it('proforma e vendita al banco dichiarano di non essere fiscali', () => {
     expect(documentPrintDisclaimer(DocumentType.Proforma)).toContain('non fiscale');
     expect(documentPrintDisclaimer(DocumentType.StoreSale)).toContain('non fiscale');
     expect(documentPrintDisclaimer(DocumentType.StoreReturn)).toContain('non fiscale');
   });
 
   it('i documenti fiscali non portano avvisi', () => {
-    expect(documentPrintDisclaimer(DocumentType.InvoiceDraft)).toBeNull();
+    expect(documentPrintDisclaimer(DocumentType.Invoice)).toBeNull();
     expect(documentPrintDisclaimer(DocumentType.SalesDdt)).toBeNull();
     expect(documentPrintDisclaimer(DocumentType.Transfer)).toBeNull();
   });

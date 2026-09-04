@@ -1,51 +1,74 @@
-<section class="inventory-count-list">
-  <header class="inventory-count-list__header">
-    <div class="inventory-count-list__heading">
-      <!-- Torna alla pagina precedente; senza cronologia interna ricade
-           sull'hub Magazzino dedotto dall'URL. -->
-      <app-back-button />
-      <h1 class="inventory-count-list__title">Inventario</h1>
-      <p class="inventory-count-list__subtitle">
-        Conteggio periodico delle giacenze per location. Alla chiusura genera rettifiche tracciate e
-        aggiorna il magazzino.
-      </p>
+<app-list-page
+  [selectionToggleable]="true"
+  [selectionMode]="modoSelezione.acceso()"
+  (selectionModeChange)="modoSelezione.commuta($event)"
+  class="inventory-count-list"
+  pageTitle="Inventario"
+  pageDescription="Conteggio periodico delle giacenze per location. Alla chiusura genera rettifiche tracciate e aggiorna il magazzino."
+  [showBack]="true"
+  [columnsViewId]="tableViewId"
+  [loading]="loading()"
+  [error]="error()?.message ?? null"
+  [isEmpty]="isEmpty()"
+  [skeletonColumns]="skeletonColumns"
+  [skeletonRows]="6"
+  emptyTitle="Nessuna sessione inventario"
+  emptyDescription="Avvia un inventario fisico per confrontare le quantità di sistema con il conteggio reale in negozio o magazzino."
+  emptyIcon="pi-list-check"
+  (retry)="reload()"
+>
+  <app-inventory-tabs tabs />
+
+  <div filters>
+    <!--
+      Il raggruppamento sta con i filtri perché è lì che l'occhio lo cerca, ma
+      NON è un filtro: non cambia quali righe si vedono, solo come si leggono.
+    -->
+    <div class="inventory-count-list__field">
+      <app-group-by-menu [value]="raggruppa()" (valueChange)="onRaggruppaChange($event)" />
     </div>
-    <app-button (click)="newSession()">
-      <i class="pi pi-plus" aria-hidden="true"></i>
-      Nuova sessione
-    </app-button>
-  </header>
+  </div>
 
-  <app-inventory-tabs />
+  <app-inventory-count-table
+    [rowClickSelects]="modoSelezione.perTocco()"
+    data
+    [sessions]="sessions()"
+    [columns]="tableColumns()"
+    [viewId]="tableViewId"
+    [groupByDay]="raggruppaPerGiornata()"
+    [selectedIds]="selectedSessionIds()"
+    (rowClick)="openSession($event)"
+    (selectionToggle)="toggleSessionSelection($event.sessionId, $event.selected)"
+    (selectAllToggle)="toggleSelectAllSessions($event)"
+  />
 
-  @if (loading()) {
-    <app-table-skeleton [columns]="skeletonColumns" [rows]="6" />
-  } @else if (error(); as appError) {
-    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
-  } @else if (isEmpty()) {
-    <app-empty-state
-      title="Nessuna sessione inventario"
-      description="Avvia un inventario fisico per confrontare le quantità di sistema con il conteggio reale in negozio o magazzino."
-      icon="pi-list-check"
-      ctaLabel="Nuova sessione"
-      (ctaClick)="newSession()"
+  <!--
+    ⭐ **Tutti i comandi in UNA riga in basso** — decisione del proprietario,
+    30/08/2026. «Nuova sessione» stava in testata: si è spostata, non duplicata.
+
+    ⚠️ Il sottotitolo non si rende più: resta come `pageDescription` per i
+    lettori di schermo. Prendeva due righe per dire cosa la schermata è, in una
+    vista che serve a consultare.
+  -->
+  <div listActions>
+    <app-list-actions-bar
+      [count]="selectedSessionIds().size"
+      [ids]="[...selectedSessionIds()]"
+      [actions]="listActions()"
+      clearLabel="Deseleziona"
+      (cleared)="clearSelection()"
     />
-  } @else {
-    <app-inventory-count-table
-      [sessions]="sessions()"
-      (rowClick)="openSession($event)"
-      (deleteClick)="requestDelete($event)"
-    />
-  }
-</section>
+  </div>
+</app-list-page>
 
-<app-confirm-dialog
+<!--
+  ⚠️ Il dialogo sta FUORI dal telaio: è `position: fixed`, non occupa nessuna
+  zona. Dentro, senza slot, Angular lo scarterebbe in silenzio.
+-->
+<app-delete-confirm
   [(open)]="deleteDialogOpen"
   title="Eliminare la sessione?"
-  [message]="deleteConfirmMessage()"
-  confirmLabel="Elimina sessione"
-  cancelLabel="Torna indietro"
-  [danger]="true"
+  [consequence]="deleteConfirmMessage()"
   [busy]="deleteLoading()"
   (confirmed)="confirmDelete()"
 />

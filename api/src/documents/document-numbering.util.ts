@@ -518,3 +518,63 @@ export function isDocumentNumberConflict(error: unknown): boolean {
   const modelName = candidate.meta?.modelName;
   return typeof modelName === 'string' && MODELLI_NUMERATI.includes(modelName as never);
 }
+
+/**
+ * Numero e serie di un documento **già esistente**, quando si risalva.
+ *
+ * ⭐ È il contratto comune, e vale per OGNI tipo — nessuna famiglia lo congela
+ * dopo la nascita. Dichiarati, si scrivono; non dichiarati, restano quelli.
+ *
+ * ⛔ Il **riferimento si rifà anche quando cambia la sola serie**: il
+ * riferimento la nomina (`PREFISSO-SERIE-NUMERO`), quindi spostando un
+ * documento dalla serie A alla B con lo stesso numero resterebbe scritto
+ * «FT-A-0007» su un documento che ormai è della serie B — l'elenco e la stampa
+ * direbbero una cosa che la colonna `series` smentisce.
+ *
+ * ⚠️ Il numero si riscrive **solo quando cambia davvero**: un salvataggio che
+ * non lo tocca non deve rischiare il vincolo unico.
+ *
+ * Estratta il 21/08/2026 da `documents.service`, dove viveva in linea, perché
+ * la Vendita e il Reso al banco dovevano applicare **lo stesso** contratto e
+ * non una sua copia: fino a quel giorno rifiutavano in silenzio numero e serie
+ * dichiarati in modifica (`if (!existing)`), e la maschera avrebbe mostrato un
+ * campo che non modificava niente.
+ */
+export interface EditedDocumentNumbering {
+  /** La serie da scrivere, già canonica. `null` = senza serie. */
+  readonly series: string | null;
+  /** Il numero da scrivere. `null` = documento non numerato. */
+  readonly number: number | null;
+  /** Il riferimento ricomposto; `null` se non c'è niente da riscrivere. */
+  readonly reference: string | null;
+  /** Solo se cambia davvero la colonna `number` si tocca. */
+  readonly numberChanged: boolean;
+  /** Numero o serie: uno dei due è cambiato. */
+  readonly changed: boolean;
+}
+
+export function resolveEditedDocumentNumbering(input: {
+  /** `undefined` = non dichiarata, resta quella del documento. */
+  readonly declaredSeries: string | null | undefined;
+  /** `undefined` = non dichiarato, resta quello del documento. */
+  readonly declaredNumber: number | null | undefined;
+  readonly current: { readonly series: string | null; readonly number: number | null };
+  /** Prefisso del NUMERATORE del tipo, non del tipo grezzo. */
+  readonly prefix: string;
+}): EditedDocumentNumbering {
+  const series =
+    input.declaredSeries !== undefined ? serieCanonica(input.declaredSeries) : input.current.series;
+  const numberChanged =
+    input.declaredNumber !== undefined && input.declaredNumber !== input.current.number;
+  const seriesChanged = series !== input.current.series;
+  const number = numberChanged ? (input.declaredNumber ?? null) : input.current.number;
+  const changed = numberChanged || seriesChanged;
+  return {
+    series,
+    number,
+    numberChanged,
+    changed,
+    // Senza numero non c'è riferimento da comporre.
+    reference: changed && number !== null ? formatDocumentReference(input.prefix, series, number) : null,
+  };
+}

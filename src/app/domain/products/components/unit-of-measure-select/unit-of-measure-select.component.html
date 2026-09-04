@@ -1,0 +1,16 @@
+<app-select-menu
+  [options]="selectOptions()"
+  [value]="value()"
+  [ariaLabel]="ariaLabel()"
+  [placeholder]="placeholder"
+  [compact]="true"
+  [fitContent]="true"
+  [includeEmptyOption]="false"
+  (valueChange)="onChange($event)"
+/>
+
+<app-unit-of-measure-manager-dialog
+  [open]="managerOpen()"
+  (closed)="managerOpen.set(false)"
+  (changed)="onManagerChanged()"
+/>

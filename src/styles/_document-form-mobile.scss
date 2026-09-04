@@ -246,7 +246,16 @@
     gap: var(--space-1);
     flex-shrink: 0;
     inline-size: fit-content;
-    min-block-size: var(--space-7, 1.75rem);
+    /*
+      ⚠️ **Era `var(--space-7, 1.75rem)`, e `--space-7` non esiste**: nessuno lo
+      dichiara, quindi valeva il fallback — 28px nudi dentro un `var()`, cioè un
+      magic number nel posto dove la guardia sui token non guardava.
+
+      Qui il comando è un pulsante di azione su un pannello mobile: la sua
+      altezza è quella dei pulsanti di barra, che sotto `md` vale 32px. Il
+      bersaglio cresce di 4px, e va nella direzione giusta.
+    */
+    min-block-size: var(--control-h-button);
     padding: 0;
     color: var(--color-focus);
     background: none;

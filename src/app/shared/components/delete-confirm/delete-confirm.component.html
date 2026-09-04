@@ -1,0 +1,36 @@
+<!--
+  ⭐ **1° passaggio — l'AVVISO**: dice cosa succede, e lo dice il chiamante.
+  «Continua» e non «Elimina»: qui non si elimina ancora niente, e un pulsante che
+  promette l'eliminazione al primo dei due passaggi renderebbe il secondo una
+  sorpresa.
+-->
+<app-confirm-dialog
+  [open]="avvisoAperto()"
+  [title]="title()"
+  [message]="consequence()"
+  confirmLabel="Continua"
+  cancelLabel="Annulla"
+  [danger]="true"
+  (confirmed)="onAvvisoConfermato()"
+  (dismissed)="onAnnullato()"
+/>
+
+<!--
+  ⭐ **2° passaggio — la CONFERMA**: sempre uguale, per questo sta qui e non nel
+  chiamante. Era già scritta due volte con due etichette diverse — «Elimina
+  definitivamente» e «Elimina» — ed è la divergenza che questo componente chiude.
+
+  ⚠️ `busy` sta sul SECONDO: è quello che scatena l'operazione, ed è lì che
+  serve impedire il doppio invio.
+-->
+<app-confirm-dialog
+  [(open)]="confermaAperta"
+  title="Confermi l'eliminazione?"
+  message="L'operazione non è reversibile."
+  confirmLabel="Elimina definitivamente"
+  cancelLabel="Annulla"
+  [danger]="true"
+  [busy]="busy()"
+  (confirmed)="onConfermato()"
+  (dismissed)="onAnnullato()"
+/>

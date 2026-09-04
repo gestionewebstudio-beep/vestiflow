@@ -10,6 +10,14 @@ export interface TenantFeatureSettings {
   readonly warnNegativeInventory: boolean;
   readonly blockNegativeInventory: boolean;
   /**
+   * Vendita manuale: capacità operativa, non preferenza. Default **spenta**.
+   *
+   * ⚠️ Questo è il canale del PANNELLO Impostazioni, che lo scrive. Chi deve
+   * solo sapere se la funzione è disponibile legge `User.manualUnloadEnabled`,
+   * che arriva col profilo e non chiede permessi.
+   */
+  readonly manualUnloadEnabled: boolean;
+  /**
    * Convenzione aziendale sui prezzi di VENDITA: `true` = ivati.
    *
    * Non è solo il default dei documenti nuovi: è come questa azienda guarda i
@@ -17,7 +25,6 @@ export interface TenantFeatureSettings {
    * listini). I COSTI non hanno la gemella — partono sempre netti.
    */
   readonly salesPricesIncludeVat: boolean;
-  readonly defaultUnitOfMeasure: string;
   readonly defaultVatCodeId: string | null;
   /**
    * Listini aggiuntivi (§B): tre posizioni fisse. Nome `null` = etichetta di

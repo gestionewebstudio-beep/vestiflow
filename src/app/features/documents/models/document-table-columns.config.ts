@@ -1,18 +1,70 @@
+import { colonna } from '@shared/table-columns/column-catalog';
+import { conColonneCondivise } from './document-shared-columns';
 import {
   TableViewPresetId,
   type TableColumnDef,
   type TableViewPresetMap,
 } from '@shared/table-columns/table-column.model';
 
-export const DOCUMENT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
-  { id: 'documentDate', label: 'Data', pinnable: true, defaultVisible: true },
-  { id: 'type', label: 'Tipo', defaultVisible: true },
-  { id: 'reference', label: 'Numero', defaultVisible: true },
-  { id: 'counterparty', label: 'Controparte', defaultVisible: true },
-  { id: 'status', label: 'Stato', defaultVisible: true },
-  { id: 'lineCount', label: 'Righe', numeric: true, defaultVisible: true },
-  { id: 'total', label: 'Totale', numeric: true, defaultVisible: true },
-] as const;
+/**
+ * ⭐ **Le colonne dell'elenco documenti che il SERVER sa ordinare** (`14` §H15).
+ *
+ * L'elenco è paginato: ordinare le venti righe caricate darebbe la prima pagina
+ * rimescolata e la chiamerebbe «la più recente». L'ordinamento passa quindi
+ * dalla query, e questo insieme è lo **specchio** della whitelist di
+ * `api/src/documents/documents-sort.util.ts`.
+ *
+ * ⛔ **È una lista di ciò che SI PUÒ, non di ciò che non si può**, e la
+ * direzione conta: una colonna nuova nasce **non ordinabile** e resta tale
+ * finché qualcuno non la insegna anche al server. Marcando invece le escluse,
+ * la colonna aggiunta domani prometterebbe un ordinamento che risponde `400`.
+ *
+ * ⚠️ **Resta fuori la sola «Controparte»**, e non per decisione: non è un campo
+ * — `customerName` sulle vendite, `supplierName` sugli acquisti — quindi è
+ * ordinabile **da completare**, con una colonna generata in Postgres. Mai con
+ * un `CASE` SQL, che sarebbe una seconda fonte di verità.
+ *
+ * ⭐ **Tipo e Stato invece ci sono**: qui c'era scritto che il database li
+ * avrebbe ordinati «in inglese», ed era falso — Postgres ordina un `ENUM` per
+ * ordine di dichiarazione, e nello schema quello è il ciclo di vita (bozza →
+ * confermato → … → annullato) e la famiglia del tipo.
+ */
+export const DOCUMENT_LIST_SORTABLE_COLUMNS: ReadonlySet<string> = new Set([
+  'documentDate',
+  'reference',
+  'total',
+  'type',
+  'status',
+]);
+
+/*
+  ⛔ **Qui c'era `COLONNE_DOCUMENTALI_EXTRA`**, un array sparso con lo spread in
+  cinque cataloghi. Due difetti, trovati da una revisione avversariale poche ore
+  dopo averlo scritto:
+
+  1. le tre colonne **non avevano un renderer** — nessun `case` in `cellText` —
+     quindi accendendole si ottenevano tre colonne SEMPRE VUOTE su cinque
+     elenchi. Nulla falliva: una colonna senza renderer è una stringa in un array;
+  2. uno spread non sa che cosa c'è nell'array che lo ospita, e dove il profilo
+     dichiarava già `location` («Sede») il selettore mostrava **due voci gemelle**.
+
+  ⭐ Ora stanno in `document-shared-columns.ts`, dove **dichiarazione e resa sono
+  lo stesso oggetto** e la funzione `conColonneCondivise` riceve il catalogo e
+  non ripete ciò che c'è.
+*/
+
+export const DOCUMENT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = conColonneCondivise([
+  colonna('documentDate', {
+    pinnable: true,
+    defaultVisible: true,
+    display: 'code',
+  }),
+  colonna('type', { defaultVisible: true }),
+  colonna('reference', { label: 'Numero', defaultVisible: true, display: 'code', cardTitle: true }),
+  colonna('counterparty', { defaultVisible: true, display: 'truncate' }),
+  colonna('status', { defaultVisible: true }),
+  colonna('total', { defaultVisible: true }),
+]);
 
 export const DOCUMENT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
   [TableViewPresetId.Default]: [
@@ -21,10 +73,9 @@ export const DOCUMENT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'reference',
     'counterparty',
     'status',
-    'lineCount',
     'total',
   ],
-  [TableViewPresetId.Warehouse]: ['documentDate', 'type', 'reference', 'counterparty', 'lineCount'],
+  [TableViewPresetId.Warehouse]: ['documentDate', 'type', 'reference', 'counterparty'],
   [TableViewPresetId.Accountant]: [
     'documentDate',
     'type',
@@ -34,7 +85,13 @@ export const DOCUMENT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'total',
   ],
   [TableViewPresetId.Supplier]: ['documentDate', 'type', 'reference', 'counterparty', 'total'],
-  [TableViewPresetId.Analysis]: ['documentDate', 'type', 'status', 'lineCount', 'total'],
+  [TableViewPresetId.Analysis]: [
+    'documentDate',
+    'reference',
+    'type',
+    'status',
+    'total',
+  ],
   [TableViewPresetId.Operational]: ['documentDate', 'type', 'reference', 'status', 'counterparty'],
 };
 
@@ -44,14 +101,19 @@ export const DOCUMENT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
  * tipo — e controparte etichettata "Cliente". Le Fatture fanno eccezione e
  * usano INVOICE_LIST_COLUMN_DEFS, perché condividono un elenco fra due tipi.
  */
-export const SALES_DOCUMENT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
-  { id: 'documentDate', label: 'Data', pinnable: true, defaultVisible: true },
-  { id: 'reference', label: 'Numero', defaultVisible: true },
-  { id: 'counterparty', label: 'Cliente', defaultVisible: true },
-  { id: 'status', label: 'Stato', defaultVisible: true },
-  { id: 'lineCount', label: 'Righe', numeric: true, defaultVisible: true },
-  { id: 'total', label: 'Totale', numeric: true, defaultVisible: true },
-] as const;
+export const SALES_DOCUMENT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = conColonneCondivise([
+  colonna('documentDate', {
+    pinnable: true,
+    defaultVisible: true,
+    display: 'code',
+  }),
+  colonna('reference', { label: 'Numero', defaultVisible: true, display: 'code', cardTitle: true }),
+  colonna('counterparty', { label: 'Cliente', defaultVisible: true, display: 'truncate' }),
+  colonna('status', { defaultVisible: true }),
+  { id: 'subtotal', label: 'Imponibile', numeric: true, defaultVisible: true },
+  { id: 'tax', label: 'IVA', numeric: true, defaultVisible: true },
+  colonna('total', { defaultVisible: true }),
+]);
 
 export const SALES_DOCUMENT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
   [TableViewPresetId.Default]: [
@@ -59,13 +121,22 @@ export const SALES_DOCUMENT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'reference',
     'counterparty',
     'status',
-    'lineCount',
+    'subtotal',
+    'tax',
     'total',
   ],
-  [TableViewPresetId.Warehouse]: ['documentDate', 'reference', 'counterparty', 'lineCount'],
-  [TableViewPresetId.Accountant]: ['documentDate', 'reference', 'counterparty', 'status', 'total'],
+  [TableViewPresetId.Warehouse]: ['documentDate', 'reference', 'counterparty'],
+  [TableViewPresetId.Accountant]: [
+    'documentDate',
+    'reference',
+    'counterparty',
+    'status',
+    'subtotal',
+    'tax',
+    'total',
+  ],
   [TableViewPresetId.Supplier]: ['documentDate', 'reference', 'counterparty', 'total'],
-  [TableViewPresetId.Analysis]: ['documentDate', 'status', 'lineCount', 'total'],
+  [TableViewPresetId.Analysis]: ['documentDate', 'reference', 'status', 'total'],
   [TableViewPresetId.Operational]: ['documentDate', 'reference', 'status', 'counterparty'],
 };
 
@@ -74,15 +145,20 @@ export const SALES_DOCUMENT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
  * condiviso da Fattura e Fattura accompagnatoria (numeratore unico). La
  * colonna sta subito dopo il Numero, dove l'operatore la cerca leggendo la riga.
  */
-export const INVOICE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
-  { id: 'documentDate', label: 'Data', pinnable: true, defaultVisible: true },
-  { id: 'reference', label: 'Numero', defaultVisible: true },
-  { id: 'type', label: 'Tipo', defaultVisible: true },
-  { id: 'counterparty', label: 'Cliente', defaultVisible: true },
-  { id: 'status', label: 'Stato', defaultVisible: true },
-  { id: 'lineCount', label: 'Righe', numeric: true, defaultVisible: true },
-  { id: 'total', label: 'Totale', numeric: true, defaultVisible: true },
-] as const;
+export const INVOICE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = conColonneCondivise([
+  colonna('documentDate', {
+    pinnable: true,
+    defaultVisible: true,
+    display: 'code',
+  }),
+  colonna('reference', { label: 'Numero', defaultVisible: true, display: 'code', cardTitle: true }),
+  colonna('type', { defaultVisible: true }),
+  colonna('counterparty', { label: 'Cliente', defaultVisible: true, display: 'truncate' }),
+  colonna('status', { defaultVisible: true }),
+  { id: 'subtotal', label: 'Imponibile', numeric: true, defaultVisible: true },
+  { id: 'tax', label: 'IVA', numeric: true, defaultVisible: true },
+  colonna('total', { defaultVisible: true }),
+]);
 
 export const INVOICE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
   [TableViewPresetId.Default]: [
@@ -91,20 +167,29 @@ export const INVOICE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'type',
     'counterparty',
     'status',
-    'lineCount',
+    'subtotal',
+    'tax',
     'total',
   ],
-  [TableViewPresetId.Warehouse]: ['documentDate', 'reference', 'type', 'counterparty', 'lineCount'],
+  [TableViewPresetId.Warehouse]: ['documentDate', 'reference', 'type', 'counterparty'],
   [TableViewPresetId.Accountant]: [
     'documentDate',
     'reference',
     'type',
     'counterparty',
     'status',
+    'subtotal',
+    'tax',
     'total',
   ],
   [TableViewPresetId.Supplier]: ['documentDate', 'reference', 'type', 'counterparty', 'total'],
-  [TableViewPresetId.Analysis]: ['documentDate', 'type', 'status', 'lineCount', 'total'],
+  [TableViewPresetId.Analysis]: [
+    'documentDate',
+    'reference',
+    'type',
+    'status',
+    'total',
+  ],
   [TableViewPresetId.Operational]: ['documentDate', 'reference', 'type', 'status', 'counterparty'],
 };
 
@@ -116,8 +201,8 @@ export const INVOICE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
  */
 export const QUOTE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   ...SALES_DOCUMENT_LIST_COLUMN_DEFS.filter((column) => column.id !== 'status'),
-  { id: 'supplierCode', label: 'Cod. soggetto', defaultVisible: false },
-  { id: 'notes', label: 'Commento', defaultVisible: false },
+  { id: 'supplierCode', label: 'Cod. soggetto', defaultVisible: false, display: 'code' },
+  colonna('notes', { defaultVisible: false }),
 ];
 
 export const QUOTE_LIST_COLUMN_PRESETS: TableViewPresetMap = presetsWithoutColumn(
@@ -139,22 +224,33 @@ function presetsWithoutColumn(presets: TableViewPresetMap, columnId: string): Ta
  * saldare, Pagamento) — mai la colonna "Tipo".
  */
 export const PURCHASE_INVOICE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
-  { id: 'documentDate', label: 'Data documento', pinnable: true, defaultVisible: true },
-  { id: 'registrationDate', label: 'Data registrazione', defaultVisible: true },
+  colonna('documentDate', {
+    label: 'Data documento',
+    pinnable: true,
+    defaultVisible: true,
+    display: 'code',
+  }),
+  {
+    id: 'registrationDate',
+    label: 'Data registrazione',
+    defaultVisible: true,
+    display: 'code',
+    filter: 'date',
+  },
   // «N.» è il numero interno, da non confondere con quello della
   // fattura del fornitore (colonna accanto).
-  {
-    id: 'reference',
+  colonna('reference', {
     label: 'N.',
     headerTooltip: 'Numero interno di catalogazione VestiFlow',
     defaultVisible: true,
-  },
-  { id: 'counterparty', label: 'Fornitore', defaultVisible: true },
-  { id: 'invoiceNumber', label: 'N. fattura', defaultVisible: true },
-  { id: 'notes', label: 'Commento', defaultVisible: true },
-  { id: 'total', label: 'Totale', numeric: true, defaultVisible: true },
+    cardTitle: true,
+  }),
+  colonna('counterparty', { label: 'Fornitore', defaultVisible: true, display: 'truncate' }),
+  { id: 'invoiceNumber', label: 'N. fattura', defaultVisible: true, display: 'code' },
+  colonna('notes', { defaultVisible: true }),
+  colonna('total', { defaultVisible: true }),
   { id: 'outstanding', label: 'Ancora da saldare', numeric: true, defaultVisible: true },
-  { id: 'paymentMethod', label: 'Pagamento', defaultVisible: true },
+  colonna('paymentMethod', { defaultVisible: true }),
 ] as const;
 
 export const PURCHASE_INVOICE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
@@ -178,6 +274,7 @@ export const PURCHASE_INVOICE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
   ],
   [TableViewPresetId.Accountant]: [
     'documentDate',
+    'reference',
     'registrationDate',
     'counterparty',
     'invoiceNumber',
@@ -186,15 +283,23 @@ export const PURCHASE_INVOICE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
   ],
   [TableViewPresetId.Supplier]: [
     'documentDate',
+    'reference',
     'counterparty',
     'invoiceNumber',
     'total',
     'outstanding',
     'paymentMethod',
   ],
-  [TableViewPresetId.Analysis]: ['documentDate', 'total', 'outstanding', 'paymentMethod'],
+  [TableViewPresetId.Analysis]: [
+    'documentDate',
+    'reference',
+    'total',
+    'outstanding',
+    'paymentMethod',
+  ],
   [TableViewPresetId.Operational]: [
     'documentDate',
+    'reference',
     'registrationDate',
     'counterparty',
     'invoiceNumber',
@@ -203,20 +308,23 @@ export const PURCHASE_INVOICE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
 };
 
 /**
- * Vendita/Reso in negozio: elenco condiviso dai due tipi creati dalla cassa,
+ * Vendita/Reso al banco: elenco condiviso dai due tipi creati dalla loro maschera,
  * quindi con la colonna "Tipo". Niente colonna "Stato" — nascono già
  * confermati e non hanno ciclo di vita (§11 documento funzionale).
  */
-export const STORE_SALE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
-  { id: 'documentDate', label: 'Data', pinnable: true, defaultVisible: true },
-  { id: 'reference', label: 'Numero', defaultVisible: true },
-  { id: 'type', label: 'Tipo', defaultVisible: true },
-  { id: 'counterparty', label: 'Cliente', defaultVisible: true },
-  { id: 'total', label: 'Totale', numeric: true, defaultVisible: true },
-  { id: 'paymentMethod', label: 'Metodo pagamento', defaultVisible: true },
-  { id: 'lineCount', label: 'Righe', numeric: true, defaultVisible: true },
-  { id: 'location', label: 'Negozio', defaultVisible: false },
-] as const;
+export const STORE_SALE_LIST_COLUMN_DEFS: readonly TableColumnDef[] = conColonneCondivise([
+  colonna('documentDate', {
+    pinnable: true,
+    defaultVisible: true,
+    display: 'code',
+  }),
+  colonna('reference', { label: 'Numero', defaultVisible: true, display: 'code', cardTitle: true }),
+  colonna('type', { defaultVisible: true }),
+  colonna('counterparty', { label: 'Cliente', defaultVisible: true, display: 'truncate' }),
+  colonna('total', { defaultVisible: true }),
+  colonna('paymentMethod', { label: 'Metodo pagamento', defaultVisible: true }),
+  colonna('location', { defaultVisible: false }),
+]);
 
 export const STORE_SALE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
   [TableViewPresetId.Default]: [
@@ -226,14 +334,12 @@ export const STORE_SALE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'counterparty',
     'total',
     'paymentMethod',
-    'lineCount',
   ],
   [TableViewPresetId.Warehouse]: [
     'documentDate',
     'reference',
     'type',
     'counterparty',
-    'lineCount',
     'location',
   ],
   [TableViewPresetId.Accountant]: [
@@ -245,7 +351,13 @@ export const STORE_SALE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'paymentMethod',
   ],
   [TableViewPresetId.Supplier]: ['documentDate', 'reference', 'type', 'counterparty', 'total'],
-  [TableViewPresetId.Analysis]: ['documentDate', 'type', 'total', 'paymentMethod', 'lineCount'],
+  [TableViewPresetId.Analysis]: [
+    'documentDate',
+    'reference',
+    'type',
+    'total',
+    'paymentMethod',
+  ],
   [TableViewPresetId.Operational]: [
     'documentDate',
     'reference',
@@ -255,42 +367,44 @@ export const STORE_SALE_LIST_COLUMN_PRESETS: TableViewPresetMap = {
   ],
 };
 
-export const GOODS_RECEIPT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
+export const GOODS_RECEIPT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = conColonneCondivise([
   // Colonne visibili di default (ordine di lettura della riga).
-  { id: 'documentDate', label: 'Data', pinnable: true, defaultVisible: true },
+  colonna('documentDate', {
+    pinnable: true,
+    defaultVisible: true,
+    display: 'code',
+  }),
   // «N.» è il numero interno, non quello del documento fornitore.
-  {
-    id: 'reference',
+  colonna('reference', {
     label: 'N.',
     headerTooltip: 'Numero interno di catalogazione VestiFlow',
     defaultVisible: true,
-  },
-  { id: 'counterparty', label: 'Soggetto', defaultVisible: true },
-  { id: 'lineCount', label: 'Righe', numeric: true, defaultVisible: true },
-  { id: 'total', label: 'Tot. documento', numeric: true, defaultVisible: true },
+    cardTitle: true,
+  }),
+  colonna('counterparty', { label: 'Soggetto', defaultVisible: true, display: 'truncate' }),
+  colonna('total', { label: 'Tot. documento', defaultVisible: true }),
   { id: 'linkStatus', label: 'Stato', defaultVisible: true },
-  { id: 'location', label: 'Magazzino', defaultVisible: true },
-  { id: 'externalDocNumber', label: 'Doc. fornitore', defaultVisible: true },
+  colonna('location', { defaultVisible: true }),
+  { id: 'externalDocNumber', label: 'Doc. fornitore', defaultVisible: true, display: 'code' },
   // Colonne opzionali (attivabili da «Colonne»): dati di dettaglio non
   // necessari alla lettura rapida della riga.
-  { id: 'supplierCode', label: 'Cod. soggetto', defaultVisible: false },
-  { id: 'paymentMethod', label: 'Pagamento', defaultVisible: false },
+  { id: 'supplierCode', label: 'Cod. soggetto', defaultVisible: false, display: 'code' },
+  colonna('paymentMethod', { defaultVisible: false }),
   { id: 'causal', label: 'Causale carico', defaultVisible: false },
-  { id: 'notes', label: 'Commento', defaultVisible: false },
+  colonna('notes', { defaultVisible: false }),
   { id: 'subtotal', label: 'Tot. netto', numeric: true, defaultVisible: false },
   // Niente colonna "Stato documento": l'Arrivo merce non ha più il ciclo
   // Bozza/Confermato selezionabile (il salvataggio conferma sempre) e
   // l'annullamento è già esposto dalla colonna "Stato" (collegamento fattura).
   // Niente colonna "Tipo": nella lista Arrivi merce il tipo interno è sempre
   // "Arrivo merce" (il selettore è stato rimosso dal form).
-] as const;
+]);
 
 export const GOODS_RECEIPT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
   [TableViewPresetId.Default]: [
     'documentDate',
     'reference',
     'counterparty',
-    'lineCount',
     'total',
     'linkStatus',
     'location',
@@ -300,7 +414,6 @@ export const GOODS_RECEIPT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'documentDate',
     'reference',
     'counterparty',
-    'lineCount',
     'location',
   ],
   [TableViewPresetId.Accountant]: [
@@ -321,13 +434,12 @@ export const GOODS_RECEIPT_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'paymentMethod',
     'total',
   ],
-  [TableViewPresetId.Analysis]: ['documentDate', 'reference', 'lineCount', 'subtotal', 'total'],
+  [TableViewPresetId.Analysis]: ['documentDate', 'reference', 'subtotal', 'total'],
   [TableViewPresetId.Operational]: [
     'documentDate',
     'reference',
     'counterparty',
     'causal',
-    'lineCount',
     'location',
   ],
 };

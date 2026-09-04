@@ -47,7 +47,8 @@ describe('InventorySituationService', () => {
     optionValues: [],
     currency: 'EUR',
     sellingPriceMinor: 900,
-    purchasePriceMinor: null,
+    // Un articolo senza costo vale ZERO in colonna: `null` non esiste più.
+    purchasePriceMinor: 0,
     product: { name: 'Cintura', articleCode: '00002', category: null },
     supplierLinks: [],
     inventoryLevels: [],
@@ -94,7 +95,7 @@ describe('InventorySituationService', () => {
     expect(second).toMatchObject({
       variantId: 'var-2',
       available: 0,
-      purchasePriceMinor: null,
+      purchasePriceMinor: 0,
       supplierId: null,
       stockStatus: 'empty',
     });
@@ -154,6 +155,78 @@ describe('InventorySituationService', () => {
    * il permesso smetterebbe di funzionare in silenzio, che è il modo peggiore in
    * cui può smettere di funzionare.
    */
+  /*
+    ⛔ **La Situazione mostra la REALTÀ INVENTARIALE, non il catalogo di oggi**
+       (docs/24 §6.1). Fino alla correzione del 03/09/2026 escludeva i prodotti
+       Non attivi: la loro merce spariva dall'elenco e dai totali, in silenzio.
+  */
+  describe('lo stato del catalogo non fa sparire la merce', () => {
+    it('non filtra sullo stato del prodotto: nessuna condizione su `status`', async () => {
+      const prisma = createPrismaMock();
+      const service = new InventorySituationService(prisma as unknown as PrismaService);
+
+      await service.listSituation(tenantId, query(), ownerUser);
+
+      const [[chiamata]] = prisma.productVariant.findMany.mock.calls as [
+        [{ where: { AND?: unknown[] } }],
+      ];
+      // Nessun filtro implicito: senza ricerca né categoria, `AND` è vuoto.
+      expect(chiamata.where.AND).toEqual([]);
+      expect(JSON.stringify(chiamata.where)).not.toContain('status');
+    });
+
+    it('un prodotto NON ATTIVO resta in elenco con la sua giacenza', async () => {
+      const prisma = createPrismaMock();
+      prisma.productVariant.findMany.mockResolvedValue([
+        {
+          ...variantWithStock,
+          product: { ...variantWithStock.product, status: 'archived', deletedAt: null },
+          deletedAt: null,
+        },
+      ]);
+      const service = new InventorySituationService(prisma as unknown as PrismaService);
+
+      const result = await service.listSituation(tenantId, query(), ownerUser);
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0]).toMatchObject({ variantId: 'var-1', onHand: 4, inTrash: false });
+    });
+
+    it('un elemento NEL CESTINO resta visibile, e lo dichiara col badge', async () => {
+      const prisma = createPrismaMock();
+      prisma.productVariant.findMany.mockResolvedValue([
+        // Variante nel cestino, prodotto no.
+        { ...variantWithStock, deletedAt: new Date('2026-09-01T10:00:00.000Z') },
+        // Prodotto nel cestino: la variante lo eredita nella lettura.
+        {
+          ...variantWithoutStock,
+          deletedAt: null,
+          product: {
+            ...variantWithoutStock.product,
+            deletedAt: new Date('2026-09-02T10:00:00.000Z'),
+          },
+        },
+      ]);
+      const service = new InventorySituationService(prisma as unknown as PrismaService);
+
+      const result = await service.listSituation(tenantId, query(), ownerUser);
+
+      expect(result.items).toHaveLength(2);
+      expect(result.items.map((r) => r.inTrash)).toEqual([true, true]);
+    });
+
+    it('fuori dal cestino `inTrash` è falso, anche se la colonna non arriva', async () => {
+      const prisma = createPrismaMock();
+      const service = new InventorySituationService(prisma as unknown as PrismaService);
+
+      const result = await service.listSituation(tenantId, query(), ownerUser);
+
+      // Le fixture non dichiarano `deletedAt`: con un confronto `!== null`
+      // sarebbero risultate tutte nel cestino.
+      expect(result.items.every((r) => r.inTrash === false)).toBe(true);
+    });
+  });
+
   describe('costi d’acquisto e permesso catalog.view_purchase_costs', () => {
     // Sedi: senza accesso alle location lo scope svuoterebbe la lista e le
     // asserzioni sui costi passerebbero su zero righe, cioè su niente.

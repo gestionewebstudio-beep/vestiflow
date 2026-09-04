@@ -24,6 +24,22 @@ import { ButtonComponent } from '../button/button.component';
   styleUrl: './confirm-dialog.component.scss',
 })
 export class ConfirmDialogComponent {
+  private static nextInstanceId = 0;
+
+  /**
+   * ⛔ **L'id del titolo è PER ISTANZA, e non è pignoleria.**
+   *
+   * Era la costante `confirm-dialog-title`, e una pagina ne monta più di uno:
+   * misurato in un browser vero il 01/09/2026 su Prodotti — **tre elementi con
+   * lo stesso id**, che è quello che il browser segnala come «Duplicate form
+   * field id in the same form».
+   *
+   * ⚠️ **Il danno è sull'`aria-labelledby`**: con id ripetuti il lettore di
+   * schermo risolve sempre il PRIMO, quindi due dialoghi su tre si annunciano
+   * col titolo di un altro — e il dialogo giusto è invisibile a chi non vede.
+   */
+  protected readonly titleId = `confirm-dialog-title-${++ConfirmDialogComponent.nextInstanceId}`;
+
   readonly title = input.required<string>();
   readonly message = input.required<string>();
   readonly confirmLabel = input<string>('Conferma');
@@ -52,10 +68,27 @@ export class ConfirmDialogComponent {
    */
   readonly emphasis = input<'confirm' | 'cancel'>('confirm');
 
+  /**
+   * Etichetta della **terza azione**, facoltativa. Assente = due pulsanti.
+   *
+   * ⛔ **NON fa parte del contratto «modifiche non salvate»** (proprietario,
+   * 24/08/2026). Quel dialogo ha DUE azioni — Annulla · Esci senza salvare —
+   * e il salvataggio resta un’azione separata, il pulsante Salva. «Salva e
+   * chiudi» dentro il dialogo di uscita non deve comparire.
+   *
+   * ⭐ Serve ai dialoghi con **tre esiti davvero distinti**, cioe’ tre
+   * gestori diversi. Se due pulsanti chiamano lo stesso gestore, non sono tre
+   * esiti: sono due esiti e un pulsante di troppo — ed e’ il difetto che
+   * «Dati incompleti» aveva («Annulla» e «No» sullo stesso gestore).
+   */
+  readonly extraLabel = input<string>('');
+
   readonly open = model<boolean>(false);
 
   readonly confirmed = output<void>();
   readonly dismissed = output<void>();
+  /** La terza azione e’ stata scelta. Emesso solo se `extraLabel` c’e’. */
+  readonly extra = output<void>();
 
   private readonly dialogRef = viewChild.required<ElementRef<HTMLDialogElement>>('dialog');
 
@@ -73,6 +106,15 @@ export class ConfirmDialogComponent {
 
   protected onConfirm(): void {
     this.confirmed.emit();
+  }
+
+  /**
+   * La terza azione. Chiude il dialogo da se’, come l’annulla: chi la usa
+   * riceve `extra` e decide che cosa fare.
+   */
+  protected onExtra(): void {
+    this.open.set(false);
+    this.extra.emit();
   }
 
   protected onCancel(): void {

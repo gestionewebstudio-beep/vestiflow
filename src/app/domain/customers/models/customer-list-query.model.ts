@@ -1,7 +1,14 @@
 import type { ParamMap } from '@angular/router';
 
 export const DEFAULT_CUSTOMER_PAGE_SIZE = 20;
-export const CUSTOMER_PAGE_SIZE_OPTIONS: readonly number[] = [10, 20, 50];
+/*
+  ⚠️ **Non più esportata**: dal 30/08/2026 l'anagrafica clienti non impagina, e
+  nessuna schermata offre di scegliere quante righe per pagina. Le tre opzioni
+  restano perché la validazione della query string deve continuare a rifiutare i
+  valori arbitrari — un indirizzo salvato con `?pageSize=99999` non deve
+  diventare una richiesta valida.
+*/
+const CUSTOMER_PAGE_SIZE_OPTIONS: readonly number[] = [10, 20, 50];
 
 /** Query lista clienti (ordinamento fisso: cognome/nome ascendente). */
 export interface CustomerListQuery {

@@ -11,7 +11,7 @@ export const STORE_SALE_LINES_VIEW = TableViewId.StoreSaleLines;
  * Le colonne della riga documento al banco — **poche ed essenziali**.
  *
  * ```text
- * Articolo · SKU · Q.tà · Prezzo · Sconto · IVA · Totale
+ * SKU · EAN · Articolo · Q.tà · Prezzo · Sconto · IVA · Totale
  * ```
  *
  * ⛔ **La colonna COSTO non esiste, nemmeno nascosta.** Non è «spenta per
@@ -31,16 +31,40 @@ export const STORE_SALE_LINES_VIEW = TableViewId.StoreSaleLines;
  * cifre e non ha bisogno di più di 72px, lo SKU deve respirare.
  */
 export const STORE_SALE_LINE_COLUMNS: readonly TableColumnDef[] = [
-  { id: 'product', label: 'Articolo', defaultWidthPx: 320, minWidthPx: 160 },
   // ⭐ Visibile di DEFAULT: la ricerca del banco lavora per barcode, SKU o nome,
   // e lo SKU sulla riga fa verificare a colpo d'occhio di aver preso la
   // variante giusta — con taglie e colori è l'errore più facile da fare.
+  //
+  // ⚠️ Sta PRIMA di Articolo perché quello è l'ordine delle celle nella riga
+  // condivisa (`document-line-row`): l'elenco segue le celle, non viceversa.
   { id: 'sku', label: 'SKU', defaultWidthPx: 104, minWidthPx: 64 },
+  // ⛔ **Identica agli altri cinque documenti**, larghezze comprese. Qui era nata
+  // `defaultVisible: false` con larghezze proprie: una terza forma che nessun
+  // altro documento ha, decisa senza guardare come si comportano gli altri.
+  // L'EAN si vede di default ovunque, e al banco non fa eccezione.
+  { id: 'barcode', label: 'EAN', defaultWidthPx: 124, minWidthPx: 72 },
+  { id: 'product', label: 'Articolo', defaultWidthPx: 280, minWidthPx: 160 },
+  // La VARIANTE accanto al nome. Al banco serve piu' che altrove: la taglia e'
+  // la prima cosa che si controlla passando il capo, e fino a ieri viveva
+  // dentro il nome perche' il client scriveva `summary.title` — il display
+  // completo — mentre il server salvava il solo nome.
+  { id: 'variantLabel', label: 'Variante', defaultWidthPx: 120, minWidthPx: 80 },
   { id: 'quantity', label: 'Q.tà', numeric: true, defaultWidthPx: 80, minWidthPx: 56 },
   { id: 'unitPrice', label: 'Prezzo', numeric: true, defaultWidthPx: 112, minWidthPx: 80 },
   { id: 'discount', label: 'Sconto', numeric: true, defaultWidthPx: 88, minWidthPx: 64 },
   { id: 'vat', label: 'IVA', defaultWidthPx: 72, minWidthPx: 56 },
   { id: 'lineTotal', label: 'Totale', numeric: true, defaultWidthPx: 112, minWidthPx: 80 },
+  // ⛔ **Queste due il banco le RENDEVA senza dichiararle**, e la conseguenza si
+  // misurava: la testata mostrava dodici colonne mentre il catalogo ne
+  // dichiarava nove, quindi le quote percentuali erano calcolate su un totale
+  // che non le comprendeva e sommavano **116,84%**. Con `table-layout: fixed`
+  // il browser riscala tutto per farcelo stare: ogni colonna rendeva il 14% più
+  // stretta di quanto dichiarava, e nessun minimo proteggeva niente.
+  //
+  // ⭐ Dichiararle le allinea anche all'Ordine cliente, che è il riferimento:
+  // là stanno nel catalogo e nel selettore Colonne come tutte le altre.
+  { id: 'commitsStock', label: 'Scarica giacenze', defaultWidthPx: 96, minWidthPx: 72 },
+  { id: 'actions', label: 'Azioni', defaultWidthPx: 96, minWidthPx: 56, filter: false },
 ];
 
 /**

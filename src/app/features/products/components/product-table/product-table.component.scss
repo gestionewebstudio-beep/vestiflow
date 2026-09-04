@@ -1,231 +1,40 @@
-@use 'breakpoints' as bp;
 @use 'responsive-table' as rt;
 
-@include rt.list-card-table-host();
-@include rt.data-table-desktop('product-table');
-@include rt.data-table-mobile-cards('product-table');
-@include rt.data-table-mobile-title('product-table__name');
+/*
+  ⭐ Qui c'erano 250 righe: contenitore a scorrimento, intestazione appiccicata,
+  riga, hover, fuoco, selezione, larghezza di ogni colonna, allineamenti, la
+  casella di selezione, il ripiego a card e i quattro `@include` della grammatica
+  condivisa.
 
-.product-table-scroll {
-  overflow-x: auto;
-  inline-size: 100%;
-}
+  **Le rende tutte il motore comune** (`14` parte H), che le include una volta
+  invece di una per tabella. Resta solo ciò che veste il contenuto PROIETTATO —
+  gli unici elementi che questo componente disegna ancora di suo.
 
-.product-table__head th {
-  position: sticky;
-  inset-block-start: 0;
-  z-index: var(--z-raised);
-  background-color: var(--color-table-header-bg);
-}
+  ⭐ **E con questa migrazione `data-table-mobile-cards` perde un consumatore**:
+  è il mixin che tiene la regola di nascondere `thead` sotto `lg`, ed è ciò che
+  oggi impedisce al selettore di vista di funzionare (`docs/DA-FARE.md`). Ogni
+  elenco che passa al motore rende quella rifattorizzazione più piccola.
+*/
 
-.product-table__head th[aria-sort='ascending'] .product-table__sort,
-.product-table__head th[aria-sort='descending'] .product-table__sort {
-  color: var(--color-link);
-}
+/*
+  ⛔ **Qui c'era il vestito di due pulsanti per riga** — duplica e stampa — con
+  una fascia allargata apposta per contenerli.
 
-.product-table__row {
-  cursor: pointer;
-  transition: background-color var(--transition-fast) var(--ease-standard);
-}
+  ⭐ **I comandi di riga sono passati alla barra in basso** (30/08/2026): «i
+  comandi sulla riga si spostano sotto, se già esiste, si elimina». «Stampa
+  etichette» in barra c'era già, quindi il gemello di riga è stato eliminato e
+  non spostato; «Duplica» si è spostato, col suo `requires: 'one'` del catalogo.
 
-.product-table__row:hover {
-  background-color: var(--color-surface-hover);
-}
+  ⚠️ **È anche ciò che assottiglia la riga**: due pulsanti da 34px in una cella
+  la tenevano alta più del testo, qualunque cosa dicesse il token.
+*/
 
-.product-table__row:focus-visible {
-  outline: var(--focus-ring-width) solid var(--color-focus-ring);
-  outline-offset: var(--focus-ring-offset);
-}
+/*
+  ⚠️ **Il ponte dell'altezza.**
 
-.product-table__name {
-  font-weight: var(--font-weight-semibold);
-}
-
-.product-table__sort {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: var(--space-2);
-  inline-size: 100%;
-  color: var(--color-text-muted);
-  font-size: inherit;
-  font-weight: var(--font-weight-semibold);
-  text-align: start;
-}
-
-.product-table__sort:hover {
-  color: var(--color-text);
-}
-
-.product-table__sort .pi {
-  flex-shrink: 0;
-  margin-inline-start: auto;
-  font-size: var(--text-xs);
-  color: var(--color-text-subtle);
-}
-
-.product-table__cell--status .product-table__sort .pi {
-  margin-inline-start: var(--space-2);
-}
-
-@include bp.media-up('lg') {
-  .product-table {
-    table-layout: fixed;
-  }
-
-  .product-table__col--select {
-    inline-size: 3rem;
-  }
-
-  // Somma 95% + colonna select 3rem: resta dentro il 100% (layout fixed,
-  // sforare fa comparire lo scroll orizzontale). Azioni: due bottoni 36px.
-  // Codice articolo: colonna opzionale (nascosta di default), larghezza a
-  // contenuto — il progressivo tipico occupa 5-8 caratteri.
-  .product-table__col--code {
-    inline-size: 9%;
-  }
-
-  .product-table__col--name {
-    inline-size: 21%;
-  }
-
-  .product-table__col--brand {
-    inline-size: 10%;
-  }
-
-  .product-table__col--category {
-    inline-size: 11%;
-  }
-
-  .product-table__col--season {
-    inline-size: 8%;
-  }
-
-  .product-table__col--numeric {
-    inline-size: 8%;
-  }
-
-  .product-table__col--status {
-    inline-size: 9%;
-  }
-
-  .product-table__col--source {
-    inline-size: 9%;
-  }
-
-  .product-table__col--shopify {
-    inline-size: 9%;
-  }
-
-  .product-table__col--actions {
-    inline-size: 10%;
-  }
-
-  .product-table__name,
-  .product-table__code,
-  .product-table__brand,
-  .product-table__category,
-  .product-table__season {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .product-table tbody td.product-table__cell--status,
-  .product-table__head th.product-table__cell--status,
-  .product-table tbody td.product-table__cell--source,
-  .product-table__head th.product-table__cell--source,
-  .product-table tbody td.product-table__cell--shopify,
-  .product-table__head th.product-table__cell--shopify {
-    text-align: end;
-    white-space: nowrap;
-  }
-
-  .product-table__status-value,
-  .product-table__source-value,
-  .product-table__shopify-value {
-    display: flex;
-    justify-content: flex-end;
-    inline-size: 100%;
-  }
-
-  .product-table__cell--status .product-table__sort {
-    justify-content: flex-end;
-  }
-
-  .product-table tbody td.product-table__cell--actions,
-  .product-table__head th.product-table__cell--actions {
-    text-align: end;
-    white-space: nowrap;
-  }
-
-  .product-table tbody td.product-table__cell--select,
-  .product-table__head th.product-table__cell--select {
-    text-align: center;
-    white-space: nowrap;
-  }
-}
-
-.product-table__select-all,
-.product-table__select-row {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-inline-size: var(--btn-min-height);
-  min-block-size: var(--btn-min-height);
-  margin: 0;
-  cursor: pointer;
-}
-
-.product-table__checkbox {
-  inline-size: var(--space-4);
-  block-size: var(--space-4);
-  margin: 0;
-  cursor: pointer;
-  accent-color: var(--color-link);
-}
-
-@include bp.media-down('lg') {
-  .product-table__row {
-    border-radius: var(--radius-lg);
-  }
-}
-
-.product-table__cell-value {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.product-table__print-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  inline-size: var(--field-height);
-  block-size: var(--field-height);
-  padding: 0;
-  color: var(--color-text);
-  text-decoration: none;
-  cursor: pointer;
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-md);
-  background-color: var(--color-surface);
-
-  i {
-    font-size: var(--text-sm);
-  }
-}
-
-.product-table__print-link:hover {
-  background-color: var(--color-surface-hover);
-}
-
-@include bp.media-down('lg') {
-  .product-table__cell-value .product-table__print-link {
-    flex-shrink: 0;
-  }
-}
-
-.product-table__cell--actions {
-  white-space: nowrap;
-}
+  Questo componente sta fra la pagina e il motore. La pagina gli dà `flex: 1`;
+  se non lo gira al proprio figlio, l'altezza si ferma qui e il contenitore di
+  scorrimento del motore non scorre — l'intestazione `sticky` smette di
+  appiccicare, **senza errori e senza test rossi** (`regole-stile-ui` §6).
+*/
+@include rt.ponte-tabella();

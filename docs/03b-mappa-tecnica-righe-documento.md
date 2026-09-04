@@ -14,6 +14,42 @@
 
 ---
 
+## ⭐ Aggiornata dopo la migrazione — 24/08/2026
+
+⚠️ **Questa mappa descriveva un codice che non esiste più.** Fra il 22 e il 24 agosto 2026
+tutte e sette le maschere con righe articolo vere sono passate all'intestazione e alla riga
+condivise, e le loro larghezze a un punto solo. Le sezioni superate sono state **potate**, non
+affiancate: quello che dicevano di sbagliato resta in una riga, il resto sta in `git log -p`.
+
+**Dove sta ora ciò che prima era triplicato:**
+
+| Cosa                                     | Dove vive adesso                                                          |
+| ---------------------------------------- | ------------------------------------------------------------------------- |
+| intestazione della griglia articolo      | `domain/documents/components/document-line-head/`                         |
+| riga della griglia articolo              | `domain/documents/components/document-line-row/`                          |
+| catalogo canonico delle colonne          | `document-line-row.model.ts` — `DOCUMENT_LINE_COLUMNS`, 31 identificativi |
+| giro del fuoco                           | `domain/documents/state/document-line-focus.store.ts`                     |
+| **larghezze, quote, resize, preferenze** | `shared/table-columns/line-column-widths.store.ts` — §7-bis               |
+| richiamo articolo (anagrafica → riga)    | `domain/documents/services/document-line-article.service.ts`              |
+
+**Le sette maschere**, e i tipi documento che servono:
+
+| Componente                       | Tipi                                                     |
+| -------------------------------- | -------------------------------------------------------- |
+| `CustomerOrderFormComponent`     | Ordine cliente, Preventivo, DDT vendita, Vendita manuale |
+| `GoodsReceiptFormComponent`      | Arrivo merce                                             |
+| `SupplierOrderFormComponent`     | Ordine fornitore                                         |
+| `SalesDocumentFormComponent`     | Proforma, Fattura, Fattura accompagnatoria               |
+| `StockOperationFormComponent`    | Rettifica, Inventario                                    |
+| `TransferFormComponent`          | Trasferimento                                            |
+| `StoreSaleDocumentFormComponent` | Vendita e Reso al banco                                  |
+
+⛔ **Zero `<th>` e zero `<td>` locali** per la griglia articolo, in tutte e sette — l'unica
+eccezione è la cella dello stato vuoto della Vendita al banco (`colspan`), che non è una cella
+di riga. **Zero `if (documentType)`** nei componenti condivisi.
+
+---
+
 ## 0. Migration implicate
 
 Prima di tutto il resto, perché il database Supabase è unico e condiviso.
@@ -22,7 +58,7 @@ Prima di tutto il resto, perché il database Supabase è unico e condiviso.
 | ----------------------------------------------------------------- | ------------------------------------------------- | ------------------- |
 | Unificazione della navigazione di riga                            | **nessuna**                                       | solo codice Angular |
 | Ordinamento/trascinamento su Ordine fornitore                     | **sì** — colonna posizione su `SupplierOrderLine` | additiva            |
-| U.M. di riga su Preventivi / DDT / Scarico manuale e Arrivi merce | **sì** — colonna su `DocumentLine`                | additiva            |
+| U.M. di riga su Preventivi / DDT / Vendita manuale e Arrivi merce | **sì** — colonna su `DocumentLine`                | additiva            |
 | U.M. di riga su Ordine fornitore                                  | **sì** — colonna su `SupplierOrderLine`           | additiva            |
 | Elenco U.M. gestibile dall'operatore                              | **sì** — tabella nuova per-tenant, con RLS        | additiva            |
 | Tutto il resto in questo documento                                | nessuna                                           | —                   |
@@ -36,18 +72,25 @@ verificati liberi **prima**, come vuole §13-bis: il database portava già
 
 ---
 
-## 1. Perimetro reale: nove tipi, cinque componenti
+## 1. Perimetro reale: le sette maschere e i modelli riga
 
-| Tipi documento                             | Componente                   | Modello riga        | Celle condivise        |
-| ------------------------------------------ | ---------------------------- | ------------------- | ---------------------- |
-| Ordine cliente                             | `CustomerOrderFormComponent` | `SalesOrderLine`    | sì                     |
-| Preventivi, DDT vendita, Scarico manuale   | `CustomerOrderFormComponent` | **`DocumentLine`**  | sì                     |
-| Arrivi merce                               | `GoodsReceiptFormComponent`  | `DocumentLine`      | sì                     |
-| Ordine fornitore                           | `SupplierOrderFormComponent` | `SupplierOrderLine` | sì (solo cella codice) |
-| Proforma, Fattura, Fattura accompagnatoria | `SalesDocumentFormComponent` | `DocumentLine`      | **no**                 |
-| Vendita/reso in negozio                    | `StoreSaleRegisterComponent` | `DocumentLine`      | **no**                 |
+⛔ **Qui c'era una colonna «Celle condivise» con due «no»** (Fatture e Vendita al banco) e una
+riga «sì solo cella codice» per l'Ordine fornitore. Non vale più: la migrazione le ha portate
+tutte, e la colonna non ha più informazione da dare. Resta invece la differenza che conta e che
+nessuna migrazione toglie — **su quale tabella la riga si persiste**.
 
-**La biforcazione che sorprende.** `CustomerOrderFormComponent` serve quattro tipi tramite il route data `customerDocumentKind`, ma **salva su due tabelle diverse**: il predicato `isRegistryDocument` devia Preventivi / DDT / Scarico manuale su `saveRegistryDocument` → `DocumentLine`; solo l'Ordine cliente passa da `SalesOrderLine`.
+| Tipi documento                             | Componente                       | Modello riga        |
+| ------------------------------------------ | -------------------------------- | ------------------- |
+| Ordine cliente                             | `CustomerOrderFormComponent`     | `SalesOrderLine`    |
+| Preventivi, DDT vendita, Vendita manuale   | `CustomerOrderFormComponent`     | **`DocumentLine`**  |
+| Arrivi merce                               | `GoodsReceiptFormComponent`      | `DocumentLine`      |
+| Ordine fornitore                           | `SupplierOrderFormComponent`     | `SupplierOrderLine` |
+| Proforma, Fattura, Fattura accompagnatoria | `SalesDocumentFormComponent`     | `DocumentLine`      |
+| Rettifica, Inventario                      | `StockOperationFormComponent`    | `DocumentLine`      |
+| Trasferimento                              | `TransferFormComponent`          | `DocumentLine`      |
+| Vendita e Reso al banco                    | `StoreSaleDocumentFormComponent` | `DocumentLine`      |
+
+**La biforcazione che sorprende.** `CustomerOrderFormComponent` serve quattro tipi tramite il route data `customerDocumentKind`, ma **salva su due tabelle diverse**: il predicato `isRegistryDocument` devia Preventivi / DDT / Vendita manuale su `saveRegistryDocument` → `DocumentLine`; solo l'Ordine cliente passa da `SalesOrderLine`.
 
 ⚠️ **È la biforcazione che teneva l'Ordine cliente indietro** _(risolto il 16/08/2026)_. Le due
 strade di salvataggio dello stesso componente non facevano la stessa cosa col prezzo:
@@ -62,11 +105,18 @@ Oggi la colonna è `numeric(16,6)` come le altre due, la modalità vive su
 mandano entrambe il netto. **Chi guarda questa tabella per capire dove copiare: le due righe
 della prima colonna adesso si comportano uguale.**
 
-**Vendita/reso in negozio non è una maschera documento.** Produce documenti `store_sale` / `store_return`, poi consultabili in sola lettura, ma il carrello **non è una `FormArray`**: è un carrello a segnali (`signal<readonly CartLine[]>`) con gestori `(change)` propri, e non ha **alcuna** navigazione da tastiera. Allinearla non è aggiungere le frecce: è cambiare l'architettura della riga.
+⛔ **Qui c'era «Vendita/reso in negozio non è una maschera documento»**, con un carrello a
+segnali invece di una `FormArray` e nessuna navigazione da tastiera. È stato **rifatto**: oggi è
+`StoreSaleDocumentFormComponent`, con la riga e l'intestazione condivise come le altre sei.
 
-Non è però un silo: riusa già da `domain/` il pannello di ricerca prodotto, le utility IVA, la scheda articolo e i servizi. Ciò che non condivide non lo condivide **perché è diverso**. Le celle di riga condivise, che sono legate al valore e non al form, resterebbero adottabili anche lì.
+⛔ **E qui c'era «Quattro maschere senza navigazione»** — Fatture, Trasferimento, Rettifica,
+Registrazione fattura. Il giro del fuoco vive ora in `DocumentLineFocusStore` e lo usano sei
+maschere su sette.
 
-**Quattro maschere senza navigazione:** `sales-document-form`, `purchase-invoice-form`, `transfer-form`, `stock-operation-form` hanno righe editabili e zero gestione di tastiera o fuoco.
+⚠️ **La settima non l'ha, e non è un arretrato.** La Vendita al banco non naviga per fuoco fra
+le celle: si lavora sulla **riga rapida** in cima, si cerca l'articolo e la riga si aggiunge —
+il fuoco torna al campo di ricerca (`focusSearchInput`). È un banco, non un modulo da compilare,
+e le due ergonomie non vanno uniformate per simmetria.
 
 ---
 
@@ -74,26 +124,29 @@ Non è però un silo: riusa già da `domain/` il pannello di ricerca prodotto, l
 
 ### 2.1 Dove vive
 
-Tre implementazioni parallele, in `customer-order-form.component.ts`, `supplier-order-form.component.ts`, `goods-receipt-form.component.ts`, più le celle condivise in `domain/documents/components/`.
+⛔ **Qui c'erano «tre implementazioni parallele» e «21 corpi di metodo, ~600 righe»** _(mis.
+08/2026)_. Non esistono più: il giro del fuoco sta in **`DocumentLineFocusStore`**
+(`domain/documents/state/document-line-focus.store.ts`), e ogni maschera dichiara soltanto
+**quali campi attraversa** e **come si chiamano i suoi elementi**.
 
-**Sette metodi esistono in tutte e tre** — `visibleLineFocusFields`, `focusLineField`, `focusFirstLineField`, `focusNextLineField`, `focusPreviousLineField`, `advanceToNextLine`, `onLineFieldKeydown` — cioè **21 corpi di metodo, ~600 righe in tutto** _(mis. 08/2026)_. Il codice dichiara la triplicazione da sé: l'Ordine cliente porta due volte il commento «stesso pattern Arrivo merce».
+La misura serviva a decidere se unificare. È stato deciso e fatto: quello che resta utile è la
+ragione per cui la triplicazione era un problema, ed è la §2.2 qui sotto.
 
-### 2.2 Cosa è identico e cosa diverge
+### 2.2 Perché la triplicazione era un problema — e che forma prende adesso
 
-**Identico parola per parola:** `focusNextLineField`; il blocco Tab / Shift+Tab dentro `onLineFieldKeydown`, commenti compresi; e `onLineFieldKeydown` di Ordine cliente e Ordine fornitore hanno lo stesso corpo letterale — cambia solo il testo di un commento.
+⭐ **Vale la pena conservarlo, perché la stessa cosa può riaccadere altrove.** Tre copie nate
+identiche erano divergute in **otto** comportamenti: le frecce ↑↓ dentro gli input, `Ctrl`+↑↓
+per spostare la riga, l'aggancio di `lineRowRetreat`, la guardia `formReadOnly()`, il
+`setTimeout` prima del fuoco, il gancio d'uscita riga, il comportamento dell'Invio, e la
+lunghezza di `visibleLineFocusFields` (24 righe contro 82). Nessuna delle otto era una
+decisione: erano tre correzioni fatte una volta sola, ognuna nella copia dove il difetto si era
+visto.
 
-**Diverge:**
-
-| Aspetto                                         | Ordine cliente     | Ordine fornitore   | Arrivo merce                           |
-| ----------------------------------------------- | ------------------ | ------------------ | -------------------------------------- |
-| Frecce ↑↓ negli input                           | no                 | no                 | **sì**                                 |
-| `Ctrl` + ↑↓ (sposta riga)                       | no                 | no                 | **sì** → `moveLineUp` / `moveLineDown` |
-| `(lineRowRetreat)` agganciato                   | **no**             | **no**             | sì                                     |
-| Guardia `formReadOnly()` in `advanceToNextLine` | sì                 | **no**             | apparente (§9)                         |
-| `setTimeout` prima del fuoco                    | sì, con commento   | sì, con commento   | **no**                                 |
-| Gancio d'uscita riga                            | —                  | —                  | `commitLineAndSave`                    |
-| Invio                                           | → cella successiva | → cella successiva | 2 casi speciali, poi cella successiva  |
-| `visibleLineFocusFields`                        | ~24 righe          | ~24 righe          | **~82 righe** _(mis. 08/2026)_         |
+⚠️ **La forma che il rischio prende adesso** è un'altra, e va sorvegliata: non più tre copie che
+divergono, ma **un componente condiviso che impara a distinguere i documenti**. Il presidio è
+scritto: nessun `if (documentType)` nella riga e nell'intestazione comuni. Le differenze
+arrivano come **dati** — quali colonne, quale etichetta, quale minimo — o come domanda al
+gruppo di controlli (`haControllo`).
 
 **Invio, oggi, naviga in tutte e tre.** Arrivo merce aggiunge due casi prima di cadere nello stesso comportamento:
 
@@ -102,17 +155,18 @@ Tre implementazioni parallele, in `customer-order-form.component.ts`, `supplier-
 
 ### 2.3 Gli identificativi DOM
 
-Tutte e tre fanno `getElementById` su una mappa ricostruita a ogni chiamata. I prefissi sono per maschera (`co-`, `po-`, `gr-`) ma **i suffissi sono irregolari dentro la stessa maschera**:
+⛔ **Qui c'era la tabella dei suffissi irregolari** (`gr-serial-` singolare contro
+`co-serials-` plurale, `gr-supplier-code-` contro `po-suppcode-`) con la conclusione «un
+prefisso più indice non basta». Non li scrive più la maschera: li produce la **riga comune**,
+con `cellId(campo)` = `${idPrefix}-${campo}-${indice}`.
 
-| campo           | Ordine cliente | Arrivo merce               | Ordine fornitore |
-| --------------- | -------------- | -------------------------- | ---------------- |
-| codice articolo | `co-code-`     | `gr-code-`                 | `po-code-`       |
-| cod. fornitore  | —              | `gr-supplier-code-`        | `po-suppcode-`   |
-| prezzo / costo  | `co-price-`    | `gr-cost-` / `gr-selling-` | `po-cost-`       |
-| seriali         | `co-serials-`  | `gr-serial-` (singolare)   | —                |
-| scadenza lotto  | —              | `gr-lot-date-`             | —                |
-
-Un prefisso più indice **non basta**: serve la mappa completa.
+⚠️ **Il difetto ha cambiato forma, non è sparito.** La maschera conserva la mappa
+campo → identificativo che il giro del fuoco usa per `getElementById`, e quella mappa deve
+**seguire** ciò che la riga comune emette. Se divergono, il Tab salta la cella **in silenzio**:
+nessun errore, nessun test rosso, solo un giro che non arriva dove deve. È già successo il
+24/08/2026 con quattro nomi dell'Arrivo merce (`gr-selling-` contro `gr-sellingPrice-`,
+`gr-lot-date-` contro `gr-expiry-`, `gr-serial-` contro `gr-serials-`,
+`gr-compare-` contro `gr-compareAtPrice-`), corretti allineando la mappa alla riga.
 
 **Quarto spazio di nomi, mai raggiunto dal TypeScript:** le card mobile dell'Ordine cliente espongono identificativi propri (`co-m-…`) che nessun `.ts` conosce. Su mobile la navigazione **non esiste**. Peggio: le due viste convivono nel DOM e la tabella è nascosta sotto il breakpoint, quindi `getElementById` trova l'elemento desktop in `display:none` e `.focus()` è un no-op silenzioso.
 
@@ -302,8 +356,10 @@ costo solo documentale, e stava riscrivendo il **costo effettivo di ogni variant
 — quello che alimenta valorizzazione e margini.
 
 **Etichetta e nome del flag sono stati corretti insieme al comportamento**, perché erano
-parte del difetto e non un contorno: l'etichetta dice ora «**Aggiorna il costo in anagrafica
-con quello inserito**», e il flag di richiesta si chiama `updateArticleCost` —
+parte del difetto e non un contorno: l'etichetta dice «**Aggiorna costo in anagrafica**»
+(accorciata il 02/09/2026 salendo in testata, dove sta su una riga sola: prima diceva «…con
+quello inserito» e andava a capo quattro volte), e il flag di richiesta si chiama
+`updateArticleCost` —
 `…ReferenceCost` nominava il `Product`, cioè l'unica cosa che questa spunta non tocca più.
 Non è una colonna: è un flag per-richiesta, quindi rinominarlo non ha richiesto migration.
 
@@ -347,7 +403,7 @@ Il ciclo si chiude su sé stesso: l'arrivo merce li scrive, e `findSupplierPrice
 
 #### ✅ Decisa per tre maschere, applicata a una — poi chiusa su tutte e tre _(08/2026)_
 
-> **Stato: chiuso.** Il percorso di conferma esiste ora in **tutte e tre** le maschere — Ordine cliente (e con lui Preventivi, DDT vendita, Scarico manuale), Ordine fornitore, Arrivo merce. Il resoconto qui sotto **resta**: descrive come una decisione presa per tre documenti sia finita su uno solo, ed è il caso che la regola in fondo alla sezione serve a intercettare. Cosa è stato fatto per chiuderla: §3-ter.
+> **Stato: chiuso.** Il percorso di conferma esiste ora in **tutte e tre** le maschere — Ordine cliente (e con lui Preventivi, DDT vendita, Vendita manuale), Ordine fornitore, Arrivo merce. Il resoconto qui sotto **resta**: descrive come una decisione presa per tre documenti sia finita su uno solo, ed è il caso che la regola in fondo alla sezione serve a intercettare. Cosa è stato fatto per chiuderla: §3-ter.
 
 Vale la pena tenerlo scritto, perché il modo in cui è successo è più insidioso dell'errore.
 
@@ -407,7 +463,7 @@ Chiude §3-bis su tutte e tre le maschere. **La catena non è stata copiata: è 
 
 #### ✅ Il codice fornitore scritto nella riga _(deciso e fatto 08/2026)_
 
-**Perimetro, per nome: Arrivo merce e Ordine fornitore.** Sono i due documenti che hanno la colonna Cod. fornitore; Ordine cliente, Preventivi, DDT vendita e Scarico manuale non ce l'hanno, e per loro non c'era niente da fare — verificato, non presunto.
+**Perimetro, per nome: Arrivo merce e Ordine fornitore.** Sono i due documenti che hanno la colonna Cod. fornitore; Ordine cliente, Preventivi, DDT vendita e Vendita manuale non ce l'hanno, e per loro non c'era niente da fare — verificato, non presunto.
 
 **Il difetto.** Agganciando un articolo, la riga riscriveva il campo Cod. fornitore con `summary.supplierSku`. Da quando la lettura non filtra più per fornitore, quel valore è **il primo collegamento in ordine deterministico** — che può essere il codice di un altro fornitore. L'operatore digitava il codice del listino che aveva davanti, l'articolo si agganciava, e nel campo compariva un codice diverso da quello che aveva scritto.
 
@@ -519,7 +575,7 @@ L'elenco delle unità è una costante compilata (`COMMON_UNIT_OF_MEASURE`, sei v
 
 **Ordine cliente** — cella di **sola lettura**. Il valore mostrato lo calcola `lineUnitOfMeasure` con precedenza: summary → valore di riga → `pz`. Il campo di riga **viene salvato**, ma siccome `Product.unitOfMeasure` è NOT NULL con default, la summary porta sempre un valore e vince sempre. **Lo snapshot salvato non si vede mai.**
 
-**Preventivi / DDT / Scarico manuale** — `buildRegistryLines` non include `unitOfMeasure`, e `DocumentLine` non ha la colonna. Non essendoci campo editabile non si perde nulla di digitato: si perde la possibilità.
+**Preventivi / DDT / Vendita manuale** — `buildRegistryLines` non include `unitOfMeasure`, e `DocumentLine` non ha la colonna. Non essendoci campo editabile non si perde nulla di digitato: si perde la possibilità.
 
 **Arrivo merce** — la `<select>` compare **solo in creazione articolo**. Il valore finisce nel corpo di creazione prodotto, che fa `product.create` e **mai** `product.update`. Su riga con articolo esistente la cella è calcolata e di sola lettura. **Corretto: nessun difetto.**
 
@@ -547,7 +603,7 @@ poi `pz`**.
   esisteva, `newProductUnitOfMeasure` serviva solo alla creazione articolo) e
   ora è **uno**: l'unità della riga è anche quella che va in anagrafica quando
   l'articolo nasce.
-- **Preventivi / DDT / Scarico manuale** — ereditano dalla colonna su
+- **Preventivi / DDT / Vendita manuale** — ereditano dalla colonna su
   `DocumentLine`, come previsto.
 
 L'elenco delle unità vive in `unit_of_measure_options` (per-tenant, forma
@@ -555,6 +611,55 @@ L'elenco delle unità vive in `unit_of_measure_options` (per-tenant, forma
 quindi eliminare una voce non ha guardie da superare e non tocca un dato
 salvato. Chi copierà il servizio da quello dei codici IVA non deve aggiungerne
 una per simmetria — c'è uno spec che lo ferma.
+
+### ⭐ E dal 26/08/2026 quell’elenco è l’UNICO — prima erano due
+
+⛔ **L’anagrafica articolo non lo leggeva.** Prendeva le sue sei voci da una costante
+compilata (`COMMON_UNIT_OF_MEASURE`), quindi un’azienda che aggiungeva «m» dal gestore
+la trovava sulle righe documento e **non** sulla scheda articolo. Non era debito
+nascosto: il seed del server lo dichiarava già temporaneo — _«la costante del frontend
+serve solo come ripiego finché l’elenco non è arrivato»_. Era arrivato.
+
+Ora c’è **un solo controllo**, `app-unit-of-measure-select`, **autosufficiente**: si
+procura l’elenco da sé e ospita il proprio gestore, così chi lo usa non deve sapere
+niente. L’anagrafica lo adotta.
+
+⚠️ **È un FRATELLO di `document-line-unit-cell`, non il suo interno**, e la ragione è
+misurata: la cella di riga **non è agnostica** — `lineIndex` obbligatorio,
+`inColumnCycle`, quattro uscite di navigazione fra celle — e non lo è nemmeno il
+`document-line-select-cell` che ha dentro. Farla scendere in anagrafica ci avrebbe
+portato il giro del fuoco di una griglia che lì non esiste.
+
+### La predefinita per tenant — `is_default`
+
+`unit_of_measure_options.is_default`, con **indice unico parziale** per tenant: al più
+una, esattamente come `vat_codes_tenant_default_key`.
+
+⭐ **Scartata l’alternativa `Tenant.defaultUnitOfMeasureOptionId`** (chiave esterna dal
+tenant alla voce). Sarebbe stata altrettanto corretta; `is_default` tiene la decisione
+sulla riga che la riguarda e riusa un pattern che il progetto ha già, con la stessa
+garanzia a livello di database.
+
+**Cosa fa**: precompila un articolo **nuovo**, compresi quelli creati in linea da una
+riga documento. **Cosa non fa**: non è retroattiva, non riscrive nulla, e **non**
+sostituisce il default della riga documento — che continua a venire dall’articolo.
+
+⚠️ **Il seme è un `effect`, non la fabbrica della bozza.** L’elenco si carica a
+richiesta e la **prima lettura torna vuota**: seminare al momento della costruzione
+mancherebbe il bersaglio a freddo, e lo mancherebbe **in silenzio**.
+
+⚠️ E il `pristine` si ri-allinea **solo se era pulito**: seminare non è una modifica
+dell’operatore e non deve far comparire «modifiche non salvate» su una scheda appena
+aperta — ma non deve nemmeno inghiottire quello che l’operatore aveva già scritto.
+
+⚠️ **La bozza di articolo nuovo nasce quindi SENZA unità**, non a `pz`. Il ripiego
+tecnico `pz` resta dov’è sempre stato: al salvataggio (`unitOfMeasure.trim() || 'pz'`).
+Se nascesse già compilata, la predefinita non avrebbe niente da seminare.
+
+⭐ **La frase qui sopra — «suggerimento, non autorità» — resta vera, ed è ciò che rende
+sicura la cancellazione**: senza FK, eliminare una voce toglie una scelta futura e non
+tocca un documento passato. È la disciplina del «documento fotografia» ottenuta senza
+snapshot, perché l’unità sulla riga è già testo.
 
 ---
 
@@ -605,17 +710,178 @@ Cancellare un codice azzera il puntatore ma lo snapshot conserva i valori. **È 
 
 Prodotti e Clienti ricevono le colonne ma le usano solo per sapere **se** una colonna c'è e per l'etichetta.
 
-**Cosa funziona invece sulle righe documento** _(mis. 08/2026)_:
+**Cosa funziona sulle righe documento** _(mis. 24/08/2026, tutte e sette le maschere)_:
 
-|                                                  | Ordine cliente | Arrivo merce | Ordine fornitore |
-| ------------------------------------------------ | -------------- | ------------ | ---------------- |
-| Nascondere (gate `isLineColumnVisible`)          | 48             | 69           | 30               |
-| Ridimensionare (maniglie `appTableColumnResize`) | 14             | 15           | 13               |
-| Spostare                                         | —              | —            | —                |
+|                                                  | Stato                                                          |
+| ------------------------------------------------ | -------------------------------------------------------------- |
+| Nascondere (gate `isLineColumnVisible`)          | **sì**, su tutte e sette                                       |
+| Ridimensionare (maniglie `appTableColumnResize`) | **sì**, su tutte e sette — punto comune, §7-bis                |
+| Spostare                                         | — escluso: la funzione meno richiesta, e la più cara del piano |
 
-> **Due su tre funzionano già** è la misura che regge la decisione di escludere lo spostamento colonne: manca la funzione meno richiesta delle tre, e costa più di tutto il resto del piano.
+⛔ **Qui c'era «due su tre funzionano già», con un conteggio di maniglie per tre maschere sole.**
+Le maniglie non le conta più nessuno: le monta l'intestazione comune, una per colonna dichiarata,
+e sono le stesse ovunque.
 
 Il **pin** non compare sui documenti: nessuna delle tre configurazioni dichiara `pinnable`.
+
+### 7-bis. Le larghezze: un punto solo — `line-column-widths.store.ts` _(24/08/2026)_
+
+⭐ **Chiude il contratto comune delle righe.** Il resize era l'ultimo pezzo implementato a metà:
+due copie identiche (Arrivo merce, Ordine cliente) e **cinque maschere con solo le quote**, senza
+la ridistribuzione.
+
+#### Non erano «un po' diverse»
+
+L'intestazione comune monta la maniglia con `[live]="true"`. In quella modalità
+`TableColumnResizeDirective` **non disegna niente da sola**: si limita a emettere `resizing` a
+ogni movimento e aspetta che il consumatore decida. Nelle cinque maschere **nessuno ascoltava**.
+
+- Durante il trascinamento non si vedeva **nulla**.
+- Al rilascio la colonna saltava alla misura nuova, e siccome i suoi pixel entrano nel totale da
+  cui ogni quota si calcola, **tutte le altre si riscalavano**.
+
+#### Le tre scale, ed è da qui che nascono gli errori
+
+| Scala                    | Dove vive                                  |
+| ------------------------ | ------------------------------------------ |
+| **pixel salvati** (pesi) | le preferenze. Contano solo i **rapporti** |
+| **quote percentuali**    | il `[style.width]` della cella             |
+| **pixel resi**           | solo durante il trascinamento              |
+
+I minimi per colonna significano qualcosa **solo nella terza**: erano proprio i minimi ignorati a
+far comparire la barra orizzontale — allargando molto una colonna, le altre finivano sotto la
+larghezza del loro contenuto.
+
+#### Cosa passa il documento, e solo quello
+
+```typescript
+private readonly lineWidths = createLineColumnWidths({
+  defs: GOODS_RECEIPT_LINE_COLUMNS,   // il catalogo di QUESTO documento
+  viewId: GOODS_RECEIPT_LINES_VIEW,   // dove si salvano le preferenze
+  preferences: this.columnPreferences,
+  isVisible: (id) => this.isLineColumnVisible(id),
+  host: this.host,                    // per misurare la tabella resa
+  normalizeId: normalizeGoodsReceiptColumnId, // alias storici, dove ci sono
+});
+```
+
+⛔ **Nessun tipo documento entra da questa porta**, ed è verificato: zero occorrenze di
+`documentType` o di un identificativo di tipo nel punto comune.
+
+#### Due difetti che c'erano anche nelle copie «funzionanti»
+
+Trovati dai test scritti per il punto comune, non guardando lo schermo:
+
+1. ⛔ **Ogni ridimensionamento restringeva la colonna del numero riga.** A trascinamento avviato
+   le colonne passano ai pixel resi, ma il numero riga restava al suo peso fisso: la sua quota
+   crollava — su una tabella da 1000px, dal 7,4% al 4,9% — e **non tornava indietro**, perché le
+   larghezze salvate erano ormai pixel resi. Ora la scala si conserva, e al salvataggio le
+   larghezze **tornano nella scala dei pesi**: il totale salvato è identico a quello di partenza
+   e cambiano solo i rapporti.
+2. ⛔ **Il minimo si applica su due scale, e ne aveva una sola.** Sui pixel resi durante il
+   trascinamento, sui pesi al salvataggio: senza il secondo, una colonna trascinata fino al
+   proprio minimo si salvava **sotto** di esso e la rilettura la rialzava da sola — una cosa al
+   rilascio, un'altra riaprendo.
+
+#### La colonna numero riga
+
+Entra nel **totale** ma non nella ridistribuzione: occupa la sua quota e non si ridimensiona.
+Lasciarla fuori dal totale farebbe sommare le altre al 100% con lei in più, e con
+`table-layout: fixed` il browser riscalerebbe tutto per farcelo stare. La sua quota la porta
+l'intestazione comune (`[indexColumnWidth]`): i due `<colgroup>` residui sono stati tolti,
+perché un secondo posto che dichiara le colonne è un secondo posto che può divergerne — ed
+entrambi erano già divergenti.
+
+#### Cosa è stato assorbito
+
+`line-column-quota.util.ts` è stato **rimosso**. Esisteva perché le due logiche di resize
+differivano, e il suo commento lo diceva: «estratto perché il CALCOLO era identico, non perché
+le due logiche di resize siano la stessa cosa». Ora sono la stessa cosa. La matematica della
+ridistribuzione resta invece dov'era — `column-width-distribution.util.ts`, a somma costante e
+con clamp sui minimi: il punto nuovo non la riscrive, le costruisce intorno il pezzo che le
+mancava.
+
+---
+
+### 7-ter. La card mobile: stessa infrastruttura della riga _(24/08/2026)_
+
+⭐ **La vista compatta ha ora un motore solo**, guidato dallo stesso catalogo
+colonne della tabella. Prima la **forma** era condivisa
+(`document-line-card`: testata, striscia, corpo apribile, piede) ma il
+**contenuto** lo scriveva ogni maschera: sei involucri locali, uno per feature,
+che al mobile erano quello che le `<td>` scritte a mano erano al desktop.
+
+#### I pezzi
+
+| Pezzo                       | Cosa fa                                                                        |
+| --------------------------- | ------------------------------------------------------------------------------ |
+| `document-line-card`        | la forma: avviso, testata con cestino e chevron, variante, meta, corpo, piede  |
+| `document-line-card-strip`  | la striscia sempre visibile: quantità, prezzo, totale                          |
+| `document-line-card-body`   | il corpo apribile, **guidato dal catalogo**                                    |
+| `documentLineCardHead`      | nome, variante, riga meta, avviso e stato «da completare», calcolati una volta |
+| `DocumentLineCardOpenStore` | quale card è aperta — **una sola**, e lo sa il documento                       |
+| `DocumentLineRemovalStore`  | quando si chiede conferma prima di eliminare, e quando no                      |
+
+#### Le regole che ne discendono
+
+1. ⭐ **Il selettore Colonne governa anche il mobile.** Prima `isColumnVisible`
+   arrivava solo alla tabella: si spegneva una colonna sul telefono e nella card
+   non cambiava niente. Cod. articolo, SKU ed EAN mancavano da tre card pur
+   essendo visibili di default sul desktop delle stesse maschere.
+2. ⭐ **I gruppi si deducono, non si dichiarano.** Un gruppo compare se il
+   documento ha almeno una colonna visibile che gli appartiene: «Magazzino»
+   vale anche con un campo solo, e non si rende se il documento non movimenta
+   niente. `DOCUMENT_LINE_CARD_GROUP_OF` è un `Record` esaustivo — aggiungere
+   una colonna senza dichiararne il gruppo **non compila**.
+3. ⭐ **Nessun campo compare due volte.** Quello che sta nella striscia non torna
+   nel corpo. La card di riferimento ripeteva prezzo e totale: due `<input>`
+   sullo stesso controllo, con due identificativi, nella stessa card.
+4. ⭐ **Le celle sono le stesse della riga di scrivania** — codice, prodotto,
+   U.M., IVA. Una correzione vale per le due viste insieme.
+
+#### I sei difetti che il motore chiude da solo
+
+Erano quattordici nel censimento del 24/08, e **cinque colpivano cinque o sei
+maschere su sei**: non peculiarità, il riferimento mai applicato.
+
+| Difetto                                                         | Colpiva | Perché non può tornare                          |
+| --------------------------------------------------------------- | ------- | ----------------------------------------------- |
+| l'etichetta non era una `<label for>` vera                      | 5 su 6  | il corpo passa sempre `controlId`               |
+| lo stato aperto viveva dentro la card                           | 5 su 6  | `DocumentLineCardOpenStore`, e ne apre una sola |
+| il pannello suggerimenti cadeva fuori schermo                   | 5 su 6  | si misura da sé (`autoPlacement`)               |
+| `[complete]` non arrivava, e una riga incompleta sembrava piena | 3 su 6  | lo calcola `documentLineCardHead`               |
+| le chiavi di ricerca mancavano dalla card                       | 3 su 6  | il corpo le rende se il catalogo le dichiara    |
+| i pulsanti + e − non facevano niente                            | 5 su 6  | il passo lo applica la striscia                 |
+
+#### L'eliminazione, e la regola che prima non c'era
+
+| La riga…                         | Cosa succede                  |
+| -------------------------------- | ----------------------------- |
+| è nuova e davvero vuota          | via subito, niente da perdere |
+| ha contenuto, o è già persistita | conferma, che **la nomina**   |
+
+⛔ In cinque maschere su sei il cestino cancellava al primo tocco; nella sesta —
+la Vendita al banco — **non faceva niente**: era disegnato, abilitato, e l'evento
+non era nemmeno dichiarato.
+
+⚠️ **La quantità non conta come contenuto**, ed è deliberato: una riga nasce con
+quantità 1, quindi contarla renderebbe nessuna riga mai vuota e la conferma
+scatterebbe sempre — cioè smetterebbe di dire qualcosa.
+
+#### Cosa resta legittimamente locale
+
+Non tutto il markup mobile di una maschera è una copia da togliere. Restano, e
+devono restare:
+
+- la banda **«Documento collegato»** dove il documento ha righe di riferimento;
+- lo **stato vuoto** delle righe, che dice cosa manca;
+- la **barra di scansione** del banco e il suo aggancio articolo.
+
+⛔ **Non restano**: quantità, prezzo, IVA, U.M., codici, eliminazione, fuoco e
+ricerca. Se ricompaiono scritti a mano in una maschera, sono una copia del
+comportamento comune — cioè il difetto che questo pezzo chiude.
+
+---
 
 ### 7.0-quater Il corpo del PATCH della maschera Fattura _(corretto 15/08/2026)_
 
@@ -637,7 +903,7 @@ Restano fuori i campi che **non** vengono dall'articolo: lo sconto di riga viene
 
 | Maschera                                            | Campi                                                     | Chiamante            |
 | --------------------------------------------------- | --------------------------------------------------------- | -------------------- |
-| Ordine cliente · DDT · Preventivo · Scarico manuale | `unitPrice`, `vatCodeId`                                  | `applySummaryToLine` |
+| Ordine cliente · DDT · Preventivo · Vendita manuale | `unitPrice`, `vatCodeId`                                  | `applySummaryToLine` |
 | Arrivo merce                                        | `unitCost`, `sellingPrice`, `compareAtPrice`, `vatCodeId` | `onVariantSelect`    |
 
 «Vuoto» era usato come sinonimo di «nessuno ha ancora deciso». Su una riga nuova è vero; su una riga a cui si cambia articolo è falso — quei valori li aveva decisi **l'articolo di prima**.
@@ -702,7 +968,21 @@ _Tenuto agli atti: la decisione poggia su queste misure, non è arbitraria._
 
 ### 8.1 L'ordinamento per colonna, oggi
 
-Esiste **solo in Arrivo merce**: `toggleLineSort` e `applyLineSort`, col comparatore in `goods-receipt-line-sort.util.ts`. Attivabile su **sette colonne** _(mis. 08/2026)_: SKU, EAN, cod. fornitore, prodotto, quantità, costo, IVA.
+⚠️ **Qui c’era «esiste solo in Arrivo merce, col comparatore in
+`goods-receipt-line-sort.util.ts`». Erano vere entrambe, e non lo sono più** _(rivisto 20/08/2026)_.
+
+L’ordinamento delle righe da intestazione esiste in **sei maschere** — Arrivo merce, Ordine
+fornitore, la maschera cliente (Ordine cliente · Preventivo · DDT vendita · Vendita manuale),
+Fatture, Rettifica, Trasferimento — tutte montate su `DocumentLineSortStore`
+(`domain/documents/state/`).
+
+Il **comparatore** non vive più né qui né in `domain/`: è salito in
+`shared/utils/sort-values.util.ts` (`compareSortValues` · `sortByValue` · `SortValueKind`),
+perché il registro movimenti è diventato il suo secondo consumatore e un util chiamato
+«document-line-sort» che ordina il magazzino sarebbe il nome sbagliato nel posto sbagliato.
+In `features/documents/utils/goods-receipt-line-sort.util.ts` resta **solo l’elenco delle
+colonne ordinabili** dell’Arrivo merce — sette: SKU, EAN, cod. fornitore, prodotto, quantità,
+costo, IVA.
 
 - **Riordina la `FormArray` sul posto**, ri-inserendo le stesse istanze di `FormGroup`.
 - **Non è reversibile**: nessuna copia dell'ordine precedente, nessun annulla. Il secondo click inverte, non ripristina.
@@ -745,16 +1025,39 @@ _Nota:_ Ordine fornitore traccia il ciclo delle righe per **posizione** (`track 
 
 ## 9. I difetti verificati
 
+### ✅ Chiusi dalla migrazione — verificati il 24/08/2026
+
+Il punto unico è arrivato, e con lui sono caduti cinque dei difetti elencati sotto. Non sono
+stati «corretti» uno per uno: **hanno smesso di poter esistere**, perché il codice che li
+ospitava non c'è più. Restano nominati perché dicono che cosa non deve tornare.
+
+| N.  | Difetto                                                               | Perché non può più esistere                                                                                                    |
+| --- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | ↑ tasto morto su Ordine cliente e Ordine fornitore                    | la riga comune emette `rowRetreat`, e **sei maschere su sette lo agganciano** (la settima, il banco, non ha un giro del fuoco) |
+| 3   | `advanceToNextLine` di Ordine fornitore ignora la sola lettura        | il giro vive in `DocumentLineFocusStore`, che riceve `isReadOnly: () => this.formReadOnly()`                                   |
+| 4   | identificativo IVA dell'Arrivo merce nella mappa ma non nel DOM       | la cella IVA è quella a ricerca-e-selezione, con un `<input id="gr-vat-{i}">` vero: `vat` è **nel** giro                       |
+| 9   | U.M. e sconto di Ordine fornitore nel giro ma senza `(keydown)`       | i `keydown` li emette la riga comune, gli stessi per tutte e sette                                                             |
+| 10  | prezzo di vendita e di confronto fuori dal Tab ma editabili col mouse | `sellingPrice`, `shopifyPrice` e `compareAtPrice` sono **nel** giro dell'Arrivo merce                                          |
+
+⛔ **E l'8 è caduto per una ragione diversa, che vale la pena ricordare.** Era «la mappa inversa
+testa il prefisso del lotto prima di quello della scadenza, e il secondo inizia col primo»: da
+«Scadenza» il fuoco tornava su «Lotto». La mappa inversa a `startsWith` **non esiste più**, e
+per di più i due identificativi non condividono il prefisso (`gr-lot-` e `gr-expiry-`). Il
+difetto era la conseguenza di **due nomi scelti a mano in posti diversi** — la stessa famiglia di
+§2.3, che resta aperta.
+
+### Ancora aperti
+
 **Gruppo A — divergenze che il punto unico cementerebbe**
 
-1. **↑ è un tasto morto** in Ordine cliente e Ordine fornitore: le celle emettono `lineRowRetreat` e nessuno dei due template lo aggancia. Il tasto fa `preventDefault` e poi niente — non fa nemmeno il comportamento nativo.
+1. ✅ **Chiuso** — vedi la tabella qui sopra.
 2. ~~**La cella prodotto di Ordine fornitore non ha identificativo**~~ — ✅ **chiuso davvero (11/08/2026). La toppa temporanea è stata tolta e la condizione di rientro si è avverata.**
    Il campo era nel giro del Tab e puntava a `po-product-{i}`, identificativo che non esiste in nessun template: quella cella era un `app-select-menu`, senza `inputId` né fuoco pubblico. Da «Cod. fornitore» il fuoco si perdeva a metà giro.
    **La correzione provvisoria era stata TOGLIERE `product` dal giro** — una sottrazione, non una soluzione: il nome prodotto non si raggiungeva da tastiera.
    **Ora la cella è quella condivisa a ricerca-e-selezione** (specifica §4.3-bis e §4.12), quindi esiste un `<input id="po-product-{i}">` vero e `product` è **rientrato nel giro**, fra «Cod. fornitore» e «Q.tà». Lo spec che registrava l'assenza è stato girato: adesso asserisce la presenza e la posizione, così se qualcuno rifacesse la cella una tendina il test lo direbbe.
    _Per l'IVA (difetto 4) la condizione di rientro resta aperta: stessa causa, stessa cella, e quella tendina non è ancora stata sostituita._
-3. **`advanceToNextLine` di Ordine fornitore non controlla `formReadOnly()`** — e non ha nemmeno il `<fieldset [disabled]>` che protegge le altre due. Su documento bloccato il Tab aggiunge righe.
-4. **L'identificativo IVA dell'Arrivo merce è nella mappa ma non esiste nel DOM** (la cella è un `app-select-menu`). Innocuo solo perché `visibleLineFocusFields` esclude `vat` a mano.
+3. ✅ **Chiuso** — vedi la tabella qui sopra.
+4. ✅ **Chiuso** — vedi la tabella qui sopra.
 5. ~~**Le celle gemelle divergono a suggerimenti aperti**: la cella prodotto usa le frecce per scorrere la lista, la cella codice le ingoia con `preventDefault`.~~
    **CHIUSO da una decisione di prodotto (08/2026), non corretto — non cercare il commit che lo sistema, non c'è.** La regola «il campo codice non cerca» (spec §codici) toglie la ricerca a digitazione e apre il pannello alla **conferma**, per far scegliere fra più corrispondenze esatte. Quella scelta deve essere navigabile con le frecce, quindi la cella codice **riceve** `suggestionNavigate` — che è precisamente ciò che le mancava. Il difetto non viene sanato: smette di esistere perché il meccanismo che lo conteneva cambia sorgente.
    Corollario verificato prima di agire: la divergenza **non** sarebbe stata cementata dal punto unico. Le frecce a lista aperta sono gestite dentro le celle e non raggiungono mai il form, che vede solo `lineRowAdvance` / `lineRowRetreat`, emessi a lista chiusa. La collocazione di questo difetto fra i prerequisiti dell'unificazione era sbagliata.
@@ -763,9 +1066,9 @@ _Nota:_ Ordine fornitore traccia il ciclo delle righe per **posizione** (`track 
 
 6. **Ordine cliente: il giro ignora `lineIsReference`.** Sulla riga «documento collegato» il template non rende alcun controllo del giro, quindi ogni ricerca per identificativo va a vuoto e il fuoco muore.
 7. **Arrivo merce, con una sola riga vuota**: l'aggiunta porta a due righe, la pulizia dei duplicati vuoti in coda torna a una, e il fuoco punta a un indice che non esiste più.
-8. **Arrivo merce, mappa inversa** (usata da Ctrl+frecce): il prefisso del lotto è testato **prima** di quello della scadenza lotto, e il secondo inizia col primo. Da «Scadenza» il fuoco torna su «Lotto».
-9. **Ordine fornitore: U.M. e sconto sono nel giro ma non hanno `(keydown)`.** Il template ha **due gestori per nove campi**, contro i nove dell'Arrivo merce e i quattro dell'Ordine cliente _(mis. 08/2026)_.
-10. **Arrivo merce: su riga collegata prezzo di vendita e prezzo di confronto sono esclusi dal Tab ma le celle restano editabili col mouse**, senza commento che spieghi l'incoerenza.
+8. ✅ **Chiuso** — vedi la tabella qui sopra.
+9. ✅ **Chiuso** — vedi la tabella qui sopra.
+10. ✅ **Chiuso** — vedi la tabella qui sopra.
 11. ~~**e2e già rotto**: gli helper e lo spec dell'Arrivo merce cercano una classe CSS rinominata in `src/`.~~ ✅ **Chiuso (08/2026)**, insieme al fronte più largo che ha aperto — vedi §12.
 12. **U.M. di Ordine fornitore fallisce in silenzio** (§5.2).
 
@@ -1182,7 +1485,7 @@ Ognuna risponde a «il documento è un'altra cosa», non a «è stato scritto in
 | **Lotto e scadenza**             | ✅                                                              | —                                   | —                                                         | nascono quando la merce **entra**. Ordinandola non esistono ancora                                                   |
 | **Numeri di serie**              | ✅ (si registrano)                                              | —                                   | ✅ (si scelgono)                                          | stesso campo, due momenti diversi della vita del pezzo                                                               |
 | **Il documento a monte**         | ordine fornitore collegato (`poOrdered/poReceived/poRemaining`) | —                                   | documento di origine (preventivo → ordine)                | due catene diverse, e l'ordine fornitore è l'inizio della sua                                                        |
-| **Quanti tipi serve**            | 1                                                               | 1                                   | **4** (ordine, DDT, preventivo, scarico manuale)          | il `documentType` cambia colonne e regole dentro lo stesso componente. È la ragione principale della sua dimensione  |
+| **Quanti tipi serve**            | 1                                                               | 1                                   | **4** (ordine, DDT, preventivo, vendita manuale)          | il `documentType` cambia colonne e regole dentro lo stesso componente. È la ragione principale della sua dimensione  |
 | **Quale giacenza si guarda**     | disponibile                                                     | **giacenza e** disponibile          | disponibile                                               | ordinando si guarda quanta ce n'è; vendendo, quanta se ne può promettere. Domanda diversa, colonna diversa           |
 | **Codice fornitore in colonna**  | ✅                                                              | ✅                                  | —                                                         | esiste solo dove c'è un fornitore                                                                                    |
 
@@ -1196,7 +1499,7 @@ Nessuna ragione di dominio trovata. In quasi tutte l'Ordine fornitore è quello 
 | **Conflitto di numero documento**       | GR, CO                                        | **PO**                      | eppure l'ordine fornitore un numero ce l'ha, dai Numeratori (`OF-2026-0042`). Oggi due ordini possono nascere con lo stesso senza che nessuno lo dica                         |
 | **Allegati**                            | GR, CO                                        | **PO**                      | zero riferimenti nel file. La conferma d'ordine del fornitore è esattamente il tipo di file che si allega                                                                     |
 | **Sconto extra di documento**           | GR, CO                                        | **PO**                      | uno sconto di chiusura su un ordine al fornitore è pratica comune                                                                                                             |
-| **Duplica riga**                        | GR, CO                                        | **PO**                      | in PO la parola compare solo dentro un commento                                                                                                                               |
+| ~~**Duplica riga**~~                    | —                                             | —                           | ⛔ **RIMOSSA da tutte le maschere il 23/08/2026** (decisione del proprietario). Non è più una lacuna del PO: non esiste più da nessuna parte, e i test la sorvegliano         |
 | **«Nuovo prodotto» sopra le righe**     | GR, CO                                        | **PO**                      | il pannello di creazione c'è, il comando diretto no                                                                                                                           |
 | **Lettore di codici a barre**           | GR, CO                                        | **PO**                      | in PO un commento dichiara «questa maschera non ha lettore»: è una scelta scritta, ma la ragione è circolare                                                                  |
 | **Ctrl + ↑/↓ per spostare la riga**     | **solo GR**                                   | PO, CO                      | §7.3 della specifica lo dichiara «lasciato perdere»: è una divergenza **parcheggiata**, non una differenza. Ora che il trascinamento c'è ovunque, o si toglie o si dà a tutte |
@@ -1214,6 +1517,49 @@ La colonna A spiega perché i tre file **esistono**. Non spiega perché il terzo
 Conteggi di riferimenti nei file (`.ts` e `.html` insieme), definizioni di colonna lette nei tre `*-line-columns.config.ts`, e verifica **una per una** delle assenze prima di dichiararle: quattro delle presunte mancanze dell'Ordine fornitore erano parole dentro commenti, e senza aprirle sarebbero finite in tabella come funzioni presenti. È la contromisura dell'episodio in §12.0-ter-quater, applicata subito.
 
 **Non** è stata verificata a schermo: è una lettura del codice. Le voci della colonna B vanno confermate provando la maschera prima di deciderne una — soprattutto «Allegati» e «Sconto extra», dove l'assenza potrebbe essere una scelta di prodotto mai scritta.
+
+---
+
+## 13-quater. Rinvio organizzativo e infrastruttura condivisa — la Rettifica _(23/08/2026)_
+
+> **Rettifica di magazzino: adozione dell'infrastruttura comune APPROVATA. Revisione
+> delle sue regole di dominio ancora RINVIATA.**
+
+Sono due cose, e tenerle unite costa una duplicazione.
+
+`03c` §5 mette la Rettifica in riga 2 come «rinviata al suo blocco, non adottata qui».
+Quel rinvio è **organizzativo**: riguarda le sue regole di dominio — motivo della
+rettifica, differenze inventariali, il rapporto con l'Inventario fisico — che si
+decidono insieme e non a pezzi.
+
+⛔ **Non riguarda l'infrastruttura che condivide con il Trasferimento**, e trattarlo come
+se la riguardasse produce il difetto peggiore. Misurato adottando il risolutore sul
+Trasferimento:
+
+| Cosa condividono                          |                                                       |
+| ----------------------------------------- | ----------------------------------------------------- |
+| `stock-movement-line-columns.config`      | **lo stesso file**: le colonne di riga sono le stesse |
+| `stock-movement-line-card`                | **lo stesso componente**: la card mobile è la stessa  |
+| il richiamo articolo in `onVariantSelect` | **formula identica carattere per carattere**          |
+| il compositore server                     | `transfer-adjustment-workflow`, uno per tutte e due   |
+
+Aggiungere la colonna Variante al solo Trasferimento avrebbe dato alla Rettifica una
+**colonna sempre vuota**, cioè un peggioramento. Evitarlo scindendo il config avrebbe
+significato **creare apposta una duplicazione nuova per preservare un rinvio
+organizzativo** — e la duplicazione sarebbe rimasta anche dopo che il rinvio fosse
+scaduto.
+
+### La regola generale, che vale oltre questo caso
+
+> **Un rinvio organizzativo non giustifica una duplicazione tecnica.** Quando una
+> maschera rinviata condivide l'infrastruttura con una che si sta migrando, l'adozione
+> del **gesto comune** la segue; il rinvio continua a valere per le sue **decisioni di
+> dominio**.
+
+⭐ Il criterio per distinguerle: se la cosa **ha un nome nel contratto comune**
+(il richiamo articolo, la colonna Variante, la cella di riga) è infrastruttura e segue.
+Se risponde alla domanda «cosa fa questo documento» (perché si rettifica, cosa
+significa una differenza inventariale) è dominio e resta rinviata.
 
 ---
 
@@ -1247,30 +1593,116 @@ Dalla più volatile alla più stabile:
 
 ## 16. Le colonne di prezzo: quale maschera ne ha quale, e chi può scriverci
 
-_Misurato il 16/08/2026, chiarendo con Luigi la semantica. Nessuna modifica._
+## ⭐ LA COLONNA PREZZO È UNA SOLA, IN OGNI DOCUMENTO — deciso dal proprietario il 02/09/2026
 
-Le maschere documento hanno **due colonne di prezzo diverse**, e non è la stessa cosa scritta in due modi:
+> **La colonna «Prezzo netto / Prezzo ivato» — quella della Fattura, col selettore — è LA
+> colonna prezzo del progetto, e va in tutti i documenti: vendita, ordini, arrivo merce.**
 
-| Colonna                              | Cos'è                                                   | Dove                                    | Editabile               |
-| ------------------------------------ | ------------------------------------------------------- | --------------------------------------- | ----------------------- |
-| `unitPrice` — «Prezzo»               | il **prezzo del documento**, quello che il cliente paga | Ordine cliente · DDT · maschera vendita | **sì**                  |
-| `sellingPrice` — «Prezzo di vendita» | il prezzo **di catalogo** dell'articolo                 | Ordine fornitore · Arrivo merce         | **dipende, vedi sotto** |
+⛔ **Qui c'era il contrario**, e il proprietario l'ha respinto: _«va cambiato quello che c'è
+scritto nel documento, che è stato frainteso e scritto male»_. Il testo diceva:
 
-### La stessa colonna, due mestieri diversi
+> «Le maschere documento hanno **due colonne di prezzo diverse**, e non è la stessa cosa
+> scritta in due modi. […] Non è un'incoerenza: sono due momenti diversi.»
 
-`sellingPrice` è **in sola lettura sull'Ordine fornitore** (`doc-form__cell--readonly doc-form__cell--computed`) ed **editabile sull'Arrivo merce** (`<input formControlName="sellingPrice">`).
+⚠️ **Registrava una conclusione sbagliata di una conversazione del 16/08**, e per due
+settimane ha impedito di vedere il difetto: `unitPrice` («Prezzo netto/ivato») e
+`sellingPrice` («Prezzo di vendita») **sono la stessa casella con due nomi**. Il proprietario
+lo chiama _«un quasi duplicato»_, e la prova è a schermo — l'Arrivo merce ha una colonna
+prezzo che non dice se è netta o ivata, mentre ogni altro documento ce l'ha col selettore.
 
-⚠️ **Aggiornato il 16/08/2026.** Sull'Arrivo merce l'editabilità è ora **condizionata**: la
-spunta di documento **«Aggiorna prezzi articolo»**, accesa di default, decide se i prezzi
-aggiornano l'anagrafica — e spenta li rende **in sola lettura**, perché il prezzo non è un
-dato della riga e un campo scrivibile senza destinazione sarebbe una bugia. Fino a quel
-giorno il valore digitato per un articolo **esistente** non partiva affatto.
+### Cosa resta separato, e non si tocca
+
+⛔ **Prezzo articolo, Prezzo Shopify e Prezzo barrato NON si unificano.** Sono tre campi
+diversi dell'anagrafica, e restano tre colonne: _«resta tutto così»_. Con la spunta accesa,
+l'operatore inserisce i nuovi prezzi e **in anagrafica si aggiorna ognuno col suo valore**.
+
+### La spunta vale solo per gli articoli GIÀ ESISTENTI
+
+⭐ **Articolo NUOVO: i prezzi vanno in anagrafica a prescindere dalla spunta.** L'articolo
+nasce con i dati inseriti — è la sua creazione, non un aggiornamento. Verificato nel codice:
+`buildNewProductBody` manda `sellingPriceMinor` e `compareAtPriceMinor` senza consultare
+`updateArticlePrices`.
+
+⛔ **E qui c'era «spenta li rende in sola lettura»: è FALSO.** Verificato il 02/09/2026:
+`syncLineFieldAccess` blocca solo i campi che identificano il prodotto — codice, SKU, EAN,
+nome, lotto, seriali. I prezzi restano digitabili sempre. La spunta decide **dove va** il
+valore, non se si può scriverlo.
+
+| Caso                       | La spunta                                         |
+| -------------------------- | ------------------------------------------------- |
+| articolo **nuovo**         | ⛔ non conta: i prezzi vanno in anagrafica sempre |
+| articolo **già esistente** | ✅ decide se l'anagrafica si aggiorna             |
+
+### Dove va la colonna, maschera per maschera
+
+> **Va sostituita OVUNQUE si usi qualcosa di diverso** — e il proprietario ha chiesto
+> esplicitamente che si controlli prima: _«va controllato prima»_.
+
+| Dove                                           | Cosa succede                                                        | Editabile       |
+| ---------------------------------------------- | ------------------------------------------------------------------- | --------------- |
+| **Arrivo merce**                               | «Prezzo di vendita» **diventa** «Prezzo netto/ivato», col selettore | ✅ sì           |
+| **Ordine fornitore**                           | diventa «Prezzo netto/ivato» col selettore                          | ⛔ sola lettura |
+| **Trasferimenti**                              | la colonna ci va, **attivabile**                                    | ⛔ sola lettura |
+| **Inventario**                                 | ⭐ la colonna ci va, per il **controllo prezzi dei cartellini**     | ⛔ sola lettura |
+| Fatture, Ordine cliente, DDT, Vendita al banco | ce l'hanno già: nessun lavoro                                       | ✅              |
+
+⭐ **Dove è in sola lettura, il selettore è un CAMBIO DI VISTA**: su un valore che non si
+digita cambia come lo si legge, non come lo si salva. Coerente con `regole-gestionale`, «la
+convenzione vale anche per le viste: anagrafica e listini».
+
+⭐⭐ **E quindi NESSUNA MIGRATION.** Il prezzo di Trasferimento e Inventario si legge
+dall'anagrafica al momento della visualizzazione: non è un dato del documento, non si
+congela, non ha dove essere salvato — e non serve. Deciso dal proprietario il 02/09/2026:
+_«in trasferimento basta la lettura»_.
+
+⭐ **L'inventario serve al controllo dei cartellini**: chi conta in negozio verifica che il
+prezzo esposto sullo scaffale sia quello dell'anagrafica. È una lettura, per definizione.
+
+### ⛔ Costo e prezzo NON si fondono — chiuso il 02/09/2026
+
+> Il proprietario, alla domanda se `unitCost` dovesse diventare anch'esso «Prezzo
+> netto/ivato»: _«mi spaventa. Sono due campi completamente diversi e con ruoli diversi»_.
+
+⚠️ **La domanda era stata posta per CHIUDERLA**, non come proposta: il censimento la
+sollevava, e lasciarla implicita avrebbe permesso a un lavoro futuro di fonderli «per
+uniformità». `regole-gestionale` argomenta già la separazione — i costi non hanno né
+convenzione né memoria, i prezzi di vendita hanno tre livelli — e ora c'è anche la decisione
+esplicita.
+
+Restano quindi **due menu distinti** in testata: uno per il costo, uno per il prezzo. È il
+motivo per cui l'Arrivo merce, che mostra entrambe le colonne, ne ha bisogno di due.
+
+⭐ **Il selettore in sola lettura non è una contraddizione.** Su un valore che non si digita
+cambia **come lo si legge**, non come lo si salva — ed è coerente con `regole-gestionale`,
+che dice «la convenzione vale anche per le viste: anagrafica e listini».
+
+Questo chiude anche la voce «registrato e non fatto» del 16/08 (il netto/ivato su quella
+colonna) e il difetto misurato il 02/09: il selettore è **cablato e morto** perché la testata
+lo lega al nome `unitPrice`, che l'Arrivo merce non dichiara. ⭐ La correzione è agganciarlo
+al **ruolo** — «questa colonna è un prezzo» — invece che al nome.
 
 Col modulo Shopify attivo compare anche **«Prezzo Shopify»**, colonna nascondibile e spenta
 di default, che riusa la politica dell'anagrafica prodotti. I due prezzi restano distinti.
 Dettaglio in `DA-FARE-FAMIGLIA-FATTURA` voce 11, fetta 2.
 
-Non è un'incoerenza: sono due momenti diversi. Quando ordini guardi il prezzo di vendita per decidere quanto comprare; quando la merce arriva, quello è il momento in cui il prezzo di vendita si stabilisce o si aggiorna. **Va però saputo prima di toccarla**, perché rende la stessa richiesta due cose diverse nelle due maschere.
+⛔ **Qui restava il paragrafo della versione RESPINTA** — «Non è un'incoerenza: sono due
+momenti diversi. Quando ordini guardi il prezzo di vendita per decidere quanto comprare…» —
+lasciato in coda alla sezione che lo smentisce. È esattamente l'argomento che il proprietario
+ha respinto il 02/09, e trovarlo sotto la decisione nuova fa credere che valga ancora.
+
+### ⭐ Quante colonne restano, e come si chiamano
+
+Perché la decisione non si legga in due modi:
+
+| Colonna sull'Arrivo merce | Diventa                                    | Aggiorna in anagrafica  |
+| ------------------------- | ------------------------------------------ | ----------------------- |
+| «Prezzo di vendita»       | ⭐ **«Prezzo netto/ivato»**, col selettore | il prezzo dell'articolo |
+| «Prezzo Shopify»          | resta com'è, spenta di serie               | il prezzo Shopify       |
+| «Prezzo barrato»          | resta com'è, spenta di serie               | il prezzo barrato       |
+
+⭐ **Le colonne restano TRE**: cambia il nome e il comportamento della prima, che prende
+quelli della colonna canonica. Le altre due la affiancano e seguono la stessa modalità
+netto/ivato, come già fanno oggi (`SALES_PRICE_FIELDS`).
 
 ### La regola di dominio sul prezzo, dichiarata da Luigi
 
@@ -1292,14 +1724,33 @@ Il **cambio del listino in testata** riscrive i prezzi delle righe. Ma:
 
 Quindi un prezzo negoziato — arrivato da un preventivo incluso, o digitato a mano — **viene sovrascritto** se si tocca il listino dopo. In silenzio: l'unico avviso scatta quando il listino quel prezzo non ce l'ha affatto.
 
-**Due letture, entrambe difendibili**, e la scelta è di dominio:
+## ✅ DECISA il 26/08/2026 — vince la prima lettura
 
-1. _«cambiare listino vuol dire riprezzare tutto»_ → il comportamento è giusto, manca un avviso prima di farlo;
-2. _«un prezzo concordato non si tocca»_ → il cambio listino deve saltare le righe con prezzo modificato a mano.
+⛔ **Qui c'erano due letture lasciate aperte** — «riprezzare tutto» contro «un prezzo concordato
+non si tocca» — con la nota che serviva un'informazione in più per distinguerli.
 
-**Dato che pesa sulla scelta:** oggi la riga **non registra** se il suo prezzo viene dal listino o è stato negoziato. Per distinguerli servirebbe un'informazione in più.
+> **Il cambio Listino riprezza le righe già presenti con i prezzi proposti dal nuovo Listino.**
 
-Comunque si decida, **la differenza fra le due maschere resta da sanare**: la stessa azione dà due risultati diversi a seconda di dove la fai.
+Deciso dal proprietario. Ne discende che il dato mancante — «questo prezzo viene dal listino o è
+stato negoziato?» — **non serve più**: nessuna riga va risparmiata, quindi non c'è niente da
+distinguere.
+
+⚠️ **E la differenza fra le due maschere è sanata**, ma non scegliendo una delle due: il
+riprezzamento vive ora in `listinoRepricing` (`domain/documents/utils/document-listino.util`),
+chiamato da entrambe. Restano diverse solo la **strada** per procurarsi i dati della variante —
+servizio o memoria — e **come si scrive il campo**, che dipende dalla modalità netto/ivato del
+documento. Nessuna delle due è il Listino.
+
+⭐ **La distinzione da tenere, perché è quella che ha generato l'equivoco:**
+
+```text
+LISTINO       sceglie la SORGENTE del prezzo          ⛔ nessuna aritmetica
+NETTO/IVATO   sceglie la RAPPRESENTAZIONE dello stesso prezzo   ⭐ qui, e solo qui, lo scorporo
+```
+
+Serve in due direzioni: impedisce di concludere che il Listino sia due domini perché due
+maschere lo implementano diversamente, **e** impedisce di infilare conversioni IVA dentro il
+motore del Listino, dove non appartengono.
 
 ### Registrato e non fatto: il netto/ivato su «Prezzo di vendita»
 

@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 
 import { StockStatus } from '@core/models/inventory-level.model';
-import { stockStatusOf } from '@core/utils/inventory.util';
+import { stockAvailabilityLabel, stockStatusOf } from '@core/utils/inventory.util';
 import { formatMoney } from '@core/utils/money.util';
 import type { VariantSummary } from '../../models/variant-summary.model';
 
@@ -66,10 +66,15 @@ export class ProductSearchResultsComponent {
   }
 
   protected stockLabel(variant: VariantSummary): string {
-    if (this.stockStatus(variant) === StockStatus.Empty) {
-      return 'Esaurito';
-    }
-    return `Disp. ${variant.stockAvailable}`;
+    /*
+      ⭐ **Il numero resta leggibile anche sotto zero**: un oversell di −4 diceva
+      «Esaurito», identico a uno zero, proprio nella schermata da cui si mettono
+      righe in un documento.
+    */
+    return stockAvailabilityLabel({
+      available: variant.stockAvailable ?? 0,
+      minThreshold: variant.stockMinThreshold ?? 0,
+    });
   }
 
   protected priceLabel(variant: VariantSummary): string {

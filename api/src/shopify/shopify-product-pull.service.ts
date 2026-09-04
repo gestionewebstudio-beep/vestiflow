@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  UnprocessableEntityException,
-} from '@nestjs/common';
+import { Injectable, Logger, UnprocessableEntityException } from '@nestjs/common';
 import {
   CatalogOrigin,
   ProductStatus,
@@ -135,6 +131,13 @@ export class ShopifyProductPullService {
 
     for (const remote of remoteProducts) {
       try {
+        // ⛔ PRIMA dell'arricchimento: `enrichProduct` interroga Shopify, e un suo
+        //    fallimento finisce nel catch qui sotto, che scrive sul prodotto. La
+        //    guardia di `importProduct` non si raggiungerebbe mai.
+        if (await this.syncSpentaPerRemoto(tenantId, String(remote.id))) {
+          skipped += 1;
+          continue;
+        }
         const enrichment = await this.shopifyEnrichment.enrichProduct(
           shopDomain,
           accessToken,
@@ -175,6 +178,16 @@ export class ShopifyProductPullService {
   ): Promise<'imported' | 'updated' | 'skipped'> {
     const remote = this.normalizeWebhookProduct(payload);
     if (!remote) {
+      return 'skipped';
+    }
+
+    // ⛔ Anche qui prima dell'arricchimento: un prodotto spento non deve costare
+    //    nemmeno una chiamata a Shopify. Qui il fallimento dell'enrichment è già
+    //    catturato e non scrive, ma la chiamata partiva lo stesso.
+    if (await this.syncSpentaPerRemoto(tenantId, String(remote.id))) {
+      this.logger.debug(
+        `Webhook Shopify ignorato: sincronizzazione spenta sul prodotto (${remote.id})`,
+      );
       return 'skipped';
     }
 
@@ -223,6 +236,17 @@ export class ShopifyProductPullService {
       existing?.shopifyCategoryMetafields,
     );
 
+    // ⛔ Sincronizzazione SPENTA: il prodotto si ignora INTEGRALMENTE — niente
+    //    nome, descrizione, stato, opzioni, varianti o immagini. Spegnere
+    //    l'interruttore significa «questo prodotto non si tocca da Shopify», e
+    //    una guardia che ne lasciasse passare metà sarebbe peggio di nessuna.
+    if (this.isSyncSpenta(existing)) {
+      this.logger.debug(
+        `Import Shopify saltato: sincronizzazione spenta sul prodotto (${shopifyProductId})`,
+      );
+      return 'skipped';
+    }
+
     if (existing?.shopifySyncStatus === ShopifySyncStatus.syncing) {
       this.logger.debug(
         `Import webhook saltato: sync VestiFlow→Shopify in corso (${shopifyProductId})`,
@@ -230,7 +254,27 @@ export class ShopifyProductPullService {
       return 'skipped';
     }
 
+    // Il NOME SHOPIFY: il titolo con cui il prodotto si vende (docs/24 §1.9).
+    //
+    // ⛔ Sta QUI, dopo le guardie, e non più in cima: `normalizeWebhookProduct`
+    //    non valida il payload — `payload as ShopifyAdminProduct` — quindi
+    //    `remote.title` può essere `undefined` a runtime. Letto prima della
+    //    guardia, il `.trim()` lanciava, il catch chiamava
+    //    `recordProductImportError`, e quello scriveva `shopifySyncStatus: error`
+    //    **su un prodotto a sincronizzazione spenta**: la scrittura che la
+    //    guardia esiste per impedire.
+    const titoloShopify = remote.title.trim() || 'Prodotto Shopify';
+
     if (existing && shouldSkipShopifyCatalogImport(existing)) {
+      // ⭐ Il catalogo resta di VestiFlow, ma il **Nome Shopify** no: è il titolo
+      //    della vetrina, ed è bidirezionale per contratto (docs/24 §1.9). Passa
+      //    solo lui: `Product.name` e il resto del catalogo restano fermi.
+      if (existing.shopifyTitle !== titoloShopify) {
+        await this.prisma.product.updateMany({
+          where: { id: existing.id, tenantId },
+          data: { shopifyTitle: titoloShopify },
+        });
+      }
       this.logger.debug(
         `Import Shopify saltato: catalogo di origine VestiFlow (${shopifyProductId})`,
       );
@@ -242,8 +286,12 @@ export class ShopifyProductPullService {
       countCategoryMetafieldsWithValues(importedCategoryMetafields),
       existing?.shopifyLastError,
     );
+    // ⭐ Il titolo remoto è il NOME SHOPIFY, e da qui in poi solo quello: il nome
+    //    interno appartiene a chi lavora in magazzino, e un ri-sync non glielo
+    //    riscrive più (docs/24 §1.9). `name` sta fuori dall'allowlist apposta —
+    //    stesso pattern del codice articolo — e lo aggiunge la sola creazione.
     const productData = {
-      name: remote.title.trim() || 'Prodotto Shopify',
+      shopifyTitle: titoloShopify,
       description: shopifyBodyHtmlToPlainText(remote.body_html),
       brand: remote.vendor?.trim() || null,
       category: remote.product_type?.trim() || null,
@@ -297,6 +345,8 @@ export class ShopifyProductPullService {
           data: {
             tenantId,
             articleCode,
+            // Primo import: i due nomi nascono uguali, e da qui vivono separati.
+            name: titoloShopify,
             ...productData,
             sellingPriceMinor: firstPriceMinor,
             shopifyPriceMinor: firstPriceMinor,
@@ -304,8 +354,8 @@ export class ShopifyProductPullService {
               ? shopifyDecimalToMinor(first.compare_at_price)
               : null,
             purchasePriceMinor: first
-              ? (enrichment?.variantPurchasePriceMinor.get(first.id) ?? null)
-              : null,
+              ? (enrichment?.variantPurchasePriceMinor.get(first.id) ?? 0)
+              : 0,
           },
         });
 
@@ -318,15 +368,12 @@ export class ShopifyProductPullService {
               tenantId,
               productId: product.id,
               sku,
-              optionValues: this.mapVariantOptions(
-                remote,
-                variant,
-              ),
+              optionValues: this.mapVariantOptions(remote, variant),
               barcode: variant.barcode ?? null,
               currency: 'EUR',
               sellingPriceMinor: variantPriceMinor,
               shopifyPriceMinor: variantPriceMinor,
-              purchasePriceMinor: enrichment?.variantPurchasePriceMinor.get(variant.id) ?? null,
+              purchasePriceMinor: enrichment?.variantPurchasePriceMinor.get(variant.id) ?? 0,
               shopifyVariantId: String(variant.id),
               shopifyInventoryItemId: String(variant.inventory_item_id),
             },
@@ -357,8 +404,8 @@ export class ShopifyProductPullService {
             ? shopifyDecimalToMinor(firstRemote.compare_at_price)
             : null,
           purchasePriceMinor: firstRemote
-            ? (enrichment?.variantPurchasePriceMinor.get(firstRemote.id) ?? null)
-            : null,
+            ? (enrichment?.variantPurchasePriceMinor.get(firstRemote.id) ?? 0)
+            : 0,
         },
       });
 
@@ -366,9 +413,7 @@ export class ShopifyProductPullService {
         const shopifyVariantId = String(variant.id);
         const matched = byShopifyVariantId.get(shopifyVariantId);
         const purchasePriceMinor =
-          enrichment?.variantPurchasePriceMinor.get(variant.id) ??
-          matched?.purchasePriceMinor ??
-          null;
+          enrichment?.variantPurchasePriceMinor.get(variant.id) ?? matched?.purchasePriceMinor ?? 0;
         const variantPriceMinor = shopifyDecimalToMinor(variant.price ?? '0');
         // Comune a match/nuova: il prezzo Shopify e i collegamenti si allineano.
         const variantSyncData = {
@@ -410,13 +455,37 @@ export class ShopifyProductPullService {
     return 'updated';
   }
 
+  /**
+   * «Questo prodotto è spento?» — la decisione sta qui, e la leggono tutti i
+   * punti che la applicano: i due ingressi e `importProduct`.
+   */
+  private isSyncSpenta(snapshot: { readonly shopifySyncEnabled: boolean } | null): boolean {
+    return snapshot?.shopifySyncEnabled === false;
+  }
+
+  /**
+   * Lo stesso, per chi il prodotto non l'ha ancora in mano: costa una query, e
+   * si paga PRIMA di `enrichProduct` — che altrimenti interroga Shopify per un
+   * prodotto che stiamo per ignorare, e fallendo fa scrivere l'errore addosso.
+   */
+  private async syncSpentaPerRemoto(tenantId: string, shopifyProductId: string): Promise<boolean> {
+    return this.isSyncSpenta(
+      await this.prisma.product.findFirst({
+        where: { tenantId, shopifyProductId },
+        select: { shopifySyncEnabled: true },
+      }),
+    );
+  }
+
   private async recordProductImportError(
     tenantId: string,
     shopifyProductId: string,
     message: string,
   ): Promise<void> {
+    // ⛔ Difesa in profondità: se un percorso non ancora previsto arrivasse qui
+    //    con un prodotto spento, il filtro impedisce comunque la scrittura.
     await this.prisma.product.updateMany({
-      where: { tenantId, shopifyProductId },
+      where: { tenantId, shopifyProductId, shopifySyncEnabled: true },
       data: {
         shopifySyncStatus: ShopifySyncStatus.error,
         shopifyLastError: message.slice(0, 500),
@@ -434,7 +503,10 @@ export class ShopifyProductPullService {
       select: { sku: true },
     });
     return new Set(
-      rows.map((row) => row.sku).filter((sku): sku is string => Boolean(sku)).map((sku) => sku.toLowerCase()),
+      rows
+        .map((row) => row.sku)
+        .filter((sku): sku is string => Boolean(sku))
+        .map((sku) => sku.toLowerCase()),
     );
   }
 

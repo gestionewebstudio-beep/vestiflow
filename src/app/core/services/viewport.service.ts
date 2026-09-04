@@ -14,6 +14,29 @@ import { DestroyRef, Injectable, inject, signal } from '@angular/core';
 const COMPACT_MAX_TOKEN = '--viewport-compact-max';
 
 /**
+ * ⏸ **La chiave della scelta manuale, che oggi si CANCELLA e basta.**
+ *
+ * ⛔ Il selettore di vista è stato ritirato il 30/08/2026 e la sua meccanica è
+ * rimasta collegata: nessuna schermata poteva più scrivere questo valore, ma chi
+ * l'aveva scritto durante le prove restava **bloccato in vista compatta a
+ * qualunque larghezza, senza un modo per tornare indietro**.
+ *
+ * ⚠️ **E non si vedeva come un blocco.** L'app mostrava le due vesti insieme —
+ * card sotto un'intestazione di tabella, «Seleziona» e i filtri del telefono su
+ * uno schermo da 1338px — perché metà delle regole compatte risponde
+ * all'attributo sulla radice e l'altra metà a una media query: è esattamente il
+ * difetto misurato il 30/08 che ha fatto ritirare il selettore, ed è arrivato
+ * agli occhi del proprietario prima che il ponte fosse staccato.
+ *
+ * ⭐ **Si cancella invece di ignorarla**, e la ragione è che ignorarla sarebbe
+ * una mina: il giorno in cui il selettore torna, quel valore rimasto lì
+ * riporterebbe lo stesso schermo in vista compatta senza che nessuno l'abbia
+ * chiesto. Non si perde una scelta di nessuno — non c'era nessun posto dove
+ * farla.
+ */
+const VIEW_MODE_KEY = 'vestiflow.view-mode';
+
+/**
  * Quale vista è attiva: compatta (card) o estesa (tabella).
  *
  * **Non è un sistema di breakpoint, ed è voluto.** Non espone `isMobile`, né
@@ -36,10 +59,18 @@ export class ViewportService {
 
   private readonly _compact = signal(false);
 
-  /** `true` sotto la soglia: è la vista a card, quella dove si tocca. */
+  /*
+    ⭐ **La domanda a cui i 17 consumatori rispondono è sempre la stessa** — «è
+    viva la vista a card?» — e questo è il solo punto in cui si risponde.
+
+    ⏸ Qui passava anche la scelta manuale dell'operatore. È tornata a essere la
+    sola larghezza finché il selettore non è finito davvero: vedi `VIEW_MODE_KEY`.
+  */
   readonly compact = this._compact.asReadonly();
 
   constructor() {
+    this.dimenticaModoImposto();
+
     const query = this.mediaQuery();
     if (!query) {
       return;
@@ -56,6 +87,21 @@ export class ViewportService {
    * caso resta la vista estesa — è il default anche del CSS, che nasconde la
    * tabella solo dentro la media query.
    */
+  /**
+   * Toglie dal browser la vista imposta durante le prove del selettore ritirato.
+   *
+   * ⚠️ **Silenzioso a ogni intoppo** — `localStorage` assente in modalità privata,
+   * schermata di prova senza `window`: non c'è niente da salvare e niente da
+   * riferire, la larghezza decide comunque.
+   */
+  private dimenticaModoImposto(): void {
+    try {
+      this.document.defaultView?.localStorage.removeItem(VIEW_MODE_KEY);
+    } catch {
+      // Nessun rimedio possibile, e nessuno serve: `compact` non lo legge più.
+    }
+  }
+
   private mediaQuery(): MediaQueryList | null {
     const view = this.document.defaultView;
     if (!view?.matchMedia) {

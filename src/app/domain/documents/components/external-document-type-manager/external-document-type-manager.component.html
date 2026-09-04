@@ -185,12 +185,10 @@
   </ul>
 </div>
 
-<app-confirm-dialog
+<app-delete-confirm
   [(open)]="confirmOpen"
   [title]="confirmTitle()"
-  [message]="confirmMessage()"
-  confirmLabel="Elimina"
-  [danger]="true"
+  [consequence]="confirmMessage()"
   (confirmed)="onConfirmDelete()"
   (dismissed)="onDismissDelete()"
 />

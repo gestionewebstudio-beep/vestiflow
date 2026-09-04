@@ -1,10 +1,12 @@
 /**
- * Righe di Registrazione fattura fornitore generate dagli Arrivi merce inclusi:
- * gli imponibili delle righe arrivo vengono raggruppati per aliquota IVA e ogni
- * gruppo produce una riga con Importo netto, IVA %, Importo IVA e Descrizione
- * con il riferimento automatico agli arrivi (es. "Rif. Arrivo merce 6 del
- * 15/07/2026, 8 del 15/07/2026"). Stessa logica usata dal form (anteprima) e
- * dal salvataggio (persistenza): il backend resta autoritativo.
+ * **Le quote IVA di un Arrivo merce**, per la Registrazione fattura fornitore.
+ *
+ * L'arrivo espone i propri imponibili raggruppati per **Codice IVA**; includerlo
+ * in una registrazione materializza una riga economica per quota.
+ *
+ * ⛔ Qui viveva anche il riepilogo che il server ricalcolava a ogni
+ * salvataggio. Non c'e' piu': le righe sono una lista sola, tutte modificabili,
+ * e il server le scrive come arrivano (§41 della specifica testate).
  */
 
 export interface PurchaseInvoiceReceiptLineInput {
@@ -12,6 +14,14 @@ export interface PurchaseInvoiceReceiptLineInput {
   readonly lineVatTotalMinor: number;
   /** Snapshot Codice IVA (Json Prisma): l'aliquota è `ratePercent` se presente. */
   readonly vatSnapshot: unknown;
+  /**
+   * Il Codice IVA della riga arrivo. `null` sulle righe storiche.
+   *
+   * ⭐ È la CHIAVE del raggruppamento, non l'aliquota: due righe al 22% possono
+   * essere una ordinaria e una in inversione contabile, e sono due fatti
+   * fiscali diversi.
+   */
+  readonly vatCodeId?: string | null;
 }
 
 export interface PurchaseInvoiceReceiptInput {
@@ -26,6 +36,8 @@ export interface PurchaseInvoiceReceiptInput {
 
 /** Quota IVA di un arrivo o di un gruppo di righe (unità minori intere). */
 export interface VatBreakdownEntry {
+  /** Il Codice IVA del gruppo. `null` per le righe storiche che non ne hanno. */
+  readonly vatCodeId: string | null;
   readonly ratePercent: number;
   readonly netMinor: number;
   readonly vatMinor: number;
@@ -55,74 +67,59 @@ export function receiptLineVatRate(line: PurchaseInvoiceReceiptLineInput): numbe
 export function receiptVatBreakdown(
   receipt: Pick<PurchaseInvoiceReceiptInput, 'subtotalMinor' | 'taxMinor' | 'lines'>,
 ): readonly VatBreakdownEntry[] {
-  const byRate = new Map<number, { netMinor: number; vatMinor: number }>();
+  // ⛔ La chiave era la sola `ratePercent`, e due righe al 22% finivano nella
+  // stessa quota anche quando una era ordinaria e l'altra in INVERSIONE
+  // CONTABILE. La riga materializzata sulla fattura perdeva la Natura N6 e il
+  // fatto che quell'IVA non e' dovuta al fornitore.
+  //
+  // ⭐ Ora la chiave e' il Codice IVA. Le righe storiche — che ne hanno NULL —
+  // continuano a raggrupparsi per aliquota: separarle una per una farebbe
+  // diventare dieci righe di fattura un arrivo vecchio con dieci righe al 22%.
+  const byKey = new Map<
+    string,
+    { vatCodeId: string | null; ratePercent: number; netMinor: number; vatMinor: number }
+  >();
   for (const line of receipt.lines) {
     if (line.lineTotalMinor === 0 && line.lineVatTotalMinor === 0) {
       continue;
     }
-    const rate = receiptLineVatRate(line);
-    const entry = byRate.get(rate) ?? { netMinor: 0, vatMinor: 0 };
+    const ratePercent = receiptLineVatRate(line);
+    const vatCodeId = line.vatCodeId ?? null;
+    const key = vatCodeId ?? `aliquota:${ratePercent}`;
+    const entry = byKey.get(key) ?? { vatCodeId, ratePercent, netMinor: 0, vatMinor: 0 };
     entry.netMinor += line.lineTotalMinor;
     entry.vatMinor += line.lineVatTotalMinor;
-    byRate.set(rate, entry);
+    byKey.set(key, entry);
   }
-  if (byRate.size === 0 && (receipt.subtotalMinor !== 0 || receipt.taxMinor !== 0)) {
+  if (byKey.size === 0 && (receipt.subtotalMinor !== 0 || receipt.taxMinor !== 0)) {
     // Arrivo storico senza righe dettagliate: unica quota derivata dai totali.
     const rate =
       receipt.subtotalMinor > 0 && receipt.taxMinor > 0
         ? Math.round((receipt.taxMinor / receipt.subtotalMinor) * 100)
         : 0;
-    return [{ ratePercent: rate, netMinor: receipt.subtotalMinor, vatMinor: receipt.taxMinor }];
+    return [
+      {
+        vatCodeId: null,
+        ratePercent: rate,
+        netMinor: receipt.subtotalMinor,
+        vatMinor: receipt.taxMinor,
+      },
+    ];
   }
-  return [...byRate.entries()]
-    .map(([ratePercent, sums]) => ({ ratePercent, ...sums }))
-    .sort((a, b) => a.ratePercent - b.ratePercent);
-}
-
-/** "6 del 15/07/2026" — etichetta breve dell'arrivo nel riferimento automatico. */
-function receiptRefLabel(receipt: PurchaseInvoiceReceiptInput): string {
-  const label = receipt.number != null ? String(receipt.number) : (receipt.reference ?? '—');
-  return `${label} del ${formatItalianDate(receipt.documentDate)}`;
-}
-
-/** dd/MM/yyyy in UTC: documentDate è @db.Date (mezzanotte UTC, mai TZ locali). */
-function formatItalianDate(date: Date): string {
-  const day = String(date.getUTCDate()).padStart(2, '0');
-  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-  return `${day}/${month}/${date.getUTCFullYear()}`;
-}
-
-/**
- * Righe di registrazione per aliquota dagli arrivi inclusi, ordinate per
- * aliquota crescente; il riferimento elenca gli arrivi che contribuiscono al
- * gruppo in ordine di data documento.
- */
-export function buildPurchaseInvoiceVatSummary(
-  receipts: readonly PurchaseInvoiceReceiptInput[],
-): readonly PurchaseInvoiceVatSummaryLine[] {
-  const sorted = [...receipts].sort(
-    (a, b) =>
-      a.documentDate.getTime() - b.documentDate.getTime() || (a.number ?? 0) - (b.number ?? 0),
+  // Ordine: per aliquota, e a parita' di aliquota per codice — cosi' il 22
+  // ordinario e il 22 in inversione contabile hanno un ordine stabile invece
+  // che quello di inserimento.
+  return [...byKey.values()].sort(
+    (a, b) => a.ratePercent - b.ratePercent || (a.vatCodeId ?? '').localeCompare(b.vatCodeId ?? ''),
   );
-  const byRate = new Map<number, { netMinor: number; vatMinor: number; refs: string[] }>();
-  for (const receipt of sorted) {
-    const ref = receiptRefLabel(receipt);
-    for (const quota of receiptVatBreakdown(receipt)) {
-      const entry = byRate.get(quota.ratePercent) ?? { netMinor: 0, vatMinor: 0, refs: [] };
-      entry.netMinor += quota.netMinor;
-      entry.vatMinor += quota.vatMinor;
-      if (!entry.refs.includes(ref)) {
-        entry.refs.push(ref);
-      }
-      byRate.set(quota.ratePercent, entry);
-    }
-  }
-  return [...byRate.entries()]
-    .map(([ratePercent, entry]) => ({
-      ratePercent,
-      netMinor: entry.netMinor,
-      vatMinor: entry.vatMinor,
-      description: `Rif. Arrivo merce ${entry.refs.join(', ')}`,
-    }))
-    .sort((a, b) => a.ratePercent - b.ratePercent);
 }
+
+// ⛔ Qui c'erano `receiptRefLabel`, `formatItalianDate` e soprattutto
+// `buildPurchaseInvoiceVatSummary`: il riepilogo per aliquota che il SERVER
+// ricalcolava a ogni salvataggio, in sola lettura per l'operatore.
+//
+// ⚠️ Tolte il 25/08/2026 col meccanismo che servivano. Le righe economiche
+// sono ora UNA lista e tutte modificabili: il server le scrive come arrivano
+// invece di rigenerarle, e includere un arrivo le MATERIALIZZA una volta.
+// Il riferimento «Rif. Arrivo merce N del …» lo compone il client, che e' chi
+// materializza.

@@ -1,82 +1,9 @@
-@use 'breakpoints' as bp;
+@use 'anagrafica' as anagrafica;
 
-.supplier-fields__grid {
-  display: grid;
-  gap: var(--space-4);
-}
-
-@include bp.media-up('md') {
-  .supplier-fields__grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-.supplier-fields__field--full {
-  grid-column: 1 / -1;
-}
-
-.supplier-fields__section-title {
-  margin: 0;
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text);
-}
-
-.supplier-fields__label {
-  display: block;
-  margin-block-end: var(--space-1);
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text);
-}
-
-.supplier-fields__control {
-  inline-size: 100%;
-  block-size: var(--field-height);
-  padding-inline: var(--space-3);
-  font: inherit;
-  color: var(--color-text);
-  background-color: var(--color-surface);
-  border: var(--border-width) solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-}
-
-.supplier-fields__control:focus-visible {
-  outline: var(--focus-ring-width) solid var(--color-focus);
-  outline-offset: var(--space-1);
-}
-
-.supplier-fields__field-error {
-  display: block;
-  margin-block-start: var(--space-1);
-  font-size: var(--text-xs);
-  color: var(--color-danger);
-}
-
-// Il bordo colorato accompagna il messaggio: chi scorre il form con lo sguardo
-// trova il campo, chi lo legge trova il motivo.
-.supplier-fields__control[aria-invalid='true'] {
-  border-color: var(--color-danger);
-}
-
-.supplier-fields__textarea {
-  block-size: auto;
-  min-block-size: calc(var(--field-height) * 2);
-  padding-block: var(--space-2);
-  resize: vertical;
-}
-
-.supplier-fields__checkbox {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-medium);
-  cursor: pointer;
-}
-
-.supplier-fields__hint {
-  margin: var(--space-2) 0 0;
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
-}
+/*
+  La grammatica dell'anagrafica — densità, griglia a dodici colonne, tetti di
+  larghezza, avvisi — vive in `styles/_anagrafica.scss`, che la scheda cliente
+  include allo stesso modo. Qui restano i soli campi di QUESTA scheda, che sono
+  diversi: il Codice IVA predefinito, il Porto, la Ns. banca.
+*/
+@include anagrafica.anagrafica-fields('supplier-fields');
