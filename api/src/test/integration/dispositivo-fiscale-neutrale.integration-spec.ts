@@ -197,7 +197,8 @@ describe('dispositivo fiscale provider-neutral — C1B su PostgreSQL TEST', () =
         documentId: documento,
         deviceId: device.id,
         status: 'emitted',
-        fiscalNumber: '0012-0034',
+        fiscalNumber: '0034',
+        closureNumber: '0012',
       },
     });
 
@@ -205,7 +206,8 @@ describe('dispositivo fiscale provider-neutral — C1B su PostgreSQL TEST', () =
 
     const dopo = await prisma.fiscalReceipt.findUnique({ where: { id: ricevuta.id } });
     expect(dopo?.deviceId).toBe(device.id);
-    expect(dopo?.fiscalNumber).toBe('0012-0034');
+    expect(dopo?.fiscalNumber).toBe('0034');
+    expect(dopo?.closureNumber).toBe('0012');
     expect(dopo?.status).toBe('emitted');
   });
 
@@ -232,7 +234,7 @@ describe('dispositivo fiscale provider-neutral — C1B su PostgreSQL TEST', () =
     });
     await prisma.fiscalReceipt.update({
       where: { id: primo.id },
-      data: { status: 'emitted', errorMessage: null, fiscalNumber: '0001-0002' },
+      data: { status: 'emitted', errorMessage: null, fiscalNumber: '0002', closureNumber: '0001' },
     });
 
     const finale = await prisma.fiscalReceipt.findUnique({ where: { id: primo.id } });

@@ -76,6 +76,10 @@ const ESENTI = new Map([
     'api/src/documents/document-supplier-order.util.ts',
     'aggiorna la sola `receivedQuantity` quando arriva la merce: non tocca nessuna colonna descrittiva',
   ],
+  [
+    'api/src/test/integration/reso-collegato.integration-spec.ts',
+    'collaudo dei VINCOLI di `20260904200000` (self-FK, unique composto, RESTRICT): crea righe minime per provare il database, non compone righe di documento — una variante fotografata non cambierebbe nessuna delle prove',
+  ],
 ]);
 
 const BARRA_ROVESCIA = String.fromCharCode(92);

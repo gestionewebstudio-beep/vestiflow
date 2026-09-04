@@ -99,6 +99,7 @@ describe('DocumentPdfService', () => {
         tenantId: 'tenant-1',
         documentId: 'doc-1',
         lineNumber: 1,
+        returnedFromLineId: null,
         unitOfMeasure: null,
         variantId: 'var-1',
         variantLabel: 'M / Rosso',

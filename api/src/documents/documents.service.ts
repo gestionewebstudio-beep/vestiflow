@@ -130,7 +130,10 @@ import {
   reverseDocumentStockUnload,
 } from './document-stock-reconcile.util';
 import { loadStockLineVariantsOrThrow } from './document-line-variants.util';
-import { assertSupplierOrderLinkable, reverseSupplierOrderReceipt } from './document-supplier-order.util';
+import {
+  assertSupplierOrderLinkable,
+  reverseSupplierOrderReceipt,
+} from './document-supplier-order.util';
 import { findSupplierPriceDiffs } from './document-supplier-price.util';
 import { DocumentSettingsService } from './document-settings.service';
 import { DocumentPriceModePreferenceService } from './document-price-mode-preference.service';
@@ -1779,6 +1782,8 @@ export class DocumentsService {
           discountPercent: new Prisma.Decimal(line.discountPercent),
           id: `new-${index}`,
           documentId: doc.id,
+          // ⚠️ Riga di ANTEPRIMA, non persistita: non rende niente.
+          returnedFromLineId: null,
           tenantId,
           isReference: line.isReference === true,
           linkedGoodsReceiptId: null,
@@ -1814,7 +1819,9 @@ export class DocumentsService {
     // la Vendita e il Reso al banco dovevano applicare questo e non una copia.
     const numberingType = documentNumberingType(doc.type);
     const numberingSetting =
-      numberingType === doc.type ? setting : await this.settings.getResolved(tenantId, numberingType);
+      numberingType === doc.type
+        ? setting
+        : await this.settings.getResolved(tenantId, numberingType);
     const numerazione = resolveEditedDocumentNumbering({
       declaredSeries: dto.series,
       declaredNumber: dto.number,
@@ -2096,6 +2103,8 @@ export class DocumentsService {
           newLines: newLinesComputed.map((line, index) => ({
             id: `tmp-${index}`,
             documentId: id,
+            // ⚠️ Riga di ANTEPRIMA, non persistita: non rende niente.
+            returnedFromLineId: null,
             tenantId,
             lineNumber: line.lineNumber,
             variantId: line.variantId,
@@ -2186,6 +2195,8 @@ export class DocumentsService {
           newLines: newLinesComputed.map((line, index) => ({
             id: `tmp-${index}`,
             documentId: id,
+            // ⚠️ Riga di ANTEPRIMA, non persistita: non rende niente.
+            returnedFromLineId: null,
             tenantId,
             lineNumber: line.lineNumber,
             variantId: line.variantId,
@@ -2278,6 +2289,8 @@ export class DocumentsService {
           newLines: newLinesComputed.map((line, index) => ({
             id: `tmp-${index}`,
             documentId: id,
+            // ⚠️ Riga di ANTEPRIMA, non persistita: non rende niente.
+            returnedFromLineId: null,
             tenantId,
             lineNumber: line.lineNumber,
             variantId: line.variantId,
@@ -3948,9 +3961,7 @@ export class DocumentsService {
         variantLabel: variantLabelSnapshot({
           lineId: line.id,
           variantId: line.variantId ?? null,
-          optionValues: line.variantId
-            ? varianti.opzioniPerVariante.get(line.variantId)
-            : null,
+          optionValues: line.variantId ? varianti.opzioniPerVariante.get(line.variantId) : null,
           persisted: varianti.persistitePerRiga,
           sorgente: sorgenteDiRiga,
         }),
@@ -3960,9 +3971,7 @@ export class DocumentsService {
         ...lineIdentitySnapshot({
           lineId: line.id,
           variantId: line.variantId ?? null,
-          corrente: line.variantId
-            ? varianti.identitaPerVariante.get(line.variantId)
-            : undefined,
+          corrente: line.variantId ? varianti.identitaPerVariante.get(line.variantId) : undefined,
           persisted: varianti.identitaPerRiga,
           sorgente: sorgenteDiRiga,
         }),
@@ -4010,11 +4019,7 @@ export class DocumentsService {
     ];
     // Le righe da cui il client dichiara di derivare: duplicazione, conversione.
     const sourceLineIds = [
-      ...new Set(
-        lines
-          .map((line) => line.sourceDocumentLineId)
-          .filter((id): id is string => !!id),
-      ),
+      ...new Set(lines.map((line) => line.sourceDocumentLineId).filter((id): id is string => !!id)),
     ];
 
     const [variants, supplier, tenantSettings, sourceLines] = await Promise.all([
@@ -4081,9 +4086,7 @@ export class DocumentsService {
     //    trasformerebbe questo campo in un modo per scoprire se un id di
     //    riga esiste altrove.
     if (sourceLines.length !== sourceLineIds.length) {
-      throw new UnprocessableEntityException(
-        'Una o più righe di origine non sono valide.',
-      );
+      throw new UnprocessableEntityException('Una o più righe di origine non sono valide.');
     }
 
     const sourceLineById = new Map<string, LineSourceSnapshot>(

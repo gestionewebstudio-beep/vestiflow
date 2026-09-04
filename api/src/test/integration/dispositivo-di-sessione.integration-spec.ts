@@ -84,7 +84,8 @@ describe('il dispositivo si lega alla sessione — C1C su PostgreSQL TEST', () =
         documentId: documento,
         deviceId: principale.id,
         status: 'emitted',
-        fiscalNumber: '0001-0007',
+        fiscalNumber: '0007',
+        closureNumber: '0001',
       },
     });
 
@@ -124,7 +125,8 @@ describe('il dispositivo si lega alla sessione — C1C su PostgreSQL TEST', () =
         documentId: documento,
         deviceId: device.id,
         status: 'emitted',
-        fiscalNumber: '0002-0011',
+        fiscalNumber: '0011',
+        closureNumber: '0002',
       },
     });
 
@@ -141,7 +143,8 @@ describe('il dispositivo si lega alla sessione — C1C su PostgreSQL TEST', () =
         documentId: documento,
         deviceId: device.id,
         status: 'emitted',
-        fiscalNumber: '0003-0021',
+        fiscalNumber: '0021',
+        closureNumber: '0003',
       },
     });
 
@@ -151,7 +154,7 @@ describe('il dispositivo si lega alla sessione — C1C su PostgreSQL TEST', () =
     const r = await prisma.fiscalReceipt.findUnique({ where: { id: ricevuta.id } });
     expect(s?.fiscalDeviceId).toBe(device.id);
     expect(r?.deviceId).toBe(device.id);
-    expect(r?.fiscalNumber).toBe('0003-0021');
+    expect(r?.fiscalNumber).toBe('0021');
   });
 
   /**

@@ -2487,6 +2487,28 @@ model DocumentLine {
   tenantId                 String                 @map("tenant_id") @db.Uuid
   documentId               String                 @map("document_id") @db.Uuid
   lineNumber               Int                    @map("line_number")
+  /// ⭐ La riga di VENDITA che questa riga di reso rettifica (tranche C4R,
+  /// `docs/25` §12). Un solo significato:
+  ///
+  ///   questa riga `store_return` restituisce quantita' e valore della
+  ///   PRECISA riga di vendita indicata.
+  ///
+  /// ⛔ NON si chiama `sourceDocumentLineId`, e il nome e' la decisione: quel
+  /// nome esiste gia' come riferimento TRANSIENTE per duplicazioni e
+  /// conversioni — `CreateDocumentLineDto`, con un `FormControl` omonimo lato
+  /// client — e `regole-gestionale` dice «il riferimento non si persiste».
+  /// Una colonna cosi' chiamata si riempirebbe di legami di derivazione dal
+  /// primo salvataggio, dentro un campo che significa un'altra cosa.
+  ///
+  /// ⚠️ `NULL` su tutte le righe che non sono resi collegati, e sui 15 resi
+  /// STORICI: la loro origine non e' ricostruibile, e dedurla per variante o
+  /// per prezzo sarebbe inventarla. Nel registro si leggono come
+  /// «Reso storico — origine non disponibile».
+  ///
+  /// ⛔ Obbligatorio a livello di SERVIZIO per ogni riga di reso creata dalla
+  /// Cassa: il database lo ammette nullo perche' deve ammettere le righe che
+  /// resi non sono.
+  returnedFromLineId       String?                @map("returned_from_line_id") @db.Uuid
   /// Nullable: riga non a magazzino (spesa/servizio) o articolo non ancora identificato.
   variantId                String?                @map("variant_id") @db.Uuid
   sku                      String?
@@ -2602,9 +2624,21 @@ model DocumentLine {
   vatCode            VatCode?           @relation(fields: [vatCodeId], references: [id], onDelete: SetNull)
   inventorySerials   InventorySerial[]
 
+  /// ⛔ `Restrict`, mai `SetNull`: azzerare il riferimento perderebbe
+  /// l'origine IN SILENZIO, ed e' un collegamento permanente quanto quello
+  /// fra ricevute fiscali.
+  ///
+  /// ⚠️ MISURATO: con questa FK il `Cascade` da `documents` non puo' piu'
+  /// attraversare le righe — cancellare la vendita mentre un reso la
+  /// referenzia da' 23503. E' la protezione, non un effetto collaterale.
+  returnSourceLine DocumentLine?  @relation("DocumentLineReturn", fields: [returnedFromLineId], references: [id], onDelete: Restrict)
+  returnLines      DocumentLine[] @relation("DocumentLineReturn")
+
+  @@unique([documentId, returnedFromLineId])
   @@index([documentId])
   @@index([tenantId])
   @@index([linkedGoodsReceiptId])
+  @@index([returnedFromLineId])
   @@map("document_lines")
 }
 
@@ -3496,8 +3530,23 @@ model FiscalReceipt {
   documentId        String              @unique @map("document_id") @db.Uuid
   deviceId          String?             @map("device_id") @db.Uuid
   status            FiscalReceiptStatus @default(pending)
+  /// MATRICOLA del dispositivo emittente, congelata sulla ricevuta: gemella
+  /// di `FiscalDevice.serialNumber` («finisce sul documento commerciale»).
   serialNumber      String?             @map("serial_number")
+  /// Progressivo del DOCUMENTO COMMERCIALE, e nient'altro.
+  ///
+  /// ⛔ Da C4R NON contiene piu' forme composte. L'unica implementazione mai
+  /// scritta — nel ramo storico, non normativo — ci infilava dentro il numero
+  /// di chiusura come prefisso (`0012-0034`), con degrado silenzioso al solo
+  /// numero quando la chiusura mancava. Nel dominio i due dati restano
+  /// separati; a comporli sara' l'adapter, se un protocollo lo richiede.
   fiscalNumber      String?             @map("fiscal_number")
+  /// Numero di CHIUSURA/AZZERAMENTO (Z) sotto cui la ricevuta e' stata
+  /// emessa: serve a richiamare fiscalmente l'originale da un reso.
+  ///
+  /// ⚠️ Testo e non intero: puo' avere zeri iniziali, e perderli significa
+  /// non poterlo piu' confrontare con lo scontrino di carta.
+  closureNumber     String?             @map("closure_number")
   issuedAt          DateTime?           @map("issued_at")
   /// Ricevuta annullata da questa (annullo/reso): auto-relazione.
   originalReceiptId String?             @map("original_receipt_id") @db.Uuid
@@ -3514,7 +3563,10 @@ model FiscalReceipt {
   /// renderebbe la ricevuta non riconciliabile con la chiusura che la
   /// contiene — e lo farebbe in silenzio.
   device   FiscalDevice?   @relation(fields: [deviceId], references: [id], onDelete: Restrict)
-  original FiscalReceipt?  @relation("FiscalReceiptOriginal", fields: [originalReceiptId], references: [id], onDelete: SetNull)
+  /// ⛔ `Restrict` da C4R: una ricevuta richiamata da un reso non si cancella
+  /// e non si scollega. Stesso principio della self-FK delle righe, e il
+  /// precedente motivato e' qui accanto (`device`, da C1C).
+  original FiscalReceipt?  @relation("FiscalReceiptOriginal", fields: [originalReceiptId], references: [id], onDelete: Restrict)
   derived  FiscalReceipt[] @relation("FiscalReceiptOriginal")
 
   @@index([tenantId, status])
