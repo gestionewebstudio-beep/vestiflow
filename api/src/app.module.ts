@@ -13,6 +13,7 @@ import { DocumentsModule } from './documents/documents.module';
 import { TenantModule } from './tenant/tenant.module';
 import { OnlineSalesModule } from './online-sales/online-sales.module';
 import { SalesOrdersModule } from './sales-orders/sales-orders.module';
+import { CashSessionsModule } from './cash-sessions/cash-sessions.module';
 import { StoreSalesModule } from './store-sales/store-sales.module';
 import { ShopifyModule } from './shopify/shopify.module';
 import { TikTokModule } from './tiktok/tiktok.module';
@@ -55,6 +56,7 @@ import { UserPreferencesModule } from './user-preferences/user-preferences.modul
     CustomersModule,
     SalesOrdersModule,
     OnlineSalesModule,
+    CashSessionsModule,
     StoreSalesModule,
     CorrispettiviModule,
     // La quarta sorgente del Registro: registrazione economica autonoma, senza

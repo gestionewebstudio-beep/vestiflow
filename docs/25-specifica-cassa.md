@@ -12,20 +12,22 @@ banco**. Scritta il 04/09/2026 come tranche **C0** del recupero da
 
 ## 0. Le decisioni vigenti
 
-| #   | Decisione                                                                                     | Dove si argomenta |
-| --- | --------------------------------------------------------------------------------------------- | ----------------- |
-| 1   | Vendita al banco e Cassa sono **due flussi distinti**, su **rotte separate**                  | §1, §3            |
-| 2   | La Cassa produce una **normale `store_sale`**: nessun secondo documento economico             | §4                |
-| 3   | La Vendita al banco conserva `cash \| card \| other`; la **Cassa usa `PaymentOption`**        | §5                |
-| 4   | «Misto» è **calcolato a lettura dalle quote**, mai persistito                                 | §6                |
-| 5   | `PaymentOption` va esteso: la migration è di **C2A**. la classe operativa è **C2B**           | §7                |
-| 6   | Le sei tabelle esistono già nel database: **non si ricreano**                                 | §8                |
-| 7   | Una sede ha **principale + riserva**, non due postazioni. Il dispositivo è **della sessione** | §10               |
-| 8   | Ogni RT ha **numerazione e chiusura proprie**: si conserva sempre **chi ha emesso**           | §10               |
-| 9   | La Cassa classifica i Tipi pagamento con `PaymentTenderKind`: **operativa**, non fiscale      | §7                |
-| 10  | La rappresentazione fiscale AdE e il protocollo del dispositivo stanno in **C5**              | §10, §15          |
-| 11  | Il contante si **conta**, l'elettronico si **riconcilia**: sono due gesti diversi             | §9                |
-| 12  | I cambi di dispositivo hanno uno **storico append-only**, non una colonna riscritta           | §10               |
+| #   | Decisione                                                                                        | Dove si argomenta |
+| --- | ------------------------------------------------------------------------------------------------ | ----------------- |
+| 1   | Vendita al banco e Cassa sono **due flussi distinti**, su **rotte separate**                     | §1, §3            |
+| 2   | La Cassa produce una **normale `store_sale`**: nessun secondo documento economico                | §4                |
+| 3   | La Vendita al banco conserva `cash \| card \| other`; la **Cassa usa `PaymentOption`**           | §5                |
+| 4   | «Misto» è **calcolato a lettura dalle quote**, mai persistito                                    | §6                |
+| 5   | `PaymentOption` va esteso: la migration è di **C2A**. la classe operativa è **C2B**              | §7                |
+| 6   | Le sei tabelle esistono già nel database: **non si ricreano**                                    | §8                |
+| 7   | Una sede ha **principale + riserva**, non due postazioni. Il dispositivo è **della sessione**    | §10               |
+| 8   | Ogni RT ha **numerazione e chiusura proprie**: si conserva sempre **chi ha emesso**              | §10               |
+| 9   | La Cassa classifica i Tipi pagamento con `PaymentTenderKind`: **operativa**, non fiscale         | §7                |
+| 10  | La rappresentazione fiscale AdE e il protocollo del dispositivo stanno in **C5**                 | §10, §15          |
+| 11  | Il contante si **conta**, l'elettronico si **riconcilia**: sono due gesti diversi                | §9                |
+| 12  | I cambi di dispositivo hanno uno **storico append-only**, non una colonna riscritta              | §10               |
+| 13  | **C3, C4 e C4B non si rilasciano separatamente**: nessuna chiusura provvisoria                   | §13               |
+| 14  | Tre permessi: `retail.register` vede, `retail.cash_session` apre, `retail.cash_drawer` movimenta | §13               |
 
 In caso di contrasto fra questo elenco e il corpo del documento, **vale l'elenco**.
 
@@ -1134,6 +1136,89 @@ assenza costa una doppia emissione.
 
 ---
 
+## 13-bis. C3 — validatore, sessione, cassetto, dispositivo
+
+⭐ **Realizzata il 04/09/2026.** Non c'è la chiusura, e non è una dimenticanza.
+
+### ⛔ Nessuna chiusura provvisoria, e il rilascio è unico
+
+Deciso dal proprietario: **C3, C4 e C4B non saranno rilasciate o rese accessibili
+separatamente**, e non si crea una chiusura amministrativa con attesi `NULL`.
+
+⚠️ Ne discende un vincolo operativo da tenere presente: **una sessione aperta da C3 non ha
+modo di chiudersi** finché C4B non esiste, e l'indice parziale impedisce di aprirne una
+seconda sulla stessa sede. È accettabile **solo** perché la funzione non è accessibile
+all'utente — nessun menu, nessuna schermata.
+
+### Il validatore, e cosa NON duplica
+
+```text
+assertCashContext(tx, tenantId, user, { locationId, sessionId?, deviceId?, comeOperativo? })
+```
+
+⛔ **Riceve la TRANSAZIONE**, mai il client globale: fra un controllo fuori transazione e la
+scrittura che lo presuppone, la sessione può chiudersi e il dispositivo essere disabilitato.
+
+⛔ **Il tenant arriva dall'utente autenticato**, mai dal payload.
+
+⭐ **Riusa `assertLocationInUserScope`** — già in 61 punti, e sorvegliata da
+`check:location-scope` dal confine controller→servizio. Non è stato creato un secondo
+sistema di scoping.
+
+⚠️ **Gli errori non distinguono** «di un altro tenant», «di un'altra sede» e «inesistente»:
+distinguerli trasformerebbe l'endpoint in un modo per scoprire cosa esiste altrove.
+
+### Il registro degli adapter è VUOTO, ed è il comportamento voluto
+
+`isFiscalAdapterRegistered` legge una whitelist **nel codice** (`api/src/fiscal/`). Oggi non
+contiene nulla: C3 non fiscalizza.
+
+|                                           |                                                 |
+| ----------------------------------------- | ----------------------------------------------- |
+| censire un dispositivo                    | ✅ si può                                       |
+| aprire una sessione **senza** dispositivo | ✅ si può: quella sede non fiscalizza           |
+| **selezionarlo come operativo**           | ⛔ no, finché il suo adapter non esiste davvero |
+
+⭐ Meglio non poter emettere che credere di poterlo fare. E la chiave non diventa mai il
+nome di qualcosa da caricare: nessun import dinamico, nessun percorso, nessun URL.
+
+### Le API
+
+```text
+GET   /cash-sessions/current?locationId       retail.register     sessione + totali cassetto
+POST  /cash-sessions/open                     retail.cash_session apertura
+GET   /cash-sessions/:id/movements            retail.register
+POST  /cash-sessions/:id/movements            retail.cash_drawer  versamento o prelievo
+GET   /cash-sessions/:id/device-changes       retail.register     lo storico
+POST  /cash-sessions/:id/device               retail.cash_session cambio o rimozione
+```
+
+⛔ **Nessun `DELETE`, `PUT` o `PATCH`**, e non per stile: `check:cassa-append-only` fa
+fallire la build. Il cambio dispositivo è un `POST` perché **non è una modifica della
+sessione**: è un evento che si aggiunge allo storico, e di cui la sessione porta il
+risultato corrente.
+
+⛔ **Nessuna rotta identificata dalla sola sede**: la sede è una _query_, la sessione un
+_path parameter_. Il vecchio ramo aveva `PUT /fiscal-devices/{locationId}`, che con più
+dispositivi non sa quale modificare.
+
+### ⭐ Il prelievo NON è bloccato dal saldo teorico
+
+Comportamento **dichiarato**, non dedotto: un prelievo maggiore del contante calcolato
+passa. Il cassetto reale può divergere dal calcolo — è ciò che la quadratura serve a far
+emergere — e rifiutarlo impedirebbe di registrare quello che è successo davvero.
+
+### ⚠️ Due prove che sembravano dimostrare, e non dimostravano
+
+Misurato provando a falsificarle:
+
+| Prova                            | Che cosa si è scoperto                                                                                                                                                                                                                                                  |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| due aperture con `Promise.all`   | ⛔ **resta verde anche togliendo l'indice parziale**: le due transazioni si serializzano abbastanza da far vedere alla seconda la sessione della prima, e a fermarla è il controllo applicativo. Serve una prova che interroghi il **database** scavalcando il servizio |
+| il CHECK «almeno un dispositivo» | rimosso: implicato da `IS DISTINCT FROM` (rifinitura di C2C)                                                                                                                                                                                                            |
+
+---
+
 ## 14. Riuso: cosa si condivide e cosa resta distinto
 
 ⛔ **Non si copia la maschera Vendita al banco per costruire la Cassa**, e non si copia il
@@ -1209,19 +1294,19 @@ il componente non filtra il catalogo, lo riceve già filtrato.
 
 ## 15. La sequenza
 
-| Tranche | Contenuto                                                                                                                                     | Migration               |
-| ------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
-| **C0**  | questa specifica, separazione delle rotte, contratto transitorio dei pagamenti, censimento `PaymentOption`                                    | ⛔ nessuna              |
-| **C1**  | modelli Prisma delle tabelle Cassa **già esistenti**, relazioni, prove di schema e isolamento                                                 | ⛔ nessuna              |
-| **C1B** | neutralizzazione dell'infrastruttura fiscale: nessuna assunzione su produttore, LAN, browser o «un solo dispositivo per sede»                 | ✅ additiva/compatibile |
-| **C1C** | il dispositivo fiscale si lega alla **sessione**; `fiscal_receipts.device_id` smette di perdere chi ha emesso                                 | ✅ additiva + FK        |
-| **C2A** | catalogo globale delle Modalità normative, codice FatturaPA strutturato, FK nullable da `PaymentOption`, backfill esplicito, Impostazioni     | ✅ additiva, nullable   |
-| **C2B** | classificazione **operativa** dei Tipi pagamento per il checkout (`PaymentTenderKind`), backfill dichiarato, Impostazioni, backup             | ✅ additiva, nullable   |
-| **C2C** | consolidamento dello schema dormiente: vocabolario della chiusura secondo C2B, storico append-only dei cambi dispositivo                      | ✅ rinomina + tabella   |
-| **C3**  | **isolamento tenant/location** e **ciclo della sessione**: apertura, chiusura, fondo, movimenti di cassetto, conteggio, differenze            | —                       |
-| **C4**  | **checkout**: quote, pagamento misto, resto, carta rifiutata, creazione idempotente, `store_sale_payments` (contratto in §5-bis)              | ✅ prevista             |
-| **C5**  | **fiscalizzazione provider-neutral**: rappresentazione fiscale AdE, adapter, trasporto, dispositivo reale. Nessun produttore è predeterminato | —                       |
-| _poi_   | migrazione della **Vendita al banco** da `cash \| card \| other` a `PaymentOption`                                                            | tranche **autonoma**    |
+| Tranche | Contenuto                                                                                                                                                 | Migration               |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| **C0**  | questa specifica, separazione delle rotte, contratto transitorio dei pagamenti, censimento `PaymentOption`                                                | ⛔ nessuna              |
+| **C1**  | modelli Prisma delle tabelle Cassa **già esistenti**, relazioni, prove di schema e isolamento                                                             | ⛔ nessuna              |
+| **C1B** | neutralizzazione dell'infrastruttura fiscale: nessuna assunzione su produttore, LAN, browser o «un solo dispositivo per sede»                             | ✅ additiva/compatibile |
+| **C1C** | il dispositivo fiscale si lega alla **sessione**; `fiscal_receipts.device_id` smette di perdere chi ha emesso                                             | ✅ additiva + FK        |
+| **C2A** | catalogo globale delle Modalità normative, codice FatturaPA strutturato, FK nullable da `PaymentOption`, backfill esplicito, Impostazioni                 | ✅ additiva, nullable   |
+| **C2B** | classificazione **operativa** dei Tipi pagamento per il checkout (`PaymentTenderKind`), backfill dichiarato, Impostazioni, backup                         | ✅ additiva, nullable   |
+| **C2C** | consolidamento dello schema dormiente: vocabolario della chiusura secondo C2B, storico append-only dei cambi dispositivo                                  | ✅ rinomina + tabella   |
+| **C3**  | ✅ validatore transazionale, apertura, sessione corrente, scelta e cambio dispositivo con storico, versamenti e prelievi. ⛔ **senza chiusura**: è di C4B | ⛔ nessuna              |
+| **C4**  | **checkout**: quote, pagamento misto, resto, carta rifiutata, creazione idempotente, `store_sale_payments` (contratto in §5-bis)                          | ✅ prevista             |
+| **C5**  | **fiscalizzazione provider-neutral**: rappresentazione fiscale AdE, adapter, trasporto, dispositivo reale. Nessun produttore è predeterminato             | —                       |
+| _poi_   | migrazione della **Vendita al banco** da `cash \| card \| other` a `PaymentOption`                                                                        | tranche **autonoma**    |
 
 ⛔ **Non si comincia una tranche lasciando rossa la precedente.**
 

@@ -27,6 +27,10 @@ export const TenantPermission = {
   CatalogDelete: 'catalog.delete',
   CatalogViewPurchaseCosts: 'catalog.view_purchase_costs',
   RetailRegister: 'retail.register',
+  /** Aprire la sessione di cassa e cambiare dispositivo (`docs/25` §13). */
+  RetailCashSession: 'retail.cash_session',
+  /** Versamenti e prelievi dal cassetto: separato, perche' piu' delicato. */
+  RetailCashDrawer: 'retail.cash_drawer',
   ReportsExport: 'reports.export',
   SettingsCompany: 'settings.company',
   /**
@@ -316,6 +320,8 @@ const MANAGER_DEFAULTS: readonly TenantPermissionKey[] = [
   TenantPermission.CatalogImportExport,
   TenantPermission.CatalogViewPurchaseCosts,
   TenantPermission.RetailRegister,
+  TenantPermission.RetailCashSession,
+  TenantPermission.RetailCashDrawer,
   TenantPermission.ReportsExport,
   TenantPermission.DocumentsConfigure,
   TenantPermission.ReportsFiscalRegister,
