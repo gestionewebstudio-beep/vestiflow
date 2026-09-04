@@ -564,11 +564,13 @@ describe('chiusura di cassa — C4B su PostgreSQL TEST', () => {
           type: DocumentType.store_sale,
           series: serie,
         });
+        cancello.segnalaPresa();
         await cancello.attesa;
       },
       { timeout: 30_000, maxWait: 30_000 },
     );
-    await attendi(150);
+    // ⭐ Si aspetta che il lock sia PRESO, non che siano passati 150 ms.
+    await cancello.preso;
 
     const vendita = sorvegliata(
       checkout.checkout(tenant, utente(tenant), {
@@ -625,11 +627,13 @@ describe('chiusura di cassa — C4B su PostgreSQL TEST', () => {
           type: DocumentType.store_return,
           series: serie,
         });
+        cancello.segnalaPresa();
         await cancello.attesa;
       },
       { timeout: 30_000, maxWait: 30_000 },
     );
-    await attendi(150);
+    // ⭐ Si aspetta che il lock sia PRESO, non che siano passati 150 ms.
+    await cancello.preso;
 
     const reso = sorvegliata(
       resi.createReturn(tenant, utente(tenant), {
@@ -679,11 +683,13 @@ describe('chiusura di cassa — C4B su PostgreSQL TEST', () => {
           `SELECT "id" FROM "cash_sessions" WHERE "id" = $1::uuid FOR UPDATE`,
           s,
         );
+        cancello.segnalaPresa();
         await cancello.attesa;
       },
       { timeout: 30_000, maxWait: 30_000 },
     );
-    await attendi(150);
+    // ⭐ Si aspetta che il lock sia PRESO, non che siano passati 150 ms.
+    await cancello.preso;
 
     // La chiusura si mette in coda per prima…
     const chiude = sorvegliata(
@@ -728,11 +734,13 @@ describe('chiusura di cassa — C4B su PostgreSQL TEST', () => {
           `SELECT "id" FROM "cash_sessions" WHERE "id" = $1::uuid FOR UPDATE`,
           s,
         );
+        cancello.segnalaPresa();
         await cancello.attesa;
       },
       { timeout: 30_000, maxWait: 30_000 },
     );
-    await attendi(150);
+    // ⭐ Si aspetta che il lock sia PRESO, non che siano passati 150 ms.
+    await cancello.preso;
 
     const versa = sorvegliata(
       sessioni.addMovement(tenant, utente(tenant), sede, s, {
@@ -825,11 +833,13 @@ describe('chiusura di cassa — C4B su PostgreSQL TEST', () => {
           `SELECT "id" FROM "cash_sessions" WHERE "id" = $1::uuid FOR UPDATE`,
           sessionId,
         );
+        cancello.segnalaPresa();
         await cancello.attesa;
       },
       { timeout: 30_000, maxWait: 30_000 },
     );
-    await attendi(150);
+    // ⭐ Si aspetta che il lock sia PRESO, non che siano passati 150 ms.
+    await cancello.preso;
 
     const inCorso = sorvegliata(azione());
     await attendi(300);
@@ -844,13 +854,29 @@ describe('chiusura di cassa — C4B su PostgreSQL TEST', () => {
 
 // ── Aiutanti ───────────────────────────────────────────────────────────────
 
-/** Un cancello che si apre a comando. */
-function apriCancello(): { attesa: Promise<void>; apri: () => void } {
+/**
+ * Un cancello che si apre a comando, e che dichiara quando il lock e` PRESO.
+ *
+ * ⛔ **`preso` non e` un lusso.** Senza, la prova aspetta un ritardo fisso e
+ * presume che la transazione abbia gia` bloccato la riga: sotto carico non
+ * l'ha bloccata, l'operazione parte libera e la prova accusa il prodotto per
+ * un difetto proprio. Misurato il 04/09/2026.
+ */
+function apriCancello(): {
+  attesa: Promise<void>;
+  apri: () => void;
+  preso: Promise<void>;
+  segnalaPresa: () => void;
+} {
   let apri!: () => void;
+  let segnalaPresa!: () => void;
   const attesa = new Promise<void>((res) => {
     apri = res;
   });
-  return { attesa, apri };
+  const preso = new Promise<void>((res) => {
+    segnalaPresa = res;
+  });
+  return { attesa, apri, preso, segnalaPresa };
 }
 
 function attendi(ms: number): Promise<void> {
