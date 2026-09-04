@@ -282,7 +282,13 @@ export class CashSessionsService {
           id: sessione.id,
           tenantId,
           status: 'open',
-          // ⭐ È questa riga a chiudere la corsa fra due cambi simultanei.
+          // ⚠️ **Non è più questa riga a chiudere la corsa**: da quando il
+          //    validatore blocca la sessione (`docs/25` §13-sexies) due cambi
+          //    simultanei si serializzano, e il secondo legge un «precedente»
+          //    già aggiornato — quindi passa, e si applica sopra il primo.
+          //
+          // ⭐ Resta come RETE: regge se un percorso futuro scrivesse questa
+          //    riga senza passare dal validatore.
           fiscalDeviceId: precedente,
         },
         data: { fiscalDeviceId: input.fiscalDeviceId },

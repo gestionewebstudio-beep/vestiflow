@@ -1,4 +1,5 @@
 import { ConflictException, UnprocessableEntityException } from '@nestjs/common';
+import { DocumentType } from '@prisma/client';
 import type { PrismaClient } from '@prisma/client';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
@@ -8,6 +9,8 @@ import { CashClosingService } from '../../cash-sessions/cash-closing.service';
 import { CashReturnService } from '../../cash-sessions/cash-return.service';
 import { CashSessionsService } from '../../cash-sessions/cash-sessions.service';
 import { CreationIntentService } from '../../common/idempotency/creation-intent.util';
+import { withFiscalAdapters } from '../../fiscal/fiscal-adapter-registry';
+import { lockDocumentCounter } from '../../documents/document-numbering.util';
 import { DocumentSettingsService } from '../../documents/document-settings.service';
 
 import { creaClientIntegrazione } from './prisma';
@@ -36,12 +39,15 @@ describe('chiusura di cassa — C4B su PostgreSQL TEST', () => {
   let resi: CashReturnService;
   let sessioni: CashSessionsService;
   let chiusura: CashClosingService;
+  let impostazioni: DocumentSettingsService;
 
   let tenant = '';
   let sede = '';
   let variante = '';
   let contanti = '';
   let carta = '';
+  let dispositivo = '';
+  let ripristinaAdapter: (() => void) | null = null;
 
   const utente = (tenantId: string, sedi?: string[]): UserProfileDto =>
     ({
@@ -73,6 +79,7 @@ describe('chiusura di cassa — C4B su PostgreSQL TEST', () => {
     );
     sessioni = new CashSessionsService(finto);
     chiusura = new CashClosingService(finto);
+    impostazioni = new DocumentSettingsService(finto);
 
     await pulisci(prisma);
     tenant = await creaTenant(prisma);
@@ -80,6 +87,20 @@ describe('chiusura di cassa — C4B su PostgreSQL TEST', () => {
     variante = await creaVariante(prisma, tenant);
     contanti = await creaTipo(prisma, tenant, 'Contanti', 'cash', 1);
     carta = await creaTipo(prisma, tenant, 'Carta', 'electronic', 2);
+    // ⚠️ Un adapter finto: il registro nasce VUOTO (C1B), e senza una chiave
+    //    riconosciuta un dispositivo non si può rendere operativo.
+    ripristinaAdapter = withFiscalAdapters(['collaudo-c4b']);
+    const d = await prisma.fiscalDevice.create({
+      data: {
+        tenantId: tenant,
+        locationId: sede,
+        brand: 'other',
+        adapterKey: 'collaudo-c4b',
+        enabled: true,
+        notes: PREFISSO,
+      },
+    });
+    dispositivo = d.id;
   }, 120_000);
 
   afterEach(async () => {
@@ -87,6 +108,8 @@ describe('chiusura di cassa — C4B su PostgreSQL TEST', () => {
   });
 
   afterAll(async () => {
+    ripristinaAdapter?.();
+    ripristinaAdapter = null;
     if (prisma) {
       await pulisci(prisma);
       await prisma.$disconnect();
@@ -471,9 +494,324 @@ describe('chiusura di cassa — C4B su PostgreSQL TEST', () => {
       chiusura.close(tenant, utente(tenant), sede, suaSessione.id, { countedCashMinor: 0 }),
     ).rejects.toThrow();
   });
+
+  // ── La SERIALIZZAZIONE con le altre operazioni ────────────────────────────
+
+  /**
+   * ⭐ **Il punto comune è il validatore**, non i singoli servizi: se ogni
+   * operazione prendesse un lock suo, basterebbe dimenticarne uno perché la
+   * quadratura tornasse a poter perdere pezzi.
+   *
+   * Qui la riga `cash_sessions` viene bloccata DA FUORI, e si verifica che
+   * ogni operazione della sessione **attenda**.
+   *
+   * ⛔ **Da sola questa prova NON dimostra la mutua esclusione**, e va detto
+   * perché sembra dimostrarla: misurata il 04/09/2026 **prima** del lock nel
+   * validatore, passava già per cinque operazioni su sei. Il motivo è che
+   * PostgreSQL prende da solo un `FOR KEY SHARE` sulla riga padre quando si
+   * inserisce un figlio — un documento, un movimento — e quello confligge
+   * con un `FOR UPDATE` esterno. Ma due `FOR KEY SHARE` sono **compatibili
+   * fra loro**: la chiusura poteva leggere e congelare mentre una vendita
+   * era in volo.
+   *
+   * ⭐ A dimostrare la serializzazione sono le tre prove qui sotto, che
+   * mettono davvero in corsa la chiusura con un’altra operazione. Questa
+   * resta perché coglie una regressione diversa: un’operazione che smettesse
+   * di passare dal validatore.
+   */
+  describe.each([
+    ['checkout', 'vendita'],
+    ['reso', 'reso'],
+    ['versamento', 'movimento di cassetto'],
+    ['prelievo', 'movimento di cassetto'],
+    ['cambio dispositivo', 'dispositivo'],
+    ['chiusura', 'chiusura'],
+  ])('ogni operazione passa dal lock di sessione — %s', (operazione) => {
+    it('attende finché la riga della sessione è bloccata', async () => {
+      const s = await apri(0);
+      const preparata = await preparaOperazione(operazione, s);
+
+      const { bloccata, esito } = await conRigaBloccata(s, preparata);
+
+      // ⭐ Non era ancora conclusa mentre il lock era tenuto da altri.
+      expect(bloccata).toBe(true);
+      // …e appena liberata, conclude.
+      expect(esito.status).toBe('fulfilled');
+    });
+  });
+
+  /**
+   * ⛔ **Il caso che la sola concorrenza fra due `close` non prende.**
+   *
+   * Una vendita è IN VOLO: ha superato il validatore ed è ferma sul
+   * numeratore. Senza un lock sulla sessione la chiusura passa oltre, calcola
+   * gli attesi senza vederla, congela e chiude — e un attimo dopo la vendita
+   * si conferma su una sessione chiusa, **fuori dalla quadratura**.
+   *
+   * ⭐ Con il lock nel validatore la chiusura ASPETTA, e la vendita entra.
+   */
+  it('una vendita IN VOLO non resta fuori dagli attesi congelati', async () => {
+    const s = await apri(0);
+    const serie = (await impostazioni.getResolved(tenant, DocumentType.store_sale)).defaultSeries;
+
+    // Il numeratore viene bloccato da fuori: la vendita si fermerà lì, DOPO
+    // essere passata dal validatore.
+    const cancello = apriCancello();
+    const tenuta = prisma.$transaction(
+      async (tx) => {
+        await lockDocumentCounter(tx as never, {
+          tenantId: tenant,
+          type: DocumentType.store_sale,
+          series: serie,
+        });
+        await cancello.attesa;
+      },
+      { timeout: 30_000, maxWait: 30_000 },
+    );
+    await attendi(150);
+
+    const vendita = sorvegliata(
+      checkout.checkout(tenant, utente(tenant), {
+        locationId: sede,
+        sessionId: s,
+        creationIntentId: `${PREFISSO}-involo`,
+        lines: [{ variantId: variante, quantity: 1, unitPriceMinor: 10_000 }],
+        payments: [{ paymentOptionId: contanti, amountMinor: 10_000, tenderedMinor: 10_000 }],
+      }),
+    );
+    await attendi(250);
+    expect(vendita.conclusa()).toBe(false); // ferma sul numeratore
+
+    const chiude = sorvegliata(
+      chiusura.close(tenant, utente(tenant), sede, s, { countedCashMinor: 10_000 }),
+    );
+    await attendi(250);
+    // ⭐ La chiusura NON è passata oltre: sta aspettando la vendita in volo.
+    expect(chiude.conclusa()).toBe(false);
+
+    cancello.apri();
+    await tenuta;
+
+    const venduta = await vendita.promessa;
+    const chiusa = await chiude.promessa;
+
+    const documento = await prisma.document.findUniqueOrThrow({
+      where: { id: venduta.documentId },
+    });
+    expect(documento.status).toBe('confirmed');
+    // ⛔ L’invariante: confermata E dentro gli attesi congelati.
+    expect(chiusa.expectedCashMinor).toBe(10_000);
+    const salvata = await prisma.cashSession.findUniqueOrThrow({ where: { id: s } });
+    expect(salvata.expectedCashMinor).toBe(10_000);
+  });
+
+  /**
+   * ⭐ L’altro verso: **la chiusura arriva prima**. L’operazione attende, poi
+   * trova la sessione chiusa e viene RIFIUTATA — non si infila dopo il
+   * congelamento.
+   */
+  it('chiusura prima: il movimento attende e poi viene rifiutato', async () => {
+    const s = await apri(5_000);
+
+    const cancello = apriCancello();
+    const tenuta = prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRawUnsafe(
+          `SELECT "id" FROM "cash_sessions" WHERE "id" = $1::uuid FOR UPDATE`,
+          s,
+        );
+        await cancello.attesa;
+      },
+      { timeout: 30_000, maxWait: 30_000 },
+    );
+    await attendi(150);
+
+    // La chiusura si mette in coda per prima…
+    const chiude = sorvegliata(
+      chiusura.close(tenant, utente(tenant), sede, s, { countedCashMinor: 5_000 }),
+    );
+    await attendi(200);
+    // …e il versamento dopo di lei.
+    const versa = sorvegliata(
+      sessioni.addMovement(tenant, utente(tenant), sede, s, {
+        type: 'deposit',
+        amountMinor: 3_000,
+        reason: 'versamento in coda',
+      }),
+    );
+    await attendi(200);
+    expect(chiude.conclusa()).toBe(false);
+    expect(versa.conclusa()).toBe(false);
+
+    cancello.apri();
+    await tenuta;
+
+    const chiusa = await chiude.promessa;
+    // ⛔ Il versamento non entra: la sessione è chiusa.
+    await expect(versa.promessa).rejects.toThrow();
+
+    expect(chiusa.expectedCashMinor).toBe(5_000);
+    const movimenti = await prisma.cashSessionMovement.count({ where: { sessionId: s } });
+    expect(movimenti).toBe(0);
+  });
+
+  /**
+   * ⭐ E il verso opposto sullo stesso movimento: se arriva prima lui, la
+   * chiusura lo aspetta e lo CONTA.
+   */
+  it('movimento prima: la chiusura lo aspetta e lo conta', async () => {
+    const s = await apri(5_000);
+
+    const cancello = apriCancello();
+    const tenuta = prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRawUnsafe(
+          `SELECT "id" FROM "cash_sessions" WHERE "id" = $1::uuid FOR UPDATE`,
+          s,
+        );
+        await cancello.attesa;
+      },
+      { timeout: 30_000, maxWait: 30_000 },
+    );
+    await attendi(150);
+
+    const versa = sorvegliata(
+      sessioni.addMovement(tenant, utente(tenant), sede, s, {
+        type: 'deposit',
+        amountMinor: 3_000,
+        reason: 'versamento in testa',
+      }),
+    );
+    await attendi(200);
+    const chiude = sorvegliata(
+      chiusura.close(tenant, utente(tenant), sede, s, { countedCashMinor: 8_000 }),
+    );
+    await attendi(200);
+    expect(versa.conclusa()).toBe(false);
+    expect(chiude.conclusa()).toBe(false);
+
+    cancello.apri();
+    await tenuta;
+
+    await versa.promessa;
+    const chiusa = await chiude.promessa;
+
+    // ⭐ 5.000 di fondo + 3.000 versati.
+    expect(chiusa.expectedCashMinor).toBe(8_000);
+    expect(chiusa.depositsMinor).toBe(3_000);
+    expect(chiusa.cashDifferenceMinor).toBe(0);
+  });
+
+  /** Prepara l_operazione da provare contro il lock, senza eseguirla. */
+  async function preparaOperazione(operazione: string, sessionId: string): Promise<() => Promise<unknown>> {
+    if (operazione === 'checkout') {
+      return () =>
+        checkout.checkout(tenant, utente(tenant), {
+          locationId: sede,
+          sessionId,
+          creationIntentId: `${PREFISSO}-lock-checkout-${sessionId}`,
+          lines: [{ variantId: variante, quantity: 1, unitPriceMinor: 10_000 }],
+          payments: [{ paymentOptionId: contanti, amountMinor: 10_000, tenderedMinor: 10_000 }],
+        });
+    }
+    if (operazione === 'reso') {
+      // Il reso ha bisogno di una vendita da rendere: la si fa PRIMA, cosi` il
+      // lock non la riguarda.
+      const v = await vendi(sessionId, 1, 'contanti', `lock-reso-v-${sessionId}`);
+      return () =>
+        resi.createReturn(tenant, utente(tenant), {
+          locationId: sede,
+          sessionId,
+          originalDocumentId: v.documentId,
+          creationIntentId: `${PREFISSO}-lock-reso-${sessionId}`,
+          reason: 'prova di lock',
+          lines: [{ originalLineId: v.lineId, quantity: 1 }],
+          refunds: [{ originalPaymentId: v.quotaId, amountMinor: 10_000 }],
+        });
+    }
+    if (operazione === 'versamento' || operazione === 'prelievo') {
+      const tipo = operazione === 'versamento' ? ('deposit' as const) : ('withdrawal' as const);
+      return () =>
+        sessioni.addMovement(tenant, utente(tenant), sede, sessionId, {
+          type: tipo,
+          amountMinor: 1_000,
+          reason: `prova di lock ${operazione}`,
+        });
+    }
+    if (operazione === 'cambio dispositivo') {
+      return () =>
+        sessioni.changeDevice(tenant, utente(tenant), sede, sessionId, {
+          // ⚠️ Un dispositivo VERO: con `null` su una sessione che non ne ha,
+          //    il servizio rifiuta PRIMA di toccare la riga, e la prova
+          //    misurerebbe quel rifiuto invece del lock.
+          fiscalDeviceId: dispositivo,
+          reason: 'prova di lock',
+        });
+    }
+    return () => chiusura.close(tenant, utente(tenant), sede, sessionId, { countedCashMinor: 0 });
+  }
+
+  /**
+   * Tiene bloccata la riga della sessione, lancia l_operazione e guarda se
+   * ATTENDE. Poi libera e restituisce l_esito.
+   */
+  async function conRigaBloccata(
+    sessionId: string,
+    azione: () => Promise<unknown>,
+  ): Promise<{ bloccata: boolean; esito: PromiseSettledResult<unknown> }> {
+    const cancello = apriCancello();
+    const tenuta = prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRawUnsafe(
+          `SELECT "id" FROM "cash_sessions" WHERE "id" = $1::uuid FOR UPDATE`,
+          sessionId,
+        );
+        await cancello.attesa;
+      },
+      { timeout: 30_000, maxWait: 30_000 },
+    );
+    await attendi(150);
+
+    const inCorso = sorvegliata(azione());
+    await attendi(300);
+    const bloccata = !inCorso.conclusa();
+
+    cancello.apri();
+    await tenuta;
+    const [esito] = await Promise.allSettled([inCorso.promessa]);
+    return { bloccata, esito: esito! };
+  }
 });
 
 // ── Aiutanti ───────────────────────────────────────────────────────────────
+
+/** Un cancello che si apre a comando. */
+function apriCancello(): { attesa: Promise<void>; apri: () => void } {
+  let apri!: () => void;
+  const attesa = new Promise<void>((res) => {
+    apri = res;
+  });
+  return { attesa, apri };
+}
+
+function attendi(ms: number): Promise<void> {
+  return new Promise((res) => setTimeout(res, ms));
+}
+
+/**
+ * Osserva una promessa senza lasciarla senza gestore.
+ *
+ * ⚠️ Il gestore si attacca SUBITO: una promessa rifiutata mentre nessuno l'
+ * ascolta produce un `Unhandled Rejection` intermittente (`docs/25` §13-bis).
+ */
+function sorvegliata<T>(promessa: Promise<T>): { promessa: Promise<T>; conclusa: () => boolean } {
+  let fatta = false;
+  promessa.then(
+    () => (fatta = true),
+    () => (fatta = true),
+  );
+  return { promessa, conclusa: () => fatta };
+}
 
 async function creaTenant(prisma: PrismaClient, n = 1): Promise<string> {
   const [r] = await prisma.$queryRawUnsafe<{ id: string }[]>(
@@ -552,6 +890,10 @@ async function svuota(prisma: PrismaClient): Promise<void> {
   );
   await prisma.$executeRawUnsafe(`DELETE FROM "documents" WHERE ${dentro}`, like);
   await prisma.$executeRawUnsafe(`DELETE FROM "cash_session_movements" WHERE ${dentro}`, like);
+  await prisma.$executeRawUnsafe(
+    `DELETE FROM "cash_session_device_changes" WHERE ${dentro}`,
+    like,
+  );
   await prisma.$executeRawUnsafe(`DELETE FROM "cash_sessions" WHERE ${dentro}`, like);
   await prisma.$executeRawUnsafe(`DELETE FROM "creation_intents" WHERE ${dentro}`, like);
   await prisma.$executeRawUnsafe(`DELETE FROM "inventory_levels" WHERE ${dentro}`, like);
@@ -562,6 +904,7 @@ async function pulisci(prisma: PrismaClient): Promise<void> {
   const like = `${PREFISSO}%`;
   const dentro = `"tenant_id" IN (SELECT "id" FROM "tenants" WHERE "name" LIKE $1)`;
   await svuota(prisma);
+  await prisma.$executeRawUnsafe(`DELETE FROM "fiscal_devices" WHERE ${dentro}`, like);
   await prisma.$executeRawUnsafe(`DELETE FROM "payment_options" WHERE ${dentro}`, like);
   await prisma.$executeRawUnsafe(`DELETE FROM "product_variants" WHERE ${dentro}`, like);
   await prisma.$executeRawUnsafe(`DELETE FROM "products" WHERE ${dentro}`, like);

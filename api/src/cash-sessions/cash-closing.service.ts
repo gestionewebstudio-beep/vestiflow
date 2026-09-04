@@ -62,10 +62,14 @@ export class CashClosingService {
 
       // ── 3. La chiusura, CONDIZIONATA allo stato aperto ───────────────────
       //
-      // ⛔ Due chiusure concorrenti passano entrambe dal validatore: fra la
-      //    lettura e la scrittura c'è tutto il calcolo. A decidere è questo
-      //    aggiornamento condizionale — la seconda tocca zero righe e lo
-      //    dichiara, invece di sovrascrivere una quadratura già firmata.
+      // ⭐ A decidere fra due chiusure concorrenti è il LOCK di sessione preso
+      //    dal validatore (`docs/25` §13-sexies): la seconda aspetta, e quando
+      //    tocca a lei trova la sessione già chiusa.
+      //
+      // ⚠️ Questo aggiornamento condizionale RESTA come rete: regge se un
+      //    percorso futuro scrivesse questa riga senza passare dal validatore.
+      //    Non è più il meccanismo principale, ed è il motivo per cui il
+      //    rifiuto può arrivare da due punti diversi.
       const chiusa = await tx.cashSession.updateMany({
         where: { id: sessione.id, tenantId, status: 'open' },
         data: {

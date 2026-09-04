@@ -17,6 +17,11 @@ import { assertLocationInUserScope } from '../inventory/user-location-scope.util
  * e il dispositivo può essere disabilitato: sarebbe una guardia che descrive un
  * mondo già cambiato.
  *
+ * ⭐ **È anche il PUNTO DI SERIALIZZAZIONE della sessione**: quando la richiesta
+ * nomina una sessione, qui si prende un `FOR UPDATE` sulla sua riga. Tutte le
+ * operazioni che la toccano passano di qui, quindi si mettono in fila da sole —
+ * e la chiusura non può congelare la quadratura mentre una vendita è in volo.
+ *
  * ⛔ **Il tenant arriva dall'utente autenticato, mai dal payload.** È la prima
  * regola, e non ha eccezioni: un `tenantId` che viaggia nel corpo di una
  * richiesta è un campo che il chiamante sceglie.
@@ -95,9 +100,37 @@ export async function assertCashContext(
   // ── 2. …ed è accessibile all'operatore ──────────────────────────────────
   assertLocationInUserScope(user, richiesta.locationId, 'write');
 
-  // ── 3. La sessione: stesso tenant, stessa sede, APERTA ──────────────────
+  // ── 3. La sessione: stesso tenant, stessa sede, APERTA, e BLOCCATA ──────
   let session: CashSession | null = null;
   if (richiesta.sessionId !== undefined) {
+    // ⛔ **`FOR UPDATE`, e sta QUI e non nei singoli servizi.** È il punto in
+    //    cui ogni operazione di sessione — checkout, reso, versamento,
+    //    prelievo, cambio dispositivo, chiusura — si mette in fila sulla
+    //    stessa riga. Distribuire lock diversi nei servizi significherebbe
+    //    che dimenticarne uno basta a riaprire il buco.
+    //
+    // ⛔ Senza, la chiusura può calcolare gli attesi mentre una vendita è IN
+    //    VOLO: la vendita ha già superato questo controllo, non ha ancora
+    //    scritto, e si conferma un attimo dopo il congelamento — dentro una
+    //    sessione chiusa e FUORI dalla quadratura. Misurato il 04/09/2026.
+    //
+    // ⚠️ Il `FOR KEY SHARE` che PostgreSQL prende da solo quando si inserisce
+    //    un figlio (un documento, un movimento) **non basta**: due di quelli
+    //    sono compatibili fra loro, e la chiusura prende `FOR UPDATE` solo
+    //    alla fine — dopo aver già letto.
+    //
+    // ⭐ Il lock si prende PRIMA di leggere la riga: letta prima, si
+    //    leggerebbe una versione che il lock poi non garantisce più.
+    const bloccate = await tx.$queryRaw<{ id: string }[]>`
+      SELECT "id" FROM "cash_sessions"
+        WHERE "id" = ${richiesta.sessionId}::uuid
+          AND "tenant_id" = ${tenantId}::uuid
+        FOR UPDATE`;
+    if (bloccate.length === 0) {
+      // ⚠️ Stessa risposta di «di un altro tenant»: non si distinguono.
+      throw new NotFoundException(NON_TROVATA);
+    }
+
     session = await tx.cashSession.findFirst({
       where: { id: richiesta.sessionId, tenantId, locationId: richiesta.locationId },
     });
@@ -105,6 +138,9 @@ export async function assertCashContext(
       throw new NotFoundException(NON_TROVATA);
     }
     if (session.status !== 'open') {
+      // ⭐ Chi era in coda arriva qui: ha aspettato la chiusura, e ora la
+      //    vede. È il rifiuto che impedisce di infilarsi dopo il
+      //    congelamento della quadratura.
       throw new UnprocessableEntityException('La sessione di cassa è già chiusa.');
     }
   }

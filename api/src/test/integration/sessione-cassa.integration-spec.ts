@@ -510,9 +510,24 @@ describe('sessione di cassa — C3 su PostgreSQL TEST', () => {
 
   /**
    * ⭐ Due cambi concorrenti NON devono produrre due righe fondate sullo stesso
-   * «precedente»: l'aggiornamento condizionale fa fallire il secondo.
+   * «precedente»: lo storico deve restare una CATENA.
+   *
+   * ⚠️ **Questa prova diceva «uno solo riesce», e non è più vero** — cambiato
+   * il 04/09/2026 con il lock di sessione nel validatore (`docs/25` §13-sexies).
+   * Prima i due cambi si sovrapponevano, leggevano lo stesso «precedente» e a
+   * fermare il secondo era l’aggiornamento condizionale; ora si mettono in
+   * fila, e il secondo si applica **sopra** il primo invece di essere
+   * rifiutato.
+   *
+   * ⭐ **La garanzia non è «uno solo riesce»: è che non si perda un cambio e
+   * che la catena resti lineare.** Rifiutare il secondo, ora che legge un
+   * «precedente» aggiornato, sarebbe rifiutare un cambio legittimo.
+   *
+   * ⚠️ L’aggiornamento condizionale RESTA, e non è ridondante: è la rete che
+   * regge se un percorso futuro scrivesse quella riga senza passare dal
+   * validatore.
    */
-  it('due cambi CONCORRENTI: uno solo riesce, e lo storico resta lineare', async () => {
+  it('due cambi CONCORRENTI si mettono in fila, e lo storico resta una catena', async () => {
     const s = await service.open(tenantA, titolare(tenantA), {
       locationId: sedeA1,
       openingFloatMinor: 0,
@@ -530,18 +545,24 @@ describe('sessione di cassa — C3 su PostgreSQL TEST', () => {
       }),
     ]);
 
-    const riuscite = esiti.filter((e) => e.status === 'fulfilled');
-    expect(riuscite).toHaveLength(1);
+    // ⭐ Nessuno dei due si perde: si serializzano.
+    expect(esiti.filter((e) => e.status === 'fulfilled')).toHaveLength(2);
 
-    // ⭐ Lo storico è una catena: ogni riga parte da dove finisce la precedente.
+    // ⛔ E lo storico resta una CATENA: ogni riga parte da dove finisce la
+    //    precedente. È questo che l’aggiornamento condizionale proteggeva, e
+    //    che il lock ora garantisce prima ancora.
     const storico = await prisma.cashSessionDeviceChange.findMany({
       where: { sessionId: s.id },
       orderBy: { createdAt: 'asc' },
     });
-    expect(storico).toHaveLength(2);
+    expect(storico).toHaveLength(3); // apertura + due cambi
     for (let i = 1; i < storico.length; i += 1) {
       expect(storico[i]?.previousDeviceId).toBe(storico[i - 1]?.newDeviceId);
     }
+
+    // ⭐ E la sessione porta il risultato dell’ULTIMO cambio della catena.
+    const finale = await prisma.cashSession.findUniqueOrThrow({ where: { id: s.id } });
+    expect(finale.fiscalDeviceId).toBe(storico[storico.length - 1]?.newDeviceId ?? null);
   });
 
   it('non si cambia dispositivo su una sessione di un ALTRO tenant', async () => {

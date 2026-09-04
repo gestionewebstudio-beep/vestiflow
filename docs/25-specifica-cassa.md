@@ -33,6 +33,7 @@ banco**. Scritta il 04/09/2026 come tranche **C0** del recupero da
 | 17  | Il reso dichiara **quale riga** rettifica: il cumulativo si ricostruisce, non si contabilizza    | §12-bis           |
 | 18  | Il rimborso è agganciato alla **quota di incasso**, non al Tipo pagamento                        | §13-quater        |
 | 19  | La chiusura è **cieca** e **congela** gli attesi: la differenza resta derivata                    | §9, §13-quinquies |
+| 20  | Il **validatore** blocca la riga di sessione: è l’unico punto di serializzazione della Cassa      | §13-sexies        |
 
 In caso di contrasto fra questo elenco e il corpo del documento, **vale l'elenco**.
 
@@ -1603,13 +1604,19 @@ che non quadra, e l’operatore deve poter sistemare la quota prima di riprovare
 
 ### La chiusura concorrente
 
-⛔ **Due chiusure simultanee passano ENTRAMBE dal validatore**: fra la lettura della
-sessione e la scrittura c’è tutto il calcolo degli attesi. A decidere è l’aggiornamento
-**condizionale** — `updateMany where status = open` — e la seconda tocca zero righe e lo
-dichiara, invece di sovrascrivere una quadratura già firmata.
+⭐ **A decidere è il lock di sessione del validatore** (§13-sexies): la seconda chiusura si
+mette in fila, e quando tocca a lei trova la sessione già chiusa.
 
-⚠️ È lo stesso pattern del cambio dispositivo (C3): non un lock, ma una scrittura che
-contiene la propria precondizione.
+⚠️ **Qui c’era scritto che a decidere fosse l’aggiornamento condizionale** — `updateMany
+where status = open` — «non un lock, ma una scrittura che contiene la propria
+precondizione». Era vero quando la sezione è stata scritta, e lo stesso giorno è stato
+misurato che **non bastava**: due chiusure si contendono la riga alla fine, ma una vendita
+in volo passa in mezzo.
+
+⭐ **L’aggiornamento condizionale RESTA**, e non è ridondante: è la rete che regge se un
+percorso futuro scrivesse quella riga senza passare dal validatore. Il rifiuto può quindi
+arrivare da due punti — la prova accetta entrambi, perché sono due messaggi per lo stesso
+fatto.
 
 ### Le prove, e cosa falsifica cosa
 
@@ -1624,6 +1631,89 @@ contiene la propria precondizione.
 ⚠️ **Una prova che riclassifica il Tipo CONDIVISO lega le successive alla propria
 riuscita**: se fallisce prima di rimetterlo a posto, cadono anche quelle dopo. Usa un Tipo
 usa-e-getta — è la stessa lezione di §13-quater, arrivata da una falsificazione.
+
+---
+## 13-sexies. Il punto di serializzazione della sessione
+
+⭐ **Deciso e realizzato il 04/09/2026**, chiudendo C4B: `assertCashContext` prende un
+`SELECT … FOR UPDATE` sulla riga `cash_sessions` quando la richiesta nomina una sessione.
+
+> **Sta nel validatore, non nei servizi.** Distribuire un lock per servizio significa che
+> dimenticarne uno basta a riaprire il buco — e il servizio che lo dimentica è sempre
+> quello scritto dopo.
+
+```text
+checkout · reso · versamento · prelievo · cambio dispositivo · chiusura
+  → passano tutte da assertCashContext(sessionId)
+  → si mettono in fila sulla STESSA riga
+```
+
+### ⛔ Il difetto, misurato prima di correggerlo
+
+Una vendita **in volo** — passata dal validatore, ferma sul numeratore, non ancora
+confermata — non era vista dalla chiusura. La chiusura calcolava gli attesi, congelava e
+chiudeva; un attimo dopo la vendita si confermava **dentro una sessione chiusa e fuori
+dalla quadratura**.
+
+```text
+prima del lock    vendita confermata 100,00 €   ·   expectedCash congelato 0
+dopo il lock      vendita confermata 100,00 €   ·   expectedCash congelato 100,00 €
+```
+
+⚠️ **La sola concorrenza fra due `close` non lo prendeva**, ed è la ragione per cui la
+prova esisteva ed era verde: due chiusure si contendono la stessa riga alla fine, mentre
+il problema è fra la lettura degli attesi e la scrittura di **un’altra** operazione.
+
+### ⛔ E il `FOR KEY SHARE` gratuito non bastava — è la trappola di questa verifica
+
+PostgreSQL prende **da solo** un `FOR KEY SHARE` sulla riga padre quando si inserisce un
+figlio: un documento con `cash_session_id`, un movimento di cassetto. Quel lock confligge
+con un `FOR UPDATE` esterno — quindi una prova che blocchi la riga da fuori e guardi se
+l’operazione **attende** passava già **cinque volte su sei** prima della correzione.
+
+⭐ **Ma due `FOR KEY SHARE` sono compatibili fra loro.** Vendita e chiusura potevano
+procedere insieme, e la chiusura prendeva `FOR UPDATE` solo alla fine — dopo aver letto.
+Una prova di sola attesa non distingue i due casi: servono le prove che mettono davvero
+in corsa la chiusura con un’altra operazione.
+
+### Il risultato, nei due versi
+
+| Chi prende il lock per primo | Che cosa succede                                                          |
+| ---------------------------- | ------------------------------------------------------------------------- |
+| **l’operazione**             | conclude, e la chiusura — che ha aspettato — la **include** negli attesi  |
+| **la chiusura**              | l’operazione attende, poi trova la sessione chiusa ed è **rifiutata**     |
+
+⛔ **Non esiste il terzo caso**: una vendita, un reso o un movimento confermato dopo il
+calcolo e assente dagli attesi congelati.
+
+### ⚠️ Una conseguenza dichiarata: due cambi dispositivo concorrenti ora riescono ENTRAMBI
+
+Prima si sovrapponevano, leggevano lo stesso «precedente» e a fermare il secondo era
+l’aggiornamento condizionale. Ora si mettono in fila e il secondo si applica **sopra** il
+primo.
+
+⭐ **La garanzia non era «uno solo riesce»: era che lo storico restasse una CATENA** — ogni
+riga che parte da dove finisce la precedente — e quella regge, anzi è più forte. Rifiutare
+il secondo, ora che legge un «precedente» aggiornato, sarebbe rifiutare un cambio legittimo.
+
+⚠️ **Gli aggiornamenti condizionali RESTANO** — sul cambio dispositivo e sulla chiusura — e
+non sono ridondanti: sono la rete che regge se un percorso futuro scrivesse quelle righe
+senza passare dal validatore.
+
+### L’ordine dei lock, e perché non si annoda
+
+```text
+sessione  →  numeratore (advisory)        checkout
+sessione  →  righe  →  quote               reso
+sessione  →  (nient’altro)                 movimenti, dispositivo, chiusura
+```
+
+⭐ La sessione si blocca **per prima ovunque**, perché il validatore è il primo passo di
+ogni transazione: nessun ciclo di attesa è possibile fra queste operazioni.
+
+⚠️ **Le letture non bloccano**: `current`, l’elenco movimenti, lo storico dispositivi e il
+richiamo dello scontrino passano dal validatore **senza** `sessionId`, quindi non prendono
+il lock. Consultare la cassa non deve mettersi in fila dietro a chi vende.
 
 ---
 ## 14. Riuso: cosa si condivide e cosa resta distinto
