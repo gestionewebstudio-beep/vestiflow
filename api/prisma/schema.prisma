@@ -668,8 +668,9 @@ model Location {
   shopifyInventorySyncStates ShopifyInventorySyncState[]
   documentCounters           DocumentCounter[]
   manualReceipts             ManualReceipt[]
-  /// Al piu' UN dispositivo fiscale per sede: l'unicita' e' sulla colonna.
-  fiscalDevice               FiscalDevice?
+  /// Piu' dispositivi fiscali possono stare sulla stessa sede (C1B): due
+  /// casse affiancate, o un muletto durante un guasto.
+  fiscalDevices              FiscalDevice[]
   cashSessions               CashSession[]
   posTerminals               PosTerminal[]
 
@@ -1395,13 +1396,13 @@ model PaymentMethodCode {
 /// e «Bonifico 60 gg» sono entrambi MP05 — quindi NESSUN vincolo unico su
 /// `(tenantId, methodCodeId)`. Resta l'unicita' del nome nel proprio `kind`.
 model PaymentOption {
-  id        String            @id @default(uuid()) @db.Uuid
-  tenantId  String            @map("tenant_id") @db.Uuid
-  kind      PaymentOptionKind
-  name      String
-  sortOrder Int               @default(0) @map("sort_order")
-  isSystem  Boolean           @default(false) @map("is_system")
-  isActive  Boolean           @default(true) @map("is_active")
+  id           String            @id @default(uuid()) @db.Uuid
+  tenantId     String            @map("tenant_id") @db.Uuid
+  kind         PaymentOptionKind
+  name         String
+  sortOrder    Int               @default(0) @map("sort_order")
+  isSystem     Boolean           @default(false) @map("is_system")
+  isActive     Boolean           @default(true) @map("is_active")
   /// Modalita' normativa referenziata. NULL e' uno stato valido e previsto:
   /// le condizioni (`kind = terms`) non ne hanno mai una, e un Tipo puo'
   /// restare scollegato finche' l'utente non ne assegna una esplicitamente.
@@ -1409,9 +1410,9 @@ model PaymentOption {
   /// ⛔ Valorizzabile SOLO per `kind = method`. Il vincolo e' un `CHECK`
   /// nella migration — `kind = 'method' OR method_code_id IS NULL` — che
   /// Prisma non sa esprimere: qui lo dichiara solo questo commento.
-  methodCodeId String?        @map("method_code_id") @db.Uuid
-  createdAt DateTime          @default(now()) @map("created_at")
-  updatedAt DateTime          @updatedAt @map("updated_at")
+  methodCodeId String?           @map("method_code_id") @db.Uuid
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
 
   tenant     Tenant             @relation(fields: [tenantId], references: [id])
   methodCode PaymentMethodCode? @relation(fields: [methodCodeId], references: [id], onDelete: Restrict)
@@ -3230,37 +3231,76 @@ model CashSessionMovement {
   @@map("cash_session_movements")
 }
 
-/// Registratore telematico configurato su una sede: al piu' UNO per sede
-/// (unicita' sulla colonna, non indice parziale).
+/// Dispositivo fiscale configurato su una sede.
 ///
-/// ⚠️ `endpoint` e `serialNumber` sono CONFIGURAZIONE, non credenziali: la
-/// stampante sta nella LAN del negozio e la chiama il browser, non il server.
+/// ⛔ **Nessuna assunzione sul produttore, sul trasporto o sul numero di
+/// dispositivi per sede** (tranche C1B, `docs/25` §10). La Cassa parla il
+/// contratto normalizzato; a tradurlo e' l'adapter, che a sua volta non
+/// decide da dove parte la chiamata.
 model FiscalDevice {
-  id             String            @id @default(uuid()) @db.Uuid
-  tenantId       String            @map("tenant_id") @db.Uuid
-  locationId     String            @unique @map("location_id") @db.Uuid
-  brand          FiscalDeviceBrand
-  model          String?
-  /// Endpoint LAN della stampante (es. `https://192.168.1.50`).
-  endpoint       String
+  id         String @id @default(uuid()) @db.Uuid
+  tenantId   String @map("tenant_id") @db.Uuid
+  /// ⚠️ NON e' unico: una sede puo' avere piu' dispositivi — due casse
+  /// affiancate, un muletto durante un guasto. Quale si usa e' una scelta
+  /// ESPLICITA (predefinito di sede o legato alla postazione), mai «il primo
+  /// trovato».
+  locationId String @map("location_id") @db.Uuid
+
+  /// Produttore, come **informazione descrittiva**: serve a chi guarda
+  /// l'elenco, non a scegliere il codice. `other` e' la valvola che permette
+  /// una marca nuova senza toccare il dominio.
+  ///
+  /// ⛔ Non e' il selettore dell'adapter: quello e' `adapterKey`.
+  brand           FiscalDeviceBrand
+  /// Modello dichiarato dal dispositivo (testo: i cataloghi dei produttori
+  /// non sono enumerabili a priori).
+  model           String?
+  /// Versione di firmware, dato strutturato perche' il comportamento fiscale
+  /// puo' cambiare fra due firmware dello stesso modello.
+  firmwareVersion String?           @map("firmware_version")
+
+  /// ⭐ Chiave dell'adapter che parla con questo dispositivo, APERTA e
+  /// VERSIONABILE: `<fornitore>.<protocollo>.<versione>`.
+  ///
+  /// ⛔ Testo e non enum, di proposito: un enum obbligherebbe a una migration
+  /// — cioe' a toccare il dominio della Cassa — per ogni fornitore nuovo, che
+  /// e' esattamente cio' che C1B impedisce. Un catalogo globale sarebbe
+  /// l'altra strada, ma qui non serve: non c'e' nulla da condividere fra
+  /// tenant, e `VatNature` esiste perche' porta dati normativi.
+  ///
+  /// NULL finche' non e' stato scelto: il dispositivo si censisce prima di
+  /// saper parlare con lui.
+  adapterKey    String? @map("adapter_key")
+  /// Configurazione dell'adapter (parametri, non credenziali).
+  ///
+  /// ⛔ Nessun segreto qui dentro: chiavi e password stanno dove stanno gli
+  /// altri segreti (`regole-sicurezza`), mai in una colonna del tenant.
+  adapterConfig Json?   @map("adapter_config")
+
+  /// Indirizzo di collegamento, **opzionale**: un adapter cloud o un agente
+  /// locale possono non averne uno, e la forma di trasporto non e' decisa
+  /// (`docs/25` §10).
+  endpoint       String?
   /// Matricola fiscale: finisce sul documento commerciale.
-  serialNumber   String?           @map("serial_number")
-  enabled        Boolean           @default(true)
-  /// Mappa aliquota -> reparto della stampante: le RT associano l'IVA ai
-  /// reparti configurati a bordo, non alla riga.
-  vatDepartments Json?             @map("vat_departments")
+  serialNumber   String?   @map("serial_number")
+  enabled        Boolean   @default(true)
+  /// Mappa aliquota -> reparto: molte RT italiane associano l'IVA ai reparti
+  /// configurati a bordo invece che alla riga. Resta opzionale perche' non
+  /// ogni dispositivo lavora cosi'.
+  vatDepartments Json?     @map("vat_departments")
   notes          String?
-  /// Diagnostica riportata dalla cassa.
-  lastSeenAt     DateTime?         @map("last_seen_at")
-  lastError      String?           @map("last_error")
-  createdAt      DateTime          @default(now()) @map("created_at")
-  updatedAt      DateTime          @updatedAt @map("updated_at")
+  /// Diagnostica dell'ultimo contatto riuscito e dell'ultimo errore.
+  lastSeenAt     DateTime? @map("last_seen_at")
+  lastError      String?   @map("last_error")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
   tenant   Tenant          @relation(fields: [tenantId], references: [id])
   location Location        @relation(fields: [locationId], references: [id], onDelete: Cascade)
   receipts FiscalReceipt[]
 
   @@index([tenantId])
+  @@index([locationId])
   @@map("fiscal_devices")
 }
 
