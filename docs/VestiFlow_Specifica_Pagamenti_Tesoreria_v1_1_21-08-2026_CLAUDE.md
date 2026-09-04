@@ -1198,6 +1198,14 @@ vi punta — **non è ancora implementato**: `PaymentOption` ha `kind: method | 
 `MP…` sta dentro l'etichetta. La Cassa è il primo consumatore che lo rende necessario, perché
 il mapper fiscale RT deve sapere se una quota è contante o elettronica **senza leggere il nome**.
 
-La classificazione condivisa si introduce in **C2**, con migration additiva e campi nullable.
+Il lavoro è diviso in due, e solo il primo è autorizzato (`docs/25` §7, 04/09/2026):
+
+- **C2A** — il catalogo globale delle Modalità normative (`code` MP01–MP23, una sola colonna)
+  e la FK nullable da `PaymentOption`, con migration additiva e backfill a whitelist esplicita.
+  ⛔ Non emette `ModalitaPagamento` nell'XML: resta un intervento fiscale separato.
+- ⏸ **C2B** — la classificazione operativa per l'RT, **non ancora autorizzata**: prima vanno
+  verificate specifiche RT, protocollo Epson e la forma stessa del dato (attributo del
+  catalogo o mapper versionato per dispositivo).
+
 ⛔ Non è una classificazione «della Cassa» e non crea una seconda anagrafica: è quella prevista
 qui, finalmente valorizzata.

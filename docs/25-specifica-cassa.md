@@ -18,7 +18,7 @@ banco**. Scritta il 04/09/2026 come tranche **C0** del recupero da
 | 2   | La Cassa produce una **normale `store_sale`**: nessun secondo documento economico      | §4                |
 | 3   | La Vendita al banco conserva `cash \| card \| other`; la **Cassa usa `PaymentOption`** | §5                |
 | 4   | «Misto» è **calcolato a lettura dalle quote**, mai persistito                          | §6                |
-| 5   | `PaymentOption` va esteso, ma **non in C0 né in C1**: la migration è di C2             | §7                |
+| 5   | `PaymentOption` va esteso: la migration è di **C2A**. La classe RT è **C2B**, sospesa  | §7                |
 | 6   | Le sei tabelle esistono già nel database: **non si ricreano**                          | §8                |
 
 In caso di contrasto fra questo elenco e il corpo del documento, **vale l'elenco**.
@@ -294,34 +294,106 @@ MP01–MP23 è in `Tesoreria §2.2`, e nel repository esiste già come
 `SDI_PAYMENT_METHOD_NAMES` — da **correggere**, separando il codice dal nome, non da
 duplicare.
 
-### L'unica cosa che la Cassa aggiunge
+### ⭐ C2A — il progetto, deciso dal proprietario il 04/09/2026
 
-La Tesoreria copre il codice normativo; **non copre la classe operativa che serve all'RT** —
-contante, elettronico, altro.
+```prisma
+/// GLOBALE, di sistema: le Modalità normative FatturaPA. Nessun tenantId.
+model PaymentMethodCode {
+  id        String  @id @default(uuid()) @db.Uuid
+  code      String  @unique          // MP01…MP23
+  label     String
+  sortOrder Int
+  isActive  Boolean @default(true)
+  paymentOptions PaymentOption[]
+}
 
-⭐ **Si deriva dal codice normativo con una mappa esplicita e centralizzata**, non
-dall'etichetta: `MP01 → contante`, `MP08 → elettronico`, e così via. È l'unico modo di
-rispettare insieme «non dedurla dal nome» e «non creare una seconda anagrafica».
+model PaymentOption {                // invariato, più UN campo
+  …
+  methodCodeId String?            @map("method_code_id") @db.Uuid
+  methodCode   PaymentMethodCode? @relation(fields: [methodCodeId], references: [id])
+}
+```
 
-⛔ I valori della classe e la mappa **si stabiliscono in C2**, dopo aver verificato:
-specifiche RT correnti, protocollo Epson e firmware reale, mapping FatturaPA esistente,
-consumer, e le voci personalizzate create dagli utenti — che un codice normativo possono non
-averlo.
+⭐ **UNA sola colonna codice, non `key` + `officialCode`.** Il catalogo ha un compito
+preciso — rappresentare MP01–MP23 — e dentro quel perimetro le due colonne sarebbero
+**identiche su tutte e 23 le righe**. In `VatNature` sono distinte per due ragioni che qui
+non esistono: il formato differisce (`N2_1` contro `N2.1`) e quattro voci non hanno codice
+normativo.
 
-**Vincoli, tutti vincolanti:**
+⛔ **PayPal e Contrassegno NON entrano nel catalogo.** Restano `PaymentOption` aziendali con
+`methodCodeId` nullo finché l'utente non assegna una Modalità. Se un domani serviranno
+modalità operative non normative, saranno **un concetto distinto** — non righe finte accanto
+agli MP.
 
-- ⛔ non estrarre `MP01`/`MP08` dall'etichetta;
-- ⛔ non classificare cercando parole come «Contanti» o «Carta»;
-- ⛔ nessuna classificazione nel solo modulo Cassa, e nessuna seconda anagrafica dei metodi;
-- ⛔ nessun cambiamento automatico di fatture, DDT, clienti, fornitori o FatturaPA;
-- ⚠️ campi **nullable** e migration **additiva**;
-- ⚠️ backfill solo delle voci **di sistema** riconoscibili in modo deterministico;
-- ⚠️ le voci **personalizzate** restano non classificate finché l'utente non le configura;
-- ⛔ **una voce non classificata non è selezionabile in Cassa** se non può essere tradotta
-  con certezza nel payload RT.
+**Vincoli strutturali**
 
-⭐ **È una dipendenza obbligatoria di C2**: la Cassa non introduce pagamenti reali né
-fiscalizzazione finché questa classificazione non esiste.
+|                |                                                                                                                           |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `code`         | obbligatorio e **unico**                                                                                                  |
+| FK             | `ON DELETE RESTRICT`: il catalogo si **disattiva**, non si cancella lasciando Tipi orfani                                 |
+| `methodCodeId` | valorizzabile **solo** per `kind = method`; su `terms` sempre `NULL`. È un `CHECK` nella migration: Prisma non lo esprime |
+| RLS            | `ENABLE ROW LEVEL SECURITY` + `REVOKE ALL FROM anon, authenticated`, come ogni catalogo di sistema                        |
+| seed           | **strutturato** (`code`, `label`, `sortOrder`), mai ricostruito dal nome                                                  |
+
+### Il backfill: una whitelist dichiarata, mai una regex
+
+⛔ **`MPxx` non si estrae MAI dall'etichetta** — né con espressioni regolari, né con
+suffissi, né con parsing. Si usano **due mappe esatte**, limitate a `kind = method` **e**
+`is_system = true`.
+
+Le cinque voci legacy collegabili, decise una per una:
+
+```text
+Contanti            → MP01        Contrassegno   → NULL
+Assegno             → MP02        PayPal         → NULL
+Bonifico bancario   → MP05
+Carta di pagamento  → MP08
+RiBa                → MP12
+```
+
+⚠️ **`Contrassegno` resta scollegato di proposito**: descrive il momento e il canale
+d'incasso, non come il cliente pagherà al corriere. **`PayPal`** non ha una corrispondenza
+normativa univoca da assumere.
+
+**Risultato atteso sui dati censiti** (148 righe, 4 tenant):
+
+```text
+ 92  voci moderne collegate      (23 codici × 4 tenant)
+ 20  voci legacy collegate       ( 5 voci   × 4 tenant)
+  8  legacy ancora NULL          ( 2 voci   × 4 tenant)
+ 28  terms NULL
+───
+112  collegate  ·  36  NULL  ·  148 totali
+```
+
+⛔ **Gli snapshot su documenti, clienti e fornitori NON si toccano.**
+
+### Che cosa C2A non fa
+
+- ⛔ non emette `ModalitaPagamento` nell'XML FatturaPA: è un intervento fiscale separato, con
+  prove contro XSD e documenti storici;
+- ⛔ non modifica alcun consumer documentale;
+- ⛔ non introduce la classe RT.
+
+### ⏸ C2B — la classificazione RT, NON autorizzata
+
+⛔ **Non si aggiunge un `PaymentTenderClass` lasciato tutto a `NULL`.** Prima va verificato:
+specifiche RT correnti; protocollo Epson realmente in uso; la differenza fra contante,
+elettronico, **non riscosso**, buoni e altre categorie; le differenze fra marche e firmware;
+e soprattutto **se la classificazione sia un dato del catalogo o un mapper versionato per
+dispositivo e protocollo** — che è una forma diversa e va scelta, non dedotta.
+
+⛔ Finché non è verificato, **C2 non è completata** e la Cassa non introduce pagamenti reali
+né fiscalizzazione.
+
+### Il rollback, che non è un `DROP`
+
+⛔ **Non si descrive questa migration come «reversibile facendo `DROP`».** Il database è
+condiviso: eliminare colonne o tabelle è una perdita, non un ritorno indietro.
+
+⭐ **Il rollback ammesso è distribuire temporaneamente il codice precedente sopra lo schema
+additivo.** Ne discende un vincolo sulla migration: deve essere **compatibile con il codice
+vecchio** — colonna nullable, nessun `NOT NULL`, nessuna rinomina, nessun `DROP`.
 
 ---
 
@@ -551,15 +623,16 @@ l'orchestratore del documento, e la Cassa è l'altro orchestratore.
 
 ## 15. La sequenza
 
-| Tranche | Contenuto                                                                                                         | Migration             |
-| ------- | ----------------------------------------------------------------------------------------------------------------- | --------------------- |
-| **C0**  | questa specifica, separazione delle rotte, contratto transitorio dei pagamenti, censimento `PaymentOption`        | ⛔ nessuna            |
-| **C1**  | modelli Prisma delle tabelle Cassa **già esistenti**, relazioni, prove di schema e isolamento                     | ⛔ nessuna            |
-| **C2**  | estensione additiva di `PaymentOption` e classificazione condivisa                                                | ✅ additiva, nullable |
-| **C3**  | checkout Cassa, sessione aperta, pagamento unico e misto, quadratura, resto, carta fallita, creazione idempotente | —                     |
-| **C4**  | sessioni e riconciliazione: apertura/chiusura, fondo, movimenti di cassetto, conteggio, differenze, terminali POS | —                     |
-| **C5**  | fiscalizzazione Epson: adapter, payload, ricevute, stati, ritentativi, prova su hardware reale                    | —                     |
-| _poi_   | migrazione della **Vendita al banco** da `cash \| card \| other` a `PaymentOption`                                | tranche **autonoma**  |
+| Tranche | Contenuto                                                                                                                                 | Migration             |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| **C0**  | questa specifica, separazione delle rotte, contratto transitorio dei pagamenti, censimento `PaymentOption`                                | ⛔ nessuna            |
+| **C1**  | modelli Prisma delle tabelle Cassa **già esistenti**, relazioni, prove di schema e isolamento                                             | ⛔ nessuna            |
+| **C2A** | catalogo globale delle Modalità normative, codice FatturaPA strutturato, FK nullable da `PaymentOption`, backfill esplicito, Impostazioni | ✅ additiva, nullable |
+| **C2B** | ⏸ classificazione RT — **non autorizzata**: prima va verificata (§7)                                                                      | ⏸ da decidere         |
+| **C3**  | checkout Cassa, sessione aperta, pagamento unico e misto, quadratura, resto, carta fallita, creazione idempotente                         | —                     |
+| **C4**  | sessioni e riconciliazione: apertura/chiusura, fondo, movimenti di cassetto, conteggio, differenze, terminali POS                         | —                     |
+| **C5**  | fiscalizzazione Epson: adapter, payload, ricevute, stati, ritentativi, prova su hardware reale                                            | —                     |
+| _poi_   | migrazione della **Vendita al banco** da `cash \| card \| other` a `PaymentOption`                                                        | tranche **autonoma**  |
 
 ⛔ **Non si comincia una tranche lasciando rossa la precedente.**
 
