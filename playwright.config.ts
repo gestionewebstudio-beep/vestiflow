@@ -86,7 +86,14 @@ export default defineConfig({
         riquadro di una tendina aperta dentro una tabella, cioè l'unica cosa che
         nessuna prova di componente può vedere — jsdom non dipinge.
       */
-      testMatch: /(ci-smoke|filtri-colonna)\.spec\.ts$/,
+      /*
+        ⭐ **E `cassa` per la stessa ragione**: la Vendita tiene ricerca,
+        carrello e incasso visibili INSIEME su scrivania, ed è una griglia —
+        `toBeInViewport()` è una domanda che solo un motore di layout può
+        rispondere. Le sue risposte arrivano da un'intercettazione, quindi non
+        chiede nulla al database.
+      */
+      testMatch: /(ci-smoke|filtri-colonna|cassa)\.spec\.ts$/,
     },
     ...authenticatedProjects,
   ],

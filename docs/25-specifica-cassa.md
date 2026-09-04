@@ -34,6 +34,8 @@ banco**. Scritta il 04/09/2026 come tranche **C0** del recupero da
 | 18  | Il rimborso è agganciato alla **quota di incasso**, non al Tipo pagamento                        | §13-quater        |
 | 19  | La chiusura è **cieca** e **congela** gli attesi: la differenza resta derivata                    | §9, §13-quinquies |
 | 20  | Il **validatore** blocca la riga di sessione: è l’unico punto di serializzazione della Cassa      | §13-sexies        |
+| 21  | «Operazione di Cassa» = documento con **sessione**: la contabilità resta quella dei documenti     | §13-septies       |
+| 22  | Nessun dato di **stato fiscale** finché C5 non esiste: si dice a parole, non si simula            | §13-septies       |
 
 In caso di contrasto fra questo elenco e il corpo del documento, **vale l'elenco**.
 
@@ -1724,6 +1726,109 @@ ogni transazione: nessun ciclo di attesa è possibile fra queste operazioni.
 ⚠️ **Le letture non bloccano**: `current`, l’elenco movimenti, lo storico dispositivi e il
 richiamo dello scontrino passano dal validatore **senza** `sessionId`, quindi non prendono
 il lock. Consultare la cassa non deve mettersi in fila dietro a chi vende.
+
+---
+## 13-septies. La consultazione e le schermate
+
+⭐ **Realizzate il 04/09/2026.** Le API di proiezione e le sette schermate che le
+usano, su tre aree: Vendita · Operazioni · Sessioni.
+
+### Il registro operativo NON è il Registro corrispettivi
+
+| | **Registro corrispettivi** | **Operazioni di Cassa** |
+| --- | --- | --- |
+| che cos’è | **contabile** | **operativo** |
+| che cosa aggrega | valori economici di **tutte** le origini | vendite e resi **di Cassa**, riga per riga |
+| che cosa mostra | imponibile, IVA, totale, per periodo | chi, quando, con quali quote, con quale resto |
+| chi lo alimenta | i documenti, per **tipo** | gli stessi documenti, per **sessione** |
+
+⛔ **Le operazioni di Cassa alimentano il Registro contabile senza che nessuno lo
+abbia scritto**, e va detto perché quella catena non è visibile da nessuna parte: il
+Registro raccoglie i documenti `store_sale`/`store_return` non annullati del periodo, e
+una vendita di Cassa è esattamente quello.
+
+⚠️ **Nessun indicatore «registrato nei corrispettivi»**: sarebbe un terzo valore capace
+di contraddire i due da cui deriva. La catena è provata da
+`corrispettivi-cassa.integration-spec.ts`, che verifica anche la NON duplicazione.
+
+### ⭐ «Operazione di Cassa» significa `cashSessionId` valorizzato
+
+È l’unica cosa che distingue una vendita di Cassa da una Vendita al banco: stesso tipo
+documento, stessa contabilità, sessione in più.
+
+⛔ **Un tipo documento proprio, o un flag, separerebbero anche la CONTABILITÀ** — cioè
+romperebbero la riga qui sopra. La distinzione operativa non deve costare una seconda
+contabilizzazione.
+
+### Le anomalie sono CINQUE, e dichiarate
+
+```text
+annullato                  il documento è stato annullato
+quota_non_classificata     una quota senza `tenderKind`: la chiusura si fermerebbe
+reso_senza_origine         un reso senza vendita collegata
+rimborso_non_agganciato    una quota di reso senza `refundedFromPaymentId`
+quote_non_quadrate         la somma delle quote ≠ totale del documento
+```
+
+⚠️ **Il FILTRO copre le prime quattro.** L’ultima non è esprimibile in Prisma — confronta
+un aggregato con una colonna — e la trova una query a parte, che la marca sulla riga. È
+scritto qui invece di lasciare un filtro che perde silenziosamente un caso.
+
+### ⛔ Nessun dato di stato fiscale, e la ragione
+
+La prima stesura del registro portava un campo che valeva sempre «non disponibile».
+
+| Perché è stato tolto | |
+| --- | --- |
+| **non informa** | un campo con un valore solo non distingue niente |
+| **invita a mostrarlo** | e da «non disponibile» a «emesso» il passo è corto |
+| **è vocabolario ritirato** | `check:registro-legacy` lo rifiuta: il Registro classifica per ORIGINE |
+
+⭐ **A dirlo è la SCHERMATA, a parole**: «Vendita registrata — fiscalizzazione non
+ancora disponibile in questa versione». Tre prove di componente e una e2e verificano che
+nessuna schermata contenga «scontrino emesso», «trasmesso» o «Agenzia».
+
+### Le schermate
+
+```text
+/app/cassa                        Vendita: ricerca, carrello e incasso INSIEME
+/app/cassa/operazioni             registro operativo + riepiloghi multi-sede
+/app/cassa/operazioni/:id         dettaglio: righe, quote, resto, movimenti, resi
+/app/cassa/operazioni/:id/reso    reso collegato allo scontrino
+/app/cassa/sessioni               aperte e chiuse
+/app/cassa/sessioni/:id           quadratura, cassetto, dispositivo
+/app/cassa/sessioni/:id/chiusura  chiusura cieca
+```
+
+⭐ **La Vendita non è una maschera documentale.** Su scrivania le tre zone restano
+visibili insieme, in griglia: al banco non si naviga fra schede col cliente davanti. Lo
+verifica una prova e2e che misura le **posizioni** — l’incasso comincia dove il carrello
+finisce.
+
+⚠️ **La prima stesura di quella prova non misurava niente**: chiedeva solo che le tre
+zone fossero nella finestra, e a carrello vuoto ci stavano anche senza griglia.
+Falsificata togliendo la griglia, restava verde.
+
+### ⭐ Con UNA sola sede la Cassa la sceglie da sé
+
+⛔ Il selettore compare da due sedi in su, e chi ne ha una sola restava su «Scegli la
+sede» **senza un modo per farlo**. Trovato dalla prova e2e nel browser: nessuna prova di
+componente lo vedeva, perché lì la sede era sempre precompilata.
+
+### ⛔ `app-button` non ha un output `clicked`
+
+È un involucro sul `<button>` nativo: si lega `(click)`. Quattordici associazioni
+scritte `(clicked)` compilavano, passavano il type-check e il lint, e lasciavano **ogni
+pulsante della Cassa inerte**. L’ha trovato la prima prova che premeva un pulsante e ne
+verificava l’effetto.
+
+### ⚠️ I due registri non usano ancora il motore tabella
+
+Adottarlo porta con sé catalogo colonne, viste, filtri di colonna, card di riga e i sei
+controlli che li presidiano: è lavoro che questa tranche non poteva contenere. Le due
+intestazioni appiccicate sono **dichiarate** in `check:sticky-scrollport` con la
+categoria vera (`mixin`: lo scrollport ce l’hanno), e la migrazione è segnata in
+`docs/DA-FARE.md`.
 
 ---
 ## 14. Riuso: cosa si condivide e cosa resta distinto

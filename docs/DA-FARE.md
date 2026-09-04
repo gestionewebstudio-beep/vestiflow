@@ -131,6 +131,29 @@ vitest esegue con esbuild, che i tipi li strippa:
 
 ---
 
+## ⏸ CASSA — i due registri passano al motore tabella (04/09/2026)
+
+I registri **Operazioni** e **Sessioni** della Cassa usano oggi due tabelle scritte a
+mano. Funzionano — scorrono, l'intestazione appiccica, i totali arrivano dal server — ma
+non sono il motore condiviso, e `regole-stile-ui` dice che le tabelle non si rifanno per
+feature.
+
+⚠️ **Non è una svista: è lavoro dichiarato.** Adottare `app-data-table` porta con sé
+catalogo colonne, viste salvate, filtri di colonna, card di riga per il telefono e i sei
+controlli che li presidiano (`check:column-catalog`, `check:table-views`,
+`check:filtri-colonna`, `check:colonne-rese`, `check:row-card`, `check:somme-elenco`).
+Farlo male costa più che non farlo.
+
+⭐ **Cosa si guadagna**, e perché va fatto: filtri di colonna, riga totali, selettore
+colonne, card sul telefono e virtualizzazione — tutto quello che gli altri dodici elenchi
+hanno già, e che qui manca.
+
+⛔ **Nel frattempo le due intestazioni appiccicate sono DICHIARATE** in
+`check:sticky-scrollport` con la categoria `mixin`, che è quella vera: lo scrollport ce
+l'hanno, dal mixin condiviso. Non è una deroga — è la registrazione di uno stato.
+
+---
+
 ## ⛔ CASSA — due condizioni OBBLIGATORIE prima di dichiararla completa (04/09/2026)
 
 Decise dal proprietario il 04/09/2026, chiudendo C1C. **Non sono note di analisi**: sono

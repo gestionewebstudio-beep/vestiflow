@@ -1,6 +1,6 @@
 import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component,
-  DestroyRef, computed, inject, signal } from '@angular/core';
+  DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed, toSignal  } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -141,10 +141,28 @@ export class CashRegisterComponent {
   );
 
   constructor() {
-    const predefinita = this.sedi.defaultLocation();
-    if (predefinita) {
-      this.scegliSede(predefinita.id);
-    }
+    // ⚠️ **Un `effect`, non una lettura nel costruttore**: l'elenco sedi e il
+    //    profilo arrivano dalla rete, e la predefinita può comparire dopo il
+    //    primo render.
+    effect(() => {
+      if (this.sedeId()) {
+        return;
+      }
+      const predefinita = this.sedi.defaultLocation();
+      if (predefinita) {
+        this.scegliSede(predefinita.id);
+        return;
+      }
+      // ⛔ **Con UNA sola sede si sceglie da sé.** Senza, la schermata diceva
+      //    «Scegli la sede» e non offriva come: il selettore compare solo da
+      //    due sedi in su, e chi ne ha una restava in un vicolo cieco.
+      //    Misurato nel browser il 04/09/2026, e non lo vedeva nessuna prova
+      //    di componente — lì la sede era sempre precompilata.
+      const sedi = this.sedi.locations();
+      if (sedi.length === 1) {
+        this.scegliSede(sedi[0]!.id);
+      }
+    });
   }
 
   // ── La sessione ──────────────────────────────────────────────────────────
