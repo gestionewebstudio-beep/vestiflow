@@ -6,8 +6,10 @@ import { DocumentsModule } from '../documents/documents.module';
 
 import { CashCheckoutService } from './cash-checkout.service';
 import { CashClosingService } from './cash-closing.service';
+import { CashOperationsService } from './cash-operations.service';
 import { CashReturnService } from './cash-return.service';
 import { CashSessionsController } from './cash-sessions.controller';
+import { CashSessionsReportService } from './cash-sessions-report.service';
 import { CashSessionsService } from './cash-sessions.service';
 
 /**
@@ -28,8 +30,17 @@ import { CashSessionsService } from './cash-sessions.service';
     CashCheckoutService,
     CashReturnService,
     CashClosingService,
+    CashOperationsService,
+    CashSessionsReportService,
     CreationIntentService,
   ],
-  exports: [CashSessionsService, CashCheckoutService, CashReturnService, CashClosingService],
+  exports: [
+    CashSessionsService,
+    CashCheckoutService,
+    CashReturnService,
+    CashClosingService,
+    CashOperationsService,
+    CashSessionsReportService,
+  ],
 })
 export class CashSessionsModule {}

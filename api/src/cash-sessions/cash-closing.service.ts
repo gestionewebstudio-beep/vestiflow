@@ -1,11 +1,11 @@
 import { ConflictException, Injectable, UnprocessableEntityException } from '@nestjs/common';
-import { DocumentType, Prisma } from '@prisma/client';
 import type { CashSession } from '@prisma/client';
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { assertCashContext, type CashContextUser } from './cash-context.validator';
+import { calcolaAttesiSessione, type AttesiSessione } from './cash-session-totals.util';
 
 /**
  * La chiusura della sessione di cassa (tranche C4B, `docs/25` §9).
@@ -58,7 +58,7 @@ export class CashClosingService {
       const sessione = ctx.session!;
 
       // ── 2. Gli attesi, dalle QUOTE e dai MOVIMENTI ───────────────────────
-      const attesi = await this.calcolaAttesi(tx, tenantId, sessione);
+      const attesi = await calcolaAttesiSessione(tx, tenantId, sessione);
 
       // ── 3. La chiusura, CONDIZIONATA allo stato aperto ───────────────────
       //
@@ -107,101 +107,6 @@ export class CashClosingService {
     });
   }
 
-  /**
-   * Gli attesi della sessione, dalle quote di incasso e dai movimenti.
-   *
-   * ⛔ **I documenti ANNULLATI non contribuiscono**, ed è l'errore che il ramo
-   * storico faceva: la sua query non filtrava su `status`, e un `store_sale`
-   * annullato entrava negli attesi.
-   *
-   * ⛔ **La classe la porta la QUOTA, non il Tipo corrente**: è lo snapshot di
-   * `tenderKind`. Senza, riclassificare un Tipo domani cambierebbe la
-   * quadratura di una sessione chiusa a marzo.
-   */
-  private async calcolaAttesi(
-    tx: Prisma.TransactionClient,
-    tenantId: string,
-    sessione: CashSession,
-  ): Promise<Attesi> {
-    const quote = await tx.storeSalePayment.findMany({
-      where: {
-        tenantId,
-        document: {
-          cashSessionId: sessione.id,
-          status: { not: 'cancelled' },
-          type: { in: [DocumentType.store_sale, DocumentType.store_return] },
-        },
-      },
-      select: {
-        amountMinor: true,
-        tenderKindSnapshot: true,
-        optionNameSnapshot: true,
-        document: { select: { type: true } },
-      },
-    });
-
-    let venditeCash = 0;
-    let resiCash = 0;
-    let venditeElettroniche = 0;
-    let resiElettronici = 0;
-
-    for (const q of quote) {
-      const vendita = q.document.type === DocumentType.store_sale;
-      // ⛔ ESAUSTIVO sull'enum, senza ramo di ripiego: il `bucket()` del ramo
-      //    storico mandava «ogni metodo sconosciuto» in `other`, e una classe
-      //    nuova sarebbe sparita in silenzio dalla quadratura.
-      switch (q.tenderKindSnapshot) {
-        case 'cash':
-          if (vendita) venditeCash += q.amountMinor;
-          else resiCash += q.amountMinor;
-          break;
-        case 'electronic':
-          if (vendita) venditeElettroniche += q.amountMinor;
-          else resiElettronici += q.amountMinor;
-          break;
-        case 'voucher':
-          // ⚠️ Modellati in C2B, non abilitati al checkout: se una quota così
-          //    esiste, la sessione non si quadra — e lo si DICE, invece di
-          //    farla sparire in un ramo di ripiego.
-          throw new UnprocessableEntityException(
-            `«${q.optionNameSnapshot ?? 'Buono'}»: i buoni non rientrano ancora nella quadratura di cassa.`,
-          );
-        case null:
-          throw new UnprocessableEntityException(
-            `«${q.optionNameSnapshot ?? 'Una quota'}» non è classificata: non si può quadrare la cassa.`,
-          );
-        default:
-          // ⚠️ Irraggiungibile finché l'enum è quello di oggi. Esiste perché il
-          //    giorno in cui una classe nuova arriva, questo `switch` deve
-          //    FERMARSI, non stimare.
-          throw new UnprocessableEntityException(
-            'Questa sessione contiene una classe di incasso che la chiusura non conosce.',
-          );
-      }
-    }
-
-    const movimenti = await tx.cashSessionMovement.groupBy({
-      by: ['type'],
-      where: { tenantId, sessionId: sessione.id },
-      _sum: { amountMinor: true },
-    });
-    const versamenti = movimenti.find((m) => m.type === 'deposit')?._sum.amountMinor ?? 0;
-    const prelievi = movimenti.find((m) => m.type === 'withdrawal')?._sum.amountMinor ?? 0;
-
-    return {
-      openingFloatMinor: sessione.openingFloatMinor,
-      salesCashMinor: venditeCash,
-      returnsCashMinor: resiCash,
-      salesElectronicMinor: venditeElettroniche,
-      returnsElectronicMinor: resiElettronici,
-      depositsMinor: versamenti,
-      withdrawalsMinor: prelievi,
-      expectedCashMinor:
-        sessione.openingFloatMinor + venditeCash - resiCash + versamenti - prelievi,
-      // ⭐ Né fondo né cassetto: il cassetto non c'entra con l'elettronico.
-      expectedElectronicMinor: venditeElettroniche - resiElettronici,
-    };
-  }
 }
 
 // ── Tipi ───────────────────────────────────────────────────────────────────
@@ -219,18 +124,11 @@ export interface CloseInput {
   readonly notes?: string;
 }
 
-export interface Attesi {
-  readonly openingFloatMinor: number;
-  readonly salesCashMinor: number;
-  readonly returnsCashMinor: number;
-  readonly salesElectronicMinor: number;
-  readonly returnsElectronicMinor: number;
-  readonly depositsMinor: number;
-  readonly withdrawalsMinor: number;
-  readonly expectedCashMinor: number;
-  readonly expectedElectronicMinor: number;
-}
-
+/**
+ * ⭐ Gli addendi vengono dalla funzione CONDIVISA: la chiusura li congela, il
+ * dettaglio di sessione li ricostruisce, e la formula sta in un posto solo.
+ */
+export type Attesi = AttesiSessione;
 export interface CloseResult extends Attesi {
   readonly session: CashSession;
   readonly countedCashMinor: number;

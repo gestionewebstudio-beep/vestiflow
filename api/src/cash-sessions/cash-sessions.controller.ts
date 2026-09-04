@@ -21,19 +21,33 @@ import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import { CashCheckoutService, type CheckoutResult } from './cash-checkout.service';
 import { CashClosingService, type CloseResult } from './cash-closing.service';
 import {
+  CashOperationsService,
+  type OperationDetail,
+  type OperationsPage,
+  type ReceiptSearchResult,
+} from './cash-operations.service';
+import {
   CashReturnService,
   type ReturnLookupResult,
   type ReturnResult,
 } from './cash-return.service';
+import {
+  CashSessionsReportService,
+  type SessionDetail,
+  type SessionsPage,
+} from './cash-sessions-report.service';
 import { CashSessionsService } from './cash-sessions.service';
 import {
   CashCheckoutDto,
+  CashOperationsQueryDto,
   CashReturnDto,
+  CashSessionsQueryDto,
   CashSessionLocationQueryDto,
   CashSessionMovementDto,
   ChangeCashSessionDeviceDto,
   CloseCashSessionDto,
   OpenCashSessionDto,
+  ReceiptSearchQueryDto,
 } from './dto/cash-session.dto';
 
 /**
@@ -60,7 +74,81 @@ export class CashSessionsController {
     private readonly checkoutService: CashCheckoutService,
     private readonly returnService: CashReturnService,
     private readonly closingService: CashClosingService,
+    private readonly operations: CashOperationsService,
+    private readonly sessionsReport: CashSessionsReportService,
   ) {}
+
+  // ── Consultazione ────────────────────────────────────────────────────────
+  //
+  // ⛔ Le rotte STATICHE stanno prima di quelle con `:id`, e non e` stile:
+  //    Nest confronta in ordine di dichiarazione, e `@Get(':id/movements')`
+  //    catturerebbe `operations` come identificativo di sessione.
+
+  /**
+   * Il **registro operativo**: vendite e resi di Cassa, con i totali dello
+   * stesso filtro.
+   *
+   * ⛔ Non e` il Registro corrispettivi, che resta contabile e riceve queste
+   * stesse operazioni per un_altra strada (`docs/25` §13-septies).
+   */
+  @Get('operations')
+  @RequirePermissions(TenantPermission.RetailRegister)
+  operationsList(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Query() query: CashOperationsQueryDto,
+  ): Promise<OperationsPage> {
+    return this.operations.list(tenantId, user, query);
+  }
+
+  /** Il dettaglio di un_operazione: righe, quote, resto, movimenti, resi. */
+  @Get('operations/:id')
+  @RequirePermissions(TenantPermission.RetailRegister)
+  operationDetail(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<OperationDetail> {
+    return this.operations.detail(tenantId, user, id);
+  }
+
+  /**
+   * La ricerca dello scontrino da rendere, **senza UUID**.
+   *
+   * ⚠️ Cerca nei documenti di VestiFlow. Non nel registratore e non
+   * all_Agenzia: quelle strade appartengono a C5 e non esistono.
+   */
+  @Get('returns/search')
+  @RequirePermissions(TenantPermission.RetailCashReturn)
+  searchReceipts(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Query() query: ReceiptSearchQueryDto,
+  ): Promise<readonly ReceiptSearchResult[]> {
+    return this.operations.searchReceipts(tenantId, user, query);
+  }
+
+  /** Le sessioni, aperte e chiuse. */
+  @Get('sessions')
+  @RequirePermissions(TenantPermission.RetailRegister)
+  sessionsList(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Query() query: CashSessionsQueryDto,
+  ): Promise<SessionsPage> {
+    return this.sessionsReport.list(tenantId, user, query);
+  }
+
+  /** Il dettaglio della sessione: quadratura, movimenti, documenti, storico. */
+  @Get('sessions/:id')
+  @RequirePermissions(TenantPermission.RetailRegister)
+  sessionDetail(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<SessionDetail> {
+    return this.sessionsReport.detail(tenantId, user, id);
+  }
 
   /**
    * Conclude una vendita di cassa (tranche C4A).
