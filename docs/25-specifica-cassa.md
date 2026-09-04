@@ -1686,6 +1686,16 @@ in corsa la chiusura con un’altra operazione.
 ⛔ **Non esiste il terzo caso**: una vendita, un reso o un movimento confermato dopo il
 calcolo e assente dagli attesi congelati.
 
+| Prova (`chiusura-cassa.integration-spec.ts`)                      | Che cosa mette in corsa                 |
+| ------------------------------------------------------------------ | --------------------------------------- |
+| `una vendita IN VOLO non resta fuori dagli attesi congelati`       | checkout fermo sul numeratore, poi chiusura |
+| `un RESO in volo non resta fuori dagli attesi congelati`           | reso fermo sul suo numeratore           |
+| `chiusura prima: il movimento attende e poi viene rifiutato`       | chiusura in testa, versamento in coda   |
+| `movimento prima: la chiusura lo aspetta e lo conta`               | versamento in testa, chiusura in coda   |
+
+⚠️ **Tolto il `FOR UPDATE`, arrossano tutte e quattro.** Le sei prove-barriera invece
+restano verdi: è la ragione per cui non bastano.
+
 ### ⚠️ Una conseguenza dichiarata: due cambi dispositivo concorrenti ora riescono ENTRAMBI
 
 Prima si sovrapponevano, leggevano lo stesso «precedente» e a fermare il secondo era

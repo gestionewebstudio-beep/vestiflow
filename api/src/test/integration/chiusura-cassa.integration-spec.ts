@@ -514,7 +514,7 @@ describe('chiusura di cassa — C4B su PostgreSQL TEST', () => {
    * fra loro**: la chiusura poteva leggere e congelare mentre una vendita
    * era in volo.
    *
-   * ⭐ A dimostrare la serializzazione sono le tre prove qui sotto, che
+   * ⭐ A dimostrare la serializzazione sono le quattro prove qui sotto, che
    * mettono davvero in corsa la chiusura con un’altra operazione. Questa
    * resta perché coglie una regressione diversa: un’operazione che smettesse
    * di passare dal validatore.
