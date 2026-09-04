@@ -378,10 +378,16 @@ normativa univoca da assumere.
 ### ⏸ C2B — la classificazione RT, NON autorizzata
 
 ⛔ **Non si aggiunge un `PaymentTenderClass` lasciato tutto a `NULL`.** Prima va verificato:
-specifiche RT correnti; protocollo Epson realmente in uso; la differenza fra contante,
-elettronico, **non riscosso**, buoni e altre categorie; le differenze fra marche e firmware;
-e soprattutto **se la classificazione sia un dato del catalogo o un mapper versionato per
-dispositivo e protocollo** — che è una forma diversa e va scelta, non dedotta.
+specifiche RT correnti; il protocollo del dispositivo che si vorrà supportare; la differenza
+fra contante, elettronico, **non riscosso**, buoni e altre categorie; le differenze fra
+marche e firmware; e soprattutto **se la classificazione sia un dato del catalogo o un mapper
+versionato per dispositivo e protocollo** — che è una forma diversa e va scelta, non dedotta.
+
+⚠️ **La verifica normativa è stata fatta** (04/09/2026) e ha smentito l'ipotesi di partenza:
+lo schema AdE non ha un enum di quattro valori. I `Pagato*` stanno nel blocco 4.2, i
+`NonRiscosso*` nel **4.1 per aliquota IVA**, `<Ticket>` porta importo **e conteggio**, e
+`<ScontoApagare>` è un concetto a sé. Resta da verificare il **protocollo di un dispositivo
+reale**, che non esiste ancora.
 
 ⛔ Finché non è verificato, **C2 non è completata** e la Cassa non introduce pagamenti reali
 né fiscalizzazione.
@@ -492,15 +498,81 @@ Per 100 € pagati 60 contanti + 40 carta, il mapper fiscale produce: **totale 1
 ⛔ **Il mapper parte dalle quote canoniche, mai dal riepilogo «Misto»**, che è una lettura e
 non un dato.
 
-### La conoscenza recuperabile, e il suo limite
+### ⭐ I QUATTRO LIVELLI, e nessuno conosce il produttore del successivo
 
-Dal vecchio ramo si recupera la conoscenza tecnica verificata: endpoint Epson
-`fpmate.cgi`, costruzione XML, reparti IVA, interpretazione delle risposte, dati del
-dispositivo, associazione ricevuta/documento.
+⛔ **La Cassa non si progetta intorno a un produttore.** Deciso il 04/09/2026 (tranche
+**C1B**): Epson è il riferimento storico del vecchio ramo e potrà diventare **un** adapter,
+non il modello su cui si costruisce il nucleo.
 
-⛔ **Non si assume che il payload sia ancora valido.** Prima: modello e firmware Epson
-effettivi, versione corrente delle specifiche RT, protocollo Epson corrente, confronto di
-ogni comando e codice pagamento, prova su hardware reale in modalità sicura concordata.
+```text
+Cassa                vendita, quote, sessione, movimenti, quadratura
+  ↓  richiesta fiscale NORMALIZZATA
+Fiscalizzazione      stato dell'emissione, ritentativi, identificativi restituiti
+  ↓  adapter selezionato
+Adapter fiscale      traduce la richiesta nel protocollo di UN fornitore
+  ↓
+Trasporto            browser · agente locale · backend · servizio cloud
+```
+
+⚠️ **Ogni livello conosce solo il proprio contratto.** La Cassa non sa che esista un XML; la
+fiscalizzazione non sa che esista un indirizzo di rete; l'adapter non sa da dove parte la
+chiamata.
+
+### Il contratto della richiesta fiscale normalizzata
+
+⛔ **Non contiene**: nomi di produttore, `fpmate.cgi`, `paymentType` numerici, XML, indirizzi
+IP, reparti codificati secondo un firmware.
+
+⭐ **Deve poter rappresentare**, in modo neutrale:
+
+|              |                                                        |
+| ------------ | ------------------------------------------------------ |
+| operazione   | vendita · reso o annullo **collegato all'originale**   |
+| contenuto    | righe e riepiloghi IVA                                 |
+| incasso      | le quote, nella forma canonica di §6                   |
+| identità     | identificativo **idempotente** del tentativo           |
+| destinazione | il dispositivo **selezionato**, non «il primo trovato» |
+| esito        | confermato · fallito · **incerto**                     |
+| ritorno      | identificativi fiscali restituiti                      |
+| diagnostica  | dati dell'adapter, **mai fonte canonica**              |
+
+⛔ **Nessun adapter concreto si scrive in C1B.**
+
+### Come si sceglie il dispositivo
+
+La rimozione dell'unicità per sede apre la domanda, e la risposta non può essere «il primo».
+
+- una sede può avere **più dispositivi**;
+- la scelta è **esplicita**: dispositivo predefinito della sede, oppure legato alla sessione
+  o alla postazione;
+- un dispositivo **disabilitato** non è selezionabile per operazioni nuove, ma le ricevute
+  già emesse continuano a riferirlo;
+- ⛔ **un ritentativo non cambia dispositivo in silenzio**: si riemette sullo stesso, o si
+  dichiara un'operazione nuova;
+- tenant e sede si verificano su ogni scrittura.
+
+### Il trasporto non è deciso, e il modello non deve deciderlo
+
+| Forma                           | HTTPS / CORS / rete                     | Credenziali   | Con Railway                | Offline | Prova     |
+| ------------------------------- | --------------------------------------- | ------------- | -------------------------- | ------- | --------- |
+| browser → dispositivo LAN       | ⚠️ contesto sicuro e certificati locali | nel negozio   | il server non entra in LAN | ✅      | difficile |
+| agente locale                   | ✅ controllabile                        | nel negozio   | indipendente               | ✅      | media     |
+| backend → dispositivo o gateway | ⚠️ richiede raggiungibilità             | centralizzate | ✅                         | ⛔      | facile    |
+| API cloud del fornitore         | ✅                                      | centralizzate | ✅                         | ⛔      | facile    |
+
+⛔ **Nessuna è esclusa dal modello.** L'indirizzo di collegamento è **opzionale** proprio
+perché un adapter cloud o un agente locale possono non averne uno.
+
+### ⚠️ La cronologia dei ritentativi oggi si perde
+
+`FiscalReceipt` ha `documentId @unique` e campi scalari singoli — `status`, `rawResponse`,
+`errorMessage`. Un secondo tentativo **sovrascrive** il primo: della risposta precedente non
+resta nulla, e con una risposta incerta è esattamente ciò che servirebbe per riconciliare.
+
+⏸ **Proposta, non implementata in C1B**: una tabella **append-only** dei tentativi, figlia
+della ricevuta, con esito, istante, adapter e diagnostica. `FiscalReceipt` resterebbe lo
+stato corrente. Va decisa insieme all'adapter, perché la forma della diagnostica dipende da
+cosa i dispositivi restituiscono davvero.
 
 ### Se il pagamento riesce e l'RT non risponde
 
@@ -568,7 +640,7 @@ portavano al carrello.
 La Cassa richiede: modulo visibile **solo ai tenant abilitati**; permessi **distinti** per
 usare la Cassa, aprire e chiudere sessioni, gestire dispositivi e terminali; isolamento
 tenant su ogni lettura e scrittura; location obbligatoria dove serve davvero; **nessuna
-esposizione delle tabelle via Data API** e RLS coerente; endpoint Epson e configurazione POS
+esposizione delle tabelle via Data API** e RLS coerente; indirizzi dei dispositivi e configurazione POS
 mai esposti inutilmente al frontend; nessuna credenziale nei log.
 
 ⛔ **La Vendita al banco continua a funzionare per chi ha i suoi permessi anche senza alcun
@@ -646,16 +718,17 @@ l'orchestratore del documento, e la Cassa è l'altro orchestratore.
 
 ## 15. La sequenza
 
-| Tranche | Contenuto                                                                                                                                 | Migration             |
-| ------- | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
-| **C0**  | questa specifica, separazione delle rotte, contratto transitorio dei pagamenti, censimento `PaymentOption`                                | ⛔ nessuna            |
-| **C1**  | modelli Prisma delle tabelle Cassa **già esistenti**, relazioni, prove di schema e isolamento                                             | ⛔ nessuna            |
-| **C2A** | catalogo globale delle Modalità normative, codice FatturaPA strutturato, FK nullable da `PaymentOption`, backfill esplicito, Impostazioni | ✅ additiva, nullable |
-| **C2B** | ⏸ classificazione RT — **non autorizzata**: prima va verificata (§7)                                                                      | ⏸ da decidere         |
-| **C3**  | checkout Cassa, sessione aperta, pagamento unico e misto, quadratura, resto, carta fallita, creazione idempotente                         | —                     |
-| **C4**  | sessioni e riconciliazione: apertura/chiusura, fondo, movimenti di cassetto, conteggio, differenze, terminali POS                         | —                     |
-| **C5**  | fiscalizzazione Epson: adapter, payload, ricevute, stati, ritentativi, prova su hardware reale                                            | —                     |
-| _poi_   | migrazione della **Vendita al banco** da `cash \| card \| other` a `PaymentOption`                                                        | tranche **autonoma**  |
+| Tranche | Contenuto                                                                                                                                                       | Migration               |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| **C0**  | questa specifica, separazione delle rotte, contratto transitorio dei pagamenti, censimento `PaymentOption`                                                      | ⛔ nessuna              |
+| **C1**  | modelli Prisma delle tabelle Cassa **già esistenti**, relazioni, prove di schema e isolamento                                                                   | ⛔ nessuna              |
+| **C1B** | neutralizzazione dell'infrastruttura fiscale: nessuna assunzione su produttore, LAN, browser o «un solo dispositivo per sede»                                   | ✅ additiva/compatibile |
+| **C2A** | catalogo globale delle Modalità normative, codice FatturaPA strutturato, FK nullable da `PaymentOption`, backfill esplicito, Impostazioni                       | ✅ additiva, nullable   |
+| **C2B** | ⏸ classificazione RT — **non autorizzata**: prima va verificata (§7)                                                                                            | ⏸ da decidere           |
+| **C3**  | checkout Cassa, sessione aperta, pagamento unico e misto, quadratura, resto, carta fallita, creazione idempotente                                               | —                       |
+| **C4**  | sessioni e riconciliazione: apertura/chiusura, fondo, movimenti di cassetto, conteggio, differenze, terminali POS                                               | —                       |
+| **C5**  | fiscalizzazione **indipendente dal produttore**, tramite adapter; il primo adapter si sceglie quando saranno disponibili dispositivo, firmware e documentazione | —                       |
+| _poi_   | migrazione della **Vendita al banco** da `cash \| card \| other` a `PaymentOption`                                                                              | tranche **autonoma**    |
 
 ⛔ **Non si comincia una tranche lasciando rossa la precedente.**
 
@@ -672,8 +745,35 @@ quale comportamento reale del codice o del database lo impedisce, con **file e r
 conseguenza funzionale; l'alternativa proposta; il rischio di regressione; e la prova che
 falsifica il comportamento precedente.
 
-⛔ **Non si colmano con supposizioni** le lacune del protocollo Epson, dei resi fiscali o
+⛔ **Non si colmano con supposizioni** le lacune del protocollo fiscale, dei resi o
 dell'integrazione con la Tesoreria.
+
+---
+
+## Appendice storica — quello che il vecchio ramo sapeva di Epson
+
+> ⛔ **QUESTA SEZIONE NON È NORMATIVA.** Non è un contratto, non è una configurazione, non
+> autorizza nulla. È il verbale di ciò che `origin/feature/cassa` (`6e4f9e79`) conteneva al
+> 19/08/2026, conservato perché **la conoscenza non si ricostruisce** e perso il ramo si
+> perderebbe. Nessuna riga qui dentro si copia in un contratto senza prima verificarla sul
+> dispositivo reale.
+
+Il vecchio ramo aveva un adapter per stampanti Epson RT che parlava **Fiscal ePOS-Print XML**
+su envelope SOAP, con endpoint `…/cgi-bin/fpmate.cgi`. Conosceva: la costruzione del
+documento di vendita e di reso, il preambolo di reso con gli estremi della ricevuta
+originale, la mappa aliquota→reparto, la lettura della risposta con numero scontrino e
+progressivo di chiusura, e una tabella di tipi pagamento numerici.
+
+⚠️ **Il suo stesso autore lo dichiarava non verificato**: l'intestazione del file diceva che
+il flusso di reso andava validato sul dispositivo reale, e che «il firmware ha l'ultima
+parola».
+
+⛔ **Il commento «FP-81II/FP-90III» è storico e nient'altro**: nessun dispositivo è mai stato
+configurato — `fiscal_devices` ha **0 righe**, misurate il 04/09/2026 — quindi non esiste un
+modello «realmente utilizzato» da cui dedurre alcunché.
+
+⭐ **Quando arriverà un dispositivo**, questa appendice serve a sapere **cosa già si era
+capito** e cosa andava riverificato: non a saltare la verifica.
 
 ---
 
