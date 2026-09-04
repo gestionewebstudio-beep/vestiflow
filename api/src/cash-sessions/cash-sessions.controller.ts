@@ -19,6 +19,7 @@ import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard'
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 
 import { CashCheckoutService, type CheckoutResult } from './cash-checkout.service';
+import { CashClosingService, type CloseResult } from './cash-closing.service';
 import {
   CashReturnService,
   type ReturnLookupResult,
@@ -31,6 +32,7 @@ import {
   CashSessionLocationQueryDto,
   CashSessionMovementDto,
   ChangeCashSessionDeviceDto,
+  CloseCashSessionDto,
   OpenCashSessionDto,
 } from './dto/cash-session.dto';
 
@@ -47,8 +49,8 @@ import {
  * più dispositivi non sa quale modificare (`docs/25` §10, garanzia 7). Qui la
  * sede è una *query*, la sessione un *path parameter*.
  *
- * ⚠️ **La chiusura non c'è**, e non è dimenticata: gli attesi si calcolano
- * dalle quote di C4. C3, C4 e C4B non si rilasciano separatamente.
+ * ⭐ **La chiusura c’è da C4B** (`POST :id/close`), e congela gli attesi
+ * calcolati dalle quote: prima di C4 non erano calcolabili.
  */
 @Controller('cash-sessions')
 @UseGuards(JwtAuthGuard, TenantPermissionsGuard)
@@ -57,6 +59,7 @@ export class CashSessionsController {
     private readonly cashSessions: CashSessionsService,
     private readonly checkoutService: CashCheckoutService,
     private readonly returnService: CashReturnService,
+    private readonly closingService: CashClosingService,
   ) {}
 
   /**
@@ -172,6 +175,28 @@ export class CashSessionsController {
     @Body() dto: CashSessionMovementDto,
   ): Promise<CashSessionMovement> {
     return this.cashSessions.addMovement(tenantId, user, query.locationId, id, dto);
+  }
+
+  /**
+   * Chiude la sessione e CONGELA la quadratura (tranche C4B).
+   *
+   * ⭐ `retail.cash_session`, lo stesso permesso dell_apertura: chi dichiara
+   * il fondo e` chi firma la quadratura.
+   *
+   * ⚠️ E` un `@Post` e non un `@Patch`: `check:cassa-append-only` vieta i
+   * verbi di modifica su questa risorsa. La chiusura non e` una modifica
+   * della sessione — e` il suo evento finale, e non si annulla.
+   */
+  @Post(':id/close')
+  @RequirePermissions(TenantPermission.RetailCashSession)
+  close(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() query: CashSessionLocationQueryDto,
+    @Body() dto: CloseCashSessionDto,
+  ): Promise<CloseResult> {
+    return this.closingService.close(tenantId, user, query.locationId, id, dto);
   }
 
   /** Lo storico dei cambi dispositivo della sessione. */

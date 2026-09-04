@@ -191,6 +191,45 @@ export class CashCheckoutDto {
   payments!: CheckoutPaymentDto[];
 }
 
+// ── Chiusura della sessione (tranche C4B) ──────────────────────────────────
+
+/**
+ * La chiusura: si dichiara quello che si e` CONTATO, non quello che ci si
+ * aspettava.
+ *
+ * ⭐ Gli attesi non compaiono qui e non compaiono in nessuna risposta finche`
+ * la sessione e` aperta: la chiusura e` CIECA (`docs/25` §9).
+ */
+export class CloseCashSessionDto {
+  /**
+   * Il contante CONTATO aprendo il cassetto.
+   *
+   * ⚠️ `@Min(0)`: zero e` legittimo — un cassetto vuoto e` un conteggio, non
+   * un dato mancante.
+   */
+  @IsInt()
+  @Min(0)
+  countedCashMinor!: number;
+
+  /**
+   * Il totale che l'operatore LEGGE sul terminale e dichiara.
+   *
+   * ⛔ Non e` una risposta tecnica del POS: VestiFlow non parla col terminale
+   * e non finge di averlo fatto. Assente o `null` significa «non
+   * riconciliato», ed e` una chiusura legittima.
+   */
+  @ValidateIf((_, value) => value !== null)
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  declaredElectronicMinor?: number | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  notes?: string;
+}
+
 // ── Reso collegato allo scontrino (tranche C4R) ────────────────────────────
 
 export class ReturnLineDto {

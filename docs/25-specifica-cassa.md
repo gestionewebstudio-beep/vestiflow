@@ -32,6 +32,7 @@ banco**. Scritta il 04/09/2026 come tranche **C0** del recupero da
 | 16  | Reso e chiusura sono **subordinati**, non voci di menu                                           | §3                |
 | 17  | Il reso dichiara **quale riga** rettifica: il cumulativo si ricostruisce, non si contabilizza    | §12-bis           |
 | 18  | Il rimborso è agganciato alla **quota di incasso**, non al Tipo pagamento                        | §13-quater        |
+| 19  | La chiusura è **cieca** e **congela** gli attesi: la differenza resta derivata                    | §9, §13-quinquies |
 
 In caso di contrasto fra questo elenco e il corpo del documento, **vale l'elenco**.
 
@@ -1306,6 +1307,16 @@ GET   /cash-sessions/:id/device-changes       retail.register     lo storico
 POST  /cash-sessions/:id/device               retail.cash_session cambio o rimozione
 ```
 
+⚠️ **Sono le rotte di C3, non tutte quelle della Cassa.** Le altre arrivano con la tranche
+che le introduce, e si argomentano nella sua sezione:
+
+```text
+POST  /cash-sessions/checkout                    retail.register     C4A, §13-ter
+GET   /cash-sessions/returns/lookup/:documentId  retail.cash_return  C4R, §13-quater
+POST  /cash-sessions/returns                     retail.cash_return  C4R, §13-quater
+POST  /cash-sessions/:id/close                   retail.cash_session C4B, §13-quinquies
+```
+
 ⛔ **Nessun `DELETE`, `PUT` o `PATCH`**, e non per stile: `check:cassa-append-only` fa
 fallire la build. Il cambio dispositivo è un `POST` perché **non è una modifica della
 sessione**: è un evento che si aggiunge allo storico, e di cui la sessione porta il
@@ -1329,6 +1340,28 @@ Misurato provando a falsificarle:
 | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | due aperture con `Promise.all`   | ⛔ **resta verde anche togliendo l'indice parziale**: le due transazioni si serializzano abbastanza da far vedere alla seconda la sessione della prima, e a fermarla è il controllo applicativo. Serve una prova che interroghi il **database** scavalcando il servizio |
 | il CHECK «almeno un dispositivo» | rimosso: implicato da `IS DISTINCT FROM` (rifinitura di C2C)                                                                                                                                                                                                            |
+
+### ⛔ E una TERZA prova produceva un rifiuto non gestito INTERMITTENTE
+
+> **Una promessa creata in anticipo e awaitata dopo può essere rifiutata mentre nessuno la
+> sta ancora ascoltando.** Node emette `unhandledRejection`, Vitest lo riporta come errore
+> non gestito — e la suite resta **verde**, perché la prova poi l'`await` lo fa.
+
+```text
+const altrui      = service.open(…)   ⛔ questa puo` fallire mentre il primo await
+const inesistente = service.open(…)      e` ancora in viaggio verso il database
+await expect(altrui).rejects…
+await expect(inesistente).rejects…    ← il gestore arriva TROPPO TARDI
+```
+
+⚠️ **Misurato il 04/09/2026: 2 esecuzioni complete su 10**, sempre sulla stessa prova
+(`sessione-cassa`, «una sede di un ALTRO tenant è rifiutata»), e la causa isolata fuori dal
+progetto in dieci righe — `unhandledRejection` seguito da `rejectionHandled`.
+
+⭐ **Il difetto era della PROVA, non del prodotto**, e il rimedio è eseguire una chiamata
+alla volta catturandone l'errore. Nell'occasione la prova è diventata anche più forte:
+adesso verifica che i due messaggi siano **identici**, che è ciò che il suo nome dichiara e
+che prima non controllava nessuno.
 
 ---
 
@@ -1505,6 +1538,94 @@ fallisce prima di ricrearlo, cadono anche quelle dopo. Misurato — un guasto so
 prove rosse. Le due prove usano ora un Tipo **usa-e-getta**.
 
 ---
+## 13-quinquies. C4B — la chiusura, e la quadratura congelata
+
+⭐ **Realizzata il 04/09/2026** (`cash-closing.service.ts`), **senza migration**: le
+colonne le aveva già preparate C2C, e restavano `NULL` perché gli attesi non erano
+calcolabili finché non esistevano le quote.
+
+```text
+POST /cash-sessions/:id/close?locationId=…      retail.cash_session
+  countedCashMinor           obbligatorio, >= 0
+  declaredElectronicMinor    facoltativo, `null` = non riconciliato
+  notes                      facoltative
+```
+
+### ⭐ La cecità è STRUTTURALE, non una scelta della maschera
+
+> **Gli attesi non esistono finché la sessione è aperta.** Le colonne sono `NULL`, e
+> nessuna rotta li calcola: si materializzano dentro la transazione di chiusura, **dopo**
+> che l’operatore ha dichiarato quanto ha contato.
+
+⛔ **Non c’è un endpoint di anteprima**, e non è una dimenticanza: un conteggio fatto
+sapendo il risultato non è un conteggio. Se domani servisse un «atteso provvisorio» per
+un ruolo di controllo, è una decisione da prendere — non un’aggiunta innocua.
+
+⚠️ `GET /cash-sessions/current` restituisce **solo** `session`, `depositsMinor` e
+`withdrawalsMinor`: i due totali del cassetto sono movimenti che l’operatore ha inserito
+lui, non una previsione della cassa. La prova verifica anche **quali chiavi** torna, così
+un campo aggiunto per comodità non apre una feritoia in silenzio.
+
+### Le formule, e cosa NON entra
+
+```text
+expectedCashMinor       = fondo + venditeCash − resiCash + versamenti − prelievi
+expectedElectronicMinor = venditeElettroniche − resiElettronici        ⭐ né fondo né cassetto
+cashDifferenceMinor     = countedCash − expectedCash                    ⭐ DERIVATA
+electronicDifference    = dichiarato − atteso, oppure `null`            se non riconciliato
+```
+
+⛔ **La differenza non è una colonna**, e la prova lo verifica interrogando
+`information_schema`: persisterla creerebbe un terzo valore capace di contraddire i due da
+cui deriva. È la stessa disciplina del cumulativo dei resi (§12-bis).
+
+⛔ **I documenti ANNULLATI non contribuiscono.** Era il difetto del ramo storico: la sua
+query non filtrava su `status`, e un `store_sale` annullato entrava negli attesi.
+
+⛔ **La classe la porta la QUOTA, non il Tipo corrente.** Riclassificare un Tipo domani
+cambierebbe altrimenti la quadratura di una sessione chiusa a marzo.
+
+### ⛔ Nessun ramo di ripiego sull’enum
+
+Il `bucket()` del ramo storico mandava «ogni metodo sconosciuto» in `other`: con
+`tenderKind` quella riga farebbe **sparire in silenzio** una classe nuova dalla quadratura.
+Qui lo `switch` è esaustivo e ogni caso non trattato **ferma la chiusura**:
+
+| Quota                     | Esito                                                                  |
+| ------------------------- | ---------------------------------------------------------------------- |
+| `cash` · `electronic`     | quadrano                                                               |
+| `voucher`                 | ⛔ ferma: modellato in C2B, non abilitato al checkout                  |
+| snapshot `null` (storica) | ⛔ ferma: non si sa come classificarla, e indovinare sarebbe peggio    |
+| una classe **futura**     | ⛔ ferma: il giorno che l’enum cresce, questo punto deve farsi trovare |
+
+⚠️ **La sessione resta APERTA** quando la quadratura si ferma: non si chiude una cassa
+che non quadra, e l’operatore deve poter sistemare la quota prima di riprovare.
+
+### La chiusura concorrente
+
+⛔ **Due chiusure simultanee passano ENTRAMBE dal validatore**: fra la lettura della
+sessione e la scrittura c’è tutto il calcolo degli attesi. A decidere è l’aggiornamento
+**condizionale** — `updateMany where status = open` — e la seconda tocca zero righe e lo
+dichiara, invece di sovrascrivere una quadratura già firmata.
+
+⚠️ È lo stesso pattern del cambio dispositivo (C3): non un lock, ma una scrittura che
+contiene la propria precondizione.
+
+### Le prove, e cosa falsifica cosa
+
+| Guasto introdotto                                | Prova che diventa rossa                            |
+| ------------------------------------------------ | -------------------------------------------------- |
+| condizione `status = open` tolta dall’update     | `due chiusure SIMULTANEE`                          |
+| filtro sui documenti annullati tolto             | `i documenti ANNULLATI non contribuiscono`         |
+| classe letta dal Tipo corrente invece che dalla quota | `riclassificare il Tipo NON sposta la quadratura` |
+| ramo di ripiego aggiunto allo `switch`           | `una quota VOUCHER ferma la quadratura`            |
+| il fondo aggiunto anche all’elettronico          | `la quadratura: fondo, vendite, resi…`             |
+
+⚠️ **Una prova che riclassifica il Tipo CONDIVISO lega le successive alla propria
+riuscita**: se fallisce prima di rimetterlo a posto, cadono anche quelle dopo. Usa un Tipo
+usa-e-getta — è la stessa lezione di §13-quater, arrivata da una falsificazione.
+
+---
 ## 14. Riuso: cosa si condivide e cosa resta distinto
 
 ⛔ **Non si copia la maschera Vendita al banco per costruire la Cassa**, e non si copia il
@@ -1590,7 +1711,9 @@ il componente non filtra il catalogo, lo riceve già filtrato.
 | **C2B** | classificazione **operativa** dei Tipi pagamento per il checkout (`PaymentTenderKind`), backfill dichiarato, Impostazioni, backup                         | ✅ additiva, nullable   |
 | **C2C** | consolidamento dello schema dormiente: vocabolario della chiusura secondo C2B, storico append-only dei cambi dispositivo                                  | ✅ rinomina + tabella   |
 | **C3**  | ✅ validatore transazionale, apertura, sessione corrente, scelta e cambio dispositivo con storico, versamenti e prelievi. ⛔ **senza chiusura**: è di C4B | ⛔ nessuna              |
-| **C4**  | **checkout**: quote, pagamento misto, resto, carta rifiutata, creazione idempotente, `store_sale_payments` (contratto in §5-bis)                          | ✅ prevista             |
+| **C4A** | ✅ **checkout**: quote, pagamento misto, resto, carta rifiutata, creazione idempotente, `store_sale_payments` (contratto in §5-bis)                       | ✅ applicata            |
+| **C4R** | ✅ **reso** collegato allo scontrino, riga per riga, con rimborso agganciato alla quota di incasso                                                        | ✅ applicata            |
+| **C4B** | ✅ **chiusura**: quadratura cieca, attesi congelati dalle quote, differenza derivata, chiusura concorrente                                                | ⛔ nessuna              |
 | **C5**  | **fiscalizzazione provider-neutral**: rappresentazione fiscale AdE, adapter, trasporto, dispositivo reale. Nessun produttore è predeterminato             | —                       |
 | _poi_   | migrazione della **Vendita al banco** da `cash \| card \| other` a `PaymentOption`                                                                        | tranche **autonoma**    |
 
