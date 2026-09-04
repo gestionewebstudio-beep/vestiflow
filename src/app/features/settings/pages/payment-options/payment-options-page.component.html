@@ -99,14 +99,21 @@
                   @if (group.kind === 'method' && modalitaNormative().length) {
                     <label class="payment-options__item-code">
                       <span class="sr-only">Modalità normativa di {{ option.name }}</span>
+                      <!-- ⚠️ La selezione sta su [selected] delle option, non su
+                           [value] del select: Angular applica il value PRIMA che
+                           le option di @for esistano, e il campo resterebbe vuoto
+                           mostrando «nessuna» su un Tipo che una modalità ce l_ha. -->
                       <select
-                        [value]="option.methodCodeId ?? ''"
                         [disabled]="saving() || !puoGestireImpostazioniAzienda()"
                         (change)="cambiaModalita(option, $any($event.target).value)"
                       >
-                        <option value="">— nessuna —</option>
+                        <option value="" [selected]="option.methodCodeId === null">
+                          — nessuna —
+                        </option>
                         @for (code of modalitaNormative(); track code.id) {
-                          <option [value]="code.id">{{ etichettaModalita(code) }}</option>
+                          <option [value]="code.id" [selected]="code.id === option.methodCodeId">
+                            {{ etichettaModalita(code) }}
+                          </option>
                         }
                       </select>
                     </label>

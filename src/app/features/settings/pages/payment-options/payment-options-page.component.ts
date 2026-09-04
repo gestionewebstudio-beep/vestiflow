@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { DestroyRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { catchError, map, of, startWith, switchMap, take } from 'rxjs';
+import { catchError, forkJoin, map, of, startWith, switchMap, take } from 'rxjs';
 
 import { AuthService } from '@core/auth';
 import { isAppError } from '@core/models/app-error.model';
@@ -23,6 +23,7 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 interface LoadState {
   readonly status: 'loading' | 'ready' | 'error';
   readonly options: readonly PaymentOption[];
+  readonly modalita: readonly PaymentMethodCode[];
 }
 
 /**
@@ -77,33 +78,38 @@ export class PaymentOptionsPageComponent {
   ];
 
   private readonly reload = signal(0);
+
+  /**
+   * ⛔ Voci del tenant e catalogo normativo si caricano INSIEME, e un errore
+   * dell'uno è un errore della pagina.
+   *
+   * Il catalogo aveva un `catchError` proprio che lo riduceva a elenco vuoto:
+   * le tendine sparivano, e sparendo rendevano indistinguibili quattro cose
+   * diverse — catalogo davvero vuoto, API irraggiungibile, errore del
+   * database, permesso sbagliato. L'operatore vedeva una pagina che sembrava
+   * funzionare, con una funzione in meno e nessuna spiegazione.
+   */
   private readonly loadState = toSignal(
     toObservable(this.reload).pipe(
       switchMap(() =>
-        this.service.list().pipe(
-          map((options): LoadState => ({ status: 'ready', options })),
-          startWith({ status: 'loading', options: [] } satisfies LoadState),
-          catchError(() => of({ status: 'error', options: [] } satisfies LoadState)),
+        forkJoin({
+          options: this.service.list().pipe(take(1)),
+          modalita: this.service.listMethodCodes().pipe(take(1)),
+        }).pipe(
+          map(({ options, modalita }): LoadState => ({ status: 'ready', options, modalita })),
+          startWith({ status: 'loading', options: [], modalita: [] } satisfies LoadState),
+          catchError(() => of({ status: 'error', options: [], modalita: [] } satisfies LoadState)),
         ),
       ),
     ),
-    { initialValue: { status: 'loading', options: [] } satisfies LoadState },
+    { initialValue: { status: 'loading', options: [], modalita: [] } satisfies LoadState },
   );
 
   protected readonly loading = computed(() => this.loadState().status === 'loading');
   protected readonly loadError = computed(() => this.loadState().status === 'error');
 
-  /**
-   * Il catalogo normativo FatturaPA (MP01-MP23): globale e immutabile, si
-   * carica una volta sola e non segue il `reload` delle voci del tenant.
-   *
-   * ⚠️ In errore resta vuoto e le tendine non compaiono: un elenco a metà
-   * farebbe scegliere fra codici che sembrano tutti quelli disponibili.
-   */
-  protected readonly modalitaNormative = toSignal(
-    this.service.listMethodCodes().pipe(catchError(() => of([] as readonly PaymentMethodCode[]))),
-    { initialValue: [] as readonly PaymentMethodCode[] },
-  );
+  /** Il catalogo normativo FatturaPA (MP01-MP23), globale e immutabile. */
+  protected readonly modalitaNormative = computed(() => this.loadState().modalita);
 
   /** «MP05 — Bonifico» per la tendina. */
   protected etichettaModalita(code: PaymentMethodCode): string {

@@ -30,7 +30,11 @@
 -- catalogo e' replicato per tenant (92 righe per 23 codici, misurate il
 -- 04/09/2026) e ogni copia puo' divergere dalle altre.
 CREATE TABLE "payment_method_codes" (
-  "id"         UUID         NOT NULL DEFAULT gen_random_uuid(),
+  -- ⚠️ Nessun DEFAULT: l'identificativo lo genera Prisma (`@default(uuid())`),
+  --    come su `vat_natures` e `vat_codes`. Un default SQL qui lascerebbe una
+  --    deriva permanente fra schema e database, che `migrate diff` segnala a
+  --    ogni esecuzione.
+  "id"         UUID         NOT NULL,
   "code"       TEXT         NOT NULL,
   "label"      TEXT         NOT NULL,
   "sort_order" INTEGER      NOT NULL DEFAULT 0,
@@ -54,30 +58,30 @@ REVOKE ALL ON "payment_method_codes" FROM anon, authenticated;
 --
 -- ⛔ Codice ed etichetta sono due colonne, non un nome da cui ricavarli.
 --    Fonte: FatturaPA, specifiche tecniche 1.3.1 (Tesoreria §2.2).
-INSERT INTO "payment_method_codes" ("code", "label", "sort_order", "updated_at") VALUES
-  ('MP01', 'Contanti',                                    1, CURRENT_TIMESTAMP),
-  ('MP02', 'Assegno',                                     2, CURRENT_TIMESTAMP),
-  ('MP03', 'Assegno circolare',                           3, CURRENT_TIMESTAMP),
-  ('MP04', 'Contanti presso Tesoreria',                   4, CURRENT_TIMESTAMP),
-  ('MP05', 'Bonifico',                                    5, CURRENT_TIMESTAMP),
-  ('MP06', 'Vaglia cambiario',                            6, CURRENT_TIMESTAMP),
-  ('MP07', 'Bollettino bancario',                         7, CURRENT_TIMESTAMP),
-  ('MP08', 'Carta di pagamento',                          8, CURRENT_TIMESTAMP),
-  ('MP09', 'RID',                                         9, CURRENT_TIMESTAMP),
-  ('MP10', 'RID utenze',                                 10, CURRENT_TIMESTAMP),
-  ('MP11', 'RID veloce',                                 11, CURRENT_TIMESTAMP),
-  ('MP12', 'RIBA',                                       12, CURRENT_TIMESTAMP),
-  ('MP13', 'MAV',                                        13, CURRENT_TIMESTAMP),
-  ('MP14', 'Quietanza erario',                           14, CURRENT_TIMESTAMP),
-  ('MP15', 'Giroconto su conti di contabilità speciale', 15, CURRENT_TIMESTAMP),
-  ('MP16', 'Domiciliazione bancaria',                    16, CURRENT_TIMESTAMP),
-  ('MP17', 'Domiciliazione postale',                     17, CURRENT_TIMESTAMP),
-  ('MP18', 'Bollettino di c/c postale',                  18, CURRENT_TIMESTAMP),
-  ('MP19', 'SEPA Direct Debit',                          19, CURRENT_TIMESTAMP),
-  ('MP20', 'SEPA Direct Debit CORE',                     20, CURRENT_TIMESTAMP),
-  ('MP21', 'SEPA Direct Debit B2B',                      21, CURRENT_TIMESTAMP),
-  ('MP22', 'Trattenuta su somme già riscosse',           22, CURRENT_TIMESTAMP),
-  ('MP23', 'PagoPA',                                     23, CURRENT_TIMESTAMP);
+INSERT INTO "payment_method_codes" ("id", "code", "label", "sort_order", "updated_at") VALUES
+  (gen_random_uuid(), 'MP01', 'Contanti',                                    1, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'MP02', 'Assegno',                                     2, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'MP03', 'Assegno circolare',                           3, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'MP04', 'Contanti presso Tesoreria',                   4, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'MP05', 'Bonifico',                                    5, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'MP06', 'Vaglia cambiario',                            6, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'MP07', 'Bollettino bancario',                         7, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'MP08', 'Carta di pagamento',                          8, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'MP09', 'RID',                                         9, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'MP10', 'RID utenze',                                 10, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'MP11', 'RID veloce',                                 11, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'MP12', 'RIBA',                                       12, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'MP13', 'MAV',                                        13, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'MP14', 'Quietanza erario',                           14, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'MP15', 'Giroconto su conti di contabilità speciale', 15, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'MP16', 'Domiciliazione bancaria',                    16, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'MP17', 'Domiciliazione postale',                     17, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'MP18', 'Bollettino di c/c postale',                  18, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'MP19', 'SEPA Direct Debit',                          19, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'MP20', 'SEPA Direct Debit CORE',                     20, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'MP21', 'SEPA Direct Debit B2B',                      21, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'MP22', 'Trattenuta su somme già riscosse',           22, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'MP23', 'PagoPA',                                     23, CURRENT_TIMESTAMP);
 
 -- ── 3. Il collegamento dal Tipo aziendale ──────────────────────────────────
 ALTER TABLE "payment_options" ADD COLUMN "method_code_id" UUID;

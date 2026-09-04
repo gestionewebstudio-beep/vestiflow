@@ -1,10 +1,10 @@
 import { provideRouter } from '@angular/router';
-import { render, screen } from '@testing-library/angular';
-import { of } from 'rxjs';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/angular';
+import { of, throwError } from 'rxjs';
+import { describe, expect, it, vi } from 'vitest';
 
 import { AuthService } from '@core/auth';
-import type { PaymentOption } from '@core/models/payment-option.model';
+import type { PaymentMethodCode, PaymentOption } from '@core/models/payment-option.model';
 import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
 import { TenantPermission } from '@core/models/tenant-permission.model';
 import type { TenantPermissionKey } from '@core/models/tenant-permission.model';
@@ -127,5 +127,131 @@ describe('PaymentOptionsPageComponent — comandi riservati a «Impostazioni azi
 
     expect(screen.queryByText('Nessuna voce: aggiungine una qui sopra.')).toBeNull();
     expect(screen.getAllByText('Nessuna voce configurata.').length).toBe(2);
+  });
+});
+
+/**
+ * La tendina della Modalità normativa (C2A, `docs/25` §7).
+ *
+ * ⛔ Ciò che questi test falsificano: una tendina che compare anche sulle
+ *    CONDIZIONI, un cambio che non arriva all'API, una scelta «nessuna» che
+ *    invia `undefined` invece di `null` — e soprattutto un catalogo che
+ *    fallisce SPARENDO, indistinguibile da un catalogo vuoto.
+ */
+const MP05: PaymentMethodCode = {
+  id: 'mc-5',
+  code: 'MP05',
+  label: 'Bonifico',
+  sortOrder: 5,
+  isActive: true,
+};
+
+const BONIFICO: PaymentOption = {
+  ...CONTANTI,
+  id: 'po-2',
+  name: 'Bonifico 60 gg',
+  methodCodeId: 'mc-5',
+};
+
+const CONDIZIONE: PaymentOption = {
+  ...CONTANTI,
+  id: 'po-3',
+  kind: 'terms',
+  name: '60 gg f.m.',
+  methodCodeId: null,
+};
+
+describe('PaymentOptionsPageComponent — modalità normativa', () => {
+  function serviceMock(overrides: Record<string, unknown> = {}) {
+    return {
+      list: () => of([CONTANTI, BONIFICO, CONDIZIONE]),
+      listMethodCodes: () => of([MP05]),
+      update: vi.fn().mockReturnValue(of(BONIFICO)),
+      ...overrides,
+    };
+  }
+
+  async function apriConCatalogo(mock: Record<string, unknown>): Promise<void> {
+    await render(PaymentOptionsPageComponent, {
+      providers: [
+        provideRouter([]),
+        {
+          provide: AuthService,
+          useValue: {
+            currentUser: () =>
+              utente([TenantPermission.SectionSettings, TenantPermission.SettingsCompany]),
+          },
+        },
+        { provide: PaymentOptionsService, useValue: mock },
+      ],
+    });
+  }
+
+  it('mostra la tendina sui Tipi di pagamento e NON sulle condizioni', async () => {
+    await apriConCatalogo(serviceMock());
+
+    // Due voci `method`, nessuna sulla condizione.
+    expect(screen.getAllByLabelText(/^Modalità normativa di/)).toHaveLength(2);
+    expect(screen.queryByLabelText('Modalità normativa di 60 gg f.m.')).toBeNull();
+  });
+
+  it('presenta selezionata la modalità già collegata', async () => {
+    await apriConCatalogo(serviceMock());
+
+    const tendina = screen.getByLabelText<HTMLSelectElement>(
+      'Modalità normativa di Bonifico 60 gg',
+    );
+    expect(tendina.value).toBe('mc-5');
+  });
+
+  it('associare una modalità la manda all_API', async () => {
+    const mock = serviceMock();
+    await apriConCatalogo(mock);
+
+    const tendina = screen.getByLabelText('Modalità normativa di Contanti');
+    fireEvent.change(tendina, { target: { value: 'mc-5' } });
+
+    expect(mock.update).toHaveBeenCalledWith('po-1', { methodCodeId: 'mc-5' });
+  });
+
+  it('scegliere «nessuna» invia null, non undefined', async () => {
+    const mock = serviceMock();
+    await apriConCatalogo(mock);
+
+    const tendina = screen.getByLabelText<HTMLSelectElement>(
+      'Modalità normativa di Bonifico 60 gg',
+    );
+    fireEvent.change(tendina, { target: { value: '' } });
+
+    expect(mock.update).toHaveBeenCalledWith('po-2', { methodCodeId: null });
+  });
+
+  it('a chi non può scrivere la tendina resta visibile ma disabilitata', async () => {
+    await render(PaymentOptionsPageComponent, {
+      providers: [
+        provideRouter([]),
+        {
+          provide: AuthService,
+          useValue: { currentUser: () => utente([TenantPermission.SectionSettings]) },
+        },
+        { provide: PaymentOptionsService, useValue: serviceMock() },
+      ],
+    });
+
+    const tendina = screen.getByLabelText<HTMLSelectElement>(
+      'Modalità normativa di Bonifico 60 gg',
+    );
+    expect(tendina.value).toBe('mc-5');
+    expect(tendina.disabled).toBe(true);
+  });
+
+  it('se il catalogo FALLISCE la pagina lo dice, non sparisce in silenzio', async () => {
+    await apriConCatalogo(
+      serviceMock({ listMethodCodes: () => throwError(() => new Error('rete')) }),
+    );
+
+    // Lo stato d'errore della pagina, non una tendina mancante senza spiegazione.
+    expect(screen.queryByLabelText(/^Modalità normativa di/)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Riprova' })).toBeTruthy();
   });
 });

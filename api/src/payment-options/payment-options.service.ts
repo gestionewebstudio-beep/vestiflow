@@ -7,7 +7,11 @@ import {
 import type { PaymentMethodCode, PaymentOption, PaymentOptionKind } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { PAYMENT_OPTION_SEED, SDI_PAYMENT_METHOD_NAMES } from './payment-option-seed.data';
+import {
+  PAYMENT_OPTION_SEED,
+  SDI_PAYMENT_METHOD_NAMES,
+  SDI_PAYMENT_METHODS,
+} from './payment-option-seed.data';
 
 /**
  * Voci pagamento del tenant (logica Danea): modalità e condizioni sono due
@@ -128,6 +132,13 @@ export class PaymentOptionsService {
     if (!code) {
       throw new NotFoundException('Modalità di pagamento non trovata');
     }
+    // ⚠️ Una modalità ritirata non si propone più, ma i Tipi che la usano da
+    // prima continuano a puntarci: il divieto è sulla NUOVA associazione, non
+    // sul legame che esiste già. Toglierlo a chi ce l'ha sarebbe riscrivere
+    // una scelta fatta quando era valida.
+    if (!code.isActive) {
+      throw new UnprocessableEntityException('Questa modalità di pagamento non è più disponibile.');
+    }
   }
 
   /**
@@ -165,12 +176,14 @@ export class PaymentOptionsService {
   }
 
   private async seedIfEmpty(tenantId: string): Promise<void> {
+    const codici = await this.mappaCodiciNormativi();
+
     const count = await this.prisma.paymentOption.count({ where: { tenantId } });
     if (count > 0) {
       // Top-up idempotente: i tenant già inizializzati ricevono le modalità
       // normative fatturazione elettronica mancanti (MP01–MP23) senza toccare
       // le voci esistenti o rinominate (unique tenantId+kind+name).
-      await this.ensureSdiPaymentMethods(tenantId);
+      await this.ensureSdiPaymentMethods(tenantId, codici);
       return;
     }
     await this.prisma.paymentOption.createMany({
@@ -180,32 +193,82 @@ export class PaymentOptionsService {
         name: entry.name,
         sortOrder: entry.sortOrder,
         isSystem: true,
+        // ⛔ Il collegamento si crea INSIEME alla voce. La migration ha
+        //    collegato le righe che esistevano quando è stata applicata: un
+        //    tenant nato dopo non passa di lì, e senza questa riga nascerebbe
+        //    con ventitré voci normative scollegate.
+        methodCodeId: entry.methodCode ? (codici.get(entry.methodCode) ?? null) : null,
       })),
       skipDuplicates: true,
     });
   }
 
-  private async ensureSdiPaymentMethods(tenantId: string): Promise<void> {
-    const missingCount = await this.prisma.paymentOption.count({
+  /**
+   * Il catalogo globale come mappa `codice → id`.
+   *
+   * ⚠️ Se il catalogo è vuoto — un database su cui la migration C2A non è
+   * ancora passata — la mappa è vuota e le voci nascono scollegate: il seed
+   * non fallisce, perché il collegamento è un di più e non la ragione per cui
+   * un tenant deve avere le proprie voci pagamento.
+   */
+  private async mappaCodiciNormativi(): Promise<Map<string, string>> {
+    const codici = await this.prisma.paymentMethodCode.findMany({
+      select: { id: true, code: true },
+    });
+    return new Map(codici.map((c) => [c.code, c.id]));
+  }
+
+  private async ensureSdiPaymentMethods(
+    tenantId: string,
+    codici: Map<string, string>,
+  ): Promise<void> {
+    const esistenti = await this.prisma.paymentOption.findMany({
       where: { tenantId, kind: 'method', name: { in: [...SDI_PAYMENT_METHOD_NAMES] } },
+      select: { id: true, name: true, isSystem: true, methodCodeId: true },
     });
-    if (missingCount >= SDI_PAYMENT_METHOD_NAMES.length) {
-      return;
+
+    // ── 1. Le voci normative che mancano del tutto ───────────────────────
+    const presenti = new Set(esistenti.map((voce) => voce.name));
+    const mancanti = SDI_PAYMENT_METHODS.filter((entry) => !presenti.has(entry.name));
+    if (mancanti.length > 0) {
+      const last = await this.prisma.paymentOption.aggregate({
+        where: { tenantId, kind: 'method' },
+        _max: { sortOrder: true },
+      });
+      const base = last._max.sortOrder ?? 0;
+      await this.prisma.paymentOption.createMany({
+        data: mancanti.map((entry, index) => ({
+          tenantId,
+          kind: 'method' as const,
+          name: entry.name,
+          sortOrder: base + index + 1,
+          isSystem: true,
+          methodCodeId: codici.get(entry.code) ?? null,
+        })),
+        skipDuplicates: true,
+      });
     }
-    const last = await this.prisma.paymentOption.aggregate({
-      where: { tenantId, kind: 'method' },
-      _max: { sortOrder: true },
-    });
-    const base = last._max.sortOrder ?? 0;
-    await this.prisma.paymentOption.createMany({
-      data: SDI_PAYMENT_METHOD_NAMES.map((name, index) => ({
-        tenantId,
-        kind: 'method' as const,
-        name,
-        sortOrder: base + index + 1,
-        isSystem: true,
-      })),
-      skipDuplicates: true,
-    });
+
+    // ── 2. Le voci di sistema già presenti ma ancora scollegate ──────────
+    //
+    // ⛔ Il collegamento si decide sulla COPPIA esatta nome+codice del seed,
+    //    mai per somiglianza: una voce rinominata dall'utente non corrisponde
+    //    più a nessun nome del seed, e resta scollegata — che è il
+    //    comportamento voluto, non un caso limite.
+    //
+    // ⚠️ `isSystem: true` nel filtro non è ridondante: una voce creata
+    //    dall'utente con lo stesso nome è sua, e non si tocca.
+    const daCollegare = esistenti.filter((voce) => voce.isSystem && voce.methodCodeId === null);
+    for (const voce of daCollegare) {
+      const entry = SDI_PAYMENT_METHODS.find((e) => e.name === voce.name);
+      const methodCodeId = entry ? codici.get(entry.code) : undefined;
+      if (!methodCodeId) {
+        continue;
+      }
+      await this.prisma.paymentOption.update({
+        where: { id: voce.id },
+        data: { methodCodeId },
+      });
+    }
   }
 }

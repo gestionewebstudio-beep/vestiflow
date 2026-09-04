@@ -1414,7 +1414,7 @@ model PaymentOption {
   updatedAt DateTime          @updatedAt @map("updated_at")
 
   tenant     Tenant             @relation(fields: [tenantId], references: [id])
-  methodCode PaymentMethodCode? @relation(fields: [methodCodeId], references: [id])
+  methodCode PaymentMethodCode? @relation(fields: [methodCodeId], references: [id], onDelete: Restrict)
 
   @@unique([tenantId, kind, name])
   @@index([tenantId, kind, sortOrder])
