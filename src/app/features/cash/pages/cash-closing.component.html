@@ -1,0 +1,174 @@
+<div class="ch">
+  <header class="ch__head">
+    <app-back-button [fallbackLink]="'/app/cassa/sessioni/' + id()">Sessione</app-back-button>
+    <div>
+      <h1 class="ch__title">Chiusura di cassa</h1>
+      @if (sessione(); as s) {
+        <p class="ch__meta">
+          {{ s.locationName }} · aperta {{ s.openedAt | date: 'dd/MM/yyyy HH:mm' }} da
+          {{ s.openedByName }}
+        </p>
+      }
+    </div>
+  </header>
+
+  @if (errore(); as messaggio) {
+    <app-inline-banner tone="error" [message]="messaggio" dismissLabel="Chiudi" (dismissed)="errore.set(null)" />
+  }
+
+  @if (caricamento()) {
+    <p class="ch__note" role="status">Lettura della sessione…</p>
+  } @else if (!sessione()) {
+    <app-error-state description="Sessione non disponibile." retryLabel="Riprova" (retry)="ricarica()" />
+  } @else if (esito(); as r) {
+    <!-- ⭐ SOLO ORA gli attesi compaiono: prima non esistevano. -->
+    <section class="ch__result" aria-labelledby="esito-titolo">
+      <h2 id="esito-titolo" class="ch__block-title">Cassa chiusa</h2>
+
+      <dl class="ch__figures">
+        <div>
+          <dt>Contante atteso</dt>
+          <dd>{{ soldi(r.expectedCashMinor) }}</dd>
+        </div>
+        <div>
+          <dt>Contante contato</dt>
+          <dd>{{ soldi(r.countedCashMinor) }}</dd>
+        </div>
+        <div>
+          <dt>Differenza</dt>
+          <dd [class.ch__off]="r.cashDifferenceMinor !== 0">
+            {{ soldi(r.cashDifferenceMinor) }}
+          </dd>
+        </div>
+        <div>
+          <dt>Elettronico atteso</dt>
+          <dd>{{ soldi(r.expectedElectronicMinor) }}</dd>
+        </div>
+        <div>
+          <dt>Elettronico dichiarato</dt>
+          <dd>
+            @if (r.declaredElectronicMinor !== null) {
+              {{ soldi(r.declaredElectronicMinor) }}
+            } @else {
+              <span class="ch__muted">non riconciliato</span>
+            }
+          </dd>
+        </div>
+        <div>
+          <dt>Differenza elettronica</dt>
+          <dd [class.ch__off]="(r.electronicDifferenceMinor ?? 0) !== 0">
+            {{ r.electronicDifferenceMinor !== null ? soldi(r.electronicDifferenceMinor) : '—' }}
+          </dd>
+        </div>
+      </dl>
+
+      <h3 class="ch__sub-title">Da dove viene l'atteso</h3>
+      <dl class="ch__figures ch__figures--small">
+        <div>
+          <dt>Fondo</dt>
+          <dd>{{ soldi(r.openingFloatMinor) }}</dd>
+        </div>
+        <div>
+          <dt>Vendite contanti</dt>
+          <dd>{{ soldi(r.salesCashMinor) }}</dd>
+        </div>
+        <div>
+          <dt>Resi contanti</dt>
+          <dd>{{ soldi(r.returnsCashMinor) }}</dd>
+        </div>
+        <div>
+          <dt>Versamenti</dt>
+          <dd>{{ soldi(r.depositsMinor) }}</dd>
+        </div>
+        <div>
+          <dt>Prelievi</dt>
+          <dd>{{ soldi(r.withdrawalsMinor) }}</dd>
+        </div>
+        <div>
+          <dt>Vendite elettronico</dt>
+          <dd>{{ soldi(r.salesElectronicMinor) }}</dd>
+        </div>
+        <div>
+          <dt>Resi elettronico</dt>
+          <dd>{{ soldi(r.returnsElectronicMinor) }}</dd>
+        </div>
+      </dl>
+
+      <div class="ch__actions">
+        <a class="ch__link" [routerLink]="['/app/cassa/sessioni', id()]">Vedi la sessione</a>
+        <a class="ch__link" routerLink="/app/cassa/sessioni">Tutte le sessioni</a>
+      </div>
+    </section>
+  } @else if (sessione(); as s) {
+    <section class="ch__form" aria-labelledby="conta-titolo">
+      <h2 id="conta-titolo" class="ch__block-title">Conta il cassetto</h2>
+      <!-- ⛔ Nessun atteso in questa schermata: si vede DOPO aver contato. -->
+      <p class="ch__note">
+        Apri il cassetto e conta il contante. Gli attesi si vedono solo dopo la conferma: è
+        così che un conteggio resta un conteggio.
+      </p>
+
+      <div class="ch__fields">
+        <label class="ch__field" for="ch-contato">
+          <span class="ch__label">Contante contato</span>
+          <app-money-input
+            inputId="ch-contato"
+            [value]="contato()"
+            ariaLabel="Contante contato nel cassetto"
+            (valueChange)="contato.set($event)"
+          />
+        </label>
+
+        <label class="ch__check">
+          <input
+            type="checkbox"
+            [ngModel]="riconcilia()"
+            (ngModelChange)="riconcilia.set($event)"
+            name="riconcilia"
+          />
+          <span>Riconcilio anche l'elettronico</span>
+        </label>
+
+        @if (riconcilia()) {
+          <label class="ch__field" for="ch-elettronico">
+            <span class="ch__label">Totale letto sul terminale</span>
+            <app-money-input
+              inputId="ch-elettronico"
+              [value]="elettronico()"
+              ariaLabel="Totale elettronico letto sul terminale"
+              (valueChange)="elettronico.set($event)"
+            />
+          </label>
+        }
+
+        <label class="ch__field ch__field--wide">
+          <span class="ch__label">Note</span>
+          <input
+            type="text"
+            [ngModel]="note()"
+            (ngModelChange)="note.set($event)"
+            name="note"
+            placeholder="Facoltative"
+          />
+        </label>
+      </div>
+
+      <p class="ch__note">
+        VestiFlow non parla col terminale di pagamento: il totale elettronico è una tua
+        dichiarazione, e lasciarlo vuoto è una chiusura legittima.
+      </p>
+
+      <div class="ch__actions">
+        <a class="ch__link" [routerLink]="['/app/cassa/sessioni', s.id]">Chiudi</a>
+        <app-button
+          variant="primary"
+          [disabled]="!puoChiudere()"
+          [loading]="invio()"
+          (clicked)="chiudi()"
+        >
+          Chiudi la cassa
+        </app-button>
+      </div>
+    </section>
+  }
+</div>

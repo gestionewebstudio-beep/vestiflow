@@ -158,7 +158,7 @@ import type {
   CreateStoreSalePayload,
   StoreSaleResult,
 } from '@domain/store-sales/models/store-sale.model';
-import { StoreSalesService } from './services/store-sales.service';
+import { StoreSalesService } from '@domain/store-sales/services/store-sales.service';
 
 /** I quattro stati del caricamento, come nelle altre sei maschere. */
 type LoadState = 'ready' | 'loading' | 'not-found' | 'error';

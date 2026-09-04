@@ -75,6 +75,24 @@ const DICHIARATE = {
   //    strada e con lo stesso avviso: l'elenco prodotti è passato al motore, la
   //    sua tabella scritta a mano non esiste più, e la guardia l'ha detto al
   //    primo lint invece di lasciare in elenco una voce che non presidia niente.
+  // ⚠️ **I due registri della Cassa NON usano il motore tabella**, e non e'
+  //    una dimenticanza: adottarlo porta con se' catalogo colonne, viste,
+  //    filtri di colonna, card di riga e i sei controlli che li presidiano —
+  //    lavoro che questa tranche non poteva contenere. La migrazione e'
+  //    segnata in `docs/DA-FARE.md`.
+  //
+  //    ⭐ Lo scrollport pero' c'e', e viene dal mixin: e' esattamente la
+  //    categoria `mixin`, e non una deroga.
+  '.ops__table thead th': {
+    categoria: 'mixin',
+    contenitore: '.ops__table-scroll',
+    perche: 'registro operativo della Cassa, in attesa di passare al motore',
+  },
+  '.sess__table thead th': {
+    categoria: 'mixin',
+    contenitore: '.sess__table-scroll',
+    perche: 'elenco sessioni di cassa, in attesa di passare al motore',
+  },
   '.doc-form__table thead th': {
     categoria: 'storica',
     contenitore: '.doc-form__table-wrap',

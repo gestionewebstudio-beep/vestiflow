@@ -1,0 +1,164 @@
+<div class="reso">
+  <header class="reso__head">
+    <app-back-button fallbackLink="/app/cassa/operazioni">Operazioni</app-back-button>
+    <div>
+      <h1 class="reso__title">Reso</h1>
+      @if (vendita(); as v) {
+        <p class="reso__meta">
+          Da {{ v.reference }} del {{ v.documentDate | date: 'dd/MM/yyyy' }} ·
+          {{ soldi(v.totalMinor) }}
+        </p>
+      }
+    </div>
+  </header>
+
+  @if (errore(); as messaggio) {
+    <app-inline-banner tone="error" [message]="messaggio" dismissLabel="Chiudi" (dismissed)="errore.set(null)" />
+  }
+
+  @if (caricamento()) {
+    <p class="reso__loading" role="status">Richiamo della vendita…</p>
+  } @else if (!vendita()) {
+    <app-error-state
+      description="Vendita non richiamabile."
+      retryLabel="Riprova"
+      (retry)="ricarica()"
+    />
+  } @else if (fatto(); as esito) {
+    <section class="reso__done">
+      <h2 class="reso__done-title">Reso registrato</h2>
+      <p class="reso__done-ref">{{ esito.reference }} · {{ soldi(esito.totalMinor) }}</p>
+      <p class="reso__note">Fiscalizzazione non ancora disponibile in questa versione.</p>
+      <app-button variant="primary" (clicked)="tornaAlleOperazioni()">
+        Torna alle operazioni
+      </app-button>
+    </section>
+  } @else if (!sessione()) {
+    <!-- ⛔ Il reso muove denaro e merce: senza sessione aperta non si fa. -->
+    <section class="reso__blocked">
+      <h2 class="reso__done-title">Nessuna sessione aperta</h2>
+      <p class="reso__note">
+        Per registrare un reso serve una sessione di cassa aperta su questa sede.
+      </p>
+      <a class="reso__link" routerLink="/app/cassa">Vai alla Cassa</a>
+    </section>
+  } @else if (vendita(); as v) {
+    <!-- ── Cosa si rende ────────────────────────────────────────────────── -->
+    <section class="reso__block" aria-labelledby="righe-titolo">
+      <h2 id="righe-titolo" class="reso__block-title">Articoli da rendere</h2>
+      <table class="reso__table">
+        <caption class="sr-only">Righe della vendita richiamata</caption>
+        <thead>
+          <tr>
+            <th scope="col">Articolo</th>
+            <th scope="col" class="reso__num">Venduti</th>
+            <th scope="col" class="reso__num">Già resi</th>
+            <th scope="col" class="reso__num">Rendibili</th>
+            <th scope="col" class="reso__num">Rendi</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (riga of v.lines; track riga.lineId) {
+            <tr>
+              <td>{{ riga.description }}</td>
+              <td class="reso__num">{{ riga.quantitySold }}</td>
+              <td class="reso__num">{{ riga.quantityReturned }}</td>
+              <td class="reso__num">{{ riga.quantityReturnable }}</td>
+              <td class="reso__num">
+                <label class="sr-only" [for]="'rendi-' + riga.lineId">
+                  Quantità da rendere di {{ riga.description }}
+                </label>
+                <input
+                  class="reso__qty"
+                  [id]="'rendi-' + riga.lineId"
+                  type="number"
+                  min="0"
+                  [max]="riga.quantityReturnable"
+                  step="1"
+                  [disabled]="riga.quantityReturnable === 0"
+                  [ngModel]="quantitaDi(riga.lineId)"
+                  [ngModelOptions]="{ standalone: true }"
+                  (ngModelChange)="cambiaQuantita(riga.lineId, +$event, riga.quantityReturnable)"
+                />
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <p class="reso__total">Totale da rimborsare: {{ soldi(totaleMinor()) }}</p>
+    </section>
+
+    <!-- ── Come si rimborsa ─────────────────────────────────────────────── -->
+    <section class="reso__block" aria-labelledby="rimborso-titolo">
+      <div class="reso__block-head">
+        <h2 id="rimborso-titolo" class="reso__block-title">Rimborso</h2>
+        <app-button variant="secondary" (clicked)="proponiRimborso()">Proponi</app-button>
+      </div>
+      <!-- ⭐ Si rimborsa sulle QUOTE dell'incasso, non sui Tipi pagamento. -->
+      <ul class="reso__quotas">
+        @for (quota of v.payments; track quota.paymentId) {
+          <li class="reso__quota">
+            <span class="reso__quota-name">
+              {{ quota.optionName ?? 'Tipo eliminato' }}
+              <span class="reso__quota-kind">
+                incassati {{ soldi(quota.amountMinor) }}
+              </span>
+            </span>
+            <label class="reso__field" [for]="'rimb-' + quota.paymentId">
+              <span class="sr-only">Rimborso su {{ quota.optionName ?? 'questa quota' }}</span>
+              <app-money-input
+                [inputId]="'rimb-' + quota.paymentId"
+                [value]="rimborsoDi(quota.paymentId)"
+                [ariaLabel]="'Rimborso su ' + (quota.optionName ?? 'questa quota')"
+                (valueChange)="cambiaRimborso(quota.paymentId, $event)"
+              />
+            </label>
+            @if (quota.tenderKind === 'electronic') {
+              <label class="reso__confirm">
+                <input
+                  type="checkbox"
+                  [checked]="confermaDi(quota.paymentId)"
+                  (change)="cambiaConferma(quota.paymentId, $any($event.target).checked)"
+                />
+                <span>Storno confermato sul terminale</span>
+              </label>
+            }
+          </li>
+        }
+      </ul>
+      <p
+        class="reso__balance"
+        [class.reso__balance--off]="rimborsatoMinor() !== totaleMinor()"
+      >
+        Rimborso composto: {{ soldi(rimborsatoMinor()) }} su {{ soldi(totaleMinor()) }}
+      </p>
+    </section>
+
+    <!-- ── Motivo e conferma ────────────────────────────────────────────── -->
+    <section class="reso__block" aria-labelledby="motivo-titolo">
+      <h2 id="motivo-titolo" class="reso__block-title">Motivo</h2>
+      <label class="reso__field">
+        <span class="sr-only">Motivo del reso</span>
+        <textarea
+          class="reso__reason"
+          rows="2"
+          placeholder="Perché la merce rientra"
+          [ngModel]="motivo()"
+          (ngModelChange)="motivo.set($event)"
+          [ngModelOptions]="{ standalone: true }"
+        ></textarea>
+      </label>
+      <div class="reso__actions">
+        <app-button variant="secondary" (clicked)="tornaAlleOperazioni()">Chiudi</app-button>
+        <app-button
+          variant="primary"
+          [disabled]="!puoConfermare()"
+          [loading]="invio()"
+          (clicked)="conferma()"
+        >
+          Concludi reso
+        </app-button>
+      </div>
+    </section>
+  }
+</div>

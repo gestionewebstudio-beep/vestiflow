@@ -1,0 +1,231 @@
+<div class="cassa">
+  <header class="cassa__head">
+    <div class="cassa__identity">
+      <h1 class="cassa__title">Cassa</h1>
+      <p class="cassa__meta">
+        <span>{{ operatore() }}</span>
+        @if (sedeCorrente(); as sede) {
+          <span aria-hidden="true">·</span>
+          <span>{{ sede.name }}</span>
+        }
+        @if (sessione(); as s) {
+          <span aria-hidden="true">·</span>
+          <span class="cassa__session cassa__session--open">
+            Sessione aperta dalle {{ s.openedAt | date: 'HH:mm' }}
+          </span>
+          @if (s.fiscalDeviceId) {
+            <span aria-hidden="true">·</span>
+            <span>Registratore selezionato</span>
+          } @else {
+            <span aria-hidden="true">·</span>
+            <span class="cassa__no-device">Nessun registratore</span>
+          }
+        }
+      </p>
+    </div>
+
+    <div class="cassa__head-actions">
+      @if (sediSelezionabili().length > 1) {
+        <app-select-menu
+          [options]="sediSelezionabili()"
+          [value]="sedeId()"
+          ariaLabel="Sede della cassa"
+          placeholder="Scegli la sede"
+          [includeEmptyOption]="false"
+          (valueChange)="$event && scegliSede($event)"
+        />
+      }
+      <a class="cassa__link" routerLink="/app/cassa/operazioni">Operazioni</a>
+      <a class="cassa__link" routerLink="/app/cassa/sessioni">Sessioni</a>
+    </div>
+  </header>
+
+  @if (errore(); as messaggio) {
+    <app-inline-banner tone="error" [message]="messaggio" dismissLabel="Chiudi" (dismissed)="errore.set(null)" />
+  }
+
+  @if (!sedeId()) {
+    <app-empty-state
+      title="Scegli la sede"
+      description="La Cassa è sempre di una sede: scegline una per aprire o riprendere la sessione."
+      icon="pi-building"
+    />
+  } @else if (caricamento()) {
+    <p class="cassa__loading" role="status">Lettura della sessione…</p>
+  } @else if (!sessione()) {
+    <!-- ⭐ Nessuna sessione aperta: si dice cosa manca e si offre il gesto. -->
+    <section class="cassa__opening" aria-labelledby="apri-titolo">
+      <h2 id="apri-titolo" class="cassa__opening-title">Nessuna sessione aperta</h2>
+      <p class="cassa__opening-text">
+        Per vendere serve una sessione di cassa aperta su questa sede. Dichiara il fondo
+        iniziale: è il contante che c'è già nel cassetto.
+      </p>
+      <div class="cassa__opening-form">
+        <label class="cassa__field" for="cassa-fondo">
+          <span class="cassa__label">Fondo iniziale</span>
+          <app-money-input
+            inputId="cassa-fondo"
+            [value]="fondoApertura()"
+            ariaLabel="Fondo iniziale di cassa"
+            (valueChange)="fondoApertura.set($event)"
+          />
+        </label>
+        <app-button variant="primary" (clicked)="apriSessione()">Apri la cassa</app-button>
+      </div>
+    </section>
+  } @else if (conclusa(); as esito) {
+    <!-- ⛔ «Registrata», non «emessa»: C5 non esiste e non si finge. -->
+    <section class="cassa__done" aria-labelledby="fatta-titolo">
+      <h2 id="fatta-titolo" class="cassa__done-title">Vendita registrata</h2>
+      <p class="cassa__done-ref">{{ esito.reference }}</p>
+      <dl class="cassa__done-totals">
+        <div>
+          <dt>Totale</dt>
+          <dd>{{ soldi(esito.totalMinor) }}</dd>
+        </div>
+        @if (esito.changeMinor > 0) {
+          <div>
+            <dt>Resto</dt>
+            <dd>{{ soldi(esito.changeMinor) }}</dd>
+          </div>
+        }
+      </dl>
+      <p class="cassa__done-note">
+        Fiscalizzazione non ancora disponibile in questa versione: il documento commerciale
+        non è stato emesso su un registratore telematico.
+      </p>
+      <div class="cassa__done-actions">
+        <app-button variant="primary" (clicked)="nuovaVendita()">Nuova vendita</app-button>
+        <a class="cassa__link" [routerLink]="['/app/cassa/operazioni', esito.documentId]">
+          Vedi l'operazione
+        </a>
+      </div>
+    </section>
+  } @else {
+    <div class="cassa__work">
+      <!-- ── Ricerca e scansione ─────────────────────────────────────────── -->
+      <section class="cassa__search" aria-labelledby="cerca-titolo">
+        <h2 id="cerca-titolo" class="cassa__section-title">Articoli</h2>
+        <form class="cassa__search-form" (ngSubmit)="cerca()">
+          <label class="sr-only" for="cassa-ricerca">Cerca per codice, barcode o nome</label>
+          <input
+            id="cassa-ricerca"
+            class="cassa__search-input"
+            type="search"
+            autocomplete="off"
+            placeholder="Codice, barcode o nome…"
+            [ngModel]="ricerca()"
+            (ngModelChange)="ricerca.set($event)"
+            name="ricerca"
+          />
+          <app-button variant="secondary" type="submit" [loading]="cercando()">Cerca</app-button>
+        </form>
+
+        @if (risultati().length > 0) {
+          <ul class="cassa__results">
+            @for (item of risultati(); track item.variantId) {
+              <li>
+                <button type="button" class="cassa__result" (click)="aggiungi(item)">
+                  <span class="cassa__result-name">{{ item.productName }}</span>
+                  <span class="cassa__result-meta">
+                    {{ item.sku }}
+                    @if (item.optionSummary) {
+                      · {{ item.optionSummary }}
+                    }
+                    · disp. {{ item.available }}
+                  </span>
+                  <span class="cassa__result-price">{{ soldi(item.sellingPriceMinor) }}</span>
+                </button>
+              </li>
+            }
+          </ul>
+        }
+      </section>
+
+      <!-- ── Carrello ────────────────────────────────────────────────────── -->
+      <section class="cassa__cart" aria-labelledby="carrello-titolo">
+        <h2 id="carrello-titolo" class="cassa__section-title">Carrello</h2>
+
+        @if (avvisi().length > 0) {
+          <!-- ⚠️ Avvisi, non blocchi: la disponibilità non ferma la vendita. -->
+          <app-inline-banner tone="warning" [message]="avvisi().join(' ')" />
+        }
+
+        @if (righe().length === 0) {
+          <p class="cassa__empty">Nessun articolo. Cerca o scansiona per cominciare.</p>
+        } @else {
+          <table class="cassa__lines">
+            <caption class="sr-only">Articoli nel carrello</caption>
+            <thead>
+              <tr>
+                <th scope="col">Articolo</th>
+                <th scope="col" class="cassa__num">Qtà</th>
+                <th scope="col" class="cassa__num">Prezzo</th>
+                <th scope="col" class="cassa__num">Totale</th>
+                <th scope="col"><span class="sr-only">Azioni</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (riga of righe(); track riga.item.variantId) {
+                <tr>
+                  <td>
+                    <span class="cassa__line-name">{{ riga.item.productName }}</span>
+                    <span class="cassa__line-meta">{{ riga.item.sku }}</span>
+                  </td>
+                  <td class="cassa__num">
+                    <label class="sr-only" [for]="'qta-' + riga.item.variantId">
+                      Quantità di {{ riga.item.productName }}
+                    </label>
+                    <input
+                      class="cassa__qty"
+                      [id]="'qta-' + riga.item.variantId"
+                      type="number"
+                      min="1"
+                      step="1"
+                      [ngModel]="riga.quantity"
+                      [ngModelOptions]="{ standalone: true }"
+                      (ngModelChange)="cambiaQuantita(riga.item.variantId, +$event)"
+                    />
+                  </td>
+                  <td class="cassa__num">{{ soldi(riga.item.sellingPriceMinor) }}</td>
+                  <td class="cassa__num">
+                    {{ soldi(riga.item.sellingPriceMinor * riga.quantity) }}
+                  </td>
+                  <td class="cassa__num">
+                    <app-button
+                      variant="ghost"
+                      [ariaLabel]="'Togli ' + riga.item.productName"
+                      (clicked)="rimuovi(riga.item.variantId)"
+                    >
+                      Togli
+                    </app-button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </section>
+
+      <!-- ── Incasso ─────────────────────────────────────────────────────── -->
+      <div class="cassa__payment">
+        <app-cash-tender-split
+          [options]="opzioni()"
+          [totalMinor]="totaleMinor()"
+          [quotas]="quote()"
+          [disabled]="conclusione()"
+          (quotasChange)="aggiornaQuote($event)"
+        />
+        <app-button
+          variant="primary"
+          [fullWidth]="true"
+          [disabled]="!puoConcludere()"
+          [loading]="conclusione()"
+          (clicked)="concludi()"
+        >
+          Concludi vendita
+        </app-button>
+      </div>
+    </div>
+  }
+</div>

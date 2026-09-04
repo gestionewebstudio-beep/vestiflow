@@ -394,6 +394,19 @@ export class ShellLayoutComponent {
       });
     }
 
+    if (canOpenRetailRegister(user)) {
+      // ⭐ La Cassa è una DESTINAZIONE, non una scorciatoia all'operazione: ci
+      // si entra per vendere, per consultare le operazioni o per quadrare la
+      // giornata. Il prefisso attivo è quindi il modulo intero, al contrario
+      // di «Nuova vendita al banco» qui sopra, che è un gesto solo.
+      salesItems.push({
+        label: 'Cassa',
+        icon: 'pi-wallet',
+        route: '/app/cassa',
+        activeRoutePrefix: '/app/cassa',
+      });
+    }
+
     // Entrambe le rotte chiedono la sezione E la famiglia «Vendite online»:
     // con la sola sezione i due link sarebbero morti, come per Ordini Shopify
     // qui sotto.

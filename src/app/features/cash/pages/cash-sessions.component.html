@@ -1,0 +1,118 @@
+<div class="sess">
+  <header class="sess__head">
+    <div>
+      <h1 class="sess__title">Sessioni di cassa</h1>
+      <p class="sess__subtitle">Aperte e chiuse, con quanto è passato dal cassetto.</p>
+    </div>
+    <div class="sess__head-actions">
+      <a class="sess__link" routerLink="/app/cassa">Vendita</a>
+      <a class="sess__link" routerLink="/app/cassa/operazioni">Operazioni</a>
+    </div>
+  </header>
+
+  <form class="sess__filters" (ngSubmit)="carica()">
+    <label class="sess__filter">
+      <span class="sess__filter-label">Dal</span>
+      <input type="date" [ngModel]="da()" (ngModelChange)="da.set($event)" name="da" />
+    </label>
+    <label class="sess__filter">
+      <span class="sess__filter-label">Al</span>
+      <input type="date" [ngModel]="a()" (ngModelChange)="a.set($event)" name="a" />
+    </label>
+
+    @if (sediSelezionabili().length > 1) {
+      <app-select-menu
+        [options]="sediSelezionabili()"
+        [value]="sedeId()"
+        ariaLabel="Sede"
+        placeholder="Tutte le sedi"
+        chipLabel="Sede"
+        [filterChip]="true"
+        (valueChange)="sedeId.set($event); carica()"
+      />
+    }
+
+    <app-select-menu
+      [options]="statiSelezionabili"
+      [value]="stato()"
+      ariaLabel="Stato della sessione"
+      placeholder="Aperte e chiuse"
+      chipLabel="Stato"
+      [filterChip]="true"
+      (valueChange)="stato.set($any($event)); carica()"
+    />
+
+    <app-button variant="secondary" type="submit">Applica</app-button>
+    <app-button variant="ghost" (clicked)="azzera()">Azzera</app-button>
+  </form>
+
+  @if (errore(); as messaggio) {
+    <app-error-state [description]="messaggio" retryLabel="Riprova" (retry)="carica()" />
+  } @else if (caricamento()) {
+    <p class="sess__loading" role="status">Lettura delle sessioni…</p>
+  } @else if (pagina(); as p) {
+    @if (p.items.length === 0) {
+      <app-empty-state
+        title="Nessuna sessione"
+        description="Nel periodo scelto non ci sono sessioni di cassa."
+        icon="pi-inbox"
+      />
+    } @else {
+      <div class="sess__table-scroll">
+        <table class="sess__table">
+          <caption class="sr-only">Sessioni di cassa</caption>
+          <thead>
+            <tr>
+              <th scope="col">Apertura</th>
+              <th scope="col">Sede</th>
+              <th scope="col">Aperta da</th>
+              <th scope="col">Stato</th>
+              <th scope="col" class="sess__num">Fondo</th>
+              <th scope="col" class="sess__num">Vendite</th>
+              <th scope="col" class="sess__num">Resi</th>
+              <th scope="col" class="sess__num">Versamenti</th>
+              <th scope="col" class="sess__num">Prelievi</th>
+              <th scope="col">Chiusura</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (s of p.items; track s.id) {
+              <tr class="sess__row">
+                <td>
+                  <a class="sess__cell-link" [routerLink]="['/app/cassa/sessioni', s.id]">
+                    {{ s.openedAt | date: 'dd/MM/yyyy HH:mm' }}
+                  </a>
+                </td>
+                <td>{{ s.locationName }}</td>
+                <td>{{ s.openedByName }}</td>
+                <td>
+                  @if (s.status === 'open') {
+                    <span class="sess__open">Aperta</span>
+                  } @else {
+                    <span class="sess__closed">Chiusa</span>
+                  }
+                </td>
+                <td class="sess__num">{{ soldi(s.openingFloatMinor) }}</td>
+                <td class="sess__num">{{ s.saleCount }} · {{ soldi(s.salesTotalMinor) }}</td>
+                <td class="sess__num">{{ s.returnCount }} · {{ soldi(s.returnsTotalMinor) }}</td>
+                <td class="sess__num">{{ soldi(s.depositsMinor) }}</td>
+                <td class="sess__num">{{ soldi(s.withdrawalsMinor) }}</td>
+                <td>
+                  @if (s.closedAt) {
+                    {{ s.closedAt | date: 'dd/MM/yyyy HH:mm' }} · {{ s.closedByName }}
+                  } @else {
+                    —
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <p class="sess__note">
+        La quadratura si vede nel dettaglio, e solo dopo la chiusura: finché una sessione è
+        aperta gli attesi non esistono.
+      </p>
+    }
+  }
+</div>
