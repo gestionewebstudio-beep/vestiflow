@@ -829,6 +829,47 @@ non ha `updated_at`. Una riga sbagliata si corregge con una riga nuova che lo di
 un dispositivo si **disabilita**, e disabilitarlo non tocca lo storico — C1B lo ha reso la
 strada prevista.
 
+#### ⛔ La Cassa non CANCELLA: nessuna API ordinaria, e una guardia che lo tiene
+
+> **Una sessione sbagliata si CHIUDE. Un movimento sbagliato si corregge con un movimento**
+> **OPPOSTO che lo cita nella causale. Una riga di storico, con una riga nuova.**
+
+⚠️ **`ON DELETE CASCADE` sullo storico non è un permesso**, e va dichiarato o si legge come
+tale:
+
+|                    |                                                                                                                                                                       |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ✅ **ammessa**     | cancellazione integrale e **deliberata** di un tenant, o rimozione amministrativa di una sessione (manutenzione, dati di prova): lì lo storico non ha più un soggetto |
+| ⛔ **non ammessa** | come operazione della **Cassa**. Non esiste, e non deve esistere, un'API ordinaria che cancelli una sessione o un movimento                                           |
+
+⭐ **La garanzia non è questa riga: è `npm run check:cassa-append-only`**, dentro
+`npm run lint`, che fa fallire la build se un controller espone `@Delete`, `@Put` o
+`@Patch` su sessioni, movimenti o storico. Il **database** non può distinguere una
+cancellazione amministrativa da una ordinaria — a distinguerle è la **superficie che si
+espone**.
+
+⚠️ Non vieta le scritture di servizio: la chiusura di C4B farà un `update` sulla sessione, e
+va bene. Vieta la **rotta**. La deroga, se un giorno servisse una rotta amministrativa vera,
+si scrive nel commento del metodo (`@cassa-append-only amministrativa`) e si vede in
+revisione.
+
+#### ⭐ E un CHECK è stato TOLTO, perché non vincolava
+
+La migration `20260904180000` ne aveva due. Il secondo — «almeno un dispositivo presente» —
+è implicato dal primo, e la tavola di verità lo mostra:
+
+```text
+NULL → A     IS DISTINCT FROM = true    passa
+A → NULL     true                       passa
+A → B        true                       passa
+A → A        false                      RIFIUTATA
+NULL → NULL  false                      RIFIUTATA   ← due NULL non sono distinti
+```
+
+⛔ **Un vincolo che non può fallire non è una protezione**: fa credere protetto ciò che lo è
+già per un'altra ragione. Rimosso da `20260904190000` — ed era stato trovato **provando a
+falsificarlo**, perché la prova che doveva arrossare restava verde.
+
 #### ⛔ Che cosa il database NON garantisce, e resta a C3
 
 Le chiavi esterne legano gli identificativi **uno per uno** (§13, limite ereditato). Restano

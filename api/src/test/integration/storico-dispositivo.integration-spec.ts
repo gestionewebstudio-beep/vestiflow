@@ -199,11 +199,10 @@ describe('vocabolario della chiusura e storico dispositivo — C2C su PostgreSQL
   });
 
   /**
-   * ⚠️ A rifiutarla e' il CHECK `devices_differ`, non `one_device_present`:
-   * `NULL IS DISTINCT FROM NULL` vale `false`. Il secondo vincolo e' quindi
-   * ridondante — misurato provando a falsificarlo, e la prova resta verde
-   * anche togliendolo. Il COMPORTAMENTO qui verificato e' comunque quello
-   * richiesto, ed e' cio' che conta per chi scrivera' i servizi di C3.
+   * ⭐ A rifiutarla e' il CHECK `devices_differ`, e da solo: due NULL non sono
+   * distinti. Il secondo vincolo «almeno uno presente» era implicato da questo,
+   * ed e' stato rimosso dalla rifinitura `20260904190000` — provando a
+   * falsificarlo, questa prova restava verde.
    */
   it('e RIFIUTA una riga che non nomina alcun dispositivo', async () => {
     await expect(

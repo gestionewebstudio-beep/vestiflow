@@ -1,0 +1,49 @@
+-- Il vincolo che non vincolava, e cosa la cascata NON autorizza
+-- (rifinitura di C2C, `docs/25` §10).
+--
+-- ── PERCHE' ────────────────────────────────────────────────────────────────
+-- `20260904180000` ha aggiunto DUE `CHECK` sullo storico dei cambi
+-- dispositivo. Il secondo e' logicamente IMPLICATO dal primo, e la misura lo
+-- dimostra — tavola di verita' completa su PostgreSQL, 04/09/2026:
+--
+--   caso                             IS DISTINCT FROM   esito
+--   ------------------------------------------------------------
+--   NULL → A   primo assegnamento    true               passa
+--   A    → NULL rimozione            true               passa
+--   A    → B    passaggio al muletto true               passa
+--   A    → A    cambio che non cambia false              RIFIUTATA
+--   NULL → NULL riga muta            false              RIFIUTATA
+--
+-- ⭐ `IS DISTINCT FROM` garantisce CONTEMPORANEAMENTE «diversi» e «non entrambi
+--    nulli»: due NULL non sono distinti, quindi la riga muta cade gia' li'.
+--
+-- ⛔ Un vincolo che non puo' fallire non e' una protezione: e' rumore che fa
+--    credere protetto qualcosa che lo e' gia' per un'altra ragione. E' stato
+--    trovato PROVANDO A FALSIFICARLO — togliendolo, la prova che doveva
+--    arrossare restava verde.
+--
+-- ⚠️ Il primo `CHECK` resta e non si tocca: e' lui a fare tutto il lavoro.
+ALTER TABLE "cash_session_device_changes"
+  DROP CONSTRAINT "cash_session_device_changes_one_device_present";
+
+-- ── La cascata sullo storico: cosa autorizza, e cosa NO ────────────────────
+--
+-- `cash_session_device_changes.session_id` e' `ON DELETE CASCADE`, e resta
+-- tale. Ma va dichiarato PERCHE' esiste, o si legge come un permesso:
+--
+--   ✅ AMMESSA        cancellazione integrale e DELIBERATA di un tenant, o
+--                     rimozione amministrativa di una sessione (manutenzione,
+--                     dati di prova). In quei casi lo storico non ha piu' un
+--                     soggetto, e sopravvivergli sarebbe peggio.
+--
+--   ⛔ NON AMMESSA    come operazione della CASSA. Non esiste, e non deve
+--                     esistere, un'API ordinaria che cancelli una sessione o
+--                     un movimento: una sessione sbagliata si chiude, un
+--                     movimento sbagliato si corregge con un movimento
+--                     OPPOSTO che lo cita nella causale.
+--
+-- ⭐ La garanzia non e' questo commento: e' `npm run check:cassa-append-only`,
+--    dentro `npm run lint`, che fa fallire la build se un controller espone
+--    `@Delete`, `@Put` o `@Patch` su sessioni, movimenti o storico. Il
+--    database non puo' distinguere una cancellazione amministrativa da una
+--    ordinaria — a distinguerle e' la superficie che si espone.
