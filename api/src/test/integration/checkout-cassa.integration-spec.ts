@@ -1,4 +1,4 @@
-import { UnprocessableEntityException } from '@nestjs/common';
+import { ConflictException, UnprocessableEntityException } from '@nestjs/common';
 import type { PrismaClient } from '@prisma/client';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
@@ -302,22 +302,58 @@ describe('checkout della Cassa — C4A su PostgreSQL TEST', () => {
 
   // ── Idempotenza e concorrenza ─────────────────────────────────────────────
 
-  it('il RETRY con lo stesso intento non duplica niente', async () => {
+  it('RETRY identico: restituisce la vendita già creata, non un errore', async () => {
     const s = await apriSessione();
     const richiesta = {
       locationId: sede,
       sessionId: s,
       creationIntentId: `${PREFISSO}-retry`,
       lines: [riga(1, 10_000)],
-      payments: [{ paymentOptionId: contanti, amountMinor: 10_000, tenderedMinor: 10_000 }],
+      payments: [{ paymentOptionId: contanti, amountMinor: 10_000, tenderedMinor: 20_000 }],
     };
 
-    await checkout.checkout(tenant, utente(tenant), richiesta);
-    // ⚠️ Il secondo tentativo NON crea: si ferma sul vincolo unico dell'intento.
-    await expect(checkout.checkout(tenant, utente(tenant), richiesta)).rejects.toThrow();
+    const primo = await checkout.checkout(tenant, utente(tenant), richiesta);
+    // ⭐ Stesso intento e STESSO payload: si RESTITUISCE la vendita già
+    //    creata. ⛔ Non un errore: un 409 chiuderebbe l’intento lato client,
+    //    e il clic successivo diventerebbe una SECONDA vendita.
+    const secondo = await checkout.checkout(tenant, utente(tenant), richiesta);
+    expect(secondo.documentId).toBe(primo.documentId);
+    expect(secondo.reference).toBe(primo.reference);
+    expect(secondo.totaleMinor).toBe(primo.totaleMinor);
+    // ⭐ Anche il RESTO torna: si ricalcola dalle quote salvate.
+    expect(secondo.restoMinor).toBe(10_000);
 
     expect(await prisma.document.count({ where: { tenantId: tenant, cashSessionId: s } })).toBe(1);
     expect(await prisma.stockMovement.count({ where: { tenantId: tenant } })).toBe(1);
+  });
+
+  /**
+   * ⭐ Stesso intento, payload DIVERSO: conflitto. Sono due comandi che
+   * rivendicano la stessa identità, e restituire il primo significherebbe
+   * eseguire una richiesta al posto di un’altra.
+   */
+  it('stesso intento e payload DIVERSO: conflitto', async () => {
+    const s = await apriSessione();
+    const base = {
+      locationId: sede,
+      sessionId: s,
+      creationIntentId: `${PREFISSO}-mismatch`,
+      lines: [riga(1, 10_000)],
+      payments: [{ paymentOptionId: contanti, amountMinor: 10_000, tenderedMinor: 10_000 }],
+    };
+
+    await checkout.checkout(tenant, utente(tenant), base);
+
+    await expect(
+      checkout.checkout(tenant, utente(tenant), {
+        ...base,
+        // Due articoli invece di uno: è un altro comando.
+        lines: [riga(2, 10_000)],
+        payments: [{ paymentOptionId: contanti, amountMinor: 20_000, tenderedMinor: 20_000 }],
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(await prisma.document.count({ where: { tenantId: tenant, cashSessionId: s } })).toBe(1);
   });
 
   it('due checkout SIMULTANEI con lo stesso intento: uno solo passa', async () => {
@@ -335,7 +371,14 @@ describe('checkout della Cassa — C4A su PostgreSQL TEST', () => {
       checkout.checkout(tenant, utente(tenant), richiesta),
     ]);
 
-    expect(esiti.filter((e) => e.status === 'fulfilled')).toHaveLength(1);
+    // ⭐ Una CREA, l’altra RECUPERA lo stesso risultato: nessuna delle due
+    //    deve fallire con un errore che chiuda l’intento.
+    const riusciti = esiti.filter((e) => e.status === 'fulfilled');
+    expect(riusciti.length).toBeGreaterThanOrEqual(1);
+    const idDistinti = new Set(
+      riusciti.map((e) => (e as PromiseFulfilledResult<{ documentId: string }>).value.documentId),
+    );
+    expect(idDistinti.size).toBe(1);
     expect(await prisma.document.count({ where: { tenantId: tenant, cashSessionId: s } })).toBe(1);
   });
 

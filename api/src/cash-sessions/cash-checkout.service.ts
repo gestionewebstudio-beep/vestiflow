@@ -1,4 +1,9 @@
-import { Injectable, Logger, UnprocessableEntityException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { DocumentType, MovementOrigin, Prisma } from '@prisma/client';
 import type { PaymentTenderKind } from '@prisma/client';
 
@@ -70,188 +75,211 @@ export class CashCheckoutService {
 
     const fingerprint = impronta(input);
 
-    const creato = await this.prisma.$transaction(async (tx) => {
-      // ── 1. L'IDENTITÀ D'INTENTO, PRIMA DI TUTTO ─────────────────────────
-      // ⛔ L'ordine è il meccanismo: una seconda richiesta con lo stesso
-      //    intento si ferma sul vincolo unico PRIMA di toccare numerazione,
-      //    righe, quote e movimenti. Messa dopo, gli effetti sarebbero già
-      //    stati applicati.
-      await this.intents.claimTx(tx, {
-        tenantId,
-        intentId: input.creationIntentId,
-        scope: DocumentType.store_sale,
-        fingerprint,
-      });
-
-      // ── 2. Tenant, sede, sessione APERTA, dispositivo ───────────────────
-      const ctx = await assertCashContext(tx, tenantId, user as CashContextUser, {
-        locationId: input.locationId,
-        sessionId: input.sessionId,
-      });
-      const sessione = ctx.session!;
-
-      // ── 3. Le varianti, e l'IVA ─────────────────────────────────────────
-      const variants = await resolveRetailVariants(
-        tx,
-        tenantId,
-        input.lines.map((l) => l.variantId),
-      );
-      const vatContext = await resolveRetailVatContext(tx, tenantId, input.lines, variants);
-
-      // ── 4. IL RICALCOLO, che è di questo lato ───────────────────────────
-      const righe = input.lines.map((line, index) => {
-        const variant = variants.get(line.variantId)!;
-        const vat = resolveRetailLineVatCode(line.vatCodeId, variant, vatContext);
-        // ⚠️ Il calcolo vuole un numero; la COLONNA vuole un Decimal. Due
-        //    confini diversi dello stesso valore, e vanno tenuti distinti.
-        const discountPercent = line.discountPercent ?? 0;
-        const amounts = computeVatLineAmounts({
-          enteredUnitCostMinor: line.unitPriceMinor,
-          // Il valore memorizzato è netto: nessuno scorporo da fare.
-          costEntryMode: 'vat_excluded',
-          quantity: line.quantity,
-          discountPercent,
-          vat: vat.vat,
+    let creato;
+    try {
+      creato = await this.prisma.$transaction(async (tx) => {
+        // ── 1. L'IDENTITÀ D'INTENTO, PRIMA DI TUTTO ─────────────────────────
+        // ⛔ L'ordine è il meccanismo: una seconda richiesta con lo stesso
+        //    intento si ferma sul vincolo unico PRIMA di toccare numerazione,
+        //    righe, quote e movimenti. Messa dopo, gli effetti sarebbero già
+        //    stati applicati.
+        await this.intents.claimTx(tx, {
+          tenantId,
+          intentId: input.creationIntentId,
+          scope: DocumentType.store_sale,
+          fingerprint,
         });
-        return { line, index, variant, vat, discountPercent, amounts };
-      });
 
-      const totaleMinor = righe.reduce((s, r) => s + r.amounts.lineGrossMinor, 0);
-      const imponibileMinor = righe.reduce((s, r) => s + r.amounts.lineNetMinor, 0);
-      const ivaMinor = righe.reduce((s, r) => s + r.amounts.lineVatMinor, 0);
+        // ── 2. Tenant, sede, sessione APERTA, dispositivo ───────────────────
+        const ctx = await assertCashContext(tx, tenantId, user as CashContextUser, {
+          locationId: input.locationId,
+          sessionId: input.sessionId,
+        });
+        const sessione = ctx.session!;
 
-      // ── 5. I Tipi pagamento, e la composizione dell'incasso ─────────────
-      const quote = await this.risolviQuote(tx, tenantId, input.payments, totaleMinor);
+        // ── 3. Le varianti, e l'IVA ─────────────────────────────────────────
+        const variants = await resolveRetailVariants(
+          tx,
+          tenantId,
+          input.lines.map((l) => l.variantId),
+        );
+        const vatContext = await resolveRetailVatContext(tx, tenantId, input.lines, variants);
 
-      // ── 6. Numerazione e documento ──────────────────────────────────────
-      const setting = await this.settings.getResolved(tenantId, DocumentType.store_sale);
-      // ⚠️ `defaultSeries` e` una stringa, non nullable: la serie vuota si
-      //    rappresenta con la stringa vuota, non con `null`.
-      const series = setting.defaultSeries;
-      await lockDocumentCounter(tx, { tenantId, type: DocumentType.store_sale, series });
-      const documentDate = new Date();
-      const assigned = await resolveDocumentNumber({
-        tx,
-        tenantId,
-        type: DocumentType.store_sale,
-        series,
-        source: 'document',
-        prefix: setting.numberPrefix,
-        documentDate,
-      });
+        // ── 4. IL RICALCOLO, che è di questo lato ───────────────────────────
+        const righe = input.lines.map((line, index) => {
+          const variant = variants.get(line.variantId)!;
+          const vat = resolveRetailLineVatCode(line.vatCodeId, variant, vatContext);
+          // ⚠️ Il calcolo vuole un numero; la COLONNA vuole un Decimal. Due
+          //    confini diversi dello stesso valore, e vanno tenuti distinti.
+          const discountPercent = line.discountPercent ?? 0;
+          const amounts = computeVatLineAmounts({
+            enteredUnitCostMinor: line.unitPriceMinor,
+            // Il valore memorizzato è netto: nessuno scorporo da fare.
+            costEntryMode: 'vat_excluded',
+            quantity: line.quantity,
+            discountPercent,
+            vat: vat.vat,
+          });
+          return { line, index, variant, vat, discountPercent, amounts };
+        });
 
-      const documento = await tx.document.create({
-        data: {
+        const totaleMinor = righe.reduce((s, r) => s + r.amounts.lineGrossMinor, 0);
+        const imponibileMinor = righe.reduce((s, r) => s + r.amounts.lineNetMinor, 0);
+        const ivaMinor = righe.reduce((s, r) => s + r.amounts.lineVatMinor, 0);
+
+        // ── 5. I Tipi pagamento, e la composizione dell'incasso ─────────────
+        const quote = await this.risolviQuote(tx, tenantId, input.payments, totaleMinor);
+
+        // ── 6. Numerazione e documento ──────────────────────────────────────
+        const setting = await this.settings.getResolved(tenantId, DocumentType.store_sale);
+        // ⚠️ `defaultSeries` e` una stringa, non nullable: la serie vuota si
+        //    rappresenta con la stringa vuota, non con `null`.
+        const series = setting.defaultSeries;
+        await lockDocumentCounter(tx, { tenantId, type: DocumentType.store_sale, series });
+        const documentDate = new Date();
+        const assigned = await resolveDocumentNumber({
+          tx,
           tenantId,
           type: DocumentType.store_sale,
-          // ⛔ Nasce CONFERMATA: una vendita di cassa non ha una bozza, e non
-          //    esiste un percorso che la riapra.
-          status: 'confirmed',
           series,
-          number: assigned.number,
-          reference: assigned.reference,
-          year: documentDate.getFullYear(),
+          source: 'document',
+          prefix: setting.numberPrefix,
           documentDate,
+        });
+
+        const documento = await tx.document.create({
+          data: {
+            tenantId,
+            type: DocumentType.store_sale,
+            // ⛔ Nasce CONFERMATA: una vendita di cassa non ha una bozza, e non
+            //    esiste un percorso che la riapra.
+            status: 'confirmed',
+            series,
+            number: assigned.number,
+            reference: assigned.reference,
+            year: documentDate.getFullYear(),
+            documentDate,
+            locationId: input.locationId,
+            // ⭐ È QUESTO a distinguere una vendita Cassa da una Vendita al banco
+            //    (`docs/25` §4): non la rotta, non un flag.
+            cashSessionId: sessione.id,
+            createdById: user.id,
+            createdByName: user.displayName,
+            subtotalMinor: imponibileMinor,
+            taxMinor: ivaMinor,
+            totalMinor: totaleMinor,
+            // ⛔ `paymentMethod` NON si scrive: è il campo legacy della Vendita al
+            //    banco, e «misto» si calcola dalle quote (`docs/25` §6).
+          },
+        });
+
+        // ── 7. Le righe ─────────────────────────────────────────────────────
+        await tx.documentLine.createMany({
+          data: righe.map((r) => ({
+            tenantId,
+            documentId: documento.id,
+            lineNumber: r.index + 1,
+            variantId: r.variant.id,
+            sku: r.variant.sku,
+            description: r.line.description ?? retailLineDescription(r.variant),
+            variantLabel: variantLabel(r.variant.optionSummary as never) || r.variant.optionSummary,
+            quantity: r.line.quantity,
+            unitPriceMinor: new Prisma.Decimal(r.line.unitPriceMinor),
+            discountPercent: new Prisma.Decimal(r.discountPercent),
+            vatCodeId: r.vat.vatCodeId,
+            vatSnapshot: r.vat.vatSnapshot ?? Prisma.JsonNull,
+            // ⚠️ I nomi delle colonne, non quelli del calcolo: `lineTotalMinor`
+            //    e' l'imponibile, e l'aliquota vive dentro `vatSnapshot`.
+            lineTotalMinor: r.amounts.lineNetMinor,
+            lineVatTotalMinor: r.amounts.lineVatMinor,
+            lineGrossTotalMinor: r.amounts.lineGrossMinor,
+            supplierPayableLineMinor: r.amounts.supplierPayableMinor,
+            unitCostNet: new Prisma.Decimal(r.amounts.unitNetMinor),
+            unitCostGross: new Prisma.Decimal(r.amounts.unitGrossMinor),
+            unitVatAmount: new Prisma.Decimal(r.amounts.unitVatMinor),
+          })),
+        });
+        const righeCreate = await tx.documentLine.findMany({
+          where: { documentId: documento.id },
+          orderBy: { lineNumber: 'asc' },
+        });
+
+        // ── 8. Le quote, con la loro FOTOGRAFIA ─────────────────────────────
+        await tx.storeSalePayment.createMany({
+          data: quote.map((q, i) => ({
+            tenantId,
+            documentId: documento.id,
+            position: i + 1,
+            // ⛔ `method` resta NULL: è il vocabolario legacy, e la Cassa non lo
+            //    scrive mai.
+            method: null,
+            paymentOptionId: q.optionId,
+            optionNameSnapshot: q.nome,
+            tenderKindSnapshot: q.classe,
+            amountMinor: q.amountMinor,
+            // ⭐ Solo per il contante: su una quota elettronica non significa
+            //    niente, e il resto è `tendered − amount`, non si memorizza.
+            tenderedMinor: q.classe === 'cash' ? (q.tenderedMinor ?? null) : null,
+          })),
+        });
+
+        // ── 9. I movimenti, DENTRO la transazione ───────────────────────────
+        const movimenti = await syncUnloadLineMovements(tx, {
+          tenantId,
+          documentId: documento.id,
+          documentType: DocumentType.store_sale,
           locationId: input.locationId,
-          // ⭐ È QUESTO a distinguere una vendita Cassa da una Vendita al banco
-          //    (`docs/25` §4): non la rotta, non un flag.
-          cashSessionId: sessione.id,
-          createdById: user.id,
-          createdByName: user.displayName,
-          subtotalMinor: imponibileMinor,
-          taxMinor: ivaMinor,
-          totalMinor: totaleMinor,
-          // ⛔ `paymentMethod` NON si scrive: è il campo legacy della Vendita al
-          //    banco, e «misto» si calcola dalle quote (`docs/25` §6).
-        },
-      });
+          reason: `Vendita Cassa ${assigned.reference}`,
+          movementDate: documentDate,
+          origin: MovementOrigin.vestiflow_pos,
+          // ⚠️ Le righe COMPLETE come le ha appena scritte il database: la
+          //    primitiva legge piu` campi di quanti se ne passerebbero a mano,
+          //    e ricostruirne un sottoinsieme sarebbe una copia che diverge.
+          lines: righeCreate,
+          actor: { createdById: user.id, createdByName: user.displayName },
+        });
 
-      // ── 7. Le righe ─────────────────────────────────────────────────────
-      await tx.documentLine.createMany({
-        data: righe.map((r) => ({
+        // ── 10. L'esito, per il retry ───────────────────────────────────────
+        await this.intents.recordResultTx(tx, {
           tenantId,
+          intentId: input.creationIntentId!,
+          resultRef: documento.id,
+        });
+
+        return {
           documentId: documento.id,
-          lineNumber: r.index + 1,
-          variantId: r.variant.id,
-          sku: r.variant.sku,
-          description: r.line.description ?? retailLineDescription(r.variant),
-          variantLabel: variantLabel(r.variant.optionSummary as never) || r.variant.optionSummary,
-          quantity: r.line.quantity,
-          unitPriceMinor: new Prisma.Decimal(r.line.unitPriceMinor),
-          discountPercent: new Prisma.Decimal(r.discountPercent),
-          vatCodeId: r.vat.vatCodeId,
-          vatSnapshot: r.vat.vatSnapshot ?? Prisma.JsonNull,
-          // ⚠️ I nomi delle colonne, non quelli del calcolo: `lineTotalMinor`
-          //    e' l'imponibile, e l'aliquota vive dentro `vatSnapshot`.
-          lineTotalMinor: r.amounts.lineNetMinor,
-          lineVatTotalMinor: r.amounts.lineVatMinor,
-          lineGrossTotalMinor: r.amounts.lineGrossMinor,
-          supplierPayableLineMinor: r.amounts.supplierPayableMinor,
-          unitCostNet: new Prisma.Decimal(r.amounts.unitNetMinor),
-          unitCostGross: new Prisma.Decimal(r.amounts.unitGrossMinor),
-          unitVatAmount: new Prisma.Decimal(r.amounts.unitVatMinor),
-        })),
+          reference: assigned.reference,
+          totaleMinor,
+          restoMinor: quote.reduce(
+            (s, q) =>
+              s + (q.classe === 'cash' ? Math.max(0, (q.tenderedMinor ?? 0) - q.amountMinor) : 0),
+            0,
+          ),
+          variantIds: righeCreate.map((l) => l.variantId).filter((v): v is string => v !== null),
+          syncTargets: movimenti.syncTargets,
+        };
       });
-      const righeCreate = await tx.documentLine.findMany({
-        where: { documentId: documento.id },
-        orderBy: { lineNumber: 'asc' },
-      });
-
-      // ── 8. Le quote, con la loro FOTOGRAFIA ─────────────────────────────
-      await tx.storeSalePayment.createMany({
-        data: quote.map((q, i) => ({
-          tenantId,
-          documentId: documento.id,
-          position: i + 1,
-          // ⛔ `method` resta NULL: è il vocabolario legacy, e la Cassa non lo
-          //    scrive mai.
-          method: null,
-          paymentOptionId: q.optionId,
-          optionNameSnapshot: q.nome,
-          tenderKindSnapshot: q.classe,
-          amountMinor: q.amountMinor,
-          // ⭐ Solo per il contante: su una quota elettronica non significa
-          //    niente, e il resto è `tendered − amount`, non si memorizza.
-          tenderedMinor: q.classe === 'cash' ? (q.tenderedMinor ?? null) : null,
-        })),
-      });
-
-      // ── 9. I movimenti, DENTRO la transazione ───────────────────────────
-      const movimenti = await syncUnloadLineMovements(tx, {
+    } catch (error) {
+      // ⭐ Il conflitto sull_intento NON è un errore da propagare: e` la
+      //    seconda faccia dell_idempotenza. Tre esiti, e vanno distinti —
+      //
+      //      stesso intento, stessa impronta   → si RESTITUISCE la vendita
+      //      stesso intento, impronta diversa  → 409, e nomina il documento
+      //      la riga e` sparita (rollback)     → 409: l_intento e` di nuovo libero
+      //
+      //    ⛔ Rispondere sempre con un errore chiuderebbe l_intento lato
+      //       client, e il clic successivo diventerebbe una SECONDA vendita.
+      const gia = await this.replayIfAlreadyDone(
+        error,
         tenantId,
-        documentId: documento.id,
-        documentType: DocumentType.store_sale,
-        locationId: input.locationId,
-        reason: `Vendita Cassa ${assigned.reference}`,
-        movementDate: documentDate,
-        origin: MovementOrigin.vestiflow_pos,
-        // ⚠️ Le righe COMPLETE come le ha appena scritte il database: la
-        //    primitiva legge piu` campi di quanti se ne passerebbero a mano,
-        //    e ricostruirne un sottoinsieme sarebbe una copia che diverge.
-        lines: righeCreate,
-        actor: { createdById: user.id, createdByName: user.displayName },
-      });
-
-      // ── 10. L'esito, per il retry ───────────────────────────────────────
-      await this.intents.recordResultTx(tx, {
-        tenantId,
-        intentId: input.creationIntentId!,
-        resultRef: documento.id,
-      });
-
-      return {
-        documentId: documento.id,
-        reference: assigned.reference,
-        totaleMinor,
-        restoMinor: quote.reduce(
-          (s, q) =>
-            s + (q.classe === 'cash' ? Math.max(0, (q.tenderedMinor ?? 0) - q.amountMinor) : 0),
-          0,
-        ),
-        variantIds: righeCreate.map((l) => l.variantId).filter((v): v is string => v !== null),
-        syncTargets: movimenti.syncTargets,
-      };
-    });
+        input.creationIntentId,
+        fingerprint,
+      );
+      if (gia) {
+        return gia;
+      }
+      throw error;
+    }
 
     // ⭐ FUORI dalla transazione, e deliberatamente: è una chiamata di rete a
     //    un servizio esterno, e dentro terrebbe aperta la transazione per
@@ -263,6 +291,55 @@ export class CashCheckoutService {
       reference: creato.reference,
       totaleMinor: creato.totaleMinor,
       restoMinor: creato.restoMinor,
+    };
+  }
+
+  /**
+   * Il reinvio di una vendita gia` conclusa.
+   *
+   * ⭐ Restituisce il documento gia` creato quando intento e impronta
+   * coincidono. Se l_impronta differisce, `resolveConflict` lancia un 409 che
+   * NOMINA il documento gia` prodotto: senza, il client non distinguerebbe
+   * quel conflitto da uno in cui non e` stato creato niente.
+   */
+  private async replayIfAlreadyDone(
+    error: unknown,
+    tenantId: string,
+    intentId: string,
+    fingerprint: string,
+  ): Promise<CheckoutResult | null> {
+    const esito = await this.intents.resolveConflict({
+      error,
+      tenantId,
+      intentId,
+      fingerprint,
+    });
+    if (!esito) {
+      return null;
+    }
+    const doc = await this.prisma.document.findFirst({
+      where: { id: esito.replay, tenantId },
+      select: { id: true, reference: true, totalMinor: true, storeSalePayments: true },
+    });
+    if (!doc) {
+      // Il registro nomina un documento che non esiste piu`. Non e` un replay
+      // riproducibile, e dirlo e` meglio che restituire una risposta vuota
+      // travestita da successo.
+      throw new ConflictException({
+        code: 'creation_intent_result_missing',
+        message: 'La vendita risulta gia` registrata, ma il documento non e` piu` disponibile.',
+      });
+    }
+    return {
+      documentId: doc.id,
+      reference: doc.reference ?? '',
+      totaleMinor: doc.totalMinor,
+      // ⚠️ Il resto si RICALCOLA dalle quote salvate: non e` una colonna, e
+      //    ricordarlo altrove sarebbe un terzo valore che puo` divergere.
+      restoMinor: doc.storeSalePayments.reduce(
+        (s, q) => s + Math.max(0, (q.tenderedMinor ?? 0) - q.amountMinor),
+        0,
+      ),
     };
   }
 
