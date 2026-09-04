@@ -1857,13 +1857,49 @@ scritte `(clicked)` compilavano, passavano il type-check e il lint, e lasciavano
 pulsante della Cassa inerte**. L’ha trovato la prima prova che premeva un pulsante e ne
 verificava l’effetto.
 
-### ⚠️ I due registri non usano ancora il motore tabella
+### ✅ I due registri usano il motore tabella, e il telaio comune _(04/09/2026)_
 
-Adottarlo porta con sé catalogo colonne, viste, filtri di colonna, card di riga e i sei
-controlli che li presidiano: è lavoro che questa tranche non poteva contenere. Le due
-intestazioni appiccicate sono **dichiarate** in `check:sticky-scrollport` con la
-categoria vera (`mixin`: lo scrollport ce l’hanno), e la migrazione è segnata in
-`docs/DA-FARE.md`.
+⛔ **Qui c’era il RINVIO**, con la stima che adottarlo «porta con sé catalogo colonne,
+viste, filtri di colonna, card di riga e i sei controlli che li presidiano: è lavoro che
+questa tranche non poteva contenere». Il proprietario l’ha respinto — «non accetto la
+duplicazione registrata semplicemente in DA-FARE» — **e la stima era sbagliata**: quelle
+cose esistevano già, e la migrazione è costata un file di configurazione colonne
+(`cash-register-columns.config.ts`) e due template riscritti.
+
+> **Cosa si è riusato, invece di riscriverlo**
+
+| Pattern                  | Prima                                           | Ora                                                                          |
+| ------------------------ | ----------------------------------------------- | ---------------------------------------------------------------------------- |
+| contenitore pagina       | `<header>` + `<h1>` + filtri + stati, due volte | `app-list-page`                                                              |
+| tabella                  | 19 `<th>` scritti a mano                        | `app-data-table`                                                             |
+| colonne                  | nessun catalogo                                 | `column-catalog` (`Sede`, `Stato`, `Origine`, `Tipo`, `Pagamento`, `Totale`) |
+| vista a card             | **non esisteva**: si scorreva in orizzontale    | `appRowCard` + `_list-card.scss`                                             |
+| tipografia del riepilogo | copiata                                         | mixin di `_list-summary.scss`                                                |
+| campi data               | `<input type="date">` nudi                      | `app-date-input`                                                             |
+| blocchi titolati         | `<section>` + `<h2>` ripetuti 9 volte in 3 file | `app-form-section [flat]`                                                    |
+| righe in sola lettura    | tabella propria                                 | `app-document-lines-table` (promosso in `domain/`)                           |
+
+⭐ **E le guardie hanno trovato cinque difetti veri** che compilavano tutti:
+
+```text
+check:table-views          le due viste mancavano lato API: preferenza colonne → 400 muto
+check:colonne-rese         `type` e `paymentMethod` dichiarate e non rese: colonne VUOTE
+check:filtri-colonna       filtri mostrati che non restringevano niente
+check:catena-altezze       il contenitore righe non si stirava: piede non ancorato
+check:sticky-scrollport    due intestazioni dichiarate che non esistevano piu’
+```
+
+⚠️ **Due cose restano fuori, dichiarate:**
+
+| Cosa                     | Perché                                                                                                                                           |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **ordinamento**          | l’API dei due registri non ha un parametro `sort`: riordinare le righe caricate riordinerebbe **una pagina**                                     |
+| **tetto di cento righe** | `pageSize: 100` senza impaginazione. Sopra quella soglia le righe mancano **prima del filtro**, e `regole-stile-ui` dice «NESSUN TETTO DI RIGHE» |
+
+⛔ **E le Sessioni NON hanno la riga totali**, che su un elenco `regole-stile-ui`
+prescrive: l’API non restituisce un riepilogo di periodo, e sommare le cento righe
+caricate darebbe il totale della **pagina**. Il registro Operazioni invece il riepilogo
+ce l’ha, e arriva dal server con lo stesso filtro dell’elenco.
 
 ---
 

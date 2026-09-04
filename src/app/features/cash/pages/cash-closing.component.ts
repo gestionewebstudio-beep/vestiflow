@@ -1,7 +1,14 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component,
-  DestroyRef, computed, effect, inject, signal } from '@angular/core';
-import { takeUntilDestroyed, toSignal  } from '@angular/core/rxjs-interop';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 
@@ -11,6 +18,7 @@ import { CashApiService } from '@domain/cash/services/cash-api.service';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
+import { FormSectionComponent } from '@shared/components/form-section/form-section.component';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { MoneyInputComponent } from '@shared/components/money-input/money-input.component';
 
@@ -33,6 +41,7 @@ import { MoneyInputComponent } from '@shared/components/money-input/money-input.
     ButtonComponent,
     DatePipe,
     ErrorStateComponent,
+    FormSectionComponent,
     FormsModule,
     InlineBannerComponent,
     MoneyInputComponent,
@@ -82,17 +91,20 @@ export class CashClosingComponent {
   private carica(id: string): void {
     this.caricamento.set(true);
     this.errore.set(null);
-    this.api.session(id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: (s) => {
-        this.sessione.set(s);
-        this.caricamento.set(false);
-      },
-      error: () => {
-        this.sessione.set(null);
-        this.errore.set('Sessione non trovata, o fuori dal tuo perimetro.');
-        this.caricamento.set(false);
-      },
-    });
+    this.api
+      .session(id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (s) => {
+          this.sessione.set(s);
+          this.caricamento.set(false);
+        },
+        error: () => {
+          this.sessione.set(null);
+          this.errore.set('Sessione non trovata, o fuori dal tuo perimetro.');
+          this.caricamento.set(false);
+        },
+      });
   }
 
   protected chiudi(): void {
@@ -110,7 +122,8 @@ export class CashClosingComponent {
         declaredElectronicMinor: this.riconcilia() ? (this.elettronico() ?? 0) : null,
         notes: this.note().trim() || undefined,
       })
-      .pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
         next: (r) => {
           this.esito.set(r);
           this.invio.set(false);

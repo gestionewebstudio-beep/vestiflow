@@ -1,61 +1,63 @@
-<div class="ops">
-  <header class="ops__head">
-    <div>
-      <h1 class="ops__title">Operazioni di cassa</h1>
-      <p class="ops__subtitle">Vendite e resi di tutte le sedi che puoi vedere.</p>
-    </div>
-    <div class="ops__head-actions">
-      <app-button variant="secondary" (click)="apriRichiamo()">Richiama scontrino</app-button>
-      <a class="ops__link" routerLink="/app/cassa">Vendita</a>
-      <a class="ops__link" routerLink="/app/cassa/sessioni">Sessioni</a>
-    </div>
-  </header>
+<!--
+  ⭐ **Il telaio e' `app-list-page`**, non un contenitore proprio: testata,
+  conteggio, ricerca, selettore Colonne, stati di caricamento/errore/vuoto e il
+  pannello filtri sotto `lg` vengono tutti da li'.
 
-  <!-- ── Riepilogo: arriva dal SERVER, con lo stesso filtro dell'elenco ──── -->
-  @if (pagina(); as p) {
-    <section class="ops__summary" aria-labelledby="riepilogo-titolo">
-      <h2 id="riepilogo-titolo" class="sr-only">Riepilogo del periodo</h2>
-      <p class="ops__count">{{ p.summary.operationCount }} operazioni</p>
-      <dl class="ops__figures">
-        <div>
-          <dt>Vendite lorde</dt>
-          <dd>{{ soldi(p.summary.grossSalesMinor) }}</dd>
-        </div>
-        <div>
-          <dt>Resi</dt>
-          <dd class="ops__negative">{{ soldi(p.summary.returnsMinor) }}</dd>
-        </div>
-        <div>
-          <dt>Contanti</dt>
-          <dd>{{ soldi(p.summary.cashMinor) }}</dd>
-        </div>
-        <div>
-          <dt>Elettronico</dt>
-          <dd>{{ soldi(p.summary.electronicMinor) }}</dd>
-        </div>
-        <div>
-          <dt>Scontrino medio</dt>
-          <dd>{{ soldi(p.summary.averageMinor) }}</dd>
-        </div>
-        <div class="ops__figure--net">
-          <dt>Vendite nette</dt>
-          <dd>{{ soldi(p.summary.netSalesMinor) }}</dd>
-        </div>
-      </dl>
-    </section>
-  }
+  ⛔ Qui c'erano `<header>`, `<h1>`, una riga filtri, un `app-error-state`, un
+  `app-empty-state` e un paragrafo di caricamento scritti a mano: sei pezzi che
+  il telaio porta gia', e che riscritti non avevano il pannello filtri mobile.
+-->
+<app-list-page
+  pageTitle="Operazioni di cassa"
+  pageDescription="Vendite e resi di tutte le sedi che puoi vedere."
+  [count]="pagina() ? pagina()!.summary.operationCount + ' operazioni' : undefined"
+  [loading]="caricamento()"
+  [error]="errore()"
+  [isEmpty]="vuoto()"
+  [skeletonColumns]="colonneVisibili().length"
+  [columnsViewId]="vista"
+  [activeFilterCount]="filtriAttivi()"
+  searchPlaceholder="Numero documento"
+  searchAriaLabel="Cerca per numero documento"
+  [searchValue]="numero()"
+  emptyTitle="Nessuna operazione"
+  emptyDescription="Nel periodo scelto non ci sono vendite né resi di cassa."
+  emptyIcon="pi-shopping-cart"
+  (searchChange)="numero.set($event)"
+  (filtersCleared)="azzeraFiltri()"
+  (retry)="carica()"
+>
+  <!--
+    ⭐ **Le tre aree stanno nella casella `[tabs]` del telaio**, che esiste
+    apposta: «non sono filtri e non sono azioni: sono navigazione».
 
-  <!-- ── Filtri ──────────────────────────────────────────────────────────── -->
-  <form class="ops__filters" (ngSubmit)="carica()">
-    <label class="ops__filter">
-      <span class="ops__filter-label">Dal</span>
-      <input type="date" [ngModel]="da()" (ngModelChange)="da.set($event)" name="da" />
-    </label>
-    <label class="ops__filter">
-      <span class="ops__filter-label">Al</span>
-      <input type="date" [ngModel]="a()" (ngModelChange)="a.set($event)" name="a" />
-    </label>
+    ⛔ Erano tre `<a>` sciolti nella testata di ogni registro, con la stessa
+    regola di stile copiata nei due fogli.
+  -->
+  <app-nav-tabs tabs [items]="schede" ariaLabel="Aree della Cassa" />
 
+  <!--
+    ⭐ Il periodo resta in barra a ogni larghezza: e' uno dei due che non
+    entrano nelle colonne (`14` §0.2).
+  -->
+  <div period class="ops__period">
+    <app-date-input
+      inputId="ops-da"
+      ariaLabel="Dal"
+      [value]="da()"
+      [compact]="true"
+      (valueChange)="da.set($event); carica()"
+    />
+    <app-date-input
+      inputId="ops-a"
+      ariaLabel="Al"
+      [value]="a()"
+      [compact]="true"
+      (valueChange)="a.set($event); carica()"
+    />
+  </div>
+
+  <div filters>
     @if (sediSelezionabili().length > 1) {
       <app-select-menu
         [options]="sediSelezionabili()"
@@ -63,6 +65,7 @@
         ariaLabel="Sede"
         placeholder="Tutte le sedi"
         chipLabel="Sede"
+        [compact]="true"
         [filterChip]="true"
         (valueChange)="sedeId.set($event); carica()"
       />
@@ -74,6 +77,7 @@
       ariaLabel="Tipo di operazione"
       placeholder="Vendite e resi"
       chipLabel="Tipo"
+      [compact]="true"
       [filterChip]="true"
       (valueChange)="tipo.set($any($event)); carica()"
     />
@@ -84,158 +88,206 @@
       ariaLabel="Tipo pagamento"
       placeholder="Ogni pagamento"
       chipLabel="Pagamento"
+      [compact]="true"
       [filterChip]="true"
       (valueChange)="tipoPagamento.set($event); carica()"
     />
 
-    <label class="ops__filter">
-      <span class="ops__filter-label">Numero</span>
-      <input
-        type="search"
-        [ngModel]="numero()"
-        (ngModelChange)="numero.set($event)"
-        name="numero"
-        placeholder="Numero documento"
-      />
-    </label>
-
     <label class="ops__check">
       <input
         type="checkbox"
-        [ngModel]="soloAnomalie()"
-        (ngModelChange)="soloAnomalie.set($event); carica()"
-        name="anomalie"
+        [checked]="soloAnomalie()"
+        (change)="soloAnomalie.set(!soloAnomalie()); carica()"
       />
       <span>Solo con anomalie</span>
     </label>
 
-    <app-button variant="secondary" type="submit">Applica</app-button>
-    <app-button variant="ghost" (click)="azzeraFiltri()">Azzera</app-button>
-  </form>
+    <app-button variant="secondary" (click)="apriRichiamo()">Richiama scontrino</app-button>
+  </div>
 
-  <!-- ── Elenco ──────────────────────────────────────────────────────────── -->
-  @if (errore(); as messaggio) {
-    <app-error-state [description]="messaggio" retryLabel="Riprova" (retry)="carica()" />
-  } @else if (caricamento()) {
-    <p class="ops__loading" role="status">Lettura del registro…</p>
-  } @else if (pagina(); as p) {
-    @if (p.items.length === 0) {
-      <app-empty-state
-        title="Nessuna operazione"
-        description="Nel periodo scelto non ci sono vendite né resi di cassa."
-        icon="pi-shopping-cart"
-      />
-    } @else {
-      <div class="ops__table-scroll">
-        <table class="ops__table">
-          <caption class="sr-only">Vendite e resi di cassa</caption>
-          <thead>
-            <tr>
-              <th scope="col">Data</th>
-              <th scope="col">Tipo</th>
-              <th scope="col">Numero</th>
-              <th scope="col">Sede</th>
-              <th scope="col">Operatore</th>
-              <th scope="col">Pagamento</th>
-              <th scope="col">Origine</th>
-              <th scope="col">Stato</th>
-              <th scope="col" class="ops__num">Totale</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (riga of p.items; track riga.id) {
-              <tr
-                class="ops__row"
-                [class.ops__row--cancelled]="riga.status === 'cancelled'"
-                [class.ops__row--return]="riga.kind === 'return'"
-              >
-                <td>
-                  <a class="ops__cell-link" [routerLink]="['/app/cassa/operazioni', riga.id]">
-                    {{ riga.createdAt | date: 'dd/MM/yyyy HH:mm' }}
-                  </a>
-                </td>
-                <td>{{ riga.kind === 'sale' ? 'Vendita' : 'Reso' }}</td>
-                <td class="ops__mono">{{ riga.reference }}</td>
-                <td>{{ riga.locationName ?? '—' }}</td>
-                <td>{{ riga.operatorName }}</td>
-                <td>{{ pagamento(riga) }}</td>
-                <td>
-                  @if (riga.sourceReference) {
-                    <a
-                      class="ops__cell-link"
-                      [routerLink]="['/app/cassa/operazioni', riga.sourceDocumentId]"
-                    >
-                      {{ riga.sourceReference }}
-                    </a>
-                  } @else {
-                    —
-                  }
-                </td>
-                <td>
-                  @if (riga.anomalies.length > 0) {
-                    <span class="ops__anomaly">
-                      {{ etichettaAnomalia(riga.anomalies[0]!) }}
-                    </span>
-                  } @else {
-                    <span class="ops__ok">Registrata</span>
-                  }
-                </td>
-                <td class="ops__num" [class.ops__negative]="riga.kind === 'return'">
-                  {{ soldi(riga.totalMinor) }}
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
+  <!--
+    ⭐ **Sul motore comune.** Le nove colonne erano nove `<th>` scritti a mano:
+    niente selettore Colonne, niente larghezze regolabili, niente card.
+
+    ⚠️ **L'ordinamento resta spento**, e non per dimenticanza: l'API delle
+    operazioni non ha un parametro `sort`. Accendere le intestazioni
+    riordinerebbe la pagina corrente di un elenco paginato — sembrerebbe
+    funzionare, ed e' peggio di non ordinare.
+  -->
+  <app-data-table
+    data
+    caption="Vendite e resi di cassa"
+    [columns]="colonneVisibili()"
+    [viewId]="vista"
+    [sections]="sezioni()"
+    [rowId]="rowId"
+    [cellText]="cellText"
+    [rowTone]="rowTone"
+    [rowClickable]="true"
+    [rowLabel]="rowLabel"
+    (rowClick)="apri($event)"
+  >
+    <!--
+      ⛔ Le uniche due celle che non sono testo. Il resto passa da `cellText`:
+      una cella del motore e' testo, e il dominio lo mette la pagina.
+    -->
+    <ng-template appCell="status" let-riga>
+      <app-badge [flat]="true" [tone]="tonoStato(riga)">{{ stato(riga) }}</app-badge>
+    </ng-template>
+
+    <ng-template appCell="source" let-riga>
+      @if (riga.sourceReference) {
+        <button
+          type="button"
+          class="ops__link-cell"
+          (click)="apriOrigine(riga); $event.stopPropagation()"
+        >
+          {{ riga.sourceReference }}
+        </button>
+      } @else {
+        —
+      }
+    </ng-template>
+
+    <!--
+      ⭐ **La card di un ELENCO si progetta, non si impila** (`regole-stile-ui`):
+      tre fasce, «a sinistra le parole, a destra i numeri». La grammatica e'
+      comune (`styles/_list-card.scss`), il contenuto e' di questo registro.
+
+      ⛔ Prima non c'era affatto: sotto `lg` la tabella scritta a mano scorreva
+      in orizzontale.
+    -->
+    <ng-template appRowCard let-riga>
+      <div class="list-card__head">
+        <span class="list-card__ident">
+          <span class="list-card__when tabular-nums">{{ cellText(riga, 'createdAt') }}</span>
+          <span class="list-card__what">{{ cellText(riga, 'type') }}</span>
+        </span>
+        <span class="list-card__anchor">{{ cellText(riga, 'reference') }}</span>
       </div>
-      <p class="ops__note">
-        Le operazioni annullate restano visibili con il loro stato e non entrano nei totali.
-        La fiscalizzazione non è ancora disponibile in questa versione.
+
+      <div class="list-card__words">
+        @if (visibile('location')) {
+          <span>{{ cellText(riga, 'location') }}</span>
+        }
+        @if (visibile('operator')) {
+          <span>{{ cellText(riga, 'operator') }}</span>
+        }
+        @if (visibile('paymentMethod')) {
+          <span>{{ cellText(riga, 'paymentMethod') }}</span>
+        }
+        @if (visibile('status')) {
+          <span>{{ cellText(riga, 'status') }}</span>
+        }
+      </div>
+
+      @if (visibile('total')) {
+        <div class="list-card__figures">
+          <span class="list-card__total">{{ cellText(riga, 'total') }}</span>
+        </div>
+      }
+    </ng-template>
+  </app-data-table>
+
+  <!--
+    ⭐ **Il riepilogo, non la riga totali** — e' la distinzione di
+    `regole-stile-ui`: la riga totali somma le COLONNE VISIBILI e si incolonna
+    sotto di esse, il riepilogo mostra metriche nominate che in tabella non
+    esistono. Qui sei voci su sette non sono colonne — «Contanti»,
+    «Elettronico», «Scontrino medio» — quindi e' la seconda famiglia, come nel
+    Registro Corrispettivi.
+
+    ⛔ **I numeri arrivano dal SERVER**, con lo stesso filtro dell'elenco: non
+    si sommano le righe a schermo, che sarebbero la pagina e non il periodo.
+  -->
+  @if (pagina(); as p) {
+    <section summary class="ops__summary" aria-labelledby="ops-summary-title">
+      <h2 id="ops-summary-title" class="sr-only">Riepilogo del periodo</h2>
+      <dl class="ops__summary-grid">
+        <div class="ops__summary-item">
+          <dt>Vendite lorde</dt>
+          <dd class="tabular-nums">{{ soldi(p.summary.grossSalesMinor) }}</dd>
+        </div>
+        <div class="ops__summary-item ops__summary-item--negative">
+          <dt>Resi</dt>
+          <dd class="tabular-nums">{{ soldi(p.summary.returnsMinor) }}</dd>
+        </div>
+        <div class="ops__summary-item">
+          <dt>Contanti</dt>
+          <dd class="tabular-nums">{{ soldi(p.summary.cashMinor) }}</dd>
+        </div>
+        <div class="ops__summary-item">
+          <dt>Elettronico</dt>
+          <dd class="tabular-nums">{{ soldi(p.summary.electronicMinor) }}</dd>
+        </div>
+        <div class="ops__summary-item">
+          <dt>Scontrino medio</dt>
+          <dd class="tabular-nums">{{ soldi(p.summary.averageMinor) }}</dd>
+        </div>
+        <div class="ops__summary-item ops__summary-item--highlight">
+          <dt>Vendite nette</dt>
+          <dd class="tabular-nums">{{ soldi(p.summary.netSalesMinor) }}</dd>
+        </div>
+      </dl>
+    </section>
+  }
+
+  <!--
+    ⚠️ **Questa nota non e` decorazione**: dice due cose sul comportamento —
+    che gli annullati restano visibili e fuori dai totali, e che la
+    fiscalizzazione non c’è ancora. Due prove la difendono, ed è giusto:
+    era sparita nella migrazione al telaio, e le prove l’hanno ripresa.
+  -->
+  <p summary class="ops__note">
+    Le operazioni annullate restano visibili con il loro stato e non entrano nei totali. La
+    fiscalizzazione non è ancora disponibile in questa versione.
+  </p>
+
+  <!--
+    ⭐ **Il pannello sta in `[overlays]`**: e' `position: fixed`, e un telaio
+    con sole caselle nominate SCARTA il contenuto che non ne trova una — senza
+    errori e senza test rossi (`regole-stile-ui`).
+  -->
+  <app-slide-panel
+    overlays
+    [open]="pannelloReso()"
+    title="Richiama scontrino"
+    (closed)="pannelloReso.set(false)"
+  >
+    <form class="ops__recall" (ngSubmit)="cercaScontrino()">
+      <label class="ops__filter">
+        <span class="ops__filter-label">Numero, articolo o cliente</span>
+        <input
+          type="search"
+          autocomplete="off"
+          [value]="ricercaScontrino()"
+          (input)="ricercaScontrino.set($any($event.target).value)"
+          name="scontrino"
+          placeholder="Es. 42, maglia, Rossi…"
+        />
+      </label>
+      <app-button variant="primary" type="submit" [loading]="cercandoScontrini()">Cerca</app-button>
+    </form>
+
+    @if (scontrini().length === 0 && !cercandoScontrini()) {
+      <p class="ops__recall-hint">
+        Cerca lo scontrino da rendere. Il reso parte sempre da una vendita identificata.
       </p>
     }
-  }
-</div>
 
-<!-- ── Richiamo scontrino: la ricerca senza identificativi ────────────────── -->
-<app-slide-panel
-  [open]="pannelloReso()"
-  title="Richiama scontrino"
-  (closed)="pannelloReso.set(false)"
->
-  <form class="ops__recall" (ngSubmit)="cercaScontrino()">
-    <label class="ops__filter">
-      <span class="ops__filter-label">Numero, articolo o cliente</span>
-      <input
-        type="search"
-        autocomplete="off"
-        [ngModel]="ricercaScontrino()"
-        (ngModelChange)="ricercaScontrino.set($event)"
-        name="scontrino"
-        placeholder="Es. 42, maglia, Rossi…"
-      />
-    </label>
-    <app-button variant="primary" type="submit" [loading]="cercandoScontrini()">Cerca</app-button>
-  </form>
-
-  @if (scontrini().length === 0 && !cercandoScontrini()) {
-    <p class="ops__recall-hint">
-      Cerca lo scontrino da rendere. Il reso parte sempre da una vendita identificata.
-    </p>
-  }
-
-  <ul class="ops__recall-results">
-    @for (s of scontrini(); track s.documentId) {
-      <li>
-        <button type="button" class="ops__recall-item" (click)="vaiAlReso(s.documentId)">
-          <span class="ops__recall-ref">{{ s.reference }}</span>
-          <span class="ops__recall-meta">
-            {{ s.documentDate | date: 'dd/MM/yyyy' }} · {{ s.locationName ?? '—' }} ·
-            {{ s.operatorName }}
-          </span>
-          <span class="ops__recall-items">{{ s.itemsPreview }}</span>
-          <span class="ops__recall-total">{{ soldi(s.totalMinor) }}</span>
-        </button>
-      </li>
-    }
-  </ul>
-</app-slide-panel>
+    <ul class="ops__recall-results">
+      @for (s of scontrini(); track s.documentId) {
+        <li>
+          <button type="button" class="ops__recall-item" (click)="vaiAlReso(s.documentId)">
+            <span class="ops__recall-ref">{{ s.reference }}</span>
+            <span class="ops__recall-meta">
+              {{ s.documentDate }} · {{ s.locationName ?? '—' }} · {{ s.operatorName }}
+            </span>
+            <span class="ops__recall-items">{{ s.itemsPreview }}</span>
+            <span class="ops__recall-total">{{ soldi(s.totalMinor) }}</span>
+          </button>
+        </li>
+      }
+    </ul>
+  </app-slide-panel>
+</app-list-page>

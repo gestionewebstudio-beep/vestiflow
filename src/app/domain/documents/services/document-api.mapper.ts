@@ -215,7 +215,15 @@ function mapLinkedSalesOrder(row: LinkedSalesOrderApiRow): LinkedSalesOrderInfo 
   };
 }
 
-function mapLine(row: DocumentLineApiRow, currency: CurrencyCode): DocumentLine {
+/**
+ * ⭐ **Esportato**: la Cassa rende le proprie righe con lo STESSO componente in
+ * sola lettura dei documenti, e senza questo mapper dovrebbe riscriverne uno —
+ * cioè la duplicazione che il componente condiviso serve a togliere.
+ */
+export function mapDocumentLineApiRow(
+  row: DocumentLineApiRow,
+  currency: CurrencyCode,
+): DocumentLine {
   return {
     id: row.id,
     lineNumber: row.lineNumber,
@@ -390,7 +398,7 @@ export function mapDocumentApiRow(row: DocumentApiRow): DocumentRecord {
     cancelledAt: row.cancelledAt ?? undefined,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
-    lines: row.lines?.map((line) => mapLine(line, row.currency)),
+    lines: row.lines?.map((line) => mapDocumentLineApiRow(line, row.currency)),
     lineCount: row.lineCount,
     sourceDocument: row.sourceDocument ?? undefined,
     derivedDocuments: row.derivedDocuments ?? undefined,

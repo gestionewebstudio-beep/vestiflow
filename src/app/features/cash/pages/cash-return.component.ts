@@ -1,7 +1,14 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component,
-  DestroyRef, computed, effect, inject, signal } from '@angular/core';
-import { takeUntilDestroyed, toSignal  } from '@angular/core/rxjs-interop';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
@@ -13,6 +20,7 @@ import { CashApiService } from '@domain/cash/services/cash-api.service';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
+import { FormSectionComponent } from '@shared/components/form-section/form-section.component';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { MoneyInputComponent } from '@shared/components/money-input/money-input.component';
 
@@ -38,6 +46,7 @@ import { MoneyInputComponent } from '@shared/components/money-input/money-input.
     ButtonComponent,
     DatePipe,
     ErrorStateComponent,
+    FormSectionComponent,
     FormsModule,
     InlineBannerComponent,
     MoneyInputComponent,
@@ -116,36 +125,45 @@ export class CashReturnComponent {
     this.errore.set(null);
     // La sede del reso è quella CORRENTE, e la si ricava dall'operazione
     // richiamata solo per leggerla: la merce rientra dove viene riportata.
-    this.api.operation(documentId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: (op) => {
-        const sede = op.locationId;
-        this.sedeId.set(sede);
-        if (!sede) {
-          this.errore.set('La vendita non ha una sede: non si può rendere.');
+    this.api
+      .operation(documentId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (op) => {
+          const sede = op.locationId;
+          this.sedeId.set(sede);
+          if (!sede) {
+            this.errore.set('La vendita non ha una sede: non si può rendere.');
+            this.caricamento.set(false);
+            return;
+          }
+          this.api
+            .current(sede)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+              next: (s) => this.stato.set(s),
+              error: () => this.stato.set(null),
+            });
+          this.api
+            .lookupReturn(sede, documentId)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+              next: (v) => {
+                this.vendita.set(v);
+                this.caricamento.set(false);
+              },
+              error: (e: unknown) => {
+                this.vendita.set(null);
+                this.errore.set(messaggio(e, 'Non è stato possibile richiamare la vendita.'));
+                this.caricamento.set(false);
+              },
+            });
+        },
+        error: () => {
+          this.errore.set('Vendita non trovata, o fuori dal tuo perimetro.');
           this.caricamento.set(false);
-          return;
-        }
-        this.api.current(sede).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-          next: (s) => this.stato.set(s),
-          error: () => this.stato.set(null),
-        });
-        this.api.lookupReturn(sede, documentId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-          next: (v) => {
-            this.vendita.set(v);
-            this.caricamento.set(false);
-          },
-          error: (e: unknown) => {
-            this.vendita.set(null);
-            this.errore.set(messaggio(e, 'Non è stato possibile richiamare la vendita.'));
-            this.caricamento.set(false);
-          },
-        });
-      },
-      error: () => {
-        this.errore.set('Vendita non trovata, o fuori dal tuo perimetro.');
-        this.caricamento.set(false);
-      },
-    });
+        },
+      });
   }
 
   protected cambiaQuantita(lineId: EntityId, valore: number, massimo: number): void {
@@ -209,7 +227,8 @@ export class CashReturnComponent {
             confirmed: this.confermati()[originalPaymentId] ?? false,
           })),
       })
-      .pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
         next: (esito) => {
           this.fatto.set({ reference: esito.reference, totalMinor: esito.totaleMinor });
           this.invio.set(false);

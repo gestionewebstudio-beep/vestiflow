@@ -10,7 +10,9 @@
           @if (s.status === 'open') {
             <span class="sd__open">· aperta</span>
           } @else {
-            <span>· chiusa {{ s.closedAt | date: 'dd/MM/yyyy HH:mm' }} da {{ s.closedByName }}</span>
+            <span
+              >· chiusa {{ s.closedAt | date: 'dd/MM/yyyy HH:mm' }} da {{ s.closedByName }}</span
+            >
           }
         </p>
       </div>
@@ -24,23 +26,30 @@
   </header>
 
   @if (errore(); as messaggio) {
-    <app-inline-banner tone="error" [message]="messaggio" dismissLabel="Chiudi" (dismissed)="errore.set(null)" />
+    <app-inline-banner
+      tone="error"
+      [message]="messaggio"
+      dismissLabel="Chiudi"
+      (dismissed)="errore.set(null)"
+    />
   }
 
   @if (caricamento()) {
     <p class="sd__loading" role="status">Lettura della sessione…</p>
   } @else if (!sessione()) {
-    <app-error-state description="Sessione non disponibile." retryLabel="Riprova" (retry)="ricarica()" />
+    <app-error-state
+      description="Sessione non disponibile."
+      retryLabel="Riprova"
+      (retry)="ricarica()"
+    />
   } @else if (sessione(); as s) {
     <!-- ── Quadratura ───────────────────────────────────────────────────── -->
-    <section class="sd__block" aria-labelledby="quadr-titolo">
-      <h2 id="quadr-titolo" class="sd__block-title">Quadratura</h2>
-
+    <app-form-section class="sd__block" title="Quadratura" [flat]="true">
       @if (!s.frozen) {
         <!-- ⛔ La cecità è strutturale: gli attesi non esistono prima. -->
         <p class="sd__note">
-          La sessione è aperta: gli attesi non esistono ancora. Si calcolano alla chiusura,
-          dopo che hai dichiarato quanto hai contato.
+          La sessione è aperta: gli attesi non esistono ancora. Si calcolano alla chiusura, dopo che
+          hai dichiarato quanto hai contato.
         </p>
       } @else {
         <dl class="sd__figures">
@@ -50,14 +59,16 @@
           </div>
           <div>
             <dt>Contante contato</dt>
-            <dd>{{ s.frozen.countedCashMinor !== null ? soldi(s.frozen.countedCashMinor) : '—' }}</dd>
+            <dd>
+              {{ s.frozen.countedCashMinor !== null ? soldi(s.frozen.countedCashMinor) : '—' }}
+            </dd>
           </div>
           <div>
             <dt>Differenza</dt>
-            <dd
-              [class.sd__off]="(s.frozen.cashDifferenceMinor ?? 0) !== 0"
-            >
-              {{ s.frozen.cashDifferenceMinor !== null ? soldi(s.frozen.cashDifferenceMinor) : '—' }}
+            <dd [class.sd__off]="(s.frozen.cashDifferenceMinor ?? 0) !== 0">
+              {{
+                s.frozen.cashDifferenceMinor !== null ? soldi(s.frozen.cashDifferenceMinor) : '—'
+              }}
             </dd>
           </div>
           <div>
@@ -130,12 +141,10 @@
           </div>
         </dl>
       }
-    </section>
+    </app-form-section>
 
     <!-- ── Cassetto ─────────────────────────────────────────────────────── -->
-    <section class="sd__block" aria-labelledby="cassetto-titolo">
-      <h2 id="cassetto-titolo" class="sd__block-title">Cassetto</h2>
-
+    <app-form-section class="sd__block" title="Cassetto" [flat]="true">
       @if (s.movements.length === 0) {
         <p class="sd__note">Nessun versamento né prelievo.</p>
       } @else {
@@ -190,15 +199,13 @@
           </app-button>
         </form>
         <p class="sd__note">
-          Un movimento sbagliato non si cancella: si corregge con un movimento opposto che lo
-          cita.
+          Un movimento sbagliato non si cancella: si corregge con un movimento opposto che lo cita.
         </p>
       }
-    </section>
+    </app-form-section>
 
     <!-- ── Documenti ────────────────────────────────────────────────────── -->
-    <section class="sd__block" aria-labelledby="doc-titolo">
-      <h2 id="doc-titolo" class="sd__block-title">Operazioni della sessione</h2>
+    <app-form-section class="sd__block" title="Operazioni della sessione" [flat]="true">
       @if (s.documents.length === 0) {
         <p class="sd__note">Nessuna vendita né reso.</p>
       } @else {
@@ -215,11 +222,10 @@
           }
         </ul>
       }
-    </section>
+    </app-form-section>
 
     <!-- ── Dispositivo ──────────────────────────────────────────────────── -->
-    <section class="sd__block" aria-labelledby="disp-titolo">
-      <h2 id="disp-titolo" class="sd__block-title">Registratore</h2>
+    <app-form-section class="sd__block" title="Registratore" [flat]="true">
       <p class="sd__note">
         {{ s.fiscalDeviceLabel ?? 'Nessun registratore selezionato per questa sessione.' }}
       </p>
@@ -236,6 +242,6 @@
           }
         </ul>
       }
-    </section>
+    </app-form-section>
   }
 </div>

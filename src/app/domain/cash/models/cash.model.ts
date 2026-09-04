@@ -1,4 +1,5 @@
 import type { EntityId } from '@core/models/common.model';
+import type { DocumentLine } from '@core/models/document.model';
 import type { PaymentTenderKind } from '@core/models/payment-option.model';
 
 /**
@@ -259,21 +260,13 @@ export interface CashOperationsPage {
   readonly summary: CashOperationsSummary;
 }
 
-export interface CashOperationLine {
-  readonly id: EntityId;
-  readonly lineNumber: number;
-  readonly sku: string | null;
-  readonly description: string;
-  readonly variantLabel: string | null;
-  readonly quantity: number;
-  readonly unitPriceMinor: number;
-  readonly discountPercent: number | null;
-  readonly lineTotalMinor: number;
-  readonly lineVatTotalMinor: number;
-  readonly lineGrossTotalMinor: number;
-  readonly returnedFromLineId: EntityId | null;
-}
-
+/**
+ * ⭐ **La riga di un_operazione E` una riga di documento**, e si rende con lo
+ * STESSO componente in sola lettura (`app-document-lines-table`): l'API
+ * restituisce la forma di `DocumentLineApiRow`, e il mapper condiviso la
+ * traduce. Una forma propria avrebbe voluto un secondo componente.
+ */
+export type CashOperationLine = DocumentLine;
 export interface CashOperationMovement {
   readonly id: EntityId;
   readonly type: string;

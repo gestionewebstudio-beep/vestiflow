@@ -2,7 +2,7 @@
   display: block;
 }
 
-.inventory-tabs {
+.nav-tabs {
   display: flex;
   gap: var(--space-2);
   border-block-end: var(--border-width) solid var(--color-border);
@@ -11,11 +11,11 @@
   scrollbar-width: none;
 }
 
-.inventory-tabs::-webkit-scrollbar {
+.nav-tabs::-webkit-scrollbar {
   display: none;
 }
 
-.inventory-tabs__link {
+.nav-tabs__link {
   display: inline-flex;
   align-items: center;
   min-block-size: var(--field-height);
@@ -31,17 +31,17 @@
   transition: color var(--transition-fast) var(--ease-standard);
 }
 
-.inventory-tabs__link:hover {
+.nav-tabs__link:hover {
   color: var(--color-text);
 }
 
-.inventory-tabs__link:focus-visible {
+.nav-tabs__link:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-offset));
   border-radius: var(--radius-sm);
 }
 
-.inventory-tabs__link--active {
+.nav-tabs__link--active {
   color: var(--color-text);
   font-weight: var(--font-weight-semibold);
   border-block-end-color: var(--color-interactive);

@@ -22,7 +22,7 @@ import { ErrorStateComponent } from '@shared/components/error-state/error-state.
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
-import { DocumentLinesTableComponent } from './components/document-lines-table/document-lines-table.component';
+import { DocumentLinesTableComponent } from '@domain/documents/components/document-lines-table/document-lines-table.component';
 import {
   documentReferenceLabel,
   documentTypeLabel,

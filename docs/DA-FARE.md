@@ -131,26 +131,33 @@ vitest esegue con esbuild, che i tipi li strippa:
 
 ---
 
-## ⏸ CASSA — i due registri passano al motore tabella (04/09/2026)
+## ✅ CASSA — i due registri sono passati al motore tabella (04/09/2026)
 
-I registri **Operazioni** e **Sessioni** della Cassa usano oggi due tabelle scritte a
-mano. Funzionano — scorrono, l'intestazione appiccica, i totali arrivano dal server — ma
-non sono il motore condiviso, e `regole-stile-ui` dice che le tabelle non si rifanno per
-feature.
+⛔ **Qui c’era un RINVIO**, e il proprietario l’ha respinto lo stesso giorno: «non
+accetto la duplicazione registrata semplicemente in DA-FARE».
 
-⚠️ **Non è una svista: è lavoro dichiarato.** Adottare `app-data-table` porta con sé
-catalogo colonne, viste salvate, filtri di colonna, card di riga per il telefono e i sei
-controlli che li presidiano (`check:column-catalog`, `check:table-views`,
-`check:filtri-colonna`, `check:colonne-rese`, `check:row-card`, `check:somme-elenco`).
-Farlo male costa più che non farlo.
+⚠️ **E la stima era sbagliata.** La voce diceva che adottare `app-data-table` «porta con
+sé catalogo colonne, viste salvate, filtri di colonna, card di riga e i sei controlli che
+li presidiano — farlo male costa più che non farlo». Quelle cose **esistevano già**: la
+migrazione è costata un file di configurazione colonne e due template riscritti.
 
-⭐ **Cosa si guadagna**, e perché va fatto: filtri di colonna, riga totali, selettore
-colonne, card sul telefono e virtualizzazione — tutto quello che gli altri dodici elenchi
-hanno già, e che qui manca.
+⭐ **A trovare i difetti sono state le guardie citate come costo.** Cinque, una dopo
+l’altra, e nessuno si vedeva compilando:
 
-⛔ **Nel frattempo le due intestazioni appiccicate sono DICHIARATE** in
-`check:sticky-scrollport` con la categoria `mixin`, che è quella vera: lo scrollport ce
-l'hanno, dal mixin condiviso. Non è una deroga — è la registrazione di uno stato.
+```text
+check:table-views          le due viste mancavano lato API: preferenza colonne → 400 muto
+check:colonne-rese         `type` e `paymentMethod` dichiarate e non rese: colonne VUOTE
+check:filtri-colonna       filtri mostrati che non restringevano niente
+check:catena-altezze       il contenitore righe non si stirava: piede non ancorato
+check:sticky-scrollport    due intestazioni dichiarate che non esistevano piu’
+```
+
+⚠️ **Resta aperto il tetto di cento righe** (`pageSize: 100`, senza impaginazione): sopra
+quella soglia le righe mancano prima ancora del filtro, e `regole-stile-ui` dice «NESSUN
+TETTO DI RIGHE». Serve una decisione sull’API dei due registri.
+
+⚠️ **E l’ordinamento resta spento**: l’API non ha un parametro `sort`, e riordinare le
+righe caricate riordinerebbe una pagina.
 
 ---
 

@@ -13,7 +13,12 @@
   </header>
 
   @if (errore(); as messaggio) {
-    <app-inline-banner tone="error" [message]="messaggio" dismissLabel="Chiudi" (dismissed)="errore.set(null)" />
+    <app-inline-banner
+      tone="error"
+      [message]="messaggio"
+      dismissLabel="Chiudi"
+      (dismissed)="errore.set(null)"
+    />
   }
 
   @if (caricamento()) {
@@ -44,10 +49,11 @@
     </section>
   } @else if (vendita(); as v) {
     <!-- ── Cosa si rende ────────────────────────────────────────────────── -->
-    <section class="reso__block" aria-labelledby="righe-titolo">
-      <h2 id="righe-titolo" class="reso__block-title">Articoli da rendere</h2>
+    <app-form-section class="reso__block" title="Articoli da rendere" [flat]="true">
       <table class="reso__table">
-        <caption class="sr-only">Righe della vendita richiamata</caption>
+        <caption class="sr-only">
+          Righe della vendita richiamata
+        </caption>
         <thead>
           <tr>
             <th scope="col">Articolo</th>
@@ -86,7 +92,7 @@
         </tbody>
       </table>
       <p class="reso__total">Totale da rimborsare: {{ soldi(totaleMinor()) }}</p>
-    </section>
+    </app-form-section>
 
     <!-- ── Come si rimborsa ─────────────────────────────────────────────── -->
     <section class="reso__block" aria-labelledby="rimborso-titolo">
@@ -100,9 +106,7 @@
           <li class="reso__quota">
             <span class="reso__quota-name">
               {{ quota.optionName ?? 'Tipo eliminato' }}
-              <span class="reso__quota-kind">
-                incassati {{ soldi(quota.amountMinor) }}
-              </span>
+              <span class="reso__quota-kind"> incassati {{ soldi(quota.amountMinor) }} </span>
             </span>
             <label class="reso__field" [for]="'rimb-' + quota.paymentId">
               <span class="sr-only">Rimborso su {{ quota.optionName ?? 'questa quota' }}</span>
@@ -126,17 +130,13 @@
           </li>
         }
       </ul>
-      <p
-        class="reso__balance"
-        [class.reso__balance--off]="rimborsatoMinor() !== totaleMinor()"
-      >
+      <p class="reso__balance" [class.reso__balance--off]="rimborsatoMinor() !== totaleMinor()">
         Rimborso composto: {{ soldi(rimborsatoMinor()) }} su {{ soldi(totaleMinor()) }}
       </p>
     </section>
 
     <!-- ── Motivo e conferma ────────────────────────────────────────────── -->
-    <section class="reso__block" aria-labelledby="motivo-titolo">
-      <h2 id="motivo-titolo" class="reso__block-title">Motivo</h2>
+    <app-form-section class="reso__block" title="Motivo" [flat]="true">
       <label class="reso__field">
         <span class="sr-only">Motivo del reso</span>
         <textarea
@@ -159,6 +159,6 @@
           Concludi reso
         </app-button>
       </div>
-    </section>
+    </app-form-section>
   }
 </div>

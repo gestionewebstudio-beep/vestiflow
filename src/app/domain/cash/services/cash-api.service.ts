@@ -1,10 +1,14 @@
 import { HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { timeout, type Observable } from 'rxjs';
+import { map, timeout, type Observable } from 'rxjs';
 
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { ApiHttpClient } from '@core/http/api-http.client';
 import type { EntityId } from '@core/models/common.model';
+import {
+  mapDocumentLineApiRow,
+  type DocumentLineApiRow,
+} from '@domain/documents/services/document-api.mapper';
 
 import type {
   CashCheckoutPayload,
@@ -186,10 +190,19 @@ export class CashApiService {
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
+  /**
+   * ⚠️ Le righe arrivano nella forma dell'API documenti e si traducono col
+   * mapper CONDIVISO: è quello che permette di renderle con
+   * `app-document-lines-table` invece di riscrivere una tabella.
+   */
   operation(id: EntityId): Observable<CashOperationDetail> {
-    return this.http
-      .get<CashOperationDetail>(this.url(`/cash-sessions/operations/${id}`))
-      .pipe(timeout(HTTP_TIMEOUT_MS));
+    return this.http.get<CashOperationDetailApi>(this.url(`/cash-sessions/operations/${id}`)).pipe(
+      timeout(HTTP_TIMEOUT_MS),
+      map((dettaglio) => ({
+        ...dettaglio,
+        lines: dettaglio.lines.map((riga) => mapDocumentLineApiRow(riga, 'EUR')),
+      })),
+    );
   }
 
   sessions(filters: CashSessionsFilters): Observable<CashSessionsPage> {
@@ -218,6 +231,11 @@ export class CashApiService {
 // ⚠️ `object` e non `Record<string, unknown>`: le interfacce dei filtri hanno
 //    campi `readonly` e TypeScript non le considera assegnabili a un Record
 //    mutabile. Il tipo largo qui non perde niente — la funzione legge e basta.
+/** Il dettaglio come lo manda l_API: le righe non sono ancora tradotte. */
+type CashOperationDetailApi = Omit<CashOperationDetail, 'lines'> & {
+  readonly lines: readonly DocumentLineApiRow[];
+};
+
 function toParams(filtri: object): HttpParams {
   let params = new HttpParams();
   for (const [chiave, valore] of Object.entries(filtri)) {

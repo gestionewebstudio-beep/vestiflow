@@ -1,3 +1,4 @@
+import { signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
@@ -9,7 +10,26 @@ import type { CashOperationsPage } from '@domain/cash/models/cash.model';
 import { CashApiService } from '@domain/cash/services/cash-api.service';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 
+import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
+
+import { CASH_OPERATIONS_COLUMN_DEFS } from '../models/cash-register-columns.config';
 import { CashOperationsComponent } from './cash-operations.component';
+
+/**
+ * ⚠️ **Il servizio vero delle preferenze colonne tira dietro `AuthService` e
+ * `AUTH_GATEWAY`**, che con questo registro non c'entrano niente. Qui basta un
+ * doppio che renda le colonne predefinite e non salvi nulla — la risoluzione
+ * vera ha le sue prove, in `shared/`.
+ */
+const COLONNE_FINTE = {
+  provide: TableColumnPreferenceService,
+  useValue: {
+    registerView: () => undefined,
+    visibleColumns: () => signal(CASH_OPERATIONS_COLUMN_DEFS.map((c) => ({ ...c, pinned: false }))),
+    columnWidth: (_v: unknown, _c: unknown, ripiego: number) => ripiego,
+    setColumnWidths: () => undefined,
+  },
+};
 
 /**
  * ⛔ **Ciò che queste prove falsificano**:
@@ -99,6 +119,7 @@ async function montaOperazioni(operations = vi.fn(() => of(PAGINA))) {
       { provide: CashApiService, useValue: api },
       { provide: OperationalLocationsService, useValue: { locations: () => [] } },
       { provide: PaymentOptionsService, useValue: { list: () => of([]) } },
+      COLONNE_FINTE,
     ],
   });
   return { ...vista, api };
@@ -120,8 +141,11 @@ describe('CashOperationsComponent', () => {
   it('un_operazione ANNULLATA si vede, con il suo stato', async () => {
     await montaOperazioni();
 
-    expect(screen.getByText('CS/2026/2')).toBeVisible();
-    expect(screen.getByText('Annullato')).toBeVisible();
+    // ⚠️ **Due volte nel DOM, e non e` un difetto**: il motore rende la riga di
+    //    tabella E la card, e sotto `lg` ne nasconde una. La card porta
+    //    `aria-hidden`, quindi ai lettori di schermo il dato resta uno solo.
+    expect(screen.getAllByText('CS/2026/2').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Annullato').length).toBeGreaterThan(0);
   });
 
   it('dice che gli annullati non entrano nei totali', async () => {
@@ -137,6 +161,26 @@ describe('CashOperationsComponent', () => {
     expect(testo).toMatch(/Fiscalizzazione non ancora disponibile|fiscalizzazione non è ancora/i);
     expect(testo).not.toMatch(/scontrino emesso/i);
     expect(testo).not.toMatch(/trasmess/i);
+  });
+
+  /*
+    ⛔ **Questa prova nasce da una REGRESSIONE, non da un requisito nuovo.**
+
+    Migrando il registro al telaio comune ho tolto la testata scritta a mano —
+    e con lei i tre collegamenti fra Vendita, Operazioni e Sessioni. Nessuna
+    prova di componente se ne e` accorta: compilava, il lint passava, e le due
+    schermate si aprivano benissimo. L_ha trovata `e2e/cassa.spec.ts` («le tre
+    aree si raggiungono l_una dall_altra»), che pero` gira solo su richiesta.
+
+    ⭐ La navigazione ora vive in `app-nav-tabs`, nella casella `[tabs]` del
+    telaio. Questa prova la tiene ferma dove costa meno accorgersene.
+  */
+  it('le tre aree della Cassa restano raggiungibili', async () => {
+    await montaOperazioni();
+
+    for (const area of ['Vendita', 'Operazioni', 'Sessioni']) {
+      expect(screen.getByRole('link', { name: area })).toBeVisible();
+    }
   });
 
   it('il richiamo scontrino non chiede nessun identificativo', async () => {

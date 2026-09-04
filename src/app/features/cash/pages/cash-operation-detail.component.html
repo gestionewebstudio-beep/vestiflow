@@ -3,9 +3,7 @@
     <app-back-button fallbackLink="/app/cassa/operazioni">Operazioni</app-back-button>
     @if (operazione(); as o) {
       <div class="op__identity">
-        <h1 class="op__title">
-          {{ o.kind === 'sale' ? 'Vendita' : 'Reso' }} {{ o.reference }}
-        </h1>
+        <h1 class="op__title">{{ o.kind === 'sale' ? 'Vendita' : 'Reso' }} {{ o.reference }}</h1>
         <p class="op__meta">
           {{ o.createdAt | date: 'dd/MM/yyyy HH:mm' }} · {{ o.locationName ?? '—' }} ·
           {{ o.operatorName }}
@@ -29,71 +27,37 @@
     <p class="op__loading" role="status">Lettura dell'operazione…</p>
   } @else if (operazione(); as o) {
     @if (o.anomalies.length > 0) {
-      <ul class="op__anomalies">
-        @for (a of o.anomalies; track a) {
-          <li>{{ a }}</li>
-        }
-      </ul>
+      <app-inline-banner tone="warning" [message]="testoAnomalie()" />
     }
 
     <!-- ── Righe ────────────────────────────────────────────────────────── -->
-    <section class="op__block" aria-labelledby="righe-titolo">
-      <h2 id="righe-titolo" class="op__block-title">Righe</h2>
-      <table class="op__table">
-        <caption class="sr-only">Righe dell'operazione</caption>
-        <thead>
-          <tr>
-            <th scope="col">Articolo</th>
-            <th scope="col" class="op__num">Qtà</th>
-            <th scope="col" class="op__num">Prezzo</th>
-            <th scope="col" class="op__num">Sconto</th>
-            <th scope="col" class="op__num">Imponibile</th>
-            <th scope="col" class="op__num">IVA</th>
-            <th scope="col" class="op__num">Totale</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (riga of o.lines; track riga.id) {
-            <tr>
-              <td>
-                <span class="op__line-name">{{ riga.description }}</span>
-                @if (riga.sku) {
-                  <span class="op__line-sku">{{ riga.sku }}</span>
-                }
-              </td>
-              <td class="op__num">{{ riga.quantity }}</td>
-              <td class="op__num">{{ soldi(riga.unitPriceMinor) }}</td>
-              <td class="op__num">
-                {{ riga.discountPercent !== null ? riga.discountPercent + '%' : '—' }}
-              </td>
-              <td class="op__num">{{ soldi(riga.lineTotalMinor) }}</td>
-              <td class="op__num">{{ soldi(riga.lineVatTotalMinor) }}</td>
-              <td class="op__num">{{ soldi(riga.lineGrossTotalMinor) }}</td>
-            </tr>
-          }
-        </tbody>
-        <tfoot>
-          <tr>
-            <td colspan="4">Totali</td>
-            <td class="op__num">{{ soldi(o.taxableMinor) }}</td>
-            <td class="op__num">{{ soldi(o.taxMinor) }}</td>
-            <td class="op__num op__strong">{{ soldi(o.totalMinor) }}</td>
-          </tr>
-        </tfoot>
-      </table>
-    </section>
+    <!-- ⭐ La stessa tabella in sola lettura del Dettaglio documento e
+         dell'anteprima di stampa: articolo, quantità, prezzo, sconto, IVA e
+         totale, con le card su schermo stretto. -->
+    <app-form-section title="Righe" [flat]="true">
+      <app-document-lines-table [lines]="o.lines" />
+    </app-form-section>
+
+    <!-- ── Totali ───────────────────────────────────────────────────────── -->
+    <!-- ⭐ Il riepilogo totali di TUTTE le maschere: non calcola, rende. -->
+    <app-form-section title="Totali" [flat]="true">
+      <app-document-totals [rows]="righeTotali()" />
+    </app-form-section>
 
     <!-- ── Incasso ──────────────────────────────────────────────────────── -->
-    <section class="op__block" aria-labelledby="quote-titolo">
-      <h2 id="quote-titolo" class="op__block-title">
-        {{ o.kind === 'sale' ? 'Incasso' : 'Rimborso' }}
-      </h2>
+    <app-form-section [title]="o.kind === 'sale' ? 'Incasso' : 'Rimborso'" [flat]="true">
       <ul class="op__quotas">
         @for (q of o.payments; track q.optionName) {
           <li class="op__quota">
             <span class="op__quota-name">{{ q.optionName ?? 'Tipo eliminato' }}</span>
             <span class="op__quota-kind">
-              {{ q.tenderKind === 'cash' ? 'contanti' : q.tenderKind === 'electronic' ? 'elettronico' : '—' }}
+              {{
+                q.tenderKind === 'cash'
+                  ? 'contanti'
+                  : q.tenderKind === 'electronic'
+                    ? 'elettronico'
+                    : '—'
+              }}
             </span>
             <span class="op__quota-amount">{{ soldi(q.amountMinor) }}</span>
             @if (q.tenderedMinor !== null) {
@@ -107,51 +71,17 @@
       }
       <!-- ⛔ C5 non esiste: si dice, non si simula uno stato fiscale. -->
       <p class="op__note">Fiscalizzazione non ancora disponibile in questa versione.</p>
-    </section>
+    </app-form-section>
 
     <!-- ── Collegamenti ─────────────────────────────────────────────────── -->
-    <section class="op__block" aria-labelledby="legami-titolo">
-      <h2 id="legami-titolo" class="op__block-title">Collegamenti</h2>
-      <dl class="op__facts">
-        @if (o.session; as s) {
-          <div>
-            <dt>Sessione</dt>
-            <dd>
-              <a [routerLink]="['/app/cassa/sessioni', s.id]">
-                aperta {{ s.openedAt | date: 'dd/MM/yyyy HH:mm' }} da {{ s.openedByName }}
-              </a>
-            </dd>
-          </div>
-        }
-        @if (o.sourceDocumentId) {
-          <div>
-            <dt>Vendita originale</dt>
-            <dd>
-              <a [routerLink]="['/app/cassa/operazioni', o.sourceDocumentId]">
-                {{ o.sourceReference ?? 'Apri' }}
-              </a>
-            </dd>
-          </div>
-        }
-        @if (o.relatedReturns.length > 0) {
-          <div>
-            <dt>Resi collegati</dt>
-            <dd>
-              @for (r of o.relatedReturns; track r.id) {
-                <a class="op__related" [routerLink]="['/app/cassa/operazioni', r.id]">
-                  {{ r.reference ?? 'Reso' }} · {{ soldi(r.totalMinor) }}
-                </a>
-              }
-            </dd>
-          </div>
-        }
-      </dl>
-    </section>
+    <!-- ⭐ L'elenco fatti del Dettaglio, non un `<dl>` scritto qui. -->
+    <app-form-section title="Collegamenti" [flat]="true">
+      <app-detail-facts [facts]="fatti()" />
+    </app-form-section>
 
     <!-- ── Movimenti ────────────────────────────────────────────────────── -->
     @if (o.stockMovements.length > 0) {
-      <section class="op__block" aria-labelledby="mov-titolo">
-        <h2 id="mov-titolo" class="op__block-title">Movimenti di magazzino</h2>
+      <app-form-section title="Movimenti di magazzino" [flat]="true">
         <ul class="op__movements">
           @for (m of o.stockMovements; track m.id) {
             <li>
@@ -160,12 +90,12 @@
             </li>
           }
         </ul>
-      </section>
+      </app-form-section>
     }
 
     <p class="op__note">
-      Una vendita di cassa conclusa non si modifica e non si cancella: si corregge con un
-      reso collegato.
+      Una vendita di cassa conclusa non si modifica e non si cancella: si corregge con un reso
+      collegato.
     </p>
   }
 </div>

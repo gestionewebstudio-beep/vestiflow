@@ -13,13 +13,22 @@
   </header>
 
   @if (errore(); as messaggio) {
-    <app-inline-banner tone="error" [message]="messaggio" dismissLabel="Chiudi" (dismissed)="errore.set(null)" />
+    <app-inline-banner
+      tone="error"
+      [message]="messaggio"
+      dismissLabel="Chiudi"
+      (dismissed)="errore.set(null)"
+    />
   }
 
   @if (caricamento()) {
     <p class="ch__note" role="status">Lettura della sessione…</p>
   } @else if (!sessione()) {
-    <app-error-state description="Sessione non disponibile." retryLabel="Riprova" (retry)="ricarica()" />
+    <app-error-state
+      description="Sessione non disponibile."
+      retryLabel="Riprova"
+      (retry)="ricarica()"
+    />
   } @else if (esito(); as r) {
     <!-- ⭐ SOLO ORA gli attesi compaiono: prima non esistevano. -->
     <section class="ch__result" aria-labelledby="esito-titolo">
@@ -100,12 +109,11 @@
       </div>
     </section>
   } @else if (sessione(); as s) {
-    <section class="ch__form" aria-labelledby="conta-titolo">
-      <h2 id="conta-titolo" class="ch__block-title">Conta il cassetto</h2>
+    <app-form-section class="ch__form" title="Conta il cassetto" [flat]="true">
       <!-- ⛔ Nessun atteso in questa schermata: si vede DOPO aver contato. -->
       <p class="ch__note">
-        Apri il cassetto e conta il contante. Gli attesi si vedono solo dopo la conferma: è
-        così che un conteggio resta un conteggio.
+        Apri il cassetto e conta il contante. Gli attesi si vedono solo dopo la conferma: è così che
+        un conteggio resta un conteggio.
       </p>
 
       <div class="ch__fields">
@@ -169,6 +177,6 @@
           Chiudi la cassa
         </app-button>
       </div>
-    </section>
+    </app-form-section>
   }
 </div>

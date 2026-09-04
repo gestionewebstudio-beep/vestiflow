@@ -521,6 +521,7 @@ const SELECT_DETTAGLIO = Prisma.validator<Prisma.DocumentSelect>()({
       lineGrossTotalMinor: true,
       unitOfMeasure: true,
       returnedFromLineId: true,
+      loadsStock: true,
     },
   },
   cashSession: {

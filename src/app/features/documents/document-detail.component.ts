@@ -34,7 +34,7 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
-import { DocumentLinesTableComponent } from './components/document-lines-table/document-lines-table.component';
+import { DocumentLinesTableComponent } from '@domain/documents/components/document-lines-table/document-lines-table.component';
 import { DocumentAttachmentsPanelComponent } from './components/document-attachments-panel/document-attachments-panel.component';
 import {
   documentReferenceLabel,
