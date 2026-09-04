@@ -229,19 +229,31 @@ describe('sessione di cassa — C3 su PostgreSQL TEST', () => {
   /**
    * ⛔ Il cross-tenant che il database NON impedisce (`docs/25` §13): qui si
    * prova che lo impedisce il validatore.
+   *
+   * ⚠️ **Le due chiamate NON si creano in anticipo per awaitarle dopo.** Cosi`
+   * scritta, questa prova produceva un `Unhandled Rejection` INTERMITTENTE:
+   * la seconda promessa poteva essere rifiutata mentre il primo `await` era
+   * ancora in viaggio verso il database, cioe` prima che qualcuno le
+   * attaccasse un gestore. Node lo segnalava, Vitest lo riportava, e la
+   * suite restava VERDE — il difetto era della prova, non del prodotto.
+   * Misurato il 04/09/2026: 2 esecuzioni complete su 10.
    */
   it('una sede di un ALTRO tenant è rifiutata, e l_errore non la distingue da una inesistente', async () => {
-    const altrui = service.open(tenantA, titolare(tenantA), {
-      locationId: sedeB,
-      openingFloatMinor: 0,
-    });
-    const inesistente = service.open(tenantA, titolare(tenantA), {
-      locationId: '11111111-1111-1111-1111-111111111111',
-      openingFloatMinor: 0,
-    });
+    const altrui = await catturaErrore(() =>
+      service.open(tenantA, titolare(tenantA), { locationId: sedeB, openingFloatMinor: 0 }),
+    );
+    const inesistente = await catturaErrore(() =>
+      service.open(tenantA, titolare(tenantA), {
+        locationId: '11111111-1111-1111-1111-111111111111',
+        openingFloatMinor: 0,
+      }),
+    );
 
-    await expect(altrui).rejects.toBeInstanceOf(ForbiddenException);
-    await expect(inesistente).rejects.toBeInstanceOf(ForbiddenException);
+    expect(altrui).toBeInstanceOf(ForbiddenException);
+    expect(inesistente).toBeInstanceOf(ForbiddenException);
+    // ⭐ E i due messaggi sono IDENTICI: e` cio` che il nome della prova dice,
+    //    e prima non era verificato.
+    expect((altrui as Error).message).toBe((inesistente as Error).message);
   });
 
   it('un dispositivo di un ALTRO tenant è rifiutato', async () => {
@@ -548,6 +560,19 @@ describe('sessione di cassa — C3 su PostgreSQL TEST', () => {
 });
 
 // ── Aiutanti ───────────────────────────────────────────────────────────────
+
+/**
+ * Esegue e restituisce l'errore, invece di lasciare in giro una promessa
+ * rifiutata senza gestore.
+ */
+async function catturaErrore(azione: () => Promise<unknown>): Promise<unknown> {
+  try {
+    await azione();
+  } catch (errore) {
+    return errore;
+  }
+  throw new Error('L’azione doveva fallire, ed è riuscita.');
+}
 
 async function creaTenant(prisma: PrismaClient, sigla: string): Promise<string> {
   const [riga] = await prisma.$queryRawUnsafe<{ id: string }[]>(
