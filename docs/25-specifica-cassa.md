@@ -1,0 +1,564 @@
+# 25 — Specifica Cassa
+
+_Contratto della **Cassa** di VestiFlow e della sua separazione dalla **Vendita al
+banco**. Scritta il 04/09/2026 come tranche **C0** del recupero da
+`origin/feature/cassa`, che resta sorgente storica in sola lettura._
+
+> ⛔ **Questo documento non è la specifica della Vendita al banco.** Quella è
+> `docs/11-specifica-vendita-al-banco.md` e **non cambia**. Qui si descrive un flusso
+> operativo diverso che _usa_ quel documento, non lo sostituisce.
+
+---
+
+## 0. Le decisioni vigenti
+
+| #   | Decisione                                                                              | Dove si argomenta |
+| --- | -------------------------------------------------------------------------------------- | ----------------- |
+| 1   | Vendita al banco e Cassa sono **due flussi distinti**, su **rotte separate**           | §1, §3            |
+| 2   | La Cassa produce una **normale `store_sale`**: nessun secondo documento economico      | §4                |
+| 3   | La Vendita al banco conserva `cash \| card \| other`; la **Cassa usa `PaymentOption`** | §5                |
+| 4   | «Misto» è **calcolato a lettura dalle quote**, mai persistito                          | §6                |
+| 5   | `PaymentOption` va esteso, ma **non in C0 né in C1**: la migration è di C2             | §7                |
+| 6   | Le sei tabelle esistono già nel database: **non si ricreano**                          | §8                |
+
+In caso di contrasto fra questo elenco e il corpo del documento, **vale l'elenco**.
+
+---
+
+## 1. Le due cose, e perché non sono la stessa
+
+### Vendita al banco — un documento gestionale
+
+È il normale documento modellato sulla schermata Danea: testata, righe, numero, serie,
+data, cliente facoltativo, prezzi, IVA, totali, note. Si modifica secondo il contratto
+documentale comune.
+
+⛔ **Non è un carrello, non è una mini-cassa.** Non richiede una sessione, non richiede un
+POS, non emette il documento commerciale. **Deve funzionare senza il modulo Cassa e senza
+alcun registratore telematico configurato**, ed è il caso di ogni tenant che oggi la usa.
+
+### Cassa — un flusso operativo
+
+Interfaccia rapida a carrello, scanner, pagamento immediato ed eventualmente suddiviso,
+contanti ricevuti e resto, sessione di apertura e chiusura, terminale POS, emissione del
+documento commerciale via RT, esiti e ritentativi fiscali.
+
+⭐ **La Cassa può creare una Vendita al banco come documento sottostante**, e lo fa: ma non
+ne sostituisce la schermata e non introduce un secondo tipo di documento economico.
+
+---
+
+## 2. La collisione del vecchio ramo — verificata, e da non ripetere
+
+Misurato il 04/09/2026 su `origin/feature/cassa` (`6e4f9e79`):
+
+```text
+store-sales.routes.ts   le QUATTRO rotte di /app/vendita-al-banco
+                        caricavano StoreSaleRegisterComponent — il carrello
+```
+
+Su `develop` le stesse quattro rotte caricano `StoreSaleDocumentFormComponent`, e
+`StoreSaleRegisterComponent` **è stato eliminato** con il rifacimento del 21/08/2026.
+
+⛔ **Non si recuperano meccanicamente**: `store-sales.routes.ts` del vecchio ramo, i suoi
+mount in `app.routes.ts`, i redirect `/app/sales/register`, le voci di menu, breadcrumb e
+riquadri che chiamano «Cassa» la Vendita al banco, e `StoreSaleRegisterComponent` come
+sostituto della maschera attuale.
+
+⚠️ **Il difetto non era il carrello: era l'indirizzo.** Il carrello serve alla Cassa; ciò
+che non deve accadere è che occupi le rotte del documento.
+
+---
+
+## 3. Le rotte
+
+Le quattro rotte documentali **restano esattamente dove sono**, sullo stesso componente:
+
+```text
+/app/vendita-al-banco/nuova-vendita-al-banco    StoreSaleDocumentFormComponent
+/app/vendita-al-banco/nuovo-reso-al-banco       StoreSaleDocumentFormComponent
+/app/vendita-al-banco/vendita/:id/edit          StoreSaleDocumentFormComponent
+/app/vendita-al-banco/reso/:id/edit             StoreSaleDocumentFormComponent
+```
+
+La Cassa nasce su una **radice propria**:
+
+```text
+/app/cassa              checkout
+/app/cassa/reso         reso operativo, quando sarà deciso (§12)
+/app/cassa/chiusure     sessioni e chiusure
+```
+
+⭐ **`cassa` in italiano è la convenzione recente**: i path di primo livello sono misti —
+`customers`, `documents`, `products` in inglese, ma `vendita-al-banco`, `corrispettivi`,
+`cambia-password` e `guide` in italiano, e sono i più recenti.
+
+⛔ **`/app/vendita-al-banco` non si riusa per la Cassa**, in nessuna forma: né come figlio,
+né come redirect, né come rotta gemella.
+
+### Prove di routing obbligatorie
+
+Devono dimostrare **contemporaneamente** che le quattro rotte documentali aprono la
+maschera documentale, che `/app/cassa` apre la Cassa, e che **nessuna rotta Cassa
+intercetta o sostituisce** quelle documentali.
+
+---
+
+## 4. La Cassa e il documento sottostante
+
+La vendita conclusa in Cassa produce una normale **`DocumentType.store_sale`**.
+
+⛔ **Non si crea**: un secondo documento «Vendita Cassa», una seconda tabella economica
+della vendita, una seconda riga nel Registro Corrispettivi, né un tipo documento nuovo
+senza prima dimostrare che quello esistente non basta.
+
+### Come si distingue una vendita Cassa
+
+`documents.cash_session_id` **esiste già** nel database (migration
+`20260806220000_sessioni_di_cassa`, FK `ON DELETE SET NULL`) ed è il collegamento corretto.
+Misurato il 04/09/2026: **0 valorizzati su 169 documenti**.
+
+| Caso                         | Forma attesa                   |
+| ---------------------------- | ------------------------------ |
+| Vendita al banco ordinaria   | `cash_session_id = null`       |
+| Vendita conclusa dalla Cassa | `cash_session_id` valorizzato  |
+| Pagamento operativo          | righe in `store_sale_payments` |
+| Documento commerciale        | relazione in `fiscal_receipts` |
+
+⛔ **Nessun flag `isCashSale` e nessun campo origine nuovo.** Sessione, quote e ricevuta
+fiscale distinguono già il flusso senza ambiguità. Se un caso reale dimostrasse il
+contrario, va dimostrato **prima** di aggiungere schema.
+
+### La sessione è obbligatoria, e non si eredita il vecchio comportamento
+
+Una Cassa operativa ha normalmente **una sessione aperta per sede**. ⛔ Il comportamento del
+vecchio ramo — «la vendita si registra comunque, senza sessione» — **non si recupera
+automaticamente**: senza sessione non esiste una chiusura attendibile. Se emergono casi
+reali che richiedono una modalità di emergenza, **si segnalano prima** di implementarla.
+
+---
+
+## 5. I pagamenti: due vocabolari, e uno solo è autorizzato per il nuovo codice
+
+### Lo stato reale, misurato
+
+⚠️ **La Vendita al banco NON usa il Tipo pagamento condiviso.** Misurato il 04/09/2026:
+
+```text
+create-store-sale.dto.ts   STORE_SALE_PAYMENT_METHODS = ['cash', 'card', 'other']
+documents.payment_method   text libero: cash=17  card=3  «Bonifico bancario»=2  «Contanti»=1
+```
+
+È un **contratto legacy ancora attivo**, non il modello da copiare.
+
+### La regola transitoria — decisa dal proprietario il 04/09/2026
+
+> **La Vendita al banco ordinaria conserva `cash | card | other`. La Cassa usa
+> esclusivamente le modalità condivise di `PaymentOption`.**
+
+- ⛔ **C0 non cambia DTO, dati né comportamento della Vendita al banco.**
+- ⛔ **`STORE_SALE_PAYMENT_METHODS` non si elimina**: sarebbe una migrazione nascosta.
+- ⛔ **Il nuovo codice Cassa non scrive nulla** basato su quel vocabolario rigido.
+- ⭐ La migrazione della Vendita al banco al Tipo pagamento condiviso è una **tranche
+  successiva autonoma**, con censimento dei documenti e dei consumer. Non è implicita nella
+  Cassa.
+
+### L'adapter di lettura
+
+Serve per mostrare i valori storici senza reinterpretarli:
+
+| Valore persistito              | Mostrato                                |
+| ------------------------------ | --------------------------------------- |
+| `cash`                         | Contanti                                |
+| `card`                         | Carta                                   |
+| `other` + nota                 | Altro + nota                            |
+| testo storico non riconosciuto | **così com'è**, senza reinterpretazione |
+
+⛔ **Nessun backfill, nessuna normalizzazione cieca.**
+
+---
+
+## 6. Il riepilogo pagamento è DERIVATO, non persistito
+
+> **`store_sale_payments` è l'unica fonte canonica dei pagamenti Cassa.**
+> «Misto» si calcola dalle quote, a lettura.
+
+⛔ **Il codice `mixed` non si scrive in `documents.payment_method`.** Deciso dal
+proprietario il 04/09/2026, correggendo una prima indicazione opposta: un valore persistito
+può divergere dalle righe che dovrebbe riassumere, ed è la seconda verità che questo
+progetto combatte ovunque.
+
+### Precedenza di lettura
+
+```text
+1. esistono righe store_sale_payments  →  si usano ESCLUSIVAMENTE quelle
+2. una riga                            →  riepilogo a pagamento unico
+3. più righe                           →  riepilogo «Misto»
+4. nessuna riga                        →  ripiego sul legacy documents.payment_method + nota
+```
+
+### Il contratto API
+
+Il riepilogo derivato è **esplicito e distinto** dal campo persistito — il nome definitivo
+segue le convenzioni correnti, il concetto no:
+
+```ts
+paymentSummary: {
+  kind: 'none' | 'single' | 'mixed';
+  label: string;
+  payments: PaymentRow[];
+}
+```
+
+⛔ **Non si sovraccarica il significato di `paymentMethod`.**
+
+⛔ **Il dettaglio «Contanti 60,00 € + Carta 40,00 €» non si salva in
+`payment_method_note`**, che resta riservato alla descrizione di un metodo «Altro». Si
+calcola dalle stesse quote.
+
+⚠️ **Un solo mapper centrale** per elenchi, dettaglio e stampe: tre letture diverse dello
+stesso dato sono tre occasioni di divergere.
+
+⚠️ **Attenzione all'N+1**: le quote si caricano per relazione o in lotto. L'indice su
+`store_sale_payments.document_id` esiste già.
+
+### Prove obbligatorie
+
+- nessuna quota + legacy `cash` → «Contanti»;
+- una quota condivisa → metodo unico;
+- due quote 60+40 → «Misto»; tre quote → sempre «Misto»;
+- modifica delle quote → riepilogo aggiornato da sé;
+- quote e campo legacy **divergenti** → prevalgono le quote;
+- **nessun codice applicativo scrive `mixed`** in `documents.payment_method`;
+- nessun filtro o totale del Registro dipende dal campo legacy quando esistono le quote.
+
+---
+
+## 7. `PaymentOption`: il censimento di C0 e il contratto per C2
+
+### Lo stato reale
+
+```prisma
+model PaymentOption {
+  id  tenantId  kind (method|terms)  name  sortOrder  isSystem  isActive
+}
+```
+
+⛔ **Nessuna classificazione.** Il codice normativo sta **dentro l'etichetta** —
+`"Contanti (MP01)"`, `"Carta di pagamento (MP08)"` — e le anagrafiche ne salvano il **nome**
+come snapshot.
+
+⚠️ **E FatturaPA oggi non emette `ModalitaPagamento` proprio per questo.**
+`fatturapa-xml.util.ts` lo dichiara: _«è un codice normativo MP01–MP23 che VestiFlow non
+gestisce come tale, quindi NON viene emesso: sarebbe un valore inventato»_. L'estensione
+sbloccherebbe anche quello — ma è una **decisione fiscale a sé**, non un effetto collaterale
+da dare per scontato.
+
+### Il censimento — 24 consumer, misurati il 04/09/2026
+
+**API (11)** — `payment-options/` (service, controller, dto, seed, module), `app.module`,
+`admin/tenant-delete.util`, `tenant-backup/` (export, import, constants),
+`unit-of-measure-options.service`.
+
+**Frontend (13)** — `core/models/payment-option.model`, `core/services/payment-options.service`,
+`domain/customers/customer-form-fields`, `domain/suppliers/supplier-form-fields`,
+`features/customers/customer-form`, `features/suppliers/supplier-form`,
+`features/documents/document-list`, `features/documents/goods-receipt-form`,
+`features/documents/purchase-invoice-form`, `features/orders/supplier-order-form`,
+`features/sales-orders/customer-order-form`, `features/settings/payment-options-page`,
+`features/settings/settings.routes`.
+
+⚠️ Il **backup di tenant** è fra i consumer: export e import devono continuare a funzionare
+con i campi nuovi assenti.
+
+### ⭐ Il modello di destinazione è GIÀ DECISO, e non è della Cassa
+
+⛔ **Qui stavo per progettare un contratto nuovo. Era sbagliato.** La specifica
+**Pagamenti/Tesoreria §2.1–2.3** definisce già il modello a **due livelli**, e il suo
+vincolo è esplicito: _«Se il catalogo normativo esiste già nel repository, riusarlo e
+correggerlo; **non crearne uno parallelo**»_.
+
+```text
+Modalità pagamento   catalogo NORMATIVO condiviso, con il codice FatturaPA   Bonifico → MP05
+Tipo pagamento       preset AZIENDALE che punta a una Modalità              «Bonifico 60 gg F.M.»
+```
+
+⚠️ **Lo scarto fra quel modello e il codice**: `PaymentOption.kind` vale `method | terms`,
+cioè **modalità e condizioni sono due elenchi paritari**, e il codice normativo non esiste
+come dato — sta dentro l'etichetta. Manca il livello «Tipo che punta a una Modalità», e
+manca il campo `code`.
+
+⭐ **Quindi C2 non inventa niente per la Cassa: implementa ciò che la Tesoreria ha già
+deciso**, e la Cassa è il primo consumatore che lo rende necessario. Il catalogo ufficiale
+MP01–MP23 è in `Tesoreria §2.2`, e nel repository esiste già come
+`SDI_PAYMENT_METHOD_NAMES` — da **correggere**, separando il codice dal nome, non da
+duplicare.
+
+### L'unica cosa che la Cassa aggiunge
+
+La Tesoreria copre il codice normativo; **non copre la classe operativa che serve all'RT** —
+contante, elettronico, altro.
+
+⭐ **Si deriva dal codice normativo con una mappa esplicita e centralizzata**, non
+dall'etichetta: `MP01 → contante`, `MP08 → elettronico`, e così via. È l'unico modo di
+rispettare insieme «non dedurla dal nome» e «non creare una seconda anagrafica».
+
+⛔ I valori della classe e la mappa **si stabiliscono in C2**, dopo aver verificato:
+specifiche RT correnti, protocollo Epson e firmware reale, mapping FatturaPA esistente,
+consumer, e le voci personalizzate create dagli utenti — che un codice normativo possono non
+averlo.
+
+**Vincoli, tutti vincolanti:**
+
+- ⛔ non estrarre `MP01`/`MP08` dall'etichetta;
+- ⛔ non classificare cercando parole come «Contanti» o «Carta»;
+- ⛔ nessuna classificazione nel solo modulo Cassa, e nessuna seconda anagrafica dei metodi;
+- ⛔ nessun cambiamento automatico di fatture, DDT, clienti, fornitori o FatturaPA;
+- ⚠️ campi **nullable** e migration **additiva**;
+- ⚠️ backfill solo delle voci **di sistema** riconoscibili in modo deterministico;
+- ⚠️ le voci **personalizzate** restano non classificate finché l'utente non le configura;
+- ⛔ **una voce non classificata non è selezionabile in Cassa** se non può essere tradotta
+  con certezza nel payload RT.
+
+⭐ **È una dipendenza obbligatoria di C2**: la Cassa non introduce pagamenti reali né
+fiscalizzazione finché questa classificazione non esiste.
+
+---
+
+## 8. Lo schema dormiente
+
+Le tabelle **esistono già** nel database condiviso e **non sono** nel Prisma corrente.
+Misurato il 04/09/2026:
+
+```text
+store_sale_payments       1 riga  (22/07/2026, un documento store_sale con payment_method='cash')
+cash_sessions             0
+cash_session_movements    0
+fiscal_devices            0
+fiscal_receipts           0
+pos_terminals             0
+documents.cash_session_id 0 valorizzati su 169
+```
+
+⛔ **Non si ricreano e non si modificano le migration già applicate.** C1 aggiunge a
+`schema.prisma` soltanto i modelli e le relazioni corrispondenti, con `@map`/`@@map`
+**esatti**, verificando indici, FK, cancellazioni, tenant e location.
+
+⚠️ **La riga legacy si tratta, non si cancella e non si estende con un backfill cieco.** È
+un pagamento che duplica `documents.payment_method` dello stesso documento: la precedenza di
+lettura di §6 la fa già prevalere sul campo legacy, ed è il comportamento voluto.
+
+---
+
+## 9. Quadratura del checkout
+
+Una vendita Cassa con totale maggiore di zero si conclude **solo** quando: esiste almeno una
+quota valida, ogni quota è positiva, la somma delle quote **coincide esattamente** con il
+totale lordo, non esiste residuo, l'eventuale carta è stata accettata, e i contanti ricevuti
+non sono inferiori alla relativa quota.
+
+Per i contanti si distinguono tre grandezze:
+
+```text
+amountMinor     la quota che PAGA la vendita          60,00 €
+tenderedMinor   il denaro CONSEGNATO                  70,00 €
+resto           tendered − amount                     10,00 €
+```
+
+⛔ **Il pagamento e l'importo fiscale contanti valgono 60 €, non 70.**
+
+### Carta rifiutata
+
+La vendita non è conclusa, il documento non risulta pagato, **il documento commerciale non
+si emette**, i movimenti di magazzino non si duplicano, e il checkout **resta recuperabile**
+per un nuovo tentativo o per l'annullamento.
+
+### Idempotenza
+
+⭐ **L'identità d'intento esiste già** e va usata: `CreationIntent` (`intentId` generato dal
+client una volta per compilazione, `fingerprint` della richiesta, vincolo unico su tenant +
+intento), oggi impiegata da `store-sales.service`. Il ritentativo non deve duplicare
+documento, righe, pagamenti, movimenti di magazzino, movimento finanziario né ricevuta
+fiscale.
+
+---
+
+## 10. Documento commerciale e RT
+
+⛔ **Solo il flusso Cassa richiede l'emissione via RT.** La normale Vendita al banco no.
+
+VestiFlow prepara e invia il comando; il registratore telematico certificato memorizza
+l'operazione, emette il documento commerciale, restituisce l'esito e provvede alla
+trasmissione fiscale secondo il proprio funzionamento.
+
+Per 100 € pagati 60 contanti + 40 carta, il mapper fiscale produce: **totale 100 €, contanti
+60 €, elettronico 40 €, non riscosso 0 €**.
+
+⛔ **Il mapper parte dalle quote canoniche, mai dal riepilogo «Misto»**, che è una lettura e
+non un dato.
+
+### La conoscenza recuperabile, e il suo limite
+
+Dal vecchio ramo si recupera la conoscenza tecnica verificata: endpoint Epson
+`fpmate.cgi`, costruzione XML, reparti IVA, interpretazione delle risposte, dati del
+dispositivo, associazione ricevuta/documento.
+
+⛔ **Non si assume che il payload sia ancora valido.** Prima: modello e firmware Epson
+effettivi, versione corrente delle specifiche RT, protocollo Epson corrente, confronto di
+ogni comando e codice pagamento, prova su hardware reale in modalità sicura concordata.
+
+### Se il pagamento riesce e l'RT non risponde
+
+Vendita e pagamento **non** si duplicano né si cancellano; `fiscal_receipts` registra
+`pending` o `failed`; esiste un ritentativo **della sola emissione fiscale**, che non ripete
+carta, contanti né scarico di magazzino; l'interfaccia dice chiaramente **«pagamento
+registrato, documento commerciale non emesso»**.
+
+⛔ **Mai dichiarare `emitted` prima della conferma effettiva dell'RT.** Si conservano
+identificativi fiscali, matricola, data e ora, risposta tecnica ed errore, per la
+riconciliazione.
+
+⚠️ Va verificata anche la **configurazione operativa 2026 del collegamento POS–RT**: il
+codice non sostituisce l'adempimento sul dispositivo reale.
+
+---
+
+## 11. Registro Corrispettivi
+
+⛔ **Non si recupera nulla** di `corrispettivo_entries`, del suo backfill, della numerazione
+`COR-*` né del vecchio modello persistito. La tabella è stata eliminata il 17/08/2026 da
+`20260817140000_ritira_corrispettivo_legacy`, e il Registro attuale è una **vista derivata**
+che legge i documenti (`buildCorrispettiviStoreSaleWhere`).
+
+| Regola                              |                                           |
+| ----------------------------------- | ----------------------------------------- |
+| Vendita al banco ordinaria da 100 € | compare **una volta** per 100 €           |
+| Vendita Cassa da 100 €              | compare **una volta** per 100 €           |
+| 60 contanti + 40 carta              | ⛔ **non** diventano due righe economiche |
+| `store_sale_payments`               | dettaglio e riconciliazione               |
+| `fiscal_receipts`                   | stato fiscale                             |
+
+⛔ Nessuna di queste tabelle raddoppia imponibile, IVA o totale. Un eventuale filtro o
+riepilogo per metodo **aggrega le quote senza cambiare il totale economico** del Registro.
+
+---
+
+## 12. Modifica, fiscalizzazione, resi
+
+La Vendita al banco ordinaria **resta modificabile** secondo il contratto documentale
+attuale.
+
+⛔ Una vendita conclusa in Cassa e **fiscalizzata** non può avere pagamenti, totale o righe
+fiscali riscritti in silenzio dalla normale modifica documentale.
+
+```text
+prima della conclusione        checkout modificabile
+dopo il pagamento, prima RT    stato recuperabile
+dopo l'emissione RT            dati fiscali e pagamenti NON riscrivibili in silenzio
+correzione successiva          annullo / reso / rimborso, collegato all'originale
+```
+
+⏸ **Il comportamento finale del Reso Cassa non si inventa.** Se il protocollo fiscale o la
+specifica non lo chiudono, si implementa prima la vendita e si segnala precisamente la
+decisione residua.
+
+---
+
+## 13. Sicurezza e permessi
+
+⚠️ **Oggi esiste un solo permesso retail: `retail.register`**, e governa la **Vendita al
+banco** — non la Cassa. Il nome inganna, ed è un residuo del periodo in cui quelle rotte
+portavano al carrello.
+
+La Cassa richiede: modulo visibile **solo ai tenant abilitati**; permessi **distinti** per
+usare la Cassa, aprire e chiudere sessioni, gestire dispositivi e terminali; isolamento
+tenant su ogni lettura e scrittura; location obbligatoria dove serve davvero; **nessuna
+esposizione delle tabelle via Data API** e RLS coerente; endpoint Epson e configurazione POS
+mai esposti inutilmente al frontend; nessuna credenziale nei log.
+
+⛔ **La Vendita al banco continua a funzionare per chi ha i suoi permessi anche senza alcun
+permesso Cassa.**
+
+---
+
+## 14. Riuso: cosa si condivide e cosa resta distinto
+
+⛔ **Non si copia la maschera Vendita al banco per costruire la Cassa**, e non si copia il
+vecchio carrello per intero.
+
+**Si condivide o si estrae** (quando è davvero comune): ricerca articolo, scanner, modelli
+delle righe, calcoli netto/IVA/lordo, validazione di quantità e prezzi, costruzione delle
+righe documento, totali, formattazione del denaro, selettore delle modalità di pagamento,
+chiamate applicative per creare documento e movimenti.
+
+**Restano due orchestratori distinti:**
+
+|                                  |                         |
+| -------------------------------- | ----------------------- |
+| `StoreSaleDocumentFormComponent` | il documento gestionale |
+| componente Cassa                 | il checkout operativo   |
+
+⚠️ Prima di creare un componente nuovo si verifica se esiste già una primitiva condivisa —
+`docs/MAPPA-RIUSO-VENDITA-AL-BANCO.md` è il punto di partenza. Se per riusarla serve estrarre
+un contratto comune, **lo si estrae senza cambiare il comportamento dei consumer attuali**.
+
+### La mappa, misurata su `develop` il 04/09/2026
+
+⭐ **Quasi tutto ciò che serve alla Cassa esiste già**, e il vecchio ramo non serve a
+procurarlo:
+
+| Serve alla Cassa           | Esiste in `develop`                                                                                              | Esito                                                 |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| ricerca articolo           | `domain/documents/components/document-product-search-panel`                                                      | **riuso diretto**                                     |
+| scanner                    | `document-scan-overlay` + `core/services/barcode-detection.service` + `core/utils/parse-barcode-scan-input.util` | **riuso diretto**                                     |
+| celle di riga              | `document-line-code-cell`, `-product-cell`, `-unit-cell`, `-select-cell`, `-row`, `-card`, `-quick-row`          | **riuso diretto**                                     |
+| totali                     | `document-totals`                                                                                                | **riuso diretto**                                     |
+| modello riga banco         | `domain/store-sales/models/store-sale-document-line.model`                                                       | **riuso diretto**                                     |
+| colonne riga banco         | `store-sale-line-columns.config`                                                                                 | **riuso**, con profilo proprio della Cassa            |
+| modalità vendita/reso      | `store-sale-mode.descriptor`                                                                                     | **riuso diretto**                                     |
+| etichette pagamento legacy | `store-sale-payment.util`                                                                                        | **riuso in sola lettura** (adapter di §5)             |
+| identità d'intento         | `api/src/common/idempotency/creation-intent.util`                                                                | **riuso diretto**                                     |
+| quote, sessione, RT, POS   | —                                                                                                                | **da portare**, e solo qui il vecchio ramo è la fonte |
+
+⛔ **Non si riusa `StoreSaleDocumentFormComponent`**, né incorporandolo né copiandolo: è
+l'orchestratore del documento, e la Cassa è l'altro orchestratore.
+
+---
+
+## 15. La sequenza
+
+| Tranche | Contenuto                                                                                                         | Migration             |
+| ------- | ----------------------------------------------------------------------------------------------------------------- | --------------------- |
+| **C0**  | questa specifica, separazione delle rotte, contratto transitorio dei pagamenti, censimento `PaymentOption`        | ⛔ nessuna            |
+| **C1**  | modelli Prisma delle tabelle Cassa **già esistenti**, relazioni, prove di schema e isolamento                     | ⛔ nessuna            |
+| **C2**  | estensione additiva di `PaymentOption` e classificazione condivisa                                                | ✅ additiva, nullable |
+| **C3**  | checkout Cassa, sessione aperta, pagamento unico e misto, quadratura, resto, carta fallita, creazione idempotente | —                     |
+| **C4**  | sessioni e riconciliazione: apertura/chiusura, fondo, movimenti di cassetto, conteggio, differenze, terminali POS | —                     |
+| **C5**  | fiscalizzazione Epson: adapter, payload, ricevute, stati, ritentativi, prova su hardware reale                    | —                     |
+| _poi_   | migrazione della **Vendita al banco** da `cash \| card \| other` a `PaymentOption`                                | tranche **autonoma**  |
+
+⛔ **Non si comincia una tranche lasciando rossa la precedente.**
+
+⚠️ La sequenza è stata **rivista il 04/09/2026** rispetto al mandato iniziale, che metteva il
+checkout in C2: la classificazione di `PaymentOption` è una dipendenza del checkout, quindi
+viene prima. Sessioni e fiscalizzazione slittano di conseguenza.
+
+---
+
+## 16. Obbligo di segnalazione
+
+⛔ Prima di applicare una soluzione diversa da questo contratto ci si **ferma e si segnala**:
+quale comportamento reale del codice o del database lo impedisce, con **file e righe**; la
+conseguenza funzionale; l'alternativa proposta; il rischio di regressione; e la prova che
+falsifica il comportamento precedente.
+
+⛔ **Non si colmano con supposizioni** le lacune del protocollo Epson, dei resi fiscali o
+dell'integrazione con la Tesoreria.
+
+---
+
+## Il risultato atteso
+
+> Due flussi distinti · un solo documento economico sottostante · componenti comuni riusati ·
+> nessuna duplicazione nei Corrispettivi · pagamenti Cassa compatibili con l'RT · vecchio
+> ramo conservato **solo** come fonte tecnica.
