@@ -11,6 +11,7 @@ import type { TenantPermissionKey } from '@core/models/tenant-permission.model';
 import type { User } from '@core/models/user.model';
 import { UserRole } from '@core/models/user.model';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
+import { ToastService } from '@core/services/toast.service';
 
 import { PaymentOptionsPageComponent } from './payment-options-page.component';
 
@@ -30,6 +31,8 @@ const CONTANTI: PaymentOption = {
   // Nessuna Modalità normativa: e' lo stato di partenza di ogni voce
   // finche' il titolare non ne assegna una (`docs/25` §7).
   methodCodeId: null,
+  // Non classificata per la Cassa: lo stato di quasi tutti i Tipi.
+  tenderKind: null,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 };
@@ -76,7 +79,10 @@ describe('PaymentOptionsPageComponent — comandi riservati a «Impostazioni azi
   it('con la sola sezione Impostazioni mostra l’elenco senza comandi di scrittura', async () => {
     await apri([TenantPermission.SectionSettings]);
 
-    expect(screen.getByText('Contanti')).toBeTruthy();
+    // ⚠️ `getByText` non basta più: «Contanti» è anche una delle scelte della
+    //    tendina di classificazione. Si cerca la VOCE dell'elenco, per ruolo.
+    const voci = screen.getAllByRole('listitem');
+    expect(voci.some((v) => v.textContent?.includes('Contanti'))).toBe(true);
     expect(screen.queryByRole('button', { name: 'Aggiungi' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Rinomina' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Disattiva' })).toBeNull();
@@ -269,5 +275,134 @@ describe('PaymentOptionsPageComponent — modalità normativa', () => {
     // Lo stato d'errore della pagina, non una tendina mancante senza spiegazione.
     expect(screen.queryByLabelText(/^Modalità normativa di/)).toBeNull();
     expect(screen.getByRole('button', { name: 'Riprova' })).toBeTruthy();
+  });
+});
+
+/**
+ * La classificazione OPERATIVA per la Cassa (tranche C2B, `docs/25` §7).
+ *
+ * ⛔ Non è la Modalità normativa del blocco qui sopra: quella è il codice
+ * FatturaPA di un catalogo globale, questa dice se il Tipo si incassa al banco.
+ */
+describe('PaymentOptionsPageComponent — classificazione Cassa', () => {
+  const CARTA: PaymentOption = {
+    ...CONTANTI,
+    id: 'po-4',
+    name: 'Carta',
+    tenderKind: 'electronic',
+  };
+
+  function mockClassificazione(overrides: Record<string, unknown> = {}) {
+    return {
+      list: () => of([CONTANTI, CARTA, CONDIZIONE]),
+      listMethodCodes: () => of([MP05]),
+      update: vi.fn().mockReturnValue(of(CARTA)),
+      ...overrides,
+    };
+  }
+
+  const toast = { showError: vi.fn(), showSuccess: vi.fn(), showInfo: vi.fn() };
+
+  async function apri(mock: Record<string, unknown>): Promise<void> {
+    toast.showError.mockClear();
+    await render(PaymentOptionsPageComponent, {
+      providers: [
+        provideRouter([]),
+        {
+          provide: AuthService,
+          useValue: {
+            currentUser: () =>
+              utente([TenantPermission.SectionSettings, TenantPermission.SettingsCompany]),
+          },
+        },
+        { provide: PaymentOptionsService, useValue: mock },
+        { provide: ToastService, useValue: toast },
+      ],
+    });
+  }
+
+  it('compare sui Tipi e NON sulle condizioni', async () => {
+    await apri(mockClassificazione());
+
+    expect(screen.getAllByLabelText(/^Classificazione Cassa di/)).toHaveLength(2);
+    expect(screen.queryByLabelText('Classificazione Cassa di 60 gg f.m.')).toBeNull();
+  });
+
+  it('offre le quattro scelte, «non utilizzabile» compresa', async () => {
+    await apri(mockClassificazione());
+
+    const tendina = screen.getByLabelText<HTMLSelectElement>('Classificazione Cassa di Contanti');
+    const etichette = Array.from(tendina.options).map((o) => o.textContent?.trim());
+    expect(etichette).toEqual([
+      'Non utilizzabile in Cassa',
+      'Contanti',
+      'Elettronico',
+      'Buono/ticket',
+    ]);
+  });
+
+  it('presenta selezionata la classificazione già salvata', async () => {
+    await apri(mockClassificazione());
+
+    const tendina = screen.getByLabelText<HTMLSelectElement>('Classificazione Cassa di Carta');
+    expect(tendina.value).toBe('electronic');
+  });
+
+  it('classificare manda il valore all_API', async () => {
+    const mock = mockClassificazione();
+    await apri(mock);
+
+    const tendina = screen.getByLabelText('Classificazione Cassa di Contanti');
+    fireEvent.change(tendina, { target: { value: 'cash' } });
+
+    expect(mock.update).toHaveBeenCalledWith('po-1', { tenderKind: 'cash' });
+  });
+
+  it('«non utilizzabile» invia null, non undefined', async () => {
+    const mock = mockClassificazione();
+    await apri(mock);
+
+    const tendina = screen.getByLabelText('Classificazione Cassa di Carta');
+    fireEvent.change(tendina, { target: { value: '' } });
+
+    expect(mock.update).toHaveBeenCalledWith('po-4', { tenderKind: null });
+  });
+
+  /**
+   * ⭐ La condizione del mandato: rinominare NON tocca la classificazione. Il
+   * payload della rinomina non la contiene, quindi l’API la lascia com’è —
+   * assente significa «non toccare» (§7).
+   */
+  it('rinominare NON manda la classificazione', async () => {
+    const mock = mockClassificazione();
+    await apri(mock);
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Rinomina' })[0]!);
+    const campo = screen.getByLabelText<HTMLInputElement>('Rinomina Contanti');
+    fireEvent.input(campo, { target: { value: 'Contanti cassa' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salva' }));
+
+    expect(mock.update).toHaveBeenCalledWith('po-1', { name: 'Contanti cassa' });
+  });
+
+  /**
+   * ⭐ La differenza dalla Modalità normativa: quelle scelte arrivano dalla rete e
+   * una tendina vuota è un caso possibile; queste sono costanti del modello. Con
+   * il catalogo in errore la pagina mostra il proprio stato d’errore — mai una
+   * tendina che sembra funzionare e non offre nulla.
+   */
+  it('un errore di SALVATAGGIO è visibile, non silenzioso', async () => {
+    const mock = mockClassificazione({
+      update: vi.fn().mockReturnValue(throwError(() => new Error('rete'))),
+    });
+    await apri(mock);
+
+    const tendina = screen.getByLabelText('Classificazione Cassa di Contanti');
+    fireEvent.change(tendina, { target: { value: 'cash' } });
+
+    expect(mock.update).toHaveBeenCalled();
+    // ⛔ La prova è che l’errore ESCE: senza questa asserzione il fallimento
+    //    sarebbe indistinguibile da un salvataggio riuscito.
+    expect(toast.showError).toHaveBeenCalled();
   });
 });

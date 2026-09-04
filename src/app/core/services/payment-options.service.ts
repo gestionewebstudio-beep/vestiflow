@@ -8,6 +8,7 @@ import type {
   PaymentMethodCode,
   PaymentOption,
   PaymentOptionKind,
+  PaymentTenderKind,
 } from '@core/models/payment-option.model';
 
 const HTTP_TIMEOUT_MS = 15000;
@@ -57,6 +58,8 @@ export class PaymentOptionsService {
       readonly isActive?: boolean;
       readonly sortOrder?: number;
       readonly methodCodeId?: string | null;
+      /** ⚠️ Stessa disciplina: `null` toglie la classificazione, assente non tocca. */
+      readonly tenderKind?: PaymentTenderKind | null;
     },
   ): Observable<PaymentOption> {
     return this.http

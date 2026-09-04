@@ -8,6 +8,19 @@ import type { EntityId, IsoDateString } from './common.model';
  */
 export type PaymentOptionKind = 'method' | 'terms';
 
+/**
+ * Come un Tipo pagamento si incassa AL BANCO (`docs/25` §7).
+ *
+ * ⭐ È una classificazione **operativa**, non fiscale: dice se il Tipo si può
+ * incassare alla Cassa e come si comporta la maschera — i contanti chiedono il
+ * consegnato e calcolano il resto, l'elettronico no.
+ *
+ * ⛔ Non è la Modalità normativa FatturaPA (MP01–MP23), che è un catalogo
+ * globale: MP01 e MP04 sono entrambi «contanti» per la normativa, ma solo uno
+ * si incassa a un banco di negozio.
+ */
+export type PaymentTenderKind = 'cash' | 'electronic' | 'voucher';
+
 export interface PaymentOption {
   readonly id: EntityId;
   readonly tenantId: EntityId;
@@ -24,6 +37,11 @@ export interface PaymentOption {
    * «PayPal» lo sono di proposito (`docs/25` §7).
    */
   readonly methodCodeId: EntityId | null;
+  /**
+   * ⭐ `null` è uno stato PIENO: «non utilizzabile nella Cassa», ed è quello di
+   * quasi tutti i Tipi — bonifico, RIBA, MAV e ogni condizione.
+   */
+  readonly tenderKind: PaymentTenderKind | null;
   readonly createdAt: IsoDateString;
   readonly updatedAt: IsoDateString;
 }
@@ -46,6 +64,26 @@ export interface PaymentMethodCode {
 /** «MP05 — Bonifico», la forma con cui la Modalità si mostra in elenco. */
 export function paymentMethodCodeLabel(code: PaymentMethodCode): string {
   return `${code.code} — ${code.label}`;
+}
+
+/**
+ * Le quattro scelte offerte al titolare, `null` compreso: «non utilizzabile in
+ * Cassa» è una scelta, non l'assenza di una scelta.
+ */
+export const PAYMENT_TENDER_KIND_OPTIONS: readonly {
+  readonly value: PaymentTenderKind | null;
+  readonly label: string;
+}[] = [
+  { value: null, label: 'Non utilizzabile in Cassa' },
+  { value: 'cash', label: 'Contanti' },
+  { value: 'electronic', label: 'Elettronico' },
+  { value: 'voucher', label: 'Buono/ticket' },
+];
+
+export function paymentTenderKindLabel(kind: PaymentTenderKind | null): string {
+  return (
+    PAYMENT_TENDER_KIND_OPTIONS.find((o) => o.value === kind)?.label ?? 'Non utilizzabile in Cassa'
+  );
 }
 
 /**

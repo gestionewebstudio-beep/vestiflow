@@ -136,6 +136,20 @@
   }
 }
 
+// La classificazione di incasso sta accanto alla Modalita' normativa e ne
+// condivide la forma: sono due tendine sulla stessa riga, e vestirle diverse
+// le farebbe leggere come controlli di natura diversa.
+//
+// ⚠️ Piu' stretta: le sue quattro voci sono corte, mentre una Modalita'
+//    normativa porta codice e descrizione.
+.payment-options__item-tender {
+  @extend .payment-options__item-code;
+
+  select {
+    max-inline-size: var(--field-w-md);
+  }
+}
+
 .payment-options__empty {
   padding: var(--space-3);
   font-size: var(--text-sm);

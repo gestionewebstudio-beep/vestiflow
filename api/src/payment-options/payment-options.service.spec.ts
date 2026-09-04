@@ -6,7 +6,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { PrismaService } from '../prisma/prisma.service';
-import { SDI_PAYMENT_METHODS } from './payment-option-seed.data';
+import { SDI_PAYMENT_METHODS, SEED_TENDER_KINDS } from './payment-option-seed.data';
 import { PaymentOptionsService } from './payment-options.service';
 
 const tenantId = 'tenant-1';
@@ -303,6 +303,84 @@ describe('PaymentOptionsService — modalità normative (C2A)', () => {
         where: { id: 'po-1' },
         data: { isActive: false },
       });
+    });
+  });
+
+  describe('classificazione operativa per la Cassa', () => {
+    const tipo = { id: 'po-1', tenantId, kind: 'method', name: 'Contanti' };
+    const condizione = { id: 'po-2', tenantId, kind: 'terms', name: '30 gg' };
+
+    /**
+     * ⛔ Una condizione non si incassa al banco. Il rifiuto esiste ANCHE nel
+     * database (CHECK in `20260904170000`): qui serve a dare un messaggio.
+     */
+    it('rifiuta di classificare una CONDIZIONE di pagamento', async () => {
+      prisma.paymentOption.findFirst.mockResolvedValue(condizione);
+
+      await expect(service.update(tenantId, 'po-2', { tenderKind: 'cash' })).rejects.toBeInstanceOf(
+        UnprocessableEntityException,
+      );
+    });
+
+    it('classifica un Tipo di pagamento', async () => {
+      prisma.paymentOption.findFirst.mockResolvedValue(tipo);
+
+      await service.update(tenantId, 'po-1', { tenderKind: 'electronic' });
+
+      expect(prisma.paymentOption.update).toHaveBeenCalledWith({
+        where: { id: 'po-1' },
+        data: { tenderKind: 'electronic' },
+      });
+    });
+
+    it('ammette null per riportarlo a «non utilizzabile in Cassa»', async () => {
+      prisma.paymentOption.findFirst.mockResolvedValue(tipo);
+
+      await service.update(tenantId, 'po-1', { tenderKind: null });
+
+      expect(prisma.paymentOption.update).toHaveBeenCalledWith({
+        where: { id: 'po-1' },
+        data: { tenderKind: null },
+      });
+    });
+
+    /**
+     * ⭐ La condizione del mandato: rinominare NON cambia la classificazione.
+     * Il campo assente non entra nel `data`, quindi il database non lo tocca.
+     */
+    it('rinominare NON tocca la classificazione', async () => {
+      // ⚠️ `findFirst` serve a DUE cose: trovare la voce e cercare un omonimo.
+      //    Col mock unico la seconda chiamata trovava se stessa e la rinomina
+      //    veniva rifiutata per duplicato.
+      prisma.paymentOption.findFirst.mockResolvedValueOnce(tipo).mockResolvedValueOnce(null);
+
+      await service.update(tenantId, 'po-1', { name: 'PayPal' });
+
+      expect(prisma.paymentOption.update).toHaveBeenCalledWith({
+        where: { id: 'po-1' },
+        data: { name: 'PayPal' },
+      });
+    });
+
+    /**
+     * ⭐ Un tenant nato dopo la migration deve avere la stessa classificazione di
+     * uno preesistente: il seed applica la MAPPA, non una deduzione.
+     */
+    it('il seed classifica solo le due voci della mappa', async () => {
+      prisma.paymentOption.count.mockResolvedValue(0);
+      prisma.paymentMethodCode.findMany.mockResolvedValue(
+        SDI_PAYMENT_METHODS.map((m) => ({ id: `id-${m.code}`, code: m.code })),
+      );
+
+      await service.list(tenantId);
+
+      const creati = prisma.paymentOption.createMany.mock.calls[0]?.[0]?.data as {
+        name: string;
+        tenderKind: string | null;
+      }[];
+      const classificate = creati.filter((v) => v.tenderKind !== null);
+      expect(classificate).toHaveLength(Object.keys(SEED_TENDER_KINDS).length);
+      expect(classificate.map((v) => v.tenderKind).sort()).toEqual(['cash', 'electronic']);
     });
   });
 

@@ -1,4 +1,4 @@
-import type { PaymentOptionKind } from '@prisma/client';
+import type { PaymentOptionKind, PaymentTenderKind } from '@prisma/client';
 
 /**
  * Voci pagamento preimpostate (logica Danea): due elenchi separati,
@@ -17,6 +17,13 @@ export interface PaymentOptionSeedEntry {
    * l'utente può rinominare (`docs/25` §7).
    */
   readonly methodCode?: string;
+  /**
+   * Come la voce si incassa al banco (`docs/25` §7).
+   *
+   * ⭐ Assente significa **non utilizzabile nella Cassa**, ed è lo stato di
+   * quasi tutte: bonifico, RIBA, MAV e ogni condizione di pagamento.
+   */
+  readonly tenderKind?: PaymentTenderKind;
 }
 
 /**
@@ -63,6 +70,27 @@ export const SDI_PAYMENT_METHOD_NAMES: readonly string[] = SDI_PAYMENT_METHODS.m
   (entry) => entry.name,
 );
 
+/**
+ * Come si incassano al banco le voci di SISTEMA conosciute (tranche C2B).
+ *
+ * ⭐ **La chiave è il CODICE normativo, non il nome.** È la condizione che la
+ * tranche deve garantire — «rinominare un Tipo non cambia la classificazione» —
+ * e una mappa per nome la violerebbe per costruzione.
+ *
+ * ⛔ **Non è una regola derivata dal catalogo**: «tutte le MP0x sono contanti» è
+ * falso. MP01 «Contanti» e MP04 «Contanti presso Tesoreria» sono entrambi
+ * contanti per la fatturazione elettronica, ma solo il primo si incassa a un
+ * banco di negozio. Questa è una lista di due voci, scritta a mano.
+ *
+ * ⚠️ Deve restare IDENTICA alla mappa della migration
+ * `20260904170000_classificazione_incasso`, e un test lo verifica leggendo il
+ * file di quella migration invece di ricopiarne il contenuto.
+ */
+export const SEED_TENDER_KINDS: Readonly<Record<string, PaymentTenderKind>> = {
+  MP01: 'cash',
+  MP08: 'electronic',
+};
+
 export const PAYMENT_OPTION_SEED: readonly PaymentOptionSeedEntry[] = [
   // Modalità di pagamento: elenco normativo fatturazione elettronica.
   ...SDI_PAYMENT_METHODS.map((entry, index) => ({
@@ -70,6 +98,9 @@ export const PAYMENT_OPTION_SEED: readonly PaymentOptionSeedEntry[] = [
     name: entry.name,
     sortOrder: index + 1,
     methodCode: entry.code,
+    // ⚠️ `undefined` per le ventuno voci non incassabili al banco, ed è lo
+    //    stato giusto: la colonna resta `NULL`.
+    tenderKind: SEED_TENDER_KINDS[entry.code],
   })),
   // Condizioni di pagamento.
   //

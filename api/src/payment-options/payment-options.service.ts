@@ -5,7 +5,12 @@ import {
   ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import type { PaymentMethodCode, PaymentOption, PaymentOptionKind } from '@prisma/client';
+import type {
+  PaymentMethodCode,
+  PaymentOption,
+  PaymentOptionKind,
+  PaymentTenderKind,
+} from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -76,6 +81,7 @@ export class PaymentOptionsService {
       isActive?: boolean;
       sortOrder?: number;
       methodCodeId?: string | null;
+      tenderKind?: PaymentTenderKind | null;
     },
   ): Promise<PaymentOption> {
     const current = await this.getById(tenantId, id);
@@ -95,6 +101,10 @@ export class PaymentOptionsService {
       await this.assertMethodCodeAssignable(current, input.methodCodeId);
     }
 
+    if (input.tenderKind !== undefined) {
+      this.assertTenderKindAssignable(current, input.tenderKind);
+    }
+
     return this.prisma.paymentOption.update({
       where: { id: current.id },
       data: {
@@ -102,8 +112,31 @@ export class PaymentOptionsService {
         ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
         ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
         ...(input.methodCodeId !== undefined ? { methodCodeId: input.methodCodeId } : {}),
+        ...(input.tenderKind !== undefined ? { tenderKind: input.tenderKind } : {}),
       },
     });
+  }
+
+  /**
+   * La classificazione di incasso vale solo per un Tipo di pagamento: una
+   * condizione non si incassa al banco.
+   *
+   * ⚠️ Come per la Modalità normativa, il controllo esiste ANCHE nel database
+   * (`CHECK` in `20260904170000`). Qui serve a dare un messaggio invece di un
+   * errore di vincolo, non a sostituirlo.
+   */
+  private assertTenderKindAssignable(
+    option: PaymentOption,
+    tenderKind: PaymentTenderKind | null,
+  ): void {
+    if (tenderKind === null) {
+      return;
+    }
+    if (option.kind !== 'method') {
+      throw new UnprocessableEntityException(
+        'Le condizioni di pagamento non si incassano alla Cassa.',
+      );
+    }
   }
 
   /**
@@ -204,6 +237,11 @@ export class PaymentOptionsService {
         //    certezza non si sarebbe arrivati qui. Un `?? null` qui
         //    riaprirebbe la porta alle voci mute che la validazione chiude.
         methodCodeId: entry.methodCode ? codici.get(entry.methodCode)! : null,
+        // ⭐ Dalla mappa dichiarata, la stessa della migration: un tenant nato
+        //    dopo deve avere la stessa classificazione di uno preesistente.
+        //    `undefined` diventa `NULL`, che è lo stato di ventotto voci su
+        //    trenta — «non utilizzabile nella Cassa».
+        tenderKind: entry.tenderKind ?? null,
       })),
       skipDuplicates: true,
     });

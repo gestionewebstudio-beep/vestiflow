@@ -118,6 +118,33 @@
                       </select>
                     </label>
                   }
+                  <!-- Come il Tipo si incassa AL BANCO: e' una classificazione
+                       operativa, non la Modalita' normativa qui sopra. Vale solo
+                       sui Tipi: una condizione non si incassa, e l'API la rifiuta.
+
+                       Nessun guard sul caricamento, al contrario della tendina
+                       accanto: le scelte sono costanti del modello, non un elenco
+                       che arriva dalla rete, quindi non puo' restare vuota. -->
+                  @if (group.kind === 'method') {
+                    <label class="payment-options__item-tender">
+                      <span class="sr-only">Classificazione Cassa di {{ option.name }}</span>
+                      <!-- ⚠️ [selected] sulle option, non [value] sul select: e' la
+                           stessa ragione della tendina accanto. -->
+                      <select
+                        [disabled]="saving() || !puoGestireImpostazioniAzienda()"
+                        (change)="cambiaClassificazione(option, $any($event.target).value)"
+                      >
+                        @for (scelta of classificazioniCassa; track scelta.label) {
+                          <option
+                            [value]="scelta.value ?? ''"
+                            [selected]="scelta.value === option.tenderKind"
+                          >
+                            {{ scelta.label }}
+                          </option>
+                        }
+                      </select>
+                    </label>
+                  }
                   <!-- Le tre azioni scrivono sulla voce: restano solo a chi
                        ha «Impostazioni azienda». -->
                   @if (puoGestireImpostazioniAzienda()) {

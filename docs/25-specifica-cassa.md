@@ -18,10 +18,12 @@ banco**. Scritta il 04/09/2026 come tranche **C0** del recupero da
 | 2   | La Cassa produce una **normale `store_sale`**: nessun secondo documento economico             | §4                |
 | 3   | La Vendita al banco conserva `cash \| card \| other`; la **Cassa usa `PaymentOption`**        | §5                |
 | 4   | «Misto» è **calcolato a lettura dalle quote**, mai persistito                                 | §6                |
-| 5   | `PaymentOption` va esteso: la migration è di **C2A**. La classe RT è **C2B**, sospesa         | §7                |
+| 5   | `PaymentOption` va esteso: la migration è di **C2A**. la classe operativa è **C2B**           | §7                |
 | 6   | Le sei tabelle esistono già nel database: **non si ricreano**                                 | §8                |
 | 7   | Una sede ha **principale + riserva**, non due postazioni. Il dispositivo è **della sessione** | §10               |
 | 8   | Ogni RT ha **numerazione e chiusura proprie**: si conserva sempre **chi ha emesso**           | §10               |
+| 9   | La Cassa classifica i Tipi pagamento con `PaymentTenderKind`: **operativa**, non fiscale      | §7                |
+| 10  | La rappresentazione fiscale AdE e il protocollo del dispositivo stanno in **C5**              | §10, §15          |
 
 In caso di contrasto fra questo elenco e il corpo del documento, **vale l'elenco**.
 
@@ -177,6 +179,44 @@ Serve per mostrare i valori storici senza reinterpretarli:
 | testo storico non riconosciuto | **così com'è**, senza reinterpretazione |
 
 ⛔ **Nessun backfill, nessuna normalizzazione cieca.**
+
+---
+
+## 5-bis. Le quote di pagamento: il contratto approvato per C4
+
+⛔ **`store_sale_payments` NON si tocca in C2B.** Il contratto è approvato e scritto qui
+perché C4 lo esegua senza ridiscuterlo, non perché sia già implementato.
+
+| Campo               | Contratto                                                                    |
+| ------------------- | ---------------------------------------------------------------------------- |
+| riferimento al Tipo | **FK nullable** a `PaymentOption`: il Tipo può essere eliminato, la quota no |
+| nome                | **snapshot immutabile**: rinominare il Tipo non riscrive le quote storiche   |
+| classe              | **snapshot di `PaymentTenderKind`**, per la stessa ragione                   |
+| importo             | in unità minori                                                              |
+| `tenderedMinor`     | **solo per i contanti**: è il consegnato da cui nasce il resto               |
+| posizione           | l'ordine in cui le quote sono state inserite                                 |
+| `ticketCount`       | ⏸ **futuro**, quando i buoni saranno davvero abilitati                       |
+
+⭐ **Gli snapshot sono la stessa disciplina delle righe documento**
+(`regole-gestionale`): una quota registra un incasso avvenuto, e l'anagrafica di domani
+non lo riscrive.
+
+⛔ **`method` resta ESCLUSIVAMENTE legacy e non si sovraccarica.** È il vocabolario
+`cash | card | other` della Vendita al banco (§5): estenderlo per far posto alla Cassa
+creerebbe un terzo vocabolario travestito da secondo.
+
+⛔ **«Misto» si calcola dalle quote e non si persiste** — §6, ed è una decisione già
+vigente (§0.4).
+
+### Che cosa la PRIMA versione non fa
+
+- **completamente saldata**: la somma delle quote **è** il totale del documento. Nessun
+  saldo parziale;
+- ⏸ **non riscosso e la sua causale sono rinviati**: sono un concetto fiscale che vive nel
+  blocco 4.1 dello schema AdE, per aliquota IVA, ed è materia di **C5**;
+- ⭐ **l'elettronico lo conferma l'OPERATORE**, a mano. VestiFlow non parla col terminale
+  di pagamento e non finge di averlo fatto: una risposta tecnica simulata sarebbe
+  un'affermazione falsa su un incasso.
 
 ---
 
@@ -377,22 +417,69 @@ normativa univoca da assumere.
 - ⛔ non modifica alcun consumer documentale;
 - ⛔ non introduce la classe RT.
 
-### ⏸ C2B — la classificazione RT, NON autorizzata
+### ⭐ C2B — la classificazione OPERATIVA, decisa il 04/09/2026
 
-⛔ **Non si aggiunge un `PaymentTenderClass` lasciato tutto a `NULL`.** Prima va verificato:
-specifiche RT correnti; il protocollo del dispositivo che si vorrà supportare; la differenza
-fra contante, elettronico, **non riscosso**, buoni e altre categorie; le differenze fra
-marche e firmware; e soprattutto **se la classificazione sia un dato del catalogo o un mapper
-versionato per dispositivo e protocollo** — che è una forma diversa e va scelta, non dedotta.
+⛔ **Qui c'era «la classificazione RT, NON autorizzata»**, e la verifica normativa del
+04/09/2026 ha smentito la premessa su cui era costruita: lo schema AdE **non ha un enum di
+quattro valori**. I `Pagato*` stanno nel blocco 4.2, i `NonRiscosso*` nel **4.1 per
+aliquota IVA**, `<Ticket>` porta importo **e conteggio**, `<ScontoApagare>` è un concetto a
+sé. Non esisteva la cosa che si voleva modellare.
 
-⚠️ **La verifica normativa è stata fatta** (04/09/2026) e ha smentito l'ipotesi di partenza:
-lo schema AdE non ha un enum di quattro valori. I `Pagato*` stanno nel blocco 4.2, i
-`NonRiscosso*` nel **4.1 per aliquota IVA**, `<Ticket>` porta importo **e conteggio**, e
-`<ScontoApagare>` è un concetto a sé. Resta da verificare il **protocollo di un dispositivo
-reale**, che non esiste ancora.
+> **C2B non classifica per l'RT: classifica per il CHECKOUT.** È la domanda operativa —
+> «questo Tipo pagamento si può incassare al banco, e come si comporta la maschera?» — e
+> non ha bisogno di nessun dispositivo per essere risposta.
 
-⛔ Finché non è verificato, **C2 non è completata** e la Cassa non introduce pagamenti reali
-né fiscalizzazione.
+```prisma
+enum PaymentTenderKind {
+  cash
+  electronic
+  voucher
+}
+
+tenderKind PaymentTenderKind? @map("tender_kind")   // su PaymentOption
+```
+
+#### Il contratto, per differenza
+
+⭐ **`NULL` è uno stato pieno e frequente**: «questo Tipo non è utilizzabile nella Cassa».
+Bonifico, RIBA, MAV e le condizioni di pagamento restano `NULL` e devono restarci.
+
+⛔ **Che cosa NON è**, e ognuna è una confusione che costerebbe cara:
+
+| Non è                       | Perché la distinzione conta                                                                   |
+| --------------------------- | --------------------------------------------------------------------------------------------- |
+| `PaymentMethodCode`         | quello è il **catalogo normativo globale** (MP01–MP23); questa è una proprietà del **tenant** |
+| un codice **MP FatturaPA**  | MP01 e MP04 sono entrambi «contanti» per la normativa, ma solo uno si incassa al banco        |
+| un valore di **protocollo** | nessun produttore, nessun numero di `paymentType`: il protocollo è **C5**                     |
+| il **non riscosso**         | quello è fiscale, sta nel blocco 4.1 per aliquota, ed è **C5**                                |
+
+⚠️ **`voucher` si modella ma NON è selezionabile nella prima versione del checkout.** Un
+buono ha un conteggio oltre all'importo (`<Ticket>` porta entrambi) e regole di resto
+proprie: modellarlo ora costa una riga di enum, aggiungerlo dopo costerebbe una migration
+sull'enum. Abilitarlo è una decisione separata.
+
+#### Il backfill: una mappa dichiarata, e solo due voci
+
+⛔ **Non si deduce dal nome visualizzato** — l'utente lo rinomina — **né automaticamente
+dal catalogo normativo**: «tutte le MP0x sono contanti» è falso, e sarebbe una regola
+inventata.
+
+⭐ **La chiave della mappa è il CODICE normativo, non il nome**, e la ragione è la
+condizione che questa tranche deve garantire: _rinominare un Tipo non cambia la
+classificazione_. Una mappa per nome la violerebbe per costruzione.
+
+```text
+MP01  Contanti              → cash          l'unico contante che si incassa al banco
+MP08  Carta di pagamento    → electronic    il POS
+tutto il resto              → NULL
+```
+
+⚠️ **Si applica alle sole voci di SISTEMA** (`is_system = true`) già collegate a quel
+codice. Le voci personalizzate del tenant non si classificano da sole: chi le ha create
+sa cosa sono, e la Cassa non deve indovinarlo.
+
+⚠️ **L'assegno resta `NULL`**, ed è una scelta: non è contante e non è elettronico. Il
+titolare può classificarlo dalle Impostazioni se al suo banco lo accetta.
 
 ### ⛔ Il ramo NON gira contro il database condiviso finché C2A non vi è applicata
 
@@ -742,8 +829,9 @@ fiscalizzare** e la cassa emette subito dopo la conferma».
 9. con più dispositivi sulla stessa sede la scelta è **esplicita**;
 10. ⛔ **nessun `findFirst` come selezione del dispositivo**: era deterministico solo grazie
     all'unicità, e senza diventa «uno a caso»;
-11. va **deciso** se il dispositivo si assegna alla sessione, alla postazione o tramite un
-    predefinito di sede — ⏸ decisione aperta, da chiudere prima di C3;
+11. il dispositivo si assegna alla **sessione** (`cash_sessions.fiscal_device_id`), deciso
+    dal proprietario il 04/09/2026 e implementato da **C1C**. ⛔ Non è un predefinito di
+    sede e non è una postazione: quella non esiste, e se servirà sarà un'entità propria;
 12. un **ritentativo conserva dispositivo, adapter e versione** originari.
 
 ⭐ **Il punto 3 è di sicurezza, non di ordine.** Finché `brand` era un enum, la whitelist dei
@@ -924,24 +1012,33 @@ l'orchestratore del documento, e la Cassa è l'altro orchestratore.
 
 ## 15. La sequenza
 
-| Tranche | Contenuto                                                                                                                                                       | Migration               |
-| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
-| **C0**  | questa specifica, separazione delle rotte, contratto transitorio dei pagamenti, censimento `PaymentOption`                                                      | ⛔ nessuna              |
-| **C1**  | modelli Prisma delle tabelle Cassa **già esistenti**, relazioni, prove di schema e isolamento                                                                   | ⛔ nessuna              |
-| **C1B** | neutralizzazione dell'infrastruttura fiscale: nessuna assunzione su produttore, LAN, browser o «un solo dispositivo per sede»                                   | ✅ additiva/compatibile |
-| **C1C** | il dispositivo fiscale si lega alla **sessione**; `fiscal_receipts.device_id` smette di perdere chi ha emesso                                                   | ✅ additiva + FK        |
-| **C2A** | catalogo globale delle Modalità normative, codice FatturaPA strutturato, FK nullable da `PaymentOption`, backfill esplicito, Impostazioni                       | ✅ additiva, nullable   |
-| **C2B** | ⏸ classificazione RT — **non autorizzata**: prima va verificata (§7)                                                                                            | ⏸ da decidere           |
-| **C3**  | checkout Cassa, sessione aperta, pagamento unico e misto, quadratura, resto, carta fallita, creazione idempotente                                               | —                       |
-| **C4**  | sessioni e riconciliazione: apertura/chiusura, fondo, movimenti di cassetto, conteggio, differenze, terminali POS                                               | —                       |
-| **C5**  | fiscalizzazione **indipendente dal produttore**, tramite adapter; il primo adapter si sceglie quando saranno disponibili dispositivo, firmware e documentazione | —                       |
-| _poi_   | migrazione della **Vendita al banco** da `cash \| card \| other` a `PaymentOption`                                                                              | tranche **autonoma**    |
+| Tranche | Contenuto                                                                                                                                     | Migration               |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| **C0**  | questa specifica, separazione delle rotte, contratto transitorio dei pagamenti, censimento `PaymentOption`                                    | ⛔ nessuna              |
+| **C1**  | modelli Prisma delle tabelle Cassa **già esistenti**, relazioni, prove di schema e isolamento                                                 | ⛔ nessuna              |
+| **C1B** | neutralizzazione dell'infrastruttura fiscale: nessuna assunzione su produttore, LAN, browser o «un solo dispositivo per sede»                 | ✅ additiva/compatibile |
+| **C1C** | il dispositivo fiscale si lega alla **sessione**; `fiscal_receipts.device_id` smette di perdere chi ha emesso                                 | ✅ additiva + FK        |
+| **C2A** | catalogo globale delle Modalità normative, codice FatturaPA strutturato, FK nullable da `PaymentOption`, backfill esplicito, Impostazioni     | ✅ additiva, nullable   |
+| **C2B** | classificazione **operativa** dei Tipi pagamento per il checkout (`PaymentTenderKind`), backfill dichiarato, Impostazioni, backup             | ✅ additiva, nullable   |
+| **C3**  | **isolamento tenant/location** e **ciclo della sessione**: apertura, chiusura, fondo, movimenti di cassetto, conteggio, differenze            | —                       |
+| **C4**  | **checkout**: quote, pagamento misto, resto, carta rifiutata, creazione idempotente, `store_sale_payments` (contratto in §5-bis)              | ✅ prevista             |
+| **C5**  | **fiscalizzazione provider-neutral**: rappresentazione fiscale AdE, adapter, trasporto, dispositivo reale. Nessun produttore è predeterminato | —                       |
+| _poi_   | migrazione della **Vendita al banco** da `cash \| card \| other` a `PaymentOption`                                                            | tranche **autonoma**    |
 
 ⛔ **Non si comincia una tranche lasciando rossa la precedente.**
 
-⚠️ La sequenza è stata **rivista il 04/09/2026** rispetto al mandato iniziale, che metteva il
-checkout in C2: la classificazione di `PaymentOption` è una dipendenza del checkout, quindi
-viene prima. Sessioni e fiscalizzazione slittano di conseguenza.
+⚠️ La sequenza è stata **rivista due volte il 04/09/2026**. La prima rispetto al mandato
+iniziale, che metteva il checkout in C2: la classificazione di `PaymentOption` è una sua
+dipendenza, quindi viene prima.
+
+⛔ **La seconda perché C4 precedeva il servizio che apre la sessione**, e non poteva:
+l'ordine di prima aveva il checkout in C3 e le sessioni in C4, cioè si sarebbe incassato
+dentro una sessione che nessun servizio sapeva ancora aprire. Ora il ciclo della sessione
+viene prima del checkout che la usa.
+
+⭐ E l'isolamento tenant/location sta in **C3 con la sessione**, non in una tranche sua:
+è la prima cosa che ogni percorso di scrittura deve verificare, e il primo percorso di
+scrittura della Cassa è proprio l'apertura di sessione (§13, condizione obbligatoria 1).
 
 ---
 

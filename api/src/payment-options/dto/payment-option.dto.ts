@@ -10,7 +10,7 @@ import {
   ValidateIf,
 } from 'class-validator';
 
-import type { PaymentOptionKind } from '@prisma/client';
+import type { PaymentOptionKind, PaymentTenderKind } from '@prisma/client';
 
 export class CreatePaymentOptionDto {
   @IsIn(['method', 'terms'])
@@ -52,4 +52,20 @@ export class UpdatePaymentOptionDto {
   @IsOptional()
   @IsUUID()
   methodCodeId?: string | null;
+
+  /**
+   * Come il Tipo si incassa al banco, o `null` per «non utilizzabile nella
+   * Cassa» (`docs/25` §7).
+   *
+   * ⚠️ Stessa disciplina di `methodCodeId`: assente significa «non toccare»,
+   * `null` significa «togli la classificazione». Con un `@IsOptional()` nudo
+   * il `null` verrebbe scartato dalla validazione e non si potrebbe più
+   * riportare un Tipo a «non utilizzabile».
+   *
+   * ⛔ Ammesso solo su `kind = 'method'`: il servizio rifiuta le condizioni.
+   */
+  @ValidateIf((_, value) => value !== null)
+  @IsOptional()
+  @IsIn(['cash', 'electronic', 'voucher'])
+  tenderKind?: PaymentTenderKind | null;
 }

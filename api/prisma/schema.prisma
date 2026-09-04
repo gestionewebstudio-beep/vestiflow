@@ -31,6 +31,26 @@ enum TenantChannelProfile {
 
 /// Tipo di voce pagamento gestibile: modalità (Contanti, Bonifico…) o
 /// condizioni (Vista fattura, 30 gg d.f.…). Due elenchi separati, come Danea.
+/// Come un Tipo pagamento si incassa AL BANCO (tranche C2B, `docs/25` §7).
+///
+/// ⭐ E' una classificazione **operativa**, non fiscale: risponde alla domanda
+/// «questo Tipo si puo' incassare alla Cassa, e come si comporta la maschera?».
+///
+/// ⛔ NON e' `PaymentMethodCode`, che e' il catalogo normativo globale
+/// (MP01-MP23); NON e' un codice MP; NON e' un valore del protocollo di un
+/// registratore telematico; e NON rappresenta il **non riscosso**, che e'
+/// fiscale, vive nel blocco 4.1 dello schema AdE per aliquota IVA, ed e' C5.
+///
+/// ⚠️ `voucher` e' modellato ma NON selezionabile nella prima versione del
+/// checkout: un buono porta un CONTEGGIO oltre all'importo e ha regole di resto
+/// proprie. Modellarlo ora costa una riga; aggiungerlo dopo costerebbe una
+/// migration sull'enum.
+enum PaymentTenderKind {
+  cash
+  electronic
+  voucher
+}
+
 enum PaymentOptionKind {
   method
   terms
@@ -1396,13 +1416,13 @@ model PaymentMethodCode {
 /// e «Bonifico 60 gg» sono entrambi MP05 — quindi NESSUN vincolo unico su
 /// `(tenantId, methodCodeId)`. Resta l'unicita' del nome nel proprio `kind`.
 model PaymentOption {
-  id           String            @id @default(uuid()) @db.Uuid
-  tenantId     String            @map("tenant_id") @db.Uuid
+  id           String             @id @default(uuid()) @db.Uuid
+  tenantId     String             @map("tenant_id") @db.Uuid
   kind         PaymentOptionKind
   name         String
-  sortOrder    Int               @default(0) @map("sort_order")
-  isSystem     Boolean           @default(false) @map("is_system")
-  isActive     Boolean           @default(true) @map("is_active")
+  sortOrder    Int                @default(0) @map("sort_order")
+  isSystem     Boolean            @default(false) @map("is_system")
+  isActive     Boolean            @default(true) @map("is_active")
   /// Modalita' normativa referenziata. NULL e' uno stato valido e previsto:
   /// le condizioni (`kind = terms`) non ne hanno mai una, e un Tipo puo'
   /// restare scollegato finche' l'utente non ne assegna una esplicitamente.
@@ -1410,9 +1430,20 @@ model PaymentOption {
   /// ⛔ Valorizzabile SOLO per `kind = method`. Il vincolo e' un `CHECK`
   /// nella migration — `kind = 'method' OR method_code_id IS NULL` — che
   /// Prisma non sa esprimere: qui lo dichiara solo questo commento.
-  methodCodeId String?           @map("method_code_id") @db.Uuid
-  createdAt    DateTime          @default(now()) @map("created_at")
-  updatedAt    DateTime          @updatedAt @map("updated_at")
+  methodCodeId String?            @map("method_code_id") @db.Uuid
+  /// Come si incassa al banco. ⭐ `NULL` e' uno stato PIENO e frequente:
+  /// «non utilizzabile nella Cassa» — bonifico, RIBA, MAV e tutte le condizioni
+  /// di pagamento restano `NULL` e devono restarci.
+  ///
+  /// ⛔ Valorizzabile SOLO per `kind = method`, come `methodCodeId`: il vincolo
+  /// e' un `CHECK` nella migration `20260904170000` — Prisma non sa esprimerlo.
+  ///
+  /// ⚠️ Non si deduce dal nome (l'utente lo rinomina) ne' dal codice normativo
+  /// (MP01 e MP04 sono entrambi «contanti», ma solo uno si incassa al banco).
+  /// Il backfill usa una mappa dichiarata di due voci: `docs/25` §7.
+  tenderKind   PaymentTenderKind? @map("tender_kind")
+  createdAt    DateTime           @default(now()) @map("created_at")
+  updatedAt    DateTime           @updatedAt @map("updated_at")
 
   tenant     Tenant             @relation(fields: [tenantId], references: [id])
   methodCode PaymentMethodCode? @relation(fields: [methodCodeId], references: [id], onDelete: Restrict)

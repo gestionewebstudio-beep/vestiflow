@@ -7,10 +7,13 @@ import { catchError, forkJoin, map, of, startWith, switchMap, take } from 'rxjs'
 import { AuthService } from '@core/auth';
 import { isAppError } from '@core/models/app-error.model';
 import {
+  PAYMENT_TENDER_KIND_OPTIONS,
   paymentMethodCodeLabel,
+  paymentTenderKindLabel,
   type PaymentMethodCode,
   type PaymentOption,
   type PaymentOptionKind,
+  type PaymentTenderKind,
 } from '@core/models/payment-option.model';
 import { canManageSettingsCompany } from '@core/permissions/tenant-permissions.util';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
@@ -110,6 +113,11 @@ export class PaymentOptionsPageComponent {
 
   /** Il catalogo normativo FatturaPA (MP01-MP23), globale e immutabile. */
   protected readonly modalitaNormative = computed(() => this.loadState().modalita);
+  /**
+   * ⭐ Costanti del modello, non un elenco che arriva dalla rete: qui una
+   * tendina vuota per un caricamento fallito non può accadere.
+   */
+  protected readonly classificazioniCassa = PAYMENT_TENDER_KIND_OPTIONS;
 
   /** «MP05 — Bonifico» per la tendina. */
   protected etichettaModalita(code: PaymentMethodCode): string {
@@ -146,6 +154,34 @@ export class PaymentOptionsPageComponent {
         next: () =>
           this.finishMutation(
             methodCodeId ? 'Modalità normativa associata.' : 'Modalità normativa rimossa.',
+          ),
+        error: (err: unknown) => this.failMutation(err),
+      });
+  }
+
+  /**
+   * Classifica il Tipo per la Cassa, o lo riporta a «non utilizzabile».
+   *
+   * ⭐ A differenza della Modalità normativa, le scelte NON arrivano dalla rete:
+   * sono costanti del modello. Una tendina vuota per un caricamento fallito qui
+   * non può accadere — e il fallimento del SALVATAGGIO resta visibile, perché
+   * passa dallo stesso `failMutation` di ogni altra azione della pagina.
+   */
+  protected cambiaClassificazione(option: PaymentOption, value: string): void {
+    const tenderKind = value === '' ? null : (value as PaymentTenderKind);
+    if (tenderKind === option.tenderKind || this.saving()) {
+      return;
+    }
+    this.saving.set(true);
+    this.service
+      .update(option.id, { tenderKind })
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () =>
+          this.finishMutation(
+            tenderKind
+              ? `Classificazione Cassa: ${paymentTenderKindLabel(tenderKind)}.`
+              : 'Tipo non utilizzabile in Cassa.',
           ),
         error: (err: unknown) => this.failMutation(err),
       });
