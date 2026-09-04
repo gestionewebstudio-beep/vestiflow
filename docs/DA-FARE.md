@@ -90,62 +90,44 @@ riporta al punto 1.
 **Da controllare:** se il pannello debba distinguere «collegato» da «sta ricevendo eventi»,
 e se il conteggio dei rifiuti HMAC valga la pena come primo indicatore.
 
-## ⏸ DEBITO — i test dell'API non sono type-checked da NESSUN gate (04/09/2026)
+## ✅ I test dell'API sono type-checked — chiuso il 04/09/2026
 
-⛔ **Registrato, non da correggere ora.** Emerso chiudendo C1C, e il `pre-push` lo dichiara
-già di sé:
-
-```text
-.husky/pre-push
-  «npm run build --prefix api … è anche l'UNICO type-check del backend che esista,
-   in locale come in CI: vitest esegue i .spec.ts con esbuild, che i tipi li strippa
-   senza guardarli.»
-```
-
-`tsconfig.build.json` esclude `src/test/**` e `**/*spec.ts`, e la CI esegue lint, build e
-`test:coverage` — nessuno dei tre guarda i tipi dei test. Un test può quindi essere
-**verde e non tipizzabile**, e nessuno se ne accorge.
-
-### ⛔ E NESSUNA delle due configurazioni è pulita — misurato il 04/09/2026
+⛔ **Qui c'era un debito aperto**: «i test dell'API non sono type-checked da nessun gate»,
+con 62 errori invisibili e un ordine di lavoro in quattro passi. È stato eseguito lo stesso
+giorno. Resta scritto **perché** era invisibile, che è la parte che può tornare.
 
 ```text
-tsc --noEmit -p tsconfig.json         62 errori    ← dopo la correzione dei file del ramo
-tsc --noEmit -p tsconfig.spec.json    30 errori    ← file DIVERSI, e 0 in comune
+npm run typecheck:test --prefix api      0 errori · 224 file di prova · ~3 secondi
+   nel pre-push, dopo la build API      e in CI, prima di test:coverage
 ```
 
-⭐ **Non sono due misure dello stesso difetto: sono due difetti opposti**, e chi ne
-guardasse una sola trarrebbe la conclusione sbagliata.
+### ⛔ La causa: `types` SOSTITUISCE, non aggiunge
 
-| Configurazione       | Che cosa sbaglia                                                                                             |
-| -------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `tsconfig.json`      | **non carica i globals di vitest**: 61 dei 62 sono `TS2304`/`TS2582` su `describe`, `it`, `expect`           |
-| `tsconfig.spec.json` | `"types": ["vitest/globals","node"]` **sostituisce** l'elenco e toglie i tipi che i file di PRODUZIONE usano |
+`tsconfig.spec.json` dichiarava `"types": ["vitest/globals", "node"]` per avere `describe` e
+`it`. Ma quella chiave **sostituisce** l'elenco dei pacchetti `@types` caricati: toglieva
+`multer`, `express` e gli altri tipi ambientali, e faceva fallire **file di produzione** con
+`TS2694: Namespace 'global.Express' has no exported member 'Multer'`.
 
-⚠️ La seconda è la più insidiosa: fa fallire `products.controller.ts`, `inventory.controller.ts`
-e `user-avatar.service.ts` con `TS2694: Namespace 'global.Express' has no exported member
-'Multer'` — cioè **file di produzione che compilano benissimo nella build vera**.
+⭐ **Il rimedio non è elencare i tipi mancanti**, che è una lista da ricordare a mano a ogni
+dipendenza nuova: è una direttiva di riferimento in `src/test/vitest-globals.d.ts`, che
+**aggiunge** i globali senza togliere niente. La configurazione non restringe più nulla —
+né `types`, né `include`.
 
-### ⛔ E lascia fuori proprio i file di integrazione
+### ⚠️ E il glob escludeva proprio i test di integrazione
 
-```text
-tsconfig.spec.json → "include": ["src/**/*.spec.ts"]
-file *.integration-spec.ts effettivamente compilati:  0
-```
+`"include": ["src/**/*.spec.ts"]` vuole un punto prima di `spec`; i file di integrazione si
+chiamano `*.integration-spec.ts`, col trattino. **Zero** file di integrazione compilati, e
+un controllo che sembrava esserci.
 
-Il glob vuole un punto prima di `spec`; i file di integrazione si chiamano
-`*.integration-spec.ts`. Chi aggiungesse uno script su quella configurazione otterrebbe un
-controllo che **non guarda i file che questa nota ha appena corretto**.
+### I due difetti reali trovati, entrambi invisibili a runtime
 
-### Che cosa servirebbe, e in che ordine
+In `shopify-product-push.service.spec.ts`, e nessuno dei due faceva arrossare un test —
+vitest esegue con esbuild, che i tipi li strippa:
 
-1. una configurazione che copra **entrambi** i nomi di file di prova;
-2. `types` che **aggiunga** vitest senza togliere i tipi ambientali (`Express.Multer`);
-3. la correzione dei difetti che restano;
-4. **solo allora** lo script e il passo in CI.
-
-⛔ **In quest'ordine, o il gate nasce rosso** — ed è la stessa storia della soglia di
-copertura (`regole-qualita`): un gate sempre rosso non ferma niente, e chi lo incontra
-impara ad aggirarlo.
+| Difetto                                                            | Perché contava                                                                       |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| `as unknown as ShopifyGraphqlClient` con il tipo **non importato** | il cast non verificava **niente**: il finto client poteva divergere da quello vero   |
+| `mock.calls as [[{ where }]][]`, una parentesi di troppo           | l'argomento risultava un array, quindi l'asserzione era tipizzata su una forma falsa |
 
 ---
 

@@ -5,6 +5,7 @@ import type { PrismaService } from '../prisma/prisma.service';
 import type { ShopifyAdminClient } from './shopify-admin.client';
 import type { ShopifyCategoryMetafieldsService } from './shopify-category-metafields.service';
 import type { ShopifyConnectionService } from './shopify-connection.service';
+import type { ShopifyGraphqlClient } from './shopify-graphql.client';
 import type { ShopifyOAuthService } from './shopify-oauth.service';
 import type { ShopifyTaxonomyService } from './shopify-taxonomy.service';
 import { SYNC_DISABLE_FAILED_MESSAGE } from './shopify-user-error.util';
@@ -247,17 +248,15 @@ describe('ShopifyProductPushService — prezzo nel payload', () => {
         ],
       };
       const { service, shopifyGraphql, prisma } = createService(2990, orfana, {
-        listProductVariants: vi
-          .fn()
-          .mockResolvedValue([
-            {
-              id: 'gid://shopify/ProductVariant/777',
-              sku: 'SKU-1',
-              barcode: null,
-              inventoryItemId: 'gid://shopify/InventoryItem/888',
-              selectedOptions: [],
-            },
-          ]),
+        listProductVariants: vi.fn().mockResolvedValue([
+          {
+            id: 'gid://shopify/ProductVariant/777',
+            sku: 'SKU-1',
+            barcode: null,
+            inventoryItemId: 'gid://shopify/InventoryItem/888',
+            selectedOptions: [],
+          },
+        ]),
       });
 
       await service.pushProduct('tenant-1', 'prod-1');
@@ -498,7 +497,7 @@ describe('ShopifyProductPushService — prezzo nel payload', () => {
         expect(chiamata[0].data['shopifyLastError']).toContain(SYNC_DISABLE_FAILED_MESSAGE);
       });
 
-      it('⭐ ripetere non duplica: l\'annullamento tocca SOLO chi è ancora spento', async () => {
+      it("⭐ ripetere non duplica: l'annullamento tocca SOLO chi è ancora spento", async () => {
         const { service, prisma } = createService(
           2990,
           { ...collegato, shopifySyncEnabled: false },
@@ -511,7 +510,7 @@ describe('ShopifyProductPushService — prezzo nel payload', () => {
         // Il filtro è la garanzia: chi ha già il flag acceso non viene toccato,
         // e una seconda passata non sovrascrive una decisione più recente.
         for (const [arg] of prisma.product.updateMany.mock.calls as [
-          [{ where: Record<string, unknown> }],
+          { where: Record<string, unknown> },
         ][]) {
           expect(arg.where).toMatchObject({
             id: 'prod-1',

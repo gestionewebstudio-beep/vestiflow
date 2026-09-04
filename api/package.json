@@ -31,6 +31,7 @@
     "verify:pdf-all": "npm run build && node scripts/verify-pdf-all-types.mjs",
     "lint": "eslint \"src/**/*.ts\"",
     "lint:fix": "eslint \"src/**/*.ts\" --fix",
+    "typecheck:test": "tsc --noEmit -p tsconfig.spec.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"

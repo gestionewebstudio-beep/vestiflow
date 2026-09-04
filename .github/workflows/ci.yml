@@ -77,14 +77,23 @@ jobs:
       - name: Lint API
         run: npm run lint --prefix api
 
-      # Il type-check del backend sta qui e in nessun altro posto: vitest esegue
-      # i .spec.ts con esbuild, che i tipi li strippa senza controllarli. Senza
-      # questo passo un errore TypeScript non coperto da test passa la CI verde
-      # e si scopre solo quando il deploy prova a compilare.
+      # Il type-check del CODICE APPLICATIVO: vitest esegue i .spec.ts con
+      # esbuild, che i tipi li strippa senza controllarli. Senza questo passo un
+      # errore TypeScript non coperto da test passa la CI verde e si scopre solo
+      # quando il deploy prova a compilare.
       # Va PRIMA dei test: un errore di compilazione deve fallire dicendo che
       # cos'e', non tramite un test che esplode per cause apparentemente ignote.
       - name: Build API (type-check)
         run: npm run build --prefix api
+
+      # E il type-check dei TEST, che il passo qui sopra non copre:
+      # `tsconfig.build.json` esclude `src/test/**` e `**/*spec.ts`. Un test
+      # poteva quindi essere verde e non tipizzabile, e lo era: misurati il
+      # 04/09/2026, 92 errori che nessun gate vedeva — fra cui un cast su un
+      # tipo non importato, che quindi non verificava nulla.
+      # Costa ~3 secondi contro i ~110 della build qui sopra.
+      - name: Type-check dei test API
+        run: npm run typecheck:test --prefix api
 
       - name: Test API with coverage
         run: npm run test:coverage --prefix api
