@@ -28,6 +28,9 @@ banco**. Scritta il 04/09/2026 come tranche **C0** del recupero da
 | 12  | I cambi di dispositivo hanno uno **storico append-only**, non una colonna riscritta              | §10               |
 | 13  | **C3, C4 e C4B non si rilasciano separatamente**: nessuna chiusura provvisoria                   | §13               |
 | 14  | Tre permessi: `retail.register` vede, `retail.cash_session` apre, `retail.cash_drawer` movimenta | §13               |
+| 15  | La Cassa vive su `/app/cassa` con **tre sole aree**: Vendita · Operazioni · Sessioni             | §3                |
+| 16  | Reso e chiusura sono **subordinati**, non voci di menu                                           | §3                |
+| 17  | ⛔ **C4R è BLOCCATA**: manca il collegamento riga→riga per il cumulativo dei resi                | §12-bis           |
 
 In caso di contrasto fra questo elenco e il corpo del documento, **vale l'elenco**.
 
@@ -89,13 +92,42 @@ Le quattro rotte documentali **restano esattamente dove sono**, sullo stesso com
 /app/vendita-al-banco/reso/:id/edit             StoreSaleDocumentFormComponent
 ```
 
-La Cassa nasce su una **radice propria**:
+### ⭐ Le rotte definitive — decise dal proprietario il 04/09/2026
 
 ```text
-/app/cassa              checkout
-/app/cassa/reso         reso operativo, quando sarà deciso (§12)
-/app/cassa/chiusure     sessioni e chiusure
+/app/cassa                        checkout, stato e riepilogo della sessione corrente
+/app/cassa/operazioni             riepilogo globale multi-sede + registro vendite/resi
+/app/cassa/operazioni/:id         dettaglio dell’operazione e dello scontrino
+/app/cassa/sessioni               sessioni aperte e chiuse
+/app/cassa/sessioni/:id           dettaglio, movimenti e quadratura
 ```
+
+⭐ **Nel menu compaiono TRE voci sole**: Vendita · Operazioni · Sessioni. La principale apre
+il checkout, con un’azione evidente «Nuova vendita»: un cassiere ci arriva senza attraversare
+schermate amministrative.
+
+⛔ **Reso e chiusura NON sono aree autonome**, e non compaiono nel menu:
+
+| Procedura    | Da dove parte                                                           | Rotta persistente, se serve        |
+| ------------ | ----------------------------------------------------------------------- | ---------------------------------- |
+| **reso**     | «Richiama scontrino» in Cassa, o «Esegui reso» sul dettaglio operazione | `/app/cassa/operazioni/:id/reso`   |
+| **chiusura** | dettaglio della sessione corrente                                       | `/app/cassa/sessioni/:id/chiusura` |
+
+⚠️ Entrambe sono **subordinate** all’oggetto su cui agiscono: un reso senza operazione
+originale e una chiusura senza sessione non esistono, e una rotta di primo livello
+suggerirebbe il contrario.
+
+⛔ **Niente `/app/cassa/corrispettivi` ancora.** In C5 gli stati fiscali compaiono come
+**filtri del registro operazioni** — in attesa · emesso · fallito · incerto · annullato. Una
+pagina propria arriva solo se emergerà la necessità di una vera coda di monitoraggio,
+assistenza e ritentativo.
+
+⛔ **`/app/cassa/chiusure` non aveva consumer**: verificato il 04/09/2026 — compariva in
+questo solo documento, riga 97, e in nessun file di codice. Sostituito senza migrazione.
+
+⛔ **`/app/vendita-al-banco` non si riusa per la Cassa**, in nessuna forma: né come figlio,
+né come redirect, né come rotta gemella. Una vendita nata dalla Cassa si riconosce dal
+proprio `cashSessionId`, non dalla rotta che l’ha creata.
 
 ⭐ **`cassa` in italiano è la convenzione recente**: i path di primo livello sono misti —
 `customers`, `documents`, `products` in inglese, ma `vendita-al-banco`, `corrispettivi`,
@@ -1073,6 +1105,92 @@ correzione successiva          annullo / reso / rimborso, collegato all'original
 ⏸ **Il comportamento finale del Reso Cassa non si inventa.** Se il protocollo fiscale o la
 specifica non lo chiudono, si implementa prima la vendita e si segnala precisamente la
 decisione residua.
+
+---
+
+## 12-ter. Preflight C4 — le primitive esistenti, e quali si riusano
+
+Censito il 04/09/2026 su `store-sales.service.ts` (**1542 righe**), che contiene già
+`createSale` e `createReturn`.
+
+| Primitiva                                                  | Oggi                                                              | In C4                                         |
+| ---------------------------------------------------------- | ----------------------------------------------------------------- | --------------------------------------------- |
+| `resolveVariants`                                          | privata, 2 chiamate                                               | **da estrarre**                               |
+| `resolveVatContext` · `resolveLineVatCode`                 | private, 2 chiamate                                               | **da estrarre**                               |
+| `lineDescription`                                          | privata, 2 chiamate                                               | **da estrarre**                               |
+| `assertLocationExists` · `authorizeStoreDocumentLocations` | private                                                           | ⭐ **sostituite** da `assertCashContext` (C3) |
+| `pushInventoryAsync`                                       | privata                                                           | **da estrarre**                               |
+| `CreationIntentService`                                    | ✅ già condiviso — `claimTx`, `recordResultTx`, `resolveConflict` | **riuso diretto**                             |
+| `StoreSaleLookupService`                                   | ✅ già un servizio proprio (189 righe)                            | **riuso diretto**                             |
+
+⛔ **Non si richiama `createSale`.** Trascina la modifica documentale e il pagamento legacy
+`cash | card | other`, che è esattamente ciò che la Cassa non deve scrivere. Le primitive si
+**estraggono**; il caso d’uso no.
+
+⚠️ **L’estrazione tocca un file da 1542 righe in produzione**: va fatta a comportamento
+invariato, con i test della Vendita al banco verdi prima e dopo, e in un commit proprio —
+separato da quello che introduce la Cassa.
+
+---
+
+## 12-bis. ⛔ C4R — BLOCCATA: la struttura non regge il cumulativo dei resi
+
+⚠️ **Fermata prima della migration, come il mandato prevedeva.** Ecco la struttura reale,
+misurata il 04/09/2026.
+
+### Che cosa ESISTE, e basta
+
+|                                                              |                                    |
+| ------------------------------------------------------------ | ---------------------------------- |
+| `DocumentType.store_return`                                  | ✅ il tipo c’è                     |
+| `Document.sourceDocumentId` + relazione `DocumentConversion` | ✅ documento → documento           |
+| `FiscalReceipt.originalReceiptId`                            | ✅ ricevuta → ricevuta             |
+| `FiscalReceipt.serialNumber` · `fiscalNumber` · `issuedAt`   | ✅ matricola, numero, data fiscale |
+
+### ⛔ Che cosa MANCA, e perché blocca
+
+**1. Nessun collegamento RIGA → RIGA.** `DocumentLine` non ha un campo verso la riga
+originale: i `sourceDocumentId` / `sourceLineId` che si trovano cercando appartengono a
+**`StockMovement`**, non alle righe documento.
+
+Senza quel campo, tre vincoli del mandato non sono calcolabili:
+
+```text
+«non si può restituire cumulativamente più della quantità venduta»
+«non si possono rendere righe già integralmente rese»
+«due resi parziali concorrenti non generano due resi sulla stessa quantità»
+```
+
+⛔ **E aggregare per VARIANTE non è un ripiego accettabile**: due righe dello stesso
+articolo con prezzi diversi — una scontata, una no — non sono intercambiabili. Il rimborso
+che ne deriverebbe sarebbe di un importo che il cliente non ha pagato, e il limite «per
+opzione di pagamento» non tornerebbe.
+
+**2. Manca il numero di chiusura/azzeramento.** Il mandato lo elenca fra i riferimenti da
+conservare; `FiscalReceipt` non ha una colonna per contenerlo.
+
+**3. `Document.sourceDocumentId` è `ON DELETE SET NULL`.** Cancellare l’originale
+scollegherebbe il reso **in silenzio** — è la stessa correzione già fatta da C1C su
+`fiscal_receipts.device_id`.
+
+**4. `createReturn` oggi NON collega**: il reso al banco nasce autonomo per contratto
+(`11` A11), perché la vendita reale può essere stata battuta su una cassa esterna.
+
+### Le alternative, senza sceglierne una
+
+|                                                                                                                | Costo                  | Rischio                                                            |
+| -------------------------------------------------------------------------------------------------------------- | ---------------------- | ------------------------------------------------------------------ |
+| **A · `DocumentLine.sourceDocumentLineId`** nullable + FK `Restrict`, più `returnedQuantity` derivata da query | una migration additiva | ⚠️ tocca `document_lines`, che ha righe vere in produzione         |
+| **B · tabella di collegamento** `store_return_lines(returnLineId, originalLineId, quantity)`                   | una tabella nuova      | ⭐ non tocca le righe esistenti; ⚠️ un secondo posto dove guardare |
+| **C · rinviare C4R** dopo C4A/C4B                                                                              | zero                   | ⚠️ la Cassa vende e non rende                                      |
+
+⚠️ **In tutte e tre serve comunque**: `FiscalReceipt.closureNumber` per il numero di
+azzeramento, e `Document.sourceDocumentId` portato a `Restrict` per i soli resi — o un
+campo dedicato che non si azzeri.
+
+⭐ **Il vincolo di concorrenza va deciso insieme alla struttura**: «due resi parziali
+concorrenti» si chiude con un `UNIQUE` o con un aggiornamento condizionale, e le due
+strade non sono equivalenti — la prima vieta, la seconda serializza.
 
 ---
 
