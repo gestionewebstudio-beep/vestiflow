@@ -5,7 +5,7 @@
       <p class="ops__subtitle">Vendite e resi di tutte le sedi che puoi vedere.</p>
     </div>
     <div class="ops__head-actions">
-      <app-button variant="secondary" (clicked)="apriRichiamo()">Richiama scontrino</app-button>
+      <app-button variant="secondary" (click)="apriRichiamo()">Richiama scontrino</app-button>
       <a class="ops__link" routerLink="/app/cassa">Vendita</a>
       <a class="ops__link" routerLink="/app/cassa/sessioni">Sessioni</a>
     </div>
@@ -110,7 +110,7 @@
     </label>
 
     <app-button variant="secondary" type="submit">Applica</app-button>
-    <app-button variant="ghost" (clicked)="azzeraFiltri()">Azzera</app-button>
+    <app-button variant="ghost" (click)="azzeraFiltri()">Azzera</app-button>
   </form>
 
   <!-- ── Elenco ──────────────────────────────────────────────────────────── -->

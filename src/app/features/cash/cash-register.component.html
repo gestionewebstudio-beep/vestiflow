@@ -70,7 +70,7 @@
             (valueChange)="fondoApertura.set($event)"
           />
         </label>
-        <app-button variant="primary" (clicked)="apriSessione()">Apri la cassa</app-button>
+        <app-button variant="primary" (click)="apriSessione()">Apri la cassa</app-button>
       </div>
     </section>
   } @else if (conclusa(); as esito) {
@@ -95,7 +95,7 @@
         non è stato emesso su un registratore telematico.
       </p>
       <div class="cassa__done-actions">
-        <app-button variant="primary" (clicked)="nuovaVendita()">Nuova vendita</app-button>
+        <app-button variant="primary" (click)="nuovaVendita()">Nuova vendita</app-button>
         <a class="cassa__link" [routerLink]="['/app/cassa/operazioni', esito.documentId]">
           Vedi l'operazione
         </a>
@@ -195,7 +195,7 @@
                     <app-button
                       variant="ghost"
                       [ariaLabel]="'Togli ' + riga.item.productName"
-                      (clicked)="rimuovi(riga.item.variantId)"
+                      (click)="rimuovi(riga.item.variantId)"
                     >
                       Togli
                     </app-button>
@@ -221,7 +221,7 @@
           [fullWidth]="true"
           [disabled]="!puoConcludere()"
           [loading]="conclusione()"
-          (clicked)="concludi()"
+          (click)="concludi()"
         >
           Concludi vendita
         </app-button>

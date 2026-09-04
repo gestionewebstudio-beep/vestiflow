@@ -31,7 +31,7 @@
             variant="ghost"
             [disabled]="disabled()"
             [ariaLabel]="'Togli ' + nomeDi(quota)"
-            (clicked)="rimuovi(quota.paymentOptionId)"
+            (click)="rimuovi(quota.paymentOptionId)"
           >
             Togli
           </app-button>
@@ -85,7 +85,7 @@
         variant="secondary"
         [disabled]="disabled()"
         [softDisabled]="!!quotas().length && !!findQuota(opzione.id)"
-        (clicked)="aggiungi(opzione.id)"
+        (click)="aggiungi(opzione.id)"
       >
         {{ opzione.name }}
       </app-button>

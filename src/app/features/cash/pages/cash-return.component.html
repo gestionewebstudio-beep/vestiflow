@@ -29,7 +29,7 @@
       <h2 class="reso__done-title">Reso registrato</h2>
       <p class="reso__done-ref">{{ esito.reference }} · {{ soldi(esito.totalMinor) }}</p>
       <p class="reso__note">Fiscalizzazione non ancora disponibile in questa versione.</p>
-      <app-button variant="primary" (clicked)="tornaAlleOperazioni()">
+      <app-button variant="primary" (click)="tornaAlleOperazioni()">
         Torna alle operazioni
       </app-button>
     </section>
@@ -92,7 +92,7 @@
     <section class="reso__block" aria-labelledby="rimborso-titolo">
       <div class="reso__block-head">
         <h2 id="rimborso-titolo" class="reso__block-title">Rimborso</h2>
-        <app-button variant="secondary" (clicked)="proponiRimborso()">Proponi</app-button>
+        <app-button variant="secondary" (click)="proponiRimborso()">Proponi</app-button>
       </div>
       <!-- ⭐ Si rimborsa sulle QUOTE dell'incasso, non sui Tipi pagamento. -->
       <ul class="reso__quotas">
@@ -149,12 +149,12 @@
         ></textarea>
       </label>
       <div class="reso__actions">
-        <app-button variant="secondary" (clicked)="tornaAlleOperazioni()">Chiudi</app-button>
+        <app-button variant="secondary" (click)="tornaAlleOperazioni()">Chiudi</app-button>
         <app-button
           variant="primary"
           [disabled]="!puoConfermare()"
           [loading]="invio()"
-          (clicked)="conferma()"
+          (click)="conferma()"
         >
           Concludi reso
         </app-button>
