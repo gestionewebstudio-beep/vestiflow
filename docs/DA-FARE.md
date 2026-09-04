@@ -160,6 +160,23 @@ nuovo è un'occasione di dimenticare il tenant, e i servizi Cassa sono percorsi 
 ⭐ **Come chiuderla è una decisione da prendere**, non da dedurre: vincoli compositi
 `UNIQUE(tenant_id, id)` sulle tabelle bersaglio, RLS, o verifica applicativa centralizzata.
 
+#### Stato al 04/09/2026 — la terza strada è **presa**, la voce resta aperta
+
+C3 ha scelto la **verifica applicativa centralizzata**: `assertCashContext`
+(`api/src/cash-sessions/cash-context.validator.ts`) è l'unico punto che verifica sede,
+sessione e dispositivo, **riceve la transazione** e non il client globale, e prende il
+tenant dall'utente autenticato. Ci passano **dieci** punti di ingresso, letture comprese:
+apertura, sessione corrente, movimenti, cambio dispositivo e storico, checkout (C4A),
+richiamo scontrino e reso (C4R), chiusura (C4B).
+
+⛔ **Ma il database continua a non garantirlo**, ed è la ragione per cui questa voce non si
+spunta: la guardia vive nel codice, e un percorso nuovo che non chiami il validatore
+scavalcherebbe tutto senza che niente lo fermi. La decisione da prendere è se aggiungere il
+livello di database — e quella non è stata presa.
+
+⚠️ **Nessuna guardia automatica sorveglia oggi che i servizi Cassa passino dal
+validatore**: `check:location-scope` copre il confine controller→servizio, non questo.
+
 ### 2 · ⛔ Cronologia dei tentativi append-only — prima della fiscalizzazione reale
 
 `fiscal_receipts.document_id` è **unico** e i campi di esito sono scalari singoli: un secondo
