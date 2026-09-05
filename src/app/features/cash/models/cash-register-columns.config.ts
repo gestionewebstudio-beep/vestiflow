@@ -22,14 +22,9 @@ import {
  * Stato, Operatore), `text` dove si cerca scrivendone un pezzo (Numero,
  * Origine), `date` sulle date, `range` sugli importi.
  *
- * ⛔ **L'ordinamento invece resta spento**, ed e' la stessa ragione delle
- * Vendite online: l'API dei due registri non ha un parametro `sort`, e
- * riordinare le righe caricate riordinerebbe una pagina.
- *
- * ⚠️ **I filtri restringono le righe CARICATE**, che oggi sono al massimo
- * cento (`pageSize: 100`, senza impaginazione). Sopra quella soglia le righe
- * mancano gia' prima del filtro: e' un difetto dell'elenco, non del filtro,
- * ed e` segnato fra i problemi aperti.
+ * I due registri chiedono `all=1`: filtri e ordinamento in memoria operano
+ * sull'intero risultato. Il limite 100 e il sort spento sono stati rimossi
+ * il 05/09/2026; la finestra del motore limita solo le righe nel DOM.
  */
 export const CASH_OPERATIONS_COLUMN_DEFS: readonly TableColumnDef[] = [
   colonna('createdAt', { label: 'Data', filter: 'date', defaultVisible: true, cardTitle: true }),

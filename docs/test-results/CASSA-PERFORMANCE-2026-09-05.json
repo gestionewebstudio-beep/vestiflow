@@ -1,0 +1,962 @@
+[
+  {
+    "phase": "after",
+    "size": 100,
+    "repeat": 0,
+    "loadMs": 622,
+    "responseMs": 519,
+    "afterResponseMs": 103,
+    "scrollMs": 81,
+    "rows": 43,
+    "nodes": 1125,
+    "rafPeak": 56,
+    "scriptMs": 83,
+    "queryInclusiveMs": 0,
+    "topSelfMs": [
+      {
+        "name": "(idle)",
+        "ms": 270
+      },
+      {
+        "name": "(program)",
+        "ms": 215
+      },
+      {
+        "name": "",
+        "ms": 20
+      },
+      {
+        "name": "visitNode",
+        "ms": 14
+      },
+      {
+        "name": "formatMoney",
+        "ms": 12
+      },
+      {
+        "name": "createElement",
+        "ms": 3
+      },
+      {
+        "name": "setAttribute",
+        "ms": 3
+      },
+      {
+        "name": "appendChild",
+        "ms": 3
+      }
+    ]
+  },
+  {
+    "phase": "after",
+    "size": 100,
+    "repeat": 1,
+    "loadMs": 611,
+    "responseMs": 503,
+    "afterResponseMs": 108,
+    "scrollMs": 54,
+    "rows": 43,
+    "nodes": 1125,
+    "rafPeak": 43,
+    "scriptMs": 81,
+    "queryInclusiveMs": 3,
+    "topSelfMs": [
+      {
+        "name": "(idle)",
+        "ms": 258
+      },
+      {
+        "name": "(program)",
+        "ms": 209
+      },
+      {
+        "name": "",
+        "ms": 26
+      },
+      {
+        "name": "visitNode",
+        "ms": 20
+      },
+      {
+        "name": "formatMoney",
+        "ms": 9
+      },
+      {
+        "name": "setAttribute",
+        "ms": 4
+      },
+      {
+        "name": "(garbage collector)",
+        "ms": 4
+      },
+      {
+        "name": "__spreadProps",
+        "ms": 3
+      }
+    ]
+  },
+  {
+    "phase": "after",
+    "size": 1000,
+    "repeat": 0,
+    "loadMs": 628,
+    "responseMs": 532,
+    "afterResponseMs": 96,
+    "scrollMs": 58,
+    "rows": 43,
+    "nodes": 1125,
+    "rafPeak": 56,
+    "scriptMs": 82,
+    "queryInclusiveMs": 2,
+    "topSelfMs": [
+      {
+        "name": "(idle)",
+        "ms": 266
+      },
+      {
+        "name": "(program)",
+        "ms": 208
+      },
+      {
+        "name": "",
+        "ms": 26
+      },
+      {
+        "name": "visitNode",
+        "ms": 22
+      },
+      {
+        "name": "formatMoney",
+        "ms": 12
+      },
+      {
+        "name": "setAttribute",
+        "ms": 4
+      },
+      {
+        "name": "insertBefore",
+        "ms": 3
+      },
+      {
+        "name": "visitChild",
+        "ms": 3
+      }
+    ]
+  },
+  {
+    "phase": "after",
+    "size": 1000,
+    "repeat": 1,
+    "loadMs": 619,
+    "responseMs": 514,
+    "afterResponseMs": 105,
+    "scrollMs": 52,
+    "rows": 43,
+    "nodes": 1125,
+    "rafPeak": 56,
+    "scriptMs": 83,
+    "queryInclusiveMs": 2,
+    "topSelfMs": [
+      {
+        "name": "(idle)",
+        "ms": 267
+      },
+      {
+        "name": "(program)",
+        "ms": 192
+      },
+      {
+        "name": "visitNode",
+        "ms": 30
+      },
+      {
+        "name": "",
+        "ms": 28
+      },
+      {
+        "name": "formatMoney",
+        "ms": 6
+      },
+      {
+        "name": "(garbage collector)",
+        "ms": 3
+      },
+      {
+        "name": "setAttribute",
+        "ms": 3
+      },
+      {
+        "name": "executeTemplate",
+        "ms": 3
+      }
+    ]
+  },
+  {
+    "phase": "after",
+    "size": 2000,
+    "repeat": 0,
+    "loadMs": 639,
+    "responseMs": 526,
+    "afterResponseMs": 113,
+    "scrollMs": 45,
+    "rows": 43,
+    "nodes": 1125,
+    "rafPeak": 43,
+    "scriptMs": 90,
+    "queryInclusiveMs": 5,
+    "topSelfMs": [
+      {
+        "name": "(idle)",
+        "ms": 278
+      },
+      {
+        "name": "(program)",
+        "ms": 213
+      },
+      {
+        "name": "",
+        "ms": 31
+      },
+      {
+        "name": "formatMoney",
+        "ms": 10
+      },
+      {
+        "name": "visitNode",
+        "ms": 7
+      },
+      {
+        "name": "appendChild",
+        "ms": 5
+      },
+      {
+        "name": "observe",
+        "ms": 3
+      },
+      {
+        "name": "expectValue",
+        "ms": 3
+      }
+    ]
+  },
+  {
+    "phase": "after",
+    "size": 2000,
+    "repeat": 1,
+    "loadMs": 648,
+    "responseMs": 537,
+    "afterResponseMs": 111,
+    "scrollMs": 47,
+    "rows": 43,
+    "nodes": 1125,
+    "rafPeak": 56,
+    "scriptMs": 87,
+    "queryInclusiveMs": 2,
+    "topSelfMs": [
+      {
+        "name": "(idle)",
+        "ms": 274
+      },
+      {
+        "name": "(program)",
+        "ms": 225
+      },
+      {
+        "name": "",
+        "ms": 31
+      },
+      {
+        "name": "visitNode",
+        "ms": 14
+      },
+      {
+        "name": "formatMoney",
+        "ms": 14
+      },
+      {
+        "name": "(garbage collector)",
+        "ms": 5
+      },
+      {
+        "name": "send",
+        "ms": 4
+      },
+      {
+        "name": "remove",
+        "ms": 3
+      }
+    ]
+  },
+  {
+    "phase": "after",
+    "size": 5000,
+    "repeat": 0,
+    "loadMs": 704,
+    "responseMs": 575,
+    "afterResponseMs": 129,
+    "scrollMs": 77,
+    "rows": 43,
+    "nodes": 1125,
+    "rafPeak": 43,
+    "scriptMs": 88,
+    "queryInclusiveMs": 5,
+    "topSelfMs": [
+      {
+        "name": "(idle)",
+        "ms": 330
+      },
+      {
+        "name": "(program)",
+        "ms": 231
+      },
+      {
+        "name": "",
+        "ms": 25
+      },
+      {
+        "name": "formatMoney",
+        "ms": 7
+      },
+      {
+        "name": "setAttribute",
+        "ms": 6
+      },
+      {
+        "name": "visitNode",
+        "ms": 6
+      },
+      {
+        "name": "(garbage collector)",
+        "ms": 4
+      },
+      {
+        "name": "send",
+        "ms": 4
+      }
+    ]
+  },
+  {
+    "phase": "after",
+    "size": 5000,
+    "repeat": 1,
+    "loadMs": 686,
+    "responseMs": 558,
+    "afterResponseMs": 128,
+    "scrollMs": 65,
+    "rows": 43,
+    "nodes": 1125,
+    "rafPeak": 56,
+    "scriptMs": 89,
+    "queryInclusiveMs": 4,
+    "topSelfMs": [
+      {
+        "name": "(idle)",
+        "ms": 316
+      },
+      {
+        "name": "(program)",
+        "ms": 229
+      },
+      {
+        "name": "",
+        "ms": 35
+      },
+      {
+        "name": "visitNode",
+        "ms": 10
+      },
+      {
+        "name": "formatMoney",
+        "ms": 8
+      },
+      {
+        "name": "(garbage collector)",
+        "ms": 8
+      },
+      {
+        "name": "send",
+        "ms": 7
+      },
+      {
+        "name": "collectQueryResults",
+        "ms": 4
+      }
+    ]
+  },
+  {
+    "phase": "after-mobile",
+    "size": 100,
+    "repeat": 0,
+    "loadMs": 693,
+    "responseMs": 518,
+    "afterResponseMs": 175,
+    "scrollMs": 71,
+    "rows": 100,
+    "nodes": 2548,
+    "rafPeak": 100,
+    "scriptMs": 100,
+    "queryInclusiveMs": 2,
+    "topSelfMs": [
+      {
+        "name": "(idle)",
+        "ms": 275
+      },
+      {
+        "name": "(program)",
+        "ms": 232
+      },
+      {
+        "name": "visitNode",
+        "ms": 28
+      },
+      {
+        "name": "",
+        "ms": 22
+      },
+      {
+        "name": "formatMoney",
+        "ms": 14
+      },
+      {
+        "name": "setAttribute",
+        "ms": 7
+      },
+      {
+        "name": "executeTemplate",
+        "ms": 5
+      },
+      {
+        "name": "visitChild",
+        "ms": 4
+      }
+    ]
+  },
+  {
+    "phase": "after-mobile",
+    "size": 1000,
+    "repeat": 0,
+    "loadMs": 2375,
+    "responseMs": 568,
+    "afterResponseMs": 1807,
+    "scrollMs": 251,
+    "rows": 1000,
+    "nodes": 25048,
+    "rafPeak": 1000,
+    "scriptMs": 938,
+    "queryInclusiveMs": 473,
+    "topSelfMs": [
+      {
+        "name": "(program)",
+        "ms": 798
+      },
+      {
+        "name": "(idle)",
+        "ms": 304
+      },
+      {
+        "name": "collectQueryResults",
+        "ms": 267
+      },
+      {
+        "name": "visitNode",
+        "ms": 231
+      },
+      {
+        "name": "formatMoney",
+        "ms": 109
+      },
+      {
+        "name": "isLContainer",
+        "ms": 104
+      },
+      {
+        "name": "(garbage collector)",
+        "ms": 47
+      },
+      {
+        "name": "materializeViewResults",
+        "ms": 41
+      }
+    ]
+  },
+  {
+    "phase": "after-mobile",
+    "size": 2000,
+    "repeat": 0,
+    "loadMs": 5269,
+    "responseMs": 605,
+    "afterResponseMs": 4664,
+    "scrollMs": 439,
+    "rows": 2000,
+    "nodes": 50048,
+    "rafPeak": 2000,
+    "scriptMs": 2874,
+    "queryInclusiveMs": 1959,
+    "topSelfMs": [
+      {
+        "name": "(program)",
+        "ms": 1449
+      },
+      {
+        "name": "collectQueryResults",
+        "ms": 1159
+      },
+      {
+        "name": "visitNode",
+        "ms": 397
+      },
+      {
+        "name": "isLContainer",
+        "ms": 370
+      },
+      {
+        "name": "(idle)",
+        "ms": 339
+      },
+      {
+        "name": "materializeViewResults",
+        "ms": 233
+      },
+      {
+        "name": "formatMoney",
+        "ms": 232
+      },
+      {
+        "name": "(garbage collector)",
+        "ms": 89
+      }
+    ]
+  },
+  {
+    "phase": "after-mobile",
+    "size": 5000,
+    "repeat": 0,
+    "loadMs": 34175,
+    "responseMs": 903,
+    "afterResponseMs": 33272,
+    "scrollMs": 1226,
+    "rows": 5000,
+    "nodes": 125048,
+    "rafPeak": 5000,
+    "scriptMs": 29169,
+    "queryInclusiveMs": 25812,
+    "topSelfMs": [
+      {
+        "name": "collectQueryResults",
+        "ms": 10735
+      },
+      {
+        "name": "materializeViewResults",
+        "ms": 10715
+      },
+      {
+        "name": "isLContainer",
+        "ms": 3307
+      },
+      {
+        "name": "(program)",
+        "ms": 3067
+      },
+      {
+        "name": "visitNode",
+        "ms": 982
+      },
+      {
+        "name": "formatMoney",
+        "ms": 820
+      },
+      {
+        "name": "(idle)",
+        "ms": 418
+      },
+      {
+        "name": "getByIndex",
+        "ms": 380
+      }
+    ]
+  },
+  {
+    "phase": "before",
+    "size": 100,
+    "repeat": 0,
+    "loadMs": 673,
+    "responseMs": 529,
+    "afterResponseMs": 144,
+    "scrollMs": 52,
+    "rows": 43,
+    "nodes": 1125,
+    "rafPeak": 100,
+    "scriptMs": 102,
+    "queryInclusiveMs": 5,
+    "topSelfMs": [
+      {
+        "name": "(idle)",
+        "ms": 278
+      },
+      {
+        "name": "(program)",
+        "ms": 228
+      },
+      {
+        "name": "",
+        "ms": 24
+      },
+      {
+        "name": "visitNode",
+        "ms": 23
+      },
+      {
+        "name": "formatMoney",
+        "ms": 14
+      },
+      {
+        "name": "(garbage collector)",
+        "ms": 6
+      },
+      {
+        "name": "setAttribute",
+        "ms": 3
+      },
+      {
+        "name": "remove",
+        "ms": 3
+      }
+    ]
+  },
+  {
+    "phase": "before",
+    "size": 100,
+    "repeat": 1,
+    "loadMs": 694,
+    "responseMs": 564,
+    "afterResponseMs": 130,
+    "scrollMs": 51,
+    "rows": 43,
+    "nodes": 1125,
+    "rafPeak": 43,
+    "scriptMs": 103,
+    "queryInclusiveMs": 6,
+    "topSelfMs": [
+      {
+        "name": "(idle)",
+        "ms": 286
+      },
+      {
+        "name": "(program)",
+        "ms": 236
+      },
+      {
+        "name": "",
+        "ms": 24
+      },
+      {
+        "name": "visitNode",
+        "ms": 15
+      },
+      {
+        "name": "formatMoney",
+        "ms": 12
+      },
+      {
+        "name": "setAttribute",
+        "ms": 8
+      },
+      {
+        "name": "collectQueryResults",
+        "ms": 6
+      },
+      {
+        "name": "(garbage collector)",
+        "ms": 5
+      }
+    ]
+  },
+  {
+    "phase": "before",
+    "size": 1000,
+    "repeat": 0,
+    "loadMs": 1935,
+    "responseMs": 545,
+    "afterResponseMs": 1390,
+    "scrollMs": 69,
+    "rows": 43,
+    "nodes": 1125,
+    "rafPeak": 1000,
+    "scriptMs": 1036,
+    "queryInclusiveMs": 528,
+    "topSelfMs": [
+      {
+        "name": "(program)",
+        "ms": 443
+      },
+      {
+        "name": "(idle)",
+        "ms": 289
+      },
+      {
+        "name": "collectQueryResults",
+        "ms": 287
+      },
+      {
+        "name": "isLContainer",
+        "ms": 107
+      },
+      {
+        "name": "formatMoney",
+        "ms": 91
+      },
+      {
+        "name": "visitNode",
+        "ms": 89
+      },
+      {
+        "name": "materializeViewResults",
+        "ms": 81
+      },
+      {
+        "name": "remove",
+        "ms": 37
+      }
+    ]
+  },
+  {
+    "phase": "before",
+    "size": 1000,
+    "repeat": 1,
+    "loadMs": 1814,
+    "responseMs": 514,
+    "afterResponseMs": 1300,
+    "scrollMs": 59,
+    "rows": 43,
+    "nodes": 1125,
+    "rafPeak": 1000,
+    "scriptMs": 967,
+    "queryInclusiveMs": 489,
+    "topSelfMs": [
+      {
+        "name": "(program)",
+        "ms": 423
+      },
+      {
+        "name": "collectQueryResults",
+        "ms": 291
+      },
+      {
+        "name": "(idle)",
+        "ms": 261
+      },
+      {
+        "name": "visitNode",
+        "ms": 96
+      },
+      {
+        "name": "formatMoney",
+        "ms": 88
+      },
+      {
+        "name": "isLContainer",
+        "ms": 77
+      },
+      {
+        "name": "materializeViewResults",
+        "ms": 67
+      },
+      {
+        "name": "remove",
+        "ms": 27
+      }
+    ]
+  },
+  {
+    "phase": "before",
+    "size": 2000,
+    "repeat": 0,
+    "loadMs": 5300,
+    "responseMs": 573,
+    "afterResponseMs": 4727,
+    "scrollMs": 61,
+    "rows": 43,
+    "nodes": 1125,
+    "rafPeak": 2000,
+    "scriptMs": 4000,
+    "queryInclusiveMs": 2852,
+    "topSelfMs": [
+      {
+        "name": "collectQueryResults",
+        "ms": 1288
+      },
+      {
+        "name": "materializeViewResults",
+        "ms": 851
+      },
+      {
+        "name": "(program)",
+        "ms": 783
+      },
+      {
+        "name": "isLContainer",
+        "ms": 486
+      },
+      {
+        "name": "(idle)",
+        "ms": 275
+      },
+      {
+        "name": "formatMoney",
+        "ms": 265
+      },
+      {
+        "name": "visitNode",
+        "ms": 160
+      },
+      {
+        "name": "assertDefined",
+        "ms": 90
+      }
+    ]
+  },
+  {
+    "phase": "before",
+    "size": 2000,
+    "repeat": 1,
+    "loadMs": 5028,
+    "responseMs": 608,
+    "afterResponseMs": 4420,
+    "scrollMs": 38,
+    "rows": 43,
+    "nodes": 1125,
+    "rafPeak": 2000,
+    "scriptMs": 3683,
+    "queryInclusiveMs": 2546,
+    "topSelfMs": [
+      {
+        "name": "collectQueryResults",
+        "ms": 1283
+      },
+      {
+        "name": "(program)",
+        "ms": 766
+      },
+      {
+        "name": "materializeViewResults",
+        "ms": 690
+      },
+      {
+        "name": "isLContainer",
+        "ms": 371
+      },
+      {
+        "name": "(idle)",
+        "ms": 289
+      },
+      {
+        "name": "formatMoney",
+        "ms": 261
+      },
+      {
+        "name": "visitNode",
+        "ms": 197
+      },
+      {
+        "name": "getByIndex",
+        "ms": 75
+      }
+    ]
+  },
+  {
+    "phase": "before",
+    "size": 5000,
+    "repeat": 0,
+    "loadMs": 35788,
+    "responseMs": 688,
+    "afterResponseMs": 35100,
+    "scrollMs": 45,
+    "rows": 43,
+    "nodes": 1125,
+    "rafPeak": 43,
+    "scriptMs": 34373,
+    "queryInclusiveMs": 30634,
+    "topSelfMs": [
+      {
+        "name": "collectQueryResults",
+        "ms": 12904
+      },
+      {
+        "name": "materializeViewResults",
+        "ms": 11998
+      },
+      {
+        "name": "isLContainer",
+        "ms": 4498
+      },
+      {
+        "name": "(program)",
+        "ms": 1033
+      },
+      {
+        "name": "formatMoney",
+        "ms": 785
+      },
+      {
+        "name": "getByIndex",
+        "ms": 516
+      },
+      {
+        "name": "assertDefined",
+        "ms": 357
+      },
+      {
+        "name": "(idle)",
+        "ms": 305
+      }
+    ]
+  },
+  {
+    "phase": "before",
+    "size": 5000,
+    "repeat": 1,
+    "loadMs": 30917,
+    "responseMs": 654,
+    "afterResponseMs": 30263,
+    "scrollMs": 69,
+    "rows": 43,
+    "nodes": 1125,
+    "rafPeak": 43,
+    "scriptMs": 29512,
+    "queryInclusiveMs": 25856,
+    "topSelfMs": [
+      {
+        "name": "collectQueryResults",
+        "ms": 11646
+      },
+      {
+        "name": "materializeViewResults",
+        "ms": 8500
+      },
+      {
+        "name": "isLContainer",
+        "ms": 4517
+      },
+      {
+        "name": "(program)",
+        "ms": 1033
+      },
+      {
+        "name": "formatMoney",
+        "ms": 800
+      },
+      {
+        "name": "getByIndex",
+        "ms": 442
+      },
+      {
+        "name": "assertDefined",
+        "ms": 426
+      },
+      {
+        "name": "(idle)",
+        "ms": 310
+      }
+    ]
+  }
+]

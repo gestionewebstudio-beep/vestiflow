@@ -1889,17 +1889,18 @@ check:catena-altezze       il contenitore righe non si stirava: piede non ancora
 check:sticky-scrollport    due intestazioni dichiarate che non esistevano piu’
 ```
 
-⚠️ **Due cose restano fuori, dichiarate:**
+Dal 05/09/2026 entrambi i registri chiedono `all=1`: **nessun tetto di righe**.
+L'ordinamento in memoria riguarda l'intero filtro. Le precedenti note sul limite
+100 e sull'ordinamento spento erano superate.
 
-| Cosa                     | Perché                                                                                                                                           |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **ordinamento**          | l’API dei due registri non ha un parametro `sort`: riordinare le righe caricate riordinerebbe **una pagina**                                     |
-| **tetto di cento righe** | `pageSize: 100` senza impaginazione. Sopra quella soglia le righe mancano **prima del filtro**, e `regole-stile-ui` dice «NESSUN TETTO DI RIGHE» |
+Le **Sessioni hanno la riga totali**, calcolata con `totaliDiElenco` sulle colonne
+previste dell'intero risultato filtrato; non si sommano gli attesi e le differenze
+di quadratura. Il riepilogo delle **Operazioni** continua ad arrivare dal server.
 
-⛔ **E le Sessioni NON hanno la riga totali**, che su un elenco `regole-stile-ui`
-prescrive: l’API non restituisce un riepilogo di periodo, e sommare le cento righe
-caricate darebbe il totale della **pagina**. Il registro Operazioni invece il riepilogo
-ce l’ha, e arriva dal server con lo stesso filtro dell’elenco.
+La finestra desktop del motore condiviso è accesa sui due registri. Corretto il
+rendering integrale temporaneo durante il loading: 5.000 operazioni passano da
+30.917–35.788 ms a 686–704 ms nelle prove isolate. **La lentezza delle card compatte
+resta aperta**: misure e limiti nel [report](test-results/REPORT-CASSA-PERFORMANCE-2026-09-05.md).
 
 ---
 

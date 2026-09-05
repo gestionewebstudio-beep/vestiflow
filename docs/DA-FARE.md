@@ -152,86 +152,29 @@ check:catena-altezze       il contenitore righe non si stirava: piede non ancora
 check:sticky-scrollport    due intestazioni dichiarate che non esistevano piu’
 ```
 
-⚠️ **Resta aperto il tetto di cento righe** (`pageSize: 100`, senza impaginazione): sopra
-quella soglia le righe mancano prima ancora del filtro, e `regole-stile-ui` dice «NESSUN
-TETTO DI RIGHE». Serve una decisione sull’API dei due registri.
-
-⚠️ **E l’ordinamento resta spento**: l’API non ha un parametro `sort`, e riordinare le
-righe caricate riordinerebbe una pagina.
+I due registri caricano **tutto il risultato del filtro** (`all=1`) e lo ordinano
+in memoria dal 05/09/2026. Le precedenti note sul tetto di cento righe e sul sort
+spento erano superate. Le Sessioni sommano le colonne previste con `totaliDiElenco`.
 
 ---
 
-## ⛔ APERTO — il registro Cassa impiega ~28 s con 5.000 righe (05/09/2026)
+## CASSA — corretto il caricamento desktop; compatto ancora aperto (05/09/2026)
 
-⚠️ **NON e` chiuso, e la virtualizzazione non lo chiude.** Va scritto qui perche`
-la finestra di rendering funziona e sembra che il problema sia risolto: non lo e`.
+La misura a zero del contenitore ancora staccato dal DOM durante il loading
+spegneva la finestra: alla risposta venivano istanziate tutte le righe, poi ridotte
+alle 43 finali. Il campione rAF di 43 **non escludeva** quel rendering temporaneo.
+Ora si conserva la stima iniziale o l'ultima misura positiva fino alla misura valida.
 
-### Riproduzione
+Due prove a 5.000 operazioni: **30.917–35.788 ms prima, 686–704 ms dopo**.
+Stessi dati completi, componenti, template e 1.125 nodi della tabella a regime.
+Le query di contenuto passano da 25.856–30.634 ms a 4–5 ms nel profilo campionato.
 
-```bash
-E2E_USE_MOCK_AUTH=1 E2E_BASE_URL=http://localhost:4310 \
-  npx playwright test virtual-spike -g "colonne restano allineate"
-```
+**Resta aperto il compatto**: 5.000 card ad altezza variabile richiedono 34.175 ms
+sul browser desktop emulato a 390 × 844. Nessun limite ai dati o taglio del testo.
+La virtualizzazione generale degli altri consumer resta fuori da questa tranche.
 
-(aggiungere `virtual-spike` al `testMatch` del progetto `chromium-ci`). Le righe
-arrivano da un_intercettazione: nessun database, nessuna rete vera. La misura
-finisce in `test-results/finestra-cassa.txt`.
-
-### Che cosa e` DIMOSTRATO
-
-```text
-rete                  ~900 ms          non e` la rete
-righe rese            43, PICCO 43     le 5.000 non si rendono MAI
-nodi DOM              1.125            costanti a ogni scala
-curva                 500 → 1.319 ms   1.000 → 1.431
-                      2.000 → 4.139    5.000 → 29.641   ≈ O(n²)
-```
-
-⭐ **Il costo e` proporzionale alla LUNGHEZZA DELL_ARRAY passato al motore**, non
-alle righe rese. La variazione decisiva:
-
-```text
-insieme intero al motore                    27.000 ms
-solo `sezioni()` tagliato a 100 righe        1.146 ms   ← filtri e ordinamento
-                                                          restano sull_intero
-```
-
-### Ipotesi ESCLUSE, ognuna con una variazione a una variabile
-
-| Ipotesi                        | Variazione                                                | Esito                                                         |
-| ------------------------------ | --------------------------------------------------------- | ------------------------------------------------------------- |
-| il DOM delle righe             | finestra accesa vs spenta                                 | 28,3 s vs 33,8 s — rendere 5.000 righe costa **5,5 s dei 34** |
-| la card di riga                | tolto `<ng-template appRowCard>`                          | 26,3 s — nessun effetto                                       |
-| `templateFor` per cella        | memoizzato in un `computed`                               | 28,7 → 27,3 s — **5%**                                        |
-| l_altezza delle distanziatrici | limitata a 2.000 px, array intatto                        | 29,6 s — nessun effetto                                       |
-| filtri e ordinamento           | lasciati sull_intero, tagliato solo l_ingresso del motore | 1,1 s — **non sono loro**                                     |
-| i valori distinti dei filtri   | codice letto: dietro un cancello spento di serie          | mai eseguiti a caricamento                                    |
-| la selezione (`visibleRowIds`) | codice letto: `selectionMode` e` `none` sui due registri  | mai valutata                                                  |
-
-### Il profilo
-
-```text
-~29,6 s su 30 dentro detectChangesInViewWhileDirty / detectChangesInView
-self-time in materializeViewResults e collectQueryResults
-
-catena fino al nostro codice:
-  materializeViewResults → collectQueryResults → getQueryResults
-    → refreshSignalQuery → computed → templateFor
-    → DataTableComponent_For_10_For_3_For_3_Template
-```
-
-⚠️ **Quello che NON torna, ed e`il punto da cui ripartire**: con 43 righe rese le
-letture di`templateFor` sono 43 × 9 = 387 per giro, e l_albero del contenuto ha
-43 viste di riga. Nessuna delle due grandezze cresce con le 5.000 — eppure il
-tempo cresce col quadrato dell_insieme. **Manca il passaggio che lega la
-lunghezza dell_array al costo per lettura.**
-
-⭐ **Il prossimo passo suggerito**: due profili a confronto, uno con l_insieme
-intero e uno con l_ingresso del motore tagliato a 100. La differenza fra i due
-nomina la funzione, senza altre ipotesi.
-
-⛔ **Non si chiude abbassando il numero**: niente aggiornamenti di dipendenze,
-niente controlli indeboliti, niente funzionalita` tolte.
+Causa, prove, misure a 100/1.000/2.000/5.000 righe, riproduzione senza database e
+limiti nel [report della correzione](test-results/REPORT-CASSA-PERFORMANCE-2026-09-05.md).
 
 ---
 
