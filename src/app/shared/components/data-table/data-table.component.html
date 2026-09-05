@@ -1,4 +1,12 @@
-<div class="data-table-scroll">
+<!--
+  ⚠️ **`tabindex="-1"` sul contenitore, e solo con la finestra accesa**: e`
+  l'approdo del fuoco quando la riga che lo aveva esce dal DOM. Senza, il
+  fuoco torna al `<body>` e da li` la tastiera non naviga piu` niente.
+
+  ⛔ **`-1`, non `0`**: non entra nel giro del Tab — non e` una fermata, e`
+  una rete.
+-->
+<div class="data-table-scroll" [attr.tabindex]="finestraAttiva() ? -1 : null">
   <!--
     ⭐ **`aria-rowcount` dice quante righe ESISTONO**, non quante sono nel
     DOM: con la finestra accesa un lettore di schermo direbbe altrimenti
@@ -169,6 +177,7 @@
             [attr.tabindex]="canClickRow(row) ? 0 : null"
             [attr.aria-label]="canClickRow(row) ? rowLabel()(row) : null"
             [attr.aria-rowindex]="finestraAttiva() ? indiceAccessibile(i) : null"
+            (focusin)="onRowFocus(rowId()(row))"
             (click)="onRowClick(row)"
             (keydown)="onRowKeydown($event, i)"
             (keydown.enter)="onRowClick(row)"

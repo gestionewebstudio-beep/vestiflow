@@ -333,4 +333,203 @@ test.describe('finestra di rendering — registro Cassa', () => {
     expect(m.righe).toBe(300);
     expect(m.spaziatrici).toBe(0);
   });
+
+  /*
+    ⛔ **IL FUOCO CON LA ROTELLINA, non solo coi quattro tasti.**
+
+    `rigaDaMettereAFuoco` era impostata solo da `Home`/`Fine`/`PagSu`/`PagGiu`:
+    il commento prometteva di preservare il fuoco «quando una riga esce dal
+    DOM», ma scorrendo con la rotellina il fuoco tornava al `<body>` e la
+    tastiera moriva li`. Nessuna prova lo copriva.
+  */
+  test('⛔ scorrendo con la rotellina il fuoco resta usabile', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await intercetta(page, QUANTE);
+    await page.goto('/app/cassa/operazioni');
+    await expect(page.locator('.data-table__row').first()).toBeVisible({ timeout: 60_000 });
+
+    // Si mette il fuoco su una riga, poi si scorre lontano con la rotellina.
+    await page.locator('.data-table__row').first().focus();
+    await expect
+      .poll(() => page.evaluate(() => document.activeElement?.className ?? ''))
+      .toContain('data-table__row');
+
+    await page.mouse.move(700, 500);
+    for (let i = 0; i < 25; i += 1) {
+      await page.mouse.wheel(0, 600);
+    }
+
+    // ⛔ Il fuoco NON deve essere finito sul `<body>`: da li` la tastiera muore.
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() => {
+            const a = document.activeElement;
+            if (a === null || a === document.body) {
+              return 'PERDUTO';
+            }
+            return a.className || a.tagName;
+          }),
+        { timeout: 30_000 },
+      )
+      .not.toBe('PERDUTO');
+  });
+
+  /*
+    ⚠️ **QUESTA PROVA NON E` FALSIFICATA, e va detto.**
+
+    Verifica che dopo uno scorrimento il fuoco resti nella ricerca. Ma togliendo
+    la guardia `if (!perduto && !suDiNoi) return` dal componente **resta verde**:
+    provato due volte il 05/09/2026, con scorrimento lungo e breve. Non riesco a
+    costruire la condizione in cui il ripristino ruberebbe il fuoco.
+
+    ⛔ Quindi la guardia c'e' ed e' corretta, ma **questa prova non lo dimostra**:
+    protegge il comportamento osservabile, non la riga di codice. Chi la tocca
+    non si fidi del verde.
+  */
+  test('⭐ il fuoco NON si sposta se l_utente sta scrivendo altrove', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await intercetta(page, QUANTE);
+    await page.goto('/app/cassa/operazioni');
+    await expect(page.locator('.data-table__row').first()).toBeVisible({ timeout: 60_000 });
+
+    await page.locator('.data-table__row').first().focus();
+    const ricerca = page.getByRole('searchbox').first();
+    await ricerca.click();
+
+    /*
+      ⚠️ **Lo scorrimento e` BREVE, e non e` un dettaglio**: la riga ricordata
+      deve restare RESA. Con un salto lungo sparirebbe, il fuoco non sarebbe
+      «perduto» (sta nella ricerca) e il ripristino non farebbe nulla comunque —
+      la prova passerebbe anche senza la guardia. Misurato il 05/09/2026: cosi'
+      scritta non falsificava niente.
+    */
+    await page.evaluate(() => {
+      const vista = document.querySelector('.data-table-scroll') as HTMLElement;
+      vista.scrollTop = 120;
+    });
+    await page.waitForTimeout(300);
+
+    const dove = await page.evaluate(() => document.activeElement?.tagName ?? '');
+    expect(dove).toBe('INPUT');
+  });
+
+  /*
+    ⭐ **Le colonne reggono il RIDIMENSIONAMENTO e lo scorrimento orizzontale**
+    anche con la finestra accesa: e` la garanzia che la tabella nativa doveva
+    dare, e la ragione per cui non si e` passati a una griglia.
+  */
+  test('⭐ ridimensionando una colonna, intestazione e celle restano allineate', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await intercetta(page, QUANTE);
+    await page.goto('/app/cassa/operazioni');
+    await expect(page.locator('.data-table__row').first()).toBeVisible({ timeout: 60_000 });
+
+    const maniglia = page.locator('.data-table__resize-handle, [data-resize-handle]').first();
+    if (await maniglia.count()) {
+      const scatola = await maniglia.boundingBox();
+      if (scatola) {
+        await page.mouse.move(scatola.x + scatola.width / 2, scatola.y + scatola.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(scatola.x + 160, scatola.y + scatola.height / 2, { steps: 8 });
+        await page.mouse.up();
+      }
+    }
+
+    const m = await page.evaluate(() => {
+      const th = Array.from(document.querySelectorAll('.data-table thead th')).map((e) =>
+        Math.round(e.getBoundingClientRect().width),
+      );
+      const riga = document.querySelector('.data-table__row');
+      const td = Array.from(riga?.querySelectorAll('td') ?? [])
+        .filter((e) => !e.classList.contains('data-table__card'))
+        .map((e) => Math.round(e.getBoundingClientRect().width));
+      return { th, td };
+    });
+    expect(m.td).toEqual(m.th);
+
+    // ⭐ E dopo uno scorrimento ORIZZONTALE restano allineate.
+    await page.evaluate(() => {
+      const vista = document.querySelector('.data-table-scroll') as HTMLElement;
+      vista.scrollLeft = 200;
+    });
+    const dopo = await page.evaluate(() => {
+      const th = Array.from(document.querySelectorAll('.data-table thead th')).map((e) =>
+        Math.round(e.getBoundingClientRect().left),
+      );
+      const riga = document.querySelector('.data-table__row');
+      const td = Array.from(riga?.querySelectorAll('td') ?? [])
+        .filter((e) => !e.classList.contains('data-table__card'))
+        .map((e) => Math.round(e.getBoundingClientRect().left));
+      return { th, td };
+    });
+    expect(dopo.td).toEqual(dopo.th);
+  });
+
+  /*
+    ⭐ **I totali delle Sessioni sono dell_INTERO risultato**, non della
+    finestra: e` la garanzia che la finestra riguarda solo il rendering.
+  */
+  test('⭐ i totali delle Sessioni contano tutto il risultato, non la finestra', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.route('**/api/v1/inventory/locations**', (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
+    );
+    await page.route('**/api/v1/payment-options**', (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
+    );
+    const QUANTE_SESSIONI = 400;
+    await page.route('**/api/v1/cash-sessions/sessions**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          items: Array.from({ length: QUANTE_SESSIONI }, (_, i) => ({
+            id: `s-${i}`,
+            status: 'closed',
+            locationId: 'loc-1',
+            locationName: 'Negozio di prova',
+            openedAt: new Date(Date.UTC(2026, 8, 1, 8, 0, 0) + i * 3_600_000).toISOString(),
+            openedByName: 'Anna',
+            closedAt: new Date(Date.UTC(2026, 8, 1, 16, 0, 0) + i * 3_600_000).toISOString(),
+            closedByName: 'Anna',
+            openingFloatMinor: 100,
+            fiscalDeviceId: null,
+            fiscalDeviceLabel: null,
+            notes: null,
+            saleCount: 1,
+            salesTotalMinor: 200,
+            returnCount: 0,
+            returnsTotalMinor: 0,
+            depositsMinor: 300,
+            withdrawalsMinor: 0,
+          })),
+          total: QUANTE_SESSIONI,
+          page: 1,
+          pageSize: QUANTE_SESSIONI,
+        }),
+      }),
+    );
+
+    await page.goto('/app/cassa/sessioni');
+    await expect(page.locator('.data-table__row').first()).toBeVisible({ timeout: 60_000 });
+
+    const m = await page.evaluate(() => ({
+      rese: document.querySelectorAll('.data-table__row').length,
+      piede: document.querySelector('.data-table tfoot')?.textContent ?? '',
+      rowcount: document.querySelector('.data-table')?.getAttribute('aria-rowcount'),
+    }));
+
+    // ⛔ Poche righe rese, ma i totali sono di TUTTE: 400 × 1,00 € di fondo.
+    expect(m.rese).toBeLessThan(120);
+    expect(m.piede).toContain('400');
+    expect(m.piede).toContain('400,00');
+    // ⭐ E il conteggio accessibile conta tutte le righe piu` l'intestazione,
+    //    anche col piede dei totali presente.
+    expect(m.rowcount).toBe(String(QUANTE_SESSIONI + 1));
+  });
 });

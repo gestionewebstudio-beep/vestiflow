@@ -319,7 +319,12 @@ export class DataTableComponent<T> {
             ⭐ **Il fuoco si rimette DOPO che Angular ha reso la finestra**: la
             riga cercata non esiste ancora quando lo scorrimento parte.
           */
-          if (this.rigaDaMettereAFuoco !== null) {
+          /*
+            ⭐ **Ogni volta che la finestra cambia**, non solo dopo i quattro
+            tasti: con la rotellina la riga a fuoco esce dal DOM esattamente
+            come con `PagGiu`.
+          */
+          if (this.idRigaAFuoco !== null) {
             afterNextRender(() => this.ripristinaFuoco(), { injector: this.injector });
           }
         };
@@ -697,7 +702,13 @@ export class DataTableComponent<T> {
     }
     evento.preventDefault();
     scroller.scrollTop = bersaglio * alta;
-    this.rigaDaMettereAFuoco = bersaglio;
+    /*
+      ⭐ Si ricorda l'IDENTITA' della destinazione, non l'indice: un filtro che
+      arriva nel frattempo cambia le posizioni, e un indice rimetterebbe il
+      fuoco su una riga diversa.
+    */
+    const destinazione = this.sections()[0]?.rows[bersaglio];
+    this.idRigaAFuoco = destinazione === undefined ? null : this.rowId()(destinazione);
   }
 
   /**
@@ -707,19 +718,67 @@ export class DataTableComponent<T> {
    * `<body>`: da li` la tastiera non naviga piu` niente. Si ricorda quale
    * riga cercare e la si rimette a fuoco appena rientra.
    */
-  private rigaDaMettereAFuoco: number | null = null;
+  /**
+   * ⚠️ **Qui c'era un INDICE, e bastava solo per i quattro tasti.** Con la
+   * rotellina, un filtro o un ordinamento la riga a fuoco usciva dal DOM e il
+   * fuoco tornava al `<body>`: da li' la tastiera non naviga piu' niente, e
+   * nessuna prova lo copriva.
+   *
+   * ⭐ Ora si ricorda l'**identita'** della riga — il suo id, non la posizione:
+   * un filtro che arriva nel frattempo cambia le posizioni, e un indice
+   * rimetterebbe il fuoco su una riga diversa.
+   */
+  private idRigaAFuoco: string | null = null;
 
+  /** Vero quando il fuoco lo ha messo il ripristino, non l'utente. */
+  private fuocoDiRipiego = false;
+
+  protected onRowFocus(id: string): void {
+    this.idRigaAFuoco = id;
+    this.fuocoDiRipiego = false;
+  }
+
+  /**
+   * ⛔ **Non sposta MAI il fuoco se l'utente lo ha altrove**: si interviene
+   * solo quando e' andato perduto (`<body>`) o quando sta sul contenitore
+   * perche' ce lo abbiamo messo noi.
+   *
+   * ```text
+   * la riga e' tornata            → le si rimette il fuoco
+   * il fuoco e' finito nel nulla  → approda al contenitore, la tastiera vive
+   * il fuoco e' altrove           → NON SI TOCCA
+   * ```
+   */
   private ripristinaFuoco(): void {
-    const bersaglio = this.rigaDaMettereAFuoco;
-    if (bersaglio === null) {
+    const id = this.idRigaAFuoco;
+    if (id === null || !this.finestraAttiva()) {
       return;
     }
-    const posizione = bersaglio - this.indicePrimo();
-    const righe = this.host.nativeElement.querySelectorAll<HTMLElement>('.data-table__row');
-    const riga = righe.item(posizione);
+    const documento = this.host.nativeElement.ownerDocument;
+    const attivo = documento.activeElement;
+    const scroller = this.host.nativeElement.querySelector<HTMLElement>('.data-table-scroll');
+    const perduto = attivo === null || attivo === documento.body;
+    const suDiNoi = attivo === scroller && this.fuocoDiRipiego;
+    if (!perduto && !suDiNoi) {
+      return;
+    }
+
+    const riga = this.host.nativeElement.querySelector<HTMLElement>(
+      `.data-table__row[data-row-id="${CSS.escape(id)}"]`,
+    );
     if (riga) {
       riga.focus();
-      this.rigaDaMettereAFuoco = null;
+      this.fuocoDiRipiego = false;
+      return;
+    }
+    /*
+      La riga non c'e' piu': il fuoco approda al contenitore, che non e' una
+      fermata del Tab (`tabindex="-1"`) ma tiene viva la tastiera. Si ricorda
+      che ce lo abbiamo messo noi, per restituirlo alla riga quando rientra.
+    */
+    if (perduto && scroller) {
+      scroller.focus({ preventScroll: true });
+      this.fuocoDiRipiego = true;
     }
   }
 
@@ -773,8 +832,38 @@ export class DataTableComponent<T> {
     return vista === undefined ? [] : this.filterStore.opzioniDi(vista, columnId);
   }
 
+  /**
+   * ⭐ **La mappa colonna → template, calcolata UNA VOLTA per ciclo.**
+   *
+   * ⛔ **Qui c'era `this.cellTemplates().find(...)`, chiamato dal template per
+   * OGNI CELLA.** `cellTemplates` e' una *signal query* di contenuto: ogni
+   * lettura, dopo che l'albero e' cambiato, fa ripartire `refreshSignalQuery`
+   * → `collectQueryResults`, che **ricammina l'albero del contenuto**. Con
+   * righe × colonne letture per ciclo, e l'albero che cresce mentre le righe si
+   * creano, il costo diventa quadratico.
+   *
+   * ⚠️ **Misurato col profilatore del browser** (05/09/2026): su 5.000
+   * operazioni il caricamento stava a ~30 s, e la catena delle chiamate
+   * arrivava qui —
+   *
+   * ```text
+   * materializeViewResults → collectQueryResults → getQueryResults
+   *   → refreshSignalQuery → computed → templateFor → …_For_3_Template
+   * ```
+   *
+   * ⭐ **Un `computed` legge la query una volta e serve tutte le celle.** Non
+   * cambia niente di cio' che si vede: cambia quante volte lo si chiede.
+   */
+  private readonly celleDiColonna = computed(() => {
+    const mappa = new Map<string, DataTableCellDirective>();
+    for (const cella of this.cellTemplates()) {
+      mappa.set(cella.appCell(), cella);
+    }
+    return mappa;
+  });
+
   protected templateFor(columnId: string): DataTableCellDirective | undefined {
-    return this.cellTemplates().find((cell) => cell.appCell() === columnId);
+    return this.celleDiColonna().get(columnId);
   }
 
   /*
