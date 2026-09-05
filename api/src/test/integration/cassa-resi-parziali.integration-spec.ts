@@ -47,6 +47,10 @@ describe('resi parziali — importi originali, HTTP e PostgreSQL', () => {
   });
 
   async function vendi(vat = 22, discount = 0) {
+    await prisma.productVariant.update({
+      where: { id: fixture.variantId },
+      data: { optionValues: [{ name: 'Taglia', value: 'M' }] },
+    });
     const nature = await prisma.vatNature.findUniqueOrThrow({ where: { key: 'TAXABLE' } });
     const code = await prisma.vatCode.create({
       data: {
@@ -86,11 +90,12 @@ describe('resi parziali — importi originali, HTTP e PostgreSQL', () => {
       include: { lines: true, storeSalePayments: { orderBy: { position: 'asc' } } },
     });
     expect(document.totalMinor).toBe(3656);
+    expect(document.lines[0]!.variantLabel).toBe('M');
     expect(Number(document.lines[0]!.unitPriceMinor)).toBe(unitPriceMinor);
     // Prezzo, aliquota e descrizione correnti cambiano: il reso deve ignorarli.
     await prisma.productVariant.update({
       where: { id: fixture.variantId },
-      data: { sellingPriceMinor: 99999 },
+      data: { sellingPriceMinor: 99999, optionValues: [{ name: 'Taglia', value: 'XL' }] },
     });
     await prisma.vatCode.update({
       where: { id: code.id },
@@ -170,6 +175,7 @@ describe('resi parziali — importi originali, HTTP e PostgreSQL', () => {
           discountPercent: line.discountPercent,
           vatSnapshot: line.vatSnapshot,
           description: line.description,
+          variantLabel: line.variantLabel,
           lineTotalMinor: preview.netMinor,
           lineVatTotalMinor: preview.vatMinor,
           lineGrossTotalMinor: preview.totalMinor,

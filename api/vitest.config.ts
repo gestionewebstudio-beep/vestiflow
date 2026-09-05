@@ -10,6 +10,9 @@ export default defineConfig({
       include: ['src/**/*.ts'],
       exclude: [
         'src/**/*.spec.ts',
+        // Stesso perimetro applicativo di tsconfig.build: fixture e test non sono prodotto.
+        'src/**/*.integration-spec.ts',
+        'src/test/**',
         'src/main.ts',
         'src/**/*.module.ts',
         'src/**/*.dto.ts',

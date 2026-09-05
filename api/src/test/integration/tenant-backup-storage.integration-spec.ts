@@ -8,7 +8,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { AuthProfileCacheService } from '../../auth/auth-profile-cache.service';
 import { SupabaseService } from '../../auth/supabase.service';
 import { PlatformAdminService } from '../../common/platform-admin/platform-admin.service';
-import type { PrismaService } from '../../prisma/prisma.service';
 import { TenantBackupExportService } from '../../tenant/tenant-backup/tenant-backup-export.service';
 import { TenantBackupImportService } from '../../tenant/tenant-backup/tenant-backup-import.service';
 import { readTenantBackupData } from '../../tenant/tenant-backup/tenant-backup-entities.util';
@@ -102,9 +101,10 @@ describe('backup — atomicità PostgreSQL e allegati attraverso SDK Storage/HTT
       PLATFORM_ADMIN_EMAILS: '',
     });
     const storage = new SupabaseService(config);
-    exporter = new TenantBackupExportService(prisma as PrismaService, storage, config);
+    // Come negli altri collaudi di servizio: il client nasce sempre da creaClientIntegrazione.
+    exporter = new TenantBackupExportService(prisma as never, storage, config);
     importer = new TenantBackupImportService(
-      prisma as PrismaService,
+      prisma as never,
       storage,
       config,
       new PlatformAdminService(config),

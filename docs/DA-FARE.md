@@ -34,7 +34,18 @@
   `npm --prefix api run test:migration:cassa`, protetto sul solo database TEST.
   Il baseline supportato mantiene vuote le tabelle dormienti della vecchia Cassa;
   non è una conversione di una precedente Cassa già in esercizio.
-- Da completare: collaudo browser con API reali e verifiche complessive finali.
+- Collaudato il percorso browser → API Nest → PostgreSQL TEST su desktop e mobile:
+  accesso con SDK ordinario/emittente locale, apertura, IVA 22% e Decimal,
+  pagamento misto/resto, risposte perse e recupero dopo modifica carrello o reload,
+  resi 1+2 da 36,56 €, versamento/prelievo, chiusura e registro. Due percorsi
+  completi passati senza risposte simulate alle API gestionali. Comando root
+  `npm run test:cassa:real`; screenshot, trace e richieste in
+  `test-results/cassa-browser-real/`. Il provider Auth locale non certifica
+  l'infrastruttura Supabase o il suo MFA reale.
+- Il job CI Cassa esegue migration, integrazione API, browser reale e regressioni
+  UI isolate, sul PostgreSQL effimero senza segreti. Il baseline upgrade è fissato
+  al commit verificato, per conservarlo dopo il futuro merge. La CI remota non
+  è stata avviata: nessun push. Restano le verifiche complessive finali locali.
 - Corretto il contratto checkout: anteprima IVA dalle primitive condivise con
   snapshot completo (incluse aliquote frazionarie), arrotondamento a fine riga,
   traduzione di `totaleMinor`/`restoMinor` dal server. Passano 13 prove frontend

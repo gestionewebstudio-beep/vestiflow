@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { avviaApp, chiama } from './app';
 import { creaDatasetCassa } from './cassa.fixture';
-import { ambienteIntegrazione } from './env';
+import { ambienteIntegrazione, ambienteProcessoIntegrazione } from './env';
 import { creaDataset, IDS, svuota } from './fixture';
 import { creaClientIntegrazione } from './prisma';
 
@@ -19,17 +19,18 @@ describe('Cassa — installazione pulita e aggiornamento da develop', () => {
   const apiRoot = resolve('.');
   const repoRoot = resolve('..');
   const logs = join(repoRoot, 'test-results');
-  let baseline: string;
+  // Baseline storica verificata: non deve spostarsi quando develop riceve queste migration.
+  const baseline = 'd0a1d95bb1b13badaa31ec140fd480111fba2a5c';
 
   beforeAll(async () => {
     ambienteIntegrazione();
     prisma = creaClientIntegrazione();
     staging = await mkdtemp(join(tmpdir(), 'vestiflow-cassa-migrations-'));
     await mkdir(logs, { recursive: true });
-    baseline = execFileSync('git', ['rev-parse', 'develop'], {
+    execFileSync('git', ['cat-file', '-e', `${baseline}^{commit}`], {
       cwd: repoRoot,
       encoding: 'utf8',
-    }).trim();
+    });
     console.info(`Baseline locale verificata: ${baseline}`);
   });
   afterAll(async () => {
@@ -109,7 +110,6 @@ describe('Cassa — installazione pulita e aggiornamento da develop', () => {
   }
 
   async function deploy(schema: string, label: string) {
-    const target = ambienteIntegrazione(); // La barriera si ripete immediatamente prima della scrittura.
     const result = await new Promise<{ code: number | null; output: string }>(
       (resolveResult, reject) => {
         const child = spawn(
@@ -124,12 +124,7 @@ describe('Cassa — installazione pulita e aggiornamento da develop', () => {
           {
             cwd: apiRoot,
             windowsHide: true,
-            env: {
-              ...process.env,
-              DATABASE_URL: target.databaseUrl,
-              DIRECT_URL: target.directUrl,
-              PRISMA_HIDE_UPDATE_MESSAGE: '1',
-            },
+            env: ambienteProcessoIntegrazione(),
           },
         );
         let output = '';

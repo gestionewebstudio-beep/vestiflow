@@ -1270,6 +1270,17 @@ incluso nella suite ordinaria. Le migration del 04/09 presuppongono le vecchie
 tabelle Cassa dormienti vuote: resta una precondizione da ricontrollare sul
 condiviso prima del rilascio, non una conversione di una vecchia Cassa in uso.
 
+**Browser integrato 05/09:** `npm run test:cassa:real` compila una configurazione
+solo loopback e avvia Angular statico/Nest su porte effimere, sul PostgreSQL TEST
+protetto. Passano desktop e mobile: login con SDK ordinario e JWT emesso localmente,
+apertura, 36,56 € su tre pezzi con IVA/Decimal, incasso misto e resto, perdita della
+risposta dopo il commit DB e recupero dello stesso invio, carrello modificato,
+reso incerto recuperato dopo reload, resi 1+2, cassetto, chiusura e registro.
+Le API gestionali non sono simulate; il provider Auth locale non collauda Supabase/MFA.
+Evidenze in `test-results/cassa-browser-real/` (screenshot, trace, richieste senza
+header di autenticazione). Il job CI dedicato include questi percorsi, le migration,
+l'integrazione API e le regressioni UI isolate; esecuzione remota ancora non effettuata.
+
 ⚠️ **Oggi esiste un solo permesso retail: `retail.register`**, e governa la **Vendita al
 banco** — non la Cassa. Il nome inganna, ed è un residuo del periodo in cui quelle rotte
 portavano al carrello.

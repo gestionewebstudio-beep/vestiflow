@@ -336,11 +336,7 @@ describe('consultazione della Cassa — su PostgreSQL TEST', () => {
     const pieno = await operazioni.list(tenant, utente(tenant), pagina);
     expect(pieno.items.map((i) => i.id).sort()).toEqual([vA.documentId, vB.documentId].sort());
 
-    const ristretto = await operazioni.list(
-      tenant,
-      utente(tenant, { sedi: [sedeB] }),
-      pagina,
-    );
+    const ristretto = await operazioni.list(tenant, utente(tenant, { sedi: [sedeB] }), pagina);
     expect(ristretto.items.map((i) => i.id)).toEqual([vB.documentId]);
     // ⭐ E anche i TOTALI seguono lo scope, non solo l'elenco.
     expect(ristretto.summary.grossSalesMinor).toBe(10_000);
@@ -535,7 +531,7 @@ describe('consultazione della Cassa — su PostgreSQL TEST', () => {
     // ordinata per data discendente, le ultime restavano fuori.
     const ultime = await prisma.document.findMany({
       where: { tenantId: tenant, cashSessionId: s },
-      orderBy: { documentDate: 'asc' },
+      orderBy: [{ documentDate: 'asc' }, { createdAt: 'asc' }],
       take: 1,
       select: { id: true, number: true },
     });
@@ -648,9 +644,9 @@ describe('consultazione della Cassa — su PostgreSQL TEST', () => {
     const suaSede = await creaSede(prisma, altro, 'X');
     const suoDoc = await creaVenditaAlBanco(prisma, altro, suaSede);
 
-    await expect(
-      operazioni.detail(tenant, utente(tenant), suoDoc),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(operazioni.detail(tenant, utente(tenant), suoDoc)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 
   // ── La ricerca dello scontrino ────────────────────────────────────────────
@@ -860,11 +856,11 @@ async function seminaVendite(
   await prisma.$executeRawUnsafe(
     `INSERT INTO "documents"
        ("id","tenant_id","location_id","type","status","year","document_date",
-        "reference","number","created_by_name","cash_session_id","total_minor","updated_at")
+        "reference","number","created_by_name","cash_session_id","total_minor","updated_at","created_at")
      SELECT gen_random_uuid(), $1::uuid, $2::uuid, 'store_sale'::"DocumentType",
             'confirmed'::"DocumentStatus", EXTRACT(YEAR FROM CURRENT_DATE)::int,
             CURRENT_DATE - (g || ' minutes')::interval, 'MASSA/' || g, 900000 + g, $4,
-            $3::uuid, 10000, CURRENT_TIMESTAMP
+            $3::uuid, 10000, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP - (g || ' minutes')::interval
        FROM generate_series(1, ${quante}) AS g`,
     tenantId,
     locationId,

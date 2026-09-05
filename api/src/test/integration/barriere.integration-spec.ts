@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
 
-import { ambienteIntegrazione } from './env';
+import { ambienteIntegrazione, ambienteProcessoIntegrazione } from './env';
 
 /**
  * Le barriere che impediscono alla suite di integrazione di raggiungere DEV.
@@ -48,11 +48,33 @@ describe('barriere anti-DEV della suite di integrazione', () => {
       expect(process.env['DATABASE_URL']).not.toContain('supabase');
     });
 
-    it('la vera connessione DEV resta disponibile solo per il confronto', () => {
-      expect(process.env['VESTIFLOW_DEV_DATABASE_URL']).toMatch(/supabase/);
-      expect(process.env['DATABASE_URL']).not.toBe(
-        process.env['VESTIFLOW_DEV_DATABASE_URL'],
-      );
+    it('la custodia DEV resta definita anche in CI senza connessioni condivise', () => {
+      expect(typeof process.env['VESTIFLOW_DEV_DATABASE_URL']).toBe('string');
+      expect(process.env['DATABASE_URL']).not.toBe(process.env['VESTIFLOW_DEV_DATABASE_URL']);
+    });
+
+    it('l’assenza di DEV resta assenza dopo la preparazione del processo TEST', () => {
+      try {
+        process.env['VESTIFLOW_DEV_DATABASE_URL'] = '';
+        process.env['VESTIFLOW_DEV_DIRECT_URL'] = '';
+        expect(ambienteProcessoIntegrazione()['DATABASE_URL']).toBe(
+          process.env['DATABASE_URL_TEST'],
+        );
+        expect(ambienteProcessoIntegrazione()['DIRECT_URL']).toBe(process.env['DIRECT_URL_TEST']);
+      } finally {
+        ripristina();
+      }
+    });
+
+    it('il processo figlio rifiuta un bersaglio alterato senza modificare l’ambiente padre', () => {
+      try {
+        const parent = process.env['DATABASE_URL'];
+        process.env['DATABASE_URL_TEST'] = 'postgresql://u:p@localhost:5433/vestiflow_dev';
+        expect(() => ambienteProcessoIntegrazione()).toThrow(/atteso «vestiflow_test»/);
+        expect(process.env['DATABASE_URL']).toBe(parent);
+      } finally {
+        ripristina();
+      }
     });
 
     /**
@@ -62,9 +84,7 @@ describe('barriere anti-DEV della suite di integrazione', () => {
      */
     it('⛔ un PrismaClient nudo atterra sul TEST, e lo si chiede al server', async () => {
       const nudo = new PrismaClient();
-      const righe = await nudo.$queryRawUnsafe<{ db: string }[]>(
-        'SELECT current_database() AS db',
-      );
+      const righe = await nudo.$queryRawUnsafe<{ db: string }[]>('SELECT current_database() AS db');
       expect(righe[0]?.db).toBe('vestiflow_test');
       await nudo.$disconnect();
     }, 20_000);
@@ -101,15 +121,13 @@ describe('barriere anti-DEV della suite di integrazione', () => {
      * cancellati, e sarebbero «locali» in tutti e due i casi.
      */
     it('⛔ porta sbagliata (5432): rifiutata anche se locale', () => {
-      process.env['DATABASE_URL_TEST'] =
-        'postgresql://vestiflow:x@localhost:5432/vestiflow_test';
+      process.env['DATABASE_URL_TEST'] = 'postgresql://vestiflow:x@localhost:5432/vestiflow_test';
       expect(() => ambienteIntegrazione()).toThrow(/porta 5432, attesa 5433/);
       ripristina();
     });
 
     it('⛔ nome database sbagliato: rifiutato anche su host e porta giusti', () => {
-      process.env['DATABASE_URL_TEST'] =
-        'postgresql://vestiflow:x@localhost:5433/vestiflow_dev';
+      process.env['DATABASE_URL_TEST'] = 'postgresql://vestiflow:x@localhost:5433/vestiflow_dev';
       expect(() => ambienteIntegrazione()).toThrow(
         /database «vestiflow_dev», atteso «vestiflow_test»/,
       );
@@ -128,15 +146,13 @@ describe('barriere anti-DEV della suite di integrazione', () => {
      * lascerebbe scoperto proprio quello che fa più danno.
      */
     it('⛔ DIRECT_URL_TEST sbagliata: rifiutata come l’altra', () => {
-      process.env['DIRECT_URL_TEST'] =
-        'postgresql://vestiflow:x@localhost:5432/vestiflow_test';
+      process.env['DIRECT_URL_TEST'] = 'postgresql://vestiflow:x@localhost:5432/vestiflow_test';
       expect(() => ambienteIntegrazione()).toThrow(/DIRECT_URL_TEST usa la porta 5432/);
       ripristina();
     });
 
     it('⛔ coincide con DEV: rifiutato', () => {
-      process.env['VESTIFLOW_DEV_DATABASE_URL'] =
-        'postgresql://u:p@localhost:5433/vestiflow_test';
+      process.env['VESTIFLOW_DEV_DATABASE_URL'] = 'postgresql://u:p@localhost:5433/vestiflow_test';
       expect(() => ambienteIntegrazione()).toThrow(/stesso database/);
       ripristina();
     });

@@ -42,9 +42,6 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Lint frontend
-        run: npm run lint
-
       - name: Test frontend with coverage
         run: npm run test:coverage
 
@@ -74,8 +71,13 @@ jobs:
         env:
           DATABASE_URL: postgresql://vestiflow:vestiflow@localhost:5432/vestiflow
 
-      - name: Lint API
-        run: npm run lint --prefix api
+      # Il comando root include lint API e controlli che leggono Prisma:
+      # su un checkout pulito richiede prima entrambe le installazioni.
+      - name: Lint completo
+        run: npm run lint
+
+      - name: Type-check frontend e test
+        run: npm run check:types
 
       # Il type-check del CODICE APPLICATIVO: vitest esegue i .spec.ts con
       # esbuild, che i tipi li strippa senza controllarli. Senza questo passo un
@@ -100,6 +102,66 @@ jobs:
 
       - name: Build frontend (production)
         run: npm run build -- --configuration=production
+
+  cassa-integration:
+    name: Cassa API, migration e browser reali
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: vestiflow
+          POSTGRES_PASSWORD: vestiflow_test_local
+          POSTGRES_DB: vestiflow_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U vestiflow -d vestiflow_test"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    # Nessun segreto o endpoint condiviso. Le guardie TEST restano attive.
+    env:
+      DATABASE_URL_TEST: postgresql://vestiflow:vestiflow_test_local@localhost:5433/vestiflow_test
+      DIRECT_URL_TEST: postgresql://vestiflow:vestiflow_test_local@localhost:5433/vestiflow_test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Il collaudo upgrade legge l'albero del commit storico d0a1d95b.
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            api/package-lock.json
+      - run: npm ci
+      - run: npm ci --prefix api
+      - name: Genera il client Prisma
+        run: npm --prefix api run prisma:generate
+        env:
+          DATABASE_URL: postgresql://vestiflow:vestiflow_test_local@localhost:5433/vestiflow_test
+          DIRECT_URL: postgresql://vestiflow:vestiflow_test_local@localhost:5433/vestiflow_test
+      - run: npx playwright install --with-deps chromium
+      - name: Ruoli del solo PostgreSQL TEST
+        run: psql "$DATABASE_URL_TEST" -f docker/test-db-init/01-ruoli-supabase.sql
+      - name: Installazione e aggiornamento con dati rappresentativi
+        run: npm --prefix api run test:migration:cassa
+      - name: Integrazione API e database
+        run: npm run test:integration
+      - name: Browser desktop e mobile con API e database reali
+        run: npm run test:cassa:real
+      - name: Regressioni browser isolate dei componenti condivisi
+        run: npx playwright test --config=e2e/cassa-isolated.config.ts
+      - name: Evidenze del collaudo Cassa
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cassa-integration
+          path: test-results/
+          retention-days: 7
 
   e2e:
     name: Playwright E2E

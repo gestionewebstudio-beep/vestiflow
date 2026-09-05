@@ -33,6 +33,7 @@ export default defineConfig({
       '**/node_modules/**',
       'src/**/*-backfill.integration-spec.ts',
       'src/**/cassa-migrations.integration-spec.ts',
+      'src/**/cassa-browser.integration-spec.ts',
     ],
     // Carica api/.env (Vitest non lo fa) e TOGLIE dal processo la connessione
     // a DEV: dentro questa suite non deve nemmeno esistere come variabile.

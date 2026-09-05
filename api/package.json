@@ -19,6 +19,7 @@
     "prisma:deploy:test": "node scripts/prisma-deploy-test.mjs",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:migration:cassa": "vitest run --config vitest.cassa-migrations.config.ts",
+    "test:browser:cassa": "vitest run --config vitest.cassa-browser.config.ts",
     "test:shopify:contract": "vitest run --config vitest.contract.config.ts",
     "test:migration": "vitest run --config vitest.integration.config.ts --exclude '**/node_modules/**' src/test/integration/stati-ordini-backfill.integration-spec.ts",
     "prisma:studio": "prisma studio",
