@@ -2,7 +2,10 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { CashSessionStatus, DocumentStatus, DocumentType, Prisma } from '@prisma/client';
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
-import { resolveReadableListLocationScope } from '../inventory/licensed-location-scope.util';
+import {
+  resolveReadableListLocationScope,
+  scopedLocationFilter,
+} from '../inventory/licensed-location-scope.util';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { calcolaAttesiSessione, type AttesiSessione } from './cash-session-totals.util';
@@ -34,10 +37,15 @@ export class CashSessionsReportService {
       return { items: [], total: 0, page: query.page, pageSize: query.pageSize };
     }
 
+    // ⛔ **La sede chiesta RESTRINGE il perimetro**: fuori, elenco vuoto.
+    const sede = scopedLocationFilter(scope, query.locationId);
+    if (!sede) {
+      return { items: [], total: 0, page: query.page, pageSize: query.pageSize };
+    }
+
     const where: Prisma.CashSessionWhereInput = {
       tenantId,
-      ...(scope === 'unrestricted' ? {} : { locationId: { in: [...scope] } }),
-      ...(query.locationId ? { locationId: query.locationId } : {}),
+      ...sede,
       ...(query.operatorId
         ? { OR: [{ openedById: query.operatorId }, { closedById: query.operatorId }] }
         : {}),

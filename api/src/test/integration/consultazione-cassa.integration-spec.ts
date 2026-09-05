@@ -346,6 +346,166 @@ describe('consultazione della Cassa — su PostgreSQL TEST', () => {
     expect(ristretto.summary.grossSalesMinor).toBe(10_000);
   });
 
+  /*
+    ⛔ **LA RICHIESTA RESTRINGE, NON SOSTITUISCE.**
+
+    Tutti e tre i percorsi di consultazione scrivevano prima il perimetro
+    autorizzato e POI la sede chiesta dal client, sulla stessa proprieta`:
+
+    ```ts
+    ...(scope === 'unrestricted' ? {} : { locationId: { in: [...scope] } }),
+    ...(query.locationId ? { locationId: query.locationId } : {}),   // ⛔ vince questa
+    ```
+
+    In JavaScript la seconda chiave sovrascrive la prima: un utente limitato
+    alla sede A che chiede la sede B **vedeva la sede B**. Non e` un caso di
+    frontiera — e` il filtro Sede della schermata, con un id copiato.
+
+    ⚠️ **E non e` cross-tenant**: le due sedi stanno nello STESSO tenant, che
+    e` la ragione per cui nessuna delle prove esistenti lo prendeva. Le prove
+    cross-tenant restano dove sono e provano un'altra cosa.
+  */
+  it('⛔ la sede CHIESTA non scavalca il perimetro: elenco, conteggio e riepilogo', async () => {
+    const sa = await apri(sedeA);
+    const sb = await apri(sedeB);
+    const vA = await vendi(sa, { sede: sedeA, intento: 'chiede-a' });
+    const vB = await vendi(sb, { sede: sedeB, intento: 'chiede-b' });
+
+    // Un utente della sola sede A che chiede esplicitamente la sede B.
+    const esito = await operazioni.list(tenant, utente(tenant, { sedi: [sedeA] }), {
+      ...pagina,
+      locationId: sedeB,
+    });
+
+    // ⛔ Nessuna riga della sede B, e nemmeno un totale che la riveli.
+    expect(esito.items.map((i) => i.id)).not.toContain(vB.documentId);
+    expect(esito.items).toEqual([]);
+    expect(esito.total).toBe(0);
+    expect(esito.summary.grossSalesMinor).toBe(0);
+    expect(esito.summary.operationCount).toBe(0);
+
+    // ⭐ E la stessa richiesta sulla PROPRIA sede continua a funzionare:
+    //    restringere non significa rifiutare.
+    const suo = await operazioni.list(tenant, utente(tenant, { sedi: [sedeA] }), {
+      ...pagina,
+      locationId: sedeA,
+    });
+    expect(suo.items.map((i) => i.id)).toEqual([vA.documentId]);
+    expect(suo.summary.grossSalesMinor).toBe(10_000);
+  });
+
+  it('⛔ la RICERCA SCONTRINO non si fa dare una sede fuori perimetro', async () => {
+    const sb = await apri(sedeB);
+    const vB = await vendi(sb, { sede: sedeB, intento: 'cerca-chiede-b' });
+
+    const trovati = await operazioni.searchReceipts(tenant, utente(tenant, { sedi: [sedeA] }), {
+      locationId: sedeB,
+    });
+
+    expect(trovati.map((t) => t.documentId)).not.toContain(vB.documentId);
+  });
+
+  it('⛔ l_elenco SESSIONI non si fa dare una sede fuori perimetro', async () => {
+    const sb = await apri(sedeB);
+
+    const esito = await report.list(tenant, utente(tenant, { sedi: [sedeA] }), {
+      ...pagina,
+      locationId: sedeB,
+    });
+
+    expect(esito.items.map((i) => i.id)).not.toContain(sb);
+    expect(esito.total).toBe(0);
+
+    // ⭐ E la propria sede resta visibile.
+    const sa = await apri(sedeA);
+    const suo = await report.list(tenant, utente(tenant, { sedi: [sedeA] }), {
+      ...pagina,
+      locationId: sedeA,
+    });
+    expect(suo.items.map((i) => i.id)).toContain(sa);
+  });
+
+  /*
+    ⛔ **DUE `OR` SULLA STESSA PROPRIETA` NE LASCIANO UNO.**
+
+    `number` costruiva un `OR` e `anomaliesOnly` ne scriveva un altro: con
+    entrambi attivi la ricerca per numero **spariva**, e l_elenco rispondeva
+    «tutte le anomalie» a chi ne aveva chiesta una sola.
+
+    ⚠️ **Non falliva**: rispondeva di piu`, il che e` il modo in cui un filtro
+    perso non si nota.
+  */
+  it('⛔ numero E anomalie valgono INSIEME, con periodo, tenant e sede', async () => {
+    const s = await apri(sedeA);
+    const conAnomalia = await vendi(s, { intento: 'combi-1' });
+    const altraConAnomalia = await vendi(s, { intento: 'combi-2' });
+
+    // Due documenti entrambi anomali: si toglie la classe alle quote.
+    for (const d of [conAnomalia, altraConAnomalia]) {
+      await prisma.storeSalePayment.updateMany({
+        where: { documentId: d.documentId },
+        data: { tenderKindSnapshot: null },
+      });
+    }
+
+    const numero = await prisma.document.findUniqueOrThrow({
+      where: { id: conAnomalia.documentId },
+      select: { number: true, reference: true, documentDate: true },
+    });
+
+    const esito = await operazioni.list(tenant, utente(tenant), {
+      ...pagina,
+      number: String(numero.number),
+      anomaliesOnly: true,
+    });
+
+    // ⛔ Prima tornavano ENTRAMBI: il filtro numero era stato sovrascritto.
+    expect(esito.items.map((i) => i.id)).toEqual([conAnomalia.documentId]);
+    expect(esito.items[0]?.anomalies).toContain('quota_non_classificata');
+
+    // ⭐ E il periodo continua a valere insieme agli altri due.
+    const giorno = numero.documentDate.toISOString().slice(0, 10);
+    const conPeriodo = await operazioni.list(tenant, utente(tenant), {
+      ...pagina,
+      number: String(numero.number),
+      anomaliesOnly: true,
+      from: giorno,
+      to: giorno,
+    });
+    expect(conPeriodo.items.map((i) => i.id)).toEqual([conAnomalia.documentId]);
+
+    // ⛔ Un periodo che non lo contiene lo esclude: i gruppi sono in AND.
+    const fuoriPeriodo = await operazioni.list(tenant, utente(tenant), {
+      ...pagina,
+      number: String(numero.number),
+      anomaliesOnly: true,
+      from: '2000-01-01',
+      to: '2000-01-02',
+    });
+    expect(fuoriPeriodo.items).toEqual([]);
+  });
+
+  it('⭐ numero e anomalie insieme rispettano anche lo SCOPE', async () => {
+    const sb = await apri(sedeB);
+    const vB = await vendi(sb, { sede: sedeB, intento: 'combi-scope' });
+    await prisma.storeSalePayment.updateMany({
+      where: { documentId: vB.documentId },
+      data: { tenderKindSnapshot: null },
+    });
+    const numero = await prisma.document.findUniqueOrThrow({
+      where: { id: vB.documentId },
+      select: { number: true },
+    });
+
+    const esito = await operazioni.list(tenant, utente(tenant, { sedi: [sedeA] }), {
+      ...pagina,
+      number: String(numero.number),
+      anomaliesOnly: true,
+    });
+
+    expect(esito.items).toEqual([]);
+  });
+
   // ── Il dettaglio ──────────────────────────────────────────────────────────
 
   it('il dettaglio porta righe, quote, movimenti e resi collegati', async () => {

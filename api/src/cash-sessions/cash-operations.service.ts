@@ -3,7 +3,10 @@ import { DocumentStatus, DocumentType, Prisma } from '@prisma/client';
 import type { PaymentTenderKind } from '@prisma/client';
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
-import { resolveReadableListLocationScope } from '../inventory/licensed-location-scope.util';
+import {
+  resolveReadableListLocationScope,
+  scopedLocationFilter,
+} from '../inventory/licensed-location-scope.util';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
@@ -177,14 +180,19 @@ export class CashOperationsService {
       }
     }
 
+    // ⛔ **La sede chiesta RESTRINGE il perimetro**: fuori, non si cerca.
+    const sede = scopedLocationFilter(scope, query.locationId);
+    if (!sede) {
+      return [];
+    }
+
     const righe = await this.prisma.document.findMany({
       where: {
         tenantId,
         type: DocumentType.store_sale,
         cashSessionId: { not: null },
         status: { not: DocumentStatus.cancelled },
-        ...(scope === 'unrestricted' ? {} : { locationId: { in: [...scope] } }),
-        ...(query.locationId ? { locationId: query.locationId } : {}),
+        ...sede,
         ...this.periodo(query.from, query.to),
         ...(importo !== undefined ? { totalMinor: importo } : {}),
         ...(clausole.length > 0 ? { OR: clausole } : {}),
@@ -236,6 +244,13 @@ export class CashOperationsService {
       return null;
     }
 
+    // ⛔ **La sede chiesta RESTRINGE il perimetro, non lo sostituisce.**
+    //    Fuori perimetro si risponde vuoto, come quando il perimetro e` vuoto.
+    const sede = scopedLocationFilter(scope, query.locationId);
+    if (!sede) {
+      return null;
+    }
+
     const tipi =
       query.kind === 'sale'
         ? [DocumentType.store_sale]
@@ -251,27 +266,43 @@ export class CashOperationsService {
       quote.tenderKindSnapshot = query.tenderKind;
     }
 
+    /*
+      ⛔ **DUE `OR` SULLA STESSA PROPRIETA` NE LASCIANO UNO.**
+
+      `number` scriveva `OR` e `anomaliesOnly` ne scriveva un altro: con
+      entrambi attivi la ricerca per numero **spariva**, e l_elenco
+      rispondeva «tutte le anomalie» a chi ne aveva chiesta una sola.
+
+      ⭐ I gruppi alternativi vanno in `AND`, che e` gia` la forma usata dal
+      registro documenti (`documents.service`, `andClauses`): ogni gruppo
+      resta un `OR` suo, e valgono tutti insieme.
+
+      ⚠️ **Non falliva**: rispondeva di piu`, il che e` il modo in cui un
+      filtro perso non si nota.
+    */
+    const gruppi: Prisma.DocumentWhereInput[] = [];
+    if (query.number) {
+      gruppi.push({
+        OR: [
+          { reference: { contains: query.number, mode: 'insensitive' as const } },
+          ...(Number.isInteger(Number(query.number)) ? [{ number: Number(query.number) }] : []),
+        ],
+      });
+    }
+    if (query.anomaliesOnly) {
+      gruppi.push({ OR: [...ANOMALIE_ESPRIMIBILI] });
+    }
+
     return {
       tenantId,
       // ⭐ È QUESTO che significa «di Cassa».
       cashSessionId: query.sessionId ?? { not: null },
       type: { in: tipi },
-      ...(scope === 'unrestricted' ? {} : { locationId: { in: [...scope] } }),
-      ...(query.locationId ? { locationId: query.locationId } : {}),
+      ...sede,
       ...(query.operatorId ? { createdById: query.operatorId } : {}),
       ...this.periodo(query.from, query.to),
-      ...(query.number
-        ? {
-            OR: [
-              { reference: { contains: query.number, mode: 'insensitive' as const } },
-              ...(Number.isInteger(Number(query.number))
-                ? [{ number: Number(query.number) }]
-                : []),
-            ],
-          }
-        : {}),
       ...(Object.keys(quote).length > 0 ? { storeSalePayments: { some: quote } } : {}),
-      ...(query.anomaliesOnly ? { OR: [...ANOMALIE_ESPRIMIBILI] } : {}),
+      ...(gruppi.length > 0 ? { AND: gruppi } : {}),
     };
   }
 
