@@ -33,6 +33,7 @@ import { InlineBannerComponent } from '@shared/components/inline-banner/inline-b
 import { MoneyInputComponent } from '@shared/components/money-input/money-input.component';
 
 import { CashPendingOperationsService } from '../services/cash-pending-operations.service';
+import { CashPendingRecoveryComponent } from '../components/cash-pending-recovery.component';
 
 /**
  * Il **reso collegato allo scontrino** (`docs/25` §12-bis).
@@ -54,6 +55,7 @@ import { CashPendingOperationsService } from '../services/cash-pending-operation
   imports: [
     BackButtonComponent,
     ButtonComponent,
+    CashPendingRecoveryComponent,
     DatePipe,
     ErrorStateComponent,
     FormSectionComponent,

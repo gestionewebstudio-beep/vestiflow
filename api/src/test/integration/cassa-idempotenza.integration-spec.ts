@@ -95,6 +95,167 @@ describe('idempotenza Cassa — HTTP e PostgreSQL reali', () => {
     const input = () => (operation === 'checkout' ? sale : returned);
     const expected = () => (operation === 'checkout' ? saleResult : returnResult);
 
+    it(`${operation}: consulta l'intento senza il comando, con autorizzazione attuale e senza scritture`, async () => {
+      const path = `/cash-sessions/${operation === 'checkout' ? 'checkout' : 'return'}-intents/${input().creationIntentId}`;
+      const before = await fotografaCassa(prisma);
+      const intents = await prisma.creationIntent.count();
+      const result = await chiama(app, 'GET', path, { token });
+      expect(result.stato, JSON.stringify(result.corpo)).toBe(200);
+      expect(result.corpo).toMatchObject({
+        status: 'recorded',
+        documentId: (expected() as { documentId: string }).documentId,
+        locationId: IDS.locA2,
+        sessionId: input().sessionId,
+      });
+      expect(result.corpo).toMatchObject({
+        intentId: input().creationIntentId,
+        reference: expect.any(String),
+        documentDate: expect.any(String),
+        locationName: expect.any(String),
+        totalMinor: operation === 'checkout' ? 200 : 100,
+      });
+      expect((await chiama(app, 'GET', path, { token })).corpo).toEqual(result.corpo);
+      expect((await chiama(app, 'GET', path, { token: restrictedToken })).stato).toBe(403);
+      const other = await chiama(app, 'GET', path, { token: otherTenantToken });
+      expect(other.stato).toBe(200);
+      expect(other.corpo).toEqual({ status: 'unconfirmed' });
+      expect((await chiama(app, 'GET', path)).stato).toBe(401);
+      expect(await fotografaCassa(prisma)).toBe(before);
+      expect(await prisma.creationIntent.count()).toBe(intents);
+    });
+
+    it(`${operation}: intento assente o incompleto non dichiara che l'operazione non esiste`, async () => {
+      const intentId = randomUUID();
+      const path = `/cash-sessions/${operation === 'checkout' ? 'checkout' : 'return'}-intents/${intentId}`;
+      expect((await chiama(app, 'GET', path, { token })).corpo).toEqual({ status: 'unconfirmed' });
+      await prisma.creationIntent.create({
+        data: {
+          tenantId: IDS.tenantA,
+          intentId,
+          scope: operation === 'checkout' ? 'store_sale' : 'store_return',
+          fingerprint: 'fixture',
+        },
+      });
+      expect((await chiama(app, 'GET', path, { token })).corpo).toEqual({ status: 'unconfirmed' });
+      await prisma.creationIntent.deleteMany({ where: { tenantId: IDS.tenantA, intentId } });
+    });
+
+    it(`${operation}: transazione ancora in corso non è assenza certa e non riceve scritture dal recupero`, async () => {
+      const intentId = randomUUID();
+      const path = `/cash-sessions/${operation === 'checkout' ? 'checkout' : 'return'}-intents/${intentId}`;
+      const before = await fotografaCassa(prisma);
+      let ready!: () => void;
+      let release!: () => void;
+      const started = new Promise<void>((resolve) => {
+        ready = resolve;
+      });
+      const finish = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const transaction = prisma.$transaction(
+        async (tx) => {
+          await tx.creationIntent.create({
+            data: {
+              tenantId: IDS.tenantA,
+              intentId,
+              scope: operation === 'checkout' ? 'store_sale' : 'store_return',
+              fingerprint: 'in-flight',
+              resultRef: (expected() as { documentId: string }).documentId,
+            },
+          });
+          ready();
+          await finish;
+        },
+        { timeout: 15_000 },
+      );
+      try {
+        await started;
+        const response = await chiama(app, 'GET', path, { token });
+        expect(response.stato).toBe(200);
+        expect(response.corpo).toEqual({ status: 'unconfirmed' });
+      } finally {
+        release();
+        await transaction;
+      }
+      expect((await chiama(app, 'GET', path, { token })).corpo).toMatchObject({
+        status: 'recorded',
+      });
+      expect(await fotografaCassa(prisma)).toBe(before);
+      await prisma.creationIntent.deleteMany({ where: { tenantId: IDS.tenantA, intentId } });
+    });
+
+    it(`${operation}: non recupera un intento del tipo opposto o un riferimento del tenant altrui`, async () => {
+      const path = `/cash-sessions/${operation === 'checkout' ? 'checkout' : 'return'}-intents/`;
+      const oppositeId =
+        operation === 'checkout' ? returned.creationIntentId : sale.creationIntentId;
+      expect((await chiama(app, 'GET', path + oppositeId, { token })).corpo).toEqual({
+        status: 'unconfirmed',
+      });
+      const intentId = randomUUID();
+      await prisma.creationIntent.create({
+        data: {
+          tenantId: IDS.tenantB,
+          intentId,
+          scope: operation === 'checkout' ? 'store_sale' : 'store_return',
+          fingerprint: 'bad-ref',
+          resultRef: (expected() as { documentId: string }).documentId,
+        },
+      });
+      const before = await fotografaCassa(prisma);
+      const otherBefore = await fotografaCassa(prisma, IDS.tenantB);
+      const intentBefore = await prisma.creationIntent.findMany({ orderBy: { id: 'asc' } });
+      expect(
+        (await chiama(app, 'GET', path + intentId, { token: otherTenantToken })).corpo,
+      ).toEqual({ status: 'unconfirmed' });
+      expect(await fotografaCassa(prisma)).toBe(before);
+      expect(await fotografaCassa(prisma, IDS.tenantB)).toBe(otherBefore);
+      expect(await prisma.creationIntent.findMany({ orderBy: { id: 'asc' } })).toEqual(
+        intentBefore,
+      );
+      await prisma.creationIntent.deleteMany({ where: { tenantId: IDS.tenantB, intentId } });
+    });
+
+    it(`${operation}: la normale Vendita al banco e il suo reso autonomo non diventano operazioni Cassa`, async () => {
+      const intentId = randomUUID();
+      const bank = await chiama(
+        app,
+        'POST',
+        operation === 'checkout' ? '/store-sales' : '/store-sales/returns',
+        {
+          token,
+          corpo: {
+            locationId: IDS.locA1,
+            creationIntentId: intentId,
+            lines: [
+              {
+                variantId: sale.lines[0]!.variantId,
+                quantity: 1,
+                unitPriceMinor: 150,
+                ...(operation === 'checkout' ? { loadsStock: false } : { restockable: false }),
+              },
+            ],
+          },
+        },
+      );
+      expect(bank.stato, JSON.stringify(bank.corpo)).toBe(201);
+      const id = (bank.corpo as { id: string }).id;
+      expect((await prisma.document.findUniqueOrThrow({ where: { id } })).cashSessionId).toBeNull();
+      const before = await fotografaCassa(prisma);
+      const intentsBefore = await prisma.creationIntent.findMany({ orderBy: { id: 'asc' } });
+      const lookup = await chiama(
+        app,
+        'GET',
+        `/cash-sessions/${operation === 'checkout' ? 'checkout' : 'return'}-intents/${intentId}`,
+        { token },
+      );
+      expect(lookup.stato).toBe(200);
+      expect(lookup.corpo).toEqual({ status: 'unconfirmed' });
+      expect(await fotografaCassa(prisma)).toBe(before);
+      expect(await prisma.creationIntent.findMany({ orderBy: { id: 'asc' } })).toEqual(
+        intentsBefore,
+      );
+    });
+
     it(`${operation}: risposta persa, più retry recuperano il medesimo documento senza effetti`, async () => {
       const before = await fotografaCassa(prisma);
       const responses = await Promise.all(
@@ -151,6 +312,8 @@ describe('idempotenza Cassa — HTTP e PostgreSQL reali', () => {
         corpo: { assignedLocationIds: [IDS.locA1, IDS.locA2] },
       });
       expect(grant.stato, JSON.stringify(grant.corpo)).toBe(200);
+      const lookupPath = `/cash-sessions/${operation === 'checkout' ? 'checkout' : 'return'}-intents/${input().creationIntentId}`;
+      expect((await chiama(app, 'GET', lookupPath, { token: restrictedToken })).stato).toBe(200);
       const replay = await chiama(app, 'POST', `/cash-sessions/${operation}`, {
         token: restrictedToken,
         corpo: input(),
@@ -163,6 +326,7 @@ describe('idempotenza Cassa — HTTP e PostgreSQL reali', () => {
       });
       expect(revoke.stato, JSON.stringify(revoke.corpo)).toBe(200);
       const before = await fotografaCassa(prisma);
+      expect((await chiama(app, 'GET', lookupPath, { token: restrictedToken })).stato).toBe(403);
       const denied = await chiama(app, 'POST', `/cash-sessions/${operation}`, {
         token: restrictedToken,
         corpo: input(),

@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { avviaApp, type AppIntegrazione } from './app';
 import { avviaBrowserServer } from './browser-server';
-import { creaDatasetCassa } from './cassa.fixture';
+import { creaDatasetCassa, fotografaCassa } from './cassa.fixture';
 import { IDS, svuota } from './fixture';
 import { creaClientIntegrazione } from './prisma';
 
@@ -54,8 +54,109 @@ describe('Cassa browser → API → PostgreSQL isolato', () => {
       { times: 1 },
     );
   }
-  for (const mobile of [false, true]) {
-    const name = mobile ? 'mobile' : 'desktop';
+  async function recoverUnreadable(
+    page: Page,
+    operation: 'checkout' | 'returns',
+    documentId: string,
+  ) {
+    const before = await fotografaCassa(prisma);
+    const intentsBefore = await prisma.creationIntent.findMany({ orderBy: { id: 'asc' } });
+    const saved = await page.evaluate((kind) => {
+      const key = Object.keys(sessionStorage).find(
+        (key) => key.startsWith('vestiflow.cash.pending.v1:') && key.endsWith(`:${kind}`),
+      )!;
+      return { key, raw: sessionStorage.getItem(key)! };
+    }, operation);
+    const setRaw = async (raw: string) => {
+      await page.evaluate(({ key, raw }) => sessionStorage.setItem(key, raw), {
+        key: saved.key,
+        raw,
+      });
+      await page.reload();
+      await browserExpect(page.getByText('Esito non confermato', { exact: true })).toBeVisible();
+    };
+    // JSON rotto: il testo resta consultabile; nessuna ricerca con identità indovinata.
+    await setRaw(saved.raw.slice(0, -1));
+    await browserExpect(
+      page.getByRole('button', { name: 'Verifica esito sul server' }),
+    ).toHaveCount(0);
+    await browserExpect(
+      page.getByRole('button', { name: /Concludi (vendita|reso)/ }),
+    ).toBeDisabled();
+    // Una versione sconosciuta permette solo consultazione, mai chiusura o replay.
+    const parsed = JSON.parse(saved.raw) as { version: number; payload: { lines: unknown } };
+    await setRaw(JSON.stringify({ ...parsed, version: 99 }));
+    await page.getByRole('button', { name: 'Verifica esito sul server' }).click();
+    await browserExpect(page.getByText(/versione o contesto locale incompatibili/)).toBeVisible();
+    await browserExpect(
+      page.getByRole('button', { name: 'Conferma recupero dell’operazione' }),
+    ).toHaveCount(0);
+    // Identità e contesto v1 integri, contenuto illeggibile: recupero autorizzato.
+    parsed.payload.lines = 'contenuto danneggiato';
+    const damagedRaw = JSON.stringify(parsed);
+    await setRaw(damagedRaw);
+    // Un draft nuovo resta in revisione dopo il recupero, senza essere cancellato o reinviato.
+    if (operation === 'checkout') {
+      await scan(page);
+      await page.getByRole('textbox', { name: 'Quantità di Articolo Cassa TEST' }).fill('');
+    }
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await page.getByRole('button', { name: 'Verifica esito sul server' }).click();
+      await browserExpect(
+        page.getByRole('link', { name: /Apri operazione registrata/ }),
+      ).toBeVisible();
+    }
+    const confirm = page.getByRole('button', { name: 'Conferma recupero dell’operazione' });
+    await browserExpect(confirm).toBeDisabled();
+    await page.getByText('Dati locali conservati per la verifica', { exact: true }).click();
+    expect(await page.evaluate('document.documentElement.scrollWidth <= window.innerWidth')).toBe(
+      true,
+    );
+    const originalData = page.getByRole('textbox', { name: 'Dati originali dell’invio' });
+    await originalData.scrollIntoViewIfNeeded();
+    await browserExpect(originalData).toBeInViewport();
+    await browserExpect(originalData).toHaveValue(damagedRaw);
+    await page.screenshot({
+      path: resolve(artifacts, `${page.viewportSize()!.width}-${operation}-unreadable.png`),
+      fullPage: true,
+    });
+    const popupPromise = page.context().waitForEvent('page');
+    await page.getByRole('link', { name: /Apri operazione registrata/ }).click();
+    const popup = await popupPromise;
+    await browserExpect(popup).toHaveURL(new RegExp(`/app/cassa/operazioni/${documentId}$`));
+    await browserExpect(popup.getByRole('heading', { level: 1 })).toBeVisible();
+    await popup.close();
+    await browserExpect(confirm).toBeEnabled();
+    expect(await page.evaluate((key) => sessionStorage.getItem(key), saved.key)).toBe(damagedRaw);
+    await confirm.click();
+    await browserExpect(page.getByText(/Pendenza locale chiusa dopo il recupero/)).toBeVisible();
+    expect(await page.evaluate((key) => sessionStorage.getItem(key), saved.key)).toBeNull();
+    const archive = await page.evaluate(
+      (key) =>
+        sessionStorage.getItem(
+          Object.keys(sessionStorage).find((entry) => entry.startsWith(`${key}:recovered:`))!,
+        ),
+      saved.key,
+    );
+    expect(JSON.parse(archive!).originalRaw).toBe(damagedRaw);
+    expect(await fotografaCassa(prisma)).toBe(before);
+    expect(await prisma.creationIntent.findMany({ orderBy: { id: 'asc' } })).toEqual(intentsBefore);
+    expect(await page.evaluate('document.documentElement.scrollWidth <= window.innerWidth')).toBe(
+      true,
+    );
+    if (operation === 'checkout') {
+      await page.getByRole('button', { name: 'Rivedi carrello conservato' }).click();
+      await browserExpect(
+        page.getByRole('textbox', { name: 'Quantità di Articolo Cassa TEST' }),
+      ).toHaveValue('');
+      await browserExpect(page.getByRole('button', { name: 'Concludi vendita' })).toBeDisabled();
+    }
+  }
+
+  for (const { mobile, damaged } of [false, true].flatMap((mobile) =>
+    [false, true].map((damaged) => ({ mobile, damaged })),
+  )) {
+    const name = `${mobile ? 'mobile' : 'desktop'}${damaged ? '-unreadable' : ''}`;
     it(`${name}: digitazione quantità, invii incerti, resi 1+2 e quadratura`, async () => {
       const fixture = await creaDatasetCassa(prisma);
       await prisma.user.update({
@@ -225,35 +326,49 @@ describe('Cassa browser → API → PostgreSQL isolato', () => {
         await quantity.press('Control+A');
         await quantity.press('Backspace');
         await browserExpect(page.getByRole('button', { name: 'Concludi vendita' })).toBeDisabled();
-        await page.getByRole('button', { name: "Recupera l'esito" }).click();
-        await browserExpect(
-          page.getByRole('heading', { name: 'Vendita registrata' }),
-        ).toBeVisible();
-        await browserExpect(page.locator('.cassa__done-totals')).toContainText('36,56');
-        await browserExpect(page.locator('.cassa__done-totals')).toContainText('5,00');
-        const sends = server.requests.filter((r) => r.path.endsWith('/checkout'));
-        expect(sends).toHaveLength(2);
-        expect(sends[1]?.body).toEqual(sends[0]?.body);
-        expect(await prisma.document.count({ where: { cashSessionId: sessionId } })).toBe(1);
-        expect(
-          (await prisma.inventoryLevel.findFirstOrThrow({ where: { variantId: variant.id } }))
-            .onHand,
-        ).toBe(7);
-        await page.getByRole('button', { name: 'Riprendi carrello modificato' }).click();
-        await browserExpect(quantity).toHaveValue('');
-        await browserExpect(conclude).toBeDisabled();
-        await browserExpect(
-          page.getByRole('textbox', { name: 'Importo Contanti TEST', exact: true }),
-        ).toHaveValue('10,00');
-        await browserExpect(
-          page.getByRole('textbox', { name: 'Importo Carta TEST', exact: true }),
-        ).toHaveValue('26,56');
-        await quantity.pressSequentially('4');
-        await browserExpect(quantity).toHaveValue('4');
-        await browserExpect(conclude).toBeDisabled();
-        await page.screenshot({ path: resolve(artifacts, `${name}-recovery.png`), fullPage: true });
-        await page.getByRole('button', { name: 'Togli Articolo Cassa TEST', exact: true }).click();
-        await browserExpect(quantity).toHaveCount(0);
+        if (damaged) {
+          await recoverUnreadable(page, 'checkout', sale.id);
+          expect(server.requests.filter((r) => r.path.endsWith('/checkout'))).toHaveLength(1);
+          await page.screenshot({
+            path: resolve(artifacts, `${name}-recovery.png`),
+            fullPage: true,
+          });
+        } else {
+          await page.getByRole('button', { name: "Recupera l'esito" }).click();
+          await browserExpect(
+            page.getByRole('heading', { name: 'Vendita registrata' }),
+          ).toBeVisible();
+          await browserExpect(page.locator('.cassa__done-totals')).toContainText('36,56');
+          await browserExpect(page.locator('.cassa__done-totals')).toContainText('5,00');
+          const sends = server.requests.filter((r) => r.path.endsWith('/checkout'));
+          expect(sends).toHaveLength(2);
+          expect(sends[1]?.body).toEqual(sends[0]?.body);
+          expect(await prisma.document.count({ where: { cashSessionId: sessionId } })).toBe(1);
+          expect(
+            (await prisma.inventoryLevel.findFirstOrThrow({ where: { variantId: variant.id } }))
+              .onHand,
+          ).toBe(7);
+          await page.getByRole('button', { name: 'Riprendi carrello modificato' }).click();
+          await browserExpect(quantity).toHaveValue('');
+          await browserExpect(conclude).toBeDisabled();
+          await browserExpect(
+            page.getByRole('textbox', { name: 'Importo Contanti TEST', exact: true }),
+          ).toHaveValue('10,00');
+          await browserExpect(
+            page.getByRole('textbox', { name: 'Importo Carta TEST', exact: true }),
+          ).toHaveValue('26,56');
+          await quantity.pressSequentially('4');
+          await browserExpect(quantity).toHaveValue('4');
+          await browserExpect(conclude).toBeDisabled();
+          await page.screenshot({
+            path: resolve(artifacts, `${name}-recovery.png`),
+            fullPage: true,
+          });
+          await page
+            .getByRole('button', { name: 'Togli Articolo Cassa TEST', exact: true })
+            .click();
+          await browserExpect(quantity).toHaveCount(0);
+        }
 
         await page.goto(`${server.url}/app/cassa/operazioni/${sale.id}/reso`);
         await page.getByRole('spinbutton', { name: /^Quantità da rendere/ }).fill('1');
@@ -264,14 +379,21 @@ describe('Cassa browser → API → PostgreSQL isolato', () => {
         await loseResponseOnce(page, '/cash-sessions/returns');
         await page.getByRole('button', { name: 'Concludi reso' }).click();
         await browserExpect(page.getByText('Esito da verificare', { exact: true })).toBeVisible();
-        await page.reload();
-        await page.getByRole('button', { name: "Recupera l'esito" }).click();
+        if (damaged) {
+          const returned = await prisma.document.findFirstOrThrow({
+            where: { cashSessionId: sessionId, type: 'store_return' },
+          });
+          await recoverUnreadable(page, 'returns', returned.id);
+        } else {
+          await page.reload();
+          await page.getByRole('button', { name: "Recupera l'esito" }).click();
+        }
         await browserExpect(page.getByRole('heading', { name: 'Reso registrato' })).toBeVisible();
         const returns = server.requests.filter(
           (r) => r.path.endsWith('/returns') && r.method === 'POST',
         );
-        expect(returns).toHaveLength(2);
-        expect(returns[1]?.body).toEqual(returns[0]?.body);
+        expect(returns).toHaveLength(damaged ? 1 : 2);
+        if (!damaged) expect(returns[1]?.body).toEqual(returns[0]?.body);
         expect(
           await prisma.document.count({
             where: { cashSessionId: sessionId, type: 'store_return' },

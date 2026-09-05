@@ -12,9 +12,11 @@
     </div>
   </header>
 
-  @if (invioPrecedente().error; as messaggio) {
-    <app-inline-banner tone="error" [message]="messaggio" />
-  }
+  <app-cash-pending-recovery
+    operation="returns"
+    [disabled]="invio()"
+    (recovered)="fatto.set($event)"
+  />
   @if (!invio() && invioPrecedente().request; as precedente) {
     <app-inline-banner tone="warning">
       <p><strong>Esito da verificare</strong> · {{ precedente.description }}</p>

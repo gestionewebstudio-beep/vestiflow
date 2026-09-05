@@ -5,6 +5,7 @@ import { CreationIntentService } from '../common/idempotency/creation-intent.uti
 import { DocumentsModule } from '../documents/documents.module';
 
 import { CashCheckoutService } from './cash-checkout.service';
+import { CashIntentRecoveryService } from './cash-intent-recovery.service';
 import { CashClosingService } from './cash-closing.service';
 import { CashOperationsService } from './cash-operations.service';
 import { CashReturnService } from './cash-return.service';
@@ -28,6 +29,7 @@ import { CashSessionsService } from './cash-sessions.service';
   providers: [
     CashSessionsService,
     CashCheckoutService,
+    CashIntentRecoveryService,
     CashReturnService,
     CashClosingService,
     CashOperationsService,

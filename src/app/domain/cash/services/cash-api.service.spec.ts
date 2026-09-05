@@ -22,6 +22,22 @@ describe('CashApiService — contratto checkout HTTP', () => {
   });
   afterEach(() => http.verify());
 
+  it.each(['checkout', 'returns'] as const)(
+    '%s: consulta solo con GET e senza comando finanziario',
+    async (operation) => {
+      const result = firstValueFrom(
+        TestBed.inject(CashApiService).intentResult(operation, 'intent'),
+      );
+      const request = http.expectOne(
+        `/api/v1/cash-sessions/${operation === 'checkout' ? 'checkout' : 'return'}-intents/intent`,
+      );
+      expect(request.request.method).toBe('GET');
+      expect(request.request.body).toBeNull();
+      request.flush({ status: 'unconfirmed' });
+      await expect(result).resolves.toEqual({ status: 'unconfirmed' });
+    },
+  );
+
   it('traduce totaleMinor e restoMinor del server senza ricavare importi dal carrello', async () => {
     const payload = {
       locationId: 'location',

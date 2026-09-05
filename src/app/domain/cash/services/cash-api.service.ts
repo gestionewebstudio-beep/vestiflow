@@ -13,6 +13,7 @@ import {
 import type {
   CashCheckoutPayload,
   CashCheckoutResult,
+  CashIntentResult,
   CashClosePayload,
   CashCloseResult,
   CashDeviceChange,
@@ -50,6 +51,13 @@ const HTTP_TIMEOUT_MS = 15000;
 export class CashApiService {
   private readonly http = inject(ApiHttpClient);
   private readonly config = inject(APP_CONFIG);
+
+  intentResult(operation: 'checkout' | 'returns', intentId: string): Observable<CashIntentResult> {
+    const path = operation === 'checkout' ? 'checkout-intents' : 'return-intents';
+    return this.http
+      .get<CashIntentResult>(this.url(`/cash-sessions/${path}/${encodeURIComponent(intentId)}`))
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
 
   // ── Sessione ──────────────────────────────────────────────────────────────
 

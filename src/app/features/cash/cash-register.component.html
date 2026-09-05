@@ -40,9 +40,11 @@
     </div>
   </header>
 
-  @if (invioPrecedente().error; as messaggio) {
-    <app-inline-banner tone="error" [message]="messaggio" />
-  }
+  <app-cash-pending-recovery
+    operation="checkout"
+    [disabled]="conclusione()"
+    (recovered)="recuperoConfermato($event)"
+  />
   @if (!conclusione() && invioPrecedente().request; as precedente) {
     <app-inline-banner tone="warning">
       <p><strong>Esito da verificare</strong> · {{ precedente.description }}</p>
@@ -75,7 +77,7 @@
           <dt>Totale</dt>
           <dd>{{ soldi(esito.totalMinor) }}</dd>
         </div>
-        @if (esito.changeMinor > 0) {
+        @if (esito.changeMinor !== null && esito.changeMinor > 0) {
           <div>
             <dt>Resto</dt>
             <dd>{{ soldi(esito.changeMinor) }}</dd>
@@ -90,11 +92,19 @@
         @if (carrelloConservato()) {
           <app-inline-banner
             tone="info"
-            message="Le modifiche successive sono rimaste nel carrello e non fanno parte della vendita recuperata."
+            [message]="
+              carrelloDaVerificare()
+                ? 'Il carrello è conservato, ma non è confrontabile con l’invio illeggibile. Verifica le righe e le quote: potrebbero essere già comprese nella vendita recuperata.'
+                : 'Le modifiche successive sono rimaste nel carrello e non fanno parte della vendita recuperata.'
+            "
           />
         }
         <app-button variant="primary" (click)="nuovaVendita()">{{
-          carrelloConservato() ? 'Riprendi carrello modificato' : 'Nuova vendita'
+          carrelloDaVerificare()
+            ? 'Rivedi carrello conservato'
+            : carrelloConservato()
+              ? 'Riprendi carrello modificato'
+              : 'Nuova vendita'
         }}</app-button>
         <a class="cassa__link" [routerLink]="['/app/cassa/operazioni', esito.documentId]">
           Vedi l'operazione

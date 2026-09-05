@@ -95,6 +95,21 @@ export interface CashCheckoutResult {
   readonly changeMinor: number;
 }
 
+/** Consultazione del registro intenti: un esito non confermato NON consente un nuovo invio. */
+export type CashIntentResult =
+  | { readonly status: 'unconfirmed' }
+  | {
+      readonly status: 'recorded';
+      readonly intentId: string;
+      readonly documentId: EntityId;
+      readonly reference: string;
+      readonly documentDate: string;
+      readonly totalMinor: number;
+      readonly locationId: EntityId;
+      readonly locationName: string;
+      readonly sessionId: EntityId;
+    };
+
 // ── Reso ───────────────────────────────────────────────────────────────────
 
 export interface ReceiptSearchResult {

@@ -19,6 +19,7 @@ import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard'
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 
 import { CashCheckoutService, type CheckoutResult } from './cash-checkout.service';
+import { CashIntentRecoveryService, type CashIntentResult } from './cash-intent-recovery.service';
 import { CashClosingService, type CloseResult } from './cash-closing.service';
 import {
   CashOperationsService,
@@ -78,9 +79,30 @@ export class CashSessionsController {
     private readonly closingService: CashClosingService,
     private readonly operations: CashOperationsService,
     private readonly sessionsReport: CashSessionsReportService,
+    private readonly intentRecovery: CashIntentRecoveryService,
   ) {}
 
   // ── Consultazione ────────────────────────────────────────────────────────
+  @Get('checkout-intents/:intentId')
+  @RequirePermissions(TenantPermission.RetailRegister)
+  checkoutIntent(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Param('intentId', ParseUUIDPipe) intentId: string,
+  ): Promise<CashIntentResult> {
+    return this.intentRecovery.lookup(tenantId, user, intentId, 'store_sale');
+  }
+
+  @Get('return-intents/:intentId')
+  @RequirePermissions(TenantPermission.RetailCashReturn)
+  returnIntent(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Param('intentId', ParseUUIDPipe) intentId: string,
+  ): Promise<CashIntentResult> {
+    return this.intentRecovery.lookup(tenantId, user, intentId, 'store_return');
+  }
+
   //
   // ⛔ Le rotte STATICHE stanno prima di quelle con `:id`, e non e` stile:
   //    Nest confronta in ordine di dichiarazione, e `@Get(':id/movements')`

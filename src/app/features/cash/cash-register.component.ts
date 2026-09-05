@@ -24,7 +24,11 @@ import {
   CashTenderSplitComponent,
   type CashQuotaDraft,
 } from '@domain/cash/components/cash-tender-split/cash-tender-split.component';
-import type { CashCheckoutPayload, CashSessionState } from '@domain/cash/models/cash.model';
+import type {
+  CashCheckoutPayload,
+  CashSessionState,
+  CashIntentResult,
+} from '@domain/cash/models/cash.model';
 import { CashApiService } from '@domain/cash/services/cash-api.service';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import type { StoreSaleLookupItem } from '@domain/store-sales/models/store-sale.model';
@@ -41,6 +45,7 @@ import { MoneyInputComponent } from '@shared/components/money-input/money-input.
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 
 import { CashPendingOperationsService } from './services/cash-pending-operations.service';
+import { CashPendingRecoveryComponent } from './components/cash-pending-recovery.component';
 
 /**
  * La Cassa: **vendita**, stato della sessione, riepilogo (`docs/25` §3).
@@ -64,6 +69,7 @@ import { CashPendingOperationsService } from './services/cash-pending-operations
   imports: [
     ButtonComponent,
     CashTenderSplitComponent,
+    CashPendingRecoveryComponent,
     DatePipe,
     EmptyStateComponent,
     FormsModule,
@@ -107,6 +113,7 @@ export class CashRegisterComponent {
   protected readonly conclusione = signal(false);
   protected readonly conclusa = signal<ConclusaResult | null>(null);
   protected readonly carrelloConservato = signal(false);
+  protected readonly carrelloDaVerificare = signal(false);
 
   protected readonly opzioni = toSignal(
     this.tipiPagamento.list('method').pipe(catchError(() => of([] as readonly PaymentOption[]))),
@@ -406,6 +413,7 @@ export class CashRegisterComponent {
       .subscribe({
         next: (esito) => {
           this.pending.complete('checkout', payload.creationIntentId);
+          this.carrelloDaVerificare.set(false);
           // ⭐ I valori mostrati sono quelli del SERVER, non quelli calcolati
           //    dalla schermata.
           this.conclusa.set({
@@ -448,6 +456,15 @@ export class CashRegisterComponent {
     this.errore.set(null);
   }
 
+  protected recuperoConfermato(result: Extract<CashIntentResult, { status: 'recorded' }>): void {
+    // Il comando è illeggibile: non possiamo affermare che il carrello corrente
+    // sia diverso da quello già registrato, né cancellare eventuali nuove modifiche.
+    this.conclusa.set({ ...result, changeMinor: null });
+    this.carrelloConservato.set(this.righe().length > 0);
+    this.carrelloDaVerificare.set(this.righe().length > 0);
+    this.caricaSessione();
+  }
+
   private contenutoVendita(): Pick<CashCheckoutPayload, 'lines' | 'payments'> {
     return {
       lines: this.righe().map((r) => ({
@@ -484,7 +501,7 @@ interface ConclusaResult {
   readonly documentId: EntityId;
   readonly reference: string;
   readonly totalMinor: number;
-  readonly changeMinor: number;
+  readonly changeMinor: number | null;
 }
 
 /** Il messaggio dell'API se c'è, altrimenti quello di riserva. */
