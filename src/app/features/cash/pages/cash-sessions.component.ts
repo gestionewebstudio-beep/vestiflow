@@ -154,7 +154,8 @@ export class CashSessionsComponent {
     this.api
       .sessions({
         page: 1,
-        pageSize: 100,
+        // ⭐ Stesso tetto del registro operazioni (`cash-session.dto`).
+        pageSize: 5_000,
         from: this.da() || undefined,
         to: this.a() || undefined,
         locationId: this.sedeId() ?? undefined,

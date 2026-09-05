@@ -116,7 +116,37 @@ export class CashPageQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(200)
+  /*
+    ⭐ **CINQUEMILA, misurate il 05/09/2026** — deciso dal proprietario.
+
+    ⛔ Il tetto era 200, e il client ne chiedeva 100: sopra quella soglia le
+    righe mancavano PRIMA del filtro, contro «NESSUN TETTO DI RIGHE»
+    (`regole-stile-ui`). Ma il numero non si sceglie a sentimento: misurato
+    su 20.000 vendite vere nel database usa-e-getta, due quote ciascuna.
+
+    ```text
+    righe      ms   KB JSON   ms/riga
+       100     51       78     0,510
+     1.000    154      777     0,154
+     5.000    284    3.891     0,057   ← il tetto scelto
+    10.000    551    7.782     0,055
+    20.000  1.074   15.575     0,054
+    ```
+
+    ⭐ **Il costo per riga si stabilizza a 0,054 ms**: la lettura e` lineare
+    e non c_e` nessun N+1 — le query sono sette e restano sette a qualunque
+    pagina. Il database regge molto oltre.
+
+    ⚠️ **A fermare il numero non e` il database: e` il PAYLOAD.** 5.000 righe
+    sono 3,9 MB di JSON — su rete locale nulla, su una connessione da 10
+    Mbit sono tre secondi di sola trasmissione. E 20.000 sarebbero 15,6 MB.
+
+    ⛔ **E il collo vero e` il BROWSER, non l_API**: senza virtualizzazione
+    5.000 righe sono ~45.000 nodi nel DOM, e sotto `lg` altrettante card. La
+    virtualizzazione del motore tabella smette di essere
+    un'ottimizzazione e diventa un prerequisito (`docs/DA-FARE.md`).
+  */
+  @Max(5_000)
   pageSize: number = 50;
 
   /** Giorno di inizio, incluso (`AAAA-MM-GG`). */
