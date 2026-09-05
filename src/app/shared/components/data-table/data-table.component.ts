@@ -67,10 +67,9 @@ export interface DataTableResizeEvent {
  * non è testo. Il giorno in cui qui dentro compare il nome di un tipo
  * documento, il motore è diventato un componente di feature travestito.
  *
- * ⛔ **Non ordina e non impagina.** Gli elenchi sono paginati lato server:
- * ordinare le righe caricate ordinerebbe **una pagina**, dando un risultato che
- * sembra giusto e non lo è. Il motore emette `sortChange`; la pagina lo applica
- * alla query.
+ * Non ordina e non impagina. Emette `sortChange`; il consumer applica
+ * l'ordinamento all'intero risultato, in memoria quando lo ha caricato tutto
+ * oppure nella query al server. La finestra di rendering non limita i dati.
  *
  * ⚠️ **L'ordinamento non si conserva** (`14` §G1): alla riapertura si torna al
  * predefinito.
@@ -312,7 +311,15 @@ export class DataTableComponent<T> {
 
         const aggiorna = (): void => {
           this.scorrimento.set(scroller.scrollTop);
-          this.altezzaVista.set(scroller.clientHeight);
+          // Lo slot dati di ListPage esiste anche durante il loading, ma è
+          // staccato dal DOM: clientHeight=0 non è una misura della finestra.
+          // Conservare la stima (o l'ultima misura valida) evita di spegnere
+          // la virtualizzazione proprio quando arriva l'intero risultato.
+          const altezza = scroller.clientHeight;
+          if (altezza <= 0) {
+            return;
+          }
+          this.altezzaVista.set(altezza);
           this.misuraAltezzaRiga();
           this.aggiornaVeste();
           /*
@@ -863,26 +870,11 @@ export class DataTableComponent<T> {
   }
 
   /**
-   * ⭐ **La mappa colonna → template, calcolata UNA VOLTA per ciclo.**
-   *
-   * ⛔ **Qui c'era `this.cellTemplates().find(...)`, chiamato dal template per
-   * OGNI CELLA.** `cellTemplates` e' una *signal query* di contenuto: ogni
-   * lettura, dopo che l'albero e' cambiato, fa ripartire `refreshSignalQuery`
-   * → `collectQueryResults`, che **ricammina l'albero del contenuto**. Con
-   * righe × colonne letture per ciclo, e l'albero che cresce mentre le righe si
-   * creano, il costo diventa quadratico.
-   *
-   * ⚠️ **Misurato col profilatore del browser** (05/09/2026): su 5.000
-   * operazioni il caricamento stava a ~30 s, e la catena delle chiamate
-   * arrivava qui —
-   *
-   * ```text
-   * materializeViewResults → collectQueryResults → getQueryResults
-   *   → refreshSignalQuery → computed → templateFor → …_For_3_Template
-   * ```
-   *
-   * ⭐ **Un `computed` legge la query una volta e serve tutte le celle.** Non
-   * cambia niente di cio' che si vede: cambia quante volte lo si chiede.
+   * Lookup dei template per colonna. La query resta reattiva alle aggiunte e
+   * rimozioni del contenuto: il computed non garantisce una lettura per ciclo,
+   * perché creare viste proiettate può invalidarla durante lo stesso render.
+   * Il costo del caricamento si contiene evitando il render temporaneo di
+   * tutte le righe (avviaFinestra), senza restringere il contratto dei template.
    */
   private readonly celleDiColonna = computed(() => {
     const mappa = new Map<string, DataTableCellDirective>();

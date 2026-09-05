@@ -1,4 +1,6 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
+import { test } from './helpers/isolated-test';
+import { intercetta, pagina } from './helpers/cash-register-fixtures';
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -20,110 +22,7 @@ const nota = (t: string): void => {
   appendFileSync(REGISTRO, `${t}\n`);
 };
 
-const SEDE = { id: 'loc-1', name: 'Negozio di prova' };
 const QUANTE = 5000;
-
-function pagina(quante: number): unknown {
-  const items = Array.from({ length: quante }, (_, i) => ({
-    id: `d-${i}`,
-    kind: i % 7 === 0 ? 'return' : 'sale',
-    reference: `CS/2026/${i + 1}`,
-    number: i + 1,
-    documentDate: '2026-09-04T00:00:00.000Z',
-    createdAt: new Date(Date.UTC(2026, 8, 4, 8, 0, 0) + i * 60_000).toISOString(),
-    status: i % 23 === 0 ? 'cancelled' : 'confirmed',
-    locationId: SEDE.id,
-    locationName: SEDE.name,
-    operatorId: 'u-1',
-    operatorName: i % 5 === 0 ? 'Anna Maria Giuseppina Della Valle' : 'Bruno',
-    sessionId: 'sess-1',
-    customerName: null,
-    // Decrescente: un ordinamento crescente deve portare in cima l'ULTIMA.
-    totalMinor: 1000 + (quante - i),
-    payments: [
-      {
-        paymentOptionId: 'pay-1',
-        optionName: i % 3 === 0 ? 'Carta' : 'Contanti',
-        tenderKind: i % 3 === 0 ? 'electronic' : 'cash',
-        amountMinor: 1000 + (quante - i),
-        tenderedMinor: 1000 + (quante - i),
-        refundedFromPaymentId: null,
-      },
-    ],
-    mixed: false,
-    changeMinor: 0,
-    sourceDocumentId: null,
-    sourceReference: null,
-    anomalies: i % 23 === 0 ? ['annullato'] : [],
-  }));
-  return {
-    items,
-    total: quante,
-    page: 1,
-    pageSize: quante,
-    summary: {
-      grossSalesMinor: 1_000_000,
-      returnsMinor: 10_000,
-      netSalesMinor: 990_000,
-      cashMinor: 600_000,
-      electronicMinor: 390_000,
-      saleCount: quante,
-      returnCount: 0,
-      operationCount: quante,
-      averageMinor: 1_500,
-    },
-  };
-}
-
-async function intercetta(page: Page, quante: number): Promise<void> {
-  await page.route('**/api/v1/inventory/locations**', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify([
-        {
-          ...SEDE,
-          tenantId: 'ten-1',
-          isActive: true,
-          licensedInVf: true,
-          shopifySyncStatus: 'not_synced',
-          createdAt: '2026-01-01T00:00:00.000Z',
-          updatedAt: '2026-01-01T00:00:00.000Z',
-        },
-      ]),
-    }),
-  );
-  await page.route('**/api/v1/payment-options**', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify([
-        {
-          id: 'pay-1',
-          name: 'Contanti',
-          kind: 'method',
-          isActive: true,
-          sortOrder: 1,
-          tenderKind: 'cash',
-        },
-      ]),
-    }),
-  );
-  await page.route('**/api/v1/cash-sessions/operations**', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(pagina(quante)),
-    }),
-  );
-  await page.route('**/api/v1/cash-sessions/sessions**', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ items: [], page: 1, pageSize: 100, total: 0 }),
-    }),
-  );
-}
 
 /**
  * I numeri documento resi, letti dalla cella «Numero».
@@ -182,6 +81,14 @@ test.describe('finestra di rendering — registro Cassa', () => {
     // MISURA: quante righe esistono al MASSIMO durante il caricamento?
     await page.addInitScript(() => {
       (window as unknown as { __picco: number }).__picco = 0;
+      const create = new Set<string>();
+      Object.assign(window, { __righeCreate: create });
+      const setAttribute = Object.getOwnPropertyDescriptor(Element.prototype, 'setAttribute')!
+        .value as (this: Element, name: string, value: string) => void;
+      Element.prototype.setAttribute = function (name, value): void {
+        if (name === 'data-row-id') create.add(value);
+        setAttribute.call(this, name, value);
+      };
       const osserva = (): void => {
         const n = document.querySelectorAll('.data-table__row').length;
         const w = window as unknown as { __picco: number };
@@ -229,23 +136,14 @@ test.describe('finestra di rendering — registro Cassa', () => {
     expect(m.td).toEqual(m.th);
     expect(m.rowcount).toBe(String(QUANTE + 1));
     expect(m.spaziatrici).toBeGreaterThan(0);
-
-    /*
-      ⛔ **QUI NON C'E` UN'ASSERZIONE SUL CARICAMENTO, e la ragione e` misurata.**
-
-      Ce n'era una, `< 10_000`, e falliva a 30 s. Non per colpa della finestra:
-      profilato col profilatore del browser (`Profiler` via CDP), 29,6 s su 30
-      stanno in `materializeViewResults` e `collectQueryResults` — le QUERY DI
-      CONTENUTO di Angular, non il rendering delle righe.
-
-      La prova: righe rese e nodi restano 43 e 1.125 a 500, 1.000, 2.000 e
-      5.000 righe, mentre il tempo alla prima riga fa 1.319 → 1.431 → 4.139 →
-      29.641 ms. Costante il DOM, super-lineare il tempo: il collo e` altrove.
-
-      ⚠️ **E` un problema APERTO, non risolto da questa tranche.** Asserirlo qui
-      farebbe fallire una prova sulla finestra per una causa che la finestra non
-      tocca — e insegnerebbe a ignorarla.
-    */
+    // Un campione rAF può perdere creazione e rimozione nello stesso frame.
+    // Contiamo anche le identità istanziate, comprese quelle ancora staccate dal DOM.
+    const create = await page.evaluate(
+      () => (window as unknown as { __righeCreate: Set<string> }).__righeCreate.size,
+    );
+    nota(`  identità di riga istanziate  : ${create}`);
+    expect(create).toBeLessThan(120);
+    expect(caricamento).toBeLessThan(10_000);
   });
 
   test('⭐ l_ultima operazione si raggiunge, e l_intestazione resta fissa', async ({ page }) => {
@@ -291,16 +189,13 @@ test.describe('finestra di rendering — registro Cassa', () => {
 
     await scorriFinoAlNumero(page, `CS/2026/${QUANTE}`);
 
-    // Si restringe drasticamente: la ricerca per numero lascia una riga sola.
-    await page.getByRole('searchbox').first().fill('4200');
-
-    // ⛔ Nessuna schermata vuota: la riga deve comparire, non restare un offset
-    //    fuori intervallo con zero righe rese.
-    await expect
-      .poll(() => page.evaluate(() => document.querySelectorAll('.data-table__row').length), {
-        timeout: 30_000,
-      })
-      .toBeGreaterThan(0);
+    // Filtro CLIENT sull'intero risultato: la riga 4200 non è nella finestra finale.
+    // La vecchia prova usava una ricerca ignorata dalla fixture e verificava solo > 0.
+    await page.getByRole('button', { name: /^Filtri/ }).click();
+    await page.getByRole('button', { name: 'Filtra per Numero', exact: true }).click();
+    await page.getByLabel('Cerca fra i valori di Numero', { exact: true }).fill('CS/2026/4200');
+    await expect(page.locator('.data-table__row')).toHaveCount(1);
+    await expect(page.locator('.data-table__row')).toHaveAttribute('data-row-id', 'd-4199');
 
     const numeriDopo = await numeriResi(page);
     const dopo = await page.evaluate(() => ({
@@ -309,7 +204,8 @@ test.describe('finestra di rendering — registro Cassa', () => {
     }));
     const primo = numeriDopo[0] ?? '';
     nota(`\n  dopo il filtro in fondo     : ${dopo.righe} righe, prima «${primo}»`);
-    expect(dopo.righe).toBeGreaterThan(0);
+    expect(primo).toBe('CS/2026/4200');
+    expect(dopo.scroll).toBe(0);
   });
 
   test('⭐ ordinando, la 5.000ª sale in cima', async ({ page }) => {
@@ -328,8 +224,24 @@ test.describe('finestra di rendering — registro Cassa', () => {
       .toBe(`CS/2026/${QUANTE}`);
 
     // ⛔ E la si apre: l'ordinamento non rompe il clic di riga.
+    const ultima = pagina(QUANTE).items[QUANTE - 1]!;
+    await page.route(`**/api/v1/cash-sessions/operations/${ultima.id}`, (route) =>
+      route.fulfill({
+        json: {
+          ...ultima,
+          taxableMinor: 820,
+          taxMinor: 181,
+          notes: null,
+          lines: [],
+          session: null,
+          relatedReturns: [],
+          stockMovements: [],
+        },
+      }),
+    );
     await page.locator('.data-table__row').first().click();
-    await expect.poll(() => page.url(), { timeout: 30_000 }).toContain('/app/cassa/operazioni/');
+    await expect(page).toHaveURL(new RegExp(`/app/cassa/operazioni/${ultima.id}$`));
+    await expect(page.getByRole('heading', { level: 1 })).toContainText(ultima.reference);
   });
 
   test('⛔ sul telefono la finestra NON si accende: card intatte', async ({ page }) => {
@@ -347,6 +259,77 @@ test.describe('finestra di rendering — registro Cassa', () => {
     //    non e` toccato, e la sua lentezza resta un problema aperto.
     expect(m.righe).toBe(300);
     expect(m.spaziatrici).toBe(0);
+  });
+
+  test('resize, zoom e passaggio compatto conservano righe, testo e finestra', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await intercetta(page, 300);
+    await page.goto('/app/cassa/operazioni');
+    await expect(page.locator('.data-table__row').first()).toBeVisible();
+    await page.setViewportSize({ width: 1280, height: 700 });
+    await scorriFinoAlNumero(page, 'CS/2026/300');
+    await expect(page.locator('.data-table__row[data-row-id="d-299"]')).toBeInViewport();
+    // Zoom del layout del contenitore: cambia la misura letta da ResizeObserver.
+    await page.evaluate(() => {
+      document.body.style.zoom = '1.25';
+    });
+    await page.locator('.data-table__row').last().focus();
+    await page.keyboard.press('Home');
+    await expect(page.locator('.data-table__row[data-row-id="d-0"]')).toBeFocused();
+    const pageRows = await page.evaluate(() => {
+      const scroller = document.querySelector<HTMLElement>('.data-table-scroll')!;
+      const row = scroller.querySelector('.data-table__row')!;
+      return Math.floor(scroller.clientHeight / Math.round(row.getBoundingClientRect().height));
+    });
+    await page.keyboard.press('PageDown');
+    await expect(page.locator(`.data-table__row[data-row-id="d-${pageRows}"]`)).toBeFocused();
+    await page.keyboard.press('PageUp');
+    await expect(page.locator('.data-table__row[data-row-id="d-0"]')).toBeFocused();
+    await page.keyboard.press('End');
+    await expect(page.locator('.data-table__row[data-row-id="d-299"]')).toBeFocused();
+    await page.evaluate(() => {
+      document.body.style.zoom = '';
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.locator('.data-table__row')).toHaveCount(300);
+    await expect(page.locator('.data-table__spacer')).toHaveCount(0);
+    const heights = await page
+      .locator('.data-table__card')
+      .evaluateAll((cards) => cards.map((card) => Math.round(card.getBoundingClientRect().height)));
+    expect(new Set(heights).size).toBeGreaterThan(1);
+    await expect(
+      page.locator('.data-table__row[data-row-id="d-0"] .list-card__words'),
+    ).toContainText('Anna Maria Giuseppina Della Valle');
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect.poll(() => page.locator('.data-table__row').count()).toBeLessThan(120);
+    await scorriFinoAlNumero(page, 'CS/2026/300');
+    await expect(page.locator('.data-table__row[data-row-id="d-299"]')).toBeInViewport();
+  });
+
+  test('Home e Fine muovono il cursore del campo dentro la cella', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await intercetta(page, QUANTE);
+    await page.goto('/app/cassa/operazioni');
+    // Inserito solo dalla prova: esercita un controllo editabile nel motore comune,
+    // senza aggiungere un campo fittizio al registro Cassa.
+    await page
+      .locator('.data-table__row td')
+      .first()
+      .evaluate((cell) => {
+        const input = document.createElement('input');
+        input.setAttribute('aria-label', 'Campo di prova nella cella');
+        input.value = 'abcdef';
+        cell.append(input);
+      });
+    const control = page.getByRole('textbox', { name: 'Campo di prova nella cella' });
+    await control.focus();
+    await page.keyboard.press('End');
+    await expect(control).toBeFocused();
+    expect(await control.evaluate((input: HTMLInputElement) => input.selectionStart)).toBe(6);
+    await page.keyboard.press('Home');
+    await expect(control).toBeFocused();
+    expect(await control.evaluate((input: HTMLInputElement) => input.selectionStart)).toBe(0);
+    await expect(page.locator('.data-table__row').first()).toHaveAttribute('data-row-id', 'd-0');
   });
 
   /*
@@ -530,7 +513,9 @@ test.describe('finestra di rendering — registro Cassa', () => {
       const vista = document.querySelector('.data-table-scroll') as HTMLElement;
       vista.scrollTop = 120;
     });
-    await page.waitForTimeout(300);
+    await expect
+      .poll(() => page.evaluate(() => document.querySelector('.data-table-scroll')?.scrollTop))
+      .toBe(120);
 
     const dove = await page.evaluate(() => document.activeElement?.tagName ?? '');
     expect(dove).toBe('INPUT');
@@ -549,16 +534,17 @@ test.describe('finestra di rendering — registro Cassa', () => {
     await page.goto('/app/cassa/operazioni');
     await expect(page.locator('.data-table__row').first()).toBeVisible({ timeout: 60_000 });
 
-    const maniglia = page.locator('.data-table__resize-handle, [data-resize-handle]').first();
-    if (await maniglia.count()) {
-      const scatola = await maniglia.boundingBox();
-      if (scatola) {
-        await page.mouse.move(scatola.x + scatola.width / 2, scatola.y + scatola.height / 2);
-        await page.mouse.down();
-        await page.mouse.move(scatola.x + 160, scatola.y + scatola.height / 2, { steps: 8 });
-        await page.mouse.up();
-      }
-    }
+    const maniglia = page.locator('.data-table__resize').first();
+    await expect(maniglia).toBeVisible();
+    const scatola = (await maniglia.boundingBox())!;
+    const prima = (await page.locator('.data-table__head-cell').first().boundingBox())!.width;
+    await page.mouse.move(scatola.x + scatola.width / 2, scatola.y + scatola.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(scatola.x + 80, scatola.y + scatola.height / 2, { steps: 8 });
+    await page.mouse.up();
+    await expect
+      .poll(async () => (await page.locator('.data-table__head-cell').first().boundingBox())!.width)
+      .toBeGreaterThan(prima + 20);
 
     const m = await page.evaluate(() => {
       const th = Array.from(document.querySelectorAll('.data-table thead th')).map((e) =>
@@ -575,8 +561,13 @@ test.describe('finestra di rendering — registro Cassa', () => {
     // ⭐ E dopo uno scorrimento ORIZZONTALE restano allineate.
     await page.evaluate(() => {
       const vista = document.querySelector('.data-table-scroll') as HTMLElement;
+      // Le colonne normalmente si adattano: forziamo un overflow SOLO nella prova.
+      (vista.querySelector('table') as HTMLElement).style.minWidth = `${vista.clientWidth + 400}px`;
       vista.scrollLeft = 200;
     });
+    await expect
+      .poll(() => page.evaluate(() => document.querySelector('.data-table-scroll')?.scrollLeft))
+      .toBeGreaterThan(0);
     const dopo = await page.evaluate(() => {
       const th = Array.from(document.querySelectorAll('.data-table thead th')).map((e) =>
         Math.round(e.getBoundingClientRect().left),
@@ -604,7 +595,7 @@ test.describe('finestra di rendering — registro Cassa', () => {
     await page.route('**/api/v1/payment-options**', (route) =>
       route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
     );
-    const QUANTE_SESSIONI = 400;
+    const QUANTE_SESSIONI = 5000;
     await page.route('**/api/v1/cash-sessions/sessions**', (route) =>
       route.fulfill({
         status: 200,
@@ -646,10 +637,10 @@ test.describe('finestra di rendering — registro Cassa', () => {
       rowcount: document.querySelector('.data-table')?.getAttribute('aria-rowcount'),
     }));
 
-    // ⛔ Poche righe rese, ma i totali sono di TUTTE: 400 × 1,00 € di fondo.
+    // Poche righe rese, ma il fondo somma TUTTE le 5.000 sessioni da 1,00 €.
     expect(m.rese).toBeLessThan(120);
-    expect(m.piede).toContain('400');
-    expect(m.piede).toContain('400,00');
+    expect(m.piede).toContain(String(QUANTE_SESSIONI));
+    expect(m.piede).toContain('5.000,00');
     // ⭐ E il conteggio accessibile conta tutte le righe piu` l'intestazione,
     //    anche col piede dei totali presente.
     expect(m.rowcount).toBe(String(QUANTE_SESSIONI + 1));

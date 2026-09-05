@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
+import { test } from './helpers/isolated-test';
 
 /**
  * ⭐ **LA CASSA, GUARDATA DA UN BROWSER VERO.**
@@ -110,7 +111,14 @@ async function intercetta(page: Page): Promise<void> {
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify([
-        { id: 'pay-1', name: 'Contanti', kind: 'method', isActive: true, sortOrder: 1, tenderKind: 'cash' },
+        {
+          id: 'pay-1',
+          name: 'Contanti',
+          kind: 'method',
+          isActive: true,
+          sortOrder: 1,
+          tenderKind: 'cash',
+        },
       ]),
     }),
   );
@@ -167,9 +175,7 @@ test.describe('Cassa — resa nel browser', () => {
     const scatolaIncasso = await incasso.boundingBox();
     expect(scatolaCarrello).not.toBeNull();
     expect(scatolaIncasso).not.toBeNull();
-    expect(scatolaIncasso!.x).toBeGreaterThanOrEqual(
-      scatolaCarrello!.x + scatolaCarrello!.width,
-    );
+    expect(scatolaIncasso!.x).toBeGreaterThanOrEqual(scatolaCarrello!.x + scatolaCarrello!.width);
 
     // ⭐ E la ricerca sta SOPRA il carrello, nella stessa colonna.
     const scatolaRicerca = await ricerca.boundingBox();
