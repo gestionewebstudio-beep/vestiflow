@@ -6,6 +6,7 @@ import {
   resolveReadableListLocationScope,
   scopedLocationFilter,
 } from '../inventory/licensed-location-scope.util';
+import { pageWindow } from '../common/dto/unpaged.util';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { calcolaAttesiSessione, type AttesiSessione } from './cash-session-totals.util';
@@ -60,13 +61,12 @@ export class CashSessionsReportService {
         : {}),
     };
 
-    const skip = (query.page - 1) * query.pageSize;
     const [sessioni, total] = await Promise.all([
       this.prisma.cashSession.findMany({
         where,
         orderBy: [{ openedAt: 'desc' }],
-        skip,
-        take: query.pageSize,
+        // ⭐ Stesso percorso condiviso del registro operazioni.
+        ...pageWindow(query),
         select: SELECT_SESSIONE,
       }),
       this.prisma.cashSession.count({ where }),
@@ -310,6 +310,8 @@ type SessioneGrezza = Prisma.CashSessionGetPayload<{ select: typeof SELECT_SESSI
 // ── Tipi ───────────────────────────────────────────────────────────────────
 
 export interface SessionsQuery {
+  /** `all=1`: tutto il risultato del filtro, senza finestra. */
+  readonly all?: boolean;
   readonly page: number;
   readonly pageSize: number;
   readonly from?: string;

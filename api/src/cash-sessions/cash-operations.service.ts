@@ -7,6 +7,7 @@ import {
   resolveReadableListLocationScope,
   scopedLocationFilter,
 } from '../inventory/licensed-location-scope.util';
+import { pageWindow } from '../common/dto/unpaged.util';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
@@ -55,13 +56,13 @@ export class CashOperationsService {
       return { items: [], total: 0, page: query.page, pageSize: query.pageSize, summary: VUOTO };
     }
 
-    const skip = (query.page - 1) * query.pageSize;
     const [righe, total, summary] = await Promise.all([
       this.prisma.document.findMany({
         where,
         orderBy: [{ documentDate: 'desc' }, { createdAt: 'desc' }],
-        skip,
-        take: query.pageSize,
+        // ⭐ `pageWindow`, non `skip`/`take` a mano: con `all=1` la finestra
+        //    deve sparire, non diventare una finestra grande.
+        ...pageWindow(query),
         select: SELECT_RIGA,
       }),
       this.prisma.document.count({ where }),
@@ -594,6 +595,8 @@ const VUOTO: OperationsSummary = {
 // ── Tipi ───────────────────────────────────────────────────────────────────
 
 export interface OperationsQuery {
+  /** `all=1`: tutto il risultato del filtro, senza finestra. */
+  readonly all?: boolean;
   readonly page: number;
   readonly pageSize: number;
   readonly from?: string;

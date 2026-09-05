@@ -97,20 +97,20 @@
   ⚠️ Allineate sulla LINEA DI BASE e a destra: e' la convenzione contabile, e
   centrate «ballano» di un pixel lungo la fila.
 */
+/*
+  ⭐ **La VOCE viene dal mixin condiviso**, che la rende identica a quella del
+  Registro Corrispettivi: impilata, allineata a destra, con la stessa
+  tipografia e lo stesso negativo.
+
+  ⛔ Qui era riscritta — otto dichiarazioni piu` la variante negativa — e
+  condivideva solo i due mixin tipografici.
+
+  ⚠️ **La GRIGLIA resta di questa fascia**: la` e` un flex con `space-between`
+  e due sotto-bande, qui e` una griglia `auto-fit`. Sono due disposizioni
+  diverse, decise ognuna sulla propria schermata.
+*/
 .ops__summary-item {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-05);
-  align-items: flex-end;
-  text-align: end;
-
-  dt {
-    @include ls.etichetta-riepilogo();
-  }
-
-  dd {
-    @include ls.valore-riepilogo();
-  }
+  @include ls.voce-riepilogo();
 }
 
 /* Il negativo si legge dal colore, non dal peso: come le righe di reso. */

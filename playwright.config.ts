@@ -12,9 +12,24 @@ const baseURL = process.env['E2E_BASE_URL'] ?? 'http://localhost:4200';
 const apiURL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
 const useE2eFrontend = process.env['E2E_USE_MOCK_AUTH'] === '1' || Boolean(process.env['CI']);
 
+/*
+  ⛔ **La porta NON e` piu` cablata nel comando.**
+
+  Qui c_era `--port 4200` fisso, mentre `E2E_BASE_URL` cambiava solo
+  l_indirizzo che Playwright aspetta: puntando la suite altrove, il server
+  partiva comunque sulla 4200 e l_attesa non finiva mai. E con un `ng serve`
+  gia` in ascolto la` sopra, `reuseExistingServer` riusava QUELLO — che non e`
+  la build `e2e` e non contiene l_auth finta.
+
+  ⭐ Ora la porta si deduce dall_URL: `E2E_BASE_URL=http://localhost:4310`
+  avvia il frontend sulla 4310 e ci punta, senza toccare nulla di quello che
+  gira gia`.
+*/
+const frontendPort = Number(new URL(baseURL).port || 4200);
+
 const frontendStartCommand = useE2eFrontend
-  ? 'npm run start -- --host 127.0.0.1 --port 4200 --configuration e2e'
-  : 'npm run start -- --host 127.0.0.1 --port 4200';
+  ? `npm run start -- --host 127.0.0.1 --port ${frontendPort} --configuration e2e`
+  : `npm run start -- --host 127.0.0.1 --port ${frontendPort}`;
 
 const authenticatedProjects = hasE2eCredentials()
   ? [

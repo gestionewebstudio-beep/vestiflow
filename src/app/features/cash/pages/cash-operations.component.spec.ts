@@ -2,7 +2,8 @@ import { signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
-import { of } from 'rxjs';
+import { of, timer } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { describe, expect, it, vi } from 'vitest';
 
 import { PaymentOptionsService } from '@core/services/payment-options.service';
@@ -111,6 +112,13 @@ const PAGINA: CashOperationsPage = {
   ],
 };
 
+/** La stessa pagina con una riga sola: serve a distinguere i due esiti. */
+const SOLO_UNA: CashOperationsPage = {
+  ...PAGINA,
+  total: 1,
+  items: [PAGINA.items[0]!],
+};
+
 async function montaOperazioni(operations = vi.fn(() => of(PAGINA))) {
   const api = { operations, searchReceipts: vi.fn(() => of([])) };
   const vista = await render(CashOperationsComponent, {
@@ -181,6 +189,41 @@ describe('CashOperationsComponent', () => {
     for (const area of ['Vendita', 'Operazioni', 'Sessioni']) {
       expect(screen.getByRole('link', { name: area })).toBeVisible();
     }
+  });
+
+  /*
+    ⛔ **LA RISPOSTA LENTA DI UN FILTRO VECCHIO NON DEVE VINCERE.**
+
+    `carica()` apriva una sottoscrizione nuova a ogni cambio di filtro senza
+    chiudere la precedente: con due richieste in volo a vincere era **l_ultima
+    che tornava**, non l_ultima chiesta. Un filtro largo seguito da uno
+    stretto lasciava a schermo il risultato largo.
+
+    ⚠️ **Non falliva: mostrava di piu`.** E` la stessa famiglia del filtro
+    perso — un difetto che si vede solo se lo si va a cercare.
+  */
+  it('⛔ la risposta LENTA di un filtro precedente non sovrascrive quello corrente', async () => {
+    // La prima chiamata (nessun filtro) e` LENTA; la seconda (filtrata) veloce.
+    let chiamata = 0;
+    const operations = vi.fn(() => {
+      chiamata += 1;
+      const primo = chiamata === 1;
+      return timer(primo ? 200 : 0).pipe(map(() => (primo ? PAGINA : SOLO_UNA)));
+    });
+
+    const { fixture } = await montaOperazioni(operations);
+
+    // Si cambia filtro subito: parte la seconda richiesta.
+    fixture.componentInstance['soloAnomalie'].set(true);
+    fixture.detectChanges();
+
+    // Si aspetta oltre il ritardo della PRIMA, che arriverebbe dopo.
+    await new Promise((r) => setTimeout(r, 400));
+    fixture.detectChanges();
+
+    // ⛔ Se la prima vincesse, a schermo ci sarebbero due righe.
+    expect(screen.queryByText('CS/2026/2')).toBeNull();
+    expect(screen.getAllByText('CS/2026/1').length).toBeGreaterThan(0);
   });
 
   it('il richiamo scontrino non chiede nessun identificativo', async () => {

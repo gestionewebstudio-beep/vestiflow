@@ -109,10 +109,10 @@
     ⭐ **Sul motore comune.** Le nove colonne erano nove `<th>` scritti a mano:
     niente selettore Colonne, niente larghezze regolabili, niente card.
 
-    ⚠️ **L'ordinamento resta spento**, e non per dimenticanza: l'API delle
-    operazioni non ha un parametro `sort`. Accendere le intestazioni
-    riordinerebbe la pagina corrente di un elenco paginato — sembrerebbe
-    funzionare, ed e' peggio di non ordinare.
+    ⭐ **E l'ordinamento è acceso dal 05/09/2026.** Qui c'era scritto che
+    restava spento «perché l'API non ha un parametro `sort`»: vero, e non
+    più un impedimento — l'elenco ora arriva INTERO (`all=1`), quindi
+    ordinarlo in memoria ordina tutto il risultato, non una pagina.
   -->
   <app-data-table
     data
@@ -125,6 +125,9 @@
     [rowTone]="rowTone"
     [rowClickable]="true"
     [rowLabel]="rowLabel"
+    [sortable]="true"
+    [sort]="ordine()"
+    (sortChange)="ordine.set($event)"
     (rowClick)="apri($event)"
   >
     <!--
@@ -132,7 +135,7 @@
       una cella del motore e' testo, e il dominio lo mette la pagina.
     -->
     <ng-template appCell="status" let-riga>
-      <app-badge [flat]="true" [tone]="tonoStato(riga)">{{ stato(riga) }}</app-badge>
+      <app-badge [flat]="true" [tone]="tonoStato(riga)">{{ statoDi(riga) }}</app-badge>
     </ng-template>
 
     <ng-template appCell="source" let-riga>

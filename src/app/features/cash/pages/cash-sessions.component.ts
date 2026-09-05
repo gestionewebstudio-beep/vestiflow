@@ -6,7 +6,8 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { catchError, map, of, startWith, switchMap } from 'rxjs';
 import { Router } from '@angular/router';
 
 import type { EntityId } from '@core/models/common.model';
@@ -22,12 +23,18 @@ import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
 import { DataTableRowCardDirective } from '@shared/components/data-table/data-table-row-card.directive';
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';
-import type { DataTableSection } from '@shared/components/data-table/data-table.model';
+import type {
+  DataTableSection,
+  DataTableSort,
+  DataTableTotals,
+} from '@shared/components/data-table/data-table.model';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
 import { NavTabsComponent } from '@shared/components/nav-tabs/nav-tabs.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import { colonnaVisibile } from '@shared/models/list-card-fields.util';
+import { totaliDiElenco } from '@shared/models/list-totals.util';
+import { ordinaPerColonne } from '@shared/table-columns/column-sort.util';
 import { createColumnFilters } from '@shared/table-columns/column-filters';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { TableViewId } from '@shared/table-columns/table-column.model';
@@ -38,6 +45,14 @@ import {
 } from '../models/cash-register-columns.config';
 import { CASH_TABS } from '../models/cash-nav';
 
+interface StatoSessioni {
+  readonly pagina: CashSessionsPage | null;
+  readonly caricamento: boolean;
+  readonly errore: string | null;
+}
+
+const IN_ATTESA: StatoSessioni = { pagina: null, caricamento: true, errore: null };
+
 /**
  * L'elenco delle **sessioni di cassa**: aperte e chiuse, con quanto e' passato
  * dal cassetto.
@@ -46,10 +61,14 @@ import { CASH_TABS } from '../models/cash-nav';
  * operazioni: erano dieci `<th>` scritti a mano, senza selettore Colonne, senza
  * larghezze regolabili e senza vista a card.
  *
- * ⛔ **Senza riga totali, e non per dimenticanza**: l'API delle sessioni non
- * restituisce un riepilogo di periodo, e l'elenco ne chiede cento per volta.
- * Sommare le righe in mano darebbe il totale della PAGINA — «il riepilogo
- * SOMMA, non ricalcola» vale anche a non inventare la somma sbagliata.
+ * ⭐ **Con la riga totali dal 05/09/2026.** Qui c'era scritto che non poteva
+ * averla perche' «l'API non restituisce un riepilogo di periodo e l'elenco ne
+ * chiede cento per volta»: la seconda meta` non vale piu`, e la somma delle
+ * righe in mano **e` la somma del filtro**.
+ *
+ * ⛔ **La quadratura resta fuori**: attesi e differenze esistono solo a
+ * sessione chiusa, e sommarli significherebbe trasformare un valore non
+ * disponibile in zero.
  */
 @Component({
   selector: 'app-cash-sessions',
@@ -79,9 +98,45 @@ export class CashSessionsComponent {
 
   protected readonly vista = TableViewId.CashSessions;
 
-  protected readonly pagina = signal<CashSessionsPage | null>(null);
-  protected readonly caricamento = signal(false);
-  protected readonly errore = signal<string | null>(null);
+  private readonly rilettura = signal(0);
+
+  private readonly richiesta = computed(() => ({
+    from: this.da() || undefined,
+    to: this.a() || undefined,
+    locationId: this.sedeId() ?? undefined,
+    status: this.stato() ?? undefined,
+    giro: this.rilettura(),
+  }));
+
+  /**
+   * ⛔ **UNA richiesta alla volta, e vince l'ULTIMA CHIESTA** — come nel
+   * registro operazioni: `carica()` apriva una sottoscrizione nuova senza
+   * chiudere la precedente, e a vincere era la risposta piu` lenta.
+   *
+   * ⭐ E chiede `all=1`: tutto il risultato del filtro, non una pagina.
+   */
+  private readonly statoRichiesta = toSignal(
+    toObservable(this.richiesta).pipe(
+      switchMap(({ giro: _giro, ...filtri }) =>
+        this.api.sessions(filtri, { tutto: true }).pipe(
+          map((p): StatoSessioni => ({ pagina: p, caricamento: false, errore: null })),
+          catchError(() =>
+            of<StatoSessioni>({
+              pagina: null,
+              caricamento: false,
+              errore: 'Non è stato possibile leggere le sessioni.',
+            }),
+          ),
+          startWith(IN_ATTESA),
+        ),
+      ),
+    ),
+    { initialValue: IN_ATTESA },
+  );
+
+  protected readonly pagina = computed(() => this.statoRichiesta().pagina);
+  protected readonly caricamento = computed(() => this.statoRichiesta().caricamento);
+  protected readonly errore = computed(() => this.statoRichiesta().errore);
 
   protected readonly da = signal('');
   protected readonly a = signal('');
@@ -104,29 +159,70 @@ export class CashSessionsComponent {
     viewId: () => this.vista,
     righe: () => this.pagina()?.items ?? [],
     cellText: (riga, colonna) => this.cellText(riga, colonna),
-    numeroDi: (riga, colonna) => {
-      switch (colonna) {
-        case 'float':
-          return riga.openingFloatMinor;
-        case 'deposits':
-          return riga.depositsMinor;
-        case 'withdrawals':
-          return riga.withdrawalsMinor;
-        default:
-          return null;
-      }
-    },
-    dataDi: (riga, colonna) => {
-      if (colonna === 'openedAt') {
-        return riga.openedAt;
-      }
-      return colonna === 'closedAt' ? riga.closedAt : null;
-    },
+    numeroDi: (riga, colonna) => this.numeroDi(riga, colonna),
+    dataDi: (riga, colonna) => this.dataDi(riga, colonna),
   });
 
+  /**
+   * ⭐ **L'ordinamento e` sull'intero risultato**, non su una pagina: da quando
+   * l'elenco arriva con `all=1`, ordinarlo in memoria e` onesto.
+   */
+  protected readonly ordine = signal<readonly DataTableSort[]>([]);
+
+  private readonly righeOrdinate = computed(() =>
+    ordinaPerColonne(this.righeFiltrate(), this.ordine(), {
+      cellText: (riga, colonna) => this.cellText(riga, colonna),
+      numeroDi: (riga, colonna) => this.numeroDi(riga, colonna),
+      dataDi: (riga, colonna) => this.dataDi(riga, colonna),
+    }),
+  );
+
   protected readonly sezioni = computed<readonly DataTableSection<CashSessionRow>[]>(() => [
-    { id: 'tutte', rows: this.righeFiltrate() },
+    { id: 'tutte', rows: this.righeOrdinate() },
   ]);
+
+  /**
+   * ⭐ **La riga totali delle Sessioni**, con la primitiva condivisa
+   * `totaliDiElenco` — la stessa dei prodotti e delle giacenze.
+   *
+   * ⛔ **Era assente**, e la motivazione era vera quando fu scritta: «l_API
+   * non restituisce un riepilogo di periodo, e sommare le cento righe
+   * caricate darebbe il totale della PAGINA». Da quando arriva tutto il
+   * risultato del filtro, quella somma **e` il totale del filtro**.
+   *
+   * ⚠️ **Tre ambiti, e non vanno confusi:**
+   *
+   * ```text
+   * riepilogo del PERIODO   non esiste per le sessioni, e non si inventa
+   * righe FILTRATE          quello che si somma qui, quando non c_e` selezione
+   * SELEZIONE               quando ci sono righe scelte: lo fa la primitiva
+   * ```
+   *
+   * ⛔ **Non si somma la QUADRATURA.** Differenze e attesi vivono in
+   * `frozen`, esistono solo a sessione chiusa e sono `null` finche` e` aperta:
+   * sommarli significherebbe **trasformare un valore non disponibile in
+   * zero**, cioe` affermare una quadratura che nessuno ha calcolato. La
+   * quadratura si legge nel dettaglio, dove il server la fornisce.
+   *
+   * ⚠️ **Vendite e Resi sommano il DENARO, non il conteggio**: la cella porta
+   * due grandezze («3 · 45,00 €») e una riga totali ne puo` mostrare una. Si
+   * somma quella additiva e omogenea alla colonna — gli importi. Il numero di
+   * sessioni lo dice gia` «N voci» a sinistra.
+   */
+  protected readonly totali = computed<DataTableTotals>(() =>
+    totaliDiElenco(this.righeOrdinate(), {
+      rowId: this.rowId,
+      selectedIds: new Set<string>(),
+      columns: this.colonneVisibili(),
+      campi: {
+        float: { valore: (r) => r.openingFloatMinor, formato: (n) => this.soldi(n) },
+        sales: { valore: (r) => r.salesTotalMinor, formato: (n) => this.soldi(n) },
+        returns: { valore: (r) => r.returnsTotalMinor, formato: (n) => this.soldi(n) },
+        deposits: { valore: (r) => r.depositsMinor, formato: (n) => this.soldi(n) },
+        withdrawals: { valore: (r) => r.withdrawalsMinor, formato: (n) => this.soldi(n) },
+      },
+    }),
+  );
 
   protected readonly vuoto = computed(
     () => !this.caricamento() && !this.errore() && (this.pagina()?.items.length ?? 0) === 0,
@@ -144,43 +240,45 @@ export class CashSessionsComponent {
       CASH_SESSIONS_COLUMN_PRESETS,
     );
     this.colonneVisibili = this.preferenzeColonne.visibleColumns(this.vista);
-
-    this.carica();
   }
 
+  /** Rilegge senza toccare i filtri: e` il gesto di «Riprova». */
   protected carica(): void {
-    this.caricamento.set(true);
-    this.errore.set(null);
-    this.api
-      .sessions({
-        page: 1,
-        // ⭐ Stesso tetto del registro operazioni (`cash-session.dto`).
-        pageSize: 5_000,
-        from: this.da() || undefined,
-        to: this.a() || undefined,
-        locationId: this.sedeId() ?? undefined,
-        status: this.stato() ?? undefined,
-      })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (p) => {
-          this.pagina.set(p);
-          this.caricamento.set(false);
-        },
-        error: () => {
-          this.pagina.set(null);
-          this.errore.set('Non è stato possibile leggere le sessioni.');
-          this.caricamento.set(false);
-        },
-      });
+    this.rilettura.update((n) => n + 1);
   }
 
+  /**
+   * Gli estrattori, in un posto solo: li usano i filtri di colonna E
+   * l'ordinamento. Sono le stesse tre funzioni con cui la tabella si disegna.
+   */
+  private numeroDi(riga: CashSessionRow, colonna: string): number | null {
+    switch (colonna) {
+      case 'float':
+        return riga.openingFloatMinor;
+      case 'sales':
+        return riga.salesTotalMinor;
+      case 'returns':
+        return riga.returnsTotalMinor;
+      case 'deposits':
+        return riga.depositsMinor;
+      case 'withdrawals':
+        return riga.withdrawalsMinor;
+      default:
+        return null;
+    }
+  }
+
+  private dataDi(riga: CashSessionRow, colonna: string): string | null {
+    if (colonna === 'openedAt') {
+      return riga.openedAt;
+    }
+    return colonna === 'closedAt' ? riga.closedAt : null;
+  }
   protected azzera(): void {
     this.da.set('');
     this.a.set('');
     this.sedeId.set(null);
     this.stato.set(null);
-    this.carica();
   }
 
   // ── Presentazione ────────────────────────────────────────────────────────

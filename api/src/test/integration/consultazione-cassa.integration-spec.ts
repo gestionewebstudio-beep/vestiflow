@@ -485,6 +485,105 @@ describe('consultazione della Cassa — su PostgreSQL TEST', () => {
     expect(fuoriPeriodo.items).toEqual([]);
   });
 
+  /*
+    ⛔ **UN TETTO PIU` ALTO RESTA UN TETTO.**
+
+    I due registri chiedevano `page: 1` con un `pageSize` via via piu` grande —
+    100, poi 5.000 — e le righe oltre la finestra restavano irraggiungibili:
+    nessuno chiedeva la pagina due. `regole-stile-ui` dice «NESSUN TETTO DI
+    RIGHE», e il contenimento e` il PERIODO.
+
+    ⭐ Ora si chiede `all=1`, sul percorso condiviso `UnpagedQueryDto` +
+    `pageWindow` — quello di clienti, prodotti, documenti e vendite online.
+
+    ⚠️ **La prova semina oltre il vecchio tetto** (5.100): sotto quella soglia
+    non falsificherebbe niente, perche' anche il codice di prima l'avrebbe
+    superata.
+  */
+  it('⛔ oltre il vecchio tetto: `all` porta TUTTO il risultato', async () => {
+    const s = await apri(sedeA);
+    const quante = 5_100;
+    await seminaVendite(prisma, tenant, sedeA, s, quante);
+
+    // ⛔ Con la finestra, il massimo consentito era 5.000: mancherebbero 100.
+    const finestra = await operazioni.list(tenant, utente(tenant), {
+      page: 1,
+      pageSize: 5_000,
+    });
+    expect(finestra.items.length).toBe(5_000);
+    expect(finestra.total).toBeGreaterThanOrEqual(quante);
+
+    // ⭐ Con `all`, tutte.
+    const tutto = await operazioni.list(tenant, utente(tenant), {
+      all: true,
+      page: 1,
+      pageSize: 5_000,
+    });
+    expect(tutto.items.length).toBe(tutto.total);
+    expect(tutto.items.length).toBeGreaterThanOrEqual(quante);
+
+    // ⭐ E il contratto per chi impagina non cambia: `total`, `page`, `pageSize`.
+    expect(tutto.page).toBe(1);
+    expect(tutto.pageSize).toBe(5_000);
+  }, 300_000);
+
+  it('⭐ le righe prima ESCLUSE entrano nel filtro e nei totali', async () => {
+    const s = await apri(sedeA);
+    await seminaVendite(prisma, tenant, sedeA, s, 5_050);
+
+    // La riga di riferimento e` l_ULTIMA seminata: con la finestra da 5.000
+    // ordinata per data discendente, le ultime restavano fuori.
+    const ultime = await prisma.document.findMany({
+      where: { tenantId: tenant, cashSessionId: s },
+      orderBy: { documentDate: 'asc' },
+      take: 1,
+      select: { id: true, number: true },
+    });
+    const fuoriFinestra = ultime[0]!;
+
+    const finestra = await operazioni.list(tenant, utente(tenant), {
+      page: 1,
+      pageSize: 5_000,
+    });
+    expect(finestra.items.map((i) => i.id)).not.toContain(fuoriFinestra.id);
+
+    const tutto = await operazioni.list(tenant, utente(tenant), {
+      all: true,
+      page: 1,
+      pageSize: 5_000,
+    });
+    expect(tutto.items.map((i) => i.id)).toContain(fuoriFinestra.id);
+
+    // ⭐ E la si raggiunge anche col FILTRO per numero, che prima la escludeva
+    //    solo perche` non era nella finestra.
+    const perNumero = await operazioni.list(tenant, utente(tenant), {
+      all: true,
+      page: 1,
+      pageSize: 5_000,
+      number: String(fuoriFinestra.number),
+    });
+    expect(perNumero.items.map((i) => i.id)).toContain(fuoriFinestra.id);
+
+    // ⚠️ Il riepilogo del server NON dipendeva dalla finestra e non cambia:
+    //    contava gia` tutto il filtro. E` la prova che i due ambiti sono
+    //    distinti — riepilogo del PERIODO contro righe caricate.
+    expect(tutto.summary.operationCount).toBe(finestra.summary.operationCount);
+  }, 300_000);
+
+  it('⭐ anche le SESSIONI arrivano tutte', async () => {
+    for (let i = 0; i < 3; i += 1) {
+      const s = await apri(sedeA);
+      await chiusura.close(tenant, utente(tenant), sedeA, s, { countedCashMinor: 0 });
+    }
+
+    const unaSola = await report.list(tenant, utente(tenant), { page: 1, pageSize: 1 });
+    expect(unaSola.items.length).toBe(1);
+    expect(unaSola.total).toBeGreaterThanOrEqual(3);
+
+    const tutte = await report.list(tenant, utente(tenant), { all: true, page: 1, pageSize: 1 });
+    expect(tutte.items.length).toBe(tutte.total);
+  });
+
   it('⭐ numero e anomalie insieme rispettano anche lo SCOPE', async () => {
     const sb = await apri(sedeB);
     const vB = await vendi(sb, { sede: sedeB, intento: 'combi-scope' });
@@ -747,6 +846,33 @@ async function creaSede(prisma: PrismaClient, tenantId: string, nome: string): P
 }
 
 /** Una Vendita al banco: stesso tipo documento, NESSUNA sessione di cassa. */
+/**
+ * Semina in blocco: alla prova interessa QUANTE righe tornano, non come sono
+ * nate. Un `checkout` per riga renderebbe la prova lunga minuti.
+ */
+async function seminaVendite(
+  prisma: PrismaClient,
+  tenantId: string,
+  locationId: string,
+  sessionId: string,
+  quante: number,
+): Promise<void> {
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO "documents"
+       ("id","tenant_id","location_id","type","status","year","document_date",
+        "reference","number","created_by_name","cash_session_id","total_minor","updated_at")
+     SELECT gen_random_uuid(), $1::uuid, $2::uuid, 'store_sale'::"DocumentType",
+            'confirmed'::"DocumentStatus", EXTRACT(YEAR FROM CURRENT_DATE)::int,
+            CURRENT_DATE - (g || ' minutes')::interval, 'MASSA/' || g, 900000 + g, $4,
+            $3::uuid, 10000, CURRENT_TIMESTAMP
+       FROM generate_series(1, ${quante}) AS g`,
+    tenantId,
+    locationId,
+    sessionId,
+    PREFISSO,
+  );
+}
+
 async function creaVenditaAlBanco(
   prisma: PrismaClient,
   tenantId: string,

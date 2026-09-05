@@ -182,10 +182,22 @@ export class CashApiService {
 
   // ── Consultazione ─────────────────────────────────────────────────────────
 
-  operations(filters: CashOperationsFilters): Observable<CashOperationsPage> {
+  /**
+   * ⭐ **`tutto` fa sparire la finestra lato API** (`all=1`), quindi arriva
+   * l'intero risultato del filtro: e` lo stesso percorso condiviso di
+   * clienti, prodotti, documenti, giacenze e vendite online.
+   *
+   * ⛔ **Il default resta PAGINATO**, e non e` timidezza: il metodo puo`
+   * servire a riempire un elenco a tendina, e con `all` acceso per tutti
+   * ognuno scaricherebbe l'intero registro.
+   */
+  operations(
+    filters: CashOperationsFilters,
+    opzioni: { readonly tutto?: boolean } = {},
+  ): Observable<CashOperationsPage> {
     return this.http
       .get<CashOperationsPage>(this.url('/cash-sessions/operations'), {
-        params: toParams(filters),
+        params: opzioni.tutto ? toParams(filters).set('all', '1') : toParams(filters),
       })
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
@@ -205,9 +217,15 @@ export class CashApiService {
     );
   }
 
-  sessions(filters: CashSessionsFilters): Observable<CashSessionsPage> {
+  /** Come `operations`: `tutto` chiede tutto il risultato del filtro. */
+  sessions(
+    filters: CashSessionsFilters,
+    opzioni: { readonly tutto?: boolean } = {},
+  ): Observable<CashSessionsPage> {
     return this.http
-      .get<CashSessionsPage>(this.url('/cash-sessions/sessions'), { params: toParams(filters) })
+      .get<CashSessionsPage>(this.url('/cash-sessions/sessions'), {
+        params: opzioni.tutto ? toParams(filters).set('all', '1') : toParams(filters),
+      })
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 

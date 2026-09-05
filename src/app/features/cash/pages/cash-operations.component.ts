@@ -8,7 +8,15 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
-import { catchError, debounceTime, distinctUntilChanged, of } from 'rxjs';
+import {
+  catchError,
+  debounceTime,
+  distinctUntilChanged,
+  map,
+  of,
+  startWith,
+  switchMap,
+} from 'rxjs';
 
 import type { EntityId } from '@core/models/common.model';
 import type { PaymentOption } from '@core/models/payment-option.model';
@@ -30,6 +38,7 @@ import { DataTableComponent } from '@shared/components/data-table/data-table.com
 import type {
   DataTableRowTone,
   DataTableSection,
+  DataTableSort,
 } from '@shared/components/data-table/data-table.model';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { ListPageComponent } from '@shared/components/list-page/list-page.component';
@@ -38,18 +47,26 @@ import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
 import { colonnaVisibile } from '@shared/models/list-card-fields.util';
 import { createColumnFilters } from '@shared/table-columns/column-filters';
+import { ordinaPerColonne } from '@shared/table-columns/column-sort.util';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
-
 import { TableViewId } from '@shared/table-columns/table-column.model';
 
+import { CASH_TABS } from '../models/cash-nav';
 import {
   CASH_OPERATIONS_COLUMN_DEFS,
   CASH_OPERATIONS_COLUMN_PRESETS,
 } from '../models/cash-register-columns.config';
-import { CASH_TABS } from '../models/cash-nav';
 
 /** Il debounce della ricerca e' quello degli altri elenchi, non uno suo. */
 const RICERCA_DEBOUNCE_MS = 300;
+
+interface StatoRegistro {
+  readonly pagina: CashOperationsPage | null;
+  readonly caricamento: boolean;
+  readonly errore: string | null;
+}
+
+const IN_ATTESA: StatoRegistro = { pagina: null, caricamento: true, errore: null };
 
 /**
  * Il **registro operativo** della Cassa: riepilogo e operazioni, su tutte le
@@ -60,15 +77,17 @@ const RICERCA_DEBOUNCE_MS = 300;
  * quote, con quale resto. Le stesse vendite alimentano entrambi, per strade
  * diverse e senza doppia contabilizzazione.
  *
- * ⛔ **Nessun totale si calcola qui**: elenco e riepilogo arrivano dallo stesso
- * filtro, dal server. Sommare le righe a schermo darebbe il totale della
- * PAGINA, non del periodo.
+ * ⛔ **Nessun totale si calcola qui**: il riepilogo arriva dal server, con lo
+ * stesso filtro dell'elenco.
  *
- * ⭐ **Sul telaio e sul motore comuni dal 04/09/2026.** Qui c'erano un
- * contenitore pagina proprio, nove `<th>` scritti a mano e una fascia riepilogo
- * con la propria tipografia: tre pattern che esistevano gia', e che riscritti a
- * mano non portavano il selettore Colonne, le larghezze regolabili ne' la vista
- * a card.
+ * ⭐ **E l'elenco non impagina** (05/09/2026): chiede `all=1` e riceve TUTTO il
+ * risultato del filtro attivo, sul percorso condiviso di clienti, prodotti,
+ * documenti e vendite online. Il contenimento e' il PERIODO, non un numero di
+ * righe — `regole-stile-ui`, «NESSUN TETTO DI RIGHE».
+ *
+ * ⛔ **Qui c'era `pageSize: 5_000`**, e prima ancora `100`: un tetto piu' alto
+ * resta un tetto, e le operazioni oltre la soglia restavano irraggiungibili
+ * perche' nessuno chiedeva la pagina due.
  */
 @Component({
   selector: 'app-cash-operations',
@@ -101,18 +120,19 @@ export class CashOperationsComponent {
 
   protected readonly vista = TableViewId.CashOperations;
 
-  protected readonly pagina = signal<CashOperationsPage | null>(null);
-  protected readonly caricamento = signal(false);
-  protected readonly errore = signal<string | null>(null);
-
   // ── Filtri ───────────────────────────────────────────────────────────────
   protected readonly da = signal('');
   protected readonly a = signal('');
   protected readonly sedeId = signal<EntityId | null>(null);
   protected readonly tipo = signal<CashOperationKind | null>(null);
   protected readonly tipoPagamento = signal<EntityId | null>(null);
+  /** Quello che si digita: entra nella richiesta solo dopo il debounce. */
   protected readonly numero = signal('');
+  private readonly numeroApplicato = signal('');
   protected readonly soloAnomalie = signal(false);
+
+  /** Il giro di rilettura: cambiarlo rifa' la richiesta senza toccare i filtri. */
+  private readonly rilettura = signal(0);
 
   // ── Richiamo scontrino ───────────────────────────────────────────────────
   protected readonly pannelloReso = signal(false);
@@ -140,11 +160,50 @@ export class CashOperationsComponent {
     { value: 'return', label: 'Resi' },
   ];
 
+  private readonly richiesta = computed(() => ({
+    from: this.da() || undefined,
+    to: this.a() || undefined,
+    locationId: this.sedeId() ?? undefined,
+    kind: this.tipo() ?? undefined,
+    paymentOptionId: this.tipoPagamento() ?? undefined,
+    number: this.numeroApplicato().trim() || undefined,
+    anomaliesOnly: this.soloAnomalie() || undefined,
+    giro: this.rilettura(),
+  }));
+
   /**
-   * ⚠️ **Le larghezze vengono dal tipo della colonna**, non da un numero
-   * scritto qui: il motore le deduce da `numeric` e `display`
-   * (`regole-stile-ui`, «Le larghezze NON si scrivono a mano in undici file»).
+   * ⛔ **UNA richiesta alla volta, e vince l'ULTIMA CHIESTA.**
+   *
+   * Qui c'era un `carica()` che apriva una sottoscrizione nuova a ogni cambio
+   * di filtro senza chiudere la precedente: con due richieste in volo vinceva
+   * **l'ultima che tornava**. Un filtro largo seguito da uno stretto lasciava a
+   * schermo il risultato largo — e non falliva: mostrava di piu'.
+   *
+   * ⭐ `switchMap` annulla la precedente, ed e' la forma degli altri elenchi.
    */
+  private readonly stato = toSignal(
+    toObservable(this.richiesta).pipe(
+      switchMap(({ giro: _giro, ...filtri }) =>
+        this.api.operations(filtri, { tutto: true }).pipe(
+          map((p): StatoRegistro => ({ pagina: p, caricamento: false, errore: null })),
+          catchError(() =>
+            of<StatoRegistro>({
+              pagina: null,
+              caricamento: false,
+              errore: 'Non è stato possibile leggere il registro.',
+            }),
+          ),
+          startWith(IN_ATTESA),
+        ),
+      ),
+    ),
+    { initialValue: IN_ATTESA },
+  );
+
+  protected readonly pagina = computed(() => this.stato().pagina);
+  protected readonly caricamento = computed(() => this.stato().caricamento);
+  protected readonly errore = computed(() => this.stato().errore);
+
   protected readonly colonneVisibili: ReturnType<TableColumnPreferenceService['visibleColumns']>;
 
   /**
@@ -163,8 +222,28 @@ export class CashOperationsComponent {
     dataDi: (riga, colonna) => (colonna === 'createdAt' ? riga.createdAt : null),
   });
 
+  /**
+   * ⭐ **L'ordinamento e' della PAGINA, non del motore**: il motore emette la
+   * pressione, chi ha le righe le riordina. Qui in memoria, e ora si puo':
+   * l'elenco e' caricato tutto, quindi ordinare non riordina «una pagina».
+   *
+   * ⛔ **Era spento** con la motivazione che «l'API non ha un parametro `sort`»
+   * — vera, e non piu' un impedimento: con tutto il risultato in mano il
+   * confronto e' completo. Le stesse tre funzioni dei filtri, e il collatore
+   * italiano condiviso di `sortByKeys`.
+   */
+  protected readonly ordine = signal<readonly DataTableSort[]>([]);
+
+  private readonly righeOrdinate = computed(() =>
+    ordinaPerColonne(this.righeFiltrate(), this.ordine(), {
+      cellText: (riga, colonna) => this.cellText(riga, colonna),
+      numeroDi: (riga, colonna) => (colonna === 'total' ? riga.totalMinor : null),
+      dataDi: (riga, colonna) => (colonna === 'createdAt' ? riga.createdAt : null),
+    }),
+  );
+
   protected readonly sezioni = computed<readonly DataTableSection<CashOperationRow>[]>(() => [
-    { id: 'tutte', rows: this.righeFiltrate() },
+    { id: 'tutte', rows: this.righeOrdinate() },
   ]);
 
   protected readonly vuoto = computed(
@@ -189,8 +268,6 @@ export class CashOperationsComponent {
     );
     this.colonneVisibili = this.preferenzeColonne.visibleColumns(this.vista);
 
-    this.carica();
-
     // Stessa forma degli altri elenchi: si digita, si aspetta, si ricarica.
     toObservable(this.numero)
       .pipe(
@@ -198,38 +275,12 @@ export class CashOperationsComponent {
         distinctUntilChanged(),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe(() => this.carica());
+      .subscribe((testo) => this.numeroApplicato.set(testo));
   }
 
+  /** Rilegge senza toccare i filtri: e' il gesto di «Riprova». */
   protected carica(): void {
-    this.caricamento.set(true);
-    this.errore.set(null);
-    this.api
-      .operations({
-        page: 1,
-        // ⭐ 5.000, misurate: 284 ms e 3,9 MB lato server (`cash-session.dto`).
-        //    ⚠️ Senza virtualizzazione il collo e` il DOM, non l_API.
-        pageSize: 5_000,
-        from: this.da() || undefined,
-        to: this.a() || undefined,
-        locationId: this.sedeId() ?? undefined,
-        kind: this.tipo() ?? undefined,
-        paymentOptionId: this.tipoPagamento() ?? undefined,
-        number: this.numero().trim() || undefined,
-        anomaliesOnly: this.soloAnomalie() || undefined,
-      })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (p) => {
-          this.pagina.set(p);
-          this.caricamento.set(false);
-        },
-        error: () => {
-          this.pagina.set(null);
-          this.errore.set('Non è stato possibile leggere il registro.');
-          this.caricamento.set(false);
-        },
-      });
+    this.rilettura.update((n) => n + 1);
   }
 
   protected azzeraFiltri(): void {
@@ -239,8 +290,8 @@ export class CashOperationsComponent {
     this.tipo.set(null);
     this.tipoPagamento.set(null);
     this.numero.set('');
+    this.numeroApplicato.set('');
     this.soloAnomalie.set(false);
-    this.carica();
   }
 
   // ── Il richiamo dello scontrino ──────────────────────────────────────────
@@ -327,7 +378,7 @@ export class CashOperationsComponent {
       case 'source':
         return riga.sourceReference ?? '—';
       case 'status':
-        return this.stato(riga);
+        return this.statoDi(riga);
       case 'total':
         return this.soldi(riga.totalMinor);
       default:
@@ -347,7 +398,11 @@ export class CashOperationsComponent {
     return riga.payments[0]?.optionName ?? '—';
   }
 
-  protected stato(riga: CashOperationRow): string {
+  /**
+   * ⚠️ Si chiama `statoDi` e non `stato`: `stato` e' il flusso della richiesta,
+   * e due membri non possono avere lo stesso nome.
+   */
+  protected statoDi(riga: CashOperationRow): string {
     const prima = riga.anomalies[0];
     return prima ? this.etichettaAnomalia(prima) : 'Registrata';
   }

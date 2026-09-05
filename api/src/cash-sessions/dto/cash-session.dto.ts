@@ -18,6 +18,8 @@ import {
   ValidateIf,
 } from 'class-validator';
 
+import { UnpagedQueryDto } from '../../common/dto/unpaged.util';
+
 /**
  * ⛔ **Nessun DTO porta `tenantId`, `openedByName` o lo stato**: arrivano dal
  * contesto autenticato. Un campo che il chiamante sceglie non è un dato, è una
@@ -105,7 +107,17 @@ export class CashSessionLocationQueryDto {
  * ⚠️ `@Type(() => Number)`: una query string arriva SEMPRE come testo, e
  * senza la conversione `@IsInt()` rifiuterebbe ogni richiesta.
  */
-export class CashPageQueryDto {
+/**
+ * ⭐ **Estende `UnpagedQueryDto`**, che porta `all=1` — «tutto il risultato
+ * del filtro attivo». E` lo stesso percorso di clienti, prodotti, documenti,
+ * giacenze, ordini e vendite online: non un secondo modo di dire la stessa
+ * cosa.
+ *
+ * ⛔ **La paginazione resta nel contratto** e non e` un residuo: `page` e
+ * `pageSize` valgono quando `all` non c'e`, e la risposta continua a portare
+ * `total`, `page` e `pageSize`. Chi impagina non si accorge di niente.
+ */
+export class CashPageQueryDto extends UnpagedQueryDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -117,34 +129,25 @@ export class CashPageQueryDto {
   @IsInt()
   @Min(1)
   /*
-    ⭐ **CINQUEMILA, misurate il 05/09/2026** — deciso dal proprietario.
+    ⚠️ **QUESTO NON E` PIU` IL TETTO DELL'ELENCO**, e la distinzione conta.
 
-    ⛔ Il tetto era 200, e il client ne chiedeva 100: sopra quella soglia le
-    righe mancavano PRIMA del filtro, contro «NESSUN TETTO DI RIGHE»
-    (`regole-stile-ui`). Ma il numero non si sceglie a sentimento: misurato
-    su 20.000 vendite vere nel database usa-e-getta, due quote ciascuna.
+    ⛔ Qui c_era «CINQUEMILA, misurate il 05/09/2026», con la tabella dei
+    tempi: era il tetto alzato da 200 a 5.000 perche` i registri chiedevano
+    una pagina sola. **Non chiudeva il problema** — «entrambi i registri
+    chiedono ancora `page: 1` e le operazioni successive restano
+    irraggiungibili», proprietario, 05/09/2026. Un tetto piu` alto e` sempre
+    un tetto.
 
-    ```text
-    righe      ms   KB JSON   ms/riga
-       100     51       78     0,510
-     1.000    154      777     0,154
-     5.000    284    3.891     0,057   ← il tetto scelto
-    10.000    551    7.782     0,055
-    20.000  1.074   15.575     0,054
-    ```
+    ⭐ I due registri ora chiedono `all=1` e ricevono **tutto il risultato**
+    del filtro: il contenimento e` il PERIODO, come dice `UnpagedQueryDto`.
 
-    ⭐ **Il costo per riga si stabilizza a 0,054 ms**: la lettura e` lineare
-    e non c_e` nessun N+1 — le query sono sette e restano sette a qualunque
-    pagina. Il database regge molto oltre.
+    ⚠️ **Il tetto resta per chi impagina davvero**, ed e` la ragione per cui
+    non si toglie: `pageSize` senza limite e` una richiesta che un client
+    puo` fare per sbaglio. 5.000 e` la misura oltre la quale non ha piu`
+    senso una PAGINA — chi vuole tutto lo chiede con `all`, e lo dichiara.
 
-    ⚠️ **A fermare il numero non e` il database: e` il PAYLOAD.** 5.000 righe
-    sono 3,9 MB di JSON — su rete locale nulla, su una connessione da 10
-    Mbit sono tre secondi di sola trasmissione. E 20.000 sarebbero 15,6 MB.
-
-    ⛔ **E il collo vero e` il BROWSER, non l_API**: senza virtualizzazione
-    5.000 righe sono ~45.000 nodi nel DOM, e sotto `lg` altrettante card. La
-    virtualizzazione del motore tabella smette di essere
-    un'ottimizzazione e diventa un prerequisito (`docs/DA-FARE.md`).
+    La misura resta valida ed e` in `docs/25`: 5.000 righe costano 284 ms e
+    3,9 MB, 20.000 ne costano 1.074 e 15,6 MB — lineare, nessun N+1.
   */
   @Max(5_000)
   pageSize: number = 50;

@@ -78,6 +78,10 @@
     [cellText]="cellText"
     [rowClickable]="true"
     [rowLabel]="rowLabel"
+    [sortable]="true"
+    [sort]="ordine()"
+    [totals]="totali()"
+    (sortChange)="ordine.set($event)"
     (rowClick)="apri($event)"
   >
     <!-- L'unica cella che non e' testo: lo stato, con la sua pill. -->
