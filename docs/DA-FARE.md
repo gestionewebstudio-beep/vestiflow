@@ -71,6 +71,52 @@
 - Prestazioni mobile ferme alla tranche conclusa: il limite a grandi volumi resta.
   Nessun rilascio o intervento sul database condiviso è incluso in queste correzioni.
 
+### Residui di processo del preflight — chiusi il 06/09/2026
+
+**Tre residui indicati dal proprietario, chiusi in tre commit locali separati.**
+Ripresa da `ade2d339`, ramo `feature/recupero-cassa`, albero pulito e nessuna
+lavorazione concorrente; `docs/RIPRESA-03-09-2026.md` resta non tracciato e
+intatto. **Nessun push, merge, cambio ramo, intervento sui servizi locali o
+scrittura sul database condiviso.** La tranche IVA non è stata riaperta.
+
+| Commit     | Residuo                                                                                                                                                                                                          |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `2f9abf1c` | `check:rls:static` in coda a `npm run lint` (60 passi): fase 1 offline, 74 tabelle, ~1 s. `check:rls` resta invariato e **obbligatorio** in `security.yml` per l'ambiente reale                                  |
+| `5931f727` | Ordine CI: due installazioni e `prisma:generate` in testa, poi lint e type-check, poi i test. Tredici passi, gli stessi di prima — confronto degli elenchi ordinati. `regole-qualita` allineata al percorso vero |
+| `e93609ad` | Soglie di copertura API alla misura reale troncata: **67 / 59 / 69 / 67** contro 44 / 35,5 / 56 / 43. Nessuna esclusione toccata, nessun test indebolito                                                         |
+
+⭐ **Le due guardie si sono viste FALLIRE, non solo passare.**
+
+- RLS: lo script vero eseguito su un albero finto con una tabella priva di
+  `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` esce **1** e nomina la tabella;
+  aggiunta la riga, lo stesso albero esce **0**. Il controllo positivo evita che
+  un albero finto sbagliato faccia sembrare riuscita la falsificazione.
+- Copertura: con le soglie alzate di mezzo punto sopra la misura, **senza toccare
+  il file**, `vitest` esce **1** su lines e functions.
+
+⛔ **Lo scarto di copertura non era solo sulle funzioni.** Branches e lines erano i
+più lontani, oltre 23 punti: il divario nasceva dalle esclusioni allineate il
+05/09 al perimetro di `tsconfig.build` senza rileggere le soglie.
+
+⚠️ **Misura riproducibile**: `npm run test:coverage --prefix api` su `2f9abf1c`,
+albero pulito, **due esecuzioni con esito identico al centesimo** su tutti e
+quattro gli indici — 67,52 / 59,65 / 69,17 / 67,65, 220 file e 2.446 test verdi.
+
+⚠️ **`.claude/rules/regole-qualita.md` committato senza l'hook**: il file non era
+già conforme a Prettier prima della modifica, e lasciarlo riformattare avrebbe
+prodotto **1672 righe cambiate** invece delle poche toccate. Stessa ragione per
+cui il progetto vieta Prettier su un albero intero.
+
+**Non toccati, come da mandato:** letture di layout durante lo scorrimento, query
+DOM del motore tabella, nomi misti dell'API di checkout, fiscalizzazione e
+rifiniture estetiche.
+
+⛔ **I limiti documentati restano aperti e NON sono chiusi da questa consegna:**
+riferimenti tecnici dei pagamenti POS assenti, checkout privi di
+`issuerSnapshot`, storico append-only dei tentativi fiscali. Nessuna migration,
+integrazione o dato sintetico è stato introdotto per completarli. Valgono
+invariate le voci della tabella «Residui prioritari» qui sotto.
+
 ### Preflight aggiornato — chiusura per pausa del 06/09/2026
 
 **Consegna locale per revisione, non approvazione al merge o al rilascio.** Stato
