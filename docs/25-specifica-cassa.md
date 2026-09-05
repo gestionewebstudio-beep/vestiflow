@@ -12,30 +12,30 @@ banco**. Scritta il 04/09/2026 come tranche **C0** del recupero da
 
 ## 0. Le decisioni vigenti
 
-| #   | Decisione                                                                                        | Dove si argomenta |
-| --- | ------------------------------------------------------------------------------------------------ | ----------------- |
-| 1   | Vendita al banco e Cassa sono **due flussi distinti**, su **rotte separate**                     | §1, §3            |
-| 2   | La Cassa produce una **normale `store_sale`**: nessun secondo documento economico                | §4                |
-| 3   | La Vendita al banco conserva `cash \| card \| other`; la **Cassa usa `PaymentOption`**           | §5                |
-| 4   | «Misto» è **calcolato a lettura dalle quote**, mai persistito                                    | §6                |
-| 5   | `PaymentOption` va esteso: la migration è di **C2A**. la classe operativa è **C2B**              | §7                |
-| 6   | Le sei tabelle esistono già nel database: **non si ricreano**                                    | §8                |
-| 7   | Una sede ha **principale + riserva**, non due postazioni. Il dispositivo è **della sessione**    | §10               |
-| 8   | Ogni RT ha **numerazione e chiusura proprie**: si conserva sempre **chi ha emesso**              | §10               |
-| 9   | La Cassa classifica i Tipi pagamento con `PaymentTenderKind`: **operativa**, non fiscale         | §7                |
-| 10  | La rappresentazione fiscale AdE e il protocollo del dispositivo stanno in **C5**                 | §10, §15          |
-| 11  | Il contante si **conta**, l'elettronico si **riconcilia**: sono due gesti diversi                | §9                |
-| 12  | I cambi di dispositivo hanno uno **storico append-only**, non una colonna riscritta              | §10               |
-| 13  | **C3, C4 e C4B non si rilasciano separatamente**: nessuna chiusura provvisoria                   | §13               |
-| 14  | Tre permessi: `retail.register` vede, `retail.cash_session` apre, `retail.cash_drawer` movimenta | §13               |
-| 15  | La Cassa vive su `/app/cassa` con **tre sole aree**: Vendita · Operazioni · Sessioni             | §3                |
-| 16  | Reso e chiusura sono **subordinati**, non voci di menu                                           | §3                |
-| 17  | Il reso dichiara **quale riga** rettifica: il cumulativo si ricostruisce, non si contabilizza    | §12-bis           |
-| 18  | Il rimborso è agganciato alla **quota di incasso**, non al Tipo pagamento                        | §13-quater        |
-| 19  | La chiusura è **cieca** e **congela** gli attesi: la differenza resta derivata                   | §9, §13-quinquies |
-| 20  | Il **validatore** blocca la riga di sessione: è l’unico punto di serializzazione della Cassa     | §13-sexies        |
-| 21  | «Operazione di Cassa» = documento con **sessione**: la contabilità resta quella dei documenti    | §13-septies       |
-| 22  | Nessun dato di **stato fiscale** finché C5 non esiste: si dice a parole, non si simula           | §13-septies       |
+| #   | Decisione                                                                                                                                      | Dove si argomenta |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| 1   | Vendita al banco e Cassa sono **due flussi distinti**, su **rotte separate**                                                                   | §1, §3            |
+| 2   | La Cassa produce una **normale `store_sale`**: nessun secondo documento economico                                                              | §4                |
+| 3   | La Vendita al banco conserva `cash \| card \| other`; la **Cassa usa `PaymentOption`**                                                         | §5                |
+| 4   | «Misto» è **calcolato a lettura dalle quote**, mai persistito                                                                                  | §6                |
+| 5   | `PaymentOption` va esteso: la migration è di **C2A**. la classe operativa è **C2B**                                                            | §7                |
+| 6   | Le sei tabelle esistono già nel database: **non si ricreano**                                                                                  | §8                |
+| 7   | Una sede ha **principale + riserva**, non due postazioni. Il dispositivo è **della sessione**                                                  | §10               |
+| 8   | Ogni RT ha **numerazione e chiusura proprie**: si conserva sempre **chi ha emesso**                                                            | §10               |
+| 9   | La Cassa classifica i Tipi pagamento con `PaymentTenderKind`: **operativa**, non fiscale                                                       | §7                |
+| 10  | La rappresentazione fiscale AdE e il protocollo del dispositivo stanno in **C5**                                                               | §10, §15          |
+| 11  | Il contante si **conta**, l'elettronico si **riconcilia**: sono due gesti diversi                                                              | §9                |
+| 12  | I cambi di dispositivo hanno uno **storico append-only**, non una colonna riscritta                                                            | §10               |
+| 13  | **C3, C4 e C4B non si rilasciano separatamente**: nessuna chiusura provvisoria                                                                 | §13               |
+| 14  | Quattro permessi: `retail.register` legge/vende, `retail.cash_session` apre/chiude, `retail.cash_drawer` movimenta, `retail.cash_return` rende | §13               |
+| 15  | La Cassa vive su `/app/cassa` con **tre sole aree**: Vendita · Operazioni · Sessioni                                                           | §3                |
+| 16  | Reso e chiusura sono **subordinati**, non voci di menu                                                                                         | §3                |
+| 17  | Il reso dichiara **quale riga** rettifica: il cumulativo si ricostruisce, non si contabilizza                                                  | §12-bis           |
+| 18  | Il rimborso è agganciato alla **quota di incasso**, non al Tipo pagamento                                                                      | §13-quater        |
+| 19  | La chiusura è **cieca** e **congela** gli attesi: la differenza resta derivata                                                                 | §9, §13-quinquies |
+| 20  | Il **validatore** blocca la riga di sessione: è l’unico punto di serializzazione della Cassa                                                   | §13-sexies        |
+| 21  | «Operazione di Cassa» = documento con **sessione**: la contabilità resta quella dei documenti                                                  | §13-septies       |
+| 22  | Nessun dato di **stato fiscale** finché C5 non esiste: si dice a parole, non si simula                                                         | §13-septies       |
 
 In caso di contrasto fra questo elenco e il corpo del documento, **vale l'elenco**.
 
@@ -1281,9 +1281,10 @@ Evidenze in `test-results/cassa-browser-real/` (screenshot, trace, richieste sen
 header di autenticazione). Il job CI dedicato include questi percorsi, le migration,
 l'integrazione API e le regressioni UI isolate; esecuzione remota ancora non effettuata.
 
-⚠️ **Oggi esiste un solo permesso retail: `retail.register`**, e governa la **Vendita al
-banco** — non la Cassa. Il nome inganna, ed è un residuo del periodo in cui quelle rotte
-portavano al carrello.
+**Stato verificato 05/09:** `retail.register` è condiviso da Vendita al banco e
+lettura/vendita Cassa. Le azioni Cassa aggiungono `retail.cash_session`
+(apertura, chiusura e cambio dispositivo), `retail.cash_drawer` (cassetto) e
+`retail.cash_return` (reso e anteprima). L'annotazione C0 «un solo permesso» è superata.
 
 La Cassa richiede: modulo visibile **solo ai tenant abilitati**; permessi **distinti** per
 usare la Cassa, aprire e chiudere sessioni, gestire dispositivi e terminali; isolamento
@@ -1291,8 +1292,15 @@ tenant su ogni lettura e scrittura; location obbligatoria dove serve davvero; **
 esposizione delle tabelle via Data API** e RLS coerente; indirizzi dei dispositivi e configurazione POS
 mai esposti inutilmente al frontend; nessuna credenziale nei log.
 
-⛔ **La Vendita al banco continua a funzionare per chi ha i suoi permessi anche senza alcun
-permesso Cassa.**
+**La Vendita al banco e il reso autonomo continuano a funzionare senza i tre
+permessi aggiuntivi Cassa**, mantenendo il loro `retail.register` e i controlli
+documentali ordinari. Il collaudo HTTP verifica entrambe le compatibilità.
+
+**Decisione ancora necessaria prima dell'esposizione:** «solo ai tenant abilitati»
+non ha un meccanismo dedicato nel codice attuale. Le rotte usano accesso al workspace
+e permessi retail; `TenantFeatureSettings` non contiene un'abilitazione Cassa.
+Va chiarito se questi permessi esauriscono l'abilitazione prevista oppure serve
+un'attivazione del modulo per tenant. Non è stata inventata una nuova regola.
 
 ### ⛔ Limite ereditato: il database NON garantisce l'isolamento tenant
 
@@ -1313,10 +1321,11 @@ un altro tenant, o una sessione a una sede altrui.
 `documents(location_id)` e `documents(source_document_id)`, che esistono da molto prima. È un
 limite dell'intero schema.
 
-⭐ **Va affrontato prima dei servizi applicativi della Cassa** (C3): finché l'isolamento vive
-solo nel codice, ogni percorso di scrittura deve verificare il tenant da sé, e ogni percorso
-nuovo è un'occasione di dimenticarlo. Se e come chiuderlo — vincoli compositi, RLS, o
-verifica applicativa centralizzata — è una decisione da prendere, non da dedurre.
+**C3 ha introdotto la verifica applicativa centralizzata** `assertCashContext`,
+riusando lo scope di sede esistente e la transazione del chiamante. Il preflight
+ha aggiunto riautorizzazione del replay e validazione dei riferimenti nel restore.
+I percorsi HTTP e i privilegi SQL sono collaudati; questo non trasforma le FK
+singole in vincoli compositi né protegge scritture SQL arbitrarie del proprietario DB.
 
 ### ⛔ DUE CONDIZIONI OBBLIGATORIE prima di dichiarare completa la Cassa
 
@@ -1324,13 +1333,14 @@ verifica applicativa centralizzata — è una decisione da prendere, non da dedu
 difetti e sono verdi: un test verde si legge come comportamento atteso anche quando il suo
 nome dice il contrario, quindi vanno dichiarati **qui** e non solo nei commenti dei test.
 
-> **Restano fuori dalle migration attuali soltanto perché oggi non esistono né API né
-> utilizzo reale. Non sono il comportamento atteso della Cassa completa.**
+L'annotazione C1 «non esistono API» è superata: oggi esistono e sono collaudate.
+La protezione tenant/sede è applicativa; la cronologia dei tentativi fiscali resta
+una condizione da soddisfare in C5 prima di emettere realmente.
 
-| #   | Condizione                                                       | Entro quando                      | Prova che lo dimostra                                      |
-| --- | ---------------------------------------------------------------- | --------------------------------- | ---------------------------------------------------------- |
-| 1   | **Protezione cross-tenant**: tenant e sede verificati insieme    | prima di esporre servizi e API    | `dispositivo-di-sessione` · `dispositivo-fiscale-neutrale` |
-| 2   | **Cronologia dei tentativi append-only**: nessuna sovrascrittura | prima della fiscalizzazione reale | `dispositivo-fiscale-neutrale`, ultimo caso                |
+| #   | Condizione                                                       | Entro quando                           | Prova che lo dimostra                                                      |
+| --- | ---------------------------------------------------------------- | -------------------------------------- | -------------------------------------------------------------------------- |
+| 1   | **Protezione cross-tenant**: tenant e sede verificati insieme    | realizzata in C3, estesa nel preflight | `sessione-cassa`, `cassa-idempotenza`, `cassa-backup`, `cassa-storico-rls` |
+| 2   | **Cronologia dei tentativi append-only**: nessuna sovrascrittura | prima della fiscalizzazione reale      | `dispositivo-fiscale-neutrale`, ultimo caso                                |
 
 ⛔ **Nessuna delle due si può rimandare oltre quel punto**: la prima perché ogni percorso di
 scrittura nuovo è un'occasione di dimenticare il tenant, e la seconda perché la traccia del
@@ -1341,17 +1351,17 @@ assenza costa una doppia emissione.
 
 ## 13-bis. C3 — validatore, sessione, cassetto, dispositivo
 
-⭐ **Realizzata il 04/09/2026.** Non c'è la chiusura, e non è una dimenticanza.
+**C3 realizzata il 04/09/2026.** C3 da sola non includeva la chiusura;
+oggi C4B e le schermate sono presenti e il percorso completo è collaudato.
 
 ### ⛔ Nessuna chiusura provvisoria, e il rilascio è unico
 
 Deciso dal proprietario: **C3, C4 e C4B non saranno rilasciate o rese accessibili
 separatamente**, e non si crea una chiusura amministrativa con attesi `NULL`.
 
-⚠️ Ne discende un vincolo operativo da tenere presente: **una sessione aperta da C3 non ha
-modo di chiudersi** finché C4B non esiste, e l'indice parziale impedisce di aprirne una
-seconda sulla stessa sede. È accettabile **solo** perché la funzione non è accessibile
-all'utente — nessun menu, nessuna schermata.
+Il vincolo impediva di esporre C3 da sola, perché una sessione non avrebbe potuto
+chiudersi. L'attuale ramo comprende C4B e il menu Cassa: resta valido il rilascio
+unico delle tranche, ma non l'annotazione storica «nessun menu, nessuna schermata».
 
 ### Il validatore, e cosa NON duplica
 

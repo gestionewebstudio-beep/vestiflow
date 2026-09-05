@@ -45,7 +45,7 @@
 - Il job CI Cassa esegue migration, integrazione API, browser reale e regressioni
   UI isolate, sul PostgreSQL effimero senza segreti. Il baseline upgrade è fissato
   al commit verificato, per conservarlo dopo il futuro merge. La CI remota non
-  è stata avviata: nessun push. Restano le verifiche complessive finali locali.
+  è stata avviata: nessun push. Le verifiche complessive locali sono concluse.
 - Corretto il contratto checkout: anteprima IVA dalle primitive condivise con
   snapshot completo (incluse aliquote frazionarie), arrotondamento a fine riga,
   traduzione di `totaleMinor`/`restoMinor` dal server. Passano 13 prove frontend
@@ -55,6 +55,70 @@
   non è stato cambiato il calcolo della normale Vendita al banco.
 - Prestazioni mobile ferme alla tranche conclusa: il limite a grandi volumi resta.
   Nessun rilascio o intervento sul database condiviso è incluso in queste correzioni.
+
+### Preflight aggiornato — consegna del 05/09/2026
+
+**Correzioni autorizzate verificate; rilascio non autorizzato.** Perimetro di codice
+revisionato: `develop` locale `d0a1d95b` → `6fcd8acb`, 57 commit e 202 file nel diff
+reale, incluse specifiche e prove. Il ramo discende da quel `develop` senza commit
+esclusivi sul lato develop; non è stato fatto fetch, quindi non certifica il futuro
+bersaglio remoto. I commit da `05ff072c` a `6fcd8acb` separano protezioni documentali,
+idempotenza, resi, RLS, backup, contratto IVA e collaudi. Nessun vecchio SQL di migration
+è modificato dal diff: sono aggiunte 11 migration.
+
+| Ambito                            | Prova conclusiva                                                                                                                                      | Esito                                                                |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Documenti Cassa e banco ordinario | 38 chiamate HTTP: mutazioni alternative rifiutate, nessun effetto su quote/magazzino/quadratura; banco e reso autonomo modificabili                   | Verificato                                                           |
+| Invio incerto e importi originali | HTTP diretto, concorrenza, replay dopo revoca, matrice IVA/sconti/resi e due percorsi browser reali                                                   | Verificato                                                           |
+| Isolamento tenant/sede            | Guardie ordinarie, riferimenti indiretti, replay, restore e cancellazione del solo tenant; privilegi SQL reali dello storico                          | Verificato nel DB TEST; nessuna pretesa di FK tenant composite       |
+| Backup tecnico                    | Export ZIP/import multipart reali; SDK Storage su HTTP locale, rollback DB e pulizia nuovi oggetti, v3 valido/v4, riferimenti invalidi e cross-tenant | Verificato; limiti infrastrutturali in `BACKUP-DISASTER-RECOVERY.md` |
+| Installazione e upgrade           | 158 migration da zero; 147→158 con dati; 157→158 con storico e GRANT preesistenti                                                                     | 3 percorsi passati                                                   |
+| Browser reale                     | Desktop e mobile: apertura, IVA/Decimal, incasso misto/resto, perdita risposta e recupero, resi 1+2, cassetto, chiusura e registro                    | 2 percorsi passati; Auth provider locale, API gestionali e DB reali  |
+| Regressioni UI isolate            | Componenti condivisi, registri, tastiera, filtri e mobile                                                                                             | 32 prove passate; API simulate, distinte dal collaudo precedente     |
+
+**Controlli globali:** `npm run lint` completo, `npm run check:types`, type-check
+test API, build frontend production e build API passati. `npm run test:everything`:
+5.770 test (2.051 frontend con coverage + 1.280 componenti + 2.439 API).
+`npm run test:integration`: 406 test su PostgreSQL TEST. Anche `npm --prefix api run
+test:coverage` passa: funzioni 69,31% contro soglia 56%, mantenuta invariata.
+Il conteggio esclude ora le fixture e i test, come `tsconfig.build.json`, senza
+escludere codice applicativo Cassa. Corrette le fixture con date non distinguibili;
+la ripartizione verifica anche lo snapshot della variante dopo modifica del catalogo.
+
+Log ripetibili in `test-results/cassa-preflight-full-tests.log`,
+`cassa-preflight-full-integration.log`, `cassa-preflight-full-lint.log`,
+`cassa-preflight-api-coverage.log`, `cassa-preflight-migrations.log`,
+`cassa-preflight-browser-regressions.log` e `cassa-browser-real/`.
+I file di evidenza sono locali e ignorati da Git; i test e i comandi sono committati.
+
+**Database condiviso, sola lettura alle 22:08:** transazione con
+`transaction_read_only=on`; 147 migration applicate contro 158 locali. Sessioni,
+movimenti, dispositivi, ricevute fiscali e POS dormienti hanno zero righe;
+`store_sale_payments` conserva una riga. La precondizione di upgrade è ancora
+coerente, ma va ricontrollata immediatamente prima dell'applicazione autorizzata.
+Permane `tenant_feature_settings.default_unit_of_measure`, assente da Prisma:
+quattro righe, tutte `pz`. Confrontando i checksum applicati con i blob di HEAD,
+sei differiscono: cinque per terminatori di riga, uno per il commento storico
+aggiunto a `20260811120000_supplier_order_line_number` (diff da `25b33168` privo
+di cambiamenti SQL). Non sono stati riscritti file storici o checksum nel database.
+Evidenza: `test-results/cassa-preflight-shared-readonly.json`.
+
+**Interventi ancora necessari, in ordine:**
+
+| Priorità e confine                               | Cosa manca                                                                                                                                    | Criterio di chiusura                                                                                                                                                                 |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| P0 — prima del merge che avvii codice su develop | Piano coordinato per le 11 migration e il client/API corrispondenti; CI del bersaglio effettivo ancora da eseguire                            | Autorizzare quel passaggio, verificare il nuovo diff e la CI, applicare le migration solo nel rilascio concordato. Il codice attuale non va avviato contro lo schema condiviso a 147 |
+| P0 — prima di esporre la Cassa ai tenant         | §13 richiede tenant abilitati, ma il codice usa workspace e permessi retail senza un'attivazione dedicata del modulo                          | Decisione del proprietario: bastano i permessi esistenti o serve un'abilitazione per tenant. Non inventare il comportamento mancante; chiarito in `25-specifica-cassa.md`            |
+| P1 — uso reale/infrastruttura                    | Verifiche post-deploy RLS/revoche e Data API, backup e ripristino sull'infrastruttura del rilascio, autenticazione/MFA reali                  | Collaudo autorizzato nell'ambiente previsto; il provider locale e il PostgreSQL usa-e-getta non sostituiscono questi passaggi                                                        |
+| P1 — uso come cassa fiscale                      | C5, adapter e cronologia dei tentativi fiscali non implementati                                                                               | Tranche separata prima di dichiarare emissione fiscale; nessuna fiscalizzazione o stampa aggiunta qui                                                                                |
+| P2 — rinviabili                                  | Grandi volumi mobile ancora pesanti; voucher e regimi IVA particolari; stampe/esportazioni operative                                          | Mandati separati. L'IVA non supportata è rifiutata senza effetti, non convertita silenziosamente                                                                                     |
+| P2 — interazione quantità                        | Svuotare il campo quantità equivale attualmente a zero e rimuove la riga (`cambiaQuantita`); i percorsi reali qui usano la scansione ripetuta | Revisione mirata dell'editing quantità, senza confonderla con idempotenza o virtualizzazione                                                                                         |
+
+Le annotazioni C0/C1 sui permessi, sulle API assenti e su C3 senza chiusura sono
+state aggiornate nella specifica. `develop` locale usa già `invoice`; il `main`
+locale usa ancora `invoice_draft`: l'indice `00-DECISIONI.md` distingue ora i fatti
+attuali dalla fotografia del 26/08. **`develop → main` richiede il preflight
+dell'intero rilascio**, inclusi i problemi di produzione riportati sotto.
 
 ## 🔴 PRODUZIONE — tre cose da controllare (03/09/2026, sera)
 
