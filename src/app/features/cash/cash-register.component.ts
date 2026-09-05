@@ -139,8 +139,15 @@ export class CashRegisterComponent {
   );
   protected readonly ivaNonSupportata = computed(() =>
     this.righe().some((row) => {
+      const vat = row.item.vatSnapshot
+        ? vatInputFromSnapshot(row.item.vatSnapshot)
+        : vatInputFromLegacyRate(row.item.vatRatePercent);
       const amounts = this.importiRiga(row.item, row.quantity);
-      return amounts.lineNetMinor + amounts.lineVatMinor !== amounts.lineGrossMinor;
+      return (
+        (vat.calculationMode !== 'standard' &&
+          !(vat.calculationMode === 'zero_rate' && vat.ratePercent === 0)) ||
+        amounts.lineNetMinor + amounts.lineVatMinor !== amounts.lineGrossMinor
+      );
     }),
   );
 

@@ -118,6 +118,27 @@ export class CashCheckoutService {
             );
           }
           const vat = resolveRetailLineVatCode(line.vatCodeId, variant, vatContext);
+          // Perimetro temporaneo Cassa approvato: modalità, non Natura o IVA
+          // arrotondata. Solo per nuovi intenti: il claim sopra devia i replay
+          // sul documento già concluso, prima di consultare il catalogo corrente.
+          if (
+            vat.vat.calculationMode !== 'standard' &&
+            !(vat.vat.calculationMode === 'zero_rate' && vat.vat.ratePercent === 0)
+          ) {
+            throw new UnprocessableEntityException(
+              'Questa modalità IVA non è ancora supportata dalla Cassa.',
+            );
+          }
+          // Stesso ambito sales/both dei selettori documentali e del reverse
+          // match condiviso. Non si sostituisce il codice con un altro al 0/22%.
+          if (
+            vat.vatCodeId &&
+            vatContext.vatCodesById.get(vat.vatCodeId)?.usageScope === 'purchase'
+          ) {
+            throw new UnprocessableEntityException(
+              'Il Codice IVA è destinato solo agli acquisti e non è utilizzabile per nuovi checkout Cassa.',
+            );
+          }
           // ⚠️ Il calcolo vuole un numero; la COLONNA vuole un Decimal. Due
           //    confini diversi dello stesso valore, e vanno tenuti distinti.
           const discountPercent = line.discountPercent ?? 0;

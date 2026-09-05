@@ -243,14 +243,16 @@ describe('CashRegisterComponent', () => {
   });
 
   it.each([
-    ['split_payment', 22, 1000.1234, 1220],
-    ['margin_scheme', 0, 1000.1234, 1000],
-    ['informational', 0, 1000.1234, 1000],
-    ['reverse_charge', 0, 1000.1234, 1000],
-    ['reverse_charge', 22, 1, 1],
+    ['split_payment', 22, 1000.1234],
+    ['split_payment', 22, 1],
+    ['margin_scheme', 0, 1000.1234],
+    ['informational', 0, 1000.1234],
+    ['reverse_charge', 0, 1000.1234],
+    ['reverse_charge', 22, 1],
+    ['zero_rate', 22, 1],
   ] as const)(
-    'caratterizzazione IVA %s al %s: anteprima e invio accettati, senza attestare supporto fiscale',
-    async (mode, rate, price, gross) => {
+    'perimetro temporaneo IVA %s al %s: nessun nuovo invio, anche con imposta arrotondata a zero',
+    async (mode, rate, price) => {
       const snapshot: VatSnapshot = {
         code: 'TEST',
         natureKey: 'TEST',
@@ -267,14 +269,11 @@ describe('CashRegisterComponent', () => {
       });
       const user = userEvent.setup();
       await preparaVendita(user);
-      expect(screen.getByRole('button', { name: 'Concludi vendita' })).toBeEnabled();
-      await user.click(screen.getByRole('button', { name: 'Concludi vendita' }));
-      expect(api.checkout).toHaveBeenCalledWith(
-        expect.objectContaining({
-          lines: [expect.objectContaining({ quantity: 1, unitPriceMinor: price })],
-          payments: [expect.objectContaining({ amountMinor: gross })],
-        }),
-      );
+      expect(screen.getByRole('button', { name: 'Concludi vendita' })).toBeDisabled();
+      expect(
+        screen.getByText('Questa modalità IVA non è ancora supportata dalla Cassa.'),
+      ).toBeVisible();
+      expect(api.checkout).not.toHaveBeenCalled();
     },
   );
   it('senza sessione aperta dice cosa manca e offre il gesto', async () => {
