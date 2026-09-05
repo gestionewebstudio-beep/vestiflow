@@ -130,6 +130,8 @@ export interface ReturnLookupPayment {
   readonly optionName: string | null;
   readonly tenderKind: PaymentTenderKind | null;
   readonly amountMinor: number;
+  readonly refundedMinor: number;
+  readonly remainingMinor: number;
 }
 
 export interface ReturnLookup {
@@ -160,6 +162,28 @@ export interface CashReturnResult {
   readonly documentId: EntityId;
   readonly reference: string;
   readonly totaleMinor: number;
+}
+
+export type CashReturnPreviewPayload = Pick<
+  CashReturnPayload,
+  'locationId' | 'originalDocumentId' | 'lines'
+>;
+
+export interface CashReturnPreview {
+  readonly totalMinor: number;
+  readonly netMinor: number;
+  readonly vatMinor: number;
+  readonly lines: readonly {
+    readonly originalLineId: EntityId;
+    readonly quantity: number;
+    readonly netMinor: number;
+    readonly vatMinor: number;
+    readonly grossMinor: number;
+  }[];
+  readonly payments: readonly {
+    readonly originalPaymentId: EntityId;
+    readonly remainingMinor: number;
+  }[];
 }
 
 // ── Chiusura ───────────────────────────────────────────────────────────────

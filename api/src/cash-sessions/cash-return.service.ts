@@ -6,7 +6,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { DocumentType, MovementOrigin, Prisma, StockMovementType } from '@prisma/client';
-import type { PaymentTenderKind } from '@prisma/client';
+import type { DocumentLine, PaymentTenderKind } from '@prisma/client';
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
@@ -16,6 +16,11 @@ import { lockDocumentCounter, resolveDocumentNumber } from '../documents/documen
 import { DocumentSettingsService } from '../documents/document-settings.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { resolveRetailVariants } from '../retail/retail-line.util';
+import {
+  allocateRetailReturn,
+  NO_RETURNED_AMOUNTS,
+  type ReturnedLineAmounts,
+} from '../retail/retail-return-allocation.util';
 
 import {
   assertCashContext,
@@ -78,9 +83,15 @@ export class CashReturnService {
         );
       }
 
-      const gia = await this.quantitaGiaRese(
+      const gia = await this.importiGiaResi(
         tx,
+        tenantId,
         originale.lines.map((l) => l.id),
+      );
+      const rimborsi = await this.rimborsiGiaEseguiti(
+        tx,
+        tenantId,
+        originale.storeSalePayments.map((p) => p.id),
       );
 
       return {
@@ -96,8 +107,8 @@ export class CashReturnService {
           variantId: l.variantId,
           description: l.description,
           quantitySold: l.quantity,
-          quantityReturned: gia.get(l.id) ?? 0,
-          quantityReturnable: Math.max(0, l.quantity - (gia.get(l.id) ?? 0)),
+          quantityReturned: gia.get(l.id)?.quantity ?? 0,
+          quantityReturnable: Math.max(0, l.quantity - (gia.get(l.id)?.quantity ?? 0)),
           unitPriceMinor: Number(l.unitPriceMinor),
           lineTotalMinor: l.lineTotalMinor,
           lineGrossTotalMinor: l.lineGrossTotalMinor,
@@ -109,6 +120,49 @@ export class CashReturnService {
           optionName: p.optionNameSnapshot,
           tenderKind: p.tenderKindSnapshot,
           amountMinor: p.amountMinor,
+          refundedMinor: rimborsi.get(p.id) ?? 0,
+          remainingMinor: p.amountMinor - (rimborsi.get(p.id) ?? 0),
+        })),
+      };
+    });
+  }
+
+  /** Anteprima sullo storico: riusa la stessa ripartizione del salvataggio. Nessun intento o effetto. */
+  async preview(
+    tenantId: string,
+    user: UserProfileDto,
+    input: ReturnPreviewInput,
+  ): Promise<ReturnPreviewResult> {
+    return this.prisma.$transaction(async (tx) => {
+      await assertCashContext(tx, tenantId, user, { locationId: input.locationId });
+      await this.lockOriginalLines(tx, tenantId, input.lines);
+      const original = await tx.document.findFirst({
+        where: { id: input.originalDocumentId, tenantId, type: DocumentType.store_sale },
+        include: { lines: true, storeSalePayments: { orderBy: { position: 'asc' } } },
+      });
+      if (!original) throw new NotFoundException('Vendita non trovata.');
+      if (original.status === 'cancelled')
+        throw new UnprocessableEntityException('La vendita è stata annullata.');
+      const lines = await this.prepareReturnLines(tx, tenantId, original.lines, input.lines);
+      const refunded = await this.rimborsiGiaEseguiti(
+        tx,
+        tenantId,
+        original.storeSalePayments.map((p) => p.id),
+      );
+      return {
+        totalMinor: lines.reduce((total, line) => total + line.lineGrossTotalMinor, 0),
+        netMinor: lines.reduce((total, line) => total + line.lineTotalMinor, 0),
+        vatMinor: lines.reduce((total, line) => total + line.lineVatTotalMinor, 0),
+        lines: lines.map((line) => ({
+          originalLineId: line.originale.id,
+          quantity: line.quantity,
+          netMinor: line.lineTotalMinor,
+          vatMinor: line.lineVatTotalMinor,
+          grossMinor: line.lineGrossTotalMinor,
+        })),
+        payments: original.storeSalePayments.map((payment) => ({
+          originalPaymentId: payment.id,
+          remainingMinor: payment.amountMinor - (refunded.get(payment.id) ?? 0),
         })),
       };
     });
@@ -161,15 +215,7 @@ export class CashReturnService {
         // ⚠️ `FOR UPDATE` sulle righe ORIGINALI, non su quelle di reso: è la
         //    quantità venduta che si sta impegnando, e va tenuta ferma finché
         //    questa transazione non ha finito di contare.
-        const idOriginali = [...new Set(input.lines.map((l) => l.originalLineId))].sort();
-        await tx.$queryRawUnsafe(
-          `SELECT "id" FROM "document_lines"
-            WHERE "id" = ANY($1::uuid[]) AND "tenant_id" = $2::uuid
-            ORDER BY "id"
-            FOR UPDATE`,
-          idOriginali,
-          tenantId,
-        );
+        await this.lockOriginalLines(tx, tenantId, input.lines);
 
         // ── 3-bis. E le QUOTE originali, sempre in ordine ────────────────
         //
@@ -206,53 +252,7 @@ export class CashReturnService {
           throw new UnprocessableEntityException('La vendita è stata annullata.');
         }
 
-        const righeOriginali = new Map(originale.lines.map((l) => [l.id, l]));
-        for (const id of idOriginali) {
-          if (!righeOriginali.has(id)) {
-            // ⛔ Una riga che non appartiene al documento indicato: il legame
-            //    dev'essere coerente, o il cumulativo conterebbe su un altro
-            //    scontrino.
-            throw new UnprocessableEntityException(
-              'Una delle righe da rendere non appartiene alla vendita indicata.',
-            );
-          }
-        }
-
-        // ── 5. IL CUMULATIVO, ricostruito dalle righe ────────────────────
-        const gia = await this.quantitaGiaRese(tx, idOriginali);
-        for (const l of input.lines) {
-          if (!Number.isInteger(l.quantity) || l.quantity <= 0) {
-            throw new UnprocessableEntityException('La quantità da rendere deve essere positiva.');
-          }
-          const originaleRiga = righeOriginali.get(l.originalLineId)!;
-          const resa = gia.get(l.originalLineId) ?? 0;
-          if (resa + l.quantity > originaleRiga.quantity) {
-            const residuo = originaleRiga.quantity - resa;
-            throw new UnprocessableEntityException(
-              residuo <= 0
-                ? `«${originaleRiga.description}» è già stato reso per intero.`
-                : `Di «${originaleRiga.description}» si possono rendere ancora ${residuo} pezzi.`,
-            );
-          }
-        }
-
-        // ── 6. Gli importi, DALLA RIGA ORIGINALE ─────────────────────────
-        //
-        // ⛔ Mai dal prezzo corrente dell'articolo: si restituisce quello che
-        //    il cliente ha pagato, non quello che pagherebbe oggi.
-        const righeReso = input.lines.map((l, index) => {
-          const o = righeOriginali.get(l.originalLineId)!;
-          // Proporzione esatta sulla quantità resa, arrotondata una volta sola.
-          const quota = l.quantity / o.quantity;
-          return {
-            index,
-            originale: o,
-            quantity: l.quantity,
-            lineTotalMinor: Math.round(o.lineTotalMinor * quota),
-            lineVatTotalMinor: Math.round(o.lineVatTotalMinor * quota),
-            lineGrossTotalMinor: Math.round(o.lineGrossTotalMinor * quota),
-          };
-        });
+        const righeReso = await this.prepareReturnLines(tx, tenantId, originale.lines, input.lines);
 
         const totaleMinor = righeReso.reduce((s, r) => s + r.lineGrossTotalMinor, 0);
         const imponibileMinor = righeReso.reduce((s, r) => s + r.lineTotalMinor, 0);
@@ -332,6 +332,9 @@ export class CashReturnService {
             lineTotalMinor: r.lineTotalMinor,
             lineVatTotalMinor: r.lineVatTotalMinor,
             lineGrossTotalMinor: r.lineGrossTotalMinor,
+            unitCostNet: r.originale.unitCostNet,
+            unitCostGross: r.originale.unitCostGross,
+            unitVatAmount: r.originale.unitVatAmount,
             unitOfMeasure: r.originale.unitOfMeasure,
             loadsStock: true,
           })),
@@ -409,31 +412,123 @@ export class CashReturnService {
     };
   }
 
+  private async lockOriginalLines(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    lines: readonly ReturnLineInput[],
+  ): Promise<void> {
+    const ids = [...new Set(lines.map((line) => line.originalLineId))].sort();
+    if (ids.length !== lines.length)
+      throw new UnprocessableEntityException(
+        'La stessa riga compare due volte nel reso: unisci le quantità.',
+      );
+    if (ids.length === 0) throw new UnprocessableEntityException('Nessuna riga da rendere.');
+    await tx.$queryRawUnsafe(
+      `SELECT "id" FROM "document_lines" WHERE "id" = ANY($1::uuid[]) AND "tenant_id" = $2::uuid ORDER BY "id" FOR UPDATE`,
+      ids,
+      tenantId,
+    );
+  }
+
+  private async prepareReturnLines(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    originals: readonly DocumentLine[],
+    lines: readonly ReturnLineInput[],
+  ) {
+    const originalById = new Map(originals.map((line) => [line.id, line]));
+    const previous = await this.importiGiaResi(
+      tx,
+      tenantId,
+      lines.map((line) => line.originalLineId),
+    );
+    return lines.map((line, index) => {
+      const original = originalById.get(line.originalLineId);
+      if (!original)
+        throw new UnprocessableEntityException(
+          'Una delle righe da rendere non appartiene alla vendita indicata.',
+        );
+      const returned = previous.get(original.id) ?? NO_RETURNED_AMOUNTS;
+      if (returned.quantity + line.quantity > original.quantity) {
+        const remaining = original.quantity - returned.quantity;
+        throw new UnprocessableEntityException(
+          remaining <= 0
+            ? `«${original.description}» è già stato reso per intero.`
+            : `Di «${original.description}» si possono rendere ancora ${remaining} pezzi.`,
+        );
+      }
+      return {
+        index,
+        originale: original,
+        quantity: line.quantity,
+        ...allocateRetailReturn(original, returned, line.quantity),
+      };
+    });
+  }
+
+  private async rimborsiGiaEseguiti(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    paymentIds: readonly string[],
+  ): Promise<Map<string, number>> {
+    const rows = await tx.storeSalePayment.findMany({
+      where: {
+        tenantId,
+        refundedFromPaymentId: { in: [...paymentIds] },
+        document: { tenantId, status: { not: 'cancelled' } },
+      },
+      select: { refundedFromPaymentId: true, amountMinor: true },
+    });
+    const result = new Map<string, number>();
+    for (const row of rows) {
+      if (row.refundedFromPaymentId)
+        result.set(
+          row.refundedFromPaymentId,
+          (result.get(row.refundedFromPaymentId) ?? 0) + row.amountMinor,
+        );
+    }
+    return result;
+  }
+
   /**
-   * Quanto è già stato reso, per ogni riga originale.
+   * Quantità e importi già resi, per ogni riga originale.
    *
    * ⛔ **Ricostruito dalle righe di reso**, non da un contatore: un contatore
    * modificabile sarebbe un terzo valore capace di contraddire le righe da cui
    * deriva. E i documenti **annullati** non contano.
    */
-  private async quantitaGiaRese(
+  private async importiGiaResi(
     tx: Prisma.TransactionClient,
+    tenantId: string,
     lineIds: readonly string[],
-  ): Promise<Map<string, number>> {
+  ): Promise<Map<string, ReturnedLineAmounts>> {
     if (lineIds.length === 0) {
       return new Map();
     }
     const righe = await tx.documentLine.findMany({
       where: {
+        tenantId,
         returnedFromLineId: { in: [...lineIds] },
-        document: { status: { not: 'cancelled' } },
+        document: { tenantId, status: { not: 'cancelled' } },
       },
-      select: { returnedFromLineId: true, quantity: true },
+      select: {
+        returnedFromLineId: true,
+        quantity: true,
+        lineTotalMinor: true,
+        lineVatTotalMinor: true,
+        lineGrossTotalMinor: true,
+      },
     });
-    const mappa = new Map<string, number>();
+    const mappa = new Map<string, ReturnedLineAmounts>();
     for (const r of righe) {
       if (!r.returnedFromLineId) continue;
-      mappa.set(r.returnedFromLineId, (mappa.get(r.returnedFromLineId) ?? 0) + r.quantity);
+      const previous = mappa.get(r.returnedFromLineId) ?? NO_RETURNED_AMOUNTS;
+      mappa.set(r.returnedFromLineId, {
+        quantity: previous.quantity + r.quantity,
+        lineTotalMinor: previous.lineTotalMinor + r.lineTotalMinor,
+        lineVatTotalMinor: previous.lineVatTotalMinor + r.lineVatTotalMinor,
+        lineGrossTotalMinor: previous.lineGrossTotalMinor + r.lineGrossTotalMinor,
+      });
     }
     return mappa;
   }
@@ -481,22 +576,7 @@ export class CashReturnService {
     // ⛔ Il legame è `refundedFromPaymentId`, non il documento di origine:
     //    è quello che rende il conto esatto anche quando due quote hanno lo
     //    stesso Tipo, o non ne hanno più nessuno.
-    const resiPrecedenti = await tx.storeSalePayment.findMany({
-      where: {
-        tenantId,
-        refundedFromPaymentId: { in: [...perQuota.keys()] },
-        document: { status: { not: 'cancelled' } },
-      },
-      select: { refundedFromPaymentId: true, amountMinor: true },
-    });
-    const giaReso = new Map<string, number>();
-    for (const q of resiPrecedenti) {
-      if (!q.refundedFromPaymentId) continue;
-      giaReso.set(
-        q.refundedFromPaymentId,
-        (giaReso.get(q.refundedFromPaymentId) ?? 0) + q.amountMinor,
-      );
-    }
+    const giaReso = await this.rimborsiGiaEseguiti(tx, tenantId, [...perQuota.keys()]);
 
     const visti = new Set<string>();
     const risolti: RimborsoRisolto[] = [];
@@ -680,6 +760,31 @@ export interface ReturnLookupResult {
     readonly optionName: string | null;
     readonly tenderKind: PaymentTenderKind | null;
     readonly amountMinor: number;
+    readonly refundedMinor: number;
+    readonly remainingMinor: number;
+  }[];
+}
+
+export interface ReturnPreviewInput {
+  readonly locationId: string;
+  readonly originalDocumentId: string;
+  readonly lines: readonly ReturnLineInput[];
+}
+
+export interface ReturnPreviewResult {
+  readonly totalMinor: number;
+  readonly netMinor: number;
+  readonly vatMinor: number;
+  readonly lines: readonly {
+    readonly originalLineId: string;
+    readonly quantity: number;
+    readonly netMinor: number;
+    readonly vatMinor: number;
+    readonly grossMinor: number;
+  }[];
+  readonly payments: readonly {
+    readonly originalPaymentId: string;
+    readonly remainingMinor: number;
   }[];
 }
 

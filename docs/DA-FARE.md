@@ -9,9 +9,15 @@
   impronta completa e nuova verifica della sede sul replay, anche dopo revoca.
   Prove dedicate: 28 HTTP sul database isolato e 27 frontend; il collaudo finale
   browser/API/database resta distinto dai test delle schermate con API simulate.
-- Da completare: ripartizione dei resi successivi; migration correttiva RLS;
-  backup, ripristino e cancellazione
+- Corretta la ripartizione dei resi successivi sugli importi originali: 36,56 €
+  si esauriscono esattamente, conservando imponibile + IVA = lordo e i prezzi
+  unitari Decimal. L'anteprima usa lo stesso calcolo del salvataggio e le quote
+  ancora rimborsabili. Prove dedicate: 28 HTTP, incluse concorrenza e anomalie
+  storiche; 226 test di integrazione Cassa/collegamenti e 54 economici passati.
+- Da completare: migration correttiva RLS; backup, ripristino e cancellazione
   amministrativa; installazione/aggiornamento e collaudo browser con API reali.
+  Nel flusso vendita vanno inoltre verificati il totale IVA dell'anteprima e la
+  traduzione dei nomi di totale/resto nella risposta API.
 - Prestazioni mobile ferme alla tranche conclusa: il limite a grandi volumi resta.
   Nessun rilascio o intervento sul database condiviso è incluso in queste correzioni.
 

@@ -7,7 +7,22 @@ import {
   sameNullableAmountAtCent,
   sameUnitAmountAtContract,
   toStorableMinor,
+  proportionalMinor,
 } from './money.util';
+
+describe('proportionalMinor', () => {
+  it('ripartisce totali in centesimi con arrotondamento half-up', () => {
+    expect(proportionalMinor(3656, 1, 3)).toBe(1219);
+    expect(proportionalMinor(3656, 2, 3)).toBe(2437);
+    expect(proportionalMinor(1, 1, 2)).toBe(1);
+    expect(proportionalMinor(2147483647, 2147483646, 2147483647)).toBe(2147483646);
+  });
+  it('non usa prezzi unitari decimali come se fossero totali arrotondati', () => {
+    expect(() => proportionalMinor(12.3456, 1, 3)).toThrow(RangeError);
+    expect(() => proportionalMinor(10, 4, 3)).toThrow(RangeError);
+    expect(() => proportionalMinor(10, 1, 0)).toThrow(RangeError);
+  });
+});
 
 describe('roundToMinor', () => {
   it('arrotonda al centesimo: e il gesto dell uscita, non dei passaggi intermedi', () => {
@@ -97,8 +112,8 @@ describe('sameUnitAmountAtContract', () => {
     // Oltre le 4 cifre di centesimo non c'è precisione, c'è il rumore del
     // float: due valori che finiscono sulla stessa cifra memorizzabile SONO lo
     // stesso valore, e non devono far scattare una scrittura.
-    expect(sameUnitAmountAtContract(84.42622950, 84.42621111)).toBe(true);
-    expect(toStorableMinor(84.42622950)).toBe(toStorableMinor(84.42621111));
+    expect(sameUnitAmountAtContract(84.4262295, 84.42621111)).toBe(true);
+    expect(toStorableMinor(84.4262295)).toBe(toStorableMinor(84.42621111));
   });
 
   it('⛔ ma una differenza DENTRO il contratto si vede', () => {

@@ -30,6 +30,7 @@ import {
   CashReturnService,
   type ReturnLookupResult,
   type ReturnResult,
+  type ReturnPreviewResult,
 } from './cash-return.service';
 import {
   CashSessionsReportService,
@@ -41,6 +42,7 @@ import {
   CashCheckoutDto,
   CashOperationsQueryDto,
   CashReturnDto,
+  CashReturnPreviewDto,
   CashSessionsQueryDto,
   CashSessionLocationQueryDto,
   CashSessionMovementDto,
@@ -200,6 +202,16 @@ export class CashSessionsController {
     @Body() dto: CashReturnDto,
   ): Promise<ReturnResult> {
     return this.returnService.createReturn(tenantId, user, dto);
+  }
+
+  @Post('returns/preview')
+  @RequirePermissions(TenantPermission.RetailCashReturn)
+  previewReturn(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Body() dto: CashReturnPreviewDto,
+  ): Promise<ReturnPreviewResult> {
+    return this.returnService.preview(tenantId, user, dto);
   }
 
   /** La sessione aperta di una sede, con i totali del cassetto. */

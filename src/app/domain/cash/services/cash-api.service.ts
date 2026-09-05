@@ -21,6 +21,8 @@ import type {
   CashOperationsPage,
   CashReturnPayload,
   CashReturnResult,
+  CashReturnPreview,
+  CashReturnPreviewPayload,
   CashSession,
   CashSessionDetail,
   CashSessionMovement,
@@ -177,6 +179,12 @@ export class CashApiService {
   createReturn(payload: CashReturnPayload): Observable<CashReturnResult> {
     return this.http
       .post<CashReturnResult>(this.url('/cash-sessions/returns'), payload)
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
+  previewReturn(payload: CashReturnPreviewPayload): Observable<CashReturnPreview> {
+    return this.http
+      .post<CashReturnPreview>(this.url('/cash-sessions/returns/preview'), payload)
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 

@@ -1546,13 +1546,41 @@ il lock e la transazione, non un vincolo.
 3b lock QUOTE      lo stesso, sulle quote originali indicate dal rimborso
 4  la vendita      e la verifica che ogni riga le appartenga
 5  cumulativo QTA  ricostruito dalle righe di reso non annullate
-6  importi         proporzionali sulla RIGA ORIGINALE, mai dal listino di oggi
+6  importi         differenza cumulativa sulla RIGA ORIGINALE, mai dal listino di oggi
 7  cumulativo EUR  per QUOTA, dai rimborsi precedenti non annullati
 8  documento, righe, quote, movimenti di rientro
 ```
 
 ⭐ **L’ordine dei lock è deterministico** (`ORDER BY id`): due resi che bloccassero le stesse
 righe in ordine diverso si aspetterebbero a vicenda. Ordinati, il secondo aspetta e basta.
+
+### Ripartizione dei resi successivi (correzione preflight 05/09)
+
+`allocateRetailReturn` usa `proportionalMinor`, primitiva del denaro condivisa:
+rapporto esatto fra interi e arrotondamento half-up, senza prodotti floating point
+che superino la precisione degli interi. Per una quantità cumulativa resa `q` su
+`Q`, ripartisce il lordo originale `G` come `round(G × q / Q)`. Ripartisce poi
+l'imponibile originale sul lordo cumulativo ottenuto e ricava l'IVA per differenza.
+Ogni nuovo reso contiene la differenza rispetto agli importi **effettivamente già
+resi**. Questa sequenza mantiene IVA non negativa anche sulle quote molto piccole.
+
+Tre pezzi pagati complessivamente 36,56 € danno 12,19 €, 12,18 €, 12,19 €;
+due pezzi insieme danno 24,37 €. Restituire tutto esaurisce esattamente lordo,
+imponibile e IVA originali. I prezzi unitari Decimal, gli sconti e gli snapshot
+sono copiati: aliquote e listini correnti non ricalcolano il rimborso. Un passato
+già incoerente viene segnalato; non si riscrivono i documenti e non si tronca
+silenziosamente il rimborso al residuo.
+
+`POST /cash-sessions/returns/preview` applica gli stessi controlli di contesto e
+la stessa ripartizione del salvataggio, senza intento, numerazione o movimenti.
+La schermata mostra l'anteprima del server e i residui delle quote; una risposta
+relativa a quantità precedenti non abilita la registrazione. Il salvataggio
+ricontrolla tutto sotto i lock: un'anteprima divenuta obsoleta per un altro reso
+può essere rifiutata senza effetti, quindi va ricalcolata.
+
+`cassa-resi-parziali.integration-spec.ts` copre i quattro raggruppamenti dei tre
+pezzi, IVA 0/22%, sconti 0/10/33,33%, pagamenti misti, modifiche dei listini,
+retry, concorrenza fra sedi, righe duplicate e storico incoerente.
 
 ⛔ **Il lock sulle QUOTE non è ridondante rispetto a quello sulle righe.** Due resi che
 riguardano righe prodotto **diverse** non competono su nessuna riga — e passerebbero entrambi

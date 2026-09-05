@@ -426,16 +426,24 @@ export class ReturnRefundDto {
   confirmed?: boolean;
 }
 
-export class CashReturnDto {
+export class CashReturnPreviewDto {
   @IsUUID()
   locationId!: string;
-
-  @IsUUID()
-  sessionId!: string;
 
   /** La vendita richiamata. */
   @IsUUID()
   originalDocumentId!: string;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => ReturnLineDto)
+  lines!: ReturnLineDto[];
+}
+
+export class CashReturnDto extends CashReturnPreviewDto {
+  @IsUUID()
+  sessionId!: string;
 
   @IsString()
   @MinLength(1)
@@ -447,12 +455,6 @@ export class CashReturnDto {
   @MinLength(1)
   @MaxLength(300)
   reason!: string;
-
-  @IsArray()
-  @ArrayMinSize(1)
-  @ValidateNested({ each: true })
-  @Type(() => ReturnLineDto)
-  lines!: ReturnLineDto[];
 
   @IsArray()
   @ArrayMinSize(1)

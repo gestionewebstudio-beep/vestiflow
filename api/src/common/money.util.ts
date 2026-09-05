@@ -17,6 +17,22 @@ export function roundToMinor(amountMinor: number): number {
   return Math.round(amountMinor);
 }
 
+/** Ripartisce un totale già arrotondato: rapporto esatto fra interi, arrotondamento half-up. */
+export function proportionalMinor(amountMinor: number, part: number, whole: number): number {
+  if (
+    ![amountMinor, part, whole].every(Number.isSafeInteger) ||
+    amountMinor < 0 ||
+    part < 0 ||
+    whole <= 0 ||
+    part > whole
+  ) {
+    throw new RangeError('La ripartizione richiede un totale e una frazione interi non negativi.');
+  }
+  // I prodotti di due colonne Int possono superare la precisione degli interi Number.
+  const denominator = BigInt(whole);
+  return Number((2n * BigInt(amountMinor) * BigInt(part) + denominator) / (2n * denominator));
+}
+
 /**
  * Cifre di centesimo che il CONTRATTO conserva: quattro, cioè **6 decimali di
  * euro**.

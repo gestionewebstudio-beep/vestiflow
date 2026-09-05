@@ -8,9 +8,10 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
 import type { EntityId } from '@core/models/common.model';
 import { formatMoney } from '@core/utils/money.util';
@@ -18,6 +19,8 @@ import { isAppError } from '@core/models/app-error.model';
 import { nuovoId } from '@core/utils/uuid.util';
 import type {
   CashReturnPayload,
+  CashReturnPreview,
+  CashReturnPreviewPayload,
   CashSessionState,
   ReturnLookup,
 } from '@domain/cash/models/cash.model';
@@ -85,23 +88,69 @@ export class CashReturnComponent {
   protected readonly quantita = signal<Record<string, number>>({});
   protected readonly rimborsi = signal<Record<string, number>>({});
   protected readonly confermati = signal<Record<string, boolean>>({});
+  private readonly revisioneAnteprima = signal(0);
 
   protected readonly sessione = computed(() => this.stato()?.session ?? null);
 
-  /** Il totale del reso: proporzionale sulla riga originale. È un'anteprima. */
-  protected readonly totaleMinor = computed(() => {
-    const v = this.vendita();
-    if (!v) {
-      return 0;
-    }
-    return v.lines.reduce((tot, riga) => {
-      const resa = this.quantita()[riga.lineId] ?? 0;
-      if (resa <= 0 || riga.quantitySold === 0) {
-        return tot;
-      }
-      return tot + Math.round((riga.lineGrossTotalMinor * resa) / riga.quantitySold);
-    }, 0);
+  private readonly richiestaAnteprima = computed<CashReturnPreviewPayload | null>(() => {
+    this.revisioneAnteprima();
+    const locationId = this.sedeId();
+    const originalDocumentId = this.vendita()?.documentId;
+    const lines = Object.entries(this.quantita())
+      .filter(([, quantity]) => quantity > 0)
+      .map(([originalLineId, quantity]) => ({ originalLineId, quantity }));
+    return locationId && originalDocumentId && lines.length
+      ? { locationId, originalDocumentId, lines }
+      : null;
   });
+  private readonly statoAnteprima = toSignal(
+    toObservable(this.richiestaAnteprima).pipe(
+      switchMap((input) =>
+        input
+          ? this.api.previewReturn(input).pipe(
+              map((preview): ReturnPreviewState => ({
+                input,
+                preview,
+                loading: false,
+                error: null,
+              })),
+              startWith<ReturnPreviewState>({ input, preview: null, loading: true, error: null }),
+              catchError((error: unknown) =>
+                of<ReturnPreviewState>({
+                  input,
+                  preview: null,
+                  loading: false,
+                  error: messaggio(error, 'Non è stato possibile calcolare il rimborso.'),
+                }),
+              ),
+            )
+          : of<ReturnPreviewState>({ input: null, preview: null, loading: false, error: null }),
+      ),
+    ),
+    {
+      initialValue: {
+        input: null,
+        preview: null,
+        loading: false,
+        error: null,
+      },
+    },
+  );
+  // L'identità dell'input invalida subito una risposta vecchia, prima dell'effetto RxJS.
+  protected readonly anteprima = computed(() =>
+    this.statoAnteprima().input === this.richiestaAnteprima()
+      ? this.statoAnteprima().preview
+      : null,
+  );
+  protected readonly calcoloInCorso = computed(
+    () =>
+      !!this.richiestaAnteprima() &&
+      (this.statoAnteprima().input !== this.richiestaAnteprima() || this.statoAnteprima().loading),
+  );
+  protected readonly erroreAnteprima = computed(() =>
+    this.statoAnteprima().input === this.richiestaAnteprima() ? this.statoAnteprima().error : null,
+  );
+  protected readonly totaleMinor = computed(() => this.anteprima()?.totalMinor ?? 0);
 
   protected readonly rimborsatoMinor = computed(() =>
     Object.values(this.rimborsi()).reduce((tot, v) => tot + (v || 0), 0),
@@ -110,6 +159,7 @@ export class CashReturnComponent {
   protected readonly puoConfermare = computed(
     () =>
       !!this.sessione() &&
+      !!this.anteprima() &&
       this.totaleMinor() > 0 &&
       this.rimborsatoMinor() === this.totaleMinor() &&
       this.motivo().trim().length > 0 &&
@@ -192,18 +242,18 @@ export class CashReturnComponent {
 
   /** Propone il rimborso sulla prima quota capiente: quasi sempre è quello. */
   protected proponiRimborso(): void {
-    const v = this.vendita();
-    if (!v) {
+    const preview = this.anteprima();
+    if (!preview) {
       return;
     }
     let residuo = this.totaleMinor();
     const proposta: Record<string, number> = {};
-    for (const quota of v.payments) {
+    for (const quota of preview.payments) {
       if (residuo <= 0) {
         break;
       }
-      const quantita = Math.min(residuo, quota.amountMinor);
-      proposta[quota.paymentId] = quantita;
+      const quantita = Math.min(residuo, quota.remainingMinor);
+      proposta[quota.originalPaymentId] = quantita;
       residuo -= quantita;
     }
     this.rimborsi.set(proposta);
@@ -269,6 +319,7 @@ export class CashReturnComponent {
         },
         error: (e: unknown) => {
           this.pending.failed('returns', payload.creationIntentId, e, recovering);
+          if (!this.invioPrecedente().request) this.aggiornaAnteprima();
           this.errore.set(
             messaggio(
               e,
@@ -286,6 +337,10 @@ export class CashReturnComponent {
     void this.router.navigate(['/app/cassa/operazioni']);
   }
 
+  protected aggiornaAnteprima(): void {
+    this.revisioneAnteprima.update((value) => value + 1);
+  }
+
   protected soldi(minor: number): string {
     return formatMoney({ amountMinor: minor, currencyCode: 'EUR' });
   }
@@ -298,9 +353,23 @@ export class CashReturnComponent {
     return this.rimborsi()[paymentId] ?? 0;
   }
 
+  protected residuoQuota(paymentId: EntityId, storico: number): number {
+    return (
+      this.anteprima()?.payments.find((payment) => payment.originalPaymentId === paymentId)
+        ?.remainingMinor ?? storico
+    );
+  }
+
   protected confermaDi(paymentId: EntityId): boolean {
     return this.confermati()[paymentId] ?? false;
   }
+}
+
+interface ReturnPreviewState {
+  readonly input: CashReturnPreviewPayload | null;
+  readonly preview: CashReturnPreview | null;
+  readonly loading: boolean;
+  readonly error: string | null;
 }
 
 function messaggio(errore: unknown, riserva: string): string {

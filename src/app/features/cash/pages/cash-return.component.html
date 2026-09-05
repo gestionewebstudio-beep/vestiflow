@@ -37,6 +37,16 @@
     />
   }
 
+  @if (calcoloInCorso()) {
+    <p class="reso__loading" role="status">Calcolo del rimborso sugli importi originali…</p>
+  }
+  @if (erroreAnteprima(); as messaggio) {
+    <app-inline-banner tone="error">
+      <p>{{ messaggio }}</p>
+      <app-button variant="secondary" (click)="aggiornaAnteprima()">Ricalcola rimborso</app-button>
+    </app-inline-banner>
+  }
+
   @if (fatto(); as esito) {
     <section class="reso__done">
       <h2 class="reso__done-title">Reso registrato</h2>
@@ -114,7 +124,9 @@
     <section class="reso__block" aria-labelledby="rimborso-titolo">
       <div class="reso__block-head">
         <h2 id="rimborso-titolo" class="reso__block-title">Rimborso</h2>
-        <app-button variant="secondary" (click)="proponiRimborso()">Proponi</app-button>
+        <app-button variant="secondary" [disabled]="!anteprima()" (click)="proponiRimborso()"
+          >Proponi</app-button
+        >
       </div>
       <!-- ⭐ Si rimborsa sulle QUOTE dell'incasso, non sui Tipi pagamento. -->
       <ul class="reso__quotas">
@@ -122,7 +134,10 @@
           <li class="reso__quota">
             <span class="reso__quota-name">
               {{ quota.optionName ?? 'Tipo eliminato' }}
-              <span class="reso__quota-kind"> incassati {{ soldi(quota.amountMinor) }} </span>
+              <span class="reso__quota-kind">
+                incassati {{ soldi(quota.amountMinor) }} · ancora rimborsabili
+                {{ soldi(residuoQuota(quota.paymentId, quota.remainingMinor)) }}
+              </span>
             </span>
             <label class="reso__field" [for]="'rimb-' + quota.paymentId">
               <span class="sr-only">Rimborso su {{ quota.optionName ?? 'questa quota' }}</span>

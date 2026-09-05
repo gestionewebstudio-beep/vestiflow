@@ -2,13 +2,14 @@ import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/route
 import { HttpErrorResponse } from '@angular/common/http';
 import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthService } from '@core/auth';
 
 import type {
   CashOperationDetail,
+  CashReturnPreview,
   CashSessionState,
   ReturnLookup,
 } from '@domain/cash/models/cash.model';
@@ -60,18 +61,32 @@ const VENDITA: ReturnLookup = {
       optionName: 'Contanti',
       tenderKind: 'cash',
       amountMinor: 20_000,
+      refundedMinor: 10_000,
+      remainingMinor: 10_000,
     },
   ],
+};
+
+const PREVIEW: CashReturnPreview = {
+  totalMinor: 10_000,
+  netMinor: 8197,
+  vatMinor: 1803,
+  lines: [
+    { originalLineId: 'l1', quantity: 1, netMinor: 8197, vatMinor: 1803, grossMinor: 10_000 },
+  ],
+  payments: [{ originalPaymentId: 'q1', remainingMinor: 10_000 }],
 };
 
 async function montaReso(opzioni?: {
   stato?: CashSessionState;
   createReturn?: ReturnType<typeof vi.fn>;
+  previewReturn?: ReturnType<typeof vi.fn>;
 }) {
   const api = {
     operation: vi.fn(() => of(OPERAZIONE)),
     current: vi.fn(() => of(opzioni?.stato ?? APERTA)),
     lookupReturn: vi.fn(() => of(VENDITA)),
+    previewReturn: opzioni?.previewReturn ?? vi.fn(() => of(PREVIEW)),
     createReturn:
       opzioni?.createReturn ??
       vi.fn(() => of({ documentId: 'r1', reference: 'RS/2026/1', totaleMinor: 10_000 })),
@@ -167,5 +182,56 @@ describe('CashReturnComponent', () => {
     expect(createReturn.mock.calls[1]![0]).toEqual(originale);
     expect(screen.getByText('Reso registrato')).toBeVisible();
     expect(sessionStorage.length).toBe(0);
+  });
+
+  it('mostra e invia il rimborso autorevole, senza ricavarlo dalla proporzione locale', async () => {
+    const previewReturn = vi.fn<CashApiService['previewReturn']>().mockReturnValue(
+      of({
+        ...PREVIEW,
+        totalMinor: 1218,
+        netMinor: 999,
+        vatMinor: 219,
+        lines: [
+          { originalLineId: 'l1', quantity: 1, netMinor: 999, vatMinor: 219, grossMinor: 1218 },
+        ],
+        payments: [{ originalPaymentId: 'q1', remainingMinor: 2437 }],
+      }),
+    );
+    const { api } = await montaReso({ previewReturn });
+    const utente = userEvent.setup();
+    await utente.clear(screen.getByLabelText(/Quantità da rendere/));
+    await utente.type(screen.getByLabelText(/Quantità da rendere/), '1');
+    await utente.click(screen.getByRole('button', { name: 'Proponi' }));
+    expect(screen.getByText(/Rimborso composto: 12,18 € su 12,18 €/)).toBeVisible();
+    await utente.type(screen.getByLabelText(/Motivo/), 'Difetto');
+    await utente.click(screen.getByRole('button', { name: 'Concludi reso' }));
+    expect(api.createReturn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        refunds: [{ originalPaymentId: 'q1', amountMinor: 1218, confirmed: false }],
+      }),
+    );
+  });
+
+  it('una risposta di anteprima obsoleta non riabilita la registrazione', async () => {
+    const first = new Subject<CashReturnPreview>();
+    const second = new Subject<CashReturnPreview>();
+    const previewReturn = vi
+      .fn<CashApiService['previewReturn']>()
+      .mockReturnValueOnce(first)
+      .mockReturnValue(second);
+    const { fixture } = await montaReso({ previewReturn });
+    const utente = userEvent.setup();
+    const quantity = screen.getByLabelText(/Quantità da rendere/);
+    await utente.clear(quantity);
+    await utente.type(quantity, '1');
+    expect(screen.getByRole('button', { name: 'Proponi' })).toBeDisabled();
+    await utente.clear(quantity);
+    await utente.type(quantity, '1');
+    first.next(PREVIEW);
+    fixture.detectChanges();
+    expect(screen.getByRole('button', { name: 'Proponi' })).toBeDisabled();
+    second.next(PREVIEW);
+    fixture.detectChanges();
+    expect(screen.getByRole('button', { name: 'Proponi' })).toBeEnabled();
   });
 });
